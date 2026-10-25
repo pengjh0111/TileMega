@@ -3,6 +3,7 @@
 
 #include <tilemega/Codegen/tasks/ServingAbi.h>
 #include <tilemega/Codegen/tasks/Sm90DenseProgram.cuh>
+#include <tilemega/Codegen/executor/TensorMapTiled.h>
 #include <cstdio>
 #include <cstdlib>
 #include <limits>
@@ -17,6 +18,7 @@
 namespace tilemega::codegen::native_dense {
 
 static_assert(kNativeBuffers.size()==NativeProgram::kBuffers);
+static_assert(kNativeTensorMaps.size()==NativeProgram::kMaps);
 static_assert(kNativeStages.size()==NativeProgram::kStages);
 static_assert(kNativeEpsilon>0);
 static_assert(epilogue_contract::kInternal==TM_BUFFER_INTERNAL &&
@@ -155,8 +157,9 @@ extern "C" void* tm_plan_create(int batch,void* const* external,int device) {
     for(auto const& desc:kNativeBuffers)
       metadata.push_back({desc.role,desc.dtype,desc.elements_constant,
           desc.elements_per_batch,0,0,true});
-    auto required=epilogue_contract::ValidateMetadata(metadata.data(),metadata.size(),
-        NativeProgram::kEpilogueBindings.data(),NativeProgram::kEpilogueBindings.size(),batch);
+    // InputNorm statistics live in registers (prompt §5 D4): no buffer has an
+    // epilogue-imposed minimum beyond its own extent.
+    std::vector<std::uint64_t> required(metadata.size(),0);
     Check(cudaSetDevice(device));auto plan=std::make_unique<Plan>();plan->grid=Grid();
 #if TILEMEGA_NATIVE_RELEASE_ENABLED
     cudaDeviceProp properties{};Check(cudaGetDeviceProperties(&properties,device));
@@ -185,6 +188,17 @@ extern "C" void* tm_plan_create(int batch,void* const* external,int device) {
       if(pointer && reinterpret_cast<std::uintptr_t>(pointer)%16)
         throw std::invalid_argument("native dense buffers require 16-byte alignment");
       plan->bindings.buffers[i]=static_cast<Element*>(pointer);
+    }
+    for(unsigned i=0;i<kNativeTensorMaps.size();++i) {
+      auto const& m=kNativeTensorMaps[i];
+      namespace ex=tilemega::codegen::executor;
+      auto* address=plan->bindings.buffers[m.buffer];
+      if(m.rank==3)ex::EncodeTiledMap<3>(plan->bindings.maps[i],address,
+          {{m.dims[0],m.dims[1],m.dims[2]},{m.strides[0],m.strides[1]},{m.box[0],m.box[1],m.box[2]}});
+      else if(m.rank==4)ex::EncodeTiledMap<4>(plan->bindings.maps[i],address,
+          {{m.dims[0],m.dims[1],m.dims[2],m.dims[3]},{m.strides[0],m.strides[1],m.strides[2]},
+           {m.box[0],m.box[1],m.box[2],m.box[3]}});
+      else throw std::invalid_argument("native tensor map rank must be 3 or 4");
     }
     plan->events=Allocate<GridCounter>(NativeProgram::kStages);
 #if TILEMEGA_NATIVE_RELEASE_ENABLED

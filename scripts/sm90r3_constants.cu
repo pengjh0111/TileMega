@@ -2,7 +2,8 @@
 // SM90R3 native cost-model constants (prompt §4 L0-1). One process prints one
 // CSV row per metric; scripts/collect_sm90r3_constants.py takes the median of
 // five fresh processes. Diagnostic only: no serving default depends on a run.
-#include <tilemega/Backend/Sm90DenseEpilogue.h>
+#include <tilemega/Backend/Sm90DenseGemm.h>
+#include <tilemega/Backend/Sm90DenseAttentionBody.cuh>
 #include <tilemega/Backend/Sm90DenseToken.cuh>
 #include <tilemega/Codegen/executor/Async.cuh>
 #include <tilemega/Codegen/executor/TensorMap.h>
@@ -15,13 +16,6 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
-
-#ifndef TILEMEGA_EP_PARALLEL_ARGMAX
-#error "compile with an explicit -DTILEMEGA_EP_PARALLEL_ARGMAX"
-#endif
-#ifndef TILEMEGA_DN_VECTOR_SUMS
-#error "compile once with -DTILEMEGA_DN_VECTOR_SUMS=0 and once with =1"
-#endif
 
 using namespace tilemega;
 using BF=cutlass::bfloat16_t;
@@ -43,7 +37,6 @@ __device__ void GridBarrier(U64* counter,U64 round) {
 }
 
 double cycles_per_ns=0;
-std::string build_vs=std::to_string(TILEMEGA_DN_VECTOR_SUMS);
 void Print(std::string const& name,std::string const& key,std::vector<double> x,char const* unit) {
   std::sort(x.begin(),x.end());
   std::printf("%s,%s,%zu,%.6g,%.6g,%s\n",name.c_str(),key.c_str(),x.size(),x[x.size()/2],
@@ -143,78 +136,122 @@ double StreamRun(CUtensorMap const& map,char const* base,std::size_t per_cta,int
   return rates[rates.size()/2];
 }
 
-// Epilogue cost of the current native implementation, one task per sample.
-template<ServingEpilogueOp Op,int TN,int U,bool Norm,bool Sums>
-__global__ void Epilogue(float* scratch_unused,BF* output,BF const* residual,int* index,float const* norm,
-    float* sums,int batch,int n,int k,int copies,std::size_t out_copy,std::size_t res_copy,
-    std::size_t norm_copy,std::size_t sums_copy,int samples,U64* out) {
+// Epilogue of the native GEMM body (prompt §5 D4): the register path (WK 1,
+// store/residual) or the shared single pass, one task per sample.
+template<ServingEpilogueOp Op,int TN,int WN,int Batch>
+__global__ void EpilogueKernel(BF* output,int* index,int copies,std::size_t out_copy,int samples,U64* out) {
+  using namespace cute;
+  constexpr int WK=4/WN,N=TN*8,K=2048,U=TN%32==0?16:TN%16==0?8:4;
+  constexpr bool norm=Op!=ServingEpilogueOp::kResidual;
+  using G=backend::Sm90DenseGemm<Batch,N,K,TN,64,2,WN,WK,Op,U,norm>;
   extern __shared__ __align__(16) float tile[];
-  using E=backend::Sm90DenseEpilogue<Op,TN,U,Norm,Sums>;
-  constexpr int stride_kind=Op==ServingEpilogueOp::kSwiGLU?1:Op==ServingEpilogueOp::kArgmaxPartial?2:0;
-  int stride=stride_kind==1?n/2:stride_kind==2?n/TN:n;
+  float* norms=tile+WK*16*TN;
+  auto* residual=reinterpret_cast<BF*>(norms+128);
+  int tid=threadIdx.x,lane=tid%(32*WN);
+  typename G::Mma mma;auto thread=mma.get_slice(lane);
+  auto owned=thread.partition_C(make_identity_tensor(Shape<_16,Int<TN>>{}));
+  auto accum=partition_fragment_C(mma,Shape<_16,Int<TN>>{});
+  for(int i=0;i<size(accum);++i)accum(i)=0.25f*float((i*7+tid)%13)-1.5f;
+  for(int i=tid;i<WK*16*TN;i+=128)tile[i]=0.125f*float(i%11);
+  for(int i=tid;i<4*16;i+=128)norms[i]=float(K);
+  for(int i=tid;i<2*Batch*TN;i+=128)residual[i]=BF(0.5f);
+  float inv[2]={0.5f,0.5f};
   for(int s=0;s<samples;++s) {
-    for(int i=threadIdx.x;i<16*TN;i+=128)tile[i]=0.25f*float((i*7+s)%13)-1.5f;
     codegen::executor::ComputeSync();
     U64 begin=clock64();
-    int c=s%copies;
-    E::Run(tile,s%(n/TN),batch,n,stride,output+c*out_copy,residual+c*res_copy,index+c*out_copy,
-        norm+c*norm_copy,sums+c*sums_copy,k,1e-6f);
+    int c=s%copies,task=s%8;
+    if constexpr(G::kRegisterEpilogue)G::Epilogue::Registers(accum,owned,inv,residual,output+c*out_copy,task);
+    else G::Epilogue::template Shared<WK>(tile,norms,residual,output+c*out_copy,index+c*out_copy,task,1e-6f);
     codegen::executor::ComputeSync();
-    if(threadIdx.x==0)out[s]=clock64()-begin;
+    if(tid==0)out[s]=clock64()-begin;
   }
 }
-
-struct EpilogueBuffers {
-  BF *output,*residual;int* index;float *norm,*sums;
-  std::size_t out_copy,res_copy,norm_copy,sums_copy;int copies=16;
-};
+struct EpilogueBuffers {BF* output;int* index;std::size_t out_copy;int copies=16;};
 EpilogueBuffers epilogue;
 
-void FillNorm(int copies) {
-  // Each 32-column block holds 32 (or four vector sums of 8): inv_rms stays 1.
-  std::size_t count=std::size_t(copies)*epilogue.norm_copy;
-  std::vector<float> host(count,TILEMEGA_DN_VECTOR_SUMS?8.f:32.f);
-  Check(cudaMemcpy(epilogue.norm,host.data(),count*4,cudaMemcpyHostToDevice));
-}
-
-template<ServingEpilogueOp Op,int TN,int U,bool Norm,bool Sums>
-void EpilogueCase(char const* family,int n,std::initializer_list<int> ks) {
-  constexpr int samples=256;
-  auto kernel=Epilogue<Op,TN,U,Norm,Sums>;
-  int shared=4*16*TN+1024;
+template<ServingEpilogueOp Op,int TN,int WN,int Batch>
+void EpilogueCase(char const* family) {
+  constexpr int samples=256,WK=4/WN;
+  auto kernel=EpilogueKernel<Op,TN,WN,Batch>;
+  int shared=4*WK*16*TN+512+4*Batch*TN;
   Check(cudaFuncSetAttribute(kernel,cudaFuncAttributeMaxDynamicSharedMemorySize,shared));
   auto* out=Device<U64>(samples);std::vector<U64> host(samples);
-  for(int k:ks)for(int batch:{1,2,4,8,16}) {
-    kernel<<<1,128,shared>>>(nullptr,epilogue.output,epilogue.residual,epilogue.index,epilogue.norm,
-        epilogue.sums,batch,n,k,epilogue.copies,epilogue.out_copy,epilogue.res_copy,epilogue.norm_copy,
-        epilogue.sums_copy,samples,out);
-    Check(cudaDeviceSynchronize());
-    Check(cudaMemcpy(host.data(),out,samples*8,cudaMemcpyDeviceToHost));
-    std::vector<double> x;for(int i=8;i<samples;++i)x.push_back(host[i]/cycles_per_ns);
-    Print("t_ep",std::string(family)+":tn="+std::to_string(TN)+":b="+std::to_string(batch)+
-        ":k="+std::to_string(Norm?k:0)+":vs="+build_vs,x,"ns");
-  }
+  kernel<<<1,128,shared>>>(epilogue.output,epilogue.index,epilogue.copies,epilogue.out_copy,samples,out);
+  Check(cudaDeviceSynchronize());
+  Check(cudaMemcpy(host.data(),out,samples*8,cudaMemcpyDeviceToHost));
+  std::vector<double> x;for(int i=8;i<samples;++i)x.push_back(host[i]/cycles_per_ns);
+  Print("t_ep",std::string(family)+":tn="+std::to_string(TN)+":b="+std::to_string(Batch)+
+      ":wk="+std::to_string(WK),x,"ns");
   Check(cudaFree(out));
 }
+template<ServingEpilogueOp Op,int TN>
+void EpilogueTile(char const* family) {
+  [&]<int... B>(std::integer_sequence<int,B...>) {
+    if constexpr(TN%8==0)(EpilogueCase<Op,TN,1,B>(family),...);
+    if constexpr(TN%16==0)(EpilogueCase<Op,TN,2,B>(family),...);
+    if constexpr(TN%32==0 && TN/4<=256)(EpilogueCase<Op,TN,4,B>(family),...);
+  }(std::integer_sequence<int,1,2,4,8,16>{});
+}
+template<ServingEpilogueOp Op,int... TN>
+void EpilogueTiles(char const* family,std::integer_sequence<int,TN...>) {(EpilogueTile<Op,TN>(family),...);}
 
-template<int TN>
-constexpr int GateU() {return TN%32==0?16:TN%16==0?8:4;}
-template<int... TN>
-void StoreCases(std::integer_sequence<int,TN...>) {
-  (EpilogueCase<ServingEpilogueOp::kStore,TN,16,true,false>("qkv",3840,{1024,2048,3072,4096}),...);
+// Attention pieces of the D2 body (prompt §4 L0-1): one 64-key block with data
+// resident, the q preparation, and the S-chunk merge with this CTA last.
+template<int D,int Q,bool Norm,int S>
+__global__ void AttentionKernel(backend::Sm90DenseAttentionOperands p,int samples,U64* out) {
+  using A=backend::Sm90DenseAttentionBody<1,8,D,Q,Norm,S,64,2,0,1088>;
+  extern __shared__ __align__(1024) char shared[];
+  auto& s=*reinterpret_cast<typename A::Storage*>(shared);
+  int tid=threadIdx.x;
+  for(int i=tid*8;i<int(sizeof(s.kv[0]))/2;i+=128*8)
+    *reinterpret_cast<uint4*>(&s.kv[0][0][0]+i)=make_uint4(0x3c003c00u,0x3c003c00u,0x3c003c00u,0x3c003c00u);
+  for(int i=tid*8;i<16*D;i+=128*8)*reinterpret_cast<uint4*>(s.query+i)=make_uint4(0x3c003c00u,0,0x3c003c00u,0);
+  unsigned query=A::Async::Shared(s.query),key=A::Async::Shared(s.kv[0][0]),value=A::Async::Shared(s.kv[0][1]);
+  typename A::State st;
+  for(int n=0;n<D/8;++n)st.o[n][0]=st.o[n][1]=st.o[n][2]=st.o[n][3]=0;
+  st.maximum[0]=st.maximum[1]=-INFINITY;st.sum[0]=st.sum[1]=0;
+  int warp=tid>>5;
+  for(int k=0;k<3;++k)for(int i=0;i<samples;++i) {
+    codegen::executor::ComputeSync();
+    U64 begin=clock64();
+    if(k==0)A::template Block<64>(query,key,value,warp*16,64,st);
+    else if(k==1)A::Prepare(p,s,0,backend::Sm90DenseKeyRange{0,p.past+1});
+    else {
+      // S-1 earlier arrivals make this CTA the last of S chunks.
+      if(tid==0)atomicAdd(reinterpret_cast<unsigned long long*>(p.arrivals),(unsigned long long)(S-1));
+      codegen::executor::ComputeSync();
+      A::Finish(p,s,0,S-1);
+      if(backend::Sm90DenseLastArriver::Publish<S>(p.arrivals,&s.last))A::Merge(p,s,0);
+    }
+    codegen::executor::ComputeSync();
+    if(tid==0)out[k*samples+i]=clock64()-begin;
+  }
+  if(tid==0 && st.sum[0]<0)out[0]=0;
 }
-template<int... TN>
-void GateCases(std::integer_sequence<int,TN...>) {
-  (EpilogueCase<ServingEpilogueOp::kSwiGLU,TN,GateU<TN>(),true,false>("gate_up",21504,{1024,2048,3072,4096}),...);
-}
-template<int... TN>
-void ResidualCases(std::integer_sequence<int,TN...>) {
-  (EpilogueCase<ServingEpilogueOp::kResidual,TN,16,false,true>("residual",3072,{0}),...);
-}
-template<int... TN>
-void ArgmaxCases(std::integer_sequence<int,TN...>) {
-  (EpilogueCase<ServingEpilogueOp::kArgmaxPartial,TN,16,true,false>(
-      TILEMEGA_EP_PARALLEL_ARGMAX?"lm_head:par=1":"lm_head:par=0",128256,{1024,2048,3072,4096}),...);
+template<int D,int Q,bool Norm,int S>
+void AttentionCase() {
+  constexpr int samples=256;
+  using A=backend::Sm90DenseAttentionBody<1,8,D,Q,Norm,S,64,2,0,1088>;
+  auto kernel=AttentionKernel<D,Q,Norm,S>;
+  Check(cudaFuncSetAttribute(kernel,cudaFuncAttributeMaxDynamicSharedMemorySize,int(sizeof(typename A::Storage))));
+  auto* qkv=Device<BF>(8*(Q+2)*D);auto* cache=Device<BF>(8*1088*D);auto* table=Device<BF>(1088*D);
+  auto* output=Device<BF>(8*Q*D);auto* partial=Device<float>(8*S*Q*D);auto* lse=Device<float>(8*S*Q);
+  auto* arrivals=Device<std::uint64_t>(8);auto* out=Device<U64>(3*samples);
+  backend::Sm90DenseAttentionOperands p{nullptr,nullptr,qkv,cache,cache,output,table,table,table,table,
+      partial,lse,arrivals,575,1e-6f};
+  kernel<<<1,128,sizeof(typename A::Storage)>>>(p,samples,out);
+  Check(cudaDeviceSynchronize());
+  std::vector<U64> host(3*samples);
+  Check(cudaMemcpy(host.data(),out,host.size()*8,cudaMemcpyDeviceToHost));
+  auto key="d="+std::to_string(D)+":q="+std::to_string(Q)+":norm="+std::to_string(Norm);
+  char const* names[]={"t_blk","t_qprep","t_merge"};
+  // Block and preparation do not depend on S: report them once (S = 8).
+  for(int k=S==8?0:2;k<3;++k) {
+    std::vector<double> x;for(int i=8;i<samples;++i)x.push_back(host[k*samples+i]/cycles_per_ns);
+    Print(names[k],key+(k==2?":s="+std::to_string(S):""),x,"ns");
+  }
+  for(void* ptr:{(void*)qkv,(void*)cache,(void*)table,(void*)output,(void*)partial,(void*)lse,(void*)arrivals,(void*)out})
+    Check(cudaFree(ptr));
 }
 
 // Whole embedding/argmax stages, each followed by the program's V3 barrier.
@@ -223,7 +260,7 @@ __global__ void EmbeddingStage(int const* tokens,BF const* table,BF* output,floa
     U64* counter,U64* stamps,int iterations) {
   for(int it=0;it<iterations;++it) {
     if(threadIdx.x<128)for(int row=blockIdx.x;row<batch;row+=gridDim.x)
-      backend::Sm90DenseEmbedding<Width,151936,1088>::Run(tokens,table,output,sums,row,it%1086);
+      backend::Sm90DenseEmbedding<Width,151936,1088>::Run(tokens,table,output,row,it%1086);
     GridBarrier(counter,it);
     if(blockIdx.x==0 && threadIdx.x==0)stamps[it]=Now();
   }
@@ -255,7 +292,7 @@ void StageCase(char const* name,std::string const& key,Kernel kernel,int grid,Ar
 }
 
 int main(int argc,char** argv) {try {
-  bool full=argc<2 || std::strcmp(argv[1],"--epilogue-only");
+  bool full=argc<2;
   Check(cudaSetDevice(0));cudaDeviceProp prop{};Check(cudaGetDeviceProperties(&prop,0));
   if(prop.major!=9 || prop.minor!=0)throw std::runtime_error("SM90R3 constants require sm90");
   int sms=prop.multiProcessorCount;
@@ -338,22 +375,23 @@ int main(int argc,char** argv) {try {
     Check(cudaFree(values));Check(cudaFree(indices));Check(cudaFree(token_device));
     Check(cudaFree(counter));Check(cudaFree(stamps));
   }
-  // Epilogue buffers sized for the widest case; copies rotate L1-resident lines out.
-  epilogue.out_copy=16*151936;epilogue.res_copy=16*4096;
-  epilogue.norm_copy=16*((4096+7)/8)*4;epilogue.sums_copy=16*(32768/8);
+  // Epilogue outputs rotate through copies so L1-resident lines do not persist.
+  epilogue.out_copy=16*151936;
   epilogue.output=Device<BF>(epilogue.copies*epilogue.out_copy*2);
-  epilogue.residual=Device<BF>(epilogue.copies*epilogue.res_copy);
   epilogue.index=Device<int>(epilogue.copies*epilogue.out_copy);
-  epilogue.norm=Device<float>(epilogue.copies*epilogue.norm_copy);
-  epilogue.sums=Device<float>(epilogue.copies*epilogue.sums_copy);
-  FillNorm(epilogue.copies);
-  StoreCases(std::integer_sequence<int,8,16,24,32,40,48,64,80,96,128>{});
-  GateCases(std::integer_sequence<int,16,24,32,48,56,64,96,112,128,192,224,256,448,512>{});
-#if TILEMEGA_DN_VECTOR_SUMS
-  ResidualCases(std::integer_sequence<int,8,16,24,32,48,64>{});
-#else
-  ResidualCases(std::integer_sequence<int,32,64>{});
-#endif
-  ArgmaxCases(std::integer_sequence<int,128,256>{});
+  if(full || !std::strcmp(argv[1],"--epilogue-only")) {
+    EpilogueTiles<ServingEpilogueOp::kStore>("qkv",std::integer_sequence<int,8,16,24,32,40,48,64,80,96,128>{});
+    EpilogueTiles<ServingEpilogueOp::kResidual>("residual",std::integer_sequence<int,8,16,24,32,48,64>{});
+    EpilogueTiles<ServingEpilogueOp::kSwiGLU>("gate_up",
+        std::integer_sequence<int,16,24,32,48,56,64,96,112,128,192,224,256,448,512>{});
+    EpilogueTiles<ServingEpilogueOp::kArgmaxPartial>("lm_head",std::integer_sequence<int,128,256>{});
+  }
+  if(full || !std::strcmp(argv[1],"--attention-only")) {
+    [&]<int... S>(std::integer_sequence<int,S...>) {
+      (AttentionCase<128,2,true,S>(),...);(AttentionCase<64,4,false,S>(),...);
+      (AttentionCase<128,3,false,S>(),...);(AttentionCase<128,4,false,S>(),...);
+      (AttentionCase<128,8,true,S>(),...);
+    }(std::integer_sequence<int,2,4,8,16,32>{});
+  }
   return 0;
 }catch(std::exception const& e) {std::fprintf(stderr,"%s\n",e.what());return 2;}}

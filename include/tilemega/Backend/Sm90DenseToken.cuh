@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
-#include <tilemega/Backend/ServingDeferredNorm.h>
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 #include <cutlass/bfloat16.h>
 #include <cuda_runtime.h>
@@ -14,21 +13,11 @@ struct Sm90DenseEmbedding {
   using Element=cutlass::bfloat16_t;
   static_assert(Width%32==0 && Vocab>0 && Capacity>=1088);
   __device__ static void Run(int const* tokens,Element const* table,Element* output,
-                            float* sums,int row,int past) {
+                            int row,int past) {
     int token=tokens[row*Capacity+past];
     auto* source=table+std::size_t(token)*Width;
     for(int col=threadIdx.x*8;col<Width;col+=128*8)
       *reinterpret_cast<uint4*>(output+row*Width+col)=*reinterpret_cast<uint4 const*>(source+col);
-    for(int block=threadIdx.x;block<Width/32;block+=128) {
-      float sum=0;
-      for(int i=0;i<32;++i) {float value=float(source[block*32+i]);sum+=value*value;}
-#if TILEMEGA_DN_VECTOR_SUMS
-      auto* dst=sums+row*(Width/8)+4*block;
-      dst[0]=sum;dst[1]=dst[2]=dst[3]=0;
-#else
-      sums[row*(Width/32)+block]=sum;
-#endif
-    }
   }
 };
 

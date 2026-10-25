@@ -1,100 +1,161 @@
 // SPDX-License-Identifier: BSD-3-Clause
-#include <tilemega/Backend/Sm90DenseAttentionStream.cuh>
-#include <tilemega/Backend/Sm90DensePreissue.cuh>
-#include <tilemega/Codegen/tasks/FusedAttentionTaskBody.h>
-#include <vector>
-#include <set>
-#include <cstdio>
+// D2 attention check (prompt §5): fp64 reference over B, D, Q, norm, S, past
+// (64, block/chunk edges +-1, 1086) with position-encoded K/V; the new cache
+// row must equal the reference rotation exactly, and filling rows
+// [past+1, Capacity) with +-1e4 must leave every output bit unchanged.
+#ifndef TEST_BATCH
+#define TEST_BATCH 1
+#endif
+#include <tilemega/Backend/Sm90DenseAttentionBody.cuh>
+#include <tilemega/Codegen/executor/TensorMapTiled.h>
+#include <algorithm>
 #include <cmath>
+#include <cstdio>
+#include <cstring>
 #include <stdexcept>
+#include <vector>
 using namespace tilemega::backend;
 using BF=cutlass::bfloat16_t;
-void check(cudaError_t e){if(e!=cudaSuccess)throw std::runtime_error(cudaGetErrorString(e));}
-template<class T>T* device(size_t count){T* p;check(cudaMalloc(&p,count*sizeof(T)));return p;}
-template<int D,bool Norm>__global__ void rotate(BF* x,BF* w,BF* c,BF* s,BF* actual,BF* expected){
- Sm90DenseAttentionMath::Rotate<D,Norm>(x,w,c,s,1e-6f,actual);
- tilemega::codegen::FusedAttentionTaskBody<tilemega::arch::Sm90,D,2,1,16,32,Norm>::RotateRow(x,w,c,s,1e-6f,[&](int d,uint4 v){*reinterpret_cast<uint4*>(expected+d)=v;});
+constexpr int B=TEST_BATCH,kCap=1088;
+void check(cudaError_t e) {if(e!=cudaSuccess)throw std::runtime_error(cudaGetErrorString(e));}
+float R(float x) {return float(BF(x));}
+
+template<class A>
+__global__ __launch_bounds__(160) void evaluate(Sm90DenseAttentionOperands p) {
+  extern __shared__ __align__(1024) char shared[];
+  auto& state=*reinterpret_cast<Sm90DenseRingState*>(shared);state.Initialize();
+  A::Run(p,shared);
+  state.Invalidate();
 }
-template<int D,bool Norm>int rotation(){
- std::vector<BF>x(D),w(D),c(D),s(D),a(D),b(D);
- for(int i=0;i<D;++i){x[i]=BF((i%31-15)*.125f);w[i]=BF(.75f+(i%7)*.0625f);c[i]=BF(std::cos(i*.03f));s[i]=BF(std::sin(i*.03f));}
- auto* dx=device<BF>(D);auto* dw=device<BF>(D);auto* dc=device<BF>(D);auto* ds=device<BF>(D);auto* da=device<BF>(D);auto* db=device<BF>(D);
- for(auto pair:{std::make_pair(dx,&x),std::make_pair(dw,&w),std::make_pair(dc,&c),std::make_pair(ds,&s)})check(cudaMemcpy(pair.first,pair.second->data(),D*2,cudaMemcpyHostToDevice));
- rotate<D,Norm><<<1,32>>>(dx,dw,dc,ds,da,db);check(cudaGetLastError());check(cudaDeviceSynchronize());
- check(cudaMemcpy(a.data(),da,D*2,cudaMemcpyDeviceToHost));check(cudaMemcpy(b.data(),db,D*2,cudaMemcpyDeviceToHost));int errors=0;
- for(int d=0;d<D;++d)if(a[d].raw()!=b[d].raw()){++errors;if(errors<3)std::fprintf(stderr,"rotate D%d norm%d d%d got%f expected%f\n",D,Norm,d,float(a[d]),float(b[d]));}
- for(auto* p:{dx,dw,dc,ds,da,db})check(cudaFree(p));return errors;
+
+// Host mirror of Sm90DenseAttentionMath::RotateValue (same BF16 roundings).
+template<int D,bool Norm>
+void Rotate(BF const* x,BF const* w,BF const* cos,BF const* sin,float eps,float* out) {
+  float inv=1;
+  if(Norm) {
+    float sq=0;for(int d=0;d<D;++d)sq+=float(x[d])*float(x[d]);
+    inv=1.0f/std::sqrt(sq/D+eps);
+  }
+  for(int d=0;d<D;++d) {
+    float first=float(x[d]),second=float(x[(d+D/2)%D]);
+    if(Norm) {
+      first=R(R(first*inv)*float(w[d]));second=R(R(second*inv)*float(w[(d+D/2)%D]));
+    }
+    float left=R(first*float(cos[d])),right=R((d<D/2?-second:second)*float(sin[d]));
+    out[d]=R(left+right);
+  }
 }
-template<int B,int D,int Q,bool Norm,int S,int Work,int Keys=64,int Slots=3>__global__ __launch_bounds__(160)
-void evaluate(Sm90DenseAttentionOperands p,std::uint64_t* grid){
- extern __shared__ __align__(1024) char shared[];auto& ring=*reinterpret_cast<Sm90DenseRingState*>(shared);ring.Initialize();
- for(unsigned repeat=0;repeat<4;++repeat){
-#if defined(TILEMEGA_NATIVE_TEST_FULL_KV_PREISSUE)
-  using Loader=Sm90DenseKvPreissue<(B>=8),D,Q,S,Keys,Slots,Work,1088>;
-  constexpr int rows=B<=4?Sm90DenseAttentionPartition<S>::MaxKeys(1088,Work):Keys*Slots;
-  if(threadIdx.x==128 && blockIdx.x<B*8*S)
-   Loader::template Prepare<4*D*rows>(p.key,p.value,p.past,shared,ring);
-  __syncthreads();
-#endif
-  using A=std::conditional_t<(B<=4),Sm90DenseAttention<B,D,Q,Norm,S,Work>,Sm90DenseAttentionStream<B,D,Q,Norm,S,Keys,Slots,Work>>;A::Run(p,shared);
-  if(threadIdx.x==0){asm volatile("red.release.gpu.global.add.u64 [%0], %1;"::"l"(grid),"l"(1ull):"memory");unsigned long long seen;do{asm volatile("ld.acquire.gpu.global.u64 %0, [%1];":"=l"(seen):"l"(grid):"memory");}while(seen<(repeat+1)*gridDim.x);}__syncthreads();
- }ring.Invalidate();
+
+template<int Hkv,int D,int Q,bool Norm,int S,int Keys,int Slots>
+int run(int past,bool poison,std::vector<BF>* bits=nullptr) {
+  using A=Sm90DenseAttentionBody<B,Hkv,D,Q,Norm,S,Keys,Slots,0,kCap>;
+  int groups=B*Hkv;
+  std::vector<BF> qkv(std::size_t(groups)*(Q+2)*D),key(std::size_t(groups)*kCap*D),value(key.size());
+  std::vector<BF> cos(kCap*D),sin(kCap*D),qn(D),kn(D);
+  for(std::size_t i=0;i<qkv.size();++i)qkv[i]=BF(float(int((i*7919)%61)-30)/32.0f);
+  for(int g=0;g<groups;++g)for(int t=0;t<kCap;++t)for(int d=0;d<D;++d) {
+    std::size_t i=(std::size_t(g)*kCap+t)*D+d;
+    bool history=t<past;
+    float k=float(int((t*31+d*7+g*13)%23)-11)/16.0f,v=float(int((t*17+d*5+g*3)%19)-9)/8.0f;
+    key[i]=BF(history?k:poison?((t+d)%2?1e4f:-1e4f):0.0f);
+    value[i]=BF(history?v:poison?((t+d)%2?-1e4f:1e4f):0.0f);
+  }
+  for(int t=0;t<kCap;++t)for(int d=0;d<D;++d) {
+    double angle=t/std::pow(10000.0,double(2*(d%(D/2)))/D);
+    cos[t*D+d]=BF(float(std::cos(angle)));sin[t*D+d]=BF(float(std::sin(angle)));
+  }
+  for(int d=0;d<D;++d) {qn[d]=BF(1.0f+(d%5)/8.0f);kn[d]=BF(1.0f-(d%3)/8.0f);}
+  auto device=[](auto const& host) {
+    using T=typename std::decay_t<decltype(host)>::value_type;T* p;
+    check(cudaMalloc(&p,host.size()*sizeof(T)));
+    check(cudaMemcpy(p,host.data(),host.size()*sizeof(T),cudaMemcpyHostToDevice));return p;
+  };
+  BF *dqkv=device(qkv),*dk=device(key),*dv=device(value),*dc=device(cos),*ds=device(sin),*dqn=device(qn),*dkn=device(kn);
+  BF* out;float *partial,*lse;std::uint64_t* arrivals;CUtensorMap* maps;
+  check(cudaMalloc(&out,groups*Q*D*2));check(cudaMalloc(&partial,std::size_t(groups)*S*Q*D*4));
+  check(cudaMalloc(&lse,groups*S*Q*4));check(cudaMalloc(&arrivals,groups*8));
+  check(cudaMemset(arrivals,0,groups*8));check(cudaMalloc(&maps,256));
+  CUtensorMap host[2];
+  for(int i=0;i<2;++i)tilemega::codegen::executor::EncodeTiledMap<3>(host[i],i?dv:dk,
+      {{D,kCap,std::uint64_t(groups)},{2ull*D,2ull*kCap*D},{64,Keys,1}});
+  check(cudaMemcpy(maps,host,sizeof host,cudaMemcpyHostToDevice));
+  Sm90DenseAttentionOperands p{maps,maps+1,dqkv,dk,dv,out,dc,ds,dqn,dkn,partial,lse,arrivals,past,1e-6f};
+  check(cudaFuncSetAttribute(evaluate<A>,cudaFuncAttributeMaxDynamicSharedMemorySize,A::kSharedBytes));
+  evaluate<A><<<std::min(132,A::kTasks),160,A::kSharedBytes>>>(p);
+  check(cudaGetLastError());check(cudaDeviceSynchronize());
+  std::vector<BF> got(groups*Q*D),cache_k(key.size()),cache_v(value.size());
+  check(cudaMemcpy(got.data(),out,got.size()*2,cudaMemcpyDeviceToHost));
+  check(cudaMemcpy(cache_k.data(),dk,key.size()*2,cudaMemcpyDeviceToHost));
+  check(cudaMemcpy(cache_v.data(),dv,value.size()*2,cudaMemcpyDeviceToHost));
+  int errors=0;
+  auto bad=[&](char const* what,int g,int q,int d,double x,double y) {
+    if(errors<3)std::fprintf(stderr,"B%d D%d Q%d S%d past%d%s %s g%d q%d d%d got %g want %g\n",
+        B,D,Q,S,past,poison?" poison":"",what,g,q,d,x,y);
+    ++errors;
+  };
+  float const scale=1.0f/std::sqrt(float(D));
+  for(int g=0;g<groups;++g) {
+    BF const* row=qkv.data()+std::size_t(g)*(Q+2)*D;
+    std::vector<float> knew(D),qrot(D);
+    Rotate<D,Norm>(row+Q*D,kn.data(),cos.data()+past*D,sin.data()+past*D,1e-6f,knew.data());
+    for(int d=0;d<D;++d) {
+      std::size_t i=(std::size_t(g)*kCap+past)*D+d;
+      if(float(cache_k[i])!=knew[d])bad("new key",g,0,d,float(cache_k[i]),knew[d]);
+      if(float(cache_v[i])!=float(row[(Q+1)*D+d]))bad("new value",g,0,d,float(cache_v[i]),float(row[(Q+1)*D+d]));
+    }
+    for(int q=0;q<Q;++q) {
+      Rotate<D,Norm>(row+q*D,qn.data(),cos.data()+past*D,sin.data()+past*D,1e-6f,qrot.data());
+      std::vector<double> score(past+1);double m=-1e300;
+      for(int t=0;t<=past;++t) {
+        double s=0;
+        for(int d=0;d<D;++d)s+=double(qrot[d])*(t<past?double(key[(std::size_t(g)*kCap+t)*D+d]):knew[d]);
+        score[t]=s*scale;m=std::max(m,score[t]);
+      }
+      double l=0;for(auto& s:score) {s=std::exp(s-m);l+=s;}
+      double peak=0;std::vector<double> o(D,0);
+      for(int d=0;d<D;++d) {
+        for(int t=0;t<=past;++t)
+          o[d]+=score[t]*(t<past?double(value[(std::size_t(g)*kCap+t)*D+d]):double(row[(Q+1)*D+d]));
+        o[d]/=l;peak=std::max(peak,std::fabs(o[d]));
+      }
+      for(int d=0;d<D;++d) {
+        double x=float(got[(std::size_t(g)*Q+q)*D+d]);
+        // BF16 probabilities and output: a few BF16 ulps of the head's scale.
+        if(std::fabs(x-o[d])>peak/48+1e-3)bad("output",g,q,d,x,o[d]);
+      }
+    }
+  }
+  if(bits)*bits=got;
+  for(void* ptr:{(void*)dqkv,(void*)dk,(void*)dv,(void*)dc,(void*)ds,(void*)dqn,(void*)dkn,(void*)out,
+      (void*)partial,(void*)lse,(void*)arrivals,(void*)maps})check(cudaFree(ptr));
+  return errors;
 }
-BF position(int bg,int pos,int d){unsigned hash=unsigned(pos+1)*2654435761u ^ unsigned(d+1)*2246822519u ^ unsigned(bg+1)*3266489917u;return BF((int(hash%255)-127)/128.f);}
-template<int B,int D,int Q,bool Norm,int S,int Work,int Keys=64,int Slots=3>int run(unsigned& cases){
- using A=std::conditional_t<(B<=4),Sm90DenseAttention<B,D,Q,Norm,S,Work>,Sm90DenseAttentionStream<B,D,Q,Norm,S,Keys,Slots,Work>>;
- cudaDeviceProp properties{};check(cudaGetDeviceProperties(&properties,0));
- if(A::kSharedBytes>properties.sharedMemPerBlockOptin){
-  std::printf("{\"excluded\":true,\"reason\":\"shared_memory_budget\",\"batch\":%d,\"head_dim\":%d,\"queries\":%d,\"chunks\":%d,\"required\":%d,\"available\":%zu}\n",B,D,Q,S,A::kSharedBytes,properties.sharedMemPerBlockOptin);return 0;
- }
- constexpr int Groups=B*8,Capacity=1088;
- std::vector<BF>qkv(Groups*(Q+2)*D,BF(0)),value(Groups*Capacity*D),one(Capacity*D,BF(1)),zero(Capacity*D,BF(0)),out(Groups*Q*D);
- for(int bg=0;bg<Groups;++bg)for(int pos=0;pos<Capacity;++pos)for(int d=0;d<D;++d)value[(bg*Capacity+pos)*D+d]=position(bg,pos,d);
- auto* dq=device<BF>(qkv.size());auto* dk=device<BF>(value.size());auto* dv=device<BF>(value.size());auto* output=device<BF>(out.size());
- auto* cosine=device<BF>(one.size());auto* sine=device<BF>(zero.size());auto* norm=device<BF>(D);
- auto* partial=device<float>(Groups*S*Q*D);auto* lse=device<float>(Groups*S*Q);auto* arrivals=device<std::uint64_t>(Groups);auto* grid=device<std::uint64_t>(1);
- check(cudaMemset(dk,0,value.size()*2));check(cudaMemcpy(dv,value.data(),value.size()*2,cudaMemcpyHostToDevice));check(cudaMemcpy(cosine,one.data(),one.size()*2,cudaMemcpyHostToDevice));check(cudaMemcpy(sine,zero.data(),zero.size()*2,cudaMemcpyHostToDevice));check(cudaMemcpy(norm,one.data(),D*2,cudaMemcpyHostToDevice));
- check(cudaFuncSetAttribute(evaluate<B,D,Q,Norm,S,Work,Keys,Slots>,cudaFuncAttributeMaxDynamicSharedMemorySize,A::kSharedBytes));
- std::set<int> pasts={64,575,1086};
- // Exercise the first, middle and last chunk-aligned totals, including both
- // neighbours, and the streaming slot boundary independently of chunk count.
- for(int total:{S*((65+S-1)/S),S*(576/S),S*(1087/S),S*Keys,S*4,S*16,S*64})
-  for(int delta:{-1,0,1})if(total+delta-1>=64&&total+delta-1<=1086)pasts.insert(total+delta-1);
- int errors=0;
- for(int past:pasts){
-  for(int bg=0;bg<Groups;++bg)for(int d=0;d<D;++d)qkv[(bg*(Q+2)+Q+1)*D+d]=position(bg,past,d);
-  check(cudaMemcpy(dq,qkv.data(),qkv.size()*2,cudaMemcpyHostToDevice));check(cudaMemset(output,0xff,out.size()*2));check(cudaMemset(arrivals,0,Groups*8));check(cudaMemset(grid,0,8));
-  Sm90DenseAttentionOperands p{dq,dk,dv,output,cosine,sine,norm,norm,partial,lse,arrivals,past,1e-6f};
-  evaluate<B,D,Q,Norm,S,Work,Keys,Slots><<<132,160,A::kSharedBytes>>>(p,grid);check(cudaGetLastError());check(cudaDeviceSynchronize());check(cudaMemcpy(out.data(),output,out.size()*2,cudaMemcpyDeviceToHost));
-  for(int bg=0;bg<Groups;++bg)for(int d=0;d<D;++d){double sum=0;for(int pos=0;pos<=past;++pos)sum+=float(position(bg,pos,d));float exact=sum/(past+1);BF expected(exact);
-   // One BF16 representable spacing allows a round-to-nearest tie to be
-   // approached from either side; missing or repeated rows exceed this bound.
-   float tolerance=std::max(0x1p-24f,std::ldexp(1.f,std::ilogb(std::fabs(exact))-7));
-   for(int q=0;q<Q;++q){float actual=float(out[(bg*Q+q)*D+d]);if(!std::isfinite(actual)||std::fabs(actual-float(expected))>tolerance){if(errors<4)std::fprintf(stderr,"B%d D%d Q%d S%d W%d past%d bg%d d%d got%.9f exp%.9f tol%.9f\n",B,D,Q,S,Work,past,bg,d,actual,float(expected),tolerance);++errors;}}
-  }++cases;
- }
- for(auto* p:{dq,dk,dv,output,cosine,sine,norm})check(cudaFree(p));check(cudaFree(partial));check(cudaFree(lse));check(cudaFree(arrivals));check(cudaFree(grid));return errors;
+
+template<int Hkv,int D,int Q,bool Norm,int S,int Keys,int Slots>
+int sweep() {
+  int errors=0;
+  for(int past:{64,Keys-1,Keys,Keys+1,575,1023,1024,1086}) {
+    std::vector<BF> clean,poisoned;
+    errors+=run<Hkv,D,Q,Norm,S,Keys,Slots>(past,false,&clean);
+    errors+=run<Hkv,D,Q,Norm,S,Keys,Slots>(past,true,&poisoned);
+    if(std::memcmp(clean.data(),poisoned.data(),clean.size()*2)) {
+      std::fprintf(stderr,"B%d D%d Q%d S%d past%d: poisoned rows changed the output\n",B,D,Q,S,past);++errors;
+    }
+  }
+  return errors;
 }
-int main(){try{check(cudaSetDevice(0));unsigned cases=0;int errors=rotation<64,false>()+rotation<128,false>()+rotation<128,true>();
-#define RUN(B,D,Q,N,S,W,Keys,Slots) errors+=run<B,D,Q,N,S,W,Keys,Slots>(cases)
-#if defined(TILEMEGA_NATIVE_TEST_POSITION_MATRIX)
-#define MATRIX(S) RUN(TILEMEGA_POSITION_BATCH,TILEMEGA_POSITION_DIM,TILEMEGA_POSITION_QUERIES,TILEMEGA_POSITION_NORM,S,0,64,3)
- MATRIX(1);MATRIX(2);MATRIX(4);MATRIX(8);MATRIX(16);MATRIX(32);MATRIX(64);
-#undef MATRIX
-#elif defined(TILEMEGA_NATIVE_TEST_FULL_KV_PREISSUE)
- RUN(1,128,2,true,16,0,64,3);RUN(4,64,4,false,4,16,64,3);
- RUN(8,128,3,false,2,0,32,2);RUN(16,128,4,false,1,8,64,3);
-#else
- RUN(1,128,2,true,16,0,64,3);RUN(2,128,2,true,8,8,64,3);RUN(4,128,2,true,4,16,64,3);
- RUN(1,64,4,false,16,0,64,3);RUN(2,64,4,false,8,8,64,3);RUN(4,64,4,false,4,16,64,3);
- RUN(1,128,3,false,16,0,64,3);RUN(2,128,3,false,8,8,64,3);RUN(4,128,3,false,4,16,64,3);
- RUN(1,128,4,false,16,0,64,3);RUN(2,128,4,false,8,8,64,3);RUN(4,128,4,false,4,16,64,3);
- RUN(1,128,2,true,32,0,64,3);RUN(1,128,2,true,64,0,64,3);
- RUN(8,128,2,true,2,0,64,3);RUN(16,128,2,true,1,8,128,2);
- RUN(8,64,4,false,2,0,128,4);RUN(16,64,4,false,1,8,32,2);
- RUN(8,128,3,false,2,0,32,2);RUN(16,128,3,false,1,8,64,3);
- RUN(8,128,4,false,2,0,64,3);RUN(16,128,4,false,1,8,128,2);
- RUN(8,128,2,true,4,16,64,4);RUN(16,64,4,false,8,0,64,3);
-#endif
-#undef RUN
- std::printf("{\"errors\":%d,\"pass\":%s,\"position_cases\":%u,\"persistent_rounds_per_case\":4,\"rotation_cases\":3}\n",errors,errors?"false":"true",cases);return errors?1:0;}catch(std::exception const& e){std::fprintf(stderr,"%s\n",e.what());return 2;}}
+
+int main() {
+  try {
+    check(cudaSetDevice(0));int errors=0,cases=0;
+    auto add=[&](int e) {errors+=e;++cases;};
+    constexpr int S0=B==1?16:B==2?8:B==4?4:B==8?2:1;
+    // Dense (D, Q, norm) tuples, S0 and S0/2 (or 1), and the MoE tuple Hkv 4, Q 8.
+    add(sweep<8,128,2,true,S0,64,4>());add(sweep<8,128,2,true,(S0>1?S0/2:1),64,2>());
+    add(sweep<8,64,4,false,S0,64,3>());add(sweep<8,64,4,false,S0,128,2>());
+    add(sweep<8,128,3,false,S0,64,2>());add(sweep<8,128,4,false,S0,64,4>());
+    add(sweep<4,128,8,true,S0,64,2>());add(sweep<4,128,8,true,(S0>1?S0*2:2),64,3>());
+    std::printf("{\"batch\":%d,\"sweeps\":%d,\"errors\":%d,\"pass\":%s}\n",B,cases,errors,errors?"false":"true");
+    return errors?1:0;
+  }catch(std::exception const& e) {std::fprintf(stderr,"%s\n",e.what());return 2;}
+}

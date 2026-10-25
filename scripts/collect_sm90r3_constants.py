@@ -16,7 +16,7 @@ import subprocess
 from sm90d1_common import ROOT, read, sha
 
 HEADERS = ['include/tilemega/Backend/Sm90DenseEpilogue.h', 'include/tilemega/Backend/Sm90DenseToken.cuh',
-           'include/tilemega/Backend/Sm90DenseAttention.h', 'include/tilemega/Backend/Sm90DenseAttentionStream.cuh',
+           'include/tilemega/Backend/Sm90DenseAttentionBody.cuh',
            'include/tilemega/Backend/Sm90DenseGemm.h', 'include/tilemega/Codegen/executor/Async.cuh']
 ATTENTION_FIELDS = ('batch', 'head_dim', 'queries', 'qk_norm', 'chunks', 'block_keys', 'slots',
                     'new_row_work', 'past', 'grid')
@@ -57,7 +57,7 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--state', type=Path, required=True)
     p.add_argument('--constants', nargs='+', required=True, help='job names of constants probes')
-    p.add_argument('--attention', nargs='*', default=[], help='job names of attention gap probes')
+    p.add_argument('--attention', nargs='*', default=[], help='job names of R2 attention gap probes (L0 only)')
     p.add_argument('--processes', type=int, default=5)
     p.add_argument('--csv', type=Path, required=True)
     p.add_argument('--target', type=Path, required=True)
@@ -113,15 +113,19 @@ def main():
             raise ValueError(f'{metric} {prefix}: {len(found)} values')
         return round(found[0], 2)
 
-    epilogue, embedding, argmax = {}, {}, {}
+    epilogue, embedding, argmax, attention = {}, {}, {}, {}
     for (metric, key), v in value.items():
         fields = dict(part.split('=') for part in key.split(':') if '=' in part)
         if metric == 't_ep':
             family = key.split(':')[0]
-            if family == 'lm_head' and fields['par'] != '1':
-                continue
-            node = epilogue.setdefault(family, {}).setdefault('vs' + fields['vs'], {}).setdefault('k' + fields['k'], {})
+            node = epilogue.setdefault(family, {}).setdefault('wk' + fields['wk'], {})
             node.setdefault(fields['tn'], {})[fields['b']] = round(v, 1)
+        elif metric in ('t_blk', 't_qprep', 't_merge'):
+            node = attention.setdefault(f"d{fields['d']}:q{fields['q']}:norm{fields['norm']}", {})
+            if metric == 't_merge':
+                node.setdefault('merge', {})[fields['s']] = round(v, 1)
+            else:
+                node['block' if metric == 't_blk' else 'prepare'] = round(v, 1)
         elif metric == 't_emb':
             embedding.setdefault('g' + fields['g'], {}).setdefault('w' + fields['w'], {})[fields['b']] = round(v, 1)
         elif metric == 't_argmax':
@@ -139,9 +143,7 @@ def main():
         dram_gbps=single('BW_dram'), l2_gbps=single('BW_l2'), sm_gbps=single('BW_sm'),
         activation_cp_async_gbps=20.0,
         activation_cp_async_source='stated: SM90R2_activation_stream_diagnostic.csv per-CTA ceiling (F9)',
-        epilogue_ns=epilogue, embedding_ns=embedding, argmax_ns=argmax,
-        attention_tables=['docs/results/SM90R2_attention_calibration.csv', str(a.csv.relative_to(ROOT))],
-        attention_metric='attention_critical_before_barrier at past 575; stage = c_bar + table')
+        epilogue_ns=epilogue, embedding_ns=embedding, argmax_ns=argmax, attention_ns=attention)
     if a.section_only:
         a.section_only.write_text(json.dumps(section, indent=1) + '\n')
     else:

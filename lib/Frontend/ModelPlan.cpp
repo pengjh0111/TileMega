@@ -960,8 +960,9 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
   // The expert allocation is shared across decode and prefill. Both phases
   // must fold the same post-attention gamma into router/gate-up weights.
   bool const moe_dn=serving.deferred_norm && !moe_layers.empty();
+  bool const sums=dn && !serving.native_rms;
   std::uint32_t ss_cur=kNoOperand;
-  if(dn)ss_cur=scratch("embed.ss",hidden/(serving.dn_vector_sums?8:32),"f32");
+  if(sums)ss_cur=scratch("embed.ss",hidden/(serving.dn_vector_sums?8:32),"f32");
   builder.Stage(PlanTaskKind::kEmbedding, embedding->name, 0, vocab, hidden, 1,
                 {tokens, table, x, ss_cur});
   for (std::size_t number = 0; number < layers.size(); ++number) {
@@ -1084,7 +1085,7 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
         scratch(prefix+"attn.residual",serving.seq*hidden):x;
     auto o_gemm = builder.Gemm(context, alias(o.inputs.at(1)), x, attention_output,
                                hidden, qwidth, 1.0f);
-    if(dn || moe_dn){ss_cur=scratch(prefix+"o.ss",serving.seq*(hidden/(serving.dn_vector_sums?8:32)),"f32");
+    if(sums || moe_dn){ss_cur=scratch(prefix+"o.ss",serving.seq*(hidden/(serving.dn_vector_sums?8:32)),"f32");
            builder.plan.gemms[o_gemm].ss_out=ss_cur;}
     builder.plan.gemms[o_gemm].epilogue = PlanGemm::Epilogue::kResidual;
     builder.Stage(PlanTaskKind::kGemm, match.at("resid1")->name,
@@ -1136,7 +1137,7 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
                   gu_gemm, 0, 0, 1);
     auto down_gemm = builder.Gemm(act, alias(down.inputs.at(1)), x, x,
                                   hidden, intermediate, 1.0f);
-    if(dn){ss_cur=scratch(prefix+"down.ss",hidden/(serving.dn_vector_sums?8:32),"f32");
+    if(sums){ss_cur=scratch(prefix+"down.ss",hidden/(serving.dn_vector_sums?8:32),"f32");
            builder.plan.gemms[down_gemm].ss_out=ss_cur;}
     builder.plan.gemms[down_gemm].epilogue = PlanGemm::Epilogue::kResidual;
     builder.Stage(PlanTaskKind::kGemm, match.at("resid2")->name,

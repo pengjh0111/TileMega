@@ -2042,8 +2042,6 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     nk[f]=shape;
   }
   c.Validate(nk,batch);
-  if(optionalBoolField(plan,"dn_vector_sums")!=c.dn_vector_sums)
-    throw std::invalid_argument("native vector-sum coordinate needs plan reconstruction");
   for(unsigned i=0;i<gemms.size();++i) {
     auto g=dictionaryEntry(gemms[i],"gemms"),r=dictionaryEntry(runtime[i],"gemm_runtime");
     auto const& cfg=c.gemms[family(g)];
@@ -2056,11 +2054,11 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     if(g.get("epilogue") && stringField(g,"epilogue")=="swiglu" &&
        integerField(g,"interleave_u")!=c.swiglu_u)
       throw std::invalid_argument("native SwiGLU coordinate needs plan reconstruction");
-    if(g.get("epilogue") && stringField(g,"epilogue")=="residual") {
-      auto norm=g.getAs<mlir::IntegerAttr>("norm_ss");
-      if(norm && norm.getInt()>=0 && norm.getInt()!=0xffffffffll)
-        throw std::invalid_argument("native residual GEMM consumes an unnormalized input");
-    }
+    // Consumers accumulate InputNorm statistics (prompt §5 D4); a native plan
+    // carries no deferred-norm sum buffers.
+    for(auto field:{"norm_ss","ss_out"})
+      if(auto id=g.getAs<mlir::IntegerAttr>(field);id && id.getInt()>=0 && id.getInt()!=0xffffffffll)
+        throw std::invalid_argument("native dense plan still binds deferred-norm sums");
     auto recipe=json::Parse(stringField(dictionaryEntry(buffers[integerField(g,"b")],"buffers"),"pack_json"));
     if(recipe.At("kind").AsString("weight layout")!="tile_pages" ||
        recipe.At("tile_n").AsNumber("weight TN")!=cfg.tile_n ||
@@ -2083,39 +2081,6 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     if(auto operands=s.getAs<mlir::DenseI64ArrayAttr>("operands"))
       for(auto operand:operands.asArrayRef())mark(operand);
   }
-  namespace ep=tilemega::codegen::native_dense::epilogue_contract;
-  auto nonnegative=[](mlir::DictionaryAttr b,char const* field) {
-    auto value=integerField(b,field);
-    if(value<0)throw std::invalid_argument("negative native buffer extent");
-    return std::uint64_t(value);
-  };
-  std::vector<ep::Buffer> epilogue_buffers;
-  for(unsigned i=0;i<buffers.size();++i) {
-    auto b=dictionaryEntry(buffers[i],"buffers");
-    auto dtype=stringField(b,"dtype"),role=stringField(b,"role");
-    epilogue_buffers.push_back({role=="internal"?ep::kInternal:role=="external"?ep::kExternal:~0u,
-        dtype=="bf16"?ep::kBF16:dtype=="f32"?ep::kF32:dtype=="i32"?ep::kI32:~0u,
-        ep::Add(nonnegative(b,"constant"),nonnegative(b,"per_seq")),
-        nonnegative(b,"per_batch"),nonnegative(b,"per_past"),nonnegative(b,"per_total"),live[i]});
-  }
-  auto feature_id=[&](mlir::DictionaryAttr g,char const* field) {
-    auto attr=g.getAs<mlir::IntegerAttr>(field);
-    if(g.get(field) && !attr)throw std::invalid_argument("native epilogue ID is not an integer");
-    if(!attr || attr.getInt()==-1 || attr.getInt()==0xffffffffll)return ep::kAbsent;
-    if(attr.getInt()<0 || std::uint64_t(attr.getInt())>=buffers.size())
-      throw std::invalid_argument("native epilogue ID outside buffer table");
-    return std::uint32_t(attr.getInt());
-  };
-  std::vector<ep::Gemm> epilogue_gemms;
-  for(auto value:gemms) {
-    auto g=dictionaryEntry(value,"gemms");
-    auto op=g.get("epilogue")?stringField(g,"epilogue"):"store";
-    epilogue_gemms.push_back({feature_id(g,"norm_ss"),feature_id(g,"ss_out"),
-        std::uint64_t(batch),nonnegative(g,"k"),nonnegative(g,"n"),
-        std::uint64_t(c.gemms[family(g)].tile_n),c.dn_vector_sums,op=="residual",true});
-  }
-  ep::ValidateMetadata(epilogue_buffers.data(),epilogue_buffers.size(),
-      epilogue_gemms.data(),epilogue_gemms.size(),batch);
   auto id=[&](mlir::DictionaryAttr g,char const* field) {
     auto attr=g.getAs<mlir::IntegerAttr>(field);
     if(!attr || attr.getInt()==0xffffffffll || attr.getInt()<0)return std::string("kAbsent");
@@ -2126,7 +2091,6 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   out<<"// SPDX-License-Identifier: BSD-3-Clause\n"
      <<"// Generated from native CTG/tmexec coordinates.\n"
      <<"#define TILEMEGA_STATIC_DENSE_NATIVE 1\n#define TILEMEGA_ARCH_ID 900\n"
-     <<"#define TILEMEGA_DN_VECTOR_SUMS "<<c.dn_vector_sums<<"\n"
      <<"#define TILEMEGA_SWIGLU_U "<<c.swiglu_u<<"\n"
      <<"#define TILEMEGA_EP_PARALLEL_ARGMAX 1\n"
      <<"#include <tilemega/Codegen/tasks/Sm90DenseProgram.cuh>\n"
@@ -2156,6 +2120,17 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   }
   out<<"}};\n";
   unsigned number=0;
+  // Tensor-map descriptors {buffer, rank, dims[4], strides[3], box[4]}; equal
+  // descriptors (e.g. layers reading one residual stream) are shared.
+  using MapKey=std::array<std::int64_t,13>;
+  std::map<MapKey,unsigned> maps;
+  std::vector<MapKey> map_order;
+  auto map_index=[&](MapKey const& key) {
+    auto found=maps.emplace(key,unsigned(map_order.size()));
+    if(found.second)map_order.push_back(key);
+    return found.first->second;
+  };
+  int activation_rows=batch<=8?8:16;
   for(auto value:stages) {
     auto s=dictionaryEntry(value,"stages");auto kind=stringField(s,"kind");
     auto operands=s.getAs<mlir::DenseI64ArrayAttr>("operands");
@@ -2181,30 +2156,41 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
           op=="swiglu"?"kSwiGLU":"kArgmaxPartial";
       weight=name(integerField(g,"b"));bytes=2ull*integerField(g,"n")*integerField(g,"k");
       tasks=integerField(g,"n")/cfg.tile_n;
+      bool input_norm=op=="store" || op=="swiglu" || op=="argmax_partial";
       types<<"Gemm<"<<batch<<','<<integerField(g,"n")<<','<<integerField(g,"k")<<','
            <<cfg.tile_n<<','<<cfg.TileK()<<','<<cfg.slots<<','<<cfg.warps_n<<','<<cfg.warps_k
-           <<",backend::ServingEpilogueOp::"<<enum_op<<','<<c.swiglu_u;
-      for(auto field:{"a","b","c","d"})types<<','<<id(g,field);
+           <<",backend::ServingEpilogueOp::"<<enum_op<<','<<c.swiglu_u<<','<<(input_norm?"true":"false");
+      for(auto field:{"b","c","d"})types<<','<<id(g,field);
       types<<','<<(op=="argmax_partial"?std::to_string(argmax_index):"kAbsent");
-      for(auto field:{"norm_ss","ss_out"})types<<','<<id(g,field);
-      types<<','<<cfg.register_stages;
+      // A [B][K] as {64, B, K/64}: one box is a [TK/64][rows][64] slot (prompt §5 D3).
+      std::int64_t k=integerField(g,"k");
+      auto map=map_index({integerField(g,"a"),3,64,batch,k/64,0,2*k,128,0,64,activation_rows,
+          cfg.TileK()/64,0});
+      types<<','<<cfg.register_stages<<','<<map;
     }else if(kind=="kFusedAttention") {
-      if(extent!=8 || (width!=64 && width!=128) || group<2 || group>4 ||
+      if((extent!=8 && extent!=4) || (width!=64 && width!=128) || group<2 || group>8 ||
          integerField(s,"dense_attention_chunks")!=c.attention.chunks ||
          integerField(s,"attention_kv_block")!=capacity)
         throw std::invalid_argument("native attention requires reconstructed integrated chunks");
       bool norm=operand(5)!="kAbsent";
       if(norm!=(operand(6)!="kAbsent"))throw std::invalid_argument("asymmetric native QK norm");
-      chunks=c.attention.chunks;tasks=batch*8*chunks;
+      chunks=c.attention.chunks;
       offset=c.attention.workspace_offset;prefix=c.attention.preissue_smem_bytes;
       l2=c.attention.prefetch_l2_bytes;
       late=c.attention.preissue_late;
-      types<<"Attention<"<<batch<<','<<width<<','<<group<<','<<norm<<','<<chunks<<','
+      tasks=batch*extent*chunks;
+      types<<"Attention<"<<batch<<','<<extent<<','<<width<<','<<group<<','<<norm<<','<<chunks<<','
            <<c.attention.block_keys<<','<<c.attention.slots<<','<<c.attention.new_row_work<<','<<capacity;
       for(unsigned i:{0u,1u,2u,7u,3u,4u,5u,6u,8u,9u,10u})types<<','<<operand(i);
+      // Each layer's K and V cache [B*Hkv][Cap][D] as {D, Cap, B*Hkv}, read in
+      // [D/64][block keys][64] boxes (prompt §5 D2).
+      for(unsigned i:{1u,2u})
+        types<<','<<map_index({operands[i],3,width,capacity,std::int64_t(batch)*extent,0,2*width,
+            2ll*capacity*width,0,64,c.attention.block_keys,1,0});
     }else if(kind=="kEmbedding") {
       tasks=batch;types<<"Embedding<"<<batch<<','<<width<<','<<extent<<','<<capacity;
-      for(unsigned i=0;i<4;++i)types<<','<<operand(i);
+      if(operand(3)!="kAbsent")throw std::invalid_argument("native embedding writes no norm sums");
+      for(unsigned i=0;i<3;++i)types<<','<<operand(i);
     }else if(kind=="kArgmaxReduce") {
       tasks=batch;types<<"Argmax<"<<batch<<','<<width<<','<<capacity;
       for(unsigned i=0;i<3;++i)types<<','<<operand(i);
@@ -2217,7 +2203,13 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
          <<tasks<<','<<extent<<','<<group<<','<<width<<','<<chunks<<"},\n";
     ++number;
   }
-  out<<types.str()<<"using NativeProgram=Program<"<<batch<<','<<capacity<<','<<c.residency<<','<<buffers.size();
+  out<<"constexpr std::array<NativeTensorMap,"<<map_order.size()<<"> kNativeTensorMaps={{\n";
+  for(auto const& m:map_order)out<<"  {"<<m[0]<<"u,"<<m[1]<<"u,{"<<m[2]<<"ull,"<<m[3]<<"ull,"<<m[4]<<"ull,"
+     <<m[5]<<"ull},{"<<m[6]<<"ull,"<<m[7]<<"ull,"<<m[8]<<"ull},{"<<m[9]<<"u,"<<m[10]<<"u,"<<m[11]<<"u,"
+     <<m[12]<<"u}},\n";
+  out<<"}};\n";
+  out<<types.str()<<"using NativeProgram=Program<"<<batch<<','<<capacity<<','<<c.residency<<','
+     <<buffers.size()<<','<<map_order.size();
   for(unsigned i=0;i<number;++i)out<<",Stage_"<<i;
   out<<">;\nconstexpr std::array<StageInfo,"<<number<<"> kNativeStages={{\n"<<debug.str()<<"}};\n"
      <<"}  // namespace tilemega::codegen::native_dense\n"

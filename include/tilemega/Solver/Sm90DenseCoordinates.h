@@ -27,10 +27,9 @@ struct Sm90DenseGemm {
   int workspace_offset=0;
   bool preissue_late=false;
   int TileK() const { return int(slot_bytes/(2ll*tile_n)); }
-  std::int64_t SharedBytes() const {
-    std::int64_t operands=slots*(std::int64_t(slot_bytes)+32ll*TileK());
-    std::int64_t reduction=64ll*tile_n*warps_k+512;
-    return workspace_offset+1024+operands+reduction;
+  std::int64_t SharedBytes(int batch,bool residual) const {
+    return workspace_offset+backend::Sm90DenseLayout::Gemm(
+        tile_n,TileK(),slots,warps_k,batch,residual).end;
   }
   void Validate(int n,int k) const {
     if(n<=0 || k<=0 || tile_n<8 || tile_n>n || tile_n%8 || n%tile_n || warps_n<1 ||
@@ -57,17 +56,13 @@ struct Sm90DenseAttention {
   int new_row_work=0;
   int workspace_offset=0;
   bool preissue_late=false;
-  std::int64_t SharedBytes(int batch,int dim,int queries,int capacity) const {
-    std::int64_t operands=batch<=4?
-        2ll*queries*dim+4ll*((std::int64_t(capacity)+new_row_work+chunks-1)/chunks)*dim:
-        36ll*dim+4ll*slots*block_keys*dim;
-    std::int64_t scratch=16ll*queries*dim+32ll*queries+
-        4ll*std::max(4,chunks)*queries+4ll*queries+4;
-    return workspace_offset+1024+((operands+scratch+15)/16)*16;
+  std::int64_t SharedBytes(int dim,int queries) const {
+    return workspace_offset+backend::Sm90DenseLayout::Attention(dim,queries,chunks,block_keys,slots).end;
   }
   void Validate() const {
-    if(chunks<1 || chunks>64 || (block_keys!=16 && block_keys!=32 &&
-       block_keys!=64 && block_keys!=128) || slots<2 || slots>8 ||
+    // Attention has no preissue until the D6 stream (prompt §6).
+    if(chunks<1 || chunks>64 || (block_keys!=64 && block_keys!=128) || slots<2 || slots>4 ||
+       preissue_smem_bytes || prefetch_l2_bytes || preissue_late ||
        preissue_smem_bytes<0 || preissue_smem_bytes%16 ||
        prefetch_l2_bytes<0 || prefetch_l2_bytes%16 || new_row_work<0 ||
        workspace_offset<0 || workspace_offset%1024 ||
@@ -80,7 +75,7 @@ struct Sm90DenseCoordinates {
   std::array<Sm90DenseGemm,5> gemms;
   Sm90DenseAttention attention;
   int residency=1,swiglu_u=16;
-  bool dn_vector_sums=false;
+  static constexpr bool ResidualFamily(unsigned family) {return family==1 || family==3;}
 
   static Sm90DenseCoordinates Exact(std::array<std::array<int,2>,5> const& nk,
                                     int batch,std::int64_t shared_budget) {
@@ -98,10 +93,9 @@ struct Sm90DenseCoordinates {
       for(int tile_k:{256,128,64}) {
         if(k%tile_k)continue;
         g.slot_bytes=2*g.tile_n*tile_k;
-        if(g.SharedBytes()<=shared_budget) {fits=true;break;}
+        if(g.SharedBytes(batch,ResidualFamily(i))<=shared_budget) {fits=true;break;}
       }
       if(!fits)throw std::invalid_argument("dense exact seed exceeds shared-memory budget");
-      if((i==1 || i==3) && g.tile_n%32)result.dn_vector_sums=true;
       if(i==2)while(g.tile_n%(2*result.swiglu_u))result.swiglu_u/=2;
     }
     result.Validate(nk,batch);
@@ -117,8 +111,6 @@ struct Sm90DenseCoordinates {
     for(unsigned i=0;i<gemms.size();++i)gemms[i].Validate(nk[i][0],nk[i][1]);
     if(gemms[2].tile_n%(2*swiglu_u))
       throw std::invalid_argument("sm90 dense gate tile splits a gate/up pair");
-    if(!dn_vector_sums && (gemms[1].tile_n%32 || gemms[3].tile_n%32))
-      throw std::invalid_argument("sm90 dense residual tiles require vector sums");
     attention.Validate();
   }
 
@@ -130,23 +122,16 @@ struct Sm90DenseCoordinates {
     std::array<Stage,6> stages;
     for(unsigned i=0;i<5;++i) {
       auto const& g=gemms[i];
-      if(g.SharedBytes()>budget)
+      if(g.SharedBytes(batch,ResidualFamily(i))>budget)
         throw std::invalid_argument("native GEMM arena exceeds target budget");
-      stages[i]={Layout::Gemm(g.tile_n,g.TileK(),g.slots,g.warps_k),
-          Layout::GemmPayload(g.tile_n,g.TileK(),g.slots,nk[i][1],g.preissue_smem_bytes)
+      stages[i]={Layout::Gemm(g.tile_n,g.TileK(),g.slots,g.warps_k,batch,ResidualFamily(i)),
+          Layout::GemmPayload(g.tile_n,g.TileK(),g.slots,nk[i][1],batch,g.preissue_smem_bytes)
               .Shift(g.workspace_offset),g.workspace_offset};
     }
-    int rows=batch<=4?Layout::AttentionKeys(attention.chunks,attention.new_row_work,capacity):
-        attention.slots*attention.block_keys;
-    if(attention.SharedBytes(batch,dim,queries,capacity)>budget ||
-       attention.prefetch_l2_bytes%32 || attention.preissue_smem_bytes%(4*dim) ||
-       attention.preissue_smem_bytes>4ll*dim*rows)
-      throw std::invalid_argument("native KV preissue must fit whole historical rows");
-    stages[5]={Layout::Attention(batch,dim,queries,attention.chunks,attention.block_keys,
-        attention.slots,attention.new_row_work,capacity),
-        Layout::AttentionPayload(batch,dim,queries,attention.chunks,attention.block_keys,
-            attention.slots,attention.new_row_work,capacity,attention.preissue_smem_bytes)
-            .Shift(attention.workspace_offset),attention.workspace_offset};
+    if(attention.SharedBytes(dim,queries)>budget)
+      throw std::invalid_argument("native attention exceeds the shared-memory budget");
+    stages[5]={Layout::Attention(dim,queries,attention.chunks,attention.block_keys,attention.slots),
+        backend::Sm90DensePayload{},attention.workspace_offset};
     for(auto const& s:stages)if(s.offset+s.layout.end>budget)
       throw std::invalid_argument("native arena exceeds target shared-memory budget");
     // Both the layer back-edge and final down->head edge must be safe.
@@ -155,24 +140,6 @@ struct Sm90DenseCoordinates {
       if(next.payload.Overlaps(previous.layout.Scratch(previous.offset)))
         throw std::invalid_argument("native preissue overlaps live epilogue scratch");
     }
-  }
-
-  backend::Sm90DenseActivationReuse ActivationReuse(int batch,int dim,int queries,int capacity) const {
-    // Uniform slots retain zero inactive rows across stages. Argmax moves
-    // beyond those slots only when it fits the already allocated arena.
-    using Layout=backend::Sm90DenseLayout;
-    std::array<backend::Sm90DenseActivationStage,7> stages{};
-    for(unsigned i=0;i<5;++i) {
-      auto const& g=gemms[i];
-      stages[i]={g.TileK(),g.slots,g.workspace_offset,
-          Layout::Gemm(g.tile_n,g.TileK(),g.slots,g.warps_k).Live(g.workspace_offset),false};
-    }
-    auto const& a=attention;
-    stages[5]={0,0,a.workspace_offset,
-        Layout::Attention(batch,dim,queries,a.chunks,a.block_keys,a.slots,a.new_row_work,capacity)
-            .Live(a.workspace_offset),false};
-    stages[6]={0,0,0,Layout::Argmax().Live(0),true};
-    return backend::Sm90DenseActivationReuse::Prove(stages,batch);
   }
 
   json::Value ToJson() const {
@@ -187,12 +154,12 @@ struct Sm90DenseCoordinates {
           {"register_stages",g.register_stages},{"workspace_offset",g.workspace_offset},
           {"preissue_late",g.preissue_late}});
     }
-    return json::Object{{"schema",1},{"gemms",families},
+    return json::Object{{"schema",2},{"gemms",families},
         {"attention",json::Object{{"chunks",attention.chunks},{"block_keys",attention.block_keys},
             {"slots",attention.slots},{"preissue_smem_bytes",attention.preissue_smem_bytes},
             {"prefetch_l2_bytes",attention.prefetch_l2_bytes},{"new_row_work",attention.new_row_work},
             {"workspace_offset",attention.workspace_offset},{"preissue_late",attention.preissue_late}}},
-        {"residency",residency},{"swiglu_u",swiglu_u},{"dn_vector_sums",dn_vector_sums}};
+        {"residency",residency},{"swiglu_u",swiglu_u}};
   }
 
   static Sm90DenseCoordinates FromJson(json::Value const& value) {
@@ -211,8 +178,9 @@ struct Sm90DenseCoordinates {
         throw std::invalid_argument(std::string("invalid sm90 dense integer: ")+key);
       return int(number);
     };
-    if(integer(value,"schema")!=1)throw std::invalid_argument("unknown sm90 dense coordinate schema");
-    keys(value,{"schema","gemms","attention","residency","swiglu_u","dn_vector_sums"});
+    // Schema 2 (prompt §5 D4) has no deferred-norm vector-sum layout.
+    if(integer(value,"schema")!=2)throw std::invalid_argument("unknown sm90 dense coordinate schema");
+    keys(value,{"schema","gemms","attention","residency","swiglu_u"});
     keys(value.At("gemms"),{"qkv","o","gate_up","down","lm_head"});
     Sm90DenseCoordinates result;
     for(unsigned i=0;i<result.gemms.size();++i) {
@@ -237,7 +205,6 @@ struct Sm90DenseCoordinates {
     result.attention.workspace_offset=a.Find("workspace_offset")?integer(a,"workspace_offset"):0;
     result.attention.preissue_late=a.Find("preissue_late")?a.At("preissue_late").AsBool("preissue_late"):false;
     result.residency=integer(value,"residency");result.swiglu_u=integer(value,"swiglu_u");
-    result.dn_vector_sums=value.At("dn_vector_sums").AsBool("dn_vector_sums");
     return result;
   }
 };

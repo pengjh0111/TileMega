@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/Sm90NativeConstants.h>
 #include <cstdio>
-#include <fstream>
-#include <sstream>
 
 namespace tilemega::solver {
 namespace {
@@ -11,48 +9,6 @@ std::string FileHash(std::string const& path) {
   if(!pipe)throw std::runtime_error("cannot hash "+path);
   char text[65]{};auto* got=fgets(text,sizeof(text),pipe);pclose(pipe);
   return got?std::string(text):std::string();
-}
-std::vector<std::string> Split(std::string const& line,char separator) {
-  std::vector<std::string> result;std::string item;std::istringstream stream(line);
-  while(std::getline(stream,item,separator))result.push_back(item);
-  return result;
-}
-// Both the R2 calibration CSV (one column per key field) and the T5 rows
-// (name=attention_stage, key=field=value:...) define the same lookup.
-void ReadAttention(std::string const& path,
-    std::map<std::tuple<int,int,int,int,int,int,int>,Sm90AttentionEntry>& out) {
-  std::ifstream stream(path);
-  if(!stream)throw std::invalid_argument("missing native attention table "+path);
-  std::string line;std::getline(stream,line);
-  auto header=Split(line,',');
-  auto column=[&](char const* name) {
-    for(unsigned i=0;i<header.size();++i)if(header[i]==name)return int(i);
-    return -1;
-  };
-  bool compact=column("key")>=0;
-  while(std::getline(stream,line)) {
-    auto cells=Split(line,',');
-    std::map<std::string,int> f;double ns=0;
-    if(compact) {
-      if(cells.at(column("name"))!="attention_stage")continue;
-      for(auto const& part:Split(cells.at(column("key")),':')) {
-        auto kv=Split(part,'=');f[kv.at(0)]=std::stoi(kv.at(1));
-      }
-      ns=std::stod(cells.at(column("median")));
-    }else {
-      for(auto name:{"batch","head_dim","queries","qk_norm","chunks","block_keys","slots",
-          "new_row_work","grid","past"})f[name]=std::stoi(cells.at(column(name)));
-      ns=std::stod(cells.at(column("median_ns")));
-    }
-    if(f.at("past")!=575)continue;
-    // The low-batch body copies a whole chunk; block keys do not apply to it.
-    int keys=f.at("batch")>=8?f.at("block_keys"):0;
-    auto key=std::make_tuple(f.at("batch"),f.at("head_dim"),f.at("queries"),f.at("qk_norm"),
-        f.at("chunks"),f.at("grid"),keys);
-    auto found=out.find(key);
-    if(found==out.end() || ns<found->second.ns)
-      out[key]={ns,f.at("slots"),f.at("new_row_work")};
-  }
 }
 double Positive(json::Value const& v,char const* what) {
   double x=v.AsNumber(what);
@@ -76,8 +32,7 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
   c.sm_gbps=Positive(s.At("sm_gbps"),"sm bandwidth");
   c.cp_async_gbps=Positive(s.At("activation_cp_async_gbps"),"cp.async activation bandwidth");
   c.epilogue_=s.At("epilogue_ns");c.embedding_=s.At("embedding_ns");c.argmax_=s.At("argmax_ns");
-  for(auto const& path:s.At("attention_tables").AsArray("attention tables"))
-    ReadAttention(root+"/"+path.AsString("attention table"),c.attention_);
+  c.attention_=s.At("attention_ns");
   return c;
 }
 double Sm90NativeConstants::Barrier(int grid) const {
@@ -85,14 +40,13 @@ double Sm90NativeConstants::Barrier(int grid) const {
   if(found==barrier_.end())throw Sm90NativeMissing("no measured barrier for grid "+std::to_string(grid));
   return found->second;
 }
-double Sm90NativeConstants::Epilogue(std::string const& family,int tile_n,int batch,int k,
-                                     bool vector_sums) const {
-  auto const* f=epilogue_.Find(family);auto const* v=f?f->Find(vector_sums?"vs1":"vs0"):nullptr;
-  auto const* kk=v?v->Find("k"+std::to_string(k)):nullptr;
-  auto const* tn=kk?kk->Find(std::to_string(tile_n)):nullptr;
+double Sm90NativeConstants::Epilogue(std::string const& family,int tile_n,int batch,
+                                     int warps_k) const {
+  auto const* f=epilogue_.Find(family);auto const* w=f?f->Find("wk"+std::to_string(warps_k)):nullptr;
+  auto const* tn=w?w->Find(std::to_string(tile_n)):nullptr;
   auto const* b=tn?tn->Find(std::to_string(batch)):nullptr;
   if(!b)throw Sm90NativeMissing("no measured epilogue "+family+" TN"+std::to_string(tile_n)+
-      " B"+std::to_string(batch)+" K"+std::to_string(k)+" vs"+std::to_string(vector_sums));
+      " B"+std::to_string(batch)+" WK"+std::to_string(warps_k));
   return Positive(*b,"epilogue");
 }
 double Sm90NativeConstants::Embedding(int grid,int width,int batch) const {
@@ -109,11 +63,22 @@ double Sm90NativeConstants::Argmax(int grid,int parts,int batch) const {
   if(!b)throw Sm90NativeMissing("no measured argmax stage for "+std::to_string(parts)+" parts");
   return Positive(*b,"argmax");
 }
-std::optional<Sm90AttentionEntry> Sm90NativeConstants::Attention(int batch,int dim,int queries,
-    bool norm,int chunks,int grid,int block_keys) const {
-  auto found=attention_.find({batch,dim,queries,int(norm),chunks,grid,batch>=8?block_keys:0});
-  if(found==attention_.end())return std::nullopt;
-  return found->second;
+json::Value const& Sm90NativeConstants::AttentionShape(int dim,int queries,bool norm) const {
+  auto key="d"+std::to_string(dim)+":q"+std::to_string(queries)+":norm"+std::to_string(int(norm));
+  auto const* found=attention_.Find(key);
+  if(!found)throw Sm90NativeMissing("no measured attention constants for "+key);
+  return *found;
+}
+double Sm90NativeConstants::AttentionBlock(int dim,int queries,bool norm) const {
+  return Positive(AttentionShape(dim,queries,norm).At("block"),"attention block");
+}
+double Sm90NativeConstants::AttentionPrepare(int dim,int queries,bool norm) const {
+  return Positive(AttentionShape(dim,queries,norm).At("prepare"),"attention preparation");
+}
+double Sm90NativeConstants::AttentionMerge(int dim,int queries,bool norm,int chunks) const {
+  auto const* found=AttentionShape(dim,queries,norm).At("merge").Find(std::to_string(chunks));
+  if(!found)throw Sm90NativeMissing("no measured attention merge for "+std::to_string(chunks)+" chunks");
+  return Positive(*found,"attention merge");
 }
 std::vector<std::string> Sm90NativeConstants::StaleHeaders(std::string const& root) const {
   std::vector<std::string> result;

@@ -223,7 +223,7 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   frontend::ServingOptions options;options.dense_attention_chunks=1;
   auto plan=frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,options);
   auto work=solver::Sm90DenseWorkloadFromPlan(plan,o.batch);
-  solver::Sm90DenseSearchSpace space{work.shapes,work.batch,work.head_dim,work.queries,target};
+  solver::Sm90DenseSearchSpace space{work.shapes,work.batch,work.head_dim,work.queries,target,work.hkv};
   solver::Sm90DenseSearchOptions search;search.top=o.measure_top;
   auto result=solver::SearchSm90Dense(space,work,cost,search);
   json::Array ranked,candidates;

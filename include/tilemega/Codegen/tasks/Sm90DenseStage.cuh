@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Backend/Sm90DenseGemm.h>
-#include <tilemega/Backend/Sm90DenseAttention.h>
+#include <tilemega/Backend/Sm90DenseOperands.cuh>
 
 namespace tilemega::codegen::native_dense {
 struct ReadSources {
@@ -19,21 +19,6 @@ struct GemmRead {
   template<int Bytes,int Prefix>
   __device__ static __forceinline__ void Prefetch(ReadSources source,int) {
     if constexpr(Bytes>0)if(blockIdx.x<Tasks)Body::template Prefetch<Bytes,Prefix>(source.first);
-  }
-};
-
-template<class Loader,int Tasks>
-struct KvRead {
-  template<int Bytes>
-  __device__ static __forceinline__ void Prepare(ReadSources source,int past,char* shared,
-      backend::Sm90DenseRingState& ring) {
-    if constexpr(Bytes>0)if(blockIdx.x<Tasks)
-      Loader::template Prepare<Bytes>(source.first,source.second,past,shared,ring);
-  }
-  template<int Bytes,int Prefix>
-  __device__ static __forceinline__ void Prefetch(ReadSources source,int past) {
-    if constexpr(Bytes>0)if(blockIdx.x<Tasks)
-      Loader::template Prefetch<Bytes,Prefix>(source.first,source.second,past);
   }
 };
 
@@ -57,10 +42,10 @@ struct RawProducerTail {
 
 template<class Body>
 struct StageEntry {
-  template<int Prefix,bool InputNorm,bool OutputSums,bool Initialize=true,class Tail>
+  template<int Prefix,class Tail>
   __device__ static __forceinline__ void Gemm(backend::Sm90DenseOperands const& p,char* shared,
       backend::Sm90DenseRingState* ring,Tail tail) {
-    Body::template Run<InputNorm,OutputSums,Prefix,Tail,Initialize>(p,shared,ring,tail);
+    Body::template Run<Prefix,Tail>(p,shared,ring,tail);
   }
   template<class Tail>
   __device__ static __forceinline__ void Attention(backend::Sm90DenseAttentionOperands const& p,

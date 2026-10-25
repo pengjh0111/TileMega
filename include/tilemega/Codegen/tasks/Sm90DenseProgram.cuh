@@ -3,10 +3,9 @@
 
 #include <tilemega/Backend/Sm90DenseGemm.h>
 #include <tilemega/Codegen/Sm90DenseEpilogueContract.h>
-#include <tilemega/Backend/Sm90DenseAttentionStream.cuh>
+#include <tilemega/Backend/Sm90DenseAttentionBody.cuh>
 #include <tilemega/Backend/Sm90DenseToken.cuh>
 #include <tilemega/Backend/Sm90DenseLayout.h>
-#include <tilemega/Backend/Sm90DensePreissue.cuh>
 #include <tilemega/Codegen/tasks/Sm90DenseStage.cuh>
 #include <tilemega/Codegen/tasks/ServingAbi.h>
 #include <array>
@@ -44,17 +43,30 @@ namespace tilemega::codegen::native_dense {
 using Element=cutlass::bfloat16_t;
 inline constexpr unsigned kAbsent=~0u;
 
-template<unsigned Count>
-struct Bindings {
+// Passed as one __grid_constant__ kernel parameter: the tensor maps keep
+// their 64-byte alignment and TMA reads them from parameter space.
+template<unsigned Count,unsigned Maps>
+struct alignas(64) Bindings {
+  CUtensorMap maps[Maps];
   Element* buffers[Count];
   template<unsigned Id>
   __device__ __forceinline__ Element* Get() const {
     if constexpr(Id==kAbsent)return nullptr;
     else {static_assert(Id<Count);return buffers[Id];}
   }
+  template<unsigned Id>
+  __device__ __forceinline__ CUtensorMap const* Map() const {
+    static_assert(Id<Maps);return &maps[Id];
+  }
 };
 
 struct alignas(64) GridCounter {unsigned long long arrivals;};
+// One rank-3/4 SWIZZLE_128B descriptor over a bound buffer (codegen-emitted).
+struct NativeTensorMap {
+  unsigned buffer,rank;
+  unsigned long long dims[4],strides[3];
+  unsigned box[4];
+};
 struct StageInfo {
   char const *kind,*name;
   unsigned long long weight_bytes;
@@ -82,30 +94,23 @@ __device__ inline unsigned long long Now() {
   unsigned long long time;asm volatile("mov.u64 %0, %%globaltimer;":"=l"(time));return time;
 }
 
+// InputNorm: the stage's input is RMS-normalized in the consumers; its gamma
+// is folded into the packed weight (qkv, gate_up, lm_head).
 template<int Batch,int N,int K,int TN,int TK,int Slots,int WN,int WK,
-         backend::ServingEpilogueOp Op,int U,unsigned A,unsigned W,unsigned C,
-         unsigned D,unsigned Index,unsigned Norm,unsigned Sums,int RegisterStages=1>
-struct Gemm:epilogue_contract::Presence<Norm,Sums> {
-  using Features=epilogue_contract::Presence<Norm,Sums>;
-  static constexpr bool kInputNorm=Features::kInputNorm,kOutputSums=Features::kOutputSums;
-  static constexpr epilogue_contract::Gemm kEpilogueBinding{Norm,Sums,Batch,K,N,TN,
-      bool(TILEMEGA_DN_VECTOR_SUMS),Op==backend::ServingEpilogueOp::kResidual,true};
-  using Body=backend::Sm90DenseGemm<Batch,N,K,TN,TK,Slots,WN,WK,Op,U,RegisterStages>;
+         backend::ServingEpilogueOp Op,int U,bool InputNorm,unsigned W,unsigned C,
+         unsigned D,unsigned Index,int RegisterStages,unsigned Map>
+struct Gemm {
+  using Body=backend::Sm90DenseGemm<Batch,N,K,TN,TK,Slots,WN,WK,Op,U,InputNorm,RegisterStages>;
   static constexpr int kTasks=N/TN,kSharedBytes=Body::kSharedBytes;
-  static constexpr int kActivationTileK=TK,kActivationSlots=Slots;
   static constexpr bool kArgmax=false;
   static constexpr bool kUsesOperandRecord=true;
-  __device__ static void InitializeInactive(char* shared) {
-    Body::InitializeInactive(reinterpret_cast<Element*>(shared+1024));
-  }
   static constexpr int kRingSlots=Slots;
   static constexpr int kMaxPreissue=(Slots<Body::kIterations?Slots:Body::kIterations)*2*TN*TK;
-  static constexpr auto kLayout=backend::Sm90DenseLayout::Gemm(TN,TK,Slots,WK);
-  static_assert(kLayout.end==kSharedBytes);
+  static constexpr auto kLayout=Body::kLayout;
   using Preissue=GemmRead<Body,kTasks>;
   template<int Bytes>
   static constexpr auto Payload() {
-    return backend::Sm90DenseLayout::GemmPayload(TN,TK,Slots,K,Bytes);
+    return backend::Sm90DenseLayout::GemmPayload(TN,TK,Slots,K,Batch,Bytes);
   }
   template<class B>
   __device__ static __forceinline__ ReadSources Sources(B const& b) {
@@ -114,56 +119,39 @@ struct Gemm:epilogue_contract::Presence<Norm,Sums> {
   template<class B>
   __device__ static __forceinline__ void PublishOperands(B const& b,int,float epsilon,
       backend::Sm90DenseOperandBank& record) {
-    record.gemm.activation=b.template Get<A>();record.gemm.weight=b.template Get<W>();
+    record.gemm.activation=b.template Map<Map>();record.gemm.weight=b.template Get<W>();
     record.gemm.residual=b.template Get<C>();record.gemm.output=b.template Get<D>();
     record.gemm.argmax_index=reinterpret_cast<int*>(b.template Get<Index>());
-    record.gemm.norm_sums=reinterpret_cast<float const*>(b.template Get<Norm>());
-    record.gemm.output_sums=reinterpret_cast<float*>(b.template Get<Sums>());
     record.gemm.epsilon=epsilon;
   }
-  template<int Prefix,class B,class Tail,bool Initialize=true>
+  template<int Prefix,class B,class Tail>
   __device__ static __forceinline__ void Run(B const& b,int,char* shared,float,
       backend::Sm90DenseRingState& ring,Tail tail,backend::Sm90DenseOperandBank const& record) {
-    auto const& p=record.gemm;
-    StageEntry<Body>::template Gemm<Prefix,kInputNorm,kOutputSums,Initialize>(p,shared,&ring,tail);
+    StageEntry<Body>::template Gemm<Prefix>(record.gemm,shared,&ring,tail);
   }
 };
 
-template<int Batch,int D,int Q,bool Norm,int Chunks,int Keys,int Slots,int RowWork,
+template<int Batch,int Hkv,int D,int Q,bool Norm,int Chunks,int Keys,int Slots,int RowWork,
          int Capacity,unsigned Qkv,unsigned Key,unsigned Value,unsigned Output,
          unsigned Cosine,unsigned Sine,unsigned QNorm,unsigned KNorm,
-         unsigned Partial,unsigned Lse,unsigned Arrivals>
+         unsigned Partial,unsigned Lse,unsigned Arrivals,unsigned KeyMap,unsigned ValueMap>
 struct Attention {
-  static constexpr int kActivationTileK=0,kActivationSlots=0;
   static constexpr bool kArgmax=false;
   static constexpr bool kUsesOperandRecord=true;
-  using Body=std::conditional_t<(Batch<=4),
-      backend::Sm90DenseAttention<Batch,D,Q,Norm,Chunks,RowWork,Capacity>,
-      backend::Sm90DenseAttentionStream<Batch,D,Q,Norm,Chunks,Keys,Slots,RowWork,Capacity>>;
-  using Loader=backend::Sm90DenseKvPreissue<(Batch>=8),D,Q,Chunks,Keys,Slots,RowWork,Capacity>;
-  static constexpr int kTasks=Batch*8*Chunks,kSharedBytes=Body::kSharedBytes;
-  using Preissue=KvRead<Loader,kTasks>;
-  static constexpr int kRingSlots=Batch<=4?1:Slots;
-  static constexpr int kMaxPreissue=4*D*(Batch<=4?
-      Body::Partition::MaxKeys(Capacity,RowWork):Slots*Keys);
-  static constexpr auto kLayout=backend::Sm90DenseLayout::Attention(
-      Batch,D,Q,Chunks,Keys,Slots,RowWork,Capacity);
+  using Body=backend::Sm90DenseAttentionBody<Batch,Hkv,D,Q,Norm,Chunks,Keys,Slots,RowWork,Capacity>;
+  static constexpr int kTasks=Body::kTasks,kSharedBytes=Body::kSharedBytes;
+  // KV preissue returns with the D6 stream (prompt §6).
+  static constexpr int kRingSlots=Slots,kMaxPreissue=0;
+  static constexpr auto kLayout=backend::Sm90DenseLayout::Attention(D,Q,Chunks,Keys,Slots);
   static_assert(kLayout.end==kSharedBytes);
-  using Storage=typename Body::Storage;
-  static_assert(kLayout.key==1024+offsetof(Storage,key) &&
-      kLayout.value==1024+offsetof(Storage,value) && kLayout.scratch==1024+offsetof(Storage,output));
   template<int Bytes>
-  static constexpr auto Payload() {
-    return backend::Sm90DenseLayout::AttentionPayload(
-        Batch,D,Q,Chunks,Keys,Slots,RowWork,Capacity,Bytes);
-  }
+  static constexpr backend::Sm90DensePayload Payload() {return {};}
   template<class B>
-  __device__ static __forceinline__ ReadSources Sources(B const& b) {
-    return {b.template Get<Key>(),b.template Get<Value>()};
-  }
+  __device__ static __forceinline__ ReadSources Sources(B const&) {return {};}
   template<class B>
   __device__ static __forceinline__ void PublishOperands(B const& b,int past,float epsilon,
       backend::Sm90DenseOperandBank& record) {
+    record.attention.key_map=b.template Map<KeyMap>();record.attention.value_map=b.template Map<ValueMap>();
     record.attention.qkv=b.template Get<Qkv>();record.attention.key=b.template Get<Key>();
     record.attention.value=b.template Get<Value>();record.attention.output=b.template Get<Output>();
     record.attention.cosine=b.template Get<Cosine>();record.attention.sine=b.template Get<Sine>();
@@ -173,18 +161,16 @@ struct Attention {
     record.attention.arrivals=reinterpret_cast<std::uint64_t*>(b.template Get<Arrivals>());
     record.attention.past=past;record.attention.epsilon=epsilon;
   }
-  template<int Prefix,class B,class Tail,bool Initialize=true>
+  template<int Prefix,class B,class Tail>
   __device__ static __forceinline__ void Run(B const& b,int past,char* shared,float epsilon,
       backend::Sm90DenseRingState& ring,Tail tail,backend::Sm90DenseOperandBank const& record) {
-    auto const& p=record.attention;
-    StageEntry<Body>::Attention(p,shared,&ring,tail);
+    StageEntry<Body>::Attention(record.attention,shared,&ring,tail);
   }
 };
 
 template<int Batch,int Width,int Vocab,int Capacity,unsigned Tokens,unsigned Table,
-         unsigned Output,unsigned Sums>
+         unsigned Output>
 struct Embedding {
-  static constexpr int kActivationTileK=0,kActivationSlots=0;
   static constexpr bool kArgmax=false;
   static constexpr bool kUsesOperandRecord=false;
   static constexpr int kTasks=Batch,kSharedBytes=1024;
@@ -196,14 +182,14 @@ struct Embedding {
   __device__ static void Prepare(B const&,int,char*,backend::Sm90DenseRingState&) {}
   template<int Bytes,int Prefix,class B>
   __device__ static void Prefetch(B const&,int) {}
-  template<int Prefix,class B,class Tail,bool Initialize=true>
+  template<int Prefix,class B,class Tail>
   __device__ static __forceinline__ void Run(B const& b,int past,char*,float,
       backend::Sm90DenseRingState&,Tail tail) {
     if constexpr(Tail::kBefore)if(threadIdx.x==128)tail.Before();
     if(threadIdx.x<128)for(int row=blockIdx.x;row<Batch;row+=gridDim.x) {
       auto* tokens=reinterpret_cast<int const*>(b.template Get<Tokens>());
       backend::Sm90DenseEmbedding<Width,Vocab,Capacity>::Run(tokens,b.template Get<Table>(),
-          b.template Get<Output>(),reinterpret_cast<float*>(b.template Get<Sums>()),row,past);
+          b.template Get<Output>(),row,past);
     }
     if(threadIdx.x==128)tail();
     __syncthreads();
@@ -212,7 +198,6 @@ struct Embedding {
 
 template<int Batch,int Parts,int Capacity,unsigned Values,unsigned Indices,unsigned Tokens>
 struct Argmax {
-  static constexpr int kActivationTileK=0,kActivationSlots=0;
   static constexpr bool kArgmax=true;
   static constexpr bool kUsesOperandRecord=false;
   using Body=backend::Sm90DenseArgmax<Parts,Capacity>;
@@ -226,7 +211,7 @@ struct Argmax {
   __device__ static void Prepare(B const&,int,char*,backend::Sm90DenseRingState&) {}
   template<int Bytes,int Prefix,class B>
   __device__ static void Prefetch(B const&,int) {}
-  template<int Prefix,class B,class Tail,bool Initialize=true>
+  template<int Prefix,class B,class Tail>
   __device__ static __forceinline__ void Run(B const& b,int past,char* shared,float,
       backend::Sm90DenseRingState&,Tail tail) {
     if constexpr(Tail::kBefore)if(threadIdx.x==128)tail.Before();
@@ -251,12 +236,12 @@ struct Placement:Stage {
   static constexpr auto kPayload=Stage::template Payload<Prefix>().Shift(Offset);
   static constexpr auto kLive=Stage::kLayout.Live(Offset);
   static constexpr auto kScratch=Stage::kLayout.Scratch(Offset);
-  template<bool Initialize=true,class B,class Tail>
+  template<class B,class Tail>
   __device__ static __forceinline__ void Run(B const& b,int past,char* shared,float epsilon,
       backend::Sm90DenseRingState& ring,Tail tail,backend::Sm90DenseOperandBank const& record) {
     if constexpr(Stage::kUsesOperandRecord)
-      Stage::template Run<Prefix,B,Tail,Initialize>(b,past,shared+Offset,epsilon,ring,tail,record);
-    else Stage::template Run<Prefix,B,Tail,Initialize>(b,past,shared+Offset,epsilon,ring,tail);
+      Stage::template Run<Prefix,B,Tail>(b,past,shared+Offset,epsilon,ring,tail,record);
+    else Stage::template Run<Prefix,B,Tail>(b,past,shared+Offset,epsilon,ring,tail);
   }
 };
 
@@ -282,16 +267,14 @@ struct ProducerTail {
   }
 };
 
-template<int Batch,int Capacity,int Residency,unsigned Buffers,class... Stage>
+template<int Batch,int Capacity,int Residency,unsigned Buffers,unsigned Maps,class... Stage>
 struct Program {
-  using Binding=Bindings<Buffers>;
+  using Binding=Bindings<Buffers,Maps>;
   using Stages=std::tuple<Stage...>;
   static constexpr int kBatch=Batch,kCapacity=Capacity,kResidency=Residency,kThreads=160;
-  static constexpr unsigned kBuffers=Buffers,kStages=sizeof...(Stage);
+  static constexpr unsigned kBuffers=Buffers,kMaps=Maps,kStages=sizeof...(Stage);
   using RoleLaunch=backend::Sm90DenseRoleLaunch<kThreads>;
   static_assert(RoleLaunch::kThreads==kThreads);
-  static constexpr std::array<epilogue_contract::Gemm,kStages> kEpilogueBindings{{
-      epilogue_contract::SpecFor<Stage>::value...}};
   using FirstStage=std::tuple_element_t<0,Stages>;
   static_assert(!FirstStage::kUsesOperandRecord,
       "native shared-operand ABI requires an operand-free first stage; no implicit startup publication barrier");
@@ -306,10 +289,6 @@ struct Program {
     return offsets;
   }();
 #endif
-  static constexpr auto kActivationReuse=backend::Sm90DenseActivationReuse::Prove(
-      std::array<backend::Sm90DenseActivationStage,kStages>{{
-          {Stage::kActivationTileK,Stage::kActivationSlots,Stage::kOffset,
-           Stage::kLive,Stage::kArgmax}...}},Batch);
 #if TILEMEGA_NATIVE_RELEASE_ENABLED
   static constexpr int kArenaSharedBytes=[] {
     int value=1024;((value=value<Stage::kSharedBytes?Stage::kSharedBytes:value),...);return value;
@@ -322,8 +301,6 @@ struct Program {
   static_assert(kSharedBytes<=TILEMEGA_NATIVE_RELEASE_SHARED_BUDGET,
       "native release trace exceeds the selected target/residency shared-memory budget");
   static_assert(((!Stage::kPayload.Overlaps(kReleaseInterval)) && ...));
-  static_assert(((!kActivationReuse.valid || !Stage::kArgmax ||
-      Stage::kSharedBytes+kActivationReuse.ArgmaxShift()<=kReleaseOffset) && ...));
 
   __device__ static __forceinline__ void BeginRelease(char* shared,int past,
                                                      unsigned long long iteration) {
@@ -358,13 +335,6 @@ struct Program {
   }();
 #endif
   static_assert(sizeof(Binding)+256<32764 && kStages>0 && (Residency==1 || Residency==2));
-  __device__ static void InitializeActivation(char* shared) {
-    if constexpr(kActivationReuse.valid) {
-      using First=std::tuple_element_t<kActivationReuse.first,Stages>;
-      First::InitializeInactive(shared+kActivationReuse.offset);
-    }
-  }
-
   template<unsigned Index>
   __device__ static __forceinline__ void Boundary(Binding const& b,int past,char* shared,
       float epsilon,GridCounter* events,unsigned long long iteration,TraceState trace) {
@@ -394,13 +364,11 @@ struct Program {
 #endif
     // Every stage returns only after all 160 threads have retired its storage.
     auto* rings=reinterpret_cast<backend::Sm90DenseRingState*>(shared);
-    char* arena=shared;
-    if constexpr(kActivationReuse.valid && Body::kArgmax)arena+=kActivationReuse.ArgmaxShift();
     if constexpr(Index+1<kStages) {
       ProducerTail<Body,Next,Binding> tail{b,past,shared,rings[Index%2],rings[(Index+1)%2]};
-      Body::template Run<!kActivationReuse.valid>(b,past,arena,epsilon,rings[Index%2],tail.Raw(),
+      Body::Run(b,past,shared,epsilon,rings[Index%2],tail.Raw(),
           backend::Sm90DenseOperandHeader::Bank(shared,Index));
-    }else Body::template Run<!kActivationReuse.valid>(b,past,arena,epsilon,rings[Index%2],backend::Sm90DenseNoTail{},
+    }else Body::Run(b,past,shared,epsilon,rings[Index%2],backend::Sm90DenseNoTail{},
         backend::Sm90DenseOperandHeader::Bank(shared,Index));
     if(threadIdx.x==0) {
 #if TILEMEGA_TRACE_NATIVE_BOUNDARY
@@ -504,7 +472,6 @@ void sm90_dense_native_kernel(const __grid_constant__ typename P::Binding b,
   }
 #endif
   rings[1].Initialize();
-  P::InitializeActivation(shared);
 #if TILEMEGA_TRACE_NATIVE_PHASES
   if(threadIdx.x<128 && (threadIdx.x&31)==0)
     backend::Sm90DenseDiagnostic::Context(shared).previous_release_clock[threadIdx.x/32]=
