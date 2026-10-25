@@ -97,7 +97,7 @@ frontend::ImportedSemantics ImportSm90Dense(std::string const& path,
     Sm90DenseCoordinates const& c,mlir::MLIRContext& context) {
   auto bridge=frontend::ReadExportBridge(path);
   frontend::ServingOptions options;
-  options.interleave_u=c.swiglu_u;options.native_rms=true;
+  options.interleave_u=c.swiglu_u;options.native_rms=true;options.native_shared_scratch=true;
   options.argmax_tile_n=c.gemms[4].tile_n;
   options.dense_attention_chunks=c.attention.chunks;
   auto plan=frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,options);

@@ -231,6 +231,10 @@ struct ServingOptions {
   // Native dense decode accumulates InputNorm statistics in its GEMM
   // consumers; the plan keeps folded weights but allocates no sum buffers.
   bool native_rms = false;
+  // D7 (prompt §6): qkv, context, act and the attention partial/lse/arrivals
+  // scratch exist once and every layer reuses them; the all-to-all stage
+  // barriers separate one layer's uses from the next.
+  bool native_shared_scratch = false;
   int moe_batch = 1;
   bool moe_grouped = false;
   unsigned moe_block_rows = 16;

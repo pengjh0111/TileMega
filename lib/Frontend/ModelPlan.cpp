@@ -905,6 +905,22 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
     buffer.dtype = std::move(dtype);
     return builder.Buffer(std::move(buffer));
   };
+  // Per-layer scratch, or one buffer shared by all layers (D7).
+  std::map<std::string, std::uint32_t> shared_scratch;
+  auto layer_scratch = [&](std::string const& prefix, std::string const& name,
+                           std::uint32_t per_batch, std::string dtype = "bf16") {
+    if (!serving.native_shared_scratch) return scratch(prefix + name, per_batch, dtype);
+    auto found = shared_scratch.find(name);
+    if (found != shared_scratch.end()) {
+      auto const& buffer = builder.plan.buffers[found->second];
+      if (buffer.per_batch != per_batch || buffer.dtype != dtype)
+        throw std::invalid_argument("shared layer scratch changes shape: " + name);
+      return found->second;
+    }
+    auto id = scratch("layers." + name, per_batch, dtype);
+    shared_scratch.emplace(name, id);
+    return id;
+  };
   auto alias = [&](std::string const& operand) {
     auto const& input = parameter(operand);
     return external(input.target, NumericElements(builder.Node(input.name)),
@@ -1012,7 +1028,7 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
         norm1_fqn+"\",\"source\":"+qkv_recipe+'}';
     std::uint32_t qkv_weight = packed(prefix + (dn?"qkv.weight.dn":"qkv.weight"),
                                       packed_width * hidden, qkv_recipe);
-    std::uint32_t qkv = scratch(prefix + "qkv", serving.seq * packed_width);
+    std::uint32_t qkv = layer_scratch(prefix, "qkv", serving.seq * packed_width);
     auto const* latest_qkv = &q;
     for (auto const* node : {&k, &v})
       if (node->index > latest_qkv->index) latest_qkv = node;
@@ -1047,7 +1063,7 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
       q_norm_weight = alias(matcher.NearestParameter(q_norm->name));
       k_norm_weight = alias(matcher.NearestParameter(k_norm->name));
     }
-    std::uint32_t context = scratch(prefix + "context", serving.seq * qwidth);
+    std::uint32_t context = layer_scratch(prefix, "context", serving.seq * qwidth);
     // The selected block extent is a compile-time coordinate of this plan.
     if (serving.kv_block <= 0 || serving.query_rows <= 0)
       throw std::invalid_argument("serving KV and query blocks must be positive");
@@ -1057,8 +1073,8 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
         ? serving.capacity : serving.kv_block;
     int blocks = serving.dense_attention_chunks?serving.dense_attention_chunks:
         (serving.capacity + block_extent - 1) / block_extent;
-    std::uint32_t po = scratch(prefix + "attn.partial", serving.seq * qwidth * blocks, "f32");
-    std::uint32_t lse = scratch(prefix + "attn.lse", serving.seq * qwidth / head_dim * blocks, "f32");
+    std::uint32_t po = layer_scratch(prefix, "attn.partial", serving.seq * qwidth * blocks, "f32");
+    std::uint32_t lse = layer_scratch(prefix, "attn.lse", serving.seq * qwidth / head_dim * blocks, "f32");
     builder.Stage(PlanTaskKind::kFusedAttention, match.at("ctx")->name,
                   0, hkv, head_dim, qperkv,
                   {qkv, kc, vc, cos, sin, q_norm_weight, k_norm_weight,
@@ -1069,7 +1085,9 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
     if(serving.dense_attention_chunks) {
       // Chunks are an implementation of this operator's reduction. Context
       // remains its semantic output; no orphan partial -> o_proj edge exists.
-      auto arrivals=scratch(prefix+"attn.arrivals",2*hkv,"i32");
+      // Shared counters keep increasing by S per use: old % S still names
+      // the last arriver of every layer.
+      auto arrivals=layer_scratch(prefix,"attn.arrivals",2*hkv,"i32");
       builder.plan.stages.back().operands[10]=arrivals;
       builder.plan.stages.back().dense_attention_chunks=blocks;
     }
@@ -1126,7 +1144,7 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
         norm2_fqn+"\",\"source\":"+gu_recipe+'}';
     std::uint32_t gu_weight = packed(prefix + (dn?"gate_up.weight.dn":"gate_up.weight"),
                                      2 * intermediate * hidden, gu_recipe);
-    std::uint32_t act = scratch(prefix + "act", serving.seq * intermediate);
+    std::uint32_t act = layer_scratch(prefix, "act", serving.seq * intermediate);
     auto gu_gemm = builder.Gemm(dn?x:norm2, gu_weight, act, act,
                                 2 * intermediate, hidden, 0.0f);
     if(dn)builder.plan.gemms[gu_gemm].norm_ss=ss_cur;
