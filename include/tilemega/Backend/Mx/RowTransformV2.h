@@ -32,14 +32,24 @@ __device__ __forceinline__ void MxRowTransformV2(uint4 (&x)[D / 32], uint4 const
 #pragma unroll
   for (int dc = 0; dc < chunks; ++dc) {
     int const partner = dc ^ (chunks / 2);
+    uint4 packed_w = weights[dc], packed_pw = weights[partner];
+    uint4 packed_c = cosine[dc], packed_s = sine[dc];
+    if constexpr (QkNorm) {
+      // Keep BF16 operands packed until the normalization inverse is ready.
+      asm volatile("" : "+r"(packed_w.x), "+r"(packed_w.y), "+r"(packed_w.z), "+r"(packed_w.w),
+                        "+r"(packed_pw.x), "+r"(packed_pw.y), "+r"(packed_pw.z), "+r"(packed_pw.w),
+                        "+r"(packed_c.x), "+r"(packed_c.y), "+r"(packed_c.z), "+r"(packed_c.w),
+                        "+r"(packed_s.x), "+r"(packed_s.y), "+r"(packed_s.z), "+r"(packed_s.w)
+                      : "r"(inverse));
+    }
     alignas(16) Bf16 a[8], b[8], w[8], pw[8], c[8], s[8];
     // RotateEight changes both operands; every pair starts from raw copies.
     *reinterpret_cast<uint4*>(a) = original[dc];
     *reinterpret_cast<uint4*>(b) = original[partner];
-    *reinterpret_cast<uint4*>(w) = weights[dc];
-    *reinterpret_cast<uint4*>(pw) = weights[partner];
-    *reinterpret_cast<uint4*>(c) = cosine[dc];
-    *reinterpret_cast<uint4*>(s) = sine[dc];
+    *reinterpret_cast<uint4*>(w) = packed_w;
+    *reinterpret_cast<uint4*>(pw) = packed_pw;
+    *reinterpret_cast<uint4*>(c) = packed_c;
+    *reinterpret_cast<uint4*>(s) = packed_s;
     codegen::mx::RotateEight<QkNorm>(a, b, w, pw, c, s, inverse, dc < chunks / 2);
     x[dc] = *reinterpret_cast<uint4 const*>(a);
   }

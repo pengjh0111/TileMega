@@ -24,8 +24,14 @@ struct MxAttentionGeometryV2 {
   TM_MX_HD constexpr MxAttentionGeometryV2(int heads, int past, int bmin, int grid, int cta)
       : blocks((past + 32) / 32), units(heads * blocks),
         active((units + bmin - 1) / bmin < grid ? (units + bmin - 1) / bmin : grid),
-        begin(cta < active ? cta * units / active : units),
-        end(cta < active ? (cta + 1) * units / active : units) {}
+        begin(0), end(0) {
+#if defined(__CUDA_ARCH__) || defined(__MACA_ARCH__)
+    // Every launched CTA lies in this grid, including through opaque reads.
+    __builtin_assume(cta >= 0 && cta < grid);
+#endif
+    begin = cta < active ? cta * units / active : units;
+    end = cta < active ? (cta + 1) * units / active : units;
+  }
   TM_MX_HD constexpr int Owner(int unit) const { return ((unit + 1) * active - 1) / units; }
   TM_MX_HD constexpr int FirstOwner(int head) const { return Owner(head * blocks); }
   TM_MX_HD constexpr int Producers(int head) const { return Owner((head + 1) * blocks - 1) - FirstOwner(head) + 1; }
@@ -125,7 +131,8 @@ struct MxAttentionV2 {
     uint4 new_key[kChunks];
     unsigned new_values[kAtoms];
     if (wave < 8 && count) {
-      uint4 cosine[kChunks], sine[kChunks];
+      uint4 cosine[kChunks], sine[kChunks], weights[kChunks], key_weights[kChunks];
+      uint4 new_v{};
       int const offset = p.past % 32, owner_r = 4 * (offset / 8) + offset % 4;
       bool const owner = (geo.blocks - 1 >= first + wave) && (geo.blocks - 1 - first - wave) % 8 == 0
                          && end == geo.blocks;
@@ -134,44 +141,21 @@ struct MxAttentionV2 {
         int const at = dc * 32 + 8 * g;
         cosine[dc] = LoadGlobal16Gvm(p.cosine + p.past * D + at);
         sine[dc] = LoadGlobal16Gvm(p.sine + p.past * D + at);
+        query[dc] = LoadGlobal16Gvm(p.qkv + (head * (Q + 2) + min(r, Q - 1)) * D + at);
+        weights[dc] = uint4{};
+        if constexpr (QkNorm) weights[dc] = LoadGlobal16Gvm(p.q_norm + at);
         new_key[dc] = uint4{};
+        key_weights[dc] = uint4{};
       }
       if (owner) {
-        uint4 key_weights[kChunks];
 #pragma unroll
         for (int dc = 0; dc < kChunks; ++dc) {
           int const at = dc * 32 + 8 * g;
           if (r == owner_r) new_key[dc] = LoadGlobal16Gvm(p.qkv + (head * (Q + 2) + Q) * D + at);
-          key_weights[dc] = uint4{};
           if constexpr (QkNorm) key_weights[dc] = LoadGlobal16Gvm(p.k_norm + at);
         }
-        MxRowTransformV2<D, QkNorm>(new_key, key_weights, cosine, sine, p.epsilon, exchange, lane);
-        __syncwarp();
-      }
-      {
-        uint4 weights[kChunks];
-#pragma unroll
-        for (int dc = 0; dc < kChunks; ++dc) {
-          int const at = dc * 32 + 8 * g;
-          query[dc] = LoadGlobal16Gvm(p.qkv + (head * (Q + 2) + min(r, Q - 1)) * D + at);
-          weights[dc] = uint4{};
-          if constexpr (QkNorm) weights[dc] = LoadGlobal16Gvm(p.q_norm + at);
-        }
-        MxRowTransformV2<D, QkNorm>(query, weights, cosine, sine, p.epsilon, exchange, lane);
-        __syncwarp();
-      }
-      if (owner && lane < D / 8) {
-        uint4 v = LoadGlobal16Gvm(p.qkv + (head * (Q + 2) + Q + 1) * D + lane * 8);
-        *reinterpret_cast<uint4*>(new_value + lane * 8) = v;
-      }
-      __syncwarp();
-#pragma unroll
-      for (int n = 0; n < kAtoms; ++n) {
-        unsigned value = owner ? unsigned(new_value[16 * n + r].raw()) : 0u;
-        // Retire this LDS value before K_next is issued. Combining a fresh
-        // LDS load with a V fragment made MACA insert ARRIVE 4160 (MIR).
-        asm volatile("" : "+r"(value));
-        new_values[n] = value;
+        if (lane < D / 8)
+          new_v = LoadGlobal16Gvm(p.qkv + (head * (Q + 2) + Q + 1) * D + lane * 8);
       }
       if constexpr (First) {
         if constexpr (PrefetchKind) {
@@ -187,6 +171,31 @@ struct MxAttentionV2 {
       } else if (!block.valid) {
         LoadK(block, p, head, first + wave, lane);
         LoadV(block, p, head, first + wave, lane);
+      }
+      // Prefix inputs precede fresh history; keep only that younger batch outstanding.
+      asm volatile("" ::: "memory");
+      if constexpr (First) {
+        if constexpr (PrefetchKind == 0) __builtin_mxc_arrive_gvmcnt(kKLoads + kVLoads);
+        else if constexpr (PrefetchKind == 1) __builtin_mxc_arrive_gvmcnt(kVLoads);
+        else __builtin_mxc_arrive_gvmcnt(0);
+      } else if (!block.valid) __builtin_mxc_arrive_gvmcnt(kKLoads + kVLoads);
+      else __builtin_mxc_arrive_gvmcnt(0);
+      if (owner) {
+        MxRowTransformV2<D, QkNorm>(new_key, key_weights, cosine, sine, p.epsilon, exchange, lane);
+        __syncwarp();
+      }
+      MxRowTransformV2<D, QkNorm>(query, weights, cosine, sine, p.epsilon, exchange, lane);
+      __syncwarp();
+      if (owner && lane < D / 8)
+        *reinterpret_cast<uint4*>(new_value + lane * 8) = new_v;
+      __syncwarp();
+#pragma unroll
+      for (int n = 0; n < kAtoms; ++n) {
+        unsigned value = owner ? unsigned(new_value[16 * n + r].raw()) : 0u;
+        // Retire this LDS value before K_next is issued. Combining a fresh
+        // LDS load with a V fragment made MACA insert ARRIVE 4160 (MIR).
+        asm volatile("" : "+r"(value));
+        new_values[n] = value;
       }
       unsigned mask = 0u - unsigned(r < Q);
       asm volatile("" : "+r"(mask));
