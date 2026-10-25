@@ -2026,6 +2026,9 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   auto family=[&](mlir::DictionaryAttr g) -> unsigned {
     auto op=g.get("epilogue")?stringField(g,"epilogue"):"store";
     auto weight=name(integerField(g,"b"));
+    if(op=="moe_router")return 5;
+    if(op=="moe_gate_up")return 6;
+    if(op=="moe_down")return 7;
     if(op=="swiglu")return 2;
     if(op=="argmax_partial")return 4;
     if(op=="store" && weight.find("qkv")!=std::string::npos)return 0;
@@ -2033,7 +2036,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     if(op=="residual" && weight.find("down_proj")!=std::string::npos)return 3;
     throw std::invalid_argument("unrecognized native dense GEMM family: "+weight);
   };
-  std::array<std::array<int,2>,5> nk{};
+  solver::Sm90DenseShapeTable nk{};
   for(auto value:gemms) {
     auto g=dictionaryEntry(value,"gemms");unsigned f=family(g);
     std::array<int,2> shape={int(integerField(g,"n")),int(integerField(g,"k"))};
@@ -2060,9 +2063,12 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
       if(auto id=g.getAs<mlir::IntegerAttr>(field);id && id.getInt()>=0 && id.getInt()!=0xffffffffll)
         throw std::invalid_argument("native dense plan still binds deferred-norm sums");
     auto recipe=json::Parse(stringField(dictionaryEntry(buffers[integerField(g,"b")],"buffers"),"pack_json"));
+    // Experts keep the legacy prefill's 64 x 64 pages (one shared copy).
+    bool paged=family(g)>=6 && recipe.At("tile_n").AsNumber("weight TN")==64 &&
+        recipe.At("tile_k").AsNumber("weight TK")==64;
     if(recipe.At("kind").AsString("weight layout")!="tile_pages" ||
-       recipe.At("tile_n").AsNumber("weight TN")!=cfg.tile_n ||
-       recipe.At("tile_k").AsNumber("weight TK")!=cfg.TileK())
+       (!paged && (recipe.At("tile_n").AsNumber("weight TN")!=cfg.tile_n ||
+                   recipe.At("tile_k").AsNumber("weight TK")!=cfg.TileK())))
       throw std::invalid_argument("native weights do not use their selected contiguous task slices");
   }
   std::vector<bool> live(buffers.size(),false);
@@ -2144,15 +2150,17 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   // A layer group holds an even number of typed stages (prompt §6 D7, §8).
   unsigned per_layer=unsigned(stages.size()-3)/layers,per_group=per_layer%2?2:1;
   unsigned group_size=per_layer*per_group;
-  if(per_layer!=5 || layers%per_group)
+  if(per_layer!=(c.moe?6u:5u) || layers%per_group)
     throw std::invalid_argument("native layer groups need whole groups of supported layers");
   // One stage's template text with its buffer operands kept apart: operands
   // that differ between layers become columns of the per-layer table.
+  // ring: the stage's producer can stream into its successor (D6); stream:
+  // the bytes it can receive (M5 receives none: M4 knows no routes, §8).
   struct Emitted {
     std::string kind,head,tail;
     std::vector<std::string> ids;
     int family=-1,stream=0;
-    bool full=false;
+    bool full=false,ring=false;
   };
   std::vector<Emitted> emitted;
   std::vector<std::string> info;
@@ -2179,8 +2187,43 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
       auto const& cfg=c.gemms[e.family];
       if(cfg.SharedBytes(batch,solver::Sm90DenseCoordinates::ResidualFamily(e.family))-1024>arena)
         throw std::invalid_argument("native GEMM storage exceeds its arena");
-      e.stream=cfg.StreamBytes(integerField(g,"k"));
+      e.stream=cfg.StreamBytes(integerField(g,"k"));e.ring=true;
       auto op=g.get("epilogue")?stringField(g,"epilogue"):"store";
+      std::int64_t k=integerField(g,"k"),n=integerField(g,"n");
+      if(e.family>=5) {
+        // Native MoE stages (prompt §8): operands W, x', output, then the
+        // stage's schedule/routes/indices/counter; maps x' (router), h (down).
+        auto mode=e.family==5?"kRouter":e.family==6?"kGateUp":"kDown";
+        if(e.family==6 && integerField(g,"interleave_u")!=16)
+          throw std::invalid_argument("native expert gate_up pages interleave U = 16");
+        if(e.family==6)e.stream=0;
+        int experts=nk[5][0];
+        auto routes=e.family==6?std::string("kAbsent"):operand(1);
+        bool float_routes=routes!="kAbsent" &&
+            stringField(dictionaryEntry(buffers[std::stoll(routes)],"buffers"),"dtype")=="f32";
+        weight=name(integerField(g,"b"));bytes=2ull*n*k*(e.family==5?1:experts);
+        tasks=n/cfg.tile_n*(e.family==5?1:experts);
+        auto recipe=json::Parse(stringField(dictionaryEntry(buffers[integerField(g,"b")],"buffers"),
+            "pack_json"));
+        int page=e.family>=6 && recipe.At("tile_n").AsNumber("weight TN")==64 &&
+            recipe.At("tile_k").AsNumber("weight TK")==64?64:0;
+        // Paged experts stream whole slots only.
+        if(page)e.stream=std::min(cfg.slots,int(k/cfg.TileK()))*cfg.slot_bytes*(e.family==6?0:1);
+        head<<"Moe<"<<batch<<','<<n<<','<<k<<','<<cfg.tile_n<<','<<cfg.TileK()<<','<<cfg.slots<<','
+            <<cfg.warps_n<<','<<cfg.warps_k<<",backend::Sm90DenseMoeMode::"<<mode<<",16,"<<experts<<",8,"
+            <<(float_routes?"true":"false")<<','<<page;
+        e.ids={id(g,"b"),id(g,e.family==7?"c":"a"),id(g,"d"),operand(0),routes,
+            e.family==5?operand(2):"kAbsent",e.family==5?operand(3):e.family==7?operand(2):"kAbsent"};
+        std::string map="kAbsent";
+        if(e.family==5)
+          map=std::to_string(map_index({integerField(g,"a"),3,64,batch,k/64,0,2*k,128,0,64,activation_rows,
+              cfg.TileK()/64,0}));
+        // h [E][16][I] as {64, 16, I/64, E}: a box is one slot's [TK/64][rows][64].
+        if(e.family==7)
+          map=std::to_string(map_index({integerField(g,"a"),4,64,16,k/64,experts,2*k,128,2*16*k,
+              64,activation_rows,cfg.TileK()/64,1}));
+        e.tail=","+map+","+std::to_string(cfg.register_stages);
+      }else {
       std::string enum_op=op=="store"?"kStore":op=="residual"?"kResidual":
           op=="swiglu"?"kSwiGLU":"kArgmaxPartial";
       weight=name(integerField(g,"b"));bytes=2ull*integerField(g,"n")*integerField(g,"k");
@@ -2192,10 +2235,10 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
       for(auto field:{"b","c","d"})e.ids.push_back(id(g,field));
       e.ids.push_back(op=="argmax_partial"?std::to_string(argmax_index):"kAbsent");
       // A [B][K] as {64, B, K/64}: one box is a [TK/64][rows][64] slot (prompt §5 D3).
-      std::int64_t k=integerField(g,"k");
       auto map=map_index({integerField(g,"a"),3,64,batch,k/64,0,2*k,128,0,64,activation_rows,
           cfg.TileK()/64,0});
       e.tail=","+std::to_string(cfg.register_stages)+","+std::to_string(map);
+      }
     }else if(kind=="kFusedAttention") {
       if((extent!=8 && extent!=4) || (width!=64 && width!=128) || group<2 || group>8 ||
          integerField(s,"dense_attention_chunks")!=c.attention.chunks ||
@@ -2209,7 +2252,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
       e.full=c.attention.FullWidth(width,group,arena);
       if(c.attention.SharedBytes(width,group)>budget)
         throw std::invalid_argument("native attention exceeds the shared-memory budget");
-      e.stream=e.full?0:c.attention.StreamBytes(width);
+      e.stream=e.full?0:c.attention.StreamBytes(width);e.ring=!e.full;
       tasks=batch*extent*chunks;
       head<<"Attention<"<<batch<<','<<extent<<','<<width<<','<<group<<','<<norm<<','<<chunks<<','
           <<c.attention.block_keys<<','<<c.attention.slots<<','<<c.attention.new_row_work<<','<<capacity;
@@ -2238,7 +2281,10 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
        <<tasks<<','<<extent<<','<<group<<','<<width<<','<<chunks<<"},\n";
     info.push_back(row.str());
   }
-  static constexpr int kLayerFamilies[5]={0,-1,1,2,3};  // qkv, attention, o, gate_up, down
+  // qkv, attention, o, then gate_up, down (dense) or router, expert gate_up,
+  // expert down (MoE).
+  static constexpr int kDenseFamilies[5]={0,-1,1,2,3},kMoeFamilies[6]={0,-1,1,5,6,7};
+  auto const* layer_families=c.moe?kMoeFamilies:kDenseFamilies;
   if(emitted.front().kind!="kEmbedding" || emitted.back().kind!="kArgmaxReduce" ||
      emitted[emitted.size()-2].family!=4)
     throw std::invalid_argument("native program lacks its embedding, lm_head or argmax");
@@ -2257,7 +2303,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     auto const& first=emitted[1+k];
     for(unsigned l=0;l<layers;++l) {
       auto const& e=emitted[1+per_layer*l+k];
-      if(e.family!=kLayerFamilies[k] || (k==1)!=(e.kind=="kFusedAttention") || e.head!=first.head ||
+      if(e.family!=layer_families[k] || (k==1)!=(e.kind=="kFusedAttention") || e.head!=first.head ||
          e.tail!=first.tail || e.ids.size()!=first.ids.size() || e.full!=first.full)
         throw std::invalid_argument("native layer stages differ beyond their per-layer operands");
     }
@@ -2300,6 +2346,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   for(unsigned j=0;j<group_size;++j)source[1+j]=1+j;
   source[head]=unsigned(emitted.size()-2);
   auto stream=[&](unsigned n) {return emitted[source[n]].stream;};
+  auto ring=[&](unsigned n) {return emitted[source[n]].ring;};
   for(unsigned n=0;n<=head;++n) {
     auto const& e=emitted[source[n]];
     types<<"using "<<(n==head?"HeadGemm_":"Body_")<<n<<'='<<e.head;
@@ -2316,7 +2363,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     // width; the prologue has no ring and nothing crosses the step boundary.
     // Layer 0's qkv follows the prologue and is told so at run time.
     unsigned previous=n==1?group_size:n-1;
-    int prefix=n>0 && c.weight_stream && stream(previous)>0?stream(n):0;
+    int prefix=n>0 && c.weight_stream && ring(previous)?stream(n):0;
     types<<"using Stage_"<<n<<"=Placement<Body_"<<n<<','<<(e.full?0:(n%2)*arena)<<','<<prefix<<">;\n";
   }
   out<<types.str()<<"using NativeProgram=Program<"<<batch<<','<<capacity<<','<<c.residency<<','
