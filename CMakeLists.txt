@@ -286,6 +286,8 @@ add_library(tilemega_core STATIC
   lib/Codegen/Codegen.cpp
   lib/Codegen/ServingPages.cpp
   lib/Codegen/MxDecodeProgram.cpp
+  lib/Codegen/StageProgram.cpp
+  lib/Codegen/MxDecodeProgramV2.cpp
   lib/Runtime/EventBuffer.cpp
   lib/Runtime/MegakernelRuntime.cpp)
 add_library(TileMega::tilemega ALIAS tilemega_core)
@@ -682,6 +684,11 @@ if(TILEMEGA_BUILD_TESTS)
     ${Python3_EXECUTABLE} -m pytest -q ${CMAKE_SOURCE_DIR}/test/python/test_mx_decode_bodies.py)
   set_tests_properties(mx_decode_bodies PROPERTIES SKIP_RETURN_CODE 77 LABELS gpu
     ENVIRONMENT "TILEMEGA_MX_DECODE_BODIES_SO=${CMAKE_BINARY_DIR}/maca/libmx_decode_bodies.so;PYTHONPATH=${CMAKE_SOURCE_DIR}/python")
+  add_executable(mx_decode_program_v2 test/unit/mx/decode_program_v2.cpp)
+  target_link_libraries(mx_decode_program_v2 PRIVATE TileMega::tilemega)
+  target_include_directories(mx_decode_program_v2 PRIVATE ${CMAKE_SOURCE_DIR}/lib/Codegen)
+  target_compile_options(mx_decode_program_v2 PRIVATE -UNDEBUG)
+  add_test(NAME mx_decode_program_v2 COMMAND mx_decode_program_v2)
   add_executable(mx_decode_geometry_v2 test/unit/mx/decode_geometry_v2.cpp)
   target_include_directories(mx_decode_geometry_v2 PRIVATE ${CMAKE_SOURCE_DIR}/include)
   add_test(NAME mx_decode_geometry_v2 COMMAND mx_decode_geometry_v2)
