@@ -6,7 +6,6 @@
 #ifndef TEST_BATCH
 #define TEST_BATCH 1
 #endif
-#define TILEMEGA_DN_VECTOR_SUMS 1
 #define TILEMEGA_SWIGLU_U 8
 #include <tilemega/Backend/Sm90DenseGemm.h>
 #include <tilemega/Codegen/executor/TensorMapTiled.h>
@@ -34,14 +33,14 @@ __global__ __launch_bounds__(160) void evaluate(Sm90DenseOperands first,Sm90Dens
     BF const* source,BF* activation,unsigned long long* counter) {
   extern __shared__ __align__(1024) char shared[];
   auto& state=*reinterpret_cast<Sm90DenseRingState*>(shared);state.Initialize();
-  using A=Sm90DenseGemm<B,N,K,TN,TK,S1,WN,4/WN,ServingEpilogueOp::kStore,8>;
-  using C=Sm90DenseGemm<B,N,K,TN,TK,2,WN,4/WN,ServingEpilogueOp::kStore,8>;
+  using A=Sm90DenseGemm<B,N,K,TN,TK,S1,WN,4/WN,ServingEpilogueOp::kStore,8,false>;
+  using C=Sm90DenseGemm<B,N,K,TN,TK,2,WN,4/WN,ServingEpilogueOp::kStore,8,false>;
   for(int repeat=0;repeat<kRepeats;++repeat) {
     for(int i=blockIdx.x*160+threadIdx.x;i<B*K;i+=gridDim.x*160)
       activation[i]=repeat%2?BF(-float(source[i])):source[i];
     GridBarrier(counter,2*repeat);
-    A::template Run<false,false>(first,shared);
-    C::template Run<false,false>(second,shared);
+    A::template Run<0>(first,shared);
+    C::template Run<0>(second,shared);
     GridBarrier(counter,2*repeat+1);
   }
   state.Invalidate();
@@ -52,8 +51,8 @@ int run() {
   constexpr int N=TN*25;
   // Alternating 3- and 2-slot rings exercise phase carry-over; the widest
   // tiles fit the shared budget only with two slots.
-  constexpr int S1=Sm90DenseGemm<B,N,K,TN,TK,3,WN,4/WN,ServingEpilogueOp::kStore,8>::kSharedBytes<=232448?3:2;
-  using A=Sm90DenseGemm<B,N,K,TN,TK,S1,WN,4/WN,ServingEpilogueOp::kStore,8>;
+  constexpr int S1=Sm90DenseGemm<B,N,K,TN,TK,3,WN,4/WN,ServingEpilogueOp::kStore,8,false>::kSharedBytes<=232448?3:2;
+  using A=Sm90DenseGemm<B,N,K,TN,TK,S1,WN,4/WN,ServingEpilogueOp::kStore,8,false>;
   constexpr int rows=Sm90DenseLayout::ActivationRows(B);
   std::vector<BF> input(B*K),weight(std::size_t(N)*K),output(B*N);
   for(int b=0;b<B;++b)for(int k=0;k<K;++k)input[b*K+k]=BF((b+1)*(k%7+1)/64.0f);
@@ -73,7 +72,7 @@ int run() {
   tilemega::codegen::executor::EncodeTiledMap<3>(host,act,
       {{64,std::uint64_t(B),K/64},{2ull*K,128},{64,std::uint32_t(rows),TK/64}});
   check(cudaMemcpy(map,&host,sizeof host,cudaMemcpyHostToDevice));
-  Sm90DenseOperands p{map,w,nullptr,o,nullptr,nullptr,nullptr,0.f};auto q=p;q.output=other;
+  Sm90DenseOperands p{map,w,nullptr,o,nullptr,0.f};auto q=p;q.output=other;
   std::fprintf(stderr,"case B%d TN%d WN%d TK%d shared%d\n",B,TN,WN,TK,A::kSharedBytes);
   auto kernel=evaluate<N,K,TN,TK,WN,S1>;
   check(cudaFuncSetAttribute(kernel,cudaFuncAttributeMaxDynamicSharedMemorySize,A::kSharedBytes));
