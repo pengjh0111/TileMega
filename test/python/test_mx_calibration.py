@@ -69,21 +69,22 @@ class NativeFunction:
 
 
 class DerivedCalibration(unittest.TestCase):
-    def artifact(self, root, kind='gemm', status=0, resources=(180, 0, 0, 1)):
+    def artifact(self, root, kind='gemm', status=0, resources=(180, 0, 0, 1), width=None):
+        width = (2 if kind == 'attention' else 4) if width is None else width
         key = dict(threads=576, b=2)
         if kind == 'attention':
             key.update(dim=128, q=4, hkv=2, capacity=1088, length=256,
-                       b_min=2, qk_norm=1, prefetch_kind=2)
-            fields = dict(dim=128, query=4, prefetch_kind=2)
-            macros = dict(MX5_TEST_DIM=128, MX5_TEST_Q=4, MX5_BENCH_PREFETCH_KIND=2)
-            coordinates = [128, 4, 2, 576]
+                       b_min=2, qk_norm=1, prefetch_kind=width)
+            fields = dict(dim=128, query=4, prefetch_kind=width)
+            macros = dict(MX5_TEST_DIM=128, MX5_TEST_Q=4, MX5_BENCH_PREFETCH_KIND=width)
+            coordinates = [128, 4, width, 576]
         else:
-            key.update(n=256, k=512, tn=32, wn=4, depth=2, prefetch=4)
+            key.update(n=256, k=512, tn=32, wn=4, depth=2, prefetch=width)
             if kind == 'gemm':
                 key.update(op=0, norm=1, part=1)
-            fields = dict(tn=32, depth=2, pw=4)
-            macros = dict(MX5_TEST_TN=32, MX5_TEST_DEPTH=2, MX5_BENCH_PW=4)
-            coordinates = [32, 2, 4, 576]
+            fields = dict(tn=32, depth=2, pw=width)
+            macros = dict(MX5_TEST_TN=32, MX5_TEST_DEPTH=2, MX5_BENCH_PW=width)
+            coordinates = [32, 2, width, 576]
         bench = calibration.module(kind)
         path = root / (kind + '.so')
         path.write_bytes(b'fake library')
@@ -285,6 +286,141 @@ class DerivedCalibration(unittest.TestCase):
                     derive.assert_not_called()
                 self.assertEqual(existing.read_text(), 'historical')
                 self.assertEqual(len(list(Path(directory).iterdir())), 1)
+
+
+class SelectionCalibration(unittest.TestCase):
+    artifact = DerivedCalibration.artifact
+
+    def selection(self, root, kind='gemm', outcomes=((180, 64, 0, 1), (180, 0, 0, 1)), widths=None):
+        widths = widths or ((2,) if kind == 'attention' else (4, 2))
+        libraries, calls, artifacts = {}, [], []
+        for step, (width, resources) in enumerate(zip(widths, outcomes)):
+            directory = root / str(step)
+            directory.mkdir()
+            current, path, _, library, queried = self.artifact(directory, kind, resources=resources, width=width)
+            if step == 0:
+                row = current
+            libraries[str(path)] = library
+            calls.append(queried)
+            artifacts.append(dict(resource_step=step, prefetch=width, library=str(path)))
+        metadata = json.loads(Path(artifacts[0]['library']).with_suffix('.json').read_text())
+        zero_key = dict(row['key'])
+        zero_key['prefetch_kind' if kind == 'attention' else 'prefetch'] = 0
+        row['r_next_reference'] = dict(kind=kind, key=zero_key,
+            resources=dict(mtreg=150, local_bytes=0, static_smem_bytes=0, resident_ctas=1),
+            provenance=dict(executor='mx_static_stage_bench', implementation='mx5_' + kind + '_v2',
+                            **{field: metadata[field] for field in ('base_head', 'source_sha256', 'binary_sha256')}))
+        row['artifacts'] = artifacts
+        return row, libraries, calls
+
+    def run_selection(self, row, libraries):
+        with patch.dict(os.environ, TILEMEGA_GPU_LOCK_HELD='1'), \
+             patch.object(calibration, 'initialize_cuda'), \
+             patch.object(calibration.C, 'CDLL', side_effect=lambda path: libraries[path]):
+            return next(calibration.select([row]))
+
+    def test_ordered_halves_stop_at_first_fit_and_preserve_reference(self):
+        for kind in ('gemm', 'head'):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as directory:
+                row, libraries, calls = self.selection(Path(directory), kind,
+                    outcomes=((180, 64, 0, 1), (180, 0, 0, 1), (180, 0, 0, 1)), widths=(8, 4, 2))
+                original = json.loads(json.dumps(row))
+                result = self.run_selection(row, libraries)
+                self.assertEqual([len(call) for call in calls], [1, 1, 0])
+                self.assertEqual(result['selected_resource_step'], 1)
+                self.assertEqual(result['key']['prefetch'], 4)
+                self.assertEqual(result['library'], row['artifacts'][1]['library'])
+                self.assertEqual(result['selection_status'], 'selected')
+                self.assertEqual([attempt['fits'] for attempt in result['resource_attempts']], [False, True])
+                self.assertEqual([attempt['key']['prefetch'] for attempt in result['resource_attempts']], [8, 4])
+                self.assertEqual(result['r_next_reference'], original['r_next_reference'])
+                self.assertEqual(row, original)
+
+    def test_primary_success_does_not_require_unused_reduction_library(self):
+        for kind in ('gemm', 'head', 'attention'):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as directory:
+                row, libraries, calls = self.selection(Path(directory), kind, outcomes=((180, 0, 0, 1),))
+                if kind != 'attention':
+                    row['artifacts'].append(dict(resource_step=1, prefetch=2, library='/missing/unused.so'))
+                result = self.run_selection(row, libraries)
+                self.assertEqual(result['selected_resource_step'], 0)
+                self.assertEqual(len(result['resource_attempts']), 1)
+                self.assertEqual(len(calls[0]), 1)
+
+    def test_all_failures_are_retained_without_selection_or_shape_fallback(self):
+        with tempfile.TemporaryDirectory() as directory:
+            row, libraries, calls = self.selection(Path(directory),
+                outcomes=((228, 0, 0, 1), (180, 64, 0, 1), (180, 0, 1, 1), (180, 0, 0, 2)),
+                widths=(16, 8, 4, 2))
+            result = self.run_selection(row, libraries)
+            self.assertEqual([len(call) for call in calls], [1, 1, 1, 1])
+            self.assertIsNone(result['selected_resource_step'])
+            self.assertEqual(result['selection_status'], 'unresolved_resource_failure')
+            self.assertFalse(result['fits'])
+            self.assertEqual(len(result['resource_attempts']), 4)
+            self.assertTrue(all(attempt['key']['threads'] == 576 for attempt in result['resource_attempts']))
+            self.assertEqual(result['r_next_reference'], row['r_next_reference'])
+
+    def test_failed_p0_row_survives_without_fabricated_reference(self):
+        row = dict(kind='gemm', key=dict(threads=576), disposition='unprefetched_resource_failure',
+                   fits=False, original_failure='stack')
+        with patch.object(calibration, 'initialize_cuda'), patch.object(calibration, 'query_one') as query:
+            result = next(calibration.select([row]))
+        query.assert_not_called()
+        self.assertEqual({key: result[key] for key in row}, row)
+        self.assertNotIn('r_next_reference', result)
+        self.assertIsNone(result['selected_resource_step'])
+        self.assertEqual(result['resource_attempts'], [])
+        self.assertEqual(result['selection_status'], 'unresolved_unprefetched_resource_failure')
+
+    def test_missing_reduction_errors_before_later_artifact(self):
+        with tempfile.TemporaryDirectory() as directory:
+            row, libraries, calls = self.selection(Path(directory),
+                outcomes=((180, 64, 0, 1),) * 3, widths=(8, 4, 2))
+            Path(row['artifacts'][1]['library']).unlink()
+            with self.assertRaisesRegex(RuntimeError, 'missing bench library'):
+                self.run_selection(row, libraries)
+            self.assertEqual([len(call) for call in calls], [1, 0, 0])
+
+    def test_reference_and_reduction_validation_prevent_bad_queries(self):
+        for mismatch in ('coordinates', 'resources', 'source', 'step', 'halving'):
+            with self.subTest(mismatch=mismatch), tempfile.TemporaryDirectory() as directory:
+                row, libraries, calls = self.selection(Path(directory))
+                if mismatch == 'coordinates':
+                    row['r_next_reference']['key']['b'] = 16
+                elif mismatch == 'resources':
+                    row['r_next_reference']['resources']['local_bytes'] = 8
+                elif mismatch == 'source':
+                    row['r_next_reference']['provenance']['source_sha256'] = 'a' * 64
+                elif mismatch == 'step':
+                    row['artifacts'][1]['resource_step'] = 2
+                else:
+                    row['artifacts'][1]['prefetch'] = 3
+                with self.assertRaisesRegex(RuntimeError, 'R_next|contiguous|halving'):
+                    self.run_selection(row, libraries)
+                self.assertEqual([len(call) for call in calls], [1, 0] if mismatch in ('step', 'halving') else [0, 0])
+
+    def test_select_main_snapshots_and_does_not_overwrite_outputs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            keys, out = root / 'keys.jsonl', root / 'selected.jsonl'
+            keys.write_text('')
+            argv = ['calibration', 'select', '--keys', str(keys), '--out', str(out)]
+            with patch('sys.argv', argv), patch.object(calibration, 'initialize_cuda'):
+                calibration.main()
+            self.assertEqual(Path(str(out) + '.tool.py').read_bytes(), source.read_bytes())
+            identity = json.loads(Path(str(out) + '.identity.json').read_text())
+            self.assertEqual((identity['command'], identity['run_status']), ('select', 'complete'))
+            with patch('sys.argv', argv), patch('sys.stderr', new=io.StringIO()), \
+                 patch.object(calibration, 'select') as selector:
+                with self.assertRaises(SystemExit):
+                    calibration.main()
+            selector.assert_not_called()
+
+    def test_select_requires_guard(self):
+        with patch.dict(os.environ, {}, clear=True):
+            with self.assertRaisesRegex(RuntimeError, 'mx_gpu_job.sh'):
+                next(calibration.select([]))
 
 
 if __name__ == '__main__': unittest.main()

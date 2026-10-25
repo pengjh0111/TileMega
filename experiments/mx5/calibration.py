@@ -219,7 +219,7 @@ def initialize_cuda():
     torch.cuda.init()
 
 
-def query_one(kind, key, path, modules, libraries):
+def query_one(kind, key, path, modules, libraries, expected_source=None):
     require_guard()
     if kind not in modules:
         modules[kind] = module(kind)
@@ -232,6 +232,8 @@ def query_one(kind, key, path, modules, libraries):
     if metadata.get('body') != kind:
         raise RuntimeError('cached library body mismatch: ' + str(path))
     validate_coordinates(path, kind, key, metadata, bench, lib, prefix)
+    if expected_source is not None and metadata.get('source_sha256') != expected_source:
+        raise RuntimeError('R_next and selected kernel have different body sources: ' + str(path))
     args = bench.Args()
     values = (C.c_int * 4)()
     args.resources, args.iterations, args.copies = values, 0, 1
@@ -296,6 +298,83 @@ def check(rows):
             raise RuntimeError('primary artifact/key prefetch mismatch for key: ' + str(key))
         result = query_one(kind, key, artifact['library'], modules, libraries)
         yield dict(row, **result, selected_resource_step=0)
+
+
+def selection_reference(kind, key, reference):
+    if not isinstance(reference, dict):
+        raise RuntimeError('missing R_next reference for selection')
+    expected = dict(key)
+    width_field = 'prefetch_kind' if kind == 'attention' else 'prefetch'
+    expected.pop('pw', None)
+    expected[width_field] = 0
+    actual = dict(reference.get('key', {}))
+    if 'pw' in actual:
+        if 'prefetch' in actual and actual['prefetch'] != actual['pw']:
+            raise RuntimeError('conflicting R_next prefetch coordinates')
+        actual['prefetch'] = actual.pop('pw')
+    if reference.get('kind') != kind or actual != expected:
+        raise RuntimeError('R_next reference coordinates do not match the selected body key')
+    resources = reference.get('resources', {})
+    cap = 227 if key['threads'] == 576 else 255
+    if (type(resources.get('mtreg')) is not int or not 0 < resources['mtreg'] <= cap
+            or any(type(resources.get(field)) is not int or resources[field] != value for field, value in
+                   (('local_bytes', 0), ('static_smem_bytes', 0), ('resident_ctas', 1)))):
+        raise RuntimeError('R_next reference does not have passing unprefetched resources')
+    provenance = reference.get('provenance', {})
+    if (provenance.get('executor') != 'mx_static_stage_bench'
+            or provenance.get('implementation') != 'mx5_' + kind + '_v2'
+            or not isinstance(provenance.get('base_head'), str) or not provenance['base_head']):
+        raise RuntimeError('invalid R_next reference provenance')
+    for field in ('source_sha256', 'binary_sha256'):
+        value = provenance.get(field)
+        if not isinstance(value, str) or len(value) != 64 or any(c not in '0123456789abcdef' for c in value):
+            raise RuntimeError('invalid R_next reference ' + field)
+    return provenance['source_sha256']
+
+
+def select(rows):
+    initialize_cuda()
+    modules, libraries = {}, {}
+    for row in rows:
+        if row.get('disposition') == 'unprefetched_resource_failure':
+            yield dict(row, selection_status='unresolved_unprefetched_resource_failure',
+                       selected_resource_step=None, resource_attempts=[])
+            continue
+        if row.get('disposition') != 'derived':
+            raise RuntimeError('selection requires a derived or unprefetched-resource-failure row')
+        kind, original = row['kind'], row['key']
+        source = selection_reference(kind, original, row.get('r_next_reference'))
+        artifacts = row.get('artifacts')
+        if not isinstance(artifacts, list) or not 1 <= len(artifacts) <= 4:
+            raise RuntimeError('selection requires primary and at most three reduction artifacts')
+        attempts = []
+        previous = prefetch(kind, original)
+        for step, artifact in enumerate(artifacts):
+            width = artifact.get('prefetch')
+            if type(artifact.get('resource_step')) is not int or artifact['resource_step'] != step:
+                raise RuntimeError('resource artifacts must have contiguous steps starting at zero')
+            if type(width) is not int or width < 0:
+                raise RuntimeError('invalid resource artifact prefetch width')
+            if step == 0:
+                if width != previous:
+                    raise RuntimeError('primary artifact/key prefetch mismatch for key: ' + str(original))
+            elif (kind == 'attention' or width != max(original['depth'], previous // 2)
+                  or width >= previous):
+                raise RuntimeError('resource artifact is not the next prescribed prefetch halving')
+            key = dict(original)
+            key['prefetch_kind' if kind == 'attention' else 'prefetch'] = width
+            if 'pw' in key:
+                key['pw'] = width
+            result = query_one(kind, key, artifact['library'], modules, libraries, expected_source=source)
+            attempts.append(dict(resource_step=step, prefetch=width, key=key, **result))
+            if result['fits']:
+                yield dict(row, key=key, **result, selected_resource_step=step,
+                           selection_status='selected', resource_attempts=attempts)
+                break
+            previous = width
+        else:
+            yield dict(row, key=key, **result, selected_resource_step=None,
+                       selection_status='unresolved_resource_failure', resource_attempts=attempts)
 
 
 def plan(rows, domain, output_root):
@@ -376,7 +455,9 @@ def main():
     query.add_argument('--libraries', type=Path, nargs='+', required=True)
     verify = sub.add_parser('check')
     verify.add_argument('--keys', type=Path, required=True)
-    for command in (create, query, derive, verify):
+    choose = sub.add_parser('select')
+    choose.add_argument('--keys', type=Path, required=True)
+    for command in (create, query, derive, verify, choose):
         command.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
     sidecars = {name: Path(str(args.out) + suffix) for name, suffix in
@@ -414,6 +495,8 @@ def main():
                 rows = inspect(keys, args.libraries)
             elif args.command == 'check':
                 rows = check(keys)
+            elif args.command == 'select':
+                rows = select(keys)
             else:
                 provenance['domain_sha256'] = hashlib.sha256(args.domain.read_bytes()).hexdigest()
                 rows, builds, references = plan(keys, args.domain.resolve(), args.library_root.resolve())
