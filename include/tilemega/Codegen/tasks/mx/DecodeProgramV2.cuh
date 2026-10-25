@@ -99,6 +99,8 @@ struct DenseOperandsV2 {
   __device__ __forceinline__ static backend::mx::MxAttentionOperandsV2 Attn(Binding const& b, int l, int past) {
     auto const& scratch = Scratch(b);
     l = backend::mx::UniformOpaque(l), past = backend::mx::UniformOpaque(past);
+    // set_steps validates this range before copying the private past array.
+    __builtin_assume(past >= P::kPastLo && past <= P::kPastHi);
     auto const& layer = b.layer[l];
     return {scratch.qkv, layer.q_norm, layer.k_norm, b.rope_cos, b.rope_sin,
             layer.k_cache, layer.vt_cache, scratch.ctx, scratch.attn_partial, scratch.t_attn,
@@ -107,6 +109,7 @@ struct DenseOperandsV2 {
   __device__ __forceinline__ static backend::mx::MxHeadOperandsV2 Head(Binding const& b, int past) {
     auto const& scratch = Scratch(b);
     past = backend::mx::UniformOpaque(past);
+    __builtin_assume(past >= P::kPastLo && past <= P::kPastHi);
     return {Gemm(b, scratch.x, b.w_head, nullptr, nullptr, nullptr, P::kHidden, 0),
             scratch.head_partial, scratch.t_head, b.tokens, P::kCapacity, past};
   }
@@ -145,48 +148,81 @@ struct DecodeControlV2 {
   }
 };
 
+struct StageLaunchV2 {
+  int const* pasts;
+  unsigned first, steps;
+  unsigned long long iteration;
+  unsigned long long* step_ns;
+  MxTraceV2 trace;
+};
+__device__ __forceinline__ StageLaunchV2 const& LaunchControlV2(StageLaunchV2 const& launch) {
+  // Reload controls at their use rather than keeping them live through all bodies.
+  return (&launch)[backend::mx::UniformOpaque(0)];
+}
+
 template <class P>
 __global__ void __launch_bounds__(P::kThreads)
-mx_decode_kernel_v2(typename P::Binding b, int const* pasts, unsigned first, unsigned steps,
-                    unsigned long long iteration, unsigned long long* step_ns, MxTraceV2 trace) {
+mx_decode_kernel_v2(typename P::Binding b, StageLaunchV2 launch) {
   extern __shared__ __align__(16) char smem[];
   using G = DecodeControlV2<P>;
   using Sync = typename G::Sync;
-  if (!steps) return;
+  if (!LaunchControlV2(launch).steps) return;
   auto* const tokens = reinterpret_cast<int*>(smem + G::kTokenOffset);
   auto* const shared_tokens = (backend::mx::MxSharedTokensV2*)tokens;
   auto* const generation = reinterpret_cast<unsigned*>(smem + G::kGenerationOffset);
-  int const initial_past = G::Past(pasts, first);
+  int const initial_past = [&] {
+    auto const& c = LaunchControlV2(launch);
+    return G::Past(c.pasts, c.first);
+  }();
   if (Sync::IsRole()) {
     *generation = 0;
     G::Broadcast(b, initial_past, tokens);
   }
-  // The only entrance synchronization precedes every data prefetch.
+  // This entrance synchronization precedes every data prefetch.
   Sync::CtaSync();
   auto pf_q = P::template EntryPrefetch<P>(b, initial_past, shared_tokens);
 #if TILEMEGA_MX_DIAG
-  if (step_ns && blockIdx.x == 0 && Sync::IsRole()) step_ns[0] = maca::GlobalTimerNs();
-#else
-  (void)step_ns;
+  {
+    auto const& c = LaunchControlV2(launch);
+    if (c.step_ns && blockIdx.x == 0 && Sync::IsRole()) c.step_ns[0] = maca::GlobalTimerNs();
+  }
 #endif
 #pragma unroll 1
-  for (unsigned s = 0; s < steps; ++s) {
-    int const past = G::Past(pasts, first + s);
-    unsigned long long const it = iteration + s;
+  for (unsigned s = 0; s < LaunchControlV2(launch).steps; ++s) {
+    int const past = [&] {
+      auto const& c = LaunchControlV2(launch);
+      return G::Past(c.pasts, c.first + s);
+    }();
     unsigned stage = 0;
-    G::Mark(trace, it, 0, 0);
+#if TILEMEGA_TRACE_STAGE
+    {
+      auto const& c = LaunchControlV2(launch);
+      G::Mark(c.trace, c.iteration + s, 0, 0);
+    }
+#endif
     auto barrier = [&] {
-      G::Mark(trace, it, stage, 1);
-      StageBarrierV2<Sync>(b.s.barrier + 8 * std::size_t(stage),
+      unsigned long long const it = LaunchControlV2(launch).iteration + s;
+#if TILEMEGA_TRACE_STAGE
+      G::Mark(LaunchControlV2(launch).trace, it, stage, 1);
+#endif
+      auto const& control = DenseOperandsV2<P>::Scratch(b);
+      StageBarrierV2<Sync>(control.barrier + 8 * std::size_t(stage),
                            (unsigned long long)P::kGrid * (it + 1), generation,
                            s * G::kStages + stage + 1,
                            [&] {
-                             if (stage + 1 == G::kStages && s + 1 < steps)
-                               G::Broadcast(b, G::Past(pasts, first + s + 1), tokens);
-                           }, StageWatchV2{b.s.watchdog, b.s.watchdog_ns, stage, it});
-      G::Mark(trace, it, stage, 2);
+                             if (stage + 1 == G::kStages) {
+                               auto const& c = LaunchControlV2(launch);
+                               if (s + 1 < c.steps)
+                                 G::Broadcast(b, G::Past(c.pasts, c.first + s + 1), tokens);
+                             }
+                           }, StageWatchV2{control.watchdog, control.watchdog_ns, stage, it});
+#if TILEMEGA_TRACE_STAGE
+      G::Mark(LaunchControlV2(launch).trace, it, stage, 2);
+#endif
       ++stage;
-      if (stage < G::kStages) G::Mark(trace, it, stage, 0);
+#if TILEMEGA_TRACE_STAGE
+      if (stage < G::kStages) G::Mark(LaunchControlV2(launch).trace, it, stage, 0);
+#endif
     };
     auto run = [&](int stage_class) {
 #if TILEMEGA_MX_DIAG
@@ -198,7 +234,10 @@ mx_decode_kernel_v2(typename P::Binding b, int const* pasts, unsigned first, uns
     };
     P::template RunStep<P>(b, past, smem, shared_tokens, pf_q, barrier, run);
 #if TILEMEGA_MX_DIAG
-    if (step_ns && blockIdx.x == 0 && Sync::IsRole()) step_ns[s + 1] = maca::GlobalTimerNs();
+    {
+      auto const& c = LaunchControlV2(launch);
+      if (c.step_ns && blockIdx.x == 0 && Sync::IsRole()) c.step_ns[s + 1] = maca::GlobalTimerNs();
+    }
 #endif
   }
 }

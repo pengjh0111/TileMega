@@ -270,7 +270,7 @@ inline int Launch(MxPlanStateV2* s, std::uint32_t first, std::uint32_t steps, st
   if (steps > UINT32_MAX / R::kStages || iteration != s->next_iteration || iteration > UINT64_MAX / P::kGrid ||
       steps > UINT64_MAX / P::kGrid - iteration) return -2;
   mx_decode_kernel_v2<P><<<P::kGrid, P::kThreads, R::kSmem, static_cast<cudaStream_t>(stream)>>>(
-      *static_cast<P::Binding const*>(s->binding), s->pasts, first, steps, iteration, step_ns, s->trace);
+      *static_cast<P::Binding const*>(s->binding), StageLaunchV2{s->pasts, first, steps, iteration, step_ns, s->trace});
   if (cudaGetLastError() != cudaSuccess) return 1;
   s->next_iteration += steps;
   return 0;
