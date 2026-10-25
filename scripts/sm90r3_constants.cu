@@ -328,6 +328,60 @@ void AttentionCase() {
     Check(cudaFree(ptr));
 }
 
+// t_merge_dsmem (D10b): a cluster of S CTAs, one per chunk, in the program's
+// shared-memory layout (rings, cluster state, storage at 1024). Each round
+// starts at a cluster barrier; the leader's time runs from its partial to
+// the merged context (all chunks write their partials concurrently).
+template<int D,int Q,bool Norm,int S>
+__global__ void DsmemMergeKernel(backend::Sm90DenseAttentionOperands p,int samples,U64* out) {
+  using A=backend::Sm90DenseAttentionBody<1,8,D,Q,Norm,S,64,2,0,1088,true>;
+  using Async=codegen::executor::Async<arch::Sm90>;
+  extern __shared__ __align__(1024) char shared[];
+  auto* ring=reinterpret_cast<backend::Sm90DenseRingState*>(shared);
+  auto& cluster=backend::Sm90DenseClusterState::Of(shared);
+  auto& s=*reinterpret_cast<typename A::Storage*>(shared+1024);
+  int tid=threadIdx.x;
+  for(int i=tid;i<4*Q;i+=128) {s.maximum[i]=0;s.sum[i]=1;}
+  for(int i=tid;i<4*Q*D;i+=128)s.output[i]=float(i%7);
+  if(tid==0) {Async::Init(&cluster.inbox,S-1);cluster.inbox_generation=0;Async::InitFence();}
+  __syncthreads();
+  int chunk=int(Async::ClusterRank());
+  for(int i=0;i<samples;++i) {
+    Async::ClusterSync();
+    U64 begin=clock64();
+    A::Finish(p,s,0,chunk);
+    A::DsmemMerge(p,*ring,s,0,chunk);
+    codegen::executor::ComputeSync();
+    if(tid==0 && chunk==0)out[i]=clock64()-begin;
+  }
+  Async::ClusterSync();
+}
+template<int D,int Q,bool Norm,int S>
+void DsmemMergeCase() {
+  constexpr int samples=256;
+  using A=backend::Sm90DenseAttentionBody<1,8,D,Q,Norm,S,64,2,0,1088,true>;
+  auto kernel=DsmemMergeKernel<D,Q,Norm,S>;
+  int bytes=1024+int(sizeof(typename A::Storage));
+  Check(cudaFuncSetAttribute(kernel,cudaFuncAttributeMaxDynamicSharedMemorySize,bytes));
+  auto* output=Device<BF>(8*Q*D);auto* out=Device<U64>(samples);
+  backend::Sm90DenseAttentionOperands p{nullptr,nullptr,nullptr,nullptr,nullptr,output,nullptr,nullptr,
+      nullptr,nullptr,nullptr,nullptr,nullptr,575,1e-6f,0};
+  cudaLaunchConfig_t config{};
+  config.gridDim=dim3(S);config.blockDim=dim3(128);config.dynamicSmemBytes=bytes;
+  cudaLaunchAttribute attribute{};
+  attribute.id=cudaLaunchAttributeClusterDimension;
+  attribute.val.clusterDim.x=S;attribute.val.clusterDim.y=1;attribute.val.clusterDim.z=1;
+  config.attrs=&attribute;config.numAttrs=1;
+  Check(cudaLaunchKernelEx(&config,kernel,p,samples,out));
+  Check(cudaDeviceSynchronize());
+  std::vector<U64> host(samples);
+  Check(cudaMemcpy(host.data(),out,host.size()*8,cudaMemcpyDeviceToHost));
+  std::vector<double> x;for(int i=8;i<samples;++i)x.push_back(host[i]/cycles_per_ns);
+  Print("t_merge_dsmem","d="+std::to_string(D)+":q="+std::to_string(Q)+":norm="+std::to_string(Norm)+
+      ":s="+std::to_string(S),x,"ns");
+  Check(cudaFree(output));Check(cudaFree(out));
+}
+
 // Whole embedding/argmax stages, each followed by the program's V3 barrier.
 template<int Width>
 __global__ void EmbeddingStage(int const* tokens,BF const* table,BF* output,float* sums,int batch,
@@ -651,5 +705,10 @@ int main(int argc,char** argv) {try {
   }
   // MoE (Hkv = 4) at G = 264 reaches S0 = 64 chunks (prompt §8 M2).
   if(full || !std::strcmp(argv[1],"--moe-merge-only"))AttentionCase<128,8,true,64>();
+  // D10b: clusters of C = 2 (DT-2's grids) merge S = 2 chunks through DSMEM.
+  if(full || !std::strcmp(argv[1],"--dsmem-merge-only")) {
+    DsmemMergeCase<128,2,true,2>();DsmemMergeCase<64,4,false,2>();DsmemMergeCase<128,3,false,2>();
+    DsmemMergeCase<128,4,false,2>();DsmemMergeCase<128,8,true,2>();
+  }
   return 0;
 }catch(std::exception const& e) {std::fprintf(stderr,"%s\n",e.what());return 2;}}

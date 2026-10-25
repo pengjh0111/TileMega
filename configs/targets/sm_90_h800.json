@@ -2084,15 +2084,15 @@
     "schema": 1,
     "method": "scripts/sm90r3_constants.cu and scripts/sm90r2_attention_calibration.cu (SM90R3 gap keys); median of five fresh guarded processes; no fitting",
     "csv": "docs/results/SM90R3_constants_L3.csv",
-    "source_commit": "975c2486cf1a21510ec67842cb12590cb801288e",
+    "source_commit": "f2da2cd338cb7d4161389d57ca1069ec68fc30ce",
     "header_sha256": {
       "include/tilemega/Backend/Sm90DenseEpilogue.h": "b89a5e74f82cf3e26d7de76a9dd90956485f583524b727842d7be5613899a6a2",
       "include/tilemega/Backend/Sm90DenseToken.cuh": "de9f2849dc71c3ecc1178f07081aa71c8f01dc319e6bbb0520230ec93d11b212",
       "include/tilemega/Backend/Sm90DenseHead.cuh": "c926cbd4cdf8a7edefb2882b424f5b0d92802daa75a5e98d9e60d74025c46d8c",
       "include/tilemega/Backend/Sm90DenseMoe.cuh": "1ff4af1226a104ecf51038f77dceb36f31b83b861c1657b62173258a73b0574f",
-      "include/tilemega/Backend/Sm90DenseAttentionBody.cuh": "a1d5b2242c9a7ebb238149c7ddffe10e140a26c5f6cc28b2624a463c671f128b",
-      "include/tilemega/Backend/Sm90DenseGemm.h": "7247de7fa83688c8ec057856a7c78e78aedea778e3ff2f659744c5e00defe115",
-      "include/tilemega/Codegen/executor/Async.cuh": "b9d7f10590b2e2c1ede0c123332a094c41e245a2d9f4093b7ed487d3b56eecb8"
+      "include/tilemega/Backend/Sm90DenseAttentionBody.cuh": "dc3a1ec7a5afea65e13cb88cea4b0e621e0f4d1e279be0947a423d1c0ea297f4",
+      "include/tilemega/Backend/Sm90DenseGemm.h": "b3bf5b123dd5164ff5bd89141b636be855dc580927fba108692afe58e0bc5ecb",
+      "include/tilemega/Codegen/executor/Async.cuh": "e88c9e74a53bf5340d9e72315e61b3dcac466a0b412191644263159f12f02c5d"
     },
     "c_bar_ns": {
       "128": 768.0,
@@ -2921,7 +2921,32 @@
         "block": 355.4,
         "prepare": 1752.4
       }
-    }
+    },
+    "round_ns": {
+      "v3": {
+        "132": 1011.0,
+        "264": 1401.0
+      },
+      "group16": {
+        "132": 920.0,
+        "264": 1043.0
+      }
+    },
+    "clusters": {
+      "r1": {
+        "2": 66,
+        "4": 30,
+        "8": 15,
+        "c_star": 2
+      },
+      "r2": {
+        "2": 132,
+        "4": 62,
+        "8": 30,
+        "c_star": 8
+      }
+    },
+    "dsmem_merge_ns": {}
   },
   "sm90_native_decisions": {
     "weight_stream": false,
