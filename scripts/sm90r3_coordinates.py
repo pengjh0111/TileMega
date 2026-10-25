@@ -5,7 +5,8 @@ Schema 2 dropped `dn_vector_sums`: InputNorm statistics are accumulated by the
 GEMM consumers. Schema 3 drops the per-stage arena offset and preissue fields,
 which D5/D6 derive by rule, and adds the DT-1 `weight_stream` and DT-3
 `layer_loop` switches and the D9 `emb` placement; schema 4 (§8) names the
-model (dense here); schema 5 (§7) adds the D8 `group_wait` switch. Every
+model (dense here); schema 5 (§7) adds the D8 `group_wait` switch and the D10
+`cluster`, attention `merge` and GEMM `multicast` coordinates. Every
 other coordinate is copied unchanged, so a pairing keeps the same geometry.
 """
 import argparse
@@ -15,14 +16,23 @@ from pathlib import Path
 DERIVED = ('workspace_offset', 'preissue_smem_bytes', 'prefetch_l2_bytes', 'preissue_late')
 
 
+def clusters(value):
+    """Schema 5's D10 coordinates default to no cluster."""
+    value.setdefault('cluster', 1)
+    value['attention'].setdefault('merge', 'la')
+    for g in value['gemms'].values():
+        g.setdefault('multicast', False)
+    return value
+
+
 def upgrade(value, weight_stream, layer_loop, emb, group_wait=False):
     schema = value.get('schema')
     if schema in (4, 5):
-        return dict(value, schema=5, weight_stream=weight_stream, layer_loop=layer_loop, emb=emb,
-                    group_wait=group_wait)
+        return clusters(dict(value, schema=5, weight_stream=weight_stream, layer_loop=layer_loop, emb=emb,
+                             group_wait=group_wait))
     if schema == 3:
-        return dict(value, schema=5, model='dense', weight_stream=weight_stream, layer_loop=layer_loop,
-                    emb=emb, group_wait=group_wait)
+        return clusters(dict(value, schema=5, model='dense', weight_stream=weight_stream,
+                             layer_loop=layer_loop, emb=emb, group_wait=group_wait))
     if schema not in (1, 2):
         raise ValueError('unknown native coordinate schema')
     result = {k: v for k, v in value.items() if k != 'dn_vector_sums'}
@@ -40,7 +50,7 @@ def upgrade(value, weight_stream, layer_loop, emb, group_wait=False):
     result['layer_loop'] = layer_loop
     result['emb'] = emb
     result['group_wait'] = group_wait
-    return result
+    return clusters(result)
 
 
 def main():

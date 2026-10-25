@@ -22,6 +22,19 @@ bool Sm90DenseSearchSpace::Legal(Sm90DenseCoordinates const& c) const {
   for(auto const& g:c.gemms)if(g.mma!=Sm90DenseMma::kMmaSync)return false;
   // D8: every qkv tile lies in one KV group of (Q + 2) D columns.
   if(c.group_wait && ((queries+2)*head_dim)%c.gemms[0].tile_n)return false;
+  int grid=Grid(c.residency);
+  if(c.cluster>1 && grid%c.cluster)return false;
+  // D10c: both CTAs of a pair run the same task count.
+  for(unsigned f:c.Active())
+    if(c.gemms[f].multicast && ((shapes[f][0]/c.gemms[f].tile_n)%grid)%2)return false;
+  if(c.attention.dsmem) {
+    int arena=Sm90DenseArena(budget);
+    // D10b: one task wave; a group-waiting attention may start while a peer
+    // still runs qkv, so its DSMEM inbox must lie outside the qkv arena.
+    if(batch*hkv*c.attention.chunks>grid ||
+       (c.group_wait && c.attention.FullWidth(head_dim,queries,arena)))
+      return false;
+  }
   return true;
 }
 

@@ -30,6 +30,9 @@ double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
   double tasks=n/g.tile_n*active,per_cta=std::ceil(tasks/grid);
   double w_tot=2.0*n*k*active,a_tot=tasks*rows*k*2.0;
   double w_cta=per_cta*g.tile_n*k*2.0,a_cta=per_cta*rows*k*2.0;
+  // D10c: each CTA of a multicast pair issues half the A slots, and L2
+  // serves every A slot once per pair.
+  if(g.multicast) {a_tot/=2;a_cta/=2;}
   // D3: weights (bulk) and activations (TMA) share one CTA's async stream.
   double cta=(w_cta+a_cta)/c.sm_gbps;
   double ring=w_cta*c.dram_latency/(double(g.slots)*g.slot_bytes);
@@ -41,7 +44,7 @@ double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
   double total=c.Barrier(grid)+first+stream+epilogue;
   if(terms)*terms=json::Object{{"barrier",c.Barrier(grid)},{"first_byte",first},{"pre",pre},
       {"dram",w_tot/c.dram_gbps},{"l2",(w_tot+a_tot)/c.l2_gbps},{"cta",cta},{"ring",ring},
-      {"epilogue",epilogue},{"tasks",tasks}};
+      {"epilogue",epilogue},{"tasks",tasks},{"multicast",g.multicast}};
   return total;
 }
 
@@ -55,10 +58,12 @@ double Sm90DenseCostModel::Attention(Sm90DenseWorkload const& work,
   double kv_task=keys*d*4,kv_tot=double(work.batch)*work.hkv*past*d*4;
   double compute=per_cta*(kv_task/(c.dram_gbps/grid)+blocks*c.AttentionBlock(d,q,norm));
   double stream=std::max(kv_tot/c.dram_gbps,compute);
-  double merge=a.chunks>1?c.AttentionMerge(d,q,norm,a.chunks):0;
+  // D10b: the DSMEM merge replaces the global partials and last arriver.
+  double merge=a.chunks==1?0:a.dsmem?c.AttentionMergeDsmem(d,q,norm,a.chunks):
+      c.AttentionMerge(d,q,norm,a.chunks);
   double total=c.Barrier(grid)+c.l2_latency+c.AttentionPrepare(d,q,norm)+stream+merge;
   if(terms)*terms=json::Object{{"barrier",c.Barrier(grid)},{"prepare",c.AttentionPrepare(d,q,norm)},
-      {"dram",kv_tot/c.dram_gbps},{"compute",compute},{"merge",merge}};
+      {"dram",kv_tot/c.dram_gbps},{"compute",compute},{"merge",merge},{"dsmem",a.dsmem}};
   return total;
 }
 

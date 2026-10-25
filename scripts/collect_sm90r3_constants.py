@@ -114,7 +114,7 @@ def main():
             raise ValueError(f'{metric} {prefix}: {len(found)} values')
         return round(found[0], 2)
 
-    epilogue, embedding, argmax, route, attention, rounds = {}, {}, {}, {}, {}, {}
+    epilogue, embedding, argmax, route, attention, rounds, clusters, dsmem = {}, {}, {}, {}, {}, {}, {}, {}
     for (metric, key), v in value.items():
         fields = dict(part.split('=') for part in key.split(':') if '=' in part)
         if metric == 't_ep':
@@ -133,6 +133,13 @@ def main():
             argmax.setdefault('g' + fields['g'], {})[fields['b']] = round(v, 1)
         elif metric == 't_route_la':
             route.setdefault('g' + fields['g'], {})[fields['b']] = round(v, 1)
+        elif metric == 'c_star':
+            clusters.setdefault('r' + fields['r'], {})['c_star'] = int(v)
+        elif metric == 'max_active_clusters':
+            clusters.setdefault('r' + fields['r'], {})[fields['c']] = int(v)
+        elif metric == 't_merge_dsmem':
+            node = dsmem.setdefault(f"d{fields['d']}:q{fields['q']}:norm{fields['norm']}", {})
+            node[fields['s']] = round(v, 1)
         elif metric in ('round_v3', 'round_group16'):
             # 32-round window means of the DT-4 gate; D8 is priced by their difference.
             rounds.setdefault(metric[len('round_'):], {})[fields['g']] = round(v, 1)
@@ -150,7 +157,7 @@ def main():
         activation_cp_async_gbps=20.0,
         activation_cp_async_source='stated: SM90R2_activation_stream_diagnostic.csv per-CTA ceiling (F9)',
         epilogue_ns=epilogue, embedding_ns=embedding, argmax_la_ns=argmax, route_la_ns=route, attention_ns=attention,
-        round_ns=rounds)
+        round_ns=rounds, clusters=clusters, dsmem_merge_ns=dsmem)
     if a.section_only:
         a.section_only.write_text(json.dumps(section, indent=1) + '\n')
     else:

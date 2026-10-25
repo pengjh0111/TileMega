@@ -30,6 +30,8 @@ struct Sm90DenseGemm {
   int tile_n=0,warps_n=1,warps_k=4,slot_bytes=0,slots=3;
   Sm90DenseMma mma=Sm90DenseMma::kMmaSync;
   int register_stages=1;
+  // D10c: the CTA pair of a cluster shares each A slot by TMA multicast.
+  bool multicast=false;
   int TileK() const { return int(slot_bytes/(2ll*tile_n)); }
   std::int64_t SharedBytes(int batch,bool residual) const {
     return backend::Sm90DenseLayout::Gemm(tile_n,TileK(),slots,warps_k,batch,residual).end;
@@ -44,7 +46,7 @@ struct Sm90DenseGemm {
        tile_n%(8*warps_n) || slot_bytes<=0 || slot_bytes%(2ll*tile_n) ||
        TileK()%64 || k%TileK() || slots<2 || slots>8 ||
        (register_stages!=1 && register_stages!=2 && register_stages!=4) ||
-       register_stages>TileK()/(16*warps_k))
+       register_stages>TileK()/(16*warps_k) || (multicast && slots%2))
       throw std::invalid_argument("illegal sm90 dense GEMM coordinate");
     if(mma==Sm90DenseMma::kWgmma && (tile_n%64 || warps_n!=4 || warps_k!=1))
       throw std::invalid_argument("sm90 dense WGMMA requires a complete N warpgroup");
@@ -54,8 +56,10 @@ struct Sm90DenseGemm {
 struct Sm90DenseAttention {
   int chunks=1,block_keys=64,slots=3;
   int new_row_work=0;
+  // D10b: the S chunks merge through the chunk-0 CTA's DSMEM inbox.
+  bool dsmem=false;
   std::int64_t SharedBytes(int dim,int queries) const {
-    return backend::Sm90DenseLayout::Attention(dim,queries,chunks,block_keys,slots).end;
+    return backend::Sm90DenseLayout::Attention(dim,queries,chunks,block_keys,slots,dsmem).end;
   }
   // D5 full width: the storage exceeds one arena and takes the whole budget.
   bool FullWidth(int dim,int queries,int arena) const {return SharedBytes(dim,queries)-1024>arena;}
@@ -66,7 +70,7 @@ struct Sm90DenseAttention {
   int StreamBytes(int dim) const {return slots*4*block_keys*dim;}
   void Validate() const {
     if(chunks<1 || chunks>64 || (block_keys!=64 && block_keys!=128) || slots<2 || slots>4 ||
-       new_row_work<0)
+       new_row_work<0 || (dsmem && chunks<2))
       throw std::invalid_argument("illegal sm90 dense attention coordinate");
   }
 };
@@ -91,6 +95,9 @@ struct Sm90DenseCoordinates {
   // D8 (prompt §7): attention waits only for its KV group's qkv tiles
   // (group counters) instead of the grid barrier after qkv; P-SEL decides.
   bool group_wait=false;
+  // D10 (DT-2): CTAs launch in clusters of `cluster` ranks (1 or 2; larger
+  // clusters change the grid away from the measured 132/264).
+  int cluster=1;
   static constexpr bool ResidualFamily(unsigned family) {return family==1 || family==3;}
 
   static Sm90DenseCoordinates Exact(Sm90DenseShapeTable const& nk,
@@ -122,8 +129,14 @@ struct Sm90DenseCoordinates {
     if(batch!=1 && batch!=2 && batch!=4 && batch!=8 && batch!=16)
       throw std::invalid_argument("sm90 dense batch must be 1,2,4,8,16");
     if((residency!=1 && residency!=2) ||
-       (swiglu_u!=4 && swiglu_u!=8 && swiglu_u!=16))
+       (swiglu_u!=4 && swiglu_u!=8 && swiglu_u!=16) || (cluster!=1 && cluster!=2))
       throw std::invalid_argument("illegal sm90 dense structural coordinate");
+    // D10b chunks share one cluster; D10c multicast pairs exist only in
+    // clusters and only for the static dense-shaped GEMM families.
+    if((attention.dsmem && cluster%attention.chunks) ||
+       std::any_of(gemms.begin(),gemms.end(),[&](Sm90DenseGemm const& g) {
+         return g.multicast && cluster<2;}) || gemms[5].multicast || gemms[6].multicast || gemms[7].multicast)
+      throw std::invalid_argument("illegal sm90 dense cluster coordinate");
     for(unsigned i:Active())gemms[i].Validate(nk[i][0],nk[i][1]);
     // Expert gate_up pages interleave gate/up rows in U = 16 blocks.
     if((!moe && gemms[2].tile_n%(2*swiglu_u)) || (moe && gemms[6].tile_n%32))
@@ -152,13 +165,15 @@ struct Sm90DenseCoordinates {
           {"tile_n",g.tile_n},{"warps_n",g.warps_n},{"warps_k",g.warps_k},
           {"slot_bytes",g.slot_bytes},{"slots",g.slots},
           {"mma",g.mma==Sm90DenseMma::kMmaSync?"mma_sync":"wgmma"},
-          {"register_stages",g.register_stages}});
+          {"register_stages",g.register_stages},{"multicast",g.multicast}});
     }
     return json::Object{{"schema",5},{"model",moe?"moe":"dense"},{"gemms",families},
         {"attention",json::Object{{"chunks",attention.chunks},{"block_keys",attention.block_keys},
-            {"slots",attention.slots},{"new_row_work",attention.new_row_work}}},
+            {"slots",attention.slots},{"new_row_work",attention.new_row_work},
+            {"merge",attention.dsmem?"dsmem":"la"}}},
         {"residency",residency},{"swiglu_u",swiglu_u},{"weight_stream",weight_stream},
-        {"layer_loop",layer_loop},{"emb",embed_la?"la":"stage"},{"group_wait",group_wait}};
+        {"layer_loop",layer_loop},{"emb",embed_la?"la":"stage"},{"group_wait",group_wait},
+        {"cluster",cluster}};
   }
 
   static Sm90DenseCoordinates FromJson(json::Value const& value) {
@@ -182,7 +197,7 @@ struct Sm90DenseCoordinates {
     // schema 5 (§7) adds the L3 structural dimensions.
     if(integer(value,"schema")!=5)throw std::invalid_argument("unknown sm90 dense coordinate schema");
     keys(value,{"schema","model","gemms","attention","residency","swiglu_u","weight_stream","layer_loop",
-        "emb","group_wait"});
+        "emb","group_wait","cluster"});
     Sm90DenseCoordinates result;
     auto model=value.At("model").AsString("model");
     if(model!="dense" && model!="moe")throw std::invalid_argument("unknown sm90 dense model");
@@ -196,18 +211,21 @@ struct Sm90DenseCoordinates {
       throw std::invalid_argument("sm90 dense coordinates lack a GEMM family");
     for(unsigned i:result.Active()) {
       auto const& v=value.At("gemms").At(kSm90DenseFamilies[i]);auto& g=result.gemms[i];
-      keys(v,{"tile_n","warps_n","warps_k","slot_bytes","slots","mma","register_stages"});
+      keys(v,{"tile_n","warps_n","warps_k","slot_bytes","slots","mma","register_stages","multicast"});
       g.tile_n=integer(v,"tile_n");g.warps_n=integer(v,"warps_n");g.warps_k=integer(v,"warps_k");
       g.slot_bytes=integer(v,"slot_bytes");g.slots=integer(v,"slots");
-      g.register_stages=integer(v,"register_stages");
+      g.register_stages=integer(v,"register_stages");g.multicast=v.At("multicast").AsBool("multicast");
       auto mma=v.At("mma").AsString("mma");
       if(mma!="mma_sync" && mma!="wgmma")throw std::invalid_argument("unknown sm90 dense MMA instruction");
       g.mma=mma=="mma_sync"?Sm90DenseMma::kMmaSync:Sm90DenseMma::kWgmma;
     }
     auto const& a=value.At("attention");
-    keys(a,{"chunks","block_keys","slots","new_row_work"});
+    keys(a,{"chunks","block_keys","slots","new_row_work","merge"});
     result.attention={integer(a,"chunks"),integer(a,"block_keys"),integer(a,"slots"),
         integer(a,"new_row_work")};
+    auto merge=a.At("merge").AsString("merge");
+    if(merge!="la" && merge!="dsmem")throw std::invalid_argument("unknown sm90 dense attention merge");
+    result.attention.dsmem=merge=="dsmem";
     result.residency=integer(value,"residency");result.swiglu_u=integer(value,"swiglu_u");
     result.weight_stream=value.At("weight_stream").AsBool("weight_stream");
     result.layer_loop=value.At("layer_loop").AsBool("layer_loop");
@@ -215,6 +233,7 @@ struct Sm90DenseCoordinates {
     if(emb!="la" && emb!="stage")throw std::invalid_argument("unknown sm90 dense embedding placement");
     result.embed_la=emb=="la";
     result.group_wait=value.At("group_wait").AsBool("group_wait");
+    result.cluster=integer(value,"cluster");
     return result;
   }
 };

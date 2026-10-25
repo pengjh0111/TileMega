@@ -30,6 +30,12 @@ class Sm90NativeConstants {
   // D8: a 16-CTA group counter wait's saving over the V3 barrier (DT-4's
   // round-loop window means).
   double GroupWaitSaving(int grid) const;
+  // DT-2: the largest cluster size C with max-active-clusters x C >= 128.
+  int ClusterStar(int residency) const;
+  // D10b: the leader's DSMEM merge of S chunk partials (beyond the CTA join).
+  double AttentionMergeDsmem(int dim,int queries,bool norm,int chunks) const;
+  // B/TN above kappa = BW_l2 / BW_dram - 1 makes a stage activation-bound (D10c).
+  double MulticastKappa() const {return l2_gbps/dram_gbps-1;}
   // D2 body: one 64-key block (data resident), q preparation, S-chunk merge.
   double AttentionBlock(int dim,int queries,bool norm) const;
   double AttentionPrepare(int dim,int queries,bool norm) const;
@@ -40,7 +46,7 @@ class Sm90NativeConstants {
   json::Value section;
  private:
   std::map<int,double> barrier_;
-  json::Value epilogue_,embedding_,argmax_la_,route_la_,attention_,round_;
+  json::Value epilogue_,embedding_,argmax_la_,route_la_,attention_,round_,clusters_,dsmem_;
   json::Value const& AttentionShape(int dim,int queries,bool norm) const;
 };
 
