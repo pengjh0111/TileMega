@@ -78,6 +78,19 @@ class FeatureContractTests(unittest.TestCase):
         self.assertEqual(fields['attention']['buffers'], 1)
         self.assertTrue(fields['attention']['frontier'])
 
+    def test_static_decode_v2_identity_has_actual_attention_and_geometry(self):
+        manifest = dict(executor='mx_static', version=5, kv_layout='vt',
+                        kv_storage='block_fragments', threads=512, classes={'qkv': {'tn': 16, 'wn': 1}},
+                        b_min=4, attn_prefetch=2, decisions={'DT-P': 'P-B'})
+        fields = implementations(manifest, {})
+        self.assertEqual(fields['attention'], dict(impl='MxAttentionV2', task_body='DecodeProgramV2'))
+        self.assertEqual(fields['threads'], 512)
+        self.assertEqual(fields['classes'], manifest['classes'])
+        self.assertEqual(fields['b_min'], 4)
+        self.assertNotIn('attention_tmin', fields)
+        legacy = dict(executor='mx_static', kv_layout='vt', classes={}, attention_tmin=128)
+        self.assertEqual(implementations(legacy, {})['attention']['impl'], 'MxDecodeAttention')
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -75,6 +75,28 @@ class UnifiedIdentityTests(unittest.TestCase):
                 self.assertTrue(bind_execution(actual, 'L1')['spill'])
                 self.assertFalse(bind_execution(actual, 'L2')['spill'])
 
+    def test_static_v2_identity_uses_the_same_source_snapshot_and_kernel_binding(self):
+        with tempfile.TemporaryDirectory() as directory:
+            so, source, inputs = self.fixture(directory, dm=False)
+            manifest = dict(executor='mx_static', version=5, phase='decode', pg='off',
+                            kv_layout='vt', kv_storage='block_fragments', threads=576,
+                            classes={'qkv': {'tn': 16, 'wn': 1, 'prefetch': 1}},
+                            b_min=2, attn_prefetch=2, decisions={'DT-P': 'P-B'}, watchdog=0)
+            Path(str(so) + '.plan.json').write_text(json.dumps(manifest))
+            Path(str(so) + '.ptxas.log').write_text(
+                'Function properties for _Zmx_decode_kernel_v2X\n'
+                '0 bytes stack frame\nUsed 167 MTregisters, 105 STregisters, 0 bytes shared mem\n')
+            actual = self.build(so, source)
+            self.assertEqual(verify(so, expected_source=inputs), actual)
+            fields = actual['implementations']
+            self.assertEqual(fields['attention']['impl'], 'MxAttentionV2')
+            self.assertEqual(fields['classes'], manifest['classes'])
+            bound = bind_execution(actual, 'L1', loop=True)
+            self.assertEqual(bound['kernel'], '_Zmx_decode_kernel_v2X')
+            self.assertFalse(bound['spill'])
+            with self.assertRaises(ValueError):
+                bind_execution(actual, 'L2')
+
     def test_resource_and_command_mutations_are_rejected(self):
         for suffix in ('.ptxas.log', '.build_command.txt', '.cu', '.plan.json', ''):
             with self.subTest(suffix=suffix), tempfile.TemporaryDirectory() as directory:

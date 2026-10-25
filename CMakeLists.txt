@@ -689,6 +689,11 @@ if(TILEMEGA_BUILD_TESTS)
   target_include_directories(mx_decode_program_v2 PRIVATE ${CMAKE_SOURCE_DIR}/lib/Codegen)
   target_compile_options(mx_decode_program_v2 PRIVATE -UNDEBUG)
   add_test(NAME mx_decode_program_v2 COMMAND mx_decode_program_v2)
+  add_test(NAME mx_decode_v2_host COMMAND ${Python3_EXECUTABLE} -m pytest -q
+    ${CMAKE_SOURCE_DIR}/test/python/test_mx5_resources.py
+    ${CMAKE_SOURCE_DIR}/test/python/test_mx_decode_v2_command.py)
+  set_tests_properties(mx_decode_v2_host PROPERTIES
+    ENVIRONMENT "PYTHONPATH=${CMAKE_SOURCE_DIR}/python;TILEMEGA_BIN=$<TARGET_FILE:tilemega>")
   add_executable(mx_decode_geometry_v2 test/unit/mx/decode_geometry_v2.cpp)
   target_include_directories(mx_decode_geometry_v2 PRIVATE ${CMAKE_SOURCE_DIR}/include)
   add_test(NAME mx_decode_geometry_v2 COMMAND mx_decode_geometry_v2)
@@ -929,6 +934,7 @@ add_library(tilemega_commands OBJECT
   tools/commands/calibration-suite.cpp
   tools/commands/compile.cpp
   tools/commands/mx_decode.cpp
+  tools/commands/mx_decode_v2.cpp
   tools/commands/derive.cpp
   tools/commands/dram-floor.cpp
   tools/commands/request-floor.cpp

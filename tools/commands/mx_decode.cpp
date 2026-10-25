@@ -93,6 +93,7 @@ std::string PinJson(codegen::MxDecodeConfig const& c) {
 }  // namespace
 
 int TryCompile(Request const& r) {
+  if (!r.pin.empty() && json::ParseFile(r.pin).Find("mx_decode_v2")) return TryCompileV2(r);
   auto bridge = frontend::ReadExportBridge(r.input.string());
   frontend::ServingOptions options;
   options.deferred_norm = true;  // gamma folded into qkv, gate_up and head (§3.9)

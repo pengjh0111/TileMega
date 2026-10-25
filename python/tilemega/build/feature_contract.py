@@ -73,6 +73,13 @@ def implementations(manifest, defines):
     paged = manifest.get('pg') == 'pages'
     decode = manifest.get('phase') == 'decode'
     if manifest.get('executor') == 'mx_static':
+        if manifest.get('version', 4) >= 5:
+            return {'executor': 'mx_static', 'version': manifest['version'],
+                    'kv_layout': manifest['kv_layout'], 'kv_storage': manifest['kv_storage'],
+                    'classes': manifest['classes'], 'threads': manifest['threads'],
+                    'b_min': manifest['b_min'], 'attn_prefetch': manifest['attn_prefetch'],
+                    'decisions': manifest['decisions'],
+                    'attention': {'impl': 'MxAttentionV2', 'task_body': 'DecodeProgramV2'}}
         return {'executor': 'mx_static', 'kv_layout': manifest.get('kv_layout'),
                 'classes': manifest['classes'], 'attention_tmin': manifest['attention_tmin'],
                 'barrier_prefetch': int(manifest.get('barrier_prefetch', 1)),

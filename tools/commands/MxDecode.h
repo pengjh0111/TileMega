@@ -22,5 +22,8 @@ struct Request {
 /// Builds the static program when the bridge describes a dense decoder;
 /// returns -1 (nothing done) for a DM plan, which keeps the old path.
 int TryCompile(Request const& request);
+/// Temporary explicit-pin entry while the v2 measured-table/E2E gates remain
+/// open. Remove the MX-4 default route only after those gates select v2.
+int TryCompileV2(Request const& request);
 
 }  // namespace tilemega::commands::mx_decode
