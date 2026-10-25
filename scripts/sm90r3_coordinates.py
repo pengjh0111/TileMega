@@ -3,7 +3,8 @@
 
 Schema 2 dropped `dn_vector_sums`: InputNorm statistics are accumulated by the
 GEMM consumers. Schema 3 drops the per-stage arena offset and preissue fields,
-which D5/D6 derive by rule, and adds the DT-1 `weight_stream` switch. Every
+which D5/D6 derive by rule, and adds the DT-1 `weight_stream` and DT-3
+`layer_loop` switches. Every
 other coordinate is copied unchanged, so a pairing keeps the same geometry.
 """
 import argparse
@@ -13,10 +14,10 @@ from pathlib import Path
 DERIVED = ('workspace_offset', 'preissue_smem_bytes', 'prefetch_l2_bytes', 'preissue_late')
 
 
-def upgrade(value, weight_stream):
+def upgrade(value, weight_stream, layer_loop):
     schema = value.get('schema')
     if schema == 3:
-        return dict(value, weight_stream=weight_stream)
+        return dict(value, weight_stream=weight_stream, layer_loop=layer_loop)
     if schema not in (1, 2):
         raise ValueError('unknown native coordinate schema')
     result = {k: v for k, v in value.items() if k != 'dn_vector_sums'}
@@ -30,6 +31,7 @@ def upgrade(value, weight_stream):
         g.setdefault('register_stages', 1)
     result['schema'] = 3
     result['weight_stream'] = weight_stream
+    result['layer_loop'] = layer_loop
     return result
 
 
@@ -38,10 +40,11 @@ def main():
     p.add_argument('input', type=Path)
     p.add_argument('output', type=Path)
     p.add_argument('--weight-stream', action='store_true', help='enable the D6 stream (DT-1 arm)')
+    p.add_argument('--layer-loop', action='store_true', help='run layer pairs in a loop (DT-3 arm)')
     a = p.parse_args()
     if a.output.exists():
         raise FileExistsError(a.output)
-    value = upgrade(json.loads(a.input.read_text()), a.weight_stream)
+    value = upgrade(json.loads(a.input.read_text()), a.weight_stream, a.layer_loop)
     a.output.write_text(json.dumps(value, indent=2) + '\n')
 
 
