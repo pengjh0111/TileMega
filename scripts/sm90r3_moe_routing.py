@@ -16,7 +16,7 @@ import torch
 
 from tilemega.cache import atomic_json
 from tilemega.moe.full import generation_tokens
-from tilemega.moe.routing_check import agreement, capture, compare_hf, index_names
+from tilemega.moe.routing_check import agreement, capture, compare_hf, index_names, selected
 from tilemega.serving.engine import ServingEngine
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -26,7 +26,7 @@ def hf_ties(checkpoint, prompts, tokens, mismatches):
     """HF router logits ranked 8 and 9 at each mismatched (step, layer, batch)."""
     from transformers import AutoModelForCausalLM
     model = AutoModelForCausalLM.from_pretrained(checkpoint, torch_dtype=torch.bfloat16,
-        attn_implementation='sdpa', experts_implementation='grouped_mm').cuda().eval()
+        attn_implementation='sdpa').cuda().eval()
     rows = []
     for b, prompt in enumerate(prompts):
         wanted = [m for m in mismatches if m['batch'] == b]
@@ -35,7 +35,8 @@ def hf_ties(checkpoint, prompts, tokens, mismatches):
         logits = {}
         def hook(layer):
             def save(module, args, output):
-                logits[layer] = output[0].detach().float().cpu()
+                value = output[0] if isinstance(output, tuple) else output
+                logits[layer] = value.detach().float().cpu()
             return save
         handles = [layer.mlp.gate.register_forward_hook(hook(i)) for i, layer in enumerate(model.model.layers)]
         try:
@@ -110,13 +111,13 @@ def main():
 def hf_indices(checkpoint, prompts, tokens, steps, layers):
     from transformers import AutoModelForCausalLM
     model = AutoModelForCausalLM.from_pretrained(checkpoint, torch_dtype=torch.bfloat16,
-        attn_implementation='sdpa', experts_implementation='grouped_mm').cuda().eval()
+        attn_implementation='sdpa').cuda().eval()
     table = [[[None] * len(prompts) for _ in range(layers)] for _ in range(steps)]
     for b, prompt in enumerate(prompts):
         captures = {}
         def hook(layer):
             def save(module, args, output):
-                captures[layer] = output[2].detach().cpu()
+                captures[layer] = selected(output, model.config.num_experts_per_tok)
             return save
         handles = [layer.mlp.gate.register_forward_hook(hook(i)) for i, layer in enumerate(model.model.layers)]
         try:
