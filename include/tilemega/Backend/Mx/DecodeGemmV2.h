@@ -91,9 +91,13 @@ struct MxGemm {
   };
   struct Lane {
     int t, wave, lane, r, g, group, wave_k, local;
-    __device__ __forceinline__ Lane() {
+    __device__ __forceinline__ Lane(int threads) {
       unsigned const thread = StageThread();
+      // Restore launch bounds hidden by Opaque; retain stream-K's allocation guard.
+      __builtin_assume(thread < unsigned(threads));
       t = int(thread); wave = __builtin_mxc_readfirstlane(int(thread / 64));
+      if constexpr (Part == MxPart::kTileRange)
+        __builtin_assume(unsigned(wave) < unsigned(threads) / 64);
       lane = int(thread % 64); r = lane & 15; g = lane >> 4;
       group = wave < 8 ? wave / kWK : 0;
       wave_k = wave % kWK; local = wave_k * 64 + lane;
@@ -134,7 +138,7 @@ struct MxGemm {
   }
   template <class Shape>
   __device__ __forceinline__ static Prefetched Prefetch(MxGemmOperandsV2 const& p, Shape const& s) {
-    Lane const l;
+    Lane const l(Shape::kThreads);
     Prefetched pf{};
     if (l.Compute()) {
       MxGeometryV2<TN, WN, Part> const geo(s.n, s.k, int(gridDim.x), StageBlock());
@@ -532,7 +536,7 @@ struct MxGemm {
     using Sync = codegen::mx::StageSyncV2<Shape::kThreads>;
     using NextPrefetched = decltype(next());
     static_assert((D - 1) * kLoads + NextPrefetched::kLoads <= 63);
-    Lane const l;
+    Lane const l(Shape::kThreads);
     MxGeometryV2<TN, WN, Part> const geo(s.n, s.k, int(gridDim.x), StageBlock());
     MxGemmSmemV2 const layout(s.b, TN, WN);
     float* const shared = reinterpret_cast<float*>(smem);

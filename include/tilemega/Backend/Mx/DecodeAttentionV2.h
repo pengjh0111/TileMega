@@ -72,11 +72,14 @@ struct MxAttentionV2 {
   template <class Shape>
   __device__ __forceinline__ static Prefetched Prefetch(MxAttentionOperandsV2 const& p, Shape const& s) {
     Prefetched pf{};
-    int const wave = __builtin_mxc_readfirstlane(int(StageThread() / 64));
+    unsigned const thread = StageThread();
+    __builtin_assume(thread < unsigned(Shape::kThreads));
+    int const wave = __builtin_mxc_readfirstlane(int(thread / 64));
+    __builtin_assume(unsigned(wave) < unsigned(Shape::kThreads) / 64);
     if (wave < 8) {
       MxAttentionGeometryV2 const geo(s.b * s.hkv, p.past, Bmin, int(gridDim.x), StageBlock());
       int const first = min(geo.begin, geo.units - 1), head = first / geo.blocks;
-      int const j = min(first % geo.blocks + wave, geo.blocks - 1), lane = StageThread() % 64;
+      int const j = min(first % geo.blocks + wave, geo.blocks - 1), lane = int(thread % 64);
       Block block;
       if constexpr (PrefetchKind) {
         LoadK(block, p, head, j, lane);
@@ -108,7 +111,10 @@ struct MxAttentionV2 {
                                                  MxAttentionGeometryV2 const& geo, int head, int first, int end,
                                                  float* shared) {
     using Sync = codegen::mx::StageSyncV2<Shape::kThreads>;
-    int const t = StageThread(), wave = __builtin_mxc_readfirstlane(t / 64), lane = t % 64;
+    int const t = StageThread();
+    __builtin_assume(unsigned(t) < unsigned(Shape::kThreads));
+    int const wave = __builtin_mxc_readfirstlane(t / 64), lane = t % 64;
+    __builtin_assume(unsigned(wave) < unsigned(Shape::kThreads) / 64);
     int const r = lane & 15, g = lane >> 4;
     float* const workspace = shared + min(wave, 7) * kWaveFloats;
     float* const exchange = workspace;
@@ -414,7 +420,9 @@ struct MxAttentionV2 {
     }
     Sync::CtaSync();
     using Result = decltype(next());
-    if (StageThread() < 512) return next();
+    unsigned const thread = StageThread();
+    __builtin_assume(thread < unsigned(Shape::kThreads));
+    if (thread < 512) return next();
     return Result{};
   }
 };

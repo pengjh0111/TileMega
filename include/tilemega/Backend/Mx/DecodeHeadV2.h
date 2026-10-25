@@ -146,7 +146,7 @@ struct MxHead {
   __device__ __forceinline__ static auto Run(Prefetched pf, MxHeadOperandsV2 const& p,
                                             Shape const& s, char* smem, Next next) {
     using Sync = codegen::mx::StageSyncV2<Shape::kThreads>;
-    Lane const l;
+    Lane const l(Shape::kThreads);
     MxGeometryV2<TN, WN, MxPart::kTileRange> const geo(s.n, s.k, int(gridDim.x), StageBlock());
     MxGemmSmemV2 const layout(s.b, TN, WN);
     float* const shared = reinterpret_cast<float*>(smem);
