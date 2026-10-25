@@ -35,7 +35,9 @@ def main():
     output.parent.mkdir(parents=True, exist_ok=True)
     for suffix in ('.cu', '.plan.json', '.source.json'):
         shutil.copy2(str(original) + suffix, str(output) + suffix)
-    command = shlex.split(Path(str(original) + '.build_command.txt').read_text())
+    # Worktree paths reach runs/ through a symlink; compare resolved paths.
+    command = [str(Path(x).resolve()) if x.endswith(('.so', '.cu')) else x
+               for x in shlex.split(Path(str(original) + '.build_command.txt').read_text())]
     sources = [x for x in command if x.endswith('.cu')]
     # Some R1 libraries were compiled from a since-removed staging copy of the
     # recorded source; the copy beside the library must then match its identity.
