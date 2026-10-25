@@ -363,8 +363,18 @@ struct MxAttentionV2 {
     if (thread < 512) {
       for (int item = thread; item < Q * kSlots; item += 512) {
         int const q = item / kSlots, c = item % kSlots, at = (c * Q + q) * (D + 2);
-        scratch[item * 3] = c < producers ? LoadFloatGvm(base + at + D) : -INFINITY;
-        scratch[item * 3 + 1] = c < producers ? LoadFloatGvm(base + at + D + 1) : 0.f;
+        unsigned m_bits = 0xff800000u, l_bits = 0;
+        if (c < producers) {
+          // D+2 is even, so each contiguous m/l pair is eight-byte aligned.
+          using Pair = unsigned __attribute__((ext_vector_type(2)));
+          using GlobalPair = __attribute__((address_space(1))) Pair const;
+          Pair const ml = *(GlobalPair*)(base + at + D);
+          m_bits = ml[0]; l_bits = ml[1];
+        }
+        asm volatile("" ::: "memory");
+        __builtin_mxc_arrive_gvmcnt(0);
+        scratch[item * 3] = __uint_as_float(m_bits);
+        scratch[item * 3 + 1] = __uint_as_float(l_bits);
       }
     }
     Sync::CtaSync();
@@ -373,13 +383,24 @@ struct MxAttentionV2 {
         float m = -INFINITY;
 #pragma unroll
         for (int c = 0; c < kSlots; ++c) m = fmaxf(m, scratch[(q * kSlots + c) * 3]);
+        scratch[q * kSlots * 3 + 2] = m;
+      }
+    }
+    Sync::CtaSync();
+    if (thread < 512) {
+      for (int item = thread; item < Q * kSlots; item += 512) {
+        int const q = item / kSlots;
+        float const m = scratch[q * kSlots * 3 + 2];
+        scratch[item * 3] = maca::Exp2(scratch[item * 3] - m);
+      }
+    }
+    Sync::CtaSync();
+    if (thread < 512) {
+      for (int q = thread; q < Q; q += 512) {
         float lambda = 0;
 #pragma unroll
-        for (int c = 0; c < kSlots; ++c) {
-          float const alpha = maca::Exp2(scratch[(q * kSlots + c) * 3] - m);
-          scratch[(q * kSlots + c) * 3] = alpha;
-          lambda += alpha * scratch[(q * kSlots + c) * 3 + 1];
-        }
+        for (int c = 0; c < kSlots; ++c)
+          lambda += scratch[(q * kSlots + c) * 3] * scratch[(q * kSlots + c) * 3 + 1];
         scratch[q * kSlots * 3 + 2] = lambda;
       }
     }
@@ -393,6 +414,9 @@ struct MxAttentionV2 {
 #pragma unroll
           for (int c = 0; c < 32; ++c)
             values[c] = LoadFloatGvm(base + ((min(start + c, producers - 1) * Q + q) * (D + 2) + d));
+          // Keep the complete bounded load batch ahead of its ordered reduction.
+          asm volatile("" ::: "memory");
+          __builtin_mxc_arrive_gvmcnt(0);
 #pragma unroll
           for (int c = 0; c < 32; ++c)
             if (start + c < producers) sum += values[c] * scratch[(q * kSlots + start + c) * 3];
