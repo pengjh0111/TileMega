@@ -114,3 +114,13 @@ GEMM's old GPU FP32 oracle crossed a BF16 midpoint at one coordinate. New
 measurements uniformly use CPU FP32 with unchanged casts/thresholds and explicit
 oracle metadata; the old failure remains. MoE and DNN order/status is unchanged.
 Detailed source/measurement evidence is in MX5_integration_c550.md.
+
+
+Verified continuation through2a7235f4b: the512-scoped4545-key table is fully
+qualified (three fresh rounds each), but does not approve512 or the default.
+Corrected past64..1086 and lossless JSON membership yield five valid top-4
+previews. Actual20 native builds retain20 receipts:3 fit,17 spill. D7 copied
+terminal-scope/stage-local AS4 reload yields two frame0 probes, pending review
+and model validation. No actual top-4 timing, native MoE or native DNN is
+claimed. Detailed immutable paths and failed experiments are in
+MX5_integration_c550.md. Dense acceptance still precedes MoE, LLM30 then DNN25.

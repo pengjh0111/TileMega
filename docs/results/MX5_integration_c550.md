@@ -441,3 +441,141 @@ Raw: `runs/mx5/attention_younger_wait_units_v1_61/` and
 `attention_prefix_younger_wait_d7_v1_61/stage_validation/gpu_runs_NEW/`.
 Main host rebuild and the source identity check pass;15 actual manual model
 builds are running under `runs/mx5/native_dense_prefix_v1/`. Acceptance is open.
+
+## Actual prefix resources and the 576 allocation budget
+
+Verified all15 prefix builds complete: ten manual512 timing/watchdog builds
+pass; at576 Llama1B fits139/frame0, while Qwen B1/B16 and Llama8B B1/B16
+remain168/frame596/608/484/480. Full strict failures, including missing success
+identities on rejected builds, remain failures. Source snapshots, ELF and MIR
+are retained. Appended15 resource rows do not manufacture success identities.
+
+Verified installed mxcc disassembly: getWarpsPerPEUForBlock computes
+ceil(ceil(threads/64)/4); register granule8; getMaxNumMTRegs uses the resulting
+per-PEU wave count. The observed xcore1002 budget512 gives512-thread256 and
+576-thread168. This establishes the toolchain model; AP-total227 alone does
+not establish launchability. A diagnostic max227 override of the earlier
+full-prefix stage source yields eightMT227 functions, seven with frame/private.
+Root's genuine zero-launch queries return attributes/occupancy status0 and
+occupancy0 for all eight, including the Norm0/bmin1/frame0 function. No override
+kernel executes. Raw: `runs/mx5/attention_576_register_budget_audit_v1_61/`.
+
+Verified separate same-source max255 diagnostics for the four *actual final
+prefix* minimum-prefetch576 programs give255/251/235/233 MTreg, frame0 and
+no private/generic/calls/static shared memory. All56 MMA rings pass. These are
+current compiler unspilled allocations, not mathematical lower bounds. The
+postRA estimated peak for LlamaB16 is226 and cannot prove233 necessary; no new
+avoidable allocation error has been demonstrated. Original168-budget failures
+remain unchanged. Actual-eight-ELF occupancy queries are prepared, not yet run;
+dynamic memory must come from each tm_plan_shared_bytes uint64 host query.
+Raw: `runs/mx5/native_576_max255_d7_v1_61/`. D7/512 policy remains open; none of
+these diagnostics grants a blanket exception or relaxes a resource/runtime gate.
+
+Verified subsequent root-only actual-eight-ELF query: all attribute/occupancy
+calls return status0. The four original168 allocations have occupancy1 but
+nonzero frames; max255 allocations255/251/235/233 have frame0 but occupancy0.
+Dynamic smem comes from each ELF's uint64 host query:32816 atB1 and32864 atB16.
+No plan is created or launched. Root preserved the prepared int-return driver
+and executed a separately hashed copy with the exact uint64 ABI. Raw:
+`native_576_max255_d7_v1_61/query_result_uint64_v1.json` under runs/mx5.
+
+Verified final-prefix actual manual controls: all five pass512-step C-1/C-2,
+with the same maximum gaps as the earlier LA controls. Two fresh uninstrumented
+rounds each give Qwen B1 TPOT2.393908293ms/TTFT9.077861ms and B16
+TPOT4.214849114ms/TTFT52.530732ms. Versus stored MX-4: +20.687959% and
+-7.102210%. Versus the earlier LA controls both regress; defaults stay off.
+Four new timing rows and five correctness rows are appended, never substituted
+for earlier values. Raw: `runs/mx5/native_dense_prefix_v1/development/gpu_runs_v1/`.
+
+Verified b67500aaa adds actual pre-resource-judgment compile receipts without
+altering CUDA bodies or ABI. Six native CTests pass, including87 Python tests
+and a real CPU subprocess writer test. Root then invokes actual cucc twice:
+512 produces253/frame0 and succeeds;576 compiles168/frame596, retains a valid
+receipt, and is rejected by the original resource gate. Both generated CUDA
+files exactly match their previously checked counterparts. No GPU launch.
+Raw: `runs/mx5/receipt_writer_main_v1/`. The independent scoped receipt helper
+does not supply occupancy or authorize512. Automatic retry/selection remains
+unfinished. CTest now includes the portable policy/receipt/P0/reference suites.
+
+Verified final attention source e3fbfaae has800 genuine P0 zero-iteration
+queries and800 prescribed-primary queries. At512 all400 pass; at576 D64's100
+pass and D128's300 remain resource rejections. Prescribed widths: D128/PF0 at512,
+D128/PF1 at576, D64/PF2 at both. All failures remain; no forced-register binary
+enters timing. The400-key512 three-process campaign is running. Selected rows
+record actual active KV working sets>=256MiB, not only allocated capacity.
+Head750 keys complete three rounds. GEMM final batches are still running.
+
+Verified qualification manifest views preserve parent manifests/check rows and
+all raw jobs byte-for-byte. Failed GEMM129 is excluded from the success view
+and explicitly linked to the fresh same-order/seed24-key CPU-oracle retry.
+An initial view fails on unused576 P0 rows missing prefetch; a new view uses
+same-value checked subsets with parent hashes/membership checks. Check-only
+coverage is exact4545:3395 GEMM+750 head+400 attention,0 missing/extra.
+This is not measured-domain completion until every remaining batch passes.
+Raw: `runs/mx5/calibration/final512_views_v2/`; the failed v1 remains preserved.
+
+Under the user's recorded-difference/judgment authorization, root is reviewing
+an explicit schema3 complete-disposition extension: each requested candidate
+has either three real costs or a source-bound primary resource rejection with
+no ns. Schema2 and executing resource gates remain unchanged. Rejections do
+not become costs, cannot bridge attention's five-L grid, and cannot approve512
+or prove a complete plan impossible. No schema3/default is enabled yet; this
+is explicitly different from literal whole-domain timing, whose failed
+resource candidates cannot safely execute. Ignored CPU review is ongoing.
+
+
+## Qualified costs and actual top-4 resource checkpoint (verified)
+
+The final512 table now qualifies all4545 keys (3395 GEMM,750 head,400 attention),
+each from three fresh processes,0 missing/extra. SHA256:
+`51aa665260b360f191c75ceccd5dfc140a5e1f535a76d43383444af6d65575a0`.
+Raw: `runs/mx5/calibration/final512_qualified_v1.json`. This remains512-scoped,
+full_table=false; it does not approve512 or change the default target table.
+The completed attention campaign supersedes the preceding running checkpoint.
+
+Two host integration defects were repaired without changing measured rows.
+Parsed JSON numbers previously lost lexical precision when dumped, breaking
+strict row membership;275be22ad preserves parsed lexemes. The actual4545-row
+canonical roundtrip now matches; the old writer changed73 rows. Root's first
+solve request also misread the inclusive past range:64..1087 is invalid for
+capacity1088;64..1086 gives1023 decode iterations and attention L65..1087.
+All20 initial attempts stopped before CUDA generation, with no compiler call
+or resource observation.2a7235f4b rejects this interval before preparation.
+Raw: `json_number_roundtrip_v1_61/`, `solve_interval_validation_v1_61/`, and
+`solver_development_resource_v1/` under runs/mx5; all failures remain immutable.
+
+The corrected five previews pass strict source/cost membership validation.
+Their20 actual native resource attempts all have successful device compilation
+and verified pre-judgment receipts, but only Llama1B B1 original IDs0/1/2 pass:
+MT247/243/247,frame0. The other17 have MT256/frame380..600. All original IDs,
+predictions, pins and failed artifacts remain; none has GPU execution approval.
+Raw: `runs/mx5/solver_development_resource_v2/CPU_RESOURCE_REVIEW.json`.
+
+D7 debug attribution reproduces Qwen originalID0's executable sections and MIR.
+Of420 frame bytes,384 are24 vector slots associated with the terminal head
+prefetch packet's control-flow merge. This is allocation evidence, not proof
+that the packet is live throughout every body. Clearing consumed packets makes
+the frame worse(544) and is rejected. Keeping the final down/head/tail barrier
+in the terminal branch reduces it to156, still rejected. Those remaining slots
+hold spilled scalar controls/pointers and masks, not head packet vectors.
+A second copied variant reloads top-level Binding fields at their stage using
+the existing uniform-opaque AS4 mechanism: QwenID0=251/frame0; Llama1BID3=
+223/frame0, both private0/generic0/calls0. Bodies, pin/Pw and stage/next order
+are unchanged. This is CPU-only evidence pending independent review, occupancy
+and fresh model correctness; the patch is not enabled by this checkpoint.
+Raw: `runs/mx5/solver_spill_diagnosis_v2_61/`; rejected variants remain.
+
+The schema3 ignored CPU patch's independent review found three reproducible
+qualification bugs: forced-register P0 acceptance, tail-position MIR observer
+rejection, and Python cost-width validation omission. All remain outside main;
+a revised patch must pass these negative cases before adoption. Raw:
+`runs/mx5/outcome_domain_review_v1_61/`. No fabricated cost or512 approval.
+
+The main guarded occupancy helper669f107a0 calls only inspected host shared-byte
+and runtime attribute/residency queries. Two actual artifacts return status0,
+resident1:512 MT253/frame0 and576 MT168/frame596. The latter still fails the
+unchanged frame gate; residency alone cannot approve execution. No plan create
+or launch occurs. Raw: `runs/mx5/actual_plan_occupancy_v1/root_actual_pair_v1/`.
+After receipt/occupancy/JSON/interval integration,6 native CTests and102 portable
+Python tests pass. Guard wall upper bound is14.0125 card-hours/427 closed jobs,
+including waits; no active GPU job at this checkpoint. Budget remains60.
