@@ -56,6 +56,7 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
     if(empty)continue;
     auto build=[&](unsigned family,unsigned rank,std::string const& origin) {
       Sm90DenseCoordinates c;c.residency=residency;c.weight_stream=space.weight_stream;
+      c.layer_loop=space.layer_loop;
       for(unsigned f=0;f<5;++f)c.gemms[f]=families[f][f==family?rank:0].gemm;
       c.attention=families[5][family==5?rank:0].attention;
       Sm90DenseSearchSpace::Structure(c);
