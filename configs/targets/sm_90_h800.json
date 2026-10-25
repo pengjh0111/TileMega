@@ -2084,7 +2084,7 @@
     "schema": 1,
     "method": "scripts/sm90r3_constants.cu and scripts/sm90r2_attention_calibration.cu (SM90R3 gap keys); median of five fresh guarded processes; no fitting",
     "csv": "docs/results/SM90R3_constants_L3.csv",
-    "source_commit": "f2da2cd338cb7d4161389d57ca1069ec68fc30ce",
+    "source_commit": "7f92fcfb497ff38fb710086863f618aba2134952",
     "header_sha256": {
       "include/tilemega/Backend/Sm90DenseEpilogue.h": "b89a5e74f82cf3e26d7de76a9dd90956485f583524b727842d7be5613899a6a2",
       "include/tilemega/Backend/Sm90DenseToken.cuh": "de9f2849dc71c3ecc1178f07081aa71c8f01dc319e6bbb0520230ec93d11b212",
@@ -2916,7 +2916,8 @@
           "4": 4161.9,
           "8": 4526.8,
           "16": 5038.1,
-          "32": 5722.8
+          "32": 5722.8,
+          "64": 7275.2
         },
         "block": 355.4,
         "prepare": 1752.4
@@ -2946,7 +2947,23 @@
         "c_star": 8
       }
     },
-    "dsmem_merge_ns": {}
+    "dsmem_merge_ns": {
+      "d128:q2:norm1": {
+        "2": 1565.9
+      },
+      "d64:q4:norm0": {
+        "2": 1570.4
+      },
+      "d128:q3:norm0": {
+        "2": 1866.2
+      },
+      "d128:q4:norm0": {
+        "2": 2177.9
+      },
+      "d128:q8:norm1": {
+        "2": 3869.7
+      }
+    }
   },
   "sm90_native_decisions": {
     "weight_stream": false,
