@@ -35,16 +35,19 @@ __global__ void __launch_bounds__(MX5_TEST_THREADS) GemmBench(BenchArgs args) {
   // Dense benchmark rows have no token indirection.
   args.gemm.a_tokens = nullptr;
   args.gemm.residual_tokens = nullptr;
-  MxGemmOperandsV2 current = args.gemm;
-  auto pf = Body::Prefetch(current, shape);
+  auto pf = Body::Prefetch(args.gemm, shape);
 #pragma unroll 1
   for (int iteration = 0; iteration < args.iterations; ++iteration) {
-    auto following = args.gemm;
-    following.w += std::size_t((iteration + 1) % args.copies) * args.n * args.k;
-    pf = Body::Run(pf, current, shape, smem, [&] { return Body::Prefetch(following, shape); });
+    // Keep the next copy's operand addresses out of the current ring's lifetime.
+    auto current = args.gemm;
+    current.w += std::size_t(iteration % args.copies) * args.n * args.k;
+    pf = Body::Run(pf, current, shape, smem, [&] {
+      auto following = args.gemm;
+      following.w += std::size_t((iteration + 1) % args.copies) * args.n * args.k;
+      return Body::Prefetch(following, shape);
+    });
     Sync::Barrier(args.counter, (iteration + 1ull) * gridDim.x, generation, unsigned(iteration + 1), [] {});
     if (blockIdx.x == 0 && Sync::IsRole()) args.stamps[iteration] = tilemega::maca::GlobalTimerNs();
-    current = following;
   }
 }
 
