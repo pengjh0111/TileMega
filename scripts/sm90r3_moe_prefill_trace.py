@@ -27,7 +27,7 @@ def category(kind, name):
     """Stage type from the runtime kind and the stage's weight name."""
     if kind != 'kGemm':
         return kind[1:] if kind.startswith('k') else kind
-    for key, label in (('router', 'gemm.router'), ('gate_up', 'gemm.expert_gate_up'),
+    for key, label in (('router', 'gemm.router'), ('mlp.gate.weight', 'gemm.router'), ('gate_up', 'gemm.expert_gate_up'),
                        ('experts.down', 'gemm.expert_down'), ('qkv', 'gemm.qkv'), ('o_proj', 'gemm.o'),
                        ('lm_head', 'gemm.lm_head')):
         if key in name:
