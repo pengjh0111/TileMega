@@ -63,7 +63,9 @@ def allocate_state(model_dir: str | Path, batch: int,
     layers = int(config.num_hidden_layers)
     hkv = int(config.num_key_value_heads)
     head_dim = int(config.head_dim)
-    kv_storage = torch.empty((layers, 2, batch, hkv, capacity, head_dim),
+    # Native attention reads whole TMA boxes past the history bound and masks
+    # them by selection; zero (or earlier finite) rows keep 0*row exact.
+    kv_storage = torch.zeros((layers, 2, batch, hkv, capacity, head_dim),
                              dtype=torch.bfloat16, device=device)
     tokens = torch.empty((batch, capacity), dtype=torch.int32, device=device)
     cos, sin = rotary_tables(config, capacity, device)
