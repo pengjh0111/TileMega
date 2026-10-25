@@ -694,6 +694,10 @@ if(TILEMEGA_BUILD_TESTS)
   target_link_libraries(mx_decode_solver_v2 PRIVATE TileMega::tilemega)
   target_compile_options(mx_decode_solver_v2 PRIVATE -UNDEBUG)
   add_test(NAME mx_decode_solver_v2 COMMAND mx_decode_solver_v2)
+  add_executable(mx5_compile_receipt test/unit/mx5_compile_receipt.cpp)
+  target_link_libraries(mx5_compile_receipt PRIVATE TileMega::tilemega)
+  target_compile_options(mx5_compile_receipt PRIVATE -UNDEBUG)
+  add_test(NAME mx5_compile_receipt COMMAND mx5_compile_receipt)
   add_executable(mx_decode_program_v2 test/unit/mx/decode_program_v2.cpp)
   target_link_libraries(mx_decode_program_v2 PRIVATE TileMega::tilemega)
   target_include_directories(mx_decode_program_v2 PRIVATE ${CMAKE_SOURCE_DIR}/lib/Codegen)
@@ -702,9 +706,13 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME mx_decode_v2_host COMMAND ${Python3_EXECUTABLE} -m pytest -q
     ${CMAKE_SOURCE_DIR}/test/python/test_mx5_resources.py
     ${CMAKE_SOURCE_DIR}/test/python/test_mx_decode_v2_command.py
-    ${CMAKE_SOURCE_DIR}/test/python/test_mx5_select.py)
+    ${CMAKE_SOURCE_DIR}/test/python/test_mx5_select.py
+    ${CMAKE_SOURCE_DIR}/test/python/test_mx5_plan_resources.py
+    ${CMAKE_SOURCE_DIR}/test/python/test_mx5_plan_receipt.py
+    ${CMAKE_SOURCE_DIR}/test/python/test_mx_p0_alignment.py
+    ${CMAKE_SOURCE_DIR}/test/python/test_mx5_stage_reference.py)
   set_tests_properties(mx_decode_v2_host PROPERTIES
-    ENVIRONMENT "PYTHONPATH=${CMAKE_SOURCE_DIR}/python;TILEMEGA_BIN=$<TARGET_FILE:tilemega>")
+    ENVIRONMENT "PYTHONPATH=${CMAKE_SOURCE_DIR}/python;TILEMEGA_BIN=$<TARGET_FILE:tilemega>;TILEMEGA_MX5_NATIVE_RECEIPT_TEST_DRIVER=$<TARGET_FILE:mx5_compile_receipt>")
   add_executable(mx_decode_geometry_v2 test/unit/mx/decode_geometry_v2.cpp)
   target_include_directories(mx_decode_geometry_v2 PRIVATE ${CMAKE_SOURCE_DIR}/include)
   add_test(NAME mx_decode_geometry_v2 COMMAND mx_decode_geometry_v2)

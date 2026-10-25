@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include "MxDecode.h"
+#include "Mx5CompileReceipt.h"
 #include "Toolchain.h"
 
 #include <tilemega/Backend/Mx/DecodeGeometryV2.h>
@@ -189,7 +190,8 @@ int TryCompileV2(Request const& r) {
 
   std::filesystem::path const parent = r.output.parent_path();
   if (!parent.empty()) std::filesystem::create_directories(parent);
-  std::string const out = r.output.string(), root = TILEMEGA_SOURCE_DIR;
+  std::string const out = std::filesystem::absolute(r.output).lexically_normal().string(), root = TILEMEGA_SOURCE_DIR;
+  compile_receipt_v1::RequireFresh(out);
   std::string const environment = "PYTHONPATH=" + Quote(root + "/python") + " LD_LIBRARY_PATH=" +
       Quote(CudaLibraryDirectory() + ":" + (std::getenv("LD_LIBRARY_PATH") ? std::getenv("LD_LIBRARY_PATH") : ""));
   auto python = [&](std::string const& arguments) {
@@ -205,7 +207,7 @@ int TryCompileV2(Request const& r) {
       " -DTILEMEGA_MX_DIAG=" + (diag ? "1" : "0");
   std::string device_flags = DeviceBuildFlags();
   if (device_flags.find("-fno-strict-aliasing") == std::string::npos) device_flags += " -fno-strict-aliasing";
-  std::string const command = Quote(NvccPath()) + " -std=c++17 -O3" + device_flags + flags +
+  std::string const command = Quote(compile_receipt_v1::CompilerPath(NvccPath())) + " -std=c++17 -O3" + device_flags + flags +
       " -mllvm -print-after=stack-frame-layout -shared -Xcompiler=-fPIC -x cu -I" + Quote(root + "/include") + " " +
       Quote(out + ".cu") + " -L" + Quote(CudaLibraryDirectory()) + " -lcudart -o " + Quote(out);
   Write(out + ".cu", codegen::EmitMxDecodeProgramV2(*module, r.batch, r.past_lo, r.past_hi, r.grid, config));
@@ -230,7 +232,10 @@ int TryCompileV2(Request const& r) {
   resolved_pin.Set("purpose", purpose);
   Write(out + ".mx5_pin.json", Value(Object{{"mx_decode_v2", resolved_pin}}).Dump() + "\n");
   auto const start = std::chrono::steady_clock::now();
-  int const status = std::system((command + " >" + Quote(out + ".ptxas.log") + " 2>&1").c_str());
+  auto const argv = compile_receipt_v1::Arguments(command);
+  auto const inputs = compile_receipt_v1::Inputs(out, r.pin, argv.at(0),
+      std::filesystem::read_symlink("/proc/self/exe").string());
+  int const status = compile_receipt_v1::Run(argv, out, inputs);
   double const compile_s = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
   if (status) {
     Write(out + ".resource_failure.json", Value(Object{{"status", "compiler_failed"}, {"exit_status", status},
