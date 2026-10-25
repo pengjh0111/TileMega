@@ -11,8 +11,11 @@
 
 namespace tilemega::backend {
 
+// Multicast (D10c, clusters): the CTA pair (2j, 2j + 1) shares every A slot.
+// Rank r issues the activation TMA of the slots s with s % 2 == r into both
+// CTAs; it first waits for the peer's consumer releases on peer[s / 2].
 template<int Batch,int N,int K,int TN,int TK,int Slots,int WarpsN,int WarpsK,
-         ServingEpilogueOp Op,int U,bool InputNorm,int RegisterStages=1>
+         ServingEpilogueOp Op,int U,bool InputNorm,int RegisterStages=1,bool Multicast=false>
 struct Sm90DenseGemm {
   using Element=cutlass::bfloat16_t;
   using Async=codegen::executor::Async<arch::Sm90>;
@@ -21,6 +24,10 @@ struct Sm90DenseGemm {
   static_assert((RegisterStages==1 || RegisterStages==2 || RegisterStages==4) &&
                 RegisterStages<=TK/(16*WarpsK));
   static_assert(Op!=ServingEpilogueOp::kPartial,"dense decode never splits K across tasks");
+  static_assert(!Multicast || Slots%2==0,"a multicast slot keeps one issuing rank");
+  __device__ static __forceinline__ unsigned& PeerGenerations(Sm90DenseRingState& state) {
+    return Sm90DenseClusterState::OfRing(state).peer_generations[Sm90DenseClusterState::RingIndex(state)];
+  }
   static constexpr bool kResidual=Op==ServingEpilogueOp::kResidual;
   // A residual task's tile is prefetched per local task; a grid of at least
   // 132 CTAs gives each CTA at most two of them.
@@ -101,10 +108,15 @@ struct Sm90DenseGemm {
             Async::Bulk(residual+(local*Batch+row)*TN,p.residual+std::size_t(row)*N+task*TN,
                 2*TN,state.side+local);
         }
+      unsigned rank=0,peer=0;
+      if constexpr(Multicast) {rank=Async::ClusterRank();peer=PeerGenerations(state);}
       for(int sequence=0;sequence<tasks*kIterations;++sequence) {
         int slot=sequence%Slots,task=int(blockIdx.x)+(sequence/kIterations)*int(gridDim.x);
         int tile=sequence%kIterations;
         Async::Wait(state.empty+slot,(phase>>slot)&1);
+        bool issue=!Multicast || unsigned(slot&1)==(rank&1);
+        if constexpr(Multicast)
+          if(issue) {Async::Wait(state.peer+slot/2,(peer>>(slot/2))&1);peer^=1u<<(slot/2);}
         // The first task starts at slot zero in every invocation. Its incoming
         // budget is fixed by the same Placement that issued the transaction.
         unsigned prefix=0;
@@ -116,11 +128,16 @@ struct Sm90DenseGemm {
             weight+(std::size_t(task)*kIterations+tile)*TN*TK+prefix/2,
             2*TN*TK-prefix,state.full+slot);
         // Rows past Batch fall outside the map and arrive as zeros.
-        Async::Tensor3D(a+slot*kRows*TK,activation,0,0,tile*(TK/64),state.full+slot);
+        if constexpr(Multicast) {
+          if(issue)Async::Tensor3DMulticast(a+slot*kRows*TK,activation,0,0,tile*(TK/64),state.full+slot,
+              std::uint16_t(3u<<(rank&~1u)));
+        }else Async::Tensor3D(a+slot*kRows*TK,activation,0,0,tile*(TK/64),state.full+slot);
         phase^=1u<<slot;
       }
-      if(tasks)for(int slot=0;slot<Slots;++slot)
-        state.producer_generations[slot]=(phase>>slot)&1;
+      if(tasks) {
+        for(int slot=0;slot<Slots;++slot)state.producer_generations[slot]=(phase>>slot)&1;
+        if constexpr(Multicast)PeerGenerations(state)=peer;
+      }
     }
     __syncwarp();
   }
@@ -189,6 +206,8 @@ struct Sm90DenseGemm {
     if constexpr(Op==ServingEpilogueOp::kArgmaxPartial)
       if(tid<16) {best[tid]=-INFINITY;arg[tid]=INT_MAX;}
     unsigned side=state.side_generations[0]|state.side_generations[1]<<1;
+    unsigned rank=0;
+    if constexpr(Multicast)rank=Async::ClusterRank();
     Mma mma;auto thread=mma.get_slice(lane);
     auto owned=thread.partition_C(make_identity_tensor(Shape<_16,Int<TN>>{}));
     for(int local=0;local<tasks;++local) {
@@ -216,6 +235,9 @@ struct Sm90DenseGemm {
         // (PTX ISA 8.7 sec. 8.6 proxies; without it TN448 B1 lost 132/200 runs).
         Async::FenceProxyAsyncShared();
         Async::Arrive(state.empty+slot);
+        // The peer issued this slot's A into this CTA too: release it there.
+        if constexpr(Multicast)
+          if(unsigned(slot&1)!=(rank&1))Async::RemoteArrive(Async::Mapa(state.peer+slot/2,rank^1u));
       }
       if constexpr(InputNorm)
         #pragma unroll
@@ -270,6 +292,7 @@ struct Sm90DenseGemm {
         std::is_same_v<Finish,Sm90DenseNoFinish>,"only lm_head finishes with the folded argmax");
     static_assert(Prefix>=0 && Prefix%16==0 &&
         Prefix<=(Slots<kIterations?Slots:kIterations)*2*TN*TK);
+    static_assert(!Multicast || Prefix==0,"multicast stages receive no preissued slots");
     static_assert(!arch::kDevicePass || arch::kSm90AllAvailable,
                   "native dense GEMM requires Hopper sm_90a");
     auto& state=persistent?*persistent:*reinterpret_cast<Sm90DenseRingState*>(shared);

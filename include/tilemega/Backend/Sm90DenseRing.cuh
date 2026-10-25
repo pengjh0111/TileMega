@@ -11,8 +11,9 @@ struct alignas(16) Sm90DenseRingState {
   // Residual tiles of a stage's (at most two) local tasks arrive here.
   std::uint64_t side[2];
   unsigned producer_generations[8],consumer_generations[8];
-  // Unused since D6; kept so the pinned 256-byte header layout is unchanged.
-  unsigned reserved[8];
+  // D10c (clusters only): the multicast issuer of slot s (rank s % 2 of its
+  // CTA pair) waits on peer[s / 2] for the peer's 128 consumer releases.
+  std::uint64_t peer[4];
   unsigned side_generations[2];
   using Async=codegen::executor::Async<arch::Sm90>;
   __device__ void Initialize() {
