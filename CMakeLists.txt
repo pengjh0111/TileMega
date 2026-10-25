@@ -707,6 +707,7 @@ if(TILEMEGA_BUILD_TESTS)
     ${CMAKE_SOURCE_DIR}/test/python/test_mx5_resources.py
     ${CMAKE_SOURCE_DIR}/test/python/test_mx_decode_v2_command.py
     ${CMAKE_SOURCE_DIR}/test/python/test_mx5_select.py
+    ${CMAKE_SOURCE_DIR}/test/python/test_mx5_solve_interval.py
     ${CMAKE_SOURCE_DIR}/test/python/test_mx5_plan_resources.py
     ${CMAKE_SOURCE_DIR}/test/python/test_mx5_plan_receipt.py
     ${CMAKE_SOURCE_DIR}/test/python/test_mx5_plan_occupancy.py

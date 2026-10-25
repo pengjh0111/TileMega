@@ -73,6 +73,8 @@ Value Count(std::uint64_t value) { return Value(double(value)); }
 }
 
 int TryPrepareV2(Request const& r) {
+  if (r.past_lo < 0 || r.past_hi < r.past_lo || r.past_hi >= r.capacity - 1)
+    throw std::invalid_argument("MX-5 solve invalid decode past interval");
   if (!r.pin.empty()) throw std::invalid_argument("MX-5 solve cannot combine a manual pin with a measured table");
   if (r.selection!="predicted") throw std::invalid_argument("MX-5 solve writes diagnostic previews; use --selection predicted and external top4 orchestration");
   if (!r.interpreted_flags.empty()) throw std::invalid_argument("MX-5 solve rejects interpreted-executor flags");
