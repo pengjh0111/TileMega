@@ -579,3 +579,77 @@ or launch occurs. Raw: `runs/mx5/actual_plan_occupancy_v1/root_actual_pair_v1/`.
 After receipt/occupancy/JSON/interval integration,6 native CTests and102 portable
 Python tests pass. Guard wall upper bound is14.0125 card-hours/427 closed jobs,
 including waits; no active GPU job at this checkpoint. Budget remains60.
+
+
+## Production emitter resource repair and bounded descendants (verified)
+
+9aaf3bbf2 integrates terminal packet scope and stage-local top Binding AS4
+reloads after independent source/MIR review. Six related CTests and105 host
+Python tests pass. The18 generic emitter cases execute two steps each with
+unchanged Run/Next/barrier/final-broadcast order; this preserves semantics,
+not the literal lexical pf_h placement of prompt4.3. Actual GPU model checks
+below supply separate correctness evidence. G/H/A body closures stay unchanged.
+Raw: `solver_spill_review_v1_61/`, `integration_scope_main_v1/` under runs/mx5.
+
+Five new native previews strictly preserve all20 original IDs/ranks/pins/Pw/
+predictions/evidence, with new producer/preview identity and explicit v2 parent
+lineage. The base45 logical jobs produce44 actual successful device compiles
+and44 verified receipts;8BB1's conditional WD1 is skipped because WD0 fails.
+Original512:14 fit/6 rejected. Minimum576:1 fit/19 rejected. WD1:4 fit.
+The one minimum576 fit is Llama1B originalID1,MT167/frame0 and actual resident1;
+this vetoes any blanket512 policy. Other minimum plans retain MT168/nonzero
+frames. All44 actual artifacts have successful zero-launch runtime queries.
+Raw: `solver_development_resource_v3/`, `solver_plan_queries_v3/` under runs/mx5.
+
+The register rule applies to512 as well as576; the old576-only ledger is a tool
+limitation. Nine extra actual builds follow only prescribed largest-reducible
+Pw halvings with parent receipt/ELF/pin hashes.8BB1's four origins each fit after
+GU8->4 alone(MT225/frame0); origin0 WD1=223/frame0.8BB16 IDs1/3 try down4->2->1
+and remain256/frame120,112 with allPw=D; those items stop as D7 defects at
+DecodeProgramV2.cuh:174, without pruning IDs or relaxing resource gates.
+Raw: `solver_resource_retry512_v3/`. Original predictions are never overwritten.
+
+The only fit changed-width class has three fresh guarded stage processes:
+GEMM N28672,K4096,B1,TN32,WN8,D4,SwiGLU/Norm/TileRange,Pw4. Median153110ns,
+p90 154150,spread0.0007,MT116/frame0/resident1,Rnext104. The standard aggregator
+and variant-row validator pass. It is separate plan-retry evidence, not a
+fabricated stage-primary failure/selection. Raw: `variant_costs_gu4_v1/`.
+
+All five new origin0 development controls pass512-step C-1/C-2 (8BB1 uses its
+explicit GU4 descendant). Max gaps: QwenB1/B16 .015625/.03125,Llama1B .09375,
+8BB1/B16 .3125/.34375; every C2 mismatch count0. This is manual development
+correctness, not solver/default/thread-exception approval.53 resource rows,
+five correctness rows and four timing rows append without changing old rows.
+Raw: `solver_development_gpu_v3/`. Correctness CSV runtime HEAD is9aaf3bbf2.
+
+Uninstrumented origin0 two-fresh medians: QwenB1 2.024607199ms,QwenB16
+3.733467490ms;8BB1 GU4 descendant10.665876486ms. QwenB1's complete manual top4
+medians are2.024607199/2.014710134/2.029546297/2.029032014ms. The fastest gains
+only0.48884% versus original0, so the1% rule retains0 and its MX-4 regression.
+QwenB16 remaining-top4 diagnostics are running. No final pins/default change.
+The first timing controller reads an incorrect guard/result.json path after
+successful first-round measurements; a new controller validates the existing
+actual guard_result.json and preserves those measurements, then runs only the
+second fresh round. An earlier B16 query preparation misses a Python import,
+causes an empty-query guard failure, and is retried in a new directory. Both
+failed orchestration logs remain; no plan launch or measurements are invented.
+
+D7 readonly pairing shows HeadD3 failures spill the same26/28 SGPR words to
+private memory that HeadD2 fits keep in a single VGPR carrier. No effective
+Head96-weight payload is loaded during attention. Standalone HeadD3 fits186,
+so no intrinsic>255 lower bound is claimed. Three isolated CPU variants are
+rejected and unadopted: next-step formation delays leave104B (8BB1), explicit
+uniform terminal predicate leaves120B, opaque Head geometry leaves128B
+(8BB16). The last changes Head source identity and never borrows f070 costs.
+Raw: `llama8b_control_spill_v3_61/`, `llama8b_b16_uniform_terminal_v3_61/`,
+`llama8b_b16_head_geometry_v3_61/`. No extra protocol/fallback is introduced.
+
+Llama1B B1's complete576 domain189 keys now has396 genuine zero-execution
+queries:189 P0,189 primary,18 legal halving steps;0 errors. Source archives and
+normal flags are checked, including four newly compiled exact-source libraries.
+Primary136 fit/53 rejected;18 fresh halving chains recover, giving154 selected
+fit and35 remaining rejections. Cost campaigns are prepared, not yet measured.
+Schema3 revision5aef2ee1's three earlier defects pass independent old Python/
+native repros; it remains ignored. Per-plan observed-budget exception verification
+is being implemented separately and grants no current execution/default policy.
+Raw: `llama1b576_domain_v1_61/`, `outcome_domain_review_v2_root/`.

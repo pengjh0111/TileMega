@@ -124,3 +124,14 @@ terminal-scope/stage-local AS4 reload yields two frame0 probes, pending review
 and model validation. No actual top-4 timing, native MoE or native DNN is
 claimed. Detailed immutable paths and failed experiments are in
 MX5_integration_c550.md. Dense acceptance still precedes MoE, LLM30 then DNN25.
+
+
+Verified9aaf3bbf2 production emitter repair preserves stage/next/barrier order
+and measured body closures. Five new manual development controls pass512-step
+C-1/C-2 (8BB1 uses the prescribed GU8->4 descendant). Its exact-width class has
+three fresh costs. Of53 actual program builds,8BB16 originalIDs1/3 still fail
+at allPw=D and are stopped; no candidates are pruned. QwenB1 manual top4's1%
+rule retains ID0 with TPOT2.024607199ms, so G-PROGRAM remains open. The complete
+576 Llama1B B1 domain has154 selected fit/35 rejected keys after396 genuine
+zero-execution queries; its costs/576 selection remain pending. Schema3 and
+per-plan budget exception consumers remain ignored/unapproved; no defaults move.
