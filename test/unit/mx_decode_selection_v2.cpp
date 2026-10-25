@@ -1,9 +1,20 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/MxDecodeSelectionV2.h>
 #include <cassert>
+#include <cmath>
+#include <limits>
 #include <iostream>
 using namespace tilemega;
 int main() {
+  // An integral-valued float in real attention evidence must remain a float.
+  assert(json::Parse("23460.0").Dump(0) == "23460.0\n");
+  assert(json::Parse("104").Dump(0) == "104\n");
+  assert(json::Parse("1.25e+2").Dump(0) == "1.25e+2\n");
+  assert(json::Parse("[23460.0, 104, 1.25e+2]").Dump(0) == "[23460.0, 104, 1.25e+2]\n");
+  for (double number : {0.12345678901234566, std::nextafter(1.0, 2.0),
+                        std::numeric_limits<double>::min(), std::numeric_limits<double>::max()})
+    assert(json::Parse(json::Value(number).Dump(0)).AsNumber("roundtrip") == number);
+
   solver::MxDecodeSelectionV2 selection;
   char const* names[]={"qkv","o","gate_up","down","head","attention"};
   for (char const* name:names) {

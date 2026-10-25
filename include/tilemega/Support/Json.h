@@ -58,12 +58,13 @@ class Value {
   std::string Dump(int indent = 2) const;
 
  private:
+  friend class Parser;
   void Dump(std::string& out, int indent, int depth) const;
 
   Kind kind_ = Kind::kNull;
   bool boolean_ = false;
   double number_ = 0.0;
-  std::string string_;
+  std::string string_;  // String value or the original parsed number token.
   Array array_;
   Object object_;
 };

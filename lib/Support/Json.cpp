@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <fstream>
 #include <iterator>
+#include <limits>
 #include <sstream>
 #include <stdexcept>
 
@@ -14,6 +15,8 @@ namespace {
 [[noreturn]] void Fail(std::string const& message) {
   throw std::runtime_error("json: " + message);
 }
+
+}  // namespace
 
 class Parser {
  public:
@@ -30,7 +33,7 @@ class Parser {
       case 't': Expect("true"); return Value(true);
       case 'f': Expect("false"); return Value(false);
       case 'n': Expect("null"); return Value();
-      default: return Value(ParseNumber());
+      default: return ParseNumber();
     }
   }
 
@@ -116,18 +119,29 @@ class Parser {
     return out;
   }
 
-  double ParseNumber() {
-    std::size_t start = at_;
-    if (at_ < text_.size() && (text_[at_] == '-' || text_[at_] == '+')) ++at_;
-    while (at_ < text_.size()) {
-      char c = text_[at_];
-      if ((c >= '0' && c <= '9') || c == '.' || c == 'e' || c == 'E' ||
-          c == '-' || c == '+') ++at_;
-      else break;
+  Value ParseNumber() {
+    std::size_t const start = at_;
+    auto digit = [&] { return at_ < text_.size() && text_[at_] >= '0' && text_[at_] <= '9'; };
+    auto digits = [&] {
+      std::size_t const first = at_;
+      while (digit()) ++at_;
+      if (at_ == first) Fail("malformed number at offset " + std::to_string(start));
+    };
+    if (at_ < text_.size() && text_[at_] == '-') ++at_;
+    if (at_ < text_.size() && text_[at_] == '0') ++at_;
+    else digits();
+    if (at_ < text_.size() && text_[at_] == '.') { ++at_; digits(); }
+    if (at_ < text_.size() && (text_[at_] == 'e' || text_[at_] == 'E')) {
+      ++at_;
+      if (at_ < text_.size() && (text_[at_] == '-' || text_[at_] == '+')) ++at_;
+      digits();
     }
-    if (start == at_) Fail("expected a value at offset " + std::to_string(start));
+    std::string token = text_.substr(start, at_ - start);
     try {
-      return std::stod(text_.substr(start, at_ - start));
+      Value value(std::stod(token));
+      // Evidence copies must retain decimal/exponent form as well as value.
+      value.string_ = std::move(token);
+      return value;
     } catch (std::exception const&) {
       Fail("malformed number at offset " + std::to_string(start));
     }
@@ -170,6 +184,8 @@ class Parser {
   std::size_t at_ = 0;
 };
 
+namespace {
+
 void WriteString(std::string& out, std::string const& text) {
   out.push_back('"');
   for (char c : text) {
@@ -200,7 +216,7 @@ void WriteNumber(std::string& out, double value) {
     return;
   }
   char buffer[40];
-  std::snprintf(buffer, sizeof(buffer), "%.10g", value);
+  std::snprintf(buffer, sizeof(buffer), "%.*g", std::numeric_limits<double>::max_digits10, value);
   out += buffer;
 }
 
@@ -260,7 +276,10 @@ void Value::Dump(std::string& out, int indent, int depth) const {
   switch (kind_) {
     case Kind::kNull: out += "null"; break;
     case Kind::kBool: out += boolean_ ? "true" : "false"; break;
-    case Kind::kNumber: WriteNumber(out, number_); break;
+    case Kind::kNumber:
+      if (string_.empty()) WriteNumber(out, number_);
+      else out += string_;
+      break;
     case Kind::kString: WriteString(out, string_); break;
     case Kind::kArray: {
       if (array_.empty()) { out += "[]"; break; }
@@ -274,7 +293,7 @@ void Value::Dump(std::string& out, int indent, int depth) const {
         out += "[";
         for (std::size_t i = 0; i < array_.size(); ++i) {
           if (i) out += ", ";
-          WriteNumber(out, array_[i].number_);
+          array_[i].Dump(out, indent, depth + 1);
         }
         out += "]";
         break;
