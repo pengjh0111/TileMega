@@ -26,6 +26,8 @@
 #include <tilemega/Backend/ServingVectorIO.h>
 #include <tilemega/Codegen/tasks/EventSync.cuh>
 #include <tilemega/Codegen/executor/LastArriver.cuh>
+#include <tilemega/Codegen/executor/LastArriverV2.cuh>
+#include <tilemega/Codegen/tasks/mx/StageSyncV2.cuh>
 
 #include <cuda_runtime.h>
 #include <cstdio>
@@ -263,24 +265,152 @@ unsigned long long ManyMerges(int items, int iterations) {
   return total;
 }
 
+using V2Sync = mx::StageSyncV2<576>;
+using V2Last = executor::LastArriverV2<V2Sync>;
+constexpr int kV2Slice = 512;
+
+__device__ __forceinline__ void V2Issue(uint4 (&pending)[8], uint4 const* cold, unsigned it) {
+  if (V2Sync::IsCompute()) {
+    unsigned const wave = threadIdx.x / 64, lane = threadIdx.x % 64;
+#pragma unroll
+    for (int n = 0; n < 8; ++n) {
+      unsigned const index = ((((it * 104 + blockIdx.x) * 8 + wave) * 8 + n) * 64 + lane)
+                             & ((256u << 20) / 16 - 1);
+      pending[n] = tilemega::backend::LoadGlobal16Gvm(cold + index);
+    }
+  }
+  asm volatile("" ::: "memory");
+}
+
+__device__ __forceinline__ void V2Consume(uint4 const (&pending)[8]) {
+  unsigned sum = 0;
+  if (V2Sync::IsCompute()) {
+#pragma unroll
+    for (int n = 0; n < 8; ++n) sum += pending[n].x + pending[n].y + pending[n].z + pending[n].w;
+  }
+  asm volatile("" :: "r"(sum) : "memory");
+}
+
+__global__ void __launch_bounds__(576)
+BarrierV2(int* data, unsigned long long* events, int iterations, unsigned long long* errors,
+          uint4 const* cold) {
+  extern __shared__ unsigned shared[];
+  unsigned* const generation = shared;
+  if (V2Sync::IsRole()) *generation = 0;
+  V2Sync::CtaSync();
+  unsigned long long bad = 0;
+  for (int it = 0; it < iterations; ++it) {
+    if (V2Sync::IsCompute())
+      data[blockIdx.x * kV2Slice + threadIdx.x] = Expected(it, blockIdx.x, threadIdx.x);
+    V2Sync::CtaSync();
+    uint4 pending[8];
+    V2Issue(pending, cold, unsigned(it));
+    V2Sync::Barrier(events, 104ull * (it + 1), generation, 2 * it + 1, [] {});
+    if (V2Sync::IsCompute()) {
+      for (int k = 1; k <= 8; ++k) {
+        int const other = (blockIdx.x + k * 13) % 104;
+        using Global = __attribute__((address_space(1))) int const;
+        bad += *((Global*)data + other * kV2Slice + threadIdx.x) != Expected(it, other, threadIdx.x);
+      }
+    }
+    V2Consume(pending);
+    V2Sync::CtaSync();
+    V2Sync::Barrier(events + 8, 104ull * (it + 1), generation, 2 * it + 2, [] {});
+  }
+  if (bad) atomicAdd(errors, bad);
+}
+
+__global__ void __launch_bounds__(576)
+LastV2(float* partials, unsigned* ticket, unsigned long long* events, int iterations,
+       unsigned long long* errors, unsigned long long* lasts) {
+  extern __shared__ unsigned shared[];
+  unsigned* const generation = shared;
+  unsigned* const last_flag = shared + 1;
+  if (V2Sync::IsRole()) *generation = 0;
+  V2Sync::CtaSync();
+  for (int it = 0; it < iterations; ++it) {
+    if (V2Sync::IsCompute())
+      partials[blockIdx.x * kV2Slice + threadIdx.x] = float((it + blockIdx.x + threadIdx.x) % 17);
+    bool const last = V2Last::Run(ticket, 104, last_flag, [&] {
+      unsigned long long bad = 0;
+      if (V2Sync::IsCompute()) {
+        float sum = 0, want = 0;
+        for (int c = 0; c < 104; ++c) {
+          sum += tilemega::backend::LoadFloatGvm(partials + c * kV2Slice + threadIdx.x);
+          want += float((it + c + threadIdx.x) % 17);
+        }
+        bad += sum != want;
+      }
+      if (bad) atomicAdd(errors, bad);
+    });
+    if (last && V2Sync::IsRole()) atomicAdd(lasts, 1ull);
+    V2Sync::CtaSync();
+    V2Sync::Barrier(events, 104ull * (it + 1), generation, it + 1, [] {});
+  }
+}
+
+__global__ void __launch_bounds__(576)
+LdsReleaseV2(int iterations, unsigned long long* errors, uint4 const* cold) {
+  extern __shared__ unsigned shared[];
+  unsigned* const generation = shared;
+  volatile unsigned* const ready = shared + 16;
+  unsigned* const data = shared + 32;
+  if (threadIdx.x < 8) ready[threadIdx.x] = 0;
+  if (V2Sync::IsRole()) *generation = 0;
+  V2Sync::CtaSync();
+  unsigned long long bad = 0;
+  for (int it = 0; it < iterations; ++it) {
+    uint4 pending[8];
+    V2Issue(pending, cold, unsigned(it));
+    if (V2Sync::IsCompute()) {
+      data[threadIdx.x] = unsigned(Expected(it, blockIdx.x, threadIdx.x));
+      __builtin_mxc_arrive_bsmcnt(0);
+      if (threadIdx.x % 64 == 0) ready[threadIdx.x / 64] = it + 1;
+    }
+    if (V2Sync::IsRole()) {
+      for (int w = 0; w < 8; ++w) while (ready[w] < unsigned(it + 1)) {}
+      V2Sync::Publish(generation, it + 1);
+    }
+    V2Sync::Await(generation, it + 1);
+    if (V2Sync::IsCompute()) {
+      for (int w = 1; w < 8; ++w) {
+        unsigned const other = (threadIdx.x + w * 64) % 512;
+        bad += data[other] != unsigned(Expected(it, blockIdx.x, other));
+      }
+    }
+    V2Consume(pending);
+    V2Sync::CtaSync();
+  }
+  if (bad) atomicAdd(errors, bad);
+}
+
 int main(int argc, char** argv) {
   if (argc < 3) return 2;
   char const* mode = argv[1];
   int const iterations = std::atoi(argv[2]);
   int const ctas = 104, threads = 128, stages = 8;
+  bool const v2 = !std::strcmp(mode, "barrier_v2") || !std::strcmp(mode, "la_v2") ||
+                  !std::strcmp(mode, "lds_release");
   // The MX-4 program's request at G = 104: floor(65536 / 2) + 16 B.
   int const kSmem512 = 65536 / 2 + 16;
   int* data;
   float* partials;
   unsigned long long *events, *errors, *lasts;
   unsigned* ticket;
-  cudaMalloc(&data, 3 * ctas * kSlice * sizeof(int));
+  uint4* cold = nullptr;
+  if (v2) {
+    cudaMalloc(&cold, 256u << 20);
+    cudaMemset(cold, 0x5a, 256u << 20);
+    std::printf("MX5_SHAPE ctas=104 threads=576 smem=%d\n", kSmem512);
+  }
+  int const data_slice = v2 ? kV2Slice : kSlice;
+  cudaMalloc(&data, 3 * ctas * data_slice * sizeof(int));
   cudaMalloc(&partials, max(kTiles * kMaxContributors * kSlice, ctas * 8 * 64) * sizeof(float));
   cudaMalloc(&events, 64 * sizeof(unsigned long long));
   cudaMalloc(&errors, 8);
   cudaMalloc(&lasts, 8);
   cudaMalloc(&ticket, ctas * 8 * 4);
-  cudaMemset(data, 0xff, 3 * ctas * kSlice * sizeof(int));
+  cudaMemset(data, 0xff, 3 * ctas * data_slice * sizeof(int));
   cudaMemset(events, 0, 64 * sizeof(unsigned long long));
   cudaMemset(errors, 0, 8);
   cudaMemset(lasts, 0, 8);
@@ -289,7 +419,13 @@ int main(int argc, char** argv) {
   cudaEventCreate(&a);
   cudaEventCreate(&b);
   cudaEventRecord(a);
-  if (!std::strcmp(mode, "event")) {
+  if (!std::strcmp(mode, "barrier_v2")) {
+    BarrierV2<<<ctas, 576, kSmem512>>>(data, events, iterations, errors, cold);
+  } else if (!std::strcmp(mode, "la_v2")) {
+    LastV2<<<ctas, 576, kSmem512>>>(partials, ticket, events, iterations, errors, lasts);
+  } else if (!std::strcmp(mode, "lds_release")) {
+    LdsReleaseV2<<<ctas, 576, kSmem512>>>(iterations, errors, cold);
+  } else if (!std::strcmp(mode, "event")) {
     cudaFuncSetAttribute(EventChain, cudaFuncAttributeMaxDynamicSharedMemorySize, 65536);
     EventChain<<<ctas, threads, 65536>>>(data, events, stages, iterations, errors);
   } else if (!std::strcmp(mode, "barrier")) {
@@ -320,6 +456,7 @@ int main(int argc, char** argv) {
   bool const ok = launch == cudaSuccess && sync == cudaSuccess && h_errors == 0 &&
                   (std::strcmp(mode, "last") || h_lasts == static_cast<unsigned long long>(iterations)) &&
                   (std::strcmp(mode, "last512") || h_lasts == static_cast<unsigned long long>(kTiles) * iterations) &&
+                  (std::strcmp(mode, "la_v2") || h_lasts == static_cast<unsigned long long>(iterations)) &&
                   (std::strcmp(mode, "many") || h_lasts == ManyMerges(ctas * 8, iterations));
   std::printf("SYNC %s iterations=%d launch=%s sync=%s errors=%llu lasts=%llu us/iter=%.2f %s\n", mode, iterations,
               cudaGetErrorString(launch), cudaGetErrorString(sync), h_errors, h_lasts, ms * 1000.0 / iterations,
