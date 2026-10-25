@@ -110,6 +110,7 @@ def main():
                 dump = engine.prefill_lib.lib.tm_plan_dump_serving_trace
                 dump.argtypes = [C.c_void_p, C.c_char_p]
                 dump.restype = C.c_int
+                (a.out / 'trace').mkdir(exist_ok=True)
                 status = dump(engine.prefill.handle, os.fsencode(str((a.out / 'trace').resolve())))
                 if status:
                     raise RuntimeError(f'prefill trace dump failed: {status}')
