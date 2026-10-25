@@ -3,6 +3,7 @@
 
 Each invocation needs a new --out directory. --start/--stop use Python's
 inclusive/exclusive job-index bounds; --jobs and --kinds further filter them.
+--cards accepts 7, 6, or 7 6 (the default), with one active job per card.
 Completed batches require all three matching rounds and a successful guard.
 Partial batches are preserved and require a newly prepared campaign to retry.
 """
@@ -94,7 +95,15 @@ def command_for(args, index, job, card):
             '--iterations', str(args.iterations)]
 
 
+def selected_cards(args):
+    cards = tuple(getattr(args, 'cards', CARDS))
+    if cards not in ((7,), (6,), CARDS):
+        raise ValueError('--cards must be 7, 6, or 7 6, without duplicates')
+    return cards
+
+
 def execute(args, selected, manifest_hash, record):
+    cards = selected_cards(args)
     pending = []
     for index, job in selected:
         state = batch_state(job)
@@ -137,7 +146,7 @@ def execute(args, selected, manifest_hash, record):
                 if not active:
                     break
             else:
-                for card in CARDS:
+                for card in cards:
                     if interrupted:
                         break
                     if card in active or not pending:
@@ -181,6 +190,7 @@ def execute(args, selected, manifest_hash, record):
 
 
 def schedule(args):
+    cards = selected_cards(args)
     args.manifest = args.manifest.resolve()
     args.out = args.out.resolve()
     document = json.loads(args.manifest.read_text())
@@ -196,7 +206,7 @@ def schedule(args):
         args.out.mkdir(parents=True, exist_ok=False)
         write_new(args.out / 'scheduler.json', dict(
             manifest=str(args.manifest), manifest_sha256=manifest_hash,
-            selected=[index for index, _ in selected], cards=CARDS,
+            selected=[index for index, _ in selected], cards=cards,
             iterations=args.iterations, timeout_seconds=900, needs_mib=20480,
             pid=os.getpid(), argv=sys.argv))
         with (args.out / 'events.jsonl').open('x') as events:
@@ -222,6 +232,7 @@ def main():
     parser.add_argument('--start', type=int, default=0)
     parser.add_argument('--stop', type=int)
     parser.add_argument('--kinds', nargs='+', choices=('gemm', 'head', 'attention'))
+    parser.add_argument('--cards', type=int, nargs='+', choices=CARDS, default=list(CARDS))
     parser.add_argument('--iterations', type=int, default=200)
     args = parser.parse_args()
     if args.iterations < 3:

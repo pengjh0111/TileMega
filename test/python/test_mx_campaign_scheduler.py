@@ -34,7 +34,7 @@ class CampaignScheduler(unittest.TestCase):
         self.manifest = self.root / 'campaign.json'
         self.manifest.write_text(json.dumps(dict(processes_per_key=3, jobs=self.jobs)))
         self.args = argparse.Namespace(manifest=self.manifest, out=self.root / 'scheduler',
-                                       jobs=None, start=0, stop=None, kinds=None, iterations=200)
+                                       jobs=None, start=0, stop=None, kinds=None, iterations=200, cards=[7, 6])
         self.events = []
         self.launched = []
         self.active = set()
@@ -117,6 +117,50 @@ class CampaignScheduler(unittest.TestCase):
         self.assertEqual([row['status'] for row in self.events if row['event'] == 'finish'],
                          ['failed', 'completed'])
         self.assertEqual([row['job'] for row in self.events if row['event'] == 'not_launched'], [2, 3, 4])
+
+    def test_single_card_seven_runs_all_jobs_serially(self):
+        self.args.cards = [7]
+        self.assertEqual(self.execute(self.fake_popen()), 0)
+        self.assertEqual([(index, card) for index, card, _, _ in self.launched],
+                         [(index, 7) for index in range(5)])
+        self.assertEqual(self.max_active, 1)
+
+    def test_single_card_six_is_recorded_and_runs_all_jobs_serially(self):
+        self.args.cards = [6]
+        with contextlib.redirect_stdout(io.StringIO()), \
+                patch.object(scheduler.subprocess, 'Popen', side_effect=self.fake_popen()), \
+                patch.object(scheduler.time, 'sleep'):
+            self.assertEqual(scheduler.schedule(self.args), 0)
+        self.assertEqual([(index, card) for index, card, _, _ in self.launched],
+                         [(index, 6) for index in range(5)])
+        self.assertEqual(self.max_active, 1)
+        configuration = json.loads((self.args.out / 'scheduler.json').read_text())
+        self.assertEqual(configuration['cards'], [6])
+
+    def test_invalid_card_order_or_duplicates_fail_before_output_or_launch(self):
+        for cards in ([6, 7], [7, 7], [6, 6], []):
+            with self.subTest(cards=cards), patch.object(scheduler.subprocess, 'Popen') as popen:
+                self.args.cards = cards
+                with self.assertRaisesRegex(ValueError, '--cards must be'):
+                    scheduler.schedule(self.args)
+                popen.assert_not_called()
+                self.assertFalse(self.args.out.exists())
+                self.assertFalse((self.manifest.parent / '.scheduler.lock').exists())
+
+    def test_programmatic_args_without_cards_keep_default_pair(self):
+        del self.args.cards
+        self.assertEqual(self.execute(self.fake_popen()), 0)
+        self.assertEqual([(index, card) for index, card, _, _ in self.launched][:2], [(0, 7), (1, 6)])
+        self.assertEqual(self.max_active, 2)
+
+    def test_cli_cards_default_and_explicit_selection(self):
+        argv = ['schedule_campaign.py', '--manifest', str(self.manifest), '--out', str(self.args.out)]
+        for arguments, expected in (([], [7, 6]), (['--cards', '6'], [6]),
+                                    (['--cards', '7'], [7]), (['--cards', '7', '6'], [7, 6])):
+            with self.subTest(arguments=arguments), patch('sys.argv', argv + arguments), \
+                    patch.object(scheduler, 'schedule', return_value=0) as schedule:
+                self.assertEqual(scheduler.main(), 0)
+                self.assertEqual(schedule.call_args.args[0].cards, expected)
 
     def test_spawn_failure_drains_other_guard(self):
         self.assertEqual(self.execute(self.fake_popen(spawn_error=1)), 1)
