@@ -91,6 +91,15 @@ class FeatureContractTests(unittest.TestCase):
         legacy = dict(executor='mx_static', kv_layout='vt', classes={}, attention_tmin=128)
         self.assertEqual(implementations(legacy, {})['attention']['impl'], 'MxDecodeAttention')
 
+    def test_fragment_prefill_layout_is_bound_to_build_and_identity(self):
+        manifest = dict(phase='prefill', pg='off', gemms=[], kv_layout='vt', kv_storage='block_fragments')
+        defines = dict(TILEMEGA_KV_LAYOUT_VT='1', TILEMEGA_MX_KV_FRAGMENTS_V2='1')
+        validate(manifest, defines)
+        self.assertEqual(implementations(manifest, defines)['attention']['kv_storage'], 'block_fragments')
+        defines['TILEMEGA_MX_KV_FRAGMENTS_V2'] = '0'
+        with self.assertRaisesRegex(ValueError, 'kv_storage'):
+            validate(manifest, defines)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -1832,7 +1832,7 @@ int RunCompile(int argc, char** argv) {
     }
     std::filesystem::path requested(argv[2]);
     bool shared = requested.extension() == ".so";
-    bool kv_layout_vt=false;
+    bool kv_layout_vt=false, kv_fragments_v2=false;
     if(serving && module) {
       auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
       auto dm=plan?plan.getAs<mlir::BoolAttr>("dm"):mlir::BoolAttr{};
@@ -1846,6 +1846,14 @@ int RunCompile(int argc, char** argv) {
       if(serving_phase=="prefill" && frontend_mode=="decoder" && !(dm && dm.getValue())) {
         kv_layout_vt=true;
         runtime_flags+=" -DTILEMEGA_KV_LAYOUT_VT=1";
+        if(!evaluation_cases_path.empty()) {
+          auto pin=tilemega::json::ParseFile(evaluation_cases_path);
+          if(auto flag=pin.Find("mx_kv_fragments_v2"))kv_fragments_v2=flag->AsBool("mx_kv_fragments_v2");
+        }
+        if(kv_fragments_v2) {
+          if(serving_prompt_len!=64)throw std::invalid_argument("MX-5 fragment prefill requires seq=64");
+          runtime_flags+=" -DTILEMEGA_MX_KV_FRAGMENTS_V2=1";
+        }
       }
     }
     auto identity_command=[&](bool capture) {
@@ -2029,6 +2037,7 @@ int RunCompile(int argc, char** argv) {
       manifest<<"{\n  \"identity_schema\": 1,\n  \"model\": "<<std::quoted(model_name)
               <<",\n  \"phase\": "<<std::quoted(serving_phase)
               <<",\n  \"kv_layout\": "<<(kv_layout_vt?"\"vt\"":"\"rows\"")
+              <<(kv_fragments_v2?",\n  \"kv_storage\": \"block_fragments\"":"")
               <<",\n  \"batch_lo\": "<<serving_batch
               <<",\n  \"batch_hi\": "<<serving_batch
               <<",\n  \"past_lo\": "<<serving_past_lo

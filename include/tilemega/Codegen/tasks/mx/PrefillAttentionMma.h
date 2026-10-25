@@ -13,14 +13,17 @@
 #include <tilemega/Backend/Mx/ServingGemmMma.h>
 #include <tilemega/Codegen/executor/Prefetch.cuh>
 #include <tilemega/Codegen/tasks/mx/AttentionCommon.h>
+#include <tilemega/Codegen/tasks/mx/PrefillKvFragmentsV2.h>
 #include <tilemega/Codegen/tasks/TaskResources.h>
 
 namespace tilemega::codegen::mx {
 
 /// `Vt`: the value cache is V^T [B][hkv][D][cap] (the `vt` kv_layout of the
 /// MX-4 dense decode program, MX4 prompt §3.4); otherwise rows [B][hkv][cap][D].
-template <int D, int QPerKV, int Tokens, int QRows, int KvTile, bool QkNorm, bool Vt = false>
+template <int D, int QPerKV, int Tokens, int QRows, int KvTile, bool QkNorm, bool Vt = false,
+          bool FragmentsV2 = false>
 struct PrefillAttentionMma {
+  static_assert(!FragmentsV2 || Vt);
   static_assert(D == 64 || D == 128);
   static_assert(QPerKV >= 1 && QPerKV <= 8);
   static_assert((QRows > 0 && QRows % 16 == 0) || Tokens == 1);
@@ -71,7 +74,9 @@ struct PrefillAttentionMma {
     for (int i = ComputeThread() * 8; i < KvTile * D; i += kComputeThreads * 8) {
       int const row = i / D, d = i % D, position = begin + row;
       if (position < limit && position < p.past) {
-        *reinterpret_cast<uint4*>(s.key + row * D + d) = backend::LoadGlobal16(p.key_cache + (head + position) * D + d);
+        auto const offset = FragmentsV2 ? backend::mx::MxKvFragmentLayoutV2<D>::K(b * p.heads_kv + g, position, d, p.capacity)
+                                        : (head + position) * D + d;
+        *reinterpret_cast<uint4*>(s.key + row * D + d) = backend::LoadGlobal16(p.key_cache + offset);
         if constexpr (!Vt) StoreValue(s, row, d, backend::LoadGlobal16(p.value_cache + (head + position) * D + d));
       } else if (position >= limit) {
         *reinterpret_cast<uint4*>(s.key + row * D + d) = uint4{0, 0, 0, 0};
@@ -88,14 +93,20 @@ struct PrefillAttentionMma {
       for (int i = ComputeThread(); i < D * (KvTile / 8); i += kComputeThreads) {
         int const d = i / (KvTile / 8), row = i % (KvTile / 8) * 8, position = begin + row;
         Element* const target = s.value_t + d * KvTile + row;
-        Element const* const source = p.value_cache + vt + std::size_t(d) * p.capacity + position;
-        if (position + 8 <= cached) {
+        auto const offset = FragmentsV2 ? backend::mx::MxKvFragmentLayoutV2<D>::V(b * p.heads_kv + g, position, d, p.capacity)
+                                        : vt + std::size_t(d) * p.capacity + position;
+        Element const* const source = p.value_cache + offset;
+        if (position + 8 <= cached && (!FragmentsV2 || position % 8 == 0)) {
           *reinterpret_cast<uint4*>(target) = backend::LoadGlobal16(source);
         } else if (position >= limit) {
           *reinterpret_cast<uint4*>(target) = uint4{0, 0, 0, 0};
         } else {
           for (int e = 0; e < 8; ++e) {
-            if (position + e < cached) target[e] = source[e];
+            if (position + e < cached) {
+              if constexpr (FragmentsV2)
+                target[e] = p.value_cache[backend::mx::MxKvFragmentLayoutV2<D>::V(b * p.heads_kv + g, position + e, d, p.capacity)];
+              else target[e] = source[e];
+            }
             else if (position + e >= limit) target[e] = Element::bitcast(0);
           }
         }
@@ -107,7 +118,7 @@ struct PrefillAttentionMma {
       if (position < p.past || position >= limit) continue;
       int const token = position - p.past;
       auto x = p.qkv + (std::size_t(b) * Tokens + token) * p.heads_kv * width + g * width + QPerKV * D;
-      bool const writer =
+      bool const writer = !FragmentsV2 &&
           query_begin == q_begin && token * QPerKV >= q_begin && token * QPerKV < q_begin + QRows;
       RotateRow<D, QkNorm>(x, p.k_norm, p.cosine + std::size_t(position) * D, p.sine + std::size_t(position) * D,
                            p.epsilon, [&](int d, uint4 v) {
@@ -139,6 +150,8 @@ struct PrefillAttentionMma {
     int const q_begin = qb * QRows;
     if constexpr (Tokens > 1) limit = min(limit, p.past + (min(q_begin + QRows, kQueryExtent) - 1) / QPerKV + 1);
     if (block_begin >= limit) return;
+    if constexpr (FragmentsV2)
+      PrefillKvFragmentsV2<D, QPerKV, Tokens, QRows, KvTile, QkNorm>::Run(p, s, b, g, qb, c);
     int const lane = ComputeThread() % maca::kWaveSize, wave = ComputeThread() / maca::kWaveSize;
     int const r = lane & 15, gq = lane >> 4;
     int const cmax = (p.capacity + p.block_extent - 1) / p.block_extent;

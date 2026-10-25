@@ -62,6 +62,10 @@ def validate(manifest, defines):
         vt = bool(int(defines.get('TILEMEGA_KV_LAYOUT_VT', '0')))
         if (manifest['kv_layout'] == 'vt') != vt:
             raise ValueError('manifest kv_layout differs from TILEMEGA_KV_LAYOUT_VT')
+        if 'kv_storage' in manifest:
+            fragments = bool(int(defines.get('TILEMEGA_MX_KV_FRAGMENTS_V2', '0')))
+            if (manifest['kv_storage'] == 'block_fragments') != fragments:
+                raise ValueError('manifest kv_storage differs from TILEMEGA_MX_KV_FRAGMENTS_V2')
     if 'nonpaged_la' in manifest:
         actual = manifest.get('pg') != 'pages' and bool(int(defines.get('TILEMEGA_NONPAGED_LA', '0')))
         if bool(manifest['nonpaged_la']) != actual:
@@ -99,5 +103,6 @@ def implementations(manifest, defines):
                     'IndependentAttentionTaskBody') if decode else 'FusedAttentionTaskBody',
                 'page_policy': ('Packed' if paged else 'WarpPrivate') if decode else None,
                 'load': manifest.get('paged_attention_load', 'loader'),
-                'frontier': bool(int(defines.get('TILEMEGA_ATTENTION_FRONTIER', '0')))}}
+                'frontier': bool(int(defines.get('TILEMEGA_ATTENTION_FRONTIER', '0'))),
+                **({'kv_storage': manifest['kv_storage']} if 'kv_storage' in manifest else {})}}
 

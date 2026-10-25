@@ -13,6 +13,9 @@
 #ifndef TILEMEGA_KV_LAYOUT_VT
 #define TILEMEGA_KV_LAYOUT_VT 0
 #endif
+#ifndef TILEMEGA_MX_KV_FRAGMENTS_V2
+#define TILEMEGA_MX_KV_FRAGMENTS_V2 0
+#endif
 
 namespace tilemega::codegen {
 
@@ -21,7 +24,7 @@ template<class Arch,int kHeadDim,int kQPerKV,int kTokens,
 struct FusedAttentionTaskBody {
   static_assert(std::is_same_v<Arch,arch::Xcore1000>);
   using Impl=mx::PrefillAttentionMma<kHeadDim,kQPerKV,kTokens,kQRows,kKvTile,kQkNorm,
-                                     TILEMEGA_KV_LAYOUT_VT!=0>;
+                                     TILEMEGA_KV_LAYOUT_VT!=0, TILEMEGA_MX_KV_FRAGMENTS_V2!=0>;
   using Element=tilemega::Bf16;
   using SharedStorage=typename Impl::SharedStorage;
   static constexpr int kQueryExtent=Impl::kQueryExtent;
