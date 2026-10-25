@@ -653,7 +653,7 @@ if(TILEMEGA_BUILD_TESTS)
   set_tests_properties(maca_p4_p5_p11_basic maca_p6_p8_p11_sync maca_p7_litmus maca_p9_mma
     maca_p10_bandwidth PROPERTIES SKIP_RETURN_CODE 77 LABELS gpu)
   tilemega_add_maca_executable(maca_sync_litmus tools/probes/maca/sync_litmus.cu DEFINES TILEMEGA_SYNC_V3=1)
-  foreach(_path event barrier last barrier_prefetch last512 many)
+  foreach(_path event barrier last barrier_prefetch last512 many barrier_v2 la_v2 lds_release)
     add_test(NAME maca_sync_${_path} COMMAND ${CMAKE_SOURCE_DIR}/scripts/run_maca_probe.sh
       ${CMAKE_BINARY_DIR}/maca/maca_sync_litmus ${_path} 2000)
     set_tests_properties(maca_sync_${_path} PROPERTIES SKIP_RETURN_CODE 77 LABELS gpu)
@@ -670,6 +670,9 @@ if(TILEMEGA_BUILD_TESTS)
     ${Python3_EXECUTABLE} -m pytest -q ${CMAKE_SOURCE_DIR}/test/python/test_mx_decode_bodies.py)
   set_tests_properties(mx_decode_bodies PROPERTIES SKIP_RETURN_CODE 77 LABELS gpu
     ENVIRONMENT "TILEMEGA_MX_DECODE_BODIES_SO=${CMAKE_BINARY_DIR}/maca/libmx_decode_bodies.so;PYTHONPATH=${CMAKE_SOURCE_DIR}/python")
+  add_executable(mx_decode_geometry_v2 test/unit/mx/decode_geometry_v2.cpp)
+  target_include_directories(mx_decode_geometry_v2 PRIVATE ${CMAKE_SOURCE_DIR}/include)
+  add_test(NAME mx_decode_geometry_v2 COMMAND mx_decode_geometry_v2)
   add_test(NAME forward_frontend COMMAND tilemega-unit forward_frontend)
   add_test(NAME frontend_import COMMAND tilemega-unit frontend_import)
   add_test(NAME dm_descriptor COMMAND tilemega-unit dm_descriptor)
