@@ -16,6 +16,7 @@ import subprocess
 from sm90d1_common import ROOT, read, sha
 
 HEADERS = ['include/tilemega/Backend/Sm90DenseEpilogue.h', 'include/tilemega/Backend/Sm90DenseToken.cuh',
+           'include/tilemega/Backend/Sm90DenseHead.cuh',
            'include/tilemega/Backend/Sm90DenseAttentionBody.cuh',
            'include/tilemega/Backend/Sm90DenseGemm.h', 'include/tilemega/Codegen/executor/Async.cuh']
 ATTENTION_FIELDS = ('batch', 'head_dim', 'queries', 'qk_norm', 'chunks', 'block_keys', 'slots',
@@ -128,8 +129,8 @@ def main():
                 node['block' if metric == 't_blk' else 'prepare'] = round(v, 1)
         elif metric == 't_emb':
             embedding.setdefault('g' + fields['g'], {}).setdefault('w' + fields['w'], {})[fields['b']] = round(v, 1)
-        elif metric == 't_argmax':
-            argmax.setdefault('g' + fields['g'], {}).setdefault('p' + fields['parts'], {})[fields['b']] = round(v, 1)
+        elif metric == 't_argmax_la':
+            argmax.setdefault('g' + fields['g'], {})[fields['b']] = round(v, 1)
     head = subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'], text=True).strip()
     section = dict(
         schema=1,
@@ -143,7 +144,7 @@ def main():
         dram_gbps=single('BW_dram'), l2_gbps=single('BW_l2'), sm_gbps=single('BW_sm'),
         activation_cp_async_gbps=20.0,
         activation_cp_async_source='stated: SM90R2_activation_stream_diagnostic.csv per-CTA ceiling (F9)',
-        epilogue_ns=epilogue, embedding_ns=embedding, argmax_ns=argmax, attention_ns=attention)
+        epilogue_ns=epilogue, embedding_ns=embedding, argmax_la_ns=argmax, attention_ns=attention)
     if a.section_only:
         a.section_only.write_text(json.dumps(section, indent=1) + '\n')
     else:

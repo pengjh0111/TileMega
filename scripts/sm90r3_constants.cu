@@ -5,6 +5,7 @@
 #include <tilemega/Backend/Sm90DenseGemm.h>
 #include <tilemega/Backend/Sm90DenseAttentionBody.cuh>
 #include <tilemega/Backend/Sm90DenseToken.cuh>
+#include <tilemega/Backend/Sm90DenseHead.cuh>
 #include <tilemega/Codegen/executor/Async.cuh>
 #include <tilemega/Codegen/executor/TensorMap.h>
 #include <cuda_runtime.h>
@@ -238,7 +239,7 @@ void AttentionCase() {
   auto* output=Device<BF>(8*Q*D);auto* partial=Device<float>(8*S*Q*D);auto* lse=Device<float>(8*S*Q);
   auto* arrivals=Device<std::uint64_t>(8);auto* out=Device<U64>(3*samples);
   backend::Sm90DenseAttentionOperands p{nullptr,nullptr,qkv,cache,cache,output,table,table,table,table,
-      partial,lse,arrivals,575,1e-6f};
+      partial,lse,arrivals,575,1e-6f,0};
   kernel<<<1,128,sizeof(typename A::Storage)>>>(p,samples,out);
   Check(cudaDeviceSynchronize());
   std::vector<U64> host(3*samples);
@@ -265,14 +266,26 @@ __global__ void EmbeddingStage(int const* tokens,BF const* table,BF* output,floa
     if(blockIdx.x==0 && threadIdx.x==0)stamps[it]=Now();
   }
 }
-template<int Parts>
-__global__ void ArgmaxStage(float const* values,int const* indices,int* tokens,int batch,
+// t_argmax_la (D9): the lm_head finish without its GEMM: per-CTA partials,
+// lm_ctr, the last arriver's B x G reduction, then the V3 barrier.
+template<int Batch>
+__global__ void ArgmaxLaStage(float* values,int* indices,int* tokens,U64* lm,
     U64* counter,U64* stamps,int iterations) {
-  __shared__ typename backend::Sm90DenseArgmax<Parts,1088>::Storage storage;
+  __shared__ float best[16];__shared__ int arg[16];
+  __shared__ alignas(128) char free[256];
+  __shared__ backend::Sm90DenseRingState unused;  // only the LA embedding uses a barrier
+  backend::Sm90DenseOperands p{nullptr,nullptr,nullptr,reinterpret_cast<BF*>(values),indices,0.0f};
+  backend::Sm90DenseHeadOperands head{tokens,reinterpret_cast<std::uint64_t*>(lm),nullptr,nullptr,0};
   for(int it=0;it<iterations;++it) {
-    if(threadIdx.x<128)for(int row=blockIdx.x;row<batch;row+=gridDim.x)
-      backend::Sm90DenseArgmax<Parts,1088>::Run(values+std::size_t(it%8)*16*Parts,
-          indices+std::size_t(it%8)*16*Parts,tokens,storage,row,it%1086);
+    if(threadIdx.x<16) {
+      best[threadIdx.x]=float((blockIdx.x*7+it*3+threadIdx.x)%101);
+      arg[threadIdx.x]=int(blockIdx.x*16+threadIdx.x);
+    }
+    head.past=it%1086;
+    if(threadIdx.x<128) {
+      codegen::executor::ComputeSync();
+      backend::Sm90DenseHeadFinish<Batch,1024,1088,false>{&head}(p,unused,best,arg,free,256);
+    }
     GridBarrier(counter,it);
     if(blockIdx.x==0 && threadIdx.x==0)stamps[it]=Now();
   }
@@ -289,6 +302,155 @@ void StageCase(char const* name,std::string const& key,Kernel kernel,int grid,Ar
   std::vector<double> x;for(int i=17;i<iterations;++i)x.push_back(double(host[i]-host[i-1]));
   Print(name,key,x,"ns");
   Check(cudaFree(counter));Check(cudaFree(stamps));
+}
+
+// L3 gates (prompt §7). %globaltimer advances in 256 ns steps on H800, which
+// cannot resolve a 0.15 us gate per sample. Each gate kernel therefore runs
+// back-to-back rounds of one mechanism; CTA 0 stamps every round and a sample
+// is the mean round over a 32-round window. V3 runs in the same form.
+constexpr int kGateRounds=4096,kGateWindow=32;
+__device__ void Stamp(U64* out,int round) {
+  if(blockIdx.x==0 && threadIdx.x==0)out[round]=Now();
+}
+__device__ void Arrive(U64* counter) {
+  asm volatile("red.release.gpu.global.add.u64 [%0], 1;"::"l"(counter):"memory");
+}
+__device__ void Await(U64* counter,U64 target) {
+  U64 v;do {asm volatile("ld.acquire.gpu.global.u64 %0, [%1];":"=l"(v):"l"(counter):"memory");}
+  while(v<target);
+}
+// V3 and the D8 group counter: CTAs [16g, 16g+16) count on their own word.
+template<bool Group>
+__global__ void BarrierRounds(U64* counters,U64* out) {
+  U64* counter=counters+(Group?(blockIdx.x/16)*8:0);
+  unsigned members=Group?min(16u,gridDim.x-blockIdx.x/16*16):gridDim.x;
+  for(int i=0;i<kGateRounds;++i) {
+    __syncthreads();
+    if(threadIdx.x==0) {Arrive(counter);Await(counter,U64(i+1)*members);}
+    __syncthreads();
+    Stamp(out,i);
+  }
+}
+// D10a: cluster barrier, cluster rank 0 joins the global counter (G/C
+// arrivals), cluster barrier again.
+__global__ void ClusterRounds(U64* counter,U64* out) {
+  unsigned rank,size;
+  asm volatile("mov.u32 %0, %%cluster_ctarank;":"=r"(rank));
+  asm volatile("mov.u32 %0, %%cluster_nctarank;":"=r"(size));
+  for(int i=0;i<kGateRounds;++i) {
+    asm volatile("barrier.cluster.arrive.release.aligned;\nbarrier.cluster.wait.acquire.aligned;":::"memory");
+    if(rank==0 && threadIdx.x==0) {Arrive(counter);Await(counter,U64(i+1)*(gridDim.x/size));}
+    asm volatile("barrier.cluster.arrive.release.aligned;\nbarrier.cluster.wait.acquire.aligned;":::"memory");
+    Stamp(out,i);
+  }
+}
+__global__ void ClusterProbe() {}
+// DT-5: an all-to-all boundary, as between dense stages: CTA b writes the
+// words k = b (mod G) of one activation and every CTA reads all of it. Bytes
+// is the LL-encoded size per reader (the rule 2*B*K*2 <= X_LL); both variants
+// carry the same Bytes/2 payload. Two banks: a writer reaches round i+2 only
+// after every reader has finished round i (all-to-all transitivity).
+// V3: generic stores, V3 barrier, proxy fence, one bulk read into smem.
+template<int Bytes>
+__global__ void HandoffV3(char* data,U64* counter,U64* out) {
+  constexpr int kPayload=Bytes/2;
+  __shared__ alignas(128) char buffer[kPayload];
+  __shared__ alignas(8) std::uint64_t bar;
+  if(threadIdx.x==0) {Async::Init(&bar,1);Async::InitFence();}
+  __syncthreads();
+  for(int i=0;i<kGateRounds;++i) {
+    auto* bank=data+(i%2)*kPayload;auto* words=reinterpret_cast<unsigned*>(bank);
+    for(int k=int(blockIdx.x)+int(gridDim.x)*int(threadIdx.x);k<kPayload/4;k+=int(gridDim.x*blockDim.x))
+      words[k]=unsigned(i*31+k);
+    __syncthreads();
+    if(threadIdx.x==0) {
+      Arrive(counter);Await(counter,U64(i+1)*gridDim.x);
+      Async::ProxyAsyncGlobalFence();
+      Async::ExpectTx(&bar,kPayload);Async::Bulk(buffer,bank,kPayload,&bar);
+      Async::Wait(&bar,i&1);
+    }
+    __syncthreads();
+    Stamp(out,i);
+  }
+}
+// LL: 8-byte {payload, stamp} words polled by every reader (D10d).
+template<int Bytes>
+__global__ void HandoffLL(U64* data,U64* out) {
+  constexpr int kWords=Bytes/8;
+  for(int i=0;i<kGateRounds;++i) {
+    U64* bank=data+(i%2)*kWords;U64 stamp=U64(i+1)<<32;
+    for(int k=int(blockIdx.x)+int(gridDim.x)*int(threadIdx.x);k<kWords;k+=int(gridDim.x*blockDim.x))
+      asm volatile("st.relaxed.gpu.global.u64 [%0], %1;"::"l"(bank+k),"l"(stamp|unsigned(k)):"memory");
+    for(int k=threadIdx.x;k<kWords;k+=blockDim.x) {
+      U64 v;do {asm volatile("ld.relaxed.gpu.global.u64 %0, [%1];":"=l"(v):"l"(bank+k):"memory");}
+      while((v>>32)!=U64(i+1));
+    }
+    __syncthreads();
+    Stamp(out,i);
+  }
+}
+void Rounds(char const* name,std::string const& key,U64 const* stamps) {
+  std::vector<U64> host(kGateRounds);
+  Check(cudaMemcpy(host.data(),stamps,kGateRounds*8,cudaMemcpyDeviceToHost));
+  std::vector<double> x;
+  for(int i=256;i+kGateWindow<kGateRounds;i+=kGateWindow)
+    x.push_back(double(host[i+kGateWindow]-host[i])/kGateWindow);
+  Print(name,key,x,"ns");
+}
+void Gates(int sms) {
+  auto* counter=Device<U64>(64*8);auto* stamps=Device<U64>(kGateRounds);
+  for(int grid:{sms,2*sms}) {
+    auto key="g="+std::to_string(grid);
+    Check(cudaMemset(counter,0,64*64));BarrierRounds<false><<<grid,160>>>(counter,stamps);
+    Check(cudaDeviceSynchronize());Rounds("round_v3",key,stamps);
+    Check(cudaMemset(counter,0,64*64));BarrierRounds<true><<<grid,160>>>(counter,stamps);
+    Check(cudaDeviceSynchronize());Rounds("round_group16",key,stamps);
+  }
+  // C*: the largest C whose maximum active clusters cover 128 CTAs, at the
+  // native kernel's dynamic shared memory for each residency.
+  cudaDeviceProp prop{};Check(cudaGetDeviceProperties(&prop,0));
+  for(int residency:{1,2}) {
+    int reserved=std::max(0,int(prop.sharedMemPerMultiprocessor)-int(prop.sharedMemPerBlockOptin));
+    int smem=std::min(int(prop.sharedMemPerBlockOptin),int(prop.sharedMemPerMultiprocessor)/residency-reserved);
+    Check(cudaFuncSetAttribute(ClusterProbe,cudaFuncAttributeMaxDynamicSharedMemorySize,smem));
+    Check(cudaFuncSetAttribute(ClusterProbe,cudaFuncAttributeNonPortableClusterSizeAllowed,1));
+    int best=1;
+    for(int c:{2,4,8}) {
+      cudaLaunchConfig_t config{};config.gridDim=dim3(c*64);config.blockDim=dim3(160);
+      config.dynamicSmemBytes=smem;
+      cudaLaunchAttribute attribute{};attribute.id=cudaLaunchAttributeClusterDimension;
+      attribute.val.clusterDim.x=c;attribute.val.clusterDim.y=1;attribute.val.clusterDim.z=1;
+      config.attrs=&attribute;config.numAttrs=1;
+      int clusters=0;
+      Check(cudaOccupancyMaxActiveClusters(&clusters,ClusterProbe,&config));
+      Print("max_active_clusters","c="+std::to_string(c)+":r="+std::to_string(residency),
+          {double(clusters)},"clusters");
+      if(clusters*c>=128)best=c;
+    }
+    Print("c_star","r="+std::to_string(residency),{double(best)},"ctas");
+    if(best<2)continue;
+    int grid=sms*residency/best*best;
+    cudaLaunchConfig_t config{};config.gridDim=dim3(grid);config.blockDim=dim3(160);
+    cudaLaunchAttribute attribute{};attribute.id=cudaLaunchAttributeClusterDimension;
+    attribute.val.clusterDim.x=best;attribute.val.clusterDim.y=1;attribute.val.clusterDim.z=1;
+    config.attrs=&attribute;config.numAttrs=1;
+    Check(cudaMemset(counter,0,8));
+    Check(cudaLaunchKernelEx(&config,ClusterRounds,counter,stamps));Check(cudaDeviceSynchronize());
+    Rounds("round_hier","c="+std::to_string(best)+":g="+std::to_string(grid),stamps);
+  }
+  auto* data=Device<char>(2*32768);
+  auto handoff=[&]<int Bytes>(std::integral_constant<int,Bytes>) {
+    for(int grid:{sms,2*sms}) {
+      auto key="bytes="+std::to_string(Bytes)+":g="+std::to_string(grid);
+      Check(cudaMemset(counter,0,8));HandoffV3<Bytes><<<grid,160>>>(data,counter,stamps);
+      Check(cudaDeviceSynchronize());Rounds("round_handoff_v3",key,stamps);
+      Check(cudaMemset(data,0,2*32768));HandoffLL<Bytes><<<grid,160>>>(reinterpret_cast<U64*>(data),stamps);
+      Check(cudaDeviceSynchronize());Rounds("round_handoff_ll",key,stamps);
+    }
+  };
+  handoff(std::integral_constant<int,2048>{});handoff(std::integral_constant<int,8192>{});
+  handoff(std::integral_constant<int,32768>{});
+  Check(cudaFree(data));Check(cudaFree(counter));Check(cudaFree(stamps));
 }
 
 int main(int argc,char** argv) {try {
@@ -361,24 +523,23 @@ int main(int argc,char** argv) {try {
       StageCase("t_emb",key(4096),EmbeddingStage<4096>,grid,(int const*)token_device,(BF const*)table,output,sums,batch);
     }
     Check(cudaFree(table));Check(cudaFree(output));Check(cudaFree(sums));
-    auto* values=Device<float>(8*16*1187);auto* indices=Device<int>(8*16*1187);
-    {
-      std::vector<float> v(8*16*1187);for(auto& x:v)x=float(random()%100000)/1000.f;
-      Check(cudaMemcpy(values,v.data(),v.size()*4,cudaMemcpyHostToDevice));
+    auto* values=Device<float>(16*2*sms);auto* indices=Device<int>(16*2*sms);auto* lm=Device<U64>(1);
+    for(int grid:{sms,2*sms}) {
+      auto key=[&](int b) {return "b="+std::to_string(b)+":g="+std::to_string(grid);};
+      StageCase("t_argmax_la",key(1),ArgmaxLaStage<1>,grid,values,indices,token_device,lm);
+      StageCase("t_argmax_la",key(2),ArgmaxLaStage<2>,grid,values,indices,token_device,lm);
+      StageCase("t_argmax_la",key(4),ArgmaxLaStage<4>,grid,values,indices,token_device,lm);
+      StageCase("t_argmax_la",key(8),ArgmaxLaStage<8>,grid,values,indices,token_device,lm);
+      StageCase("t_argmax_la",key(16),ArgmaxLaStage<16>,grid,values,indices,token_device,lm);
     }
-    for(int grid:{sms,2*sms})for(int batch:{1,2,4,8,16}) {
-      auto key=[&](int p) {return "parts="+std::to_string(p)+":b="+std::to_string(batch)+":g="+std::to_string(grid);};
-      StageCase("t_argmax",key(1187),ArgmaxStage<1187>,grid,(float const*)values,(int const*)indices,token_device,batch);
-      StageCase("t_argmax",key(1002),ArgmaxStage<1002>,grid,(float const*)values,(int const*)indices,token_device,batch);
-      StageCase("t_argmax",key(501),ArgmaxStage<501>,grid,(float const*)values,(int const*)indices,token_device,batch);
-    }
-    Check(cudaFree(values));Check(cudaFree(indices));Check(cudaFree(token_device));
+    Check(cudaFree(values));Check(cudaFree(indices));Check(cudaFree(lm));Check(cudaFree(token_device));
     Check(cudaFree(counter));Check(cudaFree(stamps));
   }
   // Epilogue outputs rotate through copies so L1-resident lines do not persist.
   epilogue.out_copy=16*151936;
   epilogue.output=Device<BF>(epilogue.copies*epilogue.out_copy*2);
   epilogue.index=Device<int>(epilogue.copies*epilogue.out_copy);
+  if(full || !std::strcmp(argv[1],"--gates-only"))Gates(sms);
   if(full || !std::strcmp(argv[1],"--epilogue-only")) {
     EpilogueTiles<ServingEpilogueOp::kStore>("qkv",std::integer_sequence<int,8,16,24,32,40,48,64,80,96,128>{});
     EpilogueTiles<ServingEpilogueOp::kResidual>("residual",std::integer_sequence<int,8,16,24,32,48,64>{});
