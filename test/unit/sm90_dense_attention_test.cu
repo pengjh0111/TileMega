@@ -3,7 +3,9 @@
 // (64, block/chunk edges +-1, 1086) with position-encoded K/V; the new cache
 // row must equal the reference rotation exactly, and filling rows
 // [past+1, Capacity) with +-1e4 must leave every output bit unchanged, as
-// must preissuing every K/V slot of each CTA's first task (D6).
+// must preissuing every K/V slot of each CTA's first task (D6). The cache is
+// the stacked [L][2][groups][Capacity][D] layout read through 4D maps at
+// layer 1; layer 0 holds +-1e4 so a wrong layer coordinate is visible (D7).
 #ifndef TEST_BATCH
 #define TEST_BATCH 1
 #endif
@@ -26,7 +28,7 @@ __global__ __launch_bounds__(160) void evaluate(Sm90DenseAttentionOperands p) {
   extern __shared__ __align__(1024) char shared[];
   auto& state=*reinterpret_cast<Sm90DenseRingState*>(shared);state.Initialize();
   if constexpr(Prefix>0)if(threadIdx.x==128 && int(blockIdx.x)<A::kTasks)
-    A::template Preissue<Prefix>(p.key_map,p.value_map,p.past,shared,state);
+    A::template Preissue<Prefix>(p.key_map,p.value_map,p.layer,p.past,shared,state);
   A::template Run<Prefix>(p,shared);
   state.Invalidate();
 }
@@ -74,16 +76,23 @@ int run(int past,bool poison,std::vector<BF>* bits=nullptr) {
     check(cudaMalloc(&p,host.size()*sizeof(T)));
     check(cudaMemcpy(p,host.data(),host.size()*sizeof(T),cudaMemcpyHostToDevice));return p;
   };
-  BF *dqkv=device(qkv),*dk=device(key),*dv=device(value),*dc=device(cos),*ds=device(sin),*dqn=device(qn),*dkn=device(kn);
+  constexpr int kLayers=2,kLayer=1;
+  std::size_t view=key.size();
+  std::vector<BF> stacked(kLayers*2*view);
+  for(std::size_t i=0;i<stacked.size();++i)stacked[i]=BF(i%2?1e4f:-1e4f);
+  std::copy(key.begin(),key.end(),stacked.begin()+(2*kLayer)*view);
+  std::copy(value.begin(),value.end(),stacked.begin()+(2*kLayer+1)*view);
+  BF *dqkv=device(qkv),*cache=device(stacked),*dc=device(cos),*ds=device(sin),*dqn=device(qn),*dkn=device(kn);
+  BF *dk=cache+(2*kLayer)*view,*dv=cache+(2*kLayer+1)*view;
   BF* out;float *partial,*lse;std::uint64_t* arrivals;CUtensorMap* maps;
   check(cudaMalloc(&out,groups*Q*D*2));check(cudaMalloc(&partial,std::size_t(groups)*S*Q*D*4));
   check(cudaMalloc(&lse,groups*S*Q*4));check(cudaMalloc(&arrivals,groups*8));
   check(cudaMemset(arrivals,0,groups*8));check(cudaMalloc(&maps,256));
   CUtensorMap host[2];
-  for(int i=0;i<2;++i)tilemega::codegen::executor::EncodeTiledMap<3>(host[i],i?dv:dk,
-      {{D,kCap,std::uint64_t(groups)},{2ull*D,2ull*kCap*D},{64,Keys,1}});
+  for(int i=0;i<2;++i)tilemega::codegen::executor::EncodeTiledMap<4>(host[i],cache+i*view,
+      {{D,kCap,std::uint64_t(groups),kLayers},{2ull*D,2ull*kCap*D,2ull*2*view},{64,Keys,1,1}});
   check(cudaMemcpy(maps,host,sizeof host,cudaMemcpyHostToDevice));
-  Sm90DenseAttentionOperands p{maps,maps+1,dqkv,dk,dv,out,dc,ds,dqn,dkn,partial,lse,arrivals,past,1e-6f};
+  Sm90DenseAttentionOperands p{maps,maps+1,dqkv,dk,dv,out,dc,ds,dqn,dkn,partial,lse,arrivals,past,1e-6f,kLayer};
   check(cudaFuncSetAttribute(evaluate<A,prefix>,cudaFuncAttributeMaxDynamicSharedMemorySize,A::kSharedBytes));
   evaluate<A,prefix><<<std::min(132,A::kTasks),160,A::kSharedBytes>>>(p);
   check(cudaGetLastError());check(cudaDeviceSynchronize());
@@ -130,7 +139,7 @@ int run(int past,bool poison,std::vector<BF>* bits=nullptr) {
     }
   }
   if(bits)*bits=got;
-  for(void* ptr:{(void*)dqkv,(void*)dk,(void*)dv,(void*)dc,(void*)ds,(void*)dqn,(void*)dkn,(void*)out,
+  for(void* ptr:{(void*)dqkv,(void*)cache,(void*)dc,(void*)ds,(void*)dqn,(void*)dkn,(void*)out,
       (void*)partial,(void*)lse,(void*)arrivals,(void*)maps})check(cudaFree(ptr));
   return errors;
 }
