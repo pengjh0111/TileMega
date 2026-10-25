@@ -58,9 +58,9 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
     bool complete=rank(attention,-1);
     for(unsigned f:active)complete&=rank(families[f],int(f));
     if(!complete)continue;
-    // The embedding placement (D9 ②) is a structural dimension: both values
-    // of every family combination enter the predicted ranking. `family` is a
-    // GEMM family number or kAttention.
+    // The embedding placement (D9 ②) and the group wait (D8) are structural
+    // dimensions: every legal value of each family combination enters the
+    // predicted ranking. `family` is a GEMM family number or kAttention.
     constexpr unsigned kAttention=~0u;
     auto build=[&](unsigned family,unsigned alternative,std::string const& origin) {
       Sm90DenseCoordinates c;c.residency=residency;c.weight_stream=space.weight_stream;
@@ -68,11 +68,11 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
       for(unsigned f:active)c.gemms[f]=families[f][f==family?alternative:0].gemm;
       c.attention=attention[family==kAttention?alternative:0].attention;
       Sm90DenseSearchSpace::Structure(c);
-      if(!space.Legal(c))return;
-      for(bool embed_la:{false,true}) {
-        c.embed_la=embed_la;
-        if(!seen.insert(c.ToJson().Dump(0)).second)continue;
-        pool.push_back({c,cost.Predict(work,c),origin+(embed_la?"_emb_la":"_emb_stage")});
+      for(bool group_wait:{false,true})for(bool embed_la:{false,true}) {
+        c.group_wait=group_wait;c.embed_la=embed_la;
+        if(!space.Legal(c) || !seen.insert(c.ToJson().Dump(0)).second)continue;
+        pool.push_back({c,cost.Predict(work,c),origin+(group_wait?"_group":"")+
+            (embed_la?"_emb_la":"_emb_stage")});
       }
     };
     std::string prefix="r"+std::to_string(residency);

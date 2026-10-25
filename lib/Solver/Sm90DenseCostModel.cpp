@@ -90,9 +90,12 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& work,
       p.stages.push_back(std::move(first));
     }
   }
-  Sm90DensePrediction::Stage s{"attention",work.layers};
-  s.ns=Attention(work,c.attention,c.residency,&s.terms);p.stages.push_back(std::move(s));
   int grid=Grid(c.residency);
+  Sm90DensePrediction::Stage s{"attention",work.layers};
+  s.ns=Attention(work,c.attention,c.residency,&s.terms);
+  // D8: the boundary before attention is a group counter wait, not V3.
+  if(c.group_wait)s.ns-=constants_.GroupWaitSaving(grid);
+  p.stages.push_back(std::move(s));
   if(c.moe) {
     // M4's last arriver (top-k and the schedule, beyond its barrier); M6's
     // per-tile last arriver reads P and x' and writes x''.

@@ -27,6 +27,9 @@ class Sm90NativeConstants {
   double ArgmaxLa(int grid,int batch) const;
   // t_route_la: M4's last arriver (top-k, routes, schedule) plus V3 (§8).
   double RouteLa(int grid,int batch) const;
+  // D8: a 16-CTA group counter wait's saving over the V3 barrier (DT-4's
+  // round-loop window means).
+  double GroupWaitSaving(int grid) const;
   // D2 body: one 64-key block (data resident), q preparation, S-chunk merge.
   double AttentionBlock(int dim,int queries,bool norm) const;
   double AttentionPrepare(int dim,int queries,bool norm) const;
@@ -37,7 +40,7 @@ class Sm90NativeConstants {
   json::Value section;
  private:
   std::map<int,double> barrier_;
-  json::Value epilogue_,embedding_,argmax_la_,route_la_,attention_;
+  json::Value epilogue_,embedding_,argmax_la_,route_la_,attention_,round_;
   json::Value const& AttentionShape(int dim,int queries,bool norm) const;
 };
 

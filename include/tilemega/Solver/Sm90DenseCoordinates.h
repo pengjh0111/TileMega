@@ -88,6 +88,9 @@ struct Sm90DenseCoordinates {
   // D9 ②: the head's last arriver writes the next step's embedding ("la")
   // or a separate embedding stage runs each step ("stage"); P-SEL decides.
   bool embed_la=false;
+  // D8 (prompt §7): attention waits only for its KV group's qkv tiles
+  // (group counters) instead of the grid barrier after qkv; P-SEL decides.
+  bool group_wait=false;
   static constexpr bool ResidualFamily(unsigned family) {return family==1 || family==3;}
 
   static Sm90DenseCoordinates Exact(Sm90DenseShapeTable const& nk,
@@ -151,11 +154,11 @@ struct Sm90DenseCoordinates {
           {"mma",g.mma==Sm90DenseMma::kMmaSync?"mma_sync":"wgmma"},
           {"register_stages",g.register_stages}});
     }
-    return json::Object{{"schema",4},{"model",moe?"moe":"dense"},{"gemms",families},
+    return json::Object{{"schema",5},{"model",moe?"moe":"dense"},{"gemms",families},
         {"attention",json::Object{{"chunks",attention.chunks},{"block_keys",attention.block_keys},
             {"slots",attention.slots},{"new_row_work",attention.new_row_work}}},
         {"residency",residency},{"swiglu_u",swiglu_u},{"weight_stream",weight_stream},
-        {"layer_loop",layer_loop},{"emb",embed_la?"la":"stage"}};
+        {"layer_loop",layer_loop},{"emb",embed_la?"la":"stage"},{"group_wait",group_wait}};
   }
 
   static Sm90DenseCoordinates FromJson(json::Value const& value) {
@@ -175,10 +178,11 @@ struct Sm90DenseCoordinates {
       return int(number);
     };
     // Schema 3 (prompt §6): arena offsets and D6 prefixes are derived by
-    // rule; schema 4 (§8) names the model and with it the GEMM families.
-    if(integer(value,"schema")!=4)throw std::invalid_argument("unknown sm90 dense coordinate schema");
+    // rule; schema 4 (§8) names the model and with it the GEMM families;
+    // schema 5 (§7) adds the L3 structural dimensions.
+    if(integer(value,"schema")!=5)throw std::invalid_argument("unknown sm90 dense coordinate schema");
     keys(value,{"schema","model","gemms","attention","residency","swiglu_u","weight_stream","layer_loop",
-        "emb"});
+        "emb","group_wait"});
     Sm90DenseCoordinates result;
     auto model=value.At("model").AsString("model");
     if(model!="dense" && model!="moe")throw std::invalid_argument("unknown sm90 dense model");
@@ -210,6 +214,7 @@ struct Sm90DenseCoordinates {
     auto emb=value.At("emb").AsString("emb");
     if(emb!="la" && emb!="stage")throw std::invalid_argument("unknown sm90 dense embedding placement");
     result.embed_la=emb=="la";
+    result.group_wait=value.At("group_wait").AsBool("group_wait");
     return result;
   }
 };

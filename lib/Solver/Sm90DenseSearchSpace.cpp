@@ -20,6 +20,8 @@ bool Sm90DenseSearchSpace::Legal(Sm90DenseCoordinates const& c) const {
   try {c.ValidateSchedule(shapes,batch,head_dim,queries,1088,budget);}
   catch(std::invalid_argument const&) {return false;}
   for(auto const& g:c.gemms)if(g.mma!=Sm90DenseMma::kMmaSync)return false;
+  // D8: every qkv tile lies in one KV group of (Q + 2) D columns.
+  if(c.group_wait && ((queries+2)*head_dim)%c.gemms[0].tile_n)return false;
   return true;
 }
 
