@@ -26,9 +26,10 @@ struct Sm90DensePrediction {
 class Sm90DenseCostModel {
  public:
   Sm90DenseCostModel(TargetSpec target,Sm90NativeConstants constants);
-  // family: 0 qkv, 1 o, 2 gate_up, 3 down, 4 lm_head.
+  // family: 0 qkv, 1 o, 2 gate_up, 3 down, 4 lm_head. pre: the stage's first
+  // bytes were streamed by a fully resident predecessor (D6), hiding L_dram.
   double Gemm(Sm90DenseWorkload const&,unsigned family,Sm90DenseGemm const&,int residency,
-              json::Value* terms=nullptr) const;
+              json::Value* terms=nullptr,bool pre=false) const;
   double Attention(Sm90DenseWorkload const&,Sm90DenseAttention const& attention,
                    int residency,json::Value* terms=nullptr) const;
   Sm90DensePrediction Predict(Sm90DenseWorkload const&,Sm90DenseCoordinates const&) const;

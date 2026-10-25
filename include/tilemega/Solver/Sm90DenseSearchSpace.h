@@ -14,6 +14,8 @@ struct Sm90DenseSearchSpace {
   int batch,head_dim,queries;
   TargetSpec target;
   int hkv=8;
+  // Decision table DT-1 (target `sm90_native_decisions.weight_stream`).
+  bool weight_stream=false;
 
   bool Legal(Sm90DenseCoordinates const&) const;
   int Grid(int residency) const {return target.res.num_sms*residency;}

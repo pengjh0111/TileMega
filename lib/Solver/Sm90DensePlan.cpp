@@ -133,6 +133,7 @@ mlir::OwningOpRef<mlir::ModuleOp> MaterializeSm90Dense(
   mlir::OpBuilder b(&context);
   auto set_int=[&](char const* name,int value) {(*module)->setAttr(name,b.getI64IntegerAttr(value));};
   (*module)->setAttr("tmexec.sm90_dense",b.getStringAttr(c.ToJson().Dump(0)));
+  set_int("tmexec.sm90_dense_budget",budget);
   (*module)->setAttr("tmexec.sm90_dense_origin",b.getStringAttr(origin));
   (*module)->setAttr("tmexec.sm90_dense_target",b.getStringAttr(target.ToJson()));
   (*module)->setAttr("tmexec.solved_arch",b.getStringAttr("sm_90"));

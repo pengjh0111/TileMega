@@ -224,6 +224,10 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   auto plan=frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,options);
   auto work=solver::Sm90DenseWorkloadFromPlan(plan,o.batch);
   solver::Sm90DenseSearchSpace space{work.shapes,work.batch,work.head_dim,work.queries,target,work.hkv};
+  auto target_json=json::ParseFile(o.target);
+  auto const* decisions=target_json.Find("sm90_native_decisions");
+  if(!decisions)throw std::invalid_argument("target lacks sm90_native_decisions (prompt §11 decision tables)");
+  space.weight_stream=decisions->At("weight_stream").AsBool("weight_stream");
   solver::Sm90DenseSearchOptions search;search.top=o.measure_top;
   auto result=solver::SearchSm90Dense(space,work,cost,search);
   json::Array ranked,candidates;
