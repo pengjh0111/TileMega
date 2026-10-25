@@ -2144,6 +2144,9 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   auto budget_attr=module->getAttrOfType<mlir::IntegerAttr>("tmexec.sm90_dense_budget");
   if(!budget_attr)throw std::invalid_argument("native dense plan lacks its shared-memory budget");
   int budget=int(budget_attr.getInt()),arena=solver::Sm90DenseArena(budget);
+  auto grid_attr=module->getAttrOfType<mlir::IntegerAttr>("tmexec.sm90_dense_grid");
+  if(!grid_attr)throw std::invalid_argument("native dense plan lacks its grid");
+  int grid=int(grid_attr.getInt());
   // D7 (prompt §6): embedding, L layers of (qkv, attention, o, gate_up, down),
   // lm_head and argmax.
   unsigned layers=0;
@@ -2242,6 +2245,12 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
       auto map=map_index({integerField(g,"a"),3,64,batch,k/64,0,2*k,128,0,64,activation_rows,
           cfg.TileK()/64,0});
       e.tail=","+std::to_string(cfg.register_stages)+","+std::to_string(map);
+      // D10c: the pair's A slots by TMA multicast (clusters, even slot counts).
+      if(cfg.multicast) {
+        if(c.cluster<2 || cfg.slots%2 || ((n/cfg.tile_n)%grid)%2)
+          throw std::invalid_argument("native multicast needs a cluster, even slots and paired task counts");
+        e.tail+=",true";
+      }
       }
     }else if(kind=="kFusedAttention") {
       if((extent!=8 && extent!=4) || (width!=64 && width!=128) || group<2 || group>8 ||
@@ -2272,6 +2281,12 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
         kv_maps[i]=int(map_index({operands[1+i],4,width,capacity,rows,layers,2*width,
             2ll*capacity*width,2*kv_bytes,64,c.attention.block_keys,1,1}));
       e.tail=","+std::to_string(kv_maps[0])+","+std::to_string(kv_maps[1]);
+      // D10b: S chunks of one cluster merge through the leader's DSMEM inbox.
+      if(c.attention.dsmem) {
+        if(chunks<2 || c.cluster%int(chunks) || batch*int(extent)*int(chunks)>grid)
+          throw std::invalid_argument("native DSMEM merge needs S | cluster and one task wave");
+        e.tail+=",true";
+      }
     }else if(kind=="kEmbedding") {
       tasks=batch;head<<"Embedding<"<<batch<<','<<width<<','<<extent<<','<<capacity;
       if(operand(3)!="kAbsent")throw std::invalid_argument("native embedding writes no norm sums");
@@ -2387,7 +2402,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
      <<(c.layer_loop?"true":"false")<<','<<(c.embed_la?"true":"false")<<",Stage_0,LayerGroup<"
      <<per_group;
   for(unsigned j=1;j<=group_size;++j)out<<",Stage_"<<j;
-  out<<">,Stage_"<<head<<">;\nconstexpr std::array<StageInfo,"<<info.size()<<"> kNativeStages={{\n";
+  out<<">,Stage_"<<head<<','<<c.cluster<<">;\nconstexpr std::array<StageInfo,"<<info.size()<<"> kNativeStages={{\n";
   for(auto const& row:info)out<<row;
   out<<"}};\n"
      <<"}  // namespace tilemega::codegen::native_dense\n"
