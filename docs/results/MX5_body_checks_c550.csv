@@ -39,3 +39,8 @@ unit_check,2026-10-25,chain,2,unit_cuda,mx5_chain_v2,7,576,4000,pass,de860a0b54d
 unit_check,2026-10-25,chain,3,unit_cuda,mx5_chain_v2,7,576,4000,pass,de860a0b54df48c34a618829e41d6167a04dd5356f60b7e427c61847a7cddb78,chain/matrix5_576
 unit_check,2026-10-25,chain,4,unit_cuda,mx5_chain_v2,7,576,4000,pass,de860a0b54df48c34a618829e41d6167a04dd5356f60b7e427c61847a7cddb78,chain/matrix5_576
 unit_check,2026-10-25,chain,5,unit_cuda,mx5_chain_v2,7,576,4000,pass,de860a0b54df48c34a618829e41d6167a04dd5356f60b7e427c61847a7cddb78,chain/matrix5_576
+unit_check,2026-10-25,head,1,unit_cuda,mx5_head_v2,7,512,300,pass,03240e90ebbab90ab63622a904a2be8b77ed20438d77d03aa20383be68c7f175,head/matrix10_512
+unit_check,2026-10-25,head,2,unit_cuda,mx5_head_v2,7,512,300,pass,03240e90ebbab90ab63622a904a2be8b77ed20438d77d03aa20383be68c7f175,head/matrix10_512
+unit_check,2026-10-25,head,3,unit_cuda,mx5_head_v2,7,512,300,pass,03240e90ebbab90ab63622a904a2be8b77ed20438d77d03aa20383be68c7f175,head/matrix10_512
+unit_check,2026-10-25,head,4,unit_cuda,mx5_head_v2,7,512,300,pass,03240e90ebbab90ab63622a904a2be8b77ed20438d77d03aa20383be68c7f175,head/matrix10_512
+unit_check,2026-10-25,head,5,unit_cuda,mx5_head_v2,7,512,300,pass,03240e90ebbab90ab63622a904a2be8b77ed20438d77d03aa20383be68c7f175,head/matrix10_512
