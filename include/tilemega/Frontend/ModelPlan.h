@@ -228,6 +228,9 @@ struct ServingOptions {
   int argmax_tile_n = 32;
   bool deferred_norm = true;
   bool dn_vector_sums = false;
+  // Native dense decode accumulates InputNorm statistics in its GEMM
+  // consumers; the plan keeps folded weights but allocates no sum buffers.
+  bool native_rms = false;
   int moe_batch = 1;
   bool moe_grouped = false;
   unsigned moe_block_rows = 16;

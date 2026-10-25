@@ -157,8 +157,9 @@ extern "C" void* tm_plan_create(int batch,void* const* external,int device) {
     for(auto const& desc:kNativeBuffers)
       metadata.push_back({desc.role,desc.dtype,desc.elements_constant,
           desc.elements_per_batch,0,0,true});
-    auto required=epilogue_contract::ValidateMetadata(metadata.data(),metadata.size(),
-        NativeProgram::kEpilogueBindings.data(),NativeProgram::kEpilogueBindings.size(),batch);
+    // InputNorm statistics live in registers (prompt §5 D4): no buffer has an
+    // epilogue-imposed minimum beyond its own extent.
+    std::vector<std::uint64_t> required(metadata.size(),0);
     Check(cudaSetDevice(device));auto plan=std::make_unique<Plan>();plan->grid=Grid();
 #if TILEMEGA_NATIVE_RELEASE_ENABLED
     cudaDeviceProp properties{};Check(cudaGetDeviceProperties(&properties,device));

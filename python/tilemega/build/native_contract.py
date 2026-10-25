@@ -11,7 +11,7 @@ def validate(manifest, defines):
     if (defines.get('TILEMEGA_STATIC_DENSE_NATIVE') != '1' or
             defines.get('TILEMEGA_ARCH_ID') != '900' or
             manifest.get('runtime_batch') not in (1, 2, 4, 8, 16) or
-            manifest.get('native_origin') not in ('fixed', 'solver', 'historical_ablation') or c.get('schema') != 1):
+            manifest.get('native_origin') not in ('fixed', 'solver', 'historical_ablation') or c.get('schema') != 2):
         raise ValueError('native dense architecture or coordinate schema is invalid')
     historical = manifest.get('historical_ablation')
     if bool(historical) != (manifest.get('native_origin') == 'historical_ablation'):
@@ -19,8 +19,7 @@ def validate(manifest, defines):
     if historical and (historical.get('production_eligible') is not False or
                        defines.get('TILEMEGA_SM90R2_HISTORICAL_ABLATION') != '1'):
         raise ValueError('historical controls require an explicit nonproduction identity')
-    if (manifest.get('residency') != c['residency'] or
-            int(defines.get('TILEMEGA_DN_VECTOR_SUMS', '-1')) != int(c['dn_vector_sums']) or
+    if (manifest.get('residency') != c['residency'] or 'TILEMEGA_DN_VECTOR_SUMS' in defines or
             int(defines.get('TILEMEGA_SWIGLU_U', '-1')) != c['swiglu_u']):
         raise ValueError('native dense structural coordinates differ from generated macros')
 
@@ -56,10 +55,12 @@ def dispatch(manifest, defines, source):
     for index, (gemm, alias) in enumerate(zip(gemms, aliases)):
         typed, number, raw = alias
         args = raw.split(',')
-        # ..., register stages, activation tensor-map index (prompt §5 D3).
-        if len(args) != 19:
+        # ..., op, U, InputNorm, W, C, D, index, register stages, tensor-map index.
+        if len(args) != 17:
             raise ValueError('native dense GEMM call signature is invalid')
-        register_stages = int(args[17])
+        register_stages = int(args[15])
+        if args[10] != ('true' if gemm['family'] in ('qkv', 'gate_up', 'lm_head') else 'false'):
+            raise ValueError('native dense GEMM InputNorm differs from its family')
         batch, n, k, tn, tk, slots, wn, wk = map(int, args[:8])
         actual = dict(tile_m=16, tile_n=tn, tile_k=tk, stages=slots,
                       warps_n=wn, warps_k=wk, split_k=1)
@@ -132,7 +133,7 @@ def implementations(manifest):
                 task_body='IndependentAttentionTaskBody',partition='capacity',merge='stage',
                 block_extent=h['attention_kv_block']))
     return dict(execution_arch_id=900, program='sm90_dense_native',
-                dn_vector_sums=c['dn_vector_sums'], swiglu_interleave_u=c['swiglu_u'],
+                input_norm='consumer_rms', swiglu_interleave_u=c['swiglu_u'],
                 gemms=[dict(index=g['index'], impl=g['impl'],
                             task_body='Sm90DenseGemm') for g in manifest['gemms']],
                 attention=dict(impl='native_simt' if manifest['runtime_batch'] <= 4 else 'native_mma_sync',

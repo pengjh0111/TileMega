@@ -5,8 +5,8 @@
 #include <tilemega/Codegen/Sm90DenseEpilogueContract.h>
 #include <tilemega/Backend/Sm90DenseAttentionStream.cuh>
 #include <tilemega/Backend/Sm90DenseToken.cuh>
-#include <tilemega/Backend/Sm90DenseLayout.h>
 #include <tilemega/Backend/Sm90DensePreissue.cuh>
+#include <tilemega/Backend/Sm90DenseLayout.h>
 #include <tilemega/Codegen/tasks/Sm90DenseStage.cuh>
 #include <tilemega/Codegen/tasks/ServingAbi.h>
 #include <array>
@@ -90,22 +90,19 @@ __device__ inline unsigned long long Now() {
   unsigned long long time;asm volatile("mov.u64 %0, %%globaltimer;":"=l"(time));return time;
 }
 
+// InputNorm: the stage's input is RMS-normalized in the consumers; its gamma
+// is folded into the packed weight (qkv, gate_up, lm_head).
 template<int Batch,int N,int K,int TN,int TK,int Slots,int WN,int WK,
-         backend::ServingEpilogueOp Op,int U,unsigned A,unsigned W,unsigned C,
-         unsigned D,unsigned Index,unsigned Norm,unsigned Sums,int RegisterStages,unsigned Map>
-struct Gemm:epilogue_contract::Presence<Norm,Sums> {
-  using Features=epilogue_contract::Presence<Norm,Sums>;
-  static constexpr bool kInputNorm=Features::kInputNorm,kOutputSums=Features::kOutputSums;
-  static constexpr epilogue_contract::Gemm kEpilogueBinding{Norm,Sums,Batch,K,N,TN,
-      bool(TILEMEGA_DN_VECTOR_SUMS),Op==backend::ServingEpilogueOp::kResidual,true};
-  using Body=backend::Sm90DenseGemm<Batch,N,K,TN,TK,Slots,WN,WK,Op,U,RegisterStages>;
+         backend::ServingEpilogueOp Op,int U,bool InputNorm,unsigned W,unsigned C,
+         unsigned D,unsigned Index,int RegisterStages,unsigned Map>
+struct Gemm {
+  using Body=backend::Sm90DenseGemm<Batch,N,K,TN,TK,Slots,WN,WK,Op,U,InputNorm,RegisterStages>;
   static constexpr int kTasks=N/TN,kSharedBytes=Body::kSharedBytes;
   static constexpr bool kArgmax=false;
   static constexpr bool kUsesOperandRecord=true;
   static constexpr int kRingSlots=Slots;
   static constexpr int kMaxPreissue=(Slots<Body::kIterations?Slots:Body::kIterations)*2*TN*TK;
-  static constexpr auto kLayout=backend::Sm90DenseLayout::Gemm(TN,TK,Slots,WK,Batch);
-  static_assert(kLayout.end==kSharedBytes);
+  static constexpr auto kLayout=Body::kLayout;
   using Preissue=GemmRead<Body,kTasks>;
   template<int Bytes>
   static constexpr auto Payload() {
@@ -121,15 +118,12 @@ struct Gemm:epilogue_contract::Presence<Norm,Sums> {
     record.gemm.activation=b.template Map<Map>();record.gemm.weight=b.template Get<W>();
     record.gemm.residual=b.template Get<C>();record.gemm.output=b.template Get<D>();
     record.gemm.argmax_index=reinterpret_cast<int*>(b.template Get<Index>());
-    record.gemm.norm_sums=reinterpret_cast<float const*>(b.template Get<Norm>());
-    record.gemm.output_sums=reinterpret_cast<float*>(b.template Get<Sums>());
     record.gemm.epsilon=epsilon;
   }
   template<int Prefix,class B,class Tail>
   __device__ static __forceinline__ void Run(B const& b,int,char* shared,float,
       backend::Sm90DenseRingState& ring,Tail tail,backend::Sm90DenseOperandBank const& record) {
-    auto const& p=record.gemm;
-    StageEntry<Body>::template Gemm<Prefix,kInputNorm,kOutputSums>(p,shared,&ring,tail);
+    StageEntry<Body>::template Gemm<Prefix>(record.gemm,shared,&ring,tail);
   }
 };
 
@@ -185,7 +179,7 @@ struct Attention {
 };
 
 template<int Batch,int Width,int Vocab,int Capacity,unsigned Tokens,unsigned Table,
-         unsigned Output,unsigned Sums>
+         unsigned Output>
 struct Embedding {
   static constexpr bool kArgmax=false;
   static constexpr bool kUsesOperandRecord=false;
@@ -205,7 +199,7 @@ struct Embedding {
     if(threadIdx.x<128)for(int row=blockIdx.x;row<Batch;row+=gridDim.x) {
       auto* tokens=reinterpret_cast<int const*>(b.template Get<Tokens>());
       backend::Sm90DenseEmbedding<Width,Vocab,Capacity>::Run(tokens,b.template Get<Table>(),
-          b.template Get<Output>(),reinterpret_cast<float*>(b.template Get<Sums>()),row,past);
+          b.template Get<Output>(),row,past);
     }
     if(threadIdx.x==128)tail();
     __syncthreads();
@@ -291,8 +285,6 @@ struct Program {
   static constexpr unsigned kBuffers=Buffers,kMaps=Maps,kStages=sizeof...(Stage);
   using RoleLaunch=backend::Sm90DenseRoleLaunch<kThreads>;
   static_assert(RoleLaunch::kThreads==kThreads);
-  static constexpr std::array<epilogue_contract::Gemm,kStages> kEpilogueBindings{{
-      epilogue_contract::SpecFor<Stage>::value...}};
   using FirstStage=std::tuple_element_t<0,Stages>;
   static_assert(!FirstStage::kUsesOperandRecord,
       "native shared-operand ABI requires an operand-free first stage; no implicit startup publication barrier");
