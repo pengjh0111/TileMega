@@ -364,3 +364,40 @@ contain LDS waits only. Later segment-prefix norm code still acquires compiler
 GVM0 waits; this is a measured MIR overlap limitation, not the spec's steady
 DT-X exchange failure. The earlier stricter local goal is explicitly corrected
 in QUEUE_AUDIT_QUALIFIED.json; no user gate is waived or performance claimed.
+
+## Bounded actual-plan resource policy, CPU interface
+
+Verified39 CPU tests pass after adding mx5_plan_resources.py:29 new policy
+tests and10 existing selection tests. The immutable origin retains the exact
+original four candidate IDs/predictions and candidate0 anchor. Actual attempt
+receipts bind pins, emitted aliases/shapes, source/compiler/MIR/ELF/resources;
+resource retries halve the largest reducible shared-class numeric Pw, ties
+qkv/O/GU/down/head, floorD, at most three whole-plan reductions. Changed widths
+require their own three-process source-qualified costs; missing costs stop with
+exact keys. No baseline rank is silently repriced or claimed globally exact
+after a repair. These are recorded routine interpretations of §4.5, not new
+search dimensions. CPU fixtures are synthetic; no measured row is fabricated.
+Native receipt production, occupancy capture and orchestration remain pending.
+All-D excess MTreg requests D7; stack-only failure or exhausted reductions
+stays blocked. This slice grants no512 permission or default promotion.
+Review/CPU evidence: `runs/mx5/plan_retry_v1/`.
+
+## Calibration stop: BF16 boundary discrepancy
+
+Verified2026-10-26: GEMM campaign stops at batch129/round1/key3 with the
+unchanged output assertion in stage_bench.py:142. Exact coordinates:
+N16384,K3072,B8,TN32,WN1,D2,Norm1,SwiGLU,part1=TileRange,Pw8,threads512.
+The first129 batches completed successfully; the failed partial batch remains
+immutable and cannot qualify as three rounds. Earlier informal root text
+incorrectly called part1 StreamK; DecodeShapes.h:28 establishes the enum.
+The diagnostic directory/labels retain that historical naming error.
+
+Verified same original seed2020, all27 diagnostic outputs have one identical
+over-tolerance coordinate(row4,col4277), no NaN/count/ticket anomaly. Actual
+part1/Pw8, part0/Pw2 and part1/Pw2 all produce-9.1875 there versus original
+GPU FP32 reference-9.375, error0.1875>0.1700. Independent CPU FP64 dot/norm
+gives gate2.4453114273989174, below BF16 midpoint2.4453125; rounded gate2.4375
+produces-9.1875. The GPU FP32 reference instead rounds gate2.453125.
+This identifies a boundary discrepancy, not yet an accepted oracle correction;
+the failed candidate/table gate stays open and tolerances are unchanged.
+Raw: `runs/mx5/gemm_streamk_failure_v1/`; additional independent audit pending.
