@@ -44,7 +44,8 @@ def main() -> None:
         if mask is not None:os.environ['TILEMEGA_KPHASE_MASK']=mask
         try:
             with ServingEngine(a.model,a.prefill_so,a.decode_so,a.batch,
-                               prompt_len=prompt_len,max_new_tokens=a.steps,mode=mode,decode_loop=loop,prefill_mode="L1") as engine:
+                               prompt_len=prompt_len,max_new_tokens=a.steps,mode=mode,decode_loop=loop,
+                               prefill_mode="L1",step_events=False) as engine:
                 try:
                     generation=engine.generate(prompts,a.steps)
                     if loop and not generation.decode_loop_used:
