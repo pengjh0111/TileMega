@@ -2170,6 +2170,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   std::vector<std::int64_t> keys,values;
   std::array<int,2> kv_maps{-1,-1};
   std::int64_t kv_bytes=0;  // one layer's K (or V): B*Hkv*Cap*D BF16
+  unsigned group_columns=0;  // one KV group's qkv columns, (Q + 2) D (D8)
   for(auto value:stages) {
     auto s=dictionaryEntry(value,"stages");auto kind=stringField(s,"kind");
     auto operands=s.getAs<mlir::DenseI64ArrayAttr>("operands");
@@ -2252,6 +2253,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
       if(operand(1)=="kAbsent" || operand(2)=="kAbsent")
         throw std::invalid_argument("native attention lacks its K/V cache views");
       chunks=c.attention.chunks;
+      group_columns=(group+2)*width;
       e.full=c.attention.FullWidth(width,group,arena);
       if(c.attention.SharedBytes(width,group)>budget)
         throw std::invalid_argument("native attention exceeds the shared-memory budget");
@@ -2367,7 +2369,18 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     // Layer 0's qkv follows the prologue and is told so at run time.
     unsigned previous=n==1?group_size:n-1;
     int prefix=n>0 && c.weight_stream && ring(previous)?stream(n):0;
-    types<<"using Stage_"<<n<<"=Placement<Body_"<<n<<','<<(e.full?0:(n%2)*arena)<<','<<prefix<<">;\n";
+    // D8: each layer's qkv (typed stages 1, 1 + per_layer, ...) releases
+    // KV-group counters.
+    int group_tiles=0;
+    if(n>=1 && n<=group_size && (n-1)%per_layer==0 && c.group_wait) {
+      int tn=c.gemms[0].tile_n;
+      if(!group_columns || group_columns%tn)
+        throw std::invalid_argument("native group wait needs qkv tiles within one KV group");
+      group_tiles=int(group_columns)/tn;
+    }
+    types<<"using Stage_"<<n<<"=Placement<Body_"<<n<<','<<(e.full?0:(n%2)*arena)<<','<<prefix;
+    if(group_tiles)types<<','<<group_tiles;
+    types<<">;\n";
   }
   out<<types.str()<<"using NativeProgram=Program<"<<batch<<','<<capacity<<','<<c.residency<<','
      <<buffers.size()<<','<<map_order.size()<<','<<arena<<','<<layers<<','<<slots<<','
