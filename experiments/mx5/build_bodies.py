@@ -31,7 +31,7 @@ def identity(source=Path('test/unit/mx/decode_bodies_v2.cu')):
     return digest.hexdigest()
 
 
-def main():
+def parse_args(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--out', type=Path, required=True)
     p.add_argument('--tn', type=int, nargs='+', default=[16, 32, 64, 128])
@@ -43,10 +43,67 @@ def main():
     p.add_argument('--query', type=int, nargs='+', default=[2, 3, 4, 8])
     p.add_argument('--bench', action='store_true')
     p.add_argument('--pw', type=int)
-    a = p.parse_args(); a.out.mkdir(parents=True, exist_ok=True)
+    p.add_argument('--prefetch-kind', type=int, choices=[0, 1, 2])
+    a = p.parse_args(argv)
+    if a.bench and a.body not in ('gemm', 'head', 'attention'):
+        p.error('repeated-stage benches support GEMM, head and attention')
+    if a.prefetch_kind is not None and not (a.bench and a.body == 'attention'):
+        p.error('--prefetch-kind requires --bench --body attention')
+    if a.bench and a.body == 'head':
+        if any(tn not in (16, 32, 64, 128) for tn in a.tn) or any(d not in (1, 2, 3, 4) for d in a.depth):
+            p.error('head bench requires TN in {16,32,64,128} and depth in {1,2,3,4}')
+        if a.pw is not None and a.pw < 0:
+            p.error('head bench --pw must be nonnegative; zero measures the body without prefetch')
+    if a.bench and a.body == 'attention':
+        if any(dim not in (64, 128) for dim in a.dim) or any(q not in (2, 3, 4, 8) for q in a.query):
+            p.error('attention bench requires dim in {64,128} and query in {2,3,4,8}')
+        if a.pw is not None:
+            p.error('attention bench uses --prefetch-kind instead of --pw')
+        if a.prefetch_kind is None:
+            a.prefetch_kind = 2
+    if a.bench and a.body == 'head':
+        keys = build_inputs(a)[1]
+        if not keys:
+            p.error('no legal head bench candidates for the requested TN/depth')
+        if a.pw not in (None, 0) and any(coordinates['depth'] > a.pw for _, _, coordinates in keys):
+            p.error('head bench --pw must be zero or at least every selected depth')
+    return a
+
+
+def build_inputs(a):
     name = 'bodies' if a.body == 'gemm' else a.body
-    if a.bench and a.body != 'gemm': p.error('the current repeated-stage bench supports GEMM only')
-    source_path = Path('experiments/mx5/stage_bench.cu') if a.bench else Path(f'test/unit/mx/decode_{name}_v2.cu')
+    if a.bench:
+        filename = 'stage_bench.cu' if a.body == 'gemm' else f'{a.body}_stage_bench.cu'
+        source_path = Path('experiments/mx5') / filename
+    else:
+        source_path = Path(f'test/unit/mx/decode_{name}_v2.cu')
+    if a.body == 'gemm' or (a.body == 'head' and a.bench):
+        keys = [(f'tn{tn}_d{d}', dict(MX5_TEST_TN=tn, MX5_TEST_DEPTH=d), dict(tn=tn, depth=d))
+                for tn in a.tn for d in a.depth if (tn // 16) * 4 + d * (tn // 16 + 1) * 4 <= 160]
+    elif a.body == 'head':
+        keys = [(f'tn{tn}', dict(MX5_TEST_TN=tn), dict(tn=tn)) for tn in a.tn]
+    elif a.body == 'attention':
+        extra_def = dict(MX5_BENCH_PREFETCH_KIND=a.prefetch_kind) if a.bench else {}
+        extra_coord = dict(prefetch_kind=a.prefetch_kind) if a.bench else {}
+        keys = [(f'd{dim}_q{q}', dict(MX5_TEST_DIM=dim, MX5_TEST_Q=q, **extra_def),
+                 dict(dim=dim, query=q, **extra_coord)) for dim in a.dim for q in a.query]
+    else:
+        keys = [(a.body, {}, {})]
+    return source_path, keys
+
+
+def compiler_command(a, definitions, source_path, output):
+    return ['/opt/maca/tools/cu-bridge/bin/cucc', '-std=c++17', '-O3', '-shared',
+            '-Xcompiler', '-fPIC,-resource-usage', '-fno-strict-aliasing',
+            '-DTILEMEGA_SYNC_V3=1', '-DTILEMEGA_WATCHDOG=0',
+            f'-DMX5_TEST_THREADS={a.threads}', *[f'-D{k}={v}' for k,v in definitions.items()],
+            *([] if a.pw is None else [f'-DMX5_BENCH_PW={a.pw}']), '-Iinclude',
+            str(source_path), '-o', str(output)]
+
+
+def main():
+    a = parse_args(); a.out.mkdir(parents=True, exist_ok=True)
+    source_path, keys = build_inputs(a)
     source = identity(source_path)
     head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
     archive = a.out / 'sources.tar.gz'
@@ -60,12 +117,7 @@ def main():
         record = output.with_suffix('.json')
         if output.exists() or record.exists():
             raise RuntimeError('choose a new output directory: ' + str(output))
-        command = ['/opt/maca/tools/cu-bridge/bin/cucc', '-std=c++17', '-O3', '-shared',
-                   '-Xcompiler', '-fPIC,-resource-usage', '-fno-strict-aliasing',
-                   '-DTILEMEGA_SYNC_V3=1', '-DTILEMEGA_WATCHDOG=0',
-                   f'-DMX5_TEST_THREADS={a.threads}', *[f'-D{k}={v}' for k,v in definitions.items()],
-                   *([] if a.pw is None else [f'-DMX5_BENCH_PW={a.pw}']), '-Iinclude',
-                   str(source_path), '-o', str(output)]
+        command = compiler_command(a, definitions, source_path, output)
         start = time.monotonic()
         with output.with_suffix('.log').open('wb') as stream:
             result = subprocess.run(command, stdout=stream, stderr=subprocess.STDOUT)
@@ -76,16 +128,6 @@ def main():
         print(f'{stem} rc={result.returncode} seconds={item["seconds"]:.1f}', flush=True)
         return result.returncode
 
-    if a.body == 'gemm':
-        keys = [(f'tn{tn}_d{d}', dict(MX5_TEST_TN=tn, MX5_TEST_DEPTH=d), dict(tn=tn, depth=d))
-                for tn in a.tn for d in a.depth if (tn // 16) * 4 + d * (tn // 16 + 1) * 4 <= 160]
-    elif a.body == 'head':
-        keys = [(f'tn{tn}', dict(MX5_TEST_TN=tn), dict(tn=tn)) for tn in a.tn]
-    elif a.body == 'attention':
-        keys = [(f'd{dim}_q{q}', dict(MX5_TEST_DIM=dim, MX5_TEST_Q=q), dict(dim=dim, query=q))
-                for dim in a.dim for q in a.query]
-    else:
-        keys = [(a.body, {}, {})]
     with concurrent.futures.ThreadPoolExecutor(max_workers=a.jobs) as pool:
         results = list(pool.map(build, keys))
     if identity(source_path) != source: raise RuntimeError('source changed while compiling the body libraries')
