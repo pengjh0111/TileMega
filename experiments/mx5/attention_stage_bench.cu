@@ -23,27 +23,47 @@ struct AttentionBenchArgs {
   int b, hkv, iterations, copies;
 };
 
+__device__ __forceinline__ MxAttentionOperandsV2 ReloadAttention(AttentionBenchArgs const& args) {
+  auto p = (&args.attention)[UniformOpaque(0)];
+  __builtin_assume(p.capacity >= 32 && p.capacity <= 1088 && p.capacity % 32 == 0);
+  __builtin_assume(p.past >= 0 && p.past < p.capacity);
+  return p;
+}
+
 template <class Body>
 __global__ void __launch_bounds__(MX5_TEST_THREADS) AttentionBench(AttentionBenchArgs args) {
+  unsigned const launch_grid = gridDim.x;
+  __builtin_assume(launch_grid == 104);
+  __builtin_assume(args.iterations >= 0);
+  __builtin_assume(args.copies >= 1);
+  __builtin_assume(args.b >= 1 && args.b <= 16);
+  __builtin_assume(args.hkv >= 1);
+  __builtin_assume(args.attention.capacity >= 32 && args.attention.capacity <= 1088);
+  __builtin_assume(args.attention.capacity % 32 == 0);
+  __builtin_assume(args.attention.past >= 0 && args.attention.past < args.attention.capacity);
   using Sync = tilemega::codegen::mx::StageSyncV2<MX5_TEST_THREADS>;
   extern __shared__ __align__(16) char smem[];
   MxAttentionShapeV2<MX5_TEST_THREADS> const shape{args.b, args.hkv};
   auto* const generation = reinterpret_cast<unsigned*>(smem + max(32784, Body::kSharedBytes));
   if (Sync::IsRole()) *generation = 0;
   Sync::CtaSync();
-  auto current = args.attention;
-  auto pf = Body::Prefetch(current, shape);
+  auto pf = Body::Prefetch(ReloadAttention(args), shape);
 #pragma unroll 1
   for (int iteration = 0; iteration < args.iterations; ++iteration) {
-    auto following = args.attention;
-    std::size_t const offset = std::size_t((iteration + 1) % args.copies) * args.b * args.hkv *
-                               args.attention.capacity * MX5_TEST_DIM;
-    following.k_cache += offset;
-    following.v_cache += offset;
-    pf = Body::Run(pf, current, shape, smem, [&] { return Body::Prefetch(following, shape); });
+    auto current = ReloadAttention(args);
+    std::size_t const stride = std::size_t(args.b) * args.hkv * current.capacity * MX5_TEST_DIM;
+    current.k_cache += std::size_t(iteration % args.copies) * stride;
+    current.v_cache += std::size_t(iteration % args.copies) * stride;
+    pf = Body::Run(pf, current, shape, smem, [&] {
+      auto following = ReloadAttention(args);
+      std::size_t const next_stride = std::size_t(args.b) * args.hkv * following.capacity * MX5_TEST_DIM;
+      std::size_t const offset = std::size_t((iteration + 1) % args.copies) * next_stride;
+      following.k_cache += offset;
+      following.v_cache += offset;
+      return Body::Prefetch(following, shape);
+    });
     Sync::Barrier(args.counter, (iteration + 1ull) * gridDim.x, generation, unsigned(iteration + 1), [] {});
     if (blockIdx.x == 0 && Sync::IsRole()) args.stamps[iteration] = tilemega::maca::GlobalTimerNs();
-    current = following;
   }
 }
 
