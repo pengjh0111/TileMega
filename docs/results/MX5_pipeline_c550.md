@@ -3,7 +3,8 @@
 Verified by source inspection, 2026-10-25, branch `tilemega-metax`, HEAD
 `37ac67c148eb90d6a5e9a9c879abfb36945bef8e`; existing dirty headers/results preserved.
 Root subsequently committed the engine repair as `120abd680`; updates through
-`d518fbb51` include current resource/model checks and the CPU v2 solver.
+`4b25ffe12` include the evaluated-grid invariant, five manual development
+checks and the CPU v2 solver.
 Authority: `/root/Prompt/TileMega_MX5_prompt.md`, SHA256
 `75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73`.
 Read AGENTS.md/CLAUDE.md and the complete prompt. This audit is CPU source
@@ -29,7 +30,7 @@ Measurements below are stated by existing reports, not reverified by this audit.
 | Weights | `MxDecodeProgramV2.cpp:149` wraps GEMM recipes in tile_pages(xcore_mma,TN,32) and names them by TN. `serving/weights.py:109` rejects conflicting same-name recipes; line162 performs physical page packing, line234 loads/deduplicates checkpoint-derived weights by source hashes and complete recipe. Different phase layouts can coexist under distinct names. |
 | Request storage | `serving/state.py:66` allocates one shared KV backing store; line75 binds each layer, line78 validates dtype/elements/contiguity. Equal byte counts do not identify the physical KV order. |
 | Engine | `serving/engine.py:40` checks sequence/capacity, line51 checks kv_layout; new line55 checks kv_storage before binding. Line73 onward loads weights/state, line88 onward sets decode pasts, line128 onward performs one prefill then separate/device-loop decode. `execution.py:45` already resolves mx_static to L1. |
-| Measurement/check | `scripts/mx_check_modes.sh:10` runs C-2 then teacher-forcing HF C-1; the measure path uses existing ServingEngine. The manual Qwen B1 resource control passes512-step C-1/C-2; optimized five-cell and TPOT acceptance remain open. The checker disables optional step events because v2 step_ns is diagnostic-only. |
+| Measurement/check | `scripts/mx_check_modes.sh:10` runs C-2 then teacher-forcing HF C-1; the measure path uses existing ServingEngine. All five512 manual development controls pass512-step C-1/C-2; solver-selected TPOT acceptance remains open. The checker disables optional step events because v2 step_ns is diagnostic-only. |
 | Bench/calibration | GEMM/head/attention benches share v2 bodies. `experiments/mx5/calibration.py:335` handles prescribed resource-reduction selection; `stage_table.py:271` aggregates three rounds, requires matching source/binary/resource identity and P0 reference, and labels output measured_rows_only/full_table=false at line304. |
 | Production solver/table | `configs/targets/xcore1000.json:2360` still selects xcore1000_mx_decode.json. `MxDecodeSolver.cpp:130` consumes the old schema; line229 chooses two candidates by changing only the smallest-gap class. `mx_decode.cpp:283` times those two. The new MxDecodeSolverV2.cpp implements exact k-best4 and evidence checks (CPU tests pass); native compiler/measurement orchestration remains pending. |
 | Cell scripts | `mx_serving_cell.sh:58` excludes experts from static decode; line71 expects an mx4_pin; line132 fixes prefill watchdog1; lines169–171 prefer decode_w only. Candidate timings at lines64/126 allow1700s; MoE reservation remains20480MiB. Thus the script cannot yet drive the required final v2 campaign. |
@@ -92,6 +93,10 @@ Measurements below are stated by existing reports, not reverified by this audit.
    25 dense+5 MoE checks/timings and G-LLM. Complete native DNN and25 synthetic
    checks/timings afterward; only DT-F may be cut for budget.
 
-No new performance contradiction with the prompt is established by a CPU
-source audit. The observed architectural gaps are the open work above; the
-engine storage assumption is the concrete incompatibility corrected here.
+Later measured evidence (verified) is recorded in MX5_integration_c550.md:
+the old-grid Qwen B1 manual control regresses19.83% against MX-4. Its attention
+skip contribution23.39us versus22.27us bench triggers D7; the merger's serial
+per-partial Exp2 differs from the prompt's parallel design. A copied-header
+MIR investigation is underway. This is not a solver-selected final cell or a
+basis for accepting the performance predictions. The engine storage assumption
+is the concrete cross-phase incompatibility already corrected here.

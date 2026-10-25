@@ -2,8 +2,8 @@
 
 Verified checkpoint, 2026-10-25. Authoritative prompt SHA256:
 `75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73`.
-G-A passed; G-B and G-PROGRAM remain open. No MX-5 model correctness,
-end-to-end performance, solver selection, MoE or DNN result is claimed.
+G-A passed; G-B and G-PROGRAM remain open. Manual-control correctness and diagnostic timings are recorded below; no
+solver-selected model acceptance, MoE or DNN result is claimed.
 
 ## Calibration and evidence
 
@@ -186,3 +186,70 @@ evidence checks, attention interpolation over L65..1087 and the1% end-to-end
 selection threshold. CTest, sanitizers and8290 real GEMM/head domain-key
 comparisons pass. It is not yet wired to final model selection/defaults.
 Developing this CPU solver overlaps table timing; no acceptance gate is waived.
+
+## Fixed-grid repair, five development checks and first D7 ledger
+
+Verified later builds preserve the evaluated fixed104-CTA launch invariant in
+both GEMM benchmark and native kernel. Assuming directly on the gridDim getter
+was ignored by Clang because it has side effects; materializing its value first
+makes the existing launch contract visible. No algorithm or searched coordinate
+changed. Fresh five-process benchmark validation covers8 keys per process,
+P0/Pw2, B1/B16, store/SwiGLU: each2000 iterations ×104 CTAs ×two launches.
+Torch last-rotation oracles and within/across-process exact output checks pass5/5.
+Raw proof: `runs/mx5/grid_invariant_v7_validation_61/`.
+
+Actual normal-entry builds in `runs/mx5/native_dense_v7/` give these resources:
+
+| Model/B |512 timing/watchdog MTreg; frame|576 minimum-prefetch frame B|
+|---|---|---:|
+|Qwen0.6B B1|250/250;0|568|
+|Qwen0.6B B16|248/248;0|564|
+|Llama1B B1|171/171;0|0 (MT168)|
+|Llama8B B1|229/231;0|392|
+|Llama8B B16|227/229;0|384|
+
+All five512 manual-control cells pass C-1 and C-2 at512 steps. Max HF gaps
+in table order:0.03125/0.046875/0.0625/0.375/0.375; all gap<=0.5 ratios1.0,
+all separate/loop mismatches0. Correctness uses compatible watchdog1 prefill
+and decode. All ten development prefill timing/watchdog plans now exist, using
+unchanged MX-4 geometry plus the explicit fragment marker. Source/binary IDs
+are retained in the append-only correctness/resource CSVs. Runtime HEAD was
+not captured for these later rows and is left empty, rather than inferred.
+These manual512 controls grant no blanket DT-W exception or G-PROGRAM pass.
+
+Verified uninstrumented **old-grid** Qwen B1 manual minimum-prefetch TPOT:
+2.377973717/2.375923825 ms in two fresh processes, warm1+timed2, step-events0;
+median2.376948771 ms, TTFT9.094190 ms. MX-4 is1.983551895 ms (+19.832951%);
+fastest baseline SGLang2.4579 ms (ratio0.967065). This is a regression requiring
+D7, not a final result or an acceptable default. The first timing attempt
+incorrectly requested diagnostic-only step events and remains in raw failures.
+
+`MX5_stage_ledger_c550.csv` records the same old-grid manual control using
+non-trace diag-skip differences and three-process untraced stage benchmarks.
+Per-layer inferred contributions/bench, us: qkv12.790/17.880,
+attention23.393/22.270, O6.090/9.180, gate_up12.908/17.010,
+down8.501/11.960; head271.890/309.560 us per step.
+Attention bench averages interpolated knot medians over L65..1087. Common skip
+control cost262.180 us/step and nonadditive residual45.617 us/step are separate;
+no unobserved absolute stage times were fabricated. Diagnostic masks include
+head skip and zero token IDs to keep embedding reads valid, so their numerical
+sequence is not a correctness/performance acceptance workload. Trace is off;
+diagnostic-only step clocks are present and only skip differences are used.
+Raw sources,19 successful guarded jobs and corrected protocol commands:
+`runs/mx5/manual_d7_stage_ledger_v5_61/`.
+
+Source inspection (verified) finds the attention LA merger computes per-partial
+Exp2 serially in only Q threads and does not explicitly preserve a batch of
+partial-O loads before consumption. This departs from §4.7's parallel merge;
+its causal timing contribution is inferred pending MIR and repaired A/B.
+A copied-header D7 investigation is isolated from current GEMM/head calibration.
+The latter use immutable source closures, not mixed-source recycled timings.
+
+Fresh GEMM v7 queries:3395/3395 P0-fit at512;2720/3395 fit at576,675 failed
+rows retained. Of576 derived candidates,2380 fit primary,295 fit first halving,
+45 remain unresolved; the675 P0 failures are also retained. At512 all3395
+primary candidates fit. Head-only calibration resumes strict completed batches;
+old attention timings remain unqualified for its changed benchmark source.
+Attention v8 P0 CPU builds now fit400/400 at512 and100 D64Q4 rows at576;
+300 D128576 rows still spill. Resource queries/timings of this closure are held
+while the attention merge defect is repaired; no missing cost is fabricated.
