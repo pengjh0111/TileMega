@@ -215,7 +215,7 @@ extern "C" void* tm_plan_create(int batch,void* const* external,int device) {
            {m.box[0],m.box[1],m.box[2],m.box[3]}});
       else throw std::invalid_argument("native tensor map rank must be 3 or 4");
     }
-    plan->events=Allocate<GridCounter>(NativeProgram::kStages);
+    plan->events=Allocate<GridCounter>(NativeProgram::kCounters);
     if(plan->grid>NativeProgram::kHeadMaxGrid)
       throw std::invalid_argument("native grid exceeds the lm_head partial outputs");
     plan->lm_counter=Allocate<std::uint64_t>(1);plan->bindings.lm_counter=plan->lm_counter;

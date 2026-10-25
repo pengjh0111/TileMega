@@ -156,6 +156,8 @@ struct Attention {
   static constexpr bool kUsesOperandRecord=true;
   using Body=backend::Sm90DenseAttentionBody<Batch,Hkv,D,Q,Norm,Chunks,Keys,Slots,RowWork,Capacity>;
   static constexpr int kTasks=Body::kTasks,kSharedBytes=Body::kSharedBytes;
+  // Task t serves KV group t / (Batch Chunks) (D8).
+  static constexpr int kGroupTasks=Batch*Chunks,kGroups=Hkv;
   static constexpr int kRingSlots=Slots,kMaxPreissue=Body::kMaxPreissue;
   static constexpr auto kLayout=backend::Sm90DenseLayout::Attention(D,Q,Chunks,Keys,Slots);
   static_assert(kLayout.end==kSharedBytes);
@@ -282,11 +284,14 @@ struct Head:G {
   }
 };
 
-template<class Stage,int Offset=0,int Prefix=0>
+// GroupTiles > 0 (D8, qkv only): the boundary after this stage releases
+// each computed tile's KV group (GroupTiles tiles per group) instead of the
+// grid barrier, and the attention stage after it acquires only its groups.
+template<class Stage,int Offset=0,int Prefix=0,int GroupTiles=0>
 struct Placement:Stage {
   static_assert(Offset>=0 && Offset%1024==0 && Prefix>=0 && Prefix%16==0 &&
-      Prefix<=Stage::kMaxPreissue);
-  static constexpr int kOffset=Offset,kPrefix=Prefix;
+      Prefix<=Stage::kMaxPreissue && GroupTiles>=0 && (!GroupTiles || Stage::kTasks%GroupTiles==0));
+  static constexpr int kOffset=Offset,kPrefix=Prefix,kGroupTiles=GroupTiles;
   static constexpr int kSharedBytes=Offset+Stage::kSharedBytes;
   static constexpr auto kPayload=Stage::template Payload<Prefix>().Shift(Offset);
   static constexpr auto kLive=Stage::kLayout.Live(Offset);
@@ -351,6 +356,19 @@ struct Program {
   static constexpr unsigned kBuffers=Buffers,kMaps=Maps,kLayers=Layers;
   static constexpr unsigned kGroup=Group::kSize,kPerGroup=Group::kLayers,kPerLayer=kGroup/kPerGroup;
   static constexpr unsigned kStages=2+kPerLayer*Layers,kHead=1+kPerLayer*Layers;
+  // D8: one monotonic counter per KV group follows the boundary counters.
+  static constexpr unsigned kGroupCounters=GroupStage<0>::kGroupTiles?
+      unsigned(GroupStage<0>::kTasks/GroupStage<0>::kGroupTiles):0u;
+  static constexpr unsigned kCounters=kStages+kGroupCounters;
+  template<unsigned... J>
+  static constexpr bool SameGroupWait(std::integer_sequence<unsigned,J...>) {
+    return ((J%kPerLayer || GroupStage<J>::kGroupTiles==GroupStage<0>::kGroupTiles) && ...);
+  }
+  static_assert(SameGroupWait(std::make_integer_sequence<unsigned,kGroup>{}),
+      "every layer's qkv waits by the same KV-group tiles");
+  static_assert(!kGroupCounters || (kGroupCounters==unsigned(GroupStage<1>::kGroups) &&
+      GroupStage<1>::kTasks%GroupStage<1>::kGroupTasks==0),
+      "a group-waiting qkv stage feeds the attention stage of its KV groups");
   static_assert(Layers%Group::kLayers==0,"layer groups cover the layers exactly");
   static constexpr bool kEmbed=Embed;
   // The head's per-CTA partials reuse its [B][tasks] outputs.
@@ -496,11 +514,28 @@ struct Program {
       if constexpr(Next::kUsesOperandRecord)
         Next::PublishOperands(b,next_layer,past,epsilon,
             backend::Sm90DenseOperandHeader::Bank(shared,NextParity));
-      auto* counter=&events[g].arrivals;
-      asm volatile("red.release.gpu.global.add.u64 [%0], %1;"::"l"(counter),"l"(1ull):"memory");
-      unsigned long long seen;
-      do {asm volatile("ld.acquire.gpu.global.u64 %0, [%1];":"=l"(seen):"l"(counter):"memory");}
-      while(seen<(iteration+1)*gridDim.x);
+      if constexpr(Body::kGroupTiles>0) {
+        // D8 (prompt §7): this CTA's qkv tiles release their KV groups; its
+        // attention tasks wait only for their own group's tiles of this
+        // layer. The boundary after attention stays a grid barrier.
+        constexpr unsigned kTiles=Body::kGroupTiles;
+        for(unsigned t=blockIdx.x;t<unsigned(Body::kTasks);t+=gridDim.x)
+          asm volatile("red.release.gpu.global.add.u64 [%0], %1;"::
+              "l"(&events[kStages+t/kTiles].arrivals),"l"(1ull):"memory");
+        auto target=(iteration*kLayers+unsigned(layer)+1)*kTiles;
+        for(unsigned t=blockIdx.x;t<unsigned(Next::kTasks);t+=gridDim.x) {
+          auto* counter=&events[kStages+t/unsigned(Next::kGroupTasks)].arrivals;
+          unsigned long long seen;
+          do {asm volatile("ld.acquire.gpu.global.u64 %0, [%1];":"=l"(seen):"l"(counter):"memory");}
+          while(seen<target);
+        }
+      }else {
+        auto* counter=&events[g].arrivals;
+        asm volatile("red.release.gpu.global.add.u64 [%0], %1;"::"l"(counter),"l"(1ull):"memory");
+        unsigned long long seen;
+        do {asm volatile("ld.acquire.gpu.global.u64 %0, [%1];":"=l"(seen):"l"(counter):"memory");}
+        while(seen<(iteration+1)*gridDim.x);
+      }
 #if TILEMEGA_TRACE_NATIVE_PHASES
       unsigned next_index=(g+1)%kStages;
       auto next_iteration=iteration+(next_index==0);
