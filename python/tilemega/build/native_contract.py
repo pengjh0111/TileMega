@@ -33,17 +33,20 @@ def dispatch(manifest, defines, source):
             raise ValueError('native stage placement is ambiguous')
         placements[number] = (int(offset), int(prefix))
     # Program<batch, capacity, residency, buffers, maps, arena, layers, slots,
-    # loop, Stage_0, LayerPair<Stage_1..Stage_10>, Stage_11, Stage_12> (D7).
+    # loop, embed, Stage_0, LayerPair<Stage_1..Stage_10>, Stage_11> (D7, D9).
     program = re.search(r'using NativeProgram\s*=\s*Program<(?:\d+,){5}(\d+),(\d+),\d+,(true|false),'
-                        r'Stage_0,LayerPair<Stage_1(?:,Stage_\d+){9}>,Stage_11,Stage_12>;', source)
-    if program is None or (program[3] == 'true') != (manifest['native_dense']['layer_loop'] is True):
+                        r'(true|false),Stage_0,LayerPair<Stage_1(?:,Stage_\d+){9}>,Stage_11>;', source)
+    head = re.search(r'using Body_11\s*=\s*Head<HeadGemm_11,\d+,\d+,\d+,\d+,\d+,(true|false)>;', source)
+    embed = manifest['native_dense']['emb'] == 'la'
+    if (program is None or head is None or
+            (program[3] == 'true') != (manifest['native_dense']['layer_loop'] is True) or
+            (program[4] == 'true') != embed or (head[1] == 'true') != embed):
         raise ValueError('native dense program structure differs from its coordinate identity')
     arena, layers = int(program[1]), int(program[2])
     streaming = manifest['native_dense']['weight_stream'] is True
-    # Every typed stage is placed; the ring-less prologue and final stage sit
-    # in arena 0 and receive no stream.
-    if set(placements) != {str(i) for i in range(13)} or placements['0'] != (0, 0) or \
-            placements['12'] != (0, 0):
+    # Every typed stage is placed; the ring-less prologue sits in arena 0 and
+    # receives no stream.
+    if set(placements) != {str(i) for i in range(12)} or placements['0'] != (0, 0):
         raise ValueError('native stage placement differs from coordinate identity')
 
     def placement(number, typed, stream, full_width=False):
@@ -58,8 +61,9 @@ def dispatch(manifest, defines, source):
     # Typed GEMM stages: qkv, o, gate_up, down of the even (1, 3, 4, 5) and odd
     # (6, 8, 9, 10) layers of a pair, and the head (11). Manifest GEMM i of
     # layer l is certified against the typed stage that runs it.
-    aliases = {number: (typed, raw) for typed, number, raw in
-               re.findall(r'using (Stage|Body)_(\d+)\s*=\s*Gemm<([^;]+)>;', source)}
+    # The head's GEMM is HeadGemm_11 inside Body_11 = Head<...>.
+    aliases = {number: ('Body' if typed == 'HeadGemm' else typed, raw) for typed, number, raw in
+               re.findall(r'using (Stage|Body|HeadGemm)_(\d+)\s*=\s*Gemm<([^;]+)>;', source)}
     gemms = manifest['gemms']
     if set(aliases) != {'1', '3', '4', '5', '6', '8', '9', '10', '11'} or len(gemms) != 4*layers + 1:
         raise ValueError('native dense GEMM call count differs from manifest')
