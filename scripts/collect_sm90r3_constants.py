@@ -16,7 +16,7 @@ import subprocess
 from sm90d1_common import ROOT, read, sha
 
 HEADERS = ['include/tilemega/Backend/Sm90DenseEpilogue.h', 'include/tilemega/Backend/Sm90DenseToken.cuh',
-           'include/tilemega/Backend/Sm90DenseHead.cuh',
+           'include/tilemega/Backend/Sm90DenseHead.cuh', 'include/tilemega/Backend/Sm90DenseMoe.cuh',
            'include/tilemega/Backend/Sm90DenseAttentionBody.cuh',
            'include/tilemega/Backend/Sm90DenseGemm.h', 'include/tilemega/Codegen/executor/Async.cuh']
 ATTENTION_FIELDS = ('batch', 'head_dim', 'queries', 'qk_norm', 'chunks', 'block_keys', 'slots',
@@ -114,7 +114,7 @@ def main():
             raise ValueError(f'{metric} {prefix}: {len(found)} values')
         return round(found[0], 2)
 
-    epilogue, embedding, argmax, attention = {}, {}, {}, {}
+    epilogue, embedding, argmax, route, attention = {}, {}, {}, {}, {}
     for (metric, key), v in value.items():
         fields = dict(part.split('=') for part in key.split(':') if '=' in part)
         if metric == 't_ep':
@@ -131,6 +131,8 @@ def main():
             embedding.setdefault('g' + fields['g'], {}).setdefault('w' + fields['w'], {})[fields['b']] = round(v, 1)
         elif metric == 't_argmax_la':
             argmax.setdefault('g' + fields['g'], {})[fields['b']] = round(v, 1)
+        elif metric == 't_route_la':
+            route.setdefault('g' + fields['g'], {})[fields['b']] = round(v, 1)
     head = subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'], text=True).strip()
     section = dict(
         schema=1,
@@ -144,7 +146,7 @@ def main():
         dram_gbps=single('BW_dram'), l2_gbps=single('BW_l2'), sm_gbps=single('BW_sm'),
         activation_cp_async_gbps=20.0,
         activation_cp_async_source='stated: SM90R2_activation_stream_diagnostic.csv per-CTA ceiling (F9)',
-        epilogue_ns=epilogue, embedding_ns=embedding, argmax_la_ns=argmax, attention_ns=attention)
+        epilogue_ns=epilogue, embedding_ns=embedding, argmax_la_ns=argmax, route_la_ns=route, attention_ns=attention)
     if a.section_only:
         a.section_only.write_text(json.dumps(section, indent=1) + '\n')
     else:

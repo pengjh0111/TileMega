@@ -6,6 +6,7 @@
 #include <tilemega/Backend/Sm90DenseAttentionBody.cuh>
 #include <tilemega/Backend/Sm90DenseToken.cuh>
 #include <tilemega/Backend/Sm90DenseHead.cuh>
+#include <tilemega/Backend/Sm90DenseMoe.cuh>
 #include <tilemega/Codegen/executor/Async.cuh>
 #include <tilemega/Codegen/executor/TensorMap.h>
 #include <cuda_runtime.h>
@@ -195,6 +196,78 @@ void EpilogueTile(char const* family) {
 }
 template<ServingEpilogueOp Op,int... TN>
 void EpilogueTiles(char const* family,std::integer_sequence<int,TN...>) {(EpilogueTile<Op,TN>(family),...);}
+
+// MoE epilogues (prompt §8): router logits, expert gate_up SwiGLU into h,
+// expert down P writes and ctr[j] arrival. A slot holds round(8B/n_active)
+// rows; n_active is set beyond reach so no sample is a combine last arriver.
+template<backend::Sm90DenseMoeMode Mode,int TN,int WN,int Batch>
+__global__ void MoeEpilogueKernel(backend::Sm90DenseMoeOperands p,int samples,U64* out) {
+  constexpr int WK=4/WN,N=Mode==backend::Sm90DenseMoeMode::kRouter?128:
+      Mode==backend::Sm90DenseMoeMode::kGateUp?1536:2048,K=Mode==backend::Sm90DenseMoeMode::kDown?768:2048;
+  using G=backend::Sm90DenseMoeGemm<Batch,N,K,TN,64,2,WN,WK,Mode,16,128,8,false>;
+  extern __shared__ __align__(16) float tile[];
+  float* norms=tile+WK*16*TN;int* flag=reinterpret_cast<int*>(norms+64);
+  int tid=threadIdx.x;
+  for(int i=tid;i<WK*16*TN;i+=128)tile[i]=0.125f*float(i%11);
+  for(int i=tid;i<4*16;i+=128)norms[i]=float(K);
+  for(int s=0;s<samples;++s) {
+    codegen::executor::ComputeSync();
+    U64 begin=clock64();
+    G::Epilogue(p,tile,norms,s%G::kTiles,flag);
+    codegen::executor::ComputeSync();
+    if(tid==0)out[s]=clock64()-begin;
+  }
+}
+template<backend::Sm90DenseMoeMode Mode,int TN,int WN,int Batch>
+void MoeEpilogueCase(char const* family) {
+  constexpr int samples=256,WK=4/WN;
+  using Schedule=backend::Sm90DenseMoeSchedule<128>;
+  int rows=Mode==backend::Sm90DenseMoeMode::kRouter?Batch:
+      std::max(1,int(std::lround(8.0*Batch/(128*(1-std::pow(1-8.0/128,Batch))))));
+  std::vector<int> schedule(Schedule::kInts,0);
+  schedule[Schedule::Active()]=1<<30;schedule[Schedule::Count(0)]=rows;
+  for(int r=0;r<rows;++r)schedule[Schedule::Row(0,r)]=r*8;
+  auto* device_schedule=Device<int>(schedule.size());
+  Check(cudaMemcpy(device_schedule,schedule.data(),schedule.size()*4,cudaMemcpyHostToDevice));
+  auto* output=Device<float>(16*8*2048);auto* weights=Device<BF>(16*8);auto* x=Device<BF>(16*2048);
+  auto* counter=Device<std::uint64_t>(16);
+  backend::Sm90DenseMoeOperands p{nullptr,nullptr,nullptr,output,device_schedule,weights,nullptr,x,counter,1e-6f};
+  auto kernel=MoeEpilogueKernel<Mode,TN,WN,Batch>;
+  int shared=4*WK*16*TN+512;
+  Check(cudaFuncSetAttribute(kernel,cudaFuncAttributeMaxDynamicSharedMemorySize,shared));
+  auto* out=Device<U64>(samples);std::vector<U64> host(samples);
+  kernel<<<1,128,shared>>>(p,samples,out);
+  Check(cudaDeviceSynchronize());
+  Check(cudaMemcpy(host.data(),out,samples*8,cudaMemcpyDeviceToHost));
+  std::vector<double> v;for(int i=8;i<samples;++i)v.push_back(host[i]/cycles_per_ns);
+  Print("t_ep",std::string(family)+":tn="+std::to_string(TN)+":b="+std::to_string(Batch)+
+      ":wk="+std::to_string(WK),v,"ns");
+  for(void* q:{(void*)device_schedule,(void*)output,(void*)weights,(void*)x,(void*)counter,(void*)out})
+    Check(cudaFree(q));
+}
+template<backend::Sm90DenseMoeMode Mode,int TN>
+void MoeEpilogueTile(char const* family) {
+  [&]<int... B>(std::integer_sequence<int,B...>) {
+    if constexpr(TN%8==0)(MoeEpilogueCase<Mode,TN,1,B>(family),...);
+    if constexpr(TN%16==0)(MoeEpilogueCase<Mode,TN,2,B>(family),...);
+    if constexpr(TN%32==0 && TN/4<=256)(MoeEpilogueCase<Mode,TN,4,B>(family),...);
+  }(std::integer_sequence<int,1,2,4,8,16>{});
+}
+// t_route_la: the router's 16 tasks arrive (CTAs 0-15), the last runs top-8,
+// routes and the schedule, then the V3 barrier (prompt §8 M4).
+template<int Batch>
+__global__ void RouteLaStage(float* logits,int* schedule,BF* weights,int* index,U64* lm,
+    U64* counter,U64* stamps,int iterations) {
+  __shared__ alignas(128) char free[1024];
+  backend::Sm90DenseMoeOperands p{nullptr,nullptr,nullptr,logits,schedule,weights,index,nullptr,
+      reinterpret_cast<std::uint64_t*>(lm),0.0f};
+  for(int it=0;it<iterations;++it) {
+    if(threadIdx.x<128)
+      backend::Sm90DenseRouterFinish<Batch,128,8,16,false>{}(p,blockIdx.x<16?1:0,free);
+    GridBarrier(counter,it);
+    if(blockIdx.x==0 && threadIdx.x==0)stamps[it]=Now();
+  }
+}
 
 // Attention pieces of the D2 body (prompt §4 L0-1): one 64-key block with data
 // resident, the q preparation, and the S-chunk merge with this CTA last.
@@ -532,7 +605,24 @@ int main(int argc,char** argv) {try {
       StageCase("t_argmax_la",key(8),ArgmaxLaStage<8>,grid,values,indices,token_device,lm);
       StageCase("t_argmax_la",key(16),ArgmaxLaStage<16>,grid,values,indices,token_device,lm);
     }
-    Check(cudaFree(values));Check(cudaFree(indices));Check(cudaFree(lm));Check(cudaFree(token_device));
+    Check(cudaFree(values));Check(cudaFree(indices));Check(cudaFree(lm));
+    {
+      std::vector<float> l(16*128);for(auto& x:l)x=float(random()%100000)/1000.f;
+      auto* logits=Device<float>(l.size());
+      Check(cudaMemcpy(logits,l.data(),l.size()*4,cudaMemcpyHostToDevice));
+      auto* schedule=Device<int>(backend::Sm90DenseMoeSchedule<128>::kInts);
+      auto* routes=Device<BF>(16*8);auto* route_index=Device<int>(16*8);auto* router=Device<U64>(1);
+      for(int grid:{sms,2*sms}) {
+        auto key=[&](int b) {return "b="+std::to_string(b)+":g="+std::to_string(grid);};
+        StageCase("t_route_la",key(1),RouteLaStage<1>,grid,logits,schedule,routes,route_index,router);
+        StageCase("t_route_la",key(2),RouteLaStage<2>,grid,logits,schedule,routes,route_index,router);
+        StageCase("t_route_la",key(4),RouteLaStage<4>,grid,logits,schedule,routes,route_index,router);
+        StageCase("t_route_la",key(8),RouteLaStage<8>,grid,logits,schedule,routes,route_index,router);
+        StageCase("t_route_la",key(16),RouteLaStage<16>,grid,logits,schedule,routes,route_index,router);
+      }
+      for(void* q:{(void*)logits,(void*)schedule,(void*)routes,(void*)route_index,(void*)router})Check(cudaFree(q));
+    }
+    Check(cudaFree(token_device));
     Check(cudaFree(counter));Check(cudaFree(stamps));
   }
   // Epilogue outputs rotate through copies so L1-resident lines do not persist.
@@ -546,6 +636,11 @@ int main(int argc,char** argv) {try {
     EpilogueTiles<ServingEpilogueOp::kSwiGLU>("gate_up",
         std::integer_sequence<int,16,24,32,48,56,64,96,112,128,192,224,256,448,512>{});
     EpilogueTiles<ServingEpilogueOp::kArgmaxPartial>("lm_head",std::integer_sequence<int,128,256>{});
+    MoeEpilogueTile<backend::Sm90DenseMoeMode::kRouter,8>("router");
+    MoeEpilogueTile<backend::Sm90DenseMoeMode::kGateUp,96>("expert_gate_up");
+    MoeEpilogueTile<backend::Sm90DenseMoeMode::kGateUp,192>("expert_gate_up");
+    MoeEpilogueTile<backend::Sm90DenseMoeMode::kDown,128>("expert_down");
+    MoeEpilogueTile<backend::Sm90DenseMoeMode::kDown,256>("expert_down");
   }
   if(full || !std::strcmp(argv[1],"--attention-only")) {
     [&]<int... S>(std::integer_sequence<int,S...>) {
