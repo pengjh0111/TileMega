@@ -92,8 +92,9 @@ struct MxGemm {
   struct Lane {
     int t, wave, lane, r, g, group, wave_k, local;
     __device__ __forceinline__ Lane() {
-      t = int(StageThread()); wave = __builtin_mxc_readfirstlane(t / 64);
-      lane = t % 64; r = lane & 15; g = lane >> 4;
+      unsigned const thread = StageThread();
+      t = int(thread); wave = __builtin_mxc_readfirstlane(int(thread / 64));
+      lane = int(thread % 64); r = lane & 15; g = lane >> 4;
       group = wave < 8 ? wave / kWK : 0;
       wave_k = wave % kWK; local = wave_k * 64 + lane;
     }
@@ -108,7 +109,7 @@ struct MxGemm {
   template <int Limit, class F>
   __device__ __forceinline__ static void Dispatch(int count, F f) {
     if constexpr (Limit == 0) f(std::integral_constant<int, 0>{});
-    else if (count == Limit) f(std::integral_constant<int, Limit>{});
+    else if (__builtin_mxc_readfirstlane(int(count == Limit))) f(std::integral_constant<int, Limit>{});
     else Dispatch<Limit - 1>(count, f);
   }
 
@@ -159,7 +160,17 @@ struct MxGemm {
   __device__ __forceinline__ static void Prime(Ring& ring, MxSegmentV2 segment,
                                               MxGemmOperandsV2 const& p, Shape const& s, Lane const& l, int base) {
     [&]<std::size_t... I>(std::index_sequence<I...>) {
-      (([&] { if constexpr (int(I) < Count) Load<int(I)>(ring, segment, base + int(I), p, s, l); }()), ...);
+      (([&] {
+        if constexpr (int(I) < Count) Load<int(I)>(ring, segment, base + int(I), p, s, l);
+        else {
+          // Do not hoist an inactive arm's full zero ring across the live one.
+          unsigned zero = 0;
+          asm volatile("" : "+r"(zero));
+#pragma unroll
+          for (int j = 0; j < kAtoms; ++j) ring.w[I][j] = uint4{zero, zero, zero, zero};
+          ring.a[I] = uint4{zero, zero, zero, zero};
+        }
+      }()), ...);
     }(std::make_index_sequence<D>{});
   }
   template <class Shape>
@@ -222,8 +233,8 @@ struct MxGemm {
     }(std::make_index_sequence<Pw>{});
   }
 
-  template <int Tail, bool Statistics = Norm, class Shape>
-  __device__ __forceinline__ static void Mainloop(Ring& ring, MxSegmentV2 segment, int base, int count,
+  template <bool Statistics = Norm, class Shape>
+  __device__ __forceinline__ static void Steady(Ring& ring, MxSegmentV2 segment, int base, int count,
                                                  MxGemmOperandsV2 const& p, Shape const& s, Lane const& l,
                                                  MmaAccum (&acc)[kAtoms], float& ss) {
     int const full = count / D;
@@ -237,22 +248,42 @@ struct MxGemm {
         }()), ...);
       }(std::make_index_sequence<D>{});
     }
-    if (full) {
-      [&]<std::size_t... I>(std::index_sequence<I...>) {
-        (([&] {
-          constexpr int i = int(I), ahead = i < Tail ? i : Tail;
-          __builtin_mxc_arrive_gvmcnt((D - 1 - i + ahead) * kLoads);
-          Consume<Statistics>(ring.w[i], ring.a[i], acc, ss, unsigned(l.r < s.b));
-          if constexpr (i < Tail) Load<i>(ring, segment, base + full * D + i, p, s, l);
-        }()), ...);
-      }(std::make_index_sequence<D>{});
-    }
+  }
+
+  // Dispatch only wait immediates; sharing the data path avoids duplicate rings.
+  template <bool Statistics = Norm, class Shape>
+  __device__ __forceinline__ static void TailLoop(Ring& ring, MxSegmentV2 segment, int base, int count,
+                                                MxGemmOperandsV2 const& p, Shape const& s, Lane const& l,
+                                                MmaAccum (&acc)[kAtoms], float& ss) {
+    int const full = count / D, tail = count % D;
     [&]<std::size_t... I>(std::index_sequence<I...>) {
       (([&] {
-        __builtin_mxc_arrive_gvmcnt((Tail - 1 - int(I)) * kLoads);
-        Consume<Statistics>(ring.w[I], ring.a[I], acc, ss, unsigned(l.r < s.b));
+        constexpr int i = int(I);
+        if (__builtin_mxc_readfirstlane(int(full || i < tail))) {
+          Dispatch<D - 1>(tail, [&](auto c) {
+            constexpr int t = decltype(c)::value, ahead = i < t ? i : t;
+            if (__builtin_mxc_readfirstlane(int(full != 0)))
+              __builtin_mxc_arrive_gvmcnt((D - 1 - i + ahead) * kLoads);
+            else __builtin_mxc_arrive_gvmcnt((t > i ? t - 1 - i : 0) * kLoads);
+          });
+          Consume<Statistics>(ring.w[i], ring.a[i], acc, ss, unsigned(l.r < s.b));
+          if (__builtin_mxc_readfirstlane(int(full && i < tail)))
+            Load<i>(ring, segment, base + full * D + i, p, s, l);
+        }
       }()), ...);
-    }(std::make_index_sequence<Tail>{});
+    }(std::make_index_sequence<D>{});
+    [&]<std::size_t... I>(std::index_sequence<I...>) {
+      (([&] {
+        constexpr int i = int(I);
+        if (__builtin_mxc_readfirstlane(int(full && i < tail))) {
+          Dispatch<D - 1>(tail, [&](auto c) {
+            constexpr int t = decltype(c)::value;
+            __builtin_mxc_arrive_gvmcnt((t > i ? t - 1 - i : 0) * kLoads);
+          });
+          Consume<Statistics>(ring.w[i], ring.a[i], acc, ss, unsigned(l.r < s.b));
+        }
+      }()), ...);
+    }(std::make_index_sequence<D>{});
   }
 
   template <class Shape>
@@ -459,7 +490,8 @@ struct MxGemm {
       for (int j = 0; j < kAtoms; ++j) acc[j] = MmaAccum{0.f, 0.f, 0.f, 0.f};
       float ss = 0;
       Residual const residual = Early(segment, p, s, l);
-      if (l.Compute() && segment.active) {
+      // This predicate is uniform per wave; a masked branch retains both rings.
+      if (__builtin_mxc_readfirstlane(int(l.Compute() && segment.active))) {
         int const count = MxWaveChunksV2(segment, l.wave_k, kWK);
         int consumed = 0;
         if constexpr (First && Pw == D) {
@@ -472,9 +504,8 @@ struct MxGemm {
           Dispatch<D>(min(D, count), [&](auto c) { Prime<decltype(c)::value>(ring, segment, p, s, l, 0); });
         }
         int const left = count - consumed;
-        Dispatch<D - 1>(left % D, [&](auto c) {
-          Mainloop<decltype(c)::value, Norm && (First || kWK > 1)>(ring, segment, consumed, left, p, s, l, acc, ss);
-        });
+        Steady<Norm && (First || kWK > 1)>(ring, segment, consumed, left, p, s, l, acc, ss);
+        TailLoop<Norm && (First || kWK > 1)>(ring, segment, consumed, left, p, s, l, acc, ss);
         auto const following = geo.Segment(round + 1, l.group);
         int const next_count = round + 1 < geo.rounds ? MxWaveChunksV2(following, l.wave_k, kWK) : 0;
         Dispatch<D>(min(D, next_count), [&](auto c) { Prime<decltype(c)::value>(ring, following, p, s, l, 0); });
@@ -491,6 +522,7 @@ struct MxGemm {
           Direct(acc, inverse, residual, segment, p, s, l);
         }
       }
+      else Prime<0>(ring, segment, p, s, l, 0);
       if constexpr (kWK > 1) Finish(acc, ss, residual, segment, p, s, l, shared, layout, geo);
   }
 

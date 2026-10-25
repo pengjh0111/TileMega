@@ -58,7 +58,7 @@ struct MxHead {
 #pragma unroll
     for (int j = 0; j < kAtoms; ++j) acc[j] = MmaAccum{0.f, 0.f, 0.f, 0.f};
     float ss = 0;
-    if (l.Compute() && segment.active) {
+    if (__builtin_mxc_readfirstlane(int(l.Compute() && segment.active))) {
       int const count = MxWaveChunksV2(segment, l.wave_k, kWK);
       int consumed = 0;
       if constexpr (First && Pw == D) {
@@ -74,15 +74,14 @@ struct MxHead {
         });
       }
       int const left = count - consumed;
-      Core::template Dispatch<D - 1>(left % D, [&](auto c) {
-        Core::template Mainloop<decltype(c)::value, First>(ring, segment, consumed, left, p.gemm, s, l, acc, ss);
-      });
+      Core::template Steady<First>(ring, segment, consumed, left, p.gemm, s, l, acc, ss);
+      Core::template TailLoop<First>(ring, segment, consumed, left, p.gemm, s, l, acc, ss);
       auto const following = geo.Segment(round + 1, l.group);
       int const next_count = round + 1 < geo.rounds ? MxWaveChunksV2(following, l.wave_k, kWK) : 0;
       Core::template Dispatch<D>(min(D, next_count), [&](auto c) {
         Core::template Prime<decltype(c)::value>(ring, following, p.gemm, s, l, 0);
       });
-    }
+    } else Core::template Prime<0>(ring, segment, p.gemm, s, l, 0);
     if constexpr (First) {
       if (l.Compute()) shared[layout.squares + l.wave * 64 + l.lane] = ss;
     }
