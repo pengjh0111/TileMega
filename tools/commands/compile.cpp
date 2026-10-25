@@ -1101,10 +1101,10 @@ int RunCompile(int argc, char** argv) {
       if(serving && serving_phase=="decode" && !runtime_target.empty()) {
         auto target=tilemega::TargetSpec::FromJson(runtime_target);
         auto plan=candidate->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
-        auto dm=plan?plan.getAs<mlir::BoolAttr>("dm"):mlir::BoolAttr{};
-        if(target.arch_tag=="sm_90" && plan && (!dm || !dm.getValue()) &&
-           !candidate->hasAttr("tmexec.sm90_dense"))
-          throw std::invalid_argument("H800 dense decode requires native tmexec coordinates; legacy execution options are invalid");
+        // Dense and MoE decode are native only (prompt §8 item 6); the legacy
+        // MoE (DM) decoder stays for other targets.
+        if(target.arch_tag=="sm_90" && plan && !candidate->hasAttr("tmexec.sm90_dense"))
+          throw std::invalid_argument("H800 decode requires native tmexec coordinates; legacy execution options are invalid");
       }
       if(!hopper_requested && seed_arch!="native" && !serving_residency)return;
       auto target=tilemega::TargetSpec::FromJson(runtime_target);
