@@ -311,9 +311,20 @@ std::vector<MxDecodeClassV2> MxDecodeDomainV2(MxDecodeModel const& model, std::s
 
 MxDecodeSolverV2::MxDecodeSolverV2(std::string const& table) : MxDecodeSolverV2(json::ParseFile(table)) {}
 MxDecodeSolverV2::MxDecodeSolverV2(Value const& document) {
-  if (I(document, "schema_version") != 2 || S(document, "table_kind") != "mx5_decode_stage_costs"
+  int schema = I(document, "schema_version");
+  outcomes_v3_ = schema == 3;
+  if ((schema != 2 && schema != 3) || S(document, "table_kind") != "mx5_decode_stage_costs"
       || !document.At("qualified").AsBool("qualified")) Fail("requires qualified schema-v2 stage costs");
   S(document, "qualification_scope");
+  if (outcomes_v3_) {
+    if (S(document,"qualification_scope")!="complete_outcomes_single_request_v1"
+        || !document.At("outcome_domain_complete").AsBool("outcome_domain_complete")
+        || document.At("full_table").AsBool("full_table")
+        || document.At("execution_512_approved").AsBool("execution_512_approved")
+        || document.At("global_dt576_policy_approved").AsBool("global_dt576_policy_approved")
+        || document.At("target_defaults_changed").AsBool("target_defaults_changed")) Fail("invalid schema3 qualification/policy claims");
+    scope_=document.At("scope"); coverage_=document.At("coverage");
+  }
   if (!document.At("diagnostic_reasons").AsArray("diagnostic_reasons").empty()) Fail("table has diagnostic reasons");
   document.At("provenance").AsObject("table provenance");
   std::set<std::pair<std::string, Key>> seen;
@@ -335,7 +346,8 @@ MxDecodeSolverV2::MxDecodeSolverV2(Value const& document) {
     if (S(reference, "kind") != r.kind || ReadKey(reference.At("key"), r.kind) != expected)
       Fail("R_next reference does not match exact zero-prefetch body");
     bool const compiler_probe = reference.Find("compiler_probe_only") != nullptr;
-    if (compiler_probe) compiler_probe_v2::Validate(reference, r.kind, threads);
+    if(outcomes_v3_)compiler_probe_v2::Schema3LegacyReference(reference);
+    if (compiler_probe) compiler_probe_v2::Validate(reference, r.kind, threads, false, outcomes_v3_);
     auto rr = Resources(reference.At("resources"), threads, !compiler_probe);
     if (rr.mtreg != r.r_next) Fail("R_next differs from reference MTreg");
     Identity(reference.At("provenance"), r.kind);
@@ -385,8 +397,88 @@ MxDecodeSolverV2::MxDecodeSolverV2(Value const& document) {
     SelectedResource(v, r.key, r.kind, initial);
     r.evidence = v; rows_.push_back(std::move(r));
   }
-  if (rows_.empty()) Fail("empty measured table");
+  if (outcomes_v3_) for (auto const& v:document.At("resource_rejections").AsArray("resource_rejections")) {
+    if(S(v,"disposition")!="primary_resource_rejected")Fail("invalid rejection disposition");
+    for(char const* field:{"median_ns","p90_ns","rounds","processes","spread","ns"})
+      if(v.Find(field))Fail("resource rejection must not contain costs");
+    Rejection r;r.kind=S(v,"kind");
+    if(r.kind!="gemm" && r.kind!="head" && r.kind!="attention")Fail("invalid rejection kind");
+    r.key=ReadKey(v.At("key"),r.kind);int threads=r.key.at("threads");
+    compiler_probe_v2::Validate(v,r.kind,threads,true);Identity(v.At("provenance"),r.kind);
+    r.resources=Resources(v.At("resources"),threads,false);r.r_next=I(v,"r_next",1);
+    auto const& reference=v.At("r_next_reference");auto expected=r.key;
+    expected[r.kind=="attention"?"prefetch_kind":"prefetch"]=0;
+    if(S(reference,"kind")!=r.kind || ReadKey(reference.At("key"),r.kind)!=expected)Fail("rejection R_next coordinates differ");
+    bool probe=reference.Find("compiler_probe_only")!=nullptr;
+    if(!probe)Fail("primary rejection requires modern witnessed P0 reference");
+    if(probe)compiler_probe_v2::Validate(reference,r.kind,threads,false,true);
+    auto rr=Resources(reference.At("resources"),threads,!probe);
+    if(rr.mtreg!=r.r_next)Fail("rejection R_next differs from measured MTreg");
+    Identity(reference.At("provenance"),r.kind);
+    for(char const* field:{"executor","implementation","source_sha256"})
+      if(S(reference.At("provenance"),field)!=S(v.At("provenance"),field))Fail("rejection R_next source differs");
+    int budget=std::min(64,(threads==576?220:248)-r.r_next);
+    auto c=Class(r.kind=="attention"?Key{{"tn",16},{"wn",1},{"depth",1},{"prefetch",0}}:r.key);c.r_next=r.r_next;
+    int primary=r.kind=="attention"?(budget>=64?2:budget>=32?1:0):Width(c,r.key.at("n"),r.key.at("k"),threads,kGrid);
+    if(r.key.at(r.kind=="attention"?"prefetch_kind":"prefetch")!=primary)Fail("rejection does not use prescribed primary width");
+    r.evidence=v;rejected_.push_back(std::move(r));
+  }
+  if (outcomes_v3_ && document.At("measured_domain_complete").AsBool("measured_domain_complete")!=rejected_.empty())
+    Fail("schema3 measured completeness contradicts rejections");
+  if (rows_.empty() && !outcomes_v3_) Fail("empty measured table");
   Fit();
+}
+
+
+namespace {
+Key BaseKey(Key key,std::string const& kind) {key.erase(kind=="attention"?"prefetch_kind":"prefetch");return key;}
+}
+bool MxDecodeSolverV2::Rejected(std::string const& kind,Key const& key) const {
+  auto base=BaseKey(key,kind);
+  return std::any_of(rejected_.begin(),rejected_.end(),[&](auto const& r){return r.kind==kind && BaseKey(r.key,kind)==base;});
+}
+json::Value MxDecodeSolverV2::ValidateScope(MxDecodeModel const& m,int batch,int threads,int grid,int lo,int hi) const {
+  std::set<std::string> fields{"model_id","model","batch","threads","grid","past_lo","past_hi","source_sha256"};
+  if(scope_.AsObject("scope").size()!=fields.size())Fail("schema3 scope fields differ");
+  for(auto const& [field,unused]:scope_.AsObject("scope")) { (void)unused;if(!fields.count(field))Fail("unknown scope field"); }
+  S(scope_,"model_id");auto const& model=scope_.At("model");
+  std::map<std::string,int> expected_model{{"layers",m.layers},{"hidden",m.hidden},{"heads",m.heads},{"hkv",m.hkv},
+      {"head_dim",m.head_dim},{"q_per_kv",m.q_per_kv},{"inter",m.inter},{"vocab",m.vocab},{"capacity",m.capacity}};
+  if(model.AsObject("model").size()!=expected_model.size()+1)Fail("scope model fields differ");
+  for(auto const& [field,value]:expected_model)if(I(model,field.c_str(),1)!=value)Fail("scope model descriptor mismatch: "+field);
+  if(model.At("qk_norm").AsBool("qk_norm")!=m.qk_norm || I(scope_,"batch")!=batch || I(scope_,"threads")!=threads
+     || I(scope_,"grid")!=grid || I(scope_,"past_lo")!=lo || I(scope_,"past_hi")!=hi || lo!=64 || hi!=1086)Fail("scope request mismatch");
+  auto const& sources=scope_.At("source_sha256");if(sources.AsObject("source_sha256").size()!=3)Fail("scope requires three stage sources");
+  for(char const* kind:{"gemm","head","attention"})Hash(sources,kind);
+  using Slot=std::pair<std::string,Key>;std::set<Slot> expected,seen;
+  for(int i=0;i<5;++i) {
+    std::string cls=kClasses[i],kind=cls=="head"?"head":"gemm";int n,k,op,norm;Shape(m,cls,n,k,op,norm);
+    for(auto const& c:MxDecodeDomainV2(m,cls,batch,grid)) {
+      Key key{{"n",n},{"k",k},{"b",batch},{"threads",threads},{"tn",c.tn},{"wn",c.wn},{"depth",c.d}};
+      if(kind=="gemm")key.insert({{"op",op},{"norm",norm},{"part",c.stream_k?0:1}});
+      expected.insert({kind,key});
+    }
+  }
+  for(int bmin:{1,2,4,8})for(int length:{65,256,512,768,1088})
+    expected.insert({"attention",Key{{"dim",m.head_dim},{"q",m.q_per_kv},{"hkv",m.hkv},{"b",batch},{"length",length},
+      {"b_min",bmin},{"qk_norm",int(m.qk_norm)},{"capacity",m.capacity},{"threads",threads}}});
+  auto check_outcomes=[&](auto const& list) {for(auto const& r:list) {
+    Slot slot{r.kind,BaseKey(r.key,r.kind)};
+    if(!expected.count(slot))Fail("outcome outside exact requested model/B/threads domain");
+    if(!seen.insert(slot).second)Fail("duplicate or contradictory cost/rejection outcome");
+    if(S(r.evidence.At("provenance"),"source_sha256")!=S(sources,r.kind.c_str()))Fail("outcome source differs from scope");
+  }};check_outcomes(rows_);check_outcomes(rejected_);
+  if(seen!=expected)Fail("incomplete schema3 outcomes; missing="+std::to_string(expected.size()-seen.size()));
+  if(I(coverage_,"expected_keys")!=int(expected.size()) || I(coverage_,"costed_keys")!=int(rows_.size())
+     || I(coverage_,"rejected_keys")!=int(rejected_.size()) || I(coverage_,"missing_keys")!=0)Fail("coverage counts disagree with actual outcomes");
+  int modern=0,legacy=0;
+  for(auto const& r:rows_)r.evidence.At("r_next_reference").Find("compiler_probe_only")?++modern:++legacy;
+  modern+=int(rejected_.size());
+  json::Array rejections;for(auto const& r:rejected_)rejections.push_back(r.evidence);
+  return json::Object{{"scope",scope_},{"coverage",coverage_},{"resource_rejections",rejections},
+    {"r_next_policy_audit",json::Object{{"modern_normal_checked",modern},{"legacy_cost_only_unverifiable",legacy}}},
+    {"ranking_claim","no_top4_claim"},{"execution_512_approved",false},
+    {"fit_status",fit_rows_?"measured_cost_rows_only":"no_measured_rows"},{"final",false},{"default_enabled",false}};
 }
 
 std::vector<MxDecodeCandidateV2> MxDecodeSolverV2::Candidates(MxDecodeModel const& m, std::string const& cls,
@@ -403,6 +495,11 @@ std::vector<MxDecodeCandidateV2> MxDecodeSolverV2::Candidates(MxDecodeModel cons
       if (kind == "gemm" && (key.at("op") != op || key.at("norm") != norm || (key.at("part") == 0) != c.stream_k)) continue;
       if (match) Fail("ambiguous selected prefetch rows for " + cls);
       match = &r;
+    }
+    if (!match && outcomes_v3_) {
+      Key key{{"n",n},{"k",k},{"b",batch},{"threads",threads},{"tn",c.tn},{"wn",c.wn},{"depth",c.d},{"prefetch",0}};
+      if(kind=="gemm")key.insert({{"op",op},{"norm",norm},{"part",c.stream_k?0:1}});
+      if(Rejected(kind,key))continue;
     }
     if (!match) Fail("missing qualified legal coordinate for " + cls + " N=" + std::to_string(n) + " K=" + std::to_string(k)
                      + " B=" + std::to_string(batch) + " TN=" + std::to_string(c.tn) + " WN=" + std::to_string(c.wn)
@@ -422,6 +519,7 @@ std::vector<MxDecodeCandidateV2> MxDecodeSolverV2::Attention(MxDecodeModel const
   std::vector<MxDecodeCandidateV2> out;
   for (int bmin : {1, 2, 4, 8}) {
     std::vector<Row const*> points;
+    bool executable=true;
     for (int length : {65, 256, 512, 768, 1088}) {
       Row const* match = nullptr;
       for (auto const& r : rows_) {
@@ -433,9 +531,15 @@ std::vector<MxDecodeCandidateV2> MxDecodeSolverV2::Attention(MxDecodeModel const
         if (match) Fail("ambiguous attention prefetch rows");
         match = &r;
       }
+      if (!match && outcomes_v3_) {
+        Key key{{"dim",m.head_dim},{"q",m.q_per_kv},{"hkv",m.hkv},{"b",batch},{"qk_norm",int(m.qk_norm)},
+                {"capacity",m.capacity},{"threads",threads},{"b_min",bmin},{"length",length},{"prefetch_kind",0}};
+        if(Rejected("attention",key)) {executable=false;continue;}
+      }
       if (!match) Fail("missing qualified attention grid coordinate b_min=" + std::to_string(bmin) + " L=" + std::to_string(length));
       points.push_back(match);
     }
+    if(!executable)continue;
     MxDecodeCandidateV2 candidate;
     candidate.b_min = bmin; candidate.attn_prefetch = points[0]->key.at("prefetch_kind");
     candidate.r_next = points[0]->r_next; candidate.resources = points[0]->resources;
@@ -463,11 +567,31 @@ std::vector<MxDecodeCandidateV2> MxDecodeSolverV2::Attention(MxDecodeModel const
 }
 
 MxDecodeSelectionV2 MxDecodeSolverV2::Solve(MxDecodeModel const& m, int batch, int threads, int grid, int lo, int hi) const {
+  if(outcomes_v3_)Fail("schema3 requires explicit SolveQualifiedDomain; production route is not connected");
+  return SolveCore(m,batch,threads,grid,lo,hi);
+}
+MxDecodeSelectionV2 MxDecodeSolverV2::SolveQualifiedDomain(MxDecodeModel const& m,int batch,int threads,int grid,int lo,int hi) const {
+  if(!outcomes_v3_)Fail("SolveQualifiedDomain requires explicit schema3 outcomes");
+  return SolveCore(m,batch,threads,grid,lo,hi);
+}
+MxDecodeSelectionV2 MxDecodeSolverV2::SolveCore(MxDecodeModel const& m,int batch,int threads,int grid,int lo,int hi) const {
   Arguments(m, batch, threads, grid, lo, hi);
   MxDecodeSelectionV2 result;
   result.fit_r2 = fit_r2_; result.fit_rows = fit_rows_;
+  if(outcomes_v3_)result.domain_report=ValidateScope(m,batch,threads,grid,lo,hi);
   for (int i = 0; i < 5; ++i) result.candidates[kClasses[i]] = Candidates(m, kClasses[i], batch, threads, grid);
   result.candidates["attention"] = Attention(m, batch, threads, lo, hi);
+  if(outcomes_v3_) {
+    json::Array empty;json::Object counts;
+    for(char const* cls:kClasses) {
+      auto size=result.candidates.at(cls).size();counts.emplace_back(cls,int(size));if(!size)empty.emplace_back(cls);
+    }
+    result.domain_report.Set("executable_candidates_by_class",counts);
+    if(!empty.empty()) {
+      result.status="no_executable_plan";result.domain_report.Set("empty_classes",empty);
+      result.domain_report.Set("required_review","D7 and per-plan 512 eligibility; no fallback authorized");return result;
+    }
+  }
   std::array<std::vector<double>, 6> costs;
   for (int i = 0; i < 6; ++i)
     for (auto const& candidate : result.candidates.at(kClasses[i])) costs[i].push_back(candidate.ns * (i == 4 ? 1 : m.layers));
@@ -485,12 +609,19 @@ MxDecodeSelectionV2 MxDecodeSolverV2::Solve(MxDecodeModel const& m, int batch, i
   };
   auto ranks = Merge(costs, 4, [&](Ranks const& r) { return Waits(prediction(r).config, m.head_dim); });
   for (auto const& r : ranks) result.top.push_back(prediction(r));
+  if(outcomes_v3_) {
+    result.status=result.top.empty()?"no_executable_plan":result.top.size()<4?"insufficient_top4":"predicted_top4_resource_review_required";
+    if(result.top.size()==4)result.domain_report.Set("ranking_claim","exact_top4_of_certified_executable_stage_domain");
+    if(result.top.size()!=4)result.domain_report.Set("required_review","complete executable top4 unavailable; no fallback authorized");
+    return result;
+  }
   if (result.top.size() != 4) Fail("fewer than four qualified combinations satisfy next-stage wait counts");
   return result;
 }
 
 MxDecodePredictionV2 MxDecodeSolverV2::Predict(MxDecodeModel const& m, int batch, MxDecodeConfigV2 const& config,
                                               int grid, int lo, int hi) const {
+  if(outcomes_v3_)Fail("schema3 Predict requires a separately reviewed lineage-aware interface");
   Arguments(m, batch, config.threads, grid, lo, hi);
   if (!Waits(config, m.head_dim)) Fail("configuration violates next-stage wait counts");
   MxDecodePredictionV2 prediction; prediction.config = config;
@@ -556,6 +687,9 @@ double MxDecodeSolverV2::EstimateUncovered(MxDecodeModel const& m, std::string c
                                  && r.key.at("threads") == threads
                                  && (kind == "head" || (r.key.at("op") == op && r.key.at("norm") == norm)))
     Fail("covered shape cannot use least-squares fallback");
+  for(auto const& r:rejected_)if(r.kind==kind && r.key.at("n")==n && r.key.at("k")==k && r.key.at("b")==batch
+      && r.key.at("threads")==threads && (kind=="head" || (r.key.at("op")==op && r.key.at("norm")==norm)))
+    Fail("rejected covered shape cannot use least-squares fallback");
   auto domain = MxDecodeDomainV2(m, cls, batch, grid);
   if (std::none_of(domain.begin(), domain.end(), [&](MxDecodeClassV2 const& c) {
     return std::tie(c.tn, c.wn, c.d, c.stream_k) == std::tie(candidate.tn, candidate.wn, candidate.d, candidate.stream_k);

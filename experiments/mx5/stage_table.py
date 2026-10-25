@@ -240,19 +240,105 @@ def load_references(paths):
     return result, provenance
 
 
-def validate_reference(reference):
+def validate_reference(reference, *, normal_policy=False):
     if not isinstance(reference, dict):
         raise TableError('R_next reference must be an object')
     provenance = identity(reference.get('provenance', {}))
     kind = kind_of(dict(provenance, kind=reference.get('kind')))
     key = canonical(dict(reference, **provenance), kind)
     try:
-        res = compiler_probe.validate(reference) if 'compiler_probe_only' in reference else resources(reference.get('resources', {}), key['threads'])
+        res = compiler_probe.validate(reference, normal_policy=normal_policy) if 'compiler_probe_only' in reference else resources(reference.get('resources', {}), key['threads'])
     except (ValueError, KeyError, TypeError, OSError) as error:
         raise TableError(str(error)) from error
     if key['prefetch_kind' if kind == 'attention' else 'prefetch'] != 0:
         raise TableError('R_next reference must use Pw=0/PF=0')
     return kind, key, provenance, res
+
+
+
+
+def validate_schema3_reference(reference):
+    if not isinstance(reference,dict):raise TableError('R_next reference must be an object')
+    # A marker cannot be removed to hide build evidence from the schema3 policy check.
+    if 'compiler_probe_only' not in reference:
+        inspectable={'probe','build_metadata','metadata','command','library','source_archive','compiler'}
+        if inspectable.intersection(reference) or 'library' in reference.get('key', {}):
+            raise TableError('schema3 unmarked R_next contains build evidence; modern marker required')
+    return validate_reference(reference, normal_policy=True)
+
+
+def validate_selected_resource(row, initial):
+    """Schema3 publishing check equivalent to native SelectedResource; no estimates."""
+    kind=row['kind'];key=canonical(row,kind)
+    field='prefetch_kind' if kind=='attention' else 'prefetch'
+    if key[field]==initial:
+        return
+    if kind=='attention':
+        raise TableError('attention PF differs from measured R_next rule')
+    selection=row.get('resource_selection')
+    if not isinstance(selection,dict):
+        raise TableError('reduced prefetch requires resource_selection evidence')
+    step=integer(selection.get('selected_resource_step'),'selected_resource_step',1)
+    if step>3:raise TableError('resource selection exceeds three halvings')
+    attempts=selection.get('resource_attempts')
+    if not isinstance(attempts,list) or len(attempts)!=step+1:
+        raise TableError('resource attempts must end at selected step')
+    width=initial;selected_resources=resources(row['resources'],key['threads']);selected_provenance=identity(row['provenance'])
+    for index,attempt in enumerate(attempts):
+        if index:
+            following=max(key['depth'],width//2)
+            if following>=width:raise TableError('resource halving must decrease prefetch')
+            width=following
+        expected=dict(key,**{field:width})
+        if (integer(attempt.get('resource_step'),'resource_step')!=index
+                or integer(attempt.get('prefetch'),'attempt prefetch')!=width
+                or canonical(attempt,kind)!=expected
+                or integer(attempt.get('query_status'),'query_status')!=0
+                or attempt.get('query_only') is not True):
+            raise TableError('invalid resource attempt coordinates/status')
+        fits=attempt.get('fits')
+        if type(fits) is not bool or fits!=(index==step):
+            raise TableError('resource attempt must select first passing build')
+        if not isinstance(attempt.get('resources'),dict):raise TableError('resource attempt attributes must be an object')
+        attrs=compiler_probe.attributes(attempt['resources'])
+        actual_fit=(attrs['mtreg']<=(227 if key['threads']==576 else 255)
+                    and attrs['local_bytes']==0 and attrs['static_smem_bytes']==0 and attrs['resident_ctas']==1)
+        if actual_fit!=fits:raise TableError('resource attempt fit flag contradicts resources')
+        if not fits and attrs['mtreg']<=(227 if key['threads']==576 else 255) and attrs['local_bytes']==0:
+            raise TableError('prefetch halving requires register or stack failure')
+        provenance=identity(attempt.get('provenance',{}))
+        if any(provenance[f]!=selected_provenance[f] for f in IDENTITY if f!='binary_sha256'):
+            raise TableError('resource attempt source/base identity mismatch')
+        if index==step and (attrs!=selected_resources or provenance!=selected_provenance):
+            raise TableError('selected attempt differs from measured build')
+    if width!=key[field]:raise TableError('selected prefetch is not prescribed halving')
+
+
+def validate_primary_rejection(row):
+    """Validate evidence only; primary failure never grants a plan retry or 512."""
+    if row.get('disposition') != 'primary_resource_rejected':
+        raise TableError('requires explicit primary_resource_rejected disposition')
+    if any(field in row for field in ('median_ns','p90_ns','rounds','processes','spread','ns')):
+        raise TableError('resource rejection must not contain costs')
+    provenance = identity(row.get('provenance', {}))
+    kind = kind_of(dict(provenance, kind=row.get('kind')))
+    key = canonical(row, kind)
+    try:
+        attributes = compiler_probe.validate(row, primary=True)
+    except (KeyError, TypeError, ValueError, OSError) as error:
+        raise TableError('primary rejection proof: ' + str(error)) from error
+    if row.get('r_next_reference', {}).get('compiler_probe_only') is not True:
+        raise TableError('primary rejection requires modern witnessed P0 reference')
+    ref_kind, ref_key, ref_provenance, ref_resources = validate_schema3_reference(row['r_next_reference'])
+    expected = dict(key); expected['prefetch_kind' if kind == 'attention' else 'prefetch'] = 0
+    if ref_kind != kind or ref_key != expected:
+        raise TableError('primary rejection R_next coordinates differ')
+    if any(provenance[f] != ref_provenance[f] for f in ('executor','implementation','source_sha256')):
+        raise TableError('primary rejection and R_next sources differ')
+    if integer(row.get('r_next'), 'r_next', 1) != ref_resources['mtreg']:
+        raise TableError('primary rejection R_next differs from measured probe')
+    # Geometric primary width is re-derived by the scoped qualifier/native solver.
+    return kind, key, provenance, attributes
 
 
 def resolve_reference(samples, mapping):

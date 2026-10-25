@@ -1,6 +1,7 @@
 """Validate an unexecuted Pw0 attribute probe, never an executable cost row."""
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import tarfile
@@ -38,9 +39,38 @@ def attributes(value):
     return result
 
 
-def validate(reference):
-    if reference.get('compiler_probe_only') is not True:
-        raise ValueError('reference requires compiler_probe_only=true')
+def validate_normal_command(kind, key, command, binary):
+    """Bind output before ignoring the one permitted MIR observer, wherever placed."""
+    if command.count('-o') != 1:
+        raise ValueError('normal bench command must have exactly one output')
+    output_index=command.index('-o')+1
+    if output_index >= len(command) or Path(command[output_index]).resolve() != binary:
+        raise ValueError('normal bench command output differs from actual binary')
+    output=command[output_index]
+    normal=[command[0], '-std=c++17', '-O3', '-shared', '-Xcompiler', '-fPIC,-resource-usage',
+            '-fno-strict-aliasing', '-DTILEMEGA_SYNC_V3=1', '-DTILEMEGA_WATCHDOG=0',
+            '-DMX5_TEST_THREADS='+str(key['threads'])]
+    if kind=='attention':
+        normal += ['-DMX5_TEST_DIM='+str(key['dim']), '-DMX5_TEST_Q='+str(key['q']),
+                   '-DMX5_BENCH_PREFETCH_KIND='+str(key['prefetch_kind'])]
+    else:
+        normal += ['-DMX5_TEST_TN='+str(key['tn']), '-DMX5_TEST_DEPTH='+str(key['depth']),
+                   '-DMX5_BENCH_PW='+str(key['prefetch'])]
+    source='experiments/mx5/'+('stage_bench.cu' if kind=='gemm' else kind+'_stage_bench.cu')
+    normal += ['-Iinclude', source, '-o', output]
+    observed=list(command)
+    if '-print-after=stack-frame-layout' in observed:
+        i=observed.index('-print-after=stack-frame-layout')
+        if i < 1 or observed[i-1] != '-mllvm':
+            raise ValueError('invalid MIR observation argument')
+        del observed[i-1:i+1]
+    if observed != normal:
+        raise ValueError('diagnostic/forced-register flags do not match normal bench build policy')
+
+
+def validate(reference, *, primary=False, normal_policy=False):
+    if reference.get('primary_resource_rejection' if primary else 'compiler_probe_only') is not True:
+        raise ValueError('primary rejection requires primary_resource_rejection=true' if primary else 'reference requires compiler_probe_only=true')
     query = reference.get('probe', {})
     if (query.get('query_only') is not True or type(query.get('iterations')) is not int
             or query['iterations'] != 0 or type(query.get('query_status')) is not int or query['query_status'] != 0):
@@ -54,7 +84,7 @@ def validate(reference):
         if not isinstance(provenance.get(name), str) or not re.fullmatch('[0-9a-f]{64}', provenance[name]):
             raise ValueError('invalid compiler probe provenance ' + name)
     field = 'prefetch_kind' if kind == 'attention' else 'prefetch'
-    if key.get(field) != 0 or type(key.get(field)) is not int:
+    if type(key.get(field)) is not int or (not primary and key[field] != 0):
         raise ValueError('compiler probe must describe exact Pw0/PF0 coordinates')
     resources = attributes(reference['resources'])
     threads = key['threads']
@@ -76,10 +106,10 @@ def validate(reference):
     expected = dict(threads=threads)
     macros = dict(MX5_TEST_THREADS='threads')
     if kind == 'attention':
-        expected.update(dim=key['dim'], query=key['q'], prefetch_kind=0)
+        expected.update(dim=key['dim'], query=key['q'], prefetch_kind=key[field] if primary else 0)
         macros.update(MX5_TEST_DIM='dim', MX5_TEST_Q='query', MX5_BENCH_PREFETCH_KIND='prefetch_kind')
     else:
-        expected.update(tn=key['tn'], depth=key['depth'], pw=0)
+        expected.update(tn=key['tn'], depth=key['depth'], pw=key[field] if primary else 0)
         macros.update(MX5_TEST_TN='tn', MX5_TEST_DEPTH='depth', MX5_BENCH_PW='pw')
     for name, number in expected.items():
         if type(metadata.get(name)) is not int or metadata[name] != number:
@@ -117,6 +147,38 @@ def validate(reference):
         raise ValueError('compiler probe invalid source archive: ' + str(error)) from error
     if digest.hexdigest() != provenance.get('source_sha256'):
         raise ValueError('compiler probe archived source digest mismatch')
+    if primary or normal_policy:
+        validate_normal_command(kind,key,command,binary)
+    if primary:
+        if fits:
+            raise ValueError('primary rejection actually fits executable resource gates')
+        compiler = check_file(query['compiler'])
+        if (reference.get('compiler_binding') != 'retained_executable_at_qualification'
+                or reference.get('original_compiler_identity_recorded') is not False
+                or 'original_build_compiler_sha256' not in reference or reference['original_build_compiler_sha256'] is not None):
+            raise ValueError('primary query must explicitly distinguish qualification-time compiler identity')
+        if (not command or not Path(command[0]).is_absolute() or Path(command[0]).resolve() != compiler
+                or not os.access(compiler, os.X_OK)):
+            raise ValueError('primary query lacks retained executable/command binding')
+        if reference.get('build_policy') != 'mx5_build_bodies_default_v1':
+            raise ValueError('primary rejection requires the normal stage-bench build policy')
+        descriptor=query['raw_query']; raw_text=check_file(descriptor).read_text()
+        if 'line' in descriptor:
+            line=descriptor['line']
+            if type(line) is not int or not 1 <= line <= len(raw_text.splitlines()):
+                raise ValueError('invalid primary raw query line')
+            raw_text=raw_text.splitlines()[line-1]
+        raw = json.loads(raw_text)
+        if not isinstance(raw.get('library'),str) or Path(raw['library']).resolve() != binary:
+            raise ValueError('primary raw query library differs from compiled binary')
+        for name in ('kind', 'key', 'resources', 'provenance', 'fits'):
+            if raw.get(name) != reference[name]:
+                raise ValueError('primary raw query differs from derived rejection: ' + name)
+        if (raw.get('query_only') is not True or type(raw.get('iterations')) is not int or raw['iterations'] != 0
+                or type(raw.get('query_status')) is not int or raw['query_status'] != 0):
+            raise ValueError('primary raw query must be successful zero-execution attributes')
+        if any(field in raw for field in ('median_ns', 'p90_ns', 'rounds', 'spread', 'processes')):
+            raise ValueError('primary rejection raw query contains execution costs')
     return resources
 
 

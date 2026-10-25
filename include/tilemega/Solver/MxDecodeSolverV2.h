@@ -32,6 +32,8 @@ struct MxDecodePredictionV2 {
 };
 
 struct MxDecodeSelectionV2 {
+  std::string status = "selected_top4";
+  json::Value domain_report;
   std::vector<MxDecodePredictionV2> top;
   std::map<std::string, std::vector<MxDecodeCandidateV2>> candidates;
   double fit_r2 = 0;
@@ -67,6 +69,11 @@ class MxDecodeSolverV2 {
   MxDecodeSelectionV2 Solve(codegen::MxDecodeModel const& model, int batch,
                            int threads = 576, int grid = 104,
                            int past_lo = 64, int past_hi = 1086) const;
+  /// Explicit schema3 diagnostic route. Never authorizes execution or 512.
+  /// Empty classes return status=no_executable_plan with retained rejection evidence.
+  MxDecodeSelectionV2 SolveQualifiedDomain(codegen::MxDecodeModel const& model, int batch,
+                           int threads = 576, int grid = 104,
+                           int past_lo = 64, int past_hi = 1086) const;
   MxDecodePredictionV2 Predict(codegen::MxDecodeModel const& model, int batch,
                              codegen::MxDecodeConfigV2 const& config, int grid = 104,
                              int past_lo = 64, int past_hi = 1086) const;
@@ -89,7 +96,20 @@ class MxDecodeSolverV2 {
     MxDecodeResourcesV2 resources;
     json::Value evidence;
   };
+  struct Rejection {
+    std::string kind;
+    std::map<std::string,int> key;
+    int r_next = -1;
+    MxDecodeResourcesV2 resources;
+    json::Value evidence;
+  };
   std::vector<Row> rows_;
+  std::vector<Rejection> rejected_;
+  bool outcomes_v3_ = false;
+  json::Value scope_, coverage_;
+  bool Rejected(std::string const&, std::map<std::string,int> const&) const;
+  json::Value ValidateScope(codegen::MxDecodeModel const&, int, int, int, int, int) const;
+  MxDecodeSelectionV2 SolveCore(codegen::MxDecodeModel const&, int, int, int, int, int) const;
   std::array<std::vector<double>, 2> coefficients_;
   double fit_r2_ = 0;
   int fit_rows_ = 0;

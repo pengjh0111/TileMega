@@ -321,8 +321,211 @@ void TestCompilerOnlyReference(Value const& table) {
   Put(binary,"changed synthetic proof\n");Throws([&]{MxDecodeSolverV2 solver(changed);},"proof file hash mismatch");
   fs::remove_all(dir);
 }
+// CPU synthetic proof bundles; no real costs or resource queries.
+struct OutcomeProofs {
+  std::filesystem::path dir,compiler;
+  std::map<std::string,std::string> sources;
+  int sequence=0;
+  OutcomeProofs() {
+    dir=std::filesystem::temp_directory_path()/("mx5_outcomes_cpu_"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    std::filesystem::create_directory(dir);compiler=dir/"CPU_fixture_compiler";Put(compiler,"CPU synthetic compiler identity, never executed\n");std::filesystem::permissions(compiler,std::filesystem::perms::owner_exec,std::filesystem::perm_options::add);
+    for(std::string kind:{"gemm","head","attention"}) {
+      std::string name="experiments/mx5/"+(kind=="gemm"?std::string("stage_bench.cu"):kind+"_stage_bench.cu"),body="// CPU synthetic "+kind+" bench fixture\n";
+      sources[kind]=compiler_probe_v2::Digest(name+'\0'+body+'\0');
+      auto tar=TarMember(name,body,'0')+std::string(1024,'\0');auto path=dir/(kind+".tar.gz");auto gz=gzopen(path.c_str(),"wb");assert(gz);
+      assert(gzwrite(gz,tar.data(),unsigned(tar.size()))==int(tar.size()));assert(gzclose(gz)==Z_OK);
+    }
+  }
+  ~OutcomeProofs(){std::filesystem::remove_all(dir);}
+  Value Proof(std::string const& kind,Value key,bool rejection) {
+    auto stem=dir/("proof"+std::to_string(sequence++)),binary=stem;binary+=".so";
+    Put(binary,"CPU synthetic binary "+std::to_string(sequence));
+    auto prov=Identity(kind);prov.Set("source_sha256",sources[kind]);prov.Set("binary_sha256",ProofFile(binary).At("sha256"));
+    std::string field=kind=="attention"?"prefetch_kind":"prefetch";
+    json::Array command{compiler.string(),"-std=c++17","-O3","-shared","-Xcompiler","-fPIC,-resource-usage","-fno-strict-aliasing","-DTILEMEGA_SYNC_V3=1","-DTILEMEGA_WATCHDOG=0","-DMX5_TEST_THREADS=576"};
+    auto meta=Obj({{"body",kind},{"bench",true},{"returncode",0},{"threads",576},{"source_sha256",sources[kind]},
+                   {"binary_sha256",prov.At("binary_sha256")},{"base_head",prov.At("base_head")}});
+    auto coordinate=[&](char const* name,char const* dimension,char const* macro) {
+      int value=Number(key,dimension);meta.Set(name,value);command.emplace_back(std::string("-D")+macro+"="+std::to_string(value));
+    };
+    if(kind=="attention") {coordinate("dim","dim","MX5_TEST_DIM");coordinate("query","q","MX5_TEST_Q");coordinate("prefetch_kind","prefetch_kind","MX5_BENCH_PREFETCH_KIND");}
+    else {coordinate("tn","tn","MX5_TEST_TN");coordinate("depth","depth","MX5_TEST_DEPTH");coordinate("pw","prefetch","MX5_BENCH_PW");}
+    command.emplace_back("-Iinclude");command.emplace_back("experiments/mx5/"+(kind=="gemm"?std::string("stage_bench.cu"):kind+"_stage_bench.cu"));command.emplace_back("-o");command.emplace_back(binary.string());meta.Set("command",command);
+    auto metadata=stem;metadata+=".json";Put(metadata,meta.Dump());
+    auto resources=Resource(160);if(rejection)resources.Set("local_bytes",8);
+    auto raw=Obj({{"library",binary.string()},{"kind",kind},{"key",key},{"resources",resources},{"provenance",prov},{"fits",!rejection},
+                   {"query_only",true},{"iterations",0},{"query_status",0}});
+    auto rawpath=stem;rawpath+=".raw.json";Put(rawpath,raw.Dump());
+    auto proof=Obj({{"query_only",true},{"iterations",0},{"query_status",0},{"binary",ProofFile(binary)},
+                   {"build_metadata",ProofFile(metadata)},{"source_archive",ProofFile(dir/(kind+".tar.gz"))},
+                   {"compiler",ProofFile(compiler)},{"raw_query",ProofFile(rawpath)}});
+    auto record=Obj({{"kind",kind},{"key",key},{"resources",resources},{"provenance",prov},{"fits",!rejection},{"probe",proof}});
+    if(rejection) {
+      record.Set("compiler_binding","retained_executable_at_qualification");record.Set("original_compiler_identity_recorded",false);record.Set("original_build_compiler_sha256",Value());record.Set("build_policy","mx5_build_bodies_default_v1");record.Set("primary_resource_rejection",true);record.Set("disposition","primary_resource_rejected");record.Set("r_next",160);
+      key.Set(field,0);record.Set("r_next_reference",Proof(kind,key,false));
+    } else record.Set("compiler_probe_only",true);
+    return record;
+  }
+  Value Envelope(Value const& table,json::Array rows,json::Array rejected) {
+    for(auto& row:rows) {
+      auto kind=row.At("kind").AsString("kind");auto prov=row.At("provenance");prov.Set("source_sha256",sources[kind]);row.Set("provenance",prov);
+      if(auto* selection=row.Find("resource_selection")) {
+        auto value=*selection;
+        if(auto* attempts=value.Find("resource_attempts")) {
+          auto history=attempts->AsArray("resource_attempts");
+          for(auto& attempt:history){auto identity=attempt.At("provenance");identity.Set("source_sha256",sources[kind]);attempt.Set("provenance",identity);}
+          value.Set("resource_attempts",history);row.Set("resource_selection",value);
+        }
+      }
+      auto ref=row.At("r_next_reference"),rp=ref.At("provenance");rp.Set("source_sha256",sources[kind]);ref.Set("provenance",rp);row.Set("r_next_reference",ref);
+      auto rounds=row.At("rounds").AsArray("rounds");for(auto& round:rounds){auto m=round.At("measurement");m.Set("source_sha256",sources[kind]);round.Set("measurement",m);}row.Set("rounds",rounds);
+    }
+    auto m=Model();auto descriptor=Obj({{"layers",m.layers},{"hidden",m.hidden},{"heads",m.heads},{"hkv",m.hkv},
+      {"head_dim",m.head_dim},{"q_per_kv",m.q_per_kv},{"inter",m.inter},{"vocab",m.vocab},{"capacity",m.capacity},{"qk_norm",m.qk_norm}});
+    auto scope=Obj({{"model_id","CPU_SYNTHETIC_MODEL"},{"model",descriptor},{"batch",1},{"threads",576},{"grid",104},{"past_lo",64},{"past_hi",1086},
+      {"source_sha256",Obj({{"gemm",sources["gemm"]},{"head",sources["head"]},{"attention",sources["attention"]}})}});
+    auto doc=table;doc.Set("schema_version",3);doc.Set("qualification_scope","complete_outcomes_single_request_v1");doc.Set("scope",scope);
+    doc.Set("rows",rows);doc.Set("resource_rejections",rejected);doc.Set("outcome_domain_complete",true);doc.Set("measured_domain_complete",rejected.empty());
+    doc.Set("execution_512_approved",false);doc.Set("global_dt576_policy_approved",false);doc.Set("target_defaults_changed",false);
+    doc.Set("coverage",Obj({{"expected_keys",int(table.At("rows").AsArray("rows").size())},{"costed_keys",int(rows.size())},{"rejected_keys",int(rejected.size())},{"missing_keys",0}}));return doc;
+  }
+};
+void OutcomeOracle(MxDecodeSelectionV2 const& result) {
+  char const* names[]={"qkv","o","gate_up","down","head","attention"};using Ranks=std::array<std::size_t,6>;
+  std::vector<std::pair<double,Ranks>> brute;Ranks ranks{};
+  std::function<void(int,double)> visit=[&](int i,double sum) {
+    if(i==6){brute.push_back({sum,ranks});return;}
+    auto const& list=result.candidates.at(names[i]);
+    for(ranks[i]=0;ranks[i]<std::min<std::size_t>(4,list.size());++ranks[i])visit(i+1,sum+list[ranks[i]].ns*(i==4?1:Model().layers));
+  };
+  visit(0,0);std::sort(brute.begin(),brute.end());assert(result.top.size()==4);
+  for(int i=0;i<4;++i) {assert(result.top[i].ranks==brute[i].second);assert(result.top[i].tpot_ns==brute[i].first);}
+}
+void TestOutcomeDomain(Value const& table) {
+  OutcomeProofs proof;auto rows=table.At("rows").AsArray("rows");
+  auto all=proof.Envelope(table,rows,{});MxDecodeSolverV2 solver(all);
+  auto result=solver.SolveQualifiedDomain(Model(),1);OutcomeOracle(result);
+  auto old=MxDecodeSolverV2(table).Solve(Model(),1);assert(result.top[0].tpot_ns==old.top[0].tpot_ns);
+  Throws([&]{solver.Solve(Model(),1);},"explicit SolveQualifiedDomain");
+  Throws([&]{solver.Predict(Model(),1,result.top[0].config);},"lineage-aware");
+  auto wrong=Model();wrong.head_dim=128;Throws([&]{solver.SolveQualifiedDomain(wrong,1);},"model descriptor mismatch");
+  Throws([&]{solver.SolveQualifiedDomain(Model(),2);},"scope request mismatch");
+  auto wrong_source=all;auto scope=wrong_source.At("scope"),sources=scope.At("source_sha256");sources.Set("gemm",std::string(64,'f'));scope.Set("source_sha256",sources);wrong_source.Set("scope",scope);
+  Throws([&]{MxDecodeSolverV2(wrong_source).SolveQualifiedDomain(Model(),1);},"source differs from scope");
+  auto missing=rows;missing.erase(missing.begin());auto document=proof.Envelope(table,missing,{});
+  Throws([&]{MxDecodeSolverV2(document).SolveQualifiedDomain(Model(),1);},"incomplete schema3 outcomes");
+  auto rejected=proof.Proof("gemm",rows[0].At("key"),true);
+  document=proof.Envelope(table,missing,{rejected});result=MxDecodeSolverV2(document).SolveQualifiedDomain(Model(),1);OutcomeOracle(result);
+  assert(result.candidates.at("qkv").size()+1==old.candidates.at("qkv").size());
+  auto conflict=proof.Envelope(table,rows,{rejected});
+  Throws([&]{MxDecodeSolverV2(conflict).SolveQualifiedDomain(Model(),1);},"contradictory");
+  auto bad=ChangeRow(document,[](Value& row){auto resource=row.At("resources");resource.Set("local_bytes",4);row.Set("resources",resource);});
+  Throws([&]{MxDecodeSolverV2 s(bad);},"resource rejection");
+  auto bad_rejection=rejected;bad_rejection.Set("median_ns",0);auto badrows=document.At("rows").AsArray("rows");
+  Throws([&]{MxDecodeSolverV2 s(proof.Envelope(table,badrows,{bad_rejection}));},"must not contain costs");
+  // One rejected point invalidates its whole b_min, without interpolating across it.
+  json::Array costs,exclusions;for(auto const& row:rows) {
+    if(row.At("kind").AsString("kind")=="attention" && Number(row.At("key"),"b_min")==1 && Number(row.At("key"),"length")==256)
+      exclusions.push_back(proof.Proof("attention",row.At("key"),true));else costs.push_back(row);
+  }
+  result=MxDecodeSolverV2(proof.Envelope(table,costs,exclusions)).SolveQualifiedDomain(Model(),1);OutcomeOracle(result);
+  assert(result.candidates.at("attention").size()==3 && result.top[0].config.b_min==2 && result.top[0].stage_ns.at("attention")==3152);
+  costs.clear();exclusions.clear();for(auto const& row:rows) {
+    if(row.At("kind").AsString("kind")=="head")exclusions.push_back(proof.Proof("head",row.At("key"),true));else costs.push_back(row);
+  }
+  MxDecodeSolverV2 empty(proof.Envelope(table,costs,exclusions));result=empty.SolveQualifiedDomain(Model(),1);
+  assert(result.status=="no_executable_plan" && result.top.empty() && result.candidates.at("head").empty());
+  assert(!result.domain_report.At("execution_512_approved").AsBool("512"));
+  Throws([&]{empty.EstimateUncovered(Model(),"head",1,MxDecodeDomainV2(Model(),"head",1)[0]);},"rejected covered shape");
+  // A single costed choice per class cannot be duplicated to manufacture top4.
+  costs.clear();exclusions.clear();std::set<std::string> kept;
+  for(auto const& row:rows) {
+    auto kind=row.At("kind").AsString("kind");auto const& key=row.At("key");
+    std::string shape=kind=="attention"?"attention":kind+std::to_string(Number(key,"n"))+"/"+std::to_string(Number(key,"k"))+(kind=="gemm"?"/"+std::to_string(Number(key,"op"))+"/"+std::to_string(Number(key,"norm")):"");
+    bool keep=kind=="attention"?Number(key,"b_min")==1:kept.insert(shape).second;
+    if(keep)costs.push_back(row);else exclusions.push_back(proof.Proof(kind,key,true));
+  }
+  result=MxDecodeSolverV2(proof.Envelope(table,costs,exclusions)).SolveQualifiedDomain(Model(),1);
+  assert(result.status=="insufficient_top4" && result.top.size()==1);
+  costs.clear();exclusions.clear();for(auto const& row:rows)exclusions.push_back(proof.Proof(row.At("kind").AsString("kind"),row.At("key"),true));
+  MxDecodeSolverV2 all_rejected(proof.Envelope(table,costs,exclusions));result=all_rejected.SolveQualifiedDomain(Model(),1);
+  assert(result.status=="no_executable_plan" && result.top.empty() && result.fit_rows==0);
+  assert(result.domain_report.At("ranking_claim").AsString("ranking_claim")=="no_top4_claim");
+  assert(result.domain_report.At("fit_status").AsString("fit_status")=="no_measured_rows");
+  for(char const* field:{"local_bytes","static_smem_bytes","resident_ctas"}) {
+    auto broken=rejected;auto attrs=broken.At("resources");attrs.Set("mtreg",268);attrs.Set(field,Value());broken.Set("resources",attrs);
+    Throws([&]{MxDecodeSolverV2 s(proof.Envelope(table,missing,{broken}));},field);
+  }
+  auto line_bound=rejected;auto line_probe=line_bound.At("probe");
+  auto raw=compiler_probe_v2::File(line_probe.At("raw_query"));auto rawpath=proof.dir/"original-attempts.jsonl";
+  Put(rawpath,"{}\n"+raw+"\n");auto descriptor=ProofFile(rawpath);descriptor.Set("line",2);line_probe.Set("raw_query",descriptor);line_bound.Set("probe",line_probe);
+  // The raw fixture was pretty-printed; retain a single genuine JSONL record.
+  Put(rawpath,"{}\n"+json::Parse(raw).Dump(0)+"\n");descriptor=ProofFile(rawpath);descriptor.Set("line",2);line_probe.Set("raw_query",descriptor);line_bound.Set("probe",line_probe);
+  auto normal_meta=json::Parse(compiler_probe_v2::File(line_probe.At("build_metadata")));
+  auto observed=normal_meta.At("command").AsArray("command");observed.insert(observed.begin()+1,"-mllvm");observed.insert(observed.begin()+2,"-print-after=stack-frame-layout");normal_meta.Set("command",observed);
+  auto normal_path=proof.dir/"normal-mir.json";Put(normal_path,normal_meta.Dump());line_probe.Set("build_metadata",ProofFile(normal_path));line_bound.Set("probe",line_probe);
+  assert(MxDecodeSolverV2(proof.Envelope(table,missing,{line_bound})).SolveQualifiedDomain(Model(),1).top.size()==4);
+  auto forced=rejected;auto attachment=forced.At("probe");
+  auto meta=json::Parse(compiler_probe_v2::File(attachment.At("build_metadata")));
+  auto command=meta.At("command").AsArray("command");command.insert(command.begin()+1,"--maxrregcount=227");meta.Set("command",command);
+  auto path=proof.dir/"forced-diagnostic.json";Put(path,meta.Dump());attachment.Set("build_metadata",ProofFile(path));forced.Set("probe",attachment);
+  Throws([&]{MxDecodeSolverV2 s(proof.Envelope(table,missing,{forced}));},"forced-register flags");
+  for(char const* field:{"query_only","iterations","query_status"}) {
+    auto broken=rejected;auto probe=broken.At("probe");probe.Set(field,Value());broken.Set("probe",probe);
+    Throws([&]{MxDecodeSolverV2 s(proof.Envelope(table,missing,{broken}));},field);
+  }
+}
+
+void TestSchema3ReviewRegressions(Value const& table) {
+  OutcomeProofs proof;auto rows=table.At("rows").AsArray("rows");auto missing=rows;missing.erase(missing.begin());
+  auto rejected=proof.Proof("gemm",rows[0].At("key"),true);
+  auto alter=[&](Value reference,json::Array extra,bool trailing,std::string const& stem) {
+    auto probe=reference.At("probe");auto meta=json::Parse(compiler_probe_v2::File(probe.At("build_metadata")));
+    auto command=meta.At("command").AsArray("command");
+    command.insert(trailing?command.end():command.begin()+1,extra.begin(),extra.end());meta.Set("command",command);
+    auto path=proof.dir/(stem+".json");Put(path,meta.Dump());probe.Set("build_metadata",ProofFile(path));reference.Set("probe",probe);return reference;
+  };
+  for(bool trailing:{false,true})for(bool p0:{false,true}) {
+    auto row=rejected;
+    if(p0)row.Set("r_next_reference",alter(row.At("r_next_reference"),{"-mllvm","-print-after=stack-frame-layout"},trailing,"p0-mir"));
+    else row=alter(row,{"-mllvm","-print-after=stack-frame-layout"},trailing,"primary-mir");
+    auto result=MxDecodeSolverV2(proof.Envelope(table,missing,{row})).SolveQualifiedDomain(Model(),1);
+    assert(result.top.size()==4);
+  }
+  auto forced=alter(rejected.At("r_next_reference"),{"-mllvm","--max-mtreg-number=255"},true,"forced-p0");
+  // Schema2 keeps its pre-existing permissive compiler-only probe contract.
+  compiler_probe_v2::Validate(forced,"gemm",576);
+  auto broken=rejected;broken.Set("r_next_reference",forced);
+  Throws([&]{MxDecodeSolverV2 solver(proof.Envelope(table,missing,{broken}));},"forced-register flags");
+  auto cost_rows=rows;cost_rows[0].Set("r_next_reference",forced);
+  auto document=proof.Envelope(table,cost_rows,{});
+  Throws([&]{MxDecodeSolverV2 solver(document);},"forced-register flags");
+  document.Set("schema_version",2);assert(MxDecodeSolverV2(document).Solve(Model(),1).top.size()==4);
+  Value unmarked=json::Object{};for(auto const& [field,value]:forced.AsObject("reference"))if(field!="compiler_probe_only")unmarked.Set(field,value);
+  cost_rows[0].Set("r_next_reference",unmarked);document=proof.Envelope(table,cost_rows,{});
+  Throws([&]{MxDecodeSolverV2 solver(document);},"contains build evidence");
+  auto flat=table.At("rows").AsArray("rows")[0].At("r_next_reference");compiler_probe_v2::Schema3LegacyReference(flat);
+  // A legal reduced measured width needs every prescribed, source-bound attempt.
+  auto key=rows[0].At("key");int initial=Number(key,"prefetch");assert(initial==6);key.Set("prefetch",3);
+  cost_rows=rows;cost_rows[0]=Row("gemm",key,rows[0].At("median_ns").AsNumber("ns"));
+  cost_rows[0].Set("resource_selection",Obj({{"selected_resource_step",0}}));
+  Throws([&]{MxDecodeSolverV2 solver(proof.Envelope(table,cost_rows,{}));},"resource selection exceeds three halvings");
+  auto primary_key=key;primary_key.Set("prefetch",initial);
+  auto attempt=[&](int step,bool fits,Value actual) {
+    return Obj({{"resource_step",step},{"prefetch",Number(actual,"prefetch")},{"key",actual},{"query_status",0},{"query_only",true},
+                {"fits",fits},{"resources",Resource(fits?200:228)},{"provenance",Identity("gemm")}});
+  };
+  auto selection=Obj({{"selected_resource_step",1},{"resource_attempts",json::Array{attempt(0,false,primary_key),attempt(1,true,key)}}});
+  cost_rows[0].Set("resource_selection",selection);document=proof.Envelope(table,cost_rows,{});
+  auto result=MxDecodeSolverV2(document).SolveQualifiedDomain(Model(),1);assert(result.top.size()==4);
+  assert(result.domain_report.At("r_next_policy_audit").At("legacy_cost_only_unverifiable").AsNumber("legacy")>0);
+  auto attempts=selection.At("resource_attempts").AsArray("attempts");attempts[0].Set("fits",true);selection.Set("resource_attempts",attempts);cost_rows[0].Set("resource_selection",selection);
+  Throws([&]{MxDecodeSolverV2 solver(proof.Envelope(table,cost_rows,{}));},"first passing build");
+  std::cout<<"schema3 review regressions: P0 override rejected, MIR positions accepted, cost-width/halving parity and schema2 legacy preserved\n";
+}
 }  // namespace
 int main() {
-  TestMerge(); auto table = Table(); TestSolve(table); TestPiecewiseAttention(table); TestRejections(table); TestReduction(table); TestCompilerOnlyReference(table);
+  TestMerge(); auto table = Table(); TestSolve(table); TestPiecewiseAttention(table); TestRejections(table); TestReduction(table); TestCompilerOnlyReference(table); TestOutcomeDomain(table); TestSchema3ReviewRegressions(table);
   std::cout << "mx_decode_solver_v2: CPU synthetic qualification, interpolation, k-best and selection checks passed\n";
+  return 0;
 }

@@ -713,6 +713,7 @@ if(TILEMEGA_BUILD_TESTS)
     ${CMAKE_SOURCE_DIR}/test/python/test_mx5_plan_occupancy.py
     ${CMAKE_SOURCE_DIR}/test/python/test_mx5_stage_program_scope.py
     ${CMAKE_SOURCE_DIR}/test/python/test_mx_p0_alignment.py
+    ${CMAKE_SOURCE_DIR}/test/python/test_mx_outcome_domain.py
     ${CMAKE_SOURCE_DIR}/test/python/test_mx5_stage_reference.py)
   set_tests_properties(mx_decode_v2_host PROPERTIES
     ENVIRONMENT "PYTHONPATH=${CMAKE_SOURCE_DIR}/python;TILEMEGA_BIN=$<TARGET_FILE:tilemega>;TILEMEGA_MX5_NATIVE_RECEIPT_TEST_DRIVER=$<TARGET_FILE:mx5_compile_receipt>")

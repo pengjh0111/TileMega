@@ -11,6 +11,8 @@ import importlib.util
 import json
 from pathlib import Path
 import re
+import subprocess
+import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 KINDS = ('gemm', 'head', 'attention')
@@ -98,7 +100,7 @@ def checked_identity(row):
     return kind, key
 
 
-def audit(args, inputs):
+def audit(args, inputs, allow_kind_subset=False):
     inventory = {}
     for row in inputs.rows(args.inventory):
         kind = row['kind']
@@ -111,7 +113,7 @@ def audit(args, inputs):
         if index in inventory:
             raise ValueError('duplicate inventory key')
         inventory[index] = uses(row)
-    if {index[0] for index in inventory} != set(KINDS):
+    if (not inventory or (not allow_kind_subset and {index[0] for index in inventory} != set(KINDS))):
         raise ValueError('requested inventory must contain gemm, head, and attention')
     jobs, seen, manifests = [], {}, set()
     for path in args.manifest:
@@ -218,13 +220,13 @@ def card_for(job, inputs, job_log):
     return matches[0]['card'], dict(source=str(path), snapshot_sha256=sha(raw), matched_lines=matches)
 
 
-def qualify(args):
+def qualify(args, allow_kind_subset=False):
     inputs = Inputs()
     snapshots = []
     for path in (Path(__file__), Path(table.__file__), Path(table.compiler_probe.__file__), Path(scheduler.__file__)):
         raw = path.read_bytes()
         snapshots.append(dict(path=str(path.resolve()), sha256=sha(raw), source=raw.decode()))
-    jobs, coverage = audit(args, inputs)
+    jobs, coverage = audit(args, inputs, allow_kind_subset)
     scope = dict(coverage_threads=[args.threads], full_table=False,
                  global_dt576_policy_approved=False, target_defaults_changed=False,
                  actual_plan_resource_exceptions_approved=False)
@@ -287,7 +289,145 @@ def qualify(args):
                                 batches=batches, tool_sources=snapshots), rows=rows), 0
 
 
+MODEL_FIELDS = ('layers','hidden','heads','hkv','head_dim','q_per_kv','inter','vocab','capacity')
+
+
+def scoped_domain(scope, domain):
+    if set(scope) != {'model_id','model','batch','threads','grid','past_lo','past_hi','source_sha256'}:
+        raise ValueError('schema3 requires the exact single-request scope fields')
+    model = scope['model']
+    if set(model) != {*MODEL_FIELDS, 'qk_norm'} or type(model['qk_norm']) is not bool:
+        raise ValueError('invalid scoped model descriptor')
+    for field in MODEL_FIELDS:
+        table.integer(model[field], 'model.' + field, 1)
+    if (not isinstance(scope['model_id'], str) or not scope['model_id'] or scope['grid'] != 104
+            or type(scope['grid']) is not int or scope['threads'] not in (512,576)
+            or type(scope['threads']) is not int or scope['batch'] not in (1,2,4,8,16)
+            or type(scope['batch']) is not int or scope['past_lo'] != 64 or type(scope['past_lo']) is not int
+            or scope['past_hi'] != 1086 or type(scope['past_hi']) is not int or model['capacity'] != 1088):
+        raise ValueError('unsupported schema3 request scope')
+    sources = scope['source_sha256']
+    if set(sources) != set(KINDS) or any(not isinstance(x,str) or not re.fullmatch('[0-9a-f]{64}',x) for x in sources.values()):
+        raise ValueError('scope requires exact gemm/head/attention source identities')
+    shapes = dict(qkv=((model['q_per_kv']+2)*model['hkv']*model['head_dim'],model['hidden'],0,1),
+                  o=(model['hidden'],model['heads']*model['head_dim'],1,0),
+                  gate_up=(2*model['inter'],model['hidden'],2,1),
+                  down=(model['hidden'],model['inter'],1,0),head=(model['vocab'],model['hidden'],0,1))
+    slots, classes = {}, {}
+    for cls,(n,k,op,norm) in shapes.items():
+        kind = 'head' if cls == 'head' else 'gemm'
+        command = [str(domain),'--kind',kind,'--n',str(n),'--k',str(k),'--batch',str(scope['batch']),
+                   '--threads',str(scope['threads'])]
+        if kind == 'gemm': command += ['--op',str(op)]
+        result = subprocess.run(command,check=True,capture_output=True,text=True)
+        classes[cls] = []
+        for line in result.stdout.splitlines():
+            emitted=json.loads(line)
+            key={name: emitted[name] for name in table.FIELDS[kind] if name in emitted}
+            key['prefetch']=0
+            if kind=='gemm':key['norm']=norm
+            index=base_id(kind,table.canonical(dict(key=key),kind))
+            slots[index]=emitted['first_chunks']; classes[cls].append(index)
+        if not classes[cls]:raise ValueError('empty geometric domain: '+cls)
+    classes['attention']=[]
+    for bmin in (1,2,4,8):
+        for length in (65,256,512,768,1088):
+            key=dict(dim=model['head_dim'],q=model['q_per_kv'],hkv=model['hkv'],b=scope['batch'],
+                     length=length,b_min=bmin,qk_norm=int(model['qk_norm']),capacity=1088,
+                     threads=scope['threads'],prefetch_kind=0)
+            index=base_id('attention',table.canonical(dict(key=key),'attention'))
+            slots[index]=None;classes['attention'].append(index)
+    return slots,classes
+
+
+def qualify_outcomes(scope, measured_args, rejection_paths, domain):
+    """Complete one declared request without inventing costs for rejected primaries."""
+    expected,classes=scoped_domain(scope,domain)
+    inputs=Inputs();inputs.read(domain)
+    if measured_args is None:
+        cost_document=None;rows=[]
+    else:
+        cost_document,code=qualify(measured_args,allow_kind_subset=True)
+        if code or not cost_document['qualified']:raise ValueError('unqualified measured campaigns')
+        rows=cost_document['rows']
+        for item in cost_document['provenance']['artifacts']:inputs.read(item['path'])
+    seen={};rejections=[]
+    reference_audit=dict(modern_normal_checked=0,legacy_cost_only_unverifiable=0)
+    for path in rejection_paths:
+        rejections.extend(inputs.rows(path))
+    for rejected,group in ((False,rows),(True,rejections)):
+        for row in group:
+            if rejected:
+                kind,key,provenance,_=table.validate_primary_rejection(row)
+                probe=row['probe']
+                for name in ('binary','build_metadata','source_archive','compiler','raw_query'):
+                    descriptor=probe[name]
+                    if sha(inputs.read(descriptor['path']))!=descriptor['sha256']:raise ValueError('rejection proof changed')
+                reference=row['r_next_reference']
+                if reference.get('compiler_probe_only'):
+                    for name in ('binary','build_metadata','source_archive'):
+                        descriptor=reference['probe'][name]
+                        if sha(inputs.read(descriptor['path']))!=descriptor['sha256']:raise ValueError('R_next proof changed')
+            else:
+                kind=row['kind'];key=table.canonical(row,kind);provenance=table.identity(row['provenance'])
+            reference=row['r_next_reference']
+            table.validate_schema3_reference(reference)
+            reference_audit['modern_normal_checked' if 'compiler_probe_only' in reference else 'legacy_cost_only_unverifiable']+=1
+            index=base_id(kind,key)
+            if index not in expected:raise ValueError('outcome outside exact requested model/B/threads domain')
+            if index in seen:raise ValueError('duplicate or contradictory cost/rejection outcome')
+            if provenance['source_sha256']!=scope['source_sha256'][kind]:raise ValueError('outcome source differs from scoped source')
+            budget=min(64,(220 if key['threads']==576 else 248)-row['r_next'])
+            width=(2 if budget>=64 else 1 if budget>=32 else 0) if kind=='attention' else max(key['depth'],min(expected[index],budget//(key['tn']//4)))
+            if rejected:
+                if key['prefetch_kind' if kind=='attention' else 'prefetch']!=width:
+                    raise ValueError('rejection does not use the prescribed primary width')
+            else:
+                table.validate_selected_resource(row,width)
+            seen[index]='rejected' if rejected else 'costed'
+    missing=set(expected)-set(seen)
+    if missing:raise ValueError('incomplete schema3 outcomes: missing='+str(len(missing)))
+    for item in list(inputs.records.values()):inputs.read(item['path'])
+    coverage=dict(expected_keys=len(expected),costed_keys=len(rows),rejected_keys=len(rejections),missing_keys=0,
+                  by_class={cls:dict(legal=len(keys),costed=sum(seen[k]=='costed' for k in keys),
+                                     rejected=sum(seen[k]=='rejected' for k in keys)) for cls,keys in classes.items()})
+    return dict(schema_version=3,table_kind='mx5_decode_stage_costs',qualified=True,
+                qualification_scope='complete_outcomes_single_request_v1',scope=scope,coverage=coverage,
+                outcome_domain_complete=True,measured_domain_complete=not rejections,full_table=False,
+                r_next_policy_audit=reference_audit,
+                diagnostic_reasons=[],rows=rows,resource_rejections=rejections,
+                execution_512_approved=False,global_dt576_policy_approved=False,target_defaults_changed=False,
+                provenance=dict(measured_campaign=cost_document['provenance'] if cost_document else None,
+                                artifacts=list(inputs.records.values()),
+                                tools=[dict(path=str(Path(x).resolve()),sha256=sha(Path(x).read_bytes())) for x in
+                                       (__file__,table.__file__,table.compiler_probe.__file__)],
+                                interpretation='explicit complete cost-or-primary-rejection coverage; not literal all-key timing'))
+
+
+def outcomes_main():
+    parser=argparse.ArgumentParser(description='Explicit schema3 complete outcomes; no defaults/fallback approval')
+    parser.add_argument('--outcome-scope',type=Path,required=True)
+    parser.add_argument('--domain',type=Path,required=True)
+    parser.add_argument('--rejections',type=Path,action='append',default=[])
+    parser.add_argument('--manifest',type=Path,action='append',default=[])
+    parser.add_argument('--inventory',type=Path)
+    parser.add_argument('--job-log',type=Path,default=ROOT/'runs/mx5/gpu_jobs.log')
+    parser.add_argument('--out',type=Path,required=True)
+    args=parser.parse_args();scope=json.loads(args.outcome_scope.read_text())
+    measured=None
+    if args.manifest:
+        if not args.inventory:parser.error('measured campaigns require their exact inventory')
+        args.threads=scope['threads'];args.check_only=False;measured=args
+    try:
+        value=qualify_outcomes(scope,measured,args.rejections,args.domain)
+        args.out.parent.mkdir(parents=True,exist_ok=True)
+        with args.out.open('x') as output:json.dump(value,output,indent=2,allow_nan=False);output.write('\n')
+    except (OSError,ValueError,TypeError,KeyError,subprocess.SubprocessError) as error:parser.error(str(error))
+    return 0
+
+
 def main():
+    if '--outcome-scope' in sys.argv[1:]:return outcomes_main()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--manifest', type=Path, action='append', required=True)
     parser.add_argument('--inventory', type=Path, required=True)
