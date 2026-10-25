@@ -93,7 +93,9 @@ def queue(a):
         command = ['numactl', f'--cpunodebind={node}', PYTHON,
                    str(ROOT / 'scripts/run_r16_with_device_identity.py'), '--guard-policy', str(POLICY),
                    '--out', '{attempt_dir}/job', '--expected-uuid', uuid,
-                   '--expected-pci', f'0000:{PCI[gpu]}:00.0', '--numa-node', str(node), '--',
+                   '--expected-pci', f'0000:{PCI[gpu]}:00.0', '--numa-node', str(node),
+                   # A cohort's measurements sit under load<n>/, one per process.
+                   *(['--allow-no-measurements'] if action == 'cohort' else []), '--',
                    PYTHON, str(Path(__file__).resolve()), action, '--spec', str(spec_path),
                    '--arm', label, '--fresh', str(index), '--out', '{attempt_dir}/job']
         jobs.append(dict(name=name, gpu=True, timing=timing, priority=spec.get('priority', 10),
