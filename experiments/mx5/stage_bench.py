@@ -21,6 +21,69 @@ class Args(C.Structure):
         (name, C.c_int) for name in ['n', 'k', 'b', 'iterations', 'copies']]
 
 
+def validate_metadata(key, meta):
+    if meta.get('bench') is not True or meta.get('body') != 'gemm' or meta.get('returncode') != 0:
+        raise RuntimeError('expected a successful GEMM stage-bench build')
+
+    def integer(value, label):
+        if type(value) is not int:
+            raise RuntimeError(f'{label} must be an integer')
+        return value
+
+    compiled = {name: integer(meta.get(name), f'build {name}') for name in ['tn', 'depth', 'threads']}
+    compiled['pw'] = compiled['depth'] if meta.get('pw') is None else integer(meta['pw'], 'build pw')
+    names = dict(MX5_TEST_TN='tn', MX5_TEST_DEPTH='depth', MX5_TEST_THREADS='threads', MX5_BENCH_PW='pw')
+    command = meta.get('command')
+    if not isinstance(command, list) or not all(isinstance(arg, str) for arg in command):
+        raise RuntimeError('missing build command')
+    definitions = {}
+    arguments = iter(command)
+    for argument in arguments:
+        if argument == '-D':
+            argument = next(arguments, '')
+        elif argument.startswith('-D'):
+            argument = argument[2:]
+        else:
+            continue
+        macro, _, value = argument.partition('=')
+        if macro not in names:
+            continue
+        name = names[macro]
+        if name in definitions:
+            raise RuntimeError(f'duplicate build definition: {macro}')
+        try:
+            definitions[name] = int(value)
+        except ValueError as error:
+            raise RuntimeError(f'invalid build definition: {macro}') from error
+    # An omitted MX5_BENCH_PW uses MX5_TEST_DEPTH in the compiled source.
+    definitions.setdefault('pw', definitions.get('depth'))
+    for name, actual in compiled.items():
+        if definitions.get(name) != actual:
+            raise RuntimeError(f'build metadata/command mismatch for {name}')
+        if name == 'tn' or name in key:
+            declared = integer(key.get(name), f'key {name}')
+            if declared != actual:
+                raise RuntimeError(f'bench key/build mismatch for {name}: key={declared}, build={actual}')
+    return compiled
+
+
+def load_bench(key):
+    path = Path(key['library']).resolve()
+    meta = json.loads(path.with_suffix('.json').read_text())
+    compiled = validate_metadata(key, meta)
+    binary = hashlib.sha256(path.read_bytes()).hexdigest()
+    if meta.get('binary_sha256') != binary:
+        raise RuntimeError('bench binary identity mismatch: ' + str(path))
+    lib = C.CDLL(str(path))
+    lib.mx5_bench_args_size.argtypes = []
+    lib.mx5_bench_args_size.restype = C.c_int
+    if lib.mx5_bench_args_size() != C.sizeof(Args):
+        raise RuntimeError('bench argument ABI mismatch')
+    lib.mx5_bench.argtypes = [C.POINTER(Args), C.c_int, C.c_int, C.c_int, C.c_int, C.c_void_p]
+    lib.mx5_bench.restype = C.c_int
+    return lib, meta, binary, compiled
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--keys', type=Path, required=True)
@@ -38,12 +101,7 @@ def main():
     a.out.parent.mkdir(parents=True, exist_ok=True)
     with a.out.open('x') as output:
         for ordinal, key in enumerate(json.loads(a.keys.read_text())):
-            path = Path(key['library']).resolve(); meta = json.loads(path.with_suffix('.json').read_text())
-            binary = hashlib.sha256(path.read_bytes()).hexdigest()
-            if not meta.get('bench') or meta.get('binary_sha256') != binary:
-                raise RuntimeError('bench binary identity mismatch: ' + str(path))
-            lib = C.CDLL(str(path))
-            if lib.mx5_bench_args_size() != C.sizeof(Args): raise RuntimeError('bench argument ABI mismatch')
+            lib, meta, binary, compiled = load_bench(key)
             n, k, b, tn = [int(key[v]) for v in ['n', 'k', 'b', 'tn']]
             wn, op, norm, part = [int(key[v]) for v in ['wn', 'op', 'norm', 'part']]
             copies = max(1, (256 * 1024**2 + n * k * 2 - 1) // (n * k * 2))
@@ -88,7 +146,7 @@ def main():
                        mtreg=resources[0], local_bytes=resources[1], static_smem_bytes=resources[2],
                        resident_ctas=resources[3], threads=meta['threads'], source_sha256=meta['source_sha256'],
                        binary_sha256=binary, base_head=meta['base_head'],
-                       prefetch=meta['depth'] if meta['pw'] is None else meta['pw'])
+                       prefetch=compiled['pw'])
             output.write(json.dumps(row, sort_keys=True) + '\n'); output.flush()
             print(f'round={a.round} key={ordinal} median_ns={row["median_ns"]}', flush=True)
 
