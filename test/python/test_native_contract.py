@@ -71,7 +71,7 @@ class NativeContractTests(unittest.TestCase):
             text += f'using Stage_{i}=Placement<Body_{i},{offsets[i]},{prefixes[i]}>;\n'
         pair = ','.join(f'Stage_{i}' for i in range(1, 11))
         return text + (f'using NativeProgram=Program<1,1088,1,12,3,{ARENA},2,5,{str(loop).lower()},'
-                       f'{embed},Stage_0,LayerPair<{pair}>,Stage_11>;\n')
+                       f'{embed},Stage_0,LayerGroup<2,{pair}>,Stage_11>;\n')
 
     def check(self, c, source):
         return validate_gemm_dispatch(self.manifest(c), build_defines(source, []), source)

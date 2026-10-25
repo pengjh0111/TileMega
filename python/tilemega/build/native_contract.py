@@ -33,9 +33,10 @@ def dispatch(manifest, defines, source):
             raise ValueError('native stage placement is ambiguous')
         placements[number] = (int(offset), int(prefix))
     # Program<batch, capacity, residency, buffers, maps, arena, layers, slots,
-    # loop, embed, Stage_0, LayerPair<Stage_1..Stage_10>, Stage_11> (D7, D9).
+    # loop, embed, Stage_0, LayerGroup<2, Stage_1..Stage_10>, Stage_11> for
+    # dense decode (D7, D9).
     program = re.search(r'using NativeProgram\s*=\s*Program<(?:\d+,){5}(\d+),(\d+),\d+,(true|false),'
-                        r'(true|false),Stage_0,LayerPair<Stage_1(?:,Stage_\d+){9}>,Stage_11>;', source)
+                        r'(true|false),Stage_0,LayerGroup<2,Stage_1(?:,Stage_\d+){9}>,Stage_11>;', source)
     head = re.search(r'using Body_11\s*=\s*Head<HeadGemm_11,\d+,\d+,\d+,\d+,\d+,(true|false)>;', source)
     embed = manifest['native_dense']['emb'] == 'la'
     if (program is None or head is None or
