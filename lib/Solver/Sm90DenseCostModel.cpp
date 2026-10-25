@@ -84,9 +84,16 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& work,
   Sm90DensePrediction::Stage s{"attention",work.layers};
   s.ns=Attention(work,c.attention,c.residency,&s.terms);p.stages.push_back(std::move(s));
   int grid=Grid(c.residency);
-  p.stages.push_back({"embedding",1,constants_.Embedding(grid,work.shapes[0][1],work.batch),json::Value()});
-  p.stages.push_back({"argmax",1,constants_.Argmax(grid,work.shapes[4][0]/c.gemms[4].tile_n,work.batch),
+  // D9: the head's last arriver reduces the argmax (beyond the head's own
+  // barrier) and, with emb = LA, reads B table rows and writes them to x.
+  p.stages.push_back({"argmax_la",1,constants_.ArgmaxLa(grid,work.batch)-constants_.Barrier(grid),
       json::Value()});
+  double row_bytes=2.0*work.shapes[0][1]*work.batch;
+  p.stages.push_back(c.embed_la?
+      Sm90DensePrediction::Stage{"embedding_la",1,constants_.dram_latency+2*row_bytes/constants_.sm_gbps,
+          json::Value()}:
+      Sm90DensePrediction::Stage{"embedding",1,constants_.Embedding(grid,work.shapes[0][1],work.batch),
+          json::Value()});
   for(auto const& stage:p.stages)p.step_ns+=stage.instances*stage.ns;
   return p;
 }

@@ -76,6 +76,9 @@ struct Sm90DenseCoordinates {
   // D7: the layer pairs run in a runtime loop rather than unrolled; set by
   // decision table DT-3.
   bool layer_loop=false;
+  // D9 ②: the head's last arriver writes the next step's embedding ("la")
+  // or a separate embedding stage runs each step ("stage"); P-SEL decides.
+  bool embed_la=false;
   static constexpr bool ResidualFamily(unsigned family) {return family==1 || family==3;}
 
   static Sm90DenseCoordinates Exact(std::array<std::array<int,2>,5> const& nk,
@@ -142,7 +145,7 @@ struct Sm90DenseCoordinates {
         {"attention",json::Object{{"chunks",attention.chunks},{"block_keys",attention.block_keys},
             {"slots",attention.slots},{"new_row_work",attention.new_row_work}}},
         {"residency",residency},{"swiglu_u",swiglu_u},{"weight_stream",weight_stream},
-        {"layer_loop",layer_loop}};
+        {"layer_loop",layer_loop},{"emb",embed_la?"la":"stage"}};
   }
 
   static Sm90DenseCoordinates FromJson(json::Value const& value) {
@@ -163,7 +166,7 @@ struct Sm90DenseCoordinates {
     };
     // Schema 3 (prompt §6): arena offsets and D6 prefixes are derived by rule.
     if(integer(value,"schema")!=3)throw std::invalid_argument("unknown sm90 dense coordinate schema");
-    keys(value,{"schema","gemms","attention","residency","swiglu_u","weight_stream","layer_loop"});
+    keys(value,{"schema","gemms","attention","residency","swiglu_u","weight_stream","layer_loop","emb"});
     keys(value.At("gemms"),{"qkv","o","gate_up","down","lm_head"});
     Sm90DenseCoordinates result;
     for(unsigned i=0;i<result.gemms.size();++i) {
@@ -183,6 +186,9 @@ struct Sm90DenseCoordinates {
     result.residency=integer(value,"residency");result.swiglu_u=integer(value,"swiglu_u");
     result.weight_stream=value.At("weight_stream").AsBool("weight_stream");
     result.layer_loop=value.At("layer_loop").AsBool("layer_loop");
+    auto emb=value.At("emb").AsString("emb");
+    if(emb!="la" && emb!="stage")throw std::invalid_argument("unknown sm90 dense embedding placement");
+    result.embed_la=emb=="la";
     return result;
   }
 };

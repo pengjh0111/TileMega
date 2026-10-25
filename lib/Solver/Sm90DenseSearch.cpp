@@ -54,6 +54,8 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
       empty|=f.empty();
     }
     if(empty)continue;
+    // The embedding placement (D9 ②) is a structural dimension: both values
+    // of every family combination enter the predicted ranking.
     auto build=[&](unsigned family,unsigned rank,std::string const& origin) {
       Sm90DenseCoordinates c;c.residency=residency;c.weight_stream=space.weight_stream;
       c.layer_loop=space.layer_loop;
@@ -61,9 +63,11 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
       c.attention=families[5][family==5?rank:0].attention;
       Sm90DenseSearchSpace::Structure(c);
       if(!space.Legal(c))return;
-      auto key=c.ToJson().Dump(0);
-      if(!seen.insert(key).second)return;
-      pool.push_back({c,cost.Predict(work,c),origin});
+      for(bool embed_la:{false,true}) {
+        c.embed_la=embed_la;
+        if(!seen.insert(c.ToJson().Dump(0)).second)continue;
+        pool.push_back({c,cost.Predict(work,c),origin+(embed_la?"_emb_la":"_emb_stage")});
+      }
     };
     std::string prefix="r"+std::to_string(residency);
     build(6,0,prefix+"_optimum");
