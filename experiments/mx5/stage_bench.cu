@@ -25,6 +25,9 @@ struct BenchArgs {
 
 template <class Body>
 __global__ void __launch_bounds__(MX5_TEST_THREADS) GemmBench(BenchArgs args) {
+  // Launch fixes the grid; expose it before next-prefetch geometry is hoisted.
+  unsigned const launch_grid = gridDim.x;
+  __builtin_assume(launch_grid == 104);
   using Sync = tilemega::codegen::mx::StageSyncV2<MX5_TEST_THREADS>;
   extern __shared__ __align__(16) char smem[];
   MxRuntimeShapeV2<MX5_TEST_THREADS> const shape{args.n, args.k, args.b};
