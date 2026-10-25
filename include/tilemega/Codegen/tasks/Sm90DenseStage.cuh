@@ -5,7 +5,9 @@
 
 namespace tilemega::codegen::native_dense {
 struct ReadSources {
-  cutlass::bfloat16_t const *first=nullptr,*second=nullptr;
+  cutlass::bfloat16_t const* weight=nullptr;
+  CUtensorMap const *key=nullptr,*value=nullptr;
+  int layer=0;
 };
 
 template<class Body,int Tasks>
@@ -13,44 +15,44 @@ struct GemmRead {
   template<int Bytes>
   __device__ static __forceinline__ void Prepare(ReadSources source,int,char* shared,
       backend::Sm90DenseRingState& ring) {
-    if constexpr(Bytes>0)if(blockIdx.x<Tasks)
-      Body::template Preissue<Bytes>(source.first,shared,ring);
+    if constexpr(Bytes>0)if(blockIdx.x<Tasks)Body::template Preissue<Bytes>(source.weight,shared,ring);
   }
-  template<int Bytes,int Prefix>
-  __device__ static __forceinline__ void Prefetch(ReadSources source,int) {
-    if constexpr(Bytes>0)if(blockIdx.x<Tasks)Body::template Prefetch<Bytes,Prefix>(source.first);
+};
+template<class Body,int Tasks>
+struct KvRead {
+  template<int Bytes>
+  __device__ static __forceinline__ void Prepare(ReadSources source,int past,char* shared,
+      backend::Sm90DenseRingState& ring) {
+    if constexpr(Bytes>0)if(blockIdx.x<Tasks)
+      Body::template Preissue<Bytes>(source.key,source.value,source.layer,past,shared,ring);
   }
 };
 
-// Buffer IDs stay in the caller. This type is shared by equal stage geometry
-// across layers, so the outlined entry does not duplicate the ring machinery.
-template<class Loader,int Offset,int Prefix,int L2Bytes,bool Overlap,int RingSlots,bool Late=false>
+// D6 (prompt §6): after its last tile the producer of stage i issues stage
+// i+1's first bytes into the other arena and ring. Buffer IDs stay in the
+// caller; equal next-stage geometry shares one tail type across layers.
+template<class Loader,int Offset,int Prefix>
 struct RawProducerTail {
-  static constexpr bool kBefore=!Overlap && !Late;
   ReadSources source;
   int past;
   char* shared;
-  backend::Sm90DenseRingState *current,*next;
-  __device__ __forceinline__ void Issue() const {
-    if constexpr(Overlap)current->template RetireOperands<RingSlots>();
+  backend::Sm90DenseRingState* next;
+  __device__ __forceinline__ void operator()() const {
     Loader::template Prepare<Prefix>(source,past,shared+Offset,*next);
-    Loader::template Prefetch<L2Bytes,Prefix>(source,past);
   }
-  __device__ __forceinline__ void Before() const {if constexpr(kBefore)Issue();}
-  __device__ __forceinline__ void operator()() const {if constexpr(!kBefore)Issue();}
 };
 
 template<class Body>
 struct StageEntry {
   template<int Prefix,class Tail>
   __device__ static __forceinline__ void Gemm(backend::Sm90DenseOperands const& p,char* shared,
-      backend::Sm90DenseRingState* ring,Tail tail) {
-    Body::template Run<Prefix,Tail>(p,shared,ring,tail);
+      backend::Sm90DenseRingState* ring,Tail tail,bool streamed) {
+    Body::template Run<Prefix,Tail>(p,shared,ring,tail,streamed);
   }
-  template<class Tail>
+  template<int Prefix,class Tail>
   __device__ static __forceinline__ void Attention(backend::Sm90DenseAttentionOperands const& p,
-      char* shared,backend::Sm90DenseRingState* ring,Tail tail) {
-    Body::Run(p,shared,ring,tail);
+      char* shared,backend::Sm90DenseRingState* ring,Tail tail,bool streamed) {
+    Body::template Run<Prefix>(p,shared,ring,tail,streamed);
   }
 };
 }  // namespace tilemega::codegen::native_dense

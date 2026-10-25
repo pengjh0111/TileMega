@@ -57,5 +57,11 @@ struct Sm90DenseLayout {
     int merge=16*q*d+32*q+4*(chunks>4?chunks:4)*q+4;
     return {key,value,scratch,key+(4*slots*keys*d+3*32*d+merge+1023)/1024*1024};
   }
+  // Preissued K/V slots are contiguous from the start of the ring.
+  static constexpr Sm90DensePayload AttentionPayload(int d,int keys,int slots,int bytes) {
+    Sm90DensePayload result;
+    result.Add(1024,bytes<4*slots*keys*d?bytes:4*slots*keys*d);
+    return result;
+  }
 };
 }  // namespace tilemega::backend

@@ -2119,9 +2119,8 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
        <<"ull,"<<integerField(b,"per_batch")<<"ull,"<<quoteCString(stringField(b,"pack_json"))<<"},\n";
   }
   out<<"}};\n";
-  unsigned number=0;
   // Tensor-map descriptors {buffer, rank, dims[4], strides[3], box[4]}; equal
-  // descriptors (e.g. layers reading one residual stream) are shared.
+  // descriptors (layers reading one shared activation) are one map.
   using MapKey=std::array<std::int64_t,13>;
   std::map<MapKey,unsigned> maps;
   std::vector<MapKey> map_order;
@@ -2131,6 +2130,29 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     return found.first->second;
   };
   int activation_rows=batch<=8?8:16;
+  // D5 (prompt §6): stage i lives in arena i % 2; an attention stage whose two
+  // slots exceed one arena takes the whole budget (offset 0).
+  auto budget_attr=module->getAttrOfType<mlir::IntegerAttr>("tmexec.sm90_dense_budget");
+  if(!budget_attr)throw std::invalid_argument("native dense plan lacks its shared-memory budget");
+  int budget=int(budget_attr.getInt()),arena=solver::Sm90DenseArena(budget);
+  // D7 (prompt §6): embedding, L layers of (qkv, attention, o, gate_up, down),
+  // lm_head and argmax.
+  if(stages.size()<8 || (stages.size()-3)%5)
+    throw std::invalid_argument("native dense program needs whole layers");
+  unsigned layers=unsigned(stages.size()-3)/5;
+  if(layers%2)throw std::invalid_argument("native layer pairs need an even layer count");
+  // One stage's template text with its buffer operands kept apart: operands
+  // that differ between layers become columns of the per-layer table.
+  struct Emitted {
+    std::string kind,head,tail;
+    std::vector<std::string> ids;
+    int family=-1,stream=0;
+    bool full=false;
+  };
+  std::vector<Emitted> emitted;
+  std::vector<std::int64_t> keys,values;
+  std::array<int,2> kv_maps{-1,-1};
+  std::int64_t kv_bytes=0;  // one layer's K (or V): B*Hkv*Cap*D BF16
   for(auto value:stages) {
     auto s=dictionaryEntry(value,"stages");auto kind=stringField(s,"kind");
     auto operands=s.getAs<mlir::DenseI64ArrayAttr>("operands");
@@ -2143,30 +2165,31 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     };
     std::string weight;std::uint64_t bytes=0;unsigned tasks=0,chunks=0;
     unsigned extent=integerField(s,"extent"),width=integerField(s,"width"),group=integerField(s,"group");
-    int offset=0,prefix=0,l2=0;
-    bool late=false;
-    types<<"using Body_"<<number<<'=';
+    Emitted e;e.kind=kind;
+    std::ostringstream head;
     if(kind=="kGemm") {
       unsigned index=integerField(s,"gemm");auto g=dictionaryEntry(gemms[index],"gemms");
-      auto const& cfg=c.gemms[family(g)];
-      offset=cfg.workspace_offset;prefix=cfg.preissue_smem_bytes;l2=cfg.prefetch_l2_bytes;
-      late=cfg.preissue_late;
+      e.family=int(family(g));
+      auto const& cfg=c.gemms[e.family];
+      if(cfg.SharedBytes(batch,solver::Sm90DenseCoordinates::ResidualFamily(e.family))-1024>arena)
+        throw std::invalid_argument("native GEMM storage exceeds its arena");
+      e.stream=cfg.StreamBytes(integerField(g,"k"));
       auto op=g.get("epilogue")?stringField(g,"epilogue"):"store";
       std::string enum_op=op=="store"?"kStore":op=="residual"?"kResidual":
           op=="swiglu"?"kSwiGLU":"kArgmaxPartial";
       weight=name(integerField(g,"b"));bytes=2ull*integerField(g,"n")*integerField(g,"k");
       tasks=integerField(g,"n")/cfg.tile_n;
       bool input_norm=op=="store" || op=="swiglu" || op=="argmax_partial";
-      types<<"Gemm<"<<batch<<','<<integerField(g,"n")<<','<<integerField(g,"k")<<','
-           <<cfg.tile_n<<','<<cfg.TileK()<<','<<cfg.slots<<','<<cfg.warps_n<<','<<cfg.warps_k
-           <<",backend::ServingEpilogueOp::"<<enum_op<<','<<c.swiglu_u<<','<<(input_norm?"true":"false");
-      for(auto field:{"b","c","d"})types<<','<<id(g,field);
-      types<<','<<(op=="argmax_partial"?std::to_string(argmax_index):"kAbsent");
+      head<<"Gemm<"<<batch<<','<<integerField(g,"n")<<','<<integerField(g,"k")<<','
+          <<cfg.tile_n<<','<<cfg.TileK()<<','<<cfg.slots<<','<<cfg.warps_n<<','<<cfg.warps_k
+          <<",backend::ServingEpilogueOp::"<<enum_op<<','<<c.swiglu_u<<','<<(input_norm?"true":"false");
+      for(auto field:{"b","c","d"})e.ids.push_back(id(g,field));
+      e.ids.push_back(op=="argmax_partial"?std::to_string(argmax_index):"kAbsent");
       // A [B][K] as {64, B, K/64}: one box is a [TK/64][rows][64] slot (prompt §5 D3).
       std::int64_t k=integerField(g,"k");
       auto map=map_index({integerField(g,"a"),3,64,batch,k/64,0,2*k,128,0,64,activation_rows,
           cfg.TileK()/64,0});
-      types<<','<<cfg.register_stages<<','<<map;
+      e.tail=","+std::to_string(cfg.register_stages)+","+std::to_string(map);
     }else if(kind=="kFusedAttention") {
       if((extent!=8 && extent!=4) || (width!=64 && width!=128) || group<2 || group>8 ||
          integerField(s,"dense_attention_chunks")!=c.attention.chunks ||
@@ -2174,44 +2197,114 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
         throw std::invalid_argument("native attention requires reconstructed integrated chunks");
       bool norm=operand(5)!="kAbsent";
       if(norm!=(operand(6)!="kAbsent"))throw std::invalid_argument("asymmetric native QK norm");
+      if(operand(1)=="kAbsent" || operand(2)=="kAbsent")
+        throw std::invalid_argument("native attention lacks its K/V cache views");
       chunks=c.attention.chunks;
-      offset=c.attention.workspace_offset;prefix=c.attention.preissue_smem_bytes;
-      l2=c.attention.prefetch_l2_bytes;
-      late=c.attention.preissue_late;
+      e.full=c.attention.FullWidth(width,group,arena);
+      if(c.attention.SharedBytes(width,group)>budget)
+        throw std::invalid_argument("native attention exceeds the shared-memory budget");
+      e.stream=e.full?0:c.attention.StreamBytes(width);
       tasks=batch*extent*chunks;
-      types<<"Attention<"<<batch<<','<<extent<<','<<width<<','<<group<<','<<norm<<','<<chunks<<','
-           <<c.attention.block_keys<<','<<c.attention.slots<<','<<c.attention.new_row_work<<','<<capacity;
-      for(unsigned i:{0u,1u,2u,7u,3u,4u,5u,6u,8u,9u,10u})types<<','<<operand(i);
-      // Each layer's K and V cache [B*Hkv][Cap][D] as {D, Cap, B*Hkv}, read in
-      // [D/64][block keys][64] boxes (prompt §5 D2).
-      for(unsigned i:{1u,2u})
-        types<<','<<map_index({operands[i],3,width,capacity,std::int64_t(batch)*extent,0,2*width,
-            2ll*capacity*width,0,64,c.attention.block_keys,1,0});
+      head<<"Attention<"<<batch<<','<<extent<<','<<width<<','<<group<<','<<norm<<','<<chunks<<','
+          <<c.attention.block_keys<<','<<c.attention.slots<<','<<c.attention.new_row_work<<','<<capacity;
+      for(unsigned i:{0u,1u,2u,7u,3u,4u,5u,6u,8u,9u,10u})e.ids.push_back(operand(i));
+      keys.push_back(operands[1]);values.push_back(operands[2]);
+      // K and V of all layers as {D, Cap, B*Hkv, L} over layer 0's views of
+      // the [L][2][B][Hkv][Cap][D] cache, read in [D/64][block keys][64]
+      // boxes (prompt §5 D2, §6 D7).
+      std::int64_t rows=std::int64_t(batch)*extent;
+      kv_bytes=2*rows*capacity*width;
+      if(kv_maps[0]<0)for(unsigned i:{0u,1u})
+        kv_maps[i]=int(map_index({operands[1+i],4,width,capacity,rows,layers,2*width,
+            2ll*capacity*width,2*kv_bytes,64,c.attention.block_keys,1,1}));
+      e.tail=","+std::to_string(kv_maps[0])+","+std::to_string(kv_maps[1]);
     }else if(kind=="kEmbedding") {
-      tasks=batch;types<<"Embedding<"<<batch<<','<<width<<','<<extent<<','<<capacity;
+      tasks=batch;head<<"Embedding<"<<batch<<','<<width<<','<<extent<<','<<capacity;
       if(operand(3)!="kAbsent")throw std::invalid_argument("native embedding writes no norm sums");
-      for(unsigned i=0;i<3;++i)types<<','<<operand(i);
+      for(unsigned i=0;i<3;++i)e.ids.push_back(operand(i));
     }else if(kind=="kArgmaxReduce") {
-      tasks=batch;types<<"Argmax<"<<batch<<','<<width<<','<<capacity;
-      for(unsigned i=0;i<3;++i)types<<','<<operand(i);
+      tasks=batch;head<<"Argmax<"<<batch<<','<<width<<','<<capacity;
+      for(unsigned i=0;i<3;++i)e.ids.push_back(operand(i));
     }else throw std::invalid_argument("legacy stage cannot enter native dense program: "+kind);
-    types<<">;\nusing Stage_"<<number<<"=Placement<Body_"<<number<<','
-         <<offset<<','<<prefix<<','<<l2;
-    if(late)types<<",true";
-    types<<">;\n";
+    e.head=head.str();emitted.push_back(e);
     debug<<"  {"<<quoteCString(kind)<<','<<quoteCString(weight)<<','<<bytes<<"ull,"
          <<tasks<<','<<extent<<','<<group<<','<<width<<','<<chunks<<"},\n";
-    ++number;
+  }
+  static constexpr int kLayerFamilies[5]={0,-1,1,2,3};
+  if(emitted.front().kind!="kEmbedding" || emitted.back().kind!="kArgmaxReduce" ||
+     emitted[emitted.size()-2].family!=4)
+    throw std::invalid_argument("native program lacks its embedding, lm_head or argmax");
+  // Per-layer columns: an operand position of a layer stage whose buffer
+  // differs between layers. Everything else must be identical in all layers.
+  std::map<std::pair<unsigned,unsigned>,unsigned> column;
+  std::vector<std::vector<std::int64_t>> table(layers);
+  for(unsigned k=0;k<5;++k) {
+    auto const& first=emitted[1+k];
+    for(unsigned l=0;l<layers;++l) {
+      auto const& e=emitted[1+5*l+k];
+      if(e.family!=kLayerFamilies[k] || (k==1)!=(e.kind=="kFusedAttention") || e.head!=first.head ||
+         e.tail!=first.tail || e.ids.size()!=first.ids.size() || e.full!=first.full)
+        throw std::invalid_argument("native layer stages differ beyond their per-layer operands");
+    }
+    for(unsigned i=0;i<first.ids.size();++i) {
+      bool varies=false;
+      for(unsigned l=1;l<layers;++l)varies|=emitted[1+5*l+k].ids[i]!=first.ids[i];
+      if(!varies)continue;
+      column.emplace(std::make_pair(k,i),unsigned(table[0].size()));
+      for(unsigned l=0;l<layers;++l) {
+        auto const& v=emitted[1+5*l+k].ids[i];
+        if(v=="kAbsent")throw std::invalid_argument("native per-layer operand is absent in one layer");
+        table[l].push_back(std::stoll(v));
+      }
+    }
   }
   out<<"constexpr std::array<NativeTensorMap,"<<map_order.size()<<"> kNativeTensorMaps={{\n";
   for(auto const& m:map_order)out<<"  {"<<m[0]<<"u,"<<m[1]<<"u,{"<<m[2]<<"ull,"<<m[3]<<"ull,"<<m[4]<<"ull,"
      <<m[5]<<"ull},{"<<m[6]<<"ull,"<<m[7]<<"ull,"<<m[8]<<"ull},{"<<m[9]<<"u,"<<m[10]<<"u,"<<m[11]<<"u,"
      <<m[12]<<"u}},\n";
   out<<"}};\n";
+  unsigned slots=unsigned(table[0].size());
+  out<<"constexpr std::array<std::array<unsigned,"<<slots<<">,"<<layers<<"> kNativeLayerSlots={{\n";
+  for(auto const& row:table) {
+    out<<"  {";
+    for(unsigned i=0;i<row.size();++i)out<<(i?",":"")<<row[i]<<'u';
+    out<<"},\n";
+  }
+  out<<"}};\n";
+  out<<"constexpr NativeStackedKv<"<<layers<<"> kNativeStackedKv={{";
+  for(unsigned l=0;l<layers;++l)out<<(l?",":"")<<keys[l]<<'u';
+  out<<"},{";
+  for(unsigned l=0;l<layers;++l)out<<(l?",":"")<<values[l]<<'u';
+  out<<"},"<<2*kv_bytes<<"ull,"<<kv_bytes<<"ull};\n";
+  // Typed stages: 0 prologue, 1..10 the layer pair (layers of parity 0 then
+  // 1), 11 head, 12 final. Typed stage N has the parity of its executed
+  // boundaries, so its arena is N % 2 unless it is full width.
+  std::array<unsigned,13> source{};
+  source[0]=0;for(unsigned j=0;j<10;++j)source[1+j]=1+j;
+  source[11]=unsigned(emitted.size()-2);source[12]=unsigned(emitted.size()-1);
+  auto stream=[&](unsigned n) {return emitted[source[n]].stream;};
+  for(unsigned n=0;n<13;++n) {
+    auto const& e=emitted[source[n]];
+    types<<"using Body_"<<n<<'='<<e.head;
+    for(unsigned i=0;i<e.ids.size();++i) {
+      auto found=n>=1 && n<=10?column.find({(n-1)%5,i}):column.end();
+      if(found!=column.end())types<<",kLayerSlot|"<<found->second<<'u';
+      else types<<','<<e.ids[i];
+    }
+    types<<e.tail<<">;\n";
+    // D6: a ring stage streams into the next ring stage unless either is full
+    // width; the prologue and argmax have no ring. Layer 0's qkv follows the
+    // prologue and is told so at run time.
+    unsigned previous=n==1?10:n-1;
+    int prefix=n>0 && c.weight_stream && stream(previous)>0?stream(n):0;
+    types<<"using Stage_"<<n<<"=Placement<Body_"<<n<<','<<(e.full?0:(n%2)*arena)<<','<<prefix<<">;\n";
+  }
   out<<types.str()<<"using NativeProgram=Program<"<<batch<<','<<capacity<<','<<c.residency<<','
-     <<buffers.size()<<','<<map_order.size();
-  for(unsigned i=0;i<number;++i)out<<",Stage_"<<i;
-  out<<">;\nconstexpr std::array<StageInfo,"<<number<<"> kNativeStages={{\n"<<debug.str()<<"}};\n"
+     <<buffers.size()<<','<<map_order.size()<<','<<arena<<','<<layers<<','<<slots<<','
+     <<(c.layer_loop?"true":"false")<<",Stage_0,LayerPair<";
+  for(unsigned j=1;j<=10;++j)out<<(j>1?",":"")<<"Stage_"<<j;
+  out<<">,Stage_11,Stage_12>;\nconstexpr std::array<StageInfo,"<<emitted.size()<<"> kNativeStages={{\n"
+     <<debug.str()<<"}};\n"
      <<"}  // namespace tilemega::codegen::native_dense\n"
      <<"#include <tilemega/Codegen/tasks/Sm90DenseRuntime.cuh>\n";
   return out.str();

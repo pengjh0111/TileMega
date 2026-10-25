@@ -17,4 +17,8 @@ inline int Sm90DenseSharedBudget(TargetSpec const& target,int residency) {
       r.max_smem_per_sm/residency-reserved));
 }
 
+// D5 (prompt §6): a 1 KB header (rings, operand banks) and two equal,
+// 1 KB-aligned arenas; stage i uses arena i % 2 unless it needs the whole budget.
+inline int Sm90DenseArenaBytes(int budget) {return (budget-1024)/2/1024*1024;}
+
 }  // namespace tilemega::solver

@@ -77,15 +77,13 @@ struct Sm90DenseGemm {
       }
     }
   }
-  template<int Bytes,int Prefix>
-  __device__ static __forceinline__ void Prefetch(Element const* weight) {
-    constexpr int bytes=Bytes<2*TN*K-Prefix?Bytes:2*TN*K-Prefix;
-    if constexpr(bytes>0)Async::Prefetch(weight+std::size_t(blockIdx.x)*TN*K+Prefix/2,bytes);
-  }
 
+  // streamed: the previous stage issued the Prefix bytes (false only after
+  // the ring-less prologue, which shares this typed stage in a layer loop).
   template<int Prefix>
   __device__ static __noinline__ void Produce(Sm90DenseOperands const& p,
-      Sm90DenseRingState& state,Element* a,Element* b,Element* residual,int tasks,unsigned phase) {
+      Sm90DenseRingState& state,Element* a,Element* b,Element* residual,int tasks,unsigned phase,
+      bool streamed) {
     Sm90DenseRoles::Producer();
     if(threadIdx.x==128) {
       CUtensorMap const* const activation=p.activation;
@@ -110,7 +108,7 @@ struct Sm90DenseGemm {
         // budget is fixed by the same Placement that issued the transaction.
         unsigned prefix=0;
         if constexpr(Prefix>0)
-          if(sequence<(Prefix+2*TN*TK-1)/(2*TN*TK))
+          if(streamed && sequence<(Prefix+2*TN*TK-1)/(2*TN*TK))
             prefix=min(Prefix-sequence*2*TN*TK,2*TN*TK);
         if(!prefix)Async::ExpectTx(state.full+slot,kSlotBytes);
         if(prefix<2*TN*TK)Async::Bulk(b+slot*TN*TK+prefix/2,
@@ -252,7 +250,7 @@ struct Sm90DenseGemm {
 
   template<int Prefix=0,class Tail=Sm90DenseNoTail>
   __device__ static __forceinline__ void Run(Sm90DenseOperands const& p,char* shared,
-      Sm90DenseRingState* persistent=nullptr,Tail tail={}) {
+      Sm90DenseRingState* persistent=nullptr,Tail tail={},bool streamed=true) {
     static_assert(Prefix>=0 && Prefix%16==0 &&
         Prefix<=(Slots<kIterations?Slots:kIterations)*2*TN*TK);
     static_assert(!arch::kDevicePass || arch::kSm90AllAvailable,
@@ -271,10 +269,7 @@ struct Sm90DenseGemm {
     int tasks=(N/TN)/int(gridDim.x)+(int(blockIdx.x)<(N/TN)%int(gridDim.x));
     if(threadIdx.x<128)Consume(p,state,a,b,scratch,residual,tasks,phase);
     else {
-      if constexpr(Tail::kBefore) {
-        if(threadIdx.x==128)tail.Before();
-      }
-      Produce<Prefix>(p,state,a,b,residual,tasks,phase);
+      Produce<Prefix>(p,state,a,b,residual,tasks,phase,streamed);
       if(threadIdx.x==128)tail();
     }
     __syncthreads();

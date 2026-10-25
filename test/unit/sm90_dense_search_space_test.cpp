@@ -18,7 +18,7 @@ int main(int argc,char** argv) {
     int grid=space.Grid(residency);
     for(unsigned f=0;f<5;++f) {
       auto candidates=space.FamilyCandidates(f,residency);
-      // At residency 2 the TN8 down cannot cover 48 KB within the shared budget.
+      // At residency 2 the TN8 down cannot cover 48 KB within one arena.
       if(residency==1)assert(!candidates.empty());
       std::set<std::string> keys;
       for(auto const& g:candidates) {
@@ -26,11 +26,16 @@ int main(int argc,char** argv) {
         assert(n%g.tile_n==0 && g.tile_n%8==0 && g.tile_n/g.warps_n<=256 && k%g.TileK()==0);
         if(f<4)assert(4*tasks>=grid && tasks<=2*grid);
         else assert((g.tile_n==128 || g.tile_n==256) && g.TileK()<=256);
-        // Ring rule: the fewest slots covering min(W_cta, 48 KB).
+        // D5 ring rule: the whole task resident (K/TK <= 8 slots) or the
+        // fewest slots covering min(W_cta, 48 KB); either way inside one arena.
+        int arena=Sm90DenseArenaBytes(Sm90DenseSharedBudget(target,residency));
+        bool residual=Sm90DenseCoordinates::ResidualFamily(f);
+        assert(g.SharedBytes(batch,residual)-1024<=arena);
+        bool resident=k/g.TileK()<=8 && g.slots==std::max(2,k/g.TileK());
         double w_cta=double((tasks+grid-1)/grid)*g.tile_n*k*2;
         double need=std::min(w_cta,48.0*1024);
-        assert(g.slots*double(g.slot_bytes)>=need);
-        assert(g.slots==2 || (g.slots-1)*double(g.slot_bytes)<need);
+        assert(resident || (g.slots*double(g.slot_bytes)>=need &&
+            (g.slots==2 || (g.slots-1)*double(g.slot_bytes)<need)));
         assert(keys.insert(std::to_string(g.tile_n)+":"+std::to_string(g.warps_n)+":"+
             std::to_string(g.TileK())).second);
       }

@@ -97,7 +97,7 @@ frontend::ImportedSemantics ImportSm90Dense(std::string const& path,
     Sm90DenseCoordinates const& c,mlir::MLIRContext& context) {
   auto bridge=frontend::ReadExportBridge(path);
   frontend::ServingOptions options;
-  options.interleave_u=c.swiglu_u;options.native_rms=true;
+  options.interleave_u=c.swiglu_u;options.native_rms=true;options.native_shared_scratch=true;
   options.argmax_tile_n=c.gemms[4].tile_n;
   options.dense_attention_chunks=c.attention.chunks;
   auto plan=frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,options);
@@ -133,6 +133,7 @@ mlir::OwningOpRef<mlir::ModuleOp> MaterializeSm90Dense(
   mlir::OpBuilder b(&context);
   auto set_int=[&](char const* name,int value) {(*module)->setAttr(name,b.getI64IntegerAttr(value));};
   (*module)->setAttr("tmexec.sm90_dense",b.getStringAttr(c.ToJson().Dump(0)));
+  set_int("tmexec.sm90_dense_budget",budget);
   (*module)->setAttr("tmexec.sm90_dense_origin",b.getStringAttr(origin));
   (*module)->setAttr("tmexec.sm90_dense_target",b.getStringAttr(target.ToJson()));
   (*module)->setAttr("tmexec.solved_arch",b.getStringAttr("sm_90"));

@@ -71,11 +71,46 @@ struct Sm90DenseAttentionBody {
     int g=pair/Batch,b=pair%Batch;bg=b*Hkv+g;
   }
 
+  // Blocks of the CTA's first task issued by the previous stage (D6): the
+  // history predates the current step, so whole blocks can be preissued.
+  template<int Prefix>
+  __device__ static __forceinline__ int Preissued(int past) {
+    if constexpr(Prefix==0)return 0;
+    else {
+      int bg,chunk;Decompose(int(blockIdx.x),bg,chunk);
+      auto range=Partition::Range(past,chunk,NewRowWork);
+      int blocks=(max(0,min(range.end,past)-range.begin)+BlockKeys-1)/BlockKeys;
+      return min(blocks,Prefix/(4*BlockKeys*D));
+    }
+  }
+  static constexpr int kMaxPreissue=Slots*4*BlockKeys*D;
+  template<int Bytes>
+  __device__ static __forceinline__ void Preissue(CUtensorMap const* key,CUtensorMap const* value,
+      int layer,int past,char* shared,Sm90DenseRingState& state) {
+    static_assert(Bytes>0 && Bytes%(4*BlockKeys*D)==0 && Bytes<=kMaxPreissue);
+    auto& s=*reinterpret_cast<Storage*>(shared+1024);
+    int bg,chunk;Decompose(int(blockIdx.x),bg,chunk);
+    int begin=Partition::Range(past,chunk,NewRowWork).begin,count=Preissued<Bytes>(past);
+    // The alternate arena and ring retired before the preceding boundary.
+    Async::ProxyAsyncGlobalFence();
+    for(int slot=0;slot<count;++slot) {
+      Async::ExpectTx(state.full+slot,2*BlockKeys*D*2);
+      #pragma unroll
+      for(int panel=0;panel<kPanels;++panel) {
+        Async::Tensor4D(&s.kv[slot][0][panel*BlockKeys*64],key,panel*64,begin+slot*BlockKeys,bg,layer,
+            state.full+slot);
+        Async::Tensor4D(&s.kv[slot][1][panel*BlockKeys*64],value,panel*64,begin+slot*BlockKeys,bg,layer,
+            state.full+slot);
+      }
+    }
+  }
+
+  template<int Prefix>
   __device__ static __forceinline__ void Produce(Sm90DenseAttentionOperands const& p,
-      Sm90DenseRingState& state,Storage& s,int tasks,unsigned phase) {
+      Sm90DenseRingState& state,Storage& s,int tasks,unsigned phase,bool streamed) {
     Sm90DenseRoles::Producer();
     if(threadIdx.x==128) {
-      int const past=p.past;int sequence=0;
+      int const past=p.past;int sequence=0,preissued=streamed?Preissued<Prefix>(past):0;
       for(int local=0;local<tasks;++local) {
         int bg,chunk;Decompose(int(blockIdx.x)+local*int(gridDim.x),bg,chunk);
         auto range=Partition::Range(past,chunk,NewRowWork);
@@ -84,13 +119,16 @@ struct Sm90DenseAttentionBody {
         for(int begin=range.begin;begin<range.end && begin<past;begin+=BlockKeys,++sequence) {
           int slot=sequence%Slots;
           Async::Wait(state.empty+slot,(phase>>slot)&1);phase^=1u<<slot;
+          if(sequence<preissued)continue;
           // A whole box is read: rows past the history bound are masked and
           // rows past Capacity arrive as zeros.
           Async::ExpectTx(state.full+slot,2*BlockKeys*D*2);
           #pragma unroll
           for(int panel=0;panel<kPanels;++panel) {
-            Async::Tensor3D(&s.kv[slot][0][panel*BlockKeys*64],p.key_map,panel*64,begin,bg,state.full+slot);
-            Async::Tensor3D(&s.kv[slot][1][panel*BlockKeys*64],p.value_map,panel*64,begin,bg,state.full+slot);
+            Async::Tensor4D(&s.kv[slot][0][panel*BlockKeys*64],p.key_map,panel*64,begin,bg,p.layer,
+                state.full+slot);
+            Async::Tensor4D(&s.kv[slot][1][panel*BlockKeys*64],p.value_map,panel*64,begin,bg,p.layer,
+                state.full+slot);
           }
         }
       }
@@ -297,9 +335,9 @@ struct Sm90DenseAttentionBody {
 
   // One outlined call per stage: under the call ABI separate role functions
   // spilled 8-32 B; inlined roles in one callee keep only an 8 B save.
-  template<class Tail=Sm90DenseNoTail>
+  template<int Prefix=0,class Tail=Sm90DenseNoTail>
   __device__ static __noinline__ void Run(Sm90DenseAttentionOperands const& p,char* shared,
-      Sm90DenseRingState* persistent=nullptr,Tail tail={}) {
+      Sm90DenseRingState* persistent=nullptr,Tail tail={},bool streamed=true) {
     auto& state=persistent?*persistent:*reinterpret_cast<Sm90DenseRingState*>(shared);
     auto& s=*reinterpret_cast<Storage*>(shared+1024);
     int tasks=kTasks/int(gridDim.x)+(int(blockIdx.x)<kTasks%int(gridDim.x));
@@ -309,10 +347,7 @@ struct Sm90DenseAttentionBody {
         state.consumer_generations[i]:state.producer_generations[i])<<i;
     if(threadIdx.x<128)Consume(p,state,s,tasks,phase);
     else {
-      if constexpr(Tail::kBefore) {
-        if(threadIdx.x==128)tail.Before();
-      }
-      Produce(p,state,s,tasks,phase);
+      Produce<Prefix>(p,state,s,tasks,phase,streamed);
       if(threadIdx.x==128)tail();
     }
     __syncthreads();

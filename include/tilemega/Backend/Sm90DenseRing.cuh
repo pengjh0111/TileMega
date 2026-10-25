@@ -11,7 +11,8 @@ struct alignas(16) Sm90DenseRingState {
   // Residual tiles of a stage's (at most two) local tasks arrive here.
   std::uint64_t side[2];
   unsigned producer_generations[8],consumer_generations[8];
-  unsigned prefix_bytes[8];
+  // Unused since D6; kept so the pinned 256-byte header layout is unchanged.
+  unsigned reserved[8];
   unsigned side_generations[2];
   using Async=codegen::executor::Async<arch::Sm90>;
   __device__ void Initialize() {
@@ -20,7 +21,6 @@ struct alignas(16) Sm90DenseRingState {
         // Every operand of a slot arrives by bulk/TMA under one expect_tx.
         Async::Init(full+i,1);Async::Init(empty+i,128);
         producer_generations[i]=0;consumer_generations[i]=0;
-        prefix_bytes[i]=0;
       }
       for(int i=0;i<2;++i) {Async::Init(side+i,1);side_generations[i]=0;}
       Async::InitFence();
@@ -37,18 +37,10 @@ struct alignas(16) Sm90DenseRingState {
     }
     __syncthreads();
   }
-  template<int Slots>
-  __device__ __noinline__ void RetireOperands() {
-    static_assert(Slots>=0 && Slots<=8);
-    #pragma unroll
-    for(int i=0;i<Slots;++i)Async::Wait(empty+i,producer_generations[i]);
-  }
 };
 static_assert(2*sizeof(Sm90DenseRingState)<=1024);
 
 struct Sm90DenseNoTail {
-  static constexpr bool kBefore=false;
-  __device__ void Before() const {}
   __device__ void operator()() const {}
 };
 

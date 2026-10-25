@@ -27,6 +27,8 @@ std::vector<Sm90DenseGemm> Sm90DenseSearchSpace::FamilyCandidates(unsigned famil
   std::vector<Sm90DenseGemm> result;
   int grid=Grid(residency),n=shapes[family][0],k=shapes[family][1];
   auto budget=Sm90DenseSharedBudget(target,residency);
+  int arena=Sm90DenseArenaBytes(budget);
+  bool residual=Sm90DenseCoordinates::ResidualFamily(family);
   std::vector<int> tiles,depths;
   if(family==4) {
     for(int tn:{128,256})if(n%tn==0)tiles.push_back(tn);
@@ -42,15 +44,19 @@ std::vector<Sm90DenseGemm> Sm90DenseSearchSpace::FamilyCandidates(unsigned famil
       if(k%tk)continue;
       Sm90DenseGemm g;g.tile_n=tn;g.warps_n=wn;g.warps_k=4/wn;g.slot_bytes=2*tn*tk;
       double w_cta=double((n/tn+grid-1)/grid)*tn*k*2;
-      // L0 ring rule: the fewest slots whose bytes in flight cover the CTA's
-      // weights or 48 KB, whichever is smaller.
+      auto fits=[&] {return g.SharedBytes(batch,residual)-1024<=arena;};
+      // D5 ring rule: the whole task in flight when it fits the arena in at
+      // most eight slots; otherwise the fewest slots covering min(W_cta, 48 KB).
       bool found=false;
+      if(k/tk<=8) {g.slots=std::max(2,k/tk);found=fits();}
       for(int slots=2;slots<=8 && !found;++slots) {
         g.slots=slots;
-        if(double(slots)*g.slot_bytes>=std::min(w_cta,48.0*1024))found=true;
+        if(double(slots)*g.slot_bytes>=std::min(w_cta,48.0*1024)) {
+          if(!fits())break;
+          found=true;
+        }
       }
-      if(!found || g.SharedBytes(batch,Sm90DenseCoordinates::ResidualFamily(family))>budget ||
-         g.register_stages>tk/(16*g.warps_k))continue;
+      if(!found || g.register_stages>tk/(16*g.warps_k))continue;
       try {g.Validate(n,k);}catch(std::invalid_argument const&) {continue;}
       result.push_back(g);
     }
@@ -69,11 +75,16 @@ std::vector<Sm90DenseAttention> Sm90DenseSearchSpace::AttentionCandidates(int re
     for(int bk:keys) {
       // D2 slot rule: the most slots (2..4) that fit, capped by the blocks of
       // the longest chunk.
+      // Within one arena when two slots fit there; otherwise the stage takes
+      // the whole budget (D5 full-width stage).
       Sm90DenseAttention a;a.chunks=s;a.block_keys=bk;
       int blocks=((1088+s-1)/s+bk-1)/bk;
-      for(a.slots=std::max(2,std::min(4,blocks));a.slots>2 && a.SharedBytes(head_dim,queries)>budget;)
+      a.slots=2;
+      int limit=a.SharedBytes(head_dim,queries)-1024<=Sm90DenseArenaBytes(budget)?
+          Sm90DenseArenaBytes(budget)+1024:budget;
+      for(a.slots=std::max(2,std::min(4,blocks));a.slots>2 && a.SharedBytes(head_dim,queries)>limit;)
         --a.slots;
-      if(a.SharedBytes(head_dim,queries)<=budget)result.push_back(a);
+      if(a.SharedBytes(head_dim,queries)<=limit)result.push_back(a);
     }
   }
   return result;
