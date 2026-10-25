@@ -275,36 +275,40 @@ struct ProducerTail {
   }
 };
 
-template<class... Stage>
-struct LayerPair {
-  static_assert(sizeof...(Stage)==10,"a layer pair holds two layers of five typed stages");
+// The typed stages of PerGroup consecutive layers; an even stage count
+// keeps every typed stage's arena parity fixed (dense: two layers of five,
+// MoE: one layer of six).
+template<int PerGroup,class... Stage>
+struct LayerGroup {
+  static constexpr int kLayers=PerGroup,kSize=int(sizeof...(Stage));
+  static_assert(PerGroup>0 && kSize%PerGroup==0 && kSize%2==0,
+      "a layer group holds whole layers and an even number of typed stages");
   using Stages=std::tuple<Stage...>;
 };
 
-// D7 (prompt §6): Prologue (embedding) -> layer pairs -> LmHead (lm_head
-// with the folded argmax, D9). A pair is ten typed stages run for layers l
-// and l+1; two layers per pair keep every typed stage's arena parity fixed.
-// The last pair runs separately so that its down streams into the head.
-// Executed boundaries keep their global index g (grid counters, banks,
-// traces); Loop selects a runtime pair loop over the same pair code that the
-// unrolled form instantiates once per pair (DT-3). With Embed the head's last
-// arriver writes the next step's embedding and the prologue runs only before
-// a request's step 0.
+// D7 (prompt §6): Prologue (embedding) -> layer groups -> LmHead (lm_head
+// with the folded argmax, D9). The last group runs separately so that its
+// final stage streams into the head. Executed boundaries keep their global
+// index g (grid counters, banks, traces); Loop selects a runtime group loop
+// over the same group code that the unrolled form instantiates once per
+// group (DT-3). With Embed the head's last arriver writes the next step's
+// embedding and the prologue runs only before a request's step 0.
 template<int Batch,int Capacity,int Residency,unsigned Buffers,unsigned Maps,int Arena,
-         int Layers,unsigned LayerSlots,bool Loop,bool Embed,class Prologue,class Pair,class LmHead>
+         int Layers,unsigned LayerSlots,bool Loop,bool Embed,class Prologue,class Group,class LmHead>
 struct Program {
   using Binding=Bindings<Buffers,Maps,Layers,LayerSlots>;
-  using PairStages=typename Pair::Stages;
-  template<unsigned J> using PairStage=std::tuple_element_t<J,PairStages>;
+  using GroupStages=typename Group::Stages;
+  template<unsigned J> using GroupStage=std::tuple_element_t<J,GroupStages>;
   static constexpr int kBatch=Batch,kCapacity=Capacity,kResidency=Residency,kThreads=160;
   static constexpr unsigned kBuffers=Buffers,kMaps=Maps,kLayers=Layers;
-  static constexpr unsigned kStages=2+5*Layers,kHead=1+5*Layers;
+  static constexpr unsigned kGroup=Group::kSize,kPerGroup=Group::kLayers,kPerLayer=kGroup/kPerGroup;
+  static constexpr unsigned kStages=2+kPerLayer*Layers,kHead=1+kPerLayer*Layers;
+  static_assert(Layers%Group::kLayers==0,"layer groups cover the layers exactly");
   static constexpr bool kEmbed=Embed;
   // The head's per-CTA partials reuse its [B][tasks] outputs.
   static constexpr int kHeadMaxGrid=LmHead::kMaxGrid;
   using RoleLaunch=backend::Sm90DenseRoleLaunch<kThreads>;
   static_assert(RoleLaunch::kThreads==kThreads);
-  static_assert(Layers>=2 && Layers%2==0,"layer pairs need an even layer count");
   static_assert(!Prologue::kUsesOperandRecord,
       "native shared-operand ABI requires an operand-free first stage; no implicit startup publication barrier");
   // D5: a stage of parity P sits in arena P (offset P*Arena) and fits it;
@@ -317,31 +321,31 @@ struct Program {
         (S::kOffset==int(Parity)*Arena || (S::kOffset==0 && S::kSharedBytes>1024+Arena));
   }
   template<unsigned... J>
-  static constexpr bool PairPlaced(std::integer_sequence<unsigned,J...>) {
-    return (Placed<PairStage<J>,(1+J)%2>() && ...);
+  static constexpr bool GroupPlaced(std::integer_sequence<unsigned,J...>) {
+    return (Placed<GroupStage<J>,(1+J)%2>() && ...);
   }
   static_assert(Placed<Prologue,0>() && Placed<LmHead,kHead%2>() &&
-      PairPlaced(std::make_integer_sequence<unsigned,10>{}));
+      GroupPlaced(std::make_integer_sequence<unsigned,kGroup>{}));
   template<unsigned... J>
-  static constexpr int PairBytes(std::integer_sequence<unsigned,J...>) {
-    int value=1024;((value=value<PairStage<J>::kSharedBytes?PairStage<J>::kSharedBytes:value),...);
+  static constexpr int GroupBytes(std::integer_sequence<unsigned,J...>) {
+    int value=1024;((value=value<GroupStage<J>::kSharedBytes?GroupStage<J>::kSharedBytes:value),...);
     return value;
   }
   static constexpr int kArenaSharedBytes=[] {
-    int value=PairBytes(std::make_integer_sequence<unsigned,10>{});
+    int value=GroupBytes(std::make_integer_sequence<unsigned,kGroup>{});
     for(int bytes:{Prologue::kSharedBytes,LmHead::kSharedBytes})
       value=value<bytes?bytes:value;
     return value;
   }();
   // Tasks of executed boundary g.
   template<unsigned... J>
-  static constexpr unsigned long long PairTasks(unsigned j,std::integer_sequence<unsigned,J...>) {
-    unsigned long long value=0;((value=j==J?PairStage<J>::kTasks:value),...);return value;
+  static constexpr unsigned long long GroupTasks(unsigned j,std::integer_sequence<unsigned,J...>) {
+    unsigned long long value=0;((value=j==J?GroupStage<J>::kTasks:value),...);return value;
   }
   static constexpr unsigned long long Tasks(unsigned g) {
     if(g==0)return Prologue::kTasks;
     if(g==kHead)return LmHead::kTasks;
-    return PairTasks((g-1)%10,std::make_integer_sequence<unsigned,10>{});
+    return GroupTasks((g-1)%kGroup,std::make_integer_sequence<unsigned,kGroup>{});
   }
 
 #if TILEMEGA_TRACE_NATIVE_PHASES
@@ -488,23 +492,25 @@ struct Program {
     }
 #endif
   }
-  // Layers 2*pair and 2*pair+1. Only layer 0's qkv follows the ring-less
-  // prologue and receives no stream.
-  template<bool LastPair,unsigned... J>
-  __device__ static __forceinline__ void RunPair(Binding const& b,int past,char* shared,
-      float epsilon,GridCounter* events,unsigned long long iteration,TraceState trace,int pair,
+  // Layers kPerGroup*group onwards. Only layer 0's first stage follows the
+  // ring-less prologue and receives no stream.
+  template<bool LastGroup,unsigned... J>
+  __device__ static __forceinline__ void RunGroup(Binding const& b,int past,char* shared,
+      float epsilon,GridCounter* events,unsigned long long iteration,TraceState trace,int group,
       std::integer_sequence<unsigned,J...>) {
-    (Boundary<PairStage<J>,std::conditional_t<J==9,
-        std::conditional_t<LastPair,LmHead,PairStage<0>>,PairStage<(J+1)%10>>,(1+J)%2>(
-        b,past,shared,epsilon,events,iteration,trace,1+10*pair+J,2*pair+int(J/5),
-        J==9?(LastPair?0:2*pair+2):2*pair+int((J+1)/5),J!=0 || pair!=0),...);
+    int layer=int(kPerGroup)*group;
+    (Boundary<GroupStage<J>,std::conditional_t<J+1==kGroup,
+        std::conditional_t<LastGroup,LmHead,GroupStage<0>>,GroupStage<(J+1)%kGroup>>,(1+J)%2>(
+        b,past,shared,epsilon,events,iteration,trace,1+kGroup*group+J,layer+int(J/kPerLayer),
+        J+1==kGroup?(LastGroup?0:layer+int(kPerGroup)):layer+int((J+1)/kPerLayer),
+        J!=0 || group!=0),...);
   }
   template<int... P>
   __device__ static __forceinline__ void Unrolled(Binding const& b,int past,char* shared,
       float epsilon,GridCounter* events,unsigned long long iteration,TraceState trace,
       std::integer_sequence<int,P...>) {
-    (RunPair<false>(b,past,shared,epsilon,events,iteration,trace,P,
-        std::make_integer_sequence<unsigned,10>{}),...);
+    (RunGroup<false>(b,past,shared,epsilon,events,iteration,trace,P,
+        std::make_integer_sequence<unsigned,kGroup>{}),...);
   }
   // step: the request's step number (pasts index), independent of launches.
   __device__ static __forceinline__ void Step(Binding const& b,int past,char* shared,
@@ -516,7 +522,7 @@ struct Program {
     if(threadIdx.x==0 && record)*record={iteration,static_cast<unsigned long long>(past),Now(),0,0,0,0,0,0,0};
 #endif
     if(!Embed || step==0)
-      Boundary<Prologue,PairStage<0>,0>(b,past,shared,epsilon,events,iteration,trace,0,0,0,false);
+      Boundary<Prologue,GroupStage<0>,0>(b,past,shared,epsilon,events,iteration,trace,0,0,0,false);
     else if(threadIdx.x==0) {
       // The skipped prologue still counts once per step, keeping its target.
       auto* counter=&events[0].arrivals;
@@ -524,16 +530,16 @@ struct Program {
     }
     if constexpr(Loop) {
       #pragma unroll 1
-      for(int pair=0;pair<Layers/2-1;++pair)
-        RunPair<false>(b,past,shared,epsilon,events,iteration,trace,pair,
-            std::make_integer_sequence<unsigned,10>{});
+      for(int group=0;group<Layers/int(kPerGroup)-1;++group)
+        RunGroup<false>(b,past,shared,epsilon,events,iteration,trace,group,
+            std::make_integer_sequence<unsigned,kGroup>{});
     }else Unrolled(b,past,shared,epsilon,events,iteration,trace,
-        std::make_integer_sequence<int,Layers/2-1>{});
-    RunPair<true>(b,past,shared,epsilon,events,iteration,trace,Layers/2-1,
-        std::make_integer_sequence<unsigned,10>{});
+        std::make_integer_sequence<int,Layers/int(kPerGroup)-1>{});
+    RunGroup<true>(b,past,shared,epsilon,events,iteration,trace,Layers/int(kPerGroup)-1,
+        std::make_integer_sequence<unsigned,kGroup>{});
     // No stream crosses the step boundary; with Embed the head publishes the
     // next step's layer-0 qkv bank in place of the skipped prologue.
-    Boundary<LmHead,std::conditional_t<Embed,PairStage<0>,Prologue>,kHead%2,true,
+    Boundary<LmHead,std::conditional_t<Embed,GroupStage<0>,Prologue>,kHead%2,true,
         Embed?1u:(kHead%2)^1u>(b,past,shared,epsilon,events,iteration,trace,kHead,0,0,true);
 #if TILEMEGA_TRACE_STEP
     if(threadIdx.x==0 && record)record->end=Now();
@@ -575,7 +581,7 @@ void sm90_dense_native_kernel(const __grid_constant__ typename P::Binding b,
   // layer-0 qkv bank the previous launch's head published (D9 ③).
   if constexpr(P::kEmbed)
     if(first!=0) {
-      if(threadIdx.x==0)P::template PairStage<0>::PublishOperands(b,0,pasts[first],epsilon,
+      if(threadIdx.x==0)P::template GroupStage<0>::PublishOperands(b,0,pasts[first],epsilon,
           backend::Sm90DenseOperandHeader::Bank(shared,1));
       __syncthreads();
     }
