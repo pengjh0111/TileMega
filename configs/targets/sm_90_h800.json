@@ -2828,6 +2828,6 @@
   },
   "sm90_native_decisions": {
     "weight_stream": false,
-    "layer_loop": false
+    "layer_loop": true
   }
 }
