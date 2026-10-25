@@ -10,7 +10,7 @@ namespace tilemega::solver {
 // check for any coordinate (including fixed controls); the candidate
 // generators enumerate only the rule-conformant subset searched by the solver.
 struct Sm90DenseSearchSpace {
-  std::array<std::array<int,2>,5> shapes;
+  Sm90DenseShapeTable shapes;
   int batch,head_dim,queries;
   TargetSpec target;
   int hkv=8;

@@ -11,13 +11,20 @@
 #include <numeric>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace tilemega::solver {
 
 enum class Sm90DenseMma { kMmaSync, kWgmma };
 inline constexpr int kSm90DenseGemmImpl=3;
-inline constexpr std::array<char const*,5> kSm90DenseFamilies={
-    "qkv","o","gate_up","down","lm_head"};
+// Dense decode runs families 0-4; MoE decode (prompt §8) runs qkv, o, the
+// router (5), the grouped expert gate_up (6) and down (7), and lm_head.
+inline constexpr std::array<char const*,8> kSm90DenseFamilies={
+    "qkv","o","gate_up","down","lm_head","router","expert_gate_up","expert_down"};
+using Sm90DenseShapeTable=std::array<std::array<int,2>,8>;
+inline std::vector<unsigned> Sm90DenseActiveFamilies(bool moe) {
+  return moe?std::vector<unsigned>{0,1,5,6,7,4}:std::vector<unsigned>{0,1,2,3,4};
+}
 
 struct Sm90DenseGemm {
   int tile_n=0,warps_n=1,warps_k=4,slot_bytes=0,slots=3;
@@ -67,8 +74,10 @@ struct Sm90DenseAttention {
 inline constexpr int Sm90DenseArena(std::int64_t budget) {return int((budget-1024)/2/1024*1024);}
 
 struct Sm90DenseCoordinates {
-  std::array<Sm90DenseGemm,5> gemms;
+  std::array<Sm90DenseGemm,8> gemms;
   Sm90DenseAttention attention;
+  bool moe=false;
+  std::vector<unsigned> Active() const {return Sm90DenseActiveFamilies(moe);}
   int residency=1,swiglu_u=16;
   // D6 (prompt §6): every GEMM/attention boundary between two arena stages
   // streams the next stage's first slots; set by decision table DT-1.
@@ -81,13 +90,13 @@ struct Sm90DenseCoordinates {
   bool embed_la=false;
   static constexpr bool ResidualFamily(unsigned family) {return family==1 || family==3;}
 
-  static Sm90DenseCoordinates Exact(std::array<std::array<int,2>,5> const& nk,
+  static Sm90DenseCoordinates Exact(Sm90DenseShapeTable const& nk,
                                     int batch,std::int64_t shared_budget) {
     if(batch!=1 && batch!=2 && batch!=4 && batch!=8 && batch!=16)
       throw std::invalid_argument("sm90 dense batch must be 1,2,4,8,16");
     Sm90DenseCoordinates result;
     result.attention.chunks=16/batch;
-    for(unsigned i=0;i<result.gemms.size();++i) {
+    for(unsigned i:result.Active()) {
       auto& g=result.gemms[i];int n=nk[i][0],k=nk[i][1];
       if(n<=0 || k<=0 || n%128 || (i!=4 && (n/128)%8))
         throw std::invalid_argument("exact dense partition needs 128 integral N tiles");
@@ -106,24 +115,25 @@ struct Sm90DenseCoordinates {
     return result;
   }
 
-  void Validate(std::array<std::array<int,2>,5> const& nk,int batch) const {
+  void Validate(Sm90DenseShapeTable const& nk,int batch) const {
     if(batch!=1 && batch!=2 && batch!=4 && batch!=8 && batch!=16)
       throw std::invalid_argument("sm90 dense batch must be 1,2,4,8,16");
     if((residency!=1 && residency!=2) ||
        (swiglu_u!=4 && swiglu_u!=8 && swiglu_u!=16))
       throw std::invalid_argument("illegal sm90 dense structural coordinate");
-    for(unsigned i=0;i<gemms.size();++i)gemms[i].Validate(nk[i][0],nk[i][1]);
-    if(gemms[2].tile_n%(2*swiglu_u))
+    for(unsigned i:Active())gemms[i].Validate(nk[i][0],nk[i][1]);
+    // Expert gate_up pages interleave gate/up rows in U = 16 blocks.
+    if((!moe && gemms[2].tile_n%(2*swiglu_u)) || (moe && gemms[6].tile_n%32))
       throw std::invalid_argument("sm90 dense gate tile splits a gate/up pair");
     attention.Validate();
   }
 
-  void ValidateSchedule(std::array<std::array<int,2>,5> const& nk,int batch,
+  void ValidateSchedule(Sm90DenseShapeTable const& nk,int batch,
       int dim,int queries,int capacity,std::int64_t budget) const {
     Validate(nk,batch);
     // Arena i % 2 holds stage i (D5); D6 payloads live in the next stage's
     // arena, so the program's static_asserts are the only overlap check.
-    for(unsigned i=0;i<5;++i)
+    for(unsigned i:Active())
       if(gemms[i].SharedBytes(batch,ResidualFamily(i))-1024>Sm90DenseArena(budget))
         throw std::invalid_argument("native GEMM storage exceeds its arena");
     // Attention may take the whole budget when two slots exceed one arena.
@@ -133,7 +143,7 @@ struct Sm90DenseCoordinates {
 
   json::Value ToJson() const {
     json::Object families;
-    for(unsigned i=0;i<gemms.size();++i) {
+    for(unsigned i:Active()) {
       auto const& g=gemms[i];
       families.emplace_back(kSm90DenseFamilies[i],json::Object{
           {"tile_n",g.tile_n},{"warps_n",g.warps_n},{"warps_k",g.warps_k},
@@ -141,7 +151,7 @@ struct Sm90DenseCoordinates {
           {"mma",g.mma==Sm90DenseMma::kMmaSync?"mma_sync":"wgmma"},
           {"register_stages",g.register_stages}});
     }
-    return json::Object{{"schema",3},{"gemms",families},
+    return json::Object{{"schema",4},{"model",moe?"moe":"dense"},{"gemms",families},
         {"attention",json::Object{{"chunks",attention.chunks},{"block_keys",attention.block_keys},
             {"slots",attention.slots},{"new_row_work",attention.new_row_work}}},
         {"residency",residency},{"swiglu_u",swiglu_u},{"weight_stream",weight_stream},
@@ -164,12 +174,23 @@ struct Sm90DenseCoordinates {
         throw std::invalid_argument(std::string("invalid sm90 dense integer: ")+key);
       return int(number);
     };
-    // Schema 3 (prompt §6): arena offsets and D6 prefixes are derived by rule.
-    if(integer(value,"schema")!=3)throw std::invalid_argument("unknown sm90 dense coordinate schema");
-    keys(value,{"schema","gemms","attention","residency","swiglu_u","weight_stream","layer_loop","emb"});
-    keys(value.At("gemms"),{"qkv","o","gate_up","down","lm_head"});
+    // Schema 3 (prompt §6): arena offsets and D6 prefixes are derived by
+    // rule; schema 4 (§8) names the model and with it the GEMM families.
+    if(integer(value,"schema")!=4)throw std::invalid_argument("unknown sm90 dense coordinate schema");
+    keys(value,{"schema","model","gemms","attention","residency","swiglu_u","weight_stream","layer_loop",
+        "emb"});
     Sm90DenseCoordinates result;
-    for(unsigned i=0;i<result.gemms.size();++i) {
+    auto model=value.At("model").AsString("model");
+    if(model!="dense" && model!="moe")throw std::invalid_argument("unknown sm90 dense model");
+    result.moe=model=="moe";
+    std::vector<std::string> names;
+    for(unsigned i:result.Active())names.push_back(kSm90DenseFamilies[i]);
+    for(auto const& item:value.At("gemms").AsObject("sm90 dense coordinate"))
+      if(std::find(names.begin(),names.end(),item.first)==names.end())
+        throw std::invalid_argument("unknown or duplicate sm90 dense coordinate: "+item.first);
+    if(value.At("gemms").AsObject("sm90 dense coordinate").size()!=names.size())
+      throw std::invalid_argument("sm90 dense coordinates lack a GEMM family");
+    for(unsigned i:result.Active()) {
       auto const& v=value.At("gemms").At(kSm90DenseFamilies[i]);auto& g=result.gemms[i];
       keys(v,{"tile_n","warps_n","warps_k","slot_bytes","slots","mma","register_stages"});
       g.tile_n=integer(v,"tile_n");g.warps_n=integer(v,"warps_n");g.warps_k=integer(v,"warps_k");

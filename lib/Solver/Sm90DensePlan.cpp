@@ -13,6 +13,9 @@ namespace tilemega::solver {
 unsigned Sm90DenseFamily(frontend::ModelPlan const& plan,frontend::PlanGemm const& g) {
   using Op=frontend::PlanGemm::Epilogue;
   auto const& name=plan.buffers.at(g.b).name;
+  if(g.epilogue==Op::kMoeRouter)return 5;
+  if(g.epilogue==Op::kMoeGateUp)return 6;
+  if(g.epilogue==Op::kMoeDown)return 7;
   if(g.epilogue==Op::kSwiGLU)return 2;
   if(g.epilogue==Op::kArgmaxPartial)return 4;
   if(g.epilogue==Op::kStore && name.find("qkv")!=std::string::npos)return 0;
@@ -20,30 +23,41 @@ unsigned Sm90DenseFamily(frontend::ModelPlan const& plan,frontend::PlanGemm cons
   if(g.epilogue==Op::kResidual && name.find("down_proj")!=std::string::npos)return 3;
   throw std::invalid_argument("unrecognized native dense GEMM: "+name);
 }
-std::array<std::array<int,2>,5> Sm90DenseShapes(frontend::ModelPlan const& plan) {
-  std::array<std::array<int,2>,5> result{};
+Sm90DenseShapeTable Sm90DenseShapes(frontend::ModelPlan const& plan) {
+  Sm90DenseShapeTable result{};
   if(!plan.serving || plan.dm || plan.forward || plan.serving_seq!=1)
     throw std::invalid_argument("native dense shapes require dense decode");
+  bool moe=std::any_of(plan.gemms.begin(),plan.gemms.end(),
+      [](auto const& g) {return g.epilogue==frontend::PlanGemm::Epilogue::kMoeRouter;});
   for(auto const& g:plan.gemms) {
     auto family=Sm90DenseFamily(plan,g);std::array<int,2> shape={int(g.n),int(g.k)};
     if(result[family][0] && result[family]!=shape)
       throw std::invalid_argument("native GEMM family changes shape between layers");
     result[family]=shape;
   }
-  for(auto const& shape:result)if(!shape[0] || !shape[1])
-    throw std::invalid_argument("native dense model lacks a required GEMM family");
+  for(unsigned f=0;f<result.size();++f) {
+    auto active=Sm90DenseActiveFamilies(moe);
+    bool used=std::find(active.begin(),active.end(),f)!=active.end();
+    if(used!=(result[f][0] && result[f][1]))
+      throw std::invalid_argument("native model GEMM families differ from its dense/MoE kind");
+  }
   return result;
 }
 Sm90DenseWorkload Sm90DenseWorkloadFromPlan(frontend::ModelPlan const& plan,int batch) {
   using Kind=frontend::PlanTaskKind;
   constexpr auto absent=std::numeric_limits<std::uint32_t>::max();
+  Sm90DenseWorkload work;
+  work.moe=std::any_of(plan.gemms.begin(),plan.gemms.end(),
+      [](auto const& g) {return g.epilogue==frontend::PlanGemm::Epilogue::kMoeRouter;});
+  // Dense: qkv, attention, o, gate_up, down; MoE: qkv, attention, o, router,
+  // expert gate_up, expert down (prompt §8).
+  unsigned per_layer=work.moe?6:5;
   if(!plan.serving || plan.dm || plan.forward || plan.serving_seq!=1 || plan.serving_capacity!=1088 ||
       (batch!=1 && batch!=2 && batch!=4 && batch!=8 && batch!=16) ||
-      plan.stages.size()<8 || (plan.stages.size()-3)%5)
-    throw std::invalid_argument("native workload requires the supported dense decode stage sequence");
-  Sm90DenseWorkload work;
-  work.batch=batch;work.layers=int((plan.stages.size()-3)/5);
-  if(plan.gemms.size()!=std::size_t(4*work.layers+1) ||
+      plan.stages.size()<3+per_layer || (plan.stages.size()-3)%per_layer)
+    throw std::invalid_argument("native workload requires the supported decode stage sequence");
+  work.batch=batch;work.layers=int((plan.stages.size()-3)/per_layer);
+  if(plan.gemms.size()!=std::size_t((per_layer-1)*work.layers+1) ||
       plan.stages.front().kind!=Kind::kEmbedding || plan.stages.back().kind!=Kind::kArgmaxReduce)
     throw std::invalid_argument("native workload GEMM/stage count differs");
   auto operand=[&](std::uint32_t id,bool optional) {
@@ -60,6 +74,7 @@ Sm90DenseWorkload Sm90DenseWorkloadFromPlan(frontend::ModelPlan const& plan,int 
     auto const& g=plan.gemms[s.gemm];
     for(auto id:{g.a,g.b,g.c})operand(id,false);
     operand(g.d,g.epilogue!=frontend::PlanGemm::Epilogue::kResidual);
+    for(unsigned i=0;i<4;++i)if(family>=5)operand(s.operands[i],i>0);
     if(!g.n || !g.k || g.n>std::uint32_t(std::numeric_limits<int>::max()) ||
         g.k>std::uint32_t(std::numeric_limits<int>::max()) || Sm90DenseFamily(plan,g)!=family)
       throw std::invalid_argument("native workload family/shape order differs");
@@ -69,16 +84,20 @@ Sm90DenseWorkload Sm90DenseWorkloadFromPlan(frontend::ModelPlan const& plan,int 
       case frontend::PlanGemm::Epilogue::kResidual:binding.epilogue="residual";break;
       case frontend::PlanGemm::Epilogue::kSwiGLU:binding.epilogue="swiglu";break;
       case frontend::PlanGemm::Epilogue::kArgmaxPartial:binding.epilogue="argmax_partial";break;
+      case frontend::PlanGemm::Epilogue::kMoeRouter:binding.epilogue="moe_router";break;
+      case frontend::PlanGemm::Epilogue::kMoeGateUp:binding.epilogue="moe_gate_up";break;
+      case frontend::PlanGemm::Epilogue::kMoeDown:binding.epilogue="moe_down";break;
       default:throw std::invalid_argument("unknown native workload epilogue");
     }
     binding.input_norm=operand(g.norm_ss,true);binding.output_sums=operand(g.ss_out,true);
     work.gemm_bindings->push_back({int(stage),int(s.gemm),kSm90DenseFamilies[family],int(g.n),int(g.k),binding,g.norm_ss,g.ss_out});
   };
   for(int layer=0;layer<work.layers;++layer) {
-    unsigned start=1+5*layer;gemm(start,0);
+    unsigned start=1+per_layer*layer;gemm(start,0);
     auto const& a=plan.stages.at(start+1);
-    if(a.kind!=Kind::kFusedAttention || a.extent!=8 || (a.width!=64 && a.width!=128) ||
-        a.group<2 || a.group>4 || a.attention_kv_block!=plan.serving_capacity ||
+    if(a.kind!=Kind::kFusedAttention || (a.extent!=8 && !(work.moe && a.extent==4)) ||
+        (a.width!=64 && a.width!=128) ||
+        a.group<2 || a.group>(work.moe?8:4) || a.attention_kv_block!=plan.serving_capacity ||
         a.dense_attention_chunks<1 || a.dense_attention_chunks>64)
       throw std::invalid_argument("native workload attention structure differs");
     for(unsigned i:{0u,1u,2u,3u,4u,7u,8u,9u,10u})operand(a.operands[i],false);
@@ -87,10 +106,15 @@ Sm90DenseWorkload Sm90DenseWorkloadFromPlan(frontend::ModelPlan const& plan,int 
     if(!layer) {work.head_dim=a.width;work.queries=a.group;work.qk_norm=q;work.hkv=a.extent;}
     else if(work.head_dim!=int(a.width) || work.queries!=int(a.group) || work.qk_norm!=q)
       throw std::invalid_argument("native workload attention tuple changes between layers");
-    gemm(start+2,1);gemm(start+3,2);gemm(start+4,3);
+    if(work.moe) {gemm(start+2,1);gemm(start+3,5);gemm(start+4,6);gemm(start+5,7);}
+    else {gemm(start+2,1);gemm(start+3,2);gemm(start+4,3);}
   }
   gemm(unsigned(plan.stages.size()-2),4);
   work.shapes=Sm90DenseShapes(plan);
+  if(work.moe) {
+    // The router's N is the expert count; top-k is fixed by the plan (§8).
+    work.experts=work.shapes[5][0];work.top_k=8;
+  }
   return work;
 }
 frontend::ImportedSemantics ImportSm90Dense(std::string const& path,
