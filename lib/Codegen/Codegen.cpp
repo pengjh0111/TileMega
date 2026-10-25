@@ -2137,10 +2137,15 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   int budget=int(budget_attr.getInt()),arena=solver::Sm90DenseArena(budget);
   // D7 (prompt §6): embedding, L layers of (qkv, attention, o, gate_up, down),
   // lm_head and argmax.
-  if(stages.size()<8 || (stages.size()-3)%5)
+  unsigned layers=0;
+  for(auto value:stages)layers+=stringField(dictionaryEntry(value,"stages"),"kind")=="kFusedAttention";
+  if(!layers || (stages.size()-3)%layers)
     throw std::invalid_argument("native dense program needs whole layers");
-  unsigned layers=unsigned(stages.size()-3)/5;
-  if(layers%2)throw std::invalid_argument("native layer pairs need an even layer count");
+  // A layer group holds an even number of typed stages (prompt §6 D7, §8).
+  unsigned per_layer=unsigned(stages.size()-3)/layers,per_group=per_layer%2?2:1;
+  unsigned group_size=per_layer*per_group;
+  if(per_layer!=5 || layers%per_group)
+    throw std::invalid_argument("native layer groups need whole groups of supported layers");
   // One stage's template text with its buffer operands kept apart: operands
   // that differ between layers become columns of the per-layer table.
   struct Emitted {
@@ -2233,7 +2238,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
        <<tasks<<','<<extent<<','<<group<<','<<width<<','<<chunks<<"},\n";
     info.push_back(row.str());
   }
-  static constexpr int kLayerFamilies[5]={0,-1,1,2,3};
+  static constexpr int kLayerFamilies[5]={0,-1,1,2,3};  // qkv, attention, o, gate_up, down
   if(emitted.front().kind!="kEmbedding" || emitted.back().kind!="kArgmaxReduce" ||
      emitted[emitted.size()-2].family!=4)
     throw std::invalid_argument("native program lacks its embedding, lm_head or argmax");
@@ -2248,21 +2253,21 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   // differs between layers. Everything else must be identical in all layers.
   std::map<std::pair<unsigned,unsigned>,unsigned> column;
   std::vector<std::vector<std::int64_t>> table(layers);
-  for(unsigned k=0;k<5;++k) {
+  for(unsigned k=0;k<per_layer;++k) {
     auto const& first=emitted[1+k];
     for(unsigned l=0;l<layers;++l) {
-      auto const& e=emitted[1+5*l+k];
+      auto const& e=emitted[1+per_layer*l+k];
       if(e.family!=kLayerFamilies[k] || (k==1)!=(e.kind=="kFusedAttention") || e.head!=first.head ||
          e.tail!=first.tail || e.ids.size()!=first.ids.size() || e.full!=first.full)
         throw std::invalid_argument("native layer stages differ beyond their per-layer operands");
     }
     for(unsigned i=0;i<first.ids.size();++i) {
       bool varies=false;
-      for(unsigned l=1;l<layers;++l)varies|=emitted[1+5*l+k].ids[i]!=first.ids[i];
+      for(unsigned l=1;l<layers;++l)varies|=emitted[1+per_layer*l+k].ids[i]!=first.ids[i];
       if(!varies)continue;
       column.emplace(std::make_pair(k,i),unsigned(table[0].size()));
       for(unsigned l=0;l<layers;++l) {
-        auto const& v=emitted[1+5*l+k].ids[i];
+        auto const& v=emitted[1+per_layer*l+k].ids[i];
         if(v=="kAbsent")throw std::invalid_argument("native per-layer operand is absent in one layer");
         table[l].push_back(std::stoll(v));
       }
@@ -2289,34 +2294,37 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   // Typed stages: 0 prologue, 1..10 the layer pair (layers of parity 0 then
   // 1), 11 head, 12 final. Typed stage N has the parity of its executed
   // boundaries, so its arena is N % 2 unless it is full width.
-  std::array<unsigned,12> source{};
-  source[0]=0;for(unsigned j=0;j<10;++j)source[1+j]=1+j;
-  source[11]=unsigned(emitted.size()-2);
+  // Typed stages: 0 prologue, 1..group_size the layer group, then the head.
+  unsigned head=group_size+1;
+  std::vector<unsigned> source(head+1);
+  for(unsigned j=0;j<group_size;++j)source[1+j]=1+j;
+  source[head]=unsigned(emitted.size()-2);
   auto stream=[&](unsigned n) {return emitted[source[n]].stream;};
-  for(unsigned n=0;n<12;++n) {
+  for(unsigned n=0;n<=head;++n) {
     auto const& e=emitted[source[n]];
-    types<<"using "<<(n==11?"HeadGemm_":"Body_")<<n<<'='<<e.head;
+    types<<"using "<<(n==head?"HeadGemm_":"Body_")<<n<<'='<<e.head;
     for(unsigned i=0;i<e.ids.size();++i) {
-      auto found=n>=1 && n<=10?column.find({(n-1)%5,i}):column.end();
+      auto found=n>=1 && n<=group_size?column.find({(n-1)%per_layer,i}):column.end();
       if(found!=column.end())types<<",kLayerSlot|"<<found->second<<'u';
       else types<<','<<e.ids[i];
     }
     types<<e.tail<<">;\n";
-    if(n==11)types<<"using Body_11=Head<HeadGemm_11,"<<embedding.ids[0]<<','<<embedding.ids[1]<<','
+    if(n==head)types<<"using Body_"<<head<<"=Head<HeadGemm_"<<head<<','<<embedding.ids[0]<<','<<embedding.ids[1]<<','
                    <<embedding.ids[2]<<','<<hidden<<','<<capacity<<','
                    <<(c.embed_la?"true":"false")<<">;\n";
     // D6: a ring stage streams into the next ring stage unless either is full
     // width; the prologue has no ring and nothing crosses the step boundary.
     // Layer 0's qkv follows the prologue and is told so at run time.
-    unsigned previous=n==1?10:n-1;
+    unsigned previous=n==1?group_size:n-1;
     int prefix=n>0 && c.weight_stream && stream(previous)>0?stream(n):0;
     types<<"using Stage_"<<n<<"=Placement<Body_"<<n<<','<<(e.full?0:(n%2)*arena)<<','<<prefix<<">;\n";
   }
   out<<types.str()<<"using NativeProgram=Program<"<<batch<<','<<capacity<<','<<c.residency<<','
      <<buffers.size()<<','<<map_order.size()<<','<<arena<<','<<layers<<','<<slots<<','
-     <<(c.layer_loop?"true":"false")<<','<<(c.embed_la?"true":"false")<<",Stage_0,LayerPair<";
-  for(unsigned j=1;j<=10;++j)out<<(j>1?",":"")<<"Stage_"<<j;
-  out<<">,Stage_11>;\nconstexpr std::array<StageInfo,"<<info.size()<<"> kNativeStages={{\n";
+     <<(c.layer_loop?"true":"false")<<','<<(c.embed_la?"true":"false")<<",Stage_0,LayerGroup<"
+     <<per_group;
+  for(unsigned j=1;j<=group_size;++j)out<<",Stage_"<<j;
+  out<<">,Stage_"<<head<<">;\nconstexpr std::array<StageInfo,"<<info.size()<<"> kNativeStages={{\n";
   for(auto const& row:info)out<<row;
   out<<"}};\n"
      <<"}  // namespace tilemega::codegen::native_dense\n"
