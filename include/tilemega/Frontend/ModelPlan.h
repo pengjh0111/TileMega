@@ -88,10 +88,15 @@ struct PlanBuffer {
   std::string pack_json;
   codegen::DmBufferLayout layout{};
   std::uint64_t arena_offset = ~std::uint64_t(0);
+  // A fixed-size internal buffer whose dtype and role a native program binds
+  // (native MoE's shared schedule, h and counters).
+  bool typed = false;
 };
 
 struct PlanGemm {
-  enum class Epilogue { kStore, kResidual, kSwiGLU, kArgmaxPartial };
+  // kMoe*: native MoE decode's router + top-k, grouped gate_up and down +
+  // combine (prompt §8); their schedule/route operands are the stage's.
+  enum class Epilogue { kStore, kResidual, kSwiGLU, kArgmaxPartial, kMoeRouter, kMoeGateUp, kMoeDown };
   std::uint32_t n = 0, k = 0;
   std::uint32_t a = 0, b = 0, c = 0, d = 0;
   float beta = 0.0f;

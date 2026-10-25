@@ -867,8 +867,8 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
   std::sort(layers.begin(), layers.end(), [](auto const& a, auto const& b) {
     return a.at("resid2")->index < b.at("resid2")->index;
   });
-  if(serving.dense_attention_chunks && !moe_layers.empty())
-    throw std::invalid_argument("native dense chunks do not apply to MoE");
+  if(serving.dense_attention_chunks && !moe_layers.empty() && !serving.native_rms)
+    throw std::invalid_argument("integrated attention chunks apply to MoE only in native decode");
   if (layers.empty())
     throw std::invalid_argument("serving export has no complete decoder layer");
   PlanBuilder builder(nodes);
@@ -918,6 +918,19 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
       return found->second;
     }
     auto id = scratch("layers." + name, per_batch, dtype);
+    shared_scratch.emplace(name, id);
+    return id;
+  };
+  // One fixed-size buffer every layer shares (native MoE, prompt §8).
+  auto shared_constant = [&](std::string const& name, std::uint32_t elements, std::string dtype) {
+    auto found = shared_scratch.find(name);
+    if (found != shared_scratch.end()) return found->second;
+    PlanBuffer buffer;
+    buffer.name = "layers." + name;
+    buffer.constant = elements;
+    buffer.dtype = std::move(dtype);
+    buffer.typed = true;
+    auto id = builder.Buffer(std::move(buffer));
     shared_scratch.emplace(name, id);
     return id;
   };
@@ -1098,16 +1111,78 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
                     0, hkv, head_dim, qperkv, {po, lse, context});
       builder.plan.stages.back().attention_kv_block = block_extent;
     }
-    // MoE's downstream gather may overlap other CTAs' projection reads.
-    auto attention_output=moe_layers.count(match.at("resid1")->name)?
+    // MoE's downstream gather may overlap other CTAs' projection reads. The
+    // native MoE stages instead keep x' in x until M6 writes x'' over it.
+    auto attention_output=moe_layers.count(match.at("resid1")->name) && !serving.native_rms?
         scratch(prefix+"attn.residual",serving.seq*hidden):x;
     auto o_gemm = builder.Gemm(context, alias(o.inputs.at(1)), x, attention_output,
                                hidden, qwidth, 1.0f);
-    if(sums || moe_dn){ss_cur=scratch(prefix+"o.ss",serving.seq*(hidden/(serving.dn_vector_sums?8:32)),"f32");
+    if(sums || (moe_dn && !serving.native_rms)){ss_cur=scratch(prefix+"o.ss",serving.seq*(hidden/(serving.dn_vector_sums?8:32)),"f32");
            builder.plan.gemms[o_gemm].ss_out=ss_cur;}
     builder.plan.gemms[o_gemm].epilogue = PlanGemm::Epilogue::kResidual;
     builder.Stage(PlanTaskKind::kGemm, match.at("resid1")->name,
                   o_gemm, 0, 0, 1);
+    if(auto block=moe_layers.find(match.at("resid1")->name);
+       block!=moe_layers.end() && serving.native_rms) {
+      // Native MoE decode (prompt §8): M4 router + top-k, M5 grouped gate_up,
+      // M6 down + combine. post-attention gamma is folded into the router and
+      // expert gate_up weights; consumers apply RMS. Logits, schedule, routes,
+      // h, P and the counters are shared by all layers; the top-k indices
+      // stay per layer under the FX name the routing check reads.
+      auto const& m=block->second;
+      unsigned experts=m.expert_count,topk=m.top_k,inter=m.intermediate;
+      if(experts!=128 || topk!=8 || m.hidden!=unsigned(hidden) || serving.seq!=1 || hidden%128)
+        throw std::invalid_argument("native MoE decode needs 128 experts, top-8 and one token per row");
+      auto norm=parameter(m.norm_weight).target;
+      auto expert_prefix=parameter(m.gate_up_weight).target;
+      std::string suffix="gate_up_proj";
+      if(expert_prefix.size()<suffix.size() ||
+         expert_prefix.compare(expert_prefix.size()-suffix.size(),suffix.size(),suffix))
+        throw std::invalid_argument("MoE expert weight lacks the stacked gate_up_proj FQN");
+      expert_prefix.resize(expert_prefix.size()-suffix.size());
+      if(parameter(m.down_weight).target!=expert_prefix+"down_proj")
+        throw std::invalid_argument("MoE expert FQN namespaces disagree");
+      auto fold=[&](std::string const& source) {
+        return "{\"kind\":\"fold_rmsnorm\",\"norm\":\""+norm+"\",\"source\":"+source+'}';
+      };
+      // The expert stacks keep the legacy MoE prefill's names and 64 x 64
+      // tile pages, recipe for recipe, so both phases load one copy (two
+      // differently paged copies exceed the 80 GB card; recorded deviation
+      // from §8's per-TN packing). The router is repacked per its TN.
+      auto stack=[&](char const* part) {
+        return "{\"experts\":"+std::to_string(experts)+",\"hidden\":"+std::to_string(hidden)+
+            ",\"intermediate\":"+std::to_string(inter)+",\"kind\":\"expert_stack\",\"part\":\""+part+
+            "\",\"prefix\":\""+expert_prefix+"\",\"u\":16}";
+      };
+      auto pages=[](std::string const& source) {
+        return "{\"kind\":\"tile_pages\",\"tile_n\":64,\"tile_k\":64,\"source\":"+source+'}';
+      };
+      auto router_weight=packed(prefix+"moe.router.weight.dn",experts*hidden,
+          fold("{\"kind\":\"alias\",\"source\":\""+parameter(m.router_weight).target+"\"}"));
+      auto gate_up_weight=packed(expert_prefix+"gate_up.packed",experts*2*inter*hidden,
+          pages(fold(stack("gate_up"))));
+      auto down_weight=packed(expert_prefix+"down.packed",experts*hidden*inter,pages(stack("down")));
+      auto logits=layer_scratch(prefix,"moe.logits",experts,"f32");
+      auto routes=layer_scratch(prefix,"moe.route_weights",topk,m.routing_weights_fp32?"f32":"bf16");
+      auto partial=layer_scratch(prefix,"moe.partial",topk*hidden,"f32");
+      auto schedule=shared_constant("moe.schedule",1+2*experts+16*experts,"i32");
+      auto h=shared_constant("moe.h",experts*16*inter,"bf16");
+      // u64 arrival counters: the router's and one per M6 output tile (TN >= 128).
+      auto router_counter=shared_constant("moe.router_counter",2,"i32");
+      auto tile_counters=shared_constant("moe.tile_counters",2*(hidden/128),"i32");
+      auto indices=scratch(m.indices,topk,"i32");
+      auto router=builder.Gemm(x,router_weight,logits,logits,experts,hidden,0.0f);
+      builder.plan.gemms[router].epilogue=PlanGemm::Epilogue::kMoeRouter;
+      builder.Stage(PlanTaskKind::kGemm,m.router,router,0,0,1,{schedule,routes,indices,router_counter});
+      auto gate_up=builder.Gemm(x,gate_up_weight,h,h,2*inter,hidden,0.0f);
+      builder.plan.gemms[gate_up].epilogue=PlanGemm::Epilogue::kMoeGateUp;
+      builder.plan.gemms[gate_up].interleave_u=16;
+      builder.Stage(PlanTaskKind::kGemm,m.experts,gate_up,0,0,1,{schedule});
+      auto down=builder.Gemm(h,down_weight,x,partial,hidden,inter,1.0f);
+      builder.plan.gemms[down].epilogue=PlanGemm::Epilogue::kMoeDown;
+      builder.Stage(PlanTaskKind::kGemm,m.output,down,0,0,1,{schedule,routes,tile_counters});
+      continue;
+    }
     if(auto block=moe_layers.find(match.at("resid1")->name);block!=moe_layers.end()) {
       auto output=scratch(prefix+"moe.output",serving.seq*hidden);
       auto next_stats=dn?scratch(prefix+"moe.ss",hidden/32,"f32"):kNoOperand;
