@@ -17,7 +17,7 @@ TYPED = [None, 0, 'attention', 1, 2, 3, 0, 'attention', 1, 2, 3, 4]
 
 def gemm(tn, wn, tk, slots):
     return dict(tile_n=tn, warps_n=wn, warps_k=4 // wn, slot_bytes=2 * tn * tk, slots=slots,
-                mma='mma_sync', register_stages=1)
+                mma='mma_sync', register_stages=1, multicast=False)
 
 
 class NativeContractTests(unittest.TestCase):
@@ -25,10 +25,10 @@ class NativeContractTests(unittest.TestCase):
         # Qwen3-0.6B B1 at schema 3: stage i takes arena i % 2 (prompt §6 D5).
         self.coordinates = dict(
             schema=5, model='dense', residency=1, swiglu_u=8, weight_stream=False, layer_loop=False,
-            emb='stage', group_wait=False,
+            emb='stage', group_wait=False, cluster=1,
             gemms=dict(qkv=gemm(32, 4, 256, 4), o=gemm(8, 1, 512, 4), gate_up=gemm(48, 2, 256, 4),
                        down=gemm(8, 1, 512, 6), lm_head=gemm(128, 4, 64, 8)),
-            attention=dict(chunks=16, block_keys=64, slots=2, new_row_work=0))
+            attention=dict(chunks=16, block_keys=64, slots=2, new_row_work=0, merge='la'))
         self.plan = self.manifest(self.coordinates)
         self.stream = []
         for family, n, k, op, norm in SHAPES:
@@ -75,7 +75,7 @@ class NativeContractTests(unittest.TestCase):
             text += f'using Stage_{i}=Placement<Body_{i},{offsets[i]},{prefixes[i]}{tiles}>;\n'
         pair = ','.join(f'Stage_{i}' for i in range(1, 11))
         return text + (f'using NativeProgram=Program<1,1088,1,12,3,{ARENA},2,5,{str(loop).lower()},'
-                       f'{embed},Stage_0,LayerGroup<2,{pair}>,Stage_11>;\n')
+                       f'{embed},Stage_0,LayerGroup<2,{pair}>,Stage_11,{c["cluster"]}>;\n')
 
     def check(self, c, source):
         return validate_gemm_dispatch(self.manifest(c), build_defines(source, []), source)
@@ -158,7 +158,27 @@ class NativeContractTests(unittest.TestCase):
             self.check(loop, self.source(loop, loop=False))
         with self.assertRaisesRegex(ValueError, 'program structure'):
             self.check(self.coordinates, self.source(self.coordinates).replace(
-                'Stage_10>,Stage_11>', 'Stage_10>,Stage_0>'))
+                'Stage_10>,Stage_11,1>', 'Stage_10>,Stage_0,1>'))
+
+    def test_cluster_coordinates_are_bound(self):
+        # D10: the program's cluster, the GEMM multicast and the DSMEM merge
+        # flags all follow the coordinate identity.
+        with self.assertRaisesRegex(ValueError, 'program structure'):
+            self.check(self.coordinates, self.source(self.coordinates).replace('Stage_11,1>', 'Stage_11,2>'))
+        multicast = copy.deepcopy(self.coordinates)
+        multicast['cluster'] = 2
+        multicast['gemms']['o']['multicast'] = True
+        source = self.source(multicast)
+        with self.assertRaisesRegex(ValueError, 'GEMM call signature'):
+            self.check(multicast, source)
+        o_calls = re.findall(r'using Body_(?:3|8)=Gemm<[^;]+>;', source)
+        for call in o_calls:
+            source = source.replace(call, call[:-2] + ',true>;')
+        self.assertEqual(len(self.check(multicast, source)), 9)
+        dsmem = copy.deepcopy(self.coordinates)
+        dsmem['attention']['merge'] = 'dsmem'
+        with self.assertRaisesRegex(ValueError, 'attention call signature'):
+            self.check(dsmem, self.source(dsmem))
 
     def test_embedding_placement_is_bound_to_the_coordinate(self):
         la = dict(self.coordinates, emb='la')

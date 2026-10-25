@@ -60,13 +60,15 @@ def dispatch(manifest, defines, source):
     # loop, embed, Stage_0, LayerGroup<P, Stage_1..Stage_S>, Stage_{S+1}>
     # (D7, D9): dense groups two layers of five, MoE one layer of six.
     group = ''.join(f',Stage_{i}' for i in range(1, size + 1))
+    # ... Stage_{S+1}, cluster> (D10).
     program = re.search(r'using NativeProgram\s*=\s*Program<(?:\d+,){5}(\d+),(\d+),\d+,(true|false),'
-                        rf'(true|false),Stage_0,LayerGroup<{per_group}{group}>,Stage_{head}>;', source)
+                        rf'(true|false),Stage_0,LayerGroup<{per_group}{group}>,Stage_{head},(\d+)>;', source)
     lm = re.search(rf'using Body_{head}\s*=\s*Head<HeadGemm_{head},\d+,\d+,\d+,\d+,\d+,(true|false)>;',
                    source)
     embed = c['emb'] == 'la'
     if (program is None or lm is None or (program[3] == 'true') != (c['layer_loop'] is True) or
-            (program[4] == 'true') != embed or (lm[1] == 'true') != embed):
+            (program[4] == 'true') != embed or (lm[1] == 'true') != embed or
+            int(program[5]) != c['cluster']):
         raise ValueError('native dense program structure differs from its coordinate identity')
     arena, layers = int(program[1]), int(program[2])
     streaming = c['weight_stream'] is True
@@ -118,8 +120,11 @@ def dispatch(manifest, defines, source):
             register_stages = int(args[22])
             stream = 0 if family == 'expert_gate_up' else None
         else:
-            # ..., op, U, InputNorm, W, C, D, index, register stages, map.
-            if len(args) != 17:
+            # ..., op, U, InputNorm, W, C, D, index, register stages, map
+            # [, multicast (D10c)].
+            multicast = len(args) == 18
+            if len(args) not in (17, 18) or (multicast and args[17] != 'true') or \
+                    multicast != (c['gemms'][family].get('multicast') is True):
                 raise ValueError('native dense GEMM call signature is invalid')
             register_stages = int(args[15])
             if args[10] != ('true' if family in ('qkv', 'gate_up', 'lm_head') else 'false'):
@@ -156,8 +161,11 @@ def dispatch(manifest, defines, source):
     shape = None
     for typed, number, raw in attention:
         args = raw.split(',')
-        # batch, Hkv, D, Q, norm, chunks, keys, slots, row work, capacity, 11 buffers, K/V maps.
-        if len(args) != 23:
+        # batch, Hkv, D, Q, norm, chunks, keys, slots, row work, capacity, 11 buffers, K/V maps
+        # [, DSMEM merge (D10b)].
+        dsmem = len(args) == 24
+        if len(args) not in (23, 24) or (dsmem and args[23] != 'true') or \
+                dsmem != (a.get('merge') == 'dsmem'):
             raise ValueError('native dense attention call signature is invalid')
         batch, hkv, dim, queries, norm, chunks, keys, slots, row, capacity = map(int, args[:10])
         current = (dim, queries, norm)
@@ -169,7 +177,8 @@ def dispatch(manifest, defines, source):
             raise ValueError('native dense attention call differs from manifest')
         shape = current
         # Sm90DenseLayout::Attention; storage beyond one arena takes the budget.
-        merge = 16*queries*dim + 32*queries + 4*max(chunks, 4)*queries + 4
+        merge = 16*queries*dim + 32*queries + 4*max(chunks, 4)*queries + 4 + \
+            (4*chunks*queries*dim + 4*chunks*queries if dsmem else 0)
         storage = (4*slots*keys*dim + 96*dim + merge + 1023) // 1024 * 1024
         full = storage > arena
         placement(number, typed, 0 if full else slots*4*keys*dim, full)
@@ -185,5 +194,6 @@ def implementations(manifest):
                        for g in manifest['gemms']],
                 attention=dict(impl='native_tma_mma_sync', task_body='Sm90DenseAttentionBody',
                                chunks=c['attention']['chunks'],
-                               merge='last_arriver' if c['attention']['chunks'] > 1 else 'none',
+                               merge=('dsmem' if c['attention'].get('merge') == 'dsmem' else 'last_arriver')
+                               if c['attention']['chunks'] > 1 else 'none',
                                buffers=c['attention']['slots'], partition='actual_past'))
