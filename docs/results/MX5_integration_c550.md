@@ -401,3 +401,43 @@ produces-9.1875. The GPU FP32 reference instead rounds gate2.453125.
 This identifies a boundary discrepancy, not yet an accepted oracle correction;
 the failed candidate/table gate stays open and tolerances are unchanged.
 Raw: `runs/mx5/gemm_streamk_failure_v1/`; additional independent audit pending.
+
+## Verified oracle correction and literal-prefix adoption
+
+Verified independent full-shape CPU FP32 matmul gives gate2.4453113079071045;
+FP64 and70-digit Decimal agree on the BF16 low side. Exact input-only rational
+comparison dot²-midpoint²*(ss/3072+float32(epsilon)) is negative. Neither input
+proof nor new expected values use native output. Adopted db7647c34 changes the
+single unconditional GEMM reference backend to CPU PyTorch FP32, retaining all
+original BF16 casts and the exact .02+.016*abs(reference) predicate. Six portable
+CPU tests cover the contract and an independent two-element boundary example.
+New rows record torch_cpu/float32/gemm_cpu_fp32_v1, Torch version and thread
+count; old GPU-oracle rows and the failed batch are immutable. New24-key retry
+uses identical ordering/seeds and passes all three fresh processes. This fixes
+a reference calculation discrepancy, without changing the threshold or body.
+Raw review: `runs/mx5/gemm_cpu_fp32_oracle_v1_61/`; new measurements:
+`runs/mx5/calibration/gemm_cpu_oracle_retry129_v1/`.
+
+Verified6b346c997 removes an added precondition on the *nonexecuting* Pw0
+reference: §4.5 defines R_next as its observed MTreg, not its eligibility to run.
+Only a successful genuine zero-iteration attribute query with complete observed
+attributes, binary/build/source-archive identities may retain diagnostic
+nonfit data. Old unmarked nonfit records cannot be relabeled or backfilled.
+Actual primary/timed rows and model caps, frame0, static0 and occupancy1 remain
+unchanged. This narrows the stack0 gate to executing kernels; the interpretation
+and difference from the previous stricter producer are explicit here. Root's
+combined61 Python CPU tests and five native CTests pass, including malformed
+attributes after a nonfit field. Raw: `runs/mx5/main_p0_prefix_cpu_v1/`.
+
+Verified fe0829b8a adopts the exact previously copied full-prefix/packed-lifetime/
+CTA-bound/younger-wait headers. Five fresh full units each pass1008 attention
+and15 legacy transforms; five fresh60-pair continuous runs pass2000x104x2,
+numerical, context/new-K/repeat/cross-process bits and scratch/occupancy checks.
+The source/binary evidence stays separate from earlier variants. Diagnostic
+Qwen B1 PF0/bmin1 atL65/1088 changes extra-GVM0's23.58/27.29us to23.02/26.54us;
+B16 atL512/1088 changes71.94/92.60 to72.13/93.38us. This is not a uniform
+speedup or default decision. Later-prefix automatic waits remain explicit.
+Raw: `runs/mx5/attention_younger_wait_units_v1_61/` and
+`attention_prefix_younger_wait_d7_v1_61/stage_validation/gpu_runs_NEW/`.
+Main host rebuild and the source identity check pass;15 actual manual model
+builds are running under `runs/mx5/native_dense_prefix_v1/`. Acceptance is open.

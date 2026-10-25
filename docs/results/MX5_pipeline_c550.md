@@ -100,3 +100,17 @@ per-partial Exp2 differs from the prompt's parallel design. A copied-header
 MIR investigation is underway. This is not a solver-selected final cell or a
 basis for accepting the performance predictions. The engine storage assumption
 is the concrete cross-phase incompatibility already corrected here.
+
+Verified continuation through fe0829b8a (2026-10-26): LA actual manual controls
+all pass512-step C-1/C-2, but Qwen B1 TPOT2.310ms regresses16.44% against MX-4.
+Literal attention prefix issue order, packed metadata lifetimes and bounded CTA
+geometry now enter the explicit v2 route after five fresh unit and continuous
+paired checks. New actual model builds/checks are required; no default changes.
+CPU resource retries now have immutable plan-bound receipts/cost policies;
+native receipt production, D7/512 eligibility and final orchestration remain
+open. Nonexecuting P0 references require genuine zero-iteration proof and keep
+observed nonfit attributes; timed/actual resource gates remain strict.
+GEMM's old GPU FP32 oracle crossed a BF16 midpoint at one coordinate. New
+measurements uniformly use CPU FP32 with unchanged casts/thresholds and explicit
+oracle metadata; the old failure remains. MoE and DNN order/status is unchanged.
+Detailed source/measurement evidence is in MX5_integration_c550.md.
