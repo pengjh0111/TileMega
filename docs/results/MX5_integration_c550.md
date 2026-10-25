@@ -268,3 +268,57 @@ LDS waits, independent of actual producers. O already issues31 loads together,
 then mixes waits/consumption. Thus O is not wholly serialized; the copied
 repair targets proven m/l and alpha departures while enforcing bounded O
 issue-before-consume. No performance causality is claimed before an A/B.
+
+## Reviewed top-four route and actual-program attribution
+
+Verified `c532da9b5` wires an explicit --mx-decode-v2-solve CPU preparation
+route and immutable four-candidate orchestration. Main host CLI and selection
+unit build;10 Python CPU tests and native CTest pass. Candidates remain marked
+manual/diagnostic, final=false and default_enabled=false. Resource failures stop
+with exact reports;512 execution is rejected until per-plan576 reductions/D7
+policy exists. Raw process/guard/artifact evidence is independently revalidated
+before the native1% selection consumer accepts measured pairs. Actual complete
+table/model execution, automatic reductions, production promotion and script
+routing remain pending. Synthetic CPU tests are not measured stage rows.
+Raw review/build/tests: `runs/mx5/v2_orchestration_v1/`.
+
+Verified actual Qwen B1 v7 program provenance (`15314b1f2` tooling): a copied
+debug build reproduces every allocated device ELF section,153736 text bytes,
+MT250/ST108/frame0 and19335 normalized MIR records. DWARF changes nonallocated
+debug sections. Compiler-source body buckets(MIR/bytes):qkv949/8496,
+attention10453/91376,O717/6560,gate_up1424/13616,down1386/12832,
+head876/8792. Setup, prefetch edges, entry prefetch and control remain separate;
+residuals are2111 unattributed MIR records,176 shared and24 unattributed bytes,
+plus256 text bytes outside the kernel. These metrics are independent, static
+compiler provenance; CSE/debug-line ownership has explicit limits. Every other
+plan needs its own identity proof. Appended attribution row preserves the old
+build row. Main-tool positive reproduction and a changed-MIR-hash negative test
+pass; no counts transfer on failed proof. Raw: `runs/mx5/program_attribution_v7_61/`.
+
+## Isolated attention repairs and rejected prefix candidate
+
+Verified copied LA repair: one aligned AS1 m/l pair, parallel per-slot alpha,
+original fixed lambda/O accumulation order,32 O loads before their wait/use.
+All4 actual copied Qwen timing/watchdog functions and12 bench functions have
+frame0, no generic/private/calls and clean MMA rings; Qwen native MT250/248 is
+unchanged. The full72-kernel unit matrix has144 clean rings,maxMT243/frame0.
+Five fresh guarded processes each pass1008 cases, context/K/V/tail/determinism
+checks. Continuous2000-iteration paired baseline/candidate checks are running;
+no new end-to-end performance or synchronization gate is claimed yet.
+Raw: `runs/mx5/attention_la_units_v1_61/` and `attention_la_parallel_d7_v1_61/`.
+
+Verified separate prefix MIR audit: current source issues owner key norm/RoPE,
+then Q/norm, then V_new and initial history K/V. This differs from §4.7's
+segment-start issue schedule (`DecodeAttentionV2.h:124-195`). A copied repair
+issues the full batch first and retires it before transforms, preserving rings
+and the LA suffix. All18 compiler invocations succeed, but six D128512
+candidate functions fail: B1 MT256/frame132;B16 MT256/frame120. D64/576
+fitsMT129/frame0. No failed candidate executes or enters main, and no resource
+limit/threshold is relaxed. Failure/source/MIR evidence:
+`runs/mx5/attention_prefix_d7_v1_61/FAILURE_MANIFEST.json`. This item remains
+unfinished; a read-only D7 audit is separating required payload and avoidable
+compiler liveness from allocator artifacts, without a second implementation.
+
+Verified script follow-up `23a53044b`: explicit WATCHDOG=1 prefill solves now
+write prefill_w rather than overwriting timing prefill. Both plans still need
+explicit builds. No final CELLS/default/native MoE route is enabled.
