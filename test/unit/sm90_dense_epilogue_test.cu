@@ -2,7 +2,8 @@
 // D4 epilogue check (prompt §5): consumer-side RMS, prefetched residual,
 // register and shared epilogue paths against an FP64 reference of the same
 // rounding sequence (ServingEpilogueValue). Grid 4 with eight tasks gives each
-// CTA two tasks, the most a residual stage prefetches.
+// CTA two tasks, the most a residual stage prefetches. Stream cases issue the
+// first task's weight slots ahead of Run, as the D6 producer tail does.
 #ifndef TEST_BATCH
 #define TEST_BATCH 1
 #endif
@@ -20,19 +21,24 @@ constexpr int B=TEST_BATCH,kGrid=4,kTasks=8;
 void check(cudaError_t e) {if(e!=cudaSuccess)throw std::runtime_error(cudaGetErrorString(e));}
 float Round(double x) {return float(BF(float(x)));}
 
-template<class G>
+template<class G,int Prefix>
 __global__ __launch_bounds__(160) void evaluate(Sm90DenseOperands p) {
   extern __shared__ __align__(1024) char shared[];
   auto& state=*reinterpret_cast<Sm90DenseRingState*>(shared);state.Initialize();
-  for(int repeat=0;repeat<2;++repeat)G::template Run<0>(p,shared);
+  for(int repeat=0;repeat<2;++repeat) {
+    if constexpr(Prefix>0)if(threadIdx.x==128)
+      G::template Preissue<Prefix>(p.weight,shared,state);
+    G::template Run<Prefix>(p,shared);
+  }
   state.Invalidate();
 }
 
-template<Op O,int TN,int WN,int TK,int K,int U=8>
+template<Op O,int TN,int WN,int TK,int K,int U=8,bool Stream=false>
 int run() {
   constexpr int N=TN*kTasks;
   constexpr bool norm=O!=Op::kResidual;
   using G=Sm90DenseGemm<B,N,K,TN,TK,2,WN,4/WN,O,U,norm>;
+  constexpr int prefix=Stream?(K/TK<2?K/TK:2)*2*TN*TK:0;
   constexpr int rows=Sm90DenseLayout::ActivationRows(B);
   std::vector<BF> act(B*K),weight(std::size_t(N)*K),packed(std::size_t(N)*K),residual(B*N);
   for(int b=0;b<B;++b)for(int k=0;k<K;++k)act[b*K+k]=BF(float(((b*37+k*11)%41)-20)/(16.0f+b));
@@ -58,8 +64,8 @@ int run() {
   // Residual stages read and write the stream in place, as o/down do.
   BF* output=O==Op::kResidual?r:o;
   Sm90DenseOperands p{map,w,r,output,index,1e-6f};
-  check(cudaFuncSetAttribute(evaluate<G>,cudaFuncAttributeMaxDynamicSharedMemorySize,G::kSharedBytes));
-  evaluate<G><<<kGrid,160,G::kSharedBytes>>>(p);
+  check(cudaFuncSetAttribute(evaluate<G,prefix>,cudaFuncAttributeMaxDynamicSharedMemorySize,G::kSharedBytes));
+  evaluate<G,prefix><<<kGrid,160,G::kSharedBytes>>>(p);
   check(cudaGetLastError());check(cudaDeviceSynchronize());
   std::vector<double> acc(B*N);std::vector<double> inv(B,1.0);
   for(int b=0;b<B;++b) {
@@ -127,6 +133,10 @@ int main() {
     add(run<Op::kSwiGLU,64,4,128,2048,16>());add(run<Op::kSwiGLU,224,4,64,4096,16>());
     add(run<Op::kArgmaxPartial,128,4,64,1024>());add(run<Op::kArgmaxPartial,128,1,256,2048>());
     add(run<Op::kArgmaxPartial,256,2,64,4096>());
+    // D6 streams: two slots of K/TK 4, a fully resident K/TK 2, and the
+    // shared-epilogue SwiGLU/argmax paths.
+    add(run<Op::kStore,32,4,256,1024,8,true>());add(run<Op::kResidual,8,1,1024,2048,8,true>());
+    add(run<Op::kSwiGLU,224,4,64,4096,16,true>());add(run<Op::kArgmaxPartial,128,1,256,2048,8,true>());
     std::printf("{\"batch\":%d,\"cases\":%d,\"errors\":%d,\"pass\":%s}\n",B,cases,errors,
         errors?"false":"true");
     return errors?1:0;

@@ -2,7 +2,8 @@
 // D2 attention check (prompt §5): fp64 reference over B, D, Q, norm, S, past
 // (64, block/chunk edges +-1, 1086) with position-encoded K/V; the new cache
 // row must equal the reference rotation exactly, and filling rows
-// [past+1, Capacity) with +-1e4 must leave every output bit unchanged.
+// [past+1, Capacity) with +-1e4 must leave every output bit unchanged, as
+// must preissuing every K/V slot of each CTA's first task (D6).
 #ifndef TEST_BATCH
 #define TEST_BATCH 1
 #endif
@@ -20,11 +21,13 @@ constexpr int B=TEST_BATCH,kCap=1088;
 void check(cudaError_t e) {if(e!=cudaSuccess)throw std::runtime_error(cudaGetErrorString(e));}
 float R(float x) {return float(BF(x));}
 
-template<class A>
+template<class A,int Prefix>
 __global__ __launch_bounds__(160) void evaluate(Sm90DenseAttentionOperands p) {
   extern __shared__ __align__(1024) char shared[];
   auto& state=*reinterpret_cast<Sm90DenseRingState*>(shared);state.Initialize();
-  A::Run(p,shared);
+  if constexpr(Prefix>0)if(threadIdx.x==128 && int(blockIdx.x)<A::kTasks)
+    A::template Preissue<Prefix>(p.key_map,p.value_map,p.past,shared,state);
+  A::template Run<Prefix>(p,shared);
   state.Invalidate();
 }
 
@@ -46,9 +49,10 @@ void Rotate(BF const* x,BF const* w,BF const* cos,BF const* sin,float eps,float*
   }
 }
 
-template<int Hkv,int D,int Q,bool Norm,int S,int Keys,int Slots>
+template<int Hkv,int D,int Q,bool Norm,int S,int Keys,int Slots,bool Stream=false>
 int run(int past,bool poison,std::vector<BF>* bits=nullptr) {
   using A=Sm90DenseAttentionBody<B,Hkv,D,Q,Norm,S,Keys,Slots,0,kCap>;
+  constexpr int prefix=Stream?A::kMaxPreissue:0;
   int groups=B*Hkv;
   std::vector<BF> qkv(std::size_t(groups)*(Q+2)*D),key(std::size_t(groups)*kCap*D),value(key.size());
   std::vector<BF> cos(kCap*D),sin(kCap*D),qn(D),kn(D);
@@ -80,8 +84,8 @@ int run(int past,bool poison,std::vector<BF>* bits=nullptr) {
       {{D,kCap,std::uint64_t(groups)},{2ull*D,2ull*kCap*D},{64,Keys,1}});
   check(cudaMemcpy(maps,host,sizeof host,cudaMemcpyHostToDevice));
   Sm90DenseAttentionOperands p{maps,maps+1,dqkv,dk,dv,out,dc,ds,dqn,dkn,partial,lse,arrivals,past,1e-6f};
-  check(cudaFuncSetAttribute(evaluate<A>,cudaFuncAttributeMaxDynamicSharedMemorySize,A::kSharedBytes));
-  evaluate<A><<<std::min(132,A::kTasks),160,A::kSharedBytes>>>(p);
+  check(cudaFuncSetAttribute(evaluate<A,prefix>,cudaFuncAttributeMaxDynamicSharedMemorySize,A::kSharedBytes));
+  evaluate<A,prefix><<<std::min(132,A::kTasks),160,A::kSharedBytes>>>(p);
   check(cudaGetLastError());check(cudaDeviceSynchronize());
   std::vector<BF> got(groups*Q*D),cache_k(key.size()),cache_v(value.size());
   check(cudaMemcpy(got.data(),out,got.size()*2,cudaMemcpyDeviceToHost));
@@ -135,11 +139,15 @@ template<int Hkv,int D,int Q,bool Norm,int S,int Keys,int Slots>
 int sweep() {
   int errors=0;
   for(int past:{64,Keys-1,Keys,Keys+1,575,1023,1024,1086}) {
-    std::vector<BF> clean,poisoned;
+    std::vector<BF> clean,poisoned,streamed;
     errors+=run<Hkv,D,Q,Norm,S,Keys,Slots>(past,false,&clean);
     errors+=run<Hkv,D,Q,Norm,S,Keys,Slots>(past,true,&poisoned);
+    errors+=run<Hkv,D,Q,Norm,S,Keys,Slots,true>(past,true,&streamed);
     if(std::memcmp(clean.data(),poisoned.data(),clean.size()*2)) {
       std::fprintf(stderr,"B%d D%d Q%d S%d past%d: poisoned rows changed the output\n",B,D,Q,S,past);++errors;
+    }
+    if(std::memcmp(clean.data(),streamed.data(),clean.size()*2)) {
+      std::fprintf(stderr,"B%d D%d Q%d S%d past%d: preissue changed the output\n",B,D,Q,S,past);++errors;
     }
   }
   return errors;
