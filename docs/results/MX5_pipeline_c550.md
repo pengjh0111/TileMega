@@ -1,137 +1,101 @@
 # MX-5 C550 pipeline and specification audit
 
-Verified by source inspection, 2026-10-25, branch `tilemega-metax`, HEAD
-`37ac67c148eb90d6a5e9a9c879abfb36945bef8e`; existing dirty headers/results preserved.
-Root subsequently committed the engine repair as `120abd680`; updates through
-`ba573643a` include protocol-script fixes, the evaluated-grid invariant, five manual development
-checks and the CPU v2 solver.
-Authority: `/root/Prompt/TileMega_MX5_prompt.md`, SHA256
+Source audit updated 2026-10-26 through `3843f6477`; measured checkpoint through
+`cf7b6fb25`. Earlier audits remain in git history. **Verified** means inspected
+source or executed evidence; **inferred** means interpretation. Authority is
+`/root/Prompt/TileMega_MX5_prompt.md`, SHA256
 `75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73`.
-Read AGENTS.md/CLAUDE.md and the complete prompt. This audit is CPU source
-inspection; guarded component measurements are documented in
-`MX5_integration_c550.md`. The earlier pipeline audit is preserved in git history.
-Measurements below are stated by existing reports, not reverified by this audit.
+The workspace actually uses `/root/tilemega` and `/root/Prompt`; this path
+variation is recorded, not a change of implementation authority.
 
-## Actual pipeline and implementation status
+## Current pipeline (verified)
 
-| Path | Verified current behavior and exact source |
+```mermaid
+flowchart LR
+  A[Checkpoint and export bridge] --> B[Frontend ModelPlan]
+  B --> C[Static types and StageProgram]
+  C --> D[cucc and actual resources/MIR]
+  D --> E[plan.so and identity/manifest]
+  E --> F[Recipe packing and shared request state]
+  F --> G[ServingEngine L1 / device decode loop]
+  G --> H[C-1 / C-2 and uninstrumented timing]
+  H --> I[Qualified costs and exact top-4 selection]
+  I --> J[Acceptance gates and defaults]
+```
+
+This diagram describes the intended native route. Current model controls use
+explicit diagnostic pins; the final selection/default edge remains open.
+
+| Step | Current implementation and limit |
 |---|---|
-| Export | `scripts/mx_serving_cell.sh:25` exports decode/prefill, makes bridge JSON and registers MoE export pytree at line36. Checkpoint packing happens when serving loads plans. |
-| Compile route | `tools/commands/compile.cpp:571` routes decoder/decode JSON to `mx_decode::TryCompile`; target table path is resolved at line581. |
-| Default dense | `tools/commands/mx_decode.cpp:96` selects v2 only when pin contains `mx_decode_v2`; otherwise BuildModelPlan/ImportPlan/AnalyzeMxDecode still feed MX-4. `DecodeProgram.cuh:190` still executes Embed; `DecodeRuntime.cuh:52` counts 5L+2 stages. |
-| Explicit v2 | `tools/commands/mx_decode_v2.cpp:71` accepts only `manual` or `resource_probe` purpose; line80 rejects interpreter flags; line89 rejects DM plans. Manifest at line255 records solver_selected=false/default_enabled=false. This is a diagnostic integration path, not a final solver selection. |
-| Static emitter | `lib/Codegen/MxDecodeProgramV2.cpp:198` constructs StageProgram; lines219–235 emit QKV(kStore), attention, O, gate_up, down/DownLast and head. `StageProgram.cpp:69` emits type aliases, line83 the unrolled-disabled layer loop and line87 compile-time body calls. No runtime stage descriptor was introduced. |
-| Embedding/edges | `DecodeProgramV2.cuh:76` selects embedding A for layer0; line83 selects its O residual; emitter line230 sends DownLast to head and line235 sends head to layer0 QKV weights. Embed stage is absent from v2. |
-| V2 kernel/runtime | `DecodeProgramV2.cuh:165` receives Binding and launch controls by value; line181 synchronizes before entrance prefetch, line209 uses stage-local 64-byte counters, line215 broadcasts next-step tokens after head. `DecodeRuntimeV2.cuh:45` counts 5L+1 stages; line123 reports L1 only, line241 requires one resident CTA, line251 validates all pasts, line288 provides launch_steps. |
-| Synchronization | `StageProgram.cuh:28` implements P-B grid release/add, polling, acquire/broadcast and LDS generation release; watchdog code is conditional at line34. `LastArriverV2.cuh:15` implements CTA publish/ticket/last-only acquire/reduction/reset. These are current model clients, not only unit/bench code. |
-| V2 prefetch | `MxDecodeProgramV2.cpp:83` derives P_w from measured r_next when prefetch=-1; line107 bounds explicit prefetch against provided r_next. Wait-limit validation begins line118. Manual pins can omit r_next; this is not qualified production selection. |
-| V2 resources | `mx_decode_v2.cpp:166` parses actual resource report and rejects every violation; allow_resources cannot bypass it. `python/tilemega/mx5_resources.py:117` enforces MTreg227/255, frame0 and static-smem0. Per-body fields remain pending by default at line130. mx5_attribution.py now proves one old-v7 actual-program partition via executable equality, with residuals; each other plan still requires its own proof. |
-| Prefill fragment opt-in | `compile.cpp:1851` consumes pin marker mx_kv_fragments_v2 only for dense prefill; line1854 requires seq64; line2040 records kv_storage=block_fragments. `PrefillKvFragmentsV2.h:14` fixes Tokens64 and line21 traps nonzero past/misaligned capacity/block extent. Lines45/52 publish complete K/V fragments using the old prefill shared arrays. |
-| Weights | `MxDecodeProgramV2.cpp:149` wraps GEMM recipes in tile_pages(xcore_mma,TN,32) and names them by TN. `serving/weights.py:109` rejects conflicting same-name recipes; line162 performs physical page packing, line234 loads/deduplicates checkpoint-derived weights by source hashes and complete recipe. Different phase layouts can coexist under distinct names. |
-| Request storage | `serving/state.py:66` allocates one shared KV backing store; line75 binds each layer, line78 validates dtype/elements/contiguity. Equal byte counts do not identify the physical KV order. |
-| Engine | `serving/engine.py:40` checks sequence/capacity, line51 checks kv_layout; new line55 checks kv_storage before binding. Line73 onward loads weights/state, line88 onward sets decode pasts, line128 onward performs one prefill then separate/device-loop decode. `execution.py:45` already resolves mx_static to L1. |
-| Measurement/check | `scripts/mx_check_modes.sh:10` runs C-2 then teacher-forcing HF C-1; the measure path uses existing ServingEngine. All five512 manual development controls pass512-step C-1/C-2; solver-selected TPOT acceptance remains open. The checker disables optional step events because v2 step_ns is diagnostic-only. |
-| Bench/calibration | GEMM/head/attention benches share v2 bodies. `experiments/mx5/calibration.py:335` handles prescribed resource-reduction selection; `stage_table.py:271` aggregates three rounds, requires matching source/binary/resource identity and P0 reference, and labels output measured_rows_only/full_table=false at line304. |
-| Production solver/table | `configs/targets/xcore1000.json:2360` still selects xcore1000_mx_decode.json. `MxDecodeSolver.cpp:130` consumes the old schema; line229 chooses two candidates by changing only the smallest-gap class. `mx_decode.cpp:283` times those two. MxDecodeSolverV2.cpp implements exact k-best4/evidence checks. Explicit --mx-decode-v2-solve plus mx5_select.py orchestration is now wired and CPU-tested (`c532da9b5`); automatic per-plan reductions/D7 fallback, real top4 E2E and final promotion remain pending. |
-| Cell scripts | `mx_serving_cell.sh:65` still excludes experts from static decode and expects an mx4_pin. Protocol fix `ba573643a` makes candidate timers900s, prefill watchdog `${WATCHDOG:-0}`, check prefer prefill_w/decode_w, timed decode disable step events and expert jobs reserve40960MiB. Explicit WATCHDOG=1 prefill solves write prefill_w (`23a53044b`). Final script top4 routing/MoE prompt construction remain pending. |
-| MoE | `mx_decode.cpp:104` still returns -1 for DM and `compile.cpp:826` sets moe_batch only on the legacy path. Lines838–850 build/specialize DM plans. No AnalyzeMxMoe/MxGroupedGemm/native M1–M7, --mx-prompt route or native prompt plan exists. |
-| DNN | `compile.cpp:738` builds DnnModelPlan then continues toward legacy DM lowering, with no mx_dnn native branch. `dnn/cli.py:58` defaults forward_executor=L2, line229 uses build-dm; no time command/native bodies/dw_rsc/c550 config suite exists. `dnn/check.py:30` already provides reusable NativeForward ABI/identity/external-binding validation. |
+| Export | `scripts/mx_serving_cell.sh` produces decode/prefill bridge JSON from random-weight checkpoints. Dense has five models; MoE-L24 export/checkpoint also exists. Export is not native execution. |
+| Frontend | `compile.cpp` routes xcore1000 decoder/decode JSON to `mx_decode::TryCompile`. Dense uses `BuildModelPlan`, import and `AnalyzeMxDecode`; DM MoE analysis/native routing remains unfinished. |
+| Solver inputs | `configs/targets/xcore1000.json` still points to the MX-4 decode cost table. An explicit v2 solve flag consumes qualified schema2 costs. Schema3 has an explicit diagnostic complete cost-or-rejection route; default/results consumers reject it. |
+| Selection | `MxDecodeSolverV2` enumerates the prescribed geometry, averages interpolated attention cost across past64..1086, and merges exact top4. Preview IDs/ranks/evidence are retained. Whole-program resource failures and justified thread choice remain required before final measurement consumption. |
+| Static code | `StageProgram` and `MxDecodeProgramV2` emit constexpr body types and direct calls, without runtime stage descriptors. Dense uses qkv(kStore), attention, O, gate_up, down and head; embed is folded into layer0. There are5L+1 counters/barriers per decode step. |
+| Edges | DownLast prefetches head; head prefetches next-step layer0 QKV weights. Token broadcast happens after grid acquire; first token broadcast precedes entrance prefetch. Terminal packet lexical scope and stage-local AS4 binding reloads are recorded departures in the integration report. |
+| Synchronization | Selected DT-W/R/P/X/KV =576 / role fence+atomic / P-B / X-A / block_fragments. `StageSyncV2` uses LDS generation release; `LastArriverV2` uses last-only acquire. Each barrier has its own64B counter, monotonic across steps. Only diagnosed per-plan512 controls currently execute outside the576 shape. |
+| Bodies | GEMM/head/attention v2 are shared by generated programs and benches. `3843f6477` guards GEMM weight Prefetch for inactive/chunkless waves. Attention's CTA scalar-sharing candidate remains isolated; it is not part of main. |
+| Build identity | Native compilation retains actual compile receipts, source snapshots, CU, macro capture, resource log and binary identity. Normal resource gates require frame0/static-smem0 and MT≤227/255, plus actual one-CTA occupancy. Forced-register diagnostics never qualify for execution. |
+| Weights | `serving/weights.py` executes exported recipes and `tile_pages(xcore_mma,TN,32)` packing, checks conflicting recipes and deduplicates by source/recipe identity. Actual packing coordinates must match the executed types. |
+| Prefill and KV | Dense retains MX-4 prefill geometry, watchdog0 for timing and watchdog1 twins for checks. DT-KV requires full32-token fragment writes. Prefill/decode share request backing storage; `engine.py` now checks physical `kv_storage` as well as `kv_layout`, sequence and capacity. |
+| Runtime | `DecodeRuntimeV2` supplies L1/launch_steps ABI. `execution.py` resolves mx_static to L1. Binding and launch controls enter the kernel by value; hot global accesses use explicit address spaces. Engine executes one prefill followed by separate or device-loop decode. |
+| Validation | C-1 uses512 teacher-forcing steps against HF; C-2 requires exact separate/loop tokens. Timing uses64/1024, greedy BF16, fresh processes, warm1+timed2, step-events0 and TPOT=(E2E−TTFT)/1023. Diagnostic skips/step clocks are attribution evidence. |
+| Defaults | Default dense remains MX-4 static decode. Explicit v2 resource failure throws rather than interpreting the plan. MoE/DNN still have legacy paths; their final native implementation and compile-time legacy rejection remain required work. |
 
-## Differences, defects and evidence boundaries
+## Evidence boundary (verified)
 
-1. **Found and repaired physical-layout safety gap.** Prompt §6.7 assumes the
-   existing engine's kv_layout check is sufficient; DT-KV block fragments make
-   two plans both say vt while addressing incompatible bytes. Artifact identity
-   checks each plan individually (`build/feature_contract.py:61`, `identity.py:101`)
-   and cannot enforce compatibility between plans. The original engine/state
-   accepted this pair. With root's explicit follow-up authorization, added a
-   four-line kv_storage equality guard at `serving/engine.py:55`, defaulting old
-   manifests to linear. No executor/default/layout changed. Focused CPU tests
-   mock CUDA/PlanLibrary and verify rejection before execution/binding and
-   acceptance of matching old/fragment metadata. Combined with feature-contract
-   and unified-identity suites: **27 passed**, GPU visibility disabled.
-2. **Default source still has MX-4 architecture.** This is visible incompletion,
-   not evidence that v2 secretly falls back when rejected. Explicit v2 resource
-   failures throw; the default must not be represented as final MX-5 acceptance.
-   Old dense decode remains static (not an interpreter); MoE/DNN legacy paths
-   remain callable, conflicting with final §0.2/§6.1/§8.6 compile-time rejection.
-3. **StageProgram+dense integration now exists.** Historical
-   `docs/results/MX5_pipeline_c550.md` predates these files and its “not started”
-   statements are stale. `MX5_integration_c550.md` is the relevant checkpoint.
-4. **512-only success is not a DT-W override.** Source supports manual512/576,
-   but qualifying a real512 plan still requires prescribed576 prefetch reductions,
-   D7 diagnosis and manifest/report evidence. No automated plan-level reduction
-   and justified576→512 selection workflow is present in TryCompileV2.
-5. **Schedule overlap is recorded.** Integration checkpoint states B/C overlap
-   to expose whole-program resource defects. This departs from strict §9 order
-   but preserves open gates; no reason found to waive B, model checks or timing.
-6. **Pending resource attribution is explicit.** Total executable bytes and
-   kernel instructions are collected; per-body code sizes/instructions and I1
-   program-order differences are not complete in model manifests (§4.12).
-7. **Component/campaign counts are not end-to-end results.** The integration
-   checkpoint states G-A passed, G-B/G-PROGRAM open, prior4545-key campaign
-   coverage, later invariant repairs and new resource regressions. This audit
-   reverified neither timing nor numerical counts; current-source campaigns
-   must replace stale-source qualification without rewriting historical rows.
+- G-A passes. G-B/G-PROGRAM/G-LLM remain open. Existing default target/pins
+  have not been promoted to MX-5 final results.
+- Five older native development controls pass512-step C-1/C-2. Old-source
+  schema2 has4545 keys with three fresh measurements each. Neither fact
+  substitutes for final source qualification and25-cell selection.
+- Llama1B B1 has a real fitting minimum576 plan, so blanket512 is invalid.
+  Its old-source complete domain has154 measured keys+35 resource rejections,
+  with no missing key or invented rejection latency. Schema3 is diagnostic.
+- Some576 plans spill at the toolchain's observed168 allocation budget despite
+  the nominal AP-total227 bound. This discrepancy and candidate-bound D7
+  evidence are recorded. It does not prove a body-level register lower bound.
+- Eight admitted idle-Prefetch unit families each pass5 fresh processes
+  (40/40), including full512 numerical matrices and512/576 chains. Rejected
+  complete576 families were retained and never run.
+- The real idle-fix QwenB1 WD0/WD1 plans are MT251/255,frame0,resident1;
+  both have15 clean MIR rings. C-1/C-2 passes512 steps; generated tokens equal
+  the old control exactly. Same-card P-PAIR medians old/fix are
+  2.026787953/2.034753758ms (+0.393%, indistinguishable). The fix is still about
+  2.58% slower than stored MX-4; performance acceptance remains open.
+- Attention scalar reuse passes five fresh512 numerical processes and actual
+  copied-program resource/MIR checks. It increases static text size. Its real
+  isolated-plan E2E comparison remains pending; no speedup/default is claimed.
+- 8BB16 original top4 IDs1/3 still fail at allPw=D in the retained source epoch.
+  Def-use analysis separates V-tail predicates from launch/loop state; it does
+  not permit deleting candidates or inventing a replacement top4.
 
-## Critical next gates
+## Whole-spec checklist
 
-1. Finish root's current invariant/resource regression: all legal v2 bodies
-   frame0, correct arithmetic, fresh five-process synchronization evidence for
-   changed paths, steady-ring MIR without4160/generic/private/call defects.
-2. Rebuild/requery P0 R_next and derived-prefetch calibration for the **same
-   final source**, then three-process timings/full domain. Do not promote
-   partial tables, prune failures, infer R_next or replace576 measurements
-   with512. Diagnose whole-program576 using D7 and the prescribed reductions.
-3. Build five real dense development cells with compatible fragment-prefill
-   watchdog0 timing and watchdog1 correctness twins; require C-1/C-2 and
-   uninstrumented end-to-end comparisons/ledger before default selection.
-4. Wire the CPU-tested v2 solver/top4 into compilation and two fresh processes
-   per candidate, selection threshold and pred/meas attribution; update table,
-   pins and script's prefill_w preference/900s timing guards.
-5. Complete native MoE decode/prompt/routing/packing and40GiB guards; then all
-   25 dense+5 MoE checks/timings and G-LLM. Complete native DNN and25 synthetic
-   checks/timings afterward; only DT-F may be cut for budget.
+1. Keep order: stage0 → dense → MoE → LLM30 acceptance → DNN25. Development
+   integration/calibration overlap is recorded; gates are not waived.
+2. Dense covers five models×B1/2/4/8/16. MoE covers24-layer Qwen30B-A3B at the
+   same batches. DNN covers ResNet18, MBV1/2, BERT S128 and NAFNet-w32 256².
+3. Implement §3–§8 structures/layouts/rounding as specified. Only measured DT
+   branches, bounded register reductions and DT-F provide the prescribed
+   alternatives. Failed artifacts and source differences remain explicit.
+4. Rebuild P0/derived widths and three-process stage costs for the actual body
+   source. Every coordinate/row must execute in code. Select each final cell
+   through exact top4 E2E measurements and the1% rule; report pred/meas.
+5. Implement MoE native analysis, router/dispatch, grouped GEMMs/combine,
+   prompt64 program, packing and routing check. Then accept25 dense+5 MoE
+   cells against the stored baselines before starting native DNN execution.
+6. Implement DNN native forward ABI/bodies/generator/solver/time command;
+   pass all25 synthetic-weight checks and collect all25 forward timings.
+   Only the two DT-F fusion experiments may be cut for budget.
+7. GPU work stays guarded on7/6/5/4, at most two cards and one job per card;
+   job≤1800s, timing≤900s, MoE needs40960MiB. No external baseline remeasure,
+   clock/power/driver change, or use of cards0–3.
+8. Budget60 card-hours; count both job logs by canonical distinct output.
+   At2026-10-26T07:17:20+08:00:537 closed/0 active, wrapper-wall upper bound
+   16.543611 card-hours. Raw artifacts stay under ignored runs; committed
+   measurements append round/executor/implementation without rewriting rows.
 
-Later measured evidence (verified) is recorded in MX5_integration_c550.md:
-the old-grid Qwen B1 manual control regresses19.83% against MX-4. Its attention
-skip contribution23.39us versus22.27us bench triggers D7; the merger's serial
-per-partial Exp2 differs from the prompt's parallel design. A copied-header
-MIR investigation is underway. This is not a solver-selected final cell or a
-basis for accepting the performance predictions. The engine storage assumption
-is the concrete cross-phase incompatibility already corrected here.
-
-Verified continuation through fe0829b8a (2026-10-26): LA actual manual controls
-all pass512-step C-1/C-2, but Qwen B1 TPOT2.310ms regresses16.44% against MX-4.
-Literal attention prefix issue order, packed metadata lifetimes and bounded CTA
-geometry now enter the explicit v2 route after five fresh unit and continuous
-paired checks. New actual model builds/checks are required; no default changes.
-CPU resource retries now have immutable plan-bound receipts/cost policies;
-native receipt production, D7/512 eligibility and final orchestration remain
-open. Nonexecuting P0 references require genuine zero-iteration proof and keep
-observed nonfit attributes; timed/actual resource gates remain strict.
-GEMM's old GPU FP32 oracle crossed a BF16 midpoint at one coordinate. New
-measurements uniformly use CPU FP32 with unchanged casts/thresholds and explicit
-oracle metadata; the old failure remains. MoE and DNN order/status is unchanged.
-Detailed source/measurement evidence is in MX5_integration_c550.md.
-
-
-Verified continuation through2a7235f4b: the512-scoped4545-key table is fully
-qualified (three fresh rounds each), but does not approve512 or the default.
-Corrected past64..1086 and lossless JSON membership yield five valid top-4
-previews. Actual20 native builds retain20 receipts:3 fit,17 spill. D7 copied
-terminal-scope/stage-local AS4 reload yields two frame0 probes, pending review
-and model validation. No actual top-4 timing, native MoE or native DNN is
-claimed. Detailed immutable paths and failed experiments are in
-MX5_integration_c550.md. Dense acceptance still precedes MoE, LLM30 then DNN25.
-
-
-Verified9aaf3bbf2 production emitter repair preserves stage/next/barrier order
-and measured body closures. Five new manual development controls pass512-step
-C-1/C-2 (8BB1 uses the prescribed GU8->4 descendant). Its exact-width class has
-three fresh costs. Of53 actual program builds,8BB16 originalIDs1/3 still fail
-at allPw=D and are stopped; no candidates are pruned. QwenB1 manual top4's1%
-rule retains ID0 with TPOT2.024607199ms, so G-PROGRAM remains open. The complete
-576 Llama1B B1 domain has154 selected fit/35 rejected keys after396 genuine
-zero-execution queries; its costs/576 selection remain pending. Schema3 and
-per-plan budget exception consumers remain ignored/unapproved; no defaults move.
+Current raw paths, failures, source identities, detailed stage ledger and the
+remaining acceptance work are in `MX5_integration_c550.md` and the CSVs.
