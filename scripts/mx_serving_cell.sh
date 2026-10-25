@@ -21,6 +21,13 @@ JOBS=${JOBS:-8}
 # edits in the development tree during a 30-minute solve would invalidate it.
 SOLVE_BIN=${SOLVE_BIN:-$ROOT/build/tools/tilemega}
 cmd=$1; id=$2
+needs_mib=20480
+query_needs_mib=2048
+if [ -f runs/mx1/export/${id}_decode/bridge.json ] && \
+   grep -q -m1 expert runs/mx1/export/${id}_decode/bridge.json; then
+  needs_mib=40960
+  query_needs_mib=40960
+fi
 case $cmd in
 export)
   family=$3; cfg=$4
@@ -61,7 +68,7 @@ solve)
     prompts=${PROMPTS:-$ROOT/configs/prompts/$(case $id in qwen*) echo qwen;; *) echo llama3;; esac)_isl64.json}
     selection=${SELECTION:-measure}
     measure=()
-    [ $selection = measure ] && measure=(--measure-cmd "env NEEDS_MIB=20480 $ROOT/scripts/mx_gpu_job.sh ${MGPU:-7} 1700 $C/measure_guard env -u ALL_PROXY -u all_proxy python -m tilemega.serving.measure --model /root/models/${id}_rand --prefill-so $P --prompt-ids $prompts --batch $b --mode L1 --decode-loop auto --max-new-tokens 1024 --warmup 1 --repeats 2 --policy $ROOT/configs/bench/measurement_policy_c550.json")
+    [ $selection = measure ] && measure=(--measure-cmd "env NEEDS_MIB=$needs_mib $ROOT/scripts/mx_gpu_job.sh ${MGPU:-7} 900 $C/measure_guard env -u ALL_PROXY -u all_proxy python -m tilemega.serving.measure --model /root/models/${id}_rand --prefill-so $P --prompt-ids $prompts --batch $b --mode L1 --decode-loop auto --max-new-tokens 1024 --warmup 1 --repeats 2 --step-events 0 --policy $ROOT/configs/bench/measurement_policy_c550.json")
     timeout ${CELL_TIMEOUT:-18000} nice $SOLVE_BIN compile runs/mx1/export/${id}_decode/bridge.json $C/plan.so \
       --serving decode --emit serving --batch $b --prompt-len 64 --runtime-target $TARGET \
       --selection $selection "${measure[@]}" --mx-tmin ${MX_TMIN:-128} --watchdog 0 ${PIN:+--evaluate-configs $PIN} \
@@ -123,13 +130,13 @@ solve)
   if [ $selection = measure ]; then
     model=/root/models/${id}_rand
     measure=(--measure-top 4 --measure-finalists 2 --measure-rounds 2
-             --measure-cmd "env NEEDS_MIB=20480 $ROOT/scripts/mx_gpu_job.sh ${MGPU:-7} 1700 $C/measure_guard env -u ALL_PROXY -u all_proxy python -m tilemega.serving.measure_candidate --model $model")
+             --measure-cmd "env NEEDS_MIB=$needs_mib $ROOT/scripts/mx_gpu_job.sh ${MGPU:-7} 900 $C/measure_guard env -u ALL_PROXY -u all_proxy python -m tilemega.serving.measure_candidate --model $model")
   fi
   env CUDA_VISIBLE_DEVICES= MACA_VISIBLE_DEVICES= \
-    TILEMEGA_DEVICE_RUN_PREFIX="env NEEDS_MIB=2048 $ROOT/scripts/mx_gpu_job.sh $QGPU 300 $C/devq" \
+    TILEMEGA_DEVICE_RUN_PREFIX="env NEEDS_MIB=$query_needs_mib $ROOT/scripts/mx_gpu_job.sh $QGPU 300 $C/devq" \
     timeout ${CELL_TIMEOUT:-18000} nice $SOLVE_BIN compile runs/mx1/export/${id}_$phase/bridge.json $C/plan.so \
       --serving $phase --emit serving --batch $b --prompt-len 64 --pg off $extra \
-      --solve $TARGET --runtime-target $TARGET --selection $selection "${measure[@]}" --watchdog 1 \
+      --solve $TARGET --runtime-target $TARGET --selection $selection "${measure[@]}" --watchdog ${WATCHDOG:-0} \
       --nonpaged-weight-layout $layout --nonpaged-la $la --search-jobs $JOBS \
       --search-passes 2 --search-budget-ms ${SEARCH_BUDGET_MS:-1200000} \
       ${PIN:+--evaluate-configs $PIN} \
@@ -143,11 +150,11 @@ solve)
           echo "layout=tiled rejected by a selected GEMV variant; retrying row" >> $C/compile.log
           layout=row
           env CUDA_VISIBLE_DEVICES= MACA_VISIBLE_DEVICES= \
-            TILEMEGA_DEVICE_RUN_PREFIX="env NEEDS_MIB=2048 $ROOT/scripts/mx_gpu_job.sh $QGPU 300 $C/devq" \
+            TILEMEGA_DEVICE_RUN_PREFIX="env NEEDS_MIB=$query_needs_mib $ROOT/scripts/mx_gpu_job.sh $QGPU 300 $C/devq" \
             timeout ${CELL_TIMEOUT:-18000} nice $SOLVE_BIN compile \
               runs/mx1/export/${id}_$phase/bridge.json $C/plan.so \
               --serving $phase --emit serving --batch $b --prompt-len 64 --pg off $extra \
-              --solve $TARGET --runtime-target $TARGET --selection predicted --watchdog 1 \
+              --solve $TARGET --runtime-target $TARGET --selection predicted --watchdog ${WATCHDOG:-0} \
               --nonpaged-weight-layout row --nonpaged-la $la --search-jobs $JOBS \
               --search-passes 2 --search-budget-ms ${SEARCH_BUDGET_MS:-1200000} \
               >> $C/compile.log 2>&1 && echo rc=0 >> $C/compile.log || {
@@ -165,10 +172,11 @@ solve)
 check)
   b=$3; rand=$4; prompts=$5; gpu=$6
   C=$CELLS/$id/B$b
-  # An MX-4 decode plan is checked with its watchdog twin (solve).
+  # Correctness prefers the separately built watchdog twins.
+  P=$C/prefill; [ -f $C/prefill_w/plan.so ] && P=$C/prefill_w
   D=$C/decode; [ -f $C/decode_w/plan.so ] && D=$C/decode_w
-  NEEDS_MIB=20480 $ROOT/scripts/mx_gpu_job.sh $gpu 1700 $C/check env -u ALL_PROXY -u all_proxy \
-    bash $ROOT/scripts/mx_check_modes.sh $rand $C/prefill/plan.so $D/plan.so $b 512 $C $prompts ;;
+  NEEDS_MIB=$needs_mib $ROOT/scripts/mx_gpu_job.sh $gpu 1700 $C/check env -u ALL_PROXY -u all_proxy \
+    bash $ROOT/scripts/mx_check_modes.sh $rand $P/plan.so $D/plan.so $b 512 $C $prompts ;;
 measure)
   b=$3; rand=$4; prompts=$5; gpu=$6; round=$7
   C=$CELLS/$id/B$b; O=$C/measure/round$round
@@ -176,9 +184,9 @@ measure)
   mkdir -p $O
   # MX4 prompt §9: one fresh process per round, warm-up 1 + timed 2; a timed
   # job is at most 15 minutes.
-  NEEDS_MIB=20480 $ROOT/scripts/mx_gpu_job.sh $gpu 900 $O/guard env -u ALL_PROXY -u all_proxy \
+  NEEDS_MIB=$needs_mib $ROOT/scripts/mx_gpu_job.sh $gpu 900 $O/guard env -u ALL_PROXY -u all_proxy \
     python -m tilemega.serving.measure --model $rand --prefill-so $C/prefill/plan.so --decode-so $C/decode/plan.so \
     --prompt-ids $prompts --batch $b --out $O --mode L1 --decode-loop auto \
-    --max-new-tokens 1024 --warmup 1 --repeats 2 \
+    --max-new-tokens 1024 --warmup 1 --repeats 2 --step-events 0 \
     --policy configs/bench/measurement_policy_c550.json > $O/run.log 2>&1 && touch $O/.done ;;
 esac
