@@ -150,6 +150,12 @@ def audit(args, inputs):
                 raise ValueError('batch references differ from checked source rows')
             for key_row, row in zip(keys, checked):
                 checked_kind, checked_key = checked_identity(row)
+                reference = row['r_next_reference']
+                if reference.get('compiler_probe_only'):
+                    for name in ('binary','build_metadata','source_archive'):
+                        descriptor = reference['probe'][name]
+                        if sha(inputs.read(descriptor['path'])) != descriptor['sha256']:
+                            raise ValueError('compiler probe proof changed during qualification: ' + descriptor['path'])
                 key = canonical(kind, key_row)
                 if (checked_kind != kind or checked_key != key
                         or key_row.get('library') != row.get('library')):
@@ -215,7 +221,7 @@ def card_for(job, inputs, job_log):
 def qualify(args):
     inputs = Inputs()
     snapshots = []
-    for path in (Path(__file__), Path(table.__file__), Path(scheduler.__file__)):
+    for path in (Path(__file__), Path(table.__file__), Path(table.compiler_probe.__file__), Path(scheduler.__file__)):
         raw = path.read_bytes()
         snapshots.append(dict(path=str(path.resolve()), sha256=sha(raw), source=raw.decode()))
     jobs, coverage = audit(args, inputs)

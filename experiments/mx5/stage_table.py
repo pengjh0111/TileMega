@@ -9,6 +9,7 @@ need a same-key Pw=0/PF=0 resource reference, inline as r_next_reference or in
 that the supplied keys cover the complete candidate domain.
 """
 import argparse
+import importlib.util
 import datetime
 import hashlib
 import json
@@ -28,6 +29,11 @@ FIELDS = {
     'attention': ('dim', 'q', 'hkv', 'b', 'length', 'b_min', 'qk_norm', 'capacity',
                   *COMMON, 'prefetch_kind'),
 }
+
+
+_probe_spec = importlib.util.spec_from_file_location('mx5_compiler_probe', Path(__file__).with_name('compiler_probe.py'))
+compiler_probe = importlib.util.module_from_spec(_probe_spec)
+_probe_spec.loader.exec_module(compiler_probe)
 
 
 class TableError(ValueError):
@@ -240,7 +246,10 @@ def validate_reference(reference):
     provenance = identity(reference.get('provenance', {}))
     kind = kind_of(dict(provenance, kind=reference.get('kind')))
     key = canonical(dict(reference, **provenance), kind)
-    res = resources(reference.get('resources', {}), key['threads'])
+    try:
+        res = compiler_probe.validate(reference) if 'compiler_probe_only' in reference else resources(reference.get('resources', {}), key['threads'])
+    except (ValueError, KeyError, TypeError, OSError) as error:
+        raise TableError(str(error)) from error
     if key['prefetch_kind' if kind == 'attention' else 'prefetch'] != 0:
         raise TableError('R_next reference must use Pw=0/PF=0')
     return kind, key, provenance, res
@@ -301,12 +310,22 @@ def aggregate(paths, resource_paths=(), diagnostic=False, card=None):
         if not diagnostic:
             row['r_next'], row['r_next_reference'] = resolve_reference(samples, references)
         rows.append(row)
+    probe_inputs = {}
+    for row in rows:
+        reference = row.get('r_next_reference', {})
+        if reference.get('compiler_probe_only'):
+            for descriptor in (reference['probe'][name] for name in ('binary','build_metadata','source_archive')):
+                path = str(Path(descriptor['path']).resolve())
+                old = probe_inputs.setdefault(path, descriptor)
+                if old != descriptor:
+                    raise TableError('compiler probe input changed during aggregation: ' + path)
     return dict(schema_version=2, table_kind='mx5_decode_stage_costs', qualified=not diagnostic,
                 qualification_scope='measured_rows_only', full_table=False,
                 coverage='provided_keys; candidate domain not enumerated',
                 diagnostic_reasons=['R_next qualification disabled'] if diagnostic else [],
                 provenance=dict(tool='experiments/mx5/stage_table.py', date=datetime.date.today().isoformat(),
-                                card=card, inputs=inputs, resource_inputs=resource_inputs,
+                                compiler_probe_policy='P0 references supply unexecuted attributes; executed stage/plan gates are unchanged',
+                                card=card, inputs=inputs, resource_inputs=resource_inputs, compiler_probe_inputs=list(probe_inputs.values()),
                                 fresh_process_evidence='one round per input JSONL; process IDs are not independently verified',
                                 method='median of three process medians and median of three process p90 values; '
                                        'spread=(max(process medians)-min(process medians))/median, rounded to 4 decimals'),

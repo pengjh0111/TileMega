@@ -11,6 +11,11 @@ import subprocess
 import tarfile
 
 ROOT = Path(__file__).resolve().parents[2]
+
+_probe_spec = importlib.util.spec_from_file_location('mx5_compiler_probe', Path(__file__).with_name('compiler_probe.py'))
+compiler_probe = importlib.util.module_from_spec(_probe_spec)
+_probe_spec.loader.exec_module(compiler_probe)
+
 MODELS = ['qwen3_0_6b', 'qwen3_1_7b', 'llama3_2_1b', 'llama3_2_3b', 'llama3_1_8b']
 
 
@@ -261,7 +266,7 @@ def query_one(kind, key, path, modules, libraries, expected_source=None):
     provenance = {field: metadata[field] for field in ('source_sha256', 'binary_sha256', 'base_head')}
     provenance.update(executor='mx_static_stage_bench', implementation='mx5_' + kind + '_v2')
     return dict(query_status=status, resources=resource, fits=fit, library=str(path),
-                provenance=provenance, card=os.environ.get('TILEMEGA_DEVICE_INDEX'), query_only=True)
+                provenance=provenance, card=os.environ.get('TILEMEGA_DEVICE_INDEX'), query_only=True, iterations=int(args.iterations))
 
 
 def inspect(rows, root):
@@ -275,10 +280,9 @@ def inspect(rows, root):
             raise RuntimeError('missing unprefetched library: ' + str(index))
         reference_key = dict(key, **{'prefetch_kind' if kind == 'attention' else 'prefetch': 0})
         result = query_one(kind, reference_key, catalogue[index], modules, libraries)
-        reference = dict(kind=kind, key=reference_key, resources=result['resources'],
-                         provenance=result['provenance'])
+        reference = compiler_probe.from_query(kind, reference_key, result)
         yield dict(row, **{field: result[field] for field in
-                          ('query_status', 'fits', 'library', 'card', 'query_only')},
+                          ('query_status', 'fits', 'library', 'card', 'query_only', 'iterations')},
                    r_next_reference=reference)
 
 
@@ -315,11 +319,17 @@ def selection_reference(kind, key, reference):
     if reference.get('kind') != kind or actual != expected:
         raise RuntimeError('R_next reference coordinates do not match the selected body key')
     resources = reference.get('resources', {})
-    cap = 227 if key['threads'] == 576 else 255
-    if (type(resources.get('mtreg')) is not int or not 0 < resources['mtreg'] <= cap
-            or any(type(resources.get(field)) is not int or resources[field] != value for field, value in
-                   (('local_bytes', 0), ('static_smem_bytes', 0), ('resident_ctas', 1)))):
-        raise RuntimeError('R_next reference does not have passing unprefetched resources')
+    if 'compiler_probe_only' in reference:
+        try:
+            resources = compiler_probe.validate(reference)
+        except (ValueError, KeyError, TypeError, OSError) as error:
+            raise RuntimeError('R_next compiler probe: ' + str(error)) from error
+    else:
+        cap = 227 if key['threads'] == 576 else 255
+        if (type(resources.get('mtreg')) is not int or not 0 < resources['mtreg'] <= cap
+                or any(type(resources.get(field)) is not int or resources[field] != value for field, value in
+                       (('local_bytes', 0), ('static_smem_bytes', 0), ('resident_ctas', 1)))):
+            raise RuntimeError('R_next legacy reference does not have passing unprefetched resources')
     provenance = reference.get('provenance', {})
     if (provenance.get('executor') != 'mx_static_stage_bench'
             or provenance.get('implementation') != 'mx5_' + kind + '_v2'
@@ -394,9 +404,9 @@ def plan(rows, domain, output_root):
     planned = []
     for row in rows:
         kind, key = row['kind'], dict(row['key'])
-        if not row['fits']:
-            planned.append(dict(row, disposition='unprefetched_resource_failure'))
-            continue
+        if row.get('query_only') is not True or type(row.get('query_status')) is not int or row['query_status'] != 0:
+            raise RuntimeError('R_next primary derivation requires a successful query-only attribute probe')
+        selection_reference(kind, key, row.get('r_next_reference'))
         rnext = row['r_next_reference']['resources']['mtreg']
         if kind == 'attention':
             budget = min(64, (220 if key['threads'] == 576 else 248) - rnext)

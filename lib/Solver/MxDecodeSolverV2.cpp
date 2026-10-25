@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include "tilemega/Solver/MxDecodeSolverV2.h"
+#include "MxDecodeCompilerProbeV2.h"
 
 #include "tilemega/Backend/Mx/DecodeGeometryV2.h"
 
@@ -333,7 +334,9 @@ MxDecodeSolverV2::MxDecodeSolverV2(Value const& document) {
     expected[r.kind == "attention" ? "prefetch_kind" : "prefetch"] = 0;
     if (S(reference, "kind") != r.kind || ReadKey(reference.At("key"), r.kind) != expected)
       Fail("R_next reference does not match exact zero-prefetch body");
-    auto rr = Resources(reference.At("resources"), threads);
+    bool const compiler_probe = reference.Find("compiler_probe_only") != nullptr;
+    if (compiler_probe) compiler_probe_v2::Validate(reference, r.kind, threads);
+    auto rr = Resources(reference.At("resources"), threads, !compiler_probe);
     if (rr.mtreg != r.r_next) Fail("R_next differs from reference MTreg");
     Identity(reference.At("provenance"), r.kind);
     for (char const* field : {"executor", "implementation", "source_sha256"})

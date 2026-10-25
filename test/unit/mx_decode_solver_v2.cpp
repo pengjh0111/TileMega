@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/MxDecodeSolverV2.h>
 #include <tilemega/Backend/Mx/DecodeGeometryV2.h>
+#include "../../lib/Solver/MxDecodeCompilerProbeV2.h"
+#include <chrono>
+#include <cstdio>
+#include <filesystem>
+#include <fstream>
 
 #include <algorithm>
 #include <cassert>
@@ -224,8 +229,100 @@ void TestReduction(Value const& table) {
   rows[idx].Set("resource_selection",selection); bad.Set("rows",Value(rows));
   Throws([&] { MxDecodeSolverV2 s(bad); }, "first passing build");
 }
+std::string TarMember(std::string const& name, std::string const& bytes, char type) {
+  std::string header(512, '\0');
+  std::copy(name.begin(),name.end(),header.begin());
+  std::snprintf(&header[100],8,"%07o",0644);
+  std::snprintf(&header[124],12,"%011lo",static_cast<unsigned long>(bytes.size()));
+  std::fill(header.begin()+148,header.begin()+156,' ');header[156]=type;
+  std::copy_n("ustar",5,header.begin()+257);
+  unsigned long sum=0;for(unsigned char c:header)sum+=c;
+  std::snprintf(&header[148],8,"%06lo",sum);header[154]='\0';header[155]=' ';
+  return header+bytes+std::string((512-bytes.size()%512)%512,'\0');
+}
+Value ProofFile(std::filesystem::path const& path) {
+  std::ifstream stream(path,std::ios::binary);std::string text((std::istreambuf_iterator<char>(stream)),{});
+  return Obj({{"path",path.string()},{"sha256",solver::compiler_probe_v2::Digest(text)}});
+}
+void Put(std::filesystem::path const& path,std::string const& text) {std::ofstream(path,std::ios::binary)<<text;}
+void TestCompilerOnlyReference(Value const& table) {
+  namespace fs=std::filesystem;
+  auto dir=fs::temp_directory_path()/("mx5_p0_cpu_fixture_"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+  fs::create_directory(dir);
+  auto binary=dir/"synthetic_p0.so",metadata_path=dir/"synthetic_p0.json",archive=dir/"sources.tar.gz";
+  Put(binary,"CPU synthetic compiler-probe binary fixture, never executed\n");
+  std::map<std::string,std::string> files{{"experiments/mx5/stage_bench.cu","// CPU synthetic bench fixture\n"},
+                                       {"include/tilemega/Backend/Mx/P0Fixture.h","// CPU synthetic body fixture\n"}};
+  std::string canonical,tar;
+  for(auto const& [name,body]:files) {
+    canonical+=name+'\0'+body+'\0';
+    std::string record=" path="+name+"\n";std::size_t length=record.size()+1;
+    while(std::to_string(length).size()+record.size()!=length)length=std::to_string(length).size()+record.size();
+    tar+=TarMember("PaxHeader",std::to_string(length)+record,'x');tar+=TarMember("content",body,'0');
+  }
+  tar+=std::string(1024,'\0');gzFile gzip=gzopen(archive.c_str(),"wb");assert(gzip);
+  assert(gzwrite(gzip,tar.data(),unsigned(tar.size()))==int(tar.size()));assert(gzclose(gzip)==Z_OK);
+  auto source_sha=solver::compiler_probe_v2::Digest(canonical),binary_sha=ProofFile(binary).At("sha256").AsString("binary");
+  auto metadata=Obj({{"body","gemm"},{"bench",true},{"returncode",0},{"tn",16},{"depth",1},{"threads",576},{"pw",0},
+    {"base_head","CPU_FIXTURE"},{"source_sha256",source_sha},{"binary_sha256",binary_sha},
+    {"command",Value(json::Array{"/cpu/fixture/compiler","-DMX5_TEST_THREADS=576","-DMX5_TEST_TN=16","-DMX5_TEST_DEPTH=1",
+                                 "-DMX5_BENCH_PW=0","experiments/mx5/stage_bench.cu"})}});
+  Put(metadata_path,metadata.Dump());
+  auto key=table.At("rows").AsArray("rows")[0].At("key");key.Set("prefetch",0);
+  auto provenance=Identity("gemm",true);provenance.Set("source_sha256",source_sha);provenance.Set("binary_sha256",binary_sha);provenance.Set("base_head","CPU_FIXTURE");
+  auto res=Resource(168);res.Set("local_bytes",616);
+  auto reference=Obj({{"kind","gemm"},{"key",key},{"provenance",provenance},{"resources",res},{"compiler_probe_only",true},{"fits",false},
+    {"probe",Obj({{"query_only",true},{"iterations",0},{"query_status",0},{"binary",ProofFile(binary)},
+                   {"build_metadata",ProofFile(metadata_path)},{"source_archive",ProofFile(archive)}})}});
+  auto over_cap=reference;auto attributes=reference.At("resources");
+  attributes.Set("mtreg",268);attributes.Set("static_smem_bytes",16);attributes.Set("resident_ctas",0);over_cap.Set("resources",attributes);
+  solver::compiler_probe_v2::Validate(over_cap,"gemm",576);
+  std::vector<Value> invalid_attributes{Value(),Value(-1),Value(true),Value("not-an-attribute"),Value(1.5)};
+  for (auto const& seed:std::vector<Value>{over_cap,reference}) {
+    for (char const* field:{"local_bytes","static_smem_bytes","resident_ctas"}) {
+      for (auto const& invalid:invalid_attributes) {
+        auto malformed=seed;auto values=seed.At("resources");values.Set(field,invalid);malformed.Set("resources",values);
+        Throws([&]{solver::compiler_probe_v2::Validate(malformed,"gemm",576);},field);
+      }
+      auto malformed=seed;Value incomplete=json::Object{};
+      for(char const* name:{"mtreg","local_bytes","static_smem_bytes","resident_ctas"})
+        if(std::string(name)!=field)incomplete.Set(name,seed.At("resources").At(name));
+      malformed.Set("resources",incomplete);
+      Throws([&]{solver::compiler_probe_v2::Validate(malformed,"gemm",576);},field);
+    }
+  }
+  auto changed=ChangeRow(table,[&](Value& row) {
+    row.Set("r_next",168);row.Set("r_next_reference",reference);
+    auto p=row.At("provenance");p.Set("source_sha256",source_sha);row.Set("provenance",p);
+    auto rounds=row.At("rounds").AsArray("rounds");
+    for(auto& round:rounds) {auto m=round.At("measurement");m.Set("source_sha256",source_sha);round.Set("measurement",m);}
+    row.Set("rounds",rounds);
+  });
+  MxDecodeSolverV2 accepted(changed);auto selected=accepted.Solve(Model(),1);
+  assert(selected.top[0].config.qkv.r_next==168 && selected.top[0].config.qkv.prefetch==6);
+  auto const& actual=selected.candidates.at("qkv")[0].evidence[0].At("r_next_reference");
+  assert(actual.At("resources").At("local_bytes").AsNumber("stack")==616 && !actual.At("fits").AsBool("fits"));
+  for(auto const& [field,value]:std::vector<std::pair<std::string,Value>>{{"query_only",false},{"iterations",1},{"query_status",1}}) {
+    auto bad=ChangeRow(changed,[&](Value& row) {auto r=row.At("r_next_reference"),q=r.At("probe");q.Set(field,value);r.Set("probe",q);row.Set("r_next_reference",r);});
+    Throws([&]{MxDecodeSolverV2 solver(bad);},"compiler probe");
+  }
+  auto bad=ChangeRow(changed,[](Value& row){auto r=row.At("resources");r.Set("local_bytes",4);row.Set("resources",r);});
+  Throws([&]{MxDecodeSolverV2 solver(bad);},"resource rejection");
+  bad=ChangeRow(changed,[](Value& row){auto r=row.At("r_next_reference"),p=r.At("provenance");p.Set("source_sha256",std::string(64,'f'));r.Set("provenance",p);row.Set("r_next_reference",r);});
+  Throws([&]{MxDecodeSolverV2 solver(bad);},"compiler probe");
+  bad=ChangeRow(changed,[](Value& row){auto r=row.At("r_next_reference"),q=r.At("probe");q.Set("query_status",Value());r.Set("probe",q);row.Set("r_next_reference",r);});
+  Throws([&]{MxDecodeSolverV2 solver(bad);},"query_status");
+  bad=ChangeRow(changed,[](Value& row){auto r=row.At("r_next_reference"),v=r.At("resources");v.Set("mtreg",Value());r.Set("resources",v);row.Set("r_next_reference",r);});
+  Throws([&]{MxDecodeSolverV2 solver(bad);},"mtreg");
+  bad=ChangeRow(changed,[](Value& row){auto r=row.At("r_next_reference");r.Set("fits",true);row.Set("r_next_reference",r);});
+  Throws([&]{MxDecodeSolverV2 solver(bad);},"diagnostic fits");
+  bad=ChangeRow(changed,[](Value& row){auto r=row.At("r_next_reference");row.Set("r_next_reference",Obj({{"kind",r.At("kind")},{"key",r.At("key")},{"resources",r.At("resources")},{"provenance",r.At("provenance")}}));});
+  Throws([&]{MxDecodeSolverV2 solver(bad);},"resource rejection");
+  Put(binary,"changed synthetic proof\n");Throws([&]{MxDecodeSolverV2 solver(changed);},"proof file hash mismatch");
+  fs::remove_all(dir);
+}
 }  // namespace
 int main() {
-  TestMerge(); auto table = Table(); TestSolve(table); TestPiecewiseAttention(table); TestRejections(table); TestReduction(table);
+  TestMerge(); auto table = Table(); TestSolve(table); TestPiecewiseAttention(table); TestRejections(table); TestReduction(table); TestCompilerOnlyReference(table);
   std::cout << "mx_decode_solver_v2: CPU synthetic qualification, interpolation, k-best and selection checks passed\n";
 }
