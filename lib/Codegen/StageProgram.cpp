@@ -79,7 +79,6 @@ std::string EmitStageProgram(StageProgramSpec const& s) {
     << "  template <class Self, class Barrier, class Run>\n  __device__ __forceinline__ static void RunStep("
     << s.run_parameters << ", typename " << entry.name << "::Prefetched& pf_" << entry.name
     << ", Barrier barrier, Run run) {\n"
-    << "    typename " << s.tail_stages.front().name << "::Prefetched pf_" << s.tail_stages.front().name << ";\n"
     << "#pragma unroll 1\n    for (int " << s.loop.index << " = " << s.loop.begin << "; " << s.loop.index
     << " < " << s.loop.end << "; ++" << s.loop.index << ") {\n";
   auto call = [&](StageProgramStage const& stage, std::string const& body, std::string const& target,
@@ -89,11 +88,24 @@ std::string EmitStageProgram(StageProgramSpec const& s) {
       << stage.name << "Shape{}, smem, [&] { return " << target << "::Prefetch(" << ops << ", "
       << target << "Shape{}); });\n";
   };
+  auto tail = [&](std::string const& indent) {
+    for (std::size_t i = 0; i < s.tail_stages.size(); ++i) {
+      auto const& stage = s.tail_stages[i];
+      auto const& next = *stages.at(stage.next);
+      call(stage, stage.name, stage.next,
+           stage.next_prefetch_operands.empty() ? next.prefetch_operands : stage.next_prefetch_operands,
+           i + 1 < s.tail_stages.size(), indent);
+      o << indent << "barrier();\n";
+    }
+  };
   for (std::size_t i = 0; i < s.stages.size(); ++i) {
     auto const& stage = s.stages[i];
     if (i + 1 == s.stages.size()) {
       o << "      if (" << s.loop.index << " + 1 == " << s.loop.end << ") {\n";
-      call(stage, stage.name + "Last", stage.terminal_next, stage.terminal_prefetch_operands, false, "        ");
+      // The terminal packet is consumed before leaving its defining scope.
+      call(stage, stage.name + "Last", stage.terminal_next, stage.terminal_prefetch_operands, true, "        ");
+      o << "        barrier();\n";
+      tail("        ");
       o << "        break;\n      }\n";
     }
     auto const& next = *stages.at(stage.next);
@@ -102,15 +114,7 @@ std::string EmitStageProgram(StageProgramSpec const& s) {
          i + 1 != s.stages.size(), "      ");
     o << "      barrier();\n";
   }
-  o << "    }\n    barrier();\n";
-  for (std::size_t i = 0; i < s.tail_stages.size(); ++i) {
-    auto const& stage = s.tail_stages[i];
-    auto const& next = *stages.at(stage.next);
-    call(stage, stage.name, stage.next,
-         stage.next_prefetch_operands.empty() ? next.prefetch_operands : stage.next_prefetch_operands,
-         i + 1 < s.tail_stages.size(), "    ");
-    o << "    barrier();\n";
-  }
+  o << "    }\n";
   o << "  }\n};\ninline constexpr " << s.buffer_row_type << " kBuffers[] = {\n";
   for (auto const& b : s.external_buffers)
     o << "  {" << Quote(b.name) << ", " << b.dtype_expr << ", " << b.constant << "ull, " << b.per_batch

@@ -61,6 +61,10 @@ struct DenseOperandsV2 {
     // Keep scratch-field reloads at their stage; hoisting them spilled the 576-thread kernel.
     return (&b.s)[backend::mx::UniformOpaque(0)];
   }
+  __device__ __forceinline__ static Binding const& Top(Binding const& b) {
+    // Keep top-level binding fields at their stage, as for scratch fields.
+    return (&b)[backend::mx::UniformOpaque(0)];
+  }
   __device__ __forceinline__ static GemmOps Gemm(Binding const& b, Bf16 const* a, Bf16 const* w,
                                                 Bf16 const* residual, Bf16* out, unsigned* ticket,
                                                 int a_stride, int residual_stride,
@@ -74,16 +78,18 @@ struct DenseOperandsV2 {
     return Gemm(b, nullptr, b.layer[l].w_qkv, nullptr, nullptr, nullptr, P::kHidden, 0);
   }
   __device__ __forceinline__ static GemmOps Qkv(Binding const& b, int l, int past, Tokens* tokens) {
+    auto const& top = Top(b);
     auto const& scratch = Scratch(b);
     l = backend::mx::UniformOpaque(l);
     (void)past;
-    return Gemm(b, l == 0 ? b.embed : scratch.x, b.layer[l].w_qkv, nullptr, scratch.qkv, scratch.t_qkv,
+    return Gemm(b, l == 0 ? top.embed : scratch.x, b.layer[l].w_qkv, nullptr, scratch.qkv, scratch.t_qkv,
                 P::kHidden, 0, l == 0 ? tokens : nullptr);
   }
   __device__ __forceinline__ static GemmOps O(Binding const& b, int l, Tokens* tokens) {
+    auto const& top = Top(b);
     auto const& scratch = Scratch(b);
     l = backend::mx::UniformOpaque(l);
-    return Gemm(b, scratch.ctx, b.layer[l].w_o, l == 0 ? b.embed : scratch.x, scratch.x, scratch.t_o,
+    return Gemm(b, scratch.ctx, b.layer[l].w_o, l == 0 ? top.embed : scratch.x, scratch.x, scratch.t_o,
                 P::OShape::k, P::kHidden, nullptr, l == 0 ? tokens : nullptr);
   }
   __device__ __forceinline__ static GemmOps GateUp(Binding const& b, int l) {
@@ -97,21 +103,23 @@ struct DenseOperandsV2 {
     return Gemm(b, scratch.h, b.layer[l].w_down, scratch.x, scratch.x, scratch.t_down, P::DownShape::k, P::kHidden);
   }
   __device__ __forceinline__ static backend::mx::MxAttentionOperandsV2 Attn(Binding const& b, int l, int past) {
+    auto const& top = Top(b);
     auto const& scratch = Scratch(b);
     l = backend::mx::UniformOpaque(l), past = backend::mx::UniformOpaque(past);
     // set_steps validates this range before copying the private past array.
     __builtin_assume(past >= P::kPastLo && past <= P::kPastHi);
     auto const& layer = b.layer[l];
-    return {scratch.qkv, layer.q_norm, layer.k_norm, b.rope_cos, b.rope_sin,
+    return {scratch.qkv, layer.q_norm, layer.k_norm, top.rope_cos, top.rope_sin,
             layer.k_cache, layer.vt_cache, scratch.ctx, scratch.attn_partial, scratch.t_attn,
             P::kCapacity, past, P::kEpsilon};
   }
   __device__ __forceinline__ static backend::mx::MxHeadOperandsV2 Head(Binding const& b, int past) {
+    auto const& top = Top(b);
     auto const& scratch = Scratch(b);
     past = backend::mx::UniformOpaque(past);
     __builtin_assume(past >= P::kPastLo && past <= P::kPastHi);
-    return {Gemm(b, scratch.x, b.w_head, nullptr, nullptr, nullptr, P::kHidden, 0),
-            scratch.head_partial, scratch.t_head, b.tokens, P::kCapacity, past};
+    return {Gemm(b, scratch.x, top.w_head, nullptr, nullptr, nullptr, P::kHidden, 0),
+            scratch.head_partial, scratch.t_head, top.tokens, P::kCapacity, past};
   }
 };
 
@@ -128,9 +136,10 @@ struct DecodeControlV2 {
 
   __device__ __forceinline__ static void Broadcast(typename P::Binding const& b, int past, int* tokens) {
     using GlobalInt = __attribute__((address_space(1))) int const;
+    auto const& top = DenseOperandsV2<P>::Top(b);
 #pragma unroll
     for (int row = 0; row < P::kBatch; ++row)
-      tokens[row] = *((GlobalInt*)b.tokens + std::size_t(row) * P::kCapacity + past);
+      tokens[row] = *((GlobalInt*)top.tokens + std::size_t(row) * P::kCapacity + past);
   }
   __device__ __forceinline__ static int Past(int const* pasts, unsigned index) {
     using GlobalInt = __attribute__((address_space(1))) int const;
