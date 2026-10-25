@@ -2087,7 +2087,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     if(attr.getInt()>=int64_t(buffers.size()))throw std::invalid_argument("native operand outside buffer table");
     return std::to_string(attr.getInt());
   };
-  std::ostringstream out,types,debug;
+  std::ostringstream out,types;
   out<<"// SPDX-License-Identifier: BSD-3-Clause\n"
      <<"// Generated from native CTG/tmexec coordinates.\n"
      <<"#define TILEMEGA_STATIC_DENSE_NATIVE 1\n#define TILEMEGA_ARCH_ID 900\n"
@@ -2150,6 +2150,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     bool full=false;
   };
   std::vector<Emitted> emitted;
+  std::vector<std::string> info;
   std::vector<std::int64_t> keys,values;
   std::array<int,2> kv_maps{-1,-1};
   std::int64_t kv_bytes=0;  // one layer's K (or V): B*Hkv*Cap*D BF16
@@ -2227,13 +2228,22 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
       for(unsigned i=0;i<3;++i)e.ids.push_back(operand(i));
     }else throw std::invalid_argument("legacy stage cannot enter native dense program: "+kind);
     e.head=head.str();emitted.push_back(e);
-    debug<<"  {"<<quoteCString(kind)<<','<<quoteCString(weight)<<','<<bytes<<"ull,"
-         <<tasks<<','<<extent<<','<<group<<','<<width<<','<<chunks<<"},\n";
+    std::ostringstream row;
+    row<<"  {"<<quoteCString(kind)<<','<<quoteCString(weight)<<','<<bytes<<"ull,"
+       <<tasks<<','<<extent<<','<<group<<','<<width<<','<<chunks<<"},\n";
+    info.push_back(row.str());
   }
   static constexpr int kLayerFamilies[5]={0,-1,1,2,3};
   if(emitted.front().kind!="kEmbedding" || emitted.back().kind!="kArgmaxReduce" ||
      emitted[emitted.size()-2].family!=4)
     throw std::invalid_argument("native program lacks its embedding, lm_head or argmax");
+  // D9: the argmax runs in the head's last arriver, which reads the tokens
+  // the embedding reads and (with emb = LA) writes the embedding's x.
+  auto const& embedding=emitted.front();
+  if(emitted.back().ids[2]!=embedding.ids[0])
+    throw std::invalid_argument("native argmax and embedding disagree on the token buffer");
+  info.pop_back();
+  int hidden=int(integerField(dictionaryEntry(stages[0],"stages"),"width"));
   // Per-layer columns: an operand position of a layer stage whose buffer
   // differs between layers. Everything else must be identical in all layers.
   std::map<std::pair<unsigned,unsigned>,unsigned> column;
@@ -2279,32 +2289,36 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   // Typed stages: 0 prologue, 1..10 the layer pair (layers of parity 0 then
   // 1), 11 head, 12 final. Typed stage N has the parity of its executed
   // boundaries, so its arena is N % 2 unless it is full width.
-  std::array<unsigned,13> source{};
+  std::array<unsigned,12> source{};
   source[0]=0;for(unsigned j=0;j<10;++j)source[1+j]=1+j;
-  source[11]=unsigned(emitted.size()-2);source[12]=unsigned(emitted.size()-1);
+  source[11]=unsigned(emitted.size()-2);
   auto stream=[&](unsigned n) {return emitted[source[n]].stream;};
-  for(unsigned n=0;n<13;++n) {
+  for(unsigned n=0;n<12;++n) {
     auto const& e=emitted[source[n]];
-    types<<"using Body_"<<n<<'='<<e.head;
+    types<<"using "<<(n==11?"HeadGemm_":"Body_")<<n<<'='<<e.head;
     for(unsigned i=0;i<e.ids.size();++i) {
       auto found=n>=1 && n<=10?column.find({(n-1)%5,i}):column.end();
       if(found!=column.end())types<<",kLayerSlot|"<<found->second<<'u';
       else types<<','<<e.ids[i];
     }
     types<<e.tail<<">;\n";
+    if(n==11)types<<"using Body_11=Head<HeadGemm_11,"<<embedding.ids[0]<<','<<embedding.ids[1]<<','
+                   <<embedding.ids[2]<<','<<hidden<<','<<capacity<<','
+                   <<(c.embed_la?"true":"false")<<">;\n";
     // D6: a ring stage streams into the next ring stage unless either is full
-    // width; the prologue and argmax have no ring. Layer 0's qkv follows the
-    // prologue and is told so at run time.
+    // width; the prologue has no ring and nothing crosses the step boundary.
+    // Layer 0's qkv follows the prologue and is told so at run time.
     unsigned previous=n==1?10:n-1;
     int prefix=n>0 && c.weight_stream && stream(previous)>0?stream(n):0;
     types<<"using Stage_"<<n<<"=Placement<Body_"<<n<<','<<(e.full?0:(n%2)*arena)<<','<<prefix<<">;\n";
   }
   out<<types.str()<<"using NativeProgram=Program<"<<batch<<','<<capacity<<','<<c.residency<<','
      <<buffers.size()<<','<<map_order.size()<<','<<arena<<','<<layers<<','<<slots<<','
-     <<(c.layer_loop?"true":"false")<<",Stage_0,LayerPair<";
+     <<(c.layer_loop?"true":"false")<<','<<(c.embed_la?"true":"false")<<",Stage_0,LayerPair<";
   for(unsigned j=1;j<=10;++j)out<<(j>1?",":"")<<"Stage_"<<j;
-  out<<">,Stage_11,Stage_12>;\nconstexpr std::array<StageInfo,"<<emitted.size()<<"> kNativeStages={{\n"
-     <<debug.str()<<"}};\n"
+  out<<">,Stage_11>;\nconstexpr std::array<StageInfo,"<<info.size()<<"> kNativeStages={{\n";
+  for(auto const& row:info)out<<row;
+  out<<"}};\n"
      <<"}  // namespace tilemega::codegen::native_dense\n"
      <<"#include <tilemega/Codegen/tasks/Sm90DenseRuntime.cuh>\n";
   return out.str();
