@@ -4,6 +4,8 @@
 // rounding sequence (ServingEpilogueValue). Grid 4 with eight tasks gives each
 // CTA two tasks, the most a residual stage prefetches. Stream cases issue the
 // first task's weight slots ahead of Run, as the D6 producer tail does.
+// Argmax cases run the D9 head: per-CTA partials, lm_ctr and the last
+// arriver's reduction to tokens, and with Embed the next embedding rows.
 #ifndef TEST_BATCH
 #define TEST_BATCH 1
 #endif
@@ -21,19 +23,19 @@ constexpr int B=TEST_BATCH,kGrid=4,kTasks=8;
 void check(cudaError_t e) {if(e!=cudaSuccess)throw std::runtime_error(cudaGetErrorString(e));}
 float Round(double x) {return float(BF(float(x)));}
 
-template<class G,int Prefix>
-__global__ __launch_bounds__(160) void evaluate(Sm90DenseOperands p) {
+template<class G,int Prefix,class Finish>
+__global__ __launch_bounds__(160) void evaluate(Sm90DenseOperands p,Finish finish) {
   extern __shared__ __align__(1024) char shared[];
   auto& state=*reinterpret_cast<Sm90DenseRingState*>(shared);state.Initialize();
   for(int repeat=0;repeat<2;++repeat) {
     if constexpr(Prefix>0)if(threadIdx.x==128)
       G::template Preissue<Prefix>(p.weight,shared,state);
-    G::template Run<Prefix>(p,shared);
+    G::template Run<Prefix,Sm90DenseNoTail,Finish>(p,shared,nullptr,{},true,finish);
   }
   state.Invalidate();
 }
 
-template<Op O,int TN,int WN,int TK,int K,int U=8,bool Stream=false>
+template<Op O,int TN,int WN,int TK,int K,int U=8,bool Stream=false,bool Embed=false>
 int run() {
   constexpr int N=TN*kTasks;
   constexpr bool norm=O!=Op::kResidual;
@@ -49,7 +51,7 @@ int run() {
     size_t permutation=512*(row/8+(TN/8)*(col/64))+64*(row%8)+8*(((col%64)/8)^(row%8))+col%8;
     packed[(size_t(n/TN)*(K/TK)+k/TK)*TN*TK+permutation]=weight[std::size_t(n)*K+k];
   }
-  int out_count=O==Op::kSwiGLU?B*N/2:O==Op::kArgmaxPartial?B*kTasks:B*N;
+  int out_count=O==Op::kSwiGLU?B*N/2:O==Op::kArgmaxPartial?B*kGrid:B*N;
   BF *a,*w,*r,*o;int* index;CUtensorMap* map;
   check(cudaMalloc(&a,act.size()*2));check(cudaMalloc(&w,packed.size()*2));
   check(cudaMalloc(&r,residual.size()*2));check(cudaMalloc(&o,std::max(out_count*4,2)));
@@ -64,8 +66,25 @@ int run() {
   // Residual stages read and write the stream in place, as o/down do.
   BF* output=O==Op::kResidual?r:o;
   Sm90DenseOperands p{map,w,r,output,index,1e-6f};
-  check(cudaFuncSetAttribute(evaluate<G,prefix>,cudaFuncAttributeMaxDynamicSharedMemorySize,G::kSharedBytes));
-  evaluate<G,prefix><<<kGrid,160,G::kSharedBytes>>>(p);
+  // D9 head: tokens [B][1088], lm_ctr, a vocabulary of N rows of width K.
+  constexpr int kPast=575;
+  int* tokens;std::uint64_t* counter;BF *table,*x;Sm90DenseHeadOperands* head;
+  std::vector<BF> vocabulary(std::size_t(N)*K);
+  for(std::size_t i=0;i<vocabulary.size();++i)vocabulary[i]=BF(float(int(i%251)-125)/64.0f);
+  check(cudaMalloc(&tokens,B*1088*4));check(cudaMemset(tokens,0xff,B*1088*4));
+  check(cudaMalloc(&counter,8));check(cudaMemset(counter,0,8));
+  check(cudaMalloc(&table,vocabulary.size()*2));check(cudaMalloc(&x,B*K*2));check(cudaMemset(x,0,B*K*2));
+  check(cudaMemcpy(table,vocabulary.data(),vocabulary.size()*2,cudaMemcpyHostToDevice));
+  check(cudaMalloc(&head,sizeof(Sm90DenseHeadOperands)));
+  Sm90DenseHeadOperands host_head{tokens,counter,table,x,kPast};
+  check(cudaMemcpy(head,&host_head,sizeof host_head,cudaMemcpyHostToDevice));
+  using Finish=std::conditional_t<O==Op::kArgmaxPartial,Sm90DenseHeadFinish<B,K,1088,Embed>,
+      Sm90DenseNoFinish>;
+  Finish finish{};
+  if constexpr(O==Op::kArgmaxPartial)finish.head=head;
+  check(cudaFuncSetAttribute(evaluate<G,prefix,Finish>,cudaFuncAttributeMaxDynamicSharedMemorySize,
+      G::kSharedBytes));
+  evaluate<G,prefix,Finish><<<kGrid,160,G::kSharedBytes>>>(p,finish);
   check(cudaGetLastError());check(cudaDeviceSynchronize());
   std::vector<double> acc(B*N);std::vector<double> inv(B,1.0);
   for(int b=0;b<B;++b) {
@@ -86,15 +105,22 @@ int run() {
   // FP32 accumulation and BF16 output: one BF16 ulp plus accumulation slack.
   auto close=[](double got,double want) {return std::fabs(got-want)<=std::fabs(want)/64+2e-3;};
   if constexpr(O==Op::kArgmaxPartial) {
-    std::vector<float> values(B*kTasks);std::vector<int> ids(B*kTasks);
-    check(cudaMemcpy(values.data(),o,values.size()*4,cudaMemcpyDeviceToHost));
-    check(cudaMemcpy(ids.data(),index,ids.size()*4,cudaMemcpyDeviceToHost));
-    for(int b=0;b<B;++b)for(int t=0;t<kTasks;++t) {
+    // The token is a maximal logit of the whole row (near-ties may resolve
+    // either way under FP32 accumulation order).
+    std::vector<int> next(B*1088);std::vector<BF> written(B*K);
+    check(cudaMemcpy(next.data(),tokens,next.size()*4,cudaMemcpyDeviceToHost));
+    check(cudaMemcpy(written.data(),x,written.size()*2,cudaMemcpyDeviceToHost));
+    std::uint64_t arrivals=0;check(cudaMemcpy(&arrivals,counter,8,cudaMemcpyDeviceToHost));
+    if(arrivals!=2*kGrid)bad("lm_ctr",0,0,double(arrivals),2*kGrid);
+    for(int b=0;b<B;++b) {
       double best=-1e30;
-      for(int c=0;c<TN;++c)best=std::max(best,double(Round(acc[b*N+t*TN+c])));
-      int id=ids[b*kTasks+t];
-      if(id<t*TN || id>=(t+1)*TN || !close(Round(acc[b*N+id]),best) || !close(values[b*kTasks+t],best))
-        bad("argmax",b,t,values[b*kTasks+t],best);
+      for(int c=0;c<N;++c)best=std::max(best,double(Round(acc[b*N+c])));
+      int id=next[b*1088+kPast+1];
+      if(id<0 || id>=N || !close(Round(acc[b*N+id]),best))bad("token",b,id,id>=0 && id<N?Round(acc[b*N+id]):0,best);
+      if(Embed && id>=0 && id<N)
+        for(int c=0;c<K;++c)
+          if(written[b*K+c].raw()!=vocabulary[std::size_t(id)*K+c].raw()) {bad("embedding",b,c,float(written[b*K+c]),
+              float(vocabulary[std::size_t(id)*K+c]));break;}
     }
   }else {
     int width=O==Op::kSwiGLU?N/2:N;
@@ -114,7 +140,8 @@ int run() {
       if(!close(float(got[b*width+c]),want))bad("value",b,c,float(got[b*width+c]),want);
     }
   }
-  for(void* ptr:{(void*)a,(void*)w,(void*)r,(void*)o,(void*)index,(void*)map})check(cudaFree(ptr));
+  for(void* ptr:{(void*)a,(void*)w,(void*)r,(void*)o,(void*)index,(void*)map,(void*)tokens,(void*)counter,
+                 (void*)table,(void*)x,(void*)head})check(cudaFree(ptr));
   return errors;
 }
 
@@ -131,8 +158,8 @@ int main() {
     add(run<Op::kResidual,32,4,256,4096>());add(run<Op::kResidual,64,4,128,8192>());
     add(run<Op::kSwiGLU,24,1,128,1024,4>());add(run<Op::kSwiGLU,48,2,256,1024,8>());
     add(run<Op::kSwiGLU,64,4,128,2048,16>());add(run<Op::kSwiGLU,224,4,64,4096,16>());
-    add(run<Op::kArgmaxPartial,128,4,64,1024>());add(run<Op::kArgmaxPartial,128,1,256,2048>());
-    add(run<Op::kArgmaxPartial,256,2,64,4096>());
+    add(run<Op::kArgmaxPartial,128,4,64,1024>());add(run<Op::kArgmaxPartial,128,1,256,2048,8,false,true>());
+    add(run<Op::kArgmaxPartial,256,2,64,4096,8,false,true>());
     // D6 streams: two slots of K/TK 4, a fully resident K/TK 2, and the
     // shared-epilogue SwiGLU/argmax paths.
     add(run<Op::kStore,32,4,256,1024,8,true>());add(run<Op::kResidual,8,1,1024,2048,8,true>());

@@ -25,14 +25,14 @@ int main() {
  std::array<std::array<int,2>,5> nk={{{4096,1024},{1024,2048},{6144,1024},{1024,3072},{151936,1024}}};
  Sm90DenseCoordinates c;
  for(int i=0;i<5;++i) {auto& g=c.gemms[i];g.tile_n=i==4?128:nk[i][0]/128;g.slot_bytes=2*g.tile_n*64;}
- c.swiglu_u=8;c.attention.chunks=16;c.weight_stream=true;c.layer_loop=true;
+ c.swiglu_u=8;c.attention.chunks=16;c.weight_stream=true;c.layer_loop=true;c.embed_la=true;
  c.Validate(nk,1);auto json=c.ToJson();auto d=Sm90DenseCoordinates::FromJson(json);d.Validate(nk,1);
- assert(d.gemms[2].tile_n==48 && d.gemms[1].tile_n==8 && d.weight_stream && d.layer_loop);
+ assert(d.gemms[2].tile_n==48 && d.gemms[1].tile_n==8 && d.weight_stream && d.layer_loop && d.embed_la);
  // D5/D6 rules: full residency, the first-task stream and full-width attention.
  assert(d.gemms[0].FullyResident(1024)==(d.gemms[0].slots==16) && d.gemms[0].StreamBytes(1024)==3*2*32*64);
  assert(d.attention.FullyResident(575) && d.attention.StreamBytes(128)==3*4*64*128);
  assert(!d.attention.FullWidth(128,2,Sm90DenseArena(227*1024)) && d.attention.FullWidth(128,2,Sm90DenseArena(113*1024-1024)));
- for(auto key:{"weight_stream","layer_loop","residency"}) {
+ for(auto key:{"weight_stream","layer_loop","emb","residency"}) {
   bool refused=false;
   tilemega::json::Object pruned;for(auto const& item:json.AsObject("coordinates"))if(item.first!=key)pruned.push_back(item);
   try {Sm90DenseCoordinates::FromJson(tilemega::json::Value(pruned));}catch(std::exception const&) {refused=true;}
