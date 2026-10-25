@@ -105,6 +105,7 @@ def main():
             n, k, b, tn = [int(key[v]) for v in ['n', 'k', 'b', 'tn']]
             wn, op, norm, part = [int(key[v]) for v in ['wn', 'op', 'norm', 'part']]
             copies = max(1, (256 * 1024**2 + n * k * 2 - 1) // (n * k * 2))
+            iterations = max(a.iterations, copies + 1)
             generator = t.Generator().manual_seed(2017 + ordinal)
             x = (t.randn(b, k, generator=generator) * .1).bfloat16().cuda()
             w = (t.randn(n, k, generator=generator) * .1).bfloat16().cuda()
@@ -117,17 +118,17 @@ def main():
             partial = t.empty(tiles * slots * b * (tn + 1), device='cuda')
             tickets = t.zeros(tiles, dtype=t.int32, device='cuda')
             counter = t.zeros(8, dtype=t.int64, device='cuda')
-            stamps = t.zeros(a.iterations, dtype=t.int64, device='cuda')
+            stamps = t.zeros(iterations, dtype=t.int64, device='cuda')
             resources = (C.c_int * 4)()
             ops = Operands(*[v.data_ptr() for v in [x, packed, residual, out, partial, tickets]],
                            None, None, k, n, 1e-6)
-            args = Args(ops, counter.data_ptr(), stamps.data_ptr(), resources, n, k, b, a.iterations, copies)
+            args = Args(ops, counter.data_ptr(), stamps.data_ptr(), resources, n, k, b, iterations, copies)
             for repeat in range(2):
                 counter.zero_(); tickets.zero_()
                 result = lib.mx5_bench(C.byref(args), wn, op, norm, part, stream)
                 if result: raise RuntimeError(f'bench launch failed rc={result}, key={key}')
                 t.cuda.synchronize()
-            if counter[0].item() != 104 * a.iterations: raise RuntimeError('barrier count mismatch')
+            if counter[0].item() != 104 * iterations: raise RuntimeError('barrier count mismatch')
             if tickets.abs().sum().item(): raise RuntimeError('unreset LA tickets')
             reference = x.float() @ w.float().T
             if norm: reference *= t.rsqrt(x.float().square().mean(-1, keepdim=True) + 1e-6)
@@ -140,9 +141,11 @@ def main():
             if not t.all((out.float() - reference.float()).abs() <= .02 + .016 * reference.float().abs()).item():
                 raise RuntimeError('repeated-stage output mismatch')
             ticks = stamps.cpu().tolist(); durations = sorted(y - x for x, y in zip(ticks, ticks[1:]))
+            if not durations or durations[0] <= 0:
+                raise RuntimeError('GEMM stage timestamps did not advance')
             row = dict(key=key, round=a.round, executor='mx_static_stage_bench', implementation='mx5_gemm_v2',
                        median_ns=statistics.median(durations), p90_ns=durations[len(durations) * 9 // 10],
-                       iterations=a.iterations, copies=copies, working_set_bytes=packed.numel() * 2,
+                       iterations=iterations, copies=copies, working_set_bytes=packed.numel() * 2,
                        mtreg=resources[0], local_bytes=resources[1], static_smem_bytes=resources[2],
                        resident_ctas=resources[3], threads=meta['threads'], source_sha256=meta['source_sha256'],
                        binary_sha256=binary, base_head=meta['base_head'],
