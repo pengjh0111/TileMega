@@ -102,10 +102,24 @@ class CampaignQualification(unittest.TestCase):
         self.assertEqual({row['kind']: row['card'] for row in document['rows']},
                          dict(gemm='7', head='6', attention='7'))
         self.assertEqual([row['r_next'] for row in document['rows']], [72, 72, 72])
+        self.assertTrue(all(row['resource_selection'] == {'selected_resource_step': 0}
+                            for row in document['rows']))
         for snapshot in document['provenance']['tool_sources']:
             self.assertEqual(hashlib.sha256(snapshot['source'].encode()).hexdigest(), snapshot['sha256'])
         self.assertEqual(document['provenance']['manifests'][0]['sha256'],
                          qualifier.sha(self.manifest.read_bytes()))
+
+    def test_prefetch_reduction_attempts_survive_table_publication(self):
+        checked = self.checked[0]
+        attempts = [dict(resource_step=0, prefetch=4, fits=False),
+                    dict(resource_step=1, prefetch=2, fits=True)]
+        checked.update(selected_resource_step=1, resource_attempts=attempts)
+        write_rows(Path(self.jobs[0]['directory']) / 'checked.jsonl', [checked])
+        self.refresh_manifest()
+        document, _ = qualifier.qualify(self.args)
+        gemm = next(row for row in document['rows'] if row['kind'] == 'gemm')
+        self.assertEqual(gemm['resource_selection'],
+                         dict(selected_resource_step=1, resource_attempts=attempts))
 
     def test_check_only_accepts_coverage_without_timing_and_never_qualifies(self):
         self.args.check_only = True

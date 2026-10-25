@@ -255,6 +255,9 @@ def qualify(args):
             if row['provenance'] != checked['provenance'] or row['resources'] != checked['resources']:
                 raise ValueError('measurement provenance/resources differ from checked source')
             row['uses'] = checked['uses']
+            # The solver must retain evidence for prescribed prefetch reductions.
+            row['resource_selection'] = {field: checked[field] for field in
+                ('selected_resource_step', 'resource_attempts') if field in checked}
             row['card'] = card
             row['campaign_batch'] = dict(manifest=batch['manifest'], job=batch['index'])
         rows.extend(result['rows'])
