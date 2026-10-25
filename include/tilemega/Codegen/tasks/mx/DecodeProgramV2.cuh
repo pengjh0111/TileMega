@@ -163,6 +163,9 @@ __device__ __forceinline__ StageLaunchV2 const& LaunchControlV2(StageLaunchV2 co
 template <class P>
 __global__ void __launch_bounds__(P::kThreads)
 mx_decode_kernel_v2(typename P::Binding b, StageLaunchV2 launch) {
+  // Runtime launches exactly this grid; avoid carrying dynamic grid division.
+  unsigned const launch_grid = gridDim.x;
+  __builtin_assume(launch_grid == P::kGrid);
   extern __shared__ __align__(16) char smem[];
   using G = DecodeControlV2<P>;
   using Sync = typename G::Sync;
