@@ -709,6 +709,7 @@ if(TILEMEGA_BUILD_TESTS)
     ${CMAKE_SOURCE_DIR}/test/python/test_mx5_select.py
     ${CMAKE_SOURCE_DIR}/test/python/test_mx5_plan_resources.py
     ${CMAKE_SOURCE_DIR}/test/python/test_mx5_plan_receipt.py
+    ${CMAKE_SOURCE_DIR}/test/python/test_mx5_plan_occupancy.py
     ${CMAKE_SOURCE_DIR}/test/python/test_mx_p0_alignment.py
     ${CMAKE_SOURCE_DIR}/test/python/test_mx5_stage_reference.py)
   set_tests_properties(mx_decode_v2_host PROPERTIES
