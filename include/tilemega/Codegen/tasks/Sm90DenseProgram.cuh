@@ -54,6 +54,8 @@ struct alignas(64) Bindings {
   CUtensorMap maps[Maps];
   Element* buffers[Count];
   Element* layers[Layers][Slots];
+  // lm_ctr of the folded argmax (D9); runtime-owned and only ever increased.
+  std::uint64_t* lm_counter;
   template<unsigned Id>
   __device__ __forceinline__ Element* Get(int layer=0) const {
     if constexpr(Id==kAbsent)return nullptr;
@@ -115,8 +117,7 @@ template<int Batch,int N,int K,int TN,int TK,int Slots,int WN,int WK,
          unsigned D,unsigned Index,int RegisterStages,unsigned Map>
 struct Gemm {
   using Body=backend::Sm90DenseGemm<Batch,N,K,TN,TK,Slots,WN,WK,Op,U,InputNorm,RegisterStages>;
-  static constexpr int kTasks=N/TN,kSharedBytes=Body::kSharedBytes;
-  static constexpr bool kArgmax=false;
+  static constexpr int kBatch=Batch,kTasks=N/TN,kSharedBytes=Body::kSharedBytes;
   static constexpr bool kUsesOperandRecord=true;
   static constexpr int kRingSlots=Slots;
   static constexpr int kMaxPreissue=(Slots<Body::kIterations?Slots:Body::kIterations)*2*TN*TK;
@@ -151,7 +152,6 @@ template<int Batch,int Hkv,int D,int Q,bool Norm,int Chunks,int Keys,int Slots,i
          unsigned Cosine,unsigned Sine,unsigned QNorm,unsigned KNorm,
          unsigned Partial,unsigned Lse,unsigned Arrivals,unsigned KeyMap,unsigned ValueMap>
 struct Attention {
-  static constexpr bool kArgmax=false;
   static constexpr bool kUsesOperandRecord=true;
   using Body=backend::Sm90DenseAttentionBody<Batch,Hkv,D,Q,Norm,Chunks,Keys,Slots,RowWork,Capacity>;
   static constexpr int kTasks=Body::kTasks,kSharedBytes=Body::kSharedBytes;
@@ -191,7 +191,6 @@ struct Attention {
 template<int Batch,int Width,int Vocab,int Capacity,unsigned Tokens,unsigned Table,
          unsigned Output>
 struct Embedding {
-  static constexpr bool kArgmax=false;
   static constexpr bool kUsesOperandRecord=false;
   static constexpr int kTasks=Batch,kSharedBytes=1024;
   static constexpr int kRingSlots=0;
@@ -211,27 +210,27 @@ struct Embedding {
   }
 };
 
-template<int Batch,int Parts,int Capacity,unsigned Values,unsigned Indices,unsigned Tokens>
-struct Argmax {
-  static constexpr bool kArgmax=true;
-  static constexpr bool kUsesOperandRecord=false;
-  using Body=backend::Sm90DenseArgmax<Parts,Capacity>;
-  static constexpr int kTasks=Batch,kSharedBytes=1024+sizeof(typename Body::Storage);
-  static constexpr int kRingSlots=0;
-  static constexpr int kMaxPreissue=0;
-  static constexpr auto kLayout=backend::Sm90DenseLayout::Argmax();
-  static_assert(kLayout.end==kSharedBytes);
-  template<int Bytes> static constexpr backend::Sm90DensePayload Payload() {return {};}
+// lm_head with the folded argmax and, with Embed, the next step's embedding
+// (D9). Its value/index outputs hold the per-CTA [B][G] partials.
+template<class G,unsigned Tokens,unsigned Table,unsigned X,int Width,int Capacity,bool Embed>
+struct Head:G {
+  static_assert(G::kUsesOperandRecord);
+  using Finish=backend::Sm90DenseHeadFinish<G::kBatch,Width,Capacity,Embed>;
+  // The [B][G] partials reuse the [B][tasks] argmax outputs.
+  static constexpr int kMaxGrid=G::kTasks;
+  template<class B>
+  __device__ static __forceinline__ void PublishOperands(B const& b,int layer,int past,float epsilon,
+      backend::Sm90DenseOperandBank& record) {
+    G::PublishOperands(b,layer,past,epsilon,record);
+    record.head={reinterpret_cast<int*>(b.template Get<Tokens>()),b.lm_counter,
+        b.template Get<Table>(),b.template Get<X>(),past};
+  }
   template<int Prefix,class B,class Tail>
-  __device__ static __forceinline__ void Run(B const& b,int past,char* shared,float,
-      backend::Sm90DenseRingState&,Tail tail) {
-    if(threadIdx.x<128)for(int row=blockIdx.x;row<Batch;row+=gridDim.x)
-      Body::Run(reinterpret_cast<float const*>(b.template Get<Values>()),
-          reinterpret_cast<int const*>(b.template Get<Indices>()),
-          reinterpret_cast<int*>(b.template Get<Tokens>()),
-          *reinterpret_cast<typename Body::Storage*>(shared+1024),row,past);
-    if(threadIdx.x==128)tail();
-    __syncthreads();
+  __device__ static __forceinline__ void Run(B const&,int,char* shared,float,
+      backend::Sm90DenseRingState& ring,Tail tail,backend::Sm90DenseOperandBank const& record,
+      bool streamed) {
+    StageEntry<typename G::Body>::template Head<Prefix>(record.gemm,shared,&ring,tail,streamed,
+        Finish{&record.head});
   }
 };
 
@@ -282,22 +281,27 @@ struct LayerPair {
   using Stages=std::tuple<Stage...>;
 };
 
-// D7 (prompt §6): Prologue (embedding) -> layer pairs -> Head (lm_head) ->
-// Final (argmax). A pair is ten typed stages run for layers l and l+1; two
-// layers per pair keep every typed stage's arena parity fixed. The last pair
-// runs separately so that its down streams into the head. Executed
-// boundaries keep their global index g (grid counters, banks, traces);
-// Loop selects a runtime pair loop over the same pair code that the
-// unrolled form instantiates once per pair (DT-3).
+// D7 (prompt §6): Prologue (embedding) -> layer pairs -> LmHead (lm_head
+// with the folded argmax, D9). A pair is ten typed stages run for layers l
+// and l+1; two layers per pair keep every typed stage's arena parity fixed.
+// The last pair runs separately so that its down streams into the head.
+// Executed boundaries keep their global index g (grid counters, banks,
+// traces); Loop selects a runtime pair loop over the same pair code that the
+// unrolled form instantiates once per pair (DT-3). With Embed the head's last
+// arriver writes the next step's embedding and the prologue runs only before
+// a request's step 0.
 template<int Batch,int Capacity,int Residency,unsigned Buffers,unsigned Maps,int Arena,
-         int Layers,unsigned LayerSlots,bool Loop,class Prologue,class Pair,class Head,class Final>
+         int Layers,unsigned LayerSlots,bool Loop,bool Embed,class Prologue,class Pair,class LmHead>
 struct Program {
   using Binding=Bindings<Buffers,Maps,Layers,LayerSlots>;
   using PairStages=typename Pair::Stages;
   template<unsigned J> using PairStage=std::tuple_element_t<J,PairStages>;
   static constexpr int kBatch=Batch,kCapacity=Capacity,kResidency=Residency,kThreads=160;
   static constexpr unsigned kBuffers=Buffers,kMaps=Maps,kLayers=Layers;
-  static constexpr unsigned kStages=3+5*Layers,kHead=1+5*Layers;
+  static constexpr unsigned kStages=2+5*Layers,kHead=1+5*Layers;
+  static constexpr bool kEmbed=Embed;
+  // The head's per-CTA partials reuse its [B][tasks] outputs.
+  static constexpr int kHeadMaxGrid=LmHead::kMaxGrid;
   using RoleLaunch=backend::Sm90DenseRoleLaunch<kThreads>;
   static_assert(RoleLaunch::kThreads==kThreads);
   static_assert(Layers>=2 && Layers%2==0,"layer pairs need an even layer count");
@@ -316,7 +320,7 @@ struct Program {
   static constexpr bool PairPlaced(std::integer_sequence<unsigned,J...>) {
     return (Placed<PairStage<J>,(1+J)%2>() && ...);
   }
-  static_assert(Placed<Prologue,0>() && Placed<Head,kHead%2>() && Placed<Final,(kHead+1)%2>() &&
+  static_assert(Placed<Prologue,0>() && Placed<LmHead,kHead%2>() &&
       PairPlaced(std::make_integer_sequence<unsigned,10>{}));
   template<unsigned... J>
   static constexpr int PairBytes(std::integer_sequence<unsigned,J...>) {
@@ -325,7 +329,7 @@ struct Program {
   }
   static constexpr int kArenaSharedBytes=[] {
     int value=PairBytes(std::make_integer_sequence<unsigned,10>{});
-    for(int bytes:{Prologue::kSharedBytes,Head::kSharedBytes,Final::kSharedBytes})
+    for(int bytes:{Prologue::kSharedBytes,LmHead::kSharedBytes})
       value=value<bytes?bytes:value;
     return value;
   }();
@@ -336,8 +340,7 @@ struct Program {
   }
   static constexpr unsigned long long Tasks(unsigned g) {
     if(g==0)return Prologue::kTasks;
-    if(g==kHead)return Head::kTasks;
-    if(g==kHead+1)return Final::kTasks;
+    if(g==kHead)return LmHead::kTasks;
     return PairTasks((g-1)%10,std::make_integer_sequence<unsigned,10>{});
   }
 
@@ -393,9 +396,10 @@ struct Program {
 #endif
 
   // One executed boundary g of typed stage Body (arena and ring parity
-  // Parity) for runtime layer `layer`; Next runs next for `next_layer`.
-  // streamed: Body's predecessor issued Body's stream prefix.
-  template<class Body,class Next,unsigned Parity,bool Last=false>
+  // Parity) for runtime layer `layer`; Next runs next for `next_layer` with
+  // parity NextParity (the same parity only after the head when the
+  // prologue is skipped). streamed: Body's predecessor issued its prefix.
+  template<class Body,class Next,unsigned Parity,bool Last=false,unsigned NextParity=Parity^1>
   __device__ static __forceinline__ void Boundary(Binding const& b,int past,char* shared,
       float epsilon,GridCounter* events,unsigned long long iteration,TraceState trace,
       unsigned g,int layer,int next_layer,bool streamed) {
@@ -439,7 +443,7 @@ struct Program {
       // Next's preissue tail reads original bindings and never this header.
       if constexpr(Next::kUsesOperandRecord)
         Next::PublishOperands(b,next_layer,past,epsilon,
-            backend::Sm90DenseOperandHeader::Bank(shared,Parity^1));
+            backend::Sm90DenseOperandHeader::Bank(shared,NextParity));
       auto* counter=&events[g].arrivals;
       asm volatile("red.release.gpu.global.add.u64 [%0], %1;"::"l"(counter),"l"(1ull):"memory");
       unsigned long long seen;
@@ -491,7 +495,7 @@ struct Program {
       float epsilon,GridCounter* events,unsigned long long iteration,TraceState trace,int pair,
       std::integer_sequence<unsigned,J...>) {
     (Boundary<PairStage<J>,std::conditional_t<J==9,
-        std::conditional_t<LastPair,Head,PairStage<0>>,PairStage<(J+1)%10>>,(1+J)%2>(
+        std::conditional_t<LastPair,LmHead,PairStage<0>>,PairStage<(J+1)%10>>,(1+J)%2>(
         b,past,shared,epsilon,events,iteration,trace,1+10*pair+J,2*pair+int(J/5),
         J==9?(LastPair?0:2*pair+2):2*pair+int((J+1)/5),J!=0 || pair!=0),...);
   }
@@ -502,14 +506,22 @@ struct Program {
     (RunPair<false>(b,past,shared,epsilon,events,iteration,trace,P,
         std::make_integer_sequence<unsigned,10>{}),...);
   }
+  // step: the request's step number (pasts index), independent of launches.
   __device__ static __forceinline__ void Step(Binding const& b,int past,char* shared,
-      float epsilon,GridCounter* events,unsigned long long iteration,TraceState trace) {
+      float epsilon,GridCounter* events,unsigned long long iteration,TraceState trace,
+      unsigned step) {
 #if TILEMEGA_TRACE_STEP
     StepTrace* record=trace.steps && trace.slots?
         trace.steps+(iteration%trace.slots)*gridDim.x+blockIdx.x:nullptr;
     if(threadIdx.x==0 && record)*record={iteration,static_cast<unsigned long long>(past),Now(),0,0,0,0,0,0,0};
 #endif
-    Boundary<Prologue,PairStage<0>,0>(b,past,shared,epsilon,events,iteration,trace,0,0,0,false);
+    if(!Embed || step==0)
+      Boundary<Prologue,PairStage<0>,0>(b,past,shared,epsilon,events,iteration,trace,0,0,0,false);
+    else if(threadIdx.x==0) {
+      // The skipped prologue still counts once per step, keeping its target.
+      auto* counter=&events[0].arrivals;
+      asm volatile("red.release.gpu.global.add.u64 [%0], %1;"::"l"(counter),"l"(1ull):"memory");
+    }
     if constexpr(Loop) {
       #pragma unroll 1
       for(int pair=0;pair<Layers/2-1;++pair)
@@ -519,9 +531,10 @@ struct Program {
         std::make_integer_sequence<int,Layers/2-1>{});
     RunPair<true>(b,past,shared,epsilon,events,iteration,trace,Layers/2-1,
         std::make_integer_sequence<unsigned,10>{});
-    Boundary<Head,Final,kHead%2>(b,past,shared,epsilon,events,iteration,trace,kHead,0,0,true);
-    Boundary<Final,Prologue,(kHead+1)%2,true>(b,past,shared,epsilon,events,iteration,trace,
-        kHead+1,0,0,true);
+    // No stream crosses the step boundary; with Embed the head publishes the
+    // next step's layer-0 qkv bank in place of the skipped prologue.
+    Boundary<LmHead,std::conditional_t<Embed,PairStage<0>,Prologue>,kHead%2,true,
+        Embed?1u:(kHead%2)^1u>(b,past,shared,epsilon,events,iteration,trace,kHead,0,0,true);
 #if TILEMEGA_TRACE_STEP
     if(threadIdx.x==0 && record)record->end=Now();
 #endif
@@ -558,13 +571,21 @@ void sm90_dense_native_kernel(const __grid_constant__ typename P::Binding b,
     backend::Sm90DenseDiagnostic::Context(shared).previous_release_clock[threadIdx.x/32]=
         backend::Sm90DenseDiagnostic::Clock();
 #endif
+  // A launch that starts after step 0 without the prologue needs the
+  // layer-0 qkv bank the previous launch's head published (D9 ③).
+  if constexpr(P::kEmbed)
+    if(first!=0) {
+      if(threadIdx.x==0)P::template PairStage<0>::PublishOperands(b,0,pasts[first],epsilon,
+          backend::Sm90DenseOperandHeader::Bank(shared,1));
+      __syncthreads();
+    }
   if(blockIdx.x==0 && threadIdx.x==0 && step_ns)step_ns[first]=Now();
   for(unsigned step=0;step<steps;++step) {
     int past=pasts[first+step];
 #if TILEMEGA_NATIVE_RELEASE_ENABLED
     P::BeginRelease(shared,past,iteration+step);
 #endif
-    P::Step(b,past,shared,epsilon,events,iteration+step,trace);
+    P::Step(b,past,shared,epsilon,events,iteration+step,trace,first+step);
 #if TILEMEGA_NATIVE_RELEASE_ENABLED
     P::FlushRelease(shared,release_binding,iteration+step);
 #endif

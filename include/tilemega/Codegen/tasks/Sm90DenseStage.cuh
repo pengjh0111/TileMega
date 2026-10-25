@@ -49,6 +49,11 @@ struct StageEntry {
       backend::Sm90DenseRingState* ring,Tail tail,bool streamed) {
     Body::template Run<Prefix,Tail>(p,shared,ring,tail,streamed);
   }
+  template<int Prefix,class Tail,class Finish>
+  __device__ static __forceinline__ void Head(backend::Sm90DenseOperands const& p,char* shared,
+      backend::Sm90DenseRingState* ring,Tail tail,bool streamed,Finish finish) {
+    Body::template Run<Prefix,Tail,Finish>(p,shared,ring,tail,streamed,finish);
+  }
   template<int Prefix,class Tail>
   __device__ static __forceinline__ void Attention(backend::Sm90DenseAttentionOperands const& p,
       char* shared,backend::Sm90DenseRingState* ring,Tail tail,bool streamed) {

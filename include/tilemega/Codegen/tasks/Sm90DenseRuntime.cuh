@@ -46,6 +46,7 @@ struct Plan {
   unsigned long long iteration=0;
   unsigned long long* stamps=nullptr;
   GridCounter* events=nullptr;
+  std::uint64_t* lm_counter=nullptr;
   TraceState trace{};
 #if TILEMEGA_NATIVE_RELEASE_ENABLED
   release_trace::Binding release_trace{};
@@ -58,7 +59,7 @@ struct Plan {
 #endif
   ~Plan() {
     for(auto* p:owned)cudaFree(p);
-    cudaFree(pasts);cudaFree(stamps);cudaFree(events);
+    cudaFree(pasts);cudaFree(stamps);cudaFree(events);cudaFree(lm_counter);
     cudaFree(trace.stages);cudaFree(trace.steps);
 #if TILEMEGA_NATIVE_RELEASE_ENABLED
     cudaFree(release_trace.words);
@@ -215,6 +216,9 @@ extern "C" void* tm_plan_create(int batch,void* const* external,int device) {
       else throw std::invalid_argument("native tensor map rank must be 3 or 4");
     }
     plan->events=Allocate<GridCounter>(NativeProgram::kStages);
+    if(plan->grid>NativeProgram::kHeadMaxGrid)
+      throw std::invalid_argument("native grid exceeds the lm_head partial outputs");
+    plan->lm_counter=Allocate<std::uint64_t>(1);plan->bindings.lm_counter=plan->lm_counter;
 #if TILEMEGA_NATIVE_RELEASE_ENABLED
     auto release_env=std::getenv("TILEMEGA_TRACE_LAUNCHES");
     unsigned long long release_slots=release_env?std::strtoull(release_env,nullptr,10):16;
