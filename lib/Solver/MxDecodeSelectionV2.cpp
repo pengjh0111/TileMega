@@ -36,6 +36,30 @@ Value MxDecodeCandidatesJsonV2(MxDecodeSelectionV2 const& selection) {
     {"resource_policy","stop_on_unresolved_per_plan_reduction_or_D7_fallback"},
     {"fit",Object{{"r2",selection.fit_r2},{"rows",selection.fit_rows}}},{"candidates",plans}};
 }
+Value MxDecodeQualifiedDomainJsonV3(MxDecodeSelectionV2 const& selection) {
+  bool const complete=selection.top.size()==4;
+  if ((complete && selection.status!="predicted_top4_resource_review_required") ||
+      (!complete && !((selection.top.empty() && selection.status=="no_executable_plan") ||
+        (!selection.top.empty() && selection.top.size()<4 && selection.status=="insufficient_top4"))))
+    throw std::invalid_argument("MX-5 schema3 diagnostic status/top4 mismatch");
+  selection.domain_report.AsObject("schema3 domain_report");
+  Value doc=complete ? MxDecodeCandidatesJsonV2(selection) : Value(Object{
+    {"schema_version",1},{"kind","mx5_decode_candidate_preview"},{"diagnostic",true},{"final",false},
+    {"solver_selected",false},{"default_enabled",false},{"candidates",Array{}},
+    {"fit",Object{{"r2",selection.fit_r2},{"rows",selection.fit_rows}}}});
+  doc.Set("preview_mode","schema3_qualified_domain_diagnostic");
+  doc.Set("source_schema_version",3);doc.Set("schema3_diagnostic_only",true);
+  doc.Set("execution_authorized",false);doc.Set("results_consumption_allowed",false);
+  doc.Set("status",selection.status);doc.Set("available_candidate_count",int(selection.top.size()));
+  doc.Set("domain_report",selection.domain_report);
+  doc.Set("resource_policy","diagnostic_only; no execution, results, default or 512 approval");
+  auto plans=doc.At("candidates").AsArray("candidates");
+  for(auto& candidate:plans) {
+    candidate.Set("diagnostic",true);candidate.Set("final",false);candidate.Set("solver_selected",false);
+    candidate.Set("default_enabled",false);candidate.Set("execution_authorized",false);
+  }
+  doc.Set("candidates",plans);return doc;
+}
 Value MxDecodeMeasuredJsonV2(MxDecodeSelectionV2 const& selection,std::vector<std::array<double,2>> const& samples) {
   auto selected=SelectMxDecodeMeasuredV2(selection,samples);
   Array plans;

@@ -78,7 +78,11 @@ int TryPrepareV2(Request const& r) {
   if (!r.pin.empty()) throw std::invalid_argument("MX-5 solve cannot combine a manual pin with a measured table");
   if (r.selection!="predicted") throw std::invalid_argument("MX-5 solve writes diagnostic previews; use --selection predicted and external top4 orchestration");
   if (!r.interpreted_flags.empty()) throw std::invalid_argument("MX-5 solve rejects interpreted-executor flags");
-  solver::MxDecodeSolverV2 solver(r.v2_solve_table);
+  auto table_document=json::ParseFile(r.v2_solve_table);
+  bool const schema3=Int(table_document,"schema_version")==3;
+  if(schema3 && !r.v2_results.empty())
+    throw std::invalid_argument("MX-5 schema3 is diagnostic only; --mx-decode-v2-results consumption is forbidden");
+  solver::MxDecodeSolverV2 solver(table_document);
   auto bridge=frontend::ReadExportBridge(r.input.string());
   frontend::ServingOptions options;options.deferred_norm=true;options.phase=frontend::ServingOptions::Phase::kDecode;
   options.seq=1;options.capacity=r.capacity;
@@ -89,7 +93,8 @@ int TryPrepareV2(Request const& r) {
   auto module=frontend::TorchExportImporter{}.ImportPlan(r.input.string(),plan,context,nullptr,import);
   if (!module) throw std::runtime_error("MX-5 solve import failed");
   auto model=codegen::AnalyzeMxDecode(*module);
-  auto selection=solver.Solve(model,r.batch,r.v2_threads,r.grid,r.past_lo,r.past_hi);
+  auto selection=schema3 ? solver.SolveQualifiedDomain(model,r.batch,r.v2_threads,r.grid,r.past_lo,r.past_hi)
+                         : solver.Solve(model,r.batch,r.v2_threads,r.grid,r.past_lo,r.past_hi);
   auto hash=[](std::string const& path) {
     auto input=llvm::MemoryBuffer::getFile(path);
     if (!input) throw std::runtime_error("MX-5 cannot hash "+path);
@@ -132,16 +137,20 @@ int TryPrepareV2(Request const& r) {
     Write(out+".mx5_selection.json",report.Dump()+"\n");return 0;
   }
   if (std::filesystem::exists(preview)) throw std::invalid_argument("MX-5 candidate preview already exists; preserve earlier evidence");
-  auto doc=solver::MxDecodeCandidatesJsonV2(selection);
+  auto doc=schema3 ? solver::MxDecodeQualifiedDomainJsonV3(selection) : solver::MxDecodeCandidatesJsonV2(selection);
   doc.Set("stage_table",Object{{"path",absolute(r.v2_solve_table)},{"sha256",hash(r.v2_solve_table)}});
   doc.Set("input",Object{{"path",absolute(r.input.string())},{"sha256",hash(r.input.string())}});
   auto compiler=std::filesystem::read_symlink("/proc/self/exe").string();
   doc.Set("producer",Object{{"path",compiler},{"sha256",hash(compiler)}});
   doc.Set("request",Object{{"batch",r.batch},{"capacity",model.capacity},{"past_lo",r.past_lo},{"past_hi",r.past_hi},
     {"threads",r.v2_threads},{"runtime_target",absolute(r.runtime_target)}});
+  if(schema3) {
+    auto request=doc.At("request");request.Set("grid",r.grid);doc.Set("request",request);
+  }
   auto directory=out+".mx5_candidates";
-  if (!std::filesystem::create_directory(directory)) throw std::invalid_argument("MX-5 candidate directory already exists; preserve earlier evidence");
   auto plans=doc.At("candidates").AsArray("candidates");
+  if (!plans.empty() && !std::filesystem::create_directory(directory))
+    throw std::invalid_argument("MX-5 candidate directory already exists; preserve earlier evidence");
   for (auto& candidate:plans) {
     auto path=directory+"/candidate"+std::to_string(Int(candidate,"index"))+".pin.json";
     Write(path,candidate.At("pin").Dump()+"\n");candidate.Set("pin_file",Object{{"path",absolute(path)},{"sha256",hash(path)}});

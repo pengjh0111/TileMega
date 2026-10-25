@@ -205,3 +205,102 @@ def test_pair_only_result_blob_cannot_claim_measured_selection(tmp_path):
     path = tmp_path / 'pairs.json'; path.write_text(json.dumps(dict(process_tpot_ns=[[1,1]]*4)))
     with pytest.raises(ValueError, match='fresh-process/guard/artifact provenance'):
         m.validate_results(path, tmp_path / 'unused-preview')
+
+
+
+def schema3_preview_fixture(tmp_path,status='predicted_top4_resource_review_required',count=4):
+    """Temporary synthetic parser fixture, never a real stage measurement/table."""
+    def save(name,value):
+        path=tmp_path/name;path.write_text(json.dumps(value));return m.record(path)
+    scope=dict(model_id='CPU_SYNTHETIC',model=dict(capacity=1088),batch=1,threads=576,grid=104,past_lo=64,past_hi=1086,
+               source_sha256={kind:'1'*64 for kind in ('gemm','head','attention')})
+    rows=[];evidence={};pin=dict(threads=576,b_min=1,attn_prefetch=1,purpose='manual',diagnostic=True,final=False,solver_selected=False,default_enabled=False)
+    for number,cls in enumerate(m.CLASSES):
+        evidence[cls]=[]
+        for length in ((65,256,512,768,1088) if cls=='attention' else (None,)):
+            key=dict(threads=576,b=1)
+            if cls=='attention':key.update(length=length,b_min=1,prefetch_kind=1)
+            else:
+                key.update(tn=16,wn=1,depth=1,prefetch=1,part=1,n=128*(number+1),k=1024)
+                pin[cls]=dict(tn=16,wn=1,d=1,prefetch=1,part='kTileRange',r_next=160)
+            row=dict(kind='attention' if cls=='attention' else 'head' if cls=='head' else 'gemm',key=key,r_next=160,
+                     fixture_provenance='CPU_SYNTHETIC_PARSER_ONLY')
+            rows.append(row);evidence[cls].append(row)
+    rejections=[dict(fixture_provenance='CPU_SYNTHETIC_REJECTION_PARSER_ONLY')]
+    coverage=dict(expected_keys=len(rows)+1,costed_keys=len(rows),rejected_keys=1,missing_keys=0)
+    table=dict(schema_version=3,table_kind='mx5_decode_stage_costs',qualified=True,diagnostic_reasons=[],
+        qualification_scope='complete_outcomes_single_request_v1',outcome_domain_complete=True,full_table=False,
+        execution_512_approved=False,global_dt576_policy_approved=False,target_defaults_changed=False,
+        scope=scope,coverage=coverage,resource_rejections=rejections,rows=rows,
+        r_next_policy_audit=dict(modern_normal_checked=len(rows)+1,legacy_cost_only_unverifiable=0),
+        fixture_provenance='CPU_SYNTHETIC_PARSER_ONLY')
+    report={key:copy.deepcopy(table[key]) for key in ('scope','coverage','resource_rejections','r_next_policy_audit')}
+    report.update(execution_512_approved=False,final=False,default_enabled=False,
+        ranking_claim='exact_top4_of_certified_executable_stage_domain' if count==4 else 'no_top4_claim')
+    input_file=tmp_path/'input';input_file.write_text('CPU synthetic input, never executed')
+    candidates=[]
+    if count==4:
+        for i in range(4):
+            value=dict(mx_decode_v2=copy.deepcopy(pin));descriptor=save('pin%d.json'%i,value)
+            candidates.append(dict(index=i,pin=value,pin_file=descriptor,evidence=copy.deepcopy(evidence),
+                diagnostic=True,final=False,solver_selected=False,default_enabled=False,execution_authorized=False))
+    preview=dict(schema_version=1,kind='mx5_decode_candidate_preview',diagnostic=True,final=False,solver_selected=False,default_enabled=False,
+        stage_table=save('table.json',table),input=m.record(input_file),producer=m.record(input_file),
+        request=dict(batch=1,threads=576,grid=104,past_lo=64,past_hi=1086,capacity=1088),
+        preview_mode='schema3_qualified_domain_diagnostic',source_schema_version=3,schema3_diagnostic_only=True,
+        execution_authorized=False,results_consumption_allowed=False,domain_report=report,status=status,
+        available_candidate_count=count,candidates=candidates)
+    path=tmp_path/'preview.json';save(path.name,preview);return path,preview,table
+
+
+@pytest.mark.parametrize('status,count',[('predicted_top4_resource_review_required',4),('no_executable_plan',0),
+    ('insufficient_top4',1),('insufficient_top4',2),('insufficient_top4',3)])
+def test_complete_schema3_preview_requires_explicit_audit_opt_in(tmp_path,status,count):
+    path,preview,_=schema3_preview_fixture(tmp_path,status,count)
+    with pytest.raises(ValueError,match='explicit allow_schema3_diagnostic'):m.validate_preview(path)
+    assert m.validate_preview(path,allow_schema3_diagnostic=True)==preview
+    assert preview['execution_authorized'] is False
+    if count<4:assert not preview['candidates']
+
+
+@pytest.mark.parametrize('change',[
+    lambda d:d.pop('preview_mode'),lambda d:d.update(schema3_diagnostic_only=False),
+    lambda d:d.update(execution_authorized=True),lambda d:d.update(results_consumption_allowed=True),
+    lambda d:d['domain_report']['resource_rejections'].clear(),
+    lambda d:d['domain_report']['scope'].update(threads=512),
+    lambda d:d['domain_report']['coverage'].update(expected_keys=999),
+    lambda d:d['domain_report'].update(default_enabled=True),
+    lambda d:d['request'].update(threads=512),
+    lambda d:d.update(available_candidate_count=3),
+    lambda d:d['candidates'][0].update(execution_authorized=True),
+])
+def test_schema3_diagnostic_cannot_hide_rejections_or_grant_policy(tmp_path,change):
+    path,preview,_=schema3_preview_fixture(tmp_path);change(preview);path.write_text(json.dumps(preview))
+    with pytest.raises(ValueError):m.validate_preview(path,allow_schema3_diagnostic=True)
+
+
+def test_schema3_opt_in_does_not_open_measurement_or_results_consumers(tmp_path):
+    path,preview,_=schema3_preview_fixture(tmp_path)
+    assert m.validate_preview(path,allow_schema3_diagnostic=True)['available_candidate_count']==4
+    a=args(tmp_path);a.preview=path;a.out=tmp_path/'must-not-build'
+    with pytest.raises(ValueError,match='explicit allow_schema3_diagnostic'):m.orchestrate(a)
+    assert not a.out.exists()
+    results=tmp_path/'results.json';results.write_text(json.dumps(dict(execution_manifest={})))
+    with pytest.raises(ValueError,match='explicit allow_schema3_diagnostic'):m.validate_results(results,path)
+
+
+def test_schema3_incomplete_top4_never_accepts_fake_pin(tmp_path):
+    path,preview,_=schema3_preview_fixture(tmp_path,'insufficient_top4',1)
+    preview['candidates']=[dict(index=0,pin=dict(mx_decode_v2={}))];path.write_text(json.dumps(preview))
+    with pytest.raises(ValueError,match='must not serialize candidate pins'):
+        m.validate_preview(path,allow_schema3_diagnostic=True)
+
+
+
+def test_schema3_self_consistent_manual_pin_still_cannot_enable_default(tmp_path):
+    path,preview,_=schema3_preview_fixture(tmp_path)
+    candidate=preview['candidates'][0];candidate['pin']['mx_decode_v2']['default_enabled']=True
+    pin_file=Path(candidate['pin_file']['path']);pin_file.write_text(json.dumps(candidate['pin']))
+    candidate['pin_file']=m.record(pin_file);path.write_text(json.dumps(preview))
+    with pytest.raises(ValueError,match='manual pins cannot enable defaults'):
+        m.validate_preview(path,allow_schema3_diagnostic=True)

@@ -4,6 +4,7 @@
 #include <cmath>
 #include <limits>
 #include <iostream>
+#include <stdexcept>
 using namespace tilemega;
 int main() {
   // An integral-valued float in real attention evidence must remain a float.
@@ -42,5 +43,35 @@ int main() {
   assert(result.At("selected_index").AsNumber("selected_index")==1);
   assert(!result.At("selection_applied").AsBool("selection_applied") && !result.At("final").AsBool("final"));
   assert(result.At("candidates").AsArray("candidates")[1].At("pred_over_meas").AsNumber("ratio")==101.0/99);
+  // Synthetic domain reports exercise serialization without claiming measured eligibility.
+  selection.domain_report=json::Object{{"resource_rejections",json::Array{json::Object{{"synthetic_fixture",true}}}},
+      {"ranking_claim","exact_top4_of_certified_executable_stage_domain"}};
+  selection.status="predicted_top4_resource_review_required";
+  auto diagnostic=solver::MxDecodeQualifiedDomainJsonV3(selection);
+  assert(diagnostic.At("domain_report").Dump()==selection.domain_report.Dump());
+  assert(!diagnostic.At("execution_authorized").AsBool("execution_authorized"));
+  assert(!diagnostic.At("results_consumption_allowed").AsBool("results_consumption_allowed"));
+  auto const& diagnostic_plans=diagnostic.At("candidates").AsArray("candidates");
+  auto const& original_plans=preview.At("candidates").AsArray("candidates");
+  for(std::size_t i=0;i<4;++i) {
+    for(char const* field:{"pin","predicted_tpot_ns","predicted_stage_ns","ranks","evidence"})
+      assert(diagnostic_plans[i].At(field).Dump()==original_plans[i].At(field).Dump());
+    assert(diagnostic_plans[i].At("diagnostic").AsBool("diagnostic"));
+    assert(!diagnostic_plans[i].At("final").AsBool("final"));
+    assert(!diagnostic_plans[i].At("execution_authorized").AsBool("execution_authorized"));
+  }
+  for(std::size_t count=0;count<4;++count) {
+    auto partial=selection;partial.top.resize(count);
+    partial.status=count?"insufficient_top4":"no_executable_plan";
+    partial.domain_report.Set("ranking_claim","no_top4_claim");
+    auto doc=solver::MxDecodeQualifiedDomainJsonV3(partial);
+    assert(doc.At("domain_report").Dump()==partial.domain_report.Dump());
+    assert(doc.At("available_candidate_count").AsNumber("count")==double(count));
+    assert(doc.At("candidates").AsArray("candidates").empty());
+    assert(doc.Dump().find("\"pin\"")==std::string::npos);
+    partial.status="selected_top4";bool rejected=false;
+    try{solver::MxDecodeQualifiedDomainJsonV3(partial);}catch(std::invalid_argument const&){rejected=true;}
+    assert(rejected);
+  }
   std::cout<<"mx_decode_selection_v2: synthetic CPU serialization and exact 1% consumer passed\n";
 }

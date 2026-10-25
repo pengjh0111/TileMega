@@ -56,3 +56,17 @@ def test_v2_missing_coordinates_stay_errors(tmp_path):
 
 def test_legacy_pin_does_not_enter_v2_route(tmp_path):
     assert 'missing_bridge.json' in invoke(tmp_path, {'mx_decode': {}})
+
+
+
+def test_schema3_results_route_is_rejected_before_import_or_device_build(tmp_path):
+    if not BINARY.is_file():pytest.skip('tilemega host compiler is not built')
+    table=tmp_path/'CPU_synthetic_schema3.json';table.write_text(json.dumps(dict(schema_version=3,synthetic_fixture=True)))
+    output=tmp_path/'must-not-build.so'
+    result=subprocess.run([str(BINARY),'compile',str(tmp_path/'missing_bridge.json'),str(output),'--serving','decode',
+        '--emit','serving','--frontend','decoder','--selection','predicted','--capacity','1088','--past-range','64:1086',
+        '--mx-decode-v2-solve',str(table),'--mx-decode-v2-results',str(tmp_path/'synthetic-results.json')],
+        capture_output=True,text=True,timeout=30,env={**os.environ,'CUDACXX':'/no/device/compiler/allowed'})
+    assert result.returncode!=0
+    assert 'schema3 is diagnostic only' in result.stderr
+    assert not list(tmp_path.glob('must-not-build.so*'))

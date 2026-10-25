@@ -45,7 +45,49 @@ def record(path):
     return dict(path=str(path), sha256=sha(path))
 
 
-def validate_preview(path):
+def _validate_schema3_diagnostic(doc, table):
+    if (doc.get('preview_mode') != 'schema3_qualified_domain_diagnostic'
+            or doc.get('source_schema_version') != 3 or doc.get('schema3_diagnostic_only') is not True
+            or doc.get('execution_authorized') is not False or doc.get('results_consumption_allowed') is not False):
+        raise ValueError('requires explicit audit-only schema3 diagnostic mode')
+    if (table.get('qualification_scope') != 'complete_outcomes_single_request_v1'
+            or table.get('outcome_domain_complete') is not True or table.get('full_table') is not False
+            or any(table.get(key) is not False for key in
+                   ('execution_512_approved', 'global_dt576_policy_approved', 'target_defaults_changed'))):
+        raise ValueError('requires complete schema3 outcomes without policy approvals')
+    report = doc['domain_report']
+    for key in ('scope', 'coverage', 'resource_rejections', 'r_next_policy_audit'):
+        if json.dumps(report[key], sort_keys=True) != json.dumps(table[key], sort_keys=True):
+            raise ValueError('schema3 domain report differs from immutable table: ' + key)
+    if any(report.get(key) is not False for key in ('execution_512_approved', 'final', 'default_enabled')):
+        raise ValueError('schema3 domain report cannot grant execution/default approval')
+    coverage = report['coverage']
+    counts = (coverage.get('expected_keys'), coverage.get('costed_keys'), coverage.get('rejected_keys'))
+    if (any(type(x) is not int or x < 0 for x in counts) or coverage.get('missing_keys') != 0
+            or counts[0] != counts[1] + counts[2] or counts[1] != len(table['rows'])
+            or counts[2] != len(table['resource_rejections'])):
+        raise ValueError('schema3 complete outcome counts disagree with actual rows')
+    scope, request = report['scope'], doc['request']
+    for key in ('batch', 'threads', 'grid', 'past_lo', 'past_hi'):
+        if type(request.get(key)) is not int or request[key] != scope[key]:
+            raise ValueError('schema3 request differs from domain scope: ' + key)
+    if request['capacity'] != scope['model']['capacity']:
+        raise ValueError('schema3 capacity differs from domain scope')
+    status, count = doc['status'], doc['available_candidate_count']
+    if type(count) is not int or not 0 <= count <= 4:
+        raise ValueError('schema3 diagnostic candidate count is invalid')
+    if status == 'predicted_top4_resource_review_required':
+        if count != 4 or report.get('ranking_claim') != 'exact_top4_of_certified_executable_stage_domain':
+            raise ValueError('schema3 top4 ranking/count claim is invalid')
+    elif status in ('no_executable_plan', 'insufficient_top4'):
+        if (doc['candidates'] or (count != 0 if status == 'no_executable_plan' else not 1 <= count <= 3)
+                or report.get('ranking_claim') != 'no_top4_claim'):
+            raise ValueError('schema3 incomplete top4 must not serialize candidate pins')
+    else:
+        raise ValueError('unknown schema3 diagnostic domain status')
+
+
+def validate_preview(path, *, allow_schema3_diagnostic=False):
     path = Path(path).resolve()
     doc = load(path)
     if (doc.get('schema_version') != 1 or doc.get('kind') != 'mx5_decode_candidate_preview'
@@ -55,16 +97,28 @@ def validate_preview(path):
     table_path = check_file(doc['stage_table'])
     check_file(doc['input']); check_file(doc['producer'])
     table = load(table_path)
-    if (table.get('schema_version') != 2 or table.get('table_kind') != 'mx5_decode_stage_costs'
+    schema3 = table.get('schema_version') == 3
+    if schema3 and not allow_schema3_diagnostic:
+        raise ValueError('schema3 preview is diagnostic only; explicit allow_schema3_diagnostic is required, not measurement/default consumption')
+    if (table.get('schema_version') not in (2, 3) or table.get('table_kind') != 'mx5_decode_stage_costs'
             or table.get('qualified') is not True or table.get('diagnostic_reasons')
             or table.get('synthetic_fixture')):
         raise ValueError('requires qualified schema-v2 costs; synthetic/diagnostic tables cannot be measured')
+    if schema3:
+        _validate_schema3_diagnostic(doc, table)
+        if doc['status'] != 'predicted_top4_resource_review_required':
+            return doc
     rows = {json.dumps(row, sort_keys=True, separators=(',', ':')) for row in table['rows']}
     candidates = doc['candidates']
     if len(candidates) != 4 or [c['index'] for c in candidates] != list(range(4)):
         raise ValueError('requires exactly four ordered native-solver candidates')
     for candidate in candidates:
+        if schema3 and (candidate.get('diagnostic') is not True or any(candidate.get(key) is not False
+                for key in ('final', 'solver_selected', 'default_enabled', 'execution_authorized'))):
+            raise ValueError('schema3 candidates must remain explicit audit-only manual diagnostics')
         pin = candidate['pin']['mx_decode_v2']
+        if schema3 and pin.get('default_enabled') is not False:
+            raise ValueError('schema3 manual pins cannot enable defaults')
         if (pin.get('purpose') != 'manual' or pin.get('diagnostic') is not True
                 or pin.get('final') is not False or pin.get('solver_selected') is not False):
             raise ValueError('candidate pins must remain diagnostic manual inputs')
