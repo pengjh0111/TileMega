@@ -9,6 +9,29 @@ from pathlib import Path
 import statistics
 
 
+REFERENCE_BACKEND = 'torch_cpu'
+REFERENCE_PRECISION = 'float32'
+REFERENCE_ORACLE_VERSION = 'gemm_cpu_fp32_v1'
+REFERENCE_ORACLE_DESCRIPTION = (
+    'CPU BF16 sources; CPU FP32 matmul/RMS/SiLU; original BF16 rounding points; device comparison'
+)
+
+
+def cpu_fp32_reference(x, w, residual, op, norm, t):
+    if any(value.device.type != 'cpu' or value.dtype != t.bfloat16 for value in (x, w, residual)):
+        raise ValueError('reference inputs must be CPU BF16 source tensors')
+    b = x.shape[0]
+    reference = x.float() @ w.float().T
+    if norm: reference *= t.rsqrt(x.float().square().mean(-1, keepdim=True) + 1e-6)
+    reference = reference.bfloat16()
+    if op == 1: reference = (reference.float() + residual.float()).bfloat16()
+    elif op == 2:
+        pair = reference.reshape(b, -1, 2, 16)
+        gate, up = pair[:, :, 0].float(), pair[:, :, 1].float()
+        reference = ((gate / (1 + (-gate).exp())).bfloat16().float() * up).bfloat16().reshape(b, -1)
+    return reference
+
+
 class Operands(C.Structure):
     _fields_ = [(name, C.c_void_p) for name in ['a', 'w', 'residual', 'out', 'partial', 'tickets',
                                               'a_tokens', 'residual_tokens']] + [
@@ -107,11 +130,13 @@ def main():
             copies = max(1, (256 * 1024**2 + n * k * 2 - 1) // (n * k * 2))
             iterations = max(a.iterations, copies + 1)
             generator = t.Generator().manual_seed(2017 + ordinal)
-            x = (t.randn(b, k, generator=generator) * .1).bfloat16().cuda()
-            w = (t.randn(n, k, generator=generator) * .1).bfloat16().cuda()
+            x_cpu = (t.randn(b, k, generator=generator) * .1).bfloat16()
+            w_cpu = (t.randn(n, k, generator=generator) * .1).bfloat16()
+            x, w = x_cpu.cuda(), w_cpu.cuda()
             packed = _packed_gpu(dict(kind='tile_pages', layout='xcore_mma', tile_n=tn, tile_k=32,
                                      source=dict(kind='alias', source='w')), lambda _: w).contiguous().repeat(copies)
-            residual = (t.randn(b, n, generator=generator) * .1).bfloat16().cuda()
+            residual_cpu = (t.randn(b, n, generator=generator) * .1).bfloat16()
+            residual = residual_cpu.cuda()
             out = t.empty(b, n // 2 if op == 2 else n, dtype=t.bfloat16, device='cuda')
             tiles = n // tn
             slots = (104 + tiles - 1) // tiles + 1
@@ -130,14 +155,7 @@ def main():
                 t.cuda.synchronize()
             if counter[0].item() != 104 * iterations: raise RuntimeError('barrier count mismatch')
             if tickets.abs().sum().item(): raise RuntimeError('unreset LA tickets')
-            reference = x.float() @ w.float().T
-            if norm: reference *= t.rsqrt(x.float().square().mean(-1, keepdim=True) + 1e-6)
-            reference = reference.bfloat16()
-            if op == 1: reference = (reference.float() + residual.float()).bfloat16()
-            elif op == 2:
-                pair = reference.reshape(b, -1, 2, 16)
-                gate, up = pair[:, :, 0].float(), pair[:, :, 1].float()
-                reference = ((gate / (1 + (-gate).exp())).bfloat16().float() * up).bfloat16().reshape(b, -1)
+            reference = cpu_fp32_reference(x_cpu, w_cpu, residual_cpu, op, norm, t).to(out.device)
             if not t.all((out.float() - reference.float()).abs() <= .02 + .016 * reference.float().abs()).item():
                 raise RuntimeError('repeated-stage output mismatch')
             ticks = stamps.cpu().tolist(); durations = sorted(y - x for x, y in zip(ticks, ticks[1:]))
@@ -149,7 +167,10 @@ def main():
                        mtreg=resources[0], local_bytes=resources[1], static_smem_bytes=resources[2],
                        resident_ctas=resources[3], threads=meta['threads'], source_sha256=meta['source_sha256'],
                        binary_sha256=binary, base_head=meta['base_head'],
-                       prefetch=compiled['pw'])
+                       prefetch=compiled['pw'], reference_backend=REFERENCE_BACKEND,
+                       reference_precision=REFERENCE_PRECISION, reference_oracle_version=REFERENCE_ORACLE_VERSION,
+                       reference_oracle_description=REFERENCE_ORACLE_DESCRIPTION,
+                       reference_torch_version=t.__version__, reference_num_threads=t.get_num_threads())
             output.write(json.dumps(row, sort_keys=True) + '\n'); output.flush()
             print(f'round={a.round} key={ordinal} median_ns={row["median_ns"]}', flush=True)
 
