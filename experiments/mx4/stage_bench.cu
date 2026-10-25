@@ -188,6 +188,109 @@ Stats Time(Kernel kernel, Launch const& launch, int smem, Pools const& pools, in
   return Envelope(pools, iterations);
 }
 
+// I1 uses one binary/kernel for both orders, keeping register allocation and
+// code placement identical. Each body prefetches at entry in both modes;
+// these numbers diagnose instruction order, not the stage table's envelope.
+template <int C>
+__device__ __forceinline__ void InstructionBody(Pools const& p, int ordinal, char* smem) {
+  constexpr int n = C == 0 ? 4096 : C == 2 ? 1024 : C == 3 ? 6144 : 1024;
+  constexpr int k = C == 0 ? 1024 : C == 2 ? 2048 : C == 3 ? 1024 : 3072;
+  constexpr std::size_t elems = std::size_t(n) * k;
+  constexpr int copies = int((kRotateBytes + elems * 2 - 1) / (elems * 2));
+  constexpr std::size_t kv_elems = std::size_t(8) * kCapacity * 128;
+  constexpr int kv_copies = int((kRotateBytes + kv_elems * 4 - 1) / (kv_elems * 4));
+  auto const* weights = p.weights + std::size_t(ordinal % copies) * elems;
+  auto* keys = p.k_cache + std::size_t(ordinal % kv_copies) * kv_elems;
+  auto* values = p.vt_cache + std::size_t(ordinal % kv_copies) * kv_elems;
+  if constexpr (C == 1) {
+    using Body = MxDecodeAttention<128, 2, 128, 4>;
+    MxAttentionOperands const operands{p.qkv, keys, values, p.out, p.attn_partial, p.tickets, kCapacity, 576};
+    MxStaticAttentionShape<1, 8> const shape{};
+    auto const pf = Body::Prefetch(operands, shape);
+    Body::Run(pf, operands, shape, smem);
+  } else {
+    using Body = std::conditional_t<C == 0,
+        MxDecodeGemm<128, 1, MxDecodeOp::kQkvRope, true, MxPart::kTileRange, MxRope<128, 2, 8, true>>,
+        std::conditional_t<C == 2,
+            MxDecodeGemm<16, 2, MxDecodeOp::kResidual, false, MxPart::kTileRange>,
+            std::conditional_t<C == 3,
+                MxDecodeGemm<64, 2, MxDecodeOp::kSwiGLU, true, MxPart::kTileRange>,
+                MxDecodeGemm<16, 3, MxDecodeOp::kResidual, false, MxPart::kTileRange>>>>;
+    auto const* a = C == 2 ? p.out : C == 4 ? p.qkv : p.x;
+    auto* out = C == 0 || C == 3 ? p.qkv : p.x;
+    MxGemmOperands const operands{a, weights, out, p.partial, p.tickets, p.q_norm, p.k_norm,
+        p.cosine, p.sine, keys, values, p.head_value, p.head_index, p.head_ticket, p.tokens,
+        kCapacity, 576, 1e-6f};
+    MxStaticShape<n, k, 1> const shape{};
+    auto const pf = Body::Prefetch(operands, shape);
+    Body::Run(pf, operands, shape, smem);
+  }
+}
+
+__global__ void __launch_bounds__(512) InstructionOrder(Pools p, int iterations, int fixed_stage) {
+  extern __shared__ __align__(16) char smem[];
+#pragma unroll 1
+  for (int i = 0; i < iterations; ++i) {
+    int const stage = __builtin_mxc_readfirstlane(fixed_stage < 0 ? i % 5 : fixed_stage);
+    int const ordinal = __builtin_mxc_readfirstlane(fixed_stage < 0 ? i / 5 : i);
+    switch (stage) {
+      case 0: InstructionBody<0>(p, ordinal, smem); break;
+      case 1: InstructionBody<1>(p, ordinal, smem); break;
+      case 2: InstructionBody<2>(p, ordinal, smem); break;
+      case 3: InstructionBody<3>(p, ordinal, smem); break;
+      case 4: InstructionBody<4>(p, ordinal, smem); break;
+    }
+    Barrier(p.arrivals + (i % 64) * 8, (unsigned long long)gridDim.x * (i / 64 + 1),
+            [] { return NoPrefetch{}; });
+    if (blockIdx.x == 0 && threadIdx.x == 0) p.stamps[i] = maca::GlobalTimerNs();
+  }
+}
+
+template <int C>
+__global__ void __launch_bounds__(512) InstructionSize(Pools p, int ordinal) {
+  extern __shared__ __align__(16) char smem[];
+  InstructionBody<C>(p, ordinal, smem);
+}
+
+void RunInstructionOrder(Pools const& p, int iterations, FILE* output) {
+  int resident = 0;
+  cudaOccupancyMaxActiveBlocksPerMultiprocessor(&resident, InstructionOrder, 512, kProgramSmem);
+  if (resident != 1) { std::fprintf(stderr, "I1 resident=%d\n", resident); std::exit(3); }
+  char const* names[] = {"qkv", "attn", "o", "gate_up", "down"};
+  using SizeKernel = void (*)(Pools, int);
+  SizeKernel const sizes[] = {InstructionSize<0>, InstructionSize<1>, InstructionSize<2>,
+                              InstructionSize<3>, InstructionSize<4>};
+  for (int c = 0; c < 5; ++c) {
+    cudaFuncAttributes attributes{};
+    if (cudaFuncGetAttributes(&attributes, sizes[c]) != cudaSuccess) std::exit(4);
+    std::printf("I1_BODY class=%s regs=%d static_smem=%zu\n", names[c], attributes.numRegs,
+                 attributes.sharedSizeBytes);
+  }
+  for (int fixed : {0, 1, 2, 3, 4, -1}) {
+    int const count = fixed < 0 ? iterations * 5 : iterations;
+    for (int run = 0; run < 2; ++run) {
+      cudaMemset(p.arrivals, 0, 64 * 64);
+      cudaMemset(p.tickets, 0, 1 << 20);
+      InstructionOrder<<<kGrid, 512, kProgramSmem>>>(p, count, fixed);
+      Check("I1");
+    }
+    std::vector<unsigned long long> stamps(count);
+    cudaMemcpy(stamps.data(), p.stamps, count * 8, cudaMemcpyDeviceToHost);
+    for (int c = 0; c < 5; ++c) {
+      if (fixed >= 0 && c != fixed) continue;
+      std::vector<double> durations;
+      for (int i = 10; i < count; ++i)
+        if (fixed >= 0 || i % 5 == c) durations.push_back(double(stamps[i] - stamps[i - 1]));
+      std::sort(durations.begin(), durations.end());
+      std::fprintf(output, "I1,qwen3_0_6b,1,%s,%s,%.0f,%.0f,%d\n", names[c],
+                   fixed < 0 ? "program_order" : "repeat", durations[durations.size() / 2],
+                   durations[durations.size() * 9 / 10], iterations);
+      std::fflush(output);
+    }
+  }
+}
+
+#ifndef TILEMEGA_MX5_I1_ONLY
 // ---- GEMM dispatch -----------------------------------------------------------
 template <MxDecodeOp Op, bool Norm, MxPart Part, int TN, int D, class Rope>
 bool Gemm(GemmLaunch const& g, Pools const& pools, Stats* stats) {
@@ -276,6 +379,7 @@ Stats RunAttn(int dim, int q, int tmin, AttnLaunch const& g, Pools const& pools)
   std::fprintf(stderr, "ERROR no attention body %d %d %d\n", dim, q, tmin);
   std::exit(2);
 }
+#endif
 
 }  // namespace
 
@@ -286,8 +390,12 @@ int main(int argc, char** argv) {
   }
   int const iterations = std::atoi(argv[1]);
   std::string const filter = argc > 3 ? argv[3] : "";
+  bool const instruction_order = argc > 4 && std::string(argv[4]) == "program-order";
   FILE* out = std::fopen(argv[2], "w");
-  std::fprintf(out, "kind,model,class,n,k,b,op,norm,tn,d,part,dim,q,hkv,length,tmin,median_ns,p90_ns,iterations\n");
+  if (instruction_order)
+    std::fprintf(out, "probe,model,batch,class,mode,median_ns,p90_ns,iterations\n");
+  else
+    std::fprintf(out, "kind,model,class,n,k,b,op,norm,tn,d,part,dim,q,hkv,length,tmin,median_ns,p90_ns,iterations\n");
 
   // Pools sized for the largest key (Llama-3.1-8B head, two copies).
   Pools pools{};
@@ -338,9 +446,18 @@ int main(int argc, char** argv) {
   cudaMemset(pools.tokens, 0, 16 * kCapacity * 4);
   cudaMalloc(&pools.embed, 4096 * 2);  // tokens are 0: only row 0 is read
   cudaMalloc(&pools.arrivals, 64 * 64);
-  cudaMalloc(&pools.stamps, std::size_t(iterations) * 8 + 64);
+  cudaMalloc(&pools.stamps, std::size_t(iterations) * (instruction_order ? 5 : 1) * 8 + 64);
   Check("setup");
 
+  if (instruction_order) {
+    RunInstructionOrder(pools, iterations, out);
+    std::fclose(out);
+    return 0;
+  }
+#ifdef TILEMEGA_MX5_I1_ONLY
+  std::fprintf(stderr, "this binary requires: <iterations> <out.csv> qwen3_0_6b program-order\n");
+  return 2;
+#else
   int rows = 0;
   for (auto const& m : kModels) {
     int const q = m.heads / m.hkv;
@@ -444,4 +561,5 @@ int main(int argc, char** argv) {
   std::fclose(out);
   std::printf("rows %d\n", rows);
   return 0;
+#endif
 }
