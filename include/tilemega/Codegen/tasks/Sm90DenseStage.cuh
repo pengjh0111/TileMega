@@ -7,6 +7,7 @@ namespace tilemega::codegen::native_dense {
 struct ReadSources {
   cutlass::bfloat16_t const* weight=nullptr;
   CUtensorMap const *key=nullptr,*value=nullptr;
+  int layer=0;
 };
 
 template<class Body,int Tasks>
@@ -23,7 +24,7 @@ struct KvRead {
   __device__ static __forceinline__ void Prepare(ReadSources source,int past,char* shared,
       backend::Sm90DenseRingState& ring) {
     if constexpr(Bytes>0)if(blockIdx.x<Tasks)
-      Body::template Preissue<Bytes>(source.key,source.value,past,shared,ring);
+      Body::template Preissue<Bytes>(source.key,source.value,source.layer,past,shared,ring);
   }
 };
 
@@ -45,13 +46,13 @@ template<class Body>
 struct StageEntry {
   template<int Prefix,class Tail>
   __device__ static __forceinline__ void Gemm(backend::Sm90DenseOperands const& p,char* shared,
-      backend::Sm90DenseRingState* ring,Tail tail) {
-    Body::template Run<Prefix,Tail>(p,shared,ring,tail);
+      backend::Sm90DenseRingState* ring,Tail tail,bool streamed) {
+    Body::template Run<Prefix,Tail>(p,shared,ring,tail,streamed);
   }
   template<int Prefix,class Tail>
   __device__ static __forceinline__ void Attention(backend::Sm90DenseAttentionOperands const& p,
-      char* shared,backend::Sm90DenseRingState* ring,Tail tail) {
-    Body::template Run<Prefix>(p,shared,ring,tail);
+      char* shared,backend::Sm90DenseRingState* ring,Tail tail,bool streamed) {
+    Body::template Run<Prefix>(p,shared,ring,tail,streamed);
   }
 };
 }  // namespace tilemega::codegen::native_dense

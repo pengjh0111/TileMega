@@ -21,6 +21,8 @@ static_assert(kNativeBuffers.size()==NativeProgram::kBuffers);
 static_assert(kNativeTensorMaps.size()==NativeProgram::kMaps);
 static_assert(kNativeStages.size()==NativeProgram::kStages);
 static_assert(kNativeEpsilon>0);
+static_assert(kNativeLayerSlots.size()==NativeProgram::kLayers &&
+    kNativeStackedKv.key.size()==NativeProgram::kLayers);
 static_assert(epilogue_contract::kInternal==TM_BUFFER_INTERNAL &&
     epilogue_contract::kExternal==TM_BUFFER_EXTERNAL &&
     epilogue_contract::kBF16==TM_DTYPE_BF16 &&
@@ -188,6 +190,18 @@ extern "C" void* tm_plan_create(int batch,void* const* external,int device) {
       if(pointer && reinterpret_cast<std::uintptr_t>(pointer)%16)
         throw std::invalid_argument("native dense buffers require 16-byte alignment");
       plan->bindings.buffers[i]=static_cast<Element*>(pointer);
+    }
+    for(unsigned layer=0;layer<kNativeLayerSlots.size();++layer)
+      for(unsigned slot=0;slot<kNativeLayerSlots[layer].size();++slot)
+        plan->bindings.layers[layer][slot]=plan->bindings.buffers[kNativeLayerSlots[layer][slot]];
+    // The stacked K/V maps address every layer from layer 0's views.
+    auto* base=reinterpret_cast<char*>(plan->bindings.buffers[kNativeStackedKv.key[0]]);
+    for(unsigned layer=0;layer<kNativeStackedKv.key.size();++layer) {
+      auto* key=base+layer*kNativeStackedKv.layer_bytes;
+      if(reinterpret_cast<char*>(plan->bindings.buffers[kNativeStackedKv.key[layer]])!=key ||
+         reinterpret_cast<char*>(plan->bindings.buffers[kNativeStackedKv.value[layer]])!=
+             key+kNativeStackedKv.value_bytes)
+        throw std::invalid_argument("native K/V views are not one [L][2][B][Hkv][Cap][D] allocation");
     }
     for(unsigned i=0;i<kNativeTensorMaps.size();++i) {
       auto const& m=kNativeTensorMaps[i];
