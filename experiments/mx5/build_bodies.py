@@ -42,9 +42,12 @@ def parse_args(argv=None):
     p.add_argument('--dim', type=int, nargs='+', default=[64, 128])
     p.add_argument('--query', type=int, nargs='+', default=[2, 3, 4, 8])
     p.add_argument('--bench', action='store_true')
+    p.add_argument('--null-idle', action='store_true', help='test unused-wave prefetch with null weight pointers')
     p.add_argument('--pw', type=int)
     p.add_argument('--prefetch-kind', type=int, choices=[0, 1, 2])
     a = p.parse_args(argv)
+    if a.null_idle and (a.bench or a.body not in ('gemm', 'head')):
+        p.error('--null-idle supports only GEMM/head unit libraries')
     if a.bench and a.body not in ('gemm', 'head', 'attention'):
         p.error('repeated-stage benches support GEMM, head and attention')
     if a.prefetch_kind is not None and not (a.bench and a.body == 'attention'):
@@ -76,7 +79,8 @@ def build_inputs(a):
         filename = 'stage_bench.cu' if a.body == 'gemm' else f'{a.body}_stage_bench.cu'
         source_path = Path('experiments/mx5') / filename
     else:
-        source_path = Path(f'test/unit/mx/decode_{name}_v2.cu')
+        suffix = '_null_idle' if a.null_idle else ''
+        source_path = Path(f'test/unit/mx/decode_{name}{suffix}_v2.cu')
     if a.body == 'gemm' or (a.body == 'head' and a.bench):
         keys = [(f'tn{tn}_d{d}', dict(MX5_TEST_TN=tn, MX5_TEST_DEPTH=d), dict(tn=tn, depth=d))
                 for tn in a.tn for d in a.depth if (tn // 16) * 4 + d * (tn // 16 + 1) * 4 <= 160]
@@ -121,7 +125,7 @@ def main():
         start = time.monotonic()
         with output.with_suffix('.log').open('wb') as stream:
             result = subprocess.run(command, stdout=stream, stderr=subprocess.STDOUT)
-        item = dict(body=a.body, bench=a.bench, pw=a.pw, **coordinates, threads=a.threads, base_head=head, source_sha256=source,
+        item = dict(body=a.body, bench=a.bench, null_idle=a.null_idle, pw=a.pw, **coordinates, threads=a.threads, base_head=head, source_sha256=source,
                     seconds=time.monotonic() - start, returncode=result.returncode, command=command)
         if output.exists(): item['binary_sha256'] = hashlib.sha256(output.read_bytes()).hexdigest()
         record.write_text(json.dumps(item, indent=2) + '\n')

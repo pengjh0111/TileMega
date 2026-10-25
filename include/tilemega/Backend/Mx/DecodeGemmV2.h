@@ -143,11 +143,13 @@ struct MxGemm {
     if (l.Compute()) {
       MxGeometryV2<TN, WN, Part> const geo(s.n, s.k, int(gridDim.x), StageBlock());
       auto segment = geo.Segment(0, l.group);
-      segment.tile = min(segment.tile, geo.tiles - 1);
-      if (!segment.active) segment.k0 = 0, segment.k1 = geo.kc;
+      if (__builtin_mxc_readfirstlane(int(segment.active && MxWaveChunksV2(segment, l.wave_k, kWK) > 0))) {
+        segment.tile = min(segment.tile, geo.tiles - 1);
+        if (!segment.active) segment.k0 = 0, segment.k1 = geo.kc;
 #pragma unroll
-      for (int i = 0; i < Pw; ++i) Weight(pf.w[i], p, geo.kc, segment.tile, Chunk(segment, l, i), l);
-      asm volatile("" ::: "memory");
+        for (int i = 0; i < Pw; ++i) Weight(pf.w[i], p, geo.kc, segment.tile, Chunk(segment, l, i), l);
+        asm volatile("" ::: "memory");
+      }
     }
     return pf;
   }

@@ -74,6 +74,8 @@ class BodyBuild(unittest.TestCase):
 
     def test_invalid_new_bench_coordinates_fail_before_build(self):
         invalid = [
+            ['--bench', '--null-idle'],
+            ['--body', 'attention', '--null-idle'],
             ['--bench', '--body', 'head', '--tn', '128', '--depth', '4'],
             ['--bench', '--body', 'head', '--tn', '48'],
             ['--bench', '--body', 'head', '--depth', '5'],
