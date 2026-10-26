@@ -236,3 +236,28 @@ old selected cells and active old-A runner remain valid only for their recorded
 source cohort. No old A cost is relabelled, no old result promoted to new source.
 The pending pure-CPU old512-query waiter was stopped before any GPU launch;
 existing original builds/histories and G/H measurements remain preserved.
+
+Verified newcc29 producer24fa50ed913bce7791f575447a97e06c18a9bfce91c337c0bcc9191179c7c3c7:
+160/160freshnormalhoststeps,CPPunit/fingerprintPASS. Same-last-pin WD0/1
+B16c2MT241/frame0 and B8c0MT225/frame0,14cleanMIRrings each;allfour actual
+queries API0/resident1/noLaunch+guard0. Both actualWD1 C1/C2512 checksPASS;
+B16maxgap0.34375. No extra width retry/budget reset or finalselection claim.
+Newsource A19=719ac288910e2e658a83f49508530c6c4e3b37e44f658d81fae01da53b02acc4.
+Actualnew800P0queries allAPI0/noLaunch:500fit/300reject. Actualplanner800
+runsafterthese realparents;only5missing primarylibs built,3PK0newP0libs reused.
+Primaryactualqueries/unitnumerics/timings/solver stillpending;oldA not mixed.
+
+Verified old3ef/Af8 Llama8BB1 selection now complete: allfourC1/C2512 and
+8freshWD0timingsPASS;1%anchor original0,median10.560823ms,−1.443774%vsMX4,
+/SGLang0.952309,pred/meas0.983791. Rawselected binaries/pin published under
+tm/llama3_1_8b/B1 andconfigs/pins/mx5. This is a third prior-body result,
+not newcc29 acceptance. Four selection/correctness/WD1resource and3serving
+rows append;4newcc29 actualquery resource and2newC1C2 rows append separately.
+
+Verified width-cost v1 guardfails due relativeoutput/childcwd path mismatch;
+v2 guardfails at run_three_fresh.py:36 after3head+1G childsuccess because
+G usesworking_set_bytes whileH usesactive_working_set_bytes. Bothsealed
+scripts/raw/partialoutputs anderrors retained,zero qualifiedrows, nopartial
+reuse. Newkind-specific schemaadapter will beCPU-reviewed in a newdirectory;
+no thirdGPUattempt while obsolete old-A-family widths are not required by
+newsource actualledger. No256MiB/3fresh/guard criterion is relaxed.
