@@ -315,3 +315,13 @@ timeout without touching the unrelated sentinel. An actual DCMI-8005 attempt
 launched no child; subsequent healthy ACL inventory on each card launched no
 compute kernel. Current physical0 is D7:00.0 and physical1 is55:00.0, unlike the
 older enumeration; archived old/current mappings retain that distinction.
+
+
+Experimental FIFO observation reuse is exposed only by explicit `-fifo` priced
+compile modes. CPU proof and real Qwen plans retain all publications, payload
+acquires, MIX acknowledgements, queues and task identity; only redundant wait
+entries are removed. State is local to each participant's FIFO proof, reset
+conceptually for each forward, with unchanged runtime epoch encoding. Device
+C-2/C-3 and end-to-end timing remain blocked by unresponsive management queries;
+no new synchronization pass or default change is claimed. See the evidence
+index `runs/as2/search/fifo_wait_validation_v1.json`.

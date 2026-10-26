@@ -199,3 +199,35 @@ binaries and next commands are indexed by `checkpoint.json`/`resume.json`.
   model. A later query was healthy but NPU ID↔PCI correspondence had changed.
   Mapping is time-bound; re-probe ACL/PCI before new model runs. Never attribute
   a telemetry failure to an NPU kernel deadlock or silently reuse old PCI identity.
+
+
+## Experimental FIFO observation reuse, 2026-10-26 continuation
+
+`verified-code`: `ElideAscendFifoWaits` runs after priced plan selection. A wait
+is omitted only if every current participant already observed the required
+producer prefix earlier in its own FIFO (or is that producer). Observations
+are not transferred between workers or inferred through another producer.
+`AuditAscendSchedule` reconstructs coverage of the original semantic edges
+under the combined dependency/FIFO graph. A newly participating AIV must wait.
+The default remains per-task frontier lowering; only explicit `emit-priced-fifo`,
+`emit-priced-decomposed-fifo` or `emit-priced-body-fifo` enables the experiment.
+
+`verified-run CPU`: existing schedule contracts pass, including64 enumerated
+small dependency graphs and negative missing-observation/MIX-lane cases. Real
+Qwen0.6 B1/G8 CTG/ISL/pricing/materialization yields decode9267→6295 waits
+(4158 tasks), prefill124083→45304 (16485 tasks). Queues, offsets, Stage/buffer
+tables and task owner/ordinal/participants match the original selected Plans.
+The same current codegen emits identical source for compressed/uncompressed
+Plans; older archived sources also contain unrelated Host-template changes.
+Prefill offline wall171.74s, user CPU58.87s, peak RSS240936KiB are retained;
+these are compiler costs, not model latency. No payload acquire, publication,
+MIX ready/done/reverse-ack, epoch encoding or Body code was removed.
+
+NPU C-2/C-3/TPOT are **not_run**: own read-only management queries blocked in
+kernel wait; one bounded retry exceeded5s. Only these owned queries were
+signalled, no device reset or other-process operation. Both queries later exited.
+CPU preparation can source `scripts/as2_cpu_env.sh` in its own subshell to
+disable verified PyTorch backend autoload. This does not remove the C++ core's
+existing CANN library linkage (`cmake/AscendAS1.cmake`); its effect on shutdown
+latency remains inferred. Seven long numerical cells and zero formal performance
+cells are unchanged; the new wait mode is not admitted or default-enabled.
