@@ -1062,3 +1062,23 @@ policy;noautomaticcommit/retry/D7/512switch. No real final origin executed.
 Rootremaining40prefill firstQwenB2 WD0/1 normalbuilds are underway via sealed
 controller_v3/BOUND_MANIFEST_v3; actual queriesqueue behindcard6guards.
 Futureexecutionfalse metadata is not another userapproval request.
+
+## P0 projection and prefill first actual queries (verified)
+
+Candidate P0 projector preserves flat G/H witnesses; attention points to the
+original inspect JSONL fileSHA+line and exactinline reference rather than
+fabricating a flattened raw row. Only canonical576_history rawreader changes;
+three sealed sharedqualifier tools and EXPORT_PARENT_BINDING areunchanged.
+Root28relatedtests pass,including20newisolated syntheticcandidatecases;worker
+300pass/1optional skip. Root's actualaudit validates4545real576P0 (G3395,H750,
+A400);nonfit620/100/300 remain nontimed probes.400actual512Arows skipped.
+TrueG815/H52/Af8 archives14/15/19match;retainedcurrent cucc SHA is checked,
+historicalbuild-time compilerSHA wasnotrecorded. No realorigin/bundle/costmade.
+Raw:`runs/mx5/p0_projector_v1_61/ROOT_ACTUAL_POOL_AUDIT/`.
+QwenB2 prefill WD0/1 exactgeometry/source/layout gates pass usingfrozen d74.
+Final actualfragment L1stub queries bothAPI0,resident1,threads128,iterations0,
+launches0. These final.so queries are distinctfromlegacy searchprobes before
+fragmentflag insertion. Existinglegacy L1 resource248MT/frame248 is recorded
+without imposing decodev2's zero-stack gate on unchangedMX4prefill. Other38
+normalcompiles proceed,CPUworkers2/searchjobs1;queries serializeunderGPU6lock.
+Raw:`runs/mx5/prefill_final_fragment_queries_v1/smoke_pair_actual.json`.
