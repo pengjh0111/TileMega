@@ -623,3 +623,24 @@ snapshots are identical, and574/574 git-showf576 hashes match. Its includes
 and7 extra plan-compile TUs also match22a. Therefore differing HEAD labels
 do not explain the byte mismatch; cause remains unknown. Otherfour builds
 were not dispatched, no referencecheck/PPAIR claim or criterion relaxation.
+
+Verified single-segment candidate source0a32685 full normal producer passes
+160/160 build steps,C++ solver unit,version/fingerprint and615-file clean
+snapshot; producer32be0995,sourceb99c4c6f,newA19=11c4f458,unchangedG815/H52.
+B2 normal512 WD0/WD1 use241/245MT,frame0,actualAPI0/resident1. New576
+all-GEMM-Pw=D/attentionP0 has384B frame(nativeCLI correctlyrejects); its
+controlled227 diagnostic stillhas80B frame and actualresident0. No rejected
+artifact is executed. Each observation retains newsource/receipt/query hashes.
+Full512 C1/C2 pass (C1maxgap0.03125,gapzero0.987305;C2zero mismatches).
+
+Verified same-card source-change P-PAIR (warm1/timed2,2fresh/arm,old/new/new/old):
+cc29=2.318709581/2.320058376ms(median2.319383978);single-segment=2.320790248/
+2.321553593(median2.321171921),+0.077087%,indistinguishable. It remains
+10.769770% abovefixedMX4. This structural correction produces no accepted
+TPOT speedup. Sixmanual-control timing rows are separate from seven real
+solver selections; oldCSV rows/default/cost table remain unchanged.
+
+Root now holds obsolete cc29 whole-program query/cap/CPU-preparation
+dispatch parents; bounded active children may drain, noGPU child signalled.
+Same-source G/H standalone costs continue; their bytes are unchanged. Noold
+whole-program approval transfers to the newcandidate.
