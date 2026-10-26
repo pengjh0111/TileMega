@@ -552,3 +552,13 @@ produced different executable bytes despite equal size; its mapping stopped,
 all per-body counts remain unknown, with no retry or transfer from another
 plan. These observations establish no current I1/cache timing. Three resource
 rows retain their independent source records and byte-gate proofs.
+
+Verified selected QwenB2 D7 ledger is complete:16 genuine fresh processes,
+two reverse-order rounds, no trace, actualchosen PK0/bmin4/512. Netus/layer
+QKV/A/O/GU/down=7.518036/36.680000/5.067500/10.146071/7.050357,
+matchingbench=10.08/27.509257/8.50/13.81/10.29;head/history190.205us
+versus195.16us,floor63=334.980us. Attention net/bench1.333369 triggersD7;
+values are nonadditive whole-step interventions, not isolated stage latency.
+Adjacent lengths224/256/288 are queued against the exact existing A719/PF0
+library with three fresh processes; official five-L table and candidates stay
+unchanged. Regression cause and currentI1 remain unknown.

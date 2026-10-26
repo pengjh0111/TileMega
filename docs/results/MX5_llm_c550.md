@@ -99,6 +99,7 @@ uninstrumented stage bench; no older manual ledger/PK/geometry substitution.
 | Qwen0.6B B16 | 9.425/65.835/8.621/12.743/12.820 | 13.550/65.584/11.810/16.410/15.570 | 199.857/199.670 | 311.723 |
 | Llama8B B1 | 31.343/20.936/21.425/149.165/71.324 | 34.850/18.622/24.920/149.750/76.540 | 637.630/638.630 | 718.590 |
 | Llama8B B16 | pending | pending | pending | pending |
+| Qwen0.6B B2 D7 | 7.518/36.680/5.068/10.146/7.050 | 10.080/27.509/8.500/13.810/10.290 | 190.205/195.160 | 334.980 |
 
 Head differences are confounded by future-token history. Floor63 retains prefetch,
 barriers/control/timer and is not pure synchronization. No additive latency sum
