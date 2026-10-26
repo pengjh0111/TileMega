@@ -318,19 +318,27 @@ older enumeration; archived old/current mappings retain that distinction.
 
 
 Experimental FIFO observation reuse is exposed only by explicit `-fifo` priced
-compile modes. CPU proof and real Qwen plans retain all publications, payload
-acquires, MIX acknowledgements, queues and task identity; only redundant wait
-entries are removed. State is local to each participant's FIFO proof, reset
-conceptually for each forward, with unchanged runtime epoch encoding. Device
-C-2/C-3 and end-to-end timing remain blocked by unresponsive management queries;
-no new synchronization pass or default change is claimed. See the evidence
-index `runs/as2/search/fifo_wait_validation_v1.json`.
+compile modes. CPU proof and real Qwen plans retain publications, payload
+acquires, MIX acknowledgements, queues, owner identity and epoch encoding.
+`verified-run` Qwen0.6 B1/G8: original/elided same-binary short captures match457
+files/request; fast/diagnostic matches401 common files. Five fresh fast processes
+with10 reset requests pass; all401 files/request are bitwise stable. Full1024
+greedy tokens/logits/56 checked KV slices and teacher512 match independent
+SDPA/fused Norm exactly. See `runs/as2/search/fifo_device_validation_v1.json`.
+No TPOT admission or default change is claimed; other model wait modes are untested.
 
+Management follow-up: exact `/usr/local/sbin/npu-smi info` succeeds in project
+and ordinary shells. Prior15s timeout records are retained and do not establish
+compute/device failure. Sourcing CANN changes common-library resolution, so the
+query child now prefers installed driver libraries; compute children are unchanged.
+This does not eliminate every intermittent timeout or prove its cause. Queries
+have a configurable30s budget (max60s), bounded1s reaping and own PID/birth
+identity;7/7 CPU safety tests pass, including unrelated-process preservation.
+Native CPU tools still link only CPU dependencies; the explicit unchanged Probe
+archive compiles, with no additional runtime Probe claim.
 
-Host isolation follow-up: native semantic tools link only CPU dependencies;
-`TargetSpec::Probe` is unchanged in explicit `TileMega::ascend_target_probe`.
-Its archive compiles; no hardware Probe execution is claimed. The no-lock
-runner separately bounds management-query communication15s and reaping1s,
-records its owned PID/start identity and suppresses repeated own queries while
-pending. Six CPU safety tests pass; a real unresponsive query returns16.016s.
-This does not force an uninterruptible query to exit or repair device health.
+C3 dedup now permits an explicit minimum payload size, never below64KiB. Only
+completed manifest-registered numeric payloads with exact SHA/stamp/ownership
+checks are linked.2286 paths are preserved,763637760 allocated bytes reclaimed;
+post-dedup C3 again passes5/5. The brief96GiB soft-budget warning is retained,
+not hidden by changing accounting or deleting failed evidence.

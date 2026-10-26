@@ -200,7 +200,6 @@ binaries and next commands are indexed by `checkpoint.json`/`resume.json`.
   Mapping is time-bound; re-probe ACL/PCI before new model runs. Never attribute
   a telemetry failure to an NPU kernel deadlock or silently reuse old PCI identity.
 
-
 ## Experimental FIFO observation reuse, 2026-10-26 continuation
 
 `verified-code`: `ElideAscendFifoWaits` runs after priced plan selection. A wait
@@ -223,23 +222,29 @@ Prefill offline wall171.74s, user CPU58.87s, peak RSS240936KiB are retained;
 these are compiler costs, not model latency. No payload acquire, publication,
 MIX ready/done/reverse-ack, epoch encoding or Body code was removed.
 
-NPU C-2/C-3/TPOT are **not_run**: own read-only management queries blocked in
-kernel wait; one bounded retry exceeded5s. Only these owned queries were
-signalled, no device reset or other-process operation. Both queries later exited.
-CPU preparation can source `scripts/as2_cpu_env.sh` in its own subshell to
-disable verified PyTorch backend autoload. Native CPU tools now link no CANN
-DSOs: `TargetSpec::Probe` moved unchanged into `TargetProbe.cpp` and explicit
-`TileMega::ascend_target_probe`. Probe compilation/symbol identity pass; its
-runtime execution is not_run. CPU contracts and same-source reemit pass, with
-ELF dependencies retained in `search/pure_host_linkage_v1.json`. Seven long
-numerical cells and zero formal performance cells are unchanged; the new wait
-mode is not admitted or default-enabled.
+`verified-run NPU`: ordinary `/usr/local/sbin/npu-smi info` succeeds (7.44s
+in project env,3.66s before sourcing it); both cards are healthy. Earlier
+15s timeouts are query observations, not evidence of a compute/device failure.
+CANN changes libc_sec/libmmpa resolution. Management children now prefer driver
+libraries; compute environments are unchanged. Intermittent timeouts also occur
+with driver precedence, so that difference is not a proven root cause.
+Query deadlines are configurable30s by default, at most60s, plus bounded1s
+reaping. Seven CPU safety tests pass; no shared configuration is changed.
 
-
-The no-lock runner now bounds management-query termination/reaping separately
-(15s+1s), tracks only its own child identity and avoids repeated spawning while
-that child remains pending in-process. Six CPU safety tests pass, including PID
-identity mismatch and an unrelated sentinel. One actual query returns in16.016s
-with pending-kernel-wait evidence; no compute kernel was launched. This fixes
-the wrapper's unbounded wait, not the management API. Its recorded own PID may
-remain in kernel wait; no more device queries/runs until that state changes.
+Qwen0.6 B1/G8 uses one identical retained binary for original/elided queues:
+457 short diagnostic payloads per request match; fast/diagnostic401 common
+files match. Five fresh fast processes /10 reset requests pass C-3,401 files
+per request. Full1024 greedy tokens,151936 final logits and56 checked KV slices
+are bitwise equal to the independent SDPA/fused-Norm reference. Teacher512
+also passes,513 launches, zero prediction/logit/KV differences. Each model
+forward remains one persistent launch. Evidence: `search/fifo_device_validation_v1.json`.
+The wait mode remains experimental/off by default: no paired TPOT admission,
+refitted prices or wider-model C-3 is claimed. Seven long numerical cells and
+zero formal performance cells are unchanged. Nine compute jobs used physical1
+(55:00.0→logical0),54.72s own-child time, no abort/timeout/OOM; external load
+is retained. Two query-only preflight failures launched no compute work.
+CPU semantic tools still link no CANN DSOs; explicit Probe compilation passes,
+not runtime Probe execution. C3 dedup preserves2286 paths/payloads and reclaims763637760
+allocated bytes; re-audit remains5/5. Project sampling briefly reached
+103300968448B, then102540890112B, below the96GiB soft budget. No new large
+candidate was started while over budget. AS-1 and unrelated processes are untouched.

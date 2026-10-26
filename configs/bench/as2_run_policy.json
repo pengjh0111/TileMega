@@ -14,5 +14,9 @@
   "max_plans_per_batch": 4,
   "max_body_candidates_per_family": 8,
   "default_cache_root": "/home/d50064638/junhuip/tilemega-as2/cache",
-  "scope_override": "five dense models first; MoE requires a later user decision"
+  "scope_override": "five dense models first; MoE requires a later user decision",
+  "telemetry_timeout_s": 30,
+  "max_telemetry_timeout_s": 60,
+  "telemetry_reap_timeout_s": 1,
+  "management_library_precedence": "installed driver, query child only"
 }
