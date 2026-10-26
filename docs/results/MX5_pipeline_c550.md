@@ -358,3 +358,16 @@ resources271→275(QwenB16actualWD0queries)→279(Llama1BactualWD1checks).
 Originalprefix proofseachretained. Newsource1/25;three prior-body selections
 remain separate. NewQwenB1 all4D7/resourcebindings independentlyreplayedREADY;
 itsactualC1/C2/top4 timingqueue follows Llama1B,with own previous-child drain.
+
+Verified canonical100 new-source ordinary original resources append279→379:
+100actualnormal cucc receipts0; native CLI14resourcefit/86resourceveto.
+Rowsareexplicit compile-only observations without occupancy/execution claims;
+positive615-input/sourcearchive/ordinaryflag/generatedcoordinate/MIR checks
+andbinary/receipt/resource/snapshot hashes bind20+80actual manifests.
+Old CSVbytes remainunchanged. Proof:canonical100_blockinit_resource_export_v1.
+At01:56:34Shanghai actual-card unionupper45.322621/60h,oldwrappersum59.337543h
+retained,peak2cards; checkpoint_first_newsource_selection_v1/physical_union.
+Llama1B selected DIAG exact pin+PK2 CPU165/frame0,15cleanrings; rootactual
+ledger queuecard6 usesoneguardedzeroquery andtwo900s guardedrounds with
+eight serialfresh children each,reversedmaskorder inround2. DIAGtiming is
+nonadditive attribution only; noledger result claimed beforeactualcompletion.
