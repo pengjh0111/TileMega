@@ -160,13 +160,13 @@ short reset requests (`probes/llama1b_b16_actual_runtime_launches_v1.json`).
 |---|---|---|
 | Qwen3-0.6B | pass; sourced selected queues | pass; unpriced diagnostic structure |
 | Llama-3.2-1B | pass; sourced selected queues | pass; local-tail +split3; priced1024 also passes |
-| Qwen3-1.7B | pass; sourced split3 queues | first-layer localization; not admitted |
+| Qwen3-1.7B | pass; sourced split3 queues | pass; sourced local-tail +split3 queues |
 | Llama-3.2-3B | pass; sourced split2 queues | incomplete |
 | Llama-3.1-8B | pass; sourced separate-QKV/split7 queues | incomplete |
 
-**Seven numerical long cells, zero formal final correctness/performance cells.**
-The latter still require final baseline/configuration admission and applicable
-C-0/C-1/C-2/C-3 coverage; no claim of70% overall completion follows from7/10.
+**Eight numerical long cells, zero formal final correctness/performance cells.**
+The latter still require final TileMega configurations and applicable
+C-0/C-1/C-2/C-3 coverage;8/10 is not an overall completion percentage.
 Price and capture histories are retained in `runs/as2`; exact selected bindings,
 binaries and next commands are indexed by `checkpoint.json`/`resume.json`.
 
@@ -178,7 +178,7 @@ binaries and next commands are indexed by `checkpoint.json`/`resume.json`.
 - Do not continue unbounded bitwise micro-probes as the main optimization loop.
   Each diagnostic must answer a failing model check or a quantified bottleneck,
   retain its failure evidence, then return to the complete model request.
-- Complete the three remaining B16 long cells without shrinking layers/vocab/
+- Complete the two remaining B16 long cells without shrinking layers/vocab/
   output length. Keep MoE deferred under the user's explicit scope override.
 - Connect bounded Body/geometry/decomposition/G choices to the existing semantic
   and schedule chain; component TopK plus a fixed whole-model Body is incomplete.
@@ -186,12 +186,11 @@ binaries and next commands are indexed by `checkpoint.json`/`resume.json`.
 - Use full-request Host/device measurements and controlled ablations to select
   the next optimization: dispatcher/sync, queue critical path, resources, Body,
   or handoff. Predicted objective reduction cannot admit a default or speedup.
-- Evaluate fused eager and direct/GM fairly. Unresolved FIA numerical pairing
-  does not establish that FIA is illegal or that SDPA is the final baseline.
-- Final protocol remains ISL64/OSL1024, TPOT=(t_last-t_first)/1023; five paired
-  fresh processes, alternating system order, one warmup and three timed requests,
-  process medians and declared95% paired interval. All raw samples remain.
-  Each cell requires speedup>1 and lower bound>1; uncertain results are inconclusive.
+- Latest user override: no baseline numerical comparisons. Collect eager,
+  compile, vLLM and SGLang once on idle hardware for five dense models and
+  B1/2/4/8/16 (100 cells), then reuse while optimizing TileMega. Keep
+  ISL64/OSL1024, TPOT=(t_last-t_first)/1023, warmup1/timed3. Snapshot ratios
+  are not contemporaneous paired confidence intervals; raw samples remain.
 - Private paths only; one own NPU job/card, no device locks or external process
   control, no system changes/downloaded weights/CUDA regression. Manifest,
   finite timeouts and whitelist cleanup remain acceptance requirements.
@@ -239,8 +238,8 @@ are bitwise equal to the independent SDPA/fused-Norm reference. Teacher512
 also passes,513 launches, zero prediction/logit/KV differences. Each model
 forward remains one persistent launch. Evidence: `search/fifo_device_validation_v1.json`.
 The wait mode remains experimental/off by default: no paired TPOT admission,
-refitted prices or wider-model C-3 is claimed. Seven long numerical cells and
-zero formal performance cells are unchanged. Nine compute jobs used physical1
+refitted prices or wider-model C-3 is claimed. At that checkpoint seven long numerical cells and
+zero formal performance cells were admitted only against SDPA. Nine compute jobs used physical1
 (55:00.0→logical0),54.72s own-child time, no abort/timeout/OOM; external load
 is retained. Two query-only preflight failures launched no compute work.
 CPU semantic tools still link no CANN DSOs; explicit Probe compilation passes,
@@ -248,3 +247,9 @@ not runtime Probe execution. C3 dedup preserves2286 paths/payloads and reclaims7
 allocated bytes; re-audit remains5/5. Project sampling briefly reached
 103300968448B, then102540890112B, below the96GiB soft budget. No new large
 candidate was started while over budget. AS-1 and unrelated processes are untouched.
+
+Latest continuation: Qwen1.7 B16 local-tail6144 + CTG split3 now passes full1024
+and teacher512 with actual sourced EFT-selected queues; eight numerical cells,
+zero formal cells. See `AS2_950pr.md` and `AS2_baselines.md`. Outer geometry,
+Body/decomposition/G search and final TileMega performance remain partial.
+Baseline scope now follows `AS2_baselines.md`; no further engine numerical pairing.

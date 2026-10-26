@@ -249,7 +249,8 @@ five fresh reset processes pass281 files/request; fast/diagnostic217 files match
 B1 diagnostic cap4MiB captures FFN outside timing; B16 retains1MiB except logits.
 Independent eager [FIA-v2](https://www.hiascend.com/document/detail/en/Pytorch/2610/apiref/customapi/docs/en/custom_APIs/torch_npu/torch_npu-npu_fused_infer_attention_score_v2.md) (native GQA/BF16/static KV) executes in the private
 process without TileMega code. It changes Qwen's long greedy path at output6;
-977 tokens differ and the old native/SDPA pairing cannot admit this baseline.
+977 tokens differ in historical diagnostics. The later user override waives
+baseline numerical comparisons; this is no longer a baseline collection blocker.
 Split3 request-reset C3 passes5/5 fresh processes; same-Plan fast/diagnostic373
 files are bitwise equal. Llama3B H3072/GQA3 operand probes pass; its integrated
 non-split candidate fails from output1. Prefill first drifts at`l1.norm1`
@@ -342,3 +343,19 @@ completed manifest-registered numeric payloads with exact SHA/stamp/ownership
 checks are linked.2286 paths are preserved,763637760 allocated bytes reclaimed;
 post-dedup C3 again passes5/5. The brief96GiB soft-budget warning is retained,
 not hidden by changing accounting or deleting failed evidence.
+
+## Qwen1.7 B16 observed domain and sourced queues
+
+**verified-run:** actual M1024/N2048/K6144 eager tiling4162 and installed
+StreamK scheduler produce full-K regular columns and a1792:2048 N-tail,
+seven local slices878×6+876. The same logical MIX owner publishes once;
+AIV0 ordered FP32 partial sum → BF16 → BF16 residual is explicit.
+Decode uses actual CTG3×K2048 partial/combine domains, not a hidden host loop.
+Structural and EFT-selected queues both pass64/1024 and teacher512 bitwise.
+Structural fast/diagnostic matches204 files; C3 is5/5 processes/10 reset
+requests. This is not five fresh selected-EFT processes or formal TPOT.
+`search/qwen17_b16_*prices*` keeps real regular/tail service measurements and
+control/GM provenance; decode profile reaches past1086. Both phases compare
+two legal queue/placement plans and select heterogeneous_rank_eft. Outer
+Body/geometry/G search is incomplete. New v17 binary also protects Llama1B B16.
+Additional independent baseline status is in `AS2_baselines.md`.
