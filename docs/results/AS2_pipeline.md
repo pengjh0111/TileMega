@@ -1,211 +1,201 @@
-# AS-2 pipeline evidence and remaining integration
+# AS-2 pipeline and Prompt reconciliation — 2026-10-26
 
-Status rechecked at 2026-10-23: **in_progress**, not G-PIPELINE pass.
-`verified-code` refers to this branch; numerical/device facts are `verified-run`.
+Status: **in_progress; G-PIPELINE is not passed**. Source inspected at
+`436ba0bee010c0d6f7401e986eaf4d070f43eb46`, plus the recorded working diff.
+`verified-code` means inspected source; `verified-run` means retained actual
+execution. Earlier runs retain their original date/device/software identity.
+Prompt SHA256: `673b6deb619cb02f1c3f2d0875af2bdafb835bca09e3875d7dbfb840b1be00d6`.
+The user's subsequent instruction defers MoE: five dense models, ten B1/B16
+main cells; two MoE cells remain deferred, never passed or removed silently.
 
-| AS-1 gap | Implemented entry | Remaining work |
+## Actual compilation and execution path
+
+```text
+local full model config + canonical random weight/input manifests
+  → serving export / BuildModelPlan / serving semantic lifting
+  → ImportSemantics / InstantiateForGranularity
+  → ModelDescription / CTG task spaces / ISL element dependencies
+  → bounded implementation or decomposition binding
+  → symbolic preparation / typed legal WorkerMap
+  → task prices + structural versus rank/EFT placement/FIFO selection
+  → dependency/FIFO/participant audit + producer-frontier waits
+  → MaterializeAscendLlm / POD tables / implementation contracts
+  → LowerAscendLlm / generated PersistentLlm / CANN native build
+  → ACL load / named-arena phase binding / one persistent launch per forward
+  → TileMega-owned CATLASS tile + native AIV Body execution
+  → logits/greedy token + per-layer KV state
+  → independent eager comparison / C-2/C-3 / request timing
+```
+
+1. **Identity and import — verified-code.**
+   `python/tilemega/bench/as2_models.py::{export,weights}` reads pinned
+   `configs/ascend/as2_models/`, seed20261016, stable per-FQN generation and
+   tied aliases. Canonical weights are generated once, with tensor hashes.
+   `as2_native.py` packs by name/layout; no values are specialized or cached.
+   `tools/as2_compile_llm.cpp` consumes an actual serving export, calls
+   `BuildModelPlan`, `ImportSemantics`, `InstantiateForGranularity`, MLIR
+   verification and `ModelDescription::FromCouplingGraph`. Generic/degraded
+   semantics fail. Full layers, GQA3, Qwen Q-width, RoPE scaling and tied heads
+   are part of the imported model, not model names attached to an Encoder.
+
+2. **CTG and implementation binding — verified-code.**
+   Geometry and cross-task split-K are bound before CTG instantiation; task
+   ownership and dependencies are regenerated. `PrepareSymbolicProblem` and
+   `BuildPlanSkeleton` retain the existing symbolic/ISL machinery.
+   `AscendTasksFromSymbolic` queries its reverse dependency oracles; final
+   queues are not handwritten. Serving explicit ownership survives phase
+   binding, ModelDescription reconstruction and FlowPreparation.
+   Local K loops inside one indivisible MIX Body are distinguished from CTG
+   partial/combine tasks; their scratch/layout/traffic remain explicit.
+
+3. **Finite optimization — verified-code, partial.**
+   `CandidateGenerator::{SetAscendDomain,Analyze,TopK}` and `as2_rank_gemm`
+   compare measured legal component candidates and reject absent native prices.
+   The whole-model CLI currently takes an explicitly selected geometry/Body/
+   decomposition. Its `emit-priced*` path reads positive contextual prices,
+   checks model/config/phase/B/G/runtime-ABI/stage/shape identity, and compares
+   **two real placement/order plans for that fixed structure**.
+   `ScheduleAscendTasks` uses critical rank, heterogeneous earliest finish,
+   explicit MIX participants and one device-shared GM calendar.
+   `PriceAscendSchedule` evaluates both fixed FIFO orders under the same model.
+   The lower predicted makespan wins; materialization preserves its queues.
+   This is real native schedule optimization, **not completed outer
+   CompilerSearch/JointSearch over geometry, decomposition, Body and G**.
+   A TopK component test does not establish whole-model hierarchical search.
+
+4. **Plan and waits — verified-code.**
+   `AuditAscendSchedule` rejects illegal roles/participants and cycles in
+   semantic dependencies plus all participating worker FIFO edges.
+   Per-producer maximum predecessor ordinal lowers dependencies to
+   `(worker, epoch, required_prefix)` waits. Same-worker order is covered by
+   FIFO; no cross-role same-group relationship is treated as worker identity.
+   `MaterializeAscendLlm` checks sourced prices for optimized plans and emits
+   checked 64-bit arena offsets, stage/task/queue/wait tables, implementation
+   contracts and bounded epoch values. Large addressing and >4096 tasks have
+   real NPU evidence. This does not waive future fanout/reuse-lifetime audits.
+
+5. **Codegen and build — verified-code / verified-run.**
+   `AscendLlmCodegen.cpp::LowerAscendLlm` emits `PersistentLlm.cpp.in` with
+   supported Body traits. `reemit` reuses an already solved Plan and explicitly
+   reports no new solver call; it does not rewrite queues.
+   `cmake/AscendAS1.cmake` and `tools/ascend/CMakeLists.txt` provide native
+   host/CANN targets. The top-level CMake returns before archived CUDA targets.
+   BiSheng/CANN uses `--npu-arch=dav-3510`; selected targets build serially with
+   nice10. Cached binaries are reused only with retained source/header/flag
+   identities. No NVCC, CUTLASS scheduler or ACLNN per-op fallback is used.
+
+6. **Request and device execution — verified-code / verified-run.**
+   `as2_request.py` relocates separately solved prefill/decode by buffer name
+   into a shared weight/KV/token arena, preserving queue/wait bytes.
+   `LlmRequestHost.h::RunRequest` resets requests, launches prefill for output1
+   then1023 stream-ordered decode forwards for outputs2..1024. No Host solve,
+   repacking or per-layer launch occurs in that loop. Runtime past is real;
+   KV1088 is capacity, not the effective attention length.
+   `LlmExecutor.h::ExecuteLlm` traverses each static worker FIFO within the
+   forward. G MIX blocks yield G AIC +2G AIV workers; numBlocks is G, not3G.
+   Current admitted G is at most8. Both AIV lanes run independent tasks;
+   cooperative MIX tasks currently use AIC+AIV0, not both AIV participants.
+   Owner ready/done/reverse-ack protects scratch reuse; only the owner publishes
+   logical task completion. Diagnostic/fast use the same Body/Plan contract.
+
+7. **Body and synchronization — verified-code / verified-run.**
+   `GemmTile.h` wraps CATLASS BlockMmadTla for coordinates supplied by TileMega;
+   it does not ask BasicMatmul/DeviceGemm to schedule the whole operator again.
+   `LlmCubeBody.h`, `LlmServingBody.h` and `LlmVectorBody.h` implement GEMM,
+   cooperative QK/softmax/PV, Norm/QK norm, RoPE/KV, SwiGLU/residual and greedy.
+   Cooperative attention uses explicit FP32 opmath/cast contracts and real GQA.
+   `ProgressPrimitives.h`/`DevicePrimitives.h` retain conservative measured
+   DSB/cache visibility; an AtomicAdd is not assumed to provide release/acquire.
+   GM remains the general route. BF16 direct, UB→L1, Mode4, SIMT and larger G
+   remain disabled until separately validated and evaluated.
+
+8. **Verification and measurement — verified-code, admission incomplete.**
+   `as2_compare_request`, `as2_teacher` and `as2_native_audit` distinguish natural
+   greedy, teacher forcing, fast/diagnostic equality and multi-process reset.
+   Independent `as2_eager`/`as2_native_reference` use the same canonical weights,
+   not TileMega Bodies. Frozen tolerances allow stated legal FP32/BF16 error;
+   intermediate bitwise replay locates drift but is not a performance objective.
+   Main correctness still requires exact greedy and the declared KV/logit checks.
+   A stronger FIA-v2 eager candidate executes but its pairing is unresolved;
+   SDPA/fused-Norm numerical success does not establish the fastest legal eager.
+
+## AS-1 gap → present state → remaining AS-2 obligation
+
+| Gap | Current verified code/run evidence | Remaining obligation |
 |---|---|---|
-| A01 | `as2_compile_llm`: inspect/prepare/emit-diagnostic/emit-priced and native requests | priced complete generation entry |
-| A02 | `CandidateGenerator::SetAscendDomain/Analyze/TopK`; `as2_rank_gemm` | model-family prices and structural search |
-| A03 | new LLM materializer consumes actual queues/frontiers | native empirical provider connected; long-past/model-family calibration pending |
-| A04 | both AIV lanes compute; G2/G4/G8 payload probes | larger model G/domain validation |
-| A05 | short-request fast/diagnostic outputs including KV bitwise | main-cell C-2 and admitted timing |
-| A06 | device FIFO/frontier consumer and five-process lifecycle | priced queues execute with399 equal payload files; broader search pending |
-| A07 | measured-counter finite wait; old DSB/cache protocol retained | no cache-removal optimization enabled |
-| A08 | QK norm/RoPE/KV, blocked decode and causal prefill | numerical failures, faster shared KV preparation |
-| A09 | 64-bit LLM ABI, >4096 tasks, >4GiB real device arenas,1024 launches | teacher512, all dense/B16 long requests and wider bucket coverage |
-| A10 | GM AIC/AIV0 owner-ready-done lifecycle, five processes | dual-participant MIX, BF16 direct and split-K |
+| A01 | Real serving import and `emit-priced*`; full model requests | Complete cost-driven outer structure selection |
+| A02 | Two regenerated geometries; native Analyze/TopK and measured component choice | Family/phase/B/past Body comparison inside whole-model search |
+| A03 | Actual prices → rank/EFT versus structural queues → native materialization | Wider calibrated domains and end-to-end admission; no zero-cost unknowns |
+| A04 | G2/4/8 and both AIV independent-task execution; five-process G8 payload tests | Evaluate larger G; distinguish hardware/validated/selected groups |
+| A05 | Same-Plan fast/diagnostic numerical comparisons | Main-cell C-2 coverage and measured removal benefit |
+| A06 | Frontier waits, exact dependency/FIFO/participant checks and real priced queues | Further redundant-wait/control-cost reduction with reuse proof |
+| A07 | Conservative cache/DSB protocol preserved; finite measured timer-based waits | Justified minimal visibility optimization; control/device-time attribution |
+| A08 | Real QK norm/RoPE/GQA3, blocked prefill/decode and cooperative FP32 attention | Faster legal attention/small-M alternatives and strongest eager pairing |
+| A09 | Full model/layers, 64-bit addresses, dynamic past and1024 request forwards | All ten cells, more bucket/context calibration and compact templates |
+| A10 | Single-owner GM MIX lifecycle; true CTG split partial/combine; local tile reduction | Dual-AIV MIX and measured BF16 direct/GM choice, not an assumed gain |
 
-`as2_compile_llm prepare` calls existing BuildModelPlan, ImportSemantics,
-InstantiateForGranularity, ModelDescription, PrepareSymbolicProblem and
-BuildPlanSkeleton. It retains symbolic ISL relations instead of expanding TSVs.
-The result explicitly says priced_solver_executed=false and device_executed=false.
-There is no hand-written final tile queue in this importer.
+## Evidence example and current numerical matrix
 
-ModelDescription previously populated physical_buffers only for DM. Serving
-now retains the verified typed allocation table too. Empty/missing table coverage
-fails preparation instead of producing a spurious zero-byte capacity result.
-Initial Llama-3.2-3B metadata yields maximum offset 6,555,471,872 B. The later
-full28-layer short request actually allocates6,735,441,920B on device; Llama8B
-also executes with16,523,817,472B. These inherited run receipts prove large
-device addressing, while their numerical failures remain independently recorded.
+**verified-run** Llama1B B16 uses231434 prefill tasks/116 stages, original CTG
+ownership,16 explicit local-tail Body bindings and57344B/group/stage scratch.
+Decode has actual three-part CTG projection/combine tasks. The local seven-part
+prefill reduction is a guarded internal MIX implementation, not a new CTG split.
+Original failed no-split results remain under `failures/`; tolerance is unchanged.
 
-`ScheduleAscendTasks` takes task service/GM bytes, typed legal workers, semantic
-predecessors and explicit shared GM/synchronization prices. It uses critical
-rank + EFT, a single device GM calendar and separate role timelines. Unknown,
-zero or nonfinite service prices fail. MIX occupies explicit same-group lanes.
-Actual FIFO orders and owners are outputs; a CPU audit checks data+FIFO cycles.
-Per-producer maximum predecessor ordinal reduces waits; own-worker waits are
-covered by FIFO. `AscendProgressValue` checks epoch/ordinal overflow. These CPU
-tests do not establish a MIX ready/done/buffer-reuse device protocol.
+`models/llama3_2_1b/native_b16_{prefill_local_tail7,decode_split3}_priced_v1/`
+contains CTG/import/price/search/Plan/source identities. Actual regular/tail
+service buckets are priced separately; neither uses a default zero.
+Prefill selects EFT946.144483ms versus structural953.482356ms; decode selects
+EFT31.539152ms versus structural31.645729ms. **Predictions, not measured TPOT.**
+`correctness/llama1b_b16_local_tail7_priced_request1024_numeric_v1.json` passes
+all16384 greedy outputs, logits and checked KV against independent eager.
+The sourced selected queues also pass512-step teacher forcing
+(`correctness/llama1b_b16_local_tail7_priced_teacher512_numeric_v2.json`).
+Unpriced structural queues separately pass teacher512, C3=5/5 processes and
+C-2=120 common files. These C-2/C-3 results do not prove five priced processes.
+Actual CANN launch evidence records8 calls for8 model forwards across two
+short reset requests (`probes/llama1b_b16_actual_runtime_launches_v1.json`).
 
-`AscendTasksFromSymbolic` derives predecessor sets from real ISL oracles.
-It rejects affinity that has not been explicitly lowered. It now feeds the native LLM materializer through an explicit diagnostic
-bootstrap scheduler; no synthetic service times enter that bootstrap. The CPU fixture service times are marked
-CPU_TEST_ONLY_NOT_A_CALIBRATION and are never written into hardware targets.
+| Dense model | B1 full1024 + teacher512 vs SDPA | B16 full1024 + teacher512 vs SDPA |
+|---|---|---|
+| Qwen3-0.6B | pass; sourced selected queues | pass; unpriced diagnostic structure |
+| Llama-3.2-1B | pass; sourced selected queues | pass; local-tail +split3; priced1024 also passes |
+| Qwen3-1.7B | pass; sourced split3 queues | first-layer localization; not admitted |
+| Llama-3.2-3B | pass; sourced split2 queues | incomplete |
+| Llama-3.1-8B | pass; sourced separate-QKV/split7 queues | incomplete |
 
-`as2_rank_gemm` compares two actually measured implementations using the native
-provider, with exact-shape lookup and numerical/launch receipts. Shared-load
-profiles are rejected by --final. It selects the second implementation in the
-Qwen down-projection test, so TopK is not a fixed-first selector. Its scope is
-hot tile service, not whole-model cost or a full optimized model Plan.
+**Seven numerical long cells, zero formal final correctness/performance cells.**
+The latter still require final baseline/configuration admission and applicable
+C-0/C-1/C-2/C-3 coverage; no claim of70% overall completion follows from7/10.
+Price and capture histories are retained in `runs/as2`; exact selected bindings,
+binaries and next commands are indexed by `checkpoint.json`/`resume.json`.
 
-Evidence index under ignored `runs/as2/`:
+## Prompt direction and corrections to the work order
 
-- `models/qwen3_0_6b/prepare_decode_b1_storage/`: 10049 tasks, 485 buffers.
-- `models/llama3_2_1b/prepare_decode_b1/`: 9207 tasks.
-- `models/llama3_2_3b/prepare_decode_b1/`: 16399 tasks, GQA3 and >4 GiB offsets.
-- `search/schedule_provider_contracts.json`: price-to-TopK/queue causality,
-  dual AIV, prefix coverage, cycle rejection, 5000 tasks and overflow checks.
-- `search/gemm_qwen_down_rank_provider/search.json`: measured component choice.
-
-Native entry: `lib/Codegen/Ascend/AscendLlmCodegen.cpp`,
-`include/tilemega/Target/Ascend/LlmPlanABI.h` and `LlmExecutor.h`,
-`lib/Codegen/Ascend/PersistentLlm.cpp.in`. Tables are derived from the verified
-module, symbolic oracles and audited per-worker schedule; materialization does
-not replace FIFO order with stage order. Epoch stride and every queue/wait/
-byte range are checked. Full task counts exceed4096 on the real device.
-
-`emit-diagnostic` defaults to unified KV1088; prefill query tiles contain16
-whole tokens, including GQA3 (48 query heads), with token-tile-major/group-minor
-coordinates. Max-past1087 dependencies conservatively cover runtime decode
-masking; prefill uses its real past0 graph. No per-token solving/recompiling.
-The argmax semantic read extent now uses the actual64-column partial count,
-rather than a hardcoded32-column formula. CPU regression checks vocabulary65.
-
-Verified-run: `as2_request.py` relocates both solved phase tables by buffer
-identity into one weight/KV/token arena; queue/wait bytes are unchanged.
-`LlmRequestHost.h` submits prefill then stream-ordered decode, with device token
-feedback, separate phase epochs and request resets. Five fresh processes/two
-four-token requests each match401 payload/KV/control files, including fast mode.
-Neither short requests nor local same-input arithmetic establish the main Gate.
-`emit-priced` consumes sourced Body + dispatcher + notification + shared-GM
-prices and compares rank/EFT with structural placement using the same fixed-FIFO
-cost evaluator. Both plans retain real ISL predecessors; the lower predicted
-makespan wins, rather than a fixed first candidate. Qwen prefill predicted
-45.907 vs58.475 ms; decode5.06560 vs5.06588 ms. These are conservative model
-predictions, not measured speedups. Both selected FIFO/owner tables differ.
-
-Verified-run: selected prefill/decode execute four natural outputs;399 payload/
-KV files match the old queues bitwise. `correctness/native_priced_structural_payload_c2.json`
-and `models/qwen3_0_6b/native_{decode,prefill}_priced_g8_v1/search.json` are the
-traceable example. CPU price changes alter actual queue/candidate selection;
-fixed-queue repricing preserves order and responds to cost changes.
-
-`as2_native_prices.py` verifies measured job/model/config/shape/G identities.
-Prices are contextual empirical data, not global calibrated target constants;
-shared-load status remains contended. Older ABI3 decode pricing is bounded to
-past<=66 and rejects OSL5 before ACL. New ABI4 prices profile actual past1086;
-`pricing_bounds.bin` preserves that bound after relocation. Five fresh control
-processes pass8192 payload samples each, on the same physical1 card as the new
-Body profiles. They remain context-local empirical prices, not peak constants.
-
-Remaining: other dense-model/B16 numerical failures, wider measured
-Body/context domains and end-to-end optimization/search admission.
-G-PIPELINE remains in_progress: one measured Body geometry per whole-model
-search, two real placement/order alternatives; no claimed final tuning result.
-
-ABI4 adds experimental `cube-fp32` attention with an actual MIX role, checked
-per-group workspace and three-stage owner/participant protocol. Source and
-tables still come from real serving import/CTG/ISL/native scheduling; the small
-protocol test's synthetic queues are never counted as pipeline evidence.
-Earlier ABI4 Qwen candidates execute actual generated plans but fail numerical
-checks; the new fold-softmax candidate passes long requests. ABI3 prices cannot be
-replayed into ABI4; profile/pricing/binder identities include `runtime_abi`.
-Internal attention-phase coordination is included once in owner service time.
-11 CPU binder contracts pass. Broader hierarchy/search and ten-cell
-correctness/performance remain incomplete. MoE stays deferred.
-
-## Scope and implementation reconciliation, 2026-10-23
-
-Verified-code at `ec83e3a85`: original Prompt SHA256 remains
-`673b6deb619cb02f1c3f2d0875af2bdafb835bca09e3875d7dbfb840b1be00d6`.
-The user's later MoE deferral takes precedence: five dense models/ten active
-main cells; two MoE cells remain explicitly deferred, not silently passed.
-Earlier device results are inherited run evidence, not new runs on this date.
-
-| Prompt requirement | Current implementation and remaining obligation |
-|---|---|
-| Real optimized pipeline | Import/CTG/ISL/native scheduling/codegen execute; `emit-priced` has real causal candidate selection. Latest ABI4 has actual full-context empirical prices and structural/EFT selection; wider geometry/family search and end-to-end admission remain required. |
-| Full model and state | Five canonical weight sets, full layers/embedding/head and persistent prefill/decode exist. Qwen0.6 B1/B16, Qwen1.7 B1, Llama1B B1 and Llama3B B1 pass1024/teacher512 against SDPA. Other five dense cells and final baseline admission remain incomplete. |
-| Numerical/performance contracts | Policy remains frozen. Intermediate bitwise checks locate drift; final admission uses declared error metrics plus exact greedy. Hooked/diagnostic runs cannot admit performance. |
-| Resource/handoff optimization | G8/both AIV lanes have evidence; same-task MIX uses AIV0. Qwen1.7 and Llama1B split3 queues pass1024/teacher512 and5/5 reset processes. G14/28, BF16 direct and broader small-M alternatives remain pending. |
-| TPOT validation | Strongest legal eager configuration still needs final baseline selection; full paired processes, warmups/repeats and95% intervals are pending for all ten cells. |
-| Shared-server isolation | Private roots, one own NPU job, one card/process, no locks/reset/other-process control, sequential nice10/parallel1 builds and manifest cleanup remain mandatory. |
-
-The observed-operand replay isolates the past1025/layer11 difference to softmax
-reduction: Q/K/V, scores, exponentials match; the installed register-fold sum
-repairs probabilities and PV bitwise at two real masks. Explicit candidate
-`cube-fp32-fold-softmax` then passes Qwen0.6 B1 natural64/1024 and teacher512.
-The same Plan fast/diagnostic pair matches401 payload/KV/control files (C-2,
-not new C-3). Teacher runs have separate receipts and cannot enter greedy or
-performance admission. Cached `reemit` regenerates source from an already
-materialized plan without rewriting its queues or claiming a new solver call.
-Current ABI4 search selects structural prefill (49.8288 vs49.9315 predicted ms)
-and EFT decode (7.41285 vs7.41310 predicted ms). Both real queues differ. The
-selected request passes actual1024 greedy and teacher512 against SDPA/fused
-RMSNorm, with source-identical compiler-cache reuse and newly solved tables.
-Results: `models/qwen3_0_6b/native_{prefill,decode}_fold_priced_v1/search.json`,
-`correctness/qwen06_fold_priced_{request1024,teacher512}_numeric_v1.json`.
-Prediction differences are not measured speedups. New FIA-v2 eager inference
-runs without Host fallback but changes greedy at output6 and fails the current
-KV/numerical pairing; this stronger-baseline issue stays open. Next: remaining
-dense/B16 families, broader legal Body search and prescribed paired TPOT.
-Default implementations remain unchanged.
-
-H2048 full-row binding and head64/GQA4 are enabled only for explicit experimental
-candidates after observed-operand probes. Llama1B's four-token check still fails.
-Qwen1.7's old prefill drift is explained by observed eager Stream-K K2048×3,
-not ordinary K accumulation. `emit-decomposed` changes granularity before
-CTG/ISL construction:28 logical down GEMMs become5376 AIC partial tasks and1792
-AIV combines.228 stages/29029 tasks, all three partial predecessors checked;
-actual eight-AIC/independent-AIV receipts and one-launch full prefill pass198/198
-outputs bitwise. Decode uses the same observed decomposition; four natural
-tokens, full logits,56 KV slices and338 captured values/files are bitwise equal.
-Natural64/1024 and teacher512 pass against SDPA/fused Norm. All28 layers/1087
-KV positions are bitwise exact. Five fresh serial reset processes pass485
-payload/control files per request (two requests/process); fast/diagnostic373
-common files match. Actual CANN logs record four MIX launches for four forwards.
-Empirical partial/combine prices reach `emit-priced-decomposed`: prefill EFT
-84.509812ms vs structural85.280521ms; decode EFT12.806523ms vs12.813727ms,
-**predicted**, not measured TPOT. Both changed queues are selected; actual
-1024 greedy and teacher512 pass. Wider structure/family search and final fused
-eager/performance admission remain open. Source-identical binaries and checked
-retained headers are reused; final queues are newly solved, never patched.
-
-Llama1B's observed K8192 down uses2731/2731/2730, including unaligned starts
-and the truncated final slice. Explicit bindings rederive16 partial/combine
-pairs before CTG instantiation:18476 prefill/4877 decode tasks. Full64/1024,
-teacher512, last-forward intermediates and16-layer1087-position KV match SDPA
-bitwise. Five fresh reset processes pass281 files/request; fast/diagnostic217
-common files match. Actual CANN logs show4 MIX launches for4 model forwards.
-Its independently measured positive stage prices compare two actual plans:
-prefill structural58.614667ms vs EFT58.650596ms; decode EFT8.107465ms vs
-structural8.111688ms. The selected prefill and decode differ in algorithm;
-both consume the same shared-GM-calendar objective. The bound selected plan
-passes1024 and teacher512. These predictions are not measured TPOT or speedups.
-Evidence: `models/llama3_2_1b/native_*split3_priced_v1/search.json`,
-`correctness/llama1b_split3_*`, `probes/llama1b_actual_runtime_launches_v1.json`.
-
-Llama3B H3072/fold2048 and GQA3 observed-operand probes pass. Its non-split
-candidate fails from the first greedy token; same-input prefill isolates56 BF16
-down-output differences and8 next-Norm differences, with earlier stages exact.
-Actual M64/M1 eager tiling uses2×K4096. Component partials and CPU ordered sum
-match all196608/3072 outputs; these probes alone do not admit a model.
-Explicit `as2_llama3b_*_split2.json` then rederives28 actual CTG partial/combine
-pairs,35116 prefill tasks and6796274176 arena bytes. The native device combine
-passes full64/1024,teacher512 and28-layer1087-position KV bitwise against SDPA.
-Actual CANN logs show8 MIX launches for8 forwards across two reset requests.
-Five fresh reset processes pass485 files/request; fast/diagnostic373 common
-files match, with112 diagnostic-only allocations above the explicit fast cap.
-Positive stage prices select structural prefill117.760393ms vs EFT117.884314ms,
-and EFT decode19.443116ms vs structural19.450319ms. Both selected queues pass
-1024/teacher512 bitwise. These are predicted objectives, not measured TPOT;
-final eager/performance admission remains open. No final queues are hand-written.
-
-Llama8B full H4096/GQA4 fold runs but forks at output2. Both same-input prefill
-and first decode first differ in packed QKV, with input Norm exact. M64 Q is
-exact; K requires observed7×K586 (last580) partials. Isolated M64/M1 ordered
-partial sums match, but uniform splitting of fused QKV is unproven. Next: a
-real separate-Q/K/V + layout stage and independent decomposition before CTG.
-The full-model gate stays failed until that path is solved and executed.
+- The objective is **complete dense-model requests with reproducibly better
+  TPOT than the strongest legal torch_npu eager**, under the same BF16/random
+  weights/greedy/KV contract. Numerical repair is a prerequisite, not the endpoint.
+- Do not continue unbounded bitwise micro-probes as the main optimization loop.
+  Each diagnostic must answer a failing model check or a quantified bottleneck,
+  retain its failure evidence, then return to the complete model request.
+- Complete the three remaining B16 long cells without shrinking layers/vocab/
+  output length. Keep MoE deferred under the user's explicit scope override.
+- Connect bounded Body/geometry/decomposition/G choices to the existing semantic
+  and schedule chain; component TopK plus a fixed whole-model Body is incomplete.
+  Reuse shapes and source-identical binaries; no large sweep or batch build.
+- Use full-request Host/device measurements and controlled ablations to select
+  the next optimization: dispatcher/sync, queue critical path, resources, Body,
+  or handoff. Predicted objective reduction cannot admit a default or speedup.
+- Evaluate fused eager and direct/GM fairly. Unresolved FIA numerical pairing
+  does not establish that FIA is illegal or that SDPA is the final baseline.
+- Final protocol remains ISL64/OSL1024, TPOT=(t_last-t_first)/1023; five paired
+  fresh processes, alternating system order, one warmup and three timed requests,
+  process medians and declared95% paired interval. All raw samples remain.
+  Each cell requires speedup>1 and lower bound>1; uncertain results are inconclusive.
+- Private paths only; one own NPU job/card, no device locks or external process
+  control, no system changes/downloaded weights/CUDA regression. Manifest,
+  finite timeouts and whitelist cleanup remain acceptance requirements.
+- On2026-10-26, a prelaunch telemetry query returned DCMI-8005 and launched no
+  model. A later query was healthy but NPU ID↔PCI correspondence had changed.
+  Mapping is time-bound; re-probe ACL/PCI before new model runs. Never attribute
+  a telemetry failure to an NPU kernel deadlock or silently reuse old PCI identity.

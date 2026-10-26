@@ -1,6 +1,8 @@
 # AS-2 native runtime/body evidence
 
-All device evidence here: physical 1→logical 0, Ascend950PR_9579, CANN 9.1.0,
+Device receipts retain their date/physical/PCI identity. Most earlier runs use
+physical1→logical0; the2026-10-26 mapping refresh is recorded below. Software:
+Ascend950PR_9579, CANN 9.1.0,
 BiSheng clang15.0.5, pinned CATLASS 2b6c6a6d5bd26559578cf7e3b2fb64af51f64e52.
 No device lock/exclusive setting, reset, other-process operation or CUDA test.
 Native full-layer-count phase kernels now execute; complete generation and
@@ -165,15 +167,15 @@ against the new plan rather than expected to match old ordinals. Numeric
 failure versus independent eager remains separate. Measured decode prices are
 limited to past<=66 and guarded before ACL; this is not long-request admission.
 
-Verified-run: full28-layer Llama3B GQA3 request executes four forwards with
+Earlier math-SDPA candidate, verified-run: full28-layer Llama3B executes four forwards with
 6,735,441,920B shared arena (>4GiB addresses), valid task/launch receipts and
 exact greedy tokens. Against independent SDPA/fused eager, logits NRMSE0.036681
-with11020 failures and49 failing final KV slices. Correctness remains fail.
+with11020 failures and49 failing final KV slices. That earlier candidate fails; the split2 repair is recorded below.
 
 ## ABI4 cooperative FP32 attention (experimental, verified-run)
 
 `LlmCubeBody` borrows one CATLASS resource bank across BF16 tiles and full-FP32
-QK/PV, draining each MMAD before reuse. G8/head128/GQA2 is the current legal
+QK/PV, draining each MMAD before reuse. G8/head128/GQA2 is the initial experimental
 domain; it is an explicit candidate, not a performance default. Per-group GM
 workspace is2MiB; invalid public KV is never read. `ExecuteLlm` reserves four
 ready/done values per ordinal for three phases; only AIC publishes logical task
@@ -258,7 +260,58 @@ allocations above1MiB are explicitly enumerated; tokens/logits/KV stay mandatory
 Positive measured stage prices select structural prefill and EFT decode;
 both selected queues also pass1024/teacher512. Final eager/TPOT remains open.
 
-H4096/fold2048 and head128/GQA4 observed Body probes pass. Their full Llama8B
-candidate still fails; `l0.norm1` is exact, `l0.qkv` first differs. Isolated
-seven-part K sums match M64/M1. No device seven-part combine or model
-admission is claimed; new independent projection/pack CTG work is required.
+H4096/fold2048 and head128/GQA4 observed Body probes pass. The old Llama8B
+candidate fails first at packed QKV despite exact input Norm/Q. Opt-in separate
+Q/K/V, seven-part KV/store combine and stage25 packing now pass complete4-token
+intermediates,1024 outputs/logits/KV and teacher512 bitwise. Packing reads three
+BF16 buffers and writes KV-major `[row,group,(Q+K+V)]`; one AIV owns each row.
+Native packing is bounded to8 groups/head128/GQA4, reusing106496B vector UB and
+existing DMA/publication protocol. Seven-part combine reads FP32 slices in
+increasing K order and writes BF16 once; no residual operation is added.
+Invalid descriptors/other seven-part shapes are rejected. GQA3/4 CPU exact-read
+contracts and32-layer structural import pass; CANN binary/source identities
+and4/4 actual runtime launches are retained. Reset C3 passes5/5 fresh processes
+with681 files/request; fast/diagnostic489 common captures match,192 large
+diagnostic extras are explicit. Positive empirical prices select two actual EFT
+queues; selected plans also pass1024 greedy and teacher512 bitwise.
+
+The observed Llama1B decode `[16,1,8192]` down projection matches32768 BF16
+outputs after three disjoint K2731/2731/2730 partials and CPU ordered sum.
+This component does not verify device combine or a model. An explicit opt-in
+B16 decode decomposition now regenerates CTG; Host/Codegen/Device admit rows16
+only for N2048/K8192/split3. Other B16 decompositions fail closed. Host tests
+check the valid contract and reject K6144/K4096/rows1024 before ACL.
+The initial no-split prefill/split3 decode request fails10/64 tokens, including
+B16 row13 at the first output; that failure is retained. Selected first-two-layer
+observations isolate the earliest drift to down, despite exact Norm/context.
+The installed Blaze scheduler and actual M1024 tiling explain full-K for the
+first28 MN tiles and seven K1171 slices only for the final4 N-tail tiles.
+A uniform-seven replay fails13/32768 values; the guarded local replay is exact.
+The opt-in local MIX Body keeps one original CTG output tile and one external
+event. It computes seven disjoint FP32 intervals only at columns1792:2048, then
+AIV0 combines, rounds BF16 and adds the residual. Other columns use full-K.
+It has57344B private GM scratch/group/stage, visible in Plan/contracts; existing
+ready/done ack ends its lifetime before reuse. No cross-Task split is claimed.
+Actual complete B16 four-output and1024-output logits/tokens/KV now pass
+bitwise. Teacher512 passes; structural-queue request-reset C3 is5/5 fresh
+processes and C-2 compares120 common files. Positive regular/tail service prices
+select distinct actual queues; both selected phases pass1024 greedy and
+teacher512. Priced-queue five-process admission and performance remain open;
+this implementation is not enabled by default.
+
+
+## Current reconciliation, 2026-10-26
+
+The complete chain and A01–A10 status are consolidated in `AS2_pipeline.md`.
+Earlier dated experiments above retain their original scope; they are not
+current all-model pass claims. Seven dense long numerical cells pass against
+SDPA/fused Norm; formal final correctness/performance remains0/10.
+
+The no-lock wrapper now distinguishes unavailable telemetry from known low HBM,
+keeps unknown external load as null, and records the current selected PCI ID.
+A cached ACL mapping is labelled verified only when its PCI identity agrees.
+Two CPU tests verify prelaunch failure classification and owned-descendant
+timeout without touching the unrelated sentinel. An actual DCMI-8005 attempt
+launched no child; subsequent healthy ACL inventory on each card launched no
+compute kernel. Current physical0 is D7:00.0 and physical1 is55:00.0, unlike the
+older enumeration; archived old/current mappings retain that distinction.

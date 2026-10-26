@@ -145,3 +145,45 @@ python -m tilemega.bench.as2_gemm_partial_compare \
   --partial "$REPO/runs/as2/probes/NEW_PARTIAL" \
   --out "$REPO/runs/as2/probes/NEW_PARTIAL_NUMERIC.json"
 ```
+
+**verified-run**, the subsequent complete Llama8B path now keeps independent
+Q/K/V GEMMs and exact guarded packing in CTG.64 KV partial/combine pairs and32
+pack stages yield388 actual stages;65580/15693 prefill/decode tasks. Device
+combine writes BF16 once, without residual. Full4-token intermediates,1024
+greedy/logits/KV and teacher512 match independent SDPA/fused Norm bitwise.
+Actual CANN logs record4 MIX calls for4 forwards. Evidence:
+`correctness/llama8b_kv_split7_*_v4.json`, `probes/llama8b_actual_runtime_launches_v4.json`.
+Subsequent sourced-price/EFT queues also pass1024/teacher512; no TPOT admission.
+
+**verified-run**, actual Llama1B B16 decode M16/N2048/K8192 uses input shape
+`[16,1,8192]`. Three device FP32 partials and CPU ordered sum match32768 BF16
+values bitwise (`probes/llama1b_down_m16_partial3_numeric_v9.json`). This
+remains a component result, without device-combine or full-model admission.
+
+**verified-code/run**, M1024 prefill uses mixed DP/SK, not uniform seven-part
+reduction. The installed CANN Blaze scheduler SHA is recorded in
+`probes/llama1b_b16_streamk_domain_v1.json`. All83 full-K output differences
+are in columns1792:2048; actual native activation prefix262144B is bitwise
+equal. Uniform-seven replay fails13 values; selective-tail replay matches all
+32768 sampled values. The resulting explicit local MIX Body passes the complete
+B16 four-output model numerics; full1024/teacher512 and TPOT are separate gates.
+
+
+## Qwen1.7 B16 prefill slice, 2026-10-26
+
+`verified-run`: after fresh ACL/PCI inventory, physical1 is55:00.0 and maps
+to logical0 (driver version.info25.7.rc1, CANN9.1.0, unchanged CATLASS SHA).
+The actual M1024 prefill activation's first16 rows match the saved native
+activation prefix byte-for-byte (196608B). The G2 `as2_gemm` probe writes seven
+FP32 K intervals878/878/878/878/878/878/876 for the same BF16 operands.
+Uniform seven-way reduction differs in7/32768 values; it is not admitted.
+A CPU guarded replay takes ordinary native full-K values outside N1792:2048
+and the measured seven-way sum inside that tail:0/32768 differences.
+This is a bounded arithmetic diagnostic. The full M1024 scheduler domain,
+device hybrid/combine, CTG binding and complete model are not yet verified.
+No K6144 local Body or B16 decode decomposition is enabled by this probe.
+Evidence: `probes/qwen17_observed_down_m1024_slice16_v1/case.json`,
+`qwen17_down_m1024_slice16_partial7_numeric_v16.json` (uniform failure),
+`qwen17_b16_prefill_tail_hypothesis_v16.json` (guarded replay).
+Retained image: `tilemega-as2/build/retained/qwen17_partial_v16/`; one selected
+serial compile, one short kernel launch, no performance or model pass claim.
