@@ -117,6 +117,12 @@ def child_env(out, physical):
         'ASCEND_WORK_PATH': out / 'cann',
         'ASCEND_PROCESS_LOG_PATH': out / 'cann/plog',
     }
+    if WORK.name=='tilemega-as2':
+        venv=Path(env.get('VIRTUAL_ENV','/')).resolve()
+        if venv in {WORK/'envs/vllm-ascend',WORK/'envs/sglang-npu'}:
+            # Different TorchNPU stacks must not reuse each other's extensions.
+            for name in ('TORCH_EXTENSIONS_DIR','TRITON_CACHE_DIR','TORCHINDUCTOR_CACHE_DIR'):
+                paths[name]/=venv.name
     for name, path in paths.items():
         path.mkdir(parents=True, exist_ok=True)
         env[name] = str(path)

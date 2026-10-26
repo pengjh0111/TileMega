@@ -53,7 +53,9 @@ def main():
         input_sha256=manifest['input_ids']['sha256'],physical_device_id=int(os.environ['AS2_PHYSICAL_DEVICE_ID']),
         logical_device_id=0,private_environment=os.sys.prefix,
         versions={n:metadata.version(n) for n in ('sglang','torch','torch-npu','transformers','sgl-kernel-npu')},
-        baseline_config=dict(disable_graph=True,disable_radix_cache=True,tp=1,pp=1,dp=1),formal_performance_admitted=False)
+        baseline_config=dict(disable_graph=True,disable_radix_cache=True,tp=1,pp=1,dp=1,
+                             ascend_use_fia=os.environ.get('ASCEND_USE_FIA')),
+        formal_performance_admitted=False)
     (out/'identity.json').write_text(json.dumps(identity,indent=2)+'\n')
     try:
         for repetition in range(-args.warmup,args.repetitions):

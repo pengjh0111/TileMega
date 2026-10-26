@@ -13,6 +13,9 @@ if [[ ! -x "$VIRTUAL_ENV/bin/python" ]]; then
 fi
 export PATH="$VIRTUAL_ENV/bin:$PATH"
 export TORCHAIR_CACHE_HOME="$AS2_WORK/cache/torchair/$_as2_baseline"
+export TORCH_EXTENSIONS_DIR="$AS2_WORK/cache/torch_extensions/$_as2_baseline"
+export TRITON_CACHE_DIR="$AS2_WORK/cache/triton/$_as2_baseline"
+export TORCHINDUCTOR_CACHE_DIR="$AS2_WORK/cache/torchinductor/$_as2_baseline"
 export VLLM_CACHE_ROOT="$AS2_WORK/cache/vllm"
 export VLLM_CONFIG_ROOT="$AS2_WORK/cache/vllm_config"
 export SGLANG_CACHE_DIR="$AS2_WORK/cache/sglang"
@@ -25,6 +28,8 @@ if [[ -f "$_as2_python_headers/python3.12/Python.h" ]]; then
     export C_INCLUDE_PATH="$_as2_python_headers/python3.12:$_as2_python_headers${C_INCLUDE_PATH:+:$C_INCLUDE_PATH}"
 fi
 if [[ "$_as2_baseline" == sglang-npu ]]; then
+    # Pinned SGLang provides this native FIA path; ATB attention rejected 950.
+    export ASCEND_USE_FIA=1
     _as2_vendor="$AS2_WORK/third_party/sgl-kernel-npu-2026.9.0.post10-private"
     _as2_custom="$_as2_vendor/CANN-custom_ops-none-linux.x86_64/packages/vendors/customize"
     _as2_transformer="$_as2_vendor/cann-ops-transformer-custom_linux-x86_64/packages/vendors/custom_transformer"
@@ -38,5 +43,6 @@ if [[ "$_as2_baseline" == sglang-npu ]]; then
     fi
 fi
 mkdir -p "$TORCHAIR_CACHE_HOME" "$VLLM_CACHE_ROOT" "$VLLM_CONFIG_ROOT" \
-    "$SGLANG_CACHE_DIR" "$SGLANG_TORCH_PROFILER_DIR" "$UV_CACHE_DIR" "$CARGO_HOME"
+    "$SGLANG_CACHE_DIR" "$SGLANG_TORCH_PROFILER_DIR" "$UV_CACHE_DIR" "$CARGO_HOME" \
+    "$TORCH_EXTENSIONS_DIR" "$TRITON_CACHE_DIR" "$TORCHINDUCTOR_CACHE_DIR"
 unset _as2_baseline _as2_baseline_scripts _as2_python_headers _as2_vendor _as2_custom _as2_transformer _as2_atb
