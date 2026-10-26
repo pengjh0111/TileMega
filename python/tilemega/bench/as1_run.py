@@ -40,6 +40,8 @@ def snapshot():
 
 
 def devices_from_snapshot(state):
+    if state.get('exit_code') != 0:
+        return {}
     devices = {}
     current = None
     for line in state.get('output', '').splitlines():
@@ -51,8 +53,10 @@ def devices_from_snapshot(state):
             if len(cells) == 4 and re.search(r'\d+\s*/\s*\d+', cells[-1]):
                 used, total = map(int, re.findall(r'(\d+)\s*/\s*(\d+)', cells[-1])[-1])
                 if total > 0:
+                    pci = re.search(r'\b[0-9a-fA-F]{4}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\.[0-7]\b', line)
                     devices[current] = {'used_mib': used, 'total_mib': total,
-                                        'free_mib': total-used}
+                                        'free_mib': total-used,
+                                        'pci_bus_id': pci.group(0).lower() if pci else None}
                 current = None
     return devices
 
@@ -159,18 +163,25 @@ def main(project='as1'):
               'selection_reason': reason, 'observed_hbm': devices.get(physical),
               'command': command, 'device_locked': False, 'timeout_s': args.timeout_s,
               'started_at': dt.datetime.now(dt.timezone.utc).isoformat(), 'status': 'starting'}
+    record['pci_bus_id'] = devices.get(physical, {}).get('pci_bus_id')
+    telemetry_ok = before.get('exit_code') == 0 and physical in devices
+    record['telemetry_status'] = 'available' if telemetry_ok else 'unavailable'
     external_pids = [int(pid) for dev, pid in re.findall(
         r'^\|\s*(\d+)\s*\|\s*(\d+)\s*\|', before.get('output', ''), re.MULTILINE)
         if int(dev) == physical]
     record['external_pids_observed_before'] = external_pids
-    record['other_processes_present_before'] = bool(external_pids) if 'output' in before else None
+    record['other_processes_present_before'] = bool(external_pids) if telemetry_ok else None
     record['timing_status'] = 'contended' if external_pids else 'load_not_fully_characterized'
     mapping = RUNS / 'inventory' / ('acl_device_' + str(physical) + '.json')
     if mapping.is_file():
         verified_map = json.loads(mapping.read_text())
         if (verified_map.get('physical_device_id') == physical and
                 verified_map.get('logical_device_id') == 0 and verified_map.get('visible_count') == 1):
-            record.update(mapping_evidence='verified', mapping_source=str(mapping))
+            current_pci = record['pci_bus_id']
+            bound_pci = verified_map.get('pci_bus_id')
+            mapping_evidence = ('verified' if telemetry_ok and current_pci and bound_pci == current_pci
+                                else 'stated; cached ACL mapping is not bound to the current PCI identity')
+            record.update(mapping_evidence=mapping_evidence, mapping_source=str(mapping))
     executable = Path(command[0])
     if executable.is_file():
         with executable.open('rb') as binary:
@@ -179,8 +190,10 @@ def main(project='as1'):
     record.update(parent_pid=os.getpid(), project=project,
                   manifest_id=str(out.relative_to(ROOT)), required_free_mib=args.required_free_mib)
     record_path.write_text(json.dumps(record, indent=2)+'\n')
-    if args.required_free_mib and (physical not in devices or devices[physical]['free_mib'] < args.required_free_mib):
-        record.update(status='blocked-resource', exit_code=75, elapsed_s=time.monotonic()-started)
+    if args.required_free_mib and (not telemetry_ok or devices[physical]['free_mib'] < args.required_free_mib):
+        status = 'blocked-resource' if telemetry_ok else 'telemetry_unavailable'
+        reason = 'Insufficient observed free HBM' if telemetry_ok else 'Cannot verify the requested HBM budget from npu-smi'
+        record.update(status=status, reason=reason, exit_code=75, elapsed_s=time.monotonic()-started)
         record_path.write_text(json.dumps(record, indent=2)+'\n')
         (out / 'after.json').write_text(json.dumps(snapshot(), indent=2)+'\n')
         print(json.dumps(record))

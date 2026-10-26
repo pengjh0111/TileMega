@@ -7,6 +7,7 @@ import subprocess
 import sys
 import time
 import unittest
+from unittest.mock import patch
 
 REPO=Path(__file__).resolve().parents[2]
 ROOT=Path('/home/d50064638/junhuip')
@@ -17,6 +18,27 @@ cleanup=importlib.util.module_from_spec(spec);spec.loader.exec_module(cleanup)
 
 
 class AscendAs2Safety(unittest.TestCase):
+    def test_telemetry_failure_is_not_reported_as_hbm_exhaustion(self):
+        from tilemega.bench import as1_run as runner
+        for snapshot, status, other in [
+            (dict(exit_code=187,output='dcmi module initialize failed. ret is -8005'), 'telemetry_unavailable', None),
+            (dict(exit_code=0,output='unrecognized table'), 'telemetry_unavailable', None),
+            (dict(exit_code=0,output='| 1 | Ascend950PR | OK |\n| 0000:D7:00.0 | 0 | 0 / 0 | 130000 / 131072 |'), 'blocked-resource', False),
+        ]:
+            out=RUNS/'jobs'/('telemetry_contract_'+str(time.time_ns()))
+            argv=['as2_run','--physical-device','1','--required-free-mib','8192','--out',str(out),'--',sys.executable,'-c','pass']
+            with patch.object(sys,'argv',argv), patch.object(runner,'snapshot',return_value=snapshot), patch.object(runner.subprocess,'Popen') as spawn:
+                self.assertEqual(runner.main(project='as2'),75)
+                spawn.assert_not_called()
+            receipt=json.loads((out/'job.json').read_text())
+            self.assertEqual(receipt['status'],status)
+            self.assertIs(receipt['other_processes_present_before'],other)
+            self.assertFalse(receipt['device_locked'])
+            if status=='telemetry_unavailable':
+                self.assertNotEqual(receipt['mapping_evidence'],'verified')
+            if status=='blocked-resource':
+                self.assertEqual(receipt['pci_bus_id'],'0000:d7:00.0')
+
     def test_unfinished_owned_receipt_is_observed_without_a_lock(self):
         from tilemega.bench.as2_run import unfinished_owned_jobs
         from tilemega.bench.as1_run import process_identity

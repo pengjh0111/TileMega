@@ -49,7 +49,7 @@ def main(project='as1'):
                     except (OSError, json.JSONDecodeError):
                         job_cache[parent] = {'status': 'unknown'}
                 job = job_cache[parent]
-                if job.get('status') not in {'passed', 'failed', 'timeout', 'interrupted', 'launch_error', 'blocked-resource'}:
+                if job.get('status') not in {'passed', 'failed', 'timeout', 'interrupted', 'launch_error', 'blocked-resource', 'telemetry_unavailable'}:
                     row['completed'] = False
                     if job.get('pid'):
                         try:

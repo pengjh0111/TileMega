@@ -14,7 +14,7 @@ runner = repo / 'python/tilemega/bench/as1_run.py'
 spec = importlib.util.spec_from_file_location('as1_run', runner)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
-parsed = module.devices_from_snapshot({'output': (repo / 'runs/as1/inventory/npu.txt').read_text()})
+parsed = module.devices_from_snapshot({'exit_code': 0, 'output': (repo / 'runs/as1/inventory/npu.txt').read_text()})
 if parsed[0]['total_mib'] != 131072 or parsed[1]['total_mib'] != 131072:
     raise AssertionError('HBM telemetry parsed the memory/hugepage columns')
 out = repo / 'runs/as1/jobs' / ('runner_timeout_'+str(time.time_ns()))
