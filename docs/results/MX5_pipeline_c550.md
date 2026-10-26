@@ -1,7 +1,7 @@
 # MX-5 C550 pipeline and specification audit
 
-Source audit updated 2026-10-26 through `12b5ab839`; measured checkpoint includes
-all5 Gamma development controls and two completed diagnostic Qwen ledgers. Earlier audits remain in git history. **Verified** means inspected
+Source audit updated 2026-10-26 through `0a017b70c`; measured checkpoint includes
+all5 Gamma development controls and four completed diagnostic ledgers. Earlier audits remain in git history. **Verified** means inspected
 source or executed evidence; **inferred** means interpretation. Authority is
 `/root/Prompt/TileMega_MX5_prompt.md`, SHA256
 `75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73`.
@@ -128,3 +128,12 @@ not final selection. Current full-domain qualification and other3 ledgers remain
 open. H512 costs run on7; ledger then remainingG512 on6; each card has its
 admitted576 cost campaign queued behind successful completion. At15:56:47
 Shanghai the3-log wrapper-wall upper bound is26.929817/60card-hours.
+
+Verified4c7/ab27/0a017: normal actual576 diagnostic stepper,independenttrue576
+original preparer and exactactualP0pool projector are implemented. Root46,
+50(+1optional skip),28 relatedCPUchecks pass;actual4545P0audit createsno
+origin/bundle/cost. Sharedqualification tools remain byte-exact. Frozen clean
+d74 producer buildsall160normalsteps/CPPunit;normalQwenCU/device.text match.
+Remaining40prefill builds startfromliteralcurrentpins;QwenB2WD0/1exactgates
+and actualfinalL1API0/resident1/thread128 queriespass;other38continue.
+Nativeorigins/widthcost/D7/finaltop4/defaults remain genuine-evidence work.

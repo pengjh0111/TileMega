@@ -1082,3 +1082,13 @@ fragmentflag insertion. Existinglegacy L1 resource248MT/frame248 is recorded
 without imposing decodev2's zero-stack gate on unchangedMX4prefill. Other38
 normalcompiles proceed,CPUworkers2/searchjobs1;queries serializeunderGPU6lock.
 Raw:`runs/mx5/prefill_final_fragment_queries_v1/smoke_pair_actual.json`.
+
+Verified fourthcompactledger, Llama1BB1 true576manualPK0,16/16completed:
+netus/layer QKV9.578,A14.525,O6.368,GU46.869,down21.567;head325.560us
+is history-confounded;mask63floor240.6425us retains otherwork. Appended14
+rows/prefixproof incheckpoint_gamma_completed_ledger_v4. FormalcurrentA576
+D64cost usesPK2,so itslatency isnot substituted for thismanualPK0control.
+P0attributes also do not supply latency;matchingbench/gap allocation remains
+unfinished. At16:48:51Shanghai3-log wrapperupperbound28.964214/60card-hours
+(894closed/2active),includingwaits/cooldowns. Card6last8BB16ledgerthenG512
+52..71 and G576;card7H512thenH576. Rootprefillqueries use samecard6lock.
