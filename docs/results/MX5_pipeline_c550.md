@@ -584,3 +584,22 @@ nonadditive interventions use the actual selected StreamK GU/down, not older
 manual TileRange coordinates. Its attention net/bench1.062 is belowD7's1.2
 threshold but remains above the appendix26–28us inference. Allfive actual
 development selections now have source-matched complete ledgers.
+
+Verified D7 adjacent-length diagnostic completed3fresh processes using the
+unchanged A719/PK0/Q2/Norm1/B2/bmin4 library. L224 rounds34480/34880/34520ns
+(median34520);L25622530/22530/22570(median22530);L28833970/33930/33940
+(median33940). Every row passes repeated-context bits, historicalKV bits,
+newK/reference assertions and barrier/LA counts. This establishes a local
+geometry-associated cost step missed by smooth interpolation throughL256;
+it does not allocate the whole-program36.68us marginal or proveI-cache cost.
+Nine diagnostic probe rows append; official5L cost table/candidates unchanged.
+
+A root implementation candidate changes only attention's First template into
+a uniform runtime first_segment branch inside one head loop. Independent
+actual-MIR review ofD128Q2/P0 shows8kernels with one32-MMA ring each versus
+two32-MMA rings before,0private/generic/calls and frame0/MT<=249. Device.text
+for this whole8kernel library is320344B versus600056B. An unchanged generated
+B2 CU compiled with newheader uses241MT/frame0; that diagnostic is not a
+source-qualified executable plan. SomeP1/P2 unit kernels spill and are not run.
+P0 unit validation and diagnostic stage measurements are pending. Synchronization,
+rounding, geometry and defaults are unchanged; crosssegment overlap stays open.
