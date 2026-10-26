@@ -455,3 +455,7 @@ new-schema GPU behavior is still unverified and not counted as acceptance.
 Single-child900s timing guards are selected in advance; no inferred prior
 per-cell duration is fabricated. Default, body source, costs and pins are unchanged.
 Raw: `selected_only_execution_freeze_v1/`, `remaining20_selected_only_execution_v1/`.
+
+Verified selected Llama8B B1 DIAG-only resource query: MT223/frame0, actual
+API0/resident1/no-launch; row466→467. Its four guarded intervention batches
+are still running; no completed ledger or production timing claim from DIAG.
