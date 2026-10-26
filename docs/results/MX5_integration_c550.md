@@ -759,3 +759,64 @@ upper bound15.889060/60 card-hours, including waits/cooldowns. At that snapshot
 that all40 were complete. Current campaigns use7/6, at most two cards. Full
 source snapshots and append/hash/dedup proof: `runs/mx5/docs_latest_evidence_v1_61/`.
 G-A passed; G-B/G-PROGRAM, final25 dense, native MoE, LLM30 and DNN25 remain open.
+
+Verified 2026-10-26 continuation: the attention CTA scalar-sharing experiment
+passes real512-step C-1/C-2 with identical control tokens, but same-card P-PAIR
+GU/scalar medians2.034739340/2.042545932ms (+0.383665%, indistinguishable).
+It was not adopted. Its isolated WT/producer/patch, two resources, one check and
+four timing rounds remain source-specific evidence, not final cells. Raw:
+`runs/mx5/attention_scalar_e2e_v1_61/ROOT_DECISION.json`.
+
+D7 then identified live BF16-to-FP32 statistics expansion at GEMM/head Consume.
+5c032c501 schedules that expansion after all MMA atoms and before ring refill,
+using compiler dependency barriers; Square arithmetic and accumulation order
+are unchanged. No runtime fence, extra load, axis or rounding change was added.
+The exact tested G header SHA256 is
+`2be242390f5fe4a1764a0ff637b0b1ba94d61f15d80f99113d17f444ea436152`.
+Earlier late-V and barrier-localization diagnostics still spilled and remain
+unadopted. Their observations are not required-register lower bounds.
+
+The new GU+Consume source has50 normal unit builds:42 libraries fit,8 rejected
+(all576); all failures retained. Complete512 G/H/chain/null-idle families pass
+25/25 fresh guarded processes, five per family and25 distinct test PIDs;
+chain tests use104CTAs and2000 iterations. This does not admit arbitrary512
+programs or the rejected576 families. Root seal:
+`runs/mx5/consume_guard_root_validation_v1/verified_summary.json`.
+
+Actual native diagnostic plans bind a real detached8bba+Consume WT and an
+immutable mixed-host producer622ae426...; historical host-object dependency
+limits remain explicit in its delivery manifest. QwenB1 WD0/1 MT241/245;
+8BB16 original1 allPw=D MT241/243, all frame/static0,15 clean MIR rings,
+no whole private/generic/calls. Whole MIR still has waits4160 outside the
+certified rings. All four actual queries return API0/resident1/zero launches.
+Both model controls pass512-step C-1/C-2 (max gaps0.015625/0.34375,mismatch0).
+Qwen same-card GU/Consume P-PAIR medians2.034798772/2.053543765ms (+0.921221%,
+indistinguishable by1%/spread); no speedup is claimed and MX-4 acceptance still
+fails. Native raw:`runs/mx5/gu_stats_native_v1_61/`. Main ordinary rebuild at
+5c032c501 passes with matching fingerprinta868fa47...; its archived producer
+SHA23fde9d14daf0c52703d25e29870f1dbc3faca1d4176e48dbdd785dcef9b6000.
+Old source costs/query outcomes cannot qualify this new body epoch.
+
+Eight further native builds (CPU resources only at this checkpoint) all fit:
+QwenB16 MT243/241;8BB1 originalGU8 MT245/249 without reduction; real1B576
+MT152/153;8BB16 original3 allPw=D MT241/243. Each has15 clean MIR rings.
+All eight actual queries also return API0/resident1/zero launches;512-step
+checks and two-fresh timings are running separately. No original candidate is deleted. Raw:`runs/mx5/gu_stats_remaining_controls_v1_61/`.
+
+Fresh GU+Consume G/H/A calibration is prepared separately. The preceding GU-only
+P0 epoch has8290 genuine zero-launch queries, including resource failures;
+none is relabeled as a cost or as new-source evidence. Its primary/halving
+recipes were prepared but not compiled. The current QwenB1 actually uses
+attention PrefetchKind0, so source-level PF1/2 idle-load behavior cannot explain
+its measured latency. Static path counts are attribution, not measured time.
+
+Verified budget at2026-10-26T09:44:05+08:00: union three raw job logs by canonical
+out gives579 closed/1 active,17.420278 wrapper-wall card-hours through checkpoint
+of60, including active elapsed/waits/cooldowns. The third log is
+`runs/mx5/next_body_epoch_calibration_v1_61/gh_p0_query_gpu_jobs.log`.
+Append-only CSV prefix/hash proof:`runs/mx5/docs_consume_evidence_v1/`.
+G-B/G-PROGRAM and final25 dense/native MoE/LLM30/DNN25 remain open.
+
+Verified8BB16 original1 two-fresh TPOT13.346345006/13.335000643ms,
+median13.340672824ms (manual diagnostic,not final). This is below stored MX-4;
+it is not an isolated performance comparison with original0 or a solver result.

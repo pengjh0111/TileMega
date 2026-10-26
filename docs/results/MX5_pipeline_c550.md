@@ -1,7 +1,7 @@
 # MX-5 C550 pipeline and specification audit
 
-Source audit updated 2026-10-26 through `3843f6477`; measured checkpoint through
-`cf7b6fb25`. Earlier audits remain in git history. **Verified** means inspected
+Source audit updated 2026-10-26 through `5c032c501`; measured checkpoint includes
+GU+Consume diagnostic checks and paired Qwen timing. Earlier audits remain in git history. **Verified** means inspected
 source or executed evidence; **inferred** means interpretation. Authority is
 `/root/Prompt/TileMega_MX5_prompt.md`, SHA256
 `75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73`.
@@ -35,7 +35,7 @@ explicit diagnostic pins; the final selection/default edge remains open.
 | Static code | `StageProgram` and `MxDecodeProgramV2` emit constexpr body types and direct calls, without runtime stage descriptors. Dense uses qkv(kStore), attention, O, gate_up, down and head; embed is folded into layer0. There are5L+1 counters/barriers per decode step. |
 | Edges | DownLast prefetches head; head prefetches next-step layer0 QKV weights. Token broadcast happens after grid acquire; first token broadcast precedes entrance prefetch. Terminal packet lexical scope and stage-local AS4 binding reloads are recorded departures in the integration report. |
 | Synchronization | Selected DT-W/R/P/X/KV =576 / role fence+atomic / P-B / X-A / block_fragments. `StageSyncV2` uses LDS generation release; `LastArriverV2` uses last-only acquire. Each barrier has its own64B counter, monotonic across steps. Only diagnosed per-plan512 controls currently execute outside the576 shape. |
-| Bodies | GEMM/head/attention v2 are shared by generated programs and benches. `3843f6477` guards GEMM weight Prefetch for inactive/chunkless waves. Attention's CTA scalar-sharing candidate remains isolated; it is not part of main. |
+| Bodies | GEMM/head/attention v2 are shared by generated programs and benches. `3843f6477` guards GEMM weight Prefetch for inactive/chunkless waves. `5c032c501` schedules statistics expansion after MMA consumption. Attention scalar sharing was rejected after E2E comparison; attention main is unchanged. |
 | Build identity | Native compilation retains actual compile receipts, source snapshots, CU, macro capture, resource log and binary identity. Normal resource gates require frame0/static-smem0 and MT≤227/255, plus actual one-CTA occupancy. Forced-register diagnostics never qualify for execution. |
 | Weights | `serving/weights.py` executes exported recipes and `tile_pages(xcore_mma,TN,32)` packing, checks conflicting recipes and deduplicates by source/recipe identity. Actual packing coordinates must match the executed types. |
 | Prefill and KV | Dense retains MX-4 prefill geometry, watchdog0 for timing and watchdog1 twins for checks. DT-KV requires full32-token fragment writes. Prefill/decode share request backing storage; `engine.py` now checks physical `kv_storage` as well as `kv_layout`, sequence and capacity. |
@@ -64,12 +64,14 @@ explicit diagnostic pins; the final selection/default edge remains open.
   the old control exactly. Same-card P-PAIR medians old/fix are
   2.026787953/2.034753758ms (+0.393%, indistinguishable). The fix is still about
   2.58% slower than stored MX-4; performance acceptance remains open.
-- Attention scalar reuse passes five fresh512 numerical processes and actual
-  copied-program resource/MIR checks. It increases static text size. Its real
-  isolated-plan E2E comparison remains pending; no speedup/default is claimed.
-- 8BB16 original top4 IDs1/3 still fail at allPw=D in the retained source epoch.
-  Def-use analysis separates V-tail predicates from launch/loop state; it does
-  not permit deleting candidates or inventing a replacement top4.
+- Attention scalar reuse passes real512-step C-1/C-2 but P-PAIR increases
+  0.384% (indistinguishable); it is not adopted. GU+Consume passes25/25 fresh
+  complete512 unit-family jobs and QwenB1/8BB16 original1 C-1/C-2.
+- GU+Consume fixes8BB16 original1/3 allPw=D to241/frame0 (WD0). The new1B576
+  control is152/frame0;8BB1 originalGU8 fits245/frame0 without reduction.
+  These are manual controls requiring individual root execution evidence.
+- Qwen GU/Consume P-PAIR is2.034798772/2.053543765ms (+0.921%, indistinguishable),
+  still above stored MX-4. Source-specific costs must be rebuilt; no gate waived.
 
 ## Whole-spec checklist
 
@@ -92,9 +94,9 @@ explicit diagnostic pins; the final selection/default edge remains open.
 7. GPU work stays guarded on7/6/5/4, at most two cards and one job per card;
    job≤1800s, timing≤900s, MoE needs40960MiB. No external baseline remeasure,
    clock/power/driver change, or use of cards0–3.
-8. Budget60 card-hours; count both job logs by canonical distinct output.
-   At2026-10-26T07:17:20+08:00:537 closed/0 active, wrapper-wall upper bound
-   16.543611 card-hours. Raw artifacts stay under ignored runs; committed
+8. Budget60 card-hours; count all three job logs by canonical distinct output.
+   At2026-10-26T09:44:05+08:00:579 closed/1 active, wrapper-wall upper bound
+   17.420278 card-hours. Raw artifacts stay under ignored runs; committed
    measurements append round/executor/implementation without rewriting rows.
 
 Current raw paths, failures, source identities, detailed stage ledger and the
