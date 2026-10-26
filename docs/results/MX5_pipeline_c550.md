@@ -2,7 +2,7 @@
 
 Current checkpoint: `cc29d78304` bodies with frozen producer `24fa50ed`,
 seven completed dense top-four selections. The five development cells beat MX4;
-Qwen0.6B B2/B4 are10.6205/8.6402% slower and require D7. Four selected diagnostic ledgers
+Qwen0.6B B2/B4 are10.6205/8.6402% slower and require D7. All five development diagnostic ledgers plus B2 D7
 are complete. MoE/DNN native remain unimplemented.
 The detailed audit below includes explicitly historical development evidence;
 current selections are in `MX5_llm_c550.md`. **Verified** means inspected
@@ -562,3 +562,25 @@ values are nonadditive whole-step interventions, not isolated stage latency.
 Adjacent lengths224/256/288 are queued against the exact existing A719/PF0
 library with three fresh processes; official five-L table and candidates stay
 unchanged. Regression cause and currentI1 remain unknown.
+
+Verified isolated S5 extension: five genuine fresh processes each execute all
+four std/bare x512/576 cases,2000 iterations x104CTAs,0 shared/KV/global-LA
+checksum errors. At16KiB pending payload per compute wave, shared-phase
+CTA/consume-tail medians(ns) are std5124870/2220,bare5122400/2240,
+std5764690/2530,bare5762070/2560; original-LA phase5270/990,4980/1040,
+5120/1160,4720/1210 respectively. Forty append-only per-process/phase rows
+retain the actual binary/process refs. The global observable is an ordered
+FP32 checksum, not exhaustive per-word global publication proof; real attention
+math/owner masking is absent. DT-P staysP-B; no production sync replacement.
+An initial fresh wrapper rejected duplicate --out flags before any binary
+launch. Its raw failure remains; corrected parsing scopes guard flags before
+the unique -- separator and passes actual saved-argv plus six CPU cases.
+The kernel/source/binary/protocol/criteria were unchanged and not recompiled.
+
+Verified fifth development ledger (selected8BB16) completed16fresh interventions:
+netus/layer35.526/61.128/26.511/166.236/83.019 versus matchingbench37.620/
+57.557/31.620/174.180/90.350;head/history655.180us versus656.700us. These
+nonadditive interventions use the actual selected StreamK GU/down, not older
+manual TileRange coordinates. Its attention net/bench1.062 is belowD7's1.2
+threshold but remains above the appendix26–28us inference. Allfive actual
+development selections now have source-matched complete ledgers.
