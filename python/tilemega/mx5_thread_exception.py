@@ -323,6 +323,11 @@ def next_width_diagnostic(origin,candidate_id,lineage_refs):
 
 
 def _fresh(entry,row):
+    if entry.get('evidence_mode')=='ordinary_completed_original_batch_v1':
+        from .mx5_ordinary_campaign import verify
+        verify(entry,row)
+        return
+    _need(entry.get('evidence_mode') in (None,'retained_process_pids_v1'),'unknown variant fresh-process evidence mode')
     processes=entry.get('fresh_processes');_need(isinstance(processes,list) and len(processes)==3,'variant lacks actual three-process PID/command evidence')
     pids=set();rounds=set()
     for ref in processes:
