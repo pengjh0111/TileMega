@@ -85,14 +85,14 @@ Verified: all four 3ef/Af8 originals pass C-1/C-2 at 512 steps; eight fresh WD0 
 
 Actual configuration: qkv TN64/WN1/D1/Pw1/kTileRange, o TN64/WN1/D1/Pw1/kTileRange, gate_up TN32/WN8/D4/Pw8/kTileRange, down TN64/WN1/D3/Pw3/kTileRange, head TN64/WN4/D1/Pw4/kTileRange; attention b_min1/PK0, threads512, stages161.
 
-Evidence: `runs/mx5/llama8bB1_actual_resolved_top4_execution_v1/`, ordered D7 in `runs/mx5/llama8bB1_actual_d7_review_v1/`, exact executed pin `configs/pins/mx5/llama3_1_8b_B1.json`. New A719 costs, source-qualified origins and acceptance remain pending.
+Evidence: `runs/mx5/llama8bB1_actual_resolved_top4_execution_v1/`, ordered D7 in `runs/mx5/llama8bB1_actual_d7_review_v1/`, exact executed pin `configs/pins/mx5/llama3_1_8b_B1.json`. New A719 costs and25 scoped512 origins are complete; their final acceptance remains pending.
 
 ## cc29 five development controls
 
 Verified: each cell passes actual 512-step C-1/C-2, with two fresh WD0 processes
 using the standard 64/1024 protocol. These manual same-configuration source
 regressions satisfy the five numerical/timing predicates, not final solver
-selection or full pipeline conformance. New A719 scoped origins remain pending.
+selection or full pipeline conformance. New A719 scoped origins are now complete.
 
 | Cell | Threads | TPOT ms | vs MX-4 |
 |---|---:|---:|---:|

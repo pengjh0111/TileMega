@@ -307,3 +307,21 @@ beforeanyoutput,thenreplays actualqualification into a newdirectory. No
 oldpool successindex fabricated,noGPU rerun/row rewrite/gate waiver.
 Five576A batches continue;oldH3015698 stays paused underremaining21controller
 andwillresume automatically;G2636562resumed after manualcontrols.
+
+Verified newA719 calibration: all500 fit keys completed original three-fresh
+batches. Corrected512 exporter actualrc0 qualifies4545 exact G3395/H750/A400
+rows and25 consumer-replayed scopes. v1 consumer-binding failure is preserved;
+v2 binds the actual consumer/Python closure before writes. TABLE_INDEX SHA
+3305380f2ae168e74bed89fb08660cc2eb0471674763cf6715908cef2fe8ad3e.
+Normal24fa/cc29 CPUsolves produce25 scopes/100 original512 candidates with
+strict validators PASS; ACTUAL_ORIGIN_INDEX25 SHA
+fc7c962736526b9541fac9f00dd9626b63b7ff858a97c84217d22232a5254273.
+This confers no device resource approval, candidate execution or final selection.
+Independent Llama1BB1 576 solve also actualrc0 from genuine G815/H52/A719
+scope156costs+33formalrejects; tableSHA241654a712ac929f71ddb0b8e7f1253c9623d7d62ca1ba2f7e3ba9851db01358.
+Canonical576 and independent576 original builds proceed in separate histories.
+At00:53:25Shanghai physical-card interval-union upper43.726747/60h,peak2;
+oldwrapper sum56.750636h preserved in checkpoint_blockinit_origins25_v1.
+G/H576 campaigns90/114 and22/28 closedguard0 atinspection; no missing cost
+is projected. Newfull50 exporter binds actualconsumer closure and waits for
+both genuine complete campaigns before publishing; oldA full50 stays separate.
