@@ -603,3 +603,23 @@ B2 CU compiled with newheader uses241MT/frame0; that diagnostic is not a
 source-qualified executable plan. SomeP1/P2 unit kernels spill and are not run.
 P0 unit validation and diagnostic stage measurements are pending. Synchronization,
 rounding, geometry and defaults are unchanged; crosssegment overlap stays open.
+
+Verified candidate single-segment P0 units:5/5 fresh processes x56 cases pass
+(D128,Q2,Norm0/1,B1/16,L1/31/32/33/65/257/1088,bmin1/8), with exact
+newK/V/history bits and repeated context. FullP1/P2 families remain resource
+blocked; their actual spill rows are preserved. Candidate source is committed
+at0a3268501; current measured seven selections remain explicitly cc29.
+Fresh independent normal160-step producer is building from that candidate;
+no old source costs, canonical histories or selection approval transfer.
+A superseded54ce65 CPU cohort contained an added comment not present in the
+tested source; it was stopped and archived, then a fresh separatev2 started
+from exact tested bytes. No GPU/plan execution occurred in that superseded
+producer. This was a root preparation error, not a measured kernel failure.
+
+The first rebuilt22a MX4 reference prefill actually compiled, passed full plan
+contract/CU equality, then stopped strict full-ELF equality (device.text+160B).
+Actualhistorical prefill heads differ (f576/295049/baec); all five574-file
+snapshots are identical, and574/574 git-showf576 hashes match. Its includes
+and7 extra plan-compile TUs also match22a. Therefore differing HEAD labels
+do not explain the byte mismatch; cause remains unknown. Otherfour builds
+were not dispatched, no referencecheck/PPAIR claim or criterion relaxation.
