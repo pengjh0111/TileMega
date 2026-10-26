@@ -957,3 +957,21 @@ Actual gamma A800 P0 and800 primary queries each return512400fit and
 576100fit/300rejected. All queries are iterations0/query-only/status0.
 Five ordinary primary builds plus3sameepoch PK0 reuses preserve prescribed PK;
 D64 PK2 fits136MT@512 and143MT@576. No PK is lowered to fit rejected D128576.
+
+## All five gamma development controls (verified; manual)
+
+The4 follow-up pairs pass all8 actual resident1/API0/zero-launch queries,
+C1/C2512 and8fresh uninstrumented timings onGPU6. Tokens in both modes
+are exactly equal to their A8 parents. MT WD0/1:QwenB16 237/239,1B576
+151/152,8BB1GU8 242/246,8BB16orig3 240/243; all frame/static/private/generic
+/calls0 and15clean rings. Runtime HEAD is captured per process,not hardcoded.
+Current TPOT medians:QwenB1 1.958246937,B16 3.571500050,1B B1
+2.126210101,8B B1 10.625549654,B16 13.242555381ms. Versus MX4:
+−1.276/−21.282/−3.838/−0.840/−8.931%;8BB1 is indistinguishable below1%.
+These are development controls,not final solver-selected cells or default approval.
+Raw:`runs/mx5/checkpoint_after_gamma_development_v1/CURRENT_DEVELOPMENT_CONTROLS.json`.
+Append-only8resource/4check/8timing rows preserve every previous CSV byte;
+proof:`runs/mx5/docs_gamma_development_v1/APPEND_PROOF.json`.
+Root6 continues A512/A576 3fresh costs then remaining G51248..71;7
+continues G512101..141. Global cost/reject domain is9090=8025 pending/current
+measured costs+1065 actual rejections; partial coverage is not final qualification.

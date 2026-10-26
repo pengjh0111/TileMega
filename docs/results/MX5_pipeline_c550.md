@@ -113,6 +113,6 @@ candidate proofs; no real final selection has run. G/H primary queries and
 conditional retry queries are complete;576 final selection/campaigns are being
 closed without changing failed rows. Gamma scheduling passes5fresh full A/legacy bitwise jobs,C1/C2 and P-PAIR:
 2.007205873→1.958246937ms,−2.439%,distinguishable; adopted by2dbf763ab.
-QwenB1 is now−1.276% versus MX-4; the other4 controls are checking/timing.
+QwenB1 is now−1.276% versus MX-4; all5 development controls now pass C1/C2 and timing.
 A16 P0 and8primary actual800 queries each give512400fit/576100fit+300reject;
-no program-gate claim is made. G/H sources remain exact.
+Canonical per-candidate histories and final solver selection remain pending. G/H sources remain exact.
