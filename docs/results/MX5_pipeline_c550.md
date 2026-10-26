@@ -1,7 +1,7 @@
 # MX-5 C550 pipeline and specification audit
 
 Current checkpoint: `cc29d78304` bodies with frozen producer `24fa50ed`,
-four genuine dense selections (Qwen0.6B B1/B16, Llama1B B1, Llama8B B1), and three
+four genuine dense selections (Qwen0.6B B1/B16, Llama1B B1, Llama8B B1), and four
 selected-pin diagnostic ledgers. MoE/DNN native remain unimplemented.
 The detailed audit below includes explicitly historical development evidence;
 current selections are in `MX5_llm_c550.md`. **Verified** means inspected
@@ -498,3 +498,12 @@ The normal build+validation wrapper's observed wall32.581196s is separately
 labelled, not cucc-only. Two metadata rows append467→469; old unknown rows
 are untouched. Raw:`selected_qwenB1_code_mapping_probe_v1_61/`.
 Other selected plans require independent equality/mapping; no count transfer.
+
+Verified fourth selected ledger (Llama8B B1): all16fresh interventions complete.
+Netus/layer31.343/20.936/21.425/149.165/71.324 vsactualmatchingbench34.850/
+18.622/24.920/149.750/76.540;head/history637.630usvs638.630us,floor718.590us.
+Maximum net/bench1.124267; attention exceeds appendix inference but no
+unmeasured site-time cause is assigned. Fourteen rows append156→170.
+The main LLM report now renders all25 cells (pending explicit), actual top4
+comparisons/coordinates and allselected ledgers; older expanded four-cell
+detail is preserved in MX5_llm_development_details_c550.md.
