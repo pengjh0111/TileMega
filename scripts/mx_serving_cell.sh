@@ -4,6 +4,7 @@
 #   tm_cell.sh solve   <id> <batch> <decode|prefill>          (CPU; device query via guard on $QGPU)
 #   tm_cell.sh check   <id> <batch> <rand_dir> <prompts> <gpu> (C-2 and C-1)
 #   tm_cell.sh measure <id> <batch> <rand_dir> <prompts> <gpu> <round>
+# MX5_RESOLVED_V2 explicitly adds guarded v2 checks and top4 timing to decode solve.
 # Plans: runs/mx2/tm/<id>/B<b>/<phase>/plan.so. Raw data stays under runs/mx1.
 set -eu
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd); cd $ROOT
@@ -48,6 +49,32 @@ solve)
   phase_dir=$phase
   [ "$phase" = prefill ] && [ "${WATCHDOG:-0}" = 1 ] && phase_dir=prefill_w
   C=$CELLS/$id/B$b/$phase_dir; mkdir -p $C
+  # Explicit v2 only: audit READY is revalidated by a purpose-limited runner.
+  if [ "$phase" = decode ] && [ -n "${MX5_RESOLVED_V2:-}" ]; then
+    : "${MX5_DOMAIN_TOOL:?MX5_DOMAIN_TOOL must name the trusted CPU geometry tool}"
+    [ -z "${PIN:-}" ] && [ "${SELECTION:-measure}" = measure ] || { echo "resolved v2 requires measured selection without a manual PIN" >&2; exit 2; }
+    exec 9>"$C/.lock"
+    flock -n 9 || { echo "cell already being solved" >&2; exit 3; }
+    cell="$CELLS/$id/B$b"; output="$C/resolved_v2"
+    if [ -f "$output/results.json" ] && [ -f "$C/plan.so" ]; then
+      PYTHONPATH="$ROOT/python" python -m tilemega.mx5_resolved_runner \
+        --verify-results "$output/results.json" --protocol "$MX5_RESOLVED_V2" \
+        --domain-tool "$MX5_DOMAIN_TOOL" --cell-dir "$cell"
+      exit $?
+    fi
+    [ ! -e "$C/plan.so" ] && [ ! -L "$C/plan.so" ] && [ ! -e "$cell/decode_w/plan.so" ] && [ ! -L "$cell/decode_w/plan.so" ] || {
+      echo "resolved v2 refuses to replace an existing cell artifact; use a fresh CELLS campaign" >&2; exit 2; }
+    prompts=${PROMPTS:-$ROOT/configs/prompts/$(case $id in qwen*) echo qwen;; *) echo llama3;; esac)_isl64.json}
+    PYTHONPATH="$ROOT/python" python -m tilemega.mx5_resolved_runner \
+      --protocol "$MX5_RESOLVED_V2" --domain-tool "$MX5_DOMAIN_TOOL" --root "$ROOT" \
+      --model "${MODEL:-/root/models/${id}_rand}" --batch "$b" --gpu "${MGPU:-7}" \
+      --prefill-so "$cell/prefill/plan.so" --prefill-watchdog-so "$cell/prefill_w/plan.so" \
+      --prompt-ids "$prompts" --policy "$ROOT/configs/bench/measurement_policy_c550.json" \
+      --needs-mib "$needs_mib" --out "$output" --cell-dir "$cell" \
+      > "$C/compile.log" 2>&1 || { echo "rc=$?" >> "$C/compile.log"; exit 1; }
+    echo rc=0 >> "$C/compile.log"
+    exit 0
+  fi
   [ -f $C/plan.so ] && grep -q "^rc=0" $C/compile.log 2>/dev/null && exit 0
   # One compile per cell. Every artifact in $C has a fixed name, so two
   # concurrent solves of the same cell interleave their plan.so, identity and
