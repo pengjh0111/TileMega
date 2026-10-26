@@ -47,15 +47,17 @@ int main(int argc,char** argv) {
         {"solver_executed_this_call",false},{"scope","codegen from existing materialized CTG/Solver plan"}}).Dump());
       return 0;
     }
-    bool priced_decomposition=argc==11 && std::string(argv[1])=="emit-priced-decomposed";
-    bool priced_body=argc==11 && std::string(argv[1])=="emit-priced-body";
+    const std::string command=argc>1?argv[1]:"";
+    const bool fifo_elision=command=="emit-priced-fifo" || command=="emit-priced-decomposed-fifo" || command=="emit-priced-body-fifo";
+    bool priced_decomposition=argc==11 && (command=="emit-priced-decomposed" || command=="emit-priced-decomposed-fifo");
+    bool priced_body=argc==11 && (command=="emit-priced-body" || command=="emit-priced-body-fifo");
     bool body=priced_body || (argc==10 && std::string(argv[1])=="emit-body");
-    bool priced=priced_decomposition || priced_body || (argc==10 && std::string(argv[1])=="emit-priced");
+    bool priced=priced_decomposition || priced_body || (argc==10 && (command=="emit-priced" || command=="emit-priced-fifo"));
     bool decomposed=priced_decomposition || (argc==10 && std::string(argv[1])=="emit-decomposed");
     bool emit=priced || decomposed || body || ((argc>=6 && argc<=9) && std::string(argv[1])=="emit-diagnostic");
     bool prepare=emit || (argc==6 && std::string(argv[1])=="prepare");
     if(!prepare && (argc!=5 || std::string(argv[1])!="inspect"))
-      throw std::invalid_argument("usage: as2_compile_llm inspect export new_output batch; or prepare|emit-diagnostic export new_output batch groups [diagnostic_kv_block] [gemm_tile_n:64|128] [attention:bf16|fp32|fp32-scores|math-sdpa|cube-fp32|cube-fp32-newton|cube-fp32-newton-full|cube-fp32-newton-fold|cube-fp32-fold-softmax]; or emit-priced|emit-decomposed export new_output batch groups kv_block tile_n attention prices_or_decomposition.json; or emit-body|emit-priced-body export new_output batch groups kv_block tile_n attention [prices.json] binding.json");
+      throw std::invalid_argument("usage: as2_compile_llm inspect export new_output batch; or prepare|emit-diagnostic export new_output batch groups [diagnostic_kv_block] [gemm_tile_n:64|128] [attention:bf16|fp32|fp32-scores|math-sdpa|cube-fp32|cube-fp32-newton|cube-fp32-newton-full|cube-fp32-newton-fold|cube-fp32-fold-softmax]; or emit-priced|emit-decomposed export new_output batch groups kv_block tile_n attention prices_or_decomposition.json; or emit-body|emit-priced-body export new_output batch groups kv_block tile_n attention [prices.json] binding.json; priced modes accept an explicit -fifo suffix for experimental wait elision");
     namespace fs=std::filesystem;
     auto root=fs::path("/home/d50064638/junhuip/TileMega/runs/as2");
     auto input=fs::weakly_canonical(argv[2]),output=fs::weakly_canonical(argv[3]);
@@ -317,8 +319,13 @@ int main(int argc,char** argv) {
             {"selected",choose_eft?"heterogeneous_rank_eft":"structural_topological_least_queue"},
             {"decision","minimum same-model shared-GM-calendar makespan"},
             {"queue_or_placement_differs",scheduled.queue!=baseline.queue || scheduled.owners!=baseline.owners},
+            {"post_selection_wait_lowering",fifo_elision?"experimental_fifo_observed_frontier":"per_task_frontier"},
             {"device_execution_verified",false},{"end_to_end_performance_admitted",false}}).Dump());
           if(!choose_eft)scheduled=std::move(baseline);
+        }
+        if(fifo_elision) {
+          Write(output/"uncompressed_schedule.json",scheduled.ToJson());
+          scheduled=tilemega::solver::ElideAscendFifoWaits(tasks,workers,std::move(scheduled));
         }
         auto native=tilemega::codegen::MaterializeAscendLlm(*module,problem,workers,tasks,scheduled,!priced,attention_precision,body);
         if(priced) {
@@ -356,6 +363,8 @@ int main(int argc,char** argv) {
         result.Set("attention_implementation",attention_precision==8?"mix_fp32_cube_newton_norm_fold_softmax1088":attention_precision==7?"mix_fp32_cube_newton_qk_half_fold_fullnorm":attention_precision==6?"mix_fp32_cube_newton_qk_and_fullnorm":attention_precision==5?"mix_fp32_cube_newton_qknorm":attention_precision==1?"fp32_chunk32_merge":attention_precision==2?"fp32_scores_bf16_probability":attention_precision==3?"math_sdpa_fp32_split_scale":attention_precision>=4?"mix_fp32_cube_qk_vector_softmax_pv":"bf16_scores_probabilities");
         result.Set("selection",priced?selected_algorithm:"diagnostic_unpriced_bootstrap_not_optimized");
         result.Set("priced_solver_executed",priced);
+        result.Set("wait_lowering",fifo_elision?"experimental_fifo_observed_frontier":"per_task_frontier");
+        result.Set("wait_elision_device_verified",false);
         if(priced)result.Set("price_provenance",prices);
         result.Set("arena_bytes",double(native.metadata.arena_bytes));
         result.Set("device_execution_verified",false);

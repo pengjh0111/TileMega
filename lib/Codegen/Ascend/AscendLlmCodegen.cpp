@@ -283,6 +283,8 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
   out.buffers_json=json::Value(json::Object{{"schema","tilemega.ascend.llm.buffers.v4"},
     {"arena_bytes",double(arena)},{"buffers",std::move(buffers)},
     {"pricing_status",diagnostic?"diagnostic_unpriced_bootstrap":"sourced_native_empirical_context"},
+    {"wait_lowering",schedule.fifo_wait_elision?"experimental_fifo_observed_frontier":"per_task_frontier"},
+    {"waits_before_fifo_elision",double(schedule.fifo_wait_elision?schedule.waits_before_fifo_elision:schedule.lowered_waits)},
     {"phase",p.model.dims.seq==1?"decode":"prefill"},{"complete_generation",false},{"device_execution_verified",false}}).Dump();
   return out;
 }

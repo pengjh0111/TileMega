@@ -70,6 +70,49 @@ int main() {
   auto cycle=chain;cycle[0].predecessors={3};
   Reject([&]{ScheduleAscendTasks(cycle,map,c);});
 
+  // A previous wait on AIV0 covers its later FIFO tasks, never a different
+  // AIV lane or a newly participating MIX lane.
+  std::vector<AscendScheduledTask> repeated={Task(aic,1,{}, {0}),Task(aic,1,{0},{0}),
+      Task(aiv,1,{1},{2}),Task(aiv,1,{0},{2}),Task(aiv,1,{0},{3})};
+  auto original=ScheduleAscendTasks(repeated,map,c);
+  auto elided=ElideAscendFifoWaits(repeated,map,original);
+  assert(elided.fifo_wait_elision && elided.waits_before_fifo_elision==3 && elided.lowered_waits==2);
+  assert(elided.waits[3].empty() && elided.waits[4].size()==1);
+  assert(elided.queue==original.queue && elided.owners==original.owners && elided.ordinals==original.ordinals);
+  auto missing=elided;missing.waits[4].clear();--missing.lowered_waits;
+  Reject([&]{AuditAscendSchedule(repeated,map,missing);});
+  auto one_lane=Task(mix,1,{0},{1});one_lane.mix_aiv_lanes=1;
+  auto two_lanes=one_lane;two_lanes.mix_aiv_lanes=2;
+  std::vector<AscendScheduledTask> lanes={Task(aic,1,{}, {0}),one_lane,two_lanes};
+  auto lane_original=ScheduleAscendTasks(lanes,map,c);
+  auto lane_elided=ElideAscendFifoWaits(lanes,map,lane_original);
+  assert(lane_elided.waits[2].size()==1); // AIV1 has never observed producer0.
+  missing=lane_elided;missing.waits[2].clear();--missing.lowered_waits;
+  Reject([&]{AuditAscendSchedule(lanes,map,missing);});
+
+  // Enumerate every forward-edge subset on a fixed four-task mixed-role graph.
+  // Each consumer's explicit-or-prior-FIFO observations must cover every
+  // original predecessor independently of the lowering's internal audit.
+  for(unsigned mask=0;mask<64;++mask) {
+    std::vector<AscendScheduledTask> graph;
+    for(unsigned t=0,bit=0;t<4;++t) {
+      std::vector<unsigned> predecessors;
+      for(unsigned p=0;p<t;++p,++bit)if(mask&(1u<<bit))predecessors.push_back(p);
+      graph.push_back(Task(t%2?aiv:aic,1,predecessors,{t%2?2:0}));
+    }
+    auto base=ScheduleAscendTasks(graph,map,c),lower=ElideAscendFifoWaits(graph,map,base);
+    assert(lower.lowered_waits<=base.lowered_waits && lower.queue==base.queue);
+    for(unsigned w=0;w<map.workers.size();++w) {
+      std::vector<unsigned> seen(map.workers.size());
+      for(unsigned slot=lower.offsets[w];slot<lower.offsets[w+1];++slot) {
+        auto t=lower.queue[slot];
+        for(auto wait:lower.waits[t])seen[wait.producer_worker]=std::max(seen[wait.producer_worker],wait.required_prefix);
+        for(auto p:graph[t].predecessors)if(lower.owners[p]!=w)
+          assert(seen[lower.owners[p]]>=lower.ordinals[p]);
+      }
+    }
+  }
+
   std::vector<AscendScheduledTask> large(5000,Task(aic,1,{}, {0}));
   auto scaled=ScheduleAscendTasks(large,map,c);assert(scaled.epoch_stride==5001);
   assert(AscendProgressValue(4096,5000,5001)==4096u*5001+5000);

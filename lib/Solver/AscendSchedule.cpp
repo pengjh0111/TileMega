@@ -213,12 +213,62 @@ void AuditAscendSchedule(std::vector<AscendScheduledTask> const& tasks,
     for(auto wait:out.waits[t])
       if(!actual.emplace(wait.producer_worker,wait.required_prefix).second)
         throw std::invalid_argument("Duplicate producer frontier wait");
-    if(actual!=required)throw std::invalid_argument("Frontier waits do not cover semantic predecessors");
+    if(!out.fifo_wait_elision && actual!=required)
+      throw std::invalid_argument("Frontier waits do not cover semantic predecessors");
+    if(out.fifo_wait_elision)for(auto const& [producer,prefix]:actual)
+      if(!required.count(producer) || required.at(producer)!=prefix)
+        throw std::invalid_argument("Elided plan changes a required frontier value");
   }
   std::queue<unsigned> ready;for(unsigned t=0;t<tasks.size();++t)if(!graph.indegree[t])ready.push(t);
-  unsigned visited=0;
-  while(!ready.empty()) {auto t=ready.front();ready.pop();++visited;for(auto s:graph.successors[t])if(!--graph.indegree[s])ready.push(s);}
-  if(visited!=tasks.size())throw std::invalid_argument("Dependencies plus worker FIFO contain a deadlock");
+  std::vector<unsigned> order;
+  while(!ready.empty()) {auto t=ready.front();ready.pop();order.push_back(t);for(auto s:graph.successors[t])if(!--graph.indegree[s])ready.push(s);}
+  if(order.size()!=tasks.size())throw std::invalid_argument("Dependencies plus worker FIFO contain a deadlock");
+  if(out.fifo_wait_elision) {
+    std::vector<std::vector<unsigned>> observed(map.workers.size(),std::vector<unsigned>(map.workers.size()));
+    std::uint64_t waits=0;
+    for(auto t:order) {
+      for(auto wait:out.waits[t]) {
+        ++waits;
+        for(auto worker:out.participants[t])observed[worker][wait.producer_worker]=
+            std::max(observed[worker][wait.producer_worker],wait.required_prefix);
+      }
+      for(auto p:tasks[t].predecessors)for(auto worker:out.participants[t])
+        if(worker!=out.owners[p] && observed[worker][out.owners[p]]<out.ordinals[p])
+          throw std::invalid_argument("FIFO frontier elision lacks a prior observation on a participant");
+    }
+    if(waits!=out.lowered_waits || waits>out.waits_before_fifo_elision)
+      throw std::invalid_argument("Invalid FIFO frontier wait accounting");
+  }
+}
+AscendSchedule ElideAscendFifoWaits(std::vector<AscendScheduledTask> const& tasks,
+    ascend::WorkerMap const& map,AscendSchedule out) {
+  AuditAscendSchedule(tasks,map,out);
+  if(out.fifo_wait_elision)return out;
+  auto graph=DataGraph(tasks);
+  for(unsigned w=0;w<map.workers.size();++w)
+    for(unsigned slot=out.offsets[w]+1;slot<out.offsets[w+1];++slot) {
+      graph.successors[out.queue[slot-1]].push_back(out.queue[slot]);++graph.indegree[out.queue[slot]];
+    }
+  std::queue<unsigned> ready;
+  for(unsigned t=0;t<tasks.size();++t)if(!graph.indegree[t])ready.push(t);
+  std::vector<std::vector<unsigned>> observed(map.workers.size(),std::vector<unsigned>(map.workers.size()));
+  out.waits_before_fifo_elision=out.lowered_waits;out.lowered_waits=0;out.fifo_wait_elision=true;
+  while(!ready.empty()) {
+    auto t=ready.front();ready.pop();std::vector<AscendFrontierWait> kept;
+    for(auto wait:out.waits[t]) {
+      const bool redundant=std::all_of(out.participants[t].begin(),out.participants[t].end(),[&](auto worker) {
+        return worker==wait.producer_worker || observed[worker][wait.producer_worker]>=wait.required_prefix;
+      });
+      if(!redundant) {
+        kept.push_back(wait);++out.lowered_waits;
+        for(auto worker:out.participants[t])observed[worker][wait.producer_worker]=
+            std::max(observed[worker][wait.producer_worker],wait.required_prefix);
+      }
+    }
+    out.waits[t]=std::move(kept);
+    for(auto s:graph.successors[t])if(!--graph.indegree[s])ready.push(s);
+  }
+  AuditAscendSchedule(tasks,map,out);return out;
 }
 AscendSchedule DiagnosticAscendSchedule(std::vector<AscendScheduledTask> const& tasks,
     ascend::WorkerMap const& map) {
@@ -298,6 +348,8 @@ std::string AscendSchedule::ToJson() const {
     {"schedule",std::move(refs)},{"start_ns",std::move(start)},{"finish_ns",std::move(finish)},
     {"frontier_waits",std::move(all_waits)},{"epoch_stride",double(epoch_stride)},
     {"semantic_edges",double(semantic_edges)},{"fifo_edges",double(fifo_edges)},
+    {"wait_lowering",fifo_wait_elision?"experimental_fifo_observed_frontier":"per_task_frontier"},
+    {"waits_before_fifo_elision",double(fifo_wait_elision?waits_before_fifo_elision:lowered_waits)},
     {"lowered_waits",double(lowered_waits)},{"makespan_ns",makespan_ns},{"shared_gm_floor_ns",gm_floor_ns},
     {"wait_graph_acyclic",true},{"device_execution_verified",false}}).Dump();
 }

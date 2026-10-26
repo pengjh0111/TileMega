@@ -34,6 +34,8 @@ struct AscendSchedule {
   std::vector<std::vector<AscendFrontierWait>> waits;
   std::vector<double> start_ns, finish_ns;
   std::uint64_t semantic_edges = 0, fifo_edges = 0, lowered_waits = 0;
+  std::uint64_t waits_before_fifo_elision = 0;
+  bool fifo_wait_elision = false;
   double makespan_ns = 0, gm_floor_ns = 0;
   std::uint32_t epoch_stride = 0;
   std::string ToJson() const;
@@ -53,6 +55,10 @@ AscendSchedule DiagnosticAscendSchedule(std::vector<AscendScheduledTask> const&,
     ascend::WorkerMap const&);
 void AuditAscendSchedule(std::vector<AscendScheduledTask> const&,
     ascend::WorkerMap const&, AscendSchedule const&);
+// Explicit experimental lowering: reuse only a wait previously observed by
+// every participant in its own FIFO. No transitive data/event visibility assumed.
+AscendSchedule ElideAscendFifoWaits(std::vector<AscendScheduledTask> const&,
+    ascend::WorkerMap const&, AscendSchedule);
 std::uint32_t AscendProgressValue(std::uint64_t request_forward_epoch,
                                  std::uint32_t prefix, std::uint32_t stride);
 std::vector<AscendScheduledTask> AscendTasksFromSymbolic(SymbolicProblem const&,
