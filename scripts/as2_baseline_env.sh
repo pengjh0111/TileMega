@@ -32,7 +32,11 @@ if [[ "$_as2_baseline" == sglang-npu ]]; then
         export ASCEND_CUSTOM_OPP_PATH="$_as2_custom:$_as2_transformer"
         export LD_LIBRARY_PATH="$_as2_custom/op_api/lib:$_as2_transformer/op_api/lib:$LD_LIBRARY_PATH"
     fi
+    _as2_atb="$AS2_WORK/third_party/nnal-9.1.0-private/atb/set_env.sh"
+    if [[ -f "$_as2_atb" ]]; then
+        source "$_as2_atb" --cxx_abi=1
+    fi
 fi
 mkdir -p "$TORCHAIR_CACHE_HOME" "$VLLM_CACHE_ROOT" "$VLLM_CONFIG_ROOT" \
     "$SGLANG_CACHE_DIR" "$SGLANG_TORCH_PROFILER_DIR" "$UV_CACHE_DIR" "$CARGO_HOME"
-unset _as2_baseline _as2_baseline_scripts _as2_python_headers _as2_vendor _as2_custom _as2_transformer
+unset _as2_baseline _as2_baseline_scripts _as2_python_headers _as2_vendor _as2_custom _as2_transformer _as2_atb

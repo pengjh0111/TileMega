@@ -39,8 +39,22 @@ def main():
         import custom_ops
         import sgl_kernel_npu
         from sglang.srt.entrypoints.engine import Engine
+        # This is the exact KV-write API that failed before private NNAL setup.
+        torch.ops.load_library(str(Path(torch_npu.__file__).parent/'lib/libop_plugin_atb.so'))
+        generator=torch.Generator().manual_seed(20261016)
+        key=torch.randn((2,8,128),generator=generator).bfloat16().npu()
+        value=torch.randn((2,8,128),generator=generator).bfloat16().npu()
+        key_cache=torch.zeros((2,128,8,128),dtype=torch.bfloat16,device='npu:0')
+        value_cache=torch.zeros_like(key_cache)
+        slots=torch.tensor([0,129],dtype=torch.int32,device='npu:0')
+        torch_npu._npu_reshape_and_cache(key=key,value=value,key_cache=key_cache,
+                                      value_cache=value_cache,slot_indices=slots)
+        torch.npu.synchronize()
+        if not torch.equal(key_cache.view(256,8,128)[slots.long()].cpu(),key.cpu()) or not torch.equal(value_cache.view(256,8,128)[slots.long()].cpu(),value.cpu()):
+            raise ValueError('ATB KV-write payload mismatch')
         identity=dict(version=metadata.version('sglang'),module=sglang.__file__,engine=Engine.__module__,
-                      custom_ops=custom_ops.__file__,kernel=sgl_kernel_npu.__file__)
+                      custom_ops=custom_ops.__file__,kernel=sgl_kernel_npu.__file__,
+                      atb_home=os.environ.get('ATB_HOME_PATH'),atb_cache_probe='two rows at slots0/129 bitwise')
     torch.npu.synchronize()
     out.mkdir(exist_ok=False)
     receipt=dict(schema='tilemega.as2.engine_import.v1',status='pass',engine=args.engine,
