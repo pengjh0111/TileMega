@@ -388,3 +388,19 @@ no stage measured/bench>1.2. ExactPK2 selectedgeometry avoidsoldmanualPK0
 missingbench. Fourteenledgerrows append114→128 witholdprefix proof.
 New8BB1 normal512 fouractualqueries are222/frame0/resident1 each;
 normalresource4plusselectedLlama1B DIAGquery165/frame0 appended379→384.
+
+Verified thirdcurrent selection: Qwen0.6BB16 original0/512 TPOT3.580818852ms,
+TTFT60.759784188ms,E2E3.723937470s,4399.644229tokens/s,MBU0.405194
+(inferred),−21.076615%vsMX4,/vLLM0.89068449,/SGLang0.82385856,
+pred/meas1.01695547. All4 C1/C2512+8actualfreshWD0PASS; sourcecc29/A7193/25.
+NewQwenB1 selectedledger16fresh completes: netus/layer6.723/23.151/4.704/
+9.823/6.566 versusmatcheduntracedbench10.100/22.070/8.360/13.770/10.030.
+Head/tokenhistorynet190.933usvsbench195.300;mask63floor331.180us/step
+retainscommonprefetch/barrier/control/timer. Nonadditive,no purebodyclaim;
+attentionratio1.0490,beyondappendixinference,butnofabricatedsite-time split.
+SelectedQwenledger14rows append128→142; priorbytes preserved.
+Normalnew8BB16 fouractualresourcequeries223/223/241/223 frame0/resident1
+and16controlledcapqueries appended388→408. All16capAPI0/resident0/noLaunch;
+8BB16cap0/1/3frame0,cap2frame104;staticspilldisappearancedoesnotpermit
+execution. CurrentMOEreadonlyaudit confirms16diverseprompts,48historical
+baselineoutputfiles andunknownactualroutingdistribution; no baseline rerun.

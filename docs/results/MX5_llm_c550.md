@@ -1,6 +1,6 @@
 # MX-5 LLM C550 results (in progress)
 
-Verified checkpoint: current cc29/A719 source has completed 2/25 dense selections (Llama1B B1 and Qwen0.6B B1); three selections for prior 3ef/Af8 remain historical. MoE remains 0/5; G-LLM and the default switch remain open.
+Verified checkpoint: current cc29/A719 source has completed 3/25 dense selections (Llama1B B1 and Qwen0.6B B1/B16); three selections for prior 3ef/Af8 remain historical. MoE remains 0/5; G-LLM and the default switch remain open.
 
 Authority: `/root/Prompt/TileMega_MX5_prompt.md`, SHA256 `75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73`. Prior source/producer: `3ef688aa4d0bd7be8135e17e9db3274078dce760` / `e6130715bb4819438927375b216cb4dd5bebae3e669cad25e8303ef01783a267`. Current: `cc29d78304d297346d657c0fbca0a86e76b1f60f` / `24fa50ed913bce7791f575447a97e06c18a9bfce91c337c0bcc9191179c7c3c7`.
 
@@ -13,81 +13,12 @@ All measurements use BF16 greedy, ISL/OSL 64/1024, warmup 1 plus timed 2 per fre
 | Llama-3.1-8B B1 | prior 3ef/Af8 | 10.560823 | 41.125858 | 10.844848 | 94.423 | 0.9215 | -1.444% | 0.9078 | 0.9523 |
 | Llama-3.2-1B B1 | cc29/A719 | 2.157002 | 8.957554 | 2.215571 | 462.183 | 0.7449 | -2.445% | 0.7232 | 0.8537 |
 | Qwen3-0.6B B1 | cc29/A719 | 1.954394 | 9.284968 | 2.008630 | 509.800 | 0.4153 | -1.470% | 0.6357 | 0.7951 |
+| Qwen3-0.6B B16 | cc29/A719 | 3.580819 | 60.759784 | 3.723937 | 4399.644 | 0.4052 | -21.077% | 0.8907 | 0.8239 |
 
 *MBU is inferred from `(streamed linear/head BF16 weights + KV at average L=576)/(1.55 TB/s × TPOT)`. Full embedding-matrix reads, activation traffic, writes and cache effects are excluded. This is a byte lower-bound model, not a measured DRAM counter. Aggregate MBU, throughput and pred/meas are calculated from aggregate times; raw process rows are retained.
 
-## Qwen B1 actual original top four
-
-The native solver ranks and candidate IDs are retained. Every candidate passed actual 512-step C-1 and C-2 before measurement. The process order is 0/1/2/3, then 1/2/3/0 on card 7.
-
-| Original ID | Predicted ms | Process 1 ms | Process 2 ms | Median ms | pred/meas | Selected |
-|---:|---:|---:|---:|---:|---:|---|
-| 0 | 1.990283 | 1.946521 | 1.941521 | 1.944021 | 1.023797 | yes |
-| 1 | 1.990353 | 1.946268 | 1.951853 | 1.949060 | 1.021186 | no |
-| 2 | 1.990463 | 1.947532 | 1.952561 | 1.950046 | 1.020726 | no |
-| 3 | 1.990573 | 1.946135 | 1.949988 | 1.948062 | 1.021822 | no |
-
-Candidate 0 is the fastest median and remains the anchor under the prescribed 1% selection rule. Its improvement over MX-4 is distinguishable using max(1%, round spread); all four pred/meas values are within [0.9, 1.1].
-
-## Executed configuration
-
-| Body | TN | WN | D | Part | Pw |
-|---|---:|---:|---:|---|---:|
-| qkv | 32 | 2 | 2 | kTileRange | 2 |
-| o | 16 | 1 | 2 | kTileRange | 2 |
-| gate_up | 64 | 1 | 1 | kTileRange | 1 |
-| down | 16 | 1 | 2 | kTileRange | 2 |
-| head | 128 | 8 | 1 | kTileRange | 2 |
-
-Attention: D128/Q2/hkv8, b_min=1, prefetch kind 0. Actual thread shape is 512, with eight compute waves and thread-0 synchronization. There are 141 stages/barriers per step (5×28+1). DT branches remain W576/R role-fence+atomic/P-B/X-A/block-fragments; this cell uses the documented per-plan thread exception.
-
-All four actual canonical 576 histories preserve their original ranks, positive P0 references and shared retry counts. Canonical normal builds remain at MT168 with nonzero frames; exact-source/pin cap227 diagnostics retain frames 68/68/100/68 and actual zero residency. The independent normal 512 originals are MT239/239/241/239 with frame0 and resident1. Four substantive ordered D7 reviews and the complete ResolvedTop4 v2 audit passed. These observations do not prove a physical register lower bound or global 576 impossibility.
-
-Selected WD0 resources: MT239, ST108, frame0 B, static shared 0 B, device text 161304 B, allocated MIR records 20437. Per-body code attribution remains unknown because the target ELF lacks the required mapping.
-
-The stored pin is byte-for-byte the executed physical configuration, including its original diagnostic/manual metadata. Selection is established by the qualified native origin, D7/ResolvedTop4 proofs and eight actual guarded measurements. This is not global default promotion.
-
-## Evidence and remaining work
-
-- Raw selection and immutable process artifacts: `runs/mx5/qwenB1_actual_resolved_top4_execution_v1/`.
-- Source-bound D7 reports and protocol: `runs/mx5/qwenB1_actual_d7_review_v1/`.
-- Reviewable selected binaries: `runs/mx5/tm/qwen3_0_6b/B1/`; pin: `configs/pins/mx5/qwen3_0_6b_B1.json`.
-- All 50 dense prefill libraries now pass complete-source/watchdog checks and final L1 API0/positive-residency queries. Historical ten libraries were preserved and excluded after strict source rejection; fresh twins replace them.
-- The selected-pin non-trace stage ledger is still required. Earlier five manual-control ledgers remain separately labelled and are not substituted for it.
-- Prompt §9C MX-4-final P-PAIR has no completed proof: the old producer SHA is not archived, and the original source-root snapshot fails current strict validation. Existing ten MX-4 measurement rounds are not a new P-PAIR. Evidence: `runs/mx5/mx4_development_pair_readiness_v1_61/`.
-- Remaining 22 prior-body dense selections, five MoE selections/native implementation/routing, full LLM acceptance and DNN remain unfinished. No external baseline or old result row was changed.
-
-## Qwen B16 actual original top four
-
-Verified: all four original candidates passed 512-step C-1/C-2 and two fresh WD0 timing processes on card 6. Candidate 0 wins under the 1% anchor rule. Its /fastest baseline ratio is 0.887308 (vLLM), a 21.3758% improvement over MX-4.
-
-| Original ID | Predicted ms | Process 1 ms | Process 2 ms | Median ms | pred/meas | Selected |
-|---:|---:|---:|---:|---:|---:|---|
-| 0 | 3.640890 | 3.566934 | 3.567552 | 3.567243 | 1.020646 | yes |
-| 1 | 3.643960 | 3.573029 | 3.574071 | 3.573550 | 1.019703 | no |
-| 2 | 3.644500 | 3.568471 | 3.568705 | 3.568588 | 1.021272 | no |
-| 3 | 3.644690 | 3.578439 | 3.577348 | 3.577893 | 1.018669 | no |
-
-Configuration: qkv TN64/WN1/D1/Pw1; o TN16/WN1/D1/Pw1; gate_up TN64/WN1/D1/Pw1; down TN16/WN1/D1/Pw1; head TN128/WN8/D1/Pw2. All use TileRange. Attention b_min4/PK0; threads512; 141 stages per step.
-
-Verified: canonical576 shared reductions were 1/0/0/2. All four actual final512 originals have frame0 and API0/resident1. Exact-source cap227 diagnostic frames remain 56/56/108/64 with API0/resident0; all four ordered D7 reviews and ResolvedTop4 audit passed. No controlled diagnostic is execution eligible.
-
-Evidence: `runs/mx5/qwenB16_actual_resolved_top4_execution_v1/`, `runs/mx5/qwenB16_actual_d7_review_v1/`, published `runs/mx5/tm/qwen3_0_6b/B16/` and exact executed pin `configs/pins/mx5/qwen3_0_6b_B16.json`. Manual metadata remains unchanged, with external native-selection proof; default remains off.
-
-## Llama8B B1 prior-body original top four
-
-Verified: all four 3ef/Af8 originals pass C-1/C-2 at 512 steps; eight fresh WD0 measurements on card 6 complete the interleaved selection. Candidate 0 is retained by the 1% anchor rule, though candidate 1 has the smallest median. No new cc29 measurement or default promotion is claimed.
-
-| Original ID | Predicted ms | Process 1 ms | Process 2 ms | Median ms | pred/meas | Selected |
-|---:|---:|---:|---:|---:|---:|---|
-| 0 | 10.389647 | 10.558385 | 10.563261 | 10.560823 | 0.983791 | yes |
-| 1 | 10.390287 | 10.559950 | 10.556142 | 10.558046 | 0.984111 | no |
-| 2 | 10.390287 | 10.563979 | 10.563167 | 10.563573 | 0.983596 | no |
-| 3 | 10.391807 | 10.559733 | 10.557912 | 10.558822 | 0.984182 | no |
-
-Actual configuration: qkv TN64/WN1/D1/Pw1/kTileRange, o TN64/WN1/D1/Pw1/kTileRange, gate_up TN32/WN8/D4/Pw8/kTileRange, down TN64/WN1/D3/Pw3/kTileRange, head TN64/WN4/D1/Pw4/kTileRange; attention b_min1/PK0, threads512, stages161.
-
-Evidence: `runs/mx5/llama8bB1_actual_resolved_top4_execution_v1/`, ordered D7 in `runs/mx5/llama8bB1_actual_d7_review_v1/`, exact executed pin `configs/pins/mx5/llama3_1_8b_B1.json`. New A719 costs and25 scoped512 origins are complete; their final acceptance remains pending.
+Prior-source candidate tables and D7 details: [historical selections](MX5_llm_prior_body_c550.md).
+Current-source selections below do not relabel those measurements.
 
 ## cc29 five development controls
 
@@ -169,3 +100,44 @@ cap227 diagnostic frame68/resident0 stays ineligible. Allfour current-source
 D7/ResolvedTop4 audits and root independent replay pass their binding scope.
 Raw:`blockinit_qwenB1_top4_execution_v1/actual/`; exact pin
 `configs/pins/mx5/blockinit_cc29/qwen3_0_6b_B1.json`.
+
+QwenB1 actual selected-pin nonadditive DIAG interventions (us/nominal layer),
+two fresh processes per mask, reverse order in round2, no trace:
+
+| Stage | Selected DIAG net | Matching uninstrumented bench |
+|---|---:|---:|
+| qkv | 6.723 | 10.100 |
+| attention | 23.151 | 22.070 |
+| o | 4.704 | 8.360 |
+| gate_up | 9.823 | 13.770 |
+| down | 6.566 | 10.030 |
+
+Head/token-history-confounded net190.932us vsbench195.300us;
+mask63 floor331.180us/step retains prefetch/barriers/control/timer.
+Attention net/bench=1.049009; its bench itself exceeds inferred2.5–3.5us.
+No additive sum or unmeasured per-site split is claimed.
+
+## Qwen0.6B B16 current-source original top four
+
+Verified: all4 C-1/C-2 pass512 steps; eight fresh WD0 processes complete.
+Candidate0 is selected by1% rule. Normal512 originals/WD1 twins are allframe0
+and API0/resident1. Current-source3/25; default target remains MX4.
+
+| ID | Predicted ms | Process1 ms | Process2 ms | Median ms | pred/meas | Selected |
+|---:|---:|---:|---:|---:|---:|---|
+| 0 | 3.641533 | 3.582031 | 3.579607 | 3.580819 | 1.016955 | yes |
+| 1 | 3.644603 | 3.581527 | 3.580259 | 3.580893 | 1.017792 | no |
+| 2 | 3.645143 | 3.582682 | 3.580811 | 3.581747 | 1.017700 | no |
+| 3 | 3.645333 | 3.586789 | 3.584752 | 3.585770 | 1.016611 | no |
+
+Actual TN/WN/D/Pw: qkv64/1/1/1,o16/1/1/1,gate_up64/1/1/1,
+down16/1/1/1,head128/8/1/2;allTileRange. Attention b_min2/PK0,threads512,
+141stages/step. Actualcanonical576 reductions1/0/0/2,used5120; no reset.
+Allfour current-source D7/ResolvedTop4 audits and root independent replay
+validate their binding scope; cap227 diagnostics stay ineligible.
+Raw:`blockinit_qwenB16_top4_execution_v1/actual/`; exact pin
+`configs/pins/mx5/blockinit_cc29/qwen3_0_6b_B16.json`.
+
+Unfinished: remaining22 dense cells,MoE5/LLM30 acceptance,MX4-final P-PAIR
+(exact archived producer unavailable),current I1/per-body attribution and the
+recorded crosssegment overlap claim. Historical timings do not fill these gates.
