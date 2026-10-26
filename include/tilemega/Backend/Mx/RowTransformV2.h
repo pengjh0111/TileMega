@@ -29,16 +29,23 @@ __device__ __forceinline__ void MxRowTransformV2(uint4 (&x)[D / 32], uint4 const
     float const sum = (exchange[row] + exchange[32 + row]) + (exchange[16 + row] + exchange[48 + row]);
     inverse = maca::Rsqrt(sum / float(D) + epsilon);
   }
+  uint4 prepared_weights[chunks];
+#pragma unroll
+  for (int dc = 0; dc < chunks; ++dc) {
+    prepared_weights[dc] = weights[dc];
+    if constexpr (QkNorm) {
+      auto& packed = prepared_weights[dc];
+      asm volatile("" : "+r"(packed.x), "+r"(packed.y), "+r"(packed.z), "+r"(packed.w) : "r"(inverse));
+    }
+  }
 #pragma unroll
   for (int dc = 0; dc < chunks; ++dc) {
     int const partner = dc ^ (chunks / 2);
-    uint4 packed_w = weights[dc], packed_pw = weights[partner];
+    uint4 packed_w = prepared_weights[dc], packed_pw = prepared_weights[partner];
     uint4 packed_c = cosine[dc], packed_s = sine[dc];
     if constexpr (QkNorm) {
       // Keep BF16 operands packed until the normalization inverse is ready.
-      asm volatile("" : "+r"(packed_w.x), "+r"(packed_w.y), "+r"(packed_w.z), "+r"(packed_w.w),
-                        "+r"(packed_pw.x), "+r"(packed_pw.y), "+r"(packed_pw.z), "+r"(packed_pw.w),
-                        "+r"(packed_c.x), "+r"(packed_c.y), "+r"(packed_c.z), "+r"(packed_c.w),
+      asm volatile("" : "+r"(packed_c.x), "+r"(packed_c.y), "+r"(packed_c.z), "+r"(packed_c.w),
                         "+r"(packed_s.x), "+r"(packed_s.y), "+r"(packed_s.z), "+r"(packed_s.w)
                       : "r"(inverse));
     }
