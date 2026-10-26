@@ -1003,3 +1003,21 @@ step medians1.982265/1.984230ms are not the accepted normal1.958247ms.
 Raw:`runs/mx5/checkpoint_diag_attribution_v1/`;other4 ledgers remain in progress.
 Append50 new diagnostic probe rows (18timing+32nonexecuting attrs), preserving
 all earlier bytes; no diagnostics enter final cost tables or model candidates.
+
+## Current Gamma Qwen ledger continuation (verified; diagnostic only)
+
+QwenB1/B16 each completed8compact masks×2fresh oncard6. Appended28 ledger
+rows preserve all previous bytes; raw/proof in
+`runs/mx5/checkpoint_gamma_completed_ledger_v2/`. QwenB16 netus/layer:
+QKV9.447,A65.581,O8.996,GU12.868,down12.850;head196.955us remains
+history-confounded. Mask63 floor311.888us retains prefetch/barriers/control/timer.
+Matching current-source A five-grid medians,us:36.680/57.890/64.780/70.260/86.460;
+mean overL65..1087=65.560728us,diag/bench1.000312. QwenB1 ratio1.048928.
+These are nonadditive attribution controls,not absolute body latency or final
+cost qualification. Missing same-coordinate G/H comparisons remain blank.
+Both attention controls exceed AppendixA inference; no new per-site timing
+fraction or integration-only bottleneck is invented. Other3 ledgers continue.
+G/H576 input preflights pass114/28batches. Root queues start each only after
+its own card's prior512 campaign completes successfully; max2cards unchanged.
+At15:56:47Shanghai,three-log budget union852closed/2active=26.929817cardhours
+including active elapsed/waits/cooldowns; checkpoint_next_576_cost_queue_v1.

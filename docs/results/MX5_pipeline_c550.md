@@ -1,7 +1,7 @@
 # MX-5 C550 pipeline and specification audit
 
 Source audit updated 2026-10-26 through `12b5ab839`; measured checkpoint includes
-GU+Consume controls and the accepted fixed8 Qwen comparison. Earlier audits remain in git history. **Verified** means inspected
+all5 Gamma development controls and two completed diagnostic Qwen ledgers. Earlier audits remain in git history. **Verified** means inspected
 source or executed evidence; **inferred** means interpretation. Authority is
 `/root/Prompt/TileMega_MX5_prompt.md`, SHA256
 `75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73`.
@@ -121,3 +121,10 @@ Verified12b5ab839: unified50-scope catalog adapter/global unique GH diagnostic
 fit implemented; normal C++build/unit and50 rootPython checks pass. Default
 target routing/proof production still await real complete data. No final table
 or candidate selection is claimed.
+
+Verified continuation: QwenB1/B16 current A diag/bench ratios1.04893/1.00031;
+B16 A65.581us exceeds AppendixA26–28us. It is a manual diagnostic control,
+not final selection. Current full-domain qualification and other3 ledgers remain
+open. H512 costs run on7; ledger then remainingG512 on6; each card has its
+admitted576 cost campaign queued behind successful completion. At15:56:47
+Shanghai the3-log wrapper-wall upper bound is26.929817/60card-hours.
