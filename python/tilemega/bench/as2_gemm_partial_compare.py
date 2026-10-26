@@ -29,7 +29,7 @@ def main():
         raise ValueError('Require the observed, bounded Stream-K diagnostic')
     parts = 7 if n == 1024 else 2 if n == 3072 else 3
     if case.get('partial_count')==7:
-        if (m,n,k)!=(16,2048,8192) or case.get('source_shape_mnk')!=[1024,2048,8192]:
+        if (m,n)!=(16,2048) or k not in (6144,8192) or case.get('source_shape_mnk')!=[1024,2048,k]:
             raise ValueError('Seven-part residual probe requires the observed B16 prefill slice')
         parts=7
     for name, sha in case['files'].items():
