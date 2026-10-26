@@ -71,8 +71,20 @@ def _modern_p0(reference,key,kind,source,table):
     raw_ref=reference['probe']['raw_query'];path=check_file(raw_ref);line=raw_ref['line'];lines=path.read_text().splitlines()
     _need(type(line) is int and 1<=line<=len(lines),'P0 needs exact raw JSONL fileSHA+line')
     raw=json.loads(lines[line-1])
+    encoding=raw_ref.get('encoding','flat_query_v1');observed=raw
+    if encoding=='calibration_inspect_inline_reference_v1':
+        # inspect preserves the original inventory key outside and the actual
+        # queried PF0 attributes/reference inside; never fabricate a flat row.
+        _need(kind=='attention','inline inspect encoding is bounded to attention P0')
+        original=copy.deepcopy(reference);original['probe'].pop('raw_query')
+        _need(_same(raw.get('r_next_reference'),original),'inline actual P0 reference differs')
+        outer=dict(key);outer.pop('prefetch_kind')
+        _need(raw.get('kind')==kind and (_same(raw.get('key'),outer) or _same(raw.get('key'),key)),'inline P0 inventory coordinates differ')
+        _need(type(raw.get('fits')) is bool and raw['fits']==reference['fits'],'inline P0 fits differs')
+        observed=raw['r_next_reference']
+    else:_need(encoding=='flat_query_v1','unsupported actual P0 raw encoding')
     for name in ('kind','key','provenance','resources','fits'):
-        _need(_same(raw.get(name),reference[name]),'raw P0 differs: '+name)
+        _need(_same(observed.get(name),reference[name]),'raw P0 differs: '+name)
     _need(raw.get('query_only') is True and type(raw.get('iterations')) is int and raw['iterations']==0
           and type(raw.get('query_status')) is int and raw['query_status']==0,'P0 raw query must be successful zero-execution attributes')
     _need(not any(x in raw for x in ('median_ns','p90_ns','rounds','spread','processes')),'P0 raw query contains latency')
