@@ -261,3 +261,29 @@ scripts/raw/partialoutputs anderrors retained,zero qualifiedrows, nopartial
 reuse. Newkind-specific schemaadapter will beCPU-reviewed in a newdirectory;
 no thirdGPUattempt while obsolete old-A-family widths are not required by
 newsource actualledger. No256MiB/3fresh/guard criterion is relaxed.
+
+Verified newcc29 development controls: B16 same-last-pin2 WD0 TPOT rounds
+13.213834/13.223578ms,median13.218706ms,−9.094788%vsMX4,manual/notselection.
+Llama1BB1 sameoriginal576pin WD0/1 bothMT164/frame0;actualAPI0/resident1
+queries0launch;C1/C2512PASS,maxgap0.09375. TPOT2.152834/2.153921ms,
+median2.153378ms,−2.609387%vsMX4,manual/notselection. Ownqueuecontrollers
+resumed afterboth workflows;raw/failures/oldwidthbudgets preserved.
+New512 A family5freshrounds eachpasses full1008cases×2 plus2legacybitwise
+helpers, no skips. Complete576family remains resource-blocked,not a pass.
+
+Verified literal steadyloop audit:6 complete Sᵀ/PV block natural loops each
+have34CFGblocks,16+16staticMMA sites,zeroARRIVE4160/BARRIER. This gatepasses.
+Unfinished prompt4.7.3 claim: acrosssegment K/V cannot remain in-flight through
+segment merge with selectedP-B CTA synchronization. DecodeAttentionV2.h:318
+calls StageSyncV2.cuh:18(__syncthreads);programMIR10450/bench66260 has4160
+beforemerge. ConcreteB16/hkv8/L512/bmin4 CTA4 range[78,98):head4blocks14..15,
+head5blocks0..15,head6blocks0..1;head5wave0/1prefetch head6 then fullwait.
+No crosssegment-overlap success claim, timing-cause estimate, synchronization
+substitution or fullpipeline compliance claim. This optimization itemstops;
+closest prescribed P-B source remains the subject of honest calibration.
+Rawaudit: blockinit_attention_outer_loop_wait_audit_v1_61/DELIVERY.json
+SHAce60e84aef987e4a611c0e13eceffd425d09a7044884474a3efd7e43fa5a4ad5.
+
+At23:47:43Shanghai physical-card interval union upper41.536622/60h;
+oldwrapper sum53.703244h preserved,peak2cards. Rawcheckpoint:
+runs/mx5/checkpoint_blockinit_units_and_manuals_v1/physical_union/.
