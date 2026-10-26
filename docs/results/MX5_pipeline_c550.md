@@ -657,3 +657,32 @@ frame0. Actualwholeprivate/generic/calls0,14rings with0inner4160/generic;
 sourcearchive differs by exactlyone A-header line. This is observed codegen,
 not proof of every spilledslot origin. New5fresh validation is ongoing; no
 model/native/source/TPOT acceptance transfers from either parent.
+
+Verified fa1 fresh producer e3d02a09/source154056 completes160normal steps,
+C++unit/version/fingerprint,615-source checks. New512 WD0/1 actual241/245MT,
+frame0/API0/resident1. New576floor168MT/frame400 andcap227/frame80/resident0
+are retained rejections. Fa1 full512 C1/C2 pass(maxgap0.03125,zero C2mismatch).
+Repeated-body validation is5actualfresh processes x6shapes x>=2000iterations
+x104CTAs with unchanged FP32/context/KVbits/determinism/barrier/LA assertions.
+Oldfa1-body-source-source qualifiers do not transfer from another epoch.
+Verified PPAIRold0a/newfa1/newfa1/old0a oncard7:old2.315077317/2.313933946ms
+(median2.314505632),new2.307647396/2.307366627(median2.307507011),
+−0.302381%,indistinguishable;newstill+10.117653%vsfixedMX4. No default or
+finalsolver promotion. Sixsource-qualified manual timing rows remain separate.
+
+Verified installedSDK mc_occupancy.h register model (CPU-only): four
+subpartitions,256-register granularity perwave; register launch check rounds
+9waves to12. Using historical actualC5508.0/warp64/131072-reg properties,
+26CPU observations accept576MT168,reject169/227,andaccept512MT255. This
+explains the nominal131072/576=227 discrepancy within thatSDK model and
+isconsistent with actualdevicequeries. Runtime imports MCR occupancy; use of
+this exactheader helper is not proved, no physical body-register lowerbound
+or newGPU measurement/policy replacement is claimed. Raw:sdk_register_occupancy_model_v1.
+
+A separate raw-RoPE-pair CPU candidate (sourceRow8f81) preserves the original
+SquareEight/tree/Rsqrt and everyRotateEight rawinput/weight/cos/sin/sign/cast.
+T512 normMT247/249→229/231(frame0);non-norm unchanged230/232. T576still
+rejectsall8kernels; diagnostic artifacts are not executed. Root ordinary unit
+builds then pass5fresh processes each15 exactMX4-RopeEpilogue bitcases+56
+attentionP0 cases. Exacttestedsource is2678aa864; fresh full producer and new
+model controls are pending, no numerical/E2E approval transfers fromfa1.
