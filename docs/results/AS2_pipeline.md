@@ -227,7 +227,19 @@ NPU C-2/C-3/TPOT are **not_run**: own read-only management queries blocked in
 kernel wait; one bounded retry exceeded5s. Only these owned queries were
 signalled, no device reset or other-process operation. Both queries later exited.
 CPU preparation can source `scripts/as2_cpu_env.sh` in its own subshell to
-disable verified PyTorch backend autoload. This does not remove the C++ core's
-existing CANN library linkage (`cmake/AscendAS1.cmake`); its effect on shutdown
-latency remains inferred. Seven long numerical cells and zero formal performance
-cells are unchanged; the new wait mode is not admitted or default-enabled.
+disable verified PyTorch backend autoload. Native CPU tools now link no CANN
+DSOs: `TargetSpec::Probe` moved unchanged into `TargetProbe.cpp` and explicit
+`TileMega::ascend_target_probe`. Probe compilation/symbol identity pass; its
+runtime execution is not_run. CPU contracts and same-source reemit pass, with
+ELF dependencies retained in `search/pure_host_linkage_v1.json`. Seven long
+numerical cells and zero formal performance cells are unchanged; the new wait
+mode is not admitted or default-enabled.
+
+
+The no-lock runner now bounds management-query termination/reaping separately
+(15s+1s), tracks only its own child identity and avoids repeated spawning while
+that child remains pending in-process. Six CPU safety tests pass, including PID
+identity mismatch and an unrelated sentinel. One actual query returns in16.016s
+with pending-kernel-wait evidence; no compute kernel was launched. This fixes
+the wrapper's unbounded wait, not the management API. Its recorded own PID may
+remain in kernel wait; no more device queries/runs until that state changes.

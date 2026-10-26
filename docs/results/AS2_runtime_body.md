@@ -325,3 +325,12 @@ conceptually for each forward, with unchanged runtime epoch encoding. Device
 C-2/C-3 and end-to-end timing remain blocked by unresponsive management queries;
 no new synchronization pass or default change is claimed. See the evidence
 index `runs/as2/search/fifo_wait_validation_v1.json`.
+
+
+Host isolation follow-up: native semantic tools link only CPU dependencies;
+`TargetSpec::Probe` is unchanged in explicit `TileMega::ascend_target_probe`.
+Its archive compiles; no hardware Probe execution is claimed. The no-lock
+runner separately bounds management-query communication15s and reaping1s,
+records its owned PID/start identity and suppresses repeated own queries while
+pending. Six CPU safety tests pass; a real unresponsive query returns16.016s.
+This does not force an uninterruptible query to exit or repair device health.
