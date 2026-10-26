@@ -485,3 +485,16 @@ Verified boundaries for the later DNN implementation:
 
 Native DNN is still unimplemented. This preparatory audit does not advance
 past dense/MoE/LLM acceptance or authorize a legacy execution substitute.
+
+Verified current selected QwenB1 normal source attribution now uses an exact
+executable/allocated-section/resource/normalized-MIR-equal line-info twin.
+All23 source buckets reconcile to kernel161560PC bytes and20469 allocated
+MIR records. Six body unions total146560B/15851MIR; control8448/1018,
+entry prefetch792/85, edges4040/404, operand setup1520/212, shared184/0,
+unattributed16/2899. Stub32+alignment224 adds256B to device.text161816B.
+Explicit body/context intersections are0; implicit semantic CSE sharing is not
+excluded. Decoded ISA counts/current I1/cache latency stay unknown.
+The normal build+validation wrapper's observed wall32.581196s is separately
+labelled, not cucc-only. Two metadata rows append467→469; old unknown rows
+are untouched. Raw:`selected_qwenB1_code_mapping_probe_v1_61/`.
+Other selected plans require independent equality/mapping; no count transfer.

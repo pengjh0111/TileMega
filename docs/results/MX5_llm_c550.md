@@ -140,7 +140,7 @@ Raw:`blockinit_qwenB16_top4_execution_v1/actual/`; exact pin
 `configs/pins/mx5/blockinit_cc29/qwen3_0_6b_B16.json`.
 
 Unfinished: remaining21 dense cells,MoE5/LLM30 acceptance,MX4-final P-PAIR
-(exact archived producer unavailable),current I1/per-body attribution and the
+(exact archived producer unavailable),current I1/other-plan static attribution and the
 recorded crosssegment overlap claim. Historical timings do not fill these gates.
 
 ## Llama8B B1 current-source original top four
@@ -175,3 +175,19 @@ Head/token-history-confounded199.857us versus199.670us;mask63floor311.723us.
 Attention net/bench1.003826. Attention/o/down exceed appendix inferences by
 >30%,and their bench costs are also elevated; no unmeasured site-time split.
 Two rounds16fresh pass, no trace, no additive/body-latency interpretation.
+
+QwenB1 selected normal program source mapping (verified identical executable
+bytes, allocated sections, resources and final MIR versus one line-info twin):
+
+| Body | Normal PC byte union | Allocated MIR records |
+|---|---:|---:|
+| qkv | 10072 | 1128 |
+| attention | 82440 | 9554 |
+| o | 7464 | 806 |
+| gate_up | 14352 | 1481 |
+| down + DownLast union | 14656 | 1571 |
+| head | 17576 | 1311 |
+
+Other buckets reconcile to kernel161560B/20469MIR; text161816B includes
+stub32B/alignment224B. Shared184B; unattributed16B/2899MIR. This is source
+provenance, not semantic ownership, decoded ISA counts or current I1 latency.
