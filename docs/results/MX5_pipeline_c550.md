@@ -1,8 +1,8 @@
 # MX-5 C550 pipeline and specification audit
 
 Current checkpoint: `cc29d78304` bodies with frozen producer `24fa50ed`,
-six completed dense top-four selections. The five development cells beat MX4;
-Qwen0.6B B2 is10.6205% slower and requires D7. Four selected diagnostic ledgers
+seven completed dense top-four selections. The five development cells beat MX4;
+Qwen0.6B B2/B4 are10.6205/8.6402% slower and require D7. Four selected diagnostic ledgers
 are complete. MoE/DNN native remain unimplemented.
 The detailed audit below includes explicitly historical development evidence;
 current selections are in `MX5_llm_c550.md`. **Verified** means inspected
@@ -30,7 +30,7 @@ flowchart LR
 ```
 
 
-This diagram describes the native dense route. Six current-source cells have
+This diagram describes the native dense route. Seven current-source cells have
 completed exact top-four selection; full acceptance and the default edge remain open.
 
 | Step | Current implementation and limit |
