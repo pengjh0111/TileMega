@@ -153,3 +153,15 @@ originalIDs2/3MT241/239frame0stillneedquery/D7/C1/C2/top4E2E. Otherfour
 developmentcells16normalcanonicalbuildscontinue. Currentprefillremaining22
 has19PASS;old/newcontrolCU/resourcesmatch. Full576costs/true576solverorigin,
 final25selectionandallMoE/DNNworkremainopen. Budgetcheckpoint34.425559/60.
+
+Verified first actual selected cell: Qwen0.6B B1 original0,TPOT1.944021ms,
+−1.993% vs MX4,/SGLang0.790928,pred/meas1.023797. Allfour source-qualified
+originals passed C1/C2512 and8freshWD0process measurements;selected binaries
+and exactexecutedpin are reviewable,globaldefaultremainsMX4. The50prefill
+matrixnowuses18d74+32new3ef libraries,allstrictfullsnapshot/WDrole/finalL1
+API0positive queriesPASS. Historical10old-root snapshotfailureswere preserved
+andexcluded ratherthanwaived. Five trueMX4finalPPAIRproofs remainmissing:
+oldproducerarchive unavailable,currentrootfullsnapshotfails;storedMX4CSV
+comparisonsremainvalidandnoexternalbaselineis remeasured. FullLLM/DNN gates
+remainopen. GPU6/7currentlyserveactual B16/B1 top4 respectively;ownstage-cost
+queuecontrollers resumeautomatically aftereachactualrunner exits.
