@@ -2,7 +2,7 @@
 
 Only actual canonical PRIMARY576 receipts can prove zero prior reductions. A
 computed nonzero attention kind stays unchanged through the width-only chain.
-Even a budget-complete result requires a future qualified-history D7 consumer.
+A budget-complete result still needs substantive qualified-history D7 evidence.
 """
 from __future__ import annotations
 
@@ -282,6 +282,6 @@ def bind_final512(history_ref,lineage512,*,domain_tool,catalogs=()):
         old._strict_final(final);_need(final['mir']['private']==0,'final512 contains private MIR accesses')
         costs=old._costs(origin,index,artifacts,authorizations,catalogs)
         if costs['missing']:return _out(Action.NEEDS_COSTS,'exact source-qualified three-fresh-process changed-width costs are missing',**data,**costs)
-        return _out(Action.NEEDS_D7,'budget and final512 cost/resource bindings verified; qualified-history-v2 substantive D7 review and consumer are not implemented',**data,**costs,final512=final,
+        return _out(Action.NEEDS_D7,'budget and final512 cost/resource bindings verified; substantive qualified-history-v2 D7 evidence and existing consumer validation are required',**data,**costs,final512=final,
             ranking_claim='descendant of independent512 original top4; no576 prediction or repaired-global-ranking transfer')
     except Exception as error:return _out(Action.BLOCKED,str(error))
