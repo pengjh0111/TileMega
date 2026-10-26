@@ -172,7 +172,7 @@ target_include_directories(tilemega_core SYSTEM PRIVATE "$ENV{ASCEND_HOME_PATH}/
   "$ENV{ASCEND_HOME_PATH}/x86_64-linux/pkg_inc"
   "$ENV{ASCEND_HOME_PATH}/x86_64-linux/pkg_inc/runtime")
 target_link_directories(tilemega_core PUBLIC "$ENV{ASCEND_HOME_PATH}/lib64")
-target_link_libraries(tilemega_core PUBLIC MLIRIR MLIRSupport MLIRPass tilemega::isl_stack ascendcl runtime platform dl)
+target_link_libraries(tilemega_core PUBLIC MLIRIR MLIRSupport MLIRPass tilemega::isl_stack dl)
 target_compile_definitions(tilemega_core PRIVATE
   TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
   TILEMEGA_ASCEND_AS1=1 TILEMEGA_PHYSICAL_WAIT_DOMAIN=1
@@ -184,6 +184,13 @@ target_compile_definitions(tilemega_core PRIVATE
 if(NOT LLVM_ENABLE_RTTI)
   target_compile_options(tilemega_core PRIVATE -fno-rtti)
 endif()
+# Explicit hardware probing is opt-in; semantic tools must not load CANN DSOs.
+add_library(tilemega_ascend_target_probe STATIC EXCLUDE_FROM_ALL lib/Target/Ascend/TargetProbe.cpp)
+add_library(TileMega::ascend_target_probe ALIAS tilemega_ascend_target_probe)
+target_include_directories(tilemega_ascend_target_probe SYSTEM PRIVATE "$ENV{ASCEND_HOME_PATH}/include"
+  "$ENV{ASCEND_HOME_PATH}/x86_64-linux/pkg_inc" "$ENV{ASCEND_HOME_PATH}/x86_64-linux/pkg_inc/runtime")
+target_compile_definitions(tilemega_ascend_target_probe PRIVATE TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(tilemega_ascend_target_probe PUBLIC tilemega_core ascendcl runtime platform)
 add_executable(as1_track_contracts EXCLUDE_FROM_ALL test/unit/ascend_track_test.cpp)
 target_link_libraries(as1_track_contracts PRIVATE tilemega_core)
 target_compile_options(as1_track_contracts PRIVATE -UNDEBUG)
