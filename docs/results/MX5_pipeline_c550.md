@@ -433,3 +433,10 @@ TPOT10.574719905ms,TTFT41.277322453ms,−1.314088%vsMX4,pred/meas0.982385.
 All4 C1/C2512+8fresh WD0 pass; original1 gain<1% retains anchor0.
 Actual source-bound selected pin is preserved, including existing metadata;
 no prior3ef measurement relabel/default change. 8BB16 now starts its own run.
+
+Verified third selected ledger (Qwen0.6B B16):16fresh no-trace DIAG runs;
+netus/layer9.425/65.835/8.621/12.743/12.820 againstmatching13.550/65.584/
+11.810/16.410/15.570. Head/history199.857usvs199.670;mask63floor311.723us.
+Nonadditive;attention net/bench1.003826, no fabricated per-site microseconds.
+Ledger14rows append142→156; selectedDIAG239/frame0 realAPI0/resident1 row
+appended separately from production. All old bytes retained.

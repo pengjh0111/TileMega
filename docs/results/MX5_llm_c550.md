@@ -160,3 +160,18 @@ down64/1/3/3,head64/4/1/4;allTileRange. Attention b_min1/PK0,threads512,
 161stages/step. Currentsource4/25,default target unchanged;selected DIAG
 ledger pending. Raw:`blockinit_llama8bB1_top4_execution_v1/actual/`; pin
 `configs/pins/mx5/blockinit_cc29/llama3_1_8b_B1.json`.
+
+QwenB16 selected-pin nonadditive DIAG net(us/layer) versus exact bench:
+
+| Stage | Selected DIAG net | Matching uninstrumented bench |
+|---|---:|---:|
+| qkv | 9.425 | 13.550 |
+| attention | 65.835 | 65.584 |
+| o | 8.621 | 11.810 |
+| gate_up | 12.743 | 16.410 |
+| down | 12.820 | 15.570 |
+
+Head/token-history-confounded199.857us versus199.670us;mask63floor311.723us.
+Attention net/bench1.003826. Attention/o/down exceed appendix inferences by
+>30%,and their bench costs are also elevated; no unmeasured site-time split.
+Two rounds16fresh pass, no trace, no additive/body-latency interpretation.
