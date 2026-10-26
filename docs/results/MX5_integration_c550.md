@@ -820,3 +820,100 @@ G-B/G-PROGRAM and final25 dense/native MoE/LLM30/DNN25 remain open.
 Verified8BB16 original1 two-fresh TPOT13.346345006/13.335000643ms,
 median13.340672824ms (manual diagnostic,not final). This is below stored MX-4;
 it is not an isolated performance comparison with original0 or a solver result.
+
+Verified five-development-cell GU+Consume checkpoint: all pass512-step C-1/C-2;
+new remaining4 WD pairs have8/8 actual API0/resident1/zero-launch queries.
+Two-fresh medians Qwen0.6B B16=3.745389509ms;1B B1 genuine576=2.157856207ms;
+8B B1 originalGU8=10.622665064ms;8B B16 original3=13.321567510ms.
+Together with original1=13.340672824ms and QwenB1 P-PAIR2.053543765ms,
+these are manual controls, not final solver-selected cells. QwenB1 is+3.5286%
+versus stored MX-4. All10 new timing rounds,4 checks and8 resource records append.
+The complete GU+Consume unit resource matrix adds1142 rows, including88 failures;
+old CSV bytes remain unchanged. Proof:`runs/mx5/docs_consume_resource_matrix_v1/`.
+
+The four-control driver's process metadata accidentally hardcoded functional
+HEAD5c032c501:11 later processes actually started after docs-only332a72a1a.
+Original files are preserved; `root_check_time_four/RUNTIME_HEAD_METADATA_CORRECTION.json`
+binds each correction to the root reflog snapshot. Correctness CSV runtime HEADs
+use per-process actual values. No measurements or implementation bytes changed.
+
+The first attention O-load-guard proposal is strictly rejected:256MT/frame332,
+private196,text+7904B,MIR+987. Actual conditional guards work, but this is not
+execution eligibility. No GPU or second compilation was used for that proposal.
+A separate implementation uses8-value O batches, within §4.7#5's ≤32 bound;
+contribution order stays0..producers−1 and M/lambda code is unchanged. Its single
+prototype is241/frame0,15 clean rings,whole private/generic/calls0;text−10304B,
+MIR−1287. Full512 family passes5/5 fresh numerical processes;576 full family
+retains all48 failing D128 kernels. Current Stats chain is exactly reusable;
+its earlier five-fresh proof is bound explicitly, not described as newly run.
+
+Real A8 WD0/1 plans bind a detached332+onlyA8 WT, source604/c9a3812d...,
+immutable producer8c779798... with explicitly retained mixed-host limitations.
+Both are241/245MT,frame0,15 clean rings; actual API0/resident1/zero launches.
+512-step C-1/C-2 passes (gap0.015625,mismatch0),both token records exactly equal
+parent Stats. Same-card P-PAIR order Stats1/A8-1/Stats2/A8-2:
+Stats2.051458109/2.052354270ms,A8 2.007340806/2.007769378ms.
+Medians2.051906190/2.007555092ms,ratio.978385416 (−2.16146%),distinguishable.
+ca678cbc8 adopts the exact tested A header1a8de92f... . There is still+1.21011%
+versus stored MX-4; G-PROGRAM is not passed. Other4 A8 development controls are
+being rebuilt. Raw:`runs/mx5/attention_O_batch8_e2e_v1_61/ROOT_DECISION.json`.
+
+ResolvedTop4 first slice1f16c6b2b passes31 root-main CPU tests (earlier194pass/
+1skip regression). It binds immutable exact four origins, complete domains,
+actual artifacts/MIR/query and exact-width cost lineage. Unknown earlier576
+reductions remain null/needs_576_retry_history; no reset-to-zero, execution or
+default permission is inferred. Canonical576 history and result consumers remain
+work in progress. New G/H actual P0 queries cover8290 keys;120 primary libraries
+are source/formula-bound and authorized, not yet three-fresh costs. G/H closures
+remain exact after A8; only16 fresh A P0 libraries are queued. Old A data are
+retained separately. No source/provenance/cost row is relabeled.
+
+Verified full A8 development refresh: all8 remaining WD plans pass actual
+API0/resident1/zero-launch queries,512-step C-1/C-2 (four additional checks),
+and all8 fresh timing processes complete. Current medians:QwenB16 3.692649128,
+1B B1 true576 2.130356674,8B B1 originalGU8 10.646278181,
+8B B16 original3 13.271694603ms. Current QwenB1 remains2.007555092ms,
++1.21% versus MX-4; no G-PROGRAM pass or final selection is claimed.
+New query driver v1 failed on a manifest-schema key before any plan query;
+v2 uses a new guard/output and completes all8. Failed setup is not a register
+retry or model defect. Old logs are intact in `QUERY_SETUP_FAILURE_NOTE.json`.
+New driver runtime HEADs all match actual per-process reflog values; an
+intermediate annotation compared full SHA with a short prefix and falsely
+flagged12. `RUNTIME_HEAD_METADATA_VALIDATION_v2.json` explicitly supersedes it;
+no process raw or CSV value changed. Append proofs under docs_batch8_development_v1.
+
+Canonical576 historyv2 ed737aa1b passes26 root CPU tests (220pass/1skip prior
+regression). It binds actual positive576 R_next,computed PRIMARY576 widths,
+unchanged canonical attentionKind and actual failure chains across the shared
+three-reduction budget. Manual PF0/unset-Rnext floors cannot establish prior0.
+MT/frame-only P0 failures remain nonexecuting probes; static-smem or occupancy
+anomalies are explicitly rejected. Substantive v2 D7/result consumption remains
+unfinished; audit outputs never authorize execution/defaults.
+
+A provenance-consumer constraint found110 G576 next-width keys with real
+primaryHEAD1f16 and same-body existing childHEADca678. No metadata or validator
+was changed. Two needed child configurations were genuinely compiled in a clean
+detached1f16 worktree; actual ordinary build metadata reports1f16 automatically,
+and device text matches the preserved ca counterparts exactly. A new190-key
+query plan uses those110 children and the other80 ca children with unchanged
+real parent references. Fixed real worktrees prevent future head drift.
+Raw:`runs/mx5/calibration_stable_heads_v1_61/`.
+
+G512 timing jobs0/1 both pass actual3fresh protocols (48keys),guard wall
+113.443679/99.005964s. These are current wrapper durations,not substituted
+stage costs or a final table. Remaining142-batch coverage is running on7/6;
+source/round/PID/counter/oracle/rotation records stay raw until qualification.
+
+## Canonical576 and qualified D7 continuation (verified)
+
+`ed737aa1b` binds canonical positive576 R_next, PK and the shared at-most-three
+reductions; `858e0ef6b` binds substantive D7/source/MIR and all four exact IDs.
+90 related root CPU tests pass; no real candidate certificate or final selection
+is claimed. Old baseline I1 and current static footprint remain distinct.
+Actual new resource queries: G190 has185fit/5failed;H150 has150fit. The remaining
+G5 are true D2 floors and retain their failures without another compilation.
+A8 P0 actual queries:512400fit;576100fit/300failed.
+Raw:`runs/mx5/checkpoint_gamma_validation_v1/`; wrapper-wall union at12:44:22
+Shanghai is20.798983/60 card-hours (685 closed/2 active),including waits/cooldowns.
+Isolated gamma-weight barrier scheduling has only CPU admission so far; full
+512 A and fresh old-Rope bitwise helpers will run before native/E2E review.
