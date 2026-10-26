@@ -445,7 +445,6 @@ struct MxAttentionV2 {
     Block block{};
     if (geo.begin < geo.end) {
       int const first_head = geo.begin / geo.blocks;
-      // A runtime prefix choice keeps one QK/PV body for every head segment.
 #pragma unroll 1
       for (int h = first_head; h * geo.blocks < geo.end; ++h)
         Segment(pf, block, p, s, geo, h, max(geo.begin - h * geo.blocks, 0),
