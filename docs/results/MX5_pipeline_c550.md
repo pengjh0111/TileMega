@@ -636,7 +636,7 @@ Full512 C1/C2 pass (C1maxgap0.03125,gapzero0.987305;C2zero mismatches).
 Verified same-card source-change P-PAIR (warm1/timed2,2fresh/arm,old/new/new/old):
 cc29=2.318709581/2.320058376ms(median2.319383978);single-segment=2.320790248/
 2.321553593(median2.321171921),+0.077087%,indistinguishable. It remains
-10.769770% abovefixedMX4. This structural correction produces no accepted
+10.769762% abovefixedMX4. This structural correction produces no accepted
 TPOT speedup. Sixmanual-control timing rows are separate from seven real
 solver selections; oldCSV rows/default/cost table remain unchanged.
 
@@ -644,3 +644,16 @@ Root now holds obsolete cc29 whole-program query/cap/CPU-preparation
 dispatch parents; bounded active children may drain, noGPU child signalled.
 Same-source G/H standalone costs continue; their bytes are unchanged. Noold
 whole-program approval transfers to the newcandidate.
+
+Verified direct-wave merge:5fresh x56P0 units and3fresh x6key benches pass;
+20 compiler/18 diagnostic rows are retained. Sourcebarriers13→11 perbench
+kernel,whole4160same52,code+6528B. WholeB2 primary/headPw=D bothMT256/
+frame252:STOP atDecodeAttentionV2.h:318–347,no model execution or belowD.
+CFG proves some controlcarriers cross segment backedges;196B of other slots
+cannot be uniquely assigned to invalidKV or an earlyaddress.
+A separate CPU diagnostic adds Block{} onlywhenvalid=false. Truecarry stays;
+futurefalse consumers fullyloadK/V. Sameprimary/headPw=D CUs both241MT/
+frame0. Actualwholeprivate/generic/calls0,14rings with0inner4160/generic;
+sourcearchive differs by exactlyone A-header line. This is observed codegen,
+not proof of every spilledslot origin. New5fresh validation is ongoing; no
+model/native/source/TPOT acceptance transfers from either parent.
