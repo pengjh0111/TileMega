@@ -371,3 +371,20 @@ Llama1B selected DIAG exact pin+PK2 CPU165/frame0,15cleanrings; rootactual
 ledger queuecard6 usesoneguardedzeroquery andtwo900s guardedrounds with
 eight serialfresh children each,reversedmaskorder inround2. DIAGtiming is
 nonadditive attribution only; noledger result claimed beforeactualcompletion.
+
+Verified second current-source selection: Qwen0.6BB1 original0/512,
+TPOT1.954393515969651ms,TTFT9.28496802225709ms,E2E2.0086295348592103s,
+509.800330tokens/s,MBU0.415286(inferred),−1.470008%vsMX4,
+/SGLang0.7951477,/vLLM0.6357198,pred/meas1.0215598. Candidate3 has
+lowestmedian1.953755908ms but remains<1% faster thananchor0; retain0.
+FourC1/C2512PASS,maxgap0.015625;eightactualfreshWD0processes.
+Sourcecc29/A7192/25;source-specific pinunderblockinit_cc29,default unchanged.
+Actual selectedLlama1B ledger16fresh/2rounds completes oncard6. Netus/layer
+QKV9.708/A13.609/O6.078/GU43.138/Down21.335 againstmatchinguntraced
+bench12.510/15.195/10.160/52.660/25.340. Head/tokenhistory-confounded
+net317.360us vsbench326.810;commonmask63floor341.048us/step retains
+prefetch/barriers/control/timer. All differences nonadditive,not purebody time;
+no stage measured/bench>1.2. ExactPK2 selectedgeometry avoidsoldmanualPK0
+missingbench. Fourteenledgerrows append114→128 witholdprefix proof.
+New8BB1 normal512 fouractualqueries are222/frame0/resident1 each;
+normalresource4plusselectedLlama1B DIAGquery165/frame0 appended379→384.

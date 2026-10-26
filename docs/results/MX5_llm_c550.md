@@ -1,6 +1,6 @@
 # MX-5 LLM C550 results (in progress)
 
-Verified checkpoint: current cc29/A719 source has completed 1/25 dense selections (Llama1B B1); three selections for prior 3ef/Af8 remain historical. MoE remains 0/5; G-LLM and the default switch remain open.
+Verified checkpoint: current cc29/A719 source has completed 2/25 dense selections (Llama1B B1 and Qwen0.6B B1); three selections for prior 3ef/Af8 remain historical. MoE remains 0/5; G-LLM and the default switch remain open.
 
 Authority: `/root/Prompt/TileMega_MX5_prompt.md`, SHA256 `75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73`. Prior source/producer: `3ef688aa4d0bd7be8135e17e9db3274078dce760` / `e6130715bb4819438927375b216cb4dd5bebae3e669cad25e8303ef01783a267`. Current: `cc29d78304d297346d657c0fbca0a86e76b1f60f` / `24fa50ed913bce7791f575447a97e06c18a9bfce91c337c0bcc9191179c7c3c7`.
 
@@ -12,6 +12,7 @@ All measurements use BF16 greedy, ISL/OSL 64/1024, warmup 1 plus timed 2 per fre
 | Qwen3-0.6B B16 | prior 3ef/Af8 | 3.567243 | 60.632317 | 3.709922 | 4416.266 | 0.4067 | -21.376% | 0.8873 | 0.8207 |
 | Llama-3.1-8B B1 | prior 3ef/Af8 | 10.560823 | 41.125858 | 10.844848 | 94.423 | 0.9215 | -1.444% | 0.9078 | 0.9523 |
 | Llama-3.2-1B B1 | cc29/A719 | 2.157002 | 8.957554 | 2.215571 | 462.183 | 0.7449 | -2.445% | 0.7232 | 0.8537 |
+| Qwen3-0.6B B1 | cc29/A719 | 1.954394 | 9.284968 | 2.008630 | 509.800 | 0.4153 | -1.470% | 0.6357 | 0.7951 |
 
 *MBU is inferred from `(streamed linear/head BF16 weights + KV at average L=576)/(1.55 TB/s × TPOT)`. Full embedding-matrix reads, activation traffic, writes and cache effects are excluded. This is a byte lower-bound model, not a measured DRAM counter. Aggregate MBU, throughput and pred/meas are calculated from aggregate times; raw process rows are retained.
 
@@ -115,7 +116,7 @@ synchronization substitution or default promotion is made.
 Verified: all four independent576 originals pass C-1/C-2 at512 steps and
 eight fresh WD0 measurements on card7. Candidate0 is selected by the prescribed
 1% rule. Each normal WD0/WD1 is MT164/frame0/API0/resident1; controlled cap
-diagnostics from other cells are not used. This is current-source 1/25.
+diagnostics from other cells are not used. This was the first current-source selection.
 
 | ID | Predicted ms | Process1 ms | Process2 ms | Median ms | pred/meas | Selected |
 |---:|---:|---:|---:|---:|---:|---|
@@ -128,5 +129,43 @@ Actual TN/WN/D/Pw: qkv32/1/1/1, o32/1/2/2, gate_up64/2/2/4,
 down32/1/2/2, head32/8/2/8; allTileRange. Attention b_min1/PK2; threads576;
 81 stages/barriers perstep. Allfour C1 maxgap0.09375 and C2 exact.
 Evidence: `runs/mx5/blockinit_llama1b576_top4_execution_v2/actual/`; exact pin
-`configs/pins/mx5/blockinit_cc29/llama3_2_1b_B1.json`. Final selected-stage
-ledger remains pending; crosssegment overlap/I1 attribution gaps remain open.
+`configs/pins/mx5/blockinit_cc29/llama3_2_1b_B1.json`. Its actual selected-stage
+ledger below uses matchingPK2; crosssegment/I1 attribution gaps remain open.
+
+Llama1B selected-pin DIAG interventions,us/nominal layer; two fresh processes
+per mask, reverse order in round2, no trace. These are nonadditive net deltas.
+
+| Stage | Selected DIAG net | Matching uninstrumented bench |
+|---|---:|---:|
+| qkv | 9.708 | 12.510 |
+| attention | 13.609 | 15.195 |
+| o | 6.078 | 10.160 |
+| gate_up | 43.138 | 52.660 |
+| down | 21.335 | 25.340 |
+
+Head/token-history-confounded net 317.360us versus head bench326.810us;
+mask63 floor341.048us/step retains prefetch/barriers/control/timer.
+No additive or per-site latency attribution is claimed. The selected attention
+bench itself exceeds inferred2–3us; no measured/bench integration penalty>1.2
+is observed. Raw:`blockinit_selected_llama1b576_ledger_runtime_v1/`.
+
+## Qwen0.6B B1 current-source original top four
+
+Verified: all4 C-1/C-2 pass512 steps (maxgap0.015625); eight fresh WD0
+processes complete. Candidate0 is retained by1% rule; candidate3 has a slightly
+smaller median. All actual512 originals/WD1 twins are frame0/resident1.
+
+| ID | Predicted ms | Process1 ms | Process2 ms | Median ms | pred/meas | Selected |
+|---:|---:|---:|---:|---:|---:|---|
+| 0 | 1.996530 | 1.959958 | 1.948829 | 1.954394 | 1.021560 | yes |
+| 1 | 1.996600 | 1.954595 | 1.956875 | 1.955735 | 1.020895 | no |
+| 2 | 1.996710 | 1.954150 | 1.963178 | 1.958664 | 1.019424 | no |
+| 3 | 1.996820 | 1.953245 | 1.954266 | 1.953756 | 1.022042 | no |
+
+Actual TN/WN/D/Pw: qkv32/2/2/2,o16/1/2/2,gate_up64/1/1/1,
+down16/1/2/2,head128/8/1/2;allTileRange. Attention b_min1/PK0,threads512,
+141stages/step. Genuine576 reduction counts1/1/0/0 carry into512 with no reset;
+cap227 diagnostic frame68/resident0 stays ineligible. Allfour current-source
+D7/ResolvedTop4 audits and root independent replay pass their binding scope.
+Raw:`blockinit_qwenB1_top4_execution_v1/actual/`; exact pin
+`configs/pins/mx5/blockinit_cc29/qwen3_0_6b_B1.json`.
