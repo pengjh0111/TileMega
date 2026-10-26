@@ -6,11 +6,92 @@
 #include <tilemega/Codegen/RuntimeTaskGraph.h>
 #include <cassert>
 #include <iostream>
+#include <isl/polynomial.h>
+#include <isl/set.h>
+#include <isl/space.h>
+#include <set>
+#include <stdexcept>
+#include <string>
+#include <vector>
 
 namespace tilemega::tests::runtime_projection_test {
+using tilemega::analysis::QuasiPolynomial;
+using tilemega::analysis::ParamBinding;
+
+static void require(bool x,char const* message) {if(!x)throw std::runtime_error(message);}
+static void exact(QuasiPolynomial const& a,QuasiPolynomial const& b) {
+  // Semantic equality's scalar shortcut alone does not establish support equality.
+  isl_ctx* ctx=isl_ctx_alloc();
+  auto* lhs=isl_pw_qpolynomial_read_from_str(ctx,a.ToString().c_str());
+  auto* rhs=isl_pw_qpolynomial_read_from_str(ctx,b.ToString().c_str());
+  require(lhs&&rhs,"parse comparison");
+  auto names=[](isl_pw_qpolynomial* p) {std::set<std::string> n;auto* space=isl_pw_qpolynomial_get_domain_space(p);int count=isl_space_dim(space,isl_dim_param);for(int i=0;i<count;++i) {char const* name=isl_space_get_dim_name(space,isl_dim_param,i);require(name,"unnamed parameter");n.insert(name);}isl_space_free(space);return n;};
+  require(names(lhs)==names(rhs),"parameter sets differ");
+  auto* parameters=isl_space_align_params(isl_space_params(isl_pw_qpolynomial_get_domain_space(lhs)),isl_space_params(isl_pw_qpolynomial_get_domain_space(rhs)));
+  auto align=[&](isl_pw_qpolynomial* p) {
+    auto* space=isl_space_align_params(isl_pw_qpolynomial_get_space(p),isl_space_copy(parameters));
+    auto* u=isl_union_pw_qpolynomial_align_params(isl_union_pw_qpolynomial_from_pw_qpolynomial(p),isl_space_copy(parameters));
+    auto* result=isl_union_pw_qpolynomial_extract_pw_qpolynomial(u,space);isl_union_pw_qpolynomial_free(u);return result;
+  };
+  lhs=align(lhs);rhs=align(rhs);require(lhs&&rhs,"parameter alignment failed");
+  auto* ld=isl_pw_qpolynomial_domain(isl_pw_qpolynomial_copy(lhs));auto* rd=isl_pw_qpolynomial_domain(isl_pw_qpolynomial_copy(rhs));
+  require(isl_set_is_equal(ld,rd)==isl_bool_true,"defined parameter/task domains differ");
+  isl_set_free(ld);isl_set_free(rd);
+  auto* difference=isl_pw_qpolynomial_sub(lhs,rhs);require(difference,"difference failed");
+  require(isl_pw_qpolynomial_is_zero(difference)==isl_bool_true,"exact polynomial values differ");
+  isl_pw_qpolynomial_free(difference);isl_space_free(parameters);isl_ctx_free(ctx);
+  require(a.SemanticallyEqual(b,{})&&b.SemanticallyEqual(a,{}),"semantic API equality differs");
+}
+static QuasiPolynomial old_fold(std::vector<QuasiPolynomial> const& terms) {
+  QuasiPolynomial result;for(auto const& x:terms)result=result.Add(x);return result;
+}
+static void term_tests() {
+  std::vector<std::vector<std::string>> cases={
+    {"[S] -> { S : 1<=S<=8 }","[S] -> { 2*S : 5<=S<=12 }"},
+    {"[B,S] -> { B*floor((S+3)/4) : 1<=B<=16 and 1<=S<=64 }","[S,B] -> { 3*B : 2<=B<=8 and 0<=S<=32 }"},
+    {"[S] -> { S : 1<=S<=8 }","[S] -> { -S : 1<=S<=8 }","[S] -> { 7 : 10<=S<=12 }"},
+    {"[S] -> { 0 : false }","[S] -> { floor((S+1)/2) : 0<=S<=128 }"}};
+  for(std::size_t case_id=0;case_id<cases.size();++case_id) {
+    auto const& c=cases[case_id];
+    std::vector<QuasiPolynomial> terms,seeded{QuasiPolynomial{}};
+    for(std::size_t i=0;i<c.size();++i) {auto q=QuasiPolynomial::FromIslText(c[i]);if(case_id==2 && i<2)q=q.ScaleRational("1/2");terms.push_back(q);seeded.push_back(q);}
+    exact(old_fold(terms),QuasiPolynomial::Sum(seeded));
+  }
+  std::cout<<"PASS four exact-domain/parameter/rational/overlap/empty-support sums\n";
+}
+static void projection_tests() {
+  using namespace tilemega;
+  for(bool split:{false,true}) for(int stages:{1,3,8}) {
+    solver::ModelDescription model;model.dims=solver::ModelDims::Symbolic("S",3);model.seq_metric_parameter="S";model.stages.resize(stages);
+    for(auto& s:model.stages)s.kind=solver::StageKind::kRMSNorm;
+    codegen::RuntimePlan plan;plan.parameter_ranges={{"S",{1,128}}};
+    solver::RuntimeProjectionOptions options{3,128,1};options.split_count_periods=split;options.count_wait_entries=false;
+    auto p=solver::ProjectRuntimeQueues(model,plan,options);
+    std::vector<QuasiPolynomial> tasks,workers;
+    for(int i=0;i<stages;++i) {
+      tasks.push_back(p.stages.at(i).task_count);
+      auto owned=p.tasks.IntersectRange("{ [s,t] : s="+std::to_string(i)+" and t%3=0 }").Image().ImageCard();
+      if(split)owned=owned.SplitPeriods(3);workers.push_back(owned);
+    }
+    exact(p.runtime_task_refs,old_fold(tasks));exact(p.max_worker_task_refs,old_fold(workers));
+    require(p.stages.size()==std::size_t(stages),"stage order/count changed");
+    for(int s:{-1,0,1,2,3,4,17,64,128,129}) {ParamBinding t;t.Bind("S",s);long n=s>=1&&s<=128?s:0;require(p.runtime_task_refs.Eval(t)==stages*n,"task closed form");require(p.max_worker_task_refs.Eval(t)==stages*((n+2)/3),"worker closed form");}
+  }
+  // Large repeated-stage test uses its independent exact closed form, not a slow
+  // old prefix fold whose cost is the defect under review.
+  solver::ModelDescription model;model.dims=solver::ModelDims::Symbolic("S",3);model.seq_metric_parameter="S";model.stages.resize(64);for(auto& s:model.stages)s.kind=solver::StageKind::kRMSNorm;
+  codegen::RuntimePlan plan;plan.parameter_ranges={{"S",{1,128}}};solver::RuntimeProjectionOptions options{3,128,1};options.count_wait_entries=false;
+  auto p=solver::ProjectRuntimeQueues(model,plan,options);
+  auto tasks=QuasiPolynomial::FromIslText("[S] -> { 64*S : 1<=S<=128; 0 : S<=0 or S>=129 }");
+  auto workers=QuasiPolynomial::FromIslText("[S] -> { 64*floor((S+2)/3) : 1<=S<=128; 0 : S<=0 or S>=129 }");
+  exact(p.runtime_task_refs,tasks);exact(p.max_worker_task_refs,workers);
+  std::cout<<"PASS six bounded old-fold projection comparisons +64stage exact closed form\n";
+}
 
 int TestRuntimeProjection(int argc, char** argv) {
   tilemega::analysis::IslContext context;
+  term_tests();
+  projection_tests();
   {
     for (auto const& text:{"{ [i] -> [j] : -3<=i<=4 and 2<=j<=7 }",
         "{ [i] -> [j] : 0<=i<=9 and j=i+2 }",

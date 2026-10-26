@@ -216,6 +216,9 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
   std::vector<std::string> counts, tiles(model.stages.size());
   std::vector<int> stage_chunks(model.stages.size(),1);
   std::vector<std::string> task_pieces;
+  // Preserve the zero-extension seed while balancing the complete stage sum.
+  std::vector<analysis::QuasiPolynomial> task_ref_terms{result.runtime_task_refs};
+  std::vector<analysis::QuasiPolynomial> longest_ref_terms{result.max_worker_task_refs};
   auto append = [&](int original, bool combine, std::string const& count) {
     int stage = static_cast<int>(counts.size());
     counts.push_back(count);
@@ -223,11 +226,11 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
                  " and 0 <= t < ("+count+")";
     auto set = relation({piece});
     result.stages.push_back({original,combine,cardinality(set,"tasks",stage)});
-    result.runtime_task_refs = result.runtime_task_refs.Add(result.stages.back().task_count);
+    task_ref_terms.push_back(result.stages.back().task_count);
     task_pieces.push_back(piece);
     // For modulo ownership every stage's queue length decreases with the
     // placed worker id. Hence placed worker zero attains the global maximum.
-    result.max_worker_task_refs = result.max_worker_task_refs.Add(
+    longest_ref_terms.push_back(
         cardinality(relation({piece+" and t % "+std::to_string(options.grid)+" = 0"}),
                     "longest",stage));
   };
@@ -356,6 +359,8 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
       append(static_cast<int>(i),true,combine);
     }
   }
+  result.runtime_task_refs = analysis::QuasiPolynomial::Sum(task_ref_terms);
+  result.max_worker_task_refs = analysis::QuasiPolynomial::Sum(longest_ref_terms);
   struct Edge {
     int producer,consumer;
     analysis::WaitWindow window;
