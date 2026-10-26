@@ -1192,3 +1192,38 @@ RawqwenB1_body_code_attribution_v1_61/FINAL_AUDIT.json;0GPU/main/frozen
 edits;no second flagvariant. Prompt4.12perbodyreport remainsunfinished.
 ActualQwenB1IDs2/3independent512queries nowbothAPI0/resident1/noLaunch,
 consumedtoneeds_qualified_history_v2_d7_review;notE2E/defaultapproval.
+
+Verified actualfinalentry audit findsall10 historicaldevelopmentprefills rejected
+by mx5_resolved_runner.py:50 / build/identity.py:142 fullsource snapshot check.
+Prior31writerclosure/selfidentity/API-positive evidence didnotestablishthis
+stronger gate. Old binaries preserved;no code/identity/source-gate relaxation.
+Rawdense25_prefill_ready50_v1/ACTUAL_HISTORICAL10_STRICT_REJECTION.json.
+A separate frozen3ef/e613 normal10-job driver binds literalcurrentMX4pins,
+WD0/1/fragmentKV unchanged,run10_v1 started;allGPUsqueriesguarded6.
+Other40frozen-source prefill libs (18d74+22QPfix) nowactualfinalL1andstrict
+complete-snapshot/watchdog-role PASS. FROZEN40_FINAL_ENTRY_INDEX.json
+bindsactualsourceepochs;new22 22/22API0/positiveoccupancy,nolaunch.
+All25independent512actualnative4-candidateorigins indexed;realread-only
+previewsretained,0devicecompiles/0GPU. Other20canonical80preparationscomplete.
+QwenB1all4actualnormal512originalsMT239/239/241/239,frame0/API0/resident1;
+allbindtoneedsqualifiedD7. Controlled227 exactsame-source/pin/normalargv+
+singlepair actualcompilesgiveframes68/68/100/68 (MT227);all4actualqueries
+API0/resident0/noLaunch. Thesequery-onlybinariesneverexecutedas plan.
+Observednormal168+stack andcap227results are notphysicalregisterlowerbound
+or global576impossibility proof. OrderedactualD7review+consumer auditrunning.
+Appended44resources (22nativeincluding4explicitcontrolleddiagnostics,
+22actualfinalL1prefillqueries),185→229rowswithraw-prefixproof. No oldrowchanged.
+
+Verified fouractualQwenB1 D7 audits are review_ready_qualified_d7_v2;
+all4same-origin ResolvedTop4 v2 validation review_ready_resolved_top4.
+RawqwenB1_actual_d7_review_v1/:substantiveorderedreports,budgetdiagnostics,
+source/MIR spans,positiveP0/floor/sharedhistory andbaselineI1/currentstatic
+scopeboundtoeachactualoriginalID. No physical>227/global576impossible claim.
+The explicitrunner nowexecutes normalWD1twinbuilds/queries,C1/C2512then
+2freshWD0measurementsperoriginal on7;selection/defaultnotyetclaimed.
+It usesfresh3efQwenB1prefillWD0/1that passstrictsnapshot/rolevalidation.
+OnlyownH576queuecontrollerPID2615563 SIGSTOPpreventsnextsubmissions;
+itscurrentGPUchildwasnotsignalled. Watcher26396toolsessionresumesexact
+PID/starttimeafteractualrunnerexit;taskandcard6Gcampaigncontinue.
+Unchangedfull50exporter isqueuedbehindactual114G/28H576successfulbatches;
+noearlymissing-keytableorprojectedprocessmanifestwillbeexported.
