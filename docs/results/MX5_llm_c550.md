@@ -86,3 +86,25 @@ Verified: all four 3ef/Af8 originals pass C-1/C-2 at 512 steps; eight fresh WD0 
 Actual configuration: qkv TN64/WN1/D1/Pw1/kTileRange, o TN64/WN1/D1/Pw1/kTileRange, gate_up TN32/WN8/D4/Pw8/kTileRange, down TN64/WN1/D3/Pw3/kTileRange, head TN64/WN4/D1/Pw4/kTileRange; attention b_min1/PK0, threads512, stages161.
 
 Evidence: `runs/mx5/llama8bB1_actual_resolved_top4_execution_v1/`, ordered D7 in `runs/mx5/llama8bB1_actual_d7_review_v1/`, exact executed pin `configs/pins/mx5/llama3_1_8b_B1.json`. New A719 costs, source-qualified origins and acceptance remain pending.
+
+## cc29 five development controls
+
+Verified: each cell passes actual 512-step C-1/C-2, with two fresh WD0 processes
+using the standard 64/1024 protocol. These manual same-configuration source
+regressions satisfy the five numerical/timing predicates, not final solver
+selection or full pipeline conformance. New A719 scoped origins remain pending.
+
+| Cell | Threads | TPOT ms | vs MX-4 |
+|---|---:|---:|---:|
+| Qwen0.6B B1 | 512 | 1.945727 | -1.907% |
+| Qwen0.6B B16 | 512 | 3.573892 | -21.229% |
+| Llama1B B1 | 576 | 2.153378 | -2.609% |
+| Llama8B B1 | 512 | 10.557096 | -1.479% |
+| Llama8B B16 | 512 | 13.218706 | -9.095% |
+
+Raw: `blockinit_remaining3dev_check_time_v1`,
+`blockinit_llama1b576_check_time_v1`, `blockinit_B16_manual_timing_v1` under
+`runs/mx5/`; combined proof `blockinit_five_development_predicates_v1`.
+The prompt4.7.3 crosssegment-overlap claim remains unfulfilled: actual next K/V
+requests retire at the first segment-merge CTA sync (AttentionV2.h:318). No
+synchronization substitution or default promotion is made.

@@ -287,3 +287,23 @@ SHAce60e84aef987e4a611c0e13eceffd425d09a7044884474a3efd7e43fa5a4ad5.
 At23:47:43Shanghai physical-card interval union upper41.536622/60h;
 oldwrapper sum53.703244h preserved,peak2cards. Rawcheckpoint:
 runs/mx5/checkpoint_blockinit_units_and_manuals_v1/physical_union/.
+
+Verified cc29 five development numerical/timing predicates allPASS:
+QwenB1/B16=1.945727/3.573892ms (−1.907/−21.229%MX4),
+Llama1BB1 576threads=2.153378ms(−2.609%),
+Llama8BB1/B16=10.557096/13.218706ms(−1.479/−9.095%).
+AllC1/C2512;twofreshWD0 processes percell. These aremanual controls, not
+newsolver selections;fullconformance/LLM gate stillopen forrecorded gaps.
+Six extra normal controls actualAPI0/resident1 queriesappendresources257→263;
+new3C1rows58→61 and6timingrows80→86 appendwithout alteringoldbytes.
+Proof:blockinit_five_development_predicates_v1/ACTUAL_FIVE_DEV_PREDICATES.json.
+
+Verified new512 seventeenactualbatches complete;originalq.qualify gives4545
+exactG3395/H750/newA400 pool. Initialexport thenfailsat consumer binding
+lookup(export512.py:62), leavingzero nativepreviews;oldpartialpool/log/rc1
+preserved. Newcorrected_export_v2 addsactualmain consumer+120Python source
+closure andkeeps originaldependencies/4sharedtoolhashes;preflightsimports
+beforeanyoutput,thenreplays actualqualification into a newdirectory. No
+oldpool successindex fabricated,noGPU rerun/row rewrite/gate waiver.
+Five576A batches continue;oldH3015698 stays paused underremaining21controller
+andwillresume automatically;G2636562resumed after manualcontrols.
