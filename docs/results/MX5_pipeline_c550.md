@@ -1,7 +1,7 @@
 # MX-5 C550 pipeline and specification audit
 
 Current checkpoint: `cc29d78304` bodies with frozen producer `24fa50ed`,
-four genuine dense selections (Qwen0.6B B1/B16, Llama1B B1, Llama8B B1), and two
+four genuine dense selections (Qwen0.6B B1/B16, Llama1B B1, Llama8B B1), and three
 selected-pin diagnostic ledgers. MoE/DNN native remain unimplemented.
 The detailed audit below includes explicitly historical development evidence;
 current selections are in `MX5_llm_c550.md`. **Verified** means inspected
@@ -440,3 +440,18 @@ netus/layer9.425/65.835/8.621/12.743/12.820 againstmatching13.550/65.584/
 Nonadditive;attention net/bench1.003826, no fabricated per-site microseconds.
 Ledger14rows append142→156; selectedDIAG239/frame0 realAPI0/resident1 row
 appended separately from production. All old bytes retained.
+
+The next unstarted cells use an explicit execution schema after root CPU review.
+Prompt §5 keeps four candidates × two fresh timing processes; §7 requires
+C-1/C-2 for each final selected cell. The earlier runner additionally checked
+all four candidates. The new mode freezes the same 1% winner after all eight
+normal timings, then builds/queries/checks that winner at512 steps. A failure
+stops the cell; it never substitutes another candidate. Unselected correctness
+is explicitly “not run.” Existing four-check results are retained as such.
+The first-five old queue was stopped before any GPU/build/timing dispatch,
+with real PID and zero-dispatch evidence. Existing active8B runs are unchanged.
+Frozen helper/root replay passed27 CPU tests plus genuine saved proof replay;
+new-schema GPU behavior is still unverified and not counted as acceptance.
+Single-child900s timing guards are selected in advance; no inferred prior
+per-cell duration is fabricated. Default, body source, costs and pins are unchanged.
+Raw: `selected_only_execution_freeze_v1/`, `remaining20_selected_only_execution_v1/`.
