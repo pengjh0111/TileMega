@@ -1,7 +1,7 @@
 # MX-5 C550 pipeline and specification audit
 
 Source audit updated 2026-10-26 through `3ef688aa4`; measured checkpoint includes
-all5 Gamma development controls and four completed diagnostic ledgers. Earlier audits remain in git history. **Verified** means inspected
+all5 Gamma development controls and five completed diagnostic ledgers. Earlier audits remain in git history. **Verified** means inspected
 source or executed evidence; **inferred** means interpretation. Authority is
 `/root/Prompt/TileMega_MX5_prompt.md`, SHA256
 `75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73`.
@@ -144,3 +144,12 @@ plus10historical. Oldremaining22cohort stoppedafterownB4CPUISLprefix-sum
 pathology;exacthostseeded-Sum fix3ef passes3relatednormalCPUregressions.
 Newnormalfullproducer3efbuilt,headerclosuresunchanged;controlCU/resources
 comparison remains pending before remaining22new-epoch builds.
+
+Verified19:00 continuation: genuine512-only25scopedtables4545costs/191batches
+areconsumer-replayed;allfive actualdevelopmenttop4previewsnowexist. Real
+QwenB1canonical576historiespreserve originalframes448/448/440/436 and
+headPw reductionframes364;positiveoccupancydoesnotwaiveframe0. Actual512
+originalIDs2/3MT241/239frame0stillneedquery/D7/C1/C2/top4E2E. Otherfour
+developmentcells16normalcanonicalbuildscontinue. Currentprefillremaining22
+has19PASS;old/newcontrolCU/resourcesmatch. Full576costs/true576solverorigin,
+final25selectionandallMoE/DNNworkremainopen. Budgetcheckpoint34.425559/60.

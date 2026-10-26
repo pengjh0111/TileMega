@@ -1147,3 +1147,48 @@ selectedclass and finalL1resource comparison;no oldgeometry/feature bypass.
 Old18successfulprefills nowallactualfinalL1API0/positiveoccupancy,nolaunch:
 first2+retained16. Appended16resource rows preservesprefix;rawproof under
 `prefill_final_fragment_queries_v1/retained16_v1/`. No C1/C2/timing added.
+
+Verified newnormalQPfix QwenB2WD0/1 control strictgates pass;CU,selected
+classes,macros andresources exactlyequal d74 controls. Only actualtargetpath
+differs;targetbytes equal,recordedseparately ratherthan rewrittenmetadata.
+ActualfinalL1queries bothAPI0/resident1/thread128/noLaunch. Newremaining22
+indices18..39started;first6PASS/0fail. PreviouslycancelledB4 nowstrictPASS
+actualnativewall299.2296/326.5012s;oldattempts nevercompleted,cancelledat
+1643.6/1616s. No runtime speedup claim. Allraw underremaining22_qpfix_v1.
+Entire512pool4545 measuredkeys (G142/H32/A17originalbatches)complete;
+GPUs nowG576/H576. A512-only25leaf CPUexport isbeingprepared usingunchanged
+global512q.qualify thenexactscopefilter+fullconsumerreplay. This advances
+realdiagnosticorigins before576costsfinish;no partialfakeprocessmanifest,
+full50catalog/default512 approval or finalselection claim.
+At18:11:02Shanghai budgetupperbound32.143835/60cardhours (954closed/3active
+wrappers includequeuewaits/cooldowns;only7/6actualcards,eachlockserialized).
+
+Verified actual512-only25scope export:4545measuredcosts/191originalbatches,
+fullconsumerreplays PASS,0missing/rejections inthis512scope. It is notfull50.
+Normal3ef/e613 five development native top4 previews complete. B16 helper
+initially returned1 afternative0 because relative --out was checked fromthe
+wrongcwd;actual preview preserved underfrozen tree/runs,not rebuilt/relabelled.
+Corrective path+SHA record: native_origins_t512_early_v1/other_four_dev/
+ACTUAL_OUTPUT_LOCATION_CORRECTION.json;laterpreviewoutputsareabsolute.
+QwenB1 actualnormal576 originalIDs0..3 MT168/frame448/448/440/436,
+allactualAPI0/resident1/noLaunch. IDs0/1deterministicheadPw reductions2→1
+and4→2 giveframe364;IDs2/3werealreadyallD. Allfourterminalactualhistories
+remaincandidatebound. IDs2/3actualindependent512originalsMT241/239frame0;
+query,D7,allfourfinalcandidateC1/C2/E2Eremainpending. Eightnewresource
+rows appendwithbyte-prefixproof;no failedrowchanged. Otherfourdevelopment
+cells16actualcanonicalpreparationscomplete,normalbuilds underway.
+Remaining22prefillnow19PASS/0fail;final22L1querywaiterretained.
+At19:00:02Shanghai three-log wrapperwallupperbound34.425559/60cardhours,
+1008closed/3activewrappers;actualcards7/6onlyandoneownerjobpercard.
+
+Verified per-body attribution item stopped with an observability gap at
+python/tilemega/mx5_resources.py:135 (body fields remain null). One actual
+observation-only side compile returned0 in14.167s;fulltargetELF and.text
+bytes exactlyequalnormal,MT241/ST108/frame0/static0 and23360MI equal.
+ThetargetstillhasnoDWARF/PC-inline mapping. Reliablekernel182872B plus
+outside256B totals183128B;body/protocol/sharedinstancecountsstayunknown.
+No standalone/headerline/guessedMIR-block attribution is substituted.
+RawqwenB1_body_code_attribution_v1_61/FINAL_AUDIT.json;0GPU/main/frozen
+edits;no second flagvariant. Prompt4.12perbodyreport remainsunfinished.
+ActualQwenB1IDs2/3independent512queries nowbothAPI0/resident1/noLaunch,
+consumedtoneeds_qualified_history_v2_d7_review;notE2E/defaultapproval.
