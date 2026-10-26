@@ -1,6 +1,6 @@
 # MX-5 C550 pipeline and specification audit
 
-Source audit updated 2026-10-26 through `2852cad5b`; measured checkpoint includes
+Source audit updated 2026-10-26 through `12b5ab839`; measured checkpoint includes
 GU+Consume controls and the accepted fixed8 Qwen comparison. Earlier audits remain in git history. **Verified** means inspected
 source or executed evidence; **inferred** means interpretation. Authority is
 `/root/Prompt/TileMega_MX5_prompt.md`, SHA256
@@ -116,3 +116,8 @@ closed without changing failed rows. Gamma scheduling passes5fresh full A/legacy
 QwenB1 is now−1.276% versus MX-4; all5 development controls now pass C1/C2 and timing.
 A16 P0 and8primary actual800 queries each give512400fit/576100fit+300reject;
 Canonical per-candidate histories and final solver selection remain pending. G/H sources remain exact.
+
+Verified12b5ab839: unified50-scope catalog adapter/global unique GH diagnostic
+fit implemented; normal C++build/unit and50 rootPython checks pass. Default
+target routing/proof production still await real complete data. No final table
+or candidate selection is claimed.

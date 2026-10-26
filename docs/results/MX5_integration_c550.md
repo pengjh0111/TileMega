@@ -975,3 +975,31 @@ proof:`runs/mx5/docs_gamma_development_v1/APPEND_PROOF.json`.
 Root6 continues A512/A576 3fresh costs then remaining G51248..71;7
 continues G512101..141. Global cost/reject domain is9090=8025 pending/current
 measured costs+1065 actual rejections; partial coverage is not final qualification.
+
+## Catalog and D7 attribution validation (verified; no final selection)
+
+12b5ab839 retains byte-exact scoped tables under a50-member catalog and
+binds actual model/request/root/leaf selection. Global diagnostic LS uses unique
+current GH rows only; it does not alter candidate costs/ranks or average scope
+R². Normal tilemega+mx_decode_solver_v2 build and C++unit pass;50 root Python
+checks pass (worker297pass/1optional skip). Actual complete-table native preview
+still awaits genuine full data. CurrentG/H/A source archives14/15/19files match.
+32 guarded API-only queries of two historicald5 binaries:168MT all8 stubs
+512/576resident1;227MT all8 512resident1/576resident0,including local0.
+Allstatuses0,iterations0,launches0. imcOccupancy disassembly uses actual
+per-PEU register/wave model; live ISA constants and physical topology are not
+independently observed. No compiler-bug or physical>227lower-bound claim.
+Gamma f8 norm-six3freshPIDs2277152/2277481/2277721 pass original oracles,
+2000iter/cold>=256MiB. N1/N0 mediansus:L65 19.20/15.19,L51221.97/18.03,
+L1088 23.69/19.26. Different standard ordinal seeds and changed code/loads,
+registers/rounding/schedule prevent calling this pure normalization cost.
+All3 lengths have no head-crossing CTA and one block per active wave;has_next
+is false,so unused steady K/V overlap cannot explain this measured narrow case.
+Current QwenB1 completed16 compact-mask jobs give netus/layer:QKV6.651,
+A22.915,O5.033,GU9.978,down6.895. A five-point3fresh mean overL65..1087
+is21.84655us;ratio1.04893. Head190.355us is history-confounded;346.015us
+commonfloor is not synchronization-only and not additive. Diagnosticabsolute
+step medians1.982265/1.984230ms are not the accepted normal1.958247ms.
+Raw:`runs/mx5/checkpoint_diag_attribution_v1/`;other4 ledgers remain in progress.
+Append50 new diagnostic probe rows (18timing+32nonexecuting attrs), preserving
+all earlier bytes; no diagnostics enter final cost tables or model candidates.
