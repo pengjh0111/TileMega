@@ -26,6 +26,7 @@
 #include <fstream>
 #include <iostream>
 #include <limits>
+#include <memory>
 #include <sstream>
 #include <stdexcept>
 
@@ -78,11 +79,22 @@ int TryPrepareV2(Request const& r) {
   if (!r.pin.empty()) throw std::invalid_argument("MX-5 solve cannot combine a manual pin with a measured table");
   if (r.selection!="predicted") throw std::invalid_argument("MX-5 solve writes diagnostic previews; use --selection predicted and external top4 orchestration");
   if (!r.interpreted_flags.empty()) throw std::invalid_argument("MX-5 solve rejects interpreted-executor flags");
+  auto hash=[](std::string const& path) {
+    auto input=llvm::MemoryBuffer::getFile(path);
+    if (!input) throw std::runtime_error("MX-5 cannot hash "+path);
+    llvm::SHA256 digest;digest.update(input.get()->getBuffer());return llvm::toHex(digest.final(),true);
+  };
+  auto absolute=[](std::string const& path) {return std::filesystem::absolute(path).string();};
   auto table_document=json::ParseFile(r.v2_solve_table);
-  bool const schema3=Int(table_document,"schema_version")==3;
+  bool const catalog=table_document.Find("table_kind") && table_document.At("table_kind").AsString("table_kind")=="mx5_decode_stage_cost_catalog";
+  bool const schema3=catalog || Int(table_document,"schema_version")==3;
   if(schema3 && !r.v2_results.empty())
     throw std::invalid_argument("MX-5 schema3 is diagnostic only; --mx-decode-v2-results consumption is forbidden");
-  solver::MxDecodeSolverV2 solver(table_document);
+  std::unique_ptr<solver::MxDecodeSolverV2> solver;
+  if(!catalog)solver=std::make_unique<solver::MxDecodeSolverV2>(table_document);
+  Value catalog_binding;
+  std::vector<Value> diagnostic_tables;
+  std::string selected_table=r.v2_solve_table;
   auto bridge=frontend::ReadExportBridge(r.input.string());
   frontend::ServingOptions options;options.deferred_norm=true;options.phase=frontend::ServingOptions::Phase::kDecode;
   options.seq=1;options.capacity=r.capacity;
@@ -93,14 +105,41 @@ int TryPrepareV2(Request const& r) {
   auto module=frontend::TorchExportImporter{}.ImportPlan(r.input.string(),plan,context,nullptr,import);
   if (!module) throw std::runtime_error("MX-5 solve import failed");
   auto model=codegen::AnalyzeMxDecode(*module);
-  auto selection=schema3 ? solver.SolveQualifiedDomain(model,r.batch,r.v2_threads,r.grid,r.past_lo,r.past_hi)
-                         : solver.Solve(model,r.batch,r.v2_threads,r.grid,r.past_lo,r.past_hi);
-  auto hash=[](std::string const& path) {
-    auto input=llvm::MemoryBuffer::getFile(path);
-    if (!input) throw std::runtime_error("MX-5 cannot hash "+path);
-    llvm::SHA256 digest;digest.update(input.get()->getBuffer());return llvm::toHex(digest.final(),true);
-  };
-  auto absolute=[](std::string const& path) {return std::filesystem::absolute(path).string();};
+  if(catalog) {
+    std::string const prefix=r.output.string();
+    if(!r.output.parent_path().empty())std::filesystem::create_directories(r.output.parent_path());
+    for(char const* suffix:{".mx5_candidates.json",".mx5_catalog_request.json",".mx5_catalog_binding.json",".mx5_catalog_command.txt",".mx5_catalog_resolve.log"})
+      if(std::filesystem::exists(prefix+suffix))throw std::invalid_argument("MX-5 existing catalog evidence is preserved: "+prefix+suffix);
+    Value request=Object{{"model",Object{{"layers",model.layers},{"hidden",model.hidden},{"heads",model.heads},{"hkv",model.hkv},
+      {"head_dim",model.head_dim},{"q_per_kv",model.q_per_kv},{"inter",model.inter},{"vocab",model.vocab},
+      {"capacity",model.capacity},{"qk_norm",model.qk_norm}}},{"batch",r.batch},{"threads",r.v2_threads},
+      {"grid",r.grid},{"past_lo",r.past_lo},{"past_hi",r.past_hi}};
+    Write(prefix+".mx5_catalog_request.json",request.Dump()+"\n");
+    std::string command="PYTHONPATH="+Quote(std::string(TILEMEGA_SOURCE_DIR)+"/python")+
+      " python3 -m tilemega.mx5_catalog resolve --catalog "+Quote(absolute(r.v2_solve_table))+
+      " --request "+Quote(absolute(prefix+".mx5_catalog_request.json"))+" --out "+Quote(absolute(prefix+".mx5_catalog_binding.json"));
+    Write(prefix+".mx5_catalog_command.txt",command+"\n");
+    if(std::system((command+" > "+Quote(prefix+".mx5_catalog_resolve.log")+" 2>&1").c_str()))
+      throw std::invalid_argument("MX-5 exact catalog validation/selection failed; retain catalog log");
+    catalog_binding=json::ParseFile(prefix+".mx5_catalog_binding.json");
+    if(Int(catalog_binding,"schema_version")!=1 || catalog_binding.At("kind").AsString("kind")!="mx5_decode_catalog_binding"
+       || catalog_binding.At("tables").AsArray("tables").size()!=50)
+      throw std::invalid_argument("MX-5 incomplete catalog binding response");
+    auto checked=[&](Value const& ref) {
+      auto path=ref.At("path").AsString("path");
+      if(hash(path)!=ref.At("sha256").AsString("sha256"))throw std::invalid_argument("MX-5 catalog input changed after resolution");
+      return path;
+    };
+    if(std::filesystem::canonical(checked(catalog_binding.At("catalog")))!=std::filesystem::canonical(r.v2_solve_table)
+       || catalog_binding.At("actual_request").Dump(0)!=request.Dump(0))
+      throw std::invalid_argument("MX-5 catalog helper changed actual model/request/root");
+    selected_table=checked(catalog_binding.At("table"));table_document=json::ParseFile(selected_table);
+    for(auto const& ref:catalog_binding.At("tables").AsArray("tables"))diagnostic_tables.push_back(json::ParseFile(checked(ref)));
+  }
+  if(catalog)solver=std::make_unique<solver::MxDecodeSolverV2>(table_document,diagnostic_tables);
+  auto selection=schema3 ? solver->SolveQualifiedDomain(model,r.batch,r.v2_threads,r.grid,r.past_lo,r.past_hi)
+                         : solver->Solve(model,r.batch,r.v2_threads,r.grid,r.past_lo,r.past_hi);
+  if(catalog && selection.fit_rows!=Int(catalog_binding,"fit_cost_rows"))throw std::invalid_argument("MX-5 global unique-cost fit count differs from catalog");
   std::string out=r.output.string(), preview=out+".mx5_candidates.json";
   if (!r.output.parent_path().empty()) std::filesystem::create_directories(r.output.parent_path());
   if (!r.v2_results.empty()) {
@@ -138,7 +177,12 @@ int TryPrepareV2(Request const& r) {
   }
   if (std::filesystem::exists(preview)) throw std::invalid_argument("MX-5 candidate preview already exists; preserve earlier evidence");
   auto doc=schema3 ? solver::MxDecodeQualifiedDomainJsonV3(selection) : solver::MxDecodeCandidatesJsonV2(selection);
-  doc.Set("stage_table",Object{{"path",absolute(r.v2_solve_table)},{"sha256",hash(r.v2_solve_table)}});
+  doc.Set("stage_table",Object{{"path",absolute(selected_table)},{"sha256",hash(selected_table)}});
+  if(catalog) {
+    doc.Set("stage_catalog",catalog_binding.At("catalog"));doc.Set("stage_catalog_scope",catalog_binding.At("scope"));
+    auto fit=doc.At("fit");fit.Set("scope","catalog_unique_gemm_head_same_source_epoch");fit.Set("catalog",catalog_binding.At("catalog"));fit.Set("source_sha256",catalog_binding.At("scope").At("source_sha256"));
+    fit.Set("attention_included",false);fit.Set("rejections_included",false);doc.Set("fit",fit);
+  }
   doc.Set("input",Object{{"path",absolute(r.input.string())},{"sha256",hash(r.input.string())}});
   auto compiler=std::filesystem::read_symlink("/proc/self/exe").string();
   doc.Set("producer",Object{{"path",compiler},{"sha256",hash(compiler)}});

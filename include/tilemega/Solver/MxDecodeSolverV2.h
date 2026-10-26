@@ -6,6 +6,7 @@
 
 #include <array>
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -63,6 +64,9 @@ class MxDecodeSolverV2 {
   explicit MxDecodeSolverV2(std::string const& table);
   explicit MxDecodeSolverV2(char const* table) : MxDecodeSolverV2(std::string(table)) {}
   explicit MxDecodeSolverV2(json::Value const& table);
+  /// Keep selected scope solving unchanged; fit only deduplicated, strictly
+  /// validated current-source cost rows from the complete catalog corpus.
+  MxDecodeSolverV2(json::Value const& table, std::vector<json::Value> const& diagnostic_tables);
 
   /// Every legal coordinate of a covered shape must have a qualified row.
   /// Attention averages interpolated costs for L=past+1, inclusive.
@@ -118,7 +122,9 @@ class MxDecodeSolverV2 {
                                              int batch, int threads, int grid) const;
   std::vector<MxDecodeCandidateV2> Attention(codegen::MxDecodeModel const&, int batch, int threads,
                                             int past_lo, int past_hi) const;
-  void Fit();
+  bool global_diagnostic_corpus_ = false;
+  std::set<std::pair<std::string,std::map<std::string,int>>> globally_covered_;
+  void Fit(std::vector<Row> const& rows);
 };
 
 }  // namespace tilemega::solver

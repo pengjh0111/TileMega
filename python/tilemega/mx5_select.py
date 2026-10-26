@@ -97,6 +97,8 @@ def validate_preview(path, *, allow_schema3_diagnostic=False):
     table_path = check_file(doc['stage_table'])
     check_file(doc['input']); check_file(doc['producer'])
     table = load(table_path)
+    from .mx5_catalog import validate_preview_binding
+    validate_preview_binding(doc)
     schema3 = table.get('schema_version') == 3
     if schema3 and not allow_schema3_diagnostic:
         raise ValueError('schema3 preview is diagnostic only; explicit allow_schema3_diagnostic is required, not measurement/default consumption')
@@ -338,7 +340,7 @@ def native_solve_command(preview, prefix, results=None):
             '--serving', 'decode', '--emit', 'serving', '--frontend', 'decoder', '--batch', str(req['batch']),
             '--capacity', str(req['capacity']), '--past-range', str(req['past_lo']) + ':' + str(req['past_hi']),
             '--selection', 'predicted', '--runtime-target', req['runtime_target'],
-            '--mx-decode-v2-solve', str(check_file(preview['stage_table'])), '--mx-decode-v2-threads', str(req['threads'])]
+            '--mx-decode-v2-solve', str(check_file(preview.get('stage_catalog',preview['stage_table']))), '--mx-decode-v2-threads', str(req['threads'])]
     if results is not None:
         argv += ['--mx-decode-v2-results', str(results)]
     return argv

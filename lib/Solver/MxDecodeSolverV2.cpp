@@ -426,7 +426,44 @@ MxDecodeSolverV2::MxDecodeSolverV2(Value const& document) {
   if (outcomes_v3_ && document.At("measured_domain_complete").AsBool("measured_domain_complete")!=rejected_.empty())
     Fail("schema3 measured completeness contradicts rejections");
   if (rows_.empty() && !outcomes_v3_) Fail("empty measured table");
-  Fit();
+  Fit(rows_);
+}
+
+
+MxDecodeSolverV2::MxDecodeSolverV2(Value const& selected, std::vector<Value> const& diagnostic_tables)
+    : MxDecodeSolverV2(selected) {
+  if(!outcomes_v3_ || diagnostic_tables.empty())Fail("global diagnostic corpus requires complete schema3 scopes");
+  bool selected_found=false;
+  std::map<std::pair<std::string,Key>,std::pair<bool,std::string>> seen;
+  std::vector<Row> costs;
+  for(auto const& document:diagnostic_tables) {
+    MxDecodeSolverV2 leaf(document);
+    if(!leaf.outcomes_v3_)Fail("global diagnostic corpus cannot contain schema2/placeholder data");
+    selected_found|=document.Dump(0)==selected.Dump(0);
+    auto const& scope=leaf.scope_;auto const& descriptor=scope.At("model");
+    for(char const* kind:{"gemm","head","attention"})
+      if(S(scope.At("source_sha256"),kind)!=S(scope_.At("source_sha256"),kind))Fail("global diagnostic corpus mixes source epochs");
+    MxDecodeModel model;
+    model.layers=I(descriptor,"layers",1);model.hidden=I(descriptor,"hidden",1);model.heads=I(descriptor,"heads",1);
+    model.hkv=I(descriptor,"hkv",1);model.head_dim=I(descriptor,"head_dim",1);model.q_per_kv=I(descriptor,"q_per_kv",1);
+    model.inter=I(descriptor,"inter",1);model.vocab=I(descriptor,"vocab",1);model.capacity=I(descriptor,"capacity",1);
+    model.qk_norm=descriptor.At("qk_norm").AsBool("qk_norm");
+    leaf.SolveQualifiedDomain(model,I(scope,"batch"),I(scope,"threads"),I(scope,"grid"),I(scope,"past_lo"),I(scope,"past_hi"));
+    auto add=[&](auto const& row,bool rejected) {
+      auto base=row.key;base.erase(row.kind=="attention"?"prefetch_kind":"prefetch");
+      auto value=std::make_pair(rejected,row.evidence.Dump(0));
+      auto [old,inserted]=seen.emplace(std::make_pair(row.kind,base),value);
+      if(!inserted && old->second!=value)Fail("conflicting duplicate cost/rejection in global diagnostic corpus");
+      globally_covered_.insert({row.kind,row.key});return inserted;
+    };
+    for(auto const& row:leaf.rows_)if(add(row,false) && row.kind!="attention") {
+      // Fitting uses real measured values; retain no duplicate per-scope evidence.
+      Row value=row;value.evidence=Value{};costs.push_back(std::move(value));
+    }
+    for(auto const& row:leaf.rejected_)add(row,true);
+  }
+  if(!selected_found)Fail("selected scope is absent from global diagnostic corpus");
+  global_diagnostic_corpus_=true;coefficients_={};fit_r2_=0;fit_rows_=0;Fit(costs);
 }
 
 
@@ -654,10 +691,10 @@ MxDecodeMeasuredSelectionV2 SelectMxDecodeMeasuredV2(MxDecodeSelectionV2 const& 
   return out;
 }
 
-void MxDecodeSolverV2::Fit() {
+void MxDecodeSolverV2::Fit(std::vector<Row> const& rows) {
   std::array<std::vector<std::vector<double>>, 2> x;
   std::array<std::vector<double>, 2> y;
-  for (auto const& r : rows_) if (r.kind != "attention") {
+  for (auto const& r : rows) if (r.kind != "attention") {
     int idx = r.key.at("threads") == 576;
     int op = r.kind == "head" ? 3 : r.key.at("op");
     auto c = Class(r.key);
@@ -683,6 +720,10 @@ double MxDecodeSolverV2::EstimateUncovered(MxDecodeModel const& m, std::string c
   if (grid != kGrid || (threads != 512 && threads != 576)) Fail("invalid estimate threads/grid");
   int n, k, op, norm; Shape(m, cls, n, k, op, norm);
   std::string kind = cls == "head" ? "head" : "gemm";
+  if(global_diagnostic_corpus_)for(auto const& [covered_kind,key]:globally_covered_)
+    if(covered_kind==kind && key.at("n")==n && key.at("k")==k && key.at("b")==batch && key.at("threads")==threads
+       && (kind=="head" || (key.at("op")==op && key.at("norm")==norm)))
+      Fail("globally covered or rejected shape cannot use least-squares fallback");
   for (auto const& r : rows_) if (r.kind == kind && r.key.at("n") == n && r.key.at("k") == k && r.key.at("b") == batch
                                  && r.key.at("threads") == threads
                                  && (kind == "head" || (r.key.at("op") == op && r.key.at("norm") == norm)))

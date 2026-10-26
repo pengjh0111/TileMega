@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/MxDecodeSolverV2.h>
+#include <tilemega/Solver/MxDecodeSelectionV2.h>
 #include <tilemega/Backend/Mx/DecodeGeometryV2.h>
 #include "../../lib/Solver/MxDecodeCompilerProbeV2.h"
 #include <chrono>
@@ -342,8 +343,8 @@ struct OutcomeProofs {
     Put(binary,"CPU synthetic binary "+std::to_string(sequence));
     auto prov=Identity(kind);prov.Set("source_sha256",sources[kind]);prov.Set("binary_sha256",ProofFile(binary).At("sha256"));
     std::string field=kind=="attention"?"prefetch_kind":"prefetch";
-    json::Array command{compiler.string(),"-std=c++17","-O3","-shared","-Xcompiler","-fPIC,-resource-usage","-fno-strict-aliasing","-DTILEMEGA_SYNC_V3=1","-DTILEMEGA_WATCHDOG=0","-DMX5_TEST_THREADS=576"};
-    auto meta=Obj({{"body",kind},{"bench",true},{"returncode",0},{"threads",576},{"source_sha256",sources[kind]},
+    json::Array command{compiler.string(),"-std=c++17","-O3","-shared","-Xcompiler","-fPIC,-resource-usage","-fno-strict-aliasing","-DTILEMEGA_SYNC_V3=1","-DTILEMEGA_WATCHDOG=0","-DMX5_TEST_THREADS="+std::to_string(Number(key,"threads"))};
+    auto meta=Obj({{"body",kind},{"bench",true},{"returncode",0},{"threads",Number(key,"threads")},{"source_sha256",sources[kind]},
                    {"binary_sha256",prov.At("binary_sha256")},{"base_head",prov.At("base_head")}});
     auto coordinate=[&](char const* name,char const* dimension,char const* macro) {
       int value=Number(key,dimension);meta.Set(name,value);command.emplace_back(std::string("-D")+macro+"="+std::to_string(value));
@@ -523,9 +524,54 @@ void TestSchema3ReviewRegressions(Value const& table) {
   Throws([&]{MxDecodeSolverV2 solver(proof.Envelope(table,cost_rows,{}));},"first passing build");
   std::cout<<"schema3 review regressions: P0 override rejected, MIR positions accepted, cost-width/halving parity and schema2 legacy preserved\n";
 }
+void TestGlobalDiagnosticCorpus(Value const& table) {
+  OutcomeProofs proof;auto original=table.At("rows").AsArray("rows");
+  auto selected=proof.Envelope(table,original,{});
+  auto duplicate=selected,scope=selected.At("scope"),model=scope.At("model");model.Set("layers",3);scope.Set("model",model);scope.Set("model_id","CPU_SECOND_USE");duplicate.Set("scope",scope);
+  MxDecodeSolverV2 direct(selected),deduplicated(selected,{selected,duplicate});
+  assert(deduplicated.FitRows()==direct.FitRows() && deduplicated.FitR2()==direct.FitR2());
+  auto before=direct.SolveQualifiedDomain(Model(),1),after=deduplicated.SolveQualifiedDomain(Model(),1);
+  assert(MxDecodeCandidatesJsonV2(before).At("candidates").Dump(0)==MxDecodeCandidatesJsonV2(after).At("candidates").Dump(0));
+  json::Array other_rows,other_rejected;
+  for(auto const& row:original) {
+    auto kind=row.At("kind").AsString("kind");auto key=row.At("key");key.Set("threads",512);
+    if(kind=="attention")key.Set("prefetch_kind",2);
+    else {
+      codegen::MxDecodeClassV2 c{Number(key,"tn"),Number(key,"wn"),Number(key,"depth"),kind=="gemm" && Number(key,"part")==0,-1,160};
+      key.Set("prefetch",codegen::MxDecodePrefetchV2(c,Number(key,"n"),Number(key,"k"),104,512));
+    }
+    if(kind=="head")other_rejected.push_back(proof.Proof(kind,key,true));
+    else other_rows.push_back(Row(kind,key,row.At("median_ns").AsNumber("cost")*1.3));
+  }
+  auto other=proof.Envelope(table,other_rows,other_rejected);scope=other.At("scope");scope.Set("threads",512);other.Set("scope",scope);
+  MxDecodeSolverV2 global(selected,{selected,other});
+  auto repeated=other;scope=repeated.At("scope");model=scope.At("model");model.Set("layers",3);scope.Set("model",model);scope.Set("model_id","CPU_OTHER_USE");repeated.Set("scope",scope);
+  MxDecodeSolverV2 repeated_global(selected,{selected,other,repeated});
+  assert(repeated_global.FitRows()==global.FitRows() && repeated_global.FitR2()==global.FitR2());
+  int actual_costs=0;for(auto const& doc:std::vector<Value>{selected,other})for(auto const& row:doc.At("rows").AsArray("rows"))actual_costs+=row.At("kind").AsString("kind")!="attention";
+  assert(global.FitRows()==actual_costs);
+  auto c=MxDecodeDomainV2(Model(),"head",1).front();
+  Throws([&]{global.EstimateUncovered(Model(),"head",1,c,512);},"globally covered or rejected");
+  auto unseen=Model();unseen.hidden+=32;c=MxDecodeDomainV2(unseen,"qkv",1).front();
+  assert(global.EstimateUncovered(unseen,"qkv",1,c,512)>0);
+  Throws([&]{MxDecodeSolverV2 absent(selected,{other});},"selected scope is absent");
+  Throws([&]{MxDecodeSolverV2 legacy(selected,{table});},"cannot contain schema2");
+  auto mixed=duplicate;scope=mixed.At("scope");auto sources=scope.At("source_sha256");sources.Set("gemm",std::string(64,'f'));scope.Set("source_sha256",sources);mixed.Set("scope",scope);
+  Throws([&]{MxDecodeSolverV2 bad(selected,{selected,mixed});},"mixes source epochs");
+  auto incomplete=duplicate;auto rows=incomplete.At("rows").AsArray("rows");rows.pop_back();incomplete.Set("rows",rows);
+  Throws([&]{MxDecodeSolverV2 bad(selected,{selected,incomplete});},"incomplete schema3");
+  auto conflict=ChangeRow(duplicate,[](Value& row) {
+    row=Row(row.At("kind").AsString("kind"),row.At("key"),row.At("median_ns").AsNumber("ns")+1);
+  });
+  // A changed synthetic measurement cannot silently replace the same physical
+  // stage key in another model use, even if both leaf documents parse.
+  auto changed=conflict.At("rows").AsArray("rows");conflict=proof.Envelope(table,changed,{});conflict.Set("scope",duplicate.At("scope"));
+  Throws([&]{MxDecodeSolverV2 bad(selected,{selected,conflict});},"conflicting duplicate");
+}
+
 }  // namespace
 int main() {
-  TestMerge(); auto table = Table(); TestSolve(table); TestPiecewiseAttention(table); TestRejections(table); TestReduction(table); TestCompilerOnlyReference(table); TestOutcomeDomain(table); TestSchema3ReviewRegressions(table);
+  TestMerge(); auto table = Table(); TestSolve(table); TestPiecewiseAttention(table); TestRejections(table); TestReduction(table); TestCompilerOnlyReference(table); TestOutcomeDomain(table); TestSchema3ReviewRegressions(table); TestGlobalDiagnosticCorpus(table);
   std::cout << "mx_decode_solver_v2: CPU synthetic qualification, interpolation, k-best and selection checks passed\n";
   return 0;
 }

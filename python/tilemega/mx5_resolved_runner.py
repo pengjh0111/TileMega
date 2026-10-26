@@ -67,8 +67,9 @@ def _fresh(preview,descriptor,process):
     argv=process['argv'];prefix=str(check_file(descriptor)).removesuffix('.mx5_candidates.json')
     need(argv==common.native_solve_command(preview,prefix),'native revalidation command differs from exact original request')
     fresh=common.validate_preview(check_file(descriptor),allow_schema3_diagnostic=True)
-    for key in ('stage_table','input','producer','request'):
-        need(fresh[key]==preview[key],'fresh native origin '+key+' differs')
+    for key in ('stage_table','input','producer','request','stage_catalog','stage_catalog_scope'):
+        need(fresh.get(key)==preview.get(key),'fresh native origin '+key+' differs')
+    if 'stage_catalog' in preview:need(fresh.get('fit')==preview.get('fit'),'fresh catalog global fit diagnostic changed')
     need(len(fresh['candidates'])==4,'fresh native solver did not retain exact four')
     for old,new in zip(preview['candidates'],fresh['candidates']):
         need(all(old[k]==new[k] for k in ('index','pin','ranks','predicted_tpot_ns','predicted_stage_ns','evidence')),'fresh native exact top4/anchor changed')
