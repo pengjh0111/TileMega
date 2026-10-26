@@ -111,11 +111,11 @@ struct MxAttentionV2 {
     return uint4{x.x & mask[0], x.y & mask[1], x.z & mask[2], x.w & mask[3]};
   }
 
-  template <bool First, class Shape>
+  template <class Shape>
   __device__ __forceinline__ static void Segment(Prefetched const& pf, Block& block,
                                                  MxAttentionOperandsV2 const& p, Shape const& s,
                                                  MxAttentionGeometryV2 const& geo, int head, int first, int end,
-                                                 float* shared) {
+                                                 float* shared, bool first_segment) {
     using Sync = codegen::mx::StageSyncV2<Shape::kThreads>;
     int const t = StageThread();
     __builtin_assume(unsigned(t) < unsigned(Shape::kThreads));
@@ -157,7 +157,7 @@ struct MxAttentionV2 {
         if (lane < D / 8)
           new_v = LoadGlobal16Gvm(p.qkv + (head * (Q + 2) + Q + 1) * D + lane * 8);
       }
-      if constexpr (First) {
+      if (first_segment) {
         if constexpr (PrefetchKind) {
 #pragma unroll
           for (int a = 0; a < 2; ++a)
@@ -174,7 +174,7 @@ struct MxAttentionV2 {
       }
       // Prefix inputs precede fresh history; keep only that younger batch outstanding.
       asm volatile("" ::: "memory");
-      if constexpr (First) {
+      if (first_segment) {
         if constexpr (PrefetchKind == 0) __builtin_mxc_arrive_gvmcnt(kKLoads + kVLoads);
         else if constexpr (PrefetchKind == 1) __builtin_mxc_arrive_gvmcnt(kVLoads);
         else __builtin_mxc_arrive_gvmcnt(0);
@@ -444,12 +444,12 @@ struct MxAttentionV2 {
     // Define empty slots so masked loop backedges do not retain prior K/V values.
     Block block{};
     if (geo.begin < geo.end) {
-      int const head = geo.begin / geo.blocks;
-      Segment<true>(pf, block, p, s, geo, head, geo.begin % geo.blocks,
-                    min(geo.end - head * geo.blocks, geo.blocks), shared);
+      int const first_head = geo.begin / geo.blocks;
+      // A runtime prefix choice keeps one QK/PV body for every head segment.
 #pragma unroll 1
-      for (int h = head + 1; h * geo.blocks < geo.end; ++h)
-        Segment<false>(pf, block, p, s, geo, h, 0, min(geo.end - h * geo.blocks, geo.blocks), shared);
+      for (int h = first_head; h * geo.blocks < geo.end; ++h)
+        Segment(pf, block, p, s, geo, h, max(geo.begin - h * geo.blocks, 0),
+                min(geo.end - h * geo.blocks, geo.blocks), shared, h == first_head);
     }
     Sync::CtaSync();
     using Result = decltype(next());
