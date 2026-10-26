@@ -315,9 +315,10 @@ struct MxAttentionV2 {
         wave_result[r * (D + 2) + D + 1] = ((exchange[r] + exchange[16 + r]) + exchange[32 + r]) + exchange[48 + r];
       }
     } else block.valid = false;
+    if (!block.valid) block = Block{};
     Sync::CtaSync();
-    // Each thread owns (q,d), and merges waves in their prescribed order.
-    float* const merged = shared + 64 + D / 2;
+    int const producers = geo.Producers(head), ordinal = StageBlock() - geo.FirstOwner(head);
+    float* const base = p.partial + head * kSlots * Q * (D + 2);
     if (wave < 8) {
       for (int item = t; item < Q * (D + 2); item += 512) {
         int const q = item / (D + 2), d = item % (D + 2);
@@ -325,31 +326,23 @@ struct MxAttentionV2 {
 #pragma unroll
         for (int w = 0; w < 8; ++w)
           if (first + w < end) m = fmaxf(m, shared[w * kWaveFloats + 64 + D / 2 + q * (D + 2) + D]);
-        float result = 0;
+        float result = 0, lambda = 0;
 #pragma unroll
         for (int w = 0; w < 8; ++w) {
           if (first + w < end) {
             float const* values = shared + w * kWaveFloats + 64 + D / 2 + q * (D + 2);
-            result += values[d] * maca::Exp2(values[D] - m);
+            float const scale = maca::Exp2(values[D] - m);
+            result += values[d] * scale;
+            if (producers == 1) lambda += values[D + 1] * scale;
           }
         }
-        // Keep wave zero's inputs intact until every output thread finishes.
-        float* const scratch = shared + 8 * kWaveFloats;
-        if (d == D) result = m;
-        scratch[item] = result;
+        // Inputs stay read-only until the final CTA sync protects their reuse.
+        if (producers == 1) {
+          if (d < D) p.ctx[(head * Q + q) * D + d] = Bf16(result / lambda);
+        } else base[ordinal * Q * (D + 2) + item] = d == D ? m : result;
       }
     }
-    Sync::CtaSync();
-    if (wave < 8)
-      for (int item = t; item < Q * (D + 2); item += 512) merged[item] = shared[8 * kWaveFloats + item];
-    Sync::CtaSync();
-    int const producers = geo.Producers(head), ordinal = StageBlock() - geo.FirstOwner(head);
-    if (producers == 1) WriteContext(merged, p, head, t);
-    else {
-      float* const base = p.partial + head * kSlots * Q * (D + 2);
-      if (wave < 8)
-        for (int item = t; item < Q * (D + 2); item += 512)
-          base[ordinal * Q * (D + 2) + item] = merged[item];
+    if (producers > 1) {
       unsigned* const flag = reinterpret_cast<unsigned*>(shared + kSharedBytes / 4 - 4);
       codegen::executor::LastArriverV2<Sync>::Run(p.tickets + head, unsigned(producers), flag, [&] {
         MergeBody<Sync>(base, p, head, producers, t, shared + 8 * kWaveFloats);
@@ -358,14 +351,6 @@ struct MxAttentionV2 {
     Sync::CtaSync();
   }
 
-  __device__ __forceinline__ static void WriteContext(float const* result, MxAttentionOperandsV2 const& p,
-                                                      int head, int thread) {
-    if (thread < 512)
-      for (int item = thread; item < Q * D; item += 512) {
-        int const q = item / D, d = item % D;
-        p.ctx[(head * Q + q) * D + d] = Bf16(result[q * (D + 2) + d] / result[q * (D + 2) + D + 1]);
-      }
-  }
   template <class Sync>
   __device__ __forceinline__ static void MergeBody(float const* base, MxAttentionOperandsV2 const& p,
                                                   int head, int producers, int thread, float* scratch) {
