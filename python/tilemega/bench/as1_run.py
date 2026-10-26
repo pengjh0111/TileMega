@@ -32,7 +32,9 @@ def contained(path, roots):
     return any(path.is_relative_to(root.resolve()) and path != root.resolve() for root in roots)
 
 
-def snapshot():
+def snapshot(timeout_s=30):
+    if not 0 < timeout_s <= 60:
+        raise ValueError('Management query timeout must be in (0,60] seconds')
     # The toolkit prepends different copies of libc_sec/libmmpa. Management
     # uses the installed driver's libraries; compute children keep their CANN env.
     env = os.environ.copy()
@@ -43,7 +45,8 @@ def snapshot():
                                                         if env.get('LD_LIBRARY_PATH') else []))
     command = [shutil.which('npu-smi') or 'npu-smi', 'info']
     stamp = {'time': dt.datetime.now(dt.timezone.utc).isoformat(),
-             'command': command, 'driver_library_precedence': driver_libs}
+             'command': command, 'driver_library_precedence': driver_libs,
+             'query_timeout_s': timeout_s}
     for proc, identity in list(_pending_telemetry):
         if proc.poll() is None:
             return {**stamp, 'error': 'Previous own telemetry query has not exited',
@@ -54,7 +57,7 @@ def snapshot():
                                 stderr=subprocess.STDOUT, start_new_session=True, env=env)
         identity = process_identity(proc.pid)
         try:
-            output, _ = proc.communicate(timeout=15)
+            output, _ = proc.communicate(timeout=timeout_s)
             return {**stamp, 'exit_code': proc.returncode, 'output': output,
                     'query_identity': identity}
         except subprocess.TimeoutExpired:
@@ -64,14 +67,14 @@ def snapshot():
                 proc.kill()
             try:
                 output, _ = proc.communicate(timeout=1)
-                return {**stamp, 'error': 'Own telemetry query exceeded15s',
+                return {**stamp, 'error': f'Own telemetry query exceeded{timeout_s:g}s',
                         'exit_code': proc.returncode, 'output': output,
                         'query_identity': identity, 'query_timed_out': True}
             except subprocess.TimeoutExpired:
                 _pending_telemetry.append((proc, identity))
                 if proc.stdout is not None:
                     proc.stdout.close()
-                return {**stamp, 'error': 'Own telemetry query exceeded15s and bounded reaping',
+                return {**stamp, 'error': f'Own telemetry query exceeded{timeout_s:g}s and bounded reaping',
                         'query_identity': identity, 'query_timed_out': True,
                         'query_may_remain_in_kernel_wait': True}
     except OSError as exc:
@@ -174,18 +177,20 @@ def main(project='as1'):
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--timeout-s', type=float, default=600)
     parser.add_argument('--sample-s', type=float, default=15)
+    parser.add_argument('--telemetry-timeout-s', type=float, default=30)
     parser.add_argument('--required-free-mib', type=int, default=0)
     parser.add_argument('command', nargs=argparse.REMAINDER)
     args = parser.parse_args()
     command = args.command[1:] if args.command[:1] == ['--'] else args.command
-    if not command or not 0 < args.timeout_s <= 900 or args.sample_s < 1 or args.required_free_mib < 0:
-        parser.error('A command, timeout in (0,900], and sample interval >=1 are required')
+    if (not command or not 0 < args.timeout_s <= 900 or args.sample_s < 1 or
+            args.required_free_mib < 0 or not 0 < args.telemetry_timeout_s <= 60):
+        parser.error('Require a command, job timeout in (0,900], telemetry timeout in (0,60], and sample interval >=1')
     out = args.out.absolute()
     if not contained(out, [RUNS, WORK / 'logs']):
         parser.error('Output must be beneath the selected project runs or logs')
     # Never overwrite evidence or reuse another job's directory.
     out.mkdir(parents=True, exist_ok=False)
-    before = snapshot()
+    before = snapshot(args.telemetry_timeout_s)
     devices = devices_from_snapshot(before)
     if args.physical_device == 'auto':
         if not devices:
@@ -201,6 +206,7 @@ def main(project='as1'):
               'mapping_evidence': 'stated; validate with ACL mapping probe',
               'selection_reason': reason, 'observed_hbm': devices.get(physical),
               'command': command, 'device_locked': False, 'timeout_s': args.timeout_s,
+              'telemetry_timeout_s': args.telemetry_timeout_s,
               'started_at': dt.datetime.now(dt.timezone.utc).isoformat(), 'status': 'starting'}
     record['pci_bus_id'] = devices.get(physical, {}).get('pci_bus_id')
     telemetry_ok = before.get('exit_code') == 0 and physical in devices
@@ -234,7 +240,7 @@ def main(project='as1'):
         reason = 'Insufficient observed free HBM' if telemetry_ok else 'Cannot verify the requested HBM budget from npu-smi'
         record.update(status=status, reason=reason, exit_code=75, elapsed_s=time.monotonic()-started)
         record_path.write_text(json.dumps(record, indent=2)+'\n')
-        (out / 'after.json').write_text(json.dumps(snapshot(), indent=2)+'\n')
+        (out / 'after.json').write_text(json.dumps(snapshot(args.telemetry_timeout_s), indent=2)+'\n')
         print(json.dumps(record))
         return 75
     proc = None
@@ -258,9 +264,10 @@ def main(project='as1'):
                         record['status'] = 'passed' if exit_code == 0 else 'failed'
                         break
                     except subprocess.TimeoutExpired:
-                        if time.monotonic()-started >= args.timeout_s:
+                        remaining = args.timeout_s-(time.monotonic()-started)
+                        if remaining <= 0:
                             raise
-                        samples.write(json.dumps(snapshot())+'\n')
+                        samples.write(json.dumps(snapshot(min(args.telemetry_timeout_s, remaining)))+'\n')
                         samples.flush()
     except subprocess.TimeoutExpired:
         record.update(status='timeout', device_work_may_outlive_host=True)
@@ -279,7 +286,7 @@ def main(project='as1'):
                       finished_at=dt.datetime.now(dt.timezone.utc).isoformat())
         if proc is not None:
             record['child_exit_code'] = proc.poll()
-        (out / 'after.json').write_text(json.dumps(snapshot(), indent=2)+'\n')
+        (out / 'after.json').write_text(json.dumps(snapshot(args.telemetry_timeout_s), indent=2)+'\n')
         record_path.write_text(json.dumps(record, indent=2)+'\n')
     print(json.dumps({'job': str(out), **record}, ensure_ascii=False))
     return exit_code if exit_code >= 0 else 128-exit_code

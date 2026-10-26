@@ -24,13 +24,19 @@ class AscendAs2Safety(unittest.TestCase):
         identity=dict(pid=12345,start_ticks=99,process_group=12345,session=12345)
         with patch.dict(os.environ,{'LD_LIBRARY_PATH':'/project/cann/lib64'}):
             with patch.object(runner.subprocess,'Popen',return_value=proc) as spawn, patch.object(runner,'process_identity',return_value=identity):
-                state=runner.snapshot()
+                state=runner.snapshot(60)
             self.assertEqual(os.environ['LD_LIBRARY_PATH'],'/project/cann/lib64')
         env=spawn.call_args.kwargs['env']
         self.assertEqual(env['LD_LIBRARY_PATH'].split(':')[-1],'/project/cann/lib64')
         self.assertEqual(env['LD_LIBRARY_PATH'].split(':')[:-1],state['driver_library_precedence'])
         self.assertEqual(spawn.call_args.args[0],state['command'])
         self.assertEqual(state['command'][-1],'info')
+        proc.communicate.assert_called_once_with(timeout=60)
+        self.assertEqual(state['query_timeout_s'],60)
+        with patch.object(runner.subprocess,'Popen') as spawn:
+            for value in (0,-1,61):
+                with self.assertRaises(ValueError):runner.snapshot(value)
+            spawn.assert_not_called()
 
     def test_management_query_reaping_is_bounded_without_repeated_spawn(self):
         from tilemega.bench import as1_run as runner
@@ -39,7 +45,7 @@ class AscendAs2Safety(unittest.TestCase):
         proc.communicate.side_effect=[subprocess.TimeoutExpired('npu-smi',15),subprocess.TimeoutExpired('npu-smi',1)]
         try:
             with patch.object(runner.subprocess,'Popen',return_value=proc) as spawn, patch.object(runner,'process_identity',return_value=identity):
-                state=runner.snapshot()
+                state=runner.snapshot(15)
                 self.assertTrue(state['query_timed_out']);self.assertTrue(state['query_may_remain_in_kernel_wait'])
                 self.assertEqual(state['query_identity'],identity);proc.kill.assert_called_once()
                 self.assertEqual([c.kwargs['timeout'] for c in proc.communicate.call_args_list],[15,1])
@@ -60,7 +66,7 @@ class AscendAs2Safety(unittest.TestCase):
         proc.communicate.side_effect=[subprocess.TimeoutExpired('npu-smi',15),subprocess.TimeoutExpired('npu-smi',1)]
         try:
             with patch.object(runner.subprocess,'Popen',return_value=proc), patch.object(runner,'process_identity',side_effect=[identity,reused]):
-                state=runner.snapshot();self.assertTrue(state['query_may_remain_in_kernel_wait'])
+                state=runner.snapshot(15);self.assertTrue(state['query_may_remain_in_kernel_wait'])
                 proc.kill.assert_not_called()
         finally:
             runner._pending_telemetry.clear()
