@@ -39,8 +39,10 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--audit',type=Path,required=True)
     p.add_argument('--apply',action='store_true')
+    p.add_argument('--min-bytes',type=int,default=1<<20)
     p.add_argument('--out',type=Path,required=True)
     a=p.parse_args();runs,_,_=project_paths('as2');roots=[runs]
+    if a.min_bytes<65536:p.error('Deduplication is limited to numeric payloads of at least64KiB')
     audit=plain_path(a.audit,roots);out=plain_path(a.out,roots)
     if out.exists():raise FileExistsError(out)
     proof=json.loads(audit.read_text())
@@ -62,7 +64,7 @@ def main():
     canonical={};items=[]
     for directory in directories:
         for target in sorted(directory.rglob('*.bin')):
-            if not target.stem.isdecimal() or target.stat().st_size<1<<20:continue
+            if not target.stem.isdecimal() or target.stat().st_size<a.min_bytes:continue
             target=plain_path(target,roots);entry=registered.get(str(target))
             if not entry or not entry.get('completed') or 'active_refs' not in entry or any(process_alive(r) for r in entry['active_refs']):
                 raise ValueError('Missing completed manifest entry or active reference: '+str(target))
@@ -84,6 +86,7 @@ def main():
                 bytes=stamp['size'],previous_unique_allocated_bytes=reclaim))
     result=dict(schema='tilemega.as2.c3_dedup.v1',mode='apply' if a.apply else 'dry-run',
         time=dt.datetime.now(dt.timezone.utc).isoformat(),audit=str(audit),audit_sha256=digest(audit),
+        min_payload_bytes=a.min_bytes,
         changed_files=len(items) if a.apply else 0,eligible_files=len(items),
         previous_unique_allocated_bytes=sum(i['previous_unique_allocated_bytes'] for i in items),
         paths_and_payloads_preserved=True,items=items)
