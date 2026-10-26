@@ -15,7 +15,7 @@ def digest(path):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--model',choices=('qwen3_0_6b','qwen3_1_7b','llama3_2_1b','llama3_2_3b','llama3_1_8b'),required=True)
-    parser.add_argument('--batch',type=int,choices=(1,16),required=True)
+    parser.add_argument('--batch',type=int,choices=(1,2,4,8,16),required=True)
     parser.add_argument('--outputs',type=int,default=4)
     parser.add_argument('--warmup',type=int,default=0)
     parser.add_argument('--repetitions',type=int,default=1)
@@ -42,13 +42,15 @@ def main():
     started=time.monotonic()
     engine=Engine(model_path=str(model_path),load_format=CanonicalModelLoader,
         device='npu',base_gpu_id=0,tp_size=1,pp_size=1,dp_size=1,
-        skip_tokenizer_init=True,dtype='bfloat16',context_length=1088,
+        # Pinned scheduler caps generation at max_req_len - prompt_len - 1.
+        skip_tokenizer_init=True,dtype='bfloat16',context_length=1089,
         attention_backend='ascend',disable_cuda_graph=True,disable_radix_cache=True,
         mem_fraction_static=min(.5,max(.1,(manifest['unique_weight_bytes']+(6<<30))/(128<<30))),
         max_running_requests=args.batch,max_total_tokens=args.batch*1280,
         chunked_prefill_size=max(128,args.batch*64),random_seed=20261016)
     identity=dict(schema='tilemega.as2.sglang_pilot.v1',system='sglang_npu',model_id=args.model,batch=args.batch,
-        isl=64,osl=args.outputs,dtype='bf16',initialization_seconds=time.monotonic()-started,
+        isl=64,osl=args.outputs,dtype='bf16',logical_capacity=1088,engine_context_length=1089,
+        scheduler_guard_positions=1,initialization_seconds=time.monotonic()-started,
         weight_manifest_sha256=digest(manifest_path),config_sha256=manifest['config_sha256'],
         input_sha256=manifest['input_ids']['sha256'],physical_device_id=int(os.environ['AS2_PHYSICAL_DEVICE_ID']),
         logical_device_id=0,private_environment=os.sys.prefix,
@@ -70,7 +72,8 @@ def main():
                 if first is None and len(latest)==args.batch and all(len(x)>=1 for x in latest.values()):
                     torch.npu.synchronize();first=time.perf_counter()
             torch.npu.synchronize();last=time.perf_counter()
-            if first is None or set(latest)!=set(range(args.batch)) or any(len(x)!=args.outputs for x in latest.values()):raise ValueError('Incomplete generation or early EOS')
+            if first is None or set(latest)!=set(range(args.batch)) or any(len(x)!=args.outputs for x in latest.values()):
+                raise ValueError(f'Incomplete generation: expected {args.batch} rows x {args.outputs}, got '+str({i:len(x) for i,x in latest.items()}))
             output=torch.tensor([latest[i] for i in range(args.batch)],dtype=torch.int32)
             dest=out/f'request_{repetition}';dest.mkdir();(dest/'tokens.bin').write_bytes(output.numpy().tobytes())
             sample=dict(repetition=repetition,ttft_ms=1000*(first-t0),e2e_ms=1000*(last-t0),

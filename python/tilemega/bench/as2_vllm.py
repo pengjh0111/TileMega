@@ -20,7 +20,7 @@ def digest(path):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--model',required=True,choices=('qwen3_0_6b','qwen3_1_7b','llama3_2_1b','llama3_2_3b','llama3_1_8b'))
-    parser.add_argument('--batch',type=int,choices=(1,16),required=True)
+    parser.add_argument('--batch',type=int,choices=(1,2,4,8,16),required=True)
     parser.add_argument('--outputs',type=int,default=4)
     parser.add_argument('--warmup',type=int,default=0)
     parser.add_argument('--repetitions',type=int,default=1)

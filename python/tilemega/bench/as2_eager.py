@@ -137,7 +137,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--model', choices=MODELS, required=True)
     parser.add_argument('--device', choices=('npu:0','cpu'), default='npu:0', help='CPU is a correctness reference only')
-    parser.add_argument('--batch', type=int, choices=(1, 16), required=True)
+    parser.add_argument('--batch', type=int, choices=(1, 2, 4, 8, 16), required=True)
     parser.add_argument('--attention', choices=('eager', 'sdpa', 'fia-v2'), default='sdpa')
     parser.add_argument('--cache', choices=('static', 'dynamic'), default='static')
     parser.add_argument('--norm', choices=('hf', 'fused'), default='hf')
