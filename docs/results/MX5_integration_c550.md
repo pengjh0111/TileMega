@@ -917,3 +917,27 @@ Raw:`runs/mx5/checkpoint_gamma_validation_v1/`; wrapper-wall union at12:44:22
 Shanghai is20.798983/60 card-hours (685 closed/2 active),including waits/cooldowns.
 Isolated gamma-weight barrier scheduling has only CPU admission so far; full
 512 A and fresh old-Rope bitwise helpers will run before native/E2E review.
+
+## Gamma packed dependency scheduling (verified)
+
+`2dbf763ab` adopts exact RowTransform SHA4e52ae2d7460ccb1ad8e295e6bcdf3fdbb40dfdcae02fe61bf2af5e1ff55b1cb.
+Inverse/RotateEight/raw copies/tree/rounding and all pin coordinates remain exact.
+Moving packed gamma dependencies once per chunk permits real CSE; current K/Q
+prefix BF16 rounds each192→160 and MUL160→128 (counts,not measured timing).
+All5 root fresh processes pass1008 A cases+two15-case old-Rope helpers each.
+Both WD plans241/frame0,resident1,15clean rings,whole private/generic/calls0;
+WD0 text191736→183128B and MIR24422→23360. Actual source606 SHAdaa6f6746b15972c729b6bacdab8e529e28012c719f5f4612f20abc2d0d688aa,
+real dirty ed737 WT; immutable mixed producer2227fc3914dacd5f40a095ac81b26263d9c5e8ab52641db835b018799539779e.
+Historical mixed-host limitations remain explicit,not final producer qualification.
+C1/C2512 pass,maxgap.015625,parent token files byte-equal. Same-card P-PAIR:
+A8 rounds2.007759914/2.006651832;gamma1.960924107/1.955569767ms;
+medians2.007205873/1.958246937,ratio.975608414,range.005354340ms.
+Gain2.439% is distinguishable;vsMX4−1.276%. Other4 controls/fresh A P0
+rebuilds are pending; G-PROGRAM and final selection remain open.
+Raw:`runs/mx5/attention_gamma_barrier_e2e_v1_61/ROOT_DECISION.json`.
+Unit CPU seal accidentally included one running root log; old failed full-seal
+check is retained. DELIVERY_v2 excludes only that mutable log;1511 immutable
+files recheck exactly. Native1473 seal also passes. No binary/source was altered.
+Historical cost child PIDs are unrecorded; archived runner88–94 independently
+subprocess.run()s three actual rounds with receipts/raw+guard0. Future passive
+PID observations supplement records without changing the measurement protocol.
