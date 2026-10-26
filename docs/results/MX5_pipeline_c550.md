@@ -201,3 +201,38 @@ Original failed campaign/exporter bindings stay immutable. A new CPU waiter
 requires all114G and28 newH successful batches before derived full50 export.
 At21:46:22 Shanghai conservative three-log union is45.871173/60card-hours,
 including queue/cooldown elapsed. All actual GPU execution remains on6/7.
+
+Verified additional stopped item: independent512 Llama8B B8 original0 hasMT256,
+frame0, allfive Pw=D. Strict512cap255 rejects it (mx5_resources.py:119);
+no legal width reduction remains even though unused numeric retry budget exists.
+The original native candidate stays in the top4; no replacement/threshold waiver
+or execution is made. OtherB8originals and independent cells continue their own
+resource checks. Root cause is not established. Raw ACTUAL_STOPPED_ITEMS.json
+under runs/mx5/checkpoint_actual_resource_defects_v1 preserves both B8 andB16.
+
+Verified budget accounting refinement at22:08:54 Shanghai: sum of physical-card
+wrapper interval unions is38.253330/60card-hours, versus old per-wrapper sum
+47.177215h. Overlapping same-card queued wrappers cannot execute simultaneously
+because all hold the same exclusive GPU lock; interval union removes only this
+double-counted overlap. It still includes preflight/cooldown/CPU overhead and
+active elapsed; closed endpoints add1s for integer-log precision. Peak interval
+concurrency2cards. Initial4/5 guard preflights are included (0.007778h each);
+current execution remains6/7. Three original log snapshots and every old ledger
+are preserved; no performance row changed. Reproducer and interval witnesses:
+runs/mx5/checkpoint_physical_budget_refresh_v1/physical_union/.
+
+Verified cc29d7830 integration repair: actual allocated CFG carries Attention
+K/V slots across Head; no allocator-bug or physical lower-bound claim. Isolated
+normal same-last-pin CPU compile changes only Run-local Block to value-initialized
+Block{}: Llama8B B16 original2 after last legal DownPw4→2 goes fromMT256/frame104
+toMT241/frame0. Diagnostic text209216B; main/frozen were not edited during probe,
+no GPU launch or eligible identity. Old failures and three-reduction budget stay.
+The source change defines unused local slots, leaves valid=false and global
+issue/synchronization/arithmetic coordinates unchanged; actual MIR, numerical,
+occupancy and E2E gates still required. Normal newproducer/2samepin regressions
+are building in a new clean cc29 worktree. Source-closure tar inspection proves
+G14/H15 unchanged, onlyA19 changes. New A P0/primary/cost qualification is required;
+old selected cells and active old-A runner remain valid only for their recorded
+source cohort. No old A cost is relabelled, no old result promoted to new source.
+The pending pure-CPU old512-query waiter was stopped before any GPU launch;
+existing original builds/histories and G/H measurements remain preserved.

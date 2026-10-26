@@ -1,6 +1,6 @@
 # MX-5 LLM C550 results (in progress)
 
-Verified checkpoint: two of 25 dense cells has completed source-qualified top-4 selection; MoE remains 0/5. G-LLM and the default switch remain open.
+Verified checkpoint: two of 25 dense cells have completed source-qualified top-4 selection for the recorded prior body. The cc29 Attention initialization repair is under fresh validation; these rows are not new-source measurements. MoE remains 0/5; G-LLM and the default switch remain open.
 
 Authority: `/root/Prompt/TileMega_MX5_prompt.md`, SHA256 `75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73`. Native source/producer is frozen HEAD `3ef688aa4d0bd7be8135e17e9db3274078dce760`, producer SHA256 `e6130715bb4819438927375b216cb4dd5bebae3e669cad25e8303ef01783a267`.
 
