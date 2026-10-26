@@ -1,6 +1,6 @@
 # MX-5 LLM C550 results (in progress)
 
-Verified checkpoint: one of 25 dense cells has completed source-qualified top-4 selection; MoE remains 0/5. G-LLM and the default switch remain open.
+Verified checkpoint: two of 25 dense cells has completed source-qualified top-4 selection; MoE remains 0/5. G-LLM and the default switch remain open.
 
 Authority: `/root/Prompt/TileMega_MX5_prompt.md`, SHA256 `75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73`. Native source/producer is frozen HEAD `3ef688aa4d0bd7be8135e17e9db3274078dce760`, producer SHA256 `e6130715bb4819438927375b216cb4dd5bebae3e669cad25e8303ef01783a267`.
 
@@ -9,10 +9,11 @@ All measurements use BF16 greedy, ISL/OSL 64/1024, warmup 1 plus timed 2 per fre
 | Cell | TPOT ms | TTFT ms | E2E s | token/s | MBU* | vs MX-4 | /vLLM | /SGLang |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | Qwen3-0.6B B1 | 1.944021 | 9.376043 | 1.998110 | 512.484 | 0.4175 | -1.993% | 0.6323 | 0.7909 |
+| Qwen3-0.6B B16 | 3.567243 | 60.632317 | 3.709922 | 4416.266 | 0.4067 | -21.376% | 0.8873 | 0.8207 |
 
 *MBU is inferred from `(streamed linear/head BF16 weights + KV at average L=576)/(1.55 TB/s × TPOT)`. Full embedding-matrix reads, activation traffic, writes and cache effects are excluded. This is a byte lower-bound model, not a measured DRAM counter. Aggregate MBU, throughput and pred/meas are calculated from aggregate times; raw process rows are retained.
 
-## Actual original top four
+## Qwen B1 actual original top four
 
 The native solver ranks and candidate IDs are retained. Every candidate passed actual 512-step C-1 and C-2 before measurement. The process order is 0/1/2/3, then 1/2/3/0 on card 7.
 
@@ -51,4 +52,21 @@ The stored pin is byte-for-byte the executed physical configuration, including i
 - All 50 dense prefill libraries now pass complete-source/watchdog checks and final L1 API0/positive-residency queries. Historical ten libraries were preserved and excluded after strict source rejection; fresh twins replace them.
 - The selected-pin non-trace stage ledger is still required. Earlier five manual-control ledgers remain separately labelled and are not substituted for it.
 - Prompt §9C MX-4-final P-PAIR has no completed proof: the old producer SHA is not archived, and the original source-root snapshot fails current strict validation. Existing ten MX-4 measurement rounds are not a new P-PAIR. Evidence: `runs/mx5/mx4_development_pair_readiness_v1_61/`.
-- Remaining 24 dense selections, five MoE selections/native implementation/routing, full LLM acceptance and DNN remain unfinished. No external baseline or old result row was changed.
+- Remaining 23 dense selections, five MoE selections/native implementation/routing, full LLM acceptance and DNN remain unfinished. No external baseline or old result row was changed.
+
+## Qwen B16 actual original top four
+
+Verified: all four original candidates passed 512-step C-1/C-2 and two fresh WD0 timing processes on card 6. Candidate 0 wins under the 1% anchor rule. Its /fastest baseline ratio is 0.887308 (vLLM), a 21.3758% improvement over MX-4.
+
+| Original ID | Predicted ms | Process 1 ms | Process 2 ms | Median ms | pred/meas | Selected |
+|---:|---:|---:|---:|---:|---:|---|
+| 0 | 3.640890 | 3.566934 | 3.567552 | 3.567243 | 1.020646 | yes |
+| 1 | 3.643960 | 3.573029 | 3.574071 | 3.573550 | 1.019703 | no |
+| 2 | 3.644500 | 3.568471 | 3.568705 | 3.568588 | 1.021272 | no |
+| 3 | 3.644690 | 3.578439 | 3.577348 | 3.577893 | 1.018669 | no |
+
+Configuration: qkv TN64/WN1/D1/Pw1; o TN16/WN1/D1/Pw1; gate_up TN64/WN1/D1/Pw1; down TN16/WN1/D1/Pw1; head TN128/WN8/D1/Pw2. All use TileRange. Attention b_min4/PK0; threads512; 141 stages per step.
+
+Verified: canonical576 shared reductions were 1/0/0/2. All four actual final512 originals have frame0 and API0/resident1. Exact-source cap227 diagnostic frames remain 56/56/108/64 with API0/resident0; all four ordered D7 reviews and ResolvedTop4 audit passed. No controlled diagnostic is execution eligible.
+
+Evidence: `runs/mx5/qwenB16_actual_resolved_top4_execution_v1/`, `runs/mx5/qwenB16_actual_d7_review_v1/`, published `runs/mx5/tm/qwen3_0_6b/B16/` and exact executed pin `configs/pins/mx5/qwen3_0_6b_B16.json`. Manual metadata remains unchanged, with external native-selection proof; default remains off.

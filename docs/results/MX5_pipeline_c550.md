@@ -165,3 +165,39 @@ oldproducerarchive unavailable,currentrootfullsnapshotfails;storedMX4CSV
 comparisonsremainvalidandnoexternalbaselineis remeasured. FullLLM/DNN gates
 remainopen. GPU6/7currentlyserveactual B16/B1 top4 respectively;ownstage-cost
 queuecontrollers resumeautomatically aftereachactualrunner exits.
+
+Verified continuation: second qualified dense cell Qwen0.6B B16 selects original0.
+Allfour C1/C2512 pass;8 fresh WD0 timing processes on6 give median3.567243ms,
+−21.3758%vsMX4,/fastest0.887308(vLLM),pred/meas1.020646.
+Original candidate IDs, immutable failed histories, executed pin metadata and
+source-qualified WD0/1 binaries are retained. Default remains off; 2/25 dense,
+0/5 MoE and0/25 DNN complete. Four resource/correctness/selection rows plus
+three serving rows append; earlier committed CSV byte prefixes are unchanged.
+
+Verified Llama3.2-1B B1 true576 scope:189 keys=156cost+33 formalrejections,
+zero missing. Seven fresh guarded batches allpass; original completeA100
+campaign retained unchanged. Native e613 independently emits true576top4 in
+llama1b_true576_native_origin_v1; no512 rank/cost/pin transfer.
+Llama8BB1 actualfour source-bound D7/ResolvedTop4 pass; ROOT starts C1/C2
+and8 timings on6, pausing only its own G queue controller and automatically
+resuming that controller on actual runner exit. Existing GPU child continues.
+
+Verified Llama8BB16 candidate2's sole remaining prescribed DownPw4→2 retry
+still givesMT256/frame104. Three shared reductions exhausted; no execution,
+extra reduction, fifth candidate or budget reset. Generated text changed, so
+this physical coordinate took effect. Two isolated CPU diagnostics preserve
+failures: literal prompt4.3 head scope givesMT256/frame480; moving only internal
+Binding invariant fields before the layer array givesMT256/frame112. Neither
+repairs resource legality; no diagnostic is a native selection or code change.
+MIR suggests control/address liveness but does not establish an allocator defect
+or a physical register lower bound. This item remains stopped (resources gate:
+python/tilemega/mx5_resources.py:121; generated candidate artifact1 retained).
+
+Verified old head576 job12 guard rejects with rc75, reason running interference;
+its partial rounds are excluded. Available journal does not establish the cause.
+No guard threshold was changed. New complete650-key/28batch H campaign runs
+on7; first288 previously valid keys are remeasured and count against budget.
+Original failed campaign/exporter bindings stay immutable. A new CPU waiter
+requires all114G and28 newH successful batches before derived full50 export.
+At21:46:22 Shanghai conservative three-log union is45.871173/60card-hours,
+including queue/cooldown elapsed. All actual GPU execution remains on6/7.
