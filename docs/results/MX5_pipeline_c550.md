@@ -459,3 +459,8 @@ Raw: `selected_only_execution_freeze_v1/`, `remaining20_selected_only_execution_
 Verified selected Llama8B B1 DIAG-only resource query: MT223/frame0, actual
 API0/resident1/no-launch; row466→467. Its four guarded intervention batches
 are still running; no completed ledger or production timing claim from DIAG.
+
+Verified new-wrapper device query smoke: one real card6 guard and one fresh
+query child passed actual coordinator/child/owner/flock/argv/artifact checks,
+API0/resident1, zero kernel launches. Raw:`selected_only_real_query_guard_smoke_v1/`.
+This validates wrapper provenance only, not timing or C1/C2 acceptance.
