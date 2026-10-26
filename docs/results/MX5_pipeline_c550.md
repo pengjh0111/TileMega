@@ -1,7 +1,7 @@
 # MX-5 C550 pipeline and specification audit
 
 Current checkpoint: `cc29d78304` bodies with frozen producer `24fa50ed`,
-three genuine dense selections (Qwen0.6B B1/B16, Llama1B B1), and two
+four genuine dense selections (Qwen0.6B B1/B16, Llama1B B1, Llama8B B1), and two
 selected-pin diagnostic ledgers. MoE/DNN native remain unimplemented.
 The detailed audit below includes explicitly historical development evidence;
 current selections are in `MX5_llm_c550.md`. **Verified** means inspected
@@ -15,18 +15,21 @@ variation is recorded, not a change of implementation authority.
 
 ```mermaid
 flowchart LR
-  A[Checkpoint and export bridge] --> B[Frontend ModelPlan]
-  B --> C[Static types and StageProgram]
-  C --> D[cucc and actual resources/MIR]
-  D --> E[plan.so and identity/manifest]
-  E --> F[Recipe packing and shared request state]
-  F --> G[ServingEngine L1 / device decode loop]
-  G --> H[C-1 / C-2 and uninstrumented timing]
-  H --> I[Qualified costs and exact top-4 selection]
-  I --> J[Acceptance gates and defaults]
+  A[Checkpoint and export bridge] --> B[Frontend ModelPlan analysis]
+  P[C550 probes and fixed DT branches] --> C[Matching-source stage bench and costs]
+  C --> S[Native exact top-four solver]
+  B --> S
+  S --> D[Static StageProgram and body types]
+  P --> D
+  D --> E[cucc receipts resources MIR occupancy]
+  E --> F[Recipe packing shared KV ServingEngine]
+  F --> G[Four candidates eight fresh WD0 timings]
+  G --> H[One-percent winner and correctness acceptance]
+  H --> I[Full gates and defaults]
 ```
 
-This diagram describes the native dense route. Three current-source cells have
+
+This diagram describes the native dense route. Four current-source cells have
 completed exact top-four selection; full acceptance and the default edge remain open.
 
 | Step | Current implementation and limit |
@@ -424,3 +427,9 @@ five protocols have root-independent all-four READY replays and explicit
 card7 queues; the sixth has a root CPU replay watcher. These are not measured
 selections. A cap-only reader stopped before append when no serving identity
 sidecar existed; corrected reader uses actual native receipts/source/pins.
+
+Verified fourth current-source selection: Llama8B B1 original0/512
+TPOT10.574719905ms,TTFT41.277322453ms,−1.314088%vsMX4,pred/meas0.982385.
+All4 C1/C2512+8fresh WD0 pass; original1 gain<1% retains anchor0.
+Actual source-bound selected pin is preserved, including existing metadata;
+no prior3ef measurement relabel/default change. 8BB16 now starts its own run.

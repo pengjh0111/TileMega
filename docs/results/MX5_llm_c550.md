@@ -1,6 +1,6 @@
 # MX-5 LLM C550 results (in progress)
 
-Verified checkpoint: current cc29/A719 source has completed 3/25 dense selections (Llama1B B1 and Qwen0.6B B1/B16); three selections for prior 3ef/Af8 remain historical. MoE remains 0/5; G-LLM and the default switch remain open.
+Verified checkpoint: current cc29/A719 source has completed 4/25 dense selections (Llama1B B1, Qwen0.6B B1/B16 and Llama8B B1); three selections for prior 3ef/Af8 remain historical. MoE remains 0/5; G-LLM and the default switch remain open.
 
 Authority: `/root/Prompt/TileMega_MX5_prompt.md`, SHA256 `75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73`. Prior source/producer: `3ef688aa4d0bd7be8135e17e9db3274078dce760` / `e6130715bb4819438927375b216cb4dd5bebae3e669cad25e8303ef01783a267`. Current: `cc29d78304d297346d657c0fbca0a86e76b1f60f` / `24fa50ed913bce7791f575447a97e06c18a9bfce91c337c0bcc9191179c7c3c7`.
 
@@ -14,6 +14,7 @@ All measurements use BF16 greedy, ISL/OSL 64/1024, warmup 1 plus timed 2 per fre
 | Llama-3.2-1B B1 | cc29/A719 | 2.157002 | 8.957554 | 2.215571 | 462.183 | 0.7449 | -2.445% | 0.7232 | 0.8537 |
 | Qwen3-0.6B B1 | cc29/A719 | 1.954394 | 9.284968 | 2.008630 | 509.800 | 0.4153 | -1.470% | 0.6357 | 0.7951 |
 | Qwen3-0.6B B16 | cc29/A719 | 3.580819 | 60.759784 | 3.723937 | 4399.644 | 0.4052 | -21.077% | 0.8907 | 0.8239 |
+| Llama-3.1-8B B1 | cc29/A719 | 10.574720 | 41.277322 | 10.859216 | 94.298 | 0.9203 | -1.314% | 0.9090 | 0.9536 |
 
 *MBU is inferred from `(streamed linear/head BF16 weights + KV at average L=576)/(1.55 TB/s × TPOT)`. Full embedding-matrix reads, activation traffic, writes and cache effects are excluded. This is a byte lower-bound model, not a measured DRAM counter. Aggregate MBU, throughput and pred/meas are calculated from aggregate times; raw process rows are retained.
 
@@ -138,6 +139,24 @@ validate their binding scope; cap227 diagnostics stay ineligible.
 Raw:`blockinit_qwenB16_top4_execution_v1/actual/`; exact pin
 `configs/pins/mx5/blockinit_cc29/qwen3_0_6b_B16.json`.
 
-Unfinished: remaining22 dense cells,MoE5/LLM30 acceptance,MX4-final P-PAIR
+Unfinished: remaining21 dense cells,MoE5/LLM30 acceptance,MX4-final P-PAIR
 (exact archived producer unavailable),current I1/per-body attribution and the
 recorded crosssegment overlap claim. Historical timings do not fill these gates.
+
+## Llama8B B1 current-source original top four
+
+Verified: all4 C-1/C-2 pass512 steps; eight fresh WD0 processes complete.
+Candidate1 has the smallest median; its gain is below1%, so candidate0 stays.
+
+| ID | Predicted ms | Process1 ms | Process2 ms | Median ms | pred/meas | Selected |
+|---:|---:|---:|---:|---:|---:|---|
+| 0 | 10.388443 | 10.574622 | 10.574818 | 10.574720 | 0.982385 | yes |
+| 1 | 10.389083 | 10.560608 | 10.559305 | 10.559957 | 0.983819 | no |
+| 2 | 10.389083 | 10.574389 | 10.576128 | 10.575258 | 0.982395 | no |
+| 3 | 10.390603 | 10.569733 | 10.572264 | 10.570999 | 0.982935 | no |
+
+Actual TN/WN/D/Pw: qkv64/1/1/1,o64/1/1/1,gate_up32/8/4/8,
+down64/1/3/3,head64/4/1/4;allTileRange. Attention b_min1/PK0,threads512,
+161stages/step. Currentsource4/25,default target unchanged;selected DIAG
+ledger pending. Raw:`blockinit_llama8bB1_top4_execution_v1/actual/`; pin
+`configs/pins/mx5/blockinit_cc29/llama3_1_8b_B1.json`.
