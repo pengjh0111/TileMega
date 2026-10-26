@@ -5,6 +5,8 @@
 #include <tilemega/Backend/Sm90DenseGemm.h>
 #include <tilemega/Backend/Sm90DenseAttentionBody.cuh>
 #include <tilemega/Backend/Sm90DenseToken.cuh>
+#include <tilemega/Backend/Sm90DenseHead.cuh>
+#include <tilemega/Backend/Sm90DenseMoe.cuh>
 #include <tilemega/Codegen/executor/Async.cuh>
 #include <tilemega/Codegen/executor/TensorMap.h>
 #include <cuda_runtime.h>
@@ -195,6 +197,78 @@ void EpilogueTile(char const* family) {
 template<ServingEpilogueOp Op,int... TN>
 void EpilogueTiles(char const* family,std::integer_sequence<int,TN...>) {(EpilogueTile<Op,TN>(family),...);}
 
+// MoE epilogues (prompt §8): router logits, expert gate_up SwiGLU into h,
+// expert down P writes and ctr[j] arrival. A slot holds round(8B/n_active)
+// rows; n_active is set beyond reach so no sample is a combine last arriver.
+template<backend::Sm90DenseMoeMode Mode,int TN,int WN,int Batch>
+__global__ void MoeEpilogueKernel(backend::Sm90DenseMoeOperands p,int samples,U64* out) {
+  constexpr int WK=4/WN,N=Mode==backend::Sm90DenseMoeMode::kRouter?128:
+      Mode==backend::Sm90DenseMoeMode::kGateUp?1536:2048,K=Mode==backend::Sm90DenseMoeMode::kDown?768:2048;
+  using G=backend::Sm90DenseMoeGemm<Batch,N,K,TN,64,2,WN,WK,Mode,16,128,8,false>;
+  extern __shared__ __align__(16) float tile[];
+  float* norms=tile+WK*16*TN;int* flag=reinterpret_cast<int*>(norms+64);
+  int tid=threadIdx.x;
+  for(int i=tid;i<WK*16*TN;i+=128)tile[i]=0.125f*float(i%11);
+  for(int i=tid;i<4*16;i+=128)norms[i]=float(K);
+  for(int s=0;s<samples;++s) {
+    codegen::executor::ComputeSync();
+    U64 begin=clock64();
+    G::Epilogue(p,tile,norms,s%G::kTiles,flag);
+    codegen::executor::ComputeSync();
+    if(tid==0)out[s]=clock64()-begin;
+  }
+}
+template<backend::Sm90DenseMoeMode Mode,int TN,int WN,int Batch>
+void MoeEpilogueCase(char const* family) {
+  constexpr int samples=256,WK=4/WN;
+  using Schedule=backend::Sm90DenseMoeSchedule<128>;
+  int rows=Mode==backend::Sm90DenseMoeMode::kRouter?Batch:
+      std::max(1,int(std::lround(8.0*Batch/(128*(1-std::pow(1-8.0/128,Batch))))));
+  std::vector<int> schedule(Schedule::kInts,0);
+  schedule[Schedule::Active()]=1<<30;schedule[Schedule::Count(0)]=rows;
+  for(int r=0;r<rows;++r)schedule[Schedule::Row(0,r)]=r*8;
+  auto* device_schedule=Device<int>(schedule.size());
+  Check(cudaMemcpy(device_schedule,schedule.data(),schedule.size()*4,cudaMemcpyHostToDevice));
+  auto* output=Device<float>(16*8*2048);auto* weights=Device<BF>(16*8);auto* x=Device<BF>(16*2048);
+  auto* counter=Device<std::uint64_t>(16);
+  backend::Sm90DenseMoeOperands p{nullptr,nullptr,nullptr,output,device_schedule,weights,nullptr,x,counter,1e-6f};
+  auto kernel=MoeEpilogueKernel<Mode,TN,WN,Batch>;
+  int shared=4*WK*16*TN+512;
+  Check(cudaFuncSetAttribute(kernel,cudaFuncAttributeMaxDynamicSharedMemorySize,shared));
+  auto* out=Device<U64>(samples);std::vector<U64> host(samples);
+  kernel<<<1,128,shared>>>(p,samples,out);
+  Check(cudaDeviceSynchronize());
+  Check(cudaMemcpy(host.data(),out,samples*8,cudaMemcpyDeviceToHost));
+  std::vector<double> v;for(int i=8;i<samples;++i)v.push_back(host[i]/cycles_per_ns);
+  Print("t_ep",std::string(family)+":tn="+std::to_string(TN)+":b="+std::to_string(Batch)+
+      ":wk="+std::to_string(WK),v,"ns");
+  for(void* q:{(void*)device_schedule,(void*)output,(void*)weights,(void*)x,(void*)counter,(void*)out})
+    Check(cudaFree(q));
+}
+template<backend::Sm90DenseMoeMode Mode,int TN>
+void MoeEpilogueTile(char const* family) {
+  [&]<int... B>(std::integer_sequence<int,B...>) {
+    if constexpr(TN%8==0)(MoeEpilogueCase<Mode,TN,1,B>(family),...);
+    if constexpr(TN%16==0)(MoeEpilogueCase<Mode,TN,2,B>(family),...);
+    if constexpr(TN%32==0 && TN/4<=256)(MoeEpilogueCase<Mode,TN,4,B>(family),...);
+  }(std::integer_sequence<int,1,2,4,8,16>{});
+}
+// t_route_la: the router's 16 tasks arrive (CTAs 0-15), the last runs top-8,
+// routes and the schedule, then the V3 barrier (prompt §8 M4).
+template<int Batch>
+__global__ void RouteLaStage(float* logits,int* schedule,BF* weights,int* index,U64* lm,
+    U64* counter,U64* stamps,int iterations) {
+  __shared__ alignas(128) char free[1024];
+  backend::Sm90DenseMoeOperands p{nullptr,nullptr,nullptr,logits,schedule,weights,index,nullptr,
+      reinterpret_cast<std::uint64_t*>(lm),0.0f};
+  for(int it=0;it<iterations;++it) {
+    if(threadIdx.x<128)
+      backend::Sm90DenseRouterFinish<Batch,128,8,16,false>{}(p,blockIdx.x<16?1:0,free);
+    GridBarrier(counter,it);
+    if(blockIdx.x==0 && threadIdx.x==0)stamps[it]=Now();
+  }
+}
+
 // Attention pieces of the D2 body (prompt §4 L0-1): one 64-key block with data
 // resident, the q preparation, and the S-chunk merge with this CTA last.
 template<int D,int Q,bool Norm,int S>
@@ -238,7 +312,7 @@ void AttentionCase() {
   auto* output=Device<BF>(8*Q*D);auto* partial=Device<float>(8*S*Q*D);auto* lse=Device<float>(8*S*Q);
   auto* arrivals=Device<std::uint64_t>(8);auto* out=Device<U64>(3*samples);
   backend::Sm90DenseAttentionOperands p{nullptr,nullptr,qkv,cache,cache,output,table,table,table,table,
-      partial,lse,arrivals,575,1e-6f};
+      partial,lse,arrivals,575,1e-6f,0};
   kernel<<<1,128,sizeof(typename A::Storage)>>>(p,samples,out);
   Check(cudaDeviceSynchronize());
   std::vector<U64> host(3*samples);
@@ -254,6 +328,60 @@ void AttentionCase() {
     Check(cudaFree(ptr));
 }
 
+// t_merge_dsmem (D10b): a cluster of S CTAs, one per chunk, in the program's
+// shared-memory layout (rings, cluster state, storage at 1024). Each round
+// starts at a cluster barrier; the leader's time runs from its partial to
+// the merged context (all chunks write their partials concurrently).
+template<int D,int Q,bool Norm,int S>
+__global__ void DsmemMergeKernel(backend::Sm90DenseAttentionOperands p,int samples,U64* out) {
+  using A=backend::Sm90DenseAttentionBody<1,8,D,Q,Norm,S,64,2,0,1088,true>;
+  using Async=codegen::executor::Async<arch::Sm90>;
+  extern __shared__ __align__(1024) char shared[];
+  auto* ring=reinterpret_cast<backend::Sm90DenseRingState*>(shared);
+  auto& cluster=backend::Sm90DenseClusterState::Of(shared);
+  auto& s=*reinterpret_cast<typename A::Storage*>(shared+1024);
+  int tid=threadIdx.x;
+  for(int i=tid;i<4*Q;i+=128) {s.maximum[i]=0;s.sum[i]=1;}
+  for(int i=tid;i<4*Q*D;i+=128)s.output[i]=float(i%7);
+  if(tid==0) {Async::Init(&cluster.inbox,S-1);cluster.inbox_generation=0;Async::InitFence();}
+  __syncthreads();
+  int chunk=int(Async::ClusterRank());
+  for(int i=0;i<samples;++i) {
+    Async::ClusterSync();
+    U64 begin=clock64();
+    A::Finish(p,s,0,chunk);
+    A::DsmemMerge(p,*ring,s,0,chunk);
+    codegen::executor::ComputeSync();
+    if(tid==0 && chunk==0)out[i]=clock64()-begin;
+  }
+  Async::ClusterSync();
+}
+template<int D,int Q,bool Norm,int S>
+void DsmemMergeCase() {
+  constexpr int samples=256;
+  using A=backend::Sm90DenseAttentionBody<1,8,D,Q,Norm,S,64,2,0,1088,true>;
+  auto kernel=DsmemMergeKernel<D,Q,Norm,S>;
+  int bytes=1024+int(sizeof(typename A::Storage));
+  Check(cudaFuncSetAttribute(kernel,cudaFuncAttributeMaxDynamicSharedMemorySize,bytes));
+  auto* output=Device<BF>(8*Q*D);auto* out=Device<U64>(samples);
+  backend::Sm90DenseAttentionOperands p{nullptr,nullptr,nullptr,nullptr,nullptr,output,nullptr,nullptr,
+      nullptr,nullptr,nullptr,nullptr,nullptr,575,1e-6f,0};
+  cudaLaunchConfig_t config{};
+  config.gridDim=dim3(S);config.blockDim=dim3(128);config.dynamicSmemBytes=bytes;
+  cudaLaunchAttribute attribute{};
+  attribute.id=cudaLaunchAttributeClusterDimension;
+  attribute.val.clusterDim.x=S;attribute.val.clusterDim.y=1;attribute.val.clusterDim.z=1;
+  config.attrs=&attribute;config.numAttrs=1;
+  Check(cudaLaunchKernelEx(&config,kernel,p,samples,out));
+  Check(cudaDeviceSynchronize());
+  std::vector<U64> host(samples);
+  Check(cudaMemcpy(host.data(),out,host.size()*8,cudaMemcpyDeviceToHost));
+  std::vector<double> x;for(int i=8;i<samples;++i)x.push_back(host[i]/cycles_per_ns);
+  Print("t_merge_dsmem","d="+std::to_string(D)+":q="+std::to_string(Q)+":norm="+std::to_string(Norm)+
+      ":s="+std::to_string(S),x,"ns");
+  Check(cudaFree(output));Check(cudaFree(out));
+}
+
 // Whole embedding/argmax stages, each followed by the program's V3 barrier.
 template<int Width>
 __global__ void EmbeddingStage(int const* tokens,BF const* table,BF* output,float* sums,int batch,
@@ -265,14 +393,26 @@ __global__ void EmbeddingStage(int const* tokens,BF const* table,BF* output,floa
     if(blockIdx.x==0 && threadIdx.x==0)stamps[it]=Now();
   }
 }
-template<int Parts>
-__global__ void ArgmaxStage(float const* values,int const* indices,int* tokens,int batch,
+// t_argmax_la (D9): the lm_head finish without its GEMM: per-CTA partials,
+// lm_ctr, the last arriver's B x G reduction, then the V3 barrier.
+template<int Batch>
+__global__ void ArgmaxLaStage(float* values,int* indices,int* tokens,U64* lm,
     U64* counter,U64* stamps,int iterations) {
-  __shared__ typename backend::Sm90DenseArgmax<Parts,1088>::Storage storage;
+  __shared__ float best[16];__shared__ int arg[16];
+  __shared__ alignas(128) char free[256];
+  __shared__ backend::Sm90DenseRingState unused;  // only the LA embedding uses a barrier
+  backend::Sm90DenseOperands p{nullptr,nullptr,nullptr,reinterpret_cast<BF*>(values),indices,0.0f};
+  backend::Sm90DenseHeadOperands head{tokens,reinterpret_cast<std::uint64_t*>(lm),nullptr,nullptr,0};
   for(int it=0;it<iterations;++it) {
-    if(threadIdx.x<128)for(int row=blockIdx.x;row<batch;row+=gridDim.x)
-      backend::Sm90DenseArgmax<Parts,1088>::Run(values+std::size_t(it%8)*16*Parts,
-          indices+std::size_t(it%8)*16*Parts,tokens,storage,row,it%1086);
+    if(threadIdx.x<16) {
+      best[threadIdx.x]=float((blockIdx.x*7+it*3+threadIdx.x)%101);
+      arg[threadIdx.x]=int(blockIdx.x*16+threadIdx.x);
+    }
+    head.past=it%1086;
+    if(threadIdx.x<128) {
+      codegen::executor::ComputeSync();
+      backend::Sm90DenseHeadFinish<Batch,1024,1088,false>{&head}(p,unused,best,arg,free,256);
+    }
     GridBarrier(counter,it);
     if(blockIdx.x==0 && threadIdx.x==0)stamps[it]=Now();
   }
@@ -289,6 +429,155 @@ void StageCase(char const* name,std::string const& key,Kernel kernel,int grid,Ar
   std::vector<double> x;for(int i=17;i<iterations;++i)x.push_back(double(host[i]-host[i-1]));
   Print(name,key,x,"ns");
   Check(cudaFree(counter));Check(cudaFree(stamps));
+}
+
+// L3 gates (prompt §7). %globaltimer advances in 256 ns steps on H800, which
+// cannot resolve a 0.15 us gate per sample. Each gate kernel therefore runs
+// back-to-back rounds of one mechanism; CTA 0 stamps every round and a sample
+// is the mean round over a 32-round window. V3 runs in the same form.
+constexpr int kGateRounds=4096,kGateWindow=32;
+__device__ void Stamp(U64* out,int round) {
+  if(blockIdx.x==0 && threadIdx.x==0)out[round]=Now();
+}
+__device__ void Arrive(U64* counter) {
+  asm volatile("red.release.gpu.global.add.u64 [%0], 1;"::"l"(counter):"memory");
+}
+__device__ void Await(U64* counter,U64 target) {
+  U64 v;do {asm volatile("ld.acquire.gpu.global.u64 %0, [%1];":"=l"(v):"l"(counter):"memory");}
+  while(v<target);
+}
+// V3 and the D8 group counter: CTAs [16g, 16g+16) count on their own word.
+template<bool Group>
+__global__ void BarrierRounds(U64* counters,U64* out) {
+  U64* counter=counters+(Group?(blockIdx.x/16)*8:0);
+  unsigned members=Group?min(16u,gridDim.x-blockIdx.x/16*16):gridDim.x;
+  for(int i=0;i<kGateRounds;++i) {
+    __syncthreads();
+    if(threadIdx.x==0) {Arrive(counter);Await(counter,U64(i+1)*members);}
+    __syncthreads();
+    Stamp(out,i);
+  }
+}
+// D10a: cluster barrier, cluster rank 0 joins the global counter (G/C
+// arrivals), cluster barrier again.
+__global__ void ClusterRounds(U64* counter,U64* out) {
+  unsigned rank,size;
+  asm volatile("mov.u32 %0, %%cluster_ctarank;":"=r"(rank));
+  asm volatile("mov.u32 %0, %%cluster_nctarank;":"=r"(size));
+  for(int i=0;i<kGateRounds;++i) {
+    asm volatile("barrier.cluster.arrive.release.aligned;\nbarrier.cluster.wait.acquire.aligned;":::"memory");
+    if(rank==0 && threadIdx.x==0) {Arrive(counter);Await(counter,U64(i+1)*(gridDim.x/size));}
+    asm volatile("barrier.cluster.arrive.release.aligned;\nbarrier.cluster.wait.acquire.aligned;":::"memory");
+    Stamp(out,i);
+  }
+}
+__global__ void ClusterProbe() {}
+// DT-5: an all-to-all boundary, as between dense stages: CTA b writes the
+// words k = b (mod G) of one activation and every CTA reads all of it. Bytes
+// is the LL-encoded size per reader (the rule 2*B*K*2 <= X_LL); both variants
+// carry the same Bytes/2 payload. Two banks: a writer reaches round i+2 only
+// after every reader has finished round i (all-to-all transitivity).
+// V3: generic stores, V3 barrier, proxy fence, one bulk read into smem.
+template<int Bytes>
+__global__ void HandoffV3(char* data,U64* counter,U64* out) {
+  constexpr int kPayload=Bytes/2;
+  __shared__ alignas(128) char buffer[kPayload];
+  __shared__ alignas(8) std::uint64_t bar;
+  if(threadIdx.x==0) {Async::Init(&bar,1);Async::InitFence();}
+  __syncthreads();
+  for(int i=0;i<kGateRounds;++i) {
+    auto* bank=data+(i%2)*kPayload;auto* words=reinterpret_cast<unsigned*>(bank);
+    for(int k=int(blockIdx.x)+int(gridDim.x)*int(threadIdx.x);k<kPayload/4;k+=int(gridDim.x*blockDim.x))
+      words[k]=unsigned(i*31+k);
+    __syncthreads();
+    if(threadIdx.x==0) {
+      Arrive(counter);Await(counter,U64(i+1)*gridDim.x);
+      Async::ProxyAsyncGlobalFence();
+      Async::ExpectTx(&bar,kPayload);Async::Bulk(buffer,bank,kPayload,&bar);
+      Async::Wait(&bar,i&1);
+    }
+    __syncthreads();
+    Stamp(out,i);
+  }
+}
+// LL: 8-byte {payload, stamp} words polled by every reader (D10d).
+template<int Bytes>
+__global__ void HandoffLL(U64* data,U64* out) {
+  constexpr int kWords=Bytes/8;
+  for(int i=0;i<kGateRounds;++i) {
+    U64* bank=data+(i%2)*kWords;U64 stamp=U64(i+1)<<32;
+    for(int k=int(blockIdx.x)+int(gridDim.x)*int(threadIdx.x);k<kWords;k+=int(gridDim.x*blockDim.x))
+      asm volatile("st.relaxed.gpu.global.u64 [%0], %1;"::"l"(bank+k),"l"(stamp|unsigned(k)):"memory");
+    for(int k=threadIdx.x;k<kWords;k+=blockDim.x) {
+      U64 v;do {asm volatile("ld.relaxed.gpu.global.u64 %0, [%1];":"=l"(v):"l"(bank+k):"memory");}
+      while((v>>32)!=U64(i+1));
+    }
+    __syncthreads();
+    Stamp(out,i);
+  }
+}
+void Rounds(char const* name,std::string const& key,U64 const* stamps) {
+  std::vector<U64> host(kGateRounds);
+  Check(cudaMemcpy(host.data(),stamps,kGateRounds*8,cudaMemcpyDeviceToHost));
+  std::vector<double> x;
+  for(int i=256;i+kGateWindow<kGateRounds;i+=kGateWindow)
+    x.push_back(double(host[i+kGateWindow]-host[i])/kGateWindow);
+  Print(name,key,x,"ns");
+}
+void Gates(int sms) {
+  auto* counter=Device<U64>(64*8);auto* stamps=Device<U64>(kGateRounds);
+  for(int grid:{sms,2*sms}) {
+    auto key="g="+std::to_string(grid);
+    Check(cudaMemset(counter,0,64*64));BarrierRounds<false><<<grid,160>>>(counter,stamps);
+    Check(cudaDeviceSynchronize());Rounds("round_v3",key,stamps);
+    Check(cudaMemset(counter,0,64*64));BarrierRounds<true><<<grid,160>>>(counter,stamps);
+    Check(cudaDeviceSynchronize());Rounds("round_group16",key,stamps);
+  }
+  // C*: the largest C whose maximum active clusters cover 128 CTAs, at the
+  // native kernel's dynamic shared memory for each residency.
+  cudaDeviceProp prop{};Check(cudaGetDeviceProperties(&prop,0));
+  for(int residency:{1,2}) {
+    int reserved=std::max(0,int(prop.sharedMemPerMultiprocessor)-int(prop.sharedMemPerBlockOptin));
+    int smem=std::min(int(prop.sharedMemPerBlockOptin),int(prop.sharedMemPerMultiprocessor)/residency-reserved);
+    Check(cudaFuncSetAttribute(ClusterProbe,cudaFuncAttributeMaxDynamicSharedMemorySize,smem));
+    Check(cudaFuncSetAttribute(ClusterProbe,cudaFuncAttributeNonPortableClusterSizeAllowed,1));
+    int best=1;
+    for(int c:{2,4,8}) {
+      cudaLaunchConfig_t config{};config.gridDim=dim3(c*64);config.blockDim=dim3(160);
+      config.dynamicSmemBytes=smem;
+      cudaLaunchAttribute attribute{};attribute.id=cudaLaunchAttributeClusterDimension;
+      attribute.val.clusterDim.x=c;attribute.val.clusterDim.y=1;attribute.val.clusterDim.z=1;
+      config.attrs=&attribute;config.numAttrs=1;
+      int clusters=0;
+      Check(cudaOccupancyMaxActiveClusters(&clusters,ClusterProbe,&config));
+      Print("max_active_clusters","c="+std::to_string(c)+":r="+std::to_string(residency),
+          {double(clusters)},"clusters");
+      if(clusters*c>=128)best=c;
+    }
+    Print("c_star","r="+std::to_string(residency),{double(best)},"ctas");
+    if(best<2)continue;
+    int grid=sms*residency/best*best;
+    cudaLaunchConfig_t config{};config.gridDim=dim3(grid);config.blockDim=dim3(160);
+    cudaLaunchAttribute attribute{};attribute.id=cudaLaunchAttributeClusterDimension;
+    attribute.val.clusterDim.x=best;attribute.val.clusterDim.y=1;attribute.val.clusterDim.z=1;
+    config.attrs=&attribute;config.numAttrs=1;
+    Check(cudaMemset(counter,0,8));
+    Check(cudaLaunchKernelEx(&config,ClusterRounds,counter,stamps));Check(cudaDeviceSynchronize());
+    Rounds("round_hier","c="+std::to_string(best)+":g="+std::to_string(grid),stamps);
+  }
+  auto* data=Device<char>(2*32768);
+  auto handoff=[&]<int Bytes>(std::integral_constant<int,Bytes>) {
+    for(int grid:{sms,2*sms}) {
+      auto key="bytes="+std::to_string(Bytes)+":g="+std::to_string(grid);
+      Check(cudaMemset(counter,0,8));HandoffV3<Bytes><<<grid,160>>>(data,counter,stamps);
+      Check(cudaDeviceSynchronize());Rounds("round_handoff_v3",key,stamps);
+      Check(cudaMemset(data,0,2*32768));HandoffLL<Bytes><<<grid,160>>>(reinterpret_cast<U64*>(data),stamps);
+      Check(cudaDeviceSynchronize());Rounds("round_handoff_ll",key,stamps);
+    }
+  };
+  handoff(std::integral_constant<int,2048>{});handoff(std::integral_constant<int,8192>{});
+  handoff(std::integral_constant<int,32768>{});
+  Check(cudaFree(data));Check(cudaFree(counter));Check(cudaFree(stamps));
 }
 
 int main(int argc,char** argv) {try {
@@ -361,30 +650,51 @@ int main(int argc,char** argv) {try {
       StageCase("t_emb",key(4096),EmbeddingStage<4096>,grid,(int const*)token_device,(BF const*)table,output,sums,batch);
     }
     Check(cudaFree(table));Check(cudaFree(output));Check(cudaFree(sums));
-    auto* values=Device<float>(8*16*1187);auto* indices=Device<int>(8*16*1187);
+    auto* values=Device<float>(16*2*sms);auto* indices=Device<int>(16*2*sms);auto* lm=Device<U64>(1);
+    for(int grid:{sms,2*sms}) {
+      auto key=[&](int b) {return "b="+std::to_string(b)+":g="+std::to_string(grid);};
+      StageCase("t_argmax_la",key(1),ArgmaxLaStage<1>,grid,values,indices,token_device,lm);
+      StageCase("t_argmax_la",key(2),ArgmaxLaStage<2>,grid,values,indices,token_device,lm);
+      StageCase("t_argmax_la",key(4),ArgmaxLaStage<4>,grid,values,indices,token_device,lm);
+      StageCase("t_argmax_la",key(8),ArgmaxLaStage<8>,grid,values,indices,token_device,lm);
+      StageCase("t_argmax_la",key(16),ArgmaxLaStage<16>,grid,values,indices,token_device,lm);
+    }
+    Check(cudaFree(values));Check(cudaFree(indices));Check(cudaFree(lm));
     {
-      std::vector<float> v(8*16*1187);for(auto& x:v)x=float(random()%100000)/1000.f;
-      Check(cudaMemcpy(values,v.data(),v.size()*4,cudaMemcpyHostToDevice));
+      std::vector<float> l(16*128);for(auto& x:l)x=float(random()%100000)/1000.f;
+      auto* logits=Device<float>(l.size());
+      Check(cudaMemcpy(logits,l.data(),l.size()*4,cudaMemcpyHostToDevice));
+      auto* schedule=Device<int>(backend::Sm90DenseMoeSchedule<128>::kInts);
+      auto* routes=Device<BF>(16*8);auto* route_index=Device<int>(16*8);auto* router=Device<U64>(1);
+      for(int grid:{sms,2*sms}) {
+        auto key=[&](int b) {return "b="+std::to_string(b)+":g="+std::to_string(grid);};
+        StageCase("t_route_la",key(1),RouteLaStage<1>,grid,logits,schedule,routes,route_index,router);
+        StageCase("t_route_la",key(2),RouteLaStage<2>,grid,logits,schedule,routes,route_index,router);
+        StageCase("t_route_la",key(4),RouteLaStage<4>,grid,logits,schedule,routes,route_index,router);
+        StageCase("t_route_la",key(8),RouteLaStage<8>,grid,logits,schedule,routes,route_index,router);
+        StageCase("t_route_la",key(16),RouteLaStage<16>,grid,logits,schedule,routes,route_index,router);
+      }
+      for(void* q:{(void*)logits,(void*)schedule,(void*)routes,(void*)route_index,(void*)router})Check(cudaFree(q));
     }
-    for(int grid:{sms,2*sms})for(int batch:{1,2,4,8,16}) {
-      auto key=[&](int p) {return "parts="+std::to_string(p)+":b="+std::to_string(batch)+":g="+std::to_string(grid);};
-      StageCase("t_argmax",key(1187),ArgmaxStage<1187>,grid,(float const*)values,(int const*)indices,token_device,batch);
-      StageCase("t_argmax",key(1002),ArgmaxStage<1002>,grid,(float const*)values,(int const*)indices,token_device,batch);
-      StageCase("t_argmax",key(501),ArgmaxStage<501>,grid,(float const*)values,(int const*)indices,token_device,batch);
-    }
-    Check(cudaFree(values));Check(cudaFree(indices));Check(cudaFree(token_device));
+    Check(cudaFree(token_device));
     Check(cudaFree(counter));Check(cudaFree(stamps));
   }
   // Epilogue outputs rotate through copies so L1-resident lines do not persist.
   epilogue.out_copy=16*151936;
   epilogue.output=Device<BF>(epilogue.copies*epilogue.out_copy*2);
   epilogue.index=Device<int>(epilogue.copies*epilogue.out_copy);
+  if(full || !std::strcmp(argv[1],"--gates-only"))Gates(sms);
   if(full || !std::strcmp(argv[1],"--epilogue-only")) {
     EpilogueTiles<ServingEpilogueOp::kStore>("qkv",std::integer_sequence<int,8,16,24,32,40,48,64,80,96,128>{});
     EpilogueTiles<ServingEpilogueOp::kResidual>("residual",std::integer_sequence<int,8,16,24,32,48,64>{});
     EpilogueTiles<ServingEpilogueOp::kSwiGLU>("gate_up",
         std::integer_sequence<int,16,24,32,48,56,64,96,112,128,192,224,256,448,512>{});
     EpilogueTiles<ServingEpilogueOp::kArgmaxPartial>("lm_head",std::integer_sequence<int,128,256>{});
+    MoeEpilogueTile<backend::Sm90DenseMoeMode::kRouter,8>("router");
+    MoeEpilogueTile<backend::Sm90DenseMoeMode::kGateUp,96>("expert_gate_up");
+    MoeEpilogueTile<backend::Sm90DenseMoeMode::kGateUp,192>("expert_gate_up");
+    MoeEpilogueTile<backend::Sm90DenseMoeMode::kDown,128>("expert_down");
+    MoeEpilogueTile<backend::Sm90DenseMoeMode::kDown,256>("expert_down");
   }
   if(full || !std::strcmp(argv[1],"--attention-only")) {
     [&]<int... S>(std::integer_sequence<int,S...>) {
@@ -392,6 +702,13 @@ int main(int argc,char** argv) {try {
       (AttentionCase<128,3,false,S>(),...);(AttentionCase<128,4,false,S>(),...);
       (AttentionCase<128,8,true,S>(),...);
     }(std::integer_sequence<int,2,4,8,16,32>{});
+  }
+  // MoE (Hkv = 4) at G = 264 reaches S0 = 64 chunks (prompt §8 M2).
+  if(full || !std::strcmp(argv[1],"--moe-merge-only"))AttentionCase<128,8,true,64>();
+  // D10b: clusters of C = 2 (DT-2's grids) merge S = 2 chunks through DSMEM.
+  if(full || !std::strcmp(argv[1],"--dsmem-merge-only")) {
+    DsmemMergeCase<128,2,true,2>();DsmemMergeCase<64,4,false,2>();DsmemMergeCase<128,3,false,2>();
+    DsmemMergeCase<128,4,false,2>();DsmemMergeCase<128,8,true,2>();
   }
   return 0;
 }catch(std::exception const& e) {std::fprintf(stderr,"%s\n",e.what());return 2;}}

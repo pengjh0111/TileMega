@@ -11,7 +11,7 @@ int main(int argc,char** argv) {
   assert(Sm90DenseSharedBudget(target,1)==232448);
   assert(Sm90DenseSharedBudget(target,2)==115712);
   // Qwen3-0.6B shapes (prompt appendix A).
-  std::array<std::array<int,2>,5> shapes={{{4096,1024},{1024,2048},{6144,1024},
+  Sm90DenseShapeTable shapes={{{4096,1024},{1024,2048},{6144,1024},
       {1024,3072},{151936,1024}}};
   for(int batch:{1,2,4,8,16})for(int residency:{1,2}) {
     Sm90DenseSearchSpace space{shapes,batch,128,2,target};

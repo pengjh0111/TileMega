@@ -16,6 +16,7 @@ import subprocess
 from sm90d1_common import ROOT, read, sha
 
 HEADERS = ['include/tilemega/Backend/Sm90DenseEpilogue.h', 'include/tilemega/Backend/Sm90DenseToken.cuh',
+           'include/tilemega/Backend/Sm90DenseHead.cuh', 'include/tilemega/Backend/Sm90DenseMoe.cuh',
            'include/tilemega/Backend/Sm90DenseAttentionBody.cuh',
            'include/tilemega/Backend/Sm90DenseGemm.h', 'include/tilemega/Codegen/executor/Async.cuh']
 ATTENTION_FIELDS = ('batch', 'head_dim', 'queries', 'qk_norm', 'chunks', 'block_keys', 'slots',
@@ -113,7 +114,7 @@ def main():
             raise ValueError(f'{metric} {prefix}: {len(found)} values')
         return round(found[0], 2)
 
-    epilogue, embedding, argmax, attention = {}, {}, {}, {}
+    epilogue, embedding, argmax, route, attention, rounds, clusters, dsmem = {}, {}, {}, {}, {}, {}, {}, {}
     for (metric, key), v in value.items():
         fields = dict(part.split('=') for part in key.split(':') if '=' in part)
         if metric == 't_ep':
@@ -128,8 +129,20 @@ def main():
                 node['block' if metric == 't_blk' else 'prepare'] = round(v, 1)
         elif metric == 't_emb':
             embedding.setdefault('g' + fields['g'], {}).setdefault('w' + fields['w'], {})[fields['b']] = round(v, 1)
-        elif metric == 't_argmax':
-            argmax.setdefault('g' + fields['g'], {}).setdefault('p' + fields['parts'], {})[fields['b']] = round(v, 1)
+        elif metric == 't_argmax_la':
+            argmax.setdefault('g' + fields['g'], {})[fields['b']] = round(v, 1)
+        elif metric == 't_route_la':
+            route.setdefault('g' + fields['g'], {})[fields['b']] = round(v, 1)
+        elif metric == 'c_star':
+            clusters.setdefault('r' + fields['r'], {})['c_star'] = int(v)
+        elif metric == 'max_active_clusters':
+            clusters.setdefault('r' + fields['r'], {})[fields['c']] = int(v)
+        elif metric == 't_merge_dsmem':
+            node = dsmem.setdefault(f"d{fields['d']}:q{fields['q']}:norm{fields['norm']}", {})
+            node[fields['s']] = round(v, 1)
+        elif metric in ('round_v3', 'round_group16'):
+            # 32-round window means of the DT-4 gate; D8 is priced by their difference.
+            rounds.setdefault(metric[len('round_'):], {})[fields['g']] = round(v, 1)
     head = subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'], text=True).strip()
     section = dict(
         schema=1,
@@ -143,7 +156,8 @@ def main():
         dram_gbps=single('BW_dram'), l2_gbps=single('BW_l2'), sm_gbps=single('BW_sm'),
         activation_cp_async_gbps=20.0,
         activation_cp_async_source='stated: SM90R2_activation_stream_diagnostic.csv per-CTA ceiling (F9)',
-        epilogue_ns=epilogue, embedding_ns=embedding, argmax_ns=argmax, attention_ns=attention)
+        epilogue_ns=epilogue, embedding_ns=embedding, argmax_la_ns=argmax, route_la_ns=route, attention_ns=attention,
+        round_ns=rounds, clusters=clusters, dsmem_merge_ns=dsmem)
     if a.section_only:
         a.section_only.write_text(json.dumps(section, indent=1) + '\n')
     else:

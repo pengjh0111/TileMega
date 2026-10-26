@@ -79,6 +79,7 @@ struct Sm90DenseEpilogue {
     };
     if constexpr(Op==ServingEpilogueOp::kArgmaxPartial) {
       // Warp w owns rows w, w+4, ...; ties keep the smaller vocabulary index.
+      // output/index are the CTA's per-row accumulators over its tasks (D9).
       int warp=tid>>5,lane=tid&31;
       auto* values=reinterpret_cast<float*>(output);
       for(int row=warp;row<Batch;row+=4) {
@@ -92,7 +93,9 @@ struct Sm90DenseEpilogue {
           float other=__shfl_xor_sync(0xffffffff,best,d);int oi=__shfl_xor_sync(0xffffffff,arg,d);
           if(other>best || (other==best && oi<arg)) {best=other;arg=oi;}
         }
-        if(lane==0) {values[row*kStride+task]=best;index[row*kStride+task]=arg;}
+        if(lane==0 && (best>values[row] || (best==values[row] && arg<index[row]))) {
+          values[row]=best;index[row]=arg;
+        }
       }
     }else {
       output+=task*kOutput;

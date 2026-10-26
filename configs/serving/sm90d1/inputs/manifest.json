@@ -68,5 +68,12 @@
     "raw_bytes": 4513856,
     "compressed_bytes": 88340,
     "original_source": "runs/r16/exports/qwen3_1_7b/decode/export.json"
+  },
+  "configs/serving/sm90d1/inputs/qwen3_30b_a3b/decode.export.json.xz": {
+    "raw_sha256": "56a17ec96b2689d77fcafb8b201be239e6ff7fc3824c0fe8ce9552c6ad8ff1c6",
+    "compressed_sha256": "15be1a4cde8f1448ce6aa3879b8a9e98a52e0e7bdd469dd3882605f720c42b33",
+    "raw_bytes": 8013491,
+    "compressed_bytes": 147764,
+    "original_source": "runs/sm90r2/scope/start/inputs/moe_decode.export.json"
   }
 }

@@ -45,6 +45,17 @@ def agreement(actual, expected):
                 per_layer_set_ratio=same.double().mean((0, 2)).tolist())
 
 
+def selected(output, top_k):
+    """Top-k expert indices from the router gate's forward output.
+
+    Newer transformers gates return (logits, weights, indices); 4.57's gate is
+    the bare Linear, and the block takes top-k of softmax(fp32 logits)."""
+    import torch
+    if isinstance(output, tuple):
+        return output[2].detach().cpu()
+    return torch.softmax(output.detach().float(), -1).topk(top_k, -1).indices.cpu()
+
+
 def compare_hf(checkpoint, prompts, tokens, observed, out):
     import torch
     from transformers import AutoModelForCausalLM
@@ -53,7 +64,7 @@ def compare_hf(checkpoint, prompts, tokens, observed, out):
     if steps != len(tokens[0]) or any(len(row) != steps for row in tokens):
         raise ValueError('tokens and observed routing steps differ')
     model = AutoModelForCausalLM.from_pretrained(checkpoint, torch_dtype=torch.bfloat16,
-        attn_implementation='sdpa', experts_implementation='grouped_mm').cuda().eval()
+        attn_implementation='sdpa').cuda().eval()
     if len(model.model.layers) != layers:
         raise ValueError('routing layer count differs from checkpoint')
     expected = torch.empty((steps, layers, batch, model.config.num_experts_per_tok), dtype=torch.int64)
@@ -61,7 +72,7 @@ def compare_hf(checkpoint, prompts, tokens, observed, out):
         captures = {}
         def hook(layer):
             def save(module, args, output):
-                captures[layer] = output[2].detach().cpu()
+                captures[layer] = selected(output, model.config.num_experts_per_tok)
             return save
         handles = [layer.mlp.gate.register_forward_hook(hook(i)) for i, layer in enumerate(model.model.layers)]
         try:

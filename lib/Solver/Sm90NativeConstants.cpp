@@ -31,7 +31,9 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
   c.l2_gbps=Positive(s.At("l2_gbps"),"l2 bandwidth");
   c.sm_gbps=Positive(s.At("sm_gbps"),"sm bandwidth");
   c.cp_async_gbps=Positive(s.At("activation_cp_async_gbps"),"cp.async activation bandwidth");
-  c.epilogue_=s.At("epilogue_ns");c.embedding_=s.At("embedding_ns");c.argmax_=s.At("argmax_ns");
+  c.epilogue_=s.At("epilogue_ns");c.embedding_=s.At("embedding_ns");c.argmax_la_=s.At("argmax_la_ns");
+  c.route_la_=s.At("route_la_ns");c.round_=s.At("round_ns");c.clusters_=s.At("clusters");
+  c.dsmem_=s.At("dsmem_merge_ns");
   c.attention_=s.At("attention_ns");
   return c;
 }
@@ -56,12 +58,37 @@ double Sm90NativeConstants::Embedding(int grid,int width,int batch) const {
   if(!b)throw Sm90NativeMissing("no measured embedding stage");
   return Positive(*b,"embedding");
 }
-double Sm90NativeConstants::Argmax(int grid,int parts,int batch) const {
-  auto const* g=argmax_.Find("g"+std::to_string(grid));
-  auto const* p=g?g->Find("p"+std::to_string(parts)):nullptr;
-  auto const* b=p?p->Find(std::to_string(batch)):nullptr;
-  if(!b)throw Sm90NativeMissing("no measured argmax stage for "+std::to_string(parts)+" parts");
-  return Positive(*b,"argmax");
+double Sm90NativeConstants::ArgmaxLa(int grid,int batch) const {
+  auto const* g=argmax_la_.Find("g"+std::to_string(grid));
+  auto const* b=g?g->Find(std::to_string(batch)):nullptr;
+  if(!b)throw Sm90NativeMissing("no measured last-arriver argmax for grid "+std::to_string(grid));
+  return Positive(*b,"argmax last arriver");
+}
+double Sm90NativeConstants::RouteLa(int grid,int batch) const {
+  auto const* g=route_la_.Find("g"+std::to_string(grid));
+  auto const* b=g?g->Find(std::to_string(batch)):nullptr;
+  if(!b)throw Sm90NativeMissing("no measured MoE route last arriver for grid "+std::to_string(grid));
+  return Positive(*b,"route last arriver");
+}
+double Sm90NativeConstants::GroupWaitSaving(int grid) const {
+  auto const* v3=round_.Find("v3");auto const* group=round_.Find("group16");
+  auto const* a=v3?v3->Find(std::to_string(grid)):nullptr;
+  auto const* b=group?group->Find(std::to_string(grid)):nullptr;
+  if(!a || !b)throw Sm90NativeMissing("no measured group wait for grid "+std::to_string(grid));
+  return Positive(*a,"V3 round")-Positive(*b,"group round");
+}
+int Sm90NativeConstants::ClusterStar(int residency) const {
+  auto const* r=clusters_.Find("r"+std::to_string(residency));
+  auto const* star=r?r->Find("c_star"):nullptr;
+  if(!star)throw Sm90NativeMissing("no measured cluster occupancy for residency "+std::to_string(residency));
+  return int(star->AsNumber("c_star"));
+}
+double Sm90NativeConstants::AttentionMergeDsmem(int dim,int queries,bool norm,int chunks) const {
+  auto key="d"+std::to_string(dim)+":q"+std::to_string(queries)+":norm"+std::to_string(int(norm));
+  auto const* shape=dsmem_.Find(key);
+  auto const* found=shape?shape->Find(std::to_string(chunks)):nullptr;
+  if(!found)throw Sm90NativeMissing("no measured DSMEM merge for "+key+" S"+std::to_string(chunks));
+  return Positive(*found,"DSMEM merge");
 }
 json::Value const& Sm90NativeConstants::AttentionShape(int dim,int queries,bool norm) const {
   auto key="d"+std::to_string(dim)+":q"+std::to_string(queries)+":norm"+std::to_string(int(norm));

@@ -31,12 +31,40 @@ struct Sm90DenseAttentionOperands {
   float epsilon;
   int layer;
 };
+// lm_head with the folded argmax (D9): the next tokens, lm_ctr, and for the
+// LA embedding the table and the residual stream x.
+struct Sm90DenseHeadOperands {
+  int* tokens;
+  std::uint64_t* counter;
+  cutlass::bfloat16_t const* table;
+  cutlass::bfloat16_t* x;
+  int past;
+};
+// Native MoE stages (prompt §8): M4 router + top-k, M5 grouped gate_up,
+// M6 down + combine; see Sm90DenseMoe.cuh for each field's use.
+struct Sm90DenseMoeOperands {
+  CUtensorMap const* activation;
+  cutlass::bfloat16_t const* weight;
+  cutlass::bfloat16_t const* input;
+  void* output;
+  int* schedule;
+  void* route_weights;
+  int* route_index;
+  cutlass::bfloat16_t* x;
+  std::uint64_t* counter;
+  float epsilon;
+};
 // Thread zero fully initializes the active member for the next stage. That
 // member is immutable from the V3 CTA join until the stage's complete return.
 // The other member is not read by the stage or its preissue tail.
 struct alignas(16) Sm90DenseOperandBank {
   alignas(16) Sm90DenseOperands gemm;
-  alignas(16) Sm90DenseAttentionOperands attention;
+  alignas(16) Sm90DenseHeadOperands head;
+  // A stage reads either its attention or its MoE operands, never both.
+  union alignas(16) {
+    Sm90DenseAttentionOperands attention;
+    Sm90DenseMoeOperands moe;
+  };
 };
 struct Sm90DenseOperandHeader {
   static constexpr int kOffset=2*sizeof(Sm90DenseRingState);
@@ -44,16 +72,38 @@ struct Sm90DenseOperandHeader {
   static_assert(sizeof(void*)==8 && sizeof(Sm90DenseOperands)==48);
   static_assert(sizeof(float)==4 && offsetof(Sm90DenseOperands,epsilon)==40);
   static_assert(sizeof(Sm90DenseAttentionOperands)==120);
-  static_assert(sizeof(Sm90DenseOperandBank)==176 && alignof(Sm90DenseOperandBank)==16);
-  static_assert(offsetof(Sm90DenseOperandBank,gemm)==0 &&
-      offsetof(Sm90DenseOperandBank,attention)==48);
+  static_assert(sizeof(Sm90DenseHeadOperands)==40 && sizeof(Sm90DenseMoeOperands)==80);
+  static_assert(sizeof(Sm90DenseOperandBank)==224 && alignof(Sm90DenseOperandBank)==16);
+  static_assert(offsetof(Sm90DenseOperandBank,gemm)==0 && offsetof(Sm90DenseOperandBank,head)==48 &&
+      offsetof(Sm90DenseOperandBank,attention)==96 && offsetof(Sm90DenseOperandBank,moe)==96);
   static_assert(sizeof(Sm90DenseRingState)==256 && alignof(Sm90DenseRingState)==16);
   static_assert(kOffset==512 && kOffset%alignof(Sm90DenseOperandBank)==0);
-  static_assert(kEnd==864 && kEnd<=1024);
+  static_assert(kEnd==960 && kEnd<=1024);
   static_assert(std::is_standard_layout_v<Sm90DenseOperandBank> &&
       std::is_trivially_copyable_v<Sm90DenseOperandBank>);
   __device__ static __forceinline__ Sm90DenseOperandBank& Bank(char* arena,unsigned stage) {
     return reinterpret_cast<Sm90DenseOperandBank*>(arena+kOffset)[stage%2];
   }
 };
+// Cluster programs (prompt §7 D10b/D10c) keep their cluster barrier state
+// after the operand banks: the DSMEM merge inbox of the CTA leading a (b, g)
+// chunk group and the D10c issuer phases of both rings' peer barriers.
+struct alignas(8) Sm90DenseClusterState {
+  std::uint64_t inbox;
+  unsigned inbox_generation;
+  unsigned peer_generations[2];
+  __device__ static __forceinline__ Sm90DenseClusterState& Of(char* shared) {
+    return *reinterpret_cast<Sm90DenseClusterState*>(shared+Sm90DenseOperandHeader::kEnd);
+  }
+  // rings[i] sits at byte 256 i of the 1024-aligned dynamic shared memory.
+  __device__ static __forceinline__ unsigned RingIndex(Sm90DenseRingState const& ring) {
+    unsigned address=codegen::executor::Async<arch::Sm90>::Shared(&ring);
+    return (address/sizeof(Sm90DenseRingState))&1;
+  }
+  __device__ static __forceinline__ Sm90DenseClusterState& OfRing(Sm90DenseRingState& ring) {
+    return Of(reinterpret_cast<char*>(&ring)-RingIndex(ring)*sizeof(Sm90DenseRingState));
+  }
+};
+static_assert(Sm90DenseOperandHeader::kEnd%8==0 &&
+    Sm90DenseOperandHeader::kEnd+sizeof(Sm90DenseClusterState)<=1024);
 }  // namespace tilemega::backend

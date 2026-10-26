@@ -144,6 +144,37 @@ struct Async {
         "r"(Shared(destination)),"l"(map),"r"(x),"r"(y),
         "r"(Shared(barrier)),"h"(mask):"memory");
   }
+  // D10c: one CTA's TMA box lands at the same offset in every CTA of mask,
+  // completing each destination's barrier at the same offset.
+  __device__ static void Tensor3DMulticast(void* destination,void const* map,
+      int channel,int x,int y,std::uint64_t* barrier,std::uint16_t mask) {
+    static_assert(Caps::kTmaMulticast,"TMA multicast requires cluster multicast support");
+    asm volatile("cp.async.bulk.tensor.3d.shared::cluster.global.mbarrier::complete_tx::bytes.multicast::cluster "
+        "[%0], [%1, {%2, %3, %4}], [%5], %6;" ::
+        "r"(Shared(destination)),"l"(map),"r"(channel),"r"(x),"r"(y),
+        "r"(Shared(barrier)),"h"(mask):"memory");
+  }
+  __device__ static unsigned ClusterRank() {
+    unsigned rank;asm volatile("mov.u32 %0, %%cluster_ctarank;":"=r"(rank));return rank;
+  }
+  // Every thread of every CTA of the cluster: earlier shared-memory writes
+  // (local or DSMEM) become visible to the cluster.
+  __device__ static void ClusterSync() {
+    static_assert(Caps::kDsmem,"cluster barriers require DSMEM support");
+    asm volatile("barrier.cluster.arrive.release.aligned;\n\tbarrier.cluster.wait.acquire.aligned;" ::: "memory");
+  }
+  __device__ static void StoreCluster(std::uint32_t address,float value) {
+    static_assert(Caps::kDsmem,"peer shared stores require DSMEM support");
+    asm volatile("st.shared::cluster.f32 [%0], %1;" ::"r"(address),"f"(value):"memory");
+  }
+  // A phase completed by peer CTAs' release.cluster arrivals.
+  __device__ static void WaitCluster(std::uint64_t* barrier,unsigned phase) {
+    static_assert(Caps::kDsmem,"cluster-scope barrier waits require DSMEM support");
+    unsigned ready=0;
+    do asm volatile("{ .reg .pred p; mbarrier.try_wait.parity.acquire.cluster.shared::cta.b64 p, [%1], %2; "
+        "selp.u32 %0, 1, 0, p; }" :"=r"(ready):"r"(Shared(barrier)),"r"(phase):"memory");
+    while(!ready);
+  }
   __device__ static std::uint32_t Mapa(void const* local,unsigned rank) {
     static_assert(Caps::kDsmem,"peer shared addresses require DSMEM support");
     std::uint32_t remote;

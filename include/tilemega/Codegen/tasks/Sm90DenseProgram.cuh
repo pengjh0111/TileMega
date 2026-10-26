@@ -4,6 +4,7 @@
 #include <tilemega/Backend/Sm90DenseGemm.h>
 #include <tilemega/Codegen/Sm90DenseEpilogueContract.h>
 #include <tilemega/Backend/Sm90DenseAttentionBody.cuh>
+#include <tilemega/Backend/Sm90DenseMoe.cuh>
 #include <tilemega/Backend/Sm90DenseToken.cuh>
 #include <tilemega/Backend/Sm90DenseLayout.h>
 #include <tilemega/Codegen/tasks/Sm90DenseStage.cuh>
@@ -54,6 +55,8 @@ struct alignas(64) Bindings {
   CUtensorMap maps[Maps];
   Element* buffers[Count];
   Element* layers[Layers][Slots];
+  // lm_ctr of the folded argmax (D9); runtime-owned and only ever increased.
+  std::uint64_t* lm_counter;
   template<unsigned Id>
   __device__ __forceinline__ Element* Get(int layer=0) const {
     if constexpr(Id==kAbsent)return nullptr;
@@ -68,6 +71,9 @@ struct alignas(64) Bindings {
 };
 
 struct alignas(64) GridCounter {unsigned long long arrivals;};
+// D10c: whether a typed stage multicasts its activation (GEMM stages only).
+template<class S,class=void> inline constexpr bool kMulticasts=false;
+template<class S> inline constexpr bool kMulticasts<S,std::void_t<decltype(S::kMulticast)>> =S::kMulticast;
 // One rank-3/4 SWIZZLE_128B descriptor over a bound buffer (codegen-emitted).
 struct NativeTensorMap {
   unsigned buffer,rank;
@@ -112,11 +118,11 @@ __device__ inline unsigned long long Now() {
 // is folded into the packed weight (qkv, gate_up, lm_head).
 template<int Batch,int N,int K,int TN,int TK,int Slots,int WN,int WK,
          backend::ServingEpilogueOp Op,int U,bool InputNorm,unsigned W,unsigned C,
-         unsigned D,unsigned Index,int RegisterStages,unsigned Map>
+         unsigned D,unsigned Index,int RegisterStages,unsigned Map,bool Multicast=false>
 struct Gemm {
-  using Body=backend::Sm90DenseGemm<Batch,N,K,TN,TK,Slots,WN,WK,Op,U,InputNorm,RegisterStages>;
-  static constexpr int kTasks=N/TN,kSharedBytes=Body::kSharedBytes;
-  static constexpr bool kArgmax=false;
+  using Body=backend::Sm90DenseGemm<Batch,N,K,TN,TK,Slots,WN,WK,Op,U,InputNorm,RegisterStages,Multicast>;
+  static constexpr bool kMulticast=Multicast;
+  static constexpr int kBatch=Batch,kTasks=N/TN,kSharedBytes=Body::kSharedBytes;
   static constexpr bool kUsesOperandRecord=true;
   static constexpr int kRingSlots=Slots;
   static constexpr int kMaxPreissue=(Slots<Body::kIterations?Slots:Body::kIterations)*2*TN*TK;
@@ -149,14 +155,17 @@ struct Gemm {
 template<int Batch,int Hkv,int D,int Q,bool Norm,int Chunks,int Keys,int Slots,int RowWork,
          int Capacity,unsigned Qkv,unsigned Key,unsigned Value,unsigned Output,
          unsigned Cosine,unsigned Sine,unsigned QNorm,unsigned KNorm,
-         unsigned Partial,unsigned Lse,unsigned Arrivals,unsigned KeyMap,unsigned ValueMap>
+         unsigned Partial,unsigned Lse,unsigned Arrivals,unsigned KeyMap,unsigned ValueMap,bool Dsmem=false>
 struct Attention {
-  static constexpr bool kArgmax=false;
   static constexpr bool kUsesOperandRecord=true;
-  using Body=backend::Sm90DenseAttentionBody<Batch,Hkv,D,Q,Norm,Chunks,Keys,Slots,RowWork,Capacity>;
+  using Body=backend::Sm90DenseAttentionBody<Batch,Hkv,D,Q,Norm,Chunks,Keys,Slots,RowWork,Capacity,Dsmem>;
+  // D10b: the leader's inbox barrier counts its S - 1 peer chunks.
+  static constexpr int kInboxWriters=Dsmem?Chunks-1:0;
   static constexpr int kTasks=Body::kTasks,kSharedBytes=Body::kSharedBytes;
+  // Task t serves KV group t / (Batch Chunks) (D8).
+  static constexpr int kGroupTasks=Batch*Chunks,kGroups=Hkv;
   static constexpr int kRingSlots=Slots,kMaxPreissue=Body::kMaxPreissue;
-  static constexpr auto kLayout=backend::Sm90DenseLayout::Attention(D,Q,Chunks,Keys,Slots);
+  static constexpr auto kLayout=backend::Sm90DenseLayout::Attention(D,Q,Chunks,Keys,Slots,Dsmem);
   static_assert(kLayout.end==kSharedBytes);
   using Preissue=KvRead<Body,kTasks>;
   template<int Bytes>
@@ -191,7 +200,6 @@ struct Attention {
 template<int Batch,int Width,int Vocab,int Capacity,unsigned Tokens,unsigned Table,
          unsigned Output>
 struct Embedding {
-  static constexpr bool kArgmax=false;
   static constexpr bool kUsesOperandRecord=false;
   static constexpr int kTasks=Batch,kSharedBytes=1024;
   static constexpr int kRingSlots=0;
@@ -211,35 +219,85 @@ struct Embedding {
   }
 };
 
-template<int Batch,int Parts,int Capacity,unsigned Values,unsigned Indices,unsigned Tokens>
-struct Argmax {
-  static constexpr bool kArgmax=true;
-  static constexpr bool kUsesOperandRecord=false;
-  using Body=backend::Sm90DenseArgmax<Parts,Capacity>;
-  static constexpr int kTasks=Batch,kSharedBytes=1024+sizeof(typename Body::Storage);
-  static constexpr int kRingSlots=0;
-  static constexpr int kMaxPreissue=0;
-  static constexpr auto kLayout=backend::Sm90DenseLayout::Argmax();
-  static_assert(kLayout.end==kSharedBytes);
-  template<int Bytes> static constexpr backend::Sm90DensePayload Payload() {return {};}
+// Native MoE stages (prompt §8): M4 router + top-k, M5 grouped gate_up, M6
+// down + combine. W: the (per-layer) weights; X: the residual stream x' (M5
+// gathers its rows, M6's last arrivers add into it); Out: logits, h or P;
+// Schedule, Routes (weights) and Index (this layer's top-k, for the routing
+// check); Counter: the router's or the per-tile combine counters; Map: x'
+// (router) or h (down).
+template<int Batch,int N,int K,int TN,int TK,int Slots,int WN,int WK,backend::Sm90DenseMoeMode Mode,
+         int U,int Experts,int TopK,bool FloatWeights,int Page,unsigned W,unsigned X,unsigned Out,
+         unsigned Schedule,unsigned Routes,unsigned Index,unsigned Counter,unsigned Map,
+         int RegisterStages>
+struct Moe {
+  using Body=backend::Sm90DenseMoeGemm<Batch,N,K,TN,TK,Slots,WN,WK,Mode,U,Experts,TopK,FloatWeights,
+      Page,RegisterStages>;
+  static constexpr bool kUsesOperandRecord=true;
+  static constexpr int kTasks=Body::kMaxTasks,kSharedBytes=Body::kSharedBytes,kRingSlots=Slots;
+  // M4's routes are unknown to its predecessor's producer: M5 receives no stream.
+  static constexpr int kMaxPreissue=Mode==backend::Sm90DenseMoeMode::kGateUp?0:
+      (Slots<Body::kIterations?Slots:Body::kIterations)*2*TN*TK;
+  static constexpr auto kLayout=Body::kLayout;
+  using Preissue=MoeRead<Body>;
+  template<int Bytes>
+  static constexpr auto Payload() {
+    return backend::Sm90DenseLayout::GemmPayload(TN,TK,Slots,K,Batch,Bytes);
+  }
+  template<class B>
+  __device__ static __forceinline__ ReadSources Sources(B const& b,int layer) {
+    return {b.template Get<W>(layer),nullptr,nullptr,layer,
+        reinterpret_cast<int const*>(b.template Get<Schedule>(layer))};
+  }
+  template<class B>
+  __device__ static __forceinline__ void PublishOperands(B const& b,int layer,int,float epsilon,
+      backend::Sm90DenseOperandBank& record) {
+    CUtensorMap const* map=nullptr;
+    if constexpr(Map!=kAbsent)map=b.template Map<Map>();
+    record.moe={map,b.template Get<W>(layer),b.template Get<X>(layer),b.template Get<Out>(layer),
+        reinterpret_cast<int*>(b.template Get<Schedule>(layer)),b.template Get<Routes>(layer),
+        reinterpret_cast<int*>(b.template Get<Index>(layer)),b.template Get<X>(layer),
+        reinterpret_cast<std::uint64_t*>(b.template Get<Counter>(layer)),epsilon};
+  }
   template<int Prefix,class B,class Tail>
-  __device__ static __forceinline__ void Run(B const& b,int past,char* shared,float,
-      backend::Sm90DenseRingState&,Tail tail) {
-    if(threadIdx.x<128)for(int row=blockIdx.x;row<Batch;row+=gridDim.x)
-      Body::Run(reinterpret_cast<float const*>(b.template Get<Values>()),
-          reinterpret_cast<int const*>(b.template Get<Indices>()),
-          reinterpret_cast<int*>(b.template Get<Tokens>()),
-          *reinterpret_cast<typename Body::Storage*>(shared+1024),row,past);
-    if(threadIdx.x==128)tail();
-    __syncthreads();
+  __device__ static __forceinline__ void Run(B const&,int,char* shared,float,
+      backend::Sm90DenseRingState& ring,Tail tail,backend::Sm90DenseOperandBank const& record,
+      bool streamed) {
+    StageEntry<Body>::template Moe<Prefix>(record.moe,shared,&ring,tail,streamed);
   }
 };
 
-template<class Stage,int Offset=0,int Prefix=0>
+// lm_head with the folded argmax and, with Embed, the next step's embedding
+// (D9). Its value/index outputs hold the per-CTA [B][G] partials.
+template<class G,unsigned Tokens,unsigned Table,unsigned X,int Width,int Capacity,bool Embed>
+struct Head:G {
+  static_assert(G::kUsesOperandRecord);
+  using Finish=backend::Sm90DenseHeadFinish<G::kBatch,Width,Capacity,Embed>;
+  // The [B][G] partials reuse the [B][tasks] argmax outputs.
+  static constexpr int kMaxGrid=G::kTasks;
+  template<class B>
+  __device__ static __forceinline__ void PublishOperands(B const& b,int layer,int past,float epsilon,
+      backend::Sm90DenseOperandBank& record) {
+    G::PublishOperands(b,layer,past,epsilon,record);
+    record.head={reinterpret_cast<int*>(b.template Get<Tokens>()),b.lm_counter,
+        b.template Get<Table>(),b.template Get<X>(),past};
+  }
+  template<int Prefix,class B,class Tail>
+  __device__ static __forceinline__ void Run(B const&,int,char* shared,float,
+      backend::Sm90DenseRingState& ring,Tail tail,backend::Sm90DenseOperandBank const& record,
+      bool streamed) {
+    StageEntry<typename G::Body>::template Head<Prefix>(record.gemm,shared,&ring,tail,streamed,
+        Finish{&record.head});
+  }
+};
+
+// GroupTiles > 0 (D8, qkv only): the boundary after this stage releases
+// each computed tile's KV group (GroupTiles tiles per group) instead of the
+// grid barrier, and the attention stage after it acquires only its groups.
+template<class Stage,int Offset=0,int Prefix=0,int GroupTiles=0>
 struct Placement:Stage {
   static_assert(Offset>=0 && Offset%1024==0 && Prefix>=0 && Prefix%16==0 &&
-      Prefix<=Stage::kMaxPreissue);
-  static constexpr int kOffset=Offset,kPrefix=Prefix;
+      Prefix<=Stage::kMaxPreissue && GroupTiles>=0 && (!GroupTiles || Stage::kTasks%GroupTiles==0));
+  static constexpr int kOffset=Offset,kPrefix=Prefix,kGroupTiles=GroupTiles;
   static constexpr int kSharedBytes=Offset+Stage::kSharedBytes;
   static constexpr auto kPayload=Stage::template Payload<Prefix>().Shift(Offset);
   static constexpr auto kLive=Stage::kLayout.Live(Offset);
@@ -276,31 +334,85 @@ struct ProducerTail {
   }
 };
 
-template<class... Stage>
-struct LayerPair {
-  static_assert(sizeof...(Stage)==10,"a layer pair holds two layers of five typed stages");
+// The typed stages of PerGroup consecutive layers; an even stage count
+// keeps every typed stage's arena parity fixed (dense: two layers of five,
+// MoE: one layer of six).
+template<int PerGroup,class... Stage>
+struct LayerGroup {
+  static constexpr int kLayers=PerGroup,kSize=int(sizeof...(Stage));
+  static_assert(PerGroup>0 && kSize%PerGroup==0 && kSize%2==0,
+      "a layer group holds whole layers and an even number of typed stages");
   using Stages=std::tuple<Stage...>;
 };
 
-// D7 (prompt §6): Prologue (embedding) -> layer pairs -> Head (lm_head) ->
-// Final (argmax). A pair is ten typed stages run for layers l and l+1; two
-// layers per pair keep every typed stage's arena parity fixed. The last pair
-// runs separately so that its down streams into the head. Executed
-// boundaries keep their global index g (grid counters, banks, traces);
-// Loop selects a runtime pair loop over the same pair code that the
-// unrolled form instantiates once per pair (DT-3).
+// D7 (prompt §6): Prologue (embedding) -> layer groups -> LmHead (lm_head
+// with the folded argmax, D9). The last group runs separately so that its
+// final stage streams into the head. Executed boundaries keep their global
+// index g (grid counters, banks, traces); Loop selects a runtime group loop
+// over the same group code that the unrolled form instantiates once per
+// group (DT-3). With Embed the head's last arriver writes the next step's
+// embedding and the prologue runs only before a request's step 0.
+// Cluster (D10b/D10c): CTAs launch in clusters of that many consecutive
+// ranks; DSMEM merges and activation multicast stay within one cluster.
 template<int Batch,int Capacity,int Residency,unsigned Buffers,unsigned Maps,int Arena,
-         int Layers,unsigned LayerSlots,bool Loop,class Prologue,class Pair,class Head,class Final>
+         int Layers,unsigned LayerSlots,bool Loop,bool Embed,class Prologue,class Group,class LmHead,
+         int Cluster=1>
 struct Program {
   using Binding=Bindings<Buffers,Maps,Layers,LayerSlots>;
-  using PairStages=typename Pair::Stages;
-  template<unsigned J> using PairStage=std::tuple_element_t<J,PairStages>;
+  using GroupStages=typename Group::Stages;
+  template<unsigned J> using GroupStage=std::tuple_element_t<J,GroupStages>;
   static constexpr int kBatch=Batch,kCapacity=Capacity,kResidency=Residency,kThreads=160;
   static constexpr unsigned kBuffers=Buffers,kMaps=Maps,kLayers=Layers;
-  static constexpr unsigned kStages=3+5*Layers,kHead=1+5*Layers;
+  static constexpr unsigned kGroup=Group::kSize,kPerGroup=Group::kLayers,kPerLayer=kGroup/kPerGroup;
+  static constexpr unsigned kStages=2+kPerLayer*Layers,kHead=1+kPerLayer*Layers;
+  // D8: one monotonic counter per KV group follows the boundary counters.
+  static constexpr unsigned kGroupCounters=GroupStage<0>::kGroupTiles?
+      unsigned(GroupStage<0>::kTasks/GroupStage<0>::kGroupTiles):0u;
+  static constexpr unsigned kCounters=kStages+kGroupCounters;
+  template<unsigned... J>
+  static constexpr bool SameGroupWait(std::integer_sequence<unsigned,J...>) {
+    return ((J%kPerLayer || GroupStage<J>::kGroupTiles==GroupStage<0>::kGroupTiles) && ...);
+  }
+  static_assert(SameGroupWait(std::make_integer_sequence<unsigned,kGroup>{}),
+      "every layer's qkv waits by the same KV-group tiles");
+  static_assert(!kGroupCounters || (kGroupCounters==unsigned(GroupStage<1>::kGroups) &&
+      GroupStage<1>::kTasks%GroupStage<1>::kGroupTasks==0),
+      "a group-waiting qkv stage feeds the attention stage of its KV groups");
+  static_assert(Layers%Group::kLayers==0,"layer groups cover the layers exactly");
+  static constexpr bool kEmbed=Embed;
+  static constexpr int kCluster=Cluster;
+  static_assert(Cluster==1 || Cluster==2,"native clusters pair CTAs (the measured grids)");
+  template<unsigned... J>
+  static constexpr bool ClusterStages(std::integer_sequence<unsigned,J...>) {
+    return ((Cluster>1 || !kMulticasts<GroupStage<J>>) && ...) && (Cluster>1 || !kMulticasts<LmHead>) &&
+        (Cluster>1 || GroupStage<1>::kInboxWriters==0);
+  }
+  static_assert(ClusterStages(std::make_integer_sequence<unsigned,Group::kSize>{}),
+      "DSMEM merges and multicast stages need a cluster launch");
+  static constexpr int kInboxWriters=GroupStage<1>::kInboxWriters;
+  // D10b/D10c barriers: peer releases of both rings, the merge inbox; then
+  // one release per peer slot so each issuer's first wait completes.
+  __device__ static __forceinline__ void ClusterInitialize(char* shared) {
+    using Async=codegen::executor::Async<arch::Sm90>;
+    auto* rings=reinterpret_cast<backend::Sm90DenseRingState*>(shared);
+    auto& cluster=backend::Sm90DenseClusterState::Of(shared);
+    if(threadIdx.x==0) {
+      for(int r=0;r<2;++r)for(int i=0;i<4;++i)Async::Init(rings[r].peer+i,128);
+      Async::Init(&cluster.inbox,kInboxWriters?kInboxWriters:1);
+      cluster.inbox_generation=0;cluster.peer_generations[0]=0;cluster.peer_generations[1]=0;
+      Async::InitFence();
+    }
+    __syncthreads();
+    Async::ClusterSync();
+    if(threadIdx.x<128) {
+      unsigned peer=Async::ClusterRank()^1u;
+      for(int r=0;r<2;++r)for(int i=0;i<4;++i)Async::RemoteArrive(Async::Mapa(rings[r].peer+i,peer));
+    }
+  }
+  // The head's per-CTA partials reuse its [B][tasks] outputs.
+  static constexpr int kHeadMaxGrid=LmHead::kMaxGrid;
   using RoleLaunch=backend::Sm90DenseRoleLaunch<kThreads>;
   static_assert(RoleLaunch::kThreads==kThreads);
-  static_assert(Layers>=2 && Layers%2==0,"layer pairs need an even layer count");
   static_assert(!Prologue::kUsesOperandRecord,
       "native shared-operand ABI requires an operand-free first stage; no implicit startup publication barrier");
   // D5: a stage of parity P sits in arena P (offset P*Arena) and fits it;
@@ -313,32 +425,31 @@ struct Program {
         (S::kOffset==int(Parity)*Arena || (S::kOffset==0 && S::kSharedBytes>1024+Arena));
   }
   template<unsigned... J>
-  static constexpr bool PairPlaced(std::integer_sequence<unsigned,J...>) {
-    return (Placed<PairStage<J>,(1+J)%2>() && ...);
+  static constexpr bool GroupPlaced(std::integer_sequence<unsigned,J...>) {
+    return (Placed<GroupStage<J>,(1+J)%2>() && ...);
   }
-  static_assert(Placed<Prologue,0>() && Placed<Head,kHead%2>() && Placed<Final,(kHead+1)%2>() &&
-      PairPlaced(std::make_integer_sequence<unsigned,10>{}));
+  static_assert(Placed<Prologue,0>() && Placed<LmHead,kHead%2>() &&
+      GroupPlaced(std::make_integer_sequence<unsigned,kGroup>{}));
   template<unsigned... J>
-  static constexpr int PairBytes(std::integer_sequence<unsigned,J...>) {
-    int value=1024;((value=value<PairStage<J>::kSharedBytes?PairStage<J>::kSharedBytes:value),...);
+  static constexpr int GroupBytes(std::integer_sequence<unsigned,J...>) {
+    int value=1024;((value=value<GroupStage<J>::kSharedBytes?GroupStage<J>::kSharedBytes:value),...);
     return value;
   }
   static constexpr int kArenaSharedBytes=[] {
-    int value=PairBytes(std::make_integer_sequence<unsigned,10>{});
-    for(int bytes:{Prologue::kSharedBytes,Head::kSharedBytes,Final::kSharedBytes})
+    int value=GroupBytes(std::make_integer_sequence<unsigned,kGroup>{});
+    for(int bytes:{Prologue::kSharedBytes,LmHead::kSharedBytes})
       value=value<bytes?bytes:value;
     return value;
   }();
   // Tasks of executed boundary g.
   template<unsigned... J>
-  static constexpr unsigned long long PairTasks(unsigned j,std::integer_sequence<unsigned,J...>) {
-    unsigned long long value=0;((value=j==J?PairStage<J>::kTasks:value),...);return value;
+  static constexpr unsigned long long GroupTasks(unsigned j,std::integer_sequence<unsigned,J...>) {
+    unsigned long long value=0;((value=j==J?GroupStage<J>::kTasks:value),...);return value;
   }
   static constexpr unsigned long long Tasks(unsigned g) {
     if(g==0)return Prologue::kTasks;
-    if(g==kHead)return Head::kTasks;
-    if(g==kHead+1)return Final::kTasks;
-    return PairTasks((g-1)%10,std::make_integer_sequence<unsigned,10>{});
+    if(g==kHead)return LmHead::kTasks;
+    return GroupTasks((g-1)%kGroup,std::make_integer_sequence<unsigned,kGroup>{});
   }
 
 #if TILEMEGA_TRACE_NATIVE_PHASES
@@ -393,9 +504,10 @@ struct Program {
 #endif
 
   // One executed boundary g of typed stage Body (arena and ring parity
-  // Parity) for runtime layer `layer`; Next runs next for `next_layer`.
-  // streamed: Body's predecessor issued Body's stream prefix.
-  template<class Body,class Next,unsigned Parity,bool Last=false>
+  // Parity) for runtime layer `layer`; Next runs next for `next_layer` with
+  // parity NextParity (the same parity only after the head when the
+  // prologue is skipped). streamed: Body's predecessor issued its prefix.
+  template<class Body,class Next,unsigned Parity,bool Last=false,unsigned NextParity=Parity^1>
   __device__ static __forceinline__ void Boundary(Binding const& b,int past,char* shared,
       float epsilon,GridCounter* events,unsigned long long iteration,TraceState trace,
       unsigned g,int layer,int next_layer,bool streamed) {
@@ -439,12 +551,29 @@ struct Program {
       // Next's preissue tail reads original bindings and never this header.
       if constexpr(Next::kUsesOperandRecord)
         Next::PublishOperands(b,next_layer,past,epsilon,
-            backend::Sm90DenseOperandHeader::Bank(shared,Parity^1));
-      auto* counter=&events[g].arrivals;
-      asm volatile("red.release.gpu.global.add.u64 [%0], %1;"::"l"(counter),"l"(1ull):"memory");
-      unsigned long long seen;
-      do {asm volatile("ld.acquire.gpu.global.u64 %0, [%1];":"=l"(seen):"l"(counter):"memory");}
-      while(seen<(iteration+1)*gridDim.x);
+            backend::Sm90DenseOperandHeader::Bank(shared,NextParity));
+      if constexpr(Body::kGroupTiles>0) {
+        // D8 (prompt §7): this CTA's qkv tiles release their KV groups; its
+        // attention tasks wait only for their own group's tiles of this
+        // layer. The boundary after attention stays a grid barrier.
+        constexpr unsigned kTiles=Body::kGroupTiles;
+        for(unsigned t=blockIdx.x;t<unsigned(Body::kTasks);t+=gridDim.x)
+          asm volatile("red.release.gpu.global.add.u64 [%0], %1;"::
+              "l"(&events[kStages+t/kTiles].arrivals),"l"(1ull):"memory");
+        auto target=(iteration*kLayers+unsigned(layer)+1)*kTiles;
+        for(unsigned t=blockIdx.x;t<unsigned(Next::kTasks);t+=gridDim.x) {
+          auto* counter=&events[kStages+t/unsigned(Next::kGroupTasks)].arrivals;
+          unsigned long long seen;
+          do {asm volatile("ld.acquire.gpu.global.u64 %0, [%1];":"=l"(seen):"l"(counter):"memory");}
+          while(seen<target);
+        }
+      }else {
+        auto* counter=&events[g].arrivals;
+        asm volatile("red.release.gpu.global.add.u64 [%0], %1;"::"l"(counter),"l"(1ull):"memory");
+        unsigned long long seen;
+        do {asm volatile("ld.acquire.gpu.global.u64 %0, [%1];":"=l"(seen):"l"(counter):"memory");}
+        while(seen<(iteration+1)*gridDim.x);
+      }
 #if TILEMEGA_TRACE_NATIVE_PHASES
       unsigned next_index=(g+1)%kStages;
       auto next_iteration=iteration+(next_index==0);
@@ -484,44 +613,55 @@ struct Program {
     }
 #endif
   }
-  // Layers 2*pair and 2*pair+1. Only layer 0's qkv follows the ring-less
-  // prologue and receives no stream.
-  template<bool LastPair,unsigned... J>
-  __device__ static __forceinline__ void RunPair(Binding const& b,int past,char* shared,
-      float epsilon,GridCounter* events,unsigned long long iteration,TraceState trace,int pair,
+  // Layers kPerGroup*group onwards. Only layer 0's first stage follows the
+  // ring-less prologue and receives no stream.
+  template<bool LastGroup,unsigned... J>
+  __device__ static __forceinline__ void RunGroup(Binding const& b,int past,char* shared,
+      float epsilon,GridCounter* events,unsigned long long iteration,TraceState trace,int group,
       std::integer_sequence<unsigned,J...>) {
-    (Boundary<PairStage<J>,std::conditional_t<J==9,
-        std::conditional_t<LastPair,Head,PairStage<0>>,PairStage<(J+1)%10>>,(1+J)%2>(
-        b,past,shared,epsilon,events,iteration,trace,1+10*pair+J,2*pair+int(J/5),
-        J==9?(LastPair?0:2*pair+2):2*pair+int((J+1)/5),J!=0 || pair!=0),...);
+    int layer=int(kPerGroup)*group;
+    (Boundary<GroupStage<J>,std::conditional_t<J+1==kGroup,
+        std::conditional_t<LastGroup,LmHead,GroupStage<0>>,GroupStage<(J+1)%kGroup>>,(1+J)%2>(
+        b,past,shared,epsilon,events,iteration,trace,1+kGroup*group+J,layer+int(J/kPerLayer),
+        J+1==kGroup?(LastGroup?0:layer+int(kPerGroup)):layer+int((J+1)/kPerLayer),
+        J!=0 || group!=0),...);
   }
   template<int... P>
   __device__ static __forceinline__ void Unrolled(Binding const& b,int past,char* shared,
       float epsilon,GridCounter* events,unsigned long long iteration,TraceState trace,
       std::integer_sequence<int,P...>) {
-    (RunPair<false>(b,past,shared,epsilon,events,iteration,trace,P,
-        std::make_integer_sequence<unsigned,10>{}),...);
+    (RunGroup<false>(b,past,shared,epsilon,events,iteration,trace,P,
+        std::make_integer_sequence<unsigned,kGroup>{}),...);
   }
+  // step: the request's step number (pasts index), independent of launches.
   __device__ static __forceinline__ void Step(Binding const& b,int past,char* shared,
-      float epsilon,GridCounter* events,unsigned long long iteration,TraceState trace) {
+      float epsilon,GridCounter* events,unsigned long long iteration,TraceState trace,
+      unsigned step) {
 #if TILEMEGA_TRACE_STEP
     StepTrace* record=trace.steps && trace.slots?
         trace.steps+(iteration%trace.slots)*gridDim.x+blockIdx.x:nullptr;
     if(threadIdx.x==0 && record)*record={iteration,static_cast<unsigned long long>(past),Now(),0,0,0,0,0,0,0};
 #endif
-    Boundary<Prologue,PairStage<0>,0>(b,past,shared,epsilon,events,iteration,trace,0,0,0,false);
+    if(!Embed || step==0)
+      Boundary<Prologue,GroupStage<0>,0>(b,past,shared,epsilon,events,iteration,trace,0,0,0,false);
+    else if(threadIdx.x==0) {
+      // The skipped prologue still counts once per step, keeping its target.
+      auto* counter=&events[0].arrivals;
+      asm volatile("red.release.gpu.global.add.u64 [%0], %1;"::"l"(counter),"l"(1ull):"memory");
+    }
     if constexpr(Loop) {
       #pragma unroll 1
-      for(int pair=0;pair<Layers/2-1;++pair)
-        RunPair<false>(b,past,shared,epsilon,events,iteration,trace,pair,
-            std::make_integer_sequence<unsigned,10>{});
+      for(int group=0;group<Layers/int(kPerGroup)-1;++group)
+        RunGroup<false>(b,past,shared,epsilon,events,iteration,trace,group,
+            std::make_integer_sequence<unsigned,kGroup>{});
     }else Unrolled(b,past,shared,epsilon,events,iteration,trace,
-        std::make_integer_sequence<int,Layers/2-1>{});
-    RunPair<true>(b,past,shared,epsilon,events,iteration,trace,Layers/2-1,
-        std::make_integer_sequence<unsigned,10>{});
-    Boundary<Head,Final,kHead%2>(b,past,shared,epsilon,events,iteration,trace,kHead,0,0,true);
-    Boundary<Final,Prologue,(kHead+1)%2,true>(b,past,shared,epsilon,events,iteration,trace,
-        kHead+1,0,0,true);
+        std::make_integer_sequence<int,Layers/int(kPerGroup)-1>{});
+    RunGroup<true>(b,past,shared,epsilon,events,iteration,trace,Layers/int(kPerGroup)-1,
+        std::make_integer_sequence<unsigned,kGroup>{});
+    // No stream crosses the step boundary; with Embed the head publishes the
+    // next step's layer-0 qkv bank in place of the skipped prologue.
+    Boundary<LmHead,std::conditional_t<Embed,GroupStage<0>,Prologue>,kHead%2,true,
+        Embed?1u:(kHead%2)^1u>(b,past,shared,epsilon,events,iteration,trace,kHead,0,0,true);
 #if TILEMEGA_TRACE_STEP
     if(threadIdx.x==0 && record)record->end=Now();
 #endif
@@ -553,23 +693,34 @@ void sm90_dense_native_kernel(const __grid_constant__ typename P::Binding b,
   }
 #endif
   rings[1].Initialize();
+  if constexpr(P::kCluster>1)P::ClusterInitialize(shared);
 #if TILEMEGA_TRACE_NATIVE_PHASES
   if(threadIdx.x<128 && (threadIdx.x&31)==0)
     backend::Sm90DenseDiagnostic::Context(shared).previous_release_clock[threadIdx.x/32]=
         backend::Sm90DenseDiagnostic::Clock();
 #endif
+  // A launch that starts after step 0 without the prologue needs the
+  // layer-0 qkv bank the previous launch's head published (D9 ③).
+  if constexpr(P::kEmbed)
+    if(first!=0) {
+      if(threadIdx.x==0)P::template GroupStage<0>::PublishOperands(b,0,pasts[first],epsilon,
+          backend::Sm90DenseOperandHeader::Bank(shared,1));
+      __syncthreads();
+    }
   if(blockIdx.x==0 && threadIdx.x==0 && step_ns)step_ns[first]=Now();
   for(unsigned step=0;step<steps;++step) {
     int past=pasts[first+step];
 #if TILEMEGA_NATIVE_RELEASE_ENABLED
     P::BeginRelease(shared,past,iteration+step);
 #endif
-    P::Step(b,past,shared,epsilon,events,iteration+step,trace);
+    P::Step(b,past,shared,epsilon,events,iteration+step,trace,first+step);
 #if TILEMEGA_NATIVE_RELEASE_ENABLED
     P::FlushRelease(shared,release_binding,iteration+step);
 #endif
     if(blockIdx.x==0 && threadIdx.x==0 && step_ns)step_ns[first+step+1]=Now();
   }
+  // No peer may still address this CTA's shared memory when it exits.
+  if constexpr(P::kCluster>1)codegen::executor::Async<arch::Sm90>::ClusterSync();
   rings[0].Invalidate();rings[1].Invalidate();
 }
 

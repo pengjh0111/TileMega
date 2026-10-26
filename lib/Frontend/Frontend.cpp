@@ -355,7 +355,7 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
         builder.getNamedAttr("file", builder.getStringAttr(buffer.file)),
         builder.getNamedAttr("no_producer", builder.getBoolAttr(
             index >= written.size() || !written[index]))};
-    if (plan.dm || buffer.per_batch || buffer.role != "internal" ||
+    if (plan.dm || buffer.per_batch || buffer.role != "internal" || buffer.typed ||
         !buffer.external_name.empty() || !buffer.pack_json.empty()) {
       fields.push_back(builder.getNamedAttr(
           "per_batch", builder.getI64IntegerAttr(buffer.per_batch)));
@@ -393,6 +393,9 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
       if (gemm.epilogue == PlanGemm::Epilogue::kSwiGLU) epilogue = "swiglu";
       if (gemm.epilogue == PlanGemm::Epilogue::kArgmaxPartial)
         epilogue = "argmax_partial";
+      if (gemm.epilogue == PlanGemm::Epilogue::kMoeRouter) epilogue = "moe_router";
+      if (gemm.epilogue == PlanGemm::Epilogue::kMoeGateUp) epilogue = "moe_gate_up";
+      if (gemm.epilogue == PlanGemm::Epilogue::kMoeDown) epilogue = "moe_down";
       fields.push_back(builder.getNamedAttr(
           "epilogue", builder.getStringAttr(epilogue)));
       fields.push_back(builder.getNamedAttr(

@@ -7,7 +7,7 @@ namespace tilemega::solver {
 void Sm90DenseSearchSpace::Structure(Sm90DenseCoordinates& c) {
   if(c.attention.chunks==1)c.attention.new_row_work=0;
   c.swiglu_u=16;
-  while(c.gemms[2].tile_n%(2*c.swiglu_u) && c.swiglu_u>4)c.swiglu_u/=2;
+  if(!c.moe)while(c.gemms[2].tile_n%(2*c.swiglu_u) && c.swiglu_u>4)c.swiglu_u/=2;
 }
 
 bool Sm90DenseSearchSpace::Legal(Sm90DenseCoordinates const& c) const {
@@ -20,6 +20,21 @@ bool Sm90DenseSearchSpace::Legal(Sm90DenseCoordinates const& c) const {
   try {c.ValidateSchedule(shapes,batch,head_dim,queries,1088,budget);}
   catch(std::invalid_argument const&) {return false;}
   for(auto const& g:c.gemms)if(g.mma!=Sm90DenseMma::kMmaSync)return false;
+  // D8: every qkv tile lies in one KV group of (Q + 2) D columns.
+  if(c.group_wait && ((queries+2)*head_dim)%c.gemms[0].tile_n)return false;
+  int grid=Grid(c.residency);
+  if(c.cluster>1 && grid%c.cluster)return false;
+  // D10c: both CTAs of a pair run the same task count.
+  for(unsigned f:c.Active())
+    if(c.gemms[f].multicast && ((shapes[f][0]/c.gemms[f].tile_n)%grid)%2)return false;
+  if(c.attention.dsmem) {
+    int arena=Sm90DenseArena(budget);
+    // D10b: one task wave; a group-waiting attention may start while a peer
+    // still runs qkv, so its DSMEM inbox must lie outside the qkv arena.
+    if(batch*hkv*c.attention.chunks>grid ||
+       (c.group_wait && c.attention.FullWidth(head_dim,queries,arena)))
+      return false;
+  }
   return true;
 }
 
@@ -30,9 +45,20 @@ std::vector<Sm90DenseGemm> Sm90DenseSearchSpace::FamilyCandidates(unsigned famil
   int arena=Sm90DenseArenaBytes(budget);
   bool residual=Sm90DenseCoordinates::ResidualFamily(family);
   std::vector<int> tiles,depths;
+  // Tasks of the busiest CTA: experts run n_active x N/TN tasks (§8).
+  auto tasks=[&](int tn) {
+    double count=double(n/tn)*(family>=6?ExpectedActive():1);
+    return std::ceil(count/grid);
+  };
   if(family==4) {
     for(int tn:{128,256})if(n%tn==0)tiles.push_back(tn);
     depths={64,128,256};
+  }else if(family>=5) {
+    // M4: TN8, 16 tasks; M5: TN in {96, 192} (B1 only 96); M6: {128, 256}.
+    if(family==5)tiles={8};
+    else if(family==6)tiles=batch==1?std::vector<int>{96}:std::vector<int>{96,192};
+    else tiles={128,256};
+    for(int tk=64;tk<=2048;tk*=2)depths.push_back(tk);
   }else {
     for(int tn=8;tn<=n;tn+=8)
       if(n%tn==0 && n/tn*4>=grid && n/tn<=2*grid)tiles.push_back(tn);
@@ -43,7 +69,7 @@ std::vector<Sm90DenseGemm> Sm90DenseSearchSpace::FamilyCandidates(unsigned famil
     for(int tk:depths) {
       if(k%tk)continue;
       Sm90DenseGemm g;g.tile_n=tn;g.warps_n=wn;g.warps_k=4/wn;g.slot_bytes=2*tn*tk;
-      double w_cta=double((n/tn+grid-1)/grid)*tn*k*2;
+      double w_cta=tasks(tn)*tn*k*2;
       auto fits=[&] {return g.SharedBytes(batch,residual)-1024<=arena;};
       // D5 ring rule: the whole task in flight when it fits the arena in at
       // most eight slots; otherwise the fewest slots covering min(W_cta, 48 KB).

@@ -4,7 +4,9 @@
 Schema 2 dropped `dn_vector_sums`: InputNorm statistics are accumulated by the
 GEMM consumers. Schema 3 drops the per-stage arena offset and preissue fields,
 which D5/D6 derive by rule, and adds the DT-1 `weight_stream` and DT-3
-`layer_loop` switches. Every
+`layer_loop` switches and the D9 `emb` placement; schema 4 (§8) names the
+model (dense here); schema 5 (§7) adds the D8 `group_wait` switch and the D10
+`cluster`, attention `merge` and GEMM `multicast` coordinates. Every
 other coordinate is copied unchanged, so a pairing keeps the same geometry.
 """
 import argparse
@@ -14,10 +16,23 @@ from pathlib import Path
 DERIVED = ('workspace_offset', 'preissue_smem_bytes', 'prefetch_l2_bytes', 'preissue_late')
 
 
-def upgrade(value, weight_stream, layer_loop):
+def clusters(value):
+    """Schema 5's D10 coordinates default to no cluster."""
+    value.setdefault('cluster', 1)
+    value['attention'].setdefault('merge', 'la')
+    for g in value['gemms'].values():
+        g.setdefault('multicast', False)
+    return value
+
+
+def upgrade(value, weight_stream, layer_loop, emb, group_wait=False):
     schema = value.get('schema')
+    if schema in (4, 5):
+        return clusters(dict(value, schema=5, weight_stream=weight_stream, layer_loop=layer_loop, emb=emb,
+                             group_wait=group_wait))
     if schema == 3:
-        return dict(value, weight_stream=weight_stream, layer_loop=layer_loop)
+        return clusters(dict(value, schema=5, model='dense', weight_stream=weight_stream,
+                             layer_loop=layer_loop, emb=emb, group_wait=group_wait))
     if schema not in (1, 2):
         raise ValueError('unknown native coordinate schema')
     result = {k: v for k, v in value.items() if k != 'dn_vector_sums'}
@@ -29,10 +44,13 @@ def upgrade(value, weight_stream, layer_loop):
             stage.pop(k, None)
     for g in result['gemms'].values():
         g.setdefault('register_stages', 1)
-    result['schema'] = 3
+    result['schema'] = 5
+    result['model'] = 'dense'
     result['weight_stream'] = weight_stream
     result['layer_loop'] = layer_loop
-    return result
+    result['emb'] = emb
+    result['group_wait'] = group_wait
+    return clusters(result)
 
 
 def main():
@@ -41,10 +59,12 @@ def main():
     p.add_argument('output', type=Path)
     p.add_argument('--weight-stream', action='store_true', help='enable the D6 stream (DT-1 arm)')
     p.add_argument('--layer-loop', action='store_true', help='run layer pairs in a loop (DT-3 arm)')
+    p.add_argument('--emb', choices=('stage', 'la'), default='stage', help='D9 embedding placement')
+    p.add_argument('--group-wait', action='store_true', help='D8 group counters before attention')
     a = p.parse_args()
     if a.output.exists():
         raise FileExistsError(a.output)
-    value = upgrade(json.loads(a.input.read_text()), a.weight_stream, a.layer_loop)
+    value = upgrade(json.loads(a.input.read_text()), a.weight_stream, a.layer_loop, a.emb, a.group_wait)
     a.output.write_text(json.dumps(value, indent=2) + '\n')
 
 

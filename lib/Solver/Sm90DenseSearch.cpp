@@ -24,53 +24,85 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
   Sm90DenseSearchResult result;
   std::vector<Sm90DenseCandidate> pool;
   std::set<std::string> seen;
-  for(int residency:{1,2}) {
-    std::array<std::vector<Option>,6> families;
-    for(unsigned f=0;f<5;++f) {
-      for(auto const& g:space.FamilyCandidates(f,residency)) {
+  auto const& constants=cost.Constants();
+  for(int residency:{1,2})for(int cluster:{1,2}) {
+    // DT-2: clusters only up to C* (measured occupancy, prompt §7).
+    if(cluster>1 && constants.ClusterStar(residency)<cluster)continue;
+    // Index 5 of `families` stays the attention list; GEMM families are
+    // stored at their family number (MoE: 0, 1, 4, 5, 6, 7).
+    std::array<std::vector<Option>,8> families;
+    std::vector<Option> attention;
+    auto active=Sm90DenseActiveFamilies(space.moe);
+    for(unsigned f:active) {
+      for(auto g:space.FamilyCandidates(f,residency)) {
         families[f].push_back({cost.Gemm(work,f,g,residency),g,{}});
         ++result.evaluated;
+        // D10c: activation-bound stages (B / TN > kappa) of a cluster may
+        // multicast their A slots (even slot counts keep one issuer per slot).
+        if(cluster>1 && f<=4 && double(work.batch)/g.tile_n>constants.MulticastKappa() && g.slots%2==0) {
+          g.multicast=true;
+          families[f].push_back({cost.Gemm(work,f,g,residency),g,{}});
+          ++result.evaluated;
+        }
       }
     }
-    for(auto const& a:space.AttentionCandidates(residency))
-      families[5].push_back({cost.Attention(work,a,residency),{},a});
-    bool empty=false;
-    for(unsigned i=0;i<families.size();++i) {
-      auto& f=families[i];
-      // Equal predictions are one model choice: keep the configuration with
-      // the least shared memory (then the deeper tile) and offer only
-      // distinct predicted costs as alternatives.
-      std::stable_sort(f.begin(),f.end(),[&](Option const& a,Option const& b) {
+    for(auto a:space.AttentionCandidates(residency)) {
+      attention.push_back({cost.Attention(work,a,residency),{},a});
+      // D10b: chunk groups that fit one cluster may merge through DSMEM;
+      // without a measured merge constant the variant is not priced.
+      if(cluster>1 && a.chunks>1 && cluster%a.chunks==0) {
+        a.dsmem=true;
+        try {attention.push_back({cost.Attention(work,a,residency),{},a});}
+        catch(Sm90NativeMissing const&) {}
+      }
+    }
+    // Equal predictions are one model choice: keep the configuration with
+    // the least shared memory (then the deeper tile) and offer only distinct
+    // predicted costs as alternatives.
+    auto rank=[&](std::vector<Option>& list,int family) {
+      std::stable_sort(list.begin(),list.end(),[&](Option const& a,Option const& b) {
         if(a.ns!=b.ns)return a.ns<b.ns;
-        if(i==5)return false;
-        bool residual=Sm90DenseCoordinates::ResidualFamily(i);
+        if(family<0)return false;
+        bool residual=Sm90DenseCoordinates::ResidualFamily(unsigned(family));
         if(a.gemm.SharedBytes(work.batch,residual)!=b.gemm.SharedBytes(work.batch,residual))
           return a.gemm.SharedBytes(work.batch,residual)<b.gemm.SharedBytes(work.batch,residual);
         return a.gemm.TileK()>b.gemm.TileK();
       });
-      f.erase(std::unique(f.begin(),f.end(),[](Option const& a,Option const& b) {
+      list.erase(std::unique(list.begin(),list.end(),[](Option const& a,Option const& b) {
         return std::abs(a.ns-b.ns)<=1e-9*b.ns;
-      }),f.end());
-      empty|=f.empty();
-    }
-    if(empty)continue;
-    auto build=[&](unsigned family,unsigned rank,std::string const& origin) {
-      Sm90DenseCoordinates c;c.residency=residency;c.weight_stream=space.weight_stream;
-      c.layer_loop=space.layer_loop;
-      for(unsigned f=0;f<5;++f)c.gemms[f]=families[f][f==family?rank:0].gemm;
-      c.attention=families[5][family==5?rank:0].attention;
-      Sm90DenseSearchSpace::Structure(c);
-      if(!space.Legal(c))return;
-      auto key=c.ToJson().Dump(0);
-      if(!seen.insert(key).second)return;
-      pool.push_back({c,cost.Predict(work,c),origin});
+      }),list.end());
+      return !list.empty();
     };
-    std::string prefix="r"+std::to_string(residency);
-    build(6,0,prefix+"_optimum");
-    static constexpr char const* kNames[]={"qkv","o","gate_up","down","lm_head","attention"};
-    for(unsigned f=0;f<6;++f)
-      for(unsigned rank=1;rank<=unsigned(o.alternatives) && rank<families[f].size();++rank)
-        build(f,rank,prefix+"_"+kNames[f]+"_alt"+std::to_string(rank));
+    bool complete=rank(attention,-1);
+    for(unsigned f:active)complete&=rank(families[f],int(f));
+    if(!complete)continue;
+    // The embedding placement (D9 ②) and the group wait (D8) are structural
+    // dimensions: every legal value of each family combination enters the
+    // predicted ranking. `family` is a GEMM family number or kAttention.
+    constexpr unsigned kAttention=~0u;
+    auto build=[&](unsigned family,unsigned alternative,std::string const& origin) {
+      Sm90DenseCoordinates c;c.residency=residency;c.cluster=cluster;c.weight_stream=space.weight_stream;
+      c.layer_loop=space.layer_loop;c.moe=space.moe;
+      for(unsigned f:active)c.gemms[f]=families[f][f==family?alternative:0].gemm;
+      c.attention=attention[family==kAttention?alternative:0].attention;
+      Sm90DenseSearchSpace::Structure(c);
+      // A cluster launch is a choice only through what uses it (D10b/D10c).
+      if(cluster>1 && !c.attention.dsmem && std::none_of(c.gemms.begin(),c.gemms.end(),
+          [](Sm90DenseGemm const& g) {return g.multicast;}))return;
+      for(bool group_wait:{false,true})for(bool embed_la:{false,true}) {
+        c.group_wait=group_wait;c.embed_la=embed_la;
+        if(!space.Legal(c) || !seen.insert(c.ToJson().Dump(0)).second)continue;
+        pool.push_back({c,cost.Predict(work,c),origin+(group_wait?"_group":"")+
+            (embed_la?"_emb_la":"_emb_stage")});
+      }
+    };
+    std::string prefix="r"+std::to_string(residency)+(cluster>1?"_c"+std::to_string(cluster):"");
+    build(kAttention-1,0,prefix+"_optimum");
+    for(unsigned f:active)
+      for(unsigned alt=1;alt<=unsigned(o.alternatives) && alt<families[f].size();++alt)
+        build(f,alt,prefix+"_"+kSm90DenseFamilies[f]+"_alt"+std::to_string(alt));
+    for(unsigned alt=1;alt<=unsigned(o.alternatives) && alt<attention.size();++alt)
+      build(kAttention,alt,prefix+"_attention_alt"+std::to_string(alt));
   }
   std::stable_sort(pool.begin(),pool.end(),[](auto const& a,auto const& b) {
     return a.prediction.step_ns<b.prediction.step_ns;

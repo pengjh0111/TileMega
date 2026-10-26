@@ -18,8 +18,13 @@ namespace tilemega::backend {
 // mma.sync and an online softmax, then merge their states. Keys at or past
 // the history bound are masked by selection, so stale or zero rows beyond it
 // (the cache is zero-initialized) contribute exactly nothing.
+// Dsmem (D10b, clusters): the S chunks of one (b, g) run on consecutive ranks
+// of one cluster (S divides the cluster size, one task wave). Each chunk
+// stores its normalized partial into the inbox of the chunk-0 CTA through
+// DSMEM, then arrives on its inbox barrier; that leader merges and writes
+// the context. No global partials, lse or arrival counters are used.
 template<int Batch,int Hkv,int D,int Q,bool Norm,int Chunks,int BlockKeys,int Slots,
-         int NewRowWork,int Capacity>
+         int NewRowWork,int Capacity,bool Dsmem=false>
 struct Sm90DenseAttentionBody {
   using Element=cutlass::bfloat16_t;
   using Async=codegen::executor::Async<arch::Sm90>;
@@ -28,6 +33,7 @@ struct Sm90DenseAttentionBody {
   static_assert(Batch>=1 && Batch<=16 && (D==64 || D==128) && Q>=2 && Q<=8);
   static_assert(BlockKeys==64 || BlockKeys==128);
   static_assert(Slots>=2 && Slots<=4 && Capacity>=1087);
+  static_assert(!Dsmem || Chunks>1,"a DSMEM merge needs at least two chunks");
   static constexpr int kThreads=160,kTasks=Batch*Hkv*Chunks,kPanels=D/64;
   static constexpr float kLog2E=1.4426950408889634f;
   static_assert(kThreads==Sm90DenseRoleAbi::kThreads);
@@ -37,6 +43,7 @@ struct Sm90DenseAttentionBody {
     float output[4*Q*D],maximum[4*Q],sum[4*Q];
     float weight[(Chunks>4?Chunks:4)*Q];
     unsigned last;
+    float inbox[Dsmem?Chunks*Q*D:1],inbox_lse[Dsmem?Chunks*Q:1];
   };
   static constexpr int kSharedBytes=1024+int(sizeof(Storage));
 
@@ -275,7 +282,8 @@ struct Sm90DenseAttentionBody {
       }
       codegen::executor::ComputeSync();
       Finish(p,s,bg,chunk);
-      if constexpr(Chunks>1)
+      if constexpr(Dsmem)DsmemMerge(p,state,s,bg,chunk);
+      else if constexpr(Chunks>1)
         if(Sm90DenseLastArriver::Publish<Chunks>(p.arrivals+bg,&s.last))Merge(p,s,bg);
       codegen::executor::ComputeSync();
     }
@@ -299,11 +307,56 @@ struct Sm90DenseAttentionBody {
       }
       float result=total?value/total:0.0f;
       if constexpr(Chunks==1)p.output[std::size_t(bg)*Q*D+i]=Element(result);
-      else {
+      else if constexpr(Dsmem) {
+        // Chunk c of a group runs on cluster rank (rank of chunk 0) + c.
+        unsigned leader=Async::ClusterRank()-unsigned(chunk);
+        float lse=total?m+log2f(total):-INFINITY;
+        if(chunk==0) {
+          s.inbox[i]=result;
+          if(i%D==0)s.inbox_lse[q]=lse;
+        }else {
+          Async::StoreCluster(Async::Mapa(s.inbox+chunk*Q*D+i,leader),result);
+          if(i%D==0)Async::StoreCluster(Async::Mapa(s.inbox_lse+chunk*Q+q,leader),lse);
+        }
+      }else {
         p.partial[(std::size_t(bg)*Chunks+chunk)*Q*D+i]=result;
         if(i%D==0)p.lse[(bg*Chunks+chunk)*Q+q]=total?m+log2f(total):-INFINITY;
       }
     }
+  }
+
+  // After every consumer's inbox stores (CTA join), one release per peer
+  // chunk; the leader acquires all S - 1 and merges in fixed chunk order.
+  __device__ static __forceinline__ void DsmemMerge(Sm90DenseAttentionOperands const& p,
+      Sm90DenseRingState& state,Storage& s,int bg,int chunk) {
+    codegen::executor::ComputeSync();
+    auto& cluster=Sm90DenseClusterState::OfRing(state);
+    if(chunk) {
+      if(threadIdx.x==0)Async::RemoteArrive(Async::Mapa(&cluster.inbox,Async::ClusterRank()-unsigned(chunk)));
+      return;
+    }
+    Async::WaitCluster(&cluster.inbox,cluster.inbox_generation&1);
+    int warp=threadIdx.x>>5,lane=threadIdx.x&31;
+    for(int q=warp;q<Q;q+=4) {
+      float m=-INFINITY;
+      for(int c=lane;c<Chunks;c+=32)m=fmaxf(m,s.inbox_lse[c*Q+q]);
+      m=Math::WarpMax(m);
+      float total=0;
+      for(int c=lane;c<Chunks;c+=32) {
+        float w=isfinite(m)?exp2f(s.inbox_lse[c*Q+q]-m):0.0f;s.weight[c*Q+q]=w;total+=w;
+      }
+      total=Math::WarpSum(total);
+      for(int c=lane;c<Chunks;c+=32)s.weight[c*Q+q]=total?s.weight[c*Q+q]/total:0.0f;
+    }
+    codegen::executor::ComputeSync();
+    for(int i=threadIdx.x;i<Q*D;i+=128) {
+      int q=i/D;float result=0;
+      #pragma unroll
+      for(int c=0;c<Chunks;++c)result+=s.weight[c*Q+q]*s.inbox[c*Q*D+i];
+      p.output[std::size_t(bg)*Q*D+i]=Element(result);
+    }
+    codegen::executor::ComputeSync();
+    if(threadIdx.x==0)cluster.inbox_generation^=1u;
   }
 
   __device__ static __forceinline__ void Merge(Sm90DenseAttentionOperands const& p,Storage& s,int bg) {

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Support/Json.h>
+#include <tilemega/Solver/Sm90DenseCoordinates.h>
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -58,9 +59,12 @@ struct Sm90DenseGemmPlanBinding {
   }
 };
 struct Sm90DenseWorkload {
-  std::array<std::array<int,2>,5> shapes;
+  Sm90DenseShapeTable shapes;
   int batch=0,layers=0,head_dim=0,queries=0,hkv=8;
   bool qk_norm=false;
+  // MoE decode (prompt §8): 128 experts, top-8; shapes 5-7 are per expert.
+  bool moe=false;
+  int experts=0,top_k=0;
   // Absence preserves the unknown binding domain of historical workloads.
   std::optional<std::vector<Sm90DenseGemmPlanBinding>> gemm_bindings;
 };

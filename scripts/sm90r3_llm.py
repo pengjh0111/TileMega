@@ -24,6 +24,7 @@ MODELS = {
     'llama3_2_1b': ('configs/serving/sm90d1/inputs/llama3_2_1b', 'configs/prompts/llama3_isl64.json', 32),
     'llama3_2_3b': ('configs/serving/sm90d1/inputs/llama3_2_3b', 'configs/prompts/llama3_isl64.json', 32),
     'llama3_1_8b': ('configs/serving/sm90d1/inputs/llama3_1_8b', 'configs/prompts/llama3_isl64.json', 40),
+    'qwen3_30b_a3b': ('configs/serving/sm90d1/inputs/qwen3_30b_a3b', 'configs/prompts/qwen_isl64.json', 80),
 }
 
 
