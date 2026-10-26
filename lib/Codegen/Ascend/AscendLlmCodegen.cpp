@@ -135,7 +135,7 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
         const bool store=geo.split_k==7 && stage.columns==1024 && stage.k==4096 && stage.epilogue==0;
         const bool family=store || ((geo.split_k==3 && stage.columns==2048 && (stage.k==6144 || stage.k==8192)) ||
                           (geo.split_k==2 && stage.columns==3072 && stage.k==8192)) && stage.epilogue==1;
-        if(!family || !small || (stage.rows!=1 && stage.rows!=64 && !(stage.rows==16 && geo.split_k==3 && stage.columns==2048 && stage.k==8192)) ||
+        if(!family || !small || (stage.rows!=1 && stage.rows!=64 && !(stage.rows==16 && geo.split_k==3 && stage.columns==2048 && (stage.k==8192 || stage.k==6144))) ||
             !p.projection.options.cg_split_task_order)
           throw std::invalid_argument("Split-K requires an observed shape/epilogue and tile-major CTG");
         stage.extent=geo.split_k;stage.width=(stage.k+geo.split_k-1)/geo.split_k;stage.group=1;
@@ -161,7 +161,7 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
           {"external_name",""},{"pack_json",""}});
         arena=Add(arena,Mul(Add(Add(bytes,512),511)/512,512));
       }
-      if(local_tail_k7 && stage.columns==2048 && stage.k==8192 && stage.epilogue==1) {
+      if(local_tail_k7 && stage.columns==2048 && (stage.k==8192 || stage.k==6144) && stage.epilogue==1) {
         if(!small || geo.split_k!=1 || stage.rows!=1024)
           throw std::invalid_argument("Local tail Body requires complete unsplit output-tile ownership");
         stage.variant=2;
@@ -230,8 +230,15 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
     if(expected!=stage.tasks)throw std::invalid_argument("Native task coordinates disagree with CTG ownership");
     out.stages.push_back(stage);
   }
-  if(local_tail_k7 && local_tail_stages!=16)
-    throw std::invalid_argument("Local tail implementation did not bind all sixteen down projections");
+  if(local_tail_k7) {
+    unsigned expected=0;
+    for(auto raw:gs) {
+      auto g=mlir::cast<mlir::DictionaryAttr>(raw);
+      if(U(g,"n")==2048 && (U(g,"k")==8192 || U(g,"k")==6144) && S(g,"epilogue")=="residual")++expected;
+    }
+    if(!expected || local_tail_stages!=expected)
+      throw std::invalid_argument("Local tail implementation did not bind every declared down projection");
+  }
   for(unsigned s=0;s<out.stages.size();++s)if(out.stages[s].kind==6) {
     auto const& combine=out.stages[s];
     if(!s || p.projection.stages[s-1].logical_stage!=p.projection.stages[s].logical_stage ||

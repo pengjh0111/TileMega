@@ -146,7 +146,7 @@ template<unsigned TM=32,unsigned TN=64,bool CaptureSoftmax=false> class LlmServi
       unsigned n=s.columns-first<TN?s.columns-first:TN;
 #if defined(TILEMEGA_LLM_LOCAL_TAIL_K7) && TILEMEGA_LLM_LOCAL_TAIL_K7
       if(s.variant==2 && first>=1792) {
-        if(TM!=16 || TN!=128 || s.rows!=1024 || s.columns!=2048 || s.k!=8192 || s.epilogue!=1 || s.operands[5]==llm::kAbsent)return false;
+        if(TM!=16 || TN!=128 || s.rows!=1024 || s.columns!=2048 || (s.k!=8192 && s.k!=6144) || s.epilogue!=1 || s.operands[5]==llm::kAbsent)return false;
         auto partial=arena+s.operands[5]+(uint64_t(owner_group)*7*TM*TN+(r-rows)*TN)*4;
         if(!vector_.CombineGemm(partial,raw,TM*TN,7,n))return false;
         Acquire(raw);
@@ -178,7 +178,7 @@ template<unsigned TM=32,unsigned TN=64,bool CaptureSoftmax=false> class LlmServi
                         (s.extent==2 && s.columns==3072 && s.k==8192) ||
                         (s.extent==7 && s.columns==1024 && s.k==4096);
       if(!family || s.width!=(s.k+s.extent-1)/s.extent ||
-          (s.rows!=1 && s.rows!=64 && !(s.rows==16 && s.extent==3 && s.columns==2048 && s.k==8192)) || s.epilogue!=(s.extent==7?0u:1u) || s.operands[5]==llm::kAbsent)return false;
+          (s.rows!=1 && s.rows!=64 && !(s.rows==16 && s.extent==3 && s.columns==2048 && (s.k==8192 || s.k==6144))) || s.epilogue!=(s.extent==7?0u:1u) || s.operands[5]==llm::kAbsent)return false;
       const unsigned nt=(s.columns+TN-1)/TN,first=task%nt*TN,row=task/nt*TM;
       for(unsigned r=row;r<row+TM && r<s.rows;++r) {
         unsigned n=s.columns-first<TN?s.columns-first:TN;

@@ -7,6 +7,7 @@ int main() {
   local.columns=2048;local.k=8192;local.epilogue=1;local.operands[5]=0;
 #if defined(TILEMEGA_LLM_LOCAL_TAIL_K7) && TILEMEGA_LLM_LOCAL_TAIL_K7
   llm_host::ValidateCompiledBodies({local});
+  local.k=6144;llm_host::ValidateCompiledBodies({local});local.k=8192;
   for(unsigned rows:{16u,64u}) {
     auto invalid=local;invalid.rows=rows;
     try {llm_host::ValidateCompiledBodies({invalid});return 1;}
@@ -44,7 +45,8 @@ int main() {
     split.k=8192;split.rows=16;split.width=2731;split.group=1;
     split.variant=1;split.epilogue=kind==6;
     llm_host::ValidateCompiledBodies({split});
-    for(unsigned k:{6144u,4096u}) {
+    split.k=6144;split.width=2048;llm_host::ValidateCompiledBodies({split});
+    for(unsigned k:{4096u,7168u}) {
       auto invalid=split;invalid.k=k;invalid.width=(k+2)/3;
       try {llm_host::ValidateCompiledBodies({invalid});return 1;}
       catch(std::invalid_argument const&) {}

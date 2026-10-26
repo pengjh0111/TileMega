@@ -98,11 +98,16 @@ int main(int argc,char** argv) {
       binding=tilemega::json::ParseFile(path.string());
       if(binding.At("schema").AsString("schema")!="tilemega.as2.body_binding.v1" ||
           binding.At("impl_id").AsString("impl_id")!="as2_mix_gemm_local_tail7_residual_16x128x128" ||
-          binding.At("model_id").AsString("model")!="llama3_2_1b" ||
-          receipt.At("model_id").AsString("model")!="llama3_2_1b" ||
+          binding.At("model_id").AsString("model")!=receipt.At("model_id").AsString("model") ||
           binding.At("phase").AsString("phase")!=phase || phase!="prefill" || batch!=16 ||
           binding.At("batch").AsNumber("batch")!=batch || serving.argmax_tile_n!=128)
         throw std::invalid_argument("Unverified local Body binding");
+      auto model_id=receipt.At("model_id").AsString("model");
+      auto k=binding.At("k").AsNumber("k"),count=binding.At("expected_gemms").AsNumber("expected_gemms");
+      if(binding.At("n").AsNumber("n")!=2048 ||
+          !((model_id=="llama3_2_1b" && k==8192 && count==16) ||
+            (model_id=="qwen3_1_7b" && k==6144 && count==28)))
+        throw std::invalid_argument("Unverified local Body model/shape/count");
     }
     if(decomposed) {
       auto path=fs::weakly_canonical(argv[priced_decomposition?10:9]);
@@ -115,7 +120,8 @@ int main(int argc,char** argv) {
           decomposition.At("phase").AsString("phase")!=phase ||
           decomposition.At("batch").AsNumber("batch")!=batch || serving.argmax_tile_n!=128)
         throw std::invalid_argument("Observed decomposition model/phase/geometry mismatch");
-      if(batch!=1 && !(batch==16 && phase=="decode" && receipt.At("model_id").AsString("model")=="llama3_2_1b"))
+      if(batch!=1 && !(batch==16 && phase=="decode" &&
+          (receipt.At("model_id").AsString("model")=="llama3_2_1b" || receipt.At("model_id").AsString("model")=="qwen3_1_7b")))
         throw std::invalid_argument("Unverified batch decomposition");
       if(auto separate=decomposition.Find("separate_qkv"))serving.separate_qkv=separate->AsBool("separate_qkv");
       if(serving.separate_qkv && receipt.At("model_id").AsString("model")!="llama3_1_8b")
@@ -125,6 +131,13 @@ int main(int argc,char** argv) {
     tilemega::analysis::IslContext isl;
     auto bridge=tilemega::frontend::ReadExportBridge((input/"export.json").string());
     auto plan=tilemega::frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,serving);
+    if(body) {
+      unsigned matches=0;
+      for(auto const& g:plan.gemms)if(g.n==binding.At("n").AsNumber("n") &&
+          g.k==binding.At("k").AsNumber("k") && g.epilogue==tilemega::frontend::PlanGemm::Epilogue::kResidual)++matches;
+      if(matches!=binding.At("expected_gemms").AsNumber("expected_gemms"))
+        throw std::invalid_argument("Local Body binding does not cover the imported model");
+    }
     if(emit && phase=="prefill")for(auto& stage:plan.stages)
       if(stage.kind==tilemega::frontend::PlanTaskKind::kFusedAttention)
         stage.attention_query_rows=16*stage.group;

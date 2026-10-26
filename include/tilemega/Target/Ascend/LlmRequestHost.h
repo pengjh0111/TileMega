@@ -38,7 +38,7 @@ inline void ValidateCompiledBodies(std::vector<llm::Stage> const& stages) {
 #if !defined(TILEMEGA_LLM_LOCAL_TAIL_K7) || !TILEMEGA_LLM_LOCAL_TAIL_K7
     throw std::invalid_argument("This binary does not register local tail reduction");
 #else
-    if(s.rows!=1024 || s.columns!=2048 || s.k!=8192 || s.extent>1 ||
+    if(s.rows!=1024 || s.columns!=2048 || (s.k!=8192 && s.k!=6144) || s.extent>1 ||
         s.epilogue!=1 || s.operands[5]==llm::kAbsent)
       throw std::invalid_argument("Unregistered local tail reduction shape");
 #endif
@@ -51,7 +51,7 @@ inline void ValidateCompiledBodies(std::vector<llm::Stage> const& stages) {
                       (s.extent==2 && s.columns==3072 && s.k==8192) ||
                       (s.extent==7 && s.columns==1024 && s.k==4096);
     if(!family || s.variant!=1 || s.width!=(s.k+s.extent-1)/s.extent || s.group!=1 ||
-        (s.rows!=1 && s.rows!=64 && !(s.rows==16 && s.extent==3 && s.columns==2048 && s.k==8192)) ||
+        (s.rows!=1 && s.rows!=64 && !(s.rows==16 && s.extent==3 && s.columns==2048 && (s.k==8192 || s.k==6144))) ||
         (s.kind==0?s.epilogue!=0:s.epilogue!=(s.extent==7?0u:1u)))
       throw std::invalid_argument("Unregistered split-K/combine shape or rounding contract");
 #endif

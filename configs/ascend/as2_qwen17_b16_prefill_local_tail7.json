@@ -1,0 +1,14 @@
+{
+  "schema": "tilemega.as2.body_binding.v1",
+  "model_id": "qwen3_1_7b",
+  "phase": "prefill",
+  "batch": 16,
+  "impl_id": "as2_mix_gemm_local_tail7_residual_16x128x128",
+  "status": "experimental_not_model_or_performance_admitted",
+  "evidence": "runs/as2/probes/qwen17_down_m1024_dispatch_v1/dispatch.json; actual CANN tiling4162:28,1024,2048,6144,256,256,...,878; sampled hybrid proof qwen17_b16_prefill_tail_hypothesis_v16.json",
+  "scope": "Indivisible existing MIX tile: complete logical GEMM, local FP32 partition/reduction only for columns1792:2048; original CTG ownership and external event",
+  "default_enabled": false,
+  "n": 2048,
+  "k": 6144,
+  "expected_gemms": 28
+}

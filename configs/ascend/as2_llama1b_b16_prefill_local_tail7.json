@@ -7,5 +7,8 @@
   "status": "experimental_not_model_or_performance_admitted",
   "evidence": "runs/as2/probes/llama1b_b16_streamk_domain_v1.json",
   "scope": "Indivisible existing MIX tile: complete logical GEMM, local FP32 partition/reduction only for columns1792:2048; original CTG ownership and external event",
-  "default_enabled": false
+  "default_enabled": false,
+  "n": 2048,
+  "k": 8192,
+  "expected_gemms": 16
 }
