@@ -34,7 +34,7 @@ def main():
     p.add_argument('--gpu', type=int, required=True)
     p.add_argument('--prefill', type=Path, help='defaults to the REF-R2 prefill of this cell')
     p.add_argument('--compiler', type=Path, default=ROOT / 'build/tools/tilemega')
-    p.add_argument('--concurrency', default='serial', choices=('serial', 'verified'))
+    p.add_argument('--concurrency', default='serial', choices=('serial', 'trial', 'verified'))
     a = p.parse_args()
     cell = f'{a.model}-B{a.batch}'
     directory = ROOT / 'runs/sm90r3/solve' / a.tag / cell

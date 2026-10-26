@@ -25,7 +25,7 @@ def main():
     p.add_argument('--prefill', type=Path, required=True)
     p.add_argument('--gpu', type=int, required=True)
     p.add_argument('--name', required=True)
-    p.add_argument('--concurrency', default='serial', choices=('serial', 'verified'))
+    p.add_argument('--concurrency', default='serial', choices=('serial', 'trial', 'verified'))
     p.add_argument('--candidates', type=Path, required=True)
     p.add_argument('--out', type=Path, required=True)
     a = p.parse_args()
