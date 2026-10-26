@@ -209,11 +209,19 @@ struct MxGemm {
     unsigned mask = 0u - valid;
     asm volatile("" : "+r"(mask));
     uint4 const x{a.x & mask, a.y & mask, a.z & mask, a.w & mask};
-    if constexpr (Statistics) ss += Square(x);
 #pragma unroll
     for (int j = 0; j < kAtoms; ++j) {
       acc[j] = Mma(Lo(w[j]), Lo(x), acc[j]);
       acc[j] = Mma(Hi(w[j]), Hi(x), acc[j]);
+    }
+    if constexpr (Statistics) {
+      uint4 stats = x;
+      // Every atom's completed MMA precedes scalar statistics expansion.
+#pragma unroll
+      for (int j = 0; j < kAtoms; ++j)
+        asm volatile("" : "+r"(stats.x), "+r"(stats.y), "+r"(stats.z), "+r"(stats.w) : "r"(acc[j][3]));
+      ss += Square(stats);
+      asm volatile("" :: "r"(ss) : "memory");
     }
   }
 
