@@ -325,3 +325,23 @@ oldwrapper sum56.750636h preserved in checkpoint_blockinit_origins25_v1.
 G/H576 campaigns90/114 and22/28 closedguard0 atinspection; no missing cost
 is projected. Newfull50 exporter binds actualconsumer closure and waits for
 both genuine complete campaigns before publishing; oldA full50 stays separate.
+
+Verified new Llama1BB1 independent576 four originals:normalMT164/frame0,
+rings15/15/15/14, actual four guarded API0/resident1/no-launch queries and
+strict true576 ResolvedTop4v2 READY. Firstroot delivery-reader map/list mistake
+stopped beforeGPU; preserved and corrected reading originalseal unchanged.
+NewQwenB1 allfour canonical576 histories terminate underactual shared counts;
+allfour independent512 originals MT239/frame0 actual API0/resident1 queries
+andconsume nowneed candidate-level D7. Eight new resource rows263→271 append
+without changing old bytes; no current-source finalselection yet.
+Normaldev20 allcompiled,3staticfit/17resourceveto; remaining80 CPU originals
+continue. Staticfit never substitutes actual occupancy or permits512.
+NewLlama1B top4 first operational run stops WD1query at330s outertimeout
+while waiting behind ownH24+preflight, before C1/timing. Rawrc124/failedstate
+arepreserved. v2 keeps exactsame four origins/proofs/pins/budget and waits
+for already-dispatched own children to fully exit before starting the runner.
+It is a scheduling retry, not a width retry/fifthcandidate or gate waiver.
+Timeout wrapper lacked rawend; parentactual ended1793034730.0015185 is a
+conservative closure proof. Newaccounting v2 bindsactualrc124 andparentexit,
+preserveslogs;upper44.487019/60h at01:19:01,unclosedupper44.498130 retained.
+ActualLlama1B original0 nowC1/C2512PASS,maxgap0.09375; other3/timing pending.
