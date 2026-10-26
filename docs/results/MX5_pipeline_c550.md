@@ -414,3 +414,13 @@ diagnostic-only. Five further cells have real four-candidate D7/protocol
 READY and are independently replayed/queued after the two8B development cells.
 Physical-card interval-union budget47.47954/60h at03:29 Shanghai, including
 guard preflight/CPU/cooldown. This does not close any outstanding gate.
+
+Verified remaining-domain checkpoint: six further cells (Qwen0.6B B2/B4/B8,
+Qwen1.7B B1/B2/B4) each have four actual normal512 occupancy queries and
+four actual controlled227 diagnostic queries, all no-launch/API0. Normal
+plans have frame0/resident1; all24 controls have resident0 and stay ineligible.
+Forty-eight resource rows append413→461 with old-prefix proofs. The first
+five protocols have root-independent all-four READY replays and explicit
+card7 queues; the sixth has a root CPU replay watcher. These are not measured
+selections. A cap-only reader stopped before append when no serving identity
+sidecar existed; corrected reader uses actual native receipts/source/pins.
