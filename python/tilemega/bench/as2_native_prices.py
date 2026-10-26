@@ -68,7 +68,7 @@ def costs(jobs,out):
 
 def tile_body_prices(stage,profile):
     if stage[17]!=0 or stage[31]!=2:return None
-    if tuple(stage[20:23])!=(1024,2048,8192) or stage[19]!=1024:
+    if tuple(stage[20:22])!=(1024,2048) or stage[22] not in (6144,8192) or stage[19]!=1024:
         raise ValueError('Unregistered local Body price domain')
     buckets=profile['body_service_regions'];result=[]
     for name,count in (('regular',896),('tail',128)):

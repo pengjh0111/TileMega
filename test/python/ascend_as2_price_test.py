@@ -62,17 +62,27 @@ class AscendPriceAccounting(unittest.TestCase):
     def test_local_tail_partials_are_private_body_traffic(self):
         local=self.stage(0,2,1);local[20:24]=[1024,2048,8192,0]
         base=local.copy();base[31]=1
-        self.assertEqual(logical_bytes(local,[],13,0),logical_bytes(base,[],13,0))
-        self.assertEqual(logical_bytes(local,[],14,0)-logical_bytes(base,[],14,0),56*16*128)
+        for k in (6144,8192):
+            local[22]=base[22]=k
+            self.assertEqual(logical_bytes(local,[],13,0),logical_bytes(base,[],13,0))
+            self.assertEqual(logical_bytes(local,[],14,0)-logical_bytes(base,[],14,0),56*16*128)
+        local[22]=7168
+        with self.assertRaises(ValueError):logical_bytes(local,[],14,0)
+        local[22]=6144
         local[20]=64
         with self.assertRaises(ValueError):logical_bytes(local,[],14,0)
 
     def test_coordinate_prices_use_observed_regions_without_zero_fallback(self):
         stage=self.stage(0,2,1);stage[19:23]=[1024,1024,2048,8192]
         fixture=dict(body_service_regions=dict(regular=dict(tasks=896,median=10.),tail=dict(tasks=128,median=70.)))
-        result=tile_body_prices(stage,fixture)
-        self.assertEqual([result[i] for i in (13,14,15,16)],[10.,70.,70.,10.])
-        self.assertEqual(result.count(70.),128)
+        for k in (6144,8192):
+            stage[22]=k
+            result=tile_body_prices(stage,fixture)
+            self.assertEqual([result[i] for i in (13,14,15,16)],[10.,70.,70.,10.])
+            self.assertEqual(result.count(70.),128)
+        stage[22]=7168
+        with self.assertRaises(ValueError):tile_body_prices(stage,fixture)
+        stage[22]=6144
         fixture['body_service_regions']['tail']['median']=0
         with self.assertRaises(ValueError):tile_body_prices(stage,fixture)
 
