@@ -543,3 +543,12 @@ Separately,10 genuinely rebuilt22a reference decode artifacts passed actual
 zero-launch API/occupancy queries (resident1); five paired linear-KV prefill
 builds are queued after8BB16's ledger. P-PAIR and reference correctness remain
 pending; fixed MX4/external baseline CSVs are unchanged.
+
+Verified independent static mapping attempts for three further selected plans
+are consumed append-only: QwenB16 kernel162360B/20487MIR and Llama1B576 B1
+132344B/16969MIR each pass exact executable/section/resource/final-MIR equality
+and complete23-bucket reconciliation. Llama8B B1's single line-info compile
+produced different executable bytes despite equal size; its mapping stopped,
+all per-body counts remain unknown, with no retry or transfer from another
+plan. These observations establish no current I1/cache timing. Three resource
+rows retain their independent source records and byte-gate proofs.
