@@ -1,8 +1,9 @@
 # MX-5 C550 pipeline and specification audit
 
 Current checkpoint: `cc29d78304` bodies with frozen producer `24fa50ed`,
-four genuine dense selections (Qwen0.6B B1/B16, Llama1B B1, Llama8B B1), and four
-selected-pin diagnostic ledgers. MoE/DNN native remain unimplemented.
+six completed dense top-four selections. The five development cells beat MX4;
+Qwen0.6B B2 is10.6205% slower and requires D7. Four selected diagnostic ledgers
+are complete. MoE/DNN native remain unimplemented.
 The detailed audit below includes explicitly historical development evidence;
 current selections are in `MX5_llm_c550.md`. **Verified** means inspected
 source or executed evidence; **inferred** means interpretation. Authority is
@@ -29,7 +30,7 @@ flowchart LR
 ```
 
 
-This diagram describes the native dense route. Four current-source cells have
+This diagram describes the native dense route. Six current-source cells have
 completed exact top-four selection; full acceptance and the default edge remain open.
 
 | Step | Current implementation and limit |
@@ -507,3 +508,14 @@ unmeasured site-time cause is assigned. Fourteen rows append156→170.
 The main LLM report now renders all25 cells (pending explicit), actual top4
 comparisons/coordinates and allselected ledgers; older expanded four-cell
 detail is preserved in MX5_llm_development_details_c550.md.
+
+Verified fifth development selection: 8BB16 original0/512 TPOT13.188281363ms,
+−9.304018%vsMX4,pred/meas0.999310; all4 C1/C2512+8fresh PASS. Gate predicates
+for allfive actual development selections now pass; structural gaps stay open.
+The new selected-only schema genuinely completed QwenB2's8fresh timings and
+fixed-winner full512 C1/C2 plus independent verification. TPOT2.318044591ms
+versus fixed2.095492372ms is+10.620522%, distinguishably slower. Its numerical
+checks pass but it fails nonregression; no gate/default promotion is claimed.
+Root held only the future CPU E2E dispatcher for required D7; already-started
+QwenB4 may complete. No GPU child was signalled. Source-matching QwenB2
+DIAG preparation is underway, not a causal conclusion or fallback.

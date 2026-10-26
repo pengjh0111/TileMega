@@ -1,6 +1,6 @@
 # MX-5 LLM C550 results (in progress)
 
-Verified: current cc29/A719 has 4/25 dense selections; MoE remains0/5.
+Verified: current cc29/A719 has 6/25 completed dense top-four selections; MoE remains0/5.
 G-A passes; remaining program/solver/LLM/final gates stay open. Default remains MX4.
 
 Authority: `/root/Prompt/TileMega_MX5_prompt.md`, SHA256
@@ -14,8 +14,8 @@ All timings use BF16 greedy64/1024, two fresh processes, each warm1/timed2,
 normal WD0/no trace/no DIAG, step-events0; TPOT=(E2E−TTFT)/1023. Original
 top4 order is0/1/2/3 then1/2/3/0 on one physical card. Winner improves anchor0
 by≥1% or0 stays. Each accepted selected cell passes full512-step C-1/C-2.
-Existing cells checked all4; the explicitly separate future selected-only schema
-marks other candidates correctness “not run” and stops if its fixed winner fails.
+The first five cells checked all4. The explicit selected-only schema checks its
+fixed winner and marks other candidates correctness “not run”; failure stops the cell.
 
 MBU is inferred from streamed linear/head BF16 weights plus KV at average L576,
 divided by1.55TB/s×TPOT. It is not a measured DRAM counter. Stored external
@@ -24,7 +24,7 @@ baselines and MX4 rows are unchanged. Aggregate throughput uses aggregate E2E.
 | Cell | TPOT ms | TTFT ms | E2E s | tok/s | MBU | ΔMX4 | /vLLM | /SGLang |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | Qwen0.6B B1 | 1.954394 | 9.285 | 2.008630 | 509.80 | 0.4153 | -1.470% | 0.6357 | 0.7951 |
-| Qwen0.6B B2 | pending | — | — | — | — | — | — | — |
+| Qwen0.6B B2 | 2.318045 | 11.266 | 2.382626 | 859.56 | 0.3685 | 10.621% | 0.6881 | 0.8272 |
 | Qwen0.6B B4 | pending | — | — | — | — | — | — | — |
 | Qwen0.6B B8 | pending | — | — | — | — | — | — | — |
 | Qwen0.6B B16 | 3.580819 | 60.760 | 3.723937 | 4399.64 | 0.4052 | -21.077% | 0.8907 | 0.8239 |
@@ -47,7 +47,11 @@ baselines and MX4 rows are unchanged. Aggregate throughput uses aggregate E2E.
 | Llama8B B2 | pending | — | — | — | — | — | — | — |
 | Llama8B B4 | pending | — | — | — | — | — | — | — |
 | Llama8B B8 | pending | — | — | — | — | — | — | — |
-| Llama8B B16 | pending | — | — | — | — | — | — | — |
+| Llama8B B16 | 13.188281 | 733.762 | 14.225374 | 1151.74 | 0.7933 | -9.304% | 0.9323 | 0.9348 |
+
+Performance gate failures against fixed MX4 (numerical checks still passed):
+- Qwen0.6B B2: 2.318045ms, +10.621%; D7 required, no default acceptance.
+Subsequent E2E dispatch is held for D7; already-started B4 may finish.
 
 Four original predicted and measured medians below are ID order0,1,2,3 (ms).
 Per-process raw refs and complete comparisons: `MX5_selection_c550.csv`.
@@ -55,8 +59,10 @@ Per-process raw refs and complete comparisons: `MX5_selection_c550.csv`.
 | Cell | Predicted4 | Measured4 | Selected | selected pred/meas |
 |---|---|---|---:|---:|
 | Llama8B B1 | 10.388443/10.389083/10.389083/10.390603 | 10.574720/10.559957/10.575258/10.570999 | 0 | 0.982385 |
+| Llama8B B16 | 13.179178/13.180138/13.181108/13.183958 | 13.188281/13.183734/13.194895/13.208248 | 0 | 0.999310 |
 | Llama1B B1 | 2.180651/2.181271/2.181671/2.181831 | 2.157002/2.157537/2.158015/2.160963 | 0 | 1.010964 |
 | Qwen0.6B B1 | 1.996530/1.996600/1.996710/1.996820 | 1.954394/1.955735/1.958664/1.953756 | 0 | 1.021560 |
+| Qwen0.6B B2 | 2.160459/2.160719/2.160819/2.161089 | 2.318045/2.320833/2.319673/2.319388 | 0 | 0.932018 |
 | Qwen0.6B B16 | 3.641533/3.644603/3.645143/3.645333 | 3.580819/3.580893/3.581747/3.585770 | 0 | 1.016955 |
 
 Actual selected TN/WN/D/Pw for QKV/O/GU/down/head; suffix T=TileRange,
@@ -65,8 +71,10 @@ S=StreamK. Exact Part/source/pin metadata remain in the CSV and executed pin.
 | Cell | QKV; O; GU; down; head | b_min/PK | Threads | Stages/step |
 |---|---|---:|---:|---:|
 | Llama8B B1 | 64/1/1/1T; 64/1/1/1T; 32/8/4/8T; 64/1/3/3T; 64/4/1/4T | 1/0 | 512 | 161 |
+| Llama8B B16 | 64/1/1/1T; 64/1/1/1T; 64/1/1/1S; 64/1/1/4S; 128/8/2/2T | 1/0 | 512 | 161 |
 | Llama1B B1 | 32/1/1/1T; 32/1/2/2T; 64/2/2/4T; 32/1/2/2T; 32/8/2/8T | 1/2 | 576 | 81 |
 | Qwen0.6B B1 | 32/2/2/2T; 16/1/2/2T; 64/1/1/1T; 16/1/2/2T; 128/8/1/2T | 1/0 | 512 | 141 |
+| Qwen0.6B B2 | 32/2/2/2T; 16/1/2/2T; 64/1/1/1T; 16/1/2/2T; 128/8/1/2T | 4/0 | 512 | 141 |
 | Qwen0.6B B16 | 64/1/1/1T; 16/1/1/1T; 64/1/1/1T; 16/1/1/1T; 128/8/1/2T | 2/0 | 512 | 141 |
 
 All current normal selected artifacts have frame0 and actual resident1.
