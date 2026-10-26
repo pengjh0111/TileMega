@@ -15,6 +15,8 @@ import time
 ROOT = Path('/home/d50064638/junhuip')
 WORK = ROOT / 'tilemega-as1'
 RUNS = ROOT / 'TileMega/runs/as1'
+# In-memory ownership records only; never a device admission lock.
+_pending_telemetry = []
 
 
 def process_identity(pid):
@@ -30,13 +32,39 @@ def contained(path, roots):
 
 
 def snapshot():
+    stamp = {'time': dt.datetime.now(dt.timezone.utc).isoformat()}
+    for proc, identity in list(_pending_telemetry):
+        if proc.poll() is None:
+            return {**stamp, 'error': 'Previous own telemetry query has not exited',
+                    'query_identity': identity, 'query_may_remain_in_kernel_wait': True}
+        _pending_telemetry.remove((proc, identity))
     try:
-        result = subprocess.run(['npu-smi', 'info'], text=True, stdout=subprocess.PIPE,
-                                stderr=subprocess.STDOUT, timeout=15, check=False)
-        return {'time': dt.datetime.now(dt.timezone.utc).isoformat(),
-                'exit_code': result.returncode, 'output': result.stdout}
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        return {'time': dt.datetime.now(dt.timezone.utc).isoformat(), 'error': str(exc)}
+        proc = subprocess.Popen(['npu-smi', 'info'], text=True, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, start_new_session=True)
+        identity = process_identity(proc.pid)
+        try:
+            output, _ = proc.communicate(timeout=15)
+            return {**stamp, 'exit_code': proc.returncode, 'output': output,
+                    'query_identity': identity}
+        except subprocess.TimeoutExpired:
+            # Popen's context manager/run() can wait indefinitely after killing
+            # an uninterruptible management query. Reaping also needs a bound.
+            if proc.poll() is None and process_identity(proc.pid) == identity:
+                proc.kill()
+            try:
+                output, _ = proc.communicate(timeout=1)
+                return {**stamp, 'error': 'Own telemetry query exceeded15s',
+                        'exit_code': proc.returncode, 'output': output,
+                        'query_identity': identity, 'query_timed_out': True}
+            except subprocess.TimeoutExpired:
+                _pending_telemetry.append((proc, identity))
+                if proc.stdout is not None:
+                    proc.stdout.close()
+                return {**stamp, 'error': 'Own telemetry query exceeded15s and bounded reaping',
+                        'query_identity': identity, 'query_timed_out': True,
+                        'query_may_remain_in_kernel_wait': True}
+    except OSError as exc:
+        return {**stamp, 'error': str(exc)}
 
 
 def devices_from_snapshot(state):

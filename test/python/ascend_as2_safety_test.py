@@ -7,7 +7,7 @@ import subprocess
 import sys
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 REPO=Path(__file__).resolve().parents[2]
 ROOT=Path('/home/d50064638/junhuip')
@@ -18,6 +18,39 @@ cleanup=importlib.util.module_from_spec(spec);spec.loader.exec_module(cleanup)
 
 
 class AscendAs2Safety(unittest.TestCase):
+    def test_management_query_reaping_is_bounded_without_repeated_spawn(self):
+        from tilemega.bench import as1_run as runner
+        identity=dict(pid=12345,start_ticks=99,process_group=12345,session=12345)
+        proc=Mock(pid=12345);proc.poll.return_value=None
+        proc.communicate.side_effect=[subprocess.TimeoutExpired('npu-smi',15),subprocess.TimeoutExpired('npu-smi',1)]
+        try:
+            with patch.object(runner.subprocess,'Popen',return_value=proc) as spawn, patch.object(runner,'process_identity',return_value=identity):
+                state=runner.snapshot()
+                self.assertTrue(state['query_timed_out']);self.assertTrue(state['query_may_remain_in_kernel_wait'])
+                self.assertEqual(state['query_identity'],identity);proc.kill.assert_called_once()
+                self.assertEqual([c.kwargs['timeout'] for c in proc.communicate.call_args_list],[15,1])
+                pending=runner.snapshot();self.assertTrue(pending['query_may_remain_in_kernel_wait'])
+                self.assertEqual(spawn.call_count,1)
+                proc.poll.return_value=-9
+                proc.communicate.side_effect=[('healthy query',None)];proc.returncode=0
+                fresh=runner.snapshot();self.assertEqual(fresh['output'],'healthy query')
+                self.assertEqual(spawn.call_count,2)
+        finally:
+            runner._pending_telemetry.clear()
+
+    def test_management_query_identity_mismatch_is_not_signalled(self):
+        from tilemega.bench import as1_run as runner
+        identity=dict(pid=12345,start_ticks=99,process_group=12345,session=12345)
+        reused={**identity,'start_ticks':100}
+        proc=Mock(pid=12345);proc.poll.return_value=None
+        proc.communicate.side_effect=[subprocess.TimeoutExpired('npu-smi',15),subprocess.TimeoutExpired('npu-smi',1)]
+        try:
+            with patch.object(runner.subprocess,'Popen',return_value=proc), patch.object(runner,'process_identity',side_effect=[identity,reused]):
+                state=runner.snapshot();self.assertTrue(state['query_may_remain_in_kernel_wait'])
+                proc.kill.assert_not_called()
+        finally:
+            runner._pending_telemetry.clear()
+
     def test_telemetry_failure_is_not_reported_as_hbm_exhaustion(self):
         from tilemega.bench import as1_run as runner
         for snapshot, status, other in [
@@ -76,8 +109,14 @@ print(child.pid,flush=True)
 time.sleep(40)
 """
         env=os.environ.copy();env['PYTHONPATH']=str(REPO/'python')
+        entry="""import runpy
+from unittest.mock import patch
+from tilemega.bench import as1_run
+with patch.object(as1_run,'snapshot',return_value={'exit_code':0,'output':''}):
+    runpy.run_module('tilemega.bench.as2_run',run_name='__main__')
+"""
         try:
-            result=subprocess.run([sys.executable,'-m','tilemega.bench.as2_run','--physical-device','1',
+            result=subprocess.run([sys.executable,'-c',entry,'--physical-device','1',
                 '--out',str(out),'--timeout-s','1','--sample-s','1','--',sys.executable,'-c',code],
                 env=env,capture_output=True,text=True,timeout=25)
             self.assertEqual(result.returncode,124,result.stderr)
