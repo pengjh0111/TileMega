@@ -42,5 +42,22 @@
     "max_live_candidates": 4,
     "max_body_candidates_per_family": 8,
     "max_plans_per_batch": 4
+  },
+  "requested_comparisons": [
+    "torch_npu_eager",
+    "torch_npu_compile",
+    "vllm_ascend",
+    "sglang_npu"
+  ],
+  "extension_contract": {
+    "source_sha256": "2b27dbb3b4d518e81837bf2bcb5f469019d4f4d0b0cc11a239ee7699ec94b5d7",
+    "same_canonical_weights": true,
+    "no_official_checkpoint": true,
+    "private_environments": true,
+    "separate_system_statistics": true,
+    "unavailable_not_zero": true,
+    "compile_outside_timing": true,
+    "each_comparison_requires_correctness": true,
+    "original_eager_gate_retained": true
   }
 }
