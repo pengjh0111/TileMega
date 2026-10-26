@@ -1021,3 +1021,44 @@ G/H576 input preflights pass114/28batches. Root queues start each only after
 its own card's prior512 campaign completes successfully; max2cards unchanged.
 At15:56:47Shanghai,three-log budget union852closed/2active=26.929817cardhours
 including active elapsed/waits/cooldowns; checkpoint_next_576_cost_queue_v1.
+
+## Frozen ordinary producer and prefill readiness (verified)
+
+`runs/mx5/frozen_catalog_producer_d74_v1/FREEZE_SUCCESS.json` binds clean
+d74e43572e44092b79d4ce7a781a44c160ce0b7c,normal full160target-step build,
+allfresh host objects and C++unitPASS. Producer SHA
+d94455301d357833a0dec992d7fb2cdd6df3767ea6c730dffd26b7ece8ba5c28;
+source_digest d37c81e31c36bdccf73b59c79ee226546980aaa6893e158e0616117343f51d76.
+G14/H15/A19 archivedsource bytes and canonicalbench digests match exactly.
+Normal QwenB1 manual WD0 CPU build passes241MT/108ST/frame0/static0,
+183128textbytes/23360instructions. GeneratedCU/device.text bytes exactly equal
+the historicalaccepted Gamma control;self-identity matchesfrozen source.
+No new occupancy/C1C2/timing claimed. Appended1 resource row preservesprefix.
+Initialconfigure missing explicitLLVMlitdriver and helper's initiallywrong
+JSON-map archive digest precheck were corrected;neither became candidate evidence.
+`runs/mx5/dense25_prefill_readiness_v1_61/` audits25 currentMX4pins and5bridges.
+Existing5developmentcells have10 historical WD0/1 fragment libraries;all
+self-identities and exactcurrentpin geometries pass. All31 lexical writer-header
+closurefiles matchcurrent bytes;whole source/producer epochs remain historical.
+20cells40libraries are physicallymissing;newepoch producer fields areunfilled
+in originaltemplates. Savedmx2 has19artifact/class sets,all19 differ fromcurrent
+pins,and6missing. Fullhash/class diffs retained;currentpins take precedence
+under explicitprompt4.13,not inferredmx2 geometry. PureCPU resource-probes0
+normalfinal build stops atSkeletonSearch.cpp1294;flowsearchonly emitsnofinal.so.
+Future normal guardedbuilds must querygenuine residency and rejectany geometry
+research departure;no fake attributes or customprefill structure is introduced.
+
+Verified Llama8BB1 compactledger now16/16 completed. Netus/layer:
+QKV33.857,A20.414,O21.115,GU141.319,down73.143;head635.025us is
+history-confounded;mask63commonfloor621.585us retains prefetched/control work.
+Matching A five-grid mean18.659282us gives1.094064ratio,also far above
+AppendixA2.5–3.5us. No per-site absolute latency split is inferred. Appended14
+nonadditive rows with prefixproof incheckpoint_gamma_completed_ledger_v3.
+Verified ab27e35f3 true576 original preparer keeps exactindependent576 original
+ID/rank/prediction/anchor and normalWD0 receipt/query handoff to existing
+ResolvedTop4. Root50testsPASS/1optionalprebuiltharnessskip;worker18synthetic
+casesPASS. Failedresources request independent3fresh widthcosts through original
+policy;noautomaticcommit/retry/D7/512switch. No real final origin executed.
+Rootremaining40prefill firstQwenB2 WD0/1 normalbuilds are underway via sealed
+controller_v3/BOUND_MANIFEST_v3; actual queriesqueue behindcard6guards.
+Futureexecutionfalse metadata is not another userapproval request.
