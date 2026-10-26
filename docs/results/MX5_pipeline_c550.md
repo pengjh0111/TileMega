@@ -1,6 +1,6 @@
 # MX-5 C550 pipeline and specification audit
 
-Source audit updated 2026-10-26 through `0a017b70c`; measured checkpoint includes
+Source audit updated 2026-10-26 through `3ef688aa4`; measured checkpoint includes
 all5 Gamma development controls and four completed diagnostic ledgers. Earlier audits remain in git history. **Verified** means inspected
 source or executed evidence; **inferred** means interpretation. Authority is
 `/root/Prompt/TileMega_MX5_prompt.md`, SHA256
@@ -137,3 +137,10 @@ d74 producer buildsall160normalsteps/CPPunit;normalQwenCU/device.text match.
 Remaining40prefill builds startfromliteralcurrentpins;QwenB2WD0/1exactgates
 and actualfinalL1API0/resident1/thread128 queriespass;other38continue.
 Nativeorigins/widthcost/D7/finaltop4/defaults remain genuine-evidence work.
+
+Verified currentfull5compactledgers80jobscomplete;newA57.941usbench vs
+8BB16net60.660ratio1.047.18frozen-d74prefills compiledandfinalL1queried,
+plus10historical. Oldremaining22cohort stoppedafterownB4CPUISLprefix-sum
+pathology;exacthostseeded-Sum fix3ef passes3relatednormalCPUregressions.
+Newnormalfullproducer3efbuilt,headerclosuresunchanged;controlCU/resources
+comparison remains pending before remaining22new-epoch builds.

@@ -1106,3 +1106,44 @@ Append2 actualQwenB2 finalfragment L1resource rows preserveCSVprefix. These
 queryactual final.so after fragmentflag,not the earlierlegacysearchprobe.
 Other38prefill compilecohort has14PASS/0fail at17:04Shanghai;last8BB16ledger
 and H512 remain active;gates/defaults/finalcostcatalog arestillopen.
+
+## Full current ledger and observed host planning bottleneck (verified)
+
+All5compactledgers80jobs complete. Last8BB16 netus/layer:QKV34.707,
+A60.660,O26.345,GU169.739,down87.145;head655.380us ishistoryconfounded.
+A fivegridmean57.941325us,ratio1.046914. Mask63floor494.845us retains
+otherwork. Final14rows appendedwithprefixproof infull_gamma_ledger_v1,
+which retains all5cellmedians. NonmatchingG/H and1BmanualPK0benchstayblank;
+thesecontrols are not finalsolver selection or absolutebodylatencies.
+Root101relatedCPUchecks pass after ordinary-cost adapter;oldPIDpath,including
+duplicatePIDrejection,remains. Explicitordinarymode replaysunchangedfull24key
+3round/raw/process/guard/admission/source/tool evidence,returnsplaincost view
+and retainscomplete annotatedparent. Real2G/Hbatches pass,withoutretainedPID
+fabrication,actualretryauthorization/catalog or baseline/stage remeasurement.
+Raw:`runs/mx5/ordinary_cost_adapter_v1_61/`. Shared3qualifiers untouched.
+18newd74prefilllibraries (initial2+16subsequent) pass exactpin/source/layout,
+plus10historical compatiblelibraries. Remaining22areindices18..39. Two
+Llama1BB4nativeCPUjobs spent1643.6/1616.0s inISL. Gdbv3shows
+QuasiPolynomial::Sum/Add →RuntimeProjection.cpp226/230 →Prepare/Materialize.
+Onlyown oldprefillcontroller,twoCPUprocessgroups andobsoleteafter38waiter
+werecancelled;PID/startticks/ownership/signals/observedZ states retained. No
+exitstatus invented,noGPUjobtargeted,no oldinput/output overwritten. Source
+bodyarchives G14/H15/A19 remainunchanged. Minimal exacthostsum fix isunder
+CPU equivalence testing;newnormalproducer/actualCUcomparison stillrequired.
+Raw:`runs/mx5/dense25_prefill_remaining40_d74_v1_61/ROOT_HOST_PROJECTION_CANCELLATION_v1/`.
+GPU6continues G512from52afterledger;GPU7H512thenH576. QueuedG576waits
+foractualsuccessfulG51252..71completion. Allselection/defaultgatesremainopen.
+
+Verified3ef688aa4 exacthostonlyprojection sum fix preservesoriginal{0}seeds
+and allcardinality/checks,collects termsbefore balancedexactSum. Rootnormal
+tilemega/tilemega-unit builds;runtime_projection,handoff_runtime_projection,
+fused_runtime_projection all3PASS21.83s. Normalnewfrozen producer
+`frozen_catalog_producer_qpfix_v1/FREEZE_SUCCESS.json` clean3ef/full160new
+hoststeps/CPPunitPASS;SHAe6130715bb4819438927375b216cb4dd5bebae3e669cad25e8303ef01783a267,
+source8fdfda15b8948112110898051a4d8c011932eee29dd755b00ec021397b5cc1e1.
+G14/H15/A19 unchanged;newQwenB2WD0/1 normalprefillcontrol isunderway.
+Futureindices18..39 mustuse newproducer/newdirs afteractualold/newCU,
+selectedclass and finalL1resource comparison;no oldgeometry/feature bypass.
+Old18successfulprefills nowallactualfinalL1API0/positiveoccupancy,nolaunch:
+first2+retained16. Appended16resource rows preservesprefix;rawproof under
+`prefill_final_fragment_queries_v1/retained16_v1/`. No C1/C2/timing added.
