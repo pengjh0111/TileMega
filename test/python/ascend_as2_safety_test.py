@@ -18,6 +18,20 @@ cleanup=importlib.util.module_from_spec(spec);spec.loader.exec_module(cleanup)
 
 
 class AscendAs2Safety(unittest.TestCase):
+    def test_management_driver_libraries_do_not_change_compute_environment(self):
+        from tilemega.bench import as1_run as runner
+        proc=Mock(pid=12345,returncode=0);proc.communicate.return_value=('healthy query',None)
+        identity=dict(pid=12345,start_ticks=99,process_group=12345,session=12345)
+        with patch.dict(os.environ,{'LD_LIBRARY_PATH':'/project/cann/lib64'}):
+            with patch.object(runner.subprocess,'Popen',return_value=proc) as spawn, patch.object(runner,'process_identity',return_value=identity):
+                state=runner.snapshot()
+            self.assertEqual(os.environ['LD_LIBRARY_PATH'],'/project/cann/lib64')
+        env=spawn.call_args.kwargs['env']
+        self.assertEqual(env['LD_LIBRARY_PATH'].split(':')[-1],'/project/cann/lib64')
+        self.assertEqual(env['LD_LIBRARY_PATH'].split(':')[:-1],state['driver_library_precedence'])
+        self.assertEqual(spawn.call_args.args[0],state['command'])
+        self.assertEqual(state['command'][-1],'info')
+
     def test_management_query_reaping_is_bounded_without_repeated_spawn(self):
         from tilemega.bench import as1_run as runner
         identity=dict(pid=12345,start_ticks=99,process_group=12345,session=12345)

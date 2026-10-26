@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -32,15 +33,25 @@ def contained(path, roots):
 
 
 def snapshot():
-    stamp = {'time': dt.datetime.now(dt.timezone.utc).isoformat()}
+    # The toolkit prepends different copies of libc_sec/libmmpa. Management
+    # uses the installed driver's libraries; compute children keep their CANN env.
+    env = os.environ.copy()
+    driver_libs = [str(p) for p in (Path('/usr/local/Ascend/driver/lib64/driver'),
+                                  Path('/usr/local/Ascend/driver/lib64/common')) if p.is_dir()]
+    if driver_libs:
+        env['LD_LIBRARY_PATH'] = ':'.join(driver_libs + ([env['LD_LIBRARY_PATH']]
+                                                        if env.get('LD_LIBRARY_PATH') else []))
+    command = [shutil.which('npu-smi') or 'npu-smi', 'info']
+    stamp = {'time': dt.datetime.now(dt.timezone.utc).isoformat(),
+             'command': command, 'driver_library_precedence': driver_libs}
     for proc, identity in list(_pending_telemetry):
         if proc.poll() is None:
             return {**stamp, 'error': 'Previous own telemetry query has not exited',
                     'query_identity': identity, 'query_may_remain_in_kernel_wait': True}
         _pending_telemetry.remove((proc, identity))
     try:
-        proc = subprocess.Popen(['npu-smi', 'info'], text=True, stdout=subprocess.PIPE,
-                                stderr=subprocess.STDOUT, start_new_session=True)
+        proc = subprocess.Popen(command, text=True, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, start_new_session=True, env=env)
         identity = process_identity(proc.pid)
         try:
             output, _ = proc.communicate(timeout=15)
