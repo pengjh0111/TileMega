@@ -941,3 +941,19 @@ files recheck exactly. Native1473 seal also passes. No binary/source was altered
 Historical cost child PIDs are unrecorded; archived runner88–94 independently
 subprocess.run()s three actual rounds with receipts/raw+guard0. Future passive
 PID observations supplement records without changing the measurement protocol.
+
+## Explicit measured-selection consumer (verified CPU; no final cell)
+
+2852cad5b adds mx5_resolved_runner.py and an explicit MX5_RESOLVED_V2
+script branch. It revalidates genuine exact-origin four candidates, builds and
+queries their exact WD1 twins, checks all4, then times2 fresh processes each.
+Selection retains original candidate0 as the1% anchor; selected WD0 binary/pin
+are the actual measured artifacts. Complete sidecars are linked without overwrite;
+central GPU logging and cwd are explicit. Default target/pins are unchanged.
+Root25integration tests pass; worker272pass/1optional prebuilt-harness skip.
+All new test execution is synthetic; no real candidate certificate or selected
+final cell is invented. Earlier fixture-import failures remain under runs.
+Actual gamma A800 P0 and800 primary queries each return512400fit and
+576100fit/300rejected. All queries are iterations0/query-only/status0.
+Five ordinary primary builds plus3sameepoch PK0 reuses preserve prescribed PK;
+D64 PK2 fits136MT@512 and143MT@576. No PK is lowered to fit rejected D128576.

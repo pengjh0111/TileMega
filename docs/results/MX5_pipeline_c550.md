@@ -1,6 +1,6 @@
 # MX-5 C550 pipeline and specification audit
 
-Source audit updated 2026-10-26 through `2dbf763ab`; measured checkpoint includes
+Source audit updated 2026-10-26 through `2852cad5b`; measured checkpoint includes
 GU+Consume controls and the accepted fixed8 Qwen comparison. Earlier audits remain in git history. **Verified** means inspected
 source or executed evidence; **inferred** means interpretation. Authority is
 `/root/Prompt/TileMega_MX5_prompt.md`, SHA256
@@ -30,7 +30,7 @@ explicit diagnostic pins; the final selection/default edge remains open.
 |---|---|
 | Export | `scripts/mx_serving_cell.sh` produces decode/prefill bridge JSON from random-weight checkpoints. Dense has five models; MoE-L24 export/checkpoint also exists. Export is not native execution. |
 | Frontend | `compile.cpp` routes xcore1000 decoder/decode JSON to `mx_decode::TryCompile`. Dense uses `BuildModelPlan`, import and `AnalyzeMxDecode`; DM MoE analysis/native routing remains unfinished. |
-| Solver inputs | `configs/targets/xcore1000.json` still points to the MX-4 decode cost table. An explicit v2 solve flag consumes qualified schema2 costs. Schema3 has an explicit diagnostic complete cost-or-rejection route; default/results consumers reject it. |
+| Solver inputs | `configs/targets/xcore1000.json` still points to the MX-4 decode cost table. An explicit v2 solve flag consumes qualified schema2 costs. Schema3 has an explicit diagnostic complete cost-or-rejection route; the C++ results route rejects it; an explicit Python ResolvedTop4 v2 consumer now checks genuine proofs, executes four candidates and publishes their measured winner. |
 | Selection | `MxDecodeSolverV2` enumerates the prescribed geometry, averages interpolated attention cost across past64..1086, and merges exact top4. Preview IDs/ranks/evidence are retained. Whole-program resource failures and justified thread choice remain required before final measurement consumption. |
 | Static code | `StageProgram` and `MxDecodeProgramV2` emit constexpr body types and direct calls, without runtime stage descriptors. Dense uses qkv(kStore), attention, O, gate_up, down and head; embed is folded into layer0. There are5L+1 counters/barriers per decode step. |
 | Edges | DownLast prefetches head; head prefetches next-step layer0 QKV weights. Token broadcast happens after grid acquire; first token broadcast precedes entrance prefetch. Terminal packet lexical scope and stage-local AS4 binding reloads are recorded departures in the integration report. |
@@ -107,9 +107,12 @@ queries complete.120 G/H primary libraries are authorized from their actual
 references. Old A controls stay separate; all16 A8 P0 builds and800 zero-launch queries are complete.
 ResolvedTop431 CPU tests pass; unknown previous576 reductions block512
 consumption. Canonical576/D7/Resolvedv2 CPU protocols are implemented;90 related root tests
-pass. Native result/script consumers remain unfinished. G/H primary queries and
+pass. Explicit runner/results/script consumption is implemented by2852cad5b;25
+root integration tests pass. It still needs genuine current tables and all four
+candidate proofs; no real final selection has run. G/H primary queries and
 conditional retry queries are complete;576 final selection/campaigns are being
 closed without changing failed rows. Gamma scheduling passes5fresh full A/legacy bitwise jobs,C1/C2 and P-PAIR:
 2.007205873→1.958246937ms,−2.439%,distinguishable; adopted by2dbf763ab.
-QwenB1 is now−1.276% versus MX-4; the other4 controls and fresh A16 P0
-are rebuilding before any program-gate claim. G/H sources remain exact.
+QwenB1 is now−1.276% versus MX-4; the other4 controls are checking/timing.
+A16 P0 and8primary actual800 queries each give512400fit/576100fit+300reject;
+no program-gate claim is made. G/H sources remain exact.
