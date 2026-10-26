@@ -141,6 +141,8 @@ def main():
     parser.add_argument('--attention', choices=('eager', 'sdpa', 'fia-v2'), default='sdpa')
     parser.add_argument('--cache', choices=('static', 'dynamic'), default='static')
     parser.add_argument('--norm', choices=('hf', 'fused'), default='hf')
+    parser.add_argument('--execution', choices=('eager','compile'), default='eager')
+    parser.add_argument('--compile-backend', choices=('torchair-ge','npugraph-ex'), default='torchair-ge')
     parser.add_argument('--outputs', type=int, default=1024)
     parser.add_argument('--warmup', type=int, default=1)
     parser.add_argument('--repetitions', type=int, default=3)
@@ -159,6 +161,8 @@ def main():
         parser.error('Last-forward diagnostic requires warmup0, repetition1, static cache and B1 for outputs>128')
     if args.device=='cpu' and args.norm!='hf':
         parser.error('CPU correctness reference uses independent HF normalization')
+    if args.execution=='compile' and (args.device!='npu:0' or args.capture_last_forward or args.cache!='static'):
+        parser.error('TorchAir baseline requires NPU/static KV and no per-layer diagnostic hooks')
     if args.device=='npu:0' and os.environ.get('ASCEND_RT_VISIBLE_DEVICES') not in {'0', '1'}:
         parser.error('Run through the single-device AS-2 wrapper')
     out.mkdir(parents=True, exist_ok=False)
@@ -170,24 +174,49 @@ def main():
     model, tokens_cpu, manifest, weight_manifest_hash = load_model(args.model, args.attention, args.norm,device=args.device)
     capture,saved=last_forward_hooks(model) if args.capture_last_forward else (None,None)
     rotary={}
-    if args.save_kv_rows:
+    if args.save_kv_rows and args.execution=='eager':
         def capture_rotary(module,inputs,result):rotary['last']=result
         model.model.rotary_emb.register_forward_hook(capture_rotary)
     batch = args.batch
     tokens = tokens_cpu[:batch].to(args.device)
     positions = torch.arange(1088, dtype=torch.int64, device=args.device)
-    cache = StaticCache(config=model.config, max_batch_size=batch, max_cache_len=1088,
+    cache_class=StaticCache
+    if args.execution=='compile' and args.compile_backend=='torchair-ge':
+        from tilemega.bench.as2_compile import NpuStaticCache
+        cache_class=NpuStaticCache
+    cache = cache_class(config=model.config, max_batch_size=batch, max_cache_len=1088,
                         device=torch.device(args.device), dtype=torch.bfloat16) if args.cache == 'static' else None
     # Allocate result storage and all position tensors outside request timing.
     outputs = torch.empty((batch, args.outputs), dtype=torch.int32, device=args.device)
+    compiler=None;prepared_graphs=0;compile_preparation_seconds=None
+    if args.execution=='compile':
+        from tilemega.bench.as2_compile import npu_compile
+        model,compiler=npu_compile(model,out/'compile',args.compile_backend)
+        preparation=time.monotonic()
+        with torch.inference_mode():
+            result=model(input_ids=tokens,past_key_values=cache,use_cache=True,
+                cache_position=positions[:64],position_ids=positions[None,:64],logits_to_keep=1,return_dict=True)
+            token=result.logits[:,-1].argmax(-1,keepdim=True).to(torch.int32)
+            for position in (64,65):
+                result=model(input_ids=token,past_key_values=cache,use_cache=True,
+                    cache_position=positions[position:position+1],position_ids=positions[None,position:position+1],
+                    logits_to_keep=1,return_dict=True)
+                token=result.logits[:,-1].argmax(-1,keepdim=True).to(torch.int32)
+            synchronize();cache.reset();synchronize()
+        compile_preparation_seconds=time.monotonic()-preparation;prepared_graphs=len(compiler.graphs)
+        compiler.check_timed(prepared_graphs)
     synchronize()
     identity = dict(model_id=args.model, batch=batch, isl=64, osl=args.outputs,
         capacity=1088, dtype='bf16', seed=manifest['seed'], generator=manifest['generator'],
         config_sha256=manifest['config_sha256'], weight_manifest_sha256=weight_manifest_hash,
-        input_sha256=manifest['input_ids']['sha256'], system='torch_npu_eager' if args.device=='npu:0' else 'cpu_bf16_reference',
+        input_sha256=manifest['input_ids']['sha256'], system=('torch_npu_compile' if compiler else 'torch_npu_eager') if args.device=='npu:0' else 'cpu_bf16_reference',
         torch_version=torch.__version__, torch_npu_version=torch_npu.__version__,
         transformers_version=__import__('transformers').__version__, attention=args.attention,
-        cache=args.cache, norm=args.norm, physical_device_id=int(os.environ['ASCEND_RT_VISIBLE_DEVICES']) if args.device=='npu:0' else None,
+        cache=args.cache, norm=args.norm, execution=args.execution,
+        cache_update_impl='npu.scatter_update_' if compiler and args.compile_backend=='torchair-ge' else 'transformers.StaticCache.index_copy_',
+        compile_backend=args.compile_backend if compiler else None,
+        compile_preparation_seconds=compile_preparation_seconds,prepared_graphs=prepared_graphs,
+        physical_device_id=int(os.environ['ASCEND_RT_VISIBLE_DEVICES']) if args.device=='npu:0' else None,
         logical_device_id=0 if args.device=='npu:0' else None, setup_seconds=time.monotonic()-started,
         status='running', warmup=args.warmup, repetitions=args.repetitions,
         diagnostic_capture_last_forward=args.capture_last_forward,
@@ -201,6 +230,7 @@ def main():
                 cache.reset()
             state = cache if cache is not None else DynamicCache()
             synchronize()
+            if compiler is not None:compiler.in_timed_request=repetition>=0
             t0 = time.perf_counter()
             result = model(input_ids=tokens, past_key_values=state, use_cache=True,
                            cache_position=positions[:64], position_ids=positions[None, :64],
@@ -220,6 +250,7 @@ def main():
                 outputs[:, step:step+1].copy_(token)
             synchronize()
             last = time.perf_counter()
+            if compiler is not None:compiler.in_timed_request=False
             sample = dict(repetition=repetition, warmup=repetition < 0, output_count=args.outputs,
                 decode_forwards=args.outputs-1, ttft_ms=(first-t0)*1000,
                 e2e_ms=(last-t0)*1000, tpot_ms=(last-first)*1000/(args.outputs-1),
@@ -231,6 +262,7 @@ def main():
             samples.append(sample)
             with (out / 'samples.jsonl').open('a') as stream:
                 stream.write(json.dumps(sample)+'\n')
+            if compiler is not None and repetition>=0:compiler.check_timed(prepared_graphs)
             # Output copies occur after t_last and before the next request reset.
             (out / ('tokens_'+str(repetition)+'.bin')).write_bytes(outputs.cpu().numpy().tobytes())
             (out / ('logits_last_'+str(repetition)+'.bin')).write_bytes(
@@ -241,7 +273,7 @@ def main():
                     for side,tensor in [('k',key),('v',value)]:
                         row=tensor[:batch,:,position,:].cpu().contiguous()
                         (out/f'kv_{side}_l{layer}_r{repetition}.bin').write_bytes(row.view(torch.uint8).numpy().tobytes())
-                for side,tensor in zip(('cos','sin'),rotary['last']):
+                for side,tensor in zip(('cos','sin'),rotary.get('last',())):
                     (out/f'rope_{side}_r{repetition}.bin').write_bytes(tensor.cpu().contiguous().view(torch.uint8).numpy().tobytes())
             if capture is not None:save_last_forward(out,saved,manifest['config'],state,batch,62+args.outputs)
             print(json.dumps(sample), flush=True)
