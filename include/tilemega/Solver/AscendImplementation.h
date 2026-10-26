@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <stdexcept>
 #include <tilemega/Solver/BackendCostQuery.h>
 #include <tilemega/Support/Json.h>
 namespace tilemega::solver {

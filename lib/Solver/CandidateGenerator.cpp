@@ -8,6 +8,7 @@
 #include <utility>
 #include <cmath>
 #include <set>
+#include <stdexcept>
 
 namespace tilemega::solver {
 namespace {
