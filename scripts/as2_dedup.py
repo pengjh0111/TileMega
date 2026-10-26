@@ -64,7 +64,7 @@ def main():
     canonical={};items=[]
     for directory in directories:
         for target in sorted(directory.rglob('*.bin')):
-            if not target.stem.isdecimal() or target.stat().st_size<a.min_bytes:continue
+            if target.name=='trace.bin' or target.stat().st_size<a.min_bytes:continue
             target=plain_path(target,roots);entry=registered.get(str(target))
             if not entry or not entry.get('completed') or 'active_refs' not in entry or any(process_alive(r) for r in entry['active_refs']):
                 raise ValueError('Missing completed manifest entry or active reference: '+str(target))

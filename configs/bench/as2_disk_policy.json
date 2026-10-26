@@ -14,7 +14,7 @@
   "keep_recent_complete_builds": 2,
   "stop_below_free_fraction": 0.15,
   "stop_below_free_inode_fraction": 0.05,
-  "project_generated_soft_limit_bytes": 103079215104,
+  "project_generated_soft_limit_bytes": 107374182400,
   "max_live_candidates": 4,
   "quota_status": "unavailable",
   "protected_categories": [
@@ -25,5 +25,14 @@
     "failure",
     "source",
     "config"
-  ]
+  ],
+  "baseline_extension_budget": {
+    "previous_generated_soft_limit_bytes": 103079215104,
+    "added_bytes": 4294967296,
+    "reason": "2026-10-26 user explicitly added torch_npu compile, vLLM Ascend and SGLang private baselines; dependency staging and native model completion",
+    "environment_root": "/home/d50064638/junhuip/tilemega-as2/envs",
+    "protected_environment_soft_limit_bytes": 12884901888,
+    "prior_warning_history_retained": true,
+    "no_accounting_roots_removed": true
+  }
 }

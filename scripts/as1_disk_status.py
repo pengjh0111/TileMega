@@ -40,6 +40,15 @@ def main(project='as1'):
                          fs.f_favail/fs.f_files < policy.get('stop_below_free_inode_fraction', 0.05))
     report['generated_soft_budget_bytes'] = policy['project_generated_soft_limit_bytes']
     report['warning'] |= report['generated_bytes'] > report['generated_soft_budget_bytes']
+    extension=policy.get('baseline_extension_budget')
+    if project=='as2' and extension:
+        envs=work/'envs'
+        env_usage=subprocess.run(['du','-s','-B1','--',str(envs)],capture_output=True,text=True)
+        size=int(env_usage.stdout.split()[0]) if env_usage.returncode==0 else None
+        limit=extension['protected_environment_soft_limit_bytes']
+        report['protected_environment_bytes']=size
+        report['protected_environment_soft_budget_bytes']=limit
+        report['warning'] |= size is None or size>limit
     samples = runs/'disk_samples.jsonl'
     previous = [json.loads(line) for line in samples.read_text().splitlines()] if samples.exists() else []
     report['sampled_peak_generated_bytes'] = max([report['generated_bytes'], *(s['generated_bytes'] for s in previous)])
