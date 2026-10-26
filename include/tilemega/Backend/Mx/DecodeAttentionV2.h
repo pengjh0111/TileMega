@@ -418,16 +418,16 @@ struct MxAttentionV2 {
       for (int item = thread; item < Q * D; item += 512) {
         int const q = item / D, d = item % D;
         float sum = 0;
-        for (int start = 0; start < producers; start += 32) {
-          float values[32];
+        for (int start = 0; start < producers; start += 8) {
+          float values[8];
 #pragma unroll
-          for (int c = 0; c < 32; ++c)
+          for (int c = 0; c < 8; ++c)
             values[c] = LoadFloatGvm(base + ((min(start + c, producers - 1) * Q + q) * (D + 2) + d));
           // Keep the complete bounded load batch ahead of its ordered reduction.
           asm volatile("" ::: "memory");
           __builtin_mxc_arrive_gvmcnt(0);
 #pragma unroll
-          for (int c = 0; c < 32; ++c)
+          for (int c = 0; c < 8; ++c)
             if (start + c < producers) sum += values[c] * scratch[(q * kSlots + start + c) * 3];
         }
         p.ctx[(head * Q + q) * D + d] = Bf16(sum / scratch[q * kSlots * 3 + 2]);
