@@ -519,3 +519,27 @@ checks pass but it fails nonregression; no gate/default promotion is claimed.
 Root held only the future CPU E2E dispatcher for required D7; already-started
 QwenB4 may complete. No GPU child was signalled. Source-matching QwenB2
 DIAG preparation is underway, not a causal conclusion or fallback.
+
+Verified seventh selection: Qwen0.6B B4 original0/512 TPOT2.601075282ms,
++8.640207% versus fixed MX4; pred/meas0.935351. Eight actual fresh timings,
+winner full512 C1/C2 and independent verification pass. Root consumed the real
+child exit0 through a separately recorded strict exporter; no original parent
+completion or timestamp was fabricated. The future E2E CPU dispatcher is now
+terminated after its B4 child exited, with no GPU child signalled. B2 and B4
+remain explicit nonregression failures, not accepted defaults.
+
+D7 read-only review confirms B2 crosses head boundaries at831/1023 actual
+lengths, versus0/1023 for B1. Both have frame0 and actualPK0. Segment merge
+at DecodeAttentionV2.h:318 invokes standard CTA synchronization and retires
+carried KV, so the prompt's strong crosssegment overlap remains unmet. This
+geometry/source evidence does not establish causal microseconds. Matching
+selected-pin B2 diagnostic interventions are running; full regression cause
+remains unknown.
+
+The extra S5 primitive probe is CPU-prepared and queued after the actual B2
+ledger: standard/bare CTA x512/576,5 fresh x2000x104. Root verified the full
+21-file seal. It changes no production helper, DT-P branch, cost or default.
+Separately,10 genuinely rebuilt22a reference decode artifacts passed actual
+zero-launch API/occupancy queries (resident1); five paired linear-KV prefill
+builds are queued after8BB16's ledger. P-PAIR and reference correctness remain
+pending; fixed MX4/external baseline CSVs are unchanged.
