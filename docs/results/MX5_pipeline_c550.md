@@ -464,3 +464,24 @@ Verified new-wrapper device query smoke: one real card6 guard and one fresh
 query child passed actual coordinator/child/owner/flock/argv/artifact checks,
 API0/resident1, zero kernel launches. Raw:`selected_only_real_query_guard_smoke_v1/`.
 This validates wrapper provenance only, not timing or C1/C2 acceptance.
+
+The read-only DNN audit is sealed (120 input hashes, no model build/GPU):
+`runs/mx5/dnn_native_readonly_pipeline_audit_v1_61/REPORT.md`.
+Verified boundaries for the later DNN implementation:
+
+- `StageProgram.cpp:35` still requires a loop and tail; kForward is an enum,
+  with no forward client/runtime. Actual native stage/barrier counts are unknown.
+- `DnnDwPwFusion.cpp:23` auto eligibility also covers MBV2 DW→project;
+  the actual unchanged planner, rather than an assumed1:1 count, governs stages.
+- `dnn/check.py:49` compares recipe-packed external names, not literal raw
+  checkpoint FQNs. Its call path includes copies/clones/synchronization and
+  cannot simply be repeated as the native50-forward timing loop.
+- `dnn/export.py:153` structure-only exports have no checkpoint; future timing
+  must bind its actual random state/recipes. Export/check/baseline seeds differ;
+  no byte-identical random state is claimed or external baseline remeasured.
+- `dnn/check_generated.py:164` default checks use output cosine/NAF PSNR;
+  exact required CLI checks remain mandatory, with no invented universal
+  pointwise-BF16 gate or waived body arithmetic tests.
+
+Native DNN is still unimplemented. This preparatory audit does not advance
+past dense/MoE/LLM acceptance or authorize a legacy execution substitute.
