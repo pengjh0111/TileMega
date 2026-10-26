@@ -441,8 +441,8 @@ struct MxAttentionV2 {
     using Sync = codegen::mx::StageSyncV2<Shape::kThreads>;
     MxAttentionGeometryV2 const geo(s.b * s.hkv, p.past, Bmin, int(gridDim.x), StageBlock());
     float* const shared = reinterpret_cast<float*>(smem);
-    Block block;
-    block.valid = false;
+    // Define empty slots so masked loop backedges do not retain prior K/V values.
+    Block block{};
     if (geo.begin < geo.end) {
       int const head = geo.begin / geo.blocks;
       Segment<true>(pf, block, p, s, geo, head, geo.begin % geo.blocks,
