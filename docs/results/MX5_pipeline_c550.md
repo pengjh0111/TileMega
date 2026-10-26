@@ -1,7 +1,10 @@
 # MX-5 C550 pipeline and specification audit
 
-Source audit updated 2026-10-26 through `3ef688aa4`; measured checkpoint includes
-all5 Gamma development controls and five completed diagnostic ledgers. Earlier audits remain in git history. **Verified** means inspected
+Current checkpoint: `cc29d78304` bodies with frozen producer `24fa50ed`,
+three genuine dense selections (Qwen0.6B B1/B16, Llama1B B1), and two
+selected-pin diagnostic ledgers. MoE/DNN native remain unimplemented.
+The detailed audit below includes explicitly historical development evidence;
+current selections are in `MX5_llm_c550.md`. **Verified** means inspected
 source or executed evidence; **inferred** means interpretation. Authority is
 `/root/Prompt/TileMega_MX5_prompt.md`, SHA256
 `75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73`.
@@ -23,8 +26,8 @@ flowchart LR
   I --> J[Acceptance gates and defaults]
 ```
 
-This diagram describes the intended native route. Current model controls use
-explicit diagnostic pins; the final selection/default edge remains open.
+This diagram describes the native dense route. Three current-source cells have
+completed exact top-four selection; full acceptance and the default edge remain open.
 
 | Step | Current implementation and limit |
 |---|---|
@@ -34,7 +37,7 @@ explicit diagnostic pins; the final selection/default edge remains open.
 | Selection | `MxDecodeSolverV2` enumerates the prescribed geometry, averages interpolated attention cost across past64..1086, and merges exact top4. Preview IDs/ranks/evidence are retained. Whole-program resource failures and justified thread choice remain required before final measurement consumption. |
 | Static code | `StageProgram` and `MxDecodeProgramV2` emit constexpr body types and direct calls, without runtime stage descriptors. Dense uses qkv(kStore), attention, O, gate_up, down and head; embed is folded into layer0. There are5L+1 counters/barriers per decode step. |
 | Edges | DownLast prefetches head; head prefetches next-step layer0 QKV weights. Token broadcast happens after grid acquire; first token broadcast precedes entrance prefetch. Terminal packet lexical scope and stage-local AS4 binding reloads are recorded departures in the integration report. |
-| Synchronization | Selected DT-W/R/P/X/KV =576 / role fence+atomic / P-B / X-A / block_fragments. `StageSyncV2` uses LDS generation release; `LastArriverV2` uses last-only acquire. Each barrier has its own64B counter, monotonic across steps. Only diagnosed per-plan512 controls currently execute outside the576 shape. |
+| Synchronization | Selected DT-W/R/P/X/KV =576 / role fence+atomic / P-B / X-A / block_fragments. `StageSyncV2` uses LDS generation release; `LastArriverV2` uses last-only acquire. Each barrier has its own64B counter, monotonic across steps. Diagnosed per-plan512 selections execute outside the576 shape; Llama1B B1 uses576. |
 | Bodies | GEMM/head/attention v2 are shared by generated programs and benches. `3843f6477` guards GEMM weight Prefetch for inactive/chunkless waves. `5c032c501` schedules statistics expansion after MMA consumption. Attention scalar sharing was rejected; ca678cbc8 uses fixed8 partial-O batches after a distinguishable2.16% E2E improvement;2dbf763ab shares packed gamma dependencies after a further2.44% gain. |
 | Build identity | Native compilation retains actual compile receipts, source snapshots, CU, macro capture, resource log and binary identity. Normal resource gates require frame0/static-smem0 and MT≤227/255, plus actual one-CTA occupancy. Forced-register diagnostics never qualify for execution. |
 | Weights | `serving/weights.py` executes exported recipes and `tile_pages(xcore_mma,TN,32)` packing, checks conflicting recipes and deduplicates by source/recipe identity. Actual packing coordinates must match the executed types. |
@@ -45,7 +48,7 @@ explicit diagnostic pins; the final selection/default edge remains open.
 
 ## Evidence boundary (verified)
 
-- G-A passes. G-B/G-PROGRAM/G-LLM remain open. Existing default target/pins
+- G-A passes. G-B/G-PROGRAM/G-SOLVER/G-LLM remain open. Existing default target/pins
   have not been promoted to MX-5 final results.
 - Five older native development controls pass512-step C-1/C-2. Old-source
   schema2 has4545 keys with three fresh measurements each. Neither fact
@@ -404,3 +407,10 @@ and16controlledcapqueries appended388→408. All16capAPI0/resident0/noLaunch;
 8BB16cap0/1/3frame0,cap2frame104;staticspilldisappearancedoesnotpermit
 execution. CurrentMOEreadonlyaudit confirms16diverseprompts,48historical
 baselineoutputfiles andunknownactualroutingdistribution; no baseline rerun.
+
+Verified checkpoint 2026-10-27: current selected QwenB1 ledger DIAG library
+is MT235/frame0, actual API0/resident1, query-only; its resource row is
+diagnostic-only. Five further cells have real four-candidate D7/protocol
+READY and are independently replayed/queued after the two8B development cells.
+Physical-card interval-union budget47.47954/60h at03:29 Shanghai, including
+guard preflight/CPU/cooldown. This does not close any outstanding gate.
