@@ -1092,3 +1092,17 @@ P0attributes also do not supply latency;matchingbench/gap allocation remains
 unfinished. At16:48:51Shanghai3-log wrapperupperbound28.964214/60card-hours
 (894closed/2active),includingwaits/cooldowns. Card6last8BB16ledgerthenG512
 52..71 and G576;card7H512thenH576. Rootprefillqueries use samecard6lock.
+
+Verified independent512 ordinal0 preparer nowreplays actualcanonical576
+history beforeemitting the exact originalnormalWD0 build/receipt/query. Shared
+budget is3minusactual576 reductions;no reset/override/manualreplacement.
+A fittingactualquery stillrequires substantiveD7v2 and all4 original protocol;
+resourcefail onlyexposes existingNEXT512/BLOCKED,withoutnewdescendant/cost.
+Root60relatedCPUtests pass,worker19syntheticcases pass;no actualoriginrun.
+Two stalecanonical doc/reason strings arecorrected to refer to theexisting
+D7consumer;parser/criteria unchanged. OldP0audit validator bytes remain in
+isolatedtree andHISTORICAL_VALIDATOR_BYTES.json;oldraw/audit isnotrewritten.
+Append2 actualQwenB2 finalfragment L1resource rows preserveCSVprefix. These
+queryactual final.so after fragmentflag,not the earlierlegacysearchprobe.
+Other38prefill compilecohort has14PASS/0fail at17:04Shanghai;last8BB16ledger
+and H512 remain active;gates/defaults/finalcostcatalog arestillopen.
