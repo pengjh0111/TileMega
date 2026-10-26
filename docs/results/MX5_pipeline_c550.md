@@ -345,3 +345,16 @@ Timeout wrapper lacked rawend; parentactual ended1793034730.0015185 is a
 conservative closure proof. Newaccounting v2 bindsactualrc124 andparentexit,
 preserveslogs;upper44.487019/60h at01:19:01,unclosedupper44.498130 retained.
 ActualLlama1B original0 nowC1/C2512PASS,maxgap0.09375; other3/timing pending.
+
+Verified first genuine current-source selection: cc29/A719 Llama1BB1,
+independent576 original0. Four C1/C2512PASS (allmaxgap0.09375), eightfresh
+WD0 processes complete. TPOT2.157002098435938ms,TTFT8.957553654909134ms,
+E2E2.215570700354874s,462.183400tokens/s,MBU0.744871(inferredstreammodel),
+−2.445%vsMX4,/SGLang0.8536835,/vLLM0.7231952,pred/meas1.010964.
+All4original normal WD0/1 MT164/frame0,actualAPI0/resident1. Exactselected
+pinunder configs/pins/mx5/blockinit_cc29,not a target/default switch.
+Append-only export: serving9→12,selection20→24,correctness61→65;
+resources271→275(QwenB16actualWD0queries)→279(Llama1BactualWD1checks).
+Originalprefix proofseachretained. Newsource1/25;three prior-body selections
+remain separate. NewQwenB1 all4D7/resourcebindings independentlyreplayedREADY;
+itsactualC1/C2/top4 timingqueue follows Llama1B,with own previous-child drain.

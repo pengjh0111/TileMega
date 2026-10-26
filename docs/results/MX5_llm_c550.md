@@ -1,16 +1,17 @@
 # MX-5 LLM C550 results (in progress)
 
-Verified checkpoint: three of 25 dense cells have completed source-qualified top-4 selection for the recorded prior body. The cc29 Attention initialization repair is under fresh validation; these rows are not new-source measurements. MoE remains 0/5; G-LLM and the default switch remain open.
+Verified checkpoint: current cc29/A719 source has completed 1/25 dense selections (Llama1B B1); three selections for prior 3ef/Af8 remain historical. MoE remains 0/5; G-LLM and the default switch remain open.
 
-Authority: `/root/Prompt/TileMega_MX5_prompt.md`, SHA256 `75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73`. Native source/producer is frozen HEAD `3ef688aa4d0bd7be8135e17e9db3274078dce760`, producer SHA256 `e6130715bb4819438927375b216cb4dd5bebae3e669cad25e8303ef01783a267`.
+Authority: `/root/Prompt/TileMega_MX5_prompt.md`, SHA256 `75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73`. Prior source/producer: `3ef688aa4d0bd7be8135e17e9db3274078dce760` / `e6130715bb4819438927375b216cb4dd5bebae3e669cad25e8303ef01783a267`. Current: `cc29d78304d297346d657c0fbca0a86e76b1f60f` / `24fa50ed913bce7791f575447a97e06c18a9bfce91c337c0bcc9191179c7c3c7`.
 
 All measurements use BF16 greedy, ISL/OSL 64/1024, warmup 1 plus timed 2 per fresh process, two fresh processes per candidate, no trace/diagnostic/step clocks and watchdog 0. TPOT = (E2E − TTFT)/1023. Correctness twins use watchdog 1. External baselines were not remeasured.
 
-| Cell | TPOT ms | TTFT ms | E2E s | token/s | MBU* | vs MX-4 | /vLLM | /SGLang |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Qwen3-0.6B B1 | 1.944021 | 9.376043 | 1.998110 | 512.484 | 0.4175 | -1.993% | 0.6323 | 0.7909 |
-| Qwen3-0.6B B16 | 3.567243 | 60.632317 | 3.709922 | 4416.266 | 0.4067 | -21.376% | 0.8873 | 0.8207 |
-| Llama-3.1-8B B1 | 10.560823 | 41.125858 | 10.844848 | 94.423 | 0.9215 | -1.444% | 0.9078 | 0.9523 |
+| Cell | Source | TPOT ms | TTFT ms | E2E s | token/s | MBU* | vs MX-4 | /vLLM | /SGLang |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Qwen3-0.6B B1 | prior 3ef/Af8 | 1.944021 | 9.376043 | 1.998110 | 512.484 | 0.4175 | -1.993% | 0.6323 | 0.7909 |
+| Qwen3-0.6B B16 | prior 3ef/Af8 | 3.567243 | 60.632317 | 3.709922 | 4416.266 | 0.4067 | -21.376% | 0.8873 | 0.8207 |
+| Llama-3.1-8B B1 | prior 3ef/Af8 | 10.560823 | 41.125858 | 10.844848 | 94.423 | 0.9215 | -1.444% | 0.9078 | 0.9523 |
+| Llama-3.2-1B B1 | cc29/A719 | 2.157002 | 8.957554 | 2.215571 | 462.183 | 0.7449 | -2.445% | 0.7232 | 0.8537 |
 
 *MBU is inferred from `(streamed linear/head BF16 weights + KV at average L=576)/(1.55 TB/s × TPOT)`. Full embedding-matrix reads, activation traffic, writes and cache effects are excluded. This is a byte lower-bound model, not a measured DRAM counter. Aggregate MBU, throughput and pred/meas are calculated from aggregate times; raw process rows are retained.
 
@@ -108,3 +109,24 @@ Raw: `blockinit_remaining3dev_check_time_v1`,
 The prompt4.7.3 crosssegment-overlap claim remains unfulfilled: actual next K/V
 requests retire at the first segment-merge CTA sync (AttentionV2.h:318). No
 synchronization substitution or default promotion is made.
+
+## Llama1B B1 current-source original top four
+
+Verified: all four independent576 originals pass C-1/C-2 at512 steps and
+eight fresh WD0 measurements on card7. Candidate0 is selected by the prescribed
+1% rule. Each normal WD0/WD1 is MT164/frame0/API0/resident1; controlled cap
+diagnostics from other cells are not used. This is current-source 1/25.
+
+| ID | Predicted ms | Process1 ms | Process2 ms | Median ms | pred/meas | Selected |
+|---:|---:|---:|---:|---:|---:|---|
+| 0 | 2.180651 | 2.157455 | 2.156549 | 2.157002 | 1.010964 | yes |
+| 1 | 2.181271 | 2.157362 | 2.157711 | 2.157537 | 1.011001 | no |
+| 2 | 2.181671 | 2.158640 | 2.157389 | 2.158015 | 1.010962 | no |
+| 3 | 2.181831 | 2.160851 | 2.161075 | 2.160963 | 1.009657 | no |
+
+Actual TN/WN/D/Pw: qkv32/1/1/1, o32/1/2/2, gate_up64/2/2/4,
+down32/1/2/2, head32/8/2/8; allTileRange. Attention b_min1/PK2; threads576;
+81 stages/barriers perstep. Allfour C1 maxgap0.09375 and C2 exact.
+Evidence: `runs/mx5/blockinit_llama1b576_top4_execution_v2/actual/`; exact pin
+`configs/pins/mx5/blockinit_cc29/llama3_2_1b_B1.json`. Final selected-stage
+ledger remains pending; crosssegment overlap/I1 attribution gaps remain open.
