@@ -38,13 +38,15 @@ template<unsigned TM,unsigned TN,unsigned TK,unsigned Variant> class LlmCubeBody
 #endif
 #if defined(TILEMEGA_LLM_LOCAL_Q_TAIL_K3) && TILEMEGA_LLM_LOCAL_Q_TAIL_K3
     if(s.variant==3) {
-      if(TM!=16 || TN!=128 || s.rows!=1024 || s.columns!=4096 || s.k!=4096 ||
-          s.extent>1 || s.epilogue!=4 || s.workspace!=s.operands[3] || s.operands[5]==llm::kAbsent)return false;
+      const bool store=s.k==4096 && s.epilogue==4 && s.workspace==s.operands[3];
+      const bool residual=(s.k==4096 || s.k==14336) && s.epilogue==1 && s.workspace!=llm::kAbsent;
+      if(TM!=16 || TN!=128 || s.rows!=1024 || s.columns!=4096 ||
+          s.extent>1 || (!store && !residual) || s.operands[5]==llm::kAbsent)return false;
       if(tile%nt*TN>=3584) {
         typename Partial::TileMmad mm(resource_);
         auto partial=arena+s.operands[5]+uint64_t(owner_group)*3*TM*TN*4;
         for(unsigned part=0;part<3;++part) {
-          const unsigned begin=part*1366,size=s.k-begin<1366?s.k-begin:1366;
+          const unsigned width=(s.k+2)/3,begin=part*width,size=s.k-begin<width?s.k-begin:width;
           Partial::template RunKSliceBorrowed<true>(mm,arena+s.operands[0],arena+s.operands[1],
               partial+uint64_t(part)*TM*TN*4,s.rows,s.columns,s.k,begin,size,tile/nt,tile%nt);
           CompleteDma<AscendC::HardEvent::FIX_S>();

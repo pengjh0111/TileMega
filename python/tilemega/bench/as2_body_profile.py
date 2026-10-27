@@ -49,7 +49,7 @@ def logical_bytes(s,m,tile,past):
                 raise ValueError('Unregistered local tail reduction traffic')
             if tile%nt*tn>=1792:n+=56*mr*nr
         if s[31]==3:
-            if (rows,columns,k,epilogue)!=(1024,4096,4096,4) or extent>1:
+            if (rows,columns)!=(1024,4096) or extent>1 or not ((k,epilogue)==(4096,4) or k in (4096,14336) and epilogue==1):
                 raise ValueError('Unregistered local Q tail traffic')
             if tile%nt*tn>=3584:n+=24*mr*nr
         if epilogue==1:n+=6*mr*nr

@@ -143,16 +143,18 @@ template<unsigned TM=32,unsigned TN=64,bool CaptureSoftmax=false> class LlmServi
     unsigned nt=(s.columns+TN-1)/TN,first=(tile%nt)*TN,rows=tile/nt*TM;
     if(s.variant==3) {
 #if defined(TILEMEGA_LLM_LOCAL_Q_TAIL_K3) && TILEMEGA_LLM_LOCAL_Q_TAIL_K3
-      if(TM!=16 || TN!=128 || s.rows!=1024 || s.columns!=4096 || s.k!=4096 ||
-          s.extent>1 || s.epilogue!=4 || s.workspace!=s.operands[3] || s.operands[5]==llm::kAbsent)return false;
-      // Regular tiles already wrote their BF16 output; only the SK tail needs AIV work.
-      if(first<3584)return true;
-      for(unsigned r=rows;r<rows+TM && r<s.rows;++r) {
+      const bool store=s.k==4096 && s.epilogue==4 && s.workspace==s.operands[3];
+      const bool residual=(s.k==4096 || s.k==14336) && s.epilogue==1 && s.workspace!=llm::kAbsent;
+      if(TM!=16 || TN!=128 || s.rows!=1024 || s.columns!=4096 ||
+          s.extent>1 || (!store && !residual) || s.operands[5]==llm::kAbsent)return false;
+      // Regular tiles already wrote BF16; residual rounding follows the ordered sum.
+      if(first>=3584)for(unsigned r=rows;r<rows+TM && r<s.rows;++r) {
         auto partial=arena+s.operands[5]+(uint64_t(owner_group)*3*TM*TN+(r-rows)*TN)*4;
-        auto output=arena+s.operands[3]+(uint64_t(r)*s.columns+first)*2;
+        auto output=arena+s.workspace+(uint64_t(r)*s.columns+first)*2;
         if(!vector_.CombineGemm(partial,output,TM*TN,3,TN))return false;
+        Acquire(output);
       }
-      return true;
+      if(store)return true;
 #else
       return false;
 #endif

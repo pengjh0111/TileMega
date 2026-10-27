@@ -118,6 +118,11 @@ class AscendPriceAccounting(unittest.TestCase):
         values=tile_body_prices(stage,fixture)
         self.assertEqual(values[27:33],[10.,30.,30.,30.,30.,10.])
         self.assertEqual(values.count(30.),256)
+        for k in (4096,14336):
+            residual=stage.copy();residual[18]=1;residual[22]=k
+            ordinary=residual.copy();ordinary[31]=1
+            self.assertEqual(logical_bytes(residual,[],28,0)-logical_bytes(ordinary,[],28,0),24*16*128)
+            self.assertEqual(tile_body_prices(residual,fixture).count(30.),256)
         for index,value in [(20,16),(21,2048),(22,8192),(18,0)]:
             invalid=stage.copy();invalid[index]=value
             with self.assertRaises(ValueError):tile_body_prices(invalid,fixture)

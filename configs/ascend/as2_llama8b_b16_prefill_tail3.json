@@ -1,0 +1,12 @@
+{
+  "schema": "tilemega.as2.observed_decomposition.v1",
+  "model_id": "llama3_1_8b",
+  "phase": "prefill",
+  "batch": 16,
+  "separate_qkv": true,
+  "local_q_tail3": true,
+  "local_residual_tail3": true,
+  "families": [],
+  "status": "experimental_not_numerically_admitted",
+  "evidence": "Actual M1024/N4096 CANN4162 uses K1366 for Q/O and K4779 for down. Same-input selective-tail native partial diagnostics pass65536 Q,65536 O and32768 down BF16 values; probes/llama8b_b16_{q_tail_partial3_numeric_v29,o_tail_rows16_partial3_numeric_v36,down_tail_partial3_numeric_v35}.json. Device-combine/full-model/performance admission remains separate."
+}

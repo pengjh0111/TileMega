@@ -69,7 +69,7 @@ def costs(jobs,out):
 def tile_body_prices(stage,profile):
     if stage[17]!=0 or stage[31] not in (2,3):return None
     qtail=stage[31]==3
-    if qtail and (tuple(stage[20:23])!=(1024,4096,4096) or stage[19]!=2048 or stage[18]!=4):
+    if qtail and (tuple(stage[20:22])!=(1024,4096) or stage[19]!=2048 or not ((stage[22],stage[18])==(4096,4) or stage[22] in (4096,14336) and stage[18]==1)):
         raise ValueError('Unregistered local Q Body price domain')
     if not qtail and (tuple(stage[20:22])!=(1024,2048) or stage[22] not in (6144,8192) or stage[19]!=1024):
         raise ValueError('Unregistered local Body price domain')

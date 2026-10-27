@@ -38,8 +38,9 @@ inline void ValidateCompiledBodies(std::vector<llm::Stage> const& stages) {
 #if !defined(TILEMEGA_LLM_LOCAL_Q_TAIL_K3) || !TILEMEGA_LLM_LOCAL_Q_TAIL_K3
     throw std::invalid_argument("This binary does not register local Q tail reduction");
 #else
-    if(s.rows!=1024 || s.columns!=4096 || s.k!=4096 || s.extent>1 || s.epilogue!=4 ||
-        s.operands[5]==llm::kAbsent || s.workspace!=s.operands[3])
+    const bool store=s.k==4096 && s.epilogue==4 && s.workspace==s.operands[3];
+    const bool residual=(s.k==4096 || s.k==14336) && s.epilogue==1 && s.workspace!=llm::kAbsent;
+    if(s.rows!=1024 || s.columns!=4096 || s.extent>1 || (!store && !residual) || s.operands[5]==llm::kAbsent)
       throw std::invalid_argument("Unregistered local Q tail reduction shape");
 #endif
   }

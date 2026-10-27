@@ -21,6 +21,13 @@ int main() {
   qtail.columns=4096;qtail.k=4096;qtail.epilogue=4;qtail.workspace=qtail.operands[3]=512;
 #if defined(TILEMEGA_LLM_LOCAL_Q_TAIL_K3) && TILEMEGA_LLM_LOCAL_Q_TAIL_K3
   llm_host::ValidateCompiledBodies({qtail});
+  for(unsigned k:{4096u,14336u}) {
+    auto residual=qtail;residual.k=k;residual.epilogue=1;
+    llm_host::ValidateCompiledBodies({residual});
+    residual.workspace=llm::kAbsent;
+    try {llm_host::ValidateCompiledBodies({residual});return 1;}
+    catch(std::invalid_argument const&) {}
+  }
   for(unsigned mutation=0;mutation<4;++mutation) {
     auto invalid=qtail;
     if(mutation==0)invalid.rows=16;

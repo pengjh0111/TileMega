@@ -40,9 +40,10 @@ template<class T> void Binary(std::filesystem::path const& p,std::vector<T> cons
 }
 AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem const& p,
     ascend::WorkerMap const& map,std::vector<solver::AscendScheduledTask> const& input,
-    solver::AscendSchedule const& schedule,bool diagnostic,unsigned attention_precision,bool local_tail_k7,bool local_q_tail3) {
+    solver::AscendSchedule const& schedule,bool diagnostic,unsigned attention_precision,bool local_tail_k7,bool local_q_tail3,bool local_residual_tail3) {
   using namespace ascend::llm;
   if(attention_precision>8)throw std::invalid_argument("Unknown native attention precision contract");
+  if(local_residual_tail3 && !local_q_tail3)throw std::invalid_argument("Residual tail3 requires its Q projection contract");
   if((local_tail_k7 || local_q_tail3) && (p.model.dims.batch!=16 || p.model.dims.seq!=64))
     throw std::invalid_argument("Local tail reduction is bounded to B16 prefill");
   if(!module || mlir::failed(mlir::verify(module)) || !p.model.serving || p.model.dm ||
@@ -101,7 +102,7 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
       {"external_name",""},{"pack_json",""},{"required_input",false}});
     arena=Add(arena,allocated);return offset;
   };
-  unsigned local_tail_stages=0,local_q_stages=0;
+  unsigned local_tail_stages=0,local_q_stages=0,local_residual_stages=0;
   for(unsigned s=0;s<p.counts.size();++s) {
     auto projected=p.projection.stages.at(s);
     auto const& source=p.model.stages.at(projected.logical_stage);auto d=At(ss,projected.logical_stage);
@@ -177,6 +178,14 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
             "f32",Mul(map.workers.size()/3,3ULL*16*128*4));
         ++local_q_stages;
       }
+      if(local_residual_tail3 && stage.columns==4096 && (stage.k==4096 || stage.k==14336) && stage.epilogue==1) {
+        if(!small || geo.split_k!=1 || stage.rows!=1024)
+          throw std::invalid_argument("Residual tail3 requires unsplit B16 prefill tile ownership");
+        stage.variant=3;
+        stage.operands[5]=scratch("native.gemm.local_residual_tail3."+std::to_string(projected.logical_stage),
+            "f32",Mul(map.workers.size()/3,3ULL*16*128*4));
+        ++local_residual_stages;
+      }
     }else {
       auto operands=d.getAs<mlir::DenseI64ArrayAttr>("operands");
       if(!operands || operands.size()!=16)throw std::invalid_argument("Missing LLM primitive operands");
@@ -249,6 +258,8 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
   }
   if(local_q_tail3 && local_q_stages!=32)
     throw std::invalid_argument("Local Q tail must bind all 32 separate Llama8B Q projections");
+  if(local_residual_tail3 && local_residual_stages!=64)
+    throw std::invalid_argument("Residual tail3 must bind all 64 Llama8B O/down projections");
   for(unsigned s=0;s<out.stages.size();++s)if(out.stages[s].kind==6) {
     auto const& combine=out.stages[s];
     if(!s || p.projection.stages[s-1].logical_stage!=p.projection.stages[s].logical_stage ||
@@ -325,7 +336,7 @@ void AscendLlmPlan::Write(std::filesystem::path const& root) const {
     }
     if(s.kind==0 && s.extent>1)id="as2_catlass_bf16_fp32_split"+std::to_string(s.extent)+"_k"+std::to_string(s.width)+"_16x128x128_l0k64";
     if(s.kind==0 && s.variant==2)id="as2_mix_gemm_local_tail7_residual_16x128x128";
-    if(s.kind==0 && s.variant==3)id="as2_mix_gemm_local_q_tail3_store_16x128x128";
+    if(s.kind==0 && s.variant==3)id=s.epilogue==4?"as2_mix_gemm_local_q_tail3_store_16x128x128":"as2_mix_gemm_local_tail3_residual_16x128x128";
     else if(s.kind==1)id=s.variant==3?"as2_aiv_rmsnorm_cann_newton_fold"+std::to_string(s.width==3072?2048:s.width/2)+"_h"+std::to_string(s.width):s.variant==2?"as2_aiv_rmsnorm_cann_newton_h"+std::to_string(s.width):"as2_aiv_rmsnorm_full_row";
     else if(s.kind==25)id="as2_aiv_qkv_group_pack_h128_gqa4";
     else if(s.kind==11)id="as2_aiv_embedding_i32_bf16";

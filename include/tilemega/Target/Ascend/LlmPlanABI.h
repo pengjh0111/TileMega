@@ -37,7 +37,8 @@ struct Stage {
   // RMSNorm variants: 0=existing Rsqrt, 2=pinned Newton H1024/H2048,
   // 3=power-two-fold Newton H1024/H2048/H3072. Buffer/event ABI is identical.
   // GEMM variants: 0=32x64x64, 1=16x128x128, 2=same geometry with local tail7.
-  // 3=same geometry, M1024 Q N3584:4096 uses K1366/1366/1364 and store epilogue4.
+  // 3=same geometry, M1024 N3584:4096 uses ordered ceil(K/3) slices:
+  // Q store epilogue4, O/down residual epilogue1, K4096 or14336.
   // Variant2/3 operand5 is per-group FP32 scratch. The MIX done ack ends
   // its lifetime before the next tile; only the AIC owner publishes completion.
   // Split GEMM: extent=2/3, width=ceil(k/extent), group=1 (tile-major/part-minor CTG).
