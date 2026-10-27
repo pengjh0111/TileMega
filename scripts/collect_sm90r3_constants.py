@@ -23,6 +23,18 @@ ATTENTION_FIELDS = ('batch', 'head_dim', 'queries', 'qk_norm', 'chunks', 'block_
                     'new_row_work', 'past', 'grid')
 
 
+def forward_section(forward):
+    """eta(N) is each width's rate over the best measured width (N-1 item 8)."""
+    rates = forward.get('sm_flops_per_ns_by_n', {})
+    if not rates:
+        return {}
+    best = max(rates.values())
+    return dict(sm_flops_per_ns=best,
+                wgmma_efficiency={n: round(r / best, 4) for n, r in sorted(rates.items())},
+                sm_flops_per_ns_by_n=rates,
+                method='sustained WGMMA m64nNk16 on one CTA per SM; eta(N) = rate(N) / best rate')
+
+
 def attempt_rows(log):
     text = log.read_text().rsplit('\nATTEMPT ', 1)[-1]
     lines = text.splitlines()
@@ -115,6 +127,7 @@ def main():
         return round(found[0], 2)
 
     epilogue, embedding, argmax, route, attention, rounds, clusters, dsmem = {}, {}, {}, {}, {}, {}, {}, {}
+    forward = {}
     for (metric, key), v in value.items():
         fields = dict(part.split('=') for part in key.split(':') if '=' in part)
         if metric == 't_ep':
@@ -133,6 +146,9 @@ def main():
             argmax.setdefault('g' + fields['g'], {})[fields['b']] = round(v, 1)
         elif metric == 't_route_la':
             route.setdefault('g' + fields['g'], {})[fields['b']] = round(v, 1)
+        elif metric == 't_wgmma':
+            # N-1: one SM's sustained WGMMA rate per forward tile width.
+            forward.setdefault('sm_flops_per_ns_by_n', {})[fields['n']] = round(v, 1)
         elif metric == 'c_star':
             clusters.setdefault('r' + fields['r'], {})['c_star'] = int(v)
         elif metric == 'max_active_clusters':
@@ -157,7 +173,8 @@ def main():
         activation_cp_async_gbps=20.0,
         activation_cp_async_source='stated: SM90R2_activation_stream_diagnostic.csv per-CTA ceiling (F9)',
         epilogue_ns=epilogue, embedding_ns=embedding, argmax_la_ns=argmax, route_la_ns=route, attention_ns=attention,
-        round_ns=rounds, clusters=clusters, dsmem_merge_ns=dsmem)
+        round_ns=rounds, clusters=clusters, dsmem_merge_ns=dsmem,
+        forward=forward_section(forward))
     if a.section_only:
         a.section_only.write_text(json.dumps(section, indent=1) + '\n')
     else:

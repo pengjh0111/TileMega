@@ -1,0 +1,6 @@
+name,key,median,p99,unit,processes,method
+clock,,1994.87,1994.87,MHz,5,const-n1b
+t_wgmma,n=128,6639.33,6640.34,flop_per_ns,5,const-n1b
+t_wgmma,n=256,7192.18,7192.76,flop_per_ns,5,const-n1b
+t_wgmma,n=32,3558.23,3559.42,flop_per_ns,5,const-n1b
+t_wgmma,n=64,5592.91,5594.39,flop_per_ns,5,const-n1b

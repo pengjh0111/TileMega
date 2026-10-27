@@ -78,9 +78,11 @@ double Sm90NativeConstants::GroupWaitSaving(int grid) const {
   if(!a || !b)throw Sm90NativeMissing("no measured group wait for grid "+std::to_string(grid));
   return Positive(*a,"V3 round")-Positive(*b,"group round");
 }
-double Sm90NativeConstants::WgmmaEfficiency() const {
-  auto const* found=forward_.Find("wgmma_efficiency");
-  if(!found)throw Sm90NativeMissing("no measured WGMMA efficiency; run the forward constants probe");
+double Sm90NativeConstants::WgmmaEfficiency(int tile_n) const {
+  auto const* table=forward_.Find("wgmma_efficiency");
+  auto const* found=table?table->Find(std::to_string(tile_n)):nullptr;
+  if(!found)throw Sm90NativeMissing("no measured WGMMA efficiency for N"+std::to_string(tile_n)+
+      "; run the forward constants probe");
   return Positive(*found,"wgmma efficiency");
 }
 double Sm90NativeConstants::SmFlops() const {

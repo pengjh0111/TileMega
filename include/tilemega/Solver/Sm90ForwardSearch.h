@@ -64,13 +64,18 @@ class Sm90ForwardCostModel {
     double bytes=double(shape.weight_bytes+shape.activation_bytes+shape.output_bytes);
     // Compute: the busiest CTA's share at the measured WGMMA efficiency.
     double lanes=double(std::min<long long>(tasks,grid));
-    double compute=lanes>0?flops/(k.WgmmaEfficiency()*k.SmFlops()*lanes):0.0;
+    // Depthwise and the small bodies run on CUDA cores, not WGMMA; they are
+    // bandwidth-bound in the model and take the widest shape's efficiency.
+    bool wgmma=shape.body==Sm90ForwardBody::kGemm || shape.body==Sm90ForwardBody::kConv ||
+        shape.body==Sm90ForwardBody::kDwPw || shape.body==Sm90ForwardBody::kInvertedResidual;
+    double eta=k.WgmmaEfficiency(wgmma?c.tile_n:256);
+    double compute=lanes>0?flops/(eta*k.SmFlops()*lanes):0.0;
     double stream=bytes/k.dram_gbps;
     double epilogue=shape.epilogue_ops*k.Barrier(grid)*0.0;  // chain ops are register work
     double total=k.Barrier(grid)+k.l2_latency+std::max(compute,stream)+epilogue;
     if(c.split_k>1)total+=k.Barrier(grid);
     if(terms)*terms=json::Object{{"barrier",k.Barrier(grid)},{"first_byte",k.l2_latency},
-        {"compute",compute},{"stream",stream},{"tasks",double(tasks)},{"waves",waves},
+        {"compute",compute},{"stream",stream},{"eta",eta},{"tasks",double(tasks)},{"waves",waves},
         {"split_k",double(c.split_k)}};
     return total;
   }

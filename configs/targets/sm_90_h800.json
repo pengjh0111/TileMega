@@ -2963,6 +2963,22 @@
       "d128:q8:norm1": {
         "2": 3869.7
       }
+    },
+    "forward": {
+      "sm_flops_per_ns": 7192.2,
+      "wgmma_efficiency": {
+        "128": 0.9231,
+        "256": 1.0,
+        "32": 0.4947,
+        "64": 0.7776
+      },
+      "sm_flops_per_ns_by_n": {
+        "32": 3558.2,
+        "64": 5592.9,
+        "128": 6639.3,
+        "256": 7192.2
+      },
+      "method": "sustained WGMMA m64nNk16 on one CTA per SM; eta(N) = rate(N) / best rate"
     }
   },
   "sm90_native_decisions": {

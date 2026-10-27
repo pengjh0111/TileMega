@@ -38,7 +38,9 @@ class Sm90NativeConstants {
   double MulticastKappa() const {return l2_gbps/dram_gbps-1;}
   // N-1: the measured WGMMA shape efficiency and one SM's bf16 throughput
   // (FLOP/ns), which price a forward stage's compute term.
-  double WgmmaEfficiency() const;
+  // eta is measured per tile width: a 32-wide WGMMA sustains about half the
+  // rate of a 256-wide one, so a stage is priced with its own N.
+  double WgmmaEfficiency(int tile_n) const;
   double SmFlops() const;
   // D2 body: one 64-key block (data resident), q preparation, S-chunk merge.
   double AttentionBlock(int dim,int queries,bool norm) const;
