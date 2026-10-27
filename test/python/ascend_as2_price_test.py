@@ -109,5 +109,20 @@ class AscendPriceAccounting(unittest.TestCase):
         fixture['body_service_regions']['tail']['median']=0
         with self.assertRaises(ValueError):tile_body_prices(stage,fixture)
 
+    def test_q_tail_traffic_and_coordinate_price_domain(self):
+        stage=self.stage(0,3,4);stage[19:24]=[2048,1024,4096,4096,0]
+        base=stage.copy();base[31]=1
+        self.assertEqual(logical_bytes(stage,[],27,0),logical_bytes(base,[],27,0))
+        self.assertEqual(logical_bytes(stage,[],28,0)-logical_bytes(base,[],28,0),24*16*128)
+        fixture=dict(body_service_regions=dict(regular=dict(tasks=1792,median=10.),tail=dict(tasks=256,median=30.)))
+        values=tile_body_prices(stage,fixture)
+        self.assertEqual(values[27:33],[10.,30.,30.,30.,30.,10.])
+        self.assertEqual(values.count(30.),256)
+        for index,value in [(20,16),(21,2048),(22,8192),(18,0)]:
+            invalid=stage.copy();invalid[index]=value
+            with self.assertRaises(ValueError):tile_body_prices(invalid,fixture)
+        fixture['body_service_regions']['tail']['median']=0
+        with self.assertRaises(ValueError):tile_body_prices(stage,fixture)
+
 
 if __name__=='__main__':unittest.main()

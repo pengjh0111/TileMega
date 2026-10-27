@@ -17,6 +17,23 @@ int main() {
 #endif
   try {llm_host::ValidateCompiledBodies({local});return 1;}
   catch(std::invalid_argument const&) {}
+  llm::Stage qtail{};qtail.kind=0;qtail.variant=3;qtail.rows=1024;
+  qtail.columns=4096;qtail.k=4096;qtail.epilogue=4;qtail.workspace=qtail.operands[3]=512;
+#if defined(TILEMEGA_LLM_LOCAL_Q_TAIL_K3) && TILEMEGA_LLM_LOCAL_Q_TAIL_K3
+  llm_host::ValidateCompiledBodies({qtail});
+  for(unsigned mutation=0;mutation<4;++mutation) {
+    auto invalid=qtail;
+    if(mutation==0)invalid.rows=16;
+    if(mutation==1)invalid.epilogue=0;
+    if(mutation==2)invalid.workspace=1024;
+    if(mutation==3)invalid.operands[5]=llm::kAbsent;
+    try {llm_host::ValidateCompiledBodies({invalid});return 1;}
+    catch(std::invalid_argument const&) {}
+  }
+#else
+  try {llm_host::ValidateCompiledBodies({qtail});return 1;}
+  catch(std::invalid_argument const&) {}
+#endif
   llm::Stage attention{};attention.kind=13;attention.variant=4;
   llm_host::ValidateCompiledBodies({attention});
   unsigned rejected=0;

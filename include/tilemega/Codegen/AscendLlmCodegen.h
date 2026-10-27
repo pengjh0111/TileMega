@@ -19,6 +19,7 @@ struct AscendLlmPlan {
 };
 AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp,solver::SymbolicProblem const&,
     ascend::WorkerMap const&,std::vector<solver::AscendScheduledTask> const&,
-    solver::AscendSchedule const&,bool diagnostic,unsigned attention_precision=0,bool local_tail_k7=false);
+    solver::AscendSchedule const&,bool diagnostic,unsigned attention_precision=0,bool local_tail_k7=false,
+    bool local_q_tail3=false);
 std::string LowerAscendLlm(AscendLlmPlan const&);
 }

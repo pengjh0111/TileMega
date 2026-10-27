@@ -7,7 +7,7 @@
 namespace tilemega::ascend {
 template<unsigned TM,unsigned TN,unsigned TK,unsigned Variant> class LlmCubeBody {
   using Bf16=GemmTile<bfloat16_t,bfloat16_t,TM,TN,TK,true>;
-#if (defined(TILEMEGA_LLM_SPLIT_K) && TILEMEGA_LLM_SPLIT_K) || (defined(TILEMEGA_LLM_LOCAL_TAIL_K7) && TILEMEGA_LLM_LOCAL_TAIL_K7)
+#if (defined(TILEMEGA_LLM_SPLIT_K) && TILEMEGA_LLM_SPLIT_K) || (defined(TILEMEGA_LLM_LOCAL_TAIL_K7) && TILEMEGA_LLM_LOCAL_TAIL_K7) || (defined(TILEMEGA_LLM_LOCAL_Q_TAIL_K3) && TILEMEGA_LLM_LOCAL_Q_TAIL_K3)
   using Partial=GemmTile<bfloat16_t,float,TM,TN,TK,true,64>;
 #endif
   using Qk=GemmTile<float,float,32,64,128,true>;
@@ -15,7 +15,7 @@ template<unsigned TM,unsigned TN,unsigned TK,unsigned Variant> class LlmCubeBody
   typename Bf16::SharedResource resource_;
  public:
   __aicore__ inline bool Run(llm::Stage const& s,unsigned tile,GM_ADDR arena,unsigned owner_group) {
-    if(s.kind!=0 || tile>=s.tasks || (s.variant!=Variant && !(s.variant==2 && Variant==1)) || s.k%16)return false;
+    if(s.kind!=0 || tile>=s.tasks || (s.variant!=Variant && !((s.variant==2 || s.variant==3) && Variant==1)) || s.k%16)return false;
     unsigned nt=(s.columns+TN-1)/TN;
 #if defined(TILEMEGA_LLM_LOCAL_TAIL_K7) && TILEMEGA_LLM_LOCAL_TAIL_K7
     if(s.variant==2) {
@@ -35,6 +35,25 @@ template<unsigned TM,unsigned TN,unsigned TK,unsigned Variant> class LlmCubeBody
     }
 #else
     if(s.variant==2)return false;
+#endif
+#if defined(TILEMEGA_LLM_LOCAL_Q_TAIL_K3) && TILEMEGA_LLM_LOCAL_Q_TAIL_K3
+    if(s.variant==3) {
+      if(TM!=16 || TN!=128 || s.rows!=1024 || s.columns!=4096 || s.k!=4096 ||
+          s.extent>1 || s.epilogue!=4 || s.workspace!=s.operands[3] || s.operands[5]==llm::kAbsent)return false;
+      if(tile%nt*TN>=3584) {
+        typename Partial::TileMmad mm(resource_);
+        auto partial=arena+s.operands[5]+uint64_t(owner_group)*3*TM*TN*4;
+        for(unsigned part=0;part<3;++part) {
+          const unsigned begin=part*1366,size=s.k-begin<1366?s.k-begin:1366;
+          Partial::template RunKSliceBorrowed<true>(mm,arena+s.operands[0],arena+s.operands[1],
+              partial+uint64_t(part)*TM*TN*4,s.rows,s.columns,s.k,begin,size,tile/nt,tile%nt);
+          CompleteDma<AscendC::HardEvent::FIX_S>();
+        }
+        return true;
+      }
+    }
+#else
+    if(s.variant==3)return false;
 #endif
 #if defined(TILEMEGA_LLM_SPLIT_K) && TILEMEGA_LLM_SPLIT_K
     if(s.extent>1) {

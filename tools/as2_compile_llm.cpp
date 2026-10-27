@@ -127,6 +127,7 @@ int main(int argc,char** argv) {
       attention_precision=attention=="fp32"?1:attention=="fp32-scores"?2:attention=="math-sdpa"?3:attention=="cube-fp32"?4:attention=="cube-fp32-newton"?5:attention=="cube-fp32-newton-full"?6:attention=="cube-fp32-newton-fold"?7:attention=="cube-fp32-fold-softmax"?8:0;
     }
     tilemega::json::Value decomposition;
+    bool local_q_tail3=false;
     tilemega::json::Value binding;
     if(body) {
       auto path=fs::weakly_canonical(argv[priced_body?10:9]);
@@ -165,6 +166,9 @@ int main(int argc,char** argv) {
       if(auto separate=decomposition.Find("separate_qkv"))serving.separate_qkv=separate->AsBool("separate_qkv");
       if(serving.separate_qkv && receipt.At("model_id").AsString("model")!="llama3_1_8b")
         throw std::invalid_argument("Separate projection candidate is bounded to observed Llama8B");
+      if(auto tail=decomposition.Find("local_q_tail3"))local_q_tail3=tail->AsBool("local_q_tail3");
+      if(local_q_tail3 && (!serving.separate_qkv || batch!=16 || phase!="prefill"))
+        throw std::invalid_argument("Local Q tail candidate requires separate Llama8B B16 prefill");
     }
     auto start=std::chrono::steady_clock::now();
     tilemega::analysis::IslContext isl;
@@ -306,7 +310,8 @@ int main(int argc,char** argv) {
           using R=tilemega::ascend::ImplementationRole;
           auto const& s=plan.stages.at(projected.logical_stage);
           roles.push_back(projected.combine?R::kAivOnly:s.kind==tilemega::frontend::PlanTaskKind::kGemm?
-            (options.gemms.at(s.gemm).split_k>1 || plan.gemms.at(s.gemm).epilogue==tilemega::frontend::PlanGemm::Epilogue::kStore?R::kAicOnly:R::kMix1_2):
+            (local_q_tail3 && plan.gemms.at(s.gemm).n==4096 && plan.gemms.at(s.gemm).k==4096 && plan.gemms.at(s.gemm).epilogue==tilemega::frontend::PlanGemm::Epilogue::kStore?R::kMix1_2:
+             options.gemms.at(s.gemm).split_k>1 || plan.gemms.at(s.gemm).epilogue==tilemega::frontend::PlanGemm::Epilogue::kStore?R::kAicOnly:R::kMix1_2):
             s.kind==tilemega::frontend::PlanTaskKind::kFusedAttention && attention_precision>=4?R::kMix1_2:R::kAivOnly);
         }
         skeleton.BindAscendWorkers(workers,roles,true);
@@ -379,7 +384,7 @@ int main(int argc,char** argv) {
           Write(output/"uncompressed_schedule.json",ScheduleReport(scheduled));
           scheduled=tilemega::solver::ElideAscendFifoWaits(tasks,workers,std::move(scheduled));
         }
-        auto native=tilemega::codegen::MaterializeAscendLlm(*module,problem,workers,tasks,scheduled,!priced,attention_precision,body);
+        auto native=tilemega::codegen::MaterializeAscendLlm(*module,problem,workers,tasks,scheduled,!priced,attention_precision,body,local_q_tail3);
         if(priced) {
           auto const& rows=prices.At("stages").AsArray("stage prices");
           for(unsigned s=0;s<rows.size();++s) {

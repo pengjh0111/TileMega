@@ -67,15 +67,18 @@ def costs(jobs,out):
 
 
 def tile_body_prices(stage,profile):
-    if stage[17]!=0 or stage[31]!=2:return None
-    if tuple(stage[20:22])!=(1024,2048) or stage[22] not in (6144,8192) or stage[19]!=1024:
+    if stage[17]!=0 or stage[31] not in (2,3):return None
+    qtail=stage[31]==3
+    if qtail and (tuple(stage[20:23])!=(1024,4096,4096) or stage[19]!=2048 or stage[18]!=4):
+        raise ValueError('Unregistered local Q Body price domain')
+    if not qtail and (tuple(stage[20:22])!=(1024,2048) or stage[22] not in (6144,8192) or stage[19]!=1024):
         raise ValueError('Unregistered local Body price domain')
     buckets=profile['body_service_regions'];result=[]
-    for name,count in (('regular',896),('tail',128)):
+    for name,count in (('regular',1792 if qtail else 896),('tail',256 if qtail else 128)):
         row=buckets[name]
         if row['tasks']!=count or not math.isfinite(row['median']) or row['median']<=0:
             raise ValueError('Incomplete or nonpositive local Body region price')
-    for tile in range(stage[19]):result.append(buckets['tail' if tile%16>=14 else 'regular']['median'])
+    for tile in range(stage[19]):result.append(buckets['tail' if tile%(32 if qtail else 16)>=(28 if qtail else 14) else 'regular']['median'])
     return result
 
 

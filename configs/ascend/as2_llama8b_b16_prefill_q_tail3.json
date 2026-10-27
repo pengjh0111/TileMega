@@ -1,0 +1,11 @@
+{
+  "schema": "tilemega.as2.observed_decomposition.v1",
+  "model_id": "llama3_1_8b",
+  "phase": "prefill",
+  "batch": 16,
+  "separate_qkv": true,
+  "local_q_tail3": true,
+  "families": [],
+  "status": "experimental_not_numerically_admitted",
+  "evidence": "Actual M1024/N4096/K4096 CANN tiling4162 selects K1366. Same-input slice: full-K regular N0:3584 plus three ordered FP32 tail partials matches all65536 BF16 values; runs/as2/probes/llama8b_b16_q_tail_partial3_numeric_v29.json. Device combine and complete model admission remain separate."
+}

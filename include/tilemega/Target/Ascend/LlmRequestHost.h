@@ -34,6 +34,15 @@ inline void Save(fs::path const& path,void const* data,size_t bytes) {
   if(!f)throw std::runtime_error("Cannot save request evidence");
 }
 inline void ValidateCompiledBodies(std::vector<llm::Stage> const& stages) {
+  for(auto const& s:stages)if(s.kind==0 && s.variant==3) {
+#if !defined(TILEMEGA_LLM_LOCAL_Q_TAIL_K3) || !TILEMEGA_LLM_LOCAL_Q_TAIL_K3
+    throw std::invalid_argument("This binary does not register local Q tail reduction");
+#else
+    if(s.rows!=1024 || s.columns!=4096 || s.k!=4096 || s.extent>1 || s.epilogue!=4 ||
+        s.operands[5]==llm::kAbsent || s.workspace!=s.operands[3])
+      throw std::invalid_argument("Unregistered local Q tail reduction shape");
+#endif
+  }
   for(auto const& s:stages)if(s.kind==0 && s.variant==2) {
 #if !defined(TILEMEGA_LLM_LOCAL_TAIL_K7) || !TILEMEGA_LLM_LOCAL_TAIL_K7
     throw std::invalid_argument("This binary does not register local tail reduction");
@@ -117,7 +126,7 @@ struct Plan {
         [&](auto const& a){return a.offset==offset;});
     };
     for(auto const& s:stages) {
-      if(s.kind==0 && (s.variant==2?1:s.variant)!=kCompiledVariant)
+      if(s.kind==0 && ((s.variant==2 || s.variant==3)?1:s.variant)!=kCompiledVariant)
         throw std::invalid_argument("Request GEMM geometry differs from compiled Body");
       for(auto offset:s.operands)if(!valid(offset))throw std::invalid_argument("Unbound request operand");
       if(!valid(s.workspace))throw std::invalid_argument("Unbound request workspace");

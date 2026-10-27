@@ -48,6 +48,10 @@ def logical_bytes(s,m,tile,past):
             if (rows,columns,epilogue)!=(1024,2048,1) or k not in (6144,8192) or extent>1:
                 raise ValueError('Unregistered local tail reduction traffic')
             if tile%nt*tn>=1792:n+=56*mr*nr
+        if s[31]==3:
+            if (rows,columns,k,epilogue)!=(1024,4096,4096,4) or extent>1:
+                raise ValueError('Unregistered local Q tail traffic')
+            if tile%nt*tn>=3584:n+=24*mr*nr
         if epilogue==1:n+=6*mr*nr
         elif epilogue==2:n+=3*mr*nr
         elif epilogue==3:n+=2*mr*nr+8*mr
@@ -137,9 +141,10 @@ def extract(binding,job_path,phase,repetition,out):
         composite=stages[task[0]][17]==13 and stages[task[0]][31] in (4,5,6)
         measured=values[task[2]] if composite else sum(values.values())
         service[task[0]].append(measured)
-        if stages[task[0]][17]==0 and stages[task[0]][31]==2:
+        if stages[task[0]][17]==0 and stages[task[0]][31] in (2,3):
             buckets=regions.setdefault(task[0],dict(regular=[],tail=[]))
-            buckets['tail' if task[1]%16>=14 else 'regular'].append(measured)
+            qtail=stages[task[0]][31]==3
+            buckets['tail' if task[1]%(32 if qtail else 16)>=(28 if qtail else 14) else 'regular'].append(measured)
         traffic[task[0]].append(logical_bytes(stages[task[0]],m,task[1],past))
     rows=[]
     for i,(s,values,bytes_) in enumerate(zip(stages,service,traffic)):

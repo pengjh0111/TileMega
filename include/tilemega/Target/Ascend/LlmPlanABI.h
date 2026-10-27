@@ -36,9 +36,10 @@ struct Stage {
   uint32_t kv_block,query_rows,row_stride,row_offset,batch_rows,variant;
   // RMSNorm variants: 0=existing Rsqrt, 2=pinned Newton H1024/H2048,
   // 3=power-two-fold Newton H1024/H2048/H3072. Buffer/event ABI is identical.
-  // GEMM variants: 0=32x64x64, 1=16x128x128, 2=same geometry with local
-  // tail7 reduction. Variant2's operand5 is per-group FP32 tile scratch;
-  // the existing MIX done ack ends its lifetime before the next tile.
+  // GEMM variants: 0=32x64x64, 1=16x128x128, 2=same geometry with local tail7.
+  // 3=same geometry, M1024 Q N3584:4096 uses K1366/1366/1364 and store epilogue4.
+  // Variant2/3 operand5 is per-group FP32 scratch. The MIX done ack ends
+  // its lifetime before the next tile; only the AIC owner publishes completion.
   // Split GEMM: extent=2/3, width=ceil(k/extent), group=1 (tile-major/part-minor CTG).
   // Kind6 is its AIV combine; workspace is FP32 [part,row,col], operand5
   // is the BF16 raw sum before the separately preserved residual rounding.
