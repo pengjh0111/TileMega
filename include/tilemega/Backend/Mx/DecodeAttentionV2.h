@@ -59,6 +59,14 @@ struct MxAttentionV2 {
   };
   struct Block { uint4 k[2][kChunks], v[kAtoms]; bool valid; };
 
+  __device__ __forceinline__ static void PublishWaveResults() {
+    // This exchange only publishes LDS; global partials use the later LA release.
+    asm volatile("" ::: "memory");
+    __builtin_mxc_arrive_bsmcnt(0);
+    __builtin_mxc_barrier_inst();
+    asm volatile("" ::: "memory");
+  }
+
   __device__ __forceinline__ static void LoadK(Block& block, MxAttentionOperandsV2 const& p,
                                                int head, int j, int lane) {
 #pragma unroll
@@ -316,7 +324,7 @@ struct MxAttentionV2 {
       }
     } else block.valid = false;
     if (!block.valid) block = Block{};
-    Sync::CtaSync();
+    PublishWaveResults();
     int const producers = geo.Producers(head), ordinal = StageBlock() - geo.FirstOwner(head);
     float* const base = p.partial + head * kSlots * Q * (D + 2);
     if (wave < 8) {
