@@ -359,3 +359,29 @@ control/GM provenance; decode profile reaches past1086. Both phases compare
 two legal queue/placement plans and select heterogeneous_rank_eft. Outer
 Body/geometry/G search is incomplete. New v17 binary also protects Llama1B B16.
 Additional independent baseline status is in `AS2_baselines.md`.
+
+## B16 active decode diagnostics and current device blocker
+
+**verified-code/run (CPU):** phase binding emits optional `active_bytes.bin`,
+hashed in the binding receipt. ACL Host preflight checks its count and bounds
+against shared allocations. Diagnostic decode can copy a phase-sized prefix
+at most1MiB when a larger shared prefill allocation otherwise hides it.
+The fast path, queues, Body arithmetic and device synchronization are unchanged.
+Legacy bindings without this optional table retain their previous behavior.
+C-2 permits these extra files only with the exact bound extent; mandatory
+fast outputs still compare exactly.17 CPU request/diagnostic tests pass.
+
+The explicit `as2_last_forward --matching-prefix-rows` option reports which
+independent batch rows have identical prior greedy feedback. It is diagnostic
+only, lists excluded rows, rejects an empty comparable set and cannot admit
+full-batch correctness. Ordinary comparison still rejects divergent feedback.
+
+**verified-run:** Llama3B B16 full-K bootstrap runs4 complete model forwards,
+one launch each, but fails5/64 tokens (first row3/output1), leaving the long
+cell incomplete. Retained image `native_b16_fullk_v18` and the failure remain.
+The diagnostic-only rebuild `native_b16_active_capture_v19` compiles and loads
+the new Host tables, but cannot initialize physical0/logical0: ACL507033,
+TsdOpen/CreateSession failure. No kernel is launched in that attempt.
+Evidence: `jobs/llama3b_b16_active_request4_v19/{stderr.log,after.json,cann/}`.
+The query itself succeeds and reports physical1 Critical with HBM0/0.
+New device submissions stop; no driver reset or unrelated process action.

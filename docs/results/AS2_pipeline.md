@@ -1,7 +1,7 @@
 # AS-2 pipeline and Prompt reconciliation — 2026-10-26
 
-Status: **in_progress; G-PIPELINE is not passed**. Source inspected at
-`436ba0bee010c0d6f7401e986eaf4d070f43eb46`, plus the recorded working diff.
+Status: **in_progress; G-PIPELINE is not passed**. Latest source recheck at
+`c44d98f959e15ae31273e205e4bdf558e1531651`; historical runs retain their own SHA.
 `verified-code` means inspected source; `verified-run` means retained actual
 execution. Earlier runs retain their original date/device/software identity.
 Prompt SHA256: `673b6deb619cb02f1c3f2d0875af2bdafb835bca09e3875d7dbfb840b1be00d6`.
@@ -116,8 +116,8 @@ local full model config + canonical random weight/input manifests
    not TileMega Bodies. Frozen tolerances allow stated legal FP32/BF16 error;
    intermediate bitwise replay locates drift but is not a performance objective.
    Main correctness still requires exact greedy and the declared KV/logit checks.
-   A stronger FIA-v2 eager candidate executes but its pairing is unresolved;
-   SDPA/fused-Norm numerical success does not establish the fastest legal eager.
+   These checks validate TileMega. The latest user override waives baseline
+   numerical pairing; native engine performance collection is independent.
 
 ## AS-1 gap → present state → remaining AS-2 obligation
 
@@ -130,7 +130,7 @@ local full model config + canonical random weight/input manifests
 | A05 | Same-Plan fast/diagnostic numerical comparisons | Main-cell C-2 coverage and measured removal benefit |
 | A06 | Frontier waits, exact dependency/FIFO/participant checks and real priced queues | Further redundant-wait/control-cost reduction with reuse proof |
 | A07 | Conservative cache/DSB protocol preserved; finite measured timer-based waits | Justified minimal visibility optimization; control/device-time attribution |
-| A08 | Real QK norm/RoPE/GQA3, blocked prefill/decode and cooperative FP32 attention | Faster legal attention/small-M alternatives and strongest eager pairing |
+| A08 | Real QK norm/RoPE/GQA3, blocked prefill/decode and cooperative FP32 attention | Faster legal attention/small-M alternatives and full-request evaluation |
 | A09 | Full model/layers, 64-bit addresses, dynamic past and1024 request forwards | All ten cells, more bucket/context calibration and compact templates |
 | A10 | Single-owner GM MIX lifecycle; true CTG split partial/combine; local tile reduction | Dual-AIV MIX and measured BF16 direct/GM choice, not an assumed gain |
 
@@ -161,7 +161,7 @@ short reset requests (`probes/llama1b_b16_actual_runtime_launches_v1.json`).
 | Qwen3-0.6B | pass; sourced selected queues | pass; unpriced diagnostic structure |
 | Llama-3.2-1B | pass; sourced selected queues | pass; local-tail +split3; priced1024 also passes |
 | Qwen3-1.7B | pass; sourced split3 queues | pass; sourced local-tail +split3 queues |
-| Llama-3.2-3B | pass; sourced split2 queues | incomplete |
+| Llama-3.2-3B | pass; sourced split2 queues | unpriced4-output bootstrap fails5/64 tokens |
 | Llama-3.1-8B | pass; sourced separate-QKV/split7 queues | incomplete |
 
 **Eight numerical long cells, zero formal final correctness/performance cells.**
@@ -253,3 +253,13 @@ and teacher512 with actual sourced EFT-selected queues; eight numerical cells,
 zero formal cells. See `AS2_950pr.md` and `AS2_baselines.md`. Outer geometry,
 Body/decomposition/G search and final TileMega performance remain partial.
 Baseline scope now follows `AS2_baselines.md`; no further engine numerical pairing.
+
+The next Llama3B B16 bootstrap genuinely imports/solves460810 prefill and11578
+decode tasks,11,389,044,224B shared arena, G8/24 workers. A short four-output
+request uses four persistent launches but fails5/64 greedy tokens; first
+divergence is batch row3/output1 (zero-based). No long-cell pass is claimed.
+Phase-sized Host-only diagnostic extents now survive arena relocation;17 CPU
+tests pass, core Plan tables remain byte-identical. Device capture is blocked
+at ACL device initialization507033 before launch, with TsdOpen/CreateSession
+errors. A successful management query also reports physical1 Critical/HBM0/0;
+no reset/retry/new NPU work is performed after this observation.
