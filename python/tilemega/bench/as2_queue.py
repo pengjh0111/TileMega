@@ -123,6 +123,46 @@ def ready(job,state,policy):
     return all(f'{job["model_id"]}_b{job["batch"]}_{system}' in cells for system in policy['systems'])
 
 
+def audit_tilemega_tokens(job):
+    if job['kind']!='tilemega':raise ValueError('Token comparison is TileMega-only')
+    prior=controlled(job['prior_correctness']);proof=json.loads(prior.read_text())
+    out=controlled(job['output']);actual=json.loads((out/'result.json').read_text())
+    if proof['status']!='pass' or any(proof[k]!=v for k,v in dict(model_id=job['model_id'],batch=job['batch'],isl=64,osl=1024).items()):
+        raise ValueError('Require a matching full-request TileMega numerical pass')
+    if any(actual[k]!=v for k,v in dict(performance_only=True,priced_plans_executed=True,
+            batch=job['batch'],isl=64,osl=1024,warmup=1,repetitions=3,host_kernel_launches=4096).items()):
+        raise ValueError('Wrong benchmark mode or full-request launch count')
+    if job['argv'][1]!='bench' or actual['binding_directory']!=job['argv'][2]:
+        raise ValueError('Timed request uses a different Plan binding')
+    greedy=proof['rows'][0]['greedy'];expected=greedy['native_sha256']
+    if not greedy['passed'] or expected!=greedy['reference_sha256']:
+        raise ValueError('Prior natural greedy output identity is not verified')
+    rows=[]
+    for repetition in (-1,0,1,2):
+        path=out/f'request_{repetition}/tokens.bin'
+        if path.stat().st_size!=job['batch']*1024*4:raise ValueError('Wrong timed token extent')
+        digest=hashlib.sha256(path.read_bytes()).hexdigest()
+        rows.append(dict(repetition=repetition,path=str(path),sha256=digest,passed=digest==expected))
+    return dict(cell_id=job['id'],prior_correctness=str(prior),expected_token_sha256=expected,
+                passed=all(row['passed'] for row in rows),requests=rows)
+
+
+def audit_snapshot(directory,out):
+    directory,out=controlled(directory),controlled(out)
+    if out.exists():raise FileExistsError(out)
+    state=json.loads((directory/'state.json').read_text());policy=json.loads((directory/'policy.json').read_text());rows=[]
+    for model in policy['models']:
+        for batch in policy['batches']:
+            cell=f'{model}_b{batch}_tilemega'
+            attempts=[v for k,v in state['jobs'].items() if v.get('request',{}).get('cell_id',k)==cell]
+            item=next((v for v in reversed(attempts) if v['status']=='collected'),None)
+            if item is None:raise ValueError('Cannot audit an unfinished TileMega cell: '+cell)
+            rows.append(audit_tilemega_tokens(item['request']))
+    result=dict(schema='tilemega.as2.timed_token_identity.v1',status='pass' if all(r['passed'] for r in rows) else 'fail',
+        baseline_numerical_comparisons=False,scope='TileMega warmup and timed outputs match the nominated prior full1024 numerical pass; no new NPU work',cells=rows)
+    write(out,result);return result
+
+
 def summarize(directory,state):
     policy=json.loads((directory/'policy.json').read_text());rows=[]
     for model in policy['models']:
@@ -268,13 +308,18 @@ def run(directory,hours):
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action',choices=('init','run','summary'))
+    parser.add_argument('action',choices=('init','run','summary','audit'))
     parser.add_argument('--directory',type=Path,required=True)
     parser.add_argument('--hours',type=float,default=12)
+    parser.add_argument('--out',type=Path)
     args=parser.parse_args()
     if not 0<args.hours<=24:parser.error('Require a finite monitor budget up to 24 hours')
     if args.action=='init':print(initialize(args.directory))
     elif args.action=='run':run(args.directory,args.hours)
+    elif args.action=='audit':
+        if args.out is None:parser.error('Audit requires a new controlled --out file')
+        result=audit_snapshot(args.directory,args.out);print(json.dumps(dict(status=result['status'],cells=len(result['cells']))))
+        if result['status']!='pass':raise SystemExit(1)
     else:summarize(args.directory,json.loads((args.directory/'state.json').read_text()))
 
 

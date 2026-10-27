@@ -1,5 +1,6 @@
 """Idle queue admission and full-request timing contracts, with no NPU work."""
 import json
+import hashlib
 from pathlib import Path
 import tempfile
 import unittest
@@ -61,6 +62,25 @@ class As2Queue(unittest.TestCase):
         self.assertFalse(queue.ready(job,state,policy))
         state['jobs']['engine_retry']['status']='collected'
         self.assertTrue(queue.ready(job,state,policy))
+
+    def test_timed_tilemega_outputs_match_prior_numerics_without_baseline_checks(self):
+        with tempfile.TemporaryDirectory(dir=queue.RUNS/'probes') as raw:
+            root=Path(raw);data=bytes(range(256))*16;sha=hashlib.sha256(data).hexdigest()
+            proof=dict(status='pass',model_id='fixture',batch=1,isl=64,osl=1024,
+                rows=[dict(greedy=dict(passed=True,native_sha256=sha,reference_sha256=sha))])
+            p=root/'prior.json';p.write_text(json.dumps(proof))
+            for i in (-1,0,1,2):
+                folder=root/f'request_{i}';folder.mkdir();(folder/'tokens.bin').write_bytes(data)
+            actual=dict(performance_only=True,priced_plans_executed=True,batch=1,isl=64,osl=1024,
+                warmup=1,repetitions=3,host_kernel_launches=4096,binding_directory=str(root/'binding'))
+            (root/'result.json').write_text(json.dumps(actual));job=dict(id='fixture',kind='tilemega',
+                model_id='fixture',batch=1,output=str(root),prior_correctness=str(p),argv=['native','bench',str(root/'binding')])
+            self.assertTrue(queue.audit_tilemega_tokens(job)['passed'])
+            (root/'request_2/tokens.bin').write_bytes(data[:-1]+b'X')
+            self.assertFalse(queue.audit_tilemega_tokens(job)['passed'])
+            (root/'request_2/tokens.bin').write_bytes(data[:-1])
+            with self.assertRaisesRegex(ValueError,'extent'):queue.audit_tilemega_tokens(job)
+            with self.assertRaisesRegex(ValueError,'TileMega-only'):queue.audit_tilemega_tokens(dict(job,kind='baseline'))
 
 
 if __name__=='__main__':unittest.main()
