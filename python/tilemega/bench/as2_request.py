@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import struct
 from tilemega.bench.as2_models import RUNS, controlled
@@ -16,9 +17,35 @@ def digest(path):
         return hashlib.file_digest(stream,'sha256').hexdigest()
 
 
-def bind(prefill, decode, inputs, out):
+def request_source(prefill,decode):
+    capabilities=('TILEMEGA_LLM_SPLIT_K','TILEMEGA_LLM_LOCAL_TAIL_K7','TILEMEGA_LLM_LOCAL_Q_TAIL_K3')
+    geometry=('TILEMEGA_LLM_VARIANT','TILEMEGA_LLM_TM','TILEMEGA_LLM_TN','TILEMEGA_LLM_TK')
+    sources=[]
+    for plan in (prefill,decode):
+        path=controlled(plan,[RUNS]).parent/'persistent_llm.cpp';text=path.read_text()
+        marker='#ifndef TILEMEGA_LLM_VARIANT' if '#ifndef TILEMEGA_LLM_VARIANT' in text else '#include'
+        header,body=text.split(marker,1)
+        fields={k:int(v) for k,v in re.findall(r'^#define (TILEMEGA_LLM_\w+) (\d+)$',header,re.M)}
+        if set(fields)-set(capabilities+geometry) or any(k not in fields for k in geometry):
+            raise ValueError('Unknown generated request capability/geometry')
+        if any(fields.get(k,0) not in (0,1) for k in capabilities):
+            raise ValueError('Unregistered generated request capability')
+        if tuple(fields[k] for k in geometry) not in ((0,32,64,64),(1,16,128,128)):
+            raise ValueError('Unregistered generated request geometry')
+        sources.append((path,fields,marker+body))
+    if sources[0][2]!=sources[1][2] or any(sources[0][1][k]!=sources[1][1][k] for k in geometry):
+        raise ValueError('Request phases require identical generated runtime and geometry')
+    fields={k:max(s[1].get(k,0) for s in sources) for k in capabilities}
+    fields.update({k:sources[0][1][k] for k in geometry})
+    text='// Generated request capability union; phase queues remain unchanged.\n'
+    text+=''.join(f'#define {k} {v}\n' for k,v in fields.items())+sources[0][2]
+    return text,dict(sources=[dict(path=str(p),sha256=digest(p)) for p,_,_ in sources],capabilities=fields)
+
+
+def bind(prefill, decode, inputs, out,emit_source=False):
     prefill,decode,inputs,out=(controlled(p,[RUNS]) for p in (prefill,decode,inputs,out))
     if out.exists():raise FileExistsError(out)
+    generated_source_text,source_identity=request_source(prefill,decode) if emit_source else (None,None)
     identity=json.loads((inputs/'inputs.json').read_text())
     plans=[]
     for phase,path,seq in [('prefill',prefill,64),('decode',decode,1)]:
@@ -48,10 +75,12 @@ def bind(prefill, decode, inputs, out):
         plans.append(dict(phase=phase,path=path,metadata=m,buffers=buffers))
     variants=[]
     for plan in plans:
-        v={1 if s[31]==2 else s[31] for s in struct.iter_unpack('<17Q16I',(plan['path']/'stages.bin').read_bytes()) if s[17]==0}
+        v={1 if s[31] in (2,3) else s[31] for s in struct.iter_unpack('<17Q16I',(plan['path']/'stages.bin').read_bytes()) if s[17]==0}
         if len(v)!=1 or not v.issubset({0,1}):raise ValueError('One request binary requires a uniform registered geometry')
         variants.append(next(iter(v)))
     if variants[0]!=variants[1]:raise ValueError('Prefill/decode use different compiled GEMM geometries')
+    if source_identity and source_identity['capabilities']['TILEMEGA_LLM_VARIANT']!=variants[0]:
+        raise ValueError('Generated source geometry differs from actual phase tables')
     if identity['seq']!=64 or identity['past'] or digest(prefill/'metadata.bin')!=identity['metadata_sha256']:
         raise ValueError('Request must start with the actual prefill inputs')
     if plans[0]['metadata'][:3]!=plans[1]['metadata'][:3]:
@@ -128,6 +157,9 @@ def bind(prefill, decode, inputs, out):
         receipt['input_buffers'].append(dict(buffer=b['id'],name=b['name'],file=str(b['id'])+'.bin',bytes=r['bytes'],sha256=r['sha256']))
     receipt['tokens_buffer']=named['serving.tokens']['id']
     receipt['kv_buffers']=[b['id'] for b in union if b['name'].startswith('kv_cache.')]
+    if generated_source_text is not None:
+        (out/'persistent_llm.cpp').write_text(generated_source_text)
+        receipt['generated_source']=dict(source_identity,sha256=digest(out/'persistent_llm.cpp'))
     (out/'reset.bin').write_bytes(struct.pack('<2I',receipt['tokens_buffer'],len(receipt['kv_buffers']))+
         struct.pack('<'+'I'*len(receipt['kv_buffers']),*receipt['kv_buffers']))
     (out/'request.json').write_text(json.dumps(receipt,indent=2)+'\n')
@@ -137,4 +169,5 @@ def bind(prefill, decode, inputs, out):
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__)
     for name in ('prefill','decode','inputs','out'):p.add_argument('--'+name,type=Path,required=True)
-    a=p.parse_args();bind(a.prefill,a.decode,a.inputs,a.out)
+    p.add_argument('--emit-source',action='store_true',help='Union registered capabilities of identical generated phase runtimes')
+    a=p.parse_args();bind(a.prefill,a.decode,a.inputs,a.out,a.emit_source)

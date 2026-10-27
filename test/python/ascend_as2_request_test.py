@@ -6,7 +6,7 @@ import tempfile
 import unittest
 import torch
 from tilemega.bench.as2_models import RUNS
-from tilemega.bench.as2_request import bind, digest
+from tilemega.bench.as2_request import bind, digest, request_source
 from tilemega.bench.as2_native_audit import compare_capture_payloads
 from tilemega.bench.as2_native import incremental_packing_bytes
 from tilemega.bench.as2_last_forward import matching_prefix_rows
@@ -113,6 +113,20 @@ class RequestBindingTest(unittest.TestCase):
             extents=struct.unpack('<4Q',(out/phase/'active_bytes.bin').read_bytes())
             self.assertEqual(extents,(4352,512,4352,size))
             self.assertEqual(receipt['phases'][phase]['bound_hashes']['active_bytes.bin'],digest(out/phase/'active_bytes.bin'))
+
+    def test_generated_phase_capability_union_keeps_runtime_identical(self):
+        geometry='#define TILEMEGA_LLM_VARIANT 1\n#define TILEMEGA_LLM_TM 16\n#define TILEMEGA_LLM_TN 128\n#define TILEMEGA_LLM_TK 128\n'
+        body='#ifndef TILEMEGA_LLM_VARIANT\n#define TILEMEGA_LLM_VARIANT 0\n#define TILEMEGA_LLM_TM 32\n#define TILEMEGA_LLM_TN 64\n#define TILEMEGA_LLM_TK 64\n#endif\n#include <same_runtime.h>\n'
+        (self.pre.parent/'persistent_llm.cpp').write_text(geometry+'#define TILEMEGA_LLM_LOCAL_Q_TAIL_K3 1\n'+body)
+        (self.dec.parent/'persistent_llm.cpp').write_text(geometry+'#define TILEMEGA_LLM_SPLIT_K 1\n'+body)
+        text,identity=request_source(self.pre,self.dec)
+        self.assertIn('#define TILEMEGA_LLM_SPLIT_K 1',text)
+        self.assertIn('#define TILEMEGA_LLM_LOCAL_Q_TAIL_K3 1',text)
+        self.assertEqual(identity['capabilities']['TILEMEGA_LLM_VARIANT'],1)
+        self.assertEqual(identity['capabilities']['TILEMEGA_LLM_TM'],16)
+        self.assertTrue(text.endswith(body))
+        (self.dec.parent/'persistent_llm.cpp').write_text(geometry+'#include <different_runtime.h>\n')
+        with self.assertRaisesRegex(ValueError,'identical'):request_source(self.pre,self.dec)
 
     def test_reject_config_mismatch(self):
         p=self.dec.parent/'import.json';d=json.loads(p.read_text());d['config_sha256']='wrong';p.write_text(json.dumps(d))
