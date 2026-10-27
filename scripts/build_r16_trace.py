@@ -33,10 +33,16 @@ def main():
     # Worktree paths reach runs/ through a symlink; compare resolved paths.
     command = [str(Path(word).resolve()) if word.endswith(('.so', '.cu')) else word
                for word in shlex.split(Path(str(original)+'.build_command.txt').read_text())]
-    if command.count(str(original)) != 1 or command.count(str(original)+'.cu') != 1:
+    # Some frozen plans were compiled from a since-removed staging copy of the
+    # recorded source; the copy beside the library must then match its identity.
+    sources = [word for word in command if word.endswith('.cu')]
+    if command.count(str(original)) != 1 or len(sources) != 1 or (
+            sources[0] != str(original)+'.cu' and
+            hashlib.sha256(Path(str(original)+'.cu').read_bytes()).hexdigest() !=
+            identity['generated_source_sha256']):
         raise ValueError('build command must identify exactly one input and output')
     command = [str(output) if word == str(original) else
-               str(output)+'.cu' if word == str(original)+'.cu' else word
+               str(output)+'.cu' if word == sources[0] else word
                for word in command]
     command[1:1] = ['-lineinfo', '-DTILEMEGA_TRACE_TASK=1',
                     '-DTILEMEGA_TRACE_STAGE=1', '-DTILEMEGA_TRACE_STEP=1',
