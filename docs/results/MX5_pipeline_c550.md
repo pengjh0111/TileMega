@@ -710,3 +710,19 @@ rows or rounds are fabricated. Full50 export correctly fails its all-success
 parent gate; no complete50/table/native origin approval is granted. This is a
 separate G/H issue, unaffected by RowTransform changes. CPU diagnosis is
 pending; no automatic retry or oracle/tolerance change.
+
+**Verified Row2678 MIR:** Same generated CU across fa1/Row ordinary WD0/1;
+only RowTransform differs among615 source files. Whole programs use
+MT241/245→231/231, frame/static/private/generic/calls0. Each has14 natural
+MMA loops without CTA and no inner4160; all40 natural loops are separately
+indexed, including the segment/layer/step loops that contain CTA/global waits.
+First local merge is raw MIR7024/7119 (WD0/1) ARRIVE4160 then BARRIER;
+whole-function4160 remains30/40. Code.text changes125304→125272 and
+129336→129272; MMA count stays240. No per-site latency/cache attribution
+or complete crosssegment overlap follows from these facts. Raw review seal
+0c39c704a05756dbc49515a52270fa41cce194bd10257dc87ed0c3873f5c3cd7.
+Two earlier readonly review v2 seals also self-included; originals/failures
+remain, non-self-referencing v3 seals5ec45c71/a1743192 rehash all other files.
+The Row correctness CSV separately appends a metadata correction: runtime
+git HEAD at launch was not captured and must not be inferred from artifact
+HEAD. Actual artifact source, C-1/C-2 outcomes and earlier row remain intact.
