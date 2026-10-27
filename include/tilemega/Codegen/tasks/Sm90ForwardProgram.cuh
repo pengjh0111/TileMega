@@ -187,6 +187,8 @@ struct ForwardSmallStage {
     p.output=b.template Get<Bind::kOutput>();
     p.accumulator=reinterpret_cast<float*>(b.template Get<Bind::kPartial>());
     p.counter=reinterpret_cast<std::uint64_t*>(b.template Get<Bind::kCounters>());
+    p.index0=reinterpret_cast<int const*>(b.template Get<Bind::kIndex0>());
+    p.index1=reinterpret_cast<int const*>(b.template Get<Bind::kIndex1>());
     p.width=Shape::kWidth;p.height=Shape::kHeight;
     p.channels=Shape::kChannels;p.out_channels=Shape::kOutChannels;
     p.epsilon=Shape::kEpsilon;

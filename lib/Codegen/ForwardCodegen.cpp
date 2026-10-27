@@ -64,6 +64,7 @@ struct Binding {
   unsigned partial=kAbsent,counters=kAbsent;
   unsigned vector[4]={kAbsent,kAbsent,kAbsent,kAbsent};
   unsigned residual=kAbsent,stats=kAbsent,row_stats=kAbsent,channel_partial=kAbsent;
+  unsigned index0=kAbsent,index1=kAbsent;
   std::string Emit(unsigned index) const {
     std::ostringstream out;
     out<<"struct Bind_"<<index<<" {\n  static constexpr unsigned kMap="<<Identifier(map)
@@ -76,7 +77,8 @@ struct Binding {
        <<",kVector2="<<Identifier(vector[2])<<",kVector3="<<Identifier(vector[3])
        <<",\n      kResidual="<<Identifier(residual)<<",kStats="<<Identifier(stats)
        <<",kRowStats="<<Identifier(row_stats)
-       <<",kChannelPartial="<<Identifier(channel_partial)<<";\n};\n";
+       <<",kChannelPartial="<<Identifier(channel_partial)
+       <<",\n      kIndex0="<<Identifier(index0)<<",kIndex1="<<Identifier(index1)<<";\n};\n";
     return out.str();
   }
 };
@@ -379,6 +381,14 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
         auto chain_text=Chain(chain,64,c.tile_n,bind,&gated);
         if(bind.residual!=kAbsent)shape.residual_stride=width_of(bind.residual);
         int store=gated?n/2:n;
+        bool whole_row=false;
+        for(unsigned i=0;i<chain.count;++i) {
+          auto operation=chain.operations[i].kind;
+          whole_row|=operation==codegen::DmEpilogueKind::kDeferredLayerNorm ||
+              operation==codegen::DmEpilogueKind::kResidualLN;
+        }
+        if(whole_row && c.split_k>1)
+          throw std::invalid_argument("a deferred normalization stage cannot split its K");
         if(gated && (n%2 || c.tile_n%2))
           throw std::invalid_argument("a gated native forward GEMM needs an even N and TN");
         body="Sm90ForwardGemm<64,"+std::to_string(c.tile_n)+",64,"+std::to_string(c.slots)+','+
@@ -475,6 +485,22 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
         body="Sm90ForwardEncoderAttention<"+std::to_string(sequence)+",64,"+
             std::to_string(heads)+",16,"+std::to_string(c.slots)+'>';
         wrapper="ForwardAttentionStage";
+        break;
+      }
+      case Sm90ForwardBody::kEmbedding: {
+        if(kind!="kEmbeddingSum")
+          throw std::invalid_argument("native forward embedding coordinates need its stage");
+        // ids, token types, the three tables and the summed rows.
+        bind.index0=operand(0);bind.index1=operand(1);
+        bind.input=operand(2);bind.weight=operand(3);bind.vector[0]=operand(4);
+        bind.output=operand(5);
+        shape.channels=int(Integer(stage,"width"));
+        shape.width=int(Integer(stage,"dm_rows_per_batch",0))*int(batch.getInt());
+        shape.height=int(Integer(stage,"dm_rows_per_batch",0));
+        if(!shape.channels || !shape.height)
+          throw std::invalid_argument("native forward embedding needs its width and rows");
+        body="Sm90ForwardEmbeddingSum<"+std::to_string(shape.channels)+'>';
+        wrapper="ForwardSmallStage";
         break;
       }
       case Sm90ForwardBody::kLayout:

@@ -21,6 +21,7 @@ std::vector<Sm90ForwardStage> Sm90ForwardSearchSpace::Candidates(std::size_t ind
       for(int tn:{32,64,128,256}) {
         if(tn>shape.n && tn!=32)continue;  // N is padded up to 32
         for(int split:{1,2,4,8,16}) {
+          if(split>1 && shape.whole_row)continue;
           // K is the padded contraction: a slice is a whole number of k tiles.
           if(split>1 && (shape.k%(std::int64_t(split)*64) || shape.k/split<128))continue;
           // The ring depth follows the slot bytes, as D5 does for decode.

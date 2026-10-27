@@ -16,12 +16,12 @@ namespace tilemega::solver {
 // the structural choice of fusing at all.
 enum class Sm90ForwardBody : unsigned {
   kGemm, kConv, kDepthwise, kDwPw, kInvertedResidual, kEncoderAttention,
-  kLayout, kPool, kGlobalPool, kGemv, kLayerNorm
+  kLayout, kPool, kGlobalPool, kGemv, kLayerNorm, kEmbedding
 };
 
 inline constexpr char const* kSm90ForwardBodies[]={
     "gemm","conv","depthwise","dwpw","inverted_residual","encoder_attention",
-    "layout","pool","global_pool","gemv","layer_norm"};
+    "layout","pool","global_pool","gemv","layer_norm","embedding"};
 
 struct Sm90ForwardStage {
   Sm90ForwardBody body=Sm90ForwardBody::kGemm;
@@ -101,6 +101,9 @@ struct Sm90ForwardShape {
   int kernel=1,stride=1;
   long long weight_bytes=0,activation_bytes=0,output_bytes=0;
   bool fusable=false;           // the plan offers a fused form
+  // A deferred or reconstructed LayerNorm needs the consumer's whole A row,
+  // so its stage cannot split the contraction (prompt §10 N-1 item 6).
+  bool whole_row=false;
   int epilogue_ops=0;
 };
 

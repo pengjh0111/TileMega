@@ -21,6 +21,8 @@ struct Sm90ForwardSmallOperands {
   cutlass::bfloat16_t* output;
   float* accumulator;                  // GAP partials
   std::uint64_t* counter;              // GAP last arriver
+  int const* index0;                   // EMB: token ids
+  int const* index1;                   // EMB: token types
   int width,height,channels,out_channels;
   float epsilon;
 };
@@ -122,6 +124,31 @@ struct Sm90ForwardGemv {
         }
         p.output[std::size_t(row)*p.out_channels+channel]=Element(sum);
       }
+    }
+  }
+};
+
+// EMB: one task per row sums the word, token-type and position embeddings
+// (prompt §10 N-1 item 7). The LayerNorm that follows is either this model's
+// own output stage or deferred into the first projection's epilogue.
+template<int Width>
+struct Sm90ForwardEmbeddingSum {
+  using Element=cutlass::bfloat16_t;
+  static constexpr int kThreads=160;
+  static constexpr Sm90DenseLayout kLayout{1024,1024,1024,1024};
+  static constexpr int kSharedBytes=1024;
+  __device__ static __forceinline__ void Run(Sm90ForwardSmallOperands const& p,char*,
+      Sm90DenseRingState&) {
+    if(threadIdx.x>=128)return;
+    int rows=p.width;
+    for(int row=int(blockIdx.x);row<rows;row+=int(gridDim.x)) {
+      int token=p.index0[row],type=p.index1?p.index1[row]:0;
+      auto const* word=p.input+std::size_t(token)*Width;
+      auto const* types=p.weight+std::size_t(type)*Width;
+      auto const* position=p.bias+std::size_t(row%p.height)*Width;
+      for(int c=int(threadIdx.x);c<Width;c+=128)
+        p.output[std::size_t(row)*Width+c]=
+            Element(float(word[c])+float(types[c])+float(position[c]));
     }
   }
 };

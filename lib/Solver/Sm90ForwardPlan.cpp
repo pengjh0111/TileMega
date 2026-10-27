@@ -59,6 +59,7 @@ Sm90ForwardBody Sm90ForwardBodyOf(frontend::ModelPlan const& plan,std::size_t in
     case PlanTaskKind::kPool:return Sm90ForwardBody::kPool;
     case PlanTaskKind::kGlobalPoolReduce:return Sm90ForwardBody::kGlobalPool;
     case PlanTaskKind::kLayerNorm:return Sm90ForwardBody::kLayerNorm;
+    case PlanTaskKind::kEmbeddingSum:return Sm90ForwardBody::kEmbedding;
     default:
       throw std::invalid_argument("native forward does not implement this plan stage kind");
   }
@@ -99,6 +100,12 @@ std::vector<Sm90ForwardShape> Sm90ForwardShapesFromPlan(frontend::ModelPlan cons
         shape.activation_bytes=2*shape.m*shape.k;
         shape.output_bytes=2*shape.m*shape.n;
         shape.epilogue_ops=int(gemm.chain.count);
+        for(unsigned i=0;i<gemm.chain.count;++i) {
+          auto kind=gemm.chain.operations[i].kind;
+          if(kind==codegen::DmEpilogueKind::kDeferredLayerNorm ||
+             kind==codegen::DmEpilogueKind::kResidualLN ||
+             kind==codegen::DmEpilogueKind::kDeferredRMSNorm)shape.whole_row=true;
+        }
         break;
       }
       case Sm90ForwardBody::kDepthwise: {
@@ -135,6 +142,13 @@ std::vector<Sm90ForwardShape> Sm90ForwardShapesFromPlan(frontend::ModelPlan cons
         shape.weight_bytes=0;
         shape.activation_bytes=2*std::int64_t(sequence)*heads*dim*3;
         shape.output_bytes=2*std::int64_t(sequence)*heads*dim;
+        break;
+      }
+      case Sm90ForwardBody::kEmbedding: {
+        shape.pixels=stage.rows_per_batch;shape.channels=stage.width;
+        shape.m=shape.pixels;shape.n=shape.channels;shape.k=1;
+        shape.activation_bytes=2*shape.pixels*shape.channels*3;
+        shape.output_bytes=2*shape.pixels*shape.channels;
         break;
       }
       default: {
