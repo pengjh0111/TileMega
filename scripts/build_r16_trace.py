@@ -17,8 +17,9 @@ def main():
     args = parser.parse_args()
     original, output = args.input.resolve(), args.out.resolve()
     root = Path(__file__).resolve().parents[1]
-    if not output.is_relative_to(root/'runs/r16') or output == original:
-        parser.error('diagnostic output must be a separate artifact under runs/r16')
+    runs = (root/'runs').resolve()
+    if not any(output.is_relative_to(runs/r) for r in ('r16', 'sm90r3')) or output == original:
+        parser.error('diagnostic output must be a separate artifact under runs/r16 or runs/sm90r3')
     sys.path.insert(0, str(root/'python'))
     from tilemega.build.identity import generate, verify
     identity = verify(original)
@@ -29,7 +30,9 @@ def main():
     output.parent.mkdir(parents=True, exist_ok=True)
     for suffix in ('.cu', '.plan.json', '.source.json'):
         shutil.copy2(str(original)+suffix, str(output)+suffix)
-    command = shlex.split(Path(str(original)+'.build_command.txt').read_text())
+    # Worktree paths reach runs/ through a symlink; compare resolved paths.
+    command = [str(Path(word).resolve()) if word.endswith(('.so', '.cu')) else word
+               for word in shlex.split(Path(str(original)+'.build_command.txt').read_text())]
     if command.count(str(original)) != 1 or command.count(str(original)+'.cu') != 1:
         raise ValueError('build command must identify exactly one input and output')
     command = [str(output) if word == str(original) else
