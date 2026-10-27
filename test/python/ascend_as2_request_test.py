@@ -4,10 +4,21 @@ from pathlib import Path
 import struct
 import tempfile
 import unittest
+import torch
 from tilemega.bench.as2_models import RUNS
 from tilemega.bench.as2_request import bind, digest
 from tilemega.bench.as2_native_audit import compare_capture_payloads
 from tilemega.bench.as2_native import incremental_packing_bytes
+from tilemega.bench.as2_last_forward import matching_prefix_rows
+
+
+class LastForwardRowsTest(unittest.TestCase):
+    def test_divergent_feedback_is_excluded_only_in_explicit_diagnostics(self):
+        reference=torch.tensor([[1,2,3],[4,5,6],[7,8,9]])
+        actual=reference.clone();actual[0,-1]=10;actual[1,0]=11
+        with self.assertRaisesRegex(ValueError,'diverged'):matching_prefix_rows(actual,reference)
+        self.assertEqual(matching_prefix_rows(actual,reference,True),([0,2],[1]))
+        with self.assertRaisesRegex(ValueError,'No same-token-prefix'):matching_prefix_rows(reference+1,reference,True)
 
 
 class PackingBudgetTest(unittest.TestCase):
@@ -32,6 +43,13 @@ class RequestCapturePayloadTest(unittest.TestCase):
 
     def test_all_fast_outputs_and_only_large_numeric_extras(self):
         self.assertEqual(compare_capture_payloads(self.diagnostic,self.fast,self.required),['decode/2.bin'])
+
+    def test_active_capture_requires_a_bound_phase_extent(self):
+        data=dict(self.fast);data['decode/active/3.bin']=('active',65536)
+        with self.assertRaises(ValueError):compare_capture_payloads(data,self.fast,self.required)
+        self.assertEqual(compare_capture_payloads(data,self.fast,self.required,{'decode/active/3.bin':65536}),['decode/active/3.bin'])
+        for size in (32768,2<<20):
+            with self.assertRaises(ValueError):compare_capture_payloads(data,self.fast,self.required,{'decode/active/3.bin':size})
 
     def test_reject_missing_logits_changes_and_small_or_semantic_extras(self):
         for name,value in [('decode/2.bin',('small',16)),('decode/kv_k_s0.bin',('kv',2<<20))]:
@@ -91,6 +109,10 @@ class RequestBindingTest(unittest.TestCase):
         self.assertEqual((out/'prefill/allocations.bin').read_bytes(),(out/'decode/allocations.bin').read_bytes())
         self.assertEqual((out/'inputs/1.bin').stat().st_ino,(self.inputs/'1.bin').stat().st_ino)
         self.assertEqual(receipt['buffers'][-1]['bytes'],64*32)
+        for phase,size in [('prefill',64*32),('decode',32)]:
+            extents=struct.unpack('<4Q',(out/phase/'active_bytes.bin').read_bytes())
+            self.assertEqual(extents,(4352,512,4352,size))
+            self.assertEqual(receipt['phases'][phase]['bound_hashes']['active_bytes.bin'],digest(out/phase/'active_bytes.bin'))
 
     def test_reject_config_mismatch(self):
         p=self.dec.parent/'import.json';d=json.loads(p.read_text());d['config_sha256']='wrong';p.write_text(json.dumps(d))

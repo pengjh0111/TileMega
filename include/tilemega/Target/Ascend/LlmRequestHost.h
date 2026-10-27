@@ -76,6 +76,7 @@ struct Plan {
   std::vector<llm::Task> tasks;
   std::vector<llm::Wait> waits;
   std::vector<llm::Allocation> allocations;
+  std::vector<uint64_t> active_bytes;
   std::vector<uint32_t> offsets,queue;
   uint32_t minimum_past=0,maximum_past=1086;
   explicit Plan(fs::path const& root) {
@@ -103,6 +104,13 @@ struct Plan {
           a.allocated<a.bytes+512 || a.allocated>m.arena_bytes-a.offset || a.required>1 || a.reserved)
         throw std::invalid_argument("Invalid shared allocation range");
       previous_end=a.offset+a.allocated;
+    }
+    if(fs::exists(root/"active_bytes.bin")) {
+      active_bytes=Read<uint64_t>(root/"active_bytes.bin");
+      if(active_bytes.size()!=allocations.size())throw std::invalid_argument("Wrong phase diagnostic extent count");
+      for(unsigned i=0;i<active_bytes.size();++i)
+        if(active_bytes[i]>allocations[i].bytes || (allocations[i].required && active_bytes[i]!=allocations[i].bytes))
+          throw std::invalid_argument("Phase diagnostic extent exceeds shared allocation");
     }
     auto valid=[&](uint64_t offset) {
       return offset==llm::kAbsent || std::any_of(allocations.begin(),allocations.end(),
@@ -185,6 +193,12 @@ inline void Dump(Plan const& p,DevicePlan const& d,uint8_t* arena,unsigned past,
       std::vector<uint8_t> data(a.bytes);
       Check(aclrtMemcpy(data.data(),data.size(),arena+a.offset,data.size(),ACL_MEMCPY_DEVICE_TO_HOST),"request diagnostic output");
       Save(out/(std::to_string(id)+".bin"),data.data(),data.size());
+    }else if(diagnostic==1 && p.m.seq==1 && !a.required && !p.active_bytes.empty() &&
+        p.active_bytes[id] && p.active_bytes[id]<=1048576ULL) {
+      auto folder=out/"active";fs::create_directories(folder);
+      std::vector<uint8_t> data(p.active_bytes[id]);
+      Check(aclrtMemcpy(data.data(),data.size(),arena+a.offset,data.size(),ACL_MEMCPY_DEVICE_TO_HOST),"request active decode diagnostic");
+      Save(folder/(std::to_string(id)+".bin"),data.data(),data.size());
     }
   }
   // Cache snapshots are also available in fast mode, outside request timing.

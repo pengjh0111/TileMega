@@ -16,6 +16,16 @@ def read(path,shape,dtype=torch.bfloat16):
     return torch.from_file(str(path),shared=False,size=count,dtype=dtype).reshape(shape)
 
 
+def matching_prefix_rows(actual,reference,allow_partial=False):
+    if actual.ndim!=2 or actual.shape!=reference.shape or actual.shape[1]<2:
+        raise ValueError('Require matching batch/output token extents')
+    valid=(actual[:,:-1]==reference[:,:-1]).all(-1)
+    included=valid.nonzero().flatten().tolist();excluded=(~valid).nonzero().flatten().tolist()
+    if excluded and not allow_partial:raise ValueError('Token paths diverged before the captured forward')
+    if not included:raise ValueError('No same-token-prefix rows remain for diagnosis')
+    return included,excluded
+
+
 def compare_history(binding,native,reference,out):
     identity=json.loads((binding/'request.json').read_text());actual=json.loads((native/'result.json').read_text())
     ref=json.loads((reference/'result.json').read_text());capture=json.loads((reference/'last_forward/capture.json').read_text())
@@ -48,7 +58,7 @@ def compare_history(binding,native,reference,out):
     out.write_text(json.dumps(result,indent=2)+'\n');print(json.dumps({k:v for k,v in result.items() if k!='rows'}))
 
 
-def compare(binding,native,reference,out):
+def compare(binding,native,reference,out,allow_partial=False):
     identity=json.loads((binding/'request.json').read_text());actual=json.loads((native/'result.json').read_text())
     ref=json.loads((reference/'result.json').read_text());capture=json.loads((reference/'last_forward/capture.json').read_text())
     for key in ('model_id','batch','config_sha256','weight_manifest_sha256','input_sha256'):
@@ -58,7 +68,8 @@ def compare(binding,native,reference,out):
     batch=identity['batch'];outputs=actual['osl'];vocab=None
     a=read(native/'request_0/tokens.bin',(batch,outputs),torch.int32)
     b=read(reference/'tokens_0.bin',(batch,outputs),torch.int32)
-    if (a[:,:-1]!=b[:,:-1]).any():raise ValueError('Token paths diverged before the captured forward')
+    included,excluded=matching_prefix_rows(a,b,allow_partial)
+    row_index=torch.tensor(included,dtype=torch.int64)
     if capture['past']!=62+outputs or capture['seq']!=1:raise ValueError('Different captured positions')
     for phase,entry in identity['phases'].items():
         if any(digest(binding/phase/name)!=sha for name,sha in entry['bound_hashes'].items()):raise ValueError('Bound plan changed')
@@ -73,12 +84,16 @@ def compare(binding,native,reference,out):
     if any(digest(reference/'last_forward'/r['file'])!=r['sha256'] for r in capture['files']):raise ValueError('Independent capture changed')
     policy=json.loads((REPO/'configs/ascend/as2_correctness_policy.json').read_text());rows=[]
     def append(name,path,gold,category='decoder_layer',storage_bytes=None):
+        if not path.exists() and (path.parent/'active'/path.name).is_file():
+            path=path.parent/'active'/path.name;storage_bytes=gold.numel()*2
         if not path.exists():raise ValueError('Missing diagnostic buffer; repeat with a sufficiently bounded capture: '+str(path))
         if path.stat().st_size!=(storage_bytes or gold.numel()*2) or path.stat().st_size<gold.numel()*2:
             raise ValueError('Paired stage extents differ: '+name)
         # Binding reserves max(prefill,decode) by name. Only the leading
         # batch*seq=1 rows belong to this captured forward; the tail is inactive.
         value=torch.from_file(str(path),shared=False,size=gold.numel(),dtype=torch.bfloat16).reshape(gold.shape)
+        if gold.shape[0]!=batch:raise ValueError('Observed intermediate has no independent batch-row axis')
+        value=value.index_select(0,row_index);gold=gold.index_select(0,row_index)
         rows.append(dict(name=name,native_file=str(path),bitwise_different=int((value!=gold).sum()),
             compared_elements=gold.numel(),native_storage_bytes=path.stat().st_size,
             **metrics(value,gold,policy[category])))
@@ -105,7 +120,7 @@ def compare(binding,native,reference,out):
     append('model.logits',path,gold,'model_logits');value=read(path,(batch,vocab))
     margins=[]
     for system,tensor,pred in [('native',value,a[:,-1]),('reference',gold,b[:,-1])]:
-        for row in range(batch):
+        for row in included:
             top=tensor[row].float().topk(2);maximum=top.values[0];ties=(tensor[row].float()==maximum).nonzero().flatten()
             margins.append(dict(system=system,batch_row=row,chosen_token=int(pred[row]),max_value=float(maximum),
                 top2_margin=float(top.values[0]-top.values[1]),max_tie_count=ties.numel(),lowest_max_index=int(ties.min())))
@@ -116,12 +131,13 @@ def compare(binding,native,reference,out):
             history=folder/f'kv_{side}_history_s{stage}.bin'
             if history.exists():
                 append(f'l{i}.kv_{side}.history',history,data)
-                locations=(read(history,data.shape)!=data).nonzero()
+                locations=(read(history,data.shape).index_select(0,row_index)!=data.index_select(0,row_index)).nonzero()
                 rows[-1]['first_different_position']=int(locations[:,2].min()) if locations.numel() else None
-                rows[-1]['first_coordinates']=locations[:16].tolist()
+                rows[-1]['first_coordinates']=[[included[c[0]],*c[1:]] for c in locations[:16].tolist()]
     result=dict(schema='tilemega.as2.last_forward_difference.v1',status='diagnostic_complete',
         scope='actual independent same-token-prefix forward; no correctness/performance admission',
         model_id=identity['model_id'],outputs=outputs,past=capture['past'],same_token_prefix=True,
+        batch_rows_compared=included,batch_rows_excluded=excluded,all_batch_rows_compared=not excluded,
         prefix_outputs_compared=outputs-1,rows=rows,logit_margins=margins,
         first_non_bitwise=next((r['name'] for r in rows if r['bitwise_different']),None),
         all_observed_bitwise=all(not r['bitwise_different'] for r in rows),reference=str(reference),native=str(native))
@@ -132,10 +148,14 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     for name in ('binding','native','reference','out'):p.add_argument('--'+name,type=Path,required=True)
     p.add_argument('--compare-kv-prefix',action='store_true')
+    p.add_argument('--matching-prefix-rows',action='store_true',help='Diagnostic only: list and exclude rows whose earlier greedy feedback diverged; never admits full-batch correctness')
     a=p.parse_args();torch.set_num_threads(1)
     for name in ('binding','native','reference','out'):setattr(a,name,controlled(getattr(a,name),[RUNS]))
     if a.out.exists():raise FileExistsError(a.out)
-    (compare_history if a.compare_kv_prefix else compare)(a.binding,a.native,a.reference,a.out)
+    if a.compare_kv_prefix:
+        if a.matching_prefix_rows:p.error('Row filtering is only available for last-forward diagnosis')
+        compare_history(a.binding,a.native,a.reference,a.out)
+    else:compare(a.binding,a.native,a.reference,a.out,a.matching_prefix_rows)
 
 
 if __name__=='__main__':main()

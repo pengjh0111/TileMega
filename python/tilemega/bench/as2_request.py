@@ -100,6 +100,10 @@ def bind(prefill, decode, inputs, out):
         (dest/'metadata.bin').write_bytes(struct.pack('<12I3Q',*m))
         (dest/'stages.bin').write_bytes(b''.join(stages))
         (dest/'allocations.bin').write_bytes(b''.join(struct.pack('<3Q2I',b['offset_bytes'],b['bytes'],b['allocated_bytes'],int(b.get('required_input',False)),0) for b in union))
+        # Relocation enlarges shared storage; diagnostics retain the phase's
+        # logical extent so inactive prefill tails are never interpreted as decode.
+        phase_bytes={b['name']:b['bytes'] for b in plan['buffers']}
+        (dest/'active_bytes.bin').write_bytes(b''.join(struct.pack('<Q',phase_bytes.get(b['name'],0)) for b in union))
         for name in ('tasks.bin','waits.bin','offsets.bin','queue.bin'):
             os.link(plan['path']/name,dest/name)
         for name in ('implementations.json',):
@@ -112,6 +116,7 @@ def bind(prefill, decode, inputs, out):
         receipt['phases'][plan['phase']]=dict(source_plan=str(plan['path']),
             source_hashes={name:digest(plan['path']/name) for name in TABLES+(('pricing_bounds.bin','prices.json') if priced else ())},
             bound_hashes={name:digest(dest/name) for name in TABLES+(('pricing_bounds.bin','prices.json') if priced else ())})
+        receipt['phases'][plan['phase']]['bound_hashes']['active_bytes.bin']=digest(dest/'active_bytes.bin')
     files={r['name']:r for r in identity['buffers']};receipt['input_buffers']=[]
     for b in union:
         if not b.get('required_input'):continue

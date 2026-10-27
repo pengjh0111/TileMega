@@ -82,16 +82,20 @@ def audit(plan,jobs,out):
     out.write_text(json.dumps(result,indent=2)+'\n');print(json.dumps({k:v for k,v in result.items() if k!='records'}))
 
 
-def compare_capture_payloads(diagnostic,fast,required):
+def compare_capture_payloads(diagnostic,fast,required,active_extents=None):
     if not fast or not fast.keys()<=diagnostic.keys() or not required<=fast.keys():
         raise ValueError('Missing mandatory or unmatched fast capture')
     if any(value!=diagnostic[name] for name,value in fast.items()):
         raise ValueError('Fast payload, KV or token differs')
     extra=sorted(diagnostic.keys()-fast.keys())
-    # The Host dump budget omits only large numeric allocation files in fast
-    # mode. Dedicated KV histories, tokens, controls and logits stay mandatory.
+    # Active diagnostic copies require explicit phase extents. Fast KV,
+    # tokens, controls and logits remain mandatory and must match exactly.
     for name in extra:
         path=Path(name)
+        if active_extents and name in active_extents:
+            if diagnostic[name][1]!=active_extents[name] or not 0<active_extents[name]<=1<<20:
+                raise ValueError('Active diagnostic capture extent changed')
+            continue
         if path.parent!=Path('decode') or not path.stem.isdecimal() or path.suffix!='.bin' or diagnostic[name][1]<=1<<20:
             raise ValueError('Unexpected diagnostic-only capture: '+name)
     return extra
@@ -166,7 +170,16 @@ def audit_request(binding,jobs,out,reset_admission=True):
         raise ValueError('C2 needs both diagnostic and fast executions')
     extra=[]
     if not reset_admission:
-        extra=compare_capture_payloads(captures[1],captures[0],required);canonical=captures[0]
+        active_extents={}
+        extent_path=binding/'decode/active_bytes.bin'
+        if extent_path.exists():
+            extents=list(struct.iter_unpack('<Q',extent_path.read_bytes()))
+            if len(extents)!=len(description['buffers']):raise ValueError('Invalid active diagnostic extent count')
+            for b,(size,) in zip(description['buffers'],extents):
+                if size>b['bytes']:raise ValueError('Active extent exceeds shared allocation')
+                if not b.get('required_input') and 0<size<=1<<20:
+                    active_extents[f'decode/active/{b["id"]}.bin']=size
+        extra=compare_capture_payloads(captures[1],captures[0],required,active_extents);canonical=captures[0]
     result=dict(schema='tilemega.as2.request_stability.v1' if reset_admission else 'tilemega.as2.request_path_c2.v1',status='pass',
         scope='prefill_decode_stream_and_request_reset_not_numeric_admission' if reset_admission else 'diagnostic_fast_bitwise_equivalence_not_C3',
         processes_passed=len(records),processes_total=len(records),complete_requests=sum(r['requests'] for r in records),
