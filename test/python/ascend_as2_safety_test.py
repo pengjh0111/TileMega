@@ -130,11 +130,13 @@ print(child.pid,flush=True)
 time.sleep(40)
 """
         env=os.environ.copy();env['PYTHONPATH']=str(REPO/'python')
-        entry="""import runpy
+        # This child is CPU-only; exercise process-group cleanup independently
+        # of the separately tested production NPU submission preflight.
+        entry="""import sys
 from unittest.mock import patch
 from tilemega.bench import as1_run
 with patch.object(as1_run,'snapshot',return_value={'exit_code':0,'output':''}):
-    runpy.run_module('tilemega.bench.as2_run',run_name='__main__')
+    sys.exit(as1_run.main(project='as2'))
 """
         try:
             result=subprocess.run([sys.executable,'-c',entry,'--physical-device','1',
