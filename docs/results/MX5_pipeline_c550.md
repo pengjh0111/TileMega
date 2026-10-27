@@ -791,3 +791,47 @@ versus22a (ModelPlan.cpp/SkeletonSearch.cpp); generatedCU/device includes
 match. Do not repeat the mistaken blanket574-source equality claim. Old
 prefill spills(MT248/frame264 forL1) are preserved as legacy reference
 resources, never MX5 frame0 approval. New reference checks/builds pending.
+
+**Verified required-unit completion:** The independent resume consumes the
+true first round and runs onlyfresh2–5. Five distinct testPIDs each pass all
+336 required attention cases plus15 transform bitcases, zero skips, and24
+actual selected-kernel API/frame/shared/occupancy queries. Eleven CSV rows
+record the ten pass groups and224 unexecuted576 blocked cases. The earlier
+CPU parser failure/rc1 stays intact; it is not relabelled numerical failure.
+
+**Verified576 context gap:** Two genuine normal Row2678 Llama1B B1 programs
+(selectedPw and G/H-Pw=D floor) both use167MT/ST108/frame0/static0,
+private/generic/calls0;14 no-CTA MMA rings pass, all40 natural loops remain
+indexed. ActualABI/occupancy is pending. Corresponding runtime-shape,
+self-next576 stage bench uses168MT/frame44–48 and is rejected. The static
+program's next body isO. These contexts are not a controlled single-factor
+comparison; neither specialization nor next-prefetch causality is proved.
+Stage rejection cannot grant whole-plan512 permission. Legal576 costs and
+that solver/thread route remain unresolved; no formula/PK/Rcap/bench
+replacement is introduced. Rawcontrol seal:e00ab44d46829298e6e436a2c57bb6ac38105ba3f0997f126aed78cf5cba55cf.
+
+**Verified latest execution stops:** Costs0..7 each complete3fresh=192/400.
+Job8 has two retained no-child occupied-preflight75 attempts (card5/card4);
+jobs9..16 are not launched. No new formal400-row table/scoped solver pool
+is published. Rebuilt22a QwenB1 actualABI query andQwenB16/Llama1BB1
+builds/queries pass;Llama8BB1 job3 stops75 with`running interference`
+during execution, andtheB16 job4 is unstarted. Memory ownership/cause is
+under readonly audit; no assertion that it is another person's process.
+All ROOT GPU dispatchers are now stopped by their recorded outcomes.
+No automatic retry, policy/clock/power/driver change or process interference.
+
+**Verified final CPU checkpoint:** Original strict aggregate/normal/source
+checks consume actual192/400 keys with three fresh processes each. New
+ROOT_ATTEMPTS_v3 explicitly adds the card4 controller and preserves all
+failed attempts; status_cpu_v5 is unchanged. Result
+ACTUAL_FINAL_PARTIAL_STATUS_v6.json SHA
+3b2eedf980f1bda8d8d5e280e0f016b07b98e11c5e030e4a4b3c2df040e1c83a
+reports complete400=false/qualified_for_solver=false. Missing208 are not
+filled. Baseline LLM/DNN/MX4 serving CSV bytes equal initial22a.
+The final guard observation has24 running samples, owners={} throughout;
+last hidden memory1085.5MiB/util93–97%. Attribution remainsunknown.
+No completed ownership audit or external-process cause is claimed.
+Two follow-up agents are interrupted after their sealed deliveries; no
+GPU work remains running or queued. The pending local-LDS/P-B scope
+question and legal576 stage-cost/thread route still prevent acceptance.
+MoE native0/5 and DNN native0/25 remain unimplemented.
