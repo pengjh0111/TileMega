@@ -199,6 +199,7 @@ add_library(tilemega_core STATIC
   lib/Solver/Sm90NativeConstants.cpp
   lib/Solver/Sm90DenseRegisterContract.cpp
   lib/Solver/Sm90DenseSearch.cpp
+  lib/Solver/Sm90ForwardSearch.cpp
   lib/Solver/DnnStructureSearch.cpp
   lib/Solver/SkeletonFinalize.cpp
   lib/Solver/SkeletonPlacement.cpp
