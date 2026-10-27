@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Codegen/CouplingGraphToCUDA.h>
 #include <tilemega/Codegen/RuntimePlan.h>
+#include <tilemega/Codegen/ForwardCodegen.h>
 #include <tilemega/Codegen/Sm90DenseEpilogueContract.h>
 #include <tilemega/Codegen/DmReductionDepth.h>
 #include <tilemega/Codegen/DependencyTablePacking.h>
@@ -2416,6 +2417,7 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
   if (!module || mlir::failed(mlir::verify(module)))
     throw std::invalid_argument("CouplingGraphToCUDA requires a verified CG ModuleOp");
   if(module->hasAttr("tmexec.sm90_dense"))return emitNativeDenseProgram(module);
+  if(module->hasAttr("tmexec.sm90_forward"))return EmitNativeForwardProgram(module);
   if(isStaticDenseDecode(module))
     throw std::invalid_argument("H800 dense decode requires native CTG/tmexec coordinates; legacy execution options are invalid");
   if (!module.getOps<dialect::FusedTileSpaceOp>().empty())
@@ -2598,6 +2600,11 @@ std::string CouplingGraphToCUDA::LowerVariants(
   for (auto const& input : variants)
     RejectPendingHandoffLowering(input.module);
   mlir::ModuleOp first = variants.front().module;
+  if(first->hasAttr("tmexec.sm90_forward")) {
+    if(variants.size()!=1)
+      throw std::invalid_argument("native forward programs bind exactly one workload");
+    return Lower(first);
+  }
   if(first->hasAttr("tmexec.sm90_dense")) {
     if(variants.size()!=1 || variants.front().seq_begin!=1 || variants.front().seq_end!=1)
       throw std::invalid_argument("native dense programs bind exactly one decode workload");

@@ -16,9 +16,11 @@
 namespace tilemega::backend {
 
 struct Sm90ForwardEncoderAttentionOperands {
-  CUtensorMap const* key;      // 3D {D, Seq, Heads}
+  // The three projections live in the plan's packed [Seq][3 Heads D] buffer,
+  // so each is a 3D {D, Heads, Seq} view of it with its own base offset.
+  CUtensorMap const* key;
   CUtensorMap const* value;
-  cutlass::bfloat16_t const* query;   // [Heads][Seq][D], already projected
+  CUtensorMap const* query;
   cutlass::bfloat16_t* output;        // [Seq][Heads * D]
   float scale;
   int heads,sequence;
@@ -37,8 +39,8 @@ struct Sm90ForwardEncoderAttention {
   static constexpr int kQueryBytes=2*Rows*D;
   static constexpr int kScoreBytes=4*Rows*Seq;
   static constexpr Sm90DenseLayout kLayout{1024,1024,
-      1024+Slots*2*kKvBytes+kQueryBytes,
-      (1024+Slots*2*kKvBytes+kQueryBytes+kScoreBytes+1023)/1024*1024};
+      1024+Slots*(2*kKvBytes+kQueryBytes),
+      (1024+Slots*(2*kKvBytes+kQueryBytes)+kScoreBytes+1023)/1024*1024};
   static constexpr int kSharedBytes=kLayout.end;
 
   __device__ static __forceinline__ unsigned Swizzled(int row,int col,int rows) {
@@ -63,7 +65,7 @@ struct Sm90ForwardEncoderAttention {
   __device__ static __forceinline__ void Run(Sm90ForwardEncoderAttentionOperands const& p,
       char* shared,Sm90DenseRingState& state) {
     auto* kv=reinterpret_cast<Element*>(shared+1024);
-    auto* query=kv+Slots*2*Seq*D;
+    auto* queries=kv+Slots*2*Seq*D;
     auto* scores=reinterpret_cast<float*>(shared+kLayout.scratch);
     int tasks=kTasks/int(gridDim.x)+(int(blockIdx.x)<kTasks%int(gridDim.x));
     unsigned phase=0;
@@ -82,10 +84,10 @@ struct Sm90ForwardEncoderAttention {
           auto* destination=kv+slot*2*Seq*D;
           #pragma unroll
           for(int panel=0;panel<Seq/64;++panel) {
-            Async::Tensor3D(destination+panel*64*D,p.key,0,panel*64,head,state.full+slot);
-            Async::Tensor3D(destination+Seq*D+panel*64*D,p.value,0,panel*64,head,state.full+slot);
+            Async::Tensor3D(destination+panel*64*D,p.key,0,head,panel*64,state.full+slot);
+            Async::Tensor3D(destination+Seq*D+panel*64*D,p.value,0,head,panel*64,state.full+slot);
           }
-          Async::Bulk(query,p.query+(std::size_t(head)*Seq+block*Rows)*D,kQueryBytes,state.full+slot);
+          Async::Tensor3D(queries+slot*Rows*D,p.query,0,head,block*Rows,state.full+slot);
           phase^=1u<<slot;
         }
         if(tasks)for(int slot=0;slot<Slots;++slot)state.producer_generations[slot]=(phase>>slot)&1;
@@ -102,7 +104,7 @@ struct Sm90ForwardEncoderAttention {
       Async::Wait(state.full+slot,(phase>>slot)&1);phase^=1u<<slot;
       auto const* keys=kv+slot*2*Seq*D;
       auto const* values=keys+Seq*D;
-      unsigned q=Async::Shared(query);
+      unsigned q=Async::Shared(queries+slot*Rows*D);
       // S = Q K^T: warp w owns the keys [w * Seq/4, (w+1) * Seq/4).
       unsigned a[4];LoadX4(a,q+Swizzled(lane%16,(lane/16)*8,Rows));
       for(int key=warp*(Seq/4);key<(warp+1)*(Seq/4);key+=8) {

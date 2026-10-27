@@ -32,12 +32,15 @@ enum class Sm90ForwardOp : unsigned {
 
 // One chain entry. `vector` selects the operand vector; `activation` and
 // `gate` name the arithmetic; `unit` is the gate pair's interleave.
+// `Vector2` is the second per-channel vector a normalization step needs: the
+// deferred LayerNorm's b' and the residual LayerNorm's beta.
 template<Sm90ForwardOp Kind,unsigned Vector=0,
          codegen::DmActivation Activation=codegen::DmActivation::kRelu,
-         codegen::DmGatePair Gate=codegen::DmGatePair::kSimpleGate,unsigned Unit=16>
+         codegen::DmGatePair Gate=codegen::DmGatePair::kSimpleGate,unsigned Unit=16,
+         unsigned Vector2=0>
 struct Sm90ForwardEpilogueStep {
   static constexpr Sm90ForwardOp kKind=Kind;
-  static constexpr unsigned kVector=Vector,kUnit=Unit;
+  static constexpr unsigned kVector=Vector,kVector2=Vector2,kUnit=Unit;
   static constexpr codegen::DmActivation kActivation=Activation;
   static constexpr codegen::DmGatePair kGate=Gate;
 };
@@ -66,6 +69,11 @@ struct Sm90ForwardEpilogueChain {
   static constexpr bool kGated=((Step::kKind==Sm90ForwardOp::kGatePair) || ...);
   static constexpr int kWidth=kGated?N/2:N;
   static_assert(!kGated || N%2==0);
+  // A deferred or reconstructed LayerNorm needs the producing body's per-row
+  // (mu, 1/sigma) over the A tile; the body computes them only when asked.
+  static constexpr bool kNeedsStats=
+      ((Step::kKind==Sm90ForwardOp::kDeferredLayerNorm ||
+        Step::kKind==Sm90ForwardOp::kResidualLN) || ...);
 
   template<class S>
   __device__ static __forceinline__ void Apply(float* tile,int rows,int channel,
@@ -100,11 +108,13 @@ struct Sm90ForwardEpilogueChain {
           // (acc - mu cs_n)/sigma + b', with (mu, sigma) from the row stats
           // the producing GEMM's consumer wrote (prompt §10 N-1 item 6).
           float mean=p.stats[2*row],inverse=p.stats[2*row+1];
-          value=(value-mean*float(p.vectors[S::kVector][channel+col]))*inverse;
+          value=(value-mean*float(p.vectors[S::kVector][channel+col]))*inverse+
+              float(p.vectors[S::kVector2][channel+col]);
         }else if constexpr(S::kKind==Sm90ForwardOp::kResidualLN) {
           float mean=p.stats[2*row],inverse=p.stats[2*row+1];
           float source=float(p.residual[std::size_t(row)*p.residual_stride+channel+col]);
-          value+=(source-mean)*inverse*float(p.vectors[S::kVector][channel+col]);
+          value+=(source-mean)*inverse*float(p.vectors[S::kVector][channel+col])+
+              float(p.vectors[S::kVector2][channel+col]);
         }
         tile[row*N+col]=value;
       }

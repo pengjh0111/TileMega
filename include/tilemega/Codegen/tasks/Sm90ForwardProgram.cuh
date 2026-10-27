@@ -2,9 +2,16 @@
 #pragma once
 
 #include <tilemega/Backend/Sm90DenseGemm.h>
+#include <tilemega/Codegen/DmDescriptors.h>
 #include <tilemega/Backend/Sm90DenseLayout.h>
+#include <tilemega/Backend/Sm90ForwardGemm.cuh>
+#include <tilemega/Backend/Sm90ForwardDepthwise.cuh>
+#include <tilemega/Backend/Sm90ForwardFused.cuh>
+#include <tilemega/Backend/Sm90ForwardEncoderAttention.cuh>
+#include <tilemega/Backend/Sm90ForwardSmall.cuh>
 #include <tilemega/Codegen/tasks/ServingAbi.h>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 // Native DNN forward (prompt §10 N-1). One pass over a compile-time stage
@@ -35,11 +42,176 @@ struct alignas(64) Bindings {
 };
 
 struct alignas(64) ForwardCounter {unsigned long long arrivals;};
-// One rank-2/3/4 descriptor over a bound buffer, encoded on the host.
-struct ForwardTensorMap {
-  unsigned buffer,rank;
+// Thread zero of the publishing CTA fills the next stage's bank before the V3
+// barrier; from the join to that stage's return the record is immutable. A
+// stage reads exactly one member, so the five operand kinds share storage.
+union alignas(16) ForwardOperandBank {
+  backend::Sm90ForwardGemmOperands gemm;
+  backend::Sm90ForwardDepthwiseOperands depthwise;
+  backend::Sm90ForwardFusedOperands fused;
+  backend::Sm90ForwardEncoderAttentionOperands attention;
+  backend::Sm90ForwardSmallOperands small;
+};
+struct ForwardOperandHeader {
+  static constexpr int kOffset=2*sizeof(backend::Sm90DenseRingState);
+  static constexpr int kEnd=kOffset+2*int(sizeof(ForwardOperandBank));
+  static_assert(kOffset==512 && kEnd<=1024,"the forward header shares the dense 1 KB prologue");
+  static_assert(std::is_trivially_copyable_v<ForwardOperandBank>);
+  __device__ static __forceinline__ ForwardOperandBank& Bank(char* arena,unsigned stage) {
+    return reinterpret_cast<ForwardOperandBank*>(arena+kOffset)[stage%2];
+  }
+};
+
+// A stage's buffer and map identifiers come from the plan; its scalar
+// geometry and epsilon come from the same plan as a generated trait class,
+// because C++17 has no floating-point template parameter.
+template<class B,class Bind>
+__device__ __forceinline__ backend::Sm90ForwardEpilogueOperands EpilogueOf(B const& b,
+    float epsilon,int residual_stride) {
+  backend::Sm90ForwardEpilogueOperands e{};
+  e.vectors[0]=b.template Get<Bind::kVector0>();
+  e.vectors[1]=b.template Get<Bind::kVector1>();
+  e.vectors[2]=b.template Get<Bind::kVector2>();
+  e.vectors[3]=b.template Get<Bind::kVector3>();
+  e.residual=b.template Get<Bind::kResidual>();
+  e.stats=reinterpret_cast<float const*>(b.template Get<Bind::kStats>());
+  e.row_stats=reinterpret_cast<float*>(b.template Get<Bind::kRowStats>());
+  e.channel_partial=reinterpret_cast<float*>(b.template Get<Bind::kChannelPartial>());
+  e.epsilon=epsilon;e.residual_stride=residual_stride;
+  return e;
+}
+
+template<class Body,class Bind,class Shape>
+struct ForwardGemmStage {
+  static constexpr int kSharedBytes=Body::kSharedBytes;
+  static constexpr auto kLayout=Body::kLayout;
+  template<class B>
+  __device__ static __forceinline__ void PublishOperands(B const& b,ForwardOperandBank& bank) {
+    auto& p=bank.gemm;
+    p.activation=b.template Map<Bind::kMap>();
+    p.weight=b.template Get<Bind::kWeight>();
+    p.output=b.template Get<Bind::kOutput>();
+    p.partial=reinterpret_cast<float*>(b.template Get<Bind::kPartial>());
+    p.counters=reinterpret_cast<std::uint64_t*>(b.template Get<Bind::kCounters>());
+    p.epilogue=EpilogueOf<B,Bind>(b,Shape::kEpsilon,Shape::kResidualStride);
+    p.output_stride=Shape::kOutputStride;
+    p.width=Shape::kWidth;p.height=Shape::kHeight;
+    p.pad_w=Shape::kPadW;p.pad_h=Shape::kPadH;
+    p.stride_w=Shape::kStrideW;p.stride_h=Shape::kStrideH;
+    p.kernel_w=Shape::kKernelW;p.kernel_h=Shape::kKernelH;
+  }
+  template<class B>
+  __device__ static __forceinline__ void Run(B const&,char* shared,int offset,
+      backend::Sm90DenseRingState& ring,ForwardOperandBank const& bank) {
+    Body::Run(bank.gemm,shared+offset,ring);
+  }
+};
+
+template<class Body,class Bind,class Shape>
+struct ForwardDepthwiseStage {
+  static constexpr int kSharedBytes=Body::kSharedBytes;
+  static constexpr auto kLayout=Body::kLayout;
+  template<class B>
+  __device__ static __forceinline__ void PublishOperands(B const& b,ForwardOperandBank& bank) {
+    auto& p=bank.depthwise;
+    p.activation=b.template Map<Bind::kMap>();
+    p.weight=b.template Get<Bind::kWeight>();
+    p.output=b.template Get<Bind::kOutput>();
+    p.epilogue=EpilogueOf<B,Bind>(b,Shape::kEpsilon,Shape::kResidualStride);
+    p.width=Shape::kWidth;p.height=Shape::kHeight;p.channels=Shape::kChannels;
+    p.stride=Shape::kStrideH;
+    p.output_width=Shape::kOutputWidth;p.output_height=Shape::kOutputHeight;
+  }
+  template<class B>
+  __device__ static __forceinline__ void Run(B const&,char* shared,int offset,
+      backend::Sm90DenseRingState& ring,ForwardOperandBank const& bank) {
+    Body::Run(bank.depthwise,shared+offset,ring);
+  }
+};
+
+template<class Body,class Bind,class Shape>
+struct ForwardFusedStage {
+  static constexpr int kSharedBytes=Body::kSharedBytes;
+  static constexpr auto kLayout=Body::kLayout;
+  template<class B>
+  __device__ static __forceinline__ void PublishOperands(B const& b,ForwardOperandBank& bank) {
+    auto& p=bank.fused;
+    p.activation=b.template Map<Bind::kMap>();
+    p.depthwise=b.template Get<Bind::kDepthwise>();
+    p.pointwise=b.template Get<Bind::kWeight>();
+    p.expand=b.template Get<Bind::kExpand>();
+    p.output=b.template Get<Bind::kOutput>();
+    p.partial=reinterpret_cast<float*>(b.template Get<Bind::kPartial>());
+    p.counters=reinterpret_cast<std::uint64_t*>(b.template Get<Bind::kCounters>());
+    p.epilogue=EpilogueOf<B,Bind>(b,Shape::kEpsilon,Shape::kResidualStride);
+    p.width=Shape::kWidth;p.height=Shape::kHeight;p.channels=Shape::kChannels;
+    p.out_channels=Shape::kOutChannels;
+    p.output_width=Shape::kOutputWidth;p.output_height=Shape::kOutputHeight;
+    p.stride=Shape::kStrideH;
+  }
+  template<class B>
+  __device__ static __forceinline__ void Run(B const&,char* shared,int offset,
+      backend::Sm90DenseRingState& ring,ForwardOperandBank const& bank) {
+    Body::Run(bank.fused,shared+offset,ring);
+  }
+};
+
+template<class Body,class Bind,class Shape>
+struct ForwardAttentionStage {
+  static constexpr int kSharedBytes=Body::kSharedBytes;
+  static constexpr auto kLayout=Body::kLayout;
+  template<class B>
+  __device__ static __forceinline__ void PublishOperands(B const& b,ForwardOperandBank& bank) {
+    auto& p=bank.attention;
+    p.key=b.template Map<Bind::kMap>();
+    p.value=b.template Map<Bind::kValueMap>();
+    p.query=b.template Map<Bind::kQueryMap>();
+    p.output=b.template Get<Bind::kOutput>();
+    p.scale=Shape::kScale;
+    p.heads=Shape::kHeads;p.sequence=Shape::kSequence;
+  }
+  template<class B>
+  __device__ static __forceinline__ void Run(B const&,char* shared,int offset,
+      backend::Sm90DenseRingState& ring,ForwardOperandBank const& bank) {
+    Body::Run(bank.attention,shared+offset,ring);
+  }
+};
+
+template<class Body,class Bind,class Shape>
+struct ForwardSmallStage {
+  static constexpr int kSharedBytes=Body::kSharedBytes;
+  static constexpr auto kLayout=Body::kLayout;
+  template<class B>
+  __device__ static __forceinline__ void PublishOperands(B const& b,ForwardOperandBank& bank) {
+    auto& p=bank.small;
+    p.input=b.template Get<Bind::kInput>();
+    p.weight=b.template Get<Bind::kWeight>();
+    p.bias=b.template Get<Bind::kVector0>();
+    p.output=b.template Get<Bind::kOutput>();
+    p.accumulator=reinterpret_cast<float*>(b.template Get<Bind::kPartial>());
+    p.counter=reinterpret_cast<std::uint64_t*>(b.template Get<Bind::kCounters>());
+    p.width=Shape::kWidth;p.height=Shape::kHeight;
+    p.channels=Shape::kChannels;p.out_channels=Shape::kOutChannels;
+    p.epsilon=Shape::kEpsilon;
+  }
+  template<class B>
+  __device__ static __forceinline__ void Run(B const&,char* shared,int offset,
+      backend::Sm90DenseRingState& ring,ForwardOperandBank const& bank) {
+    Body::Run(bank.small,shared+offset,ring);
+  }
+};
+
+// One descriptor over a bound buffer, encoded on the host: either a tiled
+// rank-2/3/4 view (`kind` 0) at an element offset into the buffer, or the TMA
+// im2col view of a convolution's input (`kind` 1), which the driver builds
+// from the plan's own ConvDesc and buffer layout.
+struct ForwardMapSpec {
+  unsigned buffer,kind,rank;
+  unsigned long long offset;
   unsigned long long dims[4],strides[3];
   unsigned box[4];
+  codegen::ConvDesc conv;
+  codegen::DmBufferLayout layout;
 };
 
 // A stage's shared-memory placement: arena (i % 2) unless the stage's
@@ -51,6 +223,13 @@ struct Placement:Stage {
   static constexpr int kOffset=Offset;
   static constexpr int kSharedBytes=Offset+Stage::kSharedBytes;
   static constexpr auto kLive=Stage::kLayout.Live(Offset);
+  // The body addresses its arena from its own base; the 1 KB prologue of a
+  // placed stage overlaps the program header, which the body never reads.
+  template<class B>
+  __device__ static __forceinline__ void Run(B const& b,char* shared,
+      backend::Sm90DenseRingState& ring,ForwardOperandBank const& bank) {
+    Stage::template Run<B>(b,shared,Offset,ring,bank);
+  }
 };
 
 template<int Batch,int Residency,unsigned Buffers,unsigned Maps,int Arena,class... Stage>
@@ -85,11 +264,11 @@ struct Program {
       ForwardCounter* events) {
     using Body=At<I>;
     auto* rings=reinterpret_cast<backend::Sm90DenseRingState*>(shared);
-    auto& bank=backend::Sm90DenseOperandHeader::Bank(shared,I%2);
-    Body::Run(b,shared,rings[I%2],bank);
+    auto const& bank=ForwardOperandHeader::Bank(shared,I%2);
+    Body::template Run<Binding>(b,shared,rings[I%2],bank);
     if(threadIdx.x==0) {
-      if constexpr(I+1<kStages)At<I+1>::PublishOperands(b,
-          backend::Sm90DenseOperandHeader::Bank(shared,(I+1)%2));
+      if constexpr(I+1<kStages)At<I+1>::template PublishOperands<Binding>(b,
+          ForwardOperandHeader::Bank(shared,(I+1)%2));
       auto* counter=&events[I].arrivals;
       asm volatile("red.release.gpu.global.add.u64 [%0], %1;"::"l"(counter),"l"(1ull):"memory");
       unsigned long long seen;
@@ -114,8 +293,8 @@ void sm90_forward_native_kernel(const __grid_constant__ typename P::Binding b,
   rings[0].Initialize();rings[1].Initialize();
   // The first stage's operands are published before any barrier: its bank is
   // immutable for the whole pass and no predecessor can publish it.
-  if(threadIdx.x==0)P::template At<0>::PublishOperands(b,
-      backend::Sm90DenseOperandHeader::Bank(shared,0));
+  if(threadIdx.x==0)P::template At<0>::template PublishOperands<typename P::Binding>(b,
+      ForwardOperandHeader::Bank(shared,0));
   __syncthreads();
   P::Run(b,shared,events,std::make_integer_sequence<unsigned,P::kStages>{});
   rings[0].Invalidate();rings[1].Invalidate();
