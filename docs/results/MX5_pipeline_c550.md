@@ -664,7 +664,7 @@ frame0/API0/resident1. New576floor168MT/frame400 andcap227/frame80/resident0
 are retained rejections. Fa1 full512 C1/C2 pass(maxgap0.03125,zero C2mismatch).
 Repeated-body validation is5actualfresh processes x6shapes x>=2000iterations
 x104CTAs with unchanged FP32/context/KVbits/determinism/barrier/LA assertions.
-Oldfa1-body-source-source qualifiers do not transfer from another epoch.
+Prior source qualifiers do not transfer from another epoch.
 Verified PPAIRold0a/newfa1/newfa1/old0a oncard7:old2.315077317/2.313933946ms
 (median2.314505632),new2.307647396/2.307366627(median2.307507011),
 −0.302381%,indistinguishable;newstill+10.117653%vsfixedMX4. No default or
@@ -684,5 +684,29 @@ SquareEight/tree/Rsqrt and everyRotateEight rawinput/weight/cos/sin/sign/cast.
 T512 normMT247/249→229/231(frame0);non-norm unchanged230/232. T576still
 rejectsall8kernels; diagnostic artifacts are not executed. Root ordinary unit
 builds then pass5fresh processes each15 exactMX4-RopeEpilogue bitcases+56
-attentionP0 cases. Exacttestedsource is2678aa864; fresh full producer and new
-model controls are pending, no numerical/E2E approval transfers fromfa1.
+attentionP0 cases. Exacttestedsource is2678aa864; fresh normal producer160/160 and615source
+freeze pass (producer7e7b542b, A19cc122534). Newordinary512WD0/1 both
+MT231/frame0 and actualAPI0/resident1. 576floor168/frame360 and cap227/frame68
+are rejected/unrun. ActualB2 C-1/C-2 pass512steps, maxgap.03125/C2zero.
+P-PAIR fa1→2678 (old/new/new/old,2fresh/arm) gives2.306704→2.304175ms,
+−0.1096%, indistinguishable; new remains+9.9587%vsfixedMX4. Manualcontrols
+only; no solver/default acceptance. CSVappend records actualartifact/source
+identities, fivefresh15bitwise+56attentionP0 tests, normal26kernelbuilds,
+18diagnostic stage rows,4actualqueries,1correctness and6pair rows.
+
+**Verified checkpoint:** The pure-LDS local CTA question remains unresolved by
+the exact prompt scope. Initial merge DecodeAttentionV2.h:319 still uses
+StageSyncV2::CtaSync and drains next-segment KV; later LA/tail syncs also
+remain. Scope review keeps implementation stopped, with explicit async user
+clarification requested under prompt §0.2. No P-A reinterpretation, replacement
+protocol or complete crosssegment overlap is claimed. The v1 readonly review
+seal accidentally self-included; original failure is preserved, v2 excludes
+itself and seals four actual files (5461f83e).
+
+**Verified new failure:** Old G576 campaign finishes114 parent jobs, but113
+pass and final job113 fails in round1 at repeated-stage comparison
+(stage_bench.py:160). Existing round1 prefix13 rows is retained; no remaining
+rows or rounds are fabricated. Full50 export correctly fails its all-success
+parent gate; no complete50/table/native origin approval is granted. This is a
+separate G/H issue, unaffected by RowTransform changes. CPU diagnosis is
+pending; no automatic retry or oracle/tolerance change.
