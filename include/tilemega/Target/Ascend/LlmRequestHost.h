@@ -232,9 +232,11 @@ inline void Dump(Plan const& p,DevicePlan const& d,uint8_t* arena,unsigned past,
   }
 }
 template<class Launch> int RunRequest(fs::path const& binding,fs::path const& out,unsigned outputs,
-    unsigned warmup,unsigned repetitions,unsigned diagnostic,Launch launch,bool teacher_forced=false) {
+    unsigned warmup,unsigned repetitions,unsigned diagnostic,Launch launch,bool teacher_forced=false,
+    bool performance_only=false) {
   Plan pre(binding/"prefill"),dec(binding/"decode");
-  if(outputs<2 || outputs>1024 || (teacher_forced && (outputs>513 || warmup || repetitions!=1)) ||
+  if(outputs<2 || outputs>1024 || (performance_only && (diagnostic || teacher_forced)) ||
+      (teacher_forced && (outputs>513 || warmup || repetitions!=1)) ||
       warmup>1 || !repetitions || repetitions>3 || diagnostic>2 || fs::exists(out) ||
       pre.m.seq!=64 || dec.m.seq!=1 || pre.m.batch!=dec.m.batch || pre.m.groups!=dec.m.groups ||
       pre.minimum_past || dec.minimum_past>64 || outputs+62>dec.maximum_past ||
@@ -320,7 +322,7 @@ template<class Launch> int RunRequest(fs::path const& binding,fs::path const& ou
     for(unsigned b=0;b<pre.m.batch;++b)std::copy_n(all.data()+uint64_t(b)*1088+64,outputs,generated.data()+uint64_t(b)*outputs);
     Save(result/(teacher_forced?"teacher_feedback.bin":"tokens.bin"),generated.data(),generated.size()*4);
     Save(dec_out/"tokens.bin",all.data(),tokens.bytes);
-    Dump(dec,dd,arena,outputs+62,diagnostic,dec_out);
+    if(!performance_only)Dump(dec,dd,arena,outputs+62,diagnostic,dec_out);
     auto ms=[](auto a,auto b){return std::chrono::duration<double,std::milli>(a-b).count();};
     if(teacher_forced)samples<<"{\"request_mode\":\"teacher_forced\",\"timing_admitted\":false,\"decoder_steps\":"<<outputs-1<<"}\n";
     else samples<<"{\"repetition\":"<<repetition<<",\"warmup\":"<<(repetition<0?"true":"false")
@@ -334,7 +336,8 @@ template<class Launch> int RunRequest(fs::path const& binding,fs::path const& ou
   }
   if(!samples || !receipts)throw std::runtime_error("Cannot save request receipts");
   std::ofstream summary(out/"result.json");summary<<std::setprecision(17)
-    <<"{\"status\":\"executed_requires_numeric_compare\",\"binding_directory\":"<<std::quoted(binding.string())
+    <<"{\"status\":\""<<(performance_only?"performance_recorded_requires_prior_admission":"executed_requires_numeric_compare")
+    <<"\",\"performance_only\":"<<(performance_only?"true":"false")<<",\"binding_directory\":"<<std::quoted(binding.string())
     <<",\"isl\":64,\"osl\":"<<outputs<<",\"batch\":"<<pre.m.batch<<",\"capacity\":1088,\"warmup\":"<<warmup
     <<",\"repetitions\":"<<repetitions<<",\"diagnostic\":"<<diagnostic<<",\"host_kernel_launches\":"<<launches
     <<",\"request_mode\":\""<<(teacher_forced?"teacher_forced":"natural_greedy")<<"\""

@@ -67,14 +67,15 @@ int main(int argc,char** argv) {
             p.offsets,p.queue,p.control,scratch,p.trace,epoch,past,diagnostic);
         });
     }
-    if(argc==8 && std::string(argv[1])=="request") {
+    bool performance_only=argc==7 && std::string(argv[1])=="bench";
+    if((argc==8 && std::string(argv[1])=="request") || performance_only) {
       return llm_host::RunRequest(Controlled(argv[2]),Controlled(argv[3]),Number(argv[4]),
-        Number(argv[5]),Number(argv[6]),Number(argv[7]),
+        Number(argv[5]),Number(argv[6]),performance_only?0:Number(argv[7]),
         [](llm_host::DevicePlan const& p,uint8_t* arena,uint8_t* scratch,aclrtStream stream,
             unsigned groups,unsigned epoch,unsigned past,unsigned diagnostic) {
           tilemega_llm<<<groups,nullptr,stream>>>(arena,p.metadata,p.stages,p.tasks,p.waits,
             p.offsets,p.queue,p.control,scratch,p.trace,epoch,past,diagnostic);
-        });
+        },false,performance_only);
     }
     bool prefix_only=argc==8 && std::string(argv[7])=="prefix-only";
     if(argc!=7 && !prefix_only)throw std::invalid_argument("usage: persistent_llm plan_directory packed_inputs new_output past forwards diagnostic(0/1) [prefix-only]");
