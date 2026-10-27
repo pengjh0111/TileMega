@@ -77,6 +77,7 @@ class AscendAs2Safety(unittest.TestCase):
             (dict(exit_code=187,output='dcmi module initialize failed. ret is -8005'), 'telemetry_unavailable', None),
             (dict(exit_code=0,output='unrecognized table'), 'telemetry_unavailable', None),
             (dict(exit_code=0,output='| 1 | Ascend950PR | OK |\n| 0000:D7:00.0 | 0 | 0 / 0 | 130000 / 131072 |'), 'blocked-resource', False),
+            (dict(exit_code=0,output='| 1 | Ascend950PR | Critical |\n| 0000:D7:00.0 | 0 | 0 / 0 | 5000 / 131072 |'), 'blocked-health', False),
         ]:
             out=RUNS/'jobs'/('telemetry_contract_'+str(time.time_ns()))
             argv=['as2_run','--physical-device','1','--required-free-mib','8192','--out',str(out),'--',sys.executable,'-c','pass']

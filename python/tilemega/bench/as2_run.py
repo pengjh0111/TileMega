@@ -13,7 +13,7 @@ def unfinished_owned_jobs():
     or restricting unrelated processes, including jobs on the same account.
     """
     root=Path('/home/d50064638/junhuip/TileMega/runs/as2/jobs')
-    terminal={'passed','failed','timeout','interrupted','launch_error','blocked-resource','telemetry_unavailable'}
+    terminal={'passed','failed','timeout','interrupted','launch_error','blocked-resource','blocked-health','telemetry_unavailable'}
     active=[]
     for path in root.glob('*/job.json'):
         receipt=json.loads(path.read_text())

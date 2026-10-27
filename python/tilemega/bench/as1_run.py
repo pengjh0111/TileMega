@@ -255,9 +255,10 @@ def main(project='as1'):
     record.update(parent_pid=os.getpid(), project=project,
                   manifest_id=str(out.relative_to(ROOT)), required_free_mib=args.required_free_mib)
     record_path.write_text(json.dumps(record, indent=2)+'\n')
-    if args.required_free_mib and (not telemetry_ok or devices[physical]['free_mib'] < args.required_free_mib):
-        status = 'blocked-resource' if telemetry_ok else 'telemetry_unavailable'
-        reason = 'Insufficient observed free HBM' if telemetry_ok else 'Cannot verify the requested HBM budget from npu-smi'
+    unhealthy=telemetry_ok and devices[physical].get('health')!='OK'
+    if unhealthy or args.required_free_mib and (not telemetry_ok or devices[physical]['free_mib'] < args.required_free_mib):
+        status = 'blocked-health' if unhealthy else 'blocked-resource' if telemetry_ok else 'telemetry_unavailable'
+        reason = 'Selected device health changed before child launch' if unhealthy else 'Insufficient observed free HBM' if telemetry_ok else 'Cannot verify the requested HBM budget from npu-smi'
         record.update(status=status, reason=reason, exit_code=75, elapsed_s=time.monotonic()-started)
         record_path.write_text(json.dumps(record, indent=2)+'\n')
         (out / 'after.json').write_text(json.dumps(snapshot(args.telemetry_timeout_s), indent=2)+'\n')
