@@ -1,0 +1,132 @@
+{
+  "schema": 1,
+  "model": "llama3_1_8b",
+  "batch": 1,
+  "phase": "decode",
+  "target": "sm_90_h800",
+  "source_head": "0c47ffff7decee6b322f5cd8d6ec51f0f4837861",
+  "solve_command": [
+    "/root/TileMega-m/build/tools/tilemega",
+    "compile",
+    "/root/TileMega-m/runs/sm90r3/solve/FINAL/llama3_1_8b-B1/decode.export.json",
+    "/root/TileMega-m/runs/sm90r3/solve/FINAL/llama3_1_8b-B1/decode.so",
+    "--solve",
+    "/root/TileMega-m/configs/targets/sm_90_h800.json",
+    "--serving",
+    "decode",
+    "--emit",
+    "serving",
+    "--batch",
+    "1",
+    "--runtime-target",
+    "/root/TileMega-m/configs/targets/sm_90_h800.json",
+    "--selection",
+    "measure",
+    "--measure-top",
+    "4",
+    "--measure-cmd",
+    "/workspace/llm-stack/envs/vllm/bin/python /root/TileMega-m/scripts/sm90r3_select.py --model llama3_1_8b --batch 1 --prefill /root/TileMega/runs/sm90r2/build/sm90r3-final-prefill/llama3_1_8b-B1/prefill.so --gpu 1 --name sel-FINAL-llama3_1_8b-B1 --concurrency trial",
+    "--nvcc-split-compile",
+    "2"
+  ],
+  "compiler_sha256": "b5a692e0a7bdf1958a8c864d6072e39d6e8fa71bcddafb00d92eb9c024e1b493",
+  "coordinates": {
+    "schema": 5,
+    "model": "dense",
+    "gemms": {
+      "qkv": {
+        "tile_n": 32,
+        "warps_n": 4,
+        "warps_k": 1,
+        "slot_bytes": 32768,
+        "slots": 2,
+        "mma": "mma_sync",
+        "register_stages": 1,
+        "multicast": false
+      },
+      "o": {
+        "tile_n": 32,
+        "warps_n": 4,
+        "warps_k": 1,
+        "slot_bytes": 16384,
+        "slots": 3,
+        "mma": "mma_sync",
+        "register_stages": 1,
+        "multicast": false
+      },
+      "gate_up": {
+        "tile_n": 224,
+        "warps_n": 2,
+        "warps_k": 2,
+        "slot_bytes": 28672,
+        "slots": 2,
+        "mma": "mma_sync",
+        "register_stages": 1,
+        "multicast": false
+      },
+      "down": {
+        "tile_n": 32,
+        "warps_n": 4,
+        "warps_k": 1,
+        "slot_bytes": 16384,
+        "slots": 3,
+        "mma": "mma_sync",
+        "register_stages": 1,
+        "multicast": false
+      },
+      "lm_head": {
+        "tile_n": 128,
+        "warps_n": 4,
+        "warps_k": 1,
+        "slot_bytes": 16384,
+        "slots": 3,
+        "mma": "mma_sync",
+        "register_stages": 1,
+        "multicast": false
+      }
+    },
+    "attention": {
+      "chunks": 16,
+      "block_keys": 64,
+      "slots": 2,
+      "new_row_work": 0,
+      "merge": "la"
+    },
+    "residency": 1,
+    "swiglu_u": 16,
+    "weight_stream": false,
+    "layer_loop": true,
+    "emb": "la",
+    "group_wait": true,
+    "cluster": 1
+  },
+  "winner": 0,
+  "predicted_ns": [
+    5143256.162,
+    5143264.762,
+    5143273.362,
+    5143283.462
+  ],
+  "generated_source_sha256": "a9cb645c4934a48b781c23427d5a844beddc8770c9517298e1faab4bf9204b73",
+  "binary_sha256": "d51bd09acecb64cf245f9601ebb4bacfe202368d0a796b67095688d97aa1270c",
+  "artifact_id": "051e80df10c98cdb0c8acb7fcabcb7974b53c7c630acf00de79007084f65de67",
+  "prefill": "/root/TileMega/runs/sm90r2/build/sm90r3-final-prefill/llama3_1_8b-B1/prefill.so",
+  "prefill_sha256": "998886aa1d5d7b9a42cb6b40252679b1f6fa9dd188c1b6da3a08992351aee902",
+  "prefill_kind": "rebuilt R2 closeout options at the final HEAD",
+  "stages": null,
+  "measured": {
+    "tpot_ms": 5.568147247305772,
+    "ttft_ms": 11.693020001985133,
+    "e2e_ms": 5707.8840339090675,
+    "tokens_per_s": 179.4009818553916,
+    "process_range_pct": 0.12984584448171646,
+    "fresh_processes": 5,
+    "protocol": "P-FINAL"
+  },
+  "correctness": {
+    "c1": true,
+    "c2": true,
+    "hf64_recorded": null,
+    "processes_token_equal": 5
+  }
+}
