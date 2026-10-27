@@ -356,7 +356,8 @@ struct MxAttentionV2 {
         MergeBody<Sync>(base, p, head, producers, t, shared + 8 * kWaveFloats);
       });
     }
-    Sync::CtaSync();
+    // Protect LDS reuse; Run's final CTA sync publishes this segment's global writes.
+    PublishWaveResults();
   }
 
   template <class Sync>
