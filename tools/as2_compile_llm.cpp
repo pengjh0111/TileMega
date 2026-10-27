@@ -7,6 +7,8 @@
 #include <mlir/IR/MLIRContext.h>
 #include <mlir/IR/Verifier.h>
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/Support/SHA256.h>
+#include <llvm/ADT/StringExtras.h>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -14,6 +16,42 @@
 #include <stdexcept>
 #include <limits>
 #include <cmath>
+#include <cstdlib>
+
+static std::string ScheduleReport(tilemega::solver::AscendSchedule const& schedule) {
+  if(auto raw=std::getenv("TILEMEGA_AS2_VERBOSE_SCHEDULE");raw && std::string(raw)=="1") {
+    if(schedule.owners.size()>65536)throw std::invalid_argument("Verbose schedules require a bounded diagnostic instance");
+    return schedule.ToJson();
+  }
+  llvm::SHA256 hash;
+  auto bytes=[&](auto const& values) {
+    uint64_t count=values.size();hash.update(llvm::ArrayRef<uint8_t>(reinterpret_cast<uint8_t const*>(&count),sizeof(count)));
+    hash.update(llvm::ArrayRef<uint8_t>(reinterpret_cast<uint8_t const*>(values.data()),values.size()*sizeof(values[0])));
+  };
+  bytes(schedule.owners);bytes(schedule.ordinals);bytes(schedule.offsets);bytes(schedule.queue);
+  bytes(schedule.start_ns);bytes(schedule.finish_ns);
+  for(auto const& participants:schedule.participants)bytes(participants);
+  for(auto const& waits:schedule.waits) {
+    std::vector<uint32_t> pairs;for(auto wait:waits){pairs.push_back(wait.producer_worker);pairs.push_back(wait.required_prefix);}bytes(pairs);
+  }
+  tilemega::json::Array queues;
+  for(unsigned w=0;w+1<schedule.offsets.size();++w) {
+    unsigned first=schedule.offsets[w],end=schedule.offsets[w+1];tilemega::json::Array sample;
+    for(unsigned i=first;i<end && i-first<4;++i)sample.emplace_back(double(schedule.queue.at(i)));
+    queues.emplace_back(tilemega::json::Object{{"worker",int(w)},{"queue_count",double(end-first)},{"first_tasks",std::move(sample)}});
+  }
+  auto identity=hash.final();
+  return tilemega::json::Value(tilemega::json::Object{
+    {"schema","tilemega.ascend.schedule_summary.v1"},{"tasks",double(schedule.owners.size())},
+    {"queue_refs",double(schedule.queue.size())},{"worker_queues",std::move(queues)},
+    {"schedule_sha256",llvm::toHex(llvm::ArrayRef<uint8_t>(identity),true)},
+    {"identity_encoding","little-endian host u64 array lengths, u32 owner/ordinal/offset/queue/participants/wait-pairs, f64 start/finish"},
+    {"semantic_edges",double(schedule.semantic_edges)},{"fifo_edges",double(schedule.fifo_edges)},
+    {"lowered_waits",double(schedule.lowered_waits)},{"epoch_stride",double(schedule.epoch_stride)},
+    {"makespan_ns",schedule.makespan_ns},{"shared_gm_floor_ns",schedule.gm_floor_ns},
+    {"wait_lowering",schedule.fifo_wait_elision?"experimental_fifo_observed_frontier":"per_task_frontier"},
+    {"full_selected_tables","plan/*.bin; no task or dependency removed from execution"}}).Dump();
+}
 
 static void Write(std::filesystem::path const& path,std::string const& text) {
   std::ofstream out(path);out<<text<<'\n';if(!out)throw std::runtime_error("Cannot write "+path.string());
@@ -322,8 +360,8 @@ int main(int argc,char** argv) {
           scheduled=tilemega::solver::PriceAscendSchedule(tasks,workers,scheduling_costs,std::move(scheduled));
           bool choose_eft=scheduled.makespan_ns<baseline.makespan_ns;
           selected_algorithm=choose_eft?"measured_native_rank_eft_shared_gm":"measured_native_structural_shared_gm";
-          Write(output/"eft_candidate.json",scheduled.ToJson());
-          Write(output/"structural_candidate.json",baseline.ToJson());
+          Write(output/"eft_candidate.json",ScheduleReport(scheduled));
+          Write(output/"structural_candidate.json",ScheduleReport(baseline));
           Write(output/"search.json",tilemega::json::Value(tilemega::json::Object{
             {"schema","tilemega.as2.native_plan_search.v1"},{"compared_legal_plans",2},
             {"fixed_body_domain","one measured geometry/attention implementation"},
@@ -337,7 +375,7 @@ int main(int argc,char** argv) {
           if(!choose_eft)scheduled=std::move(baseline);
         }
         if(fifo_elision) {
-          Write(output/"uncompressed_schedule.json",scheduled.ToJson());
+          Write(output/"uncompressed_schedule.json",ScheduleReport(scheduled));
           scheduled=tilemega::solver::ElideAscendFifoWaits(tasks,workers,std::move(scheduled));
         }
         auto native=tilemega::codegen::MaterializeAscendLlm(*module,problem,workers,tasks,scheduled,!priced,attention_precision,body);
@@ -361,7 +399,7 @@ int main(int argc,char** argv) {
           if(!bounds_file)throw std::runtime_error("Cannot save empirical price bounds");
           Write(output/"plan/prices.json",prices.Dump());
         }
-        auto diagnostic_schedule=tilemega::json::Parse(scheduled.ToJson());
+        auto diagnostic_schedule=tilemega::json::Parse(ScheduleReport(scheduled));
         diagnostic_schedule.Set("selection",selected_algorithm);
         if(!priced) {
           diagnostic_schedule.Set("makespan_ns",tilemega::json::Value{});
