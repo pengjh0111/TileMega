@@ -187,3 +187,18 @@ Evidence: `probes/qwen17_observed_down_m1024_slice16_v1/case.json`,
 `qwen17_b16_prefill_tail_hypothesis_v16.json` (guarded replay).
 Retained image: `tilemega-as2/build/retained/qwen17_partial_v16/`; one selected
 serial compile, one short kernel launch, no performance or model pass claim.
+
+## Llama8B B16 Q prefill tail, 2026-10-27
+
+`verified-run`: separate-QKV prefill has an exact layer0 Norm prefix, but six
+Q values differ within N3584:4096. The actual eager M1024/N4096/K4096 linear
+selects tiling4162, base256×256×64 and singleCoreK1366. Replaying seven K slices
+repairs only three of those six values and is rejected. Three native FP32
+slices1366/1366/1364, ordered CPU sum and BF16 RINT repair all65536 sampled
+values when combined with the regular full-K region. Uniform three-way
+reduction still differs in eight values outside that selective-tail contract.
+Evidence: `probes/llama8b_b16_q_tiling_v28/dispatch.json`,
+`probes/llama8b_b16_q_tail_partial{7,3}_numeric_v{27,29}.json`.
+These are same-input arithmetic diagnostics; CPU combination is excluded from
+the model hot path. The opt-in MIX device-combine candidate requires separate
+CTG/Plan/full-model numerical and request-performance admission.

@@ -25,13 +25,17 @@ def main():
         raise FileExistsError(a.out)
     case = json.loads((a.case / 'case.json').read_text())
     m, n, k = case['shape_mnk']
-    if m not in (1, 16, 64) or not ((n == 2048 and k in (6144, 8192)) or (n == 3072 and k == 8192) or (n == 1024 and k == 4096)):
+    if m not in (1, 16, 64) or not ((n == 2048 and k in (6144, 8192)) or (n == 3072 and k == 8192) or (n == 1024 and k == 4096) or (m==16 and n==4096 and k==4096)):
         raise ValueError('Require the observed, bounded Stream-K diagnostic')
     parts = 7 if n == 1024 else 2 if n == 3072 else 3
     if case.get('partial_count')==7:
-        if (m,n)!=(16,2048) or k not in (6144,8192) or case.get('source_shape_mnk')!=[1024,2048,k]:
+        if not (((m,n)==(16,2048) and k in (6144,8192)) or (m,n,k)==(16,4096,4096)) or case.get('source_shape_mnk')!=[1024,n,k]:
             raise ValueError('Seven-part residual probe requires the observed B16 prefill slice')
         parts=7
+    if case.get('partial_count')==3 and (m,n,k)==(16,4096,4096):
+        if case.get('source_shape_mnk')!=[1024,n,k]:
+            raise ValueError('Three-part Q probe requires the observed B16 prefill slice')
+        parts=3
     for name, sha in case['files'].items():
         if digest(a.case / name) != sha:
             raise ValueError('Observed operand/reference identity changed')
@@ -46,6 +50,14 @@ def main():
     for part in partial[1:]:
         reduced = np.add(reduced, part, dtype=np.float32)
     value = torch.from_numpy(reduced).bfloat16()
+    tail=case.get('observed_tail_column_begin')
+    raw_partial_full_difference=None
+    if tail is not None:
+        if (m,n,k,tail)!=(16,4096,4096,3584):raise ValueError('Unregistered same-input tail experiment')
+        full_reference=torch.from_file(str(a.case/'reference.bin'),size=m*n,dtype=torch.bfloat16).reshape_as(value)
+        raw_partial_full_difference=int((value!=full_reference).sum())
+        regular=torch.from_file(str(a.case/'model_native.bin'),size=m*n,dtype=torch.bfloat16).reshape_as(value)
+        value[:,:tail]=regular[:,:tail]
     checks = []
     for name in ('reference.bin', 'model_native.bin'):
         if name == 'model_native.bin' and name not in case['files']:
@@ -61,6 +73,7 @@ def main():
         case_sha256=digest(a.case / 'case.json'), partial_sha256=digest(path),
         partial_k_ranges=[[i * chunk, min((i + 1) * chunk, k)] for i in range(parts)],
         combine='CPU FP32 increasing K slice sum, BF16 RINT',
+        composite_tail_begin=tail,raw_partial_full_width_differences=raw_partial_full_difference,
         observed_reference_matches=checks[0]['bitwise_different'] == 0,
         device_combine_verified=False, tilemega_pipeline=False,
         full_model_admitted=False, checks=checks)
