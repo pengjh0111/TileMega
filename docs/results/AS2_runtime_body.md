@@ -385,3 +385,30 @@ TsdOpen/CreateSession failure. No kernel is launched in that attempt.
 Evidence: `jobs/llama3b_b16_active_request4_v19/{stderr.log,after.json,cann/}`.
 The query itself succeeds and reports physical1 Critical with HBM0/0.
 New device submissions stop; no driver reset or unrelated process action.
+## Llama8B B16 selective three-part implementation, 2026-10-27
+
+`verified-code/run`: opt-in GEMM variant3 keeps16×128×128 geometry and the
+original CTG output-tile domain. For M1024/N4096, only N3584:4096 uses ordered
+FP32 local K slices. Q/O use1366/1366/1364; down uses4779/4779/4778. Ordinary
+N0:3584 retains full-K accumulation. This is one indivisible MIX task, not a
+cross-AIC split-K claim. Config: `as2_llama8b_b16_prefill_tail3.json`.
+
+One AIC owner writes disjoint FP32 partials into24576B/group/stage GM scratch;
+AIV0 combines in increasing K order, BF16 RINT, then the residual Body preserves
+its separate BF16 Add. Q store epilogue4 has no invented residual. Existing
+ready/done/reverse-ack ends scratch lifetime before the next owned tile; only
+the AIC owner publishes the logical completion. AIV1 remains an independent
+queue lane. No new hardware flags, direct UB route, cache shortcut or global
+lock is introduced. Original route C3 evidence is retained; no new five-process
+configuration claim is made from the numerical run alone.
+
+Host and device guards reject missing capabilities, wrong geometry, shape,
+workspace and epilogue. Request source composition unions registered phase
+capabilities only when runtime text and geometry agree; fallback macro defaults
+cannot override the real generated geometry. Task/FIFO/dependency tables remain
+the actual solver output. Full32-layer B16 four-output and1024-output requests
+pass tokens, full final logits and64 last-position KV tensors bitwise against
+independent SDPA/fused Norm. The four-output saved intermediates also match.
+Selected priced queues also pass full1024 bitwise. All four benchmark request
+token hashes match that numerical pass; exploratory timing is recorded in
+`AS2_focus_comparison.md`. Formal teacher512/C2/C3/statistical Gates remain open.

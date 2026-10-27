@@ -1,11 +1,11 @@
-# AS-2 frozen baseline collection — partial, 2026-10-26
+# AS-2 baseline collection — frozen snapshot, 2026-10-27
 
 The user added torch_npu compile, vLLM and SGLang comparisons, then explicitly
 waived baseline numerical comparisons and requested one idle-only performance
-dataset for reuse during TileMega optimization. Batches are **1/2/4/8/16**, not
-all integers. Five dense models × five batches × four systems = **100 cells**.
-TileMega's original ten B1/B16 main cells remain incomplete; MoE is deferred.
-**No frozen dataset or formal performance result has been completed.**
+dataset for reuse during TileMega optimization. The latest request narrows this
+first comparison to **B1/B16**: five dense models × two batches × four systems
+= **40 baseline cells**, plus ten TileMega cells. B2/4/8 and MoE are deferred.
+**All40 baseline cells are frozen; original statistical G-PERF is not passed.**
 Extension text is outside Git at `tilemega-as2/Prompt/AS2_baseline_extension_20261026.md`,
 SHA256 `2b27dbb3b4d518e81837bf2bcb5f469019d4f4d0b0cc11a239ee7699ec94b5d7`.
 The no-comparison/idle-only override SHA256 is
@@ -16,16 +16,30 @@ Exact texts are preserved separately under the same private `Prompt/` directory.
 
 ## Collection contract
 
-`configs/ascend/as2_measurement_policy.json` fixes five models, the five batch
+`configs/ascend/as2_focus_compare.json` fixes the active five models, two batch
 sizes and eager/compile/vLLM/SGLang. Each cell uses BF16, ISL64/OSL1024,
 greedy/ignore-EOS, one new process, one warmup and three complete timed requests.
 Only collect when plain `npu-smi info` establishes idle state; unavailable
 telemetry is not evidence of idleness. Defer busy cards without locks or process
 intervention. Idle observations cannot reserve hardware against other users;
 observed interference makes a sample contended, not an admitted idle snapshot.
-The intended idle observation policy is two snapshots five seconds apart,
-utilization at most5%, no listed external processes and sufficient free HBM.
+The active idle policy is two snapshots15 seconds apart, utilization0%, healthy
+devices and sufficient free HBM. Idle resident contexts are observed rather
+than evicted; their presence conservatively marks timing contended.
 Collection remains serial and bounded, not a bulk compile or stress sweep.
+
+The exact latest user text is `tilemega-as2/Prompt/user_focus_20261027_zh.md`,
+SHA256 `006a101838ca5b04bd780201d36a67be2f4ea3df34b43f4eedb062473b2ca1a8`.
+The sole submitter is `as2_queue run --directory runs/as2/bench/focus_b1_b16_v1`.
+Its comparison CSV/JSON retains TPOT/TTFT/E2E/throughput, physical device,
+all failed attempts and interference. Current results: `AS2_focus_comparison.md`.
+
+`verified-run`: compile uses NPUGraphEx; vLLM uses native mode3 decode graphs.
+SGLang uses native FIA without graphs: this installed graph replay failed107000
+with SQ/CQ binding diagnostics. Its page128 pool is B×2048; logical KV capacity
+is1088 and scheduler context1090 preserves all1024 outputs. Collector2 consumes
+CPU-ready delta tokens without an unused explicit parent NPU context. A child
+SetDevice507033 failure remains recorded; the bounded collector2 retry succeeds.
 
 Keep configuration/weight/input identity and requested output-count checks;
 do not compare baseline tokens, logits, KV or teacher-forced traces. Historical
@@ -66,7 +80,7 @@ the current25.7.rc1 driver remain installed. No Docker/system installer ran.
 | `envs/sglang-npu` | Python3.12.3, torch2.10.0+cpu, torch_npu2.10.0.post6, transformers5.19.0; SGLang pinned development source, kernel2026.9.0 |
 
 `scripts/as2_baseline_env.sh` selects one private engine and directs verified
-cache/vendor/header settings locally. Locks/freezes/install logs are retained
+cache/vendor/header settings locally. Dependency lockfiles/install logs are retained
 under private `scripts/` and `logs/`; detailed receipts are `runs/as2/inventory/`.
 
 - vLLM core0.23.0 source `0fc695fc6d1d82e9a5ac6835ac8e4e1c83703665`;
@@ -104,14 +118,14 @@ under private `scripts/` and `logs/`; detailed receipts are `runs/as2/inventory/
   `third_party/`; no package installation. SHA256
   `c123ddab7763e45199e21b4ac8545e705f20a0315b9ada4c236b52fb088c4e16`.
 
-## Actual execution and remaining collection
+## Historical setup probes, superseded by the frozen dataset
 
 Model runs below used physical1/PCI55:00.0→logical0, one visible950PR.
 The private ATB follow-up probe selects physical0/PCID7:00.0 when physical1
 has only1607MiB free versus physical0's125437MiB. Submissions are serial;
 other load is observed only. No device lock, reset or other-process action.
 
-| Path | verified-run historical evidence | Remaining performance work |
+| Path | verified-run historical evidence | Status at that earlier checkpoint |
 |---|---|---|
 | Both new Torch/NPU stacks | `probes/{vllm,sglang}_framework210_v1`: BF16 GEMM passes | Performance dataset pending |
 | torch_npu NPUGraphEx compile | Qwen0.6 B1 full1024 completes; two captured graphs, no timed recapture | Idle warmup+three requests pending |
@@ -135,13 +149,15 @@ distributed bookkeeping is logged; no multi-device communication is configured.
 `as2_sglang.py`/`as2_sglang_loader.py` implement the native engine adapter.
 The initial missing `libatb.so` is resolved privately. Native FIA executes;
 the pinned scheduler clips generation to `max_req_len-input_len-1`. The
-harness now requests engine context1089 for logical capacity1088, preserving
-one unused scheduler guard position, and reports actual counts on failure.
-This fix is verified-code, not yet verified-run. No numerical comparison is
-needed for the rerun. A prior query-only timeout also affected plain
+harness initially requested context1089, which remained insufficient. Current
+context1090 and B×2048 physical pool are verified by all ten full1024 cells;
+both scheduler guard positions are preserved without truncation. No new
+baseline numerical comparison was needed. A prior query-only timeout affected plain
 `npu-smi info`; subsequent telemetry recovered. No system/runtime change.
 
-Next: bounded native graph configuration, full-request count completion, then
-the one-time idle100-cell performance collection. Continue the two remaining
-TileMega B16 cells and bounded optimization independently. Never replace
-unavailable measurements by0 or treat a configured cell as an executed result.
+The completed40-cell snapshot is `bench/focus_b1_b16_v1/frozen_baselines_v1.json`
+under ignored `runs/as2`, SHA256
+`4f1fa3729e3f74ce5c48e72257009447bee39e453dec93735d3da851a55b37ab`.
+It retains identities, original samples, selected successful technical retries,
+physical devices and contention. All failed attempts remain in queue history.
+Further TileMega changes reuse this snapshot; B2/4/8 remain deferred.

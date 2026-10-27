@@ -158,15 +158,15 @@ short reset requests (`probes/llama1b_b16_actual_runtime_launches_v1.json`).
 
 | Dense model | B1 full1024 + teacher512 vs SDPA | B16 full1024 + teacher512 vs SDPA |
 |---|---|---|
-| Qwen3-0.6B | pass; sourced selected queues | pass; unpriced diagnostic structure |
+| Qwen3-0.6B | pass; sourced selected queues | priced full1024 passes; prior diagnostic teacher512 passes |
 | Llama-3.2-1B | pass; sourced selected queues | pass; local-tail +split3; priced1024 also passes |
 | Qwen3-1.7B | pass; sourced split3 queues | pass; sourced local-tail +split3 queues |
-| Llama-3.2-3B | pass; sourced split2 queues | unpriced4-output bootstrap fails5/64 tokens |
-| Llama-3.1-8B | pass; sourced separate-QKV/split7 queues | incomplete |
+| Llama-3.2-3B | pass; sourced split2 queues | priced decode split2 full1024 passes; teacher512 pending |
+| Llama-3.1-8B | pass; sourced separate-QKV/split7 queues | priced selective Q/O/down-tail3 full1024 passes; teacher512 pending |
 
-**Eight numerical long cells, zero formal final correctness/performance cells.**
+**Ten numerical long cells, zero formal final correctness/performance cells.**
 The latter still require final TileMega configurations and applicable
-C-0/C-1/C-2/C-3 coverage;8/10 is not an overall completion percentage.
+C-0/C-1/C-2/C-3 coverage;10/10 numerical runs do not complete those Gates.
 Price and capture histories are retained in `runs/as2`; exact selected bindings,
 binaries and next commands are indexed by `checkpoint.json`/`resume.json`.
 
@@ -178,8 +178,8 @@ binaries and next commands are indexed by `checkpoint.json`/`resume.json`.
 - Do not continue unbounded bitwise micro-probes as the main optimization loop.
   Each diagnostic must answer a failing model check or a quantified bottleneck,
   retain its failure evidence, then return to the complete model request.
-- Complete the two remaining B16 long cells without shrinking layers/vocab/
-  output length. Keep MoE deferred under the user's explicit scope override.
+- Preserve all ten numerical long cells without shrinking layers/vocab/output
+  length. New teacher512/final coverage remains. Keep MoE deferred.
 - Connect bounded Body/geometry/decomposition/G choices to the existing semantic
   and schedule chain; component TopK plus a fixed whole-model Body is incomplete.
   Reuse shapes and source-identical binaries; no large sweep or batch build.
@@ -188,7 +188,8 @@ binaries and next commands are indexed by `checkpoint.json`/`resume.json`.
   or handoff. Predicted objective reduction cannot admit a default or speedup.
 - Latest user override: no baseline numerical comparisons. Collect eager,
   compile, vLLM and SGLang once on idle hardware for five dense models and
-  B1/2/4/8/16 (100 cells), then reuse while optimizing TileMega. Keep
+  B1/B16 (40 baseline cells), then collect ten TileMega cells for user review.
+  B2/4/8 are deferred by the latest request. Keep
   ISL64/OSL1024, TPOT=(t_last-t_first)/1023, warmup1/timed3. Snapshot ratios
   are not contemporaneous paired confidence intervals; raw samples remain.
 - Private paths only; one own NPU job/card, no device locks or external process
