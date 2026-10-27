@@ -726,3 +726,21 @@ remain, non-self-referencing v3 seals5ec45c71/a1743192 rehash all other files.
 The Row correctness CSV separately appends a metadata correction: runtime
 git HEAD at launch was not captured and must not be inferred from artifact
 HEAD. Actual artifact source, C-1/C-2 outcomes and earlier row remain intact.
+
+**Verified Row2678 calibration:** Eight normal P0 libraries (56 kernels) and
+five rule-derived primary libraries (32 kernels) compile with same-compile
+MIR observations. Both P0 and primary800 actual zero-launch attribute queries
+returnAPI0/guard0. P0 fits512400/576100; primary fits512400/5760.
+576D64Q4 PK2 has44–48B frames,576D128 PK1 has448–592B frames; all
+rejects remain unexecuted. These observed counts replace no historical row.
+Original campaign preparation produces400512 keys in17 batches(max24),
+three fresh cost processes per batch pending; no new table/default acceptance.
+
+**Verified G576 diagnostic:** One independent guarded capture of exact failed
+key13 uses originalseed2030, same normal68c178 library,2×2000iterations,
+unchanged CPUFP32 oracle and tolerance. Both outputs are bitwise identical;
+counter/tickets checks pass, but each fails exactly at[13,4622]. Alloutputs
+are finite. Rawoutput/reference/inputBF16bits/comparison masks are retained.
+Childreturncode1 is expected failure evidence, never a replacement cost,
+passing result, tolerance waiver or multi-process synchronization proof.
+CPU cause analysis is pending.
