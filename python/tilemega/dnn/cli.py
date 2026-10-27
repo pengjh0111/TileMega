@@ -133,6 +133,34 @@ def build(config, out, compiler):
             if node.op == 'placeholder' and isinstance(node.meta.get('val'), torch.Tensor)
             and node.meta['val'].ndim and not isinstance(node.meta['val'].shape[0], int)}
         atomic_json(bridge, serialize(program, shape_bindings=symbols))
+        if config['features'].get('native'):
+            # Native DNN forward (prompt §10 N-1): the solver's own rule-pruned
+            # search, no legacy execution option. `measure_cmd` makes it P-DNN.
+            command = [str(compiler), 'compile', str(bridge), str(library),
+                '--emit', 'serving', '--serving', 'forward', '--frontend', 'dnn',
+                '--batch', str(batch), '--solve', target, '--runtime-target', target,
+                '--dwpw-fuse', str(config['features'].get('dwpw_fuse', 'auto')),
+                '--selection', 'measure' if config['features'].get('measure_cmd') else 'predicted',
+                '--dump-cg', str(directory / 'selected.mlir')]
+            if config['features'].get('measure_cmd'):
+                command += ['--measure-cmd', str(config['features']['measure_cmd']),
+                            '--measure-top', str(config['features'].get('measure_top', 4))]
+            atomic_json(directory / 'command.json', command)
+            source = directory / 'source.json'
+            inputs = snapshot(ROOT, source, compiler)
+            with gpu_lock():
+                with (directory / 'build.log').open('w') as stream:
+                    subprocess.run(command, cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT,
+                                   check=True)
+                identity = verify(library, expected_source=inputs)
+            record = dict(batch=batch, library=str(library), export=str(export),
+                bridge=str(bridge), artifact_id=identity['artifact_id'], native='forward',
+                selection='measured P-DNN' if config['features'].get('measure_cmd')
+                    else 'predicted; no performance measurement')
+            plans.append(record)
+            atomic_json(out / 'plans.json', plans)
+            print(json.dumps(dict(event='dnn_build_complete', **record)), flush=True)
+            continue
         command = [str(compiler), 'compile', str(bridge), str(library),
             '--emit', 'serving', '--serving', 'forward', '--frontend', 'dnn',
             '--batch', str(batch), '--pg', config['features']['pg'],
