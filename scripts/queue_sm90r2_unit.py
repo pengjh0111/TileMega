@@ -21,8 +21,10 @@ def main():
     p.add_argument('--after', nargs='*', default=[])
     p.add_argument('--binary-arg', action='append', default=[])
     a = p.parse_args()
-    if a.timing and a.gpu == 5:
-        p.error('GPU5 is functional-only')
+    # GPU5 timing is authorized for this round (see the guard policy); GPU6
+    # stays excluded by the --gpu choices.
+    if a.gpu == 6:
+        p.error('GPU6 is never used')
     if a.rounds < 1 or a.timeout < 1 or a.needs_free_mib < 1:
         p.error('round count, timeout and memory reservation must be positive')
     policy = ROOT / 'configs/bench/sm90r2_guard_policy.json'
