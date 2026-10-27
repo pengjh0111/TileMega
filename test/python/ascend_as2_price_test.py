@@ -1,7 +1,30 @@
 """CPU-only accounting checks; fixture costs are not hardware calibration."""
 import unittest
+import gzip
+import hashlib
+import json
+from pathlib import Path
+import tempfile
 from tilemega.bench.as2_native_prices import task_overheads,tile_body_prices
-from tilemega.bench.as2_body_profile import logical_bytes
+from tilemega.bench.as2_body_profile import logical_bytes,profile_bytes
+from tilemega.bench.as2_models import RUNS
+
+
+class ProfileArchive(unittest.TestCase):
+    def test_lossless_archive_and_identity_rejection(self):
+        with tempfile.TemporaryDirectory(dir=RUNS/'probes') as raw:
+            source=Path(raw)/'profile.bin';archive=source.with_name(source.name+'.gz')
+            data=bytes(range(256))*4;source.write_bytes(data)
+            self.assertEqual(profile_bytes(source),data)
+            archive.write_bytes(gzip.compress(data));receipt=source.with_name(source.name+'.archive.json')
+            identity=dict(source=str(source),archive=str(archive),roundtrip_verified=True,bytes=len(data),
+                source_sha256=hashlib.sha256(data).hexdigest(),archive_sha256=hashlib.sha256(archive.read_bytes()).hexdigest())
+            receipt.write_text(json.dumps(identity));source.unlink()
+            self.assertEqual(profile_bytes(source),data)
+            receipt.write_text(json.dumps(dict(identity,source='/tmp/escape')))
+            with self.assertRaisesRegex(ValueError,'identity'):profile_bytes(source)
+            receipt.write_text(json.dumps(identity));archive.write_bytes(archive.read_bytes()+b'changed')
+            with self.assertRaisesRegex(ValueError,'identity'):profile_bytes(source)
 
 
 class AscendPriceAccounting(unittest.TestCase):

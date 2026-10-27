@@ -1,11 +1,24 @@
 """Extract measured Body service intervals; never substitute them for total task prices."""
 import argparse
+import gzip
 import json
 from pathlib import Path
 import statistics
 import struct
 from tilemega.bench.as2_models import RUNS, controlled
 from tilemega.bench.as2_native import digest
+
+
+def profile_bytes(path):
+    if path.exists():return path.read_bytes()
+    receipt=json.loads(path.with_name(path.name+'.archive.json').read_text())
+    archive=path.with_name(path.name+'.gz')
+    if receipt['source']!=str(path) or receipt['archive']!=str(archive) or not receipt['roundtrip_verified'] or digest(archive)!=receipt['archive_sha256']:
+        raise ValueError('Archived profile identity mismatch')
+    with gzip.open(archive,'rb') as stream:data=stream.read()
+    if len(data)!=receipt['bytes'] or __import__('hashlib').sha256(data).hexdigest()!=receipt['source_sha256']:
+        raise ValueError('Archived profile payload changed')
+    return data
 
 
 def logical_bytes(s,m,tile,past):
@@ -91,7 +104,7 @@ def extract(binding,job_path,phase,repetition,out):
     stages=list(struct.iter_unpack('<17Q16I',(plan/'stages.bin').read_bytes()))
     offsets=struct.unpack('<'+'I'*(m[2]+1),(plan/'offsets.bin').read_bytes())
     queue=struct.unpack('<'+'I'*m[6],(plan/'queue.bin').read_bytes())
-    data=(Path(command[3])/f'request_{repetition}'/phase/'profile.bin').read_bytes()
+    data=profile_bytes(Path(command[3])/f'request_{repetition}'/phase/'profile.bin')
     if len(data)!=m[6]*512:raise ValueError('Wrong queue-profile byte extent')
     resources=json.loads((RUNS/'probes/resource_summary.json').read_text())
     timer_job=Path(resources['counter_evidence'])
