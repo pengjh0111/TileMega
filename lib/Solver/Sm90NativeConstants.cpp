@@ -34,6 +34,7 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
   c.epilogue_=s.At("epilogue_ns");c.embedding_=s.At("embedding_ns");c.argmax_la_=s.At("argmax_la_ns");
   c.route_la_=s.At("route_la_ns");c.round_=s.At("round_ns");c.clusters_=s.At("clusters");
   c.dsmem_=s.At("dsmem_merge_ns");
+  if(auto const* forward=s.Find("forward"))c.forward_=*forward;
   c.attention_=s.At("attention_ns");
   return c;
 }
@@ -76,6 +77,16 @@ double Sm90NativeConstants::GroupWaitSaving(int grid) const {
   auto const* b=group?group->Find(std::to_string(grid)):nullptr;
   if(!a || !b)throw Sm90NativeMissing("no measured group wait for grid "+std::to_string(grid));
   return Positive(*a,"V3 round")-Positive(*b,"group round");
+}
+double Sm90NativeConstants::WgmmaEfficiency() const {
+  auto const* found=forward_.Find("wgmma_efficiency");
+  if(!found)throw Sm90NativeMissing("no measured WGMMA efficiency; run the forward constants probe");
+  return Positive(*found,"wgmma efficiency");
+}
+double Sm90NativeConstants::SmFlops() const {
+  auto const* found=forward_.Find("sm_flops_per_ns");
+  if(!found)throw Sm90NativeMissing("no measured SM throughput; run the forward constants probe");
+  return Positive(*found,"sm throughput");
 }
 int Sm90NativeConstants::ClusterStar(int residency) const {
   auto const* r=clusters_.Find("r"+std::to_string(residency));

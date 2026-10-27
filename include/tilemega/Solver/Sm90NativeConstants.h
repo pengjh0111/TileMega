@@ -36,6 +36,10 @@ class Sm90NativeConstants {
   double AttentionMergeDsmem(int dim,int queries,bool norm,int chunks) const;
   // B/TN above kappa = BW_l2 / BW_dram - 1 makes a stage activation-bound (D10c).
   double MulticastKappa() const {return l2_gbps/dram_gbps-1;}
+  // N-1: the measured WGMMA shape efficiency and one SM's bf16 throughput
+  // (FLOP/ns), which price a forward stage's compute term.
+  double WgmmaEfficiency() const;
+  double SmFlops() const;
   // D2 body: one 64-key block (data resident), q preparation, S-chunk merge.
   double AttentionBlock(int dim,int queries,bool norm) const;
   double AttentionPrepare(int dim,int queries,bool norm) const;
@@ -46,7 +50,7 @@ class Sm90NativeConstants {
   json::Value section;
  private:
   std::map<int,double> barrier_;
-  json::Value epilogue_,embedding_,argmax_la_,route_la_,attention_,round_,clusters_,dsmem_;
+  json::Value epilogue_,embedding_,argmax_la_,route_la_,attention_,round_,clusters_,dsmem_,forward_;
   json::Value const& AttentionShape(int dim,int queries,bool norm) const;
 };
 

@@ -7,6 +7,7 @@
 #include <tilemega/Backend/Sm90DenseToken.cuh>
 #include <tilemega/Backend/Sm90DenseHead.cuh>
 #include <tilemega/Backend/Sm90DenseMoe.cuh>
+#include <tilemega/Backend/Sm90Gmma.h>
 #include <tilemega/Codegen/executor/Async.cuh>
 #include <tilemega/Codegen/executor/TensorMap.h>
 #include <cuda_runtime.h>
@@ -382,6 +383,60 @@ void DsmemMergeCase() {
   Check(cudaFree(output));Check(cudaFree(out));
 }
 
+// N-1 forward constants (prompt §10 item 8): one SM's sustained WGMMA
+// throughput at each forward tile width. eta(N) is that rate divided by the
+// best rate over the measured widths; the cost model prices a stage with its
+// own N, so no shape is extrapolated from another.
+template<int N>
+__global__ __launch_bounds__(128) void WgmmaRate(U64* out,int iterations) {
+  using namespace cute;
+  using Mma=decltype(cute::make_tiled_mma(typename backend::Sm90Gmma<arch::Sm90>::template SS<N>{}));
+  extern __shared__ __align__(1024) char shared[];
+  auto* a=reinterpret_cast<BF*>(shared);
+  auto* b=a+64*64;
+  for(int i=threadIdx.x;i<64*64+N*64;i+=128)
+    (i<64*64?a:b)[i<64*64?i:i-64*64]=BF(1.0f/64.0f);
+  __syncthreads();
+  auto accum=partition_fragment_C(Mma{},Shape<_64,Int<N>>{});clear(accum);
+  auto thread=Mma{}.get_slice(int(threadIdx.x));
+  auto ta=make_tensor(make_smem_ptr(a),backend::Sm90KLayout<64,64>{});
+  auto tb=make_tensor(make_smem_ptr(b),backend::Sm90KLayout<N,64>{});
+  auto ra=thread.partition_fragment_A(ta);
+  auto rb=thread.partition_fragment_B(tb);
+  U64 begin=clock64();
+  for(int it=0;it<iterations;++it) {
+    backend::Sm90Gmma<arch::Sm90>::Arrive();
+    CUTE_UNROLL
+    for(int k=0;k<size<2>(ra);++k)gemm(Mma{},ra(_,_,k),rb(_,_,k),accum);
+    backend::Sm90Gmma<arch::Sm90>::Commit();
+    backend::Sm90Gmma<arch::Sm90>::template Wait<0>();
+  }
+  U64 elapsed=clock64()-begin;
+  if(threadIdx.x==0)out[blockIdx.x]=elapsed;
+  // Keep the accumulator live so the loop is not removed.
+  if(threadIdx.x==1024)out[0]=U64(accum(0));
+}
+template<int N>
+void WgmmaCase(int sms) {
+  constexpr int iterations=512;
+  int bytes=2*(64*64+N*64);
+  auto kernel=WgmmaRate<N>;
+  Check(cudaFuncSetAttribute(kernel,cudaFuncAttributeMaxDynamicSharedMemorySize,bytes));
+  auto* out=Device<U64>(sms);
+  kernel<<<sms,128,bytes>>>(out,iterations);
+  Check(cudaDeviceSynchronize());
+  std::vector<U64> host(sms);
+  Check(cudaMemcpy(host.data(),out,host.size()*8,cudaMemcpyDeviceToHost));
+  Check(cudaFree(out));
+  // 2 * 64 * N * 64 FLOP per iteration on one SM.
+  std::vector<double> rates;
+  for(int i=0;i<sms;++i) {
+    double ns=double(host[i])/cycles_per_ns;
+    rates.push_back(2.0*64.0*N*64.0*iterations/ns);
+  }
+  Print("t_wgmma","n="+std::to_string(N),rates,"flop_per_ns");
+}
+
 // Whole embedding/argmax stages, each followed by the program's V3 barrier.
 template<int Width>
 __global__ void EmbeddingStage(int const* tokens,BF const* table,BF* output,float* sums,int batch,
@@ -706,6 +761,9 @@ int main(int argc,char** argv) {try {
   // MoE (Hkv = 4) at G = 264 reaches S0 = 64 chunks (prompt §8 M2).
   if(full || !std::strcmp(argv[1],"--moe-merge-only"))AttentionCase<128,8,true,64>();
   // D10b: clusters of C = 2 (DT-2's grids) merge S = 2 chunks through DSMEM.
+  if(full || !std::strcmp(argv[1],"--forward-only")) {
+    WgmmaCase<32>(sms);WgmmaCase<64>(sms);WgmmaCase<128>(sms);WgmmaCase<256>(sms);
+  }
   if(full || !std::strcmp(argv[1],"--dsmem-merge-only")) {
     DsmemMergeCase<128,2,true,2>();DsmemMergeCase<64,4,false,2>();DsmemMergeCase<128,3,false,2>();
     DsmemMergeCase<128,4,false,2>();DsmemMergeCase<128,8,true,2>();
