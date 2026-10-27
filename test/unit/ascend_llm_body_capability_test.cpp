@@ -55,6 +55,21 @@ int main() {
     try {llm_host::ValidateCompiledBodies({split});return 1;}
     catch(std::invalid_argument const&) {}
   }
+  for(unsigned extent:{2u,7u})for(unsigned kind:{0u,6u}) {
+    llm::Stage split{};split.kind=kind;split.extent=extent;split.rows=16;
+    split.columns=extent==2?3072:1024;split.k=extent==2?8192:4096;
+    split.width=(split.k+extent-1)/extent;split.group=1;split.variant=1;
+    split.epilogue=kind==6 && extent==2;
+    llm_host::ValidateCompiledBodies({split});
+    for(unsigned group:{0u,2u}) {
+      auto invalid=split;invalid.group=group;
+      try {llm_host::ValidateCompiledBodies({invalid});return 1;}
+      catch(std::invalid_argument const&) {}
+    }
+    split.rows=1024;
+    try {llm_host::ValidateCompiledBodies({split});return 1;}
+    catch(std::invalid_argument const&) {}
+  }
 #endif
   for(auto const& stage:{partial,combine}) {
     try {llm_host::ValidateCompiledBodies({stage});}

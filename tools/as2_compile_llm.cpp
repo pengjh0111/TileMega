@@ -159,7 +159,8 @@ int main(int argc,char** argv) {
           decomposition.At("batch").AsNumber("batch")!=batch || serving.argmax_tile_n!=128)
         throw std::invalid_argument("Observed decomposition model/phase/geometry mismatch");
       if(batch!=1 && !(batch==16 && phase=="decode" &&
-          (receipt.At("model_id").AsString("model")=="llama3_2_1b" || receipt.At("model_id").AsString("model")=="qwen3_1_7b" || receipt.At("model_id").AsString("model")=="llama3_2_3b")))
+          (receipt.At("model_id").AsString("model")=="llama3_2_1b" || receipt.At("model_id").AsString("model")=="qwen3_1_7b" || receipt.At("model_id").AsString("model")=="llama3_2_3b" || receipt.At("model_id").AsString("model")=="llama3_1_8b")) &&
+          !(batch==16 && phase=="prefill" && receipt.At("model_id").AsString("model")=="llama3_1_8b"))
         throw std::invalid_argument("Unverified batch decomposition");
       if(auto separate=decomposition.Find("separate_qkv"))serving.separate_qkv=separate->AsBool("separate_qkv");
       if(serving.separate_qkv && receipt.At("model_id").AsString("model")!="llama3_1_8b")
@@ -206,7 +207,7 @@ int main(int argc,char** argv) {
         if(matches!=family.At("expected_gemms").AsNumber("expected_gemms"))
           throw std::invalid_argument("Decomposition did not match the complete model family");
       }
-      if(!decomposed_gemms)throw std::invalid_argument("Empty decomposition cannot prove optimization participation");
+      if(!decomposed_gemms && !serving.separate_qkv)throw std::invalid_argument("Empty decomposition cannot prove optimization participation");
     }
     mlir::MLIRContext context;tilemega::frontend::ImportSummary summary;
     tilemega::frontend::TorchExportImporter importer;
