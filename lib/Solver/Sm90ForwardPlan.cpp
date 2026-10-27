@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/Sm90ForwardPlan.h>
 
+#include <tilemega/Backend/ConvIteration.h>
 #include <tilemega/Codegen/ServingPages.h>
 #include <tilemega/Frontend/DmDescriptorCodec.h>
 #include <tilemega/Frontend/DnnModelPlan.h>
@@ -28,7 +29,7 @@ frontend::ModelPlan BuildSm90ForwardPlan(std::string const& export_path,int batc
   frontend::DnnPlanOptions options;
   options.batch=unsigned(batch);
   // Every native A panel is a whole 64-channel block, including the image.
-  options.small_input_channels=64;
+  options.nhwc_channel_block=64;
   options.global_pool_channels=128;
   options.dwpw_fuse=fuse;
   options.deferred_layernorm=true;
@@ -79,9 +80,14 @@ std::vector<Sm90ForwardShape> Sm90ForwardShapesFromPlan(frontend::ModelPlan cons
       case Sm90ForwardBody::kConv:
       case Sm90ForwardBody::kGemv: {
         auto const& gemm=plan.gemms.at(stage.gemm);
-        shape.n=gemm.n;shape.k=gemm.k;
+        shape.n=gemm.n;
+        // The native bodies contract whole 64-element k tiles: a conv's K is
+        // its issued iteration count, a dense K its padded extent.
+        shape.k=(std::int64_t(gemm.k)+63)/64*64;
         if(shape.body==Sm90ForwardBody::kConv) {
           auto const& c=plan.convolutions.at(gemm.access.conv);
+          shape.k=std::int64_t(backend::ConvIterationGeometry::Build(c,
+              plan.buffers.at(c.input_layout).layout,64).iterations)*64;
           shape.m=std::int64_t(c.n)*c.p*c.q;
           shape.pixels=shape.m;shape.channels=c.c;shape.out_channels=c.k;
           shape.kernel=int(c.r);shape.stride=int(c.stride_h);

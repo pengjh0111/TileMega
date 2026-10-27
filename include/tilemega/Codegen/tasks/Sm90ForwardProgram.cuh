@@ -94,11 +94,8 @@ struct ForwardGemmStage {
     p.partial=reinterpret_cast<float*>(b.template Get<Bind::kPartial>());
     p.counters=reinterpret_cast<std::uint64_t*>(b.template Get<Bind::kCounters>());
     p.epilogue=EpilogueOf<B,Bind>(b,Shape::kEpsilon,Shape::kResidualStride);
+    // The convolution geometry is a compile-time trait of the body itself.
     p.output_stride=Shape::kOutputStride;
-    p.width=Shape::kWidth;p.height=Shape::kHeight;
-    p.pad_w=Shape::kPadW;p.pad_h=Shape::kPadH;
-    p.stride_w=Shape::kStrideW;p.stride_h=Shape::kStrideH;
-    p.kernel_w=Shape::kKernelW;p.kernel_h=Shape::kKernelH;
   }
   template<class B>
   __device__ static __forceinline__ void Run(B const&,char* shared,int offset,

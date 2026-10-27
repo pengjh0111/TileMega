@@ -5,6 +5,7 @@
 // anything else stops the build rather than falling back to the legacy body.
 #include <tilemega/Codegen/ForwardCodegen.h>
 
+#include <tilemega/Backend/ConvIteration.h>
 #include <tilemega/Frontend/DmDescriptorCodec.h>
 #include <tilemega/Solver/Sm90ForwardCoordinates.h>
 #include <tilemega/Support/Json.h>
@@ -12,6 +13,7 @@
 #include <mlir/IR/BuiltinAttributes.h>
 
 #include <cmath>
+#include <iomanip>
 #include <map>
 #include <sstream>
 #include <stdexcept>
@@ -44,6 +46,11 @@ std::string String(mlir::DictionaryAttr value,char const* field) {
 }
 std::string Quoted(std::string const& text) {
   return json::Value(text).Dump(0);
+}
+std::string Float(double value) {
+  std::ostringstream out;
+  out<<std::scientific<<std::setprecision(9)<<value<<'f';
+  return out.str();
 }
 std::string Identifier(unsigned value) {
   return value==codegen::kDmNoIndex?"kAbsent":std::to_string(value)+"u";
@@ -88,7 +95,8 @@ struct Geometry {
        <<",kStrideW="<<stride<<",kStrideH="<<stride
        <<",\n      kOutputStride="<<output_stride<<",kResidualStride="<<residual_stride
        <<",kHeads="<<heads<<",kSequence="<<sequence<<";\n"
-       <<"  static constexpr float kEpsilon="<<epsilon<<"f,kScale="<<scale<<"f;\n};\n";
+       <<"  static constexpr float kEpsilon="<<Float(epsilon)<<",kScale="<<Float(scale)
+       <<";\n};\n";
     return out.str();
   }
 };
@@ -96,8 +104,9 @@ struct Geometry {
 std::string EmitConv(unsigned index,codegen::ConvDesc const& conv,
                      codegen::DmBufferLayout const& layout) {
   std::ostringstream out;
+  // kC is the input's padded channel block: the im2col panels walk it.
   out<<"struct Conv_"<<index<<" {\n  static constexpr int kQ="<<conv.q<<",kP="<<conv.p
-     <<",kC="<<conv.c<<",kS="<<conv.s<<",kR="<<conv.r
+     <<",kC="<<layout.physical[3]<<",kS="<<conv.s<<",kR="<<conv.r
      <<",\n      kStrideW="<<conv.stride_w<<",kStrideH="<<conv.stride_h
      <<",kPadW="<<conv.pad_w<<",kPadH="<<conv.pad_h
      <<",\n      kHaloW="<<layout.halo_left<<",kHaloH="<<layout.halo_top
@@ -144,7 +153,8 @@ struct MapTable {
 // Sm90ForwardEpilogueChain. Only the operations the chain body implements are
 // accepted; an unknown one stops the build. Chain vectors fill the binding's
 // four vector slots in the order the operations name them.
-std::string Chain(codegen::DmEpilogueChain const& chain,int rows,int width,Binding& bind) {
+std::string Chain(codegen::DmEpilogueChain const& chain,int rows,int width,Binding& bind,
+                  bool* gated=nullptr) {
   std::ostringstream out;
   out<<"Sm90ForwardEpilogueChain<"<<rows<<','<<width;
   unsigned slots=0;
@@ -168,7 +178,7 @@ std::string Chain(codegen::DmEpilogueChain const& chain,int rows,int width,Bindi
       case Kind::kBias:out<<"kBias";first=slot(op.parameter[0]);break;
       case Kind::kScale:out<<"kScale";first=slot(op.parameter[0]);break;
       case Kind::kActivation:out<<"kActivation";break;
-      case Kind::kGatePair:out<<"kGatePair";break;
+      case Kind::kGatePair:out<<"kGatePair";if(gated)*gated=true;break;
       case Kind::kResidual:
         out<<"kResidual";residual(op.parameter[0]);first=slot(op.parameter[1]);break;
       case Kind::kDeferredLayerNorm:
@@ -255,23 +265,31 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
      <<Quoted(coordinates.ToJson().Dump(0))<<";\n"
      <<"constexpr int kNativeForwardArena="<<arena<<";\n";
 
-  // Buffers keep their plan order: the harness binds external tensors by index.
-  out<<"constexpr std::array<tm_buffer_info,"<<buffers.size()<<"> kNativeForwardBuffers={{\n";
+  // Buffers keep their plan order: the harness binds external tensors by
+  // index. The table is written once the stages have named their scratch.
+  std::ostringstream table;
   for(auto value:buffers) {
     auto buffer=Entry(value,"buffer");
     auto dtype=buffer.getAs<mlir::StringAttr>("dtype");
     auto role=buffer.getAs<mlir::StringAttr>("role");
     auto pack=buffer.getAs<mlir::StringAttr>("pack_json");
     auto name=dtype?String(buffer,"dtype"):std::string("bf16");
-    out<<"  {"<<Quoted(String(buffer,"name"))<<','
-       <<(role && role.getValue()=="external"?"TM_BUFFER_EXTERNAL":"TM_BUFFER_INTERNAL")<<','
-       <<(name=="f32"?"TM_DTYPE_F32":name=="i32"?"TM_DTYPE_I32":"TM_DTYPE_BF16")<<','
-       <<Integer(buffer,"constant",0)<<"ull,"<<Integer(buffer,"per_batch",0)<<"ull,"
-       <<Quoted(pack?pack.getValue().str():std::string())<<"},\n";
+    table<<"  {"<<Quoted(String(buffer,"name"))<<','
+         <<(role && role.getValue()=="external"?"TM_BUFFER_EXTERNAL":"TM_BUFFER_INTERNAL")<<','
+         <<(name=="f32"?"TM_DTYPE_F32":name=="i32"?"TM_DTYPE_I32":"TM_DTYPE_BF16")<<','
+         <<Integer(buffer,"constant",0)<<"ull,"<<Integer(buffer,"per_batch",0)<<"ull,"
+         <<Quoted(pack?pack.getValue().str():std::string())<<"},\n";
   }
-  out<<"}};\n";
 
   MapTable maps;
+  // Split-K partials and their per-tile counters are the native program's own
+  // state: they extend the plan's buffer table as internal allocations.
+  struct Scratch {std::string name,dtype;std::uint64_t elements;};
+  std::vector<Scratch> scratch;
+  auto add_scratch=[&](std::string name,char const* dtype,std::uint64_t elements) {
+    scratch.push_back({std::move(name),dtype,elements});
+    return unsigned(buffers.size()+scratch.size()-1);
+  };
   std::vector<std::string> placements;
   for(unsigned index=0;index<stages.size();++index) {
     auto stage=Entry(stages[index],"stage");
@@ -341,21 +359,32 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
           spec.box[0]=64;spec.box[1]=64;
           bind.map=maps.Add(spec);
         }
-        if(n%c.tile_n || k%(c.split_k*64))
-          throw std::invalid_argument("native forward GEMM coordinates do not divide N or K");
-        for(unsigned i=0;i<4 && c.split_k>1;++i)if(operand(i)!=kAbsent) {
-          // The plan's split-K scratch and counter travel as stage operands.
-          if(bind.partial==kAbsent)bind.partial=operand(i);
-          else if(bind.counters==kAbsent)bind.counters=operand(i);
+        // The weight is packed into whole TN x 64 pages, so the body contracts
+        // the padded extents and stores only the model's own columns.
+        int padded_n=(n+c.tile_n-1)/c.tile_n*c.tile_n;
+        int padded_k=im2col?int(backend::ConvIterationGeometry::Build(convs[conv_index],
+            layouts.at(convs[conv_index].input_layout),64).iterations)*64:(k+63)/64*64;
+        if(padded_k%(c.split_k*64))
+          throw std::invalid_argument("native forward split-K does not divide the contraction");
+        if(c.split_k>1) {
+          auto tiles=std::uint64_t((rows+63)/64)*((padded_n)/c.tile_n);
+          bind.partial=add_scratch("native_forward.partial."+std::to_string(index),"f32",
+              tiles*unsigned(c.split_k)*64*unsigned(c.tile_n));
+          // One 64-bit arrival counter per output tile, held as two i32 slots.
+          bind.counters=add_scratch("native_forward.counter."+std::to_string(index),"i32",
+              2*tiles);
         }
-        if(c.split_k>1 && (bind.partial==kAbsent || bind.counters==kAbsent))
-          throw std::invalid_argument("a split-K forward GEMM needs its partial and counter");
         shape.output_stride=width_of(bind.output);
-        auto chain_text=Chain(chain,64,c.tile_n,bind);
+        bool gated=false;
+        auto chain_text=Chain(chain,64,c.tile_n,bind,&gated);
         if(bind.residual!=kAbsent)shape.residual_stride=width_of(bind.residual);
+        int store=gated?n/2:n;
+        if(gated && (n%2 || c.tile_n%2))
+          throw std::invalid_argument("a gated native forward GEMM needs an even N and TN");
         body="Sm90ForwardGemm<64,"+std::to_string(c.tile_n)+",64,"+std::to_string(c.slots)+','+
             std::to_string(c.split_k)+",Sm90ForwardAMode::"+(im2col?"kIm2col":"kDense")+','+
-            std::to_string(rows)+','+std::to_string(n)+','+std::to_string(k)+','+chain_text+','+
+            std::to_string(rows)+','+std::to_string(padded_n)+','+std::to_string(padded_k)+','+
+            std::to_string(store)+','+chain_text+','+
             (im2col?"Conv_"+std::to_string(index):"Sm90ForwardNoConv")+'>';
         wrapper="ForwardGemmStage";
         break;
@@ -487,12 +516,16 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
         }else if(c.body==Sm90ForwardBody::kGlobalPool) {
           if(kind!="kGlobalPoolReduce")
             throw std::invalid_argument("native forward pooling coordinates need its stage");
-          auto const& l=layouts.at(bind.input);
-          shape.channels=int(l.physical[3]);
-          shape.width=int(l.logical[2]);shape.height=int(l.logical[1]);
-          bind.partial=operand(2);bind.counters=operand(3);
-          if(bind.partial==kAbsent || bind.counters==kAbsent)
-            throw std::invalid_argument("native forward pooling needs its partial and counter");
+          // The producing convolution wrote the channel partials; this stage
+          // reduces them over the parts and divides by the pixel count.
+          bind.partial=operand(0);bind.output=operand(2);bind.input=kAbsent;
+          auto const& l=layouts.at(bind.partial);
+          if(l.rank!=3)throw std::invalid_argument("native forward pooling needs its partial sums");
+          shape.channels=int(Integer(stage,"extent"));
+          shape.width=int(l.physical[1]);
+          shape.height=int(Integer(stage,"dm_rows_per_batch",0));
+          if(shape.height<=0)
+            throw std::invalid_argument("native forward pooling needs its pixel count");
           body="Sm90ForwardGlobalPool";
         }else {
           if(kind!="kLayerNorm")
@@ -519,8 +552,15 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
     placements.push_back("Stage_"+std::to_string(index));
   }
 
+  out<<"constexpr std::array<tm_buffer_info,"<<(buffers.size()+scratch.size())
+     <<"> kNativeForwardBuffers={{\n"<<table.str();
+  for(auto const& item:scratch)
+    out<<"  {"<<Quoted(item.name)<<",TM_BUFFER_INTERNAL,"
+       <<(item.dtype=="f32"?"TM_DTYPE_F32":"TM_DTYPE_I32")<<','<<item.elements
+       <<"ull,0ull,\"\"},\n";
+  out<<"}};\n";
   out<<types.str()<<"using NativeForwardProgram=Program<"<<batch.getInt()<<','
-     <<coordinates.residency<<','<<buffers.size()<<','<<maps.specs.size()
+     <<coordinates.residency<<','<<(buffers.size()+scratch.size())<<','<<maps.specs.size()
      <<",kNativeForwardArena";
   for(auto const& name:placements)out<<','<<name;
   out<<">;\n";

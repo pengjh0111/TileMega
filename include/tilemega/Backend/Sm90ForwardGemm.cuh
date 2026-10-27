@@ -35,8 +35,10 @@ struct Sm90ForwardNoConv {
       kPadW=0,kPadH=0,kHaloW=0,kHaloH=0,kDilationW=1,kDilationH=1;
 };
 
+// N is the weight's padded extent (a whole number of TN tiles); NStore is how
+// many of the chain's output columns the model actually keeps.
 template<int TM,int TN,int TK,int Slots,int SplitK,Sm90ForwardAMode AMode,int M,int N,int K,
-         class Chain,class Conv=Sm90ForwardNoConv>
+         int NStore,class Chain,class Conv=Sm90ForwardNoConv>
 struct Sm90ForwardGemm {
   using Element=cutlass::bfloat16_t;
   using Async=codegen::executor::Async<arch::Sm90>;
@@ -46,6 +48,7 @@ struct Sm90ForwardGemm {
   static_assert(TK==64 && Slots>=2 && Slots<=8);
   static_assert(SplitK>=1 && K%(SplitK*TK)==0,"split-K divides the contraction into whole k tiles");
   static_assert(N%TN==0,"N is padded to a multiple of TN when the plan is built");
+  static_assert(NStore>=1 && NStore<=N,"the stored width is part of the padded extent");
   static_assert(M>=1,"a stage has at least one row");
   static_assert(AMode==Sm90ForwardAMode::kDense || Conv::kC%TK==0,
       "an im2col stage reads whole 64-channel blocks");
@@ -125,6 +128,9 @@ struct Sm90ForwardGemm {
       int n_tile=NTile(task),m_tile=MTile(task),slice=Slice(task);
       int tile=m_tile*kTiles+n_tile;
       int rows=M-m_tile*TM<TM?M-m_tile*TM:TM;
+      // The padded tail of N has weights but no output columns.
+      int width=NStore-n_tile*Chain::kWidth;
+      if(width>Chain::kWidth)width=Chain::kWidth;
       auto accum=partition_fragment_C(typename Gmma::Mma{},Shape<Int<TM>,Int<TN>>{});
       clear(accum);
       // Deferred LayerNorm: the consumer sums the A rows it already reads for
@@ -170,7 +176,7 @@ struct Sm90ForwardGemm {
       }
       auto* output=p.output+std::size_t(m_tile)*TM*p.output_stride;
       if constexpr(SplitK==1) {
-        Chain::Finish(tile_values,rows,n_tile*TN,Chain::kWidth,epilogue,output,p.output_stride);
+        Chain::Finish(tile_values,rows,n_tile*TN,width>0?width:0,epilogue,output,p.output_stride);
       }else {
         // Each slice stores its partial; the last arriver of the tile sums the
         // slices in fixed order and runs the chain once.
@@ -194,7 +200,8 @@ struct Sm90ForwardGemm {
             tile_values[i]=value;
           }
           codegen::executor::ComputeSync();
-          Chain::Finish(tile_values,rows,n_tile*TN,Chain::kWidth,epilogue,output,p.output_stride);
+          Chain::Finish(tile_values,rows,n_tile*TN,width>0?width:0,epilogue,output,
+              p.output_stride);
         }
       }
     }

@@ -95,7 +95,8 @@ struct Builder {
   Builder(std::vector<FxNodeRecord> const& n,std::vector<SignatureInput> const& inputs,
           std::vector<std::string> const& outputs,DnnPlanOptions o)
       :nodes(n),options(o) {
-    if(!o.batch || o.batch>64 || (o.small_input_channels!=4 && o.small_input_channels!=8))
+    if(!o.batch || o.batch>64 || (o.small_input_channels!=4 && o.small_input_channels!=8) ||
+        (o.nhwc_channel_block!=8 && o.nhwc_channel_block!=64))
       throw std::invalid_argument("invalid DNN batch or small-channel layout");
     p.dm=p.forward=true;p.dtype="bf16";p.serving_seq=1;p.depthwise_tma=o.depthwise_tma;
     p.memory_reuse=o.memory_reuse;p.memory_l2_budget_bytes=o.memory_l2_budget_bytes;
@@ -130,7 +131,13 @@ struct Builder {
     DmBufferLayout l;l.rank=4;l.kind=nchw?DmLayout::kRowMajor:DmLayout::kNHWC;
     unsigned logical[]={options.batch,nchw?c:h,nchw?h:w,nchw?w:c};
     std::copy(logical,logical+4,l.logical);std::copy(logical,logical+4,l.physical);
-    if(!nchw)l.physical[3]=c<=4?options.small_input_channels:(c+7)/8*8;
+    if(!nchw) {
+      unsigned padded=c<=4?options.small_input_channels:(c+7)/8*8;
+      if(options.nhwc_channel_block>8)
+        padded=(padded+options.nhwc_channel_block-1)/options.nhwc_channel_block*
+            options.nhwc_channel_block;
+      l.physical[3]=padded;
+    }
     Strides(l);return l;
   }
   static void Strides(DmBufferLayout& l) {

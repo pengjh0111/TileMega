@@ -38,8 +38,12 @@ struct ConvIterationGeometry {
         (tk!=16 && tk!=32 && tk!=64 && tk!=128))
       throw std::invalid_argument("invalid convolution K-iteration geometry");
     auto cp=layout.physical[3];
-    auto padded=conv.c<=4?(cp==4 || cp==8):
-        cp==((std::uint64_t(conv.c)+7)/8)*8;
+    // The input is padded to one of the two supported channel blocks: eight
+    // for the legacy vector packing, 64 for the native forward bodies.
+    auto block=[&](std::uint64_t size) {
+      return cp==((std::uint64_t(conv.c)+size-1)/size)*size;
+    };
+    auto padded=conv.c<=4?(cp==4 || cp==8 || cp==64):(block(8) || block(64));
     if(!padded || (cp<tk && tk%cp))
       throw std::invalid_argument("convolution channels do not fit its vector packing");
     auto count=CountIterations(cp,conv.r,conv.s,tk);

@@ -7,6 +7,10 @@ namespace tilemega::frontend {
 struct DnnPlanOptions {
   unsigned batch=1;
   unsigned small_input_channels=8;
+  // Every NHWC buffer's channels are padded to this block. The native forward
+  // bodies read whole 64-channel blocks (prompt §10 N-1 items 2 and 3); the
+  // legacy bodies keep the eight-channel padding they were measured with.
+  unsigned nhwc_channel_block=8;
   unsigned depthwise_rows=1,depthwise_channels=64;
   unsigned global_pool_channels=128;
   bool depthwise_tma=false;

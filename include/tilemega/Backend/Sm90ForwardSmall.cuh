@@ -73,39 +73,23 @@ struct Sm90ForwardMaxPool {
   }
 };
 
-// Global average pooling: each CTA adds its pixels' channel sums, then the
-// last arriver divides by the pixel count and writes the pooled vector.
+// Global average pooling: the producing convolution's epilogue has already
+// written this image's channel partial sums (prompt §10 N-1 item 7), so the
+// stage is their reduction. `accumulator` is that fp32 [parts][channels]
+// buffer, `width` its part count and `height` the pooled pixel count.
 struct Sm90ForwardGlobalPool {
   using Element=cutlass::bfloat16_t;
-  using Async=codegen::executor::Async<arch::Sm90>;
   static constexpr int kThreads=160;
   static constexpr Sm90DenseLayout kLayout{1024,1024,1024,1024};
   static constexpr int kSharedBytes=1024;
-  __device__ static __forceinline__ void Run(Sm90ForwardSmallOperands const& p,char* shared,
+  __device__ static __forceinline__ void Run(Sm90ForwardSmallOperands const& p,char*,
       Sm90DenseRingState&) {
     if(threadIdx.x>=128)return;
-    int pixels=p.width*p.height;
-    for(int c=int(threadIdx.x);c<p.channels;c+=128) {
+    float inverse=1.0f/float(p.height);
+    for(int c=int(blockIdx.x)*128+int(threadIdx.x);c<p.channels;c+=int(gridDim.x)*128) {
       float sum=0;
-      for(int pixel=int(blockIdx.x);pixel<pixels;pixel+=int(gridDim.x))
-        sum+=float(p.input[std::size_t(pixel)*p.channels+c]);
-      atomicAdd(p.accumulator+c,sum);
-    }
-    codegen::executor::ComputeSync();
-    auto* flag=reinterpret_cast<int*>(shared+512);
-    if(threadIdx.x==0) {
-      unsigned long long old;
-      asm volatile("atom.acq_rel.gpu.global.add.u64 %0, [%1], 1;":"=l"(old)
-          :"l"(p.counter):"memory");
-      *flag=int(old+1)==int(gridDim.x);
-      if(*flag)p.counter[0]=0;
-    }
-    codegen::executor::ComputeSync();
-    if(*flag) {
-      float inverse=1.0f/float(pixels);
-      for(int c=int(threadIdx.x);c<p.channels;c+=128) {
-        p.output[c]=Element(p.accumulator[c]*inverse);p.accumulator[c]=0.0f;
-      }
+      for(int part=0;part<p.width;++part)sum+=p.accumulator[std::size_t(part)*p.channels+c];
+      p.output[c]=Element(sum*inverse);
     }
   }
 };
