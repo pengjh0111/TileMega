@@ -53,5 +53,14 @@ class As2Queue(unittest.TestCase):
             (folder/'stderr.log').write_text('Unsupported graph configuration')
             self.assertIsNone(queue.serious_failure(folder,dict(status='failed')))
 
+    def test_row_admission_uses_complete_baselines_and_retry_identity(self):
+        job=dict(wait_for_baselines=True,model_id='model',batch=16)
+        policy=dict(systems=['eager','engine'])
+        state=dict(jobs={'model_b16_eager':dict(status='collected'),
+                        'engine_retry':dict(status='failed',request=dict(cell_id='model_b16_engine'))})
+        self.assertFalse(queue.ready(job,state,policy))
+        state['jobs']['engine_retry']['status']='collected'
+        self.assertTrue(queue.ready(job,state,policy))
+
 
 if __name__=='__main__':unittest.main()

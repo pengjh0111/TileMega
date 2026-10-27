@@ -80,7 +80,12 @@ def initialize(directory):
                 else:
                     environment='vllm-ascend' if system=='vllm_ascend' else 'sglang-npu'
                     module='as2_vllm' if system=='vllm_ascend' else 'as2_sglang'
-                    command=['python','-m','tilemega.bench.'+module,*common,'--graph',policy['engine_graph']]
+                    graph=policy['engine_graph'] if system=='vllm_ascend' else policy.get('sglang_graph','off')
+                    command=['python','-m','tilemega.bench.'+module,*common,'--graph',graph]
+                    if system=='sglang_npu':
+                        command+=['--stream-output',policy.get('sglang_stream_output','delta')]
+                        kv=4*cfg['num_hidden_layers']*batch*cfg['num_key_value_heads']*2048*cfg['head_dim']
+                        required=(manifest['unique_weight_bytes']+kv+(6<<30)+(1<<20)-1)//(1<<20)
                 job=validate_job(dict(id=name,kind='baseline',model_id=model,batch=batch,system=system,
                     environment=environment,argv=command,output=str(out),physical_device='auto',
                     required_free_mib=required,timeout_s=policy['timeout_s'],
@@ -112,6 +117,12 @@ def collect_samples(job):
                 throughput_tokens_per_s=statistics.median(batch*1024*1000/s['e2e_ms'] for s in timed))
 
 
+def ready(job,state,policy):
+    if not job.get('wait_for_baselines'):return True
+    cells={v.get('request',{}).get('cell_id',k) for k,v in state['jobs'].items() if v['status']=='collected'}
+    return all(f'{job["model_id"]}_b{job["batch"]}_{system}' in cells for system in policy['systems'])
+
+
 def summarize(directory,state):
     policy=json.loads((directory/'policy.json').read_text());rows=[]
     for model in policy['models']:
@@ -121,13 +132,33 @@ def summarize(directory,state):
                 cell=f'{model}_b{batch}_{system}'
                 attempts=[v for k,v in state['jobs'].items() if v.get('request',{}).get('cell_id',k)==cell]
                 item=next((v for v in reversed(attempts) if v['status']=='collected'),attempts[-1] if attempts else {})
+                request=directory/'requests'/(cell+'.json')
+                if not item and request.exists():
+                    pending=json.loads(request.read_text())
+                    if not pending.get('enabled',True):item=dict(status='blocked-setup',reason=pending.get('deferred_reason'))
                 row[system+'_status']=item.get('status','not_run')
-                row[system+'_tpot_ms']=item.get('metrics',{}).get('tpot_ms')
+                for metric in ('tpot_ms','ttft_ms','e2e_ms','throughput_tokens_per_s'):
+                    row[system+'_'+metric]=item.get('metrics',{}).get(metric)
+                row[system+'_physical_device']=item.get('physical_device_id')
+                row[system+'_interference']=item.get('receipt',{}).get('timing_status')
+            for system in policy['systems']:
+                baseline=row[system+'_tpot_ms'];native=row['tilemega_tpot_ms']
+                row['speedup_vs_'+system]=baseline/native if baseline and native else None
             rows.append(row)
     write(directory/'comparison.json',dict(status='exploratory_not_formal_G_PERF',rows=rows,
         baseline_numerical_comparison=False,all_attempts_retained=True))
     with (directory/'comparison.csv').open('w') as stream:
         writer=csv.DictWriter(stream,fieldnames=list(rows[0]));writer.writeheader();writer.writerows(rows)
+    systems=[*policy['systems'],'tilemega']
+    lines=['Exploratory full64/1024 request TPOT (ms), median of three timed requests.',
+           'Missing cells are not measured. No paired confidence interval or AS2 G-PERF claim.',
+           'Resident contexts and interference remain in each job receipt. Baseline numerical comparisons are waived.','',
+           '| Model | B | '+' | '.join(systems)+' |',
+           '|---|---|'+'---|'*len(systems)]
+    for row in rows:
+        cells=[f'{row[s+"_tpot_ms"]:.3f}' if row[s+'_tpot_ms'] is not None else row[s+'_status'] for s in systems]
+        lines.append(f'| {row["model_id"]} | {row["batch"]} | '+' | '.join(cells)+' |')
+    (directory/'comparison.md').write_text('\n'.join(lines)+'\n')
 
 
 def serious_failure(job_dir,receipt):
@@ -171,9 +202,14 @@ def run(directory,hours):
         if stop_requested or (directory/'stop_after_current.json').exists():
             state['status']='stopped_after_current';break
         jobs=[validate_job(json.loads(p.read_text())) for p in (directory/'requests').glob('*.json')]
-        pending=sorted((j for j in jobs if j['id'] not in state['jobs']),key=lambda j:(j.get('priority',100),j['id']))
+        remaining=[j for j in jobs if j['id'] not in state['jobs'] and j.get('enabled',True)]
+        pending=sorted((j for j in remaining if ready(j,state,policy)),
+                       key=lambda j:(j.get('priority',100),j['id']))
         if not pending:
-            state['status']='completed';break
+            if remaining:
+                state.update(status='blocked-prerequisite',waiting_reason='Uncollected baseline cells prevent the corresponding TileMega row');break
+            state['status']='completed_with_deferred' if any(not j.get('enabled',True) for j in jobs) else 'completed'
+            break
         if unfinished_owned_jobs():
             state['waiting_reason']='Existing own submission has not finished';write(directory/'state.json',state)
             time.sleep(policy['idle_interval_s']);continue
@@ -181,9 +217,10 @@ def run(directory,hours):
         write(directory/'observations'/f'{stamp}.json',observed)
         selected=None
         for job in pending:
-            devices=idle_devices(observed,job['required_free_mib'],policy['maximum_idle_utilization_percent'])
+            functional=job['kind']=='functional' and not job.get('require_idle',False)
+            devices=idle_devices(observed,job['required_free_mib'],100 if functional else policy['maximum_idle_utilization_percent'])
             if job.get('physical_device','auto')!='auto':devices={i:d for i,d in devices.items() if i==job['physical_device']}
-            eligible={i:d for i,d in devices.items() if previous.get(i,0)>=policy['idle_observations']-1}
+            eligible={i:d for i,d in devices.items() if functional or previous.get(i,0)>=policy['idle_observations']-1}
             if eligible:
                 selected=(job,max(eligible,key=lambda i:eligible[i]['free_mib']));break
         available=idle_devices(observed,0,policy['maximum_idle_utilization_percent'])
