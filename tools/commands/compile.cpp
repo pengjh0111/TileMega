@@ -1,6 +1,7 @@
 #include <tilemega/Codegen/ServingPages.h>
 #include "Toolchain.h"
 #include "NativeDense.h"
+#include "NativeForward.h"
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Analysis/ExactMemo.h>
@@ -567,6 +568,41 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--diagnostic-class-map") diagnostic_class_map=value;
       else if (flag=="--numerical-rejections") rejections_path=value;
       else throw std::runtime_error("unknown option: "+flag);
+    }
+    if(!native_tmexec.empty() && serving_phase=="forward") {
+      // Native DNN forward (prompt §10 N-1): fixed coordinates over a DNN
+      // export, with no legacy execution option accepted.
+      std::set<std::string> allowed={"--tmexec-config","--serving","--emit","--batch",
+          "--runtime-target","--frontend","--dwpw-fuse","--dump-cg","--nvcc-split-compile"};
+      for(int i=3;i<argc;i+=2)if(!allowed.count(argv[i]))
+        throw std::invalid_argument("native forward build does not accept legacy option "+
+            std::string(argv[i]));
+      if(frontend_mode!="dnn" || emit_mode!="serving" || runtime_target.empty())
+        throw std::invalid_argument("native forward build requires a DNN forward export and an H800 target");
+      return tilemega::commands::CompileNativeForwardFixed(input.string(),argv[2],native_tmexec,
+          runtime_target,serving_batch,dnn_dwpw_fuse!="0",dump_cg,nvcc_split_compile);
+    }
+    if(serving_phase=="forward" && frontend_mode=="dnn" && !solve_target.empty() &&
+       input.extension()!=".mlir" &&
+       tilemega::TargetSpec::FromJson(solve_target).arch_tag=="sm_90") {
+      std::set<std::string> allowed={"--solve","--serving","--emit","--batch","--frontend",
+          "--dwpw-fuse","--selection","--measure-cmd","--measure-top","--dump-cg",
+          "--runtime-target","--nvcc-split-compile"};
+      for(int i=3;i<argc;i+=2)if(!allowed.count(argv[i]))
+        throw std::invalid_argument("native forward solve does not accept legacy option "+
+            std::string(argv[i]));
+      if(emit_mode!="serving" ||
+         (search_selection!="measure" && search_selection!="predicted") ||
+         (!runtime_target.empty() && modelFingerprint(runtime_target)!=modelFingerprint(solve_target)))
+        throw std::invalid_argument("native forward solve requires serving forward with a matching H800 target");
+      tilemega::commands::NativeForwardSolveOptions native;
+      native.input=input.string();native.output=argv[2];native.target=solve_target;
+      native.dump_cg=dump_cg;native.measure_command=measure_command;native.batch=serving_batch;
+      native.split_compile=nvcc_split_compile;native.measure_top=measure_top;
+      native.measured=search_selection=="measure";native.fuse=dnn_dwpw_fuse!="0";
+      native.solve_command=quote(std::filesystem::read_symlink("/proc/self/exe").string())+" compile";
+      for(int i=1;i<argc;++i)native.solve_command+=' '+quote(argv[i]);
+      return tilemega::commands::SolveNativeForward(native);
     }
     if(!native_tmexec.empty()) {
       std::set<std::string> allowed={"--tmexec-config","--serving","--emit","--batch", "--runtime-target",

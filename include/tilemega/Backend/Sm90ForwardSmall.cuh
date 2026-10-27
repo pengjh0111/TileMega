@@ -110,26 +110,35 @@ struct Sm90ForwardGlobalPool {
   }
 };
 
-// Output GEMV: one task per output block (ResNet18's 1000 classes -> 125).
+// Output GEMV: one task per output block of one row (ResNet18's 1000 classes
+// give 125 blocks). The weight is the same K-major tile page layout every
+// other native body reads, with the block as its N tile.
 template<int Block>
 struct Sm90ForwardGemv {
   using Element=cutlass::bfloat16_t;
-  static constexpr int kThreads=160;
+  static constexpr int kThreads=160,kTileK=64;
   static constexpr Sm90DenseLayout kLayout{1024,1024,1024,1024};
   static constexpr int kSharedBytes=1024;
   __device__ static __forceinline__ void Run(Sm90ForwardSmallOperands const& p,char*,
       Sm90DenseRingState&) {
     if(threadIdx.x>=128)return;
-    int blocks=(p.out_channels+Block-1)/Block;
-    for(int task=int(blockIdx.x);task<blocks;task+=int(gridDim.x))
+    int blocks=(p.out_channels+Block-1)/Block,panels=p.channels/kTileK;
+    int rows=p.width>0?p.width:1,total=blocks*rows;
+    for(int task=int(blockIdx.x);task<total;task+=int(gridDim.x)) {
+      int row=task/blocks,block=task%blocks;
+      auto const* source=p.input+std::size_t(row)*p.channels;
       for(int i=int(threadIdx.x);i<Block;i+=128) {
-        int row=task*Block+i;
-        if(row>=p.out_channels)continue;
-        float sum=p.bias?float(p.bias[row]):0.0f;
-        for(int c=0;c<p.channels;++c)
-          sum+=float(p.weight[std::size_t(row)*p.channels+c])*float(p.input[c]);
-        p.output[row]=Element(sum);
+        int channel=block*Block+i;
+        if(channel>=p.out_channels)continue;
+        float sum=p.bias?float(p.bias[channel]):0.0f;
+        for(int panel=0;panel<panels;++panel) {
+          auto const* page=p.weight+(std::size_t(block)*panels+panel)*Block*kTileK;
+          for(int c=0;c<kTileK;++c)
+            sum+=float(page[i*kTileK+c])*float(source[panel*kTileK+c]);
+        }
+        p.output[std::size_t(row)*p.out_channels+channel]=Element(sum);
       }
+    }
   }
 };
 

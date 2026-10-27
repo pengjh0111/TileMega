@@ -21,7 +21,12 @@ inline bool NativeSymbol(std::string const& value) {
     return std::isalnum(c) || c=='_' || c=='$' || c=='.';
   });
 }
-inline std::optional<NativeRegisterCallLimit> NativeRegisterDiagnostic(std::string const& line) {
+inline char const* kNativeDenseEntryPrefix=
+    "_ZN8tilemega7codegen12native_dense24sm90_dense_native_kernel";
+inline char const* kNativeForwardEntryPrefix=
+    "_ZN8tilemega7codegen14native_forward26sm90_forward_native_kernel";
+inline std::optional<NativeRegisterCallLimit> NativeRegisterDiagnostic(std::string const& line,
+    std::string const& entry_prefix=kNativeDenseEntryPrefix) {
   std::string const prefix="ptxas error   : Entry function '";
   std::string const first="' with max regcount of ",second=" calls function '",third="' with regcount of ";
   if(line.rfind(prefix,0)!=0)return {};
@@ -35,7 +40,7 @@ inline std::optional<NativeRegisterCallLimit> NativeRegisterDiagnostic(std::stri
   NativeRegisterCallLimit result{line.substr(prefix.size(),a-prefix.size()),
       line.substr(b+second.size(),c-b-second.size()),
       number(line.substr(a+first.size(),b-a-first.size())),number(line.substr(c+third.size()))};
-  if(result.entry.rfind("_ZN8tilemega7codegen12native_dense24sm90_dense_native_kernel",0)!=0 ||
+  if(result.entry.rfind(entry_prefix,0)!=0 ||
       !NativeSymbol(result.entry) || !NativeSymbol(result.callee) || !result.entry_limit ||
       result.callee_registers<=result.entry_limit)return {};
   return result;
@@ -53,7 +58,8 @@ inline bool NativeBoundedCommandMatches(json::Value const& bounded,
 // bounded runner's original build_failed/exit_code receipt into success.
 inline std::vector<NativeRegisterCallLimit> NativeResourceDiagnostics(
     json::Value const& bounded,std::vector<std::string> const& expected_command,
-    int expected_entry_limit,bool wrapper_failed_normally,std::string const& log) {
+    int expected_entry_limit,bool wrapper_failed_normally,std::string const& log,
+    std::string const& entry_prefix=kNativeDenseEntryPrefix) {
   if(!wrapper_failed_normally || expected_entry_limit<1 || expected_entry_limit>256 ||
       bounded.At("status").AsString("bounded status")!="build_failed" ||
       bounded.At("classification").AsString("bounded classification")!="compilation; not a numerical test" ||
@@ -67,7 +73,7 @@ inline std::vector<NativeRegisterCallLimit> NativeResourceDiagnostics(
   bool unused_warning=false;
   while(std::getline(input,line)) {
     if(!line.empty() && line.back()=='\r')line.pop_back();
-    auto diagnostic=NativeRegisterDiagnostic(line);
+    auto diagnostic=NativeRegisterDiagnostic(line,entry_prefix);
     if(diagnostic) {
       if(diagnostic->entry_limit!=expected_entry_limit || (!entry.empty() && entry!=diagnostic->entry))return {};
       if(std::any_of(result.begin(),result.end(),[&](auto const& r){return r.callee==diagnostic->callee;}))return {};

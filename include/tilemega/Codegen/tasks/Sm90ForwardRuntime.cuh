@@ -48,6 +48,11 @@ inline int Grid() {
 
 }  // namespace tilemega::codegen::native_forward
 
+// The coordinates the program was generated from, so an artifact can be
+// identified without its manifest.
+extern "C" char const* tm_plan_identity() {
+  return tilemega::codegen::native_forward::kNativeForwardIdentity;
+}
 extern "C" int tm_plan_static_dense_abi() {return 0;}
 extern "C" unsigned tm_plan_pdl_enabled(void*) {return 0;}
 extern "C" unsigned tm_plan_cluster_dim() {return 1;}

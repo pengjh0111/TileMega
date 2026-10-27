@@ -466,6 +466,7 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
             throw std::invalid_argument("the native forward GEMV epilogue is a bias alone");
           if(chain.count)bind.vector[0]=chain.operations[0].parameter[0];
           shape.channels=int(Integer(gemm,"k"));shape.out_channels=int(Integer(gemm,"n"));
+          shape.width=rows_of(bind.input);shape.height=1;
           body="Sm90ForwardGemv<8>";
           break;
         }

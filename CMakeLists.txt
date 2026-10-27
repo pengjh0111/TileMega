@@ -200,6 +200,7 @@ add_library(tilemega_core STATIC
   lib/Solver/Sm90DenseRegisterContract.cpp
   lib/Solver/Sm90DenseSearch.cpp
   lib/Solver/Sm90ForwardSearch.cpp
+  lib/Solver/Sm90ForwardPlan.cpp
   lib/Codegen/ForwardCodegen.cpp
   lib/Solver/DnnStructureSearch.cpp
   lib/Solver/SkeletonFinalize.cpp
@@ -1471,6 +1472,7 @@ add_library(tilemega_commands OBJECT
   tools/commands/calibration-suite.cpp
   tools/commands/compile.cpp
   tools/commands/native_dense.cpp
+  tools/commands/native_forward.cpp
   tools/commands/derive.cpp
   tools/commands/dram-floor.cpp
   tools/commands/request-floor.cpp
