@@ -35,6 +35,12 @@ struct alignas(64) Bindings {
 };
 
 struct alignas(64) ForwardCounter {unsigned long long arrivals;};
+// One rank-2/3/4 descriptor over a bound buffer, encoded on the host.
+struct ForwardTensorMap {
+  unsigned buffer,rank;
+  unsigned long long dims[4],strides[3];
+  unsigned box[4];
+};
 
 // A stage's shared-memory placement: arena (i % 2) unless the stage's
 // storage exceeds one arena, in which case it takes the whole budget
@@ -47,13 +53,13 @@ struct Placement:Stage {
   static constexpr auto kLive=Stage::kLayout.Live(Offset);
 };
 
-template<int Residency,unsigned Buffers,unsigned Maps,int Arena,class... Stage>
+template<int Batch,int Residency,unsigned Buffers,unsigned Maps,int Arena,class... Stage>
 struct Program {
   using Binding=Bindings<Buffers,Maps>;
   using Stages=std::tuple<Stage...>;
   template<unsigned I> using At=std::tuple_element_t<I,Stages>;
   static constexpr unsigned kStages=sizeof...(Stage);
-  static constexpr int kResidency=Residency,kThreads=160;
+  static constexpr int kBatch=Batch,kResidency=Residency,kThreads=160;
   static constexpr unsigned kBuffers=Buffers,kMaps=Maps;
   static_assert(kStages>=1 && (Residency==1 || Residency==2));
   static_assert(Arena>0 && Arena%1024==0);
