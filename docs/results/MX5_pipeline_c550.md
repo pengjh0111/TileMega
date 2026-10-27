@@ -866,3 +866,15 @@ P0 bench ARRIVE4160 counts7→6; non-normed remains6. MMA stays32/kernel.
 This is not an end-to-end speedup or full-crosssegment proof. Newnative
 C-1/C-2 andTPOT pair still pending. Frozen old-source costs continue
 independently oncard7; the local candidate is tested separately oncard6.
+
+**Verified 2026-10-27 follow-up:** frozenRow2678 attention400/400 completes
+three-fresh cold measurements; the4545-key G/H/A pool passes all25 scoped512
+consumer replays. SourceA19cc122 remains distinct from the local-LDS candidate.
+Raw:`row2678_complete400_qualified25_t512_v3/EXPORT_SUCCESS.json`; this is
+cost qualification, not per-plan512 or default approval. The first local-LDS
+manualB2 C-1/C2512 passes (maxgap.03125,C2mismatches0). Same-card7P-PAIR
+old2.304253ms/new2.307628ms gives+0.146%, below1% threshold: no TPOT gain.
+Three actual native resource queries,one correctness row andsix P-PAIR rows
+are appended without rewriting historical rows. A second unpromoted candidate
+uses the same authorized LDS-only primitive at segment-tail workspace reuse;
+Run-tail andLA/global protocols remain. It needs independent runtime evidence.
