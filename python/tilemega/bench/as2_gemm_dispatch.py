@@ -19,7 +19,7 @@ def main():
     if a.out.exists():raise FileExistsError(a.out)
     case=json.loads((a.case/'case.json').read_text());m,n,k=case['shape_mnk']
     if any(digest(a.case/name)!=sha for name,sha in case['files'].items()):raise ValueError('Observed GEMM case changed')
-    large=m==1024 and ((n==2048 and k in (6144,8192)) or (n==4096 and k==4096))
+    large=m==1024 and ((n==2048 and k in (6144,8192)) or (n==4096 and k in (4096,14336)))
     if m not in (1,16,64,1024) or (m==1024 and not large) or not ((n==2048 and k in (6144,8192)) or (n==3072 and k==8192) or (n in (1024,4096) and k==4096) or (n==4096 and k==14336)):
         raise ValueError('This diagnostic is bounded to the observed projection families')
     torch.set_num_threads(1);torch.npu.set_device(0)

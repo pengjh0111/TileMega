@@ -202,3 +202,17 @@ Evidence: `probes/llama8b_b16_q_tiling_v28/dispatch.json`,
 These are same-input arithmetic diagnostics; CPU combination is excluded from
 the model hot path. The opt-in MIX device-combine candidate requires separate
 CTG/Plan/full-model numerical and request-performance admission.
+
+The Q-only candidate repairs the observed prefill Q/context prefix but fails
+the four-token model. Its first remaining prefix drift is O raw, then down
+raw. Actual O rows16:32 have exact context operands and four BF16 differences;
+the selective1366/1366/1364 replay repairs all65536 values. Down's full
+M1024/N4096/K14336 eager call selects4162/singleCoreK4779. Its first eight
+activation rows are byte-identical, and selective4779/4779/4778 replay repairs
+all32768 values (uniform three-way still differs15). Evidence:
+`probes/llama8b_b16_o_tail_rows16_partial3_numeric_v36.json`,
+`probes/llama8b_b16_down_tiling_v34/dispatch.json`,
+`probes/llama8b_b16_down_tail_partial3_numeric_v35.json`.
+The residual candidate preserves BF16 sum rounding before residual Add; Q's
+store variant has no fabricated residual. Both use per-group scratch, existing
+ready/done/ack and one owner. No CPU combine enters the persistent kernel.

@@ -80,7 +80,7 @@ int main(int argc,char** argv) {
     if(!m || m>64 || !n || n>151936 || n%16 || !k || k>16384 || k%16 || impl>6 || uint64_t(n)*k>(1ULL<<29))
       throw std::runtime_error("Bounded BF16 profile shape required");
     if(impl==4 && !(((m==1 || m==16 || m==64) && n==2048 && (k==6144 || k==8192)) ||
-                   (m==16 && n==4096 && k==4096)))
+                   ((m==16 && k==4096 || m==8 && k==14336) && n==4096)))
       throw std::runtime_error("Partial diagnostic requires the observed stream-K shape");
     if(impl==5 && ((m!=1 && m!=64) || n!=3072 || k!=8192))
       throw std::runtime_error("Two-part diagnostic requires the observed H3072 stream-K shape");

@@ -25,14 +25,15 @@ def main():
         raise FileExistsError(a.out)
     case = json.loads((a.case / 'case.json').read_text())
     m, n, k = case['shape_mnk']
-    if m not in (1, 16, 64) or not ((n == 2048 and k in (6144, 8192)) or (n == 3072 and k == 8192) or (n == 1024 and k == 4096) or (m==16 and n==4096 and k==4096)):
+    down_slice=(m,n,k)==(8,4096,14336)
+    if (m not in (1,16,64) and not down_slice) or not ((n == 2048 and k in (6144, 8192)) or (n == 3072 and k == 8192) or (n == 1024 and k == 4096) or (m==16 and n==4096 and k==4096) or down_slice):
         raise ValueError('Require the observed, bounded Stream-K diagnostic')
     parts = 7 if n == 1024 else 2 if n == 3072 else 3
     if case.get('partial_count')==7:
         if not (((m,n)==(16,2048) and k in (6144,8192)) or (m,n,k)==(16,4096,4096)) or case.get('source_shape_mnk')!=[1024,n,k]:
             raise ValueError('Seven-part residual probe requires the observed B16 prefill slice')
         parts=7
-    if case.get('partial_count')==3 and (m,n,k)==(16,4096,4096):
+    if case.get('partial_count')==3 and ((m,n,k)==(16,4096,4096) or down_slice):
         if case.get('source_shape_mnk')!=[1024,n,k]:
             raise ValueError('Three-part Q probe requires the observed B16 prefill slice')
         parts=3
@@ -53,7 +54,7 @@ def main():
     tail=case.get('observed_tail_column_begin')
     raw_partial_full_difference=None
     if tail is not None:
-        if (m,n,k,tail)!=(16,4096,4096,3584):raise ValueError('Unregistered same-input tail experiment')
+        if tail!=3584 or not ((m,n,k)==(16,4096,4096) or down_slice):raise ValueError('Unregistered same-input tail experiment')
         full_reference=torch.from_file(str(a.case/'reference.bin'),size=m*n,dtype=torch.bfloat16).reshape_as(value)
         raw_partial_full_difference=int((value!=full_reference).sum())
         regular=torch.from_file(str(a.case/'model_native.bin'),size=m*n,dtype=torch.bfloat16).reshape_as(value)
