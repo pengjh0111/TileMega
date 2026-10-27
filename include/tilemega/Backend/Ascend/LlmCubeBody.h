@@ -42,7 +42,7 @@ template<unsigned TM,unsigned TN,unsigned TK,unsigned Variant> class LlmCubeBody
                         (s.extent==2 && s.columns==3072 && s.k==8192) ||
                         (s.extent==7 && s.columns==1024 && s.k==4096);
       if(!family || s.width!=(s.k+s.extent-1)/s.extent ||
-          (s.rows!=1 && s.rows!=64 && !(s.rows==16 && s.extent==3 && s.columns==2048 && (s.k==8192 || s.k==6144))) || s.epilogue || s.workspace==llm::kAbsent || !s.group)return false;
+          (s.rows!=1 && s.rows!=64 && !(s.rows==16 && ((s.extent==3 && s.columns==2048 && (s.k==8192 || s.k==6144)) || (s.extent==2 && s.columns==3072 && s.k==8192)))) || s.epilogue || s.workspace==llm::kAbsent || !s.group)return false;
       const unsigned part=tile%s.extent,output_tile=tile/s.extent;
       typename Partial::TileMmad mm(resource_);
       const unsigned begin=part*s.width,size=s.k-begin<s.width?s.k-begin:s.width;

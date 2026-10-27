@@ -51,7 +51,7 @@ inline void ValidateCompiledBodies(std::vector<llm::Stage> const& stages) {
                       (s.extent==2 && s.columns==3072 && s.k==8192) ||
                       (s.extent==7 && s.columns==1024 && s.k==4096);
     if(!family || s.variant!=1 || s.width!=(s.k+s.extent-1)/s.extent || s.group!=1 ||
-        (s.rows!=1 && s.rows!=64 && !(s.rows==16 && s.extent==3 && s.columns==2048 && (s.k==8192 || s.k==6144))) ||
+        (s.rows!=1 && s.rows!=64 && !(s.rows==16 && ((s.extent==3 && s.columns==2048 && (s.k==8192 || s.k==6144)) || (s.extent==2 && s.columns==3072 && s.k==8192)))) ||
         (s.kind==0?s.epilogue!=0:s.epilogue!=(s.extent==7?0u:1u)))
       throw std::invalid_argument("Unregistered split-K/combine shape or rounding contract");
 #endif

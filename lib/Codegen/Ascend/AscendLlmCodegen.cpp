@@ -135,7 +135,7 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
         const bool store=geo.split_k==7 && stage.columns==1024 && stage.k==4096 && stage.epilogue==0;
         const bool family=store || ((geo.split_k==3 && stage.columns==2048 && (stage.k==6144 || stage.k==8192)) ||
                           (geo.split_k==2 && stage.columns==3072 && stage.k==8192)) && stage.epilogue==1;
-        if(!family || !small || (stage.rows!=1 && stage.rows!=64 && !(stage.rows==16 && geo.split_k==3 && stage.columns==2048 && (stage.k==8192 || stage.k==6144))) ||
+        if(!family || !small || (stage.rows!=1 && stage.rows!=64 && !(stage.rows==16 && ((geo.split_k==3 && stage.columns==2048 && (stage.k==8192 || stage.k==6144)) || (geo.split_k==2 && stage.columns==3072 && stage.k==8192)))) ||
             !p.projection.options.cg_split_task_order)
           throw std::invalid_argument("Split-K requires an observed shape/epilogue and tile-major CTG");
         stage.extent=geo.split_k;stage.width=(stage.k+geo.split_k-1)/geo.split_k;stage.group=1;
