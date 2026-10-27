@@ -835,3 +835,34 @@ Two follow-up agents are interrupted after their sealed deliveries; no
 GPU work remains running or queued. The pending local-LDS/P-B scope
 question and legal576 stage-cost/thread route still prevent acceptance.
 MoE native0/5 and DNN native0/25 remain unimplemented.
+
+## User-authorized local LDS synchronization amendment (2026-10-27)
+
+The user permits relaxing the local pure-LDS synchronization restriction for
+the purpose of improving TPOT, with differences recorded. The original prompt
+SHA256 remains75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73.
+This supersedes the earlier pending scope question only for that local use.
+The initial attention wave-result publication uses LDS-wait + CTA barrier
+instruction + compiler barriers; globalDT-P staysP-B, and LA/global
+release/acquire, segment-tail and Run-tail synchronization remain unchanged.
+Every wave still participates. This is a candidate, with no measured TPOT
+benefit or runtime correctness claim yet. Later global boundaries may still
+retire next-segment loads; full crosssegment overlap is not established.
+The192/400 completed costs are independent old-source2678/A19cc122 data.
+The missing208 were blocked by guard75, not this permission. Those data remain
+source-bound; a changed body requires its own measurements and qualification.
+All correctness, solver, resource, measurement and GPU-budget requirements
+remain. No default promotion follows from this amendment.
+
+**Verified authorized candidate validation:** local LDS publication source
+0b74c686c (litmus b18b1b407) passes5fresh×56 D128Q2/P0 attention cases,
+each with actual4-kernel API/frame0/occupancy1 gating. Direct-helper litmus
+passes5 distinct fresh processes×6(512/576×N0/2/8KiB)×2000iterations,
+104CTA per iteration, raw/cold errors0 andall104 visited2000. It uses the
+actual helper, not a copy. Thirty probe rows,5unit rows and28 normal build
+resource rows preserve source/archive/binary identities; spills in unselected
+unitPK/576bench remain unexecuted. CPU per-kernel comparison shows normed
+P0 bench ARRIVE4160 counts7→6; non-normed remains6. MMA stays32/kernel.
+This is not an end-to-end speedup or full-crosssegment proof. Newnative
+C-1/C-2 andTPOT pair still pending. Frozen old-source costs continue
+independently oncard7; the local candidate is tested separately oncard6.
