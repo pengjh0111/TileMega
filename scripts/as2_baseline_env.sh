@@ -20,6 +20,9 @@ export VLLM_CACHE_ROOT="$AS2_WORK/cache/vllm"
 export VLLM_CONFIG_ROOT="$AS2_WORK/cache/vllm_config"
 export SGLANG_CACHE_DIR="$AS2_WORK/cache/sglang"
 export SGLANG_TORCH_PROFILER_DIR="$AS2_WORK/logs/sglang_profiler"
+if [[ "$_as2_baseline" == vllm-ascend ]]; then
+    export VLLM_ENABLE_V1_MULTIPROCESSING=0
+fi
 export UV_CACHE_DIR="$AS2_WORK/cache/uv"
 export CARGO_HOME="$AS2_WORK/cache/cargo"
 _as2_python_headers="$AS2_WORK/third_party/python312-dev-3.12.3-1ubuntu0.17/usr/include"

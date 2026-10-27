@@ -19,6 +19,7 @@ def main():
     parser.add_argument('--outputs',type=int,default=4)
     parser.add_argument('--warmup',type=int,default=0)
     parser.add_argument('--repetitions',type=int,default=1)
+    parser.add_argument('--graph',choices=('decode','off'),default='decode')
     parser.add_argument('--out',type=Path,required=True)
     args=parser.parse_args();root=Path('/home/d50064638/junhuip');runs=root/'TileMega/runs/as2'
     out=args.out.absolute()
@@ -44,7 +45,9 @@ def main():
         device='npu',base_gpu_id=0,tp_size=1,pp_size=1,dp_size=1,
         # Pinned scheduler caps generation at max_req_len - prompt_len - 1.
         skip_tokenizer_init=True,dtype='bfloat16',context_length=1089,
-        attention_backend='ascend',disable_cuda_graph=True,disable_radix_cache=True,
+        attention_backend='ascend',disable_cuda_graph=args.graph=='off',disable_prefill_cuda_graph=True,
+        cuda_graph_bs_decode=[args.batch],cuda_graph_max_bs_decode=args.batch,
+        incremental_streaming_output=False,stream_interval=1,disable_radix_cache=True,
         mem_fraction_static=min(.5,max(.1,(manifest['unique_weight_bytes']+(6<<30))/(128<<30))),
         max_running_requests=args.batch,max_total_tokens=args.batch*1280,
         chunked_prefill_size=max(128,args.batch*64),random_seed=20261016)
@@ -55,7 +58,7 @@ def main():
         input_sha256=manifest['input_ids']['sha256'],physical_device_id=int(os.environ['AS2_PHYSICAL_DEVICE_ID']),
         logical_device_id=0,private_environment=os.sys.prefix,
         versions={n:metadata.version(n) for n in ('sglang','torch','torch-npu','transformers','sgl-kernel-npu')},
-        baseline_config=dict(disable_graph=True,disable_radix_cache=True,tp=1,pp=1,dp=1,
+        baseline_config=dict(graph=args.graph,decode_capture_batch_sizes=[args.batch],disable_radix_cache=True,tp=1,pp=1,dp=1,
                              ascend_use_fia=os.environ.get('ASCEND_USE_FIA')),
         formal_performance_admitted=False)
     (out/'identity.json').write_text(json.dumps(identity,indent=2)+'\n')

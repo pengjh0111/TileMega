@@ -147,6 +147,7 @@ def main():
     parser.add_argument('--warmup', type=int, default=1)
     parser.add_argument('--repetitions', type=int, default=3)
     parser.add_argument('--save-kv-rows', action='store_true', help='Copy final valid KV rows after t_last, for correctness only')
+    parser.add_argument('--performance-only',action='store_true',help='Save timing and token identity without logits/KV diagnostic copies')
     parser.add_argument('--capture-last-forward',action='store_true',help='One diagnostic request; B1 may capture long-context KV, no performance admission')
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
@@ -157,6 +158,8 @@ def main():
         parser.error('Require bounded request/repetition sizes')
     if args.save_kv_rows and args.cache!='static':
         parser.error('KV diagnostics require the fixed-capacity reference cache')
+    if args.performance_only and (args.save_kv_rows or args.capture_last_forward):
+        parser.error('Performance collection excludes correctness captures')
     if args.capture_last_forward and ((args.outputs>128 and args.batch!=1) or args.warmup or args.repetitions!=1 or args.cache!='static'):
         parser.error('Last-forward diagnostic requires warmup0, repetition1, static cache and B1 for outputs>128')
     if args.device=='cpu' and args.norm!='hf':
@@ -220,6 +223,7 @@ def main():
         logical_device_id=0 if args.device=='npu:0' else None, setup_seconds=time.monotonic()-started,
         status='running', warmup=args.warmup, repetitions=args.repetitions,
         diagnostic_capture_last_forward=args.capture_last_forward,
+        performance_only=args.performance_only,
         numerical_admission='not_compared', gate='not_started')
     receipt = out / 'result.json'
     receipt.write_text(json.dumps(identity, indent=2)+'\n')
@@ -255,8 +259,8 @@ def main():
                 decode_forwards=args.outputs-1, ttft_ms=(first-t0)*1000,
                 e2e_ms=(last-t0)*1000, tpot_ms=(last-first)*1000/(args.outputs-1),
                 output_tokens_per_second=batch*args.outputs/(last-t0),
-                output_sha256=tensor_hash(outputs), logits_last_sha256=tensor_hash(result.logits),
-                nonfinite_logits=int((~torch.isfinite(result.logits)).sum().cpu()))
+                output_sha256=tensor_hash(outputs), logits_last_sha256=None if args.performance_only else tensor_hash(result.logits),
+                nonfinite_logits=None if args.performance_only else int((~torch.isfinite(result.logits)).sum().cpu()))
             if sample['nonfinite_logits']:
                 raise ValueError('Nonfinite baseline output')
             samples.append(sample)
@@ -265,8 +269,9 @@ def main():
             if compiler is not None and repetition>=0:compiler.check_timed(prepared_graphs)
             # Output copies occur after t_last and before the next request reset.
             (out / ('tokens_'+str(repetition)+'.bin')).write_bytes(outputs.cpu().numpy().tobytes())
-            (out / ('logits_last_'+str(repetition)+'.bin')).write_bytes(
-                result.logits.cpu().contiguous().view(torch.uint8).numpy().tobytes())
+            if not args.performance_only:
+                (out / ('logits_last_'+str(repetition)+'.bin')).write_bytes(
+                    result.logits.cpu().contiguous().view(torch.uint8).numpy().tobytes())
             if args.save_kv_rows:
                 position=62+args.outputs
                 for layer,(key,value) in enumerate(zip(state.key_cache,state.value_cache)):

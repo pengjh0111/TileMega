@@ -24,6 +24,7 @@ def main():
     parser.add_argument('--outputs',type=int,default=4)
     parser.add_argument('--warmup',type=int,default=0)
     parser.add_argument('--repetitions',type=int,default=1)
+    parser.add_argument('--graph',choices=('decode','off'),default='decode')
     parser.add_argument('--logprobs',type=int,default=0)
     parser.add_argument('--out',type=Path,required=True)
     args=parser.parse_args()
@@ -88,7 +89,8 @@ def main():
     llm=LLM(model=str(model_path),tokenizer=None,skip_tokenizer_init=True,
         load_format='as2-canonical',dtype='bfloat16',max_model_len=1088,
         tensor_parallel_size=1,pipeline_parallel_size=1,distributed_executor_backend='uni',
-        cpu_offload_gb=0,enforce_eager=True,disable_custom_all_reduce=True,
+        cpu_offload_gb=0,enforce_eager=args.graph=='off',disable_custom_all_reduce=True,
+        compilation_config=dict(mode=0,cudagraph_mode='FULL_DECODE_ONLY',cudagraph_capture_sizes=[args.batch]) if args.graph=='decode' else None,
         gpu_memory_utilization=min(.5,max(.1,(manifest['unique_weight_bytes']+cache_budget+(4<<30))/(128<<30))),
         kv_cache_memory_bytes=cache_budget,max_num_seqs=args.batch,max_num_batched_tokens=max(1088,args.batch*64),
         enable_prefix_caching=False,enable_chunked_prefill=True,disable_log_stats=True,
@@ -103,7 +105,7 @@ def main():
         initialization_seconds=initialization,kv_cache_budget_bytes=cache_budget,
         versions={name:metadata.version(name) for name in ('vllm','vllm-ascend','torch','torch-npu','transformers','triton-ascend')},
         private_environment=os.sys.prefix,
-        baseline_config=dict(enforce_eager=True,executor='uni',multiprocessing=False,prefix_caching=False,
+        baseline_config=dict(enforce_eager=args.graph=='off',graph=args.graph,decode_capture_batch_sizes=[args.batch],executor='uni',multiprocessing=False,prefix_caching=False,
                              chunked_prefill=True,speculative_decoding=False),
         diagnostic_logprobs=args.logprobs,formal_performance_admitted=False)
     (out/'identity.json').write_text(json.dumps(identity,indent=2)+'\n')

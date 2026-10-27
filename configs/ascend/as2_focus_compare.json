@@ -1,0 +1,22 @@
+{
+  "schema": "tilemega.as2.focus_compare.v1",
+  "models": ["qwen3_0_6b", "llama3_2_1b", "llama3_2_3b", "qwen3_1_7b", "llama3_1_8b"],
+  "batches": [1, 16],
+  "systems": ["torch_npu_eager", "torch_npu_compile", "vllm_ascend", "sglang_npu"],
+  "isl": 64,
+  "osl": 1024,
+  "warmup": 1,
+  "repetitions": 3,
+  "timeout_s": 900,
+  "idle_observations": 2,
+  "idle_interval_s": 15,
+  "maximum_idle_utilization_percent": 0,
+  "allow_idle_resident_contexts": true,
+  "torch_attention": "fia-v2",
+  "torch_compile_backend": "npugraph-ex",
+  "engine_graph": "decode",
+  "baseline_numerical_comparison": false,
+  "statistics": "One fresh process per cell, median of three full requests; exploratory comparison, not AS2 paired G-PERF",
+  "moe": "deferred_by_user",
+  "remaining_batches": "2/4/8 deferred for this first comparison"
+}

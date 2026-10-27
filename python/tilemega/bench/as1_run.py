@@ -32,6 +32,14 @@ def contained(path, roots):
     return any(path.is_relative_to(root.resolve()) and path != root.resolve() for root in roots)
 
 
+def observed_processes(output):
+    result={}
+    for _,pid in re.findall(r'^\|\s*(\d+)\s*\|\s*(\d+)\s*\|',output,re.MULTILINE):
+        try:result[pid]=process_identity(int(pid))
+        except (FileNotFoundError,ProcessLookupError):result[pid]=None
+    return result
+
+
 def snapshot(timeout_s=30):
     if not 0 < timeout_s <= 60:
         raise ValueError('Management query timeout must be in (0,60] seconds')
@@ -59,7 +67,7 @@ def snapshot(timeout_s=30):
         try:
             output, _ = proc.communicate(timeout=timeout_s)
             return {**stamp, 'exit_code': proc.returncode, 'output': output,
-                    'query_identity': identity}
+                    'query_identity': identity,'process_identities':observed_processes(output)}
         except subprocess.TimeoutExpired:
             # Popen's context manager/run() can wait indefinitely after killing
             # an uninterruptible management query. Reaping also needs a bound.
@@ -86,19 +94,25 @@ def devices_from_snapshot(state):
         return {}
     devices = {}
     current = None
+    health = None
     for line in state.get('output', '').splitlines():
-        match = re.match(r'\|\s*(\d+)\s+\|\s*Ascend950PR\s*\|', line)
+        match = re.match(r'\|\s*(\d+)\s+\|\s*Ascend950PR\s*\|\s*([^|]+)\|', line)
         if match:
-            current = int(match[1])
+            current = int(match[1]);health=match[2].strip()
         elif current is not None:
             cells = line.strip().strip('|').split('|')
             if len(cells) == 4 and re.search(r'\d+\s*/\s*\d+', cells[-1]):
                 used, total = map(int, re.findall(r'(\d+)\s*/\s*(\d+)', cells[-1])[-1])
                 if total > 0:
                     pci = re.search(r'\b[0-9a-fA-F]{4}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\.[0-7]\b', line)
+                    utilization=(cells[1].strip() if cells[1].strip().isdigit() else
+                                 re.match(r'\s*(\d+)\s+\d+\s*/',cells[-1]))
+                    if hasattr(utilization,'group'):utilization=utilization.group(1)
                     devices[current] = {'used_mib': used, 'total_mib': total,
                                         'free_mib': total-used,
-                                        'pci_bus_id': pci.group(0).lower() if pci else None}
+                                        'pci_bus_id': pci.group(0).lower() if pci else None,
+                                        'health':health,
+                                        'utilization_percent':int(utilization) if utilization else None}
                 current = None
     return devices
 
