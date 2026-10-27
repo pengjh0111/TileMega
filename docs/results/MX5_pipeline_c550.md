@@ -744,3 +744,50 @@ are finite. Rawoutput/reference/inputBF16bits/comparison masks are retained.
 Childreturncode1 is expected failure evidence, never a replacement cost,
 passing result, tolerance waiver or multi-process synchronization proof.
 CPU cause analysis is pending.
+
+**Verified specification correction:** Prompt §10 namesD/Q/B/sevenL/b_min,
+not a mandatory PK012 Cartesian product. The stock1008 cases per thread
+shape are an extra stress superset; the required shape/Norm domain is336.
+The earlier blanket blockage by any unselected PK rejection was an added
+constraint and is corrected without changing old logs/oracles/tolerances.
+All672 required-shape Rnext keys now have actualAPI0 zero-launch queries.
+Rule-derivedPK is512(D64=2,D128=0),576(D64=2,D128=1). Sixteen normal unit
+libraries observe all144kernels/rings; ringfailures0,generic/calls0. T512
+required336 select24 frame0/private0 kernels; unselected32 rejects remain.
+T576 required112 admit/224 reject; no complete576 numerical pass. Fivefresh
+512 required336+legacy15 tests oncard4 are pending actual API admission.
+
+**Verified hardware scheduling:** Remaining cost job1/card7 andjob4/card6
+stop with75 during occupied preflight, with no numerical child/raw. No
+policy,clock,power,driver or other process is changed. Completed batches0/2
+and laterjob1/card5 have72/400 keys×3fresh; newcard5 dispatcher runs only
+unexecuted batches, preserving earlier75 attempts. Each batch stays on one
+card. The qualification adapter reads real ROOT argv/guard/mainlog paths;
+it creates no fake default guard directory or scheduler command.
+
+**Verified numerical detail:** FailedG576 output21.75(0x41ae), reference
+22.125(0x41b1), error.375 versus tolerance.37400001287460327. Original
+CPU reference replays all229376 outputs bitwise;90-digit arithmetic also
+supports22.125. A fixedWK2 FP32 reduction diagnostic crosses a gate-BF16
+midpoint and yields21.75, but actual native partials/rsqrt/gate values remain
+unobserved. This is sensitivity evidence, not a proved cause or a fix.
+
+**Verified first required unit round:** Card4 fresh1 passes all336 required
+attention cases,15 bitwise transform cases and24 actualAPI/occupancy queries.
+The CPU five-round controller then misreads unittest's same-line prefix and
+fails its full-line count assertion; no numerical failure occurred. Original
+controller/log/failure remain. A separately sealed count parser/resume will
+consume that actual first round and execute only four new processes, with
+five distinct PIDs required. No oracle/tolerance or past result changes.
+
+**Verified reference scope audit:** The prompt does not require historical
+ELF/device.text byte identity for rebuilt MX4 P-PAIR controls; the earlier
+byte gate was an added validation condition. Its FAIL remains intact. A new
+rebuilt22a contract will require full actual source/pins/geometry/52 fields/
+recipes/normal flags/ABI/resources andC-1/C-2, and mark160B device.text
+difference unknown; it will not claim the historical ELF or replace fixed
+MX4/external CSVs. The historical574-file map has two host-file differences
+versus22a (ModelPlan.cpp/SkeletonSearch.cpp); generatedCU/device includes
+match. Do not repeat the mistaken blanket574-source equality claim. Old
+prefill spills(MT248/frame264 forL1) are preserved as legacy reference
+resources, never MX5 frame0 approval. New reference checks/builds pending.
