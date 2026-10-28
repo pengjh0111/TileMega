@@ -939,3 +939,16 @@ TwoCPUresource rows append withactualGPUqueries explicitlypending. I1source is
 an ignored experimentcopy;production headers andexistingI1profiles unchanged.
 GPU D7 waits current-source offgrid37,thenI1 waits actualsamecellD7 completion;
 card5 staysserial. Raw:current_Qwen17B2_D7_v1 andcurrent_Qwen17B2_D7_I1_v1.
+
+Verified current Qwen0.6BB4 D7:16fresh guarded children,2rounds×8masks,
+strict independent append. Medianintervention/bench us:QKV7.827/10.400,
+attention42.466/36.373,O5.476/9.040,GU9.937/14.000,down7.640/11.250,
+head+tokens194.065/194.370. Attentionratio1.168;G-LLM regressionstillopen.
+Mask63=.332398ms iscommon work,not pure synchronization. No additivebody sum.
+Actual B4 I1 fivefresh order/repeat:QKV+4.728%,attention−2.389%,O+5.103%,
+GU+9.302%,down+2.041%. Same-entry diagnostic,not E2E orcache causality.
+Actualquery228MT/frame0/static0/resident1;normalprogramsymbol84224B,
+wholedevice.text171248B. Fiftyfresh I1rows/oneactualresource append;oldprefixes
+unchanged. Raw:current_QwenB4_D7_v1 andcurrent_QwenB4_D7_I1_v1.
+Candidate initial GPU numerical/helper checks nowstart withcorrected HKV8
+foradded B2/B4 fixtures;no candidate acceptance/result claimed beforecompletion.
