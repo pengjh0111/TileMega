@@ -102,7 +102,7 @@ candidates passC1/C2512,two fresh timing processes each. Medians(ms) are
 [1.976266,1.977535,1.980171,1.974518]. Anchor0 is retained by the1% rule;
 pred/meas1.02291. FixedMX4 is1.983552ms(−.367%,indistinguishable). This
 passes cell nonregression without claiming a measurable speedup. Current
-source completion subsequently reaches3/25dense,0/5MoE,0/25DNN;defaults unchanged.
+source completion subsequently reaches4/25dense,0/5MoE,0/25DNN;defaults unchanged.
 
 Verified second new-source selection: Qwen0.6B B16 allfour C-1/C2512
 andtwo fresh timings each pass. Candidate medians are
@@ -122,3 +122,20 @@ Verified third new-source selection: Llama8B B1 anchor0 TPOT10.585899ms,
 fixedMX410.715531ms(-1.210%,distinguishable),pred/meas0.98267.
 Allfour C-1/C2512 and2fresh timings each pass;strict source/raw verification
 precedes append-only CSV publication. Raw:local_lds_tail_llama3_1_8b_B1_top4_execution_v1.
+
+Verified budget-controller configuration: the60physical-card-hour cap andall
+four raw job logs remain. The original58.7dispatch cutoff reserves time for
+two long checks/timings. Only after allcurrent timing parents return0,and
+allactive guards have timeout<=300s,does the query-only phase use59.75.
+Query controllers additionally bound each whole wrapper to330s,including
+preflight;cleanup20s pluspoll30s percard gives a two-card upper59.9612h.
+The initial300s-only reserve estimate is superseded before anyquery dispatch;
+guard's own timeout starts after preflight. Original estimate/correction remain.
+This changes an internal reserve,not the prompt budget ormeasurement protocol.
+Original controllers/logs remain;only owned idle CPU waiters were replaced.
+
+Verified fourth new-source selection: Llama8B B16 anchor0 TPOT13.150235ms,
+fixedMX414.541197ms(−9.566%,distinguishable),/fastestbaseline.932112,
+pred/meas.99287.Allfour C-1/C2512 and2fresh timings each pass;CSV/raw
+independently reconciled. Fourdevelopment cells passnonregression;Llama1B
+576cost item,G-B,G-PROGRAM,full25/30LLM andMoE/DNN remain open.

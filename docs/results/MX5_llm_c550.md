@@ -128,7 +128,7 @@ These checks are not additional final solver selections anddo not change default
 
 ## Current local-LDS source: completed solver selections (verified)
 
-Frozen88327/A19dd8 has3/25 completed dense selections;the earlier table
+Frozen88327/A19dd8 has4/25 completed dense selections;the earlier table
 remains historicalcc29,not new-source completion. Qwen0.6B B1 exacttop4
 passes allfour C-1/C2512 checks andtwo fresh timing processes per candidate.
 
@@ -170,3 +170,28 @@ timing processes per candidate;allselected WD0/WD1 resource queries pass.
 Anchor0 remains selected:TPOT10.585899ms vsfixedMX410.715531ms(-1.210%),
 a distinguishable improvement. Pred/meas0.98267. Defaults unchanged.
 Raw:local_lds_tail_llama3_1_8b_B1_top4_execution_v1.
+
+Llama3.1-8B B16 allfour C-1/C2512 andtwo fresh timings each pass.
+
+| Candidate | Predicted ms | Measured ms | pred/meas | Chosen |
+|---|---:|---:|---:|---|
+|0|13.056443|13.150235|0.9929|yes|
+|1|13.057403|13.163448|0.9919|no|
+|2|13.058373|13.173144|0.9913|no|
+|3|13.061223|13.163197|0.9923|no|
+
+Anchor0 TPOT13.150235ms vsfixedMX414.541197ms
+(-9.566%,distinguishable),/fastestbaseline=0.932112.
+TTFT734.198ms;E2E14.186888s;MBU0.7956(inferred bytes).
+Raw:local_lds_tail_llama3_1_8b_B16_top4_execution_v1;defaults unchanged.
+
+Current selected matching-source bench costs(us);these are not new program ledgers.
+
+| Model/B | QKV | Attention | O | GateUp | Down | Head |
+|---|---:|---:|---:|---:|---:|---:|
+|Qwen0.6B/1|10.100|22.963|8.360|13.770|10.030|195.300|
+|Qwen0.6B/16|13.550|62.472|11.810|16.410|15.570|199.670|
+|Llama8B/1|34.850|19.061|24.920|149.750|76.540|638.630|
+|Llama8B/16|37.620|53.722|31.620|174.180|90.350|656.700|
+
+Attention bench exceeds appendix inference;current source per-stage DIAG/I1 remains pending.
