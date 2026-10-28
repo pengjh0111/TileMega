@@ -337,3 +337,45 @@ Verified：新源800 P0及800规则派生实际查询完成：512的400项合法
 其余576的300项资源拒绝且未运行数值/计时。21个正常bench编译与所选MIR通过；
 500合法键按线程分组进行原三新进程冷测量。25个512scope/source/dependency绑定已准备，
 最终成本资格重放只在全部实际批次成功后执行，零补造、零旧A身份转移。
+
+Verified：新A20 Llama1B B1的576请求域189=156实测成本+33实际资源拒绝，全部原成功批次
+先按原aggregate数值/资源/normal门核验，再精确投影；闭包字节核验通过，原complete-outcome
+判据与消费者重放均过。正常producer已生成真实exact top4，四原始576计划编译、MIR与实际
+occupancy通过，0宽度缩减。正式runner执行中，尚无新源solver-selected结果。
+旧的CPU包装器把measured_args=None误当已传成本，被原验证器正确报缺156；实际156行聚合
+证据保留，v2传入明确的投影成本对象后才通过。未补数据或放宽判据。
+第一次四query用主root wrapper，helper路径不等于可信冻结W而被协议拒绝；冻结W原wrapper
+的新查询才被消费。另一次启动误传schema1，被只接受schema2的runner在GPU前拒绝；现用
+既有v2 capture/validator重新生成，原四候选/ledgers/queries不变。全部失败记录保留。
+
+Verified：A19 Qwen1.7B B4完整top4选择3.920668ms，较MX43.894393ms慢0.675%，不可分辨。
+A19共11/25、8不退化、3失败；旧队列完成6/15格后，原磁盘<1GiB门停止下一格，9格未启动。
+只终止已无后续工作可消费的自有CPU watcher，未信号GPU进程；新A20工作继续。
+自有已完成host构建的无引用CPU .o/.a中间文件逐字节归档到/dev/shm，并在原位置保留可读
+中间文件链接。原测量、日志、CU、源码、producer/solver/plan二进制和身份文件不变。
+初次归档因旧producer缺DELIVERY中止；部分归档与恢复路径有独立manifest，没有删除证据。
+新producer归档67,685,508B，中间文件与最终producer哈希复核；磁盘仍受持续监控。
+Raw：cpu_intermediate_archive_tmpfs_v1；local_lds_tail_remaining15_full_execution_v1/ACTUAL_OLD_SOURCE_QUEUE_DISK_STOP_AND_CPU_WATCHER_HANDOFF.json。
+
+Verified：Qwen0.6B B1新源512请求域174坐标全部有实测成本，原消费者重放通过。
+已独立求解top4并按真实576 P0重新导出四个canonical原始构建：MT168，frame340/356/360/356。
+实际查询及至多三次原规则缩减在卡6继续；没有直接强制512，也未转移旧A19的资源历史身份。
+
+Verified容量更正：df显示0的是f_bavail（普通用户可用空间），并非文件系统f_bfree；
+实际UID0仍有38,062,530,560B保留空闲空间，df0之后的正式批次亦成功写入。没有发生已观察
+ENOSPC；未修改保留块配置。旧CPU队列使用f_bavail的1GiB守卫停止记录保留，后续工作按
+实际身份和两种容量指标继续监控。仅只读比较的大edge TSV并不逐字节相同，未做原始数据去重。
+Raw：storage_capacity_audit_v1；/dev/shm/tilemega_mx5_edge_dedup_audit_20261028/BYTE_COMPARE.json。
+
+Verified：A20的500/500合法attention键三新进程冷测量全部完成；576的300拒绝仍未计时。
+与逐字节一致的G14/H15组成4545实测行，经原资格工具及25个完整512请求域消费者重放全过。
+25个新正常producer预览正在生成。旧早期QwenB1请求域预览具有独立身份并继续自己的真实
+576历史、512原始构建、D7和端到端流程，不把其历史移给不同preview SHA。
+Raw：consumed_prefetch_attention_epoch_v1/ACTUAL_COLD_THREE_FRESH_COMPLETE.json；
+consumed_prefetch_attention_consumer25_v1/ACTUAL_QUALIFIED25_COMPLETE.json。
+
+Verified：新QwenB1四条canonical576历史闭合，缩减次数1/1/0/0，最终各GEMM/head均Pw=D；
+相应四个独立512原始计划各229MT/frame0/actualresident1，实际query与共享预算复核通过。
+另用旧A19正常producer编译相同当前minimum物理pin作为source-before控制，真实新after是
+当前canonical失败体。四份D7逐项绑定spill/wait/Pw/发出点/划分/I1静态及原I1证据，原v2审核
+全过，正式runner在卡6进行四候选C1/C2与双新进程计时；当前仍未登记新源选择结果。
