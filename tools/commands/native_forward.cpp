@@ -5,6 +5,7 @@
 #include <tilemega/Codegen/CouplingGraphToCUDA.h>
 #include <tilemega/Solver/Sm90ForwardPlan.h>
 #include <tilemega/Solver/Sm90ForwardSearch.h>
+#include <tilemega/Solver/Sm90DenseRegisterContract.h>
 #include <tilemega/Solver/Sm90NativeConstants.h>
 #include <tilemega/Support/Json.h>
 #include <mlir/IR/MLIRContext.h>
@@ -52,6 +53,9 @@ static int CompileNativeForwardArtifact(std::string const& input,std::string con
   auto input_hash=Hash(input),coordinates_hash=Hash(coordinates),target_hash=Hash(target_path);
   auto c=solver::Sm90ForwardCoordinates::FromJson(json::ParseFile(coordinates));
   auto target=TargetSpec::FromJson(target_path);
+  // The launch's register ceiling follows the requested residency, exactly as
+  // the native dense build's does.
+  auto registers=solver::NativeDenseRegisterContract(target,c.residency);
   mlir::MLIRContext context;
   auto plan=solver::BuildSm90ForwardPlan(input,batch,fuse);
   auto module=solver::MaterializeSm90Forward(plan,c,batch,target,context,origin);
@@ -98,6 +102,10 @@ static int CompileNativeForwardArtifact(std::string const& input,std::string con
       {"phase","forward"},{"runtime_batch",batch},{"batch_lo",batch},{"batch_hi",batch},
       {"seq",plan.serving_seq},{"dwpw_fuse",fuse},{"mode","L1"},{"loop",1},
       {"residency",c.residency},{"grid",target.res.num_sms*c.residency},
+      {"register_contract",json::Object{{"threads",registers.threads},
+          {"requested_residency",registers.residency},{"callee_limit",registers.callee_limit},
+          {"allocation_granularity",registers.granularity},
+          {"subpartitions",registers.subpartitions},{"runtime_occupancy_required",true}}},
       {"runtime_target",fs::absolute(target_path).string()},
       {"target_spec",json::Parse(target.ToJson())},
       {"native_forward",c.ToJson()},{"native_origin",origin},{"native_selection",selection},
@@ -121,6 +129,10 @@ static int CompileNativeForwardArtifact(std::string const& input,std::string con
       "-Xcompiler","-fPIC","-cudart","shared","-Xptxas","-v","--split-compile",
       std::to_string(split_compile),"-I"+root+"/include","-I"+root+"/third_party/cutlass/include",
       cu.string(),"-o",requested.string()};
+  if(registers.Constrained()) {
+    command_args.push_back("-Xptxas");
+    command_args.push_back("--device-function-maxrregcount="+std::to_string(registers.callee_limit));
+  }
   std::string command;
   for(auto const& argument:command_args) {if(!command.empty())command+=' ';command+=Quote(argument);}
   auto command_path=requested.string()+".build_command.txt";
@@ -159,8 +171,8 @@ static int CompileNativeForwardArtifact(std::string const& input,std::string con
   std::string log_text((std::istreambuf_iterator<char>(log_stream)),{});
   bool stable=unchanged();
   bool normal_failure=status!=-1 && WIFEXITED(status) && WEXITSTATUS(status)==1;
-  auto diagnostics=stable?NativeResourceDiagnostics(limits,command_args,255,normal_failure,
-      log_text,kNativeForwardEntryPrefix):std::vector<NativeRegisterCallLimit>{};
+  auto diagnostics=stable?NativeResourceDiagnostics(limits,command_args,registers.callee_limit,
+      normal_failure,log_text,kNativeForwardEntryPrefix):std::vector<NativeRegisterCallLimit>{};
   bool succeeded=status==0 && limits.At("status").AsString("bounded status")=="completed" &&
       limits.At("exit_code").AsNumber("bounded exit")==0 &&
       limits.At("classification").AsString("bounded classification")=="compilation; not a numerical test" &&

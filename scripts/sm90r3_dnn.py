@@ -207,9 +207,30 @@ def select(a):
                            '--out', str(out / 'result.json')], cwd=ROOT)
 
 
+def final(a):
+    """P-DNN closeout: three fresh processes of the selected artifact."""
+    out = a.out.resolve()
+    out.mkdir(parents=True)
+    arms = {'final': dict(library=str(a.library.resolve()), export=str(a.export.resolve()),
+                          bridge=str(a.bridge.resolve()), inputs=str(a.inputs.resolve()),
+                          root=str(a.root.resolve()))}
+    spec = dict(name=a.name, kind='final', model=a.model, batch=a.batch, gpu=a.gpu, arms=arms)
+    write(out / 'spec.json', spec)
+    me = str(Path(__file__).resolve())
+    subprocess.check_call([PYTHON, me, 'queue', '--spec', str(out / 'spec.json'),
+                           '--queue-dir', str(out / 'queue')], cwd=ROOT)
+    env = dict(os.environ, **environment(a.gpu))
+    subprocess.check_call([PYTHON, '-m', 'tilemega.bench.scheduler', '--queue-dir', str(out / 'queue'),
+                           '--out', str(out / 'scheduler'), '--policy', str(POLICY),
+                           '--deadline-hours', '12'], cwd=ROOT, env=env)
+    subprocess.check_call([PYTHON, me, 'collect', '--spec', str(out / 'spec.json'),
+                           '--state', str(out / 'scheduler/state.json'),
+                           '--out', str(out / 'result.json')], cwd=ROOT)
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('action', choices=('queue', 'measure', 'collect', 'select'))
+    p.add_argument('action', choices=('queue', 'measure', 'collect', 'select', 'final'))
     p.add_argument('--spec', type=Path)
     p.add_argument('--queue-dir', type=Path)
     p.add_argument('--state', type=Path)
@@ -227,8 +248,9 @@ def main():
     p.add_argument('--inputs', type=Path)
     p.add_argument('--root', type=Path, default=ROOT)
     p.add_argument('--candidates', type=Path)
+    p.add_argument('--library', type=Path)
     a = p.parse_args()
-    if a.action in ('measure', 'collect', 'select') and a.out is None:
+    if a.action in ('measure', 'collect', 'select', 'final') and a.out is None:
         p.error(a.action + ' requires --out')
     if a.action == 'queue':
         queue(a)
@@ -236,6 +258,11 @@ def main():
         measure(a)
     elif a.action == 'collect':
         collect(a)
+    elif a.action == 'final':
+        for name in ('model', 'gpu', 'name', 'export', 'bridge', 'inputs', 'library'):
+            if getattr(a, name) is None:
+                p.error('final requires --' + name)
+        final(a)
     else:
         for name in ('model', 'gpu', 'name', 'export', 'bridge', 'inputs', 'candidates'):
             if getattr(a, name) is None:
