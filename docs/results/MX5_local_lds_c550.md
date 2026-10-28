@@ -60,7 +60,8 @@ Verified old-source Row2678/A19cc122 attention400/400 has3fresh measurements,
 with25 scoped512 consumer replays from4545G/H/A keys. These costs were never
 blocked by local-LDS permission; the earlier192/400 checkpoint reflected guard75.
 New-source400 P0/primary resource queries pass independently. New cold costs
-are being measured,3fresh per key and256MiB active rotation. Old A rows are
+complete400/400,3fresh per key and256MiB active rotation. All25 cost scopes
+replay successfully from the new4545-key G/H/A pool. Old A rows are
 not relabelled as new A. Neither25 cost scopes nor336 unit passes approve all
 whole programs,final solver choices or defaults.
 
@@ -75,3 +76,23 @@ share physical storage after SHA256 checks; all paths/content remain. About
 Dense final25,MoE native5,LLM30 acceptance,andDNN native25 remain unfinished;
 original phase order and60card-hour budget remain. The measured local-LDS
 comparisons do not establish the hoped-for TPOT improvement.
+
+Verified576 context counterexample (same new A19): Llama1B B1 normal
+G/H-floor,attentionPK2 program has167MT/frame0 andactualresident1,API0.
+The runtime-shape self-prefetch stagebench has PK0=137–138MT/frame0,
+PK2=168MT/frame44–48. Actual queries give PK0fit4/4 andPK2reject4/4,
+with0numerical launches. Section4.5 choosesPK2 fromPK0 Rnext, so that
+576stage-cost item remains blocked; forcing the whole plan to512 or using
+PK0 costs would violate the original rule. No single compiler cause is proved.
+Locations: experiments/mx5/attention_stage_bench.cu:53 (self-next context),
+DecodeAttentionV2.h:432 (common Run);raw local_lds_tail_576_context_actual_queries_v1.
+
+Verified native solver continuation: new-source25 requests each emit an exact
+independent512 top4 preview,100 candidates,0device compiles/0GPU calls. These
+are predictions, not final selections or512 exceptions. Five development
+requests'20 original canonical576 programs are rebuilt normally from their
+actual576 P0 profiles:3 haveframe0 and17 retainframe failures. Guarded
+zero-launch queries andprescribed history consumption follow;no missing retry
+history or D7 evidence is filled in. The source-specific query log in the
+frozen tree is added to the physical-card accounting;all prior logs andthe
+60h limit are retained.

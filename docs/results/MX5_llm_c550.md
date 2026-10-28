@@ -1,11 +1,11 @@
 # MX-5 LLM C550 results (in progress)
 
-Verified: current cc29/A719 has 7/25 completed dense top-four selections; MoE remains0/5.
+Verified: historical cc29/A719 has7/25 completed dense top-four selections;MoE remains0/5.
 G-A passes; remaining program/solver/LLM/final gates stay open. Default remains MX4.
 
 Authority: `/root/Prompt/TileMega_MX5_prompt.md`, SHA256
 `75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73`.
-Current source: `cc29d78304d297346d657c0fbca0a86e76b1f60f`; producerSHA
+Historical selected source: `cc29d78304d297346d657c0fbca0a86e76b1f60f`;producerSHA
 `24fa50ed913bce7791f575447a97e06c18a9bfce91c337c0bcc9191179c7c3c7`.
 Old3ef/Af8 selections remain [historical](MX5_llm_prior_body_c550.md);
 earlier four-cell details are [preserved separately](MX5_llm_development_details_c550.md).
@@ -123,5 +123,5 @@ and fixed historical CSVs stay intact. DNN follows LLM acceptance.
 
 Verified local-LDS amendment and both indistinguishable manual B2 P-PAIRs
 are recorded in MX5_local_lds_c550.md. The new source passes5fresh×336
-required attention cases andmanual C1/C2512;new400-key costs remain in progress.
+required attention cases andmanual C1/C2512;new400-key costs and25scope replays pass.
 These checks are not additional final solver selections anddo not change defaults.
