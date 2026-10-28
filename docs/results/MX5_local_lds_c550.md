@@ -142,3 +142,13 @@ fixedMX414.541197ms(−9.566%,distinguishable),/fastestbaseline.932112,
 pred/meas.99287.Allfour C-1/C2512 and2fresh timings each pass;CSV/raw
 independently reconciled. Fourdevelopment cells passnonregression;Llama1B
 576cost item,G-B,G-PROGRAM,full25/30LLM andMoE/DNN remain open.
+
+Verified remaining20cells'80canonical576 original queries complete,API0,
+zero numerical launches. Outcomes:10use576,13qualified history,57prescribed
+rebuilds. Together with the earlier20development originals,all100originals
+have actual queries. The new80resource rows append with prior bytes preserved.
+All57first-retry CPU builds complete normally;they overlap independent query0
+work. A real reuse check preserves binary/receipt/MIR/process hashes exactly;
+the later controller validates those receipts instead of recompiling them.
+Neither these histories nor CPU rebuilds add E2E-passed cells. Raw:
+local_lds_tail_canonical576_remaining80_v1;currentsource selection remains4/25.
