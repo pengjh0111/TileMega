@@ -29,6 +29,12 @@ def incremental_packing_bytes(buffers,reusable):
     return total
 
 
+def validate_rope_reuse(old,table_sha256):
+    expected=old.get('rope_table_sha256')
+    if expected is not None and table_sha256!=expected:
+        raise ValueError('Reusable inputs require the same verified --rope-table; refusing silent RoPE coefficient drift')
+
+
 def pack(model_id, plan, out, past, reuse=None, reuse_plan=None,rope_table=None):
     plan=controlled(plan,[RUNS]);out=controlled(out,[RUNS])
     if not 0 <= past <= 1086:
@@ -104,6 +110,7 @@ def pack(model_id, plan, out, past, reuse=None, reuse_plan=None,rope_table=None)
         old=json.loads((reuse/'inputs.json').read_text())
         if old['model_id']!=model_id or old['config_sha256']!=manifest['config_sha256'] or old['weight_manifest_sha256']!=digest(directory/'manifest.json') or old['metadata_sha256']!=digest(reuse_plan/'metadata.bin'):
             raise ValueError('Reusable packing identity mismatch')
+        validate_rope_reuse(old,digest(rope_table/'table.json') if rope_table else None)
         descriptions={b['name']:b for b in json.loads((reuse_plan/'buffers.json').read_text())['buffers']}
         for record in old['buffers']:
             b=descriptions[record['name']]

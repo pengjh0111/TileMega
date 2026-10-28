@@ -8,7 +8,7 @@ import torch
 from tilemega.bench.as2_models import RUNS
 from tilemega.bench.as2_request import bind, digest, request_source
 from tilemega.bench.as2_native_audit import compare_capture_payloads
-from tilemega.bench.as2_native import incremental_packing_bytes
+from tilemega.bench.as2_native import incremental_packing_bytes,validate_rope_reuse
 from tilemega.bench.as2_last_forward import matching_prefix_rows
 
 
@@ -22,6 +22,13 @@ class LastForwardRowsTest(unittest.TestCase):
 
 
 class PackingBudgetTest(unittest.TestCase):
+    def test_reused_npu_rope_cannot_silently_become_cpu_constants(self):
+        old=dict(rope_table_sha256='canonical-npu-table')
+        validate_rope_reuse(old,'canonical-npu-table')
+        for requested in (None,'another-table'):
+            with self.assertRaisesRegex(ValueError,'RoPE coefficient drift'):validate_rope_reuse(old,requested)
+        validate_rope_reuse({},None)
+
     def test_hardlinks_preserve_budget_and_changed_layout_requires_space(self):
         def buffer(name,size,recipe):return dict(name=name,bytes=size,dtype='bf16',pack_json=recipe,required_input=True)
         weight=buffer('weight',1<<30,'{"kind":"qkv_group_interleave"}')
