@@ -141,6 +141,7 @@ struct ForwardFusedStage {
     auto& p=bank.fused;
     p.activation=b.template Map<Bind::kMap>();
     p.depthwise=b.template Get<Bind::kDepthwise>();
+    p.depthwise_pack=Shape::kDepthwisePack;
     p.pointwise=b.template Get<Bind::kWeight>();
     p.expand=b.template Get<Bind::kExpand>();
     p.output=b.template Get<Bind::kOutput>();
@@ -150,7 +151,7 @@ struct ForwardFusedStage {
     p.width=Shape::kWidth;p.height=Shape::kHeight;p.channels=Shape::kChannels;
     p.out_channels=Shape::kOutChannels;
     p.output_width=Shape::kOutputWidth;p.output_height=Shape::kOutputHeight;
-    p.stride=Shape::kStrideH;
+    p.stride=Shape::kStrideH;p.padded_channels=Shape::kPaddedChannels;
   }
   template<class B>
   __device__ static __forceinline__ void Run(B const&,char* shared,int offset,

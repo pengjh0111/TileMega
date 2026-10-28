@@ -97,6 +97,7 @@ struct Binding {
 struct Geometry {
   int width=0,height=0,channels=0,out_channels=0,output_width=0,output_height=0;
   int stride=1,output_stride=0,residual_stride=0,heads=0,sequence=0,norm_width=0;
+  int depthwise_pack=1,padded_channels=0;
   double epsilon=0,scale=0;
   std::string Emit(unsigned index) const {
     std::ostringstream out;
@@ -106,7 +107,8 @@ struct Geometry {
        <<",kStrideW="<<stride<<",kStrideH="<<stride
        <<",\n      kOutputStride="<<output_stride<<",kResidualStride="<<residual_stride
        <<",kHeads="<<heads<<",kSequence="<<sequence
-       <<",kNormWidth="<<norm_width<<";\n"
+       <<",kNormWidth="<<norm_width<<",kDepthwisePack="<<depthwise_pack
+       <<",kPaddedChannels="<<padded_channels<<";\n"
        <<"  static constexpr float kEpsilon="<<Float(epsilon)<<",kScale="<<Float(scale)
        <<";\n};\n";
     return out.str();
@@ -369,6 +371,7 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
       shape.width=int(conv.w);shape.height=int(conv.h);shape.channels=int(conv.c);
       shape.out_channels=int(conv.k);shape.output_width=int(conv.q);
       shape.output_height=int(conv.p);shape.stride=int(conv.stride_h);
+      shape.padded_channels=int(input.physical[3]);
     }
 
     switch(c.body) {
@@ -510,7 +513,22 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
         auto gemm=Entry(gemms[unsigned(Integer(stage,"gemm"))],"gemm");
         auto chain=frontend::DecodeDmChain(gemm.get("dm_chain"));
         auto const& conv=convs[conv_index];
+        // The fused stage's N is the pointwise projection's, not the
+        // depthwise ConvDesc's channel count.
+        shape.out_channels=int(Integer(gemm,"n"));
         bind.depthwise=operand(1);bind.weight=unsigned(Integer(gemm,"b"));
+        // The depthwise filters are packed KRSC: C x 3 x 3 x pack, and the
+        // buffer's own extent fixes that inner padding.
+        {
+          auto filter=Entry(buffers[bind.depthwise],"buffer");
+          auto elements=std::uint64_t(Integer(filter,"constant",0));
+          auto taps=std::uint64_t(conv.c)*conv.r*conv.s;
+          if(!taps || !elements || elements%taps)
+            throw std::invalid_argument("a native forward depthwise filter is not KRSC packed");
+          shape.depthwise_pack=int(elements/taps);
+          if(shape.depthwise_pack>8)
+            throw std::invalid_argument("native forward depthwise packing exceeds eight");
+        }
         bind.output=unsigned(Integer(gemm,"d"));
         MapSpec spec;
         auto const& l=layouts.at(conv.input_layout);
@@ -527,7 +545,8 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
         if(bind.residual!=kAbsent)shape.residual_stride=width_of(bind.residual);
         body="Sm90ForwardDwPw<"+std::to_string(c.tile_w)+','+std::to_string(c.tile_h)+','+
             std::to_string(c.channel_block)+','+std::to_string(c.tile_n)+','+
-            std::to_string(conv.stride_h)+','+std::to_string(c.slots)+','+chain_text+'>';
+            std::to_string(conv.stride_h)+','+std::to_string(c.slots)+','+chain_text+','+
+            std::to_string(shape.depthwise_pack)+'>';
         wrapper="ForwardFusedStage";
         break;
       }

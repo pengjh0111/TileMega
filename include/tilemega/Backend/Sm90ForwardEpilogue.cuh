@@ -34,6 +34,10 @@ struct Sm90ForwardEpilogueOperands {
   // The normalization width of a deferred or reconstructed LayerNorm: its
   // statistics arrive as the producer's raw (sum, sum of squares) per row.
   int norm_width;
+  // Spatial write mapping: a body whose rows are the pixels of a TW x TH tile
+  // sets `tile_width` and the image's row pitch, and the store walks the tile
+  // instead of a dense run of rows. Zero keeps the dense mapping.
+  int tile_width,image_width;
 };
 
 // (mean, 1/sigma) of one row from the producer's raw sums. The producer ran
@@ -184,7 +188,10 @@ struct Sm90ForwardEpilogueChain {
       }
     for(int i=int(threadIdx.x);i<rows*width;i+=128) {
       int row=i/width,col=i%width;
-      output[std::size_t(row)*stride+channel+col]=Element(tile[row*N+col]);
+      std::size_t destination=p.tile_width>0?
+          (std::size_t(row/p.tile_width)*p.image_width+row%p.tile_width)*stride:
+          std::size_t(row)*stride;
+      output[destination+channel+col]=Element(tile[row*N+col]);
     }
     codegen::executor::ComputeSync();
   }
