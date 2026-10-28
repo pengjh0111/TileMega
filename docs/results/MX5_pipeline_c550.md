@@ -113,3 +113,36 @@ has not been applied. The committed attention lifetime repair retains both caps.
 Main results: `MX5_c550.md`, `MX5_llm_c550.md` and the append-only CSVs.
 Detailed amendments: `MX5_scope_reaudit_20261027.md`, `MX5_local_lds_c550.md`.
 The full task, all55 cells and final default promotion are not complete.
+
+
+## MoE contract read-only preparation (verified, 2026-10-29)
+
+A CPU-only observer links the unchanged frozen producer's actual frontend library
+and reads the real MoE-L24 decode bridge. For allB1/2/4/8/16,BuildModelPlan and
+ValidateDmModelPlan succeed:24layers,121GEMMs,219legacy stages,779buffers,epsilon1e−6.
+The exact per-layer sequence is QKV→fused-attention→merge→O→router→topk→gate/up→down→combine.
+The observer checks all120 blocks,not a synthetic substitute or48-layer fixture.
+
+| Projection | N | K | Native use required by prompt |
+|---|---:|---:|---|
+| QKV |5120|2048|kStore+consumer RMS|
+| O |2048|4096|residual|
+| Router |128|2048|roundedBF16 logits+top8 dispatch|
+| Expert gate/up |1536|2048|gather+indirect,folded gamma,deferredRMS+gatepair|
+| Expert down |2048|768|indirect+scatter,then combine|
+
+Actual topk routing dtype isf32;row_capacity=B×8,experts128,topk8. Router and
+gate/up recipes fold the same actual post-attention gamma;expert interleave unit16.
+Embedding,attention-merge,topk,combine andargmax fold into the specified native
+program,whose required barrier count is6×24+1=145;no native MoE ran here.
+
+Current entry gaps remain atmx_decode.cpp:105 (DM returns−1),mx_decode_v2.cpp:102/226
+(explicit dense-only rejection),andMxDecode.h:11 (no prompt field). The early
+mx_decode options omit moe_batch although ModelPlan defaults it to1;the observer
+sets the actualbatch explicitly as§6.1 requires. No legacy GPU path was executed.
+
+Serving weight_recipes rejects differing same-name recipe/dtype/size across phases
+(weights.py:117);every future native prompt/decode candidate pair must therefore
+share its exact recipes. Read-only preparation does not claim a generator,packing,
+solver,correctness,routing-check,TTFT orTPOT result. Implementation remains after
+the dense stage;rawmoe_native_contract_readonly_v1/ACTUAL_MODELPLAN5_CONTRACT.json.
