@@ -93,7 +93,10 @@ struct MxAttentionV2 {
     if (wave < 8) {
       MxAttentionGeometryV2 const geo(s.b * s.hkv, p.past, Bmin, int(gridDim.x), StageBlock());
       int const first = min(geo.begin, geo.units - 1), head = first / geo.blocks;
-      int const j = min(first % geo.blocks + wave, geo.blocks - 1), lane = int(thread % 64);
+      int const j = first % geo.blocks + wave, lane = int(thread % 64);
+      int const end = min(geo.end - head * geo.blocks, geo.blocks);
+      // No load may outlive clearing an unused first-segment payload.
+      if (geo.begin >= geo.end || j >= end) return pf;
       Block block;
       if constexpr (PrefetchKind) {
         LoadK(block, p, head, j, lane);
@@ -430,7 +433,7 @@ struct MxAttentionV2 {
   }
 
   template <class Shape, class Next>
-  __device__ __forceinline__ static auto Run(Prefetched const& pf, MxAttentionOperandsV2 const& p,
+  __device__ __forceinline__ static auto Run(Prefetched pf, MxAttentionOperandsV2 const& p,
                                             Shape const& s, char* smem, Next next) {
     using Sync = codegen::mx::StageSyncV2<Shape::kThreads>;
     MxAttentionGeometryV2 const geo(s.b * s.hkv, p.past, Bmin, int(gridDim.x), StageBlock());
@@ -440,9 +443,12 @@ struct MxAttentionV2 {
     if (geo.begin < geo.end) {
       int const first_head = geo.begin / geo.blocks;
 #pragma unroll 1
-      for (int h = first_head; h * geo.blocks < geo.end; ++h)
+      for (int h = first_head; h * geo.blocks < geo.end; ++h) {
         Segment(pf, block, p, s, geo, h, max(geo.begin - h * geo.blocks, 0),
                 min(geo.end - h * geo.blocks, geo.blocks), shared, h == first_head);
+        // Only the first segment consumes the incoming payload; later segments use the ring.
+        pf = Prefetched{};
+      }
     }
     Sync::CtaSync();
     using Result = decltype(next());
