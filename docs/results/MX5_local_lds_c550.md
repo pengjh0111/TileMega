@@ -927,3 +927,15 @@ ACTUAL_PRE_GPU_HKV_CORRECTION_CPU.json andACTUAL_ORACLE_FIXTURE_SCOPE_CPU_PROOF_
 Current-source offgrid37 diagnostic prepared withactualhkv8/A20library,threefresh
 processes queued aftercandidate self-next tokeepcard5 serial. Itsfuture results
 are attribution only;officialfive-grid interpolation/cost selection stays unchanged.
+
+Verified current Qwen1.7BB2 regression3.609036ms,+1.507% vsfixedMX4,
+pred/meas.96038,original0 selected;all4 C-1/C-2 andeightfresh timingprocesses
+pass independent selection/CSV replay. It is thethird currentG-LLM failure.
+Same-source/CU/pin selected DIAG normalbuild passes228MT/frame0/static0/14rings,
+check-only CPUpreflight passes. Dedicated I1 usesactualQKV4096×2048,GU12288×2048,
+O2048×2048,down2048×6144 andselected TN/WN/D/Pw;D128Q2/HKV8/B2/b_min4/PK0.
+Itsnormalcompile passes230MT/frame0/static0/18rings,programsymbol87040B.
+TwoCPUresource rows append withactualGPUqueries explicitlypending. I1source is
+an ignored experimentcopy;production headers andexistingI1profiles unchanged.
+GPU D7 waits current-source offgrid37,thenI1 waits actualsamecellD7 completion;
+card5 staysserial. Raw:current_Qwen17B2_D7_v1 andcurrent_Qwen17B2_D7_I1_v1.
