@@ -39,13 +39,9 @@ struct Sm90ForwardEpilogueOperands {
   // sets `tile_width` and the image's row pitch, and the store walks the tile
   // instead of a dense run of rows. Zero keeps the dense mapping.
   int tile_width,image_width;
-  // The writeback mapping. `kDenseWrite` is a row of `stride` channels;
-  // `kNchwWrite` is the model's own NCHW output; `kShuffleWrite` scatters one
-  // input pixel's channel groups over an f x f block of output pixels
-  // (NAFNet's upsample). The image's geometry and this tile's first row in the
-  // producing body's row space locate the pixel.
-  int write_kind,row_base,shuffle_factor;
-  int write_width,write_height,write_channels;
+  // This tile's first row in the producing body's own row space, which the
+  // NCHW and shuffled writebacks need to locate the pixel.
+  int row_base;
 };
 
 // A row's offset inside its buffer: a body whose rows are the pixels of a
@@ -133,11 +129,16 @@ struct Sm90ForwardElementChain {
 
 // The chain runs over one M x N fp32 tile in shared memory. Rows are the
 // task's M output rows; columns are its N channels starting at `channel`.
-template<int M,int N,class... Step>
+// `Write` names the writeback mapping and `Shuffle`, `Width`, `Height` and
+// `Channels` its image geometry; all four are compile-time properties of the
+// stage, so they travel with the chain rather than in the operand bank.
+template<int M,int N,int Write=kDenseWrite,int Shuffle=1,int Width=0,int Height=0,
+         int Channels=0,class... Step>
 struct Sm90ForwardEpilogueChain {
   using Element=cutlass::bfloat16_t;
   static constexpr int kSteps=int(sizeof...(Step));
   // Gate pairs halve the written width; everything else keeps N.
+  static constexpr int kWrite=Write;
   static constexpr bool kGated=((Step::kKind==Sm90ForwardOp::kGatePair) || ...);
   static constexpr int kWidth=kGated?N/2:N;
   static_assert(!kGated || N%2==0);
@@ -235,25 +236,24 @@ struct Sm90ForwardEpilogueChain {
     for(int i=int(threadIdx.x);i<rows*width;i+=128) {
       int row=i/width,col=i%width;
       float value=tile[row*N+col];
-      if(p.write_kind==kDenseWrite) {
+      if constexpr(Write==kDenseWrite) {
         output[Sm90ForwardRowOffset(p,row,stride)+channel+col]=Element(value);
       }else {
         // Both remaining mappings address the whole image, so they locate the
         // producing body's own row inside it.
-        int source=p.row_base+row,pixels=p.write_width*p.write_height;
-        int image=source/pixels,pixel=source%pixels;
-        int y=pixel/p.write_width,x=pixel%p.write_width;
-        if(p.write_kind==kNchwWrite) {
+        constexpr int kPixels=Width*Height;
+        int source=p.row_base+row,image=source/kPixels,pixel=source%kPixels;
+        int y=pixel/Width,x=pixel%Width;
+        if constexpr(Write==kNchwWrite) {
           int c=channel+col;
-          output[((std::size_t(image)*p.write_channels+c)*p.write_height+y)*p.write_width+x]=
-              Element(value);
+          output[((std::size_t(image)*Channels+c)*Height+y)*Width+x]=Element(value);
         }else {
           // Channel g*C + c of pixel (y, x) is output pixel
           // (y*f + g/f, x*f + g%f), channel c.
-          int f=p.shuffle_factor,group=(channel+col)/p.write_channels;
-          std::size_t destination=(std::size_t(image)*p.write_height*f+y*f+group/f)*
-              (std::size_t(p.write_width)*f)+std::size_t(x)*f+group%f;
-          output[destination*p.write_channels+(channel+col)%p.write_channels]=Element(value);
+          int group=(channel+col)/Channels;
+          std::size_t destination=(std::size_t(image)*Height*Shuffle+y*Shuffle+group/Shuffle)*
+              (std::size_t(Width)*Shuffle)+std::size_t(x)*Shuffle+group%Shuffle;
+          output[destination*Channels+(channel+col)%Channels]=Element(value);
         }
       }
     }

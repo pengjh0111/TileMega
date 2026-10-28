@@ -47,7 +47,14 @@ Sm90ForwardBody Sm90ForwardBodyOf(frontend::ModelPlan const& plan,std::size_t in
   switch(stage.kind) {
     case PlanTaskKind::kGemm: {
       auto const& gemm=plan.gemms.at(stage.gemm);
-      if(gemm.access.a==codegen::DmAAccess::kIm2Col)return Sm90ForwardBody::kConv;
+      if(gemm.access.a==codegen::DmAAccess::kIm2Col) {
+        // A 1x1 unit-stride convolution reads its input rows unchanged, so it
+        // is a dense GEMM over the pixels; only a real window needs im2col.
+        auto const& conv=plan.convolutions.at(gemm.access.conv);
+        bool window=conv.r>1 || conv.s>1 || conv.stride_h>1 || conv.stride_w>1 ||
+            conv.pad_h || conv.pad_w;
+        return window?Sm90ForwardBody::kConv:Sm90ForwardBody::kGemm;
+      }
       if(gemm.access.a!=codegen::DmAAccess::kDense)
         throw std::invalid_argument("native forward A access must be dense or im2col");
       // A projection whose A is a single pooled row per image is a GEMV: the
@@ -88,7 +95,13 @@ std::vector<Sm90ForwardShape> Sm90ForwardShapesFromPlan(frontend::ModelPlan cons
         // The native bodies contract whole 64-element k tiles: a conv's K is
         // its issued iteration count, a dense K its padded extent.
         shape.k=(std::int64_t(gemm.k)+63)/64*64;
-        if(shape.body==Sm90ForwardBody::kConv) {
+        if(shape.body==Sm90ForwardBody::kGemm &&
+           gemm.access.a==codegen::DmAAccess::kIm2Col) {
+          // A 1x1 convolution read as a dense GEMM: its rows are the pixels.
+          auto const& c=plan.convolutions.at(gemm.access.conv);
+          shape.m=std::int64_t(c.n)*c.p*c.q;
+          shape.pixels=shape.m;shape.channels=c.c;shape.out_channels=c.k;
+        }else if(shape.body==Sm90ForwardBody::kConv) {
           auto const& c=plan.convolutions.at(gemm.access.conv);
           shape.k=std::int64_t(backend::ConvIterationGeometry::Build(c,
               plan.buffers.at(c.input_layout).layout,64).iterations)*64;

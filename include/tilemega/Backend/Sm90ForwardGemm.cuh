@@ -156,7 +156,7 @@ struct Sm90ForwardGemm {
       // A shuffled writeback addresses the whole image, so it takes the
       // tile's first row instead of a shifted base pointer.
       epilogue.row_base=m_tile*TM;
-      auto* output=p.output+(epilogue.write_kind==backend::kDenseWrite?
+      auto* output=p.output+(Chain::kWrite==kDenseWrite?
           std::size_t(m_tile)*TM*p.output_stride:0);
       if constexpr(SplitK==1) {
         Chain::Finish(tile_values,rows,n_tile*TN,width>0?width:0,epilogue,output,p.output_stride);

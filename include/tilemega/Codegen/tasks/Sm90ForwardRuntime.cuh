@@ -35,12 +35,16 @@ inline T* Allocate(std::size_t count) {
 
 struct Plan {
   typename NativeForwardProgram::Binding bindings{};
+  // The bound pointers as the kernel reads them: one device array.
+  std::vector<Element*> host_buffers;
+  Element** device_buffers=nullptr;
   ForwardCounter* events=nullptr;
   std::vector<void*> owned;
   int grid=0;
   ~Plan() {
     for(void* pointer:owned)cudaFree(pointer);
     cudaFree(events);
+    cudaFree(device_buffers);
   }
 };
 
@@ -103,6 +107,7 @@ extern "C" void* tm_plan_create(int batch,void* const* external,int device) {
     Check(cudaSetDevice(device));
     auto plan=std::make_unique<Plan>();
     plan->grid=Grid();
+    plan->host_buffers.assign(kNativeForwardBuffers.size(),nullptr);
     auto kernel=sm90_forward_native_kernel<NativeForwardProgram>;
     Check(cudaFuncSetAttribute(kernel,cudaFuncAttributeMaxDynamicSharedMemorySize,
         NativeForwardProgram::kSharedBytes));
@@ -114,7 +119,7 @@ extern "C" void* tm_plan_create(int batch,void* const* external,int device) {
     for(unsigned i=0;i<kNativeForwardBuffers.size();++i) {
       auto const& desc=kNativeForwardBuffers[i];
       if(desc.role==TM_BUFFER_EXTERNAL) {
-        plan->bindings.buffers[i]=static_cast<Element*>(external[i]);
+        plan->host_buffers[i]=static_cast<Element*>(external[i]);
         continue;
       }
       // A DNN activation is sized per batch; only tables are constant.
@@ -127,12 +132,16 @@ extern "C" void* tm_plan_create(int batch,void* const* external,int device) {
       Check(cudaMalloc(&allocation,bytes?bytes:16));
       Check(cudaMemset(allocation,0,bytes?bytes:16));
       plan->owned.push_back(allocation);
-      plan->bindings.buffers[i]=static_cast<Element*>(allocation);
+      plan->host_buffers[i]=static_cast<Element*>(allocation);
     }
+    Check(cudaMalloc(&plan->device_buffers,plan->host_buffers.size()*sizeof(Element*)));
+    Check(cudaMemcpy(plan->device_buffers,plan->host_buffers.data(),
+        plan->host_buffers.size()*sizeof(Element*),cudaMemcpyHostToDevice));
+    plan->bindings.buffers=plan->device_buffers;
     for(unsigned i=0;i<kNativeForwardMaps.size();++i) {
       auto const& m=kNativeForwardMaps[i];
       namespace ex=tilemega::codegen::executor;
-      auto* address=plan->bindings.buffers[m.buffer]+m.offset;
+      auto* address=plan->host_buffers[m.buffer]+m.offset;
       if(m.kind==1) {
         auto shape=ex::TensorIm2colShape::Build(m.conv,m.layout);
         auto status=ex::EncodeTensorIm2col(
@@ -173,7 +182,7 @@ extern "C" int tm_plan_launch(void* opaque,unsigned,unsigned mode,
     auto const& desc=kNativeForwardBuffers[item.buffer];
     std::size_t width=desc.dtype==TM_DTYPE_F32 || desc.dtype==TM_DTYPE_I32?4u:
         desc.dtype==TM_DTYPE_I64?8u:2u;
-    if(cudaMemsetAsync(plan.bindings.buffers[item.buffer],0,item.elements*width,
+    if(cudaMemsetAsync(plan.host_buffers[item.buffer],0,item.elements*width,
                        static_cast<cudaStream_t>(stream))!=cudaSuccess)return -3;
   }
   sm90_forward_native_kernel<NativeForwardProgram><<<plan.grid,NativeForwardProgram::kThreads,
@@ -189,7 +198,7 @@ extern "C" int tm_plan_read_buffer(void* opaque,std::uint32_t index,void* host,
   using namespace tilemega::codegen::native_forward;
   if(!opaque || !host || index>=kNativeForwardBuffers.size())return -1;
   auto& plan=*static_cast<Plan*>(opaque);
-  auto* address=plan.bindings.buffers[index];
+  auto* address=plan.host_buffers[index];
   if(!address)return -2;
   return cudaMemcpy(host,address,bytes,cudaMemcpyDeviceToHost)==cudaSuccess?0:-3;
 }

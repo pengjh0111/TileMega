@@ -26,10 +26,13 @@ inline constexpr unsigned kAbsent=~0u;
 
 // Forward bindings carry no per-layer table: every stage names its own
 // buffers, and a conv stage names its im2col or tiled tensor map.
+// The tensor maps travel as grid constants, as the TMA contract requires; the
+// bound pointers travel as a device array, because a model with hundreds of
+// stages has more buffers than the 32 KB parameter space holds.
 template<unsigned Count,unsigned Maps>
 struct alignas(64) Bindings {
   CUtensorMap maps[Maps];
-  Element* buffers[Count];
+  Element* const* buffers;
   template<unsigned Id>
   __device__ __forceinline__ Element* Get() const {
     if constexpr(Id==kAbsent)return nullptr;
@@ -67,7 +70,7 @@ struct ForwardOperandHeader {
 // A stage's buffer and map identifiers come from the plan; its scalar
 // geometry and epsilon come from the same plan as a generated trait class,
 // because C++17 has no floating-point template parameter.
-template<class B,class Bind,class Shape>
+template<class B,class Bind>
 __device__ __forceinline__ backend::Sm90ForwardEpilogueOperands EpilogueOf(B const& b,
     float epsilon,int residual_stride,int norm_width=0) {
   backend::Sm90ForwardEpilogueOperands e{};
@@ -84,9 +87,7 @@ __device__ __forceinline__ backend::Sm90ForwardEpilogueOperands EpilogueOf(B con
   e.row_tiles=1;e.row_tile=0;
   e.channel_partial=reinterpret_cast<float*>(b.template Get<Bind::kChannelPartial>());
   e.epsilon=epsilon;e.residual_stride=residual_stride;e.norm_width=norm_width;
-  e.row_base=0;e.write_kind=Shape::kWriteKind;e.shuffle_factor=Shape::kShuffleFactor;
-  e.write_width=Shape::kWriteWidth;e.write_height=Shape::kWriteHeight;
-  e.write_channels=Shape::kWriteChannels;
+  e.row_base=0;
   return e;
 }
 
@@ -102,7 +103,7 @@ struct ForwardGemmStage {
     p.output=b.template Get<Bind::kOutput>();
     p.partial=reinterpret_cast<float*>(b.template Get<Bind::kPartial>());
     p.counters=reinterpret_cast<std::uint64_t*>(b.template Get<Bind::kCounters>());
-    p.epilogue=EpilogueOf<B,Bind,Shape>(b,Shape::kEpsilon,Shape::kResidualStride,Shape::kNormWidth);
+    p.epilogue=EpilogueOf<B,Bind>(b,Shape::kEpsilon,Shape::kResidualStride,Shape::kNormWidth);
     // The convolution geometry is a compile-time trait of the body itself.
     p.output_stride=Shape::kOutputStride;
   }
@@ -123,7 +124,7 @@ struct ForwardDepthwiseStage {
     p.activation=b.template Map<Bind::kMap>();
     p.weight=b.template Get<Bind::kWeight>();
     p.output=b.template Get<Bind::kOutput>();
-    p.epilogue=EpilogueOf<B,Bind,Shape>(b,Shape::kEpsilon,Shape::kResidualStride,Shape::kNormWidth);
+    p.epilogue=EpilogueOf<B,Bind>(b,Shape::kEpsilon,Shape::kResidualStride,Shape::kNormWidth);
     p.width=Shape::kWidth;p.height=Shape::kHeight;p.channels=Shape::kChannels;
     p.stride=Shape::kStrideH;
     p.output_width=Shape::kOutputWidth;p.output_height=Shape::kOutputHeight;
@@ -154,7 +155,7 @@ struct ForwardFusedStage {
     p.output=b.template Get<Bind::kOutput>();
     p.partial=reinterpret_cast<float*>(b.template Get<Bind::kPartial>());
     p.counters=reinterpret_cast<std::uint64_t*>(b.template Get<Bind::kCounters>());
-    p.epilogue=EpilogueOf<B,Bind,Shape>(b,Shape::kEpsilon,Shape::kResidualStride,Shape::kNormWidth);
+    p.epilogue=EpilogueOf<B,Bind>(b,Shape::kEpsilon,Shape::kResidualStride,Shape::kNormWidth);
     p.width=Shape::kWidth;p.height=Shape::kHeight;p.channels=Shape::kChannels;
     p.out_channels=Shape::kOutChannels;
     p.output_width=Shape::kOutputWidth;p.output_height=Shape::kOutputHeight;
@@ -251,11 +252,24 @@ struct Placement:Stage {
   }
 };
 
+// Indexing the stage list by inheritance rather than by recursion: a model
+// with hundreds of stages exceeds the standard library's tuple_element depth.
+template<unsigned I,class T>
+struct ForwardStageEntry {using Type=T;};
+template<class Sequence,class... Stage>
+struct ForwardStageMap;
+template<unsigned... I,class... Stage>
+struct ForwardStageMap<std::integer_sequence<unsigned,I...>,Stage...>
+    :ForwardStageEntry<I,Stage>... {};
+template<unsigned I,class T>
+ForwardStageEntry<I,T> ForwardStageLookup(ForwardStageEntry<I,T> const&);
+
 template<int Batch,int Residency,unsigned Buffers,unsigned Maps,int Arena,class... Stage>
 struct Program {
   using Binding=Bindings<Buffers,Maps>;
-  using Stages=std::tuple<Stage...>;
-  template<unsigned I> using At=std::tuple_element_t<I,Stages>;
+  using Map=ForwardStageMap<std::make_integer_sequence<unsigned,sizeof...(Stage)>,Stage...>;
+  template<unsigned I>
+  using At=typename decltype(ForwardStageLookup<I>(Map{}))::Type;
   static constexpr unsigned kStages=sizeof...(Stage);
   static constexpr int kBatch=Batch,kResidency=Residency,kThreads=160;
   static constexpr unsigned kBuffers=Buffers,kMaps=Maps;

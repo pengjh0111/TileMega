@@ -115,9 +115,7 @@ struct Geometry {
        <<",kHeads="<<heads<<",kSequence="<<sequence
        <<",kNormWidth="<<norm_width<<",kDepthwisePack="<<depthwise_pack
        <<",kPaddedChannels="<<padded_channels
-       <<",\n      kWriteKind="<<write_kind<<",kShuffleFactor="<<shuffle_factor
-       <<",kWriteWidth="<<write_width<<",kWriteHeight="<<write_height
-       <<",kWriteChannels="<<write_channels<<";\n"
+       <<";\n"
        <<"  static constexpr float kEpsilon="<<Float(epsilon)<<",kScale="<<Float(scale)
        <<";\n};\n";
     return out.str();
@@ -181,6 +179,10 @@ std::string Chain(codegen::DmEpilogueChain const& chain,int rows,int width,Bindi
                   bool* gated=nullptr) {
   std::ostringstream out;
   out<<"Sm90ForwardEpilogueChain<"<<rows<<','<<width;
+  if(shape)
+    out<<','<<shape->write_kind<<','<<shape->shuffle_factor<<','<<shape->write_width
+       <<','<<shape->write_height<<','<<shape->write_channels;
+  else out<<",0,1,0,0,0";
   unsigned slots=0;
   auto slot=[&](unsigned buffer) {
     for(unsigned i=0;i<slots;++i)if(bind.vector[i]==buffer)return i;
@@ -439,8 +441,10 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
         auto gemm=Entry(gemms[unsigned(Integer(stage,"gemm"))],"gemm");
         auto access=frontend::DecodeDmAccess(gemm.get("dm_access"));
         auto chain=frontend::DecodeDmChain(gemm.get("dm_chain"));
-        bool im2col=access.a==codegen::DmAAccess::kIm2Col;
-        if(im2col!=(c.body==Sm90ForwardBody::kConv))
+        // A 1x1 unit-stride convolution's A is its input rows, so the body is
+        // a dense GEMM over a rank-2 view of that image.
+        bool im2col=c.body==Sm90ForwardBody::kConv;
+        if(im2col && access.a!=codegen::DmAAccess::kIm2Col)
           throw std::invalid_argument("native forward body disagrees with the plan's A access");
         unsigned a=unsigned(Integer(gemm,"a")),b=unsigned(Integer(gemm,"b"));
         bind.weight=b;bind.output=unsigned(Integer(gemm,"d"));
@@ -467,7 +471,16 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
           // the plan may start at another row (BERT's pooler reads row zero).
           rows=rows_of(unsigned(Integer(gemm,"d")));
           MapSpec spec;
-          auto const& l=layouts.at(a);
+          auto l=layouts.at(a);
+          if(l.rank==4 && l.kind==codegen::DmLayout::kNHWC) {
+            // An image read row by row: its pixels are the GEMM's rows, which
+            // a 1x1 convolution and the small bodies both want.
+            if(l.halo_top || l.halo_left)
+              throw std::invalid_argument("a dense A view needs an image without a halo");
+            auto pixels=std::uint64_t(l.physical[0])*l.physical[1]*l.physical[2];
+            l.rank=2;l.physical[0]=unsigned(pixels);l.physical[1]=l.physical[3];
+            l.strides[0]=l.physical[1];
+          }
           if(l.rank!=2)throw std::invalid_argument("a dense forward GEMM reads a rank-2 A");
           // The plan's row mapping (offset, stride) becomes the view's base and
           // its row stride: BERT's pooler reads one row per sequence.
