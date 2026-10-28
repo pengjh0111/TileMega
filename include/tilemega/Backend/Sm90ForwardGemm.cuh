@@ -180,8 +180,13 @@ struct Sm90ForwardGemm {
       }else {
         // Each slice stores its partial; the last arriver of the tile sums the
         // slices in fixed order and runs the chain once.
-        for(int i=int(threadIdx.x);i<TM*TN;i+=128)
-          p.partial[(std::size_t(tile)*SplitK+slice)*TM*TN+i]=tile_values[i];
+        // The partials cross SMs, whose L1 caches are not coherent: both sides
+        // use GPU-scope relaxed accesses, published by the counter's release.
+        for(int i=int(threadIdx.x);i<TM*TN;i+=128) {
+          auto* address=p.partial+(std::size_t(tile)*SplitK+slice)*TM*TN+i;
+          asm volatile("st.relaxed.gpu.global.f32 [%0], %1;"::"l"(address),
+              "f"(tile_values[i]):"memory");
+        }
         codegen::executor::ComputeSync();
         auto* flag=reinterpret_cast<int*>(scratch+kScratchBytes-16);
         if(threadIdx.x==0) {
@@ -196,7 +201,13 @@ struct Sm90ForwardGemm {
           for(int i=int(threadIdx.x);i<TM*TN;i+=128) {
             float value=0;
             #pragma unroll
-            for(int s=0;s<SplitK;++s)value+=p.partial[(std::size_t(tile)*SplitK+s)*TM*TN+i];
+            for(int s=0;s<SplitK;++s) {
+              auto const* address=p.partial+(std::size_t(tile)*SplitK+s)*TM*TN+i;
+              float part;
+              asm volatile("ld.relaxed.gpu.global.f32 %0, [%1];":"=f"(part)
+                  :"l"(address):"memory");
+              value+=part;
+            }
             tile_values[i]=value;
           }
           codegen::executor::ComputeSync();
