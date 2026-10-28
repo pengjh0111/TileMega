@@ -625,3 +625,20 @@ three-fresh stage evidence. The CPU waiter consumes actual completion receipts;
 no ledger rows are claimed before execution. It retains head/token-history
 confounding andnonadditive scope;no production TPOT is inferred from DIAG.
 Raw:aligned_development_stage_ledger_v1/append_actual_ledger.py.
+
+
+## Verified reconstructed reference ready and cellwise P-PAIR dispatch
+
+Allfive final prefill ABI/occupancy queries andC1/C2512 now pass;an independent
+CPU replay verifies every referenced hash andactual pass file. The stable readiness
+receipt isreconstructed22a_reference_final_ready_v1/ACTUAL_REFERENCE5_READY.json.
+It labels the reference reconstructed22a source/pins,not exact historicalELF.
+No fixedbaseline file changed andno externalbaseline was rerun.
+
+P-PAIR v7 now dispatches each fully selected development cell whenavailable,
+following allfive reference checks. Its per-cell measurement body is byte-identical
+tov6 except selecting the ready row. Each cell still runs old/new/old/new oncard5,
+fresh processes,warm1/timed2,guard900,ISL64/OSL1024,L1prefill. Only its own idle
+CPU waiter was stopped,with no GPUchildren;the handoff is recorded. QwenB1 has
+started;no P-PAIR result is yet claimed. Raw:aligned_development_MX4_PPAIR_v1/
+ACTUAL_READY_CELL_SCHEDULING_HANDOFF_v7.json.
