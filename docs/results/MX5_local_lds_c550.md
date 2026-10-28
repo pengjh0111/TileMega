@@ -491,3 +491,33 @@ effective pred/meas.968690729. Across each candidate's six saved warm/timed outp
 all1024 generated tokens match (24 saved generations total). This is the observed
 scope of determinism evidence;no general race cause claim or tolerance change.
 B4 and native8BB16 aligned L1 timings continue;B8 and other development cells follow.
+
+
+## Verified current-body I1 diagnostic (2026-10-28)
+
+New instruction_order_v2.cu uses Qwen0.6B B1 original0's actual body coordinates
+with the frozen consumed-prefetch headers. One 512-thread kernel executes both
+orders,so register allocation and placement are identical. Both modes issue each
+body's incoming prefetch at entry and return an empty next;this follows the
+original I1 diagnostic envelope,not the stage-cost or full-program prefetch chain.
+Inputs rotate through at least256MiB W and combinedKV,with independent activation
+inputs,so this is attribution evidence only. Five fresh processes all pass actual
+API/resources (program234MT,frame/static0,resident1) and all ten timing rows/process.
+All615 frozen source inputs still match. MIR18rings haszero banned waits/generic
+loads. No synchronization correctness or E2E/default claim is inferred.
+
+| Body | Repeat ns | Program-order ns | Difference | Wrapper code bytes | Wrapper MIR instructions |
+|---|---:|---:|---:|---:|---:|
+|qkv|9200|9780|+6.304%|10064|1334|
+|attention|21540|22330|+3.668%|41568|5226|
+|o|6540|7070|+8.104%|7824|1017|
+|gate_up|12320|13210|+7.224%|15088|1797|
+|down|8360|8320|-0.478%|7824|1014|
+
+Program kernel82168bytes/10358MIR instructions. Standalone body wrapper sizes
+are actual device-symbol sizes;they are not an exact decomposition of inlined
+program bytes. Measured order overhead does not isolate instruction-cache causality.
+Raw:current_body_I1_v1;50 process rows and6resources appended without old-row edits.
+Initial compiler-path probes did not launch a compiler;the first actual compiler
+invocation rejected a missing Bf16 namespace. Corrected source builds normally;
+all failed attempts remain archived. No forced register cap or body change.

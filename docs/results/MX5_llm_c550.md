@@ -81,7 +81,7 @@ B2 WDpair passes all4 C1/C2512 but L2-prefill timing rejects nonidentical repeti
 A19 QwenB2 attention DIAG=35.923/35.842us vsbench27.167us (16freshchildren,total2rounds×8masks).
 Threefresh off-grid32-block midpoint estimate33.674us explains muchof thatmodelgap;fixedgrid/formula unchanged.
 Midpoint diagnostic total2.333086ms vsactual2.301333ms;not an official replacementcost.
-A20 current-source I1 order/repeat timing andper-body byte attribution remain unmeasured;no cachecause claimed.
+Current-body I1 fivefresh order deltasQKV+6.304%,attn+3.668%,O+8.104%,GU+7.224%,down−.478%;no cachecause claimed.
 True576 Llama1B B2/B4/B8 WD1 original0frames16/24/56B despite fittingWD0;runner stops before numerical launch.
 Watchdog lifetime/lazy-record prototypes are not applied;prescribed maximum3 widthdiagnostics are not approvedresults.
 OriginalG576 single-element referencefails21.75vs22.125,error.375>tol.374000013;oracle/seed/tolerance unchanged.
