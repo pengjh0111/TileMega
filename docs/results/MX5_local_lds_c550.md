@@ -668,3 +668,22 @@ verifies fourfresh guard PIDs,artifact/source/binary identities,accepted request
 andthe exact median/spread;fournew labelled process rows append toMX5_ppair_c550.csv.
 Raw:aligned_development_MX4_PPAIR_v1/qwen3_0_6b_B16/ACTUAL_PPAIR_COMPLETE.json.
 The fixedMX4 baseline files,solver selection anddefaults remain unchanged.
+
+
+## Verified third aligned internal P-PAIR and CPU ingestion corrections
+
+Llama8B B16 completes fourfresh alternating card5 processes. Arm medians
+old14.494706ms,new13.137143ms give−9.3659%;relative roundrange.0599%,threshold1%,
+so the improvement is distinguishable. Independent CPU ingestion appends four
+labelled process rows;MX5_ppair_c550.csv now has12fresh-process rows fromthree
+completed cells. Raw:aligned_development_MX4_PPAIR_v1/llama3_1_8b_B16/.
+
+The future DIAG resource CPU appender first fails syntax preflight (missing
+whitespace afterelse);the original failed source/log remain. A versioned correction
+passes syntax. Subsequent pre-execution review observes that trusted guard/query
+physical_gpu is a string. The resource appender now compares exactsaved5 asstring;
+the ledger output converts that actualfield tointeger. Only two idle ownCPUwaiters
+were replaced before any DIAG query orCSVappend. No GPUjob,validator,resource
+criterion orraw measurement changed. Raw:aligned_development_stage_ledger_v1/
+ACTUAL_RESOURCE_APPEND_SYNTAX_CORRECTION_CPU.json and
+ACTUAL_SAVED_GUARD_CARD_TYPE_PREEXEC_CPU_REVIEW.json.
