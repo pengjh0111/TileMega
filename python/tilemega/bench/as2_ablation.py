@@ -27,6 +27,10 @@ def summarize(directory,out):
     if out.exists():raise FileExistsError(out)
     protocol_path=directory/'protocol.json';protocol=json.loads(protocol_path.read_text())
     state=json.loads((directory/'state.json').read_text())
+    change=protocol.get('change','fifo_observation')
+    candidate={'fifo_observation':'fifo','valid_qk64':'valid_qk'}.get(change)
+    if candidate is None:raise ValueError('Unknown controlled ablation')
+    variants=('original',candidate)
     if (protocol['schema']!='tilemega.as2.paired_ablation.v1' or protocol['pairs'] not in (5,10) or
             protocol['primary_metric']!='tpot_ms' or protocol['warmup']!=1 or protocol['repetitions']!=3 or
             protocol['isl']!=64 or protocol['osl']!=1024 or protocol['confidence_method']!='paired_log_t_95' or
@@ -47,7 +51,7 @@ def summarize(directory,out):
     identities=set();rows=[];pair_rows={};reference_bindings={};image=None;previous_end=None
     for name in expected:
         item=jobs[name];job=item['request'];receipt=item['receipt'];kind=job['optimization_variant']
-        if kind not in ('original','fifo') or job['pair_id']>=protocol['pairs']:
+        if kind not in variants or job['pair_id']>=protocol['pairs']:
             raise ValueError('Unexpected paired variant')
         identity=(receipt['pid'],receipt['start_ticks']);identities.add(identity)
         if (receipt['physical_device_id']!=protocol['physical_device_id'] or
@@ -75,31 +79,47 @@ def summarize(directory,out):
         pair_rows[job['pair_id']][kind]=row;rows.append(row)
     if len(identities)!=2*protocol['pairs'] or set(pair_rows)!=set(range(protocol['pairs'])):
         raise ValueError('Require fresh process identities and complete pairs')
-    original,original_key=reference_bindings['original'];fifo,fifo_key=reference_bindings['fifo']
+    original,original_key=reference_bindings['original'];fifo,fifo_key=reference_bindings[candidate]
     if original_key!=fifo_key:raise ValueError('Model, weights, input or resource identity changed')
     for phase in ('prefill','decode'):
-        for name in ('stages.bin','queue.bin','offsets.bin','allocations.bin'):
+        for name in ('queue.bin','offsets.bin','allocations.bin')+ (('stages.bin',) if change=='fifo_observation' else ('tasks.bin','waits.bin')):
             if (original/phase/name).read_bytes()!=(fifo/phase/name).read_bytes():
                 raise ValueError('Wait-only ablation changed Body, placement, order or memory')
+        if change=='valid_qk64':
+            a=list(struct.iter_unpack('<17Q16I',(original/phase/'stages.bin').read_bytes()))
+            b=list(struct.iter_unpack('<17Q16I',(fifo/phase/'stages.bin').read_bytes()))
+            validate_qk_stages(a,b,phase)
         a=list(struct.iter_unpack('<7I',(original/phase/'tasks.bin').read_bytes()))
         b=list(struct.iter_unpack('<7I',(fifo/phase/'tasks.bin').read_bytes()))
         if len(a)!=len(b) or any(x[:4]!=y[:4] or x[6]!=y[6] for x,y in zip(a,b)):
             raise ValueError('Wait-only ablation changed task ownership or participants')
-    ratios=[pair_rows[i]['original']['metrics']['tpot_ms']/pair_rows[i]['fifo']['metrics']['tpot_ms']
+    ratios=[pair_rows[i]['original']['metrics']['tpot_ms']/pair_rows[i][candidate]['metrics']['tpot_ms']
             for i in range(protocol['pairs'])]
     interval=paired_interval(ratios)
     variability={kind:statistics.stdev([r['metrics']['tpot_ms'] for r in rows if r['variant']==kind])/
-        statistics.mean([r['metrics']['tpot_ms'] for r in rows if r['variant']==kind]) for kind in ('original','fifo')}
+        statistics.mean([r['metrics']['tpot_ms'] for r in rows if r['variant']==kind]) for kind in variants}
     noisy=max(variability.values())>protocol['max_process_cv']
     result.update(status='inconclusive' if noisy else 'pass' if interval['lower95']>1 else 'no_reliable_gain',
-        scope=f'{original_key[0]} B{original_key[1]} G{original_key[2]} wait-only optimization versus unchanged TileMega control',
+        scope=f'{original_key[0]} B{original_key[1]} G{original_key[2]} {change} versus unchanged TileMega control',
         interval=interval,process_pair_speedups=ratios,process_cv=variability,
         noise_policy='All samples retained; excessive predeclared process CV makes this inconclusive',
         interference='Resident contexts/observed shared load retained; interval is local to these process pairs',
         process_medians={kind:{metric:statistics.median(r['metrics'][metric] for r in rows if r['variant']==kind)
-            for metric in ('tpot_ms','ttft_ms','e2e_ms','throughput_tokens_per_s')} for kind in ('original','fifo')},
+            for metric in ('tpot_ms','ttft_ms','e2e_ms','throughput_tokens_per_s')} for kind in variants},
         binary_sha256=image,pairs=protocol['pairs'],requests_audited=8*protocol['pairs'],rows=rows)
     out.write_text(json.dumps(result,indent=2)+'\n');return result
+
+
+def validate_qk_stages(original,candidate,phase):
+    if len(original)!=len(candidate):raise ValueError('QK ablation changed the stage domain')
+    changed=0
+    for a,b in zip(original,candidate):
+        if a==b:continue
+        if (phase!='decode' or a[17]!=13 or a[31]!=6 or b[31]!=8 or
+                a[:31]+a[32:]!=b[:31]+b[32:]):
+            raise ValueError('QK ablation changed more than the registered implementation')
+        changed+=1
+    if phase=='decode' and not changed:raise ValueError('QK ablation has no changed attention Body')
 
 
 if __name__=='__main__':

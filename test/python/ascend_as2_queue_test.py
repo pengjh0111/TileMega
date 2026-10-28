@@ -7,10 +7,18 @@ import unittest
 
 from tilemega.bench import as2_queue as queue
 from tilemega.bench.as1_run import devices_from_snapshot
-from tilemega.bench.as2_ablation import paired_interval
+from tilemega.bench.as2_ablation import paired_interval,validate_qk_stages
 
 
 class As2Queue(unittest.TestCase):
+    def test_body_ablation_rejects_math_or_buffer_changes(self):
+        original=tuple([0]*17+[13]+[0]*13+[6,0])
+        candidate=original[:31]+(8,)+original[32:]
+        validate_qk_stages([original],[candidate],'decode')
+        for bad in (candidate[:24]+(128,)+candidate[25:],original):
+            with self.assertRaises(ValueError):validate_qk_stages([original],[bad],'decode')
+        with self.assertRaises(ValueError):validate_qk_stages([original],[candidate],'prefill')
+
     def test_confidence_uses_five_process_pairs_not_fifteen_requests(self):
         result=paired_interval([1.02,1.01,1.03,1.02,1.01])
         self.assertGreater(result['lower95'],1)
