@@ -89,7 +89,9 @@ has not been applied. The committed attention lifetime repair retains both caps.
    whole-program167MT/frame0/resident1. This never justified blanket512. The
    consumed-prefetch repair has139/141MT/frame0/actualresident1. Full336, null28,
    helper6 andcoldselfnext12 each pass5fresh;normalproducer230a572b passes160/160;500 new attention costs are complete.
-3. G-PROGRAM/G-SOLVER/G-LLM remain open. A19 has11 measured cells and three
+3. True576 Llama1B B2/B4/B8 watchdog builds fail16/24/56B before numerical launch;
+   their timing originals fit. Isolated lifetime/lazy-record diagnostics are not adopted.
+   G-PROGRAM/G-SOLVER/G-LLM remain open. A19 has11 measured cells and three
    regressions. B2 DIAG attention is35.923/35.842us versus bench27.167us. Three
    fresh off-grid diagnostics explain much of the prediction gap; the mandated
    five-point grid/formula is unchanged. Current-source I1 timing remains pending.

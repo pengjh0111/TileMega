@@ -386,3 +386,40 @@ Verified：A20首个真正求解器选择完成并独立复核入库：Llama1B B
 追加4选择/3计时/4正确性/8资源行，真实A20/source/producer/round独立标记，旧A19行前缀保留。
 当前A20为1/25，不能与A19历史11格合并为12个当前格；默认仍MX4，全部门仍未关闭。
 Raw：consumed_prefetch_llama1b576_full_top4_execution_v2/execution/ACTUAL_ALL_RESULT_CSV_APPEND_PROOF_v2.json。
+
+
+## Verified A20 continuation and watchdog resource stop (2026-10-28)
+
+The user waived only cumulative60GPU-hours; card/concurrency/guard/per-job limits
+remain. Current A20 has two independently verified original-top4 selections:
+Llama1B B1=2.135062ms(−3.438%vsMX4),Qwen0.6B B1=1.973800ms(−.492%,indistinguishable).
+Each original4 passes C1/C2512 and8fresh timing processes. Fixed baselines remain
+byte-identical. Commitd52857c4f is pushed; neither cell changes defaults.
+
+The remaining80 canonical576 originals complete normal compilation. Llama1B
+B2/B4/B8/B16 have independent real576 scopes,original4 normal builds and actual
+resource queries; their512 origin/ranks/predictions are not transferred.
+B2/B4/B8 original0 watchdog builds fail frames16/24/56B,MT168;timing originals fit.
+The unchanged runner stops at mx5_resolved_runner.py:266 before numerical launch.
+B16 watchdog originals fit and actual C1/C2 proceeds. These are not four accepted cells.
+
+An isolated opaque barrier-step diagnostic gives B2frame0,B4frame20,B8frame56.
+Nine further CPU builds retain all outcomes;three WD0 device images differ from
+originals,so no byte-equivalence or end-to-end improvement is claimed. An isolated
+lazy watchdog-record diagnostic retains16/24/56B. Both remain outside main source.
+The unchanged native producer now checks the predeclared largest-P_w halving
+sequence,maximum3 per diagnostic,without changing geometry,PK,threads orD.
+Those are diagnostic receipts,not an approved retry history,new costs or acceptance.
+Raw:watchdog_iteration_lifetime_d7_v1;watchdog_lazy_record_d7_v1.
+
+The first generalized D7 wrapper used an assessment string outside the original
+validator's exact enum and was rejected for all4 QwenB16 reviews. The actual
+168MT+frame observations were already correct. Separate v2 reports use the
+original supported literal;the unchanged validator still asserts168MT+positive
+frame and the shared budget. Old rejected audits/logs remain. No check was
+weakened. Raw:consumed_prefetch_development512_handoff_v1/ACTUAL_D7_WRAPPER_LITERAL_CORRECTION.json.
+
+The diagnostic resource CSV appender's first file failed Python parsing before
+any write (missing whitespace around numeric conditional literals). A separate
+compiled v2 appends only3 actual rejected normal resources and9 CPU diagnostics,
+with an old-prefix proof. No measurement row was backfilled or edited.

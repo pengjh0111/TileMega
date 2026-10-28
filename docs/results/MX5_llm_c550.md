@@ -90,6 +90,8 @@ A19 QwenB2 attention DIAG=35.923/35.842us vsbench27.167us (16freshchildren,total
 Threefresh off-grid32-block midpoint estimate33.674us explains muchof thatmodelgap;fixedgrid/formula unchanged.
 Midpoint diagnostic total2.333086ms vsactual2.301333ms;not an official replacementcost.
 A20 current-source I1 order/repeat timing andper-body byte attribution remain unmeasured;no cachecause claimed.
+True576 Llama1B B2/B4/B8 WD1 original0frames16/24/56B despite fittingWD0;runner stops before numerical launch.
+Watchdog lifetime/lazy-record prototypes are not applied;prescribed maximum3 widthdiagnostics are not approvedresults.
 OriginalG576 single-element referencefails21.75vs22.125,error.375>tol.374000013;oracle/seed/tolerance unchanged.
 Nativegate1.192e−6 belowBF16 midpoint,CPUgate2.861e−6 above;instrumented fulloutput identical.
 Consumed-prefetch repair passes5fresh×336required,5fresh×null28,5fresh×helper6×2000×104CTAs,and5fresh×coldselfnext12.
