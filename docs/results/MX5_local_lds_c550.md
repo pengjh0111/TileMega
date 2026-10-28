@@ -978,3 +978,33 @@ PIDs. Samecandidate initialhelper sixcases/fivefresh reused withno rerun.
 Coldselfnext22keys nowrunning;normalcandidate fullhost producer staysgated on
 itsactualfivefresh completion. No source integration/default orE2E acceptance.
 Raw:attention_peeled_last_block_candidate_v1/ACTUAL_FULL_GPU_CHECKS_COMPLETE.json.
+
+Verified candidatecold22 fivefresh completion andindependent append:15body/
+cold validation rows,130actualselected-kernel resourcequeries;existingprefixes
+unchanged. Newnormal fullsource producer9aac1b7e completes160freshbuildsteps,
+C++unit/fingerprint checks. All615 nativeinputs differfromA20 onlyin tested
+DecodeAttentionV2.h;G14/H15 closure hashes unchanged,newattention d1d9508b.
+Producer livesinisolated worktree atbase d80486efe plus exactoneheader patch;
+mainattention source stays0ccf7bc5. It isnot a committedmain sourceintegration.
+
+Verified same-source canonical576 controls:B2 initial376Bstack,headPw2→1
+terminal392B;B4 initial/terminal344B. Bothterminal planshaveallGEMM/head Pw=D.
+The normalcompilerreturns1 onthese resource refusals whilecucc itselfreturns0;
+initialnaive CPUcontrollerstops beforeclassifying that expectedrefusal. V2
+reuses theunchangedinitialartifact,validates exactnative receipt/resourcefailure,
+thencontinuesonly theprescribed headhalving;no allow_resources/flag bypass.
+Samegeometry512 controls bothcompile234MT/frame0/14cleanrings;candidate WD1
+checks compileB2/B4 232/236MT/frame0. Manualcomparison allocationreview records
+observed compilerrequirements,not physicalregister minima orfinalsolver origins.
+Actualqueries for8retained/control plans,C1/C2512 andsamecard old/new/old/new
+P-PAIR arequeued afterQwen1.7BB2 I1;no control timinghasexecuted yet.
+Raw:candidate selected_resource_histories andACTUAL_MANUAL_CONTROL_CPU_PREPARATION_COMPLETE.json.
+
+Verified currentA20 B2 offgrid37 threefresh diagnostic:actualHKV8,b_min4,PK0,
+source b4555ea2;block-midpoint weightedmean33.697713us vs officialfivegrid
+27.220132us. Substitutingonlythisdiagnostic estimateinto oldmodelgives
+2.333736ms vs actual2.301375ms. This isattribution,not a newformal table,
+formula oradditive-body latencyclaim. Raw:current_QwenB2_D7_offgrid37_v1.
+Candidate5fresh fivegrid same-formula diagnostic: B2 28.292600us vs A20
+27.220132us (+3.940%);B4 36.459585us vs36.372639us (+.239%). Component
+results donot select source/defaults;actual modelcontrast remainsrequired.
