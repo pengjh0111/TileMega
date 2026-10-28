@@ -839,3 +839,35 @@ andthe program intervention23.413us. Difference.425us is an observed comparison,
 not isolated integration overhead;finer causal attribution remainsopen. Raw:
 aligned_development_stage_ledger_v1/qwen3_0_6b_B1/ACTUAL_DIAG_SKIP_LEDGER.json and
 ACTUAL_LEDGER_CSV_APPEND_PROOF.json. The finalthree development ledgers remainpending.
+
+
+## Verified current QwenB4 failure and source-bound I1 extension
+
+Qwen0.6B B4 selectsoriginal0 at2.5758779246290877ms,+7.587778% versusfixedMX4,
+pred/meas.956615. Allfour originalC1/C2512 andeightfresh timings passindependent
+verification/CSVappend;performance failsG-LLM. Current coverage11/25 hasnine
+nonregressions andtwo failures(B2/B4),separate fromhistoricalA19 failures. The
+actual selectedB4 pin/source DIAG CPU preparation starts withunchanged criteria.
+Raw:current_QwenB4_D7_v1;the fullremaining queue continuesQwenB8.
+
+Instruction-order probe nowhas compile-time B1/bmin1 orB2/bmin4 support,bound
+to the actualsame QwenB1/B2 coreclass coordinates. B2 receives realA/residual row
+strides,B-sized QKV andKV storage,andaccurate CSVbatch metadata. The oldB1source
+is retained byte-exact undercurrent_body_I1_v1/source_before_B2_parameterization.
+Both normal same-compile MIR builds pass:control234MT,B2 232MT,allframe/static0,
+18cleanMMA rings each. Entire defaultB1 device.text is byte-identical to the old
+measured executable;old source,binary andmeasurement rows are not relabelled.
+B2 program symbol84480B;actualoccupancy/query/fivefresh timing remainpending
+after actualB2 stageD7. No model body,solver,cost table ordefault changed.
+
+An initial CPU metadata call used the decoder-only kernel_instructions helper
+on I1kernels;it raises beforeproof/GPU/CSV writes. The corrected CPU tool matches
+the actual I1function identities anduses the same opcode-counting expression.
+It also audits old size scope:separatedevice-object program82168B differs from
+oldnormal-linked symbol82944B;whole linkeddevice.text168688B. Per-wrapper linked
+sizes areQKV10064,attention41872,O7888,GU15056,down7920B. The previous oldsize
+values belong tothat separatedeviceobject andremain inold rows;new resourceCSV
+rows explicitly record actuallinked sizes and B2CPU resources withquerypending.
+The I1sizes arestandalone wrappers,not exactinlined modelbody decomposition.
+Raw:current_QwenB2_D7_I1_v1/ACTUAL_NORMAL_CPU_RESOURCE_MIR_AND_CONTROL_PROOF.json,
+ACTUAL_OLD_CODE_SIZE_SCOPE_AUDIT_CPU.json andACTUAL_CPU_METADATA_HELPER_CORRECTION.json.
