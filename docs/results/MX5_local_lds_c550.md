@@ -873,3 +873,20 @@ Raw:current_QwenB2_D7_I1_v1/ACTUAL_NORMAL_CPU_RESOURCE_MIR_AND_CONTROL_PROOF.jso
 ACTUAL_OLD_CODE_SIZE_SCOPE_AUDIT_CPU.json andACTUAL_CPU_METADATA_HELPER_CORRECTION.json.
 
 Verified isolated last-block peeling candidate (2026-10-29): prompt §4.7 steady blocks keep same-head next loads; peeled tail retains cross-head loads and owner K/V patch. Production header unchanged. CPU sequence equivalence covers599760 consumers/34272 owners;22selected normal kernels pass resource/MIR checks. Initial112 numerical cases (addsB2/B4,unchanged oracle/tolerance/seed formula) andsix helper-litmus cases require five fresh processes each,queued oncard5 afteractualB4I1. GPU,fullmatrix andE2E remain pending;no candidate/default promotion. Raw:attention_peeled_last_block_candidate_v1.
+
+Verified follow-up CPU preparation: all17 full-matrix artifact entries complete,
+including two genuine same-candidate reuses. The original336-case plan selects
+24kernels using unchanged R_cap220/248:224casesPK0 and112casesPK2. All selected
+P0/unit kernels pass normal resource/MIR gates;no GPU numerical result is claimed.
+The queued full336 and null-idle28 suites each require five fresh processes;
+existing initial-helper evidence will be reused only for this identical candidate.
+A subsequent five-fresh cold self-next test covers22keys: original12 D64Q4/576/PK2,
+plus actual QwenB2/B4 five-length grids atD128Q2/512/PK0. Neither publishes costs.
+
+Verified normal-linked CPU code comparison (same actual bench function names):
+D128Q2 norm1/b_min4 and8 grows231→238MT,45368→48152B,5695→6052 MIRinstructions.
+D64Q4 PK2/b_min8 grows141→150MT,30704→32656B,3866→4114 MIRinstructions.
+These are standalone bench symbols from their actual linkedELFs,not separate
+objects andnot an inlined model decomposition. No runtime/TPOT/cache claim follows.
+Raw:attention_peeled_last_block_candidate_v1/ACTUAL_FULL_CPU_RESOURCE_MIR_GATE.json,
+ACTUAL_NORMAL_LINKED_CODE_COMPARISON_CPU.json andCOMPILER_CASE_PLAN.json.
