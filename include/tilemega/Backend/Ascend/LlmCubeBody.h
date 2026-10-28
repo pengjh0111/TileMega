@@ -103,8 +103,12 @@ template<unsigned TM,unsigned TN,unsigned TK,unsigned Variant> class LlmCubeBody
 #endif
       }
       typename Qk::TileMmad mm(resource_);
+      // Softmax DMA reads valid_keys only and constructs its masked tail locally.
+      // Keep the original physical stride/tile, including its last partial tile;
+      // only entirely unconsumed score columns are omitted.
+      const unsigned qk_keys=s.variant==8?h.valid_keys:h.keys;
       for(unsigned row=0;row<(h.rows+31)/32;++row)
-        for(unsigned col=0;col<(h.keys+63)/64;++col) {
+        for(unsigned col=0;col<(qk_keys+63)/64;++col) {
           Qk::RunBorrowed(mm,work+llm::attention::kQ,work+llm::attention::kK,
             work+llm::attention::kScores,h.rows,h.keys,h.width,row,col);
           CompleteDma<AscendC::HardEvent::FIX_S>();

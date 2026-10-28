@@ -69,7 +69,7 @@ inline void ValidateCompiledBodies(std::vector<llm::Stage> const& stages) {
   for(auto const& s:stages)if(s.kind==25 &&
       (s.extent!=8 || s.width!=768 || s.group!=1 || s.query_rows!=4 || s.kv_block!=128 || s.variant))
     throw std::invalid_argument("Unregistered QKV pack geometry");
-  for(auto const& s:stages)if(s.kind==13 && s.variant>7)
+  for(auto const& s:stages)if(s.kind==13 && s.variant>8)
     throw std::invalid_argument("Unregistered native attention implementation");
 #if !defined(TILEMEGA_LLM_WIDE_QK) || !TILEMEGA_LLM_WIDE_QK
   for(auto const& s:stages)if(s.kind==13 && s.variant==7)
@@ -80,7 +80,7 @@ inline void ValidateCompiledBodies(std::vector<llm::Stage> const& stages) {
        (s.width!=1024 && s.width!=2048 && !((s.width==3072 || s.width==4096) && s.variant==3))))
     throw std::invalid_argument("Unregistered full-row normalization implementation");
 #ifndef TILEMEGA_AS2_CANN_NORM_PRIMITIVES
-  for(auto const& s:stages)if((s.kind==13 && (s.variant==5 || s.variant==6 || s.variant==7)) || (s.kind==1 && (s.variant==2 || s.variant==3)))
+  for(auto const& s:stages)if((s.kind==13 && (s.variant==5 || s.variant==6 || s.variant==7 || s.variant==8)) || (s.kind==1 && (s.variant==2 || s.variant==3)))
     throw std::invalid_argument("Newton QK norm requires explicitly configured pinned CANN device primitives");
 #endif
 }
@@ -135,7 +135,7 @@ struct Plan {
         throw std::invalid_argument("Request GEMM geometry differs from compiled Body");
       for(auto offset:s.operands)if(!valid(offset))throw std::invalid_argument("Unbound request operand");
       if(!valid(s.workspace))throw std::invalid_argument("Unbound request workspace");
-      if(s.kind==13 && (s.variant==4 || s.variant==5 || s.variant==6 || s.variant==7)) {
+      if(s.kind==13 && (s.variant==4 || s.variant==5 || s.variant==6 || s.variant==7 || s.variant==8)) {
         auto found=std::find_if(allocations.begin(),allocations.end(),[&](auto const& a){return a.offset==s.workspace;});
         if(found==allocations.end() || found->bytes<uint64_t(m.groups)*llm::attention::kGroupBytes)
           throw std::invalid_argument("Cooperative attention lacks its per-group workspace");

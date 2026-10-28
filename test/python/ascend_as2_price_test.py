@@ -51,7 +51,7 @@ class AscendPriceAccounting(unittest.TestCase):
                 with self.assertRaises(ValueError):cost_measurement(dict(value,**{key:replacement}),job)
 
     def test_owner_and_participant_service_spans(self):
-        for variant in (4,5,6,7):
+        for variant in (4,5,6,7,8):
             self.assertEqual(task_overheads(self.stage(13,variant),dict(internal_mix_coordination_included=True),self.cost),(10.,0.))
         self.assertEqual(task_overheads(self.stage(0,1,1),{},self.cost),(30.,6.))
         self.assertEqual(task_overheads(self.stage(0),{},self.cost),(10.,0.))
@@ -61,6 +61,17 @@ class AscendPriceAccounting(unittest.TestCase):
     def test_wrong_span_rejected_before_pricing(self):
         for stage,flag in [(self.stage(13,6),False),(self.stage(13,3),True),(self.stage(0,1,1),True)]:
             with self.assertRaises(ValueError):task_overheads(stage,dict(internal_mix_coordination_included=flag),self.cost)
+
+    def test_valid_qk_traffic_preserves_physical_tile_tail_and_full_pv(self):
+        base=self.stage(13,6);base[23:26]=[8,128,2];base[26]=1088
+        base[5]=base[6]=(1<<64)-1
+        valid=base.copy();valid[31]=8;m=[0]*15;m[9]=1
+        self.assertEqual(logical_bytes(base,m,0,64)-logical_bytes(valid,m,0,64),514560)
+        self.assertEqual(logical_bytes(base,m,0,1086),logical_bytes(valid,m,0,1086))
+        # Crossing64 keys adds exactly one original tile, rather than shortening
+        # the last MMAD or changing its stride/reduction tree.
+        self.assertEqual(logical_bytes(valid,m,0,64)-logical_bytes(valid,m,0,63),
+                         (logical_bytes(base,m,0,64)-logical_bytes(base,m,0,63))+4*(2*128+64*128+2*64))
 
     def test_split_and_combine_share_one_physical_traffic_budget(self):
         partial=self.stage(0,1);partial[20:26]=[64,2048,6144,3,2048,1]

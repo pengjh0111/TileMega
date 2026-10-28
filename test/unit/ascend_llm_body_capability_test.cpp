@@ -44,7 +44,7 @@ int main() {
   llm::Stage attention{};attention.kind=13;attention.variant=4;
   llm_host::ValidateCompiledBodies({attention});
   unsigned rejected=0;
-  for(unsigned variant:{5u,6u,7u,99u}) {
+  for(unsigned variant:{5u,6u,7u,8u,99u}) {
     attention.variant=variant;
     try {llm_host::ValidateCompiledBodies({attention});}
     catch(std::invalid_argument const&) {++rejected;}
@@ -99,7 +99,7 @@ int main() {
     try {llm_host::ValidateCompiledBodies({stage});}
     catch(std::invalid_argument const&) {++rejected;}
   }
-  if(rejected!=9)return 1;
+  if(rejected!=10)return 1;
   std::cout<<"{\"status\":\"pass\",\"missing_device_primitive_rejected\":true,"
     "\"unknown_implementation_rejected\":true,\"missing_split_body_rejected\":true,\"acl_initialized\":false}\n";
 }

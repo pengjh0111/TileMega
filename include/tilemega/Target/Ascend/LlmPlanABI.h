@@ -49,6 +49,7 @@ struct Stage {
   // 5=the same cooperative path with pinned CANN Newton-refined QK RMSNorm.
   // 6=variant5 with the pinned capacity1088 register-fold softmax sum.
   // 7=variant6 with QK internal tiles32x256x128; unchanged task ownership/PV.
+  // 8=variant6 omitting entirely masked QK64 tiles; same physical stride/PV.
   float epsilon;
 };
 struct Task {

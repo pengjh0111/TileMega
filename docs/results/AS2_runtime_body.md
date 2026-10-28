@@ -434,3 +434,28 @@ Evidence: `runs/as2/failures/opt_qk256_v1.json`. The candidate stays disabled;
 failure source/binary/logs and unchanged tolerance are retained. The packing
 reuse guard now requires the same verified RoPE table, before writing inputs;
 all required packed input hashes are checked on the corrected experiment.
+
+## Valid-key QK candidate, 2026-10-28
+
+`verified-code`: explicit `cube-fp32-valid-qk` / variant8 preserves QK32x64x128,
+L0K32, physical score stride1088, original last physical tile, scaling,
+Newton QK norm, capacity-fold softmax and full-capacity PV. Only entirely
+unconsumed QK64 tiles are skipped. `ServingSoftmax` copies valid scores only
+and builds the masked tail locally; omitted scores never flow into computation.
+Prepare still initializes the original K/V tail. GM visibility, ownership,
+participants, completion counts and buffer lifetime are unchanged.
+
+The64/1024 request reduces QK64 calls per logical Attention task from17391
+to9711 (44.16% fewer; a code-derived count, **not** a latency claim). No host
+operator, separate attention launch, shortened context or BF16 change is used.
+Implementation identity and actual logical GM traffic enter the native Plan
+and measured-price path. Outer Body selection is still limited/manual.
+
+`verified-run`:229 packed input hashes match the canonical inputs. Qwen0.6 B16
+four-output and full1024 diagnostic requests pass bitwise tokens, final logits
+and all56 last-position KV tensors against independent SDPA/fused Norm.
+Fresh G8 control calibration passes5/5 processes on physical1; no G14 admission.
+Evidence: `correctness/opt_validqk_b16_profile1024_numeric_v2.json`,
+`search/opt_validqk_g8_costs_v3.json`. Real sourced costs regenerate both phases,
+compare structural/EFT queues and preserve their selected order; repriced
+numerical admission and idle fast TPOT remain pending at this code checkpoint.
