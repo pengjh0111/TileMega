@@ -263,3 +263,20 @@ Verified：三个Llama1B bench参数生命周期/容量CPU诊断均仍有PK2栈�
 Raw：local_lds_tail_remaining15_full_execution_v1；local_lds_tail_selected_qwenB2_D7_diag_v1；
 local_lds_tail_qwenB2_length_geometry_d7_v1；gemm576_failed_coordinate_intermediates_v1；
 attention_{merge_scales_once,wave_merge_factors}_candidate_v1。
+
+
+Verified：Qwen0.6B B8完整top4完成，四候选TPOT为
+2.853298/2.810956/2.859982/2.858719ms；候选1比锚点0快1.484%，按原1%规则选1。
+选中TPOT2.810956ms，相对固定MX43.040548ms快7.551%；四候选C1/C2512及各两新进程均过。
+原冻结执行器与独立消费者复核后才追加CSV；当前源码7/25测量、5不退化、2失败，默认不变。
+
+Verified：wave内合并系数候选在7号卡guard被running interference拒绝；原部分日志保留，
+不把已完成的四进程计为整组通过。5号卡重新完成5新进程×56数值项与5新进程完整helper litmus。
+同卡5按old/new、new/old、old/new各3新进程对照，32块中点加权微基准old33.655us/new36.225us，
+新候选慢7.636%；不继续此候选，未测生产TPOT、不作端到端性能结论。
+Raw：attention_wave_merge_factors_candidate_v1/{checks_retry_card5_v1,B2_offgrid37_card5_pair}。
+
+Verified：另一个仅CPU的inline operands按值传递诊断仍有PK2的44–48B栈帧，未采用。
+后续候选只把既有合法geometry正数域告知编译器，Owner闭式公式、划分、布局和同步不变；
+它没有固定新的运行时形状，也没有改寄存器限制。CPU编译中D64PK2仍有32–40B帧；
+512数值与同卡微基准验证中，尚未采用。Raw：attention_geometry_domain_candidate_v1。
