@@ -1,6 +1,6 @@
 # MX-5 C550 LLM development checkpoint
 
-Verified A19 source: 9/25 dense cells measured; 2 distinguishable MX4 regressions. G-LLM remains open.
+Verified A19 source: 10/25 dense cells measured; 3 distinguishable MX4 regressions. G-LLM remains open.
 MoE native0/5;DNN native0/25. All defaults remain MX4; final=False.
 Authority SHA256:75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73.
 Measured A19 body7c9658ac5/producer88327cbc4;main4b7d83686 consumed-prefetch body has0 E2E cells;new costs pending.
@@ -18,7 +18,7 @@ Pending rows contain no fabricated MX5 measurements. Fastest baseline isminimum 
 |Qwen0.6B|8|2.810956|3.040548|3.668500|-7.551%|0.7662|nonregression|
 |Qwen0.6B|16|3.524260|4.537082|4.020300|-22.323%|0.8766|nonregression|
 |Qwen1.7B|1|3.270282|3.424746|3.801700|-4.510%|0.8602|nonregression|
-|Qwen1.7B|2|—|3.555443|4.265800|—|—|pending C1/C2,E2E|
+|Qwen1.7B|2|3.610137|3.555443|4.265800|+1.538%|0.8463|FAIL G-LLM|
 |Qwen1.7B|4|—|3.894393|4.386800|—|—|pending C1/C2,E2E|
 |Qwen1.7B|8|—|4.603874|5.019400|—|—|pending C1/C2,E2E|
 |Qwen1.7B|16|5.185553|6.252656|5.464700|-17.066%|0.9489|nonregression|
@@ -51,6 +51,7 @@ Pending rows contain no fabricated MX5 measurements. Fastest baseline isminimum 
 |Qwen0.6B/B8|31.191|2.906799|2818.220|0.3949|1.01933|
 |Qwen1.7B/B1|13.216|3.358714|304.879|0.6919|1.02065|
 |Qwen1.7B/B16|142.664|5.447485|3007.627|0.5596|0.99592|
+|Qwen1.7B/B2|20.539|3.713709|551.470|0.6385|0.95968|
 
 MBU uses inferred streamed BF16 linear weights plusKV atmeanL576 dividedby1.55TB/s×TPOT.
 TTFT isreported,not optimized. Request numbers aremedians oftwo fresh process medians.
@@ -72,6 +73,7 @@ WD0/uninstrumented timing;WD1 checks. Selection:take fastest onlyif>=1% faster t
 |Qwen0.6B/B8|2.863608, 2.865288, 2.865708, 2.866408|2.853298, 2.810956, 2.859982, 2.858719|1.00361, 1.01933, 1.00200, 1.00269|1|
 |Qwen1.7B/B1|3.337822, 3.338992, 3.339082, 3.339342|3.270282, 3.269273, 3.269568, 3.266685|1.02065, 1.02133, 1.02126, 1.02224|0|
 |Qwen1.7B/B16|5.164377, 5.168567, 5.168857, 5.168867|5.185553, 5.187592, 5.222659, 5.195082|0.99592, 0.99633, 0.98970, 0.99495|0|
+|Qwen1.7B/B2|3.464585, 3.465135, 3.465725, 3.465895|3.610137, 3.609771, 3.608008, 3.610523|0.95968, 0.95993, 0.96056, 0.95994|0|
 
 ## Executed coordinates and matching-source bench (verified)
 
@@ -89,6 +91,7 @@ Prefetch quantity andR_next values also remain in append-only serving/configurat
 |Qwen0.6B/B8|4|0|64/1/1/T/1|16/1/2/T/2|64/1/1/T/1|16/1/2/T/2|128/8/1/T/2|
 |Qwen1.7B/B1|1|0|64/1/1/T/1|32/1/2/T/2|128/1/1/T/1|32/1/2/T/2|64/8/2/T/4|
 |Qwen1.7B/B16|4|0|64/1/1/T/1|32/1/1/T/1|64/2/2/T/2|32/1/1/T/1|128/8/1/T/2|
+|Qwen1.7B/B2|4|0|64/1/1/T/1|32/1/2/T/2|128/1/1/T/1|32/1/2/T/2|64/8/2/T/4|
 
 | Cell | QKV us | Attention us | O us | GateUp us | Down us | Head us |
 |---|---:|---:|---:|---:|---:|---:|
@@ -101,6 +104,7 @@ Prefetch quantity andR_next values also remain in append-only serving/configurat
 |Qwen0.6B/B8|11.270|46.464|10.160|14.650|12.790|195.930|
 |Qwen1.7B/B1|15.460|22.963|10.330|36.250|20.500|383.740|
 |Qwen1.7B/B16|19.510|62.472|14.520|41.450|32.510|391.430|
+|Qwen1.7B/B2|15.500|27.167|10.420|36.340|20.610|383.540|
 
 These bench values areoriginal qualified three-process measurements,not program stage latencies.
 Attention is the specified five-L-grid interpolation averaged overL65..1087.

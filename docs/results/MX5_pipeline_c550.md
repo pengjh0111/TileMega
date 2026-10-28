@@ -1,8 +1,8 @@
 # MX-5 C550 pipeline and specification audit
 
 Verified checkpoint, 2026-10-28: A19 body `7c9658ac5`, frozen normal producer
-`88327cbc4`, has 9/25 dense top-four selections. Seven are nonregressions;
-Qwen0.6B B2/B4 are 9.823/7.591% slower than fixed MX-4. G-LLM stays open.
+`88327cbc4`, has10/25 dense top-four selections. Seven are nonregressions;
+Qwen0.6B B2/B4 andQwen1.7B B2 are9.823/7.591/1.538% slower than fixedMX4;G-LLM stays open.
 Main consumed-prefetch repair4b7d83686 passes full body tests, with no selected
 end-to-end result or new cost table. MoE native0/5 and DNN native0/25 remain unimplemented.
 
@@ -88,8 +88,8 @@ has not been applied. The committed attention lifetime repair retains both caps.
 2. The old Llama1B576 PK2 self-next bench has44–48B frame despite a real
    whole-program167MT/frame0/resident1. This never justified blanket512. The
    consumed-prefetch repair has139/141MT/frame0/actualresident1. Full336, null28,
-   helper6 andcoldselfnext12 each pass5fresh;normalnewproducer/costs are pending.
-3. G-PROGRAM/G-SOLVER/G-LLM remain open. A19 has9 measured cells and two
+   helper6 andcoldselfnext12 each pass5fresh;normalproducer230a572b passes160/160, new costs pending.
+3. G-PROGRAM/G-SOLVER/G-LLM remain open. A19 has10 measured cells and three
    regressions. B2 DIAG attention is35.923/35.842us versus bench27.167us. Three
    fresh off-grid diagnostics explain much of the prediction gap; the mandated
    five-point grid/formula is unchanged. Current-source I1 timing remains pending.
