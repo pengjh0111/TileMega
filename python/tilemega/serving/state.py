@@ -21,6 +21,12 @@ class ServingState:
         return {name: tensor.data_ptr() for name, tensor in self.tensors.items()}
 
 
+def head_dim_of(config: object) -> int:
+    # MistralConfig carries head_dim=None rather than omitting it.
+    return int(getattr(config, "head_dim", None) or
+               config.hidden_size // config.num_attention_heads)
+
+
 def rotary_tables(config: object, capacity: int,
                   device: torch.device) -> tuple[torch.Tensor, torch.Tensor]:
     architecture = getattr(config, "architectures", [""])[0]
@@ -38,7 +44,7 @@ def rotary_tables(config: object, capacity: int,
         module = Qwen3MoeRotaryEmbedding(config).to(device)
     else:
         raise ValueError(f"unsupported rotary position module {architecture}")
-    head_dim = int(config.head_dim)
+    head_dim = head_dim_of(config)
     dummy = torch.empty((1, 1, 1, head_dim), dtype=torch.bfloat16,
                         device=device)
     position_ids = torch.arange(capacity, dtype=torch.long,
@@ -65,7 +71,7 @@ def allocate_state(model_dir: str | Path, batch: int,
     config = AutoConfig.from_pretrained(str(model_dir), local_files_only=True)
     layers = int(config.num_hidden_layers)
     hkv = int(config.num_key_value_heads)
-    head_dim = int(config.head_dim)
+    head_dim = head_dim_of(config)
     # Native attention reads whole TMA boxes past the history bound and masks
     # them by selection; zero (or earlier finite) rows keep 0*row exact.
     kv_storage = torch.zeros((layers, 2, batch, hkv, capacity, head_dim),
