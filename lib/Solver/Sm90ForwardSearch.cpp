@@ -43,13 +43,17 @@ std::vector<Sm90ForwardStage> Sm90ForwardSearchSpace::Candidates(std::size_t ind
     case Sm90ForwardBody::kInvertedResidual: {
       for(bool fused:{true,false}) {
         if(fused && !shape.fusable)continue;
-        for(auto tile:{std::pair{8,8},std::pair{8,16},std::pair{16,16}})
+        for(auto tile:{std::pair{8,8},std::pair{8,16},std::pair{16,16}}) {
+          // The fused bodies contract the tile's pixels as one 64-row MMA, so
+          // a tile holds at most 64 of them.
+          if(tile.first*tile.second>64)continue;
           for(int tn:{64,128,256}) {
             if(tn>shape.out_channels && tn!=64)continue;
             Sm90ForwardStage stage;stage.fused=fused;stage.tile_w=tile.first;
             stage.tile_h=tile.second;stage.tile_n=tn;stage.channel_block=64;stage.slots=2;
             push(stage);
           }
+        }
       }
       break;
     }
