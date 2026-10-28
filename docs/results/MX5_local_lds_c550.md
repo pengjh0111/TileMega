@@ -218,3 +218,12 @@ Allfour original job logs andclosed-interval proofs remain. The final8guards
 reserve60+20cleanup+30poll seconds foronecard;cutoff59.96 givesupper59.99056h.
 Only short zero-launch queries used thispost-numerical reserve. No new long
 correctness/timing job is started;mandatory missing scope staysincomplete.
+
+
+Stated user amendment(2026-10-28):original60total-card-hour cap iswaived;
+allper-job deadlines,allowedcards,concurrency andguard rules remain.
+Verified cumulative-accounting monitorv9 preserves allfour original logs and
+prior cutoff evidence;no counterreset. At amendment59.895card-hours hadaccrued.
+Remaining15-cell fulltop4 queue uses the original frozen runner unchanged oncard6.
+B2 selected-pin DIAG preparation uses the same producer,source andeffective pin;
+onlyDIAG=1 changes. No new correctness orperformance outcome isclaimed yet.
