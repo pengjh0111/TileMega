@@ -969,3 +969,12 @@ CPUrejection resource rows append;no force-register flag/limit applied. This is
 an observed body-compile failure,not proof ofa plan-level512 exception. Full
 plan prescribed histories andMIR allocation analysis remainrequired;no global
 576 impossibility claimed. Raw:candidate/bench576_D128Q2_PK0.
+
+Verified candidate full GPU gate:complete336 matrix andnull-idle28 fixture each
+pass fivefresh guarded processes,zero skips;eachalso passes15 MX4transform
+bitcases. ActualP0 queries derivePK fromoriginalR_cap220/248,then selected
+kernels pass API0/frame0/static0/oneCTA beforelaunch. Ten distinctactual child
+PIDs. Samecandidate initialhelper sixcases/fivefresh reused withno rerun.
+Coldselfnext22keys nowrunning;normalcandidate fullhost producer staysgated on
+itsactualfivefresh completion. No source integration/default orE2E acceptance.
+Raw:attention_peeled_last_block_candidate_v1/ACTUAL_FULL_GPU_CHECKS_COMPLETE.json.
