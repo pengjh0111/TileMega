@@ -412,3 +412,21 @@ independent SDPA/fused Norm. The four-output saved intermediates also match.
 Selected priced queues also pass full1024 bitwise. All four benchmark request
 token hashes match that numerical pass; exploratory timing is recorded in
 `AS2_focus_comparison.md`. Formal teacher512/C2/C3/statistical Gates remain open.
+
+## Rejected wider QK experiment, 2026-10-28
+
+`verified-code`: optional Attention variant7 uses CATLASS32x256x128 instead
+of32x64x128 for QK; L0K32, FP32 scaling, fold softmax, PV, task ownership and
+GM ready/done/reverse-ack remain unchanged. Its identity enters materialization,
+resource/price contracts and request capability composition. The explicit
+`cube-fp32-wide-qk` candidate requires `TILEMEGA_LLM_WIDE_QK=1`; ordinary
+images exclude it and reject its Stage. No default or target capability enables it.
+
+`verified-run`: BiSheng builds; Qwen0.6 B16 four-output tokens match, but18 KV
+slices fail the frozen policy (164 failed elements, max_abs0.0546875).
+The1024-output diagnostic times out600s with other load observed. Runtime
+logs show stream progress269→523→762, so this is not established deadlock.
+No numerical pass, timing admission or portable performance claim is made.
+Own PID/context exits; subsequent two-card queries show HealthOK.
+Evidence: `runs/as2/failures/opt_qk256_v1.json`. The candidate stays disabled;
+failure source/binary/logs and unchanged tolerance are retained.

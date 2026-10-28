@@ -11,7 +11,7 @@ from tilemega.bench.as2_body_profile import logical_bytes
 
 
 def task_overheads(stage,profile,cost):
-    composite=stage[17]==13 and stage[31] in (4,5,6)
+    composite=stage[17]==13 and stage[31] in (4,5,6,7)
     if bool(profile.get('internal_mix_coordination_included'))!=composite:
         raise ValueError('Measured coordination span differs from implementation')
     cube_owner=stage[17]==0 or composite

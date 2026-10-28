@@ -11,6 +11,9 @@ template<unsigned TM,unsigned TN,unsigned TK,unsigned Variant> class LlmCubeBody
   using Partial=GemmTile<bfloat16_t,float,TM,TN,TK,true,64>;
 #endif
   using Qk=GemmTile<float,float,32,64,128,true>;
+#if defined(TILEMEGA_LLM_WIDE_QK) && TILEMEGA_LLM_WIDE_QK
+  using QkWide=GemmTile<float,float,32,256,128,true>;
+#endif
   using Pv=GemmTile<float,float,32,128,64,false>;
   typename Bf16::SharedResource resource_;
  public:
@@ -85,6 +88,20 @@ template<unsigned TM,unsigned TN,unsigned TK,unsigned Variant> class LlmCubeBody
     auto work=LlmAttentionWork(arena,s,owner_group);
     AscendC::SetHF32Mode(AscendC::HF32Mode::DISABLE);
     if(!pv) {
+      if(s.variant==7) {
+#if defined(TILEMEGA_LLM_WIDE_QK) && TILEMEGA_LLM_WIDE_QK
+        typename QkWide::TileMmad mm(resource_);
+        for(unsigned row=0;row<(h.rows+31)/32;++row)
+          for(unsigned col=0;col<(h.keys+255)/256;++col) {
+            QkWide::RunBorrowed(mm,work+llm::attention::kQ,work+llm::attention::kK,
+              work+llm::attention::kScores,h.rows,h.keys,h.width,row,col);
+            CompleteDma<AscendC::HardEvent::FIX_S>();
+          }
+        return true;
+#else
+        return false;
+#endif
+      }
       typename Qk::TileMmad mm(resource_);
       for(unsigned row=0;row<(h.rows+31)/32;++row)
         for(unsigned col=0;col<(h.keys+63)/64;++col) {

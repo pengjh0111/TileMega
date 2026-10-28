@@ -36,7 +36,7 @@ class AscendPriceAccounting(unittest.TestCase):
         return fields
 
     def test_owner_and_participant_service_spans(self):
-        for variant in (4,5,6):
+        for variant in (4,5,6,7):
             self.assertEqual(task_overheads(self.stage(13,variant),dict(internal_mix_coordination_included=True),self.cost),(10.,0.))
         self.assertEqual(task_overheads(self.stage(0,1,1),{},self.cost),(30.,6.))
         self.assertEqual(task_overheads(self.stage(0),{},self.cost),(10.,0.))

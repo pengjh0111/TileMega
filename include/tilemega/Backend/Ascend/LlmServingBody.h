@@ -122,7 +122,7 @@ template<unsigned TM=32,unsigned TN=64,bool CaptureSoftmax=false> class LlmServi
       }
       if(!vector_.ServingSoftmax(work+llm::attention::kScores+uint64_t(row)*h.keys*4,
           work+llm::attention::kProbabilities+uint64_t(row)*h.keys*4,valid,true,m.capacity,h.keys,true,
-          diagnostic_exp,diagnostic_stats,s.variant==6))return false;
+          diagnostic_exp,diagnostic_stats,s.variant==6 || s.variant==7))return false;
     }
     return true;
   }

@@ -118,10 +118,11 @@ class RequestBindingTest(unittest.TestCase):
         geometry='#define TILEMEGA_LLM_VARIANT 1\n#define TILEMEGA_LLM_TM 16\n#define TILEMEGA_LLM_TN 128\n#define TILEMEGA_LLM_TK 128\n'
         body='#ifndef TILEMEGA_LLM_VARIANT\n#define TILEMEGA_LLM_VARIANT 0\n#define TILEMEGA_LLM_TM 32\n#define TILEMEGA_LLM_TN 64\n#define TILEMEGA_LLM_TK 64\n#endif\n#include <same_runtime.h>\n'
         (self.pre.parent/'persistent_llm.cpp').write_text(geometry+'#define TILEMEGA_LLM_LOCAL_Q_TAIL_K3 1\n'+body)
-        (self.dec.parent/'persistent_llm.cpp').write_text(geometry+'#define TILEMEGA_LLM_SPLIT_K 1\n'+body)
+        (self.dec.parent/'persistent_llm.cpp').write_text(geometry+'#define TILEMEGA_LLM_SPLIT_K 1\n#define TILEMEGA_LLM_WIDE_QK 1\n'+body)
         text,identity=request_source(self.pre,self.dec)
         self.assertIn('#define TILEMEGA_LLM_SPLIT_K 1',text)
         self.assertIn('#define TILEMEGA_LLM_LOCAL_Q_TAIL_K3 1',text)
+        self.assertIn('#define TILEMEGA_LLM_WIDE_QK 1',text)
         self.assertEqual(identity['capabilities']['TILEMEGA_LLM_VARIANT'],1)
         self.assertEqual(identity['capabilities']['TILEMEGA_LLM_TM'],16)
         self.assertTrue(text.endswith(body))

@@ -48,6 +48,7 @@ struct Stage {
   // 3=math SDPA split scale/capacity softmax; 4=cooperative full-FP32 Cube;
   // 5=the same cooperative path with pinned CANN Newton-refined QK RMSNorm.
   // 6=variant5 with the pinned capacity1088 register-fold softmax sum.
+  // 7=variant6 with QK internal tiles32x256x128; unchanged task ownership/PV.
   float epsilon;
 };
 struct Task {

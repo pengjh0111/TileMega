@@ -18,7 +18,8 @@ def digest(path):
 
 
 def request_source(prefill,decode):
-    capabilities=('TILEMEGA_LLM_SPLIT_K','TILEMEGA_LLM_LOCAL_TAIL_K7','TILEMEGA_LLM_LOCAL_Q_TAIL_K3')
+    capabilities=('TILEMEGA_LLM_SPLIT_K','TILEMEGA_LLM_LOCAL_TAIL_K7','TILEMEGA_LLM_LOCAL_Q_TAIL_K3',
+                  'TILEMEGA_LLM_WIDE_QK')
     geometry=('TILEMEGA_LLM_VARIANT','TILEMEGA_LLM_TM','TILEMEGA_LLM_TN','TILEMEGA_LLM_TK')
     sources=[]
     for plan in (prefill,decode):
