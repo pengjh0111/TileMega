@@ -88,6 +88,16 @@ NotationTN/WN/D/Part/Pw;T=TileRange,S=StreamK. Each dense step5L+1stages;R_next/
 |Llama1B/B1|12.430|14.297|10.140|52.640|25.280|326.760|
 Bench=qualified threefresh stage rows,not program stage latencies;attentionfivegrid interpolation overL65..1087.
 
+## Aligned internal MX4 P-PAIR (verified)
+
+Samecard5;old/new/old/new,freshprocesses,warm1/timed2,ISL64/OSL1024,L1prefill.
+Old=rebuilt22a finalsource/pins,not exacthistoricalELF;oldprefillWD1,newprefillWD0,decodeWD0.
+| Cell | Old ms | New ms | Change | Round range | Threshold | Status |
+|---|---:|---:|---:|---:|---:|---|
+|Qwen0.6B/B1|1.983132|1.977543|-0.282%|0.127%|1.000%|indistinguishable|
+|Qwen0.6B/B16|4.521433|3.519038|-22.170%|0.414%|1.000%|faster|
+Source-bound fresh-process rows:MX5_ppair_c550.csv;no fixedbaseline overwrite orselection change.
+
 ## Historical A19 reference (verified, separate source)
 
 A19=7c9658ac5/producer88327cbc4;11historical selections,eightnonregressions,threefailures listedbelow.
@@ -98,25 +108,16 @@ A19=7c9658ac5/producer88327cbc4;11historical selections,eightnonregressions,thre
 |Qwen1.7B/B2|3.610137|+1.538%|FAIL|
 
 ## D7 and remaining work
-Earlier A20 four L2-prefill selections are retained in CSVs but excluded from aligned L1-prefill acceptance.
-MX4 measure defaults to L1 prefill;the earlier explicit L2 override was a harness deviation,now being corrected.
-B2 WDpair passes all4 C1/C2512 but L2-prefill timing rejects nonidentical repetitions;no TPOT row is accepted.
-
-A19 QwenB2 attention DIAG=35.923/35.842us vsbench27.167us (16freshchildren,total2rounds×8masks).
-Threefresh off-grid32-block midpoint estimate33.674us explains muchof thatmodelgap;fixedgrid/formula unchanged.
-Midpoint diagnostic total2.333086ms vsactual2.301333ms;not an official replacementcost.
-Current-body I1 fivefresh order deltasQKV+6.304%,attn+3.668%,O+8.104%,GU+7.224%,down−.478%;no cachecause claimed.
-Original576 Llama1B B2/B4/B8 WD1frames16/24/56B stop before numerical launch;failed originals remain preserved.
-All12 explicit WDpair histories fit withinmaximum3 reductions;24actualqueries and5changed-width3freshcosts pass.
-Aligned L1 B2/B4/B8 complete all4 C1/C2512 and8fresh timings;rejected lifetime/lazy prototypes stay off.
-OriginalG576 single-element referencefails21.75vs22.125,error.375>tol.374000013;oracle/seed/tolerance unchanged.
-Nativegate1.192e−6 belowBF16 midpoint,CPUgate2.861e−6 above;instrumented fulloutput identical.
-Consumed-prefetch repair passes5fresh×336required,5fresh×null28,5fresh×helper6×2000×104CTAs,and5fresh×coldselfnext12.
-576D64Q4PK2now139/141MT/frame0/actualresident1;normalRcap220/248 andrule-derivedPK retained.
-ManualnewbodyLlama1B B1control2.134865/2.135300ms,median2.135083ms;not solverdata orold/newP-PAIR.
-A20attention500legalkeys×3fresh complete;300576resource rejects unexecuted;G/H unchanged;4545pool/25scopes replayPASS.
-OldA19queue stoppedbefore9unstartedcells byf_bavail<1GiB;actualUID0reservedfree remainsmonitored;raw unchanged.
-Original60card-hour totalcap waivedbyuser;card/concurrency/guard/per-job limits unchanged.
-Complete current25dense selections,MoE native5+prompt64+routing,LLM30 acceptance/CP5,beforeDNN native25.
-G-B/G-PROGRAM/G-SOLVER/G-LLM/G-FWD andfinaldefaults remain open.
-Raw:consumed_prefetch_attention_epoch_v1;consumed_prefetch_attention_consumer25_v1;source-specific runnerdirectories.
+EarlierA20 fourL2-prefill selections remain inCSVs but outside alignedL1 acceptance;MX4 standardprefill isL1.
+OldB2 L2timing rejects nonidentical1024token repetitions;allthree correctedL1 WDpair selections pass.
+Original576 WD1frames16/24/56B remain preserved;all12 boundedpair histories,24queries andfive3fresh changed-width costs pass.
+G-B original576 criterion stillfails21.75vs22.125,error.375>tol.374000013;oracle/seed/tolerance unchanged.
+Observednative gate lies1.192e−6 belowBF16midpoint,CPU2.861e−6 above;instrumented fulloutputs identical.
+A19 QwenB2 attentionDIAG35.923/35.842us vsbench27.167;offgrid diagnostic33.674us doesnot replace officialfivegrid.
+Currentbody I1 fivefresh orderdeltasQKV+6.304%,attn+3.668%,O+8.104%,GU+7.224%,down−.478%;nocachecause claimed.
+Consumed-prefetch336required/null28/helper6/cold12 eachpass5fresh;helper104CTAs×2000;D64Q4PK2frame0/resident1.
+A20attention500keys×3fresh complete;300576resource rejects unexecuted;G/H unchanged;4545pool/25scopes replayPASS.
+Userwaives only60card-hour totalcap;cards/concurrency/guard/per-joblimits remain,cumulative accounting retained.
+Complete current25dense,MoE native5+prompt64+routing,LLM30 acceptance/CP5,beforeDNN native25.
+G-B/G-PROGRAM/G-SOLVER/G-LLM/G-FWD andfinaldefaults remain open;detailsinMX5_c550.md/MX5_local_lds_c550.md.
+Raw:consumed_prefetch_attention_epoch_v1/attention_consumer25_v1 andsource-specific runnerdirectories.

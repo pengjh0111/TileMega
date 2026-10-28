@@ -657,3 +657,14 @@ warm1/timed2 requests,artifact/source/binary hashes andthe exact median/spread.
 Fourfresh process rows areinMX5_ppair_c550.csv,each labelled round,executor and
 implementation;the fixedMX4 CSVs areunchanged. Raw:aligned_development_MX4_PPAIR_v1/
 qwen3_0_6b_B1/ACTUAL_PPAIR_COMPLETE.json andACTUAL_PPAIR_CSV_APPEND_PROOF.json.
+
+
+## Verified second aligned internal P-PAIR result
+
+Qwen0.6B B16 completes the same fourfresh alternating card5 processes. Arm
+medians old4.521433ms,new3.519038ms give−22.1699%;relative roundrange.4136%,
+threshold1%,so the improvement is distinguishable. Independent CPU ingestion
+verifies fourfresh guard PIDs,artifact/source/binary identities,accepted requests
+andthe exact median/spread;fournew labelled process rows append toMX5_ppair_c550.csv.
+Raw:aligned_development_MX4_PPAIR_v1/qwen3_0_6b_B16/ACTUAL_PPAIR_COMPLETE.json.
+The fixedMX4 baseline files,solver selection anddefaults remain unchanged.
