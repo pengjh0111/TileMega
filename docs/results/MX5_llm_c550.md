@@ -125,3 +125,20 @@ Verified local-LDS amendment and both indistinguishable manual B2 P-PAIRs
 are recorded in MX5_local_lds_c550.md. The new source passes5fresh×336
 required attention cases andmanual C1/C2512;new400-key costs and25scope replays pass.
 These checks are not additional final solver selections anddo not change defaults.
+
+## Current local-LDS source: first completed solver selection (verified)
+
+Frozen88327/A19dd8 has1/25 completed dense selections;the earlier table
+remains historicalcc29,not new-source completion. Qwen0.6B B1 exacttop4
+passes allfour C-1/C2512 checks andtwo fresh timing processes per candidate.
+
+| Candidate | Predicted ms | Measured ms | pred/meas | Chosen |
+|---|---:|---:|---:|---|
+|0|2.021542|1.976266|1.0229|yes|
+|1|2.021612|1.977535|1.0223|no|
+|2|2.021722|1.980171|1.0210|no|
+|3|2.021832|1.974518|1.0240|no|
+
+Candidate0 TPOT1.976266ms vsfixedMX41.983552ms:−.367%,indistinguishable.
+The fastest measured candidate3 improves less than1%,so anchor0 is retained.
+No default/globalLLM acceptance follows. Raw:local_lds_tail_qwenB1_top4_execution_v1.

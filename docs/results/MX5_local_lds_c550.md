@@ -96,3 +96,10 @@ zero-launch queries andprescribed history consumption follow;no missing retry
 history or D7 evidence is filled in. The source-specific query log in the
 frozen tree is added to the physical-card accounting;all prior logs andthe
 60h limit are retained.
+
+Verified first new-source exacttop4 E2E selection: Qwen0.6B B1 allfour
+candidates passC1/C2512,two fresh timing processes each. Medians(ms) are
+[1.976266,1.977535,1.980171,1.974518]. Anchor0 is retained by the1% rule;
+pred/meas1.02291. FixedMX4 is1.983552ms(−.367%,indistinguishable). This
+passes cell nonregression without claiming a measurable speedup. Current
+source completion1/25dense,0/5MoE,0/25DNN;defaults unchanged.
