@@ -280,3 +280,24 @@ Verified：另一个仅CPU的inline operands按值传递诊断仍有PK2的44–4
 后续候选只把既有合法geometry正数域告知编译器，Owner闭式公式、划分、布局和同步不变；
 它没有固定新的运行时形状，也没有改寄存器限制。CPU编译中D64PK2仍有32–40B帧；
 512数值与同卡微基准验证中，尚未采用。Raw：attention_geometry_domain_candidate_v1。
+
+Verified（2026-10-28）：当前冻结 A19 源新增 Qwen1.7B B1/B16 正式 top-4 选择，
+TPOT 为 3.270282/5.185553ms，较固定 MX-4 分别下降 4.510/17.066%。四候选各自完成
+C-1/C-2 512步及双新进程计时；独立结果验证通过后追加四份 CSV。当前9/25测量，
+7格不退化，Qwen0.6B B2/B4仍失败。原始基线未改，默认保持 MX-4。
+
+Verified：geometry 正数域候选的5新进程数值/helper litmus通过，但同卡三新进程微基准
+old33.715572us/new33.772014us（+0.1674%），不可分辨，未采用。packed-pair调度候选
+也通过对应数值/helper测试，但微基准old33.693675us/new39.551975us（+17.3869%），未采用。
+后者最初按资源日志行号误判 Norm=true 寄存器数；已按完整符号纠正，错误记录保留。
+微基准加权以 ceil(L/32) 对应32块中点；旧 floor 加权计算记录被v3明确更正，原记录未删。
+这些都是定位结果，没有生产 TPOT 性能结论。
+Raw：{attention_geometry_domain,row_transform_packed_pair_schedule}_candidate_v1/B2_offgrid37_card5_pair/ACTUAL_D7_COMPARISON_v3.json。
+
+Verified：新的 consumed-prefetch 候选在第一次 head 段消费后清空传入负载，并只对本 wave
+真实拥有的首段块发出预取。CPU 中576/D64/Q4/PK2自预取体降为139/141MT、栈帧0，
+R_cap220/248、预取公式、划分、算术、P-B与同步协议均未改变。完整336数值、空指针闲置
+wave/CTA用例与5新进程helper litmus正在跑，尚未进入主源或实测成本表。
+第一次包装器错误地把固定576线程的TransformKernel按512核对，数值启动前停止；
+已改为按真实576/512 launch bounds核对全部六个helper内核，失败日志保留。
+Raw：attention_consumed_prefetch_guard_candidate_v2；R_cap160提案未应用，当前验证无需该变更。
