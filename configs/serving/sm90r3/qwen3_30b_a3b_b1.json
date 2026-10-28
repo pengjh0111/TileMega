@@ -1,0 +1,142 @@
+{
+  "schema": 1,
+  "model": "qwen3_30b_a3b",
+  "batch": 1,
+  "phase": "decode",
+  "target": "sm_90_h800",
+  "source_head": "a108d56c6c2cd0f19277f61d642bea18d199a2db",
+  "solve_command": [
+    "/root/TileMega-m/build/tools/tilemega",
+    "compile",
+    "/root/TileMega-m/runs/sm90r3/solve/FINAL/qwen3_30b_a3b-B1/decode.export.json",
+    "/root/TileMega-m/runs/sm90r3/solve/FINAL/qwen3_30b_a3b-B1/decode.so",
+    "--solve",
+    "/root/TileMega-m/configs/targets/sm_90_h800.json",
+    "--serving",
+    "decode",
+    "--emit",
+    "serving",
+    "--batch",
+    "1",
+    "--runtime-target",
+    "/root/TileMega-m/configs/targets/sm_90_h800.json",
+    "--selection",
+    "measure",
+    "--measure-top",
+    "4",
+    "--measure-cmd",
+    "/workspace/llm-stack/envs/vllm/bin/python /root/TileMega-m/scripts/sm90r3_select.py --model qwen3_30b_a3b --batch 1 --prefill /root/TileMega/runs/sm90r1/D1/B1-prefill-DN-v2.so --gpu 1 --name sel-FINAL-qwen3_30b_a3b-B1 --concurrency trial",
+    "--nvcc-split-compile",
+    "2"
+  ],
+  "compiler_sha256": "b5a692e0a7bdf1958a8c864d6072e39d6e8fa71bcddafb00d92eb9c024e1b493",
+  "coordinates": {
+    "schema": 5,
+    "model": "moe",
+    "gemms": {
+      "qkv": {
+        "tile_n": 32,
+        "warps_n": 4,
+        "warps_k": 1,
+        "slot_bytes": 32768,
+        "slots": 2,
+        "mma": "mma_sync",
+        "register_stages": 1,
+        "multicast": false
+      },
+      "o": {
+        "tile_n": 16,
+        "warps_n": 2,
+        "warps_k": 2,
+        "slot_bytes": 16384,
+        "slots": 3,
+        "mma": "mma_sync",
+        "register_stages": 1,
+        "multicast": false
+      },
+      "router": {
+        "tile_n": 8,
+        "warps_n": 1,
+        "warps_k": 4,
+        "slot_bytes": 16384,
+        "slots": 2,
+        "mma": "mma_sync",
+        "register_stages": 1,
+        "multicast": false
+      },
+      "expert_gate_up": {
+        "tile_n": 96,
+        "warps_n": 2,
+        "warps_k": 2,
+        "slot_bytes": 24576,
+        "slots": 2,
+        "mma": "mma_sync",
+        "register_stages": 1,
+        "multicast": false
+      },
+      "expert_down": {
+        "tile_n": 128,
+        "warps_n": 2,
+        "warps_k": 2,
+        "slot_bytes": 16384,
+        "slots": 3,
+        "mma": "mma_sync",
+        "register_stages": 1,
+        "multicast": false
+      },
+      "lm_head": {
+        "tile_n": 128,
+        "warps_n": 4,
+        "warps_k": 1,
+        "slot_bytes": 16384,
+        "slots": 3,
+        "mma": "mma_sync",
+        "register_stages": 1,
+        "multicast": false
+      }
+    },
+    "attention": {
+      "chunks": 16,
+      "block_keys": 64,
+      "slots": 2,
+      "new_row_work": 0,
+      "merge": "la"
+    },
+    "residency": 1,
+    "swiglu_u": 16,
+    "weight_stream": false,
+    "layer_loop": true,
+    "emb": "la",
+    "group_wait": true,
+    "cluster": 1
+  },
+  "winner": 0,
+  "predicted_ns": [
+    3182984.286,
+    3183001.486,
+    3183011.586,
+    3183229.086
+  ],
+  "generated_source_sha256": "2dfa239fdfcf09698a6979f7a3920341ed3031006d65d2c4e902c0790c620cb2",
+  "binary_sha256": "682d606d70b65e756923d669a7ca7400e3e41b24c14913018cea38cc0951c79b",
+  "artifact_id": "a9d6058501a730b1a82c44a7a75d1e6a845c00594575f59fa42632c9a05e1b3d",
+  "prefill": "/root/TileMega/runs/sm90r1/D1/B1-prefill-DN-v2.so",
+  "prefill_sha256": "b996b79daaf631df4f58cfdac60d6be58bcc9b5a26ee1718e43e92119edf1ab5",
+  "prefill_kind": "frozen R1 legacy MoE prefill (gamma-folded expert pages)",
+  "stages": null,
+  "measured": {
+    "tpot_ms": 4.674268470173984,
+    "ttft_ms": 182.91621294338256,
+    "e2e_ms": 4965.055476059206,
+    "tokens_per_s": 206.24140151858987,
+    "process_range_pct": 0.9951150897618036,
+    "fresh_processes": 5,
+    "protocol": "P-FINAL"
+  },
+  "correctness": {
+    "c1": true,
+    "c2": true,
+    "hf64_recorded": null,
+    "processes_token_equal": 5
+  }
+}

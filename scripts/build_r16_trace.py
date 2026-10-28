@@ -17,8 +17,9 @@ def main():
     args = parser.parse_args()
     original, output = args.input.resolve(), args.out.resolve()
     root = Path(__file__).resolve().parents[1]
-    if not output.is_relative_to(root/'runs/r16') or output == original:
-        parser.error('diagnostic output must be a separate artifact under runs/r16')
+    runs = (root/'runs').resolve()
+    if not any(output.is_relative_to(runs/r) for r in ('r16', 'sm90r3')) or output == original:
+        parser.error('diagnostic output must be a separate artifact under runs/r16 or runs/sm90r3')
     sys.path.insert(0, str(root/'python'))
     from tilemega.build.identity import generate, verify
     identity = verify(original)
@@ -29,11 +30,19 @@ def main():
     output.parent.mkdir(parents=True, exist_ok=True)
     for suffix in ('.cu', '.plan.json', '.source.json'):
         shutil.copy2(str(original)+suffix, str(output)+suffix)
-    command = shlex.split(Path(str(original)+'.build_command.txt').read_text())
-    if command.count(str(original)) != 1 or command.count(str(original)+'.cu') != 1:
+    # Worktree paths reach runs/ through a symlink; compare resolved paths.
+    command = [str(Path(word).resolve()) if word.endswith(('.so', '.cu')) else word
+               for word in shlex.split(Path(str(original)+'.build_command.txt').read_text())]
+    # Some frozen plans were compiled from a since-removed staging copy of the
+    # recorded source; the copy beside the library must then match its identity.
+    sources = [word for word in command if word.endswith('.cu')]
+    if command.count(str(original)) != 1 or len(sources) != 1 or (
+            sources[0] != str(original)+'.cu' and
+            hashlib.sha256(Path(str(original)+'.cu').read_bytes()).hexdigest() !=
+            identity['generated_source_sha256']):
         raise ValueError('build command must identify exactly one input and output')
     command = [str(output) if word == str(original) else
-               str(output)+'.cu' if word == str(original)+'.cu' else word
+               str(output)+'.cu' if word == sources[0] else word
                for word in command]
     command[1:1] = ['-lineinfo', '-DTILEMEGA_TRACE_TASK=1',
                     '-DTILEMEGA_TRACE_STAGE=1', '-DTILEMEGA_TRACE_STEP=1',
