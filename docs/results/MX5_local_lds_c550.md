@@ -379,3 +379,10 @@ Verified：新QwenB1四条canonical576历史闭合，缩减次数1/1/0/0，最�
 另用旧A19正常producer编译相同当前minimum物理pin作为source-before控制，真实新after是
 当前canonical失败体。四份D7逐项绑定spill/wait/Pw/发出点/划分/I1静态及原I1证据，原v2审核
 全过，正式runner在卡6进行四候选C1/C2与双新进程计时；当前仍未登记新源选择结果。
+
+Verified：A20首个真正求解器选择完成并独立复核入库：Llama1B B1，576线程，原始候选0。
+四候选TPOT2.135062/2.135004/2.133439/2.133940ms；最快未超过锚点0的1%阈值，选0。
+对固定MX42.211073ms快3.438%，pred/meas约1.01325。四C1/C2512和每候选两新进程均过；
+追加4选择/3计时/4正确性/8资源行，真实A20/source/producer/round独立标记，旧A19行前缀保留。
+当前A20为1/25，不能与A19历史11格合并为12个当前格；默认仍MX4，全部门仍未关闭。
+Raw：consumed_prefetch_llama1b576_full_top4_execution_v2/execution/ACTUAL_ALL_RESULT_CSV_APPEND_PROOF_v2.json。

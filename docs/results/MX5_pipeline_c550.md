@@ -3,8 +3,8 @@
 Verified checkpoint, 2026-10-28: A19 body `7c9658ac5`, frozen normal producer
 `88327cbc4`, has11/25 dense top-four selections. Eight are nonregressions;
 Qwen0.6B B2/B4 andQwen1.7B B2 are9.823/7.591/1.538% slower than fixedMX4;G-LLM stays open.
-Main consumed-prefetch repair4b7d83686 passes full body tests, with no selected
-end-to-end result or new cost table. MoE native0/5 and DNN native0/25 remain unimplemented.
+Current consumed-prefetch4b7d83686/producer230a572b has1/25 new selections: Llama1B B1
+2.135062ms,−3.438%vsMX4;500A costs and25scopes pass. MoE0/5,DNN0/25 remain unimplemented.
 
 Authority: `/root/Prompt/TileMega_MX5_prompt.md`, SHA256
 `75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73`.
