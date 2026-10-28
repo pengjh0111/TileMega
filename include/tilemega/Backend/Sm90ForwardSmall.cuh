@@ -17,7 +17,8 @@ namespace tilemega::backend {
 struct Sm90ForwardSmallOperands {
   cutlass::bfloat16_t const* input;
   cutlass::bfloat16_t const* weight;   // GEMV weights, or none
-  cutlass::bfloat16_t const* bias;
+  float const* gamma;                  // explicit LayerNorm scale (FP32)
+  float const* bias;                   // per-channel vectors are FP32
   cutlass::bfloat16_t* output;
   float* accumulator;                  // GAP partials
   std::uint64_t* counter;              // GAP last arriver
@@ -27,8 +28,10 @@ struct Sm90ForwardSmallOperands {
   float epsilon;
 };
 
-// NCHW -> NHWC. One task per (row, channel block); the write is coalesced
-// over channels, which every later body reads as its inner dimension.
+// NCHW -> NHWC. One task per pixel; the write is coalesced over channels,
+// which every later body reads as its inner dimension. The image's own
+// channels (`out_channels`) are copied into the padded 64-channel block
+// (`channels`) every native A panel reads; the padding stays zero.
 template<int Channels,int Block>
 struct Sm90ForwardLayout {
   using Element=cutlass::bfloat16_t;
@@ -40,7 +43,7 @@ struct Sm90ForwardLayout {
     if(threadIdx.x>=128)return;
     int pixels=p.width*p.height;
     for(int task=int(blockIdx.x);task<pixels;task+=int(gridDim.x))
-      for(int c=int(threadIdx.x);c<p.channels;c+=128)
+      for(int c=int(threadIdx.x);c<p.out_channels;c+=128)
         p.output[std::size_t(task)*p.channels+c]=p.input[std::size_t(c)*pixels+task];
   }
 };
@@ -90,7 +93,13 @@ struct Sm90ForwardGlobalPool {
     float inverse=1.0f/float(p.height);
     for(int c=int(blockIdx.x)*128+int(threadIdx.x);c<p.channels;c+=int(gridDim.x)*128) {
       float sum=0;
-      for(int part=0;part<p.width;++part)sum+=p.accumulator[std::size_t(part)*p.channels+c];
+      for(int part=0;part<p.width;++part) {
+        auto* address=p.accumulator+std::size_t(part)*p.channels+c;
+        sum+=*address;
+        // The producing epilogue accumulates into these partials, so each
+        // launch must start from zero: the only reader clears them.
+        *address=0.0f;
+      }
       p.output[c]=Element(sum*inverse);
     }
   }
@@ -105,6 +114,12 @@ struct Sm90ForwardGemv {
   static constexpr int kThreads=160,kTileK=64;
   static constexpr Sm90DenseLayout kLayout{1024,1024,1024,1024};
   static constexpr int kSharedBytes=1024;
+  // The element's position inside one K-major tile page, which the packer
+  // writes in the same 128-byte swizzle the WGMMA bodies read.
+  __device__ static __forceinline__ int Swizzled(int row,int col) {
+    return 512*(row/8+(Block/8)*(col/64))+64*(row%8)+
+        8*(((col%64)/8)^(row%8))+col%8;
+  }
   __device__ static __forceinline__ void Run(Sm90ForwardSmallOperands const& p,char*,
       Sm90DenseRingState&) {
     if(threadIdx.x>=128)return;
@@ -120,7 +135,7 @@ struct Sm90ForwardGemv {
         for(int panel=0;panel<panels;++panel) {
           auto const* page=p.weight+(std::size_t(block)*panels+panel)*Block*kTileK;
           for(int c=0;c<kTileK;++c)
-            sum+=float(page[i*kTileK+c])*float(source[panel*kTileK+c]);
+            sum+=float(page[Swizzled(i,c)])*float(source[panel*kTileK+c]);
         }
         p.output[std::size_t(row)*p.out_channels+channel]=Element(sum);
       }
@@ -179,7 +194,7 @@ struct Sm90ForwardLayerNorm {
       float inverse=rsqrtf(squares/Channels-mean*mean+p.epsilon);
       for(int c=lane;c<Channels;c+=32)
         p.output[std::size_t(row)*Channels+c]=Element((float(source[c])-mean)*inverse*
-            float(p.weight[c])+(p.bias?float(p.bias[c]):0.0f));
+            float(p.gamma[c])+(p.bias?float(p.bias[c]):0.0f));
     }
   }
 };

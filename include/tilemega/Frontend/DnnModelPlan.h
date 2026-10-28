@@ -11,6 +11,11 @@ struct DnnPlanOptions {
   // bodies read whole 64-channel blocks (prompt §10 N-1 items 2 and 3); the
   // legacy bodies keep the eight-channel padding they were measured with.
   unsigned nhwc_channel_block=8;
+  // Legacy bodies read a convolution's padding out of a halo region around
+  // the image. The native forward bodies read A through TMA maps whose start
+  // coordinate may be negative and whose out-of-range elements are zero
+  // (prompt §10 N-1 items 2 and 3), so they need no halo at all.
+  bool nhwc_halo=true;
   unsigned depthwise_rows=1,depthwise_channels=64;
   unsigned global_pool_channels=128;
   bool depthwise_tma=false;

@@ -534,8 +534,11 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
           if(kind!="kLayoutConvert")
             throw std::invalid_argument("native forward layout coordinates need its stage");
           auto const& l=layouts.at(bind.output);
-          shape.channels=int(l.physical[3]);
+          // The destination's padded block and the image's own channels.
+          shape.channels=int(l.physical[3]);shape.out_channels=int(l.logical[3]);
           shape.width=int(l.logical[2]);shape.height=int(l.logical[1]);
+          if(l.halo_top || l.halo_left)
+            throw std::invalid_argument("a native forward image carries no halo region");
           body="Sm90ForwardLayout<"+std::to_string(shape.channels)+",64>";
         }else if(c.body==Sm90ForwardBody::kPool) {
           if(kind!="kPool")throw std::invalid_argument("native forward pool coordinates need its stage");
@@ -560,7 +563,7 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
         }else {
           if(kind!="kLayerNorm")
             throw std::invalid_argument("native forward LayerNorm coordinates need its stage");
-          bind.weight=operand(2);bind.vector[0]=operand(3);
+          bind.vector[1]=operand(2);bind.vector[0]=operand(3);
           shape.channels=width_of(bind.input);
           shape.width=rows_of(bind.input);shape.height=1;
           body="Sm90ForwardLayerNorm<"+std::to_string(shape.channels)+'>';
@@ -572,6 +575,12 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
             std::string(solver::kSm90ForwardBodies[unsigned(c.body)]));
     }
 
+    for(auto id:{bind.vector[0],bind.vector[1],bind.vector[2],bind.vector[3]}) {
+      if(id==kAbsent || id>=buffers.size())continue;
+      auto dtype=Entry(buffers[id],"buffer").getAs<mlir::StringAttr>("dtype");
+      if(!dtype || dtype.getValue()!="f32")
+        throw std::invalid_argument("a native forward epilogue vector must be FP32");
+    }
     types<<bind.Emit(index)<<shape.Emit(index)
          <<"using Body_"<<index<<'='<<body<<";\n"
          <<"using Wrap_"<<index<<'='<<wrapper<<"<Body_"<<index<<",Bind_"<<index

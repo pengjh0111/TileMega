@@ -753,6 +753,7 @@ struct Builder {
   void Halo(unsigned id,unsigned h,unsigned w) {
     auto& b=p.buffers[id];auto& l=b.layout;
     if(l.kind!=DmLayout::kNHWC)throw std::invalid_argument("convolution requires NHWC input");
+    if(!options.nhwc_halo)return;
     l.halo_top=l.halo_bottom=std::max(l.halo_top,h);l.halo_left=l.halo_right=std::max(l.halo_left,w);
     l.physical[1]=l.logical[1]+l.halo_top+l.halo_bottom;
     l.physical[2]=l.logical[2]+l.halo_left+l.halo_right;Strides(l);b.per_batch=Checked(l.strides[0]);

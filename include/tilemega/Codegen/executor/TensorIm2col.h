@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Codegen/executor/TensorMap.h>
+#include <tilemega/Backend/ConvIteration.h>
 #include <tilemega/Codegen/DmConvRuntime.h>
 #include <array>
 
@@ -27,13 +28,15 @@ struct TensorIm2colShape {
       throw std::invalid_argument("im2col pixel box or traversal is unsupported");
   }
   static TensorIm2colShape Build(ConvDesc const& conv,DmBufferLayout const& layout) {
-    auto runtime=DmConvRuntime::Build(conv,layout,conv.n*conv.p*conv.q,conv.k,
-        conv.c*conv.r*conv.s,64,1);
+    // The descriptor's own start coordinate supplies the convolution padding,
+    // so this view does not require the legacy bodies' halo region: only the
+    // K-iteration geometry of the padded channels is needed.
+    auto geometry=backend::ConvIterationGeometry::Build(conv,layout,64);
     // The descriptor fetches whole 64-channel blocks of the *padded* input, so
     // a 3-channel image padded to 64 (the native forward layout) qualifies
     // while an unpadded channel tail still does not.
     if(layout.physical[3]<64 || layout.physical[3]%64 ||
-       runtime.geometry.channels!=layout.physical[3] ||
+       geometry.channels!=layout.physical[3] ||
        conv.dilation_h>128 || conv.dilation_w>128)
       throw std::invalid_argument("im2col candidate excludes channel tails and large dilation");
     TensorIm2colShape result;

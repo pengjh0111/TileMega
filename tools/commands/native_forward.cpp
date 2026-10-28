@@ -70,7 +70,31 @@ static int CompileNativeForwardArtifact(std::string const& input,std::string con
         {"body",solver::kSm90ForwardBodies[unsigned(shapes[i].body)]},
         {"representative",plan.stages[i].representative},
         {"coordinate",c.stages[i].ToJson()}});
-  json::Object manifest={{"identity_schema",1},{"model",fs::path(input).stem().string()},
+  // Activation layouts, so a stage-level comparison can read each buffer back
+  // and map it onto the exported graph's own tensors.
+  json::Array buffer_rows;
+  for(unsigned i=0;i<plan.buffers.size();++i) {
+    auto const& b=plan.buffers[i];
+    auto const& l=b.layout;
+    json::Array logical,physical;
+    for(unsigned axis=0;axis<4;++axis) {
+      logical.emplace_back(double(l.logical[axis]));
+      physical.emplace_back(double(l.physical[axis]));
+    }
+    buffer_rows.emplace_back(json::Object{{"index",int(i)},{"name",b.name},{"role",b.role},
+        {"dtype",b.dtype},{"rank",int(l.rank)},
+        {"layout",l.kind==codegen::DmLayout::kNHWC?"nhwc":"row_major"},
+        {"logical",logical},{"physical",physical},
+        {"halo_top",int(l.halo_top)},{"halo_left",int(l.halo_left)},
+        {"constant",double(b.constant)},{"per_batch",double(b.per_batch)}});
+  }
+  // Which exported node each buffer holds: a fused group writes one buffer,
+  // so a stage-level comparison must know every node that aliases it.
+  json::Object node_buffers;
+  for(auto const& [name,buffer]:plan.node_buffer)
+    node_buffers.emplace_back(name,double(buffer));
+  json::Object manifest={{"identity_schema",1},{"buffers",buffer_rows},
+      {"node_buffers",node_buffers},{"model",fs::path(input).stem().string()},
       {"phase","forward"},{"runtime_batch",batch},{"batch_lo",batch},{"batch_hi",batch},
       {"seq",plan.serving_seq},{"dwpw_fuse",fuse},{"mode","L1"},{"loop",1},
       {"residency",c.residency},{"grid",target.res.num_sms*c.residency},

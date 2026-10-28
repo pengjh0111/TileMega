@@ -28,8 +28,11 @@ frontend::ModelPlan BuildSm90ForwardPlan(std::string const& export_path,int batc
   auto bridge=frontend::ReadExportBridge(export_path);
   frontend::DnnPlanOptions options;
   options.batch=unsigned(batch);
-  // Every native A panel is a whole 64-channel block, including the image.
+  // Every native A panel is a whole 64-channel block, including the image,
+  // and the TMA maps supply the convolution padding, so no buffer carries a
+  // halo region.
   options.nhwc_channel_block=64;
+  options.nhwc_halo=false;
   options.global_pool_channels=128;
   options.dwpw_fuse=fuse;
   options.deferred_layernorm=true;

@@ -17,7 +17,9 @@ namespace tilemega::backend {
 struct Sm90ForwardEpilogueOperands {
   // Per-channel vectors (bias, BN fold, residual scales, gate scales) and the
   // residual source; `stats` holds per-row (sum, sumsq) for deferred norms.
-  cutlass::bfloat16_t const* vectors[4];
+  // The plan keeps every per-channel vector in FP32, as the folds that build
+  // them are exact only in that precision.
+  float const* vectors[4];
   cutlass::bfloat16_t const* residual;
   float const* stats;
   float* row_stats;        // side output: per-row (sum, sumsq)

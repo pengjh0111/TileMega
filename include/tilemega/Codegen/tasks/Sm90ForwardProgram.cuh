@@ -69,10 +69,11 @@ template<class B,class Bind>
 __device__ __forceinline__ backend::Sm90ForwardEpilogueOperands EpilogueOf(B const& b,
     float epsilon,int residual_stride) {
   backend::Sm90ForwardEpilogueOperands e{};
-  e.vectors[0]=b.template Get<Bind::kVector0>();
-  e.vectors[1]=b.template Get<Bind::kVector1>();
-  e.vectors[2]=b.template Get<Bind::kVector2>();
-  e.vectors[3]=b.template Get<Bind::kVector3>();
+  // Per-channel vectors are FP32 in the plan's buffer table.
+  e.vectors[0]=reinterpret_cast<float const*>(b.template Get<Bind::kVector0>());
+  e.vectors[1]=reinterpret_cast<float const*>(b.template Get<Bind::kVector1>());
+  e.vectors[2]=reinterpret_cast<float const*>(b.template Get<Bind::kVector2>());
+  e.vectors[3]=reinterpret_cast<float const*>(b.template Get<Bind::kVector3>());
   e.residual=b.template Get<Bind::kResidual>();
   e.stats=reinterpret_cast<float const*>(b.template Get<Bind::kStats>());
   e.row_stats=reinterpret_cast<float*>(b.template Get<Bind::kRowStats>());
@@ -183,7 +184,8 @@ struct ForwardSmallStage {
     auto& p=bank.small;
     p.input=b.template Get<Bind::kInput>();
     p.weight=b.template Get<Bind::kWeight>();
-    p.bias=b.template Get<Bind::kVector0>();
+    p.gamma=reinterpret_cast<float const*>(b.template Get<Bind::kVector1>());
+    p.bias=reinterpret_cast<float const*>(b.template Get<Bind::kVector0>());
     p.output=b.template Get<Bind::kOutput>();
     p.accumulator=reinterpret_cast<float*>(b.template Get<Bind::kPartial>());
     p.counter=reinterpret_cast<std::uint64_t*>(b.template Get<Bind::kCounters>());
