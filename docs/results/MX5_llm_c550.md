@@ -3,7 +3,7 @@
 Verified A19 source: 10/25 dense cells measured; 3 distinguishable MX4 regressions. G-LLM remains open.
 MoE native0/5;DNN native0/25. All defaults remain MX4; final=False.
 Authority SHA256:75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73.
-Measured A19 body7c9658ac5/producer88327cbc4;main4b7d83686 consumed-prefetch body has0 E2E cells;new costs pending.
+Measured A19 body7c9658ac5/producer88327cbc4;main4b7d83686 consumed-prefetch body has0 solverselected cells;manualLlama1B2.135083ms;new costs pending.
 
 ## Current 25-cell coverage (verified)
 
@@ -22,11 +22,11 @@ Pending rows contain no fabricated MX5 measurements. Fastest baseline isminimum 
 |Qwen1.7B|4|—|3.894393|4.386800|—|—|pending C1/C2,E2E|
 |Qwen1.7B|8|—|4.603874|5.019400|—|—|pending C1/C2,E2E|
 |Qwen1.7B|16|5.185553|6.252656|5.464700|-17.066%|0.9489|nonregression|
-|Llama1B|1|—|2.211073|2.526700|—|—|576 cost blocked|
-|Llama1B|2|—|2.272015|2.849600|—|—|576 cost blocked|
-|Llama1B|4|—|2.438731|2.913400|—|—|576 cost blocked|
-|Llama1B|8|—|2.771217|3.045700|—|—|576 cost blocked|
-|Llama1B|16|—|3.435274|3.359300|—|—|576 cost blocked|
+|Llama1B|1|—|2.211073|2.526700|—|—|576 costs/selection pending|
+|Llama1B|2|—|2.272015|2.849600|—|—|576 costs/selection pending|
+|Llama1B|4|—|2.438731|2.913400|—|—|576 costs/selection pending|
+|Llama1B|8|—|2.771217|3.045700|—|—|576 costs/selection pending|
+|Llama1B|16|—|3.435274|3.359300|—|—|576 costs/selection pending|
 |Llama3B|1|—|5.317005|5.836400|—|—|pending C1/C2,E2E|
 |Llama3B|2|—|5.477695|6.493000|—|—|pending C1/C2,E2E|
 |Llama3B|4|—|5.807209|6.650300|—|—|pending C1/C2,E2E|
@@ -119,6 +119,8 @@ Inferred model total usingthat estimate2.333086ms vsactual2.301333ms;thisisnot a
 Original5grid remeasurements differ0.202–0.715%;intermediate segmentation explains muchof theprediction gap.
 Otherbmin midpoint estimates(us):1=32.040,2=33.989,4=33.674,8=39.179;not default-selection evidence.
 Current-source I1 timing remains unmeasured;no instruction-cache cause isclaimed.
+Verified newbody manual Llama1B B1:165MT/frame0/resident1,C1/C2512PASS;TPOT2.134865/2.135300ms.
+Manual median2.135083ms is3.437% belowfixedMX4;not a solverselection orold/newP-PAIR.
 
 Llama1B:old576 PK2 self-next bench44–48B frame;new139/141MT/frame0,actualresident1,cold12keys×5freshPASS.
 Original Rcap220/248 retained;full336/null-idle/helper/self-next each5fresh PASS;new main normalproducer/costs/E2E pending.

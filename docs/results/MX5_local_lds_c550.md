@@ -325,3 +325,15 @@ Verified：A19又完成Qwen1.7B B2四候选C1/C2512与每候选两新进程计�
 3.610137/3.609771/3.608008/3.610523ms，按1%规则选锚点0：3.610137ms。
 相对固定MX43.555443ms慢1.538%，该格G-LLM失败；对最快基线4.2658ms的比值约0.8463。
 独立执行结果复核后追加原行；A19合计10/25、7不退化、3失败，A20仍无端到端选择。
+
+Verified：新源Llama1B B1人工同几何控制两新进程TPOT2.134865/2.135300ms，
+中位数2.135083ms，较固定MX42.211073ms快3.437%；TTFT分别9.045/9.112ms。
+WD0/WD1均165MT/frame0/static0/actualresident1，512步C1/C2通过；计时WD0、trace0、step-events0，
+ISL64/OSL1024、greedyBF16、warm1/timed2。追加3计时/1正确性/2资源行，标记manual_control；
+不是终版top4、不是同卡旧/新P-PAIR，也不证明修正本身带来的TPOT幅度。
+Raw：consumed_prefetch_llama1b_selected_control_v1/ACTUAL_MANUAL_CSV_APPEND_PROOF.json。
+
+Verified：新源800 P0及800规则派生实际查询完成：512的400项合法、576的100项合法，
+其余576的300项资源拒绝且未运行数值/计时。21个正常bench编译与所选MIR通过；
+500合法键按线程分组进行原三新进程冷测量。25个512scope/source/dependency绑定已准备，
+最终成本资格重放只在全部实际批次成功后执行，零补造、零旧A身份转移。
