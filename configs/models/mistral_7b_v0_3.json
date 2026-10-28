@@ -1,0 +1,31 @@
+{
+  "id": "mistral_7b_v0_3",
+  "repo": "mistralai/Mistral-7B-v0.3",
+  "revision": "caa1feb0e54d415e2df31207e5f4e273e33509b1",
+  "config_sha256": "affafc6478ec0fd07a32f0ca57aa2fc57743f4d17d6730f86a96ac24d1507f99",
+  "tokenizer_family": "mistral",
+  "tie_word_embeddings": false,
+  "dimensions": {
+    "hidden_size": 4096,
+    "intermediate_size": 14336,
+    "num_hidden_layers": 32,
+    "num_attention_heads": 32,
+    "num_key_value_heads": 8,
+    "head_dim": 128,
+    "vocab_size": 32768,
+    "rope_theta": 1000000.0,
+    "rope_scaling": null,
+    "num_experts": null,
+    "num_experts_per_tok": null,
+    "moe_intermediate_size": null,
+    "norm_topk_prob": null,
+    "decoder_sparse_step": null,
+    "mlp_only_layers": null,
+    "qperkv": 4
+  },
+  "architectures": [
+    "MistralForCausalLM"
+  ],
+  "qk_norm": false,
+  "source_note": "sliding_window null and no rope_scaling (verified in the pinned config)."
+}
