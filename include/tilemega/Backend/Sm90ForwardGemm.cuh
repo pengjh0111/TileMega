@@ -153,7 +153,11 @@ struct Sm90ForwardGemm {
       }
       // The producer of this stage's normalized input wrote its row sums.
       if(epilogue.stats)epilogue.stats+=std::size_t(m_tile)*TM*2;
-      auto* output=p.output+std::size_t(m_tile)*TM*p.output_stride;
+      // A shuffled writeback addresses the whole image, so it takes the
+      // tile's first row instead of a shifted base pointer.
+      epilogue.row_base=m_tile*TM;
+      auto* output=p.output+(epilogue.write_kind==backend::kDenseWrite?
+          std::size_t(m_tile)*TM*p.output_stride:0);
       if constexpr(SplitK==1) {
         Chain::Finish(tile_values,rows,n_tile*TN,width>0?width:0,epilogue,output,p.output_stride);
       }else {

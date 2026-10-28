@@ -103,6 +103,7 @@ struct Geometry {
   int width=0,height=0,channels=0,out_channels=0,output_width=0,output_height=0;
   int stride=1,output_stride=0,residual_stride=0,heads=0,sequence=0,norm_width=0;
   int depthwise_pack=1,padded_channels=0;
+  int write_kind=0,shuffle_factor=1,write_width=0,write_height=0,write_channels=0;
   double epsilon=0,scale=0;
   std::string Emit(unsigned index) const {
     std::ostringstream out;
@@ -113,7 +114,10 @@ struct Geometry {
        <<",\n      kOutputStride="<<output_stride<<",kResidualStride="<<residual_stride
        <<",kHeads="<<heads<<",kSequence="<<sequence
        <<",kNormWidth="<<norm_width<<",kDepthwisePack="<<depthwise_pack
-       <<",kPaddedChannels="<<padded_channels<<";\n"
+       <<",kPaddedChannels="<<padded_channels
+       <<",\n      kWriteKind="<<write_kind<<",kShuffleFactor="<<shuffle_factor
+       <<",kWriteWidth="<<write_width<<",kWriteHeight="<<write_height
+       <<",kWriteChannels="<<write_channels<<";\n"
        <<"  static constexpr float kEpsilon="<<Float(epsilon)<<",kScale="<<Float(scale)
        <<";\n};\n";
     return out.str();
@@ -493,12 +497,38 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
           bind.counters=add_scratch("native_forward.counter."+std::to_string(index),"i32",
               2*tiles);
         }
+        // A PixelShuffle writeback scatters one input pixel's channel groups
+        // over an f x f block of output pixels (NAFNet's upsample).
+        auto const& out=layouts.at(bind.output);
+        if(access.write.kind==codegen::DmWriteKind::kPixelShuffle) {
+          if(!access.write.factor || out.rank!=4)
+            throw std::invalid_argument("a shuffled writeback needs its factor and NHWC output");
+          shape.write_kind=2;shape.shuffle_factor=int(access.write.factor);
+          shape.write_channels=int(out.physical[3]);
+          shape.write_width=int(out.logical[2])/shape.shuffle_factor;
+          shape.write_height=int(out.logical[1])/shape.shuffle_factor;
+          if(shape.write_width*shape.shuffle_factor!=int(out.logical[2]) ||
+             shape.write_height*shape.shuffle_factor!=int(out.logical[1]))
+            throw std::invalid_argument("a shuffled output extent is not a whole number of blocks");
+        }else if(access.write.kind==codegen::DmWriteKind::kNCHW) {
+          // The model's own output, which the harness reads as NCHW.
+          if(out.rank!=4)throw std::invalid_argument("an NCHW writeback needs a rank-4 output");
+          shape.write_kind=1;
+          shape.write_channels=int(out.logical[1]);
+          shape.write_height=int(out.logical[2]);shape.write_width=int(out.logical[3]);
+        }else if(access.write.kind!=codegen::DmWriteKind::kDense)
+          throw std::invalid_argument("native forward implements the dense, NCHW and shuffled writebacks");
         shape.output_stride=width_of(bind.output);
         {
           auto buffer=Entry(buffers[bind.output],"buffer");
           auto elements=std::uint64_t(Integer(buffer,"constant",0))+
               std::uint64_t(Integer(buffer,"per_batch",0))*std::uint64_t(batch.getInt());
-          if(std::uint64_t(rows)*std::uint64_t(shape.output_stride)>elements)
+          auto written=shape.write_kind==2?
+              std::uint64_t(rows)*std::uint64_t(shape.shuffle_factor)*shape.shuffle_factor*
+                  std::uint64_t(shape.write_channels):
+              shape.write_kind==1?std::uint64_t(rows)*std::uint64_t(shape.write_channels):
+              std::uint64_t(rows)*std::uint64_t(shape.output_stride);
+          if(written>elements)
             throw std::invalid_argument("a native forward stage writes past its output buffer: "+
                 String(buffer,"name"));
         }

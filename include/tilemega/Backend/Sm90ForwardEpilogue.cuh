@@ -39,6 +39,13 @@ struct Sm90ForwardEpilogueOperands {
   // sets `tile_width` and the image's row pitch, and the store walks the tile
   // instead of a dense run of rows. Zero keeps the dense mapping.
   int tile_width,image_width;
+  // The writeback mapping. `kDenseWrite` is a row of `stride` channels;
+  // `kNchwWrite` is the model's own NCHW output; `kShuffleWrite` scatters one
+  // input pixel's channel groups over an f x f block of output pixels
+  // (NAFNet's upsample). The image's geometry and this tile's first row in the
+  // producing body's row space locate the pixel.
+  int write_kind,row_base,shuffle_factor;
+  int write_width,write_height,write_channels;
 };
 
 // A row's offset inside its buffer: a body whose rows are the pixels of a
@@ -63,6 +70,8 @@ __device__ __forceinline__ void Sm90ForwardRowNorm(float const* stats,int row,in
   mean=sum/float(width);
   inverse=rsqrtf(squares/float(width)-mean*mean+epsilon);
 }
+
+enum : int {kDenseWrite=0,kNchwWrite=1,kShuffleWrite=2};
 
 enum class Sm90ForwardOp : unsigned {
   kBias, kScale, kActivation, kResidual, kGatePair, kDeferredLayerNorm, kResidualLN
@@ -225,7 +234,28 @@ struct Sm90ForwardEpilogueChain {
       }
     for(int i=int(threadIdx.x);i<rows*width;i+=128) {
       int row=i/width,col=i%width;
-      output[Sm90ForwardRowOffset(p,row,stride)+channel+col]=Element(tile[row*N+col]);
+      float value=tile[row*N+col];
+      if(p.write_kind==kDenseWrite) {
+        output[Sm90ForwardRowOffset(p,row,stride)+channel+col]=Element(value);
+      }else {
+        // Both remaining mappings address the whole image, so they locate the
+        // producing body's own row inside it.
+        int source=p.row_base+row,pixels=p.write_width*p.write_height;
+        int image=source/pixels,pixel=source%pixels;
+        int y=pixel/p.write_width,x=pixel%p.write_width;
+        if(p.write_kind==kNchwWrite) {
+          int c=channel+col;
+          output[((std::size_t(image)*p.write_channels+c)*p.write_height+y)*p.write_width+x]=
+              Element(value);
+        }else {
+          // Channel g*C + c of pixel (y, x) is output pixel
+          // (y*f + g/f, x*f + g%f), channel c.
+          int f=p.shuffle_factor,group=(channel+col)/p.write_channels;
+          std::size_t destination=(std::size_t(image)*p.write_height*f+y*f+group/f)*
+              (std::size_t(p.write_width)*f)+std::size_t(x)*f+group%f;
+          output[destination*p.write_channels+(channel+col)%p.write_channels]=Element(value);
+        }
+      }
     }
     codegen::executor::ComputeSync();
   }
