@@ -28,7 +28,8 @@ def summarize(directory,out):
     protocol_path=directory/'protocol.json';protocol=json.loads(protocol_path.read_text())
     state=json.loads((directory/'state.json').read_text())
     change=protocol.get('change','fifo_observation')
-    candidate={'fifo_observation':'fifo','valid_qk64':'valid_qk'}.get(change)
+    candidate={'fifo_observation':'fifo','valid_qk64':'valid_qk',
+               'cached_fp32_kv':'cached_kv'}.get(change)
     if candidate is None:raise ValueError('Unknown controlled ablation')
     variants=('original',candidate)
     if (protocol['schema']!='tilemega.as2.paired_ablation.v1' or protocol['pairs'] not in (5,10) or
@@ -64,8 +65,10 @@ def summarize(directory,out):
         binding=controlled(job['argv'][2]);identity=json.loads((binding/'request.json').read_text())
         if (str(binding)!=protocol['bindings'][kind] or image!=protocol['binary_sha256']):
             raise ValueError('Candidate binding or image changed after protocol freeze')
+        if change=='cached_fp32_kv' and hashlib.sha256((binding/'request.json').read_bytes()).hexdigest()!=protocol['binding_sha256'][kind]:
+            raise ValueError('Cached-KV binding changed after protocol freeze')
         key=tuple(identity[k] for k in ('model_id','batch','groups','config_sha256',
-            'weight_manifest_sha256','input_sha256','arena_bytes'))
+            'weight_manifest_sha256','input_sha256')+(() if change=='cached_fp32_kv' else ('arena_bytes',)))
         reference_bindings[kind]=(binding,key)
         check=audit_tilemega_tokens(job)
         if not check['passed']:raise ValueError('Timed greedy output differs from its numerical proof')
@@ -81,7 +84,8 @@ def summarize(directory,out):
         raise ValueError('Require fresh process identities and complete pairs')
     original,original_key=reference_bindings['original'];fifo,fifo_key=reference_bindings[candidate]
     if original_key!=fifo_key:raise ValueError('Model, weights, input or resource identity changed')
-    for phase in ('prefill','decode'):
+    if change=='cached_fp32_kv':validate_cached_kv_bindings(original,fifo)
+    for phase in (() if change=='cached_fp32_kv' else ('prefill','decode')):
         for name in ('queue.bin','offsets.bin','allocations.bin')+ (('stages.bin',) if change=='fifo_observation' else ('tasks.bin','waits.bin')):
             if (original/phase/name).read_bytes()!=(fifo/phase/name).read_bytes():
                 raise ValueError('Wait-only ablation changed Body, placement, order or memory')
@@ -120,6 +124,61 @@ def validate_qk_stages(original,candidate,phase):
             raise ValueError('QK ablation changed more than the registered implementation')
         changed+=1
     if phase=='decode' and not changed:raise ValueError('QK ablation has no changed attention Body')
+
+
+def validate_cached_kv_bindings(original,candidate):
+    """Allow derived state/relocation, preserving the logical graph and FIFO."""
+    from tilemega.bench.as2_request import cached_kv_state
+    a,b=[json.loads((p/'request.json').read_text()) for p in (original,candidate)]
+    if a['input_buffers']!=b['input_buffers']:
+        raise ValueError('Cached-KV ablation changed canonical packed inputs')
+    maps=[{v['name']:v for v in x['buffers']} for x in (a,b)]
+    if any(len(m)!=len(x['buffers']) for m,x in zip(maps,(a,b))):
+        raise ValueError('Duplicate logical buffer names')
+    for name,v in maps[0].items():
+        other=maps[1].get(name,{})
+        if {k:x for k,x in v.items() if k not in ('id','offset_bytes')}!={k:x for k,x in other.items() if k not in ('id','offset_bytes')}:
+            raise ValueError('Cached-KV ablation changed a logical buffer')
+    by_offsets=[{v['offset_bytes']:v['name'] for v in x['buffers']} for x in (a,b)]
+    sentinel=(1<<64)-1;states=[]
+    for phase,old_variant in (('prefill',6),('decode',8)):
+        metadata=[struct.unpack('<12I3Q',(p/phase/'metadata.bin').read_bytes()) for p in (original,candidate)]
+        if metadata[0][:12]+metadata[0][13:]!=metadata[1][:12]+metadata[1][13:]:
+            raise ValueError('Cached-KV ablation changed launch or execution bounds')
+        for p,x,m in zip((original,candidate),(a,b),metadata):
+            if m[12]!=x['arena_bytes']:raise ValueError('Cached-KV arena identity mismatch')
+            entry=x['phases'][phase]
+            for name,sha in entry['bound_hashes'].items():
+                if hashlib.sha256((p/phase/name).read_bytes()).hexdigest()!=sha:
+                    raise ValueError('Cached-KV bound table changed')
+        for name in ('tasks.bin','waits.bin','queue.bin','offsets.bin'):
+            if (original/phase/name).read_bytes()!=(candidate/phase/name).read_bytes():
+                raise ValueError('Cached-KV ablation changed task ownership, waits or order')
+        stages=[list(struct.iter_unpack('<17Q16I',(p/phase/'stages.bin').read_bytes())) for p in (original,candidate)]
+        if len(stages[0])!=len(stages[1]):raise ValueError('Cached-KV ablation changed stage count')
+        state=cached_kv_state(stages[1],b['buffers'],metadata[1]);states.append(state)
+        if not state:raise ValueError('Cached-KV ablation has no derived state')
+        for s,t in zip(*stages):
+            s,t=list(s),list(t)
+            if s[17]==13:
+                if s[31]!=old_variant or t[31]!=9 or s[10:12]!=[sentinel,sentinel]:
+                    raise ValueError('Cached-KV ablation changed an unregistered Attention Body')
+                t[10:12]=s[10:12];t[31]=s[31]
+            for value,offsets in zip((s,t),by_offsets):
+                for i in range(17):
+                    if value[i]!=sentinel:
+                        if value[i] not in offsets:raise ValueError('Unknown logical buffer address')
+                        value[i]=offsets[value[i]]
+            if s!=t:raise ValueError('Cached-KV ablation changed logical operands or mathematics')
+    if states[0]!=states[1] or sorted(map(list,states[0]))!=b['derived_fp32_kv_state']:
+        raise ValueError('Cached-KV phase state differs')
+    added=set(maps[1])-set(maps[0]);derived={n for row in states[0] for n in row[2:]}
+    if added!=derived:raise ValueError('Cached-KV ablation added unrelated storage')
+    reset={v['name'] for v in b['buffers'] if v['id'] in b['kv_buffers']}
+    if not {n for row in states[0] for n in row}<=reset:
+        raise ValueError('Cached-KV derived state is not request-reset owned')
+    if b['arena_bytes']-a['arena_bytes']!=sum(maps[1][n]['allocated_bytes'] for n in added):
+        raise ValueError('Cached-KV memory increase is not the declared derived state')
 
 
 if __name__=='__main__':
