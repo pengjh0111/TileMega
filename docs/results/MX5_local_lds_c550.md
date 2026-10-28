@@ -152,3 +152,25 @@ work. A real reuse check preserves binary/receipt/MIR/process hashes exactly;
 the later controller validates those receipts instead of recompiling them.
 Neither these histories nor CPU rebuilds add E2E-passed cells. Raw:
 local_lds_tail_canonical576_remaining80_v1;currentsource selection remains4/25.
+
+Verified all100canonical histories reach prescribed terminal outcomes:84qualified
+histories,16retained576 routes.207actual canonical resource-query rows now
+exist inCSV;maximum3additional reductions percase,0numerical launches.
+The remaining80 use80original+57first+18second+6third queries.Only thelast24
+share4guard processes;each uses the unchanged frozen occupancy helper and
+original per-item validator,with real raw runtime attributes andDLaddr DSO
+binding. Sharedprocess/PID/guard evidence is explicit;no fresh-process claim.
+A local CSV-variable shadowing error stopped export before anyappend;v4
+renames that checker only,thenverifies161closedqueries/appends81newrows.
+Original failed script/logs andalloldCSVbytes remain. Raw:CORRECTED_RESOURCE_CSV_EXPORT_SUCCESS.json.
+
+Verified QwenB2 continuation:four independent512 originals haveactualresident1
+andzero-frame queries,normal old-source before controls andfourREADY D7
+reviews. Allfour512-step C-1/C2 checks pass;8fresh timings remaininprogress.
+Actual runner source isrunner_bounded.py,withitsownhash/manifest andfull diff
+fromthefrozenrunner. Only bootstrap/dispatch-budget checks andguard deadlines
+change:300schild/330stotal;ISL64/OSL1024,warm1/timed2,2fresh peroriginal
+candidate,allnumericalvalidators and1%selection remain. No old-runner identity
+is claimed. Once the resource controller closes andonlythat live,source-bound
+GPU6controller remains,dispatchcutoff59.88 reserves330+20cleanup+30poll
+seconds:upper59.9856card-hours. Two-card cutoff remains59.75;cap remains60.
