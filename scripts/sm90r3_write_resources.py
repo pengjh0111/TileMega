@@ -53,8 +53,11 @@ def row(kind, model, batch, binary):
     identity = json.loads(Path(str(binary) + '.identity.json').read_text())
     entry_name, entry = next(iter(identity['resources'].items()))
     functions = bodies(str(binary) + '.ptxas.log')
-    callees = {k: v for k, v in functions.items() if k != entry_name and 'registers' in v}
-    worst = max(callees.values(), key=lambda v: v['registers'], default=None)
+    # With -rdc, ptxas reports a noinline body's frame and spill but its
+    # registers only through the entry's allocation; the column stays empty
+    # when the log does not give them.
+    callees = {k: v for k, v in functions.items() if k != entry_name and 'stack' in v}
+    registered = [v['registers'] for v in callees.values() if 'registers' in v]
     return dict(kind=kind, model=model, batch=batch, artifact=str(binary),
                 artifact_id=identity.get('artifact_id'),
                 entry_registers=entry['registers'], entry_stack_bytes=entry['stack_bytes'],
@@ -64,7 +67,7 @@ def row(kind, model, batch, binary):
                 dynamic_smem_bytes=identity.get('shared_memory_bytes'),
                 entry_sass_instructions=instructions(binary, entry_name),
                 noinline_bodies=len(callees),
-                max_body_registers=worst['registers'] if worst else None,
+                max_body_registers=max(registered) if registered else None,
                 max_body_stack_bytes=max((v.get('stack', 0) for v in callees.values()), default=0),
                 body_spill_bytes=sum(v.get('spill_store', 0) + v.get('spill_load', 0)
                                      for v in callees.values()),
