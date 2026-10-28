@@ -16,7 +16,8 @@ positive native prices → structural/EFT placement/order comparison →
 dependency/FIFO/MIX audit/frontier lowering → ABI4/materialization → generated
 Ascend C/CANN → one persistent launch per full-model forward → greedy/KV.
 The ten first-snapshot cells already have full64/1024 numerical passes.
-Full hierarchical outer Body/geometry/decomposition/G search, final C2/C3
+Bounded two-Body outer search now executes native CTG/ISL solves. Full
+multi-family Body/geometry/decomposition/G search, five-model final C2/C3
 coverage and original AS-2 performance Gates remain incomplete. The semantic
 forward chain is real; it is the optimization/acceptance chain that is partial.
 
@@ -82,34 +83,140 @@ Current selected queues/waits/ownership are byte-identical to the old B16
 control; only decode Attention variant6→8 changes. Both use the same binary.
 Generated request source matches the profiled image source exactly.
 
-Fast full64/1024 pilot, same physical1/binary, one warmup/three timed requests:
-
-| Qwen0.6 B16/G8 | Original | Valid QK64 |
-|---|---:|---:|
-| TPOT process median, ms | 50.066034 | 46.710510 |
-| TTFT process median, ms | 813.847131 | 821.586469 |
-| E2E process median, ms | 52031.527755 | 48606.438032 |
-| Output throughput, tokens/s | 314.886007 | 337.074689 |
-
-**Observed TPOT reduction6.70%, speedup1.07184.** All8 warmup/timed token
-payloads match their full numerical proof. Raw TPOT samples: original
-50.066/52.467/48.348ms; candidate49.242/46.711/45.766ms. Shared load is
-recorded; this sequential pilot is not a stable-speedup/default/G-PERF claim.
+Earlier same-image full-request pilot50.066→46.711ms (6.70% reduction)
+and all8 token payloads pass. It is excluded from final independent pairs.
 The frozen eager/compile/vLLM/SGLang B16 medians remain
 6.195/5.401/3.669/9.528ms; TileMega is still slower than all four snapshots.
 
-Five independent alternating process pairs were frozen before new sampling
-in `bench/opt_validqk_b16_final_v1/protocol.json`. A finite90-minute no-lock
-submitter waits for idle observations, then serially runs at most one own
-single-card job, each≤900s. A finite CPU follow-up audits all40 token payloads,
-source/input/queue/ownership identities and paired statistics; it does not
-change defaults or Git. Raw state/summary/followup and own PID/start/PGID
-receipts stay in that directory. Final paired validation is pending.
+`verified-run`: five predeclared alternating fresh process pairs completed;
+warmup1/timed3 full requests per process, same physical1/image. All40 token
+payloads and229 canonical inputs pass identity checks. Final process medians:
+
+| Qwen0.6 B16/G8 | Original | Valid QK64 |
+|---|---:|---:|
+| TPOT, ms | 50.682721 | 46.248476 |
+| TTFT, ms | 817.610325 | 819.859949 |
+| E2E, ms | 53089.518118 | 48132.489691 |
+| Output throughput, tokens/s | 308.610825 | 340.393778 |
+
+Paired geometric speedup **1.100785**, log-t95% interval
+**[1.071267,1.131116]**, process CV2.45%/2.49%; no samples removed.
+The median TPOT reduction is8.75%; speedup is not a latency percentage.
+**Pass versus TileMega control only**, with resident/shared load retained;
+this does not pass original eager G-PERF. Protocol/ablation/token evidence:
+`bench/opt_validqk_b16_final_v1/{protocol,ablation}.json`,
+`correctness/opt_validqk_final_paired_inputs_v1.json`.
+The exact measured image also passes teacher512, full1024 fast/diagnostic
+C2 (92 common payloads) and C3 **5/5 fresh processes/10 reset requests**,
+67 outputs crossing past127/128/129. Evidence:
+`correctness/opt_validqk_b16_{teacher512_numeric,c2_full1024,c3}_v1.json`.
 The repriced numerical run took560.41s under simultaneous load, with runtime
 queue progress and no abort. Its wall time is not a performance comparison.
 Numerics: `correctness/opt_validqk_b16_priced1024_numeric_v3.json`.
 Prices/selected plans: `search/opt_validqk_*v3.json`,
 `models/qwen3_0_6b/opt_validqk_b16_{prefill,decode,request}_priced_v3/`.
+
+## Subphase attribution and bounded outer search
+
+`verified-run CPU/CANN`: opt-in `AS2_ATTENTION_PHASE_PROFILE=ON` records
+KV RoPE/append, valid-KV cast, tail zero, query RoPE/cast, QK, softmax, PV and
+output cast. A fixed mask separates the AIC owner and AIV participant. The
+parser rejects missing/wrong-role phases, out-of-Body timestamps and phase
+reordering. The original service/pricing fields are unchanged; re-reading the
+old archived decode profile produces an identical summary. Eleven price/profile
+CPU tests pass; the native instrumented image builds with parallel1/nice10.
+Production builds default to no subphase timers. These diagnostics exclude
+interphase acquire/coordination and cannot be added as hardware utilization or
+used in place of full-request TPOT.
+
+The optional `AS2_DECODE_PROFILE_ONLY=ON` omits the unused prefill profile
+download, explicitly recording `body_profile_capture=decode_only`. It executes
+the complete prefill and decode; it preserves output/guard/numerical checks.
+`verified-run`: early past66 and late past1086 profiles pass independent
+numeric checks, all28 layers/B16. At past66, mean KV-cast/tail-zero service
+is4.078/15.381us; at past1086,49.702/0.360us. Their share of the **sum of
+measured phase service**, not request critical-path time, is51.64%/59.24%.
+Each profile contains7168 owner/participant records; AIC and AIV intervals
+are not treated as a globally ordered timer. This identifies repeated KV
+conversion/zeroing as a concrete next target, rather than an assumed share
+of TPOT. Evidence: `search/opt_attention_phases_*_profile_v1.json`.
+
+`verified-code/CPU`: `as2_search.py` admits at most four declared measured
+Body/geometry/decomposition/G candidates. Each invokes the native compiler's
+actual Import/CTG/ISL/priced placement/order/materialization path, serially at
+nice10, with disk checks, bounded CPU process groups and retained RSS/logs.
+Selection returns the solved Plan with the smallest positive predicted forward
+makespan; it never promotes a runtime default or claims TPOT admission.
+Same-G alternatives must share a control calibration and all alternatives
+must share physical card and ABI/past context. Duplicate candidates and altered
+calibration hashes fail before solving. Two CPU tests cover these guards and
+cost changes selecting a different returned Plan; fixture costs stay in tests.
+`verified-run CPU`: two real QK Bodies are imported, solved and materialized;
+the outer search selects valid-QK, predicted51.585843→51.544590ms at past1086.
+Actual solve wall55.58/54.84s, peak RSS182348/182208KiB. The selected eight
+ABI tables and generated source are byte-identical to the device-tested Plan.
+This upper-context price underpredicts the whole-request improvement because
+both Bodies execute17 QK tiles there; past-bucket pricing remains open.
+Evidence: `search/opt_attention_outer_search_v1/search.json`,
+`search/opt_attention_selected_abi_equivalence_v1.json`.
+Full multi-family hierarchical optimization remains open.
+Evidence/commands: `search/opt_attention_profile_followup_v1.json`,
+`builds/opt_attention_phases_v2/identity.json`; the follow-up has a finite budget,
+performs no NPU operation and changes neither defaults nor Git.
+
+## Request-lived derived FP32 KV: new experimental Body9
+
+`verified-code`: `cube-fp32-cached-kv`, initially Qwen0.6 B16 only, preserves
+the authoritative BF16 K/V and all original rounding, QK/PV geometry/order,
+softmax and visibility/owner/ready/done/reverse-ack contracts. Each layer gets
+two derived FP32 planes. Prefill writes disjoint owned rows; decode appends
+only the new row and reuses earlier conversion. All112 public/derived planes
+reset before each request. No old request data or precomputed answer is reused.
+The additional logical storage is3992977408B; guarded allocation3993006080B,
+arena4565844480→8558850560B. Both phases and runtime enforce this lifecycle;
+standalone invocation, wrong shape and mixed cached/uncached phases fail.
+
+`verified-run`: unpriced bootstrap and actual repriced CTG/Solver request
+both pass full64/1024 bitwise tokens/full final logits/56 KV outputs against
+the cached independent reference. Source and image identity are preserved;
+each forward is one persistent launch. Priced phases have245955/8403 tasks,
+same logical graph/FIFO as Body8. Native solve wall195.67/53.67s.
+Teacher512 and full1024 fast/diagnostic C2 pass bitwise; C3 **5/5 fresh
+processes/10 reset requests**,92 payloads/request, with no timeout/OOM.
+Evidence: `correctness/opt_cachedkv_b16_priced1024_numeric_v3.json`,
+`correctness/opt_cachedkv_b16_{teacher512_numeric,c2_full1024,c3}_v1.json`.
+
+Same-image positive measured prices drive two further native outer candidates:
+Body8 predicted52.379118ms, Body9 **33.484880ms**, selected Body9. Actual CPU
+solve54.36/54.37s, peak RSS178364/182380KiB; selected execution tables/source
+equal the independently device-validated priced Plan. These are predictions,
+not TPOT. `search/opt_cachedkv_outer_search_v1/search.json` retains both plans.
+Full-request warmup1/timed3 pilot, same image/card/inputs:
+
+| Qwen0.6 B16/G8 | Body8 | Cached KV Body9 |
+|---|---:|---:|
+| TPOT process median, ms | 49.907263 | 36.174659 |
+| TTFT process median, ms | 817.843685 | 871.600396 |
+| E2E process median, ms | 52132.492145 | 37825.895031 |
+| Output throughput, tokens/s | 314.276171 | 433.142428 |
+
+All8 token payloads pass. Observed TPOT reduction27.52%, speedup1.37962;
+**pilot only**. Body9 warmup TPOT210.36ms under shared load is retained;
+timed37.020/34.968/36.175ms. No slow sample is removed. Five independent
+alternating pairs are frozen in `bench/opt_cachedkv_b16_final_v1/protocol.json`,
+SHA256`da8708b2b3e4d8670c61fc0d4b1376db87ececbcb658f25f67f84921f6f43fb7`.
+One finite serial submitter waits for idle observations; a finite CPU-only
+auditor verifies correctness/input hashes/timed outputs and paired statistics.
+No Body9 default or final performance admission yet. Evidence:
+`bench/opt_cachedkv_b16_pilot_v1/pilot.json` and final queue state/receipts.
+
+Large diagnostic profiles now optionally stream D2H into exclusive-new gzip
+files, with SHA256, decompression/extent verification and an archive receipt;
+the raw profile never touches disk. Uses existing zlib/OpenSSL, no installs.
+A CPU transport fixture independently parses the archive, and both actual
+prefill/decode profiles pass the existing parser. Fast math/sync are unchanged;
+post-request compression is outside the timing interval. Source:
+`Target/Ascend/BodyProfileCapture.h`, `AS2_COMPRESS_BODY_PROFILES` (defaultOFF).
 
 ## Rejected/confounded attempts and safety
 
@@ -133,8 +240,11 @@ All raw data are under ignored `runs/as2`; private builds/caches remain in
 `tilemega-as2`. Lossless SHA-verified archiving preceded removal of one old
 schedule243741849B and two profile payloads200259584B. Archives/failures,
 selected images and at least two complete builds are retained; AS1 is protected.
-The100GiB generated-data budget was not raised. Checkpoint generated usage
-106911100928B, warning=false, zero remaining cleanup candidates; environments
-and AS1 dependencies remain protected. Checkpoint usage/cleanup/HEAD/
+The100GiB generated-data budget was not raised. A new diagnostic batch crossed
+it by5.4MB; preflight stopped new work. Two older completed solver schedules
+(243741769B/156337290B) were losslessly archived/SHA-verified before manifest
+dry-run/apply removal; C3 sharing preserves288 paths and reclaims62300160B.
+AS1, failures, selected images and at least two complete builds are protected.
+Checkpoint usage/cleanup/HEAD/
 push and exact job inventory are recorded in
 `runs/as2/bench/optimization_20261028_checkpoint.json`.

@@ -272,8 +272,25 @@ no reset/retry/new NPU work is performed after this observation.
 remaining outer search and acceptance. Qwen0.6 B1 FIFO elimination has no
 reliable gain in five fixed process pairs and stays non-default. Qwen0.6 B16
 valid-key QK64 preserves original arithmetic/queues/waits and passes repriced
-full1024 bitwise; same-binary pilot TPOT50.066→46.711ms (6.70% reduction).
-This is a contended pilot, not original G-PERF. Five fresh independent pairs
-are queued with finite no-lock idle admission and automatic CPU-only auditing.
+full1024 bitwise. Five fixed fresh process pairs now give geometric speedup
+1.100785, paired-log-t95%[1.071267,1.131116]; medians50.683→46.248ms.
+Teacher512, full1024 C2 and C3 five processes/ten reset requests pass on the
+same measured image. This is local gain versus TileMega control, not eager
+G-PERF; all shared-load samples remain retained.
 All baselines remain frozen; wider Body/geometry/decomposition/G selection,
 new final-config teacher/C2/C3 coverage and the other cells remain open.
+
+The next CPU entry, `python -m tilemega.bench.as2_search --domain <private JSON>
+--out <new private directory>`, bounds the outer domain at four sourced
+candidates. Each candidate calls the same native `emit-priced*` semantic and
+heterogeneous schedule path; predicted selection points at actual materialized
+tables/source. Calibration identity, duplicate-domain and cost-to-selection CPU
+guards pass. Same-card two-Body solves select valid-QK; execution tables/source
+match the device-tested Plan byte-for-byte. Subsequent measured subphase
+attribution identifies repeated BF16→FP32 KV conversion/tail initialization.
+Body9 adds request-reset derived FP32 state, preserving authoritative BF16 and
+mathematics. It passes repriced full1024, teacher512, C2 and C3 5/5. A second
+actual native outer search selects Body9, predicted52.379→33.485ms; full-request
+timing admission remains pending. Source/table receipts link both outer results
+to their NPU evidence. This bounded family still does not complete multi-family
+geometry/decomposition/G optimization or original G-PIPELINE. See the TPOT report.

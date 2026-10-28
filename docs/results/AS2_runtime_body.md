@@ -459,3 +459,25 @@ Evidence: `correctness/opt_validqk_b16_profile1024_numeric_v2.json`,
 `search/opt_validqk_g8_costs_v3.json`. Real sourced costs regenerate both phases,
 compare structural/EFT queues and preserve their selected order; repriced
 numerical admission and idle fast TPOT remain pending at this code checkpoint.
+
+## Derived FP32 KV state, 2026-10-28 continuation
+
+`verified-code`: explicit variant9 (`cube-fp32-cached-kv`) uses two additional
+request-lived FP32 planes/layer, derived from the authoritative rounded BF16
+K/V. Prefill owns disjoint16-position writes while retaining its private
+current-task preparation; decode appends one row and reads the derived prefix.
+Request reset clears both representations. Existing three-phase owner/AIV0
+GM ready/done/reverse-ack and all visibility fences remain unchanged. Metadata
+and paired-phase validation reject aliasing, missing reset, mixed variants,
+wrong extent/dtype and standalone execution before launch. Initially restricted
+to Qwen0.6 B16; other model/shape support is not inferred from this result.
+
+`verified-run`: repriced full64/1024 logits/tokens/56 last KV outputs and
+teacher512 are bitwise equal to the independent reference. Fast/diagnostic
+full1024 C2 passes92 common files. C3 passes5/5 fresh processes/ten reset
+requests,67 outputs crossing past127/128/129. One forward remains one launch.
+Arena grows4565844480→8558850560B; cost/Plan expose this storage and avoided
+prefix conversion. The bounded native outer search actually compares Body8/9
+and selects9 using positive measured prices; TPOT/default admission is separate.
+Exact evidence and source/image identities: `AS2_TPOT_optimization.md` and
+`runs/as2/search/opt_attention_selected_abi_equivalence_v1.json`.
