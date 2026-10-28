@@ -903,3 +903,27 @@ separate v2finalizer matches the exactsame-compile resourcefunction name. No
 recompile,resourcecriterion change orGPU call. Failedhelper/logsremain archived.
 Raw:attention_peeled_last_block_candidate_v1/ACTUAL_SELECTED_B2_B4_INTEGRATION_CPU_COMPLETE.json
 andACTUAL_CPU_INTEGRATION_METADATA_CORRECTION.json.
+
+Verified current A20 selected QwenB2 D7:16fresh guarded processes,2rounds×8masks,
+strict independent ledger append passes. Medianintervention/bench us are
+QKV7.080/10.080,attention35.719/27.220,O4.857/8.500,GU9.177/13.810,
+down6.614/10.290,head+tokens191.425/195.160. Interventions are nonadditive;
+head+tokens isconfounded. Mask63=.333240ms retains prefetch/barriers/control/timer.
+Attention ratio1.312 exceedsD7 1.2;no isolated-body/integration decomposition claimed.
+Actual selected B2 I1 fivefresh order/repeat deltas:QKV5.274%,attention1.195%,
+O5.178%,GU7.036%,down2.339%;same-entry diagnostic,not E2E. Theattention1.195%
+delta alone doesnot establish thecause of31.2% ledger/bench gap. Actualquery
+API0/frame0/resident1;232MT,programsymbol84480B,totaldevice.text171536B.
+Fiftyfresh I1 measurement rows andone actualresource row append;oldprefixes unchanged.
+Raw:current_QwenB2_D7_readonly_v1 andcurrent_QwenB2_D7_I1_v1.
+
+Verified pre-GPU preparation mistake:ten candidate D128Q2 B2/B4 cold keys used
+hkv4 fromgeneric fixtures;actual Qwen0.6B config has hkv8. Nonehad executed.
+Oldkeys/fixture/scope preserved;ten cold keys nowhkv8,andadded initial B2/B4
+numerical fixtures use hkv8. Original B1/B16 fixtures,hkv4/full336 tests,oracle,
+tolerance,seedformula,compiledheaders/binaries unchanged. CPUfixture v2proof
+binds these exact changes;no measurement rewritten. Raw:candidate
+ACTUAL_PRE_GPU_HKV_CORRECTION_CPU.json andACTUAL_ORACLE_FIXTURE_SCOPE_CPU_PROOF_v2.json.
+Current-source offgrid37 diagnostic prepared withactualhkv8/A20library,threefresh
+processes queued aftercandidate self-next tokeepcard5 serial. Itsfuture results
+are attribution only;officialfive-grid interpolation/cost selection stays unchanged.
