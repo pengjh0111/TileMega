@@ -62,7 +62,8 @@ def main():
         if len(rows) not in caches:
             cache = StaticCache(config=model.config, max_cache_len=len(ids[0])+args.max_tokens)
             cache.early_initialization(batch_size=len(rows), num_heads=model.config.num_key_value_heads,
-                head_dim=getattr(model.config, "head_dim", model.config.hidden_size//model.config.num_attention_heads),
+                # MistralConfig carries head_dim=None rather than omitting it.
+                head_dim=getattr(model.config, "head_dim", None) or model.config.hidden_size//model.config.num_attention_heads,
                 dtype=torch.bfloat16, device=inputs.device)
             caches.clear()
             caches[len(rows)] = cache
