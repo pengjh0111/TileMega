@@ -890,3 +890,16 @@ These are standalone bench symbols from their actual linkedELFs,not separate
 objects andnot an inlined model decomposition. No runtime/TPOT/cache claim follows.
 Raw:attention_peeled_last_block_candidate_v1/ACTUAL_FULL_CPU_RESOURCE_MIR_GATE.json,
 ACTUAL_NORMAL_LINKED_CODE_COMPARISON_CPU.json andCOMPILER_CASE_PLAN.json.
+
+Verified candidate integration CPU experiment atactual selected QwenB2/B4 geometry:
+reuseeach original generatedCU byte-exact andnormalcompile flags,changing only
+theattention include dependency. Both newlinkedbinaries compile234MT/frame0/
+static0,14cleanMMA rings,no deviceprivate accesses/calls;wholedevice.text128024/
+128120B. These have no newnative servingidentity,query orGPU authorization;
+they do not countas selected plans/E2E. Actualsource-bound producer stillrequired.
+The initial metadata helper wrongly matchesboth devicekernel andhoststub witha
+substring;it asserts aftersuccessful compilation andbefore result writes. The
+separate v2finalizer matches the exactsame-compile resourcefunction name. No
+recompile,resourcecriterion change orGPU call. Failedhelper/logsremain archived.
+Raw:attention_peeled_last_block_candidate_v1/ACTUAL_SELECTED_B2_B4_INTEGRATION_CPU_COMPLETE.json
+andACTUAL_CPU_INTEGRATION_METADATA_CORRECTION.json.
