@@ -560,3 +560,27 @@ explicit;the fixed MX4 CSV is unchanged. These are no completed P-PAIR outcomes.
 Raw:reconstructed22a_reference_completion_v2 (disk failure),
 reconstructed22a_reference_completion_v3 (supported-cache correction),
 aligned_development_MX4_PPAIR_v1 (unstarted CPU waiter handoffs).
+
+
+## Verified cache execution and accounting correction (2026-10-29)
+
+The tmpfs-cache attempt compiled52normal probes but could not run their host
+size getters because /dev/shm is noexec. That actual PermissionError and all
+compiled outputs remain in completion_v3;no resource PASS was fabricated and
+no mount policy was changed. The next CPU-only step invokes the unchanged
+frozen22a prewarm atmaxM64/128 and the D128/Q4 nongemm probe against the earlier
+actual8B cache. All52+1source keys match andevery output reportscompiledFalse.
+No compiler orGPU call occurs in these validation processes. Completion_v4 uses
+that supported cache path,with new build/output/guard paths and all original
+source/pin/semantic/resource/C1C2 gates. Its actual builds are still pending.
+Raw:reconstructed22a_reference_cache_validation_v1/ACTUAL_8B_ALL53_SOURCE_CACHE_READY.json.
+
+The duplicate guard-output path also exposed a bookkeeping bug:the former monitor
+grouped intervals only byoutput path,so the oldcard6 andnewcard5 jobs were merged
+into a spurious longcard6 interval. V10 groups by(output,physicalcard),reprocesses
+the complete original logs andretains every old observation. It changes accounting
+only;the cumulative history is not reset andthe user hour-cap waiver remains.
+Before correction the inflated upper bound was104.16h;the same complete logs
+after splitting give68.78h at that observation. Both values and the stopped own
+CPU monitor's identity are retained inphysical_budget_dispatch_guard_v1/
+ACTUAL_PATH_REUSE_ACCOUNTING_CORRECTION_V10.json. GPU children were not signalled.
