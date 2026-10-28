@@ -140,14 +140,14 @@ extern "C" void* tm_plan_create(int batch,void* const* external,int device) {
         if(status!=CUDA_SUCCESS)
           throw std::invalid_argument("the driver rejected a native forward im2col map");
       }else if(m.rank==2)ex::EncodeTiledMap<2>(plan->bindings.maps[i],address,
-          {{m.dims[0],m.dims[1]},{m.strides[0]},{m.box[0],m.box[1]}});
+          {{m.dims[0],m.dims[1]},{m.strides[0]},{m.box[0],m.box[1]}},m.swizzle!=0);
       else if(m.rank==3)ex::EncodeTiledMap<3>(plan->bindings.maps[i],address,
           {{m.dims[0],m.dims[1],m.dims[2]},{m.strides[0],m.strides[1]},
-           {m.box[0],m.box[1],m.box[2]}});
+           {m.box[0],m.box[1],m.box[2]}},m.swizzle!=0);
       else if(m.rank==4)ex::EncodeTiledMap<4>(plan->bindings.maps[i],address,
           {{m.dims[0],m.dims[1],m.dims[2],m.dims[3]},
            {m.strides[0],m.strides[1],m.strides[2]},
-           {m.box[0],m.box[1],m.box[2],m.box[3]}});
+           {m.box[0],m.box[1],m.box[2],m.box[3]}},m.swizzle!=0);
       else throw std::invalid_argument("native forward tensor map rank must be 2, 3 or 4");
     }
     plan->events=Allocate<ForwardCounter>(NativeForwardProgram::kStages);

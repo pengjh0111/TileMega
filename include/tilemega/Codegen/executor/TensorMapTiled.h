@@ -7,9 +7,11 @@
 #include <string>
 
 namespace tilemega::codegen::executor {
-// Rank-N BF16 tiled map with a 128-byte inner box and SWIZZLE_128B: a box
-// lands in shared memory as [..][rows][64] panels of 8x64 swizzle atoms.
-// Elements outside the global extent are written as zeros.
+// Rank-N BF16 tiled map. With SWIZZLE_128B (the default) the inner box is 64
+// elements and a box lands in shared memory as [..][rows][64] panels of 8x64
+// swizzle atoms, which is what a WGMMA operand needs. A tile a CUDA-core body
+// reads (the depthwise halo) is encoded unswizzled, so it lands row-major.
+// Elements outside the global extent are written as zeros either way.
 template<int Rank>
 struct TiledMapShape {
   std::uint64_t dims[Rank];
@@ -17,10 +19,13 @@ struct TiledMapShape {
   std::uint32_t box[Rank];
 };
 template<int Rank>
-inline void EncodeTiledMap(CUtensorMap& out,void const* address,TiledMapShape<Rank> const& s) {
+inline void EncodeTiledMap(CUtensorMap& out,void const* address,TiledMapShape<Rank> const& s,
+                           bool swizzled=true) {
   static_assert(Rank>=2 && Rank<=5);
-  if(!address || reinterpret_cast<std::uintptr_t>(address)%16 || s.box[0]!=64)
+  if(!address || reinterpret_cast<std::uintptr_t>(address)%16 || (swizzled && s.box[0]!=64))
     throw std::invalid_argument("swizzled BF16 tensor map needs a 16-byte base and a 64-element inner box");
+  if(!swizzled && s.box[0]*2%16)
+    throw std::invalid_argument("an unswizzled BF16 box needs a 16-byte inner row");
   for(int i=0;i<Rank;++i)
     if(!s.dims[i] || !s.box[i] || s.box[i]>256)throw std::invalid_argument("invalid tensor map extent");
   for(int i=0;i<Rank-1;++i)
@@ -35,7 +40,8 @@ inline void EncodeTiledMap(CUtensorMap& out,void const* address,TiledMapShape<Ra
   for(int i=0;i<Rank;++i) {dims[i]=s.dims[i];box[i]=s.box[i];elements[i]=1;}
   for(int i=0;i<Rank-1;++i)strides[i]=s.strides[i];
   auto status=encode(&out,CU_TENSOR_MAP_DATA_TYPE_BFLOAT16,Rank,const_cast<void*>(address),dims,strides,
-      box,elements,CU_TENSOR_MAP_INTERLEAVE_NONE,CU_TENSOR_MAP_SWIZZLE_128B,
+      box,elements,CU_TENSOR_MAP_INTERLEAVE_NONE,
+      swizzled?CU_TENSOR_MAP_SWIZZLE_128B:CU_TENSOR_MAP_SWIZZLE_NONE,
       CU_TENSOR_MAP_L2_PROMOTION_L2_128B,CU_TENSOR_MAP_FLOAT_OOB_FILL_NONE);
   if(status!=CUDA_SUCCESS)
     throw std::invalid_argument("cuTensorMapEncodeTiled rejected a rank-"+std::to_string(Rank)+

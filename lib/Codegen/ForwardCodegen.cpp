@@ -131,7 +131,7 @@ std::string EmitConv(unsigned index,codegen::ConvDesc const& conv,
 // The map table: tiled views carry their own extents, an im2col view carries
 // the plan's ConvDesc and input layout for the driver to build from.
 struct MapSpec {
-  unsigned buffer=0,kind=0,rank=2;
+  unsigned buffer=0,kind=0,rank=2,swizzle=128;
   std::uint64_t offset=0;
   std::uint64_t dims[4]{},strides[3]{};
   unsigned box[4]{};
@@ -139,7 +139,7 @@ struct MapSpec {
   codegen::DmBufferLayout layout{};
   std::string Emit() const {
     std::ostringstream out;
-    out<<"  {"<<buffer<<"u,"<<kind<<"u,"<<rank<<"u,"<<offset<<"ull,{";
+    out<<"  {"<<buffer<<"u,"<<kind<<"u,"<<rank<<"u,"<<swizzle<<"u,"<<offset<<"ull,{";
     for(unsigned i=0;i<4;++i)out<<(i?",":"")<<dims[i]<<"ull";
     out<<"},{";
     for(unsigned i=0;i<3;++i)out<<(i?",":"")<<strides[i]<<"ull";
@@ -494,6 +494,7 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
         spec.dims[2]=l.physical[1];spec.dims[3]=l.physical[0];
         spec.strides[0]=l.strides[2]*2;spec.strides[1]=l.strides[1]*2;
         spec.strides[2]=l.strides[0]*2;
+        spec.swizzle=0;
         spec.box[0]=64;spec.box[1]=unsigned((c.tile_w-1)*conv.stride_w+conv.s);
         spec.box[2]=unsigned((c.tile_h-1)*conv.stride_h+conv.r);spec.box[3]=1;
         if(c.channel_block!=64)
@@ -537,6 +538,7 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
         spec.dims[2]=l.physical[1];spec.dims[3]=l.physical[0];
         spec.strides[0]=l.strides[2]*2;spec.strides[1]=l.strides[1]*2;
         spec.strides[2]=l.strides[0]*2;
+        spec.swizzle=0;
         spec.box[0]=64;spec.box[1]=unsigned((c.tile_w-1)*conv.stride_w+conv.s);
         spec.box[2]=unsigned((c.tile_h-1)*conv.stride_h+conv.r);spec.box[3]=1;
         bind.map=maps.Add(spec);

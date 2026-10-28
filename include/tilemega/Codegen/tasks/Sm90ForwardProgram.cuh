@@ -215,7 +215,9 @@ struct ForwardSmallStage {
 // im2col view of a convolution's input (`kind` 1), which the driver builds
 // from the plan's own ConvDesc and buffer layout.
 struct ForwardMapSpec {
-  unsigned buffer,kind,rank;
+  // `swizzle` is 128 for a WGMMA operand and 0 for a tile a CUDA-core body
+  // reads row-major.
+  unsigned buffer,kind,rank,swizzle;
   unsigned long long offset;
   unsigned long long dims[4],strides[3];
   unsigned box[4];
