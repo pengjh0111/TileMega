@@ -36,6 +36,9 @@ def layout_indices(dim, cap):
 @unittest.skipUnless(os.environ.get('MX5_ATTN_DIR') and os.environ.get('MX5_TRANSFORM_SO') and
                      os.environ.get('TILEMEGA_GPU_LOCK_HELD') == '1', 'requires GPU guard and body libraries')
 class AttentionV2(unittest.TestCase):
+    def prefetch_kinds(self, dim, query, norm, b, length, bmin):
+        return (0, 1, 2)
+
     def test_matrix(self):
         import torch as t
         transform = C.CDLL(os.environ['MX5_TRANSFORM_SO'])
@@ -50,7 +53,7 @@ class AttentionV2(unittest.TestCase):
                 for b in [1, 16]:
                     for length in [1, 31, 32, 33, 65, 257, 1088]:
                         for bmin in [1, 8]:
-                            for kind in [0, 1, 2]:
+                            for kind in self.prefetch_kinds(dim, query, norm, b, length, bmin):
                                 with self.subTest(d=dim, q=query, norm=norm, b=b, length=length,
                                                   bmin=bmin, kind=kind):
                                     heads = b * hkv

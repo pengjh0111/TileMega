@@ -42,12 +42,12 @@ def parse_args(argv=None):
     p.add_argument('--dim', type=int, nargs='+', default=[64, 128])
     p.add_argument('--query', type=int, nargs='+', default=[2, 3, 4, 8])
     p.add_argument('--bench', action='store_true')
-    p.add_argument('--null-idle', action='store_true', help='test unused-wave prefetch with null weight pointers')
+    p.add_argument('--null-idle', action='store_true', help='test unused-wave prefetch with null operand pointers')
     p.add_argument('--pw', type=int)
     p.add_argument('--prefetch-kind', type=int, choices=[0, 1, 2])
     a = p.parse_args(argv)
-    if a.null_idle and (a.bench or a.body not in ('gemm', 'head')):
-        p.error('--null-idle supports only GEMM/head unit libraries')
+    if a.null_idle and (a.bench or a.body not in ('gemm', 'head', 'attention')):
+        p.error('--null-idle supports only GEMM/head/attention unit libraries')
     if a.bench and a.body not in ('gemm', 'head', 'attention'):
         p.error('repeated-stage benches support GEMM, head and attention')
     if a.prefetch_kind is not None and not (a.bench and a.body == 'attention'):
