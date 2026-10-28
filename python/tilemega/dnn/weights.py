@@ -76,12 +76,21 @@ def pack(recipe: Mapping, source, nested):
         def affine(name):
             value = source(str(recipe[name]))
             if recipe.get('channel_axis') == 1:
-                if value.shape not in ((width,), (1, width, 1, 1)):
+                if value.ndim == 4 and value.shape[2:] == (1, 1):
+                    value = value.reshape(-1)
+                if value.ndim != 1:
                     raise ValueError('image LayerNorm affine shape differs from its channels')
-                value = value.reshape(-1)
+            value = value.reshape(-1).float()
+            # A KRSC weight packed for the native bodies pads its channels to a
+            # whole 64 block; those columns are zero, so the affine's own
+            # channels are the leading ones and the padding carries zeros.
+            if value.numel() < width and recipe.get('channel_axis') == 1:
+                if torch.any(weight[:, value.numel():] != 0):
+                    raise ValueError('LayerNorm affine is narrower than nonzero weight columns')
+                value = torch.cat([value, value.new_zeros(width - value.numel())])
             if value.shape != (width,):
                 raise ValueError('LayerNorm affine width differs from the contraction')
-            return value.float()
+            return value
         gamma, beta = affine('gamma'), affine('beta')
         # The correction sum must describe the stored BF16 weight, otherwise
         # a constant row leaks the folded-weight quantization error through mu.
