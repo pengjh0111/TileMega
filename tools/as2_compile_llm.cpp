@@ -124,8 +124,11 @@ int main(int argc,char** argv) {
     if(emit && argc>=9) {
       std::string attention=argv[8];
       if(attention!="bf16" && attention!="fp32" && attention!="fp32-scores" && attention!="math-sdpa" && attention!="cube-fp32" && attention!="cube-fp32-newton" && attention!="cube-fp32-newton-full" && attention!="cube-fp32-newton-fold" && attention!="cube-fp32-fold-softmax" && attention!="cube-fp32-wide-qk" && attention!="cube-fp32-valid-qk" && attention!="cube-fp32-cached-kv")throw std::invalid_argument("Unknown attention implementation precision");
-      if(attention=="cube-fp32-cached-kv" && (batch!=16 || receipt.At("model_id").AsString("model")!="qwen3_0_6b"))
-        throw std::invalid_argument("Cached FP32 KV is initially bounded to Qwen0.6B B16");
+      if(attention=="cube-fp32-cached-kv") {
+        auto const& model=receipt.At("model_id").AsString("model");
+        if(batch!=16 || (model!="qwen3_0_6b" && model!="qwen3_1_7b"))
+          throw std::invalid_argument("Cached FP32 KV candidates require Qwen0.6B/1.7B B16");
+      }
       attention_precision=attention=="fp32"?1:attention=="fp32-scores"?2:attention=="math-sdpa"?3:attention=="cube-fp32"?4:attention=="cube-fp32-newton"?5:attention=="cube-fp32-newton-full"?6:attention=="cube-fp32-newton-fold"?7:attention=="cube-fp32-fold-softmax"?8:attention=="cube-fp32-wide-qk"?9:attention=="cube-fp32-valid-qk"?10:attention=="cube-fp32-cached-kv"?11:0;
     }
     tilemega::json::Value decomposition;
