@@ -3,13 +3,14 @@
 Verified checkpoint, 2026-10-28: A19 body `7c9658ac5`, frozen normal producer
 `88327cbc4`, has11/25 dense top-four selections. Eight are nonregressions;
 Qwen0.6B B2/B4 andQwen1.7B B2 are9.823/7.591/1.538% slower than fixedMX4;G-LLM stays open.
-Current consumed-prefetch4b7d83686/producer230a572b has4 earlier L2-prefill measurements;5/25 aligned L1-prefill selections. Earlier L2 results: Llama1B B1
+Current consumed-prefetch4b7d83686/producer230a572b has4 earlier L2-prefill measurements;6/25 aligned L1-prefill selections. Earlier L2 results: Llama1B B1
 2.135062ms(−3.438%);QwenB1=1.973800ms(−.492%,indistinguishable);Llama1BB16=3.006219ms(−12.490%).
 QwenB16=3.517390ms(−22.475%). Aligned L1 Llama1B B2=2.264237ms(−.342%,indistinguishable).
 Aligned L1 Llama1B B4=2.428614ms(-0.415%).
 Aligned L1 Llama8B B16=13.136274ms(−9.662%),pred/meas.99385.
 Aligned L1 Llama1B B8=2.648571ms(-4.426%).
 Aligned L1 Qwen0.6B B1=1.973795ms(-0.492%,indistinguishable).
+Aligned L1 Qwen0.6B B16=3.517579ms(-22.470%).
 500A costs/25scopes pass;MoE0/5,DNN0/25 unfinished.
 
 Authority: `/root/Prompt/TileMega_MX5_prompt.md`, SHA256
