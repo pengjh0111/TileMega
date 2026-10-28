@@ -5,7 +5,7 @@ import hashlib
 import json
 from pathlib import Path
 import tempfile
-from tilemega.bench.as2_native_prices import task_overheads,tile_body_prices
+from tilemega.bench.as2_native_prices import task_overheads,tile_body_prices,cost_measurement
 from tilemega.bench.as2_body_profile import logical_bytes,profile_bytes
 from tilemega.bench.as2_models import RUNS
 
@@ -34,6 +34,21 @@ class AscendPriceAccounting(unittest.TestCase):
     def stage(self,kind,variant=0,epilogue=0):
         fields=[0]*33;fields[17]=kind;fields[18]=epilogue;fields[31]=variant
         return fields
+
+    def test_calibration_partitions_roles_at_the_measured_group_count(self):
+        job=dict(executable_sha256='fixture-not-calibration',timing_status='contended',
+            physical_device_id=1,started_at='a',finished_at='b',pid=1,start_ticks=2)
+        for groups in (8,14,28):
+            value=dict(status='passed',device_abort=0,groups=groups,workers=3*groups,
+                payload_samples_passed=1024*groups,repeats=32,
+                dispatcher_ticks_sum=[64]*groups+[128]*(2*groups),aiv_copy_ticks=[256]*(2*groups),
+                roundtrip_ticks_sum=640,copy_logical_read_write_bytes=4096)
+            row=cost_measurement(value,job)
+            self.assertEqual((row['groups'],row['dispatcher_aic_ns'],row['dispatcher_aiv_ns'],
+                              row['cross_worker_ready_ns'],row['gm_bytes_per_ns']),(groups,2.,4.,10.,16.))
+            for key,replacement in [('workers',3*groups-1),('payload_samples_passed',1),
+                                    ('aiv_copy_ticks',[256]),('repeats',0)]:
+                with self.assertRaises(ValueError):cost_measurement(dict(value,**{key:replacement}),job)
 
     def test_owner_and_participant_service_spans(self):
         for variant in (4,5,6,7):

@@ -23,6 +23,25 @@ def task_overheads(stage,profile,cost):
     return overhead,internal
 
 
+def cost_measurement(value,job):
+    groups=value['groups'];workers=3*groups
+    if (value['status']!='passed' or value['device_abort'] or groups not in (8,14,28) or
+            value['workers']!=workers or value['payload_samples_passed']!=groups*1024):
+        raise ValueError('Unverified copy/control calibration')
+    dispatch=value['dispatcher_ticks_sum'];copy=value['aiv_copy_ticks'];repeats=value['repeats']
+    if (len(dispatch)!=workers or len(copy)!=2*groups or repeats<=0 or
+            min(dispatch)<=0 or min(copy)<=0 or value['roundtrip_ticks_sum']<=0 or
+            value['copy_logical_read_write_bytes']<=0):
+        raise ValueError('Missing worker measurements')
+    return dict(groups=groups,source_binary_sha256=job['executable_sha256'],
+        dispatcher_aic_ns=statistics.median(dispatch[:groups])/repeats,
+        dispatcher_aiv_ns=statistics.median(dispatch[groups:])/repeats,
+        cross_worker_ready_ns=value['roundtrip_ticks_sum']/(2*repeats),
+        gm_bytes_per_ns=value['copy_logical_read_write_bytes']/max(copy),
+        timing_status=job['timing_status'],physical_device_id=job['physical_device_id'],
+        started_at=job['started_at'],finished_at=job['finished_at'],pid=job['pid'],start_ticks=job['start_ticks'])
+
+
 def costs(jobs,out):
     out=controlled(out,[RUNS])
     if out.exists():raise FileExistsError(out)
@@ -35,31 +54,22 @@ def costs(jobs,out):
         if job['status']!='passed':raise ValueError('Failed calibration process')
         lines=(directory/'stdout.log').read_text().splitlines()
         value=next(json.loads(x) for x in lines if x.startswith('{"schema":"tilemega.as2.native_cost_probe.v1"'))
-        if value['status']!='passed' or value['device_abort'] or value['groups']!=8 or value['payload_samples_passed']!=8192:
-            raise ValueError('Unverified copy/control calibration')
-        if len(value['dispatcher_ticks_sum'])!=24 or len(value['aiv_copy_ticks'])!=16 or min(value['aiv_copy_ticks'])<=0:
-            raise ValueError('Missing worker measurements')
-        rows.append(dict(job=str(directory),source_binary_sha256=job['executable_sha256'],
-            dispatcher_aic_ns=statistics.median(value['dispatcher_ticks_sum'][:8])/value['repeats'],
-            dispatcher_aiv_ns=statistics.median(value['dispatcher_ticks_sum'][8:])/value['repeats'],
-            cross_worker_ready_ns=value['roundtrip_ticks_sum']/(2*value['repeats']),
-            gm_bytes_per_ns=value['copy_logical_read_write_bytes']/max(value['aiv_copy_ticks']),
-            timing_status=job['timing_status'],physical_device_id=job['physical_device_id'],
-            started_at=job['started_at'],finished_at=job['finished_at'],pid=job['pid'],start_ticks=job['start_ticks']))
+        rows.append(dict(cost_measurement(value,job),job=str(directory)))
         receipts.append(job)
     ordered=sorted(rows,key=lambda x:x['started_at'])
     if len({(x['pid'],x['start_ticks']) for x in rows})!=len(rows) or any(a['finished_at']>b['started_at'] for a,b in zip(ordered,ordered[1:])):
         raise ValueError('Calibration processes were reused or overlapped')
-    if len({r['physical_device_id'] for r in rows})!=1 or len({r['source_binary_sha256'] for r in rows})!=1:
+    if (len({r['physical_device_id'] for r in rows})!=1 or len({r['source_binary_sha256'] for r in rows})!=1 or
+            len({r['groups'] for r in rows})!=1):
         raise ValueError('Mixed calibration device/binary')
     result=dict(schema='tilemega.as2.native_scheduling_costs.v1',status='measured_empirical_context',
-        groups=8,physical_device_id=rows[0]['physical_device_id'],counter_hz=hz,rows=rows,
+        groups=rows[0]['groups'],physical_device_id=rows[0]['physical_device_id'],counter_hz=hz,rows=rows,
         provenance=[str(controlled(j,[RUNS])/'job.json') for j in jobs],
         timing_status='contended' if any(r['timing_status']=='contended' for r in rows) else 'uncontended_observed',
         transferability='same private toolchain/device/code paths only; no hardware-peak claim',
         definitions=dict(dispatcher='AcquireData + Stage POD read + single-owner publication; excludes queue/dependency waits',
             cross_worker_ready='half AIC0 / AIV(group1,lane0) round-trip median; symmetric approximation',
-            gm='aggregate logical read+write bytes / slowest worker copy duration, 512MiB working set; GM/L2 path'))
+            gm='aggregate logical read+write bytes / slowest worker copy duration; working set64MiB/group, GM/L2 path'))
     for key in ('dispatcher_aic_ns','dispatcher_aiv_ns','cross_worker_ready_ns','gm_bytes_per_ns'):
         result[key]=statistics.median(r[key] for r in rows)
         if not math.isfinite(result[key]) or result[key]<=0:raise ValueError('Unknown/nonpositive native cost')
