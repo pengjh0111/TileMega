@@ -610,3 +610,18 @@ source-keyed cache. It still requires allnormal source/pin/resource/ABI/occupanc
 and C1/C2512 checks beforeP-PAIR. No reference timing has been accepted yet.
 Raw:completed_mir_archive_v1;reconstructed22a_reference_completion_v4/v5;
 P-PAIR now waits reconstructed22a_reference_final_ready_v1's actual final proof.
+
+
+## Verified aligned ledger preparation and reference progress (2026-10-29)
+
+Both8B reconstructed22a prefills now complete normal build/static-contract/ABI.
+Allfive final occupancy queries andfreshC1/C2512 remain required;onlyactual pass
+files unlock internal P-PAIR. Existing fixedbaseline CSVs remain byte-identical.
+
+The new CPU ledger appender derives model,batch,layers,card andselected original
+from actual artifact bindings. It requires16distinct successful fresh DIAG children,
+one physicalcard,accepted2046timed-step deltas per child,and matching-source
+three-fresh stage evidence. The CPU waiter consumes actual completion receipts;
+no ledger rows are claimed before execution. It retains head/token-history
+confounding andnonadditive scope;no production TPOT is inferred from DIAG.
+Raw:aligned_development_stage_ledger_v1/append_actual_ledger.py.

@@ -98,12 +98,14 @@ has not been applied. The committed attention lifetime repair retains both caps.
    whole-program167MT/frame0/resident1. This never justified blanket512. The
    consumed-prefetch repair has139/141MT/frame0/actualresident1. Full336, null28,
    helper6 andcoldselfnext12 each pass5fresh;normalproducer230a572b passes160/160;500 new attention costs are complete.
-3. True576 Llama1B B2/B4/B8 watchdog builds fail16/24/56B before numerical launch;
-   their timing originals fit. Isolated lifetime/lazy-record diagnostics are not adopted.
+3. Original true576 Llama1B B2/B4/B8 watchdog builds fail16/24/56B before numerical launch.
+   Their explicit bounded WD-pair histories now fit;allthree aligned L1 selections
+   complete with unchanged original candidate IDs. Rejected lifetime prototypes stay off.
    G-PROGRAM/G-SOLVER/G-LLM remain open. A19 has11 measured cells and three
    regressions. B2 DIAG attention is35.923/35.842us versus bench27.167us. Three
    fresh off-grid diagnostics explain much of the prediction gap; the mandated
-   five-point grid/formula is unchanged. Current-source I1 timing remains pending.
+   five-point grid/formula is unchanged. Current-source I1 five-fresh timing is complete
+   (QKV+6.304%,attention+3.668%,O+8.104%,GU+7.224%,down−.478%);it is attribution only.
 4. Complete all25 dense selections, then implement MoE analysis, router/top-k,
    dispatch, grouped GEMMs, combine, prompt64 and routing validation, five batches.
    Legacy MoE is not an accepted native result.
