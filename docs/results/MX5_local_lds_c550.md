@@ -423,3 +423,71 @@ The diagnostic resource CSV appender's first file failed Python parsing before
 any write (missing whitespace around numeric conditional literals). A separate
 compiled v2 appends only3 actual rejected normal resources and9 CPU diagnostics,
 with an old-prefix proof. No measurement row was backfilled or edited.
+
+
+## Verified WD0/WD1 resource-pair continuation (2026-10-28)
+
+The normal timing originals fit while watchdog originals B2/B4/B8 fail. The first
+isolated source repairs are rejected;no kernel/header change is applied. Instead,
+the continuation follows §4.5's existing largest-P_w halving branch for the pair:
+same original candidate,geometry,threads576,PK,D andpositive P0-derivedR_next;
+both instrumentations must meet MT≤227,frame/static0 andactual resident1.
+
+Twelve original candidates use respective reduction counts:
+B2[2,2,1,0],B4[1,0,0,1],B8[1,1,0,0]. This is9 prescribed reductions in total,
+never more than2 per candidate. All24 terminal actual zero-launch queries pass
+API0/resident1. Threefresh costs cover GU/Pw2 atB2/B4/B8 andheadTN32/Pw4/D2,D3 atB2.
+The unchanged frozen stage qualifier and VariantCatalog check raw rounds,P0 resources,
+source archives,normal commands,binary IDs andexact width keys. The catalog remains
+separate from the baseline stage table. Actual all12history/cost/query replay passes.
+
+The new CPU tool replay verifies the complete contiguous failure/reduction chain;
+it cannot grant512,reset a budget,change a coordinate or invent a cost. The separate
+runner uses an explicit paired protocol,retains the exact original top4/native solve,
+and reuses the frozen identity,guard,C1/C2,timing and1% selection checks. It does
+not disguise the new proof as a v2 protocol or weaken the original v2 runner.
+Committed tools:experiments/mx5/watchdog_pairs.py andwatchdog_pair_runner.py;
+23 CPU tests pass without skips. B2/B4/B8 actual C1/C2 and8timings/cell are in progress.
+No endpoint performance/default acceptance is inferred from the resource repair.
+
+Raw:watchdog_pair_policy_validation_v1/qualified_pair_histories_v4,
+actual_terminal24_queries,changed_width_costs andprotocols. Earlier CPU replay
+wrappers failed on a cleaned query-summary field,missing source inventory and
+missing P0 binary references. Their rejected artifacts/logs remain;the original
+validators were not changed. Separate v4 includes the real missing evidence.
+An initial relative child-script path failed in the shell;the first queued guard
+later found the created child and executed the5queries successfully. The redundant
+second child refused the existing raw output with FileExists;both guards are kept.
+The later ACTUAL_QUERY_ORDER_AUDIT corrects the earlier intended conditional wording.
+
+The remaining512 dispatcher excludes Llama1B's four remaining batches because
+there is already an independently validated native576 route. Only its own waiting
+CPU controller was replaced before any cellwork/GPU child;no GPU process was signalled.
+This avoids duplicate final cells and a blanket512 exception. Raw handoff proof is
+consumed_prefetch_remaining512_handoff_v1/ACTUAL_WAITING_CPU_TRUE576_ROUTE_HANDOFF.json.
+
+
+## Verified prefill-mode scope correction (2026-10-28)
+
+MX4 scripts measure modeL1 without a prefill override;resolve_execution inherits
+L1 for prefill. C1/C2 already used L1,whereas inherited E2E controllers explicitly
+used L2. This was a harness deviation. Four earlier A20 selections remain append-only
+evidence but do not count as final aligned L1 acceptance. Only own CPU dispatch
+parents were stopped;their already running GPU children were left to complete.
+All corrected controllers now explicitly pass prefill-modeL1. No kernel,geometry,
+stage cost,25scope or resource history changed. Raw code/dispatch proofs are under
+prefill_L1_scope_correction_v1;the old 8B1 outer return code is unknown after its
+CPU parent stopped,even though actual child completion states were observed.
+
+The earlier B2 L2 timing failed the unchanged generation equality assertion.
+A separate5fresh prefill-only diagnostic (3repeats each L1/L2) observes identical
+first64token KV bytes and first outputs;it launches no model decode and therefore
+does not establish the cause of the L2 generation difference.
+
+Corrected L1 B2 original4 each pass C1/C2512 and twofresh timing processes;
+independent verification appends a new consumed_prefetch_L1prefill_actual_solver_median
+round. Selected0 TPOT2.264236623ms versus MX4 2.272015373ms (−.342%,indistinguishable),
+effective pred/meas.968690729. Across each candidate's six saved warm/timed outputs,
+all1024 generated tokens match (24 saved generations total). This is the observed
+scope of determinism evidence;no general race cause claim or tolerance change.
+B4 and native8BB16 aligned L1 timings continue;B8 and other development cells follow.
