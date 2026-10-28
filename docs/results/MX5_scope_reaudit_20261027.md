@@ -113,3 +113,7 @@ LDS写 → 编译器屏障 → arrive_bsmcnt(0) → barrier_inst → 编译器�
 - 数值、源码/坐标一致性、P-B及局部LDS授权范围、求解选择和阶段验收门均未放宽。
 - verified：累计监控v9仅撤销总预算停止动作；15格使用未修改的冻结执行器继续完整top4验收。
   原始授权与监控交接：`runs/mx5/physical_budget_dispatch_guard_v1/USER_BUDGET_AMENDMENT_20261028.json`。
+
+- verified续跑：QwenB4完整top4验收仍慢7.591%，当前源码6/25测量、两格G-LLM失败。
+  B2新DIAG与网格间长度诊断已完成；原成本/选择公式不改，G576原失败/容差仍保留。
+  合并系数复用只改变固定wave顺序计算的复用与列分工，属于隔离候选；需全部门后才可采用。

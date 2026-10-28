@@ -227,3 +227,39 @@ prior cutoff evidence;no counterreset. At amendment59.895card-hours hadaccrued.
 Remaining15-cell fulltop4 queue uses the original frozen runner unchanged oncard6.
 B2 selected-pin DIAG preparation uses the same producer,source andeffective pin;
 onlyDIAG=1 changes. No new correctness orperformance outcome isclaimed yet.
+
+
+### 解除总卡时限制后的实测续跑
+
+Verified：新增Qwen0.6B B4完整四候选C-1/C2及各两新进程计时，选中0：
+TPOT2.575954ms，固定MX42.394211ms，慢7.591%，仍判G-LLM失败。
+四候选TPOT为2.575954/2.578473/2.579156/2.577437ms；pred/meas0.95646。
+当前源码累计6/25格，4格不退化、2格退化；默认值不变。其余队列继续，未完成格不发布测量。
+
+Verified：B2已选计划的DIAG双胞胎仅改变DIAG=1，源码与有效坐标一致，
+frame0、实际resident1、稳态MIR无4160/generic；16新进程完成两轮8mask。
+attention干预差值按28层除得35.923/35.842us，bench为27.167us；不是可相加的体耗时。
+12行带轮次、实现与原始引用的账本已追加，原行字节保持。当前I1仍未测量。
+
+Verified：同源同坐标的37个长度×4个b_min×3新进程冷测量完成，所有原正确性断言保留。
+原5格点复测变化0.202–0.715%；b_min4的32-token块中点加权估计为33.674us，
+原5点线性插值为27.167us。Inferred：用中点估计替换诊断模型的attention项得2.333086ms，
+接近实际2.301333ms；这解释了大部分预测偏差，但不是1023个长度逐一实测的精确均值。
+其他b_min的中点估计(us)：1=32.040、2=33.989、8=39.179。
+官方成本表、原5点插值公式、候选选择及默认值均未改。
+
+Verified：G576失败点的插桩副本输出与原副本完整逐位一致，两次均仍只有(13,4622)失败。
+实际gate累加0.249793708、inverse9.789322853，归一化gate2.445311308；
+CPU归一化gate2.445315361。BF16中点2.4453125的两侧距离分别为−1.192e−6/+2.861e−6，
+舍入gate分别2.4375/2.453125，最终21.75/22.125；原误差0.375>原容差0.374000013不变。
+这将放大位置定位到规定的BF16/SwiGLU舍入链，不宣称两个重复就证明无竞态。
+插桩只在诊断拷贝写未使用partial，未改变生产代码；原BINDING的before-source列表保留，
+真实after-source闭包单列SOURCE_CLOSURE_ADDENDUM.json，仅GEMM头多诊断写出。
+
+Verified：三个Llama1B bench参数生命周期/容量CPU诊断均仍有PK2栈帧，全部未采用。
+第一个attention合并系数复用候选通过5新进程×56项及5新进程×6项×2000×104CTA litmus，
+但同源37长度微基准慢4.599%；不继续该候选，不作端到端收益判断。
+第二个候选把交换限制为wave内，无新增CTA屏障；隔离验证中，未进入正式计划。
+Raw：local_lds_tail_remaining15_full_execution_v1；local_lds_tail_selected_qwenB2_D7_diag_v1；
+local_lds_tail_qwenB2_length_geometry_d7_v1；gemm576_failed_coordinate_intermediates_v1；
+attention_{merge_scales_once,wave_merge_factors}_candidate_v1。
