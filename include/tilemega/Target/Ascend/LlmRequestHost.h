@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Target/Ascend/LlmPlanABI.h>
+#include <tilemega/Target/Ascend/BodyProfileCapture.h>
 #include <acl/acl.h>
 #include <algorithm>
 #include <array>
@@ -273,9 +274,12 @@ inline void Dump(Plan const& p,DevicePlan const& d,uint8_t* arena,unsigned past,
     }
   }
   if(diagnostic) {
-    std::vector<uint8_t> data(diagnostic==2?p.m.queue_refs*512ULL:p.m.tasks*64ULL);
-    Check(aclrtMemcpy(data.data(),data.size(),d.trace,data.size(),ACL_MEMCPY_DEVICE_TO_HOST),"request trace");
-    Save(out/(diagnostic==2?"profile.bin":"trace.bin"),data.data(),data.size());
+    if(diagnostic==2)CaptureBodyProfile(out/"profile.bin",d.trace,p.m.queue_refs*512ULL);
+    else {
+      std::vector<uint8_t> data(p.m.tasks*64ULL);
+      Check(aclrtMemcpy(data.data(),data.size(),d.trace,data.size(),ACL_MEMCPY_DEVICE_TO_HOST),"request trace");
+      Save(out/"trace.bin",data.data(),data.size());
+    }
   }
 }
 template<class Launch> int RunRequest(fs::path const& binding,fs::path const& out,unsigned outputs,
@@ -363,9 +367,12 @@ template<class Launch> int RunRequest(fs::path const& binding,fs::path const& ou
     if(diagnostic==2)save_prefill_receipt=false;
 #endif
     if(save_prefill_receipt) {
-      std::vector<uint8_t> trace(diagnostic==2?pre.m.queue_refs*512ULL:pre.m.tasks*64ULL);
-      Check(aclrtMemcpy(trace.data(),trace.size(),pd.trace,trace.size(),ACL_MEMCPY_DEVICE_TO_HOST),"prefill task receipt");
-      Save(pre_out/(diagnostic==2?"profile.bin":"trace.bin"),trace.data(),trace.size());
+      if(diagnostic==2)CaptureBodyProfile(pre_out/"profile.bin",pd.trace,pre.m.queue_refs*512ULL);
+      else {
+        std::vector<uint8_t> trace(pre.m.tasks*64ULL);
+        Check(aclrtMemcpy(trace.data(),trace.size(),pd.trace,trace.size(),ACL_MEMCPY_DEVICE_TO_HOST),"prefill task receipt");
+        Save(pre_out/"trace.bin",trace.data(),trace.size());
+      }
     }
     for(auto const& a:pre.allocations) {
       Check(aclrtMemcpy(guard.data(),512,arena+a.offset+a.bytes,512,ACL_MEMCPY_DEVICE_TO_HOST),"request check guard");
@@ -395,6 +402,9 @@ template<class Launch> int RunRequest(fs::path const& binding,fs::path const& ou
     <<",\"isl\":64,\"osl\":"<<outputs<<",\"batch\":"<<pre.m.batch<<",\"capacity\":1088,\"warmup\":"<<warmup
     <<",\"repetitions\":"<<repetitions<<",\"diagnostic\":"<<diagnostic<<",\"host_kernel_launches\":"<<launches
     <<",\"request_mode\":\""<<(teacher_forced?"teacher_forced":"natural_greedy")<<"\""
+#if defined(TILEMEGA_LLM_COMPRESSED_PROFILE) && TILEMEGA_LLM_COMPRESSED_PROFILE
+    <<",\"body_profile_storage\":\""<<(diagnostic==2?"gzip_roundtrip_sha256":"not_body_profile")<<"\""
+#endif
 #if defined(TILEMEGA_LLM_DECODE_PROFILE_ONLY) && TILEMEGA_LLM_DECODE_PROFILE_ONLY
     <<",\"body_profile_capture\":\""<<(diagnostic==2?"decode_only":"not_body_profile")<<"\""
 #endif
