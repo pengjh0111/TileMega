@@ -1,6 +1,6 @@
 # MX-5 C550 LLM development checkpoint
 
-Verified current A19 source: 7/25 dense cells measured; 2 distinguishable MX4 regressions. G-LLM remains open.
+Verified current A19 source: 9/25 dense cells measured; 2 distinguishable MX4 regressions. G-LLM remains open.
 MoE native0/5;DNN native0/25. All defaults remain MX4; final=False.
 Authority SHA256:75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73.
 Current body7c9658ac5,frozen normal producer88327cbc4;historicalcc29 results remain separate.
@@ -17,11 +17,11 @@ Pending rows contain no fabricated MX5 measurements. Fastest baseline isminimum 
 |Qwen0.6B|4|2.575954|2.394211|2.993300|+7.591%|0.8606|FAIL G-LLM|
 |Qwen0.6B|8|2.810956|3.040548|3.668500|-7.551%|0.7662|nonregression|
 |Qwen0.6B|16|3.524260|4.537082|4.020300|-22.323%|0.8766|nonregression|
-|Qwen1.7B|1|—|3.424746|3.801700|—|—|pending C1/C2,E2E|
+|Qwen1.7B|1|3.270282|3.424746|3.801700|-4.510%|0.8602|nonregression|
 |Qwen1.7B|2|—|3.555443|4.265800|—|—|pending C1/C2,E2E|
 |Qwen1.7B|4|—|3.894393|4.386800|—|—|pending C1/C2,E2E|
 |Qwen1.7B|8|—|4.603874|5.019400|—|—|pending C1/C2,E2E|
-|Qwen1.7B|16|—|6.252656|5.464700|—|—|pending C1/C2,E2E|
+|Qwen1.7B|16|5.185553|6.252656|5.464700|-17.066%|0.9489|nonregression|
 |Llama1B|1|—|2.211073|2.526700|—|—|576 cost blocked|
 |Llama1B|2|—|2.272015|2.849600|—|—|576 cost blocked|
 |Llama1B|4|—|2.438731|2.913400|—|—|576 cost blocked|
@@ -49,6 +49,8 @@ Pending rows contain no fabricated MX5 measurements. Fastest baseline isminimum 
 |Qwen0.6B/B2|11.334|2.365598|865.743|0.3712|0.93463|
 |Qwen0.6B/B4|21.262|2.656463|1541.900|0.3647|0.95646|
 |Qwen0.6B/B8|31.191|2.906799|2818.220|0.3949|1.01933|
+|Qwen1.7B/B1|13.216|3.358714|304.879|0.6919|1.02065|
+|Qwen1.7B/B16|142.664|5.447485|3007.627|0.5596|0.99592|
 
 MBU uses inferred streamed BF16 linear weights plusKV atmeanL576 dividedby1.55TB/s×TPOT.
 TTFT isreported,not optimized. Request numbers aremedians oftwo fresh process medians.
@@ -59,36 +61,17 @@ Each candidate passes512-step C-1/C2 andtwo fresh timing processes beforepublica
 ISL64/OSL1024,greedyBF16,warm1+timed2,TPOT=(E2E−TTFT)/1023.
 WD0/uninstrumented timing;WD1 checks. Selection:take fastest onlyif>=1% faster thananchor0.
 
-| Cell | Candidate | Predicted ms | Measured ms | pred/meas | Chosen |
-|---|---:|---:|---:|---:|---|
-|Qwen0.6B/B1|0|2.021542|1.976266|1.02291|yes|
-|Qwen0.6B/B1|1|2.021612|1.977535|1.02229|no|
-|Qwen0.6B/B1|2|2.021722|1.980171|1.02098|no|
-|Qwen0.6B/B1|3|2.021832|1.974518|1.02396|no|
-|Qwen0.6B/B16|0|3.554417|3.524260|1.00856|yes|
-|Qwen0.6B/B16|1|3.557487|3.523996|1.00950|no|
-|Qwen0.6B/B16|2|3.558027|3.528153|1.00847|no|
-|Qwen0.6B/B16|3|3.558217|3.529580|1.00811|no|
-|Llama8B/B1|0|10.402495|10.585899|0.98267|yes|
-|Llama8B/B1|1|10.403135|10.587368|0.98260|no|
-|Llama8B/B1|2|10.403135|10.581901|0.98311|no|
-|Llama8B/B1|3|10.404655|10.580788|0.98335|no|
-|Llama8B/B16|0|13.056443|13.150235|0.99287|yes|
-|Llama8B/B16|1|13.057403|13.163448|0.99194|no|
-|Llama8B/B16|2|13.058373|13.173144|0.99129|no|
-|Llama8B/B16|3|13.061223|13.163197|0.99225|no|
-|Qwen0.6B/B2|0|2.150885|2.301333|0.93463|yes|
-|Qwen0.6B/B2|1|2.151145|2.304746|0.93335|no|
-|Qwen0.6B/B2|2|2.151245|2.299368|0.93558|no|
-|Qwen0.6B/B2|3|2.151515|2.308777|0.93189|no|
-|Qwen0.6B/B4|0|2.463801|2.575954|0.95646|yes|
-|Qwen0.6B/B4|1|2.465311|2.578473|0.95611|no|
-|Qwen0.6B/B4|2|2.465591|2.579156|0.95597|no|
-|Qwen0.6B/B4|3|2.465641|2.577437|0.95663|no|
-|Qwen0.6B/B8|0|2.863608|2.853298|1.00361|no|
-|Qwen0.6B/B8|1|2.865288|2.810956|1.01933|yes|
-|Qwen0.6B/B8|2|2.865708|2.859982|1.00200|no|
-|Qwen0.6B/B8|3|2.866408|2.858719|1.00269|no|
+| Cell | Four predicted ms (0–3) | Four measured ms (0–3) | Four pred/meas (0–3) | Chosen |
+|---|---|---|---|---:|
+|Qwen0.6B/B1|2.021542, 2.021612, 2.021722, 2.021832|1.976266, 1.977535, 1.980171, 1.974518|1.02291, 1.02229, 1.02098, 1.02396|0|
+|Qwen0.6B/B16|3.554417, 3.557487, 3.558027, 3.558217|3.524260, 3.523996, 3.528153, 3.529580|1.00856, 1.00950, 1.00847, 1.00811|0|
+|Llama8B/B1|10.402495, 10.403135, 10.403135, 10.404655|10.585899, 10.587368, 10.581901, 10.580788|0.98267, 0.98260, 0.98311, 0.98335|0|
+|Llama8B/B16|13.056443, 13.057403, 13.058373, 13.061223|13.150235, 13.163448, 13.173144, 13.163197|0.99287, 0.99194, 0.99129, 0.99225|0|
+|Qwen0.6B/B2|2.150885, 2.151145, 2.151245, 2.151515|2.301333, 2.304746, 2.299368, 2.308777|0.93463, 0.93335, 0.93558, 0.93189|0|
+|Qwen0.6B/B4|2.463801, 2.465311, 2.465591, 2.465641|2.575954, 2.578473, 2.579156, 2.577437|0.95646, 0.95611, 0.95597, 0.95663|0|
+|Qwen0.6B/B8|2.863608, 2.865288, 2.865708, 2.866408|2.853298, 2.810956, 2.859982, 2.858719|1.00361, 1.01933, 1.00200, 1.00269|1|
+|Qwen1.7B/B1|3.337822, 3.338992, 3.339082, 3.339342|3.270282, 3.269273, 3.269568, 3.266685|1.02065, 1.02133, 1.02126, 1.02224|0|
+|Qwen1.7B/B16|5.164377, 5.168567, 5.168857, 5.168867|5.185553, 5.187592, 5.222659, 5.195082|0.99592, 0.99633, 0.98970, 0.99495|0|
 
 ## Executed coordinates and matching-source bench (verified)
 
@@ -104,6 +87,8 @@ Prefetch quantity andR_next values also remain in append-only serving/configurat
 |Qwen0.6B/B2|4|0|32/2/2/T/2|16/1/2/T/2|64/1/1/T/1|16/1/2/T/2|128/8/1/T/2|
 |Qwen0.6B/B4|8|0|32/2/2/T/2|16/1/2/T/2|64/1/1/T/1|16/1/2/T/2|128/8/1/T/2|
 |Qwen0.6B/B8|4|0|64/1/1/T/1|16/1/2/T/2|64/1/1/T/1|16/1/2/T/2|128/8/1/T/2|
+|Qwen1.7B/B1|1|0|64/1/1/T/1|32/1/2/T/2|128/1/1/T/1|32/1/2/T/2|64/8/2/T/4|
+|Qwen1.7B/B16|4|0|64/1/1/T/1|32/1/1/T/1|64/2/2/T/2|32/1/1/T/1|128/8/1/T/2|
 
 | Cell | QKV us | Attention us | O us | GateUp us | Down us | Head us |
 |---|---:|---:|---:|---:|---:|---:|
@@ -114,6 +99,8 @@ Prefetch quantity andR_next values also remain in append-only serving/configurat
 |Qwen0.6B/B2|10.080|27.167|8.500|13.810|10.290|195.160|
 |Qwen0.6B/B4|10.400|36.361|9.040|14.000|11.250|194.370|
 |Qwen0.6B/B8|11.270|46.464|10.160|14.650|12.790|195.930|
+|Qwen1.7B/B1|15.460|22.963|10.330|36.250|20.500|383.740|
+|Qwen1.7B/B16|19.510|62.472|14.520|41.450|32.510|391.430|
 
 These bench values areoriginal qualified three-process measurements,not program stage latencies.
 Attention is the specified five-L-grid interpolation averaged overL65..1087.
@@ -129,14 +116,14 @@ Original5grid remeasurements differ0.202–0.715%;intermediate segmentation expl
 Otherbmin midpoint estimates(us):1=32.040,2=33.989,4=33.674,8=39.179;not default-selection evidence.
 Current-source I1 timing remains unmeasured;no instruction-cache cause isclaimed.
 
-Llama1B:normal576 program167MT/frame0/actualresident1;required PK2 self-next bench44–48B frame.
-Three CPU-only bench operand/capacity/lifetime diagnostics remain rejected,withfailures preserved.
+Llama1B:old576 PK2 self-next bench44–48B frame;consumed-prefetch candidate now139/141MT,frame0(CPU).
+Original Rcap220/248 retained;candidate full336/null-idle/actual occupancy checks arepending;no newcost/default claim.
 G576 single-element reference criterion remainsfailed;instrumented copy hasidentical fulloutputs.
 Observed gate is1.192e−6 belowBF16 midpoint;CPU gate2.861e−6 above. Oracle/tolerance remain unchanged.
 
 The15-cell continuation queue has60 actual512queries/D7 and15top4 protocolsREADY;completedcells areincludedabove.
 The source-bound queue publishes only complete,independently reverified results,never pending orfailed items.
-A segment-merge factor-reuse candidate staysisolated until numeric/MIR/resource andE2E gates pass.
+Merge-factor candidates measured+4.599/+7.636%slower inoff-grid micro;geometry pruning+0.167%indistinguishable;none adopted.
 MoE native andprompt,fullLLM30 acceptance andDNN native remain mandatory andincomplete.
 The user waived the original60-card-hour total cutoff;allcard/concurrency/guard/per-job rules remain.
 
