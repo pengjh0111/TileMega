@@ -264,3 +264,16 @@ tests pass, core Plan tables remain byte-identical. Device capture is blocked
 at ACL device initialization507033 before launch, with TsdOpen/CreateSession
 errors. A successful management query also reports physical1 Critical/HBM0/0;
 no reset/retry/new NPU work is performed after this observation.
+
+## TPOT continuation, 2026-10-28
+
+`verified-run`: five-dense full forward semantics remain intact. The follow-up
+[TPOT report](AS2_TPOT_optimization.md) separates semantic completeness from
+remaining outer search and acceptance. Qwen0.6 B1 FIFO elimination has no
+reliable gain in five fixed process pairs and stays non-default. Qwen0.6 B16
+valid-key QK64 preserves original arithmetic/queues/waits and passes repriced
+full1024 bitwise; same-binary pilot TPOT50.066→46.711ms (6.70% reduction).
+This is a contended pilot, not original G-PERF. Five fresh independent pairs
+are queued with finite no-lock idle admission and automatic CPU-only auditing.
+All baselines remain frozen; wider Body/geometry/decomposition/G selection,
+new final-config teacher/C2/C3 coverage and the other cells remain open.
