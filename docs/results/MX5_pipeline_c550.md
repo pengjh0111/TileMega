@@ -3,7 +3,7 @@
 Verified checkpoint, 2026-10-28: A19 body `7c9658ac5`, frozen normal producer
 `88327cbc4`, has11/25 dense top-four selections. Eight are nonregressions;
 Qwen0.6B B2/B4 andQwen1.7B B2 are9.823/7.591/1.538% slower than fixedMX4;G-LLM stays open.
-Current consumed-prefetch4b7d83686/producer230a572b has4 earlier L2-prefill measurements;7/25 aligned L1-prefill selections. Earlier L2 results: Llama1B B1
+Current consumed-prefetch4b7d83686/producer230a572b has4 earlier L2-prefill measurements;8/25 aligned L1-prefill selections. Earlier L2 results: Llama1B B1
 2.135062ms(−3.438%);QwenB1=1.973800ms(−.492%,indistinguishable);Llama1BB16=3.006219ms(−12.490%).
 QwenB16=3.517390ms(−22.475%). Aligned L1 Llama1B B2=2.264237ms(−.342%,indistinguishable).
 Aligned L1 Llama1B B4=2.428614ms(-0.415%).
@@ -12,6 +12,7 @@ Aligned L1 Llama1B B8=2.648571ms(-4.426%).
 Aligned L1 Qwen0.6B B1=1.973795ms(-0.492%,indistinguishable).
 Aligned L1 Qwen0.6B B16=3.517579ms(-22.470%).
 Aligned L1 Llama1B B1=2.134784ms(-3.450%),pred/meas1.01338.
+Aligned L1 Llama8B B1=10.584414ms(-1.224%),pred/meas.98285;G-PROGRAM fivecells passes.
 500A costs/25scopes pass;MoE0/5,DNN0/25 unfinished.
 
 Authority: `/root/Prompt/TileMega_MX5_prompt.md`, SHA256
@@ -132,7 +133,7 @@ has not been applied. The committed attention lifetime repair retains both caps.
 3. Original true576 Llama1B B2/B4/B8 watchdog builds fail16/24/56B before numerical launch.
    Their explicit bounded WD-pair histories now fit;allthree aligned L1 selections
    complete with unchanged original candidate IDs. Rejected lifetime prototypes stay off.
-   G-PROGRAM/G-SOLVER/G-LLM remain open. A19 has11 measured cells and three
+   G-PROGRAM now passesfive actual aligned development cells;G-SOLVER/G-LLM remain open. A19 has11 measured cells and three
    regressions. B2 DIAG attention is35.923/35.842us versus bench27.167us. Three
    fresh off-grid diagnostics explain much of the prediction gap; the mandated
    five-point grid/formula is unchanged. Current-source I1 five-fresh timing is complete

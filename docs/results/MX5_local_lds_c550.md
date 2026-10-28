@@ -698,3 +698,23 @@ labelled process rows,bringing MX5_ppair_c550.csv to16rows/fourcells. The final
 development8BB1 stillneeds all8formal top4timing processes andthen its ownP-PAIR.
 Raw:aligned_development_MX4_PPAIR_v1/llama3_2_1b_B1/ACTUAL_PPAIR_COMPLETE.json.
 No fixedbaseline,solver selection ordefault changes follow fromP-PAIR.
+
+
+## Verified aligned eight cells and G-PROGRAM development gate
+
+Llama8B B1 selects original0 at10.584414109973673ms,−1.223620% versusfixedMX4,
+pred/meas.982853. Allfour original candidates passC1/C2512 andeightfresh timed
+processes;the unchanged independent verifier andCSV ingestion pass. Current
+aligned L1 coverage is8/25,all nonregressions;five development cells are complete.
+
+The separate G-PROGRAM CPU replay verifies all20 actual candidate correctness
+files and40 distinct timing PIDs,actual accepted warm1/timed2 atISL64/OSL1024,
+L1prefill,source/artifact hashes andeach TPOT belowfixedMX4. The formal proof
+passes;G-B,25cell solver,30cellLLM,forward anddefaults remain open. Stage ledger
+andthe final development P-PAIR are stillpending;this is not CP-1 completion.
+The new gate reader initially used the bash/P-PAIR argv offset for the direct
+native wrapper;pre-execution review corrects this in a versioned CPU helper.
+Only its own idle waiter was replaced;fouravailable cells/32processes precheck
+then passes beforethe fullfive proof. No GPUjob,raw result orcriterion changed.
+Raw:aligned_G_PROGRAM_development5_v1/ACTUAL_G_PROGRAM_DEVELOPMENT5.json and
+ACTUAL_ARGV_POSITION_PREEXEC_CPU_REVIEW.json;consumed_prefetch_llama3_1_8b_B1_L1prefill_full_top4_execution_v1.

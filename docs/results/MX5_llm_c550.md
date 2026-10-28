@@ -1,9 +1,9 @@
 # MX-5 C550 LLM checkpoint
 
-Verified current consumed-prefetch source with L1 prefill: 7/25 dense solver selections; 0 distinguishable MX4 regressions.
+Verified current consumed-prefetch source with L1 prefill: 8/25 dense solver selections; 0 distinguishable MX4 regressions.
 Body4b7d83686;normalproducer230a572b atd889;G14/H15 unchanged,A20=b4555ea2e0dbde380c37c48793e2fd5ff4a9f6dc767b0ebb9606e108c4fd34b3.
 Authority SHA256:75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73.
-Allgates/default promotion remain open;MoE native0/5,DNN native0/25;defaults MX4.
+G-PROGRAM development5 passes;G-B/G-SOLVER/G-LLM/G-FWD anddefault promotion remain open;MoE0/5,DNN0/25.
 
 ## Current 25-cell coverage (verified)
 
@@ -29,7 +29,7 @@ Allgates/default promotion remain open;MoE native0/5,DNN native0/25;defaults MX4
 |Llama3B|4|—|5.807209|6.650300|—|—|pending|
 |Llama3B|8|—|6.532365|6.982200|—|—|pending|
 |Llama3B|16|—|8.296789|7.573900|—|—|pending|
-|Llama8B|1|—|10.715531|11.089700|—|—|pending|
+|Llama8B|1|10.584414|10.715531|11.089700|-1.224%|0.9544|nonregression|
 |Llama8B|2|—|10.929705|12.524500|—|—|pending|
 |Llama8B|4|—|11.352761|12.703000|—|—|pending|
 |Llama8B|8|—|12.206898|13.156900|—|—|pending|
@@ -46,6 +46,7 @@ Allgates/default promotion remain open;MoE native0/5,DNN native0/25;defaults MX4
 |Qwen0.6B/B1|512|9.041|2.028233|504.873|0.4112|1.02455|
 |Qwen0.6B/B16|512|52.587|3.651070|4487.452|0.4125|1.00977|
 |Llama1B/B1|576|8.800|2.192684|467.008|0.7526|1.01338|
+|Llama8B/B1|512|42.760|10.870616|94.199|0.9195|0.98285|
 
 MBU=(inferred streamedBF16 linearweights+KV atmeanL576)/(1.55TB/s×TPOT);TTFT reported,not optimized.
 
@@ -63,6 +64,7 @@ Predictions use actual executed widths;original predictions and bounded pair his
 |Qwen0.6B/B1|2.022251, 2.022321, 2.022431, 2.022541|1.973795, 1.978077, 1.980416, 1.975140|1.02455, 1.02237, 1.02122, 1.02400|0|
 |Qwen0.6B/B16|3.551934, 3.555004, 3.555544, 3.555734|3.517579, 3.518736, 3.520886, 3.524120|1.00977, 1.01031, 1.00984, 1.00897|0|
 |Llama1B/B1|2.163351, 2.164121, 2.164481, 2.164631|2.134784, 2.133451, 2.132636, 2.134002|1.01338, 1.01438, 1.01493, 1.01435|0|
+|Llama8B/B1|10.402925, 10.403565, 10.403565, 10.405085|10.584414, 10.574267, 10.581934, 10.580008|0.98285, 0.98386, 0.98314, 0.98347|0|
 
 ## Executed coordinates and matching-source bench (verified)
 
@@ -76,6 +78,7 @@ NotationTN/WN/D/Part/Pw;T=TileRange,S=StreamK. Each dense step5L+1stages;R_next/
 |Qwen0.6B/B1|1|0|32/2/2/T/2|16/1/2/T/2|64/1/1/T/1|16/1/2/T/2|128/8/1/T/2|
 |Qwen0.6B/B16|4|0|64/1/1/T/1|16/1/1/T/1|64/1/1/T/1|16/1/1/T/1|128/8/1/T/2|
 |Llama1B/B1|1|2|32/1/1/T/1|32/1/2/T/2|64/2/2/T/4|32/1/2/T/2|32/8/2/T/8|
+|Llama8B/B1|1|0|64/1/1/T/1|64/1/1/T/1|32/8/4/T/8|64/1/3/T/3|64/4/1/T/4|
 
 | Cell | QKV us | Attention us | O us | GateUp us | Down us | Head us |
 |---|---:|---:|---:|---:|---:|---:|
@@ -86,6 +89,7 @@ NotationTN/WN/D/Part/Pw;T=TileRange,S=StreamK. Each dense step5L+1stages;R_next/
 |Qwen0.6B/B1|10.100|22.988|8.360|13.770|10.030|195.300|
 |Qwen0.6B/B16|13.550|62.384|11.810|16.410|15.570|199.670|
 |Llama1B/B1|12.430|14.297|10.140|52.640|25.280|326.760|
+|Llama8B/B1|34.850|19.074|24.920|149.750|76.540|638.630|
 Bench=qualified threefresh stage rows,not program stage latencies;attentionfivegrid interpolation overL65..1087.
 
 ## Aligned internal MX4 P-PAIR (verified)
@@ -121,5 +125,5 @@ Consumed-prefetch336required/null28/helper6/cold12 eachpass5fresh;helper104CTAs�
 A20attention500keys×3fresh complete;300576resource rejects unexecuted;G/H unchanged;4545pool/25scopes replayPASS.
 Userwaives only60card-hour totalcap;cards/concurrency/guard/per-joblimits remain,cumulative accounting retained.
 Complete current25dense,MoE native5+prompt64+routing,LLM30 acceptance/CP5,beforeDNN native25.
-G-B/G-PROGRAM/G-SOLVER/G-LLM/G-FWD andfinaldefaults remain open;detailsinMX5_c550.md/MX5_local_lds_c550.md.
+G-PROGRAM fivecells passes20candidate C1/C2 and40fresh timings;other gates/defaults remain open;detailsinMX5_c550.md.
 Raw:consumed_prefetch_attention_epoch_v1/attention_consumer25_v1 andsource-specific runnerdirectories.
