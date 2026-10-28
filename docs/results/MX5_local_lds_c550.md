@@ -1065,3 +1065,33 @@ cleansteadyloops). Itlimits max/exp worktoobserved q<Q rowswhile retaining
 alllane K/Vloads,ownerstores,MMAs andsynchronization. FullmatrixCPU/GPU
 validation andE2E remainpending;productionheader isunchanged.
 Raw:attention_valid_query_softmax_candidate_v1.
+
+
+Verified staticbound manualcontrols complete:C1/C2512 bothB2/B4 pass;
+card5 A20/new/A20/new,4fresh/cell,warm1/timed2,ISL64/OSL1024,L1prefill,
+WD0,no trace. B2old/new2.301054911/2.301855480ms(+.034791%);
+B4 2.574111492/2.580446370ms(+.246100%). Bothindistinguishable
+undermax(1%,range);candidate staysisolated/off. Independent binding/hash/
+identity/PID/guard validationappends8candidate PPAIR and2C1/C2 rows;
+8actualplanresource rows preservefailed576352/344Bframes (queryonly),
+legal512WD0MT228/234 andWD1MT230/236,allAPI0/frame0/resident1.
+No finalsolver qualification orcosttable/default promotion isclaimed.
+Raw:attention_static_tail_bound_candidate_v1/ACTUAL_MANUAL_TWO_CELL_PPAIR_COMPLETE.json.
+
+Verified validquery full336-case formula-derived CPUresource/MIR planpasses,
+alongwith16staticshapekernels (B1/B2 MT226,B4/B16 MT232,frame0).
+Asecond compilerstdout/stderr resource-name interleave isuniquely matched
+toitsMIRname intoaseparateview;actualcompilerreturncode0,rawlog preserved.
+Fivefresh full336/null28/static112 GPUchecks arequeued afterstaticbound
+modelcontrols. No end-to-end result ornewsource adoption yet.
+
+Verified segment-scale-reuse candidate(parentvalidquery) computes each
+identicalper(query,wave) exp2 scalaronceinLDS for§4.7 segmentmerging,
+preservingmax andwave0..7 result/lambda arithmeticorder. Itaddsone
+existingpureLDS PublishWaveResults call;allCTA waves participate and
+laterLA/finalpublications protectscratchreuse. Globalbarrier/LA unchanged.
+Normalfirst8benchkernels andfull336-derived CPUresource/MIR planpass;
+static16/P0576 CPUcheckscomplete. Actual5fresh×104CTA×2000 iteration
+sparse-LDS publication/reuse litmus,fullnumerics andE2E arepending.
+Header87e25d5b remainsisolated;production0ccf7bc5/defaults unchanged.
+Raw:attention_segment_scale_reuse_candidate_v1;noGPU/performance claim.
