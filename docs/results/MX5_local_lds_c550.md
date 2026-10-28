@@ -521,3 +521,42 @@ Raw:current_body_I1_v1;50 process rows and6resources appended without old-row ed
 Initial compiler-path probes did not launch a compiler;the first actual compiler
 invocation rejected a missing Bf16 namespace. Corrected source builds normally;
 all failed attempts remain archived. No forced register cap or body change.
+
+
+## Verified MX4-reference recovery correction (2026-10-29)
+
+The resumed summary omitted earlier actual reference work. Contrary to that
+summary,QwenB1 prefill had compiled successfully andthen failed the extra v4
+historical-ELF equality gate;CU andthe full semantic contract matched. An existing
+specification audit explicitly distinguishes this added reconstruction gate from
+the prompt's record-only P-PAIR requirement. Its original FAIL stays unchanged.
+A separately labelled rebuilt22a reference contract already consumed QwenB1 and
+built QwenB16/Llama1B B1,with actual ABI passes. Earlier8B B1 stopped on guard75
+interference;B16 had not started. These are recovered facts,not newly repeated work.
+
+The resumed controller mistakenly attempted v4 job0 again and stopped at an
+existing output directory before native compilation (root_prefill_v4.py:78).
+Its old guard directory was reused:guard.jsonl was appended andpgid overwritten;
+the previouspgid is not recoverable fromthat file. Binary,source,CLI receipts and
+old failed-contract bytes remain intact. The duplicate's guard observations and
+this data-integrity incident are separately archived under
+mx4_reference_actual_completion_v1/ACTUAL_DUPLICATE_RECOVERY_AND_GUARD_PATH_AUDIT.json.
+No timing/CSV row was altered. All subsequent guard outputs are required unused.
+
+Ten fresh decode WD0/WD1 zero-launch queries now actually pass API0/resident1.
+They do not qualify prefill orP-PAIR. Continuing the existing independent rebuilt22a
+contract,three prior prefills are retained under their own truthful identities.
+A new8B B1 attempt stopped in all52prewarm entries at the unchanged disk check:
+f_bavail0 despite UID0 physicalfree about35GiB. No variant compiler launched.
+A further distinct attempt uses the supported --variant-cache option in tmpfs
+(about64GiB available),with new runtime/output/guard paths and unchanged source,
+pins,geometry,compiler flags,resource/numerical criteria. Earlier failures stay failed.
+
+The continuation still requires actual final-prefill ABI/occupancy and fresh
+C1/C2512 for allfive reconstructed reference pairs. P-PAIR waits both those gates
+and allfive current aligned development selections. Rebuilt-prefill ELF differences,
+two historical host-source differences andtheir unknown timing effects remain
+explicit;the fixed MX4 CSV is unchanged. These are no completed P-PAIR outcomes.
+Raw:reconstructed22a_reference_completion_v2 (disk failure),
+reconstructed22a_reference_completion_v3 (supported-cache correction),
+aligned_development_MX4_PPAIR_v1 (unstarted CPU waiter handoffs).
