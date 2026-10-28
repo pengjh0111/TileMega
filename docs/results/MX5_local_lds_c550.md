@@ -824,3 +824,18 @@ two-card limit andavoids overlapping card5 jobs. The driver uses the same
 strict body/guard/PID/timestamp summarizer protocol;an independent CPU appender
 waits actual D7 completion. No D7GPUquery/timing has yet run. Raw:current_QwenB2_D7_readonly_v1/
 ACTUAL_D7_GPU_QUEUE_PREPARATION_CPU.json andselected_diag/DIAG_CPU_RESULT.json.
+
+
+## Verified second selected development stage ledger
+
+Qwen0.6B B1 completes16freshcard5 DIAGchildren andactual API0/resident1 query;
+strict independent per-cell ingestion appends12round/classrows. Selected ledger
+coverage is2/5 cells/24rows. The nonadditive two-round median interventions/bench,
+us peroccurrence,are QKV6.722589/10.100,attention23.413214/22.988265,
+O4.820089/8.360,gate/up9.737411/13.770,down6.371964/10.030,
+head+tokenhistory190.475/195.300. Head isconfounded;no additive sum isused.
+Appendix attention2.5–3.5us is contradicted:the prescribed bench itself is22.988us
+andthe program intervention23.413us. Difference.425us is an observed comparison,
+not isolated integration overhead;finer causal attribution remainsopen. Raw:
+aligned_development_stage_ledger_v1/qwen3_0_6b_B1/ACTUAL_DIAG_SKIP_LEDGER.json and
+ACTUAL_LEDGER_CSV_APPEND_PROOF.json. The finalthree development ledgers remainpending.
