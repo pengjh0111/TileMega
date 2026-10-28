@@ -1,6 +1,6 @@
 # MX-5 C550 LLM checkpoint
 
-Verified current consumed-prefetch source: 1/25 dense solver selections; 0 distinguishable MX4 regressions.
+Verified current consumed-prefetch source: 2/25 dense solver selections; 0 distinguishable MX4 regressions.
 Body4b7d83686;normalproducer230a572b atd889;G14/H15 unchanged,A20=b4555ea2e0dbde380c37c48793e2fd5ff4a9f6dc767b0ebb9606e108c4fd34b3.
 Authority SHA256:75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73.
 Allgates/default promotion remain open;MoE native0/5,DNN native0/25;defaults MX4.
@@ -9,7 +9,7 @@ Allgates/default promotion remain open;MoE native0/5,DNN native0/25;defaults MX4
 
 | Model | B | MX5 TPOT ms | MX4 ms | Fastest baseline ms | vs MX4 | MX5/fastest | Status |
 |---|---:|---:|---:|---:|---:|---:|---|
-|Qwen0.6B|1|—|1.983552|2.457900|—|—|pending|
+|Qwen0.6B|1|1.973800|1.983552|2.457900|-0.492%|0.8030|nonregression|
 |Qwen0.6B|2|—|2.095492|2.802200|—|—|pending|
 |Qwen0.6B|4|—|2.394211|2.993300|—|—|pending|
 |Qwen0.6B|8|—|3.040548|3.668500|—|—|pending|
@@ -40,6 +40,7 @@ Allgates/default promotion remain open;MoE native0/5,DNN native0/25;defaults MX4
 | Cell | Threads | TTFT ms | E2E s | output tok/s | MBU | pred/meas |
 |---|---:|---:|---:|---:|---:|---:|
 |Llama1B/B1|576|9.018|2.193187|466.901|0.7525|1.01325|
+|Qwen0.6B/B1|512|9.348|2.028546|504.795|0.4112|1.02455|
 
 MBU=(inferred streamedBF16 linearweights+KV atmeanL576)/(1.55TB/s×TPOT);TTFT reported,not optimized.
 
@@ -50,6 +51,7 @@ TPOT=(E2E−TTFT)/1023;choosefastest onlyif>=1% fasterthanprediction0;otherwisec
 | Cell | Four predicted ms (0–3) | Four measured ms (0–3) | Four pred/meas | Chosen |
 |---|---|---|---|---:|
 |Llama1B/B1|2.163351, 2.164121, 2.164481, 2.164631|2.135062, 2.135004, 2.133439, 2.133940|1.01325, 1.01364, 1.01455, 1.01438|0|
+|Qwen0.6B/B1|2.022251, 2.022321, 2.022431, 2.022541|1.973800, 1.976463, 1.980066, 1.977786|1.02455, 1.02320, 1.02140, 1.02263|0|
 
 ## Executed coordinates and matching-source bench (verified)
 
@@ -57,10 +59,12 @@ NotationTN/WN/D/Part/Pw;T=TileRange,S=StreamK. Each dense step5L+1stages;R_next/
 | Cell | b_min | Attn PK | QKV | O | GateUp | Down | Head |
 |---|---:|---:|---|---|---|---|---|
 |Llama1B/B1|1|2|32/1/1/T/1|32/1/2/T/2|64/2/2/T/4|32/1/2/T/2|32/8/2/T/8|
+|Qwen0.6B/B1|1|0|32/2/2/T/2|16/1/2/T/2|64/1/1/T/1|16/1/2/T/2|128/8/1/T/2|
 
 | Cell | QKV us | Attention us | O us | GateUp us | Down us | Head us |
 |---|---:|---:|---:|---:|---:|---:|
 |Llama1B/B1|12.430|14.297|10.140|52.640|25.280|326.760|
+|Qwen0.6B/B1|10.100|22.988|8.360|13.770|10.030|195.300|
 Bench=qualified threefresh stage rows,not program stage latencies;attentionfivegrid interpolation overL65..1087.
 
 ## Historical A19 reference (verified, separate source)

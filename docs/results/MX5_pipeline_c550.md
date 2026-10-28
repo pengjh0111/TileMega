@@ -3,8 +3,8 @@
 Verified checkpoint, 2026-10-28: A19 body `7c9658ac5`, frozen normal producer
 `88327cbc4`, has11/25 dense top-four selections. Eight are nonregressions;
 Qwen0.6B B2/B4 andQwen1.7B B2 are9.823/7.591/1.538% slower than fixedMX4;G-LLM stays open.
-Current consumed-prefetch4b7d83686/producer230a572b has1/25 new selections: Llama1B B1
-2.135062ms,−3.438%vsMX4;500A costs and25scopes pass. MoE0/5,DNN0/25 remain unimplemented.
+Current consumed-prefetch4b7d83686/producer230a572b has2/25 new selections: Llama1B B1
+2.135062ms,−3.438%vsMX4;QwenB1=1.973800ms,−.492%(indistinguishable);500A costs/25scopes pass;MoE0/5,DNN0/25 unfinished.
 
 Authority: `/root/Prompt/TileMega_MX5_prompt.md`, SHA256
 `75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73`.
@@ -37,7 +37,7 @@ cost table; explicit v2 configuration selects the development native route.
 |---|---|
 | Export | `mx_serving_cell.sh` creates decode/prefill bridge JSON. All five dense checkpoints and MoE-L24 export/checkpoint exist. Export alone is not native execution. |
 | Analysis | `compile.cpp` routes xcore1000 decoder/decode to `mx_decode::TryCompile`. Dense imports `ModelPlan` and analyzes shapes. `mx_decode.cpp:105` still returns -1 for DM plans; MoE native routing is unfinished. |
-| Cost data | Frozen A19 qualified pool has 3395 GEMM, 750 head and 400 attention keys, each with three fresh measurements. There are 25 strictly replayed 512 cost scopes. A cost scope does not authorize a whole plan's thread shape. |
+| Cost data | Current A20 pool reuses byte-identical G14/H15 evidence (3395 GEMM,750 head) and adds400 new512 attention keys, each three fresh processes. All25 scopes and independent top4 previews replay successfully. Another100576 attention keys were measured;300 failed resources and were not numerically executed. A cost scope does not authorize a plan thread shape. |
 | Solver | Prescribed legal coordinates, five-length attention interpolation averaged over L65..1087, exact k-best top4. The source-bound Python resolved runner executes the four original candidates with preserved IDs and per-plan resource histories. |
 | Codegen | `StageProgram` and `MxDecodeProgramV2` emit constexpr body types, direct calls and by-value bindings. No runtime stage descriptors. QKV(kStore), attention, O, gate_up, down, head give 5L+1 barriers. |
 | Embedding and edges | Layer0 QKV reads the token embedding; layer0 O reads that residual. DownLast prefetches head; head prefetches next-step layer0 QKV weights. First token broadcast precedes entrance prefetch; later broadcasts follow grid acquire. |
@@ -72,7 +72,7 @@ LDS P-PAIR results (+.146%,−.300%) were indistinguishable, not demonstrated ga
 
 The user waived the original60-card-hour total cutoff on 2026-10-28. Cumulative
 accounting continues; allowed cards7/6/5/4, at most two cards, one job/card, guard,
-1800s job and900s timing caps remain. Current own jobs use6/5. No clocks, power,
+1800s job and900s timing caps remain. Current own jobs use6/5;all cumulative card time remains in the ledger. No clocks, power,
 driver or other processes are changed; fixed external baselines are not rerun.
 
 Original R_cap220/248 and prefetch formulas remain. A proposed R_cap160 change
@@ -88,7 +88,7 @@ has not been applied. The committed attention lifetime repair retains both caps.
 2. The old Llama1B576 PK2 self-next bench has44–48B frame despite a real
    whole-program167MT/frame0/resident1. This never justified blanket512. The
    consumed-prefetch repair has139/141MT/frame0/actualresident1. Full336, null28,
-   helper6 andcoldselfnext12 each pass5fresh;normalproducer230a572b passes160/160, new costs pending.
+   helper6 andcoldselfnext12 each pass5fresh;normalproducer230a572b passes160/160;500 new attention costs are complete.
 3. G-PROGRAM/G-SOLVER/G-LLM remain open. A19 has11 measured cells and three
    regressions. B2 DIAG attention is35.923/35.842us versus bench27.167us. Three
    fresh off-grid diagnostics explain much of the prediction gap; the mandated
