@@ -102,4 +102,17 @@ candidates passC1/C2512,two fresh timing processes each. Medians(ms) are
 [1.976266,1.977535,1.980171,1.974518]. Anchor0 is retained by the1% rule;
 pred/meas1.02291. FixedMX4 is1.983552ms(−.367%,indistinguishable). This
 passes cell nonregression without claiming a measurable speedup. Current
-source completion1/25dense,0/5MoE,0/25DNN;defaults unchanged.
+source completion subsequently reaches2/25dense,0/5MoE,0/25DNN;defaults unchanged.
+
+Verified second new-source selection: Qwen0.6B B16 allfour C-1/C2512
+andtwo fresh timings each pass. Candidate medians are
+[3.524260,3.523996,3.528153,3.529580]ms;anchor0 remains selected.
+Pred/meas1.00856;fixedMX44.537082ms gives−22.323%,fastestbaseline4.0203ms
+givesratio.876616. This is an actualsolver result,not the manual LDS P-PAIR.
+Its 4selection/4correctness/3serving/8resource rows append without changing
+prior bytes. Raw:local_lds_tail_qwen3_0_6b_B16_top4_execution_v1.
+
+Verified development history closure:20canonical576 originals plus bounded
+rebuilds have46actual zero-launch queries;16terminal histories support
+independent512,D7 reviewed;4Llama1B outcomes retain576. Remaining20cells'
+80canonical576 originals are being built onCPU only;no inherited512 approval.

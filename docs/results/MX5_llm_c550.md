@@ -126,9 +126,9 @@ are recorded in MX5_local_lds_c550.md. The new source passes5fresh×336
 required attention cases andmanual C1/C2512;new400-key costs and25scope replays pass.
 These checks are not additional final solver selections anddo not change defaults.
 
-## Current local-LDS source: first completed solver selection (verified)
+## Current local-LDS source: completed solver selections (verified)
 
-Frozen88327/A19dd8 has1/25 completed dense selections;the earlier table
+Frozen88327/A19dd8 has2/25 completed dense selections;the earlier table
 remains historicalcc29,not new-source completion. Qwen0.6B B1 exacttop4
 passes allfour C-1/C2512 checks andtwo fresh timing processes per candidate.
 
@@ -142,3 +142,17 @@ passes allfour C-1/C2512 checks andtwo fresh timing processes per candidate.
 Candidate0 TPOT1.976266ms vsfixedMX41.983552ms:−.367%,indistinguishable.
 The fastest measured candidate3 improves less than1%,so anchor0 is retained.
 No default/globalLLM acceptance follows. Raw:local_lds_tail_qwenB1_top4_execution_v1.
+
+Qwen0.6B B16 also passes allfour C-1/C2512 checks andtwo fresh timing
+processes per candidate. Actualsource576 histories andD7 bind its512 plans.
+
+| Candidate | Predicted ms | Measured ms | pred/meas | Chosen |
+|---|---:|---:|---:|---|
+|0|3.554417|3.524260|1.0086|yes|
+|1|3.557487|3.523996|1.0095|no|
+|2|3.558027|3.528153|1.0085|no|
+|3|3.558217|3.529580|1.0081|no|
+
+Anchor0 remains selected:TPOT3.524260ms vsfixedMX44.537082ms(−22.323%),
+and/fastestBF16baseline=.876616(vLLM4.0203ms);a distinguishable improvement.
+Raw:local_lds_tail_qwen3_0_6b_B16_top4_execution_v1. No default promotion.
