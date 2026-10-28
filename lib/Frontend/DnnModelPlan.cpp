@@ -133,7 +133,10 @@ struct Builder {
     std::copy(logical,logical+4,l.logical);std::copy(logical,logical+4,l.physical);
     if(!nchw) {
       unsigned padded=c<=4?options.small_input_channels:(c+7)/8*8;
-      if(options.nhwc_channel_block>8)
+      // A 1x1 "image" is a per-channel vector (SCA's channel scale): it stays
+      // densely packed, while a buffer with spatial extent takes the block the
+      // native bodies read.
+      if(options.nhwc_channel_block>8 && (h>1 || w>1))
         padded=(padded+options.nhwc_channel_block-1)/options.nhwc_channel_block*
             options.nhwc_channel_block;
       l.physical[3]=padded;
