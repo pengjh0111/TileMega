@@ -128,6 +128,7 @@ struct ForwardDepthwiseStage {
     p.width=Shape::kWidth;p.height=Shape::kHeight;p.channels=Shape::kChannels;
     p.stride=Shape::kStrideH;
     p.output_width=Shape::kOutputWidth;p.output_height=Shape::kOutputHeight;
+    p.padded_channels=Shape::kPaddedChannels;p.output_stride=Shape::kOutputStride;
   }
   template<class B>
   __device__ static __forceinline__ void Run(B const&,char* shared,int offset,

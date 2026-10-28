@@ -148,25 +148,40 @@ struct Sm90ForwardEpilogueChain {
       ((Step::kKind==Sm90ForwardOp::kDeferredLayerNorm ||
         Step::kKind==Sm90ForwardOp::kResidualLN) || ...);
 
+  // One step over the tile. `channel` is the tile's first channel in the
+  // step's own channel space and `width` its live columns: both halve at a
+  // gate pair, whose packed operands are interleaved in units of `kUnit`
+  // (gate_pair_interleave), for SimpleGate as for SwiGLU.
   template<class S>
-  __device__ static __forceinline__ void Apply(float* tile,int rows,int channel,
+  __device__ static __forceinline__ void Apply(float* tile,int rows,int& channel,int& width,
       Sm90ForwardEpilogueOperands const& p) {
     int tid=int(threadIdx.x);
     if constexpr(S::kKind==Sm90ForwardOp::kGatePair) {
-      // SimpleGate/SwiGLU over the interleaved halves; writes N/2 columns.
-      for(int i=tid;i<rows*(N/2);i+=128) {
-        int row=i/(N/2),col=i%(N/2);
-        int a=S::kGate==codegen::DmGatePair::kSwiGLU?2*int(S::kUnit)*(col/int(S::kUnit))+col%int(S::kUnit):col;
-        int b=S::kGate==codegen::DmGatePair::kSwiGLU?a+int(S::kUnit):col+N/2;
-        float g=tile[row*N+a],u=tile[row*N+b];
-        tile[row*N+col]=S::kGate==codegen::DmGatePair::kSwiGLU?
-            Sm90ForwardActivate(codegen::DmActivation::kSilu,g)*u:g*u;
+      constexpr int kUnit=int(S::kUnit);
+      int half=width/2;
+      // Every output column reads its pair before any column is overwritten:
+      // the pair of column j sits at or after j, so a two-pass rewrite through
+      // registers keeps the reads ahead of the writes.
+      for(int base=0;base<rows*half;base+=128) {
+        int i=base+tid;
+        float result=0;
+        int row=0,col=0;
+        if(i<rows*half) {
+          row=i/half;col=i%half;
+          int a=2*kUnit*(col/kUnit)+col%kUnit,b=a+kUnit;
+          float g=tile[row*N+a],u=tile[row*N+b];
+          result=S::kGate==codegen::DmGatePair::kSwiGLU?
+              Sm90ForwardActivate(codegen::DmActivation::kSilu,g)*u:g*u;
+        }
+        codegen::executor::ComputeSync();
+        if(i<rows*half)tile[row*N+col]=result;
+        codegen::executor::ComputeSync();
       }
-      codegen::executor::ComputeSync();
+      channel/=2;width=half;
       return;
     }else {
-      for(int i=tid;i<rows*kWidth;i+=128) {
-        int row=i/kWidth,col=i%kWidth;float value=tile[row*N+col];
+      for(int i=tid;i<rows*width;i+=128) {
+        int row=i/width,col=i%width;float value=tile[row*N+col];
         if constexpr(S::kKind==Sm90ForwardOp::kBias)
           value+=float(p.vectors[S::kVector][channel+col]);
         else if constexpr(S::kKind==Sm90ForwardOp::kScale)
@@ -199,9 +214,13 @@ struct Sm90ForwardEpilogueChain {
   }
 
   // Side outputs read the finished tile; row stats feed a later deferred norm.
+  // `channel` is the tile's first column in the producer's packed channel
+  // space; after a gate pair the stored channels are half of it. `width` is
+  // how many of the final columns the model keeps.
   __device__ static __forceinline__ void Finish(float* tile,int rows,int channel,int width,
       Sm90ForwardEpilogueOperands const& p,Element* output,int stride) {
-    (Apply<Step>(tile,rows,channel,p),...);
+    int live=N;
+    (Apply<Step>(tile,rows,channel,live,p),...);
     if(p.row_stats)
       for(int row=int(threadIdx.x);row<rows;row+=128) {
         float sum=0,squares=0;

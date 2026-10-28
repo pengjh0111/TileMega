@@ -338,8 +338,12 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
   std::vector<codegen::ConvDesc> convs;
   for(unsigned i=0;convolutions && i<convolutions.size();++i)
     convs.push_back(frontend::DecodeDmConv(convolutions[i]));
+  // A buffer's rows as a GEMM or a row-wise body sees them: a row-major
+  // matrix's first extent, or an image's pixels (N x H x W).
   auto rows_of=[&](unsigned buffer) {
     auto const& l=layouts.at(buffer);
+    if(l.rank==4 && l.kind==codegen::DmLayout::kNHWC)
+      return int(std::uint64_t(l.physical[0])*l.physical[1]*l.physical[2]);
     return l.rank?int(l.physical[0]):0;
   };
   auto width_of=[&](unsigned buffer) {
@@ -583,6 +587,16 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
         auto chain=frontend::DecodeDmChain(stage.get("dm_chain"));
         auto const& conv=convs[conv_index];
         bind.weight=operand(1);bind.output=operand(2);
+        shape.output_stride=width_of(bind.output);
+        {
+          auto filter=Entry(buffers[bind.weight],"buffer");
+          auto elements=std::uint64_t(Integer(filter,"constant",0));
+          auto taps=std::uint64_t(conv.c)*conv.r*conv.s;
+          if(conv.r!=3 || conv.s!=3 || !taps || !elements || elements%taps ||
+             elements/taps>8)
+            throw std::invalid_argument("a native forward depthwise filter is not 3x3 KRSC packed");
+          shape.depthwise_pack=int(elements/taps);
+        }
         MapSpec spec;
         auto const& l=layouts.at(conv.input_layout);
         spec.buffer=conv.input_layout;spec.rank=4;
@@ -600,7 +614,7 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
         if(bind.residual!=kAbsent)shape.residual_stride=width_of(bind.residual);
         body="Sm90ForwardDepthwise<"+std::to_string(c.tile_w)+','+std::to_string(c.tile_h)+','+
             std::to_string(c.channel_block)+','+std::to_string(conv.stride_h)+','+
-            std::to_string(c.slots)+','+chain_text+'>';
+            std::to_string(c.slots)+','+chain_text+','+std::to_string(shape.depthwise_pack)+'>';
         wrapper="ForwardDepthwiseStage";
         break;
       }
