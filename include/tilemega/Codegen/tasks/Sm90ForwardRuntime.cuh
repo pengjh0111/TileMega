@@ -113,7 +113,10 @@ extern "C" void* tm_plan_create(int batch,void* const* external,int device) {
         plan->bindings.buffers[i]=static_cast<Element*>(external[i]);
         continue;
       }
-      std::size_t bytes=desc.elements_constant*
+      // A DNN activation is sized per batch; only tables are constant.
+      std::size_t elements=std::size_t(desc.elements_constant)+
+          std::size_t(desc.elements_per_batch)*std::size_t(batch);
+      std::size_t bytes=elements*
           (desc.dtype==TM_DTYPE_F32?4u:desc.dtype==TM_DTYPE_I32?4u:2u);
       void* allocation=nullptr;
       Check(cudaMalloc(&allocation,bytes?bytes:16));
@@ -168,8 +171,8 @@ extern "C" int tm_plan_launch(void* opaque,unsigned,unsigned mode,
 
 // Diagnostic extension: copy one bound buffer back for the stage-by-stage
 // comparison the DNN harness runs (`tilemega.dnn.debug_buffers`).
-extern "C" int tm_plan_read_buffer(void* opaque,unsigned index,void* host,
-                                   unsigned long long bytes) {
+extern "C" int tm_plan_read_buffer(void* opaque,std::uint32_t index,void* host,
+                                   std::uint64_t bytes) {
   using namespace tilemega::codegen::native_forward;
   if(!opaque || !host || index>=kNativeForwardBuffers.size())return -1;
   auto& plan=*static_cast<Plan*>(opaque);
