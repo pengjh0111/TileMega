@@ -78,7 +78,16 @@ int TestConvIteration(int,char**) {
   auto g=backend::ConvIterationGeometry::Build(conv,layout,16);
   assert(g.iterations==18 && g.At(8,0).r==1 && g.At(8,0).s==1 &&
       g.At(8,0).c==0 && !g.At(8,24).valid);
-  for(auto const& pair:std::vector<std::pair<unsigned,unsigned>>{{3,12},{24,64},{27,28}}) {
+  // The native forward bodies read whole 64-channel blocks, so padding a
+  // layer's channels to the 64 block is legal beside the legacy 8 block; a
+  // padding that is neither block is still rejected.
+  {
+    conv.c=24;layout.logical[3]=24;layout.physical[3]=64;
+    auto block=backend::ConvIterationGeometry::Build(conv,layout,16);
+    assert(block.channels==64 && block.iterations==9*(64/16));
+    ++geometries;
+  }
+  for(auto const& pair:std::vector<std::pair<unsigned,unsigned>>{{3,12},{24,40},{27,28}}) {
     conv.c=pair.first;layout.logical[3]=pair.first;layout.physical[3]=pair.second;
     bool rejected=false;try{(void)backend::ConvIterationGeometry::Build(conv,layout,16);}
     catch(std::invalid_argument const&){rejected=true;}
