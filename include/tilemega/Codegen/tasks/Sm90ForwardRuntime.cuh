@@ -5,7 +5,6 @@
 #include <tilemega/Codegen/executor/TensorMap.h>
 #include <tilemega/Codegen/executor/TensorMapTiled.h>
 #include <tilemega/Codegen/executor/TensorIm2col.h>
-#include <tilemega/Target/TargetSpec.h>
 #include <cstdio>
 #include <memory>
 #include <stdexcept>
@@ -42,8 +41,11 @@ struct Plan {
 };
 
 inline int Grid() {
-  auto target=TargetSpec::Probe();
-  return target.res.num_sms*NativeForwardProgram::kResidency;
+  int device=0;cudaDeviceProp properties{};
+  Check(cudaGetDevice(&device));Check(cudaGetDeviceProperties(&properties,device));
+  if(properties.major!=9 || properties.minor!=0)
+    throw std::invalid_argument("native forward plans require Hopper");
+  return properties.multiProcessorCount*NativeForwardProgram::kResidency;
 }
 
 }  // namespace tilemega::codegen::native_forward
@@ -162,6 +164,18 @@ extern "C" int tm_plan_launch(void* opaque,unsigned,unsigned mode,
       NativeForwardProgram::kSharedBytes,static_cast<cudaStream_t>(stream)>>>(
       plan.bindings,plan.events);
   return int(cudaGetLastError());
+}
+
+// Diagnostic extension: copy one bound buffer back for the stage-by-stage
+// comparison the DNN harness runs (`tilemega.dnn.debug_buffers`).
+extern "C" int tm_plan_read_buffer(void* opaque,unsigned index,void* host,
+                                   unsigned long long bytes) {
+  using namespace tilemega::codegen::native_forward;
+  if(!opaque || !host || index>=kNativeForwardBuffers.size())return -1;
+  auto& plan=*static_cast<Plan*>(opaque);
+  auto* address=plan.bindings.buffers[index];
+  if(!address)return -2;
+  return cudaMemcpy(host,address,bytes,cudaMemcpyDeviceToHost)==cudaSuccess?0:-3;
 }
 
 extern "C" void tm_plan_destroy(void* opaque) {

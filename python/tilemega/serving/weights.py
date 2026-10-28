@@ -53,8 +53,11 @@ def _conv_krsc(weight: torch.Tensor, padded_channels: int) -> torch.Tensor:
     if weight.ndim != 4 or any(extent <= 0 for extent in weight.shape):
         raise ValueError('conv_krsc requires a nonempty OIHW tensor')
     outputs, channels, rows, columns = weight.shape
-    if ((channels <= 4 and padded_channels not in (4, 8)) or
-            (channels > 4 and padded_channels != (channels + 7) // 8 * 8)):
+    # The input layout pads channels to one of the two supported blocks: eight
+    # for the legacy vector packing, 64 for the native forward bodies.
+    blocks = {(channels + size - 1) // size * size for size in (8, 64)}
+    if ((channels <= 4 and padded_channels not in (4, 8, 64)) or
+            (channels > 4 and padded_channels not in blocks)):
         raise ValueError('conv_krsc channel padding differs from the input layout')
     packed = weight.new_zeros((outputs, rows, columns, padded_channels))
     packed[..., :channels] = weight.permute(0, 2, 3, 1)

@@ -29,9 +29,13 @@ struct TensorIm2colShape {
   static TensorIm2colShape Build(ConvDesc const& conv,DmBufferLayout const& layout) {
     auto runtime=DmConvRuntime::Build(conv,layout,conv.n*conv.p*conv.q,conv.k,
         conv.c*conv.r*conv.s,64,1);
-    if(conv.c<64 || conv.c%64 || runtime.geometry.channels!=conv.c ||
+    // The descriptor fetches whole 64-channel blocks of the *padded* input, so
+    // a 3-channel image padded to 64 (the native forward layout) qualifies
+    // while an unpadded channel tail still does not.
+    if(layout.physical[3]<64 || layout.physical[3]%64 ||
+       runtime.geometry.channels!=layout.physical[3] ||
        conv.dilation_h>128 || conv.dilation_w>128)
-      throw std::invalid_argument("im2col candidate excludes RGB, channel tails and large dilation");
+      throw std::invalid_argument("im2col candidate excludes channel tails and large dilation");
     TensorIm2colShape result;
     result.dimensions={layout.physical[3],layout.physical[2],layout.physical[1],layout.physical[0]};
     result.strides={layout.strides[2]*2,layout.strides[1]*2,layout.strides[0]*2};

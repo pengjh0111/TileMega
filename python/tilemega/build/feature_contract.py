@@ -59,6 +59,9 @@ def validate_gemm_dispatch(manifest, defines, generated):
     if 'native_dense' in manifest:
         from .native_contract import dispatch
         return dispatch(manifest, defines, generated)
+    if 'native_forward' in manifest:
+        from .forward_contract import dispatch
+        return dispatch(manifest, defines, generated)
     gemms = manifest.get('gemms', [])
     match = re.search(r'constexpr\s+GemmRuntimeDesc\s+kRuntimeGemms0\[\]\s*=\s*\{(.*?)\n\};',
                       generated, re.S)
@@ -96,6 +99,9 @@ def validate(manifest, defines):
     if 'native_dense' in manifest:
         from .native_contract import validate as native_validate
         return native_validate(manifest, defines)
+    if 'native_forward' in manifest:
+        from .forward_contract import validate as forward_validate
+        return forward_validate(manifest, defines)
     seed_arch = manifest.get('seed_arch', 'legacy')
     if seed_arch not in ('native', 'legacy'):
         raise ValueError('manifest seed_arch must be native or legacy')
@@ -183,6 +189,9 @@ def implementations(manifest, defines):
     if 'native_dense' in manifest:
         from .native_contract import implementations as native_implementations
         return native_implementations(manifest)
+    if 'native_forward' in manifest:
+        from .forward_contract import implementations as forward_implementations
+        return forward_implementations(manifest)
     paged = manifest.get('pg') == 'pages'
     decode = manifest.get('phase') == 'decode'
     return {'dwpw_impl': manifest.get('dwpw_impl', 'mma16'), 'depthwise_impl': manifest.get('depthwise_impl', 'cpasync'), 'seed_arch': manifest.get('seed_arch', 'legacy'),

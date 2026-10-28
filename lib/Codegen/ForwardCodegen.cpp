@@ -45,7 +45,11 @@ std::string String(mlir::DictionaryAttr value,char const* field) {
   return attribute.getValue().str();
 }
 std::string Quoted(std::string const& text) {
-  return json::Value(text).Dump(0);
+  // A C string literal, escaped as JSON and with the dump's own line break
+  // removed so the initializer stays on one line.
+  auto value=json::Value(text).Dump(0);
+  while(!value.empty() && (value.back()=='\n' || value.back()=='\r'))value.pop_back();
+  return value;
 }
 std::string Float(double value) {
   std::ostringstream out;
