@@ -81,11 +81,14 @@ struct Sm90ForwardDwPw {
     return row*128+((((col%64)/8)^(row%8))*16)+(col%8)*2;
   }
 
+  // `tile_w` is this tile's own width, which is narrower than TW at the right
+  // edge of an image whose width is not a whole number of tiles; a task's rows
+  // are its tile's pixels in that tile's own raster order.
   __device__ static __forceinline__ void Depthwise(Element const* halo,Element const* weights,
-      Element* panel,int rows,int channels,int block) {
+      Element* panel,int rows,int tile_w,int channels,int block) {
     auto* base=reinterpret_cast<char*>(panel);
     for(int i=int(threadIdx.x);i<kRows*CB;i+=128) {
-      int channel=i%CB,pixel=i/CB,x=pixel%TW,y=pixel/TW;
+      int channel=i%CB,pixel=i/CB,x=tile_w>0?pixel%tile_w:0,y=tile_w>0?pixel/tile_w:0;
       float sum=0;
       // Channels past the image's own are the plan's zero padding, and their
       // weights are outside the packed KRSC extent.
@@ -166,7 +169,9 @@ struct Sm90ForwardDwPw {
         int task=int(blockIdx.x)+local*int(gridDim.x);
         int tile=task/splits,split=task%splits;
         int tile_x=(tile%tiles_w)*TW,tile_y=(tile/tiles_w)*TH;
-        int rows=min(TW,max(0,p.output_width-tile_x))*min(TH,max(0,p.output_height-tile_y));
+        int tile_w=min(TW,max(0,p.output_width-tile_x));
+        int tile_h=min(TH,max(0,p.output_height-tile_y));
+        int rows=tile_w*tile_h;
         auto accum=partition_fragment_C(typename Gmma::Mma{},Shape<Int<kRows>,Int<TN>>{});
         clear(accum);
         // The depthwise runs on CUDA cores between the MMAs, so the
@@ -177,7 +182,7 @@ struct Sm90ForwardDwPw {
           int slot=(local*blocks+block)%Slots;
           Async::Wait(state.full+slot,(phase>>slot)&1);phase^=1u<<slot;
           Depthwise(halo+slot*kHaloElements,filters+slot*kFilterElements,panel,rows,
-              p.channels,block);
+              tile_w,p.channels,block);
           // The panel is a generic-store producer for WGMMA's shared reads.
           Async::FenceProxyAsyncShared();
           codegen::executor::ComputeSync();
@@ -193,7 +198,7 @@ struct Sm90ForwardDwPw {
         // The task's rows are the pixels of its TW x TH tile, so the store
         // walks the tile inside the image.
         auto epilogue=p.epilogue;
-        epilogue.tile_width=TW;epilogue.image_width=p.output_width;
+        epilogue.tile_width=tile_w;epilogue.image_width=p.output_width;
         Chain::Finish(values,rows,split*TN,Chain::kWidth,epilogue,
             p.output+(std::size_t(tile_y)*p.output_width+tile_x)*p.out_channels,p.out_channels);
       }
