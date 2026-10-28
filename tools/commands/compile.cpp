@@ -1142,6 +1142,15 @@ int RunCompile(int argc, char** argv) {
         if(target.arch_tag=="sm_90" && plan && !candidate->hasAttr("tmexec.sm90_dense"))
           throw std::invalid_argument("H800 decode requires native tmexec coordinates; legacy execution options are invalid");
       }
+      // G-REPLACE-DNN (prompt §13): the native forward bodies replace the
+      // legacy DNN forward on H800, so a legacy forward build is invalid
+      // there. The legacy bodies remain for the other architectures.
+      if(serving && serving_phase=="forward" && frontend_mode=="dnn" && !runtime_target.empty()) {
+        auto target=tilemega::TargetSpec::FromJson(runtime_target);
+        auto plan=candidate->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+        if(target.arch_tag=="sm_90" && plan && !candidate->hasAttr("tmexec.sm90_forward"))
+          throw std::invalid_argument("H800 DNN forward requires native tmexec coordinates; legacy execution options are invalid");
+      }
       if(!hopper_requested && seed_arch!="native" && !serving_residency)return;
       auto target=tilemega::TargetSpec::FromJson(runtime_target);
       if(hopper_requested && (!target.caps.wgmma || target.arch_tag!="sm_90" || arch_paths!="auto"))

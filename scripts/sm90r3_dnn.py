@@ -120,6 +120,18 @@ def measure(a):
                   clock='CUDA events', forward_ms=statistics.median(values),
                   p90_ms=ordered[math.ceil(0.9 * len(ordered)) - 1], samples_ms=values)
     write(a.out / 'result.json', result)
+    # The guarded wrapper annotates every measurement with the device identity
+    # it verified, so the timing is retained under its own schema as well.
+    write(a.out / 'measurements' / 'measurements.json',
+          dict(schema_version=1, evidence='verified', system='tilemega', protocol='P-DNN',
+               model=spec['model'], batch=spec['batch'], precision='bf16', executor='L1',
+               arm=a.arm, round_index=a.fresh, median_ms=result['forward_ms'],
+               p90_ms=result['p90_ms'], samples_ms=values,
+               measurement=dict(clock='CUDA events', warmup=WARMUP, iterations=ITERATIONS,
+                                cuda_graph=False,
+                                scope='full model forward; input and weight transfers excluded'),
+               library_path=arm['library'], library_sha256=arm['library_sha256'],
+               input_sha256=arm['inputs_sha256'], root_commit=arm['root_commit']))
     print(json.dumps({k: v for k, v in result.items() if k != 'samples_ms'}))
 
 
@@ -204,7 +216,7 @@ def main():
     p.add_argument('--arm')
     p.add_argument('--fresh', type=int, default=0)
     p.add_argument('--after', nargs='*')
-    p.add_argument('--out', type=Path, required=True)
+    p.add_argument('--out', type=Path)
     # select (the solver's --measure-cmd prefix supplies these)
     p.add_argument('--model')
     p.add_argument('--batch', type=int, default=1)
@@ -216,6 +228,8 @@ def main():
     p.add_argument('--root', type=Path, default=ROOT)
     p.add_argument('--candidates', type=Path)
     a = p.parse_args()
+    if a.action in ('measure', 'collect', 'select') and a.out is None:
+        p.error(a.action + ' requires --out')
     if a.action == 'queue':
         queue(a)
     elif a.action == 'measure':
