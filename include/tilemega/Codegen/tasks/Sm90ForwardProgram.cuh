@@ -142,6 +142,10 @@ struct ForwardFusedStage {
     p.activation=b.template Map<Bind::kMap>();
     p.depthwise=b.template Get<Bind::kDepthwise>();
     p.depthwise_pack=Shape::kDepthwisePack;
+    p.dw_vectors[0]=reinterpret_cast<float const*>(b.template Get<Bind::kDwVector0>());
+    p.dw_vectors[1]=reinterpret_cast<float const*>(b.template Get<Bind::kDwVector1>());
+    p.dw_vectors[2]=reinterpret_cast<float const*>(b.template Get<Bind::kDwVector2>());
+    p.dw_vectors[3]=reinterpret_cast<float const*>(b.template Get<Bind::kDwVector3>());
     p.pointwise=b.template Get<Bind::kWeight>();
     p.expand=b.template Get<Bind::kExpand>();
     p.output=b.template Get<Bind::kOutput>();
@@ -152,6 +156,7 @@ struct ForwardFusedStage {
     p.out_channels=Shape::kOutChannels;
     p.output_width=Shape::kOutputWidth;p.output_height=Shape::kOutputHeight;
     p.stride=Shape::kStrideH;p.padded_channels=Shape::kPaddedChannels;
+    p.output_stride=Shape::kOutputStride;
   }
   template<class B>
   __device__ static __forceinline__ void Run(B const&,char* shared,int offset,

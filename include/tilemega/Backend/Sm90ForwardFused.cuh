@@ -31,14 +31,21 @@ struct Sm90ForwardFusedOperands {
   float* partial;                       // split-C_exp partials
   std::uint64_t* counters;
   Sm90ForwardEpilogueOperands epilogue;
+  // The depthwise's own per-channel vectors (its folded BN), which its
+  // register-resident chain reads.
+  float const* dw_vectors[4];
   int width,height,channels,out_channels,output_width,output_height,stride;
+  // The output row's own pitch, which is the buffer's padded channel block
+  // and is wider than `out_channels` whenever the plan pads them.
+  int output_stride;
   int padded_channels;   // the input's padded channel extent, which the pages cover
 };
 
 // TW x TH output pixels; CB channels of depthwise per block; TN output
 // channels per task. The pointwise contracts the depthwise result, so the
 // GEMM's M is the tile's pixel count padded to 64.
-template<int TW,int TH,int CB,int TN,int Stride,int Slots,class Chain,int Pack=8>
+template<int TW,int TH,int CB,int TN,int Stride,int Slots,class Chain,int Pack=8,
+         class DwChain=Sm90ForwardElementChain<>>
 struct Sm90ForwardDwPw {
   using Element=cutlass::bfloat16_t;
   using Async=codegen::executor::Async<arch::Sm90>;
@@ -85,7 +92,8 @@ struct Sm90ForwardDwPw {
   // edge of an image whose width is not a whole number of tiles; a task's rows
   // are its tile's pixels in that tile's own raster order.
   __device__ static __forceinline__ void Depthwise(Element const* halo,Element const* weights,
-      Element* panel,int rows,int tile_w,int channels,int block) {
+      Element* panel,int rows,int tile_w,int channels,int block,
+      float const* const (&dw_vectors)[4]) {
     auto* base=reinterpret_cast<char*>(panel);
     for(int i=int(threadIdx.x);i<kRows*CB;i+=128) {
       int channel=i%CB,pixel=i/CB,x=tile_w>0?pixel%tile_w:0,y=tile_w>0?pixel/tile_w:0;
@@ -102,11 +110,14 @@ struct Sm90ForwardDwPw {
             sum+=float(halo[(hy*kHaloW+hx)*CB+channel])*float(filter[(r*3+s)*Pack]);
           }
       }
-      // ReLU6 is MBV1's depthwise activation; the pointwise chain owns the
-      // rest. The A panel of k block (channel / 64) is swizzled like any
-      // WGMMA operand; the rows past this tile's pixels contribute zero.
+      // The plan's depthwise epilogue (its folded BN and activation) applies
+      // here, before the result becomes the pointwise's A. The A panel of k
+      // block (channel / 64) is swizzled like any WGMMA operand; the rows
+      // past this tile's pixels contribute zero.
+      if(pixel<rows && block*CB+channel<channels)
+        sum=DwChain::Apply(sum,block*CB+channel,dw_vectors);
       auto* target=base+(channel/64)*kRows*128+Swizzled(pixel,channel);
-      *reinterpret_cast<Element*>(target)=Element(fminf(fmaxf(sum,0.0f),6.0f));
+      *reinterpret_cast<Element*>(target)=Element(sum);
     }
     codegen::executor::ComputeSync();
   }
@@ -120,7 +131,9 @@ struct Sm90ForwardDwPw {
     auto* panel=reinterpret_cast<Element*>(shared+kPanelOffset);
     auto* scratch=shared+kLayout.scratch;
     int tiles_w=(p.output_width+TW-1)/TW,tiles_h=(p.output_height+TH-1)/TH;
-    int splits=p.out_channels/TN;
+    // The weight is packed into whole TN-wide tiles, so a projection narrower
+    // than TN still has one tile and the epilogue stores only its own columns.
+    int splits=(p.out_channels+TN-1)/TN;
     int total=tiles_w*tiles_h*splits;
     int tasks=total/int(gridDim.x)+(int(blockIdx.x)<total%int(gridDim.x));
     unsigned phase=0;
@@ -182,7 +195,7 @@ struct Sm90ForwardDwPw {
           int slot=(local*blocks+block)%Slots;
           Async::Wait(state.full+slot,(phase>>slot)&1);phase^=1u<<slot;
           Depthwise(halo+slot*kHaloElements,filters+slot*kFilterElements,panel,rows,
-              tile_w,p.channels,block);
+              tile_w,p.channels,block,p.dw_vectors);
           // The panel is a generic-store producer for WGMMA's shared reads.
           Async::FenceProxyAsyncShared();
           codegen::executor::ComputeSync();
@@ -199,8 +212,14 @@ struct Sm90ForwardDwPw {
         // walks the tile inside the image.
         auto epilogue=p.epilogue;
         epilogue.tile_width=tile_w;epilogue.image_width=p.output_width;
-        Chain::Finish(values,rows,split*TN,Chain::kWidth,epilogue,
-            p.output+(std::size_t(tile_y)*p.output_width+tile_x)*p.out_channels,p.out_channels);
+        // The residual is this tile's own pixels, like the output.
+        if(epilogue.residual)
+          epilogue.residual+=(std::size_t(tile_y)*p.output_width+tile_x)*epilogue.residual_stride;
+        int width=p.out_channels-split*Chain::kWidth;
+        if(width>Chain::kWidth)width=Chain::kWidth;
+        Chain::Finish(values,rows,split*TN,width>0?width:0,epilogue,
+            p.output+(std::size_t(tile_y)*p.output_width+tile_x)*p.output_stride,
+            p.output_stride);
       }
       if(threadIdx.x==0 && tasks)
         for(int slot=0;slot<Slots;++slot)state.consumer_generations[slot]=(phase>>slot)&1;

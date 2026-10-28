@@ -6,6 +6,7 @@
 #include <tilemega/Codegen/DmDescriptors.h>
 #include <tilemega/Codegen/executor/Async.cuh>
 #include <cutlass/bfloat16.h>
+#include <cstddef>
 #include <cmath>
 
 // Native DNN forward epilogue chain (prompt §10 N-1 item 5). The plan's
@@ -39,6 +40,16 @@ struct Sm90ForwardEpilogueOperands {
   // instead of a dense run of rows. Zero keeps the dense mapping.
   int tile_width,image_width;
 };
+
+// A row's offset inside its buffer: a body whose rows are the pixels of a
+// spatial tile addresses them through that tile, while a GEMM's rows are a
+// dense run.
+__device__ __forceinline__ std::size_t Sm90ForwardRowOffset(
+    Sm90ForwardEpilogueOperands const& p,int row,int stride) {
+  return p.tile_width>0?
+      (std::size_t(row/p.tile_width)*p.image_width+row%p.tile_width)*std::size_t(stride):
+      std::size_t(row)*std::size_t(stride);
+}
 
 // (mean, 1/sigma) of one row from the producer's raw sums. The producer ran
 // on other SMs, whose L1 caches are not coherent, so the sums are read at GPU
@@ -86,6 +97,31 @@ __device__ __forceinline__ float Sm90ForwardActivate(codegen::DmActivation kind,
   return x;
 }
 
+// A chain for a result still in registers: the fused body's depthwise, whose
+// value never reaches a shared tile. Only the channel-wise operations a
+// depthwise epilogue carries are implemented; the build rejects the rest.
+template<class... Step>
+struct Sm90ForwardElementChain {
+  template<class S>
+  __device__ static __forceinline__ void ApplyOne(float& value,int channel,
+      float const* const (&vectors)[4]) {
+    if constexpr(S::kKind==Sm90ForwardOp::kScale)
+      value*=vectors[S::kVector][channel];
+    else if constexpr(S::kKind==Sm90ForwardOp::kBias)
+      value+=vectors[S::kVector][channel];
+    else if constexpr(S::kKind==Sm90ForwardOp::kActivation)
+      value=Sm90ForwardActivate(S::kActivation,value);
+    else
+      static_assert(S::kKind==Sm90ForwardOp::kScale,
+          "a register-resident chain implements scale, bias and activation");
+  }
+  __device__ static __forceinline__ float Apply(float value,int channel,
+      float const* const (&vectors)[4]) {
+    (ApplyOne<Step>(value,channel,vectors),...);
+    return value;
+  }
+};
+
 // The chain runs over one M x N fp32 tile in shared memory. Rows are the
 // task's M output rows; columns are its N channels starting at `channel`.
 template<int M,int N,class... Step>
@@ -128,7 +164,7 @@ struct Sm90ForwardEpilogueChain {
         else if constexpr(S::kKind==Sm90ForwardOp::kActivation)
           value=Sm90ForwardActivate(S::kActivation,value);
         else if constexpr(S::kKind==Sm90ForwardOp::kResidual) {
-          float add=float(p.residual[std::size_t(row)*p.residual_stride+channel+col]);
+          float add=float(p.residual[Sm90ForwardRowOffset(p,row,p.residual_stride)+channel+col]);
           if(p.vectors[S::kVector])add*=float(p.vectors[S::kVector][channel+col]);
           value+=add;
         }else if constexpr(S::kKind==Sm90ForwardOp::kDeferredLayerNorm) {
@@ -141,7 +177,8 @@ struct Sm90ForwardEpilogueChain {
         }else if constexpr(S::kKind==Sm90ForwardOp::kResidualLN) {
           float mean,inverse;
           Sm90ForwardRowNorm(p.stats,row,p.norm_width,p.epsilon,mean,inverse);
-          float source=float(p.residual[std::size_t(row)*p.residual_stride+channel+col]);
+          float source=float(
+              p.residual[Sm90ForwardRowOffset(p,row,p.residual_stride)+channel+col]);
           value+=(source-mean)*inverse*float(p.vectors[S::kVector][channel+col])+
               float(p.vectors[S::kVector2][channel+col]);
         }
@@ -188,10 +225,7 @@ struct Sm90ForwardEpilogueChain {
       }
     for(int i=int(threadIdx.x);i<rows*width;i+=128) {
       int row=i/width,col=i%width;
-      std::size_t destination=p.tile_width>0?
-          (std::size_t(row/p.tile_width)*p.image_width+row%p.tile_width)*stride:
-          std::size_t(row)*stride;
-      output[destination+channel+col]=Element(tile[row*N+col]);
+      output[Sm90ForwardRowOffset(p,row,stride)+channel+col]=Element(tile[row*N+col]);
     }
     codegen::executor::ComputeSync();
   }

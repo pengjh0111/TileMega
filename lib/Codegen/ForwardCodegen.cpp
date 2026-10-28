@@ -69,6 +69,7 @@ struct Binding {
   unsigned partial=kAbsent,counters=kAbsent;
   unsigned vector[4]={kAbsent,kAbsent,kAbsent,kAbsent};
   unsigned residual=kAbsent,stats=kAbsent,row_stats=kAbsent,channel_partial=kAbsent;
+  unsigned dw_vector[4]={kAbsent,kAbsent,kAbsent,kAbsent};
   unsigned index0=kAbsent,index1=kAbsent,table=kAbsent;
   unsigned row_partials=kAbsent,row_counters=kAbsent;
   std::string Emit(unsigned index) const {
@@ -87,7 +88,11 @@ struct Binding {
        <<",\n      kIndex0="<<Identifier(index0)<<",kIndex1="<<Identifier(index1)
        <<",kTable="<<Identifier(table)
        <<",\n      kRowPartials="<<Identifier(row_partials)
-       <<",kRowCounters="<<Identifier(row_counters)<<";\n};\n";
+       <<",kRowCounters="<<Identifier(row_counters)
+       <<",\n      kDwVector0="<<Identifier(dw_vector[0])
+       <<",kDwVector1="<<Identifier(dw_vector[1])
+       <<",kDwVector2="<<Identifier(dw_vector[2])
+       <<",kDwVector3="<<Identifier(dw_vector[3])<<";\n};\n";
     return out.str();
   }
 };
@@ -245,6 +250,54 @@ std::string Chain(codegen::DmEpilogueChain const& chain,int rows,int width,Bindi
       bind.channel_partial=side.buffer;
     else throw std::invalid_argument("native forward epilogue does not implement a side output");
   }
+  out<<'>';
+  return out.str();
+}
+
+
+// The fused depthwise's own epilogue, applied while its result is still in
+// registers: only the channel-wise operations such a chain carries are
+// implemented, and its vectors fill the binding's depthwise vector slots.
+std::string ElementChain(codegen::DmEpilogueChain const& chain,Binding& bind,
+                         std::function<void(unsigned)> const& fp32) {
+  std::ostringstream out;
+  out<<"Sm90ForwardElementChain<";
+  unsigned slots=0;
+  auto slot=[&](unsigned buffer) {
+    for(unsigned i=0;i<slots;++i)if(bind.dw_vector[i]==buffer)return i;
+    if(slots==4)
+      throw std::invalid_argument("a native forward depthwise chain needs over four vectors");
+    fp32(buffer);
+    bind.dw_vector[slots]=buffer;
+    return slots++;
+  };
+  for(unsigned i=0;i<chain.count;++i) {
+    auto const& op=chain.operations[i];
+    using Kind=codegen::DmEpilogueKind;
+    if(i)out<<',';
+    out<<"Sm90ForwardEpilogueStep<Sm90ForwardOp::";
+    unsigned vector=0;
+    switch(op.kind) {
+      case Kind::kScale:out<<"kScale";vector=slot(op.parameter[0]);break;
+      case Kind::kBias:out<<"kBias";vector=slot(op.parameter[0]);break;
+      case Kind::kActivation:out<<"kActivation";break;
+      default:
+        throw std::invalid_argument("a native forward depthwise chain implements scale, "
+            "bias and activation only");
+    }
+    out<<','<<vector<<",codegen::DmActivation::";
+    switch(op.activation) {
+      case codegen::DmActivation::kRelu:out<<"kRelu";break;
+      case codegen::DmActivation::kRelu6:out<<"kRelu6";break;
+      case codegen::DmActivation::kGeluErf:out<<"kGeluErf";break;
+      case codegen::DmActivation::kGeluTanh:out<<"kGeluTanh";break;
+      case codegen::DmActivation::kTanh:out<<"kTanh";break;
+      case codegen::DmActivation::kSilu:out<<"kSilu";break;
+    }
+    out<<'>';
+  }
+  if(chain.side_count)
+    throw std::invalid_argument("a native forward depthwise chain has no side output");
   out<<'>';
   return out.str();
 }
@@ -545,10 +598,14 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
         shape.output_stride=width_of(bind.output);
         auto chain_text=Chain(chain,64,c.tile_n,bind,require_fp32,&shape);
         if(bind.residual!=kAbsent)shape.residual_stride=width_of(bind.residual);
+        // The stage's own chain is the depthwise's epilogue; the GEMM's is the
+        // pointwise's.
+        auto depthwise_chain=ElementChain(
+            frontend::DecodeDmChain(stage.get("dm_chain")),bind,require_fp32);
         body="Sm90ForwardDwPw<"+std::to_string(c.tile_w)+','+std::to_string(c.tile_h)+','+
             std::to_string(c.channel_block)+','+std::to_string(c.tile_n)+','+
             std::to_string(conv.stride_h)+','+std::to_string(c.slots)+','+chain_text+','+
-            std::to_string(shape.depthwise_pack)+'>';
+            std::to_string(shape.depthwise_pack)+','+depthwise_chain+'>';
         wrapper="ForwardFusedStage";
         break;
       }
