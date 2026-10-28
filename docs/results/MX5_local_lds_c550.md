@@ -758,3 +758,23 @@ use covered measured-stage rows;no least-squares fallback candidate is substitut
 MX5_llm_c550.md now reports onlyR² in the request-metrics table,as§5.7 requests;
 the original fit objects andscope remain inrawcurrent_selected_fit_report_v1/
 ACTUAL_SELECTED8_ORIGIN_FIT_R2_CPU.json. No GPU/compiler call orsolver change.
+
+
+## Verified nine aligned cells and refreshed normal root compiler
+
+Llama1B B16 selects original0 at3.006683667085679ms,−12.476161% versusfixedMX4,
+pred/meas1.004738. Allfour original C1/C2512 andeightfresh timings passindependent
+verification/CSVappend. Current aligned coverage9/25 hasno discernible regressions;
+allfive Llama1B batches are complete. The native six-cell controller completes
+andunlocks the already-gated remaining16-cell queue,startingQwen0.6B B2.
+
+The primary build/tools/tilemega stillhad sourcefingerprint0bba3b96,whilethe
+active frozen producer already matchedcurrent f054c811. The old root executable
+is retained byte-identical (SHA8485c9f4). Normal incremental Ninja rebuilds two
+CPU objects andlinks the host compiler;an actual normal Ninja confirmation,
+source-fingerprint check andversion command allreturn0. New root SHA76502785,
+sourcefingerprint f054c811 matchescurrent native/compiler inputs. Frozen producer
+SHA230a572b remains unchanged andactive artifacts are not replaced. GPUcalls0.
+The initial build wrapper captured shellrc only;the separately recorded normal
+Ninja confirmation supplies its actualrc0 rather than inventing the first rc.
+Raw:current_root_build_verification_v1/ACTUAL_CURRENT_ROOT_BUILD_VERIFIED.json.

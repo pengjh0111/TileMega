@@ -1,6 +1,6 @@
 # MX-5 C550 LLM checkpoint
 
-Verified current consumed-prefetch source with L1 prefill: 8/25 dense solver selections; 0 distinguishable MX4 regressions.
+Verified current consumed-prefetch source with L1 prefill: 9/25 dense solver selections; 0 distinguishable MX4 regressions.
 Body4b7d83686;normalproducer230a572b atd889;G14/H15 unchanged,A20=b4555ea2e0dbde380c37c48793e2fd5ff4a9f6dc767b0ebb9606e108c4fd34b3.
 Authority SHA256:75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73.
 G-PROGRAM development5 passes;G-B/G-SOLVER/G-LLM/G-FWD anddefault promotion remain open;MoE0/5,DNN0/25.
@@ -23,7 +23,7 @@ G-PROGRAM development5 passes;G-B/G-SOLVER/G-LLM/G-FWD anddefault promotion rema
 |Llama1B|2|2.264237|2.272015|2.849600|-0.342%|0.7946|nonregression|
 |Llama1B|4|2.428614|2.438731|2.913400|-0.415%|0.8336|nonregression|
 |Llama1B|8|2.648571|2.771217|3.045700|-4.426%|0.8696|nonregression|
-|Llama1B|16|—|3.435274|3.359300|—|—|pending|
+|Llama1B|16|3.006684|3.435274|3.359300|-12.476%|0.8950|nonregression|
 |Llama3B|1|—|5.317005|5.836400|—|—|pending|
 |Llama3B|2|—|5.477695|6.493000|—|—|pending|
 |Llama3B|4|—|5.807209|6.650300|—|—|pending|
@@ -47,6 +47,7 @@ G-PROGRAM development5 passes;G-B/G-SOLVER/G-LLM/G-FWD anddefault promotion rema
 |Qwen0.6B/B16|512|52.587|3.651070|4487.452|0.4125|1.00977|0.992931|
 |Llama1B/B1|576|8.800|2.192684|467.008|0.7526|1.01338|0.998322|
 |Llama8B/B1|512|42.760|10.870616|94.199|0.9195|0.98285|0.998670|
+|Llama1B/B16|576|72.858|3.148696|5203.426|0.5951|1.00474|0.997849|
 
 MBU=(inferred streamedBF16 linearweights+KV atmeanL576)/(1.55TB/s×TPOT);TTFT reported,not optimized.
 FitR²=actual origin solver measured-row fit,not held-out validation;no table-out estimate selects these cells.
@@ -66,6 +67,7 @@ Predictions use actual executed widths;original predictions and bounded pair his
 |Qwen0.6B/B16|3.551934, 3.555004, 3.555544, 3.555734|3.517579, 3.518736, 3.520886, 3.524120|1.00977, 1.01031, 1.00984, 1.00897|0|
 |Llama1B/B1|2.163351, 2.164121, 2.164481, 2.164631|2.134784, 2.133451, 2.132636, 2.134002|1.01338, 1.01438, 1.01493, 1.01435|0|
 |Llama8B/B1|10.402925, 10.403565, 10.403565, 10.405085|10.584414, 10.574267, 10.581934, 10.580008|0.98285, 0.98386, 0.98314, 0.98347|0|
+|Llama1B/B16|3.020928, 3.021193, 3.021248, 3.021513|3.006684, 2.998227, 3.016701, 3.013547|1.00474, 1.00766, 1.00151, 1.00264|0|
 
 ## Executed coordinates and matching-source bench (verified)
 
@@ -80,6 +82,7 @@ NotationTN/WN/D/Part/Pw;T=TileRange,S=StreamK. Each dense step5L+1stages;R_next/
 |Qwen0.6B/B16|4|0|64/1/1/T/1|16/1/1/T/1|64/1/1/T/1|16/1/1/T/1|128/8/1/T/2|
 |Llama1B/B1|1|2|32/1/1/T/1|32/1/2/T/2|64/2/2/T/4|32/1/2/T/2|32/8/2/T/8|
 |Llama8B/B1|1|0|64/1/1/T/1|64/1/1/T/1|32/8/4/T/8|64/1/3/T/3|64/4/1/T/4|
+|Llama1B/B16|4|2|32/1/2/T/2|32/1/1/T/1|64/1/3/T/3|32/1/1/S/2|64/8/1/T/4|
 
 | Cell | QKV us | Attention us | O us | GateUp us | Down us | Head us |
 |---|---:|---:|---:|---:|---:|---:|
@@ -91,6 +94,7 @@ NotationTN/WN/D/Part/Pw;T=TileRange,S=StreamK. Each dense step5L+1stages;R_next/
 |Qwen0.6B/B16|13.550|62.384|11.810|16.410|15.570|199.670|
 |Llama1B/B1|12.430|14.297|10.140|52.640|25.280|326.760|
 |Llama8B/B1|34.850|19.074|24.920|149.750|76.540|638.630|
+|Llama1B/B16|15.810|35.190|14.270|63.610|38.680|339.960|
 Bench=qualified threefresh stage rows,not program stage latencies;attentionfivegrid interpolation overL65..1087.
 
 ## Aligned internal MX4 P-PAIR (verified)
