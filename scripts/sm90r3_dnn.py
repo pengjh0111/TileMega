@@ -136,13 +136,21 @@ def measure(a):
 
 
 def job_result(state, name):
-    for job in state['jobs']:
-        if job['name'] != name:
-            continue
-        if job['status'] != 'completed':
-            raise ValueError(f'job {name} is {job["status"]}')
-        return read(Path(job['attempts'][-1]['directory']) / 'job/result.json')
-    raise KeyError(name)
+    """One visit's timing, with the guard's own verdict on that attempt."""
+    row = state[name]
+    if row['status'] != 'done':
+        raise ValueError(f'{name} is {row["status"]}')
+    folder = Path(row['out'])
+    guard = read(folder / 'guard_result.json')
+    if guard['code']:
+        raise ValueError(f'{name} guard rejected the attempt')
+    paths = list((folder / 'job/measurements').rglob('measurements.json'))
+    if len(paths) != 1:
+        raise ValueError(f'{name} lacks exactly one measurement')
+    result = read(folder / 'job/result.json')
+    result.update(guard_acceptance=guard.get('acceptance'),
+                  measurement=str(paths[0]), measurement_sha256=sha(paths[0]))
+    return result
 
 
 def collect(a):
