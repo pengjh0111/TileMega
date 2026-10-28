@@ -1,6 +1,6 @@
 # MX-5 C550 LLM checkpoint
 
-Verified current consumed-prefetch source with L1 prefill: 6/25 dense solver selections; 0 distinguishable MX4 regressions.
+Verified current consumed-prefetch source with L1 prefill: 7/25 dense solver selections; 0 distinguishable MX4 regressions.
 Body4b7d83686;normalproducer230a572b atd889;G14/H15 unchanged,A20=b4555ea2e0dbde380c37c48793e2fd5ff4a9f6dc767b0ebb9606e108c4fd34b3.
 Authority SHA256:75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73.
 Allgates/default promotion remain open;MoE native0/5,DNN native0/25;defaults MX4.
@@ -19,7 +19,7 @@ Allgates/default promotion remain open;MoE native0/5,DNN native0/25;defaults MX4
 |Qwen1.7B|4|—|3.894393|4.386800|—|—|pending|
 |Qwen1.7B|8|—|4.603874|5.019400|—|—|pending|
 |Qwen1.7B|16|—|6.252656|5.464700|—|—|pending|
-|Llama1B|1|—|2.211073|2.526700|—|—|pending|
+|Llama1B|1|2.134784|2.211073|2.526700|-3.450%|0.8449|nonregression|
 |Llama1B|2|2.264237|2.272015|2.849600|-0.342%|0.7946|nonregression|
 |Llama1B|4|2.428614|2.438731|2.913400|-0.415%|0.8336|nonregression|
 |Llama1B|8|2.648571|2.771217|3.045700|-4.426%|0.8696|nonregression|
@@ -45,6 +45,7 @@ Allgates/default promotion remain open;MoE native0/5,DNN native0/25;defaults MX4
 |Llama1B/B8|576|45.294|2.754782|2973.739|0.6388|0.97958|
 |Qwen0.6B/B1|512|9.041|2.028233|504.873|0.4112|1.02455|
 |Qwen0.6B/B16|512|52.587|3.651070|4487.452|0.4125|1.00977|
+|Llama1B/B1|576|8.800|2.192684|467.008|0.7526|1.01338|
 
 MBU=(inferred streamedBF16 linearweights+KV atmeanL576)/(1.55TB/s×TPOT);TTFT reported,not optimized.
 
@@ -61,6 +62,7 @@ Predictions use actual executed widths;original predictions and bounded pair his
 |Llama1B/B8|2.594494, 2.594654, 2.598654, 2.598814|2.648571, 2.648759, 2.664316, 2.665914|0.97958, 0.97957, 0.97536, 0.97483|0|
 |Qwen0.6B/B1|2.022251, 2.022321, 2.022431, 2.022541|1.973795, 1.978077, 1.980416, 1.975140|1.02455, 1.02237, 1.02122, 1.02400|0|
 |Qwen0.6B/B16|3.551934, 3.555004, 3.555544, 3.555734|3.517579, 3.518736, 3.520886, 3.524120|1.00977, 1.01031, 1.00984, 1.00897|0|
+|Llama1B/B1|2.163351, 2.164121, 2.164481, 2.164631|2.134784, 2.133451, 2.132636, 2.134002|1.01338, 1.01438, 1.01493, 1.01435|0|
 
 ## Executed coordinates and matching-source bench (verified)
 
@@ -73,6 +75,7 @@ NotationTN/WN/D/Part/Pw;T=TileRange,S=StreamK. Each dense step5L+1stages;R_next/
 |Llama1B/B8|8|2|32/1/1/T/1|32/1/1/T/1|64/2/2/T/2|32/1/1/S/2|64/8/4/T/4|
 |Qwen0.6B/B1|1|0|32/2/2/T/2|16/1/2/T/2|64/1/1/T/1|16/1/2/T/2|128/8/1/T/2|
 |Qwen0.6B/B16|4|0|64/1/1/T/1|16/1/1/T/1|64/1/1/T/1|16/1/1/T/1|128/8/1/T/2|
+|Llama1B/B1|1|2|32/1/1/T/1|32/1/2/T/2|64/2/2/T/4|32/1/2/T/2|32/8/2/T/8|
 
 | Cell | QKV us | Attention us | O us | GateUp us | Down us | Head us |
 |---|---:|---:|---:|---:|---:|---:|
@@ -82,6 +85,7 @@ NotationTN/WN/D/Part/Pw;T=TileRange,S=StreamK. Each dense step5L+1stages;R_next/
 |Llama1B/B8|13.570|26.675|11.800|56.750|32.480|334.090|
 |Qwen0.6B/B1|10.100|22.988|8.360|13.770|10.030|195.300|
 |Qwen0.6B/B16|13.550|62.384|11.810|16.410|15.570|199.670|
+|Llama1B/B1|12.430|14.297|10.140|52.640|25.280|326.760|
 Bench=qualified threefresh stage rows,not program stage latencies;attentionfivegrid interpolation overL65..1087.
 
 ## Historical A19 reference (verified, separate source)
@@ -102,8 +106,9 @@ A19 QwenB2 attention DIAG=35.923/35.842us vsbench27.167us (16freshchildren,total
 Threefresh off-grid32-block midpoint estimate33.674us explains muchof thatmodelgap;fixedgrid/formula unchanged.
 Midpoint diagnostic total2.333086ms vsactual2.301333ms;not an official replacementcost.
 Current-body I1 fivefresh order deltasQKV+6.304%,attn+3.668%,O+8.104%,GU+7.224%,down−.478%;no cachecause claimed.
-True576 Llama1B B2/B4/B8 WD1 original0frames16/24/56B despite fittingWD0;runner stops before numerical launch.
-Watchdog lifetime/lazy-record prototypes are not applied;prescribed maximum3 widthdiagnostics are not approvedresults.
+Original576 Llama1B B2/B4/B8 WD1frames16/24/56B stop before numerical launch;failed originals remain preserved.
+All12 explicit WDpair histories fit withinmaximum3 reductions;24actualqueries and5changed-width3freshcosts pass.
+Aligned L1 B2/B4/B8 complete all4 C1/C2512 and8fresh timings;rejected lifetime/lazy prototypes stay off.
 OriginalG576 single-element referencefails21.75vs22.125,error.375>tol.374000013;oracle/seed/tolerance unchanged.
 Nativegate1.192e−6 belowBF16 midpoint,CPUgate2.861e−6 above;instrumented fulloutput identical.
 Consumed-prefetch repair passes5fresh×336required,5fresh×null28,5fresh×helper6×2000×104CTAs,and5fresh×coldselfnext12.
