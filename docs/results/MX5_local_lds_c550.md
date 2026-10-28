@@ -687,3 +687,14 @@ were replaced before any DIAG query orCSVappend. No GPUjob,validator,resource
 criterion orraw measurement changed. Raw:aligned_development_stage_ledger_v1/
 ACTUAL_RESOURCE_APPEND_SYNTAX_CORRECTION_CPU.json and
 ACTUAL_SAVED_GUARD_CARD_TYPE_PREEXEC_CPU_REVIEW.json.
+
+
+## Verified fourth aligned internal P-PAIR result
+
+Llama1B B1 completes fourfresh alternating card5 processes. Arm medians
+old2.208144ms,new2.135033ms give−3.3110%;relative roundrange.1020%,threshold1%,
+so the improvement is distinguishable. Independent CPU ingestion appends four
+labelled process rows,bringing MX5_ppair_c550.csv to16rows/fourcells. The final
+development8BB1 stillneeds all8formal top4timing processes andthen its ownP-PAIR.
+Raw:aligned_development_MX4_PPAIR_v1/llama3_2_1b_B1/ACTUAL_PPAIR_COMPLETE.json.
+No fixedbaseline,solver selection ordefault changes follow fromP-PAIR.
