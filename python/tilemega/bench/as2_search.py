@@ -115,8 +115,9 @@ def solve(domain_path,out,compiler):
         with (out/(c['id']+'.log')).open('x') as log:
             with subprocess.Popen(argv,stdout=log,stderr=log,start_new_session=True,
                     env=dict(os.environ,OMP_NUM_THREADS='1',OPENBLAS_NUM_THREADS='1')) as child:
-                owned=process_identity(child.pid);row['cpu_process']=owned;write(out/'search.json',summary)
+                owned=process_identity(child.pid)
                 try:
+                    row['cpu_process']=owned;write(out/'search.json',summary)
                     code=child.wait(timeout=domain.get('candidate_timeout_s',600))
                     row.update(returncode=code,status='rejected' if code else 'solved')
                 except BaseException as exc:
