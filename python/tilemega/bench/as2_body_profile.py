@@ -9,6 +9,28 @@ from tilemega.bench.as2_models import RUNS, controlled
 from tilemega.bench.as2_native import digest
 
 
+ATTENTION_PHASE_MAGIC=0x4154325048415345
+ATTENTION_PHASE_NAMES=('kv_rope_append','kv_cast','kv_zero','query_rope_cast','qk','softmax','pv','output_cast')
+
+
+def attention_intervals(record,composite,participant,ns_per_tick):
+    """Validate same-worker intervals; never compare clocks across cores."""
+    magic,mask=record[8:10]
+    if not magic and not mask:return None
+    if magic!=ATTENTION_PHASE_MAGIC or not composite or mask!=(0xaf if participant else 0x50):
+        raise ValueError('Unregistered Attention subphase record or role')
+    result={};previous=record[3]
+    for i,name in enumerate(ATTENTION_PHASE_NAMES):
+        start,end=record[10+2*i:12+2*i]
+        if not mask&(1<<i):
+            if start or end:raise ValueError('Inactive Attention phase has timer payload')
+            continue
+        if not record[3]<=previous<=start<=end<=record[4]:
+            raise ValueError('Attention timer escaped its Body interval or phase order')
+        previous=end;result[name]=(end-start)*ns_per_tick
+    return result
+
+
 def profile_bytes(path):
     if path.exists():return path.read_bytes()
     receipt=json.loads(path.with_name(path.name+'.archive.json').read_text())
@@ -118,7 +140,7 @@ def extract(binding,job_path,phase,repetition,out):
     if timer_receipt['status']!='passed' or resources['counter_hz']<=0:raise ValueError('Require executed timer evidence')
     ns_per_tick=1e9/resources['counter_hz'];expected_epoch=0 if phase=='prefill' else int(command[4])-2
     past=0 if phase=='prefill' else int(command[4])+62
-    intervals=[{} for _ in tasks];worker_windows=[]
+    intervals=[{} for _ in tasks];worker_windows=[];attention_samples={};phase_records=0;attention_records=0
     for w in range(m[2]):
         starts=[];ends=[];busy=0
         for slot in range(offsets[w],offsets[w+1]):
@@ -129,6 +151,12 @@ def extract(binding,job_path,phase,repetition,out):
             if participant and not (task[6]==1 and task[2]<m[1] and w==m[1]+2*task[2]):
                 raise ValueError('Unregistered participant in measured Body profile')
             if w in intervals[id]:raise ValueError('Duplicate worker service record')
+            composite=stages[task[0]][17]==13 and stages[task[0]][31] in (4,5,6,7,8)
+            attention_records+=int(composite)
+            phases=attention_intervals(struct.unpack_from('<26Q',data,slot*512),composite,participant,ns_per_tick)
+            if phases is not None:
+                phase_records+=1;stage_samples=attention_samples.setdefault(task[0],{})
+                for name,value in phases.items():stage_samples.setdefault(name,[]).append(value)
             intervals[id][w]=(r[4]-r[3])*ns_per_tick
             starts.append(r[3]);ends.append(r[4]);busy+=(r[4]-r[3])*ns_per_tick
         window=(max(ends)-min(starts))*ns_per_tick if starts else None
@@ -162,6 +190,14 @@ def extract(binding,job_path,phase,repetition,out):
         if i in regions:
             rows[-1]['body_service_regions']={name:dict(tasks=len(samples),median=statistics.median(samples),
                 min=min(samples),max=max(samples)) for name,samples in regions[i].items()}
+        if i in attention_samples:
+            samples=attention_samples[i]
+            if set(samples)!=set(ATTENTION_PHASE_NAMES) or any(len(v)!=len(values) for v in samples.values()):
+                raise ValueError('Incomplete Attention owner/participant subphase coverage')
+            rows[-1]['attention_subphase_ns']={name:dict(tasks=len(v),median=statistics.median(v),
+                min=min(v),max=max(v),sum=sum(v)) for name,v in samples.items()}
+    if phase_records and phase_records!=attention_records:
+        raise ValueError('Mixed legacy/instrumented Attention records cannot establish complete coverage')
     result=dict(schema='tilemega.as2.native_body_profile.v1',status='measured_body_only',phase=phase,past=past,
         model_id=identity['model_id'],config_sha256=identity['config_sha256'],batch=m[8],groups=m[1],runtime_abi=m[0],
         job=str(job_path),binary_sha256=job['executable_sha256'],physical_device_id=job['physical_device_id'],
@@ -172,6 +208,10 @@ def extract(binding,job_path,phase,repetition,out):
         mix_timing_contract='single-phase GEMM excludes ready/done; multi-phase attention owner span includes internal coordination without adding its overlapping participant span',
         gm_bytes_contract='logical DataCopy payload only; excludes padding/metadata/cache effects; not measured HBM traffic',
         worker_windows=worker_windows,stages=rows)
+    if phase_records:
+        result['attention_subphases']=dict(records_checked=phase_records,
+            compile_option='AS2_ATTENTION_PHASE_PROFILE=ON',timing_admitted=False,
+            note='same-worker service intervals with timer perturbation; excludes interphase acquire/coordination; sums are aggregate work, not critical path or hardware busy time')
     out.write_text(json.dumps(result,indent=2)+'\n')
     print(json.dumps({k:v for k,v in result.items() if k!='stages'}))
 

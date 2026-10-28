@@ -61,6 +61,14 @@ struct alignas(512) Control {uint32_t value;uint32_t reserved[127];};
 // A forward is stream-ordered after the previous forward. The host checks the
 // product before launch; request resets clear controls only after completion.
 struct Forward {uint32_t epoch,past,diagnostic,reserved;};
+namespace body_profile {
+inline constexpr uint64_t kAttentionMagic=0x4154325048415345ULL;
+enum AttentionPhase : unsigned {kKvAppend,kKvCast,kKvZero,kQuery,kQk,kSoftmax,kPv,kOutput,kPhases};
+inline constexpr unsigned kHeaderWords=8,kPhaseWords=2*kPhases;
+inline constexpr uint64_t kCubeMask=(1ULL<<kQk)|(1ULL<<kPv);
+inline constexpr uint64_t kVectorMask=((1ULL<<kPhases)-1)^kCubeMask;
+static_assert((kHeaderWords+2+kPhaseWords)*sizeof(uint64_t)<=512);
+}
 static_assert(sizeof(Metadata)==72 && offsetof(Metadata,arena_bytes)==48);
 static_assert(sizeof(Stage)==200 && offsetof(Stage,workspace)==128 && offsetof(Stage,epsilon)==196);
 static_assert(sizeof(Task)==28 && sizeof(Wait)==8 && sizeof(Forward)==16);

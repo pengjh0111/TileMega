@@ -6,11 +6,32 @@ import json
 from pathlib import Path
 import tempfile
 from tilemega.bench.as2_native_prices import task_overheads,tile_body_prices,cost_measurement
-from tilemega.bench.as2_body_profile import logical_bytes,profile_bytes
+from tilemega.bench.as2_body_profile import (logical_bytes,profile_bytes,attention_intervals,
+    ATTENTION_PHASE_MAGIC,ATTENTION_PHASE_NAMES)
 from tilemega.bench.as2_models import RUNS
 
 
 class ProfileArchive(unittest.TestCase):
+    def test_attention_phase_ownership_extent_and_same_lane_order(self):
+        legacy=[0]*26
+        self.assertIsNone(attention_intervals(legacy,True,False,1))
+        for participant,mask in [(False,0x50),(True,0xaf)]:
+            row=[0]*26;row[3:5]=[100,1000];row[8:10]=[ATTENTION_PHASE_MAGIC,mask]
+            for i in range(8):
+                if mask&(1<<i):row[10+2*i:12+2*i]=[120+100*i,170+100*i]
+            phases=attention_intervals(row,True,participant,2)
+            self.assertEqual(phases,{n:100 for i,n in enumerate(ATTENTION_PHASE_NAMES) if mask&(1<<i)})
+            with self.assertRaises(ValueError):attention_intervals(row,True,not participant,2)
+            with self.assertRaises(ValueError):attention_intervals(row,False,participant,2)
+            first=next(i for i in range(8) if mask&(1<<i))
+            bad=row.copy();bad[11+2*first]=1001
+            with self.assertRaises(ValueError):attention_intervals(bad,True,participant,2)
+            bad=row.copy();bad[10+2*first]=99
+            with self.assertRaises(ValueError):attention_intervals(bad,True,participant,2)
+            if not participant:
+                bad=row.copy();bad[22:24]=[160,170]
+                with self.assertRaises(ValueError):attention_intervals(bad,True,participant,2)
+
     def test_lossless_archive_and_identity_rejection(self):
         with tempfile.TemporaryDirectory(dir=RUNS/'probes') as raw:
             source=Path(raw)/'profile.bin';archive=source.with_name(source.name+'.gz')

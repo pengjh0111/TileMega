@@ -4,6 +4,11 @@
 #include <tilemega/Target/Ascend/ProgressPrimitives.h>
 
 namespace tilemega::ascend {
+#if defined(TILEMEGA_LLM_ATTENTION_PROFILE) && TILEMEGA_LLM_ATTENTION_PROFILE
+inline constexpr bool kAttentionPhaseProfile=true;
+#else
+inline constexpr bool kAttentionPhaseProfile=false;
+#endif
 template<class T> __aicore__ inline T ReadLlmPod(GM_ADDR address,unsigned index=0) {
   static_assert(sizeof(T)%4==0);
   AscendC::GlobalTensor<uint32_t> source;source.SetGlobalBuffer((__gm__ uint32_t*)address);
@@ -58,6 +63,8 @@ template<bool Cube,class Body> __aicore__ inline void ExecuteLlm(Body& body,
     auto stage=ReadLlmPod<llm::Stage>(stages,task.stage);
     const uint64_t start=AscendC::GetSystemCycle();bool ok=false;
     uint64_t body_start=0,body_end=0;
+    uint64_t attention_ticks[kAttentionPhaseProfile?llm::body_profile::kPhaseWords:1]{};
+    const bool attention=kAttentionPhaseProfile && stage.kind==13 && stage.variant>=4 && stage.variant<=8;
     unsigned owner_group=task.mix_aiv_lanes?task.owner:0;
     auto* ready=cells+(m.workers+owner_group)*128;
     auto* done=cells+(m.workers+m.groups+owner_group)*128;
@@ -69,12 +76,16 @@ template<bool Cube,class Body> __aicore__ inline void ExecuteLlm(Body& body,
         PublishSingleOwnerEvent(ready,token);
         if(!WaitProgress(done,token,abort,m.wait_ticks))return;
         AcquireData(payload);
+        if constexpr(kAttentionPhaseProfile)if(forward.diagnostic==2)attention_ticks[2*llm::body_profile::kQk]=AscendC::GetSystemCycle();
         ok=body.AttentionGemm(stage,task.tile,arena,m,forward.past,owner_group,false);
+        if constexpr(kAttentionPhaseProfile)if(forward.diagnostic==2)attention_ticks[2*llm::body_profile::kQk+1]=AscendC::GetSystemCycle();
         if(ok) {
           PublishSingleOwnerEvent(ready,token+1);
           if(!WaitProgress(done,token+1,abort,m.wait_ticks))return;
           AcquireData(payload);
+          if constexpr(kAttentionPhaseProfile)if(forward.diagnostic==2)attention_ticks[2*llm::body_profile::kPv]=AscendC::GetSystemCycle();
           ok=body.AttentionGemm(stage,task.tile,arena,m,forward.past,owner_group,true);
+          if constexpr(kAttentionPhaseProfile)if(forward.diagnostic==2)attention_ticks[2*llm::body_profile::kPv+1]=AscendC::GetSystemCycle();
         }
         if(ok) {
           PublishSingleOwnerEvent(ready,token+2);
@@ -92,18 +103,23 @@ template<bool Cube,class Body> __aicore__ inline void ExecuteLlm(Body& body,
         AcquireData(payload);
         if(forward.diagnostic==2)body_start=AscendC::GetSystemCycle();
         if(stage.kind==13 && (stage.variant==4 || stage.variant==5 || stage.variant==6 || stage.variant==7 || stage.variant==8)) {
-          ok=body.AttentionPrepare(stage,task.tile,arena,scratch+uint64_t(worker)*m.worker_scratch_bytes,m,forward.past,owner_group);
+          ok=body.AttentionPrepare(stage,task.tile,arena,scratch+uint64_t(worker)*m.worker_scratch_bytes,m,forward.past,owner_group,
+              kAttentionPhaseProfile && forward.diagnostic==2?attention_ticks:nullptr);
           if(ok) {
             PublishSingleOwnerEvent(done,token);
             if(!WaitProgress(ready,token+1,abort,m.wait_ticks))return;
             AcquireData(payload);
+            if constexpr(kAttentionPhaseProfile)if(forward.diagnostic==2)attention_ticks[2*llm::body_profile::kSoftmax]=AscendC::GetSystemCycle();
             ok=body.AttentionSoftmax(stage,task.tile,arena,m,forward.past,owner_group);
+            if constexpr(kAttentionPhaseProfile)if(forward.diagnostic==2)attention_ticks[2*llm::body_profile::kSoftmax+1]=AscendC::GetSystemCycle();
           }
           if(ok) {
             PublishSingleOwnerEvent(done,token+1);
             if(!WaitProgress(ready,token+2,abort,m.wait_ticks))return;
             AcquireData(payload);
+            if constexpr(kAttentionPhaseProfile)if(forward.diagnostic==2)attention_ticks[2*llm::body_profile::kOutput]=AscendC::GetSystemCycle();
             ok=body.AttentionFinish(stage,task.tile,arena,m,forward.past,owner_group);
+            if constexpr(kAttentionPhaseProfile)if(forward.diagnostic==2)attention_ticks[2*llm::body_profile::kOutput+1]=AscendC::GetSystemCycle();
           }
         }else ok=body.Epilogue(stage,task.tile,arena,owner_group);
         if(forward.diagnostic==2)body_end=AscendC::GetSystemCycle();
@@ -138,6 +154,12 @@ template<bool Cube,class Body> __aicore__ inline void ExecuteLlm(Body& body,
       record.SetValue(0,worker);record.SetValue(1,task.stage);record.SetValue(2,task.tile);
       record.SetValue(3,body_start);record.SetValue(4,body_end);record.SetValue(5,forward.epoch);
       record.SetValue(6,id);record.SetValue(7,participant?1:0);
+      // Phase intervals exclude cross-lane waits/acquires. They are diagnostics,
+      // not additive hardware utilization or a substitute for request timing.
+      record.SetValue(8,attention?llm::body_profile::kAttentionMagic:0);
+      record.SetValue(9,attention?(Cube?llm::body_profile::kCubeMask:llm::body_profile::kVectorMask):0);
+      if constexpr(kAttentionPhaseProfile)if(attention)
+        for(unsigned i=0;i<llm::body_profile::kPhaseWords;++i)record.SetValue(10+i,attention_ticks[i]);
       AscendC::DataCacheCleanAndInvalid<uint64_t,AscendC::CacheLine::ENTIRE_DATA_CACHE>(record);
     }
   }

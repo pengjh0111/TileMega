@@ -54,10 +54,11 @@ template<unsigned TM=32,unsigned TN=64,bool CaptureSoftmax=false> class LlmServi
   }
  public:
   __aicore__ inline bool AttentionPrepare(llm::Stage const& s,unsigned tile,GM_ADDR arena,
-      GM_ADDR scratch,llm::Metadata const& m,unsigned past,unsigned owner_group) {
+      GM_ADDR scratch,llm::Metadata const& m,unsigned past,unsigned owner_group,uint64_t* phase_ticks=nullptr) {
     LlmAttentionShape h;
     if(owner_group>=m.groups || !DescribeLlmAttention(s,tile,m,past,h))return false;
     Operands p{arena,s};auto work=LlmAttentionWork(arena,s,owner_group);
+    if(phase_ticks)phase_ticks[0]=AscendC::GetSystemCycle();
     unsigned d=h.width;uint64_t packed=uint64_t(s.extent)*(s.group+2)*d;
     GM_ADDR keys=nullptr;
     GM_ADDR values=nullptr;
@@ -83,20 +84,26 @@ template<unsigned TM=32,unsigned TN=64,bool CaptureSoftmax=false> class LlmServi
           !vector_.Copy(source+(s.group+1)*d*2,values+uint64_t(past)*d*2,d))return false;
     }
     Acquire(scratch);
+    if(phase_ticks)phase_ticks[1]=AscendC::GetSystemCycle();
     const float root=d==128?0.29730177875068026f:0.3535533905932738f;
     unsigned valid=h.valid_keys*d,total=h.keys*d;
+    if(phase_ticks)phase_ticks[2]=AscendC::GetSystemCycle();
     for(unsigned first=0;first<valid;first+=4096) {
       unsigned n=valid-first<4096?valid-first:4096;
       if(!vector_.Bf16ToFloat(keys+uint64_t(first)*2,work+llm::attention::kK+uint64_t(first)*4,n,root) ||
           !vector_.Bf16ToFloat(values+uint64_t(first)*2,work+llm::attention::kV+uint64_t(first)*4,n))return false;
     }
+    if(phase_ticks)phase_ticks[3]=AscendC::GetSystemCycle();
     // Decode never reads invalid public KV. Its physical FP32 matmul tail is
     // explicitly zeroed before use, including workspace recycled from prefill.
+    if(phase_ticks)phase_ticks[4]=AscendC::GetSystemCycle();
     for(unsigned first=valid;first<total;first+=4096) {
       unsigned n=total-first<4096?total-first:4096;
       if(!vector_.ZeroFloat(work+llm::attention::kK+uint64_t(first)*4,n) ||
           !vector_.ZeroFloat(work+llm::attention::kV+uint64_t(first)*4,n))return false;
     }
+    if(phase_ticks)phase_ticks[5]=AscendC::GetSystemCycle();
+    if(phase_ticks)phase_ticks[6]=AscendC::GetSystemCycle();
     for(unsigned row=0;row<h.rows;++row) {
       unsigned pos=h.first_position+row/s.group,q=row%s.group;
       auto source=p(0)+((uint64_t(h.batch)*m.seq+(m.seq==64?pos:0))*packed+
@@ -105,6 +112,7 @@ template<unsigned TM=32,unsigned TN=64,bool CaptureSoftmax=false> class LlmServi
       Acquire(scratch);
       if(!vector_.Bf16ToFloat(scratch,work+llm::attention::kQ+uint64_t(row)*d*4,d,root))return false;
     }
+    if(phase_ticks)phase_ticks[7]=AscendC::GetSystemCycle();
     return true;
   }
   __aicore__ inline bool AttentionSoftmax(llm::Stage const& s,unsigned tile,GM_ADDR arena,

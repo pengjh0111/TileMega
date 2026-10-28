@@ -322,7 +322,11 @@ template<class Launch> int RunRequest(fs::path const& binding,fs::path const& ou
     auto result=out/("request_"+std::to_string(repetition));fs::create_directory(result);
     auto pre_out=result/"prefill",dec_out=result/"decode";fs::create_directory(pre_out);fs::create_directory(dec_out);
     Complete(pre,pd,0,pre_out);Complete(dec,dd,outputs-2,dec_out);
-    if(diagnostic) {
+    bool save_prefill_receipt=diagnostic!=0;
+#if defined(TILEMEGA_LLM_DECODE_PROFILE_ONLY) && TILEMEGA_LLM_DECODE_PROFILE_ONLY
+    if(diagnostic==2)save_prefill_receipt=false;
+#endif
+    if(save_prefill_receipt) {
       std::vector<uint8_t> trace(diagnostic==2?pre.m.queue_refs*512ULL:pre.m.tasks*64ULL);
       Check(aclrtMemcpy(trace.data(),trace.size(),pd.trace,trace.size(),ACL_MEMCPY_DEVICE_TO_HOST),"prefill task receipt");
       Save(pre_out/(diagnostic==2?"profile.bin":"trace.bin"),trace.data(),trace.size());
@@ -355,6 +359,9 @@ template<class Launch> int RunRequest(fs::path const& binding,fs::path const& ou
     <<",\"isl\":64,\"osl\":"<<outputs<<",\"batch\":"<<pre.m.batch<<",\"capacity\":1088,\"warmup\":"<<warmup
     <<",\"repetitions\":"<<repetitions<<",\"diagnostic\":"<<diagnostic<<",\"host_kernel_launches\":"<<launches
     <<",\"request_mode\":\""<<(teacher_forced?"teacher_forced":"natural_greedy")<<"\""
+#if defined(TILEMEGA_LLM_DECODE_PROFILE_ONLY) && TILEMEGA_LLM_DECODE_PROFILE_ONLY
+    <<",\"body_profile_capture\":\""<<(diagnostic==2?"decode_only":"not_body_profile")<<"\""
+#endif
     <<",\"groups\":"<<pre.m.groups<<",\"workers\":"<<pre.m.workers
     <<",\"arena_bytes\":"<<pre.m.arena_bytes<<",\"setup_seconds\":"<<setup_seconds
     <<",\"priced_plans_executed\":"<<(!pre.m.diagnostic && !dec.m.diagnostic?"true":"false")
