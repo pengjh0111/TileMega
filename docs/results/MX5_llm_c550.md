@@ -128,7 +128,7 @@ These checks are not additional final solver selections anddo not change default
 
 ## Current local-LDS source: completed solver selections (verified)
 
-Frozen88327/A19dd8 has4/25 completed dense selections;the earlier table
+Frozen88327/A19dd8 has5/25 measured selections(4nonregression,1failure);the earlier table
 remains historicalcc29,not new-source completion. Qwen0.6B B1 exacttop4
 passes allfour C-1/C2512 checks andtwo fresh timing processes per candidate.
 
@@ -193,5 +193,8 @@ Current selected matching-source bench costs(us);these are not new program ledge
 |Qwen0.6B/16|13.550|62.472|11.810|16.410|15.570|199.670|
 |Llama8B/1|34.850|19.061|24.920|149.750|76.540|638.630|
 |Llama8B/16|37.620|53.722|31.620|174.180|90.350|656.700|
+|Qwen0.6B/2|10.080|27.167|8.500|13.810|10.290|195.160|
 
 Attention bench exceeds appendix inference;current source per-stage DIAG/I1 remains pending.
+QwenB2 exacttop4:2.301333ms vsMX42.095492(+9.823%);allfourC1/C2pass,butG-LLM fails thiscell.
+Pred/meas.93463;150.448us program-minus-prediction remainsunassigned. Details:MX5_local_lds_c550.md.

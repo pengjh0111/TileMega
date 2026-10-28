@@ -102,7 +102,7 @@ candidates passC1/C2512,two fresh timing processes each. Medians(ms) are
 [1.976266,1.977535,1.980171,1.974518]. Anchor0 is retained by the1% rule;
 pred/meas1.02291. FixedMX4 is1.983552ms(−.367%,indistinguishable). This
 passes cell nonregression without claiming a measurable speedup. Current
-source completion subsequently reaches4/25dense,0/5MoE,0/25DNN;defaults unchanged.
+source measurements subsequently reach5/25dense(4nonregression,1failure),0/5MoE,0/25DNN;defaults unchanged.
 
 Verified second new-source selection: Qwen0.6B B16 allfour C-1/C2512
 andtwo fresh timings each pass. Candidate medians are
@@ -166,7 +166,7 @@ Original failed script/logs andalloldCSVbytes remain. Raw:CORRECTED_RESOURCE_CSV
 
 Verified QwenB2 continuation:four independent512 originals haveactualresident1
 andzero-frame queries,normal old-source before controls andfourREADY D7
-reviews. Allfour512-step C-1/C2 checks pass;8fresh timings remaininprogress.
+reviews. Allfour512-step C-1/C2 checks pass;8fresh timings subsequently complete.
 Actual runner source isrunner_bounded.py,withitsownhash/manifest andfull diff
 fromthefrozenrunner. Only bootstrap/dispatch-budget checks andguard deadlines
 change:300schild/330stotal;ISL64/OSL1024,warm1/timed2,2fresh peroriginal
@@ -174,3 +174,24 @@ candidate,allnumericalvalidators and1%selection remain. No old-runner identity
 is claimed. Once the resource controller closes andonlythat live,source-bound
 GPU6controller remains,dispatchcutoff59.88 reserves330+20cleanup+30poll
 seconds:upper59.9856card-hours. Two-card cutoff remains59.75;cap remains60.
+
+Verified Qwen0.6B B2 completed exacttop4,allC1/C2512 and2fresh timings each.
+
+| Candidate | Predicted ms | Actual ms | pred/meas | Chosen |
+|---|---:|---:|---:|---|
+|0|2.150885|2.301333|0.9346|yes|
+|1|2.151145|2.304746|0.9334|no|
+|2|2.151245|2.299368|0.9356|no|
+|3|2.151515|2.308777|0.9319|no|
+
+Anchor0 TPOT2.301333ms vsfixedMX42.095492ms
+(+9.823%,distinguishable regression). /FastestBF16baseline
+=0.821259;TTFT11.334ms,E2E2.365598s. Performancegatefails;defaultsunchanged.
+Actual performanceD7:WD0/WD1 each231MT/frame0/staticshared0,resident1;
+identified steady rings have no4160/generic/calls. Prefetch andP-B issuepoints
+remain source-bound;attention bmin4 givesGA12..104 andcross-head CTA0..12
+(source geometry,not site latency). Matchingbenchprediction2.150885ms leaves
+.150448ms unassigned. Current per-stage programDIAG andI1 timing areunmeasured;
+no causal latency split orcache explanation isclaimed. Raw:D7_PERFORMANCE_FOLLOWUP_v1.json
+inlocal_lds_tail_qwenB2_bounded_top4_v1. This is an unresolved regression,
+not an approved default orcompleted G-LLM gate.
