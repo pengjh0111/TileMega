@@ -17,8 +17,9 @@ using Sync = tilemega::codegen::mx::StageSyncV2<512>;
 #define MX5_I1_B_MIN 1
 #endif
 constexpr int kBatch = MX5_I1_BATCH, kBMin = MX5_I1_B_MIN;
-// These two measured pins share all five body coordinates except B/b_min.
-static_assert((kBatch == 1 && kBMin == 1) || (kBatch == 2 && kBMin == 4));
+// These measured pins share all five body coordinates except B/b_min.
+static_assert((kBatch == 1 && kBMin == 1) || (kBatch == 2 && kBMin == 4) ||
+              (kBatch == 4 && kBMin == 8));
 constexpr int kCapacity = 1088, kShared = 32784 + 16;
 constexpr std::size_t kRotateBytes = 256ull << 20;
 
