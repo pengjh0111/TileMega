@@ -7,7 +7,7 @@ import unittest
 import torch
 from tilemega.bench.as2_models import RUNS
 from tilemega.bench.as2_request import bind, digest, request_source
-from tilemega.bench.as2_native_audit import compare_capture_payloads
+from tilemega.bench.as2_native_audit import compare_capture_payloads,mix_prefix
 from tilemega.bench.as2_native import incremental_packing_bytes,validate_rope_reuse
 from tilemega.bench.as2_last_forward import matching_prefix_rows
 
@@ -42,6 +42,17 @@ class PackingBudgetTest(unittest.TestCase):
 
 
 class RequestCapturePayloadTest(unittest.TestCase):
+    def test_final_attention_owner_has_three_phase_token_for_all_registered_bodies(self):
+        m=[4,2,6,1,1,0,0,100];tasks=[(0,0,1,7,0,0,1)];s=[0]*33;s[17]=13
+        for variant in (4,5,6,7,8):
+            s[31]=variant
+            self.assertEqual(mix_prefix(m,tasks,[s],1,3),4*307+2)
+        s[31]=9
+        with self.assertRaisesRegex(ValueError,'Unknown cooperative'):mix_prefix(m,tasks,[s],1,3)
+        s[17]=0
+        self.assertEqual(mix_prefix(m,tasks,[s],1,3),4*307)
+        self.assertEqual(mix_prefix(m,tasks,[s],0,3),0)
+
     def setUp(self):
         self.required={'tokens.bin','prefill/control.bin','decode/control.bin','decode/1.bin'}
         self.fast={name:('same',16) for name in self.required}

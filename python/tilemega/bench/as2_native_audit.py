@@ -19,7 +19,10 @@ def mix_prefix(metadata,tasks,stages,group,epoch):
     if last is None:return 0
     prefix=epoch*metadata[7]+last[3]
     if metadata[0]==4:
-        stage=stages[last[0]];phase=2 if stage[17]==13 and stage[31] in (4,5,6) else 0
+        stage=stages[last[0]];phase=0
+        if stage[17]==13:
+            if stage[31] not in (4,5,6,7,8):raise ValueError('Unknown cooperative Attention lifecycle')
+            phase=2
         prefix=4*prefix+phase
     return prefix
 
@@ -126,7 +129,11 @@ def audit_request(binding,jobs,out,reset_admission=True):
         if binary is not None and binary!=job['executable_sha256']:raise ValueError('Mixed request binary identities')
         binary=job['executable_sha256'];output=controlled(Path(command[3]),[RUNS])
         outputs,warmup,repetitions,diagnostic=map(int,command[4:])
-        if diagnostic not in (0,1) or (not reset_admission and outputs>65):
+        # At full length B16 both modes omit history (>128 positions); their
+        # mandatory last-row KV/logits/controls still compare exactly. B1's
+        # diagnostic-only full history remains outside the common scope.
+        if diagnostic not in (0,1) or (not reset_admission and outputs>65 and
+                not (description['batch']==16 and outputs==1024)):
             raise ValueError('Capture comparison requires short diagnostic/fast requests with equal KV history extents')
         if outputs<2 or warmup+repetitions<(2 if reset_admission else 1):raise ValueError('Insufficient complete independent requests')
         current=(outputs,warmup,repetitions)
