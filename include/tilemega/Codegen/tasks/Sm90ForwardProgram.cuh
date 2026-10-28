@@ -42,6 +42,8 @@ struct alignas(64) Bindings {
 };
 
 struct alignas(64) ForwardCounter {unsigned long long arrivals;};
+// A side output the epilogue accumulates into, cleared before every launch.
+struct ForwardZeroed {unsigned buffer;unsigned long long elements;};
 // Thread zero of the publishing CTA fills the next stage's bank before the V3
 // barrier; from the join to that stage's return the record is immutable. A
 // stage reads exactly one member, so the five operand kinds share storage.
@@ -67,7 +69,7 @@ struct ForwardOperandHeader {
 // because C++17 has no floating-point template parameter.
 template<class B,class Bind>
 __device__ __forceinline__ backend::Sm90ForwardEpilogueOperands EpilogueOf(B const& b,
-    float epsilon,int residual_stride) {
+    float epsilon,int residual_stride,int norm_width=0) {
   backend::Sm90ForwardEpilogueOperands e{};
   // Per-channel vectors are FP32 in the plan's buffer table.
   e.vectors[0]=reinterpret_cast<float const*>(b.template Get<Bind::kVector0>());
@@ -77,8 +79,11 @@ __device__ __forceinline__ backend::Sm90ForwardEpilogueOperands EpilogueOf(B con
   e.residual=b.template Get<Bind::kResidual>();
   e.stats=reinterpret_cast<float const*>(b.template Get<Bind::kStats>());
   e.row_stats=reinterpret_cast<float*>(b.template Get<Bind::kRowStats>());
+  e.row_partials=reinterpret_cast<float*>(b.template Get<Bind::kRowPartials>());
+  e.row_counters=reinterpret_cast<unsigned long long*>(b.template Get<Bind::kRowCounters>());
+  e.row_tiles=1;e.row_tile=0;
   e.channel_partial=reinterpret_cast<float*>(b.template Get<Bind::kChannelPartial>());
-  e.epsilon=epsilon;e.residual_stride=residual_stride;
+  e.epsilon=epsilon;e.residual_stride=residual_stride;e.norm_width=norm_width;
   return e;
 }
 
@@ -94,7 +99,7 @@ struct ForwardGemmStage {
     p.output=b.template Get<Bind::kOutput>();
     p.partial=reinterpret_cast<float*>(b.template Get<Bind::kPartial>());
     p.counters=reinterpret_cast<std::uint64_t*>(b.template Get<Bind::kCounters>());
-    p.epilogue=EpilogueOf<B,Bind>(b,Shape::kEpsilon,Shape::kResidualStride);
+    p.epilogue=EpilogueOf<B,Bind>(b,Shape::kEpsilon,Shape::kResidualStride,Shape::kNormWidth);
     // The convolution geometry is a compile-time trait of the body itself.
     p.output_stride=Shape::kOutputStride;
   }
@@ -115,7 +120,7 @@ struct ForwardDepthwiseStage {
     p.activation=b.template Map<Bind::kMap>();
     p.weight=b.template Get<Bind::kWeight>();
     p.output=b.template Get<Bind::kOutput>();
-    p.epilogue=EpilogueOf<B,Bind>(b,Shape::kEpsilon,Shape::kResidualStride);
+    p.epilogue=EpilogueOf<B,Bind>(b,Shape::kEpsilon,Shape::kResidualStride,Shape::kNormWidth);
     p.width=Shape::kWidth;p.height=Shape::kHeight;p.channels=Shape::kChannels;
     p.stride=Shape::kStrideH;
     p.output_width=Shape::kOutputWidth;p.output_height=Shape::kOutputHeight;
@@ -141,7 +146,7 @@ struct ForwardFusedStage {
     p.output=b.template Get<Bind::kOutput>();
     p.partial=reinterpret_cast<float*>(b.template Get<Bind::kPartial>());
     p.counters=reinterpret_cast<std::uint64_t*>(b.template Get<Bind::kCounters>());
-    p.epilogue=EpilogueOf<B,Bind>(b,Shape::kEpsilon,Shape::kResidualStride);
+    p.epilogue=EpilogueOf<B,Bind>(b,Shape::kEpsilon,Shape::kResidualStride,Shape::kNormWidth);
     p.width=Shape::kWidth;p.height=Shape::kHeight;p.channels=Shape::kChannels;
     p.out_channels=Shape::kOutChannels;
     p.output_width=Shape::kOutputWidth;p.output_height=Shape::kOutputHeight;
@@ -186,11 +191,13 @@ struct ForwardSmallStage {
     p.weight=b.template Get<Bind::kWeight>();
     p.gamma=reinterpret_cast<float const*>(b.template Get<Bind::kVector1>());
     p.bias=reinterpret_cast<float const*>(b.template Get<Bind::kVector0>());
+    p.table=b.template Get<Bind::kTable>();
+    p.stats=reinterpret_cast<float*>(b.template Get<Bind::kRowStats>());
     p.output=b.template Get<Bind::kOutput>();
     p.accumulator=reinterpret_cast<float*>(b.template Get<Bind::kPartial>());
     p.counter=reinterpret_cast<std::uint64_t*>(b.template Get<Bind::kCounters>());
-    p.index0=reinterpret_cast<int const*>(b.template Get<Bind::kIndex0>());
-    p.index1=reinterpret_cast<int const*>(b.template Get<Bind::kIndex1>());
+    p.index0=reinterpret_cast<long long const*>(b.template Get<Bind::kIndex0>());
+    p.index1=reinterpret_cast<long long const*>(b.template Get<Bind::kIndex1>());
     p.width=Shape::kWidth;p.height=Shape::kHeight;
     p.channels=Shape::kChannels;p.out_channels=Shape::kOutChannels;
     p.epsilon=Shape::kEpsilon;

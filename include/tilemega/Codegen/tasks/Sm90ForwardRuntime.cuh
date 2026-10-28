@@ -15,6 +15,10 @@
 // table and the NativeForwardProgram type, then includes this header, which
 // supplies the forward ABI: one plan, one launch, no step ring and no KV
 // state, so `step` and the iteration counter are unused.
+#ifndef TM_DTYPE_I64
+#define TM_DTYPE_I64 3
+#endif
+
 namespace tilemega::codegen::native_forward {
 
 inline void Check(cudaError_t status) {
@@ -117,7 +121,8 @@ extern "C" void* tm_plan_create(int batch,void* const* external,int device) {
       std::size_t elements=std::size_t(desc.elements_constant)+
           std::size_t(desc.elements_per_batch)*std::size_t(batch);
       std::size_t bytes=elements*
-          (desc.dtype==TM_DTYPE_F32?4u:desc.dtype==TM_DTYPE_I32?4u:2u);
+          (desc.dtype==TM_DTYPE_F32 || desc.dtype==TM_DTYPE_I32?4u:
+           desc.dtype==TM_DTYPE_I64?8u:2u);
       void* allocation=nullptr;
       Check(cudaMalloc(&allocation,bytes?bytes:16));
       Check(cudaMemset(allocation,0,bytes?bytes:16));
@@ -163,6 +168,14 @@ extern "C" int tm_plan_launch(void* opaque,unsigned,unsigned mode,
   // from zero; the forward program has no cross-launch phase to carry.
   if(cudaMemsetAsync(plan.events,0,NativeForwardProgram::kStages*sizeof(ForwardCounter),
                      static_cast<cudaStream_t>(stream))!=cudaSuccess)return -2;
+  // Accumulated side outputs (row statistics, channel partials) start at zero.
+  for(auto const& item:kNativeForwardZeroed) {
+    auto const& desc=kNativeForwardBuffers[item.buffer];
+    std::size_t width=desc.dtype==TM_DTYPE_F32 || desc.dtype==TM_DTYPE_I32?4u:
+        desc.dtype==TM_DTYPE_I64?8u:2u;
+    if(cudaMemsetAsync(plan.bindings.buffers[item.buffer],0,item.elements*width,
+                       static_cast<cudaStream_t>(stream))!=cudaSuccess)return -3;
+  }
   sm90_forward_native_kernel<NativeForwardProgram><<<plan.grid,NativeForwardProgram::kThreads,
       NativeForwardProgram::kSharedBytes,static_cast<cudaStream_t>(stream)>>>(
       plan.bindings,plan.events);

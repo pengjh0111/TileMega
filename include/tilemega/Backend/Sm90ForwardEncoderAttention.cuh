@@ -105,21 +105,26 @@ struct Sm90ForwardEncoderAttention {
       auto const* keys=kv+slot*2*Seq*D;
       auto const* values=keys+Seq*D;
       unsigned q=Async::Shared(queries+slot*Rows*D);
-      // S = Q K^T: warp w owns the keys [w * Seq/4, (w+1) * Seq/4).
-      unsigned a[4];LoadX4(a,q+Swizzled(lane%16,(lane/16)*8,Rows));
-      for(int key=warp*(Seq/4);key<(warp+1)*(Seq/4);key+=8) {
-        float c[4]={0,0,0,0};
+      // S = Q K^T with mma.sync m16n8k16 over the whole head dimension: warp
+      // w owns the 16-key groups of [w Seq/4, (w+1) Seq/4). The operand
+      // addressing is the native dense attention's (Sm90DenseAttentionBody).
+      for(int first=warp*(Seq/4);first<(warp+1)*(Seq/4);first+=16) {
+        float sc[8]={0,0,0,0,0,0,0,0};
         #pragma unroll
-        for(int panel=0;panel<kPanels;++panel) {
-          unsigned b[4];
-          LoadX4T(b,Async::Shared(keys)+Swizzled(key%64+(key/64)*0,panel*64,Seq)+
-              (key/64)*64*D*2);
-          Mma(c[0],c[1],c[2],c[3],a,b[0],b[1]);
+        for(int k=0;k<D/16;++k) {
+          unsigned a[4],b[4];
+          LoadX4(a,q+Swizzled(lane%16,k*16+(lane/16)*8,Rows));
+          int j=lane/8,row=first+(j/2)*8+lane%8,col=k*16+(j%2)*8;
+          LoadX4(b,Async::Shared(keys)+Swizzled(row,col,Seq));
+          Mma(sc[0],sc[1],sc[2],sc[3],a,b[0],b[1]);
+          Mma(sc[4],sc[5],sc[6],sc[7],a,b[2],b[3]);
         }
+        // C fragment of m16n8k16: thread t holds rows t/4 and t/4 + 8 at the
+        // columns 2 (t % 4) and 2 (t % 4) + 1 of its own 8-key tile.
         #pragma unroll
-        for(int i=0;i<4;++i) {
-          int row=(lane/4)+8*(i/2),col=key+2*(lane%4)+(i%2);
-          if(row<Rows && col<Seq)scores[row*Seq+col]=c[i]*p.scale;
+        for(int e=0;e<8;++e) {
+          int row=(lane/4)+8*((e%4)/2),col=first+(e/4)*8+2*(lane%4)+(e&1);
+          if(row<Rows && col<Seq)scores[row*Seq+col]=sc[e]*p.scale;
         }
       }
       codegen::executor::ComputeSync();
@@ -135,10 +140,15 @@ struct Sm90ForwardEncoderAttention {
         for(int col=0;col<Seq;++col)scores[row*Seq+col]*=inverse;
       }
       codegen::executor::ComputeSync();
+      // O = P V reads the swizzled V tile directly: the product is 16 x D per
+      // task, so its FMAs are a small share of the body's work.
+      auto const* value_base=reinterpret_cast<char const*>(values);
       for(int i=int(threadIdx.x);i<Rows*D;i+=128) {
         int row=i/D,channel=i%D;
         float sum=0;
-        for(int col=0;col<Seq;++col)sum+=scores[row*Seq+col]*float(values[col*D+channel]);
+        for(int col=0;col<Seq;++col)
+          sum+=scores[row*Seq+col]*
+              float(*reinterpret_cast<Element const*>(value_base+Swizzled(col,channel,Seq)));
         p.output[(std::size_t(block)*Rows+row)*p.heads*D+head*D+channel]=Element(sum);
       }
       codegen::executor::ComputeSync();

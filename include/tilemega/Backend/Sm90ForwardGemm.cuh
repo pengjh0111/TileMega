@@ -60,11 +60,7 @@ struct Sm90ForwardGemm {
   static constexpr int kSlotBytes=2*TK*(TM+TN);
   // The accumulator tile the chain rewrites, then the per-row (mu, 1/sigma)
   // a deferred normalization needs and the split-K last-arriver flag.
-  static constexpr bool kNeedsStats=Chain::kNeedsStats;
-  static constexpr int kStatBytes=kNeedsStats?8*TM:0;
-  static constexpr int kScratchBytes=4*TM*TN+kStatBytes+16;
-  static_assert(!kNeedsStats || SplitK==1,
-      "a deferred normalization reads the whole row, so its stage cannot split K");
+  static constexpr int kScratchBytes=4*TM*TN+16;
   // 1 KB header, the ring, then that scratch.
   static constexpr Sm90DenseLayout kLayout{1024,1024+2*Slots*TK*TM,
       1024+Slots*kSlotBytes,(1024+Slots*kSlotBytes+kScratchBytes+1023)/1024*1024};
@@ -133,9 +129,6 @@ struct Sm90ForwardGemm {
       if(width>Chain::kWidth)width=Chain::kWidth;
       auto accum=partition_fragment_C(typename Gmma::Mma{},Shape<Int<TM>,Int<TN>>{});
       clear(accum);
-      // Deferred LayerNorm: the consumer sums the A rows it already reads for
-      // the MMA, so the statistics cost no extra global traffic (N-1 item 6).
-      float sum=0,squares=0;
       for(int iteration=0;iteration<kIterations;++iteration) {
         int slot=(local*kIterations+iteration)%Slots;
         Async::Wait(state.full+slot,(phase>>slot)&1);phase^=1u<<slot;
@@ -143,18 +136,6 @@ struct Sm90ForwardGemm {
         // WGMMA reads the slot asynchronously: its commit must land before the
         // slot is released for the producer's next async write.
         Sm90Gmma<arch::Sm90>::template Wait<0>();
-        if constexpr(kNeedsStats) {
-          // Thread r owns row r of this tile; the slot is still full here.
-          int row=int(threadIdx.x);
-          if(row<TM) {
-            auto const* panel=reinterpret_cast<char const*>(a+slot*TM*TK);
-            #pragma unroll 8
-            for(int col=0;col<TK;++col) {
-              float v=float(*reinterpret_cast<Element const*>(panel+Swizzled(row,col)));
-              sum+=v;squares+=v*v;
-            }
-          }
-        }
         Async::FenceProxyAsyncShared();
         Async::Arrive(state.empty+slot);
       }
@@ -163,17 +144,15 @@ struct Sm90ForwardGemm {
       // output all start at the tile's first row.
       auto epilogue=p.epilogue;
       if(epilogue.residual)epilogue.residual+=std::size_t(m_tile)*TM*epilogue.residual_stride;
-      if(epilogue.row_stats)epilogue.row_stats+=std::size_t(m_tile)*TM*2;
-      if constexpr(kNeedsStats) {
-        auto* stats=reinterpret_cast<float*>(scratch+4*TM*TN);
-        if(int(threadIdx.x)<TM) {
-          float mean=sum/float(K),variance=squares/float(K)-mean*mean;
-          stats[2*int(threadIdx.x)]=mean;
-          stats[2*int(threadIdx.x)+1]=rsqrtf(variance+p.epilogue.epsilon);
-        }
-        codegen::executor::ComputeSync();
-        epilogue.stats=stats;
+      if(epilogue.row_stats) {
+        epilogue.row_stats+=std::size_t(m_tile)*TM*2;
+        epilogue.row_tiles=kTiles;epilogue.row_tile=n_tile;
+        if(epilogue.row_partials)
+          epilogue.row_partials+=std::size_t(m_tile)*TM*kTiles*2;
+        if(epilogue.row_counters)epilogue.row_counters+=std::size_t(m_tile)*TM;
       }
+      // The producer of this stage's normalized input wrote its row sums.
+      if(epilogue.stats)epilogue.stats+=std::size_t(m_tile)*TM*2;
       auto* output=p.output+std::size_t(m_tile)*TM*p.output_stride;
       if constexpr(SplitK==1) {
         Chain::Finish(tile_values,rows,n_tile*TN,width>0?width:0,epilogue,output,p.output_stride);

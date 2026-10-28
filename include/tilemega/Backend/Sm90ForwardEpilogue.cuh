@@ -24,9 +24,30 @@ struct Sm90ForwardEpilogueOperands {
   float const* stats;
   float* row_stats;        // side output: per-row (sum, sumsq)
   float* channel_partial;  // side output: per-channel partial sums
+  // The row statistics of a tiled stage are reduced in a fixed tile order by
+  // the row's last arriver, so repeated launches agree bitwise.
+  float* row_partials;
+  unsigned long long* row_counters;
+  int row_tiles,row_tile;
   float epsilon;
   int residual_stride;
+  // The normalization width of a deferred or reconstructed LayerNorm: its
+  // statistics arrive as the producer's raw (sum, sum of squares) per row.
+  int norm_width;
 };
+
+// (mean, 1/sigma) of one row from the producer's raw sums. The producer ran
+// on other SMs, whose L1 caches are not coherent, so the sums are read at GPU
+// scope exactly as the split-K partials are.
+__device__ __forceinline__ void Sm90ForwardRowNorm(float const* stats,int row,int width,
+    float epsilon,float& mean,float& inverse) {
+  float sum,squares;
+  asm volatile("ld.relaxed.gpu.global.f32 %0, [%1];":"=f"(sum):"l"(stats+2*row):"memory");
+  asm volatile("ld.relaxed.gpu.global.f32 %0, [%1];":"=f"(squares)
+      :"l"(stats+2*row+1):"memory");
+  mean=sum/float(width);
+  inverse=rsqrtf(squares/float(width)-mean*mean+epsilon);
+}
 
 enum class Sm90ForwardOp : unsigned {
   kBias, kScale, kActivation, kResidual, kGatePair, kDeferredLayerNorm, kResidualLN
@@ -108,12 +129,14 @@ struct Sm90ForwardEpilogueChain {
           value+=add;
         }else if constexpr(S::kKind==Sm90ForwardOp::kDeferredLayerNorm) {
           // (acc - mu cs_n)/sigma + b', with (mu, sigma) from the row stats
-          // the producing GEMM's consumer wrote (prompt §10 N-1 item 6).
-          float mean=p.stats[2*row],inverse=p.stats[2*row+1];
+          // the producing stage wrote (prompt §10 N-1 item 6).
+          float mean,inverse;
+          Sm90ForwardRowNorm(p.stats,row,p.norm_width,p.epsilon,mean,inverse);
           value=(value-mean*float(p.vectors[S::kVector][channel+col]))*inverse+
               float(p.vectors[S::kVector2][channel+col]);
         }else if constexpr(S::kKind==Sm90ForwardOp::kResidualLN) {
-          float mean=p.stats[2*row],inverse=p.stats[2*row+1];
+          float mean,inverse;
+          Sm90ForwardRowNorm(p.stats,row,p.norm_width,p.epsilon,mean,inverse);
           float source=float(p.residual[std::size_t(row)*p.residual_stride+channel+col]);
           value+=(source-mean)*inverse*float(p.vectors[S::kVector][channel+col])+
               float(p.vectors[S::kVector2][channel+col]);
@@ -131,8 +154,27 @@ struct Sm90ForwardEpilogueChain {
     if(p.row_stats)
       for(int row=int(threadIdx.x);row<rows;row+=128) {
         float sum=0,squares=0;
-        for(int col=0;col<kWidth;++col) {float v=tile[row*N+col];sum+=v;squares+=v*v;}
-        atomicAdd(p.row_stats+2*row,sum);atomicAdd(p.row_stats+2*row+1,squares);
+        for(int col=0;col<width;++col) {float v=tile[row*N+col];sum+=v;squares+=v*v;}
+        if(p.row_tiles<=1) {p.row_stats[2*row]=sum;p.row_stats[2*row+1]=squares;continue;}
+        // This tile's share of the row, then the row's last arriver sums the
+        // shares in tile order.
+        auto* slot=p.row_partials+(std::size_t(row)*p.row_tiles+p.row_tile)*2;
+        asm volatile("st.relaxed.gpu.global.f32 [%0], %1;"::"l"(slot),"f"(sum):"memory");
+        asm volatile("st.relaxed.gpu.global.f32 [%0], %1;"::"l"(slot+1),"f"(squares):"memory");
+        unsigned long long old;
+        asm volatile("atom.acq_rel.gpu.global.add.u64 %0, [%1], 1;":"=l"(old)
+            :"l"(p.row_counters+row):"memory");
+        if(int(old+1)!=p.row_tiles)continue;
+        p.row_counters[row]=0;
+        float total=0,total_squares=0;
+        for(int tile_index=0;tile_index<p.row_tiles;++tile_index) {
+          auto const* other=p.row_partials+(std::size_t(row)*p.row_tiles+tile_index)*2;
+          float a,b;
+          asm volatile("ld.relaxed.gpu.global.f32 %0, [%1];":"=f"(a):"l"(other):"memory");
+          asm volatile("ld.relaxed.gpu.global.f32 %0, [%1];":"=f"(b):"l"(other+1):"memory");
+          total+=a;total_squares+=b;
+        }
+        p.row_stats[2*row]=total;p.row_stats[2*row+1]=total_squares;
       }
     if(p.channel_partial)
       for(int col=int(threadIdx.x);col<kWidth;col+=128) {

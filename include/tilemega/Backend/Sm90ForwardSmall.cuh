@@ -18,12 +18,14 @@ struct Sm90ForwardSmallOperands {
   cutlass::bfloat16_t const* input;
   cutlass::bfloat16_t const* weight;   // GEMV weights, or none
   float const* gamma;                  // explicit LayerNorm scale (FP32)
+  cutlass::bfloat16_t const* table;    // EMB: the position embedding table
+  float* stats;                        // EMB: per-row (sum, sum of squares)
   float const* bias;                   // per-channel vectors are FP32
   cutlass::bfloat16_t* output;
   float* accumulator;                  // GAP partials
   std::uint64_t* counter;              // GAP last arriver
-  int const* index0;                   // EMB: token ids
-  int const* index1;                   // EMB: token types
+  long long const* index0;             // EMB: token ids (the export's int64)
+  long long const* index1;             // EMB: token types
   int width,height,channels,out_channels;
   float epsilon;
 };
@@ -143,27 +145,36 @@ struct Sm90ForwardGemv {
   }
 };
 
-// EMB: one task per row sums the word, token-type and position embeddings
-// (prompt §10 N-1 item 7). The LayerNorm that follows is either this model's
-// own output stage or deferred into the first projection's epilogue.
+// EMB: one warp per row sums the word, token-type and position embeddings
+// (prompt §10 N-1 item 7). A consumer that defers this row's LayerNorm reads
+// the row's (sum, sum of squares), which the row's own warp writes once: a
+// single writer per row keeps the statistics exact and launch-independent.
 template<int Width>
 struct Sm90ForwardEmbeddingSum {
   using Element=cutlass::bfloat16_t;
-  static constexpr int kThreads=160;
+  static constexpr int kThreads=160,kWarps=4;
   static constexpr Sm90DenseLayout kLayout{1024,1024,1024,1024};
   static constexpr int kSharedBytes=1024;
   __device__ static __forceinline__ void Run(Sm90ForwardSmallOperands const& p,char*,
       Sm90DenseRingState&) {
     if(threadIdx.x>=128)return;
-    int rows=p.width;
-    for(int row=int(blockIdx.x);row<rows;row+=int(gridDim.x)) {
-      int token=p.index0[row],type=p.index1?p.index1[row]:0;
+    int rows=p.width,warp=int(threadIdx.x)>>5,lane=int(threadIdx.x)&31;
+    for(int row=int(blockIdx.x)*kWarps+warp;row<rows;row+=int(gridDim.x)*kWarps) {
+      int token=int(p.index0[row]),type=p.index1?int(p.index1[row]):0;
       auto const* word=p.input+std::size_t(token)*Width;
       auto const* types=p.weight+std::size_t(type)*Width;
-      auto const* position=p.bias+std::size_t(row%p.height)*Width;
-      for(int c=int(threadIdx.x);c<Width;c+=128)
-        p.output[std::size_t(row)*Width+c]=
-            Element(float(word[c])+float(types[c])+float(position[c]));
+      auto const* position=p.table+std::size_t(row%p.height)*Width;
+      float sum=0,squares=0;
+      for(int c=lane;c<Width;c+=32) {
+        float value=float(word[c])+float(types[c])+float(position[c]);
+        p.output[std::size_t(row)*Width+c]=Element(value);
+        sum+=value;squares+=value*value;
+      }
+      if(p.stats) {
+        sum=Sm90DenseAttentionMath::WarpSum(sum);
+        squares=Sm90DenseAttentionMath::WarpSum(squares);
+        if(!lane) {p.stats[2*row]=sum;p.stats[2*row+1]=squares;}
+      }
     }
   }
 };
@@ -194,7 +205,7 @@ struct Sm90ForwardLayerNorm {
       float inverse=rsqrtf(squares/Channels-mean*mean+p.epsilon);
       for(int c=lane;c<Channels;c+=32)
         p.output[std::size_t(row)*Channels+c]=Element((float(source[c])-mean)*inverse*
-            float(p.gamma[c])+(p.bias?float(p.bias[c]):0.0f));
+            float(p.weight[c])+(p.table?float(p.table[c]):0.0f));
     }
   }
 };
