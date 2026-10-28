@@ -195,3 +195,26 @@ remain source-bound;attention bmin4 givesGA12..104 andcross-head CTA0..12
 no causal latency split orcache explanation isclaimed. Raw:D7_PERFORMANCE_FOLLOWUP_v1.json
 inlocal_lds_tail_qwenB2_bounded_top4_v1. This is an unresolved regression,
 not an approved default orcompleted G-LLM gate.
+
+
+Verified remaining15-cell resource preparation:60 normal independent512 original
+builds,60 normal old-source before controls,and60 actual zero-launch resource
+queries complete. Allactual queries report223–231MT,frame0,staticshared0,
+resident1. The unchanged frozen helper andoriginal per-item validator run in
+8guarded processes oncard7;each DSO is bound bydladdr andsource/binary hashes.
+SharedPID/guard evidence is explicit;no fresh-numerical-process claim.
+Eachguard has30schild/60stotal deadline. All60 source-repair D7 reviews pass
+unchanged audit_d7_v2;none claims a mathematical >227 register lowerbound.
+60rows append toMX5_resources_c550.csv withallprior bytes preserved.
+The15exacttop4 protocols allpass unchanged CPU capture/validation;C-1/C2 andE2E
+remainunrun for these15cells. Current numerical selection remains5/25,including
+QwenB2's +9.823%performance failure. Defaults remain unchanged.
+Raw:local_lds_tail_remaining15_cells_cpu_v1/{CPU60_COMPLETE.json,
+ACTUAL60_QUERIES_COMPLETE.json,ACTUAL60_D7_CPU_PROCESSES.json,
+D7_PROTOCOLS_COMPLETE.json,ACTUAL512_RESOURCE_CSV_APPEND_1793177286362.json}.
+
+Verified physical-card interval union:59.895/60hours after allGPUjobs close.
+Allfour original job logs andclosed-interval proofs remain. The final8guards
+reserve60+20cleanup+30poll seconds foronecard;cutoff59.96 givesupper59.99056h.
+Only short zero-launch queries used thispost-numerical reserve. No new long
+correctness/timing job is started;mandatory missing scope staysincomplete.

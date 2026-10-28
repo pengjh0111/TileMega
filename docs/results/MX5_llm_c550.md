@@ -197,4 +197,4 @@ Current selected matching-source bench costs(us);these are not new program ledge
 
 Attention bench exceeds appendix inference;current source per-stage DIAG/I1 remains pending.
 QwenB2 exacttop4:2.301333ms vsMX42.095492(+9.823%);allfourC1/C2pass,butG-LLM fails thiscell.
-Pred/meas.93463;150.448us program-minus-prediction remainsunassigned. Details:MX5_local_lds_c550.md.
+Pred/meas.93463;150.448us unassigned. Another15cells:60actual512queries/D7PASS,15top4protocolsREADY;C1/C2andTPOTpending;details:MX5_local_lds_c550.md.
