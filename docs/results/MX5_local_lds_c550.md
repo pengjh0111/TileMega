@@ -778,3 +778,33 @@ SHA230a572b remains unchanged andactive artifacts are not replaced. GPUcalls0.
 The initial build wrapper captured shellrc only;the separately recorded normal
 Ninja confirmation supplies its actualrc0 rather than inventing the first rc.
 Raw:current_root_build_verification_v1/ACTUAL_CURRENT_ROOT_BUILD_VERIFIED.json.
+
+
+## Verified current QwenB2 failure and first completed selected stage ledger
+
+Current Qwen0.6B B2 selects original0 at2.3013748563571177ms,+9.825017%
+versusfixedMX4,pred/meas.935251. Allfour originalC1/C2512 andeightfresh timings
+passindependent verification/CSVappend,butperformance failsG-LLM. The oldA19
+row2.301333ms is retained separately;the current measurement doesnot fix it.
+Read-only source-bound replay finds231MT/frame/static0 inallfour timing artifacts,
+14cleanMMA rings each,zero kernelcalls/private accesses inselected MIR. The
+unchanged parser excludesCTA-barrier paths;no all-path absence claim is made.
+Actualselected-pin DIAG CPU preparation begins,with unchanged producer/source,
+geometry,widths,resource/MIR gates;no GPUlaunch orsolver change. Raw:current_QwenB2_D7_readonly_v1.
+
+8BB16 completes16freshcard5 DIAGchildren andactual API0/resident1 query. The
+per-cell summarizer andstrict independent CSVingestion pass;12round/classrows
+append toMX5_stage_ledger_c550.csv. The CPU append waiter now consumes each
+completed cell afterits successful summarizer receipt;onlythe oldidle CPU waiter
+was replaced. Its actual row verifier is unchanged,with all PID/source/guard/
+accepted-timestamp/bench checks retained. Raw:aligned_development_stage_ledger_v1/
+ACTUAL_READY_CELL_LEDGER_APPEND_HANDOFF_v3.json.
+
+Nonadditive two-round median interventions versusbench,us/occurrence:
+QKV35.200/37.620,attention60.383/53.694,O26.931/31.620,gate/up166.632/174.180,
+down82.896/90.350,head+tokenhistory655.155/656.700. The head comparison is
+confounded;no additive sum orisolated-body timing isclaimed. Appendix8BB16
+attention26–28us is contradicted:bench already53.694us (25.694us aboveupper),
+andthe program intervention isanother6.689us higher. This places muchof the
+observed gap in the prescribed self-next bench envelope;finer causal attribution
+remainsopen. Otherfour development stage ledgers andCP-1 remainpending.
