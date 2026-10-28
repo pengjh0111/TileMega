@@ -53,7 +53,7 @@ def validate(domain):
     export=controlled(domain['export']);identity=json.loads((export/'as2_export.json').read_text())
     expected={k:identity[k] for k in ('model_id','config_sha256','phase')}
     expected['batch']=domain['batch']
-    seen=set();costs={};devices=set();contexts=set()
+    seen=set();signatures=set();costs={};devices=set();contexts=set()
     for c in candidates:
         if not re.fullmatch('[a-zA-Z0-9_-]+',c['id']) or c['id'] in seen:
             raise ValueError('Candidate ids must be unique safe path components')
@@ -62,6 +62,10 @@ def validate(domain):
             raise ValueError('Body and CTG decomposition require separate native interfaces')
         if c['groups'] not in (2,4,8) or c['gemm_tile_n'] not in (64,128) or c['kv_block'] not in (128,1088):
             raise ValueError('Unadmitted topology or geometry')
+        signature=tuple(c.get(k) for k in ('groups','gemm_tile_n','kv_block','attention',
+            'body_binding','decomposition','fifo_wait_elision'))
+        if signature in signatures:raise ValueError('Duplicate implementation/plan candidate')
+        signatures.add(signature)
         p,device=evidence(controlled(c['prices']));devices.add(device)
         if len(devices)>1:raise ValueError('Mixed device pricing context')
         if any(p[k]!=v for k,v in expected.items()) or p['groups']!=c['groups']:

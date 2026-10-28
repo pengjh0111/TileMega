@@ -28,10 +28,12 @@ class AscendOuterSearch(unittest.TestCase):
                     source_profile_sha256=hashlib.sha256((p/'profile.json').read_bytes()).hexdigest(),
                     source_costs_sha256=hashlib.sha256((p/'cost.json').read_bytes()).hexdigest())
                 (p/'price.json').write_text(json.dumps(price))
-                return dict(id=name,groups=8,gemm_tile_n=128,kv_block=1088,attention='cpu-fixture',prices=str(p/'price.json'))
+                return dict(id=name,groups=8,gemm_tile_n=128,kv_block=1088,attention='cpu-fixture-'+name,prices=str(p/'price.json'))
             a=candidate('a');b=candidate('b')
             domain=dict(schema='tilemega.as2.outer_search_domain.v1',export=str(export),batch=16,candidates=[a,b])
             self.assertEqual(validate(domain)[1]['model_id'],'cpu-fixture')
+            with self.assertRaisesRegex(ValueError,'Duplicate implementation'):
+                validate(dict(domain,candidates=[a,dict(a,id='duplicate')]))
             with self.assertRaisesRegex(ValueError,'Mixed device'):
                 validate(dict(domain,candidates=[a,candidate('other_device',device=0)]))
             with self.assertRaisesRegex(ValueError,'different control'):
