@@ -718,3 +718,31 @@ Only its own idle waiter was replaced;fouravailable cells/32processes precheck
 then passes beforethe fullfive proof. No GPUjob,raw result orcriterion changed.
 Raw:aligned_G_PROGRAM_development5_v1/ACTUAL_G_PROGRAM_DEVELOPMENT5.json and
 ACTUAL_ARGV_POSITION_PREEXEC_CPU_REVIEW.json;consumed_prefetch_llama3_1_8b_B1_L1prefill_full_top4_execution_v1.
+
+
+## Verified allfive aligned internal P-PAIR results and DIAG launch readiness
+
+Llama8B B1 completes fourfresh alternating card5 processes. Arm medians
+old10.715534ms,new10.589079ms give−1.180104%;relative roundrange.089222%,
+threshold1%,so the improvement is distinguishable. Allfive development P-PAIR
+cells now finish:QwenB1 indistinguishable,the otherfour distinguishably faster.
+Independent CPU ingestion verifies andappends20fresh-process rows acrossfivecells.
+Fixedbaseline CSVs,selections anddefaults remain unchanged. Raw:aligned_development_MX4_PPAIR_v1/
+ACTUAL_FIVE_DEVELOPMENT_PPAIR_COMPLETE.json andACTUAL_REMAINING4_PPAIR_CSV_COMPLETE.json.
+
+Allfive selected-artifact DIAG CPU builds pass stack/static0 and70total cleanMIR
+rings;allfive independent --check-only processes passwithout GPUcalls. Resource
+summary follows;these rows alone do not establish occupancy orDIAGtiming.
+
+| Cell | Threads | MTreg | Code bytes |
+|---|---:|---:|---:|
+|llama3_1_8b_B1|512|229|136024|
+|llama3_1_8b_B16|512|227|178272|
+|llama3_2_1b_B1|576|165|121472|
+|qwen3_0_6b_B1|512|228|129720|
+|qwen3_0_6b_B16|512|227|130392|
+
+The first actual DIAG query (8BB16) passesAPI0,resident1,launches0 oncard5;
+only then does its fixed-mask/two-round measurement begin. CP-1 still requires
+allfive actual stage ledgers. Raw:aligned_development_stage_ledger_v1/
+ACTUAL_FIVE_DIAG_CPU_RESOURCES_SUMMARY.json andACTUAL_FIVE_DIAG_CHECK_ONLY_CPU_PROCESSES.json.

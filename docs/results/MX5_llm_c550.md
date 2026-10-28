@@ -102,6 +102,7 @@ Old=rebuilt22a finalsource/pins,not exacthistoricalELF;oldprefillWD1,newprefillW
 |Qwen0.6B/B16|4.521433|3.519038|-22.170%|0.414%|1.000%|faster|
 |Llama8B/B16|14.494706|13.137143|-9.366%|0.060%|1.000%|faster|
 |Llama1B/B1|2.208144|2.135033|-3.311%|0.102%|1.000%|faster|
+|Llama8B/B1|10.715534|10.589079|-1.180%|0.089%|1.000%|faster|
 Source-bound fresh-process rows:MX5_ppair_c550.csv;no fixedbaseline overwrite orselection change.
 
 ## Historical A19 reference (verified, separate source)
