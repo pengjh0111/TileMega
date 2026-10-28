@@ -14,6 +14,9 @@ DIMENSIONS = ('hidden_size', 'intermediate_size', 'num_hidden_layers',
               'vocab_size', 'rope_theta', 'rope_scaling', 'num_experts',
               'num_experts_per_tok', 'moe_intermediate_size', 'norm_topk_prob',
               'decoder_sparse_step', 'mlp_only_layers')
+TOKENIZER_FAMILIES = ('llama3', 'qwen', 'mistral', 'olmo')
+ARCHITECTURES = ('LlamaForCausalLM', 'Qwen3ForCausalLM', 'Qwen3MoeForCausalLM',
+                 'MistralForCausalLM', 'OlmoeForCausalLM')
 
 
 def model_ids(repo_root: Path = ROOT) -> tuple[str, ...]:
@@ -46,8 +49,10 @@ def load_model(name: str, repo_root: Path = ROOT) -> dict:
         raise ValueError('model revision must be a fixed 40-character commit')
     if not re.fullmatch('[0-9a-f]{64}', record.get('config_sha256', '')):
         raise ValueError('model config must have a SHA256')
-    if record.get('tokenizer_family') not in ('llama3', 'qwen'):
+    if record.get('tokenizer_family') not in TOKENIZER_FAMILIES:
         raise ValueError('unsupported tokenizer family')
+    if not record.get('architectures') or any(a not in ARCHITECTURES for a in record['architectures']):
+        raise ValueError('unsupported model architecture')
     if not isinstance(record.get('tie_word_embeddings'), bool):
         raise ValueError('tie_word_embeddings must be explicit')
     if not isinstance(record.get('dimensions'), dict):

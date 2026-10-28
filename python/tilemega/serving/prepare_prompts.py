@@ -81,7 +81,7 @@ def main() -> None:
     parser.add_argument("--model", type=Path)
     parser.add_argument("--ids-out", type=Path)
     parser.add_argument('--prompt-len', type=int, default=64)
-    parser.add_argument('--family', choices=('llama3', 'qwen'))
+    parser.add_argument('--family', choices=('llama3', 'qwen', 'mistral', 'olmo'))
     args = parser.parse_args()
     if not args.passages.exists():
         passages(args.passages)

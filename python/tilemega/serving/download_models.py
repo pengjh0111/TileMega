@@ -16,7 +16,12 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def fetch(name: str, destination: Path, repo_root: Path, *, config_only: bool = False) -> dict:
+TOKENIZER_FILES = ['tokenizer.json', 'tokenizer_config.json', 'special_tokens_map.json',
+                   'tokenizer.model', 'generation_config.json']
+
+
+def fetch(name: str, destination: Path, repo_root: Path, *, config_only: bool = False,
+          tokenizer: bool = False) -> dict:
     record = load_model(name, repo_root)
     repo, revision = record['repo'], record['revision']
     destination = Path(destination)
@@ -35,6 +40,12 @@ def fetch(name: str, destination: Path, repo_root: Path, *, config_only: bool = 
               "tie_word_embeddings": record['tie_word_embeddings'],
               "dimensions": dimensions(actual)}
     if config_only:
+        if tokenizer:
+            from huggingface_hub import snapshot_download
+            snapshot_download(repo_id=repo, revision=revision, local_dir=destination,
+                              allow_patterns=TOKENIZER_FILES)
+            result['tokenizer_sha256'] = {name: sha256(destination/name) for name in TOKENIZER_FILES
+                                          if (destination/name).is_file()}
         # Keep structural evidence separate from a verified weight manifest.
         result.update(structure_only=True, safetensors_sha256={})
         (destination/'tilemega_config_manifest.json').write_text(json.dumps(result, indent=2)+'\n')
@@ -65,12 +76,14 @@ def main(argv=None) -> None:
                         default=Path('runs/r15/model_sources.json'))
     parser.add_argument('--config-only', action='store_true',
                         help='verify only config.json; reuse valid local configs and never fetch weights')
+    parser.add_argument('--tokenizer', action='store_true',
+                        help='with --config-only, also fetch the pinned tokenizer files')
     args = parser.parse_args(argv)
     names = [ALIASES.get(args.model, args.model)] if args.model != 'all' else model_ids(args.repo_root)
     result = {}
     for name in names:
         result[name] = fetch(name, args.model_root/name, args.repo_root,
-                             config_only=args.config_only)
+                             config_only=args.config_only, tokenizer=args.tokenizer)
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(json.dumps(result, indent=2) + "\n")
     print(json.dumps({k: {"source": v["source"], "revision": v["revision"],
