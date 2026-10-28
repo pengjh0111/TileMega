@@ -3,8 +3,8 @@
 Verified checkpoint, 2026-10-28: A19 body `7c9658ac5`, frozen normal producer
 `88327cbc4`, has 9/25 dense top-four selections. Seven are nonregressions;
 Qwen0.6B B2/B4 are 9.823/7.591% slower than fixed MX-4. G-LLM stays open.
-A consumed-prefetch attention candidate is under validation and has no selected
-end-to-end result. MoE native 0/5 and DNN native 0/25 remain unimplemented.
+Main consumed-prefetch repair4b7d83686 passes full body tests, with no selected
+end-to-end result or new cost table. MoE native0/5 and DNN native0/25 remain unimplemented.
 
 Authority: `/root/Prompt/TileMega_MX5_prompt.md`, SHA256
 `75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73`.
@@ -76,7 +76,7 @@ accounting continues; allowed cards7/6/5/4, at most two cards, one job/card, gua
 driver or other processes are changed; fixed external baselines are not rerun.
 
 Original R_cap220/248 and prefetch formulas remain. A proposed R_cap160 change
-has not been applied. The current attention lifetime candidate retains both caps.
+has not been applied. The committed attention lifetime repair retains both caps.
 
 ## Open gates and next work (verified)
 
@@ -87,8 +87,8 @@ has not been applied. The current attention lifetime candidate retains both caps
    or seed was changed; this is localization evidence, not a repaired gate.
 2. The old Llama1B576 PK2 self-next bench has44–48B frame despite a real
    whole-program167MT/frame0/resident1. This never justified blanket512. The
-   consumed-prefetch candidate has139/141MT/frame0 in CPU compilation; actual
-   full numerics, occupancy and repeated self-next checks precede new costs.
+   consumed-prefetch repair has139/141MT/frame0/actualresident1. Full336, null28,
+   helper6 andcoldselfnext12 each pass5fresh;normalnewproducer/costs are pending.
 3. G-PROGRAM/G-SOLVER/G-LLM remain open. A19 has9 measured cells and two
    regressions. B2 DIAG attention is35.923/35.842us versus bench27.167us. Three
    fresh off-grid diagnostics explain much of the prediction gap; the mandated

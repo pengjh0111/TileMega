@@ -301,3 +301,15 @@ wave/CTA用例与5新进程helper litmus正在跑，尚未进入主源或实测�
 第一次包装器错误地把固定576线程的TransformKernel按512核对，数值启动前停止；
 已改为按真实576/512 launch bounds核对全部六个helper内核，失败日志保留。
 Raw：attention_consumed_prefetch_guard_candidate_v2；R_cap160提案未应用，当前验证无需该变更。
+
+Verified：consumed-prefetch 修正已收齐验证并提交为4b7d83686，回归测试为d889bd292。
+完整336 attention项、576/PK2空指针28项、实际helper六项以及576/PK2冷自预取12键，
+每组都完成5新进程；helper每项104CTA×2000迭代、0违例，自预取每键≥2000迭代、
+活跃冷工作集≥256MiB，原数值/KV/callback/LA/屏障/确定性判据未改。
+实际API查询均先于对应数值启动，所选内核frame0/static0/resident1；PK2 bench为139/141MT。
+已追加20组正确性与130条实际资源查询，标记真实候选源码/构建HEAD/轮次，不冒充正常新producer。
+新提交的Python空指针回归入口另实际运行28项及15变换项，2测试、0skip通过；CPU无GPU发现
+测试的1skip仅是环境检查，没有计入上述数值通过。R_cap220/248和预取公式保持不变。
+正常新冻结producer正在全量160步构建；之后新源码800个P0/primary实际查询与合法成本冷测量。
+512/576成本按独立新进程分组，原mixed CPU清单不执行；所有旧A19成本/选择仍保留旧身份。
+当前主源新体没有端到端选择，9格结果仍属A19；不作TPOT改善或默认提升声明。

@@ -1,9 +1,9 @@
 # MX-5 C550 LLM development checkpoint
 
-Verified current A19 source: 9/25 dense cells measured; 2 distinguishable MX4 regressions. G-LLM remains open.
+Verified A19 source: 9/25 dense cells measured; 2 distinguishable MX4 regressions. G-LLM remains open.
 MoE native0/5;DNN native0/25. All defaults remain MX4; final=False.
 Authority SHA256:75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73.
-Current body7c9658ac5,frozen normal producer88327cbc4;historicalcc29 results remain separate.
+Measured A19 body7c9658ac5/producer88327cbc4;main4b7d83686 consumed-prefetch body has0 E2E cells;new costs pending.
 
 ## Current 25-cell coverage (verified)
 
@@ -116,8 +116,8 @@ Original5grid remeasurements differ0.202–0.715%;intermediate segmentation expl
 Otherbmin midpoint estimates(us):1=32.040,2=33.989,4=33.674,8=39.179;not default-selection evidence.
 Current-source I1 timing remains unmeasured;no instruction-cache cause isclaimed.
 
-Llama1B:old576 PK2 self-next bench44–48B frame;consumed-prefetch candidate now139/141MT,frame0(CPU).
-Original Rcap220/248 retained;candidate full336/null-idle/actual occupancy checks arepending;no newcost/default claim.
+Llama1B:old576 PK2 self-next bench44–48B frame;new139/141MT/frame0,actualresident1,cold12keys×5freshPASS.
+Original Rcap220/248 retained;full336/null-idle/helper/self-next each5fresh PASS;new main normalproducer/costs/E2E pending.
 G576 single-element reference criterion remainsfailed;instrumented copy hasidentical fulloutputs.
 Observed gate is1.192e−6 belowBF16 midpoint;CPU gate2.861e−6 above. Oracle/tolerance remain unchanged.
 
