@@ -10,6 +10,15 @@
 using namespace tilemega::backend::mx;
 using tilemega::Bf16;
 using Sync = tilemega::codegen::mx::StageSyncV2<512>;
+#ifndef MX5_I1_BATCH
+#define MX5_I1_BATCH 1
+#endif
+#ifndef MX5_I1_B_MIN
+#define MX5_I1_B_MIN 1
+#endif
+constexpr int kBatch = MX5_I1_BATCH, kBMin = MX5_I1_B_MIN;
+// These two measured pins share all five body coordinates except B/b_min.
+static_assert((kBatch == 1 && kBMin == 1) || (kBatch == 2 && kBMin == 4));
 constexpr int kCapacity = 1088, kShared = 32784 + 16;
 constexpr std::size_t kRotateBytes = 256ull << 20;
 
@@ -42,14 +51,14 @@ template <int C>
 __device__ __forceinline__ void Body(Pools const& p, int ordinal, char* smem) {
   auto next = [] { return MxNoPrefetchedV2{}; };
   if constexpr (C == 1) {
-    using Attention = MxAttentionV2<128, 2, 1, true, 0>;
-    constexpr std::size_t stride = std::size_t(8) * kCapacity * 128;
+    using Attention = MxAttentionV2<128, 2, kBMin, true, 0>;
+    constexpr std::size_t stride = std::size_t(kBatch) * 8 * kCapacity * 128;
     constexpr int copies = int((kRotateBytes + 4 * stride - 1) / (4 * stride));
     auto* keys = p.keys + std::size_t(ordinal % copies) * stride;
     auto* values = p.values + std::size_t(ordinal % copies) * stride;
     MxAttentionOperandsV2 const ops{p.qkv, p.norm, p.norm, p.cosine, p.sine,
         keys, values, p.output + 32768, p.partial, p.tickets, kCapacity, 575, 1e-6f};
-    MxStaticAttentionShapeV2<1, 8, 512> const shape{};
+    MxStaticAttentionShapeV2<kBatch, 8, 512> const shape{};
     auto pf = Attention::Prefetch(ops, shape);
     Attention::Run(pf, ops, shape, smem, next);
   } else {
@@ -63,8 +72,8 @@ __device__ __forceinline__ void Body(Pools const& p, int ordinal, char* smem) {
     constexpr std::size_t stride = std::size_t(n) * k;
     constexpr int copies = int((kRotateBytes + 2 * stride - 1) / (2 * stride));
     MxGemmOperandsV2 const ops{p.a, p.weights + std::size_t(ordinal % copies) * stride,
-        p.a, p.output, p.partial, p.tickets, nullptr, nullptr, 0, 0, 1e-6f};
-    MxStaticShapeV2<n, k, 1, 512> const shape{};
+        p.a, p.output, p.partial, p.tickets, nullptr, nullptr, k, n, 1e-6f};
+    MxStaticShapeV2<n, k, kBatch, 512> const shape{};
     auto pf = Gemm::Prefetch(ops, shape);
     Gemm::Run(pf, ops, shape, smem, next);
   }
@@ -125,15 +134,15 @@ int main(int argc, char** argv) {
   if (!iterations) return 0;
   Pools p{};
   Allocate(p.weights, (kRotateBytes + (24ull << 20)) / 2);
-  Allocate(p.a, 32768); Allocate(p.output, 65536); Allocate(p.qkv, 4096);
-  constexpr std::size_t stride = std::size_t(8) * kCapacity * 128;
+  Allocate(p.a, 32768); Allocate(p.output, 65536); Allocate(p.qkv, kBatch * 4096);
+  constexpr std::size_t stride = std::size_t(kBatch) * 8 * kCapacity * 128;
   constexpr int copies = int((kRotateBytes + 4 * stride - 1) / (4 * stride));
   Allocate(p.keys, stride * copies); Allocate(p.values, stride * copies);
   Allocate(p.norm, 128); Allocate(p.cosine, kCapacity * 128); Allocate(p.sine, kCapacity * 128);
   Allocate(p.partial, std::size_t(16) << 20); Allocate(p.tickets, 16384);
   Allocate(p.arrivals, 64 * 8); Allocate(p.stamps, std::size_t(iterations) * 5);
   Fill<<<104, 256>>>(p.weights, (kRotateBytes + (24ull << 20)) / 2, 7, -1);
-  Fill<<<104, 256>>>(p.a, 32768, 11, -1); Fill<<<104, 256>>>(p.qkv, 4096, 13, -1);
+  Fill<<<104, 256>>>(p.a, 32768, 11, -1); Fill<<<104, 256>>>(p.qkv, kBatch * 4096, 13, -1);
   Fill<<<104, 256>>>(p.keys, stride * copies, 17, -1);
   Fill<<<104, 256>>>(p.values, stride * copies, 19, -1);
   Fill<<<1, 128>>>(p.norm, 128, 0, 1);
@@ -159,7 +168,7 @@ int main(int argc, char** argv) {
       for (int i = 10; i < count; ++i)
         if (fixed >= 0 || i % 5 == c) durations.push_back(stamps[i] - stamps[i - 1]);
       std::sort(durations.begin(), durations.end());
-      std::fprintf(out, "I1_v2,qwen3_0_6b,1,%s,%s,%llu,%llu,%d\n", names[c],
+      std::fprintf(out, "I1_v2,qwen3_0_6b,%d,%s,%s,%llu,%llu,%d\n", kBatch, names[c],
                    fixed < 0 ? "program_order" : "repeat", durations[durations.size()/2],
                    durations[durations.size()*9/10], iterations);
     }
