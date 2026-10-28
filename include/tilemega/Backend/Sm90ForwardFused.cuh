@@ -61,11 +61,19 @@ struct Sm90ForwardDwPw {
   static constexpr int kFilterElements=CB*9*Pack;
   static constexpr int kWeightBytes=2*kFilterElements;
   static constexpr int kScratchBytes=4*kRows*TN;
-  static constexpr int kPagesOffset=1024+Slots*2*kHaloElements;
-  static constexpr int kFiltersOffset=kPagesOffset+Slots*2*kPageElements;
+  // Every WGMMA operand tile must start at a multiple of the 128-byte
+  // swizzle's 1 KB period: a merely 128-byte-aligned base shifts the XOR
+  // pattern and the MMA reads the wrong k columns for some rows.
+  static constexpr int kAligned=1024;
+  static constexpr int kPagesOffset=
+      (1024+Slots*2*kHaloElements+kAligned-1)/kAligned*kAligned;
+  static constexpr int kFiltersOffset=
+      (kPagesOffset+Slots*2*kPageElements+kAligned-1)/kAligned*kAligned;
+  static constexpr int kPanelOffset=
+      (kFiltersOffset+Slots*2*kFilterElements+kAligned-1)/kAligned*kAligned;
   static constexpr Sm90DenseLayout kLayout{1024,kPagesOffset,
-      1024+Slots*kSlotBytes+kPanelBytes,
-      (1024+Slots*kSlotBytes+kPanelBytes+kScratchBytes+1023)/1024*1024};
+      kPanelOffset+kPanelBytes,
+      (kPanelOffset+kPanelBytes+kScratchBytes+kAligned-1)/kAligned*kAligned};
   static constexpr int kSharedBytes=kLayout.end;
 
   // Byte offset of (row, column) inside one 64-column SW128 panel.
@@ -106,7 +114,7 @@ struct Sm90ForwardDwPw {
     auto* halo=reinterpret_cast<Element*>(shared+1024);
     auto* pages=reinterpret_cast<Element*>(shared+kPagesOffset);
     auto* filters=reinterpret_cast<Element*>(shared+kFiltersOffset);
-    auto* panel=filters+Slots*kFilterElements;
+    auto* panel=reinterpret_cast<Element*>(shared+kPanelOffset);
     auto* scratch=shared+kLayout.scratch;
     int tiles_w=(p.output_width+TW-1)/TW,tiles_h=(p.output_height+TH-1)/TH;
     int splits=p.out_channels/TN;
