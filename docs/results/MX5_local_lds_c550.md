@@ -808,3 +808,19 @@ attention26–28us is contradicted:bench already53.694us (25.694us aboveupper),
 andthe program intervention isanother6.689us higher. This places muchof the
 observed gap in the prescribed self-next bench envelope;finer causal attribution
 remainsopen. Otherfour development stage ledgers andCP-1 remainpending.
+
+
+## Verified selected current QwenB2 D7 readiness
+
+The actualselected DIAG CPU build nowpasses strict source/geometry/width/CU
+equality andnormal build-option checks:229MT/frame0/static0,14cleanMMA rings,
+no generic/private/calls inselected MIR. Independent --check-only CPU preflight
+passes. This prepares diagnostics for the actual+9.825% G-LLM failure;it doesnot
+change solver selection,production code orcriterion.
+
+Its guardedcard5 query300s and16fresh per-mask900s jobs are explicitly queued
+afterthe existing five development DIAG attempts complete. This preserves the
+two-card limit andavoids overlapping card5 jobs. The driver uses the same
+strict body/guard/PID/timestamp summarizer protocol;an independent CPU appender
+waits actual D7 completion. No D7GPUquery/timing has yet run. Raw:current_QwenB2_D7_readonly_v1/
+ACTUAL_D7_GPU_QUEUE_PREPARATION_CPU.json andselected_diag/DIAG_CPU_RESULT.json.
