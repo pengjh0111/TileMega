@@ -48,6 +48,14 @@ class CachedKvStudy(unittest.TestCase):
             x=json.loads((b/'request.json').read_text());x['phases']['decode']['bound_hashes']['queue.bin']=hashlib.sha256(q.read_bytes()).hexdigest()
             (b/'request.json').write_text(json.dumps(x))
             with self.assertRaisesRegex(ValueError,'ownership, waits or order'):validate_cached_kv_bindings(a,b)
+            q.write_bytes((a/'decode/queue.bin').read_bytes())
+            x['phases']['decode']['bound_hashes']['queue.bin']=hashlib.sha256(q.read_bytes()).hexdigest()
+            stage=b/'decode/stages.bin';s=list(struct.unpack('<17Q16I',stage.read_bytes()))
+            s[32]=0x358637bd  # A changed epsilon cannot be hidden by new table hashes.
+            stage.write_bytes(struct.pack('<17Q16I',*s))
+            x['phases']['decode']['bound_hashes']['stages.bin']=hashlib.sha256(stage.read_bytes()).hexdigest()
+            (b/'request.json').write_text(json.dumps(x))
+            with self.assertRaisesRegex(ValueError,'logical operands or mathematics'):validate_cached_kv_bindings(a,b)
 
     def test_state_must_be_reset_and_inputs_cannot_change(self):
         with tempfile.TemporaryDirectory(dir=RUNS/'probes') as raw:
