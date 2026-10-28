@@ -21,6 +21,36 @@ Verified means inspected/executed here; stated means supplied instruction;
 inferred means an interpretation. Earlier source cohorts remain in append-only
 CSVs and git history; they do not count as a later body's acceptance.
 
+## Actual entry routes and shared runtime (verified, 2026-10-29)
+
+The export bridge records graph nodes,signatures andparameter recipes;it is not an
+executable plan. Compile builds ModelPlan,selects/lower bodies,generates CU and
+compiles plan.so. Python then binds the serving ABI;the ABI alone does not prove
+that a native StageProgram was generated.
+
+| Current route | Actual source/behavior | MX-5 boundary |
+|---|---|---|
+| Dense decode,default | compile.cpp:580→mx_decode.cpp:95;unmodified target stilluses MX4costs | MX4 static remains the default until MX5acceptance |
+| Dense decode,explicit v2 | mx_decode.cpp:96/97 dispatches table preparation ormx_decode_v2 pin compilation;TryCompileV2:207 imports/analyzes dense ModelPlan | Current original4 selection route;constexpr StageProgram/L1;explicit pin builds are not themselves finalsolver acceptance |
+| Dense prefill | Existing MX4 prefill geometry andlegacy serving harness;timingWD0,checksWD1;fragment KVwrite compatibility added | Allowed retained prefill path;not the decode interpreter andnot a dense-prefill redesign |
+| MoE decode | mx_decode.cpp:105 returns−1 forDM,so compile.cpp continues toDM lowering;explicitv2 rejectsDM atmx_decode_v2.cpp:226 | Legacy route currentlyexists butis not executed/accepted forMX5;AnalyzeMxMoe/native router/grouped bodies remain missing |
+| MoE prompt64 | Request currentlyhas no promptfield;the requested --mx-prompt native route is absent | Native prompt plan andits matching decode recipes remain required |
+| DNN forward | compile.cpp:748 BuildDnnModelPlan→existing CouplingGraphToCUDA/serving harness;dnn/cli.py:58 defaultsL2,cli.py:229 defaultsbuild-dm compiler | mx_dnn.cpp/EmitMxDnnProgram/time command andfinallegacy rejection are still missing;no nativeforward result is claimed |
+
+PlanLibrary inserving/plan.py binds tm_plan_query/buffer/create/set_steps/launch,
+optional launch_steps/watchdog/timestamps,and destroy. ServingEngine checks
+phase/shape/sharedKV,requires compatible kv_layout andkv_storage,loads recipes,
+binds sharedweights/requeststorage,launches prefill then separate/device-loop decode.
+execution.py:43 selects L1 for mx_static;prefill_mode=None inherits thatL1.
+Identical external names across phases must have identical dtype/size/recipe
+(serving/weights.py:109);this also constrains future MoE prompt/decode pairs.
+
+DNN's existing NativeForward is indnn/check.py:30,not a new MX5compiler. It checks
+forward phase/capacity/batch,binary_sha256 andthe exact external-name set,binds
+checkpoint weights+inputs+outputs,and checks supported repeated launches. Reusing
+this ABI/checker does not mean the requested static DNNbodies exist. DNNtiming must
+use the specified50-forwards/device-events protocol rather than this check loop.
+
 ## Current dense pipeline (verified)
 
 ```mermaid
