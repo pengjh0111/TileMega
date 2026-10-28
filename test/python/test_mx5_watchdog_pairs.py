@@ -92,3 +92,89 @@ def test_both_fit_still_requires_actual_queries(pair_fixture):
     result = m.inspect_pair(preview, 0, p, {'native':0,'resources':0}, {'native':0,'resources':0}, [])
     assert result['action'] == 'needs_both_actual_queries'
     assert result['proposal'] is None and result['execution_authorized'] is False
+
+
+@pytest.fixture
+def history_fixture(tmp_path, monkeypatch):
+    import json
+    def save(path, value):
+        path.write_text(json.dumps(value) + '\n')
+        return m.record(path)
+    original = pin()
+    proposal = m.proposed_width(original, 0)
+    preview = tmp_path/'CPU_SYNTHETIC_PREVIEW.json'
+    preview_ref = save(preview, {'fixture': True})
+    table = tmp_path/'CPU_SYNTHETIC_TABLE.json'
+    table_ref = save(table, {'fixture': True})
+    sources = tmp_path/'CPU_SYNTHETIC_SOURCES.json'
+    save(sources, [])
+    domain = tmp_path/'CPU_SYNTHETIC_DOMAIN'
+    domain.write_text('not an executable\n')
+    class Origin:
+        sha256 = 'CPU_SYNTHETIC_ORIGIN'
+        data = {'preview': {'stage_table': table_ref}, 'layers': 2}
+        def candidate(self, _):
+            return {'pin': original, 'predicted_stage_ns': {n:100 for n in m.policy.STAGES},
+                    'evidence': {n:[{'kind':'head' if n == 'head' else 'gemm', 'key':{}}]
+                                 for n in m.policy.CLASSES}}
+    monkeypatch.setattr(m.resolved.Qualified576Origin, 'capture', lambda _: Origin())
+    monkeypatch.setattr(m.resolved, '_complete_domain', lambda *args: None)
+    monkeypatch.setattr(m.policy, 'program_epoch', lambda _: 'CPU_SYNTHETIC_EPOCH')
+    observations = []
+    chain = []
+    for index, p in enumerate([original, proposal['next_pin']]):
+        fake = dict(native=preview_ref, resources=preview_ref, files={}, snapshot={'source_files':{}})
+        value = dict(origin_preview=preview_ref, candidate_id=0, pin=copy.deepcopy(p), used_reductions=index,
+                     failed_resources=index == 0, proposal=copy.deepcopy(proposal) if index == 0 else None,
+                     WD0=copy.deepcopy(fake), WD1=copy.deepcopy(fake))
+        observations.append(value)
+        chain.append(dict(step=index, observation=save(tmp_path/f'pair{index}.json', value)))
+    monkeypatch.setattr(m, 'inspect_pair', lambda *args: copy.deepcopy(observations[args[-1]]))
+    doc = dict(original_preview=preview_ref, candidate=0, chain=chain, used_reductions=1,
+               changed_width_requests=[dict(parent_pair=chain[0]['observation'], proposal=proposal)],
+               pair_resources_fit=True)
+    path = tmp_path/'history.json'
+    save(path, doc)
+    return path, domain, sources, doc, observations, save
+
+
+def test_history_replay_never_grants_execution_without_queries_and_costs(history_fixture):
+    path, domain, sources, *_ = history_fixture
+    result = m.replay_history(path, domain, sources)
+    assert result['missing_queries'] == ['WD0', 'WD1']
+    assert [r['stage'] for r in result['missing_costs']] == ['head']
+    assert not result['resource_cost_query_ready'] and not result['execution_authorized']
+
+
+@pytest.mark.parametrize('mutation,match', [
+    ('reset', 'shared reduction count'), ('gap', 'noncontiguous'),
+    ('wrong_pin', 'prescribed pin'), ('requests', 'width requests')])
+def test_history_rejects_reset_gap_pin_and_unwitnessed_requests(history_fixture, mutation, match):
+    path, domain, sources, doc, observations, save = history_fixture
+    if mutation == 'reset':
+        doc['used_reductions'] = 0
+    elif mutation == 'gap':
+        doc['chain'][1]['step'] = 2
+    elif mutation == 'requests':
+        doc['changed_width_requests'] = []
+    else:
+        observations[1]['pin']['mx_decode_v2']['gate_up']['prefetch'] = 2
+        doc['chain'][1]['observation'] = save(path.parent/'changed_pair.json', observations[1])
+    save(path, doc)
+    with pytest.raises(ValueError, match=match):
+        m.replay_history(path, domain, sources)
+
+
+@pytest.mark.parametrize('resident', [0, 1])
+def test_history_uses_verified_query_summary_without_inventing_raw_status(history_fixture, monkeypatch, resident):
+    path, domain, sources, doc, observations, save = history_fixture
+    q = save(path.parent/'CPU_SYNTHETIC_QUERY.json', {'not_a_device_query': True})
+    # The trusted helper verifies raw API status, then returns this smaller summary.
+    monkeypatch.setattr(m.resolved.exception, '_query', lambda *args: {'resident_ctas': resident})
+    if resident == 0:
+        with pytest.raises(ValueError, match='actual occupancy'):
+            m.replay_history(path, domain, sources, queries={'WD0':q,'WD1':q})
+    else:
+        result = m.replay_history(path, domain, sources, queries={'WD0':q,'WD1':q})
+        assert result['missing_queries'] == []
+        assert result['missing_costs'] and result['execution_authorized'] is False

@@ -101,6 +101,100 @@ def inspect_pair(preview, candidate, pin, wd0, wd1, sources, used_reductions=0):
                 execution_authorized=False, final=False, default_enabled=False)
 
 
+def replay_history(history_path, domain_tool, stage_sources, queries=None, catalog=None):
+    """Replay every actual pair and reduction; missing costs/queries never grant execution."""
+    saved = json.loads(Path(history_path).read_text())
+    preview = check_file(saved['original_preview'])
+    candidate = saved['candidate']
+    origin = resolved.Qualified576Origin.capture(record(preview))
+    table = json.loads(check_file(origin.data['preview']['stage_table']).read_text())
+    resolved._complete_domain(origin.data['preview'], table, Path(domain_tool))
+    source_inventory = record(stage_sources)
+    sources = json.loads(check_file(source_inventory).read_text())
+    chain = saved['chain']
+    require(0 < len(chain) <= 4, 'pair history must contain one to four actual attempts')
+    require([r['step'] for r in chain] == list(range(len(chain))), 'noncontiguous pair history')
+    require(saved['used_reductions'] == len(chain) - 1, 'shared reduction count changed')
+    expected = origin.candidate(candidate)['pin']
+    initial_epoch = None
+    authorizations = {}
+    actual_requests = []
+    for ordinal, entry in enumerate(chain):
+        path = check_file(entry['observation'])
+        observed = json.loads(path.read_text())
+        require(observed['origin_preview'] == record(preview) and observed['candidate_id'] == candidate,
+                'observation belongs to another origin/candidate')
+        require(observed['pin'] == expected and observed['used_reductions'] == ordinal,
+                'pair changed the prescribed pin or reset its budget')
+        for tag in ('WD0', 'WD1'):
+            for name in ('native', 'resources'):
+                check_file(observed[tag][name])
+        fresh = inspect_pair(preview, candidate, expected,
+                             {k:observed['WD0'][k]['path'] for k in ('native', 'resources')},
+                             {k:observed['WD1'][k]['path'] for k in ('native', 'resources')},
+                             sources, ordinal)
+        require(fresh == observed, 'saved pair differs from actual immutable native observations')
+        epoch = policy.program_epoch(fresh['WD0']['files'])
+        require(initial_epoch is None or initial_epoch == epoch, 'pair source/compiler/options changed')
+        initial_epoch = epoch
+        if ordinal + 1 < len(chain):
+            proposal = fresh['proposal']
+            require(fresh['failed_resources'] and proposal is not None,
+                    'a fitting pair or exhausted branch cannot authorize another reduction')
+            actual_requests.append(dict(parent_pair=entry['observation'], proposal=proposal))
+            name = proposal['shared_class']
+            authorizations[name] = dict(kind='plan_resource_retry', schema_version=1,
+                origin_sha256=origin.sha256, candidate_id=candidate,
+                parent_attempt_sha256=policy.digest(fresh), parent_pair_observation=entry['observation'],
+                program_source_epoch=epoch, reduction_step=ordinal + 1, shared_class=name,
+                from_pw=proposal['from_pw'], to_pw=proposal['to_pw'],
+                previous_pin_sha256=policy.digest(expected),
+                next_pin_sha256=policy.digest(proposal['next_pin']),
+                affected_edges=policy.affected_edges(name, origin.data['layers']),
+                trigger='actual_WD0_WD1_resource_pair', policy=policy.POLICY)
+            expected = proposal['next_pin']
+    require(saved['changed_width_requests'] == actual_requests, 'saved width requests differ from actual failures')
+    require(saved['pair_resources_fit'] is True and not fresh['failed_resources'], 'terminal pair still fails resources')
+    missing_queries = []
+    for tag in ('WD0', 'WD1'):
+        if not queries or tag not in queries:
+            missing_queries.append(tag)
+        else:
+            check_file(queries[tag])
+            a = fresh[tag]
+            resource = json.loads(check_file(a['resources']).read_text())
+            query = resolved.exception._query(queries[tag], a['files'], a['resources'], 576, resource)
+            # _query has already verified every raw API return code and guard binding.
+            require(query['resident_ctas'] == 1,
+                    'terminal actual occupancy is not one CTA/AP')
+    stages = copy.deepcopy(origin.candidate(candidate)['predicted_stage_ns'])
+    missing_costs = []
+    bindings = {}
+    variants = policy.VariantCatalog.load(catalog) if catalog is not None else None
+    for name, auth in authorizations.items():
+        request = policy._key(origin, candidate, name, expected)
+        binding = variants.lookup(request, auth, fresh['WD0']['snapshot']['source_files']) if variants else None
+        if binding is None:
+            missing_costs.append(dict(stage=name, request=request, authorization=auth))
+        else:
+            require(binding.data['row']['r_next'] == expected['mx_decode_v2'][name]['r_next'],
+                    'changed-width cost R_next differs from executed plan')
+            bindings[name] = binding.data
+            stages[name] = binding.data['row']['median_ns']
+    ready = not missing_queries and not missing_costs
+    prediction = stages['head'] + origin.data['layers'] * sum(stages[n] for n in policy.STAGES if n != 'head')
+    return dict(kind='mx5_watchdog_pair_history_review', schema_version=1,
+                history=record(history_path), origin_preview=record(preview), candidate_id=candidate,
+                stage_sources=source_inventory, domain_tool=record(domain_tool),
+                terminal_pair=chain[-1]['observation'], pin=expected, used_reductions=len(chain)-1,
+                authorizations=authorizations, bindings=bindings, missing_queries=missing_queries,
+                missing_costs=missing_costs, effective_stage_ns=stages,
+                effective_predicted_tpot_ns=prediction if not missing_costs else None,
+                resource_cost_query_ready=ready, execution_authorized=False,
+                action='needs_all_four_paired_protocol' if ready else 'needs_actual_pair_queries_or_costs',
+                final=False, default_enabled=False)
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--inputs', type=Path, required=True)
