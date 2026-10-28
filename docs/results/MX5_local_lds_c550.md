@@ -746,3 +746,15 @@ The first actual DIAG query (8BB16) passesAPI0,resident1,launches0 oncard5;
 only then does its fixed-mask/two-round measurement begin. CP-1 still requires
 allfive actual stage ledgers. Raw:aligned_development_stage_ledger_v1/
 ACTUAL_FIVE_DIAG_CPU_RESOURCES_SUMMARY.json andACTUAL_FIVE_DIAG_CHECK_ONLY_CPU_PROCESSES.json.
+
+
+## Verified actual origin fit R² reporting
+
+The eight current aligned selections retain source-bound original solver previews.
+CPU replay verifies each protocol/preview SHA andextracts the actual fit values
+(.9929311059–.9989661621;136/154/193 measured rows byscope). These are measured-row
+fit R²,not held-out validation ornew out-of-table measurements. Current selections
+use covered measured-stage rows;no least-squares fallback candidate is substituted.
+MX5_llm_c550.md now reports onlyR² in the request-metrics table,as§5.7 requests;
+the original fit objects andscope remain inrawcurrent_selected_fit_report_v1/
+ACTUAL_SELECTED8_ORIGIN_FIT_R2_CPU.json. No GPU/compiler call orsolver change.

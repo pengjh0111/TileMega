@@ -37,18 +37,19 @@ G-PROGRAM development5 passes;G-B/G-SOLVER/G-LLM/G-FWD anddefault promotion rema
 
 ## Selected request metrics (verified)
 
-| Cell | Threads | TTFT ms | E2E s | output tok/s | MBU | pred/meas |
-|---|---:|---:|---:|---:|---:|---:|
-|Llama1B/B2|576|13.458|2.329772|879.056|0.7150|0.96869|
-|Llama1B/B4|576|28.330|2.512803|1630.053|0.6766|0.96629|
-|Llama8B/B16|512|688.275|14.126684|1159.791|0.7965|0.99385|
-|Llama1B/B8|576|45.294|2.754782|2973.739|0.6388|0.97958|
-|Qwen0.6B/B1|512|9.041|2.028233|504.873|0.4112|1.02455|
-|Qwen0.6B/B16|512|52.587|3.651070|4487.452|0.4125|1.00977|
-|Llama1B/B1|576|8.800|2.192684|467.008|0.7526|1.01338|
-|Llama8B/B1|512|42.760|10.870616|94.199|0.9195|0.98285|
+| Cell | Threads | TTFT ms | E2E s | output tok/s | MBU | pred/meas | Fit R² |
+|---|---:|---:|---:|---:|---:|---:|---:|
+|Llama1B/B2|576|13.458|2.329772|879.056|0.7150|0.96869|0.998128|
+|Llama1B/B4|576|28.330|2.512803|1630.053|0.6766|0.96629|0.997778|
+|Llama8B/B16|512|688.275|14.126684|1159.791|0.7965|0.99385|0.998966|
+|Llama1B/B8|576|45.294|2.754782|2973.739|0.6388|0.97958|0.998212|
+|Qwen0.6B/B1|512|9.041|2.028233|504.873|0.4112|1.02455|0.997338|
+|Qwen0.6B/B16|512|52.587|3.651070|4487.452|0.4125|1.00977|0.992931|
+|Llama1B/B1|576|8.800|2.192684|467.008|0.7526|1.01338|0.998322|
+|Llama8B/B1|512|42.760|10.870616|94.199|0.9195|0.98285|0.998670|
 
 MBU=(inferred streamedBF16 linearweights+KV atmeanL576)/(1.55TB/s×TPOT);TTFT reported,not optimized.
+FitR²=actual origin solver measured-row fit,not held-out validation;no table-out estimate selects these cells.
 
 ## Exact original top4 (verified)
 
