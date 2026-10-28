@@ -961,3 +961,11 @@ actualprelaunch resource/API/oneCTA query gates andfinal guard0 verified.
 Complete336/null28 fivefresh matrix nowrunning;no adoption orE2E claim.
 Raw:attention_peeled_last_block_candidate_v1/ACTUAL_INITIAL_GPU_CHECKS_COMPLETE.json
 andINITIAL_CHECK_BULK_COMPLETE.json.
+
+Verified candidate D128Q2/576 P0 CPU experiment,onlythread macro changed from
+same candidate512 build:all8 b_min1/2/4/8×norm0/1 functions report168MT and
+296–360B stack,so all8 are rejected beforequery/numericalGPUexecution. Eight
+CPUrejection resource rows append;no force-register flag/limit applied. This is
+an observed body-compile failure,not proof ofa plan-level512 exception. Full
+plan prescribed histories andMIR allocation analysis remainrequired;no global
+576 impossibility claimed. Raw:candidate/bench576_D128Q2_PK0.
