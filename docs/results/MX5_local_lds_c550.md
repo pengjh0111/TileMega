@@ -1008,3 +1008,60 @@ formula oradditive-body latencyclaim. Raw:current_QwenB2_D7_offgrid37_v1.
 Candidate5fresh fivegrid same-formula diagnostic: B2 28.292600us vs A20
 27.220132us (+3.940%);B4 36.459585us vs36.372639us (+.239%). Component
 results donot select source/defaults;actual modelcontrast remainsrequired.
+
+Verified actual selected Qwen1.7BB2 DIAG:16fresh children/tworounds,strict
+independent ledger append. Intervention/bench us:QKV12.304/15.500,
+attention36.779/27.220,O6.784/10.420,GU31.778/36.340,down16.825/20.610,
+head+tokens377.020/383.540;nonadditive,head/token-history confounded.
+Mask63=.417215ms retains commonwork. Attentionratio1.351 triggersD7.
+Actualprofile I1 fivefresh order/repeat:QKV+3.511%,attention+1.563%,O+8.588%,
+GU+4.078%,down+1.470%;diagnostic only,no cachecause ordefault claim. Fifty
+I1rows/oneactualresource row and12stageledger rows append. Raw:current_Qwen17B2_D7{,_I1}_v1.
+
+Verified candidateactualresourcequeries:eightfreshqueryPIDs,allAPI0/resident1,
+zero launches. Allfour512 WD0/WD1 controlsframe0. Thefourfailed576 kernels
+stillhave344/376/392B localframes andremainrejected despiteoccupancy1;no
+numericalexecution ofthem. Eightactualqueryresource rows append withoutediting
+priorCPUquery-pending rows. B2 WD1C1/C2512 hasstarted;no modeltiming result yet.
+Raw:candidate/ACTUAL_EIGHT_CONTROL_QUERIES_COMPLETE.json.
+
+
+Verified tailpeel manual end-to-end controls complete:C1/C2512 passesboth
+B2/B4;A20/new/A20/new oncard5,4freshprocesses/cell,warm1/timed2,L1prefill,
+WD0,noinstrumentation. B2medians2.302905/2.306382ms(+.151%);B4
+2.569007/2.578243ms(+.359%);bothbelow1% threshold,indistinguishable.
+Eight source-bound rows inMX5_candidate_ppair_c550.csv aremanualcontrasts,
+not formal serving selections orfixedexternal baselines. No candidateadoption.
+Independent guard/PID/source/identity/hash checks append2model-correctness rows.
+Raw:attention_peeled_last_block_candidate_v1/ACTUAL_MANUAL_E2E_INDEPENDENT_CSV_APPEND_CPU_PROOF.json.
+
+Verified static-tail-bound candidate(parenttailpeel) removesonlya provably
+unreachable steadyloop:static capacity1088,H<=24 givesatmost1block/wave;
+runtime/dynamic shapes retainthesamecode. CPU18944geometries,
+19781376consumers/1221888owners preserveexactorder. Actual5fresh×112
+staticshape numerical/KV/callback/ticket/repeat-bit casespasswithzeroskips;
+B2/B4 actualHKV8 covered. All16queries/process API0/frame0/resident1.
+Thezero-ring MIRcase isallowedonlywiththeproofthatnoloopis emitted;
+no globalwait/private/calls criterionwasrelaxed. Originaloracles unchanged.
+Thecompilerlog splitone longresourcefunctionname witha warning;unique
+MIR-name prefix/continuation repairis preservedasaseparateparsedview,
+rawlog unchanged. Fivecorrectness/80actualresource rowsappend.
+Normalfresh160-step producer6b9b5d0675/source a246d0c435 isisolated,
+exactheader50dc44ba patch;no hostobjectreuse orproduction/defaultchange.
+Dynamic D128Q2/512P0 andD64Q4/576PK2 .text/resources matchparentbytes;
+parentmeasurements arenot relabeled. Wholemodel resource/E2E controls pending.
+Raw:attention_static_tail_bound_candidate_v1,frozen_catalog_producer_static_tail_bound_candidate_v1.
+
+Verified A20 partitiondiagnostic:296keys×3fresh (B2/B4,bmin1/2/4/8,
+37Lvalues,HKV8,cold>=256MiB,2000iters). Midpointmeansus B2:
+32.094/33.991/33.709/39.115;B4:38.787/38.530/38.092/41.473.
+Strong nonmonotoniclengthcosts explainpartoffivepointinterpolationbias;
+thisisdiagnosticinference,notareplacementformula orsolver/defaultdecision.
+Raw:current_A20_attention_partition_diagnostic_v1.
+
+Verified valid-query-softmax candidate(parentstaticbound) first8dynamic
+D128Q2/512P0 kernels passnormalresource/MIR gates (232–234MT,frame0,
+cleansteadyloops). Itlimits max/exp worktoobserved q<Q rowswhile retaining
+alllane K/Vloads,ownerstores,MMAs andsynchronization. FullmatrixCPU/GPU
+validation andE2E remainpending;productionheader isunchanged.
+Raw:attention_valid_query_softmax_candidate_v1.
