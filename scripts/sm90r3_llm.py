@@ -25,6 +25,8 @@ MODELS = {
     'llama3_2_3b': ('configs/serving/sm90d1/inputs/llama3_2_3b', 'configs/prompts/llama3_isl64.json', 32),
     'llama3_1_8b': ('configs/serving/sm90d1/inputs/llama3_1_8b', 'configs/prompts/llama3_isl64.json', 40),
     'qwen3_30b_a3b': ('configs/serving/sm90d1/inputs/qwen3_30b_a3b', 'configs/prompts/qwen_isl64.json', 80),
+    'mistral_7b_v0_3': ('configs/serving/sm90r4/inputs/mistral_7b_v0_3', 'configs/prompts/mistral_isl64.json', 16),
+    'olmoe_1b_7b': ('configs/serving/sm90r4/inputs/olmoe_1b_7b', 'configs/prompts/olmo_isl64.json', 16),
 }
 
 
@@ -35,7 +37,7 @@ def arm_root(arm):
 
 
 def processes(model):
-    return 5 if model in ('llama3_1_8b', 'qwen3_30b_a3b') else 3
+    return 5 if model in ('llama3_1_8b', 'qwen3_30b_a3b', 'mistral_7b_v0_3', 'olmoe_1b_7b') else 3
 
 
 def order(kind, labels, model):

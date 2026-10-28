@@ -3,29 +3,22 @@
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 import json
-import lzma
 import os
 from pathlib import Path
 import subprocess
 
 from sm90d1_common import ROOT, read, sha, write
-RUN = ROOT / "runs/sm90r2"
+from sm90r4_inputs import extract
+RUN = ROOT / os.environ.get('TILEMEGA_BUILD_RUN', 'runs/sm90r2')
 
 
 def build(config, compiler, tag, changes, phase):
     config = Path(config).resolve()
     c = read(config)
-    manifest = read(ROOT / 'configs/serving/sm90d1/inputs/manifest.json')
-    packed = ROOT / f"configs/serving/sm90d1/inputs/{c['model']}/{phase}.export.json.xz"
-    expected = manifest[str(packed.relative_to(ROOT))]
-    if sha(packed) != expected['compressed_sha256']:
-        raise ValueError('compressed build input changed')
     directory = RUN / 'build' / tag / f"{c['model']}-B{c['batch']}"
     directory.mkdir(parents=True, exist_ok=True)
     graph = directory / f'{phase}.export.json'
-    graph.write_bytes(lzma.decompress(packed.read_bytes()))
-    if sha(graph) != expected['raw_sha256']:
-        raise ValueError('exported-program byte identity changed')
+    extract(c['model'], phase, graph)
     binary = directory / f'{phase}.so'
     receipt = directory / f'{phase}.build.json'
     if receipt.exists():
