@@ -161,6 +161,10 @@ struct Sm90ForwardDwPw {
         int rows=min(TW,max(0,p.output_width-tile_x))*min(TH,max(0,p.output_height-tile_y));
         auto accum=partition_fragment_C(typename Gmma::Mma{},Shape<Int<kRows>,Int<TN>>{});
         clear(accum);
+        // The depthwise runs on CUDA cores between the MMAs, so the
+        // accumulator is fenced around that register work; without the fence
+        // the compiler may reuse the accumulator's registers.
+        Gmma::Gmma::Fence(accum);
         for(int block=0;block<blocks;++block) {
           int slot=(local*blocks+block)%Slots;
           Async::Wait(state.full+slot,(phase>>slot)&1);phase^=1u<<slot;
@@ -173,6 +177,7 @@ struct Sm90ForwardDwPw {
           for(int k=0;k<CB/64;++k)
             Gmma::Accumulate(pages+slot*kPageElements+k*TN*64,panel+k*kRows*64,accum);
           Sm90Gmma<arch::Sm90>::template Wait<0>();
+          Gmma::Gmma::Fence(accum);
           codegen::executor::ComputeSync();
           Async::Arrive(state.empty+slot);
         }
