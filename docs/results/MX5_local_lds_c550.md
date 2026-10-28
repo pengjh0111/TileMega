@@ -642,3 +642,18 @@ fresh processes,warm1/timed2,guard900,ISL64/OSL1024,L1prefill. Only its own idle
 CPU waiter was stopped,with no GPUchildren;the handoff is recorded. QwenB1 has
 started;no P-PAIR result is yet claimed. Raw:aligned_development_MX4_PPAIR_v1/
 ACTUAL_READY_CELL_SCHEDULING_HANDOFF_v7.json.
+
+
+## Verified first aligned internal P-PAIR result
+
+Qwen0.6B B1 completes old/new/old/new oncard5:old1.981876/1.984387ms,
+new1.976820/1.978266ms. Arm medians1.983132/1.977543ms give−.2818%;
+maxrelative roundrange.1266%,threshold1%,so the result is indistinguishable.
+No selection ordefault changes follow. Both arms useL1 prefill,WD0 decode;old
+prefillWD1,newprefillWD0 are identified separately. The oldreference is rebuilt22a
+source/pins,not the original historicalELF. Independent CPU ingestion verifies
+allfour distinct guard PIDs,successful guard/outer receipts,actual accepted
+warm1/timed2 requests,artifact/source/binary hashes andthe exact median/spread.
+Fourfresh process rows areinMX5_ppair_c550.csv,each labelled round,executor and
+implementation;the fixedMX4 CSVs areunchanged. Raw:aligned_development_MX4_PPAIR_v1/
+qwen3_0_6b_B1/ACTUAL_PPAIR_COMPLETE.json andACTUAL_PPAIR_CSV_APPEND_PROOF.json.
