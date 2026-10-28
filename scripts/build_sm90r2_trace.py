@@ -21,15 +21,23 @@ def main():
     p.add_argument('--input', type=Path, required=True)
     p.add_argument('--out', type=Path, required=True)
     p.add_argument('--native-phases', action='store_true')
+    p.add_argument('--source-root', type=Path,
+                   help='checkout of the recorded head when the original tree has moved on')
     a = p.parse_args()
     original, output = a.input.resolve(), a.out.resolve()
     runs = (ROOT / 'runs').resolve()
-    if not any(output.is_relative_to(runs / r) for r in ('sm90r2', 'sm90r3')) or output == original:
-        p.error('diagnostic outputs belong under runs/sm90r2 or runs/sm90r3')
+    if not any(output.is_relative_to(runs / r) for r in ('sm90r2', 'sm90r3', 'sm90r4')) or output == original:
+        p.error('diagnostic outputs belong under runs/sm90r2, sm90r3 or sm90r4')
     sys.path.insert(0, str(ROOT / 'python'))
     from tilemega.build.identity import generate, verify, validate_snapshot_inputs
     identity = verify(original)
-    validate_snapshot_inputs(identity['source']['root'], identity['source'])
+    source = dict(identity['source'])
+    recorded = source['root']
+    if a.source_root:
+        # Same bytes, other path: every recorded source hash must match there.
+        source.update(root=str(a.source_root.resolve()))
+        source.pop('compiler', None)
+    validate_snapshot_inputs(source['root'], source)
     if identity['trace'] or output.exists():
         raise ValueError('a new trace output and an uninstrumented input are required')
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -47,13 +55,15 @@ def main():
         raise ValueError('ambiguous build command')
     command = [str(output) if x == str(original) else str(output) + '.cu'
                if x == sources[0] else x for x in command]
+    if a.source_root:
+        command = [x.replace(recorded, source['root']) for x in command]
     command[1:1] = ['-lineinfo', '-DTILEMEGA_TRACE_STAGE=1', '-DTILEMEGA_TRACE_STEP=1']
     if a.native_phases:
         command.insert(1, '-DTILEMEGA_TRACE_NATIVE_PHASES=1')
     Path(str(output) + '.build_command.txt').write_text(shlex.join(command) + '\n')
     with Path(str(output) + '.ptxas.log').open('w') as log:
         subprocess.run(command, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, check=True)
-    result = generate(output, identity['source']['root'], str(output) + '.source.json')
+    result = generate(output, source['root'], str(output) + '.source.json')
     if not result['trace']:
         raise ValueError('trace identity was not recorded')
     record = dict(reference_artifact_id=identity['artifact_id'], trace_artifact_id=result['artifact_id'],
