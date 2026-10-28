@@ -102,7 +102,7 @@ candidates passC1/C2512,two fresh timing processes each. Medians(ms) are
 [1.976266,1.977535,1.980171,1.974518]. Anchor0 is retained by the1% rule;
 pred/meas1.02291. FixedMX4 is1.983552ms(−.367%,indistinguishable). This
 passes cell nonregression without claiming a measurable speedup. Current
-source completion subsequently reaches2/25dense,0/5MoE,0/25DNN;defaults unchanged.
+source completion subsequently reaches3/25dense,0/5MoE,0/25DNN;defaults unchanged.
 
 Verified second new-source selection: Qwen0.6B B16 allfour C-1/C2512
 andtwo fresh timings each pass. Candidate medians are
@@ -115,4 +115,10 @@ prior bytes. Raw:local_lds_tail_qwen3_0_6b_B16_top4_execution_v1.
 Verified development history closure:20canonical576 originals plus bounded
 rebuilds have46actual zero-launch queries;16terminal histories support
 independent512,D7 reviewed;4Llama1B outcomes retain576. Remaining20cells'
-80canonical576 originals are being built onCPU only;no inherited512 approval.
+80canonical576 originals complete onCPU;all100originals'files/MIR bind
+the normal same-source producer.13haveframe0;actual queries remain separate.
+
+Verified third new-source selection: Llama8B B1 anchor0 TPOT10.585899ms,
+fixedMX410.715531ms(-1.210%,distinguishable),pred/meas0.98267.
+Allfour C-1/C2512 and2fresh timings each pass;strict source/raw verification
+precedes append-only CSV publication. Raw:local_lds_tail_llama3_1_8b_B1_top4_execution_v1.

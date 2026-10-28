@@ -128,7 +128,7 @@ These checks are not additional final solver selections anddo not change default
 
 ## Current local-LDS source: completed solver selections (verified)
 
-Frozen88327/A19dd8 has2/25 completed dense selections;the earlier table
+Frozen88327/A19dd8 has3/25 completed dense selections;the earlier table
 remains historicalcc29,not new-source completion. Qwen0.6B B1 exacttop4
 passes allfour C-1/C2512 checks andtwo fresh timing processes per candidate.
 
@@ -156,3 +156,17 @@ processes per candidate. Actualsource576 histories andD7 bind its512 plans.
 Anchor0 remains selected:TPOT3.524260ms vsfixedMX44.537082ms(−22.323%),
 and/fastestBF16baseline=.876616(vLLM4.0203ms);a distinguishable improvement.
 Raw:local_lds_tail_qwen3_0_6b_B16_top4_execution_v1. No default promotion.
+
+Llama3.1-8B B1 also passes allfour C-1/C2512 checks andtwo fresh
+timing processes per candidate;allselected WD0/WD1 resource queries pass.
+
+| Candidate | Predicted ms | Measured ms | pred/meas | Chosen |
+|---|---:|---:|---:|---|
+|0|10.402495|10.585899|0.9827|yes|
+|1|10.403135|10.587368|0.9826|no|
+|2|10.403135|10.581901|0.9831|no|
+|3|10.404655|10.580788|0.9834|no|
+
+Anchor0 remains selected:TPOT10.585899ms vsfixedMX410.715531ms(-1.210%),
+a distinguishable improvement. Pred/meas0.98267. Defaults unchanged.
+Raw:local_lds_tail_llama3_1_8b_B1_top4_execution_v1.
