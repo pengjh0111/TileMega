@@ -952,3 +952,12 @@ wholedevice.text171248B. Fiftyfresh I1rows/oneactualresource append;oldprefixes
 unchanged. Raw:current_QwenB4_D7_v1 andcurrent_QwenB4_D7_I1_v1.
 Candidate initial GPU numerical/helper checks nowstart withcorrected HKV8
 foradded B2/B4 fixtures;no candidate acceptance/result claimed beforecompletion.
+
+Verified tail-peel initial GPU gate:fivefresh×112 numerical/KV/callback/ticket/
+repeat-bit cases pass,zero skips;added B2/B4 useactualHKV8. Fivefresh×sixlocal
+LDS-helper litmus cases pass:512/576threads×0/2/8pending16Bloads perlane,
+104CTAs×2000iterations each,zeroRAW/cold errors. Ten distinct childPIDs,
+actualprelaunch resource/API/oneCTA query gates andfinal guard0 verified.
+Complete336/null28 fivefresh matrix nowrunning;no adoption orE2E claim.
+Raw:attention_peeled_last_block_candidate_v1/ACTUAL_INITIAL_GPU_CHECKS_COMPLETE.json
+andINITIAL_CHECK_BULK_COMPLETE.json.
