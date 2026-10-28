@@ -7,9 +7,19 @@ import unittest
 
 from tilemega.bench import as2_queue as queue
 from tilemega.bench.as1_run import devices_from_snapshot
+from tilemega.bench.as2_ablation import paired_interval
 
 
 class As2Queue(unittest.TestCase):
+    def test_confidence_uses_five_process_pairs_not_fifteen_requests(self):
+        result=paired_interval([1.02,1.01,1.03,1.02,1.01])
+        self.assertGreater(result['lower95'],1)
+        self.assertLess(result['lower95'],result['geometric_mean'])
+        self.assertGreater(result['upper95'],result['geometric_mean'])
+        self.assertEqual(paired_interval([1.]*5)['lower95'],1)
+        for ratios in ([1.02]*15,[1.02]*4,[1.,1.,1.,1.,float('nan')]):
+            with self.assertRaises(ValueError):paired_interval(ratios)
+
     def test_idle_requires_healthy_observation_not_empty_process_list(self):
         output='''| 0 | Ascend950PR | OK | 55 | 41 |
 | | | 0000:D7:00.0 | 0 0 / 0 7667 / 131072 |
