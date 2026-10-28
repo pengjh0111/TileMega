@@ -204,7 +204,8 @@ def export(config: dict, phase: str, capacity: int, out: Path, prompt_len: int =
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=Path, required=True)
-    parser.add_argument("--model", choices=("llama", "qwen3", "qwen3_moe"), required=True)
+    # mistral shares the llama modules (no sliding window, default RoPE).
+    parser.add_argument("--model", choices=("llama", "mistral", "qwen3", "qwen3_moe"), required=True)
     parser.add_argument("--phase", choices=("decode", "prefill"), required=True)
     parser.add_argument("--capacity", type=int, default=1088)
     parser.add_argument('--prompt-len', type=int, default=64)

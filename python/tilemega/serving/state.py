@@ -27,6 +27,9 @@ def rotary_tables(config: object, capacity: int,
     if architecture == "LlamaForCausalLM":
         from transformers.models.llama.modeling_llama import LlamaRotaryEmbedding
         module = LlamaRotaryEmbedding(config, device=device)
+    elif architecture == "MistralForCausalLM":
+        from transformers.models.mistral.modeling_mistral import MistralRotaryEmbedding
+        module = MistralRotaryEmbedding(config, device=device)
     elif architecture == "Qwen3ForCausalLM":
         from transformers.models.qwen3.modeling_qwen3 import Qwen3RotaryEmbedding
         module = Qwen3RotaryEmbedding(config, device=device)
