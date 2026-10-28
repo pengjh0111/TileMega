@@ -50,6 +50,8 @@ struct Stage {
   // 6=variant5 with the pinned capacity1088 register-fold softmax sum.
   // 7=variant6 with QK internal tiles32x256x128; unchanged task ownership/PV.
   // 8=variant6 omitting entirely masked QK64 tiles; same physical stride/PV.
+  // 9=variant8 with request-lived derived FP32 KV in operands10/11. Prefill
+  // writes disjoint owned rows, decode appends one, reset clears both planes.
   float epsilon;
 };
 struct Task {

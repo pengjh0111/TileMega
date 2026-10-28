@@ -42,7 +42,7 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
     ascend::WorkerMap const& map,std::vector<solver::AscendScheduledTask> const& input,
     solver::AscendSchedule const& schedule,bool diagnostic,unsigned attention_precision,bool local_tail_k7,bool local_q_tail3,bool local_residual_tail3) {
   using namespace ascend::llm;
-  if(attention_precision>10)throw std::invalid_argument("Unknown native attention precision contract");
+  if(attention_precision>11)throw std::invalid_argument("Unknown native attention precision contract");
   if(local_residual_tail3 && !local_q_tail3)throw std::invalid_argument("Residual tail3 requires its Q projection contract");
   if((local_tail_k7 || local_q_tail3) && (p.model.dims.batch!=16 || p.model.dims.seq!=64))
     throw std::invalid_argument("Local tail reduction is bounded to B16 prefill");
@@ -216,7 +216,7 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
         throw std::invalid_argument("Native GQA head geometry is not registered");
       if(stage.kind==13 && attention_precision) {
         if(stage.kv_block!=1088)throw std::invalid_argument("FP32 chunk/merge candidate requires the unified KV ownership domain");
-        stage.variant=attention_precision==10?8:attention_precision==9?7:attention_precision==8?6:attention_precision>=5?5:attention_precision;
+        stage.variant=attention_precision==11?9:attention_precision==10?8:attention_precision==9?7:attention_precision==8?6:attention_precision>=5?5:attention_precision;
         if(attention_precision>=4) {
           if(map.launch.num_groups!=8 || !((stage.width==128 && (stage.group==2 || stage.group==3 || stage.group==4)) || (stage.width==64 && stage.group==4)))
             throw std::invalid_argument("Experimental cooperative FP32 attention requires probed G8/head128/GQA2/3/4 or head64/GQA4");
@@ -231,6 +231,16 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
             arena=Add(arena,allocated);
           }
           stage.workspace=attention_workspace;
+          if(stage.variant==9) {
+            if(stage.operands[10]!=kAbsent || stage.operands[11]!=kAbsent)
+              throw std::invalid_argument("Derived KV cannot replace semantic operands");
+            const uint64_t bytes=Mul(Mul(Mul(p.model.dims.batch,stage.extent),1088),Mul(stage.width,4));
+            for(unsigned side=0;side<2;++side) {
+              auto name=S(At(bs,operands[1+side]),"name");
+              if(name.rfind("kv_cache.",0)!=0)throw std::invalid_argument("Derived KV requires named logical cache state");
+              stage.operands[10+side]=scratch("kv_cache.fp32."+name,"f32",bytes);
+            }
+          }
         }
       }
     }
@@ -289,7 +299,7 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
     if(lanes>1)throw std::invalid_argument("LLM epilogue currently registers one AIV participant");
     auto const& stage=out.stages.at(t.stage);
     auto expected=stage.kind==0?(stage.epilogue?ascend::ImplementationRole::kMix1_2:ascend::ImplementationRole::kAicOnly):
-      stage.kind==13 && (stage.variant==4 || stage.variant==5 || stage.variant==6 || stage.variant==7 || stage.variant==8)?ascend::ImplementationRole::kMix1_2:ascend::ImplementationRole::kAivOnly;
+      stage.kind==13 && (stage.variant==4 || stage.variant==5 || stage.variant==6 || stage.variant==7 || stage.variant==8 || stage.variant==9)?ascend::ImplementationRole::kMix1_2:ascend::ImplementationRole::kAivOnly;
     if(t.role!=expected || t.logical_task>=stage.tasks || out.waits.size()>UINT32_MAX)
       throw std::invalid_argument("LLM task role/coordinate disagrees with implementation contract");
     Task task{t.stage,t.logical_task,schedule.owners[i],schedule.ordinals[i],uint32_t(out.waits.size()),uint32_t(schedule.waits[i].size()),lanes};
@@ -342,7 +352,7 @@ void AscendLlmPlan::Write(std::filesystem::path const& root) const {
     else if(s.kind==11)id="as2_aiv_embedding_i32_bf16";
     else if(s.kind==13)id=s.kv_block==128?"as2_aiv_gqa_fp32_log2_partials_kv128":
       metadata.seq==1?"as2_aiv_gqa_bf16_scores_probability_k32":"as2_aiv_causal_prefill_private_kv_k32";
-    if(s.kind==13 && s.variant)id=s.variant==8?"as2_mix_fp32_cube_valid_qk64_fold_softmax1088_gm":s.variant==7?"as2_mix_fp32_cube_qk256_fold_softmax1088_gm":s.variant==6?"as2_mix_fp32_cube_newton_fold_softmax1088_gm":s.variant==5?"as2_mix_fp32_cube_cann_newton_qknorm_gm":s.variant==4?"as2_mix_fp32_qk_vector_div_softmax_pv_gm":s.variant==1?"as2_aiv_gqa_fp32_chunk32_normalized_merge":
+    if(s.kind==13 && s.variant)id=s.variant==9?"as2_mix_fp32_cached_kv_valid_qk64_fold_softmax1088_gm":s.variant==8?"as2_mix_fp32_cube_valid_qk64_fold_softmax1088_gm":s.variant==7?"as2_mix_fp32_cube_qk256_fold_softmax1088_gm":s.variant==6?"as2_mix_fp32_cube_newton_fold_softmax1088_gm":s.variant==5?"as2_mix_fp32_cube_cann_newton_qknorm_gm":s.variant==4?"as2_mix_fp32_qk_vector_div_softmax_pv_gm":s.variant==1?"as2_aiv_gqa_fp32_chunk32_normalized_merge":
       s.variant==2?"as2_aiv_gqa_fp32_scores_bf16_probability_k32":"as2_aiv_gqa_math_sdpa_fp32_split_scale";
     else if(s.kind==14)id="as2_aiv_normalized_partial_log2_merge";
     else if(s.kind==15)id="as2_aiv_ordered_argmax_scalar_reduce";
@@ -354,7 +364,7 @@ void AscendLlmPlan::Write(std::filesystem::path const& root) const {
     }
     json::Array sources;for(auto const& source:provenance)sources.emplace_back(source);
     contracts.emplace_back(json::Object{{"stage",int(i)},{"impl_id",id},{"semantic_kind",int(s.kind)},
-      {"role",s.kind==0?(s.epilogue?"AIC_AIV0":"AIC_ONLY"):s.kind==13&&(s.variant==4 || s.variant==5 || s.variant==6 || s.variant==7 || s.variant==8)?"AIC_AIV0":"AIV_ONLY"},
+      {"role",s.kind==0?(s.epilogue?"AIC_AIV0":"AIC_ONLY"):s.kind==13&&(s.variant==4 || s.variant==5 || s.variant==6 || s.variant==7 || s.variant==8 || s.variant==9)?"AIC_AIV0":"AIV_ONLY"},
       {"dtype","bf16"},{"opmath","fp32"},
       {"input_dtype",s.kind==6?"fp32":"bf16"},{"output_dtype",s.kind==0&&s.extent>1?"fp32":"bf16"},
       {"input_weight_layout",s.kind==0?"logical_NK":"ND"},
@@ -369,18 +379,21 @@ void AscendLlmPlan::Write(std::filesystem::path const& root) const {
       {"partial_layout",(s.kind==0 || s.kind==6)&&s.extent>1?"logical[row,col,part] -> physical[part,row,col]":"not_applicable"},
       {"partial_dtype",(s.kind==0 || s.kind==6)&&s.extent>1?"fp32":"not_applicable"},
       {"partial_workspace_bytes",(s.kind==0 || s.kind==6)&&s.extent>1?double(uint64_t(s.rows)*s.columns*s.extent*4):0},
-      {"attention_skips_masked_qk_tiles",s.kind==13 && s.variant==8},
+      {"attention_skips_masked_qk_tiles",s.kind==13 && (s.variant==8 || s.variant==9)},
+      {"request_lived_fp32_kv",s.kind==13 && s.variant==9},
+      {"request_fp32_kv_bytes",s.kind==13 && s.variant==9?double(uint64_t(metadata.batch)*s.extent*metadata.capacity*s.width*8):0},
+      {"derived_kv_lifetime",s.kind==13 && s.variant==9?"paired prefill/decode; unique-row append; reset before each request":"none"},
       {"attention_qk_tile_n",s.kind==13?s.variant==7?256:64:0},
-      {"attention_score_probability",s.kind==13?((s.variant==4 || s.variant==5 || s.variant==6 || s.variant==7 || s.variant==8)?"fp32_cube_split_scale_vector_div_softmax":s.variant==1?"fp32_opmath_no_bf16_intermediate":s.variant==2?"fp32_scores_bf16_probability":s.variant==3?"fp32_split_scale_capacity_softmax":"bf16_storage_rounding"):"not_applicable"},
-      {"qk_norm_method",s.kind!=13?"not_applicable":s.operands[5]==ascend::llm::kAbsent && s.operands[6]==ascend::llm::kAbsent?"none":(s.variant==5 || s.variant==6 || s.variant==7 || s.variant==8)?"CANN9.1.0_register_square_reduce_Newton_refinement":"existing_Rsqrt"},
-      {"softmax_sum_method",s.kind==13&&(s.variant==6 || s.variant==7 || s.variant==8)?"CANN9.1.0_register_fold1024_capacity1088":"existing_ReduceSum"},
+      {"attention_score_probability",s.kind==13?((s.variant==4 || s.variant==5 || s.variant==6 || s.variant==7 || s.variant==8 || s.variant==9)?"fp32_cube_split_scale_vector_div_softmax":s.variant==1?"fp32_opmath_no_bf16_intermediate":s.variant==2?"fp32_scores_bf16_probability":s.variant==3?"fp32_split_scale_capacity_softmax":"bf16_storage_rounding"):"not_applicable"},
+      {"qk_norm_method",s.kind!=13?"not_applicable":s.operands[5]==ascend::llm::kAbsent && s.operands[6]==ascend::llm::kAbsent?"none":(s.variant==5 || s.variant==6 || s.variant==7 || s.variant==8 || s.variant==9)?"CANN9.1.0_register_square_reduce_Newton_refinement":"existing_Rsqrt"},
+      {"softmax_sum_method",s.kind==13&&(s.variant==6 || s.variant==7 || s.variant==8 || s.variant==9)?"CANN9.1.0_register_fold1024_capacity1088":"existing_ReduceSum"},
       {"full_row_norm_method",s.kind==1&&s.variant==3?"CANN9.1.0_power_two_fold_square_reduce_Newton_refinement":s.kind==1&&s.variant==2?"CANN9.1.0_register_square_reduce_Newton_refinement":"existing_Rsqrt"},
-      {"aic_l1_bytes",s.kind==0||(s.kind==13&&(s.variant==4 || s.variant==5 || s.variant==6 || s.variant==7 || s.variant==8))?524288:0},{"aic_l0a_bytes",s.kind==0||(s.kind==13&&(s.variant==4 || s.variant==5 || s.variant==6 || s.variant==7 || s.variant==8))?65536:0},
-      {"aic_l0b_bytes",s.kind==0||(s.kind==13&&(s.variant==4 || s.variant==5 || s.variant==6 || s.variant==7 || s.variant==8))?65536:0},{"aic_l0c_bytes",s.kind==0||(s.kind==13&&(s.variant==4 || s.variant==5 || s.variant==6 || s.variant==7 || s.variant==8))?262144:0},
+      {"aic_l1_bytes",s.kind==0||(s.kind==13&&(s.variant==4 || s.variant==5 || s.variant==6 || s.variant==7 || s.variant==8 || s.variant==9))?524288:0},{"aic_l0a_bytes",s.kind==0||(s.kind==13&&(s.variant==4 || s.variant==5 || s.variant==6 || s.variant==7 || s.variant==8 || s.variant==9))?65536:0},
+      {"aic_l0b_bytes",s.kind==0||(s.kind==13&&(s.variant==4 || s.variant==5 || s.variant==6 || s.variant==7 || s.variant==8 || s.variant==9))?65536:0},{"aic_l0c_bytes",s.kind==0||(s.kind==13&&(s.variant==4 || s.variant==5 || s.variant==6 || s.variant==7 || s.variant==8 || s.variant==9))?262144:0},
       {"aiv_ub_bytes",s.kind!=0||s.epilogue?106496:0},
       {"internal_hard_event_slot",7},{"logical_task_completion_publishers",1},
-      {"gm_group_workspace_bytes",s.kind==13&&(s.variant==4 || s.variant==5 || s.variant==6 || s.variant==7 || s.variant==8)?double(ascend::llm::attention::kGroupBytes):0},
-      {"mix_gm_phases",s.kind==13&&(s.variant==4 || s.variant==5 || s.variant==6 || s.variant==7 || s.variant==8)?3:s.kind==0&&s.epilogue?1:0},
+      {"gm_group_workspace_bytes",s.kind==13&&(s.variant==4 || s.variant==5 || s.variant==6 || s.variant==7 || s.variant==8 || s.variant==9)?double(ascend::llm::attention::kGroupBytes):0},
+      {"mix_gm_phases",s.kind==13&&(s.variant==4 || s.variant==5 || s.variant==6 || s.variant==7 || s.variant==8 || s.variant==9)?3:s.kind==0&&s.epilogue?1:0},
       {"handoff","GM_single_owner_frontier"},{"service_ns",high && low==high?json::Value(low):json::Value{}},
       {"service_ns_min",high?json::Value(low):json::Value{}},{"service_ns_max",high?json::Value(high):json::Value{}},
       {"price_provenance",std::move(sources)},
@@ -404,11 +417,13 @@ std::string LowerAscendLlm(AscendLlmPlan const& p) {
   if(variant<0)throw std::invalid_argument("Native LLM has no registered GEMM body");
   bool split=local || q_tail;for(auto const& s:p.stages)if(s.kind==6)split=true;
   bool wide_qk=false;for(auto const& s:p.stages)if(s.kind==13 && s.variant==7)wide_qk=true;
+  bool cached_kv=false;for(auto const& s:p.stages)if(s.kind==13 && s.variant==9)cached_kv=true;
   return std::string("// Generated by TileMega: verified CTG tables and candidate geometry, LLM ABI v4.\n")+
     "#define TILEMEGA_LLM_SPLIT_K "+std::to_string(unsigned(split))+"\n"+
     "#define TILEMEGA_LLM_LOCAL_TAIL_K7 "+std::to_string(unsigned(local))+"\n"+
     "#define TILEMEGA_LLM_LOCAL_Q_TAIL_K3 "+std::to_string(unsigned(q_tail))+"\n"+
     "#define TILEMEGA_LLM_WIDE_QK "+std::to_string(unsigned(wide_qk))+"\n"+
+    "#define TILEMEGA_LLM_FP32_KV_CACHE "+std::to_string(unsigned(cached_kv))+"\n"+
     "#define TILEMEGA_LLM_VARIANT "+std::to_string(variant)+"\n"+
     "#define TILEMEGA_LLM_TM "+std::to_string(variant?16:32)+"\n"+
     "#define TILEMEGA_LLM_TN "+std::to_string(variant?128:64)+"\n"+

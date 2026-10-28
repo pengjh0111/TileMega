@@ -21,7 +21,7 @@ def mix_prefix(metadata,tasks,stages,group,epoch):
     if metadata[0]==4:
         stage=stages[last[0]];phase=0
         if stage[17]==13:
-            if stage[31] not in (4,5,6,7,8):raise ValueError('Unknown cooperative Attention lifecycle')
+            if stage[31] not in (4,5,6,7,8,9):raise ValueError('Unknown cooperative Attention lifecycle')
             phase=2
         prefix=4*prefix+phase
     return prefix

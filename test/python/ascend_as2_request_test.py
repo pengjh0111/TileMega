@@ -6,7 +6,7 @@ import tempfile
 import unittest
 import torch
 from tilemega.bench.as2_models import RUNS
-from tilemega.bench.as2_request import bind, digest, request_source
+from tilemega.bench.as2_request import bind, digest, request_source,cached_kv_state
 from tilemega.bench.as2_native_audit import compare_capture_payloads,mix_prefix
 from tilemega.bench.as2_native import incremental_packing_bytes,validate_rope_reuse
 from tilemega.bench.as2_last_forward import matching_prefix_rows
@@ -42,12 +42,31 @@ class PackingBudgetTest(unittest.TestCase):
 
 
 class RequestCapturePayloadTest(unittest.TestCase):
+    def test_derived_kv_keeps_logical_state_and_requires_complete_reset_planes(self):
+        m=[0]*15;m[8]=16;m[10]=1088;s=[0]*33;s[17]=13;s[23:27]=[8,128,2,1088];s[31]=9
+        size=16*8*1088*128*2;buffers=[]
+        for j,(index,name) in enumerate([(1,'kv_cache.k'),(2,'kv_cache.v'),
+                (10,'kv_cache.fp32.kv_cache.k'),(11,'kv_cache.fp32.kv_cache.v')]):
+            offset=512+j*(1<<30);s[index]=offset
+            buffers.append(dict(offset_bytes=offset,name=name,dtype='bf16' if index<10 else 'f32',
+                bytes=size*(1 if index<10 else 2),required_input=False))
+        expected=[tuple(b['name'] for b in buffers)]
+        self.assertEqual(cached_kv_state([s],buffers,m),expected)
+        for i,replacement in [(2,dict(buffers[2],bytes=size)),(3,dict(buffers[3],required_input=True))]:
+            b=buffers.copy();b[i]=replacement
+            with self.assertRaises(ValueError):cached_kv_state([s],b,m)
+        with self.assertRaises(ValueError):cached_kv_state([s],buffers[:3],m)
+        ordinary=s.copy();ordinary[31]=8
+        with self.assertRaisesRegex(ValueError,'partially enabled'):cached_kv_state([s,ordinary],buffers,m)
+        bad=s.copy();bad[11]=bad[10]
+        with self.assertRaises(ValueError):cached_kv_state([bad],buffers,m)
+
     def test_final_attention_owner_has_three_phase_token_for_all_registered_bodies(self):
         m=[4,2,6,1,1,0,0,100];tasks=[(0,0,1,7,0,0,1)];s=[0]*33;s[17]=13
-        for variant in (4,5,6,7,8):
+        for variant in (4,5,6,7,8,9):
             s[31]=variant
             self.assertEqual(mix_prefix(m,tasks,[s],1,3),4*307+2)
-        s[31]=9
+        s[31]=10
         with self.assertRaisesRegex(ValueError,'Unknown cooperative'):mix_prefix(m,tasks,[s],1,3)
         s[17]=0
         self.assertEqual(mix_prefix(m,tasks,[s],1,3),4*307)

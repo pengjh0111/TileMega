@@ -3,12 +3,15 @@
 #include <tilemega/Target/Ascend/LlmPlanABI.h>
 #include <acl/acl.h>
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <map>
+#include <set>
 #include <stdexcept>
 #include <vector>
 
@@ -69,8 +72,12 @@ inline void ValidateCompiledBodies(std::vector<llm::Stage> const& stages) {
   for(auto const& s:stages)if(s.kind==25 &&
       (s.extent!=8 || s.width!=768 || s.group!=1 || s.query_rows!=4 || s.kv_block!=128 || s.variant))
     throw std::invalid_argument("Unregistered QKV pack geometry");
-  for(auto const& s:stages)if(s.kind==13 && s.variant>8)
+  for(auto const& s:stages)if(s.kind==13 && s.variant>9)
     throw std::invalid_argument("Unregistered native attention implementation");
+#if !defined(TILEMEGA_LLM_FP32_KV_CACHE) || !TILEMEGA_LLM_FP32_KV_CACHE
+  for(auto const& s:stages)if(s.kind==13 && s.variant==9)
+    throw std::invalid_argument("Cached FP32 KV requires its explicitly compiled Body");
+#endif
 #if !defined(TILEMEGA_LLM_WIDE_QK) || !TILEMEGA_LLM_WIDE_QK
   for(auto const& s:stages)if(s.kind==13 && s.variant==7)
     throw std::invalid_argument("Wide QK requires an explicitly compiled experimental Body");
@@ -80,7 +87,7 @@ inline void ValidateCompiledBodies(std::vector<llm::Stage> const& stages) {
        (s.width!=1024 && s.width!=2048 && !((s.width==3072 || s.width==4096) && s.variant==3))))
     throw std::invalid_argument("Unregistered full-row normalization implementation");
 #ifndef TILEMEGA_AS2_CANN_NORM_PRIMITIVES
-  for(auto const& s:stages)if((s.kind==13 && (s.variant==5 || s.variant==6 || s.variant==7 || s.variant==8)) || (s.kind==1 && (s.variant==2 || s.variant==3)))
+  for(auto const& s:stages)if((s.kind==13 && (s.variant==5 || s.variant==6 || s.variant==7 || s.variant==8 || s.variant==9)) || (s.kind==1 && (s.variant==2 || s.variant==3)))
     throw std::invalid_argument("Newton QK norm requires explicitly configured pinned CANN device primitives");
 #endif
 }
@@ -135,7 +142,7 @@ struct Plan {
         throw std::invalid_argument("Request GEMM geometry differs from compiled Body");
       for(auto offset:s.operands)if(!valid(offset))throw std::invalid_argument("Unbound request operand");
       if(!valid(s.workspace))throw std::invalid_argument("Unbound request workspace");
-      if(s.kind==13 && (s.variant==4 || s.variant==5 || s.variant==6 || s.variant==7 || s.variant==8)) {
+      if(s.kind==13 && (s.variant==4 || s.variant==5 || s.variant==6 || s.variant==7 || s.variant==8 || s.variant==9)) {
         auto found=std::find_if(allocations.begin(),allocations.end(),[&](auto const& a){return a.offset==s.workspace;});
         if(found==allocations.end() || found->bytes<uint64_t(m.groups)*llm::attention::kGroupBytes)
           throw std::invalid_argument("Cooperative attention lacks its per-group workspace");
@@ -156,6 +163,32 @@ struct Plan {
       throw std::invalid_argument("Invalid request wait");
   }
 };
+using CachedKvState=std::map<uint64_t,std::array<uint64_t,6>>;
+inline CachedKvState ValidateCachedKvState(llm::Metadata const& m,std::vector<llm::Stage> const& stages,
+    std::vector<llm::Allocation> const& allocations,std::set<uint32_t> const& reset_ids) {
+  CachedKvState state;bool cached=false,ordinary=false;std::set<uint64_t> distinct;
+  for(auto const& s:stages)if(s.kind==13) {
+    if(s.variant!=9){ordinary=true;continue;}cached=true;
+    if(m.batch!=16 || m.capacity!=1088 || s.extent!=8 || s.width!=128 || s.group!=2 ||
+        (m.seq!=1 && m.seq!=64) || s.query_rows!=(m.seq==64?32u:2u) || s.kv_block!=1088)
+      throw std::invalid_argument("Cached KV shape is outside the initial Qwen0.6B B16 contract");
+    const uint64_t elements=uint64_t(m.batch)*s.extent*m.capacity*s.width;
+    for(unsigned i:{1u,2u,10u,11u}) {
+      uint64_t offset=s.operands[i],bytes=elements*(i<10?2:4);
+      auto a=std::find_if(allocations.begin(),allocations.end(),[&](auto const& p){return p.offset==offset;});
+      if(offset==llm::kAbsent || a==allocations.end() || a->required || a->bytes!=bytes ||
+          !reset_ids.count(unsigned(a-allocations.begin())) || !distinct.insert(offset).second)
+        throw std::invalid_argument("Derived KV must have unique full-sized reset-owned planes");
+    }
+    if(!state.emplace(s.operands[1],std::array<uint64_t,6>{s.operands[2],s.operands[10],s.operands[11],s.extent,s.width,s.group}).second)
+      throw std::invalid_argument("Two Attention stages alias one cache state");
+  }
+  if(cached && ordinary)throw std::invalid_argument("Cached KV cannot be partially enabled within a phase");
+  return state;
+}
+inline void ValidateCachedKvPair(CachedKvState const& pre,CachedKvState const& dec) {
+  if(pre!=dec)throw std::invalid_argument("Derived KV requires matching prefill/decode producers and state");
+}
 struct DevicePlan {uint8_t *metadata,*stages,*tasks,*waits,*offsets,*queue,*control,*trace;};
 struct Device {
   aclrtStream stream=nullptr;bool initialized=false;
@@ -266,6 +299,9 @@ template<class Launch> int RunRequest(fs::path const& binding,fs::path const& ou
     throw std::invalid_argument("Invalid request token allocation");
   for(unsigned i=2;i<reset.size();++i)if(reset[i]>=pre.allocations.size() || pre.allocations[reset[i]].required)
     throw std::invalid_argument("Invalid request KV reset allocation");
+  std::set<uint32_t> reset_ids(reset.begin()+2,reset.end());
+  ValidateCachedKvPair(ValidateCachedKvState(pre.m,pre.stages,pre.allocations,reset_ids),
+      ValidateCachedKvState(dec.m,dec.stages,dec.allocations,reset_ids));
   auto token_initial=Read<uint32_t>(binding/"inputs"/(std::to_string(reset[0])+".bin"));
   if(token_initial.size()*4!=tokens.bytes)throw std::invalid_argument("Wrong prompt token size");
   auto setup=std::chrono::steady_clock::now();Device device;

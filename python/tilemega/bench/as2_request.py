@@ -17,9 +17,31 @@ def digest(path):
         return hashlib.file_digest(stream,'sha256').hexdigest()
 
 
+def cached_kv_state(stages,buffers,metadata):
+    state=[];ordinary=False;used=set();by_offset={b['offset_bytes']:b for b in buffers}
+    for s in stages:
+        if s[17]!=13:continue
+        if s[31]!=9:ordinary=True;continue
+        if metadata[8]!=16 or metadata[10]!=1088 or (s[23],s[24],s[25],s[26])!=(8,128,2,1088):
+            raise ValueError('Unregistered derived KV shape')
+        names=[];elements=metadata[8]*s[23]*metadata[10]*s[24]
+        for i in (1,2,10,11):
+            b=by_offset.get(s[i])
+            if (b is None or b.get('required_input') or not b['name'].startswith('kv_cache.') or
+                    b['dtype']!=('bf16' if i<10 else 'f32') or b['bytes']!=elements*(2 if i<10 else 4) or
+                    b['name'] in used):
+                raise ValueError('Derived KV planes must be unique full-sized request-reset state')
+            names.append(b['name']);used.add(b['name'])
+        if names[2:]!=['kv_cache.fp32.'+n for n in names[:2]]:
+            raise ValueError('Derived KV is not attached to its logical BF16 state')
+        state.append(tuple(names))
+    if state and ordinary:raise ValueError('Derived KV cannot be partially enabled in a phase')
+    return sorted(state)
+
+
 def request_source(prefill,decode):
     capabilities=('TILEMEGA_LLM_SPLIT_K','TILEMEGA_LLM_LOCAL_TAIL_K7','TILEMEGA_LLM_LOCAL_Q_TAIL_K3',
-                  'TILEMEGA_LLM_WIDE_QK')
+                  'TILEMEGA_LLM_WIDE_QK','TILEMEGA_LLM_FP32_KV_CACHE')
     geometry=('TILEMEGA_LLM_VARIANT','TILEMEGA_LLM_TM','TILEMEGA_LLM_TN','TILEMEGA_LLM_TK')
     sources=[]
     for plan in (prefill,decode):
@@ -80,6 +102,10 @@ def bind(prefill, decode, inputs, out,emit_source=False):
         if len(v)!=1 or not v.issubset({0,1}):raise ValueError('One request binary requires a uniform registered geometry')
         variants.append(next(iter(v)))
     if variants[0]!=variants[1]:raise ValueError('Prefill/decode use different compiled GEMM geometries')
+    cached_states=[cached_kv_state(list(struct.iter_unpack('<17Q16I',(p['path']/'stages.bin').read_bytes())),
+        p['buffers'],p['metadata']) for p in plans]
+    if cached_states[0]!=cached_states[1]:
+        raise ValueError('Derived KV requires matching prefill/decode producers and state')
     if source_identity and source_identity['capabilities']['TILEMEGA_LLM_VARIANT']!=variants[0]:
         raise ValueError('Generated source geometry differs from actual phase tables')
     if identity['seq']!=64 or identity['past'] or digest(prefill/'metadata.bin')!=identity['metadata_sha256']:
@@ -116,6 +142,7 @@ def bind(prefill, decode, inputs, out,emit_source=False):
         isl=64,capacity=1088,arena_bytes=total,source_inputs=str(inputs),geometry_variant=variants[0],
         groups=plans[0]['metadata'][1],workers=plans[0]['metadata'][2],
         optimization_status='measured_native_rank_eft_shared_gm' if priced else 'unpriced_phase_bootstrap_not_admitted',phases={},buffers=union)
+    receipt['derived_fp32_kv_state']=cached_states[0]
     for plan in plans:
         dest=out/plan['phase'];dest.mkdir();m=plan['metadata'];m[12]=total
         remap={b['offset_bytes']:named[b['name']]['offset_bytes'] for b in plan['buffers']}

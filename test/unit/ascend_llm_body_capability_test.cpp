@@ -44,7 +44,7 @@ int main() {
   llm::Stage attention{};attention.kind=13;attention.variant=4;
   llm_host::ValidateCompiledBodies({attention});
   unsigned rejected=0;
-  for(unsigned variant:{5u,6u,7u,8u,99u}) {
+  for(unsigned variant:{5u,6u,7u,8u,9u,99u}) {
     attention.variant=variant;
     try {llm_host::ValidateCompiledBodies({attention});}
     catch(std::invalid_argument const&) {++rejected;}
@@ -99,7 +99,34 @@ int main() {
     try {llm_host::ValidateCompiledBodies({stage});}
     catch(std::invalid_argument const&) {++rejected;}
   }
-  if(rejected!=10)return 1;
+  if(rejected!=11)return 1;
+  llm::Metadata m{};m.batch=16;m.capacity=1088;m.seq=64;
+  llm::Stage cached{};cached.kind=13;cached.variant=9;cached.extent=8;cached.group=2;
+  cached.width=128;cached.query_rows=32;cached.kv_block=1088;
+  const uint64_t bytes=16ULL*8*1088*128*2;
+  cached.operands[1]=512;cached.operands[2]=bytes+1024;
+  cached.operands[10]=(5ULL<<30)+512;cached.operands[11]=cached.operands[10]+2*bytes+512;
+  std::vector<llm::Allocation> allocations;
+  for(unsigned i:{1u,2u,10u,11u}) {
+    auto size=bytes*(i<10?1:2);
+    allocations.push_back({cached.operands[i],size,size+512,0,0});
+  }
+  std::set<uint32_t> resets{0,1,2,3};
+  auto pre=llm_host::ValidateCachedKvState(m,{cached},allocations,resets);
+  m.seq=1;cached.query_rows=2;
+  auto dec=llm_host::ValidateCachedKvState(m,{cached},allocations,resets);
+  llm_host::ValidateCachedKvPair(pre,dec);
+  try {llm_host::ValidateCachedKvPair(pre,{});return 1;}
+  catch(std::invalid_argument const&) {}
+  for(unsigned mutation=0;mutation<4;++mutation) {
+    auto s=cached;auto a=allocations;auto r=resets;
+    if(mutation==0)r.erase(2);
+    if(mutation==1)s.operands[11]=s.operands[10];
+    if(mutation==2)a[2].bytes-=4;
+    if(mutation==3)a[3].required=1;
+    try {llm_host::ValidateCachedKvState(m,{s},a,r);return 1;}
+    catch(std::invalid_argument const&) {}
+  }
   std::cout<<"{\"status\":\"pass\",\"missing_device_primitive_rejected\":true,"
     "\"unknown_implementation_rejected\":true,\"missing_split_body_rejected\":true,\"acl_initialized\":false}\n";
 }

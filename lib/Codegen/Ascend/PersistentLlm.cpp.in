@@ -85,6 +85,8 @@ int main(int argc,char** argv) {
     auto metas=Read<llm::Metadata>(plan/"metadata.bin");if(metas.size()!=1)throw std::invalid_argument("Wrong metadata count");
     auto m=metas[0];auto stages=Read<llm::Stage>(plan/"stages.bin");auto tasks=Read<llm::Task>(plan/"tasks.bin");
     llm_host::ValidateCompiledBodies(stages);
+    if(std::any_of(stages.begin(),stages.end(),[](auto const& s){return s.kind==13 && s.variant==9;}))
+      throw std::invalid_argument("Derived FP32 KV requires the paired request lifecycle");
     auto waits=Read<llm::Wait>(plan/"waits.bin");auto offsets=Read<uint32_t>(plan/"offsets.bin");
     auto queue=Read<uint32_t>(plan/"queue.bin");auto allocations=Read<llm::Allocation>(plan/"allocations.bin");
     if(m.version!=llm::kVersion || (m.groups!=2 && m.groups!=4 && m.groups!=8) || m.workers!=3*m.groups ||

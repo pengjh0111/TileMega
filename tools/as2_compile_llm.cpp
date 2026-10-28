@@ -95,7 +95,7 @@ int main(int argc,char** argv) {
     bool emit=priced || decomposed || body || ((argc>=6 && argc<=9) && std::string(argv[1])=="emit-diagnostic");
     bool prepare=emit || (argc==6 && std::string(argv[1])=="prepare");
     if(!prepare && (argc!=5 || std::string(argv[1])!="inspect"))
-      throw std::invalid_argument("usage: as2_compile_llm inspect export new_output batch; or prepare|emit-diagnostic export new_output batch groups [diagnostic_kv_block] [gemm_tile_n:64|128] [attention:bf16|fp32|fp32-scores|math-sdpa|cube-fp32|cube-fp32-newton|cube-fp32-newton-full|cube-fp32-newton-fold|cube-fp32-fold-softmax|cube-fp32-wide-qk|cube-fp32-valid-qk]; or emit-priced|emit-decomposed export new_output batch groups kv_block tile_n attention prices_or_decomposition.json; or emit-body|emit-priced-body export new_output batch groups kv_block tile_n attention [prices.json] binding.json; priced modes accept an explicit -fifo suffix for experimental wait elision");
+      throw std::invalid_argument("usage: as2_compile_llm inspect export new_output batch; or prepare|emit-diagnostic export new_output batch groups [diagnostic_kv_block] [gemm_tile_n:64|128] [attention:bf16|fp32|fp32-scores|math-sdpa|cube-fp32|cube-fp32-newton|cube-fp32-newton-full|cube-fp32-newton-fold|cube-fp32-fold-softmax|cube-fp32-wide-qk|cube-fp32-valid-qk|cube-fp32-cached-kv]; or emit-priced|emit-decomposed export new_output batch groups kv_block tile_n attention prices_or_decomposition.json; or emit-body|emit-priced-body export new_output batch groups kv_block tile_n attention [prices.json] binding.json; priced modes accept an explicit -fifo suffix for experimental wait elision");
     namespace fs=std::filesystem;
     auto root=fs::path("/home/d50064638/junhuip/TileMega/runs/as2");
     auto input=fs::weakly_canonical(argv[2]),output=fs::weakly_canonical(argv[3]);
@@ -123,8 +123,10 @@ int main(int argc,char** argv) {
     unsigned attention_precision=0;
     if(emit && argc>=9) {
       std::string attention=argv[8];
-      if(attention!="bf16" && attention!="fp32" && attention!="fp32-scores" && attention!="math-sdpa" && attention!="cube-fp32" && attention!="cube-fp32-newton" && attention!="cube-fp32-newton-full" && attention!="cube-fp32-newton-fold" && attention!="cube-fp32-fold-softmax" && attention!="cube-fp32-wide-qk" && attention!="cube-fp32-valid-qk")throw std::invalid_argument("Unknown attention implementation precision");
-      attention_precision=attention=="fp32"?1:attention=="fp32-scores"?2:attention=="math-sdpa"?3:attention=="cube-fp32"?4:attention=="cube-fp32-newton"?5:attention=="cube-fp32-newton-full"?6:attention=="cube-fp32-newton-fold"?7:attention=="cube-fp32-fold-softmax"?8:attention=="cube-fp32-wide-qk"?9:attention=="cube-fp32-valid-qk"?10:0;
+      if(attention!="bf16" && attention!="fp32" && attention!="fp32-scores" && attention!="math-sdpa" && attention!="cube-fp32" && attention!="cube-fp32-newton" && attention!="cube-fp32-newton-full" && attention!="cube-fp32-newton-fold" && attention!="cube-fp32-fold-softmax" && attention!="cube-fp32-wide-qk" && attention!="cube-fp32-valid-qk" && attention!="cube-fp32-cached-kv")throw std::invalid_argument("Unknown attention implementation precision");
+      if(attention=="cube-fp32-cached-kv" && (batch!=16 || receipt.At("model_id").AsString("model")!="qwen3_0_6b"))
+        throw std::invalid_argument("Cached FP32 KV is initially bounded to Qwen0.6B B16");
+      attention_precision=attention=="fp32"?1:attention=="fp32-scores"?2:attention=="math-sdpa"?3:attention=="cube-fp32"?4:attention=="cube-fp32-newton"?5:attention=="cube-fp32-newton-full"?6:attention=="cube-fp32-newton-fold"?7:attention=="cube-fp32-fold-softmax"?8:attention=="cube-fp32-wide-qk"?9:attention=="cube-fp32-valid-qk"?10:attention=="cube-fp32-cached-kv"?11:0;
     }
     tilemega::json::Value decomposition;
     bool local_q_tail3=false,local_residual_tail3=false;
@@ -419,7 +421,7 @@ int main(int argc,char** argv) {
         result.Set("status","native_plan_materialized_not_device_verified");
         result.Set("solver_executed",true);
         result.Set("solver_scope",priced?"two_plan_empirical_native_rank_EFT_search":"structural_native_schedule_only");
-        result.Set("attention_implementation",attention_precision==10?"mix_fp32_cube_valid_qk64_fold_softmax1088":attention_precision==9?"mix_fp32_cube_qk256_fold_softmax1088":attention_precision==8?"mix_fp32_cube_newton_norm_fold_softmax1088":attention_precision==7?"mix_fp32_cube_newton_qk_half_fold_fullnorm":attention_precision==6?"mix_fp32_cube_newton_qk_and_fullnorm":attention_precision==5?"mix_fp32_cube_newton_qknorm":attention_precision==1?"fp32_chunk32_merge":attention_precision==2?"fp32_scores_bf16_probability":attention_precision==3?"math_sdpa_fp32_split_scale":attention_precision>=4?"mix_fp32_cube_qk_vector_softmax_pv":"bf16_scores_probabilities");
+        result.Set("attention_implementation",attention_precision==11?"mix_fp32_cached_kv_valid_qk64_fold_softmax1088":attention_precision==10?"mix_fp32_cube_valid_qk64_fold_softmax1088":attention_precision==9?"mix_fp32_cube_qk256_fold_softmax1088":attention_precision==8?"mix_fp32_cube_newton_norm_fold_softmax1088":attention_precision==7?"mix_fp32_cube_newton_qk_half_fold_fullnorm":attention_precision==6?"mix_fp32_cube_newton_qk_and_fullnorm":attention_precision==5?"mix_fp32_cube_newton_qknorm":attention_precision==1?"fp32_chunk32_merge":attention_precision==2?"fp32_scores_bf16_probability":attention_precision==3?"math_sdpa_fp32_split_scale":attention_precision>=4?"mix_fp32_cube_qk_vector_softmax_pv":"bf16_scores_probabilities");
         result.Set("selection",priced?selected_algorithm:"diagnostic_unpriced_bootstrap_not_optimized");
         result.Set("priced_solver_executed",priced);
         result.Set("wait_lowering",fifo_elision?"experimental_fifo_observed_frontier":"per_task_frontier");
