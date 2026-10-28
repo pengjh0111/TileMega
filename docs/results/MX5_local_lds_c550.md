@@ -129,6 +129,9 @@ two long checks/timings. Only after allcurrent timing parents return0,and
 allactive guards have timeout<=300s,does the query-only phase use59.75.
 Query controllers additionally bound each whole wrapper to330s,including
 preflight;cleanup20s pluspoll30s percard gives a two-card upper59.9612h.
+At cutoff these two controllers keep their outer deadlines live;their explicit
+budget/flag checks reject the next GPU dispatch. They are not suspended while
+waiting on a guard. Other owned dispatch loops may still be suspended.
 The initial300s-only reserve estimate is superseded before anyquery dispatch;
 guard's own timeout starts after preflight. Original estimate/correction remain.
 This changes an internal reserve,not the prompt budget ormeasurement protocol.
