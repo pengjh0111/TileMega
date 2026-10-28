@@ -120,3 +120,8 @@ LLM30 acceptance, current I1 and the recorded crosssegment strong-overlap gap.
 MX4-final P-PAIR is not measured. A separately labelled fresh22a reference is
 being prepared with real new source/producer/identity; old strict-reuse failures
 and fixed historical CSVs stay intact. DNN follows LLM acceptance.
+
+Verified local-LDS amendment and both indistinguishable manual B2 P-PAIRs
+are recorded in MX5_local_lds_c550.md. The new source passes5fresh×336
+required attention cases andmanual C1/C2512;new400-key costs remain in progress.
+These checks are not additional final solver selections anddo not change defaults.

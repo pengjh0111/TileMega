@@ -1,0 +1,77 @@
+# MX-5 local LDS synchronization checkpoint
+
+Authority: original MX5 prompt SHA256
+`75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73`.
+User amendment: permit already-probed LDS-only primitives for pure local LDS
+synchronization when pursuing TPOT, with the difference recorded. Global DT-P
+remains P-B. Other original protocols, numerical rules and gates remain.
+
+## Purpose and boundary
+
+Inferred purpose: avoid unnecessarily retiring global prefetch loads when a
+CTA only needs to publish/reuse LDS. The former restriction was the strict
+implementation rule in section0.2 combined with P-B's synchronization scope;
+it was not a hardware prohibition. This amendment does not reclassify DT-P
+as P-A or remove global publication boundaries.
+
+- `0b74c686c`: replace attention wave-result LDS publication with compiler
+  barriers, `arrive_bsmcnt(0)` and `barrier_inst`, joined by every wave.
+- `7c9658ac5`: additionally use that primitive for segment-tail LDS workspace
+  reuse. Run-tail stdCTA, StageBarrier and all LA/global release/acquire remain.
+- Source-level HB review: next segments use different heads; same-head global
+  consumers remain after LA release/acquire or retained Run/grid boundaries.
+  In particular, the earlier LA release does not publish later ctx writes.
+
+## Actual validation (verified)
+
+The first candidate passes5fresh×56 D128/Q2 P0 attention cases and the actual
+helper litmus5fresh×6 cases(512/576×N0/2/8KiB)×2000iterations×104CTAs,0errors.
+The second passes the same pilots/litmus independently. Its full required
+attention matrix also passes5 distinct fresh processes×336 cases,0skips, plus
+15 MX4 transform bitwise cases per process. Each process first checks actual
+336 same-source P0 queries,24 selected unit kernels and6 helper kernels;
+selected kernels have API0,frame0,static-shared0 andresident1.
+
+Both candidates pass the manual Qwen0.6B B2 C-1/C2 checks at512 decode steps;
+maxgap=.03125 andC2mismatches=0. These do not replace final top4 selections.
+
+| Same-card7 P-PAIR | Old median ms | New median ms | Change | Distinguishable |
+|---|---:|---:|---:|---|
+| Row2678 → initial LDS publication |2.304253|2.307628|+0.146%|No|
+| Initial publication → segment-tail reuse |2.309219|2.302293|−0.300%|No|
+
+Each arm has2 fresh processes,warm1/timed2,ISL64/OSL1024,BF16 greedy.
+No TPOT gain or default promotion is claimed. Both comparisons retain raw
+rounds and their own old arm; do not compare their absolute medians as one pair.
+The original MX4 B2 TPOT remains2.095492ms; the manual new result still exceeds it.
+
+Normal source88327 producer is freshly built160/160 and59delivery files are
+rehashed. New A19 isdd8abe75a9d5037649d4b7bfa61f9570a4c41c4d8cff8d3e3a467aa19d7fb3dd.
+G/H transitive source bytes remain identical to the archived qualified pool.
+Native B2 512 WD0/WD1 each has231MT/frame0 andactualresident1. Its576floor
+control has168MT/frame360 andis queried only,never numerically executed.
+Stagebench rejection does not authorize blanket whole-program512 fallback.
+The independent28-kernel comparison confirms both local sites in MIR; steady
+MMA loops have no4160/generic access. Some whole-kernel4160 counts remain.
+
+## Cost lineage and remaining work
+
+Verified old-source Row2678/A19cc122 attention400/400 has3fresh measurements,
+with25 scoped512 consumer replays from4545G/H/A keys. These costs were never
+blocked by local-LDS permission; the earlier192/400 checkpoint reflected guard75.
+New-source400 P0/primary resource queries pass independently. New cold costs
+are being measured,3fresh per key and256MiB active rotation. Old A rows are
+not relabelled as new A. Neither25 cost scopes nor336 unit passes approve all
+whole programs,final solver choices or defaults.
+
+Raw roots: `runs/mx5/local_lds_publication_candidate_v1/`,
+`local_lds_reuse_tail_candidate_v2/`, `local_lds_tail_required336_root_t512_v1/`,
+`local_lds_tail_costs400_v1/`, `row2678_complete400_qualified25_t512_v3/`.
+
+Verified storage maintenance:40 exact duplicate sealed graph exports now
+share physical storage after SHA256 checks; all paths/content remain. About
+20.687GiB reclaimed. No measurement,failed attempt or source archive removed.
+
+Dense final25,MoE native5,LLM30 acceptance,andDNN native25 remain unfinished;
+original phase order and60card-hour budget remain. The measured local-LDS
+comparisons do not establish the hoped-for TPOT improvement.

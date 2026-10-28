@@ -878,3 +878,9 @@ Three actual native resource queries,one correctness row andsix P-PAIR rows
 are appended without rewriting historical rows. A second unpromoted candidate
 uses the same authorized LDS-only primitive at segment-tail workspace reuse;
 Run-tail andLA/global protocols remain. It needs independent runtime evidence.
+
+Verified follow-up: second local-LDS candidate passes5fresh×336 required
+attention cases plus15bitwise transforms each,andmanual B2 C1/C2512.
+Its P-PAIR2.309219→2.302293ms(−.300%)is indistinguishable;no TPOT gain or
+default claim. New-source400 stage costs are separate andin progress. See
+MX5_local_lds_c550.md for authorization,source identities andfull boundary.
