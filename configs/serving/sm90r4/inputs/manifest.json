@@ -1,0 +1,16 @@
+{
+  "configs/serving/sm90r4/inputs/mistral_7b_v0_3/decode.export.json.xz": {
+    "raw_sha256": "5cbb0c9ba1ed9d3234e8fa9c796f4cbe672127a34c150536c648ec31452d4674",
+    "compressed_sha256": "dabc0d5805dbbe9577dbdc3623c13fba81e3f006915535f442e1999675632c7c",
+    "raw_bytes": 4413475,
+    "compressed_bytes": 84320,
+    "original_source": "runs/sm90r4/exports/mistral_7b_v0_3/decode/export.json"
+  },
+  "configs/serving/sm90r4/inputs/mistral_7b_v0_3/prefill.export.json.xz": {
+    "raw_sha256": "291d57f0daab91430bf93c59cb95e7abd9276d02ab0023f32c7ab650796dce4a",
+    "compressed_sha256": "0345d8f87647d05aabca212bbfbb7f9314b68cbf788a687282f60be2b0895775",
+    "raw_bytes": 3852993,
+    "compressed_bytes": 72152,
+    "original_source": "runs/sm90r4/exports/mistral_7b_v0_3/prefill/export.json"
+  }
+}
