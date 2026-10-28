@@ -584,3 +584,29 @@ Before correction the inflated upper bound was104.16h;the same complete logs
 after splitting give68.78h at that observation. Both values and the stopped own
 CPU monitor's identity are retained inphysical_budget_dispatch_guard_v1/
 ACTUAL_PATH_REUSE_ACCOUNTING_CORRECTION_V10.json. GPU children were not signalled.
+
+
+## Verified disk-space recovery with raw bytes retained (2026-10-29)
+
+Existing-cache reuse passed but the next unchanged native C++ resource-probe
+check still rejected root f_bavail0 (8192MiB required). The reference_v4 attempt
+stops there andremains failed. No disk threshold was lowered. Read-only duplicate
+edge-table comparison found2.179GiB potential savings;no hardlink mutation followed.
+
+Instead,813 completed own MIR data logs (older than1hour,nlink1,complete machine
+function markers) were archived. Every file retains a persistent lossless gzip
+backup on disk,a byte-identical uncompressed copy in tmpfs,and a readable symlink
+at its original path. Each original/memory/decompressed-backup SHA agrees.
+No binary,generated CU,source,receipt,JSON measurement row orguard log was moved.
+The archive holds16.739GiB original bytes andabout1.402GiB compressed backup data.
+Original stats,paths,hashes andrestore.py are retained;this is reversible.
+
+Pilot before/after unmodified MIR parsing matches102functions/66rings/0failures.
+The unchanged current fulltop4/source/native-receipt/query/timing verifier for
+QwenB1 then returns0. All three fixed MX4 CSVs remain byte-identical to22a.
+Actual f_bavail recovers to14.002GiB;filesystem reserve andmount policies stay
+unchanged. Fresh reference_v5 starts from this observed space andsame actual
+source-keyed cache. It still requires allnormal source/pin/resource/ABI/occupancy
+and C1/C2512 checks beforeP-PAIR. No reference timing has been accepted yet.
+Raw:completed_mir_archive_v1;reconstructed22a_reference_completion_v4/v5;
+P-PAIR now waits reconstructed22a_reference_final_ready_v1's actual final proof.
