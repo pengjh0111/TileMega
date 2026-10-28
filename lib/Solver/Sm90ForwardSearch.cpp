@@ -41,8 +41,11 @@ std::vector<Sm90ForwardStage> Sm90ForwardSearchSpace::Candidates(std::size_t ind
     }
     case Sm90ForwardBody::kDwPw:
     case Sm90ForwardBody::kInvertedResidual: {
-      for(bool fused:{true,false}) {
-        if(fused && !shape.fusable)continue;
+      // A plan stage of this body *is* the fused stage, so its coordinate is
+      // fused; the unfused structure is the separately built plan without
+      // the fusion (`--dwpw-fuse 0`), not a per-stage choice of this one.
+      for(bool fused:{true}) {
+        if(!shape.fusable)continue;
         for(auto tile:{std::pair{8,8},std::pair{8,16},std::pair{16,16}}) {
           // The fused bodies contract the tile's pixels as one 64-row MMA, so
           // a tile holds at most 64 of them.
