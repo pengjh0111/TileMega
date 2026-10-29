@@ -502,3 +502,16 @@ diagnostic reference variants only; no formal reference or threshold changed,
 and neither explains all failures. The first counterfactual attempt's failed
 dtype assumption and logs remain. Raw: moe_matched_input_router_D7_v1,
 moe_HF_routing_dtype_combine_counterfactual_D7_v2.
+
+
+Verified complete-geometric-outcome candidate serialization now connects the
+importer, coverage checker and context-aware exact top4 merge. Each candidate
+retains seven class costs and original aggregate row indices (all five length
+points for attention), explicit native pin geometry and a mandatory matching
+prompt-pair marker. Partial outcomes or fewer than four legal programs are
+rejected. Two host CTests pass, including serialization/source-index mapping
+and layer/head cost checks. Output is diagnostic and explicitly grants no
+file qualification, execution, thread exception, selection or default policy.
+Actual1744 existing costs plus262 rejections pass all ten batch/thread coverage
+requests; router contexts and head576 are correctly missing. Raw:
+moe_regular_grouped_head_coverage_cpu_v2.
