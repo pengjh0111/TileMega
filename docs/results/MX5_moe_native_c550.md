@@ -172,3 +172,32 @@ resident1, with zero kernel launches. Formula-derived down prefetch builds
 are in progress (109 builds for486 batch coordinates);313 gate/up
 coordinates retain no incoming prefetch. R_cap remains220/248. No qualified
 cost timing or per-plan 512 exception follows from these resource checks.
+
+Verified all109 derived grouped builds finish:102 fit/seven rejected.
+459 additional zero-launch device queries pass, so the896-coordinate
+domain has772 eligible outcomes and124 resource rejections. All317
+normal builds are append-only in MX5_body_resources_c550.csv; rejected
+instances remain unlaunched. The formal source-bound cost campaign uses
+129 batches ×3 fresh processes, six keys per batch except the tail.
+Its first batch passes all three processes; two guarded card7/card6 workers
+continue. Old prototypes remain separate; no final table/solver/default
+acceptance is claimed from these incomplete samples.
+
+Verified B1 normal576 decode preRA diagnostic recompilation leaves device
+code byte-identical to the failed native CLI artifact (MT168/frame464).
+The existing virtual-liveness estimator reports231 32-bit units at its
+maximum over1414 CFG blocks. This ignores alignment/STR/earlyclobber/path
+feasibility and is neither a mathematical lower bound nor proof of an
+allocator defect or a 512-thread exception. No register override or GPU
+execution is used. Raw: `moe_actual576_preRA_D7_v1`.
+
+Native routing-audit preparation is in scripts/mx_moe_routing_check.py and
+moe/native_routing_check.py:65 generated tokens cover64 decode inputs,
+read the64×24×B×8 diagnostic buffer, release native weights, then hook HF
+mlp.gate with grouped_mm on the identical teacher-forced history. The ULP
+convention is BF16 spacing at the HF eighth logit magnitude (subnormal
+spacing2^-133); both gap/ULP and code distance are reported. No routing GPU
+audit has run. Ten boundary tests and16 existing routing/helper tests pass.
+An initial edit displaced the existing routing_check.py API; it was restored
+byte-for-byte and the native audit isolated in a separate module before GPU
+use. New source-bound cost-input/tamper tests8 pass; normal root builds pass.
