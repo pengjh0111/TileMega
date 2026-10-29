@@ -46,6 +46,7 @@ def main():
     for name in ('model', 'prefill-so', 'decode-so', 'prompt-ids', 'out'):
         p.add_argument('--' + name, type=Path, required=True)
     p.add_argument('--batch', type=int, choices=(1, 16), required=True)
+    p.add_argument('--experts-implementation', choices=('grouped_mm', 'eager'), default='grouped_mm')
     a = p.parse_args()
     if os.environ.get('TILEMEGA_GPU_LOCK_HELD') != '1':
         p.error('run through scripts/mx_gpu_job.sh with NEEDS_MIB=40960')
@@ -84,7 +85,9 @@ def main():
     (a.out / 'native_routes.json').write_text(json.dumps(native.tolist(), separators=(',', ':')) + '\n')
     (a.out / 'generated.json').write_text(json.dumps(generated) + '\n')
     model = AutoModelForCausalLM.from_pretrained(a.model, torch_dtype=torch.bfloat16,
-        attn_implementation='sdpa', trust_remote_code=False, experts_implementation='grouped_mm').cuda().eval()
+        attn_implementation='sdpa', trust_remote_code=False, experts_implementation=a.experts_implementation).cuda().eval()
+    if getattr(model.config, '_experts_implementation', None) != a.experts_implementation:
+        raise ValueError('HF did not use the requested routing-reference experts')
     if len(model.model.layers) != layers:
         raise ValueError('HF layer count differs from the native plan')
     mismatch, exact, hooks = [], 0, []
@@ -127,6 +130,7 @@ def main():
         exact_sets=exact, boundary_ties=len(mismatch) - len(failures), failures=len(failures),
         mismatches=mismatch, execution_identity=execution, plan_pair_contract=pair_contract,
         passed=not failures, timing_eligible=False,
+        reference_experts_implementation=a.experts_implementation,
         tie_rule='gap <= 2 * BF16_ULP(abs(HF rank8)); subnormal spacing 2^-133',
         decode_binary_sha256=hashlib.sha256(a.decode_so.read_bytes()).hexdigest())
     (a.out / 'routing_check.json').write_text(json.dumps(report, indent=2) + '\n')

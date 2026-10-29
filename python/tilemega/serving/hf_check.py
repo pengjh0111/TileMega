@@ -53,7 +53,7 @@ def main():
     parser.add_argument("--vllm-metrics", type=Path,
                         help="checked vLLM output for the same model and batch")
     parser.add_argument("--skip-free-greedy", action="store_true")
-    parser.add_argument('--experts-implementation', choices=('grouped_mm',),
+    parser.add_argument('--experts-implementation', choices=('grouped_mm', 'eager'),
                         help='MoE reference expert implementation (default: grouped_mm)')
     args = parser.parse_args()
     import torch
@@ -81,6 +81,8 @@ def main():
         attn_implementation="sdpa", trust_remote_code=False,
         **expert_options,
     ).cuda().eval()
+    if expert_options and getattr(model.config, '_experts_implementation', None) != expert_options['experts_implementation']:
+        raise ValueError('HF did not use the requested expert implementation')
     all_gaps, all_nll = [], []
     buckets, first_divergence = [[] for _ in range((count + 255) // 256)], []
     args.out.parent.mkdir(parents=True, exist_ok=True)
@@ -133,6 +135,7 @@ def main():
                           "max_gap": float(torch.cat(rows).max())}
                          for i, rows in enumerate(buckets)],
         "first_hf_greedy_divergence": first_divergence,
+        "reference_experts_implementation": expert_options.get('experts_implementation'),
     }
     args.out.write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps(report))
