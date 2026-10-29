@@ -1,4 +1,5 @@
 #include <tilemega/Backend/Ascend/LlmVectorBody.h>
+#include <tilemega/Backend/Ascend/SwiGluTile.h>
 #include <acl/acl.h>
 #include <cstdint>
 #include <cmath>
@@ -8,6 +9,41 @@
 #include <stdexcept>
 #include <vector>
 using namespace tilemega::ascend;
+
+__global__ __aicore__ __mix__(1,2) __schedmode__(1)
+void as2_swiglu_tile(GM_ADDR input,GM_ADDR output,GM_ADDR timing,unsigned rows,
+    unsigned columns,unsigned input_stride,unsigned output_stride,unsigned implementation) {
+  if ASCEND_IS_AIV {
+    const unsigned worker=AscendC::GetBlockIdx();
+    auto dst=output+uint64_t(worker)*rows*output_stride*2;
+    uint64_t elapsed=0;bool ok=true;
+    if(implementation==0) {
+      LlmVectorBody body;
+      for(unsigned repeat=0;repeat<4;++repeat) {
+        const uint64_t start=AscendC::GetSystemCycle();
+        for(unsigned r=0;r<rows;++r)for(unsigned c=0;c<columns;c+=32) {
+          auto src=input+(uint64_t(r)*input_stride+c)*2;
+          ok=ok && body.Pointwise(src,src+32,dst+(uint64_t(r)*output_stride+c/2)*2,16,true);
+        }
+        if(repeat)elapsed+=uint64_t(AscendC::GetSystemCycle())-start;
+      }
+    }else {
+      AscendC::TPipe pipe;AscendC::TBuf<AscendC::TPosition::VECCALC> storage;
+      pipe.InitBuffer(storage,36864);auto raw=storage.Get<uint8_t>();
+      SwiGluTileBuffers b{raw.ReinterpretCast<bfloat16_t>(),raw[4096].ReinterpretCast<bfloat16_t>(),
+        raw[8192].ReinterpretCast<bfloat16_t>(),raw[12288].ReinterpretCast<float>(),
+        raw[20480].ReinterpretCast<float>(),raw[28672].ReinterpretCast<float>()};
+      for(unsigned repeat=0;repeat<4;++repeat) {
+        const uint64_t start=AscendC::GetSystemCycle();
+        ok=ok && RunSwiGluTile(b,input,dst,rows,columns,input_stride,output_stride);
+        if(repeat)elapsed+=uint64_t(AscendC::GetSystemCycle())-start;
+      }
+    }
+    AscendC::GlobalTensor<uint64_t> status;status.SetGlobalBuffer((__gm__ uint64_t*)timing);
+    status.SetValue(worker*64,ok?0:1);status.SetValue(worker*64+1,elapsed);
+    AscendC::DataCacheCleanAndInvalid<uint64_t,AscendC::CacheLine::ENTIRE_DATA_CACHE>(status);
+  }
+}
 
 __global__ __aicore__ __mix__(1,2) __schedmode__(1)
 void as2_vector(GM_ADDR input,GM_ADDR rhs,GM_ADDR third,GM_ADDR output,GM_ADDR status,GM_ADDR statistics,
@@ -43,8 +79,57 @@ static std::vector<uint16_t> Read(std::filesystem::path const& path,size_t n) {
   std::vector<uint16_t> v(n);std::ifstream in(path,std::ios::binary);
   in.read((char*)v.data(),n*2);if(!in)throw std::runtime_error("Input read failed");return v;
 }
+static int RunSwiGluProbe(char** argv) {
+  unsigned rows=std::stoul(argv[2]),columns=std::stoul(argv[3]);
+  unsigned input_stride=std::stoul(argv[4]),output_stride=std::stoul(argv[5]),impl=std::stoul(argv[6]);
+  if(!rows || rows>16 || !columns || columns>128 || columns%32 || input_stride<columns ||
+      output_stride<columns/2 || input_stride>32768 || output_stride>16384 ||
+      input_stride%16 || output_stride%16 || impl>1)throw std::runtime_error("Invalid bounded SwiGLU tile");
+  namespace fs=std::filesystem;fs::path root="/home/d50064638/junhuip/TileMega/runs/as2";
+  auto input=fs::weakly_canonical(argv[7]),output=fs::weakly_canonical(argv[8]);
+  for(auto const& p:{input,output}) {
+    auto relative=p.lexically_relative(root);
+    if(p==root || relative.empty() || *relative.begin()=="..")throw std::runtime_error("Require AS2 probe paths");
+  }
+  if(fs::exists(output))throw std::runtime_error("New output directory required");
+  auto x=Read(input/"input.bin",rows*input_stride);
+  std::vector<uint16_t> y(4*rows*output_stride+256,0x7fc1);std::vector<uint64_t> timing(4*64,~uint64_t(0));
+  Check(aclInit(nullptr),"init");uint32_t count=0;Check(aclrtGetDeviceCount(&count),"count");
+  if(count!=1)throw std::runtime_error("Use single-device wrapper");
+  Check(aclrtSetDevice(0),"device");auto* soc=aclrtGetSocName();
+  if(!soc || std::string(soc)!="Ascend950PR_9579")throw std::runtime_error("Wrong SKU");
+  aclrtStream stream;Check(aclrtCreateStream(&stream),"stream");std::vector<void*> memory;
+  auto allocate=[&](void const* src,size_t bytes) {
+    void* p=nullptr;Check(aclrtMalloc(&p,bytes,ACL_MEM_MALLOC_HUGE_FIRST),"allocate");memory.push_back(p);
+    Check(aclrtMemcpy(p,bytes,src,bytes,ACL_MEMCPY_HOST_TO_DEVICE),"upload");return (uint8_t*)p;
+  };
+  auto dx=allocate(x.data(),x.size()*2),dy=allocate(y.data(),y.size()*2),dt=allocate(timing.data(),timing.size()*8);
+  as2_swiglu_tile<<<2,nullptr,stream>>>(dx,dy,dt,rows,columns,input_stride,output_stride,impl);
+  Check(aclrtSynchronizeStream(stream),"synchronize");
+  Check(aclrtMemcpy(y.data(),y.size()*2,dy,y.size()*2,ACL_MEMCPY_DEVICE_TO_HOST),"output");
+  Check(aclrtMemcpy(timing.data(),timing.size()*8,dt,timing.size()*8,ACL_MEMCPY_DEVICE_TO_HOST),"timing");
+  for(unsigned w=0;w<4;++w) {
+    if(timing[w*64] || !timing[w*64+1])throw std::runtime_error("AIV tile failed or did not execute");
+    for(unsigned r=0;r<rows;++r)for(unsigned c=columns/2;c<output_stride;++c)
+      if(y[(w*rows+r)*output_stride+c]!=0x7fc1)throw std::runtime_error("Output stride guard overwritten");
+  }
+  for(size_t i=4*rows*output_stride;i<y.size();++i)
+    if(y[i]!=0x7fc1)throw std::runtime_error("Output tail guard overwritten");
+  fs::create_directory(output);std::ofstream file(output/"c.bin",std::ios::binary);
+  file.write((char*)y.data(),(y.size()-256)*2);file.close();
+  if(!file)throw std::runtime_error("Cannot save SwiGLU result");
+  for(auto p:memory)Check(aclrtFree(p),"free");
+  Check(aclrtDestroyStream(stream),"stream destroy");Check(aclFinalize(),"finalize");
+  std::cout<<"{\"status\":\"executed_requires_numeric_compare\",\"implementation\":"<<impl
+    <<",\"rows\":"<<rows<<",\"columns\":"<<columns<<",\"input_stride\":"<<input_stride
+    <<",\"output_stride\":"<<output_stride<<",\"groups\":2,\"workers\":4,\"timed_repetitions\":3,\"service_ticks\":[";
+  for(unsigned w=0;w<4;++w){if(w)std::cout<<',';std::cout<<timing[w*64+1];}
+  std::cout<<"],\"ub_bytes\":"<<(impl?36864:LlmVectorBody::kLocalBytes)
+    <<",\"host_kernel_launches\":1,\"tilemega_pipeline\":false}"<<std::endl;return 0;
+}
 int main(int argc,char** argv) {
   try {
+    if(argc==9 && std::string(argv[1])=="swiglu-tile")return RunSwiGluProbe(argv);
     if(argc!=6 && argc!=7)throw std::runtime_error("usage: as2_vector kind(0 norm/1 swiglu/2 add/3 rope/4 log-exp norm/5 CANN Newton norm/6 folded Newton norm) rows width input_directory output_directory [epsilon]");
     unsigned kind=std::stoul(argv[1]),rows=std::stoul(argv[2]),width=std::stoul(argv[3]);
     float epsilon=argc==7?std::stof(argv[6]):1e-6f;
