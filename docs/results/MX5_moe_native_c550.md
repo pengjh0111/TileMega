@@ -940,3 +940,21 @@ have the requested floor evidence for D7; no final solver candidate or model
 is accepted by this observation. No GPU launch or512 switch occurs here.
 Raw: moe_authorized_to_D_manual_cpu_v1/ACTUAL_AUTHORIZED_TO_D_HISTORIES_CPU_COMPLETE.json,
 ACTUAL_EIGHT_SUPPLEMENTS_INDEPENDENTLY_REVIEWED_AND_APPENDED_CPU.json.
+
+Inferred D7 decision for only those four manual geometries: after their
+normal576 floor failures, the standalone attention spill and compiler PEU
+evidence support body pressure under the observed168 allocation. The
+original per-plan512 branch is therefore exercised for these development
+controls; it is not extended to all models or solver candidates.
+Verified new512 normal primaries recompute their actual512 P0 references:
+QKV/O/router/GU/down/head P_w=1/1/1/0/4/8, attentionPF0. All four fit without
+a retry: B1 decode/prompt MT235/243, B16 decode/prompt MT237/241;
+frame/static0. Independent receipts, flags, geometry, measured body headers,
+121 recipes, two246-binding pairs and MIR pass, including zero private,
+generic, calls and ring4160. Four CPU resource rows are appended. Actual
+zero-launch queries are queued on card6 after all router costs finish;
+correctness, timing and model acceptance are not inferred from these builds.
+The v1 derivation stops before any compiler on a duplicate R_cap dictionary
+keyword; v2 corrects the wrapper while retaining R_cap220/248 and v1 logs.
+Raw: moe_manual_D7_512_primary_cpu_v1/v2,
+moe_manual_D7_512_zero_queries_v1.
