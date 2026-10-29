@@ -856,3 +856,16 @@ The initial v1 CPU wrapper collides with its pre-created output directory
 before any compiler launch; its log/source remain. The v2 wrapper separates
 request files from the native artifact directory, without changing any build
 flag, reference, geometry, reduction rule or acceptance threshold.
+
+Verified request-evidence validation now replays all eight historical manual
+P-PAIR requests against their own prompt/decode artifacts, identity hashes,
+resource records, shared bindings and six original token files. It recomputes
+E2E/TTFT from the two timed latencies, checks (E2E−TTFT)/1023 and throughput,
+and rejects altered token arrays even when the summary claims equality.
+Twenty-five CPU tests pass, including changed instrumentation, frame, phase,
+artifact, latency, tokens and summary inputs. This is report/artifact
+validation only: no new GPU measurement, fresh-process/guard qualification,
+512 exception, top4 selection or model acceptance is implied. The first
+standalone replay omitted PYTHONPATH and failed before reading reports;
+the explicit-path replay succeeds, with the environment error retained.
+Raw: moe_actual_request_evidence_cpu_v1.
