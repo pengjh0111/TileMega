@@ -7,7 +7,7 @@ import struct
 import tempfile
 import unittest
 
-from tilemega.bench.as2_ablation import validate_cached_kv_bindings
+from tilemega.bench.as2_ablation import validate_cached_kv_bindings, validate_swiglu_stages
 from tilemega.bench.as2_models import RUNS
 
 
@@ -64,6 +64,32 @@ class CachedKvStudy(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'request-reset'):validate_cached_kv_bindings(a,b)
             x=copy.deepcopy(original);x['input_buffers']=[dict(sha256='other-weight')];path.write_text(json.dumps(x))
             with self.assertRaisesRegex(ValueError,'canonical packed inputs'):validate_cached_kv_bindings(a,b)
+
+
+class SwiGluStudy(unittest.TestCase):
+    def stages(self):
+        old=[]
+        for i in range(28):
+            s=[i*512]+[0]*16+[0]*16
+            s[17:19]=[0,2];s[20:23]=[16,12288,2048];s[31]=1
+            old.append(tuple(s))
+        new=[s[:31]+(4,)+s[32:] for s in old]
+        return old,new
+
+    def test_all_registered_epilogues_and_cast_semantics_stay_fixed(self):
+        a,b=self.stages();validate_swiglu_stages(a,b,'decode')
+        validate_swiglu_stages(a,a,'prefill')
+        for index,value in ((0,999),(18,1),(20,1),(22,4096),(32,0x358637bd)):
+            c=copy.deepcopy(b);s=list(c[0]);s[index]=value;c[0]=tuple(s)
+            with self.assertRaisesRegex(ValueError,'registered implementation'):
+                validate_swiglu_stages(a,c,'decode')
+
+    def test_partial_or_prefill_substitution_is_rejected(self):
+        a,b=self.stages();b[0]=a[0]
+        with self.assertRaisesRegex(ValueError,'all 28'):validate_swiglu_stages(a,b,'decode')
+        a,b=self.stages()
+        with self.assertRaisesRegex(ValueError,'registered implementation'):
+            validate_swiglu_stages(a,b,'prefill')
 
 
 if __name__=='__main__':unittest.main()

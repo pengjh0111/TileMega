@@ -29,7 +29,7 @@ def summarize(directory,out):
     state=json.loads((directory/'state.json').read_text())
     change=protocol.get('change','fifo_observation')
     candidate={'fifo_observation':'fifo','valid_qk64':'valid_qk',
-               'cached_fp32_kv':'cached_kv'}.get(change)
+               'cached_fp32_kv':'cached_kv', 'strided_swiglu_tile':'swiglu_tile'}.get(change)
     if candidate is None:raise ValueError('Unknown controlled ablation')
     variants=('original',candidate)
     if (protocol['schema']!='tilemega.as2.paired_ablation.v1' or protocol['pairs'] not in (5,10) or
@@ -65,8 +65,8 @@ def summarize(directory,out):
         binding=controlled(job['argv'][2]);identity=json.loads((binding/'request.json').read_text())
         if (str(binding)!=protocol['bindings'][kind] or image!=protocol['binary_sha256']):
             raise ValueError('Candidate binding or image changed after protocol freeze')
-        if change=='cached_fp32_kv' and hashlib.sha256((binding/'request.json').read_bytes()).hexdigest()!=protocol['binding_sha256'][kind]:
-            raise ValueError('Cached-KV binding changed after protocol freeze')
+        if change in ('cached_fp32_kv','strided_swiglu_tile') and hashlib.sha256((binding/'request.json').read_bytes()).hexdigest()!=protocol['binding_sha256'][kind]:
+            raise ValueError('Implementation binding changed after protocol freeze')
         key=tuple(identity[k] for k in ('model_id','batch','groups','config_sha256',
             'weight_manifest_sha256','input_sha256')+(() if change=='cached_fp32_kv' else ('arena_bytes',)))
         reference_bindings[kind]=(binding,key)
@@ -85,6 +85,7 @@ def summarize(directory,out):
     original,original_key=reference_bindings['original'];fifo,fifo_key=reference_bindings[candidate]
     if original_key!=fifo_key:raise ValueError('Model, weights, input or resource identity changed')
     if change=='cached_fp32_kv':validate_cached_kv_bindings(original,fifo)
+    if change=='strided_swiglu_tile':validate_swiglu_bindings(original,fifo)
     for phase in (() if change=='cached_fp32_kv' else ('prefill','decode')):
         for name in ('queue.bin','offsets.bin','allocations.bin')+ (('stages.bin',) if change=='fifo_observation' else ('tasks.bin','waits.bin')):
             if (original/phase/name).read_bytes()!=(fifo/phase/name).read_bytes():
@@ -112,6 +113,40 @@ def summarize(directory,out):
             for metric in ('tpot_ms','ttft_ms','e2e_ms','throughput_tokens_per_s')} for kind in variants},
         binary_sha256=image,pairs=protocol['pairs'],requests_audited=8*protocol['pairs'],rows=rows)
     out.write_text(json.dumps(result,indent=2)+'\n');return result
+
+
+def validate_swiglu_bindings(original,candidate):
+    """Compare the registered epilogue with identical inputs/state and schedule."""
+    identities=[json.loads((p/'request.json').read_text()) for p in (original,candidate)]
+    if any((x['model_id'],x['batch'])!=('qwen3_1_7b',16) for x in identities):
+        raise ValueError('SwiGLU study requires the registered Qwen1.7 B16 scope')
+    for name in ('input_buffers','buffers','kv_buffers','derived_fp32_kv_state','arena_bytes'):
+        if identities[0][name]!=identities[1][name]:
+            raise ValueError('SwiGLU ablation changed canonical inputs or state')
+    for phase in ('prefill','decode'):
+        for p,x in zip((original,candidate),identities):
+            for name,sha in x['phases'][phase]['bound_hashes'].items():
+                if hashlib.sha256((p/phase/name).read_bytes()).hexdigest()!=sha:
+                    raise ValueError('SwiGLU bound table changed')
+        for name in ('metadata.bin','tasks.bin','waits.bin','queue.bin','offsets.bin','allocations.bin'):
+            if (original/phase/name).read_bytes()!=(candidate/phase/name).read_bytes():
+                raise ValueError('SwiGLU ablation changed ownership, waits, order or memory')
+        stages=[list(struct.iter_unpack('<17Q16I',(p/phase/'stages.bin').read_bytes())) for p in (original,candidate)]
+        validate_swiglu_stages(*stages,phase)
+
+
+def validate_swiglu_stages(original,candidate,phase):
+    if len(original)!=len(candidate):raise ValueError('SwiGLU ablation changed the stage domain')
+    changed=0
+    for a,b in zip(original,candidate):
+        if a==b:continue
+        if (phase!='decode' or tuple(a[17:19])!=(0,2) or tuple(a[20:23])!=(16,12288,2048) or
+                a[31]!=1 or b[31]!=4 or
+                a[:31]+a[32:]!=b[:31]+b[32:]):
+            raise ValueError('SwiGLU ablation changed more than the registered implementation')
+        changed+=1
+    if phase=='decode' and changed!=28:
+        raise ValueError('SwiGLU ablation requires all 28 Qwen1.7 gate/up stages')
 
 
 def validate_qk_stages(original,candidate,phase):
