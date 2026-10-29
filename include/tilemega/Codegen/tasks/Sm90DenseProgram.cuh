@@ -228,10 +228,10 @@ struct Embedding {
 template<int Batch,int N,int K,int TN,int TK,int Slots,int WN,int WK,backend::Sm90DenseMoeMode Mode,
          int U,int Experts,int TopK,bool FloatWeights,int Page,unsigned W,unsigned X,unsigned Out,
          unsigned Schedule,unsigned Routes,unsigned Index,unsigned Counter,unsigned Map,
-         int RegisterStages>
+         int RegisterStages,bool SoftmaxAll=false>
 struct Moe {
   using Body=backend::Sm90DenseMoeGemm<Batch,N,K,TN,TK,Slots,WN,WK,Mode,U,Experts,TopK,FloatWeights,
-      Page,RegisterStages>;
+      Page,RegisterStages,SoftmaxAll>;
   static constexpr bool kUsesOperandRecord=true;
   static constexpr int kTasks=Body::kMaxTasks,kSharedBytes=Body::kSharedBytes,kRingSlots=Slots;
   // M4's routes are unknown to its predecessor's producer: M5 receives no stream.

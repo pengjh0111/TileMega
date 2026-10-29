@@ -2038,12 +2038,21 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     throw std::invalid_argument("unrecognized native dense GEMM family: "+weight);
   };
   solver::Sm90DenseShapeTable nk{};
+  bool moe_softmax_all=false,moe_softmax_seen=false;
   for(auto value:gemms) {
     auto g=dictionaryEntry(value,"gemms");unsigned f=family(g);
     std::array<int,2> shape={int(integerField(g,"n")),int(integerField(g,"k"))};
     if(nk[f][0] && nk[f]!=shape)
       throw std::invalid_argument("native dense family changes shape between layers");
     nk[f]=shape;
+    // The routing-weight convention is the model's, so every layer's router
+    // carries the same one; the expert stages take it to keep one signature.
+    if(f==5) {
+      bool all=optionalBoolField(g,"moe_softmax_all");
+      if(moe_softmax_seen && all!=moe_softmax_all)
+        throw std::invalid_argument("native MoE routers disagree on the softmax convention");
+      moe_softmax_all=all;moe_softmax_seen=true;
+    }
   }
   c.Validate(nk,batch);
   for(unsigned i=0;i<gemms.size();++i) {
@@ -2230,7 +2239,8 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
         if(e.family==7)
           map=std::to_string(map_index({integerField(g,"a"),4,64,16,k/64,experts,2*k,128,2*16*k,
               64,activation_rows,cfg.TileK()/64,1}));
-        e.tail=","+map+","+std::to_string(cfg.register_stages);
+        e.tail=","+map+","+std::to_string(cfg.register_stages)+
+            (moe_softmax_all?",true":",false");
       }else {
       std::string enum_op=op=="store"?"kStore":op=="residual"?"kResidual":
           op=="swiglu"?"kSwiGLU":"kArgmaxPartial";
