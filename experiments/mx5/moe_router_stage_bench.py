@@ -32,6 +32,63 @@ class LegacyTopK(C.Structure):
         (name, C.c_uint64) for name in ('row_stride', 'part_stride', 'rank_stride')] + [('weights_fp32', C.c_bool)]
 
 
+def validate_cost_inputs(epoch_path, keys_path, legacy_path):
+    def checked(record):
+        path = Path(record['path'])
+        if hashlib.sha256(path.read_bytes()).hexdigest() != record['sha256']:
+            raise ValueError('router cost input changed: ' + str(path))
+        return path
+    epoch = json.loads(epoch_path.read_text())
+    if epoch.get('kind') != 'mx5_moe_router_source_bound_cost_epoch' or epoch.get('final') is not False:
+        raise ValueError('expected a source-bound router cost epoch')
+    if epoch['R_cap'] != {'t512': 248, 't576': 220}:
+        raise ValueError('router epoch changes the prompt register budget')
+    if checked(epoch['driver']).resolve() != Path(__file__).resolve() or checked(epoch['legacy']).resolve() != legacy_path.resolve():
+        raise ValueError('router driver or legacy reference differs from epoch')
+    checked(epoch['compiler'])
+    checked(epoch['packing_helper'])
+    for name, digest in epoch['inputs'].items():
+        if hashlib.sha256((Path(epoch['root']) / name).read_bytes()).hexdigest() != digest:
+            raise ValueError('frozen router source changed: ' + name)
+    for record in epoch['query_records']:
+        checked(record)
+    queries = {(row['tag'], row['b']): row for row in epoch['eligible_keys']}
+    for key in json.loads(keys_path.read_text()):
+        build = json.loads(checked(key['build_record']).read_text())
+        base = json.loads(checked(key['r_next_reference']).read_text())
+        if key['source_digest'] != build['source_digest'] or build['source_digest'] != base['source_digest'] or base['source_digest'] != epoch['source_digest']:
+            raise ValueError('router key/build/reference source differs')
+        for name in ('threads', 'tn', 'wn', 'd', 'stream_k', 'pw', 'dispatch_gate_tn', 'dispatch_down_tn'):
+            if key[name] != build[name] or (name != 'pw' and base[name] != build[name]):
+                raise ValueError('router key/build coordinate differs: ' + name)
+        if key['pw'] != key['d'] or base['pw'] != 0:
+            raise ValueError('router requires the formula Pw=D and its Pw0 reference')
+        if checked(build['binary']).resolve() != Path(key['library']).resolve() or build['binary']['sha256'] != key['binary_sha256']:
+            raise ValueError('router cost binary differs')
+        checked(base['binary'])
+        kernel = next(row for row in build['kernels'] if row['batch'] == key['b'])
+        reference = next(row for row in base['kernels'] if row['batch'] == key['b'])
+        checked(kernel['MIR'])
+        if kernel['status'] != 'CPU_resource_fit' or reference['resources']['registers'] != key['r_next']:
+            raise ValueError('router cost has rejected resources or an invalid R_next')
+        for item, expected in ((build, kernel), (base, reference)):
+            query = queries[item['tag'], key['b']]
+            resources = expected['resources']
+            if query['binary'] != item['binary'] or query['registers'] != resources['registers'] or query['local_bytes'] != resources['stack_bytes'] or query['static_smem'] != resources['static_smem_bytes'] or query['resident'] != 1:
+                raise ValueError('router cost lacks its matching actual device query')
+        query = queries[build['tag'], key['b']]
+        if query['entry_returncode'] != 0 or not query['fit']:
+            raise ValueError('router selected payload failed its actual resource query')
+    return dict(source_digest=epoch['source_digest'], epoch_sha256=hashlib.sha256(epoch_path.read_bytes()).hexdigest(),
+        driver_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        legacy_binary_sha256=epoch['legacy']['sha256'])
+
+
+def equal_bits(torch, left, right):
+    return left.dtype == right.dtype and left.shape == right.shape and torch.equal(
+        left.contiguous().view(torch.uint8), right.contiguous().view(torch.uint8))
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--keys', type=Path, required=True)
@@ -39,9 +96,11 @@ def main():
     p.add_argument('--out', type=Path, required=True)
     p.add_argument('--round', type=int, choices=(1, 2, 3), required=True)
     p.add_argument('--iterations', type=int, default=128)
+    p.add_argument('--epoch', type=Path)
     a = p.parse_args()
     if os.environ.get('TILEMEGA_GPU_LOCK_HELD') != '1' or a.out.exists() or a.iterations < 3:
         p.error('guard, fresh output and at least three iterations are required')
+    scope = validate_cost_inputs(a.epoch, a.keys, a.legacy) if a.epoch else {}
     import torch as t
     from tilemega.serving.weights import _packed_gpu
     t.set_num_threads(4)
@@ -104,7 +163,7 @@ def main():
                     raise RuntimeError(f'router bench launch failed: {rc}, {key}')
                 t.cuda.synchronize()
                 current = [v.cpu().clone() for v in (logits, active, counts, mapping, weights, na, ug, ud)]
-                if previous is not None and not all(t.equal(x, y) for x, y in zip(previous, current)):
+                if previous is not None and not all(equal_bits(t, x, y) for x, y in zip(previous, current)):
                     raise AssertionError('router output/dispatch is not deterministic')
                 previous = current
                 values = stamps.cpu().tolist()
@@ -122,7 +181,7 @@ def main():
             if topk(lp, stream):
                 raise RuntimeError('legacy top-k reference launch failed')
             t.cuda.synchronize()
-            if not t.equal(weights, reference_weights):
+            if not equal_bits(t, weights, reference_weights):
                 raise AssertionError('router weights differ from actual legacy body')
             chosen = indices.cpu()
             experts = sorted(set(chosen.flatten().tolist()))
@@ -141,7 +200,10 @@ def main():
                 spread_ns=max(durations) - min(durations), iterations=iterations,
                 resources=dict(MTreg=resources[0], stack=resources[1], static_smem=resources[2], resident=resources[3]),
                 FP32_reference_passed=True, legacy_topk_weights_bitwise=True, dispatch_verified=True, repeat_bitwise=True,
-                diagnostic_only=True, qualified=False, final=False)
+                comparison='raw_bytes_equal', cost_protocol=bool(a.epoch), source_bound=bool(a.epoch),
+                raw_sample_only=True, diagnostic_only=not bool(a.epoch), qualified=False, final=False, **scope)
+            if scope:
+                row['implementation'] = 'mx5_moe_router_v2'
             f.write(json.dumps(row) + '\n')
             f.flush()
             print('MOE_ROUTER_STAGE_KEY_PASS', ordinal, b, key['stream_k'], key['pw'], row['median_ns'], flush=True)
