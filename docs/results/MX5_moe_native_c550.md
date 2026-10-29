@@ -154,3 +154,21 @@ Canonical test libraries now build from committed test/unit/mx sources; all
 five device-code images equal the originally executed fixtures. The portable
 pytest entry additionally runs all3 canonical fixtures successfully in one
 guarded job (three child processes). Prior5-fresh evidence is retained.
+
+Verified router-stage bench preparation:15 keys ×3 fresh processes pass
+CPU FP32 GEMM, actual legacy top-k/weight bit comparison, dispatch bounds
+and whole-output repeat checks. TN32/D1 B1/B16 medians (us) are TileRange/Pw0 50.27/132.29,
+StreamK/Pw0 48.18/131.39, StreamK/Pw1 49.67/131.30.
+The preparation uses runtime GEMM shapes and constexpr dispatch batch; its
+dispatch unit factors are TN64/64, recorded in each key. These are diagnostic
+values, not model M4 timing, solver costs or proof of a MoE TPOT result.
+All15 kernel instances have zero frame/static memory, no private/calls or
+steady-ring4160; MT118/151/152 by TR0/SK0/SK1.
+
+Verified grouped R_next epoch freezes headers and bench source before builds:
+208 configurations cover896 legal batch coordinates. Normal CPU builds
+fit183/reject25;799 eligible batch zero-queries confirm API0/frame0/static0/
+resident1, with zero kernel launches. Formula-derived down prefetch builds
+are in progress (109 builds for486 batch coordinates);313 gate/up
+coordinates retain no incoming prefetch. R_cap remains220/248. No qualified
+cost timing or per-plan 512 exception follows from these resource checks.
