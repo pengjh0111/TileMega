@@ -1226,3 +1226,12 @@ Verified isolatedanalyzer v4adds FP32-before-BF16 RMSrounding,exactQ/Knorm
 vectorlength,unitOresidualscale andF32headpartialnegativecases:fiveactual
 plans and70specificmutants pass;previous5/50result andfailedattemptsretained.
 No nativecompilerintegration orMoE GPUexecution yet.
+
+
+Verified isolated StageProgram CPUpreparation addsanexplicitfinal-token tail
+predicate forprompt,withmissingpromptpredicate rejected. Ten defaultdecode
+syntheticspecs (5layercounts×dense/MoE-shapedstage lists) generatebyte-identical
+text tooriginalemitter. Prompt24layer×6stagesspec keeps145stage metadata,
+usespast==63 forheadtail,andwrapsnextQKVweightlayerto0. Thisis emittertext
+verification,not acompiledpromptkernel,ABI,monotoniccounterorGPUlitmus
+result. Rootgeneratorunchanged. Raw:moe_stageprogram_cpu_preparation_v1.
