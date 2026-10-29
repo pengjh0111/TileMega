@@ -10,8 +10,9 @@ in the result. Unsupported queries retain their ACL error and a null value.
 No resource limit is set or reset; reported limits are not claimed as free cores.
 
 `verified-run`: CANN9.1.0/BiSheng15.0.5 compiles this target for dav-3510.
-Device results are not yet collected at this code checkpoint. G14 remains
-disabled for model plans. Eventual ID coverage cannot establish simultaneous
+`verified-run`: G8/G14 observe24/42 unique workers and expected subblock IDs
+on physical1/logical0. Read-only device and stream limits both return28 Cube,
+56 Vector cores. G14 remains disabled for model plans. ID coverage cannot establish simultaneous
 residency, FIFO progress, DMA visibility or a usable larger model topology.
 
 Build one target with the existing private environment:
@@ -41,3 +42,23 @@ wait. This distinguishes Cube/flag-local failures from the older message-passing
 litmus. It cannot admit G14 payload visibility or model residency. The optional
 group argument leaves all existing default-G2 probes unchanged. Build in a
 new private directory to preserve the earlier selected probe binary.
+
+`verified-run`: independent Cube G8/G14 runs pass the frozen BF16/CPU-FP32
+policy (max_abs0.003326893) and produce identical BF16 payload hashes. Each
+uses one launch. Evidence: `search/opt_independent_cube_workflow_v1.json`.
+
+`as2_arrival` then holds every actor at a scalar-only all-arrival condition.
+Every actor has separate512B entered/abort/completion cells and one writer;
+the verified1GHz system counter bounds each wait at2e9 ticks. It never waits
+inside a Cube/DMA operation. Timeout and peer-abort states are retained, and
+the host returns failure rather than resetting the device. One G8 sanity and
+**five fresh G14 processes pass**, with all42 actors completing, no aborts,
+correct mapping and intact guards. Maximum per-actor elapsed across G14 trials
+is16.569–22.165us; this is a control diagnostic, not a hardware throughput cost.
+Evidence: `search/opt_arrival_workflow_v1.json`.
+
+These results establish bounded scalar-wait liveness in these processes.
+They do not establish physical-core affinity or four-direction Cube/DMA payload
+visibility. The old G14 payload timeout is retained; G14 model capability
+stays off until a new bounded stale-cache/buffer-reuse message-passing test
+passes five fresh processes. The old failed probe was not retried unchanged.
