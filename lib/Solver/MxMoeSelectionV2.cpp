@@ -194,6 +194,55 @@ std::vector<MxMoeProgramChoiceV2> RankMxMoeProgramsV2(frontend::ModelPlan const&
   return result;
 }
 
+json::Value MxMoeCandidatesJsonV2(frontend::ModelPlan const& plan, int threads,
+    std::vector<json::Value> const& rows, std::vector<json::Value> const& rejections) {
+  using json::Array;
+  using json::Object;
+  using json::Value;
+  auto model = codegen::AnalyzeMxMoe(plan);
+  auto imported = ImportMxMoeCostRowsV2(model, threads, rows);
+  auto coverage = CheckMxMoeCostCoverageV2(model, threads, imported, rejections);
+  if (!coverage.Complete())
+    throw std::invalid_argument("MoE candidate preview requires complete geometric outcomes");
+  auto ranked = RankMxMoeProgramsV2(plan, threads, imported.stages, 4);
+  if (ranked.size() != 4)
+    throw std::invalid_argument("MoE candidate preview requires four legal complete programs");
+  constexpr std::array<char const*, 7> names{"qkv", "o", "router", "gate_up", "down", "head", "attention"};
+  auto class_json = [](codegen::MxDecodeClassV2 const& c) -> Value {
+    return Object{{"tn", c.tn}, {"wn", c.wn}, {"d", c.d},
+        {"part", c.stream_k ? "kStreamK" : "kTileRange"},
+        {"prefetch", c.prefetch}, {"r_next", c.r_next}};
+  };
+  Array candidates;
+  for (std::size_t i = 0; i < ranked.size(); ++i) {
+    auto const& choice = ranked[i];
+    auto const& c = choice.config;
+    Value pin = Object{{"qkv", class_json(c.qkv)}, {"o", class_json(c.o)},
+        {"router", class_json(c.router)}, {"gate_up", class_json(c.gate_up)},
+        {"down", class_json(c.down)}, {"head", class_json(c.head)},
+        {"threads", threads}, {"b_min", c.b_min}, {"attn_prefetch", c.attn_prefetch},
+        {"purpose", "manual"}};
+    Object evidence, costs;
+    for (std::size_t stage = 0; stage < names.size(); ++stage) {
+      auto source = choice.source_rows[stage];
+      Array indices;
+      for (auto index : imported.source_rows[stage][source]) indices.emplace_back(double(index));
+      evidence.emplace_back(names[stage], std::move(indices));
+      costs.emplace_back(names[stage], imported.stages[stage][source].ns);
+    }
+    candidates.emplace_back(Object{{"index", double(i)}, {"pin", Object{{"mx_moe_v2", pin}}},
+        {"predicted_tpot_ns", choice.predicted_ns}, {"predicted_stage_ns", costs},
+        {"evidence_row_indices", evidence}, {"prompt_pair_required", true}});
+  }
+  return Object{{"schema_version", 1}, {"kind", "mx5_moe_candidate_preview"},
+      {"batch", int(model.batch)}, {"threads", threads}, {"layers", int(model.layers.size())},
+      {"stages_per_step", int(model.layers.size() * 6 + 1)},
+      {"coverage", Object{{"expected", double(coverage.expected)}, {"measured", double(coverage.measured)},
+          {"rejected", double(coverage.rejected)}, {"missing", 0}}},
+      {"candidates", candidates}, {"diagnostic", true}, {"file_qualification_implied", false},
+      {"execution_authorized", false}, {"solver_selected", false}, {"final", false}, {"default_enabled", false}};
+}
+
 std::vector<MxMoeRanksV2> MxMoeKBestV2(std::array<std::vector<double>, 7> const& costs,
     std::size_t count, std::function<bool(MxMoeRanksV2 const&)> const& legal) {
   for (auto const& list : costs) {

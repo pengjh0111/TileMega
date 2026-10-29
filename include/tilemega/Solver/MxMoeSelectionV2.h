@@ -62,6 +62,10 @@ MxMoeCostCoverageV2 CheckMxMoeCostCoverageV2(codegen::MxMoeModel const& model,
 std::vector<MxMoeProgramChoiceV2> RankMxMoeProgramsV2(frontend::ModelPlan const& plan,
     int threads, std::array<std::vector<MxMoeStageCostV2>, 7> const& rows,
     std::size_t count = 4);
+// Complete geometric coverage is required even for a diagnostic preview. File
+// qualification and the per-plan thread policy belong to the caller.
+json::Value MxMoeCandidatesJsonV2(frontend::ModelPlan const& plan, int threads,
+    std::vector<json::Value> const& rows, std::vector<json::Value> const& rejections);
 
 // Lists already contain source-qualified costs, scaled by stage occurrences.
 // This merge does not qualify measurements or authorize a generated program.

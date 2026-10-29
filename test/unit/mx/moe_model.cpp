@@ -173,6 +173,72 @@ int main(int argc,char** argv) {
       auto incompatible = costs;
       incompatible[2].resize(1); incompatible[2][0].dispatch_down_tn = 128;
       assert(RankMxMoeProgramsV2(p, 512, incompatible).empty());
+      {
+        using tilemega::json::Array;
+        using tilemega::json::Object;
+        using tilemega::json::Value;
+        // Complete synthetic geometry exercises serialization and source-index
+        // mapping; these placeholders are never qualified measurements.
+        std::vector<Value> aggregate;
+        auto append = [&](std::string kind, Value key, int gu = 0, int dn = 0) {
+          std::string implementation = kind == "moe_gate_up" || kind == "moe_down_combine" ? "moe_grouped" : kind;
+          Value row = Object{{"kind", kind}, {"key", key}, {"median_ns", 100. + aggregate.size()},
+              {"p90_ns", 101. + aggregate.size()}, {"spread", .01}, {"processes", 3},
+              {"r_next", kind == "attention" ? 240 : 120},
+              {"rounds", Array{Object{{"round", 1}}, Object{{"round", 2}}, Object{{"round", 3}}}},
+              {"resources", Object{{"mtreg", 160}, {"local_bytes", 0}, {"static_smem_bytes", 0}, {"resident_ctas", 1}}},
+              {"provenance", Object{{"executor", "mx_static_stage_bench"}, {"implementation", "mx5_" + implementation + "_v2"},
+                  {"source_sha256", std::string(64, 'a')}, {"binary_sha256", std::string(64, 'b')}, {"base_head", "synthetic_cpu_contract"}}}};
+          if (gu) row.Set("dispatch_context", Object{{"gate_up_tn", gu}, {"down_tn", dn}});
+          aggregate.push_back(row);
+        };
+        constexpr std::array<char const*, 6> names{"qkv", "o", "router", "gate_up", "down", "head"};
+        constexpr std::array<char const*, 6> kinds{"gemm", "gemm", "moe_router", "moe_gate_up", "moe_down_combine", "head"};
+        for (unsigned stage = 0; stage < names.size(); ++stage) {
+          auto shape = MxMoeGeometryV2(m, names[stage], b);
+          for (auto const& item : MxMoeGemmDomainV2(m, names[stage], b)) {
+            Value key = Object{{"n", shape.n}, {"k", shape.k}, {"b", int(b)}, {"threads", 512},
+                {"tn", item.tn}, {"wn", item.wn}, {"depth", item.d}, {"prefetch", stage == 3 ? 0 : item.d}};
+            if (stage != 5) { key.Set("op", shape.op); key.Set("norm", shape.norm); key.Set("part", int(!item.stream_k)); }
+            if (shape.n_active) key.Set("n_active", shape.n_active);
+            if (stage == 2) for (int gu : {32, 64, 128}) for (int dn : {16, 32, 64, 128}) append(kinds[stage], key, gu, dn);
+            else append(kinds[stage], key);
+          }
+        }
+        for (int bmin : {1, 2, 4, 8}) for (int length : {65, 256, 512, 768, 1088})
+          append("attention", Object{{"dim", 128}, {"q", 8}, {"hkv", 4}, {"b", int(b)},
+              {"length", length}, {"b_min", bmin}, {"qk_norm", 1}, {"capacity", 1088},
+              {"threads", 512}, {"prefetch_kind", 0}});
+        auto preview = MxMoeCandidatesJsonV2(p, 512, aggregate, {});
+        assert(preview.At("coverage").At("missing").AsNumber("candidate number") == 0);
+        assert(!preview.At("execution_authorized").AsBool("candidate flag") && !preview.At("file_qualification_implied").AsBool("candidate flag"));
+        auto const& candidates = preview.At("candidates").AsArray("candidate array");
+        assert(candidates.size() == 4);
+        double previous = 0;
+        for (auto const& candidate : candidates) {
+          double prediction = candidate.At("predicted_tpot_ns").AsNumber("candidate number"), total = 0;
+          assert(prediction >= previous); previous = prediction;
+          auto const& evidence = candidate.At("evidence_row_indices");
+          auto const& pin = candidate.At("pin").At("mx_moe_v2");
+          for (char const* name : {"qkv", "o", "router", "gate_up", "down", "head", "attention"}) {
+            auto const& indices = evidence.At(name).AsArray("candidate array");
+            bool attention = std::string(name) == "attention", head = std::string(name) == "head";
+            assert(indices.size() == (attention ? 5 : 1));
+            total += candidate.At("predicted_stage_ns").At(name).AsNumber("candidate number") * (head ? 1 : layers);
+            auto const& first = aggregate.at(std::size_t(indices[0].AsNumber("candidate number"))).At("key");
+            if (!attention) assert(first.At("tn").AsNumber("candidate number") == pin.At(name).At("tn").AsNumber("candidate number"));
+            else assert(first.At("b_min").AsNumber("candidate number") == pin.At("b_min").AsNumber("candidate number"));
+          }
+          assert(total == prediction && candidate.At("prompt_pair_required").AsBool("candidate flag"));
+          auto const& router = aggregate.at(std::size_t(evidence.At("router").AsArray("candidate array")[0].AsNumber("candidate number")));
+          assert(router.At("dispatch_context").At("gate_up_tn").AsNumber("candidate number") == pin.At("gate_up").At("tn").AsNumber("candidate number"));
+        }
+        aggregate.pop_back();
+        bool rejected = false;
+        try { MxMoeCandidatesJsonV2(p, 512, aggregate, {}); }
+        catch (std::invalid_argument const&) { rejected = true; }
+        assert(rejected);
+      }
       std::cout << "PASS MoE ranked program assembly: dispatch contexts, layer costs, source rows\n";
     }
     std::string paired_buffers;
