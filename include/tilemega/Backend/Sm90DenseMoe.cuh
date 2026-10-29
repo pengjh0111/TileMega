@@ -126,6 +126,15 @@ struct Sm90DenseRouterFinish {
       for(int r=0;r<count;++r)p.schedule[Schedule::Row(slot,r)]=rows[r];
     }
     if(tid==0)p.schedule[Schedule::Active()]=offsets[0]+offsets[1]+offsets[2]+offsets[3];
+    // MR7 item 2: clear the fused stage's per-slot counters here, beside the
+    // schedule record. M4's closing grid barrier orders these stores before
+    // any M56 task of this layer, and this layer's M56 has not started; the
+    // previous layer's finished before that barrier. Only active slots are
+    // ever waited on, so a stale inactive counter is never read. A counter
+    // per slot (not an epoch per expert) is required: n_active differs by
+    // layer, so an inactive slot's count would not advance and an epoch
+    // comparison would deadlock.
+    if(p.gate_up_done && tid<Experts)p.gate_up_done[tid]=0;
   }
 };
 
@@ -443,6 +452,291 @@ struct Sm90DenseMoeGemm {
     if(threadIdx.x<128)Consume(p,state,a,b,scratch,tasks,phase);
     else {
       Produce<Prefix>(p,state,a,b,tasks,phase,streamed,first);
+      if(threadIdx.x==128)tail();
+    }
+    __syncthreads();
+  }
+};
+
+// MR7 (prompt §4 A2): M5 and M6 fused into one stage M56. Tasks [0, n T_gu)
+// are gate_up and [n T_gu, n (T_gu + T_dn)) are down, so with CTA b taking
+// t = b + k G every CTA's gate_up tasks precede its down tasks. gu_done[a]
+// counts the gate_up tasks of active slot a that have published h; a down
+// task's producer issues the weights it can (they do not depend on h), then
+// waits for gu_done[a] >= T_gu before reading h by TMA.
+//
+// Why it cannot deadlock: a gate_up task never waits, and in every CTA the
+// gate_up tasks come before the down tasks, so the CTAs holding the gate_up
+// tasks of slot a always reach their releases; the producer's spin is in the
+// producer warp and does not block its own CTA's consumer.
+// Why x'' may be written in place: tile j's combine waits for all n_active
+// down tasks (a, j), and every down task waited for all T_gu gate_up tasks of
+// its slot, so every gate_up read of x' has retired before any combine writes
+// x''.
+template<int Batch,int NGateUp,int NDown,int Hidden,int TNGu,int TKGu,int TNDn,int TKDn,int Slots,
+         int WNGu,int WKGu,int WNDn,int WKDn,int U,int Experts,int TopK,bool FloatWeights,
+         int Page=0,int RegisterStages=1>
+struct Sm90DenseMoeFusedGemm {
+  using Element=cutlass::bfloat16_t;
+  using Async=codegen::executor::Async<arch::Sm90>;
+  using Schedule=Sm90DenseMoeSchedule<Experts>;
+  // The experts' intermediate width: gate_up emits the two interleaved halves.
+  static constexpr int kIntermediate=NGateUp/2;
+  using Gu=Sm90DenseMoeGemm<Batch,NGateUp,Hidden,TNGu,TKGu,Slots,WNGu,WKGu,
+      Sm90DenseMoeMode::kGateUp,U,Experts,TopK,FloatWeights,Page,RegisterStages>;
+  using Dn=Sm90DenseMoeGemm<Batch,NDown,kIntermediate,TNDn,TKDn,Slots,WNDn,WKDn,
+      Sm90DenseMoeMode::kDown,U,Experts,TopK,FloatWeights,Page,RegisterStages>;
+  static constexpr int kTilesGu=NGateUp/TNGu,kTilesDn=NDown/TNDn;
+  static constexpr int kIterGu=Hidden/TKGu,kIterDn=kIntermediate/TKDn;
+  static constexpr int kRows=Sm90DenseLayout::ActivationRows(Batch);
+  static constexpr int kThreads=160;
+  // One ring for both task types: a slot takes the larger of the two.
+  static constexpr int kMaxTK=TKGu>TKDn?TKGu:TKDn;
+  static constexpr int kWeightSlot=TNGu*TKGu>TNDn*TKDn?TNGu*TKGu:TNDn*TKDn;
+  static constexpr int kSlotBytesGu=2*TKGu*(kRows+TNGu),kSlotBytesDn=2*TKDn*(kRows+TNDn);
+  static constexpr auto kLayout=Sm90DenseLayout::MoeFused(TNGu,TKGu,TNDn,TKDn,Slots,WKGu,WKDn,Batch);
+  static constexpr int kSharedBytes=kLayout.end;
+  static constexpr int kMaxTasks=Experts*(kTilesGu+kTilesDn);
+  // M4's routes are unknown to its predecessor, so M56 receives no D6 stream.
+  static constexpr int kMaxPreissue=0;
+  static_assert(Batch<=Schedule::kMaxRows && Experts<=128 && TopK<=8);
+  static_assert(TNGu%(2*U)==0,"gate_up interleaves the two halves by U");
+  static_assert(Page==0 || (Page==64 && TNGu%32==0 && TNDn%32==0));
+
+  __device__ static __forceinline__ int Active(Sm90DenseMoeFusedOperands const& p) {
+    return p.schedule[Schedule::Active()];
+  }
+  __device__ static __forceinline__ int TotalTasks(Sm90DenseMoeFusedOperands const& p) {
+    return Active(p)*(kTilesGu+kTilesDn);
+  }
+  // Task t: gate_up while t < n T_gu, else down. `slot` is the active expert
+  // slot a and `tile` the column tile j of that task's own family.
+  struct Task {int slot,tile;bool down;};
+  // MR1's record, read once per task. The component bodies each nest their
+  // own, so the fused stage carries one for both task types.
+  struct Record {int expert,count,route;};
+  __device__ static __forceinline__ Task Of(int t,int active) {
+    int split=active*kTilesGu;
+    if(t<split)return {t/kTilesGu,t%kTilesGu,false};
+    int u=t-split;return {u/kTilesDn,u%kTilesDn,true};
+  }
+  // The component bodies' epilogues read only these fields.
+  __device__ static __forceinline__ Sm90DenseMoeOperands GateUpOperands(
+      Sm90DenseMoeFusedOperands const& p) {
+    return {nullptr,p.weight_gate_up,p.input,p.hidden,p.schedule,p.route_weights,p.route_index,p.x,
+        p.counter,p.epsilon,nullptr};
+  }
+  __device__ static __forceinline__ Sm90DenseMoeOperands DownOperands(
+      Sm90DenseMoeFusedOperands const& p) {
+    return {p.activation,p.weight_down,p.input,p.output,p.schedule,p.route_weights,p.route_index,p.x,
+        p.counter,p.epsilon,nullptr};
+  }
+
+  // MR7 item 4: acquire gu_done[a] >= T_gu, then order the async proxy after
+  // it so the TMA of h observes the gate_up stores.
+  __device__ static __forceinline__ void WaitGateUp(unsigned const* gate_up_done,int slot) {
+    unsigned seen;
+    do {
+      asm volatile("ld.acquire.gpu.global.u32 %0, [%1];":"=r"(seen)
+          :"l"(gate_up_done+slot):"memory");
+    } while(seen<unsigned(kTilesGu));
+    Async::ProxyAsyncGlobalFence();
+  }
+
+  __device__ static __noinline__ void ProduceGateUp(Sm90DenseMoeFusedOperands const& p,
+      Sm90DenseRingState& state,Element* a,Element* b,Task task,int lane,unsigned& phase,
+      int& sequence,Record record) {
+    auto const* tiles=Gu::TaskTiles(p.weight_gate_up,record.expert,task.slot*kTilesGu+task.tile);
+    int token=record.route/TopK;
+    for(int tile=0;tile<kIterGu;++tile) {
+      int slot=(sequence++)%Slots;
+      Async::Wait(state.empty+slot,(phase>>slot)&1);
+      // The producer lanes gather the slot's rows of x' (one TK segment each)
+      // into the swizzled slot; a non-.noinc cp.async arrive adds a pending
+      // arrival its copies retire, so lane 0's expect_tx must follow them.
+      auto base=Async::Shared(a+slot*kRows*kMaxTK);
+      for(int first=0;first<record.count*(TKGu/8);first+=32) {
+        int chunk=first+lane,r=chunk/(TKGu/8),col=(chunk%(TKGu/8))*8;
+        int row_token=__shfl_sync(0xffffffff,token,r&(Schedule::kMaxRows-1));
+        if(chunk<record.count*(TKGu/8))
+          asm volatile("cp.async.cg.shared.global [%0], [%1], 16;"::
+              "r"(base+Gu::Swizzled(r,col)),
+              "l"(p.input+std::size_t(row_token)*Hidden+tile*TKGu+col):"memory");
+      }
+      asm volatile("cp.async.mbarrier.arrive.shared::cta.b64 [%0];"::
+          "r"(Async::Shared(state.full+slot)):"memory");
+      __syncwarp();
+      if(lane==0) {
+        Async::ExpectTx(state.full+slot,2*TNGu*TKGu);
+        Gu::CopyWeights(b+slot*kWeightSlot,tiles,task.slot*kTilesGu+task.tile,tile,state.full+slot);
+      }
+      phase^=1u<<slot;
+    }
+  }
+
+  // The weights do not depend on h, so they are issued for the slots this
+  // task can claim before the producer waits on gu_done (MR7 item 4).
+  __device__ static __noinline__ void ProduceDown(Sm90DenseMoeFusedOperands const& p,
+      Sm90DenseRingState& state,Element* a,Element* b,Task task,int lane,unsigned& phase,
+      int& sequence,Record record) {
+    auto const* tiles=Dn::TaskTiles(p.weight_down,record.expert,task.slot*kTilesDn+task.tile);
+    constexpr int kAhead=Slots<kIterDn?Slots:kIterDn;
+    int first=sequence;
+    for(int tile=0;tile<kAhead;++tile) {
+      int slot=(sequence++)%Slots;
+      Async::Wait(state.empty+slot,(phase>>slot)&1);
+      if(lane==0) {
+        Async::ExpectTx(state.full+slot,kSlotBytesDn);
+        Dn::CopyWeights(b+slot*kWeightSlot,tiles,task.slot*kTilesDn+task.tile,tile,state.full+slot);
+      }
+      phase^=1u<<slot;
+    }
+    if(lane==0) {
+      WaitGateUp(p.gate_up_done,task.slot);
+      // h of the slots whose weights are already in flight, then the rest.
+      for(int tile=0;tile<kAhead;++tile)
+        Async::Tensor4D(a+((first+tile)%Slots)*kRows*kMaxTK,p.activation,0,0,tile*(TKDn/64),
+            task.slot,state.full+(first+tile)%Slots);
+    }
+    for(int tile=kAhead;tile<kIterDn;++tile) {
+      int slot=(sequence++)%Slots;
+      Async::Wait(state.empty+slot,(phase>>slot)&1);
+      if(lane==0) {
+        Async::ExpectTx(state.full+slot,kSlotBytesDn);
+        Dn::CopyWeights(b+slot*kWeightSlot,tiles,task.slot*kTilesDn+task.tile,tile,state.full+slot);
+        Async::Tensor4D(a+slot*kRows*kMaxTK,p.activation,0,0,tile*(TKDn/64),task.slot,
+            state.full+slot);
+      }
+      phase^=1u<<slot;
+    }
+  }
+
+  __device__ static __forceinline__ void Produce(Sm90DenseMoeFusedOperands const& p,
+      Sm90DenseRingState& state,Element* a,Element* b,int tasks,unsigned phase,int active) {
+    Sm90DenseRoles::Producer();
+    int lane=threadIdx.x&31;
+    // x', h and the schedule were written with generic stores before the grid
+    // barrier; the async proxy must observe them.
+    if(lane==0)Async::ProxyAsyncGlobalFence();
+    int sequence=0;
+    for(int local=0;local<tasks;++local) {
+      int t=int(blockIdx.x)+local*int(gridDim.x);
+      Task task=Of(t,active);
+      // The record is this task's own; a gate_up task also needs its rows.
+      int a_index=min(task.slot,Experts-1);
+      Record record{p.schedule[Schedule::Expert(a_index)],
+          p.schedule[Schedule::Count(a_index)],
+          lane<Schedule::kMaxRows?p.schedule[Schedule::Row(a_index,lane)]:0};
+      if(task.down)ProduceDown(p,state,a,b,task,lane,phase,sequence,record);
+      else ProduceGateUp(p,state,a,b,task,lane,phase,sequence,record);
+    }
+    if(lane==0 && tasks)for(int slot=0;slot<Slots;++slot)
+      state.producer_generations[slot]=(phase>>slot)&1;
+    __syncwarp();
+  }
+
+  // U7's preset: the two MMA configurations are never live together, so each
+  // task type runs in its own __noinline__ consumer.
+  template<class Body,int Iterations,int TN,int TK,int WN,int WK>
+  __device__ static __forceinline__ void ConsumeTask(Sm90DenseMoeOperands const& q,
+      Sm90DenseRingState& state,Element* a,Element* b,float* scratch,int t,unsigned& phase,
+      int& sequence,int* flag) {
+    using namespace cute;
+    int tid=threadIdx.x,lane=tid%(32*WN),split=tid/(32*WN);
+    float* norms=scratch+WK*16*TN;
+    typename Body::Core::Mma mma;auto thread=mma.get_slice(lane);
+    auto owned=thread.partition_C(make_identity_tensor(Shape<_16,Int<TN>>{}));
+    auto accum=partition_fragment_C(mma,Shape<_16,Int<TN>>{});clear(accum);
+    float squares[2]={0,0};
+    for(int iteration=0;iteration<Iterations;++iteration) {
+      int slot=(sequence++)%Slots;
+      Async::Wait(state.full+slot,(phase>>slot)&1);phase^=1u<<slot;
+      auto* sa=a+slot*kRows*kMaxTK;auto* sb=b+slot*kWeightSlot;
+      if constexpr(WK==1)Body::Core::template MmaSlice<0>(sa,sb,accum,squares);
+      else if constexpr(WK==2) {
+        if(split==0)Body::Core::template MmaSlice<0>(sa,sb,accum,squares);
+        else Body::Core::template MmaSlice<1>(sa,sb,accum,squares);
+      }else {
+        if(split==0)Body::Core::template MmaSlice<0>(sa,sb,accum,squares);
+        else if(split==1)Body::Core::template MmaSlice<1>(sa,sb,accum,squares);
+        else if(split==2)Body::Core::template MmaSlice<2>(sa,sb,accum,squares);
+        else Body::Core::template MmaSlice<3>(sa,sb,accum,squares);
+      }
+      Async::FenceProxyAsyncShared();
+      Async::Arrive(state.empty+slot);
+    }
+    if constexpr(Body::kInputNorm)
+      #pragma unroll
+      for(int r=0;r<2;++r) {
+        squares[r]+=__shfl_xor_sync(0xffffffff,squares[r],1);
+        squares[r]+=__shfl_xor_sync(0xffffffff,squares[r],2);
+      }
+    for(int i=0;i<size(accum);++i)
+      scratch[split*16*TN+get<0>(owned(i))*TN+get<1>(owned(i))]=accum(i);
+    if constexpr(Body::kInputNorm)
+      if((tid/32)%WN==0 && (tid&3)==0) {
+        int row=(tid&31)/4;
+        norms[split*16+row]=squares[0];norms[split*16+row+8]=squares[1];
+      }
+    codegen::executor::ComputeSync();
+    Body::Epilogue(q,scratch,norms,t,flag);
+    codegen::executor::ComputeSync();
+  }
+  __device__ static __noinline__ void ConsumeGateUp(Sm90DenseMoeFusedOperands const& p,
+      Sm90DenseRingState& state,Element* a,Element* b,float* scratch,Task task,unsigned& phase,
+      int& sequence,int* flag) {
+    auto q=GateUpOperands(p);
+    ConsumeTask<Gu,kIterGu,TNGu,TKGu,WNGu,WKGu>(q,state,a,b,scratch,
+        task.slot*kTilesGu+task.tile,phase,sequence,flag);
+    // MR7 item 3: h's rows are published; release them to the down tasks.
+    if(threadIdx.x==0)
+      asm volatile("red.release.gpu.global.add.u32 [%0], 1;"::
+          "l"(p.gate_up_done+task.slot):"memory");
+  }
+  __device__ static __noinline__ void ConsumeDown(Sm90DenseMoeFusedOperands const& p,
+      Sm90DenseRingState& state,Element* a,Element* b,float* scratch,Task task,unsigned& phase,
+      int& sequence,int* flag) {
+    auto q=DownOperands(p);
+    ConsumeTask<Dn,kIterDn,TNDn,TKDn,WNDn,WKDn>(q,state,a,b,scratch,
+        task.slot*kTilesDn+task.tile,phase,sequence,flag);
+  }
+
+  __device__ static __forceinline__ void Consume(Sm90DenseMoeFusedOperands const& p,
+      Sm90DenseRingState& state,Element* a,Element* b,float* scratch,int tasks,unsigned phase,
+      int active) {
+    Sm90DenseRoles::Consumer();
+    constexpr int kScratchTN=TNGu>TNDn?TNGu:TNDn,kScratchWK=WKGu>WKDn?WKGu:WKDn;
+    auto* flag=reinterpret_cast<int*>(scratch+kScratchWK*16*kScratchTN+64);
+    int sequence=0;
+    for(int local=0;local<tasks;++local) {
+      int t=int(blockIdx.x)+local*int(gridDim.x);
+      Task task=Of(t,active);
+      if(task.down)ConsumeDown(p,state,a,b,scratch,task,phase,sequence,flag);
+      else ConsumeGateUp(p,state,a,b,scratch,task,phase,sequence,flag);
+    }
+    if(threadIdx.x==0 && tasks)
+      for(int slot=0;slot<Slots;++slot)state.consumer_generations[slot]=(phase>>slot)&1;
+  }
+
+  template<int Prefix=0,class Tail=Sm90DenseNoTail>
+  __device__ static __forceinline__ void Run(Sm90DenseMoeFusedOperands const& p,char* shared,
+      Sm90DenseRingState* persistent=nullptr,Tail tail={},bool streamed=true) {
+    static_assert(Prefix==0,"M56 receives no stream: M4 does not know the routes");
+    (void)streamed;
+    auto& state=persistent?*persistent:*reinterpret_cast<Sm90DenseRingState*>(shared);
+    auto* a=reinterpret_cast<Element*>(shared+1024);
+    auto* b=a+Slots*kRows*kMaxTK;
+    auto* scratch=reinterpret_cast<float*>(shared+kLayout.scratch);
+    unsigned phase=0;
+    #pragma unroll
+    for(int i=0;i<Slots;++i)phase|=(threadIdx.x<128?
+        state.consumer_generations[i]:state.producer_generations[i])<<i;
+    int active=Active(p);
+    int total=active*(kTilesGu+kTilesDn);
+    int tasks=total/int(gridDim.x)+(int(blockIdx.x)<total%int(gridDim.x));
+    if(threadIdx.x<128)Consume(p,state,a,b,scratch,tasks,phase,active);
+    else {
+      Produce(p,state,a,b,tasks,phase,active);
       if(threadIdx.x==128)tail();
     }
     __syncthreads();

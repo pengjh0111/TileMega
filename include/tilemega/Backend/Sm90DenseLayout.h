@@ -50,6 +50,19 @@ struct Sm90DenseLayout {
     }
     return result;
   }
+  // MR7's fused expert stage (M56): one contiguous ring whose activation and
+  // weight slots each take the larger of the two task geometries, then the
+  // larger scratch tile. Both task types share the ring, so one slot must
+  // hold either of them.
+  static constexpr Sm90DenseLayout MoeFused(int tn_gu,int tk_gu,int tn_dn,int tk_dn,int slots,
+      int wk_gu,int wk_dn,int batch) {
+    int rows=ActivationRows(batch);
+    int tk=tk_gu>tk_dn?tk_gu:tk_dn,tn=tn_gu>tn_dn?tn_gu:tn_dn;
+    int slot=2*tn_gu*tk_gu>2*tn_dn*tk_dn?2*tn_gu*tk_gu:2*tn_dn*tk_dn;
+    int wk=wk_gu>wk_dn?wk_gu:wk_dn;
+    int weight=1024+2*rows*slots*tk,partial=weight+slots*slot;
+    return {weight,0,partial,partial+64*wk*tn+512};
+  }
   // Sm90DenseAttentionBody::Storage: K/V ring, Q and two new-row panels,
   // then the four-warp merge area; the struct is 1024-byte aligned.
   // dsmem (D10b): the chunk-group leader's inbox of S normalized partials
