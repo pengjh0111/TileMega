@@ -232,10 +232,21 @@ def run_units(units):
     errors = []
 
     def one(item):
+        # `after`: units that must have completed and passed first (P-CORR
+        # before P-FINAL); a unit whose prerequisite failed is skipped.
+        after = [Path(u) for u in item.get('after', [])]
+        while not all((u / 'unit.json').exists() for u in after) or \
+                any(read(u / 'result.json').get('pass') is False for u in after):
+            if any(str(u) in errors or ((u / 'unit.json').exists() and
+                                        read(u / 'result.json').get('pass') is False) for u in after):
+                errors.append(item['unit'])
+                print(json.dumps({'unit': item['unit'], 'skipped': 'a prerequisite unit failed'}), flush=True)
+                return
+            time.sleep(30)
         try:
             result = run_unit(item['spec'], item['unit'], item['class'], nodes=item.get('nodes'))
             print(json.dumps({'unit': item['unit'], **{k: result.get(k) for k in
-                  ('decision', 'change_pct', 'threshold_pct', 'winner')}}), flush=True)
+                  ('decision', 'change_pct', 'threshold_pct', 'winner', 'c1_pass', 'c2_pass')}}), flush=True)
         except Exception as error:
             errors.append(item['unit'])
             print(json.dumps({'unit': item['unit'], 'error': str(error)}), flush=True)
