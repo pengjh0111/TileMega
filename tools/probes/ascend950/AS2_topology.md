@@ -4,6 +4,10 @@
 performs no Cube work or cross-core wait. Each actor writes a cache-line-separated
 record of its role, raw block/subblock ID and TileMega worker ID. The host checks
 all expected records, inactive slots and guards. One launch requests G MIX blocks.
+Read-only `aclrtGetDeviceInfo`, `aclrtGetDeviceResLimit` and
+`aclrtGetStreamResLimit` observations are flushed before launch and retained
+in the result. Unsupported queries retain their ACL error and a null value.
+No resource limit is set or reset; reported limits are not claimed as free cores.
 
 `verified-run`: CANN9.1.0/BiSheng15.0.5 compiles this target for dav-3510.
 Device results are not yet collected at this code checkpoint. G14 remains
