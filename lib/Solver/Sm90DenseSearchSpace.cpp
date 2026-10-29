@@ -76,8 +76,12 @@ std::vector<Sm90DenseGemm> Sm90DenseSearchSpace::FamilyCandidates(unsigned famil
       auto fits=[&] {return g.SharedBytes(batch,residual)-1024<=arena;};
       // D5 ring rule: the whole task in flight when it fits the arena in at
       // most eight slots; otherwise the fewest slots covering min(W_cta, 48 KB).
+      // MR2: an expert stream (384 KB per task at Qwen3) keeps the most slots
+      // the arena holds; 48 KB in flight left it latency-bound (R3 MC2).
       bool found=false;
-      if(k/tk<=8) {g.slots=std::max(2,k/tk);found=fits();}
+      if(family>=6)
+        for(int slots=8;slots>=2 && !found;--slots) {g.slots=slots;found=fits();}
+      if(!found && k/tk<=8) {g.slots=std::max(2,k/tk);found=fits();}
       for(int slots=2;slots<=8 && !found;++slots) {
         g.slots=slots;
         if(double(slots)*g.slot_bytes>=std::min(w_cta,48.0*1024)) {
