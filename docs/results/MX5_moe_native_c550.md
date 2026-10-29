@@ -385,3 +385,20 @@ no timing rounds; this is outside the150-row512 reuse scope. A new frozen
 130-key source/normal-command/resource-branch check passes, with three-process
 head timing queued after regular795 costs on card7. No costs are backfilled.
 Raw: `moe_head576_cost_scope_v1`.
+
+Verified the host coverage checker enumerates all six GEMM domains, all12
+router dispatch contexts and the20 attention grid coordinates per request.
+It reports missing coordinates and rejects duplicated/conflicting outcomes,
+measurement fields in rejections and rejections with fitting resources.
+Synthetic complete/mixed domains and both host CTests pass;949 actual fitting
+grouped/head rows plus97 actual grouped rejections pass through ten CPU
+requests and correctly retain missing other classes. This is geometry coverage,
+not file/branch qualification or plan authorization. Raw:
+`moe_cost_coverage_actual_cpu_v1`.
+
+Verified actual cucc dependency preprocessing for grouped, router, regular
+GEMM, head and attention identifies current adopted project header bytes
+exactly matching the frozen computation bodies. This uses the include graph,
+so unrelated host solver edits do not falsely invalidate body-source identity.
+No GPU launch or cost/model gate follows from preprocessing. Raw:
+`moe_body_source_closure_cpu_v1/ACTUAL_FIVE_BODY_HEADER_CLOSURES_MATCH_ADOPTED_CPU.json`.
