@@ -97,7 +97,7 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& work,
   pre[0]=c.weight_stream && resident(last);
   pre[1]=c.weight_stream && !wide && c.attention.FullyResident(575);
   pre[4]=c.weight_stream && resident(last);
-  if(c.moe) {pre[5]=c.weight_stream && resident(1);pre[7]=c.weight_stream && resident(6);}
+  if(c.moe) {pre[5]=c.weight_stream && resident(1);pre[7]=c.weight_stream && resident(6) && !c.expert_fuse;}
   else {pre[2]=c.weight_stream && resident(1);pre[3]=c.weight_stream && resident(2);}
   for(unsigned f:c.Active()) {
     // Layer 0's qkv follows the ring-less embedding.
@@ -112,6 +112,21 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& work,
     }
   }
   int grid=Grid(c.residency);
+  // MR7: M56 runs both expert task lists in one stage. Fusion removes the M5
+  // -> M6 grid barrier, and the down producer issues its first weight slots
+  // before it waits on gu_done, so M6's first-byte latency overlaps M5's tail.
+  if(c.expert_fuse) {
+    auto at=[&](char const* kind) {
+      return std::find_if(p.stages.begin(),p.stages.end(),[&](auto const& s) {return s.kind==kind;});
+    };
+    auto gu=at("expert_gate_up"),dn=at("expert_down");
+    Sm90DensePrediction::Stage fused{"expert_fused",work.layers,
+        gu->ns+dn->ns-constants_.Barrier(grid)-constants_.dram_latency,
+        json::Object{{"gate_up",gu->terms},{"down",dn->terms},{"barrier_removed",constants_.Barrier(grid)},
+                     {"first_byte_overlapped",constants_.dram_latency}}};
+    p.stages.erase(dn);p.stages.erase(at("expert_gate_up"));
+    p.stages.push_back(std::move(fused));
+  }
   Sm90DensePrediction::Stage s{"attention",work.layers};
   s.ns=Attention(work,c.attention,c.residency,&s.terms);
   // D8: the boundary before attention is a group counter wait, not V3.

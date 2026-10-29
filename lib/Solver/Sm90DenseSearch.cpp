@@ -89,11 +89,23 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
       // A cluster launch is a choice only through what uses it (D10b/D10c).
       if(cluster>1 && !c.attention.dsmem && std::none_of(c.gemms.begin(),c.gemms.end(),
           [](Sm90DenseGemm const& g) {return g.multicast;}))return;
-      for(bool group_wait:{false,true})for(bool embed_la:{false,true}) {
-        c.group_wait=group_wait;c.embed_la=embed_la;
-        if(!space.Legal(c) || !seen.insert(c.ToJson().Dump(0)).second)continue;
-        pool.push_back({c,cost.Predict(work,c),origin+(group_wait?"_group":"")+
-            (embed_la?"_emb_la":"_emb_stage")});
+      for(bool group_wait:{false,true})for(bool embed_la:{false,true})for(bool fuse:{false,true}) {
+        if(fuse && !space.moe)continue;
+        Sm90DenseCoordinates d=c;
+        d.group_wait=group_wait;d.embed_la=embed_la;d.expert_fuse=fuse;
+        // MR7: one ring serves both expert task types, so a fused candidate
+        // takes the deepest common slot count whose fused storage fits.
+        if(fuse) {
+          bool fits=false;
+          for(int slots=8;slots>=2 && !fits;--slots) {
+            d.gemms[6].slots=d.gemms[7].slots=slots;
+            fits=space.Legal(d);
+          }
+          if(!fits)continue;
+        }
+        if(!space.Legal(d) || !seen.insert(d.ToJson().Dump(0)).second)continue;
+        pool.push_back({d,cost.Predict(work,d),origin+(group_wait?"_group":"")+
+            (embed_la?"_emb_la":"_emb_stage")+(fuse?"_fused":"")});
       }
     };
     std::string prefix="r"+std::to_string(residency)+(cluster>1?"_c"+std::to_string(cluster):"");
