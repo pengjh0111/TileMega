@@ -55,7 +55,9 @@ def validate_sample(row, key, epoch, epoch_ref, pid, number, query):
         raise ValueError('router sample has invalid quantiles/spread')
 
 
-def aggregate(directory, require_complete=True):
+def aggregate(directory, require_complete=True, *, physical_card=6):
+    if type(physical_card) is not int or physical_card not in (7, 6, 5, 4):
+        raise ValueError('router collector requires an explicit permitted physical card')
     directory = Path(directory).resolve()
     request = json.loads((directory / 'ACTUAL_SOURCE_BOUND_COST_INPUTS_CPU_VALIDATED.json').read_text())
     epoch_path, raw = checked(request['epoch_file'])
@@ -87,7 +89,7 @@ def aggregate(directory, require_complete=True):
                 raise ValueError('router batch proof is being written')
             continue
         proof = json.loads(proof_raw)
-        if proof['job'] != job or proof['scope'] != request['epoch_file'] or proof['card'] != 6:
+        if proof['job'] != job or proof['scope'] != request['epoch_file'] or proof['card'] != physical_card:
             raise ValueError('router batch job/scope/card differs')
         keys_path, raw = checked(job['keys'])
         keys = json.loads(raw)
@@ -105,10 +107,10 @@ def aggregate(directory, require_complete=True):
             if process['returncode'] != 0 or guard['code'] != 0 or int((work / 'guard/pgid').read_text()) != pid:
                 raise ValueError('router round failed its actual guard')
             repo = Path(epoch['packing_helper']['path']).resolve().parents[3]
-            expected_argv = [str(repo / 'scripts/mx_gpu_job.sh'), '6', '900', str(work / 'guard'),
+            expected_argv = [str(repo / 'scripts/mx_gpu_job.sh'), str(physical_card), '900', str(work / 'guard'),
                 process['argv'][4], epoch['driver']['path'], '--keys', str(keys_path), '--epoch', str(epoch_path),
                 '--legacy', epoch['legacy']['path'], '--out', str(work / 'raw.jsonl'), '--round', str(number), '--iterations', '128']
-            if process['argv'] != expected_argv or process['physical_card'] != 6:
+            if process['argv'] != expected_argv or process['physical_card'] != physical_card:
                 raise ValueError('router actual command differs')
             raw_path, raw = checked(rr['raw'])
             if raw_path in raw_paths:
@@ -149,7 +151,7 @@ def aggregate(directory, require_complete=True):
                 process=rr['process'], guard=record(work / 'guard/guard_result.json'), measurement=rows[ordinal])
                 for number, rows, rr, work in sorted(samples)]
             table.append(dict(kind='moe_router', key=canonical_key, median_ns=median, p90_ns=statistics.median(p90s),
-                spread=round((max(medians) - min(medians)) / median, 4), processes=3, physical_card=6, rounds=rounds,
+                spread=round((max(medians) - min(medians)) / median, 4), processes=3, physical_card=physical_card, rounds=rounds,
                 r_next=key['r_next'], r_next_reference=reference, resources=resources(query), provenance=provenance,
                 resource_build=key['build_record'], dispatch_context=dict(gate_up_tn=key['dispatch_gate_tn'], down_tn=key['dispatch_down_tn'])))
         complete.append(job['index'])
@@ -169,10 +171,11 @@ def main():
     p.add_argument('--scope', required=True, type=Path)
     p.add_argument('--out', required=True, type=Path)
     p.add_argument('--audit-prefix', action='store_true')
+    p.add_argument('--card', type=int, choices=(7, 6, 5, 4), default=6)
     a = p.parse_args()
     if a.out.exists():
         p.error('output exists; preserve evidence')
-    result = aggregate(a.scope, not a.audit_prefix)
+    result = aggregate(a.scope, not a.audit_prefix, physical_card=a.card)
     with a.out.open('x') as f:
         json.dump(result, f, indent=2); f.write('\n')
     print(json.dumps(dict(rows=len(result['rows']), processes=result['fresh_processes'], qualified=result['qualified'], full_model_domain=False)))

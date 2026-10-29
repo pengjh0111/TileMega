@@ -50,3 +50,9 @@ def test_rejects_failed_actual_queries(field, value):
     query[field] = value
     with pytest.raises(ValueError):
         module.validate_sample(row, key, epoch, ref, 123, 1, query)
+
+
+@pytest.mark.parametrize('card', (0, 3, True, '7'))
+def test_rejects_unpermitted_or_untyped_card_before_reading_inputs(tmp_path, card):
+    with pytest.raises(ValueError, match='physical card'):
+        module.aggregate(tmp_path / 'absent', physical_card=card)
