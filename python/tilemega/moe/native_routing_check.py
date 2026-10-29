@@ -123,6 +123,7 @@ def main():
     report = dict(model=str(a.model), batch=a.batch, steps=64, layers=layers, positions=64 * layers * a.batch,
         exact_sets=exact, boundary_ties=len(mismatch) - len(failures), failures=len(failures),
         mismatches=mismatch, execution_identity=execution, passed=not failures, timing_eligible=False,
+        tie_rule='gap <= 2 * BF16_ULP(abs(HF rank8)); subnormal spacing 2^-133',
         decode_binary_sha256=hashlib.sha256(a.decode_so.read_bytes()).hexdigest())
     (a.out / 'routing_check.json').write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps({k: v for k, v in report.items() if k not in ('mismatches', 'execution_identity')}))
