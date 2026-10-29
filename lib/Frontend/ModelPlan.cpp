@@ -1131,8 +1131,9 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
       // stay per layer under the FX name the routing check reads.
       auto const& m=block->second;
       unsigned experts=m.expert_count,topk=m.top_k,inter=m.intermediate;
-      if(experts!=128 || topk!=8 || m.hidden!=unsigned(hidden) || serving.seq!=1 || hidden%128)
-        throw std::invalid_argument("native MoE decode needs 128 experts, top-8 and one token per row");
+      if((experts!=64 && experts!=128) || topk!=8 || m.hidden!=unsigned(hidden) ||
+         serving.seq!=1 || hidden%128)
+        throw std::invalid_argument("native MoE decode needs 64 or 128 experts, top-8 and one token per row");
       auto norm=parameter(m.norm_weight).target;
       auto expert_prefix=parameter(m.gate_up_weight).target;
       std::string suffix="gate_up_proj";
@@ -1145,16 +1146,19 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
       auto fold=[&](std::string const& source) {
         return "{\"kind\":\"fold_rmsnorm\",\"norm\":\""+norm+"\",\"source\":"+source+'}';
       };
-      // The expert stacks keep the legacy MoE prefill's names and 64 x 64
-      // tile pages, recipe for recipe, so both phases load one copy (two
-      // differently paged copies exceed the 80 GB card; recorded deviation
-      // from §8's per-TN packing). The router is repacked per its TN.
+      // Qwen3-30B-A3B's 61 GB expert stack cannot hold two differently paged
+      // copies on an 80 GB card, so its experts keep the legacy MoE prefill's
+      // names and 64 x 64 tile pages, recipe for recipe, and both phases load
+      // one copy (recorded deviation from §8's per-TN packing). OLMoE's 12.9 GB
+      // stack shares no prefill, so ServingPages packs it at the solved TN
+      // (§8 A3). The router is repacked per its TN either way.
       auto stack=[&](char const* part) {
         return "{\"experts\":"+std::to_string(experts)+",\"hidden\":"+std::to_string(hidden)+
             ",\"intermediate\":"+std::to_string(inter)+",\"kind\":\"expert_stack\",\"part\":\""+part+
             "\",\"prefix\":\""+expert_prefix+"\",\"u\":16}";
       };
-      auto pages=[](std::string const& source) {
+      auto pages=[&](std::string const& source)->std::string {
+        if(experts!=128)return source;
         return "{\"kind\":\"tile_pages\",\"tile_n\":64,\"tile_k\":64,\"source\":"+source+'}';
       };
       auto router_weight=packed(prefix+"moe.router.weight.dn",experts*hidden,
@@ -1173,6 +1177,7 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
       auto indices=scratch(m.indices,topk,"i32");
       auto router=builder.Gemm(x,router_weight,logits,logits,experts,hidden,0.0f);
       builder.plan.gemms[router].epilogue=PlanGemm::Epilogue::kMoeRouter;
+      builder.plan.gemms[router].moe_softmax_all=!m.normalize_topk;
       builder.Stage(PlanTaskKind::kGemm,m.router,router,0,0,1,{schedule,routes,indices,router_counter});
       auto gate_up=builder.Gemm(x,gate_up_weight,h,h,2*inter,hidden,0.0f);
       builder.plan.gemms[gate_up].epilogue=PlanGemm::Epilogue::kMoeGateUp;

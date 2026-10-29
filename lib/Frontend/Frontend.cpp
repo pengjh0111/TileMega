@@ -403,6 +403,9 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
       if (gemm.partial_tile_n)
         fields.push_back(builder.getNamedAttr(
             "partial_tile_n", builder.getI64IntegerAttr(gemm.partial_tile_n)));
+      if (gemm.moe_softmax_all)
+        fields.push_back(builder.getNamedAttr(
+            "moe_softmax_all", builder.getBoolAttr(true)));
     }
     if(plan.dm) {
       fields.push_back(builder.getNamedAttr("dm_access",EncodeDm(builder,gemm.access)));

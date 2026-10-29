@@ -106,6 +106,10 @@ struct PlanGemm {
   std::uint32_t norm_ss = 0xffffffffu, ss_out = 0xffffffffu;
   codegen::DmGemmAccess access{};
   codegen::DmEpilogueChain chain{};
+  // kMoeRouter only: the routing weights are the softmax over all E logits
+  // read at the selected experts (OLMoE, norm_topk_prob = false) instead of
+  // the softmax of the selected logits (Qwen3).
+  bool moe_softmax_all = false;
 };
 
 enum class PlanTaskKind {
