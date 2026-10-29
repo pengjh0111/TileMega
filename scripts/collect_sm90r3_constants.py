@@ -127,6 +127,7 @@ def main():
         return round(found[0], 2)
 
     epilogue, embedding, argmax, route, attention, rounds, clusters, dsmem = {}, {}, {}, {}, {}, {}, {}, {}
+    slopes = {}
     forward = {}
     for (metric, key), v in value.items():
         fields = dict(part.split('=') for part in key.split(':') if '=' in part)
@@ -145,7 +146,11 @@ def main():
         elif metric == 't_argmax_la':
             argmax.setdefault('g' + fields['g'], {})[fields['b']] = round(v, 1)
         elif metric == 't_route_la':
-            route.setdefault('g' + fields['g'], {})[fields['b']] = round(v, 1)
+            # R4: the OLMoE router (E = 64, softmax over all) keys its own table.
+            table_key = 'g' + fields['g'] + (f":e{fields['e']}:all{fields['all']}" if 'e' in fields else '')
+            route.setdefault(table_key, {})[fields['b']] = round(v, 1)
+        elif metric == 't_task_slope':
+            slopes[(key.split(':')[0], fields['tn'], fields['b'], fields['wk'])] = (v, float(fields['bytes']))
         elif metric == 't_wgmma':
             # N-1: one SM's sustained WGMMA rate per forward tile width.
             forward.setdefault('sm_flops_per_ns_by_n', {})[fields['n']] = round(v, 1)
@@ -159,6 +164,12 @@ def main():
         elif metric in ('round_v3', 'round_group16'):
             # 32-round window means of the DT-4 gate; D8 is priced by their difference.
             rounds.setdefault(metric[len('round_'):], {})[fields['g']] = round(v, 1)
+    # MR6 t_task_expert: the per-task slope less its bytes at BW_sm and its
+    # measured epilogue (same TN, B, WK); a subtraction, not a fit.
+    task_expert = {}
+    for (family, tn, b, wk), (slope, task_bytes) in slopes.items():
+        fixed = slope - task_bytes / single('BW_sm') - epilogue[family]['wk' + wk][tn][b]
+        task_expert.setdefault(family, {})[b] = round(max(fixed, 0.0), 1)
     head = subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'], text=True).strip()
     section = dict(
         schema=1,
@@ -170,6 +181,7 @@ def main():
         l2_latency_ns=single('L_l2_loaded'), dram_latency_ns=single('L_dram_loaded'),
         l2_latency_single_ns=single('L_l2_single'), dram_latency_single_ns=single('L_dram_single'),
         dram_gbps=single('BW_dram'), l2_gbps=single('BW_l2'), sm_gbps=single('BW_sm'),
+        cta_dram_gbps=single('BW_cta_dram'), task_expert_ns=task_expert,
         activation_cp_async_gbps=20.0,
         activation_cp_async_source='stated: SM90R2_activation_stream_diagnostic.csv per-CTA ceiling (F9)',
         epilogue_ns=epilogue, embedding_ns=embedding, argmax_la_ns=argmax, route_la_ns=route, attention_ns=attention,

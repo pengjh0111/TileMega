@@ -10,6 +10,7 @@
 #include <tilemega/Backend/Sm90Gmma.h>
 #include <tilemega/Codegen/executor/Async.cuh>
 #include <tilemega/Codegen/executor/TensorMap.h>
+#include <tilemega/Codegen/executor/TensorMapTiled.h>
 #include <cuda_runtime.h>
 #include <algorithm>
 #include <cstdio>
@@ -256,7 +257,7 @@ void MoeEpilogueTile(char const* family) {
 }
 // t_route_la: the router's 16 tasks arrive (CTAs 0-15), the last runs top-8,
 // routes and the schedule, then the V3 barrier (prompt §8 M4).
-template<int Batch>
+template<int Batch,int Experts=128,bool All=false>
 __global__ void RouteLaStage(float* logits,int* schedule,BF* weights,int* index,U64* lm,
     U64* counter,U64* stamps,int iterations) {
   __shared__ alignas(128) char free[1024];
@@ -264,15 +265,74 @@ __global__ void RouteLaStage(float* logits,int* schedule,BF* weights,int* index,
       reinterpret_cast<std::uint64_t*>(lm),0.0f};
   for(int it=0;it<iterations;++it) {
     if(threadIdx.x<128)
-      backend::Sm90DenseRouterFinish<Batch,128,8,16,false>{}(p,blockIdx.x<16?1:0,free);
+      backend::Sm90DenseRouterFinish<Batch,Experts,8,Experts/8,false,All>{}(p,blockIdx.x<Experts/8?1:0,free);
     GridBarrier(counter,it);
     if(blockIdx.x==0 && threadIdx.x==0)stamps[it]=Now();
   }
 }
 
+// MR6 t_task_expert: one CTA runs the expert body over A active slots that
+// all name expert 0 (L2-resident weights), so its time is tasks x (bytes at
+// the CTA's L2 rate + per-task cost). Two task counts give the per-task slope;
+// the collector subtracts the slot bytes at BW_sm and the measured epilogue.
+template<class G>
+__global__ void MoeTaskKernel(backend::Sm90DenseMoeOperands p,U64* stamps) {
+  extern __shared__ __align__(1024) char shared[];
+  auto* rings=reinterpret_cast<backend::Sm90DenseRingState*>(shared);
+  rings[0].Initialize();
+  __syncthreads();
+  U64 begin=Now();
+  G::Run(p,shared,&rings[0]);
+  if(threadIdx.x==0)stamps[0]=Now()-begin;
+  rings[0].Invalidate();
+}
+template<backend::Sm90DenseMoeMode Mode,int Batch,int N,int K,int TN,int TK,int Slots,int WN>
+void MoeTaskCase(char const* family) {
+  using G=backend::Sm90DenseMoeGemm<Batch,N,K,TN,TK,Slots,WN,4/WN,Mode,16,128,8,false,0>;
+  using Schedule=backend::Sm90DenseMoeSchedule<128>;
+  constexpr bool down=Mode==backend::Sm90DenseMoeMode::kDown;
+  int rows=std::max(1,int(std::lround(8.0*Batch/(128*(1-std::pow(1-8.0/128,Batch))))));
+  auto* weight=Device<BF>(std::size_t(N)*K);auto* x=Device<BF>(16*std::max(N,K));
+  auto* h=Device<BF>(std::size_t(128)*16*K);auto* output=Device<float>(std::size_t(16)*8*std::max(N,K)*8);
+  auto* routes=Device<BF>(16*8);auto* counter=Device<std::uint64_t>(N/TN);auto* stamps=Device<U64>(1);
+  CUtensorMap map{};CUtensorMap* device_map=Device<CUtensorMap>(1);
+  if(down) {
+    codegen::executor::EncodeTiledMap<4>(map,h,{{64,16,std::uint64_t(K/64),128},{2ull*K,128,2ull*16*K},
+        {64,std::uint32_t(backend::Sm90DenseLayout::ActivationRows(Batch)),TK/64,1}});
+    Check(cudaMemcpy(device_map,&map,sizeof map,cudaMemcpyHostToDevice));
+  }
+  Check(cudaFuncSetAttribute(MoeTaskKernel<G>,cudaFuncAttributeMaxDynamicSharedMemorySize,G::kSharedBytes));
+  std::vector<double> per_task;
+  for(int sample=0;sample<12;++sample) {
+    double time[2];
+    for(int i=0;i<2;++i) {
+      int active=i?8:2;
+      std::vector<int> schedule(Schedule::kInts,0);
+      schedule[Schedule::Active()]=active;
+      for(int a=0;a<active;++a) {
+        schedule[Schedule::Count(a)]=rows;
+        for(int r=0;r<rows;++r)schedule[Schedule::Row(a,r)]=r*8;
+      }
+      auto* device_schedule=Device<int>(schedule.size());
+      Check(cudaMemcpy(device_schedule,schedule.data(),schedule.size()*4,cudaMemcpyHostToDevice));
+      Check(cudaMemset(counter,0,8*(N/TN)));
+      backend::Sm90DenseMoeOperands p{down?device_map:nullptr,weight,x,down?(void*)output:(void*)h,
+          device_schedule,routes,nullptr,x,counter,1e-6f};
+      MoeTaskKernel<G><<<1,160,G::kSharedBytes>>>(p,stamps);Check(cudaDeviceSynchronize());
+      U64 host;Check(cudaMemcpy(&host,stamps,8,cudaMemcpyDeviceToHost));
+      time[i]=double(host);Check(cudaFree(device_schedule));
+    }
+    if(sample>=2)per_task.push_back((time[1]-time[0])/(6.0*G::kTiles));
+  }
+  Print("t_task_slope",std::string(family)+":tn="+std::to_string(TN)+":tk="+std::to_string(TK)+
+      ":b="+std::to_string(Batch)+":wk="+std::to_string(4/WN)+":bytes="+std::to_string(2*TN*K),per_task,"ns");
+  for(void* q:{(void*)weight,(void*)x,(void*)h,(void*)output,(void*)routes,(void*)counter,(void*)stamps,
+      (void*)device_map})Check(cudaFree(q));
+}
+
 // Attention pieces of the D2 body (prompt §4 L0-1): one 64-key block with data
 // resident, the q preparation, and the S-chunk merge with this CTA last.
-template<int D,int Q,bool Norm,int S>
+template<int D,int Q,int Norm,int S>
 __global__ void AttentionKernel(backend::Sm90DenseAttentionOperands p,int samples,U64* out) {
   using A=backend::Sm90DenseAttentionBody<1,8,D,Q,Norm,S,64,2,0,1088>;
   extern __shared__ __align__(1024) char shared[];
@@ -303,7 +363,7 @@ __global__ void AttentionKernel(backend::Sm90DenseAttentionOperands p,int sample
   }
   if(tid==0 && st.sum[0]<0)out[0]=0;
 }
-template<int D,int Q,bool Norm,int S>
+template<int D,int Q,int Norm,int S>
 void AttentionCase() {
   constexpr int samples=256;
   using A=backend::Sm90DenseAttentionBody<1,8,D,Q,Norm,S,64,2,0,1088>;
@@ -333,7 +393,7 @@ void AttentionCase() {
 // shared-memory layout (rings, cluster state, storage at 1024). Each round
 // starts at a cluster barrier; the leader's time runs from its partial to
 // the merged context (all chunks write their partials concurrently).
-template<int D,int Q,bool Norm,int S>
+template<int D,int Q,int Norm,int S>
 __global__ void DsmemMergeKernel(backend::Sm90DenseAttentionOperands p,int samples,U64* out) {
   using A=backend::Sm90DenseAttentionBody<1,8,D,Q,Norm,S,64,2,0,1088,true>;
   using Async=codegen::executor::Async<arch::Sm90>;
@@ -357,7 +417,7 @@ __global__ void DsmemMergeKernel(backend::Sm90DenseAttentionOperands p,int sampl
   }
   Async::ClusterSync();
 }
-template<int D,int Q,bool Norm,int S>
+template<int D,int Q,int Norm,int S>
 void DsmemMergeCase() {
   constexpr int samples=256;
   using A=backend::Sm90DenseAttentionBody<1,8,D,Q,Norm,S,64,2,0,1088,true>;
@@ -689,6 +749,9 @@ int main(int argc,char** argv) {try {
     Print("BW_l2","slots=4:bytes=16384:resident=8MiB:g="+std::to_string(sms),{l2},"GB/s");
     double one=StreamRun<8,16384,true>(resident.descriptor,data,0,4096,rows,1);
     Print("BW_sm","slots=8:bytes=16384:resident=8MiB:g=1",{one},"GB/s");
+    // MR6: one CTA, 8 x 16 KB bulk requests in flight over cold memory.
+    double cta=StreamRun<8,16384,false>(none,data,big,4096,0,1);
+    Print("BW_cta_dram","slots=8:bytes=16384:g=1",{cta},"GB/s");
     Check(cudaFree(data));Check(cudaFree(latency));
     // Embedding/argmax stages for the five dense models' widths and vocabularies.
     std::mt19937 random(7);
@@ -728,6 +791,13 @@ int main(int argc,char** argv) {try {
         StageCase("t_route_la",key(4),RouteLaStage<4>,grid,logits,schedule,routes,route_index,router);
         StageCase("t_route_la",key(8),RouteLaStage<8>,grid,logits,schedule,routes,route_index,router);
         StageCase("t_route_la",key(16),RouteLaStage<16>,grid,logits,schedule,routes,route_index,router);
+        // OLMoE (A3): 64 experts, softmax over all of them.
+        auto e64=[&](int b) {return "b="+std::to_string(b)+":g="+std::to_string(grid)+":e=64:all=1";};
+        StageCase("t_route_la",e64(1),RouteLaStage<1,64,true>,grid,logits,schedule,routes,route_index,router);
+        StageCase("t_route_la",e64(2),RouteLaStage<2,64,true>,grid,logits,schedule,routes,route_index,router);
+        StageCase("t_route_la",e64(4),RouteLaStage<4,64,true>,grid,logits,schedule,routes,route_index,router);
+        StageCase("t_route_la",e64(8),RouteLaStage<8,64,true>,grid,logits,schedule,routes,route_index,router);
+        StageCase("t_route_la",e64(16),RouteLaStage<16,64,true>,grid,logits,schedule,routes,route_index,router);
       }
       for(void* q:{(void*)logits,(void*)schedule,(void*)routes,(void*)route_index,(void*)router})Check(cudaFree(q));
     }
@@ -753,20 +823,27 @@ int main(int argc,char** argv) {try {
   }
   if(full || !std::strcmp(argv[1],"--attention-only")) {
     [&]<int... S>(std::integer_sequence<int,S...>) {
-      (AttentionCase<128,2,true,S>(),...);(AttentionCase<64,4,false,S>(),...);
-      (AttentionCase<128,3,false,S>(),...);(AttentionCase<128,4,false,S>(),...);
-      (AttentionCase<128,8,true,S>(),...);
+      (AttentionCase<128,2,1,S>(),...);(AttentionCase<64,4,0,S>(),...);
+      (AttentionCase<128,3,0,S>(),...);(AttentionCase<128,4,0,S>(),...);
+      (AttentionCase<128,8,1,S>(),...);
     }(std::integer_sequence<int,2,4,8,16,32>{});
   }
+  if(full || !std::strcmp(argv[1],"--moe-task-only")) {
+    using backend::Sm90DenseMoeMode;
+    [&]<int... B>(std::integer_sequence<int,B...>) {
+      (MoeTaskCase<Sm90DenseMoeMode::kGateUp,B,1536,2048,96,128,4,2>("expert_gate_up"),...);
+      (MoeTaskCase<Sm90DenseMoeMode::kDown,B,2048,768,128,64,6,2>("expert_down"),...);
+    }(std::integer_sequence<int,1,2,4,8,16>{});
+  }
   // MoE (Hkv = 4) at G = 264 reaches S0 = 64 chunks (prompt §8 M2).
-  if(full || !std::strcmp(argv[1],"--moe-merge-only"))AttentionCase<128,8,true,64>();
+  if(full || !std::strcmp(argv[1],"--moe-merge-only"))AttentionCase<128,8,1,64>();
   // D10b: clusters of C = 2 (DT-2's grids) merge S = 2 chunks through DSMEM.
   if(full || !std::strcmp(argv[1],"--forward-only")) {
     WgmmaCase<32>(sms);WgmmaCase<64>(sms);WgmmaCase<128>(sms);WgmmaCase<256>(sms);
   }
   if(full || !std::strcmp(argv[1],"--dsmem-merge-only")) {
-    DsmemMergeCase<128,2,true,2>();DsmemMergeCase<64,4,false,2>();DsmemMergeCase<128,3,false,2>();
-    DsmemMergeCase<128,4,false,2>();DsmemMergeCase<128,8,true,2>();
+    DsmemMergeCase<128,2,1,2>();DsmemMergeCase<64,4,0,2>();DsmemMergeCase<128,3,0,2>();
+    DsmemMergeCase<128,4,0,2>();DsmemMergeCase<128,8,1,2>();
   }
   return 0;
 }catch(std::exception const& e) {std::fprintf(stderr,"%s\n",e.what());return 2;}}
