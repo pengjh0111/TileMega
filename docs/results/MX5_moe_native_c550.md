@@ -515,3 +515,29 @@ file qualification, execution, thread exception, selection or default policy.
 Actual1744 existing costs plus262 rejections pass all ten batch/thread coverage
 requests; router contexts and head576 are correctly missing. Raw:
 moe_regular_grouped_head_coverage_cpu_v2.
+
+
+Verified the normal native compile command now routes a MoE decode bridge and
+an explicit geometry-outcome table to the host candidate preview, preserving
+moe_batch. Six CPU CLI tests use synthetic costs with the actual24-layer
+bridge, assert145 stages and exact four candidates, retain attention's five
+source points, reject incomplete domains/results/interpreted flags and preserve
+an existing preview. No device compiler, kernel or model acceptance is implied.
+Both host CTests pass. Ten actual partial1744-cost/262-rejection requests reject
+without writing a plan or preview. The CPU domain tool also emits structured
+coverage counts/missing coordinates for the pending complete table producer.
+Raw: moe_regular_grouped_head_coverage_cpu_v2,
+moe_actual_partial_cli_preview_rejection_cpu_v1.
+
+Verified the adopted-source dependency check passes again for all five body
+families, including the new router header. Context32/16 has540 passing actual
+zero-launch queries and220 fitting cost keys now measuring. Context pipelines
+use one guarded card6 job at a time while card7 completes130 head keys; source
+and round protocols are unchanged. Twenty head576 terminal rejections are
+verified against their actual queries and normal compiler records. CPU-only
+collectors wait for all head/router contexts, then verify exact raw round rows,
+quantiles and complete geometry for ten batch/thread scopes (5396 outcomes).
+These queued collectors do not predeclare cost/model/thread-policy acceptance.
+Raw: moe_rank_adopted_body_source_closure_cpu_v2,
+moe_router_rank_context_pipeline_v2, moe_head_complete_outcomes_cpu_v1,
+moe_router_rank_complete_outcomes_cpu_v1, moe_complete_geometry_table_cpu_v1.
