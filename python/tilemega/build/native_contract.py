@@ -21,7 +21,8 @@ def validate(manifest, defines):
     if (defines.get('TILEMEGA_STATIC_DENSE_NATIVE') != '1' or
             defines.get('TILEMEGA_ARCH_ID') != '900' or
             manifest.get('runtime_batch') not in (1, 2, 4, 8, 16) or
-            manifest.get('native_origin') not in ('fixed', 'solver') or c.get('schema') != 5 or
+            manifest.get('native_origin') not in ('fixed', 'solver') or
+            c.get('schema') not in (5, 6) or
             c.get('model') not in LAYER):
         raise ValueError('native dense architecture or coordinate schema is invalid')
     if (manifest.get('residency') != c['residency'] or 'TILEMEGA_DN_VECTOR_SUMS' in defines or
