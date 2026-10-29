@@ -117,7 +117,8 @@ MoE decode/prompt 不再经 legacy 回退。当前只允许标记为 manual/reso
 - 普通四个512线程 native CLI 构建和六个 API0 查询已有证据。新增 B1/B16 的
   decode/prompt watchdog1 手工控制计划 MT237/241/245/249、frame/static0；设备
   查询与512步 C-1/C-2 排在 router 成本之后。没有 per-plan512 例外或模型通过结论。
-- 路由审计脚本已实现并通过 CPU 边界测试；真实模型 B1/B16 路由核对尚未运行。
+- 路由审计脚本已实现并通过CPU边界测试；手工B1/B16的1536/24576个位置中，
+  31/468个位置超过两BF16-ulp边界并失败（另有123/2282个边界平局）；门未通过。
   每项成本校验绑定源码、二进制、实际查询、PID、guard 和 raw hash；未齐表不作终版选择。
 - B1手工C-2的512步两臂零差异。首轮内存统计缺`pair_u32`，修复后C-1又因MetaX
   PyTorch不支持grouped_mm停止。两轮失败保留；用户已授权HF正确性/路由参考显式

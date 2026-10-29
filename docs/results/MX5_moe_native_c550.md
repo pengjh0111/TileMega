@@ -439,3 +439,22 @@ with round/executor/implementation/result/guard hashes are appended to
 `MX5_moe_controls_c550.csv`, explicitly manual_control_unselected. These
 results neither choose top4 nor grant per-plan512 or final G-MOE acceptance.
 Raw: `moe_manual_correctness_eager_v3`.
+
+Verified manual B1 routing audit fails:1536 positions,1382 exact sets,123
+boundary ties,31 non-tie failures. B16 also fails:24576 positions,21826 exact,
+2282 ties,468 failures. The two-BF16-ULP criterion is unchanged; C1/C2 success
+does not satisfy this separate gate. Diagnostic token prefixes match the
+watchdog controls. For B1,22 of31 failures have an earlier same-token set
+mismatch,9 do not; the maximum HF rank8/rank9 gap is10ULP. This correlation
+does not establish a cause. Origin remains unlocalized; failing gate:
+`python/tilemega/moe/native_routing_check.py:128–139`.
+Both failed guards and full mismatch lists remain, with two append-only rows
+in `MX5_moe_routing_c550.csv`. Raw: `moe_manual_routing_eager_v2`,
+`moe_manual_routing_b16_eager_attempt_v3`.
+
+Verified the waiting diagnostic rank CPU controller was superseded before
+any of its GPU jobs. Its replacement waits for both actual route attempts
+to be recorded, then runs independent frozen unit/microbench work; it does
+not turn the failed model route gate into a pass. The rank candidate stays
+off and subsequent resource/cost queues remain diagnostic. Raw:
+`moe_router_rank_predicate_after_route_attempts_v2`.
