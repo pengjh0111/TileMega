@@ -502,3 +502,13 @@ bitwise. Five new processes complete10 reset requests with148 equal payloads
 per request. Image `ea9aaefb42caeb71ee2b6f2aee91e5b493e848c460f8ca9add1bd28d19967275`.
 These proofs do not admit other models or a performance default. Pilot and
 frozen paired results are indexed in `AS2_TPOT_optimization.md`.
+
+`verified-code/CPU`: additional opt-in B16 decode families are Qwen0.6
+M16/N6144/K1024 (28 layers), Llama1B N16384/K2048 (16), Llama3B
+N16384/K3072 (28), Llama8B N28672/K4096 (32). Each native reimport preserves
+its original CTG/ISL and down/KV decomposition. Host and device reject unknown
+families/partial-K; Host checks the complete tile count. These four candidates
+share a single newly compiled CANN implementation catalogue,
+`21e6b516c8ea43127cc9526dc58bb50836aa27b1a67cca3e09b28423fa531f3e`.
+Their numerical/pricing/TPOT admission is pending. Qwen1.7's frozen study
+continues using its original image and immutable header snapshots.
