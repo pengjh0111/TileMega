@@ -617,3 +617,40 @@ Verified108 completed old-router MIR logs retain byte-identical readable paths
 and persistent gzip backups, freeing736.515MiB. Current source/binaries,
 measurements and guards are untouched by this archive. Raw:
 moe_completed_old_router_mir_archive_v1.
+
+
+Verified a diagnostic replay uses the normal full24-layer native B1 request's
+actual checkpoint/KV history at decode step24/past88, then invokes the existing
+native stage bodies for layers0/1 (12 calls). All actual queries report resident1,
+frame/static0; both replayed routes equal the original full-program control.
+The GPU capture completes, but its original job exits1 on a CPU-only ULP-stat
+condition dtype error. That failure/guard remain unchanged. Separate CPU-only
+recovery reads the saved tensors, fixes the boolean condition and reproduces
+the formal layer1 failure (HF rank8/rank9 gap3BF16ULP). The new down wrapper's
+MIR is checked after capture:10 functions/2 rings/0 failures. These are raw-value
+diagnostics, not cost-protocol timing, a new full-model result or a route pass.
+Raw: moe_first_two_layers_replay_D7_v1,
+moe_first_two_layers_replay_cpu_recovery_v2.
+
+Verified the layer0 embedding input is bitwise identical to HF. QKV is already
+different: maxabs.015625, relativeL2.0025998894. A CPU FP32 diagnostic using the
+prompt's folded-BF16-weight/consumer-RMS rounding reproduces native QKV with
+maxabs2.3841858e-7; the HF activation-RMS/original-weight rounding reference
+matches actual HF with maxabs.001953125. The two reference contracts differ by
+relativeL2.0025997139, close to the actual QKV difference. This localizes the
+earliest observed difference to existing RMS/folding/rounding placement at one
+position; it neither replaces the native MMA summation tree nor attributes all
+31/468 formal route failures. Arithmetic, oracle and acceptance remain unchanged.
+Raw: moe_qkv_rounding_attribution_cpu_v1.
+
+Verified a guarded card7 diagnostic feeds the same native post-O residual to
+unchanged HF Qwen3MoeRMSNorm/Qwen3MoeTopKRouter components, with explicit eager
+reference configuration. Layer0's set matches; layer1 remains a different set,
+but HF rank8/rank9 gap is now2BF16ULP (1.421875 versus1.40625), within the
+unchanged tie rule. The full-HF-input comparison at that position remains the
+original3ULP failure; this isolated changed-input diagnostic cannot replace it.
+No source/model/threshold changed. Raw: moe_same_native_input_HF_router_D7_v1.
+
+Verified317 completed grouped MIR logs retain byte-identical readable paths
+and persistent gzip backups, freeing386.736MiB. No source, binary, cost sample
+or guard result changes. Raw: moe_completed_grouped_mir_archive_v1.

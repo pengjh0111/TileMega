@@ -108,7 +108,7 @@ MoE decode/prompt 不再经 legacy 回退。当前只允许标记为 manual/reso
   attention 另有100个512线程 fit、100个576线程 PK1 栈帧468–480B失败。
   795个可运行坐标的 MIR、设备查询和三进程成本汇总通过，另165个资源拒绝已核对。
 - router 旧TN64/64的220个三进程成本保留为历史来源。排名谓词经整程序P-PAIR后合入，
-  新一轮12种分派TN组合重建/查询/计时；首组540查询已过，220个fit测量中。
+  新一轮12种分派TN组合重建/查询/计时；前两组各540查询、220成本及50拒绝完成；其余组合继续。
 - 候选组装已实现按分派TN分组的精确top4，匹配gate/up和down的实际TN、每层成本
   倍数、原始行索引；40组带平局穷举及两项host CTest通过，诊断CLI完整域检查已接入。
 - 成本行导入已实现形状/执行器/资源/三轮契约检查与attention五点均值；922行真实
@@ -158,3 +158,8 @@ legacy 拒绝均待 LLM 验收后推进。唯一可因预算裁剪的实现仍�
 主报告 `MX5_c550.md` 保持≤260行，LLM报告≤200行。最终还需总报告、55格对照、
 逐阶段去向、起止HEAD/提交/推送、GPU使用、未完成 file:line 和单列相悖推断。
 所有历史来源与失败过程保存在 git、append-only CSV 和 runs；尚未完成最终验收。
+
+Verified 单点D7重放在相同embedding输入下已见QKV差异（relativeL2 .0025998894）；
+CPU重现prompt的folded-W/consumer-RMS与HF的activation-RMS舍入位置，得到近似相同差异。
+给HF router同一native残差后，该点由完整HF输入的3ULP失败变为2ULP平局；完整路由门
+仍失败31/468，未改变算术或判据。详见MoE报告及moe_qkv_rounding_attribution_cpu_v1。
