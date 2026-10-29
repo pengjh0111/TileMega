@@ -869,3 +869,30 @@ validation only: no new GPU measurement, fresh-process/guard qualification,
 standalone replay omitted PYTHONPATH and failed before reading reports;
 the explicit-path replay succeeds, with the environment error retained.
 Raw: moe_actual_request_evidence_cpu_v1.
+
+Verified a separate CPU review of14 original P0 bench kernels (seven classes
+at each thread shape) binds actual ELF function sizes, MIR counts and compiler
+resources. Standalone attention D128/Q8/b_min4/PF0 has MT237/frame0 at512,
+versus MT168/frame416B at576. Trusted MIR finds0 versus150 private accesses;
+both have one ring and zero ring4160/generic/calls. The other six P0 bodies
+have frame0 at both shapes. This supports attention-body allocation as a D7
+source of the normal program spill; it does not establish a hardware minimum
+or grant a512 exception. Fourteen CPU-resource rows are appended with the
+original CSV prefix preserved. Instruction counts explicitly include each
+standalone bench shell; inlined program-body counts remain unattributed.
+The first readelf wrapper also matched a host stub and stops; v2 excludes the
+stub and succeeds, preserving v1. No compile or GPU launch occurs. Raw:
+moe_body_code_attribution_cpu_v1/v2.
+
+Verified independent review of all16 manual primary/retry artifacts also
+checks exact normal compiler flags, receipts, measured body headers, generated
+geometry and the prescribed largest-width reduction at every transition.
+All four histories still stop after the third reduction above D. A user
+clarification is pending on allowing only the additional halvings needed to
+reach D; no answer, further retry or512 permission is inferred. Cost sampling
+continues independently. Raw: moe_primary576_history_independent_review_cpu_v1.
+
+Verified635 completed dense canonical MIR logs now have persistent gzip
+backups and byte-identical readable tmpfs views at their original paths,
+freeing1744.884MiB for pending normal candidate builds. No source, binary,
+measurement or guard data changed. Raw: completed_dense_canonical_mir_archive_v1.
