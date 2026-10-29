@@ -24,8 +24,10 @@ SOLVE_BIN=${SOLVE_BIN:-$ROOT/build/tools/tilemega}
 cmd=$1; id=$2
 needs_mib=20480
 query_needs_mib=2048
+is_moe=0
 if [ -f runs/mx1/export/${id}_decode/bridge.json ] && \
    grep -q -m1 expert runs/mx1/export/${id}_decode/bridge.json; then
+  is_moe=1
   needs_mib=40960
   query_needs_mib=40960
 fi
@@ -49,6 +51,35 @@ solve)
   phase_dir=$phase
   [ "$phase" = prefill ] && [ "${WATCHDOG:-0}" = 1 ] && phase_dir=prefill_w
   C=$CELLS/$id/B$b/$phase_dir; mkdir -p $C
+  if [ "$is_moe" = 1 ]; then
+    # The measured MoE solver is pending; explicit pins are control builds.
+    [ -n "${PIN:-}" ] && [ "${SELECTION:-predicted}" = predicted ] && [ -z "${MX5_RESOLVED_V2:-}" ] || {
+      echo "MoE measured top-four selection is pending; use an explicit manual mx_moe_v2 PIN with SELECTION=predicted" >&2; exit 2; }
+    case "$phase" in decode|prefill) ;; *) echo "MoE phase must be decode or prefill" >&2; exit 2;; esac
+    exec 9>"$C/.lock"
+    flock -n 9 || { echo "cell already being solved" >&2; exit 3; }
+    [ ! -e "$C/plan.so" ] || { echo "MoE control build requires a fresh output directory" >&2; exit 2; }
+    prompt=()
+    watchdog=0
+    [ "$phase" = prefill ] && { prompt=(--mx-prompt 1); watchdog=${WATCHDOG:-0}; }
+    timeout "${CELL_TIMEOUT:-1800}" "$SOLVE_BIN" compile "runs/mx1/export/${id}_decode/bridge.json" "$C/plan.so" \
+      --serving "$phase" --emit serving --frontend decoder --batch "$b" --prompt-len 64 --capacity 1088 \
+      --past-range 64:1086 --runtime-target "$TARGET" --evaluate-configs "$PIN" --selection predicted \
+      --watchdog "$watchdog" "${prompt[@]}" > "$C/compile.log" 2>&1 || {
+        echo "rc=$?" >> "$C/compile.log"; exit 1; }
+    if [ "$phase" = decode ]; then
+      W=$CELLS/$id/B$b/decode_w; mkdir -p "$W"
+      [ ! -e "$W/plan.so" ] || { echo "MoE watchdog control requires a fresh output directory" >&2; exit 2; }
+      timeout "${CELL_TIMEOUT:-1800}" "$SOLVE_BIN" compile "runs/mx1/export/${id}_decode/bridge.json" "$W/plan.so" \
+        --serving decode --emit serving --frontend decoder --batch "$b" --prompt-len 64 --capacity 1088 \
+        --past-range 64:1086 --runtime-target "$TARGET" --evaluate-configs "$C/plan.so.mx5_pin.json" \
+        --selection predicted --watchdog 1 > "$W/compile.log" 2>&1 || { echo "rc=$?" >> "$W/compile.log"; exit 1; }
+      echo rc=0 >> "$W/compile.log"
+    fi
+    echo "MX5_MOE manual_control_only solver_selected=false final=false" >> "$C/compile.log"
+    echo rc=0 >> "$C/compile.log"
+    exit 0
+  fi
   # Explicit v2 only: audit READY is revalidated by a purpose-limited runner.
   if [ "$phase" = decode ] && [ -n "${MX5_RESOLVED_V2:-}" ]; then
     : "${MX5_DOMAIN_TOOL:?MX5_DOMAIN_TOOL must name the trusted CPU geometry tool}"
@@ -85,13 +116,11 @@ solve)
   flock -n 9 || { echo "cell already being solved by pid $(cat $C/.lock.pid 2>/dev/null)" >&2; exit 3; }
   echo $$ > $C/.lock.pid
   rm -f $C/plan.so
-  # MX-4: a dense decoder's decode plan is the static stage program
-  # (tools/commands/mx_decode.cpp, MX4 prompt §3.9/§4.4); MoE keeps the
-  # interpreted executor below. Its solver's two plans are timed end to end
+  # MX-4 dense static plans are timed end to end
   # with the cell's prefill plan (solve prefill first), 2 fresh processes
   # each, alternating, on MGPU. The timed plan has no watchdog; decode_w is
   # the same pin with the watchdog, for check (C-1/C-2).
-  if [ $phase = decode ] && ! grep -q -m1 expert runs/mx1/export/${id}_decode/bridge.json; then
+  if [ $phase = decode ]; then
     P=$ROOT/$CELLS/$id/B$b/prefill/plan.so
     [ -f $P ] || { echo "MX-4 decode is measured with $P; solve prefill first" >&2; exit 1; }
     prompts=${PROMPTS:-$ROOT/configs/prompts/$(case $id in qwen*) echo qwen;; *) echo llama3;; esac)_isl64.json}
