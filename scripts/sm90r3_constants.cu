@@ -859,10 +859,10 @@ int main(int argc,char** argv) {try {
     }(std::integer_sequence<int,1,2,4,8,16>{});
   }
   // A3: OLMoE's attention -- MHA (Q = 1), the whole-row q/k norm, Hkv = 16.
-  // Its S0 is 4 (G = 132) or 8 (G = 264) at B1 and 1 at B16, so S <= 8.
+  // The S rule doubles while 2 S B Hkv <= G, so at B1 S0 is 8 (G = 132) or 16 (G = 264).
   if(full || !std::strcmp(argv[1],"--q1-only")) {
     [&]<int... S>(std::integer_sequence<int,S...>) {(AttentionCase<128,1,2,S,16>(),...);}
-        (std::integer_sequence<int,2,4,8>{});
+        (std::integer_sequence<int,2,4,8,16>{});
     DsmemMergeCase<128,1,2,2>();
   }
   // MoE (Hkv = 4) at G = 264 reaches S0 = 64 chunks (prompt §8 M2).
