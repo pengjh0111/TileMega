@@ -1045,3 +1045,16 @@ card7 rebalance CPU dispatcher is stopped before any GPU submission;
 only its own idle parent is signalled, with no GPU child or other process.
 Raw: moe_router_rank_card4_last_context_v1/
 ACTUAL_UNUSED_WAITING_CARD7_REBALANCE_SUPERSEDED_CPU.json.
+
+Verified B16 manual prefetch P-PAIR finishes:19.266247ms D-width versus
+19.191222ms derived-prefetch (−.389%). Both B1/B16 differences remain below
+the prescribed max(1%,round range), so neither cell has a discernible TPOT
+benefit. All1024 token outputs match across arms. Eight fresh process rows
+are appended to MX5_candidate_ppair_c550.csv after independent replay of
+source/artifact, guard, six-run timing and raw-token bindings; all source,
+E2E and executor fields are populated and the old byte prefix hash matches.
+The manual bench pred/meas ratios are.973768(B1) and1.018378(B16), explaining
+most of the prompt-inference gap within bench costs for these coordinates;
+this is not per-stage measured attribution or original top4 acceptance.
+No default or cost/geometry rule is changed by this comparison. Raw:
+moe_D7_prefetch_ppair_card5_v1/ACTUAL_EIGHT_PREFETCH_PPAIR_PROCESS_ROWS_APPENDED_CPU.json.
