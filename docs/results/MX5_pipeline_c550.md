@@ -1,5 +1,40 @@
 # MX-5 C550 pipeline and specification audit
 
+以下为当前源码的只读核对（verified）；逐格数字以 [LLM 表](MX5_llm_c550.md) 和
+[主报告](MX5_c550.md) 为准。dense v2 已实现并在显式入口验收，默认 target 仍指向
+MX-4。MoE/DNN 的 native 客户尚未实现，旧 DM 路径仍存在，本轮没有执行它们。
+
+```mermaid
+flowchart LR
+  A["导出 bridge.json"] --> B["decoder: BuildModelPlan"]
+  B -->|dense 显式 v2| C["同源阶段成本表 → exact top-4"]
+  C --> D["StageProgram → constexpr CU → cucc"]
+  D --> E["MIR / 资源 / identity / serving ABI"]
+  E --> F["ServingEngine: L1 separate / loop"]
+  P["dense MX-4 prefill 几何<br/>计时 WD0 / 检查 WD1"] --> F
+  F --> G["C-1 / C-2 → 无插桩端到端 TPOT"]
+  B -. "MoE native 待实现" .-> M["AnalyzeMxMoe → M1–M7 + prompt64"]
+  A --> N["DNN: BuildDnnModelPlan"]
+  N -. "DNN native 待实现" .-> V["EmitMxDnnProgram → NativeForward"]
+```
+
+| prompt 要求（stated） | 当前执行边界（verified） |
+|---|---|
+| 阶段顺序 | dense decode → MoE → LLM 30 格验收 → DNN；MoE 仅完成 CPU 前端核对 |
+| 默认值依据 | 仅无插桩 TPOT / forward 时延；四项 attention 实现对照均无可分辨收益，均未采用 |
+| 原始基线 | MX-4 三份固定 CSV 保持原字节；没有外部基线重测 |
+| 每格选择 | 已完成格的原始 top-4 全部 C-1/C-2，两个新进程计时，再按 1% 规则选择 |
+| 允许的修订 | 用户允许已探测纯 LDS 局部同步，并放宽累计 60 GPU 小时上限；其余判据保留 |
+| GPU 作业 | 卡号限 7/6/5/4、最多两卡、每卡一个 guard；单作业及计时时限保留 |
+| 未关闭的门 | 已确认的性能回归及 GEMM 576 精度边界失败分别保留；不据此宣称 G-B/G-LLM 通过 |
+
+MoE 实现前已核对实际五个 B：24 层序列、779 个缓冲、219 个 legacy stage、
+121 个 GEMM、246 项外部名字/dtype/recipe、FP32 路由权重和 BF16 Q/K norm、RoPE。
+这些是 CPU 前端事实，不等于 native 编译、路由正确性或性能验收。
+具体入口及待补文件见下文；最终 xcore1000 的 MoE/DNN 需编译期拒绝 legacy 路径。
+
+---
+
 Verified checkpoint, 2026-10-28: A19 body `7c9658ac5`, frozen normal producer
 `88327cbc4`, has11/25 dense top-four selections. Eight are nonregressions;
 Qwen0.6B B2/B4 andQwen1.7B B2 are9.823/7.591/1.538% slower than fixedMX4;G-LLM stays open.
