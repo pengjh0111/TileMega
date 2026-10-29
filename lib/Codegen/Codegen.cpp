@@ -2321,7 +2321,8 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
       }
       }
     }else if(kind=="kFusedAttention") {
-      if((extent!=8 && extent!=4) || (width!=64 && width!=128) || group<2 || group>8 ||
+      // Hkv 8 dense, 4 Qwen3-30B-A3B, 16 OLMoE (MHA, Q = 1): the body takes Q in [1, 8].
+      if((extent!=8 && extent!=4 && extent!=16) || (width!=64 && width!=128) || group<1 || group>8 ||
          integerField(s,"dense_attention_chunks")!=c.attention.chunks ||
          integerField(s,"attention_kv_block")!=capacity)
         throw std::invalid_argument("native attention requires reconstructed integrated chunks");
