@@ -18,9 +18,11 @@ struct Sm90DenseSearchSpace {
   bool weight_stream=false,layer_loop=false;
   // MoE decode (prompt §8): families 0, 1, 5, 6, 7, 4.
   bool moe=false;
-  // Expected active experts of a step, 128 (1 - (1 - 8/128)^B), which sizes
-  // the grouped stages' task counts (§8 solver item 3).
-  double ExpectedActive() const {return 128.0*(1-std::pow(1-8.0/128,batch));}
+  // Expected active experts of a step, E (1 - (1 - k/E)^B), which sizes the
+  // grouped stages' task counts (§8 solver item 3; MR6 takes E, k from the
+  // workload).
+  int experts=0,top_k=0;
+  double ExpectedActive() const {return experts*(1-std::pow(1-double(top_k)/experts,batch));}
 
   bool Legal(Sm90DenseCoordinates const&) const;
   int Grid(int residency) const {return target.res.num_sms*residency;}

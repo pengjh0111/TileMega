@@ -35,6 +35,8 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
   c.route_la_=s.At("route_la_ns");c.round_=s.At("round_ns");c.clusters_=s.At("clusters");
   c.dsmem_=s.At("dsmem_merge_ns");
   if(auto const* forward=s.Find("forward"))c.forward_=*forward;
+  if(auto const* cta=s.Find("cta_dram_gbps"))c.cta_dram_gbps_=Positive(*cta,"per-CTA DRAM bandwidth");
+  if(auto const* task=s.Find("task_expert_ns"))c.task_expert_=*task;
   c.attention_=s.At("attention_ns");
   return c;
 }
@@ -77,6 +79,19 @@ double Sm90NativeConstants::GroupWaitSaving(int grid) const {
   auto const* b=group?group->Find(std::to_string(grid)):nullptr;
   if(!a || !b)throw Sm90NativeMissing("no measured group wait for grid "+std::to_string(grid));
   return Positive(*a,"V3 round")-Positive(*b,"group round");
+}
+double Sm90NativeConstants::CtaDramGbps() const {
+  if(!(cta_dram_gbps_>0))throw Sm90NativeMissing("no measured per-CTA DRAM bandwidth (MR6 BW_cta_dram)");
+  return cta_dram_gbps_;
+}
+double Sm90NativeConstants::TaskExpert(std::string const& family,int batch) const {
+  auto const* table=task_expert_.Find(family);
+  auto const* found=table?table->Find(std::to_string(batch)):nullptr;
+  if(!found)throw Sm90NativeMissing("no measured expert task overhead for "+family);
+  // A per-task cost at or below the subtraction's noise is recorded as zero.
+  double value=found->AsNumber("expert task overhead");
+  if(value<0)throw std::invalid_argument("negative expert task overhead");
+  return value;
 }
 double Sm90NativeConstants::WgmmaEfficiency(int tile_n) const {
   auto const* table=forward_.Find("wgmma_efficiency");

@@ -19,14 +19,24 @@ Sm90DenseCostModel::Sm90DenseCostModel(TargetSpec target,Sm90NativeConstants con
     throw std::invalid_argument("native dense cost model requires the H800 target");
 }
 
+// MR6: a CTA with n = ceil(t / G) tasks streams its first n - 1 at the shared
+// rate BW_dram / G; in the last wave only r = t - (n - 1) G CTAs are active,
+// each at min(BW_cta_dram, BW_dram / r).
+double Sm90DenseCostModel::Waves(double tasks,int grid,double task_bytes) const {
+  auto const& c=constants_;
+  double n=std::ceil(tasks/grid),last=tasks-(n-1)*grid;
+  return (n-1)*task_bytes/(c.dram_gbps/grid)+task_bytes/std::min(c.CtaDramGbps(),c.dram_gbps/last);
+}
+
 double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
     Sm90DenseGemm const& g,int residency,json::Value* terms,bool pre) const {
   auto const& c=constants_;
   int grid=Grid(residency),n=work.shapes[family][0],k=work.shapes[family][1],b=work.batch;
   // MoE experts (prompt §8): n_active x N/TN tasks over n_active expert
   // stacks; gate_up gathers each expert's rows, down reads R_A-row boxes.
-  double active=family>=6?128.0*(1-std::pow(1-8.0/128,b)):1;
-  double rows=family==6?b*8.0/active:family==7?(b<=8?8:16):b;
+  // MR6: n_active = E (1 - (1 - k/E)^B) from the workload.
+  double active=family>=6?work.experts*(1-std::pow(1-double(work.top_k)/work.experts,b)):1;
+  double rows=family==6?b*double(work.top_k)/active:family==7?(b<=8?8:16):b;
   double tasks=n/g.tile_n*active,per_cta=std::ceil(tasks/grid);
   double w_tot=2.0*n*k*active,a_tot=tasks*rows*k*2.0;
   double w_cta=per_cta*g.tile_n*k*2.0,a_cta=per_cta*rows*k*2.0;
@@ -36,15 +46,17 @@ double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
   // D3: weights (bulk) and activations (TMA) share one CTA's async stream.
   double cta=(w_cta+a_cta)/c.sm_gbps;
   double ring=w_cta*c.dram_latency/(double(g.slots)*g.slot_bytes);
-  double stream=std::max({w_tot/c.dram_gbps,(w_tot+a_tot)/c.l2_gbps,cta,ring});
+  double waves=Waves(tasks,grid,2.0*g.tile_n*k);
+  double stream=std::max({w_tot/c.dram_gbps,waves,(w_tot+a_tot)/c.l2_gbps,cta,ring});
+  double task_fixed=family>=6?per_cta*c.TaskExpert(family==6?"expert_gate_up":"expert_down",b):0;
   static constexpr char const* kEpilogue[]={"qkv","residual","gate_up","residual","lm_head",
       "router","expert_gate_up","expert_down"};
   double epilogue=c.Epilogue(kEpilogue[family],g.tile_n,b,g.warps_k);
   double first=pre?c.l2_latency:c.dram_latency;
-  double total=c.Barrier(grid)+first+stream+epilogue;
+  double total=c.Barrier(grid)+first+stream+epilogue+task_fixed;
   if(terms)*terms=json::Object{{"barrier",c.Barrier(grid)},{"first_byte",first},{"pre",pre},
-      {"dram",w_tot/c.dram_gbps},{"l2",(w_tot+a_tot)/c.l2_gbps},{"cta",cta},{"ring",ring},
-      {"epilogue",epilogue},{"tasks",tasks},{"multicast",g.multicast}};
+      {"dram",w_tot/c.dram_gbps},{"waves",waves},{"l2",(w_tot+a_tot)/c.l2_gbps},{"cta",cta},{"ring",ring},
+      {"epilogue",epilogue},{"task_fixed",task_fixed},{"tasks",tasks},{"multicast",g.multicast}};
   return total;
 }
 
@@ -56,7 +68,7 @@ double Sm90DenseCostModel::Attention(Sm90DenseWorkload const& work,
   double past=575,tasks=double(work.batch)*work.hkv*a.chunks,per_cta=std::ceil(tasks/grid);
   double keys=std::ceil((past+1)/a.chunks),blocks=std::ceil(keys/64);
   double kv_task=keys*d*4,kv_tot=double(work.batch)*work.hkv*past*d*4;
-  double compute=per_cta*(kv_task/(c.dram_gbps/grid)+blocks*c.AttentionBlock(d,q,norm));
+  double compute=Waves(tasks,grid,kv_task)+per_cta*blocks*c.AttentionBlock(d,q,norm);
   double stream=std::max(kv_tot/c.dram_gbps,compute);
   // D10b: the DSMEM merge replaces the global partials and last arriver.
   double merge=a.chunks==1?0:a.dsmem?c.AttentionMergeDsmem(d,q,norm,a.chunks):

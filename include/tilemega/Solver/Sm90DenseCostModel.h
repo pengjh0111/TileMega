@@ -36,6 +36,7 @@ class Sm90DenseCostModel {
   int Grid(int residency) const {return target_.res.num_sms*residency;}
   Sm90NativeConstants const& Constants() const {return constants_;}
  private:
+  double Waves(double tasks,int grid,double task_bytes) const;
   TargetSpec target_;
   Sm90NativeConstants constants_;
 };
