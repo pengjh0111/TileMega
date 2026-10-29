@@ -34,7 +34,7 @@ flowchart LR
 | dense decode 显式 v2 | `mx_decode_v2.cpp`、`MxDecodeSolverV2`、resolved runner | 25 格原始 top-4 已检查/计时，4 格回退仍未关闭 |
 | dense prefill | MX-4 几何和 serving harness，支持当前 KV 片段写入 | WD0 计时、WD1 检查；未改造 prefill 结构 |
 | MoE decode | `options.moe_batch=r.batch`；DM 计划直接进 `TryCompileMoeV2` → `AnalyzeMxMoe` | native 实现存在；缺合格完整成本、模型验收与终版选择 |
-| MoE prompt64 | decode bridge + `--serving prefill --mx-prompt 1` | seq64、L1、同名同 recipe 外部表；仅 CPU 构建/ABI 证据 |
+| MoE prompt64 | decode bridge + `--serving prefill --mx-prompt 1` | seq64、L1、同名同 recipe；B1手工C-2已运行，终版仍待验收 |
 | MoE 脚本 | 显式手工 PIN 接 native，decode 另建 watchdog twin，prefill 输入 decode bridge | 无 PIN 或请求未就绪求解入口时报错；不会落入旧脚本分支 |
 | DNN forward | 当前仍为 `BuildDnnModelPlan` → legacy lowering/harness | native 客户和最终 legacy 拒绝尚缺；本阶段没有执行 DNN |
 
@@ -107,7 +107,7 @@ MoE decode/prompt 不再经 legacy 回退。当前只允许标记为 manual/reso
 - qkv/o 的760个坐标：675个初始 fit，20个经减半恢复，65个最小预取仍失败。
   attention 另有100个512线程 fit、100个576线程 PK1 栈帧468–480B失败。
   795个可运行坐标的对应 MIR和设备查询通过，三进程成本正在测量。
-- router 的540个 Pw0/PwD 资源结果已实际查询。TN64/64 的220个 fit正在测成本，
+- router 的540个 Pw0/PwD 资源结果已实际查询。TN64/64 的220个 fit已完成三进程成本，
   50个 payload 拒绝；额外11种分派TN组合开始CPU构建，不把该子集冒充完整域。
 - 候选组装已实现按分派TN分组的精确top4，匹配gate/up和down的实际TN、每层成本
   倍数、原始行索引；40组带平局穷举及两项host CTest通过，完整catalog/CLI尚缺。
@@ -119,6 +119,9 @@ MoE decode/prompt 不再经 legacy 回退。当前只允许标记为 manual/reso
   查询与512步 C-1/C-2 排在 router 成本之后。没有 per-plan512 例外或模型通过结论。
 - 路由审计脚本已实现并通过 CPU 边界测试；真实模型 B1/B16 路由核对尚未运行。
   每项成本校验绑定源码、二进制、实际查询、PID、guard 和 raw hash；未齐表不作终版选择。
+- B1手工C-2的512步两臂零差异。首轮内存统计缺`pair_u32`，修复后C-1又因MetaX
+  PyTorch不支持grouped_mm停止。两轮失败保留；用户已授权HF正确性/路由参考显式
+  使用eager，检查结果记录实现，阈值和外部基线不变；新轮B1/B16检查进行中。
 
 ## prompt 不变量、修订和未关闭的门
 
@@ -130,7 +133,7 @@ MoE decode/prompt 不再经 legacy 回退。当前只允许标记为 manual/reso
 | DT-P（verified） | CTA 增750ns、阈值387ns；LDS 增−20ns → P-B |
 | DT-X（verified） | wave 交换增−20ns、交换处无全局等待 → X-A |
 | DT-KV（verified） | 最小 K/W=.507、Vt/W=.363 → block fragments |
-| 用户修订（stated） | 允许已探测纯 LDS 局部同步；放宽累计60卡时；其他判据保留 |
+| 用户修订（stated） | 允许纯LDS局部同步、放宽累计60卡时、允许HF参考显式eager；其他判据保留 |
 | 局部同步（verified） | 五新进程×104 CTA×2000次 helper litmus；P-PAIR +.146%/−.300%，无可分辨收益 |
 | GPU（verified） | 仅7/6/5/4，最多两卡、每卡一作业，全经 guard；当前6/7；1800s一般/900s计时上限保留 |
 | 编译/资源 | 正常编译参数；frame/static0、MT≤227/255、实际 resident1；R_cap220/248 未改 |

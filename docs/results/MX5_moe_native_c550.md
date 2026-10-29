@@ -402,3 +402,31 @@ exactly matching the frozen computation bodies. This uses the include graph,
 so unrelated host solver edits do not falsely invalidate body-source identity.
 No GPU launch or cost/model gate follows from preprocessing. Raw:
 `moe_body_source_closure_cpu_v1/ACTUAL_FIVE_BODY_HEADER_CLOSURES_MATCH_ADOPTED_CPU.json`.
+
+Verified TN64/64 router220 fitting keys now have three fresh timing rounds
+and pass the frozen source-bound aggregator. This remains one dispatch context;
+all11 additional contexts still require their own build/query/cost records.
+Raw: `moe_router_cost_aggregation_after_complete_v1/complete220.json`.
+
+Verified the first manual B1 model check stopped in serving/memory.py:48
+because its dtype-size table omitted pair_u32 (two uint32 values). No model
+kernel ran in that attempt. Adding its8-byte size passes13 CPU accounting
+tests and four actual plan-manifest checks; binaries and GPU bodies unchanged.
+The next attempt completes512-step C-2 with zero L1-separate/loop mismatches,
+then HF C-1 fails because MetaX torch's grouped_mm is unsupported. That
+unsupported backend is also recorded in torchcompile_baseline.py:70–87;
+no external baseline is remeasured or changed. Both failed guards/logs remain.
+Raw: `moe_manual_correctness_after_router_costs_v1`,
+`moe_manual_correctness_memory_recovery_v2`.
+
+Stated user amendment explicitly permits experts=eager for this round's HF
+correctness and routing reference. The CLI now accepts an explicit choice,
+asserts HF uses it and records it; grouped_mm stays the default when no choice
+is passed. mx_check_modes forwards MX_MOE_HF_EXPERTS only when explicitly set.
+No automatic implementation fallback or threshold changes were added.
+Thirty-two CPU reference/routing/pair tests pass. The pending old route CPU
+controller was superseded before changing its bound helper, with no GPU job
+terminated. Fresh eager-reference manual C1/C2 and routing are queued; existing
+cost and isolated rank-experiment queues retain their frozen inputs.
+Raw: `moe_hf_eager_authorization_v1`, `moe_manual_correctness_eager_v3`,
+`moe_manual_routing_eager_v2`.
