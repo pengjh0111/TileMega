@@ -236,7 +236,7 @@ void MoeEpilogueCase(char const* family) {
   Check(cudaMemcpy(device_schedule,schedule.data(),schedule.size()*4,cudaMemcpyHostToDevice));
   auto* output=Device<float>(16*8*2048);auto* weights=Device<BF>(16*8);auto* x=Device<BF>(16*2048);
   auto* counter=Device<std::uint64_t>(16);
-  backend::Sm90DenseMoeOperands p{nullptr,nullptr,nullptr,output,device_schedule,weights,nullptr,x,counter,1e-6f};
+  backend::Sm90DenseMoeOperands p{nullptr,nullptr,nullptr,output,device_schedule,weights,nullptr,x,counter,1e-6f,nullptr};
   auto kernel=MoeEpilogueKernel<Mode,TN,WN,Batch,Experts>;
   int shared=4*WK*16*TN+512;
   Check(cudaFuncSetAttribute(kernel,cudaFuncAttributeMaxDynamicSharedMemorySize,shared));
@@ -265,7 +265,7 @@ __global__ void RouteLaStage(float* logits,int* schedule,BF* weights,int* index,
     U64* counter,U64* stamps,int iterations) {
   __shared__ alignas(128) char free[1024];
   backend::Sm90DenseMoeOperands p{nullptr,nullptr,nullptr,logits,schedule,weights,index,nullptr,
-      reinterpret_cast<std::uint64_t*>(lm),0.0f};
+      reinterpret_cast<std::uint64_t*>(lm),0.0f,nullptr};
   for(int it=0;it<iterations;++it) {
     if(threadIdx.x<128)
       backend::Sm90DenseRouterFinish<Batch,Experts,8,Experts/8,false,All>{}(p,blockIdx.x<Experts/8?1:0,free);
@@ -322,7 +322,7 @@ void MoeTaskCase(char const* family) {
       Check(cudaMemcpy(device_schedule,schedule.data(),schedule.size()*4,cudaMemcpyHostToDevice));
       Check(cudaMemset(counter,0,8*(N/TN)));
       backend::Sm90DenseMoeOperands p{down?device_map:nullptr,weight,x,down?(void*)output:(void*)h,
-          device_schedule,routes,nullptr,x,counter,1e-6f};
+          device_schedule,routes,nullptr,x,counter,1e-6f,nullptr};
       MoeTaskKernel<G><<<1,160,G::kSharedBytes>>>(p,stamps);Check(cudaDeviceSynchronize());
       U64 host;Check(cudaMemcpy(&host,stamps,8,cudaMemcpyDeviceToHost));
       time[i]=double(host);Check(cudaFree(device_schedule));
