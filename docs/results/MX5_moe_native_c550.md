@@ -896,3 +896,12 @@ Verified635 completed dense canonical MIR logs now have persistent gzip
 backups and byte-identical readable tmpfs views at their original paths,
 freeing1744.884MiB for pending normal candidate builds. No source, binary,
 measurement or guard data changed. Raw: completed_dense_canonical_mir_archive_v1.
+
+Verified request validation additionally binds the exact native kernel,
+execution digest and shared-memory bytes for prefill and all six runs.
+All eight original reports pass;31 CPU tests pass. Two earlier validator
+attempts fail because its final digest omitted shared memory and then a
+local name shadowed its helper; both logs are retained and only validator
+code changes. No report, expected token, timing, threshold or oracle changes.
+Raw: moe_actual_request_evidence_cpu_v1/PYTEST_EXECUTION_BINDING_v2/v3/v4.log,
+ACTUAL_EIGHT_REQUEST_REPORTS_KERNEL_SHARED_MEMORY_REVALIDATED_CPU_v2.json.
