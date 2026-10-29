@@ -1,7 +1,7 @@
 """CPU checks of exact expert sets and the specified BF16 boundary exception."""
 import pytest
 
-from tilemega.moe.routing_check import compare_routes
+from tilemega.moe.native_routing_check import compare_routes
 
 
 def logits(eighth=1.0, ninth=.984375):
