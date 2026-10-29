@@ -2,8 +2,8 @@
 
 Verified 2026-10-29. Authority: `TileMega_MX5_prompt.md`, SHA256
 `75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73`.
-MoE native model acceptance remains **0/5**. Body units and source-bound
-stage costs have GPU evidence; model C1/C2/routing/E2E remain unexecuted.
+MoE native model acceptance remains **0/5**. Manual B1/B16 C1/C2 pass, while
+routing fails31/468 non-tie positions. Final selected5-cell E2E remains pending.
 
 ## Host analysis
 
@@ -42,8 +42,8 @@ cover grouped TileRange, the gate/up no-prefetch edge, router WN1, head WN4/8,
 wait immediates, and shared memory. Host tests add 120 emitted decode/prompt
 programs, 240 configuration rejections and 120 buffer-tile rejections;
 paired prompt/decode external tables are equal. Root compiler build and the
-five actual bridge analyses pass. Native CLI integration and canonical CUDA
-headers remain pending; these tests do not compile/execute the emitted CUDA.
+five actual bridge analyses pass. At that checkpoint native CLI integration
+and canonical CUDA headers were pending; their later results are recorded below.
 
 ## Device body preparation
 
@@ -541,3 +541,10 @@ These queued collectors do not predeclare cost/model/thread-policy acceptance.
 Raw: moe_rank_adopted_body_source_closure_cpu_v2,
 moe_router_rank_context_pipeline_v2, moe_head_complete_outcomes_cpu_v1,
 moe_router_rank_complete_outcomes_cpu_v1, moe_complete_geometry_table_cpu_v1.
+
+
+Verified the eight P-PAIR summary rows initially left nested source-head/digest
+and E2E metadata blank. MX5_moe_rank_provenance_c550.csv separately reconciles
+those fields from actual identity/measurement files, with original CSV line
+and hashes. Original measurement rows and values remain unchanged; this is
+metadata reconciliation, not additional timing or a backfilled old row.

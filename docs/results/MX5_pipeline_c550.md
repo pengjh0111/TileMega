@@ -34,7 +34,7 @@ flowchart LR
 | dense decode 显式 v2 | `mx_decode_v2.cpp`、`MxDecodeSolverV2`、resolved runner | 25 格原始 top-4 已检查/计时，4 格回退仍未关闭 |
 | dense prefill | MX-4 几何和 serving harness，支持当前 KV 片段写入 | WD0 计时、WD1 检查；未改造 prefill 结构 |
 | MoE decode | `options.moe_batch=r.batch`；DM 计划直接进 `TryCompileMoeV2` → `AnalyzeMxMoe` | native 实现存在；缺合格完整成本、模型验收与终版选择 |
-| MoE prompt64 | decode bridge + `--serving prefill --mx-prompt 1` | seq64、L1、同名同 recipe；B1手工C-2已运行，终版仍待验收 |
+| MoE prompt64 | decode bridge + `--serving prefill --mx-prompt 1` | seq64、L1、同名同 recipe；B1/B16手工C-1/C-2通过，路由失败 |
 | MoE 脚本 | 显式手工 PIN 接 native，decode 另建 watchdog twin，prefill 输入 decode bridge | 无 PIN 或请求未就绪求解入口时报错；不会落入旧脚本分支 |
 | DNN forward | 当前仍为 `BuildDnnModelPlan` → legacy lowering/harness | native 客户和最终 legacy 拒绝尚缺；本阶段没有执行 DNN |
 
@@ -92,7 +92,7 @@ Llama8B B2 +1.463%。G-LLM 保持未通过，未启用四个无可分辨收益�
 每步 6L+1=145 个屏障。prompt 核内执行 past0..63，只在最后一步运行 head，
 共 9217 次释放；prompt/decode 的外部表同名同 recipe。native CLI 拒绝解释式选项，
 MoE decode/prompt 不再经 legacy 回退。当前只允许标记为 manual/resource_probe 的
-手工计划；七类精确 k-best 数学核心已通过 720 个穷举对照，完整成本加载/CLI 尚缺。
+手工计划；七类精确 k-best 已通过 720 个穷举对照，诊断候选CLI已接入；终版完整成本/选择仍缺。
 
 原始三类 MoE unit 的 Python float torch.equal 仅证明值相等，旧文档的“逐位”表述
 已纠正。新的严格 uint8 比较已完成三类各五个新进程，15/15通过。旧行、容差、种子和
@@ -106,17 +106,17 @@ MoE decode/prompt 不再经 legacy 回退。当前只允许标记为 manual/reso
   按线程拆分：512为443 fit/5拒绝；576为356 fit（含恢复27）/92拒绝。
 - qkv/o 的760个坐标：675个初始 fit，20个经减半恢复，65个最小预取仍失败。
   attention 另有100个512线程 fit、100个576线程 PK1 栈帧468–480B失败。
-  795个可运行坐标的对应 MIR和设备查询通过，三进程成本正在测量。
-- router 的540个 Pw0/PwD 资源结果已实际查询。TN64/64 的220个 fit已完成三进程成本，
-  50个 payload 拒绝；额外11种分派TN组合开始CPU构建，不把该子集冒充完整域。
+  795个可运行坐标的 MIR、设备查询和三进程成本汇总通过，另165个资源拒绝已核对。
+- router 旧TN64/64的220个三进程成本保留为历史来源。排名谓词经整程序P-PAIR后合入，
+  新一轮12种分派TN组合重建/查询/计时；首组540查询已过，220个fit测量中。
 - 候选组装已实现按分派TN分组的精确top4，匹配gate/up和down的实际TN、每层成本
-  倍数、原始行索引；40组带平局穷举及两项host CTest通过，完整catalog/CLI尚缺。
+  倍数、原始行索引；40组带平局穷举及两项host CTest通过，诊断CLI完整域检查已接入。
 - 成本行导入已实现形状/执行器/资源/三轮契约检查与attention五点均值；922行真实
-  grouped/head记录及15项负例通过。完整catalog/CLI仍缺。额外130个576线程head
-  可运行坐标的CPU来源校验通过，三进程计时排在常规成本之后；不冒充已有512成本。
+  grouped/head记录及15项负例通过。完整catalog和端到端选择仍缺。130个576线程head
+  的三进程计时进行中，20个资源拒绝已核对；不冒充已有512成本。
 - 普通四个512线程 native CLI 构建和六个 API0 查询已有证据。新增 B1/B16 的
   decode/prompt watchdog1 手工控制计划 MT237/241/245/249、frame/static0；设备
-  查询与512步 C-1/C-2 排在 router 成本之后。没有 per-plan512 例外或模型通过结论。
+  查询与512步 C-1/C-2 已通过；没有 per-plan512 例外或终版模型通过结论。
 - 路由审计脚本已实现并通过CPU边界测试；手工B1/B16的1536/24576个位置中，
   31/468个位置超过两BF16-ulp边界并失败（另有123/2282个边界平局）；门未通过。
   每项成本校验绑定源码、二进制、实际查询、PID、guard 和 raw hash；未齐表不作终版选择。
