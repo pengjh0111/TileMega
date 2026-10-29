@@ -240,6 +240,27 @@ identical runtime/geometry and unions required implementation capabilities;
 model queues remain separate. Three Llama native bootstrap pairs are being
 regenerated through CTG/ISL. These scope changes do not admit untested models.
 
+`verified-run`: Llama1B/3B/8B B16 now each pass actual **priced** full64/1024,
+16384 tokens and2052096 logits bitwise, plus32/56/64 last-position KV slices
+with zero error. Their own measured Body6/9 decode candidates all select9;
+prefill also runs sourced native placement/order search. Independent reference
+payloads are reused without baseline reruns. One shared implementation image
+`33232599778e28d8a2d8044f35986f8bcc19ca93a58895379919344536423e7d`
+has an identical generated runtime and a checked capability superset; each
+model retains its own CTG/Plan/weights. Phase/source/table/launch receipts:
+`search/opt_cachedkv_<model_id>_full_pipeline_receipt_v3.json`.
+New Llama teacher512/C2/C3 and full paired acceptance remain pending.
+A fixed one-process-per-variant full-request pilot is running; it does not
+admit a default or original eager G-PERF. B1 plans remain unchanged.
+
+A separate L1-K256 GEMM probe retains L0K32 and passes actual gate/up and
+large-K/tail outputs bitwise. Service8.672→7.443us and34.330→29.570us is
+component-only, with per-worker MMAD lifetime unlike the integrated per-task
+lifetime. No formal cost/default is changed. An isolated strided SwiGLU tile
+prototype preserves both BF16 cast points; CANN compilation passes, numerical
+probe pending. It targets the observed64 small Pointwise calls per16×128
+epilogue; it is not yet registered in a native model candidate.
+
 Large diagnostic profiles now optionally stream D2H into exclusive-new gzip
 files, with SHA256, decompression/extent verification and an archive receipt;
 the raw profile never touches disk. Uses existing zlib/OpenSSL, no installs.
