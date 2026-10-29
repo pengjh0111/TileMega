@@ -958,3 +958,25 @@ The v1 derivation stops before any compiler on a duplicate R_cap dictionary
 keyword; v2 corrects the wrapper while retaining R_cap220/248 and v1 logs.
 Raw: moe_manual_D7_512_primary_cpu_v1/v2,
 moe_manual_D7_512_zero_queries_v1.
+
+Verified four WD1 counterparts of the new development primaries finish
+normal CPU builds: B1 prompt/decode MT245/237, B16 prompt/decode MT245/241,
+all frame/static0. Independent normal-option/receipt/body-header/geometry/
+recipe/two-pair checks and MIR pass with zero private/generic/calls/ring4160.
+Four CPU resource rows are appended; actual device queries and C-1/C-2 are
+queued separately, with explicit authorized eager reference and512 steps.
+Raw: moe_D7_512_watchdog_cpu_v1.
+
+Stated user amendment permits multi-card parallel work; the schedule now
+uses all allowed physical cards7/6/5/4, one guarded job per card. Per-job
+900s timing/1800s general limits,40960MiB MoE request and all measurement
+protocols remain. Verified card4 atomically claims untouched GU64/DN128 and
+starts its frozen-body query/cost pipeline while cards6/7 continue their
+owned contexts. The old card7 optional rebalance will decline that claim;
+card6 will stop before duplicating the claimed directory. No existing cost
+sample is moved or rewritten. Card5 starts the four WD0 queries, then its
+WD1 query/C-1/C-2 queue. Only the two waiting owned CPU controllers were
+superseded before GPU submission; no GPU child or other process was signalled.
+Raw: USER_FOUR_CARD_PARALLEL_AMENDMENT_20261030.json,
+moe_router_rank_card4_last_context_v1, moe_D7_512_WD0_card5_queries_v1,
+moe_D7_512_card5_checks_v1. Multi-card scheduling does not imply model acceptance.

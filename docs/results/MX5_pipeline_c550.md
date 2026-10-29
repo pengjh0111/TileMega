@@ -139,7 +139,7 @@ MoE decode/prompt 不再经 legacy 回退。当前只允许标记为 manual/reso
 | DT-KV（verified） | 最小 K/W=.507、Vt/W=.363 → block fragments |
 | 用户修订（stated） | 允许纯LDS局部同步、放宽累计60卡时、HF参考显式eager、仅补齐预取减半到D；其他判据保留 |
 | 局部同步（verified） | 五新进程×104 CTA×2000次 helper litmus；P-PAIR +.146%/−.300%，无可分辨收益 |
-| GPU（verified） | 仅7/6/5/4，最多两卡、每卡一作业，全经 guard；当前6/7；1800s一般/900s计时上限保留 |
+| GPU（stated 用户修订；verified 调度） | 仅7/6/5/4，允许四卡并行、每卡一作业，全经 guard；1800s一般/900s计时上限保留 |
 | 编译/资源 | 正常编译参数；frame/static0、MT≤227/255、实际 resident1；R_cap220/248 未改 |
 | 基线/数据 | 固定 MX-4 三份 CSV 原字节保留，不重测外部基线；runs 不入 git；测量行只追加 |
 | 默认/性能 | 仅无插桩 TPOT/forward 决定默认；target 仍为 MX-4；TTFT 照常记录 |
