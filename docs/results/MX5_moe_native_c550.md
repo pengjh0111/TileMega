@@ -654,3 +654,35 @@ No source/model/threshold changed. Raw: moe_same_native_input_HF_router_D7_v1.
 Verified317 completed grouped MIR logs retain byte-identical readable paths
 and persistent gzip backups, freeing386.736MiB. No source, binary, cost sample
 or guard result changes. Raw: moe_completed_grouped_mir_archive_v1.
+
+
+Verified the reusable CPU cost-evidence checker validates original raw lines,
+three rounds, aggregates, source/binary hashes, coordinates including router
+TN context, actual resources, guard/PID records, working-set size and body
+validation flags. The original512 head campaign has450 command records across
+150 keys, without child-PID metadata; these remain explicitly labelled as
+legacy command evidence and no PIDs are invented. Twenty-four CPU tests pass,
+including changed body/source/scope, reused PIDs, altered raw rows, failed
+body/guard checks and incomplete coverage. Actual existing2696 outcomes pass:
+2314 measured costs plus382 resource rejections across regular/grouped/head
+and the first two new router contexts. This file check alone grants neither
+geometry completeness nor model/thread/default acceptance. The complete-scope
+path additionally checks the adopted five-family header closure and actual
+native geometry audit; ten real complete scopes are queued until all5396
+outcomes exist. Raw: moe_cost_provenance_cpu_v1,
+moe_complete_scope_file_verification_cpu_v1. The initial unit fixture's wrongly
+calculated median and the first family-table schema rejection remain logged;
+the fixture arithmetic and explicit supported family schemas were corrected,
+without changing any measurement row or acceptance threshold.
+
+Verified the final four router contexts (GU-TN128, all four DN-TNs) are assigned
+to guarded card7, with byte-identical frozen query/ABI/measurement drivers and
+the same source epoch. Its collector changes only the expected physical card.
+Card6 retains the first eight contexts; all per-context results retain their
+original paths for the existing outcome collector. The frozen original serial
+controller will stop on its already-owned ninth context directory before any
+duplicate GPU launch; its old all12 completion marker will not be claimed.
+Completion is instead checked from all12 actual per-context aggregates. This
+changes scheduling only; each key still uses three fresh processes on one
+card,40960MiB admission,900s timing limits, at most cards6/7 concurrently.
+Raw: moe_router_rank_card7_last4_pipeline_v1.
