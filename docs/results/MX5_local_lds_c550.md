@@ -1277,3 +1277,14 @@ remainingdensequeueactuallycompletes. B8continuesoncard5;max2cards.
 Thefirstflatbinding/normalflag MoEfullprogram resourcevariantstillhas464B
 frameatMT168;notafix;unlaunched. No resource-rulewaiver orforcedflags.
 Raw:current_Llama8BB2_D7_v1;moe_program_cpu_preparation_v1.
+
+
+Verified normal512MoE fullprogram references andseparateABIpreparations
+B1decode/prompt,B16decode/prompt haveMT235/243/237/241,frame/static0,
+16MMArings/kernelfreeofgeneric/calls/private/4160. ManualCPUonly,not
+solverplans,occupancy,correctness or512executionexception. Twelveactual
+CPUresourcerowsappendwithnon-nativesnapshot/sourceheadexplicitlyempty.
+Compileonlybodyelisionisolatesattention;allrealprogrambodiesremainpresent.
+MoEunitqueuecard7waitsactualdense25+newD7ledger,5fresh/fixture,40GiBguard;
+noMoE GPUworkyet. Raw:moe_program_cpu_preparation_v1 and
+moe_unit_gpu_after_dense25_v1.

@@ -63,9 +63,21 @@ All are rejected and unlaunched. This differs from the component-only fits;
 D7 integration/resource diagnosis is in progress, without register flags or a
 512-thread exception. These are manual resource preparations, not solver plans.
 
+Verified the subsequent normal 512-thread resource references and separate
+ABI preparations have MT235/243/237/241 for B1 decode/prompt and B16
+decode/prompt, all with frame/static SMEM zero. Exact MIR checks pass all
+16 MMA rings per kernel with zero generic/calls/private/4160 violations.
+These are manual CPU preparations, not selected plans, occupancy observations,
+model correctness or authorization of a 512-thread exception. The normal
+576 failures remain. CPU-only elision diagnostics isolate attention as the
+spill contributor; no body is elided in any execution-eligible program.
+Twelve manual resource rows are append-only records in MX5_resources_c550.csv.
+
 Prepared GPU tests compare router weights and combine outputs bitwise against
 actual legacy CUDA bodies, check deterministic dispatch, and compare grouped
-GEMMs to the CPU FP32 reference. They have not run yet.
+GEMMs to the CPU FP32 reference. They have not run yet. A registered card7 queue waits for all 25 dense
+measurements and the new Llama8BB2 D7 ledger before starting five fresh
+processes per fixture; MoE jobs request 40,960 MiB and keep the 1,800 s limit.
 
 ## Scope and next gates
 
@@ -74,8 +86,8 @@ this scheduling difference is recorded explicitly. It is not phase-E acceptance.
 MoE GPU work waits for the dense 25-cell measurement cohort to finish. G-B and
 G-LLM failures remain open and are not waived by this preparation.
 
-Still missing: GPU numerical/publication tests for the prepared bodies, model StageProgram/bindings
-and runtime, prompt ABI and counters, native compiler routing, measured cost
+Still missing: GPU numerical/publication tests for the prepared bodies, integrated/validated model StageProgram, bindings and runtime, prompt ABI
+and counters on the GPU, native compiler routing, measured cost
 rows/top-four selection, C-1/C-2, routing checks, and five-cell E2E timing.
 DNN starts after the required LLM acceptance stage; no DNN native result exists.
 
