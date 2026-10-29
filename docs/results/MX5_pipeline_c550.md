@@ -85,8 +85,8 @@ that a native StageProgram was generated.
 | Dense decode,default | compile.cpp:580→mx_decode.cpp:95;unmodified target stilluses MX4costs | MX4 static remains the default until MX5acceptance |
 | Dense decode,explicit v2 | mx_decode.cpp:96/97 dispatches table preparation ormx_decode_v2 pin compilation;TryCompileV2:207 imports/analyzes dense ModelPlan | Current original4 selection route;constexpr StageProgram/L1;explicit pin builds are not themselves finalsolver acceptance |
 | Dense prefill | Existing MX4 prefill geometry andlegacy serving harness;timingWD0,checksWD1;fragment KVwrite compatibility added | Allowed retained prefill path;not the decode interpreter andnot a dense-prefill redesign |
-| MoE decode | mx_decode.cpp:105 returns−1 forDM,so compile.cpp continues toDM lowering;explicitv2 rejectsDM atmx_decode_v2.cpp:226 | Legacy route currentlyexists butis not executed/accepted forMX5;AnalyzeMxMoe/native router/grouped bodies remain missing |
-| MoE prompt64 | Request currentlyhas no promptfield;the requested --mx-prompt native route is absent | Native prompt plan andits matching decode recipes remain required |
+| MoE decode | TryCompile sets moe_batch and routes DM directly to TryCompileMoeV2/AnalyzeMxMoe | Native bodies/ABI/CLI integrated; missing qualified costs/model validation; no legacy fallback |
+| MoE prompt64 | --mx-prompt 1 routes decode bridge through native emitter/runtime, seq64 | CPU ABI/identity pairs pass; GPU model validation remains open |
 | DNN forward | compile.cpp:748 BuildDnnModelPlan→existing CouplingGraphToCUDA/serving harness;dnn/cli.py:58 defaultsL2,cli.py:229 defaultsbuild-dm compiler | mx_dnn.cpp/EmitMxDnnProgram/time command andfinallegacy rejection are still missing;no nativeforward result is claimed |
 
 PlanLibrary inserving/plan.py binds tm_plan_query/buffer/create/set_steps/launch,
@@ -128,7 +128,7 @@ cost table; explicit v2 configuration selects the development native route.
 | Step | Implementation and evidence boundary |
 |---|---|
 | Export | `mx_serving_cell.sh` creates decode/prefill bridge JSON. All five dense checkpoints and MoE-L24 export/checkpoint exist. Export alone is not native execution. |
-| Analysis | `compile.cpp` routes xcore1000 decoder/decode to `mx_decode::TryCompile`. Dense imports `ModelPlan` and analyzes shapes. `mx_decode.cpp:105` still returns -1 for DM plans; MoE native routing is unfinished. |
+| Analysis | `compile.cpp` routes xcore1000 decoder/decode to `mx_decode::TryCompile`. Dense imports `ModelPlan` and analyzes shapes. Native MoE routes directly to AnalyzeMxMoe/EmitMxMoeProgramV2; explicit diagnostic pins or a future measured solver are required. |
 | Cost data | Current A20 pool reuses byte-identical G14/H15 evidence (3395 GEMM,750 head) and adds400 new512 attention keys, each three fresh processes. All25 scopes and independent top4 previews replay successfully. Another100576 attention keys were measured;300 failed resources and were not numerically executed. A cost scope does not authorize a plan thread shape. |
 | Solver | Prescribed legal coordinates, five-length attention interpolation averaged over L65..1087, exact k-best top4. The source-bound Python resolved runner executes the four original candidates with preserved IDs and per-plan resource histories. |
 | Codegen | `StageProgram` and `MxDecodeProgramV2` emit constexpr body types, direct calls and by-value bindings. No runtime stage descriptors. QKV(kStore), attention, O, gate_up, down, head give 5L+1 barriers. |
@@ -196,7 +196,7 @@ has not been applied. The committed attention lifetime repair retains both caps.
    forward ABI, all native bodies, register epilogues/layouts, cost table/top4,
    time command,25 synthetic checks and25 forward timings. Only DT-F may be cut
    for budget; its adoption still requires the prescribed P-PAIR evidence.
-6. Final xcore1000 MoE/DNN legacy compile-time rejection is unfinished. The nine
+6. xcore1000 MoE native routing rejects legacy lowering; DNN rejection remains unfinished. The nine
    pre-existing legacy legality tests listed in MX-1 remain outside this repair.
 
 Main results: `MX5_c550.md`, `MX5_llm_c550.md` and the append-only CSVs.
@@ -235,3 +235,10 @@ Serving weight_recipes rejects differing same-name recipe/dtype/size across phas
 share its exact recipes. Read-only preparation does not claim a generator,packing,
 solver,correctness,routing-check,TTFT orTPOT result. Implementation remains after
 the dense stage;rawmoe_native_contract_readonly_v1/ACTUAL_MODELPLAN5_CONTRACT.json.
+
+Verified native MoE CLI/ABI integration: four B1/B16 prompt/decode CPU builds
+share external rows, recipes and source digest; identities/resources pass.
+Native stage sequence is 6L+1, prompt has 9217 releases. This is not model
+acceptance or a 512-thread exception. The dense25+D7 gate is complete; MoE
+router/combine and router-GEMM each pass five fresh GPU processes; grouped
+unit work is in progress. Qualified costs/top4/C1C2/routing/E2E remain.
