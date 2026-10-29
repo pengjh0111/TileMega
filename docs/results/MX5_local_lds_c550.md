@@ -1245,3 +1245,35 @@ Firstprefetchintegration revealed MACAatomic private-pointer genericbranches;
 anassumptionalonefailed,thenAS1ticketABIeliminatedthem. Failedartifactsremain
 andwere neverlaunched. Preparedlegacybitcompare/GEMMtestshavenotrun.
 SeeMX5_moe_native_c550.md;CPUpreparationbeforedense25explicitlyrecorded.
+
+
+Verified rootnativeMoE bufferpreparation preserves246originalexternal/weight
+rows,wrapping121matrixrecipes;25unusedrawnormweightsremainpresent.
+Expandedportabletests now65positive/480specificnegativecases,includingfive
+actualbridges;rootbuild/CTest pass. RootStageProgram promptpredicate andfour
+hosttests pass:64tokens,144layerstages×64,headonce,9217releases;notGPUproof.
+IsolatedrouterGEMM+tile/routeLA eightnormalCPUinstancesalsoMIR/resourcePASS.
+MoE model/GPU acceptanceremains0;seeMX5_moe_native_c550.md.
+
+
+Verified Llama8BB2 lasttimingroundguard returned75(runninginterference).
+Sevenvalidfreshprocessesremain;rejectedprocess/rawguardarepreservedandnot
+counted. Recoveryv3madeanoutputdirectorybeforeexistinghelpercreatedit,
+sofailedbeforeGPU;v4correctsthatpreparation andreruns onlytherejectedround
+oncard5withunchangedguard/source/protocol. Itsnewroundpassesguard0;strict
+verification/CSVappendpass. B2=11.089581ms,+1.463%vsfixedMX4;fourthcurrent
+G-LLM regression. B8hasstarted;card6B4continues.
+Raw:remaining_dense_two_card_dispatch_v1/ROOT_CARD5_GUARD_RECOVERY_v4.log.
+
+Verified isolatedfullMoE24layerB1/B16decode/promptprogram CPUcompiles,but
+allfourresourcechecksreject464–512BframesatMT168;nonewerelaunched.
+D7integrationdiagnosis remains;componentfitsdonotestablishwholeprogramfit.
+Raw:moe_program_cpu_preparation_v1.
+
+
+Fourthcurrentregression Llama8BB2 entersD7:source-boundselectedDIAGCPU
+preparationstarted;16freshDIAGinterventionsqueueoncard7onlyaftercard6's
+remainingdensequeueactuallycompletes. B8continuesoncard5;max2cards.
+Thefirstflatbinding/normalflag MoEfullprogram resourcevariantstillhas464B
+frameatMT168;notafix;unlaunched. No resource-rulewaiver orforcedflags.
+Raw:current_Llama8BB2_D7_v1;moe_program_cpu_preparation_v1.
