@@ -202,11 +202,13 @@ void EpilogueTiles(char const* family,std::integer_sequence<int,TN...>) {(Epilog
 // MoE epilogues (prompt §8): router logits, expert gate_up SwiGLU into h,
 // expert down P writes and ctr[j] arrival. A slot holds round(8B/n_active)
 // rows; n_active is set beyond reach so no sample is a combine last arriver.
-template<backend::Sm90DenseMoeMode Mode,int TN,int WN,int Batch>
+// Experts selects the geometry: 128 is Qwen3-30B-A3B (I = 768), 64 is OLMoE
+// (I = 1024); both have H = 2048.
+template<backend::Sm90DenseMoeMode Mode,int TN,int WN,int Batch,int Experts=128>
 __global__ void MoeEpilogueKernel(backend::Sm90DenseMoeOperands p,int samples,U64* out) {
-  constexpr int WK=4/WN,N=Mode==backend::Sm90DenseMoeMode::kRouter?128:
-      Mode==backend::Sm90DenseMoeMode::kGateUp?1536:2048,K=Mode==backend::Sm90DenseMoeMode::kDown?768:2048;
-  using G=backend::Sm90DenseMoeGemm<Batch,N,K,TN,64,2,WN,WK,Mode,16,128,8,false>;
+  constexpr int I=Experts==128?768:1024,WK=4/WN,N=Mode==backend::Sm90DenseMoeMode::kRouter?Experts:
+      Mode==backend::Sm90DenseMoeMode::kGateUp?2*I:2048,K=Mode==backend::Sm90DenseMoeMode::kDown?I:2048;
+  using G=backend::Sm90DenseMoeGemm<Batch,N,K,TN,64,2,WN,WK,Mode,16,Experts,8,false>;
   extern __shared__ __align__(16) float tile[];
   float* norms=tile+WK*16*TN;int* flag=reinterpret_cast<int*>(norms+64);
   int tid=threadIdx.x;
@@ -220,12 +222,13 @@ __global__ void MoeEpilogueKernel(backend::Sm90DenseMoeOperands p,int samples,U6
     if(tid==0)out[s]=clock64()-begin;
   }
 }
-template<backend::Sm90DenseMoeMode Mode,int TN,int WN,int Batch>
+template<backend::Sm90DenseMoeMode Mode,int TN,int WN,int Batch,int Experts=128>
 void MoeEpilogueCase(char const* family) {
   constexpr int samples=256,WK=4/WN;
-  using Schedule=backend::Sm90DenseMoeSchedule<128>;
+  using Schedule=backend::Sm90DenseMoeSchedule<Experts>;
+  constexpr double E=Experts;
   int rows=Mode==backend::Sm90DenseMoeMode::kRouter?Batch:
-      std::max(1,int(std::lround(8.0*Batch/(128*(1-std::pow(1-8.0/128,Batch))))));
+      std::max(1,int(std::lround(8.0*Batch/(E*(1-std::pow(1-8.0/E,Batch))))));
   std::vector<int> schedule(Schedule::kInts,0);
   schedule[Schedule::Active()]=1<<30;schedule[Schedule::Count(0)]=rows;
   for(int r=0;r<rows;++r)schedule[Schedule::Row(0,r)]=r*8;
@@ -234,7 +237,7 @@ void MoeEpilogueCase(char const* family) {
   auto* output=Device<float>(16*8*2048);auto* weights=Device<BF>(16*8);auto* x=Device<BF>(16*2048);
   auto* counter=Device<std::uint64_t>(16);
   backend::Sm90DenseMoeOperands p{nullptr,nullptr,nullptr,output,device_schedule,weights,nullptr,x,counter,1e-6f};
-  auto kernel=MoeEpilogueKernel<Mode,TN,WN,Batch>;
+  auto kernel=MoeEpilogueKernel<Mode,TN,WN,Batch,Experts>;
   int shared=4*WK*16*TN+512;
   Check(cudaFuncSetAttribute(kernel,cudaFuncAttributeMaxDynamicSharedMemorySize,shared));
   auto* out=Device<U64>(samples);std::vector<U64> host(samples);
@@ -247,12 +250,12 @@ void MoeEpilogueCase(char const* family) {
   for(void* q:{(void*)device_schedule,(void*)output,(void*)weights,(void*)x,(void*)counter,(void*)out})
     Check(cudaFree(q));
 }
-template<backend::Sm90DenseMoeMode Mode,int TN>
+template<backend::Sm90DenseMoeMode Mode,int TN,int Experts=128>
 void MoeEpilogueTile(char const* family) {
   [&]<int... B>(std::integer_sequence<int,B...>) {
-    if constexpr(TN%8==0)(MoeEpilogueCase<Mode,TN,1,B>(family),...);
-    if constexpr(TN%16==0)(MoeEpilogueCase<Mode,TN,2,B>(family),...);
-    if constexpr(TN%32==0 && TN/4<=256)(MoeEpilogueCase<Mode,TN,4,B>(family),...);
+    if constexpr(TN%8==0)(MoeEpilogueCase<Mode,TN,1,B,Experts>(family),...);
+    if constexpr(TN%16==0)(MoeEpilogueCase<Mode,TN,2,B,Experts>(family),...);
+    if constexpr(TN%32==0 && TN/4<=256)(MoeEpilogueCase<Mode,TN,4,B,Experts>(family),...);
   }(std::integer_sequence<int,1,2,4,8,16>{});
 }
 // t_route_la: the router's 16 tasks arrive (CTAs 0-15), the last runs top-8,
@@ -286,18 +289,20 @@ __global__ void MoeTaskKernel(backend::Sm90DenseMoeOperands p,U64* stamps) {
   if(threadIdx.x==0)stamps[0]=Now()-begin;
   rings[0].Invalidate();
 }
-template<backend::Sm90DenseMoeMode Mode,int Batch,int N,int K,int TN,int TK,int Slots,int WN>
+template<backend::Sm90DenseMoeMode Mode,int Batch,int N,int K,int TN,int TK,int Slots,int WN,int Experts=128>
 void MoeTaskCase(char const* family) {
-  using G=backend::Sm90DenseMoeGemm<Batch,N,K,TN,TK,Slots,WN,4/WN,Mode,16,128,8,false,0>;
-  using Schedule=backend::Sm90DenseMoeSchedule<128>;
+  using G=backend::Sm90DenseMoeGemm<Batch,N,K,TN,TK,Slots,WN,4/WN,Mode,16,Experts,8,false,0>;
+  using Schedule=backend::Sm90DenseMoeSchedule<Experts>;
   constexpr bool down=Mode==backend::Sm90DenseMoeMode::kDown;
-  int rows=std::max(1,int(std::lround(8.0*Batch/(128*(1-std::pow(1-8.0/128,Batch))))));
+  constexpr double E=Experts;
+  int rows=std::max(1,int(std::lround(8.0*Batch/(E*(1-std::pow(1-8.0/E,Batch))))));
   auto* weight=Device<BF>(std::size_t(N)*K);auto* x=Device<BF>(16*std::max(N,K));
-  auto* h=Device<BF>(std::size_t(128)*16*K);auto* output=Device<float>(std::size_t(16)*8*std::max(N,K)*8);
+  auto* h=Device<BF>(std::size_t(Experts)*16*K);auto* output=Device<float>(std::size_t(16)*8*std::max(N,K)*8);
   auto* routes=Device<BF>(16*8);auto* counter=Device<std::uint64_t>(N/TN);auto* stamps=Device<U64>(1);
   CUtensorMap map{};CUtensorMap* device_map=Device<CUtensorMap>(1);
   if(down) {
-    codegen::executor::EncodeTiledMap<4>(map,h,{{64,16,std::uint64_t(K/64),128},{2ull*K,128,2ull*16*K},
+    codegen::executor::EncodeTiledMap<4>(map,h,{{64,16,std::uint64_t(K/64),std::uint64_t(Experts)},
+        {2ull*K,128,2ull*16*K},
         {64,std::uint32_t(backend::Sm90DenseLayout::ActivationRows(Batch)),TK/64,1}});
     Check(cudaMemcpy(device_map,&map,sizeof map,cudaMemcpyHostToDevice));
   }
@@ -833,6 +838,22 @@ int main(int argc,char** argv) {try {
     [&]<int... B>(std::integer_sequence<int,B...>) {
       (MoeTaskCase<Sm90DenseMoeMode::kGateUp,B,1536,2048,96,128,4,2>("expert_gate_up"),...);
       (MoeTaskCase<Sm90DenseMoeMode::kDown,B,2048,768,128,64,6,2>("expert_down"),...);
+    }(std::integer_sequence<int,1,2,4,8,16>{});
+  }
+  // A3: OLMoE (E = 64, I = 1024) under its own families. A slot's rows follow
+  // n_active(E), so Qwen3's E = 128 entries do not stand in for these tiles.
+  if(full || !std::strcmp(argv[1],"--e64-only")) {
+    using backend::Sm90DenseMoeMode;
+    MoeEpilogueTile<Sm90DenseMoeMode::kRouter,8,64>("router_e64");
+    MoeEpilogueTile<Sm90DenseMoeMode::kGateUp,64,64>("expert_gate_up_e64");
+    MoeEpilogueTile<Sm90DenseMoeMode::kGateUp,128,64>("expert_gate_up_e64");
+    MoeEpilogueTile<Sm90DenseMoeMode::kGateUp,256,64>("expert_gate_up_e64");
+    MoeEpilogueTile<Sm90DenseMoeMode::kDown,64,64>("expert_down_e64");
+    MoeEpilogueTile<Sm90DenseMoeMode::kDown,128,64>("expert_down_e64");
+    MoeEpilogueTile<Sm90DenseMoeMode::kDown,256,64>("expert_down_e64");
+    [&]<int... B>(std::integer_sequence<int,B...>) {
+      (MoeTaskCase<Sm90DenseMoeMode::kGateUp,B,2048,2048,128,128,4,2,64>("expert_gate_up_e64"),...);
+      (MoeTaskCase<Sm90DenseMoeMode::kDown,B,2048,1024,128,64,6,2,64>("expert_down_e64"),...);
     }(std::integer_sequence<int,1,2,4,8,16>{});
   }
   // MoE (Hkv = 4) at G = 264 reaches S0 = 64 chunks (prompt §8 M2).
