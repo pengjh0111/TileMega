@@ -1,0 +1,145 @@
+{
+  "schema": 1,
+  "model": "mistral_7b_v0_3",
+  "batch": 8,
+  "phase": "decode",
+  "target": "sm_90_h800",
+  "source_head": "794cf26fce2d8ab929df6d2734af4cda3038d619",
+  "solve_command": [
+    "/root/TileMega-r4a3/build/tools/tilemega",
+    "compile",
+    "/root/TileMega-r4a3/runs/sm90r4/solve/r4final/mistral_7b_v0_3-B8/decode.export.json",
+    "/root/TileMega-r4a3/runs/sm90r4/solve/r4final/mistral_7b_v0_3-B8/decode.so",
+    "--solve",
+    "/root/TileMega-r4a3/configs/targets/sm_90_h800.json",
+    "--serving",
+    "decode",
+    "--emit",
+    "serving",
+    "--batch",
+    "8",
+    "--runtime-target",
+    "/root/TileMega-r4a3/configs/targets/sm_90_h800.json",
+    "--selection",
+    "measure",
+    "--measure-top",
+    "4",
+    "--measure-cmd",
+    "/workspace/llm-stack/envs/vllm/bin/python /root/TileMega-r4a3/scripts/sm90r3_select.py --model mistral_7b_v0_3 --batch 8 --prefill /root/TileMega/runs/sm90r4/build/prefill/mistral_7b_v0_3-B8/prefill.so --gpu 3 --name sel-r4final-mistral_7b_v0_3-B8 --concurrency trial",
+    "--nvcc-split-compile",
+    "2"
+  ],
+  "compiler_sha256": "728ebfb582117256c9c334d16cc8568b7a115d03d918a78ef5405d06f6faff0b",
+  "coordinates": {
+    "schema": 5,
+    "model": "dense",
+    "gemms": {
+      "qkv": {
+        "tile_n": 32,
+        "warps_n": 4,
+        "warps_k": 1,
+        "slot_bytes": 32768,
+        "slots": 2,
+        "mma": "mma_sync",
+        "register_stages": 1,
+        "multicast": false
+      },
+      "o": {
+        "tile_n": 32,
+        "warps_n": 4,
+        "warps_k": 1,
+        "slot_bytes": 16384,
+        "slots": 3,
+        "mma": "mma_sync",
+        "register_stages": 1,
+        "multicast": false
+      },
+      "gate_up": {
+        "tile_n": 112,
+        "warps_n": 2,
+        "warps_k": 2,
+        "slot_bytes": 28672,
+        "slots": 2,
+        "mma": "mma_sync",
+        "register_stages": 1,
+        "multicast": false
+      },
+      "down": {
+        "tile_n": 32,
+        "warps_n": 4,
+        "warps_k": 1,
+        "slot_bytes": 16384,
+        "slots": 3,
+        "mma": "mma_sync",
+        "register_stages": 1,
+        "multicast": false
+      },
+      "lm_head": {
+        "tile_n": 128,
+        "warps_n": 4,
+        "warps_k": 1,
+        "slot_bytes": 16384,
+        "slots": 3,
+        "mma": "mma_sync",
+        "register_stages": 1,
+        "multicast": false
+      }
+    },
+    "attention": {
+      "chunks": 1,
+      "block_keys": 64,
+      "slots": 2,
+      "new_row_work": 0,
+      "merge": "la"
+    },
+    "residency": 1,
+    "swiglu_u": 8,
+    "weight_stream": false,
+    "layer_loop": true,
+    "emb": "stage",
+    "group_wait": true,
+    "cluster": 1
+  },
+  "winner": 0,
+  "predicted_ns": [
+    5061044.617,
+    5061081.217,
+    5061101.717,
+    5061412.617
+  ],
+  "generated_source_sha256": "8303c56c563ffe5f338b9369de2f1bb183731d2a9b6f3f933cdeb7dd4902b379",
+  "binary_sha256": "782f0ae2703dc18a09cd6d9ce26742a8768e87e20f7dba8ab60299af67c6435a",
+  "artifact_id": "9dad063f8bc4849421d73c8b1fb440cd5e58a8fb5497f2f0a08224424b0d40dc",
+  "prefill": "/root/TileMega/runs/sm90r4/build/prefill/mistral_7b_v0_3-B8/prefill.so",
+  "prefill_sha256": "62aea2fae7d2a40eb40607ca5f217f0f77b504076af56823c94e76f192b42a79",
+  "measured": {
+    "tpot_ms": 5.455299646142052,
+    "ttft_ms": 39.7689609999361,
+    "e2e_ms": 5620.62650700318,
+    "tokens_per_s": 1457.4887674519812,
+    "process_range_pct": 0.25968556317781427,
+    "fresh_processes": 5,
+    "protocol": "P-FINAL",
+    "gpu": 2,
+    "concurrency": "trial",
+    "baseline_source": "new (R16 protocol, SM90R4)"
+  },
+  "correctness": {
+    "c1": true,
+    "c2": true,
+    "pass_": true,
+    "hf64_divergence": [
+      [
+        18,
+        0,
+        14,
+        17,
+        7,
+        12,
+        0,
+        1
+      ]
+    ],
+    "processes_token_equal": 5
+  }
+}
