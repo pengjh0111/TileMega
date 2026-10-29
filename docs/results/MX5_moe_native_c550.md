@@ -926,3 +926,17 @@ histories and, after its existing primary histories finish, the40 original
 top4 prompt/decode histories. Each stops on resource fit or reaching D;
 no retries are added after D. Raw: USER_PW_TO_D_AMENDMENT_20261029.json,
 moe_authorized_to_D_manual_cpu_v1, moe_authorized_to_D_original_top4_cpu_v1.
+
+Verified the four manual histories finish two authorized supplementary
+builds each: down2→1, then head2→1; all GEMM widths now reach D (GU remains0,
+as required by its producer dependency). Attention remainsPF1. All eight
+normal device compiles succeed and then fail the zero-frame resource gate:
+B1 decode480→464B, prompt480→496B; B16 decode496→528B, prompt480→512B;
+all MT168/static0. Independent receipt/options/header/geometry/MIR review
+passes; no generic/calls/ring4160 are found, but private accesses remain.
+Eight resource rows are appended without changing the old CSV byte prefix.
+There is no further retry after D. These four development histories now
+have the requested floor evidence for D7; no final solver candidate or model
+is accepted by this observation. No GPU launch or512 switch occurs here.
+Raw: moe_authorized_to_D_manual_cpu_v1/ACTUAL_AUTHORIZED_TO_D_HISTORIES_CPU_COMPLETE.json,
+ACTUAL_EIGHT_SUPPLEMENTS_INDEPENDENTLY_REVIEWED_AND_APPENDED_CPU.json.
