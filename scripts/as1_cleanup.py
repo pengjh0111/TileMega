@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Remove only unchanged, completed, regenerable files registered by AS-1."""
 import argparse
+from collections import Counter
 import datetime as dt
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -105,6 +107,19 @@ def apply_item(item, roots):
         os.close(parent_fd)
 
 
+def compact_as2_report(report, manifest, manifest_data):
+    # Retained entries are replayable from the append-only manifest prefix;
+    # repeating them in preview/apply/history previously wrote ~90 MB per pass.
+    items=report['items']
+    keep=[i for i in items if i['action']=='keep']
+    return dict(report,schema='tilemega.as2.cleanup_compact.v1',
+        items=[i for i in items if i['action']=='remove'],
+        inspected_entries=len(items),kept_entries=len(keep),
+        kept_reason_counts=dict(Counter(i.get('reason','unspecified') for i in keep)),
+        manifest=str(manifest),manifest_prefix_bytes=len(manifest_data),
+        manifest_prefix_sha256=hashlib.sha256(manifest_data).hexdigest())
+
+
 def main(project='as1'):
     default_run, default_work, roots = project_paths(project)
     parser = argparse.ArgumentParser(description=__doc__)
@@ -125,12 +140,17 @@ def main(project='as1'):
             if parent.is_symlink():
                 parser.error('Controlled roots must not traverse symlinks')
     manifest = args.run_root / 'manifest.jsonl'
-    entries = [json.loads(s) for s in manifest.read_text().splitlines() if s.strip()]
+    manifest_data=manifest.read_bytes()
+    entries = [json.loads(s) for s in manifest_data.splitlines() if s.strip()]
     items = plan(entries, roots, args.keep_recent)
     report = {'time': dt.datetime.now(dt.timezone.utc).isoformat(),
               'mode': 'apply' if args.apply else 'dry-run', 'items': items,
               'eligible_bytes': sum(i['bytes'] for i in items if i['action'] == 'remove'),
               'removed_files': 0, 'released_bytes': 0}
+    if project=='as2':
+        report=compact_as2_report(report,manifest,manifest_data)
+        report.update(keep_recent=args.keep_recent,
+            cleanup_script_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest())
     if args.apply:
         # Re-evaluate all eligibility conditions, including PID references.
         check = {i['path']: i for i in plan(entries, roots, args.keep_recent)}

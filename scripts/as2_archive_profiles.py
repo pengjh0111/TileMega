@@ -19,9 +19,10 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--profile-summary',type=Path,nargs='+',default=[])
     p.add_argument('--schedule',type=Path,nargs='+',default=[])
+    p.add_argument('--cleanup-report',type=Path,nargs='+',default=[])
     p.add_argument('--apply',action='store_true')
     a=p.parse_args()
-    if not 1<=len(a.profile_summary)+len(a.schedule)<=16:p.error('Bounded archive batch required')
+    if not 1<=len(a.profile_summary)+len(a.schedule)+len(a.cleanup_report)<=16:p.error('Bounded archive batch required')
     runs,work,roots=project_paths('as2');manifest=runs/'manifest.jsonl'
     latest={v['path']:v for v in map(json.loads,manifest.read_text().splitlines())}
     targets={}
@@ -54,6 +55,18 @@ def main():
         if 'active_refs' not in row or any(process_alive(ref) for ref in row['active_refs']) or path.stat().st_nlink!=1:
             raise ValueError('Active/unknown reference or shared link')
         targets[str(path)]=(path,summary,dict(profile_sha256=digest(path)),row)
+    for path in a.cleanup_report:
+        path=plain_path(path.absolute(),[runs/'cleanup'])
+        value=json.loads(path.read_text());row=latest.get(str(path))
+        if (value.get('mode') not in ('dry-run','apply') or not isinstance(value.get('items'),list) or
+                any(i.get('action') not in ('keep','remove') for i in value['items']) or
+                'eligible_bytes' not in value or 'removed_files' not in value):
+            raise ValueError('Require an actual cleanup audit report')
+        if (not row or not row.get('completed') or row.get('category')=='failure' or
+                row.get('stamp')!=file_stamp(path) or 'active_refs' not in row or
+                any(process_alive(ref) for ref in row['active_refs']) or path.stat().st_nlink!=1):
+            raise ValueError('Require unchanged completed cleanup evidence')
+        targets[str(path)]=(path,path,dict(profile_sha256=digest(path),cleanup_audit=True),row)
     print(json.dumps(dict(mode='apply' if a.apply else 'dry-run',
         sources=[dict(path=k,bytes=v[0].stat().st_size) for k,v in targets.items()])),flush=True)
     if not a.apply:return
@@ -65,7 +78,7 @@ def main():
         with gzip.open(archive,'rb') as stream:uncompressed=hashlib.file_digest(stream,'sha256').hexdigest()
         if uncompressed!=value['profile_sha256'] or row['stamp']!=file_stamp(source):
             raise ValueError('Archive roundtrip/source stability check failed; original retained')
-        detail=dict(schema='tilemega.as2.profile_archive.v1',source=raw,bytes=source.stat().st_size,
+        detail=dict(schema='tilemega.as2.cleanup_archive.v1' if value.get('cleanup_audit') else 'tilemega.as2.profile_archive.v1',source=raw,bytes=source.stat().st_size,
             source_sha256=uncompressed,archive=str(archive),archive_sha256=digest(archive),
             profile_summary=str(summary),profile_summary_sha256=digest(summary),
             roundtrip_verified=True,source_removal='only through separate manifest cleanup dry-run/apply')
@@ -73,7 +86,7 @@ def main():
         stamp=dt.datetime.now(dt.timezone.utc).isoformat()
         records=[dict(path=str(path),stage='AS2-K',category='result',keep=True,regenerable=False,
                      completed=True,active_refs=[],created_at=stamp,stamp=file_stamp(path)) for path in (archive,receipt)]
-        records.append(dict(row,category='archived_trace',keep=False,regenerable=True,selected=False,
+        records.append(dict(row,category='archived_audit' if value.get('cleanup_audit') else 'archived_trace',keep=False,regenerable=True,selected=False,
             active_refs=[],created_at=stamp,restore_from=str(archive),archive_receipt=str(receipt),
             reason='Lossless compressed payload retained and independently decompressed SHA256 verified'))
         with manifest.open('a') as stream:
