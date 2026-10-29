@@ -1143,3 +1143,21 @@ inferredintegration checkscoverprompthead's singlebarriercounter invocation,
 conditionaltail generation,per-candidate prompt/decode recipeequality,
 routerticket counts/groupedM6 producer counts,andsharedsource costidentity.
 No MoEcode orGPUexecution wasstarted aheadofdense;rawmoe_native_contract_readonly_v1.
+
+
+Verified segment-scale-reuse candidatevalidation complete:fivefreshprocesses
+for eachof sparseLDS6cases/full336/null28/static112. SparseLDS usesall104CTAs
+for2000iterations each,zeroRAW/cold errors,actualAPI0/frame0/resident1;
+no inflight-overlap claim. Full/null/static originaloracles,tolerances,seeds
+unchanged,zeroskips. Twentycorrectness rows (5litmus+15numeric) and210
+actualbodyresource-query rowsappend independentlywitholdprefixes unchanged.
+Wholemodelnormalproducer buildstartsafterthese gates;no E2Eresult yet.
+Raw:attention_segment_scale_reuse_candidate_v1.
+
+Verified additionalreadonly MoEbindings:fiveB eachhave779buffers,219stages,
+121GEMMs;allboundoperand indicesvalid. Exactembeddingprefix,24×9legacy
+stage sequence,head+argmax tail,allGEMMshapes,foldedexpert recipes/unit16,
+f32routingweights andBF16 Q/Knorm/RoPE validate. The246external/weight
+names,dtypes andrecipes areidentical acrossB. Theseare CPUfrontendfacts,
+notnativecompile/correctness/routing/performance results.
+Raw:moe_native_bindings_readonly_v1/ACTUAL_NATIVE_CONTRACT_VALIDATION_CPU.json.
