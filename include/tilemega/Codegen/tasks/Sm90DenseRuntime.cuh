@@ -253,6 +253,7 @@ extern "C" void* tm_plan_create(int batch,void* const* external,int device) {
     if(plan->grid>NativeProgram::kHeadMaxGrid)
       throw std::invalid_argument("native grid exceeds the lm_head partial outputs");
     plan->lm_counter=Allocate<std::uint64_t>(1);plan->bindings.lm_counter=plan->lm_counter;
+    plan->bindings.prompt_len=0;
 #if TILEMEGA_NATIVE_RELEASE_ENABLED
     auto release_env=std::getenv("TILEMEGA_TRACE_LAUNCHES");
     unsigned long long release_slots=release_env?std::strtoull(release_env,nullptr,10):16;
@@ -294,8 +295,10 @@ extern "C" int tm_plan_set_steps(void* opaque,int const* past,unsigned count) {
   using namespace tilemega::codegen::native_dense;
   auto* p=static_cast<Plan*>(opaque);
   if(!p || !past || !count)return -1;
+  // The teacher-forced prefill (§8 A3.5) launches positions 0..prompt_len-1,
+  // so a step's past is only bounded below by the first position.
   for(unsigned i=0;i<count;++i)
-    if(past[i]<64 || past[i]>NativeProgram::kCapacity-2)return -1;
+    if(past[i]<0 || past[i]>NativeProgram::kCapacity-2)return -1;
   try {
     int* next=Allocate<int>(count);
     auto status=cudaMemcpy(next,past,std::size_t(count)*sizeof(int),cudaMemcpyHostToDevice);
@@ -309,6 +312,15 @@ extern "C" int tm_plan_set_steps(void* opaque,int const* past,unsigned count) {
 #endif
     return 0;
   }catch(std::exception const& e) {std::fprintf(stderr,"tm_plan_set_steps: %s\n",e.what());return -2;}
+}
+// The prompt mode is a property of the request, so it is set once per plan and
+// read by every head stage; 0 restores pure decode (§8 A3.5).
+extern "C" int tm_plan_set_prompt_len(void* opaque,int prompt_len) {
+  using namespace tilemega::codegen::native_dense;
+  auto* p=static_cast<Plan*>(opaque);
+  if(!p || prompt_len<0 || prompt_len>NativeProgram::kCapacity-1)return -1;
+  p->bindings.prompt_len=prompt_len;
+  return 0;
 }
 #if TILEMEGA_TRACE_NATIVE_BOUNDARY
 extern "C" int tm_plan_set_boundary_diagnostic(void* opaque,char const* mode,char const* selected) {

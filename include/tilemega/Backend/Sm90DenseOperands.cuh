@@ -39,6 +39,11 @@ struct Sm90DenseHeadOperands {
   cutlass::bfloat16_t const* table;
   cutlass::bfloat16_t* x;
   int past;
+  // Teacher-forced prefill (§8 A3.5): the argmax is written to tokens only at
+  // past + 1 >= prompt_len, so prompt positions keep the frozen prompt. 0
+  // leaves pure decode, where the condition always holds. It fills the struct's
+  // former tail padding, so the operand bank's size and offsets do not move.
+  int prompt_len;
 };
 // Native MoE stages (prompt §8): M4 router + top-k, M5 grouped gate_up,
 // M6 down + combine; see Sm90DenseMoe.cuh for each field's use.

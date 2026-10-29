@@ -57,6 +57,8 @@ struct alignas(64) Bindings {
   Element* layers[Layers][Slots];
   // lm_ctr of the folded argmax (D9); runtime-owned and only ever increased.
   std::uint64_t* lm_counter;
+  // Prompt length of the teacher-forced prefill (§8 A3.5); 0 is pure decode.
+  int prompt_len;
   template<unsigned Id>
   __device__ __forceinline__ Element* Get(int layer=0) const {
     if constexpr(Id==kAbsent)return nullptr;
@@ -279,7 +281,7 @@ struct Head:G {
       backend::Sm90DenseOperandBank& record) {
     G::PublishOperands(b,layer,past,epsilon,record);
     record.head={reinterpret_cast<int*>(b.template Get<Tokens>()),b.lm_counter,
-        b.template Get<Table>(),b.template Get<X>(),past};
+        b.template Get<Table>(),b.template Get<X>(),past,b.prompt_len};
   }
   template<int Prefix,class B,class Tail>
   __device__ static __forceinline__ void Run(B const&,int,char* shared,float,

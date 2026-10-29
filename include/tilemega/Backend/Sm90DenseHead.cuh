@@ -59,7 +59,15 @@ struct Sm90DenseHeadFinish {
         float v=__shfl_xor_sync(0xffffffff,value,d);int id=__shfl_xor_sync(0xffffffff,index,d);
         if(v>value || (v==value && id<index)) {value=v;index=id;}
       }
-      if(lane==0) {head->tokens[row*Capacity+head->past+1]=index;tokens[row]=index;}
+      // A prompt position keeps its frozen token: write the argmax only once
+      // the step has left the prompt, then read back whichever token now
+      // stands at past + 1, so the embedding below teacher-forces the prefill
+      // (§8 A3.5). prompt_len = 0 makes the condition always hold.
+      if(lane==0) {
+        int next=row*Capacity+head->past+1;
+        if(head->past+1>=head->prompt_len)head->tokens[next]=index;
+        tokens[row]=head->tokens[next];
+      }
     }
     codegen::executor::ComputeSync();
     if constexpr(Embed) {
