@@ -5,8 +5,9 @@ physical1→logical0; the2026-10-26 mapping refresh is recorded below. Software:
 Ascend950PR_9579, CANN 9.1.0,
 BiSheng clang15.0.5, pinned CATLASS 2b6c6a6d5bd26559578cf7e3b2fb64af51f64e52.
 No device lock/exclusive setting, reset, other-process operation or CUDA test.
-Native full-layer-count phase kernels now execute; complete generation and
-performance admission remain unfinished. Earlier probes retain their own scope.
+Complete full-layer64/1024 generation runs all five dense models. Final optimized
+configuration validation and performance admission remain unfinished. Earlier
+probes retain their own scope.
 
 ## Runtime and resource scope
 
@@ -510,5 +511,13 @@ its original CTG/ISL and down/KV decomposition. Host and device reject unknown
 families/partial-K; Host checks the complete tile count. These four candidates
 share a single newly compiled CANN implementation catalogue,
 `21e6b516c8ea43127cc9526dc58bb50836aa27b1a67cca3e09b28423fa531f3e`.
-Their numerical/pricing/TPOT admission is pending. Qwen1.7's frozen study
-continues using its original image and immutable header snapshots.
+Both actual priced alternatives now execute full64/1024 for each of these
+four models: all16384 greedy outputs match, logits/last-row KV max_abs=0.
+Independent reference payloads are reused; no baseline is rerun. Their own
+measured native two-candidate searches all select variant4. Prefill retains
+the unchanged previously priced native phase, rather than an unpriced template.
+New teacher/C2/C3 and final TPOT admission remain pending. Qwen1.7's completed
+frozen study uses its original image and immutable header snapshots.
+Evidence: `search/opt_swiglu_<model_id>_full_pipeline_receipt_v1.json`,
+`search/opt_swiglu_dense_body_attribution_v1.json`. Aggregate Body service work
+is explicitly distinct from TPOT, critical-path time and hardware utilization.

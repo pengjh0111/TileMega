@@ -325,3 +325,24 @@ remain; no optional stopping or global/eager Gate promotion. Incremental
 selection v3 preserves the historical snapshot and v2. Protocol SHA256:
 `6967796ca448c5241e117fa849990b2c465b4ec84fce4591b5b0bd7f8ff7b2fe`.
 Evidence: `bench/opt_swiglu_qwen17_final_v1/{protocol,ablation,post_inputs_audit}.json`.
+
+`verified-run`: the other four dense B16 candidates complete both actual-priced
+full1024 alternatives with zero greedy/logit/KV error. Native two-candidate
+decode searches select SwiGLU4 for all four, preserving each model's existing
+down/KV decomposition and unchanged previously priced prefill. Their full
+request pilots use one fresh process per variant, one warmup and three timed
+64/1024 requests; all32 token payloads pass. These are pilots, with no CI/default
+or original eager Gate admission.
+
+| Model B16 | Priced control9 TPOT ms | SwiGLU4 TPOT ms | Observed ratio |
+|---|---:|---:|---:|
+| Qwen0.6 | 31.401952 | 27.436776 | 1.144520 |
+| Llama1B | 27.608172 | 21.356383 | 1.292736 |
+| Llama3B | 52.017923 | 40.851482 | 1.273342 |
+| Llama8B | 92.628395 | 69.489646 | 1.332981 |
+
+Full TTFT/E2E/throughput/raw samples:
+`bench/opt_swiglu_dense_priced_pilot_v1/{pilot,state}.json`.
+Each model links CTG/prices/search/source/actual tables/image/launch/C1 in
+`search/opt_swiglu_<model_id>_full_pipeline_receipt_v1.json`. New final-config
+teacher512/C2/C3 and fixed independent paired acceptance remain pending.
