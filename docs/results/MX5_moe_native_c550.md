@@ -249,3 +249,30 @@ for the new MoE qkv/o shapes (760 legal coordinates) and D128/Q8 attention
 (200 coordinates). It makes zero device calls; new-shape device queries,
 formula-prefetch resource closure and three-process timing remain required.
 Failed zero-prefetch references alone will not exclude executed payloads.
+
+Verified the card7 grouped-cost batch43/round2 guard rejects the job with
+code75, reason exit interference. Its raw rows and failed process record
+remain excluded. An independent registered controller reuses the valid
+round1, records a new round2 directory and completes round3; its remaining
+odd batches continue alongside the original card6 worker. Guard policy and
+the bound measurement driver are unchanged. Raw: `moe_grouped_cost_card7_guard_recovery_v2`.
+
+Verified new-shape qkv/o CPU resource closure:760 legal coordinates use54
+source-matching formula-prefetch libraries;675 initially fit,20 recover by
+the prescribed halving,65 fail at minimum depth. Attention contributes100
+zero-frame512-thread coordinates; the100 normal576 primary coordinates
+retain frame468–480B (PK1), so remain rejected. The795 fitting coordinates
+pass per-kernel MIR checks: no calls/private accesses or generic/4160 steady
+rings. This is not device, model or per-plan512 authorization. Raw:
+`moe_regular_cost_preparation_v1`; device queries remain queued.
+
+Verified formal-cost preparation adds source/query-bound router and regular
+drivers. Fifty CPU checks pass across input tampering, resource-branch,
+raw-sample and byte-comparison tests. The router cohort covers220 fitting
+coordinates at dispatch TN64/64 and retains50 payload resource rejections;
+this fixed-dispatch cohort is explicitly a subset. The regular cohort has
+695 GEMM and100 attention coordinates, measured by frozen copies of the
+unchanged dense drivers after actual queries. Three processes per key and
+the795-coordinate cost queue are prepared, not executed or qualified yet.
+Recovered grouped27 costs have their own queued supplemental epoch, with
+the failed primaries and all halving steps retained in aggregation evidence.
