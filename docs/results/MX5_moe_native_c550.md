@@ -1001,3 +1001,20 @@ captures, not a final-model or TPOT attribution; bench values remain exactly
 as specified. Raw: moe_observed_route_activity_cpu_v1. The initial inline
 attempt has a Python syntax error before any input read; the file replay
 fixes that syntax and succeeds without changing any data.
+
+Verified new B16 WD1 C-1/C-2 also pass512: separate/loop mismatches0,
+max HF gap.109375, gap≤.5 ratio1, explicit eager reference. Both new
+controls' complete512-step token arrays match their earlier adopted manual
+controls (512 and8192 positions). The two guarded checks close successfully;
+the card5 manual P-PAIR queue has started. Formal routing remains failed;
+these checks do not replace original top4 selection. Raw:
+moe_D7_512_card5_checks_v1/ACTUAL_TWO_DEVELOPMENT_C1_C2_CHECKS_COMPLETE.json.
+
+A separate CPU review queue now waits for the40 authorized original
+histories,80 original builds/source checks and their closed query guard.
+It will inspect each original geometry's exact normal reduction sequence,
+final576 frame/MIR and actual512 WD0/WD1 resource/query evidence, retaining
+any fitting576 case on its576 path. No resource eligibility or complete
+review is claimed before these inputs arrive; body-pressure D7 judgement
+and all model gates remain separate. Raw:
+moe_original_top4_per_plan_D7_review_cpu_v1.
