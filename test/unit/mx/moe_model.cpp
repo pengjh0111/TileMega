@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Codegen/MxMoeModel.h>
+#include <tilemega/Codegen/MxMoeProgramV2.h>
 #include <tilemega/Frontend/ExportBridge.h>
 #include <llvm/Support/JSON.h>
 #include <cassert>
@@ -53,7 +54,7 @@ ModelPlan Fixture(unsigned batch,unsigned layers,bool merge,bool fp32) {
 }
 int main(int argc,char** argv) {
  try {
-  unsigned positive=0,negative=0;
+  unsigned positive=0,negative=0,emitted=0,configuration_negative=0,buffer_negative=0;
   for(unsigned b:{1u,2u,4u,8u,16u})for(unsigned layers:{1u,2u,24u})for(bool merge:{false,true})for(bool fp32:{false,true}) {
     auto p=Fixture(b,layers,merge,fp32);auto m=AnalyzeMxMoe(p);
     assert(m.batch==b&&m.layers.size()==layers&&m.hidden==2048&&m.hkv==4&&m.queries==8&&m.routing_weights_fp32==fp32);++positive;
@@ -68,7 +69,35 @@ int main(int argc,char** argv) {
     }
     assert(wrapped==5*layers+1);
     for(auto invalid:{MxMoeWeightTilesV2{16,32,64,16,128,128},MxMoeWeightTilesV2{16,32,64,64,128,0}}) {
-      bool rejected=false;try{PrepareMxMoeBuffersV2(p,invalid);}catch(std::invalid_argument const&){rejected=true;}assert(rejected);
+      bool rejected=false;try{PrepareMxMoeBuffersV2(p,invalid);}catch(std::invalid_argument const&){rejected=true;}assert(rejected);++buffer_negative;
+    }
+    MxMoeConfigV2 config;
+    config.threads=512;config.b_min=4;config.attn_prefetch=0;
+    config.qkv={64,1,1,false,1,-1};config.o=config.qkv;
+    config.router={32,1,1,true,1,-1};config.gate_up={64,2,1,false,0,-1};
+    config.down={64,2,1,false,1,-1};config.head={32,8,1,false,1,-1};
+    CheckMxMoeConfigV2(p,config);
+    std::string paired_buffers;
+    for(bool prompt:{false,true}) {
+      auto code=EmitMxMoeProgramV2(p,config,prompt);
+      auto begin=code.find(" kBuffers[] = {");auto end=code.find("};",begin);assert(begin!=std::string::npos&&end!=std::string::npos);
+      auto buffers=code.substr(begin,end-begin);
+      if(prompt)assert(paired_buffers==buffers);else paired_buffers=buffers;
+      assert(code.find("kIntermediate=768")!=std::string::npos);
+      assert(code.find("MxRouterGemmV2<32,1,MxPart::kStreamK,Dispatch,1>")!=std::string::npos);
+      assert(code.find("MxGroupedGemm<64,2,1,MxOpV2::kSwiGLU,true,Chain,MxNoUnitCompletionV2,0>")!=std::string::npos);
+      assert(code.find("MxMoeDownCompletionV2<"+std::string(fp32?"true":"false")+">")!=std::string::npos);
+      assert(code.find("QkvWeights(b,l+1==kLayers?0:l+1)")!=std::string::npos);
+      assert((code.find("&& (past == 63)")!=std::string::npos)==prompt);
+      assert(code.find("stage_descriptor")==std::string::npos);++emitted;
+    }
+    for(int mutant=0;mutant<4;++mutant) {
+      auto invalid=config;
+      if(mutant==0)invalid.gate_up.prefetch=1;
+      if(mutant==1)invalid.down.stream_k=true;
+      if(mutant==2)invalid.router.wn=2;
+      if(mutant==3)invalid.head.wn=2;
+      bool rejected=false;try{CheckMxMoeConfigV2(p,invalid);}catch(std::invalid_argument const&){rejected=true;}assert(rejected);++configuration_negative;
     }
     auto reject=[&](std::string const& location,std::function<void(ModelPlan&)> mutate){auto q=p;mutate(q);bool failed=false;try{AnalyzeMxMoe(q);}catch(std::invalid_argument const& e){failed=std::string(e.what()).find(location)!=std::string::npos;}if(!failed)throw std::runtime_error(std::string("missing rejection: ")+location);++negative;};
     reject("layer 0 qkv",[&](auto& q){q.gemms[q.stages[m.layers[0].qkv].gemm].n+=16;});
@@ -81,6 +110,6 @@ int main(int argc,char** argv) {
     reject("layer "+std::to_string(layers)+" head",[&](auto& q){q.gemms[m.head_gemm].n+=16;});
   }
   if(argc==2){auto bridge=ReadExportBridge(argv[1]);for(unsigned b:{1u,2u,4u,8u,16u}){ServingOptions o;o.moe_batch=b;o.capacity=1088;o.phase=ServingOptions::Phase::kDecode;o.seq=1;o.deferred_norm=true;auto p=BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,o);auto m=AnalyzeMxMoe(p);assert(m.batch==b&&m.layers.size()==24&&m.external_buffers.size()==246);auto buffers=PrepareMxMoeBuffersV2(p,{16,32,64,64,128,128});assert(buffers.size()==246);unsigned unused=0;for(auto const& row:buffers)unused+=row.slot==MxMoeSlotV2::kUnused;assert(unused==25);++positive;}}
-  std::cout<<"PASS portable MoE analysis positive="<<positive<<" negative="<<negative<<" GPU_calls=0\n";return 0;
+  std::cout<<"PASS portable MoE analysis positive="<<positive<<" negative="<<negative<<" emitted="<<emitted<<" configuration_negative="<<configuration_negative<<" buffer_negative="<<buffer_negative<<" GPU_calls=0\n";return 0;
  }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}
 }

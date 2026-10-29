@@ -291,6 +291,7 @@ add_library(tilemega_core STATIC
   lib/Codegen/StageProgram.cpp
   lib/Codegen/MxDecodeProgramV2.cpp
   lib/Codegen/MxMoeModel.cpp
+  lib/Codegen/MxMoeProgramV2.cpp
   lib/Runtime/EventBuffer.cpp
   lib/Runtime/MegakernelRuntime.cpp)
 add_library(TileMega::tilemega ALIAS tilemega_core)
