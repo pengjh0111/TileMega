@@ -3,7 +3,7 @@
 Verified current consumed-prefetch source with L1 prefill: 25/25 dense solver selections; 4 distinguishable MX4 regressions.
 Body4b7d83686;normalproducer230a572b atd889;G14/H15 unchanged,A20=b4555ea2e0dbde380c37c48793e2fd5ff4a9f6dc767b0ebb9606e108c4fd34b3.
 Authority SHA256:75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73.
-G-PROGRAM/denseG-SOLVER pass;100pred/meas=.93269–1.02455;G-B/G-LLM/G-FWD/default promotion open;MoE0/5,DNN0/25.
+G-PROGRAM/denseG-SOLVER pass;100pred/meas=.93269–1.02455;G-B/G-LLM/G-FWD/default promotion open;G-MOE0/5 (3 numeric selections),DNN0/25.
 
 ## Current 25-cell coverage (verified)
 
@@ -174,26 +174,27 @@ Old=rebuilt22a finalsource/pins,not exacthistoricalELF;oldprefillWD1,newprefillW
 |Llama8B/B1|10.715534|10.589079|-1.180%|0.089%|1.000%|faster|
 Source-bound fresh-process rows:MX5_ppair_c550.csv;no fixedbaseline overwrite orselection change.
 
-## Historical A19 reference (verified, separate source)
+Historical A19 is a separate source:11 selections,eight nonregressions and three failures;
+all original rows remain in MX5_serving_c550.csv;source details remain in MX5_c550.md.
 
-A19=7c9658ac5/producer88327cbc4;11historical selections,eightnonregressions,threefailures listedbelow.
-| Cell | A19 TPOT ms | vs fixedMX4 | Status |
-|---|---:|---:|---|
-|Qwen0.6B/B2|2.301333|+9.823%|FAIL|
-|Qwen0.6B/B4|2.575954|+7.591%|FAIL|
-|Qwen1.7B/B2|3.610137|+1.538%|FAIL|
+## MoE original top-4 checkpoint (verified; G-MOE open)
+
+All12 B1/B2/B8 original candidates pass512-step C-1(eager)/C-2;24 fresh WD0 processes select original0 in each cell.
+| B | TPOT ms | TTFT ms | E2E s | tok/s | MBU* | /vLLM | /SGLang | pred/meas | Status |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+|1|4.535392|259.564|4.899270|209.011|0.4810|0.9504|1.0745|0.9870|route FAIL36 non-ties|
+|2|5.527619|321.956|5.976710|342.663|0.6094|0.9494|1.0108|1.0144|routing gate open|
+|4|—|—|—|—|—|—|—|—|original4 still spill atD;not launched|
+|8|11.980720|766.091|13.022367|629.072|0.7294|1.0820|1.1145|0.9967|routing gate open|
+|16|—|—|—|—|—|—|—|—|original4 still spill atD;not launched|
+*MBU is inferred from uniform expected active experts and average KV576;actual timed route traffic is not logged. No MX4 MoE serving result exists.
+All are final=false/default=false. Formal selectedB1 routing:1372 exact,128 ties,36 failures/1536;threshold unchanged.
 
 ## D7 and remaining work
-EarlierA20 fourL2-prefill selections remain inCSVs but outside alignedL1 acceptance;MX4 standardprefill isL1.
-OldB2 L2timing rejects nonidentical1024token repetitions;allthree correctedL1 WDpair selections pass.
-Original576 WD1frames16/24/56B remain preserved;all12 boundedpair histories,24queries andfive3fresh changed-width costs pass.
 G-B original576 criterion stillfails21.75vs22.125,error.375>tol.374000013;oracle/seed/tolerance unchanged.
-Observednative gate lies1.192e−6 belowBF16midpoint,CPU2.861e−6 above;instrumented fulloutputs identical.
-A19 QwenB2 attentionDIAG35.923/35.842us vsbench27.167;offgrid diagnostic33.674us doesnot replace officialfivegrid.
 Currentbody I1 fivefresh orderdeltasQKV+6.304%,attn+3.668%,O+8.104%,GU+7.224%,down−.478%;nocachecause claimed.
 Consumed-prefetch336required/null28/helper6/cold12 eachpass5fresh;helper104CTAs×2000;D64Q4PK2frame0/resident1.
 A20attention500keys×3fresh complete;300576resource rejects unexecuted;G/H unchanged;4545pool/25scopes replayPASS.
 Userwaives60card-hour cap and permits four-card parallelism on7/6/5/4;onejob/card,guard/per-joblimits remain;accounting retained.
 Resolve denseG-B/G-LLM;completeMoE5+prompt64+routing,LLM30acceptance/CP5,beforeDNNnative25.
 G-PROGRAM fivecells passes20candidate C1/C2 and40fresh timings;other gates/defaults remain open;detailsinMX5_c550.md.
-Raw:consumed_prefetch_attention_epoch_v1/attention_consumer25_v1 andsource-specific runnerdirectories.

@@ -2,8 +2,8 @@
 
 Verified 2026-10-29. Authority: `TileMega_MX5_prompt.md`, SHA256
 `75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73`.
-MoE native model acceptance remains **0/5**. Manual B1/B16 C1/C2 pass, while
-routing fails31/468 non-tie positions. Final selected5-cell E2E remains pending.
+MoE native model acceptance remains **0/5**. B1/B2/B8 numeric exact4 selections
+are complete; selectedB1 routing fails36 non-tie positions. B4/B16 resources fail.
 
 ## Host analysis
 
@@ -1166,3 +1166,100 @@ Its locations help investigate GroupedGemmV2.h:396 and MoeProgramV2.cuh:219;
 they cannot be presented as exact normal-artifact instruction attribution.
 Raw: moe_spill_device_debug_D7_cpu_v1. A missing-PYTHONPATH metadata read
 fails before input import; the corrected CPU read verifies device sections.
+
+
+Verified further D7 CPU controls: a shape-specialized standalone down bench
+at original0 TN128/WN2/D3/Pw3 is stack-free,MT196(B4)/198(B16), versus225
+for its runtime-shape controls. B-only static gives202/204; N/K-only gives214.
+This rules out static shape specialization alone as the observed full-
+program spill; it does not prove the minimal required register count.
+Explicit no-unroll directives on grouped reduction loops leave exact device
+text/resources unchanged. Clearing the consumed entry qkv packet also has
+identical text/resources. A consume-to-refill compiler dependency changes
+text but leaves frames256/320B. Explicit uniform terminal predicates leave
+B16 at320B and worsen B4 to272B. None is adopted or launched. Raw:
+moe_grouped_static_shape_D7_cpu_v1, moe_grouped_unroll_pressure_D7_cpu_v1,
+moe_entry_packet_lifetime_D7_cpu_v1, moe_grouped_consume_dependency_D7_cpu_v1,
+moe_terminal_uniform_D7_cpu_v1.
+
+Verified B8's remaining original3 candidates now also pass512-step C-1/C-2.
+All12 original B1/B2/B8 candidates pass; request timing remains in progress.
+CPU exporters wait for each completed eight-process batch and independently
+revalidate raw request/token/guard/identity evidence before append-only CSV
+writes. Any exported selection retains final=false/default=false and an
+explicit open routing gate. MBU will be labelled as inferred uniform-route
+byte traffic, because timed runs do not log actual expert activity.
+Raw: moe_original_top4_results_export_cpu_v1.
+
+A selected-B1 routing controller waits for native exact4 measured selection.
+It first builds diagnostic576 with a complete prescribed-toD history; only
+if that fails does it build the same selected geometry at512, with separate
+MIR/resources/zero-launch occupancy checks. Then it runs the formal64-step
+routing reference on card4 with eager experts and records either pass or
+failure. Timing artifacts are unchanged. This paragraph describes a queued
+procedure, not an executed routing result. Raw:
+moe_selected_B1_routing_after_top4_v1.
+
+
+### Original measured selections and selected routing (verified)
+
+All three healthy original4 batches complete:12 candidate C-1(eager)/C-2
+checks of512 steps and24 fresh timing processes, each own WD0 prompt/decode,
+warmup1+timed2,ISL64/OSL1024,greedy BF16. Native SelectMxMoeMeasuredV2
+selects predicted original0 for B1/B2/B8 under the unchanged1% rule.
+
+| B | TPOT ms | TTFT ms | E2E s | tok/s | /vLLM | /SGLang | pred/meas |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+|1|4.535392|259.564|4.899270|209.011|0.9504|1.0745|0.9870|
+|2|5.527619|321.956|5.976710|342.663|0.9494|1.0108|1.0144|
+|8|11.980720|766.091|13.022367|629.072|1.0820|1.1145|0.9967|
+
+The resource/fresh-process/request/token/guard/identity/native-choice exporter
+rechecks all24 processes and appends12 selection rows plus9 serving rows
+(two actual rounds and one median per selected cell). Old CSV bytes remain
+unchanged. final/default remain false, route gates remain open; these are
+numeric selections, not G-MOE acceptance. MBU .4810/.6094/.7294 uses explicitly
+inferred uniform expert activity8/16/52 and average KV576, not measured traffic.
+Raw: moe_original_top4_e2e_staged_v1,
+moe_original_top4_results_export_cpu_v1.
+
+SelectedB1 diagnostic compilation follows576 primary and prescribed widths
+toD:frames592/576/528B,MT168. The exact selected512 geometry with DIAG1 is
+MT237/frame0,passes MIR and actual occupancy/local0 on card4. Formal64-step
+routing then fails:1536 positions,1372 exact sets,128 boundary ties,36 non-tie
+failures. Its first65 tokens match all six normal full-request generations
+(warmup/timed across both selected processes). Guard preflight/after records
+and expected child exit1 are verified. The failure remains recorded; no
+oracle,rank8/rank9 tie rule or numerical threshold is changed. One failed
+route row and four diagnostic resource rows are appended. Raw:
+moe_selected_B1_routing_after_top4_v1, moe_selected_B1_route_export_cpu_v1.
+
+B1 stage-cost attribution from qualified bench rows (not model stage timing):
+qkv17.680,attention26.285,O15.390,router41.190,GU37.770,down32.210us/layer,
+head383.740us. Sum4.476350ms versus actual4.535392ms leaves59.042us unassigned.
+Against the nominal1.55TB/s stream estimate2.181376ms, router contributes
+.980442ms excess,attention .612584ms,down .383376ms. These are bench/byte
+comparisons, not causal model-stage measurements. The head bench383.740us
+is below its nominal401.503us stream estimate; the nominal rate is not used
+to clamp data. The prompt's2.5–2.7ms B1 inference is contradicted by measured
+E2E, with most of the gap already visible in stage bench. The first inline
+CPU arithmetic wrapper has a syntax error before input reads; corrected
+file replay and original failure note remain. Raw:
+moe_B1_selected_bench_gap_attribution_cpu_v1.
+
+SelectedB1 non-trace DIAG-skip attribution is now running on card7:two rounds
+of ten fresh masks,each warmup1+timed2. Its separate actual card7 query has
+resident1/local0/zero launches. Router comparison112-minus120 skips expert
+bodies in both arms, avoiding mislabelling removal of the entire downstream
+expert path as router latency; retained prefetch/metadata still confound it.
+All interventions are explicitly nonadditive, not body latency or production
+TPOT. An independent CPU summarizer waits for all20 processes, verifies2046
+accepted step differences per mask, and then appends14 stage comparisons.
+This is queued/running work, not a completed ledger. Raw:
+moe_selected_B1_diag_skip_ledger_v1.
+
+Two specification decisions remain unanswered: whether complete combinations
+proven resource-invalid atD may be excluded before continuing k-best, and
+whether DNN may begin after a failed LLM report while its gates remain open.
+Neither is inferred from elapsed time. Existing permitted diagnostic work
+continues; no selection-domain/threshold/default/phase change is applied.
