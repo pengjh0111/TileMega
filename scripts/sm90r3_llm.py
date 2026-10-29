@@ -78,10 +78,13 @@ def queue(a):
             kind in ('final', 'corr') and len(labels) != 1:
         raise ValueError('arm count does not match the protocol')
     for arm in spec['arms'].values():
-        for phase in ('decode', 'prefill'):
+        # §8 A3.5: a 'prompt' prefill runs the prompt through the decode plan.
+        prompt = arm['prefill'] == 'prompt'
+        for phase in ('decode',) if prompt else ('decode', 'prefill'):
             if not Path(arm[phase]).is_file():
                 raise FileNotFoundError(arm[phase])
-        arm['decode_sha256'], arm['prefill_sha256'] = sha(arm['decode']), sha(arm['prefill'])
+        arm['decode_sha256'] = sha(arm['decode'])
+        arm['prefill_sha256'] = 'prompt mode' if prompt else sha(arm['prefill'])
         root = arm_root(arm)
         arm['root_commit'] = subprocess.check_output(['git', '-C', str(root), 'rev-parse', 'HEAD'],
                                                      text=True).strip()
@@ -125,7 +128,7 @@ def measure(a):
         raise ValueError('GPU work requires the scheduler guard')
     spec = read(a.spec)
     arm = spec['arms'][a.arm]
-    for phase in ('decode', 'prefill'):
+    for phase in ('decode',) if arm['prefill'] == 'prompt' else ('decode', 'prefill'):
         if sha(arm[phase]) != arm[phase + '_sha256']:
             raise ValueError('artifact changed after queueing: ' + phase)
     model_dir, prompt, gib = MODELS[spec['model']]
