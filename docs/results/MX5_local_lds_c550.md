@@ -1316,3 +1316,21 @@ runningcard7. MoEunit/I1queuesstillwaititsledger,notjustdense25.
 VerifieddenseG-SOLVER numericgatepasses:all100currenttop4combinations
 pred/meas .932689484–1.024549650;all25selected .935251243–1.024549650.
 ThisdoesnotwaiveG-B/fourG-LLM regressions orenabledefaults;MoEsolverpending.
+
+
+Verified Llama8B B2 selected D7: 16 fresh diagnostic processes complete,
+12 append-only ledger rows independently checked against raw step timestamps.
+Per-layer intervention / selected bench (us; nonadditive, not body latency):
+qkv: 31.602578 / 34.900000 = 0.905518; attention: 33.820469 / 22.810239 = 1.482688; o: 21.467266 / 25.020000 = 0.858004; gate_up: 146.854375 / 153.480000 = 0.956831; down: 72.362500 / 76.640000 = 0.944187;
+Attention ratio exceeds 1.2; D7 remains open. Head/token-history intervention
+is confounded. Mask63 retains prefetch/control/barriers, not pure synchronization.
+I1 five-fresh-process diagnostic is in progress; no I-cache cause is claimed.
+Raw: `current_Llama8BB2_D7_v1`; the formal TPOT regression remains +1.462762%.
+
+
+Verified Llama8B B2 I1: five fresh processes, selected coordinates and
+actual epsilon 1e-5, 512 iterations, 448 MiB rotating W pool. Fifty probe
+rows and one resource row independently appended with actual symbol sizes.
+Program-order/repeat deltas: qkv +2.305%, attention +5.038%, o +2.505%, gate_up +1.311%, down +0.722%.
+These diagnostic deltas do not establish an instruction-cache cause or alter
+the formal TPOT/selected costs. Raw: `current_Llama8BB2_D7_I1_v2`.
