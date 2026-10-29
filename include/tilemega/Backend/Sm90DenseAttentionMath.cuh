@@ -37,23 +37,29 @@ struct Sm90DenseAttentionMath {
     unsigned bits=*reinterpret_cast<unsigned const*>(x);
     return make_float2(__uint_as_float(bits<<16),__uint_as_float(bits&0xffff0000u));
   }
+  // Sum of squares of this lane's eight elements.
+  __device__ static __forceinline__ float Squares(uint4 a) {
+    float square=0;
+    cute::for_each(cute::make_int_sequence<8>{},[&](auto i) {
+      float value=Get<int(i)>(a);square+=value*value;
+    });
+    return square;
+  }
+  // Reciprocal RMS of one head, reduced over its D/8 lanes.
+  template<int D>
+  __device__ static __forceinline__ float HeadInverse(uint4 a,float epsilon) {
+    float square=Squares(a);
+    #pragma unroll
+    for(int offset=D/16;offset;offset>>=1)square+=__shfl_xor_sync(0xffffffff,square,offset);
+    return rsqrtf(square/D+epsilon);
+  }
   // MR4: one head per group of D/8 lanes; lane l of a group owns elements
-  // [8l, 8l+8), b their rotation partners at (8l + D/2) % D. The norm is a
-  // reduction over the group (xor offsets below D/8 stay inside it), so every
-  // lane of the warp must call this, idle groups with zeros.
+  // [8l, 8l+8), b their rotation partners at (8l + D/2) % D. `inverse` is the
+  // reciprocal RMS of whatever the architecture normalizes: one head (Qwen3)
+  // or the whole projected row (OLMoE); it is unused without a normalization.
   template<int D,bool Norm>
   __device__ static __forceinline__ uint4 RotateGroup(uint4 a,uint4 b,uint4 w,uint4 partner_w,
-      uint4 cos,uint4 sin,float epsilon,int d) {
-    float inverse=1;
-    if constexpr(Norm) {
-      float square=0;
-      cute::for_each(cute::make_int_sequence<8>{},[&](auto i) {
-        float value=Get<int(i)>(a);square+=value*value;
-      });
-      #pragma unroll
-      for(int offset=D/16;offset;offset>>=1)square+=__shfl_xor_sync(0xffffffff,square,offset);
-      inverse=rsqrtf(square/D+epsilon);
-    }
+      uint4 cos,uint4 sin,int d,float inverse) {
     uint4 output{};
     cute::for_each(cute::make_int_sequence<8>{},[&](auto i) {
       float first=Get<int(i)>(a),second=Get<int(i)>(b);

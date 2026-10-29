@@ -23,14 +23,18 @@ namespace tilemega::backend {
 // stores its normalized partial into the inbox of the chunk-0 CTA through
 // DSMEM, then arrives on its inbox barrier; that leader merges and writes
 // the context. No global partials, lse or arrival counters are used.
-template<int Batch,int Hkv,int D,int Q,bool Norm,int Chunks,int BlockKeys,int Slots,
+// Norm: 0 none, 1 per head (Qwen3), 2 per projected row (OLMoE).
+template<int Batch,int Hkv,int D,int Q,int Norm,int Chunks,int BlockKeys,int Slots,
          int NewRowWork,int Capacity,bool Dsmem=false>
 struct Sm90DenseAttentionBody {
   using Element=cutlass::bfloat16_t;
   using Async=codegen::executor::Async<arch::Sm90>;
   using Math=Sm90DenseAttentionMath;
   using Partition=Sm90DenseAttentionPartition<Chunks>;
-  static_assert(Batch>=1 && Batch<=16 && (D==64 || D==128) && Q>=2 && Q<=8);
+  // A3: OLMoE is MHA (Q = 1) and normalizes the projected row, not the head.
+  static_assert(Batch>=1 && Batch<=16 && (D==64 || D==128) && Q>=1 && Q<=8);
+  static_assert(Norm>=0 && Norm<=2,"norm mode is none, head or row");
+  static constexpr bool kNormalized=Norm!=0,kRowNorm=Norm==2;
   static_assert(BlockKeys==64 || BlockKeys==128);
   static_assert(Slots>=2 && Slots<=4 && Capacity>=1087);
   static_assert(!Dsmem || Chunks>1,"a DSMEM merge needs at least two chunks");
@@ -144,6 +148,26 @@ struct Sm90DenseAttentionBody {
     __syncwarp();
   }
 
+  // A row norm reduces the token's whole q (Hkv Q D) or k (Hkv D) row, which
+  // the qkv buffer interleaves across this token's Hkv groups. All 128
+  // consumer threads participate; `scratch` holds one float per warp.
+  __device__ static __forceinline__ float RowInverse(Element const* base,int head_rows,
+      float* scratch,float epsilon) {
+    int tid=threadIdx.x;
+    float square=0;
+    for(int i=tid*8;i<Hkv*head_rows*D;i+=128*8) {
+      int group=i/(head_rows*D),rest=i%(head_rows*D);
+      square+=Math::Squares(*reinterpret_cast<uint4 const*>(base+std::size_t(group)*(Q+2)*D+rest));
+    }
+    #pragma unroll
+    for(int offset=16;offset;offset>>=1)square+=__shfl_xor_sync(0xffffffff,square,offset);
+    if((tid&31)==0)scratch[tid>>5]=square;
+    codegen::executor::ComputeSync();
+    float total=scratch[0]+scratch[1]+scratch[2]+scratch[3];
+    codegen::executor::ComputeSync();
+    return rsqrtf(total/float(Hkv*head_rows*D)+epsilon);
+  }
+
   // MR4: q_norm + RoPE of the Q query heads and, in the chunk holding past,
   // the new key, as items of D/8-lane groups (D128: 8 groups, Q = 8's key in
   // a second round on warp 0's first group). Every global read of the task is
@@ -156,20 +180,32 @@ struct Sm90DenseAttentionBody {
     int d=(lane%kGroupLanes)*8,partner=(d+D/2)%D;
     auto const* row=p.qkv+std::size_t(bg)*(Q+2)*D;
     bool fresh=range.Contains(p.past);
+    float row_q=1,row_k=1;
+    if constexpr(kRowNorm) {
+      // bg = b Hkv + g, so this token's group 0 starts (bg mod Hkv) groups back.
+      auto const* token=p.qkv+std::size_t(bg-bg%Hkv)*(Q+2)*D;
+      row_q=RowInverse(token,Q,s.weight,p.epsilon);
+      row_k=RowInverse(token+std::size_t(Q)*D,1,s.weight,p.epsilon);
+    }
     uint4 cos=*reinterpret_cast<uint4 const*>(p.cosine+p.past*D+d);
     uint4 sin=*reinterpret_cast<uint4 const*>(p.sine+p.past*D+d);
-    uint4 qw{},qpw{},kw{},kpw{},x[kRounds],y[kRounds],value{};
-    if constexpr(Norm) {
-      qw=*reinterpret_cast<uint4 const*>(p.q_norm+d);qpw=*reinterpret_cast<uint4 const*>(p.q_norm+partner);
-      kw=*reinterpret_cast<uint4 const*>(p.k_norm+d);kpw=*reinterpret_cast<uint4 const*>(p.k_norm+partner);
-    }
+    uint4 x[kRounds],y[kRounds],w[kRounds],pw[kRounds],value{};
     #pragma unroll
     for(int r=0;r<kRounds;++r) {
       int item=r*kGroups+group;
-      x[r]=y[r]=uint4{};
+      x[r]=y[r]=w[r]=pw[r]=uint4{};
       if(item<Q || (item==Q && fresh)) {
         x[r]=*reinterpret_cast<uint4 const*>(row+item*D+d);
         y[r]=*reinterpret_cast<uint4 const*>(row+item*D+partner);
+        if constexpr(kNormalized) {
+          // A row norm's gamma slice follows the element's position in the
+          // whole row; a head norm repeats one head's gamma.
+          auto const* gamma=item<Q?p.q_norm:p.k_norm;
+          std::size_t head=0;
+          if constexpr(kRowNorm)head=item<Q?std::size_t(bg%Hkv)*Q+item:std::size_t(bg%Hkv);
+          w[r]=*reinterpret_cast<uint4 const*>(gamma+head*D+d);
+          pw[r]=*reinterpret_cast<uint4 const*>(gamma+head*D+partner);
+        }
       }
       if(item==Q && fresh)value=*reinterpret_cast<uint4 const*>(row+(Q+1)*D+d);
     }
@@ -177,7 +213,10 @@ struct Sm90DenseAttentionBody {
     for(int r=0;r<kRounds;++r) {
       int item=r*kGroups+group;
       bool key=item==Q;
-      uint4 rotated=Math::template RotateGroup<D,Norm>(x[r],y[r],key?kw:qw,key?kpw:qpw,cos,sin,p.epsilon,d);
+      float inverse=1;
+      if constexpr(kRowNorm)inverse=key?row_k:row_q;
+      else if constexpr(kNormalized)inverse=Math::template HeadInverse<D>(x[r],p.epsilon);
+      uint4 rotated=Math::template RotateGroup<D,kNormalized>(x[r],y[r],w[r],pw[r],cos,sin,d,inverse);
       if(item<Q)*reinterpret_cast<uint4*>(reinterpret_cast<char*>(s.query)+Swizzled<16>(item,d))=rotated;
       else if(key && fresh) {
         std::size_t cache=(std::size_t(bg)*Capacity+p.past)*D;

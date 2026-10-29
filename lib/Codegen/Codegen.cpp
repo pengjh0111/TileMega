@@ -2258,8 +2258,20 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
          integerField(s,"dense_attention_chunks")!=c.attention.chunks ||
          integerField(s,"attention_kv_block")!=capacity)
         throw std::invalid_argument("native attention requires reconstructed integrated chunks");
-      bool norm=operand(5)!="kAbsent";
-      if(norm!=(operand(6)!="kAbsent"))throw std::invalid_argument("asymmetric native QK norm");
+      // Norm mode: 0 none, 1 per head (width), 2 per projected row
+      // (Hkv Q width for the queries, Hkv width for the keys).
+      int norm=0;
+      if(operand(5)!="kAbsent") {
+        auto elements=[&](std::string const& id) {
+          auto b=dictionaryEntry(buffers[std::stoll(id)],"buffers");
+          return integerField(b,"constant")+integerField(b,"per_seq");
+        };
+        auto q_elements=elements(operand(5)),k_elements=elements(operand(6));
+        if(q_elements==width && k_elements==width)norm=1;
+        else if(q_elements==std::int64_t(extent)*group*width && k_elements==std::int64_t(extent)*width)norm=2;
+        else throw std::invalid_argument("native QK norm is neither per head nor per projected row");
+      }
+      if((norm!=0)!=(operand(6)!="kAbsent"))throw std::invalid_argument("asymmetric native QK norm");
       if(operand(1)=="kAbsent" || operand(2)=="kAbsent")
         throw std::invalid_argument("native attention lacks its K/V cache views");
       chunks=c.attention.chunks;

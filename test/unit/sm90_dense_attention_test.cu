@@ -51,14 +51,16 @@ __global__ __launch_bounds__(160) void evaluate_cluster(Sm90DenseAttentionOperan
   state.Invalidate();
 }
 
-// Host mirror of Sm90DenseAttentionMath::RotateValue (same BF16 roundings).
-template<int D,bool Norm>
-void Rotate(BF const* x,BF const* w,BF const* cos,BF const* sin,float eps,float* out) {
+// Host mirror of the device rotation (same BF16 roundings). `inverse` is
+// supplied for a row norm, whose reduction spans the whole projected row.
+template<int D,int Norm>
+void Rotate(BF const* x,BF const* w,BF const* cos,BF const* sin,float eps,float* out,
+            float inverse=0.0f) {
   float inv=1;
-  if(Norm) {
+  if(Norm==1) {
     float sq=0;for(int d=0;d<D;++d)sq+=float(x[d])*float(x[d]);
     inv=1.0f/std::sqrt(sq/D+eps);
-  }
+  }else if(Norm==2)inv=inverse;
   for(int d=0;d<D;++d) {
     float first=float(x[d]),second=float(x[(d+D/2)%D]);
     if(Norm) {
@@ -69,13 +71,14 @@ void Rotate(BF const* x,BF const* w,BF const* cos,BF const* sin,float eps,float*
   }
 }
 
-template<int Hkv,int D,int Q,bool Norm,int S,int Keys,int Slots,bool Stream=false,bool Dsmem=false>
+template<int Hkv,int D,int Q,int Norm,int S,int Keys,int Slots,bool Stream=false,bool Dsmem=false>
 int run(int past,bool poison,std::vector<BF>* bits=nullptr) {
   using A=Sm90DenseAttentionBody<B,Hkv,D,Q,Norm,S,Keys,Slots,0,kCap,Dsmem>;
   constexpr int prefix=Stream?A::kMaxPreissue:0;
   int groups=B*Hkv;
   std::vector<BF> qkv(std::size_t(groups)*(Q+2)*D),key(std::size_t(groups)*kCap*D),value(key.size());
-  std::vector<BF> cos(kCap*D),sin(kCap*D),qn(D),kn(D);
+  constexpr int kNormQ=Norm==2?Hkv*Q*D:D,kNormK=Norm==2?Hkv*D:D;
+  std::vector<BF> cos(kCap*D),sin(kCap*D),qn(kNormQ),kn(kNormK);
   for(std::size_t i=0;i<qkv.size();++i)qkv[i]=BF(float(int((i*7919)%61)-30)/32.0f);
   for(int g=0;g<groups;++g)for(int t=0;t<kCap;++t)for(int d=0;d<D;++d) {
     std::size_t i=(std::size_t(g)*kCap+t)*D+d;
@@ -88,7 +91,8 @@ int run(int past,bool poison,std::vector<BF>* bits=nullptr) {
     double angle=t/std::pow(10000.0,double(2*(d%(D/2)))/D);
     cos[t*D+d]=BF(float(std::cos(angle)));sin[t*D+d]=BF(float(std::sin(angle)));
   }
-  for(int d=0;d<D;++d) {qn[d]=BF(1.0f+(d%5)/8.0f);kn[d]=BF(1.0f-(d%3)/8.0f);}
+  for(int d=0;d<kNormQ;++d)qn[d]=BF(1.0f+(d%5)/8.0f);
+  for(int d=0;d<kNormK;++d)kn[d]=BF(1.0f-(d%3)/8.0f);
   auto device=[](auto const& host) {
     using T=typename std::decay_t<decltype(host)>::value_type;T* p;
     check(cudaMalloc(&p,host.size()*sizeof(T)));
@@ -139,14 +143,26 @@ int run(int past,bool poison,std::vector<BF>* bits=nullptr) {
   for(int g=0;g<groups;++g) {
     BF const* row=qkv.data()+std::size_t(g)*(Q+2)*D;
     std::vector<float> knew(D),qrot(D);
-    Rotate<D,Norm>(row+Q*D,kn.data(),cos.data()+past*D,sin.data()+past*D,1e-6f,knew.data());
+    float inv_q=0,inv_k=0;
+    if(Norm==2) {
+      // The row spans every group of this token (bg = b Hkv + head group).
+      BF const* token=qkv.data()+std::size_t(g-g%Hkv)*(Q+2)*D;
+      double sq=0,sk=0;
+      for(int h=0;h<Hkv;++h) {
+        for(int i=0;i<Q*D;++i) {float v=float(token[std::size_t(h)*(Q+2)*D+i]);sq+=double(v)*v;}
+        for(int i=0;i<D;++i) {float v=float(token[std::size_t(h)*(Q+2)*D+Q*D+i]);sk+=double(v)*v;}
+      }
+      inv_q=1.0f/std::sqrt(float(sq/(Hkv*Q*D))+1e-6f);
+      inv_k=1.0f/std::sqrt(float(sk/(Hkv*D))+1e-6f);
+    }
+    Rotate<D,Norm>(row+Q*D,kn.data()+(Norm==2?(g%Hkv)*D:0),cos.data()+past*D,sin.data()+past*D,1e-6f,knew.data(),inv_k);
     for(int d=0;d<D;++d) {
       std::size_t i=(std::size_t(g)*kCap+past)*D+d;
       if(float(cache_k[i])!=knew[d])bad("new key",g,0,d,float(cache_k[i]),knew[d]);
       if(float(cache_v[i])!=float(row[(Q+1)*D+d]))bad("new value",g,0,d,float(cache_v[i]),float(row[(Q+1)*D+d]));
     }
     for(int q=0;q<Q;++q) {
-      Rotate<D,Norm>(row+q*D,qn.data(),cos.data()+past*D,sin.data()+past*D,1e-6f,qrot.data());
+      Rotate<D,Norm>(row+q*D,qn.data()+(Norm==2?((g%Hkv)*Q+q)*D:0),cos.data()+past*D,sin.data()+past*D,1e-6f,qrot.data(),inv_q);
       std::vector<double> score(past+1);double m=-1e300;
       for(int t=0;t<=past;++t) {
         double s=0;
@@ -173,7 +189,7 @@ int run(int past,bool poison,std::vector<BF>* bits=nullptr) {
   return errors;
 }
 
-template<int Hkv,int D,int Q,bool Norm,int S,int Keys,int Slots>
+template<int Hkv,int D,int Q,int Norm,int S,int Keys,int Slots>
 int sweep() {
   int errors=0;
   for(int past:{64,Keys-1,Keys,Keys+1,575,1023,1024,1086}) {
@@ -192,7 +208,7 @@ int sweep() {
 }
 
 // The DSMEM merge against the LA merge of the same chunks: equal outputs.
-template<int Hkv,int D,int Q,bool Norm,int Keys,int Slots>
+template<int Hkv,int D,int Q,int Norm,int Keys,int Slots>
 int dsmem() {
   int errors=0;
   for(int past:{64,575,1086}) {
@@ -212,15 +228,18 @@ int main() {
     auto add=[&](int e) {errors+=e;++cases;};
     constexpr int S0=B==1?16:B==2?8:B==4?4:B==8?2:1;
     // Dense (D, Q, norm) tuples, S0 and S0/2 (or 1), and the MoE tuple Hkv 4, Q 8.
-    add(sweep<8,128,2,true,S0,64,4>());add(sweep<8,128,2,true,(S0>1?S0/2:1),64,2>());
-    add(sweep<8,64,4,false,S0,64,3>());add(sweep<8,64,4,false,S0,128,2>());
-    add(sweep<8,128,3,false,S0,64,2>());add(sweep<8,128,4,false,S0,64,4>());
-    add(sweep<4,128,8,true,S0,64,2>());add(sweep<4,128,8,true,(S0>1?S0*2:2),64,3>());
+    add(sweep<8,128,2,1,S0,64,4>());add(sweep<8,128,2,1,(S0>1?S0/2:1),64,2>());
+    add(sweep<8,64,4,0,S0,64,3>());add(sweep<8,64,4,0,S0,128,2>());
+    add(sweep<8,128,3,0,S0,64,2>());add(sweep<8,128,4,0,S0,64,4>());
+    add(sweep<4,128,8,1,S0,64,2>());add(sweep<4,128,8,1,(S0>1?S0*2:2),64,3>());
     // MR5: one chunk (no merge) and the widest merges.
-    add(sweep<4,128,8,true,1,64,4>());add(sweep<8,128,2,true,1,64,4>());
-    add(sweep<4,128,8,true,(B<=2?32:4),64,2>());add(sweep<8,128,2,true,(B<=2?16:2),64,2>());
-    if constexpr(B*4*2<=132)add(dsmem<4,128,8,true,64,2>());
-    if constexpr(B*8*2<=132)add(dsmem<8,128,2,true,64,2>());
+    add(sweep<4,128,8,1,1,64,4>());add(sweep<8,128,2,1,1,64,4>());
+    add(sweep<4,128,8,1,(B<=2?32:4),64,2>());add(sweep<8,128,2,1,(B<=2?16:2),64,2>());
+    if constexpr(B*4*2<=132)add(dsmem<4,128,8,1,64,2>());
+    if constexpr(B*8*2<=132)add(dsmem<8,128,2,1,64,2>());
+    // A3: OLMoE is MHA with a row norm over the whole projected row.
+    if constexpr(B<=8)add(sweep<16,128,1,2,(B<=4?2:1),64,2>());
+    if constexpr(B<=4)add(sweep<16,128,1,2,1,64,4>());
     std::printf("{\"batch\":%d,\"sweeps\":%d,\"errors\":%d,\"pass\":%s}\n",B,cases,errors,errors?"false":"true");
     return errors?1:0;
   }catch(std::exception const& e) {std::fprintf(stderr,"%s\n",e.what());return 2;}
