@@ -1,0 +1,2 @@
+name,model,batch,gpu,concurrency,arm_a,arm_b,tpot_a_ms,tpot_b_ms,range_a_pct,range_b_pct,processes,change_pct,threshold_pct,decision
+pair-mr2-B1,qwen3_30b_a3b,1,1,trial,d5,deep,4.4828,4.6093,4.39,0.03,5,2.82,8.78,indistinguishable
