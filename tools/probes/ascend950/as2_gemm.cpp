@@ -63,6 +63,7 @@ void as2_gemm(GM_ADDR a,GM_ADDR b,GM_ADDR c,GM_ADDR timing,
   else if(implementation==1)Profile<16,128,128>(a,b,c,timing,m,n,k,groups);
   else if(implementation==2)Profile<16,128,128,64>(a,b,c,timing,m,n,k,groups);
   else if(implementation==3)Profile<16,128,128,32,false>(a,b,c,timing,m,n,k,groups);
+  else if(implementation==7)Profile<16,128,256>(a,b,c,timing,m,n,k,groups);
   else ProfileObservedPartial(a,b,c,timing,m,n,k,groups,implementation==5?2:implementation==6?7:3);
 }
 static void Check(aclError code,const char* name) {
@@ -77,7 +78,7 @@ int main(int argc,char** argv) {
   try {
     if(argc!=7)throw std::runtime_error("usage: as2_gemm M N K implementation input_directory output_directory");
     unsigned m=std::stoul(argv[1]),n=std::stoul(argv[2]),k=std::stoul(argv[3]),impl=std::stoul(argv[4]);
-    if(!m || m>64 || !n || n>151936 || n%16 || !k || k>16384 || k%16 || impl>6 || uint64_t(n)*k>(1ULL<<29))
+    if(!m || m>64 || !n || n>151936 || n%16 || !k || k>16384 || k%16 || impl>7 || uint64_t(n)*k>(1ULL<<29))
       throw std::runtime_error("Bounded BF16 profile shape required");
     if(impl==4 && !(((m==1 || m==16 || m==64) && n==2048 && (k==6144 || k==8192)) ||
                    ((m==16 && k==4096 || m==8 && k==14336) && n==4096)))
@@ -88,7 +89,7 @@ int main(int argc,char** argv) {
                    (m==16 && n==2048 && (k==6144 || k==8192)) ||
                    (m==16 && n==4096 && k==4096)))
       throw std::runtime_error("Seven-part diagnostic requires an observed KV or prefill slice");
-    const bool partial=impl>=4;const unsigned parts=impl==5?2:impl==6?7:3;
+    const bool partial=impl>=4 && impl<=6;const unsigned parts=impl==5?2:impl==6?7:3;
     namespace fs=std::filesystem;
     const fs::path root="/home/d50064638/junhuip/TileMega/runs/as2";
     auto input=fs::weakly_canonical(argv[5]),output=fs::weakly_canonical(argv[6]);
@@ -122,11 +123,11 @@ int main(int argc,char** argv) {
     if(!std::all_of(c.end()-512,c.end(),[](auto v){return v==0xa5;}))throw std::runtime_error("Output guard overwritten");
     fs::create_directories(output);std::ofstream out(output/(partial?"partial_f32.bin":"c.bin"),std::ios::binary);out.write((char*)c.data(),c.size()-512);out.close();
     std::cout<<"{\"status\":\"executed_requires_numeric_compare\",\"shape_mnk\":["<<m<<','<<n<<','<<k
-      <<"],\"implementation\":"<<impl<<",\"l0_k\":"<<((impl==2||partial)?64:32)<<",\"groups\":2,\"service_ticks\":[";
+      <<"],\"implementation\":"<<impl<<",\"l1_k\":"<<(impl==7?256:impl?128:64)<<",\"l0_k\":"<<((impl==2||partial)?64:32)<<",\"groups\":2,\"service_ticks\":[";
     for(unsigned tile=0;tile<tiles;++tile){if(tile)std::cout<<',';std::cout<<timing[(groups+tile)*64];}
     std::cout<<"],\"host_kernel_launches\":1,\"logical_weight_layout\":\"NK\",\"physical_weight_layout\":\""<<(impl==3?"KN":"NK")
       <<"\",\"timed_repetitions\":"<<(partial?1:3)<<",\"partial_count\":"<<(partial?parts:1)
-      <<",\"device_combine\":false,\"tilemega_pipeline\":false}"<<std::endl;
+      <<",\"device_combine\":false,\"mmad_lifetime\":\"per_worker_probe_not_model_per_task\",\"tilemega_pipeline\":false}"<<std::endl;
     for(auto p:allocated)Check(aclrtFree(p),"free");
     Check(aclrtDestroyStream(stream),"destroy stream");Check(aclFinalize(),"finalize");return 0;
   }catch(std::exception const& e){std::cerr<<e.what()<<std::endl;return 1;}

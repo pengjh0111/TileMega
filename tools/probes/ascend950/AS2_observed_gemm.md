@@ -216,3 +216,19 @@ all32768 values (uniform three-way still differs15). Evidence:
 The residual candidate preserves BF16 sum rounding before residual Add; Q's
 store variant has no fabricated residual. Both use per-group scratch, existing
 ready/done/ack and one owner. No CPU combine enters the persistent kernel.
+
+
+## L1 pipeline256, 2026-10-29
+
+`verified-run`: bounded `as2_gemm` implementation7 changes L1 K128→256 while
+retaining16×128 output geometry, L0K32, BF16 NK input/output and FP32 accumulate.
+Actual Qwen1.7 gate/up operands M16/N12288/K2048 and a seed20261016
+M1/N2064/K8208 tail fixture both match implementation1 bitwise and pass the
+frozen independent CPU FP32 tolerance. G2 on physical1; one launch per probe,
+one warmup and three repetitions per tile. Median tile service8.672→7.443us
+and34.330→29.570us respectively. These are component observations, not TPOT.
+The probe keeps MMAD alive per worker; current model constructs it per task.
+No native candidate/price/default is changed on this evidence alone.
+Source: `as2_gemm.cpp`; one selected BiSheng target, parallel1/nice10.
+Evidence: `runs/as2/probes/opt_l1k256_numeric_and_timing_v1.json`,
+`runs/as2/bench/opt_l1k256_probe_v1/{identity,state}.json`.
