@@ -103,8 +103,9 @@ std::vector<Sm90DenseAttention> Sm90DenseSearchSpace::AttentionCandidates(int re
   while(2*s0*batch*hkv<=Grid(residency))s0*=2;
   auto budget=Sm90DenseSharedBudget(target,residency);
   std::vector<int> keys=head_dim==128?std::vector<int>{64}:std::vector<int>{64,128};
-  for(int s:{s0,s0/2,s0/4}) {
-    if(s<1 || s>64)continue;
+  // MR5: every power-of-two chunk count down to one (no merge).
+  for(int s=s0;s>=1;s/=2) {
+    if(s>64)continue;
     for(int bk:keys) {
       // D2 slot rule: the most slots (2..4) that fit, capped by the blocks of
       // the longest chunk.
