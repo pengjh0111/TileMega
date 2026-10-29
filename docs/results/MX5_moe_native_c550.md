@@ -332,3 +332,26 @@ uses this check before loading GPU weights. Each future top4 candidate must
 own its matching prompt/decode pair when TN changes; a prediction0 prompt
 cannot be shared across incompatible candidate recipes. The intended build
 order is prompt before decode within each candidate, then select the pair.
+
+Verified initial grouped772 cost keys have three fresh-process rounds each;
+source-bound aggregation passes. Thread counts are443 at512 and329 at576;
+the recovered27 all belong to576, giving final fitting counts443/356 and
+resource rejections5/92. The geometric448 keys per shape must not be read
+as448 fitting keys. All original records remain; supplement timing is queued.
+Raw: `moe_grouped_cost_aggregation_after_complete_v1/initial772.json`.
+
+Verified the native program ranking layer now scales six per-layer costs
+and the once-per-step head cost, preserves original row indices, and matches
+router dispatch TNs to selected grouped bodies. It partitions the Cartesian
+product by dispatch context before exact k-best merging. Forty randomized
+brute-force comparisons include ties and context incompatibility; both MoE
+host CTests pass. This does not qualify missing costs, implement the complete
+CLI, grant512 exceptions or select an accepted model. Raw:
+`moe_canonical_domain_match_cpu_v1/ACTUAL_DISPATCH_CONTEXT_PROGRAM_RANKING_CPU_COMPLETE.json`.
+
+Verified router timing coverage is currently the explicit TN64/64 subset.
+The benchmark now accepts compile-time gate/up and down dispatch TNs; default
+values stay64/64. CPU-only normal builds for the other11 combinations are
+running with frozen sources, per-kernel resources/MIR and lossless archived
+compiler logs. They have no cost/model acceptance yet. Raw:
+`moe_router_contexts_cpu_v1`. No pending measurement input was modified.
