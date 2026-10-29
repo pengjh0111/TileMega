@@ -336,10 +336,12 @@ void MoeTaskCase(char const* family) {
 }
 
 // Attention pieces of the D2 body (prompt §4 L0-1): one 64-key block with data
-// resident, the q preparation, and the S-chunk merge with this CTA last.
-template<int D,int Q,int Norm,int S>
+// resident, the q preparation, and the S-chunk merge with this CTA last. Hkv
+// matters only to the row norm (mode 2), whose preparation reduces the token's
+// whole q and k rows across every KV group: OLMoE measures it at its own 16.
+template<int D,int Q,int Norm,int S,int Hkv=8>
 __global__ void AttentionKernel(backend::Sm90DenseAttentionOperands p,int samples,U64* out) {
-  using A=backend::Sm90DenseAttentionBody<1,8,D,Q,Norm,S,64,2,0,1088>;
+  using A=backend::Sm90DenseAttentionBody<1,Hkv,D,Q,Norm,S,64,2,0,1088>;
   extern __shared__ __align__(1024) char shared[];
   auto& s=*reinterpret_cast<typename A::Storage*>(shared);
   int tid=threadIdx.x;
@@ -368,15 +370,15 @@ __global__ void AttentionKernel(backend::Sm90DenseAttentionOperands p,int sample
   }
   if(tid==0 && st.sum[0]<0)out[0]=0;
 }
-template<int D,int Q,int Norm,int S>
+template<int D,int Q,int Norm,int S,int Hkv=8>
 void AttentionCase() {
   constexpr int samples=256;
-  using A=backend::Sm90DenseAttentionBody<1,8,D,Q,Norm,S,64,2,0,1088>;
-  auto kernel=AttentionKernel<D,Q,Norm,S>;
+  using A=backend::Sm90DenseAttentionBody<1,Hkv,D,Q,Norm,S,64,2,0,1088>;
+  auto kernel=AttentionKernel<D,Q,Norm,S,Hkv>;
   Check(cudaFuncSetAttribute(kernel,cudaFuncAttributeMaxDynamicSharedMemorySize,int(sizeof(typename A::Storage))));
-  auto* qkv=Device<BF>(8*(Q+2)*D);auto* cache=Device<BF>(8*1088*D);auto* table=Device<BF>(1088*D);
-  auto* output=Device<BF>(8*Q*D);auto* partial=Device<float>(8*S*Q*D);auto* lse=Device<float>(8*S*Q);
-  auto* arrivals=Device<std::uint64_t>(8);auto* out=Device<U64>(3*samples);
+  auto* qkv=Device<BF>(Hkv*(Q+2)*D);auto* cache=Device<BF>(Hkv*1088*D);auto* table=Device<BF>(1088*D);
+  auto* output=Device<BF>(Hkv*Q*D);auto* partial=Device<float>(Hkv*S*Q*D);auto* lse=Device<float>(Hkv*S*Q);
+  auto* arrivals=Device<std::uint64_t>(Hkv);auto* out=Device<U64>(3*samples);
   backend::Sm90DenseAttentionOperands p{nullptr,nullptr,qkv,cache,cache,output,table,table,table,table,
       partial,lse,arrivals,575,1e-6f,0};
   kernel<<<1,128,sizeof(typename A::Storage)>>>(p,samples,out);
@@ -855,6 +857,13 @@ int main(int argc,char** argv) {try {
       (MoeTaskCase<Sm90DenseMoeMode::kGateUp,B,2048,2048,128,128,4,2,64>("expert_gate_up_e64"),...);
       (MoeTaskCase<Sm90DenseMoeMode::kDown,B,2048,1024,128,64,6,2,64>("expert_down_e64"),...);
     }(std::integer_sequence<int,1,2,4,8,16>{});
+  }
+  // A3: OLMoE's attention -- MHA (Q = 1), the whole-row q/k norm, Hkv = 16.
+  // Its S0 is 4 (G = 132) or 8 (G = 264) at B1 and 1 at B16, so S <= 8.
+  if(full || !std::strcmp(argv[1],"--q1-only")) {
+    [&]<int... S>(std::integer_sequence<int,S...>) {(AttentionCase<128,1,2,S,16>(),...);}
+        (std::integer_sequence<int,2,4,8>{});
+    DsmemMergeCase<128,1,2,2>();
   }
   // MoE (Hkv = 4) at G = 264 reaches S0 = 64 chunks (prompt §8 M2).
   if(full || !std::strcmp(argv[1],"--moe-merge-only"))AttentionCase<128,8,1,64>();
