@@ -548,3 +548,14 @@ and E2E metadata blank. MX5_moe_rank_provenance_c550.csv separately reconciles
 those fields from actual identity/measurement files, with original CSV line
 and hashes. Original measurement rows and values remain unchanged; this is
 metadata reconciliation, not additional timing or a backfilled old row.
+
+
+Verified shared dense-host regression checks exposed changed validation order:
+the new MoE dispatch initially attempted bridge loading before rejecting an
+unqualified dense table. The fix preserves dense early rejection and only
+bypasses its parser for the explicit MoE geometry-table kind. The original
+failure log remains. The dense host suite passes on rerun, as do seven MoE CLI
+tests including rejecting a MoE table applied to a dense bridge. Device bodies,
+cost snapshots, reference numerics and thresholds are unchanged. Raw:
+moe_regular_grouped_head_coverage_cpu_v2/shared_dense_host_ctest_v2.log,
+moe_regular_grouped_head_coverage_cpu_v2/cli_preview_pytest_v3.log.
