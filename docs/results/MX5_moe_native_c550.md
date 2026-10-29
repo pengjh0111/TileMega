@@ -592,3 +592,28 @@ modified. Minimum controls are not selected plans or granted512 exceptions.
 Raw: moe_rank_adopted_min576_programs_cpu_v1,
 moe_adopted_min576_zero_queries_v1. A missing CPU PYTHONPATH attempt stopped
 before request creation/GPU dispatch and remains separately logged.
+
+
+Verified new router context GU-TN32/DN-TN16 completes220 measured costs from57
+fresh processes and50 actual resource rejections, covering270 outcomes. The
+strict source-bound collector and CPU geometry collector pass; context32/32
+continues independently. Raw: moe_router_rank_context_pipeline_v2/g32_d16,
+moe_router_rank_complete_outcomes_cpu_v1/g32_d16_geometry_outcomes.json.
+
+Verified an isolated raw-value snapshot diagnosis targeted the earliest formal
+B1 non-tie failure, decode step24/layer1 (HF boundary gap3ULP). It reuses45904
+of49152 debug bytes, disables ordinary route-debug writing and adds only raw
+copies after existing stage releases; no adopted body/reference changed. The
+first compile fails on a load-helper namespace error; its header/patch/logs
+are retained. Correcting that name compiles, but the normal resource gate
+rejects MT250/frame2016B at
+runs/mx5/moe_failed_route_value_snapshot_D7_v1/tree/include/tilemega/Codegen/tasks/mx/MoeProgramV2.cuh:146.
+No snapshot kernel or HF comparison ran, no plan-complete marker was written,
+and no raw intermediate result or causal explanation is claimed. The failed
+resource row is appended to MX5_resources_c550.csv. Root remains unchanged;
+route failure and G-MOE remain open. Raw: moe_failed_route_value_snapshot_D7_v1.
+
+Verified108 completed old-router MIR logs retain byte-identical readable paths
+and persistent gzip backups, freeing736.515MiB. Current source/binaries,
+measurements and guards are untouched by this archive. Raw:
+moe_completed_old_router_mir_archive_v1.
