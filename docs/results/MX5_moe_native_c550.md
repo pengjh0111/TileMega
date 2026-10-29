@@ -227,3 +227,25 @@ from cost qualification:720 brute-force exact-k-best comparisons cover
 legal-combination filtering/tie ordering; two-process medians and the exact
 1% boundary pass. Normal root build and both MoE host CTests pass.
 The CLI is not yet a measured MoE solver; no selected/default claim follows.
+
+Verified comparison-method correction: the earlier Python fixtures and
+frozen grouped cost driver use torch.equal on floating tensors. This checks
+value equality, including equal signed zeros, and is not raw-byte equality.
+The earlier descriptions of those comparisons as bitwise are withdrawn;
+their original rows, binaries, tolerances and measured times are retained.
+Canonical fixtures now compare contiguous uint8 views; three CPU tests cover
+signed zero, NaN payloads and dtype mismatch. Five fresh guarded processes
+per fixture are queued; no new byte-comparison GPU pass is claimed yet.
+
+Verified source-bound grouped cost aggregation validates recorded argv,
+fresh PIDs, guards, raw hashes, build/source identity, resources and sample
+quantiles. Prefix audits remain unqualified; even a complete 772-key cohort
+is only a measured subset pending the 27 recovered keys. The aggregator
+explicitly records value-repeat semantics and an unpassed byte body gate.
+Twelve CPU tests pass. No complete-domain, model or default claim follows.
+
+Verified CPU inventory reuses source-matching zero-prefetch bench binaries
+for the new MoE qkv/o shapes (760 legal coordinates) and D128/Q8 attention
+(200 coordinates). It makes zero device calls; new-shape device queries,
+formula-prefetch resource closure and three-process timing remain required.
+Failed zero-prefetch references alone will not exclude executed payloads.
