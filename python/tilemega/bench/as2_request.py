@@ -41,8 +41,15 @@ def cached_kv_state(stages,buffers,metadata):
 
 
 SOURCE_CAPABILITIES=('TILEMEGA_LLM_SPLIT_K','TILEMEGA_LLM_LOCAL_TAIL_K7','TILEMEGA_LLM_LOCAL_Q_TAIL_K3',
-                     'TILEMEGA_LLM_WIDE_QK','TILEMEGA_LLM_FP32_KV_CACHE')
+                     'TILEMEGA_LLM_WIDE_QK','TILEMEGA_LLM_FP32_KV_CACHE','TILEMEGA_LLM_SWIGLU_TILE')
 SOURCE_GEOMETRY=('TILEMEGA_LLM_VARIANT','TILEMEGA_LLM_TM','TILEMEGA_LLM_TN','TILEMEGA_LLM_TK')
+
+
+def gemm_variant_geometry(stage):
+    if stage[31]==4 and (stage[18:23]!=(2,96,16,12288,2048) or
+            stage[23]>1 or stage[16]==(1<<64)-1):
+        raise ValueError('Unregistered strided SwiGLU shape')
+    return 1 if stage[31] in (2,3,4) else stage[31]
 
 
 def source_parts(path):
@@ -119,7 +126,7 @@ def bind(prefill, decode, inputs, out,emit_source=False):
         plans.append(dict(phase=phase,path=path,metadata=m,buffers=buffers))
     variants=[]
     for plan in plans:
-        v={1 if s[31] in (2,3) else s[31] for s in struct.iter_unpack('<17Q16I',(plan['path']/'stages.bin').read_bytes()) if s[17]==0}
+        v={gemm_variant_geometry(s) for s in struct.iter_unpack('<17Q16I',(plan['path']/'stages.bin').read_bytes()) if s[17]==0}
         if len(v)!=1 or not v.issubset({0,1}):raise ValueError('One request binary requires a uniform registered geometry')
         variants.append(next(iter(v)))
     if variants[0]!=variants[1]:raise ValueError('Prefill/decode use different compiled GEMM geometries')

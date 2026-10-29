@@ -38,6 +38,18 @@ inline void Save(fs::path const& path,void const* data,size_t bytes) {
   if(!f)throw std::runtime_error("Cannot save request evidence");
 }
 inline void ValidateCompiledBodies(std::vector<llm::Stage> const& stages) {
+  for(auto const& s:stages)if(s.kind==0) {
+    if(s.variant>4)throw std::invalid_argument("Unregistered native GEMM implementation");
+    if(s.variant==4) {
+#if defined(TILEMEGA_LLM_SWIGLU_TILE) && TILEMEGA_LLM_SWIGLU_TILE
+      if(s.rows!=16 || s.columns!=12288 || s.k!=2048 || s.epilogue!=2 || s.extent>1 ||
+          s.tasks!=96 || s.workspace==llm::kAbsent)
+        throw std::invalid_argument("Unregistered strided SwiGLU tile shape");
+#else
+      throw std::invalid_argument("Strided SwiGLU requires its explicitly compiled Body");
+#endif
+    }
+  }
   for(auto const& s:stages)if(s.kind==0 && s.variant==3) {
 #if !defined(TILEMEGA_LLM_LOCAL_Q_TAIL_K3) || !TILEMEGA_LLM_LOCAL_Q_TAIL_K3
     throw std::invalid_argument("This binary does not register local Q tail reduction");
@@ -139,7 +151,7 @@ struct Plan {
         [&](auto const& a){return a.offset==offset;});
     };
     for(auto const& s:stages) {
-      if(s.kind==0 && ((s.variant==2 || s.variant==3)?1:s.variant)!=kCompiledVariant)
+      if(s.kind==0 && ((s.variant==2 || s.variant==3 || s.variant==4)?1:s.variant)!=kCompiledVariant)
         throw std::invalid_argument("Request GEMM geometry differs from compiled Body");
       for(auto offset:s.operands)if(!valid(offset))throw std::invalid_argument("Unbound request operand");
       if(!valid(s.workspace))throw std::invalid_argument("Unbound request workspace");

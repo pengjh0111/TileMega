@@ -6,7 +6,7 @@ import tempfile
 import unittest
 import torch
 from tilemega.bench.as2_models import RUNS
-from tilemega.bench.as2_request import bind, digest, request_source,cached_kv_state,compatible_source
+from tilemega.bench.as2_request import bind, digest, request_source,cached_kv_state,compatible_source,gemm_variant_geometry
 from tilemega.bench.as2_native_audit import compare_capture_payloads,mix_prefix
 from tilemega.bench.as2_native import incremental_packing_bytes,validate_rope_reuse
 from tilemega.bench.as2_last_forward import matching_prefix_rows
@@ -42,6 +42,13 @@ class PackingBudgetTest(unittest.TestCase):
 
 
 class RequestCapturePayloadTest(unittest.TestCase):
+    def test_strided_swiglu_keeps_geometry_and_rejects_unregistered_shape(self):
+        s=[0]*33;s[17:24]=[0,2,96,16,12288,2048,0];s[31]=4
+        self.assertEqual(gemm_variant_geometry(tuple(s)),1)
+        for field,value in [(18,1),(19,1),(20,1),(21,6144),(22,4096),(23,3),(16,(1<<64)-1)]:
+            bad=s.copy();bad[field]=value
+            with self.assertRaisesRegex(ValueError,'SwiGLU'):gemm_variant_geometry(tuple(bad))
+
     def test_derived_kv_keeps_logical_state_and_requires_complete_reset_planes(self):
         m=[0]*15;m[8]=16;m[10]=1088;s=[0]*33;s[17]=13;s[23:27]=[8,128,2,1088];s[31]=9
         size=16*8*1088*128*2;buffers=[]
@@ -171,10 +178,12 @@ class RequestBindingTest(unittest.TestCase):
         self.assertEqual(identity['capabilities']['TILEMEGA_LLM_TM'],16)
         self.assertTrue(text.endswith(body))
         extra=self.root/'catalogue_extra';extra.mkdir();plan=extra/'plan';plan.mkdir()
-        source=extra/'persistent_llm.cpp';source.write_text(geometry+'#define TILEMEGA_LLM_LOCAL_TAIL_K7 1\n'+body)
+        source=extra/'persistent_llm.cpp';source.write_text(geometry+'#define TILEMEGA_LLM_SWIGLU_TILE 1\n'+body)
         library=self.root/'library.cpp';union,provenance=request_source(self.pre,self.dec,plan);library.write_text(union)
         self.assertEqual(len(provenance['sources']),3)
+        self.assertEqual(provenance['capabilities']['TILEMEGA_LLM_SWIGLU_TILE'],1)
         self.assertEqual(compatible_source(source,library)['status'],'compatible')
+        with self.assertRaisesRegex(ValueError,'lacks'):compatible_source(source,self.pre.parent/'persistent_llm.cpp')
         with self.assertRaisesRegex(ValueError,'lacks'):compatible_source(library,source)
         source.write_text(geometry+'#include <different_runtime.h>\n')
         with self.assertRaisesRegex(ValueError,'identical'):request_source(self.pre,self.dec,plan)

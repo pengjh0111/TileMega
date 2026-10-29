@@ -40,7 +40,7 @@ template<class T> void Binary(std::filesystem::path const& p,std::vector<T> cons
 }
 AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem const& p,
     ascend::WorkerMap const& map,std::vector<solver::AscendScheduledTask> const& input,
-    solver::AscendSchedule const& schedule,bool diagnostic,unsigned attention_precision,bool local_tail_k7,bool local_q_tail3,bool local_residual_tail3) {
+    solver::AscendSchedule const& schedule,bool diagnostic,unsigned attention_precision,bool local_tail_k7,bool local_q_tail3,bool local_residual_tail3,bool swiglu_tile) {
   using namespace ascend::llm;
   if(attention_precision>11)throw std::invalid_argument("Unknown native attention precision contract");
   if(local_residual_tail3 && !local_q_tail3)throw std::invalid_argument("Residual tail3 requires its Q projection contract");
@@ -102,7 +102,7 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
       {"external_name",""},{"pack_json",""},{"required_input",false}});
     arena=Add(arena,allocated);return offset;
   };
-  unsigned local_tail_stages=0,local_q_stages=0,local_residual_stages=0;
+  unsigned local_tail_stages=0,local_q_stages=0,local_residual_stages=0,swiglu_stages=0;
   for(unsigned s=0;s<p.counts.size();++s) {
     auto projected=p.projection.stages.at(s);
     auto const& source=p.model.stages.at(projected.logical_stage);auto d=At(ss,projected.logical_stage);
@@ -161,6 +161,11 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
           {"allocated_bytes",double(Mul(Add(Add(bytes,512),511)/512,512))},{"no_producer",false},
           {"external_name",""},{"pack_json",""}});
         arena=Add(arena,Mul(Add(Add(bytes,512),511)/512,512));
+      }
+      if(swiglu_tile && stage.epilogue==2) {
+        if(!small || geo.split_k!=1 || stage.rows!=16 || stage.columns!=12288 || stage.k!=2048)
+          throw std::invalid_argument("Strided SwiGLU requires the bounded Qwen1.7 B16 decode family");
+        stage.variant=4;++swiglu_stages;
       }
       if(local_tail_k7 && stage.columns==2048 && (stage.k==8192 || stage.k==6144) && stage.epilogue==1) {
         if(!small || geo.split_k!=1 || stage.rows!=1024)
@@ -257,6 +262,8 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
     if(expected!=stage.tasks)throw std::invalid_argument("Native task coordinates disagree with CTG ownership");
     out.stages.push_back(stage);
   }
+  if(swiglu_tile && (p.model.dims.batch!=16 || p.model.dims.seq!=1 || swiglu_stages!=28))
+    throw std::invalid_argument("Strided SwiGLU must bind all28 actual Qwen1.7 decode projections");
   if(local_tail_k7) {
     unsigned expected=0;
     for(auto raw:gs) {
@@ -346,6 +353,7 @@ void AscendLlmPlan::Write(std::filesystem::path const& root) const {
     }
     if(s.kind==0 && s.extent>1)id="as2_catlass_bf16_fp32_split"+std::to_string(s.extent)+"_k"+std::to_string(s.width)+"_16x128x128_l0k64";
     if(s.kind==0 && s.variant==2)id="as2_mix_gemm_local_tail7_residual_16x128x128";
+    if(s.kind==0 && s.variant==4)id="as2_mix_gemm_strided_swiglu_u16_16x128x128";
     if(s.kind==0 && s.variant==3)id=s.epilogue==4?"as2_mix_gemm_local_q_tail3_store_16x128x128":"as2_mix_gemm_local_tail3_residual_16x128x128";
     else if(s.kind==1)id=s.variant==3?"as2_aiv_rmsnorm_cann_newton_fold"+std::to_string(s.width==3072?2048:s.width/2)+"_h"+std::to_string(s.width):s.variant==2?"as2_aiv_rmsnorm_cann_newton_h"+std::to_string(s.width):"as2_aiv_rmsnorm_full_row";
     else if(s.kind==25)id="as2_aiv_qkv_group_pack_h128_gqa4";
@@ -370,6 +378,7 @@ void AscendLlmPlan::Write(std::filesystem::path const& root) const {
       {"input_weight_layout",s.kind==0?"logical_NK":"ND"},
       {"tile_m",s.kind==0?(s.variant?16:32):0},{"tile_n",s.kind==0?(s.variant?128:64):0},
       {"tile_k",s.kind==0?(s.variant?128:64):0},
+      {"strided_swiglu_tile",s.kind==0 && s.variant==4},
       {"split_count",(s.kind==0 || s.kind==6)&&s.extent>1?int(s.extent):1},
       {"partial_k",(s.kind==0 || s.kind==6)&&s.extent>1?int(s.width):0},
       {"local_k_partitions",s.kind==0&&s.variant==2?7:s.kind==0&&s.variant==3?3:1},
@@ -410,7 +419,8 @@ std::string LowerAscendLlm(AscendLlmPlan const& p) {
   bool local=false,q_tail=false;
   for(auto const& s:p.stages)if(s.kind==0) {
     unsigned geometry=s.variant>=2?1:s.variant;
-    if(s.variant>3 || (variant>=0 && unsigned(variant)!=geometry))
+    if(s.variant>4 || (s.variant==4 && (s.rows!=16 || s.columns!=12288 || s.k!=2048 || s.epilogue!=2 || s.extent>1)) ||
+        (variant>=0 && unsigned(variant)!=geometry))
       throw std::invalid_argument("One compiled native candidate requires a uniform verified GEMM geometry");
     variant=geometry;local|=s.variant==2;q_tail|=s.variant==3;
   }
@@ -418,12 +428,14 @@ std::string LowerAscendLlm(AscendLlmPlan const& p) {
   bool split=local || q_tail;for(auto const& s:p.stages)if(s.kind==6)split=true;
   bool wide_qk=false;for(auto const& s:p.stages)if(s.kind==13 && s.variant==7)wide_qk=true;
   bool cached_kv=false;for(auto const& s:p.stages)if(s.kind==13 && s.variant==9)cached_kv=true;
+  bool swiglu_tile=false;for(auto const& s:p.stages)if(s.kind==0 && s.variant==4)swiglu_tile=true;
   return std::string("// Generated by TileMega: verified CTG tables and candidate geometry, LLM ABI v4.\n")+
     "#define TILEMEGA_LLM_SPLIT_K "+std::to_string(unsigned(split))+"\n"+
     "#define TILEMEGA_LLM_LOCAL_TAIL_K7 "+std::to_string(unsigned(local))+"\n"+
     "#define TILEMEGA_LLM_LOCAL_Q_TAIL_K3 "+std::to_string(unsigned(q_tail))+"\n"+
     "#define TILEMEGA_LLM_WIDE_QK "+std::to_string(unsigned(wide_qk))+"\n"+
     "#define TILEMEGA_LLM_FP32_KV_CACHE "+std::to_string(unsigned(cached_kv))+"\n"+
+    "#define TILEMEGA_LLM_SWIGLU_TILE "+std::to_string(unsigned(swiglu_tile))+"\n"+
     "#define TILEMEGA_LLM_VARIANT "+std::to_string(variant)+"\n"+
     "#define TILEMEGA_LLM_TM "+std::to_string(variant?16:32)+"\n"+
     "#define TILEMEGA_LLM_TN "+std::to_string(variant?128:64)+"\n"+

@@ -133,7 +133,7 @@ int main(int argc,char** argv) {
       attention_precision=attention=="fp32"?1:attention=="fp32-scores"?2:attention=="math-sdpa"?3:attention=="cube-fp32"?4:attention=="cube-fp32-newton"?5:attention=="cube-fp32-newton-full"?6:attention=="cube-fp32-newton-fold"?7:attention=="cube-fp32-fold-softmax"?8:attention=="cube-fp32-wide-qk"?9:attention=="cube-fp32-valid-qk"?10:attention=="cube-fp32-cached-kv"?11:0;
     }
     tilemega::json::Value decomposition;
-    bool local_q_tail3=false,local_residual_tail3=false;
+    bool local_q_tail3=false,local_residual_tail3=false,swiglu_tile=false;
     tilemega::json::Value binding;
     if(body) {
       auto path=fs::weakly_canonical(argv[priced_body?10:9]);
@@ -174,6 +174,10 @@ int main(int argc,char** argv) {
         throw std::invalid_argument("Separate projection candidate is bounded to observed Llama8B");
       if(auto tail=decomposition.Find("local_q_tail3"))local_q_tail3=tail->AsBool("local_q_tail3");
       if(auto tail=decomposition.Find("local_residual_tail3"))local_residual_tail3=tail->AsBool("local_residual_tail3");
+      if(auto tile=decomposition.Find("swiglu_tile"))swiglu_tile=tile->AsBool("swiglu_tile");
+      if(swiglu_tile && (receipt.At("model_id").AsString("model")!="qwen3_1_7b" ||
+          batch!=16 || phase!="decode" || serving.argmax_tile_n!=128))
+        throw std::invalid_argument("Strided SwiGLU is bounded to Qwen1.7 B16 decode");
       if(local_residual_tail3 && !local_q_tail3)throw std::invalid_argument("Residual tail3 requires the Q-tail prefill contract");
       if(local_q_tail3 && (!serving.separate_qkv || batch!=16 || phase!="prefill"))
         throw std::invalid_argument("Local Q tail candidate requires separate Llama8B B16 prefill");
@@ -182,6 +186,14 @@ int main(int argc,char** argv) {
     tilemega::analysis::IslContext isl;
     auto bridge=tilemega::frontend::ReadExportBridge((input/"export.json").string());
     auto plan=tilemega::frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,serving);
+    if(swiglu_tile) {
+      unsigned count=0;
+      for(auto const& g:plan.gemms)if(g.epilogue==tilemega::frontend::PlanGemm::Epilogue::kSwiGLU) {
+        if(g.n!=12288 || g.k!=2048)throw std::invalid_argument("Unexpected SwiGLU projection family");
+        ++count;
+      }
+      if(count!=28)throw std::invalid_argument("Strided SwiGLU must bind the complete28-layer model");
+    }
     if(body) {
       unsigned matches=0;
       for(auto const& g:plan.gemms)if(g.n==binding.At("n").AsNumber("n") &&
@@ -392,7 +404,7 @@ int main(int argc,char** argv) {
           Write(output/"uncompressed_schedule.json",ScheduleReport(scheduled));
           scheduled=tilemega::solver::ElideAscendFifoWaits(tasks,workers,std::move(scheduled));
         }
-        auto native=tilemega::codegen::MaterializeAscendLlm(*module,problem,workers,tasks,scheduled,!priced,attention_precision,body,local_q_tail3,local_residual_tail3);
+        auto native=tilemega::codegen::MaterializeAscendLlm(*module,problem,workers,tasks,scheduled,!priced,attention_precision,body,local_q_tail3,local_residual_tail3,swiglu_tile);
         if(priced) {
           auto const& rows=prices.At("stages").AsArray("stage prices");
           for(unsigned s=0;s<rows.size();++s) {

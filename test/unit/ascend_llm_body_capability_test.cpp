@@ -44,6 +44,27 @@ int main() {
 #endif
   llm::Stage attention{};attention.kind=13;attention.variant=4;
   llm_host::ValidateCompiledBodies({attention});
+  llm::Stage swiglu{};swiglu.kind=0;swiglu.variant=4;swiglu.epilogue=2;
+  swiglu.rows=16;swiglu.columns=12288;swiglu.k=2048;swiglu.tasks=96;
+#if defined(TILEMEGA_LLM_SWIGLU_TILE) && TILEMEGA_LLM_SWIGLU_TILE
+  llm_host::ValidateCompiledBodies({swiglu});
+  for(unsigned mutation=0;mutation<5;++mutation) {
+    auto s=swiglu;
+    if(mutation==0)s.rows=1;
+    if(mutation==1)s.columns=6144;
+    if(mutation==2)s.epilogue=1;
+    if(mutation==3)s.extent=3;
+    if(mutation==4)s.workspace=llm::kAbsent;
+    try {llm_host::ValidateCompiledBodies({s});return 1;}
+    catch(std::invalid_argument const&) {}
+  }
+#else
+  try {llm_host::ValidateCompiledBodies({swiglu});return 1;}
+  catch(std::invalid_argument const&) {}
+#endif
+  swiglu.variant=5;
+  try {llm_host::ValidateCompiledBodies({swiglu});return 1;}
+  catch(std::invalid_argument const&) {}
   unsigned rejected=0;
   for(unsigned variant:{5u,6u,7u,8u,9u,99u}) {
     attention.variant=variant;

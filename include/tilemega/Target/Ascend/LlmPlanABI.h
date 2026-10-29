@@ -41,6 +41,8 @@ struct Stage {
   // Q store epilogue4, O/down residual epilogue1, K4096 or14336.
   // Variant2/3 operand5 is per-group FP32 scratch. The MIX done ack ends
   // its lifetime before the next tile; only the AIC owner publishes completion.
+  // 4=same geometry, M16/N12288/K2048 strided U16 SwiGLU; identical casts,
+  // GM workspace and MIX lifecycle, existing per-worker UB arrays are borrowed.
   // Split GEMM: extent=2/3, width=ceil(k/extent), group=1 (tile-major/part-minor CTG).
   // Kind6 is its AIV combine; workspace is FP32 [part,row,col], operand5
   // is the BF16 raw sum before the separately preserved residual rounding.

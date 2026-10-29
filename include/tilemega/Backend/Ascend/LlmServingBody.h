@@ -161,6 +161,17 @@ template<unsigned TM=32,unsigned TN=64,bool CaptureSoftmax=false> class LlmServi
   }
   __aicore__ inline bool Epilogue(llm::Stage const& s,unsigned tile,GM_ADDR arena,unsigned owner_group=0) {
     unsigned nt=(s.columns+TN-1)/TN,first=(tile%nt)*TN,rows=tile/nt*TM;
+    if(s.variant==4) {
+#if defined(TILEMEGA_LLM_SWIGLU_TILE) && TILEMEGA_LLM_SWIGLU_TILE
+      if(TM!=16 || TN!=128 || s.rows!=16 || s.columns!=12288 || s.k!=2048 ||
+          s.epilogue!=2 || s.extent>1 || first%32)return false;
+      return vector_.SwiGluTile(arena+s.workspace+(uint64_t(rows)*s.columns+first)*2,
+          arena+s.operands[3]+(uint64_t(rows)*(s.columns/2)+first/2)*2,
+          TM,TN,s.columns,s.columns/2);
+#else
+      return false;
+#endif
+    }
     if(s.variant==3) {
 #if defined(TILEMEGA_LLM_LOCAL_Q_TAIL_K3) && TILEMEGA_LLM_LOCAL_Q_TAIL_K3
       const bool store=s.k==4096 && s.epilogue==4 && s.workspace==s.operands[3];

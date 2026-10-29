@@ -18,7 +18,14 @@ template<unsigned TM,unsigned TN,unsigned TK,unsigned Variant> class LlmCubeBody
   typename Bf16::SharedResource resource_;
  public:
   __aicore__ inline bool Run(llm::Stage const& s,unsigned tile,GM_ADDR arena,unsigned owner_group) {
-    if(s.kind!=0 || tile>=s.tasks || (s.variant!=Variant && !((s.variant==2 || s.variant==3) && Variant==1)) || s.k%16)return false;
+    if(s.kind!=0 || tile>=s.tasks || (s.variant!=Variant && !((s.variant==2 || s.variant==3 || s.variant==4) && Variant==1)) || s.k%16)return false;
+    if(s.variant==4) {
+#if defined(TILEMEGA_LLM_SWIGLU_TILE) && TILEMEGA_LLM_SWIGLU_TILE
+      if(TM!=16 || TN!=128 || s.rows!=16 || s.columns!=12288 || s.k!=2048 || s.epilogue!=2 || s.extent>1)return false;
+#else
+      return false;
+#endif
+    }
     unsigned nt=(s.columns+TN-1)/TN;
 #if defined(TILEMEGA_LLM_LOCAL_TAIL_K7) && TILEMEGA_LLM_LOCAL_TAIL_K7
     if(s.variant==2) {

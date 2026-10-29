@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Target/Ascend/DevicePrimitives.h>
+#if defined(TILEMEGA_LLM_SWIGLU_TILE) && TILEMEGA_LLM_SWIGLU_TILE
+#include <tilemega/Backend/Ascend/SwiGluTile.h>
+#endif
 #include <adv_api/pad/broadcast.h>
 #include <adv_api/reduce/reduce.h>
 #if defined(TILEMEGA_AS2_CANN_NORM_PRIMITIVES) && __CCE_AICORE__ == 310
@@ -321,6 +324,12 @@ class LlmVectorBody {
     AscendC::PipeBarrier<PIPE_V>();
     AscendC::Cast(bo_,work_,AscendC::RoundMode::CAST_RINT,n);Store(output,n);return true;
   }
+#if defined(TILEMEGA_LLM_SWIGLU_TILE) && TILEMEGA_LLM_SWIGLU_TILE
+  __aicore__ inline bool SwiGluTile(GM_ADDR input,GM_ADDR output,unsigned rows,
+      unsigned columns,unsigned input_stride,unsigned output_stride) {
+    return RunSwiGluTile({bx_,by_,bo_,x_,y_,work_},input,output,rows,columns,input_stride,output_stride);
+  }
+#endif
   __aicore__ inline bool Rope(GM_ADDR input,GM_ADDR cos,GM_ADDR sin,GM_ADDR output,unsigned d) {
     if(d!=64 && d!=128)return false;
     Load(bx_,input,d);Load(by_,cos,d);Load(bo_,sin,d);CompleteDma<AscendC::HardEvent::MTE2_V>();
