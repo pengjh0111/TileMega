@@ -13,7 +13,9 @@ DENSE_OPS = dict(qkv='kStore', o='kResidual', gate_up='kSwiGLU', down='kResidual
                  lm_head='kArgmaxPartial')
 MOE_MODES = dict(router='kRouter', expert_gate_up='kGateUp', expert_down='kDown')
 ATTENTION = ((128, 2, 1), (64, 4, 0), (128, 3, 0), (128, 4, 0))
-MOE_ATTENTION = ((4, 128, 8, 1),)
+# (Hkv, D, Q, norm mode): Qwen3-30B-A3B GQA with per-head norm; OLMoE MHA with the
+# whole-row norm (A3).
+MOE_ATTENTION = ((4, 128, 8, 1), (16, 128, 1, 2))
 
 
 def validate(manifest, defines):
