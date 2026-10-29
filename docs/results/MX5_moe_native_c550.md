@@ -2,12 +2,14 @@
 
 Verified 2026-10-29. Authority: `TileMega_MX5_prompt.md`, SHA256
 `75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73`.
-MoE native model acceptance remains **0/5**. No MoE GPU work has started.
+MoE native model acceptance remains **0/5**. Body units and source-bound
+stage costs have GPU evidence; model C1/C2/routing/E2E remain unexecuted.
 
 ## Host analysis
 
-Verified `AnalyzeMxMoe(ModelPlan const&)` is now built into the root compiler
-library, with no change to compiler routing or execution defaults. It reads
+The initial verified CPU checkpoint built `AnalyzeMxMoe(ModelPlan const&)`
+into the root library before routing integration. The current native route
+is documented below. The analyzer reads
 original stages/GEMMs/buffers directly; it does not import a legacy descriptor
 program. Checks cover layer order, attention geometry, gather/scatter bindings,
 expert strides, folded recipes, routing dtype, and epilogue rounding.
@@ -128,8 +130,9 @@ Raw: `moe_native_cli_cpu_v1`, `moe_native_cli_576_resource_failure_v1`.
 
 Verified all three GPU body fixtures pass 5/5 fresh processes: router/combine
 100 cases each, router GEMM8, grouped GEMM12, no skipped cases. Router
-weights/combine use actual legacy CUDA bit comparisons; GEMMs use CPU
-FP32 references with unchanged tolerances, plus bitwise repeat checks.
+weights/combine use actual legacy CUDA value comparisons; GEMMs use CPU
+FP32 references with unchanged tolerances, plus value-equality repeat checks.
+Strict byte comparisons are a separately queued check described below.
 These do not count as model C1/C2 or a 104-CTA/2000-iteration litmus.
 Independent raw/PID/guard/hash verification appends15 body-check rows.
 Six actual native-CLI program queries launch no kernels: normal512 artifacts
@@ -141,7 +144,7 @@ The first grouped-stage bench driver stops at repeat comparison key1 after
 one diagnostic key. Its output used uninitialized inactive rows; NaNs there
 are an inferred harness explanation, not proven from the missing tensors.
 The old driver/log/partial row remain; a new attempt initializes all output
-to a finite sentinel, keeps the same entire-output bitwise check/tolerances,
+to a finite sentinel, keeps the same entire-output value check/tolerances,
 and saves both tensors if comparison fails. Bodies and binaries are unchanged.
 No row from this prototype is a qualified cost or model performance result.
 
@@ -173,7 +176,8 @@ are in progress (109 builds for486 batch coordinates);313 gate/up
 coordinates retain no incoming prefetch. R_cap remains220/248. No qualified
 cost timing or per-plan 512 exception follows from these resource checks.
 
-Verified all109 derived grouped builds finish:102 fit/seven rejected.
+Initial verified summary (domain exclusions corrected below): all109 derived
+grouped builds finish:102 fit/seven rejected.
 459 additional zero-launch device queries pass, so the896-coordinate
 domain has772 eligible outcomes and124 resource rejections. All317
 normal builds are append-only in MX5_body_resources_c550.csv; rejected
