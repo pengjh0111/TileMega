@@ -23,7 +23,7 @@ def main():
     p.add_argument('--model', required=True)
     p.add_argument('--batch', type=int, required=True)
     p.add_argument('--tag', required=True)
-    p.add_argument('--gpu', type=int, required=True)
+    p.add_argument('--gpu', default='auto', help="P-SEL card index, or 'auto' for the first free card")
     p.add_argument('--prefill', type=Path, help='defaults to the REF-R2 prefill of this cell')
     p.add_argument('--compiler', type=Path, default=ROOT / 'build/tools/tilemega')
     p.add_argument('--concurrency', default='serial', choices=('serial', 'trial', 'verified'))

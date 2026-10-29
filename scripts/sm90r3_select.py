@@ -13,6 +13,8 @@ import subprocess
 import sys
 
 from sm90d1_common import ROOT, PYTHON, read, sha, write
+from sm90r4_dispatch import run_unit
+from sm90r4_inputs import model_dir
 
 LLM = ROOT / 'scripts/sm90r3_llm.py'
 POLICY = ROOT / 'configs/bench/sm90r2_guard_policy.json'
@@ -23,7 +25,7 @@ def main():
     p.add_argument('--model', required=True)
     p.add_argument('--batch', type=int, required=True)
     p.add_argument('--prefill', type=Path, required=True)
-    p.add_argument('--gpu', type=int, required=True)
+    p.add_argument('--gpu', required=True, help="a card index, or 'auto' for the first free card")
     p.add_argument('--name', required=True)
     p.add_argument('--concurrency', default='serial', choices=('serial', 'trial', 'verified'))
     p.add_argument('--candidates', type=Path, required=True)
@@ -39,18 +41,24 @@ def main():
                 concurrency=a.concurrency, arms=arms,
                 predicted_ns={f"c{r['rank']}": r['predicted_ns'] for r in rows})
     write(out / 'spec.json', spec)
-    subprocess.check_call([PYTHON, str(LLM), 'queue', '--spec', str(out / 'spec.json'),
-                           '--queue-dir', str(out / 'queue')], cwd=ROOT)
-    node = 0 if a.gpu < 4 else 1
-    env = dict(os.environ, CUDA_VISIBLE_DEVICES=str(a.gpu), TILEMEGA_DEVICE_INDEX=str(a.gpu),
-               TILEMEGA_GPU_LOCK=f'/tmp/tilemega_gpu{a.gpu}.lock', TILEMEGA_NUMA_NODE=str(node),
-               PYTHONPATH=str(ROOT / 'python'))
-    subprocess.check_call([PYTHON, '-m', 'tilemega.bench.scheduler', '--queue-dir', str(out / 'queue'),
-                           '--out', str(out / 'scheduler'), '--policy', str(POLICY),
-                           '--deadline-hours', '24'], cwd=ROOT, env=env)
-    subprocess.check_call([PYTHON, str(LLM), 'collect', '--spec', str(out / 'spec.json'),
-                           '--state', str(out / 'scheduler/state.json'), '--out', str(out / 'psel.json')],
-                          cwd=ROOT)
+    if a.gpu == 'auto':
+        # §1.5: a MoE P-SEL runs with the machine to itself.
+        moe = 'num_experts' in read(model_dir(a.model) / 'config.json')
+        cls = 'machine' if moe else 'trial' if a.concurrency == 'trial' else 'node'
+        write(out / 'psel.json', run_unit(out / 'spec.json', out / 'unit', cls))
+    else:
+        gpu = int(a.gpu)
+        subprocess.check_call([PYTHON, str(LLM), 'queue', '--spec', str(out / 'spec.json'),
+                               '--queue-dir', str(out / 'queue')], cwd=ROOT)
+        env = dict(os.environ, CUDA_VISIBLE_DEVICES=str(gpu), TILEMEGA_DEVICE_INDEX=str(gpu),
+                   TILEMEGA_GPU_LOCK=f'/tmp/tilemega_gpu{gpu}.lock', TILEMEGA_NUMA_NODE=str(0 if gpu < 4 else 1),
+                   PYTHONPATH=str(ROOT / 'python'))
+        subprocess.check_call([PYTHON, '-m', 'tilemega.bench.scheduler', '--queue-dir', str(out / 'queue'),
+                               '--out', str(out / 'scheduler'), '--policy', str(POLICY),
+                               '--deadline-hours', '24'], cwd=ROOT, env=env)
+        subprocess.check_call([PYTHON, str(LLM), 'collect', '--spec', str(out / 'spec.json'),
+                               '--state', str(out / 'scheduler/state.json'), '--out', str(out / 'psel.json')],
+                              cwd=ROOT)
     psel = read(out / 'psel.json')
     winner = psel['winner']
     binary = arms[winner]['decode']
