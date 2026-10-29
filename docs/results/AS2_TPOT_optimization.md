@@ -315,3 +315,13 @@ The latest eight verbose schedule archives release548784188 raw bytes before
 compressed archive cost. AS1, failures, selected images and two builds remain
 protected. Current state/commands: `runs/as2/resume.json`; raw job/cleanup
 receipts and budget samples stay under ignored `runs/as2`.
+`verified-run`: the frozen SwiGLU study completes five alternating fresh pairs,
+all40 warmup/timed token payloads and post-study canonical hashes pass. Process
+median TPOT42.884365→35.030867ms, TTFT1513.228053→1519.353660ms,
+E2E45392.906651→37369.764262ms, throughput360.937451→438.429311 token/s.
+Paired geometric speedup1.232215, log-t95%[1.219746,1.244812], process
+CV2.40%/2.44%: **pass for this local Body-only improvement**. All samples
+remain; no optional stopping or global/eager Gate promotion. Incremental
+selection v3 preserves the historical snapshot and v2. Protocol SHA256:
+`6967796ca448c5241e117fa849990b2c465b4ec84fce4591b5b0bd7f8ff7b2fe`.
+Evidence: `bench/opt_swiglu_qwen17_final_v1/{protocol,ablation,post_inputs_audit}.json`.
