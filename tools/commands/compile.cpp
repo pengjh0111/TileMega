@@ -289,6 +289,7 @@ int RunCompile(int argc, char** argv) {
                  " --solver legacy|skeleton --legacy-seed CG.mlir --k-base 4|8|16|W\n"
                  " --search-passes 1..3 --search-jobs 1 --variant-cache DIR --flow-fixture DIR --flow-search-only 0|1\n"
                  " --serving-pruning 0|1 --incremental-prepare 0|1 --serving-warm-start PREVIOUS.plan.json\n"
+                 " --mx-prompt 0|1 (native MoE prompt from a decode bridge; prompt length 64)\n"
                  " --prompt-len N --capacity N --past-range LO:HI\n"
                  " --search-capacity N --per-stage-kappa 0|1 --stage-kappa CSV\n"
                  " --segments 1|2 --segment-candidates N\n"
@@ -317,7 +318,7 @@ int RunCompile(int argc, char** argv) {
     std::string arch_paths="auto",pdl="off",handoff_mode="off",weight_layout="tiled";
     int page_bytes=16384,lookahead_bytes=-1,prefetch_depth=1,prefetch_stride=0;
     int mma_reg_pipe=0;
-    std::string mx_v2_table,mx_v2_results;int mx_v2_threads=576;
+    std::string mx_v2_table,mx_v2_results;int mx_v2_threads=576,mx_prompt=0;
     std::string attention_impl="mma16",attention_request;
     int kphase_mask=31,v3_poll_ns=0,watchdog=0,l2_slim=0,page_loop_split=0,evict_first=0,evict_last=1;
     int attention_noinline=0,attention_buffers=2;
@@ -378,6 +379,10 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--search-budget-ms") search_budget_ms=std::stoi(value);
       else if (flag=="--solve") solve_target=value;
       else if (flag=="--serving") serving_phase=value;
+      else if (flag=="--mx-prompt") {
+        if(value!="0" && value!="1")throw std::invalid_argument("--mx-prompt expects 0 or 1");
+        mx_prompt=value=="1";
+      }
       else if (flag=="--shared-weight-layout") shared_weight_layout=value;
       else if (flag=="--frontend") frontend_mode=value;
       else if (flag=="--moe-dynamic") moe_dynamic=std::stoi(value);
@@ -575,12 +580,14 @@ int RunCompile(int argc, char** argv) {
       throw std::invalid_argument("--mx-decode-v2-solve requires an explicit dense decode bridge");
     if (!mx_v2_results.empty() && mx_v2_table.empty())
       throw std::invalid_argument("--mx-decode-v2-results requires --mx-decode-v2-solve");
-    // MX-4: a dense decoder's decode plan on xcore1000 is the static stage
-    // program (tools/commands/mx_decode.cpp); MoE/DNN plans continue below.
-    if(serving && serving_phase=="decode" && frontend_mode=="decoder" && input.extension()==".json") {
+    if(mx_prompt && (!serving || serving_phase!="prefill" || frontend_mode!="decoder" ||
+                     input.extension()!=".json" || serving_prompt_len!=64))
+      throw std::invalid_argument("--mx-prompt requires a decoder bridge, --serving prefill and --prompt-len 64");
+    if(serving && (serving_phase=="decode" || mx_prompt) && frontend_mode=="decoder" && input.extension()==".json") {
       tilemega::commands::mx_decode::Request mx;
       mx.input=input;mx.output=std::filesystem::absolute(argv[2]);mx.pin=evaluation_cases_path;
       mx.batch=serving_batch;mx.capacity=serving_capacity;
+      mx.prompt=mx_prompt;
       mx.past_lo=serving_past_lo;mx.past_hi=serving_past_hi;mx.watchdog=watchdog;
       mx.runtime_target=!runtime_target.empty()?runtime_target:!solve_target.empty()?solve_target:
           std::string(TILEMEGA_SOURCE_DIR)+"/configs/targets/xcore1000.json";

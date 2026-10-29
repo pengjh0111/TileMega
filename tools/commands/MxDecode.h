@@ -6,6 +6,8 @@
 #include <string>
 #include <vector>
 
+namespace tilemega::frontend { struct ModelPlan; }
+
 namespace tilemega::commands::mx_decode {
 
 struct Request {
@@ -16,14 +18,14 @@ struct Request {
   int tmin = 128;  // §6 D5: geometric-mean TPOT of the 4 dev cells, 128 < 64 < 32
   int batch = 1, capacity = 0, past_lo = 0, past_hi = 0, grid = 104;
   int watchdog = 1, barrier_prefetch = 1;
-  bool trace_stage = false, allow_resources = false;
+  bool trace_stage = false, allow_resources = false, prompt = false;
   /// Interpreted-executor options given on the command line (rejected).
   std::vector<std::string> interpreted_flags;
 };
 
-/// Builds the static program when the bridge describes a dense decoder;
-/// returns -1 (nothing done) for a DM plan, which keeps the old path.
+/// Builds native dense/MoE decoders; unsupported DM plans are rejected.
 int TryCompile(Request const& request);
+int TryCompileMoeV2(Request const& request, frontend::ModelPlan const& plan);
 /// Temporary explicit-pin entry while the v2 measured-table/E2E gates remain
 /// open. Remove the MX-4 default route only after those gates select v2.
 int TryCompileV2(Request const& request);

@@ -93,6 +93,9 @@ std::string PinJson(codegen::MxDecodeConfig const& c) {
 }  // namespace
 
 int TryCompile(Request const& r) {
+  if (r.prompt && (!r.v2_solve_table.empty() ||
+      (!r.pin.empty() && json::ParseFile(r.pin).Find("mx_decode_v2"))))
+    throw std::invalid_argument("--mx-prompt requires a native MoE decode bridge and mx_moe_v2 configuration");
   if (!r.v2_solve_table.empty()) return TryPrepareV2(r);
   if (!r.pin.empty() && json::ParseFile(r.pin).Find("mx_decode_v2")) return TryCompileV2(r);
   auto bridge = frontend::ReadExportBridge(r.input.string());
@@ -101,8 +104,10 @@ int TryCompile(Request const& r) {
   options.phase = frontend::ServingOptions::Phase::kDecode;
   options.seq = 1;
   options.capacity = r.capacity;
+  options.moe_batch = r.batch;
   auto plan = frontend::BuildModelPlan(bridge.nodes, bridge.inputs, bridge.outputs, options);
-  if (plan.dm) return -1;  // MoE and DNN plans keep the interpreted executor
+  if (plan.dm) return TryCompileMoeV2(r, plan);
+  if (r.prompt) throw std::invalid_argument("--mx-prompt requires a native MoE decode bridge");
   for (auto const& flag : r.interpreted_flags)
     throw std::invalid_argument(flag + " belongs to the interpreted decode executor; a dense xcore1000 decode "
                                        "plan is the MX-4 static program");

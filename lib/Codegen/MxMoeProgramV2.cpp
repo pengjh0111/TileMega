@@ -41,6 +41,9 @@ void CheckMxMoeConfigV2(frontend::ModelPlan const& plan,MxMoeConfigV2 const& c){
   wait(c.gate_up,loads(c.down,active*m.hidden,m.intermediate));wait(c.down,loads(c.qkv,qn,m.hidden));wait(c.down,loads(c.head,m.vocabulary,m.hidden));
   if(Smem(m,c)+((m.batch*4+15)/16*16)+32>65536)Fail("shared memory exceeds 64 KiB");
 }
+int MxMoeBodySmemBytesV2(frontend::ModelPlan const& plan,MxMoeConfigV2 const& c){
+  CheckMxMoeConfigV2(plan,c);return Smem(AnalyzeMxMoe(plan),c);
+}
 std::string EmitMxMoeProgramV2(frontend::ModelPlan const& plan,MxMoeConfigV2 const& c,bool prompt,int past_lo,int past_hi){
   CheckMxMoeConfigV2(plan,c);auto m=AnalyzeMxMoe(plan);if(prompt){past_lo=0;past_hi=63;}
   if(past_lo<0||past_hi<past_lo||past_hi>=int(m.capacity)-1)Fail("invalid past interval");

@@ -965,6 +965,7 @@ add_library(tilemega_commands OBJECT
   tools/commands/compile.cpp
   tools/commands/mx_decode.cpp
   tools/commands/mx_decode_v2.cpp
+  tools/commands/mx_moe_v2.cpp
   tools/commands/derive.cpp
   tools/commands/dram-floor.cpp
   tools/commands/request-floor.cpp

@@ -8,6 +8,7 @@ struct MxMoeConfigV2 {
   int threads=576, b_min=1, attn_prefetch=0;
 };
 void CheckMxMoeConfigV2(frontend::ModelPlan const& plan,MxMoeConfigV2 const& config);
+int MxMoeBodySmemBytesV2(frontend::ModelPlan const& plan,MxMoeConfigV2 const& config);
 std::string EmitMxMoeProgramV2(frontend::ModelPlan const& plan,MxMoeConfigV2 const& config,
                               bool prompt,int past_lo=64,int past_hi=1086);
 }
