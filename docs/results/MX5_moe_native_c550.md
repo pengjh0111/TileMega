@@ -914,3 +914,15 @@ guards. These are partial costs, not complete5396-outcome/model acceptance.
 Verified a further410 completed dense MIR logs are archived losslessly with
 persistent gzip backups and unchanged original-path bytes, freeing1127.774MiB.
 Raw: completed_dense_normal_mir_archive_v2. No binary/source/measurement change.
+
+Stated user amendment: the reply "允许 continue." authorizes the pending
+question's narrowly scoped extra normal largest-width halvings until P_w=D.
+The original three-reduction histories and all failed artifacts remain.
+R_cap220/248, attention prefetch, geometry, compiler options, MIR/D7,
+per-plan512 conditions and all numerical/routing/performance gates are
+unchanged. It does not authorize a blanket512 exception or model acceptance.
+Verified separate CPU queues now supplement the four completed manual
+histories and, after its existing primary histories finish, the40 original
+top4 prompt/decode histories. Each stops on resource fit or reaching D;
+no retries are added after D. Raw: USER_PW_TO_D_AMENDMENT_20261029.json,
+moe_authorized_to_D_manual_cpu_v1, moe_authorized_to_D_original_top4_cpu_v1.

@@ -137,7 +137,7 @@ MoE decode/prompt 不再经 legacy 回退。当前只允许标记为 manual/reso
 | DT-P（verified） | CTA 增750ns、阈值387ns；LDS 增−20ns → P-B |
 | DT-X（verified） | wave 交换增−20ns、交换处无全局等待 → X-A |
 | DT-KV（verified） | 最小 K/W=.507、Vt/W=.363 → block fragments |
-| 用户修订（stated） | 允许纯LDS局部同步、放宽累计60卡时、允许HF参考显式eager；其他判据保留 |
+| 用户修订（stated） | 允许纯LDS局部同步、放宽累计60卡时、HF参考显式eager、仅补齐预取减半到D；其他判据保留 |
 | 局部同步（verified） | 五新进程×104 CTA×2000次 helper litmus；P-PAIR +.146%/−.300%，无可分辨收益 |
 | GPU（verified） | 仅7/6/5/4，最多两卡、每卡一作业，全经 guard；当前6/7；1800s一般/900s计时上限保留 |
 | 编译/资源 | 正常编译参数；frame/static0、MT≤227/255、实际 resident1；R_cap220/248 未改 |
