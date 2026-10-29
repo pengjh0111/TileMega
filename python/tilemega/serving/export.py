@@ -45,18 +45,29 @@ class SelfAttention(nn.Module):
         self.k_proj = nn.Linear(hidden, kv_heads * self.head_dim, bias=False)
         self.v_proj = nn.Linear(hidden, kv_heads * self.head_dim, bias=False)
         self.o_proj = nn.Linear(heads * self.head_dim, hidden, bias=False)
-        self.has_qk_norm = config["architectures"][0].startswith("Qwen3")
+        architecture = config["architectures"][0]
+        # Qwen3 normalizes each head; OLMoE normalizes the whole projected row
+        # before the heads are split (HF OlmoeAttention).
+        self.has_qk_norm = architecture.startswith("Qwen3")
+        self.row_qk_norm = architecture == "OlmoeForCausalLM"
+        epsilon = config.get("rms_norm_eps", 1e-5)
         if self.has_qk_norm:
-            self.q_norm = RMSNorm(self.head_dim, config["rms_norm_eps"])
-            self.k_norm = RMSNorm(self.head_dim, config["rms_norm_eps"])
+            self.q_norm = RMSNorm(self.head_dim, epsilon)
+            self.k_norm = RMSNorm(self.head_dim, epsilon)
+        elif self.row_qk_norm:
+            self.q_norm = RMSNorm(heads * self.head_dim, epsilon)
+            self.k_norm = RMSNorm(kv_heads * self.head_dim, epsilon)
 
     def forward(self, x: torch.Tensor, past_k: torch.Tensor,
                 past_v: torch.Tensor, rope_cos: torch.Tensor,
                 rope_sin: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         batch, seq, _ = x.shape
         past = past_k.shape[2]
-        q = self.q_proj(x).view(batch, seq, self.heads, self.head_dim)
-        k = self.k_proj(x).view(batch, seq, self.kv_heads, self.head_dim)
+        projected_q, projected_k = self.q_proj(x), self.k_proj(x)
+        if self.row_qk_norm:
+            projected_q, projected_k = self.q_norm(projected_q), self.k_norm(projected_k)
+        q = projected_q.view(batch, seq, self.heads, self.head_dim)
+        k = projected_k.view(batch, seq, self.kv_heads, self.head_dim)
         v = self.v_proj(x).view(batch, seq, self.kv_heads, self.head_dim)
         if self.has_qk_norm:
             q = self.q_norm(q)
@@ -95,10 +106,11 @@ class MLP(nn.Module):
 class Layer(nn.Module):
     def __init__(self, config: dict):
         super().__init__()
-        self.input_layernorm = RMSNorm(config["hidden_size"], config["rms_norm_eps"])
+        epsilon = config.get("rms_norm_eps", 1e-5)
+        self.input_layernorm = RMSNorm(config["hidden_size"], epsilon)
         self.self_attn = SelfAttention(config)
-        self.post_attention_layernorm = RMSNorm(config["hidden_size"], config["rms_norm_eps"])
-        if config['architectures'][0] == 'Qwen3MoeForCausalLM':
+        self.post_attention_layernorm = RMSNorm(config["hidden_size"], epsilon)
+        if config['architectures'][0] in ('Qwen3MoeForCausalLM', 'OlmoeForCausalLM'):
             from tilemega.moe.export import SparseMLP
             self.mlp = SparseMLP(config)
         else:
@@ -119,7 +131,7 @@ class Backbone(nn.Module):
         super().__init__()
         self.embed_tokens = nn.Embedding(config["vocab_size"], config["hidden_size"])
         self.layers = nn.ModuleList(Layer(config) for _ in range(config["num_hidden_layers"]))
-        self.norm = RMSNorm(config["hidden_size"], config["rms_norm_eps"])
+        self.norm = RMSNorm(config["hidden_size"], config.get("rms_norm_eps", 1e-5))
 
 
 class Decoder(nn.Module):
@@ -143,7 +155,7 @@ class Decoder(nn.Module):
 def metadata_only(config: dict) -> bool:
     # Keep the historical small-model export unchanged; large checkpoint values
     # are loaded by recipes at runtime and need not exist during graph export.
-    return (config['architectures'][0]=='Qwen3MoeForCausalLM' or
+    return (config['architectures'][0] in ('Qwen3MoeForCausalLM', 'OlmoeForCausalLM') or
             config['hidden_size']>=3072)
 
 
@@ -205,7 +217,8 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=Path, required=True)
     # mistral shares the llama modules (no sliding window, default RoPE).
-    parser.add_argument("--model", choices=("llama", "mistral", "qwen3", "qwen3_moe"), required=True)
+    parser.add_argument("--model", choices=("llama", "mistral", "qwen3", "qwen3_moe", "olmoe"),
+                        required=True)
     parser.add_argument("--phase", choices=("decode", "prefill"), required=True)
     parser.add_argument("--capacity", type=int, default=1088)
     parser.add_argument('--prompt-len', type=int, default=64)
@@ -222,6 +235,8 @@ def main() -> None:
         if args.model == 'qwen3_moe':
             config.update(moe_intermediate_size=64, num_experts=16, num_local_experts=16,
                           num_experts_per_tok=8)
+        if args.model == 'olmoe':
+            config.update(intermediate_size=64, num_experts=16, num_experts_per_tok=8)
     out = args.out or Path(f"/root/r10_work/export/{args.model}_{args.phase}")
     print(json.dumps(export(config, args.phase, args.capacity, out, args.prompt_len,
                             meta_weights=args.meta_weights)), flush=True)
