@@ -280,3 +280,23 @@ unchanged dense drivers after actual queries. Three processes per key and
 the795-coordinate cost queue are prepared, not executed or qualified yet.
 Recovered grouped27 costs have their own queued supplemental epoch, with
 the failed primaries and all halving steps retained in aggregation evidence.
+
+Verified manual watchdog1 control preparation builds B1/B16 decode/prompt
+plans with MT237/241/245/249, frame/static0 and matching native ABI/identity.
+Their actual zero queries and512-step checks are queued after the router
+cost allocation on card6; this is manual integration evidence only, not a
+solver choice, per-plan512 exception or model acceptance. Raw:
+`moe_manual_watchdog_controls_cpu_v1`, `moe_manual_correctness_after_router_costs_v1`.
+
+Verified isolated D7 CPU experiment anchors the attention O-zero definition
+after Q/new-value prefix inputs. Normal576 B1/B16 code changes, but resources
+remain MT168/frame464 and480B. It does not repair the resource failure;
+the candidate stays off, root headers and all measurement epochs unchanged.
+No GPU runs or allocator/512 conclusions follow. Raw:
+`moe_attention_zero_lifetime_D7_cpu_v1`.
+
+Verified the cell script now routes explicit MoE control pins to native CLI,
+builds decode watchdog twins and uses the decode bridge for prompt64. Six
+CPU script-routing tests pass. Requests for the incomplete measured solver
+fail before the old script branch. The full pipeline audit was reconciled
+with actual native implementation and the remaining model/cost gates.
