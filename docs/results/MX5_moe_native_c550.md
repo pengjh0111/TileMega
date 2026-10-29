@@ -832,3 +832,27 @@ rebalance lets card7 claim64/128 after its last four contexts, only if card6
 has not already claimed it; atomic directory ownership prevents duplicate
 queries. All measurement bodies/protocols/timeouts remain unchanged. Raw:
 moe_router_rank_card7_rebalance_last_context_v1.
+
+
+Verified the manual MoE B1/B16 development geometries now have normal576
+primary builds using their real P0-MTreg references, with attention PF1 and
+GEMM P_w derived by the native compiler. The starting widths are
+QKV/O/router/GU/down/head=1/1/1/0/4/8. Three prescribed largest-width halvings
+produce head8→4,down4→2,head4→2; attention remainsPF1. All16 actual builds
+(two batches×prompt/decode×primary plus three retries) compile, then fail
+the zero-stack resource gate. MT168; frames by ordinal0..3:
+B1 decode512/528/512/480B, prompt560/480/464/480B;
+B16 decode496/480/480/496B, prompt544/512/496/480B.
+The source/MIR checks and query-input preparation finish; no GPU kernel runs.
+At the allowed three-reduction limit, down/head still equal2 with D1. These
+histories therefore do not satisfy the all-widths-at-D branch and do not grant
+a512 exception; no fourth retry or changed R_cap is applied. The blocked item
+is include/tilemega/Codegen/tasks/mx/MoeProgramV2.cuh:178 under the normal
+compiler. All16 actual compiler-resource rows are appended to
+MX5_resources_c550.csv with its old byte prefix preserved. Raw:
+moe_canonical576_reference_lookup_cpu_v1,
+moe_manual_primary576_history_cpu_v2.
+The initial v1 CPU wrapper collides with its pre-created output directory
+before any compiler launch; its log/source remain. The v2 wrapper separates
+request files from the native artifact directory, without changing any build
+flag, reference, geometry, reduction rule or acceptance threshold.
