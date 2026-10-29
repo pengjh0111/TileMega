@@ -795,3 +795,40 @@ resource or model acceptance. A frozen CPU queue will apply these checks to
 all80 original candidate builds before any later model measurement decision.
 Raw: moe_plan_source_cpu_v1,
 moe_original_top4_source_checks_after_builds_cpu_v1.
+
+
+Verified the committed router collector now accepts an explicit permitted
+physical card (--card, default6). It retains exact guard/command/card checks;
+wrong-card inputs are rejected. Twenty-three CPU tests pass. Reaggregating one
+completed220-key/57-process context from each of cards6/7 reproduces every
+original field except the collector identity. This is a CPU replay, not new
+measurement. Live frozen collectors/drivers are unchanged. Raw:
+moe_router_multicard_collector_cpu_v1.
+
+Verified local mxcc disassembly exposes the allocator helpers: warp64,
+4PEU/AP, MTreg granularity8 and waves/PEU=ceil(ceil(threads/64)/4).
+The default512-MTreg/PEU layout computes min(256,floor(512/waves/8)*8), giving
+256 for512 threads and168 for576. Constants/integer operations are verified
+from binary symbols0xe27a30/0xe27a40/0xe27860/0xe27b20/0xe27c50; mapping the
+C550 compilation to this layout is inferred from the unchanged controls
+(MT235–249/PEU2 versusMT168/PEU3). Other feature paths exist; this is compiler
+policy evidence, not an independent hardware limit or minimum-body proof.
+No override, R_cap change or global512 exception is applied. Raw:
+moe_compiler_register_partition_D7_cpu_v1.
+A separate CPU queue will build40 same-original-geometry576 minimum controls
+only after all80 original builds. It changes widths to D (GU0), removes
+unmeasured R_next, sets attention prefetch0 and labels resource_probe. These
+are explicitly extra minimum diagnostics, not canonical primary/retry history
+or a512 permission. A subsequent zero-launch query queue waits for these and
+for the original80 query guard to close. Neither queue has built/queried yet.
+Raw: moe_original_top4_min576_after_builds_cpu_v1,
+moe_original_top4_min576_zero_queries_after_builds_v1.
+
+Verified fourth ordered router context32/128 completes220 costs plus50
+rejections; ordered geometry now3236 outcomes total (2754 measured,482 rejected).
+Card7 context128/16 has also completed its source-bound cost aggregate; its
+geometry join waits behind the remaining ordered contexts. A queued optional
+rebalance lets card7 claim64/128 after its last four contexts, only if card6
+has not already claimed it; atomic directory ownership prevents duplicate
+queries. All measurement bodies/protocols/timeouts remain unchanged. Raw:
+moe_router_rank_card7_rebalance_last_context_v1.
