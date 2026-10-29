@@ -38,7 +38,7 @@ MoE 实现前已核对实际五个 B：24 层序列、779 个缓冲、219 个 le
 Verified checkpoint, 2026-10-28: A19 body `7c9658ac5`, frozen normal producer
 `88327cbc4`, has11/25 dense top-four selections. Eight are nonregressions;
 Qwen0.6B B2/B4 andQwen1.7B B2 are9.823/7.591/1.538% slower than fixedMX4;G-LLM stays open.
-Current consumed-prefetch4b7d83686/producer230a572b has4 earlier L2-prefill measurements;23/25 aligned L1-prefill selections. Earlier L2 results: Llama1B B1
+Current consumed-prefetch4b7d83686/producer230a572b has4 earlier L2-prefill measurements;24/25 aligned L1-prefill selections. Earlier L2 results: Llama1B B1
 2.135062ms(−3.438%);QwenB1=1.973800ms(−.492%,indistinguishable);Llama1BB16=3.006219ms(−12.490%).
 QwenB16=3.517390ms(−22.475%). Aligned L1 Llama1B B2=2.264237ms(−.342%,indistinguishable).
 Aligned L1 Llama1B B4=2.428614ms(-0.415%).
@@ -54,7 +54,7 @@ Current QwenB2/B4=2.301375/2.575878ms,+9.825/7.588% vsfixedMX4;three current G-L
 Aligned L1 Qwen1.7BB1=3.267951ms(-4.578%),selects0,pred/meas1.02160.
 Aligned L1 Qwen1.7BB2=3.609036ms(+1.507%),selects0,pred/meas.96038;currentregression.
 Aligned L1 Qwen1.7BB4=3.919983ms(+.657%,indistinguishable),selects0,pred/meas.97085.
-Aligned L1 Qwen1.7BB8=4.256901ms(-7.537%);23current aligned selections.
+Aligned L1 Qwen1.7BB8=4.256901ms(-7.537%);24current aligned selections.
 Aligned L1 Qwen1.7BB16=5.183361ms(-17.101%),pred/meas.99586;allfive Qwen1.7B batches complete.
 Aligned L1 Llama3BB1=5.202121ms(-2.161%),selects0;allfourC1/C2512 andeightfresh timings pass.
 Aligned L1 Llama3BB2=5.451367ms(-.481%,indistinguishable),selects0;allfourC1/C2512/eightfresh timings pass.
@@ -62,6 +62,7 @@ Aligned L1 Llama3BB4=5.700156ms(-1.843%),selects0,pred/meas.96955;strictoriginal
 Aligned L1 Llama3BB8=6.105703ms(-6.532%),selects0,pred/meas.97895;allchecks/eightfresh timings andindependentappend pass.
 Aligned L1 Llama3BB16=7.042876ms(-15.113%),pred/meas0.97491;allfiveLlama3B batchescomplete.
 Aligned L1 Llama8BB2=11.089581ms(+1.463%),pred/meas0.96057;fourthcurrentregression;guard75discarded/retryguard0strictverificationpass.
+Aligned L1 Llama8BB4=11.426354ms(+0.648%,indistinguishable),pred/meas0.96126;B8onlyremainingdensecell.
 500A costs/25scopes pass;MoE0/5,DNN0/25 unfinished.
 
 Authority: `/root/Prompt/TileMega_MX5_prompt.md`, SHA256

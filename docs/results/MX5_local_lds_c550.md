@@ -1288,3 +1288,11 @@ Compileonlybodyelisionisolatesattention;allrealprogrambodiesremainpresent.
 MoEunitqueuecard7waitsactualdense25+newD7ledger,5fresh/fixture,40GiBguard;
 noMoE GPUworkyet. Raw:moe_program_cpu_preparation_v1 and
 moe_unit_gpu_after_dense25_v1.
+
+
+Verified24/25aligneddense:8BB4=11.426354ms,+.648%vsfixedMX4,
+indistinguishable;only8BB8remains. Card6queueandCPUappendcomplete0,
+soLlama8BB2D7queuecard7proceedswhileB8card5runs. NewI1v2 usesactual
+8Bselectedcoordinatesandconfigepsilon1e-5;earlierCPU-onlypreparation
+retainsmissing-sourcepathandQwen-epsilon1e-6mistakes;neitherlaunched.
+I1card6waitsactual25+D7ledger;MoEunitcard7alsowaitsthosetwoactualgates.
