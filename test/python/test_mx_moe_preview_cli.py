@@ -136,3 +136,52 @@ def test_incomplete_or_unsupported_moe_request_never_writes_preview(tmp_path, ch
     result = invoke(table, output, *extra)
     assert result.returncode != 0, result.stdout
     assert not output.exists() and not Path(str(output) + '.mx5_candidates.json').exists()
+
+
+@pytest.mark.parametrize('change', ('none', 'pin', 'cost', 'rank', 'pair', 'table'))
+def test_original_candidate_preparation_replays_native_ranking(tmp_path, monkeypatch, change):
+    from tilemega.moe import candidate_builds
+
+    table = tmp_path / 'synthetic_geometry.json'
+    table.write_text(json.dumps(synthetic_table()))
+    output = tmp_path / 'plan.so'
+    result = invoke(table, output)
+    assert result.returncode == 0, result.stderr
+    preview = Path(str(output) + '.mx5_candidates.json')
+    doc = json.loads(preview.read_text())
+    # This fixture isolates preparation/ranking; synthetic rows cannot pass
+    # the real raw-file qualification exercised by the provenance tests.
+    monkeypatch.setattr(candidate_builds, 'validate_complete_scope', lambda path, tool:
+        dict(batch=1, threads=512, table=candidate_builds.record(table)))
+    if change == 'pin':
+        doc['candidates'][0]['pin']['mx_moe_v2']['router']['tn'] = 128
+    elif change == 'cost':
+        doc['candidates'][0]['predicted_tpot_ns'] += 1
+    elif change == 'rank':
+        doc['candidates'][0]['index'] = 3
+    elif change == 'pair':
+        doc['candidates'][0]['prompt_pair_required'] = False
+    elif change == 'table':
+        table.write_text(table.read_text() + '\n')
+    preview.write_text(json.dumps(doc))
+    destination = tmp_path / 'prepared'
+    if change != 'none':
+        with pytest.raises(ValueError):
+            candidate_builds.prepare(preview, DOMAIN, ROOT / 'configs/targets/xcore1000.json', destination)
+        assert not destination.exists()
+    else:
+        prepared = candidate_builds.prepare(preview, DOMAIN, ROOT / 'configs/targets/xcore1000.json', destination)
+        assert len(prepared['jobs']) == 16 and prepared['matching_prompt_pairs'] == 8
+        assert not prepared['solver_selected'] and not prepared['grants_512_exception']
+        for index in range(4):
+            for watchdog in (0, 1):
+                jobs = [job for job in prepared['jobs'] if (job['index'], job['watchdog']) == (index, watchdog)]
+                assert {job['phase'] for job in jobs} == {'prefill', 'decode'}
+                assert jobs[0]['pin'] == jobs[1]['pin']
+                prompt = next(job for job in jobs if job['phase'] == 'prefill')
+                assert prompt['argv'][-2:] == ['--mx-prompt', '1']
+                assert all(job['native_cpu_build_only'] for job in jobs)
+        saved = (destination / 'build_jobs.json').read_bytes()
+        with pytest.raises(ValueError, match='preserved'):
+            candidate_builds.prepare(preview, DOMAIN, ROOT / 'configs/targets/xcore1000.json', destination)
+        assert (destination / 'build_jobs.json').read_bytes() == saved
