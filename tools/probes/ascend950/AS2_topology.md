@@ -33,3 +33,11 @@ run G8 first and G14 only after reviewing its result. Keep the inventoried
 capacity and physical/logical card identity in the job receipt. No other own
 NPU job may overlap. On timeout, retain the receipt and stop related tests;
 do not reset the shared device or enable larger model capabilities.
+
+After successful ID coverage, a separate `as2_gemm` diagnostic accepts
+`M16 N1792 K128 implementation1 input output G8|G14`. All fourteen output
+tiles are independent, cover every requested AIC and perform no cross-core
+wait. This distinguishes Cube/flag-local failures from the older message-passing
+litmus. It cannot admit G14 payload visibility or model residency. The optional
+group argument leaves all existing default-G2 probes unchanged. Build in a
+new private directory to preserve the earlier selected probe binary.

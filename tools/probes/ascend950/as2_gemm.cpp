@@ -76,7 +76,7 @@ static std::vector<uint8_t> Read(std::filesystem::path const& path,size_t bytes)
 }
 int main(int argc,char** argv) {
   try {
-    if(argc!=7)throw std::runtime_error("usage: as2_gemm M N K implementation input_directory output_directory");
+    if(argc!=7 && argc!=8)throw std::runtime_error("usage: as2_gemm M N K implementation input_directory output_directory [groups=2]");
     unsigned m=std::stoul(argv[1]),n=std::stoul(argv[2]),k=std::stoul(argv[3]),impl=std::stoul(argv[4]);
     if(!m || m>64 || !n || n>151936 || n%16 || !k || k>16384 || k%16 || impl>7 || uint64_t(n)*k>(1ULL<<29))
       throw std::runtime_error("Bounded BF16 profile shape required");
@@ -96,7 +96,13 @@ int main(int argc,char** argv) {
     auto inside=[&](auto const& p){auto r=p.lexically_relative(root);return !r.empty() && *r.begin()!=".." && p!=root;};
     if(!inside(input)||!inside(output)||fs::exists(output))throw std::runtime_error("Use existing AS-2 inputs and new output directory");
     auto a=Read(input/"a.bin",size_t(m)*k*2),b=Read(input/(impl==3?"b_kn.bin":"b_nk.bin"),size_t(n)*k*2);
-    unsigned tm=impl?16:32,tn=impl?128:64,groups=2,tiles=((m+tm-1)/tm)*((n+tn-1)/tn);
+    auto requested=argc==8?std::stoul(argv[7]):2UL;
+    if(requested!=2 && requested!=8 && requested!=14)
+      throw std::runtime_error("Independent Cube probe supports only explicit G2/G8/G14");
+    const unsigned groups=requested,tm=impl?16:32,tn=impl?128:64;
+    const unsigned tiles=((m+tm-1)/tm)*((n+tn-1)/tn);
+    if(groups!=2 && (tiles<groups || partial || impl!=1 || m!=16 || n!=1792 || k!=128))
+      throw std::runtime_error("Larger-G Cube diagnostic requires fourteen independent16x128x128 tiles");
     std::cerr<<"phase: aclInit"<<std::endl;
     Check(aclInit(nullptr),"init");uint32_t count=0;Check(aclrtGetDeviceCount(&count),"count");
     if(count!=1)throw std::runtime_error("Use one-device wrapper");
@@ -123,7 +129,7 @@ int main(int argc,char** argv) {
     if(!std::all_of(c.end()-512,c.end(),[](auto v){return v==0xa5;}))throw std::runtime_error("Output guard overwritten");
     fs::create_directories(output);std::ofstream out(output/(partial?"partial_f32.bin":"c.bin"),std::ios::binary);out.write((char*)c.data(),c.size()-512);out.close();
     std::cout<<"{\"status\":\"executed_requires_numeric_compare\",\"shape_mnk\":["<<m<<','<<n<<','<<k
-      <<"],\"implementation\":"<<impl<<",\"l1_k\":"<<(impl==7?256:impl?128:64)<<",\"l0_k\":"<<((impl==2||partial)?64:32)<<",\"groups\":2,\"service_ticks\":[";
+      <<"],\"implementation\":"<<impl<<",\"l1_k\":"<<(impl==7?256:impl?128:64)<<",\"l0_k\":"<<((impl==2||partial)?64:32)<<",\"groups\":"<<groups<<",\"service_ticks\":[";
     for(unsigned tile=0;tile<tiles;++tile){if(tile)std::cout<<',';std::cout<<timing[(groups+tile)*64];}
     std::cout<<"],\"host_kernel_launches\":1,\"logical_weight_layout\":\"NK\",\"physical_weight_layout\":\""<<(impl==3?"KN":"NK")
       <<"\",\"timed_repetitions\":"<<(partial?1:3)<<",\"partial_count\":"<<(partial?parts:1)
