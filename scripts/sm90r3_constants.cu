@@ -707,7 +707,7 @@ int main(int argc,char** argv) {try {
   }
   std::printf("name,key,samples,median,p99,unit\n");
   Print("clock","",{cycles_per_ns*1e3},"MHz");
-  if(full) {
+  if(full || !std::strcmp(argv[1],"--base-only")) {
     auto* counter=Device<U64>(1);auto* stamps=Device<U64>(264*256*2);
     std::vector<U64> host(264*256*2);
     for(int grid:{128,sms,2*sms}) {
