@@ -1,5 +1,6 @@
 """Grouped native kernel vs CPU FP32 GEMM and legacy combine, one process."""
 from pathlib import Path
+from moe_check_common import equal_bits
 import argparse,ctypes as C,hashlib,json,time,os,math
 p=argparse.ArgumentParser();p.add_argument('--out',type=Path,required=True);p.add_argument('--libraries',type=Path,required=True);a=p.parse_args();
 if __import__('os').environ.get('TILEMEGA_GPU_LOCK_HELD')!='1':p.error('run through scripts/mx_gpu_job.sh')
@@ -43,9 +44,9 @@ for b,wn,depth,threads,gu,pw in coords:
   else:expected=ref.bfloat16();value=actual[pairs[:,0],pairs[:,1]]
   t.testing.assert_close(value.float(),expected.float(),rtol=.012,atol=.02);maximum=max(maximum,float((value.float()-expected.float()).abs().max()))
  if not gu:
-  lp=CombineLegacy(out.data_ptr(),weight.data_ptr(),residual.data_ptr(),reference_merge.data_ptr(),None,b,2048,8*2048,2048,2048,0,None,True);assert combine(lp,stream)==0;t.cuda.synchronize();assert t.equal(merged,reference_merge),'native combine differs from actual legacy body';assert t.all(ticket==0)
- rc=fn(ops,*params,stream,None,0);assert rc==0;t.cuda.synchronize();assert t.equal(out.cpu(),actual),(params,'grouped nondeterminism')
- if not gu:assert t.equal(merged,actual_merged),(params,'combine nondeterminism')
+  lp=CombineLegacy(out.data_ptr(),weight.data_ptr(),residual.data_ptr(),reference_merge.data_ptr(),None,b,2048,8*2048,2048,2048,0,None,True);assert combine(lp,stream)==0;t.cuda.synchronize();assert equal_bits(t,merged,reference_merge),'native combine differs from actual legacy body';assert t.all(ticket==0)
+ rc=fn(ops,*params,stream,None,0);assert rc==0;t.cuda.synchronize();assert equal_bits(t,out.cpu(),actual),(params,'grouped nondeterminism')
+ if not gu:assert equal_bits(t,merged,actual_merged),(params,'combine nondeterminism')
  rows.append(dict(coordinate=params,n_active=active_count,FP32_reference_passed=True,max_abs_error=maximum,repeat_bitwise=True,legacy_combine_bitwise=not gu));print('GROUPED_CASE_PASS',params,active_count,maximum,flush=True)
-result=dict(epoch=time.time(),PID=os.getpid(),passed=True,rows=rows,queries=queries,zero_skips=True,binary=dict(path=str(so),sha256=hashlib.sha256(so.read_bytes()).hexdigest()),legacy_binary=dict(path=str(legacyso),sha256=hashlib.sha256(legacyso.read_bytes()).hexdigest()),not_native_model_acceptance=True)
+result=dict(epoch=time.time(),PID=os.getpid(),passed=True,rows=rows,queries=queries,zero_skips=True,comparison="raw_bytes_equal",binary=dict(path=str(so),sha256=hashlib.sha256(so.read_bytes()).hexdigest()),legacy_binary=dict(path=str(legacyso),sha256=hashlib.sha256(legacyso.read_bytes()).hexdigest()),not_native_model_acceptance=True)
 (a.out/'result.json').write_text(json.dumps(result,indent=2)+'\n');print('MOE_GROUPED_PASS',len(rows),flush=True)

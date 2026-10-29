@@ -1,5 +1,6 @@
 """Fresh-process legacy bit comparisons; scheduling is external and guarded."""
 from pathlib import Path
+from moe_check_common import equal_bits
 import argparse,ctypes as C,hashlib,json,time
 p=argparse.ArgumentParser();p.add_argument('--out',type=Path,required=True);p.add_argument('--libraries',type=Path,required=True);a=p.parse_args();
 if __import__('os').environ.get('TILEMEGA_GPU_LOCK_HELD')!='1':p.error('run through scripts/mx_gpu_job.sh')
@@ -38,7 +39,7 @@ for b in [1,2,4,8,16]:
     dp=Dispatch(*map(ptr,[logits,na,active,count,dispatch_rows,weight,ug,ud]));label=dict(batch=b,weights_fp32=bool(fp32),threads=threads,pattern=pattern)
     if pattern=='random':observe(router,[dp,b,fp32,threads],label)
     rc=router(dp,b,fp32,threads,stream,None,0);assert rc==0,(label,rc);t.cuda.synchronize()
-    assert t.equal(weight,legacyweight),(label,'weights bit mismatch')
+    assert equal_bits(t,weight,legacyweight),(label,'weights bit mismatch')
     expected=idx.cpu();experts=sorted(set(expected.flatten().tolist()));assert na.item()==len(experts)
     assert ug.item()==len(experts)*24 and ud.item()==len(experts)*64
     assert active[:len(experts)].cpu().tolist()==experts
@@ -47,7 +48,7 @@ for b in [1,2,4,8,16]:
      pairs=[(token,rank)for token in range(b)for rank in range(8)if int(expected[token,rank])==expert]
      assert counts[ordinal].item()==len(pairs)and actual[ordinal,:len(pairs)].tolist()==[list(x)for x in pairs],(label,ordinal,pairs)
     assert router(dp,b,fp32,threads,stream,None,0)==0;t.cuda.synchronize()
-    assert all(t.equal(x,y)for x,y in zip(first,[active,count,dispatch_rows,weight,na,ug,ud])),(label,'dispatch nondeterminism')
+    assert all(equal_bits(t,x,y)for x,y in zip(first,[active,count,dispatch_rows,weight,na,ug,ud])),(label,'dispatch nondeterminism')
     rows.append(dict(kind='router',**label,legacy_weights_bitwise=True,top8_and_dispatch=True,repeat_bitwise=True))
 for b in [1,16]:
  for tn in [16,128]:
@@ -61,8 +62,8 @@ for b in [1,16]:
      if active==8:observe(combine,[cp,active,b,tn,fp32,threads],label)
      for repeat in range(2):
       assert combine(cp,active,b,tn,fp32,threads,stream,None,0)==0;t.cuda.synchronize()
-      assert t.equal(out[:,:tn],ref[:,:tn]),(label,'combine bit mismatch',repeat)
+      assert equal_bits(t,out[:,:tn],ref[:,:tn]),(label,'combine bit mismatch',repeat)
       assert t.all(out[:,tn:]==-91)and t.all(ticket==0),(label,'output bounds or ticket reset')
      rows.append(dict(kind='combine',**label,legacy_output_bitwise=True,repeat_bitwise=True))
-result=dict(epoch=time.time(),PID=__import__('os').getpid(),rows=rows,queries=queries,zero_skips=True,passed=True,binaries={n:dict(path=str(f),sha256=hashlib.sha256(f.read_bytes()).hexdigest())for n,f in files.items()},scope='Router/topk/dispatch and combine legacy bit comparisons;not grouped GEMM, native model, timing, or 104CTA/2000iter publication litmus')
+result=dict(epoch=time.time(),PID=__import__('os').getpid(),rows=rows,queries=queries,zero_skips=True,comparison="raw_bytes_equal",passed=True,binaries={n:dict(path=str(f),sha256=hashlib.sha256(f.read_bytes()).hexdigest())for n,f in files.items()},scope='Router/topk/dispatch and combine legacy bit comparisons;not grouped GEMM, native model, timing, or 104CTA/2000iter publication litmus')
 (a.out/'result.json').write_text(json.dumps(result,indent=2)+'\n');print('MOE_ROUTER_COMBINE_LEGACY_PASS',len(rows),'queries',len(queries),flush=True)
