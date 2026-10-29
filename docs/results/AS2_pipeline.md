@@ -301,5 +301,17 @@ two real native decode candidates; cached9 is selected and the actual priced
 request passes full1024/teacher512/C2/C3 five-process validation. Its complete
 pilot TPOT58.768→41.473ms is not final acceptance. Fixed Body9 structural
 versus priced queues gives40.389 versus41.473ms in the same pilot; no scheduling
-speedup is claimed. Three Llama cache candidates are being rebuilt from their
-own CTGs/decompositions, with no manual queue or baseline changes.
+speedup is claimed. Three Llama cache candidates subsequently complete their
+own CTG/ISL, two-Body native pricing/search, actual selected full1024 runs and
+bounded pilots. New final-config teacher/C2/C3 coverage remains pending.
+
+`verified-run`: a separate strided SwiGLU implementation preserves the gate/up
+CTG, BF16 cast points and split3 down semantics. Qwen1.7 B16 measures both
+implementations, reruns native prefill/decode search and selects the second
+decode candidate. The resulting actual priced request passes independent
+full1024, teacher512, full C2 and five-process C3; pilot TPOT42.693→34.485ms.
+Every bound table/source/binary/launch is linked by
+`search/opt_swiglu_qwen17_full_pipeline_receipt_v1.json`. Frozen independent
+five-pair acceptance is separate; no default/eager Gate is implied. Its strict
+ablation auditor rejects changed weights, state, queues, waits, other stage
+fields or incomplete gate/up substitution even when table hashes are refreshed.

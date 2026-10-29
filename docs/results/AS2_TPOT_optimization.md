@@ -250,16 +250,31 @@ has an identical generated runtime and a checked capability superset; each
 model retains its own CTG/Plan/weights. Phase/source/table/launch receipts:
 `search/opt_cachedkv_<model_id>_full_pipeline_receipt_v3.json`.
 New Llama teacher512/C2/C3 and full paired acceptance remain pending.
-A fixed one-process-per-variant full-request pilot is running; it does not
-admit a default or original eager G-PERF. B1 plans remain unchanged.
+A fixed one-process-per-variant full-request pilot completes: Llama1B
+31.406591→26.340524ms, Llama3B67.909620→50.412183ms,
+Llama8B111.710880→89.029656ms. All24 warmup/timed token payloads pass.
+It does not admit a default or original eager G-PERF. B1 plans remain unchanged.
 
 A separate L1-K256 GEMM probe retains L0K32 and passes actual gate/up and
 large-K/tail outputs bitwise. Service8.672→7.443us and34.330→29.570us is
 component-only, with per-worker MMAD lifetime unlike the integrated per-task
-lifetime. No formal cost/default is changed. An isolated strided SwiGLU tile
-prototype preserves both BF16 cast points; CANN compilation passes, numerical
-probe pending. It targets the observed64 small Pointwise calls per16×128
-epilogue; it is not yet registered in a native model candidate.
+lifetime. No formal cost/default is changed.
+
+`verified-run`: strided SwiGLU preserves both BF16 cast points; actual-stride
+and tail probes match all four AIV workers/guard holes bitwise. Component
+23.754667→0.568us does not represent TPOT. An explicit Qwen1.7 B16 decode
+Stage.variant4 binds every gate/up projection while retaining split3 down.
+Independent full1024 checks pass for both original and candidate. New empirical
+prices drive actual native outer/inner search: predicted42.947494→34.520311ms,
+selecting the second candidate. The resulting priced tables really execute.
+
+Same-image/card pilot TPOT42.692946→34.485369ms; TTFT and all raw requests
+remain in `bench/opt_swiglu_qwen17_priced_pilot_v1/pilot.json`. Teacher512
+passes bitwise; C2 full1024 compares148 common files; C3=5/5 fresh processes,
+10 reset requests. Five alternating process pairs are frozen separately in
+`bench/opt_swiglu_qwen17_final_v1/protocol.json`; no optional stopping,
+pilot reuse or default promotion. All results remain local to this experiment.
+Full identity chain: `search/opt_swiglu_qwen17_full_pipeline_receipt_v1.json`.
 
 Large diagnostic profiles now optionally stream D2H into exclusive-new gzip
 files, with SHA256, decompression/extent verification and an archive receipt;

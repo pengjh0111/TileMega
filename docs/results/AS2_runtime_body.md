@@ -485,3 +485,20 @@ prefix conversion. The bounded native outer search actually compares Body8/9
 and selects9 using positive measured prices; TPOT/default admission is separate.
 Exact evidence and source/image identities: `AS2_TPOT_optimization.md` and
 `runs/as2/search/opt_attention_selected_abi_equivalence_v1.json`.
+# Strided SwiGLU decode candidate, 2026-10-29
+
+`verified-code/run`: `SwiGluTile.h` loads an entire16×128 interleaved gate/up
+tile with strided DMA, separates U16 groups in UB, and preserves FP32 opmath,
+BF16 SiLU rounding and BF16 product rounding. `LlmVectorBody` borrows existing
+disjoint arrays; UB remains106496B. MTE2→V and V→MTE3 completion remain explicit.
+The existing GM ready/done/reverse-ack protocol and single AIC event owner are
+unchanged. No direct UB handoff or second cooperating AIV is implied.
+
+The explicit variant4 maps to geometry1; absent feature, unknown shape/count,
+partial-K or wrong epilogue fails before ACL. Qwen1.7 B16 native decode binds
+all28 gate/up stages; down split3 and CTG/ISL semantics remain unchanged.
+Its actual priced full1024, teacher512 and full fast/diagnostic run pass
+bitwise. Five new processes complete10 reset requests with148 equal payloads
+per request. Image `ea9aaefb42caeb71ee2b6f2aee91e5b493e848c460f8ca9add1bd28d19967275`.
+These proofs do not admit other models or a performance default. Pilot and
+frozen paired results are indexed in `AS2_TPOT_optimization.md`.
