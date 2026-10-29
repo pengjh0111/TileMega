@@ -45,6 +45,18 @@ struct MxMoeImportedCostsV2 {
 // it does not verify files, qualify a partial domain or grant execution.
 MxMoeImportedCostsV2 ImportMxMoeCostRowsV2(codegen::MxMoeModel const& model,
     int threads, std::vector<json::Value> const& rows);
+struct MxMoeCostCoverageV2 {
+  std::size_t expected = 0, measured = 0, rejected = 0;
+  // stage,TN,WN,D,Part,dispatch_GU_TN,dispatch_DN_TN,length;
+  // attention uses TN for b_min and length for the fixed five-point grid.
+  std::vector<std::array<int, 8>> missing;
+  bool Complete() const { return expected && missing.empty() && measured + rejected == expected; }
+};
+// Check geometric coverage only. File/resource-branch qualification remains
+// the catalog producer's responsibility; completeness grants no plan policy.
+MxMoeCostCoverageV2 CheckMxMoeCostCoverageV2(codegen::MxMoeModel const& model,
+    int threads, MxMoeImportedCostsV2 const& imported,
+    std::vector<json::Value> const& resource_rejections);
 // The caller supplies one batch/thread shape of source-qualified rows. Router
 // dispatch TNs must match the selected grouped bodies, even for tied costs.
 std::vector<MxMoeProgramChoiceV2> RankMxMoeProgramsV2(frontend::ModelPlan const& plan,

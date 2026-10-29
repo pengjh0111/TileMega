@@ -139,4 +139,81 @@ MxMoeImportedCostsV2 ImportMxMoeCostRowsV2(codegen::MxMoeModel const& model,
   }
   return result;
 }
+
+MxMoeCostCoverageV2 CheckMxMoeCostCoverageV2(codegen::MxMoeModel const& model,
+    int threads, MxMoeImportedCostsV2 const& imported,
+    std::vector<json::Value> const& rejections) {
+  Need(threads == 512 || threads == 576, "coverage has invalid threads");
+  using Key = std::array<int, 8>;
+  std::set<Key> expected, observed;
+  constexpr std::array<char const*, 6> names{"qkv", "o", "router", "gate_up", "down", "head"};
+  auto gemm = [](int stage, codegen::MxDecodeClassV2 const& c, int gate, int down) -> Key {
+    return {stage, c.tn, c.wn, c.d, int(!c.stream_k), gate, down, 0};
+  };
+  for (int stage = 0; stage < 6; ++stage)
+    for (auto const& c : MxMoeGemmDomainV2(model, names[stage], model.batch)) {
+      if (stage == 2) {
+        for (int gate : {32, 64, 128}) for (int down : {16, 32, 64, 128})
+          expected.insert(gemm(stage, c, gate, down));
+      } else expected.insert(gemm(stage, c, 0, 0));
+    }
+  constexpr std::array<int, 5> lengths{65, 256, 512, 768, 1088};
+  for (int b_min : {1, 2, 4, 8}) for (int length : lengths)
+    expected.insert({6, b_min, 0, 0, 0, 0, 0, length});
+  auto add = [&](Key key) {
+    Need(expected.count(key), "coverage coordinate is outside the model domain");
+    Need(observed.insert(key).second, "duplicate/conflicting geometry outcomes");
+  };
+  for (int stage = 0; stage < 7; ++stage) for (auto const& cost : imported.stages[stage]) {
+    if (stage == 6) for (int length : lengths) add({6, cost.b_min, 0, 0, 0, 0, 0, length});
+    else add(gemm(stage, cost.gemm, cost.dispatch_gate_tn, cost.dispatch_down_tn));
+  }
+  MxMoeCostCoverageV2 result;
+  result.measured = observed.size();
+  for (auto const& row : rejections) {
+    Need(!row.Find("median_ns") && !row.Find("p90_ns") && !row.Find("rounds") &&
+        !row.Find("processes"), "resource rejection contains measurement fields");
+    auto const& key = row.At("key");
+    Need(Int(key, "b") == int(model.batch) && Int(key, "threads") == threads,
+        "rejection has mixed batch or threads");
+    auto const& resource = row.At("resources");
+    Need(Int(resource, "mtreg") > 0 && (Int(resource, "mtreg") > (threads == 576 ? 227 : 255) ||
+        Int(resource, "local_bytes") || Int(resource, "static_smem_bytes")),
+        "rejection lacks failed executable resources");
+    auto const& kind = row.At("kind").AsString("kind");
+    if (kind == "attention") {
+      Need(Int(key, "dim") == int(model.dim) && Int(key, "q") == int(model.queries) &&
+          Int(key, "hkv") == int(model.hkv) && Int(key, "capacity") == int(model.capacity) &&
+          Int(key, "qk_norm") == 1, "rejected attention shape differs");
+      add({6, Int(key, "b_min"), 0, 0, 0, 0, 0, Int(key, "length")});
+      continue;
+    }
+    int stage = kind == "moe_router" ? 2 : kind == "moe_gate_up" ? 3 :
+        kind == "moe_down_combine" ? 4 : kind == "head" ? 5 : -1;
+    if (kind == "gemm") for (int s : {0, 1}) {
+      auto shape = MxMoeGeometryV2(model, names[s], model.batch);
+      if (Int(key, "n") == shape.n && Int(key, "k") == shape.k) stage = s;
+    }
+    Need(stage >= 0, "unknown rejected body or shape");
+    auto shape = MxMoeGeometryV2(model, names[stage], model.batch);
+    Need(Int(key, "n") == shape.n && Int(key, "k") == shape.k, "rejected GEMM shape differs");
+    if (stage != 5) Need(Int(key, "op") == shape.op && Int(key, "norm") == shape.norm,
+        "rejected op or norm differs");
+    if (shape.n_active) Need(Int(key, "n_active") == shape.n_active, "rejected grouped shape differs");
+    int part = stage == 5 ? 1 : Int(key, "part");
+    Need(part <= 1, "invalid rejected partition");
+    codegen::MxDecodeClassV2 c{Int(key, "tn"), Int(key, "wn"), Int(key, "depth"), part == 0,
+        Int(key, "prefetch"), -1};
+    int gate = 0, down = 0;
+    if (stage == 2) {
+      auto const& context = row.At("dispatch_context");
+      gate = Int(context, "gate_up_tn"); down = Int(context, "down_tn");
+    }
+    add(gemm(stage, c, gate, down));
+  }
+  result.expected = expected.size();
+  result.rejected = rejections.size();
+  for (auto const& key : expected) if (!observed.count(key)) result.missing.push_back(key);
+  return result;
+}
 }  // namespace tilemega::solver

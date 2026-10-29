@@ -27,9 +27,12 @@ int main(int argc, char** argv) {
     model.batch = std::stoi(argv[3]);
     auto doc = tilemega::json::ParseFile(argv[2]);
     auto imported = ImportMxMoeCostRowsV2(model, std::stoi(argv[4]), doc.At("rows").AsArray("rows"));
+    auto coverage = CheckMxMoeCostCoverageV2(model, std::stoi(argv[4]), imported,
+        doc.Find("rejections") ? doc.At("rejections").AsArray("rejections") : tilemega::json::Array{});
     std::cout << "PASS imported aggregate rows; stage sizes";
     for (auto const& stage : imported.stages) std::cout << ' ' << stage.size();
-    std::cout << "; import does not qualify a full domain or authorize execution\n";
+    std::cout << "; geometry measured=" << coverage.measured << " rejected=" << coverage.rejected <<
+        " missing=" << coverage.missing.size() << "; import does not qualify a full domain or authorize execution\n";
     return 0;
   }
   model.batch = 1;
@@ -72,6 +75,44 @@ int main(int argc, char** argv) {
     }
     assert(costs.source_rows[6][0] == (std::vector<std::size_t>{6, 7, 8, 9, 10}));
     assert(costs.stages[2][0].dispatch_gate_tn == 64 && costs.stages[6][0].b_min == 4);
+    auto partial = CheckMxMoeCostCoverageV2(model, 512, costs, {});
+    assert(!partial.Complete() && partial.measured == 11 && !partial.missing.empty());
+    MxMoeImportedCostsV2 filled;
+    for (unsigned stage = 0; stage < 6; ++stage)
+      for (auto const& c : MxMoeGemmDomainV2(model, names[stage], 1)) {
+        MxMoeStageCostV2 value; value.gemm = c;
+        if (stage == 2) {
+          for (int gu : {32, 64, 128}) for (int dn : {16, 32, 64, 128}) {
+            value.dispatch_gate_tn = gu; value.dispatch_down_tn = dn;
+            filled.stages[stage].push_back(value);
+          }
+        } else filled.stages[stage].push_back(value);
+      }
+    for (int b_min : {1, 2, 4, 8}) {
+      MxMoeStageCostV2 value; value.b_min = b_min;
+      filled.stages[6].push_back(value);
+    }
+    auto complete = CheckMxMoeCostCoverageV2(model, 512, filled, {});
+    assert(complete.Complete() && complete.rejected == 0 && complete.expected == partial.expected);
+    auto measured = filled;
+    auto& gu = measured.stages[3];
+    auto remove = std::find_if(gu.begin(), gu.end(), [](auto const& value) {
+      auto const& c = value.gemm; return c.tn == 64 && c.wn == 1 && c.d == 1;
+    });
+    assert(remove != gu.end()); gu.erase(remove);
+    Value rejection = Object{{"kind", "moe_gate_up"}, {"key", rows[3].At("key")},
+        {"resources", Object{{"mtreg", 256}, {"local_bytes", 16}, {"static_smem_bytes", 0}}}};
+    auto mixed = CheckMxMoeCostCoverageV2(model, 512, measured, {rejection});
+    assert(mixed.Complete() && mixed.rejected == 1 && mixed.measured == complete.measured - 1);
+    Reject([&] { CheckMxMoeCostCoverageV2(model, 512, filled, {rejection}); });
+    for (int mutation = 0; mutation < 4; ++mutation) {
+      auto bad = rejection;
+      if (mutation == 0) bad.Set("median_ns", 123);
+      if (mutation == 1) bad.Set("resources", Object{{"mtreg", 120}, {"local_bytes", 0}, {"static_smem_bytes", 0}});
+      if (mutation == 2) { auto k = bad.At("key"); k.Set("n_active", 9); bad.Set("key", k); }
+      if (mutation == 3) { auto k = bad.At("key"); k.Set("threads", 576); bad.Set("key", k); }
+      Reject([&] { CheckMxMoeCostCoverageV2(model, 512, measured, {bad}); });
+    }
     for (int mutation = 0; mutation < 15; ++mutation) {
       auto bad = rows;
       auto key = bad[0].At("key");
