@@ -147,7 +147,9 @@ instrumentation 保持原输出，归一化 gate 分别位于 BF16 中点两侧�
 未修改 oracle、容差、种子或舍入契约。四格 dense 回退及 measured/bench>1.2 的阶段
 按 D7 保留账本、MIR、预取、划分和 I1 归因，不能宣称 G-LLM 已通过。
 
-MoE 尚无模型 C-1/C-2、路由核对或五格终版 TPOT；LLM30/CP-5 尚未完成。
+MoE 手工 B1/B16 C-1/C-2 已过；路由核对仍失败31/468处，五格求解终版未完成。
+排名谓词等价改写经整程序 P-PAIR 两格均快约3.7%后合入，新router成本重新标定。
+regular795个三进程成本已齐，另165个资源拒绝；LLM30/CP-5 尚未完成。
 DNN 的 StageProgram 客户、各 native 体、打包、成本/top-4、time、25格检查/计时及
 legacy 拒绝均待 LLM 验收后推进。唯一可因预算裁剪的实现仍为 DT-F 两项融合；
 用户放宽卡时不改变其他结构和验收要求。九个历史 legacy 合法性测试不在本轮修复。

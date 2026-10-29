@@ -458,3 +458,47 @@ to be recorded, then runs independent frozen unit/microbench work; it does
 not turn the failed model route gate into a pass. The rank candidate stays
 off and subsequent resource/cost queues remain diagnostic. Raw:
 `moe_router_rank_predicate_after_route_attempts_v2`.
+
+
+Verified the equivalent integer rank predicate passes two legacy-comparison
+fixtures in five fresh processes each. Its isolated microbench improves B1
+TileRange/StreamK medians14.80%/14.55%, B16 by23.26%/23.62%; these alone
+were not adoption evidence. Eight normal whole-program candidate plans and
+all eight MIR reports pass with frame/static0. Candidate B1/B16 C1/C2 pass
+512 steps and match original control tokens. Same-card ABAB P-PAIR, each
+arm two fresh processes with warmup1/timed2, gives5.215872→5.025410ms at B1
+and20.010283→19.264265ms at B16 (−3.65%/−3.73%), both discernible. All1024
+tokens match. The measured predicate is adopted in source; eight process
+rows are appended to MX5_candidate_ppair_c550.csv. These are manual controls,
+not selected plans, a512 exception or G-MOE acceptance. Target defaults stay
+unchanged. Raw: moe_rank_whole_program_candidate_v1.
+
+Verified the old11-context router GPU queues were stopped while waiting,
+before dispatch. Their completed CPU artifacts and original source costs are
+retained. The adopted predicate requires a new source epoch:1296 normal CPU
+libraries/6480 kernel outcomes cover all12 dispatch contexts, then6480 actual
+device attribute queries and three fresh cost rounds per fitting coordinate.
+The new queues retain R_cap220/248 and explicit TN-dependent U_gu/U_dn.
+Raw: moe_router_rank_all12_contexts_cpu_v1,
+moe_router_rank_all12_queries_v1, moe_router_rank_all12_cost_scopes_v1.
+
+Verified regular795 stage costs now complete three fresh processes and the
+source-bound aggregator. Together with165 actual resource rejections they
+cover960 regular/attention coordinates. The grouped896 geometry similarly
+contains799 measured costs and97 resource rejections. Neither partial-domain
+coverage nor manual P-PAIR authorizes final model selection.
+Raw: moe_regular_complete_outcomes_cpu_v3,
+moe_grouped_complete_outcomes_cpu_v2.
+
+Verified matched-input router diagnosis finds1507 exact sets,29 boundary ties
+and0 non-tie failures on1536 B1 positions when the native router receives the
+same HF pre-RMS inputs. This localizes a distinction from whole-model route
+failure without proving its upstream cause. Installed HF eager casts routing
+weights to BF16 and uses BF16 index_add destinations; the exported contract
+keeps F32 routing weights and FP32 rank-order combine. Controlled diagnostics
+using FP32 combine leave25 non-tie failures, and additionally export F32
+routing weights leave23, versus31 in the formal eager reference. These are
+diagnostic reference variants only; no formal reference or threshold changed,
+and neither explains all failures. The first counterfactual attempt's failed
+dtype assumption and logs remain. Raw: moe_matched_input_router_D7_v1,
+moe_HF_routing_dtype_combine_counterfactual_D7_v2.
