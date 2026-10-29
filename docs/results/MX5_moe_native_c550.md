@@ -355,3 +355,33 @@ values stay64/64. CPU-only normal builds for the other11 combinations are
 running with frozen sources, per-kernel resources/MIR and lossless archived
 compiler logs. They have no cost/model acceptance yet. Raw:
 `moe_router_contexts_cpu_v1`. No pending measurement input was modified.
+
+Verified strict raw-byte tests now pass for each of the three canonical
+fixtures in five fresh processes,15 distinct child PIDs total. Router/combine,
+router GEMM and grouped fixtures all report raw_bytes_equal; original
+float-equality records remain unchanged. This is representative unit evidence,
+not the model, routing or synchronization litmus gate. Raw:
+`moe_byte_exact_after_costs_v1/ACTUAL_THREE_FIXTURES_FIVE_FRESH_BYTE_EXACT_COMPLETE.json`.
+
+Verified recovered27 grouped keys now have three fresh rounds and pass source-
+bound aggregation. The canonical896 grouped coordinates are covered by799
+measured fitting rows and97 normal-build resource rejections (45 gate/up,
+52 down at minimum prefetch). CPU outcome coverage is not full-model acceptance.
+An initial CPU audit counted12 CSV fields as13 and stopped before producing a
+catalog; its failed record is retained. Corrected v2 matches all896 coordinates
+exactly. Raw: `moe_grouped_complete_outcomes_cpu_v{1,2}`.
+
+Verified native cost-row import checks one requested batch/thread shape,
+executor/body identity, three rounds, resources, grouped n_active and router
+TN context. Attention requires the complete five-point grid and matching
+source/binary/resources before averaging. Fifteen negative contracts and both
+host CTests pass. All922 existing grouped/head aggregate rows import through
+ten actual batch/thread requests. Import itself does not verify files, qualify
+missing domains or authorize execution. Raw: `moe_cost_row_import_actual_cpu_v1`.
+
+Verified the576-thread MoE head shape has130 fitting coordinates and20
+resource rejections. Historical jobs21–27 contain those fitting keys but have
+no timing rounds; this is outside the150-row512 reuse scope. A new frozen
+130-key source/normal-command/resource-branch check passes, with three-process
+head timing queued after regular795 costs on card7. No costs are backfilled.
+Raw: `moe_head576_cost_scope_v1`.
