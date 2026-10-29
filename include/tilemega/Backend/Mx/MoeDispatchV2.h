@@ -61,7 +61,7 @@ struct MxMoeDispatchV2 {
 #pragma unroll 1
         for(unsigned j=0;j<E;++j) {
           float const other=logits[token*E+j];
-          rank+=unsigned(other>value||(other==value&&j<expert));
+          rank+=unsigned(other>value)|(unsigned(other==value)&unsigned(j<expert));
         }
         if(rank<K) {selected[token*K+rank]=value;indices[token*K+rank]=expert;}
       }
