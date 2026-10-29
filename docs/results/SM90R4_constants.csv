@@ -21,6 +21,7 @@ clock,r4c-e64,1979.99,1979.99,MHz,5,r4c-e64
 clock,r4c-epi,1994.39,1994.39,MHz,5,r4c-epi
 clock,r4c-gates,1979.96,1979.96,MHz,5,r4c-gates
 clock,r4c-moetask,1979.99,1979.99,MHz,5,r4c-moetask
+clock,r4c-q1,1979.99,1979.99,MHz,5,r4c-q1
 max_active_clusters,c=2:r=1,66,66,clusters,5,r4c-gates
 max_active_clusters,c=2:r=2,132,132,clusters,5,r4c-gates
 max_active_clusters,c=4:r=1,30,30,clusters,5,r4c-gates
@@ -55,6 +56,7 @@ t_argmax_la,b=4:g=132,2592,2816,ns,5,r4c-base
 t_argmax_la,b=4:g=264,3584,3776,ns,5,r4c-base
 t_argmax_la,b=8:g=132,3520,3744,ns,5,r4c-base
 t_argmax_la,b=8:g=264,5280,5472,ns,5,r4c-base
+t_blk,d=128:q=1:norm=2,377.779,377.779,ns,5,r4c-q1
 t_blk,d=128:q=2:norm=1,398.128,398.128,ns,5,r4c-att2
 t_blk,d=128:q=3:norm=0,404.646,404.646,ns,5,r4c-att2
 t_blk,d=128:q=4:norm=0,404.646,404.646,ns,5,r4c-att2
@@ -630,6 +632,9 @@ t_ep,router_e64:tn=8:b=1:wk=4,118.182,118.182,ns,5,r4c-e64
 t_ep,router_e64:tn=8:b=2:wk=4,118.182,118.182,ns,5,r4c-e64
 t_ep,router_e64:tn=8:b=4:wk=4,109.091,109.091,ns,5,r4c-e64
 t_ep,router_e64:tn=8:b=8:wk=4,100,100,ns,5,r4c-e64
+t_merge,d=128:q=1:norm=2:s=2,1908.08,1915.66,ns,5,r4c-q1
+t_merge,d=128:q=1:norm=2:s=4,1981.32,1986.37,ns,5,r4c-q1
+t_merge,d=128:q=1:norm=2:s=8,2167.18,2171.72,ns,5,r4c-q1
 t_merge,d=128:q=2:norm=1:s=16,2639.98,2647,ns,5,r4c-att2
 t_merge,d=128:q=2:norm=1:s=2,2129.9,2135.91,ns,5,r4c-att2
 t_merge,d=128:q=2:norm=1:s=32,2962.89,2970.41,ns,5,r4c-att2
@@ -655,11 +660,13 @@ t_merge,d=64:q=4:norm=0:s=2,2102.82,2106.33,ns,5,r4c-att2
 t_merge,d=64:q=4:norm=0:s=32,3781.68,3787.49,ns,5,r4c-att2
 t_merge,d=64:q=4:norm=0:s=4,2131.67,2135.69,ns,5,r4c-att2
 t_merge,d=64:q=4:norm=0:s=8,2336.27,2340.28,ns,5,r4c-att2
+t_merge_dsmem,d=128:q=1:norm=2:s=2,1332.83,1334.35,ns,5,r4c-q1
 t_merge_dsmem,d=128:q=2:norm=1:s=2,1642.61,1644.83,ns,5,r4c-dsmem2
 t_merge_dsmem,d=128:q=3:norm=0:s=2,1932.84,1935.18,ns,5,r4c-dsmem2
 t_merge_dsmem,d=128:q=4:norm=0:s=2,2290.78,2292.79,ns,5,r4c-dsmem2
 t_merge_dsmem,d=128:q=8:norm=1:s=2,3933.79,3935.85,ns,5,r4c-dsmem2
 t_merge_dsmem,d=64:q=4:norm=0:s=2,1641.61,1647.83,ns,5,r4c-dsmem2
+t_qprep,d=128:q=1:norm=2,965.154,965.154,ns,5,r4c-q1
 t_qprep,d=128:q=2:norm=1,527.996,527.996,ns,5,r4c-att2
 t_qprep,d=128:q=3:norm=0,279.291,279.291,ns,5,r4c-att2
 t_qprep,d=128:q=4:norm=0,252.214,252.214,ns,5,r4c-att2
