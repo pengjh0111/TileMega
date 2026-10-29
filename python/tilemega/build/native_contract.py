@@ -112,11 +112,14 @@ def dispatch(manifest, defines, source):
             raise ValueError(f'native dense GEMM call differs from manifest at GEMM {index}')
         if moe:
             # batch, N, K, TN, TK, slots, WN, WK, mode, U, experts, top-k,
-            # float routes, page, 7 buffers, map, register stages, softmax-all.
-            if len(args) != 24 or args[8] != 'backend::Sm90DenseMoeMode::' + MOE_MODES[family] or \
+            # float routes, page, 7 buffers, map, register stages[, softmax-all].
+            # Binaries generated before A3 (REF-R3, the MR arms) carry 23
+            # arguments, their softmax over the selected experts implicit.
+            if len(args) not in (23, 24) or args[8] != 'backend::Sm90DenseMoeMode::' + MOE_MODES[family] or \
                     args[9] != '16' or args[10] not in ('64', '128') or args[11] != '8' or \
                     args[13] not in (('0', '64') if family != 'router' else ('0',)) or \
-                    args[23] not in ('true', 'false'):
+                    (len(args) == 23 and args[10] != '128') or \
+                    (len(args) == 24 and args[23] not in ('true', 'false')):
                 raise ValueError('native MoE call signature is invalid')
             register_stages = int(args[22])
             stream = 0 if family == 'expert_gate_up' else None
