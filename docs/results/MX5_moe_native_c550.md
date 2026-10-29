@@ -773,3 +773,25 @@ builds, then queries all80 exact artifacts with zero kernel launches. Both
 fitting/rejected resource outcomes remain explicit; no512 exception or model
 acceptance is granted. It uses40960MiB admission and1800s non-timing guard.
 Raw: moe_original_top4_zero_queries_after_builds_v1. No queued query has run.
+
+
+Verified the native host solver helper accepts numeric pairs via
+--select-pairs and calls the existing SelectMxMoeMeasuredV2 implementation.
+Its12 CLI tests pass alongside the original720-comparison native unit test:
+original-index tie order, exact1% threshold, two-sample medians and invalid
+pairs are checked. Replaying one existing dense B8 top4's actual numbers
+reproduces its original selected index1; this is numeric reuse only, not a
+new dense measurement or a MoE result. The interface explicitly grants no
+file qualification, model/default acceptance. Raw:
+moe_numeric_measured_selection_cli_cpu_v1.
+
+Verified31 CPU source-contract tests check the eight actual adopted manual
+programs' selected body aliases, shapes, dispatch TNs, attention settings,
+121 packed-weight recipes and compiled measured-body header hashes. Negative
+cases reject stale TN/depth/prefetch/phase/shape/recipe/header coordinates.
+The four actual rejected576 minimum programs also pass geometry checks while
+remaining explicit positive-frame resource failures. Geometry does not imply
+resource or model acceptance. A frozen CPU queue will apply these checks to
+all80 original candidate builds before any later model measurement decision.
+Raw: moe_plan_source_cpu_v1,
+moe_original_top4_source_checks_after_builds_cpu_v1.
