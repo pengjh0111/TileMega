@@ -79,7 +79,9 @@ DRIVER = r'''
 using namespace tilemega::codegen;
 StageProgramSpec Spec(int layers, int tails, StageProgramKind kind) {
   StageProgramSpec s;
-  s.kind = kind; s.namespace_name = "case_" + std::to_string(layers) + "_" + std::to_string(tails) + "_" + std::to_string(int(kind));
+  s.kind = kind;
+  if (kind == StageProgramKind::kPrompt) s.terminal_condition = "true";
+  s.namespace_name = "case_" + std::to_string(layers) + "_" + std::to_string(tails) + "_" + std::to_string(int(kind));
   s.plan_declarations = ""; s.loop.begin = "3"; s.loop.end = std::to_string(3 + layers);
   s.operand_parameters = "int& b"; s.run_parameters = "int& b, char* smem";
   s.entry_prefetch_operands = "0"; s.buffer_row_type = "BufferRow";

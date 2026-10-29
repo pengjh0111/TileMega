@@ -32,6 +32,7 @@ std::string Quote(std::string const& value) {
 std::string EmitStageProgram(StageProgramSpec const& s) {
   auto fail = [](char const* why) { throw std::invalid_argument(std::string("stage program: ") + why); };
   if (s.stages.empty() || s.tail_stages.empty() || s.loop.end.empty()) fail("a loop and a step tail are required");
+  if (s.kind == StageProgramKind::kPrompt && s.terminal_condition.empty()) fail("prompt requires a final-token tail predicate");
   std::map<std::string, StageProgramStage const*> stages;
   for (auto const* list : {&s.stages, &s.tail_stages})
     for (auto const& stage : *list) {
@@ -101,7 +102,9 @@ std::string EmitStageProgram(StageProgramSpec const& s) {
   for (std::size_t i = 0; i < s.stages.size(); ++i) {
     auto const& stage = s.stages[i];
     if (i + 1 == s.stages.size()) {
-      o << "      if (" << s.loop.index << " + 1 == " << s.loop.end << ") {\n";
+      o << "      if (" << s.loop.index << " + 1 == " << s.loop.end;
+      if (!s.terminal_condition.empty()) o << " && (" << s.terminal_condition << ")";
+      o << ") {\n";
       // The terminal packet is consumed before leaving its defining scope.
       call(stage, stage.name + "Last", stage.terminal_next, stage.terminal_prefetch_operands, true, "        ");
       o << "        barrier();\n";

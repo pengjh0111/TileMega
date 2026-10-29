@@ -717,6 +717,7 @@ if(TILEMEGA_BUILD_TESTS)
     ${CMAKE_SOURCE_DIR}/test/python/test_mx5_plan_receipt.py
     ${CMAKE_SOURCE_DIR}/test/python/test_mx5_plan_occupancy.py
     ${CMAKE_SOURCE_DIR}/test/python/test_mx5_stage_program_scope.py
+    ${CMAKE_SOURCE_DIR}/test/python/test_mx5_prompt_stage_program.py
     ${CMAKE_SOURCE_DIR}/test/python/test_mx_p0_alignment.py
     ${CMAKE_SOURCE_DIR}/test/python/test_mx_outcome_domain.py
     ${CMAKE_SOURCE_DIR}/test/python/test_mx5_stage_reference.py)

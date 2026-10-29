@@ -40,6 +40,8 @@ struct StageProgramSpec {
   std::string run_parameters = "Binding const& b, int past, char* smem, backend::mx::MxSharedTokensV2* tokens";
   std::string entry_prefetch_operands;
   std::string runtime_header;
+  // Prompt loops execute their vocabulary tail only for the final prompt token.
+  std::string terminal_condition;
 };
 
 // Emit concrete type aliases and straight-line Run calls inside one layer
