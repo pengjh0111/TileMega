@@ -559,3 +559,36 @@ tests including rejecting a MoE table applied to a dense bridge. Device bodies,
 cost snapshots, reference numerics and thresholds are unchanged. Raw:
 moe_regular_grouped_head_coverage_cpu_v2/shared_dense_host_ctest_v2.log,
 moe_regular_grouped_head_coverage_cpu_v2/cli_preview_pytest_v3.log.
+
+
+Verified head576130 completes three fresh processes and the source-bound
+aggregator. Together with the unchanged512 reuse150 and20 actual576 terminal
+rejections, all300 head outcomes are complete. Combined regular/grouped/head
+coverage is2156 outcomes (1874 measured costs,282 resource rejections). Ten
+structured CPU audits each report exactly324 missing router coordinates and
+no missing non-router coordinates. Raw: moe_head_complete_outcomes_cpu_v1,
+moe_nonrouter_complete_geometry_cpu_v3.
+
+Verified the new MoE-only occupancy helper validates exact native symbols,
+Plan geometry, ELF/same-compile MIR, identity/receipt and host shared-byte
+query before querying MACA attributes. It reuses the existing runtime ABI and
+guard checker without changing the dense helper. Seventeen CPU tests pass,
+including sixteen actual program/context combinations, negative bindings and
+recording an injected loader failure without overwriting its result. A guarded
+card7 job queries all eight normal adopted-rank manual programs with zero
+kernel launches: MT235–249, frame/static0, resident1. This is not model timing
+or a512 exception. Raw: moe_plan_occupancy_helper_cpu_v1,
+moe_whole_plan_queries_after_head_v1.
+
+Verified four normal adopted-rank minimum576 controls (B1/B16 prompt/decode)
+compile successfully at the device-compiler level, then are rejected by the
+zero-stack gate: B1 prompt/decode frames512/464B, B16 prompt/decode464/480B,
+allMT168/static0. The corresponding actual zero-launch queries report
+resident1 and identical attributes for all four. Occupancy success does not
+override their positive-frame rejection; these observations do not claim
+occupancy0 or a global576 impossibility. Twelve actual adopted-rank program
+resource/query rows are appended to MX5_resources_c550.csv; no old row is
+modified. Minimum controls are not selected plans or granted512 exceptions.
+Raw: moe_rank_adopted_min576_programs_cpu_v1,
+moe_adopted_min576_zero_queries_v1. A missing CPU PYTHONPATH attempt stopped
+before request creation/GPU dispatch and remains separately logged.
