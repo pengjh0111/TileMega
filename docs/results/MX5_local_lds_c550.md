@@ -1186,3 +1186,43 @@ Card5 startsB8onlyafterallS4 PPAIRguardsfinish;remainingfixedqueues use
 cards6/5,oneguardjob/card,atmost2cards,originalsource/protocol/prefillL1/
 C1/C2/top4/measurementcriteria. No finalgateis waived. Thependinghandoff
 isnot claimedcomplete;rawremaining_dense_two_card_dispatch_v1.
+
+
+Verified isolated MoE CPUpreparation duringremaining denseGPU validation:
+AnalyzeMxMoe draftdirectly readsModelPlan andvalidates layerstages,
+projectionshapes,gather/scatter/dispatch/recipe/rounding contracts;five
+actualbatchplans passand50specificmutants rejectwithlayer/location.
+Initialtest compilemissed DmDescriptorCodec include;then initialanalyzer
+incorrectlyrequiredBF16headoutput. Bothattempts remain. Correctheadcontract
+isFP32argmaxvalues/I32indices,explicitlyboundtoreducer;oraclesunchanged.
+Draftsources remainunderignoredruns;no compilerentryintegration orMoEGPU
+execution. Thisis CPUpreparation beforedense25finishes,notformalphaseE
+acceptance. Raw:moe_analyzer_cpu_preparation_v1.
+
+Verified isolated router/topk/dispatch helper CPUcompilation:20instances
+(B1/2/4/8/16 xweightsFP32/BF16 xthreads512/576) have20–24MT,frame0,
+staticSMEM0,andexactfunctionMIR generic/addrspace0/calls/private0.
+Thefirstattempt usedAS1assignmentofCUDAuint2/uint4structs,whichMACArejects;
+separatev2 usesexisting nativeext-vector8/16B stores,arithmeticunchanged.
+RankcountusesroundedBF16logits,stablelowerindex ties;expf/sum isrankordered;
+activeexperts androwsarewritteninexpert/(b,k) order. Theseareimplemented
+sourcecontracts;GPUequivalence/occupancy/determinism remainuntested.
+Raw:moe_router_cpu_preparation_v1;no nativeplan,measurement ordefaultclaim.
+
+
+Verified ownedCPU handoffoccurredonlyaftertheexisting B4childexited0;
+raw/procwaitstatus ispreserved. InitialnewCPUappendrefusedWD1 queryargv
+becauseoldactualrunnerused/opt/conda/bin/python butnewappender used
+/opt/conda/bin/python3. No modelmeasurement failedorCSVrowwaswrittenby
+thatattempt. Exactoldinterpreter nowrerunsstrictindependentverification,
+passesandappends B4;oldfailurelog/process stayunchanged,new_v2 pathsused.
+No verifiercondition orartifact/data waschanged. Recoverycard6queue handles
+B16/8BB4;originalnewqueue'scard5threadcontinues B8/8BB2/8BB8. Thefirst
+newcard6thread failureisCPUmetadata-only,not aGPUfailure;finalcompletion
+usesanexplicitv2collector instead ofclaimingthefailedparent completed.
+Raw:remaining_dense_two_card_dispatch_v1.
+
+Verified isolatedanalyzer v4adds FP32-before-BF16 RMSrounding,exactQ/Knorm
+vectorlength,unitOresidualscale andF32headpartialnegativecases:fiveactual
+plans and70specificmutants pass;previous5/50result andfailedattemptsretained.
+No nativecompilerintegration orMoE GPUexecution yet.
