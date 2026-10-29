@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Codegen/MxMoeModel.h>
 #include <tilemega/Frontend/ExportBridge.h>
+#include <llvm/Support/JSON.h>
 #include <cassert>
 #include <functional>
 #include <iostream>
@@ -22,14 +23,14 @@ ModelPlan Fixture(unsigned batch,unsigned layers,bool merge,bool fp32) {
     stage(PlanTaskKind::kGemm).gemm=id;return id;
   };
   auto fold=[](std::string leaf){return "{\"kind\":\"fold_rmsnorm\",\"norm\":\"gamma\",\"source\":"+leaf+"}";};
-  unsigned tokens=buffer("tokens","i32"),embed=buffer("embed","bf16",true),cos=buffer("cos"),sin=buffer("sin"),current=buffer("x0");p.buffers[tokens].role="external";
+  unsigned tokens=buffer("tokens","i32"),embed=buffer("embed","bf16",true),cos=buffer("cos"),sin=buffer("sin"),current=buffer("x0");p.buffers[tokens].role="external";p.buffers[cos].role=p.buffers[sin].role="external";
   auto& embedding=stage(PlanTaskKind::kEmbedding);embedding.operands[0]=tokens;embedding.operands[1]=embed;embedding.operands[2]=current;embedding.width=2048;embedding.extent=151936;
   for(unsigned l=0;l<layers;++l) {
     std::string const prefix="layer"+std::to_string(l)+".";
     unsigned qkv_out=buffer(prefix+"qkv"),context=buffer(prefix+"context"),xprime=buffer(prefix+"xprime"),statistics=buffer(prefix+"stats","f32");
     unsigned qweight=buffer(prefix+"qweight","bf16",true,fold(R"({"kind":"qkv_group_interleave","hkv":4,"qperkv":8,"head_dim":128})"));
     unsigned q=gemm(5120,2048,current,qweight,qkv_out);p.gemms[q].norm_ss=statistics;
-    unsigned kc=buffer(prefix+"k"),vc=buffer(prefix+"v"),qn=buffer(prefix+"qn","bf16",true),kn=buffer(prefix+"kn","bf16",true);p.buffers[qn].constant=p.buffers[kn].constant=128;
+    unsigned kc=buffer(prefix+"k"),vc=buffer(prefix+"v"),qn=buffer(prefix+"qn","bf16",true),kn=buffer(prefix+"kn","bf16",true);p.buffers[qn].constant=p.buffers[kn].constant=128;p.buffers[kc].role=p.buffers[vc].role="external";
     auto& att=stage(PlanTaskKind::kFusedAttention);att.extent=4;att.width=128;att.group=8;
     att.operands[0]=qkv_out;att.operands[1]=kc;att.operands[2]=vc;att.operands[3]=cos;att.operands[4]=sin;att.operands[5]=qn;att.operands[6]=kn;att.operands[7]=context;
     if(merge){auto& a=stage(PlanTaskKind::kAttentionMerge);a.extent=4;a.width=128;a.group=8;a.operands[2]=context;}
@@ -56,16 +57,30 @@ int main(int argc,char** argv) {
   for(unsigned b:{1u,2u,4u,8u,16u})for(unsigned layers:{1u,2u,24u})for(bool merge:{false,true})for(bool fp32:{false,true}) {
     auto p=Fixture(b,layers,merge,fp32);auto m=AnalyzeMxMoe(p);
     assert(m.batch==b&&m.layers.size()==layers&&m.hidden==2048&&m.hkv==4&&m.queries==8&&m.routing_weights_fp32==fp32);++positive;
+    auto prepared=PrepareMxMoeBuffersV2(p,{16,32,64,64,128,128});
+    assert(prepared.size()==m.external_buffers.size());unsigned wrapped=0;
+    for(unsigned index=0;index<prepared.size();++index) {
+      auto const& native=prepared[index];auto const& original=m.external_buffers[index];
+      assert(native.original_index==original.original_index&&native.buffer.name==original.buffer.name&&native.buffer.dtype==original.buffer.dtype&&native.buffer.constant==original.buffer.constant&&native.buffer.per_batch==original.buffer.per_batch);
+      if(native.slot==MxMoeSlotV2::kQkv||native.slot==MxMoeSlotV2::kO||native.slot==MxMoeSlotV2::kRouter||native.slot==MxMoeSlotV2::kGateUp||native.slot==MxMoeSlotV2::kDown||native.slot==MxMoeSlotV2::kHead) {
+        auto recipe=llvm::json::parse(native.buffer.pack_json);assert(recipe);auto* tile=recipe->getAsObject();assert(tile&&tile->getString("kind")=="tile_pages"&&tile->getString("layout")=="xcore_mma"&&tile->getInteger("tile_k")==32);++wrapped;
+      } else assert(native.buffer.pack_json==original.buffer.pack_json);
+    }
+    assert(wrapped==5*layers+1);
+    for(auto invalid:{MxMoeWeightTilesV2{16,32,64,16,128,128},MxMoeWeightTilesV2{16,32,64,64,128,0}}) {
+      bool rejected=false;try{PrepareMxMoeBuffersV2(p,invalid);}catch(std::invalid_argument const&){rejected=true;}assert(rejected);
+    }
     auto reject=[&](std::string const& location,std::function<void(ModelPlan&)> mutate){auto q=p;mutate(q);bool failed=false;try{AnalyzeMxMoe(q);}catch(std::invalid_argument const& e){failed=std::string(e.what()).find(location)!=std::string::npos;}if(!failed)throw std::runtime_error(std::string("missing rejection: ")+location);++negative;};
     reject("layer 0 qkv",[&](auto& q){q.gemms[q.stages[m.layers[0].qkv].gemm].n+=16;});
     reject("layer 0 dispatch",[&](auto& q){q.stages[m.layers[0].dispatch].moe.step=DmMoeStep::kSelect;});
+    reject("layer 0 router recipe",[&](auto& q){q.buffers[q.gemms[q.stages[m.layers[0].router].gemm].b].pack_json="{";});
     reject("layer 0 router recipe",[&](auto& q){q.buffers[q.gemms[q.stages[m.layers[0].router].gemm].b].pack_json="{}";});
     reject("layer 0 expert recipes",[&](auto& q){auto& recipe=q.buffers[q.gemms[q.stages[m.layers[0].gate_up].gemm].b].pack_json;auto pos=recipe.find("gamma");recipe.replace(pos,5,"other");});
     reject("layer 0 gate_up",[&](auto& q){q.gemms[q.stages[m.layers[0].gate_up].gemm].chain.operations[1].output_rounding=DmRounding::kFP32;});
     reject("layer 0 experts",[&](auto& q){q.gemms[q.stages[m.layers[0].down].gemm].access.write.kind=DmWriteKind::kDense;});
     reject("layer "+std::to_string(layers)+" head",[&](auto& q){q.gemms[m.head_gemm].n+=16;});
   }
-  if(argc==2){auto bridge=ReadExportBridge(argv[1]);for(unsigned b:{1u,2u,4u,8u,16u}){ServingOptions o;o.moe_batch=b;o.capacity=1088;o.phase=ServingOptions::Phase::kDecode;o.seq=1;o.deferred_norm=true;auto p=BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,o);auto m=AnalyzeMxMoe(p);assert(m.batch==b&&m.layers.size()==24&&m.external_buffers.size()==246);++positive;}}
+  if(argc==2){auto bridge=ReadExportBridge(argv[1]);for(unsigned b:{1u,2u,4u,8u,16u}){ServingOptions o;o.moe_batch=b;o.capacity=1088;o.phase=ServingOptions::Phase::kDecode;o.seq=1;o.deferred_norm=true;auto p=BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,o);auto m=AnalyzeMxMoe(p);assert(m.batch==b&&m.layers.size()==24&&m.external_buffers.size()==246);auto buffers=PrepareMxMoeBuffersV2(p,{16,32,64,64,128,128});assert(buffers.size()==246);unsigned unused=0;for(auto const& row:buffers)unused+=row.slot==MxMoeSlotV2::kUnused;assert(unused==25);++positive;}}
   std::cout<<"PASS portable MoE analysis positive="<<positive<<" negative="<<negative<<" GPU_calls=0\n";return 0;
  }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}
 }

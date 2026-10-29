@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Codegen/MxMoeModel.h>
 #include <llvm/Support/JSON.h>
+#include <llvm/Support/raw_ostream.h>
+#include <map>
 #include <cmath>
 #include <set>
 #include <stdexcept>
@@ -29,7 +31,11 @@ struct Reader {
   }
   llvm::json::Object Recipe(unsigned id,std::string const& where)const {
     auto value=llvm::json::parse(Buffer(id,where).pack_json);
-    Need(bool(value),where,"malformed weight recipe");auto* object=value->getAsObject();
+    if (!value) {
+      llvm::consumeError(value.takeError());
+      Fail(where,"malformed weight recipe");
+    }
+    auto* object=value->getAsObject();
     Need(object!=nullptr,where,"weight recipe must be object");return *object;
   }
   std::string String(llvm::json::Object const& o,char const* name,std::string const& where)const {
@@ -131,4 +137,80 @@ MxMoeModel AnalyzeMxMoe(frontend::ModelPlan const& p) {
   }
   return m;
 }
+std::vector<MxMoeExternalBuffer> PrepareMxMoeBuffersV2(
+    frontend::ModelPlan const& plan, MxMoeWeightTilesV2 const& tiles) {
+  auto const model = AnalyzeMxMoe(plan);
+  using Slot = MxMoeSlotV2;
+  struct Binding { Slot slot; unsigned layer, tn; };
+  std::map<unsigned, Binding> bindings;
+  auto bind = [&](unsigned id, Slot slot, unsigned layer, unsigned tn = 0) {
+    if (!bindings.emplace(id, Binding{slot, layer, tn}).second)
+      throw std::invalid_argument("MX MoE buffers: duplicate binding index");
+  };
+  auto weight = [&](unsigned stage, Slot slot, unsigned layer, unsigned tn) {
+    if (!(tn == 16 || tn == 32 || tn == 64 || tn == 128))
+      throw std::invalid_argument("MX MoE buffers: TN outside {16,32,64,128}");
+    auto const& gemm = plan.gemms.at(plan.stages.at(stage).gemm);
+    if (gemm.n % tn || gemm.k % 32 || (slot == Slot::kGateUp && tn % 32))
+      throw std::invalid_argument("MX MoE buffers: incomplete matrix/gate-pair tile");
+    bind(gemm.b, slot, layer, tn);
+  };
+  bind(model.tokens, Slot::kTokens, 0);
+  bind(model.embed, Slot::kEmbed, 0);
+  bind(model.cosine, Slot::kCosine, 0);
+  bind(model.sine, Slot::kSine, 0);
+  for (unsigned l = 0; l < model.layers.size(); ++l) {
+    auto const& layer = model.layers[l];
+    weight(layer.qkv, Slot::kQkv, l, tiles.qkv);
+    weight(layer.o, Slot::kO, l, tiles.o);
+    weight(layer.router, Slot::kRouter, l, tiles.router);
+    weight(layer.gate_up, Slot::kGateUp, l, tiles.gate_up);
+    weight(layer.down, Slot::kDown, l, tiles.down);
+    bind(layer.q_norm, Slot::kQNorm, l);
+    bind(layer.k_norm, Slot::kKNorm, l);
+    bind(layer.k_cache, Slot::kKCache, l);
+    bind(layer.v_cache, Slot::kVCache, l);
+  }
+  bind(plan.gemms.at(model.head_gemm).b, Slot::kHead, 0, tiles.head);
+  if (!(tiles.head == 16 || tiles.head == 32 || tiles.head == 64 || tiles.head == 128) ||
+      model.vocabulary % tiles.head || model.hidden % 32)
+    throw std::invalid_argument("MX MoE buffers: invalid head tile");
+  auto rows = model.external_buffers;
+  for (auto& row : rows) {
+    auto found = bindings.find(row.original_index);
+    if (found == bindings.end()) continue;
+    auto const& b = found->second;
+    row.slot = b.slot;
+    row.layer = b.layer;
+    if (b.tn) {
+      auto recipe = llvm::json::parse(row.buffer.pack_json.empty() ? "{}" : row.buffer.pack_json);
+      if (row.buffer.pack_json.empty()) {
+        llvm::json::Object alias;
+        alias["kind"] = "alias";
+        alias["source"] = row.buffer.name;
+        recipe = llvm::json::Value(std::move(alias));
+      }
+      if (!recipe) {
+        llvm::consumeError(recipe.takeError());
+        throw std::invalid_argument("MX MoE buffers: malformed original weight recipe");
+      }
+      llvm::json::Object tiled;
+      tiled["kind"] = "tile_pages";
+      tiled["layout"] = "xcore_mma";
+      tiled["tile_n"] = b.tn;
+      tiled["tile_k"] = 32;
+      tiled["source"] = std::move(*recipe);
+      std::string text;
+      llvm::raw_string_ostream stream(text);
+      stream << llvm::json::Value(std::move(tiled));
+      stream.flush();
+      row.buffer.pack_json = std::move(text);
+    }
+    bindings.erase(found);
+  }
+  if (!bindings.empty())
+    throw std::invalid_argument("MX MoE buffers: a native operand is not external or weight-backed");
+  return rows;
+}
+
 }

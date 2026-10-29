@@ -10,9 +10,18 @@ struct MxMoeLayer {
   unsigned q_norm, k_norm, k_cache, v_cache;
   DmEpilogueChain gate_chain;
 };
+enum class MxMoeSlotV2 {
+  kUnused, kTokens, kEmbed, kCosine, kSine, kHead,
+  kQkv, kO, kRouter, kGateUp, kDown, kQNorm, kKNorm, kKCache, kVCache
+};
+struct MxMoeWeightTilesV2 {
+  unsigned qkv, o, router, gate_up, down, head;
+};
 struct MxMoeExternalBuffer {
   unsigned original_index;
   frontend::PlanBuffer buffer;
+  MxMoeSlotV2 slot = MxMoeSlotV2::kUnused;
+  unsigned layer = 0;
 };
 struct MxMoeModel {
   unsigned batch, capacity, hidden, heads, hkv, dim, queries, experts, top_k, intermediate, vocabulary;
@@ -24,4 +33,6 @@ struct MxMoeModel {
   std::vector<MxMoeExternalBuffer> external_buffers;
 };
 MxMoeModel AnalyzeMxMoe(frontend::ModelPlan const& plan);
+std::vector<MxMoeExternalBuffer> PrepareMxMoeBuffersV2(
+    frontend::ModelPlan const& plan, MxMoeWeightTilesV2 const& tiles);
 }
