@@ -430,3 +430,12 @@ terminated. Fresh eager-reference manual C1/C2 and routing are queued; existing
 cost and isolated rank-experiment queues retain their frozen inputs.
 Raw: `moe_hf_eager_authorization_v1`, `moe_manual_correctness_eager_v3`,
 `moe_manual_routing_eager_v2`.
+
+Verified fresh guarded manual controls now pass B1 and B16 C-1/C-2,512steps
+each. Native L1-separate/loop mismatches are0/0 for both batches. HF eager C-1
+gap≤.5 ratios are1/1, maximum gaps .0625/.109375, on512/8192 positions;
+required ratio .99 and allowed maximum3 remain unchanged. Four actual rows
+with round/executor/implementation/result/guard hashes are appended to
+`MX5_moe_controls_c550.csv`, explicitly manual_control_unselected. These
+results neither choose top4 nor grant per-plan512 or final G-MOE acceptance.
+Raw: `moe_manual_correctness_eager_v3`.
