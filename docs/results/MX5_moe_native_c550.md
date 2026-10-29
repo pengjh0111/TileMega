@@ -686,3 +686,30 @@ Completion is instead checked from all12 actual per-context aggregates. This
 changes scheduling only; each key still uses three fresh processes on one
 card,40960MiB admission,900s timing limits, at most cards6/7 concurrently.
 Raw: moe_router_rank_card7_last4_pipeline_v1.
+
+
+Verified original candidate preparation now replays the exact native host
+ranking against the same bridge/table/producer and checks the complete file
+and body-source evidence before writing jobs. It rejects edited pins, costs,
+ranks, missing prompt pairs and changed table bytes. Every original candidate
+gets its own prompt/decode pair at watchdog0 and1, sharing its actual pin.
+The combined host integration/provenance suite passes37 CPU tests. No device
+compilation or model acceptance follows from those synthetic host fixtures.
+A frozen CPU queue waits for all real cost/preview/evidence markers, then
+prepares and normally compiles80 diagnostic plans (5B×4 candidates×2phases×2WD),
+records resource/MIR outcomes, validates actual prompt/decode bindings when
+both fit and prepares zero-launch query inputs. Resource failures are retained;
+no fallback, query/kernel launch,512 exception or final selection is applied.
+Raw: moe_candidate_build_preparation_cpu_v1,
+moe_original_top4_pairs_after_complete_cpu_v1. A missing parenthesis in the
+initial queue script fails CPU parsing before queue creation; its source/log
+remain. The corrected queue parses and waits without submitting any build.
+
+Verified extraction of twelve existing normal-program compiler logs finds all
+eight512-thread adopted-rank controls report staticMaxWarps/PEU2 with frame0;
+the four576-thread minimum controls report3 with MT168/frame464–512B. This is
+compiler-report evidence only, not proof of a hardware register limit, an
+allocator defect, a minimum body requirement or a per-plan512 exception.
+R_cap220/248 and the prompt's227/255 resource limits remain unchanged.
+Raw: moe_576_effective_register_budget_probe_cpu_v1/
+ACTUAL_TWELVE_NORMAL_PROGRAM_PEU_RESOURCE_RECORDS_CPU.json.
