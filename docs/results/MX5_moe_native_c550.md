@@ -726,3 +726,25 @@ not compiler resource-rejection or hardware-limit evidence. No kernel runs,
 GPU process, model body or acceptance policy changes. Raw:
 moe_576_effective_register_budget_probe_cpu_v1/
 ACTUAL_SYNTHETIC_PROBE_OUTCOMES_CLASSIFIED_CPU.json.
+
+
+Verified the third adopted router context GU-TN32/DN-TN64 completes220 costs
+from57 fresh processes plus50 actual resource rejections, with source-bound
+aggregation and the new raw-file checker passing. The first three contexts
+therefore cover810 outcomes (660 measured,150 rejected); combined with the
+2156 non-router outcomes,2966 geometric outcomes are complete. The remaining
+nine router contexts are still pending/active; a complete5396 table, solver
+selection or model acceptance is not claimed. Raw:
+moe_router_rank_complete_outcomes_cpu_v1/g32_d64_geometry_outcomes.json,
+moe_cost_provenance_cpu_v1/third_router_context_file_evidence_cpu.json.
+
+Verified the earlier single-position QKV diagnosis is sharpened: all2048
+original layer0 RMS gamma elements equal1. The folded-W/consumer-RMS CPU
+contract matches5119/5120 native QKV elements; the activation-RMS CPU contract
+matches5118/5120 HF elements. Predicted versus actual difference vectors
+match5117/5120 elements, with residual L2 .0116113 of the actual difference.
+At this position, gamma folding is neutral; moving RMS across GEMM and the
+BF16 activation-rounding placement explains most of the observed difference.
+This remains a CPU diagnostic at one position; it neither changes the formal
+reference nor proves the cause of all31/468 failed routing positions. Raw:
+moe_qkv_rounding_attribution_cpu_v2.
