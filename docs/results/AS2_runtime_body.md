@@ -470,7 +470,11 @@ Request reset clears both representations. Existing three-phase owner/AIV0
 GM ready/done/reverse-ack and all visibility fences remain unchanged. Metadata
 and paired-phase validation reject aliasing, missing reset, mixed variants,
 wrong extent/dtype and standalone execution before launch. Initially restricted
-to Qwen0.6 B16; other model/shape support is not inferred from this result.
+to Qwen0.6 B16 initially. Qwen1.7 B16 now independently passes actual priced
+full1024/teacher512 bitwise, C2 (148 files) and C3 (5/5 processes,10 requests).
+Both remain non-default: Qwen0.6 final timing is inconclusive under its frozen
+noise guard; Qwen1.7 has pilot data only. Five-dense B16 metadata shapes now
+pass CPU contracts; three new Llama candidates still require device admission.
 
 `verified-run`: repriced full64/1024 logits/tokens/56 last KV outputs and
 teacher512 are bitwise equal to the independent reference. Fast/diagnostic

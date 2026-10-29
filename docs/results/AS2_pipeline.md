@@ -290,7 +290,16 @@ match the device-tested Plan byte-for-byte. Subsequent measured subphase
 attribution identifies repeated BF16→FP32 KV conversion/tail initialization.
 Body9 adds request-reset derived FP32 state, preserving authoritative BF16 and
 mathematics. It passes repriced full1024, teacher512, C2 and C3 5/5. A second
-actual native outer search selects Body9, predicted52.379→33.485ms; full-request
-timing admission remains pending. Source/table receipts link both outer results
+actual native outer search selects Body9, predicted52.379→33.485ms. Five final
+process pairs observe TPOT51.187→34.420ms but exceed the frozen noise guard;
+status inconclusive, Body9 remains non-default. Source/table receipts link both outer results
 to their NPU evidence. This bounded family still does not complete multi-family
 geometry/decomposition/G optimization or original G-PIPELINE. See the TPOT report.
+
+`verified-run`, 2026-10-29: Qwen1.7 B16 separately measured Body6/9 prices feed
+two real native decode candidates; cached9 is selected and the actual priced
+request passes full1024/teacher512/C2/C3 five-process validation. Its complete
+pilot TPOT58.768→41.473ms is not final acceptance. Fixed Body9 structural
+versus priced queues gives40.389 versus41.473ms in the same pilot; no scheduling
+speedup is claimed. Three Llama cache candidates are being rebuilt from their
+own CTGs/decompositions, with no manual queue or baseline changes.
