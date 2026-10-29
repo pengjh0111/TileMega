@@ -25,12 +25,29 @@ struct Sm90DenseMoeSchedule {
 };
 
 // M4's last arriver (count modulo the router's tasks; the counter only
-// grows). Ties keep the smaller expert and the probabilities are the
-// softmax of the selected BF16 logits, as MoETopKTaskBody computes them.
-template<int Batch,int Experts,int TopK,int Tasks,bool FloatWeights>
+// grows). MR3: each lane holds E/32 keys (ord16(bf16 logit) << 16) |
+// (0xFFFF - e), so one __reduce_max_sync per round picks the largest logit
+// and, among equal logits, the smaller expert; a warp runs its tokens
+// (b = w mod 4) interleaved. SoftmaxAll: weights are the full-E softmax at
+// the selected experts (OLMoE, norm_topk_prob = false); otherwise the
+// softmax of the selected logits (Qwen3, norm_topk_prob = true).
+template<int Batch,int Experts,int TopK,int Tasks,bool FloatWeights,bool SoftmaxAll=false>
 struct Sm90DenseRouterFinish {
   using Schedule=Sm90DenseMoeSchedule<Experts>;
-  static_assert(Experts==128 && TopK<=8 && Batch<=Schedule::kMaxRows);
+  static_assert((Experts==64 || Experts==128) && TopK<=8 && Batch<=Schedule::kMaxRows);
+  static constexpr int kPer=Experts/32,kTokens=(Batch+3)/4;
+  // Logits are FP32 holding BF16 values, so the BF16 bits are the high half.
+  // -0 is folded onto +0: the R3 float comparison treats them as equal (U5).
+  __device__ static __forceinline__ unsigned Key(float logit,int e) {
+    unsigned h=__float_as_uint(logit)>>16;
+    if(h==0x8000u)h=0;
+    unsigned order=h&0x8000u?~h&0xffffu:h|0x8000u;
+    return order<<16|(0xffffu-unsigned(e));
+  }
+  __device__ static __forceinline__ float Value(unsigned key) {
+    unsigned order=key>>16,h=order&0x8000u?order&0x7fffu:~order&0xffffu;
+    return __uint_as_float(h<<16);
+  }
   __device__ __forceinline__ void operator()(Sm90DenseMoeOperands const& p,int tasks,char* free) const {
     if(!tasks)return;
     int tid=threadIdx.x,warp=tid>>5,lane=tid&31;
@@ -46,38 +63,51 @@ struct Sm90DenseRouterFinish {
     codegen::executor::ComputeSync();
     if(!*flag)return;
     auto const* logits=static_cast<float const*>(p.output);
-    for(int b=warp;b<Batch;b+=4) {
-      float value[Experts/32];
+    float value[kTokens][kPer];unsigned key[kTokens][kPer],chosen[kTokens][TopK];
+    #pragma unroll
+    for(int j=0;j<kTokens;++j)
       #pragma unroll
-      for(int i=0;i<Experts/32;++i)value[i]=logits[b*Experts+lane+32*i];
-      float chosen[TopK];int index[TopK];
-      #pragma unroll
-      for(int k=0;k<TopK;++k) {
-        float best=-INFINITY;int id=INT_MAX;
-        #pragma unroll
-        for(int i=0;i<Experts/32;++i)
-          if(value[i]>best || (value[i]==best && lane+32*i<id)) {best=value[i];id=lane+32*i;}
-        #pragma unroll
-        for(int d=16;d;d>>=1) {
-          float v=__shfl_xor_sync(0xffffffff,best,d);int e=__shfl_xor_sync(0xffffffff,id,d);
-          if(v>best || (v==best && e<id)) {best=v;id=e;}
-        }
-        chosen[k]=best;index[k]=id;
-        #pragma unroll
-        for(int i=0;i<Experts/32;++i)if(id==lane+32*i)value[i]=-INFINITY;
+      for(int i=0;i<kPer;++i) {
+        int b=warp+4*j;
+        value[j][i]=b<Batch?logits[b*Experts+lane+32*i]:0.0f;
+        key[j][i]=b<Batch?Key(value[j][i],lane+32*i):0u;
       }
-      if(lane==0) {
-        float probability[TopK],sum=0;
+    #pragma unroll
+    for(int k=0;k<TopK;++k)
+      #pragma unroll
+      for(int j=0;j<kTokens;++j) {
+        unsigned best=0;
         #pragma unroll
-        for(int k=0;k<TopK;++k) {probability[k]=expf(chosen[k]-chosen[0]);sum+=probability[k];}
+        for(int i=0;i<kPer;++i)best=max(best,key[j][i]);
+        best=__reduce_max_sync(0xffffffffu,best);
+        chosen[j][k]=best;
+        // Keys are unique (they carry the expert), so one lane clears it.
         #pragma unroll
-        for(int k=0;k<TopK;++k) {
-          p.route_index[b*TopK+k]=index[k];selected[b*TopK+k]=index[k];
-          float weight=probability[k]/sum;
+        for(int i=0;i<kPer;++i)if(key[j][i]==best)key[j][i]=0;
+      }
+    #pragma unroll
+    for(int j=0;j<kTokens;++j) {
+      int b=warp+4*j;
+      if(b>=Batch)break;
+      float top=Value(chosen[j][0]),sum=0;
+      if constexpr(SoftmaxAll) {
+        #pragma unroll
+        for(int i=0;i<kPer;++i)sum+=expf(value[j][i]-top);
+        #pragma unroll
+        for(int d=16;d;d>>=1)sum+=__shfl_xor_sync(0xffffffffu,sum,d);
+      }else {
+        #pragma unroll
+        for(int k=0;k<TopK;++k)sum+=expf(Value(chosen[j][k])-top);
+      }
+      #pragma unroll
+      for(int k=0;k<TopK;++k)
+        if(lane==k) {
+          int index=int(0xffffu-(chosen[j][k]&0xffffu));
+          float weight=expf(Value(chosen[j][k])-top)/sum;
+          p.route_index[b*TopK+k]=index;selected[b*TopK+k]=index;
           if constexpr(FloatWeights)static_cast<float*>(p.route_weights)[b*TopK+k]=weight;
           else static_cast<cutlass::bfloat16_t*>(p.route_weights)[b*TopK+k]=cutlass::bfloat16_t(weight);
         }
-      }
     }
     codegen::executor::ComputeSync();
     // Thread e collects its rows; active experts take ascending slots.
@@ -104,7 +134,7 @@ struct Sm90DenseRouterFinish {
 // weights fits the card; recorded deviation from §8's per-TN packing). A
 // slot is then assembled from runs of whole or half pages per 64-column panel.
 template<int Batch,int N,int K,int TN,int TK,int Slots,int WN,int WK,Sm90DenseMoeMode Mode,int U,
-         int Experts,int TopK,bool FloatWeights,int Page=0,int RegisterStages=1>
+         int Experts,int TopK,bool FloatWeights,int Page=0,int RegisterStages=1,bool SoftmaxAll=false>
 struct Sm90DenseMoeGemm {
   static constexpr bool kInputNorm=Mode!=Sm90DenseMoeMode::kDown;
   using Core=Sm90DenseGemm<Batch,N,K,TN,TK,Slots,WN,WK,ServingEpilogueOp::kStore,U,kInputNorm,
@@ -121,7 +151,7 @@ struct Sm90DenseMoeGemm {
   static_assert(Batch<=Schedule::kMaxRows && Experts<=128 && TopK<=8);
   static_assert(Mode!=Sm90DenseMoeMode::kGateUp || TN%(2*U)==0);
   static_assert(Page==0 || (Page==64 && kDynamic && TN%32==0 && N%64==0 && K%64==0));
-  using RouterFinish=Sm90DenseRouterFinish<Batch,Experts,TopK,kTiles,FloatWeights>;
+  using RouterFinish=Sm90DenseRouterFinish<Batch,Experts,TopK,kTiles,FloatWeights,SoftmaxAll>;
 
   __device__ static __forceinline__ int TotalTasks(Sm90DenseMoeOperands const& p) {
     if constexpr(kDynamic)return p.schedule[Schedule::Active()]*kTiles;
