@@ -980,3 +980,24 @@ superseded before GPU submission; no GPU child or other process was signalled.
 Raw: USER_FOUR_CARD_PARALLEL_AMENDMENT_20261030.json,
 moe_router_rank_card4_last_context_v1, moe_D7_512_WD0_card5_queries_v1,
 moe_D7_512_card5_checks_v1. Multi-card scheduling does not imply model acceptance.
+
+Verified all eight new WD0/WD1 development plans have actual resident1,
+localSizeBytes0 and zero kernel launches during their queries on card5.
+New B1 WD1 C-1/C-2 pass512 steps: zero separate/loop mismatches, max HF
+gap.0625 and gap≤.5 ratio1. Its512 generated tokens also match the earlier
+adopted manual control. B16 checks remain running. A sequential card5 queue
+waits for both checks, then runs P-PAIR of the old D-width controls versus
+the new derived-prefetch controls, two fresh processes/arm, warm1/timed2,
+ISL64/OSL1024,900s per cell, own prompt binaries, no trace/step events.
+Request reports will be rebound to actual binaries and raw token files.
+This is an internal manual comparison, not final top4 selection or routing
+acceptance. Raw: moe_D7_512_card5_checks_v1, moe_D7_prefetch_ppair_card5_v1.
+
+Verified CPU counts from the historical manual64-step route captures:
+B1 n_active is always8; B16 min/median/mean/max=64/77/77.160807/87, versus
+the prescribed uniform bench82. Each captured layer has exactly B×8 routes
+with distinct per-token expert IDs. This is activity in the historical
+captures, not a final-model or TPOT attribution; bench values remain exactly
+as specified. Raw: moe_observed_route_activity_cpu_v1. The initial inline
+attempt has a Python syntax error before any input read; the file replay
+fixes that syntax and succeeds without changing any data.
