@@ -61,8 +61,13 @@ class As2Queue(unittest.TestCase):
                  argv=['python','-c','pass'],output=str(queue.RUNS/'bench/test'))
         queue.validate_job(job)
         for field,value in [('timeout_s',0),('timeout_s',901),('physical_device',2),
-                            ('output','/tmp/no'),('argv','python -c pass')]:
+                            ('output','/tmp/no'),('argv','python -c pass'),
+                            ('expected_output_bytes',-1),('storage_family','invalid/request')]:
             with self.assertRaises(ValueError):queue.validate_job(dict(job,**{field:value}))
+        disk=dict(generated_bytes=950,generated_soft_budget_bytes=1000)
+        candidate=dict(job,expected_output_bytes=100)
+        self.assertFalse(queue.output_budget_available(disk,candidate))
+        self.assertTrue(queue.output_budget_available(dict(disk,generated_bytes=850),candidate))
 
     def test_device_init_failure_pauses_later_submissions(self):
         with tempfile.TemporaryDirectory(dir=queue.RUNS/'probes') as raw:

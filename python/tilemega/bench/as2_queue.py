@@ -51,7 +51,36 @@ def validate_job(job):
     if not isinstance(job['argv'],list) or not job['argv'] or not all(isinstance(x,str) for x in job['argv']):
         raise ValueError('Command must be an argv array')
     controlled(job['output'])
+    if type(job.get('expected_output_bytes',0)) is not int or job.get('expected_output_bytes',0)<0:
+        raise ValueError('Output reservation must be a nonnegative byte count')
+    if job.get('storage_family'):
+        if (not re.fullmatch(r'[a-zA-Z0-9_-]{1,64}',job['storage_family']) or
+                len(job['argv'])!=8 or job['argv'][1]!='request'):
+            raise ValueError('Storage sharing requires an explicit completed-request family')
+        for path in job.get('storage_reference_jobs',[]):controlled(path)
     return job
+
+
+def output_budget_available(disk,job):
+    return disk['generated_bytes']+job.get('expected_output_bytes',0)<=disk['generated_soft_budget_bytes']
+
+
+def share_completed_outputs(directory,state,job,item):
+    family=job['storage_family']
+    references=[controlled(p) for p in job.get('storage_reference_jobs',[])]
+    references.extend(Path(v['job_directory']) for v in state['jobs'].values()
+        if v['status'] in ('passed','collected') and v['request'].get('storage_family')==family)
+    references=list(dict.fromkeys(references))
+    reports=[]
+    for apply in (False,True):
+        out=Path(item['job_directory'])/('storage_share_apply.json' if apply else 'storage_share_preview.json')
+        command=['nice','-n','10',sys.executable,str(REPO/'scripts/as2_dedup.py'),
+                 '--completed-jobs',*map(str,references),'--min-bytes','65536','--out',str(out)]
+        if apply:command.append('--apply')
+        with (directory/'submission.log').open('a') as log:
+            subprocess.run(command,stdout=log,stderr=log,check=True,timeout=120)
+        reports.append(str(out))
+    item['storage_sharing_reports']=reports
 
 
 def initialize(directory):
@@ -271,8 +300,8 @@ def run(directory,hours):
         job,physical=selected
         disk=subprocess.run([sys.executable,str(REPO/'scripts/as2_disk_status.py')],capture_output=True,text=True)
         (directory/f'disk_before_{job["id"]}.json').write_text(disk.stdout)
-        if disk.returncode:
-            state.update(status='paused-resource',waiting_reason='Project disk preflight failed');break
+        if disk.returncode or not output_budget_available(json.loads(disk.stdout),job):
+            state.update(status='paused-resource',waiting_reason='Project disk preflight or expected output reservation failed');break
         job_dir=RUNS/'jobs'/('focus_'+job['id']+'_'+str(time.time_ns()))
         envscript=REPO/'scripts/as2_env.sh' if job['environment']=='as2' else REPO/'scripts/as2_baseline_env.sh'
         shell='source "$1" "$2" || exit; shift 2; unset TORCH_DEVICE_BACKEND_AUTOLOAD; exec python -m tilemega.bench.as2_run "$@"'
@@ -298,6 +327,12 @@ def run(directory,hours):
                     stdout=subprocess.DEVNULL,check=True)
         pause=serious_failure(job_dir,receipt)
         summarize(directory,state);write(directory/'state.json',state);previous={}
+        if result.returncode==0 and job.get('storage_family'):
+            try:share_completed_outputs(directory,state,job,item)
+            except (KeyError,ValueError,OSError,subprocess.SubprocessError) as exc:
+                state.update(status='paused-storage-audit',waiting_reason=str(exc))
+                write(directory/'state.json',state);break
+            write(directory/'state.json',state)
         print(json.dumps(dict(id=job['id'],status=item['status'],physical_device_id=physical,
                               metrics=item.get('metrics'),pause=pause)),flush=True)
         if pause:

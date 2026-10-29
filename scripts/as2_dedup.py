@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Share identical immutable C3 payload storage; preserve every sample path."""
+"""Share immutable output storage; preserve every sample path and payload."""
 import argparse
 import datetime as dt
 import hashlib
@@ -35,36 +35,65 @@ def link_identical(source,target,roots,source_stamp,target_stamp,sha):
         raise RuntimeError('Deduplicated artifact verification failed')
 
 
+def completed_request_directories(jobs,roots,expected_binary=None):
+    if not 1<=len(jobs)<=8:raise ValueError('Require one to eight completed request jobs')
+    directories=[];identities=set();common=None
+    for directory in jobs:
+        job=plain_path(Path(directory)/'job.json',roots);receipt=json.loads(job.read_text())
+        command=receipt['command']
+        if (receipt['project']!='as2' or receipt['status']!='passed' or receipt.get('exit_code')!=0 or
+                receipt.get('device_locked') is not False or len(command)!=8 or command[1]!='request'):
+            raise ValueError('Require completed, successful AS2 request receipts')
+        if expected_binary and receipt['executable_sha256']!=expected_binary:
+            raise ValueError('Request binary identity changed')
+        identity=(receipt['pid'],receipt['start_ticks'])
+        if identity in identities:raise ValueError('Duplicate producer identity')
+        identities.add(identity)
+        if process_alive(dict(pid=receipt['pid'],start_ticks=receipt['start_ticks'])):
+            raise ValueError('Original producer is still alive')
+        binding=plain_path(Path(command[2]),roots)
+        key=(str(binding),receipt['executable_sha256'])
+        if common is not None and key!=common:raise ValueError('Mixed bindings or binaries')
+        common=key;root=plain_path(Path(command[3]),roots)
+        outputs,warmup,repetitions,diagnostic=map(int,command[4:])
+        if not 2<=outputs<=1024 or warmup<0 or repetitions<1 or warmup+repetitions>16 or diagnostic not in (0,1,2):
+            raise ValueError('Invalid completed request scope')
+        for repetition in range(-warmup,repetitions):
+            path=plain_path(root/('request_'+str(repetition)),roots)
+            if not path.is_dir():raise ValueError('Missing completed request output')
+            directories.append(path)
+    if len(directories)>16:raise ValueError('Bounded storage sharing batch required')
+    return directories
+
+
 def main():
     p=argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--audit',type=Path,required=True)
+    source=p.add_mutually_exclusive_group(required=True)
+    source.add_argument('--audit',type=Path)
+    source.add_argument('--completed-jobs',type=Path,nargs='+')
     p.add_argument('--apply',action='store_true')
     p.add_argument('--min-bytes',type=int,default=1<<20)
     p.add_argument('--out',type=Path,required=True)
     a=p.parse_args();runs,_,_=project_paths('as2');roots=[runs]
     if a.min_bytes<65536:p.error('Deduplication is limited to numeric payloads of at least64KiB')
-    audit=plain_path(a.audit,roots);out=plain_path(a.out,roots)
+    out=plain_path(a.out,roots);audit=plain_path(a.audit,roots) if a.audit else None
     if out.exists():raise FileExistsError(out)
-    proof=json.loads(audit.read_text())
-    if proof['status']!='pass' or proof['processes_passed']<5 or not proof['payload_kv_tokens_controls_bitwise_equal']:
-        raise ValueError('Require a completed five-process request C3 audit')
+    if audit:
+        proof=json.loads(audit.read_text())
+        if proof['status']!='pass' or proof['processes_passed']<5 or not proof['payload_kv_tokens_controls_bitwise_equal']:
+            raise ValueError('Require a completed five-process request C3 audit')
+        jobs=[Path(record['job']) for record in proof['records']]
+        directories=completed_request_directories(jobs,roots,proof['binary_sha256'])
+    else:
+        jobs=[plain_path(path,roots) for path in a.completed_jobs]
+        directories=completed_request_directories(jobs,roots)
     manifest=runs/'manifest.jsonl';registered={}
     for line in manifest.read_text().splitlines():
         entry=json.loads(line);registered[entry['path']]=entry
-    directories=[]
-    for record in proof['records']:
-        job=plain_path(Path(record['job'])/'job.json',roots);receipt=json.loads(job.read_text())
-        if receipt['project']!='as2' or receipt['status']!='passed' or receipt['executable_sha256']!=proof['binary_sha256']:
-            raise ValueError('C3 job identity changed')
-        if process_alive(dict(pid=receipt['pid'],start_ticks=receipt['start_ticks'])):
-            raise ValueError('Original producer is still alive')
-        if receipt['command'][1]!='request':raise ValueError('Require request artifacts')
-        root=plain_path(Path(receipt['command'][3]),roots)
-        directories.extend(sorted(root.glob('request_*')))
-    canonical={};items=[]
+    canonical={};items=[];different=0
     for directory in directories:
         for target in sorted(directory.rglob('*.bin')):
-            if target.name=='trace.bin' or target.stat().st_size<a.min_bytes:continue
+            if target.name in ('trace.bin','profile.bin') or target.stat().st_size<a.min_bytes:continue
             target=plain_path(target,roots);entry=registered.get(str(target))
             if not entry or not entry.get('completed') or 'active_refs' not in entry or any(process_alive(r) for r in entry['active_refs']):
                 raise ValueError('Missing completed manifest entry or active reference: '+str(target))
@@ -75,7 +104,9 @@ def main():
             if key not in canonical:
                 canonical[key]=(target,stamp,sha);continue
             source,source_stamp,expected=canonical[key]
-            if sha!=expected:raise ValueError('C3 payload no longer matches: '+str(target))
+            if sha!=expected:
+                if audit:raise ValueError('C3 payload no longer matches: '+str(target))
+                different+=1;continue
             if os.path.samefile(source,target):continue
             reclaim=target.stat().st_blocks*512 if target.stat().st_nlink==1 else 0
             if a.apply:
@@ -84,13 +115,19 @@ def main():
                 with manifest.open('a') as f:f.write(json.dumps(updated)+'\n')
             items.append(dict(source=str(source),target=str(target),sha256=sha,
                 bytes=stamp['size'],previous_unique_allocated_bytes=reclaim))
-    result=dict(schema='tilemega.as2.c3_dedup.v1',mode='apply' if a.apply else 'dry-run',
-        time=dt.datetime.now(dt.timezone.utc).isoformat(),audit=str(audit),audit_sha256=digest(audit),
+    result=dict(schema='tilemega.as2.c3_dedup.v1' if audit else 'tilemega.as2.completed_request_storage.v1',mode='apply' if a.apply else 'dry-run',
+        scope='Byte-preserving storage sharing; no new numerical, synchronization or performance admission',
+        time=dt.datetime.now(dt.timezone.utc).isoformat(),audit=str(audit) if audit else None,
+        audit_sha256=digest(audit) if audit else None,completed_jobs=[str(p) for p in jobs],different_payloads_retained=different,
         min_payload_bytes=a.min_bytes,
         changed_files=len(items) if a.apply else 0,eligible_files=len(items),
         previous_unique_allocated_bytes=sum(i['previous_unique_allocated_bytes'] for i in items),
         paths_and_payloads_preserved=True,items=items)
     out.write_text(json.dumps(result,indent=2)+'\n')
+    if a.apply:
+        summary={k:v for k,v in result.items() if k not in ('items','completed_jobs')}
+        summary.update(operation='share_immutable_completed_payloads',report=str(out))
+        with (runs/'cleanup_history.jsonl').open('a') as f:f.write(json.dumps(summary)+'\n')
     print(json.dumps({k:v for k,v in result.items() if k!='items'}))
 
 
