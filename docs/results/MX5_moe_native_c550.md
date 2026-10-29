@@ -300,3 +300,19 @@ builds decode watchdog twins and uses the decode bridge for prompt64. Six
 CPU script-routing tests pass. Requests for the incomplete measured solver
 fail before the old script branch. The full pipeline audit was reconciled
 with actual native implementation and the remaining model/cost gates.
+
+Verified canonical host MoE domain enumeration now matches all2226 keys of
+the independent CPU inventories exactly:760 qkv/o,896 grouped,270 router,
+300 head across both thread shapes. It preserves per-expert N separately
+from the active-expert partition size. The fixed five-point attention
+interpolator averages L65..1087; constant, linear, nonlinear analytic-weight,
+nonfinite and overflow checks pass. Normal root builds and both MoE host
+CTests pass. These are solver-core facts, not a complete table/CLI choice.
+Raw: `moe_canonical_domain_match_cpu_v1` (immutable frozen-v2 comparison).
+
+Verified MoE head N151936/K2048 matches the existing Qwen1.7B head shape.
+All archived head source dependencies match current headers. The150
+qualified512-thread rows (five B ×30 coordinates) retain their original
+source names, rounds and three-process evidence; no new GPU measurements
+or relabeling occurs. This reuse scope excludes576 and grants no plan
+thread exception. Raw: `moe_head_existing_cost_source_audit_cpu_v1`.
