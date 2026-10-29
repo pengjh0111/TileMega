@@ -713,3 +713,16 @@ allocator defect, a minimum body requirement or a per-plan512 exception.
 R_cap220/248 and the prompt's227/255 resource limits remain unchanged.
 Raw: moe_576_effective_register_budget_probe_cpu_v1/
 ACTUAL_TWELVE_NORMAL_PROGRAM_PEU_RESOURCE_RECORDS_CPU.json.
+
+
+Verified a separate CPU-only synthetic control holds144/160/176/224 scalar
+operands simultaneously with empty inline asm, using normal cucc flags and
+no register-limit override. All four512 controls compile with frame0
+(MT168/194/204/226);576 controls144/160 compile with frame0 (MT146/162).
+The576 controls176/224 do not finish within the bounded diagnostic interval;
+their exact own CPU mxcc children are terminated at about282s, with action
+records, and cucc returns1. These two results are interrupted diagnostics,
+not compiler resource-rejection or hardware-limit evidence. No kernel runs,
+GPU process, model body or acceptance policy changes. Raw:
+moe_576_effective_register_budget_probe_cpu_v1/
+ACTUAL_SYNTHETIC_PROBE_OUTCOMES_CLASSIFIED_CPU.json.
