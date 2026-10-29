@@ -20,6 +20,43 @@ def record(path):
     return dict(path=str(path.resolve()), sha256=hashlib.sha256(path.read_bytes()).hexdigest())
 
 
+def resource_branch(key, build):
+    if 'resource_closure' not in key:
+        return None
+    closure = json.loads(checked(key['resource_closure'])[1])
+    if closure['source_digest'] != build['source_digest']:
+        raise ValueError('resource closure source differs')
+    cases = [case for case in closure['cases'] if case['attempts'] and case['attempts'][-1] == build]
+    if len(cases) != 1 or cases[0]['disposition'] != 'reduced_prefetch_fit':
+        raise ValueError('selected build lacks its unique successful resource branch')
+    case = cases[0]
+    initial = case['case']
+    if initial['primary_not_tried'] or len(initial['prior']) != 1:
+        raise ValueError('recovered cost requires the witnessed primary failure')
+    primary = json.loads(checked(initial['prior'][0])[1])
+    attempts = [primary] + case['attempts']
+    if not 2 <= len(attempts) <= 4:
+        raise ValueError('resource branch exceeds three halvings')
+    width = initial['pw']
+    for step, attempt in enumerate(attempts):
+        if step:
+            smaller = max(initial['d'], width // 2)
+            if smaller >= width:
+                raise ValueError('resource halving does not decrease prefetch')
+            width = smaller
+        if any(attempt[field] != build[field] for field in ('threads', 'gate_up', 'tn', 'wn', 'd', 'source_digest')) or attempt['pw'] != width:
+            raise ValueError('resource branch coordinates/source differ')
+        resources = attempt['resources']
+        fit = 0 < resources['registers'] <= (227 if build['threads'] == 576 else 255) and not resources['stack_bytes'] and not resources['static_smem_bytes']
+        if fit != (step == len(attempts) - 1):
+            raise ValueError('resource branch does not stop at the first fitting build')
+        checked(attempt['binary'])
+    if width != key['pw'] or build['r_next'] != key['r_next']:
+        raise ValueError('selected resource branch differs from cost key')
+    return dict(closure=key['resource_closure'], primary=initial['prior'][0],
+        selected_step=len(attempts) - 1, attempts=attempts)
+
+
 def validate_sample(row, key, epoch, epoch_ref, pid, number, registers):
     if row['key'] != key or row['round'] != number or row['PID'] != pid:
         raise ValueError('cost sample key/round/PID differs')
@@ -121,6 +158,7 @@ def aggregate(directory, require_complete=True):
                 raise ValueError('grouped cost build is not qualified for its key')
             checked(build['binary'])
             checked(build['MIR'])
+            branch = resource_branch(key, build)
             medians = [rows[ordinal]['median_ns'] for _, rows, _, _ in samples]
             p90s = [rows[ordinal]['p90_ns'] for _, rows, _, _ in samples]
             median = statistics.median(medians)
@@ -129,6 +167,9 @@ def aggregate(directory, require_complete=True):
             if key['gate_up']:
                 base_ref = key['build_record']
                 base_build = build
+            elif 'r_next_reference' in build:
+                base_ref = build['r_next_reference']
+                base_build = json.loads(checked(base_ref)[1])
             else:
                 base_sample = next(row for row in build['rows'] if row['b'] == key['b'])
                 base_path = Path(key['build_record']['path']).parent.parent / base_sample['tag'] / 'ACTUAL_RNEXT_BASE_BUILD_CPU.json'
@@ -151,6 +192,7 @@ def aggregate(directory, require_complete=True):
             table.append(dict(kind='moe_gate_up' if key['gate_up'] else 'moe_down_combine', key=canonical,
                 median_ns=median, p90_ns=statistics.median(p90s), spread=round((max(medians) - min(medians)) / median, 4),
                 processes=3, physical_card=proof['card'], rounds=rounds, r_next=key['r_next'], r_next_reference=reference, resource_build=key['build_record'],
+                resource_branch=branch,
                 resources=dict(mtreg=query['registers'], local_bytes=0, static_smem_bytes=0, resident_ctas=1),
                 provenance=dict(executor='mx_static_stage_bench', implementation='mx5_moe_grouped_v2',
                     source_sha256=epoch['source_digest'], binary_sha256=key['binary_sha256'], base_head=source_epoch['HEAD'])))

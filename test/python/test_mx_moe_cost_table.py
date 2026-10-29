@@ -1,5 +1,6 @@
 """Cost qualification rejects incomplete scopes and malformed raw samples."""
 import importlib.util
+import json
 import math
 from pathlib import Path
 
@@ -51,3 +52,42 @@ def test_missing_batches_never_produce_qualified_costs(tmp_path):
     assert not prefix['qualified'] and not prefix['complete_scope'] and not prefix['whole_grouped_domain_complete']
     assert not prefix['full_model_domain'] and not prefix['target_defaults_changed'] and not prefix['body_bitwise_gate']
     assert prefix['rows'] == [] and prefix['coverage']['missing_scope_keys'] == 772
+
+
+def recovered_branch(tmp_path, mutate=None):
+    binary = tmp_path / 'body.so'
+    binary.write_bytes(b'fixture binary')
+    common = dict(threads=576, gate_up=0, tn=16, wn=8, d=1, source_digest='a' * 64,
+        binary=module.record(binary), r_next=100)
+    primary = dict(common, pw=16, resources=dict(registers=168, stack_bytes=16, static_smem_bytes=0))
+    selected = dict(common, pw=8, resources=dict(registers=160, stack_bytes=0, static_smem_bytes=0))
+    if mutate:
+        mutate(primary, selected)
+    path = tmp_path / 'primary.json'
+    path.write_text(json.dumps(primary))
+    case = dict(case=dict(primary_not_tried=False, prior=[module.record(path)], pw=16, d=1),
+        attempts=[selected], disposition='reduced_prefetch_fit')
+    closure = tmp_path / 'closure.json'
+    closure.write_text(json.dumps(dict(source_digest='a' * 64, cases=[case])))
+    key = dict(resource_closure=module.record(closure), pw=8, r_next=100)
+    return key, selected
+
+
+def test_recovered_cost_retains_the_failed_primary_and_prescribed_halving(tmp_path):
+    key, build = recovered_branch(tmp_path)
+    branch = module.resource_branch(key, build)
+    assert branch['selected_step'] == 1
+    assert [attempt['pw'] for attempt in branch['attempts']] == [16, 8]
+    assert branch['attempts'][0]['resources']['stack_bytes'] == 16
+
+
+@pytest.mark.parametrize('mutation', [
+    lambda first, last: first['resources'].update(stack_bytes=0),
+    lambda first, last: last.update(pw=4),
+    lambda first, last: first.update(source_digest='b' * 64),
+    lambda first, last: last['resources'].update(stack_bytes=4),
+])
+def test_recovered_cost_cannot_skip_a_fitting_primary_or_change_the_branch(tmp_path, mutation):
+    key, build = recovered_branch(tmp_path, mutation)
+    with pytest.raises(ValueError):
+        module.resource_branch(key, build)
