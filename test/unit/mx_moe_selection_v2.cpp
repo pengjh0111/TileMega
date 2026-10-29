@@ -66,6 +66,18 @@ int main(int argc, char** argv) {
   Reject([&] { MxMoeGemmDomainV2(invalid_model, "gate_up", 1); });
   invalid_model = model; invalid_model.queries = std::numeric_limits<unsigned>::max();
   Reject([&] { MxMoeGemmDomainV2(invalid_model, "qkv", 1); });
+  assert(MxMoeAttentionMeanV2({100, 100, 100, 100, 100}) == 100);
+  assert(std::abs(MxMoeAttentionMeanV2({137, 519, 1031, 1543, 2183}) - 1159) < 1e-9);
+  std::array<double, 5> nonlinear{113, 271, 173, 419, 227};
+  double expected_average = (96 * nonlinear[0] + 223.5 * nonlinear[1] + 256 * nonlinear[2] +
+      288 * nonlinear[3] + 159.5 * nonlinear[4]) / 1023;
+  assert(std::abs(MxMoeAttentionMeanV2(nonlinear) - expected_average) < 1e-9);
+  for (double invalid : {0., -1., std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::infinity()}) {
+    auto costs = nonlinear; costs[2] = invalid;
+    Reject([&] { MxMoeAttentionMeanV2(costs); });
+  }
+  auto huge_grid = nonlinear; huge_grid.fill(std::numeric_limits<double>::max());
+  Reject([&] { MxMoeAttentionMeanV2(huge_grid); });
   std::mt19937 random(2030);
   for (int trial = 0; trial < 120; ++trial) {
     std::array<std::vector<double>, 7> costs;

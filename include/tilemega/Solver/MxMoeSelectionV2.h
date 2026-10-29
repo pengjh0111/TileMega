@@ -20,6 +20,8 @@ MxMoeStageGeometryV2 MxMoeGeometryV2(codegen::MxMoeModel const& model,
     std::string const& stage, int batch);
 std::vector<codegen::MxDecodeClassV2> MxMoeGemmDomainV2(codegen::MxMoeModel const& model,
     std::string const& stage, int batch, int grid = 104);
+// Fixed MX-5 grid {65,256,512,768,1088}, averaged over decode L65..1087.
+double MxMoeAttentionMeanV2(std::array<double, 5> const& grid_ns);
 
 // Lists already contain source-qualified costs, scaled by stage occurrences.
 // This merge does not qualify measurements or authorize a generated program.

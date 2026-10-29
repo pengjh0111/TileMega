@@ -66,6 +66,22 @@ std::vector<codegen::MxDecodeClassV2> MxMoeGemmDomainV2(codegen::MxMoeModel cons
   return result;
 }
 
+double MxMoeAttentionMeanV2(std::array<double, 5> const& costs) {
+  for (double value : costs)
+    if (!std::isfinite(value) || value <= 0)
+      throw std::invalid_argument("MoE attention needs five finite positive measured grid costs");
+  constexpr std::array<int, 5> lengths{65, 256, 512, 768, 1088};
+  double total = 0;
+  std::size_t point = 0;
+  for (int length = 65; length <= 1087; ++length) {
+    while (length > lengths[point + 1]) ++point;
+    double fraction = double(length - lengths[point]) / (lengths[point + 1] - lengths[point]);
+    total += costs[point] + fraction * (costs[point + 1] - costs[point]);
+  }
+  if (!std::isfinite(total)) throw std::invalid_argument("MoE attention grid average overflows");
+  return total / 1023;
+}
+
 std::vector<MxMoeRanksV2> MxMoeKBestV2(std::array<std::vector<double>, 7> const& costs,
     std::size_t count, std::function<bool(MxMoeRanksV2 const&)> const& legal) {
   for (auto const& list : costs) {
