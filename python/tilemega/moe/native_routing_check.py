@@ -56,6 +56,9 @@ def main():
     layers = manifest['layers']
     if layers != 24 or manifest['top_k'] != 8 or manifest['experts'] != 128:
         raise ValueError('routing audit requires the specified MoE-L24 geometry')
+    from .plan_pair import validate_plan_pair
+    prefill = json.loads(Path(str(a.prefill_so) + '.plan.json').read_text())
+    pair_contract = validate_plan_pair(prefill, manifest, a.batch)
     import torch
     from transformers import AutoModelForCausalLM
     from tilemega.serving.engine import ServingEngine
@@ -122,7 +125,8 @@ def main():
     failures = [row for row in mismatch if row['status'] == 'failure']
     report = dict(model=str(a.model), batch=a.batch, steps=64, layers=layers, positions=64 * layers * a.batch,
         exact_sets=exact, boundary_ties=len(mismatch) - len(failures), failures=len(failures),
-        mismatches=mismatch, execution_identity=execution, passed=not failures, timing_eligible=False,
+        mismatches=mismatch, execution_identity=execution, plan_pair_contract=pair_contract,
+        passed=not failures, timing_eligible=False,
         tie_rule='gap <= 2 * BF16_ULP(abs(HF rank8)); subnormal spacing 2^-133',
         decode_binary_sha256=hashlib.sha256(a.decode_so.read_bytes()).hexdigest())
     (a.out / 'routing_check.json').write_text(json.dumps(report, indent=2) + '\n')
