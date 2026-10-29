@@ -3,6 +3,7 @@
 #include <tilemega/Codegen/MxMoeModel.h>
 #include <tilemega/Codegen/MxDecodeProgramV2.h>
 #include <tilemega/Codegen/MxMoeProgramV2.h>
+#include <tilemega/Support/Json.h>
 #include <array>
 #include <cstddef>
 #include <functional>
@@ -35,6 +36,15 @@ struct MxMoeProgramChoiceV2 {
   MxMoeRanksV2 source_rows{};
   double predicted_ns = 0;
 };
+struct MxMoeImportedCostsV2 {
+  std::array<std::vector<MxMoeStageCostV2>, 7> stages;
+  std::array<std::vector<std::vector<std::size_t>>, 7> source_rows;
+};
+// Import one batch/thread request from externally verified aggregate rows.
+// Checks shape/numeric/resource contracts and averages complete attention grids;
+// it does not verify files, qualify a partial domain or grant execution.
+MxMoeImportedCostsV2 ImportMxMoeCostRowsV2(codegen::MxMoeModel const& model,
+    int threads, std::vector<json::Value> const& rows);
 // The caller supplies one batch/thread shape of source-qualified rows. Router
 // dispatch TNs must match the selected grouped bodies, even for tied costs.
 std::vector<MxMoeProgramChoiceV2> RankMxMoeProgramsV2(frontend::ModelPlan const& plan,

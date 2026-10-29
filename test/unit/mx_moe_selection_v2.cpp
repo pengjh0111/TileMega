@@ -16,11 +16,83 @@ template<class F> void Reject(F f) {
 }
 int main(int argc, char** argv) {
   bool dump = argc == 2 && std::string(argv[1]) == "--dump-domain";
-  if (argc != 1 && !dump) return 2;
+  bool import = argc == 5 && std::string(argv[1]) == "--import-rows";
+  if (argc != 1 && !dump && !import) return 2;
   tilemega::codegen::MxMoeModel model{};
   model.hidden = 2048; model.intermediate = 768; model.heads = 32;
   model.hkv = 4; model.dim = 128; model.queries = 8;
   model.experts = 128; model.top_k = 8; model.vocabulary = 151936;
+  model.capacity = 1088;
+  if (import) {
+    model.batch = std::stoi(argv[3]);
+    auto doc = tilemega::json::ParseFile(argv[2]);
+    auto imported = ImportMxMoeCostRowsV2(model, std::stoi(argv[4]), doc.At("rows").AsArray("rows"));
+    std::cout << "PASS imported aggregate rows; stage sizes";
+    for (auto const& stage : imported.stages) std::cout << ' ' << stage.size();
+    std::cout << "; import does not qualify a full domain or authorize execution\n";
+    return 0;
+  }
+  model.batch = 1;
+  {
+    using tilemega::json::Array;
+    using tilemega::json::Object;
+    using tilemega::json::Value;
+    // Synthetic aggregate contracts test parsing, not measurement provenance.
+    auto row = [](char const* kind, Value key, double ns, int r_next = 120) -> Value {
+      std::string implementation = kind;
+      if (implementation == "moe_gate_up" || implementation == "moe_down_combine") implementation = "moe_grouped";
+      return Object{{"kind", kind}, {"key", key}, {"median_ns", ns}, {"p90_ns", ns + 1}, {"spread", .01},
+          {"processes", 3}, {"r_next", r_next}, {"rounds", Array{Object{{"round", 1}}, Object{{"round", 2}}, Object{{"round", 3}}}},
+          {"resources", Object{{"mtreg", 160}, {"local_bytes", 0}, {"static_smem_bytes", 0}, {"resident_ctas", 1}}},
+          {"provenance", Object{{"executor", "mx_static_stage_bench"}, {"implementation", "mx5_" + implementation + "_v2"},
+              {"source_sha256", std::string(64, 'a')}, {"binary_sha256", std::string(64, 'b')}, {"base_head", "synthetic_contract_test"}}}};
+    };
+    std::vector<Value> rows;
+    std::array<char const*, 6> names{"qkv", "o", "router", "gate_up", "down", "head"};
+    std::array<char const*, 6> kinds{"gemm", "gemm", "moe_router", "moe_gate_up", "moe_down_combine", "head"};
+    for (unsigned stage = 0; stage < 6; ++stage) {
+      auto shape = MxMoeGeometryV2(model, names[stage], 1);
+      Value key = Object{{"n", shape.n}, {"k", shape.k}, {"b", 1}, {"threads", 512},
+          {"tn", 64}, {"wn", stage == 5 ? 8 : 1}, {"depth", 1}, {"prefetch", stage == 3 ? 0 : 1}};
+      if (stage != 5) { key.Set("op", shape.op); key.Set("norm", shape.norm); key.Set("part", 1); }
+      if (shape.n_active) key.Set("n_active", shape.n_active);
+      auto value = row(kinds[stage], key, 100 + stage);
+      if (stage == 2) value.Set("dispatch_context", Object{{"gate_up_tn", 64}, {"down_tn", 64}});
+      rows.push_back(value);
+    }
+    for (int length : {65, 256, 512, 768, 1088}) rows.push_back(row("attention",
+        Object{{"dim", 128}, {"q", 8}, {"hkv", 4}, {"b", 1}, {"length", length},
+            {"b_min", 4}, {"qk_norm", 1}, {"capacity", 1088}, {"threads", 512}, {"prefetch_kind", 0}}, 201, 240));
+    auto costs = ImportMxMoeCostRowsV2(model, 512, rows);
+    for (unsigned stage = 0; stage < 7; ++stage) {
+      assert(costs.stages[stage].size() == 1);
+      assert(costs.stages[stage][0].ns == (stage == 6 ? 201 : 100 + stage));
+      assert(costs.source_rows[stage].size() == 1);
+      if (stage < 6) assert(costs.source_rows[stage][0] == std::vector<std::size_t>{stage});
+    }
+    assert(costs.source_rows[6][0] == (std::vector<std::size_t>{6, 7, 8, 9, 10}));
+    assert(costs.stages[2][0].dispatch_gate_tn == 64 && costs.stages[6][0].b_min == 4);
+    for (int mutation = 0; mutation < 15; ++mutation) {
+      auto bad = rows;
+      auto key = bad[0].At("key");
+      if (mutation == 0) { key.Set("b", 16); bad[0].Set("key", key); }
+      if (mutation == 1) bad[0].Set("processes", 2);
+      if (mutation == 2) bad[0].Set("rounds", Array{Object{{"round", 1}}, Object{{"round", 1}}, Object{{"round", 3}}});
+      if (mutation == 3) { auto v = bad[0].At("resources"); v.Set("local_bytes", 4); bad[0].Set("resources", v); }
+      if (mutation == 4) bad.pop_back();
+      if (mutation == 5) bad.push_back(bad.back());
+      if (mutation == 6) { auto v = bad[6].At("key"); v.Set("q", 4); bad[6].Set("key", v); }
+      if (mutation == 7) { auto v = bad[6].At("key"); v.Set("prefetch_kind", 1); bad[6].Set("key", v); }
+      if (mutation == 8) { auto v = bad[0].At("provenance"); v.Set("implementation", "legacy"); bad[0].Set("provenance", v); }
+      if (mutation == 9) { auto v = bad[10].At("provenance"); v.Set("binary_sha256", std::string(64, 'c')); bad[10].Set("provenance", v); }
+      if (mutation == 10) bad[1].Set("median_ns", -1);
+      if (mutation == 11) { auto v = bad[3].At("key"); v.Set("n_active", 9); bad[3].Set("key", v); }
+      if (mutation == 12) bad[0].Set("r_next", 0);
+      if (mutation == 13) { key.Set("part", 2); bad[0].Set("key", key); }
+      if (mutation == 14) bad[2].Set("dispatch_context", Object{{"gate_up_tn", 16}, {"down_tn", 64}});
+      Reject([&] { ImportMxMoeCostRowsV2(model, 512, bad); });
+    }
+  }
   std::size_t regular = 0, grouped = 0, routers = 0, heads = 0;
   for (int batch : {1, 2, 4, 8, 16}) {
     model.batch = batch;

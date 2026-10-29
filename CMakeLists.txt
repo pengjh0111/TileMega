@@ -283,6 +283,7 @@ add_library(tilemega_core STATIC
   lib/Solver/MxDecodeSolverV2.cpp
   lib/Solver/MxDecodeSelectionV2.cpp
   lib/Solver/MxMoeSelectionV2.cpp
+  lib/Solver/MxMoeCostRowsV2.cpp
   lib/Solver/FluidExecutionSimulator.cpp
   lib/Analysis/FusionAccess.cpp
   lib/Analysis/HandoffAccess.cpp
