@@ -1018,3 +1018,30 @@ any fitting576 case on its576 path. No resource eligibility or complete
 review is claimed before these inputs arrive; body-pressure D7 judgement
 and all model gates remain separate. Raw:
 moe_original_top4_per_plan_D7_review_cpu_v1.
+
+Verified B1 manual prefetch P-PAIR completes four fresh processes:
+D-width control5.025512ms versus derived-prefetch5.006115ms (−.386%).
+The improvement is below max(1%,round range), so no discernible benefit is
+claimed. Both arms'1024 generated tokens agree. B16 pairing is running.
+The callback will append all eight process rows only after both cells
+finish and source/guard/request/token bindings are independently replayed;
+it preserves the old CSV prefix. Raw: moe_D7_prefetch_ppair_card5_v1.
+
+Verified diagnostic bench predictions for those manual derived coordinates:
+per-layer B1 QKV/attn/O/router/GU/down=17.700/29.771/20.480/42.080/38.250/
+38.090us, head401.880us, predicted TPOT4.874796ms. B16 values=20.440/54.086/
+30.750/100.770/369.670/218.700us, head477.940us, predicted19.543922ms.
+Every selected row has its original three raw processes validated; attention
+is interpolated and averaged over L65..1087. Router rows are read through
+the explicit incomplete-prefix audit, which remains unqualified. These
+predictions are neither complete-domain top4 results nor measured stage
+attribution. They show that much of the manual-model gap from the prompt's
+inferences is present in bench costs. No cost protocol or selection changes.
+Raw: moe_derived_manual_stage_prediction_cpu_v1.
+
+Verified card7 finishes its last four cost contexts;10/12 context aggregates
+are complete. Cards6/4 continue64/64 and64/128. The now-redundant waiting
+card7 rebalance CPU dispatcher is stopped before any GPU submission;
+only its own idle parent is signalled, with no GPU child or other process.
+Raw: moe_router_rank_card4_last_context_v1/
+ACTUAL_UNUSED_WAITING_CARD7_REBALANCE_SUPERSEDED_CPU.json.
