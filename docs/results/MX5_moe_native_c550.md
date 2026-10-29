@@ -1058,3 +1058,48 @@ most of the prompt-inference gap within bench costs for these coordinates;
 this is not per-stage measured attribution or original top4 acceptance.
 No default or cost/geometry rule is changed by this comparison. Raw:
 moe_D7_prefetch_ppair_card5_v1/ACTUAL_EIGHT_PREFETCH_PPAIR_PROCESS_ROWS_APPENDED_CPU.json.
+
+Verified the complete adopted-source cost domain is now5396 outcomes:
+4514 measured rows and882 resource rejections. Router supplies2640 measured
+and600 rejected over12 contexts. All10 B/thread scopes pass exact native
+coverage and a separate raw-process/body-header verification. The native
+CLI returns exact four diagnostic candidates for each512 batch; all five
+576 requests have resource-rejected attention and no executable top4.
+Predicted original0 TPOT(ms),B1/2/4/8/16:
+4.476350/5.607316/7.657466/11.941471/17.388612. These are predictions.
+Raw: moe_complete_geometry_table_cpu_v1,
+moe_complete_scope_file_verification_cpu_v1,
+moe_actual_complete_candidate_previews_cpu_v1.
+
+Verified all80 original native builds,80 source/recipe checks and80 actual
+zero-launch queries complete. B1/B2/B8 have16 resource-fitting artifacts
+each; B4/B16 have16 rejections each. B4 MT256/frame256–288B; B16 MT256/
+frame320–368B. Every query reports resident1, but48 have local0 and32 have
+positive local memory and remain rejected. Eighty original resource rows
+are appended, without changing original binaries, pins or earlier CSV bytes.
+
+Verified candidate0's only reducible512 width is head2>D1. Four normal
+head2→1 descendants(B4/B16×prompt/decode) still fail at unchanged frames:
+B4 decode/prompt256/288B; B16 decode/prompt320/352B, allMT256. Other geometry
+and R_cap are unchanged. Their four resource rows are appended separately;
+these are prescribed descendants, not replacement original candidates.
+The original helper's diagnostic-original label is retained in its raw
+build records; the descendant scope, pin delta and CSV labels distinguish
+them. No other geometry is substituted. Raw: moe_512_head_floor_D7_cpu_v1,
+moe_original80_resource_ledger_cpu_v1.
+
+Verified a generated-source CPU experiment moves head outside the layer
+loop, retaining aliases, geometry and normal compiler flags. It increases
+frames to576B(B4 both phases) and672/656B(B16 decode/prompt), so it is not
+adopted or launched. The original emitter remains unchanged. A line-table
+CPU variant preserves exact device.text bytes and original frames, but the
+device ELF contains no line table: it cannot establish source locations.
+A separate full-debug CPU investigation is running. No diagnostic compile
+is treated as a normally admitted model artifact. Raw:
+moe_terminal_scope_D7_cpu_v1, moe_spill_debug_locations_D7_cpu_v1/v2.
+
+The queued per-plan CPU review is versioned to record observed512 resource
+failures per geometry, rather than abort all remaining reviews on its former
+zero-frame assertion. The idle v1 parent stops before review/GPU work;
+v2 retains every resource threshold and disallows measurement of rejected
+plans. Raw: moe_original_top4_per_plan_D7_review_cpu_v2.

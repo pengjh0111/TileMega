@@ -33,7 +33,7 @@ flowchart LR
 | dense decode 默认 | `compile.cpp` → `mx_decode::TryCompile`；target 仍指向 MX-4 成本 | 默认未提升到 MX-5 |
 | dense decode 显式 v2 | `mx_decode_v2.cpp`、`MxDecodeSolverV2`、resolved runner | 25 格原始 top-4 已检查/计时，4 格回退仍未关闭 |
 | dense prefill | MX-4 几何和 serving harness，支持当前 KV 片段写入 | WD0 计时、WD1 检查；未改造 prefill 结构 |
-| MoE decode | `options.moe_batch=r.batch`；DM 计划直接进 `TryCompileMoeV2` → `AnalyzeMxMoe` | native 实现存在；缺合格完整成本、模型验收与终版选择 |
+| MoE decode | `options.moe_batch=r.batch`；DM 计划直接进 `TryCompileMoeV2` → `AnalyzeMxMoe` | 5396 个成本/拒绝坐标完整；缺整程序资源、模型验收与终版选择 |
 | MoE prompt64 | decode bridge + `--serving prefill --mx-prompt 1` | seq64、L1、同名同 recipe；B1/B16手工C-1/C-2通过，路由失败 |
 | MoE 脚本 | 显式手工 PIN 接 native，decode 另建 watchdog twin，prefill 输入 decode bridge | 无 PIN 或请求未就绪求解入口时报错；不会落入旧脚本分支 |
 | DNN forward | 当前仍为 `BuildDnnModelPlan` → legacy lowering/harness | native 客户和最终 legacy 拒绝尚缺；本阶段没有执行 DNN |
@@ -108,8 +108,8 @@ MoE decode/prompt 不再经 legacy 回退。当前只允许标记为 manual/reso
   attention 另有100个512线程 fit、100个576线程 PK1 栈帧468–480B失败。
   795个可运行坐标的 MIR、设备查询和三进程成本汇总通过，另165个资源拒绝已核对。
 - router 旧TN64/64的220个三进程成本保留为历史来源。排名谓词经整程序P-PAIR后合入，
-  新一轮12种分派TN组合重建/查询/计时；已有8组各220个三进程成本完成。
-  顺序几何汇总完成前5组，各540查询、220成本及50拒绝；其余汇总与测量在6/7卡继续。
+  新一轮12种分派TN组合均已完成，各220个三进程成本及50个资源拒绝。
+  router 共3240个结果，与其他类合计5396个；10个完整作用域及源码/原始记录核对通过。
 - 候选组装已实现按分派TN分组的精确top4，匹配gate/up和down的实际TN、每层成本
   倍数、原始行索引；40组带平局穷举及两项host CTest通过，诊断CLI完整域检查已接入。
 - 成本行导入已实现形状/执行器/资源/三轮契约检查与attention五点均值；922行真实
