@@ -43,6 +43,11 @@ def main():
     output.parent.mkdir(parents=True, exist_ok=True)
     for suffix in ('.cu', '.plan.json', '.source.json'):
         shutil.copy2(str(original) + suffix, str(output) + suffix)
+    if a.source_root:
+        snapshot = json.loads(Path(str(output) + '.source.json').read_text())
+        snapshot.update(root=source['root'])
+        snapshot.pop('compiler', None)
+        Path(str(output) + '.source.json').write_text(json.dumps(snapshot, indent=2) + '\n')
     # Worktree paths reach runs/ through a symlink; compare resolved paths.
     command = [str(Path(x).resolve()) if x.endswith(('.so', '.cu')) else x
                for x in shlex.split(Path(str(original) + '.build_command.txt').read_text())]
