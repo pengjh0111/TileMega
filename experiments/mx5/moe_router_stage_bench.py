@@ -32,6 +32,13 @@ class LegacyTopK(C.Structure):
         (name, C.c_uint64) for name in ('row_stride', 'part_stride', 'rank_stride')] + [('weights_fp32', C.c_bool)]
 
 
+def dispatch_unit_counts(key, active):
+    gate, down = key['dispatch_gate_tn'], key['dispatch_down_tn']
+    if gate not in (32, 64, 128) or down not in (16, 32, 64, 128) or type(active) is not int or not 8 <= active <= 128:
+        raise ValueError('invalid MoE-L24 dispatch tile or active-expert count')
+    return active * (1536 // gate), active * (2048 // down)
+
+
 def validate_cost_inputs(epoch_path, keys_path, legacy_path):
     def checked(record):
         path = Path(record['path'])
@@ -54,6 +61,9 @@ def validate_cost_inputs(epoch_path, keys_path, legacy_path):
         checked(record)
     queries = {(row['tag'], row['b']): row for row in epoch['eligible_keys']}
     for key in json.loads(keys_path.read_text()):
+        dispatch_unit_counts(key, 8)
+        if any(key[name] != epoch[name] for name in ('dispatch_gate_tn', 'dispatch_down_tn') if name in epoch):
+            raise ValueError('router key dispatch context differs from epoch')
         build = json.loads(checked(key['build_record']).read_text())
         base = json.loads(checked(key['r_next_reference']).read_text())
         if key['source_digest'] != build['source_digest'] or build['source_digest'] != base['source_digest'] or base['source_digest'] != epoch['source_digest']:
@@ -187,8 +197,8 @@ def main():
             experts = sorted(set(chosen.flatten().tolist()))
             if na.item() != len(experts) or active[:len(experts)].cpu().tolist() != experts:
                 raise AssertionError('active expert list differs')
-            if ug.item() != len(experts) * 24 or ud.item() != len(experts) * 32:
-                raise AssertionError('dispatch unit counts differ from compiled TN64/64')
+            if (ug.item(), ud.item()) != dispatch_unit_counts(key, len(experts)):
+                raise AssertionError('dispatch unit counts differ from the compiled TN context')
             actual_mapping, actual_counts = mapping.cpu(), counts.cpu()
             for expert_index, expert in enumerate(experts):
                 pairs = [(token, rank) for token in range(b) for rank in range(8) if chosen[token, rank].item() == expert]

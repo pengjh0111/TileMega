@@ -58,6 +58,25 @@ def test_exact_router_cost_request(tmp_path):
     assert result['legacy_binary_sha256'] == epoch['legacy']['sha256']
 
 
+@pytest.mark.parametrize('gate,down,gate_tiles,down_tiles', [
+    (32, 16, 48, 128), (32, 32, 48, 64), (32, 64, 48, 32), (32, 128, 48, 16),
+    (64, 16, 24, 128), (64, 32, 24, 64), (64, 64, 24, 32), (64, 128, 24, 16),
+    (128, 16, 12, 128), (128, 32, 12, 64), (128, 64, 12, 32), (128, 128, 12, 16),
+])
+def test_dispatch_units_cover_each_active_expert(gate, down, gate_tiles, down_tiles):
+    key = dict(dispatch_gate_tn=gate, dispatch_down_tn=down)
+    gu, dn = module.dispatch_unit_counts(key, 82)
+    assert (gu, dn) == (82 * gate_tiles, 82 * down_tiles)
+    assert gu * gate == 82 * 1536 and dn * down == 82 * 2048
+
+
+def test_router_cost_rejects_cross_context_epoch(tmp_path):
+    epoch, key, legacy = fixture(tmp_path)
+    epoch.update(dispatch_gate_tn=128, dispatch_down_tn=64)
+    with pytest.raises(ValueError, match='dispatch context differs'):
+        validate(tmp_path, epoch, key, legacy)
+
+
 @pytest.mark.parametrize('change', [
     lambda e, k: e['R_cap'].update(t576=160),
     lambda e, k: k.update(pw=0),
