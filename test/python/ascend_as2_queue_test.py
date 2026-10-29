@@ -69,6 +69,18 @@ class As2Queue(unittest.TestCase):
         self.assertFalse(queue.output_budget_available(disk,candidate))
         self.assertTrue(queue.output_budget_available(dict(disk,generated_bytes=850),candidate))
 
+    def test_output_parent_is_prepared_without_reusing_existing_results(self):
+        with tempfile.TemporaryDirectory(dir=queue.RUNS/'probes') as raw:
+            root=Path(raw);out=root/'new_parent/results/request'
+            self.assertEqual(queue.prepare_output(dict(output=str(out))),out)
+            self.assertTrue(out.parent.is_dir());self.assertFalse(out.exists())
+            out.mkdir();saved=out/'evidence';saved.write_text('retained')
+            with self.assertRaises(FileExistsError):queue.prepare_output(dict(output=str(out)))
+            self.assertEqual(saved.read_text(),'retained')
+            link=root/'alias';link.symlink_to(out.parent,target_is_directory=True)
+            with self.assertRaises(ValueError):queue.prepare_output(dict(output=str(link/'other')))
+            with self.assertRaises(ValueError):queue.prepare_output(dict(output='/tmp/as2-not-authorized'))
+
     def test_device_init_failure_pauses_later_submissions(self):
         with tempfile.TemporaryDirectory(dir=queue.RUNS/'probes') as raw:
             folder=Path(raw);(folder/'stderr.log').write_text('aclrtSetDevice: 507033; TsdOpen failed')

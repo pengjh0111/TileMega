@@ -65,6 +65,14 @@ def output_budget_available(disk,job):
     return disk['generated_bytes']+job.get('expected_output_bytes',0)<=disk['generated_soft_budget_bytes']
 
 
+def prepare_output(job):
+    out=controlled(job['output'])
+    if out.exists():raise FileExistsError('Never reuse a request output directory: '+str(out))
+    out.parent.mkdir(parents=True,exist_ok=True)
+    controlled(out)
+    return out
+
+
 def share_completed_outputs(directory,state,job,item):
     family=job['storage_family']
     references=[controlled(p) for p in job.get('storage_reference_jobs',[])]
@@ -302,6 +310,9 @@ def run(directory,hours):
         (directory/f'disk_before_{job["id"]}.json').write_text(disk.stdout)
         if disk.returncode or not output_budget_available(json.loads(disk.stdout),job):
             state.update(status='paused-resource',waiting_reason='Project disk preflight or expected output reservation failed');break
+        try:prepare_output(job)
+        except (ValueError,OSError) as exc:
+            state.update(status='paused-output-preflight',waiting_reason=str(exc));break
         job_dir=RUNS/'jobs'/('focus_'+job['id']+'_'+str(time.time_ns()))
         envscript=REPO/'scripts/as2_env.sh' if job['environment']=='as2' else REPO/'scripts/as2_baseline_env.sh'
         shell='source "$1" "$2" || exit; shift 2; unset TORCH_DEVICE_BACKEND_AUTOLOAD; exec python -m tilemega.bench.as2_run "$@"'
