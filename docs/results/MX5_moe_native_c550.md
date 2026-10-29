@@ -201,3 +201,29 @@ audit has run. Ten boundary tests and16 existing routing/helper tests pass.
 An initial edit displaced the existing routing_check.py API; it was restored
 byte-for-byte and the native audit isolated in a separate module before GPU
 use. New source-bound cost-input/tamper tests8 pass; normal root builds pass.
+
+Correction to the initial124-rejection domain summary:45 were mandatory
+Pw0 gate/up rejections,52 were only failed Pw0 down references, and27
+were failed first down payloads awaiting the prescribed halving branch.
+The references do not by themselves reject an executed nonzero-Pw body.
+All52 missing primary coordinates now compile normally at their formula
+Pw=D and still fail; all27 coordinates in seven halving cases recover
+zero-frame builds. This gives799 fitting builds and97 final benchmark
+resource rejects; the recovered27 still need device queries and timing.
+Twenty normal compile attempts append without changing any older row.
+The already measured772-coordinate scope remains valid as a subset.
+Its frozen epoch retains the initial124 count and must not be relabeled
+as complete-domain evidence. Final catalog coverage must include this
+closure and the recovered-coordinate samples. Raw: `moe_grouped_resource_closure_v2`.
+
+Verified router full resource preparation finishes108 libraries/540 batch
+kernels (Pw0 and Pw=D):440 fit/100 reject under normal compiler flags.
+Device queries for these kernels and the27 recovered grouped coordinates
+are queued after actual grouped-cost card7 batch127 completes; this
+retains the max-two-card/one-job-per-card constraint. No third job starts.
+
+Verified seven-class MoE selection mathematics is implemented separately
+from cost qualification:720 brute-force exact-k-best comparisons cover
+legal-combination filtering/tie ordering; two-process medians and the exact
+1% boundary pass. Normal root build and both MoE host CTests pass.
+The CLI is not yet a measured MoE solver; no selected/default claim follows.
