@@ -17,6 +17,12 @@
 #ifndef MX5_MOE_STREAM_K
 #define MX5_MOE_STREAM_K 1
 #endif
+#ifndef MX5_MOE_DISPATCH_GATE_TN
+#define MX5_MOE_DISPATCH_GATE_TN 64
+#endif
+#ifndef MX5_MOE_DISPATCH_DOWN_TN
+#define MX5_MOE_DISPATCH_DOWN_TN 64
+#endif
 using namespace tilemega::backend::mx;
 struct RouterBenchArgs {
   MxMoeRouterOperandsV2 router;
@@ -28,7 +34,8 @@ struct RouterBenchArgs {
 template<int B>
 using RouterBody = MxRouterGemmV2<MX5_TEST_TN, MX5_TEST_DEPTH,
     MX5_MOE_STREAM_K ? MxPart::kStreamK : MxPart::kTileRange,
-    MxMoeDispatchV2<B,2048,768,64,64,true,MX5_TEST_THREADS>, MX5_BENCH_PW>;
+    MxMoeDispatchV2<B,2048,768,MX5_MOE_DISPATCH_GATE_TN,MX5_MOE_DISPATCH_DOWN_TN,
+        true,MX5_TEST_THREADS>, MX5_BENCH_PW>;
 
 template<int B>
 __global__ void __launch_bounds__(MX5_TEST_THREADS) MoeRouterBench(RouterBenchArgs args) {
