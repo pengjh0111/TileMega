@@ -6,6 +6,9 @@ import re
 # Typed stages of one layer (prompt §6 D7, §8); a group holds an even number.
 LAYER = dict(dense=('qkv', 'attention', 'o', 'gate_up', 'down'),
              moe=('qkv', 'attention', 'o', 'router', 'expert_gate_up', 'expert_down'))
+# MR7: an `expert_fuse` coordinate runs both expert GEMMs as one typed stage.
+FUSED_LAYER = ('qkv', 'attention', 'o', 'router', 'expert_fused')
+FUSED = ('expert_gate_up', 'expert_down')
 DENSE_OPS = dict(qkv='kStore', o='kResidual', gate_up='kSwiGLU', down='kResidual',
                  lm_head='kArgmaxPartial')
 MOE_MODES = dict(router='kRouter', expert_gate_up='kGateUp', expert_down='kDown')
@@ -39,7 +42,10 @@ def dispatch(manifest, defines, source):
     if re.search(r'\b(?:GemmInvocation|StageDesc|ServingGemmTaskBody|ServingGemvTaskBody|'
                  r'tilemega_l1_kernel|tilemega_l1_loop_kernel|tilemega_l2_kernel)\b', source):
         raise ValueError('native dense generated source contains a legacy execution path')
-    layer = LAYER[c['model']]
+    fused = c.get('expert_fuse') is True
+    if fused and c['model'] != 'moe':
+        raise ValueError('native expert fusion needs a MoE coordinate')
+    layer = FUSED_LAYER if fused else LAYER[c['model']]
     per_group = 2 if len(layer) % 2 else 1
     size = per_group*len(layer)
     head = size + 1
@@ -88,13 +94,15 @@ def dispatch(manifest, defines, source):
             raise ValueError('native stage placement differs from coordinate identity')
 
     # Manifest GEMM i is certified against the typed stage that runs it: the
-    # GEMM positions of its layer within the group, or the head.
-    positions = [k for k, name in enumerate(layer) if name != 'attention']
+    # GEMM positions of its layer within the group, or the head. A fused stage
+    # runs two manifest GEMMs (expert gate_up, then down).
+    positions = [k for k, name in enumerate(layer) if name != 'attention'
+                 for _ in range(2 if name == 'expert_fused' else 1)]
     gemms = manifest['gemms']
     if len(gemms) != len(positions)*layers + 1:
         raise ValueError('native dense GEMM call count differs from manifest')
     calls = {number: ('Body' if typed == 'HeadGemm' else typed, kind, raw) for typed, number, kind, raw in
-             re.findall(r'using (Stage|Body|HeadGemm)_(\d+)\s*=\s*(Gemm|Moe)<([^;]+)>;', source)}
+             re.findall(r'using (Stage|Body|HeadGemm)_(\d+)\s*=\s*(Gemm|MoeFused|Moe)<([^;]+)>;', source)}
     expected_calls = {str(1 + (l % per_group)*len(layer) + k) for l in range(per_group) for k in positions}
     if set(calls) != expected_calls | {str(head)}:
         raise ValueError('native dense GEMM call count differs from manifest')
@@ -109,9 +117,24 @@ def dispatch(manifest, defines, source):
         args = raw.split(',')
         family = gemm['family']
         moe = family in MOE_MODES
-        if kind != ('Moe' if moe else 'Gemm'):
+        if kind != ('MoeFused' if fused and family in FUSED else 'Moe' if moe else 'Gemm'):
             raise ValueError(f'native dense GEMM call differs from manifest at GEMM {index}')
-        if moe:
+        if kind == 'MoeFused':
+            # batch, N_gu, N_dn, K_gu, TN/TK gate_up, TN/TK down, slots, WN/WK
+            # gate_up, WN/WK down, U, experts, top-k, float routes, page, 11
+            # operands (the 10th gu_done), map, register stages.
+            if len(args) != 30 or args[13] != '16' or args[14] not in ('64', '128') or \
+                    args[15] != '8' or args[17] not in ('0', '64') or args[27] == 'kAbsent':
+                raise ValueError('native fused MoE call signature is invalid')
+            down = family == 'expert_down'
+            values = list(map(int, args[:13]))
+            batch, slots = values[0], values[8]
+            n, k = (values[2], values[1] // 2) if down else (values[1], values[3])
+            tn, tk = values[6:8] if down else values[4:6]
+            wn, wk = values[11:13] if down else values[9:11]
+            register_stages = int(args[29])
+            stream = 0
+        elif moe:
             # batch, N, K, TN, TK, slots, WN, WK, mode, U, experts, top-k,
             # float routes, page, buffers, map, register stages[, softmax-all].
             # 23 arguments: binaries generated before A3 and MR7 (REF-R3, the MR
@@ -122,9 +145,9 @@ def dispatch(manifest, defines, source):
             if len(args) not in (23, 25) or args[8] != 'backend::Sm90DenseMoeMode::' + MOE_MODES[family] or \
                     args[9] != '16' or args[10] not in ('64', '128') or args[11] != '8' or \
                     args[13] not in (('0', '64') if family != 'router' else ('0',)) or \
-                    (legacy and args[10] != '128') or \
+                    (legacy and (args[10] != '128' or fused)) or \
                     (not legacy and (args[24] not in ('true', 'false') or
-                                     (args[21] != 'kAbsent' and family != 'router'))):
+                                     (args[21] != 'kAbsent') != (family == 'router' and fused))):
                 raise ValueError('native MoE call signature is invalid')
             register_stages = int(args[22 if legacy else 23])
             stream = 0 if family == 'expert_gate_up' else None
@@ -143,7 +166,8 @@ def dispatch(manifest, defines, source):
             if int(args[9]) != c['swiglu_u']:
                 raise ValueError(f'native dense GEMM call differs from manifest at GEMM {index}')
             stream = None
-        batch, n, k, tn, tk, slots, wn, wk = map(int, args[:8])
+        if kind != 'MoeFused':
+            batch, n, k, tn, tk, slots, wn, wk = map(int, args[:8])
         actual = dict(tile_m=16, tile_n=tn, tile_k=tk, stages=slots,
                       warps_n=wn, warps_k=wk, split_k=1)
         f = c['gemms'][family]
