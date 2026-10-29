@@ -6,7 +6,7 @@ import tempfile
 import unittest
 import torch
 from tilemega.bench.as2_models import RUNS
-from tilemega.bench.as2_request import bind, digest, request_source,cached_kv_state
+from tilemega.bench.as2_request import bind, digest, request_source,cached_kv_state,compatible_source
 from tilemega.bench.as2_native_audit import compare_capture_payloads,mix_prefix
 from tilemega.bench.as2_native import incremental_packing_bytes,validate_rope_reuse
 from tilemega.bench.as2_last_forward import matching_prefix_rows
@@ -52,6 +52,13 @@ class RequestCapturePayloadTest(unittest.TestCase):
                 bytes=size*(1 if index<10 else 2),required_input=False))
         expected=[tuple(b['name'] for b in buffers)]
         self.assertEqual(cached_kv_state([s],buffers,m),expected)
+        for width,group in [(128,3),(128,4),(64,4)]:
+            candidate=s.copy();candidate[24:26]=[width,group]
+            sized=[dict(b,bytes=b['bytes']*width//128) for b in buffers]
+            self.assertEqual(cached_kv_state([candidate],sized,m),expected)
+        for width,group in [(64,2),(128,5)]:
+            candidate=s.copy();candidate[24:26]=[width,group]
+            with self.assertRaises(ValueError):cached_kv_state([candidate],buffers,m)
         for i,replacement in [(2,dict(buffers[2],bytes=size)),(3,dict(buffers[3],required_input=True))]:
             b=buffers.copy();b[i]=replacement
             with self.assertRaises(ValueError):cached_kv_state([s],b,m)
@@ -163,6 +170,14 @@ class RequestBindingTest(unittest.TestCase):
         self.assertEqual(identity['capabilities']['TILEMEGA_LLM_VARIANT'],1)
         self.assertEqual(identity['capabilities']['TILEMEGA_LLM_TM'],16)
         self.assertTrue(text.endswith(body))
+        extra=self.root/'catalogue_extra';extra.mkdir();plan=extra/'plan';plan.mkdir()
+        source=extra/'persistent_llm.cpp';source.write_text(geometry+'#define TILEMEGA_LLM_LOCAL_TAIL_K7 1\n'+body)
+        library=self.root/'library.cpp';union,provenance=request_source(self.pre,self.dec,plan);library.write_text(union)
+        self.assertEqual(len(provenance['sources']),3)
+        self.assertEqual(compatible_source(source,library)['status'],'compatible')
+        with self.assertRaisesRegex(ValueError,'lacks'):compatible_source(library,source)
+        source.write_text(geometry+'#include <different_runtime.h>\n')
+        with self.assertRaisesRegex(ValueError,'identical'):request_source(self.pre,self.dec,plan)
         (self.dec.parent/'persistent_llm.cpp').write_text(geometry+'#include <different_runtime.h>\n')
         with self.assertRaisesRegex(ValueError,'identical'):request_source(self.pre,self.dec)
 

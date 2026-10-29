@@ -22,7 +22,8 @@ def cached_kv_state(stages,buffers,metadata):
     for s in stages:
         if s[17]!=13:continue
         if s[31]!=9:ordinary=True;continue
-        if metadata[8]!=16 or metadata[10]!=1088 or (s[23],s[24],s[25],s[26])!=(8,128,2,1088):
+        heads=(s[24]==128 and s[25] in (2,3,4)) or (s[24]==64 and s[25]==4)
+        if metadata[8]!=16 or metadata[10]!=1088 or s[23]!=8 or s[26]!=1088 or not heads:
             raise ValueError('Unregistered derived KV shape')
         names=[];elements=metadata[8]*s[23]*metadata[10]*s[24]
         for i in (1,2,10,11):
@@ -39,24 +40,44 @@ def cached_kv_state(stages,buffers,metadata):
     return sorted(state)
 
 
-def request_source(prefill,decode):
-    capabilities=('TILEMEGA_LLM_SPLIT_K','TILEMEGA_LLM_LOCAL_TAIL_K7','TILEMEGA_LLM_LOCAL_Q_TAIL_K3',
-                  'TILEMEGA_LLM_WIDE_QK','TILEMEGA_LLM_FP32_KV_CACHE')
-    geometry=('TILEMEGA_LLM_VARIANT','TILEMEGA_LLM_TM','TILEMEGA_LLM_TN','TILEMEGA_LLM_TK')
+SOURCE_CAPABILITIES=('TILEMEGA_LLM_SPLIT_K','TILEMEGA_LLM_LOCAL_TAIL_K7','TILEMEGA_LLM_LOCAL_Q_TAIL_K3',
+                     'TILEMEGA_LLM_WIDE_QK','TILEMEGA_LLM_FP32_KV_CACHE')
+SOURCE_GEOMETRY=('TILEMEGA_LLM_VARIANT','TILEMEGA_LLM_TM','TILEMEGA_LLM_TN','TILEMEGA_LLM_TK')
+
+
+def source_parts(path):
+    path=controlled(path,[RUNS]);text=path.read_text()
+    marker='#ifndef TILEMEGA_LLM_VARIANT' if '#ifndef TILEMEGA_LLM_VARIANT' in text else '#include'
+    header,body=text.split(marker,1)
+    fields={k:int(v) for k,v in re.findall(r'^#define (TILEMEGA_LLM_\w+) (\d+)$',header,re.M)}
+    if set(fields)-set(SOURCE_CAPABILITIES+SOURCE_GEOMETRY) or any(k not in fields for k in SOURCE_GEOMETRY):
+        raise ValueError('Unknown generated request capability/geometry')
+    if any(fields.get(k,0) not in (0,1) for k in SOURCE_CAPABILITIES):
+        raise ValueError('Unregistered generated request capability')
+    if tuple(fields[k] for k in SOURCE_GEOMETRY) not in ((0,32,64,64),(1,16,128,128)):
+        raise ValueError('Unregistered generated request geometry')
+    return path,fields,marker+body
+
+
+def compatible_source(required,compiled):
+    a,b=source_parts(required),source_parts(compiled)
+    if a[2]!=b[2] or any(a[1][k]!=b[1][k] for k in SOURCE_GEOMETRY):
+        raise ValueError('Compiled implementation catalogue changed runtime or geometry')
+    if any(a[1].get(k,0)>b[1].get(k,0) for k in SOURCE_CAPABILITIES):
+        raise ValueError('Compiled implementation catalogue lacks a required capability')
+    return dict(status='compatible',required_source=str(a[0]),compiled_source=str(b[0]),
+        required_sha256=digest(a[0]),compiled_sha256=digest(b[0]),
+        normalized_runtime_sha256=hashlib.sha256(a[2].encode()).hexdigest(),
+        required_capabilities=a[1],compiled_capabilities=b[1])
+
+
+def request_source(prefill,decode,*additional):
+    capabilities=SOURCE_CAPABILITIES;geometry=SOURCE_GEOMETRY
+    if len(additional)>6:raise ValueError('Bounded generated-source catalogue required')
     sources=[]
-    for plan in (prefill,decode):
-        path=controlled(plan,[RUNS]).parent/'persistent_llm.cpp';text=path.read_text()
-        marker='#ifndef TILEMEGA_LLM_VARIANT' if '#ifndef TILEMEGA_LLM_VARIANT' in text else '#include'
-        header,body=text.split(marker,1)
-        fields={k:int(v) for k,v in re.findall(r'^#define (TILEMEGA_LLM_\w+) (\d+)$',header,re.M)}
-        if set(fields)-set(capabilities+geometry) or any(k not in fields for k in geometry):
-            raise ValueError('Unknown generated request capability/geometry')
-        if any(fields.get(k,0) not in (0,1) for k in capabilities):
-            raise ValueError('Unregistered generated request capability')
-        if tuple(fields[k] for k in geometry) not in ((0,32,64,64),(1,16,128,128)):
-            raise ValueError('Unregistered generated request geometry')
-        sources.append((path,fields,marker+body))
-    if sources[0][2]!=sources[1][2] or any(sources[0][1][k]!=sources[1][1][k] for k in geometry):
+    for plan in (prefill,decode,*additional):
+        sources.append(source_parts(controlled(plan,[RUNS]).parent/'persistent_llm.cpp'))
+    if any(sources[0][2]!=s[2] or any(sources[0][1][k]!=s[1][k] for k in geometry) for s in sources[1:]):
         raise ValueError('Request phases require identical generated runtime and geometry')
     fields={k:max(s[1].get(k,0) for s in sources) for k in capabilities}
     fields.update({k:sources[0][1][k] for k in geometry})

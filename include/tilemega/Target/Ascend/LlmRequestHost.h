@@ -170,9 +170,11 @@ inline CachedKvState ValidateCachedKvState(llm::Metadata const& m,std::vector<ll
   CachedKvState state;bool cached=false,ordinary=false;std::set<uint64_t> distinct;
   for(auto const& s:stages)if(s.kind==13) {
     if(s.variant!=9){ordinary=true;continue;}cached=true;
-    if(m.batch!=16 || m.capacity!=1088 || s.extent!=8 || s.width!=128 || s.group!=2 ||
-        (m.seq!=1 && m.seq!=64) || s.query_rows!=(m.seq==64?32u:2u) || s.kv_block!=1088)
-      throw std::invalid_argument("Cached KV shape is outside the initial Qwen0.6B B16 contract");
+    const bool heads=(s.width==128 && (s.group==2 || s.group==3 || s.group==4)) ||
+                     (s.width==64 && s.group==4);
+    if(m.batch!=16 || m.capacity!=1088 || s.extent!=8 || !heads ||
+        (m.seq!=1 && m.seq!=64) || s.query_rows!=(m.seq==64?16u:1u)*s.group || s.kv_block!=1088)
+      throw std::invalid_argument("Cached KV shape is outside the five-dense B16 contract");
     const uint64_t elements=uint64_t(m.batch)*s.extent*m.capacity*s.width;
     for(unsigned i:{1u,2u,10u,11u}) {
       uint64_t offset=s.operands[i],bytes=elements*(i<10?2:4);

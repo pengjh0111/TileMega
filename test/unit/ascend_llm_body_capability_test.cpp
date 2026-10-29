@@ -1,5 +1,6 @@
 #include <tilemega/Target/Ascend/LlmRequestHost.h>
 #include <iostream>
+#include <utility>
 
 int main() {
   using namespace tilemega::ascend;
@@ -116,6 +117,16 @@ int main() {
   m.seq=1;cached.query_rows=2;
   auto dec=llm_host::ValidateCachedKvState(m,{cached},allocations,resets);
   llm_host::ValidateCachedKvPair(pre,dec);
+  for(auto shape:{std::pair<unsigned,unsigned>{128,3},{128,4},{64,4}}) {
+    auto s=cached;s.width=shape.first;s.group=shape.second;s.query_rows=s.group;
+    auto a=allocations;for(auto& p:a){p.bytes=p.bytes*s.width/128;p.allocated=p.bytes+512;}
+    auto d=llm_host::ValidateCachedKvState(m,{s},a,resets);
+    auto pre_m=m;pre_m.seq=64;s.query_rows=16*s.group;
+    llm_host::ValidateCachedKvPair(llm_host::ValidateCachedKvState(pre_m,{s},a,resets),d);
+    s.group=5;s.query_rows=80;
+    try {llm_host::ValidateCachedKvState(pre_m,{s},a,resets);return 1;}
+    catch(std::invalid_argument const&) {}
+  }
   try {llm_host::ValidateCachedKvPair(pre,{});return 1;}
   catch(std::invalid_argument const&) {}
   for(unsigned mutation=0;mutation<4;++mutation) {
