@@ -2164,9 +2164,15 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   if(!layers || (stages.size()-3)%layers)
     throw std::invalid_argument("native dense program needs whole layers");
   // A layer group holds an even number of typed stages (prompt §6 D7, §8).
-  unsigned per_layer=unsigned(stages.size()-3)/layers,per_group=per_layer%2?2:1;
+  // MR7: the plan always carries both expert stages; `expert_fuse` collapses
+  // them into the one typed stage M56, so a MoE layer holds five and a group
+  // covers two layers.
+  unsigned plan_per_layer=unsigned(stages.size()-3)/layers;
+  if(plan_per_layer!=(c.moe?6u:5u))
+    throw std::invalid_argument("native layer groups need whole groups of supported layers");
+  unsigned per_layer=plan_per_layer-(c.expert_fuse?1u:0u),per_group=per_layer%2?2:1;
   unsigned group_size=per_layer*per_group;
-  if(per_layer!=(c.moe?6u:5u) || layers%per_group)
+  if(layers%per_group)
     throw std::invalid_argument("native layer groups need whole groups of supported layers");
   // One stage's template text with its buffer operands kept apart: operands
   // that differ between layers become columns of the per-layer table.
@@ -2180,6 +2186,19 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   };
   std::vector<Emitted> emitted;
   std::vector<std::string> info;
+  // MR7: the gate_up stage emits nothing of its own when the experts are
+  // fused; its geometry and operands wait here for the down stage, which
+  // emits M56 for both. The router's counters arrive the same way.
+  struct HeldGateUp {
+    bool held=false;
+    std::int64_t n=0,k=0;
+    solver::Sm90DenseGemm cfg;
+    std::string weight_id,x,h,schedule,weight_name;
+    std::uint64_t bytes=0;
+    unsigned tasks=0;
+    int page=0;
+  } gate_up_held;
+  std::string gate_up_done="kAbsent";
   std::vector<std::int64_t> keys,values;
   std::array<int,2> kv_maps{-1,-1};
   std::int64_t kv_bytes=0;  // one layer's K (or V): B*Hkv*Cap*D BF16
@@ -2226,11 +2245,48 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
             recipe.At("tile_k").AsNumber("weight TK")==64?64:0;
         // Paged experts stream whole slots only.
         if(page)e.stream=std::min(cfg.slots,int(k/cfg.TileK()))*cfg.slot_bytes*(e.family==6?0:1);
+        // MR7's per-slot counters: the router clears them, and only a fused
+        // program's plan carries the fifth router operand to hold them.
+        if(e.family==5)
+          gate_up_done=c.expert_fuse && operands && operands.size()>4?operand(4):"kAbsent";
+        if(c.expert_fuse && e.family==6) {
+          // M56 is emitted at the down stage; hold this one's geometry for it.
+          gate_up_held={true,n,k,cfg,id(g,"b"),id(g,"a"),id(g,"d"),operand(0),weight,bytes,tasks,page};
+          continue;
+        }
+        if(c.expert_fuse && e.family==7) {
+          if(!gate_up_held.held)
+            throw std::invalid_argument("native fused experts need their gate_up stage first");
+          auto const& gu=gate_up_held;
+          // One stage, so one ring, one register budget and one weight page;
+          // h is gate_up's output and down's activation, x' is read by
+          // gate_up and written in place by down's combine (MR7 ⑥).
+          if(gu.h!=id(g,"a") || gu.x!=id(g,"c") || gu.schedule!=operand(0) || gu.page!=page ||
+             gu.cfg.slots!=cfg.slots || gu.cfg.register_stages!=cfg.register_stages || k!=gu.n/2)
+            throw std::invalid_argument("native fused expert stages disagree on buffers or geometry");
+          if(c.FusedExpertBytes(batch)-1024>arena)
+            throw std::invalid_argument("native fused expert storage exceeds its arena");
+          if(gate_up_done=="kAbsent")
+            throw std::invalid_argument("native fused experts need the router's counters");
+          head<<"MoeFused<"<<batch<<','<<gu.n<<','<<n<<','<<gu.k<<','<<gu.cfg.tile_n<<','
+              <<gu.cfg.TileK()<<','<<cfg.tile_n<<','<<cfg.TileK()<<','<<cfg.slots<<','
+              <<gu.cfg.warps_n<<','<<gu.cfg.warps_k<<','<<cfg.warps_n<<','<<cfg.warps_k
+              <<",16,"<<experts<<",8,"<<(float_routes?"true":"false")<<','<<page;
+          e.ids={gu.weight_id,id(g,"b"),gu.x,gu.h,id(g,"d"),operand(0),routes,"kAbsent",operand(2),
+              gate_up_done};
+          // h [E][16][I] as {64, 16, I/64, E}: a box is one slot's [TK/64][rows][64].
+          e.tail=","+std::to_string(map_index({integerField(g,"a"),4,64,16,k/64,experts,2*k,128,
+              2*16*k,64,activation_rows,cfg.TileK()/64,1}))+","+std::to_string(cfg.register_stages);
+          e.stream=0;
+          weight=gu.weight_name;bytes+=gu.bytes;tasks+=gu.tasks;
+          gate_up_held.held=false;
+        }else {
         head<<"Moe<"<<batch<<','<<n<<','<<k<<','<<cfg.tile_n<<','<<cfg.TileK()<<','<<cfg.slots<<','
             <<cfg.warps_n<<','<<cfg.warps_k<<",backend::Sm90DenseMoeMode::"<<mode<<",16,"<<experts<<",8,"
             <<(float_routes?"true":"false")<<','<<page;
         e.ids={id(g,"b"),id(g,e.family==7?"c":"a"),id(g,"d"),operand(0),routes,
-            e.family==5?operand(2):"kAbsent",e.family==5?operand(3):e.family==7?operand(2):"kAbsent"};
+            e.family==5?operand(2):"kAbsent",e.family==5?operand(3):e.family==7?operand(2):"kAbsent",
+            gate_up_done};
         std::string map="kAbsent";
         if(e.family==5)
           map=std::to_string(map_index({integerField(g,"a"),3,64,batch,k/64,0,2*k,128,0,64,activation_rows,
@@ -2241,6 +2297,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
               64,activation_rows,cfg.TileK()/64,1}));
         e.tail=","+map+","+std::to_string(cfg.register_stages)+
             (moe_softmax_all?",true":",false");
+        }
       }else {
       std::string enum_op=op=="store"?"kStore":op=="residual"?"kResidual":
           op=="swiglu"?"kSwiGLU":"kArgmaxPartial";
@@ -2325,9 +2382,10 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     info.push_back(row.str());
   }
   // qkv, attention, o, then gate_up, down (dense) or router, expert gate_up,
-  // expert down (MoE).
-  static constexpr int kDenseFamilies[5]={0,-1,1,2,3},kMoeFamilies[6]={0,-1,1,5,6,7};
-  auto const* layer_families=c.moe?kMoeFamilies:kDenseFamilies;
+  // expert down (MoE); MR7 fuses the two expert stages into the down slot.
+  static constexpr int kDenseFamilies[5]={0,-1,1,2,3},kMoeFamilies[6]={0,-1,1,5,6,7},
+      kMoeFusedFamilies[5]={0,-1,1,5,7};
+  auto const* layer_families=c.moe?(c.expert_fuse?kMoeFusedFamilies:kMoeFamilies):kDenseFamilies;
   if(emitted.front().kind!="kEmbedding" || emitted.back().kind!="kArgmaxReduce" ||
      emitted[emitted.size()-2].family!=4)
     throw std::invalid_argument("native program lacks its embedding, lm_head or argmax");

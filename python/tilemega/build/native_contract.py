@@ -21,7 +21,8 @@ def validate(manifest, defines):
     if (defines.get('TILEMEGA_STATIC_DENSE_NATIVE') != '1' or
             defines.get('TILEMEGA_ARCH_ID') != '900' or
             manifest.get('runtime_batch') not in (1, 2, 4, 8, 16) or
-            manifest.get('native_origin') not in ('fixed', 'solver') or c.get('schema') != 5 or
+            manifest.get('native_origin') not in ('fixed', 'solver') or
+            c.get('schema') not in (5, 6) or
             c.get('model') not in LAYER):
         raise ValueError('native dense architecture or coordinate schema is invalid')
     if (manifest.get('residency') != c['residency'] or 'TILEMEGA_DN_VECTOR_SUMS' in defines or
@@ -112,16 +113,20 @@ def dispatch(manifest, defines, source):
             raise ValueError(f'native dense GEMM call differs from manifest at GEMM {index}')
         if moe:
             # batch, N, K, TN, TK, slots, WN, WK, mode, U, experts, top-k,
-            # float routes, page, 7 buffers, map, register stages[, softmax-all].
-            # Binaries generated before A3 (REF-R3, the MR arms) carry 23
-            # arguments, their softmax over the selected experts implicit.
-            if len(args) not in (23, 24) or args[8] != 'backend::Sm90DenseMoeMode::' + MOE_MODES[family] or \
+            # float routes, page, buffers, map, register stages[, softmax-all].
+            # 23 arguments: binaries generated before A3 and MR7 (REF-R3, the MR
+            # arms) -- 7 buffers, E = 128, softmax over the selected implicit.
+            # 25 arguments: 8 buffers (the last is MR7's gu_done, which only a
+            # fused plan's router carries) and the router's softmax convention.
+            legacy = len(args) == 23
+            if len(args) not in (23, 25) or args[8] != 'backend::Sm90DenseMoeMode::' + MOE_MODES[family] or \
                     args[9] != '16' or args[10] not in ('64', '128') or args[11] != '8' or \
                     args[13] not in (('0', '64') if family != 'router' else ('0',)) or \
-                    (len(args) == 23 and args[10] != '128') or \
-                    (len(args) == 24 and args[23] not in ('true', 'false')):
+                    (legacy and args[10] != '128') or \
+                    (not legacy and (args[24] not in ('true', 'false') or
+                                     (args[21] != 'kAbsent' and family != 'router'))):
                 raise ValueError('native MoE call signature is invalid')
-            register_stages = int(args[22])
+            register_stages = int(args[22 if legacy else 23])
             stream = 0 if family == 'expert_gate_up' else None
         else:
             # ..., op, U, InputNorm, W, C, D, index, register stages, map

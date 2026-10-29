@@ -1174,11 +1174,18 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
       // u64 arrival counters: the router's and one per M6 output tile (TN >= 128).
       auto router_counter=shared_constant("moe.router_counter",2,"i32");
       auto tile_counters=shared_constant("moe.tile_counters",2*(hidden/128),"i32");
+      // MR7: one u32 per active expert slot, cleared by the router's last
+      // arriver and waited on by a fused program's down tasks. Shared across
+      // layers like the schedule record: M4's grid barrier orders the clear
+      // after the previous layer's experts. Only `expert_fuse` coordinates
+      // bind it, so an unfused program leaves it untouched.
+      auto gate_up_done=shared_constant("moe.gate_up_done",experts,"i32");
       auto indices=scratch(m.indices,topk,"i32");
       auto router=builder.Gemm(x,router_weight,logits,logits,experts,hidden,0.0f);
       builder.plan.gemms[router].epilogue=PlanGemm::Epilogue::kMoeRouter;
       builder.plan.gemms[router].moe_softmax_all=!m.normalize_topk;
-      builder.Stage(PlanTaskKind::kGemm,m.router,router,0,0,1,{schedule,routes,indices,router_counter});
+      builder.Stage(PlanTaskKind::kGemm,m.router,router,0,0,1,
+          {schedule,routes,indices,router_counter,gate_up_done});
       auto gate_up=builder.Gemm(x,gate_up_weight,h,h,2*inter,hidden,0.0f);
       builder.plan.gemms[gate_up].epilogue=PlanGemm::Epilogue::kMoeGateUp;
       builder.plan.gemms[gate_up].interleave_u=16;

@@ -58,6 +58,27 @@ struct Sm90DenseMoeOperands {
   cutlass::bfloat16_t* x;
   std::uint64_t* counter;
   float epsilon;
+  // MR7: set only on the router stage of a program whose experts are fused.
+  // Its last arriver clears gu_done[e] beside the schedule record; a null
+  // pointer (the aggregate default) means M5 and M6 stay apart.
+  unsigned* gate_up_done;
+};
+// MR7's fused expert stage (M56): one stage runs both task types, so it holds
+// both weight bases and both outputs (h for the gate_up tasks, the per-route
+// partials P for the down tasks) plus `gate_up_done`, the per-active-slot
+// counter a down task waits on. `activation` maps h, as M6's did.
+struct Sm90DenseMoeFusedOperands {
+  CUtensorMap const* activation;
+  cutlass::bfloat16_t const *weight_gate_up,*weight_down;
+  cutlass::bfloat16_t const* input;
+  void *hidden,*output;
+  int* schedule;
+  void* route_weights;
+  int* route_index;
+  cutlass::bfloat16_t* x;
+  std::uint64_t* counter;
+  unsigned* gate_up_done;
+  float epsilon;
 };
 // Thread zero fully initializes the active member for the next stage. That
 // member is immutable from the V3 CTA join until the stage's complete return.
@@ -65,10 +86,11 @@ struct Sm90DenseMoeOperands {
 struct alignas(16) Sm90DenseOperandBank {
   alignas(16) Sm90DenseOperands gemm;
   alignas(16) Sm90DenseHeadOperands head;
-  // A stage reads either its attention or its MoE operands, never both.
+  // A stage reads one of these, never two.
   union alignas(16) {
     Sm90DenseAttentionOperands attention;
     Sm90DenseMoeOperands moe;
+    Sm90DenseMoeFusedOperands moe_fused;
   };
 };
 struct Sm90DenseOperandHeader {
@@ -77,10 +99,14 @@ struct Sm90DenseOperandHeader {
   static_assert(sizeof(void*)==8 && sizeof(Sm90DenseOperands)==48);
   static_assert(sizeof(float)==4 && offsetof(Sm90DenseOperands,epsilon)==40);
   static_assert(sizeof(Sm90DenseAttentionOperands)==120);
-  static_assert(sizeof(Sm90DenseHeadOperands)==40 && sizeof(Sm90DenseMoeOperands)==80);
+  static_assert(sizeof(Sm90DenseHeadOperands)==40 && sizeof(Sm90DenseMoeOperands)==88);
+  // M56 must not widen the bank: the union still measures the attention record.
+  static_assert(sizeof(Sm90DenseMoeFusedOperands)==104 &&
+      sizeof(Sm90DenseMoeFusedOperands)<=sizeof(Sm90DenseAttentionOperands));
   static_assert(sizeof(Sm90DenseOperandBank)==224 && alignof(Sm90DenseOperandBank)==16);
   static_assert(offsetof(Sm90DenseOperandBank,gemm)==0 && offsetof(Sm90DenseOperandBank,head)==48 &&
-      offsetof(Sm90DenseOperandBank,attention)==96 && offsetof(Sm90DenseOperandBank,moe)==96);
+      offsetof(Sm90DenseOperandBank,attention)==96 && offsetof(Sm90DenseOperandBank,moe)==96 &&
+      offsetof(Sm90DenseOperandBank,moe_fused)==96);
   static_assert(sizeof(Sm90DenseRingState)==256 && alignof(Sm90DenseRingState)==16);
   static_assert(kOffset==512 && kOffset%alignof(Sm90DenseOperandBank)==0);
   static_assert(kEnd==960 && kEnd<=1024);
