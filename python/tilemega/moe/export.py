@@ -56,7 +56,9 @@ class Experts(nn.Module):
     def __init__(self, config):
         super().__init__()
         e = int(config.get('num_experts', config.get('num_local_experts', 0)))
-        h, i = int(config['hidden_size']), int(config['moe_intermediate_size'])
+        # OLMoE has no moe_intermediate_size: its experts are intermediate_size wide.
+        h = int(config['hidden_size'])
+        i = int(config.get('moe_intermediate_size') or config['intermediate_size'])
         if min(e, h, i) <= 0:
             raise ValueError('MoE export requires positive expert dimensions')
         self.gate_up_proj = nn.Parameter(torch.empty(e, 2*i, h))
@@ -82,7 +84,11 @@ class SparseMLP(nn.Module):
         weight, index = torch.topk(probability, self.top_k, dim=-1)
         if self.normalize:
             weight = weight / weight.sum(-1, keepdim=True)
-        # HF retains FP32 normalized routing weights through expert reduction.
+            # HF retains FP32 normalized routing weights through the reduction.
+        else:
+            # OlmoeSparseMoeBlock casts the unnormalized weights to the
+            # activation dtype before weighting the expert outputs.
+            weight = weight.to(rows.dtype)
         return moe_experts(rows, index, weight, self.experts.gate_up_proj,
                            self.experts.down_proj).reshape(shape)
 
