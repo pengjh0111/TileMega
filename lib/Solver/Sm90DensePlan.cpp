@@ -95,9 +95,12 @@ Sm90DenseWorkload Sm90DenseWorkloadFromPlan(frontend::ModelPlan const& plan,int 
   for(int layer=0;layer<work.layers;++layer) {
     unsigned start=1+per_layer*layer;gemm(start,0);
     auto const& a=plan.stages.at(start+1);
-    if(a.kind!=Kind::kFusedAttention || (a.extent!=8 && !(work.moe && a.extent==4)) ||
+    if(a.kind!=Kind::kFusedAttention ||
+        (a.extent!=8 && !(work.moe && (a.extent==4 || a.extent==16))) ||
         (a.width!=64 && a.width!=128) ||
-        a.group<2 || a.group>(work.moe?8:4) || a.attention_kv_block!=plan.serving_capacity ||
+        // Hkv is the model's: 8 dense, 4 for Qwen3-30B-A3B, 16 for OLMoE, which
+        // is MHA, so Q = 1; the attention body takes Q in [1, 8] since A3.
+        a.group<1 || a.group>(work.moe?8:4) || a.attention_kv_block!=plan.serving_capacity ||
         a.dense_attention_chunks<1 || a.dense_attention_chunks>64)
       throw std::invalid_argument("native workload attention structure differs");
     for(unsigned i:{0u,1u,2u,3u,4u,7u,8u,9u,10u})operand(a.operands[i],false);
