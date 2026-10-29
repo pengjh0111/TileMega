@@ -748,3 +748,28 @@ BF16 activation-rounding placement explains most of the observed difference.
 This remains a CPU diagnostic at one position; it neither changes the formal
 reference nor proves the cause of all31/468 failed routing positions. Raw:
 moe_qkv_rounding_attribution_cpu_v2.
+
+
+Verified the adopted-router CPU builder stops at1284/1296 completed libraries
+when its unchanged700MiB free-space guard trips. No directory or GPU query is
+created for the missing12 coordinates. The original failure log remains.
+After18 completed native-program MIR logs gain byte-identical readable tmpfs
+views and persistent gzip backups (64.771MiB saved), recovery checks all1284
+existing records/binary hashes and invokes the exact original build function
+only for the12 missing coordinates. Frozen source, compiler flags, two CPU
+workers and700MiB guard remain unchanged. All1296 libraries/6480 batch-kernel
+resource outcomes now exist; this is CPU resource coverage, not completed
+cost timing. All eight archived manual-plan query-input validations pass again
+on CPU. Raw: moe_router_rank_last12_cpu_recovery_v1,
+moe_completed_native_program_mir_archive_v1.
+
+Verified current HEAD6f8d7770c builds the normal tilemega host target; its native
+version JSON and source-fingerprint check pass (9077e54945c4e17a...). The first
+unsupported '--version' invocation is retained; the correct 'version --json'
+command is recorded separately. Frozen cost/preview producers stay unchanged.
+Raw: current_head_host_build_after_moe_helpers_v1.
+A guarded card7 queue waits for all router outcomes and80 diagnostic candidate
+builds, then queries all80 exact artifacts with zero kernel launches. Both
+fitting/rejected resource outcomes remain explicit; no512 exception or model
+acceptance is granted. It uses40960MiB admission and1800s non-timing guard.
+Raw: moe_original_top4_zero_queries_after_builds_v1. No queued query has run.
