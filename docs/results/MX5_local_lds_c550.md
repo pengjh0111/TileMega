@@ -1122,3 +1122,24 @@ Thesearestandalonebodyfunctionsymbols,not separatelycompiledobjects or
 wholemodel inlinecounts. Eightrepresentative recordsappendinoneCPU
 comparisonrow;nocachecause,TPOTgain ordefaultdecision isclaimed.
 Raw:attention_candidate_normal_code_comparison_v1.
+
+
+Verified validquery manual end-to-end controlcomplete:C1/C2512 bothpass,
+card5 A20/new/A20/new,4fresh/cell,warm1/timed2,L1prefill,WD0,no trace.
+B2old/new2.302893126/2.298254596ms(-.201422%),range.088264%;
+B4old/new2.573165217/2.580484399ms(+.284443%),range.236335%.
+Bothunder1% threshold,indistinguishable;candidate staysisolated/off.
+Independent rawbinding/hash/identity/PID/guard checks append8candidate
+PPAIR/2correctness rows. Actual8planqueries API0/resident1,zero launches;
+failed576framesB2 320/320B,B4 396/356B remainrejected. Legal512WD0
+MT228/234 andWD1MT226/236 frame0. Normalfreshproducerb287055b/source
+e50003d8 usesexact0423a65e header;G/H closuresunchanged,attentionclosure
+eeda1ece. Manualcontrast isnot newsource solver/finalqualification.
+Raw:attention_valid_query_softmax_candidate_v1.
+
+Verified MoEread-only source reviewconfirms exportedweightdtype/recipes,
+rankorderedlegacyrounding,andtheexistingdense-onlyentry gaps. Additional
+inferredintegration checkscoverprompthead's singlebarriercounter invocation,
+conditionaltail generation,per-candidate prompt/decode recipeequality,
+routerticket counts/groupedM6 producer counts,andsharedsource costidentity.
+No MoEcode orGPUexecution wasstarted aheadofdense;rawmoe_native_contract_readonly_v1.
