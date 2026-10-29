@@ -186,57 +186,85 @@ struct Sm90DenseMoeGemm {
     return (col/64)*kRows*128+row*128+((((col%64)/8)^(row%8))*16)+(col%8)*2;
   }
 
+  // MR1: a task's schedule record in registers. Every lane holds the expert
+  // and count; lane r < 16 holds row r's token (rows past count are unused).
+  // Rows are loaded without waiting for count, so no load depends on another.
+  struct Record {int expert,count,route;};
+  __device__ static __forceinline__ Record Load(int const* schedule,int t) {
+    if constexpr(!kDynamic)return {};
+    else {
+      // A speculative first record may lie past n_active; keep it in the table.
+      int a=min(t/kTiles,Experts-1),lane=threadIdx.x&31;
+      return {schedule[Schedule::Expert(a)],Mode==Sm90DenseMoeMode::kGateUp?schedule[Schedule::Count(a)]:0,
+          Mode==Sm90DenseMoeMode::kGateUp && lane<Schedule::kMaxRows?schedule[Schedule::Row(a,lane)]:0};
+    }
+  }
+  __device__ static __forceinline__ Element const* TaskTiles(Element const* weight,int expert,int t) {
+    if constexpr(!kDynamic)return weight+std::size_t(t)*kIterations*TN*TK;
+    else if constexpr(Page)return weight+std::size_t(expert)*N*K;
+    else return weight+std::size_t(expert)*N*K+std::size_t(t%kTiles)*kIterations*TN*TK;
+  }
+
+  // first: this CTA's first record, loaded beside n_active (MR1). The next
+  // task's record is loaded when a task starts and is consumed one task
+  // later, so no global load sits between an empty wait and its copies.
   template<int Prefix>
   __device__ static __noinline__ void Produce(Sm90DenseMoeOperands const& p,
-      Sm90DenseRingState& state,Element* a,Element* b,int tasks,unsigned phase,bool streamed) {
+      Sm90DenseRingState& state,Element* a,Element* b,int tasks,unsigned phase,bool streamed,Record first) {
     Sm90DenseRoles::Producer();
     int lane=threadIdx.x&31;
     // x', h and the schedule were written with generic stores before the
     // grid barrier; the async proxy must observe them.
     if(lane==0)Async::ProxyAsyncGlobalFence();
-    for(int sequence=0;sequence<tasks*kIterations;++sequence) {
-      int slot=sequence%Slots,tile=sequence%kIterations;
-      int t=int(blockIdx.x)+(sequence/kIterations)*int(gridDim.x);
-      Async::Wait(state.empty+slot,(phase>>slot)&1);
-      auto const* tiles=Tiles(p.weight,p.schedule,t);
-      if constexpr(Mode==Sm90DenseMoeMode::kGateUp) {
-        // The producer lanes gather the slot's rows of x' (one TK segment
-        // each) into the swizzled slot. A non-.noinc cp.async arrive adds a
-        // pending arrival that its copies retire, so lane 0's single
-        // expect_tx arrival must follow the warp's arrives.
-        int group=t/kTiles,count=p.schedule[Schedule::Count(group)];
-        auto base=Async::Shared(a+slot*kRows*TK);
-        for(int chunk=lane;chunk<count*(TK/8);chunk+=32) {
-          int r=chunk/(TK/8),col=(chunk%(TK/8))*8;
-          int token=p.schedule[Schedule::Row(group,r)]/TopK;
-          asm volatile("cp.async.cg.shared.global [%0], [%1], 16;"::"r"(base+Swizzled(r,col)),
-              "l"(p.input+std::size_t(token)*K+tile*TK+col):"memory");
+    Record next=first;
+    for(int local=0;local<tasks;++local) {
+      int t=int(blockIdx.x)+local*int(gridDim.x);
+      Record current=next;
+      if(local+1<tasks)next=Load(p.schedule,t+int(gridDim.x));
+      auto const* tiles=TaskTiles(p.weight,current.expert,t);
+      int token=current.route/TopK;
+      for(int tile=0;tile<kIterations;++tile) {
+        int sequence=local*kIterations+tile,slot=sequence%Slots;
+        Async::Wait(state.empty+slot,(phase>>slot)&1);
+        if constexpr(Mode==Sm90DenseMoeMode::kGateUp) {
+          // The producer lanes gather the slot's rows of x' (one TK segment
+          // each) into the swizzled slot. A non-.noinc cp.async arrive adds a
+          // pending arrival that its copies retire, so lane 0's single
+          // expect_tx arrival must follow the warp's arrives.
+          auto base=Async::Shared(a+slot*kRows*TK);
+          for(int first_chunk=0;first_chunk<current.count*(TK/8);first_chunk+=32) {
+            int chunk=first_chunk+lane,r=chunk/(TK/8),col=(chunk%(TK/8))*8;
+            int row_token=__shfl_sync(0xffffffff,token,r&(Schedule::kMaxRows-1));
+            if(chunk<current.count*(TK/8))
+              asm volatile("cp.async.cg.shared.global [%0], [%1], 16;"::"r"(base+Swizzled(r,col)),
+                  "l"(p.input+std::size_t(row_token)*K+tile*TK+col):"memory");
+          }
+          asm volatile("cp.async.mbarrier.arrive.shared::cta.b64 [%0];"::
+              "r"(Async::Shared(state.full+slot)):"memory");
+          __syncwarp();
+          if(lane==0) {
+            Async::ExpectTx(state.full+slot,2*TN*TK);
+            CopyWeights(b+slot*TN*TK,tiles,t,tile,state.full+slot);
+          }
+        }else if(lane==0) {
+          // Only M6's first task can have been streamed by M5 (D6).
+          unsigned prefix=0;
+          if constexpr(Prefix>0)
+            if(streamed && sequence<(Prefix+2*TN*TK-1)/(2*TN*TK))
+              prefix=min(Prefix-sequence*2*TN*TK,2*TN*TK);
+          if(!prefix)Async::ExpectTx(state.full+slot,kSlotBytes);
+          if(!prefix)CopyWeights(b+slot*TN*TK,tiles,t,tile,state.full+slot);
+          else if constexpr(!Page)
+            if(prefix<2*TN*TK)Async::Bulk(b+slot*TN*TK+prefix/2,tiles+std::size_t(tile)*TN*TK+prefix/2,
+                2*TN*TK-prefix,state.full+slot);
+          // Rows past the batch (router) or the slot's count (down) are never
+          // written out.
+          if constexpr(Mode==Sm90DenseMoeMode::kRouter)
+            Async::Tensor3D(a+slot*kRows*TK,p.activation,0,0,tile*(TK/64),state.full+slot);
+          else Async::Tensor4D(a+slot*kRows*TK,p.activation,0,0,tile*(TK/64),t/kTiles,state.full+slot);
         }
-        asm volatile("cp.async.mbarrier.arrive.shared::cta.b64 [%0];"::
-            "r"(Async::Shared(state.full+slot)):"memory");
-        __syncwarp();
-        if(lane==0) {
-          Async::ExpectTx(state.full+slot,2*TN*TK);
-          CopyWeights(b+slot*TN*TK,tiles,t,tile,state.full+slot);
-        }
-      }else if(lane==0) {
-        // Only M6's first task can have been streamed by M5 (D6).
-        unsigned prefix=0;
-        if constexpr(Prefix>0)
-          if(streamed && sequence<(Prefix+2*TN*TK-1)/(2*TN*TK))
-            prefix=min(Prefix-sequence*2*TN*TK,2*TN*TK);
-        if(!prefix)Async::ExpectTx(state.full+slot,kSlotBytes);
-        if(!prefix)CopyWeights(b+slot*TN*TK,tiles,t,tile,state.full+slot);
-        else if constexpr(!Page)
-          if(prefix<2*TN*TK)Async::Bulk(b+slot*TN*TK+prefix/2,tiles+std::size_t(tile)*TN*TK+prefix/2,
-              2*TN*TK-prefix,state.full+slot);
-        // Rows past the batch (router) or the slot's count (down) are never
-        // written out.
-        if constexpr(Mode==Sm90DenseMoeMode::kRouter)
-          Async::Tensor3D(a+slot*kRows*TK,p.activation,0,0,tile*(TK/64),state.full+slot);
-        else Async::Tensor4D(a+slot*kRows*TK,p.activation,0,0,tile*(TK/64),t/kTiles,state.full+slot);
+        phase^=1u<<slot;
       }
-      phase^=1u<<slot;
     }
     if(lane==0 && tasks)for(int slot=0;slot<Slots;++slot)
       state.producer_generations[slot]=(phase>>slot)&1;
@@ -376,11 +404,15 @@ struct Sm90DenseMoeGemm {
     #pragma unroll
     for(int i=0;i<Slots;++i)phase|=(threadIdx.x<128?
         state.consumer_generations[i]:state.producer_generations[i])<<i;
+    // The producer's first record is read beside n_active (MR1); a CTA past
+    // the last task discards it.
+    Record first{};
+    if(threadIdx.x>=128)first=Load(p.schedule,int(blockIdx.x));
     int total=TotalTasks(p);
     int tasks=total/int(gridDim.x)+(int(blockIdx.x)<total%int(gridDim.x));
     if(threadIdx.x<128)Consume(p,state,a,b,scratch,tasks,phase);
     else {
-      Produce<Prefix>(p,state,a,b,tasks,phase,streamed);
+      Produce<Prefix>(p,state,a,b,tasks,phase,streamed,first);
       if(threadIdx.x==128)tail();
     }
     __syncthreads();
