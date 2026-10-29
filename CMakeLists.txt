@@ -282,6 +282,7 @@ add_library(tilemega_core STATIC
   lib/Solver/MxDecodeSolver.cpp
   lib/Solver/MxDecodeSolverV2.cpp
   lib/Solver/MxDecodeSelectionV2.cpp
+  lib/Solver/MxMoeSelectionV2.cpp
   lib/Solver/FluidExecutionSimulator.cpp
   lib/Analysis/FusionAccess.cpp
   lib/Analysis/HandoffAccess.cpp
@@ -704,6 +705,10 @@ if(TILEMEGA_BUILD_TESTS)
   target_link_libraries(mx_moe_model PRIVATE TileMega::tilemega)
   target_compile_options(mx_moe_model PRIVATE -UNDEBUG)
   add_test(NAME mx_moe_model COMMAND mx_moe_model)
+  add_executable(mx_moe_selection_v2 test/unit/mx_moe_selection_v2.cpp)
+  target_link_libraries(mx_moe_selection_v2 PRIVATE TileMega::tilemega)
+  target_compile_options(mx_moe_selection_v2 PRIVATE -UNDEBUG)
+  add_test(NAME mx_moe_selection_v2 COMMAND mx_moe_selection_v2)
   add_executable(mx_decode_program_v2 test/unit/mx/decode_program_v2.cpp)
   target_link_libraries(mx_decode_program_v2 PRIVATE TileMega::tilemega)
   target_include_directories(mx_decode_program_v2 PRIVATE ${CMAKE_SOURCE_DIR}/lib/Codegen)
