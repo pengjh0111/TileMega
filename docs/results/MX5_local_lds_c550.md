@@ -1161,3 +1161,28 @@ f32routingweights andBF16 Q/Knorm/RoPE validate. The246external/weight
 names,dtypes andrecipes areidentical acrossB. Theseare CPUfrontendfacts,
 notnativecompile/correctness/routing/performance results.
 Raw:moe_native_bindings_readonly_v1/ACTUAL_NATIVE_CONTRACT_VALIDATION_CPU.json.
+
+
+Verified segment-scale-reuse manual end-to-end controlcomplete:C1/C2512
+bothB2/B4 pass;card5 A20/new/A20/new,4fresh/cell,warm1/timed2,
+ISL64/OSL1024,L1prefill,WD0,no trace. B2old/new2.301821086/
+2.315481970ms(+.593482%);B4 2.571234213/2.595170951ms(+.930944%).
+Bothunder1% threshold,indistinguishable,withno demonstratedbenefit;keptoff.
+Eightcandidate PPAIR/twoC1C2 rows independentlyappend afterrawbinding,
+identity/hash/PID/guard checks. Current-source576 B2frames332/332B,
+B4 392/364B remainrejected;512WD0MT228/234,WD1MT226/236 frame0;
+eightAPI0/resident1 queryrowsappend withzero failedkernel launches.
+Freshnormalproducerb6d766a5/source47102229 usesexact87e25d5b header.
+Allfourimplementation contrasts(tailpeel,staticbound,validquery,scale reuse)
+are recordedseparatelyfromformal sourceA20 selection;noneispromoted.
+Raw:attention_segment_scale_reuse_candidate_v1.
+
+Verified remainingdense schedule:theoriginalactive Llama3BB4 childcontinues
+unchanged oncard6. Onlyitsowned CPUparent dispatcher isstoppedtoprevent
+futureduplicate celllaunches. Aftertheexistingchild exits,actual/proc exit
+status isrecorded beforeterminatingthatstoppedCPUparent andindependently
+verifying/appending B4. Nocard/GPU/measurementprocess issignalled.
+Card5 startsB8onlyafterallS4 PPAIRguardsfinish;remainingfixedqueues use
+cards6/5,oneguardjob/card,atmost2cards,originalsource/protocol/prefillL1/
+C1/C2/top4/measurementcriteria. No finalgateis waived. Thependinghandoff
+isnot claimedcomplete;rawremaining_dense_two_card_dispatch_v1.
