@@ -57,15 +57,16 @@ def rotary_tables(config: object, capacity: int,
 
 
 def allocate_state(model_dir: str | Path, batch: int,
-                   prefill: PlanLibrary, decode: PlanLibrary,
+                   prefill: PlanLibrary | None, decode: PlanLibrary,
                    device: str | torch.device = "cuda") -> ServingState:
-    if prefill.info.phase != 0 or decode.info.phase != 1:
+    # prefill None: the prompt mode runs the prompt through the decode plan.
+    plans = (decode,) if prefill is None else (prefill, decode)
+    if decode.info.phase != 1 or (prefill is not None and prefill.info.phase != 0):
         raise ValueError("plans must be ordered prefill, decode")
-    if prefill.info.capacity != decode.info.capacity:
+    if prefill is not None and prefill.info.capacity != decode.info.capacity:
         raise ValueError("prefill and decode capacities differ")
-    capacity = prefill.info.capacity
-    if not prefill.info.batch_lo <= batch <= prefill.info.batch_hi or not (
-            decode.info.batch_lo <= batch <= decode.info.batch_hi):
+    capacity = decode.info.capacity
+    if not all(plan.info.batch_lo <= batch <= plan.info.batch_hi for plan in plans):
         raise ValueError("batch outside one plan's solved interval")
     device = torch.device(device)
     config = AutoConfig.from_pretrained(str(model_dir), local_files_only=True)
@@ -86,7 +87,7 @@ def allocate_state(model_dir: str | Path, batch: int,
     for layer in range(layers):
         result[f"kv_cache.k.{layer}"] = kv_storage[layer, 0]
         result[f"kv_cache.v.{layer}"] = kv_storage[layer, 1]
-    for plan in (prefill, decode):
+    for plan in plans:
         for buffer in plan.buffers:
             if buffer.role != 1 or buffer.pack_json:
                 continue

@@ -14,7 +14,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--model', type=Path)
     parser.add_argument('--system-label', choices=('TileMega', 'TM-R15', 'TM-RF1-on', 'TM-RF1-off', 'TM-seed', 'TM-H1', 'TM-H1H4', 'TM-sm80', 'TM-noWGMMA'), default='TileMega')
-    parser.add_argument('--prefill', type=Path, required=True)
+    parser.add_argument('--prefill', required=True,
+                        help="the prefill binary, or 'prompt' to run the prompt through the decode plan")
     parser.add_argument('--decode', type=Path, required=True)
     parser.add_argument('--prompt-ids', type=Path, required=True)
     parser.add_argument('--batch', choices=('1', '2', '4', '8', '16'), required=True)
@@ -50,18 +51,22 @@ def main():
     import torch
     from .engine import ServingEngine
     from .execution import execution_combinations
+    # §8 A3.5: 'prompt' runs the prompt positions teacher-forced on the decode plan.
+    prefill = None if args.prefill == 'prompt' else Path(args.prefill)
+    binaries = (('prefill', prefill), ('decode', args.decode)) if prefill else (('decode', args.decode),)
     identities = {phase: json.loads(Path(str(path)+'.identity.json').read_text())
-                  for phase, path in (('prefill', args.prefill), ('decode', args.decode))}
+                  for phase, path in binaries}
     manifests = [json.loads(Path(str(path)+'.plan.json').read_text())
-                 for path in (args.prefill, args.decode)]
-    metadata = {'prefill_sha256': hashlib.sha256(args.prefill.read_bytes()).hexdigest(),
+                 for _, path in binaries]
+    metadata = {'prefill_sha256': hashlib.sha256(prefill.read_bytes()).hexdigest() if prefill else 'prompt mode',
                 'decode_sha256': hashlib.sha256(args.decode.read_bytes()).hexdigest(),
                 'plan_manifests': manifests, 'mode': args.mode,
                 'decode_loop': args.decode_loop, 'prefill_mode': args.prefill_mode or args.mode,
                 'hf_positions': args.hf_positions, 'weight_source': 'local checkpoint',
                 'system_label': args.system_label,
                 'selection_status': 'diagnostic candidate; no RF2 final selection claimed',
-                'prefill_binary': str(args.prefill.resolve()), 'decode_binary': str(args.decode.resolve()),
+                'prefill_binary': str(prefill.resolve()) if prefill else 'prompt mode',
+                'decode_binary': str(args.decode.resolve()),
                 'identities': identities,
                 'runner_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
                 'hf_checker_sha256': hashlib.sha256(Path(__file__).with_name('hf_check.py').read_bytes()).hexdigest()}
@@ -81,7 +86,7 @@ def main():
                         checkpoint_sha256=checkpoint['checkpoint_sha256'],
                         weight_source='shared synthetic TileMega/HF checkpoint; pretrained C-1 unavailable')
     def engine(mode, loop):
-        return ServingEngine(args.model, args.prefill, args.decode, int(args.batch),
+        return ServingEngine(args.model, prefill, args.decode, int(args.batch),
             prompt_len=prompt_len, max_new_tokens=args.max_tokens, mode=mode,
             decode_loop=bool(loop), step_events=False, prefill_mode=args.prefill_mode)
     frozen = torch.tensor(ids[:int(args.batch)], dtype=torch.int32)

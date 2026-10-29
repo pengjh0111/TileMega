@@ -25,7 +25,7 @@ class Generation:
 
 
 class ServingEngine:
-    def __init__(self, model_dir: str | Path, prefill_so: str | Path,
+    def __init__(self, model_dir: str | Path, prefill_so: str | Path | None,
                  decode_so: str | Path, batch: int, prompt_len: int = 64,
                  max_new_tokens: int = 1024, mode: str = "auto",
                  device: int = 0, decode_loop: bool | str = True,
@@ -35,15 +35,19 @@ class ServingEngine:
             raise ValueError('prompt length and output length must be positive')
         torch.cuda.set_device(device)
         torch.cuda.init()  # Both generated libraries use this primary context.
-        self.prefill_lib = PlanLibrary(prefill_so)
+        # prefill_so None is the prompt mode (§8 A3.5): the decode plan runs the
+        # prompt positions teacher-forced, so a model needs no prefill binary.
+        self.prefill_lib = PlanLibrary(prefill_so) if prefill_so is not None else None
         self.decode_lib = PlanLibrary(decode_so)
+        libraries = [lib for lib in (self.prefill_lib, self.decode_lib) if lib is not None]
         static_abi = getattr(self.decode_lib.lib, 'tm_plan_static_dense_abi', None)
         self.static_vocab_size = (int(json.loads((Path(model_dir) / 'config.json').read_text())['vocab_size'])
                                   if static_abi is not None else None)
-        if (self.prefill_lib.info.seq != prompt_len or
-                self.decode_lib.info.seq != 1 or
-                self.prefill_lib.info.capacity != self.decode_lib.info.capacity or
-                prompt_len + max_new_tokens > self.decode_lib.info.capacity):
+        if (self.decode_lib.info.seq != 1 or
+                prompt_len + max_new_tokens > self.decode_lib.info.capacity or
+                (self.prefill_lib is not None and (
+                    self.prefill_lib.info.seq != prompt_len or
+                    self.prefill_lib.info.capacity != self.decode_lib.info.capacity))):
             raise ValueError("plan metadata does not cover this generation")
         self.batch = batch
         self.prompt_len = prompt_len
@@ -57,31 +61,38 @@ class ServingEngine:
         self.step_events = bool(step_events)
         self.decode_chunk = decode_chunk
         self.memory_report = None
-        manifests=[Path(str(path)+'.plan.json') for path in (prefill_so,decode_so)]
+        manifests=[Path(str(path)+'.plan.json') for path in (prefill_so,decode_so) if path is not None]
         if all(path.exists() for path in manifests):
             from .memory import allocation_metadata, memory_report
             self.memory_report=memory_report(
                 json.loads((Path(model_dir)/'config.json').read_text()),
                 [allocation_metadata(json.loads(path.read_text()),lib) for path,lib in
-                 zip(manifests,(self.prefill_lib,self.decode_lib))],batch,
+                 zip(manifests,libraries)],batch,
                 self.decode_lib.info.capacity)
-        self.weights = load_weights(model_dir, self.prefill_lib, self.decode_lib,
+        self.weights = load_weights(model_dir, *libraries,
                                     device=torch.device("cuda", device))
         self.state = allocate_state(model_dir, batch, self.prefill_lib,
                                     self.decode_lib,
                                     device=torch.device("cuda", device))
         pointers = {name: tensor.data_ptr() for name, tensor in self.weights.items()}
         pointers.update(self.state.pointers)
-        self.prefill = self.prefill_lib.create(batch, pointers, device)
+        self.prefill = (self.prefill_lib.create(batch, pointers, device)
+                        if self.prefill_lib is not None else None)
         try:
             self.decode = self.decode_lib.create(batch, pointers, device)
         except BaseException:
-            self.prefill.close()
+            if self.prefill is not None:
+                self.prefill.close()
             raise
         self.loop_modes = self.decode.loop_modes()
-        self.prefill.set_steps([0])
-        self.decode.set_steps(list(range(prompt_len,
-                                         prompt_len + max_new_tokens - 1)))
+        if self.prefill is not None:
+            self.prefill.set_steps([0])
+            self.decode.set_steps(list(range(prompt_len,
+                                             prompt_len + max_new_tokens - 1)))
+        else:
+            # Step s runs position s: the prompt's positions, then the decode steps.
+            self.decode.set_prompt_len(prompt_len)
+            self.decode.set_steps(list(range(0, prompt_len + max_new_tokens - 1)))
         if mode == "auto":
             self.prefill_mode = self.decode_mode = 2
         elif mode == "L1":
@@ -94,7 +105,7 @@ class ServingEngine:
             if prefill_mode not in ("L1", "L2"):
                 raise ValueError(f"unknown prefill mode {prefill_mode}")
             self.prefill_mode = {"L1": 1, "L2": 2}[prefill_mode]
-        if not (self.prefill_lib.info.modes & self.prefill_mode and
+        if not ((self.prefill_lib is None or self.prefill_lib.info.modes & self.prefill_mode) and
                 self.decode_lib.info.modes & self.decode_mode):
             raise ValueError("requested mode is not in both plan libraries")
 
@@ -126,18 +137,25 @@ class ServingEngine:
         wall_start = time.perf_counter()
         self.state.tokens[:, :self.prompt_len].copy_(source, non_blocking=True)
         start.record(stream)
-        self.prefill.launch(0, self.prefill_mode, stream.cuda_stream)
+        if self.prefill is not None:
+            self.prefill.launch(0, self.prefill_mode, stream.cuda_stream)
+            offset = 0
+        else:
+            # Prompt mode: positions 0..prompt_len-1 of the decode plan, the last
+            # of which writes the first new token, so TTFT ends here (U10).
+            self.decode.launch_steps(0, self.prompt_len, self.decode_mode, stream.cuda_stream)
+            offset = self.prompt_len
         boundaries[0].record(stream)
         if use_loop:
             chunk = self.decode_chunk or count - 1
             if chunk < 1:
                 raise ValueError("decode_chunk must be positive")
             for first in range(0, count - 1, chunk):
-                self.decode.launch_steps(first, min(chunk, count - 1 - first),
+                self.decode.launch_steps(offset + first, min(chunk, count - 1 - first),
                                          self.decode_mode, stream.cuda_stream)
         else:
             for step in range(count - 1):
-                self.decode.launch(step, self.decode_mode, stream.cuda_stream)
+                self.decode.launch(offset + step, self.decode_mode, stream.cuda_stream)
                 if self.step_events:
                     boundaries[step + 1].record(stream)
         final.record(stream)
@@ -149,7 +167,7 @@ class ServingEngine:
         step_ms = [start.elapsed_time(boundaries[0])]
         step_ns_read = use_loop and self.step_events
         if step_ns_read:
-            ns = self.decode.read_step_ns(0, count)
+            ns = self.decode.read_step_ns(offset, count)
             step_ms.extend((ns[i] - ns[i - 1]) / 1e6
                            for i in range(1, count))
         elif self.step_events:
@@ -160,7 +178,8 @@ class ServingEngine:
 
     def close(self) -> None:
         self.decode.close()
-        self.prefill.close()
+        if self.prefill is not None:
+            self.prefill.close()
 
     def __enter__(self) -> "ServingEngine":
         return self

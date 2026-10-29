@@ -63,7 +63,8 @@ class PlanLibrary:
         loop_modes = getattr(self.lib, "tm_plan_loop_modes", None)
         for name, result, arguments in (
                 ('tm_plan_pdl_enabled', C.c_uint, [C.c_void_p]),
-                ('tm_plan_execution_smem', C.c_uint64, [C.c_void_p, C.c_uint])):
+                ('tm_plan_execution_smem', C.c_uint64, [C.c_void_p, C.c_uint]),
+                ('tm_plan_set_prompt_len', C.c_int, [C.c_void_p, C.c_int])):
             symbol=getattr(self.lib,name,None)
             if symbol is not None:
                 symbol.restype=result;symbol.argtypes=arguments
@@ -124,6 +125,16 @@ class Plan:
         self.library = library
         self.handle = handle
         self.iteration = {1: 0, 2: 0}
+        self.prompt_len = 0
+
+    def set_prompt_len(self, prompt_len: int) -> None:
+        """Teacher-force positions below prompt_len from the frozen prompt (§8 A3.5)."""
+        setter = getattr(self.library.lib, "tm_plan_set_prompt_len", None)
+        if setter is None:
+            raise RuntimeError("this plan was built without the prompt mode")
+        if setter(self.handle, prompt_len) != 0:
+            raise RuntimeError("tm_plan_set_prompt_len failed")
+        self.prompt_len = prompt_len
 
     def execution_identity(self, mode: int, loop: bool = False) -> dict | None:
         if self.library.identity is None:return None
@@ -139,8 +150,11 @@ class Plan:
     def set_steps(self, past: list[int]) -> None:
         if self.library.info.phase == FORWARD and past != [0]:
             raise ValueError("forward plans accept only step zero")
-        if not past or any(not self.library.info.past_lo <= p <= self.library.info.past_hi
-                           for p in past):
+        # Below the solved interval only the teacher-forced prompt positions run;
+        # they are certified by C-1/C-2, not by the solve (§8 A3.5).
+        lo = self.library.info.past_lo
+        if not past or any(not (lo <= p or p < self.prompt_len) or p < 0 or
+                           p > self.library.info.past_hi for p in past):
             raise ValueError("past outside the solved interval")
         values = (C.c_int32 * len(past))(*past)
         if self.library.lib.tm_plan_set_steps(self.handle, values, len(past)) != 0:
