@@ -143,13 +143,18 @@ static MoeRegionMatch Match(std::vector<FxNodeRecord> const& nodes,
     Reader::Fail("top-k must select sorted largest values");
   auto const& weights=r.Ref(*experts,2);result.weights=weights.name;
   result.routing_weights_fp32=weights.dtype=="torch.float32";
-  auto const& division=result.routing_weights_fp32?weights:
+  auto const& value=result.routing_weights_fp32?weights:
       r.Cast(weights,"torch.bfloat16","torch.float32");
-  if(division.target!="aten.div.Tensor")Reader::Fail("selected probabilities must be normalized");
-  auto const& selected=r.Ref(division,0);auto const& sum=r.Ref(division,1);
-  if(r.Tuple(selected,0).name!=topk.name || sum.target!="aten.sum.dim_IntList" ||
-      r.Ref(sum,0).name!=selected.name)Reader::Fail("normalization does not reduce the selected probabilities");
-  r.LastAxis(sum,1,true);
+  // Qwen3 divides the selected probabilities by their sum; OLMoE weights the
+  // experts with the top-k values themselves (norm_topk_prob = false).
+  result.normalize_topk=value.target=="aten.div.Tensor";
+  if(result.normalize_topk) {
+    auto const& selected=r.Ref(value,0);auto const& sum=r.Ref(value,1);
+    if(r.Tuple(selected,0).name!=topk.name || sum.target!="aten.sum.dim_IntList" ||
+        r.Ref(sum,0).name!=selected.name)Reader::Fail("normalization does not reduce the selected probabilities");
+    r.LastAxis(sum,1,true);
+  }else if(r.Tuple(value,0).name!=topk.name)
+    Reader::Fail("routing weights are neither normalized nor the selected probabilities");
   auto const& probability=r.Ref(topk,0);
   if(!Reader::Target(probability,{"aten.softmax.int","aten._softmax.default"}) ||
       probability.dtype!="torch.float32")Reader::Fail("router requires FP32 softmax");
