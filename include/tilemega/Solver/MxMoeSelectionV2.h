@@ -1,12 +1,25 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Codegen/MxMoeModel.h>
+#include <tilemega/Codegen/MxDecodeProgramV2.h>
 #include <array>
 #include <cstddef>
 #include <functional>
+#include <string>
 #include <vector>
 
 namespace tilemega::solver {
 using MxMoeRanksV2 = std::array<std::size_t, 7>;  // qkv, o, router, gate/up, down, head, attention
+
+struct MxMoeStageGeometryV2 {
+  int n, k, partition_n, op, norm, n_active;
+};
+// Host cost-domain geometry. Grouped N stays per expert; partition_n counts
+// active expert tiles. No measurement, prefetch or execution is fabricated.
+MxMoeStageGeometryV2 MxMoeGeometryV2(codegen::MxMoeModel const& model,
+    std::string const& stage, int batch);
+std::vector<codegen::MxDecodeClassV2> MxMoeGemmDomainV2(codegen::MxMoeModel const& model,
+    std::string const& stage, int batch, int grid = 104);
 
 // Lists already contain source-qualified costs, scaled by stage occurrences.
 // This merge does not qualify measurements or authorize a generated program.

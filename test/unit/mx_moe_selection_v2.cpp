@@ -14,7 +14,58 @@ template<class F> void Reject(F f) {
   try { f(); } catch (std::invalid_argument const&) { rejected = true; }
   assert(rejected);
 }
-int main() {
+int main(int argc, char** argv) {
+  bool dump = argc == 2 && std::string(argv[1]) == "--dump-domain";
+  if (argc != 1 && !dump) return 2;
+  tilemega::codegen::MxMoeModel model{};
+  model.hidden = 2048; model.intermediate = 768; model.heads = 32;
+  model.hkv = 4; model.dim = 128; model.queries = 8;
+  model.experts = 128; model.top_k = 8; model.vocabulary = 151936;
+  std::size_t regular = 0, grouped = 0, routers = 0, heads = 0;
+  for (int batch : {1, 2, 4, 8, 16}) {
+    model.batch = batch;
+    for (std::string stage : {"qkv", "o", "router", "gate_up", "down", "head"}) {
+      auto shape = MxMoeGeometryV2(model, stage, batch);
+      auto domain = MxMoeGemmDomainV2(model, stage, batch);
+      if (dump) for (int threads : {512, 576}) for (auto const& c : domain)
+        std::cout << stage << ',' << threads << ',' << batch << ',' << shape.n << ',' << shape.k << ','
+                  << shape.n_active << ',' << c.tn << ',' << c.wn << ',' << c.d << ',' << int(!c.stream_k)
+                  << ',' << shape.op << ',' << shape.norm << '\n';
+      if (stage == "qkv") assert(shape.n == 5120 && shape.k == 2048 && shape.norm == 1);
+      if (stage == "o") assert(shape.n == 2048 && shape.k == 4096 && shape.op == 1 && !shape.norm);
+      if (stage == "gate_up") assert(shape.n == 1536 && shape.k == 2048 && shape.op == 2 && shape.norm);
+      if (stage == "down") assert(shape.n == 2048 && shape.k == 768 && shape.op == 0 && !shape.norm);
+      if (shape.n_active) {
+        grouped += domain.size();
+        assert(shape.partition_n == shape.n * shape.n_active);
+        int expected = batch == 1 ? 8 : batch == 2 ? 16 : batch == 4 ? 29 : batch == 8 ? 52 : 82;
+        assert(shape.n_active == expected);
+        for (auto const& c : domain) {
+          assert(!c.stream_k);
+          if (stage == "gate_up") assert(c.tn >= 32 && c.prefetch == 0);
+        }
+      } else if (stage == "router") {
+        routers += domain.size();
+        for (auto const& c : domain) assert(c.wn == 1 && !(c.tn == 128 && c.stream_k));
+      } else if (stage == "head") {
+        heads += domain.size();
+        for (auto const& c : domain) assert(!c.stream_k && (c.wn == 4 || c.wn == 8));
+      } else regular += domain.size();
+    }
+  }
+  // Independent full CPU inventories enumerate both thread shapes.
+  assert(2 * regular == 760 && 2 * grouped == 896 && 2 * routers == 270 && 2 * heads == 300);
+  model.batch = 1;
+  Reject([&] { MxMoeGemmDomainV2(model, "qkv", 3); });
+  Reject([&] { MxMoeGemmDomainV2(model, "qkv", 16); });
+  Reject([&] { MxMoeGemmDomainV2(model, "qkv", 1, 52); });
+  Reject([&] { MxMoeGemmDomainV2(model, "attention", 1); });
+  auto invalid_model = model; invalid_model.experts = 64;
+  Reject([&] { MxMoeGemmDomainV2(invalid_model, "router", 1); });
+  invalid_model = model; invalid_model.intermediate = std::numeric_limits<unsigned>::max();
+  Reject([&] { MxMoeGemmDomainV2(invalid_model, "gate_up", 1); });
+  invalid_model = model; invalid_model.queries = std::numeric_limits<unsigned>::max();
+  Reject([&] { MxMoeGemmDomainV2(invalid_model, "qkv", 1); });
   std::mt19937 random(2030);
   for (int trial = 0; trial < 120; ++trial) {
     std::array<std::vector<double>, 7> costs;
