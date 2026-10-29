@@ -16,7 +16,8 @@ template<class F> void Reject(F f) {
 }
 int main(int argc, char** argv) {
   bool dump = argc == 2 && std::string(argv[1]) == "--dump-domain";
-  bool import = argc == 5 && std::string(argv[1]) == "--import-rows";
+  bool audit = argc == 5 && std::string(argv[1]) == "--audit-rows";
+  bool import = argc == 5 && (std::string(argv[1]) == "--import-rows" || audit);
   if (argc != 1 && !dump && !import) return 2;
   tilemega::codegen::MxMoeModel model{};
   model.hidden = 2048; model.intermediate = 768; model.heads = 32;
@@ -29,6 +30,21 @@ int main(int argc, char** argv) {
     auto imported = ImportMxMoeCostRowsV2(model, std::stoi(argv[4]), doc.At("rows").AsArray("rows"));
     auto coverage = CheckMxMoeCostCoverageV2(model, std::stoi(argv[4]), imported,
         doc.Find("rejections") ? doc.At("rejections").AsArray("rejections") : tilemega::json::Array{});
+    if (audit) {
+      tilemega::json::Array missing, sizes;
+      for (auto const& stage : imported.stages) sizes.emplace_back(double(stage.size()));
+      for (auto const& key : coverage.missing) {
+        tilemega::json::Array values;
+        for (int value : key) values.emplace_back(value);
+        missing.emplace_back(values);
+      }
+      std::cout << tilemega::json::Value(tilemega::json::Object{{"batch", int(model.batch)},
+          {"threads", std::stoi(argv[4])}, {"expected", double(coverage.expected)},
+          {"measured", double(coverage.measured)}, {"rejected", double(coverage.rejected)},
+          {"missing", missing}, {"stage_sizes", sizes}, {"complete_geometry", coverage.Complete()},
+          {"file_qualification_implied", false}, {"execution_authorized", false}}).Dump() << '\n';
+      return 0;
+    }
     std::cout << "PASS imported aggregate rows; stage sizes";
     for (auto const& stage : imported.stages) std::cout << ' ' << stage.size();
     std::cout << "; geometry measured=" << coverage.measured << " rejected=" << coverage.rejected <<

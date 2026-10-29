@@ -80,6 +80,12 @@ def test_actual_moe_bridge_routes_to_cpu_top4_without_execution_or_overwrite(tmp
     preview = Path(str(output) + '.mx5_candidates.json')
     original = preview.read_bytes()
     doc = json.loads(original)
+    audit = subprocess.run([str(DOMAIN), '--audit-rows', str(table), '1', '512'],
+        cwd=ROOT, capture_output=True, text=True, check=True)
+    coverage = json.loads(audit.stdout)
+    assert coverage['complete_geometry'] and coverage['missing'] == []
+    assert coverage['measured'] == len(json.loads(table.read_text())['rows'])
+    assert coverage['stage_sizes'][6] == 4 and not coverage['execution_authorized']
     assert (doc['layers'], doc['batch'], doc['stages_per_step']) == (24, 1, 145)
     assert len(doc['candidates']) == 4 and doc['coverage']['missing'] == 0
     assert not any(doc[k] for k in ('execution_authorized', 'file_qualification_implied',
