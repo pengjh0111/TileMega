@@ -1296,3 +1296,23 @@ soLlama8BB2D7queuecard7proceedswhileB8card5runs. NewI1v2 usesactual
 8Bselectedcoordinatesandconfigepsilon1e-5;earlierCPU-onlypreparation
 retainsmissing-sourcepathandQwen-epsilon1e-6mistakes;neitherlaunched.
 I1card6waitsactual25+D7ledger;MoEunitcard7alsowaitsthosetwoactualgates.
+
+
+Verified rootgenericMoE typedemitterCPUbuild andtests:120emissions across
+B/layercount/routingdtype/prompt-decode,240invalidconfigurationsreject,
+120invalidbuffertilesreject,andpairedexternaltablesequal. 65positive/480
+invalidplan testsremainpassing. CanonicalCUDAheaders/CLIentrynotintegrated;
+CUDApreparationsstillisolatedandnotmodelacceptance. FrozenA20unchanged.
+
+
+Verified25/25aligneddense top4cohortcomplete;all100candidateC1/C2512
+and200freshWD0timingprocesses independentlybound/validated. 8BB8=
+11.862168ms,-2.824%vsfixedMX4;21nonregressions/four G-LLM failures.
+Thev2collectorconfirmsall25actualindependentappendproofs;oldguard75 and
+CPUhandofffailuresremain. NewD7round1eightinterventionscomplete,round2
+runningcard7. MoEunit/I1queuesstillwaititsledger,notjustdense25.
+
+
+VerifieddenseG-SOLVER numericgatepasses:all100currenttop4combinations
+pred/meas .932689484–1.024549650;all25selected .935251243–1.024549650.
+ThisdoesnotwaiveG-B/fourG-LLM regressions orenabledefaults;MoEsolverpending.

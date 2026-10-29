@@ -34,6 +34,15 @@ Four host emission/execution tests pass, including 64 prompt tokens with
 144 layer counters incremented 64 times and the head counter once: 9,217
 releases. This is a host simulation, not a GPU counter/litmus or prompt ABI test.
 
+Verified root `EmitMxMoeProgramV2` now emits all six typed layer stages and
+head from actual plan dimensions and class coordinates. Configuration checks
+cover grouped TileRange, the gate/up no-prefetch edge, router WN1, head WN4/8,
+wait immediates, and shared memory. Host tests add 120 emitted decode/prompt
+programs, 240 configuration rejections and 120 buffer-tile rejections;
+paired prompt/decode external tables are equal. Root compiler build and the
+five actual bridge analyses pass. Native CLI integration and canonical CUDA
+headers remain pending; these tests do not compile/execute the emitted CUDA.
+
 ## Device body preparation
 
 Verified isolated normal cucc builds, with exact-function MIR checks:
