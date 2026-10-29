@@ -386,16 +386,29 @@ struct Sm90DenseAttentionBody {
   }
 
   // MR4 merge of S chunk partials, shared by the last-arriver and DSMEM forms:
-  // `lse` holds all S x Q log2-sum-exps in shared memory (one CTA join after
-  // they land), each thread derives its own query's max and total, then sums
+  // `weight` holds all S x Q log2-sum-exps in shared memory; one warp per
+  // query turns them into normalized weights in place, then each thread sums
   // one float4 of the context per round, reading 16 partials per batch.
   template<class Partial>
-  __device__ static __forceinline__ void Combine(Sm90DenseAttentionOperands const& p,float const* lse,
+  __device__ static __forceinline__ void Combine(Sm90DenseAttentionOperands const& p,float* weight,
       int bg,Partial partial) {
-    for(int i=threadIdx.x*4;i<Q*D;i+=128*4) {
-      int q=i/D;float m=-INFINITY,total=0;
-      for(int c=0;c<Chunks;++c)m=fmaxf(m,lse[c*Q+q]);
-      for(int c=0;c<Chunks;++c)total+=isfinite(m)?exp2f(lse[c*Q+q]-m):0.0f;
+    // One warp per query, its lanes over the chunks: S Q exp2 for the whole
+    // merge, and the reduction stays parallel when Q is small.
+    int warp=int(threadIdx.x)>>5,lane=int(threadIdx.x)&31;
+    for(int q=warp;q<Q;q+=4) {
+      float m=-INFINITY;
+      for(int c=lane;c<Chunks;c+=32)m=fmaxf(m,weight[c*Q+q]);
+      m=Math::WarpMax(m);
+      float total=0;
+      for(int c=lane;c<Chunks;c+=32) {
+        float w=isfinite(m)?exp2f(weight[c*Q+q]-m):0.0f;weight[c*Q+q]=w;total+=w;
+      }
+      total=Math::WarpSum(total);
+      for(int c=lane;c<Chunks;c+=32)weight[c*Q+q]=total?weight[c*Q+q]/total:0.0f;
+    }
+    codegen::executor::ComputeSync();
+    for(int i=int(threadIdx.x)*4;i<Q*D;i+=128*4) {
+      int q=i/D;
       float4 result=make_float4(0,0,0,0);
       #pragma unroll
       for(int first=0;first<Chunks;first+=16) {
@@ -405,7 +418,7 @@ struct Sm90DenseAttentionBody {
         for(int j=0;j<kBatch;++j)if(first+j<Chunks)v[j]=partial(first+j,i);
         #pragma unroll
         for(int j=0;j<kBatch;++j)if(first+j<Chunks) {
-          float w=isfinite(m) && total?exp2f(lse[(first+j)*Q+q]-m)/total:0.0f;
+          float w=weight[(first+j)*Q+q];
           result.x+=w*v[j].x;result.y+=w*v[j].y;result.z+=w*v[j].z;result.w+=w*v[j].w;
         }
       }
@@ -426,8 +439,11 @@ struct Sm90DenseAttentionBody {
       return;
     }
     Async::WaitCluster(&cluster.inbox,cluster.inbox_generation&1);
+    // Combine normalizes its lse in place, so copy the inbox's out of the way.
+    for(int i=int(threadIdx.x);i<Chunks*Q;i+=128)s.weight[i]=s.inbox_lse[i];
+    codegen::executor::ComputeSync();
     // The inbox follows `last` and is only 4-byte aligned.
-    Combine(p,s.inbox_lse,bg,[&](int c,int i) {
+    Combine(p,s.weight,bg,[&](int c,int i) {
       float const* v=s.inbox+c*Q*D+i;return make_float4(v[0],v[1],v[2],v[3]);
     });
     codegen::executor::ComputeSync();
