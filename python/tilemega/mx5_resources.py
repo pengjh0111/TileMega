@@ -69,12 +69,12 @@ def text_sections(elf):
     return result
 
 
-def kernel_instructions(log):
+def kernel_instructions(log, kernel_name='mx_decode_kernel_v2'):
     starts = list(re.finditer(r'^# Machine code for function (\S+?):', log, re.M))
     opcode = re.compile(r'^\s+(?:[^=\n]*=\s+)?(?:(?:contract|nuw|nsw|exact|nnan|ninf|nsz|arcp|afn|reassoc|disjoint)\s+)*([A-Z][A-Z0-9_]+)')
     result = {}
     for index, start in enumerate(starts):
-        if 'mx_decode_kernel_v2' not in start[1] or '__device_stub__' in start[1]:
+        if kernel_name not in start[1] or '__device_stub__' in start[1]:
             continue
         end = log.find('# End machine code', start.end())
         if end < 0:
@@ -97,12 +97,12 @@ def kernel_instructions(log):
     return result
 
 
-def inspect(so, log, threads):
+def inspect(so, log, threads, kernel_name='mx_decode_kernel_v2'):
     if threads not in (512, 576):
         raise ValueError('invalid thread shape')
     data = Path(so).read_bytes()
     text = Path(log).read_text(errors='replace')
-    resources = [v for k, v in parse_resources(text).items() if 'mx_decode_kernel_v2' in k and '__device_stub__' not in k]
+    resources = [v for k, v in parse_resources(text).items() if kernel_name in k and '__device_stub__' not in k]
     if len(resources) != 1:
         raise ValueError('expected exactly one v2 kernel resource record')
     kernel = resources[0]
@@ -122,14 +122,16 @@ def inspect(so, log, threads):
         violations.append(f'stack frame is {kernel["stack_bytes"]} bytes')
     if kernel['static_smem_bytes']:
         violations.append(f'static shared memory is {kernel["static_smem_bytes"]} bytes')
-    instructions = kernel_instructions(text)
+    instructions = kernel_instructions(text, kernel_name)
+    bodies = ('qkv', 'attention', 'o', 'router', 'gate_up', 'down', 'head') if kernel_name == 'mx_moe_kernel_v2' else (
+        'qkv', 'attention', 'o', 'gate_up', 'down', 'head')
     return {'kernel': kernel, 'register_cap': cap, 'violations': violations,
             'artifact_bytes': len(data), 'code_bytes': sum(i['code_bytes'] for i in images),
             'device_images': images, 'kernel_instructions': instructions,
             'mir_capture': 'same_compile_print_after_stack_frame_layout',
             'body_instruction_status': 'pending_inlined_body_attribution',
-            'body_instructions': {name: None for name in ('qkv', 'attention', 'o', 'gate_up', 'down', 'head')},
-            'body_code_bytes': {name: None for name in ('qkv', 'attention', 'o', 'gate_up', 'down', 'head')}}
+            'body_instructions': {name: None for name in bodies},
+            'body_code_bytes': {name: None for name in bodies}}
 
 
 def main():
@@ -138,8 +140,9 @@ def main():
     parser.add_argument('--log', type=Path, required=True)
     parser.add_argument('--threads', type=int, required=True)
     parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--kernel', choices=('mx_decode_kernel_v2', 'mx_moe_kernel_v2'), default='mx_decode_kernel_v2')
     args = parser.parse_args()
-    report = inspect(args.so, args.log, args.threads)
+    report = inspect(args.so, args.log, args.threads, args.kernel)
     args.out.write_text(json.dumps(report, indent=2) + '\n')
 
 

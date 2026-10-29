@@ -72,3 +72,18 @@ def test_rejects_missing_or_malformed_artifacts_and_mir():
         kernel_instructions(log() + log())
     with pytest.raises(ValueError, match='incomplete'):
         kernel_instructions(log().split('# End machine code')[0])
+
+
+def test_moe_accounting_selects_its_kernel_and_keeps_resource_limits(tmp_path):
+    so, report = tmp_path / 'plan.so', tmp_path / 'plan.log'
+    so.write_bytes(offload(elf_image()))
+    moe = log(mt=243).replace('mx_decode_kernel_v2', 'mx_moe_kernel_v2')
+    report.write_text(log(mt=100) + moe)
+    result = inspect(so, report, 512, 'mx_moe_kernel_v2')
+    assert result['kernel']['registers'] == 243
+    assert result['violations'] == []
+    assert 'router' in result['body_instructions']
+    assert len(inspect(so, report, 576, 'mx_moe_kernel_v2')['violations']) == 1
+    report.write_text(log())
+    with pytest.raises(ValueError, match='exactly one'):
+        inspect(so, report, 512, 'mx_moe_kernel_v2')
