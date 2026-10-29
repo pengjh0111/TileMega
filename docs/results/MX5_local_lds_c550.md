@@ -1095,3 +1095,30 @@ static16/P0576 CPUcheckscomplete. Actual5fresh×104CTA×2000 iteration
 sparse-LDS publication/reuse litmus,fullnumerics andE2E arepending.
 Header87e25d5b remainsisolated;production0ccf7bc5/defaults unchanged.
 Raw:attention_segment_scale_reuse_candidate_v1;noGPU/performance claim.
+
+
+Verified validquery full336 numerics nowpassall5fresh. Itsfirstnull576
+attemptstopsatcheck_child.py:20 withFileNotFoundError forcurrent-source
+D64Q4/576 P0benchmetadata,beforesuchcase dispatch. Thisisapreparation
+omission,not anumericalpass/failure. Rawfailedguard/output andsetup-failed
+CSVrow remain. ThemissingP0/PK2 benchandunit576 libraries arenow normally
+compiled/audited foreachS3/S4 source;allresources/MIR pass. Null28 reruns
+use5newprocesses innewfull_checks_card5_v2 paths;theactual5fullsuccesses
+are retained throughhash-boundrefs,neverrelabelingthefailedattempt.
+Raw:attention_valid_query_softmax_candidate_v1/ACTUAL_NULL_MISSING_INPUT_PREPARATION_CORRECTION_CPU_v2.json.
+
+
+Verified validquery numerics complete:full336×5fresh,null28×5fresh,
+static112×5fresh,zero skips;15correctness and210actualresource rowsappend.
+Thefailednullsetup row remainsseparate. Staticappender initiallyrefused
+othercompleted rounds becauseduplicatecheck wasimplementation-wide;
+no writesoccurred. Scopewasfixedtoimplementation+round,thenindependent
+raw/hash/PID/resource checks passedandoldprefixes remainedunchanged.
+Freshnormal160-step producerbuildisrunning;no wholemodelresult yet.
+Normal-linked representative D128Q2/bmin4/norm1: A20 MT231/45368B/
+5695MIRinstructions;tailpeel/staticbounddynamic MT238/48152B/6052;
+validquery MT234/48376B/6084;scalereuse MT234/48664B/6123.
+Thesearestandalonebodyfunctionsymbols,not separatelycompiledobjects or
+wholemodel inlinecounts. Eightrepresentative recordsappendinoneCPU
+comparisonrow;nocachecause,TPOTgain ordefaultdecision isclaimed.
+Raw:attention_candidate_normal_code_comparison_v1.
