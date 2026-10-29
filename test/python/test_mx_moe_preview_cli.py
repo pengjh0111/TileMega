@@ -61,8 +61,8 @@ def synthetic_table():
         rejections=[], synthetic_fixture=True, qualified=False)
 
 
-def invoke(table, output, *extra):
-    return subprocess.run([str(TOOL), 'compile', str(BRIDGE), str(output),
+def invoke(table, output, *extra, bridge=BRIDGE):
+    return subprocess.run([str(TOOL), 'compile', str(bridge), str(output),
         '--serving', 'decode', '--emit', 'serving', '--frontend', 'decoder',
         '--batch', '1', '--capacity', '1088', '--past-range', '64:1086',
         '--runtime-target', str(ROOT / 'configs/targets/xcore1000.json'),
@@ -102,6 +102,18 @@ def test_actual_moe_bridge_routes_to_cpu_top4_without_execution_or_overwrite(tmp
     retry = invoke(table, output)
     assert retry.returncode != 0 and 'existing preview is preserved' in retry.stderr
     assert preview.read_bytes() == original
+
+
+def test_moe_table_cannot_be_applied_to_a_dense_bridge(tmp_path):
+    bridge = ROOT / 'runs/mx1/export/qwen3_0_6b_decode/bridge.json'
+    if not bridge.is_file():
+        pytest.skip('requires the existing dense export')
+    table = tmp_path / 'synthetic_geometry.json'
+    table.write_text(json.dumps(synthetic_table()))
+    output = tmp_path / 'plan.so'
+    result = invoke(table, output, bridge=bridge)
+    assert result.returncode != 0 and 'requires a MoE decode bridge' in result.stderr
+    assert not output.exists() and not Path(str(output) + '.mx5_candidates.json').exists()
 
 
 @pytest.mark.parametrize('change', ('missing_router', 'partial_attention', 'results', 'interpreted', 'wrong_schema'))
