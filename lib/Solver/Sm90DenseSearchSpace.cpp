@@ -11,8 +11,10 @@ void Sm90DenseSearchSpace::Structure(Sm90DenseCoordinates& c) {
 }
 
 bool Sm90DenseSearchSpace::Legal(Sm90DenseCoordinates const& c) const {
+  // Q = 1 is OLMoE's MHA (A3); the attention body's constraint is Q in [1, 8].
   if(target.arch_tag!="sm_90" || target.NvccArch()!="sm_90a" || target.res.num_sms<=0 ||
-     (head_dim!=64 && head_dim!=128) || (queries!=2 && queries!=3 && queries!=4 && queries!=8))
+     (head_dim!=64 && head_dim!=128) ||
+     (queries!=1 && queries!=2 && queries!=3 && queries!=4 && queries!=8))
     return false;
   try {c.Validate(shapes,batch);}catch(std::invalid_argument const&) {return false;}
   auto budget=Sm90DenseSharedBudget(target,c.residency);
@@ -57,8 +59,12 @@ std::vector<Sm90DenseGemm> Sm90DenseSearchSpace::FamilyCandidates(unsigned famil
     for(int tn:{128,256})if(n%tn==0 && n/tn>=grid)tiles.push_back(tn);
     depths={64,128,256};
   }else if(family>=5) {
-    // M4: TN8, 16 tasks; M5: TN in {96, 192} (B1 only 96); M6: {128, 256}.
+    // M4: TN8, 16 tasks. The expert tiles belong to the geometry: R3 fitted
+    // {96, 192} / {128, 256} to Qwen3's 128 experts of width 768, and A3 gives
+    // OLMoE's 64 experts of width 1024 TN in {64, 128, 256}. Validate below
+    // drops any tile the shape does not divide.
     if(family==5)tiles={8};
+    else if(experts==64)tiles={64,128,256};
     else if(family==6)tiles=batch==1?std::vector<int>{96}:std::vector<int>{96,192};
     else tiles={128,256};
     for(int tk=64;tk<=2048;tk*=2)depths.push_back(tk);
@@ -69,6 +75,9 @@ std::vector<Sm90DenseGemm> Sm90DenseSearchSpace::FamilyCandidates(unsigned famil
   }
   for(int tn:tiles)for(int wn:{1,2,4}) {
     if(tn%(8*wn) || tn/wn>256)continue;
+    // gate_up tiles an expert stack interleaved at U = 16 (pinned for native
+    // MoE), so its TN spans whole 2U pairs.
+    if(family==6 && tn%32)continue;
     for(int tk:depths) {
       if(k%tk)continue;
       Sm90DenseGemm g;g.tile_n=tn;g.warps_n=wn;g.warps_k=4/wn;g.slot_bytes=2*tn*tk;
