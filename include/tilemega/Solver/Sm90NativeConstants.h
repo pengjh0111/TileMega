@@ -46,13 +46,20 @@ class Sm90NativeConstants {
   double AttentionBlock(int dim,int queries,bool norm) const;
   double AttentionPrepare(int dim,int queries,bool norm) const;
   double AttentionMerge(int dim,int queries,bool norm,int chunks) const;
+  // MR6: one CTA streaming cold data with 8 x 16 KB in flight bounds the
+  // rate of each CTA in a stage's last, partly occupied wave.
+  double CtaDramGbps() const;
+  // MR6: the fixed cost of one expert task beyond its bytes and epilogue
+  // (family "expert_gate_up" or "expert_down") at a batch.
+  double TaskExpert(std::string const& family,int batch) const;
   // Constants whose recorded body header no longer matches the source tree.
   std::vector<std::string> StaleHeaders(std::string const& root) const;
   double l2_latency=0,dram_latency=0,dram_gbps=0,l2_gbps=0,sm_gbps=0,cp_async_gbps=0;
   json::Value section;
  private:
   std::map<int,double> barrier_;
-  json::Value epilogue_,embedding_,argmax_la_,route_la_,attention_,round_,clusters_,dsmem_,forward_;
+  json::Value epilogue_,embedding_,argmax_la_,route_la_,attention_,round_,clusters_,dsmem_,forward_,task_expert_;
+  double cta_dram_gbps_=0;
   json::Value const& AttentionShape(int dim,int queries,bool norm) const;
 };
 
