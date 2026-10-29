@@ -48,10 +48,14 @@ double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
   double ring=w_cta*c.dram_latency/(double(g.slots)*g.slot_bytes);
   double waves=Waves(tasks,grid,2.0*g.tile_n*k);
   double stream=std::max({w_tot/c.dram_gbps,waves,(w_tot+a_tot)/c.l2_gbps,cta,ring});
-  double task_fixed=family>=6?per_cta*c.TaskExpert(family==6?"expert_gate_up":"expert_down",b):0;
+  // A3: OLMoE's 64-expert stages key their own measurements; rows per slot
+  // follow n_active(E), so Qwen3's E = 128 entries do not stand in for them.
+  std::string geometry=family>=5 && work.experts==64?"_e64":"";
+  double task_fixed=family>=6?
+      per_cta*c.TaskExpert((family==6?"expert_gate_up":"expert_down")+geometry,b):0;
   static constexpr char const* kEpilogue[]={"qkv","residual","gate_up","residual","lm_head",
       "router","expert_gate_up","expert_down"};
-  double epilogue=c.Epilogue(kEpilogue[family],g.tile_n,b,g.warps_k);
+  double epilogue=c.Epilogue(kEpilogue[family]+geometry,g.tile_n,b,g.warps_k);
   double first=pre?c.l2_latency:c.dram_latency;
   double total=c.Barrier(grid)+first+stream+epilogue+task_fixed;
   if(terms)*terms=json::Object{{"barrier",c.Barrier(grid)},{"first_byte",first},{"pre",pre},
@@ -116,7 +120,8 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& work,
   if(c.moe) {
     // M4's last arriver (top-k and the schedule, beyond its barrier); M6's
     // per-tile last arriver reads P and x' and writes x''.
-    p.stages.push_back({"route_la",work.layers,constants_.RouteLa(grid,work.batch)-constants_.Barrier(grid),
+    p.stages.push_back({"route_la",work.layers,
+        constants_.RouteLa(grid,work.batch,work.experts,work.softmax_all)-constants_.Barrier(grid),
         json::Value()});
     double tile=c.gemms[7].tile_n*double(work.batch);
     p.stages.push_back({"combine_la",work.layers,

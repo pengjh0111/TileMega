@@ -67,10 +67,12 @@ double Sm90NativeConstants::ArgmaxLa(int grid,int batch) const {
   if(!b)throw Sm90NativeMissing("no measured last-arriver argmax for grid "+std::to_string(grid));
   return Positive(*b,"argmax last arriver");
 }
-double Sm90NativeConstants::RouteLa(int grid,int batch) const {
-  auto const* g=route_la_.Find("g"+std::to_string(grid));
+double Sm90NativeConstants::RouteLa(int grid,int batch,int experts,bool softmax_all) const {
+  auto key="g"+std::to_string(grid);
+  if(experts!=128 || softmax_all)key+=":e"+std::to_string(experts)+":all"+(softmax_all?"1":"0");
+  auto const* g=route_la_.Find(key);
   auto const* b=g?g->Find(std::to_string(batch)):nullptr;
-  if(!b)throw Sm90NativeMissing("no measured MoE route last arriver for grid "+std::to_string(grid));
+  if(!b)throw Sm90NativeMissing("no measured MoE route last arriver for "+key+" B"+std::to_string(batch));
   return Positive(*b,"route last arriver");
 }
 double Sm90NativeConstants::GroupWaitSaving(int grid) const {

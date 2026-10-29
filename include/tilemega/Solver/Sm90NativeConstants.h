@@ -26,7 +26,9 @@ class Sm90NativeConstants {
   // B x G reduction, including its V3 barrier (D9).
   double ArgmaxLa(int grid,int batch) const;
   // t_route_la: M4's last arriver (top-k, routes, schedule) plus V3 (§8).
-  double RouteLa(int grid,int batch) const;
+  // Qwen3's form (128 experts, softmax over the selected) keys g<grid>;
+  // any other form keys g<grid>:e<E>:all<0|1> as the probe reports it.
+  double RouteLa(int grid,int batch,int experts=128,bool softmax_all=false) const;
   // D8: a 16-CTA group counter wait's saving over the V3 barrier (DT-4's
   // round-loop window means).
   double GroupWaitSaving(int grid) const;

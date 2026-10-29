@@ -62,8 +62,10 @@ struct Sm90DenseWorkload {
   Sm90DenseShapeTable shapes;
   int batch=0,layers=0,head_dim=0,queries=0,hkv=8;
   bool qk_norm=false;
-  // MoE decode (prompt §8): 128 experts, top-8; shapes 5-7 are per expert.
-  bool moe=false;
+  // MoE decode (prompt §8): E experts (128 Qwen3, 64 OLMoE), top-8; shapes 5-7
+  // are per expert. softmax_all: the router's weights are the softmax over all
+  // E logits (OLMoE) rather than over the selected ones (Qwen3).
+  bool moe=false,softmax_all=false;
   int experts=0,top_k=0;
   // Absence preserves the unknown binding domain of historical workloads.
   std::optional<std::vector<Sm90DenseGemmPlanBinding>> gemm_bindings;

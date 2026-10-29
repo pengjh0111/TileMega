@@ -72,6 +72,7 @@ Sm90DenseWorkload Sm90DenseWorkloadFromPlan(frontend::ModelPlan const& plan,int 
     if(s.kind!=Kind::kGemm || s.gemm>=plan.gemms.size() || !seen.insert(s.gemm).second)
       throw std::invalid_argument("native workload has reordered, repeated or invalid GEMM stages");
     auto const& g=plan.gemms[s.gemm];
+    if(family==5)work.softmax_all=g.moe_softmax_all;
     for(auto id:{g.a,g.b,g.c})operand(id,false);
     operand(g.d,g.epilogue!=frontend::PlanGemm::Epilogue::kResidual);
     for(unsigned i=0;i<4;++i)if(family>=5)operand(s.operands[i],i>0);
