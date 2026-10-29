@@ -1235,3 +1235,13 @@ text tooriginalemitter. Prompt24layer×6stagesspec keeps145stage metadata,
 usespast==63 forheadtail,andwrapsnextQKVweightlayerto0. Thisis emittertext
 verification,not acompiledpromptkernel,ABI,monotoniccounterorGPUlitmus
 result. Rootgeneratorunchanged. Raw:moe_stageprogram_cpu_preparation_v1.
+
+
+Verified rootMoE hostanalyzer integration:60portable validplans+420invalid
+rejections,andfiveactualbridgeplans pass;rootcompilerbuild/CTest pass.
+No MoEentry/runtime/native GPUintegration yet. Isolated grouped12/combine16
+instances pass normalCPUresource/MIR,includingactualincoming downprefetch.
+Firstprefetchintegration revealed MACAatomic private-pointer genericbranches;
+anassumptionalonefailed,thenAS1ticketABIeliminatedthem. Failedartifactsremain
+andwere neverlaunched. Preparedlegacybitcompare/GEMMtestshavenotrun.
+SeeMX5_moe_native_c550.md;CPUpreparationbeforedense25explicitlyrecorded.
