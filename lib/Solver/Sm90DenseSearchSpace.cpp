@@ -24,6 +24,9 @@ bool Sm90DenseSearchSpace::Legal(Sm90DenseCoordinates const& c) const {
   if(c.group_wait && ((queries+2)*head_dim)%c.gemms[0].tile_n)return false;
   int grid=Grid(c.residency);
   if(c.cluster>1 && grid%c.cluster)return false;
+  // D9: every CTA publishes one argmax partial into the head's [B][tasks]
+  // outputs, so the head needs at least one task per CTA.
+  if(shapes[4][0]/c.gemms[4].tile_n<grid)return false;
   // D10c: both CTAs of a pair run the same task count.
   for(unsigned f:c.Active())
     if(c.gemms[f].multicast && ((shapes[f][0]/c.gemms[f].tile_n)%grid)%2)return false;
@@ -51,7 +54,7 @@ std::vector<Sm90DenseGemm> Sm90DenseSearchSpace::FamilyCandidates(unsigned famil
     return std::ceil(count/grid);
   };
   if(family==4) {
-    for(int tn:{128,256})if(n%tn==0)tiles.push_back(tn);
+    for(int tn:{128,256})if(n%tn==0 && n/tn>=grid)tiles.push_back(tn);
     depths={64,128,256};
   }else if(family>=5) {
     // M4: TN8, 16 tasks; M5: TN in {96, 192} (B1 only 96); M6: {128, 256}.
