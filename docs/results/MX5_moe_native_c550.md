@@ -1103,3 +1103,66 @@ failures per geometry, rather than abort all remaining reviews on its former
 zero-frame assertion. The idle v1 parent stops before review/GPU work;
 v2 retains every resource threshold and disallows measurement of rejected
 plans. Raw: moe_original_top4_per_plan_D7_review_cpu_v2.
+
+
+### Completed original resource histories and parallel E2E (verified)
+
+All40 original canonical576 prompt/decode histories and authorized-toD
+continuations are complete: every final floor still has a positive frame.
+The first controller failed after completing B1/B2 because two legitimate
+resource-rejected P0 references have MIR=null. Recovery preserves that
+failure and verifies those references against their original successful
+compiler process, source, resources and instruction counts. It completes
+only the24 remaining histories; no MIR result is invented. Independent
+per-plan source/normal-option/resource/MIR/query review completes40 phases.
+Raw: moe_original_top4_primary576_recovery_cpu_v2,
+moe_authorized_to_D_original_top4_cpu_v1,
+moe_original_top4_per_plan_D7_review_cpu_v2.
+
+All32 original512 B4/B16 artifacts remain resource-invalid after prescribed
+width reductions toD. Twenty additional normal builds plus four previously
+executed candidate0 head reductions are retained; existing all-D originals
+need no duplicate builds. No rejected plan launches. These failures do not
+authorize skipping complete combinations or changing k-best selection.
+Raw: moe_all_rejected_512_to_D_cpu_v1/results.
+
+Verified118 further normal resource-history rows are appended:98 for576
+and20 for512 floor descendants; existing artifact paths are deduplicated
+and every old CSV byte is preserved. Exporter v1 has a Python syntax error
+before any input read/CSV write; v2 fixes spacing only and revalidates the
+normal receipts/resources. Raw: moe_original_histories_resource_ledger_cpu_v1.
+
+Per-plan D7 decisions bind each of B1/B2/B8's exact16 original WD0/WD1
+artifacts and actual zero-launch queries. Standalone576 attention without
+incoming prefetch still spills under normal allocation; together with each
+actual program's floor MIR this supports an inferred per-plan512 body-
+pressure judgement, not a hardware minimum or blanket512 permission.
+B1/B2 original4 each pass512-step C-1(eager reference)/C-2; own-WD0-pair
+fresh-process timing is running on cards7/6. B8 runs on card5, with its
+first original candidate passing512 steps. Original numerical/route gates
+and exact4 candidates remain unchanged. The earlier prepared-only schedule
+is historical; actual guards record B2 on6. Raw:
+moe_original_top4_e2e_staged_v1, moe_B8_completed_history_review_cpu_v1.
+
+### Resource attribution experiments (verified; not adopted)
+
+Fourteen CPU-only stage omissions at unchanged original0 geometry isolate
+integration pressure to expert down/combine: omitting Down/DownLast gives
+MT235/frame0(B4) and241/frame0(B16), while every other single-stage omission
+still spills. Omitted bodies can also eliminate dead incoming prefetch;
+this is diagnostic evidence, not exclusive source attribution or a working
+model. No variant launches. Raw: moe_stage_knockout_D7_cpu_v1.
+
+Six isolated header overlays reduce combine partial payloads from8 ranks
+to batches1/2/4, retaining rank order, fmul/fadd and rounding. All still fail:
+B4 frame192B and B16 frame240B, MT256. No overlay is adopted or used as a
+cost/model result. The root body/source epoch remains unchanged. Raw:
+moe_combine_live_range_D7_cpu_v1.
+
+A B4 -g/--maca-noopt-device-debug CPU compile finally emits device debug
+sections and inline MIR locations, but changes device.text. It has the
+same256B frame,179 private instructions versus176 in the normal binary.
+Its locations help investigate GroupedGemmV2.h:396 and MoeProgramV2.cuh:219;
+they cannot be presented as exact normal-artifact instruction attribution.
+Raw: moe_spill_device_debug_D7_cpu_v1. A missing-PYTHONPATH metadata read
+fails before input import; the corrected CPU read verifies device sections.
