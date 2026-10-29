@@ -113,26 +113,26 @@ int Sm90NativeConstants::ClusterStar(int residency) const {
   if(!star)throw Sm90NativeMissing("no measured cluster occupancy for residency "+std::to_string(residency));
   return int(star->AsNumber("c_star"));
 }
-double Sm90NativeConstants::AttentionMergeDsmem(int dim,int queries,bool norm,int chunks) const {
+double Sm90NativeConstants::AttentionMergeDsmem(int dim,int queries,int norm,int chunks) const {
   auto key="d"+std::to_string(dim)+":q"+std::to_string(queries)+":norm"+std::to_string(int(norm));
   auto const* shape=dsmem_.Find(key);
   auto const* found=shape?shape->Find(std::to_string(chunks)):nullptr;
   if(!found)throw Sm90NativeMissing("no measured DSMEM merge for "+key+" S"+std::to_string(chunks));
   return Positive(*found,"DSMEM merge");
 }
-json::Value const& Sm90NativeConstants::AttentionShape(int dim,int queries,bool norm) const {
+json::Value const& Sm90NativeConstants::AttentionShape(int dim,int queries,int norm) const {
   auto key="d"+std::to_string(dim)+":q"+std::to_string(queries)+":norm"+std::to_string(int(norm));
   auto const* found=attention_.Find(key);
   if(!found)throw Sm90NativeMissing("no measured attention constants for "+key);
   return *found;
 }
-double Sm90NativeConstants::AttentionBlock(int dim,int queries,bool norm) const {
+double Sm90NativeConstants::AttentionBlock(int dim,int queries,int norm) const {
   return Positive(AttentionShape(dim,queries,norm).At("block"),"attention block");
 }
-double Sm90NativeConstants::AttentionPrepare(int dim,int queries,bool norm) const {
+double Sm90NativeConstants::AttentionPrepare(int dim,int queries,int norm) const {
   return Positive(AttentionShape(dim,queries,norm).At("prepare"),"attention preparation");
 }
-double Sm90NativeConstants::AttentionMerge(int dim,int queries,bool norm,int chunks) const {
+double Sm90NativeConstants::AttentionMerge(int dim,int queries,int norm,int chunks) const {
   auto const* found=AttentionShape(dim,queries,norm).At("merge").Find(std::to_string(chunks));
   if(!found)throw Sm90NativeMissing("no measured attention merge for "+std::to_string(chunks)+" chunks");
   return Positive(*found,"attention merge");

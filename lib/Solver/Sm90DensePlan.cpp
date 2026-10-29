@@ -107,8 +107,21 @@ Sm90DenseWorkload Sm90DenseWorkloadFromPlan(frontend::ModelPlan const& plan,int 
     for(unsigned i:{0u,1u,2u,3u,4u,7u,8u,9u,10u})operand(a.operands[i],false);
     bool q=operand(a.operands[5],true),k=operand(a.operands[6],true);
     if(q!=k)throw std::invalid_argument("native workload has asymmetric Q/K normalization");
-    if(!layer) {work.head_dim=a.width;work.queries=a.group;work.qk_norm=q;work.hkv=a.extent;}
-    else if(work.head_dim!=int(a.width) || work.queries!=int(a.group) || work.qk_norm!=q)
+    // The norm mode follows the weights' widths, as codegen reads it: one head
+    // (per head) or the whole projected row (OLMoE, before the heads split).
+    bool row=false;
+    if(q) {
+      auto elements=[&](std::uint32_t id) {
+        return std::int64_t(plan.buffers[id].constant)+plan.buffers[id].per_seq;
+      };
+      auto qe=elements(a.operands[5]),ke=elements(a.operands[6]);
+      row=qe==std::int64_t(a.extent)*a.group*a.width && ke==std::int64_t(a.extent)*a.width;
+      if(!row && (qe!=a.width || ke!=a.width))
+        throw std::invalid_argument("native workload Q/K norm is neither per head nor per projected row");
+    }
+    if(!layer) {work.head_dim=a.width;work.queries=a.group;work.qk_norm=q;work.qk_norm_row=row;work.hkv=a.extent;}
+    else if(work.head_dim!=int(a.width) || work.queries!=int(a.group) || work.qk_norm!=q ||
+            work.qk_norm_row!=row)
       throw std::invalid_argument("native workload attention tuple changes between layers");
     if(work.moe) {gemm(start+2,1);gemm(start+3,5);gemm(start+4,6);gemm(start+5,7);}
     else {gemm(start+2,1);gemm(start+3,2);gemm(start+4,3);}

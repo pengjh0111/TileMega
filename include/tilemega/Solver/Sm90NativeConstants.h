@@ -35,7 +35,7 @@ class Sm90NativeConstants {
   // DT-2: the largest cluster size C with max-active-clusters x C >= 128.
   int ClusterStar(int residency) const;
   // D10b: the leader's DSMEM merge of S chunk partials (beyond the CTA join).
-  double AttentionMergeDsmem(int dim,int queries,bool norm,int chunks) const;
+  double AttentionMergeDsmem(int dim,int queries,int norm,int chunks) const;
   // B/TN above kappa = BW_l2 / BW_dram - 1 makes a stage activation-bound (D10c).
   double MulticastKappa() const {return l2_gbps/dram_gbps-1;}
   // N-1: the measured WGMMA shape efficiency and one SM's bf16 throughput
@@ -45,9 +45,9 @@ class Sm90NativeConstants {
   double WgmmaEfficiency(int tile_n) const;
   double SmFlops() const;
   // D2 body: one 64-key block (data resident), q preparation, S-chunk merge.
-  double AttentionBlock(int dim,int queries,bool norm) const;
-  double AttentionPrepare(int dim,int queries,bool norm) const;
-  double AttentionMerge(int dim,int queries,bool norm,int chunks) const;
+  double AttentionBlock(int dim,int queries,int norm) const;
+  double AttentionPrepare(int dim,int queries,int norm) const;
+  double AttentionMerge(int dim,int queries,int norm,int chunks) const;
   // MR6: one CTA streaming cold data with 8 x 16 KB in flight bounds the
   // rate of each CTA in a stage's last, partly occupied wave.
   double CtaDramGbps() const;
@@ -62,7 +62,7 @@ class Sm90NativeConstants {
   std::map<int,double> barrier_;
   json::Value epilogue_,embedding_,argmax_la_,route_la_,attention_,round_,clusters_,dsmem_,forward_,task_expert_;
   double cta_dram_gbps_=0;
-  json::Value const& AttentionShape(int dim,int queries,bool norm) const;
+  json::Value const& AttentionShape(int dim,int queries,int norm) const;
 };
 
 }  // namespace tilemega::solver

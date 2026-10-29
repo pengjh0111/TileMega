@@ -68,7 +68,9 @@ double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
 double Sm90DenseCostModel::Attention(Sm90DenseWorkload const& work,
     Sm90DenseAttention const& a,int residency,json::Value* terms) const {
   auto const& c=constants_;
-  int grid=Grid(residency),d=work.head_dim,q=work.queries;bool norm=work.qk_norm;
+  int grid=Grid(residency),d=work.head_dim,q=work.queries;
+  // Attention constants are keyed by the norm mode: 0 none, 1 per head, 2 per row.
+  int norm=work.qk_norm?(work.qk_norm_row?2:1):0;
   double past=575,tasks=double(work.batch)*work.hkv*a.chunks,per_cta=std::ceil(tasks/grid);
   double keys=std::ceil((past+1)/a.chunks),blocks=std::ceil(keys/64);
   double kv_task=keys*d*4,kv_tot=double(work.batch)*work.hkv*past*d*4;

@@ -61,7 +61,9 @@ struct Sm90DenseGemmPlanBinding {
 struct Sm90DenseWorkload {
   Sm90DenseShapeTable shapes;
   int batch=0,layers=0,head_dim=0,queries=0,hkv=8;
-  bool qk_norm=false;
+  // qk_norm_row: the norm covers the whole projected row (OLMoE, mode 2), not
+  // one head (Qwen3, mode 1); the attention constants are keyed by the mode.
+  bool qk_norm=false,qk_norm_row=false;
   // MoE decode (prompt §8): E experts (128 Qwen3, 64 OLMoE), top-8; shapes 5-7
   // are per expert. softmax_all: the router's weights are the softmax over all
   // E logits (OLMoE) rather than over the selected ones (Qwen3).
