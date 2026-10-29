@@ -98,7 +98,19 @@ struct Sm90DenseCoordinates {
   // D10 (DT-2): CTAs launch in clusters of `cluster` ranks (1 or 2; larger
   // clusters change the grid away from the measured 132/264).
   int cluster=1;
+  // MR7 (MC7): the grouped gate_up and down stages run as one typed stage
+  // (M56) whose down tasks wait on the per-slot counters; P-SEL decides.
+  // MoE only, and one ring serves both task types, so the two expert
+  // families share its depth.
+  bool expert_fuse=false;
   static constexpr bool ResidualFamily(unsigned family) {return family==1 || family==3;}
+
+  // MR7: the fused stage's storage; a slot holds either task type, so each
+  // geometry takes the larger of the two (Sm90DenseLayout::MoeFused).
+  std::int64_t FusedExpertBytes(int batch) const {
+    return backend::Sm90DenseLayout::MoeFused(gemms[6].tile_n,gemms[6].TileK(),gemms[7].tile_n,
+        gemms[7].TileK(),gemms[6].slots,gemms[6].warps_k,gemms[7].warps_k,batch).end;
+  }
 
   static Sm90DenseCoordinates Exact(Sm90DenseShapeTable const& nk,
                                     int batch,std::int64_t shared_budget) {
@@ -141,6 +153,9 @@ struct Sm90DenseCoordinates {
     // Expert gate_up pages interleave gate/up rows in U = 16 blocks.
     if((!moe && gemms[2].tile_n%(2*swiglu_u)) || (moe && gemms[6].tile_n%32))
       throw std::invalid_argument("sm90 dense gate tile splits a gate/up pair");
+    // MR7: the fused stage is MoE only and runs one ring for both task types.
+    if(expert_fuse && (!moe || gemms[6].slots!=gemms[7].slots))
+      throw std::invalid_argument("illegal sm90 dense expert fusion coordinate");
     attention.Validate();
   }
 
@@ -155,6 +170,10 @@ struct Sm90DenseCoordinates {
     // Attention may take the whole budget when two slots exceed one arena.
     if(attention.SharedBytes(dim,queries)>budget)
       throw std::invalid_argument("native attention exceeds the shared-memory budget");
+    // MR7: the fused stage replaces both expert stages, so its own ring and
+    // scratch have to fit the arena the surviving stage occupies.
+    if(expert_fuse && FusedExpertBytes(batch)-1024>Sm90DenseArena(budget))
+      throw std::invalid_argument("native fused expert storage exceeds its arena");
   }
 
   json::Value ToJson() const {
@@ -167,13 +186,13 @@ struct Sm90DenseCoordinates {
           {"mma",g.mma==Sm90DenseMma::kMmaSync?"mma_sync":"wgmma"},
           {"register_stages",g.register_stages},{"multicast",g.multicast}});
     }
-    return json::Object{{"schema",5},{"model",moe?"moe":"dense"},{"gemms",families},
+    return json::Object{{"schema",6},{"model",moe?"moe":"dense"},{"gemms",families},
         {"attention",json::Object{{"chunks",attention.chunks},{"block_keys",attention.block_keys},
             {"slots",attention.slots},{"new_row_work",attention.new_row_work},
             {"merge",attention.dsmem?"dsmem":"la"}}},
         {"residency",residency},{"swiglu_u",swiglu_u},{"weight_stream",weight_stream},
         {"layer_loop",layer_loop},{"emb",embed_la?"la":"stage"},{"group_wait",group_wait},
-        {"cluster",cluster}};
+        {"cluster",cluster},{"expert_fuse",expert_fuse}};
   }
 
   static Sm90DenseCoordinates FromJson(json::Value const& value) {
@@ -194,10 +213,13 @@ struct Sm90DenseCoordinates {
     };
     // Schema 3 (prompt §6): arena offsets and D6 prefixes are derived by
     // rule; schema 4 (§8) names the model and with it the GEMM families;
-    // schema 5 (§7) adds the L3 structural dimensions.
-    if(integer(value,"schema")!=5)throw std::invalid_argument("unknown sm90 dense coordinate schema");
+    // schema 5 (§7) adds the L3 structural dimensions; schema 6 (MR7) adds
+    // `expert_fuse`. Schema 5 still loads: REF-R3's 30 cells are written in
+    // it and predate the fusion, which is exactly `expert_fuse` false.
+    int schema=integer(value,"schema");
+    if(schema!=5 && schema!=6)throw std::invalid_argument("unknown sm90 dense coordinate schema");
     keys(value,{"schema","model","gemms","attention","residency","swiglu_u","weight_stream","layer_loop",
-        "emb","group_wait","cluster"});
+        "emb","group_wait","cluster","expert_fuse"});
     Sm90DenseCoordinates result;
     auto model=value.At("model").AsString("model");
     if(model!="dense" && model!="moe")throw std::invalid_argument("unknown sm90 dense model");
@@ -234,6 +256,10 @@ struct Sm90DenseCoordinates {
     result.embed_la=emb=="la";
     result.group_wait=value.At("group_wait").AsBool("group_wait");
     result.cluster=integer(value,"cluster");
+    if(auto const* fuse=value.Find("expert_fuse")) {
+      if(schema<6)throw std::invalid_argument("sm90 dense expert fusion needs coordinate schema 6");
+      result.expert_fuse=fuse->AsBool("expert_fuse");
+    }
     return result;
   }
 };
