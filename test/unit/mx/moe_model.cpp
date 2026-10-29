@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Codegen/MxMoeModel.h>
 #include <tilemega/Codegen/MxMoeProgramV2.h>
+#include <tilemega/Solver/MxMoeSelectionV2.h>
 #include <tilemega/Frontend/ExportBridge.h>
 #include <llvm/Support/JSON.h>
+#include <algorithm>
 #include <cassert>
 #include <functional>
 #include <iostream>
+#include <random>
 #include <stdexcept>
 using namespace tilemega::frontend;
 using namespace tilemega::codegen;
@@ -77,6 +80,101 @@ int main(int argc,char** argv) {
     config.router={32,1,1,true,1,-1};config.gate_up={64,2,1,false,0,-1};
     config.down={64,2,1,false,1,-1};config.head={32,8,1,false,1,-1};
     CheckMxMoeConfigV2(p,config);
+    if (b == 1 && layers == 2 && !merge && fp32) {
+      using namespace tilemega::solver;
+      std::array<std::vector<MxMoeStageCostV2>, 7> costs;
+      std::array<MxDecodeClassV2, 6> classes{config.qkv, config.o, config.router,
+          config.gate_up, config.down, config.head};
+      for (unsigned i = 0; i < classes.size(); ++i) {
+        classes[i].r_next = 120;
+        MxMoeStageCostV2 row; row.ns = 100 + i; row.gemm = classes[i];
+        if (i == 2) row.dispatch_gate_tn = row.dispatch_down_tn = 64;
+        costs[i].push_back(row);
+      }
+      for (int bmin : {8, 1, 4, 2}) {
+        MxMoeStageCostV2 row; row.ns = 200 + bmin; row.b_min = bmin;
+        costs[6].push_back(row);
+      }
+      // A cheaper GU is not compatible with the only measured router context.
+      auto other = costs[3][0]; other.ns = 1; other.gemm.tn = 32;
+      costs[3].push_back(other);
+      auto ranked = RankMxMoeProgramsV2(p, 512, costs);
+      assert(ranked.size() == 4);
+      for (unsigned i = 0; i < ranked.size(); ++i) {
+        auto const& choice = ranked[i];
+        assert(choice.config.gate_up.tn == 64 && choice.config.down.tn == 64);
+        assert(choice.config.threads == 512 && choice.source_rows[3] == 0);
+        assert(choice.config.b_min == (1 << i));
+        double expected = costs[5][0].ns;
+        for (unsigned stage : {0, 1, 2, 3, 4, 6})
+          expected += 2 * costs[stage][choice.source_rows[stage]].ns;
+        assert(choice.predicted_ns == expected);
+        CheckMxMoeConfigV2(p, choice.config);
+      }
+      assert(RankMxMoeProgramsV2(p, 512, costs, 0).empty());
+      // The context-specific router row makes the cheaper GU eligible.
+      auto router = costs[2][0]; router.ns += 1; router.dispatch_gate_tn = 32;
+      costs[2].push_back(router);
+      ranked = RankMxMoeProgramsV2(p, 512, costs);
+      assert(ranked.front().config.gate_up.tn == 32 && ranked.front().source_rows[2] == 1);
+      std::mt19937 random(2030);
+      for (int trial = 0; trial < 40; ++trial) {
+        auto varied = costs;
+        for (auto& list : varied) for (auto& row : list) row.ns = 1 + random() % 5;
+        std::array<std::vector<std::size_t>, 7> order;
+        for (unsigned stage = 0; stage < varied.size(); ++stage) {
+          for (unsigned i = 0; i < varied[stage].size(); ++i) order[stage].push_back(i);
+          std::stable_sort(order[stage].begin(), order[stage].end(), [&](auto a, auto b) {
+            return varied[stage][a].ns < varied[stage][b].ns;
+          });
+        }
+        std::vector<std::pair<double, MxMoeRanksV2>> expected;
+        MxMoeRanksV2 ranks{};
+        auto enumerate = [&](auto&& self, unsigned stage, double sum) -> void {
+          if (stage == varied.size()) {
+            auto const& router = varied[2][order[2][ranks[2]]];
+            if (router.dispatch_gate_tn == varied[3][order[3][ranks[3]]].gemm.tn)
+              expected.emplace_back(sum, ranks);
+            return;
+          }
+          for (unsigned i = 0; i < order[stage].size(); ++i) {
+            ranks[stage] = i;
+            self(self, stage + 1, sum + varied[stage][order[stage][i]].ns * (stage == 5 ? 1 : 2));
+          }
+        };
+        enumerate(enumerate, 0, 0);
+        std::sort(expected.begin(), expected.end());
+        auto actual = RankMxMoeProgramsV2(p, 512, varied);
+        assert(actual.size() == 4);
+        for (unsigned i = 0; i < actual.size(); ++i) {
+          assert(actual[i].predicted_ns == expected[i].first);
+          for (unsigned stage = 0; stage < varied.size(); ++stage)
+            assert(actual[i].source_rows[stage] == order[stage][expected[i].second[stage]]);
+        }
+      }
+      for (int mutation = 0; mutation < 8; ++mutation) {
+        auto bad = costs;
+        if (mutation == 0) bad[0][0].ns = 0;
+        if (mutation == 1) bad[2][0].dispatch_gate_tn = 0;
+        if (mutation == 2) bad[0][0].gemm.r_next = -1;
+        if (mutation == 3) bad[3][0].gemm.prefetch = 1;
+        if (mutation == 4) bad[6].push_back(bad[6][0]);
+        if (mutation == 5) bad[0][0].dispatch_down_tn = 64;
+        if (mutation == 6) bad[1].clear();
+        if (mutation == 7) {
+          auto duplicate = bad[0][0]; ++duplicate.gemm.r_next;
+          bad[0].push_back(duplicate);
+        }
+        bool rejected = false;
+        try { RankMxMoeProgramsV2(p, 512, bad); }
+        catch (std::invalid_argument const&) { rejected = true; }
+        assert(rejected);
+      }
+      auto incompatible = costs;
+      incompatible[2].resize(1); incompatible[2][0].dispatch_down_tn = 128;
+      assert(RankMxMoeProgramsV2(p, 512, incompatible).empty());
+      std::cout << "PASS MoE ranked program assembly: dispatch contexts, layer costs, source rows\n";
+    }
     std::string paired_buffers;
     for(bool prompt:{false,true}) {
       auto code=EmitMxMoeProgramV2(p,config,prompt);

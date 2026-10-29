@@ -7,6 +7,7 @@
 #include <queue>
 #include <set>
 #include <stdexcept>
+#include <tuple>
 #include <utility>
 
 namespace tilemega::solver {
@@ -80,6 +81,117 @@ double MxMoeAttentionMeanV2(std::array<double, 5> const& costs) {
   }
   if (!std::isfinite(total)) throw std::invalid_argument("MoE attention grid average overflows");
   return total / 1023;
+}
+
+std::vector<MxMoeProgramChoiceV2> RankMxMoeProgramsV2(frontend::ModelPlan const& plan,
+    int threads, std::array<std::vector<MxMoeStageCostV2>, 7> const& rows,
+    std::size_t count) {
+  if (threads != 512 && threads != 576)
+    throw std::invalid_argument("MoE ranking requires threads512 or576");
+  auto model = codegen::AnalyzeMxMoe(plan);
+  constexpr std::array<char const*, 6> names{"qkv", "o", "router", "gate_up", "down", "head"};
+  std::array<std::vector<std::size_t>, 7> order;
+  std::array<std::vector<double>, 7> costs;
+  for (std::size_t stage = 0; stage < rows.size(); ++stage) {
+    auto domain = stage < 6 ? MxMoeGemmDomainV2(model, names[stage], model.batch)
+                            : std::vector<codegen::MxDecodeClassV2>{};
+    std::set<std::tuple<int, int, int, bool, int, int, int, int>> seen;
+    for (std::size_t index = 0; index < rows[stage].size(); ++index) {
+      auto const& row = rows[stage][index];
+      if (!std::isfinite(row.ns) || row.ns <= 0)
+        throw std::invalid_argument("MoE ranking needs finite positive measured costs");
+      if (stage < 6) {
+        auto const& c = row.gemm;
+        if (std::none_of(domain.begin(), domain.end(), [&](auto const& legal) {
+              return std::tie(c.tn, c.wn, c.d, c.stream_k) ==
+                     std::tie(legal.tn, legal.wn, legal.d, legal.stream_k);
+            }) || c.r_next < 1 || (stage == 3 ? c.prefetch != 0 : c.prefetch < c.d))
+          throw std::invalid_argument("MoE cost row has invalid GEMM geometry/reference/prefetch");
+        if (stage == 2) {
+          if ((row.dispatch_gate_tn != 32 && row.dispatch_gate_tn != 64 && row.dispatch_gate_tn != 128) ||
+              (row.dispatch_down_tn != 16 && row.dispatch_down_tn != 32 &&
+               row.dispatch_down_tn != 64 && row.dispatch_down_tn != 128))
+            throw std::invalid_argument("MoE router cost lacks its measured dispatch TN context");
+        } else if (row.dispatch_gate_tn || row.dispatch_down_tn)
+          throw std::invalid_argument("MoE dispatch context belongs only to router costs");
+        if (row.b_min || row.attn_prefetch ||
+            !seen.emplace(c.tn, c.wn, c.d, c.stream_k, c.prefetch, 0,
+                          row.dispatch_gate_tn, row.dispatch_down_tn).second)
+          throw std::invalid_argument("MoE duplicate GEMM cost or misplaced attention coordinates");
+      } else {
+        if ((row.b_min != 1 && row.b_min != 2 && row.b_min != 4 && row.b_min != 8) ||
+            row.attn_prefetch < 0 || row.attn_prefetch > 2 || row.dispatch_gate_tn || row.dispatch_down_tn ||
+            !seen.emplace(row.b_min, row.attn_prefetch, 0, false, 0, 0, 0, 0).second)
+          throw std::invalid_argument("MoE duplicate/invalid attention cost coordinates");
+      }
+      order[stage].push_back(index);
+    }
+    std::stable_sort(order[stage].begin(), order[stage].end(), [&](auto a, auto b) {
+      return rows[stage][a].ns < rows[stage][b].ns;
+    });
+    for (auto index : order[stage]) costs[stage].push_back(rows[stage][index].ns *
+        (stage == 5 ? 1 : model.layers.size()));
+  }
+  auto choice = [&](MxMoeRanksV2 const& ranks) {
+    MxMoeProgramChoiceV2 result;
+    result.config.threads = threads;
+    std::array<codegen::MxDecodeClassV2*, 6> gemms{&result.config.qkv, &result.config.o,
+        &result.config.router, &result.config.gate_up, &result.config.down, &result.config.head};
+    for (std::size_t stage = 0; stage < rows.size(); ++stage) {
+      auto index = order[stage][ranks[stage]];
+      result.source_rows[stage] = index;
+      result.predicted_ns += costs[stage][ranks[stage]];
+      if (stage < 6) *gemms[stage] = rows[stage][index].gemm;
+      else {
+        result.config.b_min = rows[stage][index].b_min;
+        result.config.attn_prefetch = rows[stage][index].attn_prefetch;
+      }
+    }
+    return result;
+  };
+  // Partition the Cartesian product by dispatch context. Filtering a single
+  // seven-dimensional heap could exhaust billions of incompatible tuples.
+  std::set<std::pair<int, int>> contexts;
+  for (auto const& row : rows[2]) contexts.emplace(row.dispatch_gate_tn, row.dispatch_down_tn);
+  std::vector<std::pair<double, MxMoeRanksV2>> merged;
+  // Validate empty lists even when no context has compatible grouped rows.
+  MxMoeKBestV2(costs, 0);
+  for (auto const& [gate_tn, down_tn] : contexts) {
+    std::array<std::vector<std::size_t>, 7> context_order;
+    std::array<std::vector<double>, 7> context_costs;
+    for (std::size_t stage = 0; stage < rows.size(); ++stage)
+      for (std::size_t rank = 0; rank < order[stage].size(); ++rank) {
+        auto const& row = rows[stage][order[stage][rank]];
+        if ((stage == 2 && (row.dispatch_gate_tn != gate_tn || row.dispatch_down_tn != down_tn)) ||
+            (stage == 3 && row.gemm.tn != gate_tn) || (stage == 4 && row.gemm.tn != down_tn)) continue;
+        context_order[stage].push_back(rank);
+        context_costs[stage].push_back(costs[stage][rank]);
+      }
+    if (std::any_of(context_order.begin(), context_order.end(), [](auto const& list) { return list.empty(); }))
+      continue;
+    auto global = [&](MxMoeRanksV2 const& local) {
+      MxMoeRanksV2 ranks{};
+      for (std::size_t stage = 0; stage < ranks.size(); ++stage) ranks[stage] = context_order[stage][local[stage]];
+      return ranks;
+    };
+    auto legal = [&](MxMoeRanksV2 const& local) {
+      try { codegen::CheckMxMoeConfigV2(plan, choice(global(local)).config); }
+      catch (std::invalid_argument const&) { return false; }
+      return true;
+    };
+    for (auto const& local : MxMoeKBestV2(context_costs, count, legal)) {
+      auto ranks = global(local);
+      merged.emplace_back(choice(ranks).predicted_ns, ranks);
+    }
+  }
+  std::sort(merged.begin(), merged.end());
+  if (merged.size() > count) merged.resize(count);
+  std::vector<MxMoeProgramChoiceV2> result;
+  for (auto const& [cost, ranks] : merged) {
+    (void)cost;
+    result.push_back(choice(ranks));
+  }
+  return result;
 }
 
 std::vector<MxMoeRanksV2> MxMoeKBestV2(std::array<std::vector<double>, 7> const& costs,
