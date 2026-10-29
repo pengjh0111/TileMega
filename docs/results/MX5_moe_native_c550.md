@@ -905,3 +905,12 @@ local name shadowed its helper; both logs are retained and only validator
 code changes. No report, expected token, timing, threshold or oracle changes.
 Raw: moe_actual_request_evidence_cpu_v1/PYTEST_EXECUTION_BINDING_v2/v3/v4.log,
 ACTUAL_EIGHT_REQUEST_REPORTS_KERNEL_SHARED_MEMORY_REVALIDATED_CPU_v2.json.
+
+Verified eight of12 adopted router contexts now have220 source-bound cost
+rows each, with three fresh processes per key. Ordered geometry joins have
+completed the first five contexts; the three completed GU128 cost tables
+wait behind remaining GU64 joins. Sampling continues on cards6/7 through900s
+guards. These are partial costs, not complete5396-outcome/model acceptance.
+Verified a further410 completed dense MIR logs are archived losslessly with
+persistent gzip backups and unchanged original-path bytes, freeing1127.774MiB.
+Raw: completed_dense_normal_mir_archive_v2. No binary/source/measurement change.
