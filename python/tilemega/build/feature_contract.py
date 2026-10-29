@@ -58,7 +58,7 @@ def validate(manifest, defines):
             actual = 'pvswap' if int(defines.get('TILEMEGA_ATTENTION_PVSWAP', '0')) else 'mma16'
         if manifest['attention_impl'] != actual:
             raise ValueError('manifest attention_impl differs from compiler macros')
-    if 'kv_layout' in manifest and manifest.get('executor') != 'mx_static':
+    if 'kv_layout' in manifest and manifest.get('executor') not in ('mx_static', 'mx_static_prompt'):
         vt = bool(int(defines.get('TILEMEGA_KV_LAYOUT_VT', '0')))
         if (manifest['kv_layout'] == 'vt') != vt:
             raise ValueError('manifest kv_layout differs from TILEMEGA_KV_LAYOUT_VT')
@@ -76,14 +76,15 @@ def implementations(manifest, defines):
     """The same implementation fields serve source checks and binary identity."""
     paged = manifest.get('pg') == 'pages'
     decode = manifest.get('phase') == 'decode'
-    if manifest.get('executor') == 'mx_static':
+    if manifest.get('executor') in ('mx_static', 'mx_static_prompt'):
         if manifest.get('version', 4) >= 5:
-            return {'executor': 'mx_static', 'version': manifest['version'],
+            return {'executor': manifest['executor'], 'version': manifest['version'],
                     'kv_layout': manifest['kv_layout'], 'kv_storage': manifest['kv_storage'],
                     'classes': manifest['classes'], 'threads': manifest['threads'],
                     'b_min': manifest['b_min'], 'attn_prefetch': manifest['attn_prefetch'],
                     'decisions': manifest['decisions'],
-                    'attention': {'impl': 'MxAttentionV2', 'task_body': 'DecodeProgramV2'}}
+                    'attention': {'impl': 'MxAttentionV2', 'task_body':
+                        'MoeProgramV2' if manifest.get('program_kind') == 'moe' else 'DecodeProgramV2'}}
         return {'executor': 'mx_static', 'kv_layout': manifest.get('kv_layout'),
                 'classes': manifest['classes'], 'attention_tmin': manifest['attention_tmin'],
                 'barrier_prefetch': int(manifest.get('barrier_prefetch', 1)),

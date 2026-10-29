@@ -97,6 +97,28 @@ class UnifiedIdentityTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 bind_execution(actual, 'L2')
 
+    def test_native_moe_prompt_and_decode_bind_the_actual_kernel(self):
+        for prompt in (False, True):
+            with self.subTest(prompt=prompt), tempfile.TemporaryDirectory() as directory:
+                so, source, inputs = self.fixture(directory, dm=False)
+                manifest = dict(executor='mx_static_prompt' if prompt else 'mx_static',
+                    program_kind='moe', version=5, phase='prefill' if prompt else 'decode', pg='off',
+                    kv_layout='vt', kv_storage='block_fragments', threads=512,
+                    classes={'router': {'tn': 32, 'wn': 1, 'prefetch': 1}},
+                    b_min=4, attn_prefetch=0, decisions={'DT-P': 'P-B'}, watchdog=0)
+                Path(str(so) + '.plan.json').write_text(json.dumps(manifest))
+                Path(str(so) + '.ptxas.log').write_text(
+                    'Function properties for _Zmx_moe_kernel_v2X\n'
+                    '0 bytes stack frame\nUsed 243 MTregisters, 108 STregisters, 0 bytes shared mem\n')
+                actual = self.build(so, source)
+                self.assertEqual(verify(so, expected_source=inputs), actual)
+                self.assertEqual(actual['implementations']['attention']['task_body'], 'MoeProgramV2')
+                self.assertEqual(actual['implementations']['executor'], manifest['executor'])
+                for loop in (False, True):
+                    self.assertEqual(bind_execution(actual, 'L1', loop)['kernel'], '_Zmx_moe_kernel_v2X')
+                with self.assertRaises(ValueError):
+                    bind_execution(actual, 'L2')
+
     def test_resource_and_command_mutations_are_rejected(self):
         for suffix in ('.ptxas.log', '.build_command.txt', '.cu', '.plan.json', ''):
             with self.subTest(suffix=suffix), tempfile.TemporaryDirectory() as directory:

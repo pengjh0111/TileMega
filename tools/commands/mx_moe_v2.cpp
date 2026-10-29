@@ -189,7 +189,7 @@ int TryCompileMoeV2(Request const& r, frontend::ModelPlan const& plan) {
       {"elements", "TILEMEGA_TRACE_LAUNCHES(default=16) * stages_per_step * grid * 3"}, {"minimum_bytes", 16}});
   if (r.watchdog) runtime_allocations.Set("watchdog", Object{{"bytes", 96}, {"allocation", "host_mapped"},
       {"enabled_when", "TILEMEGA_WATCHDOG_MS != 0"}, {"default_ms", 10000}});
-  Value manifest = Object{{"identity_schema", 1}, {"version", 5}, {"model", r.model}, {"input", r.input.string()},
+  Value manifest = Object{{"identity_schema", 1}, {"version", 5}, {"program_kind", "moe"}, {"model", r.model}, {"input", r.input.string()},
       {"phase", r.prompt ? "prefill" : "decode"}, {"executor", r.prompt ? "mx_static_prompt" : "mx_static"},
       {"kv_layout", "vt"}, {"kv_storage", "block_fragments"}, {"batch_lo", r.batch}, {"batch_hi", r.batch},
       {"seq", r.prompt ? 64 : 1}, {"capacity", int(model.capacity)}, {"past_lo", past_lo}, {"past_hi", past_hi},

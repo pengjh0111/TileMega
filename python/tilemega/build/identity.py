@@ -80,10 +80,10 @@ def parse_resources(text):
 def bind_execution(identity, executor, loop=False, pdl=False):
     if executor not in ('L1','L2'):raise ValueError('execution identity needs an explicit executor')
     pg=identity['plan'].get('pg')
-    if identity['plan'].get('executor')=='mx_static':
+    if identity['plan'].get('executor') in ('mx_static', 'mx_static_prompt'):
         # MX-4: one kernel serves both a single step and the device loop.
         if executor!='L1':raise ValueError('the MX-4 static decode program runs L1 only')
-        needle='mx_decode_kernel'
+        needle='mx_moe_kernel_v2' if identity['plan'].get('program_kind')=='moe' else 'mx_decode_kernel'
     elif loop:
         if pg=='pages' and executor=='L2':needle='tilemega_loop_kernel'
         elif pg!='pages' and executor=='L1':needle='tilemega_l1_loop_kernel'
