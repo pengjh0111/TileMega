@@ -2221,7 +2221,10 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
             <<cfg.warps_n<<','<<cfg.warps_k<<",backend::Sm90DenseMoeMode::"<<mode<<",16,"<<experts<<",8,"
             <<(float_routes?"true":"false")<<','<<page;
         e.ids={id(g,"b"),id(g,e.family==7?"c":"a"),id(g,"d"),operand(0),routes,
-            e.family==5?operand(2):"kAbsent",e.family==5?operand(3):e.family==7?operand(2):"kAbsent"};
+            e.family==5?operand(2):"kAbsent",e.family==5?operand(3):e.family==7?operand(2):"kAbsent",
+            // MR7's per-slot counters: the router clears them, and only a plan
+            // whose experts are fused carries the fifth router operand.
+            e.family==5 && operands && operands.size()>4?operand(4):"kAbsent"};
         std::string map="kAbsent";
         if(e.family==5)
           map=std::to_string(map_index({integerField(g,"a"),3,64,batch,k/64,0,2*k,128,0,64,activation_rows,

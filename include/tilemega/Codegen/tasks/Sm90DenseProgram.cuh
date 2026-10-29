@@ -223,15 +223,18 @@ struct Embedding {
 // down + combine. W: the (per-layer) weights; X: the residual stream x' (M5
 // gathers its rows, M6's last arrivers add into it); Out: logits, h or P;
 // Schedule, Routes (weights) and Index (this layer's top-k, for the routing
-// check); Counter: the router's or the per-tile combine counters; Map: x'
-// (router) or h (down).
+// check); Counter: the router's or the per-tile combine counters; GateUpDone
+// (MR7, router only, kAbsent otherwise): the fused stage's per-slot counters,
+// which the router's last arriver clears; Map: x' (router) or h (down).
 template<int Batch,int N,int K,int TN,int TK,int Slots,int WN,int WK,backend::Sm90DenseMoeMode Mode,
          int U,int Experts,int TopK,bool FloatWeights,int Page,unsigned W,unsigned X,unsigned Out,
-         unsigned Schedule,unsigned Routes,unsigned Index,unsigned Counter,unsigned Map,
-         int RegisterStages>
+         unsigned Schedule,unsigned Routes,unsigned Index,unsigned Counter,unsigned GateUpDone,
+         unsigned Map,int RegisterStages>
 struct Moe {
   using Body=backend::Sm90DenseMoeGemm<Batch,N,K,TN,TK,Slots,WN,WK,Mode,U,Experts,TopK,FloatWeights,
       Page,RegisterStages>;
+  static_assert(GateUpDone==kAbsent || Mode==backend::Sm90DenseMoeMode::kRouter,
+      "only the router clears the fused stage's counters");
   static constexpr bool kUsesOperandRecord=true;
   static constexpr int kTasks=Body::kMaxTasks,kSharedBytes=Body::kSharedBytes,kRingSlots=Slots;
   // M4's routes are unknown to its predecessor's producer: M5 receives no stream.
@@ -253,16 +256,65 @@ struct Moe {
       backend::Sm90DenseOperandBank& record) {
     CUtensorMap const* map=nullptr;
     if constexpr(Map!=kAbsent)map=b.template Map<Map>();
+    unsigned* done=nullptr;
+    if constexpr(GateUpDone!=kAbsent)done=reinterpret_cast<unsigned*>(b.template Get<GateUpDone>(layer));
     record.moe={map,b.template Get<W>(layer),b.template Get<X>(layer),b.template Get<Out>(layer),
         reinterpret_cast<int*>(b.template Get<Schedule>(layer)),b.template Get<Routes>(layer),
         reinterpret_cast<int*>(b.template Get<Index>(layer)),b.template Get<X>(layer),
-        reinterpret_cast<std::uint64_t*>(b.template Get<Counter>(layer)),epsilon};
+        reinterpret_cast<std::uint64_t*>(b.template Get<Counter>(layer)),epsilon,done};
   }
   template<int Prefix,class B,class Tail>
   __device__ static __forceinline__ void Run(B const&,int,char* shared,float,
       backend::Sm90DenseRingState& ring,Tail tail,backend::Sm90DenseOperandBank const& record,
       bool streamed) {
     StageEntry<Body>::template Moe<Prefix>(record.moe,shared,&ring,tail,streamed);
+  }
+};
+
+// MR7: M5 and M6 as one stage. WGu/WDn are the two weight bases, Hid is h
+// (the gate_up output and the down tasks' activation) and Out the per-route
+// partials P. GateUpDone holds the per-slot counters the router cleared.
+template<int Batch,int NGateUp,int NDown,int Hidden,int TNGu,int TKGu,int TNDn,int TKDn,int Slots,
+         int WNGu,int WKGu,int WNDn,int WKDn,int U,int Experts,int TopK,bool FloatWeights,int Page,
+         unsigned WGu,unsigned WDn,unsigned X,unsigned Hid,unsigned Out,unsigned Schedule,
+         unsigned Routes,unsigned Index,unsigned Counter,unsigned GateUpDone,unsigned Map,
+         int RegisterStages>
+struct MoeFused {
+  using Body=backend::Sm90DenseMoeFusedGemm<Batch,NGateUp,NDown,Hidden,TNGu,TKGu,TNDn,TKDn,Slots,
+      WNGu,WKGu,WNDn,WKDn,U,Experts,TopK,FloatWeights,Page,RegisterStages>;
+  static_assert(GateUpDone!=kAbsent && Map!=kAbsent,
+      "the fused stage waits on counters and reads h by TMA");
+  static constexpr bool kUsesOperandRecord=true;
+  static constexpr int kTasks=Body::kMaxTasks,kSharedBytes=Body::kSharedBytes,kRingSlots=Slots;
+  // M4 does not know the routes, so the fused stage receives no D6 stream.
+  static constexpr int kMaxPreissue=0;
+  static constexpr auto kLayout=Body::kLayout;
+  using Preissue=MoeRead<Body>;
+  template<int Bytes>
+  static constexpr auto Payload() {
+    static_assert(Bytes==0,"M56 receives no stream");
+    return backend::Sm90DensePayload{};
+  }
+  template<class B>
+  __device__ static __forceinline__ ReadSources Sources(B const& b,int layer) {
+    return {b.template Get<WGu>(layer),nullptr,nullptr,layer,
+        reinterpret_cast<int const*>(b.template Get<Schedule>(layer))};
+  }
+  template<class B>
+  __device__ static __forceinline__ void PublishOperands(B const& b,int layer,int,float epsilon,
+      backend::Sm90DenseOperandBank& record) {
+    record.moe_fused={b.template Map<Map>(),b.template Get<WGu>(layer),b.template Get<WDn>(layer),
+        b.template Get<X>(layer),b.template Get<Hid>(layer),b.template Get<Out>(layer),
+        reinterpret_cast<int*>(b.template Get<Schedule>(layer)),b.template Get<Routes>(layer),
+        reinterpret_cast<int*>(b.template Get<Index>(layer)),b.template Get<X>(layer),
+        reinterpret_cast<std::uint64_t*>(b.template Get<Counter>(layer)),
+        reinterpret_cast<unsigned*>(b.template Get<GateUpDone>(layer)),epsilon};
+  }
+  template<int Prefix,class B,class Tail>
+  __device__ static __forceinline__ void Run(B const&,int,char* shared,float,
+      backend::Sm90DenseRingState& ring,Tail tail,backend::Sm90DenseOperandBank const& record,
+      bool streamed) {
+    Body::template Run<Prefix,Tail>(record.moe_fused,shared,&ring,tail,streamed);
   }
 };
 
