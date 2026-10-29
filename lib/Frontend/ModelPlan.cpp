@@ -450,16 +450,17 @@ FxNodeRecord const* EntryEmbedding(PatternMatcher const& matcher,
   return result;
 }
 
-/// The per-head normalization between a projection and its rotation, if the
+/// The q/k normalization between a projection and its rotation, if the
 /// architecture has one. Structural in both directions: it must lie on the
 /// path from the projection to the rotation, and its parameter must be exactly
-/// one head wide -- a row normalization on the same path would carry the whole
-/// projected width and is not this.
-FxNodeRecord const* PerHeadNormalization(PatternMatcher const& matcher,
-                                         std::vector<FxNodeRecord> const& nodes,
-                                         std::string const& projection,
-                                         std::string const& rotated,
-                                         std::uint32_t head_dim) {
+/// `width` wide -- one head for a per-head normalization (Qwen3), the whole
+/// projected row for a row normalization applied before the heads are split
+/// (OLMoE). The two widths never coincide for a multi-head projection.
+FxNodeRecord const* ProjectionNormalization(PatternMatcher const& matcher,
+                                            std::vector<FxNodeRecord> const& nodes,
+                                            std::string const& projection,
+                                            std::string const& rotated,
+                                            std::uint32_t width) {
   FxNodeRecord const* result = nullptr;
   for (auto const& node : nodes) {
     if (matcher.RoleOf(node) != "multiply") continue;
@@ -471,15 +472,22 @@ FxNodeRecord const* PerHeadNormalization(PatternMatcher const& matcher,
       if (!matcher.IsParameter(value)) continue;
       auto found = std::find_if(nodes.begin(), nodes.end(),
                                 [&](FxNodeRecord const& n) { return n.name == value; });
-      if (found != nodes.end() && NumericElements(*found) == head_dim)
+      if (found != nodes.end() && NumericElements(*found) == width)
         weighted = true;
     }
     if (!weighted) continue;
     if (result)
-      throw std::runtime_error("two per-head normalizations reach " + rotated);
+      throw std::runtime_error("two q/k normalizations reach " + rotated);
     result = &node;
   }
   return result;
+}
+FxNodeRecord const* PerHeadNormalization(PatternMatcher const& matcher,
+                                         std::vector<FxNodeRecord> const& nodes,
+                                         std::string const& projection,
+                                         std::string const& rotated,
+                                         std::uint32_t head_dim) {
+  return ProjectionNormalization(matcher, nodes, projection, rotated, head_dim);
 }
 
 /// Model elements per identifier. Buffers are arrays of model elements, so an
@@ -707,6 +715,11 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
     if (static_cast<bool>(q_norm) != static_cast<bool>(k_norm))
       throw std::runtime_error("only one of the query and key is normalized "
                                "per head in layer " + std::to_string(number));
+    // A whole-row normalization (OLMoE) is lowered only by the native decode
+    // plan; here it would be dropped, so the plan is refused instead.
+    if (!q_norm && ProjectionNormalization(matcher, nodes, q_node.name, q_rot.name,
+                                           StaticExtent(q_node, q_node.shape.size() - 1)))
+      throw std::runtime_error("row q/k normalization is lowered only by the native decode plan");
     std::uint32_t q_rotated = q, k_rotated = k;
     // Independent projections may precede either normalization in FX. Keep
     // the exported topological order while retaining the same buffer edges.
@@ -1069,6 +1082,14 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
         matcher, nodes, q.name, qrot.name, head_dim);
     auto const* k_norm = PerHeadNormalization(
         matcher, nodes, k.name, matcher.Value(cat_k.inputs.at(1)), head_dim);
+    // A3: OLMoE normalizes the whole projected q and k rows before the heads
+    // are split. The attention body reduces each row itself (norm mode 2), so
+    // only the weights travel; codegen reads the mode from their widths.
+    if (!q_norm && !k_norm) {
+      q_norm = ProjectionNormalization(matcher, nodes, q.name, qrot.name, qwidth);
+      k_norm = ProjectionNormalization(
+          matcher, nodes, k.name, matcher.Value(cat_k.inputs.at(1)), kvwidth);
+    }
     if (bool(q_norm) != bool(k_norm))
       throw std::invalid_argument("serving Q/K normalization is asymmetric");
     std::uint32_t q_norm_weight = kNoOperand, k_norm_weight = kNoOperand;
