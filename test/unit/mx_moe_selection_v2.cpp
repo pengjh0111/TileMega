@@ -15,6 +15,40 @@ template<class F> void Reject(F f) {
   assert(rejected);
 }
 int main(int argc, char** argv) {
+  if (argc == 3 && std::string(argv[1]) == "--select-pairs") {
+    try {
+      using tilemega::json::Array;
+      using tilemega::json::Object;
+      using tilemega::json::Value;
+      auto doc = tilemega::json::ParseFile(argv[2]);
+      auto const& predictions = doc.At("predicted_ns").AsArray("predicted_ns");
+      auto const& pairs = doc.At("process_tpot_ns").AsArray("process_tpot_ns");
+      if (predictions.size() != 4 || pairs.size() != 4)
+        throw std::invalid_argument("MoE numeric selection requires four original pairs");
+      std::array<double, 4> predicted;
+      std::array<std::array<double, 2>, 4> samples;
+      for (std::size_t i = 0; i < 4; ++i) {
+        predicted[i] = predictions[i].AsNumber("prediction");
+        auto const& pair = pairs[i].AsArray("pair");
+        if (pair.size() != 2) throw std::invalid_argument("MoE numeric selection requires two samples");
+        for (std::size_t j = 0; j < 2; ++j) samples[i][j] = pair[j].AsNumber("sample");
+      }
+      auto selected = SelectMxMoeMeasuredV2(predicted, samples);
+      Array measured, ratios;
+      for (std::size_t i = 0; i < 4; ++i) {
+        measured.emplace_back(selected.measured_ns[i]);
+        ratios.emplace_back(selected.pred_over_meas[i]);
+      }
+      std::cout << Value(Object{{"kind", "mx5_moe_numeric_selection"}, {"schema_version", 1},
+          {"selected_index", double(selected.selected)}, {"measured_ns", measured},
+          {"pred_over_meas", ratios}, {"file_qualification_implied", false},
+          {"model_acceptance_implied", false}, {"final", false}, {"default_enabled", false}}).Dump() << '\n';
+      return 0;
+    } catch (std::exception const& error) {
+      std::cerr << error.what() << '\n';
+      return 1;
+    }
+  }
   bool dump = argc == 2 && std::string(argv[1]) == "--dump-domain";
   bool audit = argc == 5 && std::string(argv[1]) == "--audit-rows";
   bool import = argc == 5 && (std::string(argv[1]) == "--import-rows" || audit);
