@@ -6,7 +6,7 @@ import math
 from pathlib import Path
 import statistics
 
-from tilemega.build.identity import verify
+from tilemega.build.identity import bind_execution, digest, verify
 from tilemega.mx5_select import record, validate_measurement
 
 from .cost_provenance import Files, need
@@ -14,6 +14,7 @@ from .plan_pair import validate_plan_pair
 
 
 def validate_report(report, decode_identity, prefill_identity, batch):
+    need(type(batch) is int and batch in (1, 2, 4, 8, 16), 'invalid request batch')
     pair = validate_plan_pair(prefill_identity['plan'], decode_identity['plan'], batch, 0)
     for identity in (decode_identity, prefill_identity):
         plan = identity['plan']
@@ -28,15 +29,29 @@ def validate_report(report, decode_identity, prefill_identity, batch):
     need(not report.get('synthetic_fixture'), 'synthetic request is not measurement evidence')
     value = validate_measurement(report, dict(request=dict(batch=batch)),
         decode_identity['artifact_id'], prefill_identity['artifact_id'])
+
+    def execution(identity, loop):
+        expected = bind_execution(identity, 'L1', loop=loop)
+        expected['shared_memory_bytes'] = identity['shared_memory_bytes']
+        expected['execution_id'] = digest({k: v for k, v in expected.items() if k != 'execution_id'})
+        return expected
+
+    need(report['execution_identity'] == execution(decode_identity, True)
+         and report['prefill_execution_identity'] == execution(prefill_identity, False),
+         'actual execution identity differs from the native kernel or shared memory')
     for name in ('execution_identity', 'prefill_execution_identity'):
-        execution = report[name]
-        need(execution.get('spill') is False and execution.get('trace') is False
-             and execution.get('pdl') is False and execution.get('executor') == 'L1',
+        actual = report[name]
+        need(actual.get('spill') is False and actual.get('trace') is False
+             and actual.get('pdl') is False and actual.get('executor') == 'L1',
              'timed execution uses spill, trace, PDL or a different executor')
     need(report['prefill_execution_identity'].get('loop') is False,
          'native prompt request must not use a serving decode loop')
     timed = {count: [] for count in (1, 1024)}
     for run in report['runs']:
+        need(type(run['N']) is int and type(run['run']) is int and type(run['warmup']) is bool,
+             'request run coordinates have invalid types')
+        need(run['execution_identity'] == execution(decode_identity, run['N'] == 1024),
+             'request run kernel identity differs from the actual decode artifact')
         elapsed = run['e2e_seconds']
         need(type(elapsed) in (int, float) and math.isfinite(elapsed) and elapsed > 0,
              'request latency is invalid')

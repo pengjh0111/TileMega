@@ -36,7 +36,8 @@ def test_actual_request_replay_preserves_protocol_and_diagnostic_boundary(batch,
 
 @pytest.mark.parametrize('change', ('summary', 'ttft', 'tokens', 'shape', 'token_type', 'vocabulary',
     'throughput', 'nan_latency', 'watchdog', 'diag', 'frame', 'prefill_executor',
-    'prefill_loop', 'artifact', 'run_count', 'formula', 'synthetic'))
+    'prefill_loop', 'artifact', 'run_count', 'formula', 'synthetic', 'kernel',
+    'execution_digest', 'shared_memory', 'run_kernel', 'run_coordinate_type', 'boolean_batch'))
 def test_edited_summary_tokens_or_artifact_is_rejected(change):
     report, decode, prefill = inputs()
     data = json.loads(report.read_text())
@@ -68,6 +69,18 @@ def test_edited_summary_tokens_or_artifact_is_rejected(change):
         data['runs'].pop()
     elif change == 'formula':
         data['tpot_seconds'] += .001
+    elif change in ('kernel', 'execution_digest', 'shared_memory'):
+        key, value = dict(kernel=('kernel', 'wrong_kernel'), execution_digest=('execution_id', '0' * 64),
+            shared_memory=('shared_memory_bytes', 32784))[change]
+        data['prefill_execution_identity'][key] = value
+    elif change == 'run_kernel':
+        data['runs'][0]['execution_identity']['kernel'] = 'wrong_kernel'
+    elif change == 'run_coordinate_type':
+        data['runs'][0]['run'] = False
+    elif change == 'boolean_batch':
+        with pytest.raises(ValueError):
+            validate_report(data, *identities, True)
+        return
     else:
         data['synthetic_fixture'] = True
     with pytest.raises(ValueError):
