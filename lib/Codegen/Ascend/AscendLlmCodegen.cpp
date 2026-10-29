@@ -163,8 +163,12 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
         arena=Add(arena,Mul(Add(Add(bytes,512),511)/512,512));
       }
       if(swiglu_tile && stage.epilogue==2) {
-        if(!small || geo.split_k!=1 || stage.rows!=16 || stage.columns!=12288 || stage.k!=2048)
-          throw std::invalid_argument("Strided SwiGLU requires the bounded Qwen1.7 B16 decode family");
+        const bool family=(stage.columns==6144 && stage.k==1024) ||
+            (stage.columns==12288 && stage.k==2048) ||
+            (stage.columns==16384 && (stage.k==2048 || stage.k==3072)) ||
+            (stage.columns==28672 && stage.k==4096);
+        if(!small || geo.split_k!=1 || stage.rows!=16 || !family)
+          throw std::invalid_argument("Strided SwiGLU requires a bounded dense B16 decode family");
         stage.variant=4;++swiglu_stages;
       }
       if(local_tail_k7 && stage.columns==2048 && (stage.k==8192 || stage.k==6144) && stage.epilogue==1) {
@@ -262,8 +266,12 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
     if(expected!=stage.tasks)throw std::invalid_argument("Native task coordinates disagree with CTG ownership");
     out.stages.push_back(stage);
   }
-  if(swiglu_tile && (p.model.dims.batch!=16 || p.model.dims.seq!=1 || swiglu_stages!=28))
-    throw std::invalid_argument("Strided SwiGLU must bind all28 actual Qwen1.7 decode projections");
+  if(swiglu_tile) {
+    unsigned expected=0;
+    for(auto raw:gs)if(S(mlir::cast<mlir::DictionaryAttr>(raw),"epilogue")=="swiglu")++expected;
+    if(p.model.dims.batch!=16 || p.model.dims.seq!=1 || !expected || swiglu_stages!=expected)
+      throw std::invalid_argument("Strided SwiGLU must bind every imported decode projection");
+  }
   if(local_tail_k7) {
     unsigned expected=0;
     for(auto raw:gs) {
@@ -419,7 +427,9 @@ std::string LowerAscendLlm(AscendLlmPlan const& p) {
   bool local=false,q_tail=false;
   for(auto const& s:p.stages)if(s.kind==0) {
     unsigned geometry=s.variant>=2?1:s.variant;
-    if(s.variant>4 || (s.variant==4 && (s.rows!=16 || s.columns!=12288 || s.k!=2048 || s.epilogue!=2 || s.extent>1)) ||
+    const bool swiglu_family=(s.columns==6144 && s.k==1024) || (s.columns==12288 && s.k==2048) ||
+        (s.columns==16384 && (s.k==2048 || s.k==3072)) || (s.columns==28672 && s.k==4096);
+    if(s.variant>4 || (s.variant==4 && (s.rows!=16 || !swiglu_family || s.epilogue!=2 || s.extent>1)) ||
         (variant>=0 && unsigned(variant)!=geometry))
       throw std::invalid_argument("One compiled native candidate requires a uniform verified GEMM geometry");
     variant=geometry;local|=s.variant==2;q_tail|=s.variant==3;

@@ -165,8 +165,10 @@ int main(int argc,char** argv) {
           decomposition.At("phase").AsString("phase")!=phase ||
           decomposition.At("batch").AsNumber("batch")!=batch || serving.argmax_tile_n!=128)
         throw std::invalid_argument("Observed decomposition model/phase/geometry mismatch");
+      if(auto tile=decomposition.Find("swiglu_tile"))swiglu_tile=tile->AsBool("swiglu_tile");
       if(batch!=1 && !(batch==16 && phase=="decode" &&
           (receipt.At("model_id").AsString("model")=="llama3_2_1b" || receipt.At("model_id").AsString("model")=="qwen3_1_7b" || receipt.At("model_id").AsString("model")=="llama3_2_3b" || receipt.At("model_id").AsString("model")=="llama3_1_8b")) &&
+          !(swiglu_tile && batch==16 && phase=="decode" && receipt.At("model_id").AsString("model")=="qwen3_0_6b") &&
           !(batch==16 && phase=="prefill" && receipt.At("model_id").AsString("model")=="llama3_1_8b"))
         throw std::invalid_argument("Unverified batch decomposition");
       if(auto separate=decomposition.Find("separate_qkv"))serving.separate_qkv=separate->AsBool("separate_qkv");
@@ -174,10 +176,8 @@ int main(int argc,char** argv) {
         throw std::invalid_argument("Separate projection candidate is bounded to observed Llama8B");
       if(auto tail=decomposition.Find("local_q_tail3"))local_q_tail3=tail->AsBool("local_q_tail3");
       if(auto tail=decomposition.Find("local_residual_tail3"))local_residual_tail3=tail->AsBool("local_residual_tail3");
-      if(auto tile=decomposition.Find("swiglu_tile"))swiglu_tile=tile->AsBool("swiglu_tile");
-      if(swiglu_tile && (receipt.At("model_id").AsString("model")!="qwen3_1_7b" ||
-          batch!=16 || phase!="decode" || serving.argmax_tile_n!=128))
-        throw std::invalid_argument("Strided SwiGLU is bounded to Qwen1.7 B16 decode");
+      if(swiglu_tile && (batch!=16 || phase!="decode" || serving.argmax_tile_n!=128))
+        throw std::invalid_argument("Strided SwiGLU is bounded to dense B16 decode");
       if(local_residual_tail3 && !local_q_tail3)throw std::invalid_argument("Residual tail3 requires the Q-tail prefill contract");
       if(local_q_tail3 && (!serving.separate_qkv || batch!=16 || phase!="prefill"))
         throw std::invalid_argument("Local Q tail candidate requires separate Llama8B B16 prefill");
@@ -187,12 +187,20 @@ int main(int argc,char** argv) {
     auto bridge=tilemega::frontend::ReadExportBridge((input/"export.json").string());
     auto plan=tilemega::frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,serving);
     if(swiglu_tile) {
+      auto id=receipt.At("model_id").AsString("model");
+      unsigned n=0,k=0,layers=0;
+      if(id=="qwen3_0_6b"){n=6144;k=1024;layers=28;}
+      else if(id=="qwen3_1_7b"){n=12288;k=2048;layers=28;}
+      else if(id=="llama3_2_1b"){n=16384;k=2048;layers=16;}
+      else if(id=="llama3_2_3b"){n=16384;k=3072;layers=28;}
+      else if(id=="llama3_1_8b"){n=28672;k=4096;layers=32;}
+      else throw std::invalid_argument("Unregistered strided SwiGLU model");
       unsigned count=0;
       for(auto const& g:plan.gemms)if(g.epilogue==tilemega::frontend::PlanGemm::Epilogue::kSwiGLU) {
-        if(g.n!=12288 || g.k!=2048)throw std::invalid_argument("Unexpected SwiGLU projection family");
+        if(g.n!=n || g.k!=k)throw std::invalid_argument("Unexpected SwiGLU projection family");
         ++count;
       }
-      if(count!=28)throw std::invalid_argument("Strided SwiGLU must bind the complete28-layer model");
+      if(count!=layers)throw std::invalid_argument("Strided SwiGLU must bind the complete model");
     }
     if(body) {
       unsigned matches=0;
@@ -231,7 +239,7 @@ int main(int argc,char** argv) {
         if(matches!=family.At("expected_gemms").AsNumber("expected_gemms"))
           throw std::invalid_argument("Decomposition did not match the complete model family");
       }
-      if(!decomposed_gemms && !serving.separate_qkv)throw std::invalid_argument("Empty decomposition cannot prove optimization participation");
+      if(!decomposed_gemms && !serving.separate_qkv && !swiglu_tile)throw std::invalid_argument("Empty decomposition cannot prove optimization participation");
     }
     mlir::MLIRContext context;tilemega::frontend::ImportSummary summary;
     tilemega::frontend::TorchExportImporter importer;

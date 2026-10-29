@@ -45,6 +45,9 @@ class RequestCapturePayloadTest(unittest.TestCase):
     def test_strided_swiglu_keeps_geometry_and_rejects_unregistered_shape(self):
         s=[0]*33;s[17:24]=[0,2,96,16,12288,2048,0];s[31]=4
         self.assertEqual(gemm_variant_geometry(tuple(s)),1)
+        for n,k in [(6144,1024),(16384,2048),(16384,3072),(28672,4096)]:
+            family=s.copy();family[19]=n//128;family[21:23]=[n,k]
+            self.assertEqual(gemm_variant_geometry(tuple(family)),1)
         for field,value in [(18,1),(19,1),(20,1),(21,6144),(22,4096),(23,3),(16,(1<<64)-1)]:
             bad=s.copy();bad[field]=value
             with self.assertRaisesRegex(ValueError,'SwiGLU'):gemm_variant_geometry(tuple(bad))

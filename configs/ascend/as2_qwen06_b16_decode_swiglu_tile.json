@@ -1,0 +1,13 @@
+{
+  "schema": "tilemega.as2.observed_decomposition.v1",
+  "model_id": "qwen3_0_6b",
+  "phase": "decode",
+  "batch": 16,
+  "families": [],
+  "swiglu_tile": true,
+  "default_enabled": false,
+  "automatic_performance_selection": false,
+  "status": "experimental_requires_actual_model_pricing_numerical_and_TPOT_admission",
+  "implementation_scope": "Only this model B16 decode gate/up; complete imported layer count, U16 BF16 casts, existing decompositions and GM/MIX lifecycle retained",
+  "body_evidence": "runs/as2/probes/opt_swiglu_tile_numeric_and_timing_v1.json; Qwen1.7 full model proof does not admit other models"
+}

@@ -42,8 +42,10 @@ inline void ValidateCompiledBodies(std::vector<llm::Stage> const& stages) {
     if(s.variant>4)throw std::invalid_argument("Unregistered native GEMM implementation");
     if(s.variant==4) {
 #if defined(TILEMEGA_LLM_SWIGLU_TILE) && TILEMEGA_LLM_SWIGLU_TILE
-      if(s.rows!=16 || s.columns!=12288 || s.k!=2048 || s.epilogue!=2 || s.extent>1 ||
-          s.tasks!=96 || s.workspace==llm::kAbsent)
+      const bool family=(s.columns==6144 && s.k==1024) || (s.columns==12288 && s.k==2048) ||
+          (s.columns==16384 && (s.k==2048 || s.k==3072)) || (s.columns==28672 && s.k==4096);
+      if(s.rows!=16 || !family || s.epilogue!=2 || s.extent>1 ||
+          s.tasks!=s.columns/128 || s.workspace==llm::kAbsent)
         throw std::invalid_argument("Unregistered strided SwiGLU tile shape");
 #else
       throw std::invalid_argument("Strided SwiGLU requires its explicitly compiled Body");

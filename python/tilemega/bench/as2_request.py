@@ -46,7 +46,9 @@ SOURCE_GEOMETRY=('TILEMEGA_LLM_VARIANT','TILEMEGA_LLM_TM','TILEMEGA_LLM_TN','TIL
 
 
 def gemm_variant_geometry(stage):
-    if stage[31]==4 and (stage[18:23]!=(2,96,16,12288,2048) or
+    if stage[31]==4 and (stage[18]!=2 or stage[20]!=16 or
+            (stage[21],stage[22]) not in {(6144,1024),(12288,2048),(16384,2048),(16384,3072),(28672,4096)} or
+            stage[19]!=stage[21]//128 or
             stage[23]>1 or stage[16]==(1<<64)-1):
         raise ValueError('Unregistered strided SwiGLU shape')
     return 1 if stage[31] in (2,3,4) else stage[31]

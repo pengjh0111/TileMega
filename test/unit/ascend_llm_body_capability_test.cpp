@@ -48,6 +48,14 @@ int main() {
   swiglu.rows=16;swiglu.columns=12288;swiglu.k=2048;swiglu.tasks=96;
 #if defined(TILEMEGA_LLM_SWIGLU_TILE) && TILEMEGA_LLM_SWIGLU_TILE
   llm_host::ValidateCompiledBodies({swiglu});
+  for(auto family:{std::pair{6144u,1024u},std::pair{16384u,2048u},
+                  std::pair{16384u,3072u},std::pair{28672u,4096u}}) {
+    auto s=swiglu;s.columns=family.first;s.k=family.second;s.tasks=s.columns/128;
+    llm_host::ValidateCompiledBodies({s});
+    ++s.tasks;
+    try {llm_host::ValidateCompiledBodies({s});return 1;}
+    catch(std::invalid_argument const&) {}
+  }
   for(unsigned mutation=0;mutation<5;++mutation) {
     auto s=swiglu;
     if(mutation==0)s.rows=1;

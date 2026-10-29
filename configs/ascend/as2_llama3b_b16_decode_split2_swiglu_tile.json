@@ -1,0 +1,26 @@
+{
+  "schema": "tilemega.as2.observed_decomposition.v1",
+  "model_id": "llama3_2_3b",
+  "phase": "decode",
+  "batch": 16,
+  "status": "experimental_requires_actual_model_pricing_numerical_and_TPOT_admission",
+  "evidence": "verified-run: runs/as2/correctness/llama3b_b16_decode_split2_numeric4_v20.json and llama3b_b16_decode_split2_intermediate_v20.json; full B16 four outputs, all captured intermediate values bitwise; long/context/cost admission pending",
+  "families": [
+    {
+      "n": 3072,
+      "k": 8192,
+      "epilogue": "residual",
+      "split_k": 2,
+      "expected_gemms": 28
+    }
+  ],
+  "partial_dtype": "fp32",
+  "combine_order": "increasing_K_slice_then_BF16_RINT_then_BF16_residual",
+  "automatic_performance_selection": false,
+  "scope": "Experimental B16 decode: first same-prefix mismatch l0.down.raw; actual CTG two K4096 partials and explicit FP32 combine, pending numerical admission",
+  "swiglu_tile": true,
+  "default_enabled": false,
+  "implementation_scope": "Only this model B16 decode gate/up; complete imported layer count, U16 BF16 casts, existing decompositions and GM/MIX lifecycle retained",
+  "body_evidence": "runs/as2/probes/opt_swiglu_tile_numeric_and_timing_v1.json; Qwen1.7 full model proof does not admit other models",
+  "base_decomposition": "as2_llama3b_b16_decode_split2.json"
+}
