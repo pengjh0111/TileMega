@@ -33,6 +33,24 @@ __global__ __launch_bounds__(160) void evaluate(Sm90DenseAttentionOperands p) {
   state.Invalidate();
 }
 
+// D10b: chunk pairs merge through the leader's DSMEM inbox (cluster 2).
+template<class A>
+__global__ __launch_bounds__(160) void evaluate_cluster(Sm90DenseAttentionOperands p) {
+  using Async=tilemega::codegen::executor::Async<tilemega::arch::Sm90>;
+  extern __shared__ __align__(1024) char shared[];
+  auto& state=*reinterpret_cast<Sm90DenseRingState*>(shared);state.Initialize();
+  auto& cluster=Sm90DenseClusterState::Of(shared);
+  if(threadIdx.x==0) {
+    // S - 1 = 1 peer chunk arrives on the leader's inbox.
+    Async::Init(&cluster.inbox,1);cluster.inbox_generation=0;Async::InitFence();
+  }
+  __syncthreads();
+  Async::ClusterSync();
+  A::template Run<0>(p,shared);
+  Async::ClusterSync();
+  state.Invalidate();
+}
+
 // Host mirror of Sm90DenseAttentionMath::RotateValue (same BF16 roundings).
 template<int D,bool Norm>
 void Rotate(BF const* x,BF const* w,BF const* cos,BF const* sin,float eps,float* out) {
@@ -51,9 +69,9 @@ void Rotate(BF const* x,BF const* w,BF const* cos,BF const* sin,float eps,float*
   }
 }
 
-template<int Hkv,int D,int Q,bool Norm,int S,int Keys,int Slots,bool Stream=false>
+template<int Hkv,int D,int Q,bool Norm,int S,int Keys,int Slots,bool Stream=false,bool Dsmem=false>
 int run(int past,bool poison,std::vector<BF>* bits=nullptr) {
-  using A=Sm90DenseAttentionBody<B,Hkv,D,Q,Norm,S,Keys,Slots,0,kCap>;
+  using A=Sm90DenseAttentionBody<B,Hkv,D,Q,Norm,S,Keys,Slots,0,kCap,Dsmem>;
   constexpr int prefix=Stream?A::kMaxPreissue:0;
   int groups=B*Hkv;
   std::vector<BF> qkv(std::size_t(groups)*(Q+2)*D),key(std::size_t(groups)*kCap*D),value(key.size());
@@ -93,8 +111,19 @@ int run(int past,bool poison,std::vector<BF>* bits=nullptr) {
       {{D,kCap,std::uint64_t(groups),kLayers},{2ull*D,2ull*kCap*D,2ull*2*view},{64,Keys,1,1}});
   check(cudaMemcpy(maps,host,sizeof host,cudaMemcpyHostToDevice));
   Sm90DenseAttentionOperands p{maps,maps+1,dqkv,dk,dv,out,dc,ds,dqn,dkn,partial,lse,arrivals,past,1e-6f,kLayer};
-  check(cudaFuncSetAttribute(evaluate<A,prefix>,cudaFuncAttributeMaxDynamicSharedMemorySize,A::kSharedBytes));
-  evaluate<A,prefix><<<std::min(132,A::kTasks),160,A::kSharedBytes>>>(p);
+  if constexpr(Dsmem) {
+    static_assert(S==2 && A::kTasks<=132,"one wave of chunk pairs");
+    check(cudaFuncSetAttribute(evaluate_cluster<A>,cudaFuncAttributeMaxDynamicSharedMemorySize,A::kSharedBytes));
+    cudaLaunchConfig_t config{};config.gridDim=dim3(A::kTasks);config.blockDim=dim3(160);
+    config.dynamicSmemBytes=A::kSharedBytes;
+    cudaLaunchAttribute attribute{};attribute.id=cudaLaunchAttributeClusterDimension;
+    attribute.val.clusterDim.x=2;attribute.val.clusterDim.y=1;attribute.val.clusterDim.z=1;
+    config.attrs=&attribute;config.numAttrs=1;
+    check(cudaLaunchKernelEx(&config,evaluate_cluster<A>,p));
+  }else {
+    check(cudaFuncSetAttribute(evaluate<A,prefix>,cudaFuncAttributeMaxDynamicSharedMemorySize,A::kSharedBytes));
+    evaluate<A,prefix><<<std::min(132,A::kTasks),160,A::kSharedBytes>>>(p);
+  }
   check(cudaGetLastError());check(cudaDeviceSynchronize());
   std::vector<BF> got(groups*Q*D),cache_k(key.size()),cache_v(value.size());
   check(cudaMemcpy(got.data(),out,got.size()*2,cudaMemcpyDeviceToHost));
@@ -162,6 +191,21 @@ int sweep() {
   return errors;
 }
 
+// The DSMEM merge against the LA merge of the same chunks: equal outputs.
+template<int Hkv,int D,int Q,bool Norm,int Keys,int Slots>
+int dsmem() {
+  int errors=0;
+  for(int past:{64,575,1086}) {
+    std::vector<BF> la,cluster;
+    errors+=run<Hkv,D,Q,Norm,2,Keys,Slots>(past,true,&la);
+    errors+=run<Hkv,D,Q,Norm,2,Keys,Slots,false,true>(past,true,&cluster);
+    if(std::memcmp(la.data(),cluster.data(),la.size()*2)) {
+      std::fprintf(stderr,"B%d D%d Q%d past%d: DSMEM merge differs from the LA merge\n",B,D,Q,past);++errors;
+    }
+  }
+  return errors;
+}
+
 int main() {
   try {
     check(cudaSetDevice(0));int errors=0,cases=0;
@@ -172,6 +216,11 @@ int main() {
     add(sweep<8,64,4,false,S0,64,3>());add(sweep<8,64,4,false,S0,128,2>());
     add(sweep<8,128,3,false,S0,64,2>());add(sweep<8,128,4,false,S0,64,4>());
     add(sweep<4,128,8,true,S0,64,2>());add(sweep<4,128,8,true,(S0>1?S0*2:2),64,3>());
+    // MR5: one chunk (no merge) and the widest merges.
+    add(sweep<4,128,8,true,1,64,4>());add(sweep<8,128,2,true,1,64,4>());
+    add(sweep<4,128,8,true,(B<=2?32:4),64,2>());add(sweep<8,128,2,true,(B<=2?16:2),64,2>());
+    if constexpr(B*4*2<=132)add(dsmem<4,128,8,true,64,2>());
+    if constexpr(B*8*2<=132)add(dsmem<8,128,2,true,64,2>());
     std::printf("{\"batch\":%d,\"sweeps\":%d,\"errors\":%d,\"pass\":%s}\n",B,cases,errors,errors?"false":"true");
     return errors?1:0;
   }catch(std::exception const& e) {std::fprintf(stderr,"%s\n",e.what());return 2;}

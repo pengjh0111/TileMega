@@ -37,52 +37,35 @@ struct Sm90DenseAttentionMath {
     unsigned bits=*reinterpret_cast<unsigned const*>(x);
     return make_float2(__uint_as_float(bits<<16),__uint_as_float(bits&0xffff0000u));
   }
-  // Lane l returns elements [8l, 8l+8) of the normalized, rotated head (zero
-  // for l >= D/8). The whole warp participates: the norm is a warp reduction.
+  // MR4: one head per group of D/8 lanes; lane l of a group owns elements
+  // [8l, 8l+8), b their rotation partners at (8l + D/2) % D. The norm is a
+  // reduction over the group (xor offsets below D/8 stay inside it), so every
+  // lane of the warp must call this, idle groups with zeros.
   template<int D,bool Norm>
-  __device__ static __forceinline__ uint4 RotateValue(Element const* x,Element const* norm,
-      Element const* cosine,Element const* sine,float epsilon) {
-    int d=(threadIdx.x&31)*8;
-    uint4 a{},b{},w{},partner_w{},cos{},sin{};
-    float square=0;
-    if(d<D) {
-      a=*reinterpret_cast<uint4 const*>(x+d);
-      b=*reinterpret_cast<uint4 const*>(x+(d+D/2)%D);
-      cos=*reinterpret_cast<uint4 const*>(cosine+d);sin=*reinterpret_cast<uint4 const*>(sine+d);
-      if constexpr(Norm) {
-        w=*reinterpret_cast<uint4 const*>(norm+d);
-        partner_w=*reinterpret_cast<uint4 const*>(norm+(d+D/2)%D);
-        cute::for_each(cute::make_int_sequence<8>{},[&](auto i) {
-          float value=Get<int(i)>(a);square+=value*value;
-        });
-      }
-    }
+  __device__ static __forceinline__ uint4 RotateGroup(uint4 a,uint4 b,uint4 w,uint4 partner_w,
+      uint4 cos,uint4 sin,float epsilon,int d) {
     float inverse=1;
-    if constexpr(Norm)inverse=rsqrtf(WarpSum(square)/D+epsilon);
-    uint4 output{};
-    if(d<D)
+    if constexpr(Norm) {
+      float square=0;
       cute::for_each(cute::make_int_sequence<8>{},[&](auto i) {
-        float first=Get<int(i)>(a),second=Get<int(i)>(b);
-        if constexpr(Norm) {
-          first=float(Element(float(Element(first*inverse))*Get<int(i)>(w)));
-          second=float(Element(float(Element(second*inverse))*Get<int(i)>(partner_w)));
-        }
-        Element left(first*Get<int(i)>(cos));
-        Element right((d<D/2?-second:second)*Get<int(i)>(sin));
-        Put<int(i)>(output,Element(float(left)+float(right)));
+        float value=Get<int(i)>(a);square+=value*value;
       });
-    return output;
-  }
-  template<int D,bool Norm>
-  __device__ static __forceinline__ void Rotate(Element const* x,Element const* norm,
-      Element const* cosine,Element const* sine,float epsilon,Element* shared,
-      Element* cache=nullptr) {
-    int d=(threadIdx.x&31)*8;
-    uint4 output=RotateValue<D,Norm>(x,norm,cosine,sine,epsilon);
-    if(d<D) {
-      *reinterpret_cast<uint4*>(shared+d)=output;
-      if(cache)*reinterpret_cast<uint4*>(cache+d)=output;
+      #pragma unroll
+      for(int offset=D/16;offset;offset>>=1)square+=__shfl_xor_sync(0xffffffff,square,offset);
+      inverse=rsqrtf(square/D+epsilon);
     }
+    uint4 output{};
+    cute::for_each(cute::make_int_sequence<8>{},[&](auto i) {
+      float first=Get<int(i)>(a),second=Get<int(i)>(b);
+      if constexpr(Norm) {
+        first=float(Element(float(Element(first*inverse))*Get<int(i)>(w)));
+        second=float(Element(float(Element(second*inverse))*Get<int(i)>(partner_w)));
+      }
+      Element left(first*Get<int(i)>(cos));
+      Element right((d<D/2?-second:second)*Get<int(i)>(sin));
+      Put<int(i)>(output,Element(float(left)+float(right)));
+    });
+    return output;
   }
 };
 

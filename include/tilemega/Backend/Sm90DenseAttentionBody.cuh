@@ -144,25 +144,46 @@ struct Sm90DenseAttentionBody {
     __syncwarp();
   }
 
-  // q_norm + RoPE into the swizzled Q tile; the chunk holding `past` also
-  // rotates the new key, writes cache row `past` and the new-row panels.
+  // MR4: q_norm + RoPE of the Q query heads and, in the chunk holding past,
+  // the new key, as items of D/8-lane groups (D128: 8 groups, Q = 8's key in
+  // a second round on warp 0's first group). Every global read of the task is
+  // issued before any rotation; the new key also writes cache row `past` and
+  // the new-row panels.
+  static constexpr int kGroupLanes=D/8,kGroups=4*(32/kGroupLanes),kRounds=(Q+1+kGroups-1)/kGroups;
   __device__ static __forceinline__ void Prepare(Sm90DenseAttentionOperands const& p,Storage& s,
       int bg,Sm90DenseKeyRange range) {
-    int warp=threadIdx.x>>5,lane=threadIdx.x&31,d=lane*8;
-    auto* group=p.qkv+std::size_t(bg)*(Q+2)*D;
-    auto* cosine=p.cosine+p.past*D;auto* sine=p.sine+p.past*D;
-    for(int q=warp;q<Q;q+=4) {
-      uint4 row=Math::template RotateValue<D,Norm>(group+q*D,p.q_norm,cosine,sine,p.epsilon);
-      if(d<D)*reinterpret_cast<uint4*>(reinterpret_cast<char*>(s.query)+Swizzled<16>(q,d))=row;
+    int lane=threadIdx.x&31,group=(threadIdx.x>>5)*(32/kGroupLanes)+lane/kGroupLanes;
+    int d=(lane%kGroupLanes)*8,partner=(d+D/2)%D;
+    auto const* row=p.qkv+std::size_t(bg)*(Q+2)*D;
+    bool fresh=range.Contains(p.past);
+    uint4 cos=*reinterpret_cast<uint4 const*>(p.cosine+p.past*D+d);
+    uint4 sin=*reinterpret_cast<uint4 const*>(p.sine+p.past*D+d);
+    uint4 qw{},qpw{},kw{},kpw{},x[kRounds],y[kRounds],value{};
+    if constexpr(Norm) {
+      qw=*reinterpret_cast<uint4 const*>(p.q_norm+d);qpw=*reinterpret_cast<uint4 const*>(p.q_norm+partner);
+      kw=*reinterpret_cast<uint4 const*>(p.k_norm+d);kpw=*reinterpret_cast<uint4 const*>(p.k_norm+partner);
     }
-    if(range.Contains(p.past) && warp==Q%4) {
-      std::size_t cache=(std::size_t(bg)*Capacity+p.past)*D;
-      uint4 k=Math::template RotateValue<D,Norm>(group+Q*D,p.k_norm,cosine,sine,p.epsilon);
-      if(d<D) {
-        uint4 v=*reinterpret_cast<uint4 const*>(group+(Q+1)*D+d);
-        *reinterpret_cast<uint4*>(p.key+cache+d)=k;*reinterpret_cast<uint4*>(p.value+cache+d)=v;
-        *reinterpret_cast<uint4*>(reinterpret_cast<char*>(s.new_key)+Swizzled<16>(0,d))=k;
-        *reinterpret_cast<uint4*>(reinterpret_cast<char*>(s.new_value)+Swizzled<16>(0,d))=v;
+    #pragma unroll
+    for(int r=0;r<kRounds;++r) {
+      int item=r*kGroups+group;
+      x[r]=y[r]=uint4{};
+      if(item<Q || (item==Q && fresh)) {
+        x[r]=*reinterpret_cast<uint4 const*>(row+item*D+d);
+        y[r]=*reinterpret_cast<uint4 const*>(row+item*D+partner);
+      }
+      if(item==Q && fresh)value=*reinterpret_cast<uint4 const*>(row+(Q+1)*D+d);
+    }
+    #pragma unroll
+    for(int r=0;r<kRounds;++r) {
+      int item=r*kGroups+group;
+      bool key=item==Q;
+      uint4 rotated=Math::template RotateGroup<D,Norm>(x[r],y[r],key?kw:qw,key?kpw:qpw,cos,sin,p.epsilon,d);
+      if(item<Q)*reinterpret_cast<uint4*>(reinterpret_cast<char*>(s.query)+Swizzled<16>(item,d))=rotated;
+      else if(key && fresh) {
+        std::size_t cache=(std::size_t(bg)*Capacity+p.past)*D;
+        *reinterpret_cast<uint4*>(p.key+cache+d)=rotated;*reinterpret_cast<uint4*>(p.value+cache+d)=value;
+        *reinterpret_cast<uint4*>(reinterpret_cast<char*>(s.new_key)+Swizzled<16>(0,d))=rotated;
+        *reinterpret_cast<uint4*>(reinterpret_cast<char*>(s.new_value)+Swizzled<16>(0,d))=value;
       }
     }
   }
@@ -325,6 +346,36 @@ struct Sm90DenseAttentionBody {
     }
   }
 
+  // MR4 merge of S chunk partials, shared by the last-arriver and DSMEM forms:
+  // `lse` holds all S x Q log2-sum-exps in shared memory (one CTA join after
+  // they land), each thread derives its own query's max and total, then sums
+  // one float4 of the context per round, reading 16 partials per batch.
+  template<class Partial>
+  __device__ static __forceinline__ void Combine(Sm90DenseAttentionOperands const& p,float const* lse,
+      int bg,Partial partial) {
+    for(int i=threadIdx.x*4;i<Q*D;i+=128*4) {
+      int q=i/D;float m=-INFINITY,total=0;
+      for(int c=0;c<Chunks;++c)m=fmaxf(m,lse[c*Q+q]);
+      for(int c=0;c<Chunks;++c)total+=isfinite(m)?exp2f(lse[c*Q+q]-m):0.0f;
+      float4 result=make_float4(0,0,0,0);
+      #pragma unroll
+      for(int first=0;first<Chunks;first+=16) {
+        constexpr int kBatch=Chunks<16?Chunks:16;
+        float4 v[kBatch];
+        #pragma unroll
+        for(int j=0;j<kBatch;++j)if(first+j<Chunks)v[j]=partial(first+j,i);
+        #pragma unroll
+        for(int j=0;j<kBatch;++j)if(first+j<Chunks) {
+          float w=isfinite(m) && total?exp2f(lse[(first+j)*Q+q]-m)/total:0.0f;
+          result.x+=w*v[j].x;result.y+=w*v[j].y;result.z+=w*v[j].z;result.w+=w*v[j].w;
+        }
+      }
+      __nv_bfloat162 lo=__floats2bfloat162_rn(result.x,result.y),hi=__floats2bfloat162_rn(result.z,result.w);
+      uint2 packed{*reinterpret_cast<unsigned*>(&lo),*reinterpret_cast<unsigned*>(&hi)};
+      *reinterpret_cast<uint2*>(p.output+std::size_t(bg)*Q*D+i)=packed;
+    }
+  }
+
   // After every consumer's inbox stores (CTA join), one release per peer
   // chunk; the leader acquires all S - 1 and merges in fixed chunk order.
   __device__ static __forceinline__ void DsmemMerge(Sm90DenseAttentionOperands const& p,
@@ -336,54 +387,21 @@ struct Sm90DenseAttentionBody {
       return;
     }
     Async::WaitCluster(&cluster.inbox,cluster.inbox_generation&1);
-    int warp=threadIdx.x>>5,lane=threadIdx.x&31;
-    for(int q=warp;q<Q;q+=4) {
-      float m=-INFINITY;
-      for(int c=lane;c<Chunks;c+=32)m=fmaxf(m,s.inbox_lse[c*Q+q]);
-      m=Math::WarpMax(m);
-      float total=0;
-      for(int c=lane;c<Chunks;c+=32) {
-        float w=isfinite(m)?exp2f(s.inbox_lse[c*Q+q]-m):0.0f;s.weight[c*Q+q]=w;total+=w;
-      }
-      total=Math::WarpSum(total);
-      for(int c=lane;c<Chunks;c+=32)s.weight[c*Q+q]=total?s.weight[c*Q+q]/total:0.0f;
-    }
-    codegen::executor::ComputeSync();
-    for(int i=threadIdx.x;i<Q*D;i+=128) {
-      int q=i/D;float result=0;
-      #pragma unroll
-      for(int c=0;c<Chunks;++c)result+=s.weight[c*Q+q]*s.inbox[c*Q*D+i];
-      p.output[std::size_t(bg)*Q*D+i]=Element(result);
-    }
+    // The inbox follows `last` and is only 4-byte aligned.
+    Combine(p,s.inbox_lse,bg,[&](int c,int i) {
+      float const* v=s.inbox+c*Q*D+i;return make_float4(v[0],v[1],v[2],v[3]);
+    });
     codegen::executor::ComputeSync();
     if(threadIdx.x==0)cluster.inbox_generation^=1u;
   }
 
   __device__ static __forceinline__ void Merge(Sm90DenseAttentionOperands const& p,Storage& s,int bg) {
-    int warp=threadIdx.x>>5,lane=threadIdx.x&31;
-    for(int q=warp;q<Q;q+=4) {
-      float m=-INFINITY;
-      for(int c=lane;c<Chunks;c+=32)m=fmaxf(m,p.lse[(bg*Chunks+c)*Q+q]);
-      m=Math::WarpMax(m);
-      float total=0;
-      for(int c=lane;c<Chunks;c+=32) {
-        float w=exp2f(p.lse[(bg*Chunks+c)*Q+q]-m);s.weight[c*Q+q]=w;total+=w;
-      }
-      total=Math::WarpSum(total);
-      for(int c=lane;c<Chunks;c+=32)s.weight[c*Q+q]/=total;
-    }
+    // s.weight holds max(S, 4) x Q floats: the S x Q lse fit.
+    for(int i=threadIdx.x;i<Chunks*Q;i+=128)s.weight[i]=p.lse[std::size_t(bg)*Chunks*Q+i];
     codegen::executor::ComputeSync();
-    for(int i=threadIdx.x*4;i<Q*D;i+=128*4) {
-      int q=i/D;float4 result=make_float4(0,0,0,0);
-      #pragma unroll
-      for(int c=0;c<Chunks;++c) {
-        float w=s.weight[c*Q+q];
-        float4 v=*reinterpret_cast<float4 const*>(p.partial+(std::size_t(bg)*Chunks+c)*Q*D+i);
-        result.x+=w*v.x;result.y+=w*v.y;result.z+=w*v.z;result.w+=w*v.w;
-      }
-      Element* out=p.output+std::size_t(bg)*Q*D+i;
-      out[0]=Element(result.x);out[1]=Element(result.y);out[2]=Element(result.z);out[3]=Element(result.w);
-    }
+    Combine(p,s.weight,bg,[&](int c,int i) {
+      return *reinterpret_cast<float4 const*>(p.partial+(std::size_t(bg)*Chunks+c)*Q*D+i);
+    });
   }
 
   // One outlined call per stage: under the call ABI separate role functions
