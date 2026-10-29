@@ -166,12 +166,13 @@ class MoeFullTest(unittest.TestCase):
         before = memory_report(config, manifests, 2, 128)['workspace_bytes']
         manifests[0]['buffers'].extend([
             dict(name='head_partial', dtype='pair_f32_u32', role='internal', constant=208),
+            dict(name='expert_rows', dtype='pair_u32', role='internal', constant=128, per_batch=128),
             dict(name='ticket', dtype='u32', role='internal', constant=16),
             dict(name='barrier', dtype='u64', role='internal', constant=8),
             dict(name='unused_partial', dtype='f32', role='internal', constant=0, bytes=16),
         ])
         result = memory_report(config, manifests, 2, 128)
-        self.assertEqual(result['workspace_bytes'] - before, 208*8 + 16*4 + 8*8 + 16)
+        self.assertEqual(result['workspace_bytes'] - before, 208*8 + (128+2*128)*8 + 16*4 + 8*8 + 16)
         manifests[0]['buffers'][-1].update(constant=8, bytes=16)
         with self.assertRaisesRegex(ValueError, 'smaller than its elements'):
             memory_report(config, manifests, 2, 128)

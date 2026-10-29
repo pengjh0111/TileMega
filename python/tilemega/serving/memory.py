@@ -32,7 +32,7 @@ def memory_report(config, manifests, batch, capacity):
     by the loader. This estimate cannot certify that a plan fits.
     """
     widths = {'bf16': 2, 'f32': 4, 'i32': 4, 'i64': 8,
-              'u32': 4, 'u64': 8, 'pair_f32_u32': 8}
+              'u32': 4, 'u64': 8, 'pair_f32_u32': 8, 'pair_u32': 8}
     weights, names, phases = {}, {}, []
     for manifest in manifests:
         if not manifest['batch_lo'] <= batch <= manifest['batch_hi'] or \
