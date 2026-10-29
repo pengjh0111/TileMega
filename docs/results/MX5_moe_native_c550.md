@@ -54,7 +54,8 @@ Verified isolated normal cucc builds, with exact-function MIR checks:
 | Combine | 16 | same; rank-ordered arithmetic mirrors legacy |
 | Router GEMM plus tile/route LA | 8 | same; TileRange/StreamK, BF16 logits then dispatch |
 
-These bodies remain under ignored runs. They are not integrated model kernels.
+Verified canonical bodies now live in `include/tilemega/Backend/Mx/` and the
+program/runtime ABI in `Codegen/tasks/mx/`. They are not accepted model kernels.
 Grouped metadata is cached per unit; WK1 invalidates the RMS inverse when the
 active expert changes. Geometry checks cover 5,376 configurations and
 13,908,844 units. This does not establish numerical or synchronization correctness.
@@ -95,7 +96,12 @@ this scheduling difference is recorded explicitly. It is not phase-E acceptance.
 MoE GPU work waits for the dense 25-cell measurement cohort to finish. G-B and
 G-LLM failures remain open and are not waived by this preparation.
 
-Still missing: GPU numerical/publication tests for the prepared bodies, integrated/validated model StageProgram, bindings and runtime, prompt ABI
+Verified canonical B1/B16 decode/prompt programs compile from the root emitter;
+normal device code is byte-identical to the earlier ABI preparations. All four
+have zero frame/static SMEM and exact MIR checks pass; MT235/243/237/241.
+This CPU integration does not establish a 512-thread exception or GPU acceptance.
+
+Still missing: GPU numerical/publication tests for the prepared bodies, validated model StageProgram, bindings and runtime, prompt ABI
 and counters on the GPU, native compiler routing, measured cost
 rows/top-four selection, C-1/C-2, routing checks, and five-cell E2E timing.
 DNN starts after the required LLM acceptance stage; no DNN native result exists.
