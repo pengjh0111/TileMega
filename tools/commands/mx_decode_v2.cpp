@@ -91,15 +91,15 @@ int TryPrepareV2(Request const& r) {
   if(schema3 && !r.v2_results.empty())
     throw std::invalid_argument("MX-5 schema3 is diagnostic only; --mx-decode-v2-results consumption is forbidden");
   std::unique_ptr<solver::MxDecodeSolverV2> solver;
-  if(!catalog)solver=std::make_unique<solver::MxDecodeSolverV2>(table_document);
   Value catalog_binding;
   std::vector<Value> diagnostic_tables;
   std::string selected_table=r.v2_solve_table;
   auto bridge=frontend::ReadExportBridge(r.input.string());
   frontend::ServingOptions options;options.deferred_norm=true;options.phase=frontend::ServingOptions::Phase::kDecode;
-  options.seq=1;options.capacity=r.capacity;
+  options.seq=1;options.capacity=r.capacity;options.moe_batch=r.batch;
   auto plan=frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,options);
-  if (plan.dm) throw std::invalid_argument("MX-5 solve currently supports dense decode only");
+  if (plan.dm) return TryPrepareMoeV2(r,plan);
+  if(!catalog)solver=std::make_unique<solver::MxDecodeSolverV2>(table_document);
   mlir::MLIRContext context;context.getOrLoadDialect<dialect::CGDialect>();context.getOrLoadDialect<dialect::ExecDialect>();
   frontend::ImportOptions import;import.gemms.assign(plan.gemms.size(),frontend::GemmGranularity{16,128,128,2,1});
   auto module=frontend::TorchExportImporter{}.ImportPlan(r.input.string(),plan,context,nullptr,import);

@@ -26,6 +26,7 @@ struct Request {
 /// Builds native dense/MoE decoders; unsupported DM plans are rejected.
 int TryCompile(Request const& request);
 int TryCompileMoeV2(Request const& request, frontend::ModelPlan const& plan);
+int TryPrepareMoeV2(Request const& request, frontend::ModelPlan const& plan);
 /// Temporary explicit-pin entry while the v2 measured-table/E2E gates remain
 /// open. Remove the MX-4 default route only after those gates select v2.
 int TryCompileV2(Request const& request);

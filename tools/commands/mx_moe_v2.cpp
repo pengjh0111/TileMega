@@ -7,6 +7,10 @@
 #include <tilemega/Codegen/MxMoeProgramV2.h>
 #include <tilemega/Support/BuildConfig.h>
 #include <tilemega/Support/Json.h>
+#include <tilemega/Solver/MxMoeSelectionV2.h>
+#include <llvm/Support/SHA256.h>
+#include <llvm/Support/MemoryBuffer.h>
+#include <llvm/ADT/StringExtras.h>
 
 #include <algorithm>
 #include <chrono>
@@ -55,6 +59,41 @@ Value ClassJson(MxDecodeClassV2 const& c) {
                 {"prefetch", c.prefetch}, {"r_next", c.r_next}};
 }
 Value Count(std::uint64_t n) { return Value(double(n)); }
+}
+
+int TryPrepareMoeV2(Request const& r, frontend::ModelPlan const& plan) {
+  if (!r.v2_results.empty())
+    throw std::invalid_argument("MX-5 MoE diagnostic previews do not consume measured model results");
+  if (r.grid != 104 || r.past_lo != 64 || r.past_hi != 1086 || r.capacity != 1088)
+    throw std::invalid_argument("MX-5 MoE measured costs require grid104, capacity1088 and past64:1086");
+  auto table = json::ParseFile(r.v2_solve_table);
+  if (Int(table, "schema_version") != 1 ||
+      table.At("table_kind").AsString("table_kind") != "mx5_moe_geometry_outcomes")
+    throw std::invalid_argument("MX-5 MoE requires an explicit native geometry-outcome table");
+  auto hash = [](std::string const& path) {
+    auto input = llvm::MemoryBuffer::getFile(path);
+    if (!input) throw std::runtime_error("MX-5 MoE cannot hash " + path);
+    llvm::SHA256 digest; digest.update(input.get()->getBuffer()); return llvm::toHex(digest.final(), true);
+  };
+  auto reference = [&](std::string const& path) -> Value {
+    return Object{{"path", std::filesystem::absolute(path).string()}, {"sha256", hash(path)}};
+  };
+  auto table_ref = reference(r.v2_solve_table), input_ref = reference(r.input.string());
+  auto doc = solver::MxMoeCandidatesJsonV2(plan, r.v2_threads, table.At("rows").AsArray("rows"),
+      table.At("rejections").AsArray("rejections"));
+  if (reference(r.v2_solve_table).Dump(0) != table_ref.Dump(0) || reference(r.input.string()).Dump(0) != input_ref.Dump(0))
+    throw std::invalid_argument("MX-5 MoE table or bridge changed while preparing candidates");
+  std::string out = r.output.string() + ".mx5_candidates.json";
+  if (std::filesystem::exists(out))
+    throw std::invalid_argument("MX-5 MoE existing preview is preserved: " + out);
+  doc.Set("stage_table", table_ref); doc.Set("input", input_ref);
+  doc.Set("producer", reference(std::filesystem::read_symlink("/proc/self/exe").string()));
+  doc.Set("request", Object{{"batch", r.batch}, {"threads", r.v2_threads}, {"grid", r.grid},
+      {"capacity", r.capacity}, {"past_lo", r.past_lo}, {"past_hi", r.past_hi}});
+  if (!r.output.parent_path().empty()) std::filesystem::create_directories(r.output.parent_path());
+  Write(out, doc.Dump() + "\n");
+  std::cerr << "MX5_MOE diagnostic_candidate_preview " << out << " execution_authorized=false final=false\n";
+  return 0;
 }
 
 int TryCompileMoeV2(Request const& r, frontend::ModelPlan const& plan) {

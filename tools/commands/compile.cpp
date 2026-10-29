@@ -577,7 +577,7 @@ int RunCompile(int argc, char** argv) {
       throw std::runtime_error("--handoff must be off or auto");
     if ((!mx_v2_table.empty() || !mx_v2_results.empty()) &&
         (!serving || serving_phase!="decode" || frontend_mode!="decoder" || input.extension()!=".json"))
-      throw std::invalid_argument("--mx-decode-v2-solve requires an explicit dense decode bridge");
+      throw std::invalid_argument("--mx-decode-v2-solve requires an explicit dense or MoE decode bridge");
     if (!mx_v2_results.empty() && mx_v2_table.empty())
       throw std::invalid_argument("--mx-decode-v2-results requires --mx-decode-v2-solve");
     if(mx_prompt && (!serving || serving_phase!="prefill" || frontend_mode!="decoder" ||
