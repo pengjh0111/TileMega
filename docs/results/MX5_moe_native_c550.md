@@ -316,3 +316,19 @@ qualified512-thread rows (five B ×30 coordinates) retain their original
 source names, rounds and three-process evidence; no new GPU measurements
 or relabeling occurs. This reuse scope excludes576 and grants no plan
 thread exception. Raw: `moe_head_existing_cost_source_audit_cpu_v1`.
+
+Verified router and regular source-bound cost aggregators now validate the
+actual guarded commands/PIDs, raw hashes, resource queries, reference builds,
+three-process quantiles and selected MIR. Regular samples additionally bind
+the executed wrapper/helper invocation and unchanged dense oracle/tolerances.
+The combined127 CPU contract tests pass; automatic prefix/full aggregation
+is queued after the corresponding actual batch proofs. No new full table
+or model acceptance is claimed before those measurements exist.
+
+Verified native pair checks cover prompt64/decode phases, batch/capacity,
+KV storage,145/9217 barriers and all246 external names/dtypes/sizes/recipes.
+Seventeen tests include four actual WD0/WD1 control pairs. The routing audit
+uses this check before loading GPU weights. Each future top4 candidate must
+own its matching prompt/decode pair when TN changes; a prediction0 prompt
+cannot be shared across incompatible candidate recipes. The intended build
+order is prompt before decode within each candidate, then select the pair.

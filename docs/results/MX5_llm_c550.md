@@ -194,6 +194,6 @@ Currentbody I1 fivefresh orderdeltasQKV+6.304%,attn+3.668%,O+8.104%,GU+7.224%,do
 Consumed-prefetch336required/null28/helper6/cold12 eachpass5fresh;helper104CTAs×2000;D64Q4PK2frame0/resident1.
 A20attention500keys×3fresh complete;300576resource rejects unexecuted;G/H unchanged;4545pool/25scopes replayPASS.
 Userwaives only60card-hour totalcap;cards/concurrency/guard/per-joblimits remain,cumulative accounting retained.
-Complete current25dense,MoE native5+prompt64+routing,LLM30 acceptance/CP5,beforeDNN native25.
+Resolve denseG-B/G-LLM;completeMoE5+prompt64+routing,LLM30acceptance/CP5,beforeDNNnative25.
 G-PROGRAM fivecells passes20candidate C1/C2 and40fresh timings;other gates/defaults remain open;detailsinMX5_c550.md.
 Raw:consumed_prefetch_attention_epoch_v1/attention_consumer25_v1 andsource-specific runnerdirectories.
