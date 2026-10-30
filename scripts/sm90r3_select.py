@@ -14,7 +14,6 @@ import sys
 
 from sm90d1_common import ROOT, PYTHON, read, sha, write
 from sm90r4_dispatch import run_unit
-from sm90r4_inputs import model_dir
 
 LLM = ROOT / 'scripts/sm90r3_llm.py'
 POLICY = ROOT / 'configs/bench/sm90r2_guard_policy.json'
@@ -46,8 +45,11 @@ def main():
     write(out / 'spec.json', spec)
     if a.gpu == 'auto':
         # §1.5: a MoE P-SEL runs with the machine to itself.
-        moe = 'num_experts' in read(model_dir(a.model) / 'config.json')
-        cls = 'machine' if moe else 'trial' if a.concurrency == 'trial' else 'node'
+        # §1.5 gives a MoE P-SEL the whole machine because R3 measured 4-15%
+        # MoE variance on parallel cards. The user relaxed that on 2026-10-30:
+        # --concurrency now chooses the claim, for MoE as for dense, and every
+        # cell records the concurrency it was measured under.
+        cls = {'trial': 'trial', 'verified': 'trial', 'serial': 'node'}[a.concurrency]
         write(out / 'psel.json', run_unit(out / 'spec.json', out / 'unit', cls))
     else:
         gpu = int(a.gpu)
