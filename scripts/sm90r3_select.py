@@ -24,7 +24,8 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--model', required=True)
     p.add_argument('--batch', type=int, required=True)
-    p.add_argument('--prefill', type=Path, required=True)
+    p.add_argument('--prefill', required=True,
+                   help="the prefill binary, or 'prompt' for the prompt mode (§8 A3.5)")
     p.add_argument('--gpu', required=True, help="a card index, or 'auto' for the first free card")
     p.add_argument('--name', required=True)
     p.add_argument('--concurrency', default='serial', choices=('serial', 'trial', 'verified'))
@@ -36,7 +37,9 @@ def main():
     rows = [r for r in read(a.candidates) if r['status'] == 'compiled']
     if len(rows) < 2:
         raise ValueError('P-SEL needs at least two compiled candidates')
-    arms = {f"c{r['rank']}": dict(decode=r['binary'], prefill=str(a.prefill.resolve())) for r in rows}
+    # 'prompt' is a sentinel, not a path: it must survive into the spec.
+    prefill = 'prompt' if str(a.prefill) == 'prompt' else str(Path(a.prefill).resolve())
+    arms = {f"c{r['rank']}": dict(decode=r['binary'], prefill=prefill) for r in rows}
     spec = dict(name=a.name, kind='sel', model=a.model, batch=a.batch, gpu=a.gpu,
                 concurrency=a.concurrency, arms=arms,
                 predicted_ns={f"c{r['rank']}": r['predicted_ns'] for r in rows})
