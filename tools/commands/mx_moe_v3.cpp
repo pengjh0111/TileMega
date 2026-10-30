@@ -145,7 +145,7 @@ int TryCompileMoeV3(Request const& r, frontend::ModelPlan const& plan) {
         {"compile_s", seconds}}).Dump() + "\n");
     throw std::runtime_error("MX-6 MoE cucc failed; source/log/receipt retained at " + out);
   }
-  std::string const resource_command = environment + " python3 -m tilemega.mx5_resources --so " + Quote(out) +
+  std::string const resource_command = environment + " python3 -m tilemega.mx6_resources --so " + Quote(out) +
       " --log " + Quote(out + ".ptxas.log") + " --threads " + std::to_string(config.threads) +
       " --kernel mx_moe_kernel_v3 --out " + Quote(out + ".resources.json");
   if (std::system((resource_command + " >" + Quote(out + ".resource_report.log") + " 2>&1").c_str()))
@@ -155,7 +155,8 @@ int TryCompileMoeV3(Request const& r, frontend::ModelPlan const& plan) {
     Write(out + ".resource_failure.json", resources.Dump() + "\n");
     throw std::runtime_error("MX-6 MoE resource check failed at include/tilemega/Codegen/tasks/mx/MoeProgramV3.cuh; artifact retained: " + out);
   }
-  resources.Set("compile_s", seconds);
+  resources.Set("primary_compile_s", seconds);
+  resources.Set("compile_s", seconds+resources.At("attribution_compile_s").AsNumber("attribution_compile_s"));
   auto const kernel = resources.At("kernel");
   resources.Set("mtreg", kernel.At("registers")); resources.Set("streg", kernel.At("scalar_registers"));
   resources.Set("stack_bytes", kernel.At("stack_bytes")); resources.Set("static_smem", kernel.At("static_smem_bytes"));
@@ -237,6 +238,11 @@ int TryCompileMoeV3(Request const& r, frontend::ModelPlan const& plan) {
     selection.Set("solver_selected",true);selection.Set("default_enabled",false);
     manifest.Set("selection",selection);
   }
+  manifest.Set("program_code_bytes",resources.At("code_bytes"));
+  manifest.Set("program_instruction_count",resources.At("program_instruction_count"));
+  manifest.Set("body_instructions",resources.At("body_instructions"));
+  manifest.Set("body_code_bytes",resources.At("body_code_bytes"));
+  manifest.Set("body_attribution",resources.At("body_attribution"));
   Write(out + ".plan.json", manifest.Dump() + "\n");
   python("-m tilemega.build.identity --root " + Quote(root) + " --snapshot " + Quote(out + ".source.json") + " --so " + Quote(out));
   python("-c " + Quote("from tilemega.build.identity import verify; verify(" + Value(out).Dump(0) + ")"));
