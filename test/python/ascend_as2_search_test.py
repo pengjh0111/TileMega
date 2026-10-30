@@ -5,10 +5,19 @@ from pathlib import Path
 import tempfile
 import unittest
 from tilemega.bench.as2_models import RUNS
-from tilemega.bench.as2_search import select,validate
+from tilemega.bench.as2_search import select,validate,check_compiler_identity
 
 
 class AscendOuterSearch(unittest.TestCase):
+    def test_rebuilt_compiler_invalidates_a_frozen_search_identity(self):
+        with tempfile.TemporaryDirectory(dir=RUNS/'probes') as raw:
+            p=Path(raw)/'compiler';p.write_bytes(b'cpu fixture compiler')
+            identity=hashlib.sha256(p.read_bytes()).hexdigest()
+            check_compiler_identity(p,identity)
+            p.write_bytes(b'rebuilt compiler')
+            with self.assertRaisesRegex(ValueError,'compiler changed'):
+                check_compiler_identity(p,identity)
+
     def test_outer_search_rejects_incomparable_calibration_before_solving(self):
         with tempfile.TemporaryDirectory(dir=RUNS/'probes') as raw:
             root=Path(raw);export=root/'export';export.mkdir()

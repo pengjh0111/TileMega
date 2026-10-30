@@ -439,6 +439,14 @@ int main(int argc,char** argv) {
         }
         auto native=tilemega::codegen::MaterializeAscendLlm(*module,problem,workers,tasks,scheduled,!priced,attention_precision,body,local_q_tail3,local_residual_tail3,swiglu_tile,swiglu_l1_k256);
         if(priced) {
+          auto const& measured=prices.At("stages").AsArray("stage prices");
+          for(unsigned i=0;i<native.stages.size();++i) {
+            auto const& s=native.stages[i];auto const& row=measured.at(i);
+            if(row.At("kind").AsNumber("kind")!=s.kind || row.At("variant").AsNumber("variant")!=s.variant ||
+                row.At("rows").AsNumber("rows")!=s.rows || row.At("columns").AsNumber("columns")!=s.columns ||
+                row.At("k").AsNumber("k")!=s.k)
+              throw std::invalid_argument("Measured stage implementation/shape differs from the materialized Plan");
+          }
           auto const& rows=prices.At("stages").AsArray("stage prices");
           for(unsigned s=0;s<rows.size();++s) {
             auto const& r=rows[s];auto const& n=native.stages[s];

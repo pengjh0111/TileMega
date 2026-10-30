@@ -26,6 +26,11 @@ def select(rows):
     return min(legal,key=lambda r:(r['predicted_forward_ns'],r['id']))
 
 
+def check_compiler_identity(compiler,expected):
+    if digest(compiler)!=expected:
+        raise ValueError('Native compiler changed during the bounded candidate search')
+
+
 def evidence(prices):
     p=json.loads(prices.read_text())
     if p['schema']!='tilemega.as2.native_task_prices.v1' or p['status']!='sourced_empirical_context':
@@ -123,6 +128,7 @@ def solve(domain_path,out,compiler):
             raise ValueError('Explicit target must remain in project configs/targets')
         summary.update(target_config=str(target),target_config_sha256=digest(target))
     for c in domain['candidates']:
+        check_compiler_identity(compiler,summary['compiler_sha256'])
         disk=subprocess.run([sys.executable,str(REPO/'scripts/as2_disk_status.py')],capture_output=True,text=True)
         (out/(c['id']+'_disk.json')).write_text(disk.stdout)
         if disk.returncode:
@@ -160,6 +166,7 @@ def solve(domain_path,out,compiler):
                     if not isinstance(exc,subprocess.TimeoutExpired):raise
                     row.update(returncode=124,status='timeout')
         row['offline_wall_s']=time.monotonic()-start
+        check_compiler_identity(compiler,summary['compiler_sha256'])
         row['peak_rss_kib']=None
         if resource_log.exists():
             match=re.search(r'Maximum resident set size \(kbytes\): (\d+)',resource_log.read_text())
