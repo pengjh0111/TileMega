@@ -42,6 +42,21 @@ def configure_eager_expert_boundary(model, torch):
             'compiled_scope': 'decode forward with explicit eager expert boundaries'}
 
 
+def experts_phase_metadata(model):
+    """Observe HF's reversible decode selection before timing or compilation."""
+    prefill = getattr(model.config, '_experts_implementation', None)
+    decode = prefill
+    context = getattr(model, '_optimize_model_for_decode', None)
+    if prefill is not None and context is not None:
+        with context():
+            decode = model.config._experts_implementation
+        if model.config._experts_implementation != prefill:
+            raise ValueError('HF decode phase probe did not restore expert implementation')
+    return {'prefill_experts_implementation': prefill,
+            'decode_experts_implementation': decode,
+            'experts_phase_probe_restored': True}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=Path, required=True)
@@ -121,6 +136,7 @@ def main() -> None:
             experts = "eager"
     extra = {"experts_implementation": experts} if experts else {}
     model = AutoModelForCausalLM.from_pretrained(str(args.model), dtype=torch.bfloat16, **extra).cuda().eval()
+    phase_meta = experts_phase_metadata(model)
     boundary_meta = {}
     if args.moe_compile_boundary == 'experts-eager':
         if getattr(model.config, '_experts_implementation', None) != 'eager':
@@ -138,7 +154,7 @@ def main() -> None:
             "grouped_mm_error": grouped_mm_error,
             "sdp_flags_constant": sdp_flags_constant,
             "metax_flash_attn_disabled": metax_flash_attn_disabled,
-            "moe_compile_boundary": args.moe_compile_boundary, **provider_meta, **boundary_meta}
+            "moe_compile_boundary": args.moe_compile_boundary, **provider_meta, **phase_meta, **boundary_meta}
     args.out.mkdir(parents=True, exist_ok=True)
     def progress(event, **values):
         with (args.out / 'compile_progress.jsonl').open('a') as stream:

@@ -3,6 +3,8 @@
 This is a separately labelled missing-kernel repair. HF retains its grouping,
 gating, routing and reduction; only its unsupported matrix multiply is replaced.
 No TileMega plans or serving kernels are imported.
+HF 5.12 switches to its own batched-mm experts for decode; this provider then
+repairs prefill only. The baseline records both phases separately.
 """
 import torch
 import triton

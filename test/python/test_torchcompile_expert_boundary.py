@@ -56,3 +56,20 @@ def test_boundary_preserves_hf_experts_and_compiles_surrounding_graph():
 def test_boundary_rejects_a_dense_model():
     with pytest.raises(ValueError, match='requires stacked HF MoE experts'):
         _baseline().configure_eager_expert_boundary(torch.nn.Linear(2, 2), torch)
+
+
+def test_phase_metadata_observes_decode_and_restores_prefill():
+    from contextlib import contextmanager
+    from types import SimpleNamespace
+    model=SimpleNamespace(config=SimpleNamespace(_experts_implementation='grouped_mm'))
+    @contextmanager
+    def decode_context():
+        model.config._experts_implementation='batched_mm'
+        try:yield
+        finally:model.config._experts_implementation='grouped_mm'
+    model._optimize_model_for_decode=decode_context
+    data=_baseline().experts_phase_metadata(model)
+    assert data['prefill_experts_implementation']=='grouped_mm'
+    assert data['decode_experts_implementation']=='batched_mm'
+    assert data['experts_phase_probe_restored']
+    assert model.config._experts_implementation=='grouped_mm'

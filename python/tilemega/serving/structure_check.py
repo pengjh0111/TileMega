@@ -97,7 +97,9 @@ def inspect(config: dict, points: tuple[Workload, ...]) -> dict:
                 structure_passed=True, model_gate_passed=False, layers=layers, qperkv=heads // kv,
                 q_width=heads * dim, hidden_size=hidden, tied_lm_head=tied,
                 attention_signature=dict(head_dim=dim, qperkv=heads // kv,
-                                         qk_norm=model.model.layers[0].self_attn.has_qk_norm),
+                    qk_norm=(model.model.layers[0].self_attn.has_qk_norm or
+                             model.model.layers[0].self_attn.row_qk_norm),
+                    **({'qk_norm_scope':'row'} if model.model.layers[0].self_attn.row_qk_norm else {})),
                 lm_head_fqn='model.embed_tokens.weight' if tied else 'lm_head.weight',
                 logical_bf16_parameter_bytes=sum(p.numel() * p.element_size() for p in parameters),
                 allocated_weight_bytes=0, checkpoint_weight_reads=0, cases=rows)

@@ -57,3 +57,11 @@ def test_olmoe_rejects_attention_semantics_not_implemented(change):
     c=configuration().to_dict();c.update(change)
     with pytest.raises(ValueError,match='unclipped, bias-free'):
         Decoder(c)
+
+
+def test_structure_signature_reports_row_normalization():
+    from tilemega.serving.structure_check import inspect
+    from tilemega.serving.workload import Workload
+    result=inspect(configuration().to_dict(),(Workload(64,16,batches=(1,)),))
+    assert result['attention_signature']['qk_norm'] is True
+    assert result['attention_signature']['qk_norm_scope']=='row'
