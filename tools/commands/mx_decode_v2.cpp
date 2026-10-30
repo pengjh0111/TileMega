@@ -102,6 +102,8 @@ int TryPrepareV2(Request const& r) {
   options.seq=1;options.capacity=r.capacity;options.moe_batch=r.batch;
   auto plan=frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,options);
   if (plan.dm) return TryPrepareMoeV2(r,plan);
+  if (r.moe_diagnostic_candidates != 4)
+    throw std::invalid_argument("--mx-moe-diagnostic-candidates requires a MoE decode bridge");
   if(moe_geometry)throw std::invalid_argument("MX-5 MoE geometry table requires a MoE decode bridge");
   mlir::MLIRContext context;context.getOrLoadDialect<dialect::CGDialect>();context.getOrLoadDialect<dialect::ExecDialect>();
   frontend::ImportOptions import;import.gemms.assign(plan.gemms.size(),frontend::GemmGranularity{16,128,128,2,1});

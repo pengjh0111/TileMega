@@ -195,18 +195,21 @@ std::vector<MxMoeProgramChoiceV2> RankMxMoeProgramsV2(frontend::ModelPlan const&
 }
 
 json::Value MxMoeCandidatesJsonV2(frontend::ModelPlan const& plan, int threads,
-    std::vector<json::Value> const& rows, std::vector<json::Value> const& rejections) {
+    std::vector<json::Value> const& rows, std::vector<json::Value> const& rejections,
+    std::size_t diagnostic_count) {
   using json::Array;
   using json::Object;
   using json::Value;
+  if (!diagnostic_count || diagnostic_count > 4096)
+    throw std::invalid_argument("MoE diagnostic candidate count must be in 1..4096");
   auto model = codegen::AnalyzeMxMoe(plan);
   auto imported = ImportMxMoeCostRowsV2(model, threads, rows);
   auto coverage = CheckMxMoeCostCoverageV2(model, threads, imported, rejections);
   if (!coverage.Complete())
     throw std::invalid_argument("MoE candidate preview requires complete geometric outcomes");
-  auto ranked = RankMxMoeProgramsV2(plan, threads, imported.stages, 4);
-  if (ranked.size() != 4)
-    throw std::invalid_argument("MoE candidate preview requires four legal complete programs");
+  auto ranked = RankMxMoeProgramsV2(plan, threads, imported.stages, diagnostic_count);
+  if (ranked.size() != diagnostic_count)
+    throw std::invalid_argument("MoE candidate preview has fewer legal programs than requested");
   constexpr std::array<char const*, 7> names{"qkv", "o", "router", "gate_up", "down", "head", "attention"};
   auto class_json = [](codegen::MxDecodeClassV2 const& c) -> Value {
     return Object{{"tn", c.tn}, {"wn", c.wn}, {"d", c.d},

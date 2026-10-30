@@ -214,6 +214,18 @@ int main(int argc,char** argv) {
         assert(!preview.At("execution_authorized").AsBool("candidate flag") && !preview.At("file_qualification_implied").AsBool("candidate flag"));
         auto const& candidates = preview.At("candidates").AsArray("candidate array");
         assert(candidates.size() == 4);
+        auto extended = MxMoeCandidatesJsonV2(p, 512, aggregate, {}, 8);
+        auto const& diagnostic = extended.At("candidates").AsArray("candidate array");
+        assert(diagnostic.size() == 8);
+        for (std::size_t i = 0; i < candidates.size(); ++i)
+          assert(diagnostic[i].Dump() == candidates[i].Dump());
+        assert(!extended.At("execution_authorized").AsBool("candidate flag"));
+        for (std::size_t invalid : {std::size_t(0), std::size_t(4097)}) {
+          bool rejected_count = false;
+          try { MxMoeCandidatesJsonV2(p, 512, aggregate, {}, invalid); }
+          catch (std::invalid_argument const&) { rejected_count = true; }
+          assert(rejected_count);
+        }
         double previous = 0;
         for (auto const& candidate : candidates) {
           double prediction = candidate.At("predicted_tpot_ns").AsNumber("candidate number"), total = 0;

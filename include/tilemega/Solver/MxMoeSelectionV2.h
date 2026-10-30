@@ -65,7 +65,8 @@ std::vector<MxMoeProgramChoiceV2> RankMxMoeProgramsV2(frontend::ModelPlan const&
 // Complete geometric coverage is required even for a diagnostic preview. File
 // qualification and the per-plan thread policy belong to the caller.
 json::Value MxMoeCandidatesJsonV2(frontend::ModelPlan const& plan, int threads,
-    std::vector<json::Value> const& rows, std::vector<json::Value> const& rejections);
+    std::vector<json::Value> const& rows, std::vector<json::Value> const& rejections,
+    std::size_t diagnostic_count = 4);
 
 // Lists already contain source-qualified costs, scaled by stage occurrences.
 // This merge does not qualify measurements or authorize a generated program.

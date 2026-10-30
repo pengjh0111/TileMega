@@ -318,7 +318,7 @@ int RunCompile(int argc, char** argv) {
     std::string arch_paths="auto",pdl="off",handoff_mode="off",weight_layout="tiled";
     int page_bytes=16384,lookahead_bytes=-1,prefetch_depth=1,prefetch_stride=0;
     int mma_reg_pipe=0;
-    std::string mx_v2_table,mx_v2_results;int mx_v2_threads=576,mx_prompt=0;
+    std::string mx_v2_table,mx_v2_results;int mx_v2_threads=576,mx_prompt=0,mx_moe_candidates=4;
     std::string attention_impl="mma16",attention_request;
     int kphase_mask=31,v3_poll_ns=0,watchdog=0,l2_slim=0,page_loop_split=0,evict_first=0,evict_last=1;
     int attention_noinline=0,attention_buffers=2;
@@ -405,6 +405,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--mx-decode-v2-solve") mx_v2_table=value;
       else if (flag=="--mx-decode-v2-results") mx_v2_results=value;
       else if (flag=="--mx-decode-v2-threads") mx_v2_threads=std::stoi(value);
+      else if (flag=="--mx-moe-diagnostic-candidates") mx_moe_candidates=std::stoi(value);
       else if (flag=="--serving-warm-start") serving_warm_start=value;
       else if (flag=="--paged-seed-from") paged_seed_from=value;
       else if (flag=="--sync") sync_policy=value;
@@ -580,6 +581,9 @@ int RunCompile(int argc, char** argv) {
       throw std::invalid_argument("--mx-decode-v2-solve requires an explicit dense or MoE decode bridge");
     if (!mx_v2_results.empty() && mx_v2_table.empty())
       throw std::invalid_argument("--mx-decode-v2-results requires --mx-decode-v2-solve");
+    if (mx_moe_candidates < 1 || mx_moe_candidates > 4096 ||
+        (mx_moe_candidates != 4 && (mx_v2_table.empty() || !mx_v2_results.empty())))
+      throw std::invalid_argument("--mx-moe-diagnostic-candidates requires a preview table and count in 1..4096");
     if(mx_prompt && (!serving || serving_phase!="prefill" || frontend_mode!="decoder" ||
                      input.extension()!=".json" || serving_prompt_len!=64))
       throw std::invalid_argument("--mx-prompt requires a decoder bridge, --serving prefill and --prompt-len 64");
@@ -593,6 +597,7 @@ int RunCompile(int argc, char** argv) {
           std::string(TILEMEGA_SOURCE_DIR)+"/configs/targets/xcore1000.json";
       mx.selection=search_selection;mx.measure_cmd=measure_command;mx.tmin=mx_tmin;
       mx.v2_solve_table=mx_v2_table;mx.v2_results=mx_v2_results;mx.v2_threads=mx_v2_threads;
+      mx.moe_diagnostic_candidates=mx_moe_candidates;
       {
         // The measured stage table: the runtime target's mx_decode_costs (§4.2).
         auto target_doc=tilemega::json::ParseFile(mx.runtime_target);

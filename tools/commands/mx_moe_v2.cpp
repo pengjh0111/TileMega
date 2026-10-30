@@ -80,7 +80,7 @@ int TryPrepareMoeV2(Request const& r, frontend::ModelPlan const& plan) {
   };
   auto table_ref = reference(r.v2_solve_table), input_ref = reference(r.input.string());
   auto doc = solver::MxMoeCandidatesJsonV2(plan, r.v2_threads, table.At("rows").AsArray("rows"),
-      table.At("rejections").AsArray("rejections"));
+      table.At("rejections").AsArray("rejections"), r.moe_diagnostic_candidates);
   if (reference(r.v2_solve_table).Dump(0) != table_ref.Dump(0) || reference(r.input.string()).Dump(0) != input_ref.Dump(0))
     throw std::invalid_argument("MX-5 MoE table or bridge changed while preparing candidates");
   std::string out = r.output.string() + ".mx5_candidates.json";
