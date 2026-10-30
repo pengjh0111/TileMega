@@ -1263,3 +1263,67 @@ proven resource-invalid atD may be excluded before continuing k-best, and
 whether DNN may begin after a failed LLM report while its gates remain open.
 Neither is inferred from elapsed time. Existing permitted diagnostic work
 continues; no selection-domain/threshold/default/phase change is applied.
+
+
+### SelectedB1 diagnostic ledger completed (verified)
+
+All20 fresh non-trace DIAG intervention processes complete on physical7:
+two rounds of ten masks,each warmup1+timed2. Every mask has2046 accepted
+timed-step differences. Guard/PID/source/artifact/query/raw-token/timestamp
+checks complete. The v2 CPU summarizer initially expects integer7, but the
+existing guard schema stores physical_gpu as string7. Its failed assertion
+occurs before CSV writes; v3 requires the exact string and keeps independent
+argv/guard physical7 checks. Raw source, failure log and type-fix note stay.
+No measurement, card selection or numerical/performance criterion changes.
+
+The source-bound ledger appends14 rows with actual round/executor/body/
+coordinates and exact selected benchmark source and binary hashes. Original
+CSV bytes remain unchanged. Per-class values below are the median of the
+two per-process interventions divided by nominal occurrences; they are
+nonadditive differences, not absolute body latency or production TPOT.
+
+| Class | DIAG intervention us | Qualified bench us | Intervention/bench |
+|---|---:|---:|---:|
+|qkv|14.367|17.680|0.8126|
+|attention|26.542|26.285|1.0098|
+|o|15.523|15.390|1.0086|
+|router|45.619|41.190|1.1075|
+|gate_up|37.099|37.770|0.9822|
+|down|24.503|32.210|0.7607|
+|head|376.355|383.740|0.9808|
+
+Router uses112-minus120 with expert bodies skipped in both arms; remaining
+prefetch/metadata are confounded. Head uses0-minus64 and includes token-
+history effects. Other interventions use64 as the common head-skipped arm;
+inputs/routing can change. Values are not summed. Common all-skipped127
+steps are306.920/307.100us, retaining prefetch,control,timer and barrier work;
+this is not a pure synchronization latency. These measurements support the
+already large router/attention bench costs without turning a diagnostic
+into a default/performance acceptance. Raw:
+moe_selected_B1_diag_skip_ledger_v1/ACTUAL_SELECTED_B1_DIAG_SKIP_LEDGER_CPU.json,
+ACTUAL_FOURTEEN_SELECTED_MOE_LEDGER_ROWS_APPENDED_CPU.json.
+
+Verified filesystem ordinary-available space reaches0 while raw reserved
+free is39.19GB; no ENOSPC or policy override is claimed. A lossless archive
+then preserves1023 closed,older-than-one-hour compiler-MIR text logs as
+readable same-byte original paths plus persistent gzip backups, freeing
+about8GiB net and restoring7.80GiB ordinary availability. Open paths,
+executables,sources,measurements and guard telemetry are excluded. Actual
+selected B1/B2/B8 request validation passes again after archiving. Raw:
+completed_log_archive_20261030_v3. No clock/power/driver/process changes.
+
+Four CPU binding-reload overlays add volatile only to existing inline binding
+accessors, keeping stage structure/coordinates/DT/Pw/arithmetic unchanged.
+They worsen frames to2304/2320B(B4) and2320/2320B(B16),allMT256; none is
+adopted or launched. Raw: moe_binding_reload_volatile_D7_cpu_v1.
+
+
+Verified six further CPU-only integration probes place empty compiler
+memory fences before next-prefetch callbacks, before-and-after callbacks,
+or only at both down exits. Stage order,geometry,DT/Pw/arithmetic and device
+synchronization remain unchanged. Every variant still has MT256 and the
+original frames256B(B4)/320B(B16). Before-only and down-only have identical
+device.text to their parent; before-and-after changes text without improving
+resources. No variant is adopted,queried or timed. This does not establish
+that prefetch moved across a barrier in the original program. Raw:
+moe_next_issue_compiler_fence_D7_cpu_v1.
