@@ -30,12 +30,13 @@ is not accepted as standard performance. No recompile-limit warning appears
 in the successful diagnostic. Eager expert dispatch still incurs host/device
 control overhead; this is an observed execution repair, not a speed claim.
 
-Standard collection runs in fresh guarded processes on physical7:
-ISL64/OSL1024, BF16 greedy, warmup1/timed2, both rounds queued for all5B.
-Each job retains the900s limit. A later timeout/error remains a failed cell.
+The original repaired collection ran in fresh guarded processes on physical7:
+ISL64/OSL1024, BF16 greedy, warmup1/timed2, both rounds attempted for all5B.
+Each of those original jobs retained the900s limit. A later timeout/error
+remains a failed cell.
 The standard recovery campaign is complete: all10 guarded attempts have
 closed. B1/B2/B4 each complete both fresh rounds. Median TPOT is
-71.823444/122.764771/215.622438ms respectively. B8/B16 both rounds still
+71.823444/122.764771/215.622438ms respectively. B8/B16 both original rounds
 hit900s; four explicit failure rows retain blank timing fields in the CSV.
 They are not OOM or accepted performance rows. B8 warmup/first timed
 request take406.344754/370.787272s in round1 and389.472/375.381s in round2;
@@ -44,8 +45,9 @@ warmup (618.523s/662.806s), then starts its first timed request. Completed
 requests report30 graphs, with no generation exception. B8 round1 sampled
 free memory remains at least33077.418MiB. This remaining limit is real
 generation runtime: three required requests cannot fit the observed rate
-within900s. The timing cap, expert arithmetic, warmup/repeats and OSL are
-unchanged. The compile-boundary repair does not make all batches viable.
+within900s. In that original campaign the timing cap, expert arithmetic,
+warmup/repeats and OSL were unchanged. The compile-boundary repair does
+not make all batches viable under900s.
 New append-only data: [MX5_torchcompile_repair_c550.csv](MX5_torchcompile_repair_c550.csv).
 
 Raw evidence: `runs/mx5/torchcompile_repair_20261030_v1/`:
@@ -61,3 +63,25 @@ The repair does not establish the sole cause of every original timeout.
 It demonstrates that explicit expert boundaries and the model-sized compile
 budget complete the B2 diagnostic and both B2/B4 standard1024-token rounds.
 Further completed rounds must be read from their process and guard receipts.
+
+The user subsequently explicitly authorized1800s for B8 and2700s for B16.
+Both extended rounds now complete for both batches with the identical
+checkpoint, frozen repair, warmup1/timed2, ISL64/OSL1024 and BF16 greedy.
+All four old900s timeout rows remain unchanged; new rows are labelled
+extended_1/extended_2/extended_median. This is a job-duration exception,
+not a change to the measurement protocol or expert math. The complete
+generation records support runtime exceeding the earlier cap, not OOM.
+
+Verified two-round TPOT medians (ms):
+
+| B | TPOT ms | Per-job cap s |
+|---:|---:|---:|
+|1|71.823444|900|
+|2|122.764771|900|
+|4|215.622438|900|
+|8|364.138602|1800|
+|16|554.719642|2700|
+
+Extended receipts: runs/mx5/torchcompile_repair_20261030_v1/extended_B8_B16/.
+Full new-model tables and remaining native gaps are reported in
+[MX5_collection_c550.md](MX5_collection_c550.md).
