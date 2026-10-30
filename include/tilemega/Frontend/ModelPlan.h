@@ -101,6 +101,8 @@ struct PlanGemm {
   std::uint32_t norm_ss = 0xffffffffu, ss_out = 0xffffffffu;
   codegen::DmGemmAccess access{};
   codegen::DmEpilogueChain chain{};
+  // OLMoE keeps full-softmax mass instead of renormalizing selected experts.
+  bool moe_softmax_all = false;
 };
 
 enum class PlanTaskKind {

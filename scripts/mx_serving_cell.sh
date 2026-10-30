@@ -43,7 +43,7 @@ export)
       --capacity 1088 --prompt-len 64 --out $D > $D/export.log 2>&1
     env -u ALL_PROXY -u all_proxy CUDA_VISIBLE_DEVICES= MACA_VISIBLE_DEVICES= PYTHONPATH=python \
       python -m tilemega.export_bridge $D/exported_program.pt2 --out $D/bridge.json \
-      $( [ $family = qwen3_moe ] && echo --pytree-module tilemega.moe.export ) >> $D/export.log 2>&1
+      $( [[ $family = qwen3_moe || $family = olmoe ]] && echo --pytree-module tilemega.moe.export ) >> $D/export.log 2>&1
     rm -f $D/exported_program.pt2
   done ;;
 solve)

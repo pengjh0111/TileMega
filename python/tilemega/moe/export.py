@@ -56,7 +56,8 @@ class Experts(nn.Module):
     def __init__(self, config):
         super().__init__()
         e = int(config.get('num_experts', config.get('num_local_experts', 0)))
-        h, i = int(config['hidden_size']), int(config['moe_intermediate_size'])
+        h = int(config['hidden_size'])
+        i = int(config.get('moe_intermediate_size') or config['intermediate_size'])
         if min(e, h, i) <= 0:
             raise ValueError('MoE export requires positive expert dimensions')
         self.gate_up_proj = nn.Parameter(torch.empty(e, 2*i, h))

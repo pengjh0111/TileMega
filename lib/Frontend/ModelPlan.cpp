@@ -451,12 +451,10 @@ FxNodeRecord const* EntryEmbedding(PatternMatcher const& matcher,
   return result;
 }
 
-/// The per-head normalization between a projection and its rotation, if the
-/// architecture has one. Structural in both directions: it must lie on the
-/// path from the projection to the rotation, and its parameter must be exactly
-/// one head wide -- a row normalization on the same path would carry the whole
-/// projected width and is not this.
-FxNodeRecord const* PerHeadNormalization(PatternMatcher const& matcher,
+/// Prove a weighted normalization on the projection-to-rotation path. The
+/// parameter width distinguishes per-head Qwen normalization from the whole
+/// projected-row normalization before OLMoE splits heads.
+FxNodeRecord const* ProjectionNormalization(PatternMatcher const& matcher,
                                          std::vector<FxNodeRecord> const& nodes,
                                          std::string const& projection,
                                          std::string const& rotated,
@@ -481,6 +479,14 @@ FxNodeRecord const* PerHeadNormalization(PatternMatcher const& matcher,
     result = &node;
   }
   return result;
+}
+
+FxNodeRecord const* PerHeadNormalization(PatternMatcher const& matcher,
+                                         std::vector<FxNodeRecord> const& nodes,
+                                         std::string const& projection,
+                                         std::string const& rotated,
+                                         std::uint32_t head_dim) {
+  return ProjectionNormalization(matcher, nodes, projection, rotated, head_dim);
 }
 
 /// Model elements per identifier. Buffers are arrays of model elements, so an
@@ -1034,6 +1040,11 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
         matcher, nodes, q.name, qrot.name, head_dim);
     auto const* k_norm = PerHeadNormalization(
         matcher, nodes, k.name, matcher.Value(cat_k.inputs.at(1)), head_dim);
+    if (!q_norm && !k_norm) {
+      q_norm = ProjectionNormalization(matcher, nodes, q.name, qrot.name, qwidth);
+      k_norm = ProjectionNormalization(
+          matcher, nodes, k.name, matcher.Value(cat_k.inputs.at(1)), kvwidth);
+    }
     if (bool(q_norm) != bool(k_norm))
       throw std::invalid_argument("serving Q/K normalization is asymmetric");
     std::uint32_t q_norm_weight = kNoOperand, k_norm_weight = kNoOperand;

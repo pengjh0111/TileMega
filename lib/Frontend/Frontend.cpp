@@ -796,6 +796,13 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
   std::vector<std::string> const& guards = bridge.guards;
   SymbolicShape symbolic = prepared ? prepared->symbolic : SymbolicShapeBridge{}.Parse(rangeTexts, guards, userShapes);
   ModelPlan plan = selected_plan ? *selected_plan : BuildModelPlan(allNodes, signatureInputs, signatureOutputs);
+  for (auto const& gemm : plan.gemms)
+    if (gemm.moe_softmax_all)
+      throw std::invalid_argument("full-softmax MoE routing requires a native static program");
+  for (auto const& stage : plan.stages)
+    if (stage.kind == PlanTaskKind::kFusedAttention && stage.operands[5] < plan.buffers.size() &&
+        plan.buffers[stage.operands[5]].constant != stage.width)
+      throw std::invalid_argument("whole-row Q/K normalization requires a native static program");
   std::optional<analysis::ScopedExactAnalysisMemo> dmMemo;
   if(plan.dm && !analysis::active_exact_memo)dmMemo.emplace();
   if (options.separate_residual_tasks) {

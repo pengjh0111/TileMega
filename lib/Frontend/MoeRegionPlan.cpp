@@ -90,6 +90,7 @@ static ModelPlan BuildMatchedMoeRegion(MoeRegionMatch const& match,std::vector<F
   auto expert_offsets=buffer(match.experts+".expert_offsets",1,e+1,"i32");
   auto block_offsets=buffer(match.experts+".block_offsets",1,e+1,"i32");
   PlanGemm router;router.n=e;router.k=h;router.a=normalized;router.b=router_weight;
+  router.moe_softmax_all=!match.normalize_topk;
   router.c=router.d=logits;router.access.write.layout=logits;
   router.chain.side_count=1;
   router.chain.side[0]={DmSideOutputKind::kTopKPartial,partial_logits,partial_indices,k};

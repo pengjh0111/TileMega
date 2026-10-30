@@ -34,7 +34,7 @@ def inspect(config: dict, points: tuple[Workload, ...]) -> dict:
     if heads % kv or not 1 <= heads // kv <= 8:
         raise ValueError('model requires an integral QPerKV in [1, 8]')
     layers = config['num_hidden_layers']
-    moe = config['architectures'][0] == 'Qwen3MoeForCausalLM'
+    moe = config['architectures'][0] in ('Qwen3MoeForCausalLM','OlmoeForCausalLM')
     with torch.device('meta'):
         model = Decoder(config).eval().to(torch.bfloat16)
     if len(model.model.layers) != layers:
@@ -52,9 +52,12 @@ def inspect(config: dict, points: tuple[Workload, ...]) -> dict:
         if layer.self_attn.has_qk_norm:
             for name in ('q_norm', 'k_norm'):
                 _shape(getattr(layer.self_attn, name).weight, (dim,), f'layer {index} {name}')
+        if layer.self_attn.row_qk_norm:
+            _shape(layer.self_attn.q_norm.weight,(heads*dim,),f'layer {index} row q norm')
+            _shape(layer.self_attn.k_norm.weight,(kv*dim,),f'layer {index} row k norm')
         if moe:
             experts = config.get('num_experts', config.get('num_local_experts'))
-            inner = config['moe_intermediate_size']
+            inner = config.get('moe_intermediate_size') or config['intermediate_size']
             _shape(layer.mlp.gate.weight, (experts, hidden), f'layer {index} router')
             _shape(layer.mlp.experts.gate_up_proj, (experts, 2 * inner, hidden),
                    f'layer {index} expert gate/up')

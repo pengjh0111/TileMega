@@ -28,5 +28,5 @@
   ],
   "qk_norm": true,
   "source_note": "MX5 additional workload requested by user; full architecture with BF16 random checkpoint, seed 20260925; original config pinned; not part of fixed MX4 baseline grid",
-  "qk_norm_scope": "entire q/k projection before head reshape; native support pending"
+  "qk_norm_scope": "entire q/k projection before head reshape"
 }

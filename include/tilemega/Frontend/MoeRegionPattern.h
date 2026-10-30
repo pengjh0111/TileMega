@@ -9,6 +9,7 @@ struct MoeRegionMatch {
   unsigned hidden=0,intermediate=0,expert_count=0,top_k=0;
   double epsilon=0;
   bool routing_weights_fp32=false;
+  bool normalize_topk=true;
 };
 
 // Preserve tuple selectors and dtype boundaries while proving the entire

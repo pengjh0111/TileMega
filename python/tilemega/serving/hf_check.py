@@ -72,7 +72,7 @@ def main():
     prompt_len = validate_prompt_ids(ids, len(generated))
     config = json.loads((args.model / 'config.json').read_text())
     expert_options = {}
-    if config.get('model_type') == 'qwen3_moe':
+    if config.get('model_type') in ('qwen3_moe', 'olmoe'):
         expert_options['experts_implementation'] = args.experts_implementation or 'grouped_mm'
     elif args.experts_implementation is not None:
         raise ValueError('experts implementation is only defined for a MoE checkpoint')
