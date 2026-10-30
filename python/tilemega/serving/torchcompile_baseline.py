@@ -22,6 +22,26 @@ import traceback
 from pathlib import Path
 
 
+def configure_eager_expert_boundary(model, torch):
+    """Keep HF's data-dependent expert dispatch outside Dynamo unchanged."""
+    names = []
+    for name, module in model.named_modules():
+        if name.endswith('.mlp.experts') and hasattr(module, 'gate_up_proj'):
+            module.forward = torch.compiler.disable(module.forward)
+            names.append(name)
+    if not names:
+        raise ValueError('experts-eager boundary requires stacked HF MoE experts')
+    # A graph break resumes the shared decoder forward once per layer. Each
+    # layer_idx indexes a distinct static-cache entry and legitimately needs
+    # a specialization; the default budget of eight is smaller than the model.
+    before = torch._dynamo.config.recompile_limit
+    torch._dynamo.config.recompile_limit = max(before, len(names) + 8)
+    return {'eager_expert_modules': names, 'recompile_limit_before': before,
+            'recompile_limit': torch._dynamo.config.recompile_limit,
+            'expert_arithmetic': 'unchanged HF eager forward',
+            'compiled_scope': 'decode forward with explicit eager expert boundaries'}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=Path, required=True)
@@ -35,6 +55,8 @@ def main() -> None:
     parser.add_argument("--mode", default="reduce-overhead")
     parser.add_argument("--experts-implementation", default=None,
                         help="MoE expert kernel (R16: grouped_mm); left unset for dense models")
+    parser.add_argument("--moe-compile-boundary", choices=('original', 'experts-eager'),
+                        default='original', help='Explicitly leave HF eager expert dispatch outside Dynamo')
     args = parser.parse_args()
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from measurement_policy import TimingPolicy
@@ -87,17 +109,30 @@ def main() -> None:
             experts = "eager"
     extra = {"experts_implementation": experts} if experts else {}
     model = AutoModelForCausalLM.from_pretrained(str(args.model), dtype=torch.bfloat16, **extra).cuda().eval()
+    boundary_meta = {}
+    if args.moe_compile_boundary == 'experts-eager':
+        if getattr(model.config, '_experts_implementation', None) != 'eager':
+            raise ValueError('experts-eager compile boundary requires experts_implementation=eager')
+        boundary_meta = configure_eager_expert_boundary(model, torch)
     model.generation_config.cache_implementation = "static"
     model.generation_config.pad_token_id = model.generation_config.eos_token_id
     from transformers import CompileConfig
     meta = {"system": "torch.compile", "model": str(args.model), "torch_version": torch.__version__,
-            "transformers_version": transformers.__version__, "mode": args.mode, "fullgraph": True,
+            "transformers_version": transformers.__version__, "mode": args.mode,
+            "fullgraph": args.moe_compile_boundary == 'original',
             "compile_path": "generation_config.compile_config (decode forward; prefill eager)",
             "experts_implementation": getattr(model.config, "_experts_implementation", None),
             "experts_implementation_requested": args.experts_implementation,
             "grouped_mm_error": grouped_mm_error,
             "sdp_flags_constant": sdp_flags_constant,
-            "metax_flash_attn_disabled": metax_flash_attn_disabled}
+            "metax_flash_attn_disabled": metax_flash_attn_disabled,
+            "moe_compile_boundary": args.moe_compile_boundary, **boundary_meta}
+    args.out.mkdir(parents=True, exist_ok=True)
+    def progress(event, **values):
+        with (args.out / 'compile_progress.jsonl').open('a') as stream:
+            import time
+            stream.write(json.dumps({'event': event, 'time': time.time(), **values}) + '\n')
+    progress('model_ready', **meta)
 
     def compile_forward(fullgraph):
         torch._dynamo.reset()
@@ -105,7 +140,7 @@ def main() -> None:
             del model._compiled_call
         model.generation_config.compile_config = CompileConfig(fullgraph=fullgraph, mode=args.mode)
 
-    compile_forward(True)
+    compile_forward(meta['fullgraph'])
 
     def run(batch, count):
         # Contiguous on device: MACA torch can return non-contiguous strides
@@ -132,6 +167,7 @@ def main() -> None:
                 del model._cache
             compile_forward(meta["fullgraph"])
             compiled_batch[0] = batch
+        progress('generation_start', batch=batch, count=count, fullgraph=meta['fullgraph'])
         try:
             tokens = run(batch, count)
             # What generate() actually used: it may lower fullgraph itself or
@@ -139,8 +175,14 @@ def main() -> None:
             config = model.generation_config.compile_config
             meta["fullgraph"] = bool(meta["fullgraph"] and config.fullgraph)
             meta["compiled_call_used"] = hasattr(model, "_compiled_call")
+            from torch._dynamo.utils import counters
+            meta['dynamo_stats'] = {str(k): dict(v) for k, v in counters.items()}
+            progress('generation_complete', batch=batch, count=count,
+                     compiled_call_used=meta['compiled_call_used'], dynamo_stats=meta['dynamo_stats'])
             return tokens
         except Exception:
+            progress('generation_error', batch=batch, count=count,
+                     error=traceback.format_exc(limit=8)[-4000:])
             if not meta["fullgraph"]:
                 raise
             meta["fullgraph"] = False
