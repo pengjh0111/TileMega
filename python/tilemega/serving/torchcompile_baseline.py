@@ -57,6 +57,8 @@ def main() -> None:
                         help="MoE expert kernel (R16: grouped_mm); left unset for dense models")
     parser.add_argument("--moe-compile-boundary", choices=('original', 'experts-eager'),
                         default='original', help='Explicitly leave HF eager expert dispatch outside Dynamo')
+    parser.add_argument('--grouped-mm-provider', choices=('native','metax-triton'), default='native',
+                        help='Explicit missing-kernel repair; reported separately from stock PyTorch')
     args = parser.parse_args()
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from measurement_policy import TimingPolicy
@@ -95,14 +97,24 @@ def main() -> None:
     # the run falls back to the default experts, recorded in the results.
     experts = args.experts_implementation
     grouped_mm_error = None
+    provider_meta = {'grouped_mm_provider': 'native'}
+    provider_op = None
+    if args.grouped_mm_provider == 'metax-triton':
+        if experts != 'grouped_mm' or args.moe_compile_boundary != 'original':
+            raise ValueError('metax-triton provider requires grouped_mm experts and original compile boundary')
+        from metax_grouped_mm import install, grouped_mm
+        provider_meta = install()
+        provider_op = grouped_mm
     if experts == "grouped_mm":
         try:
             probe = torch.randn(4, 8, dtype=torch.bfloat16, device="cuda")
             weight = torch.randn(2, 8, 8, dtype=torch.bfloat16, device="cuda")
             offsets = torch.tensor([2, 4], dtype=torch.int32, device="cuda")
-            op = getattr(torch.nn.functional, "grouped_mm", None) or torch._grouped_mm
+            op = provider_op or getattr(torch.nn.functional, "grouped_mm", None) or torch._grouped_mm
             op(probe, weight, offs=offsets)
         except Exception as error:
+            if provider_op is not None:
+                raise
             # "eager", not None: transformers selects grouped_mm by default
             # whenever torch exposes the symbol, so the fallback must be named.
             grouped_mm_error = f"{type(error).__name__}: {error}"[:300]
@@ -126,7 +138,7 @@ def main() -> None:
             "grouped_mm_error": grouped_mm_error,
             "sdp_flags_constant": sdp_flags_constant,
             "metax_flash_attn_disabled": metax_flash_attn_disabled,
-            "moe_compile_boundary": args.moe_compile_boundary, **boundary_meta}
+            "moe_compile_boundary": args.moe_compile_boundary, **provider_meta, **boundary_meta}
     args.out.mkdir(parents=True, exist_ok=True)
     def progress(event, **values):
         with (args.out / 'compile_progress.jsonl').open('a') as stream:
