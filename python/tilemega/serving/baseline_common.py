@@ -26,7 +26,7 @@ class InvalidTiming(InvalidMeasurement):
         super().__init__(f"{message}: {json.dumps(diagnostics, sort_keys=True)}")
 
 
-def arguments(system):
+def arguments(system, extend=None):
     parser = argparse.ArgumentParser(description=f"Independent {system} baseline")
     parser.add_argument("--model", type=Path, required=True)
     parser.add_argument("--prompt-ids", type=Path, required=True)
@@ -38,6 +38,8 @@ def arguments(system):
     parser.add_argument("--warmup", type=int, default=1)
     parser.add_argument("--repeats", type=int, default=3)
     parser.add_argument("--round-index", type=int, default=0)
+    if extend is not None:
+        extend(parser)
     args = parser.parse_args()
     if args.max_tokens < 1 or args.warmup < 1 or args.repeats < 1:
         parser.error("max-tokens, warmup and repeats must be positive")
@@ -261,7 +263,7 @@ def summarize(rows, batch, count):
             "output_tokens_per_second": batch*count/e2e}
 
 
-def measure(args, ids, system, generate, metadata, synchronize=lambda: None):
+def measure(args, ids, system, generate, metadata, synchronize=lambda: None, prepare=None):
     checkpoint = shared_checkpoint_identity(args.model, args.load_format)
     batches = (1, 2, 4, 8, 16) if args.batch == "all" else (int(args.batch),)
     for batch in batches:
@@ -271,6 +273,9 @@ def measure(args, ids, system, generate, metadata, synchronize=lambda: None):
         unresolved = set()
         # N=1 first exposes initialization/compile failures before a long run.
         for count in dict.fromkeys((1, args.max_tokens)):
+            # Untimed per-shape setup, for engines whose output length is compiled in.
+            if prepare is not None:
+                prepare(batch, count)
             for run in range(args.warmup + args.repeats):
                 try:
                     barrier = optional_m0_barrier(args, count, run)

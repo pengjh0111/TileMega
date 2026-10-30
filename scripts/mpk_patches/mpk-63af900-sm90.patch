@@ -1,0 +1,86 @@
+# Fixes applied to MPK (mirage-project, branch mpk, commit 63af900) for SM90R4,
+# authorized by the user on 2026-10-30. Apply in /root/mirage-mpk with
+# `patch -p1 < mpk-63af900-sm90.patch`, then `cmake --build build` and relink
+# the Python extension (`uv pip install --no-build-isolation --no-deps -e .`).
+#
+# 1. src/kernel/task_register.cc, non-split paged attention (sm90): the
+#    format string for multitoken_paged_attention_hopper_impl had 14 `$`
+#    placeholders for 15 arguments (PAGE_STRIDE_ROWS had none), so the
+#    transpiler threw "The number of arguments does not match the number of
+#    markers" on every sm90 paged_attention_layer. Fix: one more placeholder.
+# 2. src/kernel/task_register.cc, split-KV paged attention: 14 placeholders and
+#    14 arguments, but ROTARY_DIM was never passed, so page_stride_rows filled
+#    the ROTARY_DIM template slot and PAGE_STRIDE_ROWS defaulted to 0 (an
+#    illegal memory access at run time). This task carries no rotary_dim
+#    parameter, so the fix passes head_dim, the template's own default.
+# 3. demo/llama3/demo.py: paged attention was called with q_norm=None and
+#    k_norm=None, which persistent_kernel.py rejects ("q_norm/k_norm must be
+#    valid DTensors; pass a dummy + enable_qk_norm=False"). Each layer now
+#    attaches a head_dim dummy and passes enable_qk_norm=False, as asked.
+--- a/src/kernel/task_register.cc
++++ b/src/kernel/task_register.cc
+@@ -1508,7 +1508,7 @@
+   }
+   code.e("kernel::multitoken_paged_attention_hopper_impl<bfloat16, $, $, $, $, "
+          "$, $, $, $, $, "
+-         "$, $, $, $, $>(",
++         "$, $, $, $, $, $>(",
+          num_q_heads_per_kv, /* NUM_QO_HEADS               */
+          1,                  /* NUM_KV_HEADS               */
+          num_kv_heads,       /* NUM_QO_GROUPS              */
+@@ -4559,7 +4559,7 @@
+   code.inc_indent();
+   code.e("kernel::multitoken_paged_attention_hopper_impl<bfloat16, $, "
+          "$, $, $, $, $, "
+-         "$, $, $, $, $, $, $, $>(",
++         "$, $, $, $, $, $, $, $, $>(",
+          num_q_heads / num_kv_heads, /* NUM_QO_HEADS */
+          1,                          /* NUM_KV_HEADS */
+          num_kv_heads,               /* NUM_QO_GROUPS */
+@@ -4574,6 +4574,7 @@
+          max_tokens,        /* MAX_TOKENS */
+          "true",            /* PARTITION_KV */
+          num_kv_chunks,     /* NUM_KV_CHUNKS */
++         head_dim,          /* ROTARY_DIM (full RoPE, the template default) */
+          page_stride_rows /* PAGE_STRIDE_ROWS */);
+   code.e("    task_desc->input_ptrs[1],");
+   code.e("    task_desc->input_ptrs[2],");
+--- a/demo/llama3/demo.py
++++ b/demo/llama3/demo.py
+@@ -541,6 +541,12 @@
+         torch_tensor=model.model.kv_cache[1][layer_idx], 
+         name=f"layer_{layer_idx}_v_cache"
+     )
++    # Llama has no q/k norm, but paged attention requires the operands: pass a
++    # head_dim dummy with enable_qk_norm=False, as persistent_kernel.py asserts.
++    qk_norm_dummy = mpk.attach_input(
++        torch_tensor=torch.ones(config['head_dim'], dtype=torch.bfloat16, device='cuda'),
++        name=f"layer_{layer_idx}_qk_norm_dummy",
++    )
+     
+     attn_out_block_dim = get_block_dim()
+     if spec_decode_config:
+@@ -548,8 +554,9 @@
+             input=tensors['attn_in'],
+             k_cache=k_cache,
+             v_cache=v_cache,
+-            q_norm=None,
+-            k_norm=None,
++            q_norm=qk_norm_dummy,
++            k_norm=qk_norm_dummy,
++            enable_qk_norm=False,
+             cos_pos_embed=inputs['cos_pos_embed'],
+             sin_pos_embed=inputs['sin_pos_embed'],
+             output=tensors['attn_out'],
+@@ -561,8 +568,9 @@
+             input=tensors['attn_in'],
+             k_cache=k_cache,
+             v_cache=v_cache,
+-            q_norm=None,
+-            k_norm=None,
++            q_norm=qk_norm_dummy,
++            k_norm=qk_norm_dummy,
++            enable_qk_norm=False,
+             cos_pos_embed=inputs['cos_pos_embed'],
+             sin_pos_embed=inputs['sin_pos_embed'],
+             output=tensors['attn_out'],
