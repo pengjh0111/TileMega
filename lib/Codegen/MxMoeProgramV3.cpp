@@ -26,14 +26,14 @@ void CheckMxMoeConfigV3(frontend::ModelPlan const& plan,MxMoeConfigV3 const& c){
   auto check=[&](MxDecodeClassV2 const& item,int n,int k,MxOpV2 op,bool grouped){
     if(n%item.tn)Fail("incomplete output tile");
     if(grouped&&item.stream_k)Fail("grouped units require TileRange");
-    if(!MxGemmLegalV2(n,k,m.batch,item.tn,item.wn,item.d,op,item.stream_k?MxPart::kStreamK:MxPart::kTileRange))Fail("illegal GEMM geometry");
+    if(!MxGemmLegalV3(n,k,m.batch,item.tn,item.wn,item.d,op,item.stream_k?MxPart::kStreamK:MxPart::kTileRange,grouped))Fail("illegal GEMM geometry");
     if(grouped&&op==MxOpV2::kSwiGLU){if(item.prefetch!=0)Fail("gate/up has no producer-independent prefetch");}
     else {
       if(Width(item,n,k,c.threads)<item.d)Fail("prefetch below ring depth");
       if(item.r_next>=0){auto derived=item;derived.prefetch=-1;if(Width(item,n,k,c.threads)>Width(derived,n,k,c.threads))Fail("prefetch exceeds measured resource budget");}
     }
   };
-  int qn=(m.queries+2)*m.hkv*m.dim,active=MxMoeExpectedActiveV2(m.experts,m.batch);
+  int qn=(m.queries+2)*m.hkv*m.dim,active=std::min(int(m.batch)*8,int(m.experts));
   check(c.qkv,qn,m.hidden,MxOpV2::kStore,false);check(c.o,m.hidden,m.heads*m.dim,MxOpV2::kResidual,false);
   check(c.router,m.experts,m.hidden,MxOpV2::kStore,false);if(c.router.wn!=1)Fail("router has at most eight tiles and WN must be one");
   check(c.gate_up,active*2*m.intermediate,m.hidden,MxOpV2::kSwiGLU,true);check(c.down,active*m.hidden,m.intermediate,MxOpV2::kStore,true);
@@ -50,11 +50,11 @@ int MxMoeBodySmemBytesV3(frontend::ModelPlan const& plan,MxMoeConfigV3 const& c)
 std::string EmitMxMoeProgramV3(frontend::ModelPlan const& plan,MxMoeConfigV3 const& c,bool prompt,int past_lo,int past_hi){
   CheckMxMoeConfigV3(plan,c);auto m=AnalyzeMxMoe(plan);if(prompt){past_lo=0;past_hi=63;}
   if(past_lo<0||past_hi<past_lo||past_hi>=int(m.capacity)-1)Fail("invalid past interval");
-  int qn=(m.queries+2)*m.hkv*m.dim,active=MxMoeExpectedActiveV2(m.experts,m.batch);
+  int qn=(m.queries+2)*m.hkv*m.dim,active=std::min(int(m.batch)*8,int(m.experts));
   auto width=[&](MxDecodeClassV2 const& item,int n,int k){return Width(item,n,k,c.threads);};
   auto shape=[](int n,int k){return "mx::MxStaticShapeV3<"+std::to_string(n)+","+std::to_string(k)+",kBatch,kThreads>";};
   auto dense=[&](MxDecodeClassV2 const& item,char const* op,bool norm,int n,int k){return "MxGemm<"+std::to_string(item.tn)+","+std::to_string(item.wn)+","+std::to_string(item.d)+",MxOpV2::"+op+","+(norm?"true":"false")+",MxPart::"+(item.stream_k?"kStreamK":"kTileRange")+","+std::to_string(width(item,n,k))+">";};
-  auto grouped=[&](MxDecodeClassV2 const& item,bool gate){return "MxGroupedGemmV3<"+std::to_string(item.tn)+","+std::to_string(item.wn)+","+std::to_string(item.d)+",MxOpV2::"+(gate?"kSwiGLU,true":"kStore,false")+",Chain,"+(gate?std::string("MxNoUnitCompletionV3"):"MxMoeDownCompletionV3<"+std::string(m.routing_weights_fp32?"true":"false")+">")+","+std::to_string(gate?0:width(item,active*m.hidden,m.intermediate))+">";};
+  auto grouped=[&](MxDecodeClassV2 const& item,bool gate){return "MxGroupedGemmV3<"+std::to_string(item.tn)+","+std::to_string(item.wn)+","+std::to_string(item.d)+",MxOpV2::"+(gate?"kSwiGLU,true":"kStore,false")+",Chain,"+std::to_string(gate?0:width(item,active*m.hidden,m.intermediate))+">";};
   StageProgramSpec s;s.version=3;s.kind=prompt?StageProgramKind::kPrompt:StageProgramKind::kDecode;s.includes={"tilemega/Codegen/tasks/mx/MoeProgramV3.cuh"};s.runtime_header="tilemega/Codegen/tasks/mx/MoeRuntimeV3.cuh";s.loop.end="kLayers";if(prompt)s.terminal_condition="past == 63";
   s.operand_parameters="Binding const& b,int past,backend::mx::MxSharedTokensV2* tokens,mx::MxMoeSharedRouteTableV3* table";s.run_parameters="Binding const& b,int past,char* smem,backend::mx::MxSharedTokensV2* tokens,mx::MxMoeSharedRouteTableV3* table";
   std::ostringstream decl;decl<<"  static constexpr int kLayers="<<m.layers.size()<<",kHidden="<<m.hidden<<",kIntermediate="<<m.intermediate<<",kCapacity="<<m.capacity<<",kBatch="<<m.batch<<",kThreads="<<c.threads<<",kGrid=104,kPastLo="<<past_lo<<",kPastHi="<<past_hi<<",kBodySmemBytes="<<Smem(m,c)<<",kQ="<<m.queries<<",kHeadDim="<<m.dim<<",kExperts="<<m.experts<<";\n"<<"  static constexpr bool kPrompt="<<(prompt?"true":"false")<<",kRoutingFp32="<<(m.routing_weights_fp32?"true":"false")<<",kRowQkNorm="<<(m.row_qk_norm?"true":"false")<<",kNormalizeTopK="<<(m.softmax_all?"false":"true")<<",kQkvStreamK="<<(c.qkv.stream_k?"true":"false")<<",kOStreamK="<<(c.o.stream_k?"true":"false")<<",kRouterStreamK="<<(c.router.stream_k?"true":"false")<<";\n  static constexpr float kEpsilon="<<std::hexfloat<<float(m.epsilon)<<"f;\n  using Binding=mx::MxMoeBindingV3<kLayers>;\n  using Rms="<<Step(m.layers[0].gate_chain.operations[0])<<";\n  using Gate="<<Step(m.layers[0].gate_chain.operations[1])<<";\n  using Chain=MxMoeGateChainV3<Rms,Gate>;\n";s.plan_declarations=decl.str();

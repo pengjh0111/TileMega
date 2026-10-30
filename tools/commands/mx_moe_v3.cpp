@@ -90,7 +90,7 @@ int TryCompileMoeV3(Request const& r, frontend::ModelPlan const& plan) {
       Int(pin, "threads"), Int(pin, "b_min"), Int(pin, "attn_prefetch"),Int(pin,"split")};
   codegen::CheckMxMoeConfigV3(plan, config);
   int const nq = (model.queries + 2) * model.hkv * model.dim;
-  int const active = codegen::MxMoeExpectedActiveV2(model.experts,r.batch);
+  int const active = std::min(int(model.experts),int(r.batch)*8);
   auto resolve = [&](MxDecodeClassV2& c, int n, int k) {
     c.prefetch = codegen::MxDecodePrefetchV2(c, n, k, r.grid, config.threads);
   };

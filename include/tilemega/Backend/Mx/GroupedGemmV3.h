@@ -24,27 +24,6 @@ struct MxGroupedGemmOperandsV3 {
   bool skip_compute;
 #endif
 };
-struct MxNoUnitCompletionV3 {
-  template<int TN,int WN,class Operands,class Shape,class Geometry>
-  __device__ __forceinline__ static void Run(Operands const&,Shape const&,Geometry const&,int,float*) {}
-};
-template<bool Fp32>
-struct MxMoeDownCompletionV3 {
-  template<int TN,int WN,class Operands,class Shape,class Geometry>
-  __device__ __forceinline__ static void Run(Operands const& p,Shape const& s,
-      Geometry const& geometry,int round,float* shared_last) {
-#pragma unroll
-    for(int group=0;group<WN;++group) {
-      auto const segment=geometry.Segment(round,group);
-      if(segment.active) {
-        unsigned const tile=segment.tile%(s.n/TN);
-        unsigned const active=p.table->n_active;
-        MxMoeCombineTileV3<TN,Fp32>::Arrive(p.combine,tile,active,s.b,s.n,
-            reinterpret_cast<unsigned*>(shared_last));
-      }
-    }
-  }
-};
 template<class Rms,class Gate>
 struct MxMoeGateChainV3 {
   static_assert(Rms::kKind==codegen::DmEpilogueKind::kDeferredRMSNorm);
@@ -58,7 +37,7 @@ struct MxMoeGateChainV3 {
 };
 // Pw is derived from geometry/resources, not an additional search dimension.
 // The recorded §4.12 difference permits instances with different Pw payloads.
-template <int TN, int WN, int D, MxOpV2 Op, bool Norm, class GateChain, class Completion, int Pw = D, bool Fp32 = false>
+template <int TN, int WN, int D, MxOpV2 Op, bool Norm, class GateChain, int Pw = D, bool Fp32 = false>
 struct MxGroupedGemmV3 {
   using Operands = MxGroupedGemmOperandsV3<Fp32>;
   __device__ __forceinline__ static unsigned Units(Operands const& p) {
@@ -69,7 +48,7 @@ struct MxGroupedGemmV3 {
   static constexpr int kLoads = kAtoms + 1, kTN = TN, kWN = WN, kDepth = D, kPrefetch = Pw;
   static_assert(TN == 16 || TN == 32 || TN == 64 || TN == 128);
   static_assert(WN == 1 || WN == 2 || WN == 4 || WN == 8);
-  static_assert(D >= 1 && D <= 4 && MxDepthFits(TN, D));
+  static_assert(D >= 1 && D <= 4 && MxDepthFits(TN, D, 192));
   static_assert(Part != MxPart::kStreamK || WN == 1);
   static_assert(Op == MxOpV2::kStore || Op == MxOpV2::kSwiGLU);
   static_assert(Norm == (Op == MxOpV2::kSwiGLU));
@@ -152,6 +131,7 @@ struct MxGroupedGemmV3 {
   }
   template <class Shape>
   __device__ __forceinline__ static Prefetched Prefetch(Operands const& p, Shape const& s) {
+    static_assert(Shape::kThreads == 512);
     Lane const l(Shape::kThreads);
     Prefetched pf{};
     if constexpr(Pw>0) {
@@ -504,14 +484,13 @@ struct MxGroupedGemmV3 {
       }
       else Prime<0>(ring, segment, p, s, l, 0);
       if constexpr (kWK > 1) Finish(acc, ss, residual, segment, p, s, l, shared, layout, geo);
-      Completion::template Run<TN,WN>(operands,s,geo,round,shared+layout.flags);
-
   }
 
   template <class Shape, class Next>
   __device__ __forceinline__ static auto Run(Prefetched pf, Operands const& p,
                                             Shape const& s, char* smem, Next next) {
     using Sync = typename Shape::Sync;
+    static_assert(Shape::kThreads == 512);
     using NextPrefetched = decltype(next());
     static_assert((D - 1) * kLoads + NextPrefetched::kLoads <= 63);
     Lane const l(Shape::kThreads);
@@ -526,8 +505,10 @@ struct MxGroupedGemmV3 {
 #pragma unroll 1
     for (int round = 1; round < geo.rounds; ++round)
       Round<false>(pf, ring, inverse, p, s, shared, layout, geo, l, round, inverse_expert);
-    // P-B: all result stores finish before the next body issues any loads.
-    Sync::CtaSync();
+    if constexpr (Op == MxOpV2::kStore)
+      MxMoeCombineTileV3<TN,Fp32>::Complete(p.combine,geo.begin,geo.end,
+          p.table->n_active,s.b,s.n,smem);
+    else Sync::CtaSync();
     if (l.Compute()) return next();
     return NextPrefetched{};
   }

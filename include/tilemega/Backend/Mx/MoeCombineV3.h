@@ -18,12 +18,17 @@ template <int TN, bool Fp32>
 struct MxMoeCombineTileV3 {
   using Sync = codegen::mx::StageSyncV3<512>;
 
+  using SharedLast = __attribute__((address_space(3))) unsigned;
+
   __device__ __forceinline__ static void Combine(MxMoeCombineOperandsV3<Fp32> const& p,
-                                                unsigned tile, unsigned b, unsigned hidden) {
+      SharedLast const* last, unsigned b, unsigned hidden) {
     unsigned const t = StageThread();
     __builtin_assume(t < 512);
-    for (unsigned item = t; item < b * TN / 8; item += 512) {
-      unsigned const token = item / (TN / 8), column = tile * TN + (item % (TN / 8)) * 8;
+    // Flatten all last tiles together; every output retains rank0..7 order.
+    for (unsigned item = t; item < b * hidden / 8; item += 512) {
+      unsigned const tile = item / (b * TN / 8), within = item % (b * TN / 8);
+      if (!last[tile]) continue;
+      unsigned const token = within / (TN / 8), column = tile * TN + (within % (TN / 8)) * 8;
       uint4 const old = LoadGlobal16Gvm(p.residual + token * hidden + column);
       uint4 partial[8];
       float weights[8];
@@ -55,11 +60,38 @@ struct MxMoeCombineTileV3 {
     }
   }
 
-  // CP1 control retains per-unit completion; CP2 replaces this publication site.
-  __device__ __forceinline__ static bool Arrive(MxMoeCombineOperandsV3<Fp32> const& p,
-      unsigned tile, unsigned active, unsigned b, unsigned hidden, unsigned* shared_last) {
-    return codegen::executor::LastArriverV2<Sync>::Run((unsigned*)(p.tickets+tile),active,shared_last,
-        [&] { Combine(p,tile,b,hidden); });
+  __device__ __forceinline__ static void Complete(MxMoeCombineOperandsV3<Fp32> const& p,
+      unsigned begin, unsigned end, unsigned active, unsigned b, unsigned hidden,
+      char* smem) {
+    unsigned const t = StageThread(), wave = t / 64, lane = t % 64, tiles = hidden / TN;
+    __builtin_assume(t < 512);
+    auto* const last = (SharedLast*)smem;
+    Sync::CtaSync();
+    if (wave == 0) {
+      __threadfence();
+      for (unsigned tile = lane; tile < tiles; tile += 64) {
+        unsigned count = 0;
+        for (unsigned unit = begin; unit < end; ++unit) count += unit % tiles == tile;
+        last[tile] = 0;
+        if (count) {
+          unsigned const old = atomicAdd((unsigned*)(p.tickets + tile), count);
+          if (old + count > active) maca::Trap();
+          last[tile] = old + count == active;
+        }
+      }
+    }
+    Sync::CtaSync();
+    unsigned any = 0;
+    for (unsigned tile = 0; tile < tiles; ++tile) any |= last[tile];
+    if (any) {
+      if (wave == 0) __threadfence();
+      Sync::CtaSync();
+      Combine(p, last, b, hidden);
+      if (wave == 0)
+        for (unsigned tile = lane; tile < tiles; tile += 64)
+          if (last[tile]) atomicExch((unsigned*)(p.tickets + tile), 0u);
+    }
+    Sync::CtaSync();
   }
 };
 
