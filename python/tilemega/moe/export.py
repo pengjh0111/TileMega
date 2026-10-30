@@ -82,7 +82,9 @@ class SparseMLP(nn.Module):
         weight, index = torch.topk(probability, self.top_k, dim=-1)
         if self.normalize:
             weight = weight / weight.sum(-1, keepdim=True)
-        # HF retains FP32 normalized routing weights through expert reduction.
+        # Match HF's router output boundary before expert weighting; BF16
+        # products retain this rounding through the rank-order FP32 reduction.
+        weight = weight.to(logits.dtype)
         return moe_experts(rows, index, weight, self.experts.gate_up_proj,
                            self.experts.down_proj).reshape(shape)
 
