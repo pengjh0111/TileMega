@@ -31,6 +31,7 @@ std::string Quote(std::string const& value) {
 
 std::string EmitStageProgram(StageProgramSpec const& s) {
   auto fail = [](char const* why) { throw std::invalid_argument(std::string("stage program: ") + why); };
+  if (s.version != 2 && s.version != 3) fail("version must be 2 or 3");
   if (s.stages.empty() || s.tail_stages.empty() || s.loop.end.empty()) fail("a loop and a step tail are required");
   if (s.kind == StageProgramKind::kPrompt && s.terminal_condition.empty()) fail("prompt requires a final-token tail predicate");
   std::map<std::string, StageProgramStage const*> stages;
@@ -77,17 +78,20 @@ std::string EmitStageProgram(StageProgramSpec const& s) {
     << ") {\n    return " << entry.name << "::Prefetch("
     << (s.entry_prefetch_operands.empty() ? entry.prefetch_operands : s.entry_prefetch_operands)
     << ", " << entry.name << "Shape{});\n  }\n"
-    << "  template <class Self, class Barrier, class Run>\n  __device__ __forceinline__ static void RunStep("
+    << (s.version == 3 ? "  template <class Self, class Arrive, class Wait, class Run>\n" :
+                        "  template <class Self, class Barrier, class Run>\n")
+    << "  __device__ __forceinline__ static void RunStep("
     << s.run_parameters << ", typename " << entry.name << "::Prefetched& pf_" << entry.name
-    << ", Barrier barrier, Run run) {\n"
+    << (s.version == 3 ? ", Arrive arrive, Wait wait, Run run) {\n" : ", Barrier barrier, Run run) {\n")
     << "#pragma unroll 1\n    for (int " << s.loop.index << " = " << s.loop.begin << "; " << s.loop.index
     << " < " << s.loop.end << "; ++" << s.loop.index << ") {\n";
   auto call = [&](StageProgramStage const& stage, std::string const& body, std::string const& target,
                   std::string const& ops, bool declare, std::string const& indent) {
-    o << indent << (declare ? "auto " : "") << "pf_" << target << " = mx::RunStageV2<" << body
+    o << indent << (declare ? "auto " : "") << "pf_" << target << " = mx::RunStageV" << s.version << "<" << body
       << ">(run(" << stage.diagnostic_class << "), pf_" << stage.name << ", " << stage.operands << ", "
-      << stage.name << "Shape{}, smem, [&] { return " << target << "::Prefetch(" << ops << ", "
-      << target << "Shape{}); });\n";
+      << stage.name << "Shape{}, smem, [&] { " << (s.version == 3 ? "arrive(); " : "")
+      << "return " << target << "::Prefetch(" << ops << ", "
+      << target << "Shape{}); }" << (s.version == 3 ? ", arrive" : "") << ");\n";
   };
   auto tail = [&](std::string const& indent) {
     for (std::size_t i = 0; i < s.tail_stages.size(); ++i) {
@@ -96,7 +100,7 @@ std::string EmitStageProgram(StageProgramSpec const& s) {
       call(stage, stage.name, stage.next,
            stage.next_prefetch_operands.empty() ? next.prefetch_operands : stage.next_prefetch_operands,
            i + 1 < s.tail_stages.size(), indent);
-      o << indent << "barrier();\n";
+      o << indent << (s.version == 3 ? "wait();\n" : "barrier();\n");
     }
   };
   for (std::size_t i = 0; i < s.stages.size(); ++i) {
@@ -107,7 +111,7 @@ std::string EmitStageProgram(StageProgramSpec const& s) {
       o << ") {\n";
       // The terminal packet is consumed before leaving its defining scope.
       call(stage, stage.name + "Last", stage.terminal_next, stage.terminal_prefetch_operands, true, "        ");
-      o << "        barrier();\n";
+      o << (s.version == 3 ? "        wait();\n" : "        barrier();\n");
       tail("        ");
       o << "        break;\n      }\n";
     }
@@ -115,7 +119,7 @@ std::string EmitStageProgram(StageProgramSpec const& s) {
     call(stage, stage.name, stage.next,
          stage.next_prefetch_operands.empty() ? next.prefetch_operands : stage.next_prefetch_operands,
          i + 1 != s.stages.size(), "      ");
-    o << "      barrier();\n";
+    o << (s.version == 3 ? "      wait();\n" : "      barrier();\n");
   }
   o << "    }\n";
   o << "  }\n};\ninline constexpr " << s.buffer_row_type << " kBuffers[] = {\n";

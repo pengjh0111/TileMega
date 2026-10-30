@@ -28,6 +28,7 @@ struct StageProgramBuffer {
   int layer = 0;
 };
 struct StageProgramSpec {
+  int version = 2;
   StageProgramKind kind = StageProgramKind::kDecode;
   std::string namespace_name = "tm_mx_plan", plan_name = "Plan";
   std::vector<std::string> includes;

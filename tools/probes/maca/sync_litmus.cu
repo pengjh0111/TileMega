@@ -28,6 +28,7 @@
 #include <tilemega/Codegen/executor/LastArriver.cuh>
 #include <tilemega/Codegen/executor/LastArriverV2.cuh>
 #include <tilemega/Codegen/tasks/mx/StageSyncV2.cuh>
+#include <tilemega/Codegen/tasks/mx/StageSyncV3.cuh>
 
 #include <cuda_runtime.h>
 #include <cstdio>
@@ -384,6 +385,86 @@ LdsReleaseV2(int iterations, unsigned long long* errors, uint4 const* cold) {
   if (bad) atomicAdd(errors, bad);
 }
 
+using V3Sync = mx::StageSyncV3<512>;
+
+__device__ __forceinline__ void V3Issue(uint4 (&pending)[8], uint4 const* cold, unsigned it) {
+  unsigned const wave = threadIdx.x / 64, lane = threadIdx.x % 64;
+#pragma unroll
+  for (int n = 0; n < 8; ++n) {
+    unsigned const index = ((((it * 104 + blockIdx.x) * 8 + wave) * 8 + n) * 64 + lane)
+                           & ((256u << 20) / 16 - 1);
+    pending[n] = tilemega::backend::LoadGlobal16Gvm(cold + index);
+  }
+  asm volatile("" ::: "memory");
+}
+
+__device__ __forceinline__ void V3Consume(uint4 const (&pending)[8]) {
+  unsigned sum = 0;
+#pragma unroll
+  for (int n = 0; n < 8; ++n) sum += pending[n].x + pending[n].y + pending[n].z + pending[n].w;
+  asm volatile("" :: "r"(sum) : "memory");
+}
+
+__global__ void __launch_bounds__(512)
+BarrierV3EarlyArrive(int* data, unsigned long long* events, int iterations,
+                    unsigned long long* errors, unsigned long long* participants, uint4 const* cold) {
+  extern __shared__ unsigned shared[];
+  unsigned* const generation = shared;
+  if (V3Sync::IsRole()) *generation = 0;
+  V3Sync::CtaSync();
+  unsigned long long bad = 0;
+  for (int it = 0; it < iterations; ++it) {
+    data[blockIdx.x * 512 + threadIdx.x] = Expected(it, blockIdx.x, threadIdx.x);
+    V3Sync::CtaSync();
+    V3Sync::Arrive(events);
+    uint4 pending[8];
+    V3Issue(pending, cold, unsigned(it));
+    V3Sync::Wait(events, 104ull * (it + 1), generation, 2 * it + 1, [] {}, {});
+    using Global = __attribute__((address_space(1))) int const;
+    for (int other = 0; other < 104; ++other)
+      bad += *((Global*)data + other * 512 + threadIdx.x) != Expected(it, other, threadIdx.x);
+    V3Consume(pending);
+    V3Sync::CtaSync();
+    // Close the reader phase before any CTA overwrites its slot.
+    V3Sync::Arrive(events + 8);
+    V3Sync::Wait(events + 8, 104ull * (it + 1), generation, 2 * it + 2, [] {}, {});
+    if (V3Sync::IsRole()) atomicAdd(participants, 1ull);
+  }
+  if (bad) atomicAdd(errors, bad);
+}
+
+__global__ void __launch_bounds__(512)
+LdsSyncInflight(int iterations, unsigned long long* errors,
+                unsigned long long* participants, uint4 const* cold) {
+  extern __shared__ unsigned shared[];
+  using Lds = __attribute__((address_space(3))) unsigned;
+  auto* data = (Lds*)shared;
+  unsigned long long bad = 0;
+  for (int it = 0; it < iterations; ++it) {
+    uint4 pending[8];
+    V3Issue(pending, cold, unsigned(it));
+    data[threadIdx.x] = unsigned(Expected(it, blockIdx.x, threadIdx.x));
+    V3Sync::LdsSync();
+#pragma unroll
+    for (int w = 1; w < 8; ++w) {
+      unsigned const other = (threadIdx.x + w * 64) % 512;
+      bad += data[other] != unsigned(Expected(it, blockIdx.x, other));
+    }
+    V3Sync::LdsSync();
+    data[threadIdx.x] = ~unsigned(Expected(it, blockIdx.x, threadIdx.x));
+    V3Sync::LdsSync();
+#pragma unroll
+    for (int w = 1; w < 8; ++w) {
+      unsigned const other = (threadIdx.x + w * 64) % 512;
+      bad += data[other] != ~unsigned(Expected(it, blockIdx.x, other));
+    }
+    V3Sync::LdsSync();
+    V3Consume(pending);
+    if (V3Sync::IsRole()) atomicAdd(participants, 1ull);
+  }
+  if (bad) atomicAdd(errors, bad);
+}
+
 int main(int argc, char** argv) {
   if (argc < 3) return 2;
   char const* mode = argv[1];
@@ -391,6 +472,10 @@ int main(int argc, char** argv) {
   int const ctas = 104, threads = 128, stages = 8;
   bool const v2 = !std::strcmp(mode, "barrier_v2") || !std::strcmp(mode, "la_v2") ||
                   !std::strcmp(mode, "lds_release");
+  bool const early = !std::strcmp(mode, "barrier_v3_early_arrive");
+  bool const lds_inflight = !std::strcmp(mode, "lds_sync_inflight");
+  bool const v3 = early || lds_inflight;
+  if (v3 && iterations < 2000) return 2;
   // The MX-4 program's request at G = 104: floor(65536 / 2) + 16 B.
   int const kSmem512 = 65536 / 2 + 16;
   int* data;
@@ -398,12 +483,13 @@ int main(int argc, char** argv) {
   unsigned long long *events, *errors, *lasts;
   unsigned* ticket;
   uint4* cold = nullptr;
-  if (v2) {
+  if (v2 || v3) {
     cudaMalloc(&cold, 256u << 20);
     cudaMemset(cold, 0x5a, 256u << 20);
-    std::printf("MX5_SHAPE ctas=104 threads=576 smem=%d\n", kSmem512);
+    std::printf("SYNC_SHAPE ctas=104 threads=%d smem=%d cold_bytes=%u inflight_bytes_per_wave=8192\n",
+                v3 ? 512 : 576, kSmem512, 256u << 20);
   }
-  int const data_slice = v2 ? kV2Slice : kSlice;
+  int const data_slice = v2 || v3 ? kV2Slice : kSlice;
   cudaMalloc(&data, 3 * ctas * data_slice * sizeof(int));
   cudaMalloc(&partials, max(kTiles * kMaxContributors * kSlice, ctas * 8 * 64) * sizeof(float));
   cudaMalloc(&events, 64 * sizeof(unsigned long long));
@@ -418,8 +504,23 @@ int main(int argc, char** argv) {
   cudaEvent_t a, b;
   cudaEventCreate(&a);
   cudaEventCreate(&b);
+  if (v3) {
+    void const* kernel = early ? (void const*)BarrierV3EarlyArrive : (void const*)LdsSyncInflight;
+    cudaFuncAttributes attr{};
+    int resident = 0;
+    cudaError_t set = cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, kSmem512);
+    cudaError_t query = cudaFuncGetAttributes(&attr, kernel);
+    cudaError_t occupancy = cudaOccupancyMaxActiveBlocksPerMultiprocessor(&resident, kernel, 512, kSmem512);
+    std::printf("SYNC_RESOURCES set=%d query=%d occupancy=%d resident=%d MT=%d local=%zu static=%zu\n",
+                int(set), int(query), int(occupancy), resident, attr.numRegs, attr.localSizeBytes, attr.sharedSizeBytes);
+    if (set || query || occupancy || resident != 1 || attr.numRegs > 255 || attr.localSizeBytes || attr.sharedSizeBytes) return 1;
+  }
   cudaEventRecord(a);
-  if (!std::strcmp(mode, "barrier_v2")) {
+  if (early) {
+    BarrierV3EarlyArrive<<<ctas, 512, kSmem512>>>(data, events, iterations, errors, lasts, cold);
+  } else if (lds_inflight) {
+    LdsSyncInflight<<<ctas, 512, kSmem512>>>(iterations, errors, lasts, cold);
+  } else if (!std::strcmp(mode, "barrier_v2")) {
     BarrierV2<<<ctas, 576, kSmem512>>>(data, events, iterations, errors, cold);
   } else if (!std::strcmp(mode, "la_v2")) {
     LastV2<<<ctas, 576, kSmem512>>>(partials, ticket, events, iterations, errors, lasts);
@@ -454,6 +555,7 @@ int main(int argc, char** argv) {
   cudaMemcpy(&h_errors, errors, 8, cudaMemcpyDeviceToHost);
   cudaMemcpy(&h_lasts, lasts, 8, cudaMemcpyDeviceToHost);
   bool const ok = launch == cudaSuccess && sync == cudaSuccess && h_errors == 0 &&
+                  (!v3 || h_lasts == 104ull * iterations) &&
                   (std::strcmp(mode, "last") || h_lasts == static_cast<unsigned long long>(iterations)) &&
                   (std::strcmp(mode, "last512") || h_lasts == static_cast<unsigned long long>(kTiles) * iterations) &&
                   (std::strcmp(mode, "la_v2") || h_lasts == static_cast<unsigned long long>(iterations)) &&

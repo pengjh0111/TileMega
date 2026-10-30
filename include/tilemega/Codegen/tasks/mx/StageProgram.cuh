@@ -85,4 +85,25 @@ __device__ __forceinline__ auto RunStageV2(bool enabled, Prefetched pf, Operands
   return Body::Run(pf, operands, shape, smem, next);
 }
 
+template <class Body, class Prefetched, class Operands, class Shape, class Next, class Arrive>
+__device__ __forceinline__ auto RunStageV3(bool enabled, Prefetched pf, Operands const& operands,
+                                          Shape const& shape, char* smem, Next next, Arrive arrive) {
+  using Sync = typename Shape::Sync;
+#if TILEMEGA_MX_DIAG
+  if (!enabled) {
+    __builtin_mxc_arrive_gvmcnt(0);
+    Sync::CtaSync();
+    using Result = decltype(next());
+    if (Sync::IsCompute()) return next();
+    if constexpr (Shape::kThreads == 576) if (Sync::IsRole()) arrive();
+    return Result{};
+  }
+#else
+  (void)enabled;
+#endif
+  auto result = Body::Run(pf, operands, shape, smem, next);
+  if constexpr (Shape::kThreads == 576) if (Sync::IsRole()) arrive();
+  return result;
+}
+
 }  // namespace tilemega::codegen::mx

@@ -16,6 +16,7 @@ struct StageSyncV2 {
   __device__ __forceinline__ static bool IsRole() { return threadIdx.x == kRole; }
   __device__ __forceinline__ static bool IsCompute() { return threadIdx.x < 512; }
   __device__ __forceinline__ static void CtaSync() { __syncthreads(); }
+  __device__ __forceinline__ static void LdsSync() { CtaSync(); }
   __device__ __forceinline__ static void Acquire() { __threadfence(); }
 
   template <class T>
