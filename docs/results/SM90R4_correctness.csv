@@ -1,0 +1,18 @@
+model,batch,protocol,c1_pass,c2_pass,overall_pass,fresh_processes,processes_token_equal,hf64_divergence,note
+mistral_7b_v0_3,1,P-CORR,True,True,True,5,5,[[18]],accepted cell
+mistral_7b_v0_3,2,P-CORR,True,True,True,5,5,"[[38, 0]]",accepted cell
+mistral_7b_v0_3,4,P-CORR,True,True,True,5,5,"[[18, 0, 14, 17]]",accepted cell
+mistral_7b_v0_3,8,P-CORR,True,True,True,5,5,"[[18, 0, 14, 17, 7, 12, 0, 1]]",accepted cell
+mistral_7b_v0_3,16,P-CORR,True,True,True,5,5,"[[18, 0, 14, 17, 7, 12, 0, 1, 27, 24, 1, 8, 10, 36, 42, None",accepted cell
+qwen3_30b_a3b,2,P-CORR,True,True,True,5,5,"[[40, 0]]",re-solved fused cell
+qwen3_30b_a3b,4,P-CORR,True,True,True,5,5,"[[40, 0, 26, 47]]",re-solved fused cell
+qwen3_30b_a3b,8,P-CORR,True,True,True,5,5,"[[40, 0, 26, 47, 52, 13, None, 9]]",re-solved fused cell
+qwen3_30b_a3b,16,P-CORR,True,True,True,5,5,"[[40, 0, 26, 37, 55, 16, None, 9, None, 47, 12, 2, None, 1, ",re-solved fused cell
+qwen3_30b_a3b,1,P-CORR,True,True,True,5,5,[[43]],"MR7 fused cell at R3 coordinates, after the warp-uniform gu_done fix"
+qwen3_0_6b,1,P-CORR,True,True,True,5,5,[[None]],prompt mode (teacher-forced prefill)
+qwen3_0_6b,1,P-CORR,True,True,True,5,5,[[None]],control: the same cell with its real prefill binary
+olmoe_1b_7b,1,P-CORR,"PASS (256 positions, max gap 0.03125, 98.8% of gaps exactly zero)",False,False,0,,,C-2 FAILS: the executor token comparison; the same binary in the same mode differs run to run (about one token in 64)
+olmoe_1b_7b,2,P-CORR,not run,False,False,0,,,C-2 FAILS: the executor token comparison; the same binary in the same mode differs run to run (about one token in 64)
+olmoe_1b_7b,4,P-CORR,not run,False,False,0,,,C-2 FAILS: the executor token comparison; the same binary in the same mode differs run to run (about one token in 64)
+olmoe_1b_7b,8,P-CORR,not run,False,False,0,,,C-2 FAILS: the executor token comparison; the same binary in the same mode differs run to run (about one token in 64)
+olmoe_1b_7b,16,P-CORR,not run,False,False,0,,,C-2 FAILS: the executor token comparison; the same binary in the same mode differs run to run (about one token in 64)

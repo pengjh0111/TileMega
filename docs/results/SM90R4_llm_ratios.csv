@@ -1,0 +1,11 @@
+model,batch,tilemega_tpot_ms,status,baseline_source,fastest_engine,fastest_tpot_ms,ratio_vs_fastest,ratio_vs_vllm,ratio_vs_sglang,ratio_vs_tensorrt-llm,ratio_vs_torch.compile
+mistral_7b_v0_3,1,5.3308,accepted,new,sglang,6.046,1.1342,1.2011,1.1342,1.1617,1.8569
+mistral_7b_v0_3,2,5.346,accepted,new,tensorrt-llm,6.1081,1.1426,1.186,1.157,1.1426,1.9342
+mistral_7b_v0_3,4,5.452,accepted,new,tensorrt-llm,6.2123,1.1395,1.1852,1.1649,1.1395,2.0522
+mistral_7b_v0_3,8,5.4553,accepted,new,sglang,6.5536,1.2013,1.224,1.2013,1.2102,2.3528
+mistral_7b_v0_3,16,5.6196,accepted,new,sglang,6.85,1.2189,1.2458,1.2189,1.2562,3.0059
+qwen3_30b_a3b,2,6.1482,timing NOT comparable,frozen,sglang,5.985877382863069,0.9736,1.131,0.9736,0.9761,1.9283
+qwen3_30b_a3b,4,9.2693,timing NOT comparable,frozen,tensorrt-llm,8.132789365925397,0.8774,0.998,0.8898,0.8774,1.6514
+qwen3_30b_a3b,8,13.2042,timing NOT comparable,frozen,sglang,11.365729485632068,0.8608,0.9103,0.8608,0.873,1.6977
+olmoe_1b_7b,2,2.203,PROVISIONAL (C-2 fails),new,sglang,2.2622,1.0269,1.2801,1.0269,N/A,N/A
+olmoe_1b_7b,4,3.3627,PROVISIONAL (C-2 fails),new,sglang,3.3762,1.004,1.1555,1.004,N/A,N/A

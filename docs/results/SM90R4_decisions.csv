@@ -1,0 +1,12 @@
+table,when,input,branch,detail
+DT-M0,MR0,B1/B16 MoE stage ledger split by stage type,continue,every type falls under MC1-MC7; none outside them over 15%
+DT-M1,MR2,"P-PAIR d5 vs deep ring, B1 and B16, machine-serial",ADOPT the deep ring,B1 +1.563% vs threshold 11.19% indistinguishable; B16 -1.085% vs 0.50% FASTER; neither slower
+DT-M2,after MR4/MR5,"7 dense development cells, REF-R3 vs post-fix arms",keep the R3 dense numbers,"none slower, mean -0.066%, under the 1% bar: no REF-R4 dense re-measurement"
+DT-M3,after the re-solve,whether any MoE cell stays under 1.10x,NOT REACHED,"the MoE finals are not comparable (measured beside other jobs), so the gate has no valid input; MR8 stays unimplemented"
+DT-C1,after C3,AR protocol litmus,NOT REACHED,Phase C not started
+DT-C2,C0,visible card count,NOT REACHED,Phase C not started
+MR1 stop,body pair,"P-PAIR REF-R3 vs MR1, machine-serial",keep,"B1 +2.789% vs threshold 16.36% indistinguishable (arm bimodal: four rounds near 4.80, one 4.41); B16 -0.841% vs 0.50% FASTER"
+MR3 stop,body pair,P-PAIR REF-R3 vs MR3,keep,"B1 +3.574% vs 12.27%; B16 +0.316% vs 0.50%; both indistinguishable, no measurable gain"
+MR4 stop,body pair,P-PAIR REF-R3 vs MR4 (post merge-weight fix),keep,"B1 -4.498% vs 9.30%; B16 +0.299% vs 0.50%; both indistinguishable, no measurable gain"
+MR7 selection,re-solve,P-SEL over the top-4 predicted candidates,the fused stage is selected,expert_fuse true won at Qwen3 B2/B4/B8/B16 and at OLMoE B1/B2; the end-to-end gain is UNMEASURED because the finals are not comparable
+§1.5 override,2026-10-30,user instruction to stop reserving the machine for MoE,applied,MoE P-SEL/P-FINAL take --concurrency; every affected cell records concurrency=trial

@@ -1,0 +1,12 @@
+model,batch,status,tpot_ms,ttft_ms,e2e_ms,tokens_per_second,process_range_pct,fresh_processes,c1,c2,concurrency,baseline_source,note
+mistral_7b_v0_3,1,accepted,5.3308,11.3,5464.7,187.4,0.136,5,True,True,trial,"new (R16 protocol, SM90R4)",
+mistral_7b_v0_3,2,accepted,5.346,14.5,5483.5,373.5,0.033,5,True,True,trial,"new (R16 protocol, SM90R4)",
+mistral_7b_v0_3,4,accepted,5.452,21.3,5598.6,731.6,0.087,5,True,True,trial,"new (R16 protocol, SM90R4)",
+mistral_7b_v0_3,8,accepted,5.4553,39.8,5620.6,1457.5,0.26,5,True,True,trial,"new (R16 protocol, SM90R4)",
+mistral_7b_v0_3,16,accepted,5.6196,37.0,5785.6,2831.9,0.067,5,True,True,trial,"new (R16 protocol, SM90R4)",
+qwen3_30b_a3b,2,timing NOT comparable,6.1482,264.0,6554.3,312.5,4.216,5,True,True,trial,frozen R16,measured with other jobs on neighbouring cards; +0.22% vs R3 machine-serial 6.1348 ms; inside R3 4-15% parallel penalty
+qwen3_30b_a3b,4,timing NOT comparable,9.2693,435.0,9917.2,413.0,2.673,5,True,True,trial,frozen R16,measured with other jobs on neighbouring cards; +8.60% vs R3 machine-serial 8.5353 ms; inside R3 4-15% parallel penalty
+qwen3_30b_a3b,8,timing NOT comparable,13.2042,774.9,14282.9,573.6,2.175,5,True,True,trial,frozen R16,measured with other jobs on neighbouring cards; +11.07% vs R3 machine-serial 11.8883 ms; inside R3 4-15% parallel penalty
+qwen3_30b_a3b,16,not measured,,,,,,,True,True,trial,frozen R16,final stopped on user instruction (MoE re-test dropped)
+olmoe_1b_7b,2,PROVISIONAL (C-2 fails),2.203,139.3,2393.0,855.8,1.603,5,not reached,False,trial,"new (R16 protocol, SM90R4)",binary is not reproducible run to run (~1 token in 64); not an accepted cell
+olmoe_1b_7b,4,PROVISIONAL (C-2 fails),3.3627,210.3,3650.3,1122.1,0.066,5,not reached,False,trial,"new (R16 protocol, SM90R4)",binary is not reproducible run to run (~1 token in 64); not an accepted cell
