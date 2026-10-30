@@ -343,6 +343,18 @@ template<class Launch> int RunRequest(fs::path const& binding,fs::path const& ou
     }
   }
   fs::create_directory(out);std::ofstream samples(out/"samples.jsonl"),receipts(out/"launches.jsonl");
+  std::ofstream profile_progress;
+  if(diagnostic==2) {
+    profile_progress.open(out/"profile_progress.jsonl");
+    if(!profile_progress)throw std::runtime_error("Cannot open profile progress receipt");
+  }
+  auto progress=[&](int repetition,unsigned forward,char const* state) {
+    if(diagnostic!=2)return;
+    profile_progress<<"{\"repetition\":"<<repetition<<",\"forward\":"<<forward
+      <<",\"state\":"<<std::quoted(state)<<",\"elapsed_since_setup_s\":"
+      <<std::chrono::duration<double>(std::chrono::steady_clock::now()-setup).count()<<"}\n";
+    profile_progress.flush();if(!profile_progress)throw std::runtime_error("Cannot save profile progress");
+  };
   samples<<std::setprecision(17);unsigned launches=0;
   auto setup_seconds=std::chrono::duration<double>(std::chrono::steady_clock::now()-setup).count();
   for(int repetition=-int(warmup);repetition<int(repetitions);++repetition) {
@@ -357,8 +369,10 @@ template<class Launch> int RunRequest(fs::path const& binding,fs::path const& ou
     }
     Check(aclrtSynchronizeStream(device.stream),"request t0 boundary");
     auto t0=std::chrono::steady_clock::now();
+    progress(repetition,0,"prefill_host_submit");
     launch(pd,arena,scratch,device.stream,pre.m.groups,0,0,diagnostic);++launches;
     Check(aclrtSynchronizeStream(device.stream),"request first token");
+    progress(repetition,0,"prefill_stream_completed");
     uint32_t prefill_abort=0;
     Check(aclrtMemcpy(&prefill_abort,sizeof(prefill_abort),pd.control+(pre.m.workers+2*pre.m.groups)*512,
       sizeof(prefill_abort),ACL_MEMCPY_DEVICE_TO_HOST),"request prefill abort check");
@@ -372,9 +386,17 @@ template<class Launch> int RunRequest(fs::path const& binding,fs::path const& ou
     }
     auto first=std::chrono::steady_clock::now();
     for(unsigned step=1;step<outputs;++step) {
-      launch(dd,arena,scratch,device.stream,dec.m.groups,step-1,63+step,diagnostic);++launches;
+      unsigned mode=diagnostic;
+#if defined(TILEMEGA_LLM_PROFILE_BOUNDARY_FORWARDS) && TILEMEGA_LLM_PROFILE_BOUNDARY_FORWARDS
+      // Only the last profile is downloaded. Earlier forwards keep the same
+      // mathematics/visibility without repeatedly overwriting unused traces.
+      if(mode==2 && step+1!=outputs)mode=0;
+#endif
+      launch(dd,arena,scratch,device.stream,dec.m.groups,step-1,63+step,mode);++launches;
+      if(step%64==0 || step+1==outputs)progress(repetition,step,"decode_host_enqueued");
     }
     Check(aclrtSynchronizeStream(device.stream),"request final token");
+    progress(repetition,outputs-1,"final_stream_completed");
     auto last=std::chrono::steady_clock::now();
     auto result=out/("request_"+std::to_string(repetition));fs::create_directory(result);
     auto pre_out=result/"prefill",dec_out=result/"decode";fs::create_directory(pre_out);fs::create_directory(dec_out);
@@ -421,6 +443,9 @@ template<class Launch> int RunRequest(fs::path const& binding,fs::path const& ou
     <<",\"request_mode\":\""<<(teacher_forced?"teacher_forced":"natural_greedy")<<"\""
 #if defined(TILEMEGA_LLM_COMPRESSED_PROFILE) && TILEMEGA_LLM_COMPRESSED_PROFILE
     <<",\"body_profile_storage\":\""<<(diagnostic==2?"gzip_roundtrip_sha256":"not_body_profile")<<"\""
+#endif
+#if defined(TILEMEGA_LLM_PROFILE_BOUNDARY_FORWARDS) && TILEMEGA_LLM_PROFILE_BOUNDARY_FORWARDS
+    <<",\"body_profile_recording\":\""<<(diagnostic==2?"prefill_and_last_decode":"not_body_profile")<<"\""
 #endif
 #if defined(TILEMEGA_LLM_DECODE_PROFILE_ONLY) && TILEMEGA_LLM_DECODE_PROFILE_ONLY
     <<",\"body_profile_capture\":\""<<(diagnostic==2?"decode_only":"not_body_profile")<<"\""
