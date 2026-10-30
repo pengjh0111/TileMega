@@ -2,7 +2,8 @@
 
 ## Evidence and checkpoint scope
 
-Verified CP1 source audit at `bc413139d`; P2/P3/X1/dense remain pending.
+Verified CP1 source audit at `bc413139d`, CP2 at `d4e8b5dae`.
+CP2 stops on the prescribed E2E performance condition; P3/X1/dense remain pending.
 This records publication sites and measurements, not G6 completion.
 Primitive runtime evidence: both `barrier_v3_early_arrive` and
 `lds_sync_inflight` pass **5/5 fresh processes**, each 2000 iterations,
@@ -86,7 +87,51 @@ frozen same-bridge controls; the DIAG-field migration fix also leaves V3 DIAG0
 device text unchanged. Raw: `runs/mx6/cp1/BUILD_MATRIX.json`.
 This binary statement does not claim new whole-program race qualification.
 
-Pending: P2 deferred-combine five-process litmus and source audit,
-P3 attention publication audit, conditional X1's
+Pending: P3 attention publication audit, conditional X1's
 five-process readiness litmus, and CP6's 576-thread dense qualification.
 No G6-SYNC or final reliability acceptance is claimed here.
+
+## CP2 deferred combine (verified source and five-process litmus)
+
+`GroupedGemmV3.h:504` finishes every round before calling Complete at line509.
+The old per-unit completion types/calls are absent from V3. At unchanged
+geometry, the CTA's contiguous [begin,end) partitions every expert/tile unit
+once; summing its `unit % T == tile` counts across104 CTAs gives n_active.
+The global counter result is intentionally consumed here, unlike stage arrival.
+
+| Publication step | CP2 source at d4e8b5dae |
+|---|---|
+|all partial stores complete before release|`MoeCombineV3.h:69`, CTA-wide sync|
+|one wave0 release batch|line71 fence; lane-strided tile counts/atomicAdd at72–79|
+|last flags visible CTA-wide|line83 CtaSync; flags are explicit address-space3 LDS|
+|acquire before partial reads|wave0 fence87, CtaSync88, Combine89|
+|unchanged per-output arithmetic|rank0..7 fmul_rn/fadd_rn and BF16 rounding in Combine|
+|counter reuse|wave0 resets each last ticket92; final CtaSync94 precedes next512|
+
+Last flags reuse the finished body's workspace; the persistent RouteTable is
+outside it and stays untouched. The following stage prefetch starts only after
+Complete returns and the early-arrival callback executes. There is no new
+global metadata read or per-unit release. Inter-unit Finish exchanges remain
+LdsSync. Qkv/o/head, attention V2 control and stage arrival retain CP1 behavior.
+
+`moe_deferred_combine`: **5/5 fresh processes**, each2000 layers ×104 CTAs,
+zero violations,208000 participants/process, host-reference x bitwise equal,
+MT100, local/static0, resident1. Seeds are the five distinct process PIDs.
+n_active cycles1/8/64/128 with randomized routing permutations and inputs;
+n_active1 is a synthetic publication case, not a valid distinct top8 route.
+Every output and final zeroed ticket is checked. Raw:
+`runs/mx6/cp2/unit_bound/sync/`, `unit_gpu/COMPLETE.json`;
+all fifteen P0/P2 process rows: `MX6_sync_checks_c550.csv`.
+
+Forty same-geometry grouped cases pass exact V2/V3 h/partials/x comparison and
+repeat V3 comparison (B1/16,E64/128; random,skew,spread; empty experts/count16).
+This is one guarded process with repeated launches, not five fresh processes.
+The five-process publication claim is the independent litmus above.
+All21 CP2 V3 native plans pass final-MIR stage-arrival result-discard checks,
+MIR/resource checks and identical-primary/auxiliary device-text attribution.
+Two rebuilt V2 plans remain byte-identical to the frozen same-bridge controls.
+`runs/mx6/cp2/NATIVE_AUDIT_PASS.json`;23 actual queries pass resident1/local0/static0.
+
+Correctness does not enable CP2: OLMoE B16 P-PAIR regresses11.294080→11.568084 ms,
+triggering prompt13.4.3/13.4.5. GPU work stops; two other timing processes are
+intentionally SIGTERM-aborted, preserved separately from kernel failures.
