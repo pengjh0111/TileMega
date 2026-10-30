@@ -1,0 +1,69 @@
+{
+  "mx_moe_v2": {
+    "qkv": {
+      "tn": 64,
+      "wn": 1,
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 1,
+      "r_next": 100
+    },
+    "o": {
+      "tn": 32,
+      "wn": 1,
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 1,
+      "r_next": 75
+    },
+    "router": {
+      "tn": 16,
+      "wn": 1,
+      "d": 1,
+      "part": "kStreamK",
+      "prefetch": 1,
+      "r_next": 129
+    },
+    "gate_up": {
+      "tn": 64,
+      "wn": 8,
+      "d": 2,
+      "part": "kTileRange",
+      "prefetch": 0,
+      "r_next": 140
+    },
+    "down": {
+      "tn": 128,
+      "wn": 8,
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 2,
+      "r_next": 136
+    },
+    "head": {
+      "tn": 128,
+      "wn": 8,
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 1,
+      "r_next": 112
+    },
+    "threads": 512,
+    "b_min": 4,
+    "attn_prefetch": 0,
+    "purpose": "resource_probe"
+  },
+  "evidence": {
+    "classification": "manual_development_PPAIR_not_solver_or_routing_acceptance",
+    "source": "runs/mx5/moe_recovery_20261030_v1/B16_down_wn8_d1_ppair/ACTUAL_PPAIR.json",
+    "resolved_pin_sha256": "beca86fed16b286c5441a34b40bcf6e2627486779b9d38985f803a35fd5f4139",
+    "tpot_ms": 16.346282378032093,
+    "paired_control_ms": 16.583984684952892,
+    "paired_change_percent": -1.4333244478721419,
+    "C1_C2": "PASS512_eager_HF",
+    "formal_route": "failed",
+    "formal_route_failures": 474,
+    "default_enabled": false,
+    "final": false
+  }
+}
