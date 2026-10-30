@@ -67,3 +67,29 @@ host-lambda rejection is also retained. Neither failed attempt counts as a pass.
 
 This establishes this FP32 payload protocol, not model-speed improvement,
 BF16 direct handoff, fixed physical-core affinity, or cache-maintenance removal.
+
+## Physical1 follow-up and current safety boundary
+
+`verified-run`: one subsequent physical1 process reaches the Host's pre-launch
+marker and exceeds120s. Its owned child exits after SIGTERM; the wrapper stops
+further trials. Device control data could not be downloaded. The marker occurs
+**before** the launch call, so neither enqueue return nor device entry is proven.
+The selected card reports100% utilization and external processes before/after;
+its initial temperature is84C and health remainsOK. These observations do not
+establish a hardware fault, a deadlock location or fundamental G14 incapability.
+No reset or other-process action occurs. Possible residual device work is unknown.
+Evidence: `runs/as2/failures/opt_g14_device1_payload_timeout_v1`.
+
+G14 model admission remains restricted to physical0. The model runner now
+checks the actual binary topology and the target's hashed same-card five-process
+evidence before spawning a model child; physical1 G14 is rejected. Probes remain
+separate from model admission. Existing G8 capability and other users are not
+restricted by this check.
+
+The new probe revision explicitly disables HF32 for FP32 MMAD, prints read-only
+device/stream ceilings before launch, and prints a separate launch-call-return
+marker. A reported ceiling is not a free-core or gang-admission guarantee.
+This revision is **compiled only**, with no device retest after the timeout.
+The successful physical0 data and failed physical1 data retain the preceding
+source/image snapshots. Do not substitute new-source compilation for their
+device evidence or retry the failed kernel unchanged.

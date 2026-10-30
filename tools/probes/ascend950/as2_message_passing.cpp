@@ -61,7 +61,9 @@ __aicore__ inline GM_ADDR PayloadSlot(GM_ADDR payload,unsigned phase,unsigned wo
 struct CubeDma {
   GemmTile<float,float> tile;
   GM_ADDR identity;
-  __aicore__ explicit CubeDma(GM_ADDR id):identity(id) {}
+  __aicore__ explicit CubeDma(GM_ADDR id):identity(id) {
+    AscendC::SetHF32Mode(AscendC::HF32Mode::DISABLE);
+  }
   __aicore__ inline void Copy(GM_ADDR input,GM_ADDR output,unsigned elements) {
     const unsigned rows=elements/32;
     for(unsigned t=0;t<(rows+31)/32;++t) {
@@ -232,8 +234,26 @@ int main(int argc,char** argv) {
     auto id=upload(identity.data(),identity.size()*4),v=upload(values.data(),values.size()*4);
     auto d=upload(data.data(),data.size()*4),r=upload(readback.data(),readback.size()*4),s=upload(states.data(),states.size()*4);
     aclrtStream stream;Check(aclrtCreateStream(&stream),"stream");
+    uint32_t device_cube=0,device_vector=0,stream_cube=0,stream_vector=0;
+    auto dc=aclrtGetDeviceResLimit(0,ACL_RT_DEV_RES_CUBE_CORE,&device_cube);
+    auto dv=aclrtGetDeviceResLimit(0,ACL_RT_DEV_RES_VECTOR_CORE,&device_vector);
+    auto sc=aclrtGetStreamResLimit(stream,ACL_RT_DEV_RES_CUBE_CORE,&stream_cube);
+    auto sv=aclrtGetStreamResLimit(stream,ACL_RT_DEV_RES_VECTOR_CORE,&stream_vector);
+    auto limit=[&](const char* name,aclError error,uint32_t value,bool last=false) {
+      std::cout<<'"'<<name<<"\":{\"acl_error\":"<<error<<",\"value\":";
+      if(error)std::cout<<"null";else std::cout<<value;
+      std::cout<<'}'<<(last?"":",");
+    };
+    std::cout<<"{\"prelaunch_read_only_resource_limits\":{";
+    limit("device_cube",dc,device_cube);limit("device_vector",dv,device_vector);
+    limit("stream_cube",sc,stream_cube);limit("stream_vector",sv,stream_vector,true);
+    std::cout<<"},\"reported_limits_are_not_free_cores\":true}"<<std::endl;
+    if((!dc && device_cube<groups) || (!dv && device_vector<2*groups) ||
+       (!sc && stream_cube<groups) || (!sv && stream_vector<2*groups))
+      throw std::runtime_error("Reported context/stream limit is below the requested cohort");
     std::cerr<<"phase: kernelLaunch"<<std::endl;
     as2_message_passing<<<groups,nullptr,stream>>>(id,v,d,r,s,groups,fault);
+    std::cerr<<"phase: launchCallReturned"<<std::endl;
     Check(aclrtSynchronizeStream(stream),"synchronize");std::cerr<<"phase: kernelComplete"<<std::endl;
     Check(aclrtMemcpy(states.data(),states.size()*4,s,states.size()*4,ACL_MEMCPY_DEVICE_TO_HOST),"download controls");
     Check(aclrtMemcpy(data.data(),data.size()*4,d,data.size()*4,ACL_MEMCPY_DEVICE_TO_HOST),"download payload");
