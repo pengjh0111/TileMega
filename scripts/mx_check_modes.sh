@@ -3,7 +3,7 @@
 #
 # C-1 (against HuggingFace tokens) and C-2 (four-mode equivalence). Was
 # /root/deps/c1c2.sh outside the tree through MX-1 and MX-2 (MX3-0 item 1).
-set -e
+set -eo pipefail
 M=$1; P=$2; D=$3; B=$4; S=$5; O=$6; PR=${7:-configs/prompts/qwen_isl64.json}
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$ROOT"
