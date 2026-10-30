@@ -148,6 +148,12 @@ def metadata_only(config: dict) -> bool:
 
 
 def export(config: dict, phase: str, capacity: int, out: Path, prompt_len: int = 64) -> dict:
+    architecture = config['architectures'][0]
+    if architecture not in ('LlamaForCausalLM', 'Qwen3ForCausalLM',
+                             'Qwen3MoeForCausalLM', 'MistralForCausalLM'):
+        raise ValueError(f'unsupported serving export architecture: {architecture}')
+    if architecture == 'MistralForCausalLM' and config.get('sliding_window') is not None:
+        raise ValueError('Mistral serving export requires sliding_window=null')
     if phase not in ('decode', 'prefill') or prompt_len < 1 or capacity <= prompt_len:
         raise ValueError('export needs a positive ISL and capacity greater than ISL')
     torch.set_num_threads(4)
@@ -203,7 +209,7 @@ def export(config: dict, phase: str, capacity: int, out: Path, prompt_len: int =
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=Path, required=True)
-    parser.add_argument("--model", choices=("llama", "qwen3", "qwen3_moe"), required=True)
+    parser.add_argument("--model", choices=("llama", "qwen3", "qwen3_moe", "mistral"), required=True)
     parser.add_argument("--phase", choices=("decode", "prefill"), required=True)
     parser.add_argument("--capacity", type=int, default=1088)
     parser.add_argument('--prompt-len', type=int, default=64)

@@ -59,15 +59,18 @@ class ModelRegistry(unittest.TestCase):
         source.write_bytes(raw)
         return root, record, source
 
-    def test_all_seven_models_and_legacy_aliases(self):
+    def test_registered_models_and_legacy_aliases(self):
         expected = {'llama3_2_1b', 'llama3_2_3b', 'llama3_1_8b', 'qwen3_0_6b',
-                    'qwen3_1_7b', 'qwen3_8b', 'qwen3_30b_a3b'}
+                    'qwen3_1_7b', 'qwen3_8b', 'qwen3_30b_a3b',
+                    'mistral_7b_v03', 'olmoe_1b_7b'}
         self.assertEqual(set(model_ids()), expected)
         for name in expected:
             record = load_model(name)
             self.assertEqual(record['id'], name)
-            self.assertEqual(record['tokenizer_family'], 'llama3' if
-                             name.startswith('llama') else 'qwen')
+            family = ('llama3' if name.startswith('llama') else
+                      'mistral' if name.startswith('mistral') else
+                      'olmoe' if name.startswith('olmoe') else 'qwen')
+            self.assertEqual(record['tokenizer_family'], family)
         for alias, name in ALIASES.items():
             self.assertEqual(load_model(alias), load_model(name))
         small = load_model('qwen3_0_6b')['dimensions']
