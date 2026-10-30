@@ -1,5 +1,7 @@
 # MX5 additional Mistral and OLMoE workload campaign
 
+Historical collection below: OLMoE was unsupported at that checkpoint. Native support and new fullgraph decode baselines are now measured in [the follow-up report](MX5_olmoe_native_c550.md); the older rows remain unchanged.
+
 Evidence: verified preparation and completed rows; pending work is explicit.
 This expansion and new external-baseline measurements were requested by the
 user. The original MX4 CSVs remain unchanged. Prompt SHA256:
@@ -81,7 +83,7 @@ strict results verifier. Closed solver TSVs are archived losslessly with
 full decompression SHA256 checks and readable original paths; the disk
 floor was not lowered and failed binaries/logs were not deleted.
 
-OLMoE TileMega remains unsupported and has no native latency. An actual
+At that checkpoint OLMoE TileMega was unsupported and had no native latency. An actual
 CPU export attempt rejects OlmoeForCausalLM at serving/export.py:22 before
 any GPU launch. Its64 experts and QPerKV1/hkv16 geometry do not match
 MxMoeModel.cpp:89,98. Its Q/K RMS spans the projected2048-vector before

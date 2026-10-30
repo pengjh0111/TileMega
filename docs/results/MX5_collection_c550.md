@@ -1,5 +1,7 @@
 # MX5 本轮 LLM 数据采集收口
 
+本页保留前轮收口数据（当时OLMoE native不支持、TC为部分编译）。最新OLMoE native与新完整decode编译数据见 [本轮报告](MX5_olmoe_native_c550.md)；旧表不是当前能力状态。
+
 证据标记：下列数值均为 verified；推断单独说明。
 本轮 Mistral native 最终构建 HEAD：`7c9e3522ef6e1d10a35828ea213a5a780dff3b0b`。
 外部基线沿用各CSV记录的冻结实现；不同轮次不冒充同一构建。
@@ -79,7 +81,7 @@ HF eager参考与2ULP规则未改变，MoE路由验收仍失败，不能据C1/C2
 
 ## 缺项、差异与构建记录
 
-OLMoE TileMega目前在 `python/tilemega/serving/export.py:22` 的架构检查处拒绝导出，CPU实际尝试记录在 `olmoe_native_capability_check/RESULT.json`，未启动GPU模型。
+前轮OLMoE TileMega在 `python/tilemega/serving/export.py:22` 的架构检查处拒绝导出，CPU实际尝试记录在 `olmoe_native_capability_check/RESULT.json`，未启动GPU模型。
 `lib/Codegen/MxMoeModel.cpp:89,98` 仅接受本轮Qwen的专家与注意力几何。
 其64专家、全投影Q/K RMS及不重归一top8概率不符合当前Qwen native路径；不是OOM，也没有使用错误架构或legacy替代。
 五个B的CSV状态均为capability_status_not_a_measurement，所有latency字段留空。
@@ -106,4 +108,4 @@ GPU用量为guard作业墙钟区间的单卡求和上界，并非硬件busy计�
 编译时长保存在原始构建receipts中，当前资源CSV没有独立时长列，仍与原prompt的入库格式要求有差异。
 Qwen MoE torch.compile完整协议在原900秒限制内无法完成B8/B16，需本轮显式批准的时限例外。
 MoE内部路由仍有28/472个非平局差异，尽管C1/C2通过；用户期望的约1.1×MoE收益尚未满足。
-OLMoE新增覆盖只有外部基线可运行，TileMega native仍缺少支持，不能列为已完成的性能格。
+前轮OLMoE只有外部基线可运行；本轮已补native开发数据，路由门及最终选择仍未通过，详见新报告。

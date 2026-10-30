@@ -1,5 +1,7 @@
 # MX5 torch.compile recovery on C550
 
+The partial-compile recovery below is retained as history. New fullgraph decode results for all5B of Qwen and OLMoE are complete; see [the native/fullgraph follow-up](MX5_olmoe_native_c550.md). The fixed MX4 baselines and old failures remain unchanged.
+
 Evidence: verified unless explicitly marked inferred. This is a new,
 user-authorized recovery campaign; the fixed MX4 baseline CSV is unchanged.
 Prompt SHA256: `75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73`.
@@ -85,3 +87,47 @@ Verified two-round TPOT medians (ms):
 Extended receipts: runs/mx5/torchcompile_repair_20261030_v1/extended_B8_B16/.
 Full new-model tables and remaining native gaps are reported in
 [MX5_collection_c550.md](MX5_collection_c550.md).
+
+## Fullgraph decode recovery (new implementation)
+
+Verified: an explicit opt-in independent Triton provider repairs the missing
+MetaX grouped-mm prefill call. HF5.12 then selects its own batched_mm experts
+for decode. Decode forward is compiled fullgraph=True in one graph, with no
+recorded graph break. Prefill remains eager HF execution with the custom matrix
+multiply. This does not claim stock MetaX grouped_mm support or whole-request
+fullgraph capture. Both phase selections and restoration are measured separately.
+The frozen baseline has no TileMega runtime/kernel dependency. The old CLI
+default, old partial data and original failures remain intact.
+
+All20 fresh standard processes complete at the original900s cap. Initial B1
+setup failures (two per model) are retained; the frozen layout was missing the
+relative guard-policy file. Same frozen arithmetic, repaired layout and new
+processes produced the accepted B1 rounds. All runs use ISL64/OSL1024, BF16
+greedy, warmup1/timed2; two process medians follow the original protocol.
+
+Qwen3-30B-A3B-L24, new implementation:
+
+|B|TPOT ms|TTFT ms|E2E ms|output tok/s|
+|---:|---:|---:|---:|---:|
+|1|13.978311|58.430059|14358.242382|71.317934|
+|2|21.796115|75.544187|22372.969985|91.539035|
+|4|37.030689|121.502253|38003.897348|107.778885|
+|8|68.124411|199.767045|69891.039016|117.213973|
+|16|127.765839|344.229775|131048.683098|125.022241|
+
+OLMoE-1B-7B, new implementation:
+
+|B|TPOT ms|TTFT ms|E2E ms|output tok/s|
+|---:|---:|---:|---:|---:|
+|1|8.798108|35.236460|9035.701288|113.328457|
+|2|13.839850|48.064294|14206.230483|144.163607|
+|4|22.909596|76.525138|23513.041895|174.201201|
+|8|41.199638|117.669863|42264.899436|193.825159|
+|16|77.068176|208.103142|79048.847574|207.265322|
+
+The new Qwen results are5.14/5.63/5.82/5.35/4.34 times faster than the old
+partial eager-expert implementation; this is a baseline implementation change,
+not a TileMega speedup. The earlier timeouts establish no OOM diagnosis.
+Frozen-source identity, guard/process receipts and generated tokens are under
+runs/mx5/olmoe_native_20261030_v1/. CSV implementation labels distinguish
+metax_triton_grouped_mm_prefill from HF_batched_mm_decode explicitly.
