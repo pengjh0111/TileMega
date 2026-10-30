@@ -346,3 +346,48 @@ Full TTFT/E2E/throughput/raw samples:
 Each model links CTG/prices/search/source/actual tables/image/launch/C1 in
 `search/opt_swiglu_<model_id>_full_pipeline_receipt_v1.json`. New final-config
 teacher512/C2/C3 and fixed independent paired acceptance remain pending.
+
+
+## G14 native chain and timing-context boundary,2026-10-30
+
+`verified-run`: new conservative Cube/DMA payload message passing passes5/5
+fresh processes per G8/G14 on physical0, all four directions/both AIV lanes,
+three sizes/eight reuse epochs. Qwen0.6 B16 G14 structural bootstrap then runs
+complete64/1024 with independent C1 and90 equal G8/G14 semantic captures.
+Same-card Body/control measurements supply two genuine G8/G14 candidates per
+phase. Native inner/outer search selects G14: predicted prefill7547.728 vs
+4364.171ms, decode295.829 vs262.784ms. These are noisy context-local predictions,
+not hardware constants. Global calibration/default flags remain unchanged.
+
+The **actual priced** G8/G14 requests also pass independent full1024 C1 and
+90-file bitwise comparison. Single cold numerical requests incidentally record
+TPOT476.527/333.192ms, TTFT14300.081/8896.642ms and E2E501787.682/349751.712ms.
+There is no warmup/replicated paired CI; all are marked contended and **not
+performance-admitted**, and must not replace the earlier main snapshot table.
+New-plan teacher512/model C3 and stable full-request timing remain open.
+
+An unchanged-image same-G8-plan old/new/old67 study records439.283/386.655/
+387.635ms on physical0, with92 equal captures. A subsequent independent
+physical1 cold67 run of the unchanged image records22.650803ms with the same
+92 payload/control hashes. Thus a new-code change alone cannot explain the
+large timing-context difference; card/load/time causes remain unisolated.
+Current scalar/control/copy calibration differs substantially from historical
+physical1 tables. Its time conversion reuses earlier AS2 system-counter evidence;
+no new physical0 frequency differential or portable hardware peak is claimed.
+
+Physical1 G14 payload follow-up times out120s with external100% load. Its
+pre-launch marker cannot establish device entry. Only the owned process group
+is terminated; potential residual device work is unknown. Further device tests
+stop. G14 model admission stays physical0-only, checked against actual metadata,
+hashed target and five-process evidence before child spawn. The new explicit
+FP32/read-only-limits/launch-return probe revision is compiled, not device-tested.
+
+Optional boundary profiling collects only prefill/last-decode records. Same-plan
+67-output92-file equivalence and all profile ownership/epoch checks pass;
+diagnostic Host progress distinguishes enqueue from stream completion. This
+reduces redundant recording by construction; no TPOT gain/default is claimed.
+Sources, raw samples/failure and full-chain identities:
+`search/opt_g14_qwen06_{g8,g14}_full_pipeline_receipt_v1.json`,
+`search/opt_binary_context_audit_v1.json`, `search/opt_card_context_v1.json`,
+`search/opt_boundary_profile_validation_v1.json`,
+`failures/opt_g14_device1_payload_timeout_v1`.

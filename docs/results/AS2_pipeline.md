@@ -315,3 +315,34 @@ Every bound table/source/binary/launch is linked by
 five-pair acceptance is separate; no default/eager Gate is implied. Its strict
 ablation auditor rejects changed weights, state, queues, waits, other stage
 fields or incomplete gate/up substitution even when table hashes are refreshed.
+
+
+## Explicit G14 native domain,2026-10-30
+
+The default target retains G8. A separate950PR experimental target records
+five-process G14 payload evidence on physical0. `as2_compile_llm --target`
+records its path/hash; WorkerMap/role/queue checks still run. G14 emitted code
+requires the explicit `TILEMEGA_LLM_G14` capability, with old-image rejection
+before ACL. No graph dimension, dtype, layer or vocabulary is reduced.
+
+Qwen0.6 B16 structural bootstrap executes full64/1024; G8/G14 semantic payloads
+compare90 files bitwise and both independent references pass. Native costs and
+Body profiles are then remeasured separately for each G on the same physical0.
+Two legal candidates per phase enter sourced-price outer search and native
+heterogeneous structural/EFT comparison; both phases select G14. Request binding
+preserves the selected queues/waits, changing arena addresses only. These
+**new priced plans execute full1024 independently and pass C1**, with90 semantic
+G8/G14 captures bitwise equal. This is separate from the bootstrap proof.
+New-plan teacher512/model C3 and performance admission remain pending. All
+incidental timing is context-local/contended, with no global default promotion.
+Source chain: `search/opt_g14_qwen06_{bootstrap,profile,priced}_workflow_v1.json`
+(the bootstrap file is `opt_g14_qwen06_bootstrap_v1.json`), plus each phase's
+`opt_g14_qwen06_*_outer_v1/search.json`. Broader geometry/split/fusion and
+other models' larger-G domains remain unfinished; no global default changes.
+
+
+Physical1 is not admitted for G14: its new payload probe times out before a
+launch-return marker can be observed. The runner now rejects a model whose
+actual G14 metadata lacks matching physical-card proof, before spawning it.
+Native full-chain receipts for physical0: `search/opt_g14_qwen06_g8_full_pipeline_receipt_v1.json`
+and `search/opt_g14_qwen06_g14_full_pipeline_receipt_v1.json`.

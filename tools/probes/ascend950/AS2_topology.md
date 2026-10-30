@@ -62,3 +62,11 @@ They do not establish physical-core affinity or four-direction Cube/DMA payload
 visibility. The old G14 payload timeout is retained; G14 model capability
 stays off until a new bounded stale-cache/buffer-reuse message-passing test
 passes five fresh processes. The old failed probe was not retried unchanged.
+
+
+2026-10-30 continuation: the new bounded payload protocol passes5/5 each at
+G8/G14 on physical0. Qwen0.6 B16 actual priced G14 runs full1024 correctly.
+A separate physical1 payload follow-up times out120s under external100% load;
+device entry is unknown. Physical1 G14 stays unadmitted, and further device
+tests stop. See `AS2_message_passing.md` for source revisions, safety and exact
+scope; ID/independent-Cube results alone still cannot admit another topology.

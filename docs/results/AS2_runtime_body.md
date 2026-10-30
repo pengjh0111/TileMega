@@ -24,8 +24,8 @@ probes retain their own scope.
   preload, wait for payload completion/publish, invalidate/acquire and check
   exact values. Ready, preload and reverse acknowledgements have single owners.
 - The old DSB and entire-DCache acquire remain the correctness baseline.
-  This is not a minimal-cache-maintenance result. G14/28, mode4, BF16
-  direct and UB→L1 remain unverified. New GM MIX lifecycle evidence is below.
+  This is not a minimal-cache-maintenance result. G28, mode4, BF16 direct
+  and UB→L1 remain unverified; new G14 evidence is recorded below. New GM MIX lifecycle evidence is below.
 - G2 vector tests compute separate rows on all four AIV workers. This is task
   assignment/result evidence, not a hardware busy-percentage measurement.
   `runs/as2/probes/resource_summary.json` indexes every independent process.
@@ -107,7 +107,7 @@ Decode uses the actual runtime past and never reads invalid KV padding.
 Local UB remains106496 B. GM worker scratch is32/128 KiB, separate from UB;
 raw GEMM epilogue workspaces are real Plan allocations. The optional old
 128-key FP32-partial/log2-LSE path is numerically unadmitted. BF16 direct,
-UB-to-L1, dual-AIV MIX, split-K and G14/28 remain disabled/unverified.
+At this early checkpoint UB-to-L1, dual-AIV MIX, split-K and G14/28 were unverified; later sections supersede this scope.
 
 The 200-byte Stage contains64-bit operand/workspace offsets. The device reader
 copies object bytes legally; uint32-pointer type-punning previously corrupted
@@ -521,3 +521,61 @@ frozen study uses its original image and immutable header snapshots.
 Evidence: `search/opt_swiglu_<model_id>_full_pipeline_receipt_v1.json`,
 `search/opt_swiglu_dense_body_attribution_v1.json`. Aggregate Body service work
 is explicitly distinct from TPOT, critical-path time and hardware utilization.
+
+
+## G14 continuation,2026-10-30
+
+`verified-run`: `as2_message_passing.cpp` passes5/5 fresh G8 and5/5 G14
+processes on physical0 PCI D7:00.0→logical0. Four cross-group directions,
+both AIV lanes, Scalar old-cache pre-read plus separate DMA consumers,
+32/1056/4096 FP32 elements, eight reuse epochs/phase and reverse acknowledgements
+pass. Empty roles join phase boundaries. Each field/abort has one writer and
+512B separation; the supplied wait bound is2e9 system ticks. One G14 software
+abort propagates to all42 actors without a deadline. Conservative DSB/full-cache
+acquire remains unchanged. This does not enable BF16 direct or remove a cache op.
+The first unordered Finished diagnostic failure (7 vs8) is retained; the fix
+publishes completion once after the epoch loop. Expected8 was never changed.
+Evidence: `search/opt_message_passing_workflow_v1.json` and the probe README.
+
+`verified-code/run`: `LlmGroupContract.h` gates G14 by an emitted capability;
+old G8 images reject G14 before ACL. The default target remains G8; explicit
+`as2_compile_llm --target .../ascend_3510_g14_experimental.json` records the
+target hash. Native priced outer search checks five-process, same-card evidence.
+Qwen0.6 B16 G14 runs complete28 layers/full vocab in short67/full1024;
+90 semantic payloads equal G8 bitwise, independent tokens/logits/last-row KV
+pass with zero error. Actual G14 allocation includes both AIV lanes; counts
+are allocation plus FIFO completion, not hardware utilization counters.
+New actual priced G8/G14 queues also pass full1024 C1 and90-file semantic
+bitwise comparison. New-plan teacher512/model C3 and TPOT admission remain open.
+
+`verified-run`: optional `AS2_PROFILE_BOUNDARY_FORWARDS` retains prefill and
+last-decode Body profiles, leaving intermediate forwards in fast mode.67-output
+same-plan captures compare92 files bitwise; both profiles pass every ownership/
+epoch check. Diagnostic-only progress distinguishes Host enqueue from stream
+completion. DefaultOFF; fast has no new file writes or changed device protocol.
+Evidence: `search/opt_boundary_profile_validation_v1.json`.
+
+`verified-run`: same-card old/new/old67 diagnostic gives439.283/386.655/387.635ms,
+92 equal captures, all with external contexts. The unchanged image is also much
+slower than its earlier snapshot. Shared-load/card/time effects are not isolated;
+these are not main1024 TPOT or a compiler-regression attribution. Current
+measured costs stay context-local, without altering global calibration flags.
+
+
+Physical1 G14 follow-up reaches only the pre-launch Host marker, then times out
+120s; device entry/enqueue return are unknown. External utilization is100% and
+healthOK before/after. Only the owned child group receives SIGTERM. Kernel exit
+is not proven; further device tests stop. This does not establish fundamental
+G14 incapability. The newer probe adds explicit FP32 mode/read-only limit and
+launch-return diagnostics, **compiled only**, with v1 source/image preserved.
+
+The unchanged G8 image on physical1 later runs a separate cold67 diagnostic
+at22.650803ms versus physical0 old/new/old439.283/386.655/387.635ms.92 captured
+payload/control files are equal. Different card/load/time effects are not
+isolated; neither this nor the incidental priced full-request timings is a
+main TPOT result. `as2_run::model_topology_preflight` now reads actual metadata,
+checks hashed target/same-card five-process evidence, and rejects physical1
+G14 before child creation. Existing G8 and probe scope are preserved; three
+CPU tests include a mocked wrapper asserting no child spawn. No access to
+other users is restricted. Failure and pending kernel-exit uncertainty remain
+in `failures/opt_g14_device1_payload_timeout_v1`.
