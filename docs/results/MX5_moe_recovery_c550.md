@@ -312,3 +312,63 @@ standard measurements are in progress. No new timing or route pass is
 inferred before those guarded jobs finish. Raw: `bf16_routing_exports/`,
 `bf16_routing_programs/`, `bf16_routing_B1_programs/` and corresponding
 execution controllers. Prior measured FP32 rows/pins remain unchanged.
+
+### BF16 contract follow-up results (verified; acceptance still failed)
+
+B1/B16 native BF16 controls complete512-step C2 with bitwise mode equality.
+The first C1 invocations accidentally omit the authorized eager option and
+hit unsupported grouped_mm; those failed guards remain. Fresh guarded
+C1-only invocations use eager and the identical passed C2 token files.
+Both pass: gap<=.5 ratio1.0, maximum gaps.0625/.09375 for B1/B16. No new
+C2 run or binary substitution is used to erase the original C1 launch error.
+
+Formal routing still fails unchanged set/2ULP rules: B1 exact1376/ties132/
+failures28 over1536 positions; B16 exact21788/ties2316/failures472 over24576.
+Thus the exporter dtype correction explains the isolated CPU test failure,
+but does not resolve the full-model routing defect. G-MOE remains open.
+
+Two standard BF16 rounds: B1 TPOT4.200340/4.197850ms, median4.199095ms;
+B16 TPOT16.499702/16.500531ms, median16.500116ms. Fastest fixed baseline
+speedups are1.0052x/.8939x. Neither reaches1.1x. B16 same-card5 alternating
+FP32 control rounds16.338772/16.346258ms give median16.342515ms; BF16
+changes TPOT+0.964362%, below the1% distinguishability floor. Generated
+traffic across dtype arms is not assumed equal. This is no accepted speedup.
+Each new BF16 arm has six internally identical full generations. Nine
+serving rows (both new arms and the B16 FP32 control) and two compact
+snapshots are appended with explicit implementation/round/gate status.
+
+B1's attempted FP32 control process fails during load_weights(), before
+allocate_state(), tm_plan_create or any native model launch, reporting
+CUDA illegal memory access at a later source.to(). The faulting GPU
+instruction is still unknown. This invalidates that B1 P-PAIR, not its
+separately completed BF16 timings. A fresh CUDA_LAUNCH_BLOCKING=1 diagnostic
+with synchronization after each recursive packing operation completes12605
+calls and the constructor; this one perturbed pass does not explain or
+clear the sporadic fault. Uninstrumented BF16 timing then completes two
+fresh processes. The older B2 constructor anomaly remains open as well.
+
+Raw: `bf16_routing_execution_v2/`, `bf16_routing_B1_execution_v2/`,
+`bf16_routing_B1_measurement_recovery/`; each retains queries, original
+failed checks, eager C1, routing failures, process guards and token files.
+Twenty-eight new compiler-resource rows retain both rejected unlaunched
+576 histories and actual fitting512 normal/watchdog/diagnostic artifacts.
+
+Contradictions to prompt expectations at this checkpoint: the MoE B1/B16
+TPOT expectations2.5–2.7/13.8–14.3ms are not achieved; the routing-set gate
+fails despite passing C1/C2. Capture repair alone also cannot make Qwen
+MoE torch.compile B8/B16 fit the900s full-protocol limit. No arithmetic outside the prompt's exported-dtype branches, tolerance
+relaxation, legacy path or default promotion is substituted for those
+failed requirements.
+
+BF16 development geometry pins are saved as
+`configs/pins/mx5/qwen3_30b_a3b_l24_B{1,16}_bf16_routing_development.json`.
+Their evidence binds the fresh BF16 bridge hash; dtype comes from that
+input graph, not a new pin switch. Both explicitly retain route failure,
+manual classification and default_enabled/final=false.
+
+At the latest guard-ledger snapshot, this continuation closes164 jobs
+and7.923611 physical-card wall hours; cumulative upper bound
+121.029088h including the prior113.102778h. These are guarded wall
+intervals, not measured hardware busy cycles. Mistral resource jobs remain
+in progress and will add subsequent intervals. Cards0–3 are unused; the
+user waived the cumulative cap while per-job timing remains<=900s.

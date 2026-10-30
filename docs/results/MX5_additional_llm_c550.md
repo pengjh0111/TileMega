@@ -26,10 +26,71 @@ Prompt hashes: Mistral40a1ff3b6478fdb9f07b46c2aa61e3b0abc711e84fc3a7c8a513c921e1
 OLMoE99c6d2e67b4de8c4e2d5e54aca87caf8a834816805099c41c3ea83681301bcc3.
 
 B=1/2/4/8/16, ISL64/OSL1024, BF16 greedy, fresh-process warmup1/timed2,
-2rounds and median follow MX5. vLLM/SGLang/torch.compile are queued on
-physical5(Mistral) and4(OLMoE), with one guarded job/card and900s per job.
-OLMoE torch.compile explicitly uses eager experts and the separately labelled
-compile-boundary repair. A baseline failure is retained, never replaced with
+2rounds and median follow MX5. All60 baseline processes now complete:
+2models x3systems x5batches x2rounds, each guarded with rc0. Physical5 is
+Mistral;4 is OLMoE. OLMoE torch.compile explicitly uses eager experts and
+the separately labelled compile-boundary repair. A baseline failure is retained, never replaced with
+another system's result. New data are append-only in
+[MX5_additional_llm_c550.csv](MX5_additional_llm_c550.csv).
+Single-round rows are provisional; only median rows combine both fresh rounds.
+
+Completed vLLM two-round TPOT medians(ms):
+
+| B | Mistral-7B-v0.3 | OLMoE-1B-7B-0924 |
+|---:|---:|---:|
+|1|11.148076|3.653538|
+|2|12.525795|4.762878|
+|4|12.676094|6.215642|
+|8|12.986500|8.259111|
+|16|13.668050|10.395362|
+
+SGLang also completes both rounds for all five batches of both models.
+Two-round baseline medians(ms):
+
+| Model | B | vLLM | SGLang | torch.compile |
+|---|---:|---:|---:|---:|
+|mistral_7b_v03|1|11.148076|10.606020|18.437016|
+|mistral_7b_v03|2|12.525795|12.029260|25.129721|
+|mistral_7b_v03|4|12.676094|12.184568|35.886293|
+|mistral_7b_v03|8|12.986500|12.631397|57.645759|
+|mistral_7b_v03|16|13.668050|13.536814|100.390065|
+|olmoe_1b_7b|1|3.653538|3.156181|45.753506|
+|olmoe_1b_7b|2|4.762878|4.341845|78.633358|
+|olmoe_1b_7b|4|6.215642|5.817549|128.368666|
+|olmoe_1b_7b|8|8.259111|7.907548|197.038825|
+|olmoe_1b_7b|16|10.395362|10.015969|262.257277|
+ Mistral and OLMoE workload campaign
+
+Evidence: verified preparation and completed rows; pending work is explicit.
+This expansion and new external-baseline measurements were requested by the
+user. The original MX4 CSVs remain unchanged. Prompt SHA256:
+`75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73`.
+Campaign start HEAD622c505e6c3d07315f5b284ac4f4a21881534ef9.
+
+Both models retain their full official architecture and layer count. As in
+MX5, checkpoints use random BF16 weights, seed20260925, FP32 normal samples
+scaled by initializer_range then BF16 rounding, and unit norm vectors.
+This is synthetic-weight performance, not a pretrained quality evaluation.
+The same16 frozen public-domain passages are tokenized with each model's
+pinned tokenizer and truncated to64 tokens. All systems share those IDs
+and exactly the same checkpoint within each model.
+
+| Workload | Official revision | Layers | BF16 tensor bytes |
+|---|---|---:|---:|
+| Mistral-7B-v0.3 | caa1feb0e54d415e2df31207e5f4e273e33509b1 |32|14496047104|
+| OLMoE-1B-7B-0924 |6d84c48581ece794365f2b8e9cfb043c68ade9c5|16|13838323712|
+
+Sources: [Mistral pinned config](https://huggingface.co/mistralai/Mistral-7B-v0.3/blob/caa1feb0e54d415e2df31207e5f4e273e33509b1/config.json),
+[OLMoE pinned config](https://huggingface.co/allenai/OLMoE-1B-7B-0924/blob/6d84c48581ece794365f2b8e9cfb043c68ade9c5/config.json).
+Checkpoint identities retain every shard hash and the exact initialization.
+Prompt hashes: Mistral40a1ff3b6478fdb9f07b46c2aa61e3b0abc711e84fc3a7c8a513c921e12b3529;
+OLMoE99c6d2e67b4de8c4e2d5e54aca87caf8a834816805099c41c3ea83681301bcc3.
+
+B=1/2/4/8/16, ISL64/OSL1024, BF16 greedy, fresh-process warmup1/timed2,
+2rounds and median follow MX5. All60 baseline processes now complete:
+2models x3systems x5batches x2rounds, each guarded with rc0. Physical5 is
+Mistral;4 is OLMoE. OLMoE torch.compile explicitly uses eager experts and
+the separately labelled compile-boundary repair. A baseline failure is retained, never replaced with
 another system's result. New data are append-only in
 [MX5_additional_llm_c550.csv](MX5_additional_llm_c550.csv).
 Single-round rows are provisional; only median rows combine both fresh rounds.
@@ -147,3 +208,12 @@ A fresh20-candidate canonical campaign is started after the source changes
 settle, reusing only the unchanged actual576 P0 head query observations;
 all subsequent builds and actual zero-launch queries use the existing
 prescribed history auditor. Old failed controllers/receipts remain retained.
+
+Current native boundaries: Mistral B1 has the verified two-round manual
+result10.130998ms, while B2/B4/B8/B16 still lack accepted native timings.
+All20 fresh candidate primary builds complete. Canonical history and own
+original512 builds/queries are progressing; the first B1/B2 artifacts fit
+(MT229/frame0 for B1 candidate0), but the auditor correctly still requests
+candidate-bound D7 review. This is resource progress, not exacttop4 E2E
+selection. OLMoE has all baseline data and no native TileMega timing.
+These missing TileMega cells remain open work, not zero-latency entries.
