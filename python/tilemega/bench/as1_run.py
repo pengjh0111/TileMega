@@ -186,7 +186,7 @@ def stop_owned_group(proc):
     proc.wait(timeout=5)
 
 
-def main(project='as1'):
+def main(project='as1', command_preflight=None):
     global WORK, RUNS
     if project not in {'as1', 'as2'}:
         raise ValueError('Unknown controlled project')
@@ -255,6 +255,16 @@ def main(project='as1'):
     record.update(parent_pid=os.getpid(), project=project,
                   manifest_id=str(out.relative_to(ROOT)), required_free_mib=args.required_free_mib)
     record_path.write_text(json.dumps(record, indent=2)+'\n')
+    if command_preflight is not None:
+        proof = command_preflight(command, physical)
+        record['capability_preflight'] = proof
+        if proof['status'] == 'blocked':
+            record.update(status='blocked-capability', reason=proof['reason'], exit_code=78,
+                          elapsed_s=time.monotonic()-started)
+            record_path.write_text(json.dumps(record, indent=2)+'\n')
+            (out/'after.json').write_text(json.dumps(snapshot(args.telemetry_timeout_s), indent=2)+'\n')
+            print(json.dumps(record))
+            return 78
     unhealthy=telemetry_ok and devices[physical].get('health')!='OK'
     if unhealthy or args.required_free_mib and (not telemetry_ok or devices[physical]['free_mib'] < args.required_free_mib):
         status = 'blocked-health' if unhealthy else 'blocked-resource' if telemetry_ok else 'telemetry_unavailable'
