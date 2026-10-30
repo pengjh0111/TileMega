@@ -579,3 +579,23 @@ G14 before child creation. Existing G8 and probe scope are preserved; three
 CPU tests include a mocked wrapper asserting no child spawn. No access to
 other users is restricted. Failure and pending kernel-exit uncertainty remain
 in `failures/opt_g14_device1_payload_timeout_v1`.
+
+## Per-task L1 K256 gate/up experiment,2026-10-30
+
+`verified-code/run`: GEMM variant5 retains16x128 CTG output ownership and
+L0K32, changing only internal L1K128→256. It uses the same scoped MMAD
+constructor/destructor, BF16 raw output and strided U16 SwiGLU casts.
+A generated capability is required by Host and device; older catalogues
+reject it. Implementation/price identities include L1 K and measured stage
+kind/variant/shape. The whole CATLASS scheduler is never nested in a Task.
+Qwen1.7 B16 short67 compares148 payloads bitwise; the same-image gate/up
+median is101.043→90.861us in this noisy physical0 context. Five new G8
+control/copy calibration processes pass. Fixed-compiler native searches
+compare both implementations and select K256 for the measured past0:129
+domain (predicted286.151→267.333ms). These are not admitted TPOT gains.
+The complete64/1024 request reaches Host enqueue1023 then times out600s
+without final stream completion. Owned Host exitsSIGTERM; device exit is
+unknown. No full1024 C1/profile/price, teacher512 or model C3 pass is claimed.
+All further device submissions stop; physical1 also reports Alarm. Default
+G8 bindings and frozen baselines remain unchanged. Evidence/failure and
+prepared CPU-only priced plans: `search/opt_swiglu_k256_checkpoint_v1.json`.

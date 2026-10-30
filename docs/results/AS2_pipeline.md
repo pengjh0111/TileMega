@@ -1,7 +1,7 @@
 # AS-2 pipeline and Prompt reconciliation — 2026-10-26
 
-Status: **in_progress; G-PIPELINE is not passed**. Latest source recheck at
-`c44d98f959e15ae31273e205e4bdf558e1531651`; historical runs retain their own SHA.
+Status: **in_progress; G-PIPELINE is not passed**. Current reconciliation starts at
+`f0177daa8bdd90a22f2b433c0eccf9f723266892`; new K256 evidence retains its own source/build identity.
 `verified-code` means inspected source; `verified-run` means retained actual
 execution. Earlier runs retain their original date/device/software identity.
 Prompt SHA256: `673b6deb619cb02f1c3f2d0875af2bdafb835bca09e3875d7dbfb840b1be00d6`.
@@ -54,13 +54,15 @@ local full model config + canonical random weight/input manifests
    The whole-model CLI currently takes an explicitly selected geometry/Body/
    decomposition. Its `emit-priced*` path reads positive contextual prices,
    checks model/config/phase/B/G/runtime-ABI/stage/shape identity, and compares
-   **two real placement/order plans for that fixed structure**.
+   **two real placement/order plans for each fixed structure**.
+   `as2_search` also compares a bounded outer domain of measured Body,
+   decomposition and G alternatives; its identity/price guards fail closed.
    `ScheduleAscendTasks` uses critical rank, heterogeneous earliest finish,
    explicit MIX participants and one device-shared GM calendar.
    `PriceAscendSchedule` evaluates both fixed FIFO orders under the same model.
    The lower predicted makespan wins; materialization preserves its queues.
-   This is real native schedule optimization, **not completed outer
-   CompilerSearch/JointSearch over geometry, decomposition, Body and G**.
+   This is real bounded inner/outer optimization, **not a completed calibrated
+   search over all required GEMM/Attention shape families and legal routes**.
    A TopK component test does not establish whole-model hierarchical search.
 
 4. **Plan and waits — verified-code.**
@@ -93,7 +95,9 @@ local full model config + canonical random weight/input manifests
    KV1088 is capacity, not the effective attention length.
    `LlmExecutor.h::ExecuteLlm` traverses each static worker FIFO within the
    forward. G MIX blocks yield G AIC +2G AIV workers; numBlocks is G, not3G.
-   Current admitted G is at most8. Both AIV lanes run independent tasks;
+   Default G remains8. Experimental G14 has physical0-only evidence;
+   physical1 G14 is blocked, and its current health reports Alarm.
+   Both AIV lanes run independent tasks;
    cooperative MIX tasks currently use AIC+AIV0, not both AIV participants.
    Owner ready/done/reverse-ack protects scratch reuse; only the owner publishes
    logical task completion. Diagnostic/fast use the same Body/Plan contract.
@@ -106,8 +110,8 @@ local full model config + canonical random weight/input manifests
    Cooperative attention uses explicit FP32 opmath/cast contracts and real GQA.
    `ProgressPrimitives.h`/`DevicePrimitives.h` retain conservative measured
    DSB/cache visibility; an AtomicAdd is not assumed to provide release/acquire.
-   GM remains the general route. BF16 direct, UB→L1, Mode4, SIMT and larger G
-   remain disabled until separately validated and evaluated.
+   GM remains the general route. BF16 direct, UB→L1, Mode4 and SIMT remain disabled. G14 is an
+   explicit physical0-only experiment; G28 remains unadmitted.
 
 8. **Verification and measurement — verified-code, admission incomplete.**
    `as2_compare_request`, `as2_teacher` and `as2_native_audit` distinguish natural
@@ -123,15 +127,15 @@ local full model config + canonical random weight/input manifests
 
 | Gap | Current verified code/run evidence | Remaining obligation |
 |---|---|---|
-| A01 | Real serving import and `emit-priced*`; full model requests | Complete cost-driven outer structure selection |
+| A01 | Real serving import, priced inner/outer search and full requests | Broaden measured outer structures across the dense shape families |
 | A02 | Two regenerated geometries; native Analyze/TopK and measured component choice | Family/phase/B/past Body comparison inside whole-model search |
 | A03 | Actual prices → rank/EFT versus structural queues → native materialization | Wider calibrated domains and end-to-end admission; no zero-cost unknowns |
-| A04 | G2/4/8 and both AIV independent-task execution; five-process G8 payload tests | Evaluate larger G; distinguish hardware/validated/selected groups |
+| A04 | G2/4/8; both AIV independent tasks; physical0-only G14 experiment | Complete model admission for larger G; physical1 G14 blocked |
 | A05 | Same-Plan fast/diagnostic numerical comparisons | Main-cell C-2 coverage and measured removal benefit |
 | A06 | Frontier waits, exact dependency/FIFO/participant checks and real priced queues | Further redundant-wait/control-cost reduction with reuse proof |
 | A07 | Conservative cache/DSB protocol preserved; finite measured timer-based waits | Justified minimal visibility optimization; control/device-time attribution |
 | A08 | Real QK norm/RoPE/GQA3, blocked prefill/decode and cooperative FP32 attention | Faster legal attention/small-M alternatives and full-request evaluation |
-| A09 | Full model/layers, 64-bit addresses, dynamic past and1024 request forwards | All ten cells, more bucket/context calibration and compact templates |
+| A09 | Full layers, 64-bit addresses, dynamic past and ten historical full-request C1 cells | Final optimized ten-cell coverage, bucket calibration and compact templates |
 | A10 | Single-owner GM MIX lifecycle; true CTG split partial/combine; local tile reduction | Dual-AIV MIX and measured BF16 direct/GM choice, not an assumed gain |
 
 ## Evidence example and current numerical matrix
@@ -346,3 +350,25 @@ launch-return marker can be observed. The runner now rejects a model whose
 actual G14 metadata lacks matching physical-card proof, before spawning it.
 Native full-chain receipts for physical0: `search/opt_g14_qwen06_g8_full_pipeline_receipt_v1.json`
 and `search/opt_g14_qwen06_g14_full_pipeline_receipt_v1.json`.
+
+## K256 continuation and scope,2026-10-30
+
+`verified-code/run`: explicit Qwen1.7 B16 gate/up L1K256/L0K32 uses the
+existing per-task MMAD lifecycle. CTG output geometry, all28 split3 down
+projections, BF16 SiLU/product casts and GM owner/participant protocol remain
+unchanged. New stage variant5 and generated capability reject older binaries.
+Prices record the internal L1 implementation; native materialization also
+checks measured stage kind/variant/shape against actual tables.
+Short67 same-image control/candidate compares148 payloads bitwise. This is
+not full1024 C1, five-process model C3 or TPOT acceptance. Full-request work
+and measured finite searches are indexed under `opt_swiglu_k256*`; final
+status is in the current checkpoint, not inferred from a component speedup.
+Five dense models/B1/B16 remain the main scope; MoE and baseline reruns are
+excluded by the user's later instructions. No default/precision reduction,
+Host per-op fallback, hand-authored final queues or hardware changes occur.
+
+The K256 full1024 attempt subsequently times out at the Host600s budget.
+All1023 decode launches were enqueued; final stream completion is absent.
+Its device exit is unknown, so further NPU jobs stop. Measured short-domain
+prices remain bounded at past129; prepared priced plans are CPU-only, and
+neither full-context pricing nor end-to-end performance is claimed.
