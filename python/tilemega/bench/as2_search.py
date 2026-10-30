@@ -67,7 +67,8 @@ def validate(domain):
             if path.resolve()!=path or path.parent!=REPO/'configs/targets':
                 raise ValueError('Unadmitted topology: G14 requires an explicit project target and local protocol evidence')
             target=json.loads(path.read_text());admission=target.get('topology_experiment',{})
-            source=controlled(admission.get('source_summary',''))
+            source=Path(admission.get('source_summary',''))
+            source=controlled(source if source.is_absolute() else REPO/source)
             if (target.get('max_verified_mix_groups')!=14 or admission.get('default_enabled') is not False or
                     digest(source)!=admission.get('source_summary_sha256')):
                 raise ValueError('Changed/unadmitted G14 topology provenance')
