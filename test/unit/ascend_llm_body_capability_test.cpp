@@ -1,4 +1,5 @@
 #include <tilemega/Target/Ascend/LlmRequestHost.h>
+#include <tilemega/Target/Ascend/ArgmaxContract.h>
 #include <iostream>
 #include <utility>
 
@@ -6,6 +7,39 @@ int main() {
   using namespace tilemega::ascend;
   static_assert(llm::SupportsGroups(8) && !llm::SupportsGroups(28));
   static_assert(llm::SupportsGroups(14)==bool(TILEMEGA_LLM_G14));
+  static_assert(argmax::Tile(16,128,151936,1187,0,151936));
+  static_assert(argmax::Tile(1,17,128,1,128,151936));
+  static_assert(!argmax::Tile(17,128,151936,1187,0,151936));
+  static_assert(!argmax::Tile(1,128,UINT32_MAX,1,0,151936));
+  static_assert(!argmax::Tile(1,128,128,1,151935,151936));
+  static_assert(argmax::Merge(1187,151936) && !argmax::Merge(2049,151936));
+  llm::Stage head{};head.kind=0;head.variant=6;head.rows=16;head.columns=151936;
+  head.k=1024;head.epilogue=3;head.tasks=1187;head.workspace=512;
+  llm::Stage greedy{};greedy.kind=15;greedy.variant=1;greedy.rows=greedy.tasks=16;
+  greedy.extent=151936;greedy.width=1187;
+#if defined(TILEMEGA_LLM_VECTOR_ARGMAX) && TILEMEGA_LLM_VECTOR_ARGMAX
+  llm_host::ValidateCompiledBodies({head,greedy});
+  for(unsigned field=0;field<5;++field) {
+    auto s=head;
+    if(field==0)s.rows=0;
+    if(field==1)s.epilogue=1;
+    if(field==2)s.columns=128;
+    if(field==3)s.tasks=1186;
+    if(field==4)s.workspace=llm::kAbsent;
+    try {llm_host::ValidateCompiledBodies({s});return 1;}catch(std::invalid_argument const&) {}
+  }
+  for(unsigned field=0;field<3;++field) {
+    auto s=greedy;
+    if(field==0)s.width=1186;
+    if(field==1)s.tasks=15;
+    if(field==2)s.variant=2;
+    try {llm_host::ValidateCompiledBodies({s});return 1;}catch(std::invalid_argument const&) {}
+  }
+#else
+  for(auto const& s:{head,greedy}) {
+    try {llm_host::ValidateCompiledBodies({s});return 1;}catch(std::invalid_argument const&) {}
+  }
+#endif
   llm::Stage local{};local.kind=0;local.variant=2;local.rows=1024;
   local.columns=2048;local.k=8192;local.epilogue=1;local.operands[5]=0;
 #if defined(TILEMEGA_LLM_LOCAL_TAIL_K7) && TILEMEGA_LLM_LOCAL_TAIL_K7
@@ -50,6 +84,10 @@ int main() {
   swiglu.rows=16;swiglu.columns=12288;swiglu.k=2048;swiglu.tasks=96;
 #if defined(TILEMEGA_LLM_SWIGLU_TILE) && TILEMEGA_LLM_SWIGLU_TILE
   llm_host::ValidateCompiledBodies({swiglu});
+  for(unsigned rows:{1u,64u,1024u}) {
+    auto s=swiglu;s.rows=rows;s.tasks=((rows+15)/16)*(s.columns/128);
+    llm_host::ValidateCompiledBodies({s});
+  }
   for(auto family:{std::pair{6144u,1024u},std::pair{16384u,2048u},
                   std::pair{16384u,3072u},std::pair{28672u,4096u}}) {
     auto s=swiglu;s.columns=family.first;s.k=family.second;s.tasks=s.columns/128;
@@ -60,7 +98,7 @@ int main() {
   }
   for(unsigned mutation=0;mutation<5;++mutation) {
     auto s=swiglu;
-    if(mutation==0)s.rows=1;
+    if(mutation==0)s.rows=17;
     if(mutation==1)s.columns=6144;
     if(mutation==2)s.epilogue=1;
     if(mutation==3)s.extent=3;

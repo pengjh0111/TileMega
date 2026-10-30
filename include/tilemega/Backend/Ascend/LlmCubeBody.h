@@ -21,12 +21,20 @@ template<unsigned TM,unsigned TN,unsigned TK,unsigned Variant> class LlmCubeBody
   typename Bf16::SharedResource resource_;
  public:
   __aicore__ inline bool Run(llm::Stage const& s,unsigned tile,GM_ADDR arena,unsigned owner_group) {
-    if(s.kind!=0 || tile>=s.tasks || (s.variant!=Variant && !((s.variant>=2 && s.variant<=5) && Variant==1)) || s.k%16)return false;
+    if(s.kind!=0 || tile>=s.tasks || (s.variant!=Variant && !((s.variant>=2 && s.variant<=6) && Variant==1)) || s.k%16)return false;
+    if(s.variant==6) {
+#if defined(TILEMEGA_LLM_VECTOR_ARGMAX) && TILEMEGA_LLM_VECTOR_ARGMAX
+      if(TM!=16 || TN!=128 || s.epilogue!=3 || s.extent>1 || !s.rows || s.rows>16)return false;
+#else
+      return false;
+#endif
+    }
     if(s.variant==4 || s.variant==5) {
 #if defined(TILEMEGA_LLM_SWIGLU_TILE) && TILEMEGA_LLM_SWIGLU_TILE
       const bool family=(s.columns==6144 && s.k==1024) || (s.columns==12288 && s.k==2048) ||
           (s.columns==16384 && (s.k==2048 || s.k==3072)) || (s.columns==28672 && s.k==4096);
-      if(TM!=16 || TN!=128 || s.rows!=16 || !family || s.epilogue!=2 || s.extent>1)return false;
+      const bool rows=s.rows==1 || s.rows==16 || s.rows==64 || s.rows==1024;
+      if(TM!=16 || TN!=128 || !rows || (s.variant==5 && s.rows!=16) || !family || s.epilogue!=2 || s.extent>1)return false;
 #else
       return false;
 #endif

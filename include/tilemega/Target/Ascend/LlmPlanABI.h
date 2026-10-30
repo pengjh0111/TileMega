@@ -3,6 +3,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <type_traits>
+#if defined(TILEMEGA_LLM_PRECISION_CONTRACT) && TILEMEGA_LLM_PRECISION_CONTRACT != 1
+#error "This catalogue does not implement the requested precision contract"
+#endif
 
 namespace tilemega::ascend::llm {
 inline constexpr uint32_t kVersion=4;
@@ -45,6 +48,8 @@ struct Stage {
   // GM workspace and MIX lifecycle, existing per-worker UB arrays are borrowed.
   // 5=variant4 with internal L1 K256/L0 K32 and per-task MMAD lifetime.
   // CTG output geometry, BF16 intermediates and completion protocol are unchanged.
+  // 6=same GEMM, one strided LM-head tile load and value/index vector reduction.
+  // Kind15 variant1 vector-merges BF16-derived maxima with minimum-ID ties.
   // Split GEMM: extent=2/3, width=ceil(k/extent), group=1 (tile-major/part-minor CTG).
   // Kind6 is its AIV combine; workspace is FP32 [part,row,col], operand5
   // is the BF16 raw sum before the separately preserved residual rounding.

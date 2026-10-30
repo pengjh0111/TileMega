@@ -40,7 +40,16 @@ inline void Save(fs::path const& path,void const* data,size_t bytes) {
 }
 inline void ValidateCompiledBodies(std::vector<llm::Stage> const& stages) {
   for(auto const& s:stages)if(s.kind==0) {
-    if(s.variant>5)throw std::invalid_argument("Unregistered native GEMM implementation");
+    if(s.variant>6)throw std::invalid_argument("Unregistered native GEMM implementation");
+    if(s.variant==6) {
+#if defined(TILEMEGA_LLM_VECTOR_ARGMAX) && TILEMEGA_LLM_VECTOR_ARGMAX
+      if(s.epilogue!=3 || !s.rows || s.rows>16 || s.extent>1 ||
+          (s.columns!=128256 && s.columns!=151936) || s.tasks!=(s.columns+127)/128 || s.workspace==llm::kAbsent)
+        throw std::invalid_argument("Unregistered dense vector LM-head argmax");
+#else
+      throw std::invalid_argument("Vector argmax requires its explicitly compiled Body");
+#endif
+    }
     if(s.variant==5) {
 #if !defined(TILEMEGA_LLM_SWIGLU_L1_K256) || !TILEMEGA_LLM_SWIGLU_L1_K256
       throw std::invalid_argument("K256 SwiGLU requires its explicitly compiled Body");
@@ -50,13 +59,23 @@ inline void ValidateCompiledBodies(std::vector<llm::Stage> const& stages) {
 #if defined(TILEMEGA_LLM_SWIGLU_TILE) && TILEMEGA_LLM_SWIGLU_TILE
       const bool family=(s.columns==6144 && s.k==1024) || (s.columns==12288 && s.k==2048) ||
           (s.columns==16384 && (s.k==2048 || s.k==3072)) || (s.columns==28672 && s.k==4096);
-      if(s.rows!=16 || !family || s.epilogue!=2 || s.extent>1 ||
-          s.tasks!=s.columns/128 || s.workspace==llm::kAbsent)
+      const bool rows=s.rows==1 || s.rows==16 || s.rows==64 || s.rows==1024;
+      if(!rows || (s.variant==5 && s.rows!=16) || !family || s.epilogue!=2 || s.extent>1 ||
+          s.tasks!=((s.rows+15)/16)*(s.columns/128) || s.workspace==llm::kAbsent)
         throw std::invalid_argument("Unregistered strided SwiGLU tile shape");
 #else
       throw std::invalid_argument("Strided SwiGLU requires its explicitly compiled Body");
 #endif
     }
+  }
+  for(auto const& s:stages)if(s.kind==15 && s.variant) {
+#if defined(TILEMEGA_LLM_VECTOR_ARGMAX) && TILEMEGA_LLM_VECTOR_ARGMAX
+    if(s.variant!=1 || (s.extent!=128256 && s.extent!=151936) || s.width!=(s.extent+127)/128 ||
+        !s.rows || s.rows>16 || s.tasks!=s.rows)
+      throw std::invalid_argument("Unregistered vector argmax merge");
+#else
+    throw std::invalid_argument("Vector merge requires its explicitly compiled Body");
+#endif
   }
   for(auto const& s:stages)if(s.kind==0 && s.variant==3) {
 #if !defined(TILEMEGA_LLM_LOCAL_Q_TAIL_K3) || !TILEMEGA_LLM_LOCAL_Q_TAIL_K3
@@ -159,7 +178,7 @@ struct Plan {
         [&](auto const& a){return a.offset==offset;});
     };
     for(auto const& s:stages) {
-      if(s.kind==0 && ((s.variant>=2 && s.variant<=5)?1:s.variant)!=kCompiledVariant)
+      if(s.kind==0 && ((s.variant>=2 && s.variant<=6)?1:s.variant)!=kCompiledVariant)
         throw std::invalid_argument("Request GEMM geometry differs from compiled Body");
       for(auto offset:s.operands)if(!valid(offset))throw std::invalid_argument("Unbound request operand");
       if(!valid(s.workspace))throw std::invalid_argument("Unbound request workspace");

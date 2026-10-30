@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Target/Ascend/DevicePrimitives.h>
+#if defined(TILEMEGA_LLM_VECTOR_ARGMAX) && TILEMEGA_LLM_VECTOR_ARGMAX
+#include <tilemega/Backend/Ascend/ArgmaxTile.h>
+#endif
 #if defined(TILEMEGA_LLM_SWIGLU_TILE) && TILEMEGA_LLM_SWIGLU_TILE
 #include <tilemega/Backend/Ascend/SwiGluTile.h>
 #endif
@@ -206,6 +209,17 @@ class LlmVectorBody {
     WriteControl((__gm__ uint32_t*)value,bits.u);WriteControl((__gm__ uint32_t*)index,first+chosen);
     AscendC::DataSyncBarrier<AscendC::MemDsbT::ALL>();return true;
   }
+#if defined(TILEMEGA_LLM_VECTOR_ARGMAX) && TILEMEGA_LLM_VECTOR_ARGMAX
+  __aicore__ inline bool ArgmaxRows(GM_ADDR input,GM_ADDR value,GM_ADDR index,unsigned rows,
+      unsigned columns,unsigned input_stride,unsigned output_stride,unsigned first,unsigned vocabulary) {
+    ArgmaxTileBuffers b{bx_,x_,y_,z_,work_,scratch_,bo_.ReinterpretCast<uint8_t>()};
+    return RunArgmaxRows(b,input,value,index,rows,columns,input_stride,output_stride,first,vocabulary);
+  }
+  __aicore__ inline bool ArgmaxMerge(GM_ADDR value,GM_ADDR index,unsigned n,unsigned vocabulary,uint32_t& chosen) {
+    ArgmaxTileBuffers b{bx_,x_,y_,z_,work_,scratch_,bo_.ReinterpretCast<uint8_t>()};
+    return RunArgmaxMerge(b,value,index,n,vocabulary,chosen);
+  }
+#endif
   // A serving CTG partial is normalized FP32 output plus log2(LSE), unlike
   // the diagnostic chunk ABI (unnormalized o, maximum, denominator).
   __aicore__ inline bool ServingPartial(GM_ADDR partial,GM_ADDR statistics,GM_ADDR output,

@@ -161,15 +161,29 @@ template<unsigned TM=32,unsigned TN=64,bool CaptureSoftmax=false> class LlmServi
   }
   __aicore__ inline bool Epilogue(llm::Stage const& s,unsigned tile,GM_ADDR arena,unsigned owner_group=0) {
     unsigned nt=(s.columns+TN-1)/TN,first=(tile%nt)*TN,rows=tile/nt*TM;
+    if(s.variant==6) {
+#if defined(TILEMEGA_LLM_VECTOR_ARGMAX) && TILEMEGA_LLM_VECTOR_ARGMAX
+      if(TM!=16 || TN!=128 || s.epilogue!=3 || s.extent>1 || s.rows>16)return false;
+      const unsigned valid_rows=s.rows-rows<TM?s.rows-rows:TM;
+      const unsigned columns=s.columns-first<TN?s.columns-first:TN;
+      auto slot=(uint64_t(rows)*nt+tile%nt)*4;
+      return vector_.ArgmaxRows(arena+s.workspace+(uint64_t(rows)*s.columns+first)*2,
+          arena+s.operands[3]+slot,arena+s.operands[4]+slot,valid_rows,columns,s.columns,nt,first,s.columns);
+#else
+      return false;
+#endif
+    }
     if(s.variant==4 || s.variant==5) {
 #if defined(TILEMEGA_LLM_SWIGLU_TILE) && TILEMEGA_LLM_SWIGLU_TILE
       const bool family=(s.columns==6144 && s.k==1024) || (s.columns==12288 && s.k==2048) ||
           (s.columns==16384 && (s.k==2048 || s.k==3072)) || (s.columns==28672 && s.k==4096);
-      if(TM!=16 || TN!=128 || s.rows!=16 || !family ||
+      const bool valid=s.rows==1 || s.rows==16 || s.rows==64 || s.rows==1024;
+      if(TM!=16 || TN!=128 || !valid || (s.variant==5 && s.rows!=16) || !family ||
           s.epilogue!=2 || s.extent>1 || first%32)return false;
+      const unsigned valid_rows=s.rows-rows<TM?s.rows-rows:TM;
       return vector_.SwiGluTile(arena+s.workspace+(uint64_t(rows)*s.columns+first)*2,
           arena+s.operands[3]+(uint64_t(rows)*(s.columns/2)+first/2)*2,
-          TM,TN,s.columns,s.columns/2);
+          valid_rows,TN,s.columns,s.columns/2);
 #else
       return false;
 #endif
@@ -348,6 +362,17 @@ template<unsigned TM=32,unsigned TN=64,bool CaptureSoftmax=false> class LlmServi
     }
     if(s.kind==15) {
       if(task>=meta.batch || !s.width)return false;
+      if(s.variant==1) {
+#if defined(TILEMEGA_LLM_VECTOR_ARGMAX) && TILEMEGA_LLM_VECTOR_ARGMAX
+        uint32_t index=UINT32_MAX;
+        if(!vector_.ArgmaxMerge(p(0)+uint64_t(task)*s.width*4,p(1)+uint64_t(task)*s.width*4,
+            s.width,s.extent,index) || past+meta.seq>=meta.capacity)return false;
+        WriteControl((__gm__ uint32_t*)p(2)+uint64_t(task)*meta.capacity+past+meta.seq,index);return true;
+#else
+        return false;
+#endif
+      }
+      if(s.variant)return false;
       AscendC::GlobalTensor<float> values;AscendC::GlobalTensor<uint32_t> indices;
       values.SetGlobalBuffer((__gm__ float*)p(0)+uint64_t(task)*s.width);
       indices.SetGlobalBuffer((__gm__ uint32_t*)p(1)+uint64_t(task)*s.width);
