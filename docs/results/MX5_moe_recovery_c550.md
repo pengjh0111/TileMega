@@ -247,3 +247,28 @@ to distinguish construction from generation at
 `tools/commands/mx_moe_v2.cpp:107` still requires an explicit native pin;
 the complete final cost catalog and resource-qualified top-four selection
 remain unfinished. Dense G-LLM/G-B issues and DNN work are unchanged.
+
+### Down geometry follow-up (verified preparation; paired timing pending)
+
+The user next prioritizes a torch.compile execution repair, further native
+MoE improvement, and new Mistral/OLMoE workloads. The new legal-domain B16
+control changes only down TN128/WN2/D1/Pw1/Rnext150 to
+TN128/WN8/D1/Pw2/Rnext136. The unchanged grouped-body catalog rows predict
+209.01us versus192.90us for uniformly active82 experts; those remain stage
+costs, not a claimed model result or updated full-source solver catalog.
+Own576 decode/prompt histories reach the prefetch floor and still spill
+496B; the new M4 P0 compiler reference is measured from the actual header.
+All512 normal/watchdog decode/prompt builds have frame/static0, MIR0 and
+actual resident1/local0 queries. MT251/255/245/249 respectively. New C1
+(eager HF)/C2 pass512 before any timed requests.
+Same-card6 alternating P-PAIR is running. First pair: old16.583284ms,
+new16.345479ms; second new16.347086ms. No significance/default decision is
+made before the second old process finishes. All current new-arm generated
+sequences agree across its runs. The old/new sequences differ in14/16 rows;
+first divergence ranges from step1 to408, with two unchanged rows. Thus
+this is an actual greedy model comparison, not a matched-routing attribution
+of the entire timing difference to down alone. New-geometry formal routing
+is separately queued, with unchanged set/2-ULP rules and eager reference.
+Raw: `moe_recovery_20261030_v1/down_wn8_d1_{followup,canonical,routing}` and
+`B16_down_wn8_d1_ppair`. These are manual development controls, not final
+exacttop4/default choices; the prior routing and B2 fault remain open.
