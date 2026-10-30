@@ -52,7 +52,7 @@ struct MxHead {
                                                Shape const& s, float* shared, MxGemmSmemV2 layout,
                                                MxGeometryV2<TN, WN, MxPart::kTileRange> const& geo,
                                                Lane const& l, int round) {
-    using Sync = codegen::mx::StageSyncV2<Shape::kThreads>;
+    using Sync = typename Shape::Sync;
     auto const segment = geo.Segment(round, l.group);
     MmaAccum acc[kAtoms];
 #pragma unroll
@@ -97,7 +97,7 @@ struct MxHead {
     } else {
       int const rounds = MxReduceRounds(s.b, TN), phase_waves = rounds == 1 ? 8 : 4;
       for (int phase = 0; phase < rounds; ++phase) {
-        Sync::CtaSync();
+        Sync::LdsSync();
         bool const selected = l.Compute() && l.wave >= phase * phase_waves && l.wave < (phase + 1) * phase_waves;
         if (selected && l.r < s.b) {
 #pragma unroll
@@ -106,7 +106,7 @@ struct MxHead {
             for (int e = 0; e < 4; ++e)
               shared[((l.wave - phase * phase_waves) * s.b + l.r) * TN + j * 16 + 4 * l.g + e] = acc[j][e];
         }
-        Sync::CtaSync();
+        Sync::LdsSync();
         if (selected && !l.wave_k && segment.active) {
           if constexpr (First) {
             float sum = 0;
@@ -126,7 +126,7 @@ struct MxHead {
             }
           Accumulate(acc, inverse, best, segment.tile, s.b, l);
         }
-        Sync::CtaSync();
+        Sync::LdsSync();
       }
     }
   }
@@ -145,7 +145,7 @@ struct MxHead {
   template <class Shape, class Next>
   __device__ __forceinline__ static auto Run(Prefetched pf, MxHeadOperandsV2 const& p,
                                             Shape const& s, char* smem, Next next) {
-    using Sync = codegen::mx::StageSyncV2<Shape::kThreads>;
+    using Sync = typename Shape::Sync;
     Lane const l(Shape::kThreads);
     MxGeometryV2<TN, WN, MxPart::kTileRange> const geo(s.n, s.k, int(gridDim.x), StageBlock());
     MxGemmSmemV2 const layout(s.b, TN, WN);

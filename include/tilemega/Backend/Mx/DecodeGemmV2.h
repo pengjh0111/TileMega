@@ -14,11 +14,13 @@ namespace tilemega::backend::mx {
 
 template <int Threads = 576>
 struct MxRuntimeShapeV2 {
+  using Sync = codegen::mx::StageSyncV2<Threads>;
   static constexpr int kThreads = Threads, kMaxContributors = 104;
   int n, k, b;
 };
 template <int N, int K, int B, int Threads = 576>
 struct MxStaticShapeV2 {
+  using Sync = codegen::mx::StageSyncV2<Threads>;
   static constexpr int n = N, k = K, b = B, kThreads = Threads;
   static constexpr int kMaxContributors = 104;
 };
@@ -385,7 +387,7 @@ struct MxGemm {
                                                MxGemmOperandsV2 const& p, Shape const& s, Lane const& l,
                                                float* shared, MxGemmSmemV2 layout,
                                                MxGeometryV2<TN, WN, Part> const& geo) {
-    using Sync = codegen::mx::StageSyncV2<Shape::kThreads>;
+    using Sync = typename Shape::Sync;
     if (l.Compute()) shared[layout.squares + l.wave * 64 + l.lane] = ss;
     int const rounds = MxReduceRounds(s.b, TN), phase_waves = rounds == 1 ? 8 : 4, stride = TN + 1;
     if constexpr (WN > 1) {
@@ -393,7 +395,7 @@ struct MxGemm {
       // reused by a later phase after every lane has finished the epilogue.
       float* const phase_result = shared + layout.result + (l.group % layout.result_slots) * s.b * stride;
       for (int phase = 0; phase < rounds; ++phase) {
-        Sync::CtaSync();
+        Sync::LdsSync();
         bool const selected = l.Compute() && l.wave >= phase * phase_waves && l.wave < (phase + 1) * phase_waves;
         if (selected && l.r < s.b) {
 #pragma unroll
@@ -402,7 +404,7 @@ struct MxGemm {
             for (int e = 0; e < 4; ++e)
               shared[((l.wave - phase * phase_waves) * s.b + l.r) * TN + j * 16 + 4 * l.g + e] = acc[j][e];
         }
-        Sync::CtaSync();
+        Sync::LdsSync();
         if (selected) {
           for (int index = l.local; index < s.b * stride; index += kGroupThreads) {
             int const row = index / stride, col = index % stride;
@@ -418,17 +420,17 @@ struct MxGemm {
             phase_result[index] = sum;
           }
         }
-        Sync::CtaSync();
+        Sync::LdsSync();
         MxSegmentV2 own = segment;
         own.active = own.active && selected;
         Epilogue(phase_result, residual, own, p, s, l);
-        Sync::CtaSync();
+        Sync::LdsSync();
       }
       return;
     }
     float* const result = shared + layout.result + l.group * s.b * stride;
     for (int phase = 0; phase < rounds; ++phase) {
-      Sync::CtaSync();
+      Sync::LdsSync();
       if (l.Compute() && l.wave >= phase * phase_waves && l.wave < (phase + 1) * phase_waves && l.r < s.b) {
 #pragma unroll
         for (int j = 0; j < kAtoms; ++j)
@@ -436,7 +438,7 @@ struct MxGemm {
           for (int e = 0; e < 4; ++e)
             shared[((l.wave - phase * phase_waves) * s.b + l.r) * TN + j * 16 + 4 * l.g + e] = acc[j][e];
       }
-      Sync::CtaSync();
+      Sync::LdsSync();
       if (l.Compute()) {
         for (int index = l.local; index < s.b * TN; index += kGroupThreads) {
           int const row = index / TN, col = index % TN;
@@ -449,7 +451,7 @@ struct MxGemm {
           result[row * stride + col] = sum;
         }
       }
-      Sync::CtaSync();
+      Sync::LdsSync();
     }
     if (l.Compute() && l.local < s.b) {
       float sum = 0;
@@ -458,7 +460,7 @@ struct MxGemm {
           for (int g = 0; g < 4; ++g) sum += shared[layout.squares + (l.group * kWK + w) * 64 + 16 * g + l.local];
       result[l.local * stride + TN] = sum;
     }
-    Sync::CtaSync();
+    Sync::LdsSync();
     if constexpr (Part == MxPart::kTileRange) Epilogue(result, residual, segment, p, s, l);
     else {
       bool const whole = segment.k0 == 0 && segment.k1 == geo.kc;
@@ -543,7 +545,7 @@ struct MxGemm {
   template <class Shape, class Next>
   __device__ __forceinline__ static auto Run(Prefetched pf, MxGemmOperandsV2 const& p,
                                             Shape const& s, char* smem, Next next) {
-    using Sync = codegen::mx::StageSyncV2<Shape::kThreads>;
+    using Sync = typename Shape::Sync;
     using NextPrefetched = decltype(next());
     static_assert((D - 1) * kLoads + NextPrefetched::kLoads <= 63);
     Lane const l(Shape::kThreads);
