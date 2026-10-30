@@ -58,10 +58,14 @@ struct MxMoeDispatchV2 {
         float const value=logits[item];
         if(!isfinite(value))maca::Trap();
         unsigned rank=0;
-#pragma unroll 1
-        for(unsigned j=0;j<E;++j) {
-          float const other=logits[token*E+j];
-          rank+=unsigned(other>value)|(unsigned(other==value)&unsigned(j<expert));
+#pragma unroll 4
+        for(unsigned base=0;base<E;base+=4) {
+#pragma unroll
+          for(unsigned offset=0;offset<4;++offset) {
+            unsigned const j=base+offset;
+            float const other=logits[token*E+j];
+            rank+=unsigned(other>value)|(unsigned(other==value)&unsigned(j<expert));
+          }
         }
         if(rank<K) {selected[token*K+rank]=value;indices[token*K+rank]=expert;}
       }
@@ -90,19 +94,19 @@ struct MxMoeDispatchV2 {
     }
     if(t<E) {
       unsigned count=0;
-#pragma unroll 1
+#pragma unroll 4
       for(unsigned item=0;item<B*K;++item)count+=unsigned(indices[item]==t);
       counts[t]=count;
     }
     Sync::CtaSync();
     if(t<E && counts[t]) {
       unsigned ordinal=0;
-#pragma unroll 1
+#pragma unroll 4
       for(unsigned e=0;e<t;++e)ordinal+=unsigned(counts[e]!=0);
       MxMoeStoreGlobal(p.active+ordinal,t);
       MxMoeStoreGlobal(p.row_count+ordinal,counts[t]);
       unsigned row=0;
-#pragma unroll 1
+#pragma unroll 4
       for(unsigned item=0;item<B*K;++item) {
         if(indices[item]==t) {
           MxMoeStoreGlobal(p.rows+ordinal*B+row,uint2{item/K,item%K});++row;
@@ -111,7 +115,7 @@ struct MxMoeDispatchV2 {
     }
     if(t==0) {
       unsigned total=0;
-#pragma unroll 1
+#pragma unroll 4
       for(unsigned e=0;e<E;++e)total+=unsigned(counts[e]!=0);
       MxMoeStoreGlobal(p.n_active,total);
       MxMoeStoreGlobal(p.u_gate_up,total*(2*Intermediate/TnGate));
