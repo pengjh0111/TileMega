@@ -135,6 +135,7 @@ def prices(plan,profile_path,cost_path,out):
         source_profile=str(profile_path),source_profile_sha256=digest(profile_path),
         source_costs=str(cost_path),source_costs_sha256=digest(cost_path),
         source_plan=str(plan),source_stages_sha256=digest(plan/'stages.bin'),
+        swiglu_l1_k=256 if any(s[17]==0 and s[31]==5 for s in stages) else 128,
         gm_bytes_per_ns=cost['gm_bytes_per_ns'],cross_worker_ready_ns=cost['cross_worker_ready_ns'],
         timing_status=cost['timing_status'],accuracy='stage or explicit local-region median plus measured metadata/publication overhead; conservative active-KV upper bound',
         limitations=['no automatic transfer to another model/G/geometry','MIX service sums serial Cube/epilogue phases',

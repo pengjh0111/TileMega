@@ -40,6 +40,11 @@ class AscendOuterSearch(unittest.TestCase):
                 validate(dict(domain,candidates=[a,candidate('other_control',calibration='changed')]))
             with self.assertRaisesRegex(ValueError,'Unadmitted topology'):
                 validate(dict(domain,candidates=[dict(a,groups=14)]))
+            changed=Path(a['prices']);price=json.loads(changed.read_text())
+            price['swiglu_l1_k']=256;changed.write_text(json.dumps(price))
+            with self.assertRaisesRegex(ValueError,'L1 implementation'):
+                validate(dict(domain,candidates=[a]))
+            price['swiglu_l1_k']=128;changed.write_text(json.dumps(price))
             changed=Path(b['prices']);d=json.loads(changed.read_text());d['source_profile_sha256']='changed'
             changed.write_text(json.dumps(d))
             with self.assertRaisesRegex(ValueError,'Changed calibration'):validate(domain)

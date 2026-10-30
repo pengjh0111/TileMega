@@ -95,6 +95,11 @@ def validate(domain):
                 path=Path(c[name]).absolute()
                 if path.resolve()!=path or not path.is_relative_to(REPO/'configs/ascend') or not path.is_file():
                     raise ValueError('Require a checked-in native implementation binding')
+        binding=json.loads(Path(c['decomposition']).read_text()) if c.get('decomposition') else {}
+        l1=binding.get('swiglu_l1_k',128)
+        if (l1 not in (128,256) or l1==256 and not binding.get('swiglu_tile') or
+                p.get('swiglu_l1_k',128)!=l1):
+            raise ValueError('SwiGLU L1 implementation differs from measured native prices')
     if len(devices)!=1 or len(contexts)!=1:raise ValueError('Mixed device or runtime/past pricing context')
     return export,expected
 

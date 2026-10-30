@@ -91,5 +91,14 @@ class SwiGluStudy(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'registered implementation'):
             validate_swiglu_stages(a,b,'prefill')
 
+    def test_k256_changes_only_the_registered_internal_staging(self):
+        _,a=self.stages();b=[s[:31]+(5,)+s[32:] for s in a]
+        validate_swiglu_stages(a,b,'decode',k256=True)
+        with self.assertRaisesRegex(ValueError,'registered implementation'):
+            validate_swiglu_stages(a,b,'decode')
+        broken=b.copy();stage=list(broken[0]);stage[22]=4096;broken[0]=tuple(stage)
+        with self.assertRaisesRegex(ValueError,'registered implementation'):
+            validate_swiglu_stages(a,broken,'decode',k256=True)
+
 
 if __name__=='__main__':unittest.main()

@@ -29,7 +29,8 @@ def summarize(directory,out):
     state=json.loads((directory/'state.json').read_text())
     change=protocol.get('change','fifo_observation')
     candidate={'fifo_observation':'fifo','valid_qk64':'valid_qk',
-               'cached_fp32_kv':'cached_kv', 'strided_swiglu_tile':'swiglu_tile'}.get(change)
+               'cached_fp32_kv':'cached_kv', 'strided_swiglu_tile':'swiglu_tile',
+               'swiglu_l1_k256':'l1_k256'}.get(change)
     if candidate is None:raise ValueError('Unknown controlled ablation')
     variants=('original',candidate)
     if (protocol['schema']!='tilemega.as2.paired_ablation.v1' or protocol['pairs'] not in (5,10) or
@@ -85,7 +86,8 @@ def summarize(directory,out):
     original,original_key=reference_bindings['original'];fifo,fifo_key=reference_bindings[candidate]
     if original_key!=fifo_key:raise ValueError('Model, weights, input or resource identity changed')
     if change=='cached_fp32_kv':validate_cached_kv_bindings(original,fifo)
-    if change=='strided_swiglu_tile':validate_swiglu_bindings(original,fifo)
+    if change in ('strided_swiglu_tile','swiglu_l1_k256'):
+        validate_swiglu_bindings(original,fifo,k256=change=='swiglu_l1_k256')
     for phase in (() if change=='cached_fp32_kv' else ('prefill','decode')):
         for name in ('queue.bin','offsets.bin','allocations.bin')+ (('stages.bin',) if change=='fifo_observation' else ('tasks.bin','waits.bin')):
             if (original/phase/name).read_bytes()!=(fifo/phase/name).read_bytes():
@@ -115,7 +117,7 @@ def summarize(directory,out):
     out.write_text(json.dumps(result,indent=2)+'\n');return result
 
 
-def validate_swiglu_bindings(original,candidate):
+def validate_swiglu_bindings(original,candidate,k256=False):
     """Compare the registered epilogue with identical inputs/state and schedule."""
     identities=[json.loads((p/'request.json').read_text()) for p in (original,candidate)]
     if any((x['model_id'],x['batch'])!=('qwen3_1_7b',16) for x in identities):
@@ -132,16 +134,16 @@ def validate_swiglu_bindings(original,candidate):
             if (original/phase/name).read_bytes()!=(candidate/phase/name).read_bytes():
                 raise ValueError('SwiGLU ablation changed ownership, waits, order or memory')
         stages=[list(struct.iter_unpack('<17Q16I',(p/phase/'stages.bin').read_bytes())) for p in (original,candidate)]
-        validate_swiglu_stages(*stages,phase)
+        validate_swiglu_stages(*stages,phase,k256=k256)
 
 
-def validate_swiglu_stages(original,candidate,phase):
+def validate_swiglu_stages(original,candidate,phase,k256=False):
     if len(original)!=len(candidate):raise ValueError('SwiGLU ablation changed the stage domain')
     changed=0
     for a,b in zip(original,candidate):
         if a==b:continue
         if (phase!='decode' or tuple(a[17:19])!=(0,2) or tuple(a[20:23])!=(16,12288,2048) or
-                a[31]!=1 or b[31]!=4 or
+                (a[31],b[31])!=((4,5) if k256 else (1,4)) or
                 a[:31]+a[32:]!=b[:31]+b[32:]):
             raise ValueError('SwiGLU ablation changed more than the registered implementation')
         changed+=1
