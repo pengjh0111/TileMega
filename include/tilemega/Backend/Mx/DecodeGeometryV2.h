@@ -96,4 +96,20 @@ TM_MX_HD constexpr bool MxGemmLegalV2(int n, int k, int b, int tn, int wn, int d
   return true;
 }
 
+// V3's grouped work is bounded by captured-independent maximum activity.
+// Small unit counts do not restrict the number of wave groups in a CTA.
+TM_MX_HD constexpr bool MxGemmLegalV3(int n, int k, int b, int tn, int wn, int depth,
+                                     MxOpV2 op, MxPart part, bool grouped, int grid = 104) {
+  if (!(tn == 16 || tn == 32 || tn == 64 || tn == 128) || n <= 0 || n % tn || k <= 0 || k % 32) return false;
+  if (!(wn == 1 || wn == 2 || wn == 4 || wn == 8)) return false;
+  if (!grouped && wn > (n / tn + grid - 1) / grid) return false;
+  if (b < 1 || b > 16 || depth < 1 || depth > 4 || !MxDepthFits(tn, depth, 192)) return false;
+  if ((depth - 1) * (tn / 16 + 1) > 63) return false;
+  if (op == MxOpV2::kSwiGLU && tn < 32) return false;
+  if (wn < 8 && !MxReduceRounds(b, tn)) return false;
+  if (grouped && part != MxPart::kTileRange) return false;
+  if (part == MxPart::kStreamK && (wn != 1 || static_cast<long long>(n / tn) * (k / 32) < grid)) return false;
+  return true;
+}
+
 }  // namespace tilemega::backend::mx

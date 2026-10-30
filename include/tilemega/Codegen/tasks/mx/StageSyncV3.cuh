@@ -9,6 +9,7 @@ template <int Threads>
 struct StageSyncV3 {
   static_assert(Threads == 512 || Threads == 576);
   static constexpr int kThreads = Threads;
+  static constexpr int kDepthVgprLimit = Threads == 512 ? 192 : 160;
   static constexpr unsigned kRole = Threads == 576 ? 512 : 0;
 
   __device__ __forceinline__ static bool IsRole() { return threadIdx.x == kRole; }

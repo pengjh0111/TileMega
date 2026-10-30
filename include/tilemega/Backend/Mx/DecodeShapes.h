@@ -77,8 +77,8 @@ TM_MX_HD constexpr int MxReduceRounds(int b, int tn) {
                                                                         : 0;
 }
 /// §3.5 rule 6: accumulators plus the ring within 160 VGPRs.
-TM_MX_HD constexpr bool MxDepthFits(int tn, int depth) {
-  return (tn / 16) * 4 + depth * (tn / 16 + 1) * 4 <= 160;
+TM_MX_HD constexpr bool MxDepthFits(int tn, int depth, int vgpr_limit = 160) {
+  return (tn / 16) * 4 + depth * (tn / 16 + 1) * 4 <= vgpr_limit;
 }
 
 /// Shared-memory layout of one GEMM stage, in floats.

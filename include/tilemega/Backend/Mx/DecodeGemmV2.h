@@ -80,7 +80,7 @@ struct MxGemm {
   static constexpr int kLoads = kAtoms + 1, kTN = TN, kWN = WN, kDepth = D, kPrefetch = Pw;
   static_assert(TN == 16 || TN == 32 || TN == 64 || TN == 128);
   static_assert(WN == 1 || WN == 2 || WN == 4 || WN == 8);
-  static_assert(D >= 1 && D <= 4 && MxDepthFits(TN, D));
+  static_assert(D >= 1 && D <= 4);
   static_assert(Part != MxPart::kStreamK || WN == 1);
   static_assert(Op != MxOpV2::kSwiGLU || TN >= 32);
   static_assert(Pw == 0 || Pw >= D);
@@ -140,6 +140,7 @@ struct MxGemm {
   }
   template <class Shape>
   __device__ __forceinline__ static Prefetched Prefetch(MxGemmOperandsV2 const& p, Shape const& s) {
+    static_assert(MxDepthFits(TN, D, Shape::Sync::kDepthVgprLimit));
     Lane const l(Shape::kThreads);
     Prefetched pf{};
     if (l.Compute()) {
@@ -546,6 +547,7 @@ struct MxGemm {
   __device__ __forceinline__ static auto Run(Prefetched pf, MxGemmOperandsV2 const& p,
                                             Shape const& s, char* smem, Next next) {
     using Sync = typename Shape::Sync;
+    static_assert(MxDepthFits(TN, D, Sync::kDepthVgprLimit));
     using NextPrefetched = decltype(next());
     static_assert((D - 1) * kLoads + NextPrefetched::kLoads <= 63);
     Lane const l(Shape::kThreads);
