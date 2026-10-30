@@ -98,6 +98,19 @@ def read_native_buffers(engine, layers, batch, hidden, experts):
     return result
 
 
+def routing_weight_dtype(manifest):
+    version = manifest.get('program_version', 2)
+    if version not in (2, 3):
+        raise ValueError('unsupported routing program version')
+    name = 'mx.route_weights' if version == 3 else 'mx.routing_weights'
+    if version == 3 and (manifest.get('threads') != 512 or manifest.get('route_table_bytes') != 2576):
+        raise ValueError('V3 routing requires the BF16 LDS table layout')
+    row = next((r for r in manifest['buffers'] if r['name'] == name), None)
+    if row is None:
+        raise ValueError('routing contract buffer is absent: ' + name)
+    return row['dtype']
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     for name in ('model', 'prefill-so', 'decode-so', 'prompt-ids', 'out'):
@@ -119,8 +132,7 @@ def main():
     from .plan_pair import validate_plan_pair
     prefill = json.loads(Path(str(a.prefill_so) + '.plan.json').read_text())
     pair_contract = validate_plan_pair(prefill, manifest, a.batch)
-    routing = next(r for r in manifest['buffers'] if r['name'] == 'mx.routing_weights')
-    if routing['dtype'] != 'bf16':
+    if routing_weight_dtype(manifest) != 'bf16':
         raise ValueError('MX-6 native routing capture requires the BF16 contract')
     import torch
     from transformers import AutoModelForCausalLM

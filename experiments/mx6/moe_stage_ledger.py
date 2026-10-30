@@ -36,12 +36,14 @@ def main():
             query['attributes']['localSizeBytes'] or query['launches'] or
             query['guard']['physical_gpu'] != guard['physical_gpu']):
         raise ValueError('ledger lacks the matching actual resource query on this card')
-    if next(r for r in decode['buffers'] if r['name'] == 'mx.routing_weights')['dtype'] != 'bf16':
+    from tilemega.moe.native_routing_check import routing_weight_dtype
+    if routing_weight_dtype(decode) != 'bf16':
         raise ValueError('ledger requires the BF16 routing contract')
     os.environ['TILEMEGA_MX_DIAG_SKIP'] = str(a.skip)
     a.out.mkdir(parents=True, exist_ok=False)
     scope = dict(kind='mx6_moe_diag_skip_intervention', round=a.round, mask=a.skip,
-        batch=a.batch, layers=decode['layers'], executor='L1_loop', implementation='mx_moe_v2',
+        batch=a.batch, layers=decode['layers'], executor='L1_loop',
+        implementation='mx_moe_v'+str(decode.get('program_version',2)),
         contract='bf16', PID=os.getpid(), guard=guard, query=reference(a.query),
         decode=reference(a.decode_so), prefill=reference(a.prefill_so),
         decode_artifact_id=di['artifact_id'], prefill_artifact_id=pi['artifact_id'],
