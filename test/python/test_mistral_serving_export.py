@@ -31,9 +31,11 @@ def test_mistral_decoder_matches_hf():
 
 
 def test_export_rejects_olmoe_instead_of_emitting_dense_graph(tmp_path):
-    from tilemega.serving.export import export
+    from tilemega.serving.export import Decoder, export
     with pytest.raises(ValueError, match='unsupported.*OlmoeForCausalLM'):
         export({'architectures': ['OlmoeForCausalLM']}, 'decode', 1088, tmp_path)
+    with pytest.raises(ValueError, match='unsupported.*OlmoeForCausalLM'):
+        Decoder({'architectures': ['OlmoeForCausalLM']})
 
 
 def test_export_rejects_unimplemented_mistral_sliding_window(tmp_path):
