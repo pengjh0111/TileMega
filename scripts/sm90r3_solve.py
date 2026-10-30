@@ -32,7 +32,10 @@ def main():
     cell = f'{a.model}-B{a.batch}'
     directory = ROOT / a.solve_root / a.tag / cell
     directory.mkdir(parents=True, exist_ok=False)
-    prefill = (a.prefill or ROOT / f'runs/sm90r2/build/closeout-dense-fixed/{cell}/prefill.so').resolve()
+    # §8 A3.5: 'prompt' has no prefill binary; the decode plan runs the prompt.
+    prompt_mode = str(a.prefill) == 'prompt'
+    prefill = 'prompt' if prompt_mode else (
+        a.prefill or ROOT / f'runs/sm90r2/build/closeout-dense-fixed/{cell}/prefill.so').resolve()
     graph = export(a.model, directory)
     measure = shlex.join([PYTHON, str(ROOT / 'scripts/sm90r3_select.py'), '--model', a.model,
                           '--batch', str(a.batch), '--prefill', str(prefill), '--gpu', str(a.gpu),
@@ -43,22 +46,24 @@ def main():
                '--runtime-target', str(TARGET), '--selection', 'measure', '--measure-top', '4',
                '--measure-cmd', measure, '--nvcc-split-compile', '2']
     write(directory / 'solve-command.json', dict(command=command, compiler_sha256=sha(a.compiler),
-                                                prefill=str(prefill), prefill_sha256=sha(prefill)))
+                                                prefill=str(prefill),
+                                                prefill_sha256='prompt mode' if prompt_mode else sha(prefill)))
     with (directory / 'solve.log').open('w') as log:
         status = subprocess.call(command, cwd=ROOT, env=dict(os.environ, CUDA_VISIBLE_DEVICES=''),
                                  stdout=log, stderr=subprocess.STDOUT)
     if status:
         print(json.dumps(dict(cell=cell, status='solve failed', log=str(directory / 'solve.log'))))
         return status
-    abi = subprocess.call([PYTHON, str(ROOT / 'scripts/check_sm90r2_native_abi.py'), '--prefill', str(prefill),
-                           '--decode', str(binary), '--model-config',
-                           str(model_dir(a.model) / 'config.json')],
-                          cwd=ROOT, env=dict(os.environ, CUDA_VISIBLE_DEVICES='', PYTHONPATH=str(ROOT / 'python')),
-                          stdout=(directory / 'host_abi.log').open('w'), stderr=subprocess.STDOUT)
+    abi = 0 if prompt_mode else subprocess.call(
+        [PYTHON, str(ROOT / 'scripts/check_sm90r2_native_abi.py'), '--prefill', str(prefill),
+         '--decode', str(binary), '--model-config', str(model_dir(a.model) / 'config.json')],
+        cwd=ROOT, env=dict(os.environ, CUDA_VISIBLE_DEVICES='', PYTHONPATH=str(ROOT / 'python')),
+        stdout=(directory / 'host_abi.log').open('w'), stderr=subprocess.STDOUT)
     identity = read(str(binary) + '.identity.json')
     receipt = read(directory / 'decode.so.search/receipt.json')
     binding = dict(cell=cell, tag=a.tag, decode=str(binary), decode_sha256=sha(binary), prefill=str(prefill),
-                   prefill_sha256=sha(prefill), head=identity['source']['head'], host_abi_status=abi,
+                   prefill_sha256='prompt mode' if prompt_mode else sha(prefill),
+                   head=identity['source']['head'], host_abi_status=abi,
                    coordinates=str(binary) + '.tmexec.json', winner=receipt['winner'],
                    predicted_ns=[r['prediction']['step_ns'] for r in receipt['ranked']])
     write(directory / 'binding.json', binding)
