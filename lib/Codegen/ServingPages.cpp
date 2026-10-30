@@ -313,9 +313,13 @@ void ResolveServingWeightPacking(mlir::ModuleOp module) {
         for(auto operand:{"a","c","d"})
           if(other.getAs<mlir::IntegerAttr>(operand).getInt()==source)
             throw std::invalid_argument("expert weight storage is also an activation");
-        if(other.getAs<mlir::IntegerAttr>("b").getInt()==source &&
-            (!other.get("dm_access") ||
-             frontend::DecodeDmAccess(other.get("dm_access")).b!=DmBAccess::kExpertIndirect))
+        // A native MoE stage emits no dm_access: its expert epilogue is the
+        // marker that it reads the stack by expert, one slot per task.
+        auto epilogue=other.getAs<mlir::StringAttr>("epilogue");
+        bool indirect=other.get("dm_access")
+            ? frontend::DecodeDmAccess(other.get("dm_access")).b==DmBAccess::kExpertIndirect
+            : epilogue && (epilogue.getValue()=="moe_gate_up" || epilogue.getValue()=="moe_down");
+        if(other.getAs<mlir::IntegerAttr>("b").getInt()==source && !indirect)
           throw std::invalid_argument("expert weight storage has a dense consumer");
       }
       destination=replace?source:int(buffers.size());
