@@ -1,0 +1,67 @@
+{
+  "mx_moe_v3": {
+    "qkv": {
+      "tn": 32,
+      "wn": 2,
+      "d": 2,
+      "part": "kTileRange",
+      "prefetch": 2,
+      "r_next": 100
+    },
+    "o": {
+      "tn": 32,
+      "wn": 1,
+      "d": 2,
+      "part": "kTileRange",
+      "prefetch": 2,
+      "r_next": 104
+    },
+    "router": {
+      "tn": 16,
+      "wn": 1,
+      "d": 3,
+      "part": "kTileRange",
+      "prefetch": 3,
+      "r_next": 107
+    },
+    "gate_up": {
+      "tn": 128,
+      "wn": 1,
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 0,
+      "r_next": 168
+    },
+    "down": {
+      "tn": 128,
+      "wn": 1,
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 2,
+      "r_next": 149
+    },
+    "head": {
+      "tn": 64,
+      "wn": 8,
+      "d": 2,
+      "part": "kTileRange",
+      "prefetch": 4,
+      "r_next": 140
+    },
+    "threads": 512,
+    "b_min": 1,
+    "attn_prefetch": 0,
+    "purpose": "manual",
+    "version": 3,
+    "split": 1
+  },
+  "evidence": {
+    "checkpoint": "CP1",
+    "control_pin": "configs/pins/mx5/qwen3_30b_a3b_l24_B1_bf16_routing_development.json",
+    "control_sha256": "5c163af695df11d5a963e7afee245023840a314334ba62f84f1f7a6aa598320a",
+    "contract": "bf16",
+    "purpose": "development comparison; not solver selected or final",
+    "attention": "V2 control until CP3; b_min is transitional",
+    "combine": "per-unit completion until CP2"
+  }
+}
