@@ -107,6 +107,8 @@ int TryCompileMoeV2(Request const& r, frontend::ModelPlan const& plan) {
     throw std::invalid_argument("MX-5 MoE measured solver is not ready; supply an explicit diagnostic mx_moe_v2 pin");
   auto const doc = json::ParseFile(r.pin);
   auto const& pin = doc.At("mx_moe_v2");
+  if (pin.Find("version") && Int(pin,"version") != 2)
+    throw std::invalid_argument("mx_moe_v2 pin version must be 2");
   std::string const purpose = pin.Find("purpose") ? pin.At("purpose").AsString("purpose") : "manual";
   if (purpose != "manual" && purpose != "resource_probe")
     throw std::invalid_argument("MX-5 MoE pinned builds require purpose manual or resource_probe");

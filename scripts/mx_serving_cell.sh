@@ -55,7 +55,7 @@ solve)
   if [ "$is_moe" = 1 ]; then
     # The measured MoE solver is pending; explicit pins are control builds.
     [ -n "${PIN:-}" ] && [ "${SELECTION:-predicted}" = predicted ] && [ -z "${MX5_RESOLVED_V2:-}" ] || {
-      echo "MoE measured top-four selection is pending; use an explicit manual mx_moe_v2 PIN with SELECTION=predicted" >&2; exit 2; }
+      echo "MoE measured top-four selection is pending; use an explicit manual mx_moe_v2 or mx_moe_v3 PIN with SELECTION=predicted" >&2; exit 2; }
     case "$phase" in decode|prefill) ;; *) echo "MoE phase must be decode or prefill" >&2; exit 2;; esac
     exec 9>"$C/.lock"
     flock -n 9 || { echo "cell already being solved" >&2; exit 3; }

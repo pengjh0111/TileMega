@@ -83,7 +83,8 @@ def bind_execution(identity, executor, loop=False, pdl=False):
     if identity['plan'].get('executor') in ('mx_static', 'mx_static_prompt'):
         # MX-4: one kernel serves both a single step and the device loop.
         if executor!='L1':raise ValueError('the MX-4 static decode program runs L1 only')
-        needle='mx_moe_kernel_v2' if identity['plan'].get('program_kind')=='moe' else 'mx_decode_kernel'
+        needle=('mx_moe_kernel_v3' if identity['plan'].get('program_version',2)==3 else 'mx_moe_kernel_v2') \
+            if identity['plan'].get('program_kind')=='moe' else 'mx_decode_kernel'
     elif loop:
         if pg=='pages' and executor=='L2':needle='tilemega_loop_kernel'
         elif pg!='pages' and executor=='L1':needle='tilemega_l1_loop_kernel'

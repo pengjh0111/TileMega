@@ -44,6 +44,9 @@ def build_defines(generated, options):
 
 
 def validate(manifest, defines):
+    if manifest.get('program_kind') == 'moe' and manifest.get('program_version',2) == 3:
+        if int(defines.get('TILEMEGA_MX_STATIC_MOE_V3','0')) != 1 or manifest.get('threads') != 512:
+            raise ValueError('MoE V3 manifest requires its compiler macro and 512 threads')
     for feature, (macro, default) in INTEGER_FEATURES.items():
         if feature in manifest:
             actual = int(defines.get(macro, str(default)))
@@ -78,6 +81,14 @@ def implementations(manifest, defines):
     decode = manifest.get('phase') == 'decode'
     if manifest.get('executor') in ('mx_static', 'mx_static_prompt'):
         if manifest.get('version', 4) >= 5:
+            if manifest.get('program_kind') == 'moe' and manifest.get('program_version',2) == 3:
+                return {'executor':manifest['executor'],'version':manifest['version'],'program_version':3,
+                    'kv_layout':manifest['kv_layout'],'kv_storage':manifest['kv_storage'],
+                    'classes':manifest['classes'],'threads':manifest['threads'],
+                    'b_min':manifest['b_min'],'attn_prefetch':manifest['attn_prefetch'],
+                    'split':manifest['split'],'route_table_offset':manifest['route_table_offset'],
+                    'decisions':manifest['decisions'],
+                    'attention':{'impl':'MxAttentionV2','task_body':'MoeProgramV3'}}
             return {'executor': manifest['executor'], 'version': manifest['version'],
                     'kv_layout': manifest['kv_layout'], 'kv_storage': manifest['kv_storage'],
                     'classes': manifest['classes'], 'threads': manifest['threads'],

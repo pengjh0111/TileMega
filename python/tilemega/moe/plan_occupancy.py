@@ -14,31 +14,39 @@ KERNEL = '_ZN8tilemega7codegen2mx16mx_moe_kernel_v2IN10tm_mx_plan4PlanEEEvNT_7Bi
 STUB = KERNEL.replace('16mx_moe_kernel_v2', '31__device_stub__mx_moe_kernel_v2')
 
 
-def exported_stub(text):
+def exported_stub(text, version=2):
+    if version not in (2,3):
+        raise ValueError('unsupported MoE program version')
+    stub=STUB if version==2 else STUB.replace('mx_moe_kernel_v2','mx_moe_kernel_v3')
+    needle='mx_moe_kernel_v'+str(version)
     rows = [line.split() for line in text.splitlines() if line.split()]
     names = [row[-1] for row in rows]
-    if [name for name in names if 'mx_moe_kernel_v2' in name] != [STUB] or names.count('tm_plan_shared_bytes') != 1:
+    if [name for name in names if 'mx_moe_kernel_v' in name] != [stub] or names.count('tm_plan_shared_bytes') != 1:
         raise ValueError('expected exactly the native MoE registered stub and shared query')
     if any('mx_decode_kernel_v2' in name for name in names):
         raise ValueError('MoE query cannot contain a dense kernel')
-    for symbol in (STUB, 'tm_plan_shared_bytes'):
+    for symbol in (stub, 'tm_plan_shared_bytes'):
         row = next(row for row in rows if row[-1] == symbol)
         if len(row) != 3 or row[-2] not in ('T', 'W') or not re.fullmatch('[0-9a-fA-F]+', row[0]):
             raise ValueError('expected an exported host code symbol: ' + symbol)
-    return STUB
+    return stub
 
 
 def validate_inputs(spec, *, inspect_resource=None, command=common.run_text):
     if spec.get('kind') != 'mx5_moe_plan_occupancy_inputs' or spec.get('schema_version') != 1:
         raise ValueError('unsupported MoE query input schema')
     threads, batch = spec.get('threads'), spec.get('batch')
+    version=spec.get('program_version',2)
+    if version not in (2,3) or (version==3 and threads!=512):
+        raise ValueError('unsupported MoE program version/thread pair')
+    kernel=KERNEL if version==2 else KERNEL.replace('mx_moe_kernel_v2','mx_moe_kernel_v3')
     if type(threads) is not int or threads not in (512, 576) or type(batch) is not int or batch not in (1, 2, 4, 8, 16):
         raise ValueError('unsupported MoE batch/thread shape')
     paths = {name: common.checked(spec[name]) for name in
         ('binary', 'generated_source', 'resources', 'log', 'context', 'source_snapshot')}
     report = json.loads(paths['resources'].read_text())
-    actual = (inspect_resource or inspect)(paths['binary'], paths['log'], threads, kernel_name='mx_moe_kernel_v2')
-    if report != actual or report.get('kernel', {}).get('name') != KERNEL or set(report.get('kernel_instructions', {})) != {KERNEL} or len(report.get('device_images', [])) != 1:
+    actual = (inspect_resource or inspect)(paths['binary'], paths['log'], threads, kernel_name='mx_moe_kernel_v'+str(version))
+    if report != actual or report.get('kernel', {}).get('name') != kernel or set(report.get('kernel_instructions', {})) != {kernel} or len(report.get('device_images', [])) != 1:
         raise ValueError('resource report does not describe the exact single MoE kernel')
     source = paths['generated_source'].read_text()
     geometry=spec.get('model_geometry',{})
@@ -57,7 +65,7 @@ def validate_inputs(spec, *, inspect_resource=None, command=common.run_text):
         for name,expected in {'kRowQkNorm':'true','kNormalizeTopK':'false'}.items():
             if re.findall(r'\b'+name+r'\s*=\s*(true|false)\b',source)!=[expected]:
                 raise ValueError('OLMoE query numeric scope differs: '+name)
-    if ('MoeProgramV2.cuh' not in source or 'MoeRuntimeV2.cuh' not in source or
+    if (f'MoeProgramV{version}.cuh' not in source or f'MoeRuntimeV{version}.cuh' not in source or
             not re.search(r'\bnamespace\s+tm_mx_plan\s*\{', source) or not re.search(r'\bstruct\s+Plan\s*\{', source) or
             'DecodeProgramV2.cuh' in source):
         raise ValueError('requires the native MoE program/runtime')
@@ -77,14 +85,16 @@ def validate_inputs(spec, *, inspect_resource=None, command=common.run_text):
             if context.get(field) != spec[name]['sha256']:
                 raise ValueError('MoE native identity mismatch: ' + field)
         plan = json.loads(manifest.read_text())
-        if context.get('resources', {}).get(KERNEL) != report['kernel'] or context.get('source') != snapshot:
+        if context.get('resources', {}).get(kernel) != report['kernel'] or context.get('source') != snapshot:
             raise ValueError('MoE identity resource/source mismatch')
         if plan.get('program_kind') != 'moe' or plan.get('executor') not in ('mx_static', 'mx_static_prompt') or plan.get('threads') != threads or plan.get('kThreads') != threads or plan.get('batch_lo') != batch or plan.get('batch_hi') != batch:
             raise ValueError('MoE manifest batch/thread/native executor differs')
+        if plan.get('program_version',2)!=version:
+            raise ValueError('MoE manifest program version differs')
     else:
         raise ValueError('unsupported MoE identity/compile context')
     nm = command(['nm', '-D', '--defined-only', str(paths['binary'])])
-    stub = exported_stub(nm)
+    stub = exported_stub(nm,version)
     assembly = command(['objdump', '-d', '--disassemble=tm_plan_shared_bytes', str(paths['binary'])])
     shared = common.shared_constant(assembly)
     return dict(spec=spec, paths=paths, report=report, threads=threads, stub=stub,

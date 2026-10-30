@@ -100,6 +100,19 @@ class FeatureContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'kv_storage'):
             validate(manifest, defines)
 
+    def test_moe_v3_identity_requires_its_macro_and_512_threads(self):
+        manifest=dict(executor='mx_static',program_kind='moe',version=6,program_version=3,
+            kv_layout='vt',kv_storage='block_fragments',threads=512,classes={},b_min=1,
+            attn_prefetch=0,split=1,route_table_offset=40000,decisions={})
+        with self.assertRaisesRegex(ValueError,'compiler macro'):
+            validate(manifest,{})
+        validate(manifest,{'TILEMEGA_MX_STATIC_MOE_V3':'1'})
+        self.assertEqual(implementations(manifest,{})['attention'],
+                         dict(impl='MxAttentionV2',task_body='MoeProgramV3'))
+        manifest['threads']=576
+        with self.assertRaisesRegex(ValueError,'512 threads'):
+            validate(manifest,{'TILEMEGA_MX_STATIC_MOE_V3':'1'})
+
 
 if __name__ == '__main__':
     unittest.main()

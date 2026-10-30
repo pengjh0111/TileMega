@@ -123,7 +123,7 @@ def inspect(so, log, threads, kernel_name='mx_decode_kernel_v2'):
     if kernel['static_smem_bytes']:
         violations.append(f'static shared memory is {kernel["static_smem_bytes"]} bytes')
     instructions = kernel_instructions(text, kernel_name)
-    bodies = ('qkv', 'attention', 'o', 'router', 'gate_up', 'down', 'head') if kernel_name == 'mx_moe_kernel_v2' else (
+    bodies = ('qkv', 'attention', 'o', 'router', 'gate_up', 'down', 'head') if kernel_name in ('mx_moe_kernel_v2','mx_moe_kernel_v3') else (
         'qkv', 'attention', 'o', 'gate_up', 'down', 'head')
     return {'kernel': kernel, 'register_cap': cap, 'violations': violations,
             'artifact_bytes': len(data), 'code_bytes': sum(i['code_bytes'] for i in images),
@@ -140,7 +140,7 @@ def main():
     parser.add_argument('--log', type=Path, required=True)
     parser.add_argument('--threads', type=int, required=True)
     parser.add_argument('--out', type=Path, required=True)
-    parser.add_argument('--kernel', choices=('mx_decode_kernel_v2', 'mx_moe_kernel_v2'), default='mx_decode_kernel_v2')
+    parser.add_argument('--kernel', choices=('mx_decode_kernel_v2', 'mx_moe_kernel_v2','mx_moe_kernel_v3'), default='mx_decode_kernel_v2')
     args = parser.parse_args()
     report = inspect(args.so, args.log, args.threads, args.kernel)
     args.out.write_text(json.dumps(report, indent=2) + '\n')

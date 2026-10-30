@@ -294,6 +294,7 @@ add_library(tilemega_core STATIC
   lib/Codegen/MxDecodeProgramV2.cpp
   lib/Codegen/MxMoeModel.cpp
   lib/Codegen/MxMoeProgramV2.cpp
+  lib/Codegen/MxMoeProgramV3.cpp
   lib/Runtime/EventBuffer.cpp
   lib/Runtime/MegakernelRuntime.cpp)
 add_library(TileMega::tilemega ALIAS tilemega_core)
@@ -972,6 +973,7 @@ add_library(tilemega_commands OBJECT
   tools/commands/mx_decode.cpp
   tools/commands/mx_decode_v2.cpp
   tools/commands/mx_moe_v2.cpp
+  tools/commands/mx_moe_v3.cpp
   tools/commands/derive.cpp
   tools/commands/dram-floor.cpp
   tools/commands/request-floor.cpp

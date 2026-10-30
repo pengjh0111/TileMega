@@ -21,7 +21,8 @@ def validate_report(report, decode_identity, prefill_identity, batch):
         need(not identity['trace'] and not plan.get('diag') and not plan.get('trace_stage'),
              'timed request uses an instrumented native program')
         kernels = [r for name, r in identity['resources'].items()
-                   if 'mx_moe_kernel_v2' in name and '__device_stub__' not in name]
+                   if ('mx_moe_kernel_v3' if plan.get('program_version',2)==3 else 'mx_moe_kernel_v2')
+                   in name and '__device_stub__' not in name]
         need(len(kernels) == 1 and kernels[0]['stack_bytes'] == 0
              and kernels[0]['static_smem_bytes'] == 0
              and 0 < kernels[0]['registers'] <= (227 if plan['threads'] == 576 else 255),

@@ -106,7 +106,10 @@ int TryCompile(Request const& r) {
   options.capacity = r.capacity;
   options.moe_batch = r.batch;
   auto plan = frontend::BuildModelPlan(bridge.nodes, bridge.inputs, bridge.outputs, options);
-  if (plan.dm) return TryCompileMoeV2(r, plan);
+  if (plan.dm) {
+    if (!r.pin.empty() && json::ParseFile(r.pin).Find("mx_moe_v3")) return TryCompileMoeV3(r,plan);
+    return TryCompileMoeV2(r,plan);
+  }
   if (r.prompt) throw std::invalid_argument("--mx-prompt requires a native MoE decode bridge");
   for (auto const& flag : r.interpreted_flags)
     throw std::invalid_argument(flag + " belongs to the interpreted decode executor; a dense xcore1000 decode "
