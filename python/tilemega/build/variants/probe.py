@@ -12,6 +12,12 @@ split values; the solver still keeps a separate semantic resource-cache entry.
 import argparse, fcntl, hashlib, json, pathlib, re, shutil, subprocess, os
 ROOT=pathlib.Path(__file__).resolve().parents[4]
 
+def available_disk_bytes(directory):
+    if os.geteuid()==0:
+        space=os.statvfs(directory)
+        return space.f_bfree*space.f_frsize
+    return shutil.disk_usage(directory).free
+
 def serving_headers(source):
     """Hash only local headers reachable from this probe's translation unit."""
     pending=[name.decode() for name in re.findall(
@@ -114,7 +120,9 @@ def main():
     lock=(directory/'compile.lock').open('w');fcntl.flock(lock,fcntl.LOCK_EX)
     result=directory/'resources.json';compiled=not result.exists()
     if compiled:
-        free=shutil.disk_usage(directory).free//2**20;print(f'DISK NEED_MIB=1024 FREE_MIB={free}',flush=True)
+        # Root can allocate reserved filesystem blocks; disk_usage reports
+        # only the unprivileged allowance even for this root compiler process.
+        free=available_disk_bytes(directory)//2**20;print(f'DISK NEED_MIB=1024 FREE_MIB={free}',flush=True)
         if free<1024:raise RuntimeError('insufficient disk for variant compilation')
         source=directory/'probe.cu';source.write_text(text)
         # Same device flags as the plan build (tools/commands/compile.cpp).

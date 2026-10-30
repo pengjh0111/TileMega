@@ -43,6 +43,7 @@
 #include <iostream>
 #include <chrono>
 #include <iomanip>
+#include <unistd.h>
 #include <optional>
 #include <cmath>
 #include <limits>
@@ -90,7 +91,8 @@ PreparedResidencyProbe prepareResidency(mlir::ModuleOp module,int kappa,
     std::filesystem::path const& directory,std::filesystem::path const&,
     std::string const& runtime_flags) {
   std::filesystem::create_directories(directory);
-  auto const free_mib=std::filesystem::space(directory).available/(1024*1024);
+  auto const space=std::filesystem::space(directory);
+  auto const free_mib=(geteuid()==0?space.free:space.available)/(1024*1024);
   std::cerr << "DISK NEED_MIB=8192 FREE_MIB=" << free_mib << '\n';
   if (free_mib<8192) throw std::runtime_error("insufficient disk for resource probe");
   std::vector<tilemega::codegen::RuntimeVariantModule> variants{{module,1,
