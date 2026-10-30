@@ -9,6 +9,18 @@
 #ifndef TEST_BATCH
 #define TEST_BATCH 1
 #endif
+// A grid smaller than the task count gives every CTA several tasks of both
+// types, which the real models do and 132 CTAs over this small shape do not.
+#ifndef TEST_GRID
+#define TEST_GRID 132
+#endif
+// TEST_H / TEST_I = 2048 / 768 is Qwen3-30B-A3B's own expert geometry.
+#ifndef TEST_H
+#define TEST_H 512
+#endif
+#ifndef TEST_I
+#define TEST_I 192
+#endif
 #include <tilemega/Backend/Sm90DenseMoe.cuh>
 #include <tilemega/Codegen/executor/TensorMapTiled.h>
 #include <algorithm>
@@ -23,7 +35,7 @@
 using namespace tilemega::backend;
 using BF=cutlass::bfloat16_t;
 using U64=unsigned long long;
-constexpr int B=TEST_BATCH,E=128,TopK=8,H=512,I=192,U=16,kGrid=132,kLaunches=20;
+constexpr int B=TEST_BATCH,E=128,TopK=8,H=TEST_H,I=TEST_I,U=16,kGrid=TEST_GRID,kLaunches=20;
 constexpr int TNgu=96,TKgu=128,TNdn=128,TKdn=64,kSlots=3;
 using Router=Sm90DenseMoeGemm<B,E,H,8,256,2,1,4,Sm90DenseMoeMode::kRouter,U,E,TopK,false>;
 using Fused=Sm90DenseMoeFusedGemm<B,2*I,H,H,TNgu,TKgu,TNdn,TKdn,kSlots,4,1,4,1,U,E,TopK,false,64>;
