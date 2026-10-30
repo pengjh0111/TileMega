@@ -7,12 +7,14 @@ import torch
 def test_mistral_decoder_matches_hf():
     from transformers import MistralConfig, MistralForCausalLM
     from tilemega.serving.export import Decoder
+    from tilemega.serving.state import rotary_tables
 
     config = MistralConfig(hidden_size=128, intermediate_size=256,
                            num_hidden_layers=1, num_attention_heads=4,
                            num_key_value_heads=2, vocab_size=256,
                            sliding_window=None, rope_theta=1000000.)
     config._attn_implementation = 'eager'
+    config.architectures = ['MistralForCausalLM']
     torch.manual_seed(20260925)
     hf = MistralForCausalLM(config).to(torch.bfloat16).eval()
     d = config.to_dict()
@@ -20,11 +22,10 @@ def test_mistral_decoder_matches_hf():
     native = Decoder(d).to(torch.bfloat16).eval()
     native.load_state_dict(hf.state_dict(), strict=True)
     tokens = torch.tensor([[1, 5, 7, 2], [1, 4, 8, 3]])
-    positions = torch.arange(4).unsqueeze(0)
     with torch.inference_mode():
-        cosine, sine = hf.model.rotary_emb(torch.zeros(1, dtype=torch.bfloat16), positions)
+        cosine, sine = rotary_tables(config, 4, torch.device('cpu'))
         empty = torch.empty(2, 2, 0, 32, dtype=torch.bfloat16)
-        result = native.execute(tokens, (empty, empty), cosine[0], sine[0])[0]
+        result = native.execute(tokens, (empty, empty), cosine, sine)[0]
         reference = hf(tokens, use_cache=False).logits
     torch.testing.assert_close(result.float(), reference.float(), atol=.02, rtol=.02)
 
