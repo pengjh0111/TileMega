@@ -43,6 +43,8 @@ struct Stage {
   // its lifetime before the next tile; only the AIC owner publishes completion.
   // 4=same geometry, bounded dense M16 strided U16 SwiGLU; identical casts,
   // GM workspace and MIX lifecycle, existing per-worker UB arrays are borrowed.
+  // 5=variant4 with internal L1 K256/L0 K32 and per-task MMAD lifetime.
+  // CTG output geometry, BF16 intermediates and completion protocol are unchanged.
   // Split GEMM: extent=2/3, width=ceil(k/extent), group=1 (tile-major/part-minor CTG).
   // Kind6 is its AIV combine; workspace is FP32 [part,row,col], operand5
   // is the BF16 raw sum before the separately preserved residual rounding.

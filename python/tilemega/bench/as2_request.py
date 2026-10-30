@@ -41,17 +41,18 @@ def cached_kv_state(stages,buffers,metadata):
 
 
 SOURCE_CAPABILITIES=('TILEMEGA_LLM_SPLIT_K','TILEMEGA_LLM_LOCAL_TAIL_K7','TILEMEGA_LLM_LOCAL_Q_TAIL_K3',
-                     'TILEMEGA_LLM_WIDE_QK','TILEMEGA_LLM_FP32_KV_CACHE','TILEMEGA_LLM_SWIGLU_TILE','TILEMEGA_LLM_G14')
+                     'TILEMEGA_LLM_WIDE_QK','TILEMEGA_LLM_FP32_KV_CACHE','TILEMEGA_LLM_SWIGLU_TILE',
+                     'TILEMEGA_LLM_SWIGLU_L1_K256','TILEMEGA_LLM_G14')
 SOURCE_GEOMETRY=('TILEMEGA_LLM_VARIANT','TILEMEGA_LLM_TM','TILEMEGA_LLM_TN','TILEMEGA_LLM_TK')
 
 
 def gemm_variant_geometry(stage):
-    if stage[31]==4 and (stage[18]!=2 or stage[20]!=16 or
+    if stage[31] in (4,5) and (stage[18]!=2 or stage[20]!=16 or
             (stage[21],stage[22]) not in {(6144,1024),(12288,2048),(16384,2048),(16384,3072),(28672,4096)} or
             stage[19]!=stage[21]//128 or
             stage[23]>1 or stage[16]==(1<<64)-1):
         raise ValueError('Unregistered strided SwiGLU shape')
-    return 1 if stage[31] in (2,3,4) else stage[31]
+    return 1 if stage[31] in (2,3,4,5) else stage[31]
 
 
 def source_parts(path):

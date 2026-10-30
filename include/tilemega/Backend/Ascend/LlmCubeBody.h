@@ -7,6 +7,9 @@
 namespace tilemega::ascend {
 template<unsigned TM,unsigned TN,unsigned TK,unsigned Variant> class LlmCubeBody {
   using Bf16=GemmTile<bfloat16_t,bfloat16_t,TM,TN,TK,true>;
+#if defined(TILEMEGA_LLM_SWIGLU_L1_K256) && TILEMEGA_LLM_SWIGLU_L1_K256
+  using Bf16K256=GemmTile<bfloat16_t,bfloat16_t,16,128,256,true,32>;
+#endif
 #if (defined(TILEMEGA_LLM_SPLIT_K) && TILEMEGA_LLM_SPLIT_K) || (defined(TILEMEGA_LLM_LOCAL_TAIL_K7) && TILEMEGA_LLM_LOCAL_TAIL_K7) || (defined(TILEMEGA_LLM_LOCAL_Q_TAIL_K3) && TILEMEGA_LLM_LOCAL_Q_TAIL_K3)
   using Partial=GemmTile<bfloat16_t,float,TM,TN,TK,true,64>;
 #endif
@@ -18,8 +21,8 @@ template<unsigned TM,unsigned TN,unsigned TK,unsigned Variant> class LlmCubeBody
   typename Bf16::SharedResource resource_;
  public:
   __aicore__ inline bool Run(llm::Stage const& s,unsigned tile,GM_ADDR arena,unsigned owner_group) {
-    if(s.kind!=0 || tile>=s.tasks || (s.variant!=Variant && !((s.variant==2 || s.variant==3 || s.variant==4) && Variant==1)) || s.k%16)return false;
-    if(s.variant==4) {
+    if(s.kind!=0 || tile>=s.tasks || (s.variant!=Variant && !((s.variant>=2 && s.variant<=5) && Variant==1)) || s.k%16)return false;
+    if(s.variant==4 || s.variant==5) {
 #if defined(TILEMEGA_LLM_SWIGLU_TILE) && TILEMEGA_LLM_SWIGLU_TILE
       const bool family=(s.columns==6144 && s.k==1024) || (s.columns==12288 && s.k==2048) ||
           (s.columns==16384 && (s.k==2048 || s.k==3072)) || (s.columns==28672 && s.k==4096);
@@ -29,6 +32,17 @@ template<unsigned TM,unsigned TN,unsigned TK,unsigned Variant> class LlmCubeBody
 #endif
     }
     unsigned nt=(s.columns+TN-1)/TN;
+    if(s.variant==5) {
+#if defined(TILEMEGA_LLM_SWIGLU_L1_K256) && TILEMEGA_LLM_SWIGLU_L1_K256
+      // Only internal L1 staging changes; the CTG tile and L0 reduction stay fixed.
+      typename Bf16K256::TileMmad mm(resource_);
+      Bf16K256::RunBorrowed(mm,arena+s.operands[0],arena+s.operands[1],arena+s.workspace,
+          s.rows,s.columns,s.k,tile/nt,tile%nt);
+      CompleteDma<AscendC::HardEvent::FIX_S>();return true;
+#else
+      return false;
+#endif
+    }
 #if defined(TILEMEGA_LLM_LOCAL_TAIL_K7) && TILEMEGA_LLM_LOCAL_TAIL_K7
     if(s.variant==2) {
       if(TM!=16 || TN!=128 || s.rows!=1024 || s.columns!=2048 || (s.k!=8192 && s.k!=6144) ||

@@ -141,7 +141,7 @@ int main(int argc,char** argv) {
       attention_precision=attention=="fp32"?1:attention=="fp32-scores"?2:attention=="math-sdpa"?3:attention=="cube-fp32"?4:attention=="cube-fp32-newton"?5:attention=="cube-fp32-newton-full"?6:attention=="cube-fp32-newton-fold"?7:attention=="cube-fp32-fold-softmax"?8:attention=="cube-fp32-wide-qk"?9:attention=="cube-fp32-valid-qk"?10:attention=="cube-fp32-cached-kv"?11:0;
     }
     tilemega::json::Value decomposition;
-    bool local_q_tail3=false,local_residual_tail3=false,swiglu_tile=false;
+    bool local_q_tail3=false,local_residual_tail3=false,swiglu_tile=false,swiglu_l1_k256=false;
     tilemega::json::Value binding;
     if(body) {
       auto path=fs::weakly_canonical(argv[priced_body?10:9]);
@@ -174,6 +174,12 @@ int main(int argc,char** argv) {
           decomposition.At("batch").AsNumber("batch")!=batch || serving.argmax_tile_n!=128)
         throw std::invalid_argument("Observed decomposition model/phase/geometry mismatch");
       if(auto tile=decomposition.Find("swiglu_tile"))swiglu_tile=tile->AsBool("swiglu_tile");
+      if(auto k=decomposition.Find("swiglu_l1_k")) {
+        auto value=k->AsNumber("swiglu_l1_k");
+        if((value!=128 && value!=256) || !swiglu_tile)
+          throw std::invalid_argument("SwiGLU L1 K requires its tile contract and K128 or K256");
+        swiglu_l1_k256=value==256;
+      }
       if(batch!=1 && !(batch==16 && phase=="decode" &&
           (receipt.At("model_id").AsString("model")=="llama3_2_1b" || receipt.At("model_id").AsString("model")=="qwen3_1_7b" || receipt.At("model_id").AsString("model")=="llama3_2_3b" || receipt.At("model_id").AsString("model")=="llama3_1_8b")) &&
           !(swiglu_tile && batch==16 && phase=="decode" && receipt.At("model_id").AsString("model")=="qwen3_0_6b") &&
@@ -378,6 +384,9 @@ int main(int argc,char** argv) {
             throw std::invalid_argument("Native empirical prices do not describe this model/phase/topology");
           if(prices.At("runtime_abi").AsNumber("runtime ABI")!=tilemega::ascend::llm::kVersion)
             throw std::invalid_argument("Native service prices belong to another runtime ABI");
+          auto priced_l1=prices.Find("swiglu_l1_k");
+          if((priced_l1?priced_l1->AsNumber("swiglu_l1_k"):128)!=(swiglu_l1_k256?256:128))
+            throw std::invalid_argument("Native prices use another SwiGLU L1 implementation");
           auto const& rows=prices.At("stages").AsArray("stage prices");
           if(rows.size()!=problem.counts.size())throw std::invalid_argument("Incomplete native price domain");
           for(unsigned s=0;s<rows.size();++s) {
@@ -428,7 +437,7 @@ int main(int argc,char** argv) {
           Write(output/"uncompressed_schedule.json",ScheduleReport(scheduled));
           scheduled=tilemega::solver::ElideAscendFifoWaits(tasks,workers,std::move(scheduled));
         }
-        auto native=tilemega::codegen::MaterializeAscendLlm(*module,problem,workers,tasks,scheduled,!priced,attention_precision,body,local_q_tail3,local_residual_tail3,swiglu_tile);
+        auto native=tilemega::codegen::MaterializeAscendLlm(*module,problem,workers,tasks,scheduled,!priced,attention_precision,body,local_q_tail3,local_residual_tail3,swiglu_tile,swiglu_l1_k256);
         if(priced) {
           auto const& rows=prices.At("stages").AsArray("stage prices");
           for(unsigned s=0;s<rows.size();++s) {
@@ -464,6 +473,7 @@ int main(int argc,char** argv) {
         result.Set("attention_implementation",attention_precision==11?"mix_fp32_cached_kv_valid_qk64_fold_softmax1088":attention_precision==10?"mix_fp32_cube_valid_qk64_fold_softmax1088":attention_precision==9?"mix_fp32_cube_qk256_fold_softmax1088":attention_precision==8?"mix_fp32_cube_newton_norm_fold_softmax1088":attention_precision==7?"mix_fp32_cube_newton_qk_half_fold_fullnorm":attention_precision==6?"mix_fp32_cube_newton_qk_and_fullnorm":attention_precision==5?"mix_fp32_cube_newton_qknorm":attention_precision==1?"fp32_chunk32_merge":attention_precision==2?"fp32_scores_bf16_probability":attention_precision==3?"math_sdpa_fp32_split_scale":attention_precision>=4?"mix_fp32_cube_qk_vector_softmax_pv":"bf16_scores_probabilities");
         result.Set("selection",priced?selected_algorithm:"diagnostic_unpriced_bootstrap_not_optimized");
         result.Set("priced_solver_executed",priced);
+        result.Set("swiglu_l1_k",swiglu_l1_k256?256:128);
         result.Set("wait_lowering",fifo_elision?"experimental_fifo_observed_frontier":"per_task_frontier");
         result.Set("wait_elision_device_verified",false);
         if(priced)result.Set("price_provenance",prices);

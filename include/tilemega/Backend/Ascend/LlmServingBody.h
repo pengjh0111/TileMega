@@ -161,7 +161,7 @@ template<unsigned TM=32,unsigned TN=64,bool CaptureSoftmax=false> class LlmServi
   }
   __aicore__ inline bool Epilogue(llm::Stage const& s,unsigned tile,GM_ADDR arena,unsigned owner_group=0) {
     unsigned nt=(s.columns+TN-1)/TN,first=(tile%nt)*TN,rows=tile/nt*TM;
-    if(s.variant==4) {
+    if(s.variant==4 || s.variant==5) {
 #if defined(TILEMEGA_LLM_SWIGLU_TILE) && TILEMEGA_LLM_SWIGLU_TILE
       const bool family=(s.columns==6144 && s.k==1024) || (s.columns==12288 && s.k==2048) ||
           (s.columns==16384 && (s.k==2048 || s.k==3072)) || (s.columns==28672 && s.k==4096);

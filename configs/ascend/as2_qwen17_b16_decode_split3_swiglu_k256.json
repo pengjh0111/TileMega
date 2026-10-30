@@ -1,0 +1,16 @@
+{
+  "schema": "tilemega.as2.observed_decomposition.v1",
+  "model_id": "qwen3_1_7b",
+  "phase": "decode",
+  "batch": 16,
+  "families": [
+    {"n": 2048, "k": 6144, "split_k": 3, "epilogue": "residual", "expected_gemms": 28}
+  ],
+  "swiglu_tile": true,
+  "swiglu_l1_k": 256,
+  "default_enabled": false,
+  "automatic_performance_selection": false,
+  "status": "experimental_requires_model_pricing_numerical_and_TPOT_admission",
+  "implementation_scope": "Only gate/up internal L1 K changes; CTG output geometry, L0 K32, split3 down projections, per-task MMAD and BF16 casts retained",
+  "body_evidence": "runs/as2/probes/opt_l1k256_numeric_and_timing_v1.json is component-only; model admission requires new evidence"
+}

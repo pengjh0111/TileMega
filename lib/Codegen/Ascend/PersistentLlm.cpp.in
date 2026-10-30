@@ -110,7 +110,7 @@ int main(int argc,char** argv) {
     }
     for(auto const& s:stages)for(auto offset:s.operands)
       if(offset!=llm::kAbsent && offset>=m.arena_bytes)throw std::invalid_argument("Stage operand outside arena");
-    for(auto const& s:stages)if(s.kind==0 && ((s.variant==2 || s.variant==3)?1:s.variant)!=TILEMEGA_LLM_VARIANT)
+    for(auto const& s:stages)if(s.kind==0 && ((s.variant>=2 && s.variant<=5)?1:s.variant)!=TILEMEGA_LLM_VARIANT)
       throw std::invalid_argument("Plan GEMM geometry differs from compiled Body");
     for(unsigned w=0;w<m.workers;++w) {
       if(offsets[w]>offsets[w+1])throw std::invalid_argument("Invalid FIFO offsets");

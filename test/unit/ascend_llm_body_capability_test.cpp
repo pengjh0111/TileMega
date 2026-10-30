@@ -73,8 +73,15 @@ int main() {
   catch(std::invalid_argument const&) {}
 #endif
   swiglu.variant=5;
+#if defined(TILEMEGA_LLM_SWIGLU_L1_K256) && TILEMEGA_LLM_SWIGLU_L1_K256
+  llm_host::ValidateCompiledBodies({swiglu});
+  auto invalid_k256=swiglu;invalid_k256.rows=1;
+  try {llm_host::ValidateCompiledBodies({invalid_k256});return 1;}
+  catch(std::invalid_argument const&) {}
+#else
   try {llm_host::ValidateCompiledBodies({swiglu});return 1;}
   catch(std::invalid_argument const&) {}
+#endif
   unsigned rejected=0;
   for(unsigned variant:{5u,6u,7u,8u,9u,99u}) {
     attention.variant=variant;
