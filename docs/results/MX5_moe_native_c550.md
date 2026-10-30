@@ -1334,3 +1334,16 @@ job closes gives 110.001389 physical-card guard-interval hours upper bound:
 7=43.281111,6=51.358611,5=14.120833,4=1.240833. No active guards remain.
 The total cap remains waived; this is reserved job-wall accounting, not a
 claim of hardware busy cycles. Raw: completed_ledger_gpu_accounting_cpu_v1.
+
+
+Verified all ten complete MoE B/thread cost scopes pass full source/raw-row/
+resource/guard/PID/domain file qualification again after log archiving.
+All5396 outcomes and original rankings are unchanged. This replay makes
+no GPU call and grants no execution/model/default acceptance. Raw:
+post_archive_complete_moe_scope_replay_cpu_v1.
+
+Remaining resource rejection is enforced at tools/commands/mx_moe_v2.cpp:174;
+selectedB1 formal route failure exits at native_routing_check.py:138.
+These are failure-report locations, not proof of one compiler/source cause.
+The renewed user instruction to continue is applied to existing authorized
+work; it is not recorded as an answer to either pending specification change.
