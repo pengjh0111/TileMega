@@ -1,0 +1,71 @@
+{
+  "mx_moe_v2": {
+    "qkv": {
+      "tn": 32,
+      "wn": 2,
+      "d": 2,
+      "part": "kTileRange",
+      "prefetch": 2,
+      "r_next": 100
+    },
+    "o": {
+      "tn": 32,
+      "wn": 1,
+      "d": 2,
+      "part": "kTileRange",
+      "prefetch": 2,
+      "r_next": 104
+    },
+    "router": {
+      "tn": 16,
+      "wn": 1,
+      "d": 3,
+      "part": "kTileRange",
+      "prefetch": 3,
+      "r_next": 107
+    },
+    "gate_up": {
+      "tn": 128,
+      "wn": 1,
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 0,
+      "r_next": 168
+    },
+    "down": {
+      "tn": 128,
+      "wn": 1,
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 2,
+      "r_next": 149
+    },
+    "head": {
+      "tn": 64,
+      "wn": 8,
+      "d": 2,
+      "part": "kTileRange",
+      "prefetch": 4,
+      "r_next": 140
+    },
+    "threads": 512,
+    "b_min": 1,
+    "attn_prefetch": 0,
+    "purpose": "manual"
+  },
+  "evidence": {
+    "classification": "manual_development_BF16_routing_contract_not_solver_or_routing_acceptance",
+    "input_bridge": "runs/mx5/moe_recovery_20261030_v1/bf16_routing_exports/decode/bridge.json",
+    "input_bridge_sha256": "767bc0425ddbb29cacba3d6ea8c6312337680264106b654209d6fa861f3a89c8",
+    "actual_routing_weights_dtype": "bf16",
+    "dtype_is_bound_by_input_bridge_not_a_pin_switch": true,
+    "source": "runs/mx5/moe_recovery_20261030_v1/bf16_routing_B1_measurement_recovery/MEASUREMENTS_EXPORTED.json",
+    "tpot_ms": 4.199095017104642,
+    "C1_C2": "PASS512_eager_HF",
+    "formal_route": "failed",
+    "formal_route_failures": 28,
+    "prior_constructor_illegal_address_unresolved": true,
+    "default_enabled": false,
+    "final": false
+  }
+}
