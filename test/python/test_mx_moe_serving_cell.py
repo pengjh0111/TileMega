@@ -52,6 +52,18 @@ def test_moe_decode_uses_native_and_builds_a_watchdog_twin(tmp_path):
     assert checked[checked.index('--evaluate-configs') + 1].endswith('/decode/plan.so.mx5_pin.json')
 
 
+def test_moe_bridge_can_come_from_the_campaign_export_root(tmp_path):
+    script, env = environment(tmp_path)
+    root = tmp_path / 'mx6_export'
+    destination = root / 'moe_decode/bridge.json'
+    destination.parent.mkdir(parents=True)
+    shutil.move(tmp_path / 'runs/mx1/export/moe_decode/bridge.json', destination)
+    env['EXPORT_ROOT'] = str(root)
+    p = subprocess.run([str(script), 'solve', 'moe', '1', 'decode'], env=env, capture_output=True, text=True)
+    assert p.returncode == 0, p.stderr
+    assert all(args[1] == str(destination) for args in commands(env))
+
+
 @pytest.mark.parametrize('watchdog,directory', [('0', 'prefill'), ('1', 'prefill_w')])
 def test_moe_prompt_uses_decode_bridge_and_prompt64(tmp_path, watchdog, directory):
     script, env = environment(tmp_path)

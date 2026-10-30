@@ -1,0 +1,69 @@
+{
+  "mx_moe_v2": {
+    "down": {
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 2,
+      "r_next": 150,
+      "tn": 128,
+      "wn": 2
+    },
+    "gate_up": {
+      "d": 2,
+      "part": "kTileRange",
+      "prefetch": 0,
+      "r_next": 98,
+      "tn": 32,
+      "wn": 8
+    },
+    "head": {
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 2,
+      "r_next": 112,
+      "tn": 128,
+      "wn": 8
+    },
+    "o": {
+      "d": 2,
+      "part": "kTileRange",
+      "prefetch": 2,
+      "r_next": 104,
+      "tn": 32,
+      "wn": 1
+    },
+    "qkv": {
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 1,
+      "r_next": 100,
+      "tn": 64,
+      "wn": 1
+    },
+    "router": {
+      "d": 2,
+      "part": "kTileRange",
+      "prefetch": 2,
+      "r_next": 124,
+      "tn": 16,
+      "wn": 1
+    },
+    "threads": 512,
+    "b_min": 4,
+    "attn_prefetch": 0,
+    "purpose": "manual"
+  },
+  "evidence": {
+    "classification": "mx6_mx5_control_not_selected",
+    "source_csv": "docs/results/MX5_moe_recovery_c550.csv",
+    "source_csv_sha256": "dcb476b2580652fa6ddab3c614911cb0641b2c6365187408ff47600f4db845e7",
+    "source_line": 4,
+    "source_classification": "manual_development_PPAIR_not_final_solver_selection",
+    "source_execution_pin": "/root/tilemega/runs/mx5/moe_recovery_20261030_v1/unroll16_coverage_v2/B4/w0/decode/plan.so.mx5_pin.json",
+    "source_execution_pin_sha256": "b0f1a9fa1a51d351c2b27077793229f8e866088f8c08fdcc081d4c4ecd8b85d1",
+    "mx5_contract": "f32",
+    "mx6_bridge_contract": "bf16",
+    "default_enabled": false,
+    "final": false
+  }
+}

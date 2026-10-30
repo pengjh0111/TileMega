@@ -5,7 +5,7 @@
 #   tm_cell.sh check   <id> <batch> <rand_dir> <prompts> <gpu> (C-2 and C-1)
 #   tm_cell.sh measure <id> <batch> <rand_dir> <prompts> <gpu> <round>
 # MX5_RESOLVED_V2 explicitly adds guarded v2 checks and top4 timing to decode solve.
-# Plans: runs/mx2/tm/<id>/B<b>/<phase>/plan.so. Raw data stays under runs/mx1.
+# Plans: runs/mx6/tm/<id>/B<b>/<phase>/plan.so unless CELLS overrides it.
 set -eu
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd); cd $ROOT
 # The committed target, not the gitignored copy under runs/: MX-1 and MX-2 both
@@ -14,7 +14,8 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd); cd $ROOT
 # which is provenance stamps the solver never reads.
 TARGET=${TARGET:-configs/targets/xcore1000.json}
 # Campaign output root, so MX-2 and MX-3 plans do not collide (MX3-0 item 3).
-CELLS=${CELLS:-runs/mx2/tm}
+CELLS=${CELLS:-runs/mx6/tm}
+EXPORT_ROOT=${EXPORT_ROOT:-runs/mx1/export}
 QGPU=${QGPU:-6}
 JOBS=${JOBS:-8}
 # Solves compile against a frozen worktree (/root/tilemega_solve, its own
@@ -25,8 +26,8 @@ cmd=$1; id=$2
 needs_mib=20480
 query_needs_mib=2048
 is_moe=0
-if [ -f runs/mx1/export/${id}_decode/bridge.json ] && \
-   grep -q -m1 expert runs/mx1/export/${id}_decode/bridge.json; then
+if [ -f "$EXPORT_ROOT/${id}_decode/bridge.json" ] && \
+   grep -q -m1 expert "$EXPORT_ROOT/${id}_decode/bridge.json"; then
   is_moe=1
   needs_mib=40960
   query_needs_mib=40960
@@ -35,7 +36,7 @@ case $cmd in
 export)
   family=$3; cfg=$4
   for phase in decode prefill; do
-    D=runs/mx1/export/${id}_$phase
+    D=$EXPORT_ROOT/${id}_$phase
     [ -f $D/bridge.json ] && continue
     mkdir -p $D
     [ -f $D/exported_program.pt2 ] || env -u ALL_PROXY -u all_proxy CUDA_VISIBLE_DEVICES= MACA_VISIBLE_DEVICES= PYTHONPATH=python \
@@ -62,7 +63,7 @@ solve)
     prompt=()
     watchdog=0
     [ "$phase" = prefill ] && { prompt=(--mx-prompt 1); watchdog=${WATCHDOG:-0}; }
-    timeout "${CELL_TIMEOUT:-1800}" "$SOLVE_BIN" compile "runs/mx1/export/${id}_decode/bridge.json" "$C/plan.so" \
+    timeout "${CELL_TIMEOUT:-1800}" "$SOLVE_BIN" compile "$EXPORT_ROOT/${id}_decode/bridge.json" "$C/plan.so" \
       --serving "$phase" --emit serving --frontend decoder --batch "$b" --prompt-len 64 --capacity 1088 \
       --past-range 64:1086 --runtime-target "$TARGET" --evaluate-configs "$PIN" --selection predicted \
       --watchdog "$watchdog" "${prompt[@]}" > "$C/compile.log" 2>&1 || {
@@ -70,7 +71,7 @@ solve)
     if [ "$phase" = decode ]; then
       W=$CELLS/$id/B$b/decode_w; mkdir -p "$W"
       [ ! -e "$W/plan.so" ] || { echo "MoE watchdog control requires a fresh output directory" >&2; exit 2; }
-      timeout "${CELL_TIMEOUT:-1800}" "$SOLVE_BIN" compile "runs/mx1/export/${id}_decode/bridge.json" "$W/plan.so" \
+      timeout "${CELL_TIMEOUT:-1800}" "$SOLVE_BIN" compile "$EXPORT_ROOT/${id}_decode/bridge.json" "$W/plan.so" \
         --serving decode --emit serving --frontend decoder --batch "$b" --prompt-len 64 --capacity 1088 \
         --past-range 64:1086 --runtime-target "$TARGET" --evaluate-configs "$C/plan.so.mx5_pin.json" \
         --selection predicted --watchdog 1 > "$W/compile.log" 2>&1 || { echo "rc=$?" >> "$W/compile.log"; exit 1; }
@@ -127,12 +128,12 @@ solve)
     selection=${SELECTION:-measure}
     measure=()
     [ $selection = measure ] && measure=(--measure-cmd "env NEEDS_MIB=$needs_mib $ROOT/scripts/mx_gpu_job.sh ${MGPU:-7} 900 $C/measure_guard env -u ALL_PROXY -u all_proxy python -m tilemega.serving.measure --model /root/models/${id}_rand --prefill-so $P --prompt-ids $prompts --batch $b --mode L1 --decode-loop auto --max-new-tokens 1024 --warmup 1 --repeats 2 --step-events 0 --policy $ROOT/configs/bench/measurement_policy_c550.json")
-    timeout ${CELL_TIMEOUT:-18000} nice $SOLVE_BIN compile runs/mx1/export/${id}_decode/bridge.json $C/plan.so \
+    timeout ${CELL_TIMEOUT:-18000} nice $SOLVE_BIN compile "$EXPORT_ROOT/${id}_decode/bridge.json" $C/plan.so \
       --serving decode --emit serving --batch $b --prompt-len 64 --runtime-target $TARGET \
       --selection $selection "${measure[@]}" --mx-tmin ${MX_TMIN:-128} --watchdog 0 ${PIN:+--evaluate-configs $PIN} \
       > $C/compile.log 2>&1 || { echo rc=$? >> $C/compile.log; exit 1; }
     W=$CELLS/$id/B$b/decode_w; mkdir -p $W
-    $SOLVE_BIN compile runs/mx1/export/${id}_decode/bridge.json $W/plan.so --serving decode --emit serving \
+    $SOLVE_BIN compile "$EXPORT_ROOT/${id}_decode/bridge.json" $W/plan.so --serving decode --emit serving \
       --batch $b --prompt-len 64 --runtime-target $TARGET --evaluate-configs $C/plan.so.mx4_pin.json --watchdog 1 \
       > $W/compile.log 2>&1 || { echo rc=$? >> $C/compile.log; exit 1; }
     echo rc=0 >> $C/compile.log
@@ -192,7 +193,7 @@ solve)
   fi
   env CUDA_VISIBLE_DEVICES= MACA_VISIBLE_DEVICES= \
     TILEMEGA_DEVICE_RUN_PREFIX="env NEEDS_MIB=$query_needs_mib $ROOT/scripts/mx_gpu_job.sh $QGPU 300 $C/devq" \
-    timeout ${CELL_TIMEOUT:-18000} nice $SOLVE_BIN compile runs/mx1/export/${id}_$phase/bridge.json $C/plan.so \
+    timeout ${CELL_TIMEOUT:-18000} nice $SOLVE_BIN compile "$EXPORT_ROOT/${id}_$phase/bridge.json" $C/plan.so \
       --serving $phase --emit serving --batch $b --prompt-len 64 --pg off $extra \
       --solve $TARGET --runtime-target $TARGET --selection $selection "${measure[@]}" --watchdog ${WATCHDOG:-0} \
       --nonpaged-weight-layout $layout --nonpaged-la $la --search-jobs $JOBS \
@@ -210,7 +211,7 @@ solve)
           env CUDA_VISIBLE_DEVICES= MACA_VISIBLE_DEVICES= \
             TILEMEGA_DEVICE_RUN_PREFIX="env NEEDS_MIB=$query_needs_mib $ROOT/scripts/mx_gpu_job.sh $QGPU 300 $C/devq" \
             timeout ${CELL_TIMEOUT:-18000} nice $SOLVE_BIN compile \
-              runs/mx1/export/${id}_$phase/bridge.json $C/plan.so \
+              "$EXPORT_ROOT/${id}_$phase/bridge.json" $C/plan.so \
               --serving $phase --emit serving --batch $b --prompt-len 64 --pg off $extra \
               --solve $TARGET --runtime-target $TARGET --selection predicted --watchdog ${WATCHDOG:-0} \
               --nonpaged-weight-layout row --nonpaged-la $la --search-jobs $JOBS \
