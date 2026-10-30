@@ -248,7 +248,7 @@ to distinguish construction from generation at
 the complete final cost catalog and resource-qualified top-four selection
 remain unfinished. Dense G-LLM/G-B issues and DNN work are unchanged.
 
-### Down geometry follow-up (verified preparation; paired timing pending)
+### Down geometry follow-up (verified P-PAIR; routing failed)
 
 The user next prioritizes a torch.compile execution repair, further native
 MoE improvement, and new Mistral/OLMoE workloads. The new legal-domain B16
@@ -261,14 +261,54 @@ Own576 decode/prompt histories reach the prefetch floor and still spill
 All512 normal/watchdog decode/prompt builds have frame/static0, MIR0 and
 actual resident1/local0 queries. MT251/255/245/249 respectively. New C1
 (eager HF)/C2 pass512 before any timed requests.
-Same-card6 alternating P-PAIR is running. First pair: old16.583284ms,
-new16.345479ms; second new16.347086ms. No significance/default decision is
-made before the second old process finishes. All current new-arm generated
-sequences agree across its runs. The old/new sequences differ in14/16 rows;
-first divergence ranges from step1 to408, with two unchanged rows. Thus
-this is an actual greedy model comparison, not a matched-routing attribution
-of the entire timing difference to down alone. New-geometry formal routing
-is separately queued, with unchanged set/2-ULP rules and eager reference.
+Same-card6 alternating P-PAIR completes two fresh processes per arm.
+Old rounds16.583284/16.584685ms; new16.345479/16.347086ms. Median changes
+16.583985→16.346282ms, -1.433324%, exceeding max(1%, roundrange).
+SGLang/TileMega=.9023x; the1.1x target remains unmet. Each arm's six full
+requests agree internally. Old/new sequences differ in14/16 rows; first
+divergence ranges from step1 to408. Thus the entire timing difference cannot
+be attributed to down alone under matched routing.
+New formal routing fails:21727 exact sets,2375 boundary ties,474 non-tie
+failures over24576 positions, against437 failures for the prior geometry.
+The diagnostic matches all six normal new generations through65 tokens;
+negative guard exit1 is verified. Set/2-ULP rules and eager HF are unchanged.
+Six serving rows and one compact development snapshot are appended; a later
+compact/selection gate-update row adds routing status without new timing.
+No optimization/default acceptance is claimed while the routing gate fails.
 Raw: `moe_recovery_20261030_v1/down_wn8_d1_{followup,canonical,routing}` and
 `B16_down_wn8_d1_ppair`. These are manual development controls, not final
 exacttop4/default choices; the prior routing and B2 fault remain open.
+
+Additional fixed-input diagnosis (verified CPU): installed HF5.12 returns
+BF16 routing weights; the exported/legacy contract retains FP32. At fixed
+seed940, the existing strict MoE-export test fails with max_abs1/1024;
+isolated old622c505e6 sources reproduce the same failure. Keeping every
+projection/input unchanged and casting only routing weights to HF BF16
+makes rank-order FP32-sum reference exactly equal HF grouped_mm for
+1/3/17/64 tokens. Original FP32 weights differ at all four sizes. This is
+one verified reference-contract difference; native full-model causal
+attribution remains open, and native/legacy arithmetic and gate thresholds
+are unchanged. New B16 route failures already occur at step0/layer1
+(token14, HF boundary gap3ULP); none occur at layer0. First64 mean active
+experts are77.126953(old) versus77.125651(new); this is not a matched-traffic
+proof for the full1024-token timing. Raw: `hf_dtype_contract_cpu/RESULT.json`.
+
+The exporter mismatch is corrected next: normalized routing weights now
+cast to router-logit dtype before expert weighting, matching installed HF.
+This uses the prompt6.1/6.5 BF16 export/legacy/native branch; it does not
+change native combine order, the reference experts implementation or gates.
+The unchanged strict MoE-export and Mistral tests pass7/7. Source auditing
+now requires an explicit routing dtype and checks both dispatch constant
+and down-combine template;15 targeted checks pass. Eight old whole-source
+fixture cases still reject their stale MoeDispatchV2.h closure hash.
+
+New B1/B16 manual controls retain geometries, with own BF16 router/down
+P0 compiler references rather than borrowed FP32 R_next values. B16 router
+P0 is129; down P0 is138 (oldFP32 down136), for both thread shapes. New
+normal decode512 uses MT251/frame0; watchdog245/frame0; normal prompt255/
+frame0; watchdog249/frame0. MIR checks pass. Own576 histories still spill
+at the prefetch floor; diagnostic builds and formal C1/C2/routes/alternating
+standard measurements are in progress. No new timing or route pass is
+inferred before those guarded jobs finish. Raw: `bf16_routing_exports/`,
+`bf16_routing_programs/`, `bf16_routing_B1_programs/` and corresponding
+execution controllers. Prior measured FP32 rows/pins remain unchanged.
