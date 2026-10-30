@@ -1,0 +1,68 @@
+{
+  "mx_moe_v2": {
+    "qkv": {
+      "tn": 64,
+      "wn": 1,
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 1,
+      "r_next": 100
+    },
+    "o": {
+      "tn": 32,
+      "wn": 1,
+      "d": 2,
+      "part": "kTileRange",
+      "prefetch": 2,
+      "r_next": 104
+    },
+    "router": {
+      "tn": 16,
+      "wn": 1,
+      "d": 2,
+      "part": "kTileRange",
+      "prefetch": 2,
+      "r_next": 124
+    },
+    "gate_up": {
+      "tn": 32,
+      "wn": 8,
+      "d": 2,
+      "part": "kTileRange",
+      "prefetch": 0,
+      "r_next": 98
+    },
+    "down": {
+      "tn": 128,
+      "wn": 2,
+      "d": 2,
+      "part": "kTileRange",
+      "prefetch": 2,
+      "r_next": 226
+    },
+    "head": {
+      "tn": 128,
+      "wn": 8,
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 2,
+      "r_next": 112
+    },
+    "threads": 512,
+    "b_min": 4,
+    "attn_prefetch": 0,
+    "purpose": "resource_probe"
+  },
+  "evidence": {
+    "classification": "manual_recovery_development_not_solver_selection",
+    "measured_source_head": "7fec3fe54f7b5a2c996747750c0f82b9db0424fa",
+    "binary_sha256": "59a5508c898744b98ce8cd762016df15d60b92dc00384253b815c7ff9bfd0351",
+    "source_digest": "ef2d85799ecba086fd8aaaa0046fb24207f53dd4cec004e94eaf45109fc10415",
+    "tpot_ms": 7.922495320213564,
+    "C1_C2": "PASS512_eager_HF",
+    "formal_route": "not_passed",
+    "final": false,
+    "default_enabled": false,
+    "raw_evidence": "runs/mx5/moe_recovery_20261030_v1/ACTUAL_RECOVERY_NINE_ROWS_APPENDED_CPU.json"
+  }
+}
