@@ -591,13 +591,19 @@ struct Sm90DenseMoeFusedGemm {
       }
       phase^=1u<<slot;
     }
+    // The whole warp waits. A lane-0-only spin let lanes 1-31 run ahead, and the
+    // warp could reach the stage's final __syncthreads (bar.sync is .aligned,
+    // counted per warp execution) split into groups that completed the CTA
+    // barrier without the consumers: the MR7 hang, about one stall in 25k
+    // fused stages, verified by per-thread barrier markers.
+    WaitGateUp(p.gate_up_done,task.slot);
     if(lane==0) {
-      WaitGateUp(p.gate_up_done,task.slot);
       // h of the slots whose weights are already in flight, then the rest.
       for(int tile=0;tile<kAhead;++tile)
         Async::Tensor4D(a+((first+tile)%Slots)*kRows*kMaxTK,p.activation,0,0,tile*(TKDn/64),
             task.slot,state.full+(first+tile)%Slots);
     }
+    __syncwarp();
     for(int tile=kAhead;tile<kIterDn;++tile) {
       int slot=(sequence++)%Slots;
       Async::Wait(state.empty+slot,(phase>>slot)&1);
