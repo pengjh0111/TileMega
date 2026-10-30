@@ -301,8 +301,8 @@ struct MxRouterLogitsV3 {
           MxStore16V2(p.out + std::size_t(row) * width + segment.tile * (Op == MxOpV2::kSwiGLU ? TN / 2 : TN) + c8,
                        *reinterpret_cast<uint4 const*>(output));
 #if TILEMEGA_MX_DIAG
-          if(p.dispatch.route_logits && p.debug_step<64)
-            MxStore16V2(p.dispatch.route_logits+
+          if(p.route_logits && p.debug_step<64)
+            MxStore16V2(p.route_logits+
                 ((std::size_t(p.debug_step)*p.layers+p.layer)*s.b+row)*s.n+
                 segment.tile*TN+c8,*reinterpret_cast<uint4 const*>(output));
 #endif
