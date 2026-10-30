@@ -8,6 +8,7 @@
 #include <tilemega/Solver/ModelDescription.h>
 #include <tilemega/Analysis/TaskInstantiation.h>
 #include <tilemega/Analysis/TaskWork.h>
+#include <tilemega/Support/Json.h>
 #include <mlir/IR/BuiltinOps.h>
 #include <mlir/IR/Builders.h>
 #include <algorithm>
@@ -272,8 +273,23 @@ void ResolveServingWeightPacking(mlir::ModuleOp module) {
       k=int(geometry.iterations*tk);
     }
     bool expert=access.b==DmBAccess::kExpertIndirect;
+    std::int64_t experts=expert?access.experts:1;
+    // A native MoE plan emits no dm_access, so the expert count comes from the
+    // recipe that packs the stack: an `expert_stack` node declares its own E,
+    // and the loader builds exactly that many. Without this a per-TN packed
+    // stack (OLMoE) reserves one expert's extent and the loader rejects it.
+    for(auto node=json::Parse(recipe.getValue().str());;) {
+      auto const* kind=node.Find("kind");
+      if(kind && kind->AsString("recipe kind")=="expert_stack") {
+        expert=true;experts=std::int64_t(node.At("experts").AsNumber("recipe experts"));
+        break;
+      }
+      auto const* source=node.Find("source");
+      if(!source || source->kind()!=json::Value::Kind::kObject)break;
+      node=*source;
+    }
     auto stride=std::int64_t((n+tn-1)/tn)*((k+tk-1)/tk)*tn*tk;
-    auto elements=stride*(expert?access.experts:1);
+    auto elements=stride*experts;
     if(recipe.getValue().starts_with("{\"kind\":\"tile_pages\"")) {
       if(access.a==DmAAccess::kIm2Col) {
         mlir::NamedAttrList corrected(original);
@@ -282,7 +298,7 @@ void ResolveServingWeightPacking(mlir::ModuleOp module) {
       }
       continue;
     }
-    if(expert && (!access.experts || elements>std::numeric_limits<std::uint32_t>::max()))
+    if(expert && (experts<=0 || elements>std::numeric_limits<std::uint32_t>::max()))
       throw std::invalid_argument("packed expert stack exceeds the buffer extent range");
     auto key=std::make_tuple(source,tn,tk);
     int destination;
