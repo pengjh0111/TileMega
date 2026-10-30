@@ -1327,3 +1327,10 @@ device.text to their parent; before-and-after changes text without improving
 resources. No variant is adopted,queried or timed. This does not establish
 that prefetch moved across a barrier in the original program. Raw:
 moe_next_issue_compiler_fence_D7_cpu_v1.
+
+
+Verified read-only replay of unchanged v10 accounting after every owned GPU
+job closes gives 110.001389 physical-card guard-interval hours upper bound:
+7=43.281111,6=51.358611,5=14.120833,4=1.240833. No active guards remain.
+The total cap remains waived; this is reserved job-wall accounting, not a
+claim of hardware busy cycles. Raw: completed_ledger_gpu_accounting_cpu_v1.
