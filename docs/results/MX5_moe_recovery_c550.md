@@ -106,7 +106,7 @@ binary identity and open gates; they are not installed as default pins.
 For a 1.1x speedup over fixed SGLang, B4 would require <=6.820727ms and
 B16 <=13.408273ms. The recovery measurements do not meet those targets.
 
-## Router experiment (ongoing, not adopted)
+## Router experiments (development evidence; final gates remain open)
 
 The rank loop groups four comparisons under each loop iteration, preserving
 all 128 comparisons, expert-index tie breaking, weights and dispatch order.
@@ -115,7 +115,26 @@ passes all 100 legacy-bitwise router/combine cases and 36 zero-launch
 resource queries. New router P0 references retain MTreg107 for the B1
 context and129 for B16. Full-model WD0/WD1 programs remain stack-free.
 
-Same-card alternating B1/B16 P-PAIR uses two fresh processes per arm, each
-warmup1/timed2. Only its uninstrumented TPOT can justify retaining the code;
-the complete original measured catalog is not relabelled as new-source data.
+Verified same-card alternating unroll4 P-PAIR completes two fresh processes
+per arm, each warmup1/timed2. All 12 full generated sequences per batch
+(both arms, both processes, warmup and timed repeats) are bitwise equal.
+The new programs pass 512-step C-1/C-2. Threshold is max(1% of control,
+maximum within-arm range), applied to the difference of two-process medians.
+
+| B | Fresh control ms | Unroll4 ms | TPOT change | Threshold ms |
+|---|---:|---:|---:|---:|
+| 1 | 4.524784 | 4.405260 | -2.642% | 0.045248 |
+| 16 | 17.510438 | 17.216499 | -1.679% | 0.175104 |
+
+Both improvements are distinguishable. Twelve process/median rows are
+appended under explicit `router_unroll4_ppair_old/new` implementation labels;
+they do not replace earlier measurements or count as top-four selections.
+The original measured catalog is not relabelled as new-source data.
 Formal routing and final solver/model acceptance remain open.
+
+Further partial unrolling of the dispatch scans, still computing the same
+counts and order, passes another100 legacy-bitwise cases. Three-process
+diagnostic P0 router medians are about21.83us(B1) and59.6us(B16), versus
+about36us/85.8us for unroll4. These are isolated benchmarks without qualified
+cost-table provenance; key ordinals use different random input seeds.
+Full-model C-1/C-2 and P-PAIR are running before any adoption decision.
