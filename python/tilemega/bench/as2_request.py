@@ -42,17 +42,23 @@ def cached_kv_state(stages,buffers,metadata):
 
 SOURCE_CAPABILITIES=('TILEMEGA_LLM_SPLIT_K','TILEMEGA_LLM_LOCAL_TAIL_K7','TILEMEGA_LLM_LOCAL_Q_TAIL_K3',
                      'TILEMEGA_LLM_WIDE_QK','TILEMEGA_LLM_FP32_KV_CACHE','TILEMEGA_LLM_SWIGLU_TILE',
-                     'TILEMEGA_LLM_SWIGLU_L1_K256','TILEMEGA_LLM_G14')
+                     'TILEMEGA_LLM_SWIGLU_L1_K256','TILEMEGA_LLM_VECTOR_ARGMAX','TILEMEGA_LLM_G14')
 SOURCE_GEOMETRY=('TILEMEGA_LLM_VARIANT','TILEMEGA_LLM_TM','TILEMEGA_LLM_TN','TILEMEGA_LLM_TK')
+SOURCE_CONTRACT=('TILEMEGA_LLM_PRECISION_CONTRACT',)
+PRECISION_CONTRACT='as2_llm_fp32_replay_bf16_casts_v1'
 
 
 def gemm_variant_geometry(stage):
-    if stage[31] in (4,5) and (stage[18]!=2 or stage[20]!=16 or
+    if stage[31]==6 and (stage[18]!=3 or not 1<=stage[20]<=16 or stage[21] not in (128256,151936) or
+            stage[19]!=(stage[21]+127)//128 or stage[23]>1 or stage[16]==(1<<64)-1):
+        raise ValueError('Unregistered vector LM-head argmax')
+    if stage[31] in (4,5) and (stage[18]!=2 or stage[20] not in (1,16,64,1024) or
+            stage[31]==5 and stage[20]!=16 or
             (stage[21],stage[22]) not in {(6144,1024),(12288,2048),(16384,2048),(16384,3072),(28672,4096)} or
-            stage[19]!=stage[21]//128 or
+            stage[19]!=((stage[20]+15)//16)*(stage[21]//128) or
             stage[23]>1 or stage[16]==(1<<64)-1):
         raise ValueError('Unregistered strided SwiGLU shape')
-    return 1 if stage[31] in (2,3,4,5) else stage[31]
+    return 1 if stage[31] in (2,3,4,5,6) else stage[31]
 
 
 def source_parts(path):
@@ -60,8 +66,10 @@ def source_parts(path):
     marker='#ifndef TILEMEGA_LLM_VARIANT' if '#ifndef TILEMEGA_LLM_VARIANT' in text else '#include'
     header,body=text.split(marker,1)
     fields={k:int(v) for k,v in re.findall(r'^#define (TILEMEGA_LLM_\w+) (\d+)$',header,re.M)}
-    if set(fields)-set(SOURCE_CAPABILITIES+SOURCE_GEOMETRY) or any(k not in fields for k in SOURCE_GEOMETRY):
+    if set(fields)-set(SOURCE_CAPABILITIES+SOURCE_GEOMETRY+SOURCE_CONTRACT) or any(k not in fields for k in SOURCE_GEOMETRY):
         raise ValueError('Unknown generated request capability/geometry')
+    fields.setdefault(SOURCE_CONTRACT[0],1)
+    if fields[SOURCE_CONTRACT[0]]!=1:raise ValueError('Unsupported generated precision contract')
     if any(fields.get(k,0) not in (0,1) for k in SOURCE_CAPABILITIES):
         raise ValueError('Unregistered generated request capability')
     if tuple(fields[k] for k in SOURCE_GEOMETRY) not in ((0,32,64,64),(1,16,128,128)):
@@ -71,7 +79,7 @@ def source_parts(path):
 
 def compatible_source(required,compiled):
     a,b=source_parts(required),source_parts(compiled)
-    if a[2]!=b[2] or any(a[1][k]!=b[1][k] for k in SOURCE_GEOMETRY):
+    if a[2]!=b[2] or any(a[1][k]!=b[1][k] for k in SOURCE_GEOMETRY+SOURCE_CONTRACT):
         raise ValueError('Compiled implementation catalogue changed runtime or geometry')
     if any(a[1].get(k,0)>b[1].get(k,0) for k in SOURCE_CAPABILITIES):
         raise ValueError('Compiled implementation catalogue lacks a required capability')
@@ -82,7 +90,7 @@ def compatible_source(required,compiled):
 
 
 def request_source(prefill,decode,*additional):
-    capabilities=SOURCE_CAPABILITIES;geometry=SOURCE_GEOMETRY
+    capabilities=SOURCE_CAPABILITIES;geometry=SOURCE_GEOMETRY+SOURCE_CONTRACT
     if len(additional)>6:raise ValueError('Bounded generated-source catalogue required')
     sources=[]
     for plan in (prefill,decode,*additional):
@@ -110,6 +118,8 @@ def bind(prefill, decode, inputs, out,emit_source=False):
         if m[11] not in (0,1):raise ValueError('Unknown phase pricing mode')
         if imported['phase']!=phase or imported['model_id']!=identity['model_id'] or imported['config_sha256']!=identity['config_sha256']:
             raise ValueError('Phase model/config mismatch')
+        if imported.get('precision_contract_id',PRECISION_CONTRACT)!=PRECISION_CONTRACT:
+            raise ValueError('Unsupported phase precision contract')
         if not m[11]:
             bounds=struct.unpack('<4I',(path/'pricing_bounds.bin').read_bytes())
             prices=json.loads((path/'prices.json').read_text())
@@ -173,6 +183,7 @@ def bind(prefill, decode, inputs, out,emit_source=False):
         isl=64,capacity=1088,arena_bytes=total,source_inputs=str(inputs),geometry_variant=variants[0],
         groups=plans[0]['metadata'][1],workers=plans[0]['metadata'][2],
         optimization_status='measured_native_rank_eft_shared_gm' if priced else 'unpriced_phase_bootstrap_not_admitted',phases={},buffers=union)
+    receipt['precision_contract_id']=PRECISION_CONTRACT
     receipt['derived_fp32_kv_state']=cached_states[0]
     for plan in plans:
         dest=out/plan['phase'];dest.mkdir();m=plan['metadata'];m[12]=total
@@ -205,6 +216,9 @@ def bind(prefill, decode, inputs, out,emit_source=False):
             source_hashes={name:digest(plan['path']/name) for name in TABLES+(('pricing_bounds.bin','prices.json') if priced else ())},
             bound_hashes={name:digest(dest/name) for name in TABLES+(('pricing_bounds.bin','prices.json') if priced else ())})
         receipt['phases'][plan['phase']]['bound_hashes']['active_bytes.bin']=digest(dest/'active_bytes.bin')
+        for name in ('implementations.json',):
+            receipt['phases'][plan['phase']]['source_hashes'][name]=digest(plan['path']/name)
+            receipt['phases'][plan['phase']]['bound_hashes'][name]=digest(dest/name)
     files={r['name']:r for r in identity['buffers']};receipt['input_buffers']=[]
     for b in union:
         if not b.get('required_input'):continue

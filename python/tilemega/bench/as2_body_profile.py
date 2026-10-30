@@ -126,6 +126,8 @@ def extract(binding,job_path,phase,repetition,out):
     if job['status']!='passed' or len(command)!=8 or command[1]!='request' or command[2]!=str(binding) or command[7]!='2':
         raise ValueError('Require an actual successful Body-profile request')
     identity=json.loads((binding/'request.json').read_text());plan=binding/phase
+    precision=identity.get('precision_contract_id','as2_llm_fp32_replay_bf16_casts_v1')
+    if precision!='as2_llm_fp32_replay_bf16_casts_v1':raise ValueError('Unsupported measured precision contract')
     for name,sha in identity['phases'][phase]['bound_hashes'].items():
         if digest(plan/name)!=sha:raise ValueError('Profile plan identity changed')
     m=struct.unpack('<12I3Q',(plan/'metadata.bin').read_bytes())
@@ -200,6 +202,7 @@ def extract(binding,job_path,phase,repetition,out):
     if phase_records and phase_records!=attention_records:
         raise ValueError('Mixed legacy/instrumented Attention records cannot establish complete coverage')
     result=dict(schema='tilemega.as2.native_body_profile.v1',status='measured_body_only',phase=phase,past=past,
+        precision_contract_id=precision,
         model_id=identity['model_id'],config_sha256=identity['config_sha256'],batch=m[8],groups=m[1],runtime_abi=m[0],
         job=str(job_path),binary_sha256=job['executable_sha256'],physical_device_id=job['physical_device_id'],
         timing_status=job['timing_status'],counter_hz=resources['counter_hz'],counter_evidence=str(timer_job),

@@ -1,0 +1,12 @@
+{
+  "schema": "tilemega.as2.implementation_binding.v1",
+  "model_id": "qwen3_0_6b",
+  "phase": "decode",
+  "batch": 16,
+  "families": [],
+  "swiglu_tile": true,
+  "vector_argmax": true,
+  "precision_contract_id": "as2_llm_fp32_replay_bf16_casts_v1",
+  "default_enabled": false,
+  "status": "experimental_compile_only_until_body_model_and_TPOT_gates_pass"
+}

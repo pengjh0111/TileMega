@@ -85,6 +85,8 @@ def validate(domain):
         if signature in signatures:raise ValueError('Duplicate implementation/plan candidate')
         signatures.add(signature)
         p,device=evidence(controlled(c['prices']));devices.add(device)
+        if p.get('precision_contract_id','as2_llm_fp32_replay_bf16_casts_v1')!='as2_llm_fp32_replay_bf16_casts_v1':
+            raise ValueError('Unmatched precision contract in native search prices')
         if c['groups']==14 and device!=proof['physical_device_id']:
             raise ValueError('G14 pricing and protocol evidence use different physical cards')
         if len(devices)>1:raise ValueError('Mixed device pricing context')
@@ -101,6 +103,10 @@ def validate(domain):
                 if path.resolve()!=path or not path.is_relative_to(REPO/'configs/ascend') or not path.is_file():
                     raise ValueError('Require a checked-in native implementation binding')
         binding=json.loads(Path(c['decomposition']).read_text()) if c.get('decomposition') else {}
+        if binding.get('precision_contract_id',p.get('precision_contract_id'))!=p.get('precision_contract_id'):
+            raise ValueError('Implementation binding and measured precision contracts differ')
+        if binding.get('vector_argmax') and not p.get('precision_contract_id'):
+            raise ValueError('New argmax requires explicitly measured precision identity')
         l1=binding.get('swiglu_l1_k',128)
         if (l1 not in (128,256) or l1==256 and not binding.get('swiglu_tile') or
                 p.get('swiglu_l1_k',128)!=l1):

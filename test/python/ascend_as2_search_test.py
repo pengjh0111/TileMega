@@ -54,6 +54,10 @@ class AscendOuterSearch(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'L1 implementation'):
                 validate(dict(domain,candidates=[a]))
             price['swiglu_l1_k']=128;changed.write_text(json.dumps(price))
+            price['precision_contract_id']='unimplemented_bf16_streaming';changed.write_text(json.dumps(price))
+            with self.assertRaisesRegex(ValueError,'precision contract'):
+                validate(dict(domain,candidates=[a]))
+            del price['precision_contract_id'];changed.write_text(json.dumps(price))
             changed=Path(b['prices']);d=json.loads(changed.read_text());d['source_profile_sha256']='changed'
             changed.write_text(json.dumps(d))
             with self.assertRaisesRegex(ValueError,'Changed calibration'):validate(domain)

@@ -141,7 +141,7 @@ int main(int argc,char** argv) {
       attention_precision=attention=="fp32"?1:attention=="fp32-scores"?2:attention=="math-sdpa"?3:attention=="cube-fp32"?4:attention=="cube-fp32-newton"?5:attention=="cube-fp32-newton-full"?6:attention=="cube-fp32-newton-fold"?7:attention=="cube-fp32-fold-softmax"?8:attention=="cube-fp32-wide-qk"?9:attention=="cube-fp32-valid-qk"?10:attention=="cube-fp32-cached-kv"?11:0;
     }
     tilemega::json::Value decomposition;
-    bool local_q_tail3=false,local_residual_tail3=false,swiglu_tile=false,swiglu_l1_k256=false;
+    bool local_q_tail3=false,local_residual_tail3=false,swiglu_tile=false,swiglu_l1_k256=false,vector_argmax=false;
     tilemega::json::Value binding;
     if(body) {
       auto path=fs::weakly_canonical(argv[priced_body?10:9]);
@@ -168,12 +168,17 @@ int main(int argc,char** argv) {
       auto relative=path.lexically_relative(config_root);
       if(relative.empty() || *relative.begin()=="..")throw std::invalid_argument("Use a checked-in decomposition candidate");
       decomposition=tilemega::json::ParseFile(path.string());
-      if(decomposition.At("schema").AsString("schema")!="tilemega.as2.observed_decomposition.v1" ||
+      const auto binding_schema=decomposition.At("schema").AsString("schema");
+      if((binding_schema!="tilemega.as2.observed_decomposition.v1" && binding_schema!="tilemega.as2.implementation_binding.v1") ||
           decomposition.At("model_id").AsString("model")!=receipt.At("model_id").AsString("model") ||
           decomposition.At("phase").AsString("phase")!=phase ||
           decomposition.At("batch").AsNumber("batch")!=batch || serving.argmax_tile_n!=128)
         throw std::invalid_argument("Observed decomposition model/phase/geometry mismatch");
       if(auto tile=decomposition.Find("swiglu_tile"))swiglu_tile=tile->AsBool("swiglu_tile");
+      if(auto value=decomposition.Find("vector_argmax"))vector_argmax=value->AsBool("vector_argmax");
+      if(auto precision=decomposition.Find("precision_contract_id");precision &&
+          precision->AsString("precision_contract_id")!="as2_llm_fp32_replay_bf16_casts_v1")
+        throw std::invalid_argument("Unimplemented precision contract in the Body binding");
       if(auto k=decomposition.Find("swiglu_l1_k")) {
         auto value=k->AsNumber("swiglu_l1_k");
         if((value!=128 && value!=256) || !swiglu_tile)
@@ -183,15 +188,15 @@ int main(int argc,char** argv) {
       if(batch!=1 && !(batch==16 && phase=="decode" &&
           (receipt.At("model_id").AsString("model")=="llama3_2_1b" || receipt.At("model_id").AsString("model")=="qwen3_1_7b" || receipt.At("model_id").AsString("model")=="llama3_2_3b" || receipt.At("model_id").AsString("model")=="llama3_1_8b")) &&
           !(swiglu_tile && batch==16 && phase=="decode" && receipt.At("model_id").AsString("model")=="qwen3_0_6b") &&
-          !(batch==16 && phase=="prefill" && receipt.At("model_id").AsString("model")=="llama3_1_8b"))
+          !(batch==16 && phase=="prefill" && receipt.At("model_id").AsString("model")=="llama3_1_8b") && !vector_argmax && !swiglu_tile)
         throw std::invalid_argument("Unverified batch decomposition");
       if(auto separate=decomposition.Find("separate_qkv"))serving.separate_qkv=separate->AsBool("separate_qkv");
       if(serving.separate_qkv && receipt.At("model_id").AsString("model")!="llama3_1_8b")
         throw std::invalid_argument("Separate projection candidate is bounded to observed Llama8B");
       if(auto tail=decomposition.Find("local_q_tail3"))local_q_tail3=tail->AsBool("local_q_tail3");
       if(auto tail=decomposition.Find("local_residual_tail3"))local_residual_tail3=tail->AsBool("local_residual_tail3");
-      if(swiglu_tile && (batch!=16 || phase!="decode" || serving.argmax_tile_n!=128))
-        throw std::invalid_argument("Strided SwiGLU is bounded to dense B16 decode");
+      if(swiglu_tile && ((batch!=1 && batch!=16) || serving.argmax_tile_n!=128))
+        throw std::invalid_argument("Strided SwiGLU is bounded to dense B1/B16 tile geometry");
       if(local_residual_tail3 && !local_q_tail3)throw std::invalid_argument("Residual tail3 requires the Q-tail prefill contract");
       if(local_q_tail3 && (!serving.separate_qkv || batch!=16 || phase!="prefill"))
         throw std::invalid_argument("Local Q tail candidate requires separate Llama8B B16 prefill");
@@ -253,7 +258,7 @@ int main(int argc,char** argv) {
         if(matches!=family.At("expected_gemms").AsNumber("expected_gemms"))
           throw std::invalid_argument("Decomposition did not match the complete model family");
       }
-      if(!decomposed_gemms && !serving.separate_qkv && !swiglu_tile)throw std::invalid_argument("Empty decomposition cannot prove optimization participation");
+      if(!decomposed_gemms && !serving.separate_qkv && !swiglu_tile && !vector_argmax)throw std::invalid_argument("Empty decomposition cannot prove optimization participation");
     }
     mlir::MLIRContext context;tilemega::frontend::ImportSummary summary;
     tilemega::frontend::TorchExportImporter importer;
@@ -387,6 +392,9 @@ int main(int argc,char** argv) {
           auto priced_l1=prices.Find("swiglu_l1_k");
           if((priced_l1?priced_l1->AsNumber("swiglu_l1_k"):128)!=(swiglu_l1_k256?256:128))
             throw std::invalid_argument("Native prices use another SwiGLU L1 implementation");
+          auto precision=prices.Find("precision_contract_id");
+          if((precision && precision->AsString("precision_contract_id")!="as2_llm_fp32_replay_bf16_casts_v1") ||
+              (vector_argmax && !precision))throw std::invalid_argument("Native prices use another or missing precision contract");
           auto const& rows=prices.At("stages").AsArray("stage prices");
           if(rows.size()!=problem.counts.size())throw std::invalid_argument("Incomplete native price domain");
           for(unsigned s=0;s<rows.size();++s) {
@@ -437,7 +445,7 @@ int main(int argc,char** argv) {
           Write(output/"uncompressed_schedule.json",ScheduleReport(scheduled));
           scheduled=tilemega::solver::ElideAscendFifoWaits(tasks,workers,std::move(scheduled));
         }
-        auto native=tilemega::codegen::MaterializeAscendLlm(*module,problem,workers,tasks,scheduled,!priced,attention_precision,body,local_q_tail3,local_residual_tail3,swiglu_tile,swiglu_l1_k256);
+        auto native=tilemega::codegen::MaterializeAscendLlm(*module,problem,workers,tasks,scheduled,!priced,attention_precision,body,local_q_tail3,local_residual_tail3,swiglu_tile,swiglu_l1_k256,vector_argmax);
         if(priced) {
           auto const& measured=prices.At("stages").AsArray("stage prices");
           for(unsigned i=0;i<native.stages.size();++i) {
@@ -482,6 +490,7 @@ int main(int argc,char** argv) {
         result.Set("selection",priced?selected_algorithm:"diagnostic_unpriced_bootstrap_not_optimized");
         result.Set("priced_solver_executed",priced);
         result.Set("swiglu_l1_k",swiglu_l1_k256?256:128);
+        result.Set("precision_contract_id","as2_llm_fp32_replay_bf16_casts_v1");
         result.Set("wait_lowering",fifo_elision?"experimental_fifo_observed_frontier":"per_task_frontier");
         result.Set("wait_elision_device_verified",false);
         if(priced)result.Set("price_provenance",prices);

@@ -52,9 +52,19 @@ class RequestCapturePayloadTest(unittest.TestCase):
         for n,k in [(6144,1024),(16384,2048),(16384,3072),(28672,4096)]:
             family=s.copy();family[19]=n//128;family[21:23]=[n,k]
             self.assertEqual(gemm_variant_geometry(tuple(family)),1)
-        for field,value in [(18,1),(19,1),(20,1),(21,6144),(22,4096),(23,3),(16,(1<<64)-1)]:
+        for rows in (1,64,1024):
+            wider=s.copy();wider[20]=rows;wider[19]=((rows+15)//16)*96
+            self.assertEqual(gemm_variant_geometry(wider),1)
+        for field,value in [(18,1),(19,1),(20,17),(21,6144),(22,4096),(23,3),(16,(1<<64)-1)]:
             bad=s.copy();bad[field]=value
             with self.assertRaisesRegex(ValueError,'SwiGLU'):gemm_variant_geometry(tuple(bad))
+
+    def test_vector_argmax_requires_complete_vocab_and_correct_output_domain(self):
+        s=[0]*33;s[16]=512;s[17:23]=[0,3,1187,16,151936,1024];s[31]=6
+        self.assertEqual(gemm_variant_geometry(s),1)
+        for field,value in [(18,2),(19,1186),(20,17),(21,128),(23,3),(16,(1<<64)-1)]:
+            invalid=s.copy();invalid[field]=value
+            with self.assertRaisesRegex(ValueError,'argmax'):gemm_variant_geometry(invalid)
 
     def test_derived_kv_keeps_logical_state_and_requires_complete_reset_planes(self):
         m=[0]*15;m[8]=16;m[10]=1088;s=[0]*33;s[17]=13;s[23:27]=[8,128,2,1088];s[31]=9
@@ -198,6 +208,8 @@ class RequestBindingTest(unittest.TestCase):
         self.assertEqual(provenance['capabilities']['TILEMEGA_LLM_G14'],1)
         self.assertEqual(compatible_source(source,library)['status'],'compatible')
         self.assertEqual(compatible_source(self.pre.parent/'persistent_llm.cpp',library)['status'],'compatible')
+        source.write_text(geometry+'#define TILEMEGA_LLM_PRECISION_CONTRACT 2\n'+body)
+        with self.assertRaisesRegex(ValueError,'precision'):request_source(self.pre,self.dec,plan)
         source.write_text(geometry+'#include <different_runtime.h>\n')
         with self.assertRaisesRegex(ValueError,'identical'):request_source(self.pre,self.dec,plan)
         (self.dec.parent/'persistent_llm.cpp').write_text(geometry+'#include <different_runtime.h>\n')
@@ -206,6 +218,11 @@ class RequestBindingTest(unittest.TestCase):
     def test_reject_config_mismatch(self):
         p=self.dec.parent/'import.json';d=json.loads(p.read_text());d['config_sha256']='wrong';p.write_text(json.dumps(d))
         with self.assertRaisesRegex(ValueError,'config mismatch'):bind(self.pre,self.dec,self.inputs,self.root/'bad')
+
+    def test_reject_different_precision_contract(self):
+        p=self.dec.parent/'import.json';d=json.loads(p.read_text())
+        d['precision_contract_id']='as2_llm_bf16_streaming_unvalidated_v1';p.write_text(json.dumps(d))
+        with self.assertRaisesRegex(ValueError,'precision'):bind(self.pre,self.dec,self.inputs,self.root/'bad')
 
     def test_reject_changed_input(self):
         (self.inputs/'1.bin').write_bytes(b'x'*512)

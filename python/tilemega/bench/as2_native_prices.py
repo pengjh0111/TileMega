@@ -96,6 +96,10 @@ def prices(plan,profile_path,cost_path,out):
     plan,profile_path,cost_path,out=(controlled(p,[RUNS]) for p in (plan,profile_path,cost_path,out))
     if out.exists():raise FileExistsError(out)
     profile=json.loads(profile_path.read_text());cost=json.loads(cost_path.read_text());imported=json.loads((plan.parent/'import.json').read_text())
+    precision=imported.get('precision_contract_id','as2_llm_fp32_replay_bf16_casts_v1')
+    if (precision!='as2_llm_fp32_replay_bf16_casts_v1' or
+            profile.get('precision_contract_id',precision)!=precision):
+        raise ValueError('Profile and Plan precision contracts differ')
     m=struct.unpack('<12I3Q',(plan/'metadata.bin').read_bytes());stages=list(struct.iter_unpack('<17Q16I',(plan/'stages.bin').read_bytes()))
     job=json.loads((Path(profile['job'])/'job.json').read_text())
     if profile['status']!='measured_body_only' or job['status']!='passed' or cost['status']!='measured_empirical_context':
@@ -129,7 +133,8 @@ def prices(plan,profile_path,cost_path,out):
             rows[-1]['tile_service_ns']=[v+overhead+internal for v in per_tile]
             rows[-1]['tile_price_source']='measured regular/tail region medians plus sourced overhead'
     result=dict(schema='tilemega.as2.native_task_prices.v1',status='sourced_empirical_context',
-        price_provider_version=3,dispatcher_accounting='actual_owner_role_and_disjoint_participant',
+        precision_contract_id=precision,
+        price_provider_version=4,dispatcher_accounting='actual_owner_role_and_disjoint_participant',
         model_id=profile['model_id'],config_sha256=profile['config_sha256'],batch=m[8],seq=m[9],groups=m[1],runtime_abi=m[0],
         phase=phase,past_min=0,past_max=profile['past'],stages=rows,
         source_profile=str(profile_path),source_profile_sha256=digest(profile_path),
