@@ -1,0 +1,85 @@
+{
+ "source": "SM90R4 P-SEL winners (R5 prompt 0.5)",
+ "cells": {
+  "olmoe_1b_7b_b1.json": {
+   "cell": "olmoe_1b_7b-B1",
+   "binary_sha256": "0f088744c027bed8cf07f6561cc1c0cdfaf68b62e1aa5383f991cf448b18c0e6",
+   "predicted_ns": 1143575.068,
+   "winner_rank": 2,
+   "r4_receipt": "r4olmoe/olmoe_1b_7b-B1/decode.so.search/receipt.json",
+   "r4_binary": "/root/TileMega-r4m/runs/sm90r4/solve/r4olmoe/olmoe_1b_7b-B1/decode.so.search/candidate-2.so"
+  },
+  "olmoe_1b_7b_b16.json": {
+   "cell": "olmoe_1b_7b-B16",
+   "binary_sha256": "a85306b7028ebdadba47c0185909dd164389579569de89f04ba2db07c1f94c45",
+   "predicted_ns": 4855169,
+   "winner_rank": 0,
+   "r4_receipt": "r4olmoe/olmoe_1b_7b-B16/decode.so.search/receipt.json",
+   "r4_binary": "/root/TileMega-r4m/runs/sm90r4/solve/r4olmoe/olmoe_1b_7b-B16/decode.so.search/candidate-0.so"
+  },
+  "olmoe_1b_7b_b2.json": {
+   "cell": "olmoe_1b_7b-B2",
+   "binary_sha256": "882b972f6fd6ae1eb070703c0570b5c9e92bf08bcbaf7115f362f4b52021f3b6",
+   "predicted_ns": 1609241.356,
+   "winner_rank": 2,
+   "r4_receipt": "r4olmoe/olmoe_1b_7b-B2/decode.so.search/receipt.json",
+   "r4_binary": "/root/TileMega-r4m/runs/sm90r4/solve/r4olmoe/olmoe_1b_7b-B2/decode.so.search/candidate-2.so"
+  },
+  "olmoe_1b_7b_b4.json": {
+   "cell": "olmoe_1b_7b-B4",
+   "binary_sha256": "c7ce3de796d93b2b7170ef59a53301c8a9643be88f41d7511e8942084cc36d37",
+   "predicted_ns": 2455429.93,
+   "winner_rank": 0,
+   "r4_receipt": "r4olmoe/olmoe_1b_7b-B4/decode.so.search/receipt.json",
+   "r4_binary": "/root/TileMega-r4m/runs/sm90r4/solve/r4olmoe/olmoe_1b_7b-B4/decode.so.search/candidate-0.so"
+  },
+  "olmoe_1b_7b_b8.json": {
+   "cell": "olmoe_1b_7b-B8",
+   "binary_sha256": "da5b16f2d48a82a8dbab89f4e9f37970119f36f4b0551d4e2873c7626d9300bd",
+   "predicted_ns": 3651875.39,
+   "winner_rank": 0,
+   "r4_receipt": "r4olmoe/olmoe_1b_7b-B8/decode.so.search/receipt.json",
+   "r4_binary": "/root/TileMega-r4m/runs/sm90r4/solve/r4olmoe/olmoe_1b_7b-B8/decode.so.search/candidate-0.so"
+  },
+  "qwen3_30b_a3b_b1.json": {
+   "cell": "qwen3_30b_a3b-B1",
+   "binary_sha256": "c1462206722329a1bf8ef9e45e8772c1d12a35277c6ae93a8f43f4d4d730b6fa",
+   "predicted_ns": 3127916.576,
+   "winner_rank": 2,
+   "r4_receipt": "r4moe/qwen3_30b_a3b-B1/decode.so.search/receipt.json",
+   "r4_binary": "/root/TileMega-r4m/runs/sm90r4/solve/r4moe/qwen3_30b_a3b-B1/decode.so.search/candidate-2.so"
+  },
+  "qwen3_30b_a3b_b16.json": {
+   "cell": "qwen3_30b_a3b-B16",
+   "binary_sha256": "25631e7b85f695f630ea3d7498a3b2a41d22917dbc6b96bcc968d01cdb9bee69",
+   "predicted_ns": 14627303.72,
+   "winner_rank": 0,
+   "r4_receipt": "r4moe/qwen3_30b_a3b-B16/decode.so.search/receipt.json",
+   "r4_binary": "/root/TileMega-r4m/runs/sm90r4/solve/r4moe/qwen3_30b_a3b-B16/decode.so.search/candidate-0.so"
+  },
+  "qwen3_30b_a3b_b2.json": {
+   "cell": "qwen3_30b_a3b-B2",
+   "binary_sha256": "b804388d56d7ec36a943b7081e4968abd78da33db34d2d90fb870d20f115a536",
+   "predicted_ns": 4196027.182,
+   "winner_rank": 1,
+   "r4_receipt": "r4moe/qwen3_30b_a3b-B2/decode.so.search/receipt.json",
+   "r4_binary": "/root/TileMega-r4m/runs/sm90r4/solve/r4moe/qwen3_30b_a3b-B2/decode.so.search/candidate-1.so"
+  },
+  "qwen3_30b_a3b_b4.json": {
+   "cell": "qwen3_30b_a3b-B4",
+   "binary_sha256": "fe25e616844f301184d010b918026fcb8c0c4084b30347419915091450005848",
+   "predicted_ns": 6293548.547,
+   "winner_rank": 1,
+   "r4_receipt": "r4moe/qwen3_30b_a3b-B4/decode.so.search/receipt.json",
+   "r4_binary": "/root/TileMega-r4m/runs/sm90r4/solve/r4moe/qwen3_30b_a3b-B4/decode.so.search/candidate-1.so"
+  },
+  "qwen3_30b_a3b_b8.json": {
+   "cell": "qwen3_30b_a3b-B8",
+   "binary_sha256": "7df8c43294ed3d952d565d0e93690f1d50cac490dd42d15f7e439c8ef0203289",
+   "predicted_ns": 10016242.59,
+   "winner_rank": 0,
+   "r4_receipt": "r4moe/qwen3_30b_a3b-B8/decode.so.search/receipt.json",
+   "r4_binary": "/root/TileMega-r4m/runs/sm90r4/solve/r4moe/qwen3_30b_a3b-B8/decode.so.search/candidate-0.so"
+  }
+ }
+}

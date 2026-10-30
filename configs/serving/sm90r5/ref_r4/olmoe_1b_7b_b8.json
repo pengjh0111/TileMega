@@ -1,0 +1,81 @@
+{
+ "schema": 6,
+ "model": "moe",
+ "gemms": {
+  "qkv": {
+   "tile_n": 32,
+   "warps_n": 4,
+   "warps_k": 1,
+   "slot_bytes": 32768,
+   "slots": 2,
+   "mma": "mma_sync",
+   "register_stages": 1,
+   "multicast": false
+  },
+  "o": {
+   "tile_n": 16,
+   "warps_n": 2,
+   "warps_k": 2,
+   "slot_bytes": 32768,
+   "slots": 2,
+   "mma": "mma_sync",
+   "register_stages": 1,
+   "multicast": false
+  },
+  "router": {
+   "tile_n": 8,
+   "warps_n": 1,
+   "warps_k": 4,
+   "slot_bytes": 16384,
+   "slots": 2,
+   "mma": "mma_sync",
+   "register_stages": 1,
+   "multicast": false
+  },
+  "expert_gate_up": {
+   "tile_n": 256,
+   "warps_n": 2,
+   "warps_k": 2,
+   "slot_bytes": 32768,
+   "slots": 2,
+   "mma": "mma_sync",
+   "register_stages": 1,
+   "multicast": false
+  },
+  "expert_down": {
+   "tile_n": 256,
+   "warps_n": 4,
+   "warps_k": 1,
+   "slot_bytes": 32768,
+   "slots": 2,
+   "mma": "mma_sync",
+   "register_stages": 1,
+   "multicast": false
+  },
+  "lm_head": {
+   "tile_n": 128,
+   "warps_n": 4,
+   "warps_k": 1,
+   "slot_bytes": 16384,
+   "slots": 3,
+   "mma": "mma_sync",
+   "register_stages": 1,
+   "multicast": false
+  }
+ },
+ "attention": {
+  "chunks": 1,
+  "block_keys": 64,
+  "slots": 3,
+  "new_row_work": 0,
+  "merge": "la"
+ },
+ "residency": 1,
+ "swiglu_u": 16,
+ "weight_stream": false,
+ "layer_loop": true,
+ "emb": "stage",
+ "group_wait": true,
+ "cluster": 1,
+ "expert_fuse": true
+}
