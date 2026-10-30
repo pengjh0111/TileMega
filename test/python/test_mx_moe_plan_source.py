@@ -33,6 +33,17 @@ def test_actual_generated_body_shapes_packed_weights_and_measured_headers(batch,
     assert validate_body_snapshot(snapshot, json.loads(CLOSURE.read_text()))['compiled_measured_header_matches'] > 0
 
 
+def test_routing_dtype_must_match_both_dispatch_and_combine():
+    source, pin, _, _ = read()
+    bf16 = source.replace('kRoutingFp32=true', 'kRoutingFp32=false')
+    with pytest.raises(ValueError, match='body alias differs: Down'):
+        validate_geometry(bf16, pin, 1, False, routing_weights_fp32=False)
+    bf16 = bf16.replace('MxMoeDownCompletionV2<true>', 'MxMoeDownCompletionV2<false>')
+    assert validate_geometry(bf16, pin, 1, False, routing_weights_fp32=False)['routing_weights_fp32'] is False
+    with pytest.raises(ValueError, match='constant differs: kRoutingFp32'):
+        validate_geometry(bf16, pin, 1, False)
+
+
 @pytest.mark.parametrize('batch', (1, 16))
 @pytest.mark.parametrize('prompt', (False, True))
 def test_actual_rejected_576_program_geometry_does_not_grant_resource_acceptance(batch, prompt):
@@ -48,7 +59,7 @@ def test_actual_rejected_576_program_geometry_does_not_grant_resource_acceptance
 
 
 @pytest.mark.parametrize('change', ('threads', 'batch', 'phase', 'qkv', 'o', 'router',
-    'gate_up', 'down', 'head', 'attention', 'dispatch', 'down_last', 'shape'))
+    'gate_up', 'down', 'head', 'attention', 'dispatch', 'down_last', 'shape', 'routing_dtype'))
 def test_changed_actual_code_or_pin_is_rejected(change):
     source, pin, _, _ = read()
     if change == 'threads':
@@ -65,6 +76,8 @@ def test_changed_actual_code_or_pin_is_rejected(change):
         source = source.replace('kIntermediate,64,64,kRoutingFp32', 'kIntermediate,32,64,kRoutingFp32')
     elif change == 'down_last':
         source = source.replace('using DownLast =', 'using WrongDownLast =')
+    elif change == 'routing_dtype':
+        source = source.replace('kRoutingFp32=true', 'kRoutingFp32=false')
     else:
         source = source.replace('MxStaticShapeV2<5120,2048,kBatch', 'MxStaticShapeV2<4096,2048,kBatch')
     with pytest.raises(ValueError):

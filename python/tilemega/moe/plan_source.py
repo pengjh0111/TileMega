@@ -8,10 +8,11 @@ from .cost_provenance import Files, need
 CLASSES = ('qkv', 'o', 'router', 'gate_up', 'down', 'head')
 
 
-def validate_geometry(source, pin, batch, prompt):
+def validate_geometry(source, pin, batch, prompt, *, routing_weights_fp32=True):
     config = pin['mx_moe_v2']
     threads = config['threads']
-    need(batch in (1, 2, 4, 8, 16) and threads in (512, 576) and type(prompt) is bool,
+    need(batch in (1, 2, 4, 8, 16) and threads in (512, 576) and type(prompt) is bool
+         and type(routing_weights_fp32) is bool,
          'unsupported native MoE geometry request')
 
     def constant(name, expected):
@@ -23,7 +24,8 @@ def validate_geometry(source, pin, batch, prompt):
             kPastHi=63 if prompt else 1086, kQ=8, kHeadDim=128).items():
         constant(name, value)
     constant('kPrompt', 'true' if prompt else 'false')
-    constant('kRoutingFp32', 'true')
+    routing = 'true' if routing_weights_fp32 else 'false'
+    constant('kRoutingFp32', routing)
     for stage, name in (('qkv', 'kQkvStreamK'), ('o', 'kOStreamK'), ('router', 'kRouterStreamK')):
         constant(name, 'true' if config[stage]['part'] == 'kStreamK' else 'false')
 
@@ -56,7 +58,8 @@ def validate_geometry(source, pin, batch, prompt):
             body = 'MxGroupedGemm<%d,%d,%d,MxOpV2::%s,%s,Chain,%s,%d>' % (
                 tn, wn, depth, 'kSwiGLU' if stage == 'gate_up' else 'kStore',
                 'true' if stage == 'gate_up' else 'false',
-                'MxNoUnitCompletionV2' if stage == 'gate_up' else 'MxMoeDownCompletionV2<true>', prefetch)
+                'MxNoUnitCompletionV2' if stage == 'gate_up' else
+                'MxMoeDownCompletionV2<%s>' % routing, prefetch)
         else:
             need(part == 'kTileRange', 'native head must use TileRange')
             body = 'MxHead<%d,%d,%d,%d>' % (tn, wn, depth, prefetch)
@@ -65,6 +68,7 @@ def validate_geometry(source, pin, batch, prompt):
         if stage == 'down':
             alias('DownLast', body)
     return dict(batch=batch, threads=threads, prompt=prompt, classes=6,
+        routing_weights_fp32=routing_weights_fp32,
         attention_b_min=config['b_min'], attention_prefetch=config['attn_prefetch'],
         not_resource_or_numerical_or_model_acceptance=True)
 
