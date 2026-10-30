@@ -41,10 +41,22 @@ def validate_inputs(spec, *, inspect_resource=None, command=common.run_text):
     if report != actual or report.get('kernel', {}).get('name') != KERNEL or set(report.get('kernel_instructions', {})) != {KERNEL} or len(report.get('device_images', [])) != 1:
         raise ValueError('resource report does not describe the exact single MoE kernel')
     source = paths['generated_source'].read_text()
-    for name, expected in dict(kThreads=threads, kBatch=batch, kGrid=104, kLayers=24,
-            kHidden=2048, kIntermediate=768, kCapacity=1088).items():
+    geometry=spec.get('model_geometry',{})
+    olmoe=geometry.get('experts')==64
+    if geometry and geometry not in ({'layers':16,'hidden':2048,'intermediate':1024,'experts':64,'hkv':16,'q':1},
+                                    {'layers':24,'hidden':2048,'intermediate':768,'experts':128,'hkv':4,'q':8}):
+        raise ValueError('unsupported MoE query model geometry')
+    for name, expected in dict(kThreads=threads, kBatch=batch, kGrid=104, kLayers=16 if olmoe else 24,
+            kHidden=2048, kIntermediate=1024 if olmoe else 768, kCapacity=1088).items():
         if re.findall(r'\b' + name + r'\s*=\s*(\d+)\b', source) != [str(expected)]:
             raise ValueError('generated MoE Plan constant differs: ' + name)
+    if olmoe:
+        for name,expected in {'kExperts':64,'kQ':1,'kHeadDim':128}.items():
+            if re.findall(r'\b'+name+r'\s*=\s*(\d+)\b',source)!=[str(expected)]:
+                raise ValueError('OLMoE query source geometry differs: '+name)
+        for name,expected in {'kRowQkNorm':'true','kNormalizeTopK':'false'}.items():
+            if re.findall(r'\b'+name+r'\s*=\s*(true|false)\b',source)!=[expected]:
+                raise ValueError('OLMoE query numeric scope differs: '+name)
     if ('MoeProgramV2.cuh' not in source or 'MoeRuntimeV2.cuh' not in source or
             not re.search(r'\bnamespace\s+tm_mx_plan\s*\{', source) or not re.search(r'\bstruct\s+Plan\s*\{', source) or
             'DecodeProgramV2.cuh' in source):

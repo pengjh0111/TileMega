@@ -115,7 +115,7 @@ int TryCompileMoeV2(Request const& r, frontend::ModelPlan const& plan) {
       Int(pin, "threads"), Int(pin, "b_min"), Int(pin, "attn_prefetch")};
   codegen::CheckMxMoeConfigV2(plan, config);
   int const nq = (model.queries + 2) * model.hkv * model.dim;
-  int const active = r.batch == 1 ? 8 : r.batch == 2 ? 16 : r.batch == 4 ? 29 : r.batch == 8 ? 52 : 82;
+  int const active = codegen::MxMoeExpectedActiveV2(model.experts,r.batch);
   auto resolve = [&](MxDecodeClassV2& c, int n, int k) {
     c.prefetch = codegen::MxDecodePrefetchV2(c, n, k, r.grid, config.threads);
   };
@@ -143,6 +143,9 @@ int TryCompileMoeV2(Request const& r, frontend::ModelPlan const& plan) {
       " -DTILEMEGA_MX_DIAG=" + (diag ? "1" : "0");
   std::string device_flags = DeviceBuildFlags();
   if (device_flags.find("-fno-strict-aliasing") == std::string::npos) device_flags += " -fno-strict-aliasing";
+  // Avoid MACA's implicit 168-VGPR cap while preserving the prompt's
+  // per-plan limit. Prefetch still reserves headroom with R_cap=220/248.
+  device_flags += " -mllvm --max-mtreg-number=" + std::to_string(config.threads == 576 ? 227 : 255);
   std::string const command = Quote(compile_receipt_v1::CompilerPath(NvccPath())) + " -std=c++17 -O3" + device_flags + flags +
       " -mllvm -print-after=stack-frame-layout -shared -Xcompiler=-fPIC -x cu -I" + Quote(root + "/include") + " " +
       Quote(out + ".cu") + " -L" + Quote(CudaLibraryDirectory()) + " -lcudart -o " + Quote(out);
@@ -199,17 +202,17 @@ int TryCompileMoeV2(Request const& r, frontend::ModelPlan const& plan) {
   };
   int const stages = 6 * model.layers.size() + 1;
   scratch("mx.x", "bf16", B * H, 2); scratch("mx.qkv", "bf16", B * nq, 2);
-  scratch("mx.ctx", "bf16", B * model.heads * model.dim, 2); scratch("mx.h", "bf16", 128 * B * I, 2);
-  scratch("mx.gemm_partial", "f32", std::max({partial(config.qkv, nq), partial(config.o, H), partial(config.router, 128)}), 4);
+  scratch("mx.ctx", "bf16", B * model.heads * model.dim, 2); scratch("mx.h", "bf16", model.experts * B * I, 2);
+  scratch("mx.gemm_partial", "f32", std::max({partial(config.qkv, nq), partial(config.o, H), partial(config.router, model.experts)}), 4);
   scratch("mx.attn_partial", "f32", B * model.hkv * std::min(int(model.capacity / 32), 104) * model.queries * (model.dim + 2), 4);
   scratch("mx.head_partial", "pair_f32_u32", B * G, 8);
-  scratch("mx.router_logits", "bf16", B * 128, 2); scratch("mx.expert_partials", "bf16", B * 8 * H, 2);
-  scratch("mx.n_active", "u32", 1, 4); scratch("mx.active", "u32", 128, 4);
-  scratch("mx.row_count", "u32", 128, 4); scratch("mx.rows", "pair_u32", 128 * B, 8);
+  scratch("mx.router_logits", "bf16", B * model.experts, 2); scratch("mx.expert_partials", "bf16", B * 8 * H, 2);
+  scratch("mx.n_active", "u32", 1, 4); scratch("mx.active", "u32", model.experts, 4);
+  scratch("mx.row_count", "u32", model.experts, 4); scratch("mx.rows", "pair_u32", model.experts * B, 8);
   scratch("mx.u_gate_up", "u32", 1, 4); scratch("mx.u_down", "u32", 1, 4);
   scratch("mx.routing_weights", model.routing_weights_fp32 ? "f32" : "bf16", B * 8, model.routing_weights_fp32 ? 4 : 2);
   scratch("mx.t_qkv", "u32", nq / config.qkv.tn, 4); scratch("mx.t_o", "u32", H / config.o.tn, 4);
-  scratch("mx.router_tile_tickets", "u32", 128 / config.router.tn, 4); scratch("mx.router_ticket", "u32", 16, 4);
+  scratch("mx.router_tile_tickets", "u32", model.experts / config.router.tn, 4); scratch("mx.router_ticket", "u32", 16, 4);
   scratch("mx.combine_tickets", "u32", H / config.down.tn, 4); scratch("mx.t_attn", "u32", B * model.hkv, 4);
   scratch("mx.t_head", "u32", 16, 4); scratch("mx.barrier", "u64", std::uint64_t(stages) * 8, 8);
   if (diag) scratch("mx.route_debug", "u32", 64 * model.layers.size() * B * 8, 4);
@@ -233,10 +236,12 @@ int TryCompileMoeV2(Request const& r, frontend::ModelPlan const& plan) {
       {"kv_layout", "vt"}, {"kv_storage", "block_fragments"}, {"batch_lo", r.batch}, {"batch_hi", r.batch},
       {"seq", r.prompt ? 64 : 1}, {"capacity", int(model.capacity)}, {"past_lo", past_lo}, {"past_hi", past_hi},
       {"grid", r.grid}, {"residency", 1}, {"pg", "off"}, {"threads", config.threads}, {"kThreads", config.threads},
+      {"compiler_mtreg_budget", config.threads == 576 ? 227 : 255},
       {"smem", generation_offset + 16}, {"body_smem", body_smem}, {"token_offset", body_smem},
       {"metadata_offset", metadata_offset}, {"generation_offset", generation_offset}, {"layers", int(model.layers.size())},
       {"head_dim", int(model.dim)}, {"heads_kv", int(model.hkv)}, {"q_per_kv", int(model.queries)},
-      {"experts", int(model.experts)}, {"top_k", int(model.top_k)}, {"stages_per_step", stages},
+      {"experts", int(model.experts)}, {"qk_norm_scope", model.row_qk_norm ? "row" : "head"},
+      {"routing_softmax_scope", model.softmax_all ? "all" : "selected"}, {"top_k", int(model.top_k)}, {"stages_per_step", stages},
       {"prompt_barriers", r.prompt ? 64 * (stages - 1) + 1 : 0}, {"classes", classes}, {"transitions", transitions},
       {"b_min", config.b_min}, {"attn_prefetch", config.attn_prefetch}, {"watchdog", r.watchdog},
       {"trace_stage", r.trace_stage}, {"diag", diag}, {"barrier_prefetch", 1},

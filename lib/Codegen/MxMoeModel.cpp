@@ -8,6 +8,11 @@
 #include <stdexcept>
 #include <string>
 namespace tilemega::codegen {
+int MxMoeExpectedActiveV2(unsigned experts,unsigned batch) {
+  if((experts!=64&&experts!=128)||(batch!=1&&batch!=2&&batch!=4&&batch!=8&&batch!=16))
+    throw std::invalid_argument("MX MoE expected activity requires E64/128 and B1/2/4/8/16");
+  return int(std::lround(experts*(1-std::pow(1-8.0/experts,batch))));
+}
 namespace {
 using namespace frontend;
 using K=PlanTaskKind;
@@ -86,16 +91,21 @@ MxMoeModel AnalyzeMxMoe(frontend::ModelPlan const& p) {
     auto const& top=p.stages[l.dispatch];auto const& combine=p.stages[l.combine];
     auto const& cfg=top.moe;
     r.Need(cfg.step==DmMoeStep::kSelectAndDispatch,"dispatch","requires one SelectAndDispatch stage");
-    r.Need(cfg.experts==128&&cfg.top_k==8&&cfg.row_capacity%cfg.top_k==0,"dispatch","unsupported expert/top-k/row geometry");
+    r.Need((cfg.experts==128||cfg.experts==64)&&cfg.top_k==8&&cfg.row_capacity%cfg.top_k==0,"dispatch","unsupported expert/top-k/row geometry");
     unsigned const batch=cfg.row_capacity/cfg.top_k;
     r.Need(batch>0&&batch<=16&&cfg.router_gemm==p.stages[l.router].gemm,"dispatch","invalid batch/router binding");
     auto const& tw=r.Buffer(top.operands[3],"routing weights");r.Need(tw.dtype=="f32"||tw.dtype=="bf16","routing weights","unsupported routing dtype");
     if(m.layers.empty()) {
       m.batch=batch;m.hkv=a.extent;m.dim=a.width;m.queries=a.group;m.heads=m.hkv*m.queries;
       m.experts=cfg.experts;m.top_k=cfg.top_k;m.intermediate=down.k;m.cosine=a.operands[3];m.sine=a.operands[4];m.routing_weights_fp32=tw.dtype=="f32";
+      m.softmax_all=router.moe_softmax_all;
+      m.row_qk_norm=r.Buffer(a.operands[5],"qk norm").constant==m.heads*m.dim;
     }
     r.Need(batch==m.batch&&a.extent==m.hkv&&a.width==m.dim&&a.group==m.queries&&cfg.experts==m.experts&&cfg.top_k==m.top_k,"layer geometry","layers disagree");
-    r.Need(m.dim==128&&m.queries==8&&m.hkv==4,"attention","covered MoE attention geometry required");
+    r.Need(m.dim==128&&((m.queries==8&&m.hkv==4&&!m.row_qk_norm&&!m.softmax_all&&m.experts==128)||
+        (m.queries==1&&m.hkv==16&&m.row_qk_norm&&m.softmax_all&&m.experts==64)),"attention","covered MoE attention/norm/routing geometry required");
+    r.Need(router.moe_softmax_all==m.softmax_all,"routing weights","softmax scope differs by layer");
+    r.Need(!m.softmax_all||!m.routing_weights_fp32,"routing weights","covered OLMoE requires BF16 probabilities");
     r.Need(qkv.n==(m.queries+2)*m.hkv*m.dim&&qkv.k==m.hidden&&qkv.a==current&&a.operands[0]==qkv.d,"qkv","projection/input layout mismatch");
     r.Need(o.n==m.hidden&&o.k==m.heads*m.dim&&o.a==a.operands[7]&&o.c==current&&o.epilogue==PlanGemm::Epilogue::kResidual&&o.beta==1.0f,"o","context/residual geometry mismatch");
     r.Need(router.n==m.experts&&router.k==m.hidden&&router.a==o.d,"router","router geometry/input mismatch");
@@ -119,7 +129,8 @@ MxMoeModel AnalyzeMxMoe(frontend::ModelPlan const& p) {
     for(auto id:{l.q_norm,l.k_norm,l.k_cache,l.v_cache,m.cosine,m.sine,a.operands[7]})r.Need(r.Buffer(id,"attention buffers").dtype=="bf16","attention buffers","BF16 normalization/cache/rope/context required");
     for(auto id:{l.q_norm,l.k_norm}) {
       auto const& gamma=r.Buffer(id,"qk norm");
-      r.Need(gamma.constant==m.dim&&!gamma.per_seq&&!gamma.per_batch&&!gamma.per_past&&!gamma.per_total,"qk norm","normalization weight must cover exactly one head");
+      unsigned const width=m.row_qk_norm?m.heads*m.dim:m.dim;
+      r.Need(gamma.constant==width&&!gamma.per_seq&&!gamma.per_batch&&!gamma.per_past&&!gamma.per_total,"qk norm","normalization weight width disagrees with head/row scope");
     }
     r.Need(qkv.norm_ss!=kDmNoIndex&&r.Buffer(qkv.norm_ss,"qkv norm").dtype=="f32","qkv norm","missing FP32 pre-normalization statistics");
     r.Need(a.operands[3]==m.cosine&&a.operands[4]==m.sine,"rope","rope tables differ by layer");l.gate_chain=gu.chain;

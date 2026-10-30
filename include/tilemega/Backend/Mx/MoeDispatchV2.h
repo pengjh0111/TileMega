@@ -29,11 +29,13 @@ __device__ __forceinline__ void MxMoeStoreGlobal(uint2* target,uint2 value) {
 __device__ __forceinline__ void MxMoeStoreGlobal(uint4* target,uint4 value) {
   MxStore16V2(reinterpret_cast<Bf16*>(target),value);
 }
-template <int B,int Hidden,int Intermediate,int TnGate,int TnDown,bool Fp32,int Threads>
+template <int B,int Hidden,int Intermediate,int TnGate,int TnDown,bool Fp32,int Threads,
+          int Experts=128,bool NormalizeTopK=true>
 struct MxMoeDispatchV2 {
   static_assert(B>0&&B<=16&&Hidden%TnDown==0&&(2*Intermediate)%TnGate==0);
   static_assert(TnGate%32==0 && (Threads==512||Threads==576));
-  static constexpr int E=128,K=8;
+  static constexpr int E=Experts,K=8;
+  static_assert(E==64||E==128);
   static constexpr int kSharedBytes=(B*E+B*K+B*K+E)*4;
   using Sync=codegen::mx::StageSyncV2<Threads>;
   // Caller is the last completed router tile and has acquired all BF16 logits.
@@ -76,7 +78,11 @@ struct MxMoeDispatchV2 {
 #pragma unroll
       for(unsigned rank=0;rank<K;++rank) {
         probabilities[rank]=expf(selected[t*K+rank]-selected[t*K]);
-        sum+=probabilities[rank];
+        if constexpr(NormalizeTopK)sum+=probabilities[rank];
+      }
+      if constexpr(!NormalizeTopK) {
+#pragma unroll 4
+        for(unsigned e=0;e<E;++e)sum+=expf(logits[t*E+e]-selected[t*K]);
       }
       if constexpr(Fp32) {
         alignas(16) float weights[K];

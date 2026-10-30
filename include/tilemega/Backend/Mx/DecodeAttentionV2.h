@@ -38,7 +38,8 @@ struct MxAttentionGeometryV2 {
 };
 
 // The fixed payload kind is derived from V_pf: 0 = none, 1 = K, 2 = K+V.
-template <int D, int Q, int Bmin, bool QkNorm, int PrefetchKind = 2, int Capacity = 1088>
+template <int D, int Q, int Bmin, bool QkNorm, int PrefetchKind = 2, int Capacity = 1088,
+          int RowNormHeads = 0>
 struct MxAttentionV2 {
   static_assert(D == 64 || D == 128);
   static_assert(Q >= 1 && Q <= 8);
@@ -142,6 +143,11 @@ struct MxAttentionV2 {
     uint4 new_key[kChunks];
     unsigned new_values[kAtoms];
     if (wave < 8 && count) {
+      float query_inverse=1.f,key_inverse=1.f;
+      if constexpr(RowNormHeads) {
+        query_inverse=MxProjectionInverseV2<D,RowNormHeads,Q>(p.qkv,head/RowNormHeads,0,p.epsilon,exchange,lane);
+        key_inverse=MxProjectionInverseV2<D,RowNormHeads,Q>(p.qkv,head/RowNormHeads,Q,p.epsilon,exchange,lane);
+      }
       uint4 cosine[kChunks], sine[kChunks], weights[kChunks], key_weights[kChunks];
       uint4 new_v{};
       int const offset = p.past % 32, owner_r = 4 * (offset / 8) + offset % 4;
@@ -154,7 +160,7 @@ struct MxAttentionV2 {
         sine[dc] = LoadGlobal16Gvm(p.sine + p.past * D + at);
         query[dc] = LoadGlobal16Gvm(p.qkv + (head * (Q + 2) + min(r, Q - 1)) * D + at);
         weights[dc] = uint4{};
-        if constexpr (QkNorm) weights[dc] = LoadGlobal16Gvm(p.q_norm + at);
+        if constexpr (QkNorm) weights[dc] = LoadGlobal16Gvm(p.q_norm + (RowNormHeads?head%RowNormHeads*Q*D:0) + at);
         new_key[dc] = uint4{};
         key_weights[dc] = uint4{};
       }
@@ -163,7 +169,7 @@ struct MxAttentionV2 {
         for (int dc = 0; dc < kChunks; ++dc) {
           int const at = dc * 32 + 8 * g;
           if (r == owner_r) new_key[dc] = LoadGlobal16Gvm(p.qkv + (head * (Q + 2) + Q) * D + at);
-          if constexpr (QkNorm) key_weights[dc] = LoadGlobal16Gvm(p.k_norm + at);
+          if constexpr (QkNorm) key_weights[dc] = LoadGlobal16Gvm(p.k_norm + (RowNormHeads?head%RowNormHeads*D:0) + at);
         }
         if (lane < D / 8)
           new_v = LoadGlobal16Gvm(p.qkv + (head * (Q + 2) + Q + 1) * D + lane * 8);
@@ -192,10 +198,10 @@ struct MxAttentionV2 {
       } else if (!block.valid) __builtin_mxc_arrive_gvmcnt(kKLoads + kVLoads);
       else __builtin_mxc_arrive_gvmcnt(0);
       if (owner) {
-        MxRowTransformV2<D, QkNorm>(new_key, key_weights, cosine, sine, p.epsilon, exchange, lane);
+        MxRowTransformV2<D, QkNorm, (RowNormHeads>0)>(new_key, key_weights, cosine, sine, p.epsilon, exchange, lane,key_inverse);
         __syncwarp();
       }
-      MxRowTransformV2<D, QkNorm>(query, weights, cosine, sine, p.epsilon, exchange, lane);
+      MxRowTransformV2<D, QkNorm, (RowNormHeads>0)>(query, weights, cosine, sine, p.epsilon, exchange, lane,query_inverse);
       __syncwarp();
       if (owner && lane < D / 8)
         *reinterpret_cast<uint4*>(new_value + lane * 8) = new_v;

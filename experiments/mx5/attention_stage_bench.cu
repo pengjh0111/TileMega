@@ -14,6 +14,9 @@
 #ifndef MX5_BENCH_PREFETCH_KIND
 #define MX5_BENCH_PREFETCH_KIND 2
 #endif
+#ifndef MX5_ROW_NORM_HEADS
+#define MX5_ROW_NORM_HEADS 0
+#endif
 
 using namespace tilemega::backend::mx;
 struct AttentionBenchArgs {
@@ -69,7 +72,7 @@ __global__ void __launch_bounds__(MX5_TEST_THREADS) AttentionBench(AttentionBenc
 
 template <int Bmin, bool Norm>
 int Launch(AttentionBenchArgs const& args, cudaStream_t stream) {
-  using Body = MxAttentionV2<MX5_TEST_DIM, MX5_TEST_Q, Bmin, Norm, MX5_BENCH_PREFETCH_KIND>;
+  using Body = MxAttentionV2<MX5_TEST_DIM, MX5_TEST_Q, Bmin, Norm, MX5_BENCH_PREFETCH_KIND,1088,MX5_ROW_NORM_HEADS>;
   int const bytes = max(32784, Body::kSharedBytes) + 16;
   if (bytes > 65536) return 4;
   if (cudaFuncSetAttribute(AttentionBench<Body>, cudaFuncAttributeMaxDynamicSharedMemorySize, bytes) != cudaSuccess)
@@ -91,15 +94,19 @@ int Launch(AttentionBenchArgs const& args, cudaStream_t stream) {
 }
 template <int Bmin>
 int Norm(AttentionBenchArgs const& args, int norm, cudaStream_t stream) {
-  if constexpr (MX5_TEST_DIM == 128) if (norm) return Launch<Bmin, true>(args, stream);
-  if (norm) return 4;
-  return Launch<Bmin, false>(args, stream);
+  if constexpr(MX5_ROW_NORM_HEADS) {
+    return norm==2 && args.hkv==MX5_ROW_NORM_HEADS ? Launch<Bmin,true>(args,stream) : 4;
+  } else {
+    if constexpr (MX5_TEST_DIM == 128) if (norm) return Launch<Bmin, true>(args, stream);
+    if (norm) return 4;
+    return Launch<Bmin, false>(args, stream);
+  }
 }
 
 extern "C" int mx5_attention_bench(AttentionBenchArgs const* args, int bmin, int norm, void* stream) {
   if (!args || args->iterations < 0 || args->copies < 1 || args->b < 1 || args->b > 16 || args->hkv < 1 ||
       args->attention.capacity < 32 || args->attention.capacity > 1088 || args->attention.capacity % 32 ||
-      args->attention.past < 0 || args->attention.past >= args->attention.capacity || (norm != 0 && norm != 1))
+      args->attention.past < 0 || args->attention.past >= args->attention.capacity || (norm < 0 || norm > 2))
     return 4;
   auto s = static_cast<cudaStream_t>(stream);
   if (bmin == 1) return Norm<1>(*args, norm, s);

@@ -172,7 +172,7 @@ extern "C" void* tm_plan_create(int batch, void* const* external, int device) {
   sc.x = static_cast<tilemega::Bf16*>(Alloc(s, B * P::kHidden * 2));
   sc.qkv = static_cast<tilemega::Bf16*>(Alloc(s, B * P::QkvShape::n * 2));
   sc.ctx = static_cast<tilemega::Bf16*>(Alloc(s, B * P::OShape::k * 2));
-  sc.h = static_cast<tilemega::Bf16*>(Alloc(s, 128 * B * P::DownShape::k * 2));
+  sc.h = static_cast<tilemega::Bf16*>(Alloc(s, P::kExperts * B * P::DownShape::k * 2));
   sc.gemm_partial = static_cast<float*>(Alloc(s, R::kPartial * 4));
   sc.attn_partial = static_cast<float*>(
       Alloc(s, B * P::AttnShape::hkv * P::Attn::kSlots * P::kQ * (P::kHeadDim + 2) * 4));
@@ -180,16 +180,16 @@ extern "C" void* tm_plan_create(int batch, void* const* external, int device) {
       Alloc(s, B * P::kGrid * sizeof(tilemega::backend::mx::MxHeadPartialV2)));
   sc.t_qkv = static_cast<unsigned*>(Alloc(s, (P::QkvShape::n / P::Qkv::kTN) * 4));
   sc.t_o = static_cast<unsigned*>(Alloc(s, (P::OShape::n / P::O::kTN) * 4));
-  sc.router_logits=static_cast<tilemega::Bf16*>(Alloc(s,B*128*2));
+  sc.router_logits=static_cast<tilemega::Bf16*>(Alloc(s,B*P::kExperts*2));
   sc.expert_partials=static_cast<tilemega::Bf16*>(Alloc(s,B*8*P::kHidden*2));
   sc.n_active=static_cast<unsigned*>(Alloc(s,4));
-  sc.active=static_cast<unsigned*>(Alloc(s,128*4));
-  sc.row_count=static_cast<unsigned*>(Alloc(s,128*4));
-  sc.rows=static_cast<uint2*>(Alloc(s,128*B*sizeof(uint2)));
+  sc.active=static_cast<unsigned*>(Alloc(s,P::kExperts*4));
+  sc.row_count=static_cast<unsigned*>(Alloc(s,P::kExperts*4));
+  sc.rows=static_cast<uint2*>(Alloc(s,P::kExperts*B*sizeof(uint2)));
   sc.u_gate_up=static_cast<unsigned*>(Alloc(s,4));
   sc.u_down=static_cast<unsigned*>(Alloc(s,4));
   sc.routing_weights=Alloc(s,B*8*(P::kRoutingFp32?4:2));
-  sc.router_tile_tickets=(MxMoeGlobalTicketV2*)Alloc(s,(128/P::Router::kTN)*4);
+  sc.router_tile_tickets=(MxMoeGlobalTicketV2*)Alloc(s,(P::kExperts/P::Router::kTN)*4);
   sc.router_ticket=(MxMoeGlobalTicketV2*)Alloc(s,64);
   sc.combine_tickets=(MxMoeGlobalTicketV2*)Alloc(s,(P::kHidden/P::Down::kTN)*4);
 #if TILEMEGA_MX_DIAG

@@ -29,10 +29,12 @@ struct MxMoeModel {
   int token_id_bits;
   double epsilon;
   bool routing_weights_fp32, rope_fp32_phase;
+  bool row_qk_norm = false, softmax_all = false;
   std::vector<MxMoeLayer> layers;
   std::vector<MxMoeExternalBuffer> external_buffers;
 };
 MxMoeModel AnalyzeMxMoe(frontend::ModelPlan const& plan);
+int MxMoeExpectedActiveV2(unsigned experts,unsigned batch);
 std::vector<MxMoeExternalBuffer> PrepareMxMoeBuffersV2(
     frontend::ModelPlan const& plan, MxMoeWeightTilesV2 const& tiles);
 }

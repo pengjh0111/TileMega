@@ -8,7 +8,7 @@ from .cost_provenance import Files, need
 CLASSES = ('qkv', 'o', 'router', 'gate_up', 'down', 'head')
 
 
-def validate_geometry(source, pin, batch, prompt, *, routing_weights_fp32=True):
+def validate_geometry(source, pin, batch, prompt, *, routing_weights_fp32=True, model_type="qwen3_moe"):
     config = pin['mx_moe_v2']
     threads = config['threads']
     need(batch in (1, 2, 4, 8, 16) and threads in (512, 576) and type(prompt) is bool
@@ -19,13 +19,20 @@ def validate_geometry(source, pin, batch, prompt, *, routing_weights_fp32=True):
         found = re.findall(r'\b' + name + r'\s*=\s*([^,;]+)', source)
         need(found == [str(expected)], 'actual Plan constant differs: ' + name)
 
-    for name, value in dict(kLayers=24, kHidden=2048, kIntermediate=768, kCapacity=1088,
+    need(model_type in ('qwen3_moe','olmoe'), 'unsupported native model geometry')
+    olmoe=model_type=='olmoe'
+    layers,intermediate,experts,heads,q,vocab=(16,1024,64,16,1,50304) if olmoe else (24,768,128,4,8,151936)
+    for name, value in dict(kLayers=layers, kHidden=2048, kIntermediate=intermediate, kCapacity=1088,
             kBatch=batch, kThreads=threads, kGrid=104, kPastLo=0 if prompt else 64,
-            kPastHi=63 if prompt else 1086, kQ=8, kHeadDim=128).items():
+            kPastHi=63 if prompt else 1086, kQ=q, kHeadDim=128).items():
         constant(name, value)
     constant('kPrompt', 'true' if prompt else 'false')
     routing = 'true' if routing_weights_fp32 else 'false'
     constant('kRoutingFp32', routing)
+    if olmoe or re.search(r'\bkExperts\s*=',source):
+        constant('kExperts',experts)
+        constant('kRowQkNorm','true' if olmoe else 'false')
+        constant('kNormalizeTopK','false' if olmoe else 'true')
     for stage, name in (('qkv', 'kQkvStreamK'), ('o', 'kOStreamK'), ('router', 'kRouterStreamK')):
         constant(name, 'true' if config[stage]['part'] == 'kStreamK' else 'false')
 
@@ -35,13 +42,13 @@ def validate_geometry(source, pin, batch, prompt, *, routing_weights_fp32=True):
              'actual native body alias differs: ' + name)
 
     alias('Binding', 'mx::MxMoeBindingV2<kLayers>')
-    alias('Dispatch', 'MxMoeDispatchV2<kBatch,kHidden,kIntermediate,%d,%d,kRoutingFp32,kThreads>' %
+    alias('Dispatch', ('MxMoeDispatchV2<kBatch,kHidden,kIntermediate,%d,%d,kRoutingFp32,kThreads'+(',kExperts,kNormalizeTopK' if olmoe else '')+'>') %
           (config['gate_up']['tn'], config['down']['tn']))
-    alias('Attn', 'MxAttentionV2<128,8,%d,true,%d,kCapacity>' %
+    alias('Attn', ('MxAttentionV2<128,'+str(q)+',%d,true,%d,kCapacity'+(',16'if olmoe else '')+'>') %
           (config['b_min'], config['attn_prefetch']))
-    alias('AttnShape', 'MxStaticAttentionShapeV2<kBatch,4,kThreads>')
-    shapes = dict(qkv=(5120, 2048), o=(2048, 4096), router=(128, 2048),
-        gate_up=(1536, 2048), down=(2048, 768), head=(151936, 2048))
+    alias('AttnShape', f'MxStaticAttentionShapeV2<kBatch,{heads},kThreads>')
+    shapes = dict(qkv=((q+2)*heads*128, 2048), o=(2048, heads*q*128), router=(experts, 2048),
+        gate_up=(2*intermediate, 2048), down=(2048, intermediate), head=(vocab, 2048))
     for stage, name in zip(CLASSES, ('Qkv', 'O', 'Router', 'GateUp', 'Down', 'Head')):
         c = config[stage]
         tn, wn, depth, part, prefetch = (c[key] for key in ('tn', 'wn', 'd', 'part', 'prefetch'))
@@ -79,15 +86,17 @@ def validate_manifest(manifest, pin):
          'manifest classes differ from the selected pin')
     for name in ('threads', 'b_min', 'attn_prefetch'):
         need(manifest[name] == config[name], 'manifest geometry differs: ' + name)
+    layers=manifest.get('layers',24)
+    need((layers,manifest.get('experts',128)) in ((24,128),(16,64)), 'unsupported native packed-weight geometry')
     expected = {'lm_head.weight.dn': 'head'}
-    for layer in range(24):
+    for layer in range(layers):
         prefix = 'model.layers.%d.' % layer
         expected.update({
             'l%d.qkv.weight.dn' % layer: 'qkv', prefix + 'self_attn.o_proj.weight': 'o',
             prefix + 'mlp.gate.weight': 'router', prefix + 'mlp.experts.gate_up.packed': 'gate_up',
             prefix + 'mlp.experts.down.packed': 'down'})
     rows = [row for row in manifest['buffers'] if row.get('recipe', {}).get('kind') == 'tile_pages']
-    need(len(rows) == 121 and {row['name'] for row in rows} == set(expected),
+    need(len(rows) == 5*layers+1 and {row['name'] for row in rows} == set(expected),
          'native packed-weight set differs from all24 layers and head')
     for row in rows:
         recipe = row['recipe']
@@ -95,7 +104,7 @@ def validate_manifest(manifest, pin):
              and recipe['layout'] == 'xcore_mma' and recipe['tile_k'] == 32
              and recipe['tile_n'] == config[expected[row['name']]]['tn'],
              'packed-weight tile does not implement the selected body: ' + row['name'])
-    return dict(packed_weight_buffers=121, all_selected_weight_tile_sizes_match=True,
+    return dict(packed_weight_buffers=5*layers+1, all_selected_weight_tile_sizes_match=True,
         not_resource_or_numerical_or_model_acceptance=True)
 
 

@@ -23,11 +23,11 @@ def _ordered_bf16(value):
 
 
 def compare_routes(native, hf, logits):
-    if len(logits) != 128 or any(not math.isfinite(v) for v in logits):
-        raise ValueError('routing audit requires 128 finite HF logits')
+    if len(logits) not in (64,128) or any(not math.isfinite(v) for v in logits):
+        raise ValueError('routing audit requires 64/128 finite HF logits')
     for ids in (native, hf):
-        if len(ids) != 8 or len(set(ids)) != 8 or any(type(v) is not int or not 0 <= v < 128 for v in ids):
-            raise ValueError('routing audit requires eight distinct expert IDs in [0,128)')
+        if len(ids) != 8 or len(set(ids)) != 8 or any(type(v) is not int or not 0 <= v < len(logits) for v in ids):
+            raise ValueError('routing audit requires eight distinct expert IDs within the expert table')
     if set(native) == set(hf):
         return {'status': 'match'}
     ordered = sorted(logits, reverse=True)
@@ -55,7 +55,7 @@ def main():
     if manifest.get('program_kind') != 'moe' or not manifest.get('diag') or manifest.get('executor') != 'mx_static':
         raise ValueError('routing audit requires a diagnostic native MoE decode plan')
     layers = manifest['layers']
-    if layers != 24 or manifest['top_k'] != 8 or manifest['experts'] != 128:
+    if (layers,manifest['experts']) not in ((24,128),(16,64)) or manifest['top_k'] != 8:
         raise ValueError('routing audit requires the specified MoE-L24 geometry')
     from .plan_pair import validate_plan_pair
     prefill = json.loads(Path(str(a.prefill_so) + '.plan.json').read_text())
@@ -98,7 +98,7 @@ def main():
             if layer in captures or not isinstance(output, tuple) or len(output) != 3:
                 raise ValueError('unexpected HF gate hook call or output signature')
             logits, _scores, selected = output
-            if logits.dtype != torch.bfloat16 or tuple(logits.shape) != (128, 128) or tuple(selected.shape) != (128, 8):
+            if logits.dtype != torch.bfloat16 or tuple(logits.shape) != (128, manifest['experts']) or tuple(selected.shape) != (128, 8):
                 raise ValueError('HF gate output does not cover the teacher-forced positions')
             captures[layer] = (logits[64:128].float().cpu(), selected[64:128].cpu())
         return hook

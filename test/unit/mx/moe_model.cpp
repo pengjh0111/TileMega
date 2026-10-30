@@ -285,7 +285,38 @@ int main(int argc,char** argv) {
     reject("layer 0 experts",[&](auto& q){q.gemms[q.stages[m.layers[0].down].gemm].access.write.kind=DmWriteKind::kDense;});
     reject("layer "+std::to_string(layers)+" head",[&](auto& q){q.gemms[m.head_gemm].n+=16;});
   }
-  if(argc==2){auto bridge=ReadExportBridge(argv[1]);for(unsigned b:{1u,2u,4u,8u,16u}){ServingOptions o;o.moe_batch=b;o.capacity=1088;o.phase=ServingOptions::Phase::kDecode;o.seq=1;o.deferred_norm=true;auto p=BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,o);auto m=AnalyzeMxMoe(p);assert(m.batch==b&&m.layers.size()==24&&m.external_buffers.size()==246);auto buffers=PrepareMxMoeBuffersV2(p,{16,32,64,64,128,128});assert(buffers.size()==246);unsigned unused=0;for(auto const& row:buffers)unused+=row.slot==MxMoeSlotV2::kUnused;assert(unused==25);++positive;}}
+  for(unsigned b:{1u,2u,4u,8u,16u}) {
+    auto p=Fixture(b,1,false,false);auto old=AnalyzeMxMoe(p);auto const layer=old.layers[0];
+    p.stages[0].extent=50304;p.gemms[old.head_gemm].n=50304;
+    auto& q=p.gemms[p.stages[layer.qkv].gemm];q.n=6144;
+    p.buffers[q.b].pack_json=R"({"kind":"fold_rmsnorm","norm":"gamma","source":{"kind":"qkv_group_interleave","hkv":16,"qperkv":1,"head_dim":128}})";
+    p.stages[layer.attention].extent=16;p.stages[layer.attention].group=1;
+    p.buffers[layer.q_norm].constant=p.buffers[layer.k_norm].constant=2048;
+    p.gemms[p.stages[layer.o].gemm].k=2048;
+    auto& router=p.gemms[p.stages[layer.router].gemm];router.n=64;router.moe_softmax_all=true;
+    p.stages[layer.dispatch].moe.experts=p.stages[layer.combine].moe.experts=64;
+    auto& gu=p.gemms[p.stages[layer.gate_up].gemm];gu.n=2048;gu.access.expert_stride=2048*2048;
+    auto& down=p.gemms[p.stages[layer.down].gemm];down.k=1024;down.access.expert_stride=2048*1024;
+    for(auto id:{gu.b,down.b}) {
+      auto& text=p.buffers[id].pack_json;
+      auto e=text.find("\"experts\":128");assert(e!=std::string::npos);text.replace(e,13,"\"experts\":64");
+      auto i=text.find("\"intermediate\":768");assert(i!=std::string::npos);text.replace(i,18,"\"intermediate\":1024");
+    }
+    auto m=AnalyzeMxMoe(p);assert(m.experts==64&&m.intermediate==1024&&m.queries==1&&m.hkv==16&&m.row_qk_norm&&m.softmax_all&&!m.routing_weights_fp32);
+    auto geometry=tilemega::solver::MxMoeGeometryV2(m,"router",b);assert(geometry.n==64);
+    MxMoeConfigV2 c;c.threads=512;c.b_min=4;c.attn_prefetch=0;
+    c.qkv={32,1,1,false,1,-1};c.o={32,1,1,true,1,-1};c.router={16,1,1,true,1,-1};
+    c.gate_up={64,2,1,false,0,-1};c.down={64,2,1,false,1,-1};c.head={32,8,1,false,1,-1};
+    auto source=EmitMxMoeProgramV2(p,c,false);
+    assert(source.find("MxAttentionV2<128,1,4,true,0,kCapacity,16>")!=std::string::npos);
+    assert(source.find("kRoutingFp32,kThreads,kExperts,kNormalizeTopK>")!=std::string::npos);
+    auto bad=p;bad.buffers[layer.q_norm].constant=128;bool rejected=false;
+    try {AnalyzeMxMoe(bad);}catch(std::invalid_argument const&){rejected=true;}assert(rejected);
+    bad=p;bad.gemms[p.stages[layer.router].gemm].moe_softmax_all=false;rejected=false;
+    try {AnalyzeMxMoe(bad);}catch(std::invalid_argument const&){rejected=true;}assert(rejected);
+  }
+  std::cout<<"PASS OLMoE row-QK norm, E64 full-softmax routing, native emission at all5 batches\n";
+  if(argc==2){auto bridge=ReadExportBridge(argv[1]);for(unsigned b:{1u,2u,4u,8u,16u}){ServingOptions o;o.moe_batch=b;o.capacity=1088;o.phase=ServingOptions::Phase::kDecode;o.seq=1;o.deferred_norm=true;auto p=BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,o);auto m=AnalyzeMxMoe(p);auto const layers=m.experts==64?16u:24u;assert(m.batch==b&&m.layers.size()==layers&&m.external_buffers.size()==10*layers+6);auto buffers=PrepareMxMoeBuffersV2(p,{16,32,64,64,128,128});assert(buffers.size()==10*layers+6);unsigned unused=0;for(auto const& row:buffers)unused+=row.slot==MxMoeSlotV2::kUnused;assert(unused==layers+1);++positive;}}
   std::cout<<"PASS portable MoE analysis positive="<<positive<<" negative="<<negative<<" emitted="<<emitted<<" configuration_negative="<<configuration_negative<<" buffer_negative="<<buffer_negative<<" GPU_calls=0\n";return 0;
  }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}
 }

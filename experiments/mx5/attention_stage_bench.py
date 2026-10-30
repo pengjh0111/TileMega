@@ -35,7 +35,12 @@ def layout_indices(dim, capacity, torch):
 
 def transform_reference(x, weight, cosine, sine, norm, torch):
     dim = x.shape[-1]
-    if norm:
+    if norm == 2:
+        rows=x.reshape(-1,16*dim).float()
+        inverse=torch.rsqrt(rows.square().mean(-1,keepdim=True)+1e-6)
+        x=(rows*inverse).bfloat16().reshape(x.shape)
+        x=(x.reshape(-1,16*dim).float()*weight.reshape(1,16*dim).float()).bfloat16().reshape(x.shape)
+    elif norm:
         groups = x.float().reshape(*x.shape[:-1], 4, 4, 8)
         squares = torch.zeros_like(groups[..., 0])
         for item in range(8): squares = squares + groups[..., item].square()
@@ -69,9 +74,13 @@ def run_key(key, round_number, requested_iterations, ordinal):
     norm, kind, capacity = int(key['qk_norm']), int(key['prefetch_kind']), int(key.get('capacity', 1088))
     if list(coordinates) != [dim, query, kind, int(meta['threads'])]:
         raise RuntimeError('attention key does not match compiled coordinates')
-    if (b not in (1, 2, 4, 8, 16) or hkv < 1 or bmin not in (1, 2, 4, 8) or norm not in (0, 1)
+    if (b not in (1, 2, 4, 8, 16) or hkv < 1 or bmin not in (1, 2, 4, 8) or norm not in (0, 1, 2)
             or (norm and dim != 128) or capacity != 1088 or not 1 <= length <= capacity):
         raise ValueError('invalid attention key')
+    if norm==2 and (hkv!=16 or query!=1 or meta.get('row_norm_heads')!=16):
+        raise ValueError('whole-row attention requires its own 16-head one-query binary')
+    if norm!=2 and meta.get('row_norm_heads',0):
+        raise ValueError('per-head/no-norm key cannot use a row-normalizing binary')
     heads = b * hkv
     copy_bytes = heads * capacity * dim * 4
     active_bytes = heads * ((length + 31) // 32) * 32 * dim * 4
@@ -82,7 +91,7 @@ def run_key(key, round_number, requested_iterations, ordinal):
     raw = (t.randn(heads, query + 2, dim, generator=generator) * .2).bfloat16().cuda()
     keys = (t.randn(heads, capacity, dim, generator=generator) * .2).bfloat16().cuda()
     values = (t.randn(heads, capacity, dim, generator=generator) * .2).bfloat16().cuda()
-    weights = (1 + .1 * t.randn(2, dim, generator=generator)).bfloat16().cuda()
+    weights = (1 + .1 * t.randn(2, dim*(hkv if norm==2 else 1), generator=generator)).bfloat16().cuda()
     angle = t.linspace(-2., 2., dim // 2).repeat(2)
     cosine, sine = [f(angle).repeat(capacity, 1).bfloat16().cuda() for f in (t.cos, t.sin)]
     ki, vi = layout_indices(dim, capacity, t)

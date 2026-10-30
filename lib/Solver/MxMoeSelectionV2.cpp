@@ -13,17 +13,9 @@
 namespace tilemega::solver {
 MxMoeStageGeometryV2 MxMoeGeometryV2(codegen::MxMoeModel const& model,
     std::string const& stage, int batch) {
-  int active;
-  switch (batch) {
-    case 1: active = 8; break;
-    case 2: active = 16; break;
-    case 4: active = 29; break;
-    case 8: active = 52; break;
-    case 16: active = 82; break;
-    default: throw std::invalid_argument("MoE cost domain supports batches 1,2,4,8,16");
-  }
-  if (model.batch != unsigned(batch) || model.experts != 128 || model.top_k != 8)
-    throw std::invalid_argument("MoE cost domain requires matching batch, 128 experts and top8");
+  int active=codegen::MxMoeExpectedActiveV2(model.experts,batch);
+  if (model.batch != unsigned(batch) || model.top_k != 8)
+    throw std::invalid_argument("MoE cost domain requires matching batch, E64/128 and top8");
   auto integer = [](std::uint64_t value) {
     if (!value || value > std::uint64_t(std::numeric_limits<int>::max()))
       throw std::invalid_argument("MoE cost dimension is zero or overflows int");
@@ -35,7 +27,7 @@ MxMoeStageGeometryV2 MxMoeGeometryV2(codegen::MxMoeModel const& model,
   int queries = integer(model.queries), q = integer(std::uint64_t(queries) + 2);
   if (stage == "qkv") return {product(product(q, hkv), dim), hidden, product(product(q, hkv), dim), 0, 1, 0};
   if (stage == "o") return {hidden, product(heads, dim), hidden, 1, 0, 0};
-  if (stage == "router") return {128, hidden, 128, 0, 1, 0};
+  if (stage == "router") return {int(model.experts), hidden, int(model.experts), 0, 1, 0};
   if (stage == "gate_up") {
     int n = product(2, intermediate);
     return {n, hidden, product(active, n), 2, 1, active};
@@ -57,7 +49,7 @@ std::vector<codegen::MxDecodeClassV2> MxMoeGemmDomainV2(codegen::MxMoeModel cons
   for (int tn : {16, 32, 64, 128}) for (int wn : {1, 2, 4, 8}) for (int d = 1; d <= 4; ++d)
     for (bool stream : {false, true}) {
       if (shape.n_active && stream) continue;
-      if (stage == "router" && wn != 1) continue;
+      if (stage == "router" && (wn != 1 || shape.n % tn)) continue;
       if (stage == "head" && (stream || (wn != 4 && wn != 8))) continue;
       if (MxGemmLegalV2(shape.partition_n, shape.k, batch, tn, wn, d,
               static_cast<MxOpV2>(shape.op), stream ? MxPart::kStreamK : MxPart::kTileRange, grid))

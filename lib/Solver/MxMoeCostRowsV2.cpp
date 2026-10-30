@@ -65,7 +65,7 @@ MxMoeImportedCostsV2 ImportMxMoeCostRowsV2(codegen::MxMoeModel const& model,
     if (kind == "attention") {
       Need(Int(key, "dim") == int(model.dim) && Int(key, "q") == int(model.queries) &&
           Int(key, "hkv") == int(model.hkv) && Int(key, "capacity") == int(model.capacity) &&
-          Int(key, "qk_norm") == 1, "attention shape differs from model");
+          Int(key, "qk_norm") == (model.row_qk_norm?2:1), "attention shape differs from model");
       int b_min = Int(key, "b_min"), pf = Int(key, "prefetch_kind");
       Need(b_min == 1 || b_min == 2 || b_min == 4 || b_min == 8, "invalid attention b_min");
       int budget = std::min(64, (threads == 576 ? 220 : 248) - r_next);
@@ -184,7 +184,7 @@ MxMoeCostCoverageV2 CheckMxMoeCostCoverageV2(codegen::MxMoeModel const& model,
     if (kind == "attention") {
       Need(Int(key, "dim") == int(model.dim) && Int(key, "q") == int(model.queries) &&
           Int(key, "hkv") == int(model.hkv) && Int(key, "capacity") == int(model.capacity) &&
-          Int(key, "qk_norm") == 1, "rejected attention shape differs");
+          Int(key, "qk_norm") == (model.row_qk_norm?2:1), "rejected attention shape differs");
       add({6, Int(key, "b_min"), 0, 0, 0, 0, 0, Int(key, "length")});
       continue;
     }
