@@ -1,0 +1,27 @@
+{
+  "schema": "tilemega.as2.observed_decomposition.v1",
+  "model_id": "qwen3_1_7b",
+  "phase": "decode",
+  "batch": 16,
+  "status": "experimental_requires_tile_and_model_numerical_admission",
+  "evidence": "runs/as2/probes/qwen17_down_m16_partial3_numeric_v9.json; actual [16,1,6144], three K2048 partials",
+  "families": [
+    {
+      "n": 2048,
+      "k": 6144,
+      "epilogue": "residual",
+      "split_k": 3,
+      "expected_gemms": 28
+    }
+  ],
+  "partial_dtype": "fp32",
+  "combine_order": "increasing_K_slice_then_BF16_RINT_then_BF16_residual",
+  "automatic_performance_selection": false,
+  "swiglu_tile": true,
+  "default_enabled": false,
+  "implementation_scope": "Only Qwen1.7 B16 decode gate/up M16/N12288/K2048; original split3 down and all BF16 rounding points retained",
+  "body_evidence": "runs/as2/probes/opt_swiglu_tile_numeric_and_timing_v1.json (must pass before NPU model use)",
+  "vector_argmax": true,
+  "precision_contract_id": "as2_llm_fp32_replay_bf16_casts_v1",
+  "acceptance_only": true
+}

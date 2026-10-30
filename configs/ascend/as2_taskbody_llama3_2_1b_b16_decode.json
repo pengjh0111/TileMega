@@ -1,0 +1,28 @@
+{
+  "schema": "tilemega.as2.observed_decomposition.v1",
+  "model_id": "llama3_2_1b",
+  "phase": "decode",
+  "batch": 16,
+  "status": "experimental_requires_actual_model_pricing_numerical_and_TPOT_admission",
+  "evidence": "runs/as2/probes/llama1b_down_m16_partial3_numeric_v9.json; actual [16,1,8192] input, increasing-K FP32 sum exact",
+  "families": [
+    {
+      "n": 2048,
+      "k": 8192,
+      "epilogue": "residual",
+      "split_k": 3,
+      "expected_gemms": 16
+    }
+  ],
+  "partial_dtype": "fp32",
+  "combine_order": "increasing_K_slice_then_BF16_RINT_then_BF16_residual",
+  "automatic_performance_selection": false,
+  "swiglu_tile": true,
+  "default_enabled": false,
+  "implementation_scope": "Only this model B16 decode gate/up; complete imported layer count, U16 BF16 casts, existing decompositions and GM/MIX lifecycle retained",
+  "body_evidence": "runs/as2/probes/opt_swiglu_tile_numeric_and_timing_v1.json; Qwen1.7 full model proof does not admit other models",
+  "base_decomposition": "as2_llama1b_b16_decode_split3.json",
+  "vector_argmax": true,
+  "precision_contract_id": "as2_llm_fp32_replay_bf16_casts_v1",
+  "acceptance_only": true
+}

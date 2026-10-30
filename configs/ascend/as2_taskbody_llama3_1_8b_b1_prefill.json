@@ -1,0 +1,23 @@
+{
+  "schema": "tilemega.as2.observed_decomposition.v1",
+  "model_id": "llama3_1_8b",
+  "phase": "prefill",
+  "batch": 1,
+  "separate_qkv": true,
+  "families": [
+    {
+      "n": 1024,
+      "k": 4096,
+      "split_k": 7,
+      "epilogue": "store",
+      "expected_gemms": 64
+    }
+  ],
+  "status": "experimental_component_proven_model_unverified",
+  "evidence": "runs/as2/probes/llama8b_k_m64_partial7_numeric_v8.json and llama8b_k_m1_partial7_numeric_v8.json",
+  "swiglu_tile": true,
+  "vector_argmax": true,
+  "precision_contract_id": "as2_llm_fp32_replay_bf16_casts_v1",
+  "default_enabled": false,
+  "acceptance_only": true
+}

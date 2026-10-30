@@ -1,0 +1,27 @@
+{
+  "schema": "tilemega.as2.observed_decomposition.v1",
+  "model_id": "llama3_1_8b",
+  "phase": "decode",
+  "batch": 16,
+  "separate_qkv": true,
+  "families": [
+    {
+      "n": 1024,
+      "k": 4096,
+      "split_k": 7,
+      "epilogue": "store",
+      "expected_gemms": 64
+    }
+  ],
+  "status": "experimental_requires_actual_model_pricing_numerical_and_TPOT_admission",
+  "evidence": "verified-run B16 full-K first same-prefix drift is l0.qkv: runs/as2/correctness/llama8b_b16_fullk_intermediate4_v20.json; inferred separate projections, decode KV seven-part candidate from B1 component, B16 admission pending",
+  "swiglu_tile": true,
+  "default_enabled": false,
+  "automatic_performance_selection": false,
+  "implementation_scope": "Only this model B16 decode gate/up; complete imported layer count, U16 BF16 casts, existing decompositions and GM/MIX lifecycle retained",
+  "body_evidence": "runs/as2/probes/opt_swiglu_tile_numeric_and_timing_v1.json; Qwen1.7 full model proof does not admit other models",
+  "base_decomposition": "as2_llama8b_b16_decode_separate_v23.json",
+  "vector_argmax": true,
+  "precision_contract_id": "as2_llm_fp32_replay_bf16_casts_v1",
+  "acceptance_only": true
+}

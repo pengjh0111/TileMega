@@ -1,0 +1,18 @@
+{
+  "schema": "tilemega.as2.body_binding.v1",
+  "model_id": "llama3_2_1b",
+  "phase": "prefill",
+  "batch": 16,
+  "impl_id": "as2_mix_gemm_local_tail7_residual_16x128x128",
+  "status": "experimental_not_model_or_performance_admitted",
+  "evidence": "runs/as2/probes/llama1b_b16_streamk_domain_v1.json",
+  "scope": "Indivisible existing MIX tile: complete logical GEMM, local FP32 partition/reduction only for columns1792:2048; original CTG ownership and external event",
+  "default_enabled": false,
+  "n": 2048,
+  "k": 8192,
+  "expected_gemms": 16,
+  "swiglu_tile": true,
+  "vector_argmax": true,
+  "precision_contract_id": "as2_llm_fp32_replay_bf16_casts_v1",
+  "acceptance_only": true
+}

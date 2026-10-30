@@ -161,6 +161,11 @@ int main(int argc,char** argv) {
           !((model_id=="llama3_2_1b" && k==8192 && count==16) ||
             (model_id=="qwen3_1_7b" && k==6144 && count==28)))
         throw std::invalid_argument("Unverified local Body model/shape/count");
+      if(auto value=binding.Find("swiglu_tile"))swiglu_tile=value->AsBool("swiglu_tile");
+      if(auto value=binding.Find("vector_argmax"))vector_argmax=value->AsBool("vector_argmax");
+      if(auto precision=binding.Find("precision_contract_id");precision &&
+          precision->AsString("precision_contract_id")!="as2_llm_fp32_replay_bf16_casts_v1")
+        throw std::invalid_argument("Unimplemented precision contract in the local Body binding");
     }
     if(decomposed) {
       auto path=fs::weakly_canonical(argv[priced_decomposition?10:9]);
