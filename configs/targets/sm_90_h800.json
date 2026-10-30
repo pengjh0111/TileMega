@@ -2084,12 +2084,12 @@
     "schema": 1,
     "method": "scripts/sm90r3_constants.cu and scripts/sm90r2_attention_calibration.cu (SM90R3 gap keys); median of five fresh guarded processes; no fitting",
     "csv": "docs/results/SM90R4_constants.csv",
-    "source_commit": "9358d99e016239e3798a3f8842e95d344ba929e7",
+    "source_commit": "dd06d1ef64f3e2022cea45e00452ae9501438ba8",
     "header_sha256": {
       "include/tilemega/Backend/Sm90DenseEpilogue.h": "b89a5e74f82cf3e26d7de76a9dd90956485f583524b727842d7be5613899a6a2",
       "include/tilemega/Backend/Sm90DenseToken.cuh": "de9f2849dc71c3ecc1178f07081aa71c8f01dc319e6bbb0520230ec93d11b212",
       "include/tilemega/Backend/Sm90DenseHead.cuh": "ae888dab90a876b444df68709f38757a0ae44211e08e1b4ca3d94fe8e7c9e689",
-      "include/tilemega/Backend/Sm90DenseMoe.cuh": "c8e66c9c4de7bf42fdae00bf74e6371a9132d42f262b602287bca2b2611b6dae",
+      "include/tilemega/Backend/Sm90DenseMoe.cuh": "426d2458acea6e4960ce82586bbce23c95b5c21d6dd8b7996e2f9e0b29630226",
       "include/tilemega/Backend/Sm90DenseAttentionBody.cuh": "6dc95afb59581f2efe4ffc8e1e8196e8b70f6b1502c7746d61f299a3f63f1daa",
       "include/tilemega/Backend/Sm90DenseGemm.h": "b3bf5b123dd5164ff5bd89141b636be855dc580927fba108692afe58e0bc5ecb",
       "include/tilemega/Codegen/executor/Async.cuh": "e88c9e74a53bf5340d9e72315e61b3dcac466a0b412191644263159f12f02c5d"
@@ -3114,7 +3114,8 @@
           "4": 4029.4,
           "8": 4237.8,
           "16": 4668.0,
-          "32": 5202.2
+          "32": 5202.2,
+          "64": 6491.2
         },
         "block": 362.5,
         "prepare": 990.8

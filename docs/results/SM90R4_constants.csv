@@ -20,6 +20,7 @@ clock,r4c-dsmem2,1994.51,1994.51,MHz,5,r4c-dsmem2
 clock,r4c-e64,1979.99,1979.99,MHz,5,r4c-e64
 clock,r4c-epi,1994.39,1994.39,MHz,5,r4c-epi
 clock,r4c-gates,1979.96,1979.96,MHz,5,r4c-gates
+clock,r4c-moemerge2,1995,1995,MHz,5,r4c-moemerge2
 clock,r4c-moetask,1979.99,1979.99,MHz,5,r4c-moetask
 clock,r4c-q1,1979.99,1979.99,MHz,5,r4c-q1
 clock,r4c-q1b,1994.99,1994.99,MHz,5,r4c-q1b
@@ -656,6 +657,7 @@ t_merge,d=128:q=8:norm=1:s=16,4668.02,4686.73,ns,5,r4c-att2
 t_merge,d=128:q=8:norm=1:s=2,4019.39,4026.91,ns,5,r4c-att2
 t_merge,d=128:q=8:norm=1:s=32,5202.19,5226.76,ns,5,r4c-att2
 t_merge,d=128:q=8:norm=1:s=4,4029.38,4039.41,ns,5,r4c-att2
+t_merge,d=128:q=8:norm=1:s=64,6491.25,6525.33,ns,5,r4c-moemerge2
 t_merge,d=128:q=8:norm=1:s=8,4237.78,4247.26,ns,5,r4c-att2
 t_merge,d=64:q=4:norm=0:s=16,2684.58,2690.6,ns,5,r4c-att2
 t_merge,d=64:q=4:norm=0:s=2,2102.82,2106.33,ns,5,r4c-att2
