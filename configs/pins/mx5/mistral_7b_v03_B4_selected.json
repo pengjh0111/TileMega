@@ -1,0 +1,62 @@
+{
+  "mx_decode_v2": {
+    "attn_prefetch": 0,
+    "b_min": 8,
+    "default_enabled": false,
+    "diagnostic": true,
+    "down": {
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 1,
+      "r_next": 91,
+      "tn": 64,
+      "wn": 1
+    },
+    "final": false,
+    "gate_up": {
+      "d": 4,
+      "part": "kTileRange",
+      "prefetch": 8,
+      "r_next": 94,
+      "tn": 32,
+      "wn": 8
+    },
+    "head": {
+      "d": 4,
+      "part": "kTileRange",
+      "prefetch": 4,
+      "r_next": 170,
+      "tn": 64,
+      "wn": 4
+    },
+    "o": {
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 1,
+      "r_next": 91,
+      "tn": 64,
+      "wn": 1
+    },
+    "purpose": "manual",
+    "qkv": {
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 1,
+      "r_next": 100,
+      "tn": 64,
+      "wn": 1
+    },
+    "solver_selected": false,
+    "threads": 512
+  },
+  "evidence": {
+    "classification": "additional_workload_exact_original_top4_E2E_selection",
+    "selected_origin_candidate_id": 0,
+    "raw_results": "runs/mx5/extra_models_20261030_v1/mistral_complete_top4/B4/execution/results.json",
+    "C1_C2": "PASS512_all4_candidates",
+    "fresh_processes_per_candidate": 2,
+    "tpot_ms": 10.926902020133427,
+    "default_enabled": false,
+    "final": false
+  }
+}
