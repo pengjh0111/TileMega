@@ -60,13 +60,27 @@ def validate(domain):
         seen.add(c['id'])
         if c.get('body_binding') and c.get('decomposition'):
             raise ValueError('Body and CTG decomposition require separate native interfaces')
-        if c['groups'] not in (2,4,8) or c['gemm_tile_n'] not in (64,128) or c['kv_block'] not in (128,1088):
+        if c['groups'] not in (2,4,8,14) or c['gemm_tile_n'] not in (64,128) or c['kv_block'] not in (128,1088):
             raise ValueError('Unadmitted topology or geometry')
+        if c['groups']==14:
+            path=Path(domain.get('target_config','')).absolute()
+            if path.resolve()!=path or path.parent!=REPO/'configs/targets':
+                raise ValueError('Unadmitted topology: G14 requires an explicit project target and local protocol evidence')
+            target=json.loads(path.read_text());admission=target.get('topology_experiment',{})
+            source=controlled(admission.get('source_summary',''))
+            if (target.get('max_verified_mix_groups')!=14 or admission.get('default_enabled') is not False or
+                    digest(source)!=admission.get('source_summary_sha256')):
+                raise ValueError('Changed/unadmitted G14 topology provenance')
+            proof=json.loads(source.read_text())
+            if proof.get('status')!='pass' or proof.get('processes_passed_per_group',0)<5 or 14 not in proof.get('groups',[]):
+                raise ValueError('G14 requires five-process payload evidence')
         signature=tuple(c.get(k) for k in ('groups','gemm_tile_n','kv_block','attention',
             'body_binding','decomposition','fifo_wait_elision'))
         if signature in signatures:raise ValueError('Duplicate implementation/plan candidate')
         signatures.add(signature)
         p,device=evidence(controlled(c['prices']));devices.add(device)
+        if c['groups']==14 and device!=proof['physical_device_id']:
+            raise ValueError('G14 pricing and protocol evidence use different physical cards')
         if len(devices)>1:raise ValueError('Mixed device pricing context')
         if any(p[k]!=v for k,v in expected.items()) or p['groups']!=c['groups']:
             raise ValueError('Cost identity differs from the imported model/phase/B/G')
@@ -97,6 +111,11 @@ def solve(domain_path,out,compiler):
         scope='bounded whole-phase implementation/decomposition/topology outside native heterogeneous placement/order search',
         objective='minimum sourced predicted forward makespan at the declared pricing context',
         end_to_end_performance_admitted=False,automatic_runtime_default_changed=False,rows=rows)
+    if domain.get('target_config'):
+        target=Path(domain['target_config']).absolute()
+        if target.resolve()!=target or target.parent!=REPO/'configs/targets':
+            raise ValueError('Explicit target must remain in project configs/targets')
+        summary.update(target_config=str(target),target_config_sha256=digest(target))
     for c in domain['candidates']:
         disk=subprocess.run([sys.executable,str(REPO/'scripts/as2_disk_status.py')],capture_output=True,text=True)
         (out/(c['id']+'_disk.json')).write_text(disk.stdout)
@@ -108,6 +127,9 @@ def solve(domain_path,out,compiler):
         resource_log=out/(c['id']+'_resources.txt')
         argv=['/usr/bin/time','-v','-o',str(resource_log),'nice','-n','10',str(compiler),command,str(export),str(path),str(domain['batch']),
             str(c['groups']),str(c['kv_block']),str(c['gemm_tile_n']),c['attention'],c['prices']]
+        if domain.get('target_config'):
+            at=argv.index(str(compiler))+1
+            argv[at:at]=['--target',str(target)]
         argv.extend([c[k] for k in ('body_binding','decomposition') if c.get(k)])
         row=dict(id=c['id'],argv=argv,status='running',prices_sha256=digest(Path(c['prices'])),
             candidate=c,output=str(path));rows.append(row);write(out/'search.json',summary)

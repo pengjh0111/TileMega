@@ -89,7 +89,7 @@ int main(int argc,char** argv) {
       throw std::invalid_argument("Derived FP32 KV requires the paired request lifecycle");
     auto waits=Read<llm::Wait>(plan/"waits.bin");auto offsets=Read<uint32_t>(plan/"offsets.bin");
     auto queue=Read<uint32_t>(plan/"queue.bin");auto allocations=Read<llm::Allocation>(plan/"allocations.bin");
-    if(m.version!=llm::kVersion || (m.groups!=2 && m.groups!=4 && m.groups!=8) || m.workers!=3*m.groups ||
+    if(m.version!=llm::kVersion || !llm::SupportsGroups(m.groups) || m.workers!=3*m.groups ||
         m.tasks!=tasks.size() || m.stages!=stages.size() || m.waits!=waits.size() || m.queue_refs!=queue.size() ||
         offsets.size()!=m.workers+1 || offsets.front()!=0 || offsets.back()!=queue.size() ||
         !m.tasks || !m.epoch_stride || (m.seq!=1 && m.seq!=64) || (m.batch!=1 && m.batch!=4 && m.batch!=16) || m.capacity!=1088 ||

@@ -64,6 +64,14 @@ template<class T> static std::vector<T> ReadTable(std::filesystem::path const& p
 }
 int main(int argc,char** argv) {
   try {
+    std::filesystem::path target_path=std::string(TILEMEGA_SOURCE_DIR)+"/configs/targets/ascend_3510.json";
+    if(argc>2 && std::string(argv[1])=="--target") {
+      auto requested=std::filesystem::path(argv[2]);
+      auto targets=std::filesystem::path(TILEMEGA_SOURCE_DIR)/"configs/targets";
+      if(requested!=std::filesystem::canonical(requested) || requested.parent_path()!=targets)
+        throw std::invalid_argument("Explicit target must be a canonical project configs/targets file");
+      target_path=requested;argc-=2;argv+=2;
+    }
     if(argc==4 && std::string(argv[1])=="reemit") {
       namespace fs=std::filesystem;fs::path root="/home/d50064638/junhuip/TileMega/runs/as2";
       auto plan=fs::weakly_canonical(argv[2]),out=fs::weakly_canonical(argv[3]);
@@ -278,7 +286,15 @@ int main(int argc,char** argv) {
     if(body)result.Set("body_binding_candidate",binding);
     if(prepare) {
       const int groups=std::stoi(argv[5]);
-      auto target=tilemega::TargetSpec::FromJson(std::string(TILEMEGA_SOURCE_DIR)+"/configs/targets/ascend_3510.json");
+      auto target=tilemega::TargetSpec::FromJson(target_path.string());
+      if(!target.ascend_capability)throw std::invalid_argument("Native LLM requires an Ascend 950PR target");
+      std::ifstream target_file(target_path);std::string target_text((std::istreambuf_iterator<char>(target_file)),{});
+      llvm::SHA256 target_hash;
+      target_hash.update(llvm::ArrayRef<uint8_t>(reinterpret_cast<uint8_t const*>(target_text.data()),target_text.size()));
+      auto target_digest=target_hash.final();
+      result.Set("target_config",target_path.string());
+      result.Set("target_config_sha256",llvm::toHex(llvm::ArrayRef<uint8_t>(target_digest),true));
+      result.Set("max_verified_mix_groups",target.ascend_capability->max_verified_mix_groups);
       auto workers=tilemega::ascend::WorkerMap::Build(*target.ascend_capability,
           tilemega::ascend::LaunchMode::kMix1_2,groups);
       auto problem=tilemega::solver::PrepareSymbolicProblem(*module,target,dims,groups,1,1,nullptr,false,128);

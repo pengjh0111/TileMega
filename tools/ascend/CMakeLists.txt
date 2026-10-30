@@ -48,3 +48,6 @@ target_include_directories(as2_host_body_contracts PRIVATE "${TILEMEGA_ROOT}/inc
 add_executable(as2_host_split_contracts "${TILEMEGA_ROOT}/test/unit/ascend_llm_body_capability_test.cpp")
 target_include_directories(as2_host_split_contracts PRIVATE "${TILEMEGA_ROOT}/include" "$ENV{ASCEND_HOME_PATH}/include")
 target_compile_definitions(as2_host_split_contracts PRIVATE TILEMEGA_LLM_SPLIT_K=1 TILEMEGA_LLM_LOCAL_TAIL_K7=1 TILEMEGA_LLM_LOCAL_Q_TAIL_K3=1)
+add_executable(as2_host_g14_contracts "${TILEMEGA_ROOT}/test/unit/ascend_llm_body_capability_test.cpp")
+target_include_directories(as2_host_g14_contracts PRIVATE "${TILEMEGA_ROOT}/include" "$ENV{ASCEND_HOME_PATH}/include")
+target_compile_definitions(as2_host_g14_contracts PRIVATE TILEMEGA_LLM_G14=1)

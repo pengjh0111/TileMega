@@ -1,0 +1,133 @@
+{
+  "arch_tag": "ascend_3510",
+  "product_sku": "950PR",
+  "runtime_product": "Ascend950PR_9579",
+  "cann_version": "9.1.0",
+  "catlass_sha": "2b6c6a6d5bd26559578cf7e3b2fb64af51f64e52",
+  "verified_physical_device_ids": [
+    0
+  ],
+  "max_verified_mix_groups": 14,
+  "residency": 1,
+  "calibration_status": "not_calibrated",
+  "selection": "fixed_legal_whitelist",
+  "tracks": [
+    {
+      "name": "aic",
+      "count": 28,
+      "grouping": "mix_group",
+      "local_resources": {
+        "l1": 524288,
+        "l0a": 65536,
+        "l0b": 65536,
+        "l0c": 262144,
+        "ub": 0,
+        "registers": 0,
+        "ssbuffer": 0
+      },
+      "available_impl_types": [
+        "AIC_ONLY",
+        "MIX_1_2"
+      ]
+    },
+    {
+      "name": "aiv",
+      "count": 56,
+      "grouping": "mix_group",
+      "local_resources": {
+        "l1": 0,
+        "l0a": 0,
+        "l0b": 0,
+        "l0c": 0,
+        "ub": 221184,
+        "registers": 0,
+        "ssbuffer": 0
+      },
+      "available_impl_types": [
+        "AIV_ONLY",
+        "MIX_1_2"
+      ]
+    }
+  ],
+  "capabilities": {
+    "aic_only_kernel": true,
+    "aiv_only_kernel": true,
+    "mix_1_2": true,
+    "gm_event_single_owner": true,
+    "group_flag": false,
+    "cross_group_stage_barrier": true,
+    "same_group_l0c_to_ub": false,
+    "same_group_ub_to_l1": false,
+    "ssbuffer_control": false,
+    "mode4": false,
+    "simt": false
+  },
+  "implementations": [
+    {
+      "impl_id": "catlass_gemm_tile_fp32_identity_probe",
+      "task_kind": 0
+    },
+    {
+      "impl_id": "catlass_950_bf16_32x64x64_gm",
+      "task_kind": 0
+    },
+    {
+      "impl_id": "aiv_950_bf16_rmsnorm_row",
+      "task_kind": 1
+    },
+    {
+      "impl_id": "aiv_950_bf16_silu_row",
+      "task_kind": 4
+    },
+    {
+      "impl_id": "aiv_950_bf16_add_tile",
+      "task_kind": 10
+    },
+    {
+      "impl_id": "aiv_950_bf16_layernorm_row",
+      "task_kind": 19
+    },
+    {
+      "impl_id": "aiv_950_bf16_erf_gelu_row",
+      "task_kind": 4
+    },
+    {
+      "impl_id": "aiv_950_bf16_encoder_add_tile",
+      "task_kind": 10
+    },
+    {
+      "task_kind": 20,
+      "impl_id": "aiv_950_bf16_encoder_attention_q1"
+    }
+  ],
+  "evidence": {
+    "as2_group_scope": "physical1 only: G2/G4 and G8 payload/stale-cache/dual-AIV probes each pass5 fresh processes; runs/as2/probes/progress_g8_summary.json; no G8 model admission implied",
+    "resource_budgets": "verified API queries; actual bodies must separately prove allocation legality",
+    "ub_touch_bytes": 217088,
+    "runtime_probe": "runs/as1/probes/entry_resources_summary.json",
+    "gm_event": "runs/as1/probes/gm_visibility_summary.json (physical 0); runs/as1/probes/gm_visibility_card1_summary.json (physical 1)",
+    "gm_event_scope": "single-owner events, G=2, 128B/4KiB FP32 payload, 16 epochs, 5 fresh processes",
+    "unknown_register_ssbuffer_budget": "No explicit SSBuffer/SIMT allocation; compiler register counts unmeasured, never used for occupancy",
+    "bf16_gemm": "verified CTG/Solver/Plan single-launch E-0; docs/results/AS1_ascend950.md",
+    "fp32_l0c_to_ub_probe": "verified official EVG FP32 64x8192x32, 16 tiles/group, 5/5 fresh processes; runs/as1/probes/evg_ub_reuse_summary.json. BF16 native direct implementation remains disabled.",
+    "aiv_bodies": "runs/as1/probes/aiv_bodies_summary.json; 6/6 individual body cases",
+    "encoder_attention": "runs/as1/probes/encoder_attention_reg_summary.json",
+    "physical_1_topology": "runs/as1/jobs/topology_card1_g2_e16/stdout.log; G2, 16 tasks/worker, 96 unique records",
+    "stage_barrier": "runs/as1/e2/e2_summary.json; physical 1, fixed ten-stage encoder, single-owner per-worker ack and AIC0 release, 4 epochs, 5/5 fresh processes"
+  },
+  "topology_experiment": {
+    "status": "verified_protocol_experimental_model_domain",
+    "default_enabled": false,
+    "hardware_groups": 28,
+    "validated_protocol_groups": [
+      2,
+      4,
+      8,
+      14
+    ],
+    "selected_model_groups": null,
+    "source_summary": "runs/as2/search/opt_message_passing_workflow_v1.json",
+    "source_summary_sha256": "721da3e299dcef87fdf0af4d5006ad20996cf9d829c44f065537a5801699d235",
+    "scope": "G14 FP32 conservative GM Scalar/DMA protocol on physical0; model C1/C2/C3 and TPOT still required; direct BF16 stays disabled"
+  }
+}

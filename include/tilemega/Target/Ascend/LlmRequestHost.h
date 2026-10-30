@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Target/Ascend/LlmGroupContract.h>
 #include <tilemega/Target/Ascend/LlmPlanABI.h>
 #include <tilemega/Target/Ascend/BodyProfileCapture.h>
 #include <acl/acl.h>
@@ -122,7 +123,7 @@ struct Plan {
     ValidateCompiledBodies(stages);
     waits=Read<llm::Wait>(root/"waits.bin");allocations=Read<llm::Allocation>(root/"allocations.bin");
     offsets=Read<uint32_t>(root/"offsets.bin");queue=Read<uint32_t>(root/"queue.bin");
-    if(m.version!=llm::kVersion || (m.groups!=2 && m.groups!=4 && m.groups!=8) || m.workers!=3*m.groups ||
+    if(m.version!=llm::kVersion || !llm::SupportsGroups(m.groups) || m.workers!=3*m.groups ||
         m.stages!=stages.size() || !m.tasks || m.tasks!=tasks.size() || m.waits!=waits.size() ||
         m.queue_refs!=queue.size() || offsets.size()!=m.workers+1 || offsets.front()!=0 || offsets.back()!=queue.size() ||
         (m.seq!=1 && m.seq!=64) || (m.batch!=1 && m.batch!=4 && m.batch!=16) || m.capacity!=1088 ||

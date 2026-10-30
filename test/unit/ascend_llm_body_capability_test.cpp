@@ -4,6 +4,8 @@
 
 int main() {
   using namespace tilemega::ascend;
+  static_assert(llm::SupportsGroups(8) && !llm::SupportsGroups(28));
+  static_assert(llm::SupportsGroups(14)==bool(TILEMEGA_LLM_G14));
   llm::Stage local{};local.kind=0;local.variant=2;local.rows=1024;
   local.columns=2048;local.k=8192;local.epilogue=1;local.operands[5]=0;
 #if defined(TILEMEGA_LLM_LOCAL_TAIL_K7) && TILEMEGA_LLM_LOCAL_TAIL_K7
