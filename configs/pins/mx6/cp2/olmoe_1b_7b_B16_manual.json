@@ -1,0 +1,69 @@
+{
+  "mx_moe_v3": {
+    "purpose": "manual",
+    "threads": 512,
+    "b_min": 4,
+    "attn_prefetch": 0,
+    "qkv": {
+      "tn": 32,
+      "wn": 1,
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 1,
+      "r_next": -1
+    },
+    "o": {
+      "tn": 32,
+      "wn": 1,
+      "d": 1,
+      "part": "kStreamK",
+      "prefetch": 1,
+      "r_next": -1
+    },
+    "router": {
+      "tn": 16,
+      "wn": 1,
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 1,
+      "r_next": -1
+    },
+    "gate_up": {
+      "tn": 64,
+      "wn": 2,
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 0,
+      "r_next": -1
+    },
+    "down": {
+      "tn": 64,
+      "wn": 2,
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 1,
+      "r_next": -1
+    },
+    "head": {
+      "tn": 32,
+      "wn": 8,
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 1,
+      "r_next": -1
+    },
+    "version": 3,
+    "split": 1
+  },
+  "evidence": {
+    "checkpoint": "CP2",
+    "control_pin": "configs/pins/mx5/olmoe_1b_7b_B16_manual.json",
+    "control_sha256": "8215c193f80d874e6fdc2200bc3834f2bb3079b28a7135acb84f38ed08e5053a",
+    "contract": "bf16",
+    "purpose": "development comparison; not solver selected or final",
+    "attention": "V2 control until CP3; b_min is transitional",
+    "combine": "deferred after all CTA units; same CP1 control coordinates",
+    "prior_pin": "configs/pins/mx6/cp1/olmoe_1b_7b_B16_manual.json",
+    "prior_pin_sha256": "4629024d9dd7da15b9f526aa0c603ca345303a04ea4a6c8d184f9189628c7379"
+  }
+}
