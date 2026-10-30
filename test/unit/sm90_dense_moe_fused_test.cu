@@ -21,6 +21,10 @@
 #ifndef TEST_I
 #define TEST_I 192
 #endif
+// Page 64 shares the legacy prefill pages (Qwen3); 0 is OLMoE's per-TN packing.
+#ifndef TEST_PAGE
+#define TEST_PAGE 64
+#endif
 #include <tilemega/Backend/Sm90DenseMoe.cuh>
 #include <tilemega/Codegen/executor/TensorMapTiled.h>
 #include <algorithm>
@@ -38,7 +42,7 @@ using U64=unsigned long long;
 constexpr int B=TEST_BATCH,E=128,TopK=8,H=TEST_H,I=TEST_I,U=16,kGrid=TEST_GRID,kLaunches=20;
 constexpr int TNgu=96,TKgu=128,TNdn=128,TKdn=64,kSlots=3;
 using Router=Sm90DenseMoeGemm<B,E,H,8,256,2,1,4,Sm90DenseMoeMode::kRouter,U,E,TopK,false>;
-using Fused=Sm90DenseMoeFusedGemm<B,2*I,H,H,TNgu,TKgu,TNdn,TKdn,kSlots,4,1,4,1,U,E,TopK,false,64>;
+using Fused=Sm90DenseMoeFusedGemm<B,2*I,H,H,TNgu,TKgu,TNdn,TKdn,kSlots,4,1,4,1,U,E,TopK,false,TEST_PAGE>;
 using Schedule=Sm90DenseMoeSchedule<E>;
 void Check(cudaError_t e,int line) {
   if(e!=cudaSuccess)throw std::runtime_error(std::string(cudaGetErrorString(e))+" at line "+std::to_string(line));
@@ -100,9 +104,9 @@ int main(int argc,char** argv) {try {
   Pack(router,E,H,8,256,0,packed_router);
   for(int e=0;e<E;++e) {
     std::vector<BF> one(gate_up.begin()+std::size_t(e)*2*I*H,gate_up.begin()+std::size_t(e+1)*2*I*H);
-    Pack(one,2*I,H,64,64,std::size_t(e)*2*I*H,packed_gu);
+    Pack(one,2*I,H,TEST_PAGE?64:TNgu,TEST_PAGE?64:TKgu,std::size_t(e)*2*I*H,packed_gu);
     std::vector<BF> two(down.begin()+std::size_t(e)*H*I,down.begin()+std::size_t(e+1)*H*I);
-    Pack(two,H,I,64,64,std::size_t(e)*H*I,packed_dn);
+    Pack(two,H,I,TEST_PAGE?64:TNdn,TEST_PAGE?64:TKdn,std::size_t(e)*H*I,packed_dn);
   }
   BF *dx=Device(x),*dr=Device(packed_router),*dgu=Device(packed_gu),*ddn=Device(packed_dn);
   float *logits,*partial;BF *h,*weights;int *schedule,*index;std::uint64_t *router_ctr,*tile_ctr;
