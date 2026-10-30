@@ -15,6 +15,8 @@ struct MxMoeDispatchOperands {
   unsigned* u_down;
 #if TILEMEGA_MX_DIAG
   unsigned* route_debug;
+  Bf16 *route_input, *route_logits;
+  void* route_weights;
   unsigned debug_step,layer,layers;
 #endif
 };
@@ -91,11 +93,23 @@ struct MxMoeDispatchV2 {
         auto* target=reinterpret_cast<uint4*>(p.weights)+t*2;
         MxMoeStoreGlobal(target,*reinterpret_cast<uint4 const*>(weights));
         MxMoeStoreGlobal(target+1,*reinterpret_cast<uint4 const*>(weights+4));
+#if TILEMEGA_MX_DIAG
+        if(p.route_weights && p.debug_step<64) {
+          auto* debug=reinterpret_cast<uint4*>(p.route_weights)+((p.debug_step*p.layers+p.layer)*B+t)*2;
+          MxMoeStoreGlobal(debug,*reinterpret_cast<uint4 const*>(weights));
+          MxMoeStoreGlobal(debug+1,*reinterpret_cast<uint4 const*>(weights+4));
+        }
+#endif
       } else {
         alignas(16) Bf16 weights[K];
 #pragma unroll
         for(unsigned rank=0;rank<K;++rank)weights[rank]=Bf16(probabilities[rank]/sum);
         MxMoeStoreGlobal(reinterpret_cast<uint4*>(p.weights)+t,*reinterpret_cast<uint4 const*>(weights));
+#if TILEMEGA_MX_DIAG
+        if(p.route_weights && p.debug_step<64)
+          MxMoeStoreGlobal(reinterpret_cast<uint4*>(p.route_weights)+(p.debug_step*p.layers+p.layer)*B+t,
+              *reinterpret_cast<uint4 const*>(weights));
+#endif
       }
     }
     if(t<E) {

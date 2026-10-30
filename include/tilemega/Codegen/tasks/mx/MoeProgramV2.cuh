@@ -27,6 +27,8 @@ struct MxMoeScratchV2 {
   MxMoeGlobalTicketV2 *router_tile_tickets,*router_ticket,*combine_tickets;
 #if TILEMEGA_MX_DIAG
   unsigned* route_debug;
+  Bf16 *route_input, *route_logits;
+  void* route_weights;
 #endif
 };
 template<int Layers>
@@ -123,7 +125,7 @@ struct MoeOperandsV2 : MoeDenseOperandsV2<P> {
     backend::mx::MxMoeDispatchOperands dispatch{sc.router_logits,sc.n_active,sc.active,sc.row_count,
       sc.rows,sc.routing_weights,sc.u_gate_up,sc.u_down
 #if TILEMEGA_MX_DIAG
-      ,sc.route_debug,unsigned(past-64),unsigned(layer),P::kLayers
+      ,sc.route_debug,sc.route_input,sc.route_logits,sc.route_weights,unsigned(past-64),unsigned(layer),P::kLayers
 #endif
     };
     return {sc.x,w.w_router,nullptr,sc.router_logits,sc.gemm_partial,sc.router_tile_tickets,

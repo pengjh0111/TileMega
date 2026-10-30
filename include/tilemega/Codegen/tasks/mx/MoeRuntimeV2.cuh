@@ -194,6 +194,9 @@ extern "C" void* tm_plan_create(int batch, void* const* external, int device) {
   sc.combine_tickets=(MxMoeGlobalTicketV2*)Alloc(s,(P::kHidden/P::Down::kTN)*4);
 #if TILEMEGA_MX_DIAG
   sc.route_debug=static_cast<unsigned*>(Alloc(s,64*P::kLayers*B*8*4));
+  sc.route_input=static_cast<tilemega::Bf16*>(Alloc(s,64*P::kLayers*B*P::kHidden*2));
+  sc.route_logits=static_cast<tilemega::Bf16*>(Alloc(s,64*P::kLayers*B*P::kExperts*2));
+  sc.route_weights=Alloc(s,64*P::kLayers*B*8*(P::kRoutingFp32?4:2));
 #endif
   sc.t_attn = static_cast<unsigned*>(Alloc(s, B * P::AttnShape::hkv * 4));
   sc.t_head = static_cast<unsigned*>(Alloc(s, 64));
@@ -318,12 +321,36 @@ extern "C" int tm_plan_read_buffer(void* opaque,std::uint32_t index,void* host,s
 #if TILEMEGA_MX_DIAG
   using namespace tm_mx_moe_runtime_v2;
   auto* state=static_cast<MxMoePlanStateV2*>(opaque);
-  if(!state||!host||index!=kBufferCount||bytes!=64ull*P::kLayers*P::kBatch*8*4)return -1;
+  if(!state||!host||index<kBufferCount||index>kBufferCount+3)return -1;
   auto* binding=static_cast<P::Binding*>(state->binding);
-  return int(cudaMemcpy(host,binding->s.route_debug,bytes,cudaMemcpyDeviceToHost));
+  void const* source[]={binding->s.route_debug,binding->s.route_input,binding->s.route_logits,binding->s.route_weights};
+  std::uint64_t const positions=64ull*P::kLayers*P::kBatch;
+  std::uint64_t const sizes[]={positions*8*4,positions*P::kHidden*2,positions*P::kExperts*2,
+      positions*8*(P::kRoutingFp32?4:2)};
+  unsigned const slot=index-kBufferCount;
+  if(bytes!=sizes[slot])return -1;
+  return int(cudaMemcpy(host,source[slot],bytes,cudaMemcpyDeviceToHost));
 #else
   (void)opaque;(void)index;(void)host;(void)bytes;return -2;
 #endif
+}
+
+extern "C" int tm_plan_read_buffer_named(void* opaque,char const* name,void* host,std::uint64_t bytes) {
+  if(!name)return -1;
+#if TILEMEGA_MX_DIAG
+  if(!std::strcmp(name,"mx.router_logits")) {
+    using namespace tm_mx_moe_runtime_v2;
+    if(!opaque||!host||bytes!=std::uint64_t(P::kBatch)*P::kExperts*2)return -1;
+    auto* state=static_cast<MxMoePlanStateV2*>(opaque);
+    auto* binding=static_cast<P::Binding*>(state->binding);
+    return int(cudaMemcpy(host,binding->s.router_logits,bytes,cudaMemcpyDeviceToHost));
+  }
+#endif
+  char const* names[]={"mx.route_debug","mx.route_input","mx.route_logits","mx.route_weights"};
+  for(unsigned i=0;i<4;++i)
+    if(!std::strcmp(name,names[i]))
+      return tm_plan_read_buffer(opaque,tm_mx_moe_runtime_v2::kBufferCount+i,host,bytes);
+  return -1;
 }
 
 extern "C" int tm_plan_watchdog(void* opaque, std::uint64_t out[12]) {

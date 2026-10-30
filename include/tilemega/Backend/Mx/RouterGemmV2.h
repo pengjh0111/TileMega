@@ -300,6 +300,12 @@ struct MxRouterGemmV2 {
           int const width = Op == MxOpV2::kSwiGLU ? s.n / 2 : s.n;
           MxStore16V2(p.out + std::size_t(row) * width + segment.tile * (Op == MxOpV2::kSwiGLU ? TN / 2 : TN) + c8,
                        *reinterpret_cast<uint4 const*>(output));
+#if TILEMEGA_MX_DIAG
+          if(p.dispatch.route_logits && p.dispatch.debug_step<64)
+            MxStore16V2(p.dispatch.route_logits+
+                ((std::size_t(p.dispatch.debug_step)*p.dispatch.layers+p.dispatch.layer)*s.b+row)*s.n+
+                segment.tile*TN+c8,*reinterpret_cast<uint4 const*>(output));
+#endif
         }
       }
     }
@@ -515,6 +521,16 @@ struct MxRouterGemmV2 {
     MxGeometryV2<TN, WN, Part> const geo(s.n, s.k, int(gridDim.x), StageBlock());
     MxGemmSmemV2 const layout(s.b, TN, WN);
     float* const shared = reinterpret_cast<float*>(smem);
+#if TILEMEGA_MX_DIAG
+    if(StageBlock()==0 && l.Compute() && p.dispatch.route_input && p.dispatch.debug_step<64) {
+      for(int item=l.t;item<s.b*s.k/8;item+=512) {
+        auto const packet=LoadGlobal16Gvm(p.a+item*8);
+        __builtin_mxc_arrive_gvmcnt(0);
+        MxStore16V2(p.dispatch.route_input+
+            (std::size_t(p.dispatch.debug_step)*p.dispatch.layers+p.dispatch.layer)*s.b*s.k+item*8,packet);
+      }
+    }
+#endif
     Ring ring{pf.w};
     float inverse = 1.f;
     if (geo.rounds) Round<true>(pf, ring, inverse, p, s, shared, layout, geo, l, 0);

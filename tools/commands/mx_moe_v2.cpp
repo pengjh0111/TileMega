@@ -215,7 +215,13 @@ int TryCompileMoeV2(Request const& r, frontend::ModelPlan const& plan) {
   scratch("mx.router_tile_tickets", "u32", model.experts / config.router.tn, 4); scratch("mx.router_ticket", "u32", 16, 4);
   scratch("mx.combine_tickets", "u32", H / config.down.tn, 4); scratch("mx.t_attn", "u32", B * model.hkv, 4);
   scratch("mx.t_head", "u32", 16, 4); scratch("mx.barrier", "u64", std::uint64_t(stages) * 8, 8);
-  if (diag) scratch("mx.route_debug", "u32", 64 * model.layers.size() * B * 8, 4);
+  if (diag) {
+    scratch("mx.route_debug", "u32", 64 * model.layers.size() * B * 8, 4);
+    scratch("mx.route_input", "bf16", 64 * model.layers.size() * B * H, 2);
+    scratch("mx.route_logits", "bf16", 64 * model.layers.size() * B * model.experts, 2);
+    scratch("mx.route_weights", model.routing_weights_fp32 ? "f32" : "bf16",
+        64 * model.layers.size() * B * 8, model.routing_weights_fp32 ? 4 : 2);
+  }
   int const body_smem = codegen::MxMoeBodySmemBytesV2(plan, config);
   int const metadata_offset = (body_smem + r.batch * 4 + 15) / 16 * 16, generation_offset = metadata_offset + 16;
   auto edge = [](char const* from, char const* to, MxDecodeClassV2 const& c) -> Value {
