@@ -1,0 +1,154 @@
+{
+  "schema": "tilemega.as2.taskbody_sources.v1",
+  "reviewed_at": "2026-10-30",
+  "tilemega_baseline": "a3226e1aa5c450dfcb42085ce37bec6a1253bf8a",
+  "prompt_sha256": "ecec4e795defb8a467a653f7258852f7bd05890549137338478a3c329a2e11d1",
+  "rows": [
+    {
+      "repository": "ascend-catlass/catlass",
+      "commit": "2b6c6a6d5bd26559578cf7e3b2fb64af51f64e52",
+      "path": "LICENSE",
+      "blob_sha1": "be957a617506691ba865f3f00422a2cf9a1d493a",
+      "sha256": "89b1c114df62cfd183004f38d18d07f186436c3b37203dd69c3e84becf9d2282",
+      "license": "CANN Open Software License Agreement Version 2.0",
+      "use": "existing pinned dependency; CATLASS49 reference source gate only, not yet integrated as Attention TaskBody"
+    },
+    {
+      "repository": "ascend-catlass/catlass",
+      "commit": "2b6c6a6d5bd26559578cf7e3b2fb64af51f64e52",
+      "path": "examples/49_ascend950_flash_attention_infer/fai_kernel.h",
+      "blob_sha1": "c796c91b632da39bdbde548186fac3aec105a052",
+      "sha256": "4be170d1789934cf7084d8502b8354a0928a92fa8864019487050426ac1cc9d7",
+      "license": "CANN Open Software License Agreement Version 2.0",
+      "use": "existing pinned dependency; CATLASS49 reference source gate only, not yet integrated as Attention TaskBody"
+    },
+    {
+      "repository": "ascend-catlass/catlass",
+      "commit": "2b6c6a6d5bd26559578cf7e3b2fb64af51f64e52",
+      "path": "examples/49_ascend950_flash_attention_infer/fai_kernel_utils.h",
+      "blob_sha1": "ee0c3eeb8eb7427f34fdb2e4e5f1c9ce0a0ebc88",
+      "sha256": "36a24e4bbe1656627a43fedf78393e42830af1ec6cf6056bff529be9cd05fd53",
+      "license": "CANN Open Software License Agreement Version 2.0",
+      "use": "existing pinned dependency; CATLASS49 reference source gate only, not yet integrated as Attention TaskBody"
+    },
+    {
+      "repository": "ascend-catlass/catlass",
+      "commit": "2b6c6a6d5bd26559578cf7e3b2fb64af51f64e52",
+      "path": "examples/49_ascend950_flash_attention_infer/fai.cpp",
+      "blob_sha1": "161529162921b690c44e47a4cff6427652fb01e7",
+      "sha256": "8422b1832444bc6092032b558d466ca73090be2f50f72580b3c815cc10d20078",
+      "license": "CANN Open Software License Agreement Version 2.0",
+      "use": "existing pinned dependency; CATLASS49 reference source gate only, not yet integrated as Attention TaskBody"
+    },
+    {
+      "repository": "ascend-catlass/catlass",
+      "commit": "2b6c6a6d5bd26559578cf7e3b2fb64af51f64e52",
+      "path": "examples/49_ascend950_flash_attention_infer/README.md",
+      "blob_sha1": "6c16d92da78c491c58fcc41a789f8590c1f56f0d",
+      "sha256": "f31027ee36fe74fde160382960bde21b87d2df4b7f43fabbca76fc590ac10760",
+      "license": "CANN Open Software License Agreement Version 2.0",
+      "use": "existing pinned dependency; CATLASS49 reference source gate only, not yet integrated as Attention TaskBody"
+    },
+    {
+      "repository": "ascend-catlass/catlass",
+      "commit": "2b6c6a6d5bd26559578cf7e3b2fb64af51f64e52",
+      "path": "examples/50_ascend950_basic_matmul_gemv/README.md",
+      "blob_sha1": "420474e1fa0a2746bbddcf66b358ddaa457e5032",
+      "sha256": "99445c9ffd3ffeb9773227ef375ca091ec2d7f40638bdd3a368bd8bc3c0065d6",
+      "license": "CANN Open Software License Agreement Version 2.0",
+      "use": "existing pinned dependency; CATLASS49 reference source gate only, not yet integrated as Attention TaskBody"
+    },
+    {
+      "repository": "flagos-ai/FlagGems",
+      "commit": "ae9e355c121b3fffb1d229ba56a7c0ed8398fe39",
+      "path": "src/flag_gems/runtime/backend/_ascend/ops/argmax.py",
+      "blob_sha1": "fbf32ec8f8ac7df251c4d19ce0185a84b382e1e7",
+      "sha256": "1722de560fc39ff3ec4325860914d813490b9da35385e62b37945451ebec86d3",
+      "license": "Apache-2.0",
+      "use": "algorithm/source review only; no implementation copied or installed"
+    },
+    {
+      "repository": "flagos-ai/FlagGems",
+      "commit": "ae9e355c121b3fffb1d229ba56a7c0ed8398fe39",
+      "path": "LICENSE",
+      "blob_sha1": "f433b1a53f5b830a205fd2df78e2b34974656c7b",
+      "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594",
+      "license": "Apache-2.0",
+      "use": "algorithm/source review only; no implementation copied or installed"
+    },
+    {
+      "repository": "deepseek-ai/DeepGEMM-Ascend",
+      "commit": "3a35326271b069b8b5bf1a754435acd6cc91575b",
+      "path": "README.md",
+      "blob_sha1": "6ce81598dfadb1e590c13689ffa72d6da6200328",
+      "sha256": "9de436e1b9b8b29bc708050ffbf31daeb4f39a5d0a187c42eeba32799089bc83",
+      "license": "MIT",
+      "use": "algorithm/source review only; no implementation copied or installed"
+    },
+    {
+      "repository": "deepseek-ai/DeepGEMM-Ascend",
+      "commit": "3a35326271b069b8b5bf1a754435acd6cc91575b",
+      "path": "deep_gemm/include/deep_gemm/bf16_gemm.hpp",
+      "blob_sha1": "5bdf88afde06bf56a816eb22162d066f36410a83",
+      "sha256": "1868f6b47867fe5b0d5850dafb54e51fd4d828f9fa38751b1d44bdac800512df",
+      "license": "MIT",
+      "use": "algorithm/source review only; no implementation copied or installed"
+    },
+    {
+      "repository": "deepseek-ai/DeepGEMM-Ascend",
+      "commit": "3a35326271b069b8b5bf1a754435acd6cc91575b",
+      "path": "deep_gemm/include/deep_gemm/epilogue.hpp",
+      "blob_sha1": "11b87d6503d4dcf6666c1ad7282b51ec07490341",
+      "sha256": "14d47490421ad38f5608058c70d36321a7fb3e42b3afa2ea296b7fe81391989e",
+      "license": "MIT",
+      "use": "algorithm/source review only; no implementation copied or installed"
+    },
+    {
+      "repository": "deepseek-ai/DeepGEMM-Ascend",
+      "commit": "3a35326271b069b8b5bf1a754435acd6cc91575b",
+      "path": "csrc/jit_kernels/heuristics.hpp",
+      "blob_sha1": "3b986235a843501dfbe41d928949bc93306d0432",
+      "sha256": "288129cd1a7d315218c37703b87ea0f5848a169c6fb95a82e8691ccf06a68040",
+      "license": "MIT",
+      "use": "algorithm/source review only; no implementation copied or installed"
+    },
+    {
+      "repository": "deepseek-ai/DeepGEMM-Ascend",
+      "commit": "3a35326271b069b8b5bf1a754435acd6cc91575b",
+      "path": "LICENSE",
+      "blob_sha1": "c1f7a78e89e4e4dc7b86664c3b3c76eb5eee1785",
+      "sha256": "ebb4f09972aee8608be255debaf78451a68e95c290f55c240dec2ecfa16ea6be",
+      "license": "MIT",
+      "use": "algorithm/source review only; no implementation copied or installed"
+    },
+    {
+      "repository": "flagos-ai/FlagGems",
+      "commit": "ae9e355c121b3fffb1d229ba56a7c0ed8398fe39",
+      "path": "src/flag_gems/runtime/backend/_ascend/ops/rms_norm.py",
+      "blob_sha1": "5aa1de6d2164c1509da2d8a224aa6f01fc81b32f",
+      "sha256": "8cd8d79f812f01c4c58a0d75a964e512e9f108a3951800f093758876d8cac483",
+      "license": "Apache-2.0",
+      "use": "algorithm/source review only; no implementation copied or installed"
+    },
+    {
+      "repository": "flagos-ai/FlagGems",
+      "commit": "ae9e355c121b3fffb1d229ba56a7c0ed8398fe39",
+      "path": "src/flag_gems/runtime/backend/_ascend/fused/fused_add_rms_norm.py",
+      "blob_sha1": "5a9ff7fbdf41dc63becca36c57b1f7970432809a",
+      "sha256": "2777e18f59c9e16e5a89fcff7d559c39107923838c49ad70e292e6081fff5c43",
+      "license": "Apache-2.0",
+      "use": "algorithm/source review only; no implementation copied or installed"
+    },
+    {
+      "repository": "flagos-ai/FlagGems",
+      "commit": "ae9e355c121b3fffb1d229ba56a7c0ed8398fe39",
+      "path": "src/flag_gems/runtime/backend/_ascend/fused/rotary_embedding.py",
+      "blob_sha1": "56e89da78270c9c6abae4c0d47122ded4bdb3f65",
+      "sha256": "68573aa0f970547705b7ffc11456d483b7991e2f442f6e079aada2dd69b5db49",
+      "license": "Apache-2.0",
+      "use": "algorithm/source review only; no implementation copied or installed"
+    }
+  ],
+  "cann": "9.1.0",
+  "dependency_upgrade": false
+}
