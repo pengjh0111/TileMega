@@ -1,0 +1,72 @@
+{
+  "mx_moe_v2": {
+    "purpose": "manual",
+    "threads": 512,
+    "b_min": 4,
+    "attn_prefetch": 0,
+    "qkv": {
+      "tn": 32,
+      "wn": 1,
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 1,
+      "r_next": -1
+    },
+    "o": {
+      "tn": 32,
+      "wn": 1,
+      "d": 1,
+      "part": "kStreamK",
+      "prefetch": 1,
+      "r_next": -1
+    },
+    "router": {
+      "tn": 16,
+      "wn": 1,
+      "d": 1,
+      "part": "kStreamK",
+      "prefetch": 1,
+      "r_next": -1
+    },
+    "gate_up": {
+      "tn": 64,
+      "wn": 2,
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 0,
+      "r_next": -1
+    },
+    "down": {
+      "tn": 64,
+      "wn": 2,
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 1,
+      "r_next": -1
+    },
+    "head": {
+      "tn": 32,
+      "wn": 8,
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 1,
+      "r_next": -1
+    }
+  },
+  "evidence": {
+    "kind": "manual_development_control",
+    "solver_selected": false,
+    "default_enabled": false,
+    "final": false,
+    "source_head": "e9fc6f256d4d57aed93a1e3cdefe8ed00dd6ffb1",
+    "C1_C2_steps": 512,
+    "C1_C2_pass": true,
+    "routing_gate": "failed_B1_B16;not_a_final_model_acceptance",
+    "measurement_files": [
+      "runs/mx5/olmoe_native_20261030_v1/native_current/B1/verified_execution_v2/round1/measure",
+      "runs/mx5/olmoe_native_20261030_v1/native_current/B1/verified_execution_v2/round2/measure"
+    ],
+    "resource_512": "actual_resident1_frame0",
+    "resource_576": "actual_resident0_frame0_query_only"
+  }
+}
