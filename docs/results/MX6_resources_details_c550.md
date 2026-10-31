@@ -1,0 +1,7 @@
+# MX-6 CPU rejection metadata
+
+`MX6_resources_c550.csv` keeps every compiled plan and retains its historical bytes. From continuation1's second resource collection, **never-executed CPU resource rejections** use a compact representation; queried/measured plans keep their full CSV metadata. `resource_scope` has `MX6_resources_details_c550.jsonl.gz:<1-based line>:<SHA256>`.
+
+The companion is append-only concatenated gzip members. Standard `gzip.open(..., 'rt')` reads all members as JSON Lines. Each line is the complete original row, including all omitted redundant fields. Hash its UTF-8 JSON serialized with `sort_keys=True, separators=(',', ':')` to match the CSV reference. Binary/source hashes, numeric resources, compile time, status and variant remain directly in CSV. An empty source-head/bridge/cost/compile-receipt field in a compact row refers to this full row. Empty body instruction counts are used only when the original attribution was pending and every count was null.
+
+Compact `coordinates_json` maps each GEMM class to `[TN, WN, D, P_w, r_next, TileRange]`, where the final bit is1 for TileRange and0 for StreamK. Attention and other program fields remain in the hash-bound complete row. All original pin, compile receipt, MIR, resource report and source snapshot evidence remains under its recorded runs/ path or exact-byte lossless CPU archive. This storage format grants no runtime/resource qualification.
