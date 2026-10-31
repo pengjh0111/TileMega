@@ -1,5 +1,6 @@
 """Independent HF torch.compile baseline; supports config-only random models."""
 import functools
+import inspect
 import json
 from baseline_common import arguments, guarded_main, measure, require_guard
 import sys
@@ -8,6 +9,42 @@ from pathlib import Path
 # Standalone execution must not let serving/trace.py shadow stdlib trace.
 sys.path = [entry for entry in sys.path
             if Path(entry or ".").resolve() != Path(__file__).resolve().parent]
+
+
+def legacy_mask_device(model):
+    """Supply the `device` that generate() stopped passing, for models still on
+    the legacy 4D-mask helper.
+
+    transformers 4.57.1 generation/utils.py calls the base model's
+    _prepare_4d_causal_attention_mask_with_cache_position without `device`
+    whenever that method exists, but models not yet migrated to the general
+    mask API (olmoe) still declare it required, so a compileable cache raises
+    TypeError. `device` only places the helper's torch.full/torch.arange, and
+    cache_position -- which the call site does pass -- is already on it, so
+    deriving it reproduces the mask the explicit-device call builds. Returns
+    whether the model needed this.
+    """
+    import torch
+    base = getattr(model, model.base_model_prefix, model)
+    original = getattr(base, "_prepare_4d_causal_attention_mask_with_cache_position", None)
+    if original is None:
+        return False  # already on the general mask API (llama, qwen3, qwen3_moe, mixtral)
+    try:
+        inspect.signature(original).bind(None, sequence_length=1, target_length=1,
+                                        dtype=torch.float32, cache_position=None,
+                                        batch_size=1, config=None, past_key_values=None)
+        return False  # accepts the call site's arguments as they are
+    except TypeError:
+        pass
+
+    def patched(attention_mask, sequence_length, target_length, dtype,
+                cache_position, batch_size, device=None, **kwargs):
+        return original(attention_mask, sequence_length, target_length, dtype,
+                        cache_position.device if device is None else device,
+                        cache_position, batch_size, **kwargs)
+
+    type(base)._prepare_4d_causal_attention_mask_with_cache_position = staticmethod(patched)
+    return True
 
 
 def main():
@@ -29,6 +66,7 @@ def main():
     # otherwise add a second compiler around the same model with StaticCache.
     model.generation_config.disable_compile = True
     eager_forward = model.forward
+    legacy_mask = legacy_mask_device(model)
 
     def compile_forward(fullgraph):
         compiled = torch.compile(eager_forward, mode="reduce-overhead", fullgraph=fullgraph)
@@ -48,6 +86,7 @@ def main():
               "compile_preparation_location": "inside discarded warmup, before requested N1 timing",
               "prefix_caching": False, "speculative_decoding": False,
               "attention_backend": str(model.config._attn_implementation),
+              "legacy_mask_device_supplied": legacy_mask,
               "moe_experts": "installed transformers implementation; grouped_mm unavailable in 4.57.1"}
 
     eos = model.config.eos_token_id
