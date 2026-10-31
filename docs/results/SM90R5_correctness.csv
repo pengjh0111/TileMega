@@ -10,3 +10,6 @@ a1_legality,A1 legality fix,OLMoE B1 predicted solve,olmoe_1b_7b_b1,pass,all fou
 e1_gate,E1 evict_first,dense gate and P-PAIR,both dev cells,PENDING,committed before its gate and pair ran; must be verified before E1 is trusted,-
 d0_tokens,A1 tree,A0 level-2 instrumentation,qwen3_30b_a3b_b16,pass,traced and untraced tokens identical; overhead -1.63 pct (within noise at B16),runs/sm90r5/d0/before/qwen3_30b_a3b-B16/trace/run.json
 dt_a0,A1 tree,DT-A0 unexplained segment check,qwen3_30b_a3b_b1+b16,pass,every oversized segment lies in RC2/RC3/RC5/RC6; continue to A2,docs/results/SM90R5_moe_marks.csv
+e1_dense_source,E1 evict_first,dense generated source carries no policy macro,llama3_1_8b_b1,pass,zero EVICT_FIRST occurrences in dense source; macro emitted only when c.moe,runs/sm90r5/e1/dense.cu
+e1_moe_source,E1 evict_first,MoE generated source carries the macro,qwen3_30b_a3b_b1,pass,one EVICT_FIRST define present,runs/sm90r5/e1/decode.cu
+e1_ptx_count,E1 evict_first,PTX hint count vs call sites,qwen3_30b_a3b_b1,INVALID,raw PTX greps are not a sound check: kPanels unrolls each site and counts varied 13 to 17 across two compiles of one source; needs per-instantiation instance accounting,runs/sm90r5/e1/decode.ptx
