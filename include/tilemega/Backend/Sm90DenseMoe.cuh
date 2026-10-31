@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Backend/Sm90DenseGemm.h>
+#include <tilemega/Backend/Sm90DenseMark.cuh>
 #include <climits>
 #include <cmath>
 
@@ -61,6 +62,7 @@ struct Sm90DenseRouterFinish {
       *flag=(old+tasks)%Tasks==0;
     }
     codegen::executor::ComputeSync();
+    if(tid==0)Sm90DenseMark(3);
     if(!*flag)return;
     auto const* logits=static_cast<float const*>(p.output);
     float value[kTokens][kPer];unsigned key[kTokens][kPer],chosen[kTokens][TopK];
@@ -110,6 +112,7 @@ struct Sm90DenseRouterFinish {
         }
     }
     codegen::executor::ComputeSync();
+    if(tid==0)Sm90DenseMark(4);
     // Thread e collects its rows; active experts take ascending slots.
     int rows[Batch],count=0;
     for(int b=0;b<Batch;++b)
@@ -135,6 +138,7 @@ struct Sm90DenseRouterFinish {
     // layer, so an inactive slot's count would not advance and an epoch
     // comparison would deadlock.
     if(p.gate_up_done && tid<Experts)p.gate_up_done[tid]=0;
+    if(tid==0)Sm90DenseMark(5);
   }
 };
 
@@ -365,6 +369,7 @@ struct Sm90DenseMoeGemm {
         if(*flag)p.counter[j]=0;
       }
       codegen::executor::ComputeSync();
+      if(tid==0 && *flag)Sm90DenseMark(4);
       if(*flag)
         for(int i=tid;i<Batch*TN;i+=128) {
           int row=i/TN,col=j*TN+i%TN;
@@ -373,6 +378,7 @@ struct Sm90DenseMoeGemm {
           for(int k=0;k<TopK;++k)sum+=partial[std::size_t(row*TopK+k)*N+col];
           p.x[std::size_t(row)*N+col]=Element(float(p.x[std::size_t(row)*N+col])+sum);
         }
+      if(tid==0 && *flag)Sm90DenseMark(5);
     }
   }
 
@@ -392,6 +398,7 @@ struct Sm90DenseMoeGemm {
       for(int iteration=0;iteration<kIterations;++iteration) {
         int sequence=local*kIterations+iteration,slot=sequence%Slots;
         Async::Wait(state.full+slot,(phase>>slot)&1);phase^=1u<<slot;
+        if(tid==0)Sm90DenseMarkFirst(0);
         auto* sa=a+slot*kRows*TK;auto* sb=b+slot*TN*TK;
         if constexpr(WK==1)Core::template MmaSlice<0>(sa,sb,accum,squares);
         else if constexpr(WK==2) {
@@ -420,9 +427,11 @@ struct Sm90DenseMoeGemm {
           int row=(tid&31)/4;
           norms[split*16+row]=squares[0];norms[split*16+row+8]=squares[1];
         }
+      if(tid==0)Sm90DenseMark(1);
       codegen::executor::ComputeSync();
       Epilogue(p,scratch,norms,t,flag);
       codegen::executor::ComputeSync();
+      if(tid==0)Sm90DenseMark(2);
     }
     if(tid==0 && tasks)for(int slot=0;slot<Slots;++slot)state.consumer_generations[slot]=(phase>>slot)&1;
     // Every task has been consumed: the operand slots are free.
@@ -597,6 +606,8 @@ struct Sm90DenseMoeFusedGemm {
     // barrier without the consumers: the MR7 hang, about one stall in 25k
     // fused stages, verified by per-thread barrier markers.
     WaitGateUp(p.gate_up_done,task.slot);
+    // Producer side: thread 128 owns the mark (appendix D).
+    if(threadIdx.x==128)Sm90DenseMarkFirst(3);
     if(lane==0) {
       // h of the slots whose weights are already in flight, then the rest.
       for(int tile=0;tile<kAhead;++tile)
@@ -657,6 +668,7 @@ struct Sm90DenseMoeFusedGemm {
     for(int iteration=0;iteration<Iterations;++iteration) {
       int slot=(sequence++)%Slots;
       Async::Wait(state.full+slot,(phase>>slot)&1);phase^=1u<<slot;
+      if(tid==0)Sm90DenseMarkFirst(1);
       auto* sa=a+slot*kRows*kMaxTK;auto* sb=b+slot*kWeightSlot;
       if constexpr(WK==1)Body::Core::template MmaSlice<0>(sa,sb,accum,squares);
       else if constexpr(WK==2) {
@@ -695,9 +707,11 @@ struct Sm90DenseMoeFusedGemm {
     ConsumeTask<Gu,kIterGu,TNGu,TKGu,WNGu,WKGu>(q,state,a,b,scratch,
         task.slot*kTilesGu+task.tile,phase,sequence,flag);
     // MR7 item 3: h's rows are published; release them to the down tasks.
-    if(threadIdx.x==0)
+    if(threadIdx.x==0) {
       asm volatile("red.release.gpu.global.add.u32 [%0], 1;"::
           "l"(p.gate_up_done+task.slot):"memory");
+      Sm90DenseMark(2);
+    }
   }
   __device__ static __noinline__ void ConsumeDown(Sm90DenseMoeFusedOperands const& p,
       Sm90DenseRingState& state,Element* a,Element* b,float* scratch,Task task,unsigned& phase,

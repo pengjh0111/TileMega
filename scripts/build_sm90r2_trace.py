@@ -21,13 +21,16 @@ def main():
     p.add_argument('--input', type=Path, required=True)
     p.add_argument('--out', type=Path, required=True)
     p.add_argument('--native-phases', action='store_true')
+    p.add_argument('--stage-level', type=int, choices=(1, 2), default=1,
+                   help='2 adds the D0 in-stage marks (R5 A0)')
     p.add_argument('--source-root', type=Path,
                    help='checkout of the recorded head when the original tree has moved on')
     a = p.parse_args()
     original, output = a.input.resolve(), a.out.resolve()
     runs = (ROOT / 'runs').resolve()
-    if not any(output.is_relative_to(runs / r) for r in ('sm90r2', 'sm90r3', 'sm90r4')) or output == original:
-        p.error('diagnostic outputs belong under runs/sm90r2, sm90r3 or sm90r4')
+    allowed = ('sm90r2', 'sm90r3', 'sm90r4', 'sm90r5')
+    if not any(output.is_relative_to(runs / r) for r in allowed) or output == original:
+        p.error('diagnostic outputs belong under runs/' + ', runs/'.join(allowed))
     sys.path.insert(0, str(ROOT / 'python'))
     from tilemega.build.identity import generate, verify, validate_snapshot_inputs
     identity = verify(original)
@@ -62,7 +65,8 @@ def main():
                if x == sources[0] else x for x in command]
     if a.source_root:
         command = [x.replace(recorded, source['root']) for x in command]
-    command[1:1] = ['-lineinfo', '-DTILEMEGA_TRACE_STAGE=1', '-DTILEMEGA_TRACE_STEP=1']
+    command[1:1] = ['-lineinfo', f'-DTILEMEGA_TRACE_STAGE={a.stage_level}',
+                    '-DTILEMEGA_TRACE_STEP=1']
     if a.native_phases:
         command.insert(1, '-DTILEMEGA_TRACE_NATIVE_PHASES=1')
     Path(str(output) + '.build_command.txt').write_text(shlex.join(command) + '\n')

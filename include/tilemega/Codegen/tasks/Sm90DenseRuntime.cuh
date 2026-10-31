@@ -446,8 +446,15 @@ extern "C" int tm_plan_dump_serving_trace(void* opaque,char const* directory) {
     return std::fclose(stream)==0;
   };
 #if TILEMEGA_TRACE_STAGE
+  // The row is printed word by word, so level 2's marks need only their names.
   if(!dump("stage_trace.tsv",p->trace.stages,std::size_t(p->trace.slots)*NativeProgram::kStages*p->grid,
-      "worker\titeration\tpast\tt_begin\tt_tasks_end\tt_release\ttasks\tsmid\tstage"))return -2;
+#if TILEMEGA_TRACE_STAGE == 2
+      "worker\titeration\tpast\tt_begin\tt_tasks_end\tt_release\ttasks\tsmid\tstage"
+      "\tm0\tm1\tm2\tm3\tm4\tm5"
+#else
+      "worker\titeration\tpast\tt_begin\tt_tasks_end\tt_release\ttasks\tsmid\tstage"
+#endif
+      ))return -2;
 #endif
 #if TILEMEGA_TRACE_STEP
   if(!dump("step_trace.tsv",p->trace.steps,std::size_t(p->trace.slots)*p->grid,

@@ -96,6 +96,10 @@ struct alignas(16) Sm90DenseOperandBank {
 struct Sm90DenseOperandHeader {
   static constexpr int kOffset=2*sizeof(Sm90DenseRingState);
   static constexpr int kEnd=kOffset+2*sizeof(Sm90DenseOperandBank);
+  // D0 (prompt §4 A0): the current stage trace's mark array, published by the
+  // boundary at level 2 and read by Sm90DenseMark. It sits after the cluster
+  // state, inside the 1024-byte header every program already reserves.
+  static constexpr int kTraceSlot=1016;
   static_assert(sizeof(void*)==8 && sizeof(Sm90DenseOperands)==48);
   static_assert(sizeof(float)==4 && offsetof(Sm90DenseOperands,epsilon)==40);
   static_assert(sizeof(Sm90DenseAttentionOperands)==120);
@@ -137,4 +141,9 @@ struct alignas(8) Sm90DenseClusterState {
 };
 static_assert(Sm90DenseOperandHeader::kEnd%8==0 &&
     Sm90DenseOperandHeader::kEnd+sizeof(Sm90DenseClusterState)<=1024);
+static_assert(Sm90DenseOperandHeader::kEnd+sizeof(Sm90DenseClusterState)<=
+    Sm90DenseOperandHeader::kTraceSlot &&
+    Sm90DenseOperandHeader::kTraceSlot+8<=1024 &&
+    Sm90DenseOperandHeader::kTraceSlot%8==0,
+    "the D0 mark slot must clear the cluster state and stay in the header");
 }  // namespace tilemega::backend

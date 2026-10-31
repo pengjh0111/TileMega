@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Backend/Sm90DenseMark.cuh>
 #include <tilemega/Backend/Sm90DenseOperands.cuh>
 #include <tilemega/Backend/Sm90DenseRoles.cuh>
 #include <tilemega/Backend/Sm90DenseRing.cuh>
@@ -312,6 +313,7 @@ struct Sm90DenseAttentionBody {
       auto range=Partition::Range(past,chunk,NewRowWork);
       Prepare(p,s,bg,range);
       codegen::executor::ComputeSync();
+      if(threadIdx.x==0)Sm90DenseMarkFirst(0);
       State st;
       #pragma unroll
       for(int n=0;n<D/8;++n)st.o[n][0]=st.o[n][1]=st.o[n][2]=st.o[n][3]=0;
@@ -320,6 +322,7 @@ struct Sm90DenseAttentionBody {
       for(int begin=range.begin;begin<bound;begin+=BlockKeys,++sequence) {
         int slot=sequence%Slots;
         Async::Wait(state.full+slot,(phase>>slot)&1);phase^=1u<<slot;
+        if(threadIdx.x==0)Sm90DenseMarkFirst(1);
         unsigned key=Async::Shared(s.kv[slot][0]),value=Async::Shared(s.kv[slot][1]);
         #pragma unroll
         for(int sub=0;sub<BlockKeys/64;++sub)
@@ -341,10 +344,16 @@ struct Sm90DenseAttentionBody {
         if(lane%4==0) {s.maximum[warp*Q+row]=st.maximum[0];s.sum[warp*Q+row]=st.sum[0];}
       }
       codegen::executor::ComputeSync();
+      if(threadIdx.x==0)Sm90DenseMark(2);
       Finish(p,s,bg,chunk);
+      if(threadIdx.x==0)Sm90DenseMark(3);
       if constexpr(Dsmem)DsmemMerge(p,state,s,bg,chunk);
-      else if constexpr(Chunks>1)
-        if(Sm90DenseLastArriver::Publish<Chunks>(p.arrivals+bg,&s.last))Merge(p,s,bg);
+      else if constexpr(Chunks>1) {
+        bool last=Sm90DenseLastArriver::Publish<Chunks>(p.arrivals+bg,&s.last);
+        if(threadIdx.x==0)Sm90DenseMark(4);
+        if(last)Merge(p,s,bg);
+        if(threadIdx.x==0 && last)Sm90DenseMark(5);
+      }
       codegen::executor::ComputeSync();
     }
     if(threadIdx.x==0 && tasks)for(int i=0;i<Slots;++i)state.consumer_generations[i]=(phase>>i)&1;

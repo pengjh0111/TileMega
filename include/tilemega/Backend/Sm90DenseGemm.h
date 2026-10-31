@@ -4,6 +4,7 @@
 #include <tilemega/Backend/Sm90DenseRoles.cuh>
 
 #include <tilemega/Backend/Sm90DenseEpilogue.h>
+#include <tilemega/Backend/Sm90DenseMark.cuh>
 #include <tilemega/Backend/Sm90DenseHead.cuh>
 #include <tilemega/Backend/Sm90DenseRing.cuh>
 #include <tilemega/Backend/Sm90DenseLayout.h>
@@ -216,6 +217,7 @@ struct Sm90DenseGemm {
       for(int iteration=0;iteration<kIterations;++iteration) {
         int sequence=local*kIterations+iteration,slot=sequence%Slots;
         Async::Wait(state.full+slot,(phase>>slot)&1);phase^=1u<<slot;
+        if(tid==0)Sm90DenseMarkFirst(0);
         auto* sa=a+slot*kRows*TK;auto* sb=b+slot*TN*TK;
         // A warp takes one uniform specialization. All 128-thread barriers
         // and shared reductions remain at common call sites after reconvergence.
@@ -239,6 +241,7 @@ struct Sm90DenseGemm {
         if constexpr(Multicast)
           if(unsigned(slot&1)!=(rank&1))Async::RemoteArrive(Async::Mapa(state.peer+slot/2,rank^1u));
       }
+      if(tid==0)Sm90DenseMark(1);
       if constexpr(InputNorm)
         #pragma unroll
         for(int r=0;r<2;++r) {
@@ -256,6 +259,7 @@ struct Sm90DenseGemm {
         if constexpr(InputNorm)
           for(int r=0;r<2;++r)inv[r]=Epilogue::Inverse(squares[r],p.epsilon);
         Epilogue::Registers(accum,owned,inv,tile_residual,p.output,task);
+        if(tid==0)Sm90DenseMark(2);
       }else {
         for(int i=0;i<size(accum);++i)
           scratch[split*16*TN+get<0>(owned(i))*TN+get<1>(owned(i))]=accum(i);
@@ -272,6 +276,7 @@ struct Sm90DenseGemm {
         else Epilogue::template Shared<WarpsK>(scratch,norms,tile_residual,p.output,p.argmax_index,
             task,p.epsilon);
         codegen::executor::ComputeSync();
+        if(tid==0)Sm90DenseMark(2);
       }
     }
     // Every task has been consumed: the operand slots are free.

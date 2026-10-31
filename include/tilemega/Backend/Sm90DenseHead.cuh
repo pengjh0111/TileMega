@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Backend/Sm90DenseOperands.cuh>
+#include <tilemega/Backend/Sm90DenseMark.cuh>
 #include <tilemega/Backend/Sm90DenseRing.cuh>
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 #include <climits>
@@ -46,6 +47,7 @@ struct Sm90DenseHeadFinish {
       *flag=old%unsigned(grid)==unsigned(grid-1);
     }
     codegen::executor::ComputeSync();
+    if(tid==0)Sm90DenseMark(2);
     if(!*flag)return;
     // Ties keep the smaller vocabulary index, as within a task.
     for(int row=warp;row<Batch;row+=4) {
@@ -70,6 +72,7 @@ struct Sm90DenseHeadFinish {
       }
     }
     codegen::executor::ComputeSync();
+    if(tid==0)Sm90DenseMark(3);
     if constexpr(Embed) {
       constexpr int kStage=128;
       int rows=(bytes-kStage)/kRowBytes;rows=rows<Batch?rows:Batch;
@@ -92,6 +95,7 @@ struct Sm90DenseHeadFinish {
       }
       if(tid==0)state.side_generations[0]=phase;
     }
+    if(tid==0)Sm90DenseMark(4);
   }
 };
 

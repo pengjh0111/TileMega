@@ -7,6 +7,7 @@
 #include <tilemega/Backend/Sm90DenseMoe.cuh>
 #include <tilemega/Backend/Sm90DenseToken.cuh>
 #include <tilemega/Backend/Sm90DenseLayout.h>
+#include <tilemega/Backend/Sm90DenseMark.cuh>
 #include <tilemega/Codegen/tasks/Sm90DenseStage.cuh>
 #include <tilemega/Codegen/tasks/ServingAbi.h>
 #include <array>
@@ -96,6 +97,11 @@ struct StageInfo {
 };
 struct StageTrace {
   unsigned long long iteration,past,begin,arrive,release,tasks,smid,stage;
+#if TILEMEGA_TRACE_STAGE == 2
+  // D0 (prompt §4 A0 and appendix D). Level 1 keeps its layout, so
+  // sm90r4_ledger.py still reads a level-1 trace.
+  unsigned long long mark[backend::Sm90DenseMarks::kCount];
+#endif
 };
 struct StepTrace {
   unsigned long long iteration,past,begin,end,first,last,token_lag,kv_lag,barrier_wait,has_tasks;
@@ -585,6 +591,17 @@ struct Program {
       *record={iteration,static_cast<unsigned long long>(past),Now(),0,0,
           Body::kTasks/gridDim.x+(blockIdx.x<Body::kTasks%gridDim.x),sm,g};
     }
+#endif
+#if TILEMEGA_TRACE_STAGE == 2
+    // The body stamps through this slot, so it is published (and the marks
+    // cleared, since Sm90DenseMarkFirst keeps the first nonzero value) before
+    // any thread enters Run.
+    if(threadIdx.x==0) {
+      *reinterpret_cast<unsigned long long**>(shared+backend::Sm90DenseOperandHeader::kTraceSlot)=
+          record?record->mark:nullptr;
+      if(record)for(int i=0;i<backend::Sm90DenseMarks::kCount;++i)record->mark[i]=0;
+    }
+    __syncthreads();
 #endif
     // Every stage returns only after all 160 threads have retired its storage.
     auto* rings=reinterpret_cast<backend::Sm90DenseRingState*>(shared);
