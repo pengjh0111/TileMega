@@ -44,7 +44,7 @@ def aggregate(request):
             for row,key in zip(samples_now,keys):
                 if row['key']!=key['key']or row['binary']!=key['binary']or row['build']!=key['build']or row['round']!=number:raise ValueError('cost sample/build/key mismatch')
                 if row['driver_sha256']!=request['driver']['sha256']or row['key_file_sha256']!=job['keys']['sha256']:raise ValueError('cost driver/key input differs')
-                if row['physical_card']!=process['card']or row['guard']['physical_gpu']!=process['card']:raise ValueError('physical GPU differs')
+                if row['physical_card']!=process['card']or row['guard']['physical_gpu']!=str(process['card']):raise ValueError('physical GPU differs')
                 if row['contract']!='bf16'or row['timing_eligible']or row['production_acceptance']or row['input_seed']!=63102:raise ValueError('incorrect cost scope')
                 if row['source_digest']!=source['source_digest']:raise ValueError('cost source epoch differs')
             samples.append((number,samples_now,record));numbers.add(number);job_pids.add(pid)
