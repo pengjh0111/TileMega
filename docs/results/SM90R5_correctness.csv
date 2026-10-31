@@ -7,9 +7,11 @@ d0_tokens,69ef51f13,A0 level-2 instrumentation,qwen3_30b_a3b_b1,pass,traced and 
 dense_gate,A1 legality fix,A1 qk_norm_row rejects group_wait,llama3_1_8b_b1,pass,generated source and predicted ranking unchanged; dense keeps group_wait,runs/sm90r5/dense_gate/a1/manifest.json
 dense_gate,A1 legality fix,A1 qk_norm_row rejects group_wait,qwen3_0_6b_b16,pass,generated source and predicted ranking unchanged; dense keeps group_wait,runs/sm90r5/dense_gate/a1/manifest.json
 a1_legality,A1 legality fix,OLMoE B1 predicted solve,olmoe_1b_7b_b1,pass,all four ranked candidates now carry group_wait false; predicted step 1.1463 ms unchanged from R4,runs/sm90r5/a1/olmoe-B1/decode.cu.search/receipt.json
-e1_gate,E1 evict_first,dense gate and P-PAIR,both dev cells,PENDING,committed before its gate and pair ran; must be verified before E1 is trusted,-
+e1_gate,d09330372,dense gate after E1,llama3_1_8b_b1+qwen3_0_6b_b16,pass,generated source and predicted ranking identical to the a2db639b reference,runs/sm90r5/dense_gate/e1/manifest.json
 d0_tokens,A1 tree,A0 level-2 instrumentation,qwen3_30b_a3b_b16,pass,traced and untraced tokens identical; overhead -1.63 pct (within noise at B16),runs/sm90r5/d0/before/qwen3_30b_a3b-B16/trace/run.json
 dt_a0,A1 tree,DT-A0 unexplained segment check,qwen3_30b_a3b_b1+b16,pass,every oversized segment lies in RC2/RC3/RC5/RC6; continue to A2,docs/results/SM90R5_moe_marks.csv
 e1_dense_source,E1 evict_first,dense generated source carries no policy macro,llama3_1_8b_b1,pass,zero EVICT_FIRST occurrences in dense source; macro emitted only when c.moe,runs/sm90r5/e1/dense.cu
 e1_moe_source,E1 evict_first,MoE generated source carries the macro,qwen3_30b_a3b_b1,pass,one EVICT_FIRST define present,runs/sm90r5/e1/decode.cu
 e1_ptx_count,E1 evict_first,PTX hint count vs call sites,qwen3_30b_a3b_b1,INVALID,raw PTX greps are not a sound check: kPanels unrolls each site and counts varied 13 to 17 across two compiles of one source; needs per-instantiation instance accounting,runs/sm90r5/e1/decode.ptx
+a1_unit,e8d462c6e,A1 legality unit test,olmoe_1b_7b_b1,pass,R4's selected OLMoE coordinate is admitted by the old rule and rejected by A1; legal again with group_wait off,test/unit/sm90_dense_search_space_test.cpp
+repo_defect,e8d462c6e,stale sm90 search space assertion,qwen3_0_6b,fixed,"test expected attention chunks in {s0,s0/2,s0/4} but MR5 widened it to every power of two down to 1; the sm90 tests are gated on TILEMEGA_TARGET_ARCH=sm_90 and the build uses auto, so it was never compiled",test/unit/sm90_dense_search_space_test.cpp
