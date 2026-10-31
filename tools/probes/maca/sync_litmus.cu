@@ -498,8 +498,17 @@ __device__ __forceinline__ void Produce(MxMoeCombineOperandsV3<false> const& p,u
   unsigned const salt=Hash(seed+it),factor=(salt>>8)|1u;
   for(unsigned unit=begin;unit<end;++unit) {
     unsigned const expert=unit/tiles,tile=unit%tiles;
-    for(unsigned item=threadIdx.x;item<kB*8*TN/8;item+=512) {
-      unsigned const row=item/(TN/8),b=row/8,rank=row%8,column=tile*TN+item%(TN/8)*8;
+    unsigned first=0,rows=kB*8;
+    if constexpr(Mode==MxCombineModeV3::kUnitOwner) {
+      while(((first*factor+salt)&(active-1))!=expert)++first;
+      rows=kB*8/active;
+      // WN1 Finish rendezvous precedes stores; expert rows are compact in a unit.
+      V3Sync::LdsSync();
+    }
+    for(unsigned item=threadIdx.x;item<rows*TN/8;item+=512) {
+      unsigned const local_row=item/(TN/8);
+      unsigned const row=Mode==MxCombineModeV3::kUnitOwner?first+local_row*active:local_row;
+      unsigned const b=row/8,rank=row%8,column=tile*TN+item%(TN/8)*8;
       if(((row*factor+salt)&(active-1))==expert) {
         alignas(16) Bf16 values[8];
         for(unsigned j=0;j<8;++j)values[j]=Bf16(Value(seed,it,b,rank,column+j));
@@ -514,7 +523,7 @@ __device__ __forceinline__ void Produce(MxMoeCombineOperandsV3<false> const& p,u
 template<MxCombineModeV3 Mode>
 __global__ void __launch_bounds__(512) Kernel(Bf16* partial,Bf16* x,unsigned* tickets,
     unsigned long long* events,unsigned long long* errors,unsigned long long* participants,
-    Bf16 const* reference,int iterations,unsigned seed) {
+    unsigned long long* case_errors,Bf16 const* reference,int iterations,unsigned seed) {
   extern __shared__ __align__(16) char storage[];
   auto* table=(MxSharedRouteTableV3<false>*)(storage+4096);
   auto* state=(MxSharedCombineStateV3*)(storage+4096+sizeof(MxRouteTableV3));
@@ -545,12 +554,16 @@ __global__ void __launch_bounds__(512) Kernel(Bf16* partial,Bf16* x,unsigned* ti
     }
     V3Sync::Arrive(events+8);
     V3Sync::Wait(events+8,104ull*(it+1),generation,3*it+2,[]{},{});
+    unsigned long long current_bad=0;
     for(unsigned item=blockIdx.x*512+threadIdx.x;item<kB*kH/8;item+=104*512) {
       uint4 const got=tilemega::backend::LoadGlobal16Gvm(x+item*8);
       uint4 const want=tilemega::backend::LoadGlobal16Gvm(reference+std::size_t(it)*kB*kH+item*8);
       __builtin_mxc_arrive_gvmcnt(0);
-      bad+=got.x!=want.x;bad+=got.y!=want.y;bad+=got.z!=want.z;bad+=got.w!=want.w;
+      current_bad+=got.x!=want.x;current_bad+=got.y!=want.y;
+      current_bad+=got.z!=want.z;current_bad+=got.w!=want.w;
     }
+    bad+=current_bad;
+    if(current_bad)atomicAdd(case_errors+(((unsigned(it)>>2)&3)*4+(unsigned(it)&3)),current_bad);
     V3Sync::CtaSync();V3Sync::Arrive(events+16);
     V3Sync::Wait(events+16,104ull*(it+1),generation,3*it+3,[]{},{});
     if(V3Sync::IsRole())atomicAdd(participants,1ull);
@@ -579,22 +592,26 @@ int Run(int iterations,unsigned seed,char const* label) {
         expected[(std::size_t(it)*kB+b)*kH+col]=Bf16(float(Bf16(sum))+Residual(seed,it,b,col));
       }
   Bf16 *partial,*x,*reference;unsigned* tickets;
-  unsigned long long *events,*errors,*participants;
+  unsigned long long *events,*errors,*participants,*case_errors;
   if(cudaMalloc(&partial,kB*8*kH*2)||cudaMalloc(&x,kB*kH*2)||
       cudaMalloc(&reference,expected.size()*2)||cudaMalloc(&tickets,kTickets*4)||
-      cudaMalloc(&events,32*8)||cudaMalloc(&errors,8)||cudaMalloc(&participants,8))return 1;
+      cudaMalloc(&events,32*8)||cudaMalloc(&errors,8)||cudaMalloc(&participants,8)||cudaMalloc(&case_errors,16*8))return 1;
   if(cudaMemcpy(reference,expected.data(),expected.size()*2,cudaMemcpyHostToDevice)||
       cudaMemset(tickets,0,kTickets*4)||cudaMemset(events,0,32*8)||cudaMemset(errors,0,8)||
-      cudaMemset(participants,0,8))return 1;
-  kernel<<<104,512,bytes>>>(partial,x,tickets,events,errors,participants,reference,iterations,seed);
+      cudaMemset(participants,0,8)||cudaMemset(case_errors,0,16*8))return 1;
+  kernel<<<104,512,bytes>>>(partial,x,tickets,events,errors,participants,case_errors,reference,iterations,seed);
   auto launch=cudaGetLastError();auto sync=cudaDeviceSynchronize();
   unsigned long long bad=0,joined=0;unsigned final_tickets[kTickets];
   auto read_errors=cudaMemcpy(&bad,errors,8,cudaMemcpyDeviceToHost);
   auto read_participants=cudaMemcpy(&joined,participants,8,cudaMemcpyDeviceToHost);
   auto read_tickets=cudaMemcpy(final_tickets,tickets,kTickets*4,cudaMemcpyDeviceToHost);
   for(unsigned v:final_tickets)bad+=v!=0;
+  unsigned long long cases[16]={};
+  auto read_cases=cudaMemcpy(cases,case_errors,16*8,cudaMemcpyDeviceToHost);
+  for(unsigned i=0;i<16;++i)
+    std::printf("SYNC_CASE TN=%u n_active=%u errors=%llu\n",16u<<(i/4),i%4==0?1:i%4==1?8:i%4==2?64:128,cases[i]);
   bool const pass=!launch&&!sync&&!read_errors&&!read_participants&&!read_tickets&&
-      !bad&&joined==104ull*iterations;
+      !read_cases&&!bad&&joined==104ull*iterations;
   std::printf("SYNC %s iterations=%d launch=%s sync=%s errors=%llu participants=%llu host_x_bitwise=1 %s\n",
       label,iterations,cudaGetErrorString(launch),cudaGetErrorString(sync),bad,joined,pass?"PASS":"FAIL");
   return pass?0:1;
