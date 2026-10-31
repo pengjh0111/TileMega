@@ -106,16 +106,17 @@ struct Sm90DenseAttentionBody {
     int begin=Partition::Range(past,chunk,NewRowWork).begin,count=Preissued<Bytes>(past);
     // The alternate arena and ring retired before the preceding boundary.
     Async::ProxyAsyncGlobalFence();
-    // E1: the D6 prefix reads the same history stream, so it takes the same policy.
-    std::uint64_t const policy=Sm90DenseStream::WeightPolicy();
+    // E1 leaves the D6 prefix on the default policy: it is issued into the
+    // alternate arena for the next stage, so evict_first could drop it before
+    // that stage consumes it.
     for(int slot=0;slot<count;++slot) {
       Async::ExpectTx(state.full+slot,2*BlockKeys*D*2);
       #pragma unroll
       for(int panel=0;panel<kPanels;++panel) {
-        Sm90DenseStream::HistoryTensor4D(&s.kv[slot][0][panel*BlockKeys*64],key,
-            panel*64,begin+slot*BlockKeys,bg,layer,state.full+slot,policy);
-        Sm90DenseStream::HistoryTensor4D(&s.kv[slot][1][panel*BlockKeys*64],value,
-            panel*64,begin+slot*BlockKeys,bg,layer,state.full+slot,policy);
+        Async::Tensor4D(&s.kv[slot][0][panel*BlockKeys*64],key,panel*64,begin+slot*BlockKeys,bg,layer,
+            state.full+slot);
+        Async::Tensor4D(&s.kv[slot][1][panel*BlockKeys*64],value,panel*64,begin+slot*BlockKeys,bg,layer,
+            state.full+slot);
       }
     }
   }
