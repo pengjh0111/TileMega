@@ -32,11 +32,20 @@ def save(path,value):
 
 def check_qualification(path):
     qualification=Path(path).with_suffix('.qualification.json')
-    if qualification.exists():
-        record=json.loads(qualification.read_text())
-        if record['cost_table_sha256']!=sha(path):raise ValueError('cost qualification hash differs')
-        if record['solver_eligible']is not True:
-            raise ValueError('cost table is not solver eligible: '+record['reason'])
+    if not qualification.exists():raise ValueError('eligible cost qualification required')
+    record=json.loads(qualification.read_text())
+    if record['cost_table_sha256']!=sha(path):raise ValueError('cost qualification hash differs')
+    if record['solver_eligible']is not True:
+        raise ValueError('cost table is not solver eligible: '+record['reason'])
+    return record
+
+
+def development_control(model,batch):
+    if model=='qwen3_30b_a3b_l24'and batch in(1,2):
+        return ROOT/f'runs/mx6/v2/cp2prime_builds/{model}/B{batch}'
+    if model=='olmoe_1b_7b'and batch==1:
+        return ROOT/f'runs/mx6/cp3/split_decode_only/{model}/B1/S4'
+    return ROOT/f'runs/mx6/cp3/builds_s1/{model}/B{batch}'
 
 
 class Cell:
@@ -46,6 +55,14 @@ class Cell:
         self.environment=dict(os.environ,PYTHONPATH=str(ROOT/'python'),NEEDS_MIB='40960',MX_MOE_HF_EXPERTS='eager',
             TILEMEGA_GPU_JOB_LOG=str(ROOT/'runs/mx6/gpu_jobs.log'))
         self.cpu_environment=dict(self.environment,CUDA_VISIBLE_DEVICES='',MACA_VISIBLE_DEVICES='')
+        self.control=(args.control_dir or development_control(args.model_id,args.batch)).resolve()
+        qualification=check_qualification(args.costs)
+        frozen=self.out/'cost_inputs'/sha(args.costs);frozen.mkdir(parents=True,exist_ok=True)
+        self.costs=frozen/'catalog.json'
+        for source,target in((args.costs,self.costs),(args.costs.with_suffix('.qualification.json'),self.costs.with_suffix('.qualification.json'))):
+            if not target.exists():shutil.copy2(source,target)
+            if sha(source)!=sha(target):raise ValueError('changed sealed cost input')
+        self.qualification=qualification
         producer=self.out/'producer';producer.mkdir(exist_ok=True);digest=sha(args.compiler)
         self.compiler=producer/(digest+'_tilemega')
         if not self.compiler.exists():shutil.copy2(args.compiler,self.compiler)
@@ -109,23 +126,29 @@ class Cell:
             str(self.a.batch),'512',out/'check',self.a.prompt_ids])
         except RuntimeError:
             for path in(out/'check/c1/hf_check.json',out/'check/c2/mode_check.json'):
-                if path.exists()and json.loads(path.read_text()).get('pass')is False:self.halt('13.4.A2 C1/C2 failure',ref(path))
+                if path.exists()and json.loads(path.read_text()).get('pass')is False:
+                    if self.a.correctness_remedy:self.halt('continue1 A2 C1/C2 failure persists after implementation correction',ref(path))
+                    raise RuntimeError('B implementation diagnosis required before one corrected C1/C2 cohort: '+str(path))
             raise
         c1=out/'check/c1/hf_check.json';c2=out/'check/c2/mode_check.json'
-        if not json.loads(c1.read_text())['pass']or not json.loads(c2.read_text())['pass']:self.halt('13.4.A2 C1/C2 failure',dict(C1=ref(c1),C2=ref(c2)))
+        if not json.loads(c1.read_text())['pass']or not json.loads(c2.read_text())['pass']:
+            if self.a.correctness_remedy:self.halt('continue1 A2 corrected C1/C2 still fails',dict(C1=ref(c1),C2=ref(c2)))
+            raise RuntimeError('B implementation diagnosis required; C1/C2 failure retained')
         return dict(C1=ref(c1),C2=ref(c2))
 
-    def measure(self,folder,label):
+    def measure(self,folder,label,output=None):
         values=[];records=[]
         for number in(1,2):
-            out=folder/f'{label}_round{number}'
+            out=(output or folder)/f'{label}_round{number}'
             self.job(out,900,[sys.executable,'-m','tilemega.serving.measure','--model',self.a.model,
                 '--prefill-so',folder/'prefill/plan.so','--decode-so',folder/'decode/plan.so','--prompt-ids',self.a.prompt_ids,
                 '--batch',str(self.a.batch),'--mode','L1','--prefill-mode','L1','--decode-loop','1',
                 '--max-new-tokens','1024','--warmup','1','--repeats','2','--step-events','0',
                 '--policy',ROOT/'configs/bench/measurement_policy_c550.json','--out',out/'measure'])
             path=out/'measure/measurements.json';result=json.loads(path.read_text())
-            if not result['timed_tokens_identical']:self.halt('13.4.A2 repeated greedy generation differs',ref(path))
+            if not result['timed_tokens_identical']:
+                if self.a.correctness_remedy:self.halt('continue1 A2 corrected repeated greedy generation differs',ref(path))
+                raise RuntimeError('B implementation diagnosis required; repeated greedy generation differs: '+str(path))
             values.append(result['tpot_seconds']*1e9);records.append(ref(path))
         spread=(max(values)-min(values))/(sum(values)/2)
         if spread>.02:
@@ -154,10 +177,10 @@ class Cell:
         return self.query(folder,'queries'),attempts
 
     def run(self):
-        check_qualification(self.a.costs)
-        catalog=json.loads(self.a.costs.read_text())
+        qualification=check_qualification(self.costs)
+        catalog=json.loads(self.costs.read_text())
         if catalog.get('complete_scope')is not True:raise ValueError('complete source-bound measured costs required')
-        cost_hash=sha(self.a.costs);lists=stage_lists(catalog['rows'],self.a.model_id,self.a.batch);qualified=[];rejected=[]
+        cost_hash=sha(self.costs);lists=stage_lists(catalog['rows'],self.a.model_id,self.a.batch,qualification['excluded_combine_modes']);qualified=[];rejected=[]
         for choice in k_best(lists,LAYERS[self.a.model_id]):
             folder=self.out/f"rank{choice['candidate_rank']:07d}";folder.mkdir(exist_ok=True)
             choice_path=folder/'CHOICE.json'
@@ -169,26 +192,28 @@ class Cell:
             save(folder/'RESOURCE_RESULT.json',result)
             if fit:qualified.append(result)
             else:rejected.append(result)
-            if len(qualified)==4:break
-        if len(qualified)!=4:raise RuntimeError('B2 no four resource-qualified combinations; inspect closure')
-        save(self.out/'QUALIFIED.json',dict(qualified=qualified,rejected=rejected,cost_table=ref(self.a.costs)))
+            if len(qualified)==self.a.candidates:break
+        if len(qualified)!=self.a.candidates:raise RuntimeError('B2 insufficient resource-qualified combinations; inspect closure')
+        save(self.out/'QUALIFIED.json',dict(qualified=qualified,rejected=rejected,cost_table=ref(self.costs)))
         predictions=[];measured=[]
         for candidate in qualified:
             folder=Path(candidate['folder']);candidate['correctness']=self.correctness(folder,'correctness')
             candidate['timing']=self.measure(folder,'timing');predictions.append(candidate['choice']['predicted_ns']);measured.append(candidate['timing']['fresh_process_ns'])
             save(folder/'CANDIDATE_RESULT.json',candidate)
+        control=self.measure(self.control,'control_timing',self.out)
         selection=select_measured(predictions,measured);selected=qualified[selection['selected']]
-        save(self.out/'MEASURED_SELECTION.json',dict(selection=selection,qualified=qualified,cost_table=ref(self.a.costs)))
+        save(self.out/'MEASURED_SELECTION.json',dict(selection=selection,qualified=qualified,cost_table=ref(self.costs),control=control,control_directory=str(self.control),control_participates_in_selection=False))
         final_pin=pin(selected['choice'],cost_hash,'selected');final_pin['mx_moe_v3']['selection'].update(
             measurement_decision=ref(self.out/'MEASURED_SELECTION.json'),eligible_rank=selection['selected']+1,
-            fresh_processes_per_candidate=2,correctness_steps=512,default_enabled=False)
+            fresh_processes_per_candidate=2,qualified_candidates=self.a.candidates,correctness_steps=512,default_enabled=False)
         pin_path=self.out/'selected_pin.json';save(pin_path,final_pin)
         fit,attempts=self.build(pin_path,self.cell)
         if not fit:raise RuntimeError('B2 selected-purpose rebuild rejected; retain candidate identities and inspect')
         correctness=self.correctness(self.cell,'selected_correctness');timing=self.measure(self.cell,'selected_timing')
-        result=dict(model=self.a.model_id,batch=self.a.batch,selection=selection,cost_table=ref(self.a.costs),
+        result=dict(model=self.a.model_id,batch=self.a.batch,selection=selection,cost_table=ref(self.costs),
             selected_pin=ref(pin_path),choice=selected['choice'],selected_correctness=correctness,selected_timing=timing,
             final_builds=attempts,qualified=ref(self.out/'QUALIFIED.json'),decision=ref(self.out/'MEASURED_SELECTION.json'),
+            control=control,control_directory=str(self.control),control_participates_in_selection=False,
             solver_selected=True,default_enabled=False,G6_acceptance=False)
         save(self.out/'results.json',result);return result
 
@@ -201,12 +226,15 @@ def main():
     for name in('bridge','costs','prompt-ids','out','cell-dir'):parser.add_argument('--'+name,type=Path,required=True)
     parser.add_argument('--compiler',type=Path,default=ROOT/'build/tools/tilemega')
     parser.add_argument('--target',type=Path,default=ROOT/'configs/targets/xcore1000.json')
+    parser.add_argument('--control-dir',type=Path)
+    parser.add_argument('--candidates',type=int,choices=(4,8),default=4)
+    parser.add_argument('--correctness-remedy',action='store_true')
     args=parser.parse_args();args.cell_dir.mkdir(parents=True,exist_ok=True)
     with(args.cell_dir/'.mx6_selection.lock').open('w')as lock:
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         if(args.out/'results.json').exists():
             result=json.loads((args.out/'results.json').read_text())
-            if ref(args.costs)!=result['cost_table']:raise ValueError('completed selection cost table changed')
+            if sha(args.costs)!=result['cost_table']['sha256']:raise ValueError('completed selection cost table changed')
             for phase in('decode','prefill','decode_w'):verify(args.cell_dir/phase/'plan.so')
             print('MX6_MEASURED_SELECTION_ALREADY_COMPLETE',args.model_id,args.batch);return
         cell=Cell(args)

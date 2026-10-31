@@ -48,3 +48,39 @@ def test_known_unqualified_costs_cannot_reach_plan_selection(tmp_path):
     path.write_text('{"changed":true}')
     with pytest.raises(ValueError,match='qualification hash differs'):
         check_qualification(path)
+
+
+def test_excluded_mode_and_noisy_p90_change_ranking():
+    from tilemega.moe.selection_v3 import stage_lists,STAGES,LENGTHS
+    resources=dict(resident=1,stack=0,static_smem=0,MTreg=100)
+    rows=[]
+    def row(stage,cost,**key):
+        return dict(key=dict(model='example',b=1,stage=stage,**key),median_ns=cost,p90_ns=cost,
+                    processes=3,resources=resources.copy())
+    for name in STAGES:
+        if name=='attention':
+            rows.extend(row(name,10,length=n,prefetch=0,split=1)for n in LENGTHS)
+        elif name=='down':
+            rows.append(row(name,1,combine_mode='unit_owner'))
+            rows.append(row(name,100,combine_mode='owner_tile'))
+            noisy=row(name,90,combine_mode='owner16');noisy.update(noisy=True,p90_ns=120,processes=5);rows.append(noisy)
+        else:rows.append(row(name,10))
+    choices=stage_lists(rows,'example',1,['unit_owner'])
+    assert [r['key']['combine_mode']for r in choices['down']]==['owner_tile','owner16']
+    assert [r['ns']for r in choices['down']]==[100,120]
+
+
+def test_eight_candidate_remedy_keeps_the_one_percent_rule():
+    predicted=list(range(100,108));pairs=[[100,100]]*7+[[98.5,99.5]]
+    assert select_measured(predicted,pairs)['selected']==7
+
+
+def test_disqualified_mode_does_not_renumber_the_kernel_enum():
+    import runpy
+    from pathlib import Path
+    root=Path(__file__).resolve().parents[2]
+    bench=runpy.run_path(str(root/'experiments/mx6/build_costs.py'))
+    assert 'unit_owner' not in bench['MODES']
+    key=dict(stage='down',b=1,tn=32,wn=8,d=2,experts=64,hidden=2048,intermediate=1024,combine_mode='unit_la')
+    _,definitions,_=bench['definitions'](key,2)
+    assert definitions['COMBINE']==3

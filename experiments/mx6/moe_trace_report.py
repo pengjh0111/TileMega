@@ -59,8 +59,23 @@ def main():
     np.savez_compressed(a.out/'step_stage_statistics.npz',duration_median_cta=np.median(durations,axis=2),
         wait_min=wait.min(axis=2),wait_median=np.median(wait,axis=2),wait_max=wait.max(axis=2))
     summary=[r for r in rows if r['record_type']=='mean_layers_then_median_steps'or r['stage']=='head']
-    (a.out/'COMPLETE.json').write_text(json.dumps(dict(rows=len(rows),summary=summary,
-        definition='per-CTA release minus previous release; wait offsets from minimum previous-stage release; per-step mean over layers then median of512 steps'),indent=2)+'\n')
+    result=dict(rows=len(rows),summary=summary,
+        definition='per-CTA release minus previous release; wait offsets from minimum previous-stage release; per-step mean over layers then median of512 steps')
+    if 'host_timing'in scope:
+        host=scope['host_timing']['mean_decode_step_us']
+        span=(stamps[:,-1,:,2].max(axis=1)-stamps[:,0,:,0].min(axis=1)).astype(np.float64)/1000
+        residuals=[dict(step=i,host_mean_step_us=host,device_grid_span_us=float(span[i]),
+            residual_us=float(host-span[i]),accepted_window=i>=65,
+            host_scope='mean over the same full577-step traced request',
+            device_scope='earliest first-stage start to latest last-stage release',
+            timing_eligible=False)for i in range(577)]
+        with(a.out/'residual.csv').open('x',newline='')as f:
+            w=csv.DictWriter(f,fieldnames=list(residuals[0]));w.writeheader();w.writerows(residuals)
+        result['residual']=dict(host_mean_step_us=host,device_mean_full577_us=float(span.mean()),
+            mean_full577_us=float(host-span.mean()),device_median_accepted512_us=float(np.median(span[65:])),
+            median_accepted512_us=float(host-np.median(span[65:])),
+            scope_note='host mean uses all577 steps; the attribution window retains512 after65. Both scopes are explicit; trace is not E2E evidence.')
+    (a.out/'COMPLETE.json').write_text(json.dumps(result,indent=2)+'\n')
     print('TRACE_LEDGER_PASS',scope['variant'],scope['batch'],len(rows),flush=True)
 
 

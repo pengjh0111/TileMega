@@ -39,6 +39,9 @@ def main():
         PID=os.getpid(),timing_eligible=False,execution_identity=execution,
         decode_binary_sha256=sha(a.decode_so),prefill_binary_sha256=sha(a.prefill_so),
         source_head=identity['source']['head'],source_sha256=identity['source']['source_digest'])
+    scope['host_timing']=dict(e2e_ms=result.e2e_ms,ttft_ms=result.ttft_ms,
+        mean_decode_step_us=(result.e2e_ms-result.ttft_ms)*1000/577,
+        definition='host wall E2E minus CUDA-event TTFT, divided by577 decode steps of this traced request')
     (a.out/'trace_scope.json').write_text(json.dumps(scope,indent=2)+'\n')
     print('ACTUAL_GREEDY_TRACE_CAPTURED',a.variant,a.batch,flush=True)
 

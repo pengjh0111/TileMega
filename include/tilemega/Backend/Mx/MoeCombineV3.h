@@ -67,6 +67,7 @@ struct MxMoeCombineTileV3 {
     MxStore16V2(p.output + token * hidden + column,*reinterpret_cast<uint4 const*>(result));
   }
 
+  // One lane's fence does not order other waves' Epilogue stores; disqualified by moe_unit_owner.
   __device__ __forceinline__ static void UnitOwner(MxMoeCombineOperandsV3<Fp32> const& p,unsigned tile) {
     __threadfence();
 #pragma unroll

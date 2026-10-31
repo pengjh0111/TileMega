@@ -22,7 +22,8 @@ void CheckMxMoeConfigV3(frontend::ModelPlan const& plan,MxMoeConfigV3 const& c){
   if(c.split!=1&&c.split!=2&&c.split!=4)Fail("invalid attention split");
   if(c.attn_version==2&&c.split!=1)Fail("attention V2 requires split1");
   if(c.split>1&&m.batch*m.hkv*c.split>104)Fail("attention split exceeds grid104");
-  if(c.combine_mode!="owner16"&&c.combine_mode!="owner_tile"&&c.combine_mode!="unit_owner"&&c.combine_mode!="unit_la")Fail("invalid combine_mode");
+  if(c.combine_mode=="unit_owner")Fail("combine_mode unit_owner is disqualified (moe_unit_owner litmus)");
+  if(c.combine_mode!="owner16"&&c.combine_mode!="owner_tile"&&c.combine_mode!="unit_la")Fail("invalid combine_mode");
   if(c.route_table_mode!="both"&&c.route_table_mode!="weights"&&c.route_table_mode!="ordinal"&&c.route_table_mode!="serial")Fail("invalid route_table_mode");
   if(c.router.stream_k||c.router.tn!=16||c.router.wn!=1)Fail("router logits require TileRange TN16 WN1");
   if(m.token_id_bits!=32)Fail("native token binding requires I32");

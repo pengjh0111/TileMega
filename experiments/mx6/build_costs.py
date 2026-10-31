@@ -16,7 +16,8 @@ ROOT=Path(__file__).resolve().parents[2]
 MODELS={
     'qwen3_30b_a3b_l24':dict(hidden=2048,intermediate=768,experts=128,hkv=4,q=8,dim=128,vocabulary=151936,epsilon=1e-6,layers=24),
     'olmoe_1b_7b':dict(hidden=2048,intermediate=1024,experts=64,hkv=16,q=1,dim=128,vocabulary=50304,epsilon=1e-5,layers=16)}
-MODES=('owner16','owner_tile','unit_owner','unit_la')
+MODE_VALUES={'owner16':0,'owner_tile':1,'unit_la':3}
+MODES=tuple(MODE_VALUES)
 
 
 def save(p,value):
@@ -75,7 +76,7 @@ def definitions(key,pw):
         return 'attention_v3_bench.cu',values,'Mx6AttentionBench'
     values.update(TN=key['tn'],WN=key['wn'],D=key['d'],PW=pw)
     if stage in ('gate_up','down'):
-        values.update(E=key['experts'],H=key['hidden'],I=key['intermediate'],GU=int(stage=='gate_up'),COMBINE=MODES.index(key.get('combine_mode','owner16')))
+        values.update(E=key['experts'],H=key['hidden'],I=key['intermediate'],GU=int(stage=='gate_up'),COMBINE=MODE_VALUES[key.get('combine_mode','owner16')])
         return 'moe_grouped_bench.cu',values,'Mx6GroupedBench'
     values.update(N=key['n'],K=key['k'],PART=key['part'],STAGE={'qkv':0,'o':1,'head':2,'router':3}[stage])
     return 'moe_router_logits_bench.cu'if stage=='router'else'regular_stage_bench.cu',values,'Mx6RegularBench'

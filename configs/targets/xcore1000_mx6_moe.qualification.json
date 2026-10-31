@@ -1,32 +1,1470 @@
 {
   "kind": "mx6_moe_cost_qualification",
+  "schema_version": 2,
   "evidence": "verified",
-  "checkpoint": "CP4_A3_stop",
-  "cost_table_sha256": "de04aebd99d7f705b18852562d7339261f77e4d6ad36967fcfe2358a377d740a",
+  "checkpoint": "continue1_CP4_qualified",
+  "instruction": {
+    "path": "/root/Prompt/TileMega_MX6_continue1.md",
+    "sha256": "c75af51618c826c7f6b6863d920a9da0ee61388b1d7b32b3edef139cf68af3e2"
+  },
+  "cost_table_sha256": "46ff7ce889f4148f15d17b9d926baac149ea01f26539a46e3edb3d4d77e6848f",
   "measured_rows": 4298,
-  "fresh_processes": 213,
-  "solver_eligible": false,
+  "fresh_processes": 215,
+  "solver_eligible": true,
+  "sync_gate": "pass (owner16 5/5, owner_tile 5/5; unit_owner excluded)",
+  "excluded_combine_modes": [
+    "unit_owner"
+  ],
+  "noisy_keys": [
+    {
+      "source_row": 236,
+      "key": {
+        "model": "olmoe_1b_7b",
+        "b": 2,
+        "stage": "down",
+        "n": 2048,
+        "k": 1024,
+        "tn": 64,
+        "wn": 4,
+        "d": 3,
+        "part": 1,
+        "op": 0,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 1024,
+        "experts": 64,
+        "epsilon": 1e-05,
+        "replay": {
+          "path": "/root/tilemega/runs/mx6/v2/replay/olmoe_1b_7b_B2.json",
+          "sha256": "46bb8d78024055ee6edf1753687c1244f127c2fc93f948b6d6f547d54a961a88"
+        },
+        "first_chunks": 16,
+        "combine_mode": "unit_la",
+        "prefetch": 4,
+        "r_next": 152
+      },
+      "p90_ns": 79749.0,
+      "spread": 0.036382143301147904,
+      "processes": 3
+    },
+    {
+      "source_row": 252,
+      "key": {
+        "model": "olmoe_1b_7b",
+        "b": 2,
+        "stage": "down",
+        "n": 2048,
+        "k": 1024,
+        "tn": 64,
+        "wn": 8,
+        "d": 3,
+        "part": 1,
+        "op": 0,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 1024,
+        "experts": 64,
+        "epsilon": 1e-05,
+        "replay": {
+          "path": "/root/tilemega/runs/mx6/v2/replay/olmoe_1b_7b_B2.json",
+          "sha256": "46bb8d78024055ee6edf1753687c1244f127c2fc93f948b6d6f547d54a961a88"
+        },
+        "first_chunks": 0,
+        "combine_mode": "unit_la",
+        "prefetch": 3,
+        "r_next": 142
+      },
+      "p90_ns": 81455.0,
+      "spread": 0.03544219362742427,
+      "processes": 3
+    },
+    {
+      "source_row": 300,
+      "key": {
+        "model": "olmoe_1b_7b",
+        "b": 2,
+        "stage": "down",
+        "n": 2048,
+        "k": 1024,
+        "tn": 128,
+        "wn": 4,
+        "d": 3,
+        "part": 1,
+        "op": 0,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 1024,
+        "experts": 64,
+        "epsilon": 1e-05,
+        "replay": {
+          "path": "/root/tilemega/runs/mx6/v2/replay/olmoe_1b_7b_B2.json",
+          "sha256": "46bb8d78024055ee6edf1753687c1244f127c2fc93f948b6d6f547d54a961a88"
+        },
+        "first_chunks": 0,
+        "combine_mode": "unit_la",
+        "prefetch": 3,
+        "r_next": 202
+      },
+      "p90_ns": 64231.0,
+      "spread": 0.021309347276169757,
+      "processes": 3
+    },
+    {
+      "source_row": 356,
+      "key": {
+        "model": "olmoe_1b_7b",
+        "b": 2,
+        "stage": "qkv",
+        "n": 6144,
+        "k": 2048,
+        "tn": 64,
+        "wn": 1,
+        "d": 4,
+        "part": 0,
+        "op": 0,
+        "norm": 1,
+        "hidden": 2048,
+        "intermediate": 1024,
+        "experts": 64,
+        "epsilon": 1e-05,
+        "first_chunks": 0,
+        "prefetch": 4,
+        "r_next": 169
+      },
+      "p90_ns": 28395.0,
+      "spread": 0.035945895868074854,
+      "processes": 3
+    },
+    {
+      "source_row": 364,
+      "key": {
+        "model": "olmoe_1b_7b",
+        "b": 2,
+        "stage": "qkv",
+        "n": 6144,
+        "k": 2048,
+        "tn": 128,
+        "wn": 1,
+        "d": 4,
+        "part": 0,
+        "op": 0,
+        "norm": 1,
+        "hidden": 2048,
+        "intermediate": 1024,
+        "experts": 64,
+        "epsilon": 1e-05,
+        "first_chunks": 0,
+        "prefetch": 4,
+        "r_next": 243
+      },
+      "p90_ns": 30340.0,
+      "spread": 0.022738842694722552,
+      "processes": 3
+    },
+    {
+      "source_row": 546,
+      "key": {
+        "model": "qwen3_30b_a3b_l24",
+        "b": 1,
+        "stage": "down",
+        "n": 2048,
+        "k": 768,
+        "tn": 32,
+        "wn": 1,
+        "d": 1,
+        "part": 1,
+        "op": 0,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 768,
+        "experts": 128,
+        "epsilon": 1e-06,
+        "replay": {
+          "path": "/root/tilemega/runs/mx6/v2/replay/qwen3_30b_a3b_l24_B1.json",
+          "sha256": "12291b612ac1431823c9bf36da29c9e6654a0ef8f619461026c5e291a0407fe8"
+        },
+        "first_chunks": 3,
+        "combine_mode": "unit_la",
+        "prefetch": 3,
+        "r_next": 107
+      },
+      "p90_ns": 53907.0,
+      "spread": 0.02253469129436032,
+      "processes": 3
+    },
+    {
+      "source_row": 566,
+      "key": {
+        "model": "qwen3_30b_a3b_l24",
+        "b": 1,
+        "stage": "down",
+        "n": 2048,
+        "k": 768,
+        "tn": 32,
+        "wn": 2,
+        "d": 2,
+        "part": 1,
+        "op": 0,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 768,
+        "experts": 128,
+        "epsilon": 1e-06,
+        "replay": {
+          "path": "/root/tilemega/runs/mx6/v2/replay/qwen3_30b_a3b_l24_B1.json",
+          "sha256": "12291b612ac1431823c9bf36da29c9e6654a0ef8f619461026c5e291a0407fe8"
+        },
+        "first_chunks": 6,
+        "combine_mode": "unit_la",
+        "prefetch": 6,
+        "r_next": 118
+      },
+      "p90_ns": 54493.0,
+      "spread": 0.021655259696896353,
+      "processes": 3
+    },
+    {
+      "source_row": 583,
+      "key": {
+        "model": "qwen3_30b_a3b_l24",
+        "b": 1,
+        "stage": "down",
+        "n": 2048,
+        "k": 768,
+        "tn": 32,
+        "wn": 4,
+        "d": 3,
+        "part": 1,
+        "op": 0,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 768,
+        "experts": 128,
+        "epsilon": 1e-06,
+        "replay": {
+          "path": "/root/tilemega/runs/mx6/v2/replay/qwen3_30b_a3b_l24_B1.json",
+          "sha256": "12291b612ac1431823c9bf36da29c9e6654a0ef8f619461026c5e291a0407fe8"
+        },
+        "first_chunks": 12,
+        "combine_mode": "owner16",
+        "prefetch": 8,
+        "r_next": 92
+      },
+      "p90_ns": 26530.0,
+      "spread": 0.03684404601425402,
+      "processes": 3
+    },
+    {
+      "source_row": 618,
+      "key": {
+        "model": "qwen3_30b_a3b_l24",
+        "b": 1,
+        "stage": "down",
+        "n": 2048,
+        "k": 768,
+        "tn": 64,
+        "wn": 1,
+        "d": 3,
+        "part": 1,
+        "op": 0,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 768,
+        "experts": 128,
+        "epsilon": 1e-06,
+        "replay": {
+          "path": "/root/tilemega/runs/mx6/v2/replay/qwen3_30b_a3b_l24_B1.json",
+          "sha256": "12291b612ac1431823c9bf36da29c9e6654a0ef8f619461026c5e291a0407fe8"
+        },
+        "first_chunks": 3,
+        "combine_mode": "unit_la",
+        "prefetch": 3,
+        "r_next": 148
+      },
+      "p90_ns": 41554.0,
+      "spread": 0.025992471040996938,
+      "processes": 3
+    },
+    {
+      "source_row": 634,
+      "key": {
+        "model": "qwen3_30b_a3b_l24",
+        "b": 1,
+        "stage": "down",
+        "n": 2048,
+        "k": 768,
+        "tn": 64,
+        "wn": 2,
+        "d": 3,
+        "part": 1,
+        "op": 0,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 768,
+        "experts": 128,
+        "epsilon": 1e-06,
+        "replay": {
+          "path": "/root/tilemega/runs/mx6/v2/replay/qwen3_30b_a3b_l24_B1.json",
+          "sha256": "12291b612ac1431823c9bf36da29c9e6654a0ef8f619461026c5e291a0407fe8"
+        },
+        "first_chunks": 6,
+        "combine_mode": "unit_la",
+        "prefetch": 4,
+        "r_next": 149
+      },
+      "p90_ns": 39518.0,
+      "spread": 0.021829236823430746,
+      "processes": 3
+    },
+    {
+      "source_row": 636,
+      "key": {
+        "model": "qwen3_30b_a3b_l24",
+        "b": 1,
+        "stage": "down",
+        "n": 2048,
+        "k": 768,
+        "tn": 64,
+        "wn": 2,
+        "d": 4,
+        "part": 1,
+        "op": 0,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 768,
+        "experts": 128,
+        "epsilon": 1e-06,
+        "replay": {
+          "path": "/root/tilemega/runs/mx6/v2/replay/qwen3_30b_a3b_l24_B1.json",
+          "sha256": "12291b612ac1431823c9bf36da29c9e6654a0ef8f619461026c5e291a0407fe8"
+        },
+        "first_chunks": 6,
+        "combine_mode": "owner_tile",
+        "prefetch": 4,
+        "r_next": 170
+      },
+      "p90_ns": 25134.0,
+      "spread": 0.026939394325464067,
+      "processes": 3
+    },
+    {
+      "source_row": 638,
+      "key": {
+        "model": "qwen3_30b_a3b_l24",
+        "b": 1,
+        "stage": "down",
+        "n": 2048,
+        "k": 768,
+        "tn": 64,
+        "wn": 2,
+        "d": 4,
+        "part": 1,
+        "op": 0,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 768,
+        "experts": 128,
+        "epsilon": 1e-06,
+        "replay": {
+          "path": "/root/tilemega/runs/mx6/v2/replay/qwen3_30b_a3b_l24_B1.json",
+          "sha256": "12291b612ac1431823c9bf36da29c9e6654a0ef8f619461026c5e291a0407fe8"
+        },
+        "first_chunks": 6,
+        "combine_mode": "unit_la",
+        "prefetch": 4,
+        "r_next": 172
+      },
+      "p90_ns": 39387.0,
+      "spread": 0.02301433992216512,
+      "processes": 3
+    },
+    {
+      "source_row": 679,
+      "key": {
+        "model": "qwen3_30b_a3b_l24",
+        "b": 1,
+        "stage": "down",
+        "n": 2048,
+        "k": 768,
+        "tn": 128,
+        "wn": 1,
+        "d": 3,
+        "part": 1,
+        "op": 0,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 768,
+        "experts": 128,
+        "epsilon": 1e-06,
+        "replay": {
+          "path": "/root/tilemega/runs/mx6/v2/replay/qwen3_30b_a3b_l24_B1.json",
+          "sha256": "12291b612ac1431823c9bf36da29c9e6654a0ef8f619461026c5e291a0407fe8"
+        },
+        "first_chunks": 3,
+        "combine_mode": "owner16",
+        "prefetch": 3,
+        "r_next": 184
+      },
+      "p90_ns": 26240.0,
+      "spread": 0.045316292359212265,
+      "processes": 3
+    },
+    {
+      "source_row": 766,
+      "key": {
+        "model": "qwen3_30b_a3b_l24",
+        "b": 1,
+        "stage": "qkv",
+        "n": 5120,
+        "k": 2048,
+        "tn": 64,
+        "wn": 1,
+        "d": 4,
+        "part": 0,
+        "op": 0,
+        "norm": 1,
+        "hidden": 2048,
+        "intermediate": 768,
+        "experts": 128,
+        "epsilon": 1e-06,
+        "first_chunks": 0,
+        "prefetch": 4,
+        "r_next": 165
+      },
+      "p90_ns": 23010.0,
+      "spread": 0.03063943161634103,
+      "processes": 3
+    },
+    {
+      "source_row": 1027,
+      "key": {
+        "model": "qwen3_30b_a3b_l24",
+        "b": 16,
+        "stage": "down",
+        "n": 2048,
+        "k": 768,
+        "tn": 32,
+        "wn": 8,
+        "d": 2,
+        "part": 1,
+        "op": 0,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 768,
+        "experts": 128,
+        "epsilon": 1e-06,
+        "replay": {
+          "path": "/root/tilemega/runs/mx6/v2/replay/qwen3_30b_a3b_l24_B16.json",
+          "sha256": "e78c2d6b69b4d74a8cf810ce81e75e7b3b7bccb7be1fa84522d3ae71015ce88b"
+        },
+        "first_chunks": 24,
+        "combine_mode": "unit_la",
+        "prefetch": 8,
+        "r_next": 106
+      },
+      "p90_ns": 297908.0,
+      "spread": 0.022121591699255833,
+      "processes": 3
+    },
+    {
+      "source_row": 1358,
+      "key": {
+        "model": "olmoe_1b_7b",
+        "b": 1,
+        "stage": "down",
+        "n": 2048,
+        "k": 1024,
+        "tn": 64,
+        "wn": 2,
+        "d": 3,
+        "part": 1,
+        "op": 0,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 1024,
+        "experts": 64,
+        "epsilon": 1e-05,
+        "replay": {
+          "path": "/root/tilemega/runs/mx6/v2/replay/olmoe_1b_7b_B1.json",
+          "sha256": "3a9f624fd2a4b62c7e816acdc0280dc0270dfd7f1189e3169c19665530177a24"
+        },
+        "first_chunks": 8,
+        "combine_mode": "unit_la",
+        "prefetch": 4,
+        "r_next": 152
+      },
+      "p90_ns": 44683.0,
+      "spread": 0.022878963020753183,
+      "processes": 3
+    },
+    {
+      "source_row": 1359,
+      "key": {
+        "model": "olmoe_1b_7b",
+        "b": 1,
+        "stage": "down",
+        "n": 2048,
+        "k": 1024,
+        "tn": 64,
+        "wn": 2,
+        "d": 4,
+        "part": 1,
+        "op": 0,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 1024,
+        "experts": 64,
+        "epsilon": 1e-05,
+        "replay": {
+          "path": "/root/tilemega/runs/mx6/v2/replay/olmoe_1b_7b_B1.json",
+          "sha256": "3a9f624fd2a4b62c7e816acdc0280dc0270dfd7f1189e3169c19665530177a24"
+        },
+        "first_chunks": 8,
+        "combine_mode": "owner16",
+        "prefetch": 4,
+        "r_next": 144
+      },
+      "p90_ns": 30877.0,
+      "spread": 0.042938169450752274,
+      "processes": 3
+    },
+    {
+      "source_row": 1360,
+      "key": {
+        "model": "olmoe_1b_7b",
+        "b": 1,
+        "stage": "down",
+        "n": 2048,
+        "k": 1024,
+        "tn": 64,
+        "wn": 2,
+        "d": 4,
+        "part": 1,
+        "op": 0,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 1024,
+        "experts": 64,
+        "epsilon": 1e-05,
+        "replay": {
+          "path": "/root/tilemega/runs/mx6/v2/replay/olmoe_1b_7b_B1.json",
+          "sha256": "3a9f624fd2a4b62c7e816acdc0280dc0270dfd7f1189e3169c19665530177a24"
+        },
+        "first_chunks": 8,
+        "combine_mode": "owner_tile",
+        "prefetch": 4,
+        "r_next": 144
+      },
+      "p90_ns": 29389.0,
+      "spread": 0.021306779429818578,
+      "processes": 3
+    },
+    {
+      "source_row": 1399,
+      "key": {
+        "model": "olmoe_1b_7b",
+        "b": 1,
+        "stage": "down",
+        "n": 2048,
+        "k": 1024,
+        "tn": 128,
+        "wn": 1,
+        "d": 2,
+        "part": 1,
+        "op": 0,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 1024,
+        "experts": 64,
+        "epsilon": 1e-05,
+        "replay": {
+          "path": "/root/tilemega/runs/mx6/v2/replay/olmoe_1b_7b_B1.json",
+          "sha256": "3a9f624fd2a4b62c7e816acdc0280dc0270dfd7f1189e3169c19665530177a24"
+        },
+        "first_chunks": 4,
+        "combine_mode": "owner16",
+        "prefetch": 2,
+        "r_next": 160
+      },
+      "p90_ns": 32011.0,
+      "spread": 0.047004463856913925,
+      "processes": 3
+    },
+    {
+      "source_row": 1404,
+      "key": {
+        "model": "olmoe_1b_7b",
+        "b": 1,
+        "stage": "down",
+        "n": 2048,
+        "k": 1024,
+        "tn": 128,
+        "wn": 1,
+        "d": 3,
+        "part": 1,
+        "op": 0,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 1024,
+        "experts": 64,
+        "epsilon": 1e-05,
+        "replay": {
+          "path": "/root/tilemega/runs/mx6/v2/replay/olmoe_1b_7b_B1.json",
+          "sha256": "3a9f624fd2a4b62c7e816acdc0280dc0270dfd7f1189e3169c19665530177a24"
+        },
+        "first_chunks": 4,
+        "combine_mode": "owner_tile",
+        "prefetch": 3,
+        "r_next": 182
+      },
+      "p90_ns": 31403.0,
+      "spread": 0.024170547298768916,
+      "processes": 3
+    },
+    {
+      "source_row": 1410,
+      "key": {
+        "model": "olmoe_1b_7b",
+        "b": 1,
+        "stage": "down",
+        "n": 2048,
+        "k": 1024,
+        "tn": 128,
+        "wn": 1,
+        "d": 4,
+        "part": 1,
+        "op": 0,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 1024,
+        "experts": 64,
+        "epsilon": 1e-05,
+        "replay": {
+          "path": "/root/tilemega/runs/mx6/v2/replay/olmoe_1b_7b_B1.json",
+          "sha256": "3a9f624fd2a4b62c7e816acdc0280dc0270dfd7f1189e3169c19665530177a24"
+        },
+        "first_chunks": 4,
+        "combine_mode": "unit_la",
+        "prefetch": 4,
+        "r_next": 227
+      },
+      "p90_ns": 37411.0,
+      "spread": 0.024871686704633342,
+      "processes": 3
+    },
+    {
+      "source_row": 1500,
+      "key": {
+        "model": "olmoe_1b_7b",
+        "b": 1,
+        "stage": "qkv",
+        "n": 6144,
+        "k": 2048,
+        "tn": 128,
+        "wn": 1,
+        "d": 3,
+        "part": 0,
+        "op": 0,
+        "norm": 1,
+        "hidden": 2048,
+        "intermediate": 1024,
+        "experts": 64,
+        "epsilon": 1e-05,
+        "first_chunks": 0,
+        "prefetch": 3,
+        "r_next": 205
+      },
+      "p90_ns": 26890.0,
+      "spread": 0.02833530106257379,
+      "processes": 3
+    },
+    {
+      "source_row": 1502,
+      "key": {
+        "model": "olmoe_1b_7b",
+        "b": 1,
+        "stage": "qkv",
+        "n": 6144,
+        "k": 2048,
+        "tn": 128,
+        "wn": 1,
+        "d": 4,
+        "part": 0,
+        "op": 0,
+        "norm": 1,
+        "hidden": 2048,
+        "intermediate": 1024,
+        "experts": 64,
+        "epsilon": 1e-05,
+        "first_chunks": 0,
+        "prefetch": 4,
+        "r_next": 241
+      },
+      "p90_ns": 29170.0,
+      "spread": 0.05263157894736842,
+      "processes": 3
+    },
+    {
+      "source_row": 2303,
+      "key": {
+        "model": "qwen3_30b_a3b_l24",
+        "b": 8,
+        "stage": "down",
+        "n": 2048,
+        "k": 768,
+        "tn": 128,
+        "wn": 8,
+        "d": 1,
+        "part": 1,
+        "op": 0,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 768,
+        "experts": 128,
+        "epsilon": 1e-06,
+        "replay": {
+          "path": "/root/tilemega/runs/mx6/v2/replay/qwen3_30b_a3b_l24_B8.json",
+          "sha256": "7c9b983f3f93086dc713bb6e2fbb8b636224c8ff385b0319a3966da529801c30"
+        },
+        "first_chunks": 24,
+        "combine_mode": "unit_la",
+        "prefetch": 2,
+        "r_next": 119
+      },
+      "p90_ns": 166700.0,
+      "spread": 0.024774127673117215,
+      "processes": 3
+    },
+    {
+      "source_row": 2463,
+      "key": {
+        "model": "olmoe_1b_7b",
+        "b": 1,
+        "stage": "router",
+        "n": 64,
+        "k": 2048,
+        "tn": 16,
+        "wn": 1,
+        "d": 4,
+        "part": 1,
+        "op": 0,
+        "norm": 1,
+        "hidden": 2048,
+        "intermediate": 1024,
+        "experts": 64,
+        "epsilon": 1e-05,
+        "first_chunks": 0,
+        "prefetch": 4,
+        "r_next": 86
+      },
+      "p90_ns": 6310.0,
+      "spread": 0.02127659574468085,
+      "processes": 5
+    },
+    {
+      "source_row": 2585,
+      "key": {
+        "model": "olmoe_1b_7b",
+        "b": 8,
+        "stage": "down",
+        "n": 2048,
+        "k": 1024,
+        "tn": 16,
+        "wn": 8,
+        "d": 3,
+        "part": 1,
+        "op": 0,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 1024,
+        "experts": 64,
+        "epsilon": 1e-05,
+        "replay": {
+          "path": "/root/tilemega/runs/mx6/v2/replay/olmoe_1b_7b_B8.json",
+          "sha256": "1feeef61b88ca3db5382f1d694b5cf6fad8e14a6aa0fa9e284aca201947a3952"
+        },
+        "first_chunks": 32,
+        "combine_mode": "unit_la",
+        "prefetch": 16,
+        "r_next": 106
+      },
+      "p90_ns": 253675.0,
+      "spread": 0.021537452008418712,
+      "processes": 3
+    },
+    {
+      "source_row": 2781,
+      "key": {
+        "model": "olmoe_1b_7b",
+        "b": 8,
+        "stage": "down",
+        "n": 2048,
+        "k": 1024,
+        "tn": 128,
+        "wn": 8,
+        "d": 4,
+        "part": 1,
+        "op": 0,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 1024,
+        "experts": 64,
+        "epsilon": 1e-05,
+        "replay": {
+          "path": "/root/tilemega/runs/mx6/v2/replay/olmoe_1b_7b_B8.json",
+          "sha256": "1feeef61b88ca3db5382f1d694b5cf6fad8e14a6aa0fa9e284aca201947a3952"
+        },
+        "first_chunks": 32,
+        "combine_mode": "unit_la",
+        "prefetch": 4,
+        "r_next": 226
+      },
+      "p90_ns": 159251.0,
+      "spread": 0.025190569048041126,
+      "processes": 3
+    },
+    {
+      "source_row": 2795,
+      "key": {
+        "model": "olmoe_1b_7b",
+        "b": 8,
+        "stage": "qkv",
+        "n": 6144,
+        "k": 2048,
+        "tn": 16,
+        "wn": 4,
+        "d": 2,
+        "part": 1,
+        "op": 0,
+        "norm": 1,
+        "hidden": 2048,
+        "intermediate": 1024,
+        "experts": 64,
+        "epsilon": 1e-05,
+        "first_chunks": 0,
+        "prefetch": 2,
+        "r_next": 72
+      },
+      "p90_ns": 30440.0,
+      "spread": 0.038780245276765,
+      "processes": 3
+    },
+    {
+      "source_row": 2796,
+      "key": {
+        "model": "olmoe_1b_7b",
+        "b": 8,
+        "stage": "qkv",
+        "n": 6144,
+        "k": 2048,
+        "tn": 16,
+        "wn": 4,
+        "d": 3,
+        "part": 1,
+        "op": 0,
+        "norm": 1,
+        "hidden": 2048,
+        "intermediate": 1024,
+        "experts": 64,
+        "epsilon": 1e-05,
+        "first_chunks": 0,
+        "prefetch": 3,
+        "r_next": 82
+      },
+      "p90_ns": 27800.0,
+      "spread": 0.025988286969253295,
+      "processes": 3
+    },
+    {
+      "source_row": 2817,
+      "key": {
+        "model": "olmoe_1b_7b",
+        "b": 8,
+        "stage": "qkv",
+        "n": 6144,
+        "k": 2048,
+        "tn": 64,
+        "wn": 1,
+        "d": 4,
+        "part": 0,
+        "op": 0,
+        "norm": 1,
+        "hidden": 2048,
+        "intermediate": 1024,
+        "experts": 64,
+        "epsilon": 1e-05,
+        "first_chunks": 0,
+        "prefetch": 4,
+        "r_next": 181
+      },
+      "p90_ns": 33310.0,
+      "spread": 0.09771096686026648,
+      "processes": 3
+    },
+    {
+      "source_row": 3213,
+      "key": {
+        "model": "qwen3_30b_a3b_l24",
+        "b": 4,
+        "stage": "down",
+        "n": 2048,
+        "k": 768,
+        "tn": 128,
+        "wn": 8,
+        "d": 1,
+        "part": 1,
+        "op": 0,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 768,
+        "experts": 128,
+        "epsilon": 1e-06,
+        "replay": {
+          "path": "/root/tilemega/runs/mx6/v2/replay/qwen3_30b_a3b_l24_B4.json",
+          "sha256": "eb76d14c032baf155252cbfe4f34b12d4ae8f37b2807ded7e75131afb4120ee9"
+        },
+        "first_chunks": 0,
+        "combine_mode": "unit_la",
+        "prefetch": 1,
+        "r_next": 119
+      },
+      "p90_ns": 98450.0,
+      "spread": 0.02791520504821782,
+      "processes": 3
+    },
+    {
+      "source_row": 3217,
+      "key": {
+        "model": "qwen3_30b_a3b_l24",
+        "b": 4,
+        "stage": "down",
+        "n": 2048,
+        "k": 768,
+        "tn": 128,
+        "wn": 8,
+        "d": 2,
+        "part": 1,
+        "op": 0,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 768,
+        "experts": 128,
+        "epsilon": 1e-06,
+        "replay": {
+          "path": "/root/tilemega/runs/mx6/v2/replay/qwen3_30b_a3b_l24_B4.json",
+          "sha256": "eb76d14c032baf155252cbfe4f34b12d4ae8f37b2807ded7e75131afb4120ee9"
+        },
+        "first_chunks": 0,
+        "combine_mode": "unit_la",
+        "prefetch": 2,
+        "r_next": 154
+      },
+      "p90_ns": 97297.0,
+      "spread": 0.03277219785919743,
+      "processes": 3
+    },
+    {
+      "source_row": 3259,
+      "key": {
+        "model": "qwen3_30b_a3b_l24",
+        "b": 4,
+        "stage": "qkv",
+        "n": 5120,
+        "k": 2048,
+        "tn": 64,
+        "wn": 1,
+        "d": 3,
+        "part": 0,
+        "op": 0,
+        "norm": 1,
+        "hidden": 2048,
+        "intermediate": 768,
+        "experts": 128,
+        "epsilon": 1e-06,
+        "first_chunks": 0,
+        "prefetch": 3,
+        "r_next": 167
+      },
+      "p90_ns": 24067.0,
+      "spread": 0.04029147021003,
+      "processes": 3
+    },
+    {
+      "source_row": 3721,
+      "key": {
+        "model": "olmoe_1b_7b",
+        "b": 4,
+        "stage": "qkv",
+        "n": 6144,
+        "k": 2048,
+        "tn": 64,
+        "wn": 1,
+        "d": 4,
+        "part": 0,
+        "op": 0,
+        "norm": 1,
+        "hidden": 2048,
+        "intermediate": 1024,
+        "experts": 64,
+        "epsilon": 1e-05,
+        "first_chunks": 0,
+        "prefetch": 4,
+        "r_next": 169
+      },
+      "p90_ns": 29600.0,
+      "spread": 0.024403771491957847,
+      "processes": 3
+    },
+    {
+      "source_row": 3725,
+      "key": {
+        "model": "olmoe_1b_7b",
+        "b": 4,
+        "stage": "qkv",
+        "n": 6144,
+        "k": 2048,
+        "tn": 128,
+        "wn": 1,
+        "d": 2,
+        "part": 0,
+        "op": 0,
+        "norm": 1,
+        "hidden": 2048,
+        "intermediate": 1024,
+        "experts": 64,
+        "epsilon": 1e-05,
+        "first_chunks": 0,
+        "prefetch": 2,
+        "r_next": 247
+      },
+      "p90_ns": 29475.0,
+      "spread": 0.057750759878419454,
+      "processes": 3
+    },
+    {
+      "source_row": 3729,
+      "key": {
+        "model": "olmoe_1b_7b",
+        "b": 4,
+        "stage": "qkv",
+        "n": 6144,
+        "k": 2048,
+        "tn": 128,
+        "wn": 1,
+        "d": 4,
+        "part": 0,
+        "op": 0,
+        "norm": 1,
+        "hidden": 2048,
+        "intermediate": 1024,
+        "experts": 64,
+        "epsilon": 1e-05,
+        "first_chunks": 0,
+        "prefetch": 4,
+        "r_next": 251
+      },
+      "p90_ns": 33690.0,
+      "spread": 0.033977650256720025,
+      "processes": 3
+    },
+    {
+      "source_row": 4037,
+      "key": {
+        "model": "qwen3_30b_a3b_l24",
+        "b": 2,
+        "stage": "down",
+        "n": 2048,
+        "k": 768,
+        "tn": 64,
+        "wn": 4,
+        "d": 1,
+        "part": 1,
+        "op": 0,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 768,
+        "experts": 128,
+        "epsilon": 1e-06,
+        "replay": {
+          "path": "/root/tilemega/runs/mx6/v2/replay/qwen3_30b_a3b_l24_B2.json",
+          "sha256": "699fc9d07b70ebf2661df4ba66ef38ee78ba365a0bdc19ecc9774922ce97d39e"
+        },
+        "first_chunks": 12,
+        "combine_mode": "unit_la",
+        "prefetch": 4,
+        "r_next": 113
+      },
+      "p90_ns": 57033.0,
+      "spread": 0.02409068428411804,
+      "processes": 3
+    },
+    {
+      "source_row": 4041,
+      "key": {
+        "model": "qwen3_30b_a3b_l24",
+        "b": 2,
+        "stage": "down",
+        "n": 2048,
+        "k": 768,
+        "tn": 64,
+        "wn": 4,
+        "d": 2,
+        "part": 1,
+        "op": 0,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 768,
+        "experts": 128,
+        "epsilon": 1e-06,
+        "replay": {
+          "path": "/root/tilemega/runs/mx6/v2/replay/qwen3_30b_a3b_l24_B2.json",
+          "sha256": "699fc9d07b70ebf2661df4ba66ef38ee78ba365a0bdc19ecc9774922ce97d39e"
+        },
+        "first_chunks": 12,
+        "combine_mode": "unit_la",
+        "prefetch": 4,
+        "r_next": 136
+      },
+      "p90_ns": 55232.0,
+      "spread": 0.02504665647165798,
+      "processes": 3
+    },
+    {
+      "source_row": 4043,
+      "key": {
+        "model": "qwen3_30b_a3b_l24",
+        "b": 2,
+        "stage": "down",
+        "n": 2048,
+        "k": 768,
+        "tn": 64,
+        "wn": 4,
+        "d": 3,
+        "part": 1,
+        "op": 0,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 768,
+        "experts": 128,
+        "epsilon": 1e-06,
+        "replay": {
+          "path": "/root/tilemega/runs/mx6/v2/replay/qwen3_30b_a3b_l24_B2.json",
+          "sha256": "699fc9d07b70ebf2661df4ba66ef38ee78ba365a0bdc19ecc9774922ce97d39e"
+        },
+        "first_chunks": 12,
+        "combine_mode": "owner_tile",
+        "prefetch": 4,
+        "r_next": 124
+      },
+      "p90_ns": 39534.0,
+      "spread": 0.020531826791410086,
+      "processes": 3
+    },
+    {
+      "source_row": 4045,
+      "key": {
+        "model": "qwen3_30b_a3b_l24",
+        "b": 2,
+        "stage": "down",
+        "n": 2048,
+        "k": 768,
+        "tn": 64,
+        "wn": 4,
+        "d": 3,
+        "part": 1,
+        "op": 0,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 768,
+        "experts": 128,
+        "epsilon": 1e-06,
+        "replay": {
+          "path": "/root/tilemega/runs/mx6/v2/replay/qwen3_30b_a3b_l24_B2.json",
+          "sha256": "699fc9d07b70ebf2661df4ba66ef38ee78ba365a0bdc19ecc9774922ce97d39e"
+        },
+        "first_chunks": 12,
+        "combine_mode": "unit_la",
+        "prefetch": 4,
+        "r_next": 150
+      },
+      "p90_ns": 55723.0,
+      "spread": 0.04715075149165429,
+      "processes": 3
+    },
+    {
+      "source_row": 4053,
+      "key": {
+        "model": "qwen3_30b_a3b_l24",
+        "b": 2,
+        "stage": "down",
+        "n": 2048,
+        "k": 768,
+        "tn": 64,
+        "wn": 8,
+        "d": 1,
+        "part": 1,
+        "op": 0,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 768,
+        "experts": 128,
+        "epsilon": 1e-06,
+        "replay": {
+          "path": "/root/tilemega/runs/mx6/v2/replay/qwen3_30b_a3b_l24_B2.json",
+          "sha256": "699fc9d07b70ebf2661df4ba66ef38ee78ba365a0bdc19ecc9774922ce97d39e"
+        },
+        "first_chunks": 0,
+        "combine_mode": "unit_la",
+        "prefetch": 1,
+        "r_next": 103
+      },
+      "p90_ns": 73777.0,
+      "spread": 0.03531190732482444,
+      "processes": 3
+    },
+    {
+      "source_row": 4057,
+      "key": {
+        "model": "qwen3_30b_a3b_l24",
+        "b": 2,
+        "stage": "down",
+        "n": 2048,
+        "k": 768,
+        "tn": 64,
+        "wn": 8,
+        "d": 2,
+        "part": 1,
+        "op": 0,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 768,
+        "experts": 128,
+        "epsilon": 1e-06,
+        "replay": {
+          "path": "/root/tilemega/runs/mx6/v2/replay/qwen3_30b_a3b_l24_B2.json",
+          "sha256": "699fc9d07b70ebf2661df4ba66ef38ee78ba365a0bdc19ecc9774922ce97d39e"
+        },
+        "first_chunks": 0,
+        "combine_mode": "unit_la",
+        "prefetch": 2,
+        "r_next": 122
+      },
+      "p90_ns": 71841.0,
+      "spread": 0.027101934155563914,
+      "processes": 3
+    },
+    {
+      "source_row": 4090,
+      "key": {
+        "model": "qwen3_30b_a3b_l24",
+        "b": 2,
+        "stage": "down",
+        "n": 2048,
+        "k": 768,
+        "tn": 128,
+        "wn": 2,
+        "d": 3,
+        "part": 1,
+        "op": 0,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 768,
+        "experts": 128,
+        "epsilon": 1e-06,
+        "replay": {
+          "path": "/root/tilemega/runs/mx6/v2/replay/qwen3_30b_a3b_l24_B2.json",
+          "sha256": "699fc9d07b70ebf2661df4ba66ef38ee78ba365a0bdc19ecc9774922ce97d39e"
+        },
+        "first_chunks": 6,
+        "combine_mode": "owner16",
+        "prefetch": 3,
+        "r_next": 182
+      },
+      "p90_ns": 43697.0,
+      "spread": 0.027169326729040544,
+      "processes": 3
+    },
+    {
+      "source_row": 4097,
+      "key": {
+        "model": "qwen3_30b_a3b_l24",
+        "b": 2,
+        "stage": "down",
+        "n": 2048,
+        "k": 768,
+        "tn": 128,
+        "wn": 4,
+        "d": 1,
+        "part": 1,
+        "op": 0,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 768,
+        "experts": 128,
+        "epsilon": 1e-06,
+        "replay": {
+          "path": "/root/tilemega/runs/mx6/v2/replay/qwen3_30b_a3b_l24_B2.json",
+          "sha256": "699fc9d07b70ebf2661df4ba66ef38ee78ba365a0bdc19ecc9774922ce97d39e"
+        },
+        "first_chunks": 0,
+        "combine_mode": "unit_la",
+        "prefetch": 1,
+        "r_next": 137
+      },
+      "p90_ns": 57068.0,
+      "spread": 0.030060706117044145,
+      "processes": 3
+    },
+    {
+      "source_row": 4109,
+      "key": {
+        "model": "qwen3_30b_a3b_l24",
+        "b": 2,
+        "stage": "down",
+        "n": 2048,
+        "k": 768,
+        "tn": 128,
+        "wn": 4,
+        "d": 4,
+        "part": 1,
+        "op": 0,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 768,
+        "experts": 128,
+        "epsilon": 1e-06,
+        "replay": {
+          "path": "/root/tilemega/runs/mx6/v2/replay/qwen3_30b_a3b_l24_B2.json",
+          "sha256": "699fc9d07b70ebf2661df4ba66ef38ee78ba365a0bdc19ecc9774922ce97d39e"
+        },
+        "first_chunks": 0,
+        "combine_mode": "unit_la",
+        "prefetch": 4,
+        "r_next": 236
+      },
+      "p90_ns": 51348.0,
+      "spread": 0.0257667721314651,
+      "processes": 3
+    }
+  ],
+  "excluded_noisy_source_rows": [
+    585,
+    637,
+    677,
+    681,
+    1361,
+    1397,
+    1401,
+    4044
+  ],
+  "supplemental_measurements": {
+    "source_row": 2463,
+    "key": {
+      "model": "olmoe_1b_7b",
+      "b": 1,
+      "stage": "router",
+      "n": 64,
+      "k": 2048,
+      "tn": 16,
+      "wn": 1,
+      "d": 4,
+      "part": 1,
+      "op": 0,
+      "norm": 1,
+      "hidden": 2048,
+      "intermediate": 1024,
+      "experts": 64,
+      "epsilon": 1e-05,
+      "first_chunks": 0,
+      "prefetch": 4,
+      "r_next": 86
+    },
+    "rounds": [
+      {
+        "round": 4,
+        "input": {
+          "path": "/root/tilemega/runs/mx6/continue1/cost_qualification/round4/raw.jsonl",
+          "sha256": "70983968007a65ac27c04a3bfeb38f51f51546f8a48ba6009bd643fa44e353c5",
+          "line": 1
+        },
+        "process": {
+          "path": "/root/tilemega/runs/mx6/continue1/cost_qualification/round4/PROCESS.json",
+          "sha256": "6c8ca12ddafee8f478a340457610bd3b603892ad585500e9561930cfc9af2f71"
+        },
+        "guard": {
+          "path": "/root/tilemega/runs/mx6/continue1/cost_qualification/round4/guard/guard_result.json",
+          "sha256": "2d512016f7dde2335e0aafc176823404cef455eaa72f7ca23a5f5607c06c48ba"
+        },
+        "PID": 3873151,
+        "cost_ns": 6040.0,
+        "p90_ns": 6230.0,
+        "spread_ns": 970.0,
+        "driver": {
+          "path": "/root/tilemega/runs/mx6/continue1/cost_qualification/measure_costs.py",
+          "sha256": "6379a1eea09501ed10e08ce053516fb006fef5e8b6bf3b6b6e60d32b4cce6e1a"
+        },
+        "keys": {
+          "path": "/root/tilemega/runs/mx6/continue1/cost_qualification/keys.json",
+          "sha256": "f2ebf6993d681636b265c4ed90c81088577c2a5ce5a2694c2e8daa2dd764f7ba"
+        }
+      },
+      {
+        "round": 5,
+        "input": {
+          "path": "/root/tilemega/runs/mx6/continue1/cost_qualification/round5/raw.jsonl",
+          "sha256": "fda82716bbc03bcbb606ad7fc8cf1fe649d78bdf633ebf506ae1fa5ea9141a2d",
+          "line": 1
+        },
+        "process": {
+          "path": "/root/tilemega/runs/mx6/continue1/cost_qualification/round5/PROCESS.json",
+          "sha256": "3ce98b568f6410bd83db590ed6dac891ac74675be8737e0a00cecff949809abd"
+        },
+        "guard": {
+          "path": "/root/tilemega/runs/mx6/continue1/cost_qualification/round5/guard/guard_result.json",
+          "sha256": "2d512016f7dde2335e0aafc176823404cef455eaa72f7ca23a5f5607c06c48ba"
+        },
+        "PID": 3873443,
+        "cost_ns": 6110.0,
+        "p90_ns": 6300.0,
+        "spread_ns": 1040.0,
+        "driver": {
+          "path": "/root/tilemega/runs/mx6/continue1/cost_qualification/measure_costs.py",
+          "sha256": "6379a1eea09501ed10e08ce053516fb006fef5e8b6bf3b6b6e60d32b4cce6e1a"
+        },
+        "keys": {
+          "path": "/root/tilemega/runs/mx6/continue1/cost_qualification/keys.json",
+          "sha256": "f2ebf6993d681636b265c4ed90c81088577c2a5ce5a2694c2e8daa2dd764f7ba"
+        }
+      }
+    ],
+    "median_ns": 6110.0,
+    "p90_ns": 6310.0,
+    "spread": 0.02127659574468085,
+    "noisy": true
+  },
+  "history": [
+    {
+      "cost_table_sha256": "de04aebd99d7f705b18852562d7339261f77e4d6ad36967fcfe2358a377d740a",
+      "cost_table": {
+        "path": "/root/tilemega/runs/mx6/continue1/history/de04aebd_costs.json",
+        "sha256": "de04aebd99d7f705b18852562d7339261f77e4d6ad36967fcfe2358a377d740a"
+      },
+      "qualification": {
+        "path": "/root/tilemega/runs/mx6/continue1/history/initial_qualification.json",
+        "sha256": "fc64f55c368af999ea64322b2e1180c479c80e71466ddc60af53196a307a559a"
+      },
+      "resolution": "continue1 section2 excludes unit_owner; accepted failure evidence retained"
+    }
+  ],
+  "reason": "continue1 sections2 and4.1: disqualified mode retained in data and excluded from selection; B9 cost policy applied",
   "default_enabled": false,
   "final_selection": false,
-  "reason": "v2 section13.4.A3: unit_owner litmus still fails the required n_active1 synthetic publication case after correcting compact writer rows and the pre-store rendezvous; 560020 mismatching32-bit words. Top-four selection and later checkpoints were not started.",
-  "sync_gate": "fail",
-  "failure": {
-    "path": "runs/mx6/cp4/unit_owner_actual_epilogue_qualification/process1/stdout.log",
-    "sha256": "aaebde65ff10c613aae3a699f5e67ade4615ef8880b5111863c835e76ac76761",
-    "iterations": 2000,
-    "ctas": 104,
-    "participants": 208000,
-    "errors": 560020,
-    "scope": "synthetic n_active1 only: TN64=116597,TN128=443423; other tested combinations0; no GPU launch/sync error"
-  },
-  "owner_tile": {
-    "fresh_processes": 5,
-    "iterations": 2000,
-    "ctas": 104,
-    "violations": 0
-  },
-  "spread_remedies": {
-    "pending_keys": 53,
-    "reason": "not run after A3 stop; original three-process statistics retained"
+  "count_erratum": {
+    "stated_excluded_noisy": 9,
+    "actual_excluded_noisy": 8,
+    "stated_remaining_noisy_before_supplement": 44,
+    "actual_remaining_before_supplement": 45,
+    "formula": "spread > .02; retained median within1.02 times class minimum",
+    "classification": "B11/C; same accepted de04aebd source table"
   }
 }

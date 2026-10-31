@@ -19,6 +19,7 @@ BRIDGE=Path(os.environ.get('MX6_MOE_BRIDGE',ROOT/'runs/mx6/export/qwen3_30b_a3b_
     ({'attn_version':1},'invalid attention version'),
     ({'split':3},'invalid attention split'),
     ({'combine_mode':'deferred'},'invalid combine_mode'),
+    ({'combine_mode':'unit_owner'},'combine_mode unit_owner is disqualified (moe_unit_owner litmus)'),
     ({'route_table_mode':'reorder_sum'},'invalid route_table_mode'),
     ({'router':{'part':'kStreamK'}},'router logits require TileRange TN16 WN1'),
     ({'router':{'wn':2}},'router logits require TileRange TN16 WN1'),

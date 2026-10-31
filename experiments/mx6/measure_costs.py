@@ -54,7 +54,7 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--keys',type=Path,required=True)
     parser.add_argument('--out',type=Path,required=True)
-    parser.add_argument('--round',type=int,choices=(1,2,3),required=True)
+    parser.add_argument('--round',type=int,choices=(1,2,3,4,5),required=True)
     args=parser.parse_args()
     if os.environ.get('TILEMEGA_GPU_LOCK_HELD')!='1':parser.error('requires mx_gpu_job.sh')
     if args.out.exists():parser.error('preserve previous raw samples')

@@ -22,15 +22,16 @@ def attention_mean(values):
     return total/1023
 
 
-def stage_lists(rows,model,batch):
+def stage_lists(rows,model,batch,excluded_combine_modes=()):
     result={name:[]for name in STAGES};attention={}
     for index,row in enumerate(rows):
         key=row['key']
         if key['model']!=model or key['b']!=batch:continue
-        if row['processes']!=3 or row['resources']['resident']!=1 or row['resources']['stack']or row['resources']['static_smem']:
-            raise ValueError('cost row lacks three processes or qualified resources')
+        if key.get('combine_mode')in excluded_combine_modes:continue
+        if row['processes']not in(3,5) or row['resources']['resident']!=1 or row['resources']['stack']or row['resources']['static_smem']:
+            raise ValueError('cost row lacks three/five processes or qualified resources')
         if not 0<row['resources']['MTreg']<=255:raise ValueError('cost row exceeds512-thread register cap')
-        cost=positive(row['median_ns']);stage=key['stage']
+        cost=positive(row['p90_ns']if row.get('noisy')else row['median_ns']);stage=key['stage']
         if stage not in result:raise ValueError('unknown stage')
         if stage=='attention':
             version=key.get('attn_version',3)
@@ -84,18 +85,19 @@ def pin(choice,cost_sha,purpose='resource_probe'):
         config[stage]['part']='kTileRange'if key['part']else'kStreamK'
     config['selection']=dict(cost_table_sha256=cost_sha,candidate_rank=choice['candidate_rank'],
         predicted_ns=positive(choice['predicted_ns']),source_rows={stage:stages[stage]['source_rows']for stage in STAGES},
-        algorithm='measured stage costs, k-best substitution, four resource-qualified plans, one-percent E2E rule')
+        program_switches=dict(route_table_mode=config['route_table_mode'],experts_fused=False),
+        algorithm='measured stage costs, k-best substitution, resource-qualified cohort, one-percent E2E rule')
     return dict(mx_moe_v3=config)
 
 
 def select_measured(predicted,fresh_processes):
-    if len(predicted)!=4 or len(fresh_processes)!=4:raise ValueError('four qualified combinations required')
+    if len(predicted)not in(4,8) or len(fresh_processes)!=len(predicted):raise ValueError('four or eight qualified combinations required')
     predicted=list(map(positive,predicted))
     if predicted!=sorted(predicted):raise ValueError('qualified combinations must follow prediction order')
     measured=[]
     for pair in fresh_processes:
         if len(pair)!=2:raise ValueError('two fresh processes per combination required')
         values=list(map(positive,pair));measured.append(sum(values)/2)
-    best=min(range(4),key=lambda i:(measured[i],i));selected=best if measured[best]<=measured[0]*.99 else 0
+    best=min(range(len(measured)),key=lambda i:(measured[i],i));selected=best if measured[best]<=measured[0]*.99 else 0
     return dict(selected=selected,measured_ns=measured,pred_over_meas=[p/m for p,m in zip(predicted,measured)],
         threshold=.01,rule='fastest at least1percent faster than prediction-best, else prediction-best')

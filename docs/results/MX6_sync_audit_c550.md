@@ -233,3 +233,28 @@ would strengthen WN1's protocol; its unexecuted CPU build is archived and is
 not used as passing evidence. Production code remains unchanged. Per v2
 §13.4 A3, work stops2026-10-31 18:33:43 Asia/Shanghai; no GPU job follows.
 G6-SYNC is not passed; top-four selection, X1 and CP5/CP6 remain unrun.
+
+
+## Continuation1: unit_owner disqualified (inferred root cause)
+
+Continuation1 §2 resolves the historical A3 stop above; its failed records
+remain unchanged. GroupedGemmV3 kGroupThreads=(8/WN)*64, so WN1/2/4 use
+8/4/2 waves per group. Finish ends its LDS-only rendezvous before Epilogue;
+that rendezvous does not complete subsequent global stores. Epilogue row r
+is written by wave floor(r*(TN/8)/64), i.e. floor(r/4) for TN128 and
+floor(r/8) for TN64. UnitOwner executes fence plus its ticket atomic only in
+wave_k0 lane0. That fence does not order other waves' Epilogue stores.
+Thus count>=5/TN128 or count>=9/TN64 with multiple writer waves can publish
+a full ticket before all partials are visible. The active1 TN64/TN128 litmus
+failures agree with this explanation; the analogous B16 real-route case
+was not measured. A post-store CTA rendezvous or per-writer-wave completion
+would drain outgoing prefetch and is not an approved variant. The measured
+unit_owner advantage over owner_tile is at most0.8us/layer (156.0 vs156.8
+for QwenB16), below the E2E decision criterion.
+
+Configuration rejects unit_owner with the specified diagnostic; the solver
+also excludes its retained cost rows through qualification metadata. Its
+implementation and failing litmus remain for evidence, with no further run;
+it is excluded from G6-SYNC. owner16 and owner_tile retain their existing
+**5/5 fresh-process** qualification. unit_la uses CP1 LastArriverV2's
+CtaSync-before-release protocol and existing evidence, requiring no new litmus.
