@@ -91,6 +91,8 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
           [](Sm90DenseGemm const& g) {return g.multicast;}))return;
       for(bool group_wait:{false,true})for(bool embed_la:{false,true})for(bool fuse:{false,true}) {
         if(fuse && !space.moe)continue;
+        // E2: a MoE program is always fused; the split form carries no routing.
+        if(space.moe && !fuse)continue;
         Sm90DenseCoordinates d=c;
         d.group_wait=group_wait;d.embed_la=embed_la;d.expert_fuse=fuse;
         // MR7: one ring serves both expert task types, so a fused candidate

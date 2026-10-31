@@ -78,6 +78,9 @@ struct Sm90DenseMoeFusedOperands {
   cutlass::bfloat16_t* x;
   std::uint64_t* counter;
   unsigned* gate_up_done;
+  // E2: every CTA reads these and derives the routing itself, so no record
+  // read remains on the task path.
+  float const* logits;
   float epsilon;
 };
 // Thread zero fully initializes the active member for the next stage. That
@@ -105,7 +108,7 @@ struct Sm90DenseOperandHeader {
   static_assert(sizeof(Sm90DenseAttentionOperands)==120);
   static_assert(sizeof(Sm90DenseHeadOperands)==40 && sizeof(Sm90DenseMoeOperands)==88);
   // M56 must not widen the bank: the union still measures the attention record.
-  static_assert(sizeof(Sm90DenseMoeFusedOperands)==104 &&
+  static_assert(sizeof(Sm90DenseMoeFusedOperands)==112 &&
       sizeof(Sm90DenseMoeFusedOperands)<=sizeof(Sm90DenseAttentionOperands));
   static_assert(sizeof(Sm90DenseOperandBank)==224 && alignof(Sm90DenseOperandBank)==16);
   static_assert(offsetof(Sm90DenseOperandBank,gemm)==0 && offsetof(Sm90DenseOperandBank,head)==48 &&

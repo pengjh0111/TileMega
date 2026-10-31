@@ -2205,6 +2205,8 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     int page=0;
   } gate_up_held;
   std::string gate_up_done="kAbsent";
+  // E2: the router's logits buffer id, consumed by the fused expert stage.
+  std::string router_logits;
   std::vector<std::int64_t> keys,values;
   std::array<int,2> kv_maps{-1,-1};
   std::int64_t kv_bytes=0;  // one layer's K (or V): B*Hkv*Cap*D BF16
@@ -2253,8 +2255,16 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
         if(page)e.stream=std::min(cfg.slots,int(k/cfg.TileK()))*cfg.slot_bytes*(e.family==6?0:1);
         // MR7's per-slot counters: the router clears them, and only a fused
         // program's plan carries the fifth router operand to hold them.
-        if(e.family==5)
+        if(e.family==5) {
           gate_up_done=c.expert_fuse && operands && operands.size()>4?operand(4):"kAbsent";
+          // E2: the last CTA clears the fused stage's counters, so it must own
+          // no router task of its own.
+          if(c.expert_fuse && n/cfg.tile_n>=grid)
+            throw std::invalid_argument("native router must leave the last CTA free (R5 E2)");
+          // E2: the fused stage routes from these logits, so hold the router's
+          // output buffer the same way the counters are held.
+          router_logits=id(g,"d");
+        }
         if(c.expert_fuse && e.family==6) {
           // M56 is emitted at the down stage; hold this one's geometry for it.
           gate_up_held={true,n,k,cfg,id(g,"b"),id(g,"a"),id(g,"d"),operand(0),weight,bytes,tasks,page};
@@ -2281,8 +2291,11 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
           e.ids={gu.weight_id,id(g,"b"),gu.x,gu.h,id(g,"d"),operand(0),routes,"kAbsent",operand(2),
               gate_up_done};
           // h [E][16][I] as {64, 16, I/64, E}: a box is one slot's [TK/64][rows][64].
+          if(router_logits.empty() || router_logits=="kAbsent")
+            throw std::invalid_argument("native fused experts need the router's logits (R5 E2)");
           e.tail=","+std::to_string(map_index({integerField(g,"a"),4,64,16,k/64,experts,2*k,128,
-              2*16*k,64,activation_rows,cfg.TileK()/64,1}))+","+std::to_string(cfg.register_stages);
+              2*16*k,64,activation_rows,cfg.TileK()/64,1}))+","+std::to_string(cfg.register_stages)+
+              ","+router_logits+(moe_softmax_all?",true":",false");
           e.stream=0;
           weight=gu.weight_name;bytes+=gu.bytes;tasks+=gu.tasks;
           gate_up_held.held=false;

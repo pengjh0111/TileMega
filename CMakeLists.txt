@@ -921,6 +921,14 @@ if(TILEMEGA_BUILD_TESTS)
     target_link_libraries(sm90_dense_coordinates_test PRIVATE TileMega::tilemega)
     target_compile_options(sm90_dense_coordinates_test PRIVATE -UNDEBUG)
     add_test(NAME sm90_dense_coordinates COMMAND sm90_dense_coordinates_test)
+    # E2: the local routing must reproduce R4's last arriver bit for bit.
+    add_executable(sm90_dense_local_route_test test/unit/sm90_dense_local_route_test.cu)
+    target_include_directories(sm90_dense_local_route_test PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/cutlass/include)
+    set_target_properties(sm90_dense_local_route_test PROPERTIES CUDA_ARCHITECTURES "90a")
+    target_compile_options(sm90_dense_local_route_test PRIVATE
+      $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+    add_test(NAME sm90_dense_local_route COMMAND sm90_dense_local_route_test)
     add_executable(sm90_dense_search_space_test test/unit/sm90_dense_search_space_test.cpp)
     target_link_libraries(sm90_dense_search_space_test PRIVATE TileMega::tilemega)
     target_compile_options(sm90_dense_search_space_test PRIVATE -UNDEBUG)

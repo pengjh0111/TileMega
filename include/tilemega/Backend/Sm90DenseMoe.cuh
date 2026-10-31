@@ -143,6 +143,154 @@ struct Sm90DenseRouterFinish {
   }
 };
 
+// E2 (RC3, RC4, RC8): the routing a stage needs, computed by every CTA in its
+// own shared memory. R4 had one CTA (the router's last arriver) decide the
+// routes behind a grid barrier and publish them globally, so every later record
+// read was a dependent global load. D0 measured that tail at 5.3 us/layer at B1
+// and far more at B16, against a 3.4/7.3 us probe.
+//
+// Rows are ordered by s = b * TopK + k and slots by ascending expert number,
+// which is exactly RouterFinish's order, so h's layout, P's writes and the
+// combine order are unchanged and the tokens stay bitwise identical.
+template<int Batch,int Experts,int TopK>
+struct alignas(16) Sm90DenseLocalSchedule {
+  static constexpr int kRows=16,kSelections=kRows*8;
+  float weight[kSelections];            // s -> routing weight (bf16-rounded when !FloatWeights)
+  unsigned char rows[Experts][kRows];   // active slot a, row r -> s, ascending in s
+  short expert[Experts];                // slot -> expert, ascending
+  unsigned char count[Experts];         // slot -> rows
+  unsigned char sel[kSelections];       // s -> expert
+  unsigned char cnt[4][Experts];        // warp w -> count of e among its selections
+  unsigned char slot_of[Experts];       // expert -> slot
+  int offsets[4];                       // warp w -> active experts it owns
+  int active;
+};
+
+// Every CTA runs this on the same logits with the same instructions, so all
+// CTAs agree bit for bit without any synchronization beyond the router stage's
+// closing grid barrier, which already made the logits visible.
+template<int Batch,int Experts,int TopK,bool FloatWeights,bool SoftmaxAll=false>
+struct Sm90DenseLocalRoute {
+  using Schedule=Sm90DenseMoeSchedule<Experts>;
+  using LocalSchedule=Sm90DenseLocalSchedule<Batch,Experts,TopK>;
+  using Finish=Sm90DenseRouterFinish<Batch,Experts,TopK,1,FloatWeights,SoftmaxAll>;
+  static_assert((Experts==64 || Experts==128) && TopK<=8 && Batch<=Schedule::kMaxRows);
+  static constexpr int kPer=Experts/32,kTokens=(Batch+3)/4;
+
+  // 128 consumer threads; tid, warp and lane as in RouterFinish.
+  __device__ static __forceinline__ void Build(float const* logits,LocalSchedule& s) {
+    int tid=threadIdx.x,warp=tid>>5,lane=tid&31;
+    for(int i=tid;i<4*Experts;i+=128)reinterpret_cast<unsigned char*>(s.cnt)[i]=0;
+    codegen::executor::ComputeSync();
+    // Steps 2-3 are RouterFinish's own top-k and weights, unchanged.
+    float value[kTokens][kPer];unsigned key[kTokens][kPer],chosen[kTokens][TopK];
+    #pragma unroll
+    for(int j=0;j<kTokens;++j)
+      #pragma unroll
+      for(int i=0;i<kPer;++i) {
+        int b=warp+4*j;
+        value[j][i]=b<Batch?logits[b*Experts+lane+32*i]:0.0f;
+        key[j][i]=b<Batch?Finish::Key(value[j][i],lane+32*i):0u;
+      }
+    #pragma unroll
+    for(int k=0;k<TopK;++k)
+      #pragma unroll
+      for(int j=0;j<kTokens;++j) {
+        unsigned best=0;
+        #pragma unroll
+        for(int i=0;i<kPer;++i)best=max(best,key[j][i]);
+        best=__reduce_max_sync(0xffffffffu,best);
+        chosen[j][k]=best;
+        #pragma unroll
+        for(int i=0;i<kPer;++i)if(key[j][i]==best)key[j][i]=0;
+      }
+    #pragma unroll
+    for(int j=0;j<kTokens;++j) {
+      int b=warp+4*j;
+      if(b>=Batch)break;
+      float top=Finish::Value(chosen[j][0]),sum=0;
+      if constexpr(SoftmaxAll) {
+        #pragma unroll
+        for(int i=0;i<kPer;++i)sum+=expf(value[j][i]-top);
+        #pragma unroll
+        for(int d=16;d;d>>=1)sum+=__shfl_xor_sync(0xffffffffu,sum,d);
+      }else {
+        #pragma unroll
+        for(int k=0;k<TopK;++k)sum+=expf(Finish::Value(chosen[j][k])-top);
+      }
+      #pragma unroll
+      for(int k=0;k<TopK;++k)
+        if(lane==k) {
+          int index=int(0xffffu-(chosen[j][k]&0xffffu));
+          float w=expf(Finish::Value(chosen[j][k])-top)/sum;
+          s.sel[b*TopK+k]=static_cast<unsigned char>(index);
+          // The down epilogue reads this value, so it is rounded here exactly
+          // as R4 rounded it when storing route_weights.
+          s.weight[b*TopK+k]=FloatWeights?w:float(cutlass::bfloat16_t(w));
+        }
+    }
+    codegen::executor::ComputeSync();
+    // Thread t holds selection t; __match_any_sync groups the lanes that chose
+    // the same expert, giving each its rank within this warp.
+    int e=tid<Batch*TopK?int(s.sel[tid]):255;
+    unsigned peers=__match_any_sync(0xffffffffu,unsigned(e));
+    int rank_w=__popc(peers&((1u<<lane)-1)),count_w=__popc(peers);
+    if(tid<Batch*TopK && rank_w==0)s.cnt[warp][e]=static_cast<unsigned char>(count_w);
+    codegen::executor::ComputeSync();
+    // Thread e owns expert e: its slot is the number of active experts below it.
+    // Experts is 64 or 128, so a warp is wholly inside or outside the range and
+    // __ballot_sync stays convergent.
+    unsigned ballot=0;
+    if(tid<Experts) {
+      int c=s.cnt[0][tid]+s.cnt[1][tid]+s.cnt[2][tid]+s.cnt[3][tid];
+      ballot=__ballot_sync(0xffffffffu,c>0);
+      if(lane==0)s.offsets[warp]=__popc(ballot);
+    }else if(lane==0) {
+      // E = 64 leaves warps 2 and 3 without experts; they publish zero so the
+      // prefix below covers all four entries.
+      s.offsets[warp]=0;
+    }
+    codegen::executor::ComputeSync();
+    if(tid<Experts) {
+      int slot=__popc(ballot&((1u<<lane)-1));
+      #pragma unroll
+      for(int w=0;w<4;++w)if(w<warp)slot+=s.offsets[w];
+      int c=s.cnt[0][tid]+s.cnt[1][tid]+s.cnt[2][tid]+s.cnt[3][tid];
+      s.slot_of[tid]=static_cast<unsigned char>(slot);
+      if(c>0) {
+        s.expert[slot]=static_cast<short>(tid);
+        s.count[slot]=static_cast<unsigned char>(c);
+      }
+      if(tid==0)s.active=s.offsets[0]+s.offsets[1]+s.offsets[2]+s.offsets[3];
+    }
+    codegen::executor::ComputeSync();
+    if(tid<Batch*TopK) {
+      int r=rank_w;
+      #pragma unroll
+      for(int w=0;w<4;++w)if(w<warp)r+=s.cnt[w][e];
+      s.rows[s.slot_of[e]][r]=static_cast<unsigned char>(tid);
+    }
+    codegen::executor::ComputeSync();
+  }
+
+  // CTA 0 alone republishes the schedule globally, for routing_check.py.
+  __device__ static __forceinline__ void Publish(LocalSchedule const& s,
+      int* schedule,void* route_weights,int* route_index) {
+    int tid=threadIdx.x;
+    if(tid==0)schedule[Schedule::Active()]=s.active;
+    for(int a=tid;a<s.active;a+=128) {
+      schedule[Schedule::Expert(a)]=s.expert[a];
+      schedule[Schedule::Count(a)]=s.count[a];
+      for(int r=0;r<s.count[a];++r)schedule[Schedule::Row(a,r)]=s.rows[a][r];
+    }
+    for(int i=tid;i<Batch*TopK;i+=128) {
+      route_index[i]=s.sel[i];
+      if constexpr(FloatWeights)static_cast<float*>(route_weights)[i]=s.weight[i];
+      else static_cast<cutlass::bfloat16_t*>(route_weights)[i]=cutlass::bfloat16_t(s.weight[i]);
+    }
+  }
+};
+
 // Page: 0 when the weights are TN x TK tile pages; 64 when the experts keep
 // the 64 x 64 pages the legacy MoE prefill shares (one copy of the expert
 // weights fits the card; recorded deviation from §8's per-TN packing). A
@@ -165,6 +313,8 @@ struct Sm90DenseMoeGemm {
   static_assert(Batch<=Schedule::kMaxRows && Experts<=128 && TopK<=8);
   static_assert(Mode!=Sm90DenseMoeMode::kGateUp || TN%(2*U)==0);
   static_assert(Page==0 || (Page==64 && kDynamic && TN%32==0 && N%64==0 && K%64==0));
+  // Kept as the reference the E2 equivalence test compares against; the
+  // router stage no longer runs it.
   using RouterFinish=Sm90DenseRouterFinish<Batch,Experts,TopK,kTiles,FloatWeights,SoftmaxAll>;
 
   __device__ static __forceinline__ int TotalTasks(Sm90DenseMoeOperands const& p) {
@@ -334,8 +484,11 @@ struct Sm90DenseMoeGemm {
       return rsqrtf(squares/float(K)+epsilon);
     }
   }
+  // E2: `routing` replaces every global record read in the expert epilogues.
+  // The router mode never uses it and passes null.
+  using LocalSchedule=Sm90DenseLocalSchedule<Batch,Experts,TopK>;
   __device__ static __forceinline__ void Epilogue(Sm90DenseMoeOperands const& p,float const* tile,
-      float const* norms,int t,int* flag) {
+      float const* norms,int t,int* flag,LocalSchedule const* routing=nullptr) {
     int tid=threadIdx.x,group=t/kTiles,j=t%kTiles;
     if constexpr(Mode==Sm90DenseMoeMode::kRouter) {
       // fp32 logits that hold the BF16 rounding HF's router produces.
@@ -346,7 +499,7 @@ struct Sm90DenseMoeGemm {
       }
     }else if constexpr(Mode==Sm90DenseMoeMode::kGateUp) {
       // SwiGLU (interleave U) into the slot's compact rows h[a][r][N/2].
-      int count=p.schedule[Schedule::Count(group)];
+      int count=routing->count[group];
       auto* h=static_cast<Element*>(p.output)+std::size_t(group)*Schedule::kMaxRows*(N/2)+j*(TN/2);
       for(int i=tid;i<count*(TN/2);i+=128) {
         int row=i/(TN/2),col=i%(TN/2),gate=2*U*(col/U)+col%U;
@@ -357,19 +510,20 @@ struct Sm90DenseMoeGemm {
     }else {
       // P[b][k][j tile] = w_{b,k} y, then the n_active-th arriver of tile j
       // adds x' and the k partials in fixed k order (ctr[j] returns to 0).
-      int count=p.schedule[Schedule::Count(group)];
+      int count=routing->count[group];
       auto* partial=static_cast<float*>(p.output);
       for(int i=tid;i<count*TN;i+=128) {
-        int row=i/TN,col=i%TN,route=p.schedule[Schedule::Row(group,row)];
-        float weight=FloatWeights?static_cast<float const*>(p.route_weights)[route]:
-            float(static_cast<Element const*>(p.route_weights)[route]);
+        // E2: count, the row and its weight all come from shared memory, so
+        // the count -> row -> weight dependent global chain (RC4) is gone.
+        int row=i/TN,col=i%TN,route=routing->rows[group][row];
+        float weight=routing->weight[route];
         partial[std::size_t(route)*N+j*TN+col]=weight*Value(tile,row,col);
       }
       codegen::executor::ComputeSync();
       if(tid==0) {
         unsigned long long old;
         asm volatile("atom.acq_rel.gpu.global.add.u64 %0, [%1], 1;":"=l"(old):"l"(p.counter+j):"memory");
-        *flag=int(old+1)==p.schedule[Schedule::Active()];
+        *flag=int(old+1)==routing->active;
         if(*flag)p.counter[j]=0;
       }
       codegen::executor::ComputeSync();
@@ -439,7 +593,17 @@ struct Sm90DenseMoeGemm {
     }
     if(tid==0 && tasks)for(int slot=0;slot<Slots;++slot)state.consumer_generations[slot]=(phase>>slot)&1;
     // Every task has been consumed: the operand slots are free.
-    if constexpr(Mode==Sm90DenseMoeMode::kRouter)RouterFinish{}(p,tasks,reinterpret_cast<char*>(a));
+    // E2: the router stage ends at its logits. The routing itself moved into
+    // the fused expert stage, where every CTA derives it from those logits, so
+    // there is no last arriver, no global schedule write and no grid-barrier
+    // hop between deciding the routes and using them (RC3, RC4, RC8).
+    // The per-slot counters the fused stage waits on must still be cleared
+    // before it starts; the router's closing grid barrier orders this write
+    // ahead of every M56 task, and the previous layer's M56 finished before
+    // that barrier. Only the last CTA does it, and it owns no router task.
+    if constexpr(Mode==Sm90DenseMoeMode::kRouter)
+      if(p.gate_up_done && int(blockIdx.x)==int(gridDim.x)-1 && tid<Experts)
+        p.gate_up_done[tid]=0;
   }
 
   template<int Prefix=0,class Tail=Sm90DenseNoTail>
@@ -488,7 +652,7 @@ struct Sm90DenseMoeGemm {
 // x''.
 template<int Batch,int NGateUp,int NDown,int Hidden,int TNGu,int TKGu,int TNDn,int TKDn,int Slots,
          int WNGu,int WKGu,int WNDn,int WKDn,int U,int Experts,int TopK,bool FloatWeights,
-         int Page=0,int RegisterStages=1>
+         int Page=0,int RegisterStages=1,bool SoftmaxAll=false>
 struct Sm90DenseMoeFusedGemm {
   using Element=cutlass::bfloat16_t;
   using Async=codegen::executor::Async<arch::Sm90>;
@@ -507,8 +671,14 @@ struct Sm90DenseMoeFusedGemm {
   static constexpr int kMaxTK=TKGu>TKDn?TKGu:TKDn;
   static constexpr int kWeightSlot=TNGu*TKGu>TNDn*TKDn?TNGu*TKGu:TNDn*TKDn;
   static constexpr int kSlotBytesGu=2*TKGu*(kRows+TNGu),kSlotBytesDn=2*TKDn*(kRows+TNDn);
-  static constexpr auto kLayout=Sm90DenseLayout::MoeFused(TNGu,TKGu,TNDn,TKDn,Slots,WKGu,WKDn,Batch);
+  using LocalSchedule=Sm90DenseLocalSchedule<Batch,Experts,TopK>;
+  using LocalRoute=Sm90DenseLocalRoute<Batch,Experts,TopK,FloatWeights,SoftmaxAll>;
+  static constexpr int kRouteBytes=(int(sizeof(LocalSchedule))+127)/128*128;
+  static constexpr auto kLayout=Sm90DenseLayout::MoeFused(TNGu,TKGu,TNDn,TKDn,Slots,WKGu,WKDn,
+      Batch,int(sizeof(LocalSchedule)));
   static constexpr int kSharedBytes=kLayout.end;
+  // E2: the route region is the tail of the arena (Sm90DenseLayout::MoeFused).
+  static constexpr int kRouteOffset=kLayout.end-kRouteBytes;
   static constexpr int kMaxTasks=Experts*(kTilesGu+kTilesDn);
   // M4's routes are unknown to its predecessor, so M56 receives no D6 stream.
   static constexpr int kMaxPreissue=0;
@@ -633,7 +803,8 @@ struct Sm90DenseMoeFusedGemm {
   }
 
   __device__ static __forceinline__ void Produce(Sm90DenseMoeFusedOperands const& p,
-      Sm90DenseRingState& state,Element* a,Element* b,int tasks,unsigned phase,int active) {
+      Sm90DenseRingState& state,Element* a,Element* b,int tasks,unsigned phase,int active,
+      LocalSchedule const& routing) {
     Sm90DenseRoles::Producer();
     int lane=threadIdx.x&31;
     // x', h and the schedule were written with generic stores before the grid
@@ -643,11 +814,11 @@ struct Sm90DenseMoeFusedGemm {
     for(int local=0;local<tasks;++local) {
       int t=int(blockIdx.x)+local*int(gridDim.x);
       Task task=Of(t,active);
-      // The record is this task's own; a gate_up task also needs its rows.
+      // E2: the record is read from this CTA's own shared schedule, so the
+      // per-task global loads of RC8 are gone along with their latency.
       int a_index=min(task.slot,Experts-1);
-      Record record{p.schedule[Schedule::Expert(a_index)],
-          p.schedule[Schedule::Count(a_index)],
-          lane<Schedule::kMaxRows?p.schedule[Schedule::Row(a_index,lane)]:0};
+      Record record{routing.expert[a_index],routing.count[a_index],
+          lane<LocalSchedule::kRows?routing.rows[a_index][lane]:0};
       if(task.down)ProduceDown(p,state,a,b,task,lane,phase,sequence,record);
       else ProduceGateUp(p,state,a,b,task,lane,phase,sequence,record);
     }
@@ -661,7 +832,7 @@ struct Sm90DenseMoeFusedGemm {
   template<class Body,int Iterations,int TN,int TK,int WN,int WK>
   __device__ static __forceinline__ void ConsumeTask(Sm90DenseMoeOperands const& q,
       Sm90DenseRingState& state,Element* a,Element* b,float* scratch,int t,unsigned& phase,
-      int& sequence,int* flag) {
+      int& sequence,int* flag,LocalSchedule const& routing) {
     using namespace cute;
     int tid=threadIdx.x,lane=tid%(32*WN),split=tid/(32*WN);
     float* norms=scratch+WK*16*TN;
@@ -701,15 +872,15 @@ struct Sm90DenseMoeFusedGemm {
         norms[split*16+row]=squares[0];norms[split*16+row+8]=squares[1];
       }
     codegen::executor::ComputeSync();
-    Body::Epilogue(q,scratch,norms,t,flag);
+    Body::Epilogue(q,scratch,norms,t,flag,&routing);
     codegen::executor::ComputeSync();
   }
   __device__ static __noinline__ void ConsumeGateUp(Sm90DenseMoeFusedOperands const& p,
       Sm90DenseRingState& state,Element* a,Element* b,float* scratch,Task task,unsigned& phase,
-      int& sequence,int* flag) {
+      int& sequence,int* flag,LocalSchedule const& routing) {
     auto q=GateUpOperands(p);
     ConsumeTask<Gu,kIterGu,TNGu,TKGu,WNGu,WKGu>(q,state,a,b,scratch,
-        task.slot*kTilesGu+task.tile,phase,sequence,flag);
+        task.slot*kTilesGu+task.tile,phase,sequence,flag,routing);
     // MR7 item 3: h's rows are published; release them to the down tasks.
     if(threadIdx.x==0) {
       asm volatile("red.release.gpu.global.add.u32 [%0], 1;"::
@@ -719,15 +890,15 @@ struct Sm90DenseMoeFusedGemm {
   }
   __device__ static __noinline__ void ConsumeDown(Sm90DenseMoeFusedOperands const& p,
       Sm90DenseRingState& state,Element* a,Element* b,float* scratch,Task task,unsigned& phase,
-      int& sequence,int* flag) {
+      int& sequence,int* flag,LocalSchedule const& routing) {
     auto q=DownOperands(p);
     ConsumeTask<Dn,kIterDn,TNDn,TKDn,WNDn,WKDn>(q,state,a,b,scratch,
-        task.slot*kTilesDn+task.tile,phase,sequence,flag);
+        task.slot*kTilesDn+task.tile,phase,sequence,flag,routing);
   }
 
   __device__ static __forceinline__ void Consume(Sm90DenseMoeFusedOperands const& p,
       Sm90DenseRingState& state,Element* a,Element* b,float* scratch,int tasks,unsigned phase,
-      int active) {
+      int active,LocalSchedule const& routing) {
     Sm90DenseRoles::Consumer();
     constexpr int kScratchTN=TNGu>TNDn?TNGu:TNDn,kScratchWK=WKGu>WKDn?WKGu:WKDn;
     auto* flag=reinterpret_cast<int*>(scratch+kScratchWK*16*kScratchTN+64);
@@ -735,8 +906,8 @@ struct Sm90DenseMoeFusedGemm {
     for(int local=0;local<tasks;++local) {
       int t=int(blockIdx.x)+local*int(gridDim.x);
       Task task=Of(t,active);
-      if(task.down)ConsumeDown(p,state,a,b,scratch,task,phase,sequence,flag);
-      else ConsumeGateUp(p,state,a,b,scratch,task,phase,sequence,flag);
+      if(task.down)ConsumeDown(p,state,a,b,scratch,task,phase,sequence,flag,routing);
+      else ConsumeGateUp(p,state,a,b,scratch,task,phase,sequence,flag,routing);
     }
     if(threadIdx.x==0 && tasks)
       for(int slot=0;slot<Slots;++slot)state.consumer_generations[slot]=(phase>>slot)&1;
@@ -751,16 +922,27 @@ struct Sm90DenseMoeFusedGemm {
     auto* a=reinterpret_cast<Element*>(shared+1024);
     auto* b=a+Slots*kRows*kMaxTK;
     auto* scratch=reinterpret_cast<float*>(shared+kLayout.scratch);
+    auto& routing=*reinterpret_cast<LocalSchedule*>(shared+kRouteOffset);
     unsigned phase=0;
     #pragma unroll
     for(int i=0;i<Slots;++i)phase|=(threadIdx.x<128?
         state.consumer_generations[i]:state.producer_generations[i])<<i;
-    int active=Active(p);
+    // E2: the consumers derive this CTA's copy of the routing from the logits
+    // the router stage left in L2; the closing grid barrier of that stage has
+    // already made them visible. The producer waits for it because every task
+    // index depends on n_active.
+    if(threadIdx.x<128)LocalRoute::Build(p.logits,routing);
+    __syncthreads();
+    int active=routing.active;
     int total=active*(kTilesGu+kTilesDn);
     int tasks=total/int(gridDim.x)+(int(blockIdx.x)<total%int(gridDim.x));
-    if(threadIdx.x<128)Consume(p,state,a,b,scratch,tasks,phase,active);
-    else {
-      Produce(p,state,a,b,tasks,phase,active);
+    if(threadIdx.x<128) {
+      // One CTA republishes the global schedule for the routing check; it is
+      // off the task path because no stage reads it any more.
+      if(blockIdx.x==0)LocalRoute::Publish(routing,p.schedule,p.route_weights,p.route_index);
+      Consume(p,state,a,b,scratch,tasks,phase,active,routing);
+    }else {
+      Produce(p,state,a,b,tasks,phase,active,routing);
       if(threadIdx.x==128)tail();
     }
     __syncthreads();

@@ -54,14 +54,19 @@ struct Sm90DenseLayout {
   // weight slots each take the larger of the two task geometries, then the
   // larger scratch tile. Both task types share the ring, so one slot must
   // hold either of them.
+  // E2 adds the local routing schedule after the scratch: `route` bytes, 128
+  // byte aligned so the structure's own 16-byte alignment is satisfied from any
+  // arena offset.
   static constexpr Sm90DenseLayout MoeFused(int tn_gu,int tk_gu,int tn_dn,int tk_dn,int slots,
-      int wk_gu,int wk_dn,int batch) {
+      int wk_gu,int wk_dn,int batch,int route=0) {
     int rows=ActivationRows(batch);
     int tk=tk_gu>tk_dn?tk_gu:tk_dn,tn=tn_gu>tn_dn?tn_gu:tn_dn;
     int slot=2*tn_gu*tk_gu>2*tn_dn*tk_dn?2*tn_gu*tk_gu:2*tn_dn*tk_dn;
     int wk=wk_gu>wk_dn?wk_gu:wk_dn;
     int weight=1024+2*rows*slots*tk,partial=weight+slots*slot;
-    return {weight,0,partial,partial+64*wk*tn+512};
+    // The route region sits at the end; a body recovers its base as
+    // end - align128(route), so `value` keeps its meaning (unused here).
+    return {weight,0,partial,partial+64*wk*tn+512+(route+127)/128*128};
   }
   // Sm90DenseAttentionBody::Storage: K/V ring, Q and two new-row panels,
   // then the four-warp merge area; the struct is 1024-byte aligned.

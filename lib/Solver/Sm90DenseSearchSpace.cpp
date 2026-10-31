@@ -28,6 +28,9 @@ bool Sm90DenseSearchSpace::Legal(Sm90DenseCoordinates const& c) const {
   // releases only the groups this CTA's own qkv tiles wrote, so the attention
   // would read groups another CTA has not finished writing.
   if(c.group_wait && qk_norm_row)return false;
+  // E2: routing is computed per CTA inside the fused stage, so the split M5/M6
+  // form has no way to carry it and is no longer emitted.
+  if(c.moe && !c.expert_fuse)return false;
   int grid=Grid(c.residency);
   if(c.cluster>1 && grid%c.cluster)return false;
   // D9: every CTA publishes one argmax partial into the head's [B][tasks]

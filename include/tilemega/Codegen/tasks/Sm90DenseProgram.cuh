@@ -289,10 +289,12 @@ template<int Batch,int NGateUp,int NDown,int Hidden,int TNGu,int TKGu,int TNDn,i
          int WNGu,int WKGu,int WNDn,int WKDn,int U,int Experts,int TopK,bool FloatWeights,int Page,
          unsigned WGu,unsigned WDn,unsigned X,unsigned Hid,unsigned Out,unsigned Schedule,
          unsigned Routes,unsigned Index,unsigned Counter,unsigned GateUpDone,unsigned Map,
-         int RegisterStages>
+         int RegisterStages,unsigned Logits=kAbsent,bool SoftmaxAll=false>
 struct MoeFused {
   using Body=backend::Sm90DenseMoeFusedGemm<Batch,NGateUp,NDown,Hidden,TNGu,TKGu,TNDn,TKDn,Slots,
-      WNGu,WKGu,WNDn,WKDn,U,Experts,TopK,FloatWeights,Page,RegisterStages>;
+      WNGu,WKGu,WNDn,WKDn,U,Experts,TopK,FloatWeights,Page,RegisterStages,SoftmaxAll>;
+  // E2: the stage routes locally, so it needs the router's logits buffer.
+  static_assert(Logits!=kAbsent,"the fused expert stage routes from the logits");
   static_assert(GateUpDone!=kAbsent && Map!=kAbsent,
       "the fused stage waits on counters and reads h by TMA");
   static constexpr bool kUsesOperandRecord=true;
@@ -319,7 +321,8 @@ struct MoeFused {
         reinterpret_cast<int*>(b.template Get<Schedule>(layer)),b.template Get<Routes>(layer),
         reinterpret_cast<int*>(b.template Get<Index>(layer)),b.template Get<X>(layer),
         reinterpret_cast<std::uint64_t*>(b.template Get<Counter>(layer)),
-        reinterpret_cast<unsigned*>(b.template Get<GateUpDone>(layer)),epsilon};
+        reinterpret_cast<unsigned*>(b.template Get<GateUpDone>(layer)),
+        reinterpret_cast<float const*>(b.template Get<Logits>(layer)),epsilon};
   }
   template<int Prefix,class B,class Tail>
   __device__ static __forceinline__ void Run(B const&,int,char* shared,float,
