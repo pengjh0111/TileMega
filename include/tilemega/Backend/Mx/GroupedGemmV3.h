@@ -37,9 +37,11 @@ struct MxMoeGateChainV3 {
 };
 // Pw is derived from geometry/resources, not an additional search dimension.
 // The recorded §4.12 difference permits instances with different Pw payloads.
-template <int TN, int WN, int D, MxOpV2 Op, bool Norm, class GateChain, int Pw = D, bool Fp32 = false>
+template <int TN, int WN, int D, MxOpV2 Op, bool Norm, class GateChain, int Pw = D, bool Fp32 = false, MxCombineModeV3 Mode = MxCombineModeV3::kOwner16>
 struct MxGroupedGemmV3 {
   using Operands = MxGroupedGemmOperandsV3<Fp32>;
+  static constexpr MxCombineModeV3 kCombineMode = Mode;
+  static constexpr int kCombineColumns = MxMoeCombineTileV3<TN,Fp32,Mode>::kTile;
   __device__ __forceinline__ static unsigned Units(Operands const& p) {
     return __builtin_mxc_readfirstlane(Op == MxOpV2::kSwiGLU ? p.table->units_gate_up : p.table->units_down);
   }
@@ -484,6 +486,18 @@ struct MxGroupedGemmV3 {
       }
       else Prime<0>(ring, segment, p, s, l, 0);
       if constexpr (kWK > 1) Finish(acc, ss, residual, segment, p, s, l, shared, layout, geo);
+      if constexpr (Op==MxOpV2::kStore && Mode==MxCombineModeV3::kUnitOwner) {
+        if(segment.active && l.wave_k==0 && l.lane==0)
+          MxMoeCombineTileV3<TN,Fp32,Mode>::UnitOwner(operands.combine,segment.tile%(s.n/TN));
+      }
+      if constexpr (Op==MxOpV2::kStore && Mode==MxCombineModeV3::kUnitLa) {
+#pragma unroll
+        for(int group=0;group<WN;++group) {
+          auto unit=geo.Segment(round,group);
+          if(unit.active)MxMoeCombineTileV3<TN,Fp32,Mode>::UnitLa(operands.combine,
+              unit.tile%(s.n/TN),operands.table->n_active,s.b,s.n,(unsigned*)(shared+layout.flags));
+        }
+      }
   }
 
   template <class Shape, class Next>
@@ -506,7 +520,7 @@ struct MxGroupedGemmV3 {
     for (int round = 1; round < geo.rounds; ++round)
       Round<false>(pf, ring, inverse, p, s, shared, layout, geo, l, round, inverse_expert);
     if constexpr (Op == MxOpV2::kStore)
-      MxMoeCombineTileV3<TN,Fp32>::Complete(p.combine,geo.begin,geo.end,
+      MxMoeCombineTileV3<TN,Fp32,Mode>::Complete(p.combine,geo.begin,geo.end,
           p.table->n_active,s.b,s.n,smem);
     else Sync::CtaSync();
     if (l.Compute()) return next();
@@ -515,13 +529,13 @@ struct MxGroupedGemmV3 {
 };
 
 template <class Core, int B, int Hidden, int Intermediate, int TnGate, int TnDown,
-          int Experts, bool NormalizeTopK>
+          int Experts, bool NormalizeTopK, bool ParallelWeights = true, bool ParallelOrdinal = true>
 struct MxMoeGateUpV3 : Core {
   using Prefetched = typename Core::Prefetched;
   template <class Shape, class Next>
   __device__ __forceinline__ static auto Run(Prefetched pf, MxGroupedGemmOperandsV3<false> const& p,
                                             Shape const& s, char* smem, Next next) {
-    using Build = MxBuildRouteTableV3<B,Hidden,Intermediate,TnGate,TnDown,Experts,NormalizeTopK>;
+    using Build = MxBuildRouteTableV3<B,Hidden,Intermediate,TnGate,TnDown,Experts,NormalizeTopK,false,ParallelWeights,ParallelOrdinal>;
     Build::Run(p.router_logits,p.table,smem
 #if TILEMEGA_MX_DIAG
         ,p.route_debug,p.route_weights,p.debug_step,p.layer,p.layers

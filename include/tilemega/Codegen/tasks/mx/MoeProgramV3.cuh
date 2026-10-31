@@ -129,7 +129,10 @@ struct MoeOperandsV3 : MoeDenseOperandsV3<P> {
       Binding const& b,int layer,int past,MxMoeSharedRouteTableV3* table) {
     layer=backend::mx::UniformOpaque(layer);
     auto const& sc=Extra(b);auto const& w=b.layer[layer];
-    backend::mx::MxMoeCombineOperandsV3<false> combine{sc.expert_partials,table,sc.x,sc.x,sc.combine_tickets};
+    auto* combine_state=(backend::mx::MxSharedCombineStateV3*)((char*)table+sizeof(backend::mx::MxRouteTableV3));
+    backend::mx::MxMoeCombineOperandsV3<false> combine{sc.expert_partials,table,sc.x,sc.x,
+      sc.combine_tickets,combine_state,unsigned(past)*P::kLayers+unsigned(layer)+1,
+      {sc.watchdog,sc.watchdog_ns,unsigned(layer)*6+5,unsigned(past)}};
     return {Gate?sc.x:sc.h,Gate?w.w_gu:w.w_down,Gate?sc.h:sc.expert_partials,
       table,unsigned(Gate?2*P::kIntermediate*P::kHidden:P::kHidden*P::kIntermediate),
       P::kEpsilon,{},combine,sc.router_logits
@@ -148,7 +151,8 @@ struct MoeControlV3 {
   static constexpr int kMetadataOffset=StageAlign16V2(kTokenOffset+P::kBatch*4);
   static constexpr int kGenerationOffset=kMetadataOffset+16;
   static constexpr int kRouteOffset=kGenerationOffset+16;
-  static constexpr int kArrivalOffset=StageAlign16V2(kRouteOffset+sizeof(backend::mx::MxRouteTableV3));
+  static constexpr int kCombineOffset=StageAlign16V2(kRouteOffset+sizeof(backend::mx::MxRouteTableV3));
+  static constexpr int kArrivalOffset=kCombineOffset+sizeof(backend::mx::MxCombineStateV3);
   static constexpr int kSharedBytes=kArrivalOffset+(TILEMEGA_MX_DIAG?16:0);
   static_assert(P::kThreads==512&&kStages==6*P::kLayers+1&&kSharedBytes<=65536);
   __device__ __forceinline__ static int Past(int const* pasts,unsigned index) {
@@ -178,12 +182,14 @@ __global__ void __launch_bounds__(P::kThreads) mx_moe_kernel_v3(typename P::Bind
   auto* tokens=reinterpret_cast<int*>(smem+G::kTokenOffset);
   auto* shared_tokens=(backend::mx::MxSharedTokensV2*)tokens;
   auto* table=(MxMoeSharedRouteTableV3*)(smem+G::kRouteOffset);
+  auto* combine_state=(backend::mx::MxSharedCombineStateV3*)(smem+G::kCombineOffset);
   auto* generation=reinterpret_cast<unsigned*>(smem+G::kGenerationOffset);
   unsigned const steps=P::kPrompt?64:LaunchControlV2(launch).steps;
   if(!steps)return;
   int initial=0;
   if constexpr(!P::kPrompt){auto const& c=LaunchControlV2(launch);initial=G::Past(c.pasts,c.first);}
   if(Sync::IsRole()){*generation=0;G::BroadcastTokens(b,initial,tokens);}
+  backend::mx::MxMoeCombineTileV3<P::Down::kTN,false,P::Down::kCombineMode>::Initialize(combine_state,P::kHidden);
 #if TILEMEGA_MX_DIAG
   using Arrival=__attribute__((address_space(3))) volatile unsigned;
   auto* arrivals=(Arrival*)(smem+G::kArrivalOffset);

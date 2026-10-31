@@ -181,7 +181,7 @@ extern "C" void* tm_plan_create(int batch, void* const* external, int device) {
   sc.t_o = static_cast<unsigned*>(Alloc(s, (P::OShape::n / P::O::kTN) * 4));
   sc.router_logits=static_cast<tilemega::Bf16*>(Alloc(s,B*P::kExperts*2));
   sc.expert_partials=static_cast<tilemega::Bf16*>(Alloc(s,B*8*P::kHidden*2));
-  sc.combine_tickets=(MxMoeGlobalTicketV2*)Alloc(s,(P::kHidden/P::Down::kTN)*4);
+  sc.combine_tickets=(MxMoeGlobalTicketV2*)Alloc(s,(P::kHidden/16)*4);
 #if TILEMEGA_MX_DIAG
   sc.route_debug=static_cast<unsigned*>(Alloc(s,64*P::kLayers*B*8*4));
   sc.route_input=static_cast<tilemega::Bf16*>(Alloc(s,64*P::kLayers*B*P::kHidden*2));

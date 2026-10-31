@@ -88,6 +88,9 @@ int TryCompileMoeV3(Request const& r, frontend::ModelPlan const& plan) {
   MxMoeConfigV3 config{ParseClass(pin, "qkv"), ParseClass(pin, "o"), ParseClass(pin, "router"),
       ParseClass(pin, "gate_up"), ParseClass(pin, "down"), ParseClass(pin, "head"),
       Int(pin, "threads"), Int(pin, "b_min"), Int(pin, "attn_prefetch"),Int(pin,"split")};
+  if(pin.Find("combine_mode"))config.combine_mode=pin.At("combine_mode").AsString("combine_mode");
+  if(pin.Find("route_table_mode"))config.route_table_mode=pin.At("route_table_mode").AsString("route_table_mode");
+  if(pin.Find("attn_version"))config.attn_version=Int(pin,"attn_version");
   codegen::CheckMxMoeConfigV3(plan, config);
   int const nq = (model.queries + 2) * model.hkv * model.dim;
   int const active = std::min(int(model.experts),int(r.batch)*8);
@@ -128,6 +131,8 @@ int TryCompileMoeV3(Request const& r, frontend::ModelPlan const& plan) {
       {"gate_up", ClassJson(config.gate_up)}, {"down", ClassJson(config.down)}, {"head", ClassJson(config.head)}};
   Value resolved = classes;
   resolved.Set("threads", config.threads); resolved.Set("b_min", config.b_min);
+  resolved.Set("combine_mode",config.combine_mode);resolved.Set("route_table_mode",config.route_table_mode);
+  resolved.Set("attn_version",config.attn_version);
   resolved.Set("version",3); resolved.Set("split",config.split);
   if(purpose=="selected")resolved.Set("selection",pin.At("selection"));
   resolved.Set("attn_prefetch", config.attn_prefetch); resolved.Set("purpose", purpose);
@@ -186,7 +191,7 @@ int TryCompileMoeV3(Request const& r, frontend::ModelPlan const& plan) {
   scratch("mx.head_partial", "pair_f32_u32", B * G, 8);
   scratch("mx.router_logits", "bf16", B * model.experts, 2); scratch("mx.expert_partials", "bf16", B * 8 * H, 2);
   scratch("mx.t_qkv", "u32", nq / config.qkv.tn, 4); scratch("mx.t_o", "u32", H / config.o.tn, 4);
-  scratch("mx.combine_tickets", "u32", H / config.down.tn, 4); scratch("mx.t_attn", "u32", B * model.hkv, 4);
+  scratch("mx.combine_tickets", "u32", H / 16, 4); scratch("mx.t_attn", "u32", B * model.hkv, 4);
   scratch("mx.t_head", "u32", 16, 4); scratch("mx.barrier", "u64", std::uint64_t(stages) * 8, 8);
   if (diag) {
     scratch("mx.route_debug", "u32", 64 * model.layers.size() * B * 8, 4);
@@ -197,7 +202,7 @@ int TryCompileMoeV3(Request const& r, frontend::ModelPlan const& plan) {
   }
   int const body_smem = codegen::MxMoeBodySmemBytesV3(plan, config);
   int const metadata_offset = (body_smem + r.batch * 4 + 15) / 16 * 16, generation_offset = metadata_offset + 16;
-  int const route_offset=generation_offset+16,arrival_offset=(route_offset+2576+15)/16*16;
+  int const route_offset=generation_offset+16,combine_offset=(route_offset+2576+15)/16*16,arrival_offset=combine_offset+16;
   int const smem=arrival_offset+(diag?16:0);
   auto edge = [](char const* from, char const* to, MxDecodeClassV2 const& c) -> Value {
     return Object{{"from", from}, {"to", to}, {"P_w", c.prefetch}, {"loads", c.prefetch * (c.tn / 16)}};
@@ -220,6 +225,8 @@ int TryCompileMoeV3(Request const& r, frontend::ModelPlan const& plan) {
       {"compiler_mtreg_budget", config.threads == 576 ? 227 : 255},
       {"smem", smem}, {"body_smem", body_smem}, {"token_offset", body_smem},
       {"metadata_offset", metadata_offset}, {"generation_offset", generation_offset},
+      {"combine_mode",config.combine_mode},{"route_table_mode",config.route_table_mode},
+      {"combine_state_offset",combine_offset},{"combine_state_bytes",16},{"combine_tickets",int(H/16)},
       {"route_table_offset",route_offset},{"route_table_bytes",2576},{"arrival_count_offset",diag?arrival_offset:-1}, {"layers", int(model.layers.size())},
       {"head_dim", int(model.dim)}, {"heads_kv", int(model.hkv)}, {"q_per_kv", int(model.queries)},
       {"experts", int(model.experts)}, {"qk_norm_scope", model.row_qk_norm ? "row" : "head"},

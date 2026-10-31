@@ -468,12 +468,12 @@ LdsSyncInflight(int iterations, unsigned long long* errors,
   if (bad) atomicAdd(errors, bad);
 }
 
-namespace deferred {
+namespace owner_combine {
 using namespace tilemega;
 using namespace tilemega::backend::mx;
-constexpr unsigned kB = 16, kH = 2048, kTN = 16, kTiles = kH/kTN;
+constexpr unsigned kB=16,kH=2048,kTickets=kH/16;
 TM_MX_HD unsigned Hash(unsigned x) {
-  x ^= x >> 16; x *= 0x7feb352du; x ^= x >> 15; x *= 0x846ca68bu; return x ^ (x >> 16);
+  x^=x>>16;x*=0x7feb352du;x^=x>>15;x*=0x846ca68bu;return x^(x>>16);
 }
 TM_MX_HD float Weight(unsigned seed,unsigned it,unsigned b,unsigned rank) {
   return float(1+(Hash(seed+it*131+b*17+rank)&15))/32.f;
@@ -484,18 +484,46 @@ TM_MX_HD float Value(unsigned seed,unsigned it,unsigned b,unsigned rank,unsigned
 TM_MX_HD float Residual(unsigned seed,unsigned it,unsigned b,unsigned column) {
   return float(int(Hash(seed+it*313+b*59+column)&63)-32)/8.f;
 }
+template<unsigned TN,MxCombineModeV3 Mode>
+__device__ __forceinline__ void Produce(MxMoeCombineOperandsV3<false> const& p,unsigned active,
+    unsigned it,unsigned seed,char* storage) {
+  using Combine=MxMoeCombineTileV3<TN,false,Mode>;
+  constexpr unsigned tiles=kH/TN;
+  unsigned const begin=blockIdx.x*(active*tiles)/104,end=(blockIdx.x+1)*(active*tiles)/104;
+  if(V3Sync::IsRole()) {
+    unsigned const total=kH/Combine::kTile;
+    p.shared->first=(blockIdx.x*total+103)/104;
+    p.shared->end=((blockIdx.x+1)*total+103)/104;
+  }
+  unsigned const salt=Hash(seed+it),factor=(salt>>8)|1u;
+  for(unsigned unit=begin;unit<end;++unit) {
+    unsigned const expert=unit/tiles,tile=unit%tiles;
+    for(unsigned item=threadIdx.x;item<kB*8*TN/8;item+=512) {
+      unsigned const row=item/(TN/8),b=row/8,rank=row%8,column=tile*TN+item%(TN/8)*8;
+      if(((row*factor+salt)&(active-1))==expert) {
+        alignas(16) Bf16 values[8];
+        for(unsigned j=0;j<8;++j)values[j]=Bf16(Value(seed,it,b,rank,column+j));
+        MxStore16V2(const_cast<Bf16*>(p.partials)+row*kH+column,*reinterpret_cast<uint4*>(values));
+      }
+    }
+    if constexpr(Mode==MxCombineModeV3::kUnitOwner)
+      if(threadIdx.x==0)Combine::UnitOwner(p,tile);
+  }
+  Combine::Complete(p,begin,end,active,kB,kH,storage);
+}
+template<MxCombineModeV3 Mode>
 __global__ void __launch_bounds__(512) Kernel(Bf16* partial,Bf16* x,unsigned* tickets,
     unsigned long long* events,unsigned long long* errors,unsigned long long* participants,
     Bf16 const* reference,int iterations,unsigned seed) {
   extern __shared__ __align__(16) char storage[];
   auto* table=(MxSharedRouteTableV3<false>*)(storage+4096);
+  auto* state=(MxSharedCombineStateV3*)(storage+4096+sizeof(MxRouteTableV3));
   auto* generation=reinterpret_cast<unsigned*>(storage+2048);
-  if(V3Sync::IsRole())*generation=0;
+  if(V3Sync::IsRole()){*generation=0;state->generation=0;}
   V3Sync::CtaSync();
   unsigned long long bad=0;
   for(int it=0;it<iterations;++it) {
     unsigned const mode=unsigned(it)&3,active=mode==0?1:mode==1?8:mode==2?64:128;
-    unsigned const salt=Hash(seed+unsigned(it)),factor=(salt>>8)|1u;
     if(threadIdx.x<kB*8) {
       unsigned const b=threadIdx.x/8,rank=threadIdx.x%8;
       table->weight[b][rank]=Bf16(Weight(seed,it,b,rank)).raw();
@@ -508,21 +536,13 @@ __global__ void __launch_bounds__(512) Kernel(Bf16* partial,Bf16* x,unsigned* ti
     }
     V3Sync::CtaSync();V3Sync::Arrive(events);
     V3Sync::Wait(events,104ull*(it+1),generation,3*it+1,[]{},{});
-    unsigned const begin=blockIdx.x*(active*kTiles)/104,end=(blockIdx.x+1)*(active*kTiles)/104;
-    for(unsigned unit=begin;unit<end;++unit) {
-      unsigned const expert=unit/kTiles,tile=unit%kTiles;
-      for(unsigned item=threadIdx.x;item<kB*8*kTN/8;item+=512) {
-        unsigned const row=item/(kTN/8),b=row/8,rank=row%8,column=tile*kTN+item%(kTN/8)*8;
-        unsigned const routed=(row*factor+salt)&(active-1);
-        if(routed==expert) {
-          alignas(16) Bf16 values[8];
-          for(unsigned j=0;j<8;++j)values[j]=Bf16(Value(seed,it,b,rank,column+j));
-          MxStore16V2(partial+row*kH+column,*reinterpret_cast<uint4*>(values));
-        }
-      }
+    MxMoeCombineOperandsV3<false> p{partial,table,x,x,(MxMoeGlobalTicketV2*)tickets,state,unsigned(it)+1,{}};
+    switch((unsigned(it)>>2)&3) {
+      case 0:Produce<16,Mode>(p,active,it,seed,storage);break;
+      case 1:Produce<32,Mode>(p,active,it,seed,storage);break;
+      case 2:Produce<64,Mode>(p,active,it,seed,storage);break;
+      case 3:Produce<128,Mode>(p,active,it,seed,storage);break;
     }
-    MxMoeCombineOperandsV3<false> p{partial,table,x,x,(MxMoeGlobalTicketV2*)tickets};
-    MxMoeCombineTileV3<kTN,false>::Complete(p,begin,end,active,kB,kH,storage);
     V3Sync::Arrive(events+8);
     V3Sync::Wait(events+8,104ull*(it+1),generation,3*it+2,[]{},{});
     for(unsigned item=blockIdx.x*512+threadIdx.x;item<kB*kH/8;item+=104*512) {
@@ -537,15 +557,16 @@ __global__ void __launch_bounds__(512) Kernel(Bf16* partial,Bf16* x,unsigned* ti
   }
   if(bad)atomicAdd(errors,bad);
 }
-
-int Run(int iterations,unsigned seed) {
+template<MxCombineModeV3 Mode>
+int Run(int iterations,unsigned seed,char const* label) {
   if(iterations<2000)return 2;
   constexpr unsigned bytes=32784;
+  auto kernel=Kernel<Mode>;
   cudaFuncAttributes attr{};int resident=0;
-  auto set=cudaFuncSetAttribute(Kernel,cudaFuncAttributeMaxDynamicSharedMemorySize,bytes);
-  auto query=cudaFuncGetAttributes(&attr,Kernel);
-  auto occupancy=cudaOccupancyMaxActiveBlocksPerMultiprocessor(&resident,Kernel,512,bytes);
-  std::printf("SYNC_SHAPE ctas=104 threads=512 smem=%u seed=%u n_active=1,8,64,128 synthetic_n_active1_case=1\n",bytes,seed);
+  auto set=cudaFuncSetAttribute(kernel,cudaFuncAttributeMaxDynamicSharedMemorySize,bytes);
+  auto query=cudaFuncGetAttributes(&attr,kernel);
+  auto occupancy=cudaOccupancyMaxActiveBlocksPerMultiprocessor(&resident,kernel,512,bytes);
+  std::printf("SYNC_SHAPE ctas=104 threads=512 smem=%u seed=%u n_active=1,8,64,128 TN=16,32,64,128 synthetic_n_active1_case=1\n",bytes,seed);
   std::printf("SYNC_RESOURCES set=%d query=%d occupancy=%d resident=%d MT=%d local=%zu static=%zu\n",
       int(set),int(query),int(occupancy),resident,attr.numRegs,attr.localSizeBytes,attr.sharedSizeBytes);
   if(set||query||occupancy||resident!=1||attr.numRegs>255||attr.localSizeBytes||attr.sharedSizeBytes)return 1;
@@ -554,41 +575,44 @@ int Run(int iterations,unsigned seed) {
     for(unsigned b=0;b<kB;++b)
       for(unsigned col=0;col<kH;++col) {
         float sum=0;
-        for(unsigned r=0;r<8;++r) {
-          float const product=float(Bf16(Weight(seed,it,b,r)*Value(seed,it,b,r,col)));
-          sum=sum+product;
-        }
+        for(unsigned r=0;r<8;++r)sum+=float(Bf16(Weight(seed,it,b,r)*Value(seed,it,b,r,col)));
         expected[(std::size_t(it)*kB+b)*kH+col]=Bf16(float(Bf16(sum))+Residual(seed,it,b,col));
       }
   Bf16 *partial,*x,*reference;unsigned* tickets;
   unsigned long long *events,*errors,*participants;
   if(cudaMalloc(&partial,kB*8*kH*2)||cudaMalloc(&x,kB*kH*2)||
-      cudaMalloc(&reference,expected.size()*2)||cudaMalloc(&tickets,kTiles*4)||
+      cudaMalloc(&reference,expected.size()*2)||cudaMalloc(&tickets,kTickets*4)||
       cudaMalloc(&events,32*8)||cudaMalloc(&errors,8)||cudaMalloc(&participants,8))return 1;
   if(cudaMemcpy(reference,expected.data(),expected.size()*2,cudaMemcpyHostToDevice)||
-      cudaMemset(tickets,0,kTiles*4)||cudaMemset(events,0,32*8)||cudaMemset(errors,0,8)||
+      cudaMemset(tickets,0,kTickets*4)||cudaMemset(events,0,32*8)||cudaMemset(errors,0,8)||
       cudaMemset(participants,0,8))return 1;
-  Kernel<<<104,512,bytes>>>(partial,x,tickets,events,errors,participants,reference,iterations,seed);
+  kernel<<<104,512,bytes>>>(partial,x,tickets,events,errors,participants,reference,iterations,seed);
   auto launch=cudaGetLastError();auto sync=cudaDeviceSynchronize();
-  unsigned long long bad=0,joined=0;unsigned final_tickets[kTiles];
+  unsigned long long bad=0,joined=0;unsigned final_tickets[kTickets];
   auto read_errors=cudaMemcpy(&bad,errors,8,cudaMemcpyDeviceToHost);
   auto read_participants=cudaMemcpy(&joined,participants,8,cudaMemcpyDeviceToHost);
-  auto read_tickets=cudaMemcpy(final_tickets,tickets,kTiles*4,cudaMemcpyDeviceToHost);
+  auto read_tickets=cudaMemcpy(final_tickets,tickets,kTickets*4,cudaMemcpyDeviceToHost);
   for(unsigned v:final_tickets)bad+=v!=0;
   bool const pass=!launch&&!sync&&!read_errors&&!read_participants&&!read_tickets&&
       !bad&&joined==104ull*iterations;
-  std::printf("SYNC moe_deferred_combine iterations=%d launch=%s sync=%s errors=%llu lasts=%llu host_x_bitwise=1 %s\n",
-      iterations,cudaGetErrorString(launch),cudaGetErrorString(sync),bad,joined,pass?"PASS":"FAIL");
+  std::printf("SYNC %s iterations=%d launch=%s sync=%s errors=%llu participants=%llu host_x_bitwise=1 %s\n",
+      label,iterations,cudaGetErrorString(launch),cudaGetErrorString(sync),bad,joined,pass?"PASS":"FAIL");
   return pass?0:1;
 }
-}  // namespace deferred
+}  // namespace owner_combine
 
 int main(int argc, char** argv) {
   if (argc < 3) return 2;
   char const* mode = argv[1];
   int const iterations = std::atoi(argv[2]);
-  if(!std::strcmp(mode,"moe_deferred_combine"))
-    return deferred::Run(iterations,argc>3?unsigned(std::strtoul(argv[3],nullptr,10)):unsigned(getpid()));
+  unsigned const seed=argc>3?unsigned(std::strtoul(argv[3],nullptr,10)):unsigned(getpid());
+  using tilemega::backend::mx::MxCombineModeV3;
+  if(!std::strcmp(mode,"moe_owner_combine"))
+    return owner_combine::Run<MxCombineModeV3::kOwner16>(iterations,seed,mode);
+  if(!std::strcmp(mode,"moe_owner_tile"))
+    return owner_combine::Run<MxCombineModeV3::kOwnerTile>(iterations,seed,mode);
+  if(!std::strcmp(mode,"moe_unit_owner"))
+    return owner_combine::Run<MxCombineModeV3::kUnitOwner>(iterations,seed,mode);
   int const ctas = 104, threads = 128, stages = 8;
   bool const v2 = !std::strcmp(mode, "barrier_v2") || !std::strcmp(mode, "la_v2") ||
                   !std::strcmp(mode, "lds_release");

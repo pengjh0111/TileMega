@@ -51,25 +51,25 @@ def test_expert_intermediates_bits(batch,experts,pattern):
     assert lib.mx6_grouped_args_size()==C.sizeof(Args)
     fn=lib.mx6_grouped;fn.argtypes=[Args]+[C.c_int]*6+[C.c_void_p,C.POINTER(C.c_int),C.c_int];fn.restype=C.c_int
     stream=t.cuda.current_stream().cuda_stream;records=[]
-    coords=[(32,1,1),(64,1,2),(32,2,2)]
+    coords=[(16,1,1),(32,1,1),(64,1,2),(128,1,1),(32,2,2)]
     if batch==16 and len(active)*16>=104*7+1:coords.append((32,8,2))
     for tn,wn,depth in coords:
         assert wn<=(len(active)*(512//tn)+103)//104
         packed={gu:t.stack([_packed_gpu(dict(kind='tile_pages',layout='xcore_mma',
-            tile_n=tn,tile_k=32,source=dict(kind='alias',source='matrix')),
+            tile_n=max(32,tn) if gu else tn,tile_k=32,source=dict(kind='alias',source='matrix')),
             lambda _,e=e:cpu_w[gu][e])for e in range(experts)]).cuda()for gu in(True,False)}
         outputs=[];queries=[]
         for version in(2,3,3):
             h=t.full((experts,batch,256),-93,dtype=t.bfloat16,device='cuda')
             partial=t.full((batch,8,512),-93,dtype=t.bfloat16,device='cuda')
-            merged=t.full_like(residual,-93);tickets=t.zeros(512//tn,dtype=t.int32,device='cuda')
+            merged=t.full_like(residual,-93);tickets=t.zeros(512//16,dtype=t.int32,device='cuda')
             calls=t.zeros(104,8,dtype=t.int32,device='cuda')
-            struct.pack_into('4I',host_table,0,len(active),len(active)*512//tn,len(active)*512//tn,0)
+            struct.pack_into('4I',host_table,0,len(active),len(active)*512//max(32,tn),len(active)*512//tn,0)
             table.copy_(t.tensor(list(host_table),dtype=t.uint8,device='cuda'))
             for gu in(True,False):
                 calls.zero_();inp=source if gu else h;out=h if gu else partial
                 args=Args(*(v.data_ptr()for v in(inp,packed[gu],out,residual,merged,tickets,
-                    active_gpu,count_gpu,rows_gpu,calls,table)),len(active)*512//tn)
+                    active_gpu,count_gpu,rows_gpu,calls,table)),len(active)*512//(max(32,tn) if gu else tn))
                 resource=(C.c_int*4)()
                 assert fn(args,batch,tn,wn,depth,version,int(gu),stream,resource,1)==0
                 assert resource[1]==resource[2]==0 and resource[3]==1
@@ -81,7 +81,7 @@ def test_expert_intermediates_bits(batch,experts,pattern):
             outputs.append([x.cpu().view(t.uint8)for x in(h,partial,merged)])
         assert all(t.equal(a,b)for a,b in zip(outputs[0],outputs[1]))
         assert all(t.equal(a,b)for a,b in zip(outputs[1],outputs[2]))
-        records.append(dict(batch=batch,experts=experts,pattern=pattern,tn=tn,wn=wn,depth=depth,
+        records.append(dict(combine_mode=os.environ.get("MX6_COMBINE_MODE","owner16"),batch=batch,experts=experts,pattern=pattern,tn=tn,wn=wn,depth=depth,
             n_active=len(active),max_count=max(counts),V2_V3_h_partials_x_bitwise=True,
             repeated_V3_bitwise=True,queries=queries,PID=os.getpid(),
             binary_sha256=hashlib.sha256(library.read_bytes()).hexdigest()))

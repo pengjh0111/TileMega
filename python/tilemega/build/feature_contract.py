@@ -88,6 +88,7 @@ def implementations(manifest, defines):
                     'b_min':manifest['b_min'],'attn_prefetch':manifest['attn_prefetch'],
                     'split':manifest['split'],'route_table_offset':manifest['route_table_offset'],
                     'decisions':manifest['decisions'],
+                    **{key:manifest[key] for key in ('combine_mode','route_table_mode','combine_state_offset','combine_tickets') if key in manifest},
                     'attention':{'impl':'MxAttentionV2','task_body':'MoeProgramV3'}}
             return {'executor': manifest['executor'], 'version': manifest['version'],
                     'kv_layout': manifest['kv_layout'], 'kv_storage': manifest['kv_storage'],
