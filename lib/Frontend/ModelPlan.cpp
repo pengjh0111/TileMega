@@ -889,6 +889,7 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
   builder.plan.serving_seq = serving.seq;
   builder.plan.dn_vector_sums = serving.dn_vector_sums;
   builder.plan.serving_capacity = serving.capacity;
+  builder.plan.serving_tp = serving.tp;
   std::unordered_map<std::string, SignatureInput const*> signatures;
   for (auto const& input : inputs) signatures.emplace(input.name, &input);
   auto parameter = [&](std::string const& operand) -> SignatureInput const& {

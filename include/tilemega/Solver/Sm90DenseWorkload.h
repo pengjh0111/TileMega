@@ -16,7 +16,9 @@ struct Sm90DenseStagePlanBinding {
   std::string epilogue;
   bool input_norm=false,output_sums=false;
   json::Value ToJson() const {
-    if(epilogue!="store" && epilogue!="residual" && epilogue!="swiglu" && epilogue!="argmax_partial")
+    // residual_ar is residual plus the cross-rank sum (tensor parallel).
+    if(epilogue!="store" && epilogue!="residual" && epilogue!="swiglu" &&
+       epilogue!="argmax_partial" && epilogue!="residual_ar")
       throw std::invalid_argument("unknown native plan epilogue");
     return json::Object{{"epilogue",epilogue},{"input_norm",input_norm},{"output_sums",output_sums}};
   }
@@ -61,6 +63,9 @@ struct Sm90DenseGemmPlanBinding {
 struct Sm90DenseWorkload {
   Sm90DenseShapeTable shapes;
   int batch=0,layers=0,head_dim=0,queries=0,hkv=8;
+  // Megatron tensor parallel degree. The shapes are already one rank's, so tp
+  // only prices the cross-rank reduction and relaxes the lm_head tile rule.
+  int tp=1;
   // qk_norm_row: the norm covers the whole projected row (OLMoE, mode 2), not
   // one head (Qwen3, mode 1); the attention constants are keyed by the mode.
   bool qk_norm=false,qk_norm_row=false;

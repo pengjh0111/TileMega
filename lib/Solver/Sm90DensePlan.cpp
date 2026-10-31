@@ -19,8 +19,10 @@ unsigned Sm90DenseFamily(frontend::ModelPlan const& plan,frontend::PlanGemm cons
   if(g.epilogue==Op::kSwiGLU)return 2;
   if(g.epilogue==Op::kArgmaxPartial)return 4;
   if(g.epilogue==Op::kStore && name.find("qkv")!=std::string::npos)return 0;
-  if(g.epilogue==Op::kResidual && name.find("o_proj")!=std::string::npos)return 1;
-  if(g.epilogue==Op::kResidual && name.find("down_proj")!=std::string::npos)return 3;
+  // residual_ar is the tensor parallel form of the same two families.
+  bool residual=g.epilogue==Op::kResidual || g.epilogue==Op::kResidualAllReduce;
+  if(residual && name.find("o_proj")!=std::string::npos)return 1;
+  if(residual && name.find("down_proj")!=std::string::npos)return 3;
   throw std::invalid_argument("unrecognized native dense GEMM: "+name);
 }
 Sm90DenseShapeTable Sm90DenseShapes(frontend::ModelPlan const& plan) {
@@ -88,6 +90,7 @@ Sm90DenseWorkload Sm90DenseWorkloadFromPlan(frontend::ModelPlan const& plan,int 
       case frontend::PlanGemm::Epilogue::kMoeRouter:binding.epilogue="moe_router";break;
       case frontend::PlanGemm::Epilogue::kMoeGateUp:binding.epilogue="moe_gate_up";break;
       case frontend::PlanGemm::Epilogue::kMoeDown:binding.epilogue="moe_down";break;
+      case frontend::PlanGemm::Epilogue::kResidualAllReduce:binding.epilogue="residual_ar";break;
       default:throw std::invalid_argument("unknown native workload epilogue");
     }
     binding.input_norm=operand(g.norm_ss,true);binding.output_sums=operand(g.ss_out,true);
@@ -123,6 +126,7 @@ Sm90DenseWorkload Sm90DenseWorkloadFromPlan(frontend::ModelPlan const& plan,int 
     else if(work.head_dim!=int(a.width) || work.queries!=int(a.group) || work.qk_norm!=q ||
             work.qk_norm_row!=row)
       throw std::invalid_argument("native workload attention tuple changes between layers");
+    work.tp=plan.serving_tp;
     if(work.moe) {gemm(start+2,1);gemm(start+3,5);gemm(start+4,6);gemm(start+5,7);}
     else {gemm(start+2,1);gemm(start+3,2);gemm(start+4,3);}
   }

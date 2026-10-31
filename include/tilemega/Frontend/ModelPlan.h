@@ -96,7 +96,11 @@ struct PlanBuffer {
 struct PlanGemm {
   // kMoe*: native MoE decode's router + top-k, grouped gate_up and down +
   // combine (prompt §8); their schedule/route operands are the stage's.
-  enum class Epilogue { kStore, kResidual, kSwiGLU, kArgmaxPartial, kMoeRouter, kMoeGateUp, kMoeDown };
+  // kResidualAllReduce: kResidual preceded by a cross-rank sum of the tile
+  // (Megatron tensor parallel, o_proj and down_proj). The reduction happens in
+  // the epilogue so the partial never reaches global memory.
+  enum class Epilogue { kStore, kResidual, kSwiGLU, kArgmaxPartial, kMoeRouter, kMoeGateUp, kMoeDown,
+                        kResidualAllReduce };
   std::uint32_t n = 0, k = 0;
   std::uint32_t a = 0, b = 0, c = 0, d = 0;
   float beta = 0.0f;
@@ -198,6 +202,8 @@ struct ModelPlan {
   bool serving = false;
   int serving_seq = 0;
   int serving_capacity = 0;
+  // Megatron tensor parallel degree this plan was built for; 1 is a whole model.
+  int serving_tp = 1;
   bool dn_vector_sums = false;
   // Only DM plans emit the extended device ABI; legacy descriptors and CUDA
   // initializers retain their exact layout and text when this is false.
@@ -248,6 +254,9 @@ struct ServingOptions {
   bool moe_grouped = false;
   unsigned moe_block_rows = 16;
   int dense_attention_chunks = 0;
+  // Megatron tensor parallel degree. 1 leaves every plan field as it was, so a
+  // TP1 plan and its generated source are unchanged.
+  int tp = 1;
 };
 
 ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,

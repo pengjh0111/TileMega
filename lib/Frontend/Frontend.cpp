@@ -396,6 +396,7 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
       if (gemm.epilogue == PlanGemm::Epilogue::kMoeRouter) epilogue = "moe_router";
       if (gemm.epilogue == PlanGemm::Epilogue::kMoeGateUp) epilogue = "moe_gate_up";
       if (gemm.epilogue == PlanGemm::Epilogue::kMoeDown) epilogue = "moe_down";
+      if (gemm.epilogue == PlanGemm::Epilogue::kResidualAllReduce) epilogue = "residual_ar";
       fields.push_back(builder.getNamedAttr(
           "epilogue", builder.getStringAttr(epilogue)));
       fields.push_back(builder.getNamedAttr(
@@ -944,6 +945,9 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
         builder.getNamedAttr("seq", builder.getI64IntegerAttr(plan.serving_seq)),
         builder.getNamedAttr("capacity", builder.getI64IntegerAttr(plan.serving_capacity))};
     if (plan.forward) runtime.push_back(builder.getNamedAttr("phase", builder.getI64IntegerAttr(2)));
+    // Only a sharded plan carries tp, so a TP1 module keeps its exact attributes.
+    if (plan.serving_tp > 1)
+      runtime.push_back(builder.getNamedAttr("tp", builder.getI64IntegerAttr(plan.serving_tp)));
     module->setAttr("tilemega.serving", builder.getDictionaryAttr(runtime));
   }
   if (options.rope_tile_per_block)
