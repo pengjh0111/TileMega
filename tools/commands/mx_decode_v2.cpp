@@ -214,6 +214,8 @@ int TryCompileV2(Request const& r) {
   auto const& pin = pin_doc.At("mx_decode_v2");
   MxDecodeConfigV2 config{ParseClass(pin, "qkv"), ParseClass(pin, "o"), ParseClass(pin, "gate_up"),
       ParseClass(pin, "down"), ParseClass(pin, "head"), Int(pin, "b_min"), Int(pin, "attn_prefetch"), Int(pin, "threads")};
+  if (pin.Find("attn_version")) config.attn_version = Int(pin, "attn_version");
+  if (pin.Find("split")) config.split = Int(pin, "split");
   std::string const purpose = pin.Find("purpose") ? pin.At("purpose").AsString("purpose") : "manual";
   if (purpose != "manual" && purpose != "resource_probe")
     throw std::invalid_argument("MX-5 pinned builds require purpose manual or resource_probe");
@@ -290,6 +292,9 @@ int TryCompileV2(Request const& r) {
   resolved_pin.Set("b_min", config.b_min);
   resolved_pin.Set("attn_prefetch", config.attn_prefetch);
   resolved_pin.Set("purpose", purpose);
+  if (config.attn_version == 3) {
+    resolved_pin.Set("attn_version", 3); resolved_pin.Set("split", config.split);
+  }
   Write(out + ".mx5_pin.json", Value(Object{{"mx_decode_v2", resolved_pin}}).Dump() + "\n");
   auto const start = std::chrono::steady_clock::now();
   auto const argv = compile_receipt_v1::Arguments(command);
@@ -402,6 +407,9 @@ int TryCompileV2(Request const& r) {
           {"solver_selected", false}, {"default_enabled", false}, {"diagnostic", true}, {"final", false}}},
       {"resources", resource_manifest}, {"resources_complete", false}, {"runtime_target", r.runtime_target},
       {"source_snapshot", out + ".source.json"}, {"buffers", buffers}, {"runtime_allocations", runtime_allocations}};
+  if (config.attn_version == 3) {
+    manifest.Set("attention_version", 3); manifest.Set("attention_split", config.split);
+  }
   Write(out + ".plan.json", manifest.Dump() + "\n");
   python("-m tilemega.build.identity --root " + Quote(root) + " --snapshot " + Quote(out + ".source.json") + " --so " + Quote(out));
   python("-c " + Quote("from tilemega.build.identity import verify; verify(" + Value(out).Dump(0) + ")"));

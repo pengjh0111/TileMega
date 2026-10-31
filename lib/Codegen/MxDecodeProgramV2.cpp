@@ -94,6 +94,10 @@ void CheckMxDecodeConfigV2(MxDecodeModel const& m, int batch, MxDecodeConfigV2 c
   if (grid != 104) Fail("grid must be 104 (one CTA per AP)");
   if (c.threads != 512 && c.threads != 576) Fail("threads outside {512,576}");
   if (m.capacity <= 0 || m.capacity % 32) Fail("fragment KV capacity must be divisible by 32");
+  if (c.attn_version != 2 && c.attn_version != 3) Fail("invalid attention version");
+  if (c.split != 1 && c.split != 2 && c.split != 4) Fail("invalid attention split");
+  if (c.attn_version == 2 && c.split != 1) Fail("attention V2 requires split1");
+  if (c.split > 1 && batch * m.hkv * c.split > grid) Fail("attention split exceeds grid");
   if (c.b_min != 1 && c.b_min != 2 && c.b_min != 4 && c.b_min != 8) Fail("b_min outside {1,2,4,8}");
   if (c.attn_prefetch < 0 || c.attn_prefetch > 2) Fail("attention prefetch outside {0,1,2}");
   int const qkv_n = (m.q_per_kv + 2) * m.hkv * m.head_dim;
@@ -216,12 +220,15 @@ std::string EmitMxDecodeProgramV2(mlir::ModuleOp module, int batch, int past_lo,
   auto const qkv = body(c.qkv, "kStore", true, nq, m.hidden);
   auto const down = body(c.down, "kResidual", false, m.hidden, m.inter);
   std::string const ops = "mx::DenseOperandsV2<Self>::";
+  std::string const attention = c.attn_version == 3
+      ? "MxAttentionV3<" + std::to_string(m.head_dim) + "," + std::to_string(m.q_per_kv) + "," +
+          (m.qk_norm ? "true" : "false") + "," + std::to_string(c.attn_prefetch) + ",kCapacity,0," + std::to_string(c.split) + ">"
+      : "MxAttentionV2<" + std::to_string(m.head_dim) + "," + std::to_string(m.q_per_kv) + "," +
+          std::to_string(c.b_min) + "," + (m.qk_norm ? "true" : "false") + "," + std::to_string(c.attn_prefetch) + ",kCapacity>";
   spec.stages = {
     {"Qkv", qkv, shape(nq, m.hidden), ops + "Qkv(b,l,past,tokens)", ops + "QkvWeights(b,l)", "Attn", "", 0},
-    {"Attn", "MxAttentionV2<" + std::to_string(m.head_dim) + ", " + std::to_string(m.q_per_kv) + ", " +
-        std::to_string(c.b_min) + ", " + (m.qk_norm ? "true" : "false") + ", " +
-        std::to_string(c.attn_prefetch) + ", kCapacity>",
-        "MxStaticAttentionShapeV2<kBatch, " + std::to_string(m.hkv) + ", kThreads>",
+    {"Attn", attention,
+        (c.attn_version == 3 ? "mx::MxAttentionShapeWithSyncV2<kBatch, " : "MxStaticAttentionShapeV2<kBatch, ") + std::to_string(m.hkv) + ", kThreads>",
         ops + "Attn(b,l,past)", ops + "Attn(b,l,past)", "O", "", 1},
     {"O", body(c.o, "kResidual", false, m.hidden, m.heads * m.head_dim), shape(m.hidden, m.heads * m.head_dim),
         ops + "O(b,l,tokens)", ops + "O(b,l,tokens)", "GateUp", "", 2},

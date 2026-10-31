@@ -173,8 +173,10 @@ extern "C" void* tm_plan_create(int batch, void* const* external, int device) {
   sc.ctx = static_cast<tilemega::Bf16*>(Alloc(s, B * P::OShape::k * 2));
   sc.h = static_cast<tilemega::Bf16*>(Alloc(s, P::kExperts * B * P::DownShape::k * 2));
   sc.gemm_partial = static_cast<float*>(Alloc(s, R::kPartial * 4));
-  sc.attn_partial = static_cast<float*>(
-      Alloc(s, B * P::AttnShape::hkv * P::Attn::kSlots * P::kQ * (P::kHeadDim + 2) * 4));
+  if constexpr(P::kAttentionVersion==2||P::kAttentionSplit>1) {
+    constexpr int parts=P::kAttentionVersion==2?P::Attn::kSlots:P::kAttentionSplit;
+    sc.attn_partial=static_cast<float*>(Alloc(s,B*P::AttnShape::hkv*parts*P::kQ*(P::kHeadDim+2)*4));
+  }
   sc.head_partial = static_cast<tilemega::backend::mx::MxHeadPartialV2*>(
       Alloc(s, B * P::kGrid * sizeof(tilemega::backend::mx::MxHeadPartialV2)));
   sc.t_qkv = static_cast<unsigned*>(Alloc(s, (P::QkvShape::n / P::Qkv::kTN) * 4));
@@ -188,7 +190,8 @@ extern "C" void* tm_plan_create(int batch, void* const* external, int device) {
   sc.route_logits=static_cast<tilemega::Bf16*>(Alloc(s,64*P::kLayers*B*P::kExperts*2));
   sc.route_weights=Alloc(s,64*P::kLayers*B*8*(P::kRoutingFp32?4:2));
 #endif
-  sc.t_attn = static_cast<unsigned*>(Alloc(s, B * P::AttnShape::hkv * 4));
+  if constexpr(P::kAttentionVersion==2||P::kAttentionSplit>1)
+    sc.t_attn=static_cast<unsigned*>(Alloc(s,B*P::AttnShape::hkv*4));
   sc.t_head = static_cast<unsigned*>(Alloc(s, 64));
   sc.barrier = static_cast<unsigned long long*>(Alloc(s, std::size_t(R::kStages) * 64));
   if (s->allocation_failed) {

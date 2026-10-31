@@ -15,7 +15,9 @@ BRIDGE=Path(os.environ.get('MX6_MOE_BRIDGE',ROOT/'runs/mx6/export/qwen3_30b_a3b_
 @pytest.mark.parametrize('change,error',[
     ({'version':2},'version must be 3'),
     ({'threads':576},'requires 512 threads'),
-    ({'split':2},'attention V3 is not connected before CP3'),
+    ({'attn_version':2,'split':2},'attention V2 requires split1'),
+    ({'attn_version':1},'invalid attention version'),
+    ({'split':3},'invalid attention split'),
     ({'combine_mode':'deferred'},'invalid combine_mode'),
     ({'route_table_mode':'reorder_sum'},'invalid route_table_mode'),
     ({'router':{'part':'kStreamK'}},'router logits require TileRange TN16 WN1'),

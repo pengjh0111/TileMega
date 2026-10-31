@@ -15,6 +15,7 @@ struct MxDecodeClassV2 {
 struct MxDecodeConfigV2 {
   MxDecodeClassV2 qkv, o, gate_up, down, head;
   int b_min = 1, attn_prefetch = 0, threads = 576;
+  int attn_version = 2, split = 1;
 };
 
 /// Validate production geometry, resource-derived payloads and wait counts.

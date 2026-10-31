@@ -85,17 +85,18 @@ def implementations(manifest, defines):
                 return {'executor':manifest['executor'],'version':manifest['version'],'program_version':3,
                     'kv_layout':manifest['kv_layout'],'kv_storage':manifest['kv_storage'],
                     'classes':manifest['classes'],'threads':manifest['threads'],
-                    'b_min':manifest['b_min'],'attn_prefetch':manifest['attn_prefetch'],
+                    **({'b_min':manifest['b_min']} if 'b_min'in manifest else{}),'attn_prefetch':manifest['attn_prefetch'],
                     'split':manifest['split'],'route_table_offset':manifest['route_table_offset'],
                     'decisions':manifest['decisions'],
                     **{key:manifest[key] for key in ('combine_mode','route_table_mode','combine_state_offset','combine_tickets') if key in manifest},
-                    'attention':{'impl':'MxAttentionV2','task_body':'MoeProgramV3'}}
+                    'attention':{'impl':'MxAttentionV'+str(manifest.get('attention_version',2)),'task_body':'MoeProgramV3'}}
             return {'executor': manifest['executor'], 'version': manifest['version'],
                     'kv_layout': manifest['kv_layout'], 'kv_storage': manifest['kv_storage'],
                     'classes': manifest['classes'], 'threads': manifest['threads'],
                     'b_min': manifest['b_min'], 'attn_prefetch': manifest['attn_prefetch'],
                     'decisions': manifest['decisions'],
-                    'attention': {'impl': 'MxAttentionV2', 'task_body':
+                    **({'attention_version':3,'attention_split':manifest['attention_split']} if manifest.get('attention_version')==3 else {}),
+                    'attention': {'impl': 'MxAttentionV3' if manifest.get('attention_version')==3 else 'MxAttentionV2', 'task_body':
                         'MoeProgramV2' if manifest.get('program_kind') == 'moe' else 'DecodeProgramV2'}}
         return {'executor': 'mx_static', 'kv_layout': manifest.get('kv_layout'),
                 'classes': manifest['classes'], 'attention_tmin': manifest['attention_tmin'],

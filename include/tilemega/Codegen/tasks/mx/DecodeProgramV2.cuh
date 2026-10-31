@@ -2,6 +2,7 @@
 #pragma once
 
 #include <tilemega/Backend/Mx/DecodeAttentionV2.h>
+#include <tilemega/Backend/Mx/DecodeAttentionV3.h>
 #include <tilemega/Backend/Mx/DecodeHeadV2.h>
 #include <tilemega/Codegen/tasks/ServingAbi.h>
 #include <tilemega/Codegen/tasks/mx/StageProgram.cuh>
@@ -10,6 +11,11 @@
 #include <cstdint>
 
 namespace tilemega::codegen::mx {
+
+template<int B,int Hkv,int Threads>
+struct MxAttentionShapeWithSyncV2 : backend::mx::MxStaticAttentionShapeV2<B,Hkv,Threads> {
+  using Sync = StageSyncV2<Threads>;
+};
 
 struct MxLayerBindingV2 {
   Bf16 const *w_qkv, *w_o, *w_gu, *w_down, *q_norm, *k_norm;

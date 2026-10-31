@@ -7,7 +7,7 @@ struct MxMoeConfigV3 {
   MxDecodeClassV2 qkv,o,router,gate_up,down,head;
   int threads=512, b_min=1, attn_prefetch=0, split=1;
   std::string combine_mode="owner16", route_table_mode="both";
-  int attn_version=2;
+  int attn_version=3;
 };
 void CheckMxMoeConfigV3(frontend::ModelPlan const& plan,MxMoeConfigV3 const& config);
 int MxMoeBodySmemBytesV3(frontend::ModelPlan const& plan,MxMoeConfigV3 const& config);

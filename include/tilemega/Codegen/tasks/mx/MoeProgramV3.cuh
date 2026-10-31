@@ -3,6 +3,7 @@
 #include <tilemega/Codegen/tasks/mx/DecodeProgramV2.cuh>
 #include <tilemega/Codegen/tasks/mx/StageSyncV3.cuh>
 #include <tilemega/Backend/Mx/RouterLogitsV3.h>
+#include <tilemega/Backend/Mx/DecodeAttentionV3.h>
 #include <tilemega/Backend/Mx/GroupedGemmV3.h>
 namespace tilemega::codegen::mx {
 using backend::mx::MxMoeGlobalTicketV2;
