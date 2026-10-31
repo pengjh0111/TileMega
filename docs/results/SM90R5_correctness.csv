@@ -7,3 +7,4 @@ d0_tokens,69ef51f13,A0 level-2 instrumentation,qwen3_30b_a3b_b1,pass,traced and 
 dense_gate,A1 legality fix,A1 qk_norm_row rejects group_wait,llama3_1_8b_b1,pass,generated source and predicted ranking unchanged; dense keeps group_wait,runs/sm90r5/dense_gate/a1/manifest.json
 dense_gate,A1 legality fix,A1 qk_norm_row rejects group_wait,qwen3_0_6b_b16,pass,generated source and predicted ranking unchanged; dense keeps group_wait,runs/sm90r5/dense_gate/a1/manifest.json
 a1_legality,A1 legality fix,OLMoE B1 predicted solve,olmoe_1b_7b_b1,pass,all four ranked candidates now carry group_wait false; predicted step 1.1463 ms unchanged from R4,runs/sm90r5/a1/olmoe-B1/decode.cu.search/receipt.json
+e1_gate,E1 evict_first,dense gate and P-PAIR,both dev cells,PENDING,committed before its gate and pair ran; must be verified before E1 is trusted,-
