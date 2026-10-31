@@ -91,7 +91,7 @@ Pending: P3 attention publication audit, conditional X1's
 five-process readiness litmus, and CP6's 576-thread dense qualification.
 No G6-SYNC or final reliability acceptance is claimed here.
 
-## CP2 deferred combine (verified source and five-process litmus)
+## CP2 deferred combine — 已取代 (historical verified evidence)
 
 `GroupedGemmV3.h:504` finishes every round before calling Complete at line509.
 The old per-unit completion types/calls are absent from V3. At unchanged
@@ -135,3 +135,35 @@ Two rebuilt V2 plans remain byte-identical to the frozen same-bridge controls.
 Correctness does not enable CP2: OLMoE B16 P-PAIR regresses11.294080→11.568084 ms,
 triggering prompt13.4.3/13.4.5. GPU work stops; two other timing processes are
 intentionally SIGTERM-aborted, preserved separately from kernel failures.
+
+## CP2′ P1b and fixed owners (verified source and 5/5 litmus)
+
+P0's implementation is unchanged. RouteTable places per-element exponentials
+in body LDS, then LdsSync before the original serial summation. Counts precede
+32-bit mask construction, followed by LdsSync before popcounts. Expert/row/
+weight bits match V2 in all40 combinations ×360 inputs, for each of both,
+weights-only and ordinal-only variants (three fresh guarded fixture processes).
+
+M6's owner16 combine uses H/16 counters and fixed owner=floor(tc×104/Tc).
+The inverse owner interval is [ceil(cta×Tc/104),ceil((cta+1)×Tc/104)).
+All down rounds precede CtaSync; wave0 fences and emits non-returning atomic
+counts. Role0 polls only its tiles after its CTA has finished producing,
+acquires, and publishes the persistent LDS generation; every thread awaits it.
+Generation target=past×layers+layer+1 avoids racing a shared read/increment;
+it increases within the launch and resets only on kernel entry. The16-byte
+state follows RouteTable, outside both bodies' workspace, and is included in
+host/runtime/manifest LDS bounds. Owner-only counter stores precede final
+CtaSync→next(); the next grid barrier separates counter reuse. Each item issues
+residual+eight partial loads as one batch and preserves V2's rank/rounding order.
+
+`moe_owner_combine`: **5/5 fresh processes**, each2000 layers ×104 CTAs,
+zero violations,208000 participants, host x bitwise, MT101/local0/static0,
+actual resident1. All16 combinations of TN16/32/64/128 and active1/8/64/128
+occur in each process; n_active1 remains a synthetic publication case.
+Raw: `runs/mx6/v2/owner_build/litmus`, `owner_diagnostic/litmus_r1..5`;
+appended process rows are in MX6_sync_checks_c550.csv.
+All four combine modes pass64 same-geometry V2 comparisons each plus repeats,
+including B1/16,E64/128, empty experts and count16. The mode fixtures are four
+fresh processes, not five-process protocol evidence for the optional modes.
+Native final MIR retains non-returning stage U64 and owner I32 adds; full
+per-plan source/binary/MIR/occupancy receipts are retained in runs/mx6/v2.
