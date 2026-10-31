@@ -78,9 +78,30 @@ def test_moe_prompt_uses_decode_bridge_and_prompt64(tmp_path, watchdog, director
 
 
 @pytest.mark.parametrize('change', [dict(PIN=''), dict(SELECTION='measure'), dict(MX5_RESOLVED_V2='dense-protocol')])
-def test_unready_moe_solver_never_runs_the_legacy_script_branch(tmp_path, change):
+def test_incomplete_or_conflicting_moe_request_never_runs_legacy(tmp_path, change):
     script, env = environment(tmp_path)
     env.update(change)
     p = subprocess.run([str(script), 'solve', 'moe', '1', 'decode'], env=env, capture_output=True, text=True)
-    assert p.returncode == 2 and 'MoE measured top-four selection is pending' in p.stderr
+    assert p.returncode == 2
+    assert 'measured' in p.stderr and ('requires' in p.stderr or 'control PIN' in p.stderr)
     assert not Path(env['COMMAND_LOG']).exists()
+
+
+@pytest.mark.parametrize('phase', ['decode', 'prefill'])
+def test_measured_moe_uses_one_cell_scope_without_manual_pin(tmp_path, phase):
+    script, env = environment(tmp_path)
+    stub = tmp_path / 'bin/python'
+    stub.parent.mkdir()
+    stub.write_text('''#!/usr/bin/env python3
+import json,os,sys
+with open(os.environ['COMMAND_LOG'],'a')as f:f.write(json.dumps(sys.argv[1:])+'\\n')
+''')
+    stub.chmod(0o755)
+    env.update(PIN='', SELECTION='measure', PATH=str(stub.parent)+os.pathsep+env['PATH'])
+    p = subprocess.run([str(script), 'solve', 'moe', '4', phase], env=env, capture_output=True, text=True)
+    assert p.returncode == 0, p.stderr
+    (args,) = commands(env)
+    assert args[:2] == ['-m', 'tilemega.moe.solve_v3']
+    assert args[args.index('--cell-dir')+1] == str(tmp_path/'cells/moe/B4')
+    assert args[args.index('--out')+1] == str(tmp_path/'cells/moe/B4/selection_v3')
+    assert args[args.index('--costs')+1].endswith('/configs/targets/xcore1000_mx6_moe.json')

@@ -53,9 +53,23 @@ solve)
   [ "$phase" = prefill ] && [ "${WATCHDOG:-0}" = 1 ] && phase_dir=prefill_w
   C=$CELLS/$id/B$b/$phase_dir; mkdir -p $C
   if [ "$is_moe" = 1 ]; then
-    # The measured MoE solver is pending; explicit pins are control builds.
+    if [ "${SELECTION:-predicted}" = measure ]; then
+      [ -z "${PIN:-}" ] && [ -z "${MX5_RESOLVED_V2:-}" ] || {
+        echo "measured MoE selection requires the measured domain without a manual PIN" >&2; exit 2; }
+      case "$phase" in decode|prefill) ;; *) echo "MoE phase must be decode or prefill" >&2; exit 2;; esac
+      cell="$CELLS/$id/B$b"
+      prompts=${PROMPTS:-$ROOT/configs/prompts/$(case $id in qwen*) echo qwen;; *) echo olmoe_1b_7b;; esac)_isl64.json}
+      PYTHONPATH="$ROOT/python" python -m tilemega.moe.solve_v3 \
+        --model-id "$id" --model "${MODEL:-/root/models/${id}_rand}" \
+        --batch "$b" --gpu "${MGPU:-7}" --compiler "$SOLVE_BIN" --target "$TARGET" \
+        --bridge "$EXPORT_ROOT/${id}_decode/bridge.json" \
+        --costs "${MX6_MOE_COSTS:-$ROOT/configs/targets/xcore1000_mx6_moe.json}" \
+        --prompt-ids "$prompts" --out "$cell/selection_v3" --cell-dir "$cell"
+      exit $?
+    fi
+    # Explicit pins remain development controls; they cannot select a final plan.
     [ -n "${PIN:-}" ] && [ "${SELECTION:-predicted}" = predicted ] && [ -z "${MX5_RESOLVED_V2:-}" ] || {
-      echo "MoE measured top-four selection is pending; use an explicit manual mx_moe_v2 or mx_moe_v3 PIN with SELECTION=predicted" >&2; exit 2; }
+      echo "use an explicit MoE control PIN with SELECTION=predicted or measured costs with SELECTION=measure" >&2; exit 2; }
     case "$phase" in decode|prefill) ;; *) echo "MoE phase must be decode or prefill" >&2; exit 2;; esac
     exec 9>"$C/.lock"
     flock -n 9 || { echo "cell already being solved" >&2; exit 3; }
