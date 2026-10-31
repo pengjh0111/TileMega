@@ -69,6 +69,7 @@ def profile(normal, annotated, normal_log, annotated_log, source, root, kernel):
     elf = ELFFile(BytesIO(annotated_images[0][1]))
     base = elf.get_section_by_name('.text')['sh_addr']
     dwarf, ranges, sites = elf.get_dwarf_info(), [], []
+    source_spellings = {str(source), os.path.relpath(source, root)}
     for cu in dwarf.iter_CUs():
         if cu['version'] != 4:
             raise ValueError('this MACA attribution protocol requires DWARF4')
@@ -81,8 +82,12 @@ def profile(normal, annotated, normal_log, annotated_log, source, root, kernel):
                 continue
             line = die.attributes['DW_AT_call_line'].value
             file = program['file_entry'][die.attributes['DW_AT_call_file'].value-1]
-            if file.name.decode() != source.name or line not in calls:
+            comp_dir = cu.get_top_DIE().attributes['DW_AT_comp_dir'].value.decode()
+            directory = program['include_directory'][file.dir_index-1].decode() if file.dir_index else comp_dir
+            resolved = dwarf_file_path(file.name.decode(), directory, comp_dir)
+            if resolved != source or line not in calls:
                 raise ValueError('inline stage call does not bind the generated source')
+            source_spellings.add(file.name.decode())
             owner, intervals = calls[line], []
             if 'DW_AT_ranges' in die.attributes:
                 address = cu.get_top_DIE().attributes['DW_AT_low_pc'].value
@@ -107,7 +112,7 @@ def profile(normal, annotated, normal_log, annotated_log, source, root, kernel):
     start = matches[0]; end = text.find('# End machine code', start.end())
     if end < 0:
         raise ValueError('unterminated annotated MIR')
-    paths = (str(source), os.path.relpath(source, root))
+    paths = sorted(source_spellings)
     location = re.compile(r'(?:'+'|'.join(re.escape(p) for p in paths)+r'):(\d+):\d+')
     counts, in_block = Counter(), False
     for line in text[start.end():end].splitlines():
@@ -126,6 +131,13 @@ def profile(normal, annotated, normal_log, annotated_log, source, root, kernel):
         instruction_definition='static MIR opcodes, including MIR pseudo instructions; not dynamic hardware counts',
         byte_definition='union of inlined DWARF PC ranges; uncovered text includes control and alignment',
         annotated_device_text_bitwise_equal=True, timing_binary_changed=False)
+
+
+def dwarf_file_path(name, directory, comp_dir):
+    path = Path(name)
+    if not path.is_absolute():path = Path(directory) / path
+    if not path.is_absolute():path = Path(comp_dir) / path
+    return path.resolve()
 
 
 def annotate(so, log, kernel):
