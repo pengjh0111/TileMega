@@ -263,7 +263,8 @@ def main():
     parser.add_argument('--control-dir',type=Path)
     parser.add_argument('--candidates',type=int,choices=(4,8),default=4)
     parser.add_argument('--correctness-remedy',action='store_true')
-    parser.add_argument('--build-workers',type=int,default=32,choices=range(1,65))
+    worker_limit=min(128,len(os.sched_getaffinity(0)))
+    parser.add_argument('--build-workers',type=int,default=min(32,worker_limit),choices=range(1,worker_limit+1))
     args=parser.parse_args();args.cell_dir.mkdir(parents=True,exist_ok=True)
     with(args.cell_dir/'.mx6_selection.lock').open('w')as lock:
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
