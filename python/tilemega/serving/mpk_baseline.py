@@ -30,9 +30,24 @@ class Unsupported(RuntimeError):
 
 def extend(parser):
     parser.add_argument("--page-size", type=int, default=4096)
-    parser.add_argument("--max-num-pages", type=int, default=16)
+    # 16 pages x 4096 is the demos' CLI default, sized for one long-context
+    # request; this protocol runs B requests of prompt + max_tokens tokens. 0
+    # derives the budget MPK's page allocator actually draws on (kv_pages()).
+    parser.add_argument("--max-num-pages", type=int, default=0)
     parser.add_argument("--split-kv-cache", action="store_true",
                         help="demo_hopper.py --split-kv-cache (Qwen3 dense only)")
+
+
+def kv_pages(batch, prompt, max_tokens, page_size):
+    """Pages MPK needs for `batch` concurrent requests of this length.
+
+    persistent_kernel.cuh draws ceil((step + new_tokens)/block_size) pages per
+    request from one queue of MPK_MAX_NUM_PAGES, so the pool is the sum over
+    the batch. Over-sizing it costs KV bytes that are never addressed.
+    """
+    if page_size < 1 or batch < 1 or prompt < 1 or max_tokens < 1:
+        raise ValueError("invalid KV page budget inputs")
+    return batch*((prompt + max_tokens + page_size - 1)//page_size)
 
 
 def architecture(model):
@@ -127,8 +142,15 @@ class Engine:
             hidden = config.hidden_size
             self.lm_head = torch.cat((self.model.lm_head.weight, torch.full(
                 (153600 - config.vocab_size, hidden), 0, device="cuda")), 0)
+        # MPK allocates its tensors with cudaMalloc, which cannot draw on the
+        # torch caching allocator's freed blocks. Stacking 128 experts per
+        # layer and dropping the per-expert modules churns ~57 GiB of
+        # Qwen3-30B-A3B through that cache, so without this the driver sees
+        # almost nothing free when MPK's launcher starts allocating.
+        torch.cuda.empty_cache()
         self.mpk = None
         self.compiles = {}
+        self.build_bytes = 0
 
     def prepare(self, batch, count):
         torch, args = self.torch, self.args
@@ -136,6 +158,20 @@ class Engine:
             self.mpk.finalize()
             self.mpk = None
             torch.cuda.synchronize()
+            torch.cuda.empty_cache()
+        # finalize_persistent_kernel() frees the runtime's task/event/queue
+        # structures, not the fused weight buffers the generated launcher
+        # cudaMallocs (per layer: q/k/v into one qkv, gate/up into one
+        # gatedup, originals kept). Those 0.9 GiB (Qwen3-30B-A3B) to 8.5 GiB
+        # (Llama-3.1-8B) per build are outside the torch allocator and are
+        # never returned, so a process can only afford a few builds. Refuse
+        # the one that would not fit instead of OOMing inside MPK.
+        free = torch.cuda.mem_get_info()[0]
+        if self.build_bytes and free < self.build_bytes:
+            raise RuntimeError(
+                f"{free/2**30:.2f} GiB free is below the {self.build_bytes/2**30:.2f} GiB "
+                f"the previous MPK kernel build retained; run one process per "
+                f"(batch, output length) cell rather than --batch all")
         prompt = self.prompt_length
         length = prompt + count
         meta = dict(
@@ -167,7 +203,10 @@ class Engine:
         self.compiles[f"B{batch}_N{count}"] = dict(
             seconds=time.perf_counter() - start, max_seq_length=length,
             num_workers=self.mpk.num_workers, num_local_schedulers=self.mpk.num_local_schedulers,
+            retained_bytes=max(free - self.torch.cuda.mem_get_info()[0], 0),
             kernel_dir=str(kernel_dir.resolve()))
+        self.build_bytes = max(self.build_bytes,
+                               self.compiles[f"B{batch}_N{count}"]["retained_bytes"])
         self.meta, self.length = meta, length
         # compile() binds only launch/init; the request reset lives on the same module.
         self.reset = self.mpk.launch_func.__self__.init_request_func
@@ -383,6 +422,13 @@ def main():
     args, ids = arguments("mpk", extend)
     require_guard()
     arch = architecture(args.model)
+    batch = 16 if args.batch == "all" else int(args.batch)
+    needed = kv_pages(batch, len(ids[0]), args.max_tokens, args.page_size)
+    if not args.max_num_pages:
+        args.max_num_pages = needed
+    elif args.max_num_pages < needed:
+        raise ValueError(f"--max-num-pages {args.max_num_pages} is below the "
+                         f"{needed} pages MPK allocates for B{batch}")
     engine = Engine(args, arch)
     engine.prompt_length = len(ids[0])
     config = {"dtype": "bfloat16", "kv_cache_dtype": "bfloat16", "greedy": "argmax layers",
@@ -390,6 +436,7 @@ def main():
               "demo": DEMOS[arch], "mirage_home": str(MIRAGE_HOME),
               "mirage_revision": mirage_revision(), "page_size": args.page_size,
               "max_num_pages": args.max_num_pages,
+              "kv_pages_required": needed,
               "max_num_batched_tokens": "B (equal to max_num_batched_requests, as in the demos)",
               "use_cutlass_kernel": True, "spec_decode": None,
               "split_kv_cache": args.split_kv_cache,

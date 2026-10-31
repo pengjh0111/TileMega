@@ -37,7 +37,7 @@ def inputs(model):
     raise FileNotFoundError(model)
 
 
-def job(model, round_index, gpu, max_tokens=1024, batch='all'):
+def job(model, round_index, gpu, max_tokens=1024, batch='1'):
     uuid = read(POLICY)['idle_power_mapping_provenance']['uuid_by_gpu'][str(gpu)]
     baseline = [MPK_PYTHON, '-u', str(ROOT / 'python/tilemega/serving/mpk_baseline.py'),
                 '--model', '{attempt_dir}/checkpoint',
@@ -59,7 +59,7 @@ def job(model, round_index, gpu, max_tokens=1024, batch='all'):
                LD_LIBRARY_PATH=f'{CUDA}/lib64:' + os.environ.get('LD_LIBRARY_PATH', ''),
                HF_HUB_OFFLINE='1', TRANSFORMERS_OFFLINE='1', OMP_NUM_THREADS='8',
                TILEMEGA_NUMA_CONCURRENCY_TRIAL='1', TILEMEGA_NUMA_CONCURRENCY_VERIFIED='0')
-    return dict(name=f'r4base_{model}_mpk_r{round_index}_g{gpu}', gpu=True, timing=True,
+    return dict(name=f'r4base_{model}_mpk_r{round_index}b{batch}_g{gpu}', gpu=True, timing=True,
                 timeout_s=6 * 3600, needs_free_mib=74000, cwd=str(ROOT), env=env, command=command,
                 priority=8.0, after=[],
                 protocol=dict(isl=64, osl=max_tokens, warmup=1, repeats=3, fresh_process_round=round_index,
@@ -78,7 +78,12 @@ def run(model, rounds, unit):
         attempt = unit / f'gpu{gpu}'
         queue = attempt / 'queue'
         queue.mkdir(parents=True, exist_ok=True)
-        write(queue / 'queue_mpk.json', [job(model, r, gpu) for r in rounds])
+        # One process per (round, batch): MPK's finalize frees the runtime's
+        # task/event/queue state but not the fused weight buffers its generated
+        # launcher cudaMallocs, so each build retains 0.9-9.5 GiB and a
+        # --batch all process cannot afford ten of them.
+        write(queue / 'queue_mpk.json', [job(model, r, gpu, batch=str(b))
+                                         for r in rounds for b in BATCHES])
         env = dict(os.environ, CUDA_VISIBLE_DEVICES=str(gpu), TILEMEGA_DEVICE_INDEX=str(gpu),
                    TILEMEGA_GPU_LOCK=f'/tmp/tilemega_gpu{gpu}.lock', TILEMEGA_NUMA_NODE='0',
                    PYTHONPATH=str(ROOT / 'python'))
