@@ -277,6 +277,7 @@ struct Sm90DenseLocalRoute {
   __device__ static __forceinline__ void Publish(LocalSchedule const& s,
       int* schedule,void* route_weights,int* route_index) {
     int tid=threadIdx.x;
+    if(!schedule || !route_weights || !route_index)return;
     if(tid==0)schedule[Schedule::Active()]=s.active;
     for(int a=tid;a<s.active;a+=128) {
       schedule[Schedule::Expert(a)]=s.expert[a];
