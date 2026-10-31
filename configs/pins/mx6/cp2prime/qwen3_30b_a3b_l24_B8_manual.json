@@ -1,0 +1,66 @@
+{
+  "mx_moe_v3": {
+    "down": {
+      "d": 2,
+      "part": "kTileRange",
+      "prefetch": 2,
+      "r_next": 226,
+      "tn": 128,
+      "wn": 2
+    },
+    "gate_up": {
+      "d": 2,
+      "part": "kTileRange",
+      "prefetch": 0,
+      "r_next": 98,
+      "tn": 32,
+      "wn": 8
+    },
+    "head": {
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 2,
+      "r_next": 112,
+      "tn": 128,
+      "wn": 8
+    },
+    "o": {
+      "d": 2,
+      "part": "kTileRange",
+      "prefetch": 2,
+      "r_next": 104,
+      "tn": 32,
+      "wn": 1
+    },
+    "qkv": {
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 1,
+      "r_next": 100,
+      "tn": 64,
+      "wn": 1
+    },
+    "router": {
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 1,
+      "r_next": 129,
+      "tn": 16,
+      "wn": 1
+    },
+    "threads": 512,
+    "b_min": 4,
+    "attn_prefetch": 0,
+    "purpose": "manual",
+    "version": 3,
+    "split": 1,
+    "combine_mode": "owner16",
+    "route_table_mode": "both",
+    "attn_version": 2
+  },
+  "evidence": {
+    "kind": "development_control",
+    "geometry_source": "configs/pins/mx6/cp1/qwen3_30b_a3b_l24_B8_manual.json",
+    "note": "CP2prime owner16/P1b; attn_version2 until CP3; not solver selected"
+  }
+}

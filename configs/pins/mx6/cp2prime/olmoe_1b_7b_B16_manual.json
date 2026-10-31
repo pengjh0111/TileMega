@@ -1,0 +1,66 @@
+{
+  "mx_moe_v3": {
+    "purpose": "manual",
+    "threads": 512,
+    "b_min": 4,
+    "attn_prefetch": 0,
+    "qkv": {
+      "tn": 32,
+      "wn": 1,
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 1,
+      "r_next": -1
+    },
+    "o": {
+      "tn": 32,
+      "wn": 1,
+      "d": 1,
+      "part": "kStreamK",
+      "prefetch": 1,
+      "r_next": -1
+    },
+    "router": {
+      "tn": 16,
+      "wn": 1,
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 1,
+      "r_next": -1
+    },
+    "gate_up": {
+      "tn": 64,
+      "wn": 2,
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 0,
+      "r_next": -1
+    },
+    "down": {
+      "tn": 64,
+      "wn": 2,
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 1,
+      "r_next": -1
+    },
+    "head": {
+      "tn": 32,
+      "wn": 8,
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 1,
+      "r_next": -1
+    },
+    "version": 3,
+    "split": 1,
+    "combine_mode": "owner16",
+    "route_table_mode": "both",
+    "attn_version": 2
+  },
+  "evidence": {
+    "kind": "development_control",
+    "geometry_source": "configs/pins/mx6/cp1/olmoe_1b_7b_B16_manual.json",
+    "note": "CP2prime owner16/P1b; attn_version2 until CP3; not solver selected"
+  }
+}
