@@ -84,3 +84,42 @@ def test_disqualified_mode_does_not_renumber_the_kernel_enum():
     key=dict(stage='down',b=1,tn=32,wn=8,d=2,experts=64,hidden=2048,intermediate=1024,combine_mode='unit_la')
     _,definitions,_=bench['definitions'](key,2)
     assert definitions['COMBINE']==3
+
+
+def test_parallel_resource_completion_keeps_prediction_order(tmp_path,monkeypatch):
+    import argparse
+    import json
+    import time
+    from tilemega.moe import solve_v3
+    catalog=tmp_path/'catalog.json'
+    catalog.write_text(json.dumps({'complete_scope':True,'rows':[]}))
+    choices=[dict(candidate_rank=i,predicted_ns=100+i,stages={})for i in range(1,12)]
+    monkeypatch.setattr(solve_v3,'check_qualification',lambda p:{'excluded_combine_modes':['unit_owner']})
+    monkeypatch.setattr(solve_v3,'stage_lists',lambda *a:{})
+    monkeypatch.setattr(solve_v3,'k_best',lambda *a:iter(choices))
+    monkeypatch.setattr(solve_v3,'pin',lambda choice,sha,purpose='resource_probe':
+        {'mx_moe_v3':{'purpose':purpose,'selection':{}}})
+    finished=[];queried=[]
+    cell=solve_v3.Cell.__new__(solve_v3.Cell)
+    cell.a=argparse.Namespace(model_id='qwen3_30b_a3b_l24',batch=1,candidates=4,build_workers=4)
+    cell.out=tmp_path/'selection';cell.out.mkdir()
+    cell.cell=tmp_path/'selected';cell.cell.mkdir()
+    cell.costs=catalog;cell.control=tmp_path/'control'
+    def build(pin,folder,query=True):
+        if folder==cell.cell:return True,[]
+        rank=int(folder.name.removeprefix('rank'))
+        time.sleep(.04 if rank%2 else .001)
+        finished.append(rank)
+        return rank>=3,[]
+    def query(folder,label):
+        queried.append(int(folder.name.removeprefix('rank')))
+        return True
+    cell.build=build;cell.query=query
+    cell.correctness=lambda *a:{'pass':True}
+    cell.measure=lambda *a:{'fresh_process_ns':[100,100]}
+    result=cell.run()
+    qualified=json.loads((cell.out/'QUALIFIED.json').read_text())['qualified']
+    assert finished.index(2)<finished.index(1)
+    assert [r['choice']['candidate_rank']for r in qualified]==[3,4,5,6]
+    assert queried==[3,4,5,6]
+    assert result['choice']['candidate_rank']==3
