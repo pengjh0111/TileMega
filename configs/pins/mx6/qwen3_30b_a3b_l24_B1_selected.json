@@ -1,0 +1,106 @@
+{
+  "mx_moe_v3": {
+    "version": 3,
+    "threads": 512,
+    "purpose": "selected",
+    "attn_version": 3,
+    "attn_prefetch": 0,
+    "split": 4,
+    "route_table_mode": "both",
+    "combine_mode": "owner_tile",
+    "qkv": {
+      "tn": 64,
+      "wn": 1,
+      "d": 4,
+      "prefetch": 4,
+      "r_next": 148,
+      "part": "kTileRange"
+    },
+    "o": {
+      "tn": 32,
+      "wn": 1,
+      "d": 4,
+      "prefetch": 4,
+      "r_next": 106,
+      "part": "kTileRange"
+    },
+    "router": {
+      "tn": 16,
+      "wn": 1,
+      "d": 4,
+      "prefetch": 4,
+      "r_next": 86,
+      "part": "kTileRange"
+    },
+    "gate_up": {
+      "tn": 32,
+      "wn": 8,
+      "d": 4,
+      "prefetch": 0,
+      "r_next": 101,
+      "part": "kTileRange"
+    },
+    "down": {
+      "tn": 64,
+      "wn": 2,
+      "d": 2,
+      "prefetch": 4,
+      "r_next": 108,
+      "part": "kTileRange"
+    },
+    "head": {
+      "tn": 64,
+      "wn": 4,
+      "d": 1,
+      "prefetch": 4,
+      "r_next": 96,
+      "part": "kTileRange"
+    },
+    "selection": {
+      "cost_table_sha256": "46ff7ce889f4148f15d17b9d926baac149ea01f26539a46e3edb3d4d77e6848f",
+      "candidate_rank": 1,
+      "predicted_ns": 3325084.2375366567,
+      "source_rows": {
+        "qkv": [
+          765
+        ],
+        "attention": [
+          3819,
+          3820,
+          3821,
+          3822,
+          3823
+        ],
+        "o": [
+          3865
+        ],
+        "router": [
+          1967
+        ],
+        "gate_up": [
+          1931
+        ],
+        "down": [
+          628
+        ],
+        "head": [
+          2894
+        ]
+      },
+      "program_switches": {
+        "route_table_mode": "both",
+        "experts_fused": false
+      },
+      "algorithm": "measured stage costs, k-best substitution, resource-qualified cohort, one-percent E2E rule",
+      "measurement_decision": {
+        "path": "/root/tilemega/runs/mx6/continue1/cp4/qwen3_30b_a3b_l24/B1/selection/MEASURED_SELECTION.json",
+        "sha256": "4b4a21ceb520fbd7e73774050d27ed80d39405a53b81900ccfe9cc1680240633"
+      },
+      "eligible_rank": 1,
+      "fresh_processes_per_candidate": 2,
+      "qualified_candidates": 4,
+      "correctness_steps": 512,
+      "default_enabled": false
+    }
+  }
+}
