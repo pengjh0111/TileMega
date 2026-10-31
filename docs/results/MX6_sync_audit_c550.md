@@ -175,3 +175,29 @@ per-CTA per-stage arrival-count traps active throughout warmup and timed runs.
 All39 new native plans pass actual resident1/frame0/static0 queries and required
 MIR reports. This qualifies CP2′ only; final20-process-per-pin reliability and
 P3/X1/dense synchronization qualification remain pending.
+
+## CP3 attention publication (verified; nine fresh fixture processes)
+
+`DecodeAttentionV3.h:374–391` assigns each wave one head and writes wave
+(m,l,O) slots before LdsSync. Split1 merges only its head's nonempty waves
+inside that CTA; it allocates no global partials/tickets. Final ctx/KV stores
+precede CtaSync and the unchanged early-arrival next callback. Projection
+loads are issued together with the prefix; the original inverse-RMS arithmetic
+runs from registers. No new cross-CTA protocol is introduced in split1.
+
+Split2/4 use the existing LastArriverV2 publication/acquire protocol. All m/l/O
+partial loads for a thread are issued as one batch before its sole global wait;
+there is no CTA sync inside that merge. The unchanged LA protocol's earlier
+five-process litmus remains its protocol evidence. The new attention body is
+separately exercised in **9/9 fresh guarded processes**,2184 FP64/reference,
+cache-history and repeat-bitwise cases; each profile includes legal split1/2/4.
+This is body testing, not a claim of2000-iteration split litmus coverage.
+Raw: runs/mx6/cp3/unit_gpu_v2/COMPLETE.json. Existing P0/owner litmus evidence
+remains5/5 per protocol; P0 and owner code are unchanged at CP3.
+
+All ten primary MoE configurations and seven split candidates pass512-step
+C-1/C-2. B1 diagnostic cohorts exercise the DIAG arrival-count trap throughout
+warmup1+timed2 full requests: S1 Qwen20/20, S1 OLMoE20/20, and selected OLMoE
+split4 20/20 (60/60 new DIAG processes total). Dense's two smoke tests use the V2
+program with attention3; dense early-arrival/576 qualification is deferredCP6.
+Final twenty-process-per-pin reliability is still required at CP5.
