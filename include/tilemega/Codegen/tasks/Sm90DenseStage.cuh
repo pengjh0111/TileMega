@@ -59,6 +59,13 @@ struct StageEntry {
       backend::Sm90DenseRingState* ring,Tail tail,bool streamed) {
     Body::template Run<Prefix,Tail>(p,shared,ring,tail,streamed);
   }
+  // Tensor parallel o/down: the same entry plus the stage's reduction record.
+  template<int Prefix,class Tail>
+  __device__ static __forceinline__ void Gemm(backend::Sm90DenseOperands const& p,char* shared,
+      backend::Sm90DenseRingState* ring,Tail tail,bool streamed,
+      backend::Sm90DenseTpOperands const* tp) {
+    Body::template Run<Prefix,Tail>(p,shared,ring,tail,streamed,backend::Sm90DenseNoFinish{},tp);
+  }
   template<int Prefix,class Tail,class Finish>
   __device__ static __forceinline__ void Head(backend::Sm90DenseOperands const& p,char* shared,
       backend::Sm90DenseRingState* ring,Tail tail,bool streamed,Finish finish) {

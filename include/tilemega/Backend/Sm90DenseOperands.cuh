@@ -83,6 +83,32 @@ struct Sm90DenseMoeFusedOperands {
   float const* logits;
   float epsilon;
 };
+// Megatron tensor parallel (prompt appendix C). o and down reduce their tile
+// across ranks inside the epilogue: each rank writes an 8-byte LL packet (two
+// bf16 values plus the step's epoch) into every peer's receive region, then
+// polls its own region for one packet per rank. `region` is this AR's base
+// offset in u64 units, so the two reductions of a layer and the layers
+// themselves never share a slot within one step.
+struct Sm90DenseTpOperands {
+  std::uint64_t* recv[8];
+  std::uint32_t region,epoch;
+  int rank,world;
+};
+// The head exchanges one (value, global index) per row so every rank picks the
+// same token. Its release/acquire also orders the next step's AR writes after
+// this step's reads, which is why the AR path needs no fence of its own.
+// Double buffered by the step's parity so the next step's writes cannot land
+// on a slot this step is still reading.
+struct alignas(64) Sm90DenseTpExchange {
+  std::uint64_t data[2][8][16];
+  std::uint64_t flag[2][8];
+};
+struct Sm90DenseTpHeadOperands {
+  Sm90DenseTpExchange* x[8];
+  std::uint64_t epoch;
+  int rank,world,vocab_local,pad;
+};
+
 // Thread zero fully initializes the active member for the next stage. That
 // member is immutable from the V3 CTA join until the stage's complete return.
 // The other member is not read by the stage or its preissue tail.
@@ -94,6 +120,10 @@ struct alignas(16) Sm90DenseOperandBank {
     Sm90DenseAttentionOperands attention;
     Sm90DenseMoeOperands moe;
     Sm90DenseMoeFusedOperands moe_fused;
+    // o/down and the head are GEMM stages: they use `gemm` (and `head`) and
+    // never the union, so the TP records live here for free.
+    Sm90DenseTpOperands tp;
+    Sm90DenseTpHeadOperands tp_head;
   };
 };
 struct Sm90DenseOperandHeader {
@@ -110,6 +140,10 @@ struct Sm90DenseOperandHeader {
   // M56 must not widen the bank: the union still measures the attention record.
   static_assert(sizeof(Sm90DenseMoeFusedOperands)==112 &&
       sizeof(Sm90DenseMoeFusedOperands)<=sizeof(Sm90DenseAttentionOperands));
+  static_assert(sizeof(Sm90DenseTpOperands)==80 && sizeof(Sm90DenseTpHeadOperands)==88 &&
+      sizeof(Sm90DenseTpOperands)<=sizeof(Sm90DenseAttentionOperands) &&
+      sizeof(Sm90DenseTpHeadOperands)<=sizeof(Sm90DenseAttentionOperands),
+      "the TP records must fit the bank's union without widening it");
   static_assert(sizeof(Sm90DenseOperandBank)==224 && alignof(Sm90DenseOperandBank)==16);
   static_assert(offsetof(Sm90DenseOperandBank,gemm)==0 && offsetof(Sm90DenseOperandBank,head)==48 &&
       offsetof(Sm90DenseOperandBank,attention)==96 && offsetof(Sm90DenseOperandBank,moe)==96 &&

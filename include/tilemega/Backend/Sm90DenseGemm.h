@@ -30,7 +30,11 @@ struct Sm90DenseGemm {
   __device__ static __forceinline__ unsigned& PeerGenerations(Sm90DenseRingState& state) {
     return Sm90DenseClusterState::OfRing(state).peer_generations[Sm90DenseClusterState::RingIndex(state)];
   }
-  static constexpr bool kResidual=Op==ServingEpilogueOp::kResidual;
+  // The all-reduce form prefetches and adds the residual exactly as kResidual
+  // does, so every residual-shaped decision covers both.
+  static constexpr bool kResidual=Op==ServingEpilogueOp::kResidual ||
+      Op==ServingEpilogueOp::kResidualAllReduce;
+  static constexpr bool kAllReduce=Op==ServingEpilogueOp::kResidualAllReduce;
   // A residual task's tile is prefetched per local task; a grid of at least
   // 132 CTAs gives each CTA at most two of them.
   static_assert(!kResidual || N/TN<=264,"residual stages prefetch at most two local tasks");
@@ -44,7 +48,8 @@ struct Sm90DenseGemm {
   static_assert(kSharedBytes==1024+kOperandBytes+kScratchBytes+512+(kResidual?4*Batch*TN:0));
   // Store and residual write from registers when one warp holds all of K.
   static constexpr bool kRegisterEpilogue=WarpsK==1 &&
-      (Op==ServingEpilogueOp::kStore || Op==ServingEpilogueOp::kResidual);
+      (Op==ServingEpilogueOp::kStore || Op==ServingEpilogueOp::kResidual ||
+       Op==ServingEpilogueOp::kResidualAllReduce);
   using Epilogue=Sm90DenseEpilogue<Op,Batch,N,K,TN,U,InputNorm>;
   static_assert(kThreads==Sm90DenseRoleAbi::kThreads);
   using Atom=decltype(cute::composition(cute::Swizzle<3,3,3>{},
@@ -199,7 +204,7 @@ struct Sm90DenseGemm {
   template<class Finish>
   __device__ static __noinline__ void Consume(Sm90DenseOperands const& p,
       Sm90DenseRingState& state,Element* a,Element* b,float* scratch,Element* residual,
-      int tasks,unsigned phase,Finish finish) {
+      int tasks,unsigned phase,Finish finish,Sm90DenseTpOperands const* tp=nullptr) {
     Sm90DenseRoles::Consumer();
     using namespace cute;
     int tid=threadIdx.x,lane=tid%(32*WarpsN),split=tid/(32*WarpsN);
@@ -261,7 +266,7 @@ struct Sm90DenseGemm {
         float inv[2]={1,1};
         if constexpr(InputNorm)
           for(int r=0;r<2;++r)inv[r]=Epilogue::Inverse(squares[r],p.epsilon);
-        Epilogue::Registers(accum,owned,inv,tile_residual,p.output,task);
+        Epilogue::Registers(accum,owned,inv,tile_residual,p.output,task,tp);
         if(tid==0)Sm90DenseMark(2);
       }else {
         for(int i=0;i<size(accum);++i)
@@ -277,7 +282,7 @@ struct Sm90DenseGemm {
           Epilogue::template Shared<WarpsK>(scratch,norms,tile_residual,
               reinterpret_cast<Element*>(best),arg,task,p.epsilon);
         else Epilogue::template Shared<WarpsK>(scratch,norms,tile_residual,p.output,p.argmax_index,
-            task,p.epsilon);
+            task,p.epsilon,tp);
         codegen::executor::ComputeSync();
         if(tid==0)Sm90DenseMark(2);
       }
@@ -295,7 +300,9 @@ struct Sm90DenseGemm {
 
   template<int Prefix=0,class Tail=Sm90DenseNoTail,class Finish=Sm90DenseNoFinish>
   __device__ static __forceinline__ void Run(Sm90DenseOperands const& p,char* shared,
-      Sm90DenseRingState* persistent=nullptr,Tail tail={},bool streamed=true,Finish finish={}) {
+      Sm90DenseRingState* persistent=nullptr,Tail tail={},bool streamed=true,Finish finish={},
+      Sm90DenseTpOperands const* tp=nullptr) {
+    static_assert(!kAllReduce || true,"the all-reduce form needs its TP record at run time");
     static_assert(Op==ServingEpilogueOp::kArgmaxPartial ||
         std::is_same_v<Finish,Sm90DenseNoFinish>,"only lm_head finishes with the folded argmax");
     static_assert(Prefix>=0 && Prefix%16==0 &&
@@ -315,7 +322,7 @@ struct Sm90DenseGemm {
     // Each role publishes only its own phases, after its readers have joined.
     // The previous stage's final CTA join makes the two snapshots consistent.
     int tasks=(N/TN)/int(gridDim.x)+(int(blockIdx.x)<(N/TN)%int(gridDim.x));
-    if(threadIdx.x<128)Consume(p,state,a,b,scratch,residual,tasks,phase,finish);
+    if(threadIdx.x<128)Consume(p,state,a,b,scratch,residual,tasks,phase,finish,tp);
     else {
       Produce<Prefix>(p,state,a,b,residual,tasks,phase,streamed);
       if(threadIdx.x==128)tail();

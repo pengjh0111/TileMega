@@ -2,7 +2,9 @@
 #pragma once
 #include <tilemega/Backend/ServingEpilogue.h>
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
+#include <tilemega/Backend/Sm90DenseOperands.cuh>
 #include <cutlass/bfloat16.h>
+#include <cstring>
 #include <cuda_bf16.h>
 #include <climits>
 #include <cmath>
@@ -17,12 +19,59 @@ template<ServingEpilogueOp Op,int Batch,int N,int K,int TN,int U,bool InputNorm>
 struct Sm90DenseEpilogue {
   using Element=cutlass::bfloat16_t;
   static_assert(Op==ServingEpilogueOp::kStore || Op==ServingEpilogueOp::kResidual ||
-                Op==ServingEpilogueOp::kSwiGLU || Op==ServingEpilogueOp::kArgmaxPartial);
+                Op==ServingEpilogueOp::kSwiGLU || Op==ServingEpilogueOp::kArgmaxPartial ||
+                Op==ServingEpilogueOp::kResidualAllReduce);
+  // The cross-rank form adds the residual exactly as kResidual does, after the
+  // ranks' partials are summed.
+  static constexpr bool kAllReduce=Op==ServingEpilogueOp::kResidualAllReduce;
   static_assert(Op!=ServingEpilogueOp::kSwiGLU || TN%(2*U)==0);
   static_assert(TN%2==0);
   static constexpr int kOutput=Op==ServingEpilogueOp::kSwiGLU?TN/2:TN;
   static constexpr int kStride=Op==ServingEpilogueOp::kSwiGLU?N/2:
       Op==ServingEpilogueOp::kArgmaxPartial?N/TN:N;
+  // One LL packet carries two bf16 values and the step's epoch in eight bytes,
+  // so a single strong access delivers data and freshness together: the reader
+  // accepts a packet only when its epoch matches, and needs no fence.
+  __device__ static __forceinline__ std::uint64_t Packet(float x,float y,std::uint32_t epoch) {
+    auto pair=Pair(x,y);
+    std::uint32_t bits;std::memcpy(&bits,&pair,sizeof bits);
+    return (std::uint64_t(epoch)<<32)|std::uint64_t(bits);
+  }
+  // Sums the ranks' halves in ascending rank order, which is the same order on
+  // every rank, so x' is bitwise identical everywhere.
+  __device__ static __forceinline__ void AllReduceStore2(Element* output,int row,int col,
+      float x,float y,Element const* residual,Sm90DenseTpOperands const& tp,int n0) {
+    std::uint64_t packet=Packet(x,y,tp.epoch);
+    std::size_t slot=(std::size_t(tp.rank)*Batch+row)*(N/2)+std::size_t(n0+col)/2;
+    #pragma unroll 1
+    for(int q=0;q<tp.world;++q)
+      if(q!=tp.rank)
+        asm volatile("st.relaxed.sys.global.b64 [%0], %1;"::
+            "l"(tp.recv[q]+tp.region+slot),"l"(packet):"memory");
+    float sx=0,sy=0;
+    #pragma unroll 1
+    for(int q=0;q<tp.world;++q) {
+      std::uint32_t bits;
+      if(q==tp.rank)bits=std::uint32_t(packet);
+      else {
+        std::size_t peer=(std::size_t(q)*Batch+row)*(N/2)+std::size_t(n0+col)/2;
+        std::uint64_t seen;
+        do {
+          asm volatile("ld.relaxed.sys.global.b64 %0, [%1];":"=l"(seen)
+              :"l"(tp.recv[tp.rank]+tp.region+peer):"memory");
+        } while(std::uint32_t(seen>>32)!=tp.epoch);
+        bits=std::uint32_t(seen);
+      }
+      __nv_bfloat162 pair;std::memcpy(&pair,&bits,sizeof bits);
+      sx+=__bfloat162float(pair.x);sy+=__bfloat162float(pair.y);
+    }
+    // world == 1 reduces to kResidual's Store2 exactly.
+    float rx=0,ry=0;
+    auto r=*reinterpret_cast<__nv_bfloat162 const*>(residual+row*TN+col);
+    rx=__bfloat162float(r.x);ry=__bfloat162float(r.y);
+    *reinterpret_cast<__nv_bfloat162*>(output+std::size_t(row)*kStride+col)=
+        Pair(float(Element(sx))+rx,float(Element(sy))+ry);
+  }
 
   __device__ static __forceinline__ float Inverse(float squares,float epsilon) {
     return rsqrtf(squares/float(K)+epsilon);
@@ -43,15 +92,19 @@ struct Sm90DenseEpilogue {
   // directly. owned(i) are the (row, col) of accum(i); even/odd pairs share a row.
   template<class Accumulator,class Owned>
   __device__ static __forceinline__ void Registers(Accumulator const& accum,Owned const& owned,
-      float const (&inv)[2],Element const* residual,Element* output,int task) {
-    static_assert(Op==ServingEpilogueOp::kStore || Op==ServingEpilogueOp::kResidual);
-    output+=task*TN;
+      float const (&inv)[2],Element const* residual,Element* output,int task,
+      Sm90DenseTpOperands const* tp=nullptr) {
+    static_assert(Op==ServingEpilogueOp::kStore || Op==ServingEpilogueOp::kResidual ||
+                  Op==ServingEpilogueOp::kResidualAllReduce);
+    Element* base=output+task*TN;
     #pragma unroll
     for(int i=0;i<int(cute::size(accum));i+=2) {
       int row=cute::get<0>(owned(i)),col=cute::get<1>(owned(i));
       if(row<Batch) {
         float scale=InputNorm?inv[row>=8]:1.0f;
-        Store2(output,row,col,accum(i)*scale,accum(i+1)*scale,residual);
+        if constexpr(kAllReduce)
+          AllReduceStore2(base,row,col,accum(i)*scale,accum(i+1)*scale,residual,*tp,task*TN);
+        else Store2(base,row,col,accum(i)*scale,accum(i+1)*scale,residual);
       }
     }
   }
@@ -60,7 +113,8 @@ struct Sm90DenseEpilogue {
   // norms[WK][16]; one pass merges the reduction with the op.
   template<int WK>
   __device__ static __forceinline__ void Shared(float const* tile,float const* norms,
-      Element const* residual,Element* output,int* index,int task,float epsilon) {
+      Element const* residual,Element* output,int* index,int task,float epsilon,
+      Sm90DenseTpOperands const* tp=nullptr) {
     int tid=threadIdx.x;
     auto value=[&](int row,int col) {
       float sum=tile[row*TN+col];
@@ -110,7 +164,10 @@ struct Sm90DenseEpilogue {
             out[e]=float(ServingEpilogueValue<Op>::Apply(value(row,gate)*scale,value(row,gate+U)*scale));
           }
           Store2(output,row,col,out[0],out[1],residual);
-        }else Store2(output,row,col,value(row,col)*scale,value(row,col+1)*scale,residual);
+        }else if constexpr(kAllReduce)
+          AllReduceStore2(output,row,col,value(row,col)*scale,value(row,col+1)*scale,
+                          residual,*tp,task*kOutput);
+        else Store2(output,row,col,value(row,col)*scale,value(row,col+1)*scale,residual);
       }
     }
   }

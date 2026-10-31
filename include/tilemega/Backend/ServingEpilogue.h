@@ -24,7 +24,10 @@ using codegen::executor::ComputeSync;
 using codegen::executor::kComputeThreads;
 
 enum class ServingEpilogueOp {
-  kStore, kResidual, kSwiGLU, kArgmaxPartial, kPartial
+  kStore, kResidual, kSwiGLU, kArgmaxPartial, kPartial,
+  // kResidualAllReduce: kResidual preceded by a cross-rank sum of the tile
+  // (Megatron tensor parallel; prompt appendix C.2).
+  kResidualAllReduce
 };
 
 /// The same scalar operation is called by an unsplit GEMM and by its combine

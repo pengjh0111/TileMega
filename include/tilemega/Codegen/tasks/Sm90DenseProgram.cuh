@@ -51,8 +51,17 @@ inline constexpr unsigned kLayerSlot=1u<<30;
 // Passed as one __grid_constant__ kernel parameter: the tensor maps keep
 // their 64-byte alignment and TMA reads them from parameter space. Thread 0
 // reads a layer's row of `layers` when it publishes that layer's operands.
-template<unsigned Count,unsigned Maps,unsigned Layers,unsigned Slots>
-struct alignas(64) Bindings {
+// Tensor parallel receive pointers, empty at Tp == 1 so a TP1 Bindings keeps
+// its exact layout and the generated source does not mention them.
+template<int Tp> struct Sm90DenseTpFields {
+  std::uint64_t* ar[Tp];
+  backend::Sm90DenseTpExchange* exchange[Tp];
+  int rank;
+};
+template<> struct Sm90DenseTpFields<1> {};
+
+template<unsigned Count,unsigned Maps,unsigned Layers,unsigned Slots,int Tp=1>
+struct alignas(64) Bindings:Sm90DenseTpFields<Tp> {
   CUtensorMap maps[Maps];
   Element* buffers[Count];
   Element* layers[Layers][Slots];
@@ -124,9 +133,12 @@ __device__ inline unsigned long long Now() {
 
 // InputNorm: the stage's input is RMS-normalized in the consumers; its gamma
 // is folded into the packed weight (qkv, gate_up, lm_head).
+// ArSlot >= 0 (tensor parallel o and down): which of the layer's two
+// reductions this stage is, which fixes its region in the receive buffer.
 template<int Batch,int N,int K,int TN,int TK,int Slots,int WN,int WK,
          backend::ServingEpilogueOp Op,int U,bool InputNorm,unsigned W,unsigned C,
-         unsigned D,unsigned Index,int RegisterStages,unsigned Map,bool Multicast=false>
+         unsigned D,unsigned Index,int RegisterStages,unsigned Map,bool Multicast=false,
+         int ArSlot=-1,int Tp=1>
 struct Gemm {
   using Body=backend::Sm90DenseGemm<Batch,N,K,TN,TK,Slots,WN,WK,Op,U,InputNorm,RegisterStages,Multicast>;
   static constexpr bool kMulticast=Multicast;
@@ -146,17 +158,28 @@ struct Gemm {
   }
   template<class B>
   __device__ static __forceinline__ void PublishOperands(B const& b,int layer,int,float epsilon,
-      backend::Sm90DenseOperandBank& record) {
+      backend::Sm90DenseOperandBank& record,unsigned long long iteration=0) {
     record.gemm.activation=b.template Map<Map>();record.gemm.weight=b.template Get<W>(layer);
     record.gemm.residual=b.template Get<C>(layer);record.gemm.output=b.template Get<D>(layer);
     record.gemm.argmax_index=reinterpret_cast<int*>(b.template Get<Index>(layer));
     record.gemm.epsilon=epsilon;
+    if constexpr(ArSlot>=0) {
+      // Region = this reduction's slot among the step's 2 L reductions, so no
+      // two reductions of a step share a word.
+      #pragma unroll
+      for(int q=0;q<Tp;++q)record.tp.recv[q]=b.ar[q];
+      record.tp.region=unsigned((2*layer+ArSlot)*Tp*Batch*(N/2));
+      record.tp.epoch=unsigned(iteration+1);
+      record.tp.rank=b.rank;record.tp.world=Tp;
+    }
   }
   template<int Prefix,class B,class Tail>
   __device__ static __forceinline__ void Run(B const& b,int,char* shared,float,
       backend::Sm90DenseRingState& ring,Tail tail,backend::Sm90DenseOperandBank const& record,
       bool streamed) {
-    StageEntry<Body>::template Gemm<Prefix>(record.gemm,shared,&ring,tail,streamed);
+    if constexpr(ArSlot>=0)
+      StageEntry<Body>::template Gemm<Prefix>(record.gemm,shared,&ring,tail,streamed,&record.tp);
+    else StageEntry<Body>::template Gemm<Prefix>(record.gemm,shared,&ring,tail,streamed);
   }
 };
 
@@ -422,9 +445,11 @@ struct LayerGroup {
 // ranks; DSMEM merges and activation multicast stay within one cluster.
 template<int Batch,int Capacity,int Residency,unsigned Buffers,unsigned Maps,int Arena,
          int Layers,unsigned LayerSlots,bool Loop,bool Embed,class Prologue,class Group,class LmHead,
-         int Cluster=1>
+         int Cluster=1,int Tp=1>
 struct Program {
-  using Binding=Bindings<Buffers,Maps,Layers,LayerSlots>;
+  using Binding=Bindings<Buffers,Maps,Layers,LayerSlots,Tp>;
+  static constexpr int kTp=Tp;
+  static_assert(Tp==1 || Tp==2 || Tp==4 || Tp==8,"tensor parallel degree must be 1, 2, 4 or 8");
   using GroupStages=typename Group::Stages;
   template<unsigned J> using GroupStage=std::tuple_element_t<J,GroupStages>;
   static constexpr int kBatch=Batch,kCapacity=Capacity,kResidency=Residency,kThreads=160;
