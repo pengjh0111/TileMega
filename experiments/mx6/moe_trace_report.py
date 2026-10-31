@@ -14,6 +14,7 @@ from tilemega.build.identity import sha, verify
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--capture',type=Path,required=True);p.add_argument('--decode-so',type=Path,required=True)
+    p.add_argument('--checkpoint', default='CP2prime_diagnostic')
     p.add_argument('--out',type=Path,required=True);a=p.parse_args();a.out.mkdir(exist_ok=False)
     scope=json.loads((a.capture/'trace_scope.json').read_text());identity=verify(a.decode_so)
     assert scope['decode_binary_sha256']==sha(a.decode_so)and scope['trace']==1
@@ -32,7 +33,7 @@ def main():
     anchor=previous[65:].min(axis=2,keepdims=True)
     wait=(stamps[65:,:,:,1].astype(np.int64)-anchor.astype(np.int64)).astype(np.float64)/1000
     rows=[];names=('qkv','attention','o','router','gate_up','down','head')
-    base=dict(checkpoint='CP2prime_diagnostic',model=identity['plan']['model'],batch=scope['batch'],
+    base=dict(checkpoint=a.checkpoint,model=identity['plan']['model'],batch=scope['batch'],
         variant=scope['variant'],round=1,executor='L1_loop',implementation='mx_moe_v3',contract='bf16',
         trace=1,diag=0,watchdog=0,PID=scope['PID'],discard_steps=65,steps=512,ctas=104,
         source_head=scope['source_head'],source_sha256=scope['source_sha256'],binary_sha256=sha(a.decode_so),

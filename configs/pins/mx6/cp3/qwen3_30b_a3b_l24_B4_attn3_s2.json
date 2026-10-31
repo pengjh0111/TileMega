@@ -1,0 +1,66 @@
+{
+  "mx_moe_v3": {
+    "down": {
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 2,
+      "r_next": 150,
+      "tn": 128,
+      "wn": 2
+    },
+    "gate_up": {
+      "d": 2,
+      "part": "kTileRange",
+      "prefetch": 0,
+      "r_next": 98,
+      "tn": 32,
+      "wn": 8
+    },
+    "head": {
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 2,
+      "r_next": 112,
+      "tn": 128,
+      "wn": 8
+    },
+    "o": {
+      "d": 2,
+      "part": "kTileRange",
+      "prefetch": 2,
+      "r_next": 104,
+      "tn": 32,
+      "wn": 1
+    },
+    "qkv": {
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 1,
+      "r_next": 100,
+      "tn": 64,
+      "wn": 1
+    },
+    "router": {
+      "d": 2,
+      "part": "kTileRange",
+      "prefetch": 2,
+      "r_next": 124,
+      "tn": 16,
+      "wn": 1
+    },
+    "threads": 512,
+    "attn_prefetch": 0,
+    "purpose": "manual",
+    "version": 3,
+    "split": 2,
+    "combine_mode": "owner16",
+    "route_table_mode": "both",
+    "attn_version": 3
+  },
+  "evidence": {
+    "kind": "CP3_development_only",
+    "same_batch_geometry_source": "configs/pins/mx6/cp2prime/qwen3_30b_a3b_l24_B4_manual.json",
+    "same_batch_geometry_sha256": "f8212b6db2e7f933a3ba5c837d62320b7d3c79a278f895b993cbfe59f377b71b",
+    "note": "Attention V3 split development; final geometry must come from CP4 solver"
+  }
+}

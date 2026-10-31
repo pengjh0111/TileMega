@@ -48,7 +48,9 @@ def main():
         decode=reference(a.decode_so), prefill=reference(a.prefill_so),
         decode_artifact_id=di['artifact_id'], prefill_artifact_id=pi['artifact_id'],
         source_digest=di['source']['source_digest'], coordinates=decode['classes'],
-        b_min=decode['b_min'], attn_prefetch=decode['attn_prefetch'],
+        **({'b_min':decode['b_min']} if 'b_min' in decode else {}),
+        attn_prefetch=decode['attn_prefetch'], attention_version=decode.get('attention_version',2),
+        split=decode.get('split',1),
         nonadditive=True, body_latency_claim=False, numerical_correctness_claim=False,
         production_acceptance=False, diag=1, watchdog=0, trace_stage=0, step_events=False,
         initialization='zero tokens before each generate; native normal prefill; unwritten scratch starts zero')

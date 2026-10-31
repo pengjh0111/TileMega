@@ -1,0 +1,66 @@
+{
+  "mx_moe_v3": {
+    "purpose": "manual",
+    "threads": 512,
+    "attn_prefetch": 0,
+    "qkv": {
+      "tn": 32,
+      "wn": 1,
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 1,
+      "r_next": -1
+    },
+    "o": {
+      "tn": 32,
+      "wn": 1,
+      "d": 1,
+      "part": "kStreamK",
+      "prefetch": 1,
+      "r_next": -1
+    },
+    "router": {
+      "tn": 16,
+      "wn": 1,
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 1,
+      "r_next": -1
+    },
+    "gate_up": {
+      "tn": 64,
+      "wn": 2,
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 0,
+      "r_next": -1
+    },
+    "down": {
+      "tn": 64,
+      "wn": 2,
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 1,
+      "r_next": -1
+    },
+    "head": {
+      "tn": 32,
+      "wn": 8,
+      "d": 1,
+      "part": "kTileRange",
+      "prefetch": 1,
+      "r_next": -1
+    },
+    "version": 3,
+    "split": 1,
+    "combine_mode": "owner16",
+    "route_table_mode": "both",
+    "attn_version": 3
+  },
+  "evidence": {
+    "kind": "CP3_development_only",
+    "same_batch_geometry_source": "configs/pins/mx6/cp2prime/olmoe_1b_7b_B1_manual.json",
+    "same_batch_geometry_sha256": "a4f7de1a79e81e44e48595f91dbccd83dd6cd06446a297d24ca583435b0a91ef",
+    "note": "Attention V3 split development; final geometry must come from CP4 solver"
+  }
+}
