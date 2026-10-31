@@ -36,9 +36,14 @@ class SelfAttention(nn.Module):
     def __init__(self, config: dict):
         super().__init__()
         hidden = config["hidden_size"]
-        heads = config["num_attention_heads"]
-        kv_heads = config["num_key_value_heads"]
-        self.head_dim = config.get("head_dim", hidden // heads)
+        # Megatron tensor parallel: one rank owns heads/T query heads and
+        # kv_heads/T KV heads, so q/k/v are column sharded and o row sharded.
+        # The exported graph is one rank's, which is what the solver and codegen
+        # see; the cross-rank reduction lives in o's epilogue (residual_ar).
+        tp = int(config.get("tilemega_tp", 1))
+        heads = config["num_attention_heads"] // tp
+        kv_heads = config["num_key_value_heads"] // tp
+        self.head_dim = config.get("head_dim", hidden // config["num_attention_heads"])
         self.heads = heads
         self.kv_heads = kv_heads
         self.q_proj = nn.Linear(hidden, heads * self.head_dim, bias=False)
@@ -50,6 +55,10 @@ class SelfAttention(nn.Module):
         # before the heads are split (HF OlmoeAttention).
         self.has_qk_norm = architecture.startswith("Qwen3")
         self.row_qk_norm = architecture == "OlmoeForCausalLM"
+        if self.row_qk_norm and tp > 1:
+            # The row norm spans every head of the token, which no single rank
+            # holds once the heads are split.
+            raise ValueError("a whole-row QK norm cannot be tensor parallel")
         epsilon = config.get("rms_norm_eps", 1e-5)
         if self.has_qk_norm:
             self.q_norm = RMSNorm(self.head_dim, epsilon)
@@ -94,7 +103,10 @@ class SelfAttention(nn.Module):
 class MLP(nn.Module):
     def __init__(self, config: dict):
         super().__init__()
-        hidden, intermediate = config["hidden_size"], config["intermediate_size"]
+        hidden = config["hidden_size"]
+        # gate/up are column sharded and down row sharded, so a rank holds
+        # intermediate/T of the hidden dimension (down_proj reduces across ranks).
+        intermediate = config["intermediate_size"] // int(config.get("tilemega_tp", 1))
         self.gate_proj = nn.Linear(hidden, intermediate, bias=False)
         self.up_proj = nn.Linear(hidden, intermediate, bias=False)
         self.down_proj = nn.Linear(intermediate, hidden, bias=False)
@@ -137,9 +149,17 @@ class Backbone(nn.Module):
 class Decoder(nn.Module):
     def __init__(self, config: dict):
         super().__init__()
+        tp = int(config.get("tilemega_tp", 1))
         self.model = Backbone(config)
-        self.lm_head = nn.Linear(config["hidden_size"], config["vocab_size"], bias=False)
-        if config.get('tie_word_embeddings', False):
+        # The vocabulary is column sharded, so each rank argmaxes its own slice
+        # and the ranks exchange the winners in the head stage. The embedding
+        # table stays whole: every rank embeds the same chosen token.
+        self.lm_head = nn.Linear(config["hidden_size"], config["vocab_size"] // tp, bias=False)
+        # A sharded lm_head is no longer the whole embedding table, so the tie
+        # is dropped and lm_head becomes its own node. The loader still finds
+        # its values: Checkpoint.tensor maps lm_head.weight to the embedding for
+        # a tied checkpoint, and axis 0 of that is exactly this rank's slice.
+        if config.get('tie_word_embeddings', False) and tp == 1:
             self.lm_head.weight = self.model.embed_tokens.weight
 
     def execute(self, input_ids: torch.Tensor, caches: tuple[torch.Tensor, ...],
@@ -159,17 +179,37 @@ def metadata_only(config: dict) -> bool:
             config['hidden_size']>=3072)
 
 
+def validate_tp(config: dict, tp: int) -> None:
+    """Megatron sharding needs every split dimension to divide by the degree."""
+    if tp not in (1, 2, 4, 8):
+        raise ValueError('tensor parallel degree must be 1, 2, 4 or 8')
+    if tp == 1:
+        return
+    for key in ('num_attention_heads', 'num_key_value_heads', 'intermediate_size', 'vocab_size'):
+        if config[key] % tp:
+            raise ValueError(f'{key}={config[key]} is not divisible by the tp degree {tp}')
+    if config['architectures'][0] in ('Qwen3MoeForCausalLM', 'OlmoeForCausalLM'):
+        raise ValueError('tensor parallel MoE is out of scope for this round')
+
+
 def export(config: dict, phase: str, capacity: int, out: Path, prompt_len: int = 64,
-           *, meta_weights: bool = False) -> dict:
+           *, meta_weights: bool = False, tp: int = 1) -> dict:
     if phase not in ('decode', 'prefill') or prompt_len < 1 or capacity <= prompt_len:
         raise ValueError('export needs a positive ISL and capacity greater than ISL')
+    validate_tp(config, tp)
+    # The modules read the degree from the config, so one rank's graph is
+    # exactly the TP1 graph at the sharded dimensions.
+    config = dict(config, tilemega_tp=tp)
+    if tp > 1 and not meta_weights:
+        raise ValueError('a sharded export must use --meta-weights')
     torch.set_num_threads(4)
     torch.manual_seed(20260925)
     seq = 1 if phase == "decode" else prompt_len
     past = 3 if phase == "decode" else 0
     batch_example = 2
     dim = config.get("head_dim", config["hidden_size"] // config["num_attention_heads"])
-    kv_heads = config["num_key_value_heads"]
+    # One rank's KV cache holds only its own heads.
+    kv_heads = config["num_key_value_heads"] // int(config.get("tilemega_tp", 1))
     use_meta = meta_weights or metadata_only(config)
     if use_meta:
         with torch.device('meta'):
@@ -208,7 +248,7 @@ def export(config: dict, phase: str, capacity: int, out: Path, prompt_len: int =
     manifest = {"phase": phase, "seq": seq, "capacity": capacity,
                 "batch_range": [1, 64], "past_range": [1, capacity - 1] if phase == "decode" else [0, 0],
                 "config": config, "torch_version": torch.__version__,
-                "weight_fixture": None, "inputs": len(inputs)}
+                "weight_fixture": None, "inputs": len(inputs), "tp": tp}
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     return {key: value for key, value in manifest.items() if key != "config"}
 
@@ -226,6 +266,8 @@ def main() -> None:
     parser.add_argument("--test-small", action="store_true")
     parser.add_argument('--meta-weights', action='store_true',
                         help='export architecture without materializing or serializing random parameters')
+    parser.add_argument('--tp', type=int, default=1, choices=(1, 2, 4, 8),
+                        help='Megatron tensor parallel degree; exports one rank of the model')
     args = parser.parse_args()
     config = json.loads(args.config.read_text())
     if args.test_small:
@@ -239,7 +281,7 @@ def main() -> None:
             config.update(intermediate_size=64, num_experts=16, num_experts_per_tok=8)
     out = args.out or Path(f"/root/r10_work/export/{args.model}_{args.phase}")
     print(json.dumps(export(config, args.phase, args.capacity, out, args.prompt_len,
-                            meta_weights=args.meta_weights)), flush=True)
+                            meta_weights=args.meta_weights, tp=args.tp)), flush=True)
 
 
 if __name__ == "__main__":
