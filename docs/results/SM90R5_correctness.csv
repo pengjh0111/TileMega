@@ -3,3 +3,4 @@ dense_gate,69ef51f13,A0 in-stage marks,llama3_1_8b_b1,pass,generated source byte
 dense_gate,69ef51f13,A0 in-stage marks,qwen3_0_6b_b16,pass,generated source byte-identical and predicted ranking identical to the a2db639b reference,runs/sm90r5/dense_gate/a0/manifest.json
 build,69ef51f13,A0 level-0 MoE build,qwen3_30b_a3b_b1,pass,REF-R4 coordinates compile with the mark calls inert; host ABI check 0,runs/sm90r4/build/r5-a0-base/qwen3_30b_a3b-B1
 build,69ef51f13,A0 level-2 trace build,qwen3_30b_a3b_b1,pass,TILEMEGA_TRACE_STAGE=2 assembles with no ptxas error; 112 registers as at level 0,runs/sm90r5/d0/qwen3_30b_a3b-B1
+d0_tokens,69ef51f13,A0 level-2 instrumentation,qwen3_30b_a3b_b1,pass,traced and untraced binaries produce identical tokens; instrumentation overhead 6.13 pct,runs/sm90r5/d0/before/qwen3_30b_a3b-B1/trace/run.json

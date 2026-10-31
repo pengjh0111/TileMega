@@ -40,7 +40,7 @@ def tsv(path):
         return list(csv.DictReader(stream, delimiter='\t'))
 
 
-def kind(row, moe):
+def kind(row, moe, fused):
     name, k = row['name'], row['kind_name']
     if k == 'kEmbedding':
         return 'embedding'
@@ -51,7 +51,11 @@ def kind(row, moe):
     for key, value in (('qkv', 'qkv'), ('o_proj', 'o'), ('router', 'router'),
                        ('gate_up', 'gate_up'), ('down', 'down')):
         if key in name:
-            return value if not moe or key in ('qkv', 'o_proj', 'router') else 'expert_' + value
+            if not moe or key in ('qkv', 'o_proj', 'router'):
+                return value
+            # MR7's M56 is emitted at the gate_up stage and carries its weight
+            # name; a fused program has no separate down stage.
+            return 'expert_fused' if fused else 'expert_' + value
     return 'other'
 
 
@@ -81,7 +85,8 @@ def probes(target, batch, model):
 def analyze(trace, batch, model, target, arm, chunks):
     stages = tsv(trace / 'runtime_stages.tsv')
     moe = any('router' in s['name'] for s in stages)
-    kinds = {int(s['stage']): kind(s, moe) for s in stages}
+    fused = moe and not any('down' in s['name'] for s in stages)
+    kinds = {int(s['stage']): kind(s, moe, fused) for s in stages}
     rows = tsv(trace / 'stage_trace.tsv')
     if 'm0' not in rows[0]:
         raise SystemExit('stage_trace.tsv has no marks: rebuild with --stage-level 2')
@@ -93,9 +98,12 @@ def analyze(trace, batch, model, target, arm, chunks):
         # The critical CTA is the last to arrive; the release waits on it.
         critical = max(group, key=lambda r: int(r['t_tasks_end']))
         begin, arrive = int(critical['t_begin']), int(critical['t_tasks_end'])
-        release = min(int(r['t_release']) for r in group)
+        # The critical CTA's own release, not the earliest in the grid: a
+        # group-waiting qkv (D8) releases per KV group, so CTAs leave at very
+        # different times and min(release) can precede max(arrive).
+        release = int(critical['t_release'])
         previous = by.get((iteration, stage - 1))
-        start = min(int(r['t_release']) for r in previous) if previous else begin
+        start = max(int(r['t_release']) for r in previous) if previous else begin
         name = kinds.get(stage, 'other')
         store = samples.setdefault(name, {})
         for label, index, _ in SEGMENTS.get(name, []):
