@@ -528,14 +528,58 @@ struct Sm90DenseMoeGemm {
       }
       codegen::executor::ComputeSync();
       if(tid==0 && *flag)Sm90DenseMark(4);
-      if(*flag)
-        for(int i=tid;i<Batch*TN;i+=128) {
-          int row=i/TN,col=j*TN+i%TN;
-          float sum=0;
+      if(*flag) {
+        // E3 (RC2): one scalar element per iteration made every round wait on
+        // the previous one, because the compiler cannot prove the store to x
+        // does not alias the next round's partial reads. D0 measured the
+        // segment at 16.6 us/layer at B16. Each thread now takes four adjacent
+        // columns as a float4 and issues a whole batch of reads before any
+        // arithmetic, so the misses overlap. The accumulation order is still
+        // k ascending from zero and the write is still bf16(float(x) + s), so
+        // x'' is bitwise what R4 produced.
+        static_assert(TN%4==0,"E3 reads the combine in float4 columns");
+        constexpr int kGroups=Batch*TN/4,kPer=(kGroups+127)/128,kBatch=2;
+        #pragma unroll 1
+        for(int first=0;first<kPer;first+=kBatch) {
+          float4 part[kBatch][TopK];uint2 old_x[kBatch];
+          int row[kBatch],col[kBatch];bool ok[kBatch];
           #pragma unroll
-          for(int k=0;k<TopK;++k)sum+=partial[std::size_t(row*TopK+k)*N+col];
-          p.x[std::size_t(row)*N+col]=Element(float(p.x[std::size_t(row)*N+col])+sum);
+          for(int m=0;m<kBatch;++m) {
+            int g=tid+128*(first+m);
+            ok[m]=first+m<kPer && g<kGroups;
+            row[m]=g/(TN/4);col[m]=j*TN+4*(g%(TN/4));
+            if(ok[m]) {
+              #pragma unroll
+              for(int k=0;k<TopK;++k)
+                part[m][k]=*reinterpret_cast<float4 const*>(
+                    partial+std::size_t(row[m]*TopK+k)*N+col[m]);
+              old_x[m]=*reinterpret_cast<uint2 const*>(p.x+std::size_t(row[m])*N+col[m]);
+            }
+          }
+          #pragma unroll
+          for(int m=0;m<kBatch;++m)if(ok[m]) {
+            float sum[4]={0,0,0,0};
+            #pragma unroll
+            for(int k=0;k<TopK;++k) {
+              sum[0]+=part[m][k].x;sum[1]+=part[m][k].y;
+              sum[2]+=part[m][k].z;sum[3]+=part[m][k].w;
+            }
+            // bitcast/raw keep this to the documented bf16 bit API; the four
+            // results are packed into one 8-byte store, which the column
+            // alignment (TN and N multiples of 4) makes well aligned.
+            std::uint16_t out[4];
+            #pragma unroll
+            for(int c=0;c<4;++c) {
+              auto bits=std::uint16_t(c<2?(old_x[m].x>>(16*c)):(old_x[m].y>>(16*(c-2))));
+              out[c]=Element(float(Element::bitcast(bits))+sum[c]).raw();
+            }
+            uint2 stored;
+            stored.x=unsigned(out[0])|(unsigned(out[1])<<16);
+            stored.y=unsigned(out[2])|(unsigned(out[3])<<16);
+            *reinterpret_cast<uint2*>(p.x+std::size_t(row[m])*N+col[m])=stored;
+          }
         }
+      }
       if(tid==0 && *flag)Sm90DenseMark(5);
     }
   }
