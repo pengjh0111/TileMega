@@ -4,3 +4,6 @@ dense_gate,69ef51f13,A0 in-stage marks,qwen3_0_6b_b16,pass,generated source byte
 build,69ef51f13,A0 level-0 MoE build,qwen3_30b_a3b_b1,pass,REF-R4 coordinates compile with the mark calls inert; host ABI check 0,runs/sm90r4/build/r5-a0-base/qwen3_30b_a3b-B1
 build,69ef51f13,A0 level-2 trace build,qwen3_30b_a3b_b1,pass,TILEMEGA_TRACE_STAGE=2 assembles with no ptxas error; 112 registers as at level 0,runs/sm90r5/d0/qwen3_30b_a3b-B1
 d0_tokens,69ef51f13,A0 level-2 instrumentation,qwen3_30b_a3b_b1,pass,traced and untraced binaries produce identical tokens; instrumentation overhead 6.13 pct,runs/sm90r5/d0/before/qwen3_30b_a3b-B1/trace/run.json
+dense_gate,A1 legality fix,A1 qk_norm_row rejects group_wait,llama3_1_8b_b1,pass,generated source and predicted ranking unchanged; dense keeps group_wait,runs/sm90r5/dense_gate/a1/manifest.json
+dense_gate,A1 legality fix,A1 qk_norm_row rejects group_wait,qwen3_0_6b_b16,pass,generated source and predicted ranking unchanged; dense keeps group_wait,runs/sm90r5/dense_gate/a1/manifest.json
+a1_legality,A1 legality fix,OLMoE B1 predicted solve,olmoe_1b_7b_b1,pass,all four ranked candidates now carry group_wait false; predicted step 1.1463 ms unchanged from R4,runs/sm90r5/a1/olmoe-B1/decode.cu.search/receipt.json
