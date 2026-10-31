@@ -2039,6 +2039,8 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   };
   solver::Sm90DenseShapeTable nk{};
   bool moe_softmax_all=false,moe_softmax_seen=false;
+  // A1 (RC1): set when any attention stage normalizes the whole projected row.
+  bool row_norm_attention=false;
   for(auto value:gemms) {
     auto g=dictionaryEntry(value,"gemms");unsigned f=family(g);
     std::array<int,2> shape={int(integerField(g,"n")),int(integerField(g,"k"))};
@@ -2340,6 +2342,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
         else throw std::invalid_argument("native QK norm is neither per head nor per projected row");
       }
       if((norm!=0)!=(operand(6)!="kAbsent"))throw std::invalid_argument("asymmetric native QK norm");
+      if(norm==2)row_norm_attention=true;
       if(operand(1)=="kAbsent" || operand(2)=="kAbsent")
         throw std::invalid_argument("native attention lacks its K/V cache views");
       chunks=c.attention.chunks;
@@ -2473,6 +2476,10 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
       int tn=c.gemms[0].tile_n;
       if(!group_columns || group_columns%tn)
         throw std::invalid_argument("native group wait needs qkv tiles within one KV group");
+      // A1 (RC1): a whole-row q/k norm reads every KV group of its token, so
+      // it cannot follow a qkv that releases only this CTA's own groups.
+      if(row_norm_attention)
+        throw std::invalid_argument("native whole-row QK norm cannot follow a group-waiting qkv");
       group_tiles=int(group_columns)/tn;
     }
     types<<"using Stage_"<<n<<"=Placement<Body_"<<n<<','<<(e.full?0:(n%2)*arena)<<','<<prefix;

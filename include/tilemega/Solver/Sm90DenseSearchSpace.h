@@ -18,6 +18,10 @@ struct Sm90DenseSearchSpace {
   bool weight_stream=false,layer_loop=false;
   // MoE decode (prompt §8): families 0, 1, 5, 6, 7, 4.
   bool moe=false;
+  // A1 (RC1): the attention norm covers the whole projected row (OLMoE,
+  // mode 2), which reads every KV group of a token and so cannot follow a
+  // group-waiting qkv.
+  bool qk_norm_row=false;
   // Expected active experts of a step, E (1 - (1 - k/E)^B), which sizes the
   // grouped stages' task counts (§8 solver item 3; MR6 takes E, k from the
   // workload).

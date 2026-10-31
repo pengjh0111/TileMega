@@ -166,6 +166,9 @@ template<int Batch,int Hkv,int D,int Q,int Norm,int Chunks,int Keys,int Slots,in
          unsigned Partial,unsigned Lse,unsigned Arrivals,unsigned KeyMap,unsigned ValueMap,bool Dsmem=false>
 struct Attention {
   static constexpr bool kUsesOperandRecord=true;
+  // A1 (RC1): mode 2 normalizes the whole projected row, so Prepare reads
+  // every KV group of its token rather than only this task's group.
+  static constexpr bool kRowNorm=Norm==2;
   using Body=backend::Sm90DenseAttentionBody<Batch,Hkv,D,Q,Norm,Chunks,Keys,Slots,RowWork,Capacity,Dsmem>;
   // D10b: the leader's inbox barrier counts its S - 1 peer chunks.
   static constexpr int kInboxWriters=Dsmem?Chunks-1:0;
@@ -438,6 +441,10 @@ struct Program {
   static_assert(!kGroupCounters || (kGroupCounters==unsigned(GroupStage<1>::kGroups) &&
       GroupStage<1>::kTasks%GroupStage<1>::kGroupTasks==0),
       "a group-waiting qkv stage feeds the attention stage of its KV groups");
+  // A1 (RC1): D8 releases only the groups a CTA's own qkv tiles wrote, which
+  // is not enough for an attention that reads the token's every group.
+  static_assert(!kGroupCounters || !GroupStage<1>::kRowNorm,
+      "a whole-row QK norm cannot follow a group-waiting qkv");
   static_assert(Layers%Group::kLayers==0,"layer groups cover the layers exactly");
   static constexpr bool kEmbed=Embed;
   static constexpr int kCluster=Cluster;

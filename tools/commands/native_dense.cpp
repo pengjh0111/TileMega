@@ -227,6 +227,7 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   auto work=solver::Sm90DenseWorkloadFromPlan(plan,o.batch);
   solver::Sm90DenseSearchSpace space{work.shapes,work.batch,work.head_dim,work.queries,target,work.hkv};
   space.moe=work.moe;space.experts=work.experts;space.top_k=work.top_k;
+  space.qk_norm_row=work.qk_norm_row;
   auto target_json=json::ParseFile(o.target);
   auto const* decisions=target_json.Find("sm90_native_decisions");
   if(!decisions)throw std::invalid_argument("target lacks sm90_native_decisions (prompt §11 decision tables)");
