@@ -5,6 +5,7 @@
 
 #include <tilemega/Backend/Sm90DenseEpilogue.h>
 #include <tilemega/Backend/Sm90DenseMark.cuh>
+#include <tilemega/Backend/Sm90DenseStream.cuh>
 #include <tilemega/Backend/Sm90DenseHead.cuh>
 #include <tilemega/Backend/Sm90DenseRing.cuh>
 #include <tilemega/Backend/Sm90DenseLayout.h>
@@ -97,6 +98,8 @@ struct Sm90DenseGemm {
     if(threadIdx.x==128) {
       CUtensorMap const* const activation=p.activation;
       Element const* const weight=p.weight;
+      // E1: one policy per producer, not one per copy.
+      std::uint64_t const policy=Sm90DenseStream::WeightPolicy();
       // The activation (and residual) were written by other CTAs with generic
       // stores before the grid barrier; the async proxy must observe them.
       Async::ProxyAsyncGlobalFence();
@@ -125,9 +128,9 @@ struct Sm90DenseGemm {
           if(streamed && sequence<(Prefix+2*TN*TK-1)/(2*TN*TK))
             prefix=min(Prefix-sequence*2*TN*TK,2*TN*TK);
         if(!prefix)Async::ExpectTx(state.full+slot,kSlotBytes);
-        if(prefix<2*TN*TK)Async::Bulk(b+slot*TN*TK+prefix/2,
+        if(prefix<2*TN*TK)Sm90DenseStream::WeightBulk(b+slot*TN*TK+prefix/2,
             weight+(std::size_t(task)*kIterations+tile)*TN*TK+prefix/2,
-            2*TN*TK-prefix,state.full+slot);
+            2*TN*TK-prefix,state.full+slot,policy);
         // Rows past Batch fall outside the map and arrive as zeros.
         if constexpr(Multicast) {
           if(issue)Async::Tensor3DMulticast(a+slot*kRows*TK,activation,0,0,tile*(TK/64),state.full+slot,

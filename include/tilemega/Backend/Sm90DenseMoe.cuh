@@ -2,6 +2,7 @@
 #pragma once
 #include <tilemega/Backend/Sm90DenseGemm.h>
 #include <tilemega/Backend/Sm90DenseMark.cuh>
+#include <tilemega/Backend/Sm90DenseStream.cuh>
 #include <climits>
 #include <cmath>
 
@@ -181,8 +182,10 @@ struct Sm90DenseMoeGemm {
   // One slot's weights: task t's tile, k-tile `tile`; Tiles(...) is the base.
   __device__ static __forceinline__ void CopyWeights(Element* destination,Element const* tiles,int t,
       int tile,std::uint64_t* barrier) {
+    // E1: the expert stack is the layer's largest read-once stream.
+    std::uint64_t const policy=Sm90DenseStream::WeightPolicy();
     if constexpr(!Page)
-      Async::Bulk(destination,tiles+std::size_t(tile)*TN*TK,2*TN*TK,barrier);
+      Sm90DenseStream::WeightBulk(destination,tiles+std::size_t(tile)*TN*TK,2*TN*TK,barrier,policy);
     else {
       // Rows of a 64-row page are contiguous in 8-row groups, and the slot's
       // [TK/64][TN] panel layout uses the same atom (TN is a multiple of 32).
@@ -192,8 +195,9 @@ struct Sm90DenseMoeGemm {
         int column=tile*TK/64+panel;
         for(int row=first;row<first+TN;) {
           int end=min(first+TN,(row/64+1)*64);
-          Async::Bulk(destination+512*((row-first)/8+(TN/8)*panel),
-              tiles+(std::size_t(row/64)*(K/64)+column)*4096+512*((row%64)/8),2*(end-row)*64,barrier);
+          Sm90DenseStream::WeightBulk(destination+512*((row-first)/8+(TN/8)*panel),
+              tiles+(std::size_t(row/64)*(K/64)+column)*4096+512*((row%64)/8),2*(end-row)*64,
+              barrier,policy);
           row=end;
         }
       }

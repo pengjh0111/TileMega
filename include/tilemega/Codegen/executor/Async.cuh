@@ -136,6 +136,16 @@ struct Async {
         "[%0], [%1, {%2, %3, %4, %5}], [%6];" :: "r"(Shared(destination)),"l"(map),
         "r"(x),"r"(y),"r"(z),"r"(w),"r"(Shared(barrier)):"memory");
   }
+  // E1 (RC6): the hinted form of Tensor4D, for the KV history stream. The
+  // weight paths already have BulkHint.
+  __device__ static void Tensor4DHint(void* destination,void const* map,
+      int x,int y,int z,int w,std::uint64_t* barrier,std::uint64_t policy) {
+    static_assert(Caps::kTma,"4D tensor copies require TMA support");
+    asm volatile("cp.async.bulk.tensor.4d.shared::cluster.global.mbarrier::complete_tx::bytes"
+        ".L2::cache_hint [%0], [%1, {%2, %3, %4, %5}], [%6], %7;" ::
+        "r"(Shared(destination)),"l"(map),"r"(x),"r"(y),"r"(z),"r"(w),
+        "r"(Shared(barrier)),"l"(policy):"memory");
+  }
   __device__ static void Tensor2DMulticast(void* destination,void const* map,
       int x,int y,std::uint64_t* barrier,std::uint16_t mask) {
     static_assert(Caps::kTmaMulticast,"TMA multicast requires cluster multicast support");

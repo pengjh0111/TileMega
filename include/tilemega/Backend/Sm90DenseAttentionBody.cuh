@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Backend/Sm90DenseMark.cuh>
+#include <tilemega/Backend/Sm90DenseStream.cuh>
 #include <tilemega/Backend/Sm90DenseOperands.cuh>
 #include <tilemega/Backend/Sm90DenseRoles.cuh>
 #include <tilemega/Backend/Sm90DenseRing.cuh>
@@ -105,14 +106,16 @@ struct Sm90DenseAttentionBody {
     int begin=Partition::Range(past,chunk,NewRowWork).begin,count=Preissued<Bytes>(past);
     // The alternate arena and ring retired before the preceding boundary.
     Async::ProxyAsyncGlobalFence();
+    // E1: the D6 prefix reads the same history stream, so it takes the same policy.
+    std::uint64_t const policy=Sm90DenseStream::WeightPolicy();
     for(int slot=0;slot<count;++slot) {
       Async::ExpectTx(state.full+slot,2*BlockKeys*D*2);
       #pragma unroll
       for(int panel=0;panel<kPanels;++panel) {
-        Async::Tensor4D(&s.kv[slot][0][panel*BlockKeys*64],key,panel*64,begin+slot*BlockKeys,bg,layer,
-            state.full+slot);
-        Async::Tensor4D(&s.kv[slot][1][panel*BlockKeys*64],value,panel*64,begin+slot*BlockKeys,bg,layer,
-            state.full+slot);
+        Sm90DenseStream::HistoryTensor4D(&s.kv[slot][0][panel*BlockKeys*64],key,
+            panel*64,begin+slot*BlockKeys,bg,layer,state.full+slot,policy);
+        Sm90DenseStream::HistoryTensor4D(&s.kv[slot][1][panel*BlockKeys*64],value,
+            panel*64,begin+slot*BlockKeys,bg,layer,state.full+slot,policy);
       }
     }
   }
@@ -135,12 +138,15 @@ struct Sm90DenseAttentionBody {
           // A whole box is read: rows past the history bound are masked and
           // rows past Capacity arrive as zeros.
           Async::ExpectTx(state.full+slot,2*BlockKeys*D*2);
+          // E1: the history is read once per step, so it takes the same
+          // evict_first policy as the weight streams.
+          std::uint64_t const policy=Sm90DenseStream::WeightPolicy();
           #pragma unroll
           for(int panel=0;panel<kPanels;++panel) {
-            Async::Tensor4D(&s.kv[slot][0][panel*BlockKeys*64],p.key_map,panel*64,begin,bg,p.layer,
-                state.full+slot);
-            Async::Tensor4D(&s.kv[slot][1][panel*BlockKeys*64],p.value_map,panel*64,begin,bg,p.layer,
-                state.full+slot);
+            Sm90DenseStream::HistoryTensor4D(&s.kv[slot][0][panel*BlockKeys*64],p.key_map,
+                panel*64,begin,bg,p.layer,state.full+slot,policy);
+            Sm90DenseStream::HistoryTensor4D(&s.kv[slot][1][panel*BlockKeys*64],p.value_map,
+                panel*64,begin,bg,p.layer,state.full+slot,policy);
           }
         }
       }
