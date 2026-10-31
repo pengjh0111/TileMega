@@ -201,3 +201,35 @@ warmup1+timed2 full requests: S1 Qwen20/20, S1 OLMoE20/20, and selected OLMoE
 split4 20/20 (60/60 new DIAG processes total). Dense's two smoke tests use the V2
 program with attention3; dense early-arrival/576 qualification is deferredCP6.
 Final twenty-process-per-pin reliability is still required at CP5.
+
+
+## CP4 optional combine gate — A3 stop (verified failed qualification)
+
+owner_tile: **5/5 fresh processes**, each2000 iterations ×104 CTAs,
+208000 participants,0 mismatching words. ResourcesMT101/local0/static0,
+resident1; source/probe/process receipts are in MX6_sync_checks_c550.csv.
+unit_owner's original scattered-writer fixture fails its first fresh process
+with1403349 mismatching32-bit words (launch/sync both report no error).
+
+The corrected fixture at sync_litmus.cu:503 compacts each expert's row ids as
+production Epilogue does. It reproduces WN1 Finish's LDS rendezvous *before*
+partial stores (GroupedGemmV3.h:434), then preserves the one-lane fence and
+non-returning atomic (MoeCombineV3.h:70–73). No after-store CTA rendezvous is
+added. Original arithmetic,2000 iterations,104 CTAs and all16 active/TN cases
+remain; per-case mismatch counters are diagnostic only.
+
+Its first corrected fresh process still fails: **0/1 pass**,560020 mismatching
+32-bit words,208000 participants; resourcesMT90/local0/static0/resident1.
+Only the required synthetic n_active1 case fails: TN64=116597,TN128=443423;
+other14 combinations0. active1 is not a valid distinct-top8 model route.
+This is failed protocol qualification, not evidence of a normal-route illegal
+access. No five-process success is claimed or substituted. Raw:
+`runs/mx6/cp4/unit_owner_actual_epilogue_qualification/process1/stdout.log`;
+source/compiler/failed-fixture hashes are bound in its SOURCE/BUILD records.
+
+Inferred: one issuer's fence does not cover all writer-wave stores in the
+synthetic multi-iteration publication case. A draft post-store rendezvous
+would strengthen WN1's protocol; its unexecuted CPU build is archived and is
+not used as passing evidence. Production code remains unchanged. Per v2
+§13.4 A3, work stops2026-10-31 18:33:43 Asia/Shanghai; no GPU job follows.
+G6-SYNC is not passed; top-four selection, X1 and CP5/CP6 remain unrun.
