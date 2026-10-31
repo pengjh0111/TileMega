@@ -925,7 +925,8 @@ if(TILEMEGA_BUILD_TESTS)
     target_link_libraries(sm90_dense_search_space_test PRIVATE TileMega::tilemega)
     target_compile_options(sm90_dense_search_space_test PRIVATE -UNDEBUG)
     add_test(NAME sm90_dense_search_space COMMAND sm90_dense_search_space_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/configs/targets/sm_90_h800.json)
+      ${CMAKE_CURRENT_SOURCE_DIR}/configs/targets/sm_90_h800.json
+      ${CMAKE_CURRENT_SOURCE_DIR}/configs/serving/sm90r5/ref_r4/olmoe_1b_7b_b1.json)
     add_executable(sm90_dense_lowering_contract_test test/unit/sm90_dense_lowering_contract_test.cpp)
     target_link_libraries(sm90_dense_lowering_contract_test PRIVATE TileMega::tilemega)
     target_compile_options(sm90_dense_lowering_contract_test PRIVATE -UNDEBUG)

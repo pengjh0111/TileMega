@@ -16,8 +16,8 @@ import sys
 from sm90d1_common import ROOT, PYTHON, read, sha, write
 
 POLICY = ROOT / 'configs/bench/sm90r2_guard_policy.json'
-PCI = {0: '0f', 1: '10', 2: '41', 3: '44', 4: '86', 5: '87', 7: 'b7'}
-TIMING_GPUS = (0, 1, 2, 3, 4, 5, 7)  # GPU5 timing authorized by the user (V)
+PCI = {0: '0f', 1: '10', 2: '41', 3: '44', 4: '86', 5: '87', 6: 'b4', 7: 'b7'}
+TIMING_GPUS = (0, 1, 2, 3, 4, 5, 6, 7)  # GPU5 (V) and GPU6 (R5) authorized by the user
 MODELS = {
     'qwen3_0_6b': ('configs/serving/sm90d1/inputs/qwen3_0_6b', 'configs/prompts/qwen_isl64.json', 32),
     'qwen3_1_7b': ('configs/serving/sm90d1/inputs/qwen3_1_7b', 'configs/prompts/qwen_isl64.json', 32),
@@ -71,8 +71,8 @@ def queue(a):
     spec = read(spec_path)
     gpu, kind, model = spec['gpu'], spec['kind'], spec['model']
     timing = kind != 'corr'
-    if gpu == 6 or (timing and gpu not in TIMING_GPUS):
-        raise ValueError('GPU6 excluded')
+    if timing and gpu not in TIMING_GPUS:
+        raise ValueError(f'GPU{gpu} is not authorized for timing')
     labels = list(spec['arms'])
     if kind == 'pair' and len(labels) != 2 or kind == 'sel' and len(labels) < 2 or \
             kind in ('final', 'corr') and len(labels) != 1:
@@ -278,6 +278,15 @@ def collect(a):
         result.update(change_pct=change, threshold_pct=threshold,
                       decision='indistinguishable' if abs(change) <= threshold else
                       'faster' if change < 0 else 'slower')
+        # §2.2: a structural change that must not move the numbers is paired
+        # with a bitwise token comparison across both arms, not only within one.
+        by_arm = {}
+        for row in rows:
+            by_arm.setdefault(row['arm'], []).append(read(row['tokens']))
+        first = by_arm[a_label][0]
+        result.update(arm_token_equal=all(t == first for v in by_arm.values() for t in v),
+                      tokens_compared=sum(len(v) for v in by_arm.values()),
+                      per_arm_token_equal={k: sum(t == v[0] for t in v) for k, v in by_arm.items()})
     elif kind == 'sel':
         ranked = sorted(summary, key=lambda k: summary[k]['tpot_ms'])
         best, second = ranked[0], ranked[1]
