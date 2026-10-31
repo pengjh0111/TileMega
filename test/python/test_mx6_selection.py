@@ -33,3 +33,18 @@ def test_exact_four_and_two_fresh_measurements_required():
     with pytest.raises(ValueError):select_measured([1]*3,[[1,1]]*3)
     with pytest.raises(ValueError):select_measured([1]*4,[[1,1],[1],[1,1],[1,1]])
     with pytest.raises(ValueError):select_measured([1]*4,[[1,math.inf]]*4)
+
+
+def test_known_unqualified_costs_cannot_reach_plan_selection(tmp_path):
+    import hashlib
+    import json
+    from tilemega.moe.solve_v3 import check_qualification
+    path=tmp_path/'costs.json';path.write_text('{}')
+    digest=hashlib.sha256(path.read_bytes()).hexdigest()
+    sidecar=path.with_suffix('.qualification.json')
+    sidecar.write_text(json.dumps(dict(cost_table_sha256=digest,solver_eligible=False,reason='observed protocol violation')))
+    with pytest.raises(ValueError,match='not solver eligible'):
+        check_qualification(path)
+    path.write_text('{"changed":true}')
+    with pytest.raises(ValueError,match='qualification hash differs'):
+        check_qualification(path)

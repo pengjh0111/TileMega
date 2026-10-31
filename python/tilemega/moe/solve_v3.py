@@ -30,6 +30,15 @@ def save(path,value):
     with Path(path).open('x')as output:json.dump(value,output,indent=2,allow_nan=False);output.write('\n')
 
 
+def check_qualification(path):
+    qualification=Path(path).with_suffix('.qualification.json')
+    if qualification.exists():
+        record=json.loads(qualification.read_text())
+        if record['cost_table_sha256']!=sha(path):raise ValueError('cost qualification hash differs')
+        if record['solver_eligible']is not True:
+            raise ValueError('cost table is not solver eligible: '+record['reason'])
+
+
 class Cell:
     def __init__(self,args):
         self.a=args;self.out=args.out.resolve();self.cell=args.cell_dir.resolve();self.out.mkdir(parents=True,exist_ok=True)
@@ -145,6 +154,7 @@ class Cell:
         return self.query(folder,'queries'),attempts
 
     def run(self):
+        check_qualification(self.a.costs)
         catalog=json.loads(self.a.costs.read_text())
         if catalog.get('complete_scope')is not True:raise ValueError('complete source-bound measured costs required')
         cost_hash=sha(self.a.costs);lists=stage_lists(catalog['rows'],self.a.model_id,self.a.batch);qualified=[];rejected=[]
