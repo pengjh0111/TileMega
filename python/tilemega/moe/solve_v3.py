@@ -1,5 +1,6 @@
 """Build and measure four qualified MX-6 MoE combinations, with sealed receipts."""
 import argparse
+import concurrent.futures
 import fcntl
 import hashlib
 import json
@@ -156,7 +157,7 @@ class Cell:
             raise RuntimeError('B3 measurement spread above2percent; preserve and remedy once')
         return dict(fresh_process_ns=values,measurements=records)
 
-    def build(self,pin_path,folder):
+    def build(self,pin_path,folder,query=True):
         attempts=[]
         for phase,watchdog in(('decode',0),('prefill',0),('decode',1)):
             label=phase+('_w'if watchdog else'');result=self.compile(pin_path,folder/label,phase,watchdog);attempts.append(result)
@@ -174,25 +175,58 @@ class Cell:
                     fallback_pin=folder/'prefill_attention2_pin.json';save(fallback_pin,original)
                     result=self.compile(fallback_pin,folder/'prefill','prefill',watchdog);attempts.append(result)
             if result['status']!='CPU_resource_fit':return False,attempts
-        return self.query(folder,'queries'),attempts
+        return (self.query(folder,'queries')if query else True),attempts
 
     def run(self):
         qualification=check_qualification(self.costs)
         catalog=json.loads(self.costs.read_text())
         if catalog.get('complete_scope')is not True:raise ValueError('complete source-bound measured costs required')
         cost_hash=sha(self.costs);lists=stage_lists(catalog['rows'],self.a.model_id,self.a.batch,qualification['excluded_combine_modes']);qualified=[];rejected=[]
-        for choice in k_best(lists,LAYERS[self.a.model_id]):
-            folder=self.out/f"rank{choice['candidate_rank']:07d}";folder.mkdir(exist_ok=True)
+        def probe(choice):
+            folder=self.out/f"rank{choice['candidate_rank']:07d}"
+            existing=folder/'RESOURCE_RESULT.json'
+            if existing.exists():
+                result=json.loads(existing.read_text())
+                if result['choice']!=choice:raise ValueError('sealed resource choice changed')
+                return result
+            cpu=folder/'CPU_RESOURCE_RESULT.json'
+            if cpu.exists():return json.loads(cpu.read_text())
+            if folder.exists()and any(folder.glob('*/stdout.log')):
+                rejected_partial=folder
+                number=1
+                while (self.out/(folder.name+f'_remedy{number}')).exists():number+=1
+                folder=self.out/(folder.name+f'_remedy{number}')
+                folder.mkdir()
+                save(folder/'PARTIAL_BUILD_REMEDY.json',dict(retained_directory=str(rejected_partial),
+                    reason='explicit new CPU build after interrupted resource exploration; original artifacts retained'))
+            else:folder.mkdir(exist_ok=True)
             choice_path=folder/'CHOICE.json'
             if not choice_path.exists():save(choice_path,choice)
             pin_path=folder/'resource_pin.json'
             if not pin_path.exists():save(pin_path,pin(choice,cost_hash))
-            fit,attempts=self.build(pin_path,folder)
-            result=dict(choice=choice,pin=ref(pin_path),folder=str(folder),attempts=attempts,status='qualified'if fit else'resource_rejected')
-            save(folder/'RESOURCE_RESULT.json',result)
-            if fit:qualified.append(result)
-            else:rejected.append(result)
-            if len(qualified)==self.a.candidates:break
+            fit,attempts=self.build(pin_path,folder,query=False)
+            result=dict(choice=choice,pin=ref(pin_path),folder=str(folder),attempts=attempts,
+                status='CPU_resource_fit'if fit else'resource_rejected')
+            save(folder/'CPU_RESOURCE_RESULT.json',result)
+            return result
+        iterator=iter(k_best(lists,LAYERS[self.a.model_id]))
+        # Compile ahead on CPUs, but qualify and consume strictly in prediction order.
+        # GPU occupancy queries remain serialized on this cell's guarded card.
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.a.build_workers)as pool:
+            pending=[]
+            for _ in range(self.a.build_workers):pending.append(pool.submit(probe,next(iterator)))
+            while pending:
+                result=pending.pop(0).result();folder=Path(result['folder'])
+                if result['status']=='CPU_resource_fit':
+                    result['status']='qualified'if self.query(folder,'queries')else'resource_rejected'
+                receipt=folder/'RESOURCE_RESULT.json'
+                if not receipt.exists():save(receipt,result)
+                if result['status']=='qualified':qualified.append(result)
+                else:rejected.append(result)
+                if len(qualified)==self.a.candidates:
+                    for future in pending:future.cancel()
+                    break
+                pending.append(pool.submit(probe,next(iterator)))
         if len(qualified)!=self.a.candidates:raise RuntimeError('B2 insufficient resource-qualified combinations; inspect closure')
         save(self.out/'QUALIFIED.json',dict(qualified=qualified,rejected=rejected,cost_table=ref(self.costs)))
         predictions=[];measured=[]
@@ -229,6 +263,7 @@ def main():
     parser.add_argument('--control-dir',type=Path)
     parser.add_argument('--candidates',type=int,choices=(4,8),default=4)
     parser.add_argument('--correctness-remedy',action='store_true')
+    parser.add_argument('--build-workers',type=int,default=1,choices=range(1,33))
     args=parser.parse_args();args.cell_dir.mkdir(parents=True,exist_ok=True)
     with(args.cell_dir/'.mx6_selection.lock').open('w')as lock:
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
