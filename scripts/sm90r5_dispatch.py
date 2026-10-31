@@ -124,6 +124,11 @@ def groups(policy, size, exclude=()):
 def claim_group(label, size, exclude=(), poll=30):
     """Block until `size` cards are claimed together; returns (gpus, handles)."""
     policy = read(POLICY)
+    if not groups(policy, size, exclude):
+        # No set of this size exists under the standing policy, so waiting can
+        # never succeed (DT-B0 decides what to do about it, not the scheduler).
+        raise RuntimeError(f'the policy allows timing on {allowed(policy)}, which holds no group '
+                           f'of {size} cards')
     MACHINE_WAIT.write_text(str(os.getpid()))
     try:
         while True:
