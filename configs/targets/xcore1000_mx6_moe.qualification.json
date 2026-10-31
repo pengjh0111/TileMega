@@ -1,0 +1,32 @@
+{
+  "kind": "mx6_moe_cost_qualification",
+  "evidence": "verified",
+  "checkpoint": "CP4_A3_stop",
+  "cost_table_sha256": "de04aebd99d7f705b18852562d7339261f77e4d6ad36967fcfe2358a377d740a",
+  "measured_rows": 4298,
+  "fresh_processes": 213,
+  "solver_eligible": false,
+  "default_enabled": false,
+  "final_selection": false,
+  "reason": "v2 section13.4.A3: unit_owner litmus still fails the required n_active1 synthetic publication case after correcting compact writer rows and the pre-store rendezvous; 560020 mismatching32-bit words. Top-four selection and later checkpoints were not started.",
+  "sync_gate": "fail",
+  "failure": {
+    "path": "runs/mx6/cp4/unit_owner_actual_epilogue_qualification/process1/stdout.log",
+    "sha256": "aaebde65ff10c613aae3a699f5e67ade4615ef8880b5111863c835e76ac76761",
+    "iterations": 2000,
+    "ctas": 104,
+    "participants": 208000,
+    "errors": 560020,
+    "scope": "synthetic n_active1 only: TN64=116597,TN128=443423; other tested combinations0; no GPU launch/sync error"
+  },
+  "owner_tile": {
+    "fresh_processes": 5,
+    "iterations": 2000,
+    "ctas": 104,
+    "violations": 0
+  },
+  "spread_remedies": {
+    "pending_keys": 53,
+    "reason": "not run after A3 stop; original three-process statistics retained"
+  }
+}
