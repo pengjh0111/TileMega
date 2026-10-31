@@ -167,3 +167,11 @@ including B1/16,E64/128, empty experts and count16. The mode fixtures are four
 fresh processes, not five-process protocol evidence for the optional modes.
 Native final MIR retains non-returning stage U64 and owner I32 adds; full
 per-plan source/binary/MIR/occupancy receipts are retained in runs/mx6/v2.
+
+CP2′ whole-program qualification: seven512-step C-1/C-2 cells pass;
+Qwen B1/B2/B4 full1024-token V2/V3 comparisons pass two fresh processes/arm.
+Both B1 DIAG mask cohorts pass **20/20 fresh processes**,40/40 total, with
+per-CTA per-stage arrival-count traps active throughout warmup and timed runs.
+All39 new native plans pass actual resident1/frame0/static0 queries and required
+MIR reports. This qualifies CP2′ only; final20-process-per-pin reliability and
+P3/X1/dense synchronization qualification remain pending.
