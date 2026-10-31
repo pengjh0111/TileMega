@@ -38,7 +38,7 @@ def arguments(system, extend=None):
     parser.add_argument("--warmup", type=int, default=1)
     parser.add_argument("--repeats", type=int, default=3)
     parser.add_argument("--round-index", type=int, default=0)
-    parser.add_argument("--tp", type=int, choices=(1, 2, 4), default=1)
+    parser.add_argument("--tp", type=int, choices=(1, 2, 4, 8), default=1)
     if extend is not None:
         extend(parser)
     args = parser.parse_args()
