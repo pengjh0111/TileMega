@@ -74,7 +74,7 @@ def main():
     ordered = sorted(values)
     result = dict(schema_version=1, evidence='verified', system='tilemega', model=manifest['model'],
         batch=args.batch, precision='bf16', executor=args.executor, round_index=args.round_index,
-        pid=os.getpid(), gpu_index=int(require_guard()), versions=versions(),
+        pid=os.getpid(), gpu_index=int(require_guard()[0]), versions=versions(),
         artifact_id=identity['artifact_id'], execution_identity=execution,
         input_sha256=sha(args.inputs), numerical_gate_sha256=sha(args.gate),
         source_checkpoint_sha256=sha(args.export / 'checkpoint/model.safetensors'),

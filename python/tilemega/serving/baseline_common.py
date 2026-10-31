@@ -38,6 +38,7 @@ def arguments(system, extend=None):
     parser.add_argument("--warmup", type=int, default=1)
     parser.add_argument("--repeats", type=int, default=3)
     parser.add_argument("--round-index", type=int, default=0)
+    parser.add_argument("--tp", type=int, choices=(1, 2, 4), default=1)
     if extend is not None:
         extend(parser)
     args = parser.parse_args()
@@ -63,13 +64,28 @@ def validate_prompts(ids, batch):
     return length
 
 
-def require_guard():
-    index = os.environ.get("TILEMEGA_DEVICE_INDEX")
-    if index is None or not index.isdigit() or os.environ.get("CUDA_VISIBLE_DEVICES") != index:
-        raise ValueError("set TILEMEGA_DEVICE_INDEX=i and CUDA_VISIBLE_DEVICES=i explicitly")
+def require_guard(tp=None):
+    # One guarded card, or a whole locked group when the job spans devices
+    # (tensor parallel). Returns the indices in the order the group names them,
+    # which is also the rank order.
+    group = os.environ.get("TILEMEGA_DEVICE_GROUP")
+    if group is not None:
+        indices = group.split(",")
+        if (not all(index.isdigit() for index in indices) or
+                len(set(indices)) != len(indices) or
+                os.environ.get("CUDA_VISIBLE_DEVICES") != group):
+            raise ValueError("set TILEMEGA_DEVICE_GROUP=i,j,... and CUDA_VISIBLE_DEVICES "
+                             "to the same distinct list")
+    else:
+        index = os.environ.get("TILEMEGA_DEVICE_INDEX")
+        if index is None or not index.isdigit() or os.environ.get("CUDA_VISIBLE_DEVICES") != index:
+            raise ValueError("set TILEMEGA_DEVICE_INDEX=i and CUDA_VISIBLE_DEVICES=i explicitly")
+        indices = [index]
     if os.environ.get("TILEMEGA_GPU_LOCK_HELD") != "1":
         raise ValueError("launch through the guarded scheduler holding /tmp/tilemega_gpu<i>.lock")
-    return index
+    if tp is not None and len(indices) != tp:
+        raise ValueError(f"tensor parallel {tp} requires {tp} guarded cards, not {indices}")
+    return indices
 
 
 def versions():
@@ -129,7 +145,16 @@ def _own_pids():
 
 
 def observe(path, label):
-    index = require_guard()
+    # Every card of the group is sampled and logged before any rejection, so a
+    # rejected round records which card failed and what the others looked like.
+    samples = [_observe_one(path, label, index) for index in require_guard()]
+    rejected = [sample for sample in samples if not sample["accepted"]]
+    if rejected:
+        raise InvalidMeasurement(f"GPU sample rejected: {rejected}")
+    return samples
+
+
+def _observe_one(path, label, index):
     fields = ("power.draw", "clocks.sm", "clocks.mem", "temperature.gpu", "memory.used",
               "clocks_throttle_reasons.hw_slowdown", "clocks_throttle_reasons.hw_thermal_slowdown",
               "clocks_throttle_reasons.hw_power_brake_slowdown",
@@ -170,8 +195,6 @@ def observe(path, label):
               "acceptance": "provisional_container_pid_namespace" if limited else "strict"}
     with Path(path).open("a") as stream:
         stream.write(json.dumps(sample) + "\n")
-    if not valid:
-        raise InvalidMeasurement(f"GPU sample rejected: {sample}")
     return sample
 
 
@@ -237,7 +260,7 @@ def optional_m0_barrier(args, count, run):
     if not directory or count != 1024 or run < args.warmup:
         return None
     participants = os.environ.get('TILEMEGA_M0_PARTICIPANTS', '').split(',')
-    return m0_pair_barrier(directory, require_guard(), participants, args.round_index, run,
+    return m0_pair_barrier(directory, require_guard()[0], participants, args.round_index, run,
                           timeout_s=float(os.environ.get('TILEMEGA_M0_BARRIER_TIMEOUT_S', '120')))
 
 
@@ -284,8 +307,8 @@ def measure(args, ids, system, generate, metadata, synchronize=lambda: None, pre
                         "valid": False, "reason": str(error), "retryable": False,
                         "diagnostics": error.diagnostics, "generation_runs": rows}, indent=2) + "\n")
                     raise
-                sample = observe(guard_path, f"N{count}-run{run}-before")
-                unresolved.update(sample.get("unresolved_host_pids", []))
+                for sample in observe(guard_path, f"N{count}-run{run}-before"):
+                    unresolved.update(sample.get("unresolved_host_pids", []))
                 synchronize()
                 start = time.perf_counter()
                 tokens = generate(ids[:batch], count)
@@ -294,8 +317,8 @@ def measure(args, ids, system, generate, metadata, synchronize=lambda: None, pre
                 with (out/"raw_timings.jsonl").open("a") as stream:
                     stream.write(json.dumps({"N": count, "run": run, "warmup": run < args.warmup,
                         "wall_seconds": elapsed, "validation": "pending_post_guard_and_tokens"}) + "\n")
-                sample = observe(guard_path, f"N{count}-run{run}-after")
-                unresolved.update(sample.get("unresolved_host_pids", []))
+                for sample in observe(guard_path, f"N{count}-run{run}-after"):
+                    unresolved.update(sample.get("unresolved_host_pids", []))
                 check_tokens(tokens, batch, count)
                 token_file = f"tokens_N{count}_run{run}.json"
                 (out/token_file).write_text(json.dumps(tokens, separators=(",", ":")) + "\n")
@@ -320,7 +343,9 @@ def measure(args, ids, system, generate, metadata, synchronize=lambda: None, pre
                    "prompt_ids_sha256": hashlib.sha256(args.prompt_ids.read_bytes()).hexdigest(),
                    "batch": batch, "prompt_length": len(ids[0]), "max_tokens": args.max_tokens,
                    "round_index": args.round_index, "pid": os.getpid(),
-                   "gpu_index": int(require_guard()), "versions": versions(),
+                   "gpu_index": int(require_guard()[0]),
+                   "gpu_indices": [int(index) for index in require_guard()],
+                   "tp": getattr(args, "tp", 1), "versions": versions(),
                    "load_format": args.load_format,
                    "weight_semantics": "backend-native random initialization; cross-system checkpoint identity not established"
                        if args.load_format == "dummy" else "local checkpoint",

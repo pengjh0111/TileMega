@@ -4,9 +4,10 @@ from baseline_common import arguments, guarded_main, measure, require_guard
 
 def main():
     args, ids = arguments("sglang")
-    require_guard()
+    require_guard(args.tp)
     import sglang as sgl
     options = dict(model_path=str(args.model), dtype="bfloat16", kv_cache_dtype="bf16",
+                   tp_size=args.tp,
                    load_format=args.load_format, disable_radix_cache=True,
                    skip_tokenizer_init=True, max_running_requests=16,
                    cuda_graph_max_bs=16, cuda_graph_bs=[1, 2, 4, 8, 16],

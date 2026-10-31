@@ -25,7 +25,7 @@ def main():
     parser.add_argument('--iterations', type=int, choices=(200,), default=200)
     parser.add_argument('--round-index', type=int, choices=(0, 1, 2), required=True)
     args = parser.parse_args()
-    gpu_index = int(require_guard())
+    gpu_index = int(require_guard()[0])
     if gpu_index not in (0, 1, 2, 3, 4, 7):
         raise ValueError('GPU6 excluded; GPU5 functional-only')
     selection = json.loads(args.selection_config.read_text())

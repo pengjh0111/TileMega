@@ -12,10 +12,17 @@ sys.path = [entry for entry in sys.path
 
 def main():
     args, ids = arguments("tensorrt-llm")
-    require_guard()
+    require_guard(args.tp)
+    if args.tp > 1:
+        # The MPI worker pool needs these in the environment before the import,
+        # and must not be forced into the single-process path.
+        os.environ["OMPI_ALLOW_RUN_AS_ROOT"] = "1"
+        os.environ["OMPI_ALLOW_RUN_AS_ROOT_CONFIRM"] = "1"
+        os.environ.pop("TLLM_WORKER_USE_SINGLE_PROCESS", None)
     from tensorrt_llm import LLM, SamplingParams
     from tensorrt_llm.llmapi import KvCacheConfig
     options = dict(backend="pytorch", dtype="bfloat16", load_format=args.load_format,
+                   tensor_parallel_size=args.tp,
                    skip_tokenizer_init=True, max_batch_size=16,
                    max_seq_len=max(2048, len(ids[0])+args.max_tokens),
                    use_cuda_graph=True, cuda_graph_batch_sizes=[1, 2, 4, 8, 16])

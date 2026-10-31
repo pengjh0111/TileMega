@@ -272,7 +272,7 @@ def tensorrt_runner(directory, args, kwargs, precision, batch, out, metadata, en
     else:
         import subprocess
         properties = torch.cuda.get_device_properties(torch.cuda.current_device())
-        uuid = subprocess.check_output(['nvidia-smi', '--id=' + require_guard(),
+        uuid = subprocess.check_output(['nvidia-smi', '--id=' + require_guard()[0],
             '--query-gpu=uuid', '--format=csv,noheader,nounits'], text=True).strip()
         if not uuid.startswith('GPU-') or '\n' in uuid:
             raise ValueError('TensorRT engine cache requires a unique physical GPU UUID')
@@ -406,7 +406,7 @@ def main():
     ordered = sorted(values)
     result = dict(schema_version=1, evidence='verified', system=options.system,
         model=manifest['model'], batch=options.batch, precision=options.precision,
-        round_index=options.round_index, pid=os.getpid(), gpu_index=int(require_guard()),
+        round_index=options.round_index, pid=os.getpid(), gpu_index=int(require_guard()[0]),
         versions=versions(), accuracy_eligible=manifest.get('accuracy_eligible', False),
         random_weights=manifest.get('random_weights', False),
         exported_program_sha256=manifest['artifacts']['exported_program.pt2'],

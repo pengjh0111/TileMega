@@ -23,7 +23,7 @@ class BaselineProtocolTest(unittest.TestCase):
             common.require_guard()
         with patch.dict(os.environ, {"TILEMEGA_DEVICE_INDEX": "3", "CUDA_VISIBLE_DEVICES": "3",
                                     "TILEMEGA_GPU_LOCK_HELD": "1"}, clear=True):
-            self.assertEqual(common.require_guard(), "3")
+            self.assertEqual(common.require_guard(), ["3"])
 
     def test_prompt_and_token_contract(self):
         for ids in ([[1], [True]], [[1], [2, 3]], [[-1]], []):
@@ -47,12 +47,12 @@ class BaselineProtocolTest(unittest.TestCase):
             common.summarize(rows, 2, 4)
 
     def test_telemetry_rejects_throttling_and_foreign_processes(self):
-        with tempfile.TemporaryDirectory() as tmp, patch.object(common, "require_guard", return_value="2"), \
+        with tempfile.TemporaryDirectory() as tmp, patch.object(common, "require_guard", return_value=["2"]), \
                 patch.object(common, "_own_pids", return_value={100}):
             path = Path(tmp)/"guard.jsonl"
             good = "400, 1800, 1593, 55, 1100, Not Active, Not Active, Not Active, Not Active, 0x0\n"
             with patch.object(common.subprocess, "check_output", side_effect=[good, "100, 1000\n"]):
-                self.assertTrue(common.observe(path, "good")["accepted"])
+                self.assertTrue(common.observe(path, "good")[0]["accepted"])
             with patch.object(common.subprocess, "check_output", side_effect=[
                     good.replace("Not Active", "Active", 1), "100, 1000\n"]):
                 with self.assertRaises(common.InvalidMeasurement):
@@ -63,7 +63,7 @@ class BaselineProtocolTest(unittest.TestCase):
             self.assertEqual(len(path.read_text().splitlines()), 3)
 
     def test_namespace_limited_is_explicit_and_keeps_known_foreign_rejection(self):
-        with tempfile.TemporaryDirectory() as tmp, patch.object(common, "require_guard", return_value="2"), \
+        with tempfile.TemporaryDirectory() as tmp, patch.object(common, "require_guard", return_value=["2"]), \
                 patch.object(common, "_own_pids", return_value={100}):
             path = Path(tmp)/"guard.jsonl"
             good = "400, 1800, 1593, 55, 1100, Not Active, Not Active, Not Active, Not Active, 0x0\n"
@@ -73,7 +73,7 @@ class BaselineProtocolTest(unittest.TestCase):
                     common.observe(path, "strict-unknown")
             with patch.dict(os.environ, {"TILEMEGA_GPU_PID_MODE": "namespace_limited"}), \
                     patch.object(common.subprocess, "check_output", side_effect=[good, "99999999, 1000\n"]):
-                sample = common.observe(path, "limited-unknown")
+                sample = common.observe(path, "limited-unknown")[0]
                 self.assertFalse(sample["ownership_verified"])
                 self.assertEqual(sample["unresolved_host_pids"], [99999999])
                 self.assertEqual(sample["acceptance"], "provisional_container_pid_namespace")
@@ -95,7 +95,7 @@ class BaselineProtocolTest(unittest.TestCase):
                 prompt_ids=prompts, max_tokens=4, warmup=1, repeats=1, round_index=0,
                 load_format="dummy", policy=None)
             with patch.object(common, "observe", return_value={}), \
-                    patch.object(common, "require_guard", return_value="2"), \
+                    patch.object(common, "require_guard", return_value=["2"]), \
                     patch.object(common.time, "perf_counter", side_effect=[0,9,10,13,20,21,30,32]):
                 with self.assertRaises(common.InvalidTiming):
                     common.measure(args, [[1,2]], "fake", lambda rows,n: [[3]*n], {})
@@ -128,7 +128,7 @@ class BaselineProtocolTest(unittest.TestCase):
                 calls.append(count)
                 return [[3]*count for _ in rows]
             clock = [0, 1, 2, 3, 4, 5, 10, 14, 20, 24, 30, 34]
-            with patch.object(common, "observe", return_value={}), patch.object(common, "require_guard", return_value="2"), \
+            with patch.object(common, "observe", return_value={}), patch.object(common, "require_guard", return_value=["2"]), \
                     patch.object(common, "versions", return_value={}), \
                     patch.object(common.time, "perf_counter", side_effect=clock), patch("builtins.print"):
                 common.measure(args, [[1, 2]], "fake", generate, {})
