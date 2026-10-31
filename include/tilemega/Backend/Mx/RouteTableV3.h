@@ -27,10 +27,13 @@ struct MxRouteWorkspaceV3 {
   float logits[B][E], selected[B][8];
   unsigned indices[B][8], counts[E];
   unsigned char ranks[B][E];
+  float probability[B][E];
+  unsigned mask[E/32];
 };
 
 template <int B, int Hidden, int Intermediate, int TnGate, int TnDown,
-          int Experts, bool NormalizeTopK, bool Fp32 = false>
+          int Experts, bool NormalizeTopK, bool Fp32 = false,
+          bool ParallelWeights = true, bool ParallelOrdinal = true>
 struct MxBuildRouteTableV3 {
   static_assert(B > 0 && B <= 16 && (Experts == 64 || Experts == 128));
   static_assert(Hidden % TnDown == 0 && (2 * Intermediate) % TnGate == 0);
@@ -77,16 +80,30 @@ struct MxBuildRouteTableV3 {
       work->ranks[token][expert] = rank < K ? rank : 0xff;
     }
     Sync::LdsSync();
+    if constexpr (ParallelWeights) {
+      constexpr unsigned width = NormalizeTopK ? K : E;
+      for (unsigned item=t;item<B*width;item+=512) {
+        unsigned const b=item/width,j=item%width;
+        float const value=NormalizeTopK?work->selected[b][j]:work->logits[b][j];
+        work->probability[b][j]=expf(value-work->selected[b][0]);
+      }
+      Sync::LdsSync();
+    }
     if (t < B) {
       float probabilities[K], sum = 0;
 #pragma unroll
       for (unsigned rank = 0; rank < K; ++rank) {
-        probabilities[rank] = expf(work->selected[t][rank] - work->selected[t][0]);
+        if constexpr (ParallelWeights)
+          probabilities[rank]=work->probability[t][NormalizeTopK?rank:work->indices[t][rank]];
+        else probabilities[rank] = expf(work->selected[t][rank] - work->selected[t][0]);
         if constexpr (NormalizeTopK) sum += probabilities[rank];
       }
       if constexpr (!NormalizeTopK) {
 #pragma unroll 4
-        for (unsigned e = 0; e < E; ++e) sum += expf(work->logits[t][e] - work->selected[t][0]);
+        for (unsigned e = 0; e < E; ++e) {
+          if constexpr (ParallelWeights) sum+=work->probability[t][e];
+          else sum += expf(work->logits[t][e] - work->selected[t][0]);
+        }
       }
 #pragma unroll
       for (unsigned rank = 0; rank < K; ++rank) {
@@ -102,10 +119,26 @@ struct MxBuildRouteTableV3 {
       work->counts[t] = count;
     }
     Sync::LdsSync();
+    if constexpr (ParallelOrdinal) {
+      if (t<E/32) {
+        unsigned bits=0;
+#pragma unroll
+        for (unsigned bit=0;bit<32;++bit)bits|=unsigned(work->counts[32*t+bit]!=0)<<bit;
+        work->mask[t]=bits;
+      }
+      Sync::LdsSync();
+    }
     if (t < E && work->counts[t]) {
       unsigned ordinal = 0;
+      if constexpr (ParallelOrdinal) {
+#pragma unroll
+        for (unsigned word=0;word<E/32;++word)
+          if (word<t/32)ordinal+=__popc(work->mask[word]);
+        ordinal+=__popc(work->mask[t/32]&((1u<<(t%32))-1u));
+      } else {
 #pragma unroll 4
-      for (unsigned e = 0; e < t; ++e) ordinal += work->counts[e] != 0;
+        for (unsigned e = 0; e < t; ++e) ordinal += work->counts[e] != 0;
+      }
       table->expert[ordinal] = t;
       table->count[ordinal] = work->counts[t];
       unsigned row = 0;
@@ -116,8 +149,13 @@ struct MxBuildRouteTableV3 {
     }
     if (t == 0) {
       unsigned total = 0;
+      if constexpr (ParallelOrdinal) {
+#pragma unroll
+        for (unsigned word=0;word<E/32;++word)total+=__popc(work->mask[word]);
+      } else {
 #pragma unroll 4
-      for (unsigned e = 0; e < E; ++e) total += work->counts[e] != 0;
+        for (unsigned e = 0; e < E; ++e) total += work->counts[e] != 0;
+      }
       table->n_active = total;
       table->units_gate_up = total * (2 * Intermediate / TnGate);
       table->units_down = total * (Hidden / TnDown);

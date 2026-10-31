@@ -6,6 +6,13 @@
 using namespace tilemega;
 using namespace tilemega::backend::mx;
 
+#ifndef MX6_ROUTE_WEIGHTS
+#define MX6_ROUTE_WEIGHTS 1
+#endif
+#ifndef MX6_ROUTE_ORDINAL
+#define MX6_ROUTE_ORDINAL 1
+#endif
+
 template <int B, int E, bool Fp32>
 __device__ __forceinline__ MxMoeDispatchOperands Case(MxMoeDispatchOperands p, unsigned index) {
   p.logits += index * B * E;
@@ -22,7 +29,8 @@ __global__ void __launch_bounds__(512) RouteTableTest(MxMoeDispatchOperands outp
   if constexpr (Version == 2) {
     MxMoeDispatchV2<B,2048,1024,64,32,Fp32,512,E,Normalize>::Run(p,smem);
   } else {
-    using Build = MxBuildRouteTableV3<B,2048,1024,64,32,E,Normalize,Fp32>;
+    using Build = MxBuildRouteTableV3<B,2048,1024,64,32,E,Normalize,Fp32,
+        bool(MX6_ROUTE_WEIGHTS),bool(MX6_ROUTE_ORDINAL)>;
     auto* table = (MxSharedRouteTableV3<Fp32>*)(smem + Build::kSharedBytes);
     Build::Run(p.logits,table,smem);
     unsigned const t = threadIdx.x;
@@ -48,7 +56,8 @@ __global__ void __launch_bounds__(512) RouteTableTest(MxMoeDispatchOperands outp
 
 template <int B, int E, bool Normalize, bool Fp32>
 int Launch(MxMoeDispatchOperands p,int version,int cases,cudaStream_t stream,int* resources,bool query) {
-  using Build = MxBuildRouteTableV3<B,2048,1024,64,32,E,Normalize,Fp32>;
+  using Build = MxBuildRouteTableV3<B,2048,1024,64,32,E,Normalize,Fp32,
+      bool(MX6_ROUTE_WEIGHTS),bool(MX6_ROUTE_ORDINAL)>;
   constexpr int need = Build::kSharedBytes + sizeof(MxRouteTableStorageV3<Fp32>);
   constexpr int bytes = need > 32784 ? (need+15)/16*16 : 32784;
   void const* kernel = version == 2 ? (void const*)RouteTableTest<B,E,Normalize,Fp32,2>
