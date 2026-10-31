@@ -717,9 +717,13 @@ struct Sm90DenseMoeFusedGemm {
   static constexpr int kSlotBytesGu=2*TKGu*(kRows+TNGu),kSlotBytesDn=2*TKDn*(kRows+TNDn);
   using LocalSchedule=Sm90DenseLocalSchedule<Batch,Experts,TopK>;
   using LocalRoute=Sm90DenseLocalRoute<Batch,Experts,TopK,FloatWeights,SoftmaxAll>;
-  static constexpr int kRouteBytes=(int(sizeof(LocalSchedule))+127)/128*128;
+  // The solver sizes this arena from Sm90DenseLayout::MoeRouteBytes, so the
+  // two must agree or a geometry could pass its budget check and overflow.
+  static_assert(int(sizeof(LocalSchedule))<=Sm90DenseLayout::MoeRouteBytes(Experts),
+      "MoeRouteBytes understates the local schedule");
+  static constexpr int kRouteBytes=(Sm90DenseLayout::MoeRouteBytes(Experts)+127)/128*128;
   static constexpr auto kLayout=Sm90DenseLayout::MoeFused(TNGu,TKGu,TNDn,TKDn,Slots,WKGu,WKDn,
-      Batch,int(sizeof(LocalSchedule)));
+      Batch,Sm90DenseLayout::MoeRouteBytes(Experts));
   static constexpr int kSharedBytes=kLayout.end;
   // E2: the route region is the tail of the arena (Sm90DenseLayout::MoeFused).
   static constexpr int kRouteOffset=kLayout.end-kRouteBytes;

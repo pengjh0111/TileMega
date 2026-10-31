@@ -110,9 +110,12 @@ struct Sm90DenseCoordinates {
 
   // MR7: the fused stage's storage; a slot holds either task type, so each
   // geometry takes the larger of the two (Sm90DenseLayout::MoeFused).
-  std::int64_t FusedExpertBytes(int batch) const {
+  // E2's routing schedule lives in the same arena, so its bytes belong to this
+  // budget; leaving them out let a geometry pass the check and then overflow.
+  std::int64_t FusedExpertBytes(int batch,int experts) const {
     return backend::Sm90DenseLayout::MoeFused(gemms[6].tile_n,gemms[6].TileK(),gemms[7].tile_n,
-        gemms[7].TileK(),gemms[6].slots,gemms[6].warps_k,gemms[7].warps_k,batch).end;
+        gemms[7].TileK(),gemms[6].slots,gemms[6].warps_k,gemms[7].warps_k,batch,
+        backend::Sm90DenseLayout::MoeRouteBytes(experts)).end;
   }
 
   static Sm90DenseCoordinates Exact(Sm90DenseShapeTable const& nk,
@@ -179,7 +182,7 @@ struct Sm90DenseCoordinates {
       throw std::invalid_argument("native attention exceeds the shared-memory budget");
     // MR7: the fused stage replaces both expert stages, so its own ring and
     // scratch have to fit the arena the surviving stage occupies.
-    if(expert_fuse && FusedExpertBytes(batch)-1024>Sm90DenseArena(budget))
+    if(expert_fuse && FusedExpertBytes(batch,nk[5][0])-1024>Sm90DenseArena(budget))
       throw std::invalid_argument("native fused expert storage exceeds its arena");
   }
 

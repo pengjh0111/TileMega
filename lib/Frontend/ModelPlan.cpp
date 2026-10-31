@@ -1141,7 +1141,11 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
                                hidden, qwidth, 1.0f);
     if(sums || (moe_dn && !serving.native_rms)){ss_cur=scratch(prefix+"o.ss",serving.seq*(hidden/(serving.dn_vector_sums?8:32)),"f32");
            builder.plan.gemms[o_gemm].ss_out=ss_cur;}
-    builder.plan.gemms[o_gemm].epilogue = PlanGemm::Epilogue::kResidual;
+    // Tensor parallel: o_proj is row sharded, so each rank holds a partial sum
+    // of the same output tile. The epilogue sums them across ranks before the
+    // residual add, so the partial never reaches global memory.
+    builder.plan.gemms[o_gemm].epilogue = serving.tp > 1 ?
+        PlanGemm::Epilogue::kResidualAllReduce : PlanGemm::Epilogue::kResidual;
     builder.Stage(PlanTaskKind::kGemm, match.at("resid1")->name,
                   o_gemm, 0, 0, 1);
     if(auto block=moe_layers.find(match.at("resid1")->name);
@@ -1266,7 +1270,9 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
                                   hidden, intermediate, 1.0f);
     if(sums){ss_cur=scratch(prefix+"down.ss",hidden/(serving.dn_vector_sums?8:32),"f32");
            builder.plan.gemms[down_gemm].ss_out=ss_cur;}
-    builder.plan.gemms[down_gemm].epilogue = PlanGemm::Epilogue::kResidual;
+    // down_proj is row sharded for the same reason as o_proj.
+    builder.plan.gemms[down_gemm].epilogue = serving.tp > 1 ?
+        PlanGemm::Epilogue::kResidualAllReduce : PlanGemm::Epilogue::kResidual;
     builder.Stage(PlanTaskKind::kGemm, match.at("resid2")->name,
                   down_gemm, 0, 0, 1);
   }

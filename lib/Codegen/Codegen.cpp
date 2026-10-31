@@ -2280,7 +2280,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
           if(gu.h!=id(g,"a") || gu.x!=id(g,"c") || gu.schedule!=operand(0) || gu.page!=page ||
              gu.cfg.slots!=cfg.slots || gu.cfg.register_stages!=cfg.register_stages || k!=gu.n/2)
             throw std::invalid_argument("native fused expert stages disagree on buffers or geometry");
-          if(c.FusedExpertBytes(batch)-1024>arena)
+          if(c.FusedExpertBytes(batch,experts)-1024>arena)
             throw std::invalid_argument("native fused expert storage exceeds its arena");
           if(gate_up_done=="kAbsent")
             throw std::invalid_argument("native fused experts need the router's counters");

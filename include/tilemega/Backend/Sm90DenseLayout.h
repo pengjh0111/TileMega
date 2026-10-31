@@ -54,6 +54,20 @@ struct Sm90DenseLayout {
   // weight slots each take the larger of the two task geometries, then the
   // larger scratch tile. Both task types share the ring, so one slot must
   // hold either of them.
+  // E2's per-CTA routing schedule, sized from the expert count so the solver
+  // and codegen can account for it without instantiating the device struct.
+  // Sm90DenseLocalSchedule static_asserts that its sizeof matches this.
+  static constexpr int MoeRouteBytes(int experts) {
+    int bytes=4*128            // weight[16 * 8] f32
+             +16*experts       // rows[E][16] u8
+             +2*experts        // expert[E] i16
+             +experts          // count[E] u8
+             +128              // sel[16 * 8] u8
+             +4*experts        // cnt[4][E] u8
+             +experts          // slot_of[E] u8
+             +16+4;            // offsets[4], active
+    return (bytes+15)/16*16;
+  }
   // E2 adds the local routing schedule after the scratch: `route` bytes, 128
   // byte aligned so the structure's own 16-byte alignment is satisfied from any
   // arena offset.
