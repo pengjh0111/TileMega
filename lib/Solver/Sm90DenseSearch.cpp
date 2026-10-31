@@ -94,7 +94,7 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
         // E2: a MoE program is always fused; the split form carries no routing.
         if(space.moe && !fuse)continue;
         Sm90DenseCoordinates d=c;
-        d.group_wait=group_wait;d.embed_la=embed_la;d.expert_fuse=fuse;
+        d.group_wait=group_wait;d.embed_la=embed_la;d.expert_fuse=fuse;d.tp=space.tp;
         // MR7: one ring serves both expert task types, so a fused candidate
         // takes the deepest common slot count whose fused storage fits.
         if(fuse) {

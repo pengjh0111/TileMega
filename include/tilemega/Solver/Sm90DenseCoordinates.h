@@ -103,6 +103,9 @@ struct Sm90DenseCoordinates {
   // MoE only, and one ring serves both task types, so the two expert
   // families share its depth.
   bool expert_fuse=false;
+  // Megatron tensor parallel degree (schema 7). The shapes are already one
+  // rank's; tp only prices the cross-rank reduction.
+  int tp=1;
   static constexpr bool ResidualFamily(unsigned family) {return family==1 || family==3;}
 
   // MR7: the fused stage's storage; a slot holds either task type, so each
@@ -143,6 +146,10 @@ struct Sm90DenseCoordinates {
     if((residency!=1 && residency!=2) ||
        (swiglu_u!=4 && swiglu_u!=8 && swiglu_u!=16) || (cluster!=1 && cluster!=2))
       throw std::invalid_argument("illegal sm90 dense structural coordinate");
+    if(tp!=1 && tp!=2 && tp!=4 && tp!=8)
+      throw std::invalid_argument("sm90 dense tp must be 1, 2, 4 or 8");
+    // A sharded MoE would have to route across ranks; out of scope this round.
+    if(tp>1 && moe)throw std::invalid_argument("sm90 dense tensor parallel MoE is unsupported");
     // D10b chunks share one cluster; D10c multicast pairs exist only in
     // clusters and only for the static dense-shaped GEMM families.
     if((attention.dsmem && cluster%attention.chunks) ||
@@ -186,13 +193,17 @@ struct Sm90DenseCoordinates {
           {"mma",g.mma==Sm90DenseMma::kMmaSync?"mma_sync":"wgmma"},
           {"register_stages",g.register_stages},{"multicast",g.multicast}});
     }
-    return json::Object{{"schema",6},{"model",moe?"moe":"dense"},{"gemms",families},
+    // Schema 7 adds tp; a TP1 coordinate still serializes as schema 6, so every
+    // R3/R4 coordinate file and its hash are unchanged.
+    json::Object result{{"schema",tp>1?7:6},{"model",moe?"moe":"dense"},{"gemms",families},
         {"attention",json::Object{{"chunks",attention.chunks},{"block_keys",attention.block_keys},
             {"slots",attention.slots},{"new_row_work",attention.new_row_work},
             {"merge",attention.dsmem?"dsmem":"la"}}},
         {"residency",residency},{"swiglu_u",swiglu_u},{"weight_stream",weight_stream},
         {"layer_loop",layer_loop},{"emb",embed_la?"la":"stage"},{"group_wait",group_wait},
         {"cluster",cluster},{"expert_fuse",expert_fuse}};
+    if(tp>1)result.emplace_back("tp",tp);
+    return result;
   }
 
   static Sm90DenseCoordinates FromJson(json::Value const& value) {
@@ -217,13 +228,19 @@ struct Sm90DenseCoordinates {
     // `expert_fuse`. Schema 5 still loads: REF-R3's 30 cells are written in
     // it and predate the fusion, which is exactly `expert_fuse` false.
     int schema=integer(value,"schema");
-    if(schema!=5 && schema!=6)throw std::invalid_argument("unknown sm90 dense coordinate schema");
-    keys(value,{"schema","model","gemms","attention","residency","swiglu_u","weight_stream","layer_loop",
-        "emb","group_wait","cluster","expert_fuse"});
+    if(schema!=5 && schema!=6 && schema!=7)
+      throw std::invalid_argument("unknown sm90 dense coordinate schema");
+    if(schema>=7)
+      keys(value,{"schema","model","gemms","attention","residency","swiglu_u","weight_stream",
+          "layer_loop","emb","group_wait","cluster","expert_fuse","tp"});
+    else
+      keys(value,{"schema","model","gemms","attention","residency","swiglu_u","weight_stream",
+          "layer_loop","emb","group_wait","cluster","expert_fuse"});
     Sm90DenseCoordinates result;
     auto model=value.At("model").AsString("model");
     if(model!="dense" && model!="moe")throw std::invalid_argument("unknown sm90 dense model");
     result.moe=model=="moe";
+    if(schema>=7)result.tp=integer(value,"tp");
     std::vector<std::string> names;
     for(unsigned i:result.Active())names.push_back(kSm90DenseFamilies[i]);
     for(auto const& item:value.At("gemms").AsObject("sm90 dense coordinate"))

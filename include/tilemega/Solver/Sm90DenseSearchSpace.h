@@ -22,6 +22,8 @@ struct Sm90DenseSearchSpace {
   // mode 2), which reads every KV group of a token and so cannot follow a
   // group-waiting qkv.
   bool qk_norm_row=false;
+  // Megatron tensor parallel degree the shapes belong to.
+  int tp=1;
   // Expected active experts of a step, E (1 - (1 - k/E)^B), which sizes the
   // grouped stages' task counts (§8 solver item 3; MR6 takes E, k from the
   // workload).

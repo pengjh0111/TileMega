@@ -31,6 +31,10 @@ bool Sm90DenseSearchSpace::Legal(Sm90DenseCoordinates const& c) const {
   // E2: routing is computed per CTA inside the fused stage, so the split M5/M6
   // form has no way to carry it and is no longer emitted.
   if(c.moe && !c.expert_fuse)return false;
+  // The declared degree and the coordinate's must agree, and a whole-row norm
+  // needs every head of the token, which no single rank holds.
+  if(c.tp!=tp)return false;
+  if(tp>1 && qk_norm_row)return false;
   int grid=Grid(c.residency);
   if(c.cluster>1 && grid%c.cluster)return false;
   // D9: every CTA publishes one argmax partial into the head's [B][tasks]
@@ -63,7 +67,12 @@ std::vector<Sm90DenseGemm> Sm90DenseSearchSpace::FamilyCandidates(unsigned famil
     return std::ceil(count/grid);
   };
   if(family==4) {
-    for(int tn:{128,256})if(n%tn==0 && n/tn>=grid)tiles.push_back(tn);
+    // A sharded vocabulary is not a multiple of 128: Qwen3-1.7B gives 75968 at
+    // TP2 and 37984 at TP4, which admit 16 and 32 but not 128 or 256. D9 still
+    // requires at least one lm_head task per CTA.
+    if(tp>1)for(int tn:{16,32,64,128,256}) {
+      if(n%tn==0 && n/tn>=grid)tiles.push_back(tn);
+    }else for(int tn:{128,256})if(n%tn==0 && n/tn>=grid)tiles.push_back(tn);
     depths={64,128,256};
   }else if(family>=5) {
     // M4: TN8, 16 tasks. The expert tiles belong to the geometry: R3 fitted
