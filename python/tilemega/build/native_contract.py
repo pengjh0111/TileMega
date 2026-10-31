@@ -124,10 +124,16 @@ def dispatch(manifest, defines, source):
         if kind == 'MoeFused':
             # batch, N_gu, N_dn, K_gu, TN/TK gate_up, TN/TK down, slots, WN/WK
             # gate_up, WN/WK down, U, experts, top-k, float routes, page, 11
-            # operands (the 10th gu_done), map, register stages.
-            if len(args) != 30 or args[13] != '16' or args[14] not in ('64', '128') or \
-                    args[15] != '8' or args[17] not in ('0', '64') or args[27] == 'kAbsent':
+            # operands (the 10th gu_done), map, register stages. E2 appends the
+            # logits buffer and the softmax convention; 30 args is a program
+            # emitted before E2, and such binaries are still loadable.
+            if len(args) not in (30, 32) or args[13] != '16' or \
+                    args[14] not in ('64', '128') or args[15] != '8' or \
+                    args[17] not in ('0', '64') or args[27] == 'kAbsent':
                 raise ValueError('native fused MoE call signature is invalid')
+            if len(args) == 32 and (args[30] == 'kAbsent' or
+                                    args[31] not in ('true', 'false')):
+                raise ValueError('native fused MoE local route operands are invalid')
             down = family == 'expert_down'
             values = list(map(int, args[:13]))
             batch, slots = values[0], values[8]
