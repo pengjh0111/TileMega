@@ -88,7 +88,7 @@ def dispatch(manifest, defines, source):
                         source)
     lm = re.search(rf'using Body_{head}\s*=\s*Head<HeadGemm_{head},\d+,\d+,\d+,\d+,\d+,(true|false)'
                    r'(?:,(\d+),(\d+))?>;', source)
-    if (program is None or lm is None or program[6] != (str(tp) if tp > 1 else None) or
+    if (program is not None and lm is not None) and (program[6] != (str(tp) if tp > 1 else None) or
             lm[2] != (str(tp) if tp > 1 else None) or
             (tp > 1 and int(lm[3]) != manifest['gemms'][-1]['n'])):
         raise ValueError('native dense tensor parallel program differs from its coordinate identity')
