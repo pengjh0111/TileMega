@@ -14,6 +14,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+import statistics
 import subprocess
 import sys
 import time
@@ -184,6 +185,62 @@ def run(a):
     return 0
 
 
+ENGINE_NAMES = {'vllm': 'vllm', 'sglang': 'sglang', 'trtllm': 'tensorrt-llm'}
+
+
+def collect(a):
+    """SM90R5_tp_baselines.csv: R16 medians over the done fresh processes, TP1 frozen alongside."""
+    import csv
+    state = read(OUT / 'state.json')
+    tp1 = {}
+    for row in csv.DictReader(open(ROOT / 'docs/results/R16_final_baselines.csv')):
+        if row['model'] == MODEL:
+            tp1[(row['system'], int(row['batch']))] = float(row['tpot_ms'])
+    rows = []
+    for engine in ENVS:
+        for tp in (2, 4):
+            names = sorted(n for n in state if n.startswith(f'{engine}_tp{tp}_'))
+            done = [n for n in names if state[n]['status'] == 'done']
+            for batch in (1, 2, 4, 8, 16):
+                records = []
+                for name in done:
+                    path = Path(state[name]['directory']) / f'job/measurements/B{batch}/measurements.json'
+                    if path.exists():
+                        records.append((name, read(path)))
+                reference = tp1.get((ENGINE_NAMES[engine], batch))
+                row = dict(model=MODEL, system=ENGINE_NAMES[engine], tp=tp, batch=batch,
+                           fresh_processes=len(records), tp1_tpot_ms=f'{reference:.4f}' if reference else '')
+                if not records:
+                    row.update(tpot_ms='N/A', status='/'.join(sorted({state[n]['status'] for n in names})))
+                    rows.append(row)
+                    continue
+                tpot = [r['tpot_seconds'] * 1e3 for _, r in records]
+                median = statistics.median(tpot)
+                row.update(
+                    tpot_ms=f'{median:.4f}',
+                    status='complete' if len(records) >= 3 else f'{len(records)} of 3 processes',
+                    per_process_ms=';'.join(f'{v:.4f}' for v in tpot),
+                    range_pct=f'{(max(tpot) - min(tpot)) / median * 100:.2f}',
+                    ttft_ms=f'{statistics.median(r["ttft_seconds"] for _, r in records) * 1e3:.3f}',
+                    e2e_ms=f'{statistics.median(r["e2e_seconds"] for _, r in records) * 1e3:.1f}',
+                    groups=';'.join(','.join(map(str, state[n]['group'])) for n, _ in records),
+                    checkpoint_sha256=records[0][1]['checkpoint']['checkpoint_sha256'],
+                    versions=json.dumps({k: v for k, v in records[0][1]['versions'].items() if v},
+                                        sort_keys=True),
+                    launcher=records[0][1].get('configuration', {}).get('launcher', ''),
+                    scaling_efficiency=f'{reference / (tp * median):.4f}' if reference else '')
+                rows.append(row)
+    fields = []
+    for row in rows:
+        fields += [k for k in row if k not in fields]
+    with open(a.csv, 'w', newline='') as stream:
+        writer = csv.DictWriter(stream, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(rows)
+    print(json.dumps(dict(rows=len(rows), csv=str(a.csv))))
+    return 0
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     sub = p.add_subparsers(dest='action', required=True)
@@ -197,9 +254,11 @@ def main():
                              help='let a queued machine-class unit (MoE timing) go first')
             one.add_argument('--tp2-cards', type=int, nargs='+', default=[0, 5, 7])
             one.add_argument('--tp4-cards', type=int, nargs='+', default=list(range(8)))
+    c = sub.add_parser('collect')
+    c.add_argument('--csv', type=Path, default=ROOT / 'docs/results/SM90R5_tp_baselines.csv')
     a = p.parse_args()
     a.cards = {2: set(getattr(a, 'tp2_cards', range(8))), 4: set(getattr(a, 'tp4_cards', range(8)))}
-    return queue(a) if a.action == 'queue' else run(a)
+    return dict(queue=queue, run=run, collect=collect)[a.action](a)
 
 
 if __name__ == '__main__':
