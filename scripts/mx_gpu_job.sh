@@ -17,7 +17,8 @@ LOG=${TILEMEGA_GPU_JOB_LOG:-$ROOT/runs/mx1/gpu_jobs.log}
 mkdir -p "$out" "$(dirname "$LOG")"
 echo "$(date -Is) gpu=$g timeout=$t out=$out cmd=$*" >> "$LOG"
 set +e
-python -m tilemega.bench.gpu_guard --policy configs/bench/guard_policy_c550.json \
+python scripts/mx_job_duration.py --out "$out/monotonic_duration.json" -- \
+  python -m tilemega.bench.gpu_guard --policy configs/bench/guard_policy_c550.json \
   --needs-free-mib ${NEEDS_MIB:-12288} --out "$out" --timeout-s "$t" -- "$@"
 rc=$?
 echo "$(date -Is) gpu=$g rc=$rc out=$out" >> "$LOG"
