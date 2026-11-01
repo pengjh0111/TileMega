@@ -18,17 +18,18 @@ def checked(ref):
     return path
 
 
-def aggregate(request):
+def aggregate(request,rounds=(1,2,3)):
+    if rounds not in((1,2,3),(4,5)):raise ValueError('initial three or supplementary two rounds required')
     source=json.loads(checked(request['source']).read_text());rows=[];rejected=[];seen=set();pids=set()
     expected=json.loads(checked(request['all_keys']).read_text())
     expected_keys={json.dumps(row['key'],sort_keys=True)for row in expected}
     if len(expected_keys)!=len(expected):raise ValueError('duplicate requested key')
     for job in request['jobs']:
         keys=json.loads(checked(job['keys']).read_text());samples=[];numbers=set();job_pids=set()
-        if len(job['records'])!=3:raise ValueError('three fresh process records required')
+        if len(job['records'])!=len(rounds):raise ValueError('complete fresh process records required')
         for record in job['records']:
             number=record['round'];raw=checked(record['raw']);process=json.loads(checked(record['process']).read_text());guard=json.loads(checked(record['guard']).read_text())
-            if number not in(1,2,3)or number in numbers:raise ValueError('duplicate/missing round')
+            if number not in rounds or number in numbers:raise ValueError('duplicate/missing round')
             if process['returncode']or guard['code']:raise ValueError('failed guard process')
             argv=process['argv']
             expected_tail=[request['driver']['path'],'--keys',job['keys']['path'],'--out',str(raw),'--round',str(number)]
@@ -63,7 +64,7 @@ def aggregate(request):
             costs=[row['cost_ns']for row in values]
             if any(not isinstance(v,(float,int))or v<=0 for v in costs):raise ValueError('invalid cost')
             median=statistics.median(costs);spread=(max(costs)-min(costs))/median
-            row=dict(key=key['key'],median_ns=median,p90_ns=statistics.median(v['p90_ns']for v in values),spread=spread,processes=3,
+            row=dict(key=key['key'],median_ns=median,p90_ns=statistics.median(v['p90_ns']for v in values),spread=spread,processes=len(rounds),
                 resources=resources,physical_card=values[0]['physical_card'],source_digest=source['source_digest'],
                 binary=key['binary'],build=key['build'],rounds=[dict(round=number,input=dict(**record['raw'],line=index+1),
                     process=record['process'],guard=record['guard'],PID=batch[index]['PID'],cost_ns=batch[index]['cost_ns'],
