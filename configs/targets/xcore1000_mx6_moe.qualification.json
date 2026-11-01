@@ -2,14 +2,14 @@
   "kind": "mx6_moe_cost_qualification",
   "schema_version": 2,
   "evidence": "verified",
-  "checkpoint": "continue1_CP4_qualified",
+  "checkpoint": "continue1_CP4c_qualified",
   "instruction": {
     "path": "/root/Prompt/TileMega_MX6_continue1.md",
     "sha256": "c75af51618c826c7f6b6863d920a9da0ee61388b1d7b32b3edef139cf68af3e2"
   },
-  "cost_table_sha256": "46ff7ce889f4148f15d17b9d926baac149ea01f26539a46e3edb3d4d77e6848f",
-  "measured_rows": 4298,
-  "fresh_processes": 215,
+  "cost_table_sha256": "b65aa2cbd5d5f7b47785e0f2e3a82a76208d1486a3f73a08979b50353498f32a",
+  "measured_rows": 4373,
+  "fresh_processes": 233,
   "solver_eligible": true,
   "sync_gate": "pass (owner16 5/5, owner_tile 5/5; unit_owner excluded)",
   "excluded_combine_modes": [
@@ -1345,6 +1345,106 @@
       "p90_ns": 51348.0,
       "spread": 0.0257667721314651,
       "processes": 3
+    },
+    {
+      "source_row": 4327,
+      "key": {
+        "model": "qwen3_30b_a3b_l24",
+        "b": 16,
+        "stage": "attention",
+        "dim": 128,
+        "q": 8,
+        "hkv": 4,
+        "qk_norm": 1,
+        "row_norm_heads": 0,
+        "prefetch": 2,
+        "split": "bal",
+        "epsilon": 1e-06,
+        "length": 1088
+      },
+      "p90_ns": 51172.0,
+      "spread": 0.10075464001631654,
+      "processes": 3
+    },
+    {
+      "source_row": 4349,
+      "key": {
+        "model": "olmoe_1b_7b",
+        "b": 8,
+        "stage": "attention",
+        "dim": 128,
+        "q": 1,
+        "hkv": 16,
+        "qk_norm": 1,
+        "row_norm_heads": 16,
+        "prefetch": 2,
+        "split": "bal",
+        "epsilon": 1e-05,
+        "length": 256
+      },
+      "p90_ns": 42310.0,
+      "spread": 0.031862745098039214,
+      "processes": 3
+    },
+    {
+      "source_row": 4351,
+      "key": {
+        "model": "olmoe_1b_7b",
+        "b": 8,
+        "stage": "attention",
+        "dim": 128,
+        "q": 1,
+        "hkv": 16,
+        "qk_norm": 1,
+        "row_norm_heads": 16,
+        "prefetch": 2,
+        "split": "bal",
+        "epsilon": 1e-05,
+        "length": 768
+      },
+      "p90_ns": 59040.0,
+      "spread": 0.024111014744145707,
+      "processes": 3
+    },
+    {
+      "source_row": 4369,
+      "key": {
+        "model": "olmoe_1b_7b",
+        "b": 16,
+        "stage": "attention",
+        "dim": 128,
+        "q": 1,
+        "hkv": 16,
+        "qk_norm": 1,
+        "row_norm_heads": 16,
+        "prefetch": 2,
+        "split": "bal",
+        "epsilon": 1e-05,
+        "length": 256
+      },
+      "p90_ns": 55330.0,
+      "spread": 0.059275933220784095,
+      "processes": 3
+    },
+    {
+      "source_row": 4371,
+      "key": {
+        "model": "olmoe_1b_7b",
+        "b": 16,
+        "stage": "attention",
+        "dim": 128,
+        "q": 1,
+        "hkv": 16,
+        "qk_norm": 1,
+        "row_norm_heads": 16,
+        "prefetch": 2,
+        "split": "bal",
+        "epsilon": 1e-05,
+        "length": 768
+      },
+      "p90_ns": 94764.0,
+      "spread": 0.02369693713057496,
+      "processes": 3
     }
   ],
   "excluded_noisy_source_rows": [
@@ -1454,6 +1554,26 @@
         "sha256": "fc64f55c368af999ea64322b2e1180c479c80e71466ddc60af53196a307a559a"
       },
       "resolution": "continue1 section2 excludes unit_owner; accepted failure evidence retained"
+    },
+    {
+      "cost_table_sha256": "46ff7ce889f4148f15d17b9d926baac149ea01f26539a46e3edb3d4d77e6848f",
+      "cost_table": {
+        "path": "/root/tilemega/configs/targets/xcore1000_mx6_moe_cp4.json",
+        "sha256": "46ff7ce889f4148f15d17b9d926baac149ea01f26539a46e3edb3d4d77e6848f"
+      },
+      "qualification": {
+        "path": "/root/tilemega/configs/targets/xcore1000_mx6_moe_cp4.qualification.json",
+        "sha256": "69b8a8ee6a830eb30b1954d06f2cbdd5d902828f552af548a47fadaed057fc58"
+      },
+      "original_input": {
+        "path": "/root/tilemega/configs/targets/xcore1000_mx6_moe.json",
+        "sha256": "46ff7ce889f4148f15d17b9d926baac149ea01f26539a46e3edb3d4d77e6848f"
+      },
+      "raw_archive": {
+        "path": "/root/tilemega/runs/mx6/continue1/cp4c_attention_costs/B9_qualification_remedy1/previous_catalog.json",
+        "sha256": "46ff7ce889f4148f15d17b9d926baac149ea01f26539a46e3edb3d4d77e6848f"
+      },
+      "resolution": "P3b split3/bal appended after five fresh process unit qualification; unit_owner remains excluded"
     }
   ],
   "reason": "continue1 sections2 and4.1: disqualified mode retained in data and excluded from selection; B9 cost policy applied",
@@ -1466,5 +1586,23 @@
     "actual_remaining_before_supplement": 45,
     "formula": "spread > .02; retained median within1.02 times class minimum",
     "classification": "B11/C; same accepted de04aebd source table"
+  },
+  "P3b_gate": {
+    "path": "/root/tilemega/runs/mx6/continue1/cp4c_attention_unit/QUALIFICATION_PASS.json",
+    "sha256": "b12146bcdf86f8c9fd1bf3a78c2b63228f56b4dbaa855fa43cc4d5c7f0e3a1dd"
+  },
+  "P3b_supplement": {
+    "three_process_catalog": {
+      "path": "/root/tilemega/runs/mx6/continue1/cp4c_attention_costs/catalog_three_process.json",
+      "sha256": "25aa1985a77b8cc5b1ee6bd2e9741333959fa3de29e95fbd0dd75e99707d025a"
+    },
+    "B9_plan": {
+      "path": "/root/tilemega/runs/mx6/continue1/cp4c_attention_costs/B9_PLAN.json",
+      "sha256": "8c6159c25cc95d649caf597a7dac48d89e386698d597942e55d5cfaf7d87bac7"
+    },
+    "B9_jobs": [],
+    "supplemented_keys": 0,
+    "new_rows": 75,
+    "old_rows_unchanged": true
   }
 }

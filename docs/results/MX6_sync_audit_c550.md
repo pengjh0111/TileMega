@@ -279,3 +279,29 @@ constructions. Source/build/PID/output receipts are in
 runs/mx6/continue1/cp4b_qualification/QUALIFICATION_PASS.json. These are local
 LDS/unit checks, not a new cross-CTA litmus or E2E enablement decision; the
 unchanged P0/owner protocols retain their prior five-process evidence.
+
+## CP4c split3 and balanced attention (verified: 5/5 fresh processes)
+
+DecodeAttentionV3.h:13–65 partitions the head/block work and assigns each wave
+one segment. Prefetch at115–118 uses the same geometry as Wave at143–144;
+the last-block owner at162 updates DT-KV only in the final segment.
+Wave publishes local m/l/O before LdsSync at420. LocalMerge at344–370
+writes full-head ctx directly, or a distinct (head,piece) partial in the
+four-slot stride for bal. Partial segments call LastArriverV2 at432 in
+ascending head order; its existing CtaSync/release/acquire protocol orders
+all writer waves before ticket publication and consumer reads. SplitMerge
+at373–407 issues m/l/O for every present piece in one batch, waits once,
+and merges in ascending piece order without a CTA exchange. Final CtaSync
+at437 precedes next()/early arrival; whole-head bal segments use no ticket.
+
+The prescribed replacement for a new litmus passes **5/5 fresh processes**.
+Each runs168 cases, covering all56 mandatory H/Q/past combinations plus
+normalization profiles; FP64 context, original-transform cache history and
+repeat bits all pass, with actual resident1/local0/static0. Source/build,
+PID and case receipts are sealed in runs/mx6/continue1/cp4c_attention_unit/
+QUALIFICATION_PASS.json. This qualifies the optional split3/bal protocol;
+serving enablement still requires whole-program resources, C-1/C-2 and E2E.
+
+## User-accepted final snapshot; remaining gates not executed (verified)
+
+The ten pinned normal/watchdog/prefill artifacts have30 preserved actual resident1 queries, local/static0 and bounded LDS. QwenB16/OLMoEB2 use their completed CP4c selected artifacts; eight others retain accepted CP4/P1c artifacts. The existing split3/bal5/5fresh-process qualification applies to its protocol; only OLMoEB2 split3 is newly selected. Source/binary/pin/cost identities and512-step C-1/C-2 are rechecked from existing records, without new GPU jobs. User explicitly stops remaining CP4c/X1/final-routing/reliability/dense work. No X1 publication/acquire claim,200-process reliability claim or complete G6-MOE claim is made. Controlled CPU executor interruptions preserve all attempts and signal no GPU child; older main-thread-only drain evidence remains qualified as stated, not verified.

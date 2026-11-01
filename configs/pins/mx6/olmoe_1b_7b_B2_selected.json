@@ -5,7 +5,7 @@
     "purpose": "selected",
     "attn_version": 3,
     "attn_prefetch": 1,
-    "split": 2,
+    "split": 3,
     "route_table_mode": "filter2",
     "combine_mode": "owner_tile",
     "qkv": {
@@ -57,19 +57,19 @@
       "part": "kTileRange"
     },
     "selection": {
-      "cost_table_sha256": "46ff7ce889f4148f15d17b9d926baac149ea01f26539a46e3edb3d4d77e6848f",
-      "candidate_rank": 68,
-      "predicted_ns": 3189755.5156402737,
+      "cost_table_sha256": "b65aa2cbd5d5f7b47785e0f2e3a82a76208d1486a3f73a08979b50353498f32a",
+      "candidate_rank": 108,
+      "predicted_ns": 3187422.221407625,
       "source_rows": {
         "qkv": [
           355
         ],
         "attention": [
-          3395,
-          3396,
-          3397,
-          3398,
-          3399
+          4333,
+          4334,
+          4335,
+          4336,
+          4337
         ],
         "o": [
           3421
@@ -89,16 +89,12 @@
       },
       "program_switches": {
         "route_table_mode": "filter2",
-        "experts_fused": false,
-        "P1c_control_pin": {
-          "path": "/root/tilemega/runs/mx6/continue1/cp4/olmoe_1b_7b/B2/selection/selected_pin.json",
-          "sha256": "261983529b5794c372897f2a0e3a4be841a17c8fb81727944d8ddad0be8b2556"
-        }
+        "experts_fused": false
       },
       "algorithm": "measured stage costs, k-best substitution, resource-qualified cohort, one-percent E2E rule",
       "measurement_decision": {
-        "path": "/root/tilemega/runs/mx6/continue1/cp4/olmoe_1b_7b/B2/selection/MEASURED_SELECTION.json",
-        "sha256": "5d7b7022ab05a39e41aedc740ccdbf2db0e2db7f9d3c7f1dc313c943d21b5c3d"
+        "path": "/root/tilemega/runs/mx6/continue1/cp4c_reselection/olmoe_1b_7b/B2/selection/MEASURED_SELECTION.json",
+        "sha256": "aca0ef8d82e58b4b9c1f352fab51b60bfeb983200899e222b92fd876d7fd0ceb"
       },
       "eligible_rank": 1,
       "fresh_processes_per_candidate": 2,
