@@ -19,7 +19,14 @@ def main():
     parser.add_argument('--packets', default='1024,262144')
     parser.add_argument('--all-to-all', type=int, choices=(0, 1), required=True)
     parser.add_argument('--budget-s', type=float, default=500)
+    parser.add_argument('--exclude', type=Path)
     args = parser.parse_args()
+    excluded = set()
+    if args.exclude:
+        proof = json.loads(args.exclude.read_text())
+        excluded = {tuple(item) for item in proof['excluded_alloc_store_load']}
+        if not proof.get('previous_failures'):
+            raise ValueError('C0 exclusion must retain prior failed-cohort evidence')
     if os.getenv('TILEMEGA_GPU_LOCK_HELD') != '1':
         raise RuntimeError('matrix requires the group guard')
     values = lambda text: list(map(int, text.split(',')))
@@ -28,6 +35,8 @@ def main():
     for width, allocation, store, load, packets in itertools.product(
             values(args.widths), values(args.allocations), values(args.stores),
             values(args.loads), values(args.packets)):
+        if (allocation, store, load) in excluded:
+            continue
         out = args.out / f'w{width}_a{allocation}_s{store}_l{load}_p{packets}'
         summary = out / 'summary.json'
         if summary.exists():
