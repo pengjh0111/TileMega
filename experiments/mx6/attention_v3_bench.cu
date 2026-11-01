@@ -49,6 +49,8 @@ __global__ void __launch_bounds__(512) Mx6AttentionBench(AttentionBenchArgs a) {
 extern "C" int mx6_attention_bench(AttentionBenchArgs const* a,void* stream) {
   if(!a||a->copies<1||a->iterations<0||a->attention.capacity!=1088||a->attention.past<0||a->attention.past>=1088)return 4;
   if(MX6_SPLIT>1&&MX6_B*MX6_HKV*MX6_SPLIT>104)return 4;
+  if(MX6_SPLIT==3&&(MX6_B*MX6_HKV<26||MX6_B*MX6_HKV>34))return 4;
+  if(MX6_SPLIT==-1&&MX6_B*MX6_HKV<35)return 4;
   int const bytes=max(32784,Body::kSharedBytes)+16;
   if(bytes>65536)return 4;
   if(cudaFuncSetAttribute(Mx6AttentionBench,cudaFuncAttributeMaxDynamicSharedMemorySize,bytes)!=cudaSuccess)return 5;

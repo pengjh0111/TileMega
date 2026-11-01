@@ -72,7 +72,7 @@ def domain(helper,replay):
 def definitions(key,pw):
     stage=key['stage'];values=dict(B=key['b'])
     if stage=='attention':
-        values.update(HKV=key['hkv'],DIM=key['dim'],Q=key['q'],NORM=key['qk_norm'],ROW=key['row_norm_heads'],PREFETCH=key['prefetch'],SPLIT=key['split'])
+        values.update(HKV=key['hkv'],DIM=key['dim'],Q=key['q'],NORM=key['qk_norm'],ROW=key['row_norm_heads'],PREFETCH=key['prefetch'],SPLIT=-1 if key['split']=='bal'else key['split'])
         return 'attention_v3_bench.cu',values,'Mx6AttentionBench'
     values.update(TN=key['tn'],WN=key['wn'],D=key['d'],PW=pw)
     if stage in ('gate_up','down'):

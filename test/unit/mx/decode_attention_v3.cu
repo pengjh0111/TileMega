@@ -7,6 +7,9 @@
 #ifndef MX6_TEST_Q
 #define MX6_TEST_Q 8
 #endif
+#ifndef MX6_TEST_HKV
+#define MX6_TEST_HKV 0
+#endif
 #ifndef MX6_TEST_ROW_HEADS
 #define MX6_TEST_ROW_HEADS 0
 #endif
@@ -50,6 +53,12 @@ template<int B,int Hkv,bool Norm,int Kind>
 int SplitV3(AttentionArgsV3 const& a,int split,cudaStream_t s,int* r,bool q) {
   if(split==1)return LaunchV3<B,Hkv,Norm,Kind,1>(a,s,r,q);
   if(split==2)return LaunchV3<B,Hkv,Norm,Kind,2>(a,s,r,q);
+  if(split==3) {
+    if constexpr(B*Hkv>=26&&B*Hkv<=34)return LaunchV3<B,Hkv,Norm,Kind,3>(a,s,r,q);
+  }
+  if(split==-1) {
+    if constexpr(B*Hkv>=35)return LaunchV3<B,Hkv,Norm,Kind,-1>(a,s,r,q);
+  }
   if(split==4)return LaunchV3<B,Hkv,Norm,Kind,4>(a,s,r,q);
   return 4;
 }
@@ -69,7 +78,12 @@ int NormV3(AttentionArgsV3 const& a,int norm,int kind,int split,cudaStream_t s,i
 extern "C" int mx6_attention(AttentionArgsV3 const* a,int norm,int kind,int split,void* stream,int* resource,int query) {
   if((norm!=0&&norm!=1)||(query!=0&&query!=1)||a->ops.capacity!=1088)return 4;
   auto s=static_cast<cudaStream_t>(stream);
-#if MX6_TEST_ROW_HEADS
+#if MX6_TEST_HKV
+  if(a->hkv!=MX6_TEST_HKV)return 4;
+#define CASE_BATCH(B) if(a->b==B)return NormV3<B,MX6_TEST_HKV>(*a,norm,kind,split,s,resource,bool(query))
+  CASE_BATCH(1);CASE_BATCH(2);CASE_BATCH(4);CASE_BATCH(8);CASE_BATCH(16);
+#undef CASE_BATCH
+#elif MX6_TEST_ROW_HEADS
   if(a->hkv!=MX6_TEST_ROW_HEADS)return 4;
   if(a->b==1)return NormV3<1,MX6_TEST_ROW_HEADS>(*a,norm,kind,split,s,resource,bool(query));
   if(a->b==16)return NormV3<16,MX6_TEST_ROW_HEADS>(*a,norm,kind,split,s,resource,bool(query));

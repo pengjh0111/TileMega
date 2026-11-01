@@ -5,13 +5,36 @@
 
 namespace tilemega::backend::mx {
 struct MxAttentionGeometryV3 {
-  int blocks, head_begin, head_end, block_begin, block_end, split_index;
+  int blocks,head_begin,head_end,block_begin,block_end,split_index;
+  int total,grid_size,cta_index,split_count,w0,w1,w2,w3;
   TM_MX_HD constexpr MxAttentionGeometryV3(int heads,int past,int grid,int cta,int split)
-      :blocks((past+32)/32),head_begin(heads),head_end(heads),block_begin(0),block_end(0),split_index(0) {
-#if defined(__CUDA_ARCH__) || defined(__MACA_ARCH__)
-    __builtin_assume(cta>=0&&cta<grid);
-#endif
-    if(split>1) {
+      :blocks((past+32)/32),head_begin(heads),head_end(heads),block_begin(0),block_end(0),split_index(0),
+       total(heads*blocks),grid_size(grid),cta_index(cta),split_count(split),w0(0),w1(0),w2(0),w3(0) {
+    if(split==-1) {
+      int const begin=cta*total/grid,end=(cta+1)*total/grid;
+      if(begin==end)return;
+      head_begin=begin/blocks;head_end=(end+blocks-1)/blocks;
+      block_begin=begin-head_begin*blocks;block_end=end-(head_end-1)*blocks;
+      int const length=end-begin;int sum=0;
+      for(int i=0;i<4;++i) {
+        int const count=i<Heads()?((8*(End(i)-Begin(i))/length)>0?8*(End(i)-Begin(i))/length:1):0;
+        SetWaves(i,count);sum+=count;
+      }
+      while(sum>8) {
+        int best=0;
+        for(int i=1;i<4;++i)if(Count(i)>Count(best))best=i;
+        SetWaves(best,Count(best)-1);--sum;
+      }
+      unsigned awarded=0;
+      while(sum<8) {
+        int best=-1,remainder=-1;
+        for(int i=0;i<4;++i)if(i<Heads()&&!(awarded&(1u<<i))) {
+          int const candidate=8*(End(i)-Begin(i))%length;
+          if(candidate>remainder){best=i;remainder=candidate;}
+        }
+        SetWaves(best,Count(best)+1);awarded|=1u<<best;++sum;
+      }
+    } else if(split>1) {
       if(cta<heads*split) {
         head_begin=cta/split;head_end=head_begin+1;split_index=cta%split;
         block_begin=split_index*blocks/split;block_end=(split_index+1)*blocks/split;
@@ -23,9 +46,23 @@ struct MxAttentionGeometryV3 {
     }
   }
   TM_MX_HD constexpr int Heads()const{return head_end-head_begin;}
-  TM_MX_HD constexpr int FirstWave(int i)const{return (8*i+Heads()-1)/Heads();}
-  TM_MX_HD constexpr int HeadIndex(int wave)const{return wave*Heads()/8;}
+  TM_MX_HD constexpr int Begin(int i)const{return split_count==-1?(i==0?block_begin:0):block_begin;}
+  TM_MX_HD constexpr int End(int i)const{return split_count==-1?(i+1==Heads()?block_end:blocks):block_end;}
+  TM_MX_HD constexpr int Count(int i)const{return i==0?w0:i==1?w1:i==2?w2:w3;}
+  TM_MX_HD constexpr void SetWaves(int i,int value){if(i==0)w0=value;else if(i==1)w1=value;else if(i==2)w2=value;else w3=value;}
+  TM_MX_HD constexpr int FirstWave(int i)const{
+    return split_count==-1?(i==0?0:i==1?w0:i==2?w0+w1:i==3?w0+w1+w2:8):(8*i+Heads()-1)/Heads();
+  }
+  TM_MX_HD constexpr int HeadIndex(int wave)const{
+    return split_count==-1?(wave<w0?0:wave<w0+w1?1:wave<w0+w1+w2?2:3):wave*Heads()/8;
+  }
   TM_MX_HD constexpr int Waves(int i)const{return FirstWave(i+1)-FirstWave(i);}
+  TM_MX_HD constexpr int FirstCta(int head)const{return ((head*blocks+1)*grid_size+total-1)/total-1;}
+  TM_MX_HD constexpr int Pieces(int i)const{
+    int const head=head_begin+i;
+    return split_count==-1?(((head+1)*blocks*grid_size+total-1)/total-1)-FirstCta(head)+1:split_count;
+  }
+  TM_MX_HD constexpr int Piece(int i)const{return split_count==-1?cta_index-FirstCta(head_begin+i):split_index;}
 };
 
 template<int D,int Heads,int Q>
@@ -67,8 +104,8 @@ struct MxAttentionV3 : MxAttentionV2<D,Q,1,QkNorm,PrefetchKind,Capacity,RowNormH
   using Base::kChunks;using Base::kAtoms;using Base::kKLoads;using Base::kVLoads;
   using Base::kWaveFloats;using Base::kSharedBytes;
   using Base::LoadK;using Base::LoadV;using Base::MaskV;
-  static constexpr int kSplit=Split;
-  static_assert(Split==1||Split==2||Split==4);
+  static constexpr int kSplit=Split,kPartialSlots=Split==-1?4:Split;
+  static_assert(Split==-1||Split==1||Split==2||Split==3||Split==4);
 
   template<class Shape>
   __device__ __forceinline__ static Prefetched Prefetch(MxAttentionOperandsV2 const& p,Shape const& s) {
@@ -77,8 +114,8 @@ struct MxAttentionV3 : MxAttentionV2<D,Q,1,QkNorm,PrefetchKind,Capacity,RowNormH
     int const wave=__builtin_mxc_readfirstlane(int(t/64)),lane=t%64;
     MxAttentionGeometryV3 const geo(s.b*s.hkv,p.past,int(gridDim.x),StageBlock(),Split);
     if(wave<8&&geo.Heads()) {
-      int const i=geo.HeadIndex(wave),j=geo.block_begin+wave-geo.FirstWave(i),head=geo.head_begin+i;
-      if(j<geo.block_end) {
+      int const i=geo.HeadIndex(wave),j=geo.Begin(i)+wave-geo.FirstWave(i),head=geo.head_begin+i;
+      if(j<geo.End(i)) {
         Block block;
         if constexpr(PrefetchKind) {
           LoadK(block,p,head,j,lane);
@@ -104,7 +141,7 @@ struct MxAttentionV3 : MxAttentionV2<D,Q,1,QkNorm,PrefetchKind,Capacity,RowNormH
     int const wave=__builtin_mxc_readfirstlane(t/64),lane=t%64;
     if(wave>=8||!geo.Heads())return;
     int const i=geo.HeadIndex(wave),head=geo.head_begin+i,waves=geo.Waves(i);
-    int const first=geo.block_begin+wave-geo.FirstWave(i),end=geo.block_end;
+    int const first=geo.Begin(i)+wave-geo.FirstWave(i),end=geo.End(i);
     Block block{};
     int const r = lane & 15, g = lane >> 4;
     float* const workspace = shared + min(wave, 7) * kWaveFloats;
@@ -314,34 +351,36 @@ struct MxAttentionV3 : MxAttentionV2<D,Q,1,QkNorm,PrefetchKind,Capacity,RowNormH
       float maximum=-INFINITY;
 #pragma unroll
       for(int w=0;w<8;++w)
-        if(w>=first&&w<end&&geo.block_begin+w-first<geo.block_end)
+        if(w>=first&&w<end&&geo.Begin(i)+w-first<geo.End(i))
           maximum=fmaxf(maximum,shared[w*kWaveFloats+64+D/2+q*(D+2)+D]);
+      bool const direct=Split==1||(Split==-1&&geo.Begin(i)==0&&geo.End(i)==geo.blocks);
       float result=0,lambda=0;
 #pragma unroll
       for(int w=0;w<8;++w) {
-        if(w>=first&&w<end&&geo.block_begin+w-first<geo.block_end) {
+        if(w>=first&&w<end&&geo.Begin(i)+w-first<geo.End(i)) {
           float const* values=shared+w*kWaveFloats+64+D/2+q*(D+2);
           float const scale=maca::Exp2(values[D]-maximum);
           result+=values[d]*scale;
-          if constexpr(Split==1)lambda+=values[D+1]*scale;
+          if(direct)lambda+=values[D+1]*scale;
         }
       }
-      if constexpr(Split==1)p.ctx[(head*Q+q)*D+d]=Bf16(result/lambda);
-      else p.partial[((head*Split+geo.split_index)*Q+q)*(D+2)+d]=d==D?maximum:result;
+      if(direct) {
+        if(d<D)p.ctx[(head*Q+q)*D+d]=Bf16(result/lambda);
+      } else p.partial[((head*kPartialSlots+geo.Piece(i))*Q+q)*(D+2)+d]=d==D?maximum:result;
     }
   }
 
-  __device__ __forceinline__ static void SplitMerge(MxAttentionOperandsV2 const& p,int head,int t) {
+  __device__ __forceinline__ static void SplitMerge(MxAttentionOperandsV2 const& p,int head,int t,int producers) {
     constexpr int items=(Q*D+511)/512;
-    float maxima[items][Split],lambdas[items][Split],outputs[items][Split];
+    float maxima[items][kPartialSlots],lambdas[items][kPartialSlots],outputs[items][kPartialSlots];
     if(t<512) {
 #pragma unroll
       for(int i=0;i<items;++i) {
         int const item=t+i*512,q=item/D,d=item%D;
         if(item<Q*D) {
 #pragma unroll
-          for(int split=0;split<Split;++split) {
-            float const* base=p.partial+((head*Split+split)*Q+q)*(D+2);
+          for(int split=0;split<kPartialSlots;++split)if(split<producers) {
+            float const* base=p.partial+((head*kPartialSlots+split)*Q+q)*(D+2);
             maxima[i][split]=LoadFloatGvm(base+D);
             lambdas[i][split]=LoadFloatGvm(base+D+1);
             outputs[i][split]=LoadFloatGvm(base+d);
@@ -357,10 +396,10 @@ struct MxAttentionV3 : MxAttentionV2<D,Q,1,QkNorm,PrefetchKind,Capacity,RowNormH
         if(item<Q*D) {
           float maximum=-INFINITY;
 #pragma unroll
-          for(int split=0;split<Split;++split)maximum=fmaxf(maximum,maxima[i][split]);
+          for(int split=0;split<kPartialSlots;++split)if(split<producers)maximum=fmaxf(maximum,maxima[i][split]);
           float result=0,lambda=0;
 #pragma unroll
-          for(int split=0;split<Split;++split) {
+          for(int split=0;split<kPartialSlots;++split)if(split<producers) {
             float const scale=maca::Exp2(maxima[i][split]-maximum);
             result+=outputs[i][split]*scale;lambda+=lambdas[i][split]*scale;
           }
@@ -379,12 +418,19 @@ struct MxAttentionV3 : MxAttentionV2<D,Q,1,QkNorm,PrefetchKind,Capacity,RowNormH
     float* const shared=reinterpret_cast<float*>(smem);
     Wave(pf,p,s,geo,shared);
     Sync::LdsSync();
-    LocalMerge(p,geo,t,shared);
-    if constexpr(Split>1) {
-      if(geo.Heads()) {
+    // Keep integer partition state out of Wave's MMA register live range.
+    MxAttentionGeometryV3 const merge_geo(s.b*s.hkv,Split==-1?Opaque(p.past):p.past,
+        int(gridDim.x),StageBlock(),Split);
+    LocalMerge(p,merge_geo,t,shared);
+    if constexpr(Split!=1) {
+      if(merge_geo.Heads()>4)maca::Trap();
+      for(int i=0;i<merge_geo.Heads();++i) {
+        if constexpr(Split==-1)if(merge_geo.Begin(i)==0&&merge_geo.End(i)==merge_geo.blocks)continue;
+        int const head=merge_geo.head_begin+i,producers=merge_geo.Pieces(i);
+        if(producers<1||producers>4)maca::Trap();
         auto* flag=reinterpret_cast<unsigned*>(shared+kSharedBytes/4-4);
-        codegen::executor::LastArriverV2<Sync>::Run(p.tickets+geo.head_begin,Split,flag,[&] {
-          SplitMerge(p,geo.head_begin,t);
+        codegen::executor::LastArriverV2<Sync>::Run(p.tickets+head,producers,flag,[&] {
+          SplitMerge(p,head,t,producers);
         });
       }
     }

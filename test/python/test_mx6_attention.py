@@ -44,9 +44,10 @@ def test_attention_matrix():
             with Path(os.environ['MX6_ATTN_OUT']).open('a') as output:
                 output.write(json.dumps(value) + '\n')
 
-    for norm, batch, hkv, length in itertools.product(
-            (False, True) if dim == 128 else (False,), (1, 16),
-            (row_heads,) if row_heads else (4, 16), (1, 31, 32, 33, 65, 257, 1088)):
+    shapes=profile.get('head_shapes',[(b,h)for b in(1,16)for h in((row_heads,)if row_heads else(4,16))])
+    lengths=profile.get('lengths',(1,31,32,33,65,257,1088))
+    for norm, (batch,hkv), length in itertools.product(
+            (False,True)if dim==128 else(False,),shapes,lengths):
         heads = batch * hkv
         generator = t.Generator().manual_seed(63000 + dim + query + batch + hkv + length)
         raw = (t.randn(heads, query + 2, dim, generator=generator) * .2).bfloat16().cuda()
@@ -77,7 +78,9 @@ def test_attention_matrix():
 
         expected, expected_k, expected_v = reference(raw, length - 1, key, value)
         history = reference(following, length, expected_k, expected_v) if length < cap else None
-        for kind, split in itertools.product((0, 1, 2), (1, 2, 4)):
+        for kind, split in itertools.product(profile.get('prefetches',(0,1,2)),profile.get('splits',(1,2,4))):
+            if split==3 and not 26<=heads<=34:continue
+            if split==-1 and heads<35:continue
             if split > 1 and heads * split > 104:
                 continue
             base = dict(dim=dim,query=query,row_norm_heads=row_heads if norm else 0,
@@ -92,8 +95,8 @@ def test_attention_matrix():
                 pk[:, ki] = key.reshape(heads, -1)
                 pv[:, vi] = value.reshape(heads, -1)
                 ctx = t.full((heads, query, dim), float('nan'), dtype=t.bfloat16, device='cuda')
-                partial = t.empty(heads * split * query * (dim + 2), device='cuda') if split > 1 else None
-                tickets = t.zeros(heads, dtype=t.int32, device='cuda') if split > 1 else None
+                partial = t.empty(heads * (4 if split==-1 else split) * query * (dim + 2), device='cuda') if split != 1 else None
+                tickets = t.zeros(heads, dtype=t.int32, device='cuda') if split != 1 else None
                 calls = t.zeros(104, 8, dtype=t.int32, device='cuda')
                 p = operands(raw, length - 1, pk, pv, ctx, partial, tickets)
                 a = Args(p, calls.data_ptr(), batch, hkv)
@@ -133,4 +136,5 @@ def test_attention_matrix():
                             original_transform_cache_bits=True,fp64_context_pass=True))
                 executed += 1
     assert executed > 0
+    if profile.get('strict_resources'):assert rejected==0
     print('MX6_ATTENTION_MATRIX',profile,'executed',executed,'resource_rejected',rejected,flush=True)
