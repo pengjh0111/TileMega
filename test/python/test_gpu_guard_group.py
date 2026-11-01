@@ -21,6 +21,27 @@ def telemetry(owners=None):
 
 
 class GroupGuardTests(unittest.TestCase):
+    def test_running_sample_rechecks_an_owner_snapshot_race(self):
+        child = MagicMock(pid=99999)
+        sample = MagicMock(side_effect=[telemetry({42: 100}), telemetry()])
+        with patch.object(guard, 'descendants', return_value={99999}), \
+                patch.object(guard, 'session_members', return_value=set()), \
+                patch.object(guard, 'process_start', return_value='123'), \
+                patch.object(guard, 'external', side_effect=[{-1}, set()]):
+            row, foreign, own = guard.running_sample('0', sample, child, {})
+        self.assertEqual(foreign, set())
+        self.assertEqual(sample.call_count, 2)
+
+    def test_running_sample_retains_persistent_foreign_owners(self):
+        child = MagicMock(pid=99999)
+        sample = MagicMock(return_value=telemetry({42: 100}))
+        with patch.object(guard, 'descendants', return_value={99999}), \
+                patch.object(guard, 'session_members', return_value=set()), \
+                patch.object(guard, 'process_start', return_value='123'), \
+                patch.object(guard, 'external', return_value={42}):
+            _, foreign, _ = guard.running_sample('0', sample, child, {})
+        self.assertEqual(foreign, {42})
+
     def test_group_locks_are_sorted_and_shared_with_single_card_jobs(self):
         with patch.dict(os.environ, {'TILEMEGA_DEVICE_GROUP': '7,6,5,4'}, clear=True), \
                 patch.object(guard.fcntl, 'flock') as lock:

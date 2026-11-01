@@ -63,6 +63,15 @@ def process_start(pid):
     try:return Path('/proc',str(pid),'stat').read_text().rsplit(')',1)[1].split()[19]
     except (OSError,IndexError):return None
 
+def running_sample(index,sample,process,known):
+    for attempt in range(2):
+        row=sample(index,'running' if attempt==0 else 'running_recheck')
+        for pid in descendants(process.pid)|session_members(process.pid):known[pid]=process_start(pid)
+        own={pid for pid,started in known.items() if started is not None and process_start(pid)==started}
+        foreign=external(row,own|{os.getpid()})
+        if not foreign:break
+    return row,foreign,own
+
 def stop(process,known=None):
     own=descendants(process.pid)|session_members(process.pid)
     starts=dict(known or {})
@@ -149,12 +158,11 @@ def main():
             for pid in descendants(process.pid)|session_members(process.pid):known[pid]=process_start(pid)
             own={pid for pid,started in known.items() if started is not None and process_start(pid)==started}
             for g in indices:
-                try:row=sample(g,'running')
+                try:row,foreign,own=running_sample(g,sample,process,known)
                 except Exception as error:
                     stop(process,known);return finish(75,'running telemetry unavailable: '+str(error))
                 if row.get('availability')!='Available':
                     stop(process,known);return finish(75,'running unavailable GPU '+g)
-                foreign=external(row,own|{os.getpid()})
                 hidden[g]=hidden[g]+1 if row['hidden_mib']>baseline[g]+policy['max_hidden_mib'] else 0
                 if foreign & previous[g] or hidden[g]>=policy['hidden_violations']:
                     stop(process,known);return finish(75,'running interference GPU '+g)
