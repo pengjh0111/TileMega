@@ -5,7 +5,7 @@
 
 namespace tilemega::backend::mx {
 
-enum class MxOpV2 { kStore, kResidual, kSwiGLU };
+enum class MxOpV2 { kStore, kResidual, kSwiGLU, kResidualAllReduce };
 
 struct MxSegmentV2 {
   int tile, k0, k1;

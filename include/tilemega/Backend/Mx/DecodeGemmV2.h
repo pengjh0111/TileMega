@@ -3,6 +3,7 @@
 
 #include <tilemega/Backend/Mx/DecodeCommon.h>
 #include <tilemega/Backend/Mx/DecodeGeometryV2.h>
+#include <tilemega/Backend/Mx/TpLinkV2.h>
 #include <tilemega/Backend/Mx/ServingGemmMma.h>
 #include <tilemega/Backend/ServingVectorIO.h>
 #include <tilemega/Codegen/executor/LastArriverV2.cuh>
@@ -303,11 +304,11 @@ struct MxGemm {
     }(std::make_index_sequence<D>{});
   }
 
-  template <class Shape>
-  __device__ __forceinline__ static Residual Early(MxSegmentV2 segment, MxGemmOperandsV2 const& p,
+  template <class Shape, class Ops>
+  __device__ __forceinline__ static Residual Early(MxSegmentV2 segment, Ops const& p,
                                                   Shape const& s, Lane const& l) {
     Residual residual{};
-    if constexpr (Op == MxOpV2::kResidual) {
+    if constexpr (Op == MxOpV2::kResidual || Op == MxOpV2::kResidualAllReduce) {
       if (l.Compute() && segment.active) {
         if constexpr (kWK == 1) {
           if (l.r < s.b) {
@@ -328,12 +329,61 @@ struct MxGemm {
     return residual;
   }
 
-  template <class Shape>
+  template <class Shape, class Ops>
   __device__ __forceinline__ static void Epilogue(float const* result, Residual const& residual,
-                                                 MxSegmentV2 segment, MxGemmOperandsV2 const& p,
+                                                 MxSegmentV2 segment, Ops const& p,
                                                  Shape const& s, Lane const& l) {
     if (l.Compute() && segment.active) {
       int const stride = TN + 1, vectors = Op == MxOpV2::kSwiGLU ? TN / 16 : TN / 8;
+      if constexpr (Op == MxOpV2::kResidualAllReduce) {
+        static_assert(!Norm);
+        auto const& tp = p.tp;
+        Bf16 values[kResidualVectors][8];
+        MxTpLitmusDelay(tp, segment.tile);
+#pragma unroll
+        for (int i = 0; i < kResidualVectors; ++i) {
+          int const item = l.local + i * kGroupThreads;
+          if (item < s.b * (TN / 8)) {
+            int const row = item / (TN / 8), c8 = item % (TN / 8) * 8;
+#pragma unroll
+            for (int e = 0; e < 8; ++e) values[i][e] = Bf16(result[row * stride + c8 + e]);
+            for (int q = 0; q < tp.world; ++q) if (q != tp.rank) {
+#pragma unroll
+              for (int k = 0; k < 4; ++k)
+                maca::PeerStore64(tp.recv[q] + tp.region + ((tp.rank * s.b + row) * (s.n / 2) +
+                    (segment.tile * TN + c8) / 2 + k), MxLl8Pack(values[i][2*k], values[i][2*k+1], tp.epoch));
+            }
+          }
+        }
+#pragma unroll
+        for (int i = 0; i < kResidualVectors; ++i) {
+          int const item = l.local + i * kGroupThreads;
+          if (item < s.b * (TN / 8)) {
+            int const row = item / (TN / 8), c8 = item % (TN / 8) * 8;
+            float sum[8] = {};
+            alignas(16) Bf16 old[8], output[8];
+            *reinterpret_cast<uint4*>(old) = residual.vector[i];
+            for (int q = 0; q < tp.world; ++q) {
+              if (q == tp.rank) {
+#pragma unroll
+                for (int e = 0; e < 8; ++e) sum[e] += float(values[i][e]);
+              } else {
+#pragma unroll
+                for (int k = 0; k < 4; ++k) {
+                  unsigned const d = MxTpAwait(tp.recv[tp.rank] + tp.region + ((q * s.b + row) *
+                      (s.n / 2) + (segment.tile * TN + c8) / 2 + k), tp.epoch, tp.watch, 20);
+                  sum[2*k] += float(Bf16::bitcast(std::uint16_t(d)));
+                  sum[2*k+1] += float(Bf16::bitcast(std::uint16_t(d >> 16)));
+                }
+              }
+            }
+#pragma unroll
+            for (int e = 0; e < 8; ++e) output[e] = Bf16(float(Bf16(sum[e])) + float(old[e]));
+            MxStore16V2(p.out + row * s.n + segment.tile * TN + c8, *reinterpret_cast<uint4 const*>(output));
+          }
+        }
+        return;
+      }
 #pragma unroll
       for (int i = 0; i < kResidualVectors; ++i) {
         int const item = l.local + i * kGroupThreads;
@@ -360,11 +410,54 @@ struct MxGemm {
     }
   }
 
-  template <class Shape>
+  template <class Shape, class Ops>
   __device__ __forceinline__ static void Direct(MmaAccum const (&acc)[kAtoms], float inverse,
                                                Residual const& residual, MxSegmentV2 segment,
-                                               MxGemmOperandsV2 const& p, Shape const& s, Lane const& l) {
+                                               Ops const& p, Shape const& s, Lane const& l) {
     if (segment.active && l.r < s.b) {
+      if constexpr (Op == MxOpV2::kResidualAllReduce) {
+        static_assert(!Norm);
+        auto const& tp = p.tp;
+        Bf16 values[kAtoms][4];
+        MxTpLitmusDelay(tp, segment.tile);
+#pragma unroll
+        for (int j = 0; j < kAtoms; ++j) {
+#pragma unroll
+          for (int e = 0; e < 4; ++e) values[j][e] = Bf16(acc[j][e]);
+          int const column = segment.tile * TN + j * 16 + 4 * l.g;
+          for (int q = 0; q < tp.world; ++q) if (q != tp.rank) {
+#pragma unroll
+            for (int k = 0; k < 2; ++k)
+              maca::PeerStore64(tp.recv[q] + tp.region + ((tp.rank * s.b + l.r) * (s.n / 2) +
+                  column / 2 + k), MxLl8Pack(values[j][2*k], values[j][2*k+1], tp.epoch));
+          }
+        }
+#pragma unroll
+        for (int j = 0; j < kAtoms; ++j) {
+          int const column = segment.tile * TN + j * 16 + 4 * l.g;
+          float sum[4] = {};
+          alignas(8) Bf16 old[4], output[4];
+          *reinterpret_cast<uint2*>(old) = residual.fragment[j];
+          for (int q = 0; q < tp.world; ++q) {
+            if (q == tp.rank) {
+#pragma unroll
+              for (int e = 0; e < 4; ++e) sum[e] += float(values[j][e]);
+            } else {
+#pragma unroll
+              for (int k = 0; k < 2; ++k) {
+                unsigned const d = MxTpAwait(tp.recv[tp.rank] + tp.region + ((q * s.b + l.r) *
+                    (s.n / 2) + column / 2 + k), tp.epoch, tp.watch, 20);
+                sum[2*k] += float(Bf16::bitcast(std::uint16_t(d)));
+                sum[2*k+1] += float(Bf16::bitcast(std::uint16_t(d >> 16)));
+              }
+            }
+          }
+#pragma unroll
+          for (int e = 0; e < 4; ++e) output[e] = Bf16(float(Bf16(sum[e])) + float(old[e]));
+          MxStore8V2(p.out + l.r * s.n + column, *reinterpret_cast<uint2 const*>(output));
+        }
+        return;
+      }
 #pragma unroll
       for (int j = 0; j < (Op == MxOpV2::kSwiGLU ? kAtoms / 2 : kAtoms); ++j) {
         alignas(8) Bf16 output[4], old[4];
@@ -382,10 +475,10 @@ struct MxGemm {
     }
   }
 
-  template <class Shape>
+  template <class Shape, class Ops>
   __device__ __forceinline__ static void Finish(MmaAccum const (&acc)[kAtoms], float ss,
                                                Residual const& residual, MxSegmentV2 segment,
-                                               MxGemmOperandsV2 const& p, Shape const& s, Lane const& l,
+                                               Ops const& p, Shape const& s, Lane const& l,
                                                float* shared, MxGemmSmemV2 layout,
                                                MxGeometryV2<TN, WN, Part> const& geo) {
     using Sync = typename Shape::Sync;
@@ -496,9 +589,9 @@ struct MxGemm {
     }
   }
 
-  template <bool First, class Shape>
+  template <bool First, class Shape, class Ops>
   __device__ __forceinline__ static void Round(Prefetched const& pf, Ring& ring, float& inverse,
-                                              MxGemmOperandsV2 const& p, Shape const& s, float* shared,
+                                              Ops const& p, Shape const& s, float* shared,
                                               MxGemmSmemV2 layout, MxGeometryV2<TN, WN, Part> const& geo,
                                               Lane const& l, int round) {
       auto const segment = geo.Segment(round, l.group);
@@ -543,8 +636,8 @@ struct MxGemm {
       if constexpr (kWK > 1) Finish(acc, ss, residual, segment, p, s, l, shared, layout, geo);
   }
 
-  template <class Shape, class Next>
-  __device__ __forceinline__ static auto Run(Prefetched pf, MxGemmOperandsV2 const& p,
+  template <class Shape, class Next, class Ops>
+  __device__ __forceinline__ static auto Run(Prefetched pf, Ops const& p,
                                             Shape const& s, char* smem, Next next) {
     using Sync = typename Shape::Sync;
     static_assert(MxDepthFits(TN, D, Sync::kDepthVgprLimit));
