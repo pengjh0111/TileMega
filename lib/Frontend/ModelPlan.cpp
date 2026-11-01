@@ -968,6 +968,24 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
     }
     return result + ']';
   };
+  // Megatron tensor parallel: each recipe names the whole checkpoint tensors
+  // and the loader narrows them to this rank's part. Empty at tp 1, so a TP1
+  // plan's recipes keep their exact text.
+  if (serving.tp != 1 && serving.tp != 2 && serving.tp != 4 && serving.tp != 8)
+    throw std::invalid_argument("serving tensor parallel degree must be 1, 2, 4 or 8");
+  auto shard = [&](int axis) -> std::string {
+    if (serving.tp == 1) return "";
+    return ",\"shard\":{\"axis\":" + std::to_string(axis) + ",\"parts\":" +
+           std::to_string(serving.tp) + '}';
+  };
+  // o and down are row sharded: K (axis 1) is this rank's part of the heads
+  // or of the intermediate, so they become packed slices instead of aliases.
+  auto row_sharded = [&](std::string const& operand, std::string const& name) {
+    if (serving.tp == 1) return alias(operand);
+    auto const& input = parameter(operand);
+    return packed(name, NumericElements(builder.Node(input.name)),
+                  "{\"kind\":\"alias\",\"source\":\"" + input.target + '"' + shard(1) + '}');
+  };
   auto user_input = [&](std::string const& name) -> SignatureInput const& {
     auto found = signatures.find(name);
     if (found == signatures.end() || found->second->kind != "USER_INPUT")
@@ -1050,7 +1068,7 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
         json_sources({qw.target, kw.target, vw.target}) +
         ",\"hkv\":" + std::to_string(hkv) +
         ",\"qperkv\":" + std::to_string(qperkv) +
-        ",\"head_dim\":" + std::to_string(head_dim) + '}';
+        ",\"head_dim\":" + std::to_string(head_dim) + shard(0) + '}';
     if(dn)qkv_recipe="{\"kind\":\"fold_rmsnorm\",\"norm\":\""+
         norm1_fqn+"\",\"source\":"+qkv_recipe+'}';
     std::uint32_t qkv_weight = packed(prefix + (dn?"qkv.weight.dn":"qkv.weight"),
@@ -1090,6 +1108,9 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
       q_norm = ProjectionNormalization(matcher, nodes, q.name, qrot.name, qwidth);
       k_norm = ProjectionNormalization(
           matcher, nodes, k.name, matcher.Value(cat_k.inputs.at(1)), kvwidth);
+      // A whole-row norm needs every head of the token, which no rank holds.
+      if (q_norm && serving.tp > 1)
+        throw std::invalid_argument("tensor parallel serving cannot shard a whole-row q/k norm");
     }
     if (bool(q_norm) != bool(k_norm))
       throw std::invalid_argument("serving Q/K normalization is asymmetric");
@@ -1137,7 +1158,8 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
     // native MoE stages instead keep x' in x until M6 writes x'' over it.
     auto attention_output=moe_layers.count(match.at("resid1")->name) && !serving.native_rms?
         scratch(prefix+"attn.residual",serving.seq*hidden):x;
-    auto o_gemm = builder.Gemm(context, alias(o.inputs.at(1)), x, attention_output,
+    auto o_gemm = builder.Gemm(context, row_sharded(o.inputs.at(1), prefix + "o_proj.weight.tp"),
+                               x, attention_output,
                                hidden, qwidth, 1.0f);
     if(sums || (moe_dn && !serving.native_rms)){ss_cur=scratch(prefix+"o.ss",serving.seq*(hidden/(serving.dn_vector_sums?8:32)),"f32");
            builder.plan.gemms[o_gemm].ss_out=ss_cur;}
@@ -1148,6 +1170,8 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
         PlanGemm::Epilogue::kResidualAllReduce : PlanGemm::Epilogue::kResidual;
     builder.Stage(PlanTaskKind::kGemm, match.at("resid1")->name,
                   o_gemm, 0, 0, 1);
+    if (serving.tp > 1 && moe_layers.count(match.at("resid1")->name))
+      throw std::invalid_argument("tensor parallel serving does not shard MoE layers");
     if(auto block=moe_layers.find(match.at("resid1")->name);
        block!=moe_layers.end() && serving.native_rms) {
       // Native MoE decode (prompt §8): M4 router + top-k, M5 grouped gate_up,
@@ -1252,7 +1276,7 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
     auto const& uw = parameter(up.inputs.at(1));
     std::string gu_recipe = "{\"kind\":\"gate_up_interleave\",\"sources\":" +
         json_sources({gw.target, uw.target}) +
-        ",\"u\":" + std::to_string(serving.interleave_u) + '}';
+        ",\"u\":" + std::to_string(serving.interleave_u) + shard(0) + '}';
     if(dn)gu_recipe="{\"kind\":\"fold_rmsnorm\",\"norm\":\""+
         norm2_fqn+"\",\"source\":"+gu_recipe+'}';
     std::uint32_t gu_weight = packed(prefix + (dn?"gate_up.weight.dn":"gate_up.weight"),
@@ -1266,7 +1290,7 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
     builder.Stage(PlanTaskKind::kGemm,
                   gate.index > up.index ? gate.name : up.name,
                   gu_gemm, 0, 0, 1);
-    auto down_gemm = builder.Gemm(act, alias(down.inputs.at(1)), x, x,
+    auto down_gemm = builder.Gemm(act, row_sharded(down.inputs.at(1), prefix + "down_proj.weight.tp"), x, x,
                                   hidden, intermediate, 1.0f);
     if(sums){ss_cur=scratch(prefix+"down.ss",hidden/(serving.dn_vector_sums?8:32),"f32");
            builder.plan.gemms[down_gemm].ss_out=ss_cur;}
@@ -1297,7 +1321,12 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
   }
   if (serving.argmax_tile_n < 8 || serving.argmax_tile_n % 8)
     throw std::invalid_argument("argmax partial tile must be a legal serving N tile");
-  int const partial_tiles = (vocab + serving.argmax_tile_n - 1) /
+  // The embedding keeps the whole vocabulary; the head projects this rank's
+  // V/T rows (tp 1: all of them).
+  if (vocab % std::uint32_t(serving.tp))
+    throw std::invalid_argument("serving vocabulary does not split across the tensor parallel ranks");
+  std::uint32_t const head_vocab = vocab / std::uint32_t(serving.tp);
+  int const partial_tiles = (head_vocab + serving.argmax_tile_n - 1) /
                             serving.argmax_tile_n;
   std::uint32_t ap_value = scratch("serving.argmax.value", partial_tiles, "f32");
   std::uint32_t ap_index = scratch("serving.argmax.index", partial_tiles, "i32");
@@ -1307,12 +1336,16 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
         !matcher.DependsOn(node.name, last.name) || node.inputs.size() < 2)
       continue;
     auto const& weight = parameter(node.inputs.at(1));
-    std::string head_recipe="{\"kind\":\"alias\",\"source\":\""+weight.target+"\"}";
+    if (StaticExtent(builder.Node(weight.name), 0) != head_vocab)
+      throw std::invalid_argument("serving lm_head rows differ from the rank's vocabulary");
+    // A sharded vocabulary: this rank projects rows [rank V/T, (rank+1) V/T).
+    std::string head_recipe="{\"kind\":\"alias\",\"source\":\""+weight.target+'"'+shard(0)+'}';
     if(dn)head_recipe="{\"kind\":\"fold_rmsnorm\",\"norm\":\""+
         builder.plan.buffers[xf].external_name+"\",\"source\":"+head_recipe+'}';
-    auto head_weight=dn?packed("lm_head.weight.dn",vocab*hidden,head_recipe):alias(weight.name);
+    auto head_weight=dn?packed("lm_head.weight.dn",head_vocab*hidden,head_recipe):
+        serving.tp>1?packed("lm_head.weight.tp",head_vocab*hidden,head_recipe):alias(weight.name);
     auto head_gemm = builder.Gemm(dn?x:xf,head_weight, ap_value, ap_value,
-                                  vocab, hidden, 0.0f);
+                                  head_vocab, hidden, 0.0f);
     if(dn)builder.plan.gemms[head_gemm].norm_ss=ss_cur;
     builder.plan.gemms[head_gemm].epilogue = PlanGemm::Epilogue::kArgmaxPartial;
     builder.plan.gemms[head_gemm].partial_tile_n = serving.argmax_tile_n;
@@ -1326,7 +1359,7 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
   PlanStage argmax;
   argmax.kind = PlanTaskKind::kArgmaxReduce;
   argmax.batch_rows = true;
-  argmax.extent = vocab;
+  argmax.extent = head_vocab;
   argmax.width = partial_tiles;
   argmax.operands.fill(kNoOperand);
   argmax.operands[0] = ap_value;

@@ -281,7 +281,9 @@ LiftedModel LiftServingSemantics(ModelPlan const& plan,
         reads.push_back(Input(producer(gemm.a), input, input_map));
         reads.push_back(Input("", Tensor(name(gemm.b),
             {Axis("n", N), Axis("k", K)}), {Id("n"), Id("k")}));
-        if (gemm.epilogue == PlanGemm::Epilogue::kResidual)
+        // The all-reduce form (tensor parallel o/down) adds the same residual.
+        if (gemm.epilogue == PlanGemm::Epilogue::kResidual ||
+            gemm.epilogue == PlanGemm::Epilogue::kResidualAllReduce)
           reads.push_back(Input(producer(gemm.c),
               space(gemm.c, {Axis("m", rows), Axis("n", N)}),
               {Id("m"), Id("n")}));
