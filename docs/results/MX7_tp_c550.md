@@ -42,12 +42,12 @@ Evidence labels: **verified** = executed here; **stated** = supplied specificati
 - **verified** GPUs0/6/7 became unavailable during previous optional probe runs;
   their cause remains unresolved. Failed records remain; no reset was attempted.
   No further unsafe system-atomic probe combinations are scheduled.
-- **verified** torch.compile fullgraph TP2 B1 now completes warm1/timed2:
-  first process TPOT 14.391347 ms. This is not yet a two-process cell result.
+- **verified** repaired torch.compile TP2 completes both fresh processes for all five batches.
+  B1/B2/B4/B8/B16 TPOT=14.034457/16.258904/16.603267/21.626714/32.918588ms.
   Isolated accelerate 1.15.0 resolves the dependency; compiled autograd resolves
   HF's TP gradient-hook compiler rejection without removing hooks or using eager.
 - **verified** guarded TP2 torch.compile and TP4 baseline campaigns are running.
-  Core TileMega TP device implementation starts after this C0 decision.
+  The now-qualified native implementation and development results are recorded below.
 
 ## CP2 implementation progress
 
@@ -58,9 +58,12 @@ Evidence labels: **verified** = executed here; **stated** = supplied specificati
   Dynamic private pointer-array indexing also materialized a 232-byte operand;
   constant-field pointer selection removes it without changing the protocol.
 - **verified** development TP2 B1 / TP4 B1 / TP4 B16 now have respectively
-  229 / 225 / 226 MTreg, zero stack/static memory. Actual residency is pending.
+  229 / 225 / 226 MTreg, zero stack/static memory. All ranks query resident=1.
 - **verified** the eight frozen CU/instruction comparisons pass after these
-  changes. CPU tests: 29 passed. Device suites and full-model checks are queued.
+  changes. CPU tests:29 passed. All eight AR/head unit scopes pass5/5.
+- **verified** development C-1: TP2 B1 / TP4 B1 / TP4 B16 all have ratio1.0,
+  max gaps0.15625 /0.109375 /0.125. TP2/4 B1/B16 C-2 and injected-delay
+  litmus each pass5/5 fresh1024-token processes; all ranks agree at every position.
 - **verified** preliminary AR TP2 B1: 5/5 fresh processes, nine legal geometry
   cases per process, exact ordered BF16 reference and zero mismatches.
 
@@ -71,12 +74,13 @@ Evidence labels: **verified** = executed here; **stated** = supplied specificati
   matching1024 tokens before batch teardown was interrupted. Individual runs
   took about52–65s, so this is aggregate batching exhaustion, not a kernel hang.
   Original guard124 and all process outputs remain. B16 litmus is isolated
-  into a fresh five-process job; no protocol or acceptance limit is changed.
+  into a fresh five-process job and passes5/5; no protocol or limit is changed.
 - **verified, B4** constant probe TP2 B8/TN128 failed in the non-AR comparison:
   its fixed32784-byte workspace was smaller than the GEMM's LDS layout.
   Workspace, generation offset and launch allocation now use the same actual
   layout bound. Old failure remains; affected/unmeasured scopes are rebuilt.
   Earlier B1/B2/B4 layouts fit and their valid three-process samples are retained.
+  Repaired TP2 B8/B16 probes each complete three fresh processes without error.
 - **verified, B4** three development resource-ledger LDS entries used an assumed
   floor. Corrected CU-derived values are appended, preserving the original rows;
   all four development plans subsequently pass actual all-rank resident=1 queries.
@@ -155,7 +159,7 @@ Evidence labels: **verified** = executed here; **stated** = supplied specificati
 | 8 | 4.302299 | 3.776927 | N/A |
 | 16 | 4.624672 | 4.215727 | N/A |
 
-## Prepared implementation and verification
+## Historical prepared implementation at A5 (superseded)
 
 - **verified** rank-sharded meta export, frontend recipes/`serving.tp`, shard
   loading/state, optional Python ABI, TP cohort engine and measurement/check
@@ -205,7 +209,7 @@ GPU4 1.394 h, GPU5 1.394 h, GPU6 2.681 h, GPU7 2.681 h; total **8.150 card-h**.
 This estimates reserved job time, not hardware busy time. Accounting details:
 `runs/mx7/sync/gpu_usage.json`. No jobs ran on GPUs0–3.
 
-## Remaining work
+## Historical remaining work at A5 (superseded)
 
 | Item | Existing location / missing target | Reason |
 |---|---|---|
@@ -218,10 +222,26 @@ This estimates reserved job time, not hardware busy time. Accounting details:
 `MX7_tp_constants_c550.csv`, `MX7_tp_selection_c550.csv`,
 `MX7_tp_final_c550.csv` and selected TP pins do not exist; no synthetic rows.
 
-## Expectations and next steps
+## Historical expectations at A5 (superseded)
 
 No TileMega TP measurement exists, so the TPOT/speedup expectations cannot be
 evaluated. **Inferred** next steps require recovering GPU6 first, diagnosing
 the availability loss, and repeating affected qualification samples while
 retaining failures. A GPU-State check in the guard would help reject this
 environment earlier; it has not been added after the A5 stop.
+
+## CP2 completed: development timing (not final solver pins)
+
+**verified** Two fresh processes/cell, warm1/timed2, trace/DIAG/watchdog disabled.
+
+| TP | B | TPOT ms | TTFT ms | E2E ms | tokens/s |
+|---:|---:|---:|---:|---:|---:|
+| 2 | 1 | 2.715717 | 168.492100 | 2946.670257 | 347.511064 |
+| 4 | 1 | 2.683521 | 167.517441 | 2912.759244 | 351.558600 |
+| 4 | 16 | 12.796976 | 773.029572 | 13864.336179 | 1181.737189 |
+
+**verified** Development C-1, ordinary C-2/injected-delay5/5, AR/head units5/5 and all-rank resident1 pass.
+**inferred, C** TP4 B16 exceeds the2.5–2.7ms expectation; measured AR deltas grow strongly with B.
+This is a missed goal, not a correctness gate. CP3 cost qualification/top4/final trace continues.
+**verified, B4** five incomplete cost chunks were rescheduled based only on completion; valid complete chunks retained.
+Old partial records remain. Seven focused CPU selection/trace tests also pass.
