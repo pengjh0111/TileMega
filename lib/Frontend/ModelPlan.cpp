@@ -844,6 +844,8 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
                          std::vector<SignatureInput> const& inputs,
                          std::vector<std::string> const& outputs,
                          ServingOptions const& serving) {
+  if (serving.tp != 1 && serving.tp != 2 && serving.tp != 4 && serving.tp != 8)
+    throw std::invalid_argument("serving TP degree must be 1, 2, 4 or 8");
   if (serving.seq < 1 || (serving.phase == ServingOptions::Phase::kDecode && serving.seq != 1))
     throw std::invalid_argument("serving plan requires a positive prefill seq or decode seq one");
   if (serving.capacity <= serving.seq || (serving.interleave_u != 4 && serving.interleave_u != 8 && serving.interleave_u != 16))
@@ -854,6 +856,7 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
   if(std::any_of(nodes.begin(),nodes.end(),[](auto const& n) {
        return n.target=="tilemega.moe_experts.default";
      })) {
+    if (serving.tp > 1) throw std::invalid_argument("tensor parallel MoE is unsupported");
     auto blocks=FindDecoderMoeBlocks(nodes,inputs);
     for(auto const& block:blocks)moe_layers.emplace(block.input,block);
     if(!layers.empty() || moe_layers.empty())
@@ -875,6 +878,7 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
   PlanBuilder builder(nodes);
   builder.plan.serving = true;
   builder.plan.serving_seq = serving.seq;
+  builder.plan.serving_tp = serving.tp;
   builder.plan.dn_vector_sums = serving.dn_vector_sums;
   builder.plan.serving_capacity = serving.capacity;
   std::unordered_map<std::string, SignatureInput const*> signatures;
@@ -925,6 +929,17 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
       result += '"' + source + '"';
     }
     return result + ']';
+  };
+  auto shard_recipe = [&](std::string recipe, int axis) {
+    if (serving.tp > 1) {
+      recipe.pop_back();
+      recipe += ",\"shard\":{\"axis\":" + std::to_string(axis) +
+          ",\"parts\":" + std::to_string(serving.tp) + "}}";
+    }
+    return recipe;
+  };
+  auto tp_alias = [&](std::string const& operand) {
+    return shard_recipe("{\"kind\":\"alias\",\"source\":\"" + parameter(operand).target + "\"}", 1);
   };
   auto user_input = [&](std::string const& name) -> SignatureInput const& {
     auto found = signatures.find(name);
@@ -1008,6 +1023,7 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
         ",\"hkv\":" + std::to_string(hkv) +
         ",\"qperkv\":" + std::to_string(qperkv) +
         ",\"head_dim\":" + std::to_string(head_dim) + '}';
+    qkv_recipe = shard_recipe(std::move(qkv_recipe), 0);
     if(dn)qkv_recipe="{\"kind\":\"fold_rmsnorm\",\"norm\":\""+
         norm1_fqn+"\",\"source\":"+qkv_recipe+'}';
     std::uint32_t qkv_weight = packed(prefix + (dn?"qkv.weight.dn":"qkv.weight"),
@@ -1044,6 +1060,8 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
       q_norm = ProjectionNormalization(matcher, nodes, q.name, qrot.name, qwidth);
       k_norm = ProjectionNormalization(
           matcher, nodes, k.name, matcher.Value(cat_k.inputs.at(1)), kvwidth);
+      if (serving.tp > 1 && (q_norm || k_norm))
+        throw std::invalid_argument("tensor parallel whole-row QK norm is unsupported");
     }
     if (bool(q_norm) != bool(k_norm))
       throw std::invalid_argument("serving Q/K normalization is asymmetric");
@@ -1085,7 +1103,10 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
     // MoE's downstream gather may overlap other CTAs' projection reads.
     auto attention_output=moe_layers.count(match.at("resid1")->name)?
         scratch(prefix+"attn.residual",serving.seq*hidden):x;
-    auto o_gemm = builder.Gemm(context, alias(o.inputs.at(1)), x, attention_output,
+    auto o_weight = serving.tp > 1
+        ? packed(prefix + "o.weight.tp", hidden * qwidth, tp_alias(o.inputs.at(1)))
+        : alias(o.inputs.at(1));
+    auto o_gemm = builder.Gemm(context, o_weight, x, attention_output,
                                hidden, qwidth, 1.0f);
     if(dn || moe_dn){ss_cur=scratch(prefix+"o.ss",serving.seq*(hidden/(serving.dn_vector_sums?8:32)),"f32");
            builder.plan.gemms[o_gemm].ss_out=ss_cur;}
@@ -1124,6 +1145,7 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
     std::string gu_recipe = "{\"kind\":\"gate_up_interleave\",\"sources\":" +
         json_sources({gw.target, uw.target}) +
         ",\"u\":" + std::to_string(serving.interleave_u) + '}';
+    gu_recipe = shard_recipe(std::move(gu_recipe), 0);
     if(dn)gu_recipe="{\"kind\":\"fold_rmsnorm\",\"norm\":\""+
         norm2_fqn+"\",\"source\":"+gu_recipe+'}';
     std::uint32_t gu_weight = packed(prefix + (dn?"gate_up.weight.dn":"gate_up.weight"),
@@ -1137,7 +1159,10 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
     builder.Stage(PlanTaskKind::kGemm,
                   gate.index > up.index ? gate.name : up.name,
                   gu_gemm, 0, 0, 1);
-    auto down_gemm = builder.Gemm(act, alias(down.inputs.at(1)), x, x,
+    auto down_weight = serving.tp > 1
+        ? packed(prefix + "down.weight.tp", hidden * intermediate, tp_alias(down.inputs.at(1)))
+        : alias(down.inputs.at(1));
+    auto down_gemm = builder.Gemm(act, down_weight, x, x,
                                   hidden, intermediate, 1.0f);
     if(dn){ss_cur=scratch(prefix+"down.ss",hidden/(serving.dn_vector_sums?8:32),"f32");
            builder.plan.gemms[down_gemm].ss_out=ss_cur;}
@@ -1166,7 +1191,10 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
   }
   if (serving.argmax_tile_n < 8 || serving.argmax_tile_n % 8)
     throw std::invalid_argument("argmax partial tile must be a legal serving N tile");
-  int const partial_tiles = (vocab + serving.argmax_tile_n - 1) /
+  // Embeddings stay replicated; only the head and its argmax are vocabulary sharded.
+  if (vocab % serving.tp) throw std::invalid_argument("vocabulary does not divide TP degree");
+  int const head_vocab = vocab / serving.tp;
+  int const partial_tiles = (head_vocab + serving.argmax_tile_n - 1) /
                             serving.argmax_tile_n;
   std::uint32_t ap_value = scratch("serving.argmax.value", partial_tiles, "f32");
   std::uint32_t ap_index = scratch("serving.argmax.index", partial_tiles, "i32");
@@ -1177,11 +1205,13 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
       continue;
     auto const& weight = parameter(node.inputs.at(1));
     std::string head_recipe="{\"kind\":\"alias\",\"source\":\""+weight.target+"\"}";
+    head_recipe = shard_recipe(std::move(head_recipe), 0);
     if(dn)head_recipe="{\"kind\":\"fold_rmsnorm\",\"norm\":\""+
         builder.plan.buffers[xf].external_name+"\",\"source\":"+head_recipe+'}';
-    auto head_weight=dn?packed("lm_head.weight.dn",vocab*hidden,head_recipe):alias(weight.name);
+    auto head_weight=dn?packed("lm_head.weight.dn",head_vocab*hidden,head_recipe):
+        (serving.tp > 1 ? packed("lm_head.weight.tp",head_vocab*hidden,head_recipe) : alias(weight.name));
     auto head_gemm = builder.Gemm(dn?x:xf,head_weight, ap_value, ap_value,
-                                  vocab, hidden, 0.0f);
+                                  head_vocab, hidden, 0.0f);
     if(dn)builder.plan.gemms[head_gemm].norm_ss=ss_cur;
     builder.plan.gemms[head_gemm].epilogue = PlanGemm::Epilogue::kArgmaxPartial;
     builder.plan.gemms[head_gemm].partial_tile_n = serving.argmax_tile_n;
@@ -1195,7 +1225,7 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
   PlanStage argmax;
   argmax.kind = PlanTaskKind::kArgmaxReduce;
   argmax.batch_rows = true;
-  argmax.extent = vocab;
+  argmax.extent = head_vocab;
   argmax.width = partial_tiles;
   argmax.operands.fill(kNoOperand);
   argmax.operands[0] = ap_value;

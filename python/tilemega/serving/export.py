@@ -48,9 +48,10 @@ class SelfAttention(nn.Module):
     def __init__(self, config: dict):
         super().__init__()
         hidden = config["hidden_size"]
-        heads = config["num_attention_heads"]
-        kv_heads = config["num_key_value_heads"]
-        self.head_dim = config.get("head_dim", hidden // heads)
+        tp = int(config.get('tilemega_tp', 1))
+        heads = config["num_attention_heads"] // tp
+        kv_heads = config["num_key_value_heads"] // tp
+        self.head_dim = config.get("head_dim", hidden // config["num_attention_heads"])
         self.heads = heads
         self.kv_heads = kv_heads
         self.q_proj = nn.Linear(hidden, heads * self.head_dim, bias=False)
@@ -104,7 +105,8 @@ class SelfAttention(nn.Module):
 class MLP(nn.Module):
     def __init__(self, config: dict):
         super().__init__()
-        hidden, intermediate = config["hidden_size"], config["intermediate_size"]
+        hidden = config["hidden_size"]
+        intermediate = config["intermediate_size"] // int(config.get('tilemega_tp', 1))
         self.gate_proj = nn.Linear(hidden, intermediate, bias=False)
         self.up_proj = nn.Linear(hidden, intermediate, bias=False)
         self.down_proj = nn.Linear(intermediate, hidden, bias=False)
@@ -146,10 +148,12 @@ class Backbone(nn.Module):
 class Decoder(nn.Module):
     def __init__(self, config: dict):
         _check_architecture(config)
+        validate_tp(config, int(config.get('tilemega_tp', 1)))
         super().__init__()
         self.model = Backbone(config)
-        self.lm_head = nn.Linear(config["hidden_size"], config["vocab_size"], bias=False)
-        if config.get('tie_word_embeddings', False):
+        tp = int(config.get('tilemega_tp', 1))
+        self.lm_head = nn.Linear(config["hidden_size"], config["vocab_size"] // tp, bias=False)
+        if config.get('tie_word_embeddings', False) and tp == 1:
             self.lm_head.weight = self.model.embed_tokens.weight
 
     def execute(self, input_ids: torch.Tensor, caches: tuple[torch.Tensor, ...],
@@ -165,12 +169,28 @@ class Decoder(nn.Module):
 def metadata_only(config: dict) -> bool:
     # Keep the historical small-model export unchanged; large checkpoint values
     # are loaded by recipes at runtime and need not exist during graph export.
-    return (config['architectures'][0] in ('Qwen3MoeForCausalLM', 'OlmoeForCausalLM') or
+    return (int(config.get('tilemega_tp', 1)) > 1 or config['architectures'][0] in ('Qwen3MoeForCausalLM', 'OlmoeForCausalLM') or
             config['hidden_size']>=3072)
 
 
-def export(config: dict, phase: str, capacity: int, out: Path, prompt_len: int = 64) -> dict:
+def validate_tp(config: dict, tp: int) -> None:
+    if tp not in (1, 2, 4, 8):
+        raise ValueError('tensor parallel degree must be 1, 2, 4 or 8')
+    if tp == 1:
+        return
+    if config['architectures'][0] in ('Qwen3MoeForCausalLM', 'OlmoeForCausalLM'):
+        raise ValueError('tensor parallel MoE or whole-row QK norm is unsupported')
+    for key in ('num_attention_heads', 'num_key_value_heads', 'intermediate_size', 'vocab_size'):
+        if config[key] % tp:
+            raise ValueError(f'{key} is not divisible by TP={tp}')
+
+
+def export(config: dict, phase: str, capacity: int, out: Path, prompt_len: int = 64,
+           tp: int = 1) -> dict:
     _check_architecture(config)
+    validate_tp(config, tp)
+    if tp > 1:
+        config = dict(config, tilemega_tp=tp)
     if phase not in ('decode', 'prefill') or prompt_len < 1 or capacity <= prompt_len:
         raise ValueError('export needs a positive ISL and capacity greater than ISL')
     torch.set_num_threads(4)
@@ -179,7 +199,7 @@ def export(config: dict, phase: str, capacity: int, out: Path, prompt_len: int =
     past = 3 if phase == "decode" else 0
     batch_example = 2
     dim = config.get("head_dim", config["hidden_size"] // config["num_attention_heads"])
-    kv_heads = config["num_key_value_heads"]
+    kv_heads = config["num_key_value_heads"] // tp
     use_meta = metadata_only(config)
     if use_meta:
         with torch.device('meta'):
@@ -218,7 +238,7 @@ def export(config: dict, phase: str, capacity: int, out: Path, prompt_len: int =
     manifest = {"phase": phase, "seq": seq, "capacity": capacity,
                 "batch_range": [1, 64], "past_range": [1, capacity - 1] if phase == "decode" else [0, 0],
                 "config": config, "torch_version": torch.__version__,
-                "weight_fixture": None, "inputs": len(inputs)}
+                "weight_fixture": None, "inputs": len(inputs), "tp": tp}
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     return {key: value for key, value in manifest.items() if key != "config"}
 
@@ -232,6 +252,7 @@ def main() -> None:
     parser.add_argument('--prompt-len', type=int, default=64)
     parser.add_argument("--out", type=Path)
     parser.add_argument("--test-small", action="store_true")
+    parser.add_argument('--tp', type=int, choices=(1, 2, 4, 8), default=1)
     args = parser.parse_args()
     config = json.loads(args.config.read_text())
     if args.test_small:
@@ -245,7 +266,7 @@ def main() -> None:
             config.update(num_key_value_heads=4, num_experts=16, num_experts_per_tok=8,
                           norm_topk_prob=False)
     out = args.out or Path(f"/root/r10_work/export/{args.model}_{args.phase}")
-    print(json.dumps(export(config, args.phase, args.capacity, out, args.prompt_len)), flush=True)
+    print(json.dumps(export(config, args.phase, args.capacity, out, args.prompt_len, args.tp)), flush=True)
 
 
 if __name__ == "__main__":

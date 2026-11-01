@@ -189,6 +189,7 @@ struct ModelPlan {
   std::unordered_map<std::string, std::uint32_t> node_buffer;
   bool serving = false;
   int serving_seq = 0;
+  int serving_tp = 1;
   int serving_capacity = 0;
   bool dn_vector_sums = false;
   // Only DM plans emit the extended device ABI; legacy descriptors and CUDA
@@ -221,6 +222,7 @@ inline unsigned SpecializeDmReductionMask(ModelPlan const& plan,unsigned request
 struct ServingOptions {
   enum class Phase { kPrefill, kDecode } phase = Phase::kDecode;
   int seq = 1;
+  int tp = 1;
   int capacity = 1088;
   int interleave_u = 16;
   int kv_block = 256;

@@ -99,7 +99,7 @@ int TryPrepareV2(Request const& r) {
   std::string selected_table=r.v2_solve_table;
   auto bridge=frontend::ReadExportBridge(r.input.string());
   frontend::ServingOptions options;options.deferred_norm=true;options.phase=frontend::ServingOptions::Phase::kDecode;
-  options.seq=1;options.capacity=r.capacity;options.moe_batch=r.batch;
+  options.seq=1;options.capacity=r.capacity;options.moe_batch=r.batch;options.tp=r.tp;
   auto plan=frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,options);
   if (plan.dm) return TryPrepareMoeV2(r,plan);
   if (r.moe_diagnostic_candidates != 4)
@@ -229,6 +229,7 @@ int TryCompileV2(Request const& r) {
   options.phase = frontend::ServingOptions::Phase::kDecode;
   options.seq = 1;
   options.capacity = r.capacity;
+  options.tp = r.tp;
   auto plan = frontend::BuildModelPlan(bridge.nodes, bridge.inputs, bridge.outputs, options);
   if (plan.dm) throw std::invalid_argument("MX-5 explicit dense pin cannot compile a MoE/DNN plan");
   mlir::MLIRContext context;

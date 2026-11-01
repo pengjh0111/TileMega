@@ -17,6 +17,7 @@ struct Request {
   int v2_threads = 576;
   int moe_diagnostic_candidates = 4;
   int tmin = 128;  // §6 D5: geometric-mean TPOT of the 4 dev cells, 128 < 64 < 32
+  int tp = 1;
   int batch = 1, capacity = 0, past_lo = 0, past_hi = 0, grid = 104;
   int watchdog = 1, barrier_prefetch = 1;
   bool trace_stage = false, allow_resources = false, prompt = false;

@@ -75,6 +75,7 @@ MxDecodeModel AnalyzeMxDecode(mlir::ModuleOp module) {
     throw std::invalid_argument("mx decode: DM (MoE/DNN) plans keep the interpreted executor");
   MxDecodeModel m;
   m.capacity = int(Int(serving, "capacity"));
+  if (auto tp = serving.getAs<mlir::IntegerAttr>("tp")) m.tp = int(tp.getInt());
   if (auto eps = plan.getAs<mlir::FloatAttr>("norm_epsilon")) m.epsilon = eps.getValueAsDouble();
   else throw std::invalid_argument("mx decode: model plan lacks norm_epsilon");
 

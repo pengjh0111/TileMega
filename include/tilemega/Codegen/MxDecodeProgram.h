@@ -32,6 +32,7 @@ struct MxDecodeConfig {
 struct MxDecodeModel {
   int layers = 0, hidden = 0, heads = 0, hkv = 0, head_dim = 0, q_per_kv = 0, inter = 0, vocab = 0;
   int capacity = 0;
+  int tp = 1;
   bool qk_norm = false;
   double epsilon = 0;
   // Indices into model_plan.buffers.

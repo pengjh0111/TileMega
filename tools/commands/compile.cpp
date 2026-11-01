@@ -292,7 +292,7 @@ int RunCompile(int argc, char** argv) {
                  " --search-passes 1..3 --search-jobs 1 --variant-cache DIR --flow-fixture DIR --flow-search-only 0|1\n"
                  " --serving-pruning 0|1 --incremental-prepare 0|1 --serving-warm-start PREVIOUS.plan.json\n"
                  " --mx-prompt 0|1 (native MoE prompt from a decode bridge; prompt length 64)\n"
-                 " --prompt-len N --capacity N --past-range LO:HI\n"
+                 " --prompt-len N --capacity N --past-range LO:HI --serving-tp T\n"
                  " --search-capacity N --per-stage-kappa 0|1 --stage-kappa CSV\n"
                  " --segments 1|2 --segment-candidates N\n"
                  " --routing-profile FILE.json --moe-profile-layer N\n"
@@ -336,6 +336,7 @@ int RunCompile(int argc, char** argv) {
     if(auto* cache=std::getenv("TILEMEGA_ARTIFACT_CACHE"))artifact_cache=cache;
     int serving_prompt_len=64;
     bool serving_prompt_pinned=false,serving_capacity_pinned=false,serving_past_pinned=false;
+    int serving_tp=1;
     int serving_capacity=1088,serving_batch=1,serving_past_lo=64,
         serving_past_hi=1086,serving_kv_block=256,
         serving_query_rows=64,serving_argmax_tile_n=128;
@@ -458,6 +459,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--prompt-len") {serving_prompt_len=std::stoi(value);serving_prompt_pinned=true;}
       else if (flag=="--capacity") {serving_capacity=std::stoi(value);serving_capacity_pinned=true;}
       else if (flag=="--batch") serving_batch=std::stoi(value);
+      else if (flag=="--serving-tp") serving_tp=std::stoi(value);
       else if (flag=="--past-range") {
         serving_past_pinned=true;
         auto colon=value.find(':');
@@ -592,7 +594,7 @@ int RunCompile(int argc, char** argv) {
     if(serving && (serving_phase=="decode" || mx_prompt) && frontend_mode=="decoder" && input.extension()==".json") {
       tilemega::commands::mx_decode::Request mx;
       mx.input=input;mx.output=std::filesystem::absolute(argv[2]);mx.pin=evaluation_cases_path;
-      mx.batch=serving_batch;mx.capacity=serving_capacity;
+      mx.batch=serving_batch;mx.capacity=serving_capacity;mx.tp=serving_tp;
       mx.prompt=mx_prompt;
       mx.past_lo=serving_past_lo;mx.past_hi=serving_past_hi;mx.watchdog=watchdog;
       mx.runtime_target=!runtime_target.empty()?runtime_target:!solve_target.empty()?solve_target:
@@ -623,6 +625,8 @@ int RunCompile(int argc, char** argv) {
       int status=tilemega::commands::mx_decode::TryCompile(mx);
       if(status>=0)return status;
     }
+    if (serving_tp != 1)
+      throw std::invalid_argument("--serving-tp requires an explicit MX decode V2 pin");
     bool use_pages=serving && (pg_mode=="pages" || (serving_phase=="decode" && pg_mode=="auto"));
     if(use_pages)
       throw std::runtime_error("the paged executor is not implemented on xcore1000; use --pg off or l2");

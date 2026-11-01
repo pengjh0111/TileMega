@@ -930,6 +930,8 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
     llvm::SmallVector<mlir::NamedAttribute> runtime = {
         builder.getNamedAttr("seq", builder.getI64IntegerAttr(plan.serving_seq)),
         builder.getNamedAttr("capacity", builder.getI64IntegerAttr(plan.serving_capacity))};
+    if (plan.serving_tp > 1)
+      runtime.push_back(builder.getNamedAttr("tp", builder.getI64IntegerAttr(plan.serving_tp)));
     if (plan.forward) runtime.push_back(builder.getNamedAttr("phase", builder.getI64IntegerAttr(2)));
     module->setAttr("tilemega.serving", builder.getDictionaryAttr(runtime));
   }
