@@ -129,14 +129,14 @@ struct Sm90DenseEpilogue {
                  residual,*tp);
         }
       }
-      return;
-    }
-    #pragma unroll
-    for(int i=0;i<int(cute::size(accum));i+=2) {
-      int row=cute::get<0>(owned(i)),col=cute::get<1>(owned(i));
-      if(row<Batch) {
-        float scale=InputNorm?inv[row>=8]:1.0f;
-        Store2(base,row,col,accum(i)*scale,accum(i+1)*scale,residual);
+    }else {
+      #pragma unroll
+      for(int i=0;i<int(cute::size(accum));i+=2) {
+        int row=cute::get<0>(owned(i)),col=cute::get<1>(owned(i));
+        if(row<Batch) {
+          float scale=InputNorm?inv[row>=8]:1.0f;
+          Store2(base,row,col,accum(i)*scale,accum(i+1)*scale,residual);
+        }
       }
     }
   }

@@ -929,6 +929,17 @@ if(TILEMEGA_BUILD_TESTS)
     target_compile_options(sm90_dense_local_route_test PRIVATE
       $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
     add_test(NAME sm90_dense_local_route COMMAND sm90_dense_local_route_test)
+    # SM90R5 B8: the TP all-reduce epilogue and the head's argmax exchange,
+    # bit for bit, on the 2 or 4 devices CUDA_VISIBLE_DEVICES exposes.
+    add_executable(sm90_dense_tp_test test/unit/sm90_dense_tp_test.cu)
+    target_include_directories(sm90_dense_tp_test PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/third_party/cutlass/include)
+    set_target_properties(sm90_dense_tp_test PROPERTIES CUDA_ARCHITECTURES "90a")
+    target_compile_options(sm90_dense_tp_test PRIVATE
+      $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+    target_link_libraries(sm90_dense_tp_test PRIVATE cuda)
+    add_test(NAME sm90_dense_tp COMMAND sm90_dense_tp_test)
+    set_tests_properties(sm90_dense_tp PROPERTIES SKIP_RETURN_CODE 77)
     add_executable(sm90_dense_search_space_test test/unit/sm90_dense_search_space_test.cpp)
     target_link_libraries(sm90_dense_search_space_test PRIVATE TileMega::tilemega)
     target_compile_options(sm90_dense_search_space_test PRIVATE -UNDEBUG)
