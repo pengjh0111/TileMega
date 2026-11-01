@@ -245,3 +245,11 @@ environment earlier; it has not been added after the A5 stop.
 This is a missed goal, not a correctness gate. CP3 cost qualification/top4/final trace continues.
 **verified, B4** five incomplete cost chunks were rescheduled based only on completion; valid complete chunks retained.
 Old partial records remain. Seven focused CPU selection/trace tests also pass.
+
+## CP3: eligible costs and selection in progress
+
+- **verified**1840 stage-cost keys,87 fresh processes; one competitive noisy key received two additional processes.
+- **verified**26 remaining noisy stage keys use p90;80 AR and10 head constants qualified,12 noisy constants use p90.
+- **verified** cost table SHA256 `7ad97df7881ba38ddaa0b720fb1eb6dc287fb60de042d989bee76fea3a3ecaad`, solver_eligible=true.
+- **verified, B4** baseline submitter briefly paused while active guarded work finished, then automatically resumed after qualification.
+- **verified** top4 resource qualification has started at TP2 B1. Baseline collection and final trace orchestration continue.
