@@ -3,6 +3,32 @@
 Evidence labels: **verified** = executed here; **stated** = supplied specification;
 **inferred** = reasoning, not a measurement. Raw evidence is under `runs/mx7/`.
 
+## A5 stop: GPU6 unavailable during C0
+
+- **verified** at 22:07:12 and 22:10:45 CST on 2026-11-01, `mx-smi -i 4,5,6,7`
+  reports GPU6 **Not Available**, GPUs4/5/7 Available, and no device processes.
+  The same state persists at 22:27:25 after our submitters have exited.
+- **verified** a fresh original probe fails inside the initialization call at
+  `experiments/mx7/ll_litmus.cu:147`, before peer binding or the LL kernel:
+  `mxkwCreateQueueBlock` ioctl fails (`queues.c:850`), then
+  `Device::acquireQueue` fails (`mx_device.cpp:1626`), followed by SIGSEGV.
+  A signal backtrace reaches `mcMemset+0x2ae` / `wcudaMemset+0x4f`;
+  host markers show a successful 4 MiB allocation immediately before memset.
+  This is logical device0 in the guarded {6,7} group, hence physical GPU6.
+- **verified** independent vLLM and SGLang TP4 initialization also reports this
+  queue failure. This is not evidence of LL tearing or AR numerical failure.
+  Why GPU6 became unavailable is **unresolved**; primitive-specific causation
+  is not established by the chronology or these host stacks.
+- **inferred, A5** further progress requires device recovery outside the
+  specified implementation. All our GPU submitters have been stopped; no
+  reset, driver, clock or power change was attempted. Raw logs, failures and
+  interrupted cohorts remain, including `runs/mx7/A_STOP.json`.
+- Communication primitives/allocation and the TP2 main group are **undecided**.
+  No production TP device code or TP model launch was attempted. There is
+  **no TileMega TPOT, speedup, scaling efficiency or final selected TP pin**.
+- Code stop HEAD: `1f6dc640b` (23 commits after the starting HEAD);
+  results/report are committed separately immediately afterwards.
+
 ## Specification and scope
 
 - **verified** starting branch/HEAD: `tilemega-metax`,
@@ -37,7 +63,7 @@ Evidence labels: **verified** = executed here; **stated** = supplied specificati
   Onboarding environment, reference hashes and exact prospective TP invocation:
   `runs/mx7/sync/onboarding.md` (not committed).
 
-## CP1: work in progress
+## CP1: partial, stopped at A5
 
 - **verified** all 12 ordered pairs within GPUs 4–7 support peer access and
   pass a device load/store reachability check. No topology-based speed claim.
@@ -48,14 +74,26 @@ Evidence labels: **verified** = executed here; **stated** = supplied specificati
 - **verified** fine-grained allocation / volatile LL8 passed 5/5 pair processes
   at P=1024 and 5/5 all-to-all processes at each P=1024 and P=262144;
   each passing process covers 2000 epochs with all 104 CTAs.
-  Full combination qualification and latency/bandwidth comparison remain open.
+  These are historical passing cohorts, not a current communication decision.
+  Pair matrix: 219/252 completed cohorts, including all 126 small-packet
+  combinations (8 passed); all-to-all matrix: 13/252 completed, none passed.
+  Additional fine-grained all-to-all passing cohorts are recorded separately.
+  Each cohort has five fresh processes; passing ones cover all 2000 epochs.
+- **verified** fine-grained volatile ping-pong on {4,5}: median single-way
+  latency 2557.952 ns over five processes; pointer device ownership and 64-byte
+  alignment pass 5/5. This does not determine the main TP2 group: {6,7} and
+  the required bandwidth matrix are incomplete. Large-packet LL timings use
+  strided accesses and must not be presented as bandwidth measurements.
 - **verified** frontend TP changes pass the eight-plan frozen gate; TP codegen
   changes separately pass all eight again: generated CU bytes and all function
   instruction counts match. No frozen-path GPU performance run was necessary.
-- **verified** 20 CPU tests pass for shard packing, group guards, optional ABI,
-  TP communication cost ranking, k-best and the 1% rule.
+- **verified** 23 CPU tests pass for shard packing, group guards, optional ABI,
+  TP communication cost ranking, k-best, qualification hashes, the 1% rule,
+  noise eligibility and trace attribution/compression.
 - **verified** TP2 baselines below each use two fresh processes, warm1/timed2;
-  TP4 remains in progress. TP1 columns in the CSV are frozen MX-5 values.
+  TP4 has 14 incomplete single-process records: 4 measured, 4 dependency N/A,
+  6 environment-invalid. They are not formal two-process baseline results.
+  TP1 columns and baseline scaling efficiencies use frozen MX-5 values.
 
 | B | vLLM TP2 TPOT ms | SGLang TP2 TPOT ms | torch.compile TP2 |
 |---|---:|---:|---|
@@ -64,6 +102,23 @@ Evidence labels: **verified** = executed here; **stated** = supplied specificati
 | 4 | 4.031721 | 3.487290 | N/A |
 | 8 | 4.302299 | 3.776927 | N/A |
 | 16 | 4.624672 | 4.215727 | N/A |
+
+## Prepared implementation and verification
+
+- **verified** rank-sharded meta export, frontend recipes/`serving.tp`, shard
+  loading/state, optional Python ABI, TP cohort engine and measurement/check
+  tools, dense TP cost-domain/build/measurement tools, k-best qualification
+  orchestration and trace collection are committed. Their GPU TP paths are
+  unverified; this preparatory work is not a usable native TP implementation.
+- **verified** `MX7_frozen_gate_c550.csv`: 8 reference builds plus 8 frontend
+  and 8 codegen rechecks, all pass CU-byte and function-instruction equality.
+  `MX7_resources_c550.csv` contains the 24 CPU resource reports; resident
+  occupancy is explicitly **not queried**. No GPU resource gate is claimed.
+- **verified** `MX7_tp_correctness_c550.csv` records CPU tests only. AR/head
+  exchange tests, whole-model litmus, C-1/C-2 and rank-token gates remain open.
+- **verified** the uncompiled runtime draft is preserved as
+  `runs/mx7/sync/runtime_tp_unfinished.patch`; the repository runtime was restored
+  to the frozen version. TP1 and protected MoE code/data hashes remain intact.
 
 ## Autonomous handling
 
@@ -77,9 +132,44 @@ Evidence labels: **verified** = executed here; **stated** = supplied specificati
 - **verified, B4** an initial frozen-gate report path error and a test invocation
   error were corrected; earlier logs remain. The completed frozen gate and
   corrected test invocation are reported above.
+- **verified, B4** small-packet screening was prioritized using the same binaries,
+  polling bound, 104 CTAs and five-process cohorts. Only our job submitters were
+  paused/released; active guarded probes were allowed to finish.
+- **verified, B4** compile-time primitive specializations keep the LL protocol
+  unchanged. Seven small-packet pair cohorts passed 5/5; one exited SIGSEGV.
+  Later unrelated combinations also failed. They are retained as failures,
+  not used to select a primitive while the device is unavailable.
+- **verified, B4/B5** gdb is absent; signal stacks and host markers located the
+  initialization failure. TP4 queue failures are environment-invalid records,
+  not engine qualification or performance data. No retries conceal failures.
+- **verified** provisional cost builds stay under runs; no GPU stage costs,
+  communication constants or eligible cost table were published.
+
+## GPU use
+
+**inferred** child-job wall time from each guard's pgid-file to result-file
+timestamps, including initialization/cleanup and excluding lock waiting:
+GPU4 1.394 h, GPU5 1.394 h, GPU6 2.681 h, GPU7 2.681 h; total **8.150 card-h**.
+This estimates reserved job time, not hardware busy time. Accounting details:
+`runs/mx7/sync/gpu_usage.json`. No jobs ran on GPUs0–3.
 
 ## Remaining work
 
-C0/CP1 communication qualification and TP4 baselines; CP2 TP device code,
-runtime and GPU correctness; CP3 GPU costs, TP constants, selection and finals.
-No TP performance or correctness result is available yet.
+| Item | Existing location / missing target | Reason |
+|---|---|---|
+| C0 decision, bandwidth, main pair | `experiments/mx7/ll_litmus.cu:147` | GPU6 fails before LL launch |
+| TP AR and head exchange | `DecodeGemmV2.h:332`, `DecodeHeadV2.h:32`; new `TpLinkV2.h` / `PeerAccess.h` not created | C0 selection prerequisite |
+| Binding and native ABI | `DecodeProgramV2.cuh:36`, `DecodeRuntimeV2.cuh:143` | Native TP path not implemented |
+| GPU checks and engine validation | `tp_engine.py:21`, `plan.py:114` | Optional native ABI is absent |
+| GPU costs/constants/top4/finals/trace | `tilemega/tp/solve_tp.py`, `experiments/mx7/` | CP2 and C0 unfinished |
+
+`MX7_tp_constants_c550.csv`, `MX7_tp_selection_c550.csv`,
+`MX7_tp_final_c550.csv` and selected TP pins do not exist; no synthetic rows.
+
+## Expectations and next steps
+
+No TileMega TP measurement exists, so the TPOT/speedup expectations cannot be
+evaluated. **Inferred** next steps require recovering GPU6 first, diagnosing
+the availability loss, and repeating affected qualification samples while
+retaining failures. A GPU-State check in the guard would help reject this
+environment earlier; it has not been added after the A5 stop.
