@@ -116,12 +116,19 @@ class TpServingEngine:
             raise RuntimeError(f'tensor parallel ranks diverged in iteration: {sorted(iterations)} (U17)')
         # Each launch only enqueues; the ranks' kernels meet in the first
         # all-reduce, so no rank waits on the host between launches.
-        for plan, stream in zip(self.plans, self.streams):
-            if self.decode_loop:
+        if self.decode_loop:
+            for plan, stream in zip(self.plans, self.streams):
                 plan.launch_steps(first, count, L1, stream.cuda_stream)
-            else:
-                for step in range(first, first + count):
-                    plan.launch(step, L1, stream.cuda_stream)
+            return
+        # One step across every rank before the next step, never a whole rank
+        # ahead of the others: a rank's step-s kernel spins in its first
+        # all-reduce until every peer's step-s kernel runs, so enqueueing one
+        # rank's whole range first fills the driver's per-stream launch queue
+        # and blocks the host before the peers are enqueued at all - a deadlock
+        # (observed: 1023 steps at TP2 never advanced past the first).
+        for step in range(first, first + count):
+            for plan, stream in zip(self.plans, self.streams):
+                plan.launch(step, L1, stream.cuda_stream)
 
     def generate(self, prompt_ids: torch.Tensor, new_tokens: int | None = None) -> TpGeneration:
         count = new_tokens or self.max_new_tokens
