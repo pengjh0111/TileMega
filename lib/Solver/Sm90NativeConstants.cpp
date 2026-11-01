@@ -37,6 +37,7 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
   if(auto const* forward=s.Find("forward"))c.forward_=*forward;
   if(auto const* cta=s.Find("cta_dram_gbps"))c.cta_dram_gbps_=Positive(*cta,"per-CTA DRAM bandwidth");
   if(auto const* task=s.Find("task_expert_ns"))c.task_expert_=*task;
+  if(auto const* tp=s.Find("tp"))c.tp_=*tp;
   c.attention_=s.At("attention_ns");
   return c;
 }
@@ -94,6 +95,20 @@ double Sm90NativeConstants::TaskExpert(std::string const& family,int batch) cons
   double value=found->AsNumber("expert task overhead");
   if(value<0)throw std::invalid_argument("negative expert task overhead");
   return value;
+}
+double Sm90NativeConstants::AllReduce(int batch,int tile_n,int tp) const {
+  auto key="b="+std::to_string(batch)+":tn="+std::to_string(tile_n)+":t="+std::to_string(tp);
+  auto const* table=tp_.Find("ar_ns");
+  auto const* found=table?table->Find(key):nullptr;
+  if(!found)throw Sm90NativeMissing("no measured tensor parallel all-reduce for "+key);
+  return Positive(*found,"tensor parallel all-reduce");
+}
+double Sm90NativeConstants::HeadExchange(int batch,int tp) const {
+  auto key="b="+std::to_string(batch)+":t="+std::to_string(tp);
+  auto const* table=tp_.Find("head_x_ns");
+  auto const* found=table?table->Find(key):nullptr;
+  if(!found)throw Sm90NativeMissing("no measured tensor parallel head exchange for "+key);
+  return Positive(*found,"tensor parallel head exchange");
 }
 double Sm90NativeConstants::WgmmaEfficiency(int tile_n) const {
   auto const* table=forward_.Find("wgmma_efficiency");

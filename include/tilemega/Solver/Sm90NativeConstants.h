@@ -54,13 +54,18 @@ class Sm90NativeConstants {
   // MR6: the fixed cost of one expert task beyond its bytes and epilogue
   // (family "expert_gate_up" or "expert_down") at a batch.
   double TaskExpert(std::string const& family,int batch) const;
+  // Tensor parallel (SM90R5 B9.1, section `tp`): t_ar, what an o/down stage's
+  // all-reduce epilogue adds over kResidual on T cards (key b=B:tn=TN:t=T),
+  // and t_head_x, what the head's cross-rank argmax exchange adds (b=B:t=T).
+  double AllReduce(int batch,int tile_n,int tp) const;
+  double HeadExchange(int batch,int tp) const;
   // Constants whose recorded body header no longer matches the source tree.
   std::vector<std::string> StaleHeaders(std::string const& root) const;
   double l2_latency=0,dram_latency=0,dram_gbps=0,l2_gbps=0,sm_gbps=0,cp_async_gbps=0;
   json::Value section;
  private:
   std::map<int,double> barrier_;
-  json::Value epilogue_,embedding_,argmax_la_,route_la_,attention_,round_,clusters_,dsmem_,forward_,task_expert_;
+  json::Value epilogue_,embedding_,argmax_la_,route_la_,attention_,round_,clusters_,dsmem_,forward_,task_expert_,tp_;
   double cta_dram_gbps_=0;
   json::Value const& AttentionShape(int dim,int queries,int norm) const;
 };

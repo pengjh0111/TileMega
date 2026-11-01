@@ -57,10 +57,17 @@ double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
       "router","expert_gate_up","expert_down"};
   double epilogue=c.Epilogue(kEpilogue[family]+geometry,g.tile_n,b,g.warps_k);
   double first=pre?c.l2_latency:c.dram_latency;
-  double total=c.Barrier(grid)+first+stream+epilogue+task_fixed;
-  if(terms)*terms=json::Object{{"barrier",c.Barrier(grid)},{"first_byte",first},{"pre",pre},
-      {"dram",w_tot/c.dram_gbps},{"waves",waves},{"l2",(w_tot+a_tot)/c.l2_gbps},{"cta",cta},{"ring",ring},
-      {"epilogue",epilogue},{"task_fixed",task_fixed},{"tasks",tasks},{"multicast",g.multicast}};
+  // Tensor parallel o/down sum their tile across ranks inside the epilogue.
+  double all_reduce=work.tp>1 && (family==1 || family==3)?c.AllReduce(b,g.tile_n,work.tp):0;
+  double total=c.Barrier(grid)+first+stream+epilogue+task_fixed+all_reduce;
+  if(terms) {
+    json::Object fields{{"barrier",c.Barrier(grid)},{"first_byte",first},{"pre",pre},
+        {"dram",w_tot/c.dram_gbps},{"waves",waves},{"l2",(w_tot+a_tot)/c.l2_gbps},{"cta",cta},{"ring",ring},
+        {"epilogue",epilogue},{"task_fixed",task_fixed},{"tasks",tasks},{"multicast",g.multicast}};
+    // Only a sharded plan's receipt names the term, so TP1 receipts are unchanged.
+    if(work.tp>1 && (family==1 || family==3))fields.emplace_back("all_reduce",all_reduce);
+    *terms=std::move(fields);
+  }
   return total;
 }
 
@@ -146,8 +153,8 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& work,
   }
   // D9: the head's last arriver reduces the argmax (beyond the head's own
   // barrier) and, with emb = LA, reads B table rows and writes them to x.
-  p.stages.push_back({"argmax_la",1,constants_.ArgmaxLa(grid,work.batch)-constants_.Barrier(grid),
-      json::Value()});
+  p.stages.push_back({"argmax_la",1,constants_.ArgmaxLa(grid,work.batch)-constants_.Barrier(grid)+
+      (work.tp>1?constants_.HeadExchange(work.batch,work.tp):0),json::Value()});
   double row_bytes=2.0*work.shapes[0][1]*work.batch;
   p.stages.push_back(c.embed_la?
       Sm90DensePrediction::Stage{"embedding_la",1,constants_.dram_latency+2*row_bytes/constants_.sm_gbps,
