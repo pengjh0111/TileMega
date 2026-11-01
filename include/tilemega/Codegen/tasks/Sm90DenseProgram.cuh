@@ -59,6 +59,8 @@ template<int Tp> struct Sm90DenseTpFields {
   int rank;
 };
 template<> struct Sm90DenseTpFields<1> {};
+static_assert(sizeof(Sm90DenseTpFields<1>)==1 && std::is_empty_v<Sm90DenseTpFields<1>>,
+    "a TP1 Bindings must keep its layout through the empty base");
 
 template<unsigned Count,unsigned Maps,unsigned Layers,unsigned Slots,int Tp=1>
 struct alignas(64) Bindings:Sm90DenseTpFields<Tp> {
@@ -158,7 +160,7 @@ struct Gemm {
   }
   template<class B>
   __device__ static __forceinline__ void PublishOperands(B const& b,int layer,int,float epsilon,
-      backend::Sm90DenseOperandBank& record,unsigned long long iteration=0) {
+      backend::Sm90DenseOperandBank& record,unsigned long long iteration) {
     record.gemm.activation=b.template Map<Map>();record.gemm.weight=b.template Get<W>(layer);
     record.gemm.residual=b.template Get<C>(layer);record.gemm.output=b.template Get<D>(layer);
     record.gemm.argmax_index=reinterpret_cast<int*>(b.template Get<Index>(layer));
@@ -212,7 +214,7 @@ struct Attention {
   }
   template<class B>
   __device__ static __forceinline__ void PublishOperands(B const& b,int layer,int past,float epsilon,
-      backend::Sm90DenseOperandBank& record) {
+      backend::Sm90DenseOperandBank& record,unsigned long long) {
     record.attention.key_map=b.template Map<KeyMap>();record.attention.value_map=b.template Map<ValueMap>();
     record.attention.qkv=b.template Get<Qkv>(layer);record.attention.key=b.template Get<Key>(layer);
     record.attention.value=b.template Get<Value>(layer);record.attention.output=b.template Get<Output>(layer);
@@ -287,7 +289,7 @@ struct Moe {
   }
   template<class B>
   __device__ static __forceinline__ void PublishOperands(B const& b,int layer,int,float epsilon,
-      backend::Sm90DenseOperandBank& record) {
+      backend::Sm90DenseOperandBank& record,unsigned long long) {
     CUtensorMap const* map=nullptr;
     if constexpr(Map!=kAbsent)map=b.template Map<Map>();
     unsigned* done=nullptr;
@@ -338,7 +340,7 @@ struct MoeFused {
   }
   template<class B>
   __device__ static __forceinline__ void PublishOperands(B const& b,int layer,int,float epsilon,
-      backend::Sm90DenseOperandBank& record) {
+      backend::Sm90DenseOperandBank& record,unsigned long long) {
     record.moe_fused={b.template Map<Map>(),b.template Get<WGu>(layer),b.template Get<WDn>(layer),
         b.template Get<X>(layer),b.template Get<Hid>(layer),b.template Get<Out>(layer),
         reinterpret_cast<int*>(b.template Get<Schedule>(layer)),b.template Get<Routes>(layer),
@@ -357,24 +359,40 @@ struct MoeFused {
 
 // lm_head with the folded argmax and, with Embed, the next step's embedding
 // (D9). Its value/index outputs hold the per-CTA [B][G] partials.
-template<class G,unsigned Tokens,unsigned Table,unsigned X,int Width,int Capacity,bool Embed>
+// Tp > 1: this rank holds VocabLocal rows of the vocabulary, and the last
+// arriver exchanges its per-row winner with every rank (prompt appendix C.3).
+template<class G,unsigned Tokens,unsigned Table,unsigned X,int Width,int Capacity,bool Embed,
+         int Tp=1,int VocabLocal=0>
 struct Head:G {
   static_assert(G::kUsesOperandRecord);
-  using Finish=backend::Sm90DenseHeadFinish<G::kBatch,Width,Capacity,Embed>;
+  static_assert((Tp==1)==(VocabLocal==0),"a sharded head names its rank's vocabulary");
+  using Finish=backend::Sm90DenseHeadFinish<G::kBatch,Width,Capacity,Embed,Tp,VocabLocal>;
   // The [B][G] partials reuse the [B][tasks] argmax outputs.
   static constexpr int kMaxGrid=G::kTasks;
   template<class B>
   __device__ static __forceinline__ void PublishOperands(B const& b,int layer,int past,float epsilon,
-      backend::Sm90DenseOperandBank& record) {
-    G::PublishOperands(b,layer,past,epsilon,record);
+      backend::Sm90DenseOperandBank& record,unsigned long long iteration) {
+    G::PublishOperands(b,layer,past,epsilon,record,iteration);
     record.head={reinterpret_cast<int*>(b.template Get<Tokens>()),b.lm_counter,
         b.template Get<Table>(),b.template Get<X>(),past,b.prompt_len};
+    if constexpr(Tp>1) {
+      // The head is published by the last down boundary of the same step, so
+      // `iteration` is this step's: epoch = iteration + 1, parity = iteration & 1.
+      #pragma unroll
+      for(int q=0;q<Tp;++q)record.tp_head.x[q]=b.exchange[q];
+      record.tp_head.epoch=iteration+1;
+      record.tp_head.rank=b.rank;record.tp_head.world=Tp;
+      record.tp_head.vocab_local=VocabLocal;record.tp_head.pad=0;
+    }
   }
   template<int Prefix,class B,class Tail>
   __device__ static __forceinline__ void Run(B const&,int,char* shared,float,
       backend::Sm90DenseRingState& ring,Tail tail,backend::Sm90DenseOperandBank const& record,
       bool streamed) {
-    StageEntry<typename G::Body>::template Head<Prefix>(record.gemm,shared,&ring,tail,streamed,
+    if constexpr(Tp>1)
+      StageEntry<typename G::Body>::template Head<Prefix>(record.gemm,shared,&ring,tail,streamed,
+          Finish{&record.head,&record.tp_head});
+    else StageEntry<typename G::Body>::template Head<Prefix>(record.gemm,shared,&ring,tail,streamed,
         Finish{&record.head});
   }
 };
@@ -657,7 +675,7 @@ struct Program {
       // Next's preissue tail reads original bindings and never this header.
       if constexpr(Next::kUsesOperandRecord)
         Next::PublishOperands(b,next_layer,past,epsilon,
-            backend::Sm90DenseOperandHeader::Bank(shared,NextParity));
+            backend::Sm90DenseOperandHeader::Bank(shared,NextParity),iteration);
       if constexpr(Body::kGroupTiles>0) {
         // D8 (prompt §7): this CTA's qkv tiles release their KV groups; its
         // attention tasks wait only for their own group's tiles of this
@@ -810,7 +828,7 @@ void sm90_dense_native_kernel(const __grid_constant__ typename P::Binding b,
   if constexpr(P::kEmbed)
     if(first!=0) {
       if(threadIdx.x==0)P::template GroupStage<0>::PublishOperands(b,0,pasts[first],epsilon,
-          backend::Sm90DenseOperandHeader::Bank(shared,1));
+          backend::Sm90DenseOperandHeader::Bank(shared,1),iteration);
       __syncthreads();
     }
   if(blockIdx.x==0 && threadIdx.x==0 && step_ns)step_ns[first]=Now();

@@ -108,6 +108,24 @@ struct Sm90DenseTpHeadOperands {
   std::uint64_t epoch;
   int rank,world,vocab_local,pad;
 };
+#ifndef TILEMEGA_TP_LITMUS
+#define TILEMEGA_TP_LITMUS 0
+#endif
+#if TILEMEGA_TP_LITMUS
+// Litmus builds only (prompt B5.7): before every all-reduce send and every
+// head-exchange write, spin a pseudo-random 0-5 us keyed by (rank, step,
+// stage, CTA, thread) so the ranks interleave differently every launch.
+__device__ inline void Sm90DenseTpLitmusSpin(int rank,std::uint64_t epoch,std::uint32_t stage,
+                                             int lane_key) {
+  std::uint64_t h=0x9e3779b97f4a7c15ull^(std::uint64_t(rank)<<56)^(epoch<<20)^
+      (std::uint64_t(stage)*0xbf58476d1ce4e5b9ull)^(std::uint64_t(blockIdx.x)<<8)^
+      std::uint64_t(threadIdx.x)^(std::uint64_t(lane_key)<<40);
+  h^=h>>31;h*=0x94d049bb133111ebull;h^=h>>29;
+  std::uint64_t wait=h%5000,start,now;
+  asm volatile("mov.u64 %0, %%globaltimer;":"=l"(start));
+  do {asm volatile("mov.u64 %0, %%globaltimer;":"=l"(now));} while(now-start<wait);
+}
+#endif
 
 // Thread zero fully initializes the active member for the next stage. That
 // member is immutable from the V3 CTA join until the stage's complete return.
