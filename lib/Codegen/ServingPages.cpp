@@ -286,7 +286,9 @@ void ResolveServingWeightPacking(mlir::ModuleOp module) {
       }
       auto const* source=node.Find("source");
       if(!source || source->kind()!=json::Value::Kind::kObject)break;
-      node=*source;
+      // `source` lives inside `node`: copy it out before replacing its owner.
+      json::Value next=*source;
+      node=std::move(next);
     }
     auto stride=std::int64_t((n+tn-1)/tn)*((k+tk-1)/tk)*tn*tk;
     auto elements=stride*experts;
