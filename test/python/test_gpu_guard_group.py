@@ -17,7 +17,7 @@ POLICY = dict(samples=1, interval_s=0, idle_power_w=100, idle_vram_mib=860,
 
 def telemetry(owners=None):
     return dict(owners=owners or {}, utilization_pct=0, power_w=60,
-                used_mib=860, free_mib=64000)
+                used_mib=860, free_mib=64000, availability='Available')
 
 
 class GroupGuardTests(unittest.TestCase):
@@ -29,7 +29,7 @@ class GroupGuardTests(unittest.TestCase):
                                  [f'tilemega_mx_gpu{g}.lock' for g in (4, 5, 6, 7)])
                 self.assertTrue(all(c.args[1] == guard.fcntl.LOCK_EX for c in lock.call_args_list))
 
-    def run_guard(self, group=None, foreign=None):
+    def run_guard(self, group=None, foreign=None, unavailable=None):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             policy = root / 'policy.json'
@@ -40,7 +40,10 @@ class GroupGuardTests(unittest.TestCase):
             child = MagicMock(pid=999999)
             child.wait.return_value = 0
             def query(index):
-                return telemetry({424242: 1000} if str(index) == foreign else {})
+                row = telemetry({424242: 1000} if str(index) == foreign else {})
+                if str(index) == unavailable:
+                    row['availability'] = 'Not Available'
+                return row
             argv = ['gpu_guard', '--policy', str(policy), '--out', str(root / 'out'),
                     '--timeout-s', '1', '--', 'true']
             with patch.dict(os.environ, env, clear=True), patch.object(sys, 'argv', argv), \
@@ -69,11 +72,28 @@ class GroupGuardTests(unittest.TestCase):
         self.assertEqual((code, launched), (0, 1))
         self.assertEqual([c.args[0] for c in calls], ['6', '6'])
 
-    def test_group_rejects_forbidden_cards(self):
-        for value in ('0,4', '4,5,6', '4,x'):
+    def test_group_rejects_invalid_cards(self):
+        for value in ('0,8', '-1,4', '4,5,6', '4,x'):
             with patch.dict(os.environ, {'TILEMEGA_DEVICE_GROUP': value}, clear=True):
                 with self.assertRaises(ValueError):
                     guard.device_indices()
+
+    def test_user_authorized_new_group_is_checked(self):
+        code, calls, launched = self.run_guard('0,1,2,3')
+        self.assertEqual((code, launched), (0, 1))
+        self.assertEqual([c.args[0] for c in calls], ['0', '1', '2', '3'] * 2)
+
+    def test_unavailable_card_is_rejected_without_launch(self):
+        code, calls, launched = self.run_guard('0,1,2,3', unavailable='2')
+        self.assertEqual((code, launched), (75, 0))
+
+    def test_state_parser_distinguishes_unavailable(self):
+        from tilemega.bench import mx_smi
+        with patch.object(mx_smi, '_run', return_value='| 94W / 450W | 858/65536 MiB | Not Available |\n'):
+            self.assertEqual(mx_smi.availability('6'), 'Not Available')
+        with patch.object(mx_smi, '_run', return_value='no state'):
+            with self.assertRaises(ValueError):
+                mx_smi.availability('6')
 
 
 if __name__ == '__main__':

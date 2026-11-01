@@ -46,7 +46,8 @@ def check_qualification(path):
 class Cell:
     def __init__(self, args):
         self.a = args
-        if args.group not in ('4,5', '6,7', '4,5,6,7') or len(args.group.split(',')) != args.tp:
+        devices = list(map(int, args.group.split(',')))
+        if len(devices) != args.tp or len(set(devices)) != args.tp or not set(devices) <= set(range(8)):
             raise ValueError('TP degree and physical GPU group differ')
         self.out = args.out.resolve()
         self.out.mkdir(parents=True, exist_ok=False)

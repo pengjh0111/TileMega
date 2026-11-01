@@ -134,7 +134,7 @@ def validate_inputs(spec, inspect_resource=None, command=run_text):
 
 def validate_guard(env, lock_stat, locks_text, ancestors):
     gpu = env.get('TILEMEGA_DEVICE_INDEX')
-    if (gpu not in ('4', '5', '6', '7') or env.get('TILEMEGA_GPU_LOCK_HELD') != '1'
+    if (gpu not in tuple(map(str, range(8))) or env.get('TILEMEGA_GPU_LOCK_HELD') != '1'
             or any(env.get(name) != gpu for name in ('CUDA_VISIBLE_DEVICES', 'MACA_VISIBLE_DEVICES'))):
         raise ValueError('require guarded consistent single-card environment')
     lock = Path('/tmp/tilemega_mx_gpu' + gpu + '.lock')

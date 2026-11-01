@@ -52,7 +52,7 @@ def main():
     parser.add_argument('--constants', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--work', type=Path, required=True)
-    parser.add_argument('--card', type=int, choices=(4, 5, 6, 7), default=7)
+    parser.add_argument('--card', type=int, choices=range(8), default=7)
     args = parser.parse_args()
     qualification = args.out.with_suffix('.qualification.json')
     if args.out.exists() or qualification.exists():

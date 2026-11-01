@@ -7,7 +7,7 @@
 # clone anywhere works.
 set -e
 g=$1; t=$2; out=$3; shift 3
-case "$g" in 4|5|6|7) ;; *) echo "refusing GPU $g (only 7,6,5,4)"; exit 2;; esac
+case "$g" in 0|1|2|3|4|5|6|7) ;; *) echo "refusing invalid GPU $g"; exit 2;; esac
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 export TILEMEGA_DEVICE_INDEX=$g CUDA_VISIBLE_DEVICES=$g MACA_VISIBLE_DEVICES=$g
 export TILEMEGA_GPU_LOCK=/tmp/tilemega_mx_gpu${g}.lock

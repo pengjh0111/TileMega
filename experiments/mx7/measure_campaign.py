@@ -32,8 +32,8 @@ def main():
     parser.add_argument('--prepare-only', action='store_true')
     args = parser.parse_args()
     cards = list(map(int, args.cards.split(',')))
-    if not cards or len(set(cards)) != len(cards) or not set(cards) <= {4, 5, 6, 7}:
-        parser.error('unique physical cards 4–7 are required')
+    if not cards or len(set(cards)) != len(cards) or not set(cards) <= set(range(8)):
+        parser.error('unique physical cards 0–7 are required')
     if args.chunk < 1:
         parser.error('positive key chunk required')
     builds, out = args.builds.resolve(), args.out.resolve()

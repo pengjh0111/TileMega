@@ -5,10 +5,8 @@ group=$(python - "$1" <<'PY'
 import sys
 try:g=sorted(set(map(int,sys.argv[1].split(','))))
 except ValueError:raise SystemExit('GPU group must contain integer indices')
-if len(g) not in (2,4) or not set(g)<=set(range(4,8)):
- raise SystemExit('GPU group requires 2 or 4 cards from 4,5,6,7')
-if len(g)==2 and g not in ([4,5],[6,7]):
- raise SystemExit('TP2 group must be 4,5 or 6,7')
+if len(g) not in (2,4) or not set(g)<=set(range(8)):
+ raise SystemExit('GPU group requires 2 or 4 cards from 0 through 7')
 print(','.join(map(str,g)))
 PY
 )

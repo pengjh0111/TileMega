@@ -18,6 +18,14 @@ def _run(args):
     return subprocess.check_output(['mx-smi', *args], text=True, stderr=subprocess.STDOUT)
 
 
+def availability(index):
+    values = re.findall(r'\|\s*(Not Available|Available)\s*\|\s*$',
+                        _run(['-i', str(index)]), re.M)
+    if len(values) != 1:
+        raise ValueError('mx-smi did not return exactly one GPU-State')
+    return values[0]
+
+
 def device(index):
     """One telemetry row for natural-enumeration device `index`."""
     out = _run(['--show-memory', '--show-board-power', '--show-usage', '--show-clock',
@@ -40,7 +48,7 @@ def device(index):
     return dict(time=time.time(), used_mib=used_kb / 1024, total_mib=total_kb / 1024,
                 free_mib=(total_kb - used_kb) / 1024, power_w=fields[('Board Power', 'Total')],
                 utilization_pct=fields[('Utilization', 'GPU')], clocks_mhz=clocks, temperature_c=temps,
-                owners=processes(index))
+                owners=processes(index), availability=availability(index))
 
 
 def processes(index=None):

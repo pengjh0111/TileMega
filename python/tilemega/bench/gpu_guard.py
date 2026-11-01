@@ -46,7 +46,7 @@ def external(row,own):
 def idle(row,policy,needs=0,index=None):
     index=os.getenv('TILEMEGA_DEVICE_INDEX','0') if index is None else str(index)
     idle_w=policy.get('idle_power_w_by_gpu',{}).get(index,policy['idle_power_w'])
-    return (not external(row,descendants(os.getpid())) and row['utilization_pct']<=policy['max_util_pct']
+    return (row.get('availability')=='Available' and not external(row,descendants(os.getpid())) and row['utilization_pct']<=policy['max_util_pct']
             and row['power_w']<=idle_w+policy['power_margin_w']
             and row['hidden_mib']<=policy['max_hidden_mib'] and row['free_mib']>=needs)
 
@@ -88,8 +88,8 @@ def device_indices():
     if group is None:return [os.getenv('TILEMEGA_DEVICE_INDEX','0')]
     try:indices=sorted(set(int(g) for g in group.split(',')))
     except ValueError:raise ValueError('device group requires integer GPU indices') from None
-    if len(indices) not in (2,4) or not set(indices)<=set(range(4,8)):
-        raise ValueError('device group requires 2 or 4 GPUs from 4,5,6,7')
+    if len(indices) not in (2,4) or not set(indices)<=set(range(8)):
+        raise ValueError('device group requires 2 or 4 GPUs from 0 through 7')
     return list(map(str,indices))
 
 @contextmanager
@@ -127,6 +127,7 @@ def main():
             for g in indices:
                 try:row=sample(g,'preflight',sample=i)
                 except Exception as error:return finish(75,'preflight telemetry unavailable: '+str(error))
+                if row.get('availability')!='Available':return finish(75,'preflight unavailable GPU '+g)
                 if not idle(row,policy,a.needs_free_mib,g):
                     settle=policy.get('preflight_settle_s',0);waited=0.0
                     while settle and waited<settle:
@@ -151,6 +152,8 @@ def main():
                 try:row=sample(g,'running')
                 except Exception as error:
                     stop(process,known);return finish(75,'running telemetry unavailable: '+str(error))
+                if row.get('availability')!='Available':
+                    stop(process,known);return finish(75,'running unavailable GPU '+g)
                 foreign=external(row,own|{os.getpid()})
                 hidden[g]=hidden[g]+1 if row['hidden_mib']>baseline[g]+policy['max_hidden_mib'] else 0
                 if foreign & previous[g] or hidden[g]>=policy['hidden_violations']:
@@ -163,6 +166,7 @@ def main():
         for g in indices:
             try:row=sample(g,'after',exit_code=code)
             except Exception as error:return finish(75,'exit telemetry unavailable: '+str(error))
+            if row.get('availability')!='Available':return finish(75,'exit unavailable GPU '+g)
             foreign=external(row,own|{os.getpid()})
             if foreign & previous[g] or row['hidden_mib']>baseline[g]+policy['max_hidden_mib'] or (code and foreign):
                 return finish(75,'exit interference GPU '+g)
