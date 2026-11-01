@@ -100,7 +100,7 @@ def epilogue(a):
     """lm_head epilogue widths of a sharded vocabulary, one card, fresh processes."""
     exclude = tuple(g for g in range(8) if g not in (0, 5, 7))
     for fresh in range(a.processes):
-        directory = OUT / 'lm_head' / f'f{fresh}'
+        directory = OUT / a.label / f'f{fresh}'
         if (directory / 'probe.csv').exists():
             continue
         directory.mkdir(parents=True, exist_ok=True)
@@ -110,7 +110,7 @@ def epilogue(a):
             command = [PYTHON, '-m', 'tilemega.bench.gpu_guard', '--policy', str(POLICY),
                        '--out', str(directory / 'guard'), '--needs-free-mib', '16384',
                        '--timeout-s', '3600', '--', 'numactl', f'--cpunodebind={dispatch.numa(gpu)}',
-                       str(a.binary.resolve()), '--lm-head-tp-only']
+                       str(a.binary.resolve()), a.section]
             env = dict(os.environ, CUDA_VISIBLE_DEVICES=str(gpu), TILEMEGA_DEVICE_INDEX=str(gpu),
                        TILEMEGA_TIMING='1', TILEMEGA_GPU_PID_MODE='namespace_limited',
                        TILEMEGA_NUMA_NODE=str(dispatch.numa(gpu)),
@@ -123,7 +123,7 @@ def epilogue(a):
                 handle.close()
         if code == 0:
             (directory / 'stdout.csv').rename(directory / 'probe.csv')
-        print(json.dumps(dict(section='lm_head', fresh=fresh, gpu=gpu, returncode=code)), flush=True)
+        print(json.dumps(dict(section=a.label, fresh=fresh, gpu=gpu, returncode=code)), flush=True)
     return 0
 
 
@@ -157,6 +157,29 @@ def collect_epilogue(a):
     return 0
 
 
+def collect_merge(a):
+    """t_merge at 64 chunks for Qwen3-1.7B's per-rank attention shape."""
+    files = sorted(OUT.glob('merge/f*/probe.csv'))
+    values = {}
+    for path in files:
+        for row in csv.DictReader(line for line in path.read_text().splitlines()
+                                  if line.startswith(('name,', 't_merge,'))):
+            values.setdefault(row['key'], []).append(float(row['median']))
+    target = read(a.target)
+    attention = target['sm90_native_constants']['attention_ns']
+    for key, samples in values.items():
+        if len(samples) != len(files):
+            raise ValueError(f'{key}: {len(samples)} of {len(files)} processes')
+        fields = dict(part.split('=') for part in key.split(':') if '=' in part)
+        shape = attention[f"d{fields['d']}:q{fields['q']}:norm{fields['norm']}"]
+        if fields['s'] in shape['merge']:
+            raise ValueError(f'{key} is already measured')
+        shape['merge'][fields['s']] = round(statistics.median(samples), 1)
+        print(json.dumps(dict(key=key, median=shape['merge'][fields['s']], per_process=samples)))
+    write(a.target, target)
+    return 0
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     sub = p.add_subparsers(dest='action', required=True)
@@ -171,12 +194,16 @@ def main():
     three = sub.add_parser('epilogue')
     three.add_argument('--binary', type=Path, required=True)
     three.add_argument('--processes', type=int, default=5)
+    three.add_argument('--section', default='--lm-head-tp-only')
+    three.add_argument('--label', default='lm_head')
+    five = sub.add_parser('collect-merge')
+    five.add_argument('--target', type=Path, default=ROOT / 'configs/targets/sm_90_h800.json')
     four = sub.add_parser('collect-epilogue')
     four.add_argument('--csv', type=Path, default=ROOT / 'docs/results/SM90R5_constants.csv')
     four.add_argument('--target', type=Path, default=ROOT / 'configs/targets/sm_90_h800.json')
     a = p.parse_args()
     return dict(run=run, collect=collect, epilogue=epilogue,
-                **{'collect-epilogue': collect_epilogue})[a.action](a)
+                **{'collect-epilogue': collect_epilogue, 'collect-merge': collect_merge})[a.action](a)
 
 
 if __name__ == '__main__':

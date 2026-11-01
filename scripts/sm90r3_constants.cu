@@ -871,6 +871,9 @@ int main(int argc,char** argv) {try {
   }
   // MoE (Hkv = 4) at G = 264 reaches S0 = 64 chunks (prompt §8 M2).
   if(full || !std::strcmp(argv[1],"--moe-merge-only"))AttentionCase<128,8,1,64>();
+  // SM90R5: a tensor parallel rank of Qwen3-1.7B holds 4 (TP2) or 2 (TP4) KV
+  // heads, so at residency 2 its search offers 64 chunks, as Qwen3-30B-A3B's did.
+  if(full || !std::strcmp(argv[1],"--tp-merge-only"))AttentionCase<128,2,1,64>();
   // D10b: clusters of C = 2 (DT-2's grids) merge S = 2 chunks through DSMEM.
   if(full || !std::strcmp(argv[1],"--forward-only")) {
     WgmmaCase<32>(sms);WgmmaCase<64>(sms);WgmmaCase<128>(sms);WgmmaCase<256>(sms);
