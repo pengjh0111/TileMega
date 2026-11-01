@@ -268,6 +268,11 @@ int TryCompileV2(Request const& r) {
   std::string flags = " -DTILEMEGA_SYNC_V3=1 -DTILEMEGA_MX_STATIC_DECODE_V2=1 -DTILEMEGA_WATCHDOG=" +
       std::to_string(r.watchdog) + " -DTILEMEGA_TRACE_STAGE=" + (r.trace_stage ? "1" : "0") +
       " -DTILEMEGA_MX_DIAG=" + (diag ? "1" : "0");
+  bool const tp_litmus = r.tp > 1 && std::getenv("TILEMEGA_TP_LITMUS") &&
+      std::string(std::getenv("TILEMEGA_TP_LITMUS")) == "1";
+  if (r.tp > 1)
+    flags += " -DTILEMEGA_MX_TP=" + std::to_string(r.tp) +
+        " -DTILEMEGA_TP_LITMUS=" + (tp_litmus ? "1" : "0");
   std::string device_flags = DeviceBuildFlags();
   if (device_flags.find("-fno-strict-aliasing") == std::string::npos) device_flags += " -fno-strict-aliasing";
   std::string const command = Quote(compile_receipt_v1::CompilerPath(NvccPath())) + " -std=c++17 -O3" + device_flags + flags +
@@ -284,9 +289,9 @@ int TryCompileV2(Request const& r) {
     classes.Set(name, value);
   };
   actual_class("qkv", config.qkv, nq, model.hidden, "kStore", true);
-  actual_class("o", config.o, model.hidden, model.heads * model.head_dim, "kResidual", false);
+  actual_class("o", config.o, model.hidden, model.heads * model.head_dim, r.tp > 1 ? "kResidualAllReduce" : "kResidual", false);
   actual_class("gate_up", config.gate_up, 2 * model.inter, model.hidden, "kSwiGLU", true);
-  actual_class("down", config.down, model.hidden, model.inter, "kResidual", false);
+  actual_class("down", config.down, model.hidden, model.inter, r.tp > 1 ? "kResidualAllReduce" : "kResidual", false);
   actual_class("head", config.head, model.vocab, model.hidden, "argmax", true);
   Value resolved_pin = classes;
   resolved_pin.Set("threads", config.threads);
@@ -385,6 +390,10 @@ int TryCompileV2(Request const& r) {
   if (diag) runtime_allocations.Set("step_ns", Object{{"dtype", "u64"}, {"elements", "set_steps.count + 1"}});
   if (r.watchdog) runtime_allocations.Set("watchdog", Object{{"bytes", 96}, {"allocation", "host_mapped"},
       {"enabled_when", "TILEMEGA_WATCHDOG_MS != 0"}, {"default_ms", 10000}});
+  if (r.tp > 1) {
+    runtime_allocations.Set("tp_ar", Object{{"bytes", Count(2 * std::uint64_t(model.layers) * r.tp * B * 4 * model.hidden)}});
+    runtime_allocations.Set("tp_exchange", Object{{"bytes", 4096}});
+  }
   auto edge = [](char const* from, char const* to, MxDecodeClassV2 const& c) -> Value {
     return Object{{"from", from}, {"to", to}, {"P_w", c.prefetch}, {"loads", c.prefetch * (c.tn / 16)}};
   };
@@ -410,6 +419,10 @@ int TryCompileV2(Request const& r) {
       {"source_snapshot", out + ".source.json"}, {"buffers", buffers}, {"runtime_allocations", runtime_allocations}};
   if (config.attn_version == 3) {
     manifest.Set("attention_version", 3); manifest.Set("attention_split", config.split);
+  }
+  if (r.tp > 1) {
+    manifest.Set("tp", r.tp); manifest.Set("vocab_local", model.vocab);
+    manifest.Set("prompt_mode", true); manifest.Set("tp_litmus", tp_litmus);
   }
   Write(out + ".plan.json", manifest.Dump() + "\n");
   python("-m tilemega.build.identity --root " + Quote(root) + " --snapshot " + Quote(out + ".source.json") + " --so " + Quote(out));

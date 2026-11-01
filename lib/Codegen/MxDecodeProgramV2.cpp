@@ -91,6 +91,8 @@ int MxDecodePrefetchV2(MxDecodeClassV2 const& c, int n, int k, int grid, int thr
 }
 
 void CheckMxDecodeConfigV2(MxDecodeModel const& m, int batch, MxDecodeConfigV2 const& c, int grid) {
+  if (m.tp != 1 && m.tp != 2 && m.tp != 4 && m.tp != 8) Fail("TP outside {1,2,4,8}");
+  if (m.tp > 1 && (grid != 104 || c.attn_version != 2)) Fail("TP requires grid104 and attention V2");
   if (grid != 104) Fail("grid must be 104 (one CTA per AP)");
   if (c.threads != 512 && c.threads != 576) Fail("threads outside {512,576}");
   if (m.capacity <= 0 || m.capacity % 32) Fail("fragment KV capacity must be divisible by 32");
@@ -213,12 +215,16 @@ std::string EmitMxDecodeProgramV2(mlir::ModuleOp module, int batch, int past_lo,
       << "  static constexpr bool kQkvStreamK = " << (c.qkv.stream_k ? "true" : "false")
       << ", kOStreamK = " << (c.o.stream_k ? "true" : "false")
       << ", kGateUpStreamK = " << (c.gate_up.stream_k ? "true" : "false")
-      << ", kDownStreamK = " << (c.down.stream_k ? "true" : "false") << ";\n"
-      << "  using Binding = mx::MxBindingV2<kLayers>;";
+      << ", kDownStreamK = " << (c.down.stream_k ? "true" : "false") << ";\n";
+  if (m.tp > 1)
+    constants << "  static constexpr int kTp = " << m.tp << ", kVocabLocal = " << m.vocab << ";\n"
+              << "  using Binding = mx::MxBindingV2<kLayers, kTp>;";
+  else
+    constants << "  using Binding = mx::MxBindingV2<kLayers>;";
   spec.plan_declarations = constants.str();
   spec.loop.end = "kLayers";
   auto const qkv = body(c.qkv, "kStore", true, nq, m.hidden);
-  auto const down = body(c.down, "kResidual", false, m.hidden, m.inter);
+  auto const down = body(c.down, m.tp > 1 ? "kResidualAllReduce" : "kResidual", false, m.hidden, m.inter);
   std::string const ops = "mx::DenseOperandsV2<Self>::";
   std::string const attention = c.attn_version == 3
       ? "MxAttentionV3<" + std::to_string(m.head_dim) + "," + std::to_string(m.q_per_kv) + "," +
@@ -230,16 +236,16 @@ std::string EmitMxDecodeProgramV2(mlir::ModuleOp module, int batch, int past_lo,
     {"Attn", attention,
         (c.attn_version == 3 ? "mx::MxAttentionShapeWithSyncV2<kBatch, " : "MxStaticAttentionShapeV2<kBatch, ") + std::to_string(m.hkv) + ", kThreads>",
         ops + "Attn(b,l,past)", ops + "Attn(b,l,past)", "O", "", 1},
-    {"O", body(c.o, "kResidual", false, m.hidden, m.heads * m.head_dim), shape(m.hidden, m.heads * m.head_dim),
-        ops + "O(b,l,tokens)", ops + "O(b,l,tokens)", "GateUp", "", 2},
+    {"O", body(c.o, m.tp > 1 ? "kResidualAllReduce" : "kResidual", false, m.hidden, m.heads * m.head_dim), shape(m.hidden, m.heads * m.head_dim),
+        ops + (m.tp > 1 ? "OTp(b,l,past,tokens)" : "O(b,l,tokens)"), ops + "O(b,l,tokens)", "GateUp", "", 2},
     {"GateUp", body(c.gate_up, "kSwiGLU", true, 2 * m.inter, m.hidden), shape(2 * m.inter, m.hidden),
         ops + "GateUp(b,l)", ops + "GateUp(b,l)", "Down", "", 3},
-    {"Down", down, shape(m.hidden, m.inter), ops + "Down(b,l)", ops + "Down(b,l)", "Qkv",
+    {"Down", down, shape(m.hidden, m.inter), ops + (m.tp > 1 ? "DownTp(b,l,past)" : "Down(b,l)"), ops + "Down(b,l)", "Qkv",
         ops + "QkvWeights(b,l+1)", 4, down, "Head", ops + "Head(b,past)"}
   };
   spec.tail_stages = {{"Head", "MxHead<" + std::to_string(c.head.tn) + ", " + std::to_string(c.head.wn) + ", " +
-      std::to_string(c.head.d) + ", " + std::to_string(pw(c.head, m.vocab, m.hidden)) + ">", shape(m.vocab, m.hidden),
-      ops + "Head(b,past)", ops + "Head(b,past)", "Qkv", ops + "QkvWeights(b,0)", 5}};
+      std::to_string(c.head.d) + ", " + std::to_string(pw(c.head, m.vocab, m.hidden)) + (m.tp > 1 ? ", kTp, kVocabLocal>" : ">"), shape(m.vocab, m.hidden),
+      ops + (m.tp > 1 ? "HeadTp(b,past)" : "Head(b,past)"), ops + "Head(b,past)", "Qkv", ops + "QkvWeights(b,0)", 5}};
   spec.entry_prefetch_operands = ops + "QkvWeights(b,0)";
   for (auto const& r : MxDecodeBuffersV2(module, c)) {
     if (r.dtype != "i32" && r.dtype != "f32" && r.dtype != "bf16") Fail("unsupported external dtype " + r.dtype);
