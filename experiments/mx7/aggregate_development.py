@@ -29,3 +29,29 @@ for file in a.root.glob('dev_no_dynamic_array/tp*/B*/occupancy/result.json'):
 if rows:
  with resource.open('a',newline='')as f:csv.DictWriter(f,fieldnames=fields,lineterminator='\n').writerows(rows)
 print('development residency rows appended',len(rows))
+timing=pathlib.Path('docs/results/MX7_tp_development_c550.csv')
+old=list(csv.DictReader(timing.open()))if timing.exists()else[]
+seen={(r['tp'],r['batch'])for r in old};rows=[]
+for t,b in [(2,1),(4,1),(4,16)]:
+ if(str(t),str(b))in seen:continue
+ folders=[a.root/f'dev_timing_measured/tp{t}/B{b}/round{r}'for r in [1,2]]
+ if any(not(f/'guard/guard_result.json').exists()for f in folders):continue
+ assert all(json.loads((f/'guard/guard_result.json').read_text())['code']==0 for f in folders)
+ assert len({(f/'guard/pgid').read_text().strip()for f in folders})==2
+ files=[f/'measure/measurements.json'for f in folders];xs=[json.loads(f.read_text())for f in files]
+ assert all(x['tp']==t and x['batch']==b and x['rank_tokens_identical']and x['timed_tokens_identical']for x in xs)
+ so=a.root/f'dev_no_dynamic_array/tp{t}/B{b}/plan.so';source=json.loads(pathlib.Path(str(so)+'.source.json').read_text())
+ median=lambda key:__import__('statistics').median(x[key]for x in xs)
+ rows.append(dict(record_type='development_two_fresh_processes',evidence='verified',model='qwen3_1_7b',tp=t,batch=b,
+  gpu_indices=','.join(map(str,xs[0]['gpu_indices'])),contract='bf16_greedy',isl=64,osl=1024,prompt_mode=True,
+  warmup=1,repeats=2,fresh_processes=2,tpot_ms=median('tpot_seconds')*1000,ttft_ms=median('ttft_seconds')*1000,
+  e2e_ms=median('e2e_seconds')*1000,tokens_per_s=median('output_tokens_per_second'),
+  round1_tpot_ms=xs[0]['tpot_seconds']*1000,round2_tpot_ms=xs[1]['tpot_seconds']*1000,
+  source_head=source['head'],artifact=str(so),artifact_sha256=sha(so),
+  measurements_json=json.dumps([dict(path=str(f),sha256=sha(f))for f in files]),final_selection=False))
+if rows:
+ with timing.open('a',newline='')as f:
+  writer=csv.DictWriter(f,fieldnames=list(rows[0]),lineterminator='\n')
+  if not old:writer.writeheader()
+  writer.writerows(rows)
+print('development timing pairs appended',len(rows))
