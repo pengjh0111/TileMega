@@ -253,3 +253,7 @@ Old partial records remain. Seven focused CPU selection/trace tests also pass.
 - **verified** cost table SHA256 `7ad97df7881ba38ddaa0b720fb1eb6dc287fb60de042d989bee76fea3a3ecaad`, solver_eligible=true.
 - **verified, B4** baseline submitter briefly paused while active guarded work finished, then automatically resumed after qualification.
 - **verified** top4 resource qualification has started at TP2 B1. Baseline collection and final trace orchestration continue.
+
+- **verified, B4** partial resource aggregation mislabeled one pending residency query as rejected.
+  The tool now skips pending queries, and correctness cohorts require successful process/guard exits.
+  Original row retained with an appended label correction; no actual resource failure occurred.
