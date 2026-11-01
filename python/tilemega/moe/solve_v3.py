@@ -203,7 +203,7 @@ class Cell:
             choice_path=folder/'CHOICE.json'
             if not choice_path.exists():save(choice_path,choice)
             pin_path=folder/'resource_pin.json'
-            if not pin_path.exists():save(pin_path,pin(choice,cost_hash))
+            if not pin_path.exists():save(pin_path,pin(choice,cost_hash,route_table_mode=self.a.route_table_mode))
             fit,attempts=self.build(pin_path,folder,query=False)
             result=dict(choice=choice,pin=ref(pin_path),folder=str(folder),attempts=attempts,
                 status='CPU_resource_fit'if fit else'resource_rejected')
@@ -232,12 +232,15 @@ class Cell:
         predictions=[];measured=[]
         for candidate in qualified:
             folder=Path(candidate['folder']);candidate['correctness']=self.correctness(folder,'correctness')
+        save(self.out/'CANDIDATES_CORRECTNESS_READY.json',dict(qualified=qualified,cost_table=ref(self.costs),E2E_timing_started=False))
+        for candidate in qualified:
+            folder=Path(candidate['folder'])
             candidate['timing']=self.measure(folder,'timing');predictions.append(candidate['choice']['predicted_ns']);measured.append(candidate['timing']['fresh_process_ns'])
             save(folder/'CANDIDATE_RESULT.json',candidate)
         control=self.measure(self.control,'control_timing',self.out)
         selection=select_measured(predictions,measured);selected=qualified[selection['selected']]
         save(self.out/'MEASURED_SELECTION.json',dict(selection=selection,qualified=qualified,cost_table=ref(self.costs),control=control,control_directory=str(self.control),control_participates_in_selection=False))
-        final_pin=pin(selected['choice'],cost_hash,'selected');final_pin['mx_moe_v3']['selection'].update(
+        final_pin=pin(selected['choice'],cost_hash,'selected',route_table_mode=self.a.route_table_mode);final_pin['mx_moe_v3']['selection'].update(
             measurement_decision=ref(self.out/'MEASURED_SELECTION.json'),eligible_rank=selection['selected']+1,
             fresh_processes_per_candidate=2,qualified_candidates=self.a.candidates,correctness_steps=512,default_enabled=False)
         pin_path=self.out/'selected_pin.json';save(pin_path,final_pin)
@@ -261,6 +264,7 @@ def main():
     parser.add_argument('--compiler',type=Path,default=ROOT/'build/tools/tilemega')
     parser.add_argument('--target',type=Path,default=ROOT/'configs/targets/xcore1000.json')
     parser.add_argument('--control-dir',type=Path)
+    parser.add_argument('--route-table-mode',choices=('both','filter2'),default='both')
     parser.add_argument('--candidates',type=int,choices=(4,8),default=4)
     parser.add_argument('--correctness-remedy',action='store_true')
     worker_limit=min(128,len(os.sched_getaffinity(0)))

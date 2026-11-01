@@ -72,12 +72,13 @@ def k_best(lists,layers):
                 seen.add(next_ranks);heapq.heappush(pending,(score(next_ranks),next_ranks))
 
 
-def pin(choice,cost_sha,purpose='resource_probe'):
+def pin(choice,cost_sha,purpose='resource_probe',*,route_table_mode='both'):
     if len(cost_sha)!=64 or any(c not in'0123456789abcdef'for c in cost_sha):raise ValueError('invalid cost table SHA256')
     if purpose not in('resource_probe','selected'):raise ValueError('solver pin purpose must be explicit')
+    if route_table_mode not in('both','filter2'):raise ValueError('invalid selected RouteTable program switch')
     stages=choice['stages'];attn=stages['attention']['key']
     config=dict(version=3,threads=512,purpose=purpose,attn_version=attn.get('attn_version',3),
-        attn_prefetch=attn['prefetch'],split=attn['split'],route_table_mode='both',
+        attn_prefetch=attn['prefetch'],split=attn['split'],route_table_mode=route_table_mode,
         combine_mode=stages['down']['key']['combine_mode'])
     if config['attn_version']==2:config['b_min']=attn['b_min']
     for stage in('qkv','o','router','gate_up','down','head'):

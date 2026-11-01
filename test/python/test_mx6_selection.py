@@ -97,11 +97,11 @@ def test_parallel_resource_completion_keeps_prediction_order(tmp_path,monkeypatc
     monkeypatch.setattr(solve_v3,'check_qualification',lambda p:{'excluded_combine_modes':['unit_owner']})
     monkeypatch.setattr(solve_v3,'stage_lists',lambda *a:{})
     monkeypatch.setattr(solve_v3,'k_best',lambda *a:iter(choices))
-    monkeypatch.setattr(solve_v3,'pin',lambda choice,sha,purpose='resource_probe':
+    monkeypatch.setattr(solve_v3,'pin',lambda choice,sha,purpose='resource_probe',**switches:
         {'mx_moe_v3':{'purpose':purpose,'selection':{}}})
     finished=[];queried=[]
     cell=solve_v3.Cell.__new__(solve_v3.Cell)
-    cell.a=argparse.Namespace(model_id='qwen3_30b_a3b_l24',batch=1,candidates=4,build_workers=4)
+    cell.a=argparse.Namespace(model_id='qwen3_30b_a3b_l24',batch=1,candidates=4,build_workers=4,route_table_mode='filter2')
     cell.out=tmp_path/'selection';cell.out.mkdir()
     cell.cell=tmp_path/'selected';cell.cell.mkdir()
     cell.costs=catalog;cell.control=tmp_path/'control'
@@ -115,11 +115,51 @@ def test_parallel_resource_completion_keeps_prediction_order(tmp_path,monkeypatc
         queried.append(int(folder.name.removeprefix('rank')))
         return True
     cell.build=build;cell.query=query
-    cell.correctness=lambda *a:{'pass':True}
-    cell.measure=lambda *a:{'fresh_process_ns':[100,100]}
+    checked=[]
+    def correctness(folder,*args):
+        checked.append(folder.name)
+        return {'pass':True}
+    def measure(*args):
+        assert set(checked)>={'rank0000003','rank0000004','rank0000005','rank0000006'}
+        return {'fresh_process_ns':[100,100]}
+    cell.correctness=correctness
+    cell.measure=measure
     result=cell.run()
     qualified=json.loads((cell.out/'QUALIFIED.json').read_text())['qualified']
     assert finished.index(2)<finished.index(1)
     assert [r['choice']['candidate_rank']for r in qualified]==[3,4,5,6]
     assert queried==[3,4,5,6]
     assert result['choice']['candidate_rank']==3
+
+
+def test_mixed_numeric_bal_attention_groups_keep_cost_source_order():
+    from tilemega.moe.selection_v3 import stage_lists,LENGTHS,STAGES
+    rows=[]
+    for stage in STAGES:
+        for split in ((1,3,'bal') if stage=='attention' else (None,)):
+            for length in (LENGTHS if stage=='attention' else (None,)):
+                key=dict(model='example',b=8,stage=stage)
+                if stage=='attention':key.update(split=split,prefetch=1,length=length)
+                rows.append(dict(key=key,median_ns=10,p90_ns=10,processes=3,
+                    resources=dict(resident=1,stack=0,static_smem=0,MTreg=100)))
+    choices=stage_lists(rows,'example',8)
+    assert [row['key']['split'] for row in choices['attention']]==[1,3,'bal']
+    assert len({tuple(row['source_rows']) for row in choices['attention']})==3
+
+
+@pytest.mark.parametrize('mode',['both','filter2'])
+@pytest.mark.parametrize('split',[1,3,'bal'])
+def test_selected_pin_preserves_program_switch_and_split(mode,split):
+    from tilemega.moe.selection_v3 import pin,STAGES
+    stages={}
+    for stage in STAGES:
+        key=dict(tn=32,wn=8,d=2,prefetch=2,r_next=100,part=1)
+        if stage=='attention':key=dict(prefetch=1,split=split)
+        if stage=='down':key['combine_mode']='owner_tile'
+        stages[stage]=dict(ns=10,key=key,source_rows=[len(stages)])
+    choice=dict(stages=stages,candidate_rank=7,predicted_ns=100)
+    result=pin(choice,'a'*64,'selected',route_table_mode=mode)['mx_moe_v3']
+    assert result['route_table_mode']==result['selection']['program_switches']['route_table_mode']==mode
+    assert result['split']==split
+    assert result['selection']['candidate_rank']==7
+    assert result['selection']['cost_table_sha256']=='a'*64
