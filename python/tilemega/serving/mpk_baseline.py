@@ -36,6 +36,10 @@ def extend(parser):
     parser.add_argument("--max-num-pages", type=int, default=0)
     parser.add_argument("--split-kv-cache", action="store_true",
                         help="demo_hopper.py --split-kv-cache (Qwen3 dense only)")
+    # The demos set max_num_batched_tokens = max_num_batched_requests; 0 keeps
+    # that. Overriding it only varies the token-slot count, which separates a
+    # fault that tracks the slots from one that tracks the requests.
+    parser.add_argument("--max-num-batched-tokens", type=int, default=0)
 
 
 def kv_pages(batch, prompt, max_tokens, page_size):
@@ -188,7 +192,8 @@ class Engine:
         os.chdir(kernel_dir)  # the demo graph code writes task_graph_0.json and kernel_0.cu to cwd
         try:
             shape = argparse.Namespace(
-                max_num_batched_requests=batch, max_num_batched_tokens=batch,
+                max_num_batched_requests=batch,
+                max_num_batched_tokens=args.max_num_batched_tokens or batch,
                 max_num_pages=args.max_num_pages, page_size=args.page_size,
                 max_seq_length=length, output_dir=str(kernel_dir), spec_decode=None,
                 ngram_size=3, spec_length=3, profiling=False, trace_name="",
@@ -437,7 +442,8 @@ def main():
               "mirage_revision": mirage_revision(), "page_size": args.page_size,
               "max_num_pages": args.max_num_pages,
               "kv_pages_required": needed,
-              "max_num_batched_tokens": "B (equal to max_num_batched_requests, as in the demos)",
+              "max_num_batched_tokens": (args.max_num_batched_tokens or
+                                         "B (equal to max_num_batched_requests, as in the demos)"),
               "use_cutlass_kernel": True, "spec_decode": None,
               "split_kv_cache": args.split_kv_cache,
               "timed_scope": "prompt H2D copy + init_request_func + mpk() + synchronize + token D2H",

@@ -67,20 +67,29 @@ def main():
     model.generation_config.disable_compile = True
     eager_forward = model.forward
     legacy_mask = legacy_mask_device(model)
+    # reduce-overhead captures a CUDA graph per decode step. A model whose MoE
+    # routing selects tokens with a data-dependent nonzero forces a graph break,
+    # so every capture comes back empty: OLMoE logged 21091 "CUDA Graph is
+    # empty" warnings and spent 15 h on one batch. Such a model takes the mode
+    # torchcompile_moe_baseline.py already uses for the same reason.
+    moe = any(key in model.config.to_dict() for key in ("num_experts", "num_local_experts"))
+    mode = "max-autotune-no-cudagraphs" if moe else "reduce-overhead"
 
     def compile_forward(fullgraph):
-        compiled = torch.compile(eager_forward, mode="reduce-overhead", fullgraph=fullgraph)
+        compiled = torch.compile(eager_forward, mode=mode, fullgraph=fullgraph)
         @functools.wraps(eager_forward)
         def forward(*values, **options):
-            torch.compiler.cudagraph_mark_step_begin()
+            if mode == "reduce-overhead":
+                torch.compiler.cudagraph_mark_step_begin()
             return compiled(*values, **options)
         return forward
 
     model.forward = compile_forward(True)
-    config = {"dtype": "bfloat16", "kv_cache_dtype": "bfloat16", "mode": "reduce-overhead",
+    config = {"dtype": "bfloat16", "kv_cache_dtype": "bfloat16", "mode": mode,
               "fullgraph": True, "cache_implementation": "static", "seed": 0,
               "static_cache_initialization": "public early_initialization outside compiled region",
-              "hf_auto_compile": False, "cudagraph_mark_step_begin": "each forward invocation",
+              "hf_auto_compile": False, "cuda_graphs": mode == "reduce-overhead",
+              "cudagraph_mark_step_begin": "each forward invocation" if mode == "reduce-overhead" else None,
               "compile_preparation_counts": [1, 2] if args.max_tokens > 1 else [1],
               "compile_preparation_repeats": 3,
               "compile_preparation_location": "inside discarded warmup, before requested N1 timing",
