@@ -49,6 +49,21 @@ Evidence labels: **verified** = executed here; **stated** = supplied specificati
 - **verified** guarded TP2 torch.compile and TP4 baseline campaigns are running.
   Core TileMega TP device implementation starts after this C0 decision.
 
+## CP2 implementation progress
+
+- **verified** peer-bound runtime, poisoned-plan checks, prompt mode, residual AR
+  and LL head exchange compile. No production communication fence was added.
+- **verified** the initial development builds were rejected at 256 MTreg and
+  336–472 stack bytes. The approved per-item send/receive fallback is used.
+  Dynamic private pointer-array indexing also materialized a 232-byte operand;
+  constant-field pointer selection removes it without changing the protocol.
+- **verified** development TP2 B1 / TP4 B1 / TP4 B16 now have respectively
+  229 / 225 / 226 MTreg, zero stack/static memory. Actual residency is pending.
+- **verified** the eight frozen CU/instruction comparisons pass after these
+  changes. CPU tests: 29 passed. Device suites and full-model checks are queued.
+- **verified** preliminary AR TP2 B1: 5/5 fresh processes, nine legal geometry
+  cases per process, exact ordered BF16 reference and zero mismatches.
+
 ## Specification and scope
 
 - **verified** starting branch/HEAD: `tilemega-metax`,

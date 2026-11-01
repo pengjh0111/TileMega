@@ -17,12 +17,16 @@
 #include <tilemega/Codegen/tasks/mx/DecodeProgramV2.cuh>
 
 #include <cuda_runtime.h>
+#if TILEMEGA_MX_TP > 1
+#include <mcr/mc_runtime_api.h>
+#endif
 
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #ifndef TILEMEGA_WATCHDOG
@@ -30,6 +34,9 @@
 #endif
 
 namespace tilemega::codegen::mx {
+
+template <class P, class = void> struct MxTpOf : std::integral_constant<int, 1> {};
+template <class P> struct MxTpOf<P, std::void_t<decltype(P::kTp)>> : std::integral_constant<int, P::kTp> {};
 
 template <int TN, class Shape>
 constexpr std::size_t MxGemmPartialFloatsV2(int grid, bool stream_k) {
@@ -42,6 +49,7 @@ constexpr std::size_t MxMaxV2(std::size_t a, std::size_t b) { return a > b ? a :
 
 template <class P>
 struct MxRuntimeV2 {
+  static constexpr int kTp = MxTpOf<P>::value;
   static constexpr int kGrid = P::kGrid, kStages = 5 * P::kLayers + 1;
   static constexpr int kGenerationOffset = (P::kBodySmemBytes + P::kBatch * 4 + 15) / 16 * 16;
   static constexpr int kSmem = kGenerationOffset + 16;
@@ -73,6 +81,11 @@ struct MxPlanStateV2 {
   MxTraceV2 trace{nullptr, 0};
   int device = 0;
   bool allocation_failed = false;
+#if TILEMEGA_MX_TP > 1
+  void* tp_ar = nullptr;
+  void* tp_x = nullptr;
+  bool tp_bound = false, poisoned = false;
+#endif
 };
 
 }  // namespace tilemega::codegen::mx
@@ -82,6 +95,27 @@ using namespace tilemega::codegen::mx;
 using P = tm_mx_plan::Plan;
 using R = MxRuntimeV2<P>;
 inline constexpr std::uint32_t kBufferCount = sizeof(tm_mx_plan::kBuffers) / sizeof(tm_mx_plan::kBuffers[0]);
+
+#if TILEMEGA_MX_TP > 1
+inline void* MxTpAlloc(std::size_t bytes) {
+  void* pointer = nullptr;
+  if (mcExtMallocWithFlags(&pointer, bytes, mcDeviceMallocFinegrained) != mcSuccess) return nullptr;
+  if (cudaMemset(pointer, 0, bytes) != cudaSuccess) {
+    cudaFree(pointer);
+    return nullptr;
+  }
+  return pointer;
+}
+inline void MxTpFree(void* pointer) { cudaFree(pointer); }
+static_assert(R::kTp == TILEMEGA_MX_TP);
+#endif
+
+inline int LaunchError(MxPlanStateV2* s, int code) {
+#if TILEMEGA_MX_TP > 1
+  if (s && code) s->poisoned = true;
+#endif
+  return code;
+}
 
 inline void* Alloc(MxPlanStateV2* s, std::size_t bytes) {
   void* p = nullptr;
@@ -99,6 +133,11 @@ inline void* Alloc(MxPlanStateV2* s, std::size_t bytes) {
 }
 inline void Free(MxPlanStateV2* s) {
   if (!s) return;
+#if TILEMEGA_MX_TP > 1
+  cudaSetDevice(s->device);
+  if (s->tp_ar) MxTpFree(s->tp_ar);
+  if (s->tp_x) MxTpFree(s->tp_x);
+#endif
   for (void* p : s->owned) cudaFree(p);
   if (s->pasts) cudaFree(s->pasts);
   if (s->step_ns) cudaFree(s->step_ns);
@@ -193,6 +232,11 @@ extern "C" void* tm_plan_create(int batch, void* const* external, int device) {
   sc.t_attn = static_cast<unsigned*>(Alloc(s, B * P::AttnShape::hkv * 4));
   sc.t_head = static_cast<unsigned*>(Alloc(s, 64));
   sc.barrier = static_cast<unsigned long long*>(Alloc(s, std::size_t(R::kStages) * 64));
+#if TILEMEGA_MX_TP > 1
+  s->tp_ar = MxTpAlloc(2 * std::size_t(P::kLayers) * R::kTp * B * 4 * P::kHidden);
+  s->tp_x = MxTpAlloc(sizeof(tilemega::backend::mx::MxTpExchangeV2));
+  if (!s->tp_ar || !s->tp_x) s->allocation_failed = true;
+#endif
   if (s->allocation_failed) {
     Free(s);
     return nullptr;
@@ -267,11 +311,16 @@ extern "C" int tm_plan_set_steps(void* opaque, std::int32_t const* past, std::ui
 namespace tm_mx_runtime_v2 {
 inline int Launch(MxPlanStateV2* s, std::uint32_t first, std::uint32_t steps, std::uint64_t iteration,
                   unsigned long long* step_ns, void* stream) {
+#if TILEMEGA_MX_TP > 1
+  if (cudaSetDevice(s->device) != cudaSuccess) return LaunchError(s, 1);
+  if (s->poisoned) return -5;
+  if (!s->tp_bound) return LaunchError(s, -4);
+#endif
   if (steps > UINT32_MAX / R::kStages || iteration != s->next_iteration || iteration > UINT64_MAX / P::kGrid ||
-      steps > UINT64_MAX / P::kGrid - iteration) return -2;
+      steps > UINT64_MAX / P::kGrid - iteration) return LaunchError(s, -2);
   mx_decode_kernel_v2<P><<<P::kGrid, P::kThreads, R::kSmem, static_cast<cudaStream_t>(stream)>>>(
       *static_cast<P::Binding const*>(s->binding), StageLaunchV2{s->pasts, first, steps, iteration, step_ns, s->trace});
-  if (cudaGetLastError() != cudaSuccess) return 1;
+  if (cudaGetLastError() != cudaSuccess) return LaunchError(s, 1);
   s->next_iteration += steps;
   return 0;
 }
@@ -281,7 +330,7 @@ extern "C" int tm_plan_launch(void* opaque, std::uint32_t step, std::uint32_t mo
                               void* stream) {
   using namespace tm_mx_runtime_v2;
   auto* s = static_cast<MxPlanStateV2*>(opaque);
-  if (!s || mode != TM_SERVING_L1 || step >= s->steps) return -1;
+  if (!s || mode != TM_SERVING_L1 || step >= s->steps) return LaunchError(s, -1);
   return Launch(s, step, 1, iteration, nullptr, stream);
 }
 
@@ -290,10 +339,58 @@ extern "C" int tm_plan_launch_steps(void* opaque, std::uint32_t first_step, std:
   using namespace tm_mx_runtime_v2;
   auto* s = static_cast<MxPlanStateV2*>(opaque);
   if (!s) return -1;
-  if (mode != TM_SERVING_L1) return -3;
-  if (!steps || first_step >= s->steps || steps > s->steps - first_step) return -1;
+  if (mode != TM_SERVING_L1) return LaunchError(s, -3);
+  if (!steps || first_step >= s->steps || steps > s->steps - first_step) return LaunchError(s, -1);
   return Launch(s, first_step, steps, base_iteration, s->step_ns ? s->step_ns + first_step : nullptr, stream);
 }
+
+#if TILEMEGA_MX_TP > 1
+extern "C" unsigned tm_plan_tp_world() { return tm_mx_runtime_v2::R::kTp; }
+
+extern "C" int tm_plan_tp_buffers(void* opaque, void** ar, void** x) {
+  auto* s = static_cast<tilemega::codegen::mx::MxPlanStateV2*>(opaque);
+  if (!s || !ar || !x) return -1;
+  *ar = s->tp_ar;
+  *x = s->tp_x;
+  return 0;
+}
+
+extern "C" int tm_plan_bind_tp(void* opaque, int rank, void* const* ar, void* const* x) {
+  using namespace tm_mx_runtime_v2;
+  auto* s = static_cast<MxPlanStateV2*>(opaque);
+  if (!s || !ar || !x || rank < 0 || rank >= R::kTp) return -1;
+  if (ar[rank] != s->tp_ar || x[rank] != s->tp_x || cudaSetDevice(s->device) != cudaSuccess) return -1;
+  for (int q = 0; q < R::kTp; ++q) {
+    if (!ar[q] || !x[q] || (reinterpret_cast<std::uintptr_t>(ar[q]) & 63) ||
+        (reinterpret_cast<std::uintptr_t>(x[q]) & 63)) return -1;
+    if (q == rank) continue;
+    cudaPointerAttributes attributes{}, exchange{};
+    if (cudaPointerGetAttributes(&attributes, ar[q]) != cudaSuccess ||
+        cudaPointerGetAttributes(&exchange, x[q]) != cudaSuccess || attributes.device != exchange.device) return -1;
+    int access = 0;
+    if (cudaDeviceCanAccessPeer(&access, s->device, attributes.device) != cudaSuccess || !access) return -1;
+    auto const status = cudaDeviceEnablePeerAccess(attributes.device, 0);
+    if (status != cudaSuccess && status != cudaErrorPeerAccessAlreadyEnabled) return -1;
+    cudaGetLastError();
+  }
+  auto* b = static_cast<P::Binding*>(s->binding);
+  for (int q = 0; q < R::kTp; ++q) {
+    b->ar[q] = static_cast<std::uint64_t*>(ar[q]);
+    b->x[q] = static_cast<tilemega::backend::mx::MxTpExchangeV2*>(x[q]);
+  }
+  b->rank = rank;
+  s->tp_bound = true;
+  return 0;
+}
+
+extern "C" int tm_plan_set_prompt_len(void* opaque, int prompt_len) {
+  using namespace tm_mx_runtime_v2;
+  auto* s = static_cast<MxPlanStateV2*>(opaque);
+  if (!s || prompt_len < 0 || prompt_len > P::kCapacity) return -1;
+  static_cast<P::Binding*>(s->binding)->prompt_len = prompt_len;
+  return 0;
+}
+#endif
 
 extern "C" unsigned tm_plan_loop_modes(void* opaque) { return opaque ? TM_SERVING_L1 : 0; }
 extern "C" unsigned tm_plan_pdl_enabled(void*) { return 0; }

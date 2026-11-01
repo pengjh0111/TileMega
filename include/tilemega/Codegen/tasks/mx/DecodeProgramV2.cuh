@@ -9,6 +9,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <type_traits>
 
 namespace tilemega::codegen::mx {
 
@@ -32,8 +33,15 @@ struct MxScratchV2 {
   unsigned long long watchdog_ns;
   unsigned diag_skip;
 };
-template <int Layers>
-struct MxBindingV2 {
+template <int Tp> struct MxTpBindingV2 {
+  std::uint64_t* ar[Tp];
+  backend::mx::MxTpExchangeV2* x[Tp];
+  int rank, prompt_len;
+};
+template <> struct MxTpBindingV2<1> {};
+static_assert(std::is_empty_v<MxTpBindingV2<1>>);
+template <int Layers, int Tp = 1>
+struct MxBindingV2 : MxTpBindingV2<Tp> {
   MxLayerBindingV2 layer[Layers];
   Bf16 const *embed, *w_head, *rope_cos, *rope_sin;
   int* tokens;
@@ -108,6 +116,29 @@ struct DenseOperandsV2 {
     l = backend::mx::UniformOpaque(l);
     return Gemm(b, scratch.h, b.layer[l].w_down, scratch.x, scratch.x, scratch.t_down, P::DownShape::k, P::kHidden);
   }
+  __device__ __forceinline__ static backend::mx::MxTpLinkV2 Link(Binding const& b, int l, int slot, int past) {
+    backend::mx::MxTpLinkV2 link{};
+    auto const& scratch = Scratch(b);
+    auto const& top = Top(b);
+    [&]<std::size_t... I>(std::index_sequence<I...>) {
+      ((link.recv[I] = top.ar[I]), ...);
+    }(std::make_index_sequence<P::kTp>{});
+    link.region = (2 * l + slot) * P::kTp * P::kBatch * (P::kHidden / 2);
+    link.epoch = past + 1;
+    link.rank = top.rank;
+    link.world = P::kTp;
+    link.watch = {scratch.watchdog, scratch.watchdog_ns, unsigned(5 * l + (slot ? 4 : 2)),
+                  static_cast<unsigned long long>(past)};
+    return link;
+  }
+  __device__ __forceinline__ static backend::mx::MxTpOperandsV2<GemmOps>
+  OTp(Binding const& b, int l, int past, Tokens* tokens) {
+    return {O(b, l, tokens), Link(b, l, 0, past)};
+  }
+  __device__ __forceinline__ static backend::mx::MxTpOperandsV2<GemmOps>
+  DownTp(Binding const& b, int l, int past) {
+    return {Down(b, l), Link(b, l, 1, past)};
+  }
   __device__ __forceinline__ static backend::mx::MxAttentionOperandsV2 Attn(Binding const& b, int l, int past) {
     auto const& top = Top(b);
     auto const& scratch = Scratch(b);
@@ -126,6 +157,24 @@ struct DenseOperandsV2 {
     __builtin_assume(past >= P::kPastLo && past <= P::kPastHi);
     return {Gemm(b, scratch.x, top.w_head, nullptr, nullptr, nullptr, P::kHidden, 0),
             scratch.head_partial, scratch.t_head, top.tokens, P::kCapacity, past};
+  }
+  __device__ __forceinline__ static backend::mx::MxTpHeadOperandsV2<backend::mx::MxHeadOperandsV2>
+  HeadTp(Binding const& b, int past) {
+    backend::mx::MxTpHeadLinkV2 link{};
+    auto const& scratch = Scratch(b);
+    auto const& top = Top(b);
+    [&]<std::size_t... I>(std::index_sequence<I...>) {
+      ((link.x[I] = top.x[I]), ...);
+    }(std::make_index_sequence<P::kTp>{});
+    link.epoch = past + 1;
+    link.parity = past & 1;
+    link.rank = top.rank;
+    link.world = P::kTp;
+    link.vocab_local = P::kVocabLocal;
+    link.prompt_len = top.prompt_len;
+    link.watch = {scratch.watchdog, scratch.watchdog_ns, unsigned(5 * P::kLayers),
+                  static_cast<unsigned long long>(past)};
+    return {Head(b, past), link};
   }
 };
 

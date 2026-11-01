@@ -338,39 +338,35 @@ struct MxGemm {
       if constexpr (Op == MxOpV2::kResidualAllReduce) {
         static_assert(!Norm);
         auto const& tp = p.tp;
-        Bf16 values[kResidualVectors][8];
+        auto* const self = MxTpSelfV2(tp.recv, tp.rank);
         MxTpLitmusDelay(tp, segment.tile);
 #pragma unroll
         for (int i = 0; i < kResidualVectors; ++i) {
           int const item = l.local + i * kGroupThreads;
           if (item < s.b * (TN / 8)) {
             int const row = item / (TN / 8), c8 = item % (TN / 8) * 8;
+            Bf16 values[8];
 #pragma unroll
-            for (int e = 0; e < 8; ++e) values[i][e] = Bf16(result[row * stride + c8 + e]);
-            for (int q = 0; q < tp.world; ++q) if (q != tp.rank) {
+            for (int e = 0; e < 8; ++e) values[e] = Bf16(result[row * stride + c8 + e]);
+#pragma unroll
+            for (int q = 0; q < kMxTpMaxRanks; ++q) if (q < tp.world && q != tp.rank) {
 #pragma unroll
               for (int k = 0; k < 4; ++k)
                 maca::PeerStore64(tp.recv[q] + tp.region + ((tp.rank * s.b + row) * (s.n / 2) +
-                    (segment.tile * TN + c8) / 2 + k), MxLl8Pack(values[i][2*k], values[i][2*k+1], tp.epoch));
+                    (segment.tile * TN + c8) / 2 + k), MxLl8Pack(values[2*k], values[2*k+1], tp.epoch));
             }
-          }
-        }
-#pragma unroll
-        for (int i = 0; i < kResidualVectors; ++i) {
-          int const item = l.local + i * kGroupThreads;
-          if (item < s.b * (TN / 8)) {
-            int const row = item / (TN / 8), c8 = item % (TN / 8) * 8;
             float sum[8] = {};
             alignas(16) Bf16 old[8], output[8];
             *reinterpret_cast<uint4*>(old) = residual.vector[i];
-            for (int q = 0; q < tp.world; ++q) {
+#pragma unroll
+            for (int q = 0; q < kMxTpMaxRanks; ++q) if (q < tp.world) {
               if (q == tp.rank) {
 #pragma unroll
-                for (int e = 0; e < 8; ++e) sum[e] += float(values[i][e]);
+                for (int e = 0; e < 8; ++e) sum[e] += float(values[e]);
               } else {
 #pragma unroll
                 for (int k = 0; k < 4; ++k) {
-                  unsigned const d = MxTpAwait(tp.recv[tp.rank] + tp.region + ((q * s.b + row) *
+                  unsigned const d = MxTpAwait(self + tp.region + ((q * s.b + row) *
                       (s.n / 2) + (segment.tile * TN + c8) / 2 + k), tp.epoch, tp.watch, 20);
                   sum[2*k] += float(Bf16::bitcast(std::uint16_t(d)));
                   sum[2*k+1] += float(Bf16::bitcast(std::uint16_t(d >> 16)));
@@ -418,34 +414,33 @@ struct MxGemm {
       if constexpr (Op == MxOpV2::kResidualAllReduce) {
         static_assert(!Norm);
         auto const& tp = p.tp;
-        Bf16 values[kAtoms][4];
+        auto* const self = MxTpSelfV2(tp.recv, tp.rank);
         MxTpLitmusDelay(tp, segment.tile);
 #pragma unroll
         for (int j = 0; j < kAtoms; ++j) {
+          Bf16 values[4];
 #pragma unroll
-          for (int e = 0; e < 4; ++e) values[j][e] = Bf16(acc[j][e]);
+          for (int e = 0; e < 4; ++e) values[e] = Bf16(acc[j][e]);
           int const column = segment.tile * TN + j * 16 + 4 * l.g;
-          for (int q = 0; q < tp.world; ++q) if (q != tp.rank) {
+#pragma unroll
+          for (int q = 0; q < kMxTpMaxRanks; ++q) if (q < tp.world && q != tp.rank) {
 #pragma unroll
             for (int k = 0; k < 2; ++k)
               maca::PeerStore64(tp.recv[q] + tp.region + ((tp.rank * s.b + l.r) * (s.n / 2) +
-                  column / 2 + k), MxLl8Pack(values[j][2*k], values[j][2*k+1], tp.epoch));
+                  column / 2 + k), MxLl8Pack(values[2*k], values[2*k+1], tp.epoch));
           }
-        }
-#pragma unroll
-        for (int j = 0; j < kAtoms; ++j) {
-          int const column = segment.tile * TN + j * 16 + 4 * l.g;
           float sum[4] = {};
           alignas(8) Bf16 old[4], output[4];
           *reinterpret_cast<uint2*>(old) = residual.fragment[j];
-          for (int q = 0; q < tp.world; ++q) {
+#pragma unroll
+          for (int q = 0; q < kMxTpMaxRanks; ++q) if (q < tp.world) {
             if (q == tp.rank) {
 #pragma unroll
-              for (int e = 0; e < 4; ++e) sum[e] += float(values[j][e]);
+              for (int e = 0; e < 4; ++e) sum[e] += float(values[e]);
             } else {
 #pragma unroll
               for (int k = 0; k < 2; ++k) {
-                unsigned const d = MxTpAwait(tp.recv[tp.rank] + tp.region + ((q * s.b + l.r) *
+                unsigned const d = MxTpAwait(self + tp.region + ((q * s.b + l.r) *
                     (s.n / 2) + column / 2 + k), tp.epoch, tp.watch, 20);
                 sum[2*k] += float(Bf16::bitcast(std::uint16_t(d)));
                 sum[2*k+1] += float(Bf16::bitcast(std::uint16_t(d >> 16)));

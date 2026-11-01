@@ -4,6 +4,7 @@
 #include <tilemega/Target/Maca/Bf16.h>
 #include <tilemega/Target/Maca/PeerAccess.h>
 #include <cstdint>
+#include <utility>
 
 #ifndef TILEMEGA_TP_LITMUS
 #define TILEMEGA_TP_LITMUS 0
@@ -30,6 +31,17 @@ struct MxTpHeadLinkV2 {
 };
 template <class Base> struct MxTpOperandsV2 : Base { MxTpLinkV2 tp; };
 template <class Base> struct MxTpHeadOperandsV2 : Base { MxTpHeadLinkV2 tp; };
+
+template <class T>
+__device__ __forceinline__ T* MxTpSelfV2(T* const (&p)[kMxTpMaxRanks], int rank) {
+  // A dynamic private-array subscript materializes the entire operand on
+  // MACA's stack. Select the same pointer with constant field references.
+  T* selected = nullptr;
+  [&]<std::size_t... I>(std::index_sequence<I...>) {
+    ((selected = rank == int(I) ? p[I] : selected), ...);
+  }(std::make_index_sequence<kMxTpMaxRanks>{});
+  return selected;
+}
 
 __device__ __forceinline__ std::uint64_t MxLl8Pack(Bf16 even, Bf16 odd, std::uint32_t epoch) {
   return (std::uint64_t(epoch) << 32) | (std::uint32_t(odd.raw()) << 16) | even.raw();

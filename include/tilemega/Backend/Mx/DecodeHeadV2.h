@@ -28,7 +28,7 @@ __device__ __forceinline__ void MxHeadStoreV2(MxHeadPartialV2* p, MxHeadPartialV
   *(Global*)p = Vector{__float_as_uint(v.value), v.index};
 }
 
-template <int TN, int WN, int D, int Pw = D>
+template <int TN, int WN, int D, int Pw = D, int Tp = 1, int VocabLocal = 0>
 struct MxHead {
   static_assert(WN == 4 || WN == 8);
   using Core = MxGemm<TN, WN, D, MxOpV2::kStore, true, MxPart::kTileRange, Pw>;
@@ -46,9 +46,9 @@ struct MxHead {
     return Core::Prefetch(p.gemm, s);
   }
 
-  template <bool First, class Shape>
+  template <bool First, class Shape, class Ops>
   __device__ __forceinline__ static void Round(Prefetched const& pf, Ring& ring, float& inverse,
-                                               MxHeadPartialV2& best, MxHeadOperandsV2 const& p,
+                                               MxHeadPartialV2& best, Ops const& p,
                                                Shape const& s, float* shared, MxGemmSmemV2 layout,
                                                MxGeometryV2<TN, WN, MxPart::kTileRange> const& geo,
                                                Lane const& l, int round) {
@@ -142,8 +142,8 @@ struct MxHead {
     }
   }
 
-  template <class Shape, class Next>
-  __device__ __forceinline__ static auto Run(Prefetched pf, MxHeadOperandsV2 const& p,
+  template <class Shape, class Next, class Ops>
+  __device__ __forceinline__ static auto Run(Prefetched pf, Ops const& p,
                                             Shape const& s, char* smem, Next next) {
     using Sync = typename Shape::Sync;
     static_assert(MxDepthFits(TN, D, Sync::kDepthVgprLimit));
@@ -198,7 +198,38 @@ struct MxHead {
           }
         Sync::CtaSync();
       }
-      if (l.Compute() && l.t < s.b) p.tokens[l.t * p.capacity + p.past + 1] = int(pairs[l.t * 128].index);
+      if constexpr (Tp == 1) {
+        if (l.Compute() && l.t < s.b) p.tokens[l.t * p.capacity + p.past + 1] = int(pairs[l.t * 128].index);
+      } else if (l.Compute() && l.t < s.b) {
+        auto const local = pairs[l.t * 128];
+        auto const& tp = p.tp;
+        auto* const self = MxTpSelfV2(tp.x, tp.rank);
+        unsigned const gidx = local.index + tp.rank * VocabLocal;
+        [&]<std::size_t... I>(std::index_sequence<I...>) {
+          (([&] {
+            constexpr int q = int(I);
+            if (q != tp.rank) {
+          maca::PeerStore64(&tp.x[q]->data[tp.parity][tp.rank][l.t][0],
+              (std::uint64_t(tp.epoch) << 32) | __float_as_uint(local.value));
+          maca::PeerStore64(&tp.x[q]->data[tp.parity][tp.rank][l.t][1],
+              (std::uint64_t(tp.epoch) << 32) | gidx);
+            }
+          }()), ...);
+        }(std::make_index_sequence<Tp>{});
+        MxHeadPartialV2 global{-INFINITY, ~0u};
+        [&]<std::size_t... I>(std::index_sequence<I...>) {
+          (([&] {
+            constexpr int q = int(I);
+          MxHeadPartialV2 const candidate = q == tp.rank ? MxHeadPartialV2{local.value, gidx} :
+              MxHeadPartialV2{__uint_as_float(MxTpAwait(&self->data[tp.parity][q][l.t][0],
+                                  tp.epoch, tp.watch, 21)),
+                              MxTpAwait(&self->data[tp.parity][q][l.t][1], tp.epoch, tp.watch, 21)};
+          global = MxBetterV2(global, candidate);
+          }()), ...);
+        }(std::make_index_sequence<Tp>{});
+        if (p.past + 1 >= tp.prompt_len)
+          p.tokens[l.t * p.capacity + p.past + 1] = int(global.index);
+      }
     });
     Sync::CtaSync();
     using Result = decltype(next());
