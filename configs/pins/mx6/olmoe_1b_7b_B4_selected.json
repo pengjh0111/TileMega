@@ -6,7 +6,7 @@
     "attn_version": 3,
     "attn_prefetch": 1,
     "split": 1,
-    "route_table_mode": "both",
+    "route_table_mode": "filter2",
     "combine_mode": "owner_tile",
     "qkv": {
       "tn": 64,
@@ -88,8 +88,12 @@
         ]
       },
       "program_switches": {
-        "route_table_mode": "both",
-        "experts_fused": false
+        "route_table_mode": "filter2",
+        "experts_fused": false,
+        "P1c_control_pin": {
+          "path": "/root/tilemega/runs/mx6/continue1/cp4/olmoe_1b_7b/B4/selection/selected_pin.json",
+          "sha256": "a35da5bf7e748d140d5409a5e2b18ec6b6b308e6a7e7832f1890d25c6eb1aab5"
+        }
       },
       "algorithm": "measured stage costs, k-best substitution, resource-qualified cohort, one-percent E2E rule",
       "measurement_decision": {

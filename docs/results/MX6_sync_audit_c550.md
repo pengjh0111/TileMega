@@ -258,3 +258,24 @@ implementation and failing litmus remain for evidence, with no further run;
 it is excluded from G6-SYNC. owner16 and owner_tile retain their existing
 **5/5 fresh-process** qualification. unit_la uses CP1 LastArriverV2's
 CtaSync-before-release protocol and existing evidence, requiring no new litmus.
+
+## CP4b P1c filter2 LDS exchanges (verified; E2E pending)
+
+RouteTableV3.h:76 publishes the loaded logits before any rank comparison.
+Each expert clears its own rank and uniquely writes its block-top-eight
+survivor slot at93–94; LdsSync at97 completes those LDS stores before the
+second-stage16-byte value/expert reads at105–106. The selected values,
+indices and final ranks are published by LdsSync at138 before the unchanged
+probability/count phases. All512 threads participate in every rendezvous;
+StageSyncV3::LdsSync retains compiler barriers, arrive_bsmcnt(0) and
+barrier_inst. No new global ticket, fence, CTA release or arithmetic reduction
+is introduced. Host shared-memory sizing adds256 bytes/token and the runtime
+asserts that the body region covers the complete filter workspace.
+
+Formal qualification passes **5/5 fresh processes**, each40 combinations×360
+logit cases, bitwise equal to both/V2 and repeat outputs. It includes both
+normalizations/dtypes, B1/2/4/8/16, E64/128 and the three new block-placement
+constructions. Source/build/PID/output receipts are in
+runs/mx6/continue1/cp4b_qualification/QUALIFICATION_PASS.json. These are local
+LDS/unit checks, not a new cross-CTA litmus or E2E enablement decision; the
+unchanged P0/owner protocols retain their prior five-process evidence.
