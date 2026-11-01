@@ -31,6 +31,20 @@ def collect(root):
                                passed_processes=int(record['pass']), binary_sha256=identity['binary_sha256'],
                                source_sha256=identity['source_sha256'],
                                raw_evidence=str(p2p) + f":{record['source']}->{record['destination']}"))
+    for log in sorted(root.glob('resume*/c0_healthy_p2p.log')):
+        guard = json.loads((log.parent / 'c0/healthy_p2p_guard/guard_result.json').read_text())
+        if guard['code'] or sha(Path(identity['binary'])) != identity['binary_sha256']:
+            raise ValueError('resumed P2P scope is not source-bound and qualified')
+        records = [json.loads(line) for line in log.read_text().splitlines() if line.startswith('{')]
+        if len(records) != 12:
+            raise ValueError('resumed four-card P2P matrix is incomplete')
+        for record in records:
+            result.append(dict(record_type='p2p', evidence='verified',
+                gpu_indices=','.join(guard['gpu_indices']), source_rank=record['source'],
+                destination_rank=record['destination'], fresh_processes=1,
+                passed_processes=int(record['pass']), status='pass' if record['pass'] else 'fail',
+                binary_sha256=identity['binary_sha256'], source_sha256=identity['source_sha256'],
+                raw_evidence=str(log) + f":{record['source']}->{record['destination']}"))
     for summary in sorted(set(root.glob('c0/**/summary.json')) | set(root.glob('resume*/c0/**/summary.json'))):
         cohort = summary.parent
         processes = sorted(cohort.glob('process*/result.json'))
