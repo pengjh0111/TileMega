@@ -2011,6 +2011,10 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     throw std::invalid_argument("native dense plan lacks its typed coordinates or batch");
   auto c=solver::Sm90DenseCoordinates::FromJson(json::Parse(coordinate.getValue().str()));
   int batch=batch_attr.getInt(),capacity=integerField(serving,"capacity");
+  // Megatron tensor parallel: the module records the degree its shapes were
+  // sharded for (absent: 1) and the coordinate must agree.
+  int tp=serving.get("tp")?int(integerField(serving,"tp")):1;
+  if(tp!=c.tp)throw std::invalid_argument("native dense coordinate tp differs from the plan's");
   if(capacity!=1088)throw std::invalid_argument("native dense decode binds capacity 1088");
   auto buffers=arrayField(plan,"buffers"),gemms=arrayField(plan,"gemms"),stages=arrayField(plan,"stages");
   unsigned argmax_index=~0u;
@@ -2033,8 +2037,10 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     if(op=="swiglu")return 2;
     if(op=="argmax_partial")return 4;
     if(op=="store" && weight.find("qkv")!=std::string::npos)return 0;
-    if(op=="residual" && weight.find("o_proj")!=std::string::npos)return 1;
-    if(op=="residual" && weight.find("down_proj")!=std::string::npos)return 3;
+    // residual_ar: the tensor parallel form of the same two families.
+    bool residual=op=="residual" || (op=="residual_ar" && tp>1);
+    if(residual && weight.find("o_proj")!=std::string::npos)return 1;
+    if(residual && weight.find("down_proj")!=std::string::npos)return 3;
     throw std::invalid_argument("unrecognized native dense GEMM family: "+weight);
   };
   solver::Sm90DenseShapeTable nk{};
@@ -2118,6 +2124,10 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
      // serial tails re-read, so only it takes the evict_first policy. A dense
      // program's generated source stays byte identical.
      <<(c.moe?"#define TILEMEGA_NATIVE_WEIGHT_EVICT_FIRST 1\n":"")
+     // Only a sharded program names its degree and the all-reduce width, so a
+     // TP1 generated source stays byte identical (prompt appendix C.6).
+     <<(tp>1?"#define TILEMEGA_NATIVE_TP "+std::to_string(tp)+"\n#define TILEMEGA_NATIVE_TP_HIDDEN "+
+            std::to_string(nk[1][0])+"\n":std::string())
      <<"#include <tilemega/Codegen/tasks/Sm90DenseProgram.cuh>\n"
      <<"namespace tilemega::codegen::native_dense {\n"
      <<"constexpr char kNativeCoordinateIdentity[]="<<quoteCString(c.ToJson().Dump(0))<<";\n"
@@ -2321,8 +2331,10 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
             (moe_softmax_all?",true":",false");
         }
       }else {
+      if(op=="residual_ar" && tp==1)
+        throw std::invalid_argument("native all-reduce epilogue in an unsharded plan");
       std::string enum_op=op=="store"?"kStore":op=="residual"?"kResidual":
-          op=="swiglu"?"kSwiGLU":"kArgmaxPartial";
+          op=="residual_ar"?"kResidualAllReduce":op=="swiglu"?"kSwiGLU":"kArgmaxPartial";
       weight=name(integerField(g,"b"));bytes=2ull*integerField(g,"n")*integerField(g,"k");
       tasks=integerField(g,"n")/cfg.tile_n;
       bool input_norm=op=="store" || op=="swiglu" || op=="argmax_partial";
@@ -2341,6 +2353,10 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
           throw std::invalid_argument("native multicast needs a cluster, even slots and paired task counts");
         e.tail+=",true";
       }
+      // Tensor parallel o (ArSlot 0) and down (1): the layer's two reductions.
+      // A TP1 GEMM writes neither trailing parameter.
+      if(op=="residual_ar")
+        e.tail+=std::string(cfg.multicast?"":",false")+','+(e.family==1?"0":"1")+','+std::to_string(tp);
       }
     }else if(kind=="kFusedAttention") {
       // Hkv 8 dense, 4 Qwen3-30B-A3B, 16 OLMoE (MHA, Q = 1): the body takes Q in [1, 8].
@@ -2486,7 +2502,8 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     types<<e.tail<<">;\n";
     if(n==head)types<<"using Body_"<<head<<"=Head<HeadGemm_"<<head<<','<<embedding.ids[0]<<','<<embedding.ids[1]<<','
                    <<embedding.ids[2]<<','<<hidden<<','<<capacity<<','
-                   <<(c.embed_la?"true":"false")<<">;\n";
+                   <<(c.embed_la?"true":"false")
+                   <<(tp>1?","+std::to_string(tp)+","+std::to_string(nk[4][0]):std::string())<<">;\n";
     // D6: a ring stage streams into the next ring stage unless either is full
     // width; the prologue has no ring and nothing crosses the step boundary.
     // Layer 0's qkv follows the prologue and is told so at run time.
@@ -2514,7 +2531,8 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
      <<(c.layer_loop?"true":"false")<<','<<(c.embed_la?"true":"false")<<",Stage_0,LayerGroup<"
      <<per_group;
   for(unsigned j=1;j<=group_size;++j)out<<",Stage_"<<j;
-  out<<">,Stage_"<<head<<','<<c.cluster<<">;\nconstexpr std::array<StageInfo,"<<info.size()<<"> kNativeStages={{\n";
+  out<<">,Stage_"<<head<<','<<c.cluster<<(tp>1?","+std::to_string(tp):std::string())
+     <<">;\nconstexpr std::array<StageInfo,"<<info.size()<<"> kNativeStages={{\n";
   for(auto const& row:info)out<<row;
   out<<"}};\n"
      <<"}  // namespace tilemega::codegen::native_dense\n"
