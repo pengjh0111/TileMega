@@ -37,6 +37,19 @@ std::string Hash(std::string const& path) {
   if(!got || code || std::string(text).size()!=64)throw std::runtime_error("native input hash failed");
   return text;
 }
+// The tensor parallel degree a per-rank export was written for: `tp` in the
+// export directory's manifest.json (absent there, or no manifest: 1). A plan
+// built at another degree would size every shard wrongly, so it is refused.
+void CheckManifestTp(std::string const& input,int tp) {
+  auto manifest=std::filesystem::path(input).parent_path()/"manifest.json";
+  int recorded=1;
+  if(std::filesystem::exists(manifest))
+    if(auto const* value=json::ParseFile(manifest.string()).Find("tp"))
+      recorded=int(value->AsNumber("manifest tp"));
+  if(recorded!=tp)
+    throw std::invalid_argument("native dense tp "+std::to_string(tp)+
+        " differs from the export manifest's tp "+std::to_string(recorded));
+}
 }
 static int CompileNativeDenseArtifact(std::string const& input,std::string const& output,
     std::string const& coordinates,std::string const& target_path,int batch,
@@ -55,6 +68,7 @@ static int CompileNativeDenseArtifact(std::string const& input,std::string const
     if(fs::exists(path))throw std::invalid_argument("retain native artifact evidence; choose a new output path");
   auto input_hash=Hash(input),coordinates_hash=Hash(coordinates),target_hash=Hash(target_path);
   auto c=solver::Sm90DenseCoordinates::FromJson(json::ParseFile(coordinates));
+  CheckManifestTp(input,c.tp);
   auto target=TargetSpec::FromJson(target_path);
   auto registers=solver::NativeDenseRegisterContract(target,c.residency);
   mlir::MLIRContext context;
@@ -222,6 +236,7 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   solver::Sm90DenseCostModel cost(target,constants);
   auto bridge=frontend::ReadExportBridge(o.input);
   // Native plans (consumer RMS) are the only ones with native MoE layers.
+  CheckManifestTp(o.input,o.tp);
   frontend::ServingOptions options;options.dense_attention_chunks=1;options.native_rms=true;
   options.tp=o.tp;
   auto plan=frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,options);

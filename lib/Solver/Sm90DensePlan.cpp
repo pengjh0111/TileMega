@@ -78,7 +78,8 @@ Sm90DenseWorkload Sm90DenseWorkloadFromPlan(frontend::ModelPlan const& plan,int 
     auto const& g=plan.gemms[s.gemm];
     if(family==5)work.softmax_all=g.moe_softmax_all;
     for(auto id:{g.a,g.b,g.c})operand(id,false);
-    operand(g.d,g.epilogue!=frontend::PlanGemm::Epilogue::kResidual);
+    operand(g.d,g.epilogue!=frontend::PlanGemm::Epilogue::kResidual &&
+                g.epilogue!=frontend::PlanGemm::Epilogue::kResidualAllReduce);
     for(unsigned i=0;i<4;++i)if(family>=5)operand(s.operands[i],i>0);
     if(!g.n || !g.k || g.n>std::uint32_t(std::numeric_limits<int>::max()) ||
         g.k>std::uint32_t(std::numeric_limits<int>::max()) || Sm90DenseFamily(plan,g)!=family)
@@ -148,6 +149,7 @@ frontend::ImportedSemantics ImportSm90Dense(std::string const& path,
   options.interleave_u=c.swiglu_u;options.native_rms=true;options.native_shared_scratch=true;
   options.argmax_tile_n=c.gemms[4].tile_n;
   options.dense_attention_chunks=c.attention.chunks;
+  options.tp=c.tp;
   auto plan=frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,options);
   return frontend::TorchExportImporter{}.ImportSemantics(path,plan,context);
 }
