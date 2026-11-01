@@ -164,7 +164,13 @@ class TpServingEngine:
     def close(self):
         for rank in getattr(self, 'ranks', []):
             with torch.cuda.device(rank['device']):
-                if self.poisoned and not rank['stream'].query():
+                busy = False
+                if self.poisoned:
+                    try:
+                        busy = not rank['stream'].query()
+                    except BaseException:
+                        busy = True
+                if busy:
                     # Failed cohorts are process-fatal; do not free live peer buffers.
                     rank['plan'].handle = None
                 else:
