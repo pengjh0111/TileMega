@@ -11,6 +11,9 @@
 #ifndef MX6_OLD_TABLE
 #define MX6_OLD_TABLE 0
 #endif
+#ifndef MX6_ROUTE_FILTER
+#define MX6_ROUTE_FILTER 0
+#endif
 using namespace tilemega;
 using namespace tilemega::backend::mx;
 template<int B,int E>
@@ -20,7 +23,7 @@ __global__ void __launch_bounds__(512) RouteTableBench(Bf16 const* logits,unsign
   using Build=MxBuildRouteTableV3<B,2048,1024,64,32,E,(E==128)>;
 #else
   using Build=MxBuildRouteTableV3<B,2048,1024,64,32,E,(E==128),false,
-      bool(MX6_ROUTE_WEIGHTS),bool(MX6_ROUTE_ORDINAL)>;
+      bool(MX6_ROUTE_WEIGHTS),bool(MX6_ROUTE_ORDINAL),bool(MX6_ROUTE_FILTER)>;
 #endif
   static_assert(Build::kSharedBytes<=32784);
   auto* table=(MxSharedRouteTableV3<false>*)(storage+32784);
@@ -47,7 +50,8 @@ extern "C" int mx6_route_bench(Bf16 const* logits,unsigned* sink,int b,int e,int
     cudaStream_t stream,int* resource,int query) {
   if(iterations<1||(query!=0&&query!=1))return 4;
 #define CASE(B,E) if(b==B&&e==E)return Launch<B,E>(logits,sink,iterations,stream,resource,bool(query))
-  CASE(1,64);CASE(1,128);CASE(16,64);CASE(16,128);
+  CASE(1,64);CASE(1,128);CASE(2,64);CASE(2,128);CASE(4,64);CASE(4,128);
+  CASE(8,64);CASE(8,128);CASE(16,64);CASE(16,128);
 #undef CASE
   return 4;
 }

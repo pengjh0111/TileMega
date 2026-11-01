@@ -529,13 +529,16 @@ struct MxGroupedGemmV3 {
 };
 
 template <class Core, int B, int Hidden, int Intermediate, int TnGate, int TnDown,
-          int Experts, bool NormalizeTopK, bool ParallelWeights = true, bool ParallelOrdinal = true>
+          int Experts, bool NormalizeTopK, bool ParallelWeights = true, bool ParallelOrdinal = true,
+          bool FilterRank = false>
 struct MxMoeGateUpV3 : Core {
   using Prefetched = typename Core::Prefetched;
+  using Build = MxBuildRouteTableV3<B,Hidden,Intermediate,TnGate,TnDown,Experts,NormalizeTopK,
+      false,ParallelWeights,ParallelOrdinal,FilterRank>;
+  static constexpr int kRouteSharedBytes = Build::kSharedBytes;
   template <class Shape, class Next>
   __device__ __forceinline__ static auto Run(Prefetched pf, MxGroupedGemmOperandsV3<false> const& p,
                                             Shape const& s, char* smem, Next next) {
-    using Build = MxBuildRouteTableV3<B,Hidden,Intermediate,TnGate,TnDown,Experts,NormalizeTopK,false,ParallelWeights,ParallelOrdinal>;
     Build::Run(p.router_logits,p.table,smem
 #if TILEMEGA_MX_DIAG
         ,p.route_debug,p.route_weights,p.debug_step,p.layer,p.layers

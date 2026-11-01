@@ -36,6 +36,14 @@ def test_v2_table_bits_and_repeated_build(batch,experts,normalize,fp32):
         row[:,8] = torch.tensor([0x3f80-ulp],dtype=torch.int16).view(torch.bfloat16)[0]
         cpu[2+ulp] = row
     cpu[5] = torch.arange(experts).remainder(11).expand(batch,-1).bfloat16()
+    cpu[6].fill_(2.5)
+    width=32 if experts==128 else 16
+    cpu[7].fill_(-5.)
+    cpu[7,:,2*width:2*width+8]=torch.arange(8,0,-1).bfloat16()
+    cpu[8].fill_(-5.)
+    for block in range(4):
+        cpu[8,:,block*width+width-1]=8-2*block
+        cpu[8,:,block*width+width//2]=7-2*block
     # The last 104 CTAs build the same input independently, as in M5.
     cpu[-104:] = cpu[6:7]
     logits = cpu.cuda()
@@ -45,7 +53,13 @@ def test_v2_table_bits_and_repeated_build(batch,experts,normalize,fp32):
     fn.restype = C.c_int
     stream = torch.cuda.current_stream().cuda_stream
     outputs,queries = [],[]
-    for version in (2,3,3):
+    mode=os.environ.get('MX6_ROUTE_TABLE_VARIANT','v3')
+    variants=[(2,fn,'V2'),(3,fn,mode),(3,fn,mode+'_repeat')]
+    if os.environ.get('MX6_ROUTE_TABLE_BOTH_SO'):
+        both=C.CDLL(os.environ['MX6_ROUTE_TABLE_BOTH_SO']).mx6_route_table
+        both.argtypes=fn.argtypes;both.restype=fn.restype
+        variants.append((3,both,'both'))
+    for version,execute,label in variants:
         tensors = [logits, torch.zeros(cases,dtype=torch.int32,device='cuda'),
             torch.full((cases,experts),-1,dtype=torch.int32,device='cuda'),
             torch.full((cases,experts),-1,dtype=torch.int32,device='cuda'),
@@ -56,19 +70,22 @@ def test_v2_table_bits_and_repeated_build(batch,experts,normalize,fp32):
         operands = Operands(*(x.data_ptr() for x in tensors))
         args = (operands,batch,experts,normalize,fp32,version,cases)
         resources = (C.c_int*4)()
-        assert fn(*args,stream,resources,1) == 0
+        assert execute(*args,stream,resources,1) == 0
         assert resources[1] == resources[2] == 0 and resources[3] == 1
-        assert fn(*args,stream,None,0) == 0
+        assert execute(*args,stream,None,0) == 0
         torch.cuda.synchronize()
         outputs.append([x.cpu().view(torch.uint8) for x in tensors[1:]])
-        queries.append(dict(version=version,MTreg=resources[0],local=resources[1],
+        queries.append(dict(version=version,variant=label,MTreg=resources[0],local=resources[1],
                             static=resources[2],resident=resources[3]))
     assert all(torch.equal(x,y) for x,y in zip(outputs[0],outputs[1]))
     assert all(torch.equal(x,y) for x,y in zip(outputs[1],outputs[2]))
+    if len(outputs)==4:assert all(torch.equal(x,y)for x,y in zip(outputs[1],outputs[3]))
     record = dict(batch=batch,experts=experts,normalize=normalize,fp32=fp32,cases=cases,
         independent_inputs=cases-103,replicated_ctas=104,queries=queries,v2_bitwise=True,
-        repeated_v3_bitwise=True,PID=os.getpid(),
+        repeated_v3_bitwise=True,both_bitwise=len(outputs)==4,PID=os.getpid(),
         binary_sha256=hashlib.sha256(Path(os.environ['MX6_ROUTE_TABLE_SO']).read_bytes()).hexdigest())
+    if os.environ.get('MX6_ROUTE_TABLE_BOTH_SO'):
+        record['both_binary_sha256']=hashlib.sha256(Path(os.environ['MX6_ROUTE_TABLE_BOTH_SO']).read_bytes()).hexdigest()
     if os.environ.get('MX6_ROUTE_TABLE_OUT'):
         with Path(os.environ['MX6_ROUTE_TABLE_OUT']).open('a') as f:
             f.write(json.dumps(record)+'\n')

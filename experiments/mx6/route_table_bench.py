@@ -13,14 +13,18 @@ from tilemega.build.identity import sha
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--libraries',type=Path,required=True);p.add_argument('--out',type=Path,required=True)
-    p.add_argument('--round',type=int,required=True);a=p.parse_args()
+    p.add_argument('--round',type=int,required=True)
+    p.add_argument('--variants',nargs='+',choices=('serial','both','weights','ordinal','filter2'),
+        default=('serial','both','weights','ordinal'))
+    p.add_argument('--batches',nargs='+',type=int,choices=(1,2,4,8,16),default=(1,2,4,8,16))
+    a=p.parse_args()
     if os.environ.get('TILEMEGA_GPU_LOCK_HELD')!='1':p.error('requires mx_gpu_job.sh')
     import torch
     torch.set_num_threads(1);a.out.mkdir(parents=True,exist_ok=False);rows=[]
-    for b,e in((1,64),(1,128),(16,64),(16,128)):
+    for b,e in((b,e)for b in a.batches for e in(64,128)):
         g=torch.Generator().manual_seed(6600+b+e)
         logits=torch.randn(b,e,generator=g).bfloat16().cuda();sink=torch.empty(104,dtype=torch.int32,device='cuda')
-        for mode in('serial','both','weights','ordinal'):
+        for mode in a.variants:
             so=a.libraries/(mode+'.so');lib=C.CDLL(str(so));fn=lib.mx6_route_bench
             fn.argtypes=[C.c_void_p,C.c_void_p,C.c_int,C.c_int,C.c_int,C.c_void_p,C.POINTER(C.c_int),C.c_int];fn.restype=C.c_int
             stream=torch.cuda.current_stream().cuda_stream;r=(C.c_int*4)()

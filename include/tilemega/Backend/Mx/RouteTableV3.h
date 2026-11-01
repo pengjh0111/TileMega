@@ -31,16 +31,31 @@ struct MxRouteWorkspaceV3 {
   unsigned mask[E/32];
 };
 
+template <int B, int E>
+struct alignas(16) MxRouteFilterWorkspaceV3 : MxRouteWorkspaceV3<B,E> {
+  alignas(16) float survivor_value[B][32];
+  alignas(16) unsigned survivor_expert[B][32];
+};
+
 template <int B, int Hidden, int Intermediate, int TnGate, int TnDown,
           int Experts, bool NormalizeTopK, bool Fp32 = false,
-          bool ParallelWeights = true, bool ParallelOrdinal = true>
+          bool ParallelWeights = true, bool ParallelOrdinal = true, bool FilterRank = false>
 struct MxBuildRouteTableV3 {
   static_assert(B > 0 && B <= 16 && (Experts == 64 || Experts == 128));
   static_assert(Hidden % TnDown == 0 && (2 * Intermediate) % TnGate == 0);
   static constexpr int E = Experts, K = 8;
-  static constexpr int kSharedBytes = (sizeof(MxRouteWorkspaceV3<B,E>) + 15) / 16 * 16;
+  using Storage = std::conditional_t<FilterRank,MxRouteFilterWorkspaceV3<B,E>,MxRouteWorkspaceV3<B,E>>;
+  static constexpr int kSharedBytes = (sizeof(Storage) + 15) / 16 * 16;
   using Sync = codegen::mx::StageSyncV3<512>;
-  using Workspace = __attribute__((address_space(3))) MxRouteWorkspaceV3<B,E>;
+  using Workspace = __attribute__((address_space(3))) Storage;
+  using FloatPacket = float __attribute__((ext_vector_type(4)));
+  using UintPacket = unsigned __attribute__((ext_vector_type(4)));
+  using LdsFloat4 = __attribute__((address_space(3))) FloatPacket;
+  using LdsUint4 = __attribute__((address_space(3))) UintPacket;
+
+  __device__ __forceinline__ static unsigned Before(float value,unsigned expert,float pivot,unsigned self) {
+    return unsigned(value>pivot)|(unsigned(value==pivot)&unsigned(expert<self));
+  }
 
   __device__ __forceinline__ static void Run(Bf16 const* input, MxSharedRouteTableV3<Fp32>* table,
                                             char* storage,
@@ -59,6 +74,46 @@ struct MxBuildRouteTableV3 {
       for (unsigned j = 0; j < 8; ++j) work->logits[(t * 8) / E][(t * 8 + j) % E] = float(values[j]);
     }
     Sync::LdsSync();
+    if constexpr (FilterRank) {
+      constexpr unsigned C = E==128 ? 32 : 16;
+      // Every global top-eight element survives its block's deterministic top eight.
+      for (unsigned item=t;item<B*E;item+=512) {
+        unsigned const token=item/E,expert=item%E,block=expert/C;
+        float const value=work->logits[token][expert];
+        if(!isfinite(value))maca::Trap();
+        work->ranks[token][expert]=0xff;
+        unsigned rank=0;
+#pragma unroll 4
+        for(unsigned base=block*C;base<(block+1)*C;base+=4) {
+          FloatPacket const packet=*reinterpret_cast<LdsFloat4 const*>(&work->logits[token][base]);
+          rank+=Before(packet.x,base,value,expert)+Before(packet.y,base+1,value,expert)+
+                Before(packet.z,base+2,value,expert)+Before(packet.w,base+3,value,expert);
+        }
+        if(rank<K) {
+          work->survivor_value[token][block*K+rank]=value;
+          work->survivor_expert[token][block*K+rank]=expert;
+        }
+      }
+      Sync::LdsSync();
+      for(unsigned item=t;item<B*32;item+=512) {
+        unsigned const token=item/32,slot=item%32;
+        float const value=work->survivor_value[token][slot];
+        unsigned const expert=work->survivor_expert[token][slot];
+        unsigned rank=0;
+#pragma unroll 4
+        for(unsigned base=0;base<32;base+=4) {
+          FloatPacket const packet=*reinterpret_cast<LdsFloat4 const*>(&work->survivor_value[token][base]);
+          UintPacket const ids=*reinterpret_cast<LdsUint4 const*>(&work->survivor_expert[token][base]);
+          rank+=Before(packet.x,ids.x,value,expert)+Before(packet.y,ids.y,value,expert)+
+                Before(packet.z,ids.z,value,expert)+Before(packet.w,ids.w,value,expert);
+        }
+        if(rank<K) {
+          work->selected[token][rank]=value;
+          work->indices[token][rank]=expert;
+          work->ranks[token][expert]=rank;
+        }
+      }
+    } else {
     for (unsigned item = t; item < B * E; item += 512) {
       unsigned const token = item / E, expert = item % E;
       float const value = work->logits[token][expert];
@@ -78,6 +133,7 @@ struct MxBuildRouteTableV3 {
         work->indices[token][rank] = expert;
       }
       work->ranks[token][expert] = rank < K ? rank : 0xff;
+    }
     }
     Sync::LdsSync();
     if constexpr (ParallelWeights) {
