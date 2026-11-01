@@ -1,0 +1,15 @@
+dt,when,input,measurement,branch
+DT-A0,A0,"D0-before marks, Qwen3-30B-A3B B1 and B16",every oversized segment lies in RC2/RC3/RC5/RC6,continue to A2
+DT-A1,A1,OLMoE C-2 after the group_wait legality fix,all four ranked candidates carry group_wait false; predicted step unchanged from R4,REF-A1 accepted
+DT-E1,E1,P-PAIR B1 and B16 plus token equality,"-19.05% at B1, -13.32% at B16, 1024 tokens identical in all 20 processes",adopted
+DT-E2,E2,P-PAIR B1 and B16,"indistinguishable at B1 (+0.14%, threshold 3.80%), part of the -3.90% B16 gain",kept
+DT-E3,E3,P-PAIR B1 and B16,-3.90% at B16 with E2; D0 attributes 76% of the gain to the combine,kept
+DT-E5,A2,not reached,user closed Phase A after E1+E2+E3,not implemented
+DT-E4,A2,not reached,user closed Phase A after E1+E2+E3,not implemented
+DT-A7,A4,not reached,A4 out of scope by user decision,E7 not implemented
+DT-A8,A4,not reached,A4 out of scope by user decision,E8 not implemented
+DT-B0,B0,four idle cards within 48 h,"groups {5,7} for TP2 and {0,1,2,3} for TP4 were both available; all 30 baseline units completed","both degrees collected, no deferral"
+DT-B1,B1,P2P matrix over the visible cards,"all 8x8 ordered pairs peer-capable, full NV8 mesh at 26.562 GB/s per link",continue
+DT-B8,B8,"litmus and C-2 at TP2, TP4 and TP8",litmus 5/5 bitwise identical at B1 and B16 for TP2/TP4 and at B1 for TP8; C-2 bitwise identical over 5 launches at all four correctness cells,continue
+P-SEL,every solve,"measured top-4, A B C D D C B A",9 of 10 cells decided on measurement (gaps 0.84-3.52% against a 0.50% threshold); TP4 B2 fell inside the threshold at 0.28% and took the better prediction,winners recorded in SM90R5_tp_final.csv
+TP8 (user request),after TP4,GPU 6 segmented thermal ramp,"sw_thermal_slowdown active in all 10 segments of 0.33-0.48 s at 89-90 C, clocks 990-1635 MHz against 1980 on peers, 30.8% throughput range",timing withheld; 8-rank correctness verified instead
