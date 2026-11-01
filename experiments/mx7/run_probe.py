@@ -26,13 +26,17 @@ def main():
                     source_head=subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
                     gpu_indices=list(map(int, os.environ['TILEMEGA_DEVICE_GROUP'].split(','))),
                     command=command)
+    identity['driver_sha256'] = sha(Path(__file__))
+    (args.out / 'runner.py').write_bytes(Path(__file__).read_bytes())
     (args.out / 'identity.json').write_text(json.dumps(identity, indent=2) + '\n')
     okay = 0
     for fresh in range(5):
         out = args.out / f'process{fresh}'
         out.mkdir(exist_ok=False)
         start = time.monotonic()
-        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        child = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        stdout, stderr = child.communicate()
+        result = subprocess.CompletedProcess(command, child.returncode, stdout, stderr)
         duration = time.monotonic() - start
         (out / 'stdout.jsonl').write_text(result.stdout)
         (out / 'stderr.txt').write_text(result.stderr)
@@ -42,7 +46,7 @@ def main():
                 records.append(json.loads(line))
         passed = result.returncode == 0 and records and all(r.get('pass', True) for r in records)
         okay += bool(passed)
-        record = dict(identity, fresh_process=fresh, returncode=result.returncode,
+        record = dict(identity, fresh_process=fresh, PID=child.pid, returncode=result.returncode,
                       elapsed_seconds=duration, records=records, passed=bool(passed))
         (out / 'result.json').write_text(json.dumps(record, indent=2) + '\n')
         print(json.dumps(dict(fresh_process=fresh, returncode=result.returncode,
