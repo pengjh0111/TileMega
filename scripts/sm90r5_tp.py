@@ -32,7 +32,8 @@ PROMPTS = ROOT / 'configs/prompts/qwen_isl64.json'
 CARDS = {2: (0, 5, 7), 4: (0, 1, 2, 3, 4, 5, 7)}
 
 
-def launch(tp, binary, batch, directory, label, round_index=0, hf_positions=None, step_loop=False):
+def launch(tp, binary, batch, directory, label, round_index=0, hf_positions=None, step_loop=False,
+           timeout_s=3600):
     """One guarded fresh launch on a claimed group; returns (code, measurement or None)."""
     directory.mkdir(parents=True, exist_ok=True)
     exclude = tuple(g for g in range(8) if g not in CARDS[tp])
@@ -62,7 +63,8 @@ def launch(tp, binary, batch, directory, label, round_index=0, hf_positions=None
                     '--numa-node', ','.join(tb.numa_node(a) for a in addresses), '--', *checkpoint]
         command = [PYTHON, '-m', 'tilemega.bench.gpu_guard', '--policy', str(tb.POLICY),
                    '--out', str(directory / 'guard'), '--needs-free-mib', '32768',
-                   '--timeout-s', '3600', '--', 'numactl', f'--cpunodebind={",".join(nodes)}', *identity]
+                   '--timeout-s', str(timeout_s), '--', 'numactl',
+                   f'--cpunodebind={",".join(nodes)}', *identity]
         visible = ','.join(map(str, group))
         env = dict(os.environ, TILEMEGA_DEVICE_GROUP=visible, CUDA_VISIBLE_DEVICES=visible,
                    TILEMEGA_DEVICE_INDEX=str(group[0]), TILEMEGA_TIMING='1',
@@ -148,8 +150,11 @@ def corr(a):
     tables = []
     for index in range(a.launches):
         directory = a.out / f'c{index}'
+        # Launch 0 also runs C-1 over 1024 positions and the executor
+        # comparison, which need more than the measurement's hour.
         code, _ = launch(a.tp, a.binary, a.batch, directory, f'{a.name}-c{index}', index,
-                         hf_positions=1024 if index == 0 else None, step_loop=index == 0)
+                         hf_positions=1024 if index == 0 else None, step_loop=index == 0,
+                         timeout_s=7200 if index == 0 else 3600)
         if code:
             raise SystemExit(f'P-CORR launch {index} failed with {code}')
         tables.append(read(directory / 'job/measurements/reference_tokens.json'))
