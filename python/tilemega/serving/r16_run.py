@@ -32,8 +32,13 @@ def main():
     parser.add_argument('--check-step-loop', action='store_true')
     parser.add_argument('--hf-check', action='store_true')
     parser.add_argument('--hf-positions', type=int)
+    # Megatron tensor parallel: the plan is one rank's, run on every card of the
+    # claimed group (CUDA_VISIBLE_DEVICES lists them; local devices 0..tp-1).
+    parser.add_argument('--tp', type=int, choices=(1, 2, 4, 8), default=1)
     args = parser.parse_args()
-    require_guard()
+    devices = require_guard()
+    if args.tp > 1 and (args.prefill != 'prompt' or len(devices) != args.tp):
+        parser.error('--tp runs the prompt mode on a guarded group of exactly tp cards')
     if args.model is None:
         checkpoint = os.environ.get('TILEMEGA_RANDOM_CHECKPOINT')
         if not checkpoint:
@@ -85,7 +90,15 @@ def main():
         metadata.update(checkpoint_manifest=str(checkpoint_manifest.resolve()),
                         checkpoint_sha256=checkpoint['checkpoint_sha256'],
                         weight_source='shared synthetic TileMega/HF checkpoint; pretrained C-1 unavailable')
+    metadata['tp'] = args.tp
     def engine(mode, loop):
+        if args.tp > 1:
+            from .tp_engine import TpServingEngine
+            if mode != 'L1':
+                raise ValueError('tensor parallel native plans run L1 only')
+            return TpServingEngine(args.model, args.decode, int(args.batch), prompt_len=prompt_len,
+                max_new_tokens=args.max_tokens, devices=list(range(args.tp)),
+                decode_loop=bool(loop), step_events=False)
         return ServingEngine(args.model, prefill, args.decode, int(args.batch),
             prompt_len=prompt_len, max_new_tokens=args.max_tokens, mode=mode,
             decode_loop=bool(loop), step_events=False, prefill_mode=args.prefill_mode)
