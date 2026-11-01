@@ -302,7 +302,6 @@ struct Sm90DenseGemm {
   __device__ static __forceinline__ void Run(Sm90DenseOperands const& p,char* shared,
       Sm90DenseRingState* persistent=nullptr,Tail tail={},bool streamed=true,Finish finish={},
       Sm90DenseTpOperands const* tp=nullptr) {
-    static_assert(!kAllReduce || true,"the all-reduce form needs its TP record at run time");
     static_assert(Op==ServingEpilogueOp::kArgmaxPartial ||
         std::is_same_v<Finish,Sm90DenseNoFinish>,"only lm_head finishes with the folded argmax");
     static_assert(Prefix>=0 && Prefix%16==0 &&
