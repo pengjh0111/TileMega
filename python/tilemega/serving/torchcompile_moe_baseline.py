@@ -24,8 +24,9 @@ def main():
     (args.out / "model-loading-info.json").write_text(json.dumps(loading, indent=2, default=lambda value: sorted(value) if isinstance(value, set) else str(value)) + "\n")
     if any(loading.get(key) for key in ("missing_keys", "unexpected_keys", "mismatched_keys", "error_msgs")):
         raise ValueError("official HF checkpoint conversion did not load every parameter")
-    if len(model.model.layers) != 48 or any(p.dtype != torch.bfloat16 for p in model.parameters()):
-        raise ValueError("expected the complete 48-layer BF16 MoE model")
+    layers = model.config.num_hidden_layers
+    if len(model.model.layers) != layers or any(p.dtype != torch.bfloat16 for p in model.parameters()):
+        raise ValueError(f"expected the complete {layers}-layer BF16 MoE model")
     model.eval()
     model.generation_config.cache_implementation = None
     model.generation_config.disable_compile = True
@@ -71,7 +72,9 @@ def main():
         if len(rows) not in caches:
             cache = StaticCache(config=model.config, max_cache_len=len(ids[0]) + args.max_tokens)
             cache.early_initialization(batch_size=len(rows), num_heads=model.config.num_key_value_heads,
-                head_dim=model.config.head_dim, dtype=torch.bfloat16, device=inputs.device)
+                # OlmoeConfig has no head_dim attribute; derive it as the model does.
+                head_dim=getattr(model.config, "head_dim", None) or model.config.hidden_size//model.config.num_attention_heads,
+                dtype=torch.bfloat16, device=inputs.device)
             caches.clear()
             caches[len(rows)] = cache
         cache = caches[len(rows)]
