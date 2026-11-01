@@ -24,9 +24,25 @@ def _mx_smi():
     return module
 
 
+def job_root(pid, proc=Path('/proc')):
+    current = pid
+    while current > 1:
+        try:
+            base = proc / str(current)
+            argv = (base / 'cmdline').read_bytes().split(b'\0')
+            if b'tilemega.bench.gpu_guard' in argv:
+                return current
+            current = int((base / 'stat').read_text().rsplit(')', 1)[1].split()[1])
+        except (OSError, ValueError, IndexError):
+            break
+    return pid
+
+
 def own_pids() -> set[int]:
     """This process and its descendants (engines may run the GPU in a child)."""
-    own = {os.getpid()}
+    # Elastic starts each rank in its own session; use the shared guard tree.
+    root = job_root(os.getpid()) if os.getenv('TILEMEGA_DEVICE_GROUP') else os.getpid()
+    own = {root}
     while True:
         added = set()
         for entry in Path('/proc').iterdir():
