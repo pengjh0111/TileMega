@@ -81,6 +81,15 @@ class PlanLibrary:
         if watchdog is not None:
             watchdog.argtypes = [C.c_void_p, C.POINTER(C.c_uint64)]
             watchdog.restype = C.c_int
+        for name, result, arguments in (
+                ('tm_plan_tp_world', C.c_uint, []),
+                ('tm_plan_tp_buffers', C.c_int, [C.c_void_p, C.POINTER(C.c_void_p), C.POINTER(C.c_void_p)]),
+                ('tm_plan_bind_tp', C.c_int, [C.c_void_p, C.c_int, C.POINTER(C.c_void_p), C.POINTER(C.c_void_p)]),
+                ('tm_plan_set_prompt_len', C.c_int, [C.c_void_p, C.c_int])):
+            symbol = getattr(self.lib, name, None)
+            if symbol is not None:
+                symbol.restype = result
+                symbol.argtypes = arguments
         self.lib.tm_plan_destroy.argtypes = [C.c_void_p]
         self.lib.tm_plan_destroy.restype = None
         info = PlanInfo()
@@ -101,6 +110,10 @@ class PlanLibrary:
                 item.pack_json.decode() if item.pack_json else "",
             ))
         self.buffers = tuple(buffers)
+
+    def tp_world(self) -> int:
+        symbol = getattr(self.lib, 'tm_plan_tp_world', None)
+        return int(symbol()) if symbol is not None else 1
 
     def create(self, batch: int, pointers: dict[str, int], device: int) -> "Plan":
         if not self.info.batch_lo <= batch <= self.info.batch_hi:
@@ -124,6 +137,37 @@ class Plan:
         self.library = library
         self.handle = handle
         self.iteration = {1: 0, 2: 0}
+
+    def tp_world(self) -> int:
+        return self.library.tp_world()
+
+    def tp_buffers(self) -> tuple[int, int]:
+        symbol = getattr(self.library.lib, 'tm_plan_tp_buffers', None)
+        if symbol is None:
+            raise RuntimeError('plan does not expose tensor-parallel buffers')
+        ar, exchange = C.c_void_p(), C.c_void_p()
+        status = symbol(self.handle, C.byref(ar), C.byref(exchange))
+        if status != 0 or not ar.value or not exchange.value:
+            raise RuntimeError(f'tm_plan_tp_buffers failed: {status}')
+        return ar.value, exchange.value
+
+    def bind_tp(self, rank: int, ar: list[int], exchange: list[int]) -> None:
+        symbol = getattr(self.library.lib, 'tm_plan_bind_tp', None)
+        world = self.tp_world()
+        if symbol is None or len(ar) != world or len(exchange) != world or not 0 <= rank < world:
+            raise ValueError('TP binding does not match the plan world')
+        pointers = C.c_void_p * world
+        status = symbol(self.handle, rank, pointers(*ar), pointers(*exchange))
+        if status != 0:
+            raise RuntimeError(f'tm_plan_bind_tp failed: {status}')
+
+    def set_prompt_len(self, prompt_len: int) -> None:
+        symbol = getattr(self.library.lib, 'tm_plan_set_prompt_len', None)
+        if symbol is None or not 0 <= prompt_len <= self.library.info.capacity:
+            raise ValueError('plan prompt length is unsupported or outside capacity')
+        status = symbol(self.handle, prompt_len)
+        if status != 0:
+            raise RuntimeError(f'tm_plan_set_prompt_len failed: {status}')
 
     def execution_identity(self, mode: int, loop: bool = False) -> dict | None:
         if self.library.identity is None:return None
@@ -164,9 +208,10 @@ class Plan:
     def launch_steps(self, first: int, count: int, mode: int, stream: int) -> None:
         if not self.library.info.modes & mode:
             raise ValueError("mode not present in this plan")
-        if self.library.lib.tm_plan_launch_steps(self.handle, first, count, mode,
-                self.iteration[mode], stream) != 0:
-            raise RuntimeError("tm_plan_launch_steps failed")
+        status = self.library.lib.tm_plan_launch_steps(self.handle, first, count, mode,
+                                                       self.iteration[mode], stream)
+        if status != 0:
+            raise RuntimeError(f"tm_plan_launch_steps failed: {status}")
         self.iteration[mode] += count
 
     def read_step_ns(self, first: int, count: int) -> list[int]:
