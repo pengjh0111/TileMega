@@ -64,8 +64,43 @@ def _conv_krsc(weight: torch.Tensor, padded_channels: int) -> torch.Tensor:
     return packed
 
 
-def _packed_cpu(recipe: Mapping[str, object], checkpoint: Checkpoint) -> torch.Tensor:
+def _has_shard(recipe: Mapping[str, object]) -> bool:
+    nested = recipe.get('source')
+    return 'shard' in recipe or (isinstance(nested, Mapping) and _has_shard(nested))
+
+
+def _shard_parts(recipe: Mapping[str, object]) -> set[int]:
+    nested = recipe.get('source')
+    parts = {int(recipe['shard']['parts'])} if 'shard' in recipe else set()
+    return parts | (_shard_parts(nested) if isinstance(nested, Mapping) else set())
+
+
+def _sharded(recipe: Mapping[str, object], source, tp_rank: int):
+    """Megatron tensor parallel: the recipe names whole checkpoint tensors and
+    this rank packs only its slice. `shard` = {axis, parts}; every source the
+    recipe references directly is narrowed to its rank-th contiguous part
+    before the recipe's own transform (heads and rows on axis 0 for q/k/v,
+    gate/up and lm_head; columns on axis 1 for o and down)."""
+    spec = recipe.get('shard')
+    if spec is None:
+        return source
+    axis, parts = int(spec['axis']), int(spec['parts'])
+    if axis not in (0, 1) or parts < 2 or not 0 <= tp_rank < parts:
+        raise ValueError(f'invalid shard {spec} for tensor parallel rank {tp_rank}')
+    def narrowed(name: str) -> torch.Tensor:
+        tensor = source(name)
+        if tensor.ndim != 2 or tensor.shape[axis] % parts:
+            raise ValueError(f'{name} {tuple(tensor.shape)} does not split into {parts} on axis {axis}')
+        size = tensor.shape[axis] // parts
+        return tensor.narrow(axis, tp_rank * size, size).contiguous()
+    return narrowed
+
+
+def _packed_cpu(recipe: Mapping[str, object], checkpoint: Checkpoint,
+                tp_rank: int = 0) -> torch.Tensor:
     kind = recipe["kind"]
+    if _has_shard(recipe):
+        return _packed_gpu(recipe, checkpoint.tensor, tp_rank)
     if is_expert_recipe(recipe):
         return _packed_gpu(recipe, checkpoint.tensor)
     if kind in ('tile_pages', 'fold_rmsnorm'):
@@ -136,8 +171,11 @@ def _recipe_sources(recipe: Mapping[str, object]) -> tuple[str, ...]:
     return tuple(str(name) for name in recipe['sources'])
 
 
-def _packed_gpu(recipe: Mapping[str, object], source) -> torch.Tensor:
+def _packed_gpu(recipe: Mapping[str, object], source, tp_rank: int = 0) -> torch.Tensor:
     kind = recipe['kind']
+    if 'shard' in recipe and kind not in ('alias', 'qkv_group_interleave', 'gate_up_interleave'):
+        raise ValueError(f'recipe {kind} cannot carry a tensor parallel shard')
+    source = _sharded(recipe, source, tp_rank)
     if is_expert_recipe(recipe):
         return pack_experts(recipe,source,lambda matrix,tn,tk:_packed_gpu(
             dict(kind='tile_pages',tile_n=tn,tile_k=tk,source=dict(kind='alias',source='matrix')),
@@ -149,7 +187,9 @@ def _packed_gpu(recipe: Mapping[str, object], source) -> torch.Tensor:
     if kind == 'conv_krsc':
         return _conv_krsc(source(str(recipe['source'])), int(recipe['padded_channels']))
     if kind == 'fold_rmsnorm':
-        weight = _packed_gpu(recipe['source'], source)
+        # The norm spans the whole (unsharded) hidden width: K is never split
+        # by a shard that sits under a fold (q/k/v, gate/up, lm_head: axis 0).
+        weight = _packed_gpu(recipe['source'], source, tp_rank)
         norm = source(str(recipe['norm']))
         if norm.ndim != 1 or norm.numel() != weight.shape[1]:
             raise ValueError('fold_rmsnorm width mismatch')
@@ -162,7 +202,7 @@ def _packed_gpu(recipe: Mapping[str, object], source) -> torch.Tensor:
             out[first:last] = (weight[first:last].float() * norm_f32).to(torch.bfloat16)
         return out
     if kind == 'tile_pages':
-        weight = _packed_gpu(recipe['source'], source)
+        weight = _packed_gpu(recipe['source'], source, tp_rank)
         tn, tk = int(recipe['tile_n']), int(recipe['tile_k'])
         if (weight.ndim not in (2, 4) or tn <= 0 or tk <= 0 or tn % 8 or
                 (tk not in (16, 32) and tk % 64)):
@@ -226,11 +266,15 @@ def _packed_gpu(recipe: Mapping[str, object], source) -> torch.Tensor:
 
 
 def load_weights(model_dir: str | Path, *plans: PlanLibrary,
-                 device: str | torch.device = "cuda") -> dict[str, torch.Tensor]:
+                 device: str | torch.device = "cuda",
+                 tp: tuple[int, int] | None = None) -> dict[str, torch.Tensor]:
+    """tp = (rank, degree) loads one tensor parallel rank's packing of a
+    sharded plan; a plan with shard recipes refuses to load without it."""
     checkpoint = Checkpoint(model_dir)
+    tp_rank, tp_degree = tp if tp is not None else (0, 1)
     result: dict[str, torch.Tensor] = {}
     sources: dict[tuple[str, bool], torch.Tensor] = {}
-    packed: dict[tuple[tuple[str, ...], str], torch.Tensor] = {}
+    packed: dict[tuple[tuple[str, ...], str, int], torch.Tensor] = {}
     def source(name: str, preserve: bool = False, cache: bool = True) -> torch.Tensor:
         key = (name, preserve)
         if key not in sources or not cache:
@@ -245,11 +289,14 @@ def load_weights(model_dir: str | Path, *plans: PlanLibrary,
         return recipe['kind'] in DNN_RECIPES or (isinstance(recipe.get('source'), dict) and dnn(recipe['source']))
     for name, buffer in weight_recipes(*plans).items():
         recipe = json.loads(buffer.pack_json)
+        parts = _shard_parts(recipe)
+        if parts and parts != {tp_degree}:
+            raise ValueError(f"{name} is sharded {sorted(parts)} ways; loading for tp {tp_degree}")
         identity = tuple(checkpoint.tensor_sha(item) for item in _recipe_sources(recipe))
-        key = (identity, json.dumps(recipe, sort_keys=True))
+        key = (identity, json.dumps(recipe, sort_keys=True), tp_rank if parts else 0)
         if key not in packed:
             packed[key] = _packed_gpu(recipe, lambda name: source(name, dnn(recipe),
-                cache=not is_expert_recipe(recipe))).contiguous()
+                cache=not is_expert_recipe(recipe)), tp_rank if parts else 0).contiguous()
         # Aliases intentionally retain their source through the result tensor.
         # Other recipes release source storage before packing the next weight.
         sources.clear()

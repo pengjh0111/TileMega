@@ -61,8 +61,10 @@ def rotary_tables(config: object, capacity: int,
 
 def allocate_state(model_dir: str | Path, batch: int,
                    prefill: PlanLibrary | None, decode: PlanLibrary,
-                   device: str | torch.device = "cuda") -> ServingState:
+                   device: str | torch.device = "cuda", tp: int = 1) -> ServingState:
     # prefill None: the prompt mode runs the prompt through the decode plan.
+    # tp: a tensor parallel rank's state holds only its num_key_value_heads/tp
+    # KV heads (the plan's per-batch K/V extent checks the same split below).
     plans = (decode,) if prefill is None else (prefill, decode)
     if decode.info.phase != 1 or (prefill is not None and prefill.info.phase != 0):
         raise ValueError("plans must be ordered prefill, decode")
@@ -75,6 +77,9 @@ def allocate_state(model_dir: str | Path, batch: int,
     config = AutoConfig.from_pretrained(str(model_dir), local_files_only=True)
     layers = int(config.num_hidden_layers)
     hkv = int(config.num_key_value_heads)
+    if tp < 1 or hkv % tp:
+        raise ValueError(f"{hkv} KV heads do not split across tensor parallel degree {tp}")
+    hkv //= tp
     head_dim = head_dim_of(config)
     # Native attention reads whole TMA boxes past the history bound and masks
     # them by selection; zero (or earlier finite) rows keep 0*row exact.

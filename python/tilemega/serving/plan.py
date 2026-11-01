@@ -64,7 +64,12 @@ class PlanLibrary:
         for name, result, arguments in (
                 ('tm_plan_pdl_enabled', C.c_uint, [C.c_void_p]),
                 ('tm_plan_execution_smem', C.c_uint64, [C.c_void_p, C.c_uint]),
-                ('tm_plan_set_prompt_len', C.c_int, [C.c_void_p, C.c_int])):
+                ('tm_plan_set_prompt_len', C.c_int, [C.c_void_p, C.c_int]),
+                # Native dense tensor parallel (SM90R5 B6); absent elsewhere.
+                ('tm_plan_tp_world', C.c_uint, []),
+                ('tm_plan_tp_bytes', C.c_ulonglong, [C.c_uint]),
+                ('tm_plan_bind_tp', C.c_int, [C.c_void_p, C.c_int, C.POINTER(C.c_void_p),
+                                              C.POINTER(C.c_void_p)])):
             symbol=getattr(self.lib,name,None)
             if symbol is not None:
                 symbol.restype=result;symbol.argtypes=arguments
@@ -102,6 +107,18 @@ class PlanLibrary:
                 item.pack_json.decode() if item.pack_json else "",
             ))
         self.buffers = tuple(buffers)
+
+    @property
+    def tp_world(self) -> int:
+        """Tensor parallel degree the plan was generated for (1 if unsharded)."""
+        query = getattr(self.lib, "tm_plan_tp_world", None)
+        return int(query()) if query is not None else 1
+
+    def tp_bytes(self, which: int) -> int:
+        """0: one rank's all-reduce receive region; 1: its argmax exchange block."""
+        if self.tp_world == 1:
+            raise ValueError("an unsharded plan has no tensor parallel buffers")
+        return int(self.lib.tm_plan_tp_bytes(which))
 
     def create(self, batch: int, pointers: dict[str, int], device: int) -> "Plan":
         if not self.info.batch_lo <= batch <= self.info.batch_hi:
@@ -169,6 +186,19 @@ class Plan:
                 self.handle, step, mode, self.iteration[mode], stream) != 0:
             raise RuntimeError("tm_plan_launch failed")
         self.iteration[mode] += 1
+
+    def bind_tp(self, rank: int, ar: list[int], exchange: list[int]) -> None:
+        """Give rank `rank` every rank's receive region and exchange block
+        (data pointers, rank q's on rank q's device). Opens this plan's
+        device's peer access to the others."""
+        world = self.library.tp_world
+        if world == 1 or len(ar) != world or len(exchange) != world:
+            raise ValueError("bind_tp needs one region and one exchange block per rank")
+        regions = (C.c_void_p * world)(*ar)
+        blocks = (C.c_void_p * world)(*exchange)
+        status = self.library.lib.tm_plan_bind_tp(self.handle, rank, regions, blocks)
+        if status != 0:
+            raise RuntimeError(f"tm_plan_bind_tp failed ({status})")
 
     def loop_modes(self) -> int:
         query = getattr(self.library.lib, "tm_plan_loop_modes", None)
