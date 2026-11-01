@@ -45,6 +45,11 @@ def aggregate(root, tp):
             if any(guard['code'] == 75 or guard['code'] == 124 for guard in guards):
                 print('guard remedy required', tp, system, batch)
                 continue
+            if any('mxkwCreateQueueBlock' in (folder / 'run.log').read_text(errors='replace') or
+                   'mxc_queue_acquire failed' in (folder / 'run.log').read_text(errors='replace')
+                   for folder in folders):
+                print('platform queue failure; no qualified baseline', tp, system, batch)
+                continue
             records, errors = [], []
             for folder, code in zip(folders, codes):
                 if code:
@@ -97,7 +102,8 @@ def main():
     args = parser.parse_args()
     rows = aggregate(args.root, args.tp)
     old = list(csv.DictReader(args.out.open())) if args.out.exists() else []
-    existing = {(row['system'], int(row['tp']), int(row['batch'])) for row in old}
+    existing = {(row['system'], int(row['tp']), int(row['batch'])) for row in old
+                if row['record_type'] == 'final_two_fresh_processes'}
     fresh = [row for row in rows if (row['system'], row['tp'], row['batch']) not in existing]
     if fresh:
         with args.out.open('a', newline='') as stream:
