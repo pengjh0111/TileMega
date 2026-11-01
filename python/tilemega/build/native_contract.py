@@ -11,6 +11,10 @@ FUSED_LAYER = ('qkv', 'attention', 'o', 'router', 'expert_fused')
 FUSED = ('expert_gate_up', 'expert_down')
 DENSE_OPS = dict(qkv='kStore', o='kResidual', gate_up='kSwiGLU', down='kResidual',
                  lm_head='kArgmaxPartial')
+# Megatron tensor parallel (schema 7, tp > 1): o and down sum their tile across
+# ranks in the epilogue, as the layer's reductions 0 and 1.
+TP_OPS = dict(o='kResidualAllReduce', down='kResidualAllReduce')
+AR_SLOT = dict(o='0', down='1')
 MOE_MODES = dict(router='kRouter', expert_gate_up='kGateUp', expert_down='kDown')
 ATTENTION = ((128, 2, 1), (64, 4, 0), (128, 3, 0), (128, 4, 0))
 # (Hkv, D, Q, norm mode): Qwen3-30B-A3B GQA with per-head norm; OLMoE MHA with the
@@ -27,9 +31,16 @@ def validate(manifest, defines):
             defines.get('TILEMEGA_ARCH_ID') != '900' or
             manifest.get('runtime_batch') not in (1, 2, 4, 8, 16) or
             manifest.get('native_origin') not in ('fixed', 'solver') or
-            c.get('schema') not in (5, 6) or
+            c.get('schema') not in (5, 6, 7) or
             c.get('model') not in LAYER):
         raise ValueError('native dense architecture or coordinate schema is invalid')
+    # Schema 7 exists only to carry tp > 1; a TP1 program names no degree.
+    tp = c.get('tp', 1)
+    if ((c['schema'] == 7) != (tp > 1) or tp not in (1, 2, 4, 8) or
+            (tp > 1 and c['model'] != 'dense') or
+            defines.get('TILEMEGA_NATIVE_TP') != (str(tp) if tp > 1 else None) or
+            (tp > 1) != ('TILEMEGA_NATIVE_TP_HIDDEN' in defines)):
+        raise ValueError('native dense tensor parallel degree differs from its macros')
     if (manifest.get('residency') != c['residency'] or 'TILEMEGA_DN_VECTOR_SUMS' in defines or
             int(defines.get('TILEMEGA_SWIGLU_U', '-1')) != c['swiglu_u']):
         raise ValueError('native dense structural coordinates differ from generated macros')
@@ -38,6 +49,7 @@ def validate(manifest, defines):
 def dispatch(manifest, defines, source):
     validate(manifest, defines)
     c = manifest['native_dense']
+    tp = c.get('tp', 1)
     match = re.search(r'kNativeCoordinateIdentity\[\]\s*=\s*("(?:\\.|[^"\\])*");', source)
     if match is None or json.loads(json.loads(match[1])) != c:
         raise ValueError('native dense coordinate identity differs from generated source')
@@ -70,10 +82,16 @@ def dispatch(manifest, defines, source):
     # (D7, D9): dense groups two layers of five, MoE one layer of six.
     group = ''.join(f',Stage_{i}' for i in range(1, size + 1))
     # ... Stage_{S+1}, cluster> (D10).
+    # ... cluster[, tp]> and Head<..., embed[, tp, vocab per rank]> (tp > 1 only).
     program = re.search(r'using NativeProgram\s*=\s*Program<(?:\d+,){5}(\d+),(\d+),\d+,(true|false),'
-                        rf'(true|false),Stage_0,LayerGroup<{per_group}{group}>,Stage_{head},(\d+)>;', source)
-    lm = re.search(rf'using Body_{head}\s*=\s*Head<HeadGemm_{head},\d+,\d+,\d+,\d+,\d+,(true|false)>;',
-                   source)
+                        rf'(true|false),Stage_0,LayerGroup<{per_group}{group}>,Stage_{head},(\d+)(?:,(\d+))?>;',
+                        source)
+    lm = re.search(rf'using Body_{head}\s*=\s*Head<HeadGemm_{head},\d+,\d+,\d+,\d+,\d+,(true|false)'
+                   r'(?:,(\d+),(\d+))?>;', source)
+    if (program is None or lm is None or program[6] != (str(tp) if tp > 1 else None) or
+            lm[2] != (str(tp) if tp > 1 else None) or
+            (tp > 1 and int(lm[3]) != manifest['gemms'][-1]['n'])):
+        raise ValueError('native dense tensor parallel program differs from its coordinate identity')
     embed = c['emb'] == 'la'
     if (program is None or lm is None or (program[3] == 'true') != (c['layer_loop'] is True) or
             (program[4] == 'true') != embed or (lm[1] == 'true') != embed or
@@ -161,15 +179,24 @@ def dispatch(manifest, defines, source):
             stream = 0 if family == 'expert_gate_up' else None
         else:
             # ..., op, U, InputNorm, W, C, D, index, register stages, map
-            # [, multicast (D10c)].
-            multicast = len(args) == 18
-            if len(args) not in (17, 18) or (multicast and args[17] != 'true') or \
-                    multicast != (c['gemms'][family].get('multicast') is True):
+            # [, multicast (D10c)]; a tensor parallel o/down always writes the
+            # multicast flag, then its reduction slot and the degree.
+            reduces = tp > 1 and family in TP_OPS
+            if reduces:
+                if len(args) != 20 or args[17] not in ('true', 'false') or \
+                        args[18] != AR_SLOT[family] or args[19] != str(tp):
+                    raise ValueError('native tensor parallel GEMM call signature is invalid')
+                multicast = args[17] == 'true'
+            else:
+                multicast = len(args) == 18
+                if len(args) not in (17, 18) or (multicast and args[17] != 'true'):
+                    raise ValueError('native dense GEMM call signature is invalid')
+            if multicast != (c['gemms'][family].get('multicast') is True):
                 raise ValueError('native dense GEMM call signature is invalid')
             register_stages = int(args[15])
             if args[10] != ('true' if family in ('qkv', 'gate_up', 'lm_head') else 'false'):
                 raise ValueError('native dense GEMM InputNorm differs from its family')
-            if args[8] != 'backend::ServingEpilogueOp::' + DENSE_OPS[family]:
+            if args[8] != 'backend::ServingEpilogueOp::' + (TP_OPS if reduces else DENSE_OPS)[family]:
                 raise ValueError('native dense GEMM epilogue differs from its family')
             if int(args[9]) != c['swiglu_u']:
                 raise ValueError(f'native dense GEMM call differs from manifest at GEMM {index}')
@@ -210,7 +237,8 @@ def dispatch(manifest, defines, source):
             raise ValueError('native dense attention call signature is invalid')
         batch, hkv, dim, queries, norm, chunks, keys, slots, row, capacity = map(int, args[:10])
         current = (dim, queries, norm)
-        allowed = current in ATTENTION and hkv == 8 if c['model'] == 'dense' else \
+        # A tensor parallel rank holds 8 / tp of a dense model's KV heads.
+        allowed = current in ATTENTION and hkv * tp == 8 if c['model'] == 'dense' else \
             (hkv, dim, queries, norm) in MOE_ATTENTION
         if (batch != manifest['runtime_batch'] or capacity != manifest['capacity'] or
                 [chunks, keys, slots, row] != expected or not allowed or
