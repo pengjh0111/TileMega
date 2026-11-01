@@ -28,6 +28,10 @@ for file in sorted(a.root.glob('tp*/B*/results.json')):
  if published.exists():assert published.read_bytes()==pin.read_bytes()
  else:published.write_bytes(pin.read_bytes())
  refs=result['resources'];binary=checked(refs['binary']);identity=json.loads(pathlib.Path(str(binary)+'.identity.json').read_text());receipt=json.loads(pathlib.Path(str(binary)+'.source.json').read_text())
+ manifest=json.loads(pathlib.Path(str(binary)+'.plan.json').read_text())
+ assert manifest['tp']==t and manifest['threads']==512 and manifest['watchdog']==0
+ assert not any(manifest.get(k,False)for k in ['trace_stage','diag','tp_litmus'])
+ assert all(x['execution_identity']['artifact_id']==identity['artifact_id']and not x['execution_identity']['trace']and not x['execution_identity']['spill']for x in metrics)
  occupancy=json.loads(checked(refs['occupancy']).read_text());assert occupancy['qualified']and len(occupancy['ranks'])==t
  for rank in occupancy['ranks']:assert rank['resident_ctas']==1 and rank['attributes']['localSizeBytes']==rank['attributes']['sharedSizeBytes']==0
  median=lambda k:statistics.median(x[k]for x in metrics)

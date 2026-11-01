@@ -46,7 +46,7 @@ def main():
                     median_ns=value['median_ns'], p90_ns=value['p90_ns'], spread=value['spread'],
                     noisy=value['noisy'], fresh_processes=value['processes'],
                     solver_cost_ns=value['p90_ns'] if value['noisy'] else value['median_ns'],
-                    contract='ordered_bf16_partial_sum', iterations=1000,
+                    contract='fp32_argmax_lowest_global_index' if key['stage']=='head' else 'ordered_bf16_partial_sum', iterations=1000,
                     source_digest=value['source_digest'], binary_sha256=value['binary'],
                     rounds_json=json.dumps(value['rounds']), input=str(constants),
                     input_sha256=sha(constants), timing_eligible=False))

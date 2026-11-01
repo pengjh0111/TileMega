@@ -68,6 +68,7 @@ def main():
         '  Source hashes, exact build/run commands and initial topology are in `runs/mx7/sync/onboarding.md`.', '',
         '## Baselines', '',
         '**verified** Two fresh processes/cell, each warm1+timed2; TPOT=(E2E_N1024−E2E_N1)/1023.',
+        'TP2 baselines use secondary{4,5}; TileMega uses C0-selected main{1,3}. TP4 uses{1,3,4,5} for all systems.',
         'TP1 values and baseline scaling efficiencies are retained in `MX7_tp_baselines_c550.csv`.', '',
         '| TP | B | vLLM ms | SGLang ms | torch.compile ms |',
         '|---:|---:|---:|---:|---:|']
@@ -93,6 +94,20 @@ def main():
         'All ten pins come from source-bound k-best/top4 and the1% measured selection rule; no development coordinates are final.',
         '**verified** Cost table SHA256 `' + hashlib.sha256(costs.read_bytes()).hexdigest() + '`.',
         'Competitive noisy keys receive two extra fresh processes; remaining noisy keys use p90.', '',
+        'Selected communication cost terms (diagnostic, µs; final column is an **inferred**28-layer projection):', '',
+        '| TP | B | o TN | down TN | extra o AR | extra down AR | total AR ms/step |',
+        '|---:|---:|---:|---:|---:|---:|---:|']
+    constants = json.loads(costs.read_text())['tp_constants']['t_ar']
+    for t in (2, 4):
+        for b in (1, 16):
+            config = json.loads((ROOT / final[str(t), str(b)]['pin']).read_text())['mx_decode_v2']
+            values = []
+            for stage in ('o', 'down'):
+                row = next(x for x in constants if x['key'] == dict(tp=t, b=b, stage=stage, tn=config[stage]['tn']))
+                values.append((row['p90_ns'] if row['noisy'] else row['median_ns']) / 1000)
+            lines.append(f'| {t} | {b} | {config["o"]["tn"]} | {config["down"]["tn"]} | '
+                         f'{values[0]:.2f} | {values[1]:.2f} | {28 * sum(values) / 1000:.3f} |')
+    lines += ['',
         '## Correctness and resources', '',
         '- **verified** shard/guard/ABI/selection/trace CPU tests pass (individual runs retained in correctness CSV).',
         '- **verified** AR and head units: TP2/TP4 × B1/B16, each5/5 fresh processes; exact ordered BF16 reference.',
@@ -131,6 +146,7 @@ def main():
         '- **verified, B4** old GPU6 queue initialization caused the historical A5 stop before LL launch.',
         '  All-card authorization permits healthy groups; optional system-atomic probes also coincided with GPU0/7 loss.',
         '  Causation is unresolved. Old failures remain; unsafe optional combinations are not retried.',
+        '  The optional primitive-combination matrix is incomplete; the chosen production combination is fully qualified.',
         '- **verified, B4** one driver bundled20 fresh TP4 checks under one900s guard: aggregate timeout124.',
         '  Individual runs completed in52–65s. B16 injected-delay checks were isolated and pass5/5; no limit reduction.',
         '- **verified, B4** calibration B8/TN128 non-AR kernel used an undersized fixed LDS workspace.',
@@ -152,7 +168,7 @@ def main():
     lines += ['**inferred** reserved child-job wall time, includes initialization/cleanup, excludes lock waiting; not hardware busy time.',
         'Per-card hours: ' + ', '.join(f'{g}={h:.3f}' for g, h in sorted(usage['card_hours'].items())) +
         f'; total={usage["sum_card_hours"]:.3f} card-h.',
-        '**verified** CP0–CP3 evidence and all required CSVs/pins are present. No required implementation/test remains unfinished.',
+        '**verified** CP0–CP3 production-path evidence and all required CSVs/pins are present; selected-path tests are complete.',
         '**inferred** further communication designs require a new specification; none added beyond this prompt.']
     assert len(lines) <= 300, len(lines)
     (RESULTS / 'MX7_tp_c550.md').write_text('\n'.join(lines) + '\n')
