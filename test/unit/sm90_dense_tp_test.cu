@@ -245,8 +245,8 @@ int RunAll(std::vector<int> const& devices) {
 int main() {
   try {
     int count=0;check(cudaGetDeviceCount(&count));
-    if(count!=2 && count!=4) {
-      std::fprintf(stderr,"skipped: expose exactly 2 or 4 peer-capable devices\n");
+    if(count!=2 && count!=4 && count!=8) {
+      std::fprintf(stderr,"skipped: expose exactly 2, 4 or 8 peer-capable devices\n");
       return 77;
     }
     std::vector<int> devices;
@@ -258,7 +258,7 @@ int main() {
         if(status==cudaErrorPeerAccessAlreadyEnabled)cudaGetLastError();else check(status);
       }
     }
-    int errors=count==2?RunAll<2>(devices):RunAll<4>(devices);
+    int errors=count==2?RunAll<2>(devices):count==4?RunAll<4>(devices):RunAll<8>(devices);
     std::printf("{\"tp\":%d,\"errors\":%d,\"pass\":%s}\n",count,errors,errors?"false":"true");
     return errors?1:0;
   }catch(std::exception const& e) {std::fprintf(stderr,"%s\n",e.what());return 2;}

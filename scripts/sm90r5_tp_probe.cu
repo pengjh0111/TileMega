@@ -293,7 +293,7 @@ int main(int argc,char** argv) {
   try {
     if(argc!=2)throw std::invalid_argument("usage: sm90r5_tp_probe --nvl|--ar|--head");
     int T=0;check(cudaGetDeviceCount(&T));
-    if(T!=2 && T!=4)throw std::invalid_argument("expose exactly 2 or 4 devices");
+    if(T!=2 && T!=4 && T!=8)throw std::invalid_argument("expose exactly 2, 4 or 8 devices");
     for(int d=0;d<T;++d) {
       check(cudaSetDevice(d));
       for(int e=0;e<T;++e)if(e!=d) {
@@ -303,7 +303,7 @@ int main(int argc,char** argv) {
     }
     cudaDeviceProp properties{};check(cudaGetDeviceProperties(&properties,0));
     int grid=properties.multiProcessorCount;
-    if(T==2)Run<2>(argv[1],grid);else Run<4>(argv[1],grid);
+    if(T==2)Run<2>(argv[1],grid);else if(T==4)Run<4>(argv[1],grid);else Run<8>(argv[1],grid);
     return 0;
   }catch(std::exception const& e) {std::fprintf(stderr,"%s\n",e.what());return 2;}
 }
