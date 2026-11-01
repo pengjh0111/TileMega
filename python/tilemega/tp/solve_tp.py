@@ -145,24 +145,42 @@ class Cell:
         return dict(C1=ref(hf), C2=[ref(folder / f'c2_process{i}/check.json') for i in range(fresh)])
 
     def measure(self, folder):
-        values, records = [], []
+        values, records, commands = [], [], []
         for number in (1, 2):
             out = folder / f'timing_process{number}'
-            execution = self.run_command(out, [sys.executable, '-m', 'tilemega.serving.measure_tp',
+            commands.append(list(map(str, [sys.executable, '-m', 'tilemega.serving.measure_tp',
                 '--model', self.a.model, '--decode-so', folder / 'plan.so', '--prompt-ids', self.a.prompt_ids,
                 '--batch', self.a.batch, '--devices', ','.join(map(str, range(self.a.tp))),
                 '--max-new-tokens', '1024', '--warmup', '1', '--repeats', '2',
-                '--policy', ROOT / 'configs/bench/measurement_policy_c550.json', '--out', out / 'measure'],
-                guarded=True)
-            if execution['returncode']:
-                raise RuntimeError('timing job failed; preserve and remedy once: ' + str(out))
+                '--policy', ROOT / 'configs/bench/measurement_policy_c550.json', '--out', out / 'measure'])))
+        cohort = folder / 'timing_execution'
+        cohort.mkdir()
+        driver = cohort / 'driver.py'
+        driver.write_text('import json,pathlib,subprocess,time\n'
+            'for argv in ' + repr(commands) + ':\n'
+            ' folder=pathlib.Path(argv[-1]).parent;folder.mkdir()\n'
+            ' start=time.time();child=subprocess.Popen(argv);code=child.wait()\n'
+            ' (folder/"PROCESS.json").write_text(json.dumps(dict(argv=argv,PID=child.pid,start=start,end=time.time(),returncode=code))+"\\n")\n'
+            ' if code:raise SystemExit(code)\n')
+        # Each measurement uses a fresh process; only the guard preflight is shared.
+        execution = self.run_command(cohort / 'execution', [sys.executable, driver], guarded=True)
+        if execution['returncode']:
+            raise RuntimeError('timing cohort failed; preserve and remedy once: ' + str(cohort))
+        processes = []
+        for number in (1, 2):
+            out = folder / f'timing_process{number}'
+            process = out / 'PROCESS.json'
+            processes.append(ref(process))
             metrics = out / 'measure/measurements.json'
             value = json.loads(metrics.read_text())
             if not value['timed_tokens_identical'] or not value['rank_tokens_identical']:
                 raise RuntimeError('C-2 / rank consistency failed during timing')
             values.append(value['tpot_seconds'] * 1e9)
             records.append(ref(metrics))
-        return dict(fresh_process_ns=values, measurements=records)
+        if len({json.loads(Path(item['path']).read_text())['PID'] for item in processes}) != 2:
+            raise RuntimeError('two distinct timing processes are required')
+        return dict(fresh_process_ns=values, measurements=records, processes=processes,
+                    guard=ref(cohort / 'execution/guard/guard_result.json'), driver=ref(driver))
 
     def run(self):
         model = f'qwen3_1_7b_tp{self.a.tp}'
