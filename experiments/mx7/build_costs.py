@@ -40,7 +40,6 @@ def domain(helper):
                     'down':(m['hidden'],m['intermediate'],1,0),
                     'head':(m['vocabulary'],m['hidden'],0,1)}[stage]
                 for tn,wn,d,part in itertools.product((16,32,64,128),(1,2,4,8),(1,2,3,4),(1,0)):
-                    if stage=='o' and part!=1:continue
                     if stage=='head' and (part!=1 or wn not in (4,8)):continue
                     if stage=='gate_up' and tn<32:continue
                     row=dict(model=model,b=b,stage=stage,n=n,k=k,tn=tn,wn=wn,d=d,part=part,op=op,norm=norm,
