@@ -38,6 +38,15 @@ def own_pids() -> set[int]:
             except (OSError, ValueError, IndexError):
                 continue
         if added <= own:
+            if os.getenv('TILEMEGA_DEVICE_GROUP'):
+                # torchrun ranks are siblings in the guard-created session.
+                sid = os.getsid(0)
+                for entry in Path('/proc').glob('[0-9]*/stat'):
+                    try:
+                        if int(entry.read_text().rsplit(')', 1)[1].split()[3]) == sid:
+                            own.add(int(entry.parent.name))
+                    except (OSError, ValueError, IndexError):
+                        continue
             return own
         own.update(added)
 
@@ -46,17 +55,22 @@ def exclusive_gpu(path: Path, label: str, fail_fast: bool = False, hidden_limit_
     """mx-smi lists only this container's processes; another tenant shows up
     as memory above the idle baseline that no listed process owns."""
     smi = _mx_smi()
-    index = os.environ.get('TILEMEGA_DEVICE_INDEX', '0')
+    indices = os.environ.get('TILEMEGA_DEVICE_GROUP',
+                             os.environ.get('TILEMEGA_DEVICE_INDEX', '0')).split(',')
     deadline = time.monotonic() if fail_fast else time.monotonic() + 30 * 60
     while True:
-        owners, visible, above_idle = smi.occupancy(index)
-        hidden = max(0.0, above_idle - visible)
+        exclusive = True
         own = own_pids()
-        exclusive = set(owners) <= own and hidden <= hidden_limit_mib
-        with path.open('a') as stream:
-            stream.write(json.dumps({'label': label, 'pids': sorted(owners), 'visible_mib': visible,
-                                     'hidden_mib': hidden, 'exclusive': exclusive,
-                                     'time': time.time()}) + '\n')
+        for index in indices:
+            owners, visible, above_idle = smi.occupancy(index)
+            hidden = max(0.0, above_idle - visible)
+            accepted = set(owners) <= own and hidden <= hidden_limit_mib
+            exclusive &= accepted
+            with path.open('a') as stream:
+                stream.write(json.dumps({'label': label, 'gpu_index': index,
+                                         'pids': sorted(owners), 'visible_mib': visible,
+                                         'hidden_mib': hidden, 'exclusive': accepted,
+                                         'time': time.time()}) + '\n')
         if exclusive or time.monotonic() >= deadline:
             return exclusive
         time.sleep(10)
@@ -98,7 +112,11 @@ def measure(out_root: Path, batches, max_tokens: int, warmup: int, repeats: int,
         timed = lambda n: [r['wall_seconds'] for r in rows if r['N'] == n and not r['warmup']]
         e2e = statistics.median(timed(max_tokens))
         ttft = statistics.median(timed(1))
-        summary = {**meta, 'batch': batch, 'max_tokens': max_tokens,
+        indices = os.environ.get('TILEMEGA_DEVICE_GROUP',
+                                 os.environ.get('TILEMEGA_DEVICE_INDEX', '0')).split(',')
+        summary = {**meta, 'tp': int(meta.get('tp', len(indices))),
+                   'gpu_indices': list(map(int, indices)),
+                   'batch': batch, 'max_tokens': max_tokens,
                    'e2e_seconds': e2e, 'ttft_seconds': ttft,
                    'tpot_seconds': (e2e - ttft) / (max_tokens - 1),
                    'output_tokens_per_second': batch * max_tokens / e2e,

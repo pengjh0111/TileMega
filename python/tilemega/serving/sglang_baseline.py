@@ -22,6 +22,7 @@ def main() -> None:
     parser.add_argument("--warmup", type=int, default=1)
     parser.add_argument("--repeats", type=int, default=3)
     parser.add_argument("--mem-fraction", type=float, default=0.85)
+    parser.add_argument("--tp", type=int, choices=(1, 2, 4), default=1)
     args = parser.parse_args()
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from measurement_policy import TimingPolicy
@@ -36,13 +37,14 @@ def main() -> None:
 
     import sglang as sgl
     engine = sgl.Engine(model_path=str(args.model), dtype="bfloat16", disable_radix_cache=True,
+                        tp_size=args.tp,
                         skip_tokenizer_init=True, max_running_requests=16,
                         # SGLang 0.5.14 splits the R16 `cuda_graph_max_bs` per phase.
                         cuda_graph_max_bs_decode=16,
                         mem_fraction_static=args.mem_fraction, random_seed=0,
                         context_length=prompt_len + args.max_tokens + 64)
     server_args = getattr(engine, "server_args", None)
-    meta = {"system": "sglang", "model": str(args.model), "sglang_version": sgl.__version__,
+    meta = {"system": "sglang", "model": str(args.model), "tp": args.tp, "sglang_version": sgl.__version__,
             "attention_backend": getattr(server_args, "attention_backend", None),
             "decode_attention_backend": getattr(server_args, "decode_attention_backend", None),
             "cuda_graph_max_bs_decode": getattr(server_args, "cuda_graph_max_bs_decode", None),

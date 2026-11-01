@@ -20,6 +20,7 @@ def main() -> None:
     parser.add_argument("--policy", type=Path)
     parser.add_argument("--warmup", type=int, default=1)
     parser.add_argument("--repeats", type=int, default=3)
+    parser.add_argument("--tp", type=int, choices=(1, 2, 4), default=1)
     args = parser.parse_args()
     # This helper imports only the standard library; the vLLM environment
     # never imports tilemega or its torch-dependent serving engine.
@@ -44,6 +45,8 @@ def main() -> None:
             # Token-ID input and detokenize=False: the random-weight
             # checkpoints carry no tokenizer files (Llama failed to start).
             skip_tokenizer_init=True,
+            tensor_parallel_size=args.tp,
+            distributed_executor_backend="mp" if args.tp > 1 else None,
         )
     except BaseException:
         # Use only standard-library NVML queries: engine initialization may
@@ -95,7 +98,9 @@ def main() -> None:
         e2e = statistics.median(timed(args.max_tokens))
         ttft = statistics.median(timed(1))
         summary = {
-            "model": str(args.model), "batch": batch,
+            "model": str(args.model), "batch": batch, "tp": args.tp,
+            "gpu_indices": list(map(int, os.environ.get("TILEMEGA_DEVICE_GROUP",
+                                                       os.environ.get("TILEMEGA_DEVICE_INDEX", "0")).split(','))),
             "vllm_version": vllm_version, "max_tokens": args.max_tokens,
             "e2e_seconds": e2e, "ttft_seconds": ttft,
             "tpot_seconds": (e2e - ttft) / (args.max_tokens - 1),
@@ -110,8 +115,12 @@ def main() -> None:
 def _external_allocation():
     """True when memory on the device belongs to someone else (mx-smi)."""
     from baseline_common import _mx_smi, own_pids
-    owners, visible, above_idle = _mx_smi().occupancy(os.environ.get("TILEMEGA_DEVICE_INDEX", "0"))
-    return bool(set(owners) - own_pids()) or above_idle - visible > 1024
+    own = own_pids()
+    for index in os.environ.get("TILEMEGA_DEVICE_GROUP", os.environ.get("TILEMEGA_DEVICE_INDEX", "0")).split(','):
+        owners, visible, above_idle = _mx_smi().occupancy(index)
+        if set(owners) - own or above_idle - visible > 1024:
+            return True
+    return False
 
 
 def _wait_for_exclusive_gpu(path: Path, label: str, fail_fast: bool = False) -> bool:
