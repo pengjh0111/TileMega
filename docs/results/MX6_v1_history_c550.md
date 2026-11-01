@@ -1,0 +1,119 @@
+# MX-6 v1 checkpoint history (superseded by v2)
+
+## Historical v1 stop decision (verified; superseded by v2)
+
+Prompt13.4.3/13.4.5 triggers at CP2. Same-card alternating P-PAIR, each arm 2 fresh processes ×warmup1+timed2, ISL64/OSL1024, greedy BF16, L1_loop, WD0/DIAG0/trace0, identical control geometry and BF16 bridge:
+
+|OLMoE B16 TPOT ms|Round1|Round2|Median|
+|---|---:|---:|---:|
+|CP1 control|11.295326|11.292835|11.294080|
+|CP2 deferred combine|11.569061|11.567107|11.568084|
+
+Gain=−0.274004 ms (regression2.4261%); required gain≥0.400 ms. The discernibility threshold is max(1%=0.112941 ms,spread0.002491 ms), so this is also a discernible regression. No repeat or geometry substitution. All subsequent GPU work stops at 2026-10-31 05:23:02.962 Asia/Shanghai. Two in-progress Qwen timings receive SIGTERM; their guard code−15 / shell241 is recorded as external cancellation, not a shader or numerical failure. No new GPU job starts after the stop; none remains outstanding. `MX6_checkpoint_gains_c550.csv`, `runs/mx6/cp2/STOP.json`, `cp2/stop_collection/COMPLETE.json`, `cp2/CLOSE_STOP_AUDIT.json`. CP3–CP6 and X1 do not run. No final pin/default promotion or G6 acceptance.
+
+## v1 environment and identity (verified)
+
+Branch `tilemega-metax`; initial HEAD `44a7baec34eec9bce930cec562d05b9a1444d4d1`, clean after fetch/checkout/ff-only pull. Implementation endpoint `d4e8b5dae9a354d85bf418c74d64ba77d66589f2`; CP1 was pushed at `21f34fe85`; delivery commits/push are reported in the conversation. Actual repository `/root/tilemega`; `/workspace` is empty. Authoritative prompt `/root/Prompt/TileMega_MX6_prompt.md`, SHA256 `80c853ad08f52a260621da5114b2b019266dd4b7126e57e62c792b48d98677ba`. MACA3.8.2.6; cucc mxcc1.0.0 (`890c70f3aa`), `/opt/maca/tools/cu-bridge/bin/cucc`; Torch2.10.0+metax3.8.2.2; Transformers5.12.0. Current-source tool builds successfully. BF16 checkpoint indexes resolve Qwen9435 tensors/9 shards, OLMoE3219/13. Cards7/6/5/4 pass guard preflights; every MoE job uses mx_gpu_job.sh, NEEDS_MIB=40960. No cards0–3, clock/power/driver changes or external-baseline reruns.
+
+## CP0 drift, bridge and controls (verified)
+
+Before source edits, exact MX-5 bridges/pins rebuild decode/prefill; two fresh standard processes per B1 cell:
+
+|B1|Round1 ms|Round2|Median|MX-5|Drift|
+|---|---:|---:|---:|---:|---:|
+|Qwen|4.203135|4.201437|4.202286|4.199095|+0.075990%|
+|OLMoE|3.501512|3.503493|3.502502|3.502505|−0.000072%|
+
+Both pass1%. Qwen's six full1024-token generations equal MX-5 BF16 records. `MX6_serving_c550.csv`, `runs/mx6/cp0/DRIFT_PASS.json`. Current-exporter BF16 bridges under `runs/mx6/export/`:
+
+|Model/phase|SHA256|
+|---|---|
+|Qwen decode|`3b2b44bd15329ec2fa452297a3a8f8523efad5fd8b767f5fb3762fa2039ea04d`|
+|Qwen prefill|`947cfbd0cce623aead7d5b9dce2544694cb13b3550f5eb003d75b8428ee1f600`|
+|OLMoE decode|`02b758a4ecfdb31a5b0076661ab3122fd859faab783b7a057f357ea940373460`|
+|OLMoE prefill|`7d4af2665880df61ef5ddfe47bc0e76b141b756259524e270a866ddef919a124`|
+
+Byte differences versus old bridges are process-address strings and independent node ordering/index; normalized named-node DAGs match. MX-5 native prefill used its decode bridge; paired native prompt/decode builds preserve that convention. `cp0/BRIDGE_AUDIT.json`. EXPORT_ROOT is supported, default runs/mx1/export; CELLS defaults runs/mx6/tm. Qwen B2/B4/B8 controls preserve the requested CSV coordinates, B4 downD1, under configs/pins/mx6/control/. Every comparison arm uses BF16. Old FP32 Qwen B2/B4 timings are not substituted as paired controls.
+
+## Activity and routing tools
+
+Verified 64-step capture across every layer/cell. Existing MX-5 endpoint captures are reused for activity; six interior cells get fresh V2 DIAG captures. Fresh endpoint captures equal MX-5 routes bitwise. Layer/aggregate distributions are in MX6_active_experts_c550.csv (210 rows).
+
+|Mean n_active|B1|B2|B4|B8|B16|
+|---|---:|---:|---:|---:|---:|
+|Qwen|8|15.399089|29.123047|51.067057|77.137370|
+|OLMoE|8|14.958984|26.595703|40.775391|53.272461|
+|OLMoE inferred byte bound ms|1.569820|2.522417|4.131305|6.167910|8.180795|
+
+OLMoE B16 min/median/max47/53/59; Qwen B16=63/77/88. Inferred L576/1.55TB/s bound makes OLMoE's9.105426 ms target1.1130× the bound. TF uses HF's own norm/gate on native input; the >2 BF16 ULP boundary rule stays. Verified V2 tool bring-up results below are diagnostic, not final G6-ROUTE:
+
+|Model/B|TF exact/ties/failures|Free exact/ties/failures|Free lower/earlier/none|
+|---|---|---|---|
+|Qwen/1|1504/32/0|1376/132/28|24/3/1|
+|Qwen/16|24101/475/0|21788/2316/472|419/51/2|
+|OLMoE/1|1006/18/0|941/67/16|10/6/0|
+|OLMoE/16|16137/247/0|15267/933/184|114/69/1|
+
+Predecessors are exclusive: any lower-layer mismatch, then earlier-step, then none. Qwen B16's419 includes415 with an allowed lower-layer tie. Free failures and exit1 stay recorded; they do not motivate numerical changes. Named DIAG input/logit/actual-rounded-weight buffers support TF/free diagnostics; captured final logits equal live logits. Full logit/weight ULP distributions and hashes: MX6_routing_c550.csv; six old capture.json fields misname a binary hash as source hash, retained with cp0/CAPTURE_FIELD_ERRATUM.json. CLI now names it correctly.
+
+## CP1 implementation and E2E (verified)
+
+P0/P1: early arrival before outgoing prefetch, LDS-only Finish exchanges, TileRange TN16/WN1 router logits, per-CTA2576-byte RouteTable, grouped LDS metadata/weights. V3 removes global routing tables/router tickets/BroadcastRouting. V2 LdsSync maps to its original CtaSync. No576-thread MoE V3 is generated; its resource-CSV exclusion cites the stated MX-5 PEU168/MT222 resident0 result. Attention V2/b_min remains transitional until CP3; CP1 retains per-unit down LA. Manual pins in configs/pins/mx6/cp1/, copied unchanged geometrically to cp2/.
+
+Two P0 litmus each pass **5/5 fresh processes**,2000 iterations ×104 CTAs, 8KiB inflight/wave, zero violations. RouteTable40 combinations ×360 cases pass exact V2/repeat equality; router logits16 combinations pass exact equality. All ten C-1/C-2 cells pass512, HF eager, C2 mismatches0. Qwen B1/B2/B4 each compare two fresh processes per V2/V3 arm, all twelve full1024-token generations equal. CP1 DIAG arrival checks pass **20/20 processes per development cell**,80/80 total. MX6_correctness_c550.csv, MX6_sync_checks_c550.csv, MX6_sync_audit_c550.md. Standard paired medians below; throughput=B×1024/median E2E. Geometry and identities are stored per row in MX6_serving_c550.csv; these are development, not final pins.
+
+|CP1 cell|V2 TPOT|V3 TPOT ms|TTFT ms|E2E ms|tok/s|V2/TM|SGLang/TM|
+|---|---:|---:|---:|---:|---:|---:|---:|
+|Qwen B1|4.198114|3.930525|218.790|4239.717|241.526|1.068080|1.073851|
+|Qwen B2|5.120418|4.820040|276.543|5207.444|393.283|1.062319|1.134596|
+|Qwen B4|7.579944|7.151217|457.869|7773.564|526.914|1.059952|1.049164|
+|Qwen B16|16.505041|15.804385|1002.786|17170.672|954.185|1.044333|0.933228|
+|OLMoE B1|3.496453|3.329888|220.502|3626.978|282.329|1.050021|0.947834|
+|OLMoE B16|12.217705|11.290759|655.862|12206.308|1342.257|1.082098|0.887094|
+
+Four development gains0.267589/0.700656/0.166564/0.926946 ms exceed their half-lower stop thresholds0.23/0.59/0.155/0.275 ms; CP1 was pushed and continued.
+
+## DIAG ledger and attribution limits (verified)
+
+CP0 OLMoE40 processes; CP1 four development cells80 processes. Each cell has 2 rounds ×10 masks,2046 positive accepted device deltas/mask. Differences: qkv64−65,attn64−66,o64−68,router112−120,gate_up64−80,down64−96,head0−64. Divide by layers except head. Median us/layer (head us/step):
+
+|Checkpoint/cell|qkv|attn|o|router|gate_up|down|head|
+|---|---:|---:|---:|---:|---:|---:|---:|
+|CP0 OLMoE B1|19.205|39.740|14.701|21.712|60.466|46.519|124.820|
+|CP0 OLMoE B16|−166.147|300.259|209.060|46.868|188.006|111.878|3908.865|
+|CP1 Qwen B1|13.886|26.497|12.794|6.676|36.650|26.427|380.765|
+|CP1 Qwen B16|−147.529|317.448|281.662|16.014|202.693|130.934|4338.293|
+|CP1 OLMoE B1|18.386|39.161|14.161|6.807|58.495|46.863|126.053|
+|CP1 OLMoE B16|−148.605|290.954|198.003|11.140|179.246|107.245|3548.750|
+
+These prescribed nonadditive interventions are not body latency. Head skipping changes later tokens/activation traffic; negative B16 differences stay intact. CP1 GU skipping retains RouteTable construction for down. All-skipped floors Qwen1/16=725.900/1069.290 us, OLMoE1/16=364.390/464.830 us include that prologue, metadata-dependent prefetch/control; they are not pure sync. Appendix A absolute body estimates cannot be calibrated by summing these differences. No CP2 stage measurement is added after the stop. MX6_stage_ledger_c550.csv (84 rows).
+
+## CP2 implementation, checks and retained measurements (verified) — 已由 CP2′ 取代
+
+Deferred completion at GroupedGemmV3.h:509 runs after all CTA units. Complete at MoeCombineV3.h:63 batches wave0 fenced tile counts, last flags, acquire, rank-ordered BF16 combine and ticket resets; final CtaSync precedes next(). V3 legality uses n_max=min(B×8,E), permits all grouped WN1/2/4/8, and raises 512-thread depth budget160→192. V2/dense retain160 and their WN bound. Forty grouped cases pass V2/V3 h/partials/x and repeat bitwise comparison; B1/16,E64/128, random/skew/spread, empty experts/count16. Twelve Python cases. Deferred-combine litmus passes **5/5 fresh processes**, each2000 layers ×104 CTAs, zero violations, host x bitwise, MT100/local0/static0/resident1. n_active1 is a synthetic publication case;8/64/128 use distinct top8 routes. Different PID seeds. Four development C-1/C-2 pass512 with unchanged gaps/tolerances. New CPU subset: 18 passed/56 optional-GPU skips; guarded grouped tests subsequently pass12/12.
+
+|CP2 complete pair|CP1 TPOT|CP2 TPOT ms|Gain ms|CP2 TTFT|CP2 E2E|tok/s|MX5/TM|SGLang/TM|
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+|OLMoE B1|3.328895|3.119300|0.209595|207.078|3398.121|301.343|1.120909|1.011824|
+|OLMoE B16|11.294080|11.568084|−0.274004|670.049|12504.199|1310.280|1.056156|0.865828|
+
+Both complete pairs'12 full1024-token generations match CP1/CP2 bitwise. Qwen B1 first round3.929877→3.801054 ms; B16 first round15.811068→16.257535 ms. These are single-process diagnostics, not two-round medians. Qwen B1 CP2 round2 and B16 CP1 round2 are externally aborted; Qwen B2/B4/B8 E2E and CP2 V2/V3 full1024 gate remain unrun.13 valid rounds+2 aborted rows+4 medians are appended; failed/partial data are not filled in or silently retried. OLMoE B16's M6 publication/merge is the first area to investigate (inferred); no stage timing or alternate implementation establishes the cause before stopping.
+
+## v1 resources, regression qualification and remaining work
+
+Verified CP1's54 and CP2's23 native plans pass physical resident1/local0/static0 queries and MIR checks; V3 peakMT251, V2 controls255, LDS≤64KiB. Each of61 V3 plans has static MIR instruction/PC-byte attribution from an auxiliary image whose .text equals primary bytes; only primary images execute. Lexical stage counts include outgoing prefetch/arrival; shared/control are separate, totals conserved. MX6_resources_c550.csv and MX6_code_attribution_c550.csv (488 rows). 39 CP1+21 CP2 V3 plans' stage-arrival U64 atomics discard return values. Steady MMA loops pass no-ARRIVE4160 checks. SDK has no binary disassembler; ISA checks use final target machine IR per scripts/mx_mir_report.py, not decoded bytes. Rebuilt Qwen B1 V2 decode/prefill texts equal frozen controls after both stages. V2 GPU fixtures pass router/combine100,router GEMM8,grouped12 and full512-thread GEMM/head/attention matrices. Expanded CPU suite:828 pass,86 skip,12 fail; 4 failures reproduce at initial HEAD (3 packing oracles,1 old CLI oracle), 8 reject stale MX5 adopted-header hashes. Validators/old records remain unchanged; P4 must create fresh cost evidence. Raw compiler/attribution/collector failures and unbound unit trials are retained; none is a launched illegal-address failure.
+
+At the v1 stop, no final solver-selected pin/cost table or final ten-cell E2E table existed. Historical v1 pending list (superseded by the CP3 evidence below): P3 attention, P4 is pending at tools/commands/mx_moe_v3.cpp:72 (explicit pins required). Final V3 routing gate is unrun at python/tilemega/moe/native_routing_check.py:201; §10 reproduction instrumentation/20-process final-pin reliability remain pending at python/tilemega/serving/weights.py:234. No runtime illegal-access log match is found in executed MX6 GPU jobs; this does not qualify G6-REL. G6-MOE is not passed; X1's CP4 condition and dense's post-MoE condition are unmet. V2/defaults remain as prescribed. Detailed source publication audit: MX6_sync_audit_c550.md. Raw artifacts stay ignored under runs/mx6/.
+
+Verified guard wall hours (loading/checks/cooldown/aborted work included, not hardware busy):7=2.347778(72 jobs),6=2.413056(63),5=1.860000(58),4=1.486667(52), total8.107500 hours/245 jobs. Six nonzero jobs:4 CP0 free-route diagnostics, 2 deliberate CP2 SIGTERMs. No outstanding job/new job after stopping. Fixed baseline hashes and all previous result-CSV bytes remain unchanged; cp2/CLOSE_STOP_AUDIT.json binds accounting/prefix checks.
+
+## Contradictions to prompt inferences (v1 and v2)
+
+- CP2 OLMoE B16 was expected to improve≥0.80 ms; it regresses0.274004 ms. Down code shrinks120200→44992 bytes (Qwen B16:433136→48776) but E2E does not follow that proxy. Qwen's incomplete B16 first pair also regresses0.446467 ms.
+- CP1 Qwen B1/B16 and OLMoE B1 gains are below full inferred0.46/1.18/0.31 ms; they exceed the explicit half thresholds. OLMoE B16 exceeds its0.55 ms estimate.
+- OLMoE B16 activity53.2725 is below uniform56.4; inferred bound8.1808 ms replaces8.593 ms. Nonadditive B16 skip data cannot substantiate Appendix A body times; measured negative values and confounding are preserved.
+
+- CP2′ OLMoE B16 gains0.350047 ms rather than the old P2 estimate0.80 ms; M6 improves14.745 µs/layer with current D1/WN2 control geometry. v2 enables the measured win; P4 still must address depth/width and attention remains V2.
+- Current full B1 M5 traces52.209/69.462 exceed Appendix A's36/49 µs upper targets by>30%. DIAG GU core differences are36.950/58.203; common prologues are6.516/6.066 µs in the disclosed microbench, with remaining stage-tail/ outgoing-prefetch/nonadditive residuals8.743/5.193 µs (inferred, not isolated). P4's current-geometry inefficiency and full-cost calibration remain necessary.
+- Attention still uses V2's segment/LA chain. OLMoE B1 O12.094 µs exceeds8.5×1.3; its control remains StreamK/D1, whose LA chain awaits P4's TileRange selection.
+
