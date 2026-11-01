@@ -32,8 +32,12 @@ def aggregate(request,rounds=(1,2,3)):
             if number not in rounds or number in numbers:raise ValueError('duplicate/missing round')
             if process['returncode']or guard['code']:raise ValueError('failed guard process')
             argv=process['argv']
-            expected_tail=[request['driver']['path'],'--keys',job['keys']['path'],'--out',str(raw),'--round',str(number)]
-            if argv[5:]!=expected_tail or Path(argv[0]).name!='mx_gpu_job.sh' or argv[1]!=str(process['card']) or argv[2]!='900' or Path(argv[3])!=Path(record['guard']['path']).parent:
+            tail=argv[5:]
+            same_scope=(len(tail)==7 and tail[1::2]==['--keys','--out','--round']
+                and Path(tail[0]).resolve()==Path(request['driver']['path']).resolve()
+                and Path(tail[2]).resolve()==Path(job['keys']['path']).resolve()
+                and Path(tail[4]).resolve()==raw.resolve() and tail[6]==str(number))
+            if not same_scope or Path(argv[0]).name!='mx_gpu_job.sh' or argv[1]!=str(process['card']) or argv[2]!='900' or Path(argv[3]).resolve()!=Path(record['guard']['path']).parent.resolve():
                 raise ValueError('actual GPU command differs from cost scope')
             samples_now=[json.loads(line)for line in raw.read_text().splitlines()]
             if len(samples_now)!=len(keys):raise ValueError('missing/extra cost key')
