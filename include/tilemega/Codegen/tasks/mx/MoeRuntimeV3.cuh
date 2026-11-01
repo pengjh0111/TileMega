@@ -45,6 +45,7 @@ struct MxMoeRuntimeV3 {
   static_assert(P::kBodySmemBytes >= backend::mx::MxGemmSmemV2(P::kBatch, P::GateUp::kTN, P::GateUp::kWN).bytes);
   static_assert(P::kBodySmemBytes >= backend::mx::MxGemmSmemV2(P::kBatch, P::Down::kTN, P::Down::kWN).bytes);
   static_assert(P::kBodySmemBytes >= P::Head::SmemBytes(P::kBatch));
+  static_assert(P::kBodySmemBytes >= P::GateUp::kRouteSharedBytes);
   static_assert(P::kBodySmemBytes >= P::Attn::kSharedBytes);
   static constexpr std::size_t kPartial = MxMaxV3(
       MxGemmPartialFloatsV3<P::Qkv::kTN,typename P::QkvShape>(kGrid,P::kQkvStreamK),
