@@ -96,6 +96,66 @@ def collect(a):
     return 0
 
 
+def epilogue(a):
+    """lm_head epilogue widths of a sharded vocabulary, one card, fresh processes."""
+    exclude = tuple(g for g in range(8) if g not in (0, 5, 7))
+    for fresh in range(a.processes):
+        directory = OUT / 'lm_head' / f'f{fresh}'
+        if (directory / 'probe.csv').exists():
+            continue
+        directory.mkdir(parents=True, exist_ok=True)
+        group, handles = dispatch.claim_group(f'lm-head-f{fresh}', 1, exclude)
+        try:
+            gpu = group[0]
+            command = [PYTHON, '-m', 'tilemega.bench.gpu_guard', '--policy', str(POLICY),
+                       '--out', str(directory / 'guard'), '--needs-free-mib', '16384',
+                       '--timeout-s', '3600', '--', 'numactl', f'--cpunodebind={dispatch.numa(gpu)}',
+                       str(a.binary.resolve()), '--lm-head-tp-only']
+            env = dict(os.environ, CUDA_VISIBLE_DEVICES=str(gpu), TILEMEGA_DEVICE_INDEX=str(gpu),
+                       TILEMEGA_TIMING='1', TILEMEGA_GPU_PID_MODE='namespace_limited',
+                       TILEMEGA_GPU_LOCK=f'/tmp/tilemega_gpu{gpu}.lock', PYTHONPATH=str(ROOT / 'python'))
+            env.pop('TILEMEGA_DEVICE_GROUP', None)
+            with (directory / 'stdout.csv').open('w') as out, (directory / 'stderr.log').open('w') as err:
+                code = subprocess.call(command, cwd=ROOT, env=env, stdout=out, stderr=err)
+        finally:
+            for handle in handles:
+                handle.close()
+        if code == 0:
+            (directory / 'stdout.csv').rename(directory / 'probe.csv')
+        print(json.dumps(dict(section='lm_head', fresh=fresh, gpu=gpu, returncode=code)), flush=True)
+    return 0
+
+
+def collect_epilogue(a):
+    values = {}
+    files = sorted(OUT.glob('lm_head/f*/probe.csv'))
+    for path in files:
+        for row in csv.DictReader(line for line in path.read_text().splitlines()
+                                  if line.startswith(('name,', 't_ep,'))):
+            values.setdefault(row['key'], []).append(float(row['median']))
+    target = read(a.target)
+    table = target['sm90_native_constants']['epilogue_ns']['lm_head']
+    rows = []
+    for key, samples in sorted(values.items()):
+        if len(samples) != len(files):
+            raise ValueError(f'{key}: {len(samples)} of {len(files)} processes')
+        fields = dict(part.split('=') for part in key.split(':') if '=' in part)
+        median = statistics.median(samples)
+        table.setdefault('wk' + fields['wk'], {}).setdefault(fields['tn'], {})[fields['b']] = round(median, 1)
+        rows.append(dict(name='t_ep', key=key, processes=len(samples), median=f'{median:.3f}', unit='ns',
+                         range_pct=f'{(max(samples) - min(samples)) / median * 100:.2f}',
+                         per_process=';'.join(f'{v:.3f}' for v in samples)))
+    write(a.target, target)
+    existing = list(csv.DictReader(open(a.csv))) if a.csv.exists() else []
+    keep = [r for r in existing if not (r['name'] == 't_ep' and r['key'].startswith('lm_head'))]
+    with open(a.csv, 'w', newline='') as stream:
+        writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(keep + rows)
+    print(json.dumps(dict(keys=len(rows), processes=len(files))))
+    return 0
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     sub = p.add_subparsers(dest='action', required=True)
@@ -107,8 +167,15 @@ def main():
     two = sub.add_parser('collect')
     two.add_argument('--csv', type=Path, default=ROOT / 'docs/results/SM90R5_constants.csv')
     two.add_argument('--target', type=Path)
+    three = sub.add_parser('epilogue')
+    three.add_argument('--binary', type=Path, required=True)
+    three.add_argument('--processes', type=int, default=5)
+    four = sub.add_parser('collect-epilogue')
+    four.add_argument('--csv', type=Path, default=ROOT / 'docs/results/SM90R5_constants.csv')
+    four.add_argument('--target', type=Path, default=ROOT / 'configs/targets/sm_90_h800.json')
     a = p.parse_args()
-    return run(a) if a.action == 'run' else collect(a)
+    return dict(run=run, collect=collect, epilogue=epilogue,
+                **{'collect-epilogue': collect_epilogue})[a.action](a)
 
 
 if __name__ == '__main__':

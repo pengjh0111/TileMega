@@ -828,6 +828,10 @@ int main(int argc,char** argv) {try {
     MoeEpilogueTile<backend::Sm90DenseMoeMode::kDown,128>("expert_down");
     MoeEpilogueTile<backend::Sm90DenseMoeMode::kDown,256>("expert_down");
   }
+  // SM90R5 B3.2: a sharded vocabulary (75968, 37984) admits only lm_head TN
+  // 16/32/64, so the folded-argmax epilogue is priced at those widths too.
+  if(full || !std::strcmp(argv[1],"--lm-head-tp-only"))
+    EpilogueTiles<ServingEpilogueOp::kArgmaxPartial>("lm_head",std::integer_sequence<int,16,32,64>{});
   if(full || !std::strcmp(argv[1],"--attention-only")) {
     [&]<int... S>(std::integer_sequence<int,S...>) {
       (AttentionCase<128,2,1,S>(),...);(AttentionCase<64,4,0,S>(),...);
