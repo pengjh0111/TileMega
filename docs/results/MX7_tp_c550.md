@@ -3,7 +3,7 @@
 Evidence labels: **verified** = executed here; **stated** = supplied specification;
 **inferred** = reasoning, not a measurement. Raw evidence is under `runs/mx7/`.
 
-## A5 stop: GPU6 unavailable during C0
+## Historical A5 stop: resumed with all-card authorization
 
 - **verified** at 22:07:12 and 22:10:45 CST on 2026-11-01, `mx-smi -i 4,5,6,7`
   reports GPU6 **Not Available**, GPUs4/5/7 Available, and no device processes.
@@ -29,6 +29,26 @@ Evidence labels: **verified** = executed here; **stated** = supplied specificati
 - Code stop HEAD: `1f6dc640b` (23 commits after the starting HEAD);
   results/report are committed separately immediately afterwards.
 
+## Resume: C0 qualified; implementation and baselines continuing
+
+- **stated** user authorizes all physical cards and further torch.compile adaptation;
+  instruction SHA256 `f67014253a3cca7234429ff3671e293c0104fb04b68fde1bb9dc52b518c0b284`.
+- **verified** LL8 / fine-grained allocation / volatile AS1 store / `__ldcg` load:
+  pair and four-card P=1024/262144 each pass 5/5 fresh processes, 2000 epochs,
+  104 CTAs, zero tearing/timeouts. Current TP4 group {1,3,4,5}, TP2 main {1,3}.
+- **verified** single-way latency: {1,3} 2373.504 ns; {4,5} 2629.120 ns (5 processes).
+  Selected coalesced P2P bandwidth at 104 CTAs: one peer 8.121 GB/s;
+  three peers 19.253 GB/s aggregate. These are diagnostics, not model speedups.
+- **verified** GPUs0/6/7 became unavailable during previous optional probe runs;
+  their cause remains unresolved. Failed records remain; no reset was attempted.
+  No further unsafe system-atomic probe combinations are scheduled.
+- **verified** torch.compile fullgraph TP2 B1 now completes warm1/timed2:
+  first process TPOT 14.391347 ms. This is not yet a two-process cell result.
+  Isolated accelerate 1.15.0 resolves the dependency; compiled autograd resolves
+  HF's TP gradient-hook compiler rejection without removing hooks or using eager.
+- **verified** guarded TP2 torch.compile and TP4 baseline campaigns are running.
+  Core TileMega TP device implementation starts after this C0 decision.
+
 ## Specification and scope
 
 - **verified** starting branch/HEAD: `tilemega-metax`,
@@ -36,7 +56,7 @@ Evidence labels: **verified** = executed here; **stated** = supplied specificati
 - **verified** external specification: `/root/Prompt/TileMega_MX7_prompt.md`, UTF-8/LF,
   SHA256 `5caed7edd4477b8fb63d33bed9254bbc4e33d92041eb5969113fefeb805d7cee`.
 - **stated** scope: Qwen3-1.7B, TP2/TP4, B=1/2/4/8/16, BF16 greedy,
-  ISL/OSL=64/1024; physical GPUs 4–7 only. TP1 baselines and MoE are frozen.
+  ISL/OSL=64/1024. The user subsequently authorized all GPUs; TP1 and MoE remain frozen.
 - **verified** background read: `MX7_plan.md`, `MX6_final_review.md`, `CLAUDE.md`.
   No H800 commits merged; those implementations are read-only references.
 

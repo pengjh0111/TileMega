@@ -31,7 +31,7 @@ def collect(root):
                                passed_processes=int(record['pass']), binary_sha256=identity['binary_sha256'],
                                source_sha256=identity['source_sha256'],
                                raw_evidence=str(p2p) + f":{record['source']}->{record['destination']}"))
-    for summary in root.glob('c0/**/summary.json'):
+    for summary in sorted(set(root.glob('c0/**/summary.json')) | set(root.glob('resume*/c0/**/summary.json'))):
         cohort = summary.parent
         processes = sorted(cohort.glob('process*/result.json'))
         if len(processes) != 5:
