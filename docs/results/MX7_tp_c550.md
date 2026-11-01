@@ -257,3 +257,13 @@ Old partial records remain. Seven focused CPU selection/trace tests also pass.
 - **verified, B4** partial resource aggregation mislabeled one pending residency query as rejected.
   The tool now skips pending queries, and correctness cohorts require successful process/guard exits.
   Original row retained with an appended label correction; no actual resource failure occurred.
+
+## CP3 first final scope (1/10 complete)
+
+**verified** Four candidates pass C-1/C-2; chosen rebuild passes C-1, five fresh C-2, all-rank residency and two new timing processes.
+
+| TP | B | TPOT ms | TTFT ms | E2E ms | tokens/s | fastest/TM | efficiency |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 2 | 1 | 2.518292 | 156.069054 | 2732.281269 | 374.778406 | 1.224495 | 64.88% |
+
+**verified, B4** Subsequent timing pairs share guard preflight while retaining two new subprocesses and separate PID/command/exit evidence; warm1/timed2 and900s remain unchanged. CPU workflow smoke passes; real GPU validation proceeds with TP2 B2.
