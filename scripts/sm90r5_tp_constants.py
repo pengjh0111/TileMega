@@ -113,6 +113,7 @@ def epilogue(a):
                        str(a.binary.resolve()), '--lm-head-tp-only']
             env = dict(os.environ, CUDA_VISIBLE_DEVICES=str(gpu), TILEMEGA_DEVICE_INDEX=str(gpu),
                        TILEMEGA_TIMING='1', TILEMEGA_GPU_PID_MODE='namespace_limited',
+                       TILEMEGA_NUMA_NODE=str(dispatch.numa(gpu)),
                        TILEMEGA_GPU_LOCK=f'/tmp/tilemega_gpu{gpu}.lock', PYTHONPATH=str(ROOT / 'python'))
             env.pop('TILEMEGA_DEVICE_GROUP', None)
             with (directory / 'stdout.csv').open('w') as out, (directory / 'stderr.log').open('w') as err:
