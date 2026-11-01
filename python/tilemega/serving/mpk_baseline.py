@@ -442,8 +442,10 @@ def main():
               "mirage_revision": mirage_revision(), "page_size": args.page_size,
               "max_num_pages": args.max_num_pages,
               "kv_pages_required": needed,
+              # The demos default this to 8, not to B; B is this wrapper's own
+              # choice, so do not describe it as the demos' setting.
               "max_num_batched_tokens": (args.max_num_batched_tokens or
-                                         "B (equal to max_num_batched_requests, as in the demos)"),
+                                         "B (equal to max_num_batched_requests)"),
               "use_cutlass_kernel": True, "spec_decode": None,
               "split_kv_cache": args.split_kv_cache,
               "timed_scope": "prompt H2D copy + init_request_func + mpk() + synchronize + token D2H",
