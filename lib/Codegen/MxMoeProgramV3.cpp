@@ -19,7 +19,9 @@ void CheckMxMoeConfigV3(frontend::ModelPlan const& plan,MxMoeConfigV3 const& c){
   auto m=AnalyzeMxMoe(plan);if(c.threads!=512)Fail("V3 MoE requires 512 threads");
   if(m.routing_weights_fp32)Fail("V3 MoE requires the BF16 routing contract");
   if(c.attn_version!=2&&c.attn_version!=3)Fail("invalid attention version");
-  if(c.split!=1&&c.split!=2&&c.split!=4)Fail("invalid attention split");
+  if(c.split!=-1&&c.split!=1&&c.split!=2&&c.split!=3&&c.split!=4)Fail("invalid attention split");
+  if(c.split==3&&(m.batch*m.hkv<26||m.batch*m.hkv>34))Fail("split3 requires26..34 sequence heads");
+  if(c.split==-1&&m.batch*m.hkv<35)Fail("balanced attention requires at least35 sequence heads");
   if(c.attn_version==2&&c.split!=1)Fail("attention V2 requires split1");
   if(c.split>1&&m.batch*m.hkv*c.split>104)Fail("attention split exceeds grid104");
   if(c.combine_mode=="unit_owner")Fail("combine_mode unit_owner is disqualified (moe_unit_owner litmus)");

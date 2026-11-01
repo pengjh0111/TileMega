@@ -46,6 +46,17 @@ int Int(Value const& object, char const* name) {
     throw std::invalid_argument(std::string("MX-6 MoE pin requires integer ") + name);
   return int(number);
 }
+int PinSplit(Value const& pin) {
+  auto const& value=pin.At("split");
+  if(value.kind()==Value::Kind::kString) {
+    if(value.AsString("split")=="bal")return -1;
+    throw std::invalid_argument("MX-6 MoE split string must be bal");
+  }
+  int const split=Int(pin,"split");
+  if(split<1)throw std::invalid_argument("MX-6 MoE pin uses bal for balanced split");
+  return split;
+}
+Value SplitJson(int split){return split==-1?Value("bal"):Value(split);}
 MxDecodeClassV2 ParseClass(Value const& pin, char const* name) {
   auto const& c = pin.At(name);
   auto const& part = c.At("part").AsString("part");
@@ -87,7 +98,7 @@ int TryCompileMoeV3(Request const& r, frontend::ModelPlan const& plan) {
   }
   MxMoeConfigV3 config{ParseClass(pin, "qkv"), ParseClass(pin, "o"), ParseClass(pin, "router"),
       ParseClass(pin, "gate_up"), ParseClass(pin, "down"), ParseClass(pin, "head"),
-      Int(pin, "threads"), pin.Find("b_min")?Int(pin,"b_min"):1, Int(pin, "attn_prefetch"),Int(pin,"split")};
+      Int(pin, "threads"), pin.Find("b_min")?Int(pin,"b_min"):1, Int(pin, "attn_prefetch"),PinSplit(pin)};
   if(pin.Find("combine_mode"))config.combine_mode=pin.At("combine_mode").AsString("combine_mode");
   if(pin.Find("route_table_mode"))config.route_table_mode=pin.At("route_table_mode").AsString("route_table_mode");
   if(pin.Find("attn_version"))config.attn_version=Int(pin,"attn_version");
@@ -133,7 +144,7 @@ int TryCompileMoeV3(Request const& r, frontend::ModelPlan const& plan) {
   resolved.Set("threads", config.threads); if(config.attn_version==2)resolved.Set("b_min",config.b_min);
   resolved.Set("combine_mode",config.combine_mode);resolved.Set("route_table_mode",config.route_table_mode);
   resolved.Set("attn_version",config.attn_version);
-  resolved.Set("version",3); resolved.Set("split",config.split);
+  resolved.Set("version",3); resolved.Set("split",SplitJson(config.split));
   if(purpose=="selected")resolved.Set("selection",pin.At("selection"));
   resolved.Set("attn_prefetch", config.attn_prefetch); resolved.Set("purpose", purpose);
   Write(out + ".cu", source);
@@ -187,13 +198,13 @@ int TryCompileMoeV3(Request const& r, frontend::ModelPlan const& plan) {
   scratch("mx.x", "bf16", B * H, 2); scratch("mx.qkv", "bf16", B * nq, 2);
   scratch("mx.ctx", "bf16", B * model.heads * model.dim, 2); scratch("mx.h", "bf16", model.experts * B * I, 2);
   scratch("mx.gemm_partial", "f32", std::max(partial(config.qkv, nq), partial(config.o, H)), 4);
-  if(config.attn_version==2||config.split>1)
-    scratch("mx.attn_partial","f32",B*model.hkv*(config.attn_version==2?std::min(int(model.capacity/32),104):config.split)*model.queries*(model.dim+2),4);
+  if(config.attn_version==2||config.split!=1)
+    scratch("mx.attn_partial","f32",B*model.hkv*(config.attn_version==2?std::min(int(model.capacity/32),104):(config.split==-1?4:config.split))*model.queries*(model.dim+2),4);
   scratch("mx.head_partial", "pair_f32_u32", B * G, 8);
   scratch("mx.router_logits", "bf16", B * model.experts, 2); scratch("mx.expert_partials", "bf16", B * 8 * H, 2);
   scratch("mx.t_qkv", "u32", nq / config.qkv.tn, 4); scratch("mx.t_o", "u32", H / config.o.tn, 4);
   scratch("mx.combine_tickets", "u32", H / 16, 4);
-  if(config.attn_version==2||config.split>1)scratch("mx.t_attn","u32",B*model.hkv,4);
+  if(config.attn_version==2||config.split!=1)scratch("mx.t_attn","u32",B*model.hkv,4);
   scratch("mx.t_head", "u32", 16, 4); scratch("mx.barrier", "u64", std::uint64_t(stages) * 8, 8);
   if (diag) {
     scratch("mx.route_debug", "u32", 64 * model.layers.size() * B * 8, 4);
@@ -234,7 +245,7 @@ int TryCompileMoeV3(Request const& r, frontend::ModelPlan const& plan) {
       {"experts", int(model.experts)}, {"qk_norm_scope", model.row_qk_norm ? "row" : "head"},
       {"routing_softmax_scope", model.softmax_all ? "all" : "selected"}, {"top_k", int(model.top_k)}, {"stages_per_step", stages},
       {"prompt_barriers", r.prompt ? 64 * (stages - 1) + 1 : 0}, {"classes", classes}, {"transitions", transitions},
-      {"split",config.split}, {"attn_prefetch", config.attn_prefetch}, {"watchdog", r.watchdog},
+      {"split",SplitJson(config.split)}, {"attn_prefetch", config.attn_prefetch}, {"watchdog", r.watchdog},
       {"trace_stage", r.trace_stage}, {"diag", diag}, {"barrier_prefetch", 1},
       {"decisions", Object{{"DT-W", 512}, {"plan_threads", config.threads}, {"DT-R", "early_fence_atomicAdd"},
           {"DT-P", "P-B"}, {"DT-X", "X-A"}, {"DT-KV", "block_fragments"}}},
