@@ -51,9 +51,12 @@ def main():
     model.generation_config.cache_implementation = 'static'
     model.generation_config.pad_token_id = model.generation_config.eos_token_id
     model.generation_config.compile_config = CompileConfig(fullgraph=True, mode=args.mode)
+    # HF TP q/k norms install gradient hooks; Dynamo requires this even in inference.
+    torch._dynamo.config.compiled_autograd = True
     meta = dict(system='torch.compile', model=str(args.model), tp=world,
                 torch_version=torch.__version__, transformers_version=transformers.__version__,
                 accelerate_version=importlib.metadata.version('accelerate'),
+                compiled_autograd=True,
                 fullgraph=True, mode=args.mode, tp_plan='auto', backend='nccl',
                 sdp_flags_constant=sdp_flags_constant,
                 metax_flash_attn_disabled=sdp_flags_constant,
