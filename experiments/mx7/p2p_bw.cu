@@ -87,6 +87,14 @@ int main(int argc, char** argv) {
     for (int r = 0; r < world; ++r) {
       Check(cudaSetDevice(r), "set_device");
       args[r].p[r] = static_cast<Word*>(Allocate(bytes, alloc));
+      cudaPointerAttributes attributes{};
+      Check(cudaPointerGetAttributes(&attributes, args[r].p[r]), "pointer_attributes");
+      std::printf("{\"record_type\":\"allocation_attributes\",\"rank\":%d,\"allocation\":%d,\"device\":%d,\"aligned64\":%s,\"pass\":%s}\n",
+                  r, alloc, attributes.device,
+                  (reinterpret_cast<std::uintptr_t>(args[r].p[r]) & 63) == 0 ? "true" : "false",
+                  attributes.device == r && (reinterpret_cast<std::uintptr_t>(args[r].p[r]) & 63) == 0 ? "true" : "false");
+      if (attributes.device != r || (reinterpret_cast<std::uintptr_t>(args[r].p[r]) & 63) != 0)
+        throw std::runtime_error("allocator does not preserve bind_tp device ownership and alignment");
       Check(cudaMalloc(&args[r].errors, 4), "errors_malloc");
       Check(cudaMemset(args[r].errors, 0, 4), "errors_clear");
       Check(cudaStreamCreate(&streams[r]), "stream_create");
