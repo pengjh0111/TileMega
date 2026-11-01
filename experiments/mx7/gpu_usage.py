@@ -28,7 +28,7 @@ def main():
         for card in cards:
             hours[str(card)] = hours.get(str(card), 0) + seconds / 3600
     result = dict(evidence='inferred', method=__doc__,
-                  caveat='pgid-file to guard-result-file mtime; includes initialization/cleanup; not hardware busy time',
+                  caveat='pgid-file to guard-result-file mtime; includes child initialization/cleanup; excludes lock waiting and preflight; not hardware busy time',
                   card_hours=hours, sum_card_hours=sum(hours.values()), jobs=jobs)
     args.out.write_text(json.dumps(result, indent=2) + '\n')
     print('reserved card-hours', result['sum_card_hours'], hours)

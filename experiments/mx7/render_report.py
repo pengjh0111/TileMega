@@ -43,6 +43,7 @@ def main():
         'Raw successes, failures, generated sources and binaries remain under `runs/mx7/`.', '',
         '## Scope and source identity', '',
         '- **stated** BF16 greedy, ISL/OSL=64/1024, TP2/TP4 × B=1/2/4/8/16.',
+        '- **verified** model directory `/root/models/qwen3_1_7b_rand`.',
         '- **verified** branch `tilemega-metax`; starting HEAD `' + start + '`.',
         '- **verified** evidence aggregation HEAD `' + head + '`; commits since start: ' + count + '.',
         '  The report/publish commit follows this evidence HEAD; final HEAD/push status is in the delivery message.',
@@ -50,22 +51,18 @@ def main():
         '- **stated** subsequent all-card authorization and torch.compile continuation:',
         '  SHA256 `f67014253a3cca7234429ff3671e293c0104fb04b68fde1bb9dc52b518c0b284`.',
         '- **verified** TP1 source/device code and protected MoE files/final CSV remain frozen; no MoE performance runs.', '',
-        '## Environment, C0 and execution sequence', '',
+        '## Environment, C0 and execution sequence (10-line onboarding summary)', '',
         '- **verified** MACA3.8.2.6, cucc/mxcc1.0.0(890c70f3aa), driver3.8.1.',
-        '- **verified** Torch2.10.0+metax3.8.2.2; Transformers5.12.0;',
-        '  SGLang0.5.14+detached.c432db2fb.maca3.8.2.122; vLLM0.25.0+empty.',
+        '- **verified** Torch2.10.0+metax3.8.2.2; Transformers5.12.0; SGLang0.5.14+detached.c432db2fb.maca3.8.2.122; vLLM0.25.0+empty.',
         '- **verified** NCCL/Gloo available; torch.compile TP uses NCCL. TileMega uses direct MACA P2P.',
         '- **verified** read-only `mx-smi topo -m/-p/-d`: MX links, PCIe NODE labels; reachability is separately qualified.',
-        '- **verified** chosen LL8: fine-grained allocation, volatile AS1 scalar64 store, `__ldcg`64 load.',
-        '  Pair/all-to-all, P1024/P262144: each5/5 fresh processes ×2000epochs ×104CTAs, zero tearing/timeouts.',
-        '- **verified** TP2 main{1,3}: single-way2373.504ns; secondary{4,5}:2629.120ns (five processes).',
-        '  At104CTAs, selected coalesced writes:8.121GB/s to one peer,19.253GB/s aggregate to three peers.',
-        '- **verified** TP4 uses{1,3,4,5}. GPUs0/6/7 are unavailable and skipped; no reset/clock/driver changes.',
-        '- **inferred** onboarding sequence: each rank computes qkv→attention→o+AR→gate_up→down+AR per layer;',
-        '  each producer writes its BF16 partial to every peer, then reads peers in ascending rank order;',
-        '  head exchanges value/global-index LL packets and every rank writes the same token.',
-        '  Epoch=past+1; prompt mode executes every stage from past0, suppressing token writes before position64.',
-        '  Source hashes, exact build/run commands and initial topology are in `runs/mx7/sync/onboarding.md`.', '',
+        '- **verified** LL8/fine-grained allocation/volatile AS1 scalar64 store/`__ldcg`64 load: pair/all-to-all P1024/P262144 each5/5 ×2000epochs ×104CTAs, zero tearing/timeouts.',
+        '- **verified** TP2 main{1,3}:2373.504ns single-way; secondary{4,5}:2629.120ns (five processes); TP4{1,3,4,5}.',
+        '- **verified** At104CTAs, selected coalesced writes:8.121GB/s to one peer,19.253GB/s aggregate to three peers.',
+        '- **verified** GPUs0/6/7 are unavailable and skipped; no reset/clock/driver changes.',
+        '- **inferred** Each rank executes qkv→attention→o+AR→gate_up→down+AR per layer, then head LL argmax exchange produces the common token.',
+        '- **inferred** Producers write BF16 partials to all peers, then read q in ascending order; epoch=past+1, prompt runs from past0 and suppresses early token writes.', '',
+        'Source hashes, frozen references, exact build/run commands and topology: `runs/mx7/sync/onboarding.md`.', '',
         '## Baselines', '',
         '**verified** Two fresh processes/cell, each warm1+timed2; TPOT=(E2E_N1024−E2E_N1)/1023.',
         'TP2 baselines use secondary{4,5}; TileMega uses C0-selected main{1,3}. TP4 uses{1,3,4,5} for all systems.',
@@ -156,6 +153,8 @@ def main():
         '- **verified, B4** resource ledger assumption corrected by appending CU-derived LDS values; old rows retained.',
         '  One pending query was prematurely labeled rejected; an appended correction and terminal-cohort checks fix the ledger.',
         '- **verified, B7** cost/constants noise supplements follow the competitive2% rule, otherwise p90.', '',
+        '- **verified, B4** later timing pairs share one guard preflight while retaining two fresh processes, each warm1/timed2;',
+        '  per-process PID/command/exit records and guard provenance remain; each timing job retains the900s limit.', '',
         '## Deviations from inferred expectations', '']
     for t, b, low, high in [(2, 1, 2.35, 2.50), (2, 16, 3.3, 3.4), (4, 1, 1.85, 2.05), (4, 16, 2.5, 2.7)]:
         row = final[str(t), str(b)]
@@ -165,8 +164,13 @@ def main():
         '- **inferred** P2P packet throughput and measured per-AR overhead limit scaling; trace gives stage locations.',
         '- **stated, C** prompt-mode TTFT includes work absent from the separate TP1 prefill path.', '',
         '## GPU accounting and completion', '']
+    compiler_rows = [row for key, row in baselines.items() if key[2] == 'torchcompile']
+    widest = max(compiler_rows, key=lambda row: abs(float(row['round1_tpot_ms']) - float(row['round2_tpot_ms'])) / float(row['tpot_ms']))
+    spread = abs(float(widest['round1_tpot_ms']) - float(widest['round2_tpot_ms'])) / float(widest['tpot_ms'])
+    lines.insert(-3, f'- **verified, C** largest torch.compile fresh-process range={spread:.1%} (TP{widest["tp"]} B{widest["batch"]}); '
+                 'both round values remain in CSV, using the specified two-process median.')
     usage = json.loads((BASE / 'gpu_usage_final.json').read_text())
-    lines += ['**inferred** reserved child-job wall time, includes initialization/cleanup, excludes lock waiting; not hardware busy time.',
+    lines += ['**inferred** child-job wall time, includes initialization/cleanup, excludes lock waiting/preflight; not hardware busy time.',
         'Per-card hours: ' + ', '.join(f'{g}={h:.3f}' for g, h in sorted(usage['card_hours'].items())) +
         f'; total={usage["sum_card_hours"]:.3f} card-h.',
         '**verified** CP0–CP3 production-path evidence and all required CSVs/pins are present; selected-path tests are complete.',
