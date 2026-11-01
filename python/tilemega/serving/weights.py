@@ -61,20 +61,34 @@ def _conv_krsc(weight: torch.Tensor, padded_channels: int) -> torch.Tensor:
     return packed
 
 
-def _packed_cpu(recipe: Mapping[str, object], checkpoint: Checkpoint) -> torch.Tensor:
+def _shard(t: torch.Tensor, shard: Mapping[str, object], rank: int) -> torch.Tensor:
+    axis, parts = int(shard['axis']), int(shard['parts'])
+    if not -t.ndim <= axis < t.ndim or parts < 1 or not 0 <= rank < parts:
+        raise ValueError('invalid shard axis, degree or rank')
+    n = t.shape[axis]
+    if n % parts:
+        raise ValueError('shard degree does not divide tensor extent')
+    return t.narrow(axis, rank * (n // parts), n // parts).contiguous()
+
+
+def _packed_cpu(recipe: Mapping[str, object], checkpoint: Checkpoint,
+                tp_rank: int = 0) -> torch.Tensor:
     kind = recipe["kind"]
     if is_expert_recipe(recipe):
-        return _packed_gpu(recipe, checkpoint.tensor)
+        return _packed_gpu(recipe, checkpoint.tensor, tp_rank)
     if kind in ('tile_pages', 'fold_rmsnorm'):
-        return _packed_gpu(recipe, checkpoint.tensor)
+        return _packed_gpu(recipe, checkpoint.tensor, tp_rank)
     if kind in DNN_RECIPES:
-        return pack_dnn(recipe, checkpoint.tensor, lambda value: _packed_gpu(value, checkpoint.tensor))
+        return pack_dnn(recipe, checkpoint.tensor, lambda value: _packed_gpu(value, checkpoint.tensor, tp_rank))
     if kind == "alias":
-        return checkpoint.tensor(str(recipe["source"]))
+        tensor = checkpoint.tensor(str(recipe["source"]))
+        return _shard(tensor, recipe['shard'], tp_rank) if 'shard' in recipe else tensor
     if kind == 'conv_krsc':
         return _conv_krsc(checkpoint.tensor(str(recipe['source'])),
                           int(recipe['padded_channels']))
     sources = [checkpoint.tensor(str(name)) for name in recipe["sources"]]
+    if 'shard' in recipe:
+        sources = [_shard(t, recipe['shard'], tp_rank) for t in sources]
     if not all(item.ndim == 2 for item in sources):
         raise ValueError("packed GEMM sources must be matrices")
     if len({item.shape[1] for item in sources}) != 1:
@@ -133,21 +147,22 @@ def _recipe_sources(recipe: Mapping[str, object]) -> tuple[str, ...]:
     return tuple(str(name) for name in recipe['sources'])
 
 
-def _packed_gpu(recipe: Mapping[str, object], source) -> torch.Tensor:
+def _packed_gpu(recipe: Mapping[str, object], source, tp_rank: int = 0) -> torch.Tensor:
     kind = recipe['kind']
     if is_expert_recipe(recipe):
         return pack_experts(recipe,source,lambda matrix,tn,tk:_packed_gpu(
             # xcore1000 expert tiles use the same MMA fragment order as dense tiles.
             dict(kind='tile_pages',layout='xcore_mma',tile_n=tn,tile_k=tk,source=dict(kind='alias',source='matrix')),
-            lambda name:matrix))
+            lambda name:matrix, tp_rank))
     if kind in DNN_RECIPES:
-        return pack_dnn(recipe, source, lambda value: _packed_gpu(value, source))
+        return pack_dnn(recipe, source, lambda value: _packed_gpu(value, source, tp_rank))
     if kind == 'alias':
-        return source(str(recipe['source']))
+        tensor = source(str(recipe['source']))
+        return _shard(tensor, recipe['shard'], tp_rank) if 'shard' in recipe else tensor
     if kind == 'conv_krsc':
         return _conv_krsc(source(str(recipe['source'])), int(recipe['padded_channels']))
     if kind == 'fold_rmsnorm':
-        weight = _packed_gpu(recipe['source'], source)
+        weight = _packed_gpu(recipe['source'], source, tp_rank)
         norm = source(str(recipe['norm']))
         if norm.ndim != 1 or norm.numel() != weight.shape[1]:
             raise ValueError('fold_rmsnorm width mismatch')
@@ -160,7 +175,7 @@ def _packed_gpu(recipe: Mapping[str, object], source) -> torch.Tensor:
             out[first:last] = (weight[first:last].float() * norm_f32).to(torch.bfloat16)
         return out
     if kind == 'tile_pages':
-        weight = _packed_gpu(recipe['source'], source)
+        weight = _packed_gpu(recipe['source'], source, tp_rank)
         tn, tk = int(recipe['tile_n']), int(recipe['tile_k'])
         if (weight.ndim not in (2, 4) or tn <= 0 or tk <= 0 or tn % 8 or
                 (tk not in (16, 32) and tk % 64)):
@@ -207,6 +222,8 @@ def _packed_gpu(recipe: Mapping[str, object], source) -> torch.Tensor:
         packed[..., perm] = logical.reshape(nt, kt, tn * tk)
         return packed.reshape(-1)
     weights = [source(str(name)) for name in recipe['sources']]
+    if 'shard' in recipe:
+        weights = [_shard(t, recipe['shard'], tp_rank) for t in weights]
     if len({item.shape[1] for item in weights}) != 1:
         raise ValueError('packed sources disagree on K')
     if kind == 'qkv_group_interleave':
@@ -232,7 +249,18 @@ def _packed_gpu(recipe: Mapping[str, object], source) -> torch.Tensor:
 
 
 def load_weights(model_dir: str | Path, *plans: PlanLibrary,
-                 device: str | torch.device = "cuda") -> dict[str, torch.Tensor]:
+                 device: str | torch.device = "cuda",
+                 tp: tuple[int, int] | None = None) -> dict[str, torch.Tensor]:
+    if tp is not None and (tp[1] < 1 or not 0 <= tp[0] < tp[1]):
+        raise ValueError('invalid tensor parallel rank or degree')
+    def validate_shards(recipe):
+        if 'shard' in recipe:
+            if tp is None:
+                raise ValueError('sharded weight recipe requires tp=(rank, world)')
+            if int(recipe['shard']['parts']) != tp[1]:
+                raise ValueError('recipe shard degree differs from TP world')
+        if isinstance(recipe.get('source'), dict):
+            validate_shards(recipe['source'])
     checkpoint = Checkpoint(model_dir)
     result: dict[str, torch.Tensor] = {}
     sources: dict[tuple[str, bool], torch.Tensor] = {}
@@ -251,11 +279,12 @@ def load_weights(model_dir: str | Path, *plans: PlanLibrary,
         return recipe['kind'] in DNN_RECIPES or (isinstance(recipe.get('source'), dict) and dnn(recipe['source']))
     for name, buffer in weight_recipes(*plans).items():
         recipe = json.loads(buffer.pack_json)
+        validate_shards(recipe)
         identity = tuple(checkpoint.tensor_sha(item) for item in _recipe_sources(recipe))
         key = (identity, json.dumps(recipe, sort_keys=True))
         if key not in packed:
             packed[key] = _packed_gpu(recipe, lambda name: source(name, dnn(recipe),
-                cache=not is_expert_recipe(recipe))).contiguous()
+                cache=not is_expert_recipe(recipe)), tp[0] if tp is not None else 0).contiguous()
         # Aliases intentionally retain their source through the result tensor.
         # Other recipes release source storage before packing the next weight.
         sources.clear()

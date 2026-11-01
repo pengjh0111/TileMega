@@ -96,3 +96,48 @@ def allocate_state(model_dir: str | Path, batch: int,
             if not tensor.is_contiguous():
                 raise ValueError(f"{buffer.name} is not contiguous")
     return ServingState(result, kv_storage, tokens)
+
+
+def allocate_tp_state(model_dir: str | Path, batch: int, decode: PlanLibrary,
+                      device: str | torch.device, tp: int) -> ServingState:
+    if decode.info.phase != 1:
+        raise ValueError('TP state requires a decode plan')
+    capacity = decode.info.capacity
+    if not decode.info.batch_lo <= batch <= decode.info.batch_hi:
+        raise ValueError('batch outside the decode plan interval')
+    if tp not in (2, 4, 8):
+        raise ValueError('TP state requires degree 2, 4 or 8')
+    device = torch.device(device)
+    config = AutoConfig.from_pretrained(str(model_dir), local_files_only=True)
+    layers = int(config.num_hidden_layers)
+    if int(config.num_key_value_heads) % tp:
+        raise ValueError('KV heads do not divide TP degree')
+    hkv = int(config.num_key_value_heads) // tp
+    head_dim = int(getattr(config, 'head_dim', config.hidden_size // config.num_attention_heads))
+    kv_storage = torch.empty((layers, 2, batch, hkv, capacity, head_dim),
+                             dtype=torch.bfloat16, device=device)
+    tokens = torch.empty((batch, capacity), dtype=torch.int32, device=device)
+    cos, sin = rotary_tables(config, capacity, device)
+    result: dict[str, torch.Tensor] = {
+        "serving.tokens": tokens,
+        "serving.rope_cos": cos,
+        "serving.rope_sin": sin,
+    }
+    for layer in range(layers):
+        result[f"kv_cache.k.{layer}"] = kv_storage[layer, 0]
+        result[f"kv_cache.v.{layer}"] = kv_storage[layer, 1]
+    for plan in (decode,):
+        for buffer in plan.buffers:
+            if buffer.role != 1 or buffer.pack_json:
+                continue
+            tensor = result.get(buffer.name)
+            if tensor is None:
+                raise KeyError(f"unknown external request buffer {buffer.name}")
+            expected_dtype = {0: torch.bfloat16, 1: torch.float32,
+                              2: torch.int32}[buffer.dtype]
+            if tensor.dtype != expected_dtype or tensor.numel() != (
+                    buffer.elements_constant + batch * buffer.elements_per_batch):
+                raise ValueError(f"{buffer.name} conflicts with plan metadata")
+            if not tensor.is_contiguous():
+                raise ValueError(f"{buffer.name} is not contiguous")
+    return ServingState(result, kv_storage, tokens)
