@@ -130,7 +130,10 @@ def run(a):
         if state[name]['status'] == 'done':
             continue
         policy = read(POLICY)
-        if not dispatch.groups(policy, unit['tp']):
+        # Cards outside this degree's set never join its group (user, 2026-11-01:
+        # TP2 on 0/5/7 like single-card work; TP4 may take any timing card).
+        exclude = tuple(g for g in range(8) if g not in a.cards[unit['tp']])
+        if not dispatch.groups(policy, unit['tp'], exclude):
             # DT-B0: no group of this size exists under the standing policy.
             state[name].update(status='deferred',
                                reason=f'policy allows timing on {dispatch.allowed(policy)}')
@@ -147,7 +150,7 @@ def run(a):
         # write into an existing one, and rounds from two attempts must not mix.
         directory = OUT / name / f'try{state[name]["attempts"] + 1}'
         directory.mkdir(parents=True, exist_ok=True)
-        group, handles = dispatch.claim_group(name, unit['tp'])
+        group, handles = dispatch.claim_group(name, unit['tp'], exclude)
         try:
             command, environment, binding = job(unit['engine'], unit['tp'], unit['round'],
                                                 group, directory)
@@ -192,7 +195,10 @@ def main():
         if name == 'run':
             one.add_argument('--yield-to-moe', action=argparse.BooleanOptionalAction, default=True,
                              help='let a queued machine-class unit (MoE timing) go first')
+            one.add_argument('--tp2-cards', type=int, nargs='+', default=[0, 5, 7])
+            one.add_argument('--tp4-cards', type=int, nargs='+', default=list(range(8)))
     a = p.parse_args()
+    a.cards = {2: set(getattr(a, 'tp2_cards', range(8))), 4: set(getattr(a, 'tp4_cards', range(8)))}
     return queue(a) if a.action == 'queue' else run(a)
 
 
