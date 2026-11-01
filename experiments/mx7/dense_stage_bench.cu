@@ -48,7 +48,8 @@ __device__ __forceinline__ Operands Operand(BenchArgs const& a,int copy) {
 #endif
 }
 __global__ void __launch_bounds__(512) Mx7DenseBench(BenchArgs a) {
-  __builtin_assume(gridDim.x==104);
+  unsigned const launch_grid=gridDim.x;
+  __builtin_assume(launch_grid==104);
   extern __shared__ __align__(16) char storage[];
 #if MX7_STAGE == 2
   int const core=max(32784,Body::SmemBytes(MX7_B));

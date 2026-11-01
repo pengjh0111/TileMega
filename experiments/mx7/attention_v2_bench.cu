@@ -7,7 +7,7 @@
 #define MX7_B 1
 #define MX7_HKV 4
 #define MX7_DIM 128
-#define MX7_Q 8
+#define MX7_Q 2
 #define MX7_NORM 1
 #define MX7_ROW 0
 #define MX7_PREFETCH 0
@@ -31,7 +31,8 @@ __device__ __forceinline__ MxAttentionOperandsV2 Operand(AttentionBenchArgs cons
   return p;
 }
 __global__ void __launch_bounds__(512) Mx7AttentionBench(AttentionBenchArgs a) {
-  __builtin_assume(gridDim.x==104);
+  unsigned const launch_grid=gridDim.x;
+  __builtin_assume(launch_grid==104);
   extern __shared__ __align__(16) char storage[];
   auto* generation=(unsigned*)(storage+max(32784,Body::kSharedBytes));
   if(Sync::IsRole())*generation=0;
