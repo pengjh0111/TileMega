@@ -40,12 +40,16 @@ std::string Hash(std::string const& path) {
 // The tensor parallel degree a per-rank export was written for: `tp` in the
 // export directory's manifest.json (absent there, or no manifest: 1). A plan
 // built at another degree would size every shard wrongly, so it is refused.
-void CheckManifestTp(std::string const& input,int tp) {
+int ManifestTp(std::string const& input) {
   auto manifest=std::filesystem::path(input).parent_path()/"manifest.json";
   int recorded=1;
   if(std::filesystem::exists(manifest))
     if(auto const* value=json::ParseFile(manifest.string()).Find("tp"))
       recorded=int(value->AsNumber("manifest tp"));
+  return recorded;
+}
+void CheckManifestTp(std::string const& input,int tp) {
+  int recorded=ManifestTp(input);
   if(recorded!=tp)
     throw std::invalid_argument("native dense tp "+std::to_string(tp)+
         " differs from the export manifest's tp "+std::to_string(recorded));
@@ -212,6 +216,8 @@ bool IsNativeDenseInput(std::string const& input) {
   auto bridge=frontend::ReadExportBridge(input);
   // Native plans (consumer RMS) are the only ones with native MoE layers.
   frontend::ServingOptions options;options.dense_attention_chunks=1;options.native_rms=true;
+  // A per-rank export only plans at its own degree (its lm_head holds V/T rows).
+  options.tp=ManifestTp(input);
   auto plan=frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,options);
   return plan.serving && !plan.dm && !plan.forward && plan.serving_seq==1;
 }
