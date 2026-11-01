@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.metadata
 import json
 import os
 from pathlib import Path
@@ -52,6 +53,7 @@ def main():
     model.generation_config.compile_config = CompileConfig(fullgraph=True, mode=args.mode)
     meta = dict(system='torch.compile', model=str(args.model), tp=world,
                 torch_version=torch.__version__, transformers_version=transformers.__version__,
+                accelerate_version=importlib.metadata.version('accelerate'),
                 fullgraph=True, mode=args.mode, tp_plan='auto', backend='nccl',
                 sdp_flags_constant=sdp_flags_constant,
                 metax_flash_attn_disabled=sdp_flags_constant,

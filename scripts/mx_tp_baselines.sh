@@ -21,7 +21,7 @@ for round in ${ROUNDS:-1 2}; do
         vllm) command=(env VLLM_CACHE_ROOT=/root/deps/vllm_src/vllm_cache /root/venv_vllm/bin/python
                        python/tilemega/serving/vllm_baseline.py --tp "$tp");;
         sglang) command=(python python/tilemega/serving/sglang_baseline.py --tp "$tp");;
-        torchcompile) command=(torchrun --standalone --nproc-per-node "$tp"
+        torchcompile) command=("${TORCHCOMPILE_PYTHON:-python}" -m torch.distributed.run --standalone --nproc-per-node "$tp"
                               python/tilemega/serving/torchcompile_tp_baseline.py);;
         *) echo "unknown system $system" >&2; exit 2;;
       esac

@@ -70,7 +70,7 @@ def aggregate(root, tp):
                     if len(samples) != 3 or sum(not row['warmup'] for row in samples) != 2:
                         raise ValueError('baseline must have warm1 + timed2')
                 physical = list(map(int, guards[len(records)]['gpu_indices'])) if not errors else value['gpu_indices']
-                if physical not in ([4, 5], [6, 7], [4, 5, 6, 7]) or len(physical) != tp:
+                if len(physical) != tp or len(set(physical)) != tp or not set(physical) <= set(range(8)):
                     raise ValueError('invalid baseline GPU group')
                 records.append(dict(metrics=ref(metrics), source=source_record(folder),
                                     tpot_ms=value['tpot_seconds'] * 1000,
@@ -102,9 +102,11 @@ def main():
     args = parser.parse_args()
     rows = aggregate(args.root, args.tp)
     old = list(csv.DictReader(args.out.open())) if args.out.exists() else []
-    existing = {(row['system'], int(row['tp']), int(row['batch'])) for row in old
-                if row['record_type'] == 'final_two_fresh_processes'}
-    fresh = [row for row in rows if (row['system'], row['tp'], row['batch']) not in existing]
+    def identity(row):
+        return (row['system'], int(row['tp']), int(row['batch']), row['record_type'],
+                row['measurements_json'], row['errors_json'])
+    existing = {identity(row) for row in old}
+    fresh = [row for row in rows if identity(row) not in existing]
     if fresh:
         with args.out.open('a', newline='') as stream:
             writer = csv.DictWriter(stream, fieldnames=list(fresh[0]), lineterminator='\n')
