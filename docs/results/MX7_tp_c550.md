@@ -258,12 +258,13 @@ Old partial records remain. Seven focused CPU selection/trace tests also pass.
   The tool now skips pending queries, and correctness cohorts require successful process/guard exits.
   Original row retained with an appended label correction; no actual resource failure occurred.
 
-## CP3 first final scope (1/10 complete)
+## CP3 selected final scopes (2/10 complete)
 
-**verified** Four candidates pass C-1/C-2; chosen rebuild passes C-1, five fresh C-2, all-rank residency and two new timing processes.
+**verified** Every listed rebuild passes C-1, five fresh C-2, all-rank residency and two independent timing processes.
 
 | TP | B | TPOT ms | TTFT ms | E2E ms | tokens/s | fastest/TM | efficiency |
 |---:|---:|---:|---:|---:|---:|---:|---:|
 | 2 | 1 | 2.518292 | 156.069054 | 2732.281269 | 374.778406 | 1.224495 | 64.88% |
+| 2 | 2 | 2.801669 | 173.800575 | 3039.908012 | 673.706477 | 1.227377 | 64.41% |
 
-**verified, B4** Subsequent timing pairs share guard preflight while retaining two new subprocesses and separate PID/command/exit evidence; warm1/timed2 and900s remain unchanged. CPU workflow smoke passes; real GPU validation proceeds with TP2 B2.
+**verified, B4** Subsequent timing pairs share preflight but retain two fresh processes, warm1/timed2 and separate PID/command/exit evidence. CPU workflow smoke and all TP2 B2 GPU timing pairs pass;900s is unchanged.
