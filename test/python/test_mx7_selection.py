@@ -1,9 +1,14 @@
 """Independent small-domain oracles for TP communication ranking and k-best."""
 import copy
 import itertools
+import hashlib
+import json
+from pathlib import Path
+import tempfile
 import unittest
 
 from tilemega.tp.selection_tp import STAGES, k_best, pin, select_measured, stage_lists
+from tilemega.tp.solve_tp import check_qualification
 
 
 def row(stage, tn=16, cost=10, length=None):
@@ -25,6 +30,27 @@ def fixture():
 
 
 class SelectionTests(unittest.TestCase):
+    def test_selection_refuses_changed_or_ineligible_catalog(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'costs.json'
+            catalog = dict(kind='mx7_tp_measured_stage_costs', complete_scope=True,
+                           tp_constants={'t_ar': [], 't_head_x': []})
+            path.write_text(json.dumps(catalog))
+            proof = dict(cost_table_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+                         solver_eligible=True)
+            qualification = path.with_suffix('.qualification.json')
+            qualification.write_text(json.dumps(proof))
+            self.assertEqual(check_qualification(path)[0], catalog)
+            proof['solver_eligible'] = False
+            qualification.write_text(json.dumps(proof))
+            with self.assertRaisesRegex(ValueError, 'eligible TP costs'):
+                check_qualification(path)
+            proof['solver_eligible'] = True
+            qualification.write_text(json.dumps(proof))
+            path.write_text(path.read_text() + '\n')
+            with self.assertRaisesRegex(ValueError, 'eligible TP costs'):
+                check_qualification(path)
+
     def test_communication_is_added_before_sorting(self):
         rows, constants = fixture()
         rows += [row('o', tn=32, cost=12)]
