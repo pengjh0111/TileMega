@@ -154,6 +154,7 @@ def main():
         '- **verified, B4** cost queue rebalanced five incomplete chunks onto idle cards, based solely on completion;',
         '  completed three-process chunks retained; old partial records preserved and relative paths canonically validated.',
         '- **verified, B4** resource ledger assumption corrected by appending CU-derived LDS values; old rows retained.',
+        '  One pending query was prematurely labeled rejected; an appended correction and terminal-cohort checks fix the ledger.',
         '- **verified, B7** cost/constants noise supplements follow the competitive2% rule, otherwise p90.', '',
         '## Deviations from inferred expectations', '']
     for t, b, low, high in [(2, 1, 2.35, 2.50), (2, 16, 3.3, 3.4), (4, 1, 1.85, 2.05), (4, 16, 2.5, 2.7)]:

@@ -14,15 +14,21 @@ for cell in sorted(a.root.glob('tp*/B*')):
  t=int(cell.parent.name[2:]);b=int(cell.name[1:])
  builds=list(cell.glob('rank*/build'))+([cell/'final']if(cell/'final').exists()else[])
  for folder in builds:
+  terminal=folder.parent/('results.json'if folder.name=='final'else'RESOURCE_RESULT.json')
+  if not terminal.exists():continue
   so=folder/'plan.so';report=pathlib.Path(str(so)+'.resources.json');source=pathlib.Path(str(so)+'.source.json')
   if not report.exists()or not source.exists():continue
   r=json.loads(report.read_text());k=r['kernel'];s=json.loads(source.read_text());q=folder/'occupancy/result.json';query=json.loads(q.read_text())if q.exists()else None
+  if query is None and not r['violations']:continue
   good=bool(query and query['qualified']);kind='selected'if folder.name=='final'else'candidate'
   if good:
    assert all(x['resident_ctas']==1 and x['attributes']['localSizeBytes']==x['attributes']['sharedSizeBytes']==0 for x in query['ranks'])
   cu=pathlib.Path(str(so)+'.cu');core=int(re.search(r'kBodySmemBytes\s*=\s*(\d+)',cu.read_text())[1]);smem=(core+b*4+15)//16*16+16
   resources.append(dict(record_type=kind+'_actual_residency'if good else kind+'_resource_rejected',evidence='verified',model='qwen3_1_7b',batch=b,phase='decode',tp=t,threads=512,MTreg=k['registers'],STreg=k['scalar_registers'],stack_bytes=k['stack_bytes'],static_smem_bytes=k['static_smem_bytes'],dynamic_smem_bytes=smem,resident_ctas=1 if good else'',query_status='all_ranks_pass:'+str(q)if good else'CPU_rejected_or_query_failed',code_bytes=r['code_bytes'],source_head=s['head'],artifact=str(so),artifact_sha256=sha(so),resources_json=json.dumps(ref(report)),source_snapshot_json=json.dumps(ref(source))))
   root=folder/'correctness';hf=root/'hf_check.json';native=root/'c1_tokens/check.json'
+  execution=root/'execution/PROCESS.json';guard=root/'execution/guard/guard_result.json'
+  if not execution.exists()or not guard.exists():continue
+  if json.loads(execution.read_text())['returncode']or json.loads(guard.read_text())['code']:continue
   if not hf.exists()or not native.exists():continue
   h=json.loads(hf.read_text());n=json.loads(native.read_text());assert h['pass']and n['rank_tokens_identical']
   correct.append(dict(record_type=kind+'_C1',evidence='verified',test='hf_teacher_forcing',cases=h['positions'],status='pass',fresh_processes=1,scope=f'TP{t} B{b} {kind};ratio={h["gap_le_0_5_ratio"]};max_gap={h["max_gap"]}',gpu_indices=','.join(map(str,n['gpu_indices'])),source_head=n['host_source_identity']['head'],test_sha256=n['host_source_identity']['source_files']['python/tilemega/serving/hf_check.py'],raw_log=str(hf),raw_log_sha256=sha(hf)))
