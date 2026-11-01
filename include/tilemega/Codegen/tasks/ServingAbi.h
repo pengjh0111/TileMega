@@ -46,6 +46,13 @@ int tm_plan_read_step_ns(void* plan, uint32_t first, uint32_t count,
 // Optional diagnostic extension; synchronize the launch stream before reading.
 int tm_plan_read_buffer(void* plan, uint32_t index, void* host, uint64_t bytes);
 void tm_plan_destroy(void* plan);
+// Optional native dense tensor parallel extension (SM90R5 B6). A TP1 native
+// plan reports world 1 and zero bytes and refuses a bind. which 0: the
+// all-reduce receive region, 1: the argmax exchange block; ar[q] and x[q] are
+// rank q's, allocated on rank q's device.
+unsigned tm_plan_tp_world(void);
+unsigned long long tm_plan_tp_bytes(unsigned which);
+int tm_plan_bind_tp(void* plan, int rank, void* const* ar, void* const* x);
 
 #ifdef __cplusplus
 }

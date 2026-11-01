@@ -15,8 +15,20 @@
 // Included after codegen defines NativeProgram, kNativeBuffers, kNativeStages
 // and kNativeEpsilon in native_dense. These are host recipes and constexpr
 // types; no device-side descriptor table or kind/variant dispatch is emitted.
+// Codegen defines TILEMEGA_NATIVE_TP (and the reduced width) only for a
+// sharded plan, so a TP1 generated source is unchanged (prompt appendix C.6).
+#ifndef TILEMEGA_NATIVE_TP
+#define TILEMEGA_NATIVE_TP 1
+#endif
+#ifndef TILEMEGA_NATIVE_TP_HIDDEN
+#define TILEMEGA_NATIVE_TP_HIDDEN 0
+#endif
+
 namespace tilemega::codegen::native_dense {
 
+inline constexpr int kNativeTp=TILEMEGA_NATIVE_TP;
+static_assert(kNativeTp==NativeProgram::kTp,"the TP define and the program's degree differ");
+static_assert(kNativeTp==1 || TILEMEGA_NATIVE_TP_HIDDEN>0,"a sharded plan names its hidden width");
 static_assert(kNativeBuffers.size()==NativeProgram::kBuffers);
 static_assert(kNativeTensorMaps.size()==NativeProgram::kMaps);
 static_assert(kNativeStages.size()==NativeProgram::kStages);
@@ -40,6 +52,12 @@ inline int Grid() {
 }
 struct Plan {
   NativeProgram::Binding bindings{};
+  // The device tm_plan_create placed this plan on. One process may drive
+  // several plans on several devices (tensor parallel), so every entry point
+  // switches to it and restores the caller's device afterwards.
+  int device=0;
+  // A sharded plan launches only after tm_plan_bind_tp gave it its peers.
+  bool tp_bound=false;
   std::vector<void*> owned;
   int *pasts=nullptr,grid=0;
   unsigned steps=0;
@@ -72,6 +90,15 @@ struct Plan {
 #endif
   }
 };
+// Selects a plan's device for one entry point and restores the caller's.
+struct DeviceScope {
+  int previous=-1;
+  bool ok=false;
+  explicit DeviceScope(int device) {
+    ok=cudaGetDevice(&previous)==cudaSuccess && cudaSetDevice(device)==cudaSuccess;
+  }
+  ~DeviceScope() {if(previous>=0)cudaSetDevice(previous);}
+};
 template<class T>
 inline T* Allocate(std::size_t count) {
   T* result=nullptr;
@@ -98,6 +125,9 @@ inline int Launch(Plan& p,unsigned first,unsigned count,unsigned mode,
   static_assert(RoleLaunch::kThreads==160 && RoleLaunch::kY==1 && RoleLaunch::kZ==1);
   if(mode!=TM_SERVING_L1 || !count || first>=p.steps || count>p.steps-first ||
      iteration!=p.iteration)return -1;
+  if constexpr(kNativeTp>1)if(!p.tp_bound)return -1;
+  DeviceScope scope(p.device);
+  if(!scope.ok)return -1;
   dim3 const threads(NativeProgram::kThreads,RoleLaunch::kY,RoleLaunch::kZ);
   cudaError_t status=cudaSuccess;
   if constexpr(NativeProgram::kCluster>1) {
@@ -184,6 +214,7 @@ extern "C" void* tm_plan_create(int batch,void* const* external,int device) {
     // epilogue-imposed minimum beyond its own extent.
     std::vector<std::uint64_t> required(metadata.size(),0);
     Check(cudaSetDevice(device));auto plan=std::make_unique<Plan>();plan->grid=Grid();
+    plan->device=device;
 #if TILEMEGA_NATIVE_RELEASE_ENABLED
     cudaDeviceProp properties{};Check(cudaGetDeviceProperties(&properties,device));
     int reserved=properties.sharedMemPerMultiprocessor-properties.sharedMemPerBlockOptin;
@@ -299,6 +330,8 @@ extern "C" int tm_plan_set_steps(void* opaque,int const* past,unsigned count) {
   // so a step's past is only bounded below by the first position.
   for(unsigned i=0;i<count;++i)
     if(past[i]<0 || past[i]>NativeProgram::kCapacity-2)return -1;
+  DeviceScope scope(p->device);
+  if(!scope.ok)return -1;
   try {
     int* next=Allocate<int>(count);
     auto status=cudaMemcpy(next,past,std::size_t(count)*sizeof(int),cudaMemcpyHostToDevice);
@@ -348,6 +381,8 @@ extern "C" int tm_plan_read_step_ns(void* opaque,unsigned first,unsigned count,
   using namespace tilemega::codegen::native_dense;
   auto* p=static_cast<Plan*>(opaque);
   if(!p || !p->stamps || !host || first>p->steps || count>p->steps-first+1)return -1;
+  DeviceScope scope(p->device);
+  if(!scope.ok)return -1;
   return int(cudaMemcpy(host,p->stamps+first,std::size_t(count)*8,cudaMemcpyDeviceToHost));
 }
 extern "C" int tm_plan_read_buffer(void* opaque,unsigned index,void* host,std::uint64_t bytes) {
@@ -358,10 +393,78 @@ extern "C" int tm_plan_read_buffer(void* opaque,unsigned index,void* host,std::u
   auto maximum=(desc.elements_constant+desc.elements_per_batch*NativeProgram::kBatch)*
       (desc.dtype==TM_DTYPE_BF16?2:4);
   if(bytes>maximum)return -1;
+  DeviceScope scope(p->device);
+  if(!scope.ok)return -1;
   return int(cudaMemcpy(host,p->bindings.buffers[index],bytes,cudaMemcpyDeviceToHost));
 }
 extern "C" void tm_plan_destroy(void* opaque) {
-  delete static_cast<tilemega::codegen::native_dense::Plan*>(opaque);
+  using namespace tilemega::codegen::native_dense;
+  auto* p=static_cast<Plan*>(opaque);
+  if(!p)return;
+  DeviceScope scope(p->device);
+  delete p;
+}
+// Tensor parallel ABI (prompt B6). The harness allocates and zeroes, on every
+// rank's device, an all-reduce receive region of tm_plan_tp_bytes(0) bytes and
+// an exchange block of tm_plan_tp_bytes(1) bytes; the plan never owns them.
+extern "C" unsigned tm_plan_tp_world() {
+  return unsigned(tilemega::codegen::native_dense::kNativeTp);
+}
+extern "C" unsigned long long tm_plan_tp_bytes(unsigned which) {
+  using namespace tilemega::codegen::native_dense;
+  if(kNativeTp==1)return 0;
+  // ar[2 L][T][B][H/2] of 8-byte LL packets (appendix C.1).
+  if(which==0)return 2ull*NativeProgram::kLayers*kNativeTp*NativeProgram::kBatch*
+      (TILEMEGA_NATIVE_TP_HIDDEN/2)*8ull;
+  if(which==1)return sizeof(tilemega::backend::Sm90DenseTpExchange);
+  return 0;
+}
+// rank's view of every rank's regions: ar[q] and x[q] live on rank q's device.
+// Opens this plan's device's peer access to each other device; after all T
+// binds every direction is open.
+extern "C" int tm_plan_bind_tp(void* opaque,int rank,void* const* ar,void* const* x) {
+  using namespace tilemega::codegen::native_dense;
+  auto* p=static_cast<Plan*>(opaque);
+#if TILEMEGA_NATIVE_TP == 1
+  (void)p;(void)rank;(void)ar;(void)x;return -1;
+#else
+  {
+    if(!p || !ar || !x || rank<0 || rank>=kNativeTp)return -1;
+    DeviceScope scope(p->device);
+    if(!scope.ok)return -1;
+    auto device_of=[](void const* pointer,int& device) {
+      cudaPointerAttributes attributes{};
+      if(cudaPointerGetAttributes(&attributes,pointer)!=cudaSuccess ||
+         attributes.type!=cudaMemoryTypeDevice)return false;
+      device=attributes.device;return true;
+    };
+    int devices[8];
+    for(int q=0;q<kNativeTp;++q) {
+      if(!ar[q] || !x[q] || reinterpret_cast<std::uintptr_t>(ar[q])%64 ||
+         reinterpret_cast<std::uintptr_t>(x[q])%64)return -2;
+      int ar_device=-1,x_device=-1;
+      if(!device_of(ar[q],ar_device) || !device_of(x[q],x_device) || ar_device!=x_device)return -3;
+      devices[q]=ar_device;
+    }
+    if(devices[rank]!=p->device)return -4;
+    for(int q=0;q<kNativeTp;++q) {
+      if(q==rank)continue;
+      for(int u=0;u<q;++u)if(devices[u]==devices[q])return -5;
+      int can=0;
+      if(cudaDeviceCanAccessPeer(&can,p->device,devices[q])!=cudaSuccess || can!=1)return -6;
+      auto status=cudaDeviceEnablePeerAccess(devices[q],0);
+      if(status==cudaErrorPeerAccessAlreadyEnabled)cudaGetLastError();
+      else if(status!=cudaSuccess)return -7;
+    }
+    for(int q=0;q<kNativeTp;++q) {
+      p->bindings.ar[q]=static_cast<std::uint64_t*>(ar[q]);
+      p->bindings.exchange[q]=static_cast<tilemega::backend::Sm90DenseTpExchange*>(x[q]);
+    }
+    p->bindings.rank=rank;
+    p->tp_bound=true;
+    return 0;
+  }
+#endif
 }
 
 #if TILEMEGA_NATIVE_RELEASE_ENABLED
