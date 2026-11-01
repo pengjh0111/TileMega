@@ -34,7 +34,8 @@ template<int TN,int K,bool AR>
 __global__ void __launch_bounds__(512) Gemm(Args a){
   unsigned const grid=gridDim.x;__builtin_assume(grid==104);
   extern __shared__ __align__(16) char memory[];
-  auto* gen=(unsigned*)(memory+CoreBytes);if(Sync::IsRole())*gen=0;Sync::CtaSync();
+  constexpr int core=CoreBytes>MxGemmSmemV2(B,TN,1).bytes?CoreBytes:MxGemmSmemV2(B,TN,1).bytes;
+  auto* gen=(unsigned*)(memory+core);if(Sync::IsRole())*gen=0;Sync::CtaSync();
   using Shape=MxStaticShapeV2<Hidden,K,B,512>;
   using Body=MxGemm<TN,1,1,AR?MxOpV2::kResidualAllReduce:MxOpV2::kResidual,false,MxPart::kTileRange>;
   for(unsigned i=0;i<Iterations;++i){
@@ -78,7 +79,9 @@ template<class Kernel>void Fit(Kernel fn,int bytes){
 }
 template<int TN,int K,bool IsHead>void Pair(Rank (&s)[T],char const* stage){
  std::vector<unsigned long long> values[2][T];
- constexpr int bytes=(IsHead&&MxHead<16,8,1>::SmemBytes(B)>CoreBytes?MxHead<16,8,1>::SmemBytes(B):CoreBytes)+16;
+ constexpr int required=IsHead?MxHead<16,8,1>::SmemBytes(B):MxGemmSmemV2(B,TN,1).bytes;
+ constexpr int bytes=(required>CoreBytes?required:CoreBytes)+16;
+ static_assert(bytes<=65536);
  for(int arm=0;arm<2;++arm){
   for(int r=0;r<T;++r){Check(cudaSetDevice(r));s[r].p.gemm.a_stride=K;
    Check(cudaMemset(s[r].p.counter,0,64));

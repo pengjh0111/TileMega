@@ -37,7 +37,7 @@ for tp in [2,4]:
   extras=[]
   if eligible:
    out=a.work/name;group='1,3'if tp==2 else'1,3,4,5'
-   cmd=['scripts/mx_gpu_group_job.sh',group,'900',str(out/'guard'),sys.executable,'experiments/mx7/measure_tp_constants.py','--build',str(a.builds/name),'--out',str(out/'cohort'),'--processes','2','--round-start','3']
+   cmd=['scripts/mx_gpu_group_job.sh',group,'900',str(out/'guard'),sys.executable,'experiments/mx7/measure_tp_constants.py','--build',str(pathlib.Path(records[0][0]['build']['binary']).parent),'--out',str(out/'cohort'),'--processes','2','--round-start','3']
    out.mkdir();
    with(out/'run.log').open('w')as log:code=subprocess.run(cmd,env=dict(os.environ,NEEDS_MIB='2048'),stdout=log,stderr=subprocess.STDOUT).returncode
    if code:raise RuntimeError('constant noise supplement failed: '+str(out))
@@ -47,7 +47,7 @@ for tp in [2,4]:
     row['samples'] += [dict(PID=x['PID'],input=r,median_ns=x['records'][i]['median_ns'],p90_ns=x['records'][i]['p90_ns'])for x,r in extras]
    samples=row.pop('samples');vals=[s['median_ns']for s in samples];m=statistics.median(vals)
    if len({s['PID']for s in samples})!=len(samples):raise ValueError('constant processes are not independent')
-   row.update(median_ns=m,p90_ns=statistics.median(s['p90_ns']for s in samples),spread=(max(vals)-min(vals))/max(abs(m),1e-9),processes=len(samples),rounds=samples)
+   row.update(source_digest=records[0][0]['source_digest'],binary=records[0][0]['build']['binary_sha256'],median_ns=m,p90_ns=statistics.median(s['p90_ns']for s in samples),spread=(max(vals)-min(vals))/max(abs(m),1e-9),processes=len(samples),rounds=samples)
    row['noisy']=row['spread']>.02
    result['t_head_x'if row['key']['stage']=='head'else't_ar'].append(row)
   print('constant scope qualified',name,'supplements',len(eligible),flush=True)

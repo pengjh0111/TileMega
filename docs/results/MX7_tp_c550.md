@@ -64,6 +64,23 @@ Evidence labels: **verified** = executed here; **stated** = supplied specificati
 - **verified** preliminary AR TP2 B1: 5/5 fresh processes, nine legal geometry
   cases per process, exact ordered BF16 reference and zero mismatches.
 
+## Autonomous handling during CP2 / calibration
+
+- **verified, B4** the combined TP4 development driver scheduled20 fresh
+  processes under one900s guard. Fifteen exited normally; a sixteenth produced
+  matching1024 tokens before batch teardown was interrupted. Individual runs
+  took about52–65s, so this is aggregate batching exhaustion, not a kernel hang.
+  Original guard124 and all process outputs remain. B16 litmus is isolated
+  into a fresh five-process job; no protocol or acceptance limit is changed.
+- **verified, B4** constant probe TP2 B8/TN128 failed in the non-AR comparison:
+  its fixed32784-byte workspace was smaller than the GEMM's LDS layout.
+  Workspace, generation offset and launch allocation now use the same actual
+  layout bound. Old failure remains; affected/unmeasured scopes are rebuilt.
+  Earlier B1/B2/B4 layouts fit and their valid three-process samples are retained.
+- **verified, B4** three development resource-ledger LDS entries used an assumed
+  floor. Corrected CU-derived values are appended, preserving the original rows;
+  all four development plans subsequently pass actual all-rank resident=1 queries.
+
 ## Specification and scope
 
 - **verified** starting branch/HEAD: `tilemega-metax`,
