@@ -38,6 +38,9 @@ template<bool Cube,class Body> __aicore__ inline void ExecuteLlm(Body& body,
   unsigned begin=ReadLlmPod<uint32_t>(offsets,worker),end=ReadLlmPod<uint32_t>(offsets,worker+1);
   if(begin>end || end>m.queue_refs){WriteControl(abort,3);return;}
   uint32_t base=forward.epoch*m.epoch_stride;
+#if defined(TILEMEGA_LLM_CACHE_STAGE) && TILEMEGA_LLM_CACHE_STAGE
+  llm::Stage cached_stage{};unsigned cached_stage_id=m.stages;
+#endif
   if(begin==end)PublishSingleOwnerEvent(cells+worker*128,base);
   for(unsigned slot=begin;slot<end;++slot) {
     unsigned id=ReadLlmPod<uint32_t>(queue,slot);
@@ -60,8 +63,17 @@ template<bool Cube,class Body> __aicore__ inline void ExecuteLlm(Body& body,
     // The entire-cache acquire is the measured stale-cache-safe baseline.
     // It also invalidates scalar reads of recycled per-forward plan-adjacent data.
     AscendC::GlobalTensor<uint8_t> payload;payload.SetGlobalBuffer(arena);AcquireData(payload);
+#if defined(TILEMEGA_LLM_CACHE_STAGE) && TILEMEGA_LLM_CACHE_STAGE
+    // Stage tables are immutable for this launch. Cache only adjacent equal
+    // IDs in the existing FIFO; payload acquire and every wait remain intact.
+    if(task.stage!=cached_stage_id) {
+      cached_stage=ReadLlmPod<llm::Stage>(stages,task.stage);cached_stage_id=task.stage;
+    }
+    auto const& stage=cached_stage;
+#else
     auto stage=ReadLlmPod<llm::Stage>(stages,task.stage);
-    const uint64_t start=AscendC::GetSystemCycle();bool ok=false;
+#endif
+    const uint64_t start=forward.diagnostic==1?AscendC::GetSystemCycle():0;bool ok=false;
     uint64_t body_start=0,body_end=0;
     uint64_t attention_ticks[kAttentionPhaseProfile?llm::body_profile::kPhaseWords:1]{};
     const bool attention=kAttentionPhaseProfile && stage.kind==13 && stage.variant>=4 && stage.variant<=9;
