@@ -32,6 +32,26 @@ std::vector<std::uint32_t> Participants(AscendScheduledTask const& task,
   }
   return result;
 }
+std::vector<int> AffinityDomain(AscendScheduledTask const& task,ascend::WorkerMap const& map,
+    std::vector<std::uint32_t> const& owners) {
+  auto domain=task.legal_workers.empty()?map.Domain(task.role):task.legal_workers;
+  std::vector<int> result;
+  for(auto owner:domain) {
+    Participants(task,map,owner);
+    if(task.same_worker_task>=0 && owners.at(task.same_worker_task)!=unsigned(owner))continue;
+    if(task.same_group_task>=0 && map.At(owners.at(task.same_group_task)).group!=map.At(owner).group)continue;
+    result.push_back(owner);
+  }
+  if(result.empty())throw std::invalid_argument("No role-legal worker satisfies native placement affinity");
+  return result;
+}
+void CountAffinities(std::vector<AscendScheduledTask> const& tasks,AscendSchedule& out) {
+  out.same_worker_affinities=out.same_group_affinities=0;
+  for(auto const& task:tasks) {
+    out.same_worker_affinities+=task.same_worker_task>=0;
+    out.same_group_affinities+=task.same_group_task>=0;
+  }
+}
 struct Graph {
   std::vector<std::vector<std::uint32_t>> successors;
   std::vector<std::uint32_t> indegree,order;
@@ -45,6 +65,11 @@ Graph DataGraph(std::vector<AscendScheduledTask> const& tasks) {
         throw std::invalid_argument("Invalid/duplicate semantic predecessor");
       g.successors[p].push_back(U32(t));++g.indegree[t];
     }
+    for(auto ref:{tasks[t].same_worker_task,tasks[t].same_group_task})
+      if(ref<-1 || (ref>=0 && (std::uint64_t(ref)>=tasks.size() || !unique.count(unsigned(ref)))))
+        throw std::invalid_argument("Placement affinity requires an existing semantic predecessor");
+    if(tasks[t].same_worker_task>=0 && tasks.at(tasks[t].same_worker_task).role!=tasks[t].role)
+      throw std::invalid_argument("Cross-role affinity is not same-worker identity");
   }
   auto indegree=g.indegree;std::queue<std::uint32_t> ready;
   for(std::size_t t=0;t<tasks.size();++t)if(!indegree[t])ready.push(U32(t));
@@ -82,6 +107,7 @@ AscendSchedule ScheduleAscendTasks(std::vector<AscendScheduledTask> const& tasks
   auto indegree=graph.indegree;
   for(std::size_t t=0;t<tasks.size();++t)if(!indegree[t])ready.push(U32(t));
   AscendSchedule out;
+  CountAffinities(tasks,out);
   out.owners.resize(tasks.size());out.ordinals.resize(tasks.size());out.waits.resize(tasks.size());
   out.participants.resize(tasks.size());out.start_ns.resize(tasks.size());out.finish_ns.resize(tasks.size());
   std::vector<double> available(map.workers.size(),0);
@@ -89,8 +115,7 @@ AscendSchedule ScheduleAscendTasks(std::vector<AscendScheduledTask> const& tasks
   double gm_available=0;
   while(!ready.empty()) {
     auto id=ready.top();ready.pop();auto const& task=tasks[id];
-    auto domain=task.legal_workers.empty()?map.Domain(task.role):task.legal_workers;
-    if(domain.empty())throw std::invalid_argument("Native task has no legal worker");
+    auto domain=AffinityDomain(task,map,out.owners);
     double best_end=std::numeric_limits<double>::infinity(),best_start=0;
     int best_owner=-1;std::vector<std::uint32_t> best_participants;
     const double gm_ns=task.price.gm_bytes/costs.gm_bytes_per_ns;
@@ -203,7 +228,8 @@ void AuditAscendSchedule(std::vector<AscendScheduledTask> const& tasks,
   }
   for(unsigned t=0;t<tasks.size();++t) {
     auto expected=Participants(tasks[t],map,out.owners[t]);std::sort(expected.begin(),expected.end());
-    if(!tasks[t].legal_workers.empty() && std::find(tasks[t].legal_workers.begin(),tasks[t].legal_workers.end(),out.owners[t])==tasks[t].legal_workers.end())
+    auto domain=AffinityDomain(tasks[t],map,out.owners);
+    if(std::find(domain.begin(),domain.end(),out.owners[t])==domain.end())
       throw std::invalid_argument("Owner violates placement/affinity constraints");
     if(seen[t]!=expected || !out.ordinals[t] || out.ordinals[t]>=out.epoch_stride)
       throw std::invalid_argument("Missing/duplicate participant or invalid progress ordinal");
@@ -275,11 +301,11 @@ AscendSchedule DiagnosticAscendSchedule(std::vector<AscendScheduledTask> const& 
   auto graph=DataGraph(tasks);
   if(tasks.empty())throw std::invalid_argument("Empty diagnostic task graph");
   AscendSchedule out;out.owners.resize(tasks.size());out.ordinals.resize(tasks.size());
+  CountAffinities(tasks,out);
   out.participants.resize(tasks.size());out.waits.resize(tasks.size());
   std::vector<std::vector<unsigned>> queues(map.workers.size());
   for(auto id:graph.order) {
-    auto const& t=tasks[id];auto domain=t.legal_workers.empty()?map.Domain(t.role):t.legal_workers;
-    if(domain.empty())throw std::invalid_argument("Diagnostic task has no legal worker");
+    auto const& t=tasks[id];auto domain=AffinityDomain(t,map,out.owners);
     auto owner=*std::min_element(domain.begin(),domain.end(),[&](int a,int b) {
       auto load=[&](int w){std::size_t n=0;for(auto p:Participants(t,map,w))n=std::max(n,queues.at(p).size());return n;};
       auto x=load(a),y=load(b);return x==y?a<b:x<y;
@@ -317,8 +343,7 @@ std::vector<AscendScheduledTask> AscendTasksFromSymbolic(SymbolicProblem const& 
   std::vector<AscendScheduledTask> tasks(prices.size());
   for(unsigned s=0;s<skeleton.spaces.size();++s) {
     auto const& space=skeleton.spaces[s];
-    if(!space.ascend_role || space.colocated_producer>=0 || space.same_group_affinity_producer>=0)
-      throw std::invalid_argument("Native list scheduling requires explicit affinity lowering");
+    if(!space.ascend_role)throw std::invalid_argument("Native scheduling requires an explicit implementation role");
     for(int tile=0;tile<space.count;++tile) {
       auto id=space.offset+tile;auto& task=tasks.at(id);
       task.stage=s;task.logical_task=tile;task.role=*space.ascend_role;
@@ -333,6 +358,27 @@ std::vector<AscendScheduledTask> AscendTasksFromSymbolic(SymbolicProblem const& 
         });
       }
       task.predecessors.assign(predecessors.begin(),predecessors.end());
+      if(space.colocation) {
+        const int p=space.colocated_producer;
+        if(p<0 || p>=int(skeleton.spaces.size()) || skeleton.spaces[p].order>=space.order ||
+            skeleton.spaces[p].ascend_role!=space.ascend_role)
+          throw std::invalid_argument("Identity affinity requires an earlier stage of the same role");
+        auto image=space.colocation->reverse.Query({tile},skeleton.theta);
+        if(image.Count()!=1)throw std::invalid_argument("Identity affinity needs a unique producer task");
+        image.ForEach([&](auto const& coordinate) {
+          if(coordinate.size()!=1 || coordinate[0]<0 || coordinate[0]>=skeleton.spaces[p].count)
+            throw std::invalid_argument("Identity affinity lies outside the producer domain");
+          task.same_worker_task=std::int64_t(skeleton.spaces[p].offset)+coordinate[0];
+        });
+      }else if(space.colocated_producer>=0)throw std::invalid_argument("Identity affinity lacks its ISL oracle");
+      if(space.same_group_affinity_producer>=0) {
+        const int p=space.same_group_affinity_producer;
+        if(p>=int(skeleton.spaces.size()) || skeleton.spaces[p].order>=space.order || skeleton.spaces[p].count!=space.count)
+          throw std::invalid_argument("Same-group affinity requires an earlier matching domain");
+        task.same_group_task=std::int64_t(skeleton.spaces[p].offset)+tile;
+      }
+      for(auto ref:{task.same_worker_task,task.same_group_task})if(ref>=0 && !predecessors.count(U32(ref)))
+        throw std::invalid_argument("Native affinity is not an existing semantic predecessor");
     }
   }
   return tasks;
@@ -350,6 +396,7 @@ std::string AscendSchedule::ToJson() const {
     {"semantic_edges",double(semantic_edges)},{"fifo_edges",double(fifo_edges)},
     {"wait_lowering",fifo_wait_elision?"experimental_fifo_observed_frontier":"per_task_frontier"},
     {"waits_before_fifo_elision",double(fifo_wait_elision?waits_before_fifo_elision:lowered_waits)},
+    {"same_worker_affinities",double(same_worker_affinities)},{"same_group_affinities",double(same_group_affinities)},
     {"lowered_waits",double(lowered_waits)},{"makespan_ns",makespan_ns},{"shared_gm_floor_ns",gm_floor_ns},
     {"wait_graph_acyclic",true},{"device_execution_verified",false}}).Dump();
 }

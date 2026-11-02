@@ -1,0 +1,18 @@
+{
+  "schema": "tilemega.as2.implementation_binding.v1",
+  "model_id": "qwen3_0_6b",
+  "phase": "decode",
+  "batch": 1,
+  "families": [],
+  "swiglu_tile": true,
+  "vector_argmax": true,
+  "precision_contract_id": "as2_llm_fp32_replay_bf16_casts_v1",
+  "placement_affinities": [
+    {"kind": "same_worker", "producer_logical_stage": 0, "consumer_logical_stage": 1},
+    {"kind": "same_group", "producer_logical_stage": 0, "consumer_logical_stage": 1}
+  ],
+  "handoff": "GM; affinity alone does not authorize local UB",
+  "default_enabled": false,
+  "acceptance_only": true,
+  "status": "CPU experiment; device correctness and performance not admitted"
+}

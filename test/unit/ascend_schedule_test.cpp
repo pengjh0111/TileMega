@@ -5,6 +5,7 @@
 #include <tilemega/Target/Ascend/LlmPlanABI.h>
 #include <tilemega/Frontend/SemanticLifting.h>
 #include <tilemega/Frontend/ModelPlan.h>
+#include <tilemega/Analysis/ISLContext.h>
 #include <cstring>
 #include <cassert>
 #include <iostream>
@@ -28,6 +29,7 @@ static AscendScheduledTask Task(ImplementationRole role,double ns,std::vector<un
   t.predecessors=std::move(deps);t.legal_workers=std::move(domain);return t;
 }
 int main() {
+  tilemega::analysis::IslContext isl;
   auto map=Map();AscendSchedulingCosts c{10,1,"CPU_TEST_ONLY_NOT_A_CALIBRATION"};
   auto aic=ImplementationRole::kAicOnly,aiv=ImplementationRole::kAivOnly,mix=ImplementationRole::kMix1_2;
   // A change in service prices changes actual FIFO order, not just a score.
@@ -56,6 +58,54 @@ int main() {
   assert(composite.participants[1]==std::vector<unsigned>({1,4,5}));
   auto single=Task(mix,10,{}, {0});single.mix_aiv_lanes=1;
   assert(ScheduleAscendTasks({single},map,c).participants[0]==std::vector<unsigned>({0,2}));
+
+  auto near0=Task(aiv,10,{0}),near1=near0;
+  near0.same_group_task=near1.same_group_task=0;
+  std::vector<AscendScheduledTask> affinity={Task(aic,1,{}, {1}),near0,near1};
+  auto local=ScheduleAscendTasks(affinity,map,c);
+  assert(local.owners[0]==1 && std::set<unsigned>({local.owners[1],local.owners[2]})==std::set<unsigned>({4,5}));
+  assert(local.same_group_affinities==2 && local.waits[1].size()==1 && local.waits[2].size()==1);
+  auto near_mix=Task(mix,10,{0});near_mix.same_group_task=0;
+  assert(ScheduleAscendTasks({Task(aic,1,{}, {1}),near_mix},map,c).participants[1]==std::vector<unsigned>({1,4,5}));
+  auto diagnostic=DiagnosticAscendSchedule(affinity,map);
+  assert(map.At(diagnostic.owners[1]).group==1 && map.At(diagnostic.owners[2]).group==1);
+  auto wrong=affinity;wrong[1].same_group_task=-1;wrong[1].legal_workers={2};
+  auto wrong_plan=ScheduleAscendTasks(wrong,map,c);
+  Reject([&]{AuditAscendSchedule(affinity,map,wrong_plan);});
+  Reject([&]{PriceAscendSchedule(affinity,map,c,wrong_plan);});
+  wrong=affinity;wrong[1].predecessors.clear();
+  Reject([&]{ScheduleAscendTasks(wrong,map,c);});
+  wrong=affinity;wrong[1].same_worker_task=0;
+  Reject([&]{DiagnosticAscendSchedule(wrong,map);});
+  auto identity=Task(aiv,1,{0});identity.same_worker_task=0;
+  auto identical=ScheduleAscendTasks({Task(aiv,1,{}, {5}),identity},map,c);
+  assert(identical.owners==std::vector<unsigned>({5,5}) && identical.waits[1].empty());
+  identity.predecessors={0,1};identity.same_group_task=1;
+  Reject([&]{ScheduleAscendTasks({Task(aiv,1,{}, {2}),Task(aic,1,{}, {1}),identity},map,c);});
+
+  // Lower the actual symbolic identity oracle, retaining all semantic waits.
+  tilemega::analysis::CouplingCache oracle_cache;
+  auto oracle=oracle_cache.OracleFor("{ [p] -> [c] : 0<=p<2 and c=p }");
+  PlanSkeleton skeleton;skeleton.grid=2;skeleton.residency=1;skeleton.spaces.resize(2);
+  for(unsigned s=0;s<2;++s){skeleton.spaces[s].count=2;skeleton.spaces[s].offset=2*s;skeleton.spaces[s].order=s;}
+  skeleton.BindAscendWorkers(map,{aic,aiv},true);skeleton.spaces[0].legal_workers={1};
+  skeleton.spaces[1].same_group_affinity_producer=0;skeleton.incoming={{},{0}};
+  skeleton.edges={{0,1,oracle,false}};
+  SymbolicProblem problem;problem.offsets={0,2,4};
+  std::vector<AscendServicePrice> service(4,{10,0,"CPU_TEST_ONLY_NOT_A_CALIBRATION"});
+  auto derived=AscendTasksFromSymbolic(problem,skeleton,service);
+  assert(derived[2].same_group_task==0 && derived[3].same_group_task==1);
+  auto projected=ScheduleAscendTasks(derived,map,c);
+  assert(map.At(projected.owners[2]).group==1 && map.At(projected.owners[3]).group==1);
+  skeleton.spaces[1].same_group_affinity_producer=-1;skeleton.spaces[1].colocated_producer=0;
+  skeleton.spaces[1].colocation=oracle;
+  Reject([&]{AscendTasksFromSymbolic(problem,skeleton,service);});
+  skeleton.spaces[0].ascend_role=aiv;skeleton.spaces[0].legal_workers={5};
+  derived=AscendTasksFromSymbolic(problem,skeleton,service);
+  auto colocated=DiagnosticAscendSchedule(derived,map);
+  assert(colocated.owners==std::vector<unsigned>({5,5,5,5}));
+  skeleton.spaces[1].colocation=oracle_cache.OracleFor("{ [p] -> [c] : 0<=p<2 and 0<=c<2 }");
+  Reject([&]{AscendTasksFromSymbolic(problem,skeleton,service);});
 
   // Three semantic edges become one prefix wait covering all earlier writes.
   auto chain=std::vector<AscendScheduledTask>{Task(aic,1,{}, {0}),Task(aic,1,{0},{0}),
@@ -172,5 +222,6 @@ int main() {
                "\"large_tasks\":5000,\"epoch_overflow_rejected\":true,"
                "\"shared_gm_not_duplicated\":true,\"native_TopK_changes_selection\":true,"
                "\"native_abi_host_64bit_roundtrip\":true,\"argmax_actual_partial_domain\":true,"
+               "\"native_same_group_affinity\":true,\"identity_affinity_oracle\":true,"
                "\"diagnostic_has_no_prices\":true,\"evidence\":\"CPU fixtures only\"}\n";
 }

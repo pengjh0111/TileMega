@@ -47,6 +47,8 @@ static std::string ScheduleReport(tilemega::solver::AscendSchedule const& schedu
     {"schedule_sha256",llvm::toHex(llvm::ArrayRef<uint8_t>(identity),true)},
     {"identity_encoding","little-endian host u64 array lengths, u32 owner/ordinal/offset/queue/participants/wait-pairs, f64 start/finish"},
     {"semantic_edges",double(schedule.semantic_edges)},{"fifo_edges",double(schedule.fifo_edges)},
+    {"same_worker_affinities",double(schedule.same_worker_affinities)},
+    {"same_group_affinities",double(schedule.same_group_affinities)},
     {"lowered_waits",double(schedule.lowered_waits)},{"epoch_stride",double(schedule.epoch_stride)},
     {"makespan_ns",schedule.makespan_ns},{"shared_gm_floor_ns",schedule.gm_floor_ns},
     {"wait_lowering",schedule.fifo_wait_elision?"experimental_fifo_observed_frontier":"per_task_frontier"},
@@ -385,6 +387,38 @@ int main(int argc,char** argv) {
             s.kind==tilemega::frontend::PlanTaskKind::kFusedAttention && attention_precision>=4 && (attention_precision<12 || attention_precision==14)?R::kMix1_2:R::kAivOnly);
         }
         skeleton.BindAscendWorkers(workers,roles,true);
+        if(decomposed)if(auto rules=decomposition.Find("placement_affinities")) {
+          auto projected=[&](tilemega::json::Value const& value) {
+            double logical=value.AsNumber("logical stage");
+            if(!std::isfinite(logical) || logical<0 || logical>=plan.stages.size() || std::floor(logical)!=logical)
+              throw std::invalid_argument("Placement affinity logical stage is out of bounds");
+            int result=-1;
+            for(unsigned s=0;s<problem.projection.stages.size();++s)if(problem.projection.stages[s].logical_stage==int(logical)) {
+              if(result>=0)throw std::invalid_argument("Placement affinity needs an unsplit projected stage");
+              result=s;
+            }
+            if(result<0)throw std::invalid_argument("Placement affinity stage is absent");
+            return result;
+          };
+          for(auto const& rule:rules->AsArray("placement affinities")) {
+            int p=projected(rule.At("producer_logical_stage")),c=projected(rule.At("consumer_logical_stage"));
+            auto& space=skeleton.spaces.at(c);auto const& kind=rule.At("kind").AsString("affinity kind");
+            if(kind=="same_group") {
+              if(space.same_group_affinity_producer>=0)throw std::invalid_argument("Duplicate same-group affinity");
+              space.same_group_affinity_producer=p;
+            }else if(kind=="same_worker") {
+              if(space.colocation || space.colocated_producer>=0)throw std::invalid_argument("Duplicate same-worker affinity");
+              for(auto edge:skeleton.incoming.at(c))if(skeleton.edges.at(edge).producer==p) {
+                if(space.colocation)throw std::invalid_argument("Ambiguous identity affinity relation");
+                space.colocation=skeleton.edges.at(edge).oracle;
+              }
+              if(!space.colocation)throw std::invalid_argument("Same-worker affinity has no semantic edge");
+              space.colocated_producer=p;
+            }else throw std::invalid_argument("Unregistered placement affinity kind");
+          }
+          result.Set("placement_affinity_candidate",*rules);
+          result.Set("placement_affinity_device_verified",false);
+        }
         std::vector<tilemega::solver::AscendServicePrice> unknown(problem.offsets.back());
         auto tasks=tilemega::solver::AscendTasksFromSymbolic(problem,skeleton,unknown);
         for(auto& t:tasks)t.mix_aiv_lanes=1;

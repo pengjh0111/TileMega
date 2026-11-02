@@ -20,6 +20,9 @@ struct AscendScheduledTask {
   std::vector<std::uint32_t> predecessors;
   std::vector<int> legal_workers;
   unsigned mix_aiv_lanes = 2;
+  // Placement references are existing semantic predecessors. They neither
+  // replace a data dependency nor authorize a local payload route.
+  std::int64_t same_worker_task = -1, same_group_task = -1;
 };
 struct AscendSchedulingCosts {
   double gm_bytes_per_ns = 0, cross_worker_ready_ns = 0;
@@ -35,6 +38,7 @@ struct AscendSchedule {
   std::vector<double> start_ns, finish_ns;
   std::uint64_t semantic_edges = 0, fifo_edges = 0, lowered_waits = 0;
   std::uint64_t waits_before_fifo_elision = 0;
+  std::uint64_t same_worker_affinities = 0, same_group_affinities = 0;
   bool fifo_wait_elision = false;
   double makespan_ns = 0, gm_floor_ns = 0;
   std::uint32_t epoch_stride = 0;
