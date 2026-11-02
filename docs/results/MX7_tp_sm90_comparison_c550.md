@@ -283,3 +283,8 @@ causal performance comparison.
 TP2/TP4 ×B1/B16, each5/5 fresh1024-token whole-group processes, exact
 ordinary-reference tokens, zero numerical/guard failures. Both final TP4
 traces(B1/B16) also complete. Only six middle-batch solver scopes remain.
+
+**verified** TP2 B2 final2.291699ms completes C-1/five-process C-2 and
+two fresh warm1/timed2 timings. Candidate medians2.292612/2.292182/
+2.294272/2.274298ms retain predicted rank1 under the1% rule. Five optimized
+final scopes complete; TP4 B2/B4/B8 and TP2 B4/B8 remain in the queue.
