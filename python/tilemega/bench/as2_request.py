@@ -93,13 +93,18 @@ from tilemega.bench.as2_precision import REPLAY, STREAMING, CONTRACTS, validate_
 SOURCE_CAPABILITIES=('TILEMEGA_LLM_SPLIT_K','TILEMEGA_LLM_LOCAL_TAIL_K7','TILEMEGA_LLM_LOCAL_Q_TAIL_K3',
                      'TILEMEGA_LLM_WIDE_QK','TILEMEGA_LLM_FP32_KV_CACHE','TILEMEGA_LLM_SWIGLU_TILE',
                      'TILEMEGA_LLM_SWIGLU_L1_K256','TILEMEGA_LLM_VECTOR_ARGMAX','TILEMEGA_LLM_G14',
-                     'TILEMEGA_LLM_STREAMING_ATTENTION')
+                     'TILEMEGA_LLM_STREAMING_ATTENTION','TILEMEGA_LLM_GEMM_SESSION')
 SOURCE_GEOMETRY=('TILEMEGA_LLM_VARIANT','TILEMEGA_LLM_TM','TILEMEGA_LLM_TN','TILEMEGA_LLM_TK')
 SOURCE_CONTRACT=('TILEMEGA_LLM_PRECISION_CONTRACT',)
 PRECISION_CONTRACT=REPLAY
 
 
 def gemm_variant_geometry(stage):
+    if stage[31]==7:
+        if stage[23]>1 or stage[18]>3 or stage[20] not in (1,64):
+            raise ValueError('Unregistered small-M GEMM session')
+        base=list(stage);base[31]=4 if stage[18]==2 else 6 if stage[18]==3 else 1
+        return gemm_variant_geometry(base)
     if stage[31]==6 and (stage[18]!=3 or not 1<=stage[20]<=16 or stage[21] not in (128256,151936) or
             stage[19]!=(stage[21]+127)//128 or stage[23]>1 or stage[16]==(1<<64)-1):
         raise ValueError('Unregistered vector LM-head argmax')

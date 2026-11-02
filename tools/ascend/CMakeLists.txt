@@ -100,3 +100,12 @@ target_compile_definitions(as2_host_streaming_fp32 PRIVATE TILEMEGA_LLM_STREAMIN
 as1_asc_target(as2_streaming_attention_fp32 "${TILEMEGA_ROOT}/tools/probes/ascend950/as2_attention.cpp")
 target_compile_definitions(as2_streaming_attention_fp32 PRIVATE TILEMEGA_STREAMING_ATTENTION_PROBE=1 TILEMEGA_STREAMING_ATTENTION_FP32=1)
 target_compile_options(as2_streaming_attention_fp32 PRIVATE --cce-res-usage)
+
+as1_asc_target(as2_gemm_session "${TILEMEGA_ROOT}/tools/probes/ascend950/as2_gemm_session.cpp")
+target_compile_options(as2_gemm_session PRIVATE --cce-res-usage)
+
+add_executable(as2_host_session_disabled "${TILEMEGA_ROOT}/test/unit/ascend_llm_session_contract_test.cpp")
+target_include_directories(as2_host_session_disabled PRIVATE "${TILEMEGA_ROOT}/include" "$ENV{ASCEND_HOME_PATH}/include")
+add_executable(as2_host_session_enabled "${TILEMEGA_ROOT}/test/unit/ascend_llm_session_contract_test.cpp")
+target_include_directories(as2_host_session_enabled PRIVATE "${TILEMEGA_ROOT}/include" "$ENV{ASCEND_HOME_PATH}/include")
+target_compile_definitions(as2_host_session_enabled PRIVATE TILEMEGA_LLM_GEMM_SESSION=1 TILEMEGA_LLM_VARIANT=1 TILEMEGA_LLM_SWIGLU_TILE=1 TILEMEGA_LLM_VECTOR_ARGMAX=1)

@@ -59,6 +59,14 @@ class RequestCapturePayloadTest(unittest.TestCase):
             bad=s.copy();bad[field]=value
             with self.assertRaisesRegex(ValueError,'SwiGLU'):gemm_variant_geometry(tuple(bad))
 
+    def test_session_identity_preserves_strided_epilogues_and_rejects_split(self):
+        s=[0]*33;s[16]=512;s[17:24]=[0,3,1187,1,151936,1024,0];s[31]=7
+        self.assertEqual(gemm_variant_geometry(s),1)
+        s[23]=3
+        with self.assertRaisesRegex(ValueError,'session'):gemm_variant_geometry(s)
+        s[23]=0;s[20]=16
+        with self.assertRaisesRegex(ValueError,'session'):gemm_variant_geometry(s)
+
     def test_vector_argmax_requires_complete_vocab_and_correct_output_domain(self):
         s=[0]*33;s[16]=512;s[17:23]=[0,3,1187,16,151936,1024];s[31]=6
         self.assertEqual(gemm_variant_geometry(s),1)

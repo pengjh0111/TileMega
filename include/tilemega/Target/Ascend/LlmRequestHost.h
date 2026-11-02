@@ -40,7 +40,17 @@ inline void Save(fs::path const& path,void const* data,size_t bytes) {
 }
 inline void ValidateCompiledBodies(std::vector<llm::Stage> const& stages) {
   for(auto const& s:stages)if(s.kind==0) {
-    if(s.variant>6)throw std::invalid_argument("Unregistered native GEMM implementation");
+    if(s.variant==7) {
+#if defined(TILEMEGA_LLM_GEMM_SESSION) && TILEMEGA_LLM_GEMM_SESSION
+      if(kCompiledVariant!=1 || s.extent>1 || s.epilogue>3 || (s.rows!=1 && s.rows!=64))
+        throw std::invalid_argument("Unregistered small-M session recipe");
+      auto base=s;base.variant=s.epilogue==2?4:s.epilogue==3?6:1;
+      ValidateCompiledBodies({base});continue;
+#else
+      throw std::invalid_argument("GEMM session requires its explicitly compiled Body");
+#endif
+    }
+    if(s.variant>7)throw std::invalid_argument("Unregistered native GEMM implementation");
     if(s.variant==6) {
 #if defined(TILEMEGA_LLM_VECTOR_ARGMAX) && TILEMEGA_LLM_VECTOR_ARGMAX
       if(s.epilogue!=3 || !s.rows || s.rows>16 || s.extent>1 ||
@@ -191,7 +201,7 @@ struct Plan {
         [&](auto const& a){return a.offset==offset;});
     };
     for(auto const& s:stages) {
-      if(s.kind==0 && ((s.variant>=2 && s.variant<=6)?1:s.variant)!=kCompiledVariant)
+      if(s.kind==0 && ((s.variant>=2 && s.variant<=7)?1:s.variant)!=kCompiledVariant)
         throw std::invalid_argument("Request GEMM geometry differs from compiled Body");
       for(auto offset:s.operands)if(!valid(offset))throw std::invalid_argument("Unbound request operand");
       if(!valid(s.workspace))throw std::invalid_argument("Unbound request workspace");

@@ -143,7 +143,7 @@ int main(int argc,char** argv) {
     const auto precision_contract=attention_precision==13?tilemega::ascend::llm::kStreamingFp32Precision:attention_precision==12?tilemega::ascend::llm::kStreamingPrecision:
       tilemega::ascend::llm::kReplayPrecision;
     tilemega::json::Value decomposition;
-    bool local_q_tail3=false,local_residual_tail3=false,swiglu_tile=false,swiglu_l1_k256=false,vector_argmax=false;
+    bool local_q_tail3=false,local_residual_tail3=false,swiglu_tile=false,swiglu_l1_k256=false,vector_argmax=false,gemm_session=false;
     tilemega::json::Value binding;
     if(body) {
       auto path=fs::weakly_canonical(argv[priced_body?10:9]);
@@ -181,6 +181,7 @@ int main(int argc,char** argv) {
           decomposition.At("phase").AsString("phase")!=phase ||
           decomposition.At("batch").AsNumber("batch")!=batch || serving.argmax_tile_n!=128)
         throw std::invalid_argument("Observed decomposition model/phase/geometry mismatch");
+      if(auto flag=decomposition.Find("gemm_session"))gemm_session=flag->AsBool("gemm_session");
       if(auto tile=decomposition.Find("swiglu_tile"))swiglu_tile=tile->AsBool("swiglu_tile");
       if(auto value=decomposition.Find("vector_argmax"))vector_argmax=value->AsBool("vector_argmax");
       if(auto precision=decomposition.Find("precision_contract_id");precision &&
@@ -210,6 +211,8 @@ int main(int argc,char** argv) {
     }
     if(attention_precision>=12 && (!decomposed || !decomposition.Find("precision_contract_id")))
       throw std::invalid_argument("Streaming attention requires its explicit checked-in precision binding");
+    if(gemm_session && (batch!=1 || receipt.At("model_id").AsString("model")!="qwen3_0_6b" || attention_precision!=8))
+      throw std::invalid_argument("Session model admission is bounded to Qwen0.6 B1 replay Attention");
     auto start=std::chrono::steady_clock::now();
     tilemega::analysis::IslContext isl;
     auto bridge=tilemega::frontend::ReadExportBridge((input/"export.json").string());
@@ -454,7 +457,7 @@ int main(int argc,char** argv) {
           Write(output/"uncompressed_schedule.json",ScheduleReport(scheduled));
           scheduled=tilemega::solver::ElideAscendFifoWaits(tasks,workers,std::move(scheduled));
         }
-        auto native=tilemega::codegen::MaterializeAscendLlm(*module,problem,workers,tasks,scheduled,!priced,attention_precision,body,local_q_tail3,local_residual_tail3,swiglu_tile,swiglu_l1_k256,vector_argmax);
+        auto native=tilemega::codegen::MaterializeAscendLlm(*module,problem,workers,tasks,scheduled,!priced,attention_precision,body,local_q_tail3,local_residual_tail3,swiglu_tile,swiglu_l1_k256,vector_argmax,gemm_session);
         if(priced) {
           auto const& measured=prices.At("stages").AsArray("stage prices");
           for(unsigned i=0;i<native.stages.size();++i) {
@@ -498,6 +501,7 @@ int main(int argc,char** argv) {
         result.Set("attention_implementation",attention_precision==13?"aiv_fp32_streaming_query_k32_v1":attention_precision==12?"aiv_bf16_streaming_query_k32_v1":attention_precision==11?"mix_fp32_cached_kv_valid_qk64_fold_softmax1088":attention_precision==10?"mix_fp32_cube_valid_qk64_fold_softmax1088":attention_precision==9?"mix_fp32_cube_qk256_fold_softmax1088":attention_precision==8?"mix_fp32_cube_newton_norm_fold_softmax1088":attention_precision==7?"mix_fp32_cube_newton_qk_half_fold_fullnorm":attention_precision==6?"mix_fp32_cube_newton_qk_and_fullnorm":attention_precision==5?"mix_fp32_cube_newton_qknorm":attention_precision==1?"fp32_chunk32_merge":attention_precision==2?"fp32_scores_bf16_probability":attention_precision==3?"math_sdpa_fp32_split_scale":attention_precision>=4?"mix_fp32_cube_qk_vector_softmax_pv":"bf16_scores_probabilities");
         result.Set("selection",priced?selected_algorithm:"diagnostic_unpriced_bootstrap_not_optimized");
         result.Set("priced_solver_executed",priced);
+        result.Set("gemm_session",gemm_session);
         result.Set("swiglu_l1_k",swiglu_l1_k256?256:128);
         result.Set("precision_contract_id",precision_contract);
         result.Set("wait_lowering",fifo_elision?"experimental_fifo_observed_frontier":"per_task_frontier");

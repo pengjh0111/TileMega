@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Backend/Ascend/GemmTile.h>
+#if defined(TILEMEGA_LLM_GEMM_SESSION) && TILEMEGA_LLM_GEMM_SESSION
+#include <tilemega/Backend/Ascend/GemmSession.h>
+#endif
 #include <tilemega/Backend/Ascend/LlmAttentionShape.h>
 #include <tilemega/Target/Ascend/DevicePrimitives.h>
 
@@ -19,28 +22,37 @@ template<unsigned TM,unsigned TN,unsigned TK,unsigned Variant> class LlmCubeBody
 #endif
   using Pv=GemmTile<float,float,32,128,64,false>;
   typename Bf16::SharedResource resource_;
+#if defined(TILEMEGA_LLM_GEMM_SESSION) && TILEMEGA_LLM_GEMM_SESSION
+  GemmSession<Bf16> session_{resource_};
+#endif
  public:
   __aicore__ inline bool Run(llm::Stage const& s,unsigned tile,GM_ADDR arena,unsigned owner_group) {
-    if(s.kind!=0 || tile>=s.tasks || (s.variant!=Variant && !((s.variant>=2 && s.variant<=6) && Variant==1)) || s.k%16)return false;
-    if(s.variant==6) {
+    const unsigned variant=s.variant==7?(s.epilogue==2?4:s.epilogue==3?6:1):s.variant;
+#if defined(TILEMEGA_LLM_GEMM_SESSION) && TILEMEGA_LLM_GEMM_SESSION
+    if(s.variant!=7)session_.FinishRecipe();
+#else
+    if(s.variant==7)return false;
+#endif
+    if(s.kind!=0 || tile>=s.tasks || (variant!=Variant && !((variant>=2 && variant<=6) && Variant==1)) || s.k%16)return false;
+    if(variant==6) {
 #if defined(TILEMEGA_LLM_VECTOR_ARGMAX) && TILEMEGA_LLM_VECTOR_ARGMAX
       if(TM!=16 || TN!=128 || s.epilogue!=3 || s.extent>1 || !s.rows || s.rows>16)return false;
 #else
       return false;
 #endif
     }
-    if(s.variant==4 || s.variant==5) {
+    if(variant==4 || variant==5) {
 #if defined(TILEMEGA_LLM_SWIGLU_TILE) && TILEMEGA_LLM_SWIGLU_TILE
       const bool family=(s.columns==6144 && s.k==1024) || (s.columns==12288 && s.k==2048) ||
           (s.columns==16384 && (s.k==2048 || s.k==3072)) || (s.columns==28672 && s.k==4096);
       const bool rows=s.rows==1 || s.rows==16 || s.rows==64 || s.rows==1024;
-      if(TM!=16 || TN!=128 || !rows || (s.variant==5 && s.rows!=16) || !family || s.epilogue!=2 || s.extent>1)return false;
+      if(TM!=16 || TN!=128 || !rows || (variant==5 && s.rows!=16) || !family || s.epilogue!=2 || s.extent>1)return false;
 #else
       return false;
 #endif
     }
     unsigned nt=(s.columns+TN-1)/TN;
-    if(s.variant==5) {
+    if(variant==5) {
 #if defined(TILEMEGA_LLM_SWIGLU_L1_K256) && TILEMEGA_LLM_SWIGLU_L1_K256
       // Only internal L1 staging changes; the CTG tile and L0 reduction stay fixed.
       typename Bf16K256::TileMmad mm(resource_);
@@ -52,7 +64,7 @@ template<unsigned TM,unsigned TN,unsigned TK,unsigned Variant> class LlmCubeBody
 #endif
     }
 #if defined(TILEMEGA_LLM_LOCAL_TAIL_K7) && TILEMEGA_LLM_LOCAL_TAIL_K7
-    if(s.variant==2) {
+    if(variant==2) {
       if(TM!=16 || TN!=128 || s.rows!=1024 || s.columns!=2048 || (s.k!=8192 && s.k!=6144) ||
           s.extent>1 || s.epilogue!=1 || s.operands[5]==llm::kAbsent)return false;
       if(tile%nt*TN>=1792) {
@@ -68,10 +80,10 @@ template<unsigned TM,unsigned TN,unsigned TK,unsigned Variant> class LlmCubeBody
       }
     }
 #else
-    if(s.variant==2)return false;
+    if(variant==2)return false;
 #endif
 #if defined(TILEMEGA_LLM_LOCAL_Q_TAIL_K3) && TILEMEGA_LLM_LOCAL_Q_TAIL_K3
-    if(s.variant==3) {
+    if(variant==3) {
       const bool store=s.k==4096 && s.epilogue==4 && s.workspace==s.operands[3];
       const bool residual=(s.k==4096 || s.k==14336) && s.epilogue==1 && s.workspace!=llm::kAbsent;
       if(TM!=16 || TN!=128 || s.rows!=1024 || s.columns!=4096 ||
@@ -89,7 +101,7 @@ template<unsigned TM,unsigned TN,unsigned TK,unsigned Variant> class LlmCubeBody
       }
     }
 #else
-    if(s.variant==3)return false;
+    if(variant==3)return false;
 #endif
 #if defined(TILEMEGA_LLM_SPLIT_K) && TILEMEGA_LLM_SPLIT_K
     if(s.extent>1) {
@@ -107,6 +119,14 @@ template<unsigned TM,unsigned TN,unsigned TK,unsigned Variant> class LlmCubeBody
       CompleteDma<AscendC::HardEvent::FIX_S>();return true;
     }
 #endif
+#if defined(TILEMEGA_LLM_GEMM_SESSION) && TILEMEGA_LLM_GEMM_SESSION
+    if(s.variant==7) {
+      if(s.extent>1 || s.epilogue>3)return false;
+      session_.SubmitTile(arena+s.operands[0],arena+s.operands[1],arena+(s.epilogue?s.workspace:s.operands[3]),
+          s.rows,s.columns,s.k,tile/nt,tile%nt);
+      return true;
+    }
+#endif
     typename Bf16::TileMmad mm(resource_);
     Bf16::RunBorrowed(mm,arena+s.operands[0],arena+s.operands[1],arena+(s.epilogue?s.workspace:s.operands[3]),
       s.rows,s.columns,s.k,tile/nt,tile%nt);
@@ -114,6 +134,9 @@ template<unsigned TM,unsigned TN,unsigned TK,unsigned Variant> class LlmCubeBody
   }
   __aicore__ inline bool AttentionGemm(llm::Stage const& s,unsigned tile,GM_ADDR arena,
       llm::Metadata const& m,unsigned past,unsigned owner_group,bool pv) {
+#if defined(TILEMEGA_LLM_GEMM_SESSION) && TILEMEGA_LLM_GEMM_SESSION
+    session_.FinishRecipe();
+#endif
     LlmAttentionShape h;
     if(owner_group>=m.groups || !DescribeLlmAttention(s,tile,m,past,h))return false;
     auto work=LlmAttentionWork(arena,s,owner_group);

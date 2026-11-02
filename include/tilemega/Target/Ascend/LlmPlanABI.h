@@ -53,6 +53,8 @@ struct Stage {
   // CTG output geometry, BF16 intermediates and completion protocol are unchanged.
   // 6=same GEMM, one strided LM-head tile load and value/index vector reduction.
   // Kind15 variant1 vector-merges BF16-derived maxima with minimum-ID ties.
+  // GEMM7=same small-M BF16 math/strided epilogues, retained MMAD session;
+  // every task has FIX-complete output, bank/flag drain before another recipe.
   // Split GEMM: extent=2/3, width=ceil(k/extent), group=1 (tile-major/part-minor CTG).
   // Kind6 is its AIV combine; workspace is FP32 [part,row,col], operand5
   // is the BF16 raw sum before the separately preserved residual rounding.
