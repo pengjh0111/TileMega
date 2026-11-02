@@ -6,7 +6,7 @@ import tempfile
 import unittest
 import torch
 from tilemega.bench.as2_models import RUNS
-from tilemega.bench.as2_request import bind, digest, request_source,cached_kv_state,compatible_source,gemm_variant_geometry
+from tilemega.bench.as2_request import bind, digest, request_source,cached_kv_state,compatible_source,gemm_variant_geometry,rebind_inputs
 from tilemega.bench.as2_native_audit import compare_capture_payloads,mix_prefix
 from tilemega.bench.as2_native import incremental_packing_bytes,validate_rope_reuse
 from tilemega.bench.as2_last_forward import matching_prefix_rows
@@ -140,10 +140,37 @@ class RequestBindingTest(unittest.TestCase):
             path=self.inputs/f'{i}.bin';path.write_bytes(data)
             files.append(dict(name=name,file=path.name,bytes=len(data),sha256=digest(path)))
         identity=dict(model_id='test',batch=1,seq=64,past=0,config_sha256='config',
-            weight_manifest_sha256='weights',input_sha256='tokens',metadata_sha256=digest(self.pre/'metadata.bin'),buffers=files)
+            weight_manifest_sha256='weights',input_sha256='tokens',metadata_sha256=digest(self.pre/'metadata.bin'),
+            plan_directory=str(self.pre),buffers=files)
         (self.inputs/'inputs.json').write_text(json.dumps(identity))
 
     def tearDown(self):self.temp.cleanup()
+
+    def test_rebind_pricing_changes_preserves_payload_and_request_checks(self):
+        import shutil
+        parent=self.root/'new_prefill';shutil.copytree(self.pre.parent,parent)
+        plan=parent/'plan';m=list(struct.unpack('<12I3Q',(plan/'metadata.bin').read_bytes()))
+        m[3]+=100;m[7]+=100;(plan/'metadata.bin').write_bytes(struct.pack('<12I3Q',*m))
+        with self.assertRaisesRegex(ValueError,'actual prefill inputs'):bind(plan,self.dec,self.inputs,self.root/'stale')
+        out=self.root/'rebound';rebind_inputs(self.inputs,plan,out)
+        old=json.loads((self.inputs/'inputs.json').read_text());new=json.loads((out/'inputs.json').read_text())
+        self.assertEqual(new['metadata_sha256'],digest(plan/'metadata.bin'))
+        for k in ('weight_manifest_sha256','input_sha256','config_sha256'):self.assertEqual(old[k],new[k])
+        for a,b in zip(old['buffers'],new['buffers']):
+            self.assertEqual(a['sha256'],b['sha256'])
+            self.assertEqual((self.inputs/a['file']).stat().st_ino,(out/b['file']).stat().st_ino)
+        bind(plan,self.dec,out,self.root/'request_rebound')
+
+    def test_rebind_rejects_layout_and_payload_changes_before_output(self):
+        import shutil
+        parent=self.root/'new_prefill';shutil.copytree(self.pre.parent,parent);plan=parent/'plan'
+        path=plan/'buffers.json';original=path.read_text();d=json.loads(original)
+        d['buffers'][1]['pack_json']='{"kind":"transpose"}';path.write_text(json.dumps(d))
+        with self.assertRaisesRegex(ValueError,'logical input layout'):rebind_inputs(self.inputs,plan,self.root/'bad_layout')
+        self.assertFalse((self.root/'bad_layout').exists());path.write_text(original)
+        (self.inputs/'1.bin').write_bytes(b'x'*512)
+        with self.assertRaisesRegex(ValueError,'payload changed'):rebind_inputs(self.inputs,plan,self.root/'bad_payload')
+        self.assertFalse((self.root/'bad_payload').exists())
 
     def phase(self,phase,seq):
         parent=self.root/phase;parent.mkdir();path=parent/'plan';path.mkdir()

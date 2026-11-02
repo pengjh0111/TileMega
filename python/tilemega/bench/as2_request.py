@@ -17,6 +17,54 @@ def digest(path):
         return hashlib.file_digest(stream,'sha256').hexdigest()
 
 
+def rebind_inputs(inputs,prefill,out):
+    inputs,prefill,out=(controlled(p,[RUNS]) for p in (inputs,prefill,out))
+    if out.exists():raise FileExistsError(out)
+    identity=json.loads((inputs/'inputs.json').read_text())
+    original=controlled(Path(identity['plan_directory']),[RUNS])
+    if identity['seq']!=64 or identity['past'] or digest(original/'metadata.bin')!=identity['metadata_sha256']:
+        raise ValueError('Reusable inputs must identify their actual original prefill Plan')
+    old_meta=struct.unpack('<12I3Q',(original/'metadata.bin').read_bytes())
+    new_meta=struct.unpack('<12I3Q',(prefill/'metadata.bin').read_bytes())
+    # Geometry, pricing and task counts may change; input meaning and layout may not.
+    if old_meta[8:11]!=new_meta[8:11] or new_meta[8:11]!=(identity['batch'],64,1088):
+        raise ValueError('Rebinding cannot change batch, sequence or KV capacity')
+    for plan in (original,prefill):
+        imported=json.loads((plan.parent/'import.json').read_text())
+        if (imported['phase']!='prefill' or imported['model_id']!=identity['model_id'] or
+                imported['config_sha256']!=identity['config_sha256']):
+            raise ValueError('Rebinding cannot change model/config/phase identity')
+    def required(plan):
+        buffers=json.loads((plan/'buffers.json').read_text())['buffers']
+        if len({b['name'] for b in buffers})!=len(buffers):raise ValueError('Ambiguous input allocation names')
+        binary=list(struct.iter_unpack('<3Q2I',(plan/'allocations.bin').read_bytes()))
+        if len(binary)!=len(buffers) or any(b['id']!=i or
+                (b['offset_bytes'],b['bytes'],b['allocated_bytes'],int(b.get('required_input',False)),0)!=a
+                for i,(b,a) in enumerate(zip(buffers,binary))):
+            raise ValueError('Input allocation manifest differs from binary tables')
+        return {b['name']:b for b in buffers if b.get('required_input')}
+    old,new=required(original),required(prefill)
+    records={r['name']:r for r in identity['buffers']}
+    if len(records)!=len(identity['buffers']) or old.keys()!=new.keys() or records.keys()!=old.keys():
+        raise ValueError('Rebinding cannot add, omit or duplicate required inputs')
+    files=[]
+    for name,b in new.items():
+        if any(old[name][k]!=b[k] for k in ('bytes','dtype','pack_json','external_name')):
+            raise ValueError('Rebinding requires identical logical input layout: '+name)
+        r=records[name];source=controlled(inputs/r['file'],[RUNS])
+        if source.parent!=inputs or r['bytes']!=b['bytes'] or source.stat().st_size!=b['bytes'] or digest(source)!=r['sha256']:
+            raise ValueError('Reusable input payload changed: '+name)
+        files.append((source,dict(r,buffer=b['id'],file=str(b['id'])+'.bin')))
+    out.mkdir()
+    for source,r in files:os.link(source,out/r['file'])
+    result=dict(identity,metadata_sha256=digest(prefill/'metadata.bin'),plan_directory=str(prefill),
+        buffers=[r for _,r in files],rebound_from=dict(inputs=str(inputs),inputs_sha256=digest(inputs/'inputs.json'),
+        plan=str(original),metadata_sha256=identity['metadata_sha256']),
+        rebinding='verified_named_layout_and_payload_hashes; immutable hardlinks only')
+    (out/'inputs.json').write_text(json.dumps(result,indent=2)+'\n')
+    print(json.dumps(dict(status='rebound_not_executed',inputs=str(out),buffers=len(files),payload_bytes_copied=0)))
+
+
 def cached_kv_state(stages,buffers,metadata):
     state=[];ordinary=False;used=set();by_offset={b['offset_bytes']:b for b in buffers}
     for s in stages:
@@ -241,6 +289,14 @@ def bind(prefill, decode, inputs, out,emit_source=False):
 
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__)
-    for name in ('prefill','decode','inputs','out'):p.add_argument('--'+name,type=Path,required=True)
+    for name in ('prefill','inputs','out'):p.add_argument('--'+name,type=Path,required=True)
+    p.add_argument('--decode',type=Path)
+    p.add_argument('--rebind-inputs',action='store_true',help='Validate and hardlink unchanged input layouts to a new prefill Plan')
     p.add_argument('--emit-source',action='store_true',help='Union registered capabilities of identical generated phase runtimes')
-    a=p.parse_args();bind(a.prefill,a.decode,a.inputs,a.out,a.emit_source)
+    a=p.parse_args()
+    if a.rebind_inputs:
+        if a.decode or a.emit_source:p.error('Input rebinding accepts only prefill, inputs and out')
+        rebind_inputs(a.inputs,a.prefill,a.out)
+    else:
+        if not a.decode:p.error('Request binding requires --decode')
+        bind(a.prefill,a.decode,a.inputs,a.out,a.emit_source)
