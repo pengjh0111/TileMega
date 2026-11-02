@@ -60,7 +60,8 @@ int main(int argc,char** argv) {
       {1,128,160,0,151936,false,5},{1,17,64,0,151936,false,1},
       {1,17,64,0,151936,false,2},{1,17,64,0,151936,false,3},
       {1,1002,0,0,128256,true,0},{1,1187,0,0,151936,true,0},
-      {1,1187,0,0,151936,true,1},{1,1187,0,0,151936,true,6}};
+      {1,1187,0,0,151936,true,1},{1,1187,0,0,151936,true,6},
+      {1,1187,0,0,151936,true,7}};
     unsigned passed=0;
     for(auto c:cases) {
       const bool expected=c.exceptional==0 || c.exceptional==4 || c.exceptional==5;
@@ -73,6 +74,7 @@ int main(int argc,char** argv) {
         x[3]=x[c.n-7]=2.0f;wanted[0]=std::min(ids[3],ids[c.n-7]);
         if(c.exceptional==1)x[0]=std::numeric_limits<float>::quiet_NaN();
         if(c.exceptional==6)ids[0]=c.vocab;
+        if(c.exceptional==7)ids[0]=UINT32_MAX;
       }else for(unsigned r=0;r<c.rows;++r) {
         for(unsigned i=0;i<c.n;++i)raw[r*c.stride+i]=Bf16(-20.0f+float(i%5));
         raw[r*c.stride+3]=Bf16(-1.0001f);raw[r*c.stride+c.n-1]=Bf16(-1.0002f);
@@ -98,7 +100,9 @@ int main(int argc,char** argv) {
       Check(aclrtMemcpy(indices.data(),indices.size()*4,dout,indices.size()*4,ACL_MEMCPY_DEVICE_TO_HOST),"indices");
       for(unsigned w=0;w<2;++w)for(unsigned e=0;e<2;++e) {
         if(status[w*16+e*2]!=unsigned(expected))throw std::runtime_error("Wrong finite/index-domain rejection");
-        if(c.merge && expected && status[w*16+e*2+1]!=wanted[0])throw std::runtime_error("Unstable merge tie");
+        if(c.merge && expected && status[w*16+e*2+1]!=wanted[0])
+          throw std::runtime_error("Unstable merge tie n="+std::to_string(c.n)+" lane="+std::to_string(w)+
+              " epoch="+std::to_string(e)+" actual="+std::to_string(status[w*16+e*2+1])+" expected="+std::to_string(wanted[0]));
       }
       for(unsigned i=0;i<values.size();++i) {
         const bool payload=!c.merge && expected && i<2*c.rows*4 && i%4==0;

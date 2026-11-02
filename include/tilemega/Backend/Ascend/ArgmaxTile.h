@@ -65,7 +65,16 @@ __aicore__ inline bool RunArgmaxMerge(ArgmaxTileBuffers const& b,GM_ADDR values,
   auto raw=b.raw.ReinterpretCast<uint32_t>();
   AscendC::DataCopyPadExtParams<uint32_t> id_pad(false,0,0,0);
   AscendC::DataCopyPad(raw,ids,copy,id_pad);CompleteDma<AscendC::HardEvent::MTE2_V>();
-  AscendC::Cast(b.indices,raw,AscendC::RoundMode::CAST_NONE,n);AscendC::PipeBarrier<PIPE_V>();
+  // CANN9.1's memory Cast does not implement uint32->float on3510. Valid
+  // vocabulary IDs fit signed32; reject the negative reinterpretation as well.
+  AscendC::Cast(b.indices,raw.ReinterpretCast<int32_t>(),AscendC::RoundMode::CAST_NONE,n);
+  AscendC::PipeBarrier<PIPE_V>();
+  AscendC::Compares(b.mask,b.indices,0.0f,AscendC::CMPMODE::GE,n);
+  AscendC::Duplicate(b.result,1.0f,n);AscendC::PipeBarrier<PIPE_V>();
+  AscendC::Select(b.work,b.mask,b.result,0.0f,AscendC::SELMODE::VSEL_TENSOR_SCALAR_MODE,n);
+  AscendC::PipeBarrier<PIPE_V>();AscendC::ReduceMin(b.result,b.work,b.scratch,n);
+  CompleteDma<AscendC::HardEvent::V_S>();
+  if(b.result.GetValue(0)!=1.0f)return false;
   AscendC::Compares(b.mask,b.indices,float(vocabulary),AscendC::CMPMODE::LT,n);
   AscendC::Duplicate(b.result,1.0f,n);AscendC::PipeBarrier<PIPE_V>();
   AscendC::Select(b.work,b.mask,b.result,0.0f,AscendC::SELMODE::VSEL_TENSOR_SCALAR_MODE,n);
