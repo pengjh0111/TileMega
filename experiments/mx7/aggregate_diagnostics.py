@@ -14,8 +14,9 @@ def append(path, rows, keys):
     if not rows:
         return 0
     old = list(csv.DictReader(path.open())) if path.exists() else []
-    seen = {tuple(row[key] for key in keys) for row in old}
-    fresh = [row for row in rows if tuple(str(row[key]) for key in keys) not in seen]
+    key_of = lambda row: tuple('' if row[key] is None else str(row[key]) for key in keys)
+    seen = {key_of(row) for row in old}
+    fresh = [row for row in rows if key_of(row) not in seen]
     if fresh:
         with path.open('a', newline='') as stream:
             writer = csv.DictWriter(stream, fieldnames=list(rows[0]), lineterminator='\n')
@@ -67,6 +68,36 @@ def main():
                 input=str(path), input_sha256=sha(path), timing_eligible=False))
     print('trace stages appended', append(Path('docs/results/MX7_tp_trace_c550.csv'),
           rows, ['batch', 'layer', 'stage', 'input_sha256']))
+    rows = []
+    for path in sorted((args.root / 'trace_resources').glob('B*/result.json')):
+        guard = path.parent / 'guard/guard_result.json'
+        if not guard.exists():
+            continue
+        assert json.loads(guard.read_text())['code'] == 0
+        value = json.loads(path.read_text())
+        assert value['qualified'] and len(value['ranks']) == 4
+        assert all(r['resident_ctas'] == 1 and r['attributes']['localSizeBytes'] ==
+                   r['attributes']['sharedSizeBytes'] == 0 for r in value['ranks'])
+        batch = int(path.parent.name[1:])
+        binary = args.root / f'trace_plans/tp4/B{batch}/plan.so'
+        report_path = Path(str(binary) + '.resources.json')
+        source_path = Path(str(binary) + '.source.json')
+        report = json.loads(report_path.read_text())
+        identity = json.loads(Path(str(binary) + '.identity.json').read_text())
+        source = json.loads(source_path.read_text())
+        kernel = report['kernel']
+        assert not report['violations']
+        ref = lambda p: json.dumps(dict(path=str(p), sha256=sha(p)))
+        rows.append(dict(record_type='trace_actual_residency', evidence='verified',
+            model='qwen3_1_7b', batch=batch, phase='decode', tp=4, threads=512,
+            MTreg=kernel['registers'], STreg=kernel['scalar_registers'],
+            stack_bytes=kernel['stack_bytes'], static_smem_bytes=kernel['static_smem_bytes'],
+            dynamic_smem_bytes=identity['shared_memory_bytes'], resident_ctas=1,
+            query_status='all_ranks_pass:' + ref(path), code_bytes=report['code_bytes'],
+            source_head=source['head'], artifact=str(binary), artifact_sha256=sha(binary),
+            resources_json=ref(report_path), source_snapshot_json=ref(source_path)))
+    print('trace residency appended', append(Path('docs/results/MX7_resources_c550.csv'),
+          rows, ['record_type', 'artifact']))
 
 
 if __name__ == '__main__':

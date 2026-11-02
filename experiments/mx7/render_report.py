@@ -152,6 +152,7 @@ def main():
         '  completed three-process chunks retained; old partial records preserved and relative paths canonically validated.',
         '- **verified, B4** resource ledger assumption corrected by appending CU-derived LDS values; old rows retained.',
         '  One pending query was prematurely labeled rejected; an appended correction and terminal-cohort checks fix the ledger.',
+        '  Trace aggregation now normalizes empty layer keys; one repeated head reference remains, pointing to the same process.',
         '- **verified, B7** cost/constants noise supplements follow the competitive2% rule, otherwise p90.', '',
         '- **verified, B4** later timing pairs share one guard preflight while retaining two fresh processes, each warm1/timed2;',
         '  per-process PID/command/exit records and guard provenance remain; each timing job retains the900s limit.', '',
