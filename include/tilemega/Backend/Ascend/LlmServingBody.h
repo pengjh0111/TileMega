@@ -181,7 +181,7 @@ template<unsigned TM=32,unsigned TN=64,bool CaptureSoftmax=false> class LlmServi
       return false;
 #endif
     }
-    if(s.variant==4 || s.variant==5 || (s.variant==7 && s.epilogue==2)) {
+    if(s.variant==4 || s.variant==5 || s.variant==8 || (s.variant==7 && s.epilogue==2)) {
 #if defined(TILEMEGA_LLM_SWIGLU_TILE) && TILEMEGA_LLM_SWIGLU_TILE
       const bool family=(s.columns==6144 && s.k==1024) || (s.columns==12288 && s.k==2048) ||
           (s.columns==16384 && (s.k==2048 || s.k==3072)) || (s.columns==28672 && s.k==4096);
@@ -189,6 +189,15 @@ template<unsigned TM=32,unsigned TN=64,bool CaptureSoftmax=false> class LlmServi
       if(TM!=16 || TN!=128 || !valid || (s.variant==5 && s.rows!=16) || !family ||
           s.epilogue!=2 || s.extent>1 || first%32)return false;
       const unsigned valid_rows=s.rows-rows<TM?s.rows-rows:TM;
+      if(s.variant==8) {
+#if defined(TILEMEGA_LLM_REG_SWIGLU) && TILEMEGA_LLM_REG_SWIGLU
+        return vector_.SwiGluTile<true>(arena+s.workspace+(uint64_t(rows)*s.columns+first)*2,
+            arena+s.operands[3]+(uint64_t(rows)*(s.columns/2)+first/2)*2,
+            valid_rows,TN,s.columns,s.columns/2);
+#else
+        return false;
+#endif
+      }
       return vector_.SwiGluTile(arena+s.workspace+(uint64_t(rows)*s.columns+first)*2,
           arena+s.operands[3]+(uint64_t(rows)*(s.columns/2)+first/2)*2,
           valid_rows,TN,s.columns,s.columns/2);

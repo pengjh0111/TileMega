@@ -35,7 +35,8 @@ void as2_swiglu_tile(GM_ADDR input,GM_ADDR output,GM_ADDR timing,unsigned rows,
         raw[20480].ReinterpretCast<float>(),raw[28672].ReinterpretCast<float>()};
       for(unsigned repeat=0;repeat<4;++repeat) {
         const uint64_t start=AscendC::GetSystemCycle();
-        ok=ok && RunSwiGluTile(b,input,dst,rows,columns,input_stride,output_stride);
+        ok=ok && (implementation==2?RunSwiGluTile<true>(b,input,dst,rows,columns,input_stride,output_stride):
+            RunSwiGluTile<false>(b,input,dst,rows,columns,input_stride,output_stride));
         if(repeat)elapsed+=uint64_t(AscendC::GetSystemCycle())-start;
       }
     }
@@ -84,7 +85,7 @@ static int RunSwiGluProbe(char** argv) {
   unsigned input_stride=std::stoul(argv[4]),output_stride=std::stoul(argv[5]),impl=std::stoul(argv[6]);
   if(!rows || rows>16 || !columns || columns>128 || columns%32 || input_stride<columns ||
       output_stride<columns/2 || input_stride>32768 || output_stride>16384 ||
-      input_stride%16 || output_stride%16 || impl>1)throw std::runtime_error("Invalid bounded SwiGLU tile");
+      input_stride%16 || output_stride%16 || impl>2)throw std::runtime_error("Invalid bounded SwiGLU tile");
   namespace fs=std::filesystem;fs::path root="/home/d50064638/junhuip/TileMega/runs/as2";
   auto input=fs::weakly_canonical(argv[7]),output=fs::weakly_canonical(argv[8]);
   for(auto const& p:{input,output}) {

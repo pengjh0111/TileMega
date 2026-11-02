@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Target/Ascend/DevicePrimitives.h>
+#include <tilemega/Backend/Ascend/RegisterSwiGlu.h>
 
 namespace tilemega::ascend {
 struct SwiGluTileBuffers {
@@ -10,7 +11,7 @@ struct SwiGluTileBuffers {
 
 // Borrow disjoint UB arrays (2048 elements each). The input packs alternating
 // gate16/up16 groups. Preserve the BF16 SiLU rounding before multiplication.
-__aicore__ inline bool RunSwiGluTile(SwiGluTileBuffers const& b,GM_ADDR input,
+template<bool RegisterPath=false> __aicore__ inline bool RunSwiGluTile(SwiGluTileBuffers const& b,GM_ADDR input,
     GM_ADDR output,unsigned rows,unsigned columns,unsigned input_stride,unsigned output_stride) {
   if(!rows || rows>16 || !columns || columns>128 || columns%32 ||
       input_stride<columns || output_stride<columns/2 ||
@@ -27,6 +28,15 @@ __aicore__ inline bool RunSwiGluTile(SwiGluTileBuffers const& b,GM_ADDR input,
   AscendC::DataCopy(b.output,b.raw[16],select);
   AscendC::PipeBarrier<PIPE_V>();
   const unsigned count=rows*columns/2;
+  if constexpr(RegisterPath) {
+    const unsigned padded=(count+63)/64*64;
+    if(padded!=count) {
+      AscendC::Duplicate(b.gate[count],bfloat16_t(0),padded-count);
+      AscendC::Duplicate(b.output[count],bfloat16_t(0),padded-count);
+      AscendC::PipeBarrier<PIPE_V>();
+    }
+    if(!RegisterSwiGlu(b.gate,b.output,b.output,count))return false;
+  }else {
   AscendC::Cast(b.x,b.gate,AscendC::RoundMode::CAST_NONE,count);
   AscendC::Cast(b.y,b.output,AscendC::RoundMode::CAST_NONE,count);
   AscendC::PipeBarrier<PIPE_V>();
@@ -38,6 +48,7 @@ __aicore__ inline bool RunSwiGluTile(SwiGluTileBuffers const& b,GM_ADDR input,
   AscendC::Cast(b.work,b.output,AscendC::RoundMode::CAST_NONE,count);AscendC::PipeBarrier<PIPE_V>();
   AscendC::Mul(b.work,b.work,b.y,count);AscendC::PipeBarrier<PIPE_V>();
   AscendC::Cast(b.output,b.work,AscendC::RoundMode::CAST_RINT,count);
+  }
   CompleteDma<AscendC::HardEvent::V_MTE3>();
   AscendC::DataCopyExtParams store{static_cast<uint16_t>(rows),columns,0,(output_stride-columns/2)*2,0};
   AscendC::DataCopyPad(dst,b.output,store);

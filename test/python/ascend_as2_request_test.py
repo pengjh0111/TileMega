@@ -59,6 +59,13 @@ class RequestCapturePayloadTest(unittest.TestCase):
             bad=s.copy();bad[field]=value
             with self.assertRaisesRegex(ValueError,'SwiGLU'):gemm_variant_geometry(tuple(bad))
 
+    def test_register_swiglu_requires_complete_strided_gate_up_tiles(self):
+        s=[0]*33;s[16]=512;s[17:24]=[0,2,48,1,6144,1024,0];s[31]=8
+        self.assertEqual(gemm_variant_geometry(s),1)
+        for field,value in ((18,1),(19,47),(21,6145),(23,3)):
+            invalid=s.copy();invalid[field]=value
+            with self.assertRaises(ValueError):gemm_variant_geometry(invalid)
+
     def test_session_identity_preserves_strided_epilogues_and_rejects_split(self):
         s=[0]*33;s[16]=512;s[17:24]=[0,3,1187,1,151936,1024,0];s[31]=7
         self.assertEqual(gemm_variant_geometry(s),1)

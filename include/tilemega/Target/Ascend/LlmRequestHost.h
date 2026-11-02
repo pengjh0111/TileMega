@@ -50,7 +50,16 @@ inline void ValidateCompiledBodies(std::vector<llm::Stage> const& stages) {
       throw std::invalid_argument("GEMM session requires its explicitly compiled Body");
 #endif
     }
-    if(s.variant>7)throw std::invalid_argument("Unregistered native GEMM implementation");
+    if(s.variant==8) {
+#if defined(TILEMEGA_LLM_REG_SWIGLU) && TILEMEGA_LLM_REG_SWIGLU
+      if(kCompiledVariant!=1 || s.epilogue!=2 || s.extent>1)
+        throw std::invalid_argument("Unregistered register SwiGLU recipe");
+      auto base=s;base.variant=4;ValidateCompiledBodies({base});continue;
+#else
+      throw std::invalid_argument("Register SwiGLU requires its explicitly compiled Body");
+#endif
+    }
+    if(s.variant>8)throw std::invalid_argument("Unregistered native GEMM implementation");
     if(s.variant==6) {
 #if defined(TILEMEGA_LLM_VECTOR_ARGMAX) && TILEMEGA_LLM_VECTOR_ARGMAX
       if(s.epilogue!=3 || !s.rows || s.rows>16 || s.extent>1 ||
@@ -201,7 +210,7 @@ struct Plan {
         [&](auto const& a){return a.offset==offset;});
     };
     for(auto const& s:stages) {
-      if(s.kind==0 && ((s.variant>=2 && s.variant<=7)?1:s.variant)!=kCompiledVariant)
+      if(s.kind==0 && (s.variant>=2?1:s.variant)!=kCompiledVariant)
         throw std::invalid_argument("Request GEMM geometry differs from compiled Body");
       for(auto offset:s.operands)if(!valid(offset))throw std::invalid_argument("Unbound request operand");
       if(!valid(s.workspace))throw std::invalid_argument("Unbound request workspace");

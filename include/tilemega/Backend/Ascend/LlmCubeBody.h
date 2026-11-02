@@ -27,11 +27,14 @@ template<unsigned TM,unsigned TN,unsigned TK,unsigned Variant> class LlmCubeBody
 #endif
  public:
   __aicore__ inline bool Run(llm::Stage const& s,unsigned tile,GM_ADDR arena,unsigned owner_group) {
-    const unsigned variant=s.variant==7?(s.epilogue==2?4:s.epilogue==3?6:1):s.variant;
+    const unsigned variant=s.variant==8?4:s.variant==7?(s.epilogue==2?4:s.epilogue==3?6:1):s.variant;
 #if defined(TILEMEGA_LLM_GEMM_SESSION) && TILEMEGA_LLM_GEMM_SESSION
     if(s.variant!=7)session_.FinishRecipe();
 #else
     if(s.variant==7)return false;
+#endif
+#if !defined(TILEMEGA_LLM_REG_SWIGLU) || !TILEMEGA_LLM_REG_SWIGLU
+    if(s.variant==8)return false;
 #endif
     if(s.kind!=0 || tile>=s.tasks || (variant!=Variant && !((variant>=2 && variant<=6) && Variant==1)) || s.k%16)return false;
     if(variant==6) {

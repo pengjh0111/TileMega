@@ -109,3 +109,12 @@ target_include_directories(as2_host_session_disabled PRIVATE "${TILEMEGA_ROOT}/i
 add_executable(as2_host_session_enabled "${TILEMEGA_ROOT}/test/unit/ascend_llm_session_contract_test.cpp")
 target_include_directories(as2_host_session_enabled PRIVATE "${TILEMEGA_ROOT}/include" "$ENV{ASCEND_HOME_PATH}/include")
 target_compile_definitions(as2_host_session_enabled PRIVATE TILEMEGA_LLM_GEMM_SESSION=1 TILEMEGA_LLM_VARIANT=1 TILEMEGA_LLM_SWIGLU_TILE=1 TILEMEGA_LLM_VECTOR_ARGMAX=1 TILEMEGA_AS2_CANN_NORM_PRIMITIVES=1)
+
+as1_asc_target(as2_swiglu_regbase "${TILEMEGA_ROOT}/tools/probes/ascend950/as2_vector.cpp")
+target_compile_options(as2_swiglu_regbase PRIVATE --cce-res-usage)
+
+add_executable(as2_host_reg_swiglu_disabled "${TILEMEGA_ROOT}/test/unit/ascend_llm_reg_swiglu_contract_test.cpp")
+target_include_directories(as2_host_reg_swiglu_disabled PRIVATE "${TILEMEGA_ROOT}/include" "$ENV{ASCEND_HOME_PATH}/include")
+add_executable(as2_host_reg_swiglu_enabled "${TILEMEGA_ROOT}/test/unit/ascend_llm_reg_swiglu_contract_test.cpp")
+target_include_directories(as2_host_reg_swiglu_enabled PRIVATE "${TILEMEGA_ROOT}/include" "$ENV{ASCEND_HOME_PATH}/include")
+target_compile_definitions(as2_host_reg_swiglu_enabled PRIVATE TILEMEGA_LLM_REG_SWIGLU=1 TILEMEGA_LLM_VARIANT=1 TILEMEGA_LLM_SWIGLU_TILE=1 TILEMEGA_LLM_VECTOR_ARGMAX=1 TILEMEGA_AS2_CANN_NORM_PRIMITIVES=1)

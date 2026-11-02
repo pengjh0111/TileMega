@@ -340,9 +340,9 @@ class LlmVectorBody {
     AscendC::Cast(bo_,work_,AscendC::RoundMode::CAST_RINT,n);Store(output,n);return true;
   }
 #if defined(TILEMEGA_LLM_SWIGLU_TILE) && TILEMEGA_LLM_SWIGLU_TILE
-  __aicore__ inline bool SwiGluTile(GM_ADDR input,GM_ADDR output,unsigned rows,
+  template<bool RegisterPath=false> __aicore__ inline bool SwiGluTile(GM_ADDR input,GM_ADDR output,unsigned rows,
       unsigned columns,unsigned input_stride,unsigned output_stride) {
-    return RunSwiGluTile({bx_,by_,bo_,x_,y_,work_},input,output,rows,columns,input_stride,output_stride);
+    return RunSwiGluTile<RegisterPath>({bx_,by_,bo_,x_,y_,work_},input,output,rows,columns,input_stride,output_stride);
   }
 #endif
   __aicore__ inline bool Rope(GM_ADDR input,GM_ADDR cos,GM_ADDR sin,GM_ADDR output,unsigned d) {
