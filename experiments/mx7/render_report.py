@@ -88,6 +88,7 @@ def main():
         '## Baselines', '',
         '**verified** Two fresh processes/cell, each warm1+timed2; TPOT=(E2E_N1024−E2E_N1)/1023.',
         'TP2 baselines use secondary{4,5}; TileMega uses C0-selected main{1,3}. Each TP4 baseline matches its final cell\'s physical group.',
+        'N/A retains the engine error/guard evidence; speedups use the fastest available baseline and never an older group\'s row.',
         'TP1 values and baseline scaling efficiencies are retained in `MX7_tp_baselines_c550.csv`.', '',
         '| TP | B | vLLM ms | SGLang ms | torch.compile ms |',
         '|---:|---:|---:|---:|---:|']
@@ -197,6 +198,8 @@ def main():
         '  1840 single-rank cost rows and six completed final cells are retained. Remaining scopes are selected again with group-bound costs.',
         '- **verified, B4** one calibration aggregator shadowed the group string with a list before subprocess creation; fixed before GPU launch;',
         '  the original CPU error log remains. No numerical test, sample count or guard threshold was changed.', '',
+        '- **verified, B5** new-group SGLang B4 first initialization exceeded900s; the guard terminated only its own job and retained logs.',
+        '  One fresh-process retry is recorded; any remaining unavailable baseline is explicit N/A under§4.4, with no eager or old-group substitution.', '',
         '## Deviations from inferred expectations', '']
     for t, b, low, high in [(2, 1, 2.35, 2.50), (2, 16, 3.3, 3.4), (4, 1, 1.85, 2.05), (4, 16, 2.5, 2.7)]:
         row = final[str(t), str(b)]
