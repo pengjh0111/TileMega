@@ -171,6 +171,7 @@ def main():
         '- **verified, C** original torch.compile TP4 B1 round spread30.2%; both frozen rounds remain; no baseline repeat is made.',
         '- **verified** the initial optional C0 primitive matrix is not exhaustive after unavailable-GPU failures (`experiments/mx7/probe_matrix.py:1`); chosen-path LL qualification is complete.',
         '- **inferred** scalar volatile-access waits alone did not explain the slowdown; the controlled lane-mapping result establishes the accepted performance improvement.',
+        '- **verified** TP4 B16 attention V2 averages42.614µs/layer in the final trace. **inferred** it is a remaining optimization opportunity; V3 stays outside the MX-7§10.1 domain.',
         '- **stated** SM90 reports TP2/TP4 B16=1.5844/1.5283ms on H800; hardware/platform differences remain and this comparison is not a same-device speedup.', '',
         '## GPU accounting and completion', '',
         '**inferred** reserved child-job wall time includes initialization/cleanup, excludes lock/preflight waiting, and is not hardware busy time.',

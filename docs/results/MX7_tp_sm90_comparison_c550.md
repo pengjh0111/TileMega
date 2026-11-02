@@ -220,3 +220,17 @@ and1.412us/step(TP4). Per-rank prompt/decode event medians are close.
 **inferred** The remaining time is predominantly device execution and peer
 waiting; the persistent two-launch pipeline is preserved. Final trace will
 separate stage costs. The source metrics are each scope final_timing references.
+
+## Reselected TP4 B16 trace attribution
+
+**verified** Rank0 mean of28 per-layer medians (us), original/new selected
+geometries respectively: qkv14.426/14.636; attention42.594/42.614;
+o+AR166.449/15.497; gate_up16.302/16.791; down+AR202.020/19.777.
+Head per-step213.0/137.5us also changes geometry; it is not attributed solely
+to the AR mapping. Maximum per-step inter-rank differences fall from
+83.42/98.60us(o/down) to9.28/3.94us. These traces are diagnostics; the
+same-geometry, uninstrumented E2E P-PAIR supplies the enabling evidence.
+**inferred** Attention V2 is now the largest remaining per-layer component.
+MX-7§10.1 excludes attention V3, so this opportunity is recorded without
+expanding the implementation or candidate domain. Complete trace rows and
+resource checks are appended to their existing CSVs.
