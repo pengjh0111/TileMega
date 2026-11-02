@@ -367,5 +367,15 @@ class RequestBindingTest(unittest.TestCase):
         self.priced();(self.dec/'pricing_bounds.bin').write_bytes(struct.pack('<4I',1,0,1088,2))
         with self.assertRaisesRegex(ValueError,'pricing bounds'):bind(self.pre,self.dec,self.inputs,self.root/'bad')
 
+    def test_decode_pricing_can_start_at_actual_first_past(self):
+        self.priced()
+        (self.dec/'pricing_bounds.bin').write_bytes(struct.pack('<4I',1,64,1086,2))
+        path=self.dec/'prices.json';value=json.loads(path.read_text())
+        value.update(past_min=64,past_max=1086);path.write_text(json.dumps(value))
+        out=self.root/'context_priced';bind(self.pre,self.dec,self.inputs,out)
+        self.assertEqual(struct.unpack('<4I',(out/'decode/pricing_bounds.bin').read_bytes()),(1,64,1086,2))
+        value['past_min']=0;path.write_text(json.dumps(value))
+        with self.assertRaisesRegex(ValueError,'pricing identity mismatch'):bind(self.pre,self.dec,self.inputs,self.root/'bad')
+
 
 if __name__=='__main__':unittest.main()

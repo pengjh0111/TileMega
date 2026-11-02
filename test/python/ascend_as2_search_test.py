@@ -5,10 +5,49 @@ from pathlib import Path
 import tempfile
 import unittest
 from tilemega.bench.as2_models import RUNS
-from tilemega.bench.as2_search import select,validate,check_compiler_identity
+from tilemega.bench.as2_search import select,validate,check_compiler_identity,select_request,evidence
 
 
 class AscendOuterSearch(unittest.TestCase):
+    def test_complete_recipe_costs_prevent_independent_phase_selection(self):
+        plain=dict(id='plain',status='solved',predicted_prefill_ns=1.,predicted_decode_ns=10.)
+        cached=dict(id='cached',status='solved',predicted_prefill_ns=100.,predicted_decode_ns=5.)
+        self.assertEqual(select_request([plain,cached],1024)['id'],'cached')
+        self.assertEqual(cached['predicted_request_ns'],100.+1023*5.)
+        # A changed measured decode price changes the selected whole recipe;
+        # the cheaper plain prefill is never paired with cached decode.
+        slower=dict(cached,predicted_decode_ns=20.)
+        self.assertEqual(select_request([plain,slower],1024)['id'],'plain')
+        with self.assertRaises(ValueError):select_request([plain,cached],16)
+        with self.assertRaises(ValueError):select_request([dict(cached,predicted_decode_ns=0)],1024)
+
+    def test_context_provenance_rejects_changed_or_mislabelled_measurements(self):
+        with tempfile.TemporaryDirectory(dir=RUNS/'probes') as raw:
+            root=Path(raw);cost=root/'cost.json';bundle=root/'contexts.json';price=root/'price.json'
+            cost.write_text(json.dumps(dict(status='measured_empirical_context',groups=8,physical_device_id=1)))
+            rows=[]
+            for i,(low,high,past) in enumerate([(64,127,95),(128,511,319),(512,1086,799)]):
+                job=root/str(i);job.mkdir()
+                (job/'job.json').write_text(json.dumps(dict(status='passed',executable_sha256='fixture-binary',physical_device_id=1)))
+                p=root/(str(i)+'.json');p.write_text(json.dumps(dict(status='measured_body_only',phase='decode',
+                    groups=8,physical_device_id=1,job=str(job),binary_sha256='fixture-binary',past=past)))
+                rows.append(dict(past_min=low,past_max=high,past=past,source_profile=str(p),
+                    source_profile_sha256=hashlib.sha256(p.read_bytes()).hexdigest()))
+            source=dict(schema='tilemega.as2.native_body_contexts.v1',status='measured_body_contexts',phase='decode',
+                past_min=64,past_max=1086,forward_count=1023,buckets=rows)
+            def save():
+                bundle.write_text(json.dumps(source))
+                price.write_text(json.dumps(dict(schema='tilemega.as2.native_task_prices.v1',status='sourced_empirical_context',
+                    phase='decode',groups=8,past_min=64,past_max=1086,context_aggregation=dict(bucket_counts=[64,384,575]),
+                    source_profile=str(bundle),source_profile_sha256=hashlib.sha256(bundle.read_bytes()).hexdigest(),
+                    source_costs=str(cost),source_costs_sha256=hashlib.sha256(cost.read_bytes()).hexdigest())))
+            save();self.assertEqual(evidence(price)[1],1)
+            rows[1]['past']=512;save()
+            with self.assertRaisesRegex(ValueError,'Context buckets'):evidence(price)
+            rows[1]['past']=319;save()
+            p=Path(rows[1]['source_profile']);p.write_text(p.read_text()+' ')
+            with self.assertRaisesRegex(ValueError,'Changed context profile'):evidence(price)
+
     def test_rebuilt_compiler_invalidates_a_frozen_search_identity(self):
         with tempfile.TemporaryDirectory(dir=RUNS/'probes') as raw:
             p=Path(raw)/'compiler';p.write_bytes(b'cpu fixture compiler')

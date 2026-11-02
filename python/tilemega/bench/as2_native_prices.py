@@ -93,9 +93,8 @@ def tile_body_prices(stage,profile):
     return result
 
 
-def prices(plan,profile_path,cost_path,out):
-    plan,profile_path,cost_path,out=(controlled(p,[RUNS]) for p in (plan,profile_path,cost_path,out))
-    if out.exists():raise FileExistsError(out)
+def measured_prices(plan,profile_path,cost_path):
+    plan,profile_path,cost_path=(controlled(p,[RUNS]) for p in (plan,profile_path,cost_path))
     profile=json.loads(profile_path.read_text());cost=json.loads(cost_path.read_text());imported=json.loads((plan.parent/'import.json').read_text())
     precision=imported.get('precision_contract_id','as2_llm_fp32_replay_bf16_casts_v1')
     if profile.get('precision_contract_id',REPLAY)!=precision:
@@ -146,7 +145,91 @@ def prices(plan,profile_path,cost_path,out):
         timing_status=cost['timing_status'],accuracy='stage or explicit local-region median plus measured metadata/publication overhead; conservative active-KV upper bound',
         limitations=['no automatic transfer to another model/G/geometry','MIX service sums serial Cube/epilogue phases',
             'GM calendar is conservative and not a detailed pipelined interconnect model','contended costs are context-local, not portable hardware constants'])
+    return result
+
+
+def prices(plan,profile_path,cost_path,out):
+    out=controlled(out,[RUNS])
+    if out.exists():raise FileExistsError(out)
+    result=measured_prices(plan,profile_path,cost_path)
     out.write_text(json.dumps(result,indent=2)+'\n');print(json.dumps({k:v for k,v in result.items() if k!='stages'}))
+
+
+def context_weights(buckets,minimum=64,maximum=1086):
+    cursor=minimum;weights=[]
+    for row in buckets:
+        low,high,past=(row[k] for k in ('past_min','past_max','past'))
+        if (any(type(x)!=int for x in (low,high,past)) or low!=cursor or
+                not low<=past<=high<=maximum):
+            raise ValueError('Context buckets must cover the decode interval once with an in-bucket measurement')
+        weights.append(high-low+1);cursor=high+1
+    if not buckets or cursor!=maximum+1:raise ValueError('Incomplete decode context coverage')
+    return weights
+
+
+def weighted_stage_prices(tables,weights):
+    if not tables or len(tables)!=len(weights) or any(w<=0 for w in weights):
+        raise ValueError('Missing context prices or positive counts')
+    total=sum(weights);result=[]
+    if len({len(t) for t in tables})!=1:raise ValueError('Context stage count changed')
+    def mean(values):
+        if any(not math.isfinite(v) or v<=0 for v in values):raise ValueError('Unknown/nonpositive context service')
+        return sum(v*w for v,w in zip(values,weights))/total
+    for rows in zip(*tables):
+        base=rows[0]
+        identity=('stage','kind','variant','tasks','rows','columns','k')
+        if any(any(r[k]!=base[k] for k in identity) for r in rows):
+            raise ValueError('Implementation/geometry changed between contexts')
+        item=dict(base)
+        for key in ('service_ns','body_ns','dispatcher_ns'):
+            item[key]=mean([r[key] for r in rows])
+        item['internal_handoff_estimate_ns']=sum(r['internal_handoff_estimate_ns']*w for r,w in zip(rows,weights))/total
+        if any('tile_service_ns' in r for r in rows):
+            if any(len(r.get('tile_service_ns',[]))!=base['tasks'] for r in rows):
+                raise ValueError('Incomplete context tile services')
+            item['tile_service_ns']=[mean(v) for v in zip(*(r['tile_service_ns'] for r in rows))]
+        result.append(item)
+    return result
+
+
+def contexts(plan,profile_paths,bounds,cost_path,out):
+    plan,cost_path,out=(controlled(p,[RUNS]) for p in (plan,cost_path,out))
+    bundle=out.with_name(out.stem+'_contexts.json')
+    if out.exists() or bundle.exists():raise FileExistsError(out)
+    if len(profile_paths)!=len(bounds):raise ValueError('One observed profile per declared context bucket required')
+    tables=[];buckets=[];identities=[]
+    for path,(low,high) in zip(profile_paths,bounds):
+        path=controlled(path,[RUNS]);profile=json.loads(path.read_text())
+        if profile['phase']!='decode':raise ValueError('Context weighting applies to decode, not prefill')
+        tables.append(measured_prices(plan,path,cost_path));identities.append(profile)
+        buckets.append(dict(past_min=low,past_max=high,past=profile['past'],source_profile=str(path),
+            source_profile_sha256=digest(path)))
+    weights=context_weights(buckets)
+    identity=('model_id','config_sha256','batch','groups','runtime_abi','physical_device_id','binary_sha256','precision_contract_id')
+    if any(any(p.get(k)!=identities[0].get(k) for k in identity) for p in identities):
+        raise ValueError('Context profiles use different model/implementation/device identities')
+    result=dict(tables[0]);result['stages']=weighted_stage_prices([t['stages'] for t in tables],weights)
+    m=struct.unpack('<12I3Q',(plan/'metadata.bin').read_bytes())
+    stages=list(struct.iter_unpack('<17Q16I',(plan/'stages.bin').read_bytes()))
+    # Traffic is known from the actual access recipe, so average all 1023
+    # lengths exactly; service time remains an explicitly piecewise estimate.
+    for row,s in zip(result['stages'],stages):
+        if s[17]==13:
+            value=math.ceil(sum(logical_bytes(s,m,0,p) for p in range(64,1087))/1023)
+            row['logical_gm_bytes']=[value]*s[19]
+    timing='contended' if any(p['timing_status']=='contended' for p in identities) or result['timing_status']=='contended' else 'uncontended_observed'
+    source=dict(schema='tilemega.as2.native_body_contexts.v1',status='measured_body_contexts',
+        phase='decode',past_min=64,past_max=1086,forward_count=1023,buckets=buckets,
+        weight_rule='one occurrence per actual decode past length',timing_status=timing)
+    bundle.write_text(json.dumps(source,indent=2)+'\n')
+    result.update(price_provider_version=5,past_min=64,past_max=1086,source_profile=str(bundle),
+        source_profile_sha256=digest(bundle),timing_status=timing,
+        context_aggregation=dict(forwards=1023,bucket_counts=weights,body_service='piecewise constant observed median',
+            logical_bytes='exact recipe average across past64..1086, rounded upward to integer bytes'),
+        accuracy='context-count-weighted measured service plus sourced overhead; exact logical traffic recipe average')
+    result['limitations']+=['three-context service approximation does not establish every-length latency; full-request admission remains required']
+    out.write_text(json.dumps(result,indent=2)+'\n')
+    print(json.dumps({k:v for k,v in result.items() if k!='stages'}))
 
 
 if __name__=='__main__':
@@ -154,6 +237,11 @@ if __name__=='__main__':
     c=sub.add_parser('costs');c.add_argument('--jobs',type=Path,nargs='+',required=True);c.add_argument('--out',type=Path,required=True)
     q=sub.add_parser('prices')
     for name in ('plan','profile','costs','out'):q.add_argument('--'+name,type=Path,required=True)
+    q=sub.add_parser('contexts')
+    for name in ('plan','costs','out'):q.add_argument('--'+name,type=Path,required=True)
+    q.add_argument('--profiles',type=Path,nargs='+',required=True)
+    q.add_argument('--bounds',nargs='+',required=True,help='Inclusive ranges, e.g. 64:127 128:511 512:1086')
     a=p.parse_args()
     if a.command=='costs':costs(a.jobs,a.out)
-    else:prices(a.plan,a.profile,a.costs,a.out)
+    elif a.command=='prices':prices(a.plan,a.profile,a.costs,a.out)
+    else:contexts(a.plan,a.profiles,[tuple(map(int,b.split(':'))) for b in a.bounds],a.costs,a.out)

@@ -190,11 +190,11 @@ def bind(prefill, decode, inputs, out,emit_source=False):
             prices=json.loads((path/'prices.json').read_text())
             if m[0]>=4 and prices.get('runtime_abi')!=m[0]:
                 raise ValueError('Empirical prices use a different runtime ABI')
-            if bounds[0]!=1 or bounds[1]!=0 or bounds[2]>1086 or bounds[3]!=m[1] or (seq==64 and bounds[2]) or not imported.get('priced_solver_executed'):
+            if bounds[0]!=1 or bounds[1]>bounds[2] or bounds[2]>1086 or bounds[3]!=m[1] or (seq==64 and (bounds[1] or bounds[2])) or not imported.get('priced_solver_executed'):
                 raise ValueError('Invalid empirical pricing bounds/provenance')
             if prices.get('precision_contract_id',REPLAY)!=precision:
                 raise ValueError('Empirical prices use another precision contract')
-            for key,value in dict(model_id=identity['model_id'],config_sha256=identity['config_sha256'],batch=m[8],seq=seq,groups=m[1],phase=phase,past_min=0,past_max=bounds[2]).items():
+            for key,value in dict(model_id=identity['model_id'],config_sha256=identity['config_sha256'],batch=m[8],seq=seq,groups=m[1],phase=phase,past_min=bounds[1],past_max=bounds[2]).items():
                 if prices[key]!=value:raise ValueError('Empirical pricing identity mismatch: '+key)
         buffers=json.loads((path/'buffers.json').read_text())['buffers']
         allocations=list(struct.iter_unpack('<3Q2I',(path/'allocations.bin').read_bytes()))

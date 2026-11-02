@@ -5,7 +5,8 @@ import hashlib
 import json
 from pathlib import Path
 import tempfile
-from tilemega.bench.as2_native_prices import task_overheads,tile_body_prices,cost_measurement
+from tilemega.bench.as2_native_prices import (task_overheads,tile_body_prices,cost_measurement,
+    context_weights,weighted_stage_prices)
 from tilemega.bench.as2_body_profile import (logical_bytes,profile_bytes,attention_intervals,
     ATTENTION_PHASE_MAGIC,ATTENTION_PHASE_NAMES)
 from tilemega.bench.as2_models import RUNS
@@ -49,6 +50,26 @@ class ProfileArchive(unittest.TestCase):
 
 
 class AscendPriceAccounting(unittest.TestCase):
+    def test_context_counts_cover_exactly_the_1023_decode_forwards(self):
+        rows=[dict(past_min=64,past_max=127,past=95),dict(past_min=128,past_max=511,past=319),
+              dict(past_min=512,past_max=1086,past=799)]
+        self.assertEqual(context_weights(rows),[64,384,575])
+        for bad in (rows[:2],rows[::-1],[dict(rows[0],past=128),*rows[1:]],
+                    [rows[0],dict(rows[1],past_min=127),rows[2]],
+                    [rows[0],dict(rows[1],past_min=129),rows[2]]):
+            with self.assertRaises(ValueError):context_weights(bad)
+
+    def test_context_prices_weight_service_without_duplicate_dispatch_or_zero_fallback(self):
+        a=dict(stage=0,kind=13,variant=9,tasks=2,rows=1,columns=128,k=0,service_ns=100.,
+            body_ns=80.,dispatcher_ns=20.,internal_handoff_estimate_ns=0.,tile_service_ns=[90.,110.])
+        b=dict(a,service_ns=300.,body_ns=280.,tile_service_ns=[290.,310.])
+        row=weighted_stage_prices([[a],[b]],[1,3])[0]
+        self.assertEqual((row['service_ns'],row['body_ns'],row['dispatcher_ns'],
+            row['internal_handoff_estimate_ns'],row['tile_service_ns']),(250.,230.,20.,0.,[240.,260.]))
+        for bad in (dict(b,variant=6),dict(b,body_ns=0),dict(b,service_ns=float('nan')),
+                    dict(b,tile_service_ns=[300.])):
+            with self.assertRaises(ValueError):weighted_stage_prices([[a],[bad]],[1,3])
+
     def setUp(self):
         self.cost=dict(dispatcher_aic_ns=10.,dispatcher_aiv_ns=20.,cross_worker_ready_ns=3.)
 

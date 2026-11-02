@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import re
 import signal
+import struct
 import subprocess
 import sys
 import time
@@ -15,6 +16,7 @@ from tilemega.bench.as2_native import digest
 from tilemega.bench.as2_queue import controlled, write
 from tilemega.bench.as1_run import process_identity
 from tilemega.bench.as2_precision import REPLAY, STREAMING, STREAMING_FP32
+from tilemega.bench.as2_native_prices import context_weights
 
 
 def select(rows):
@@ -39,15 +41,37 @@ def evidence(prices):
     for key in ('source_profile','source_costs'):
         source=controlled(p[key])
         if digest(source)!=p[key+'_sha256']:raise ValueError('Changed calibration provenance')
-    profile=json.loads(Path(p['source_profile']).read_text())
+    source=json.loads(Path(p['source_profile']).read_text())
     cost=json.loads(Path(p['source_costs']).read_text())
-    job=json.loads((controlled(profile['job'])/'job.json').read_text())
-    if (profile['status']!='measured_body_only' or cost['status']!='measured_empirical_context' or
-            profile['physical_device_id']!=cost['physical_device_id'] or
-            profile['groups']!=cost['groups'] or p['groups']!=cost['groups'] or
-            job['status']!='passed' or job['executable_sha256']!=profile['binary_sha256'] or
-            job['physical_device_id']!=profile['physical_device_id']):
-        raise ValueError('Unmatched measured Body/control context')
+    profiles=[source]
+    if source.get('schema')=='tilemega.as2.native_body_contexts.v1':
+        buckets=source['buckets'];weights=context_weights(buckets)
+        if (source['status']!='measured_body_contexts' or source['phase']!='decode' or
+                (source['past_min'],source['past_max'],source['forward_count'])!=(64,1086,1023) or
+                (p['past_min'],p['past_max'])!=(64,1086) or
+                p['context_aggregation']['bucket_counts']!=weights):
+            raise ValueError('Unmatched decode context weights')
+        profiles=[]
+        for row in buckets:
+            path=controlled(row['source_profile'])
+            if digest(path)!=row['source_profile_sha256']:raise ValueError('Changed context profile provenance')
+            profile=json.loads(path.read_text())
+            if profile['phase']!='decode' or profile['past']!=row['past']:
+                raise ValueError('Unmatched observed context')
+            profiles.append(profile)
+        if len({r['binary_sha256'] for r in profiles})!=1:
+            raise ValueError('Mixed context implementation binaries')
+    for profile in profiles:
+        job=json.loads((controlled(profile['job'])/'job.json').read_text())
+        if (profile['status']!='measured_body_only' or cost['status']!='measured_empirical_context' or
+                profile['physical_device_id']!=cost['physical_device_id'] or
+                profile['groups']!=cost['groups'] or p['groups']!=cost['groups'] or
+                job['status']!='passed' or job['executable_sha256']!=profile['binary_sha256'] or
+                job['physical_device_id']!=profile['physical_device_id']):
+            raise ValueError('Unmatched measured Body/control context')
+        for key in ('model_id','config_sha256','batch','phase','runtime_abi','precision_contract_id'):
+            if key in profile and profile[key]!=p.get(key,REPLAY if key=='precision_contract_id' else None):
+                raise ValueError('Context profile identity differs from native prices')
     return p,cost['physical_device_id']
 
 
@@ -196,8 +220,106 @@ def solve(domain_path,out,compiler):
     write(out/'search.json',summary);print(json.dumps({k:v for k,v in summary.items() if k!='rows'}));return 0
 
 
+def select_request(rows,output_count):
+    if output_count!=1024:raise ValueError('Request search requires the complete 64/1024 objective')
+    legal=[r for r in rows if r['status']=='solved']
+    for r in legal:
+        phases=[r[k] for k in ('predicted_prefill_ns','predicted_decode_ns')]
+        if any(not isinstance(v,(float,int)) or not math.isfinite(v) or v<=0 for v in phases):
+            raise ValueError('Unknown/nonpositive request phase price')
+        r['predicted_request_ns']=phases[0]+(output_count-1)*phases[1]
+    if not legal:raise ValueError('No successfully solved compatible request recipe')
+    return min(legal,key=lambda r:(r['predicted_request_ns'],r['id']))
+
+
+def phase_pair_contract(prefill,decode):
+    from tilemega.bench.as2_request import cached_kv_state,request_source
+    _,source=request_source(prefill,decode)
+    states=[]
+    for path in (prefill,decode):
+        m=struct.unpack('<12I3Q',(path/'metadata.bin').read_bytes())
+        stages=list(struct.iter_unpack('<17Q16I',(path/'stages.bin').read_bytes()))
+        buffers=json.loads((path/'buffers.json').read_text())['buffers']
+        states.append(cached_kv_state(stages,buffers,m))
+    if states[0]!=states[1]:
+        raise ValueError('Request recipe requires matching prefill/decode derived KV state')
+    return dict(derived_kv_layers=len(states[0]),generated_source_contract=source)
+
+
+def request_domains(domain):
+    recipes=domain['recipes']
+    if (domain['schema']!='tilemega.as2.outer_request_search_domain.v1' or
+            not 1<=len(recipes)<=2 or domain['output_count']!=1024):
+        raise ValueError('At most two request recipes/four compiled phase plans per batch')
+    if len({r['id'] for r in recipes})!=len(recipes) or any(not re.fullmatch('[a-zA-Z0-9_-]+',r['id']) for r in recipes):
+        raise ValueError('Request recipe ids must be unique safe path components')
+    domains={};identities=[];devices=set();costs={}
+    for phase in ('prefill','decode'):
+        child=dict(schema='tilemega.as2.outer_search_domain.v1',export=domain[phase+'_export'],
+            batch=domain['batch'],candidate_timeout_s=domain.get('candidate_timeout_s',600),
+            candidates=[dict(r[phase],id=r['id']) for r in recipes])
+        if domain.get('target_config'):child['target_config']=domain['target_config']
+        _,identity=validate(child)
+        if identity['phase']!=phase:raise ValueError('Request phase export mismatch')
+        identities.append({k:v for k,v in identity.items() if k!='phase'})
+        for c in child['candidates']:
+            p,device=evidence(controlled(c['prices']));devices.add(device)
+            if phase=='prefill' and (p['past_min'],p['past_max'])!=(0,0) or phase=='decode' and not p['past_min']<=64<=1086<=p['past_max']:
+                raise ValueError('Request prices must cover all actual forward contexts')
+            old=costs.setdefault(c['groups'],p['source_costs_sha256'])
+            if old!=p['source_costs_sha256']:raise ValueError('Request recipes use different same-G control calibration')
+        domains[phase]=child
+    if identities[0]!=identities[1] or len(devices)!=1:
+        raise ValueError('Request recipes have different models/devices')
+    return domains,identities[0]
+
+
+def solve_request(domain_path,out,compiler):
+    domain_path,out=controlled(domain_path),controlled(out)
+    if out.exists():raise FileExistsError(out)
+    domain=json.loads(domain_path.read_text());domains,identity=request_domains(domain)
+    out.mkdir();rows=[]
+    summary=dict(schema='tilemega.as2.outer_request_search_result.v1',status='in_progress',identity=identity,
+        domain=str(domain_path),domain_sha256=digest(domain_path),compiler_sha256=digest(compiler),
+        objective='predicted_prefill_ns + 1023 * context_weighted_predicted_decode_ns',
+        output_count=1024,rows=rows,end_to_end_performance_admitted=False,automatic_runtime_default_changed=False)
+    for recipe in domain['recipes']:
+        row=dict(id=recipe['id'],status='running',phases={});rows.append(row)
+        recipe_out=out/recipe['id'];recipe_out.mkdir()
+        for phase in ('prefill','decode'):
+            child=dict(domains[phase],candidates=[dict(recipe[phase],id=recipe['id'])])
+            path=recipe_out/(phase+'_domain.json');write(path,child)
+            code=solve(path,recipe_out/phase,compiler)
+            result=json.loads((recipe_out/phase/'search.json').read_text())
+            row['phases'][phase]=dict(search=str(recipe_out/phase/'search.json'),search_sha256=digest(recipe_out/phase/'search.json'))
+            if code:
+                row.update(status='rejected',reason='native '+phase+' search did not produce a legal plan')
+                if code==75:
+                    summary['status']='blocked-resource';write(out/'search.json',summary);return 75
+                break
+            winner=next(r for r in result['rows'] if r['id']==result['selected'])
+            row['phases'][phase]['plan']=result['selected_plan']
+            row['predicted_'+phase+'_ns']=winner['predicted_forward_ns']
+        if row['status']=='running':
+            try:
+                row['pair_contract']=phase_pair_contract(*(Path(row['phases'][p]['plan']) for p in ('prefill','decode')))
+                row['status']='solved'
+            except ValueError as exc:
+                row.update(status='rejected',reason=str(exc))
+        write(out/'search.json',summary)
+    if not any(r['status']=='solved' for r in rows):
+        summary['status']='fail';write(out/'search.json',summary);return 1
+    selected=select_request(rows,domain['output_count'])
+    summary.update(status='selected_prediction_not_device_admitted',selected=selected['id'],
+        selected_phases={p:r['plan'] for p,r in selected['phases'].items()},
+        note='Both phases used native Import/CTG/ISL/priced schedule/materialization; state compatibility checked before joint recipe selection. No device/default admission.')
+    write(out/'search.json',summary);print(json.dumps({k:v for k,v in summary.items() if k!='rows'}));return 0
+
+
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__)
     for name in ('domain','out'):p.add_argument('--'+name,type=Path,required=True)
     p.add_argument('--compiler',type=Path,default=WORK/'build/host/as2_compile_llm')
-    a=p.parse_args();raise SystemExit(solve(a.domain,a.out,a.compiler))
+    a=p.parse_args()
+    request=json.loads(controlled(a.domain).read_text())['schema']=='tilemega.as2.outer_request_search_domain.v1'
+    raise SystemExit((solve_request if request else solve)(a.domain,a.out,a.compiler))

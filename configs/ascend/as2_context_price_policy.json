@@ -1,0 +1,19 @@
+{
+  "schema": "tilemega.as2.context_price_policy.v1",
+  "scope": "Five dense models; new recipe admission remains per model/batch",
+  "input_count": 64,
+  "output_count": 1024,
+  "decode_forwards": 1023,
+  "buckets": [
+    {"past_min": 64, "past_max": 127, "measurement_past": 95},
+    {"past_min": 128, "past_max": 511, "measurement_past": 319},
+    {"past_min": 512, "past_max": 1086, "measurement_past": 799}
+  ],
+  "service_estimate": "Piecewise constant observed task medians weighted by actual decode occurrences",
+  "logical_traffic_estimate": "Exact access-recipe average across all 1023 lengths, integer upward rounding",
+  "request_objective": "predicted_prefill_ns + 1023 * weighted_predicted_decode_ns",
+  "phase_pairing": "Select complete compatible recipes; prefill must initialize every derived decode state",
+  "maximum_live_phase_plans": 4,
+  "performance_admission": "Independent full-request paired measurements; predictions never imply admission",
+  "automatic_runtime_default_changed": false
+}

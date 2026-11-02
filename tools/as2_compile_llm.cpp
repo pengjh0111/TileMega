@@ -481,7 +481,8 @@ int main(int argc,char** argv) {
         native.Write(output/"plan");
         if(priced) {
           double low=prices.At("past_min").AsNumber("minimum past"),high=prices.At("past_max").AsNumber("maximum past");
-          if(low!=0 || !std::isfinite(high) || high<0 || high>1086 || std::floor(high)!=high || (dims.seq==64 && high))
+          if(!std::isfinite(low) || !std::isfinite(high) || low<0 || low>high || high>1086 ||
+              std::floor(low)!=low || std::floor(high)!=high || (dims.seq==64 && (low || high)))
             throw std::invalid_argument("Invalid measured context interval");
           uint32_t bounds[4]={1,uint32_t(low),uint32_t(high),unsigned(groups)};
           std::ofstream bounds_file(output/"plan/pricing_bounds.bin",std::ios::binary);
