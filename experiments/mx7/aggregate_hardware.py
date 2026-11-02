@@ -71,6 +71,43 @@ def main():
         with path.open('a', newline='') as stream:
             csv.DictWriter(stream, fieldnames=list(old[0]), lineterminator='\n').writerows(fresh)
     print('requalified hardware cohorts appended', len(fresh))
+    resource_path = Path('docs/results/MX7_resources_c550.csv')
+    old_resources = list(csv.DictReader(resource_path.open()))
+    seen_resources = {(x['record_type'], x['artifact_sha256']) for x in old_resources}
+    resources = []
+    for marker in sorted(args.root.glob('litmus_g1235*/B*/occupancy_GUARD_PASSED.json')):
+        run = json.loads(marker.read_text())
+        validate_run(run['manifest'])
+        query_path = Path(run['output'])
+        query = json.loads(query_path.read_text())
+        spec = json.loads(checked(query['input_manifest']).read_text())
+        binary = checked(spec['binary'])
+        actual = json.loads(checked(spec['resources']).read_text())
+        identity = json.loads(checked(spec['context']).read_text())
+        source = json.loads(checked(spec['source_snapshot']).read_text())
+        assert query['qualified'] and len(query['ranks']) == 4
+        for rank in query['ranks']:
+            assert rank['resident_ctas'] == 1 and rank['binary_sha256'] == sha(binary)
+            assert rank['attributes']['localSizeBytes'] == rank['attributes']['sharedSizeBytes'] == 0
+        kernel = actual['kernel']
+        assert 0 < kernel['registers'] <= 255 and kernel['stack_bytes'] == kernel['static_smem_bytes'] == 0
+        kind = 'diagnostic_litmus_actual_residency'
+        key = (kind, sha(binary))
+        if key in seen_resources:
+            continue
+        seen_resources.add(key)
+        resources.append(dict(record_type=kind, evidence='verified', model='qwen3_1_7b',
+            batch=marker.parent.name[1:], phase='decode', tp=4, threads=512,
+            MTreg=kernel['registers'], STreg=kernel['scalar_registers'], stack_bytes=0,
+            static_smem_bytes=0, dynamic_smem_bytes=identity['shared_memory_bytes'],
+            resident_ctas=1, query_status='all_ranks_pass:' + str(query_path),
+            code_bytes=actual['code_bytes'], source_head=source['head'], artifact=str(binary),
+            artifact_sha256=sha(binary), resources_json=json.dumps(spec['resources']),
+            source_snapshot_json=json.dumps(spec['source_snapshot'])))
+    if resources:
+        with resource_path.open('a', newline='') as stream:
+            csv.DictWriter(stream, fieldnames=list(old_resources[0]), lineterminator='\n').writerows(resources)
+    print('diagnostic litmus residency appended', len(resources))
 
 
 if __name__ == '__main__':
