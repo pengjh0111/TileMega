@@ -294,3 +294,5 @@ The final artifact and all four valid candidate timings remain sealed; one compl
 **verified, B4** On continuation, byte/permission/mtime-identical sealed-input copies were hardlinked (219.9MiB freed); logical paths and hashes are unchanged.
 Trace export already compresses each rank before the next dump (about1.5GiB peak temporary space); no collector or device change.
 **verified, B4** Read-only recovery preflight validates four candidate bundles, the1% decision and the retained final artifact/residency; no GPU launch or retry mutation.
+**verified, B4** Remaining checks/timing use independent guards per fresh process; required C-2(5) and timing(2) counts and guard policy are unchanged; prior invalid batches stay excluded.
+**verified, B4** B16 trace now separates qualified GPU capture from CPU analysis; reanalysis of real B1 data preserves all141 stage statistics exactly.

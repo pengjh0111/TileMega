@@ -157,7 +157,7 @@ def main():
         '  logical paths and hashes are unchanged. Rank-by-rank lossless trace compression bounds temporary disk to about1.5GiB.',
         '- **verified, B4** read-only recovery preflight validates four candidate bundles and the selected final artifact before GPU work.',
         '- **verified, B7** cost/constants noise supplements follow the competitive2% rule, otherwise p90.', '',
-        '- **verified, B4** later timing pairs share one guard preflight while retaining two fresh processes, each warm1/timed2;',
+        '- **verified, B4** earlier timing pairs shared one guard preflight while retaining two fresh processes, each warm1/timed2;',
         '  per-process PID/command/exit records and guard provenance remain; each timing job retains the900s limit.', '',
         '- **verified, B5** TP4 B2 candidate3/4 timing cohorts exited guard75 after external GPU3/GPU5 load appeared.',
         '  Invalid cohorts are excluded; each original cohort gets at most one new two-process timing cohort after idle checks.',
@@ -166,6 +166,9 @@ def main():
         '  The whole interrupted cohort is unqualified; selected artifact and four valid timings are retained for one final-check retry.',
         '- **verified, B4** resume validation first found a manifest field mismatch and then an archived-root path error.',
         '  Both occurred before a GPU child launch; original logs/receipts are retained separately from the one B5 retry.', '',
+        '- **verified, B4** remaining scopes guard each fresh process separately; passing runs survive later interruptions.',
+        '  C-2 still needs5 selected/2 candidate processes; timing still needs2 warm1/timed2 processes. Guard thresholds are unchanged.',
+        '- **verified, B4** B16 trace GPU capture and CPU analysis are separate; real B1 reanalysis matches all141 original stage statistics.', '',
         '## Deviations from inferred expectations', '']
     for t, b, low, high in [(2, 1, 2.35, 2.50), (2, 16, 3.3, 3.4), (4, 1, 1.85, 2.05), (4, 16, 2.5, 2.7)]:
         row = final[str(t), str(b)]
