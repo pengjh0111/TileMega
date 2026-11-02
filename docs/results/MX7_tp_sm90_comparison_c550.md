@@ -1,0 +1,122 @@
+# MX-7: SM90 / MetaX TP implementation audit
+
+Evidence: **verified** = source or local execution checked; **stated** = remote report;
+**inferred** = interpretation. The original 30 external baseline cells stay frozen;
+no baseline measurement is part of this audit or optimization.
+
+## Sources
+
+- **verified** MetaX starting HEAD `a7c4a7968a787a5bf5a36fbbfc6532ae1de7a176`.
+- **verified** fetched `origin/tilemega` at `213a3884a4e14629ca99f63755d501c65a7d8f53`.
+  Its `docs/results/SM90R5_tp_final.csv` and `SM90R5_h800.md` contain the complete
+  H800 TP results; the older `origin/sm90r5` tip lacks these final result files.
+- **verified** both refs have identical `Sm90DenseEpilogue.h`, SHA256
+  `90f9f68f908aa6d21b077b1f2822c1e43b128635e7f82d861d052d9ec738099b`.
+  `f0b1a95c7` changed the original per-item AR to two passes.
+- Remote source/result snapshots and hashes: `runs/mx7/sm90_comparison/REFERENCE.json`.
+  No SM90 commit is merged, and no H800 measurement is rerun here.
+
+## Pipeline correspondence
+
+| Layer | Current SM90 | MetaX | Finding |
+|---|---|---|---|
+| Shards | qkv/gate_up/head by N; o/down by K | Same recipes and per-rank KV | **verified** No missing shard or extra unsharded GEMM |
+| Execution | One library, one persistent grid/rank; prompt and decode ranges | Same, two asynchronous range launches/rank | **verified** No per-token host launch or host AR |
+| Prompt | All steps execute AR/head exchange; suppress prompt token writes | Same | **verified** Extra prompt heads affect TTFT |
+| AR | BF16 partials, ascending-rank FP32 sum, BF16 sum then residual | Same rounding and rank order | **verified** No changed arithmetic contract |
+| AR schedule | Send all thread packets, then receive; recompute packets; noinline helpers | Resource-approved per-item send/receive, inline polling | **verified** Implementation difference; see qualification below |
+| Shared epilogue | One two-column LL packet per thread/item | Eight columns and four LL packets per thread/item | **verified** MetaX checks four packets serially |
+| Peer visibility | CUDA strong system-scope accesses, ordinary device allocation | C0-selected fine allocation, volatile AS1 store, `__ldcg` load | **verified** Deliberate platform adaptation; original LL cohorts pass 5/5 |
+| Head | Fence/flag exchange | LL8 candidate exchange | **verified** Explicit MX-7 design; original units/litmus pass 5/5 |
+| Residual prefetch | Async producer path and consumer epilogue | V2 GEMM Early/Finish path | **verified** No separate communication kernel |
+| Solver | Analytic stage terms plus measured communication | Measured rank stages plus measured communication, top-4 E2E | **verified** Both include 56 ARs and one exchange/step |
+| Stream creation | `torch.cuda.Stream` | Same; approved SDK-owned stream adapter remains a draft | **verified** Initialization occurs outside TPOT timing |
+
+## What explains the current gap
+
+**verified** For N=2048, dense legality allows WN<=2 for TN16 and WN=1 for
+TN32/64/128 (`DecodeGeometryV2.h:89`). Thus every legal o/down instance uses the
+shared epilogue and has `kResidualVectors=1`. Restoring two passes cannot remove
+inter-item waits in these shapes. The source difference is real, but it is not
+an established explanation of B16 performance.
+
+**verified** Current measured AR increments, microseconds/stage:
+
+| TP | B | o TN16 | o TN32 | down TN16 | down TN32 |
+|---:|---:|---:|---:|---:|---:|
+| 2 | 1 | 8.860 | 5.870 | 9.860 | 6.640 |
+| 2 | 16 | 64.860 | 70.030 | 63.330 | 69.820 |
+| 4 | 1 | 23.280 | 13.220 | 25.165 | 12.940 |
+| 4 | 16 | 164.450 | 179.220 | 164.210 | 183.515 |
+
+**inferred** Summing the selected communication keys over 28 layers attributes
+3.771 ms of TP2 B16's 7.246 ms to AR; TP4 B8 attributes 4.232 ms of 6.210 ms.
+These are measured-cost estimates, not stage trace measurements.
+
+**stated** The H800 report records TP2/TP4 B16 TPOT 1.5844/1.5283 ms and AR
+increments of 1.888/4.960 us at TN16. Its selected-plan model under-predicts and
+can miss faster legal tiles. **verified** MetaX's completed candidate predictions
+closely track E2E; its currently large AR constants are charged by the solver.
+A missing communication term does not explain the MetaX gap.
+
+**verified** MetaX's large-write probe reports about 9.4 GB/s to one peer and
+19.1 GB/s aggregate to three peers. H800's reported bandwidth probe uses wider
+stores, so these figures do not isolate physical interconnect capability.
+Fine-memory throughput and serialized receive waits remain separate hypotheses.
+
+## Controlled implementation experiments
+
+All sources are copied under `runs/mx7/sm90_comparison/`; production headers,
+TP1 and MoE are unchanged while these experiments qualify.
+
+- `baseline`: current production body.
+- `two_pass`: send all items before receive, recomputing BF16 values on receive.
+- `packet_batch`: issue independent first reads for each item's existing four
+  LL8 packets before testing epochs. A stale packet uses the original scalar
+  await. Every read/store remains eight bytes, allocation and epoch rules are
+  unchanged, and arithmetic still visits source ranks in ascending order.
+
+**inferred** `packet_batch` may overlap independent receive latencies without
+changing the LL protocol. It must pass ordered-BF16 AR tests in five fresh
+processes at TP2/TP4, resources, full C-1/C-2/litmus and E2E before enabling.
+Measurements and decisions will be appended after qualification. Baselines are reused.
+
+## First measurements and the compiler-level cause
+
+**verified** TP2 B16, same {4,5} group, three fresh processes per variant:
+
+| AR increment (us) | baseline | two_pass | packet_batch |
+|---|---:|---:|---:|
+| o TN32 | 70.020 | 70.000 | 70.090 |
+| down TN32 | 69.840 | 69.790 | 69.830 |
+
+Neither source-loop change wins; both stay disabled. `packet_batch` AR units
+pass 5/5 fresh processes at TP2 and TP4, nine legal geometries/process,
+zero bit mismatches, stack/static=0 and actual resident=1.
+
+**verified** Isolated compiler probes locate a previously missed difference:
+
+| Source primitive | Generated instructions for four accesses |
+|---|---|
+| volatile AS1 u64 stores | Four `STG_B64`, each immediately followed by `ARRIVE 64` |
+| `__ldcg` u64 reads | Four `LDG_B64`, each immediately followed by `ARRIVE 64` |
+| relaxed system `__maca_atomic_store` | Four separate `STG_B64`, no per-store wait |
+| relaxed system `__maca_atomic_load` | Four separate `LDG_B64` issued before waits for their results |
+
+This also appears in the real AR comparison kernel, not just the isolated
+probe. Raw MIR: `runs/mx7/sm90_comparison/primitive_codegen.mir.log` and
+`packet_batch/tp4_B16/mir.log`. **inferred** Compiler-enforced serialization
+explains why the two C++-level changes above cannot expose overlap.
+
+**verified** The SDK declares the pure system atomic store in
+`cuda/std/detail/libcxx/include/support/atomic/atomic_cuda_generated.h:1936`.
+The earlier C0 write dispatch covered volatile store and atomic exchange,
+but omitted this pure store. It belongs to the prompt's C0 system-atomic
+candidate domain; it is now store method2. Exchange is a different operation.
+
+The `system_relaxed` experiment retains fine allocation, LL8, epoch checks,
+ascending-rank BF16 arithmetic and the existing head handshake. It uses relaxed
+system atomic loads/stores and independent first reads. No fence is added.
+**verified** Its first TP2 P1024 cohort passes 5/5 fresh processes, each2000 epochs,
+104 CTAs, zero tears/timeouts; median roundtrip7.549us. Large-packet, all-to-all,
+AR and whole-model qualification are pending. Production remains unchanged.
