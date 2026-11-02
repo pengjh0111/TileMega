@@ -43,8 +43,9 @@ def completed_request_directories(jobs,roots,expected_binary=None,equivalent_bin
         command=receipt['command']
         request=len(command)==8 and command[1]=='request'
         bench=len(command)==7 and command[1]=='bench'
+        teacher=len(command)==6 and command[1]=='teacher'
         if (receipt['project']!='as2' or receipt['status']!='passed' or receipt.get('exit_code')!=0 or
-                receipt.get('device_locked') is not False or not (request or bench)):
+                receipt.get('device_locked') is not False or not (request or bench or teacher)):
             raise ValueError('Require completed, successful AS2 request receipts')
         if expected_binary and receipt['executable_sha256']!=expected_binary:
             raise ValueError('Request binary identity changed')
@@ -58,10 +59,20 @@ def completed_request_directories(jobs,roots,expected_binary=None,equivalent_bin
             model=json.loads((binding/'request.json').read_text())
             key=tuple(model[k] for k in ('model_id','batch','config_sha256','weight_manifest_sha256','input_sha256'))
         else:key=(str(binding),receipt['executable_sha256'])
+        if teacher:
+            trace=plain_path(Path(command[3])/'trace.json',roots)
+            key=(*key,'teacher',digest(trace));root=plain_path(Path(command[4]),roots)
+            steps=int(command[5]);outputs,warmup,repetitions,diagnostic=steps+1,0,1,0
+            detail=json.loads((root/'teacher.json').read_text())
+            if (not 1<=steps<=512 or detail['decoder_steps']!=steps or
+                    detail['trace_directory']!=str(trace.parent) or detail['request_mode']!='teacher_forced'):
+                raise ValueError('Teacher receipt does not match the selected trace/scope')
+        else:
+            key=(*key,'natural_greedy');root=plain_path(Path(command[3]),roots)
+            outputs,warmup,repetitions=map(int,command[4:7]);diagnostic=int(command[7]) if request else 0
         if common is not None and key!=common:raise ValueError('Mixed bindings or binaries')
-        common=key;root=plain_path(Path(command[3]),roots)
-        outputs,warmup,repetitions=map(int,command[4:7]);diagnostic=int(command[7]) if request else 0
-        if bench:
+        common=key
+        if bench or teacher:
             result=json.loads((root/'result.json').read_text())
             if (result['binding_directory']!=str(binding) or
                     (result['osl'],result['warmup'],result['repetitions'])!=(outputs,warmup,repetitions) or

@@ -40,6 +40,17 @@ class DedupSafety(unittest.TestCase):
             (other/'request.json').write_text(json.dumps(dict(model,input_sha256='different-tokens')))
             with self.assertRaisesRegex(ValueError,'Mixed bindings'):
                 completed_request_directories([job,other_job],[root],equivalent_bindings=True)
+            trace=root/'trace';trace.mkdir();(trace/'trace.json').write_text('{}')
+            receipt['command']=['CPU-fixture','teacher',str(binding),str(trace),str(out),'512']
+            p.write_text(json.dumps(receipt))
+            detail=dict(decoder_steps=512,trace_directory=str(trace),request_mode='teacher_forced')
+            (out/'teacher.json').write_text(json.dumps(detail))
+            result.update(osl=513,warmup=0,repetitions=1,host_kernel_launches=513)
+            (out/'result.json').write_text(json.dumps(result))
+            self.assertEqual(len(completed_request_directories([job],[root])),1)
+            detail['decoder_steps']=511;(out/'teacher.json').write_text(json.dumps(detail))
+            with self.assertRaisesRegex(ValueError,'Teacher receipt'):completed_request_directories([job],[root])
+            (out/'teacher.json').write_text(json.dumps(dict(detail,decoder_steps=512)))
             receipt['status']='failed';p.write_text(json.dumps(receipt))
             with self.assertRaises(ValueError):completed_request_directories([job],[root])
             receipt.update(status='passed',pid=os.getpid());receipt.pop('start_ticks');p.write_text(json.dumps(receipt))
