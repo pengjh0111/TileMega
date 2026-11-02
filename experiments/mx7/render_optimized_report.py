@@ -142,6 +142,10 @@ def main():
         delta = {s: max(x['max_rank_difference_ns'] for x in data['stages'] if x['stage'] == s)/1000 for s in ('o', 'down')}
         lines.append(f'\n**verified** B{b} maximum inter-rank duration difference: o={delta["o"]:.3f}µs, down={delta["down"]:.3f}µs.\n')
     pred = [float(x['pred_over_meas']) for x in final.values()]
+    expected = [
+        f'- **verified, C** TP{t} B{b}: {float(final[t,b]["tpot_ms"]):.3f}ms; prompt expectation **inferred** {bound}ms.'
+        for t, b, bound in ((2,1,'2.35–2.50'), (2,16,'3.3–3.4'),
+                            (4,1,'1.85–2.05'), (4,16,'2.5–2.7'))]
     lines += ['', '## Autonomous handling and retained failures', '',
         '- **verified, B2/B4** torch.compile: isolated accelerate1.15.0 plus compiled_autograd=True fixes HF TP gradient-hook compilation; no eager substitution.',
         '- **verified, B1** original AR builds spilled at256MTreg; approved per-item send/receive and constant peer-pointer selection fit resources.',
@@ -154,6 +158,7 @@ def main():
         '- **verified, B4** optional relaxed-system primitives pass their LL/AR qualification but do not improve stage time; production primitives stay unchanged.',
         '- **stated** all external baselines are frozen once; interrupted group-change repeats are archived and excluded.', '',
         '## Deviations and limitations', '',
+        *expected,
         f'- **verified, C** final pred/meas range{min(pred):.3f}–{max(pred):.3f}; outliers remain in selection CSV; trace locates device-stage costs.',
         '- **stated, C** prompt-mode TTFT includes63 additional head evaluations compared with the separate TP1 prefill path.',
         '- **verified, C** original torch.compile TP4 B1 round spread30.2%; both frozen rounds remain; no baseline repeat is made.',

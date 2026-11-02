@@ -194,3 +194,16 @@ identity during every in-flight check. Full-model qualification continues.
 - **stated** External baselines remain the original frozen30 passing cells.
   Communication calibration is on C0's primary{1,3} and TP4{1,2,3,5}; the earlier
   {4,5} microbenchmarks are diagnostics. New ten-scope solver selection continues.
+
+## First reselected optimized scope
+
+**verified** TP2 B16 completes source-bound top4/1% selection using eligible cost
+SHA256 `2927cf91afbc8589f8706d50699bc837fa7a6898978ed0fefed6fcab2c906f6e`. Final TPOT is3.561300ms (fresh processes3.560129/3.562471ms); C-1 and5/5 fresh1024-token C-2 checks pass.
+Actual resources are234MTreg, stack/static0 and resident1 on both ranks.
+This is a solver-selected result, separate from the TP4 same-geometry control.
+The other nine scopes and selected-pin delay/trace gates remain in progress.
+
+**verified** The reselected TP2 B16 injected-delay build also passes5/5 fresh
+1024-token processes against its ordinary final binary. Production and the
+unit-qualified prototype match in all319 frozen include files after removing
+only the added mapping comment (`pair_lanes/PRODUCTION_UNIT_EQUIVALENCE.json`).
