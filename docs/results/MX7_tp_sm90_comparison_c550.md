@@ -278,3 +278,8 @@ gate_up13.626/13.946; down+AR22.466/11.535; head109.59/108.61us per step.
 Trace groups differ: old{1,3,4,5}, new{1,2,3,5}; these traces locate stage costs.
 The independent same-geometry/same-group B16 P-PAIR remains the controlled
 causal performance comparison.
+
+**verified** Optimized selected injected-delay qualification is complete:
+TP2/TP4 ×B1/B16, each5/5 fresh1024-token whole-group processes, exact
+ordinary-reference tokens, zero numerical/guard failures. Both final TP4
+traces(B1/B16) also complete. Only six middle-batch solver scopes remain.
