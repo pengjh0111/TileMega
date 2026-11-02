@@ -96,7 +96,7 @@ template<unsigned TM=32,unsigned TN=64,bool CaptureSoftmax=false> class LlmServi
     const float root=d==128?0.29730177875068026f:0.3535533905932738f;
     unsigned valid=h.valid_keys*d,total=h.keys*d;
     if(phase_ticks)phase_ticks[2]=AscendC::GetSystemCycle();
-    if(s.variant==9) {
+    if(llm::IsCachedAttention(s.variant)) {
       // Prefill appends only this task's unique positions. Its attention still
       // uses private converted KV, so sibling prefill tasks never race reads.
       const unsigned first=h.first_position,n=h.positions*d;
@@ -106,7 +106,7 @@ template<unsigned TM=32,unsigned TN=64,bool CaptureSoftmax=false> class LlmServi
           !vector_.Bf16ToFloat(values+uint64_t(source_first)*d*2,
               LlmAttentionCachedKv(arena,s,m,h,true)+uint64_t(first)*d*4,n))return false;
     }
-    for(unsigned first=0;first<valid && !(s.variant==9 && m.seq==1);first+=4096) {
+    for(unsigned first=0;first<valid && !(llm::IsCachedAttention(s.variant) && m.seq==1);first+=4096) {
       unsigned n=valid-first<4096?valid-first:4096;
       if(!vector_.Bf16ToFloat(keys+uint64_t(first)*2,work+llm::attention::kK+uint64_t(first)*4,n,root) ||
           !vector_.Bf16ToFloat(values+uint64_t(first)*2,work+llm::attention::kV+uint64_t(first)*4,n))return false;
@@ -117,7 +117,7 @@ template<unsigned TM=32,unsigned TN=64,bool CaptureSoftmax=false> class LlmServi
     if(phase_ticks)phase_ticks[4]=AscendC::GetSystemCycle();
     // Cached decode's invalid tail was zeroed at request reset and is never
     // overwritten before append. The paired-plan Host preflight enforces this.
-    for(unsigned first=valid;first<total && !(s.variant==9 && m.seq==1);first+=4096) {
+    for(unsigned first=valid;first<total && !(llm::IsCachedAttention(s.variant) && m.seq==1);first+=4096) {
       unsigned n=total-first<4096?total-first:4096;
       if(!vector_.ZeroFloat(work+llm::attention::kK+uint64_t(first)*4,n) ||
           !vector_.ZeroFloat(work+llm::attention::kV+uint64_t(first)*4,n))return false;
@@ -150,7 +150,7 @@ template<unsigned TM=32,unsigned TN=64,bool CaptureSoftmax=false> class LlmServi
       }
       if(!vector_.ServingSoftmax(work+llm::attention::kScores+uint64_t(row)*h.keys*4,
           work+llm::attention::kProbabilities+uint64_t(row)*h.keys*4,valid,true,m.capacity,h.keys,true,
-          diagnostic_exp,diagnostic_stats,s.variant==6 || s.variant==7 || s.variant==8 || s.variant==9))return false;
+          diagnostic_exp,diagnostic_stats,s.variant==6 || s.variant==7 || s.variant==8 || llm::IsCachedAttention(s.variant)))return false;
     }
     return true;
   }

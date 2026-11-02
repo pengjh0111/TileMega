@@ -8,11 +8,18 @@ struct LlmAttentionShape {
 };
 __aicore__ inline bool DescribeLlmAttention(llm::Stage const& s,unsigned tile,
     llm::Metadata const& m,unsigned past,LlmAttentionShape& out) {
-  if(s.kind!=13 || (s.variant!=4 && s.variant!=5 && s.variant!=6 && s.variant!=7 && s.variant!=8 && s.variant!=9) || s.workspace==llm::kAbsent ||
+  if(s.kind!=13 || !llm::IsCubeAttention(s.variant) || s.workspace==llm::kAbsent ||
       m.capacity!=llm::attention::kCapacity || s.kv_block!=m.capacity ||
       (s.width!=64 && s.width!=128) || !s.extent || !s.group || s.group>4 ||
       (m.seq!=1 && m.seq!=64) || uint64_t(past)+m.seq>=m.capacity || (m.seq==64 && past))return false;
-  if(s.variant==9) {
+  if(s.variant==12) {
+#if !defined(TILEMEGA_LLM_VALID_PV) || !TILEMEGA_LLM_VALID_PV
+    return false;
+#else
+    if(s.width!=128)return false;
+#endif
+  }
+  if(llm::IsCachedAttention(s.variant)) {
 #if !defined(TILEMEGA_LLM_FP32_KV_CACHE_B1) || !TILEMEGA_LLM_FP32_KV_CACHE_B1
     if(m.batch==1)return false;
 #endif

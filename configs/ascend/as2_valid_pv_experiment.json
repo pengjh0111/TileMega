@@ -1,0 +1,22 @@
+{
+  "schema": "tilemega.as2.valid_pv_experiment.v1",
+  "default_enabled": false,
+  "selector": "cube-fp32-cached-valid-pv",
+  "attention_variant": 12,
+  "precision_contract_id": "as2_llm_fp32_replay_bf16_casts_v1",
+  "resource_role": "AIC_AIV0",
+  "required_source_capability": "TILEMEGA_LLM_VALID_PV",
+  "head_dim": 128,
+  "gqa_ratios": [2, 3, 4],
+  "batches": [1, 16],
+  "logical_pv_k": "ceil(valid_keys / 64) * 64",
+  "physical_probability_stride": 1088,
+  "softmax_reduction": "Unchanged capacity1088 FP32 fold",
+  "buffer_and_event_lifetimes": "Unchanged cached-KV owner/participant protocol; task returns after FIX output completion",
+  "component_evidence": "runs/as2/probes/pv_valid_20261102_v1/results.json",
+  "component_status": "D128 pass including five fresh processes at key65; marked D64 recovery passes but model admission remains D128 only",
+  "model_evidence": "runs/as2/correctness/taskbody_valid_pv_20261102_v1/result.json",
+  "model_status": "Qwen3-0.6B B1 full1024, teacher512, C2 and five-process C3 pass; priced selection pending",
+  "performance_status": "not_measured",
+  "required_admission": ["full_model_C1", "teacher512", "C2", "five_process_C3", "context_prices_and_native_selection", "paired_full_request_TPOT"]
+}

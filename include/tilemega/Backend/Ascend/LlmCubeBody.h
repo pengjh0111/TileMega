@@ -143,8 +143,8 @@ template<unsigned TM,unsigned TN,unsigned TK,unsigned Variant> class LlmCubeBody
     LlmAttentionShape h;
     if(owner_group>=m.groups || !DescribeLlmAttention(s,tile,m,past,h))return false;
     auto work=LlmAttentionWork(arena,s,owner_group);
-    auto key=s.variant==9 && m.seq==1?LlmAttentionCachedKv(arena,s,m,h,false):work+llm::attention::kK;
-    auto value=s.variant==9 && m.seq==1?LlmAttentionCachedKv(arena,s,m,h,true):work+llm::attention::kV;
+    auto key=llm::IsCachedAttention(s.variant) && m.seq==1?LlmAttentionCachedKv(arena,s,m,h,false):work+llm::attention::kK;
+    auto value=llm::IsCachedAttention(s.variant) && m.seq==1?LlmAttentionCachedKv(arena,s,m,h,true):work+llm::attention::kV;
     AscendC::SetHF32Mode(AscendC::HF32Mode::DISABLE);
     if(!pv) {
       if(s.variant==7) {
@@ -165,7 +165,7 @@ template<unsigned TM,unsigned TN,unsigned TK,unsigned Variant> class LlmCubeBody
       // Softmax DMA reads valid_keys only and constructs its masked tail locally.
       // Keep the original physical stride/tile, including its last partial tile;
       // only entirely unconsumed score columns are omitted.
-      const unsigned qk_keys=s.variant==8 || s.variant==9?h.valid_keys:h.keys;
+      const unsigned qk_keys=s.variant==8 || llm::IsCachedAttention(s.variant)?h.valid_keys:h.keys;
       for(unsigned row=0;row<(h.rows+31)/32;++row)
         for(unsigned col=0;col<(qk_keys+63)/64;++col) {
           Qk::RunBorrowed(mm,work+llm::attention::kQ,key,
@@ -175,8 +175,11 @@ template<unsigned TM,unsigned TN,unsigned TK,unsigned Variant> class LlmCubeBody
     }else {
       typename Pv::TileMmad mm(resource_);
       for(unsigned row=0;row<(h.rows+31)/32;++row) {
-        Pv::RunBorrowed(mm,work+llm::attention::kProbabilities,value,
-          work+llm::attention::kOutput,h.rows,h.width,h.keys,row,0);
+        const unsigned active=s.variant==12?((h.valid_keys+63)/64)*64:h.keys;
+        // Slice the reduction without repacking P or changing its physical row
+        // stride. The skipped suffix is zero under the existing softmax/reset.
+        Pv::RunKSliceBorrowed(mm,work+llm::attention::kProbabilities,value,
+          work+llm::attention::kOutput,h.rows,h.width,h.keys,0,active,row,0);
         CompleteDma<AscendC::HardEvent::FIX_S>();
       }
     }

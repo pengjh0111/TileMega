@@ -49,4 +49,18 @@ class PrecisionTest(unittest.TestCase):
         m[9]=64
         self.assertGreater(logical_bytes(s,m,8,0),logical_bytes(s,m,0,0))
 
+    def test_valid_pv_is_replay_with_an_explicit_source_requirement(self):
+        s=self.stage();s[31]=12
+        self.assertEqual(validate_plan_precision(REPLAY,[s]),1)
+        with self.assertRaises(ValueError):validate_plan_precision(STREAMING_FP32,[s])
+        s[24]=64
+        with self.assertRaisesRegex(ValueError,'D128'):validate_plan_precision(REPLAY,[s])
+        with tempfile.TemporaryDirectory(dir=RUNS/'probes') as raw:
+            root=Path(raw)
+            text='#define TILEMEGA_LLM_VARIANT 1\n#define TILEMEGA_LLM_TM 16\n#define TILEMEGA_LLM_TN 128\n#define TILEMEGA_LLM_TK 128\n'
+            (root/'old.cpp').write_text(text+'#include <same_runtime.h>\n')
+            (root/'new.cpp').write_text(text+'#define TILEMEGA_LLM_VALID_PV 1\n#include <same_runtime.h>\n')
+            with self.assertRaisesRegex(ValueError,'lacks a required capability'):compatible_source(root/'new.cpp',root/'old.cpp')
+            self.assertEqual(compatible_source(root/'old.cpp',root/'new.cpp')['status'],'compatible')
+
 if __name__=='__main__':unittest.main()

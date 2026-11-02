@@ -131,9 +131,16 @@ inline void ValidateCompiledBodies(std::vector<llm::Stage> const& stages) {
   for(auto const& s:stages)if(s.kind==25 &&
       (s.extent!=8 || s.width!=768 || s.group!=1 || s.query_rows!=4 || s.kv_block!=128 || s.variant))
     throw std::invalid_argument("Unregistered QKV pack geometry");
-  for(auto const& s:stages)if(s.kind==13 && s.variant>11)
+  for(auto const& s:stages)if(s.kind==13 && s.variant>12)
     throw std::invalid_argument("Unregistered native attention implementation");
-  for(auto const& s:stages)if(s.kind==13 && s.variant>=10) {
+  for(auto const& s:stages)if(s.kind==13 && s.variant==12) {
+#if !defined(TILEMEGA_LLM_VALID_PV) || !TILEMEGA_LLM_VALID_PV
+    throw std::invalid_argument("Valid-extent PV requires its explicitly compiled Body");
+#else
+    if(s.width!=128 || s.kv_block!=1088)throw std::invalid_argument("Valid-extent PV currently admits D128 only");
+#endif
+  }
+  for(auto const& s:stages)if(s.kind==13 && llm::IsStreamingAttention(s.variant)) {
 #if !defined(TILEMEGA_LLM_STREAMING_ATTENTION) || !TILEMEGA_LLM_STREAMING_ATTENTION || !defined(TILEMEGA_LLM_PRECISION_CONTRACT) || (TILEMEGA_LLM_PRECISION_CONTRACT != 2 && TILEMEGA_LLM_PRECISION_CONTRACT != 3)
     throw std::invalid_argument("Streaming attention requires its compiled Body and explicit precision contract");
 #else
@@ -143,11 +150,11 @@ inline void ValidateCompiledBodies(std::vector<llm::Stage> const& stages) {
 #endif
   }
 #if defined(TILEMEGA_LLM_PRECISION_CONTRACT) && TILEMEGA_LLM_PRECISION_CONTRACT >= 2
-  for(auto const& s:stages)if(s.kind==13 && s.variant<10)
+  for(auto const& s:stages)if(s.kind==13 && !llm::IsStreamingAttention(s.variant))
     throw std::invalid_argument("Replay attention cannot use a streaming precision image");
 #endif
 #if !defined(TILEMEGA_LLM_FP32_KV_CACHE) || !TILEMEGA_LLM_FP32_KV_CACHE
-  for(auto const& s:stages)if(s.kind==13 && s.variant==9)
+  for(auto const& s:stages)if(s.kind==13 && llm::IsCachedAttention(s.variant))
     throw std::invalid_argument("Cached FP32 KV requires its explicitly compiled Body");
 #endif
 #if !defined(TILEMEGA_LLM_WIDE_QK) || !TILEMEGA_LLM_WIDE_QK
@@ -159,7 +166,7 @@ inline void ValidateCompiledBodies(std::vector<llm::Stage> const& stages) {
        (s.width!=1024 && s.width!=2048 && !((s.width==3072 || s.width==4096) && s.variant==3))))
     throw std::invalid_argument("Unregistered full-row normalization implementation");
 #ifndef TILEMEGA_AS2_CANN_NORM_PRIMITIVES
-  for(auto const& s:stages)if((s.kind==13 && (s.variant==5 || s.variant==6 || s.variant==7 || s.variant==8 || s.variant==9 || s.variant==10 || s.variant==11)) || (s.kind==1 && (s.variant==2 || s.variant==3)))
+  for(auto const& s:stages)if((s.kind==13 && (s.variant==5 || s.variant==6 || s.variant==7 || s.variant==8 || llm::IsCachedAttention(s.variant) || s.variant==10 || s.variant==11)) || (s.kind==1 && (s.variant==2 || s.variant==3)))
     throw std::invalid_argument("Newton QK norm requires explicitly configured pinned CANN device primitives");
 #endif
 }
@@ -214,7 +221,7 @@ struct Plan {
         throw std::invalid_argument("Request GEMM geometry differs from compiled Body");
       for(auto offset:s.operands)if(!valid(offset))throw std::invalid_argument("Unbound request operand");
       if(!valid(s.workspace))throw std::invalid_argument("Unbound request workspace");
-      if(s.kind==13 && (s.variant==4 || s.variant==5 || s.variant==6 || s.variant==7 || s.variant==8 || s.variant==9)) {
+      if(s.kind==13 && llm::IsCubeAttention(s.variant)) {
         auto found=std::find_if(allocations.begin(),allocations.end(),[&](auto const& a){return a.offset==s.workspace;});
         if(found==allocations.end() || found->bytes<uint64_t(m.groups)*llm::attention::kGroupBytes)
           throw std::invalid_argument("Cooperative attention lacks its per-group workspace");
@@ -240,7 +247,7 @@ inline CachedKvState ValidateCachedKvState(llm::Metadata const& m,std::vector<ll
     std::vector<llm::Allocation> const& allocations,std::set<uint32_t> const& reset_ids) {
   CachedKvState state;bool cached=false,ordinary=false;std::set<uint64_t> distinct;
   for(auto const& s:stages)if(s.kind==13) {
-    if(s.variant!=9){ordinary=true;continue;}cached=true;
+    if(!llm::IsCachedAttention(s.variant)){ordinary=true;continue;}cached=true;
     const bool heads=(s.width==128 && (s.group==2 || s.group==3 || s.group==4)) ||
                      (s.width==64 && s.group==4);
     if(m.batch==1) {

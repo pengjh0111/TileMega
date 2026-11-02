@@ -76,14 +76,14 @@ template<bool Cube,class Body> __aicore__ inline void ExecuteLlm(Body& body,
     const uint64_t start=forward.diagnostic==1?AscendC::GetSystemCycle():0;bool ok=false;
     uint64_t body_start=0,body_end=0;
     uint64_t attention_ticks[kAttentionPhaseProfile?llm::body_profile::kPhaseWords:1]{};
-    const bool attention=kAttentionPhaseProfile && stage.kind==13 && stage.variant>=4 && stage.variant<=9;
+    const bool attention=kAttentionPhaseProfile && stage.kind==13 && llm::IsCubeAttention(stage.variant);
     unsigned owner_group=task.mix_aiv_lanes?task.owner:0;
     auto* ready=cells+(m.workers+owner_group)*128;
     auto* done=cells+(m.workers+m.groups+owner_group)*128;
     uint32_t token=(base+task.ordinal)*4;
     if constexpr(Cube) {
       if(forward.diagnostic==2)body_start=AscendC::GetSystemCycle();
-      if(stage.kind==13 && (stage.variant==4 || stage.variant==5 || stage.variant==6 || stage.variant==7 || stage.variant==8 || stage.variant==9)) {
+      if(stage.kind==13 && llm::IsCubeAttention(stage.variant)) {
         if(!task.mix_aiv_lanes){WriteControl(abort,9);return;}
         PublishSingleOwnerEvent(ready,token);
         if(!WaitProgress(done,token,abort,m.wait_ticks))return;
@@ -105,7 +105,7 @@ template<bool Cube,class Body> __aicore__ inline void ExecuteLlm(Body& body,
         }
       }else ok=body.Run(stage,task.tile,arena,task.owner);
       if(forward.diagnostic==2)body_end=AscendC::GetSystemCycle();
-      if(ok && task.mix_aiv_lanes && !(stage.kind==13 && (stage.variant==4 || stage.variant==5 || stage.variant==6 || stage.variant==7 || stage.variant==8 || stage.variant==9))) {
+      if(ok && task.mix_aiv_lanes && !(stage.kind==13 && llm::IsCubeAttention(stage.variant))) {
         PublishSingleOwnerEvent(ready,token);
         if(!WaitProgress(done,token,abort,m.wait_ticks))return;
       }
@@ -114,7 +114,7 @@ template<bool Cube,class Body> __aicore__ inline void ExecuteLlm(Body& body,
         if(!WaitProgress(ready,token,abort,m.wait_ticks))return;
         AcquireData(payload);
         if(forward.diagnostic==2)body_start=AscendC::GetSystemCycle();
-        if(stage.kind==13 && (stage.variant==4 || stage.variant==5 || stage.variant==6 || stage.variant==7 || stage.variant==8 || stage.variant==9)) {
+        if(stage.kind==13 && llm::IsCubeAttention(stage.variant)) {
           ok=body.AttentionPrepare(stage,task.tile,arena,scratch+uint64_t(worker)*m.worker_scratch_bytes,m,forward.past,owner_group,
               kAttentionPhaseProfile && forward.diagnostic==2?attention_ticks:nullptr);
           if(ok) {
@@ -136,7 +136,7 @@ template<bool Cube,class Body> __aicore__ inline void ExecuteLlm(Body& body,
         }else ok=body.Epilogue(stage,task.tile,arena,owner_group);
         if(forward.diagnostic==2)body_end=AscendC::GetSystemCycle();
         if(ok) {
-          PublishSingleOwnerEvent(done,token+(stage.kind==13 && (stage.variant==4 || stage.variant==5 || stage.variant==6 || stage.variant==7 || stage.variant==8 || stage.variant==9)?2:0));
+          PublishSingleOwnerEvent(done,token+(stage.kind==13 && llm::IsCubeAttention(stage.variant)?2:0));
           // Reverse acknowledgement prevents this lane recycling its buffers
           // or advertising a FIFO prefix before the logical owner completes.
           if(!WaitProgress(cells+task.owner*128,base+task.ordinal,abort,m.wait_ticks))return;

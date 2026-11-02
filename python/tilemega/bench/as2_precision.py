@@ -13,8 +13,10 @@ def validate_plan_precision(precision, stages):
     if streaming and not attention:
         raise ValueError('Streaming precision requires an actual attention domain')
     for s in attention:
-        if not 0 <= s[31] <= 11 or (s[31] >= 10) != streaming or (streaming and s[31] != CONTRACTS[precision]+8):
+        if not 0 <= s[31] <= 12 or (s[31] in (10,11)) != streaming or (streaming and s[31] != CONTRACTS[precision]+8):
             raise ValueError('Attention table and precision contract differ')
+        if s[31]==12 and (s[24]!=128 or s[26]!=1088):
+            raise ValueError('Valid-extent PV currently admits D128 only')
         if streaming and (s[26] != 1088 or not s[23] or not s[25] or not s[27] or s[27] % s[25] or
                 (s[24], s[25]) not in {(128, 2), (128, 3), (128, 4), (64, 4)}):
             raise ValueError('Unregistered streaming precision shape')

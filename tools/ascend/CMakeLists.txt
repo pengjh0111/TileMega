@@ -126,3 +126,8 @@ target_include_directories(as2_host_b1_cached_disabled PRIVATE "${TILEMEGA_ROOT}
 add_executable(as2_host_b1_cached_enabled "${TILEMEGA_ROOT}/test/unit/ascend_llm_b1_cached_kv_contract_test.cpp")
 target_include_directories(as2_host_b1_cached_enabled PRIVATE "${TILEMEGA_ROOT}/include" "$ENV{ASCEND_HOME_PATH}/include")
 target_compile_definitions(as2_host_b1_cached_enabled PRIVATE TILEMEGA_LLM_FP32_KV_CACHE_B1=1)
+add_executable(as2_host_valid_pv_disabled "${TILEMEGA_ROOT}/test/unit/ascend_llm_valid_pv_contract_test.cpp")
+target_include_directories(as2_host_valid_pv_disabled PRIVATE "${TILEMEGA_ROOT}/include" "$ENV{ASCEND_HOME_PATH}/include")
+add_executable(as2_host_valid_pv_enabled "${TILEMEGA_ROOT}/test/unit/ascend_llm_valid_pv_contract_test.cpp")
+target_include_directories(as2_host_valid_pv_enabled PRIVATE "${TILEMEGA_ROOT}/include" "$ENV{ASCEND_HOME_PATH}/include")
+target_compile_definitions(as2_host_valid_pv_enabled PRIVATE TILEMEGA_LLM_VALID_PV=1 TILEMEGA_LLM_FP32_KV_CACHE=1 TILEMEGA_LLM_FP32_KV_CACHE_B1=1 TILEMEGA_LLM_VARIANT=1 TILEMEGA_LLM_SWIGLU_TILE=1 TILEMEGA_LLM_VECTOR_ARGMAX=1 TILEMEGA_AS2_CANN_NORM_PRIMITIVES=1)
