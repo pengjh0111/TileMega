@@ -1,0 +1,34 @@
+# Second fix applied to MPK (mirage-project, branch mpk, commit 63af900), for
+# the SM90R5 tensor parallel baseline. Apply in /root/mirage-mpk with
+# `patch -p1 < mpk-63af900-sm90-tp.patch`. Header-only: nothing needs to be
+# rebuilt or relinked, because the generated kernel includes this header when
+# nvcc compiles it.
+#
+# tasks/hopper/task_header.cuh includes tasks/ampere/allreduce.cuh (which
+# defines only reduction_kernel) but never tasks/hopper/allreduce.cuh, where
+# nvshmem_tile_allreduce is defined. MPK's allreduce_layer at world_size > 1
+# emits a call to kernel::nvshmem_tile_allreduce, so every sm90 build of a
+# tensor parallel task graph fails with
+#
+#   test.cu(1093): error: namespace "kernel" has no member
+#                         "nvshmem_tile_allreduce"
+#
+# including MPK's own demo/qwen3/demo_hopper.py multi-GPU path. The sibling
+# tasks/blackwell/task_header.cuh carries the include this one is missing,
+# guarded for exactly the non-Blackwell case, so the block below is copied
+# from there verbatim. It adds no code and changes no kernel: without it the
+# dense Qwen3 TP graph cannot be compiled at all.
+--- a/include/mirage/persistent_kernel/tasks/hopper/task_header.cuh
++++ b/include/mirage/persistent_kernel/tasks/hopper/task_header.cuh
+@@ -20,6 +20,11 @@
+ #include "tasks/hopper/multitoken_paged_attention_hopper.cuh"
+ #include "tasks/hopper/rmsnorm_hopper.cuh"
+ #include "tasks/hopper/silu_mul_hopper.cuh"
++
++#if defined(USE_NVSHMEM) && !defined(MIRAGE_GRACE_BLACKWELL)
++#include "tasks/hopper/allreduce.cuh"
++#endif
++
+ // Blackwell task impls
+ 
+ #include "tasks/blackwell/argmax_sm100.cuh"
