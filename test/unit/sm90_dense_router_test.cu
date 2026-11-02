@@ -40,7 +40,9 @@ int Run(std::mt19937& rng,int trial) {
   Check(cudaMalloc(&ds,Schedule::kInts*4));Check(cudaMalloc(&dc,8));
   Check(cudaMemcpy(dl,logits.data(),B*E*4,cudaMemcpyHostToDevice));Check(cudaMemset(dc,0,8));
   Check(cudaMemset(ds,0xff,Schedule::kInts*4));
-  Sm90DenseMoeOperands p{nullptr,nullptr,nullptr,dl,ds,dw,di,nullptr,dc,0};
+  // gate_up_done is the fused stage's own field (MR7); this test drives the
+  // standalone router finish, where a null pointer is the documented default.
+  Sm90DenseMoeOperands p{nullptr,nullptr,nullptr,dl,ds,dw,di,nullptr,dc,0,nullptr};
   finish<B,E,All><<<1,128>>>(p);Check(cudaGetLastError());Check(cudaDeviceSynchronize());
   std::vector<float> w(B*K);std::vector<int> index(B*K),schedule(Schedule::kInts);
   Check(cudaMemcpy(w.data(),dw,B*K*4,cudaMemcpyDeviceToHost));

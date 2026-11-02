@@ -105,9 +105,9 @@ int main() {try {
   tilemega::codegen::executor::EncodeTiledMap<4>(host_maps[1],h,
       {{64,16,I/64,E},{2ull*I,128,2ull*16*I},{64,std::uint32_t(rows),TKdn/64,1}});
   check(cudaMemcpy(maps,host_maps,sizeof host_maps,cudaMemcpyHostToDevice));
-  Sm90DenseMoeOperands r{maps,dr,nullptr,logits,schedule,weights,index,nullptr,router_ctr,1e-6f};
-  Sm90DenseMoeOperands g{nullptr,dgu,dx,h,schedule,nullptr,nullptr,nullptr,nullptr,1e-6f};
-  Sm90DenseMoeOperands d{maps+1,ddn,nullptr,partial,schedule,weights,nullptr,dx,tile_ctr,1e-6f};
+  Sm90DenseMoeOperands r{maps,dr,nullptr,logits,schedule,weights,index,nullptr,router_ctr,1e-6f,nullptr};
+  Sm90DenseMoeOperands g{nullptr,dgu,dx,h,schedule,nullptr,nullptr,nullptr,nullptr,1e-6f,nullptr};
+  Sm90DenseMoeOperands d{maps+1,ddn,nullptr,partial,schedule,weights,nullptr,dx,tile_ctr,1e-6f,nullptr};
   int shared=std::max({Router::kSharedBytes,GateUp::kSharedBytes,Down::kSharedBytes});
   check(cudaFuncSetAttribute(moe,cudaFuncAttributeMaxDynamicSharedMemorySize,shared));
   // Reference (one launch from x).
