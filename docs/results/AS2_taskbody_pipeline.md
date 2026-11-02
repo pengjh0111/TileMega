@@ -1,4 +1,8 @@
-# TaskBody and pipeline checkpoint — 2026-10-30
+# TaskBody and pipeline checkpoints
+
+Latest continuation: [2026-11-02](#2026-11-02-continuation). The section below
+records the earlier2026-10-30 checkpoint; its device holds and compile-only
+status are historical, not the status of the new verified experiments.
 
 Status: **in_progress**. Five dense models/B1/B16 remain the target; MoE is
 deferred. Frozen framework baselines were not rerun. This checkpoint adds code
@@ -159,3 +163,100 @@ recent builds stay protected. Filesystem free space changes from
 10173754073088B before the final build to10202181730304B at cleanup; this shared
 filesystem change is not attributed to our zero-byte cleanup. Raw tensors,
 generated sources, binaries and detailed logs remain ignored, outside Git.
+
+## 2026-11-02 continuation
+
+`verified-run`: continued from `9b78caf6b` under the same TaskBody Prompt SHA.
+The latest NPU admission override is saved outside Git at
+`tilemega-as2/Prompt/NPU_admission_override_20261102.md`, SHA256
+`0dfd1559e4fe54f2594da6544f16c3e471dada3735e75909c39e40bfda1b3775`.
+Functionality requires health/free HBM, not an idle card; timing observes idle
+before each submission. This permits bounded opportunistic use, not preemption
+of other jobs, a device reservation or relaxed numerical acceptance.
+
+### Binding and actual model execution
+
+The previous watch ended after22m29s: all10 cells failed before NPU launch.
+The new Plan's metadata hash differed from the reused input receipt. New
+`as2_request --rebind-inputs` checks the original Plan/receipt, model/config,
+batch/sequence/capacity, allocation tables, required names/layouts and every
+payload hash. It hardlinks verified inputs into a new receipt; it does not
+remove the original strict request-binding check or regenerate random tensors.
+All10 real full-model bootstrap requests now bind successfully, with unchanged
+config/weight/token identities and zero copied weight bytes. They remain
+**unpriced bootstraps**, not10 completed optimized selections.
+Evidence: `runs/as2/models/taskbody_bindings_20261102_v1/results.json`.
+
+`verified-run`: the argmax device probe first exposed stale merge indices in
+the selected CANN9.1 unsigned-to-FP32 Memory API cast. Signed32 conversion plus
+negative/upper-bound rejection fixes the registered vocabulary domain. The
+13-case shared-code probe passes5/5 fresh processes, including both AIV lanes,
+two epochs, BF16 ties, tail/stride guards and invalid/nonfinite values. The
+three failed probes are preserved, not counted as passes.
+
+Qwen0.6 B1's actual CTG/Solver bootstrap now runs the new vector argmax and
+B1/prefill SwiGLU through CANN/ACL. Full64/1024 and independent teacher512 pass
+with unchanged frozen thresholds and exact greedy predictions. This is the
+new Body's first model evidence; it does not admit the other nine cells.
+
+### Descriptor cache and full-request timing
+
+`verified-code/run`: optional `AS2_CACHE_STAGE` retains an immutable Stage POD
+only across adjacent equal Stage IDs in each existing FIFO. Payload acquires,
+semantic waits, ready/done/reverse-ack and prefix publication are unchanged.
+Unused fast-path Task timer reads are also removed. Default cache option stays
+OFF. Full Qwen0.6 B1 numerical and teacher512 checks pass; diagnostic/fast
+compare401 common files; C3 passes5/5 fresh processes/10 reset requests.
+
+The fixed protocol uses the **same unpriced Plan and new Bodies in both arms**,
+five alternating fresh process pairs, one full warmup/three timed64/1024
+requests per process, physical0. All40 token payloads match the validated
+natural greedy hash. No framework baseline is rerun.
+
+| Metric | Control | Stage cache + unused timer removal |
+|---|---:|---:|
+| Process-median TPOT,ms | 6.560516 | 6.219099 |
+| TTFT,ms | 35.872286 | 34.172627 |
+| E2E,ms | 6747.460037 | 6396.310845 |
+| Request throughput,token/s | 151.760810 | 160.092282 |
+
+Paired geometric speedup1.056857; approximate log-t95% interval
+[1.016422,1.098900]; process CV2.28%/2.64%. This is a **local runtime gain**,
+under the retained shared-load observations, not an eager G-PERF pass or a
+new multi-family priced selection. Evidence:
+`bench/taskbody_cache_pairs_20261102_v1/{protocol,samples,summary}.json`.
+
+### Streaming Attention component and remaining gates
+
+`verified-code/run`: `StreamingAttentionTile.h` implements the small-query AIV
+candidate with32-key blocks. BF16 Q/K/V and BF16 P feed FP32 online m/l/o;
+normalization uses the unrounded FP32 exponent sum. Only final output reaches
+GM: no FP32 KV expansion or score/P/partial-output GM matrices. It borrows the
+existing106496-byte UB declaration and returns after output DMA completion.
+This is a distinct precision contract, not FP32 replay or CATLASS49 extraction.
+
+13 fresh device processes cover9 bounded shapes: D64/128, GQA2/3/4, B1/B16,
+query1/16 and keys65/127/128/129/255/256/257/1087. The D128/GQA3/key65 case
+passes5/5 fresh processes. NaN-poisoned inactive KV and output guards pass;
+maximum error against the two independent references is0.00390625, maximum
+NRMSE0.002378, zero failed/nonfinite elements under the original Body policy.
+Evidence: `probes/taskbody_streaming_family_20261102_v1/results.json` plus
+`probes/taskbody_streaming_d128_gqa3_k65_20261102_v1/numeric.json`.
+
+**Not model-admitted:** the streaming candidate has no native model binding,
+selected price, full-model teacher/greedy result or request TPOT yet. Next,
+propagate its precision identity through import/implementation/source/request/
+pricing and bind an AIV implementation through the actual CTG/Solver chain.
+CATLASS49 Cube streaming/local pipeline, GEMM sessions, slot-credit retirement,
+same-group affinity/regions, batched residual and context/family selection
+remain incomplete. Keep the validated replay path; no tolerance/default change.
+
+All new device work uses physical0/D7:00.0→logical0; physical1 is queried only.
+Both cards report HealthOK this continuation. New successful stream completions
+supersede the old physical0 hold for these bounded G2/G8 paths; the old G14/K256
+failures and physical1 G14 restriction are not relabelled passes. CPU builds
+remain nice10/parallel1. No locks/reset/exclusive mode/other-process actions.
+Storage sharing checks completed producers, canonical identity, manifest stamps
+and hashes; every original sample path/byte remains. Current exact usage,
+release totals, jobs and source/binary identities are indexed in
+`runs/as2/search/taskbody_checkpoint_20261102_v1.json` and `runs/as2/resume.json`.
