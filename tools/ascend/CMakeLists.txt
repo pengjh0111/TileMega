@@ -103,6 +103,8 @@ target_compile_options(as2_streaming_attention_fp32 PRIVATE --cce-res-usage)
 
 as1_asc_target(as2_gemm_session "${TILEMEGA_ROOT}/tools/probes/ascend950/as2_gemm_session.cpp")
 target_compile_options(as2_gemm_session PRIVATE --cce-res-usage)
+as1_asc_target(as2_pv_valid "${TILEMEGA_ROOT}/tools/probes/ascend950/as2_pv_valid.cpp")
+target_compile_options(as2_pv_valid PRIVATE --cce-res-usage)
 
 add_executable(as2_host_session_disabled "${TILEMEGA_ROOT}/test/unit/ascend_llm_session_contract_test.cpp")
 target_include_directories(as2_host_session_disabled PRIVATE "${TILEMEGA_ROOT}/include" "$ENV{ASCEND_HOME_PATH}/include")
