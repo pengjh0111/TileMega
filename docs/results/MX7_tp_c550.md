@@ -279,3 +279,5 @@ Old partial records remain. Seven focused CPU selection/trace tests also pass.
 
 **verified, B5** TP4 B2 candidate3 timing guard75 (GPU3 external interference) is invalid and excluded.
 A source-bound single retry preserves all successful build/check/timing records; resume tooling prelaunch errors are retained.
+**verified, B4** The retry guard later rejected preflight occupancy (75), before any child/PID or GPU launch.
+The single timing retry is still unused; collection waits outside GPU locks for six consecutive idle samples.
