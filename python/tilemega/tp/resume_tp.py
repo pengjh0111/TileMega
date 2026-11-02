@@ -7,6 +7,7 @@ from pathlib import Path
 import shutil
 import sys
 
+from tilemega.build.identity import verify
 from tilemega.tp.solve_tp import ROOT, check_qualification, ref, save, sha
 from tilemega.tp.selection_tp import pin, select_measured
 
@@ -67,7 +68,7 @@ def check_unlaunched_retry(retry):
 
 def resume(args):
     out = args.out.resolve()
-    if (out / 'results.json').exists() or ((out / 'inputs/RESUME1.json').exists() and not (args.prelaunch_remedy or args.preflight_remedy or args.timing_remedy)):
+    if (out / 'results.json').exists() or ((out / 'inputs/RESUME1.json').exists() and not (args.prelaunch_remedy or args.preflight_remedy or args.timing_remedy or args.final_stage_remedy)):
         raise ValueError('this cell is complete or its single retry has already started')
     sealed = out / 'inputs'
     if args.prelaunch_remedy:
@@ -135,6 +136,10 @@ def resume(args):
                     check_unlaunched_retry(retry)
             failures.append(dict(candidate_rank=candidate['choice']['candidate_rank'],
                                  process=ref(process_path), guard=ref(guard_path)))
+    if args.final_stage_remedy:
+        if failures or any('timing' not in c for c in candidates):
+            raise ValueError('all four candidate timings must qualify before final-stage recovery')
+        return finish_qualified_final(args, cell, candidates, rejected, original)
     if len(failures) != 1:
         raise ValueError('exactly one excluded timing cohort is required')
     suffix = (f'_timing{args.timing_remedy}' if args.timing_remedy else
@@ -190,12 +195,76 @@ def resume(args):
     return result
 
 
+
+def finish_qualified_final(args, cell, candidates, rejected, original):
+    final = cell.out / 'final'
+    selected_path = cell.out / 'selected_pin.json'
+    final_pin = json.loads(selected_path.read_text())
+    selection = select_measured([c['choice']['predicted_ns'] for c in candidates],
+                                [c['timing']['fresh_process_ns'] for c in candidates])
+    selected = candidates[selection['selected']]
+    expected = pin(selected['choice'], cell.cost_sha, args.tp, 'manual')
+    if (final_pin['mx_decode_v2'] != expected['mx_decode_v2'] or
+            final_pin['evidence']['selection'] != selection):
+        raise ValueError('retained selected pin differs from the measured one-percent decision')
+    failed = final / 'correctness'
+    process_path = failed / 'execution/PROCESS.json'
+    guard_path = failed / 'execution/guard/guard_result.json'
+    process = json.loads(process_path.read_text())
+    guard = json.loads(guard_path.read_text())
+    if process['returncode'] != 75 or guard['code'] != 75 or 'interference' not in guard['reason']:
+        raise ValueError('only externally invalidated checks may use final-stage recovery')
+    hf = failed / 'hf_check.json'
+    if hf.exists() and not json.loads(hf.read_text())['pass']:
+        raise ValueError('an HF correctness failure cannot be hidden by guard recovery')
+    for path in failed.glob('*/check.json'):
+        value = json.loads(path.read_text())
+        if not value.get('pass', True) or not value['rank_tokens_identical']:
+            raise ValueError('a native correctness failure cannot be hidden by guard recovery')
+    if list(final.glob('correctness_retry*')) or list(final.glob('timing_*')):
+        raise ValueError('the single final-stage retry has already started')
+    successful_guard(final / 'occupancy')
+    occupancy_path = final / 'occupancy/result.json'
+    occupancy = json.loads(occupancy_path.read_text())
+    if not occupancy['qualified']:
+        raise ValueError('retained final residency did not qualify')
+    identity = verify(final / 'plan.so')
+    report = final / 'actual_resources.json'
+    if json.loads(report.read_text())['violations']:
+        raise ValueError('retained final resources did not qualify')
+    resources = dict(status='qualified', binary=ref(final / 'plan.so'), artifact_id=identity['artifact_id'],
+                     resources=ref(report), occupancy=ref(occupancy_path))
+    sealed = cell.out / 'inputs'
+    archived = sealed / 'resume_tp_final1.py'
+    receipt = sealed / 'RESUME_FINAL1.json'
+    if archived.exists() or receipt.exists():
+        raise ValueError('final-stage retry receipt already exists')
+    prior = sorted(sealed.glob('RESUME*.json'))
+    shutil.copy2(__file__, archived)
+    save(receipt, dict(classification='MX7 B4/B5 externally invalidated final checks',
+                       runner=ref(archived), original_runner=original['runner'],
+                       history=list(map(ref, prior)), excluded_checks=dict(process=ref(process_path),
+                       guard=ref(guard_path)), retry_limit=1,
+                       selected_pin=ref(selected_path), retained_resources=resources,
+                       policy='retain all four valid candidate timings and selected artifact; repeat final C-1/C-2 once'))
+    correctness = cell.correctness(final / 'correctness_retry1', fresh=5)
+    timing = cell.measure(final)
+    result = dict(tp=args.tp, batch=args.batch, group=args.group, selection=selection,
+                  selected_pin=ref(selected_path), cost_table_sha256=cell.cost_sha,
+                  candidates=candidates, rejected=rejected, resources=resources,
+                  final_correctness=correctness, final_timing=timing,
+                  resume=final_pin['evidence']['resume'], final_stage_resume=ref(receipt))
+    save(cell.out / 'results.json', result)
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--prelaunch-remedy', action='store_true')
     parser.add_argument('--preflight-remedy', type=int, default=0)
     parser.add_argument('--timing-remedy', type=int, default=0)
+    parser.add_argument('--final-stage-remedy', action='store_true')
     parser.add_argument('--tp', type=int, choices=(2, 4), required=True)
     parser.add_argument('--batch', type=int, choices=(1, 2, 4, 8, 16), required=True)
     parser.add_argument('--group', required=True)

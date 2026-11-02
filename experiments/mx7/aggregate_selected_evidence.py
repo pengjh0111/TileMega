@@ -25,7 +25,10 @@ for cell in sorted(a.root.glob('tp*/B*')):
    assert all(x['resident_ctas']==1 and x['attributes']['localSizeBytes']==x['attributes']['sharedSizeBytes']==0 for x in query['ranks'])
   cu=pathlib.Path(str(so)+'.cu');core=int(re.search(r'kBodySmemBytes\s*=\s*(\d+)',cu.read_text())[1]);smem=(core+b*4+15)//16*16+16
   resources.append(dict(record_type=kind+'_actual_residency'if good else kind+'_resource_rejected',evidence='verified',model='qwen3_1_7b',batch=b,phase='decode',tp=t,threads=512,MTreg=k['registers'],STreg=k['scalar_registers'],stack_bytes=k['stack_bytes'],static_smem_bytes=k['static_smem_bytes'],dynamic_smem_bytes=smem,resident_ctas=1 if good else'',query_status='all_ranks_pass:'+str(q)if good else'CPU_rejected_or_query_failed',code_bytes=r['code_bytes'],source_head=s['head'],artifact=str(so),artifact_sha256=sha(so),resources_json=json.dumps(ref(report)),source_snapshot_json=json.dumps(ref(source))))
-  root=folder/'correctness';hf=root/'hf_check.json';native=root/'c1_tokens/check.json'
+  root=folder/'correctness'
+  if kind=='selected':
+   result=json.loads(terminal.read_text());root=pathlib.Path(result['final_correctness']['C1']['path']).parent
+  hf=root/'hf_check.json';native=root/'c1_tokens/check.json'
   execution=root/'execution/PROCESS.json';guard=root/'execution/guard/guard_result.json'
   if not execution.exists()or not guard.exists():continue
   if json.loads(execution.read_text())['returncode']or json.loads(guard.read_text())['code']:continue
