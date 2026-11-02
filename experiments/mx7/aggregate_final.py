@@ -33,6 +33,8 @@ for file in sorted(a.root.glob('tp*/B*/results.json')):
  result=json.loads(file.read_text())
  if 'resume' in result:
   remedy=json.loads(checked(result['resume']).read_text());checked(remedy['runner'])
+  for prior in remedy.get('history',[]):
+   history=json.loads(checked(prior).read_text());checked(history['runner'])
   assert remedy['retry_limit']==1 and len(remedy['excluded_timing'])==1
   for failure in remedy['excluded_timing']:
    assert json.loads(checked(failure['guard']).read_text())['code']==75

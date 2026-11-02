@@ -67,7 +67,7 @@ def check_unlaunched_retry(retry):
 
 def resume(args):
     out = args.out.resolve()
-    if (out / 'results.json').exists() or ((out / 'inputs/RESUME1.json').exists() and not (args.prelaunch_remedy or args.preflight_remedy)):
+    if (out / 'results.json').exists() or ((out / 'inputs/RESUME1.json').exists() and not (args.prelaunch_remedy or args.preflight_remedy or args.timing_remedy)):
         raise ValueError('this cell is complete or its single retry has already started')
     sealed = out / 'inputs'
     if args.prelaunch_remedy:
@@ -130,17 +130,27 @@ def resume(args):
             guard = json.loads(guard_path.read_text())
             if process['returncode'] != 75 or guard['code'] != 75 or 'interference' not in guard['reason']:
                 raise ValueError('only one guard-interference timing anomaly may be retried here')
+            if args.timing_remedy:
+                for retry in folder.glob('timing_retry1*'):
+                    check_unlaunched_retry(retry)
             failures.append(dict(candidate_rank=candidate['choice']['candidate_rank'],
                                  process=ref(process_path), guard=ref(guard_path)))
     if len(failures) != 1:
         raise ValueError('exactly one excluded timing cohort is required')
-    suffix = f'_preflight{args.preflight_remedy}' if args.preflight_remedy else ('_prelaunch_remedy' if args.prelaunch_remedy else '')
+    suffix = (f'_timing{args.timing_remedy}' if args.timing_remedy else
+              (f'_preflight{args.preflight_remedy}' if args.preflight_remedy else
+               ('_prelaunch_remedy' if args.prelaunch_remedy else '')))
     archived = sealed / f'resume_tp{suffix}.py'
+    if archived.exists():
+        raise ValueError('resume source archive already exists; use a distinct preflight receipt')
     shutil.copy2(__file__, archived)
-    receipt = sealed / (f'RESUME1_PREFLIGHT{args.preflight_remedy}.json' if args.preflight_remedy else ('RESUME1_PREFLIGHT_REMEDY.json' if args.prelaunch_remedy else 'RESUME1.json'))
+    receipt = sealed / (f'RESUME_TIMING{args.timing_remedy}.json' if args.timing_remedy else
+                        (f'RESUME1_PREFLIGHT{args.preflight_remedy}.json' if args.preflight_remedy else
+                         ('RESUME1_PREFLIGHT_REMEDY.json' if args.prelaunch_remedy else 'RESUME1.json')))
     save(receipt, dict(classification='MX7 B5 single timing anomaly', runner=ref(archived),
                        original_runner=original['runner'], group=args.group, tp=args.tp, batch=args.batch,
-                       excluded_timing=failures, retry_limit=1,
+                       excluded_timing=failures, retry_limit=1, retry_limit_scope='per original timing cohort',
+                       history=[ref(p) for p in sorted(sealed.glob('RESUME*.json'))],
                        policy='retain successful build/correctness/timing evidence; repeat invalid timing only'))
     for candidate in candidates:
         if 'timing' in candidate:
@@ -185,6 +195,7 @@ def main():
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--prelaunch-remedy', action='store_true')
     parser.add_argument('--preflight-remedy', type=int, default=0)
+    parser.add_argument('--timing-remedy', type=int, default=0)
     parser.add_argument('--tp', type=int, choices=(2, 4), required=True)
     parser.add_argument('--batch', type=int, choices=(1, 2, 4, 8, 16), required=True)
     parser.add_argument('--group', required=True)
