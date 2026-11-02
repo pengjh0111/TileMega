@@ -67,6 +67,8 @@ def check_unlaunched_retry(retry):
 
 
 def resume(args):
+    if getattr(args, 'validate_only', False) and not args.final_stage_remedy:
+        raise ValueError('--validate-only requires final-stage recovery')
     out = args.out.resolve()
     if (out / 'results.json').exists() or ((out / 'inputs/RESUME1.json').exists() and not (args.prelaunch_remedy or args.preflight_remedy or args.timing_remedy or args.final_stage_remedy)):
         raise ValueError('this cell is complete or its single retry has already started')
@@ -234,6 +236,12 @@ def finish_qualified_final(args, cell, candidates, rejected, original):
         raise ValueError('retained final resources did not qualify')
     resources = dict(status='qualified', binary=ref(final / 'plan.so'), artifact_id=identity['artifact_id'],
                      resources=ref(report), occupancy=ref(occupancy_path))
+    if getattr(args, 'validate_only', False):
+        return dict(kind='mx7_final_stage_recovery_preflight', read_only=True, tp=args.tp,
+                    batch=args.batch, group=args.group, selection=selection,
+                    selected_pin=ref(selected_path), retained_resources=resources,
+                    candidate_timing_cohorts=4, failed_guard=ref(guard_path),
+                    next_checks=dict(C1_positions=512, C2_fresh_processes=5, timing_fresh_processes=2))
     sealed = cell.out / 'inputs'
     archived = sealed / 'resume_tp_final1.py'
     receipt = sealed / 'RESUME_FINAL1.json'
@@ -265,6 +273,7 @@ def main():
     parser.add_argument('--preflight-remedy', type=int, default=0)
     parser.add_argument('--timing-remedy', type=int, default=0)
     parser.add_argument('--final-stage-remedy', action='store_true')
+    parser.add_argument('--validate-only', action='store_true')
     parser.add_argument('--tp', type=int, choices=(2, 4), required=True)
     parser.add_argument('--batch', type=int, choices=(1, 2, 4, 8, 16), required=True)
     parser.add_argument('--group', required=True)
