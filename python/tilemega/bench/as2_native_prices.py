@@ -11,6 +11,13 @@ from tilemega.bench.as2_body_profile import logical_bytes
 from tilemega.bench.as2_precision import REPLAY, validate_plan_precision
 
 
+def combined_timing_status(statuses):
+    values=list(statuses)
+    if not values:raise ValueError('Missing timing observations')
+    if 'contended' in values:return 'contended'
+    return 'uncontended_observed' if all(v=='uncontended_observed' for v in values) else 'load_not_fully_characterized'
+
+
 def task_overheads(stage,profile,cost):
     composite=stage[17]==13 and stage[31] in (4,5,6,7,8,9)
     if bool(profile.get('internal_mix_coordination_included'))!=composite:
@@ -66,7 +73,7 @@ def costs(jobs,out):
     result=dict(schema='tilemega.as2.native_scheduling_costs.v1',status='measured_empirical_context',
         groups=rows[0]['groups'],physical_device_id=rows[0]['physical_device_id'],counter_hz=hz,rows=rows,
         provenance=[str(controlled(j,[RUNS])/'job.json') for j in jobs],
-        timing_status='contended' if any(r['timing_status']=='contended' for r in rows) else 'uncontended_observed',
+        timing_status=combined_timing_status(r['timing_status'] for r in rows),
         transferability='same private toolchain/device/code paths only; no hardware-peak claim',
         definitions=dict(dispatcher='AcquireData + Stage POD read + single-owner publication; excludes queue/dependency waits',
             cross_worker_ready='half AIC0 / AIV(group1,lane0) round-trip median; symmetric approximation',
@@ -142,7 +149,7 @@ def measured_prices(plan,profile_path,cost_path):
         source_plan=str(plan),source_stages_sha256=digest(plan/'stages.bin'),
         swiglu_l1_k=256 if any(s[17]==0 and s[31]==5 for s in stages) else 128,
         gm_bytes_per_ns=cost['gm_bytes_per_ns'],cross_worker_ready_ns=cost['cross_worker_ready_ns'],
-        timing_status=cost['timing_status'],accuracy='stage or explicit local-region median plus measured metadata/publication overhead; conservative active-KV upper bound',
+        timing_status=combined_timing_status([cost['timing_status'],profile['timing_status']]),accuracy='stage or explicit local-region median plus measured metadata/publication overhead; conservative active-KV upper bound',
         limitations=['no automatic transfer to another model/G/geometry','MIX service sums serial Cube/epilogue phases',
             'GM calendar is conservative and not a detailed pipelined interconnect model','contended costs are context-local, not portable hardware constants'])
     return result
@@ -217,7 +224,7 @@ def contexts(plan,profile_paths,bounds,cost_path,out):
         if s[17]==13:
             value=math.ceil(sum(logical_bytes(s,m,0,p) for p in range(64,1087))/1023)
             row['logical_gm_bytes']=[value]*s[19]
-    timing='contended' if any(p['timing_status']=='contended' for p in identities) or result['timing_status']=='contended' else 'uncontended_observed'
+    timing=combined_timing_status([p['timing_status'] for p in identities]+[result['timing_status']])
     source=dict(schema='tilemega.as2.native_body_contexts.v1',status='measured_body_contexts',
         phase='decode',past_min=64,past_max=1086,forward_count=1023,buckets=buckets,
         weight_rule='one occurrence per actual decode past length',timing_status=timing)

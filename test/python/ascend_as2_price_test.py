@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import tempfile
 from tilemega.bench.as2_native_prices import (task_overheads,tile_body_prices,cost_measurement,
-    context_weights,weighted_stage_prices)
+    context_weights,weighted_stage_prices,combined_timing_status)
 from tilemega.bench.as2_body_profile import (logical_bytes,profile_bytes,attention_intervals,
     ATTENTION_PHASE_MAGIC,ATTENTION_PHASE_NAMES)
 from tilemega.bench.as2_models import RUNS
@@ -50,6 +50,12 @@ class ProfileArchive(unittest.TestCase):
 
 
 class AscendPriceAccounting(unittest.TestCase):
+    def test_incomplete_telemetry_is_never_upgraded_to_idle(self):
+        self.assertEqual(combined_timing_status(['uncontended_observed']*2),'uncontended_observed')
+        self.assertEqual(combined_timing_status(['uncontended_observed','load_not_fully_characterized']),'load_not_fully_characterized')
+        self.assertEqual(combined_timing_status(['contended','load_not_fully_characterized']),'contended')
+        with self.assertRaises(ValueError):combined_timing_status([])
+
     def test_context_counts_cover_exactly_the_1023_decode_forwards(self):
         rows=[dict(past_min=64,past_max=127,past=95),dict(past_min=128,past_max=511,past=319),
               dict(past_min=512,past_max=1086,past=799)]
