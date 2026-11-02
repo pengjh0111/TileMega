@@ -166,6 +166,14 @@ struct Sm90DenseCoordinates {
     // MR7: the fused stage is MoE only and runs one ring for both task types.
     if(expert_fuse && (!moe || gemms[6].slots!=gemms[7].slots))
       throw std::invalid_argument("illegal sm90 dense expert fusion coordinate");
+    // E2 moved routing into the router stage's own CTAs, which no longer
+    // publish the global schedule the unfused M5/M6 read through TotalTasks,
+    // so an unfused MoE coordinate builds and then reads a slot nobody wrote.
+    // Legal() already refuses it, but the fixed path does not go through
+    // Legal(), and schema 5 loads REF-R3's cells as expert_fuse false.
+    if(moe && !expert_fuse)
+      throw std::invalid_argument(
+          "unfused MoE requires the router's schedule publication (R6 P5)");
     attention.Validate();
   }
 

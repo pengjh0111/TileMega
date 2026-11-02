@@ -50,4 +50,19 @@ int main() {
  try {Sm90DenseCoordinates::Exact(nk,1,1024);}
  catch(std::invalid_argument const&) {too_small=true;}
  assert(too_small);
+ // A1: an unfused MoE coordinate used to build and then read a schedule slot
+ // the router stopped writing at E2. Validate() must refuse it, including the
+ // schema-5 form REF-R3's cells are written in, which loads expert_fuse false.
+ Sm90DenseShapeTable moe_nk={{{6144,2048},{2048,2048},{0,0},{0,0},
+     {50304,2048},{64,2048},{2048,2048},{2048,1024}}};
+ Sm90DenseCoordinates m;m.moe=true;
+ for(unsigned i:m.Active()) {auto& g=m.gemms[i];g.tile_n=32;g.slot_bytes=2*g.tile_n*64;}
+ m.gemms[4].tile_n=128;m.gemms[4].slot_bytes=2*128*64;
+ m.swiglu_u=8;m.attention.chunks=16;m.weight_stream=true;m.layer_loop=true;m.embed_la=true;
+ m.expert_fuse=true;m.gemms[7].slots=m.gemms[6].slots;
+ bool unfused_refused=false;
+ auto unfused=m;unfused.expert_fuse=false;
+ try {unfused.Validate(moe_nk,1);}
+ catch(std::invalid_argument const&) {unfused_refused=true;}
+ assert(unfused_refused);
 }
