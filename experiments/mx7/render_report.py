@@ -21,6 +21,8 @@ def latest(name, keys, record_type=None):
 
 
 def num(value, digits=3):
+    if value in ('N/A', '', None):
+        return 'N/A'
     return f'{float(value):.{digits}f}'
 
 
@@ -29,7 +31,7 @@ def main():
     baselines = latest('MX7_tp_baselines_c550.csv', ['tp', 'batch', 'system'],
                        'final_two_fresh_processes')
     assert len(final) == 10 and len(baselines) == 30
-    assert all(row['status'] == 'pass' for row in baselines.values())
+    assert all(row['status'] in ('pass', 'N/A') for row in baselines.values())
     for scope, row in baselines.items():
         if scope[2] == 'torchcompile':
             for item in json.loads(row['measurements_json']):
@@ -92,6 +94,7 @@ def main():
     for t in (2, 4):
         for b in (1, 2, 4, 8, 16):
             values = [num(baselines[str(t), str(b), engine]['tpot_ms'])
+                      if baselines[str(t), str(b), engine]['status'] == 'pass' else 'N/A'
                       for engine in ('vllm', 'sglang', 'torchcompile')]
             lines.append(f'| {t} | {b} | ' + ' | '.join(values) + ' |')
     lines += ['', '## TileMega final selected plans', '',
@@ -203,7 +206,7 @@ def main():
         '- **inferred** P2P packet throughput and measured per-AR overhead limit scaling; trace gives stage locations.',
         '- **stated, C** prompt-mode TTFT includes work absent from the separate TP1 prefill path.', '',
         '## GPU accounting and completion', '']
-    compiler_rows = [row for key, row in baselines.items() if key[2] == 'torchcompile']
+    compiler_rows = [row for key, row in baselines.items() if key[2] == 'torchcompile' and row['status'] == 'pass']
     widest = max(compiler_rows, key=lambda row: abs(float(row['round1_tpot_ms']) - float(row['round2_tpot_ms'])) / float(row['tpot_ms']))
     spread = abs(float(widest['round1_tpot_ms']) - float(widest['round2_tpot_ms'])) / float(widest['tpot_ms'])
     lines.insert(-3, f'- **verified, C** largest torch.compile fresh-process range={spread:.1%} (TP{widest["tp"]} B{widest["batch"]}); '

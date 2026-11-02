@@ -1,6 +1,7 @@
 """Append source-bound MX-7 final/selection rows and publish selected pins."""
 import argparse,csv,hashlib,json,pathlib,statistics,subprocess
 from tilemega.tp.process_cohorts import validate_run, validate_checks
+from baseline_results import check_group, latest_baselines
 p=argparse.ArgumentParser(description=__doc__);p.add_argument('--root',type=pathlib.Path,required=True);a=p.parse_args()
 ROOT=pathlib.Path.cwd();head=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
 def checked(ref):
@@ -28,9 +29,8 @@ def append(path,fields,rows,key):
    w.writerows(fresh)
  return len(fresh)
 frozen={int(r['batch']):r for r in csv.DictReader(open('docs/results/MX5_llm_performance_snapshot_c550.csv'))if r['model']=='qwen3_1_7b'}
-baselines={}
-for r in csv.DictReader(open('docs/results/MX7_tp_baselines_c550.csv')):
- if r['record_type']=='final_two_fresh_processes'and r['status']=='pass':baselines[int(r['tp']),int(r['batch']),r['system']]=r
+baseline_cells=latest_baselines('docs/results/MX7_tp_baselines_c550.csv')
+baselines={key:row for key,row in baseline_cells.items()if row['status']=='pass'}
 final=[];selection=[]
 for file in sorted(a.root.glob('tp*/B*/results.json')):
  inputs=file.parent/'inputs';runner=json.loads((inputs/'IDENTITY.json').read_text())['runner']
@@ -70,14 +70,12 @@ for file in sorted(a.root.glob('tp*/B*/results.json')):
  row=dict(record_type='final_two_fresh_processes',evidence='verified',model='qwen3_1_7b',tp=t,batch=b,gpu_indices=result['group'],contract='bf16_greedy',isl=64,osl=1024,prompt_mode=True,executor='L1_persistent',warmup=1,repeats=2,fresh_processes=2,tpot_ms=tpot,ttft_ms=median('ttft_seconds')*1000,e2e_ms=median('e2e_seconds')*1000,tokens_per_s=median('output_tokens_per_second'),tp1_frozen_tpot_ms=tp1,scaling_efficiency=tp1/(t*tpot),round1_tpot_ms=metrics[0]['tpot_seconds']*1000,round2_tpot_ms=metrics[1]['tpot_seconds']*1000)
  for engine in ['vllm','sglang','torchcompile']:
   ref=baselines.get((t,b,engine));value=float(ref['tpot_ms'])if ref else None
-  if ref and t==4:
-   baseline_metrics=[json.loads(checked(record['metrics']).read_text())for record in json.loads(ref['measurements_json'])]
-   if any(record['gpu_indices']!=list(map(int,result['group'].split(',')))for record in baseline_metrics):
-    raise ValueError('TP4 final and baseline used different physical GPU groups')
+  if t==4 and (t,b,engine)in baseline_cells:
+   check_group(baseline_cells[t,b,engine],list(map(int,result['group'].split(','))))
   row[engine+'_tpot_ms']=value if value is not None else'N/A';row['speedup_vs_'+engine]=value/tpot if value is not None else'N/A'
  available=[float(row[x+'_tpot_ms'])for x in ['vllm','sglang','torchcompile']if row[x+'_tpot_ms']!='N/A'];best=min(available)if available else None
  row.update(fastest_baseline_ms=best if best else'N/A',speedup_vs_fastest=best/tpot if best else'N/A',pin=str(published),pin_sha256=sha(published),cost_table_sha256=result['cost_table_sha256'],candidate_rank=pinvalue['evidence']['candidate_rank'],predicted_ns=pinvalue['evidence']['predicted_ns'],pred_over_meas=pinvalue['evidence']['predicted_ns']/(tpot*1e6),source_head=receipt['head'],artifact=str(binary),artifact_sha256=sha(binary),measurements_json=json.dumps(timing['measurements']),selection_results=str(file))
- if any((t,b,engine)not in baselines for engine in ['vllm','sglang','torchcompile']):raise ValueError('formal baseline matrix is incomplete for final reporting')
+ if any((t,b,engine)not in baseline_cells for engine in ['vllm','sglang','torchcompile']):raise ValueError('formal baseline matrix is incomplete for final reporting')
  final.append(row)
  for i,c in enumerate(result['candidates']):
   timing_evidence(c['timing'])

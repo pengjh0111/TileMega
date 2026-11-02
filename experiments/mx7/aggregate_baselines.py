@@ -42,7 +42,7 @@ def aggregate(root, tp):
                 continue
             codes = [int((folder / 'exit_code.txt').read_text()) for folder in folders]
             guards = [json.loads((folder / 'guard_result.json').read_text()) for folder in folders]
-            if any(guard['code'] == 75 or guard['code'] == 124 for guard in guards):
+            if any(guard['code'] == 75 for guard in guards):
                 print('guard remedy required', tp, system, batch)
                 continue
             if any('mxkwCreateQueueBlock' in (folder / 'run.log').read_text(errors='replace') or
@@ -51,11 +51,13 @@ def aggregate(root, tp):
                 print('platform queue failure; no qualified baseline', tp, system, batch)
                 continue
             records, errors = [], []
-            for folder, code in zip(folders, codes):
+            for index, (folder, code) in enumerate(zip(folders, codes)):
                 if code:
                     lines = (folder / 'run.log').read_text(errors='replace').splitlines()
                     error = next((line for line in lines if 'ValueError:' in line or 'RuntimeError:' in line),
                                  next((line for line in lines if 'Error:' in line), 'child exit ' + str(code)))
+                    if code == 124:
+                        error += '; ' + guards[index]['reason']
                     errors.append(dict(returncode=code, original_error=error,
                                        log=ref(folder / 'run.log'), guard=ref(folder / 'guard_result.json'),
                                        source=source_record(folder)))
@@ -69,7 +71,7 @@ def aggregate(root, tp):
                     samples = [row for row in raw if row['N'] == count]
                     if len(samples) != 3 or sum(not row['warmup'] for row in samples) != 2:
                         raise ValueError('baseline must have warm1 + timed2')
-                physical = list(map(int, guards[len(records)]['gpu_indices'])) if not errors else value['gpu_indices']
+                physical = list(map(int, guards[index]['gpu_indices']))
                 if len(physical) != tp or len(set(physical)) != tp or not set(physical) <= set(range(8)):
                     raise ValueError('invalid baseline GPU group')
                 records.append(dict(metrics=ref(metrics), source=source_record(folder),
