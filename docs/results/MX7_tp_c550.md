@@ -273,3 +273,6 @@ Old partial records remain. Seven focused CPU selection/trace tests also pass.
 
 **verified, B4** Timing pairs share preflight but retain two fresh processes, warm1/timed2 and separate PID/command/exit evidence;900s is unchanged.
 **verified, C** TP2 B4/B8/B16 regress against SGLang; B8/B16 also regress against TP1. TP4 B1 is only1.029× over SGLang and misses the stated inferred target. TP4 B1 trace is being collected.
+
+**verified, B4** Trace aggregation now normalizes an empty head-layer key. One repeated head reference remains append-only and points to the same single trace process; it is not a second sample.
+**verified** TP4 B1 trace and all-rank trace-kernel residency queries pass. Diagnostic per-layer means(µs):qkv7.491,attention25.214,o+AR19.653,gate_up13.626,down+AR22.466;head109.590µs/step.
