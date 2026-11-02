@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Target/Ascend/DevicePrimitives.h>
+#include <tilemega/Backend/Ascend/StreamingAttentionTile.h>
 #if defined(TILEMEGA_LLM_VECTOR_ARGMAX) && TILEMEGA_LLM_VECTOR_ARGMAX
 #include <tilemega/Backend/Ascend/ArgmaxTile.h>
 #endif
@@ -360,6 +361,10 @@ class LlmVectorBody {
     AscendC::Cast(y_,by_,AscendC::RoundMode::CAST_NONE,d);AscendC::PipeBarrier<PIPE_V>();
     AscendC::Add(work_,work_,y_,d);AscendC::PipeBarrier<PIPE_V>();
     AscendC::Cast(bo_,work_,AscendC::RoundMode::CAST_RINT,d);Store(output,d);return true;
+  }
+  __aicore__ inline bool StreamingAttention(GM_ADDR query,GM_ADDR key,GM_ADDR value,
+      GM_ADDR output,unsigned keys,unsigned d) {
+    return RunStreamingAttention({bx_,by_,bo_,x_,y_,z_,work_,scratch_},query,key,value,output,keys,d);
   }
   // A task owns one query head and one contiguous K/V chunk, at most 32 keys.
   // The output is unnormalized (m,l,o), suitable for a separate CTG merge task.

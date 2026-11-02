@@ -146,21 +146,30 @@ def prepare_observed_norm(args):
 
 def prepare_attention(args):
     qh,kvh,keys,d=args.qheads,args.kvheads,args.keys,args.head_dim
-    if not 1<=kvh<=qh<=32 or qh%kvh or not 1<=keys<=1088 or d not in (64,128):
+    batch,rows=args.batch,args.query_rows;capacity=args.capacity or keys
+    if (not 1<=kvh<=qh<=32 or qh%kvh or not 1<=keys<=capacity<=1088 or d not in (64,128) or
+            batch not in (1,16) or rows not in (1,16) or keys<rows):
         raise ValueError('Invalid bounded GQA shape')
     out=controlled(args.out);out.mkdir(parents=True,exist_ok=False)
     g=torch.Generator().manual_seed(20261016)
-    q=torch.randn((qh,d),generator=g).bfloat16()
-    k=torch.randn((kvh,keys,d),generator=g).bfloat16()
-    v=torch.randn((kvh,keys,d),generator=g).bfloat16()
+    q=torch.randn((batch,qh,rows,d),generator=g).bfloat16()
+    k=torch.full((batch,kvh,capacity,d),float('nan'),dtype=torch.bfloat16)
+    v=torch.full_like(k,float('nan'))
+    k[:,:,:keys]=torch.randn((batch,kvh,keys,d),generator=g).bfloat16()
+    v[:,:,:keys]=torch.randn((batch,kvh,keys,d),generator=g).bfloat16()
     save(out/'q.bin',q);save(out/'k.bin',k);save(out/'v.bin',v)
     mapping=torch.arange(qh)//(qh//kvh)
-    scores=torch.einsum('hd,hkd->hk',q.float(),k[mapping].float())*d**-.5
-    result=torch.einsum('hk,hkd->hd',scores.softmax(-1),v[mapping].float())
+    scores=torch.einsum('bhqd,bhkd->bhqk',q.float(),k[:,mapping,:keys].float())*d**-.5
+    causal=torch.arange(keys)[None,:]<=keys-rows+torch.arange(rows)[:,None]
+    scores=scores.masked_fill(~causal,float('-inf'))
+    result=torch.einsum('bhqk,bhkd->bhqd',scores.softmax(-1),v[:,mapping,:keys].float())
     save(out/'ref_fp32.bin',result);save(out/'ref_bf16.bin',result.bfloat16())
-    receipt=dict(family='attention',shape=[qh,d],qheads=qh,kvheads=kvh,keys=keys,
+    shape=[batch,qh,rows,d] if rows!=1 else [batch,qh,d] if batch!=1 else [qh,d]
+    receipt=dict(family='attention',shape=shape,qheads=qh,kvheads=kvh,keys=keys,batch=batch,query_rows=rows,
+        capacity=capacity,unused_kv='NaN poison; excluded from independent reference and device valid domain',
         gqa_ratio=qh//kvh,head_dim=d,seed=20261016,dtype='bf16',opmath='fp32',
-        reference='independent CPU FP32 QK/softmax/PV on BF16 inputs; all keys valid')
+        reference='independent CPU FP32 causal QK/softmax/PV on BF16 inputs; effective keys only',
+        input_sha256={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in out.iterdir()})
     (out/'config.json').write_text(json.dumps(receipt,indent=2)+'\n');print(json.dumps(receipt))
 
 
@@ -179,6 +188,8 @@ def main():
     obs.add_argument('--norm',choices=('norm1','norm2','q_norm','k_norm'),default='norm2')
     attn=sub.add_parser('prepare-attention')
     for name in ('qheads','kvheads','keys','head-dim'):attn.add_argument('--'+name,type=int,required=True)
+    attn.add_argument('--batch',type=int,default=1);attn.add_argument('--query-rows',type=int,default=1)
+    attn.add_argument('--capacity',type=int)
     attn.add_argument('--out',type=Path,required=True)
     acheck=sub.add_parser('compare-attention');acheck.add_argument('--input',type=Path,required=True);acheck.add_argument('--output',type=Path,required=True)
     args=p.parse_args()

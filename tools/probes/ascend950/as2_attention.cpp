@@ -7,6 +7,24 @@
 #include <stdexcept>
 #include <vector>
 using namespace tilemega::ascend;
+#if defined(TILEMEGA_STREAMING_ATTENTION_PROBE)
+__global__ __aicore__ __mix__(1,2) __schedmode__(1)
+void as2_streaming_attention(GM_ADDR q,GM_ADDR k,GM_ADDR v,GM_ADDR out,GM_ADDR status,
+    unsigned batch,unsigned qheads,unsigned kvheads,unsigned keys,unsigned capacity,unsigned rows,unsigned d) {
+  if ASCEND_IS_AIV {
+    const unsigned worker=AscendC::GetBlockIdx();LlmVectorBody body;
+    for(unsigned tile=worker;tile<batch*qheads*rows;tile+=4) {
+      const unsigned head=tile/rows,position=tile%rows,kh=head/(qheads/kvheads);
+      if(!body.StreamingAttention(q+uint64_t(tile)*d*2,k+uint64_t(kh)*capacity*d*2,
+          v+uint64_t(kh)*capacity*d*2,out+uint64_t(tile)*d*2,keys-rows+position+1,d)) {
+        WriteControl((__gm__ uint32_t*)status+worker*128,1);return;
+      }
+      WriteControl((__gm__ uint32_t*)status+worker*128+1,
+          ReadControl((__gm__ uint32_t*)status+worker*128+1)+1);
+    }
+  }
+}
+#else
 __global__ __aicore__ __mix__(1,2) __schedmode__(1)
 void as2_attention(GM_ADDR q,GM_ADDR k,GM_ADDR v,GM_ADDR partial,GM_ADDR stats,GM_ADDR out,
     GM_ADDR status,unsigned qheads,unsigned kvheads,unsigned keys,unsigned d,float scale) {
@@ -31,6 +49,7 @@ void as2_attention(GM_ADDR q,GM_ADDR k,GM_ADDR v,GM_ADDR partial,GM_ADDR stats,G
     }
   }
 }
+#endif
 static void Check(aclError code,char const* name) {
   if(code)throw std::runtime_error(std::string(name)+": "+std::to_string(code));
 }
@@ -41,16 +60,26 @@ static std::vector<uint8_t> Read(std::filesystem::path path,size_t size) {
 }
 int main(int argc,char** argv) {
   try {
+#if defined(TILEMEGA_STREAMING_ATTENTION_PROBE)
+    if(argc!=10)throw std::runtime_error("usage: as2_streaming_attention B Qheads KVheads keys D capacity query_rows input_directory output_directory");
+    unsigned batch=std::stoul(argv[1]),qh=std::stoul(argv[2]),kvh=std::stoul(argv[3]),keys=std::stoul(argv[4]),d=std::stoul(argv[5]);
+    unsigned capacity=std::stoul(argv[6]),rows=std::stoul(argv[7]);const char* in_arg=argv[8];const char* out_arg=argv[9];
+    if((batch!=1 && batch!=16) || (rows!=1 && rows!=16) || keys<rows || capacity<keys || capacity>1088)
+      throw std::runtime_error("Unsupported bounded streaming domain");
+#else
     if(argc!=7)throw std::runtime_error("usage: as2_attention Qheads KVheads keys head_dim input_directory output_directory");
     unsigned qh=std::stoul(argv[1]),kvh=std::stoul(argv[2]),keys=std::stoul(argv[3]),d=std::stoul(argv[4]);
+    unsigned batch=1,capacity=keys,rows=1;const char* in_arg=argv[5];const char* out_arg=argv[6];
+#endif
     if(!kvh || !qh || qh>32 || qh%kvh || !keys || keys>1088 || (d!=64 && d!=128))
       throw std::runtime_error("Bounded GQA/head/context shape required");
     namespace fs=std::filesystem;fs::path root="/home/d50064638/junhuip/TileMega/runs/as2";
-    auto input=fs::weakly_canonical(argv[5]),output=fs::weakly_canonical(argv[6]);
+    auto input=fs::weakly_canonical(in_arg),output=fs::weakly_canonical(out_arg);
     auto inside=[&](auto const& p){auto r=p.lexically_relative(root);return p!=root && !r.empty() && *r.begin()!="..";};
     if(!inside(input)||!inside(output)||fs::exists(output))throw std::runtime_error("Use controlled AS-2 inputs and a new output directory");
-    auto q=Read(input/"q.bin",qh*d*2),k=Read(input/"k.bin",kvh*keys*d*2),v=Read(input/"v.bin",kvh*keys*d*2);
-    std::vector<uint8_t> y(qh*d*2+512,0xa5);std::vector<uint32_t> state(4*128,0);
+    unsigned queries=batch*qh*rows;
+    auto q=Read(input/"q.bin",queries*d*2),k=Read(input/"k.bin",batch*kvh*capacity*d*2),v=Read(input/"v.bin",batch*kvh*capacity*d*2);
+    std::vector<uint8_t> y(queries*d*2+512,0xa5);std::vector<uint32_t> state(4*128,0);
     Check(aclInit(nullptr),"init");uint32_t count=0;Check(aclrtGetDeviceCount(&count),"count");
     if(count!=1)throw std::runtime_error("Use one visible device");Check(aclrtSetDevice(0),"device");
     auto* soc=aclrtGetSocName();if(!soc || std::string(soc)!="Ascend950PR_9579")throw std::runtime_error("Wrong SKU");
@@ -62,18 +91,24 @@ int main(int argc,char** argv) {
     };
     unsigned chunks=(keys+31)/32;
     auto dq=allocate(q.size(),q.data()),dk=allocate(k.size(),k.data()),dv=allocate(v.size(),v.data()),
-      dp=allocate(qh*chunks*d*4),ds=allocate(qh*chunks*8),dy=allocate(y.size(),y.data()),st=allocate(state.size()*4,state.data());
+      dy=allocate(y.size(),y.data()),st=allocate(state.size()*4,state.data());
+#if defined(TILEMEGA_STREAMING_ATTENTION_PROBE)
+    as2_streaming_attention<<<2,nullptr,stream>>>(dq,dk,dv,dy,st,batch,qh,kvh,keys,capacity,rows,d);
+#else
+    auto dp=allocate(qh*chunks*d*4),ds=allocate(qh*chunks*8);
     as2_attention<<<2,nullptr,stream>>>(dq,dk,dv,dp,ds,dy,st,qh,kvh,keys,d,1.0f/std::sqrt(float(d)));
+#endif
     Check(aclrtSynchronizeStream(stream),"synchronize");
     Check(aclrtMemcpy(state.data(),state.size()*4,st,state.size()*4,ACL_MEMCPY_DEVICE_TO_HOST),"read status");
     Check(aclrtMemcpy(y.data(),y.size(),dy,y.size(),ACL_MEMCPY_DEVICE_TO_HOST),"read output");
-    for(unsigned w=0;w<4;++w)if(state[w*128] || state[w*128+1]!=(qh+3-w)/4)
+    for(unsigned w=0;w<4;++w)if(state[w*128] || state[w*128+1]!=(queries+3-w)/4)
       throw std::runtime_error("Attention worker failed/missing head: "+std::to_string(w));
-    for(unsigned i=qh*d*2;i<y.size();++i)if(y[i]!=0xa5)throw std::runtime_error("Output guard overwritten");
-    fs::create_directories(output);std::ofstream out(output/"c.bin",std::ios::binary);out.write((char*)y.data(),qh*d*2);out.close();
+    for(unsigned i=queries*d*2;i<y.size();++i)if(y[i]!=0xa5)throw std::runtime_error("Output guard overwritten");
+    fs::create_directories(output);std::ofstream out(output/"c.bin",std::ios::binary);out.write((char*)y.data(),queries*d*2);out.close();
     for(auto p:allocated)Check(aclrtFree(p),"free");Check(aclrtDestroyStream(stream),"destroy stream");Check(aclFinalize(),"finalize");
     std::cout<<"{\"status\":\"executed_requires_numeric_compare\",\"qheads\":"<<qh<<",\"kvheads\":"<<kvh
       <<",\"gqa_ratio\":"<<qh/kvh<<",\"keys\":"<<keys<<",\"head_dim\":"<<d
+      <<",\"batch\":"<<batch<<",\"query_rows\":"<<rows<<",\"capacity\":"<<capacity
       <<",\"chunk_keys\":32,\"chunks\":"<<chunks<<",\"host_kernel_launches\":1,\"tilemega_pipeline\":false}"<<std::endl;return 0;
   }catch(std::exception const& e){std::cerr<<e.what()<<std::endl;return 1;}
 }

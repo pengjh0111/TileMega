@@ -1,0 +1,20 @@
+{
+  "schema": "tilemega.as2.body_experiment.v1",
+  "impl_id": "aiv_bf16_streaming_query_k32_v1",
+  "precision_contract_id": "bf16_qkv_fp32_online_statistics_bf16_probability_v1",
+  "default_enabled": false,
+  "pipeline_status": "component_validation; not registered for model selection",
+  "role": "AIV_ONLY",
+  "head_dims": [64, 128],
+  "kv_chunk": 32,
+  "maximum_effective_keys": 1088,
+  "query_domain": "one independently normalized query per call; caller owns batch/head/causal mapping",
+  "gqa_mapping": "integer division, including ratio3; no cross-batch KV sharing",
+  "local_bytes": 106496,
+  "allocation": "borrow existing LlmVectorBody UB arrays; no additional storage",
+  "gm_intermediates": [],
+  "hardware_flags": "existing worker-local CompleteDma event7; no cross-core channels",
+  "completion": "output MTE3 complete before return; external event belongs to executor",
+  "numerical_policy": "configs/ascend/as2_correctness_policy.json:body.attention",
+  "model_admission": "requires actual CTG/solver binding, layer/full-model teacher/greedy checks and sourced prices"
+}
