@@ -32,7 +32,8 @@ __device__ __forceinline__ Word Read(Word const* p, int method) {
 template <class Word>
 __device__ __forceinline__ void Write(Word* p, Word value, int method) {
   using Global = __attribute__((address_space(1))) volatile Word;
-  if (method == 1) atomicExch_system(p, value);
+  if (method == 2) __maca_atomic_store(p, value, __ATOMIC_RELAXED, memory_scope_system);
+  else if (method == 1) atomicExch_system(p, value);
   else *((Global*)p) = value;
 }
 
@@ -212,11 +213,11 @@ static int Run(int packets, int epochs, int alloc, int store, int load, bool all
 
 int main(int argc, char** argv) {
   try {
-    if (argc != 8) throw std::runtime_error("usage: ll_litmus <bytes=4|8> <P> <epochs> <alloc=-1|0..7> <store=0|1> <load=0..6> <all=0|1>");
+    if (argc != 8) throw std::runtime_error("usage: ll_litmus <bytes=4|8> <P> <epochs> <alloc=-1|0..7> <store=0|1|2> <load=0..6> <all=0|1>");
     int const width = std::atoi(argv[1]), packets = std::atoi(argv[2]), epochs = std::atoi(argv[3]);
     int const alloc = std::atoi(argv[4]), store = std::atoi(argv[5]), load = std::atoi(argv[6]), all = std::atoi(argv[7]);
     if ((width != 4 && width != 8) || (packets != 1024 && packets != 262144) || epochs < 2000 ||
-        alloc < -1 || alloc > 7 || store < 0 || store > 1 || load < 0 || load > 6 || all < 0 || all > 1)
+        alloc < -1 || alloc > 7 || store < 0 || store > 2 || load < 0 || load > 6 || all < 0 || all > 1)
       throw std::runtime_error("invalid litmus arguments (epochs must be >=2000)");
     return width == 8 ? Run<unsigned long long>(packets, epochs, alloc, store, load, all)
                       : Run<unsigned>(packets, epochs, alloc, store, load, all);
