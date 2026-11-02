@@ -35,14 +35,16 @@ def link_identical(source,target,roots,source_stamp,target_stamp,sha):
         raise RuntimeError('Deduplicated artifact verification failed')
 
 
-def completed_request_directories(jobs,roots,expected_binary=None):
+def completed_request_directories(jobs,roots,expected_binary=None,equivalent_bindings=False):
     if not 1<=len(jobs)<=8:raise ValueError('Require one to eight completed request jobs')
     directories=[];identities=set();common=None
     for directory in jobs:
         job=plain_path(Path(directory)/'job.json',roots);receipt=json.loads(job.read_text())
         command=receipt['command']
+        request=len(command)==8 and command[1]=='request'
+        bench=len(command)==7 and command[1]=='bench'
         if (receipt['project']!='as2' or receipt['status']!='passed' or receipt.get('exit_code')!=0 or
-                receipt.get('device_locked') is not False or len(command)!=8 or command[1]!='request'):
+                receipt.get('device_locked') is not False or not (request or bench)):
             raise ValueError('Require completed, successful AS2 request receipts')
         if expected_binary and receipt['executable_sha256']!=expected_binary:
             raise ValueError('Request binary identity changed')
@@ -52,10 +54,19 @@ def completed_request_directories(jobs,roots,expected_binary=None):
         if process_alive(dict(pid=receipt['pid'],start_ticks=receipt['start_ticks'])):
             raise ValueError('Original producer is still alive')
         binding=plain_path(Path(command[2]),roots)
-        key=(str(binding),receipt['executable_sha256'])
+        if equivalent_bindings:
+            model=json.loads((binding/'request.json').read_text())
+            key=tuple(model[k] for k in ('model_id','batch','config_sha256','weight_manifest_sha256','input_sha256'))
+        else:key=(str(binding),receipt['executable_sha256'])
         if common is not None and key!=common:raise ValueError('Mixed bindings or binaries')
         common=key;root=plain_path(Path(command[3]),roots)
-        outputs,warmup,repetitions,diagnostic=map(int,command[4:])
+        outputs,warmup,repetitions=map(int,command[4:7]);diagnostic=int(command[7]) if request else 0
+        if bench:
+            result=json.loads((root/'result.json').read_text())
+            if (result['binding_directory']!=str(binding) or
+                    (result['osl'],result['warmup'],result['repetitions'])!=(outputs,warmup,repetitions) or
+                    result['host_kernel_launches']!=(warmup+repetitions)*outputs):
+                raise ValueError('Benchmark receipt does not describe complete request outputs')
         if not 2<=outputs<=1024 or warmup<0 or repetitions<1 or warmup+repetitions>16 or diagnostic not in (0,1,2):
             raise ValueError('Invalid completed request scope')
         for repetition in range(-warmup,repetitions):
@@ -73,12 +84,14 @@ def main():
     source.add_argument('--completed-jobs',type=Path,nargs='+')
     p.add_argument('--apply',action='store_true')
     p.add_argument('--min-bytes',type=int,default=1<<20)
+    p.add_argument('--equivalent-bindings',action='store_true',help='Share only hash-equal completed outputs across plans with identical canonical model/input identities')
     p.add_argument('--out',type=Path,required=True)
     a=p.parse_args();runs,_,_=project_paths('as2');roots=[runs]
     if a.min_bytes<65536:p.error('Deduplication is limited to numeric payloads of at least64KiB')
     out=plain_path(a.out,roots);audit=plain_path(a.audit,roots) if a.audit else None
     if out.exists():raise FileExistsError(out)
     if audit:
+        if a.equivalent_bindings:p.error('A C3 proof requires its original exact binding/binary')
         proof=json.loads(audit.read_text())
         if proof['status']!='pass' or proof['processes_passed']<5 or not proof['payload_kv_tokens_controls_bitwise_equal']:
             raise ValueError('Require a completed five-process request C3 audit')
@@ -86,7 +99,7 @@ def main():
         directories=completed_request_directories(jobs,roots,proof['binary_sha256'])
     else:
         jobs=[plain_path(path,roots) for path in a.completed_jobs]
-        directories=completed_request_directories(jobs,roots)
+        directories=completed_request_directories(jobs,roots,equivalent_bindings=a.equivalent_bindings)
     manifest=runs/'manifest.jsonl';registered={}
     for line in manifest.read_text().splitlines():
         entry=json.loads(line);registered[entry['path']]=entry
@@ -117,6 +130,7 @@ def main():
                 bytes=stamp['size'],previous_unique_allocated_bytes=reclaim))
     result=dict(schema='tilemega.as2.c3_dedup.v1' if audit else 'tilemega.as2.completed_request_storage.v1',mode='apply' if a.apply else 'dry-run',
         scope='Byte-preserving storage sharing; no new numerical, synchronization or performance admission',
+        equivalent_bindings=a.equivalent_bindings,
         time=dt.datetime.now(dt.timezone.utc).isoformat(),audit=str(audit) if audit else None,
         audit_sha256=digest(audit) if audit else None,completed_jobs=[str(p) for p in jobs],different_payloads_retained=different,
         min_payload_bytes=a.min_bytes,
