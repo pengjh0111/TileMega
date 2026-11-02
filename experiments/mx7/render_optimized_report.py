@@ -141,6 +141,13 @@ def main():
         lines.append(f'| {b} | head | {h["rank0_median_ns"]/1000:.2f} | — | — | — | — |')
         delta = {s: max(x['max_rank_difference_ns'] for x in data['stages'] if x['stage'] == s)/1000 for s in ('o', 'down')}
         lines.append(f'\n**verified** B{b} maximum inter-rank duration difference: o={delta["o"]:.3f}µs, down={delta["down"]:.3f}µs.\n')
+    for t in (2, 4):
+        data = next(x for x in selected if x['tp'] == t and x['batch'] == 16)
+        timed = [r for item in data['final_timing']['measurements']
+                 for r in read(checked(item))['runs'] if r['N'] == 1024 and not r['warmup']]
+        residual = statistics.median((r['e2e_seconds']*1000-r['ttft_seconds']*1000-
+                    r['rank_kernel_ms'][0]['decode_ms'])*1000/1023 for r in timed)
+        lines.append(f'**verified** TP{t} B16 wall minus CUDA prompt/decode events: {residual:.3f}µs/decode step; four timed requests, diagnostic only.')
     pred = [float(x['pred_over_meas']) for x in final.values()]
     expected = [
         f'- **verified, C** TP{t} B{b}: {float(final[t,b]["tpot_ms"]):.3f}ms; prompt expectation **inferred** {bound}ms.'
@@ -171,9 +178,10 @@ def main():
         '**verified** new ten-cell solver selection, final E2E/C-1/C-2, four delay cohorts and two final traces are complete.',
         '**verified** all required CSVs and selected pins are present; external baselines and protected MoE paths are unchanged.',
         '**inferred** no unimplemented correctness gate remains; performance targets are expectations, not acceptance gates.']
-    assert len(lines) <= 300, len(lines)
-    (results/'MX7_tp_c550.md').write_text('\n'.join(lines)+'\n')
-    print('optimized report lines', len(lines))
+    report = '\n'.join(lines)+'\n'
+    assert len(report.splitlines()) <= 300, len(report.splitlines())
+    (results/'MX7_tp_c550.md').write_text(report)
+    print('optimized report lines', len(report.splitlines()))
 
 
 if __name__ == '__main__':

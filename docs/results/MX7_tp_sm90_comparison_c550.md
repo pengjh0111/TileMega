@@ -207,3 +207,16 @@ The other nine scopes and selected-pin delay/trace gates remain in progress.
 1024-token processes against its ordinary final binary. Production and the
 unit-qualified prototype match in all319 frozen include files after removing
 only the added mapping comment (`pair_lanes/PRODUCTION_UNIT_EQUIVALENCE.json`).
+
+**verified** TP4 B16 re-selection also completes: final TPOT3.071796ms,
+all four candidates pass C-1/two-process C-2, and the selected rebuild passes
+C-1/five-process C-2. Both fresh timing processes agree with fresh C-2 in all
+12 warm/timed requests. Selected-pin delay qualification and trace are queued;
+the remaining eight scopes continue with the same frozen baseline matrix.
+
+**verified** Four timed requests per reselected B16 scope give median wall
+E2E minus CUDA TTFT minus rank0 CUDA decode event time of0.741us/step(TP2)
+and1.412us/step(TP4). Per-rank prompt/decode event medians are close.
+**inferred** The remaining time is predominantly device execution and peer
+waiting; the persistent two-launch pipeline is preserved. Final trace will
+separate stage costs. The source metrics are each scope final_timing references.
