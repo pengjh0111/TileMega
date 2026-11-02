@@ -253,3 +253,12 @@ Cross-stage weight streaming is not an enabled H800 advantage in these pins.
 not measured causes of the remaining C550 gap. They require a separate design
 from the current MX-7§6–§10 protocol; neither is implemented here. Source/pin
 snapshots: `runs/mx7/sm90_comparison/sm90_reference/pipeline/REFERENCE.json`.
+
+**verified** TP2 B1 re-selection completes at2.252859ms(final two-process median),
+with C-1/five-process C-2 passing. Its four candidates are2.254064/2.259908/
+2.248423/2.250167ms; the1% rule retains predicted rank1. TP4 B1 and the
+remaining six middle-batch scopes continue; B1 selected-pin delay checks remain.
+
+**verified** Selected TP2 B1 injected-delay qualification completes5/5 fresh
+1024-token processes, exact against its ordinary selected final binary. The
+two B16 cohorts also remain5/5; only selected TP4 B1 delay qualification waits.
