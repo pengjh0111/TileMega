@@ -43,6 +43,12 @@ def check_qualification(path):
     return catalog, qualification
 
 
+def check_constant_group(catalog, tp, devices):
+    measured_group = catalog.get('tp_gpu_groups', {}).get(str(tp))
+    if measured_group is not None and devices != measured_group:
+        raise ValueError('TP constants were measured on a different physical GPU group')
+
+
 class Cell:
     def __init__(self, args):
         self.a = args
@@ -55,6 +61,7 @@ class Cell:
                         TILEMEGA_GPU_JOB_LOG=str(ROOT / 'runs/mx7/gpu_jobs.log'))
         self.cpu_env = dict(self.env, CUDA_VISIBLE_DEVICES='', MACA_VISIBLE_DEVICES='')
         self.catalog, qualification = check_qualification(args.costs)
+        check_constant_group(self.catalog, args.tp, devices)
         sealed = self.out / 'inputs'
         sealed.mkdir()
         for source in (args.costs, args.costs.with_suffix('.qualification.json'), args.bridge,

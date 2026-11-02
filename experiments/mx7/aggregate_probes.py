@@ -45,17 +45,37 @@ def collect(root):
                 passed_processes=int(record['pass']), status='pass' if record['pass'] else 'fail',
                 binary_sha256=identity['binary_sha256'], source_sha256=identity['source_sha256'],
                 raw_evidence=str(log) + f":{record['source']}->{record['destination']}"))
-    for summary in sorted(set(root.glob('c0/**/summary.json')) | set(root.glob('resume*/c0/**/summary.json'))):
+    summaries = set(root.glob('c0/**/summary.json')) | set(root.glob('resume*/c0/**/summary.json'))
+    summaries |= set(root.glob('resume*/alternate_*/**/summary.json'))
+    for summary in sorted(summaries):
         cohort = summary.parent
         processes = sorted(cohort.glob('process*/result.json'))
         if len(processes) != 5:
             raise ValueError('C0 summary is not backed by five fresh processes')
         inputs = [json.loads(path.read_text()) for path in processes]
         first = inputs[0]
+        if all('PID' in row for row in inputs) and len({row['PID'] for row in inputs}) != 5:
+            raise ValueError('C0 requires five distinct fresh process IDs')
+        if 'alternate_' in str(summary) and not all('PID' in row for row in inputs):
+            raise ValueError('new hardware qualification requires captured process IDs')
         if len({(row['binary_sha256'], row['source_sha256'], tuple(row['command'])) for row in inputs}) != 1:
             raise ValueError('probe source/binary/command differs within cohort')
         values = [row['records'][-1] for row in inputs if row['records']]
         passed = sum(row['passed'] for row in inputs)
+        if Path(first['binary']).name == 'p2p_probe':
+            if any(len(row['records']) != 12 for row in inputs):
+                raise ValueError('four-card P2P matrix is incomplete')
+            for index, entry in enumerate(first['records']):
+                pair = (entry['source'], entry['destination'])
+                if any((row['records'][index]['source'], row['records'][index]['destination']) != pair for row in inputs):
+                    raise ValueError('P2P pair order differs between fresh processes')
+                pair_passes = sum(row['passed'] and row['records'][index]['pass'] for row in inputs)
+                result.append(dict(record_type='p2p', evidence='verified',
+                    gpu_indices=','.join(map(str, first['gpu_indices'])), source_rank=pair[0],
+                    destination_rank=pair[1], fresh_processes=5, passed_processes=pair_passes,
+                    status='pass' if pair_passes == 5 else 'fail', binary_sha256=first['binary_sha256'],
+                    source_sha256=first['source_sha256'], raw_evidence=str(summary) + f':{pair[0]}->{pair[1]}'))
+            continue
         row = dict(record_type='ll' if Path(first['binary']).name == 'll_litmus' else 'p2p_timing', evidence='verified',
                    gpu_indices=','.join(map(str, first['gpu_indices'])), fresh_processes=5,
                    passed_processes=passed, status='pass' if passed == 5 else 'fail',

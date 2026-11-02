@@ -2,7 +2,10 @@
 import argparse,collections,hashlib,json,os,pathlib,statistics,subprocess,sys
 p=argparse.ArgumentParser(description=__doc__)
 for name in ['measurements','builds','out','work']:p.add_argument('--'+name,type=pathlib.Path,required=True)
+p.add_argument('--tp',type=int,choices=(2,4),action='append')
+p.add_argument('--group',help='physical group for a single requested TP degree')
 a=p.parse_args();a.work.mkdir(parents=True,exist_ok=False)
+if a.group and (not a.tp or len(a.tp)!=1 or len(set(a.group.split(',')))!=a.tp[0]):p.error('--group requires exactly one matching --tp')
 sha=lambda p:hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()
 ref=lambda p:dict(path=str(pathlib.Path(p).resolve()),sha256=sha(p))
 def read(folder,rounds):
@@ -15,12 +18,14 @@ def read(folder,rounds):
   records.append((x,ref(path)))
  return records
 result={'t_ar':[],'t_head_x':[]};history=[]
-for tp in [2,4]:
+for tp in a.tp or [2,4]:
  for b in [1,2,4,8,16]:
   name=f'tp{tp}_B{b}';folder=a.measurements/name
   guard=folder/'guard/guard_result.json'
   if json.loads(guard.read_text())['code']:raise ValueError('constant guard failed')
   records=read(folder/'cohort',range(3));history.append(ref(guard))
+  physical_group=a.group or ('1,3'if tp==2 else'1,3,4,5')
+  if any(x['gpu_indices']!=physical_group for x,_ in records):raise ValueError('constant records used a different physical GPU group')
   if len({x['PID']for x,_ in records})!=3:raise ValueError('three fresh constant processes required')
   rows=[]
   for i in range(9):
@@ -36,8 +41,8 @@ for tp in [2,4]:
    eligible += [row for row in group if row['spread']>.02 and row['median_ns']<=best+abs(best)*.02]
   extras=[]
   if eligible:
-   out=a.work/name;group='1,3'if tp==2 else'1,3,4,5'
-   cmd=['scripts/mx_gpu_group_job.sh',group,'900',str(out/'guard'),sys.executable,'experiments/mx7/measure_tp_constants.py','--build',str(pathlib.Path(records[0][0]['build']['binary']).parent),'--out',str(out/'cohort'),'--processes','2','--round-start','3']
+   out=a.work/name
+   cmd=['scripts/mx_gpu_group_job.sh',physical_group,'900',str(out/'guard'),sys.executable,'experiments/mx7/measure_tp_constants.py','--build',str(pathlib.Path(records[0][0]['build']['binary']).parent),'--out',str(out/'cohort'),'--processes','2','--round-start','3']
    out.mkdir();
    with(out/'run.log').open('w')as log:code=subprocess.run(cmd,env=dict(os.environ,NEEDS_MIB='2048'),stdout=log,stderr=subprocess.STDOUT).returncode
    if code:raise RuntimeError('constant noise supplement failed: '+str(out))

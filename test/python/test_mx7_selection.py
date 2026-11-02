@@ -8,7 +8,7 @@ import tempfile
 import unittest
 
 from tilemega.tp.selection_tp import STAGES, k_best, pin, select_measured, stage_lists
-from tilemega.tp.solve_tp import check_qualification
+from tilemega.tp.solve_tp import check_constant_group, check_qualification
 
 
 def row(stage, tn=16, cost=10, length=None):
@@ -30,6 +30,13 @@ def fixture():
 
 
 class SelectionTests(unittest.TestCase):
+    def test_constants_follow_their_measured_physical_group(self):
+        catalog = {'tp_gpu_groups': {'4': [1, 2, 3, 5]}}
+        check_constant_group(catalog, 4, [1, 2, 3, 5])
+        with self.assertRaisesRegex(ValueError, 'different physical GPU group'):
+            check_constant_group(catalog, 4, [1, 3, 4, 5])
+        check_constant_group({}, 4, [1, 3, 4, 5])
+
     def test_selection_refuses_changed_or_ineligible_catalog(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'costs.json'
