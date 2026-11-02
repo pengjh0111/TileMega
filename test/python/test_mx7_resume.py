@@ -4,7 +4,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from tilemega.tp.resume_tp import checked, completed_timing
+from tilemega.tp.resume_tp import checked, completed_timing, check_unlaunched_retry
 from tilemega.tp.solve_tp import ref
 
 
@@ -18,6 +18,19 @@ class ResumeTests(unittest.TestCase):
             path.write_text('{"changed": true}')
             with self.assertRaisesRegex(ValueError, 'changed archived evidence'):
                 checked(identity)
+
+    def test_only_preflight_rejection_leaves_the_retry_unused(self):
+        with tempfile.TemporaryDirectory() as directory:
+            retry = Path(directory)
+            execution = retry / 'timing_execution/execution'
+            guard = execution / 'guard'
+            guard.mkdir(parents=True)
+            (execution / 'PROCESS.json').write_text(json.dumps(dict(returncode=75)))
+            (guard / 'guard_result.json').write_text(json.dumps(dict(code=75, reason='preflight occupied GPU3')))
+            check_unlaunched_retry(retry)
+            (guard / 'pgid').write_text('1234')
+            with self.assertRaisesRegex(ValueError, 'launched timing retry'):
+                check_unlaunched_retry(retry)
 
     def test_guard_invalidated_times_cannot_be_selected(self):
         with tempfile.TemporaryDirectory() as directory:
