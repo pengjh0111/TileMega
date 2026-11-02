@@ -18,6 +18,11 @@ def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def canonical_evidence(value):
+    path, separator, pair = value.partition(':')
+    return str(Path(path).resolve()) + separator + pair
+
+
 def collect(root):
     result = []
     p2p = root / 'c0_p2p_job.log'
@@ -113,8 +118,13 @@ def main():
     args = parser.parse_args()
     rows = collect(args.root)
     old = list(csv.DictReader(args.out.open())) if args.out.exists() else []
-    seen = {row['raw_evidence'] for row in old}
-    fresh = [row for row in rows if row['raw_evidence'] not in seen]
+    seen = {canonical_evidence(row['raw_evidence']) for row in old}
+    fresh = []
+    for row in rows:
+        key = canonical_evidence(row['raw_evidence'])
+        if key not in seen:
+            fresh.append(row)
+            seen.add(key)
     if fresh:
         with args.out.open('a', newline='') as output:
             writer = csv.DictWriter(output, fieldnames=FIELDS, lineterminator='\n')
