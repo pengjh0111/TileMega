@@ -8,6 +8,7 @@ import struct
 from tilemega.bench.as2_models import RUNS, controlled
 from tilemega.bench.as2_native import digest
 from tilemega.bench.as2_body_profile import logical_bytes
+from tilemega.bench.as2_precision import REPLAY, validate_plan_precision
 
 
 def task_overheads(stage,profile,cost):
@@ -97,10 +98,10 @@ def prices(plan,profile_path,cost_path,out):
     if out.exists():raise FileExistsError(out)
     profile=json.loads(profile_path.read_text());cost=json.loads(cost_path.read_text());imported=json.loads((plan.parent/'import.json').read_text())
     precision=imported.get('precision_contract_id','as2_llm_fp32_replay_bf16_casts_v1')
-    if (precision!='as2_llm_fp32_replay_bf16_casts_v1' or
-            profile.get('precision_contract_id',precision)!=precision):
+    if profile.get('precision_contract_id',REPLAY)!=precision:
         raise ValueError('Profile and Plan precision contracts differ')
     m=struct.unpack('<12I3Q',(plan/'metadata.bin').read_bytes());stages=list(struct.iter_unpack('<17Q16I',(plan/'stages.bin').read_bytes()))
+    validate_plan_precision(precision,stages)
     job=json.loads((Path(profile['job'])/'job.json').read_text())
     if profile['status']!='measured_body_only' or job['status']!='passed' or cost['status']!='measured_empirical_context':
         raise ValueError('Require actual successful Body and control measurements')

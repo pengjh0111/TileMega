@@ -88,12 +88,15 @@ def cached_kv_state(stages,buffers,metadata):
     return sorted(state)
 
 
+from tilemega.bench.as2_precision import REPLAY, STREAMING, CONTRACTS, validate_plan_precision
+
 SOURCE_CAPABILITIES=('TILEMEGA_LLM_SPLIT_K','TILEMEGA_LLM_LOCAL_TAIL_K7','TILEMEGA_LLM_LOCAL_Q_TAIL_K3',
                      'TILEMEGA_LLM_WIDE_QK','TILEMEGA_LLM_FP32_KV_CACHE','TILEMEGA_LLM_SWIGLU_TILE',
-                     'TILEMEGA_LLM_SWIGLU_L1_K256','TILEMEGA_LLM_VECTOR_ARGMAX','TILEMEGA_LLM_G14')
+                     'TILEMEGA_LLM_SWIGLU_L1_K256','TILEMEGA_LLM_VECTOR_ARGMAX','TILEMEGA_LLM_G14',
+                     'TILEMEGA_LLM_STREAMING_ATTENTION')
 SOURCE_GEOMETRY=('TILEMEGA_LLM_VARIANT','TILEMEGA_LLM_TM','TILEMEGA_LLM_TN','TILEMEGA_LLM_TK')
 SOURCE_CONTRACT=('TILEMEGA_LLM_PRECISION_CONTRACT',)
-PRECISION_CONTRACT='as2_llm_fp32_replay_bf16_casts_v1'
+PRECISION_CONTRACT=REPLAY
 
 
 def gemm_variant_geometry(stage):
@@ -117,7 +120,9 @@ def source_parts(path):
     if set(fields)-set(SOURCE_CAPABILITIES+SOURCE_GEOMETRY+SOURCE_CONTRACT) or any(k not in fields for k in SOURCE_GEOMETRY):
         raise ValueError('Unknown generated request capability/geometry')
     fields.setdefault(SOURCE_CONTRACT[0],1)
-    if fields[SOURCE_CONTRACT[0]]!=1:raise ValueError('Unsupported generated precision contract')
+    if fields[SOURCE_CONTRACT[0]] not in CONTRACTS.values():raise ValueError('Unsupported generated precision contract')
+    if bool(fields.get('TILEMEGA_LLM_STREAMING_ATTENTION',0))!=(fields[SOURCE_CONTRACT[0]]==2):
+        raise ValueError('Generated streaming capability and precision contract differ')
     if any(fields.get(k,0) not in (0,1) for k in SOURCE_CAPABILITIES):
         raise ValueError('Unregistered generated request capability')
     if tuple(fields[k] for k in SOURCE_GEOMETRY) not in ((0,32,64,64),(1,16,128,128)):
@@ -157,7 +162,7 @@ def bind(prefill, decode, inputs, out,emit_source=False):
     if out.exists():raise FileExistsError(out)
     generated_source_text,source_identity=request_source(prefill,decode) if emit_source else (None,None)
     identity=json.loads((inputs/'inputs.json').read_text())
-    plans=[]
+    plans=[];precisions=[]
     for phase,path,seq in [('prefill',prefill,64),('decode',decode,1)]:
         imported=json.loads((path.parent/'import.json').read_text())
         m=list(struct.unpack('<12I3Q',(path/'metadata.bin').read_bytes()))
@@ -166,8 +171,11 @@ def bind(prefill, decode, inputs, out,emit_source=False):
         if m[11] not in (0,1):raise ValueError('Unknown phase pricing mode')
         if imported['phase']!=phase or imported['model_id']!=identity['model_id'] or imported['config_sha256']!=identity['config_sha256']:
             raise ValueError('Phase model/config mismatch')
-        if imported.get('precision_contract_id',PRECISION_CONTRACT)!=PRECISION_CONTRACT:
-            raise ValueError('Unsupported phase precision contract')
+        precision=imported.get('precision_contract_id',PRECISION_CONTRACT)
+        phase_stages=list(struct.iter_unpack('<17Q16I',(path/'stages.bin').read_bytes()))
+        validate_plan_precision(precision,phase_stages)
+        if precisions and precision!=precisions[0]:raise ValueError('Request phases use different precision contracts')
+        precisions.append(precision)
         if not m[11]:
             bounds=struct.unpack('<4I',(path/'pricing_bounds.bin').read_bytes())
             prices=json.loads((path/'prices.json').read_text())
@@ -175,6 +183,8 @@ def bind(prefill, decode, inputs, out,emit_source=False):
                 raise ValueError('Empirical prices use a different runtime ABI')
             if bounds[0]!=1 or bounds[1]!=0 or bounds[2]>1086 or bounds[3]!=m[1] or (seq==64 and bounds[2]) or not imported.get('priced_solver_executed'):
                 raise ValueError('Invalid empirical pricing bounds/provenance')
+            if prices.get('precision_contract_id',REPLAY)!=precision:
+                raise ValueError('Empirical prices use another precision contract')
             for key,value in dict(model_id=identity['model_id'],config_sha256=identity['config_sha256'],batch=m[8],seq=seq,groups=m[1],phase=phase,past_min=0,past_max=bounds[2]).items():
                 if prices[key]!=value:raise ValueError('Empirical pricing identity mismatch: '+key)
         buffers=json.loads((path/'buffers.json').read_text())['buffers']
@@ -185,6 +195,8 @@ def bind(prefill, decode, inputs, out,emit_source=False):
             if b['id']!=i or (b['offset_bytes'],b['bytes'],b['allocated_bytes'],int(b.get('required_input',False)),0)!=a:
                 raise ValueError('Allocation manifest does not match binary tables')
         plans.append(dict(phase=phase,path=path,metadata=m,buffers=buffers))
+    if source_identity and source_identity['capabilities'][SOURCE_CONTRACT[0]]!=CONTRACTS[precisions[0]]:
+        raise ValueError('Generated source and Plan precision contract differ')
     variants=[]
     for plan in plans:
         v={gemm_variant_geometry(s) for s in struct.iter_unpack('<17Q16I',(plan['path']/'stages.bin').read_bytes()) if s[17]==0}
@@ -231,7 +243,7 @@ def bind(prefill, decode, inputs, out,emit_source=False):
         isl=64,capacity=1088,arena_bytes=total,source_inputs=str(inputs),geometry_variant=variants[0],
         groups=plans[0]['metadata'][1],workers=plans[0]['metadata'][2],
         optimization_status='measured_native_rank_eft_shared_gm' if priced else 'unpriced_phase_bootstrap_not_admitted',phases={},buffers=union)
-    receipt['precision_contract_id']=PRECISION_CONTRACT
+    receipt['precision_contract_id']=precisions[0]
     receipt['derived_fp32_kv_state']=cached_states[0]
     for plan in plans:
         dest=out/plan['phase'];dest.mkdir();m=plan['metadata'];m[12]=total

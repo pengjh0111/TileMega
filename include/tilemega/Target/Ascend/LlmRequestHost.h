@@ -112,8 +112,21 @@ inline void ValidateCompiledBodies(std::vector<llm::Stage> const& stages) {
   for(auto const& s:stages)if(s.kind==25 &&
       (s.extent!=8 || s.width!=768 || s.group!=1 || s.query_rows!=4 || s.kv_block!=128 || s.variant))
     throw std::invalid_argument("Unregistered QKV pack geometry");
-  for(auto const& s:stages)if(s.kind==13 && s.variant>9)
+  for(auto const& s:stages)if(s.kind==13 && s.variant>10)
     throw std::invalid_argument("Unregistered native attention implementation");
+  for(auto const& s:stages)if(s.kind==13 && s.variant==10) {
+#if !defined(TILEMEGA_LLM_STREAMING_ATTENTION) || !TILEMEGA_LLM_STREAMING_ATTENTION || !defined(TILEMEGA_LLM_PRECISION_CONTRACT) || TILEMEGA_LLM_PRECISION_CONTRACT != 2
+    throw std::invalid_argument("Streaming attention requires its compiled Body and precision contract2");
+#else
+    if(s.kv_block!=1088 || !((s.width==128 && (s.group==2 || s.group==3 || s.group==4)) ||
+        (s.width==64 && s.group==4)) || !s.extent || !s.query_rows || s.query_rows%s.group)
+      throw std::invalid_argument("Unregistered streaming attention shape");
+#endif
+  }
+#if defined(TILEMEGA_LLM_PRECISION_CONTRACT) && TILEMEGA_LLM_PRECISION_CONTRACT == 2
+  for(auto const& s:stages)if(s.kind==13 && s.variant!=10)
+    throw std::invalid_argument("Replay attention cannot use a streaming precision image");
+#endif
 #if !defined(TILEMEGA_LLM_FP32_KV_CACHE) || !TILEMEGA_LLM_FP32_KV_CACHE
   for(auto const& s:stages)if(s.kind==13 && s.variant==9)
     throw std::invalid_argument("Cached FP32 KV requires its explicitly compiled Body");
@@ -127,7 +140,7 @@ inline void ValidateCompiledBodies(std::vector<llm::Stage> const& stages) {
        (s.width!=1024 && s.width!=2048 && !((s.width==3072 || s.width==4096) && s.variant==3))))
     throw std::invalid_argument("Unregistered full-row normalization implementation");
 #ifndef TILEMEGA_AS2_CANN_NORM_PRIMITIVES
-  for(auto const& s:stages)if((s.kind==13 && (s.variant==5 || s.variant==6 || s.variant==7 || s.variant==8 || s.variant==9)) || (s.kind==1 && (s.variant==2 || s.variant==3)))
+  for(auto const& s:stages)if((s.kind==13 && (s.variant==5 || s.variant==6 || s.variant==7 || s.variant==8 || s.variant==9 || s.variant==10)) || (s.kind==1 && (s.variant==2 || s.variant==3)))
     throw std::invalid_argument("Newton QK norm requires explicitly configured pinned CANN device primitives");
 #endif
 }

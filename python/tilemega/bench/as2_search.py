@@ -14,6 +14,7 @@ from tilemega.bench.as2_models import REPO, RUNS, WORK
 from tilemega.bench.as2_native import digest
 from tilemega.bench.as2_queue import controlled, write
 from tilemega.bench.as1_run import process_identity
+from tilemega.bench.as2_precision import REPLAY, STREAMING
 
 
 def select(rows):
@@ -85,7 +86,7 @@ def validate(domain):
         if signature in signatures:raise ValueError('Duplicate implementation/plan candidate')
         signatures.add(signature)
         p,device=evidence(controlled(c['prices']));devices.add(device)
-        if p.get('precision_contract_id','as2_llm_fp32_replay_bf16_casts_v1')!='as2_llm_fp32_replay_bf16_casts_v1':
+        if p.get('precision_contract_id',REPLAY)!=(STREAMING if c['attention']=='aiv-bf16-streaming' else REPLAY):
             raise ValueError('Unmatched precision contract in native search prices')
         if c['groups']==14 and device!=proof['physical_device_id']:
             raise ValueError('G14 pricing and protocol evidence use different physical cards')

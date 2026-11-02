@@ -26,6 +26,13 @@ template<unsigned TM=32,unsigned TN=64,bool CaptureSoftmax=false> class LlmServi
   }
   __aicore__ inline bool Attend(GM_ADDR query,GM_ADDR key,GM_ADDR value,GM_ADDR output,
       GM_ADDR scratch,unsigned keys,unsigned d,unsigned precision) {
+    if(precision==10) {
+#if defined(TILEMEGA_LLM_STREAMING_ATTENTION) && TILEMEGA_LLM_STREAMING_ATTENTION && TILEMEGA_LLM_PRECISION_CONTRACT == 2
+      return vector_.StreamingAttention(query,key,value,output,keys,d);
+#else
+      return false;
+#endif
+    }
     if(precision==1) {
       unsigned chunks=0;
       for(unsigned k=0;k<keys;k+=32,++chunks) {
@@ -277,7 +284,9 @@ template<unsigned TM=32,unsigned TN=64,bool CaptureSoftmax=false> class LlmServi
       return vector_.RmsNorm(p(0)+row*s.width*2,p(1),p(2)+uint64_t(task)*s.width*2,s.width,s.epsilon,s.variant);
     }
     if(s.kind==13) {
-      if((meta.seq!=1 && meta.seq!=64) || (s.width!=64 && s.width!=128) || !s.group || s.group>8 || s.variant>3 || (s.kv_block!=128 && s.kv_block!=1088))return false;
+      if((meta.seq!=1 && meta.seq!=64) || (s.width!=64 && s.width!=128) || !s.group || s.group>8 || (s.variant>3 && s.variant!=10) || (s.kv_block!=128 && s.kv_block!=1088))return false;
+      const unsigned norm_variant=s.variant==10?2:0;
+      if(s.variant==10 && s.kv_block!=1088)return false;
       if(meta.seq==64) {
         if(past || s.kv_block!=meta.capacity || meta.worker_scratch_bytes<98304 || !s.query_rows || s.query_rows%s.group)return false;
         unsigned qblocks=(meta.seq*s.group+s.query_rows-1)/s.query_rows;
@@ -292,7 +301,7 @@ template<unsigned TM=32,unsigned TN=64,bool CaptureSoftmax=false> class LlmServi
         for(unsigned pos=0;pos<meta.seq;++pos) {
           auto source=p(0)+((uint64_t(b)*meta.seq+pos)*packed+uint64_t(group)*(s.group+2)*d)*2;
           if(!Rotate(source+s.group*d*2,p(6),p(3)+uint64_t(pos)*d*2,p(4)+uint64_t(pos)*d*2,
-              keys+uint64_t(pos)*d*2,scratch+512,d,s.epsilon) ||
+              keys+uint64_t(pos)*d*2,scratch+512,d,s.epsilon,norm_variant) ||
               !vector_.Copy(source+(s.group+1)*d*2,values+uint64_t(pos)*d*2,d))return false;
           if(pos*s.group/s.query_rows==qb) {
             Acquire(scratch);
@@ -306,7 +315,7 @@ template<unsigned TM=32,unsigned TN=64,bool CaptureSoftmax=false> class LlmServi
         for(unsigned qi=qb*s.query_rows;qi<end;++qi) {
           unsigned pos=qi/s.group,q=qi%s.group;
           auto source=p(0)+((uint64_t(b)*meta.seq+pos)*packed+uint64_t(group)*(s.group+2)*d+q*d)*2;
-          if(!Rotate(source,p(5),p(3)+uint64_t(pos)*d*2,p(4)+uint64_t(pos)*d*2,scratch,scratch+512,d,s.epsilon))return false;
+          if(!Rotate(source,p(5),p(3)+uint64_t(pos)*d*2,p(4)+uint64_t(pos)*d*2,scratch,scratch+512,d,s.epsilon,norm_variant))return false;
           Acquire(scratch);
           auto output=p(7)+(((uint64_t(b)*meta.seq+pos)*s.extent+group)*s.group+q)*d*2;
           if(!Attend(scratch,keys,values,output,scratch,pos+1,d,s.variant))return false;
@@ -325,14 +334,14 @@ template<unsigned TM=32,unsigned TN=64,bool CaptureSoftmax=false> class LlmServi
       auto cos=p(3)+uint64_t(past)*d*2,sin=p(4)+uint64_t(past)*d*2;
       // Only the task owning the current cache block appends this K/V row.
       if(begin<=past && past<begin+s.kv_block) {
-        if(!Rotate(qkv+s.group*d*2,p(6),cos,sin,key+uint64_t(past)*d*2,scratch+512,d,s.epsilon) ||
+        if(!Rotate(qkv+s.group*d*2,p(6),cos,sin,key+uint64_t(past)*d*2,scratch+512,d,s.epsilon,norm_variant) ||
             !vector_.Copy(qkv+(s.group+1)*d*2,value+uint64_t(past)*d*2,d))return false;
         Acquire(key);
       }
       for(unsigned q=0;q<s.group;++q) {
         auto po=p(8)+(((uint64_t(b)*s.extent+group)*blocks+block)*s.group+q)*d*4;
         auto lse=p(9)+(((uint64_t(b)*s.extent+group)*blocks+block)*s.group+q)*4;
-        if(!Rotate(qkv+q*d*2,p(5),cos,sin,scratch,scratch+512,d,s.epsilon))return false;
+        if(!Rotate(qkv+q*d*2,p(5),cos,sin,scratch,scratch+512,d,s.epsilon,norm_variant))return false;
         Acquire(scratch);
         if(blocks==1) {
           if(!Attend(scratch,key,value,p(7)+((uint64_t(b)*s.extent+group)*s.group+q)*d*2,scratch,end,d,s.variant))return false;

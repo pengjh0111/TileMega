@@ -88,6 +88,18 @@ def logical_bytes(s,m,tile,past):
     if kind!=13:raise ValueError('No logical GM traffic contract for stage kind '+str(kind))
     if s[26]!=1088:raise ValueError('Only the actual unified KV body is profiled')
     qrotate=(14 if s[5]!=absent else 8)*width;krotate=(14 if s[6]!=absent else 8)*width
+    if s[31]==10:
+        if m[9]==1:
+            valid=past+1
+            # Append one BF16 K/V row; every query reads only valid BF16 KV.
+            return krotate+4*width+group*(qrotate+4*width+4*valid*width)
+        blocks=(m[9]*group+query_rows-1)//query_rows;qb=(tile//extent)%blocks
+        first=qb*query_rows;end=min(first+query_rows,m[9]*group)
+        owned=sum(pos*group//query_rows==qb for pos in range(m[9]))
+        # Private prefill KV avoids sibling append races. All prep, copy-out,
+        # query scratch and streaming reads are charged; no FP32 GM matrices.
+        n=m[9]*(krotate+4*width)+owned*8*width
+        return n+sum(qrotate+4*width+4*(qi//group+1)*width for qi in range(first,end))
     if s[31] in (4,5,6,7,8,9):
         if m[9]==1:
             positions=1;rows=group;keys=1088;valid=past+1
