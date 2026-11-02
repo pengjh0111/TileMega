@@ -1,4 +1,4 @@
-"""One finite, idle-admitted TaskBody acceptance submitter; no device reservation."""
+"""Finite TaskBody acceptance; functionality needs resources, timing needs observed idle."""
 from __future__ import annotations
 import argparse
 import csv
@@ -16,7 +16,7 @@ import sys
 import time
 import traceback
 
-from tilemega.bench.as1_run import process_identity
+from tilemega.bench.as1_run import process_identity,devices_from_snapshot
 from tilemega.bench.as2_ablation import paired_interval
 from tilemega.bench.as2_finite_process import Deadline,run as finite_run
 from tilemega.bench.as2_queue import REPO,RUNS,WORK,controlled,write,idle_devices,collect_samples,serious_failure
@@ -27,6 +27,13 @@ PRECISION='as2_llm_fp32_replay_bf16_casts_v1'
 MODULE='tilemega.bench.as2_taskbody_watch'
 
 
+def available_devices(snapshot,required,purpose):
+    if purpose=='performance':return idle_devices(snapshot,required,0)
+    if purpose!='functional':raise ValueError('Unknown NPU job purpose')
+    return {i:d for i,d in devices_from_snapshot(snapshot).items()
+            if d.get('health')=='OK' and d['free_mib']>=required}
+
+
 class DeviceUnsafe(BaseException):pass
 
 
@@ -34,7 +41,7 @@ def digest(path):
     with Path(path).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
 
 
-def prepare(directory):
+def prepare(directory,argmax_probe):
     directory=controlled(directory);directory.mkdir(exist_ok=False)
     controls=json.loads((RUNS/'inventory/taskbody_r0_v1/controls.json').read_text())['controls']
     cells=[]
@@ -61,14 +68,20 @@ def prepare(directory):
         cells.append(dict(cell=control['cell'],model=identity['model_id'],batch=identity['batch'],
             control=str(binding),control_sha256=digest(binding/'request.json'),inputs=identity['source_inputs'],
             weight_manifest_sha256=identity['weight_manifest_sha256'],phases=phases))
+    probe=Path(argmax_probe).absolute()
+    if probe.resolve()!=probe or not probe.is_relative_to(WORK/'build') or not probe.is_file():
+        raise ValueError('Require an explicitly selected private compiled argmax probe')
     write(directory/'protocol.json',dict(schema='tilemega.as2.taskbody_acceptance_watch.v1',
         prepared_at=dt.datetime.now(dt.timezone.utc).isoformat(),hours=8,pairs=5,warmup=1,repetitions=3,
         isl=64,osl=1024,confidence_method='paired_log_t_95',max_process_cv=.05,
         idle_observations=3,idle_interval_s=30,maximum_idle_utilization_percent=0,
+        functional_admission='healthy and sufficient HBM; external utilization does not block',
+        performance_admission='healthy, sufficient HBM and repeated observed idle; no reservation',
         inherited_safety_holds=json.loads((RUNS/'resume.json').read_text()).get('safety_holds',[]),
         reentry='User explicitly requested bounded testing after healthy repeated idle observations; old device exit is not relabelled verified',
         frozen_code={str(p):digest(p) for p in sorted((REPO/'python/tilemega/bench').glob('as[12]_*.py'))},
         compiler_sha256=digest(WORK/'build/host/as2_compile_llm'),
+        argmax_probe=str(probe),argmax_probe_sha256=digest(probe),
         baseline_rerun=False,default_promotion=False,cells=cells))
     print(json.dumps(dict(directory=str(directory),cells=len(cells),new_NPU_jobs=0)))
 
@@ -145,38 +158,39 @@ class Watch:
         if r['warning'] or r['generated_bytes']+reserve>r['generated_soft_budget_bytes']:
             raise DeviceUnsafe('Project storage budget insufficient; no further jobs')
 
-    def choose(self,required,physical=None):
+    def choose(self,required,physical=None,purpose='functional'):
         consecutive={};pinned=physical
-        self.state['status']='waiting_healthy_idle';self.save()
+        needed=self.protocol['idle_observations'] if purpose=='performance' else 1
+        self.state['status']='waiting_healthy_idle' if purpose=='performance' else 'waiting_functional_resources';self.save()
         while time.monotonic()<self.end:
             if unfinished_owned_jobs():
                 self.state['waiting_reason']='Existing owned NPU submission is still active';self.save()
             else:
                 self.counter+=1;out=self.root/'observations'/f'{self.counter:05d}.json'
-                self.command('observe',[sys.executable,'-m',MODULE,'observe','--out',out],timeout=15)
-                observed=json.loads(out.read_text());eligible=idle_devices(observed,required,0)
+                self.command('observe',[sys.executable,'-m',MODULE,'observe','--out',out],timeout=40)
+                observed=json.loads(out.read_text());eligible=available_devices(observed,required,purpose)
                 consecutive={i:consecutive.get(i,0)+1 for i in eligible if pinned is None or i==pinned}
-                admitted=[i for i,n in consecutive.items() if n>=self.protocol['idle_observations']]
+                admitted=[i for i,n in consecutive.items() if n>=needed]
                 if admitted:
                     chosen=max(admitted,key=lambda i:eligible[i]['free_mib'])
-                    self.state['last_idle_admission']=dict(physical_device_id=chosen,evidence=str(out),observations=consecutive[chosen],
+                    self.state['last_admission']=dict(purpose=purpose,physical_device_id=chosen,evidence=str(out),observations=consecutive[chosen],
                         previous_device_exit='not_proven_by_idle; fresh bounded reentry authorized by user')
                     self.state['status']='running';self.save();return chosen
-                self.state['waiting_reason']='Require HealthOK, util0% three times, sufficient HBM and no active owned job; resident external contexts are not killed'
+                self.state['waiting_reason']='Require health/HBM and no active own job'+('; repeated idle for timing' if purpose=='performance' else '; external utilization allowed')
                 self.save()
             time.sleep(min(self.protocol['idle_interval_s'],max(0,self.end-time.monotonic())))
         raise Deadline('Eight-hour window expired while waiting for idle hardware')
 
-    def npu(self,name,argv,out,required,physical=None,timeout=600):
-        self.disk();card=self.choose(required,physical)
+    def npu(self,name,argv,out,required,physical=None,timeout=600,purpose='functional'):
+        self.disk();card=self.choose(required,physical,purpose)
         jobdir=RUNS/'jobs'/f'taskbody8h_{self.root.name}_{name}_{time.time_ns()}'
         script='source "$1" || exit; shift; unset TORCH_DEVICE_BACKEND_AUTOLOAD; exec python -m tilemega.bench.as2_run "$@"'
         command=['bash','--noprofile','--norc','-c',script,'as2-acceptance',str(REPO/'scripts/as2_env.sh'),
             '--physical-device',str(card),'--required-free-mib',str(required),'--timeout-s',str(timeout),
-            '--telemetry-timeout-s','5','--out',str(jobdir),'--',*map(str,argv)]
-        record=dict(name=name,job_directory=str(jobdir),output=str(out),physical_device_id=card,argv=list(map(str,argv)))
+            '--telemetry-timeout-s','30','--out',str(jobdir),'--',*map(str,argv)]
+        record=dict(name=name,purpose=purpose,job_directory=str(jobdir),output=str(out),physical_device_id=card,argv=list(map(str,argv)))
         self.state['jobs'].append(record);self.state['new_NPU_jobs']+=1;self.save()
-        try:self.command(name,command,timeout=timeout+20,job=record)
+        try:self.command(name,command,timeout=timeout+70,job=record)
         except RuntimeError:
             receipt=json.loads((jobdir/'job.json').read_text()) if (jobdir/'job.json').exists() else {}
             record['receipt']=receipt;self.save()
@@ -202,15 +216,17 @@ class Watch:
 
     def card_ready(self,card):
         if card in self.ready_cards:return
+        probe=Path(self.protocol['argmax_probe'])
+        if digest(probe)!=self.protocol['argmax_probe_sha256']:raise DeviceUnsafe('Argmax probe changed')
         for i in range(5):
             out=self.root/f'argmax_card{card}_p{i}';self.npu(f'argmax_c{card}_p{i}',
-                [WORK/'build/taskbody_argmax_v2/as2_argmax',out],out,1024,card,60)
+                [probe,out],out,1024,card,60)
             r=json.loads((out/'result.json').read_text())
-            if r.get('status')!='passed' or r.get('cases')!=12:raise DeviceUnsafe('New argmax Body probe failed')
+            if r.get('status')!='passed' or r.get('cases')!=13:raise DeviceUnsafe('New argmax Body probe failed')
         jobs=[]
         for i in range(5):
             out=self.root/f'cost_card{card}_p{i}';r=self.npu(f'cost_c{card}_p{i}',
-                [WORK/'build/probes/as2_native_cost'],out,2048,card,120);jobs.append(r['job_directory'])
+                [WORK/'build/probes/as2_native_cost'],out,2048,card,120,purpose='performance');jobs.append(r['job_directory'])
         path=self.root/f'costs_card{card}.json'
         self.cpu('scheduling_costs','as2_native_prices','costs','--jobs',*jobs,'--out',path)
         self.costs[card]=path;self.ready_cards.add(card)
@@ -281,15 +297,19 @@ class Watch:
                     raise ValueError('Implementation-only candidate changed CTG/ISL '+name)
             self.register(out);return out/'plan'
         plans={p:solve(p) for p in ('prefill','decode')}
+        inputs=root/'bootstrap_inputs'
+        self.cpu('rebind_bootstrap_inputs','as2_request','--rebind-inputs','--prefill',plans['prefill'],
+            '--inputs',cell['inputs'],'--out',inputs)
+        self.register(inputs)
         bootstrap=root/'bootstrap_request'
         self.cpu('bind_bootstrap','as2_request','--prefill',plans['prefill'],'--decode',plans['decode'],
-            '--inputs',cell['inputs'],'--out',bootstrap)
+            '--inputs',inputs,'--out',bootstrap)
         self.register(bootstrap)
         m=json.loads((bootstrap/'request.json').read_text());required=math.ceil(m['arena_bytes']/(1<<20))+6144
         card=self.choose(required);state['physical_device_id']=card;self.save();self.card_ready(card)
         ref=self.reference(cell)
         profile=root/'profile1024'
-        record=self.npu(key+'_profile',[self.image,'request',bootstrap,profile,'1024','0','1','2'],profile,required,card,900)
+        record=self.npu(key+'_profile',[self.image,'request',bootstrap,profile,'1024','0','1','2'],profile,required,card,900,purpose='performance')
         numeric=root/'bootstrap_numeric.json'
         self.cpu('bootstrap_C1','as2_compare_request','--binding',bootstrap,'--native',profile,'--reference',ref,'--out',numeric)
         for phase in ('prefill','decode'):
@@ -298,8 +318,12 @@ class Watch:
             self.cpu('price_'+phase,'as2_native_prices','prices','--plan',plans[phase],'--profile',output,
                 '--costs',self.costs[card],'--out',root/(phase+'_prices.json'))
         plans={p:solve(p,True) for p in ('prefill','decode')};binding=root/'priced_request'
+        inputs=root/'priced_inputs'
+        self.cpu('rebind_priced_inputs','as2_request','--rebind-inputs','--prefill',plans['prefill'],
+            '--inputs',cell['inputs'],'--out',inputs)
+        self.register(inputs)
         self.cpu('bind_priced','as2_request','--prefill',plans['prefill'],'--decode',plans['decode'],
-            '--inputs',cell['inputs'],'--out',binding);self.register(binding)
+            '--inputs',inputs,'--out',binding);self.register(binding)
         state['binding']=str(binding);state['status']='correctness';self.save()
         actual=root/'full1024';self.npu(key+'_C1',[self.image,'request',binding,actual,'1024','0','1','0'],actual,required,card,900)
         self.cpu('priced_C1','as2_compare_request','--binding',binding,'--native',actual,'--reference',ref,'--out',root/'C1.json')
@@ -337,7 +361,7 @@ class Watch:
         for pair in range(5):
             for variant in (('control','candidate') if pair%2==0 else ('candidate','control')):
                 out=root/f'timed_p{pair}_{variant}';plan=control if variant=='control' else binding
-                r=self.npu(key+f'_p{pair}_{variant}',[self.image,'bench',plan,out,'1024','1','3'],out,required,card,900)
+                r=self.npu(key+f'_p{pair}_{variant}',[self.image,'bench',plan,out,'1024','1','3'],out,required,card,900,purpose='performance')
                 for repetition in (-1,0,1,2):
                     if digest(out/f'request_{repetition}/tokens.bin')!=expected:raise ValueError('Timed natural greedy identity differs')
                 metrics=collect_samples(dict(output=str(out),batch=cell['batch']))
@@ -372,7 +396,7 @@ class Watch:
         self.state['cells']={c['cell']:dict(status='not_started') for c in self.protocol['cells']};self.summary()
         try:
             # Snapshot immediately, then reuse one compiled catalogue for all cells.
-            self.command('initial_observation',[sys.executable,'-m',MODULE,'observe','--out',self.root/'initial_observation.json'],timeout=15)
+            self.command('initial_observation',[sys.executable,'-m',MODULE,'observe','--out',self.root/'initial_observation.json'],timeout=40)
             self.disk();self.compile_catalogue()
             for cell in self.protocol['cells']:
                 state=self.state['cells'][cell['cell']];state['status']='preparing';self.save()
@@ -392,12 +416,15 @@ class Watch:
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('action',choices=('prepare','run','observe','disk'))
     p.add_argument('--directory',type=Path);p.add_argument('--out',type=Path);p.add_argument('--hours',type=float,default=8)
+    p.add_argument('--argmax-probe',type=Path)
     a=p.parse_args()
-    if a.action=='prepare':prepare(a.directory)
+    if a.action=='prepare':
+        if a.argmax_probe is None:p.error('Preparation requires --argmax-probe')
+        prepare(a.directory,a.argmax_probe)
     elif a.action=='run':return Watch(a.directory,a.hours).run()
     elif a.action=='observe':
         from tilemega.bench.as1_run import snapshot
-        write(controlled(a.out),snapshot(5))
+        write(controlled(a.out),snapshot(30))
     else:
         from contextlib import redirect_stdout
         from io import StringIO
