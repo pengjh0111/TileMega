@@ -88,6 +88,7 @@ def main():
         '- **inferred** Each rank executes qkv→attention→o+AR→gate_up→down+AR per layer, then head LL argmax exchange produces the common token.',
         '- **inferred** Producers write BF16 partials to all peers, then read q in ascending order; epoch=past+1, prompt runs from past0 and suppresses early token writes.', '',
         'Source hashes, frozen references, exact build/run commands and topology: `runs/mx7/sync/onboarding.md`.', '',
+        'SM90 comparison and ongoing communication diagnostics: `MX7_tp_sm90_comparison_c550.md`; combined measurements: `MX7_tp_comparison_c550.csv`.', '',
         '## Baselines', '',
         '**verified** Two fresh processes/cell, each warm1+timed2; TPOT=(E2E_N1024−E2E_N1)/1023.',
         '**stated** Baselines are collected once and reused across physical GPU groups; changing groups does not trigger another measurement.',

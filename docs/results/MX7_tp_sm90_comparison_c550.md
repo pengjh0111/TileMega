@@ -81,7 +81,7 @@ changing the LL protocol. It must pass ordered-BF16 AR tests in five fresh
 processes at TP2/TP4, resources, full C-1/C-2/litmus and E2E before enabling.
 Measurements and decisions will be appended after qualification. Baselines are reused.
 
-## First measurements and the compiler-level cause
+## First measurements and compiler-level serialization
 
 **verified** TP2 B16, same {4,5} group, three fresh processes per variant:
 
@@ -120,3 +120,43 @@ system atomic loads/stores and independent first reads. No fence is added.
 **verified** Its first TP2 P1024 cohort passes 5/5 fresh processes, each2000 epochs,
 104 CTAs, zero tears/timeouts; median roundtrip7.549us. Large-packet, all-to-all,
 AR and whole-model qualification are pending. Production remains unchanged.
+
+## Primitive-only result and the next task-body comparison
+
+**verified** The relaxed-system primitive with fine allocation passes both TP2
+packet sizes and B1/B16 AR units, each5/5 fresh processes. However its three-process
+TP2 B16 AR increments remain70.550us(o TN32) and70.340us(down TN32), compared
+with70.020/69.840us for the original. Removing the per-access compiler waits
+alone is insufficient. This candidate is not promoted. Four-card checks continue.
+
+**inferred** The remaining difference worth isolating is the shared epilogue's
+packet ownership: SM90 assigns one adjacent column pair per lane; MetaX assigns
+four packets per lane with a32-byte inter-lane stride for each instruction.
+The `pair_lanes` prototype follows SM90's column-pair ownership, keeps the
+original qualified peer primitives and unchanged rank-sum/rounding order, and
+loads the matching residual pair. Geometry, LL8 layout, epochs and barriers
+are unchanged. Its ordered-BF16 units and same-group stage comparisons are queued.
+
+## Pair-lane result (qualification in progress)
+
+**verified** With the original peer primitives, one column pair/lane reduces
+TP2 B16's three-process AR increments as follows:
+
+| stage | TN | original us | pair_lanes us |
+|---|---:|---:|---:|
+| o | 16 | 64.840 | 2.870 |
+| o | 32 | 70.020 | 4.310 |
+| down | 16 | 63.230 | 2.950 |
+| down | 32 | 69.840 | 4.060 |
+
+All nine legal AR geometries pass bitwise against the ordered BF16 reference
+in5/5 fresh TP2 B16 processes, with resident1 and zero stack/static memory.
+**inferred** This controlled result identifies packet-to-lane assignment and
+coalescing as the important task-body mismatch. It does not establish an E2E
+speedup. TP2 B1, TP4 and complete-model gates must pass before promotion.
+
+**verified** The separately approved SDK stream adapter passes5/5 fresh
+initialization/event/copy/explicit-destroy processes; six focused CPU lifecycle
+checks pass (full focused CPU suite56). It is integrated only into the TP engine.
+The edit acquired GPUs1–5's existing locks between payloads, preserving source
+identity during every in-flight check. Full-model qualification continues.

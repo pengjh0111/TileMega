@@ -5,10 +5,10 @@ Evidence labels: **verified** = executed here; **stated** = supplied specificati
 
 ## Current status (verified; CP3 partially complete)
 
-- Nine of ten formal final cells complete: TP2 B1/2/4/8/16 and TP4 B1/2/4/8; all 30 vLLM/SGLang/torch.compile baseline cells pass.
+- Ten of ten formal final cells complete: TP2/TP4 B1/2/4/8/16; all 30 vLLM/SGLang/torch.compile baseline cells pass.
 - **stated** Collect baselines once and reuse across GPU groups. **verified** The original matrix is frozen in `MX7_tp_baselines_frozen_c550.csv`; group-change repeats are canceled.
-- `MX7_tp_comparison_c550.csv` combines all three baselines, selected TileMega results, TTFT/E2E/throughput, speedups and source hashes; the pending TP4 B16 selected result stays empty.
-- TP4 B16 final qualification and trace remain; native queues use guarded{1,2,3,5}. SM90 audit and isolated AR experiments: `MX7_tp_sm90_comparison_c550.md`.
+- `MX7_tp_comparison_c550.csv` combines all three baselines, selected TileMega results, TTFT/E2E/throughput, speedups and source hashes; all ten selected results are included.
+- B16 trace and extra new-group litmus remain; native queues use guarded{1,2,3,5}. SM90 audit and isolated AR experiments: `MX7_tp_sm90_comparison_c550.md`.
 
 ## Historical A5 stop: resumed with all-card authorization
 
@@ -259,7 +259,7 @@ Old partial records remain. Seven focused CPU selection/trace tests also pass.
   The tool now skips pending queries, and correctness cohorts require successful process/guard exits.
   Original row retained with an appended label correction; no actual resource failure occurred.
 
-## CP3 selected final scopes (9/10 complete)
+## CP3 selected final scopes (10/10 complete)
 
 **verified** Every listed rebuild passes C-1, five fresh C-2, all-rank residency and two independent timing processes.
 
@@ -274,6 +274,7 @@ Old partial records remain. Seven focused CPU selection/trace tests also pass.
 | 4 | 2 | 2.775930 | 172.343357 | 3012.119512 | 679.920008 | 1.095809 | 32.50% |
 | 4 | 4 | 3.784171 | 236.794628 | 4108.001560 | 997.078667 | 0.814760 | 25.90% |
 | 4 | 8 | 6.209808 | 420.380348 | 6773.014042 | 1209.508043 | 0.511534 | 17.14% |
+| 4 | 16 | 12.506136 | 885.047806 | 13678.825411 | 1197.764307 | 0.269136 | 10.36% |
 
 **verified, B4** Timing pairs share preflight but retain two fresh processes, warm1/timed2 and separate PID/command/exit evidence;900s is unchanged.
 **verified, C** TP2 B4/B8/B16 regress against SGLang; B8/B16 also regress against TP1. TP4 B1 is only1.029× over SGLang and misses the stated inferred target. TP4 B1 trace is being collected.
