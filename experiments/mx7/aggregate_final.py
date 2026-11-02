@@ -30,7 +30,14 @@ final=[];selection=[]
 for file in sorted(a.root.glob('tp*/B*/results.json')):
  inputs=file.parent/'inputs';runner=json.loads((inputs/'IDENTITY.json').read_text())['runner']
  assert sha(inputs/'solve_tp.py')==runner['sha256'],'archived solver differs from the executed source identity'
- result=json.loads(file.read_text());t,b=result['tp'],result['batch'];timing=result['final_timing'];timing_evidence(timing);metrics=[json.loads(checked(ref).read_text())for ref in timing['measurements']]
+ result=json.loads(file.read_text())
+ if 'resume' in result:
+  remedy=json.loads(checked(result['resume']).read_text());checked(remedy['runner'])
+  assert remedy['retry_limit']==1 and len(remedy['excluded_timing'])==1
+  for failure in remedy['excluded_timing']:
+   assert json.loads(checked(failure['guard']).read_text())['code']==75
+   assert json.loads(checked(failure['process']).read_text())['returncode']==75
+ t,b=result['tp'],result['batch'];timing=result['final_timing'];timing_evidence(timing);metrics=[json.loads(checked(ref).read_text())for ref in timing['measurements']]
  assert len(metrics)==2 and all(x['tp']==t and x['batch']==b and x['rank_tokens_identical']and x['timed_tokens_identical']for x in metrics)
  pin=checked(result['selected_pin']);pinvalue=json.loads(pin.read_text());assert pinvalue['mx_decode_v2']['purpose']=='manual'
  published=pathlib.Path(f'configs/pins/mx7/qwen3_1_7b_tp{t}_B{b}_selected.json');published.parent.mkdir(parents=True,exist_ok=True)
