@@ -36,6 +36,25 @@ class FakeCommands:
 
 
 class ProcessCohortTests(unittest.TestCase):
+    def test_startup_scheduling_waits_without_changing_guard_policy(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = root / 'configs/bench'
+            config.mkdir(parents=True)
+            policy = config / 'guard_policy_c550.json'
+            original = json.dumps(dict(max_hidden_mib=1024, max_idle_wait_s=20, interval_s=0))
+            policy.write_text(original)
+            cell = SimpleNamespace(a=SimpleNamespace(group='1,3', startup_hidden_mib=64))
+            samples = [dict(hidden_mib=n) for n in (500, 0, 0, 0)]
+            with patch('tilemega.bench.gpu_guard.gpu', side_effect=samples), patch('tilemega.bench.gpu_guard.idle', return_value=True), patch('tilemega.tp.process_cohorts.time.sleep'):
+                wait_idle(cell, root / 'execution', root)
+            rows = [json.loads(line) for line in (root / 'execution_readiness.jsonl').read_text().splitlines()]
+            self.assertEqual([r['ready'] for r in rows], [False, True])
+            self.assertEqual(policy.read_text(), original)
+            cell.a.startup_hidden_mib = 2048
+            with self.assertRaisesRegex(ValueError, 'only narrow'):
+                wait_idle(cell, root / 'rejected', root)
+
     @patch('tilemega.tp.process_cohorts.wait_idle')
     def test_coherent_wrong_gpu_group_is_rejected(self, wait):
         with tempfile.TemporaryDirectory() as directory:

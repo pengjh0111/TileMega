@@ -50,6 +50,9 @@ def validate_run(value):
 def wait_idle(cell, folder, root):
     from tilemega.bench.gpu_guard import gpu, idle
     policy = json.loads((root / 'configs/bench/guard_policy_c550.json').read_text())
+    startup_limit = getattr(cell.a, 'startup_hidden_mib', None)
+    if startup_limit is not None and not 0 <= startup_limit <= policy.get('max_hidden_mib', 1024):
+        raise ValueError('startup scheduling may only narrow the existing idle condition')
     start = time.monotonic()
     log = folder.parent / (folder.name + '_readiness.jsonl')
     log.parent.mkdir(parents=True, exist_ok=True)
@@ -61,8 +64,11 @@ def wait_idle(cell, folder, root):
             except Exception as error:
                 errors[gpu_index] = type(error).__name__ + ': ' + str(error)
         ready = not errors and all(idle(row, policy, 12288, g) for g, row in rows.items())
+        if ready and startup_limit is not None:
+            ready = all(row['hidden_mib'] <= startup_limit for row in rows.values())
         with log.open('a') as stream:
-            stream.write(json.dumps(dict(time=time.time(), ready=ready, rows=rows, telemetry_errors=errors)) + '\n')
+            stream.write(json.dumps(dict(time=time.time(), ready=ready, rows=rows, telemetry_errors=errors,
+                                         startup_hidden_mib=startup_limit)) + '\n')
         if ready:
             return
         if time.monotonic() - start > policy['max_idle_wait_s']:

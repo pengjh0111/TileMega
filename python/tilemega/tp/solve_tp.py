@@ -81,7 +81,8 @@ class Cell:
             cohort_source = sealed / 'process_cohorts.py'
             shutil.copy2(ROOT / 'python/tilemega/tp/process_cohorts.py', cohort_source)
         save(sealed / 'IDENTITY.json', dict(inputs=[ref(p) for p in sealed.iterdir()],
-                                          qualification=qualification, runner=ref(__file__)))
+                                          qualification=qualification, runner=ref(__file__),
+                                          scheduling=dict(startup_hidden_mib=getattr(args, 'startup_hidden_mib', None))))
         shutil.copy2(__file__, sealed / 'solve_tp.py')
         if cohort_source is not None:
             from tilemega.tp.process_cohorts import load_and_attach
@@ -256,6 +257,8 @@ def main():
     parser.add_argument('--batch', type=int, choices=(1, 2, 4, 8, 16), required=True)
     parser.add_argument('--group', required=True)
     parser.add_argument('--guard-each-process', action='store_true')
+    parser.add_argument('--startup-hidden-mib', type=int, choices=range(1025), metavar='0..1024',
+                        help='optional stricter CPU scheduling condition; the GPU guard stays unchanged')
     for name in ('costs', 'bridge', 'out'):
         parser.add_argument('--' + name, type=Path, required=True)
     parser.add_argument('--compiler', type=Path, default=ROOT / 'build/tools/tilemega')
@@ -263,6 +266,8 @@ def main():
     parser.add_argument('--model', type=Path, default=Path('/root/models/qwen3_1_7b_rand'))
     parser.add_argument('--prompt-ids', type=Path, default=ROOT / 'configs/prompts/qwen_isl64.json')
     args = parser.parse_args()
+    if args.startup_hidden_mib is not None and not args.guard_each_process:
+        parser.error('--startup-hidden-mib requires --guard-each-process')
     print(json.dumps(Cell(args).run(), indent=2), flush=True)
 
 
