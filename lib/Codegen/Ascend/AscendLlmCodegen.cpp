@@ -520,6 +520,7 @@ std::string LowerAscendLlm(AscendLlmPlan const& p) {
     "#define TILEMEGA_LLM_LOCAL_TAIL_K7 "+std::to_string(unsigned(local))+"\n"+
     "#define TILEMEGA_LLM_LOCAL_Q_TAIL_K3 "+std::to_string(unsigned(q_tail))+"\n"+
     "#define TILEMEGA_LLM_WIDE_QK "+std::to_string(unsigned(wide_qk))+"\n"+
+    "#define TILEMEGA_LLM_FP32_KV_CACHE_B1 "+std::to_string(unsigned(cached_kv && p.metadata.batch==1))+"\n"+
     "#define TILEMEGA_LLM_FP32_KV_CACHE "+std::to_string(unsigned(cached_kv))+"\n"+
     "#define TILEMEGA_LLM_SWIGLU_TILE "+std::to_string(unsigned(swiglu_tile))+"\n"+
     "#define TILEMEGA_LLM_SWIGLU_L1_K256 "+std::to_string(unsigned(k256))+"\n"+

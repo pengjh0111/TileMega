@@ -243,9 +243,14 @@ inline CachedKvState ValidateCachedKvState(llm::Metadata const& m,std::vector<ll
     if(s.variant!=9){ordinary=true;continue;}cached=true;
     const bool heads=(s.width==128 && (s.group==2 || s.group==3 || s.group==4)) ||
                      (s.width==64 && s.group==4);
-    if(m.batch!=16 || m.capacity!=1088 || s.extent!=8 || !heads ||
+    if(m.batch==1) {
+#if !defined(TILEMEGA_LLM_FP32_KV_CACHE_B1) || !TILEMEGA_LLM_FP32_KV_CACHE_B1
+      throw std::invalid_argument("B1 derived KV requires its explicitly compiled admission");
+#endif
+    }
+    if((m.batch!=1 && m.batch!=16) || m.capacity!=1088 || s.extent!=8 || !heads ||
         (m.seq!=1 && m.seq!=64) || s.query_rows!=(m.seq==64?16u:1u)*s.group || s.kv_block!=1088)
-      throw std::invalid_argument("Cached KV shape is outside the five-dense B16 contract");
+      throw std::invalid_argument("Cached KV shape is outside the five-dense B1/B16 contract");
     const uint64_t elements=uint64_t(m.batch)*s.extent*m.capacity*s.width;
     for(unsigned i:{1u,2u,10u,11u}) {
       uint64_t offset=s.operands[i],bytes=elements*(i<10?2:4);

@@ -13,6 +13,9 @@ __aicore__ inline bool DescribeLlmAttention(llm::Stage const& s,unsigned tile,
       (s.width!=64 && s.width!=128) || !s.extent || !s.group || s.group>4 ||
       (m.seq!=1 && m.seq!=64) || uint64_t(past)+m.seq>=m.capacity || (m.seq==64 && past))return false;
   if(s.variant==9) {
+#if !defined(TILEMEGA_LLM_FP32_KV_CACHE_B1) || !TILEMEGA_LLM_FP32_KV_CACHE_B1
+    if(m.batch==1)return false;
+#endif
 #if !defined(TILEMEGA_LLM_FP32_KV_CACHE) || !TILEMEGA_LLM_FP32_KV_CACHE
     return false;
 #else

@@ -107,6 +107,17 @@ class RequestCapturePayloadTest(unittest.TestCase):
         bad=s.copy();bad[11]=bad[10]
         with self.assertRaises(ValueError):cached_kv_state([bad],buffers,m)
 
+    def test_b1_derived_kv_uses_batch_sized_planes_and_rejects_stale_extents(self):
+        m=[0]*15;m[8]=1;m[10]=1088;s=[0]*33;s[17]=13;s[23:27]=[8,128,2,1088];s[31]=9
+        size=8*1088*128*2;buffers=[]
+        for index,name in [(1,'kv_cache.k'),(2,'kv_cache.v'),(10,'kv_cache.fp32.kv_cache.k'),(11,'kv_cache.fp32.kv_cache.v')]:
+            offset=(5<<30)+len(buffers)*(1<<30);s[index]=offset
+            buffers.append(dict(offset_bytes=offset,name=name,dtype='bf16' if index<10 else 'f32',bytes=size*(1 if index<10 else 2),required_input=False))
+        self.assertEqual(len(cached_kv_state([s],buffers,m)),1)
+        with self.assertRaises(ValueError):cached_kv_state([s],[dict(b,bytes=b['bytes']*16) for b in buffers],m)
+        m[8]=4
+        with self.assertRaises(ValueError):cached_kv_state([s],buffers,m)
+
     def test_final_attention_owner_has_three_phase_token_for_all_registered_bodies(self):
         m=[4,2,6,1,1,0,0,100];tasks=[(0,0,1,7,0,0,1)];s=[0]*33;s[17]=13
         for variant in (4,5,6,7,8,9):

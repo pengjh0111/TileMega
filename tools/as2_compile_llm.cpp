@@ -134,9 +134,9 @@ int main(int argc,char** argv) {
       if(attention!="bf16" && attention!="fp32" && attention!="fp32-scores" && attention!="math-sdpa" && attention!="cube-fp32" && attention!="cube-fp32-newton" && attention!="cube-fp32-newton-full" && attention!="cube-fp32-newton-fold" && attention!="cube-fp32-fold-softmax" && attention!="cube-fp32-wide-qk" && attention!="cube-fp32-valid-qk" && attention!="cube-fp32-cached-kv" && attention!="aiv-bf16-streaming" && attention!="aiv-fp32-streaming")throw std::invalid_argument("Unknown attention implementation precision");
       if(attention=="cube-fp32-cached-kv") {
         auto const& model=receipt.At("model_id").AsString("model");
-        if(batch!=16 || (model!="qwen3_0_6b" && model!="qwen3_1_7b" &&
+        if((batch!=1 && batch!=16) || (model!="qwen3_0_6b" && model!="qwen3_1_7b" &&
             model!="llama3_2_1b" && model!="llama3_2_3b" && model!="llama3_1_8b"))
-          throw std::invalid_argument("Cached FP32 KV candidates require one of the five dense B16 models");
+          throw std::invalid_argument("Cached FP32 KV candidates require one of the five dense B1/B16 models");
       }
       attention_precision=attention=="aiv-fp32-streaming"?13:attention=="aiv-bf16-streaming"?12:attention=="fp32"?1:attention=="fp32-scores"?2:attention=="math-sdpa"?3:attention=="cube-fp32"?4:attention=="cube-fp32-newton"?5:attention=="cube-fp32-newton-full"?6:attention=="cube-fp32-newton-fold"?7:attention=="cube-fp32-fold-softmax"?8:attention=="cube-fp32-wide-qk"?9:attention=="cube-fp32-valid-qk"?10:attention=="cube-fp32-cached-kv"?11:0;
     }
