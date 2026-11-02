@@ -33,11 +33,15 @@ def collect(root):
                 gpu_indices='1,2,3,5', source_head=first['source_head'], test_sha256=first['source_sha256'],
                 raw_log=str(cohort['summary']['path']), raw_log_sha256=cohort['summary']['sha256']))
     proofs = set(root.glob('litmus_g1235*/B*/QUALIFIED.json'))
+    proofs.update(root.glob('tp*/B*/QUALIFIED.json'))
     for proof in sorted(proofs):
         data = json.loads(proof.read_text())
         reference = checked(data['reference'])
         checked(data['ordinary_binary'])
         checked(data['litmus_binary'])
+        tp = data.get('tp', 4)
+        group = list(map(int, data['group'].split(',')))
+        assert len(group) == tp and tp in (2, 4)
         assert json.loads(checked(data['occupancy']).read_text())['qualified']
         checks = []
         for item in data['runs']:
@@ -45,14 +49,14 @@ def collect(root):
             check = json.loads(checked(item['check']).read_text())
             assert check['PID'] == guard['attempts'][-1]['child_pid']
             assert check['pass'] and check['rank_tokens_identical'] and check['steps'] == 1024
-            assert check['gpu_indices'] == [1, 2, 3, 5]
+            assert check['gpu_indices'] == group
             assert sha(checked(item['check']).parent / 'tokens.json') == sha(reference)
             checks.append(check)
         assert len(checks) == len({x['PID'] for x in checks}) == 5
         rows.append(dict(record_type='selected_physical_group_litmus', evidence='verified',
             test='tp_injected_delay', cases=data['batch'] * 1024, status='pass', fresh_processes=5,
-            scope=f"TP4 B{data['batch']}; selected pin; exact ordinary tokens; requalified physical group",
-            gpu_indices='1,2,3,5', source_head=checks[0]['host_source_identity']['head'],
+            scope=f"TP{tp} B{data['batch']}; selected pin; exact ordinary tokens; qualified physical group",
+            gpu_indices=data['group'], source_head=checks[0]['host_source_identity']['head'],
             test_sha256=checks[0]['host_source_identity']['source_files']['python/tilemega/serving/check_tp.py'],
             raw_log=str(proof), raw_log_sha256=sha(proof)))
     return rows
@@ -74,7 +78,9 @@ def main():
     old_resources = list(csv.DictReader(resource_path.open()))
     seen_resources = {(x['record_type'], x['artifact_sha256']) for x in old_resources}
     resources = []
-    for marker in sorted(args.root.glob('litmus_g1235*/B*/occupancy_GUARD_PASSED.json')):
+    markers = set(args.root.glob('litmus_g1235*/B*/occupancy_GUARD_PASSED.json'))
+    markers.update(args.root.glob('tp*/B*/occupancy_GUARD_PASSED.json'))
+    for marker in sorted(markers):
         run = json.loads(marker.read_text())
         validate_run(run['manifest'])
         query_path = Path(run['output'])
@@ -84,7 +90,8 @@ def main():
         actual = json.loads(checked(spec['resources']).read_text())
         identity = json.loads(checked(spec['context']).read_text())
         source = json.loads(checked(spec['source_snapshot']).read_text())
-        assert query['qualified'] and len(query['ranks']) == 4
+        tp = int(json.loads(checked(spec['manifest']).read_text())['tp'])
+        assert query['qualified'] and len(query['ranks']) == tp
         for rank in query['ranks']:
             assert rank['resident_ctas'] == 1 and rank['binary_sha256'] == sha(binary)
             assert rank['attributes']['localSizeBytes'] == rank['attributes']['sharedSizeBytes'] == 0
@@ -96,7 +103,7 @@ def main():
             continue
         seen_resources.add(key)
         resources.append(dict(record_type=kind, evidence='verified', model='qwen3_1_7b',
-            batch=marker.parent.name[1:], phase='decode', tp=4, threads=512,
+            batch=marker.parent.name[1:], phase='decode', tp=tp, threads=512,
             MTreg=kernel['registers'], STreg=kernel['scalar_registers'], stack_bytes=0,
             static_smem_bytes=0, dynamic_smem_bytes=identity['shared_memory_bytes'],
             resident_ctas=1, query_status='all_ranks_pass:' + str(query_path),
