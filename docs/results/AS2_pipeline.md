@@ -2,9 +2,11 @@
 
 Status: **in_progress; G-PIPELINE is not passed**. Current reconciliation starts at
 `f0177daa8bdd90a22f2b433c0eccf9f723266892`; new K256 evidence retains its own source/build identity.
-The [TaskBody checkpoint](AS2_taskbody_pipeline.md) adds vector argmax and B1/
-prefill SwiGLU candidates with CPU/native-compile evidence only. They remain
-disabled; it does not replace earlier full-request evidence or lift device holds.
+The [latest TaskBody continuation](AS2_taskbody_round_20261102.md) adds real
+full-model Body/session/KV checks, paired local timing and context-weighted
+request recipe search. Experimental defaults remain disabled. Its device
+identity/health evidence supersedes earlier snapshots only for its own paths;
+historical G14/K256 failures remain recorded.
 `verified-code` means inspected source; `verified-run` means retained actual
 execution. Earlier runs retain their original date/device/software identity.
 Prompt SHA256: `673b6deb619cb02f1c3f2d0875af2bdafb835bca09e3875d7dbfb840b1be00d6`.

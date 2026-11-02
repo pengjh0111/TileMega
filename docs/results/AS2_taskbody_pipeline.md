@@ -1,6 +1,7 @@
 # TaskBody and pipeline checkpoints
 
-Latest continuation: [2026-11-02](#2026-11-02-continuation). The section below
+Latest continuation: [2026-11-02 Body/session/context search](AS2_taskbody_round_20261102.md).
+Earlier continuation: [2026-11-02](#2026-11-02-continuation). The section below
 records the earlier2026-10-30 checkpoint; its device holds and compile-only
 status are historical, not the status of the new verified experiments.
 
