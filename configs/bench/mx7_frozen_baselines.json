@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "kind": "mx7_frozen_baseline_reference",
+  "evidence": "verified",
+  "model": "qwen3_1_7b",
+  "cells": 30,
+  "systems": [
+    "vllm",
+    "sglang",
+    "torchcompile"
+  ],
+  "tp": [
+    2,
+    4
+  ],
+  "batch": [
+    1,
+    2,
+    4,
+    8,
+    16
+  ],
+  "reused_across_gpu_groups": true,
+  "policy": "collect once; reuse the original completed matrix when physical GPU groups change",
+  "user_instruction": "baseline的测试只需要收集一次，切换卡组不需要重新测试",
+  "captured_head": "d9472e774edba45908bc788bf6dfb966ca0147ed",
+  "reference_csv": {
+    "path": "docs/results/MX7_tp_baselines_frozen_c550.csv",
+    "sha256": "356238b3891e42520d36ba7f8fc9fad760d497eb8bff7a4a6ca8e0e48c52c168"
+  },
+  "original_csv_snapshot": {
+    "path": "/root/tilemega/runs/mx7/sync/frozen_baselines_20261102/original.csv",
+    "sha256": "bdf4f6a2575f4f54854e9b2bc0e8f78504fc936b42fec0eade831487b7ae3362"
+  }
+}

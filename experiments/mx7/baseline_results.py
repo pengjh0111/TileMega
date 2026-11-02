@@ -1,4 +1,4 @@
-"""Read the latest formal baseline, including explicit unavailable outcomes."""
+"""Read historical outcomes or the once-collected frozen baseline reference."""
 import csv
 import hashlib
 import json
@@ -20,6 +20,18 @@ def latest_baselines(path):
                 raise ValueError('baseline outcome is neither qualified nor explicitly unavailable')
             result[int(row['tp']), int(row['batch']), row['system']] = row
     return result
+
+
+def frozen_baselines(path):
+    reference = json.loads(Path(path).read_text())
+    if reference['kind'] != 'mx7_frozen_baseline_reference' or reference['reused_across_gpu_groups'] is not True:
+        raise ValueError('the once-collected MX7 baseline reference is required')
+    rows = latest_baselines(checked(reference['reference_csv']))
+    expected = {(tp, batch, system) for tp in (2, 4) for batch in (1, 2, 4, 8, 16)
+                for system in ('vllm', 'sglang', 'torchcompile')}
+    if set(rows) != expected or any(row['status'] != 'pass' for row in rows.values()):
+        raise ValueError('frozen baseline reference must contain all 30 passing cells')
+    return rows
 
 
 def check_group(row, expected):

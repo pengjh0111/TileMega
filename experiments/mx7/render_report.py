@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import statistics
 import subprocess
+from baseline_results import frozen_baselines
 
 ROOT = Path.cwd()
 BASE = ROOT / 'runs/mx7/resume1'
@@ -28,8 +29,8 @@ def num(value, digits=3):
 
 def main():
     final = latest('MX7_tp_final_c550.csv', ['tp', 'batch'])
-    baselines = latest('MX7_tp_baselines_c550.csv', ['tp', 'batch', 'system'],
-                       'final_two_fresh_processes')
+    baselines = {(str(t), str(b), system): row for (t, b, system), row in
+                 frozen_baselines(ROOT / 'configs/bench/mx7_frozen_baselines.json').items()}
     assert len(final) == 10 and len(baselines) == 30
     assert all(row['status'] in ('pass', 'N/A') for row in baselines.values())
     for scope, row in baselines.items():
@@ -89,9 +90,9 @@ def main():
         'Source hashes, frozen references, exact build/run commands and topology: `runs/mx7/sync/onboarding.md`.', '',
         '## Baselines', '',
         '**verified** Two fresh processes/cell, each warm1+timed2; TPOT=(E2E_N1024−E2E_N1)/1023.',
-        'TP2 baselines use secondary{4,5}; TileMega uses C0-selected main{1,3}. Each TP4 baseline matches its final cell\'s physical group.',
-        'N/A retains the engine error/guard evidence; speedups use the fastest available baseline and never an older group\'s row.',
-        'TP1 values and baseline scaling efficiencies are retained in `MX7_tp_baselines_c550.csv`.', '',
+        '**stated** Baselines are collected once and reused across physical GPU groups; changing groups does not trigger another measurement.',
+        '**verified** The original30 passing cells are frozen in `MX7_tp_baselines_frozen_c550.csv`; original GPU groups remain in their raw records.',
+        'TP1 values and baseline scaling efficiencies are retained in the frozen reference. Partial group-change repeats remain archived and are not used.', '',
         '| TP | B | vLLM ms | SGLang ms | torch.compile ms |',
         '|---:|---:|---:|---:|---:|']
     for t in (2, 4):
@@ -197,12 +198,13 @@ def main():
         '  After CUDA-stream initialization stalls, CPU scheduling additionally waits for≤64MiB unattributed memory/card; this narrows launch admission and changes no guard or device code.',
         '- **verified, B4** B16 trace GPU capture and CPU analysis are separate; real B1 reanalysis matches all141 original stage statistics.', '',
         '- **verified, B4** GPU4 stayed occupied, so only the four unfinished TP4 scopes moved to{1,2,3,5} under all-card authorization.',
-        '  P2P and both LL8 all-to-all sizes pass5/5; AR/head units are rechecked.45 TP4 constants and24 matched baseline starts are new;',
+        '  P2P and both LL8 all-to-all sizes pass5/5; AR/head units are rechecked and45 TP4 constants are new.',
+        '  The partial baseline-repeat campaign was canceled by the user; all comparisons reuse the original frozen30 cells.',
         '  1840 single-rank cost rows and six completed final cells are retained. Remaining scopes are selected again with group-bound costs.',
         '- **verified, B4** one calibration aggregator shadowed the group string with a list before subprocess creation; fixed before GPU launch;',
         '  the original CPU error log remains. No numerical test, sample count or guard threshold was changed.', '',
         '- **verified, B5** new-group SGLang B4 first initialization exceeded900s; the guard terminated only its own job and retained logs.',
-        '  One fresh-process retry is recorded; any remaining unavailable baseline is explicit N/A under§4.4, with no eager or old-group substitution.', '',
+        '  The retry also timed out; both failed repeat attempts remain archived and do not replace the original passing baseline.', '',
         '- **verified, B4** a one-peer bandwidth launch exposed four devices; the host rejected it before peer kernels. Corrected two-device launches retain that failure.',
         '- **verified, B5** an extra selected-pin/new-group B1 delay check and its one retry met GPU5 interference(guard75) during CUDA-stream creation.',
         '  This additional experiment remains incomplete(1 pass,2 invalid attempts); the four originally required development litmus cohorts remain5/5 each.',

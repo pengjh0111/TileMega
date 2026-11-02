@@ -4,6 +4,10 @@ set -eu
 group=$1; tp=$2; model=$3
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$ROOT"
+if [ -f configs/bench/mx7_frozen_baselines.json ]; then
+  echo 'MX7 baseline matrix is frozen; reuse it across GPU groups. No measurement launched.'
+  exit 0
+fi
 case "$tp" in 2|4) ;; *) echo 'TP must be 2 or 4' >&2; exit 2;; esac
 [ "$(awk -F, '{print NF}' <<< "$group")" -eq "$tp" ] || { echo 'group size differs from TP' >&2; exit 2; }
 OUT=${OUT:-$ROOT/runs/mx7/baselines}
