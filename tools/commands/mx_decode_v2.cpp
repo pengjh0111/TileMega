@@ -423,6 +423,7 @@ int TryCompileV2(Request const& r) {
   if (r.tp > 1) {
     manifest.Set("tp", r.tp); manifest.Set("vocab_local", model.vocab);
     manifest.Set("prompt_mode", true); manifest.Set("tp_litmus", tp_litmus);
+    manifest.Set("tp_ar_mapping", "shared_pair_lanes");
   }
   Write(out + ".plan.json", manifest.Dump() + "\n");
   python("-m tilemega.build.identity --root " + Quote(root) + " --snapshot " + Quote(out + ".source.json") + " --so " + Quote(out));
