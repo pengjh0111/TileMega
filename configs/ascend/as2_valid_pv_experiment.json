@@ -16,7 +16,9 @@
   "component_evidence": "runs/as2/probes/pv_valid_20261102_v1/results.json",
   "component_status": "D128 pass including five fresh processes at key65; marked D64 recovery passes but model admission remains D128 only",
   "model_evidence": "runs/as2/correctness/taskbody_valid_pv_20261102_v1/result.json",
-  "model_status": "Qwen3-0.6B B1 full1024, teacher512, C2 and five-process C3 pass; priced selection pending",
-  "performance_status": "not_measured",
+  "model_status": "Qwen3-0.6B B1 bootstrap and both actual priced plans pass full1024, teacher512, C2 and five-process C3",
+  "priced_pipeline_evidence": "runs/as2/search/valid_pv_priced_pipeline_20261102_v1.json",
+  "priced_selection": "cached control; candidate late-context slowdown retained, not a portable hardware calibration",
+  "performance_status": "fixed-queue five-pair ratio1.016393 is inconclusive with3 contended receipts; priced-plan timing pending",
   "required_admission": ["full_model_C1", "teacher512", "C2", "five_process_C3", "context_prices_and_native_selection", "paired_full_request_TPOT"]
 }
