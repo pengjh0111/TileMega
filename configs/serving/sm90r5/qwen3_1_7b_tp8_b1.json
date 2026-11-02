@@ -1,0 +1,98 @@
+{
+ "schema": 1,
+ "model": "qwen3_1_7b",
+ "batch": 1,
+ "phase": "decode",
+ "tp": 8,
+ "target": "sm_90_h800",
+ "source_head": "38316965d9e6b2d144cfec16a536c21c829cd4f2",
+ "compiler_sha256": "d401733053033d17022a8fd6d522b2ee5245b5f12c6b67071772cf996827bdfc",
+ "solve_command": "fixed coordinates; no solve (T=8 cost constants need GPU 6, which throttles under load)",
+ "coordinates": {
+  "schema": 7,
+  "model": "dense",
+  "gemms": {
+   "qkv": {
+    "tile_n": 8,
+    "warps_n": 1,
+    "warps_k": 4,
+    "slot_bytes": 8192,
+    "slots": 3,
+    "mma": "mma_sync",
+    "register_stages": 1,
+    "multicast": false
+   },
+   "o": {
+    "tile_n": 16,
+    "warps_n": 2,
+    "warps_k": 2,
+    "slot_bytes": 8192,
+    "slots": 2,
+    "mma": "mma_sync",
+    "register_stages": 1,
+    "multicast": false
+   },
+   "gate_up": {
+    "tile_n": 16,
+    "warps_n": 2,
+    "warps_k": 2,
+    "slot_bytes": 16384,
+    "slots": 2,
+    "mma": "mma_sync",
+    "register_stages": 1,
+    "multicast": false
+   },
+   "down": {
+    "tile_n": 16,
+    "warps_n": 2,
+    "warps_k": 2,
+    "slot_bytes": 24576,
+    "slots": 2,
+    "mma": "mma_sync",
+    "register_stages": 1,
+    "multicast": false
+   },
+   "lm_head": {
+    "tile_n": 16,
+    "warps_n": 2,
+    "warps_k": 2,
+    "slot_bytes": 2048,
+    "slots": 3,
+    "mma": "mma_sync",
+    "register_stages": 1,
+    "multicast": false
+   }
+  },
+  "attention": {
+   "chunks": 16,
+   "block_keys": 64,
+   "slots": 2,
+   "new_row_work": 0,
+   "merge": "la"
+  },
+  "residency": 1,
+  "swiglu_u": 8,
+  "weight_stream": false,
+  "layer_loop": true,
+  "emb": "la",
+  "group_wait": true,
+  "cluster": 1,
+  "tp": 8,
+  "expert_fuse": false
+ },
+ "winner": null,
+ "measured": "withheld: GPU 6 enters sw_thermal_slowdown within 0.33-0.48 s of load at 89-90 C, clocks 990-1635 MHz against 1980 on its peers; a throttled round is void (prompt 1.6)",
+ "generated_source_sha256": "0e41f7c983c1683848150096e9f3436cc34fc4c97296b41a16c9d73c3d9b8b73",
+ "binary_sha256": "6c6d1601f57505bc1ffd7d68e66d11fa2b65f5241d134e6ac7fec79cd9b5abea",
+ "prefill": "prompt mode",
+ "prefill_sha256": "prompt mode",
+ "correctness": {
+  "unit_test": "0 errors, 8 AR cases and 3 head cases at 8 ranks",
+  "c1_pass": true,
+  "c1_max_gap": 0.0,
+  "c1_positions": 64,
+  "litmus": "5/5 bitwise identical over 1024 tokens",
+  "ranks_identical": true
+ },
+ "artifact_id": "sm90r5-tp8-b1"
+}

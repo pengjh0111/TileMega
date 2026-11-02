@@ -1,0 +1,51 @@
+{
+ "round": "SM90R5",
+ "model": "qwen3_1_7b",
+ "cells": {
+  "tp2_b1": {
+   "tpot_ms": 1.4992828161923628,
+   "binary_sha256": "e6e9bd1501834471d9267270f3449e163753fc630e58caa0047f7dca7c9ac408"
+  },
+  "tp2_b2": {
+   "tpot_ms": 1.5091044975208885,
+   "binary_sha256": "cb10402dcde5ff9a652f0c018e1e49b0c2755566617d80dd1be4f92c40b896ab"
+  },
+  "tp2_b4": {
+   "tpot_ms": 1.3887032277345883,
+   "binary_sha256": "7ef4db2c2e4bc8b0d5c18ee14913fc52ebbaad08ac147bc650e08a714b0b1c58"
+  },
+  "tp2_b8": {
+   "tpot_ms": 1.5806628905285882,
+   "binary_sha256": "2c09a6225c43b67e7db8cff1c00ce22e19c6305b7dbd9d3a8d6ddf062eb9a3ee"
+  },
+  "tp2_b16": {
+   "tpot_ms": 1.5844407331272194,
+   "binary_sha256": "2cf4ee0f5b4c0aefba0a1b061925b3f0ac5d301e38a1ff8d49df4dc4bb88efc7"
+  },
+  "tp4_b1": {
+   "tpot_ms": 1.3079145757225639,
+   "binary_sha256": "b3193fba3fa0f1654facfdc5787d58073b519b481306048140d7d7014002761a"
+  },
+  "tp4_b2": {
+   "tpot_ms": 1.3211772268235624,
+   "binary_sha256": "9a287651c8d91be47185fa5301aa8a5cc555467032e1a11735797d98bb3f7c81"
+  },
+  "tp4_b4": {
+   "tpot_ms": 1.3494447869055688,
+   "binary_sha256": "04a3422e287b2da0b11fb1980a385947a1c54b724997e2e4b1fdc451f5e56adc"
+  },
+  "tp4_b8": {
+   "tpot_ms": 1.2751954095802276,
+   "binary_sha256": "82113f3a7ccbb45c823dd3751a3a4afa4021383fd504a3a48c7753df7a17d856"
+  },
+  "tp4_b16": {
+   "tpot_ms": 1.528260448628004,
+   "binary_sha256": "0809010a96209557daaa88e527deb44abed96a440bab3a126da4ba094f24e161"
+  },
+  "tp8_b1": {
+   "tpot_ms": null,
+   "binary_sha256": "6c6d1601f57505bc1ffd7d68e66d11fa2b65f5241d134e6ac7fec79cd9b5abea",
+   "note": "correctness verified, timing withheld"
+  }
+ }
+}

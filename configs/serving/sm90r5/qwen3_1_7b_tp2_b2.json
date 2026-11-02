@@ -1,0 +1,127 @@
+{
+ "schema": 1,
+ "model": "qwen3_1_7b",
+ "batch": 2,
+ "phase": "decode",
+ "tp": 2,
+ "target": "sm_90_h800",
+ "source_head": "38316965d9e6b2d144cfec16a536c21c829cd4f2",
+ "compiler_sha256": "d401733053033d17022a8fd6d522b2ee5245b5f12c6b67071772cf996827bdfc",
+ "solve_command": "'/root/TileMega-r5/build/tools/tilemega' compile '/root/TileMega-r5/runs/sm90r5/tp/export-tp2/decode.export.json' '/root/TileMega-r5/runs/sm90r5/tp/solve/tp2-B2/decode.so' '--solve' '/root/TileMega-r5/configs/targets/sm_90_h800.json' '--serving' 'decode' '--emit' 'serving' '--batch' '2' '--runtime-target' '/root/TileMega-r5/configs/targets/sm_90_h800.json' '--selection' 'measure' '--measure-top' '4' '--nvcc-split-compile' '2' '--tp' '2' '--measure-cmd' '/workspace/llm-stack/envs/vllm/bin/python /root/TileMega-r5/scripts/sm90r5_tp.py select --tp 2 --batch 2 --name sel-tp2-B2'",
+ "coordinates": {
+  "schema": 7,
+  "model": "dense",
+  "gemms": {
+   "qkv": {
+    "tile_n": 16,
+    "warps_n": 2,
+    "warps_k": 2,
+    "slot_bytes": 32768,
+    "slots": 2,
+    "mma": "mma_sync",
+    "register_stages": 1,
+    "multicast": false
+   },
+   "o": {
+    "tile_n": 16,
+    "warps_n": 2,
+    "warps_k": 2,
+    "slot_bytes": 32768,
+    "slots": 2,
+    "mma": "mma_sync",
+    "register_stages": 1,
+    "multicast": false
+   },
+   "gate_up": {
+    "tile_n": 32,
+    "warps_n": 2,
+    "warps_k": 2,
+    "slot_bytes": 32768,
+    "slots": 2,
+    "mma": "mma_sync",
+    "register_stages": 1,
+    "multicast": false
+   },
+   "down": {
+    "tile_n": 16,
+    "warps_n": 2,
+    "warps_k": 2,
+    "slot_bytes": 16384,
+    "slots": 3,
+    "mma": "mma_sync",
+    "register_stages": 1,
+    "multicast": false
+   },
+   "lm_head": {
+    "tile_n": 64,
+    "warps_n": 4,
+    "warps_k": 1,
+    "slot_bytes": 16384,
+    "slots": 3,
+    "mma": "mma_sync",
+    "register_stages": 1,
+    "multicast": false
+   }
+  },
+  "attention": {
+   "chunks": 16,
+   "block_keys": 64,
+   "slots": 2,
+   "new_row_work": 0,
+   "merge": "la"
+  },
+  "residency": 1,
+  "swiglu_u": 16,
+  "weight_stream": false,
+  "layer_loop": true,
+  "emb": "la",
+  "group_wait": true,
+  "cluster": 1,
+  "expert_fuse": false,
+  "tp": 2
+ },
+ "predicted_ns": 1035981.45,
+ "winner": 1,
+ "psel": {
+  "arms": {
+   "c0": [
+    1.584877249,
+    1.585040913
+   ],
+   "c1": [
+    1.509104547,
+    1.50985252
+   ],
+   "c2": [
+    1.532882848,
+    1.531967689
+   ],
+   "c3": [
+    1.576269768,
+    1.578381158
+   ]
+  },
+  "top_gap_pct": 1.520176279,
+  "threshold_pct": 0.5,
+  "tie_broken_by_prediction": false
+ },
+ "measured": {
+  "tpot_ms": 1.5091044975208885,
+  "per_launch_ms": [
+   1.5091044975208885,
+   1.5086614740634643,
+   1.5092503557342194
+  ],
+  "range_pct": 0.03902192801906699,
+  "ttft_ms": 98.16576103912666,
+  "e2e_ms": 1642.0200819848105,
+  "launches": 3,
+  "protocol": "P-FINAL, fresh whole-group launches"
+ },
+ "generated_source_sha256": "fa7eb47c3c202b519b5c00750008d2b002d22e3223f1489444230203ec16bd1a",
+ "binary_sha256": "cb10402dcde5ff9a652f0c018e1e49b0c2755566617d80dd1be4f92c40b896ab",
+ "prefill": "prompt mode",
+ "prefill_sha256": "prompt mode",
+ "correctness": "not a correctness cell (B1 and B16 carry P-CORR)",
+ "artifact_id": "sm90r5-tp2-b2"
+}
