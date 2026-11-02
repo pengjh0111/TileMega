@@ -169,6 +169,16 @@ template<unsigned TM=32,unsigned TN=64,bool CaptureSoftmax=false> class LlmServi
   }
   __aicore__ inline bool Epilogue(llm::Stage const& s,unsigned tile,GM_ADDR arena,unsigned owner_group=0) {
     unsigned nt=(s.columns+TN-1)/TN,first=(tile%nt)*TN,rows=tile/nt*TM;
+    if(s.variant==9) {
+#if defined(TILEMEGA_LLM_LOCAL_RESIDUAL) && TILEMEGA_LLM_LOCAL_RESIDUAL
+      if(TM!=16 || TN!=128 || tile>=s.tasks ||
+          !local_residual::Shape(s.rows,s.columns,s.k,s.epilogue,s.extent,s.tasks))return false;
+      return vector_.LocalResidual(arena+s.workspace+uint64_t(first)*2,
+          arena+s.operands[2]+uint64_t(first)*2,arena+s.operands[3]+uint64_t(first)*2,128);
+#else
+      return false;
+#endif
+    }
     if(s.variant==6 || (s.variant==7 && s.epilogue==3)) {
 #if defined(TILEMEGA_LLM_VECTOR_ARGMAX) && TILEMEGA_LLM_VECTOR_ARGMAX
       if(TM!=16 || TN!=128 || s.epilogue!=3 || s.extent>1 || s.rows>16)return false;

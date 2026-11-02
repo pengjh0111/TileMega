@@ -145,7 +145,7 @@ int main(int argc,char** argv) {
     const auto precision_contract=attention_precision==13?tilemega::ascend::llm::kStreamingFp32Precision:attention_precision==12?tilemega::ascend::llm::kStreamingPrecision:
       tilemega::ascend::llm::kReplayPrecision;
     tilemega::json::Value decomposition;
-    bool local_q_tail3=false,local_residual_tail3=false,swiglu_tile=false,swiglu_l1_k256=false,vector_argmax=false,gemm_session=false,reg_swiglu=false;
+    bool local_q_tail3=false,local_residual_tail3=false,swiglu_tile=false,swiglu_l1_k256=false,vector_argmax=false,gemm_session=false,reg_swiglu=false,local_residual=false;
     tilemega::json::Value binding;
     if(body) {
       auto path=fs::weakly_canonical(argv[priced_body?10:9]);
@@ -184,6 +184,7 @@ int main(int argc,char** argv) {
           decomposition.At("batch").AsNumber("batch")!=batch || serving.argmax_tile_n!=128)
         throw std::invalid_argument("Observed decomposition model/phase/geometry mismatch");
       if(auto flag=decomposition.Find("reg_swiglu"))reg_swiglu=flag->AsBool("reg_swiglu");
+      if(auto flag=decomposition.Find("local_residual"))local_residual=flag->AsBool("local_residual");
       if(auto flag=decomposition.Find("gemm_session"))gemm_session=flag->AsBool("gemm_session");
       if(auto tile=decomposition.Find("swiglu_tile"))swiglu_tile=tile->AsBool("swiglu_tile");
       if(auto value=decomposition.Find("vector_argmax"))vector_argmax=value->AsBool("vector_argmax");
@@ -218,6 +219,10 @@ int main(int argc,char** argv) {
       throw std::invalid_argument("Register SwiGLU model admission starts with Qwen0.6 B1 replay Attention");
     if(gemm_session && (batch!=1 || receipt.At("model_id").AsString("model")!="qwen3_0_6b" || attention_precision!=8))
       throw std::invalid_argument("Session model admission is bounded to Qwen0.6 B1 replay Attention");
+    if(local_residual && (batch!=1 || phase!="decode" ||
+        receipt.At("model_id").AsString("model")!="qwen3_0_6b" || attention_precision!=11 ||
+        gemm_session || reg_swiglu || !swiglu_tile || !vector_argmax))
+      throw std::invalid_argument("Local residual model admission starts with Qwen0.6 B1 cached decode");
     auto start=std::chrono::steady_clock::now();
     tilemega::analysis::IslContext isl;
     auto bridge=tilemega::frontend::ReadExportBridge((input/"export.json").string());
@@ -316,6 +321,8 @@ int main(int argc,char** argv) {
       const int groups=std::stoi(argv[5]);
       auto target=tilemega::TargetSpec::FromJson(target_path.string());
       if(!target.ascend_capability)throw std::invalid_argument("Native LLM requires an Ascend 950PR target");
+      if(local_residual && (groups!=8 || target.ascend_capability->Budget(tilemega::ascend::TrackRole::kAiv).ub<136192))
+        throw std::invalid_argument("Local residual requires verified G8 and disjoint UB scratch/slot budgets");
       std::ifstream target_file(target_path);std::string target_text((std::istreambuf_iterator<char>(target_file)),{});
       llvm::SHA256 target_hash;
       target_hash.update(llvm::ArrayRef<uint8_t>(reinterpret_cast<uint8_t const*>(target_text.data()),target_text.size()));
@@ -494,7 +501,7 @@ int main(int argc,char** argv) {
           Write(output/"uncompressed_schedule.json",ScheduleReport(scheduled));
           scheduled=tilemega::solver::ElideAscendFifoWaits(tasks,workers,std::move(scheduled));
         }
-        auto native=tilemega::codegen::MaterializeAscendLlm(*module,problem,workers,tasks,scheduled,!priced,attention_precision,body,local_q_tail3,local_residual_tail3,swiglu_tile,swiglu_l1_k256,vector_argmax,gemm_session,reg_swiglu);
+        auto native=tilemega::codegen::MaterializeAscendLlm(*module,problem,workers,tasks,scheduled,!priced,attention_precision,body,local_q_tail3,local_residual_tail3,swiglu_tile,swiglu_l1_k256,vector_argmax,gemm_session,reg_swiglu,local_residual);
         if(priced) {
           auto const& measured=prices.At("stages").AsArray("stage prices");
           for(unsigned i=0;i<native.stages.size();++i) {
@@ -540,6 +547,7 @@ int main(int argc,char** argv) {
         result.Set("selection",priced?selected_algorithm:"diagnostic_unpriced_bootstrap_not_optimized");
         result.Set("priced_solver_executed",priced);
         result.Set("reg_swiglu",reg_swiglu);
+        result.Set("local_residual",local_residual);
         result.Set("gemm_session",gemm_session);
         result.Set("swiglu_l1_k",swiglu_l1_k256?256:128);
         result.Set("precision_contract_id",precision_contract);

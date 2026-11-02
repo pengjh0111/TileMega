@@ -77,6 +77,10 @@ def logical_bytes(s,m,tile,past):
         if epilogue==1:n+=6*mr*nr
         elif epilogue==2:n+=3*mr*nr
         elif epilogue==3:n+=2*mr*nr+8*mr
+        if s[31]==9:
+            if (rows,columns,epilogue)!=(1,1024,1) or k not in (2048,3072) or extent>1:
+                raise ValueError('Unregistered local residual traffic contract')
+            n-=2*mr*nr  # Raw BF16 export remains; the residual input comes from UB.
         return n
     if kind==1:return 6*width
     if kind==11:return 4*width

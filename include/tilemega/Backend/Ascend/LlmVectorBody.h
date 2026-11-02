@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Target/Ascend/DevicePrimitives.h>
+#include <tilemega/Target/Ascend/LocalResidualContract.h>
 #include <tilemega/Backend/Ascend/StreamingAttentionTile.h>
 #if defined(TILEMEGA_LLM_VECTOR_ARGMAX) && TILEMEGA_LLM_VECTOR_ARGMAX
 #include <tilemega/Backend/Ascend/ArgmaxTile.h>
@@ -40,7 +41,13 @@ class LlmVectorBody {
     CompleteDma<AscendC::HardEvent::MTE3_V>();
   }
  public:
-  static constexpr unsigned kLocalBytes=kElements*(3*2+5*4);
+  static constexpr unsigned kScratchBytes=kElements*(3*2+5*4);
+#if defined(TILEMEGA_LLM_LOCAL_RESIDUAL) && TILEMEGA_LLM_LOCAL_RESIDUAL
+  static constexpr unsigned kLocalBytes=local_residual::kUbBytes;
+  static_assert(kScratchBytes+512<=local_residual::kSlot);
+#else
+  static constexpr unsigned kLocalBytes=kScratchBytes;
+#endif
   __aicore__ inline LlmVectorBody() {
     pipe_.InitBuffer(storage_,kLocalBytes);auto raw=storage_.Get<uint8_t>();
     bx_=raw[0].ReinterpretCast<bfloat16_t>();by_=raw[kElements*2].ReinterpretCast<bfloat16_t>();
@@ -325,7 +332,11 @@ class LlmVectorBody {
   __aicore__ inline bool Pointwise(GM_ADDR input,GM_ADDR rhs,GM_ADDR output,unsigned n,bool swiglu) {
     if(!n || n>kElements)return false;
     Load(bx_,input,n);Load(by_,rhs,n);CompleteDma<AscendC::HardEvent::MTE2_V>();
-    AscendC::Cast(x_,bx_,AscendC::RoundMode::CAST_NONE,n);
+    return PointwiseLoaded(bx_,output,n,swiglu);
+  }
+  __aicore__ inline bool PointwiseLoaded(AscendC::LocalTensor<bfloat16_t> input,
+      GM_ADDR output,unsigned n,bool swiglu) {
+    AscendC::Cast(x_,input,AscendC::RoundMode::CAST_NONE,n);
     AscendC::Cast(y_,by_,AscendC::RoundMode::CAST_NONE,n);AscendC::PipeBarrier<PIPE_V>();
     if(swiglu) {
       AscendC::Muls(work_,x_,-1.0f,n);AscendC::PipeBarrier<PIPE_V>();
@@ -339,6 +350,22 @@ class LlmVectorBody {
     AscendC::PipeBarrier<PIPE_V>();
     AscendC::Cast(bo_,work_,AscendC::RoundMode::CAST_RINT,n);Store(output,n);return true;
   }
+#if defined(TILEMEGA_LLM_LOCAL_RESIDUAL) && TILEMEGA_LLM_LOCAL_RESIDUAL
+  __aicore__ inline bool LocalResidual(GM_ADDR raw_output,GM_ADDR rhs,GM_ADDR output,unsigned n) {
+    if(n!=128)return false;
+    // One TPipe owns both scratch and the fixed receive slot. A second CATLASS
+    // Resource here would reset the vector worker's live buffer/flag allocator.
+    auto raw=storage_.Get<uint8_t>()[local_residual::kSlot].ReinterpretCast<bfloat16_t>();
+    AscendC::PipeBarrier<PIPE_ALL>();
+    AscendC::GlobalTensor<bfloat16_t> dst;dst.SetGlobalBuffer((__gm__ bfloat16_t*)raw_output);
+    AscendC::DataCopyExtParams copy{1,n*2,0,0,0};AscendC::DataCopyPad(dst,raw,copy);
+    CompleteDma<AscendC::HardEvent::MTE3_S>();
+    // Retain the original raw BF16 GM output for C1/teacher/C2 in both modes;
+    // the residual computation itself consumes the Fixpipe UB value directly.
+    Load(by_,rhs,n);CompleteDma<AscendC::HardEvent::MTE2_V>();
+    return PointwiseLoaded(raw,output,n,false);
+  }
+#endif
 #if defined(TILEMEGA_LLM_SWIGLU_TILE) && TILEMEGA_LLM_SWIGLU_TILE
   template<bool RegisterPath=false> __aicore__ inline bool SwiGluTile(GM_ADDR input,GM_ADDR output,unsigned rows,
       unsigned columns,unsigned input_stride,unsigned output_stride) {

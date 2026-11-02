@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Backend/Ascend/GemmTile.h>
+#if defined(TILEMEGA_LLM_LOCAL_RESIDUAL) && TILEMEGA_LLM_LOCAL_RESIDUAL
+#include <tilemega/Backend/Ascend/LocalGemmTile.h>
+#include <tilemega/Target/Ascend/LocalResidualContract.h>
+#endif
 #if defined(TILEMEGA_LLM_GEMM_SESSION) && TILEMEGA_LLM_GEMM_SESSION
 #include <tilemega/Backend/Ascend/GemmSession.h>
 #endif
@@ -27,7 +31,7 @@ template<unsigned TM,unsigned TN,unsigned TK,unsigned Variant> class LlmCubeBody
 #endif
  public:
   __aicore__ inline bool Run(llm::Stage const& s,unsigned tile,GM_ADDR arena,unsigned owner_group) {
-    const unsigned variant=s.variant==8?4:s.variant==7?(s.epilogue==2?4:s.epilogue==3?6:1):s.variant;
+    const unsigned variant=s.variant==9?1:s.variant==8?4:s.variant==7?(s.epilogue==2?4:s.epilogue==3?6:1):s.variant;
 #if defined(TILEMEGA_LLM_GEMM_SESSION) && TILEMEGA_LLM_GEMM_SESSION
     if(s.variant!=7)session_.FinishRecipe();
 #else
@@ -37,6 +41,20 @@ template<unsigned TM,unsigned TN,unsigned TK,unsigned Variant> class LlmCubeBody
     if(s.variant==8)return false;
 #endif
     if(s.kind!=0 || tile>=s.tasks || (variant!=Variant && !((variant>=2 && variant<=6) && Variant==1)) || s.k%16)return false;
+    if(s.variant==9) {
+#if defined(TILEMEGA_LLM_LOCAL_RESIDUAL) && TILEMEGA_LLM_LOCAL_RESIDUAL
+      if(TM!=16 || TN!=128 || TK!=128 ||
+          !local_residual::Shape(s.rows,s.columns,s.k,s.epilogue,s.extent,s.tasks))return false;
+      using Local=LocalGemmTile<bfloat16_t,bfloat16_t>;
+      typename Local::TileMmad mm(resource_);
+      auto destination=resource_.ubBuf.template GetBufferByByte<bfloat16_t>(local_residual::kSlot);
+      if(!Local::RunBorrowed(mm,arena+s.operands[0],arena+s.operands[1],destination,
+          s.rows,s.columns,s.k,0,tile))return false;
+      CompleteDma<AscendC::HardEvent::FIX_S>();return true;
+#else
+      return false;
+#endif
+    }
     if(variant==6) {
 #if defined(TILEMEGA_LLM_VECTOR_ARGMAX) && TILEMEGA_LLM_VECTOR_ARGMAX
       if(TM!=16 || TN!=128 || s.epilogue!=3 || s.extent>1 || !s.rows || s.rows>16)return false;

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Target/Ascend/LocalResidualContract.h>
 #include <tilemega/Target/Ascend/LlmGroupContract.h>
 #include <tilemega/Target/Ascend/LlmPlanABI.h>
 #include <tilemega/Target/Ascend/BodyProfileCapture.h>
@@ -50,6 +51,17 @@ inline void Save(fs::path const& path,void const* data,size_t bytes) {
 }
 inline void ValidateCompiledBodies(std::vector<llm::Stage> const& stages) {
   for(auto const& s:stages)if(s.kind==0) {
+    if(s.variant==9) {
+#if defined(TILEMEGA_LLM_LOCAL_RESIDUAL) && TILEMEGA_LLM_LOCAL_RESIDUAL
+      if(kCompiledVariant!=1 ||
+          !local_residual::Shape(s.rows,s.columns,s.k,s.epilogue,s.extent,s.tasks) ||
+          s.workspace==llm::kAbsent || s.operands[2]==llm::kAbsent || s.operands[3]==llm::kAbsent)
+        throw std::invalid_argument("Unregistered local BF16 residual recipe");
+      auto base=s;base.variant=1;ValidateCompiledBodies({base});continue;
+#else
+      throw std::invalid_argument("Local residual requires its explicitly compiled Body");
+#endif
+    }
     if(s.variant==7) {
 #if defined(TILEMEGA_LLM_GEMM_SESSION) && TILEMEGA_LLM_GEMM_SESSION
       if(kCompiledVariant!=1 || s.extent>1 || s.epilogue>3 || (s.rows!=1 && s.rows!=64))

@@ -93,13 +93,17 @@ from tilemega.bench.as2_precision import REPLAY, STREAMING, CONTRACTS, validate_
 SOURCE_CAPABILITIES=('TILEMEGA_LLM_SPLIT_K','TILEMEGA_LLM_LOCAL_TAIL_K7','TILEMEGA_LLM_LOCAL_Q_TAIL_K3',
                      'TILEMEGA_LLM_WIDE_QK','TILEMEGA_LLM_FP32_KV_CACHE','TILEMEGA_LLM_SWIGLU_TILE',
                      'TILEMEGA_LLM_SWIGLU_L1_K256','TILEMEGA_LLM_VECTOR_ARGMAX','TILEMEGA_LLM_G14',
-                     'TILEMEGA_LLM_STREAMING_ATTENTION','TILEMEGA_LLM_GEMM_SESSION','TILEMEGA_LLM_REG_SWIGLU','TILEMEGA_LLM_FP32_KV_CACHE_B1','TILEMEGA_LLM_VALID_PV')
+                     'TILEMEGA_LLM_STREAMING_ATTENTION','TILEMEGA_LLM_GEMM_SESSION','TILEMEGA_LLM_REG_SWIGLU','TILEMEGA_LLM_FP32_KV_CACHE_B1','TILEMEGA_LLM_VALID_PV','TILEMEGA_LLM_LOCAL_RESIDUAL')
 SOURCE_GEOMETRY=('TILEMEGA_LLM_VARIANT','TILEMEGA_LLM_TM','TILEMEGA_LLM_TN','TILEMEGA_LLM_TK')
 SOURCE_CONTRACT=('TILEMEGA_LLM_PRECISION_CONTRACT',)
 PRECISION_CONTRACT=REPLAY
 
 
 def gemm_variant_geometry(stage):
+    if stage[31]==9:
+        if (stage[18],stage[19],stage[20],stage[21])!=(1,8,1,1024) or stage[22] not in (2048,3072) or stage[23]>1 or stage[16]==(1<<64)-1:
+            raise ValueError('Unregistered local BF16 residual shape')
+        return 1
     if stage[31]==8:
         if stage[18]!=2:raise ValueError('Register SwiGLU requires its paired gate/up output')
         base=list(stage);base[31]=4

@@ -74,6 +74,8 @@ struct Stage {
   // GEMM7=same small-M BF16 math/strided epilogues, retained MMAD session;
   // every task has FIX-complete output, bank/flag drain before another recipe.
   // GEMM8=variant4 strided SwiGLU with a single register VF; same BF16 casts.
+  // GEMM9=bounded M1 residual: BF16 Fixpipe to same-group AIV0 UB slot,
+  // raw GM output retained, unchanged ready/done/reverse-ack/owner prefix.
   // Split GEMM: extent=2/3, width=ceil(k/extent), group=1 (tile-major/part-minor CTG).
   // Kind6 is its AIV combine; workspace is FP32 [part,row,col], operand5
   // is the BF16 raw sum before the separately preserved residual rounding.

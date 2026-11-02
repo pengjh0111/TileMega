@@ -42,6 +42,16 @@ class PackingBudgetTest(unittest.TestCase):
 
 
 class RequestCapturePayloadTest(unittest.TestCase):
+    def test_local_residual_keeps_gemm_domain_and_charges_only_gm_traffic(self):
+        from tilemega.bench.as2_body_profile import logical_bytes
+        s=[0]*33;s[16]=512;s[17:24]=[0,1,8,1,1024,2048,0];s[31]=9
+        self.assertEqual(gemm_variant_geometry(s),1)
+        gm=s.copy();gm[31]=1
+        self.assertEqual(logical_bytes(gm,[0]*15,0,63)-logical_bytes(s,[0]*15,0,63),256)
+        for field,value in ((18,2),(19,7),(20,16),(21,2048),(22,8192),(23,3),(16,(1<<64)-1)):
+            invalid=s.copy();invalid[field]=value
+            with self.assertRaisesRegex(ValueError,'local BF16 residual'):gemm_variant_geometry(invalid)
+
     def test_strided_swiglu_keeps_geometry_and_rejects_unregistered_shape(self):
         s=[0]*33;s[17:24]=[0,2,96,16,12288,2048,0];s[31]=4
         self.assertEqual(gemm_variant_geometry(tuple(s)),1)
