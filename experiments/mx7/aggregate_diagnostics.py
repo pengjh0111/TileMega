@@ -29,8 +29,9 @@ def append(path, rows, keys):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, required=True)
+    parser.add_argument('--constants', type=Path)
     args = parser.parse_args()
-    constants = args.root / 'constants.json'
+    constants = args.constants or args.root / 'constants.json'
     if constants.exists():
         data = json.loads(constants.read_text())
         rows = []
@@ -51,7 +52,7 @@ def main():
                     source_digest=value['source_digest'], binary_sha256=value['binary'],
                     rounds_json=json.dumps(value['rounds']), input=str(constants),
                     input_sha256=sha(constants), timing_eligible=False))
-        assert len(rows) == 90
+        assert len(rows) in (45, 90)
         print('constants appended', append(Path('docs/results/MX7_tp_constants_c550.csv'),
               rows, ['tp', 'batch', 'stage', 'tn', 'input_sha256']))
     rows = []
