@@ -30,6 +30,14 @@ def main():
                        'final_two_fresh_processes')
     assert len(final) == 10 and len(baselines) == 30
     assert all(row['status'] == 'pass' for row in baselines.values())
+    for scope, row in baselines.items():
+        if scope[2] == 'torchcompile':
+            for item in json.loads(row['measurements_json']):
+                path = Path(item['metrics']['path'])
+                assert hashlib.sha256(path.read_bytes()).hexdigest() == item['metrics']['sha256']
+                measured = json.loads(path.read_text())
+                assert measured['compiled_call_used'] and measured['compiled_autograd']
+                assert measured['backend'] == 'nccl' and measured['tp_plan'] == 'auto'
     traces = {b: json.loads((BASE / f'final_trace/B{b}/trace/trace.json').read_text()) for b in (1, 16)}
     costs = ROOT / 'configs/targets/xcore1000_mx7_tp.json'
     qualification = json.loads(costs.with_suffix('.qualification.json').read_text())
@@ -39,6 +47,13 @@ def main():
         sealed = Path(row['selection_results']).parent / 'inputs/xcore1000_mx7_tp.json'
         assert hashlib.sha256(sealed.read_bytes()).hexdigest() == row['cost_table_sha256']
         cell_costs[scope] = json.loads(sealed.read_text())
+    bandwidth = {}
+    for peers in (1, 3):
+        samples = [json.loads(p.read_text()) for p in
+                   (BASE / f'alternate_g1235_bandwidth/ctas104_peers{peers}').glob('process*/result.json')]
+        assert len(samples) == len({x['PID'] for x in samples}) == 5
+        assert all(x['passed'] for x in samples)
+        bandwidth[peers] = statistics.median(x['records'][-1]['bytes_per_second'] for x in samples) / 1e9
     start = '6cab45b9604e306fef1916863fe16b09d895c32f'
     head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
     count = subprocess.check_output(['git', 'rev-list', '--count', f'{start}..{head}'], text=True).strip()
@@ -63,7 +78,7 @@ def main():
         '- **verified** read-only `mx-smi topo -m/-p/-d`: MX links, PCIe NODE labels; reachability is separately qualified.',
         '- **verified** LL8/fine-grained allocation/volatile AS1 scalar64 store/`__ldcg`64 load: pair/all-to-all P1024/P262144 each5/5 ×2000epochs ×104CTAs, zero tearing/timeouts.',
         '- **verified** TP2 main{1,3}:2373.504ns single-way; secondary{4,5}:2629.120ns (five processes).',
-        '- **verified** At104CTAs, selected coalesced writes:8.121GB/s to one peer,19.253GB/s aggregate to three peers.',
+        f'- **verified** At104CTAs on{{1,2,3,5}}, selected writes:{bandwidth[1]:.3f}GB/s to one peer,{bandwidth[3]:.3f}GB/s aggregate to three peers (five processes).',
         '- **verified** TP4 B1 retains{1,3,4,5}; B2/B4/B8/B16 use requalified{1,2,3,5} after GPU4 remained occupied; GPUs0/6/7 unavailable.',
         '- **inferred** Each rank executes qkv→attention→o+AR→gate_up→down+AR per layer, then head LL argmax exchange produces the common token.',
         '- **inferred** Producers write BF16 partials to all peers, then read q in ascending order; epoch=past+1, prompt runs from past0 and suppresses early token writes.', '',
