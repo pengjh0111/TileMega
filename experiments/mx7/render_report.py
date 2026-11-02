@@ -156,6 +156,11 @@ def main():
         '- **verified, B7** cost/constants noise supplements follow the competitive2% rule, otherwise p90.', '',
         '- **verified, B4** later timing pairs share one guard preflight while retaining two fresh processes, each warm1/timed2;',
         '  per-process PID/command/exit records and guard provenance remain; each timing job retains the900s limit.', '',
+        '- **verified, B5** TP4 B2 candidate3 timing exited guard75 after external GPU3 memory/utilization appeared.',
+        '  Both values are excluded; after the card became idle, exactly one new two-process timing cohort replaced them.',
+        '  Successful candidate builds/checks/timings remain unchanged; failed raw metrics and source-bound retry receipts remain.',
+        '- **verified, B4** resume validation first found a manifest field mismatch and then an archived-root path error.',
+        '  Both occurred before a GPU child launch; original logs/receipts are retained separately from the one B5 retry.', '',
         '## Deviations from inferred expectations', '']
     for t, b, low, high in [(2, 1, 2.35, 2.50), (2, 16, 3.3, 3.4), (4, 1, 1.85, 2.05), (4, 16, 2.5, 2.7)]:
         row = final[str(t), str(b)]

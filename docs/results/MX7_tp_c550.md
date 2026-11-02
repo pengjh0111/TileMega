@@ -276,3 +276,6 @@ Old partial records remain. Seven focused CPU selection/trace tests also pass.
 
 **verified, B4** Trace aggregation now normalizes an empty head-layer key. One repeated head reference remains append-only and points to the same single trace process; it is not a second sample.
 **verified** TP4 B1 trace and all-rank trace-kernel residency queries pass. Diagnostic per-layer means(µs):qkv7.491,attention25.214,o+AR19.653,gate_up13.626,down+AR22.466;head109.590µs/step.
+
+**verified, B5** TP4 B2 candidate3 timing guard75 (GPU3 external interference) is invalid and excluded.
+A source-bound single retry preserves all successful build/check/timing records; resume tooling prelaunch errors are retained.
