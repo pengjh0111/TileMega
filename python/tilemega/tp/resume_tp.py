@@ -241,6 +241,7 @@ def finish_qualified_final(args, cell, candidates, rejected, original):
                     batch=args.batch, group=args.group, selection=selection,
                     selected_pin=ref(selected_path), retained_resources=resources,
                     candidate_timing_cohorts=4, failed_guard=ref(guard_path),
+                    independent_process_guards=getattr(args, 'guard_each_process', False),
                     next_checks=dict(C1_positions=512, C2_fresh_processes=5, timing_fresh_processes=2))
     sealed = cell.out / 'inputs'
     archived = sealed / 'resume_tp_final1.py'
@@ -248,9 +249,13 @@ def finish_qualified_final(args, cell, candidates, rejected, original):
     if archived.exists() or receipt.exists():
         raise ValueError('final-stage retry receipt already exists')
     prior = sorted(sealed.glob('RESUME*.json'))
+    orchestration = None
+    if getattr(args, 'guard_each_process', False):
+        from tilemega.tp.process_cohorts import seal_and_attach
+        orchestration = seal_and_attach(sealed / 'process_cohorts_final1.py', cell, ROOT)
     shutil.copy2(__file__, archived)
     save(receipt, dict(classification='MX7 B4/B5 externally invalidated final checks',
-                       runner=ref(archived), original_runner=original['runner'],
+                       runner=ref(archived), original_runner=original['runner'], orchestration=orchestration,
                        history=list(map(ref, prior)), excluded_checks=dict(process=ref(process_path),
                        guard=ref(guard_path)), retry_limit=1,
                        selected_pin=ref(selected_path), retained_resources=resources,
@@ -274,6 +279,7 @@ def main():
     parser.add_argument('--timing-remedy', type=int, default=0)
     parser.add_argument('--final-stage-remedy', action='store_true')
     parser.add_argument('--validate-only', action='store_true')
+    parser.add_argument('--guard-each-process', action='store_true')
     parser.add_argument('--tp', type=int, choices=(2, 4), required=True)
     parser.add_argument('--batch', type=int, choices=(1, 2, 4, 8, 16), required=True)
     parser.add_argument('--group', required=True)

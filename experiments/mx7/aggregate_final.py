@@ -1,5 +1,6 @@
 """Append source-bound MX-7 final/selection rows and publish selected pins."""
 import argparse,csv,hashlib,json,pathlib,statistics,subprocess
+from tilemega.tp.process_cohorts import validate_run, validate_checks
 p=argparse.ArgumentParser(description=__doc__);p.add_argument('--root',type=pathlib.Path,required=True);a=p.parse_args()
 ROOT=pathlib.Path.cwd();head=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
 def checked(ref):
@@ -10,8 +11,12 @@ def timing_evidence(value):
   processes=[json.loads(checked(r).read_text())for r in value['processes']]
   assert len(processes)==2 and len({r['PID']for r in processes})==2
   assert all(r['returncode']==0 for r in processes)
-  assert json.loads(checked(value['guard']).read_text())['code']==0
-  checked(value['driver'])
+  if 'independent_guards' in value:
+   checked(value['producer']);runs=[validate_run(r)for r in value['independent_guards']]
+   assert len(runs)==2 and [r['attempts'][-1]['child_pid']for r in runs]==[p['PID']for p in processes]
+  else:
+   assert json.loads(checked(value['guard']).read_text())['code']==0
+   checked(value['driver'])
 sha=lambda q:hashlib.sha256(pathlib.Path(q).read_bytes()).hexdigest()
 def append(path,fields,rows,key):
  path=pathlib.Path(path);old=list(csv.DictReader(path.open()))if path.exists()else[]
@@ -41,11 +46,14 @@ for file in sorted(a.root.glob('tp*/B*/results.json')):
    assert json.loads(checked(failure['process']).read_text())['returncode']==75
  if 'final_stage_resume' in result:
   remedy=json.loads(checked(result['final_stage_resume']).read_text());checked(remedy['runner'])
+  if remedy.get('orchestration'):checked(remedy['orchestration'])
   assert remedy['retry_limit']==1
   assert json.loads(checked(remedy['excluded_checks']['guard']).read_text())['code']==75
   assert json.loads(checked(remedy['excluded_checks']['process']).read_text())['returncode']==75
+ if 'qualification' in result['final_correctness']:validate_checks(result['final_correctness']['qualification'])
  t,b=result['tp'],result['batch'];timing=result['final_timing'];timing_evidence(timing);metrics=[json.loads(checked(ref).read_text())for ref in timing['measurements']]
  assert len(metrics)==2 and all(x['tp']==t and x['batch']==b and x['rank_tokens_identical']and x['timed_tokens_identical']for x in metrics)
+ assert all(x['gpu_indices']==list(map(int,result['group'].split(',')))for x in metrics)
  pin=checked(result['selected_pin']);pinvalue=json.loads(pin.read_text());assert pinvalue['mx_decode_v2']['purpose']=='manual'
  published=pathlib.Path(f'configs/pins/mx7/qwen3_1_7b_tp{t}_B{b}_selected.json');published.parent.mkdir(parents=True,exist_ok=True)
  if published.exists():assert published.read_bytes()==pin.read_bytes()
@@ -69,6 +77,7 @@ for file in sorted(a.root.glob('tp*/B*/results.json')):
  final.append(row)
  for i,c in enumerate(result['candidates']):
   timing_evidence(c['timing'])
+  if 'qualification' in c['correctness']:validate_checks(c['correctness']['qualification'])
   xs=[json.loads(checked(r).read_text())for r in c['timing']['measurements']];m=statistics.median(x['tpot_seconds']for x in xs)*1e9
   selection.append(dict(record_type='top4_candidate',evidence='verified',tp=t,batch=b,qualified_rank=i,candidate_rank=c['choice']['candidate_rank'],selected=i==result['selection']['selected'],predicted_ns=c['choice']['predicted_ns'],measured_ns=m,pred_over_meas=c['choice']['predicted_ns']/m,round1_ns=xs[0]['tpot_seconds']*1e9,round2_ns=xs[1]['tpot_seconds']*1e9,cost_table_sha256=result['cost_table_sha256'],pin_json=json.dumps(json.loads(checked(c['pin']).read_text())['mx_decode_v2'],sort_keys=True),evidence_json=json.dumps(dict(build=c['build'],correctness=c['correctness'],timing=c['timing'])),selection_results=str(file)))
 if final:print('final rows appended',append('docs/results/MX7_tp_final_c550.csv',list(final[0]),final,['tp','batch','artifact_sha256']))

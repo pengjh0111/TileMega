@@ -69,9 +69,16 @@ class Cell:
         manifest = json.loads((sealed / 'manifest.json').read_text())
         if manifest.get('tp') != args.tp:
             raise ValueError('export manifest TP differs from --serving-tp')
+        cohort_source = None
+        if getattr(args, 'guard_each_process', False):
+            cohort_source = sealed / 'process_cohorts.py'
+            shutil.copy2(ROOT / 'python/tilemega/tp/process_cohorts.py', cohort_source)
         save(sealed / 'IDENTITY.json', dict(inputs=[ref(p) for p in sealed.iterdir()],
                                           qualification=qualification, runner=ref(__file__)))
         shutil.copy2(__file__, sealed / 'solve_tp.py')
+        if cohort_source is not None:
+            from tilemega.tp.process_cohorts import load_and_attach
+            load_and_attach(cohort_source, self, ROOT)
 
     def run_command(self, folder, argv, guarded=False, cap=900):
         folder.mkdir(parents=True, exist_ok=False)
@@ -108,12 +115,19 @@ class Cell:
                     manifest=ref(str(so) + '.plan.json'))
         validate_inputs(spec)
         save(folder / 'query_inputs.json', spec)
-        query_folder = folder / 'occupancy'
-        query_result = query_folder / 'result.json'
-        execution = self.run_command(query_folder, [sys.executable, '-m', 'tilemega.tp.plan_occupancy',
-            '--inputs', folder / 'query_inputs.json', '--out', query_result], guarded=True, cap=300)
-        if execution['returncode'] or not json.loads(query_result.read_text())['qualified']:
-            return dict(status='actual_residency_rejected', occupancy=ref(query_result))
+        independent = getattr(self.a, 'guard_each_process', False)
+        for attempt in range(2 if independent else 1):
+            query_folder = folder / ('occupancy' if not attempt else 'occupancy_guard_retry1')
+            query_result = query_folder / 'result.json'
+            execution = self.run_command(query_folder, [sys.executable, '-m', 'tilemega.tp.plan_occupancy',
+                '--inputs', folder / 'query_inputs.json', '--out', query_result], guarded=True, cap=300)
+            if independent and execution['returncode'] == 75:
+                if attempt:
+                    raise RuntimeError('residency query interrupted twice; preserve both guard records')
+                continue
+            if execution['returncode'] or not json.loads(query_result.read_text())['qualified']:
+                return dict(status='actual_residency_rejected', occupancy=ref(query_result))
+            break
         return dict(status='qualified', binary=ref(so), artifact_id=identity['artifact_id'],
                     resources=ref(folder / 'actual_resources.json'), occupancy=ref(query_result))
 
@@ -234,6 +248,7 @@ def main():
     parser.add_argument('--tp', type=int, choices=(2, 4), required=True)
     parser.add_argument('--batch', type=int, choices=(1, 2, 4, 8, 16), required=True)
     parser.add_argument('--group', required=True)
+    parser.add_argument('--guard-each-process', action='store_true')
     for name in ('costs', 'bridge', 'out'):
         parser.add_argument('--' + name, type=Path, required=True)
     parser.add_argument('--compiler', type=Path, default=ROOT / 'build/tools/tilemega')
