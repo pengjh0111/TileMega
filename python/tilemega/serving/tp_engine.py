@@ -10,6 +10,7 @@ import torch
 from .engine import Generation
 from .plan import PlanLibrary
 from .state import allocate_tp_state
+from .tp_stream import OwnedTpStream
 from .weights import load_weights
 
 
@@ -50,9 +51,14 @@ class TpServingEngine:
                                               torch.device('cuda', device), self.tp)
                     pointers = {name: value.data_ptr() for name, value in weights.items()}
                     plan = self.lib.create(batch, {**pointers, **state.pointers}, device)
-                    stream = torch.cuda.Stream(device)
+                    try:
+                        stream_owner = OwnedTpStream(device)
+                    except BaseException:
+                        plan.close()
+                        raise
                     self.ranks.append(dict(rank=rank, device=device, weights=weights,
-                                           state=state, plan=plan, stream=stream))
+                                           state=state, plan=plan, stream=stream_owner.stream,
+                                           stream_owner=stream_owner))
             buffers = [rank['plan'].tp_buffers() for rank in self.ranks]
             ar = [value[0] for value in buffers]
             exchange = [value[1] for value in buffers]
@@ -162,18 +168,23 @@ class TpServingEngine:
                             decode_loop_used=True, step_ns_read=False, rank_kernel_ms=kernel_ms)
 
     def close(self):
-        for rank in getattr(self, 'ranks', []):
-            with torch.cuda.device(rank['device']):
-                busy = False
-                if self.poisoned:
+        ranks = getattr(self, 'ranks', [])
+        busy = False
+        if self.poisoned:
+            for rank in ranks:
+                with torch.cuda.device(rank['device']):
                     try:
-                        busy = not rank['stream'].query()
+                        busy |= not rank['stream'].query()
                     except BaseException:
                         busy = True
+        for rank in ranks:
+            with torch.cuda.device(rank['device']):
                 if busy:
-                    # Failed cohorts are process-fatal; do not free live peer buffers.
+                    # A live peer can still access every rank's receive buffers.
                     rank['plan'].handle = None
+                    rank['stream_owner'].abandon()
                 else:
+                    rank['stream_owner'].close()
                     rank['plan'].close()
         self.ranks = []
 
