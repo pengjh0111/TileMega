@@ -41,6 +41,8 @@ def main():
                 assert measured['compiled_call_used'] and measured['compiled_autograd']
                 assert measured['backend'] == 'nccl' and measured['tp_plan'] == 'auto'
     traces = {b: json.loads((BASE / f'final_trace/B{b}/trace/trace.json').read_text()) for b in (1, 16)}
+    extra_litmus = json.loads((BASE / 'litmus_g1235_ready/QUALIFIED.json').read_text())
+    assert len(extra_litmus['cohorts']) == 2
     costs = ROOT / 'configs/targets/xcore1000_mx7_tp.json'
     qualification = json.loads(costs.with_suffix('.qualification.json').read_text())
     assert qualification['solver_eligible']
@@ -192,6 +194,7 @@ def main():
         '  Both occurred before a GPU child launch; original logs/receipts are retained separately from the one B5 retry.', '',
         '- **verified, B4** remaining scopes guard each fresh process separately; passing runs survive later interruptions.',
         '  C-2 still needs5 selected/2 candidate processes; timing still needs2 warm1/timed2 processes. Guard thresholds are unchanged.',
+        '  After CUDA-stream initialization stalls, CPU scheduling additionally waits for≤64MiB unattributed memory/card; this narrows launch admission and changes no guard or device code.',
         '- **verified, B4** B16 trace GPU capture and CPU analysis are separate; real B1 reanalysis matches all141 original stage statistics.', '',
         '- **verified, B4** GPU4 stayed occupied, so only the four unfinished TP4 scopes moved to{1,2,3,5} under all-card authorization.',
         '  P2P and both LL8 all-to-all sizes pass5/5; AR/head units are rechecked.45 TP4 constants and24 matched baseline starts are new;',
@@ -201,8 +204,10 @@ def main():
         '- **verified, B5** new-group SGLang B4 first initialization exceeded900s; the guard terminated only its own job and retained logs.',
         '  One fresh-process retry is recorded; any remaining unavailable baseline is explicit N/A under§4.4, with no eager or old-group substitution.', '',
         '- **verified, B4** a one-peer bandwidth launch exposed four devices; the host rejected it before peer kernels. Corrected two-device launches retain that failure.',
-        '- **verified, B5** one new-group B1 delay check met GPU5 interference(guard75) during CUDA-stream creation;',
-        '  its read-only Python stack and invalid attempt remain; only a fresh guarded retry can contribute to the five-process result.', '',
+        '- **verified, B5** an extra selected-pin/new-group B1 delay check and its one retry met GPU5 interference(guard75) during CUDA-stream creation.',
+        '  This additional experiment remains incomplete(1 pass,2 invalid attempts); the four originally required development litmus cohorts remain5/5 each.',
+        '  After the startup scheduling fix, a new full selected-pin cohort at B1 and B16 passes5/5 each; the prior read-only stacks/invalid attempts remain.',
+        '  No incomplete cohort is reported as a synchronization pass.', '',
         '## Deviations from inferred expectations', '']
     for t, b, low, high in [(2, 1, 2.35, 2.50), (2, 16, 3.3, 3.4), (4, 1, 1.85, 2.05), (4, 16, 2.5, 2.7)]:
         row = final[str(t), str(b)]
