@@ -292,7 +292,7 @@ Read-only recovery validates prior four bundles and the1% decision before any GP
 B16 trace capture is separated from CPU analysis; real B1 reanalysis preserves all141 stage statistics exactly.
 **verified, B4** GPU4 remains occupied. Own CPU-only old-group waiters were retired; no GPU or foreign process was signaled.
 Alternative{1,2,3,5} passes P2P12-pair matrix and LL8 all-to-all P1024/P262144, each5/5 fresh processes with zero tearing/timeouts.
-Only unfinished TP4 B2/B4/B8/B16 move:45 new communication constants,24 matched baseline starts, independent new top4 selection.
+Only unfinished TP4 B2/B4/B8/B16 move:45 new communication constants qualified (3 or5 fresh processes/key);24 matched baseline starts and new top4 selection continue.
 Completed six finals and1840 single-rank cost rows stay unchanged. New costs carry physical-group metadata; reporting rejects mismatched TP4 baselines.
 **verified, B4** A calibration aggregator variable-shadowing error occurred before subprocess creation; fixed, original CPU log retained.
 **verified**43 CPU regression tests pass; replacement-group AR/head units B1/B16 each5/5; no native/TP1/MoE code changed in this continuation.

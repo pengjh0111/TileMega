@@ -200882,39 +200882,39 @@
           "stage": "o",
           "tn": 16
         },
-        "median_ns": 23450.0,
-        "spread": 0.0017057569296375266,
+        "median_ns": 23280.0,
+        "spread": 0.01718213058419244,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "403aaa2767469acfbaaa8787f7991477fef94714033002c7f8b0a9b8d7e574f4",
-        "p90_ns": 23850.0,
+        "p90_ns": 23630.0,
         "processes": 3,
         "rounds": [
           {
-            "PID": 1043032,
+            "PID": 1551130,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B1/cohort/process0/result.json",
-              "sha256": "a24451f2b57a04a6c5ae42cbcdc45a8b026b4a84454e89b70568f7526da075be"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B1/cohort/process0/result.json",
+              "sha256": "0552d33de71a12daec66678ed1385abfbbf13c35402ea4c6d31a343e8593f0c8"
             },
-            "median_ns": 23470.0,
-            "p90_ns": 23870.0
+            "median_ns": 23500.0,
+            "p90_ns": 23880.0
           },
           {
-            "PID": 1043047,
+            "PID": 1551144,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B1/cohort/process1/result.json",
-              "sha256": "cfed04e731a19057aa62dc677f414921e8dcce81e458bd411e48d8aa03afed02"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B1/cohort/process1/result.json",
+              "sha256": "996be8e52675036ee17d152eadc6259927a82a7c9b81d453d70efa46e89d93f3"
             },
-            "median_ns": 23450.0,
-            "p90_ns": 23790.0
+            "median_ns": 23280.0,
+            "p90_ns": 23630.0
           },
           {
-            "PID": 1043061,
+            "PID": 1551159,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B1/cohort/process2/result.json",
-              "sha256": "bec42add985d65c21467784e9a1621bea24591d97d9f629c38b70cb1b5b965e8"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B1/cohort/process2/result.json",
+              "sha256": "823c1e4f8652d665913c3bf0bfa7409a0274f5458acdb962025a90e0f3814318"
             },
-            "median_ns": 23430.0,
-            "p90_ns": 23850.0
+            "median_ns": 23100.0,
+            "p90_ns": 23620.0
           }
         ],
         "noisy": false
@@ -200926,38 +200926,38 @@
           "stage": "o",
           "tn": 32
         },
-        "median_ns": 13350.0,
-        "spread": 0.003745318352059925,
+        "median_ns": 13220.0,
+        "spread": 0.00680786686838124,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "403aaa2767469acfbaaa8787f7991477fef94714033002c7f8b0a9b8d7e574f4",
-        "p90_ns": 13820.0,
+        "p90_ns": 13870.0,
         "processes": 3,
         "rounds": [
           {
-            "PID": 1043032,
+            "PID": 1551130,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B1/cohort/process0/result.json",
-              "sha256": "a24451f2b57a04a6c5ae42cbcdc45a8b026b4a84454e89b70568f7526da075be"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B1/cohort/process0/result.json",
+              "sha256": "0552d33de71a12daec66678ed1385abfbbf13c35402ea4c6d31a343e8593f0c8"
             },
-            "median_ns": 13350.0,
-            "p90_ns": 13800.0
+            "median_ns": 13310.0,
+            "p90_ns": 13890.0
           },
           {
-            "PID": 1043047,
+            "PID": 1551144,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B1/cohort/process1/result.json",
-              "sha256": "cfed04e731a19057aa62dc677f414921e8dcce81e458bd411e48d8aa03afed02"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B1/cohort/process1/result.json",
+              "sha256": "996be8e52675036ee17d152eadc6259927a82a7c9b81d453d70efa46e89d93f3"
             },
-            "median_ns": 13320.0,
-            "p90_ns": 13820.0
+            "median_ns": 13220.0,
+            "p90_ns": 13860.0
           },
           {
-            "PID": 1043061,
+            "PID": 1551159,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B1/cohort/process2/result.json",
-              "sha256": "bec42add985d65c21467784e9a1621bea24591d97d9f629c38b70cb1b5b965e8"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B1/cohort/process2/result.json",
+              "sha256": "823c1e4f8652d665913c3bf0bfa7409a0274f5458acdb962025a90e0f3814318"
             },
-            "median_ns": 13370.0,
+            "median_ns": 13220.0,
             "p90_ns": 13870.0
           }
         ],
@@ -200970,38 +200970,38 @@
           "stage": "o",
           "tn": 64
         },
-        "median_ns": 13670.0,
-        "spread": 0.0043891733723482075,
+        "median_ns": 13570.0,
+        "spread": 0.005158437730287398,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "403aaa2767469acfbaaa8787f7991477fef94714033002c7f8b0a9b8d7e574f4",
-        "p90_ns": 14230.0,
+        "p90_ns": 14220.0,
         "processes": 3,
         "rounds": [
           {
-            "PID": 1043032,
+            "PID": 1551130,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B1/cohort/process0/result.json",
-              "sha256": "a24451f2b57a04a6c5ae42cbcdc45a8b026b4a84454e89b70568f7526da075be"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B1/cohort/process0/result.json",
+              "sha256": "0552d33de71a12daec66678ed1385abfbbf13c35402ea4c6d31a343e8593f0c8"
             },
-            "median_ns": 13720.0,
-            "p90_ns": 14350.0
+            "median_ns": 13570.0,
+            "p90_ns": 14220.0
           },
           {
-            "PID": 1043047,
+            "PID": 1551144,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B1/cohort/process1/result.json",
-              "sha256": "cfed04e731a19057aa62dc677f414921e8dcce81e458bd411e48d8aa03afed02"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B1/cohort/process1/result.json",
+              "sha256": "996be8e52675036ee17d152eadc6259927a82a7c9b81d453d70efa46e89d93f3"
             },
-            "median_ns": 13670.0,
-            "p90_ns": 14190.0
+            "median_ns": 13540.0,
+            "p90_ns": 14160.0
           },
           {
-            "PID": 1043061,
+            "PID": 1551159,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B1/cohort/process2/result.json",
-              "sha256": "bec42add985d65c21467784e9a1621bea24591d97d9f629c38b70cb1b5b965e8"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B1/cohort/process2/result.json",
+              "sha256": "823c1e4f8652d665913c3bf0bfa7409a0274f5458acdb962025a90e0f3814318"
             },
-            "median_ns": 13660.0,
+            "median_ns": 13610.0,
             "p90_ns": 14230.0
           }
         ],
@@ -201014,39 +201014,39 @@
           "stage": "o",
           "tn": 128
         },
-        "median_ns": 13720.0,
-        "spread": 0.006559766763848397,
+        "median_ns": 13740.0,
+        "spread": 0.00727802037845706,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "403aaa2767469acfbaaa8787f7991477fef94714033002c7f8b0a9b8d7e574f4",
-        "p90_ns": 14180.0,
+        "p90_ns": 14340.0,
         "processes": 3,
         "rounds": [
           {
-            "PID": 1043032,
+            "PID": 1551130,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B1/cohort/process0/result.json",
-              "sha256": "a24451f2b57a04a6c5ae42cbcdc45a8b026b4a84454e89b70568f7526da075be"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B1/cohort/process0/result.json",
+              "sha256": "0552d33de71a12daec66678ed1385abfbbf13c35402ea4c6d31a343e8593f0c8"
             },
-            "median_ns": 13680.0,
-            "p90_ns": 14180.0
+            "median_ns": 13810.0,
+            "p90_ns": 14400.0
           },
           {
-            "PID": 1043047,
+            "PID": 1551144,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B1/cohort/process1/result.json",
-              "sha256": "cfed04e731a19057aa62dc677f414921e8dcce81e458bd411e48d8aa03afed02"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B1/cohort/process1/result.json",
+              "sha256": "996be8e52675036ee17d152eadc6259927a82a7c9b81d453d70efa46e89d93f3"
             },
-            "median_ns": 13770.0,
-            "p90_ns": 14260.0
+            "median_ns": 13740.0,
+            "p90_ns": 14280.0
           },
           {
-            "PID": 1043061,
+            "PID": 1551159,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B1/cohort/process2/result.json",
-              "sha256": "bec42add985d65c21467784e9a1621bea24591d97d9f629c38b70cb1b5b965e8"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B1/cohort/process2/result.json",
+              "sha256": "823c1e4f8652d665913c3bf0bfa7409a0274f5458acdb962025a90e0f3814318"
             },
-            "median_ns": 13720.0,
-            "p90_ns": 14180.0
+            "median_ns": 13710.0,
+            "p90_ns": 14340.0
           }
         ],
         "noisy": false
@@ -201058,39 +201058,39 @@
           "stage": "down",
           "tn": 16
         },
-        "median_ns": 24920.0,
-        "spread": 0.030296950240770466,
+        "median_ns": 25165.0,
+        "spread": 0.03278362805483807,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "403aaa2767469acfbaaa8787f7991477fef94714033002c7f8b0a9b8d7e574f4",
-        "p90_ns": 26140.0,
+        "p90_ns": 26360.0,
         "processes": 3,
         "rounds": [
           {
-            "PID": 1043032,
+            "PID": 1551130,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B1/cohort/process0/result.json",
-              "sha256": "a24451f2b57a04a6c5ae42cbcdc45a8b026b4a84454e89b70568f7526da075be"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B1/cohort/process0/result.json",
+              "sha256": "0552d33de71a12daec66678ed1385abfbbf13c35402ea4c6d31a343e8593f0c8"
             },
-            "median_ns": 25535.0,
-            "p90_ns": 26800.0
+            "median_ns": 25500.0,
+            "p90_ns": 26630.0
           },
           {
-            "PID": 1043047,
+            "PID": 1551144,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B1/cohort/process1/result.json",
-              "sha256": "cfed04e731a19057aa62dc677f414921e8dcce81e458bd411e48d8aa03afed02"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B1/cohort/process1/result.json",
+              "sha256": "996be8e52675036ee17d152eadc6259927a82a7c9b81d453d70efa46e89d93f3"
             },
-            "median_ns": 24920.0,
-            "p90_ns": 26140.0
+            "median_ns": 24675.0,
+            "p90_ns": 26030.0
           },
           {
-            "PID": 1043061,
+            "PID": 1551159,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B1/cohort/process2/result.json",
-              "sha256": "bec42add985d65c21467784e9a1621bea24591d97d9f629c38b70cb1b5b965e8"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B1/cohort/process2/result.json",
+              "sha256": "823c1e4f8652d665913c3bf0bfa7409a0274f5458acdb962025a90e0f3814318"
             },
-            "median_ns": 24780.0,
-            "p90_ns": 26120.0
+            "median_ns": 25165.0,
+            "p90_ns": 26360.0
           }
         ],
         "noisy": true
@@ -201102,39 +201102,39 @@
           "stage": "down",
           "tn": 32
         },
-        "median_ns": 13080.0,
-        "spread": 0.006880733944954129,
+        "median_ns": 12940.0,
+        "spread": 0.00231839258114374,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "403aaa2767469acfbaaa8787f7991477fef94714033002c7f8b0a9b8d7e574f4",
-        "p90_ns": 13520.0,
+        "p90_ns": 13680.0,
         "processes": 3,
         "rounds": [
           {
-            "PID": 1043032,
+            "PID": 1551130,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B1/cohort/process0/result.json",
-              "sha256": "a24451f2b57a04a6c5ae42cbcdc45a8b026b4a84454e89b70568f7526da075be"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B1/cohort/process0/result.json",
+              "sha256": "0552d33de71a12daec66678ed1385abfbbf13c35402ea4c6d31a343e8593f0c8"
             },
-            "median_ns": 13000.0,
-            "p90_ns": 13520.0
+            "median_ns": 12960.0,
+            "p90_ns": 13680.0
           },
           {
-            "PID": 1043047,
+            "PID": 1551144,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B1/cohort/process1/result.json",
-              "sha256": "cfed04e731a19057aa62dc677f414921e8dcce81e458bd411e48d8aa03afed02"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B1/cohort/process1/result.json",
+              "sha256": "996be8e52675036ee17d152eadc6259927a82a7c9b81d453d70efa46e89d93f3"
             },
-            "median_ns": 13090.0,
-            "p90_ns": 13500.0
+            "median_ns": 12940.0,
+            "p90_ns": 13580.0
           },
           {
-            "PID": 1043061,
+            "PID": 1551159,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B1/cohort/process2/result.json",
-              "sha256": "bec42add985d65c21467784e9a1621bea24591d97d9f629c38b70cb1b5b965e8"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B1/cohort/process2/result.json",
+              "sha256": "823c1e4f8652d665913c3bf0bfa7409a0274f5458acdb962025a90e0f3814318"
             },
-            "median_ns": 13080.0,
-            "p90_ns": 13520.0
+            "median_ns": 12930.0,
+            "p90_ns": 13730.0
           }
         ],
         "noisy": false
@@ -201146,39 +201146,39 @@
           "stage": "down",
           "tn": 64
         },
-        "median_ns": 13455.0,
-        "spread": 0.002229654403567447,
+        "median_ns": 13380.0,
+        "spread": 0.0014947683109118087,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "403aaa2767469acfbaaa8787f7991477fef94714033002c7f8b0a9b8d7e574f4",
-        "p90_ns": 14070.0,
+        "p90_ns": 14030.0,
         "processes": 3,
         "rounds": [
           {
-            "PID": 1043032,
+            "PID": 1551130,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B1/cohort/process0/result.json",
-              "sha256": "a24451f2b57a04a6c5ae42cbcdc45a8b026b4a84454e89b70568f7526da075be"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B1/cohort/process0/result.json",
+              "sha256": "0552d33de71a12daec66678ed1385abfbbf13c35402ea4c6d31a343e8593f0c8"
             },
-            "median_ns": 13455.0,
-            "p90_ns": 14160.0
+            "median_ns": 13380.0,
+            "p90_ns": 14010.0
           },
           {
-            "PID": 1043047,
+            "PID": 1551144,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B1/cohort/process1/result.json",
-              "sha256": "cfed04e731a19057aa62dc677f414921e8dcce81e458bd411e48d8aa03afed02"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B1/cohort/process1/result.json",
+              "sha256": "996be8e52675036ee17d152eadc6259927a82a7c9b81d453d70efa46e89d93f3"
             },
-            "median_ns": 13440.0,
-            "p90_ns": 13960.0
+            "median_ns": 13380.0,
+            "p90_ns": 14050.0
           },
           {
-            "PID": 1043061,
+            "PID": 1551159,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B1/cohort/process2/result.json",
-              "sha256": "bec42add985d65c21467784e9a1621bea24591d97d9f629c38b70cb1b5b965e8"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B1/cohort/process2/result.json",
+              "sha256": "823c1e4f8652d665913c3bf0bfa7409a0274f5458acdb962025a90e0f3814318"
             },
-            "median_ns": 13470.0,
-            "p90_ns": 14070.0
+            "median_ns": 13400.0,
+            "p90_ns": 14030.0
           }
         ],
         "noisy": false
@@ -201190,39 +201190,39 @@
           "stage": "down",
           "tn": 128
         },
-        "median_ns": 13950.0,
-        "spread": 0.0032258064516129032,
+        "median_ns": 13910.0,
+        "spread": 0.0014378145219266715,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "403aaa2767469acfbaaa8787f7991477fef94714033002c7f8b0a9b8d7e574f4",
-        "p90_ns": 14530.0,
+        "p90_ns": 14560.0,
         "processes": 3,
         "rounds": [
           {
-            "PID": 1043032,
+            "PID": 1551130,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B1/cohort/process0/result.json",
-              "sha256": "a24451f2b57a04a6c5ae42cbcdc45a8b026b4a84454e89b70568f7526da075be"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B1/cohort/process0/result.json",
+              "sha256": "0552d33de71a12daec66678ed1385abfbbf13c35402ea4c6d31a343e8593f0c8"
+            },
+            "median_ns": 13900.0,
+            "p90_ns": 14560.0
+          },
+          {
+            "PID": 1551144,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B1/cohort/process1/result.json",
+              "sha256": "996be8e52675036ee17d152eadc6259927a82a7c9b81d453d70efa46e89d93f3"
+            },
+            "median_ns": 13910.0,
+            "p90_ns": 14560.0
+          },
+          {
+            "PID": 1551159,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B1/cohort/process2/result.json",
+              "sha256": "823c1e4f8652d665913c3bf0bfa7409a0274f5458acdb962025a90e0f3814318"
             },
             "median_ns": 13920.0,
-            "p90_ns": 14530.0
-          },
-          {
-            "PID": 1043047,
-            "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B1/cohort/process1/result.json",
-              "sha256": "cfed04e731a19057aa62dc677f414921e8dcce81e458bd411e48d8aa03afed02"
-            },
-            "median_ns": 13965.0,
-            "p90_ns": 14590.0
-          },
-          {
-            "PID": 1043061,
-            "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B1/cohort/process2/result.json",
-              "sha256": "bec42add985d65c21467784e9a1621bea24591d97d9f629c38b70cb1b5b965e8"
-            },
-            "median_ns": 13950.0,
-            "p90_ns": 14530.0
+            "p90_ns": 14520.0
           }
         ],
         "noisy": false
@@ -201234,39 +201234,39 @@
           "stage": "o",
           "tn": 16
         },
-        "median_ns": 26600.0,
-        "spread": 0.0033834586466165413,
+        "median_ns": 26900.0,
+        "spread": 0.009665427509293681,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "f8aeedf50c48f89ae5310130689798c40c6bba991eab38f9990307cd0badd1c9",
-        "p90_ns": 27140.0,
+        "p90_ns": 27520.0,
         "processes": 3,
         "rounds": [
           {
-            "PID": 1050500,
+            "PID": 1551511,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B2/cohort/process0/result.json",
-              "sha256": "62f1acffa29e022cfe1ac21ce4bb57f57208ec94db4f5b915d0b5859767bbb3c"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B2/cohort/process0/result.json",
+              "sha256": "9a4cac252b8ef0f42fa6de8e542792f896d0d2aea9bc530eba487536201b973c"
             },
-            "median_ns": 26570.0,
-            "p90_ns": 27090.0
+            "median_ns": 27000.0,
+            "p90_ns": 27670.0
           },
           {
-            "PID": 1050515,
+            "PID": 1551539,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B2/cohort/process1/result.json",
-              "sha256": "5ba583c1a736f5cf7a0ef5fd9113150b1e528a00970fcd574c713c46b670b828"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B2/cohort/process1/result.json",
+              "sha256": "0fce8f96a9934fcc88480cac82bc64e259c198715e3500449a666d8cc4bad701"
             },
-            "median_ns": 26660.0,
-            "p90_ns": 27210.0
+            "median_ns": 26900.0,
+            "p90_ns": 27520.0
           },
           {
-            "PID": 1050545,
+            "PID": 1551555,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B2/cohort/process2/result.json",
-              "sha256": "7c0a6156838fa8663a93da297b4a1e61259cab4de27b04614a991152edb5d6fc"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B2/cohort/process2/result.json",
+              "sha256": "dad243fa8d0399a2808e4cff4f2fa2f084635bc0e1106d9e36cc545fd0f80c94"
             },
-            "median_ns": 26600.0,
-            "p90_ns": 27140.0
+            "median_ns": 26740.0,
+            "p90_ns": 27350.0
           }
         ],
         "noisy": false
@@ -201278,39 +201278,39 @@
           "stage": "o",
           "tn": 32
         },
-        "median_ns": 19280.0,
-        "spread": 0.005705394190871369,
+        "median_ns": 19330.0,
+        "spread": 0.0005173305742369374,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "f8aeedf50c48f89ae5310130689798c40c6bba991eab38f9990307cd0badd1c9",
-        "p90_ns": 20420.0,
+        "p90_ns": 20640.0,
         "processes": 3,
         "rounds": [
           {
-            "PID": 1050500,
+            "PID": 1551511,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B2/cohort/process0/result.json",
-              "sha256": "62f1acffa29e022cfe1ac21ce4bb57f57208ec94db4f5b915d0b5859767bbb3c"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B2/cohort/process0/result.json",
+              "sha256": "9a4cac252b8ef0f42fa6de8e542792f896d0d2aea9bc530eba487536201b973c"
             },
-            "median_ns": 19230.0,
-            "p90_ns": 20300.0
+            "median_ns": 19330.0,
+            "p90_ns": 20640.0
           },
           {
-            "PID": 1050515,
+            "PID": 1551539,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B2/cohort/process1/result.json",
-              "sha256": "5ba583c1a736f5cf7a0ef5fd9113150b1e528a00970fcd574c713c46b670b828"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B2/cohort/process1/result.json",
+              "sha256": "0fce8f96a9934fcc88480cac82bc64e259c198715e3500449a666d8cc4bad701"
             },
-            "median_ns": 19340.0,
-            "p90_ns": 20420.0
+            "median_ns": 19320.0,
+            "p90_ns": 20640.0
           },
           {
-            "PID": 1050545,
+            "PID": 1551555,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B2/cohort/process2/result.json",
-              "sha256": "7c0a6156838fa8663a93da297b4a1e61259cab4de27b04614a991152edb5d6fc"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B2/cohort/process2/result.json",
+              "sha256": "dad243fa8d0399a2808e4cff4f2fa2f084635bc0e1106d9e36cc545fd0f80c94"
             },
-            "median_ns": 19280.0,
-            "p90_ns": 20440.0
+            "median_ns": 19330.0,
+            "p90_ns": 20640.0
           }
         ],
         "noisy": false
@@ -201322,39 +201322,39 @@
           "stage": "o",
           "tn": 64
         },
-        "median_ns": 20340.0,
-        "spread": 0.003933136676499509,
+        "median_ns": 20350.0,
+        "spread": 0.0014742014742014742,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "f8aeedf50c48f89ae5310130689798c40c6bba991eab38f9990307cd0badd1c9",
-        "p90_ns": 21510.0,
+        "p90_ns": 21820.0,
         "processes": 3,
         "rounds": [
           {
-            "PID": 1050500,
+            "PID": 1551511,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B2/cohort/process0/result.json",
-              "sha256": "62f1acffa29e022cfe1ac21ce4bb57f57208ec94db4f5b915d0b5859767bbb3c"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B2/cohort/process0/result.json",
+              "sha256": "9a4cac252b8ef0f42fa6de8e542792f896d0d2aea9bc530eba487536201b973c"
             },
-            "median_ns": 20270.0,
-            "p90_ns": 21510.0
+            "median_ns": 20330.0,
+            "p90_ns": 21800.0
           },
           {
-            "PID": 1050515,
+            "PID": 1551539,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B2/cohort/process1/result.json",
-              "sha256": "5ba583c1a736f5cf7a0ef5fd9113150b1e528a00970fcd574c713c46b670b828"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B2/cohort/process1/result.json",
+              "sha256": "0fce8f96a9934fcc88480cac82bc64e259c198715e3500449a666d8cc4bad701"
             },
             "median_ns": 20350.0,
-            "p90_ns": 21480.0
+            "p90_ns": 21820.0
           },
           {
-            "PID": 1050545,
+            "PID": 1551555,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B2/cohort/process2/result.json",
-              "sha256": "7c0a6156838fa8663a93da297b4a1e61259cab4de27b04614a991152edb5d6fc"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B2/cohort/process2/result.json",
+              "sha256": "dad243fa8d0399a2808e4cff4f2fa2f084635bc0e1106d9e36cc545fd0f80c94"
             },
-            "median_ns": 20340.0,
-            "p90_ns": 21670.0
+            "median_ns": 20360.0,
+            "p90_ns": 21860.0
           }
         ],
         "noisy": false
@@ -201366,215 +201366,215 @@
           "stage": "o",
           "tn": 128
         },
-        "median_ns": 20290.0,
-        "spread": 0.004435682602267127,
+        "median_ns": 20400.0,
+        "spread": 0.0,
+        "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
+        "binary": "f8aeedf50c48f89ae5310130689798c40c6bba991eab38f9990307cd0badd1c9",
+        "p90_ns": 21820.0,
+        "processes": 3,
+        "rounds": [
+          {
+            "PID": 1551511,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B2/cohort/process0/result.json",
+              "sha256": "9a4cac252b8ef0f42fa6de8e542792f896d0d2aea9bc530eba487536201b973c"
+            },
+            "median_ns": 20400.0,
+            "p90_ns": 21820.0
+          },
+          {
+            "PID": 1551539,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B2/cohort/process1/result.json",
+              "sha256": "0fce8f96a9934fcc88480cac82bc64e259c198715e3500449a666d8cc4bad701"
+            },
+            "median_ns": 20400.0,
+            "p90_ns": 21820.0
+          },
+          {
+            "PID": 1551555,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B2/cohort/process2/result.json",
+              "sha256": "dad243fa8d0399a2808e4cff4f2fa2f084635bc0e1106d9e36cc545fd0f80c94"
+            },
+            "median_ns": 20400.0,
+            "p90_ns": 21840.0
+          }
+        ],
+        "noisy": false
+      },
+      {
+        "key": {
+          "tp": 4,
+          "b": 2,
+          "stage": "down",
+          "tn": 16
+        },
+        "median_ns": 27580.0,
+        "spread": 0.023567802755620013,
+        "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
+        "binary": "f8aeedf50c48f89ae5310130689798c40c6bba991eab38f9990307cd0badd1c9",
+        "p90_ns": 29520.0,
+        "processes": 3,
+        "rounds": [
+          {
+            "PID": 1551511,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B2/cohort/process0/result.json",
+              "sha256": "9a4cac252b8ef0f42fa6de8e542792f896d0d2aea9bc530eba487536201b973c"
+            },
+            "median_ns": 27420.0,
+            "p90_ns": 29620.0
+          },
+          {
+            "PID": 1551539,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B2/cohort/process1/result.json",
+              "sha256": "0fce8f96a9934fcc88480cac82bc64e259c198715e3500449a666d8cc4bad701"
+            },
+            "median_ns": 28070.0,
+            "p90_ns": 29520.0
+          },
+          {
+            "PID": 1551555,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B2/cohort/process2/result.json",
+              "sha256": "dad243fa8d0399a2808e4cff4f2fa2f084635bc0e1106d9e36cc545fd0f80c94"
+            },
+            "median_ns": 27580.0,
+            "p90_ns": 29520.0
+          }
+        ],
+        "noisy": true
+      },
+      {
+        "key": {
+          "tp": 4,
+          "b": 2,
+          "stage": "down",
+          "tn": 32
+        },
+        "median_ns": 19220.0,
+        "spread": 0.001040582726326743,
+        "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
+        "binary": "f8aeedf50c48f89ae5310130689798c40c6bba991eab38f9990307cd0badd1c9",
+        "p90_ns": 20480.0,
+        "processes": 3,
+        "rounds": [
+          {
+            "PID": 1551511,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B2/cohort/process0/result.json",
+              "sha256": "9a4cac252b8ef0f42fa6de8e542792f896d0d2aea9bc530eba487536201b973c"
+            },
+            "median_ns": 19240.0,
+            "p90_ns": 20410.0
+          },
+          {
+            "PID": 1551539,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B2/cohort/process1/result.json",
+              "sha256": "0fce8f96a9934fcc88480cac82bc64e259c198715e3500449a666d8cc4bad701"
+            },
+            "median_ns": 19220.0,
+            "p90_ns": 20480.0
+          },
+          {
+            "PID": 1551555,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B2/cohort/process2/result.json",
+              "sha256": "dad243fa8d0399a2808e4cff4f2fa2f084635bc0e1106d9e36cc545fd0f80c94"
+            },
+            "median_ns": 19220.0,
+            "p90_ns": 20520.0
+          }
+        ],
+        "noisy": false
+      },
+      {
+        "key": {
+          "tp": 4,
+          "b": 2,
+          "stage": "down",
+          "tn": 64
+        },
+        "median_ns": 20200.0,
+        "spread": 0.0019801980198019802,
+        "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
+        "binary": "f8aeedf50c48f89ae5310130689798c40c6bba991eab38f9990307cd0badd1c9",
+        "p90_ns": 21690.0,
+        "processes": 3,
+        "rounds": [
+          {
+            "PID": 1551511,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B2/cohort/process0/result.json",
+              "sha256": "9a4cac252b8ef0f42fa6de8e542792f896d0d2aea9bc530eba487536201b973c"
+            },
+            "median_ns": 20200.0,
+            "p90_ns": 21600.0
+          },
+          {
+            "PID": 1551539,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B2/cohort/process1/result.json",
+              "sha256": "0fce8f96a9934fcc88480cac82bc64e259c198715e3500449a666d8cc4bad701"
+            },
+            "median_ns": 20230.0,
+            "p90_ns": 21750.0
+          },
+          {
+            "PID": 1551555,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B2/cohort/process2/result.json",
+              "sha256": "dad243fa8d0399a2808e4cff4f2fa2f084635bc0e1106d9e36cc545fd0f80c94"
+            },
+            "median_ns": 20190.0,
+            "p90_ns": 21690.0
+          }
+        ],
+        "noisy": false
+      },
+      {
+        "key": {
+          "tp": 4,
+          "b": 2,
+          "stage": "down",
+          "tn": 128
+        },
+        "median_ns": 20190.0,
+        "spread": 0.003467062902426944,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "f8aeedf50c48f89ae5310130689798c40c6bba991eab38f9990307cd0badd1c9",
         "p90_ns": 21530.0,
         "processes": 3,
         "rounds": [
           {
-            "PID": 1050500,
+            "PID": 1551511,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B2/cohort/process0/result.json",
-              "sha256": "62f1acffa29e022cfe1ac21ce4bb57f57208ec94db4f5b915d0b5859767bbb3c"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B2/cohort/process0/result.json",
+              "sha256": "9a4cac252b8ef0f42fa6de8e542792f896d0d2aea9bc530eba487536201b973c"
             },
-            "median_ns": 20230.0,
-            "p90_ns": 21430.0
-          },
-          {
-            "PID": 1050515,
-            "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B2/cohort/process1/result.json",
-              "sha256": "5ba583c1a736f5cf7a0ef5fd9113150b1e528a00970fcd574c713c46b670b828"
-            },
-            "median_ns": 20290.0,
-            "p90_ns": 21540.0
-          },
-          {
-            "PID": 1050545,
-            "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B2/cohort/process2/result.json",
-              "sha256": "7c0a6156838fa8663a93da297b4a1e61259cab4de27b04614a991152edb5d6fc"
-            },
-            "median_ns": 20320.0,
+            "median_ns": 20130.0,
             "p90_ns": 21530.0
-          }
-        ],
-        "noisy": false
-      },
-      {
-        "key": {
-          "tp": 4,
-          "b": 2,
-          "stage": "down",
-          "tn": 16
-        },
-        "median_ns": 26690.0,
-        "spread": 0.004121393780442113,
-        "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
-        "binary": "f8aeedf50c48f89ae5310130689798c40c6bba991eab38f9990307cd0badd1c9",
-        "p90_ns": 29340.0,
-        "processes": 3,
-        "rounds": [
-          {
-            "PID": 1050500,
-            "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B2/cohort/process0/result.json",
-              "sha256": "62f1acffa29e022cfe1ac21ce4bb57f57208ec94db4f5b915d0b5859767bbb3c"
-            },
-            "median_ns": 26690.0,
-            "p90_ns": 29410.0
           },
           {
-            "PID": 1050515,
+            "PID": 1551539,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B2/cohort/process1/result.json",
-              "sha256": "5ba583c1a736f5cf7a0ef5fd9113150b1e528a00970fcd574c713c46b670b828"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B2/cohort/process1/result.json",
+              "sha256": "0fce8f96a9934fcc88480cac82bc64e259c198715e3500449a666d8cc4bad701"
             },
-            "median_ns": 26760.0,
-            "p90_ns": 29340.0
+            "median_ns": 20200.0,
+            "p90_ns": 21600.0
           },
           {
-            "PID": 1050545,
+            "PID": 1551555,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B2/cohort/process2/result.json",
-              "sha256": "7c0a6156838fa8663a93da297b4a1e61259cab4de27b04614a991152edb5d6fc"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B2/cohort/process2/result.json",
+              "sha256": "dad243fa8d0399a2808e4cff4f2fa2f084635bc0e1106d9e36cc545fd0f80c94"
             },
-            "median_ns": 26650.0,
-            "p90_ns": 29150.0
-          }
-        ],
-        "noisy": false
-      },
-      {
-        "key": {
-          "tp": 4,
-          "b": 2,
-          "stage": "down",
-          "tn": 32
-        },
-        "median_ns": 19190.0,
-        "spread": 0.006253256904637832,
-        "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
-        "binary": "f8aeedf50c48f89ae5310130689798c40c6bba991eab38f9990307cd0badd1c9",
-        "p90_ns": 20250.0,
-        "processes": 3,
-        "rounds": [
-          {
-            "PID": 1050500,
-            "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B2/cohort/process0/result.json",
-              "sha256": "62f1acffa29e022cfe1ac21ce4bb57f57208ec94db4f5b915d0b5859767bbb3c"
-            },
-            "median_ns": 19140.0,
-            "p90_ns": 20180.0
-          },
-          {
-            "PID": 1050515,
-            "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B2/cohort/process1/result.json",
-              "sha256": "5ba583c1a736f5cf7a0ef5fd9113150b1e528a00970fcd574c713c46b670b828"
-            },
-            "median_ns": 19190.0,
-            "p90_ns": 20250.0
-          },
-          {
-            "PID": 1050545,
-            "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B2/cohort/process2/result.json",
-              "sha256": "7c0a6156838fa8663a93da297b4a1e61259cab4de27b04614a991152edb5d6fc"
-            },
-            "median_ns": 19260.0,
-            "p90_ns": 20250.0
-          }
-        ],
-        "noisy": false
-      },
-      {
-        "key": {
-          "tp": 4,
-          "b": 2,
-          "stage": "down",
-          "tn": 64
-        },
-        "median_ns": 20020.0,
-        "spread": 0.008491508491508492,
-        "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
-        "binary": "f8aeedf50c48f89ae5310130689798c40c6bba991eab38f9990307cd0badd1c9",
-        "p90_ns": 21390.0,
-        "processes": 3,
-        "rounds": [
-          {
-            "PID": 1050500,
-            "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B2/cohort/process0/result.json",
-              "sha256": "62f1acffa29e022cfe1ac21ce4bb57f57208ec94db4f5b915d0b5859767bbb3c"
-            },
-            "median_ns": 20020.0,
-            "p90_ns": 21150.0
-          },
-          {
-            "PID": 1050515,
-            "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B2/cohort/process1/result.json",
-              "sha256": "5ba583c1a736f5cf7a0ef5fd9113150b1e528a00970fcd574c713c46b670b828"
-            },
-            "median_ns": 20010.0,
-            "p90_ns": 21390.0
-          },
-          {
-            "PID": 1050545,
-            "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B2/cohort/process2/result.json",
-              "sha256": "7c0a6156838fa8663a93da297b4a1e61259cab4de27b04614a991152edb5d6fc"
-            },
-            "median_ns": 20180.0,
-            "p90_ns": 21390.0
-          }
-        ],
-        "noisy": false
-      },
-      {
-        "key": {
-          "tp": 4,
-          "b": 2,
-          "stage": "down",
-          "tn": 128
-        },
-        "median_ns": 19990.0,
-        "spread": 0.014007003501750876,
-        "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
-        "binary": "f8aeedf50c48f89ae5310130689798c40c6bba991eab38f9990307cd0badd1c9",
-        "p90_ns": 21050.0,
-        "processes": 3,
-        "rounds": [
-          {
-            "PID": 1050500,
-            "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B2/cohort/process0/result.json",
-              "sha256": "62f1acffa29e022cfe1ac21ce4bb57f57208ec94db4f5b915d0b5859767bbb3c"
-            },
-            "median_ns": 19990.0,
-            "p90_ns": 21050.0
-          },
-          {
-            "PID": 1050515,
-            "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B2/cohort/process1/result.json",
-              "sha256": "5ba583c1a736f5cf7a0ef5fd9113150b1e528a00970fcd574c713c46b670b828"
-            },
-            "median_ns": 20110.0,
-            "p90_ns": 21370.0
-          },
-          {
-            "PID": 1050545,
-            "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B2/cohort/process2/result.json",
-              "sha256": "7c0a6156838fa8663a93da297b4a1e61259cab4de27b04614a991152edb5d6fc"
-            },
-            "median_ns": 19830.0,
-            "p90_ns": 20960.0
+            "median_ns": 20190.0,
+            "p90_ns": 21460.0
           }
         ],
         "noisy": false
@@ -201586,38 +201586,126 @@
           "stage": "o",
           "tn": 16
         },
-        "median_ns": 39850.0,
-        "spread": 0.010790464240903387,
+        "median_ns": 39830.0,
+        "spread": 0.001506402209389907,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "6784862b0a8b5c1f81508e575f4215e26518b65f727731f5f636a16f4270feb5",
-        "p90_ns": 41840.0,
+        "p90_ns": 41760.0,
         "processes": 3,
         "rounds": [
           {
-            "PID": 1066026,
+            "PID": 1551953,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B4/cohort/process0/result.json",
-              "sha256": "e471f571b4d2750da03f815c012e36fdf18958da50c69d0b2f8bcfcc36d1fc88"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B4/cohort/process0/result.json",
+              "sha256": "f62c412e6c4cc96e268a1bc99ea5cdbbc3a8f27736f0df4098ae80f703122bd1"
+            },
+            "median_ns": 39830.0,
+            "p90_ns": 41760.0
+          },
+          {
+            "PID": 1551967,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B4/cohort/process1/result.json",
+              "sha256": "ed31205ec42afbe8b7563b06f1f64328640f889d3405dfb6c5ec3311d437795a"
             },
             "median_ns": 39850.0,
-            "p90_ns": 41840.0
+            "p90_ns": 41960.0
           },
           {
-            "PID": 1066049,
+            "PID": 1551998,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B4/cohort/process1/result.json",
-              "sha256": "c673c27dab691f6ccf8b9d7bb11edcd25ce06a308606f5cc2d939c755cddfe48"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B4/cohort/process2/result.json",
+              "sha256": "c7b6d71455d8c47fe86fb84f6a70773bdac9345c44b5106cdd3470281d14f516"
             },
-            "median_ns": 40130.0,
-            "p90_ns": 42030.0
+            "median_ns": 39790.0,
+            "p90_ns": 41720.0
+          }
+        ],
+        "noisy": false
+      },
+      {
+        "key": {
+          "tp": 4,
+          "b": 4,
+          "stage": "o",
+          "tn": 32
+        },
+        "median_ns": 36385.0,
+        "spread": 0.001374192661811186,
+        "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
+        "binary": "6784862b0a8b5c1f81508e575f4215e26518b65f727731f5f636a16f4270feb5",
+        "p90_ns": 39190.0,
+        "processes": 3,
+        "rounds": [
+          {
+            "PID": 1551953,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B4/cohort/process0/result.json",
+              "sha256": "f62c412e6c4cc96e268a1bc99ea5cdbbc3a8f27736f0df4098ae80f703122bd1"
+            },
+            "median_ns": 36360.0,
+            "p90_ns": 39140.0
           },
           {
-            "PID": 1066085,
+            "PID": 1551967,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B4/cohort/process2/result.json",
-              "sha256": "3ef34da7ad1f5ab652aa5166360b499e8a180a691898c2f5b16963c3e88324d6"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B4/cohort/process1/result.json",
+              "sha256": "ed31205ec42afbe8b7563b06f1f64328640f889d3405dfb6c5ec3311d437795a"
             },
-            "median_ns": 39700.0,
+            "median_ns": 36410.0,
+            "p90_ns": 39190.0
+          },
+          {
+            "PID": 1551998,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B4/cohort/process2/result.json",
+              "sha256": "c7b6d71455d8c47fe86fb84f6a70773bdac9345c44b5106cdd3470281d14f516"
+            },
+            "median_ns": 36385.0,
+            "p90_ns": 39460.0
+          }
+        ],
+        "noisy": false
+      },
+      {
+        "key": {
+          "tp": 4,
+          "b": 4,
+          "stage": "o",
+          "tn": 64
+        },
+        "median_ns": 38030.0,
+        "spread": 0.001972127267946358,
+        "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
+        "binary": "6784862b0a8b5c1f81508e575f4215e26518b65f727731f5f636a16f4270feb5",
+        "p90_ns": 41700.0,
+        "processes": 3,
+        "rounds": [
+          {
+            "PID": 1551953,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B4/cohort/process0/result.json",
+              "sha256": "f62c412e6c4cc96e268a1bc99ea5cdbbc3a8f27736f0df4098ae80f703122bd1"
+            },
+            "median_ns": 38030.0,
+            "p90_ns": 41450.0
+          },
+          {
+            "PID": 1551967,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B4/cohort/process1/result.json",
+              "sha256": "ed31205ec42afbe8b7563b06f1f64328640f889d3405dfb6c5ec3311d437795a"
+            },
+            "median_ns": 38075.0,
+            "p90_ns": 41990.0
+          },
+          {
+            "PID": 1551998,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B4/cohort/process2/result.json",
+              "sha256": "c7b6d71455d8c47fe86fb84f6a70773bdac9345c44b5106cdd3470281d14f516"
+            },
+            "median_ns": 38000.0,
             "p90_ns": 41700.0
           }
         ],
@@ -201628,129 +201716,41 @@
           "tp": 4,
           "b": 4,
           "stage": "o",
-          "tn": 32
-        },
-        "median_ns": 36390.0,
-        "spread": 0.003709810387469085,
-        "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
-        "binary": "6784862b0a8b5c1f81508e575f4215e26518b65f727731f5f636a16f4270feb5",
-        "p90_ns": 39160.0,
-        "processes": 3,
-        "rounds": [
-          {
-            "PID": 1066026,
-            "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B4/cohort/process0/result.json",
-              "sha256": "e471f571b4d2750da03f815c012e36fdf18958da50c69d0b2f8bcfcc36d1fc88"
-            },
-            "median_ns": 36390.0,
-            "p90_ns": 39160.0
-          },
-          {
-            "PID": 1066049,
-            "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B4/cohort/process1/result.json",
-              "sha256": "c673c27dab691f6ccf8b9d7bb11edcd25ce06a308606f5cc2d939c755cddfe48"
-            },
-            "median_ns": 36305.0,
-            "p90_ns": 39310.0
-          },
-          {
-            "PID": 1066085,
-            "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B4/cohort/process2/result.json",
-              "sha256": "3ef34da7ad1f5ab652aa5166360b499e8a180a691898c2f5b16963c3e88324d6"
-            },
-            "median_ns": 36440.0,
-            "p90_ns": 38970.0
-          }
-        ],
-        "noisy": false
-      },
-      {
-        "key": {
-          "tp": 4,
-          "b": 4,
-          "stage": "o",
-          "tn": 64
-        },
-        "median_ns": 38150.0,
-        "spread": 0.00235910878112713,
-        "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
-        "binary": "6784862b0a8b5c1f81508e575f4215e26518b65f727731f5f636a16f4270feb5",
-        "p90_ns": 41820.0,
-        "processes": 3,
-        "rounds": [
-          {
-            "PID": 1066026,
-            "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B4/cohort/process0/result.json",
-              "sha256": "e471f571b4d2750da03f815c012e36fdf18958da50c69d0b2f8bcfcc36d1fc88"
-            },
-            "median_ns": 38150.0,
-            "p90_ns": 41820.0
-          },
-          {
-            "PID": 1066049,
-            "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B4/cohort/process1/result.json",
-              "sha256": "c673c27dab691f6ccf8b9d7bb11edcd25ce06a308606f5cc2d939c755cddfe48"
-            },
-            "median_ns": 38180.0,
-            "p90_ns": 42020.0
-          },
-          {
-            "PID": 1066085,
-            "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B4/cohort/process2/result.json",
-              "sha256": "3ef34da7ad1f5ab652aa5166360b499e8a180a691898c2f5b16963c3e88324d6"
-            },
-            "median_ns": 38090.0,
-            "p90_ns": 41430.0
-          }
-        ],
-        "noisy": false
-      },
-      {
-        "key": {
-          "tp": 4,
-          "b": 4,
-          "stage": "o",
           "tn": 128
         },
-        "median_ns": 37910.0,
-        "spread": 0.0021102611448166712,
+        "median_ns": 37860.0,
+        "spread": 0.0010565240359218173,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "6784862b0a8b5c1f81508e575f4215e26518b65f727731f5f636a16f4270feb5",
-        "p90_ns": 41470.0,
+        "p90_ns": 41260.0,
         "processes": 3,
         "rounds": [
           {
-            "PID": 1066026,
+            "PID": 1551953,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B4/cohort/process0/result.json",
-              "sha256": "e471f571b4d2750da03f815c012e36fdf18958da50c69d0b2f8bcfcc36d1fc88"
-            },
-            "median_ns": 37940.0,
-            "p90_ns": 41470.0
-          },
-          {
-            "PID": 1066049,
-            "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B4/cohort/process1/result.json",
-              "sha256": "c673c27dab691f6ccf8b9d7bb11edcd25ce06a308606f5cc2d939c755cddfe48"
-            },
-            "median_ns": 37910.0,
-            "p90_ns": 41530.0
-          },
-          {
-            "PID": 1066085,
-            "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B4/cohort/process2/result.json",
-              "sha256": "3ef34da7ad1f5ab652aa5166360b499e8a180a691898c2f5b16963c3e88324d6"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B4/cohort/process0/result.json",
+              "sha256": "f62c412e6c4cc96e268a1bc99ea5cdbbc3a8f27736f0df4098ae80f703122bd1"
             },
             "median_ns": 37860.0,
-            "p90_ns": 41190.0
+            "p90_ns": 41120.0
+          },
+          {
+            "PID": 1551967,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B4/cohort/process1/result.json",
+              "sha256": "ed31205ec42afbe8b7563b06f1f64328640f889d3405dfb6c5ec3311d437795a"
+            },
+            "median_ns": 37840.0,
+            "p90_ns": 41260.0
+          },
+          {
+            "PID": 1551998,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B4/cohort/process2/result.json",
+              "sha256": "c7b6d71455d8c47fe86fb84f6a70773bdac9345c44b5106cdd3470281d14f516"
+            },
+            "median_ns": 37880.0,
+            "p90_ns": 41460.0
           }
         ],
         "noisy": false
@@ -201762,39 +201762,39 @@
           "stage": "down",
           "tn": 16
         },
-        "median_ns": 38540.0,
-        "spread": 0.007394914374675662,
+        "median_ns": 38445.0,
+        "spread": 0.005592404734035636,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "6784862b0a8b5c1f81508e575f4215e26518b65f727731f5f636a16f4270feb5",
-        "p90_ns": 40740.0,
+        "p90_ns": 40720.0,
         "processes": 3,
         "rounds": [
           {
-            "PID": 1066026,
+            "PID": 1551953,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B4/cohort/process0/result.json",
-              "sha256": "e471f571b4d2750da03f815c012e36fdf18958da50c69d0b2f8bcfcc36d1fc88"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B4/cohort/process0/result.json",
+              "sha256": "f62c412e6c4cc96e268a1bc99ea5cdbbc3a8f27736f0df4098ae80f703122bd1"
             },
-            "median_ns": 38800.0,
-            "p90_ns": 41230.0
+            "median_ns": 38400.0,
+            "p90_ns": 40720.0
           },
           {
-            "PID": 1066049,
+            "PID": 1551967,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B4/cohort/process1/result.json",
-              "sha256": "c673c27dab691f6ccf8b9d7bb11edcd25ce06a308606f5cc2d939c755cddfe48"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B4/cohort/process1/result.json",
+              "sha256": "ed31205ec42afbe8b7563b06f1f64328640f889d3405dfb6c5ec3311d437795a"
             },
-            "median_ns": 38515.0,
-            "p90_ns": 40630.0
+            "median_ns": 38445.0,
+            "p90_ns": 40550.0
           },
           {
-            "PID": 1066085,
+            "PID": 1551998,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B4/cohort/process2/result.json",
-              "sha256": "3ef34da7ad1f5ab652aa5166360b499e8a180a691898c2f5b16963c3e88324d6"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B4/cohort/process2/result.json",
+              "sha256": "c7b6d71455d8c47fe86fb84f6a70773bdac9345c44b5106cdd3470281d14f516"
             },
-            "median_ns": 38540.0,
-            "p90_ns": 40740.0
+            "median_ns": 38615.0,
+            "p90_ns": 41120.0
           }
         ],
         "noisy": false
@@ -201806,39 +201806,39 @@
           "stage": "down",
           "tn": 32
         },
-        "median_ns": 36205.0,
-        "spread": 0.0019334346084794918,
+        "median_ns": 36240.0,
+        "spread": 0.004690949227373068,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "6784862b0a8b5c1f81508e575f4215e26518b65f727731f5f636a16f4270feb5",
-        "p90_ns": 38930.0,
+        "p90_ns": 39100.0,
         "processes": 3,
         "rounds": [
           {
-            "PID": 1066026,
+            "PID": 1551953,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B4/cohort/process0/result.json",
-              "sha256": "e471f571b4d2750da03f815c012e36fdf18958da50c69d0b2f8bcfcc36d1fc88"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B4/cohort/process0/result.json",
+              "sha256": "f62c412e6c4cc96e268a1bc99ea5cdbbc3a8f27736f0df4098ae80f703122bd1"
             },
-            "median_ns": 36205.0,
-            "p90_ns": 39110.0
+            "median_ns": 36220.0,
+            "p90_ns": 39020.0
           },
           {
-            "PID": 1066049,
+            "PID": 1551967,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B4/cohort/process1/result.json",
-              "sha256": "c673c27dab691f6ccf8b9d7bb11edcd25ce06a308606f5cc2d939c755cddfe48"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B4/cohort/process1/result.json",
+              "sha256": "ed31205ec42afbe8b7563b06f1f64328640f889d3405dfb6c5ec3311d437795a"
             },
-            "median_ns": 36160.0,
-            "p90_ns": 38930.0
+            "median_ns": 36240.0,
+            "p90_ns": 39100.0
           },
           {
-            "PID": 1066085,
+            "PID": 1551998,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B4/cohort/process2/result.json",
-              "sha256": "3ef34da7ad1f5ab652aa5166360b499e8a180a691898c2f5b16963c3e88324d6"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B4/cohort/process2/result.json",
+              "sha256": "c7b6d71455d8c47fe86fb84f6a70773bdac9345c44b5106cdd3470281d14f516"
             },
-            "median_ns": 36230.0,
-            "p90_ns": 38870.0
+            "median_ns": 36390.0,
+            "p90_ns": 39300.0
           }
         ],
         "noisy": false
@@ -201850,39 +201850,39 @@
           "stage": "down",
           "tn": 64
         },
-        "median_ns": 37570.0,
-        "spread": 0.0025286132552568537,
+        "median_ns": 37735.0,
+        "spread": 0.0019875447197561947,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "6784862b0a8b5c1f81508e575f4215e26518b65f727731f5f636a16f4270feb5",
-        "p90_ns": 41120.0,
+        "p90_ns": 41200.0,
         "processes": 3,
         "rounds": [
           {
-            "PID": 1066026,
+            "PID": 1551953,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B4/cohort/process0/result.json",
-              "sha256": "e471f571b4d2750da03f815c012e36fdf18958da50c69d0b2f8bcfcc36d1fc88"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B4/cohort/process0/result.json",
+              "sha256": "f62c412e6c4cc96e268a1bc99ea5cdbbc3a8f27736f0df4098ae80f703122bd1"
             },
-            "median_ns": 37625.0,
-            "p90_ns": 41210.0
+            "median_ns": 37665.0,
+            "p90_ns": 41130.0
           },
           {
-            "PID": 1066049,
+            "PID": 1551967,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B4/cohort/process1/result.json",
-              "sha256": "c673c27dab691f6ccf8b9d7bb11edcd25ce06a308606f5cc2d939c755cddfe48"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B4/cohort/process1/result.json",
+              "sha256": "ed31205ec42afbe8b7563b06f1f64328640f889d3405dfb6c5ec3311d437795a"
             },
-            "median_ns": 37570.0,
-            "p90_ns": 41100.0
+            "median_ns": 37740.0,
+            "p90_ns": 41200.0
           },
           {
-            "PID": 1066085,
+            "PID": 1551998,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B4/cohort/process2/result.json",
-              "sha256": "3ef34da7ad1f5ab652aa5166360b499e8a180a691898c2f5b16963c3e88324d6"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B4/cohort/process2/result.json",
+              "sha256": "c7b6d71455d8c47fe86fb84f6a70773bdac9345c44b5106cdd3470281d14f516"
             },
-            "median_ns": 37530.0,
-            "p90_ns": 41120.0
+            "median_ns": 37735.0,
+            "p90_ns": 41200.0
           }
         ],
         "noisy": false
@@ -201894,39 +201894,39 @@
           "stage": "down",
           "tn": 128
         },
-        "median_ns": 37455.0,
-        "spread": 0.003470831664664264,
+        "median_ns": 37620.0,
+        "spread": 0.0011961722488038277,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "6784862b0a8b5c1f81508e575f4215e26518b65f727731f5f636a16f4270feb5",
-        "p90_ns": 40970.0,
+        "p90_ns": 40960.0,
         "processes": 3,
         "rounds": [
           {
-            "PID": 1066026,
+            "PID": 1551953,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B4/cohort/process0/result.json",
-              "sha256": "e471f571b4d2750da03f815c012e36fdf18958da50c69d0b2f8bcfcc36d1fc88"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B4/cohort/process0/result.json",
+              "sha256": "f62c412e6c4cc96e268a1bc99ea5cdbbc3a8f27736f0df4098ae80f703122bd1"
             },
-            "median_ns": 37580.0,
-            "p90_ns": 41120.0
+            "median_ns": 37630.0,
+            "p90_ns": 40960.0
           },
           {
-            "PID": 1066049,
+            "PID": 1551967,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B4/cohort/process1/result.json",
-              "sha256": "c673c27dab691f6ccf8b9d7bb11edcd25ce06a308606f5cc2d939c755cddfe48"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B4/cohort/process1/result.json",
+              "sha256": "ed31205ec42afbe8b7563b06f1f64328640f889d3405dfb6c5ec3311d437795a"
             },
-            "median_ns": 37455.0,
-            "p90_ns": 40920.0
+            "median_ns": 37585.0,
+            "p90_ns": 40940.0
           },
           {
-            "PID": 1066085,
+            "PID": 1551998,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B4/cohort/process2/result.json",
-              "sha256": "3ef34da7ad1f5ab652aa5166360b499e8a180a691898c2f5b16963c3e88324d6"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B4/cohort/process2/result.json",
+              "sha256": "c7b6d71455d8c47fe86fb84f6a70773bdac9345c44b5106cdd3470281d14f516"
             },
-            "median_ns": 37450.0,
-            "p90_ns": 40970.0
+            "median_ns": 37620.0,
+            "p90_ns": 41220.0
           }
         ],
         "noisy": false
@@ -201938,39 +201938,39 @@
           "stage": "o",
           "tn": 16
         },
-        "median_ns": 77690.0,
-        "spread": 0.011133994079032051,
+        "median_ns": 77940.0,
+        "spread": 0.009109571465229664,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "63304f687314811a5d67d851dcfd46385d93d7fbb0840f35f2a1e17751655a63",
-        "p90_ns": 81320.0,
+        "p90_ns": 81080.0,
         "processes": 3,
         "rounds": [
           {
-            "PID": 1081580,
+            "PID": 1552420,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B8/cohort/process0/result.json",
-              "sha256": "0d3d2fd66f54176454b3a0b567dbc88e3274e61658241f2c01dc63b86465de4b"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B8/cohort/process0/result.json",
+              "sha256": "064f0c81bcab14eec08615c9f8d45c203227725a0adbfa3f406b987dc0b1d104"
             },
-            "median_ns": 77255.0,
-            "p90_ns": 80770.0
+            "median_ns": 77410.0,
+            "p90_ns": 80140.0
           },
           {
-            "PID": 1081617,
+            "PID": 1552441,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B8/cohort/process1/result.json",
-              "sha256": "d3c239458f7c71159b0c56b8f08513f09aad446b55adab27b6536362b139731e"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B8/cohort/process1/result.json",
+              "sha256": "f163607abc0a64412dfc21420044dcdb249d4bf8105767328bebcedae049850c"
             },
-            "median_ns": 77690.0,
-            "p90_ns": 81320.0
+            "median_ns": 77940.0,
+            "p90_ns": 81080.0
           },
           {
-            "PID": 1082510,
+            "PID": 1552455,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B8/cohort/process2/result.json",
-              "sha256": "49bcf703d274fc1b537505987087199eeecb4f1f670ca87032ed0bbd7e28358d"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B8/cohort/process2/result.json",
+              "sha256": "60e63d319c2e40eedf709643811b22c59ba364150f15a1ddb3203b3b43c438c9"
             },
             "median_ns": 78120.0,
-            "p90_ns": 81590.0
+            "p90_ns": 81820.0
           }
         ],
         "noisy": false
@@ -201982,42 +201982,42 @@
           "stage": "o",
           "tn": 32
         },
-        "median_ns": 72660.0,
-        "spread": 0.0013762730525736307,
+        "median_ns": 83690.0,
+        "spread": 0.15294539371490024,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "63304f687314811a5d67d851dcfd46385d93d7fbb0840f35f2a1e17751655a63",
-        "p90_ns": 82820.0,
+        "p90_ns": 121090.0,
         "processes": 3,
         "rounds": [
           {
-            "PID": 1081580,
+            "PID": 1552420,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B8/cohort/process0/result.json",
-              "sha256": "0d3d2fd66f54176454b3a0b567dbc88e3274e61658241f2c01dc63b86465de4b"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B8/cohort/process0/result.json",
+              "sha256": "064f0c81bcab14eec08615c9f8d45c203227725a0adbfa3f406b987dc0b1d104"
             },
-            "median_ns": 72630.0,
-            "p90_ns": 82820.0
+            "median_ns": 83690.0,
+            "p90_ns": 121090.0
           },
           {
-            "PID": 1081617,
+            "PID": 1552441,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B8/cohort/process1/result.json",
-              "sha256": "d3c239458f7c71159b0c56b8f08513f09aad446b55adab27b6536362b139731e"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B8/cohort/process1/result.json",
+              "sha256": "f163607abc0a64412dfc21420044dcdb249d4bf8105767328bebcedae049850c"
             },
-            "median_ns": 72730.0,
-            "p90_ns": 83680.0
+            "median_ns": 73410.0,
+            "p90_ns": 81920.0
           },
           {
-            "PID": 1082510,
+            "PID": 1552455,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B8/cohort/process2/result.json",
-              "sha256": "49bcf703d274fc1b537505987087199eeecb4f1f670ca87032ed0bbd7e28358d"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B8/cohort/process2/result.json",
+              "sha256": "60e63d319c2e40eedf709643811b22c59ba364150f15a1ddb3203b3b43c438c9"
             },
-            "median_ns": 72660.0,
-            "p90_ns": 82820.0
+            "median_ns": 86210.0,
+            "p90_ns": 121490.0
           }
         ],
-        "noisy": false
+        "noisy": true
       },
       {
         "key": {
@@ -202026,42 +202026,60 @@
           "stage": "o",
           "tn": 64
         },
-        "median_ns": 74770.0,
-        "spread": 0.0018724087200748963,
+        "median_ns": 75940.0,
+        "spread": 0.0962602054253358,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "63304f687314811a5d67d851dcfd46385d93d7fbb0840f35f2a1e17751655a63",
-        "p90_ns": 84640.0,
-        "processes": 3,
+        "p90_ns": 84090.0,
+        "processes": 5,
         "rounds": [
           {
-            "PID": 1081580,
+            "PID": 1552420,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B8/cohort/process0/result.json",
-              "sha256": "0d3d2fd66f54176454b3a0b567dbc88e3274e61658241f2c01dc63b86465de4b"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B8/cohort/process0/result.json",
+              "sha256": "064f0c81bcab14eec08615c9f8d45c203227725a0adbfa3f406b987dc0b1d104"
             },
-            "median_ns": 74700.0,
-            "p90_ns": 84070.0
+            "median_ns": 82880.0,
+            "p90_ns": 125400.0
           },
           {
-            "PID": 1081617,
+            "PID": 1552441,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B8/cohort/process1/result.json",
-              "sha256": "d3c239458f7c71159b0c56b8f08513f09aad446b55adab27b6536362b139731e"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B8/cohort/process1/result.json",
+              "sha256": "f163607abc0a64412dfc21420044dcdb249d4bf8105767328bebcedae049850c"
             },
-            "median_ns": 74770.0,
-            "p90_ns": 84890.0
+            "median_ns": 75975.0,
+            "p90_ns": 84090.0
           },
           {
-            "PID": 1082510,
+            "PID": 1552455,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B8/cohort/process2/result.json",
-              "sha256": "49bcf703d274fc1b537505987087199eeecb4f1f670ca87032ed0bbd7e28358d"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B8/cohort/process2/result.json",
+              "sha256": "60e63d319c2e40eedf709643811b22c59ba364150f15a1ddb3203b3b43c438c9"
             },
-            "median_ns": 74840.0,
-            "p90_ns": 84640.0
+            "median_ns": 75940.0,
+            "p90_ns": 84850.0
+          },
+          {
+            "PID": 1581039,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_noise_g1235_remedy1/tp4_B8/cohort/process3/result.json",
+              "sha256": "e7a02fb062e896fea2ae09e91e18b7ea3e1b58e5fcd1c78ecb0a7f4e9d89bf37"
+            },
+            "median_ns": 75570.0,
+            "p90_ns": 83550.0
+          },
+          {
+            "PID": 1581053,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_noise_g1235_remedy1/tp4_B8/cohort/process4/result.json",
+              "sha256": "1b4d732d3c9abd1420b93f16d0c5334dffa54ea498d97be05ca8032b7e91fcf6"
+            },
+            "median_ns": 75695.0,
+            "p90_ns": 83790.0
           }
         ],
-        "noisy": false
+        "noisy": true
       },
       {
         "key": {
@@ -202070,42 +202088,60 @@
           "stage": "o",
           "tn": 128
         },
-        "median_ns": 76500.0,
-        "spread": 0.0020915032679738564,
+        "median_ns": 76930.0,
+        "spread": 0.07428831405173535,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "63304f687314811a5d67d851dcfd46385d93d7fbb0840f35f2a1e17751655a63",
-        "p90_ns": 85230.0,
-        "processes": 3,
+        "p90_ns": 85360.0,
+        "processes": 5,
         "rounds": [
           {
-            "PID": 1081580,
+            "PID": 1552420,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B8/cohort/process0/result.json",
-              "sha256": "0d3d2fd66f54176454b3a0b567dbc88e3274e61658241f2c01dc63b86465de4b"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B8/cohort/process0/result.json",
+              "sha256": "064f0c81bcab14eec08615c9f8d45c203227725a0adbfa3f406b987dc0b1d104"
             },
-            "median_ns": 76500.0,
-            "p90_ns": 85150.0
+            "median_ns": 82620.0,
+            "p90_ns": 124480.0
           },
           {
-            "PID": 1081617,
+            "PID": 1552441,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B8/cohort/process1/result.json",
-              "sha256": "d3c239458f7c71159b0c56b8f08513f09aad446b55adab27b6536362b139731e"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B8/cohort/process1/result.json",
+              "sha256": "f163607abc0a64412dfc21420044dcdb249d4bf8105767328bebcedae049850c"
             },
-            "median_ns": 76550.0,
-            "p90_ns": 85230.0
+            "median_ns": 76915.0,
+            "p90_ns": 85360.0
           },
           {
-            "PID": 1082510,
+            "PID": 1552455,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B8/cohort/process2/result.json",
-              "sha256": "49bcf703d274fc1b537505987087199eeecb4f1f670ca87032ed0bbd7e28358d"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B8/cohort/process2/result.json",
+              "sha256": "60e63d319c2e40eedf709643811b22c59ba364150f15a1ddb3203b3b43c438c9"
             },
-            "median_ns": 76390.0,
-            "p90_ns": 85320.0
+            "median_ns": 76905.0,
+            "p90_ns": 85120.0
+          },
+          {
+            "PID": 1581039,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_noise_g1235_remedy1/tp4_B8/cohort/process3/result.json",
+              "sha256": "e7a02fb062e896fea2ae09e91e18b7ea3e1b58e5fcd1c78ecb0a7f4e9d89bf37"
+            },
+            "median_ns": 76935.0,
+            "p90_ns": 85210.0
+          },
+          {
+            "PID": 1581053,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_noise_g1235_remedy1/tp4_B8/cohort/process4/result.json",
+              "sha256": "1b4d732d3c9abd1420b93f16d0c5334dffa54ea498d97be05ca8032b7e91fcf6"
+            },
+            "median_ns": 76930.0,
+            "p90_ns": 85420.0
           }
         ],
-        "noisy": false
+        "noisy": true
       },
       {
         "key": {
@@ -202114,83 +202150,83 @@
           "stage": "down",
           "tn": 16
         },
-        "median_ns": 73400.0,
-        "spread": 0.0019754768392370573,
+        "median_ns": 75080.0,
+        "spread": 0.020911028236547682,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "63304f687314811a5d67d851dcfd46385d93d7fbb0840f35f2a1e17751655a63",
-        "p90_ns": 77160.0,
+        "p90_ns": 78060.0,
         "processes": 3,
         "rounds": [
           {
-            "PID": 1081580,
+            "PID": 1552420,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B8/cohort/process0/result.json",
-              "sha256": "0d3d2fd66f54176454b3a0b567dbc88e3274e61658241f2c01dc63b86465de4b"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B8/cohort/process0/result.json",
+              "sha256": "064f0c81bcab14eec08615c9f8d45c203227725a0adbfa3f406b987dc0b1d104"
             },
-            "median_ns": 73400.0,
-            "p90_ns": 77400.0
+            "median_ns": 73950.0,
+            "p90_ns": 77050.0
           },
           {
-            "PID": 1081617,
+            "PID": 1552441,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B8/cohort/process1/result.json",
-              "sha256": "d3c239458f7c71159b0c56b8f08513f09aad446b55adab27b6536362b139731e"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B8/cohort/process1/result.json",
+              "sha256": "f163607abc0a64412dfc21420044dcdb249d4bf8105767328bebcedae049850c"
             },
-            "median_ns": 73480.0,
-            "p90_ns": 77160.0
+            "median_ns": 75520.0,
+            "p90_ns": 78670.0
           },
           {
-            "PID": 1082510,
+            "PID": 1552455,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B8/cohort/process2/result.json",
-              "sha256": "49bcf703d274fc1b537505987087199eeecb4f1f670ca87032ed0bbd7e28358d"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B8/cohort/process2/result.json",
+              "sha256": "60e63d319c2e40eedf709643811b22c59ba364150f15a1ddb3203b3b43c438c9"
+            },
+            "median_ns": 75080.0,
+            "p90_ns": 78060.0
+          }
+        ],
+        "noisy": true
+      },
+      {
+        "key": {
+          "tp": 4,
+          "b": 8,
+          "stage": "down",
+          "tn": 32
+        },
+        "median_ns": 73195.0,
+        "spread": 0.0020493203087642597,
+        "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
+        "binary": "63304f687314811a5d67d851dcfd46385d93d7fbb0840f35f2a1e17751655a63",
+        "p90_ns": 80880.0,
+        "processes": 3,
+        "rounds": [
+          {
+            "PID": 1552420,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B8/cohort/process0/result.json",
+              "sha256": "064f0c81bcab14eec08615c9f8d45c203227725a0adbfa3f406b987dc0b1d104"
+            },
+            "median_ns": 73185.0,
+            "p90_ns": 80310.0
+          },
+          {
+            "PID": 1552441,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B8/cohort/process1/result.json",
+              "sha256": "f163607abc0a64412dfc21420044dcdb249d4bf8105767328bebcedae049850c"
             },
             "median_ns": 73335.0,
-            "p90_ns": 76710.0
-          }
-        ],
-        "noisy": false
-      },
-      {
-        "key": {
-          "tp": 4,
-          "b": 8,
-          "stage": "down",
-          "tn": 32
-        },
-        "median_ns": 72600.0,
-        "spread": 0.0001377410468319559,
-        "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
-        "binary": "63304f687314811a5d67d851dcfd46385d93d7fbb0840f35f2a1e17751655a63",
-        "p90_ns": 82300.0,
-        "processes": 3,
-        "rounds": [
-          {
-            "PID": 1081580,
-            "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B8/cohort/process0/result.json",
-              "sha256": "0d3d2fd66f54176454b3a0b567dbc88e3274e61658241f2c01dc63b86465de4b"
-            },
-            "median_ns": 72590.0,
-            "p90_ns": 82300.0
+            "p90_ns": 80880.0
           },
           {
-            "PID": 1081617,
+            "PID": 1552455,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B8/cohort/process1/result.json",
-              "sha256": "d3c239458f7c71159b0c56b8f08513f09aad446b55adab27b6536362b139731e"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B8/cohort/process2/result.json",
+              "sha256": "60e63d319c2e40eedf709643811b22c59ba364150f15a1ddb3203b3b43c438c9"
             },
-            "median_ns": 72600.0,
-            "p90_ns": 83130.0
-          },
-          {
-            "PID": 1082510,
-            "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B8/cohort/process2/result.json",
-              "sha256": "49bcf703d274fc1b537505987087199eeecb4f1f670ca87032ed0bbd7e28358d"
-            },
-            "median_ns": 72600.0,
-            "p90_ns": 82280.0
+            "median_ns": 73195.0,
+            "p90_ns": 81100.0
           }
         ],
         "noisy": false
@@ -202202,42 +202238,42 @@
           "stage": "down",
           "tn": 64
         },
-        "median_ns": 74190.0,
-        "spread": 0.003302331850653727,
+        "median_ns": 85280.0,
+        "spread": 0.15460834896810507,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "63304f687314811a5d67d851dcfd46385d93d7fbb0840f35f2a1e17751655a63",
-        "p90_ns": 84650.0,
+        "p90_ns": 130760.0,
         "processes": 3,
         "rounds": [
           {
-            "PID": 1081580,
+            "PID": 1552420,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B8/cohort/process0/result.json",
-              "sha256": "0d3d2fd66f54176454b3a0b567dbc88e3274e61658241f2c01dc63b86465de4b"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B8/cohort/process0/result.json",
+              "sha256": "064f0c81bcab14eec08615c9f8d45c203227725a0adbfa3f406b987dc0b1d104"
             },
-            "median_ns": 74190.0,
-            "p90_ns": 84250.0
+            "median_ns": 75030.0,
+            "p90_ns": 83860.0
           },
           {
-            "PID": 1081617,
+            "PID": 1552441,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B8/cohort/process1/result.json",
-              "sha256": "d3c239458f7c71159b0c56b8f08513f09aad446b55adab27b6536362b139731e"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B8/cohort/process1/result.json",
+              "sha256": "f163607abc0a64412dfc21420044dcdb249d4bf8105767328bebcedae049850c"
             },
-            "median_ns": 74115.0,
-            "p90_ns": 84660.0
+            "median_ns": 85280.0,
+            "p90_ns": 130890.0
           },
           {
-            "PID": 1082510,
+            "PID": 1552455,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B8/cohort/process2/result.json",
-              "sha256": "49bcf703d274fc1b537505987087199eeecb4f1f670ca87032ed0bbd7e28358d"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B8/cohort/process2/result.json",
+              "sha256": "60e63d319c2e40eedf709643811b22c59ba364150f15a1ddb3203b3b43c438c9"
             },
-            "median_ns": 74360.0,
-            "p90_ns": 84650.0
+            "median_ns": 88215.0,
+            "p90_ns": 130760.0
           }
         ],
-        "noisy": false
+        "noisy": true
       },
       {
         "key": {
@@ -202246,42 +202282,42 @@
           "stage": "down",
           "tn": 128
         },
-        "median_ns": 75890.0,
-        "spread": 0.0030307023323230993,
+        "median_ns": 76195.0,
+        "spread": 0.1567031957477525,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "63304f687314811a5d67d851dcfd46385d93d7fbb0840f35f2a1e17751655a63",
-        "p90_ns": 84790.0,
+        "p90_ns": 84860.0,
         "processes": 3,
         "rounds": [
           {
-            "PID": 1081580,
+            "PID": 1552420,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B8/cohort/process0/result.json",
-              "sha256": "0d3d2fd66f54176454b3a0b567dbc88e3274e61658241f2c01dc63b86465de4b"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B8/cohort/process0/result.json",
+              "sha256": "064f0c81bcab14eec08615c9f8d45c203227725a0adbfa3f406b987dc0b1d104"
             },
-            "median_ns": 76040.0,
-            "p90_ns": 84880.0
+            "median_ns": 76185.0,
+            "p90_ns": 84860.0
           },
           {
-            "PID": 1081617,
+            "PID": 1552441,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B8/cohort/process1/result.json",
-              "sha256": "d3c239458f7c71159b0c56b8f08513f09aad446b55adab27b6536362b139731e"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B8/cohort/process1/result.json",
+              "sha256": "f163607abc0a64412dfc21420044dcdb249d4bf8105767328bebcedae049850c"
             },
-            "median_ns": 75810.0,
-            "p90_ns": 84790.0
+            "median_ns": 76195.0,
+            "p90_ns": 84470.0
           },
           {
-            "PID": 1082510,
+            "PID": 1552455,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B8/cohort/process2/result.json",
-              "sha256": "49bcf703d274fc1b537505987087199eeecb4f1f670ca87032ed0bbd7e28358d"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B8/cohort/process2/result.json",
+              "sha256": "60e63d319c2e40eedf709643811b22c59ba364150f15a1ddb3203b3b43c438c9"
             },
-            "median_ns": 75890.0,
-            "p90_ns": 84670.0
+            "median_ns": 88125.0,
+            "p90_ns": 131160.0
           }
         ],
-        "noisy": false
+        "noisy": true
       },
       {
         "key": {
@@ -202290,42 +202326,60 @@
           "stage": "o",
           "tn": 16
         },
-        "median_ns": 166590.0,
-        "spread": 0.0042319466954799205,
+        "median_ns": 164450.0,
+        "spread": 0.0733657646701125,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "5ae96a832503c0525b978eb81a02acd399c20bcbaddac385583b0a2931c33608",
-        "p90_ns": 170520.0,
-        "processes": 3,
+        "p90_ns": 170000.0,
+        "processes": 5,
         "rounds": [
           {
-            "PID": 1092436,
+            "PID": 1552896,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B16/cohort/process0/result.json",
-              "sha256": "e12b2971def861991a61fc2bfe1b60e9d7d3bb8bff98acaaeb01f9698198977e"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B16/cohort/process0/result.json",
+              "sha256": "d0e67290b1ab43d5c6b177334c6a043a7ec1f95377a6a20e82c974d7db377821"
             },
-            "median_ns": 165990.0,
-            "p90_ns": 169900.0
+            "median_ns": 174010.0,
+            "p90_ns": 196850.0
           },
           {
-            "PID": 1092481,
+            "PID": 1552914,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B16/cohort/process1/result.json",
-              "sha256": "e0420fd433dbaa4d0461c0e5b60f70342971b94950686314809ff598bad18aae"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B16/cohort/process1/result.json",
+              "sha256": "81bca6f01fa03921119843dbeea791c90734f815172043d346084296966b3f6e"
             },
-            "median_ns": 166590.0,
-            "p90_ns": 170520.0
+            "median_ns": 175365.0,
+            "p90_ns": 196810.0
           },
           {
-            "PID": 1092495,
+            "PID": 1552957,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B16/cohort/process2/result.json",
-              "sha256": "8f1d5f71e32e4c97e55be47a8d7dfbc4df0609c29fe9cfe1d16217eb1180e08e"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B16/cohort/process2/result.json",
+              "sha256": "471ebd687b979cd32616cf25b1b0bc2b1230f8f34f32daa64b583975921a360e"
             },
-            "median_ns": 166695.0,
-            "p90_ns": 170700.0
+            "median_ns": 163455.0,
+            "p90_ns": 168210.0
+          },
+          {
+            "PID": 1589697,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_noise_g1235_remedy1/tp4_B16/cohort/process3/result.json",
+              "sha256": "a8044857d0763c54bc221d63780ceedb4ca2a3a2748416204bbe5afd5e8fbd59"
+            },
+            "median_ns": 164450.0,
+            "p90_ns": 170000.0
+          },
+          {
+            "PID": 1589722,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_noise_g1235_remedy1/tp4_B16/cohort/process4/result.json",
+              "sha256": "9ea8f577d900bea853b9e47fb7c4cf13ee8593ef8a73bec72040728f642b130b"
+            },
+            "median_ns": 163300.0,
+            "p90_ns": 168520.0
           }
         ],
-        "noisy": false
+        "noisy": true
       },
       {
         "key": {
@@ -202334,39 +202388,39 @@
           "stage": "o",
           "tn": 32
         },
-        "median_ns": 177195.0,
-        "spread": 0.011879567707892435,
+        "median_ns": 179220.0,
+        "spread": 0.005691329092735186,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "5ae96a832503c0525b978eb81a02acd399c20bcbaddac385583b0a2931c33608",
-        "p90_ns": 189690.0,
+        "p90_ns": 190180.0,
         "processes": 3,
         "rounds": [
           {
-            "PID": 1092436,
+            "PID": 1552896,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B16/cohort/process0/result.json",
-              "sha256": "e12b2971def861991a61fc2bfe1b60e9d7d3bb8bff98acaaeb01f9698198977e"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B16/cohort/process0/result.json",
+              "sha256": "d0e67290b1ab43d5c6b177334c6a043a7ec1f95377a6a20e82c974d7db377821"
             },
-            "median_ns": 177195.0,
-            "p90_ns": 189610.0
+            "median_ns": 178625.0,
+            "p90_ns": 190030.0
           },
           {
-            "PID": 1092481,
+            "PID": 1552914,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B16/cohort/process1/result.json",
-              "sha256": "e0420fd433dbaa4d0461c0e5b60f70342971b94950686314809ff598bad18aae"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B16/cohort/process1/result.json",
+              "sha256": "81bca6f01fa03921119843dbeea791c90734f815172043d346084296966b3f6e"
             },
-            "median_ns": 176640.0,
-            "p90_ns": 189690.0
+            "median_ns": 179220.0,
+            "p90_ns": 190180.0
           },
           {
-            "PID": 1092495,
+            "PID": 1552957,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B16/cohort/process2/result.json",
-              "sha256": "8f1d5f71e32e4c97e55be47a8d7dfbc4df0609c29fe9cfe1d16217eb1180e08e"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B16/cohort/process2/result.json",
+              "sha256": "471ebd687b979cd32616cf25b1b0bc2b1230f8f34f32daa64b583975921a360e"
             },
-            "median_ns": 178745.0,
-            "p90_ns": 191490.0
+            "median_ns": 179645.0,
+            "p90_ns": 190610.0
           }
         ],
         "noisy": false
@@ -202378,39 +202432,39 @@
           "stage": "o",
           "tn": 64
         },
-        "median_ns": 176430.0,
-        "spread": 0.005951368814827411,
+        "median_ns": 178300.0,
+        "spread": 0.0035614133482893997,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "5ae96a832503c0525b978eb81a02acd399c20bcbaddac385583b0a2931c33608",
-        "p90_ns": 188070.0,
+        "p90_ns": 189100.0,
         "processes": 3,
         "rounds": [
           {
-            "PID": 1092436,
+            "PID": 1552896,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B16/cohort/process0/result.json",
-              "sha256": "e12b2971def861991a61fc2bfe1b60e9d7d3bb8bff98acaaeb01f9698198977e"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B16/cohort/process0/result.json",
+              "sha256": "d0e67290b1ab43d5c6b177334c6a043a7ec1f95377a6a20e82c974d7db377821"
             },
-            "median_ns": 176240.0,
-            "p90_ns": 187140.0
+            "median_ns": 177830.0,
+            "p90_ns": 188660.0
           },
           {
-            "PID": 1092481,
+            "PID": 1552914,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B16/cohort/process1/result.json",
-              "sha256": "e0420fd433dbaa4d0461c0e5b60f70342971b94950686314809ff598bad18aae"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B16/cohort/process1/result.json",
+              "sha256": "81bca6f01fa03921119843dbeea791c90734f815172043d346084296966b3f6e"
             },
-            "median_ns": 176430.0,
-            "p90_ns": 188070.0
+            "median_ns": 178300.0,
+            "p90_ns": 189100.0
           },
           {
-            "PID": 1092495,
+            "PID": 1552957,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B16/cohort/process2/result.json",
-              "sha256": "8f1d5f71e32e4c97e55be47a8d7dfbc4df0609c29fe9cfe1d16217eb1180e08e"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B16/cohort/process2/result.json",
+              "sha256": "471ebd687b979cd32616cf25b1b0bc2b1230f8f34f32daa64b583975921a360e"
             },
-            "median_ns": 177290.0,
-            "p90_ns": 188890.0
+            "median_ns": 178465.0,
+            "p90_ns": 189580.0
           }
         ],
         "noisy": false
@@ -202422,42 +202476,60 @@
           "stage": "o",
           "tn": 128
         },
-        "median_ns": 175200.0,
-        "spread": 0.0027397260273972603,
+        "median_ns": 175550.0,
+        "spread": 0.03921959555682142,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "5ae96a832503c0525b978eb81a02acd399c20bcbaddac385583b0a2931c33608",
-        "p90_ns": 185810.0,
-        "processes": 3,
+        "p90_ns": 186980.0,
+        "processes": 5,
         "rounds": [
           {
-            "PID": 1092436,
+            "PID": 1552896,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B16/cohort/process0/result.json",
-              "sha256": "e12b2971def861991a61fc2bfe1b60e9d7d3bb8bff98acaaeb01f9698198977e"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B16/cohort/process0/result.json",
+              "sha256": "d0e67290b1ab43d5c6b177334c6a043a7ec1f95377a6a20e82c974d7db377821"
             },
-            "median_ns": 175610.0,
-            "p90_ns": 185810.0
+            "median_ns": 175515.0,
+            "p90_ns": 185730.0
           },
           {
-            "PID": 1092481,
+            "PID": 1552914,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B16/cohort/process1/result.json",
-              "sha256": "e0420fd433dbaa4d0461c0e5b60f70342971b94950686314809ff598bad18aae"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B16/cohort/process1/result.json",
+              "sha256": "81bca6f01fa03921119843dbeea791c90734f815172043d346084296966b3f6e"
             },
-            "median_ns": 175200.0,
-            "p90_ns": 186380.0
+            "median_ns": 177100.0,
+            "p90_ns": 188420.0
           },
           {
-            "PID": 1092495,
+            "PID": 1552957,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B16/cohort/process2/result.json",
-              "sha256": "8f1d5f71e32e4c97e55be47a8d7dfbc4df0609c29fe9cfe1d16217eb1180e08e"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B16/cohort/process2/result.json",
+              "sha256": "471ebd687b979cd32616cf25b1b0bc2b1230f8f34f32daa64b583975921a360e"
             },
-            "median_ns": 175130.0,
-            "p90_ns": 184970.0
+            "median_ns": 181665.0,
+            "p90_ns": 234660.0
+          },
+          {
+            "PID": 1589697,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_noise_g1235_remedy1/tp4_B16/cohort/process3/result.json",
+              "sha256": "a8044857d0763c54bc221d63780ceedb4ca2a3a2748416204bbe5afd5e8fbd59"
+            },
+            "median_ns": 174780.0,
+            "p90_ns": 185580.0
+          },
+          {
+            "PID": 1589722,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_noise_g1235_remedy1/tp4_B16/cohort/process4/result.json",
+              "sha256": "9ea8f577d900bea853b9e47fb7c4cf13ee8593ef8a73bec72040728f642b130b"
+            },
+            "median_ns": 175550.0,
+            "p90_ns": 186980.0
           }
         ],
-        "noisy": false
+        "noisy": true
       },
       {
         "key": {
@@ -202466,42 +202538,60 @@
           "stage": "down",
           "tn": 16
         },
-        "median_ns": 164350.0,
-        "spread": 0.015546090660176452,
+        "median_ns": 164210.0,
+        "spread": 0.07609159003714755,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "5ae96a832503c0525b978eb81a02acd399c20bcbaddac385583b0a2931c33608",
-        "p90_ns": 168620.0,
-        "processes": 3,
+        "p90_ns": 169300.0,
+        "processes": 5,
         "rounds": [
           {
-            "PID": 1092436,
+            "PID": 1552896,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B16/cohort/process0/result.json",
-              "sha256": "e12b2971def861991a61fc2bfe1b60e9d7d3bb8bff98acaaeb01f9698198977e"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B16/cohort/process0/result.json",
+              "sha256": "d0e67290b1ab43d5c6b177334c6a043a7ec1f95377a6a20e82c974d7db377821"
             },
-            "median_ns": 163675.0,
-            "p90_ns": 167790.0
+            "median_ns": 175920.0,
+            "p90_ns": 216070.0
           },
           {
-            "PID": 1092481,
+            "PID": 1552914,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B16/cohort/process1/result.json",
-              "sha256": "e0420fd433dbaa4d0461c0e5b60f70342971b94950686314809ff598bad18aae"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B16/cohort/process1/result.json",
+              "sha256": "81bca6f01fa03921119843dbeea791c90734f815172043d346084296966b3f6e"
             },
-            "median_ns": 166230.0,
-            "p90_ns": 169600.0
+            "median_ns": 163425.0,
+            "p90_ns": 167840.0
           },
           {
-            "PID": 1092495,
+            "PID": 1552957,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B16/cohort/process2/result.json",
-              "sha256": "8f1d5f71e32e4c97e55be47a8d7dfbc4df0609c29fe9cfe1d16217eb1180e08e"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B16/cohort/process2/result.json",
+              "sha256": "471ebd687b979cd32616cf25b1b0bc2b1230f8f34f32daa64b583975921a360e"
             },
-            "median_ns": 164350.0,
-            "p90_ns": 168620.0
+            "median_ns": 175035.0,
+            "p90_ns": 214450.0
+          },
+          {
+            "PID": 1589697,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_noise_g1235_remedy1/tp4_B16/cohort/process3/result.json",
+              "sha256": "a8044857d0763c54bc221d63780ceedb4ca2a3a2748416204bbe5afd5e8fbd59"
+            },
+            "median_ns": 163470.0,
+            "p90_ns": 168210.0
+          },
+          {
+            "PID": 1589722,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_noise_g1235_remedy1/tp4_B16/cohort/process4/result.json",
+              "sha256": "9ea8f577d900bea853b9e47fb7c4cf13ee8593ef8a73bec72040728f642b130b"
+            },
+            "median_ns": 164210.0,
+            "p90_ns": 169300.0
           }
         ],
-        "noisy": false
+        "noisy": true
       },
       {
         "key": {
@@ -202510,42 +202600,42 @@
           "stage": "down",
           "tn": 32
         },
-        "median_ns": 178485.0,
-        "spread": 0.01703224360590526,
+        "median_ns": 183515.0,
+        "spread": 0.03370296705991336,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "5ae96a832503c0525b978eb81a02acd399c20bcbaddac385583b0a2931c33608",
-        "p90_ns": 190760.0,
+        "p90_ns": 226980.0,
         "processes": 3,
         "rounds": [
           {
-            "PID": 1092436,
+            "PID": 1552896,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B16/cohort/process0/result.json",
-              "sha256": "e12b2971def861991a61fc2bfe1b60e9d7d3bb8bff98acaaeb01f9698198977e"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B16/cohort/process0/result.json",
+              "sha256": "d0e67290b1ab43d5c6b177334c6a043a7ec1f95377a6a20e82c974d7db377821"
             },
-            "median_ns": 177645.0,
-            "p90_ns": 189110.0
+            "median_ns": 183515.0,
+            "p90_ns": 227630.0
           },
           {
-            "PID": 1092481,
+            "PID": 1552914,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B16/cohort/process1/result.json",
-              "sha256": "e0420fd433dbaa4d0461c0e5b60f70342971b94950686314809ff598bad18aae"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B16/cohort/process1/result.json",
+              "sha256": "81bca6f01fa03921119843dbeea791c90734f815172043d346084296966b3f6e"
             },
-            "median_ns": 180685.0,
-            "p90_ns": 193390.0
+            "median_ns": 178310.0,
+            "p90_ns": 188820.0
           },
           {
-            "PID": 1092495,
+            "PID": 1552957,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B16/cohort/process2/result.json",
-              "sha256": "8f1d5f71e32e4c97e55be47a8d7dfbc4df0609c29fe9cfe1d16217eb1180e08e"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B16/cohort/process2/result.json",
+              "sha256": "471ebd687b979cd32616cf25b1b0bc2b1230f8f34f32daa64b583975921a360e"
             },
-            "median_ns": 178485.0,
-            "p90_ns": 190760.0
+            "median_ns": 184495.0,
+            "p90_ns": 226980.0
           }
         ],
-        "noisy": false
+        "noisy": true
       },
       {
         "key": {
@@ -202554,39 +202644,39 @@
           "stage": "down",
           "tn": 64
         },
-        "median_ns": 176730.0,
-        "spread": 0.001867255134951621,
+        "median_ns": 183645.0,
+        "spread": 0.0026681913474366306,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "5ae96a832503c0525b978eb81a02acd399c20bcbaddac385583b0a2931c33608",
-        "p90_ns": 188570.0,
+        "p90_ns": 233730.0,
         "processes": 3,
         "rounds": [
           {
-            "PID": 1092436,
+            "PID": 1552896,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B16/cohort/process0/result.json",
-              "sha256": "e12b2971def861991a61fc2bfe1b60e9d7d3bb8bff98acaaeb01f9698198977e"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B16/cohort/process0/result.json",
+              "sha256": "d0e67290b1ab43d5c6b177334c6a043a7ec1f95377a6a20e82c974d7db377821"
             },
-            "median_ns": 176420.0,
-            "p90_ns": 187670.0
+            "median_ns": 183450.0,
+            "p90_ns": 233900.0
           },
           {
-            "PID": 1092481,
+            "PID": 1552914,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B16/cohort/process1/result.json",
-              "sha256": "e0420fd433dbaa4d0461c0e5b60f70342971b94950686314809ff598bad18aae"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B16/cohort/process1/result.json",
+              "sha256": "81bca6f01fa03921119843dbeea791c90734f815172043d346084296966b3f6e"
             },
-            "median_ns": 176750.0,
-            "p90_ns": 188920.0
+            "median_ns": 183645.0,
+            "p90_ns": 233730.0
           },
           {
-            "PID": 1092495,
+            "PID": 1552957,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B16/cohort/process2/result.json",
-              "sha256": "8f1d5f71e32e4c97e55be47a8d7dfbc4df0609c29fe9cfe1d16217eb1180e08e"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B16/cohort/process2/result.json",
+              "sha256": "471ebd687b979cd32616cf25b1b0bc2b1230f8f34f32daa64b583975921a360e"
             },
-            "median_ns": 176730.0,
-            "p90_ns": 188570.0
+            "median_ns": 183940.0,
+            "p90_ns": 233330.0
           }
         ],
         "noisy": false
@@ -202598,42 +202688,42 @@
           "stage": "down",
           "tn": 128
         },
-        "median_ns": 173535.0,
-        "spread": 0.0025931368311867924,
+        "median_ns": 183390.0,
+        "spread": 0.043704673101041494,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "5ae96a832503c0525b978eb81a02acd399c20bcbaddac385583b0a2931c33608",
-        "p90_ns": 184890.0,
+        "p90_ns": 228270.0,
         "processes": 3,
         "rounds": [
           {
-            "PID": 1092436,
+            "PID": 1552896,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B16/cohort/process0/result.json",
-              "sha256": "e12b2971def861991a61fc2bfe1b60e9d7d3bb8bff98acaaeb01f9698198977e"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B16/cohort/process0/result.json",
+              "sha256": "d0e67290b1ab43d5c6b177334c6a043a7ec1f95377a6a20e82c974d7db377821"
             },
-            "median_ns": 173920.0,
-            "p90_ns": 184890.0
+            "median_ns": 183390.0,
+            "p90_ns": 228830.0
           },
           {
-            "PID": 1092481,
+            "PID": 1552914,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B16/cohort/process1/result.json",
-              "sha256": "e0420fd433dbaa4d0461c0e5b60f70342971b94950686314809ff598bad18aae"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B16/cohort/process1/result.json",
+              "sha256": "81bca6f01fa03921119843dbeea791c90734f815172043d346084296966b3f6e"
             },
-            "median_ns": 173535.0,
-            "p90_ns": 184310.0
+            "median_ns": 175665.0,
+            "p90_ns": 187240.0
           },
           {
-            "PID": 1092495,
+            "PID": 1552957,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B16/cohort/process2/result.json",
-              "sha256": "8f1d5f71e32e4c97e55be47a8d7dfbc4df0609c29fe9cfe1d16217eb1180e08e"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B16/cohort/process2/result.json",
+              "sha256": "471ebd687b979cd32616cf25b1b0bc2b1230f8f34f32daa64b583975921a360e"
             },
-            "median_ns": 173470.0,
-            "p90_ns": 185030.0
+            "median_ns": 183680.0,
+            "p90_ns": 228270.0
           }
         ],
-        "noisy": false
+        "noisy": true
       }
     ],
     "t_head_x": [
@@ -202954,57 +203044,57 @@
           "stage": "head",
           "tn": 16
         },
-        "median_ns": 6560.0,
-        "spread": 0.040396341463414635,
+        "median_ns": 6370.0,
+        "spread": 0.02040816326530612,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "403aaa2767469acfbaaa8787f7991477fef94714033002c7f8b0a9b8d7e574f4",
-        "p90_ns": 8920.0,
+        "p90_ns": 8720.0,
         "processes": 5,
         "rounds": [
           {
-            "PID": 1043032,
+            "PID": 1551130,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B1/cohort/process0/result.json",
-              "sha256": "a24451f2b57a04a6c5ae42cbcdc45a8b026b4a84454e89b70568f7526da075be"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B1/cohort/process0/result.json",
+              "sha256": "0552d33de71a12daec66678ed1385abfbbf13c35402ea4c6d31a343e8593f0c8"
             },
-            "median_ns": 6640.0,
-            "p90_ns": 9050.0
+            "median_ns": 6450.0,
+            "p90_ns": 8780.0
           },
           {
-            "PID": 1043047,
+            "PID": 1551144,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B1/cohort/process1/result.json",
-              "sha256": "cfed04e731a19057aa62dc677f414921e8dcce81e458bd411e48d8aa03afed02"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B1/cohort/process1/result.json",
+              "sha256": "996be8e52675036ee17d152eadc6259927a82a7c9b81d453d70efa46e89d93f3"
             },
-            "median_ns": 6560.0,
-            "p90_ns": 8920.0
+            "median_ns": 6430.0,
+            "p90_ns": 8620.0
           },
           {
-            "PID": 1043061,
+            "PID": 1551159,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B1/cohort/process2/result.json",
-              "sha256": "bec42add985d65c21467784e9a1621bea24591d97d9f629c38b70cb1b5b965e8"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B1/cohort/process2/result.json",
+              "sha256": "823c1e4f8652d665913c3bf0bfa7409a0274f5458acdb962025a90e0f3814318"
             },
-            "median_ns": 6375.0,
-            "p90_ns": 8670.0
+            "median_ns": 6320.0,
+            "p90_ns": 8510.0
           },
           {
-            "PID": 1145310,
+            "PID": 1560196,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constant_noise/tp4_B1/cohort/process3/result.json",
-              "sha256": "70da2607d82b4e6e2519588ac366a7474fa557c9310fe84b53d6f7a455610d0a"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_noise_g1235_remedy1/tp4_B1/cohort/process3/result.json",
+              "sha256": "ca1fba6118859b81e64b977fafd6ac000cc289ef24f843f730e1f72cd90d298e"
             },
-            "median_ns": 6490.0,
-            "p90_ns": 8760.0
+            "median_ns": 6370.0,
+            "p90_ns": 8720.0
           },
           {
-            "PID": 1145329,
+            "PID": 1560211,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constant_noise/tp4_B1/cohort/process4/result.json",
-              "sha256": "2326d8c3627b2ed909429e239761dc2499c9dca6a57a3a5fe7a40b0c49f5698c"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_noise_g1235_remedy1/tp4_B1/cohort/process4/result.json",
+              "sha256": "de1294af43da105615e71589cec887cc0851fa340d3ae72a8d61387470279d13"
             },
-            "median_ns": 6640.0,
-            "p90_ns": 9100.0
+            "median_ns": 6320.0,
+            "p90_ns": 8730.0
           }
         ],
         "noisy": true
@@ -203016,60 +203106,42 @@
           "stage": "head",
           "tn": 16
         },
-        "median_ns": 6510.0,
-        "spread": 0.05683563748079877,
+        "median_ns": 6430.0,
+        "spread": 0.01010886469673406,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "f8aeedf50c48f89ae5310130689798c40c6bba991eab38f9990307cd0badd1c9",
-        "p90_ns": 8840.0,
-        "processes": 5,
+        "p90_ns": 8820.0,
+        "processes": 3,
         "rounds": [
           {
-            "PID": 1050500,
+            "PID": 1551511,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B2/cohort/process0/result.json",
-              "sha256": "62f1acffa29e022cfe1ac21ce4bb57f57208ec94db4f5b915d0b5859767bbb3c"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B2/cohort/process0/result.json",
+              "sha256": "9a4cac252b8ef0f42fa6de8e542792f896d0d2aea9bc530eba487536201b973c"
             },
-            "median_ns": 6285.0,
-            "p90_ns": 8610.0
+            "median_ns": 6420.0,
+            "p90_ns": 8730.0
           },
           {
-            "PID": 1050515,
+            "PID": 1551539,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B2/cohort/process1/result.json",
-              "sha256": "5ba583c1a736f5cf7a0ef5fd9113150b1e528a00970fcd574c713c46b670b828"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B2/cohort/process1/result.json",
+              "sha256": "0fce8f96a9934fcc88480cac82bc64e259c198715e3500449a666d8cc4bad701"
             },
             "median_ns": 6430.0,
+            "p90_ns": 8820.0
+          },
+          {
+            "PID": 1551555,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B2/cohort/process2/result.json",
+              "sha256": "dad243fa8d0399a2808e4cff4f2fa2f084635bc0e1106d9e36cc545fd0f80c94"
+            },
+            "median_ns": 6485.0,
             "p90_ns": 8840.0
-          },
-          {
-            "PID": 1050545,
-            "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B2/cohort/process2/result.json",
-              "sha256": "7c0a6156838fa8663a93da297b4a1e61259cab4de27b04614a991152edb5d6fc"
-            },
-            "median_ns": 6635.0,
-            "p90_ns": 8990.0
-          },
-          {
-            "PID": 1145612,
-            "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constant_noise/tp4_B2/cohort/process3/result.json",
-              "sha256": "18518a136050e75a390d265a7ae7f0be4734410e017abf30211bbc6844ff4722"
-            },
-            "median_ns": 6655.0,
-            "p90_ns": 9000.0
-          },
-          {
-            "PID": 1145626,
-            "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constant_noise/tp4_B2/cohort/process4/result.json",
-              "sha256": "46366e2e8331f9ee0c0b06ca906e082216ccc5fb38a5b0c8e100c5a6546c3b88"
-            },
-            "median_ns": 6510.0,
-            "p90_ns": 8680.0
           }
         ],
-        "noisy": true
+        "noisy": false
       },
       {
         "key": {
@@ -203078,57 +203150,57 @@
           "stage": "head",
           "tn": 16
         },
-        "median_ns": 6340.0,
-        "spread": 0.07728706624605679,
+        "median_ns": 6230.0,
+        "spread": 0.044141252006420544,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "6784862b0a8b5c1f81508e575f4215e26518b65f727731f5f636a16f4270feb5",
-        "p90_ns": 8800.0,
+        "p90_ns": 8610.0,
         "processes": 5,
         "rounds": [
           {
-            "PID": 1066026,
+            "PID": 1551953,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B4/cohort/process0/result.json",
-              "sha256": "e471f571b4d2750da03f815c012e36fdf18958da50c69d0b2f8bcfcc36d1fc88"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B4/cohort/process0/result.json",
+              "sha256": "f62c412e6c4cc96e268a1bc99ea5cdbbc3a8f27736f0df4098ae80f703122bd1"
             },
-            "median_ns": 6380.0,
-            "p90_ns": 8980.0
+            "median_ns": 6055.0,
+            "p90_ns": 8460.0
           },
           {
-            "PID": 1066049,
+            "PID": 1551967,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B4/cohort/process1/result.json",
-              "sha256": "c673c27dab691f6ccf8b9d7bb11edcd25ce06a308606f5cc2d939c755cddfe48"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B4/cohort/process1/result.json",
+              "sha256": "ed31205ec42afbe8b7563b06f1f64328640f889d3405dfb6c5ec3311d437795a"
             },
-            "median_ns": 6520.0,
-            "p90_ns": 9050.0
+            "median_ns": 6330.0,
+            "p90_ns": 8740.0
           },
           {
-            "PID": 1066085,
+            "PID": 1551998,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B4/cohort/process2/result.json",
-              "sha256": "3ef34da7ad1f5ab652aa5166360b499e8a180a691898c2f5b16963c3e88324d6"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B4/cohort/process2/result.json",
+              "sha256": "c7b6d71455d8c47fe86fb84f6a70773bdac9345c44b5106cdd3470281d14f516"
             },
-            "median_ns": 6340.0,
-            "p90_ns": 8800.0
+            "median_ns": 6220.0,
+            "p90_ns": 8590.0
           },
           {
-            "PID": 1145932,
+            "PID": 1575181,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constant_noise/tp4_B4/cohort/process3/result.json",
-              "sha256": "fed6584a8ae6aa91b689719dcabc6ceab02e4b19874a1a9a0ece3a5afc7f5fe0"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_noise_g1235_remedy1/tp4_B4/cohort/process3/result.json",
+              "sha256": "b50f0c70acc0e3f14cdd8cdc3c2bd6f036a04540ca8e4e90fafb9cc0d4491de0"
             },
-            "median_ns": 6300.0,
-            "p90_ns": 8750.0
+            "median_ns": 6230.0,
+            "p90_ns": 8710.0
           },
           {
-            "PID": 1145954,
+            "PID": 1575198,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constant_noise/tp4_B4/cohort/process4/result.json",
-              "sha256": "18116024f265e80c99d5fc19cbb816a6f655e4c52fd0d982c56cab7f150bf124"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_noise_g1235_remedy1/tp4_B4/cohort/process4/result.json",
+              "sha256": "a1e84ff4eb2f43cce04db5d8c33cf9f957da592f486afbd5f6f35c17f028b332"
             },
-            "median_ns": 6030.0,
-            "p90_ns": 8390.0
+            "median_ns": 6260.0,
+            "p90_ns": 8610.0
           }
         ],
         "noisy": true
@@ -203140,57 +203212,57 @@
           "stage": "head",
           "tn": 16
         },
-        "median_ns": 6620.0,
-        "spread": 0.0513595166163142,
+        "median_ns": 6395.0,
+        "spread": 0.08209538702111024,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "63304f687314811a5d67d851dcfd46385d93d7fbb0840f35f2a1e17751655a63",
-        "p90_ns": 9730.0,
+        "p90_ns": 9270.0,
         "processes": 5,
         "rounds": [
           {
-            "PID": 1081580,
+            "PID": 1552420,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B8/cohort/process0/result.json",
-              "sha256": "0d3d2fd66f54176454b3a0b567dbc88e3274e61658241f2c01dc63b86465de4b"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B8/cohort/process0/result.json",
+              "sha256": "064f0c81bcab14eec08615c9f8d45c203227725a0adbfa3f406b987dc0b1d104"
             },
-            "median_ns": 6620.0,
-            "p90_ns": 9730.0
+            "median_ns": 6350.0,
+            "p90_ns": 9210.0
           },
           {
-            "PID": 1081617,
+            "PID": 1552441,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B8/cohort/process1/result.json",
-              "sha256": "d3c239458f7c71159b0c56b8f08513f09aad446b55adab27b6536362b139731e"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B8/cohort/process1/result.json",
+              "sha256": "f163607abc0a64412dfc21420044dcdb249d4bf8105767328bebcedae049850c"
             },
-            "median_ns": 6600.0,
-            "p90_ns": 9690.0
+            "median_ns": 6395.0,
+            "p90_ns": 9270.0
           },
           {
-            "PID": 1082510,
+            "PID": 1552455,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B8/cohort/process2/result.json",
-              "sha256": "49bcf703d274fc1b537505987087199eeecb4f1f670ca87032ed0bbd7e28358d"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B8/cohort/process2/result.json",
+              "sha256": "60e63d319c2e40eedf709643811b22c59ba364150f15a1ddb3203b3b43c438c9"
             },
-            "median_ns": 6860.0,
-            "p90_ns": 10150.0
+            "median_ns": 6000.0,
+            "p90_ns": 9070.0
           },
           {
-            "PID": 1146253,
+            "PID": 1581039,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constant_noise/tp4_B8/cohort/process3/result.json",
-              "sha256": "94a2aac17b2ab2524fb4cfc74a8ca87cadf2ef97a330c73f1bb3b5cda7e1f256"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_noise_g1235_remedy1/tp4_B8/cohort/process3/result.json",
+              "sha256": "e7a02fb062e896fea2ae09e91e18b7ea3e1b58e5fcd1c78ecb0a7f4e9d89bf37"
             },
-            "median_ns": 6750.0,
-            "p90_ns": 10100.0
+            "median_ns": 6525.0,
+            "p90_ns": 9620.0
           },
           {
-            "PID": 1146267,
+            "PID": 1581053,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constant_noise/tp4_B8/cohort/process4/result.json",
-              "sha256": "4f89d92cff52c95ef9c52a9be32432a2ee194f9e17622e4dd3feea08f4e22175"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_noise_g1235_remedy1/tp4_B8/cohort/process4/result.json",
+              "sha256": "1b4d732d3c9abd1420b93f16d0c5334dffa54ea498d97be05ca8032b7e91fcf6"
             },
-            "median_ns": 6520.0,
-            "p90_ns": 9720.0
+            "median_ns": 6420.0,
+            "p90_ns": 9560.0
           }
         ],
         "noisy": true
@@ -203202,51 +203274,89 @@
           "stage": "head",
           "tn": 16
         },
-        "median_ns": 7520.0,
-        "spread": 0.011968085106382979,
+        "median_ns": 7660.0,
+        "spread": 7.9516971279373365,
         "source_digest": "1152da1a08e50bdf0467055e345ed490e329119bf86e7cfc75a9325fdb3133aa",
         "binary": "5ae96a832503c0525b978eb81a02acd399c20bcbaddac385583b0a2931c33608",
-        "p90_ns": 10640.0,
-        "processes": 3,
+        "p90_ns": 10550.0,
+        "processes": 5,
         "rounds": [
           {
-            "PID": 1092436,
+            "PID": 1552896,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B16/cohort/process0/result.json",
-              "sha256": "e12b2971def861991a61fc2bfe1b60e9d7d3bb8bff98acaaeb01f9698198977e"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B16/cohort/process0/result.json",
+              "sha256": "d0e67290b1ab43d5c6b177334c6a043a7ec1f95377a6a20e82c974d7db377821"
             },
-            "median_ns": 7480.0,
-            "p90_ns": 10640.0
+            "median_ns": 68180.0,
+            "p90_ns": 120240.0
           },
           {
-            "PID": 1092481,
+            "PID": 1552914,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B16/cohort/process1/result.json",
-              "sha256": "e0420fd433dbaa4d0461c0e5b60f70342971b94950686314809ff598bad18aae"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B16/cohort/process1/result.json",
+              "sha256": "81bca6f01fa03921119843dbeea791c90734f815172043d346084296966b3f6e"
             },
-            "median_ns": 7570.0,
-            "p90_ns": 10480.0
+            "median_ns": 7350.0,
+            "p90_ns": 10160.0
           },
           {
-            "PID": 1092495,
+            "PID": 1552957,
             "input": {
-              "path": "/root/tilemega/runs/mx7/resume1/constants_measure_ldsfix/tp4_B16/cohort/process2/result.json",
-              "sha256": "8f1d5f71e32e4c97e55be47a8d7dfbc4df0609c29fe9cfe1d16217eb1180e08e"
+              "path": "/root/tilemega/runs/mx7/resume1/constants_g1235/tp4_B16/cohort/process2/result.json",
+              "sha256": "471ebd687b979cd32616cf25b1b0bc2b1230f8f34f32daa64b583975921a360e"
             },
-            "median_ns": 7520.0,
-            "p90_ns": 10690.0
+            "median_ns": 7270.0,
+            "p90_ns": 9900.0
+          },
+          {
+            "PID": 1589697,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_noise_g1235_remedy1/tp4_B16/cohort/process3/result.json",
+              "sha256": "a8044857d0763c54bc221d63780ceedb4ca2a3a2748416204bbe5afd5e8fbd59"
+            },
+            "median_ns": 7660.0,
+            "p90_ns": 10550.0
+          },
+          {
+            "PID": 1589722,
+            "input": {
+              "path": "/root/tilemega/runs/mx7/resume1/constants_noise_g1235_remedy1/tp4_B16/cohort/process4/result.json",
+              "sha256": "9ea8f577d900bea853b9e47fb7c4cf13ee8593ef8a73bec72040728f642b130b"
+            },
+            "median_ns": 7740.0,
+            "p90_ns": 10750.0
           }
         ],
-        "noisy": false
+        "noisy": true
       }
     ]
   },
   "constants_evidence": {
-    "path": "/root/tilemega/runs/mx7/resume1/constants.json",
-    "sha256": "63c6652c664594b89a811b6cc93b1426491dd39c511af948a610ffb3e52e90e1"
+    "path": "/root/tilemega/runs/mx7/resume1/constants_g1235_merged.json",
+    "sha256": "8778abfa16c89f629ac5f03e016df1dff83e93ab048fafa5c9307da547b4b52d"
   },
   "noise_supplement": {
     "path": "/root/tilemega/runs/mx7/resume1/cost_noise/SUPPLEMENTARY_REQUEST.json",
     "sha256": "dd91f290e11521f2eb2584452c4eb272469b056688b8ff2bb79defcc7e65edaa"
+  },
+  "tp_gpu_groups": {
+    "2": [
+      1,
+      3
+    ],
+    "4": [
+      1,
+      2,
+      3,
+      5
+    ]
+  },
+  "hardware_requalification": {
+    "path": "/root/tilemega/runs/mx7/resume1/alternate_g1235/QUALIFIED.json",
+    "sha256": "01530d439f61fed7f583b5474f525aa180e5b202982dfe693e880fc1fa245e31"
+  },
+  "previous_cost_table": {
+    "path": "/root/tilemega/runs/mx7/resume1/costs_g1345_archive/xcore1000_mx7_tp.json",
+    "sha256": "7ad97df7881ba38ddaa0b720fb1eb6dc287fb60de042d989bee76fea3a3ecaad"
   }
 }
