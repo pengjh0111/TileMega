@@ -128,6 +128,7 @@ def main():
         parser.add_argument('--' + name, type=Path, required=True)
     parser.add_argument('--batch', type=int, choices=(1, 16), required=True)
     parser.add_argument('--devices', default='0,1,2,3')
+    parser.add_argument('--capture-only', action='store_true')
     args = parser.parse_args()
     physical = require_group()
     if len(physical) != 4:
@@ -156,13 +157,14 @@ def main():
             if status:
                 raise RuntimeError('native trace dump failed on rank ' + str(rank['rank']))
             record = compress_trace(folder / 'mx_stage_trace.csv')
-            samples.append(read_trace(Path(record['path']), minimum_slot=prompt_len))
+            if not args.capture_only:
+                samples.append(read_trace(Path(record['path']), minimum_slot=prompt_len))
             records.append(record)
         identity = engine.ranks[0]['plan'].execution_identity(1, True)
     report = dict(tp=4, batch=args.batch, gpu_indices=physical, prompt_mode=True,
                   trace_slots=prompt_len + 1024 - 1, decode_samples=1023,
                   formula='max CTA release(stage) minus max CTA release(previous stage); first qkv uses min start',
-                  stages=summarize(samples), raw_traces=records, execution_identity=identity,
+                  raw_traces=records, execution_identity=identity,
                   host_source_identity=harness, collector=source_ref,
                   e2e_ms_diagnostic=result.e2e_ms, rank_kernel_ms_diagnostic=result.rank_kernel_ms,
                   timing_eligible=False)
@@ -171,8 +173,14 @@ def main():
             raise RuntimeError('host source changed during trace collection')
     if digest(Path(__file__)) != source_ref['sha256']:
         raise RuntimeError('trace collector changed')
-    (args.out / 'trace.json').write_text(json.dumps(report, indent=2) + '\n')
-    print('TP4 trace complete', args.batch, '1023 decode steps per rank', flush=True)
+    if args.capture_only:
+        report['kind'] = 'mx7_tp_stage_capture'
+        (args.out / 'capture.json').write_text(json.dumps(report, indent=2) + '\n')
+        print('TP4 trace GPU capture complete', args.batch, flush=True)
+    else:
+        report['stages'] = summarize(samples)
+        (args.out / 'trace.json').write_text(json.dumps(report, indent=2) + '\n')
+        print('TP4 trace complete', args.batch, '1023 decode steps per rank', flush=True)
 
 
 if __name__ == '__main__':

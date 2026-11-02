@@ -259,6 +259,7 @@ def attach(cell, root):
     cell.run_command = MethodType(guarded_command, cell)
     cell.correctness = MethodType(correctness, cell)
     cell.measure = MethodType(measure, cell)
+    cell.output_job = MethodType(output_job, cell)
 
 
 def load_and_attach(path, cell, root):

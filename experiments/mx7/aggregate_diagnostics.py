@@ -58,6 +58,16 @@ def main():
     for path in sorted((args.root / 'final_trace').glob('B*/trace/trace.json')):
         data = json.loads(path.read_text())
         assert data['tp'] == 4 and data['decode_samples'] == 1023
+        capture_path = Path(data['capture']['path']) if 'capture' in data else None
+        collector = capture_path.parent / 'collector.py' if capture_path else path.parent / 'collector.py'
+        assert sha(collector) == data['collector']['sha256']
+        if capture_path:
+            assert sha(capture_path) == data['capture']['sha256']
+            capture = json.loads(capture_path.read_text())
+            assert capture['raw_traces'] == data['raw_traces'] and capture['execution_identity'] == data['execution_identity']
+            for key in ('capture_guard', 'analyzer', 'analyzer_dependency'):
+                assert sha(Path(data[key]['path'])) == data[key]['sha256']
+            assert json.loads(Path(data['capture_guard']['path']).read_text())['code'] == 0
         for stage in data['stages']:
             rows.append(dict(record_type='selected_stage_trace', evidence='verified', tp=4,
                 batch=data['batch'], layer=stage['layer'], stage=stage['stage'],
