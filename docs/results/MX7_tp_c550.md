@@ -281,3 +281,4 @@ Old partial records remain. Seven focused CPU selection/trace tests also pass.
 A source-bound single retry preserves all successful build/check/timing records; resume tooling prelaunch errors are retained.
 **verified, B4** The retry guard later rejected preflight occupancy (75), before any child/PID or GPU launch.
 The single timing retry is still unused; collection waits outside GPU locks for six consecutive idle samples.
+**verified, B5** Candidate3 single retry passes guard0 (2.780335/2.780742ms). Candidate4 initial timing was then invalidated by external GPU5 load (guard75); its one retry waits for a five-minute quiet scheduling window.
