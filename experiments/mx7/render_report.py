@@ -50,7 +50,7 @@ def main():
         '- **verified** specification SHA256 `5caed7edd4477b8fb63d33bed9254bbc4e33d92041eb5969113fefeb805d7cee`.',
         '- **stated** subsequent all-card authorization and torch.compile continuation:',
         '  SHA256 `f67014253a3cca7234429ff3671e293c0104fb04b68fde1bb9dc52b518c0b284`.',
-        '- **verified** TP1 source/device code and protected MoE files/final CSV remain frozen; no MoE performance runs.', '',
+        '- **verified** TP1 passes the frozen CU-byte/function-instruction-count gate; protected MoE files/final CSV are unchanged; no MoE performance runs.', '',
         '## Environment, C0 and execution sequence (10-line onboarding summary)', '',
         '- **verified** MACA3.8.2.6, cucc/mxcc1.0.0(890c70f3aa), driver3.8.1.',
         '- **verified** Torch2.10.0+metax3.8.2.2; Transformers5.12.0; SGLang0.5.14+detached.c432db2fb.maca3.8.2.122; vLLM0.25.0+empty.',
