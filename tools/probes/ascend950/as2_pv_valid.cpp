@@ -55,9 +55,12 @@ int main(int argc,char** argv) {
     auto inside=[&](auto const& p){auto relative=p.lexically_relative(root);return !relative.empty() && *relative.begin()!=".." && p!=root;};
     if(!inside(input)||!inside(output)||fs::exists(output))throw std::invalid_argument("Use controlled existing inputs/new output");
     auto p=Read(input/"p.bin",size_t(rows)*kCapacity),v=Read(input/"v.bin",size_t(kCapacity)*width),poison=Read(input/"poison.bin",size_t(kCapacity)*width);
+    std::cerr<<"phase: aclInit"<<std::endl;
     Check(aclInit(nullptr),"init");uint32_t count=0;Check(aclrtGetDeviceCount(&count),"device count");
+    std::cerr<<"phase: aclrtSetDevice"<<std::endl;
     if(count!=1)throw std::runtime_error("Require one visible device");Check(aclrtSetDevice(0),"device");
     auto* sku=aclrtGetSocName();if(!sku || std::string(sku).find("Ascend950PR")!=0)throw std::runtime_error("Wrong SKU");
+    std::cerr<<"phase: allocate"<<std::endl;
     aclrtStream stream;Check(aclrtCreateStream(&stream),"stream");std::vector<void*> memory;
     auto alloc=[&](size_t bytes,void const* host) {
       void* d=nullptr;Check(aclrtMalloc(&d,bytes,ACL_MEM_MALLOC_HUGE_FIRST),"allocate");memory.push_back(d);
@@ -67,8 +70,11 @@ int main(int argc,char** argv) {
     std::vector<uint64_t> timing(64,0);
     auto dp=alloc(p.size()*4,p.data()),dv=alloc(v.size()*4,v.data()),dpoison=alloc(poison.size()*4,poison.data());
     auto df=alloc(initial.size(),initial.data()),ds=alloc(initial.size(),initial.data()),dg=alloc(initial.size(),initial.data()),dt=alloc(timing.size()*8,timing.data());
+    std::cerr<<"phase: kernelLaunch"<<std::endl;
     pv_valid<<<1,nullptr,stream>>>(dp,dv,dpoison,df,ds,dg,dt,rows,width,keys);
+    std::cerr<<"phase: kernelLaunchReturned"<<std::endl;
     Check(aclrtSynchronizeStream(stream),"synchronize");
+    std::cerr<<"phase: kernelComplete"<<std::endl;
     std::vector<std::vector<uint8_t>> results(3,initial);
     unsigned index=0;for(auto d:{df,ds,dg}) {
       Check(aclrtMemcpy(results[index].data(),initial.size(),d,initial.size(),ACL_MEMCPY_DEVICE_TO_HOST),"download");
