@@ -107,6 +107,7 @@ def main():
                      f' | {float(row["tp1_frozen_tpot_ms"])/new:.3f} | {100*float(row["scaling_efficiency"]):.1f}% |')
     lines += ['', 'Efficiency=TP1_frozen_TPOT/(TP×TP_TPOT). Each engine ratio, process result, binary/pin/cost SHA is retained in `MX7_tp_final_c550.csv`.',
         'Old published pins are preserved under `configs/pins/mx7/history/vector8/`; old CSV rows and original artifacts are retained.', '',
+        'Historical old/new ratios retain their recorded GPU groups; the separate B16 P-PAIR is the same-group causal comparison.', '',
         '## Selected geometries', '',
         'Coordinates below are TN/WN/D/Pw/partition; TR=TileRange, SK=StreamK. Attention remains V2.', '',
         '| TP | B | qkv | o | gate_up | down | head | attn pf/b_min |',

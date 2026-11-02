@@ -262,3 +262,19 @@ remaining six middle-batch scopes continue; B1 selected-pin delay checks remain.
 **verified** Selected TP2 B1 injected-delay qualification completes5/5 fresh
 1024-token processes, exact against its ordinary selected final binary. The
 two B16 cohorts also remain5/5; only selected TP4 B1 delay qualification waits.
+
+**verified** TP4 B1 re-selection completes at1.835868ms, C-1 and5/5
+fresh C-2 passing. Candidate medians1.833957/1.829277/1.830738/1.841339ms
+retain predicted rank1 under the1% rule. Four corner finals are now complete;
+six middle-batch scopes and the final B1 delay/trace cohorts continue.
+
+**verified** Both optimized selected TP4 traces(B1/B16) are complete and
+appended. Their raw losslessly compressed captures, collector/analyzer hashes
+and actual all-rank residency queries remain under `optimized_trace/`.
+
+**verified** TP4 B1 original/new selected trace means(us/layer):
+qkv7.491/7.423; attention25.214/25.274; o+AR19.653/8.920;
+gate_up13.626/13.946; down+AR22.466/11.535; head109.59/108.61us per step.
+Trace groups differ: old{1,3,4,5}, new{1,2,3,5}; these traces locate stage costs.
+The independent same-geometry/same-group B16 P-PAIR remains the controlled
+causal performance comparison.

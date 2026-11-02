@@ -1,7 +1,7 @@
 # MX-7: Qwen3-1.7B TP2 / TP4 on C550
 
 **verified — optimization in progress:** the matrix below is the original vector8 implementation.
-Reselected pair-lane finals: TP2 B1=2.252859ms, TP2 B16=3.561300ms, TP4 B16=3.071796ms; each passes C-1 and5/5 fresh C-2 checks.
+Reselected pair-lane finals(ms): TP2 B1/B16=2.252859/3.561300; TP4 B1/B16=1.835868/3.071796; all pass C-1 and5/5 fresh C-2.
 The ten-scope replacement and new delay/trace gates are running; `MX7_tp_sm90_comparison_c550.md` records current evidence.
 
 Evidence: **verified** = executed here; **stated** = user specification; **inferred** = reasoning.
