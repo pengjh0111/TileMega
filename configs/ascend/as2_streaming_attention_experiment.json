@@ -3,9 +3,12 @@
   "impl_id": "aiv_bf16_streaming_query_k32_v1",
   "precision_contract_id": "bf16_qkv_fp32_online_statistics_bf16_probability_v1",
   "default_enabled": false,
-  "pipeline_status": "component_validation; not registered for model selection",
+  "pipeline_status": "native CTG/Solver/Plan/codegen integration; full-model numerical admission failed, default remains disabled",
   "role": "AIV_ONLY",
-  "head_dims": [64, 128],
+  "head_dims": [
+    64,
+    128
+  ],
   "kv_chunk": 32,
   "maximum_effective_keys": 1088,
   "query_domain": "one independently normalized query per call; caller owns batch/head/causal mapping",
@@ -16,5 +19,5 @@
   "hardware_flags": "existing worker-local CompleteDma event7; no cross-core channels",
   "completion": "output MTE3 complete before return; external event belongs to executor",
   "numerical_policy": "configs/ascend/as2_correctness_policy.json:body.attention",
-  "model_admission": "requires actual CTG/solver binding, layer/full-model teacher/greedy checks and sourced prices"
+  "model_admission": "Requires unchanged full-model teacher/greedy gates, sourced prices and paired TPOT; component correctness alone is insufficient"
 }

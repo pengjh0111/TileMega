@@ -88,7 +88,7 @@ def logical_bytes(s,m,tile,past):
     if kind!=13:raise ValueError('No logical GM traffic contract for stage kind '+str(kind))
     if s[26]!=1088:raise ValueError('Only the actual unified KV body is profiled')
     qrotate=(14 if s[5]!=absent else 8)*width;krotate=(14 if s[6]!=absent else 8)*width
-    if s[31]==10:
+    if s[31] in (10,11):
         if m[9]==1:
             valid=past+1
             # Append one BF16 K/V row; every query reads only valid BF16 KV.

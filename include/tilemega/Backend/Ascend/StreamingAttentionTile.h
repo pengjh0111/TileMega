@@ -11,7 +11,8 @@ struct StreamingAttentionBuffers {
 // One independently normalized query. Q/K/V and output are BF16, statistics
 // and o are FP32; P is rounded to BF16 before PV. This is a distinct precision
 // contract from FP32 replay. No score/P/KV expansion or partial o goes to GM.
-__aicore__ inline bool RunStreamingAttention(StreamingAttentionBuffers const& b,
+// The FP32-P candidate uses split Q/K scaling and retains unrounded P in UB.
+template<bool RoundProbability=true> __aicore__ inline bool RunStreamingAttention(StreamingAttentionBuffers const& b,
     GM_ADDR query,GM_ADDR key,GM_ADDR value,GM_ADDR output,unsigned keys,unsigned d) {
   if(!keys || keys>1088 || (d!=64 && d!=128))return false;
   AscendC::GlobalTensor<bfloat16_t> q,k,v,out;
@@ -19,6 +20,11 @@ __aicore__ inline bool RunStreamingAttention(StreamingAttentionBuffers const& b,
   v.SetGlobalBuffer((__gm__ bfloat16_t*)value);out.SetGlobalBuffer((__gm__ bfloat16_t*)output);
   AscendC::DataCopy(b.raw_q,q,d);CompleteDma<AscendC::HardEvent::MTE2_V>();
   AscendC::Cast(b.state,b.raw_q,AscendC::RoundMode::CAST_NONE,d);
+  if constexpr(!RoundProbability) {
+    AscendC::PipeBarrier<PIPE_V>();
+    AscendC::Muls(b.state,b.state,d==128?0.29730177875068026f:0.3535533905932738f,d);
+    AscendC::PipeBarrier<PIPE_V>();
+  }
   auto scores=b.state[256],stat=b.state[512],alpha=b.state[768],acc=b.state[1024];
   AscendC::Duplicate(acc,0.0f,d);AscendC::PipeBarrier<PIPE_V>();
   float maximum=0.0f,denominator=0.0f;
@@ -30,13 +36,19 @@ __aicore__ inline bool RunStreamingAttention(StreamingAttentionBuffers const& b,
     CompleteDma<AscendC::HardEvent::MTE2_V>();
     AscendC::Cast(b.k,b.raw_k,AscendC::RoundMode::CAST_NONE,count*d);
     AscendC::Cast(b.v,b.raw_v,AscendC::RoundMode::CAST_NONE,count*d);AscendC::PipeBarrier<PIPE_V>();
+    if constexpr(!RoundProbability) {
+      AscendC::Muls(b.k,b.k,d==128?0.29730177875068026f:0.3535533905932738f,count*d);
+      AscendC::PipeBarrier<PIPE_V>();
+    }
     uint32_t shape[2]={count,d},qshape[2]={1,d},pshape[2]={count,1};
     auto tmp=b.scratch.ReinterpretCast<uint8_t>();
     AscendC::Broadcast<float,2,0>(b.work,b.state,shape,qshape,tmp);AscendC::PipeBarrier<PIPE_V>();
     AscendC::Mul(b.work,b.work,b.k,count*d);AscendC::PipeBarrier<PIPE_V>();
     AscendC::ReduceSum<float,AscendC::Pattern::Reduce::AR>(scores,b.work,tmp,shape,true);
     AscendC::PipeBarrier<PIPE_V>();
-    AscendC::Muls(scores,scores,d==128?0.08838834764831845f:0.125f,count);AscendC::PipeBarrier<PIPE_V>();
+    if constexpr(RoundProbability) {
+      AscendC::Muls(scores,scores,d==128?0.08838834764831845f:0.125f,count);AscendC::PipeBarrier<PIPE_V>();
+    }
     AscendC::ReduceMax(stat,scores,b.scratch,count);CompleteDma<AscendC::HardEvent::V_S>();
     const float current=stat.GetValue(0);
     if(!(current<=3.4028234663852886e38f && current>=-3.4028234663852886e38f))return false;
@@ -48,8 +60,10 @@ __aicore__ inline bool RunStreamingAttention(StreamingAttentionBuffers const& b,
     AscendC::Exp(scores,scores,count);AscendC::PipeBarrier<PIPE_V>();
     AscendC::ReduceSum(stat,scores,b.scratch,count);CompleteDma<AscendC::HardEvent::V_S>();
     denominator=factor*denominator+stat.GetValue(0);maximum=next;
-    AscendC::Cast(b.raw_q,scores,AscendC::RoundMode::CAST_RINT,count);AscendC::PipeBarrier<PIPE_V>();
-    AscendC::Cast(scores,b.raw_q,AscendC::RoundMode::CAST_NONE,count);AscendC::PipeBarrier<PIPE_V>();
+    if constexpr(RoundProbability) {
+      AscendC::Cast(b.raw_q,scores,AscendC::RoundMode::CAST_RINT,count);AscendC::PipeBarrier<PIPE_V>();
+      AscendC::Cast(scores,b.raw_q,AscendC::RoundMode::CAST_NONE,count);AscendC::PipeBarrier<PIPE_V>();
+    }
     AscendC::Broadcast<float,2,1>(b.work,scores,shape,pshape,tmp);AscendC::PipeBarrier<PIPE_V>();
     AscendC::Mul(b.work,b.work,b.v,count*d);AscendC::PipeBarrier<PIPE_V>();
     AscendC::ReduceSum<float,AscendC::Pattern::Reduce::RA>(b.k,b.work,tmp,shape,true);

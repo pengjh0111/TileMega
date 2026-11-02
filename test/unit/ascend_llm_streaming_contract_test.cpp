@@ -6,6 +6,7 @@ int main() {
   llm::Stage s{};s.kind=13;s.variant=10;s.extent=8;s.width=128;
   s.group=3;s.kv_block=1088;s.query_rows=48;
 #if defined(TILEMEGA_LLM_STREAMING_ATTENTION) && TILEMEGA_LLM_STREAMING_ATTENTION
+  s.variant=TILEMEGA_LLM_PRECISION_CONTRACT+8;
   llm_host::ValidateCompiledBodies({s});
   for(auto shape:{std::pair{128u,2u},std::pair{128u,4u},std::pair{64u,4u}}) {
     auto v=s;v.width=shape.first;v.group=shape.second;v.query_rows=v.group;
@@ -18,7 +19,7 @@ int main() {
     if(mutation==2)v.kv_block=128;
     if(mutation==3)v.query_rows=47;
     if(mutation==4)v.variant=8;
-    if(mutation==5)v.variant=11;
+    if(mutation==5)v.variant=s.variant==10?11:10;
     try {llm_host::ValidateCompiledBodies({v});return 1;}
     catch(std::invalid_argument const&) {}
   }

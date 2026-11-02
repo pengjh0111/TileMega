@@ -1,0 +1,24 @@
+{
+  "schema": "tilemega.as2.body_experiment.v1",
+  "impl_id": "aiv_fp32_streaming_query_k32_v1",
+  "precision_contract_id": "bf16_qkv_split_scale_fp32_online_statistics_probability_v1",
+  "default_enabled": false,
+  "pipeline_status": "native CTG/Solver/Plan/codegen integration; teacher512 numerical admission failed, default remains disabled",
+  "role": "AIV_ONLY",
+  "head_dims": [
+    64,
+    128
+  ],
+  "kv_chunk": 32,
+  "maximum_effective_keys": 1088,
+  "query_domain": "one independently normalized query per call; caller owns batch/head/causal mapping",
+  "gqa_mapping": "integer division, including ratio3; no cross-batch KV sharing",
+  "local_bytes": 106496,
+  "allocation": "borrow existing LlmVectorBody UB arrays; no additional storage",
+  "gm_intermediates": [],
+  "hardware_flags": "existing worker-local CompleteDma event7; no cross-core channels",
+  "completion": "output MTE3 complete before return; external event belongs to executor",
+  "numerical_policy": "configs/ascend/as2_correctness_policy.json:body.attention",
+  "model_admission": "Requires unchanged full-model teacher/greedy gates, sourced prices and paired TPOT; component correctness alone is insufficient",
+  "probability": "FP32 online weights; split Q/K FP32 scaling"
+}

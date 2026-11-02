@@ -3,13 +3,14 @@
 #include <cstddef>
 #include <cstdint>
 #include <type_traits>
-#if defined(TILEMEGA_LLM_PRECISION_CONTRACT) && TILEMEGA_LLM_PRECISION_CONTRACT != 1 && TILEMEGA_LLM_PRECISION_CONTRACT != 2
+#if defined(TILEMEGA_LLM_PRECISION_CONTRACT) && TILEMEGA_LLM_PRECISION_CONTRACT != 1 && TILEMEGA_LLM_PRECISION_CONTRACT != 2 && TILEMEGA_LLM_PRECISION_CONTRACT != 3
 #error "This catalogue does not implement the requested precision contract"
 #endif
 
 namespace tilemega::ascend::llm {
 inline constexpr uint32_t kVersion=4;
 inline constexpr char kReplayPrecision[]="as2_llm_fp32_replay_bf16_casts_v1";
+inline constexpr char kStreamingFp32Precision[]="bf16_qkv_split_scale_fp32_online_statistics_probability_v1";
 inline constexpr char kStreamingPrecision[]="bf16_qkv_fp32_online_statistics_bf16_probability_v1";
 inline constexpr uint64_t kAbsent=~uint64_t(0);
 namespace attention {
@@ -65,6 +66,7 @@ struct Stage {
   // writes disjoint owned rows, decode appends one, reset clears both planes.
   // 10=AIV BF16 QKV, K32 streaming, FP32 online m/l/o, BF16 P before PV;
   // distinct precision contract2, no FP32 KV/score/P/partial-output GM planes.
+  // 11=same bounded streaming, split Q/K scale and FP32 P (contract3).
   float epsilon;
 };
 struct Task {

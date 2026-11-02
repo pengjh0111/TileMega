@@ -15,7 +15,12 @@ void as2_streaming_attention(GM_ADDR q,GM_ADDR k,GM_ADDR v,GM_ADDR out,GM_ADDR s
     const unsigned worker=AscendC::GetBlockIdx();LlmVectorBody body;
     for(unsigned tile=worker;tile<batch*qheads*rows;tile+=4) {
       const unsigned head=tile/rows,position=tile%rows,kh=head/(qheads/kvheads);
-      if(!body.StreamingAttention(q+uint64_t(tile)*d*2,k+uint64_t(kh)*capacity*d*2,
+#if defined(TILEMEGA_STREAMING_ATTENTION_FP32)
+      constexpr bool round_probability=false;
+#else
+      constexpr bool round_probability=true;
+#endif
+      if(!body.StreamingAttention<round_probability>(q+uint64_t(tile)*d*2,k+uint64_t(kh)*capacity*d*2,
           v+uint64_t(kh)*capacity*d*2,out+uint64_t(tile)*d*2,keys-rows+position+1,d)) {
         WriteControl((__gm__ uint32_t*)status+worker*128,1);return;
       }

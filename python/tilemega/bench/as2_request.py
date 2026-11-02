@@ -121,7 +121,7 @@ def source_parts(path):
         raise ValueError('Unknown generated request capability/geometry')
     fields.setdefault(SOURCE_CONTRACT[0],1)
     if fields[SOURCE_CONTRACT[0]] not in CONTRACTS.values():raise ValueError('Unsupported generated precision contract')
-    if bool(fields.get('TILEMEGA_LLM_STREAMING_ATTENTION',0))!=(fields[SOURCE_CONTRACT[0]]==2):
+    if bool(fields.get('TILEMEGA_LLM_STREAMING_ATTENTION',0))!=(fields[SOURCE_CONTRACT[0]]>=2):
         raise ValueError('Generated streaming capability and precision contract differ')
     if any(fields.get(k,0) not in (0,1) for k in SOURCE_CAPABILITIES):
         raise ValueError('Unregistered generated request capability')

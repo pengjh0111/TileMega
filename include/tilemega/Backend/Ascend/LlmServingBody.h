@@ -26,9 +26,10 @@ template<unsigned TM=32,unsigned TN=64,bool CaptureSoftmax=false> class LlmServi
   }
   __aicore__ inline bool Attend(GM_ADDR query,GM_ADDR key,GM_ADDR value,GM_ADDR output,
       GM_ADDR scratch,unsigned keys,unsigned d,unsigned precision) {
-    if(precision==10) {
-#if defined(TILEMEGA_LLM_STREAMING_ATTENTION) && TILEMEGA_LLM_STREAMING_ATTENTION && TILEMEGA_LLM_PRECISION_CONTRACT == 2
-      return vector_.StreamingAttention(query,key,value,output,keys,d);
+    if(precision==10 || precision==11) {
+#if defined(TILEMEGA_LLM_STREAMING_ATTENTION) && TILEMEGA_LLM_STREAMING_ATTENTION && (TILEMEGA_LLM_PRECISION_CONTRACT == 2 || TILEMEGA_LLM_PRECISION_CONTRACT == 3)
+      if(precision==11)return vector_.StreamingAttention<false>(query,key,value,output,keys,d);
+      return vector_.StreamingAttention<true>(query,key,value,output,keys,d);
 #else
       return false;
 #endif
@@ -284,9 +285,9 @@ template<unsigned TM=32,unsigned TN=64,bool CaptureSoftmax=false> class LlmServi
       return vector_.RmsNorm(p(0)+row*s.width*2,p(1),p(2)+uint64_t(task)*s.width*2,s.width,s.epsilon,s.variant);
     }
     if(s.kind==13) {
-      if((meta.seq!=1 && meta.seq!=64) || (s.width!=64 && s.width!=128) || !s.group || s.group>8 || (s.variant>3 && s.variant!=10) || (s.kv_block!=128 && s.kv_block!=1088))return false;
-      const unsigned norm_variant=s.variant==10?2:0;
-      if(s.variant==10 && s.kv_block!=1088)return false;
+      if((meta.seq!=1 && meta.seq!=64) || (s.width!=64 && s.width!=128) || !s.group || s.group>8 || (s.variant>3 && s.variant!=10 && s.variant!=11) || (s.kv_block!=128 && s.kv_block!=1088))return false;
+      const unsigned norm_variant=s.variant>=10?2:0;
+      if(s.variant>=10 && s.kv_block!=1088)return false;
       if(meta.seq==64) {
         if(past || s.kv_block!=meta.capacity || meta.worker_scratch_bytes<98304 || !s.query_rows || s.query_rows%s.group)return false;
         unsigned qblocks=(meta.seq*s.group+s.query_rows-1)/s.query_rows;
