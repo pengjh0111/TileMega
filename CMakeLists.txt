@@ -196,6 +196,7 @@ add_library(tilemega_core STATIC
   lib/Solver/Sm90DensePlan.cpp
   lib/Solver/Sm90DenseSearchSpace.cpp
   lib/Solver/Sm90DenseCostModel.cpp
+  lib/Solver/Sm90NativePrices.cpp
   lib/Solver/Sm90NativeConstants.cpp
   lib/Solver/Sm90DenseRegisterContract.cpp
   lib/Solver/Sm90DenseSearch.cpp
@@ -917,6 +918,13 @@ if(TILEMEGA_BUILD_TESTS)
     add_test(NAME sm90_dense_role_contract COMMAND ${Python3_EXECUTABLE}
       -m unittest discover -s ${CMAKE_CURRENT_SOURCE_DIR}/test/python
       -p test_sm90_dense_role_contract.py)
+    # P1: the per-task prices must reproduce the stage model they come from.
+    add_executable(sm90_native_prices_test test/unit/sm90_native_prices_test.cpp)
+    target_link_libraries(sm90_native_prices_test PRIVATE TileMega::tilemega)
+    target_compile_options(sm90_native_prices_test PRIVATE -UNDEBUG)
+    add_test(NAME sm90_native_prices COMMAND sm90_native_prices_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/configs/targets/sm_90_h800.json
+      ${CMAKE_CURRENT_SOURCE_DIR})
     add_executable(sm90_dense_coordinates_test test/unit/sm90_dense_coordinates_test.cpp)
     target_link_libraries(sm90_dense_coordinates_test PRIVATE TileMega::tilemega)
     target_compile_options(sm90_dense_coordinates_test PRIVATE -UNDEBUG)
