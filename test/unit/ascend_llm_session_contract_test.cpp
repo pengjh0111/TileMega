@@ -1,6 +1,6 @@
 #include <tilemega/Target/Ascend/LlmRequestHost.h>
 #include <iostream>
-int main() {
+int main(int argc,char** argv) {
   using namespace tilemega::ascend;
   llm::Stage s{};s.kind=0;s.variant=7;s.rows=1;s.columns=1024;s.k=1024;s.tasks=8;
 #if defined(TILEMEGA_LLM_GEMM_SESSION) && TILEMEGA_LLM_GEMM_SESSION
@@ -22,5 +22,10 @@ int main() {
   try {llm_host::ValidateCompiledBodies({s});return 1;}
   catch(std::invalid_argument const&) {}
 #endif
+  if(argc>2)return 1;
+  if(argc==2) {
+    llm_host::Plan plan(argv[1]);
+    if(plan.m.tasks<=4096 || plan.m.groups!=8)return 1;
+  }
   std::cout<<"{\"status\":\"pass\",\"acl_initialized\":false}\n";
 }
