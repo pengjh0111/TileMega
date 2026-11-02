@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -19,6 +20,15 @@
 
 namespace tilemega::ascend::llm_host {
 namespace fs=std::filesystem;
+inline bool HostProgressEnabled() {
+  auto value=std::getenv("TILEMEGA_LLM_HOST_PROGRESS");
+  if(!value)return false;
+  if(std::strcmp(value,"1"))throw std::invalid_argument("Host progress accepts only an explicit1");
+  return true;
+}
+inline void HostProgress(bool enabled,char const* phase,unsigned forward=0) {
+  if(enabled)std::cerr<<"{\"host_progress\":"<<std::quoted(phase)<<",\"forward\":"<<forward<<"}"<<std::endl;
+}
 #ifdef TILEMEGA_LLM_VARIANT
 inline constexpr unsigned kCompiledVariant=TILEMEGA_LLM_VARIANT;
 #else
@@ -370,6 +380,8 @@ inline void Dump(Plan const& p,DevicePlan const& d,uint8_t* arena,unsigned past,
 template<class Launch> int RunRequest(fs::path const& binding,fs::path const& out,unsigned outputs,
     unsigned warmup,unsigned repetitions,unsigned diagnostic,Launch launch,bool teacher_forced=false,
     bool performance_only=false) {
+  const bool host_progress=HostProgressEnabled();
+  if(performance_only && host_progress)throw std::invalid_argument("Host progress is diagnostic-only, never request timing");
   Plan pre(binding/"prefill"),dec(binding/"decode");
   if(outputs<2 || outputs>1024 || (performance_only && (diagnostic || teacher_forced)) ||
       (teacher_forced && (outputs>513 || warmup || repetitions!=1)) ||
@@ -393,7 +405,8 @@ template<class Launch> int RunRequest(fs::path const& binding,fs::path const& ou
       ValidateCachedKvState(dec.m,dec.stages,dec.allocations,reset_ids));
   auto token_initial=Read<uint32_t>(binding/"inputs"/(std::to_string(reset[0])+".bin"));
   if(token_initial.size()*4!=tokens.bytes)throw std::invalid_argument("Wrong prompt token size");
-  auto setup=std::chrono::steady_clock::now();Device device;
+  auto setup=std::chrono::steady_clock::now();HostProgress(host_progress,"device_init");Device device;
+  HostProgress(host_progress,"arena_allocate");
   auto arena=device.Allocate(pre.m.arena_bytes),scratch=device.Allocate(pre.m.workers*pre.m.worker_scratch_bytes);
   auto pd=device.Upload(pre,diagnostic),dd=device.Upload(dec,diagnostic);
   std::vector<uint8_t> chunk(1<<20),guard(512,0xa5);
@@ -410,14 +423,15 @@ template<class Launch> int RunRequest(fs::path const& binding,fs::path const& ou
       Check(aclrtMemcpy(arena+a.offset+first,n,chunk.data(),n,ACL_MEMCPY_HOST_TO_DEVICE),"request weight upload");
     }
   }
+  HostProgress(host_progress,"weights_uploaded");
   fs::create_directory(out);std::ofstream samples(out/"samples.jsonl"),receipts(out/"launches.jsonl");
   std::ofstream profile_progress;
-  if(diagnostic==2) {
+  if(diagnostic==2 || host_progress) {
     profile_progress.open(out/"profile_progress.jsonl");
     if(!profile_progress)throw std::runtime_error("Cannot open profile progress receipt");
   }
   auto progress=[&](int repetition,unsigned forward,char const* state) {
-    if(diagnostic!=2)return;
+    if(diagnostic!=2 && !host_progress)return;
     profile_progress<<"{\"repetition\":"<<repetition<<",\"forward\":"<<forward
       <<",\"state\":"<<std::quoted(state)<<",\"elapsed_since_setup_s\":"
       <<std::chrono::duration<double>(std::chrono::steady_clock::now()-setup).count()<<"}\n";
@@ -426,6 +440,7 @@ template<class Launch> int RunRequest(fs::path const& binding,fs::path const& ou
   samples<<std::setprecision(17);unsigned launches=0;
   auto setup_seconds=std::chrono::duration<double>(std::chrono::steady_clock::now()-setup).count();
   for(int repetition=-int(warmup);repetition<int(repetitions);++repetition) {
+    progress(repetition,0,"request_reset_begin");
     Check(aclrtSynchronizeStream(device.stream),"request reset boundary");
     auto control_bytes=(pre.m.workers+2*pre.m.groups+1)*512;
     Check(aclrtMemset(pd.control,control_bytes,0,control_bytes),"reset prefill epoch");
@@ -439,6 +454,7 @@ template<class Launch> int RunRequest(fs::path const& binding,fs::path const& ou
     auto t0=std::chrono::steady_clock::now();
     progress(repetition,0,"prefill_host_submit");
     launch(pd,arena,scratch,device.stream,pre.m.groups,0,0,diagnostic);++launches;
+    progress(repetition,0,"prefill_host_launch_returned");
     Check(aclrtSynchronizeStream(device.stream),"request first token");
     progress(repetition,0,"prefill_stream_completed");
     uint32_t prefill_abort=0;

@@ -12,6 +12,7 @@ inline std::vector<unsigned> TeacherCheckpoints(unsigned steps) {
 
 template<class Launch> int RunTeacher(fs::path const& binding,fs::path const& trace,fs::path const& out,
     unsigned steps,Launch launch) {
+  const bool host_progress=HostProgressEnabled();
   Plan pre(binding/"prefill"),dec(binding/"decode");
   auto header=Read<uint32_t>(trace/"header.bin"),inputs=Read<uint32_t>(trace/"tokens.bin");
   auto reset=Read<uint32_t>(binding/"reset.bin");
@@ -41,9 +42,12 @@ template<class Launch> int RunTeacher(fs::path const& binding,fs::path const& tr
       auto target=arena+tokens.offset+(uint64_t(b)*1088+past)*4;
       Check(aclrtMemcpy(target,4,&inputs[b*512+step-1],4,ACL_MEMCPY_HOST_TO_DEVICE),"teacher input token");
     }
+    HostProgress(host_progress,"teacher_host_launch",step);
     launch(p,arena,scratch,stream,groups,epoch,past,diagnostic);
+    HostProgress(host_progress,"teacher_host_launch_returned",step);
     // This diagnostic mode observes each forward and is never a timing path.
     Check(aclrtSynchronizeStream(stream),"teacher forward boundary");
+    HostProgress(host_progress,"teacher_stream_completed",step);
     uint32_t abort=0;
     Check(aclrtMemcpy(&abort,4,p.control+(pre.m.workers+2*groups)*512,4,ACL_MEMCPY_DEVICE_TO_HOST),"teacher abort");
     if(abort) {
