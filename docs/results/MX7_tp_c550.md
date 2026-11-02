@@ -258,7 +258,7 @@ Old partial records remain. Seven focused CPU selection/trace tests also pass.
   The tool now skips pending queries, and correctness cohorts require successful process/guard exits.
   Original row retained with an appended label correction; no actual resource failure occurred.
 
-## CP3 selected final scopes (5/10 complete)
+## CP3 selected final scopes (6/10 complete)
 
 **verified** Every listed rebuild passes C-1, five fresh C-2, all-rank residency and two independent timing processes.
 
@@ -269,6 +269,7 @@ Old partial records remain. Seven focused CPU selection/trace tests also pass.
 | 2 | 4 | 3.654934 | 256.689407 | 3995.686440 | 1025.105466 | 0.954132 | 53.63% |
 | 2 | 8 | 4.806225 | 323.228035 | 5239.996563 | 1563.359804 | 0.785841 | 44.29% |
 | 2 | 16 | 7.246320 | 464.116928 | 7877.102111 | 2079.952809 | 0.581775 | 35.77% |
+| 4 | 1 | 2.459360 | 152.856125 | 2668.781133 | 383.695837 | 1.028708 | 33.22% |
 
 **verified, B4** Timing pairs share preflight but retain two fresh processes, warm1/timed2 and separate PID/command/exit evidence;900s is unchanged.
-**verified, C** TP2 B4/B8/B16 are slower than SGLang; B8/B16 also regress against frozen TP1. Goals are expectations, not correctness gates. TP4 selection continues.
+**verified, C** TP2 B4/B8/B16 regress against SGLang; B8/B16 also regress against TP1. TP4 B1 is only1.029× over SGLang and misses the stated inferred target. TP4 B1 trace is being collected.
