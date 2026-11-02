@@ -3,6 +3,13 @@
 Evidence labels: **verified** = executed here; **stated** = supplied specification;
 **inferred** = reasoning, not a measurement. Raw evidence is under `runs/mx7/`.
 
+## Current status (verified; CP3 collection waiting for idle GPUs)
+
+- Six of ten formal final cells complete: TP2 B1/2/4/8/16 and TP4 B1; all30 baseline cells complete.
+- TP4 B2 top4 timings, C-1/C-2 and selected-artifact residency pass; interrupted final-check cohort remains unqualified.
+- No numerical/token failure observed in the interrupted cohort; guard75 records are retained. One final-check retry is pending.
+- TP4 B4/B8/B16 selections and B16 trace remain; automatic recovery waits outside GPU locks for a quiet{1,3,4,5} window.
+
 ## Historical A5 stop: resumed with all-card authorization
 
 - **verified** at 22:07:12 and 22:10:45 CST on 2026-11-01, `mx-smi -i 4,5,6,7`
