@@ -1,6 +1,6 @@
 # Single-AIV local GEMM transport probe
 
-Status: **compiled, not device-verified**. No model implementation/default is
+Status: **component verified at G2/G8, 5/5 fresh processes each**. No model implementation/default is
 enabled. `LocalGemmTile.h` composes the pinned CATLASS Block/Tile copy with
 NO_SPLIT output explicitly selecting AIV0. The caller supplies the output
 slot and solved tile coordinate; no whole-operator scheduler is imported.
@@ -9,8 +9,10 @@ The initial contract is BF16 NK weights/activations, FP32 accumulation and
 BF16 Fixpipe output. Logical tails remain unchanged; physical output columns
 are padded to32 bytes inside a16×128 slot. The probe compares this result
 against the ordinary GM tile bitwise, including large K and N129. It uses
-exactly one group/one AIV participant, not a two-slot pipeline or dual-AIV
-epilogue. The fixed slot is131584B, with512B guards before/after its4096B
+G independent groups/one AIV payload participant per group, not a two-slot
+pipeline or dual-AIV epilogue. AIV1 independently poisons and exports its own
+private slot, proving that AIV0 output does not overwrite it. The fixed slot
+is131584B, with512B guards before/after its4096B
 payload, separate from the model vector body's106496B scratch.
 
 Control deliberately retains conservative GM ready/consumed frontiers:
@@ -23,22 +25,35 @@ Every wait checks abort and a system-counter deadline. The10e9 tick bound
 uses the retained1GHz AS-2 counter evidence (`runs/as2/jobs/timer_differential`);
 the wrapper must also impose a finite Host timeout and track only this job.
 
-`verified-run` compile only: CANN9.1.0/BiSheng15.0.5 builds
-`tilemega-as2/build/taskbody_local_gemm_20261102_v1/as2_local_gemm`.
-Image SHA256 `b335afb52db77bbd4a66449428b2b5209557279268f0a8b60a6457eae2194e97`.
+`verified-run`: physical1/55:00.0, CANN9.1.0/BiSheng15.0.5, pinned CATLASS
+2b6c6a6d5bd26559578cf7e3b2fb64af51f64e52. The v5 selected component image is
+`tilemega-as2/build/taskbody_local_gemm_witness_20261102_v5/as2_local_gemm`.
+SHA256 `8d1df886506910d4aca10b8cc9bb1e78c6f626069aec39aac3c40b5c3ab6bd71`.
 The first compile fails on a BF16 Scalar equality instruction; raw uint16
 guard comparison fixes it. The original source/header/command/error are
 protected in `runs/as2/failures/local_gemm_bf16_scalar_compile_20261102_v1/`.
 
-CLI: `as2_local_gemm M N K inputs new_output`. Inputs `a.bin` contain four
-independent BF16 epochs [4,M,K]; `b.bin` is BF16 [N,K]. All source/output
+CLI: `as2_local_gemm M N K inputs new_output [G]`, G in1/2/8. Inputs `a.bin`
+contain four independent BF16 epochs [G,4,M,K]; `b.bin` is BF16 [N,K]. All source/output
 paths must be inside `runs/as2`. The Host checks a single visible950PR,
 preserves output/controls before numerical failure, and logs init/launch/
 launch-return/stream-completion. It performs no device reset.
 
-Prepared cases/reference/tolerance identities:
-`runs/as2/probes/local_gemm_20261102_v1/cases.json`. Device tests are pending
-the unrelated G8 timing-timeout investigation. Required admission is five
-fresh processes covering M1/M16, regular/tail, large K and buffer reuse;
-then real model binding/correctness/prices/full-request comparison. No local
-route is silently substituted into the current generated runtime.
+Each G2/G8 cohort covers M1/M16, N128/N129, K8192/K14336 and four reuse
+epochs, with independently initialized groups and a repeated case. GM/local
+outputs are bitwise equal, independent FP32 reference checks pass the frozen
+BF16 policy, guards/padding remain intact, and AIV1 witness bytes are unchanged.
+The N129 GM reference uses a legal physical stride144; padded weights/columns
+are excluded from the logical numerical comparison. Host and per-lane clocks
+are diagnostic component measurements, not model latency or TPOT evidence.
+Evidence: `runs/as2/probes/local_gemm_witness_g2_20261102_v5/` and
+`runs/as2/probes/local_gemm_witness_g8_20261102_v6/`, including frozen sources,
+images, independent references, five process receipts and summaries.
+
+The first v1 G1 cohort stops after an M16 Host timeout60s, with launch-return
+but no original stream-completion evidence; it is not a verified kernel
+deadlock. Failure source/image/logs remain under
+`runs/as2/failures/local_gemm_timeout_20261102_p1_v1/`. Later marked G1 M16
+recovery passes (Host launch-to-sync0.782273ms), followed by the separate v5
+G2/G8 cohorts above. These do not relabel the original timeout or enable a
+model default. No hardware CrossCore flag protocol is admitted by this probe.
