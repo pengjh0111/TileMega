@@ -114,6 +114,24 @@ samples; it is not formal eager G-PERF or administrative isolation evidence.
 TTFT34.201020→34.235871ms; E2E6290.682469→5117.715149ms;
 throughput162.780430→200.089292 output token/s.
 
+Independent **priced-recipe** validation then measures TPOT6.166007→5.013142ms,
+paired speedup1.221484 [1.204458,1.238751], five fixed process pairs. Process
+CV0.51%/0.62%; all40 token hashes agree. TTFT34.180689→34.254921ms,
+E2E6342.017528→5162.654716ms, throughput161.462815→198.347567 token/s.
+Both arms use their own native cost-selected FIFO and the same compiled
+implementation image. All10 load receipts remain incompletely characterized;
+this is local request improvement, not final eager G-PERF. Evidence:
+`bench/taskbody_context_priced_pairs_20261102_v1/`.
+
+`verified-run`: the same B1 cached-KV contract also passes the actual full
+Llama-3.2-1B/D64 model with its existing three-part down-projection combine.
+Full64/1024 and teacher512 pass; C2 compares217 common files, C3 passes5/5
+fresh processes/10 reset requests (313 captured files per request). No model
+dimensions, per-layer weights, RoPE, casts or split-K fixes were dropped.
+This second model is **unpriced bootstrap correctness only**; its new Body
+prices, request selection and TPOT comparison remain pending. Evidence:
+`correctness/taskbody_llama1b_cached_b1_20261102_v1/`.
+
 Raw evidence under `runs/as2/`:
 
 - `bench/taskbody_{session,cached_b1}_pairs_20261102_v1/` and
@@ -148,10 +166,23 @@ No failed attempt is relabelled a device pass. Builds use nice10/parallel1.
 Exact job counts/runtime/storage, final SHAs and cleanup receipts are recorded
 in `runs/as2/search/taskbody_checkpoint_20261102_v2.json` and `resume.json`.
 
+This continuation records121 own job receipts, all on physical1:120 successful
+process exits and one Host geometry rejection before launch. Numerical
+streaming failures are reported separately above. Cumulative receipt/process
+elapsed time1741.914s is not hardware busy time. No own job remains active.
+Sampled generated peak118.500GiB; final117.457GiB, budget150GiB. Hash-checked
+sharing of504 completed C3 payloads releases1123024896B without removing any
+sample path or changing bytes; the full C3 audit passes again afterward.
+General manifest cleanup removes0 files. Inventory/failure/selected/recent
+build protections remain active. CPU checks cover49 targeted Python cases
+and the native schedule/price/ABI contract executable; no CUDA checks run.
+
 ## Remaining roadmap
 
-G-BODY/G-PIPE/G-CORRECT/G-PERF remain in progress. Still required: admission of
-new priced request Plans, nine remaining dense cells, CATLASS49 Cube/local
+G-BODY/G-PIPE/G-CORRECT/G-PERF remain in progress. One new priced request cell
+has numerical/stability and local paired-gain evidence; a second cell has new
+bootstrap correctness. Prior ten-cell results retain their old identities.
+Still required: remaining new dense recipe admissions, CATLASS49 Cube/local
 streaming preserving the frozen model contract, Task-internal double buffers,
 bounded C/V credit slots and contiguous retired-prefix audit, dual-AIV
 participants, same-group affinity/region lowering, family geometry/small-M
