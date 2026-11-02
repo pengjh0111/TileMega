@@ -293,3 +293,4 @@ The single timing retry is still unused; collection waits outside GPU locks for 
 The final artifact and all four valid candidate timings remain sealed; one complete final-check retry awaits a longer quiet scheduling window.
 **verified, B4** On continuation, byte/permission/mtime-identical sealed-input copies were hardlinked (219.9MiB freed); logical paths and hashes are unchanged.
 Trace export already compresses each rank before the next dump (about1.5GiB peak temporary space); no collector or device change.
+**verified, B4** Read-only recovery preflight validates four candidate bundles, the1% decision and the retained final artifact/residency; no GPU launch or retry mutation.
