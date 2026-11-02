@@ -78,6 +78,7 @@ def main():
         '## SM90 comparison and accepted optimization', '',
         '- **verified** current complete SM90 results/source: `origin/tilemega@213a3884a4e14629ca99f63755d501c65a7d8f53`; no merge or H800 remeasurement.',
         '- **verified** sharding, persistent launch pipeline, AR placement and BF16 arithmetic match. No missing collective or per-token host loop.',
+        '- **verified** all10 SM90 pins enable KV-group qkv handoff and disable cross-stage weight streaming; C550 retains V2 grid boundaries. Finer handoff remains a future design, outside this MX-7 protocol.',
         '- **verified** the original MX-7§6.4 mapping gave each lane four LL8 packets at32-byte inter-lane strides. SM90 assigns one adjacent column pair/lane.',
         '- **verified** shared pair-lane mapping preserves wire layout, rank order, rounding, geometry and synchronization; production peer primitives stay unchanged.',
         '- **verified** restoring two-pass sends or replacing only peer primitives did not improve performance; those candidates stay off.',

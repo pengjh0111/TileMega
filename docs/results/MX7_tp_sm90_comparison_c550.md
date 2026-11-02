@@ -34,6 +34,8 @@ request motivates the local epilogue change; wire protocol and arithmetic remain
 | Shards | qkv/gate_up/head by N; o/down by K | Same recipes and per-rank KV | **verified** No missing shard or extra unsharded GEMM |
 | Execution | One library, one persistent grid/rank; prompt and decode ranges | Same, two asynchronous range launches/rank | **verified** No per-token host launch or host AR |
 | Prompt | All steps execute AR/head exchange; suppress prompt token writes | Same | **verified** Extra prompt heads affect TTFT |
+| qkv handoff | All ten selected pins use per-KV-group readiness (`group_wait=true`) | V2 grid boundary | **verified** Finer handoff is not ported by MX-7 |
+| CTA roles |160threads:32 producers +128 consumers |512 compute threads; thread0 also barrier role | **verified** Platform-specific task-body difference |
 | AR | BF16 partials, ascending-rank FP32 sum, BF16 sum then residual | Same rounding and rank order | **verified** No changed arithmetic contract |
 | AR schedule | Send all thread packets, then receive; recompute packets; noinline helpers | Resource-approved per-item send/receive, inline polling | **verified** Implementation difference; see qualification below |
 | Shared epilogue | One two-column LL packet per thread/item | Eight columns and four LL packets per thread/item | **verified** MetaX checks four packets serially |
@@ -226,11 +228,28 @@ separate stage costs. The source metrics are each scope final_timing references.
 **verified** Rank0 mean of28 per-layer medians (us), original/new selected
 geometries respectively: qkv14.426/14.636; attention42.594/42.614;
 o+AR166.449/15.497; gate_up16.302/16.791; down+AR202.020/19.777.
-Head per-step213.0/137.5us also changes geometry; it is not attributed solely
-to the AR mapping. Maximum per-step inter-rank differences fall from
+**verified** Head per-step213.0/137.5us uses identical TN32/WN8/D3/Pw8
+coordinates. Its median inter-rank duration spread falls72.09→2.06us.
+**inferred** Reduced upstream arrival skew contributes; this is not an isolated
+head-body speedup. Maximum per-step inter-rank differences fall from
 83.42/98.60us(o/down) to9.28/3.94us. These traces are diagnostics; the
 same-geometry, uninstrumented E2E P-PAIR supplies the enabling evidence.
 **inferred** Attention V2 is now the largest remaining per-layer component.
 MX-7§10.1 excludes attention V3, so this opportunity is recorded without
 expanding the implementation or candidate domain. Complete trace rows and
 resource checks are appended to their existing CSVs.
+
+## Remaining pipeline differences from current SM90 selected pins
+
+**verified** All ten H800 TP pins set `group_wait=true`, `weight_stream=false`.
+TP4 B16 additionally selects cluster2/qkv multicast; the other nine use cluster1.
+SM90 has160threads(32 producers/128 consumers), TMA rings and separate KV-group
+release/acquire at qkv→attention (`Sm90DenseProgram.cuh:679`,
+`Codegen.cpp:2514`). C550 retains512-thread V2, grid stage boundaries and
+32-key attention blocks. The coarse persistent launch/sharding pipeline is
+the same; the intra-CTA and qkv handoff implementations are not identical.
+Cross-stage weight streaming is not an enabled H800 advantage in these pins.
+**inferred** Group readiness and attention body changes are future opportunities,
+not measured causes of the remaining C550 gap. They require a separate design
+from the current MX-7§6–§10 protocol; neither is implemented here. Source/pin
+snapshots: `runs/mx7/sm90_comparison/sm90_reference/pipeline/REFERENCE.json`.
