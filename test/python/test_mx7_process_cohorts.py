@@ -6,7 +6,7 @@ from types import MethodType, SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from tilemega.tp.process_cohorts import guarded_command, output_job, ref, sha, validate_run, seal_and_attach, wait_idle
+from tilemega.tp.process_cohorts import guarded_command, output_job, ref, sha, validate_run, seal_and_attach, wait_idle, validate_checks
 
 
 class FakeCommands:
@@ -23,7 +23,7 @@ class FakeCommands:
         folder.mkdir(parents=True)
         guard = folder / 'guard'
         guard.mkdir()
-        (guard / 'guard_result.json').write_text(json.dumps(dict(code=code, reason=reason)))
+        (guard / 'guard_result.json').write_text(json.dumps(dict(code=code, reason=reason, gpu_indices=['1', '3'])))
         if child is not None:
             (guard / 'pgid').write_text(str(child))
         result = dict(returncode=code, PID=900 + len(self.calls), argv=list(map(str, argv)))
@@ -36,6 +36,46 @@ class FakeCommands:
 
 
 class ProcessCohortTests(unittest.TestCase):
+    @patch('tilemega.tp.process_cohorts.wait_idle')
+    def test_coherent_wrong_gpu_group_is_rejected(self, wait):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cell = FakeCommands([(0, 'child exit 0', 100 + i, False) for i in range(4)])
+            runs = [dict(manifest=cell.run_command(root / f'exec{i}', ['dummy'], guarded=True)['guard_manifest']) for i in range(4)]
+            binary = root / 'fixture_binary'
+            binary.write_bytes(b'CPU metadata fixture; never loaded as a device library')
+            def record(name, value):
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(json.dumps(value))
+                return ref(path)
+            native = record('native.json', dict(PID=100, steps=512, rank_tokens_identical=True,
+                            execution_identity={'artifact_id': 'fixture'}))
+            hf = record('hf.json', {'pass': True})
+            checks = []
+            for i in range(2):
+                tokens = record(f'c2_{i}/tokens.json', [[7] * 1024])
+                checks.append(record(f'c2_{i}/check.json', dict(PID=102+i, steps=1024, tp=2, batch=1,
+                    rank_tokens_identical=True, token_sha256=tokens['sha256'],
+                    execution_identity={'artifact_id': 'fixture'}, **{'pass': True})))
+            data = dict(kind='mx7_individual_check_cohort', fresh_processes=2, producer=validate_run(runs[0]['manifest'])['producer'],
+                binary=ref(binary), native_C1=native, C1=hf, C2=checks, runs=runs,
+                tp=2, batch=1, group='1,3', artifact_id='fixture')
+            proof = record('qualification.json', data)
+            validate_checks(proof)
+            manifest_path = Path(runs[-1]['manifest']['path'])
+            manifest = json.loads(manifest_path.read_text())
+            guard_path = Path(manifest['attempts'][-1]['guard']['path'])
+            guard = json.loads(guard_path.read_text())
+            guard['gpu_indices'] = ['1', '4']
+            guard_path.write_text(json.dumps(guard))
+            manifest['attempts'][-1]['guard'] = ref(guard_path)
+            manifest_path.write_text(json.dumps(manifest))
+            data['runs'][-1]['manifest'] = ref(manifest_path)
+            proof = record('wrong_group.json', data)
+            with self.assertRaisesRegex(ValueError, 'different physical GPU group'):
+                validate_checks(proof)
+
     def test_incomplete_telemetry_waits_without_starting_a_gpu_process(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
