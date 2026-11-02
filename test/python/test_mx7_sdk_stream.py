@@ -59,15 +59,17 @@ class OwnedStreamTests(unittest.TestCase):
 
 class CohortCloseTests(unittest.TestCase):
     @patch('tilemega.serving.tp_engine.torch.cuda.device', side_effect=lambda d: nullcontext())
-    def test_ready_cohort_closes_stream_before_plan(self, device):
+    def test_ready_cohort_releases_storage_before_stream_destruction(self, device):
         calls = []
         engine = TpServingEngine.__new__(TpServingEngine)
         engine.poisoned = False
         engine.ranks = [dict(device=d,
+            stream=SimpleNamespace(synchronize=lambda d=d: calls.append(('sync', d))),
             stream_owner=SimpleNamespace(close=lambda d=d: calls.append(('stream', d))),
             plan=SimpleNamespace(close=lambda d=d: calls.append(('plan', d)))) for d in range(2)]
         engine.close()
-        self.assertEqual(calls, [('stream', 0), ('plan', 0), ('stream', 1), ('plan', 1)])
+        self.assertEqual(calls, [('sync', 0), ('sync', 1), ('plan', 0), ('plan', 1),
+                                 ('stream', 0), ('stream', 1)])
         self.assertEqual(engine.ranks, [])
 
     @patch('tilemega.serving.tp_engine.torch.cuda.device', side_effect=lambda d: nullcontext())

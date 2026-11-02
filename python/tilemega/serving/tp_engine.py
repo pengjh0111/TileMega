@@ -101,7 +101,9 @@ class TpServingEngine:
             raise RuntimeError('TP engine is poisoned; restart the process')
         if not 1 <= count <= self.max_new_tokens:
             raise ValueError('requested token count outside configured generation')
-        source = torch.as_tensor(prompt_ids, dtype=torch.int32, device='cpu').contiguous()
+        incoming = torch.as_tensor(prompt_ids, dtype=torch.int32, device='cpu').contiguous()
+        source = torch.empty(incoming.shape, dtype=torch.int32, device='cpu', pin_memory=False)
+        source.copy_(incoming)
         if tuple(source.shape) != (self.batch, self.prompt_len):
             raise ValueError('TP prompt shape differs from the configured batch and ISL')
         events = [dict(prompt_start=torch.cuda.Event(enable_timing=True),
@@ -150,6 +152,12 @@ class TpServingEngine:
         except BaseException as error:
             self._failure(stage, current_rank, error)
             raise
+        # Pinned storage remembers its copy stream until freed. Release it
+        # while the SDK stream is alive; callers may retain the returned tensor.
+        output = torch.empty(tokens.shape, dtype=tokens.dtype, device='cpu', pin_memory=False)
+        output.copy_(tokens)
+        del tokens
+        tokens = output
         e2e_ms = (time.perf_counter() - wall_start) * 1e3
         ttft_ms = events[0]['prompt_start'].elapsed_time(events[0]['prompt_end'])
         kernel_ms = []
@@ -177,15 +185,22 @@ class TpServingEngine:
                         busy |= not rank['stream'].query()
                     except BaseException:
                         busy = True
-        for rank in ranks:
-            with torch.cuda.device(rank['device']):
-                if busy:
-                    # A live peer can still access every rank's receive buffers.
-                    rank['plan'].handle = None
-                    rank['stream_owner'].abandon()
-                else:
-                    rank['stream_owner'].close()
+        if busy:
+            for rank in ranks:
+                # A live peer can still access every rank's receive buffers.
+                rank['plan'].handle = None
+                rank['stream_owner'].abandon()
+        else:
+            for rank in ranks:
+                with torch.cuda.device(rank['device']):
+                    rank['stream'].synchronize()
+            for rank in ranks:
+                with torch.cuda.device(rank['device']):
                     rank['plan'].close()
+                    rank.pop('weights', None)
+                    rank.pop('state', None)
+            for rank in ranks:
+                rank['stream_owner'].close()
         self.ranks = []
 
     def __enter__(self):
