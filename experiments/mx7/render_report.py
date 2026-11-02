@@ -159,6 +159,8 @@ def main():
         '- **verified, B5** TP4 B2 candidate3/4 timing cohorts exited guard75 after external GPU3/GPU5 load appeared.',
         '  Invalid cohorts are excluded; each original cohort gets at most one new two-process timing cohort after idle checks.',
         '  Successful candidate builds/checks/timings remain unchanged; failed raw metrics and source-bound retry receipts remain.',
+        '- **verified, B4/B5** final TP4 B2 checks later met external GPU3 interference after three C-2 processes.',
+        '  The whole interrupted cohort is unqualified; selected artifact and four valid timings are retained for one final-check retry.',
         '- **verified, B4** resume validation first found a manifest field mismatch and then an archived-root path error.',
         '  Both occurred before a GPU child launch; original logs/receipts are retained separately from the one B5 retry.', '',
         '## Deviations from inferred expectations', '']
