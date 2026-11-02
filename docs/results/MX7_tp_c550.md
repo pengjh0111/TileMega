@@ -284,15 +284,15 @@ Old partial records remain. Seven focused CPU selection/trace tests also pass.
 **verified, B4** Trace aggregation now normalizes an empty head-layer key. One repeated head reference remains append-only and points to the same single trace process; it is not a second sample.
 **verified** TP4 B1 trace and all-rank trace-kernel residency queries pass. Diagnostic per-layer means(µs):qkv7.491,attention25.214,o+AR19.653,gate_up13.626,down+AR22.466;head109.590µs/step.
 
-**verified, B5** TP4 B2 candidate3 timing guard75 (GPU3 external interference) is invalid and excluded.
-A source-bound single retry preserves all successful build/check/timing records; resume tooling prelaunch errors are retained.
-**verified, B4** The retry guard later rejected preflight occupancy (75), before any child/PID or GPU launch.
-The single timing retry is still unused; collection waits outside GPU locks for six consecutive idle samples.
-**verified, B5** Candidate3 single retry passes guard0 (2.780335/2.780742ms). Candidate4 initial timing was then invalidated by external GPU5 load (guard75); its one retry waits for a five-minute quiet scheduling window.
-**verified, B4/B5** B2 final C-1 passes and three C-2 processes pass, then GPU3 external memory invalidates the cohort (guard75); no numeric/token failure was observed.
-The final artifact and all four valid candidate timings remain sealed; one complete final-check retry awaits a longer quiet scheduling window.
-**verified, B4** On continuation, byte/permission/mtime-identical sealed-input copies were hardlinked (219.9MiB freed); logical paths and hashes are unchanged.
-Trace export already compresses each rank before the next dump (about1.5GiB peak temporary space); no collector or device change.
-**verified, B4** Read-only recovery preflight validates four candidate bundles, the1% decision and the retained final artifact/residency; no GPU launch or retry mutation.
-**verified, B4** Remaining checks/timing use independent guards per fresh process; required C-2(5) and timing(2) counts and guard policy are unchanged; prior invalid batches stay excluded.
-**verified, B4** B16 trace now separates qualified GPU capture from CPU analysis; reanalysis of real B1 data preserves all141 stage statistics exactly.
+**verified, B5** TP4 B2 candidate3/4 timing and final-check cohorts met external GPU3/GPU5 load (guard75).
+Original successful candidates and failed metrics remain source-bound; invalid whole cohorts are excluded.
+**verified, B4** Per-process guards now retain valid fresh starts separately: counts remain C-2(5),timing(2),warm1/timed2; guard thresholds unchanged.
+Read-only recovery validates prior four bundles and the1% decision before any GPU launch; original prelaunch tooling errors remain archived.
+**verified, B4** Immutable sealed-input hardlinks free219.9MiB without changing paths/hashes/mode/mtime. Trace dumps compress rank-by-rank (about1.5GiB peak).
+B16 trace capture is separated from CPU analysis; real B1 reanalysis preserves all141 stage statistics exactly.
+**verified, B4** GPU4 remains occupied. Own CPU-only old-group waiters were retired; no GPU or foreign process was signaled.
+Alternative{1,2,3,5} passes P2P12-pair matrix and LL8 all-to-all P1024/P262144, each5/5 fresh processes with zero tearing/timeouts.
+Only unfinished TP4 B2/B4/B8/B16 move:45 new communication constants,24 matched baseline starts, independent new top4 selection.
+Completed six finals and1840 single-rank cost rows stay unchanged. New costs carry physical-group metadata; reporting rejects mismatched TP4 baselines.
+**verified, B4** A calibration aggregator variable-shadowing error occurred before subprocess creation; fixed, original CPU log retained.
+**verified**21 CPU tests pass for selection, independent guards, recovery and trace; no native/TP1/MoE code changed in this continuation.

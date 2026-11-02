@@ -34,6 +34,11 @@ def main():
     costs = ROOT / 'configs/targets/xcore1000_mx7_tp.json'
     qualification = json.loads(costs.with_suffix('.qualification.json').read_text())
     assert qualification['solver_eligible']
+    cell_costs = {}
+    for scope, row in final.items():
+        sealed = Path(row['selection_results']).parent / 'inputs/xcore1000_mx7_tp.json'
+        assert hashlib.sha256(sealed.read_bytes()).hexdigest() == row['cost_table_sha256']
+        cell_costs[scope] = json.loads(sealed.read_text())
     start = '6cab45b9604e306fef1916863fe16b09d895c32f'
     head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
     count = subprocess.check_output(['git', 'rev-list', '--count', f'{start}..{head}'], text=True).strip()
@@ -57,15 +62,15 @@ def main():
         '- **verified** NCCL/Gloo available; torch.compile TP uses NCCL. TileMega uses direct MACA P2P.',
         '- **verified** read-only `mx-smi topo -m/-p/-d`: MX links, PCIe NODE labels; reachability is separately qualified.',
         '- **verified** LL8/fine-grained allocation/volatile AS1 scalar64 store/`__ldcg`64 load: pair/all-to-all P1024/P262144 each5/5 ×2000epochs ×104CTAs, zero tearing/timeouts.',
-        '- **verified** TP2 main{1,3}:2373.504ns single-way; secondary{4,5}:2629.120ns (five processes); TP4{1,3,4,5}.',
+        '- **verified** TP2 main{1,3}:2373.504ns single-way; secondary{4,5}:2629.120ns (five processes).',
         '- **verified** At104CTAs, selected coalesced writes:8.121GB/s to one peer,19.253GB/s aggregate to three peers.',
-        '- **verified** GPUs0/6/7 are unavailable and skipped; no reset/clock/driver changes.',
+        '- **verified** TP4 B1 retains{1,3,4,5}; B2/B4/B8/B16 use requalified{1,2,3,5} after GPU4 remained occupied; GPUs0/6/7 unavailable.',
         '- **inferred** Each rank executes qkv→attention→o+AR→gate_up→down+AR per layer, then head LL argmax exchange produces the common token.',
         '- **inferred** Producers write BF16 partials to all peers, then read q in ascending order; epoch=past+1, prompt runs from past0 and suppresses early token writes.', '',
         'Source hashes, frozen references, exact build/run commands and topology: `runs/mx7/sync/onboarding.md`.', '',
         '## Baselines', '',
         '**verified** Two fresh processes/cell, each warm1+timed2; TPOT=(E2E_N1024−E2E_N1)/1023.',
-        'TP2 baselines use secondary{4,5}; TileMega uses C0-selected main{1,3}. TP4 uses{1,3,4,5} for all systems.',
+        'TP2 baselines use secondary{4,5}; TileMega uses C0-selected main{1,3}. Each TP4 baseline matches its final cell\'s physical group.',
         'TP1 values and baseline scaling efficiencies are retained in `MX7_tp_baselines_c550.csv`.', '',
         '| TP | B | vLLM ms | SGLang ms | torch.compile ms |',
         '|---:|---:|---:|---:|---:|']
@@ -78,25 +83,25 @@ def main():
         '**verified** Two additional fresh processes/cell, warm1+timed2; TPOT=(E2E−TTFT)/1023.',
         'TTFT includes prompt mode and63 extra head evaluations. Ratios use the same TP degree.',
         'Efficiency=TP1_frozen_TPOT/(TP×TP_TPOT); throughput counts all B×1024 output tokens.', '',
-        '| TP | B | TPOT ms | TTFT ms | E2E ms | tokens/s | fastest/TM | TP1/TM | efficiency |',
-        '|---:|---:|---:|---:|---:|---:|---:|---:|---:|']
+        '| TP | B | GPUs | TPOT ms | TTFT ms | E2E ms | tokens/s | fastest/TM | TP1/TM | efficiency |',
+        '|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|']
     for t in (2, 4):
         for b in (1, 2, 4, 8, 16):
             row = final[str(t), str(b)]
             values = [num(row[k]) for k in ('tpot_ms', 'ttft_ms', 'e2e_ms', 'tokens_per_s', 'speedup_vs_fastest')]
             values += [num(float(row['tp1_frozen_tpot_ms']) / float(row['tpot_ms'])),
                        num(float(row['scaling_efficiency']) * 100, 1) + '%']
-            lines.append(f'| {t} | {b} | ' + ' | '.join(values) + ' |')
+            lines.append(f'| {t} | {b} | {row["gpu_indices"]} | ' + ' | '.join(values) + ' |')
     lines += ['', 'Each engine ratio, both process values, pin/binary/cost SHA and source identity are in `MX7_tp_final_c550.csv`.',
         'All ten pins come from source-bound k-best/top4 and the1% measured selection rule; no development coordinates are final.',
-        '**verified** Cost table SHA256 `' + hashlib.sha256(costs.read_bytes()).hexdigest() + '`.',
+        '**verified** Per-cell sealed cost tables (SHA256): ' + ', '.join('`' + x + '`' for x in sorted({r['cost_table_sha256'] for r in final.values()})) + '.',
         'Competitive noisy keys receive two extra fresh processes; remaining noisy keys use p90.', '',
         'Selected communication cost terms (diagnostic, µs; final column is an **inferred**28-layer projection):', '',
         '| TP | B | o TN | down TN | extra o AR | extra down AR | total AR ms/step |',
         '|---:|---:|---:|---:|---:|---:|---:|']
-    constants = json.loads(costs.read_text())['tp_constants']['t_ar']
     for t in (2, 4):
         for b in (1, 16):
+            constants = cell_costs[str(t), str(b)]['tp_constants']['t_ar']
             config = json.loads((ROOT / final[str(t), str(b)]['pin']).read_text())['mx_decode_v2']
             values = []
             for stage in ('o', 'down'):
@@ -163,12 +168,17 @@ def main():
         '  Invalid cohorts are excluded; each original cohort gets at most one new two-process timing cohort after idle checks.',
         '  Successful candidate builds/checks/timings remain unchanged; failed raw metrics and source-bound retry receipts remain.',
         '- **verified, B4/B5** final TP4 B2 checks later met external GPU3 interference after three C-2 processes.',
-        '  The whole interrupted cohort is unqualified; selected artifact and four valid timings are retained for one final-check retry.',
+        '  The whole interrupted cohort is unqualified; original artifacts/timings remain archived and were not promoted after the group change.',
         '- **verified, B4** resume validation first found a manifest field mismatch and then an archived-root path error.',
         '  Both occurred before a GPU child launch; original logs/receipts are retained separately from the one B5 retry.', '',
         '- **verified, B4** remaining scopes guard each fresh process separately; passing runs survive later interruptions.',
         '  C-2 still needs5 selected/2 candidate processes; timing still needs2 warm1/timed2 processes. Guard thresholds are unchanged.',
         '- **verified, B4** B16 trace GPU capture and CPU analysis are separate; real B1 reanalysis matches all141 original stage statistics.', '',
+        '- **verified, B4** GPU4 stayed occupied, so only the four unfinished TP4 scopes moved to{1,2,3,5} under all-card authorization.',
+        '  P2P and both LL8 all-to-all sizes pass5/5; AR/head units are rechecked.45 TP4 constants and24 matched baseline starts are new;',
+        '  1840 single-rank cost rows and six completed final cells are retained. Remaining scopes are selected again with group-bound costs.',
+        '- **verified, B4** one calibration aggregator shadowed the group string with a list before subprocess creation; fixed before GPU launch;',
+        '  the original CPU error log remains. No numerical test, sample count or guard threshold was changed.', '',
         '## Deviations from inferred expectations', '']
     for t, b, low, high in [(2, 1, 2.35, 2.50), (2, 16, 3.3, 3.4), (4, 1, 1.85, 2.05), (4, 16, 2.5, 2.7)]:
         row = final[str(t), str(b)]
