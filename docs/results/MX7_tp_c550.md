@@ -291,3 +291,5 @@ The single timing retry is still unused; collection waits outside GPU locks for 
 **verified, B5** Candidate3 single retry passes guard0 (2.780335/2.780742ms). Candidate4 initial timing was then invalidated by external GPU5 load (guard75); its one retry waits for a five-minute quiet scheduling window.
 **verified, B4/B5** B2 final C-1 passes and three C-2 processes pass, then GPU3 external memory invalidates the cohort (guard75); no numeric/token failure was observed.
 The final artifact and all four valid candidate timings remain sealed; one complete final-check retry awaits a longer quiet scheduling window.
+**verified, B4** On continuation, byte/permission/mtime-identical sealed-input copies were hardlinked (219.9MiB freed); logical paths and hashes are unchanged.
+Trace export already compresses each rank before the next dump (about1.5GiB peak temporary space); no collector or device change.

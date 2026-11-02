@@ -153,6 +153,8 @@ def main():
         '- **verified, B4** resource ledger assumption corrected by appending CU-derived LDS values; old rows retained.',
         '  One pending query was prematurely labeled rejected; an appended correction and terminal-cohort checks fix the ledger.',
         '  Trace aggregation now normalizes empty layer keys; one repeated head reference remains, pointing to the same process.',
+        '- **verified, B4** low disk space handled by hardlinking byte/permission/mtime-identical sealed inputs (219.9MiB freed);',
+        '  logical paths and hashes are unchanged. Rank-by-rank lossless trace compression bounds temporary disk to about1.5GiB.',
         '- **verified, B7** cost/constants noise supplements follow the competitive2% rule, otherwise p90.', '',
         '- **verified, B4** later timing pairs share one guard preflight while retaining two fresh processes, each warm1/timed2;',
         '  per-process PID/command/exit records and guard provenance remain; each timing job retains the900s limit.', '',
