@@ -54,6 +54,11 @@ for file in sorted(a.root.glob('tp*/B*/results.json')):
  t,b=result['tp'],result['batch'];timing=result['final_timing'];timing_evidence(timing);metrics=[json.loads(checked(ref).read_text())for ref in timing['measurements']]
  assert len(metrics)==2 and all(x['tp']==t and x['batch']==b and x['rank_tokens_identical']and x['timed_tokens_identical']for x in metrics)
  assert all(x['gpu_indices']==list(map(int,result['group'].split(',')))for x in metrics)
+ reference=json.loads((checked(result['final_correctness']['C2'][0]).parent/'tokens.json').read_text())
+ for measured in metrics:
+  for run in measured['runs']:
+   expected=reference if run['N']==1024 else [row[:1]for row in reference]
+   assert run['N']in(1,1024)and run['tokens']==expected,'warm/timed generation differs from fresh C-2'
  pin=checked(result['selected_pin']);pinvalue=json.loads(pin.read_text());assert pinvalue['mx_decode_v2']['purpose']=='manual'
  published=pathlib.Path(f'configs/pins/mx7/qwen3_1_7b_tp{t}_B{b}_selected.json');published.parent.mkdir(parents=True,exist_ok=True)
  if published.exists():assert published.read_bytes()==pin.read_bytes()
