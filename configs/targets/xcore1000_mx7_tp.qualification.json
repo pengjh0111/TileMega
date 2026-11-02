@@ -1,6 +1,6 @@
 {
   "solver_eligible": true,
-  "cost_table_sha256": "44c318739d7c50dd1551a254a5d8af28adee38204a158d3cf12dce8404e14229",
+  "cost_table_sha256": "2927cf91afbc8589f8706d50699bc837fa7a6898978ed0fefed6fcab2c906f6e",
   "kind": "mx7_tp_measured_stage_costs",
   "complete_scopes": 10,
   "source_digest": "181738c42e7d2081830bfe3d70fce99ddb2db809473c95e8b07e65c2797fd820",
@@ -12,6 +12,10 @@
     {
       "path": "/root/tilemega/runs/mx7/resume1/costs_g1345_archive/xcore1000_mx7_tp.json",
       "sha256": "7ad97df7881ba38ddaa0b720fb1eb6dc287fb60de042d989bee76fea3a3ecaad"
+    },
+    {
+      "path": "/root/tilemega/runs/mx7/sm90_comparison/pre_pair_costs/xcore1000_mx7_tp.json",
+      "sha256": "44c318739d7c50dd1551a254a5d8af28adee38204a158d3cf12dce8404e14229"
     }
   ],
   "supplement_requested_keys": 1,
@@ -557,6 +561,38 @@
       2,
       3,
       5
+    ]
+  },
+  "program_implementation": {
+    "ar_mapping": "shared_pair_lanes",
+    "peer_access": "fine_volatile_AS1_LL8_store_ldcg_load",
+    "host_stream": "SDK_nonblocking_ExternalStream",
+    "source_head": "8b32ec8f77907711ee60141943679e79b651cef7",
+    "files": {
+      "include/tilemega/Backend/Mx/DecodeGemmV2.h": "c9410ff9d561492ca4e84285c5bb9b2047227dee2d1c3a975cbf2c2f6001f107",
+      "include/tilemega/Target/Maca/PeerAccess.h": "dab3db1b8ccdf5192879d6b5e47fb26dc3dd34d024e50ae1c6a798698a27d83f",
+      "python/tilemega/serving/tp_engine.py": "61270354472149b8dcee003484f9e8f00cad762edf20ec8092278c9c0e0398b1",
+      "python/tilemega/serving/tp_stream.py": "a6596bf1379ce031a3289a023a767586b320715bbd8ab6fffe4ab128ee28960c"
+    }
+  },
+  "program_qualification": {
+    "units": {
+      "path": "/root/tilemega/runs/mx7/sm90_comparison/pair_lanes/qualification/QUALIFIED.json",
+      "sha256": "cf14c6535544d27319fc85250d1fd75931a6af9e1963c1ddd27baa52b6795a88"
+    },
+    "development_PPAIR": {
+      "path": "/root/tilemega/runs/mx7/sm90_comparison/full_model_tp4_B16/QUALIFIED.json",
+      "sha256": "373fd7f1e07021a3b8cd21e01e3be74e26141312157c6e5f6f889ce6e2c6d17b"
+    },
+    "constants_provenance": [
+      {
+        "path": "/root/tilemega/runs/mx7/sm90_comparison/constant_noise_tp2_main/PROVENANCE.json",
+        "sha256": "6255d3445ce77ec9dc1339982244838f650e7b6e8564533f9e2832535aa082b5"
+      },
+      {
+        "path": "/root/tilemega/runs/mx7/sm90_comparison/constant_noise_tp4/PROVENANCE.json",
+        "sha256": "85cb329a29544e0abba7bdbe613f59835c2c76167cb4d757e79b13fde0adb51d"
+      }
     ]
   }
 }

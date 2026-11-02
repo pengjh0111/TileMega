@@ -4,6 +4,17 @@ Evidence: **verified** = source or local execution checked; **stated** = remote 
 **inferred** = interpretation. The original 30 external baseline cells stay frozen;
 no baseline measurement is part of this audit or optimization.
 
+**verified** Same-geometry TP4 B16 E2E P-PAIR:12.526515→3.081392ms,
+**4.065×** over the original and **1.092×** over the frozen SGLang baseline.
+Both arms use the same SDK host path and group; generated CU bytes are identical.
+Only the included shared-AR epilogue changes. This is development control data;
+new final pins must still come from the updated measured-cost/top-4 selection.
+
+The original eight-column ownership followed MX-7§6.4. The migration mismatch
+is its packet-to-lane granularity relative to current SM90, rather than a missing
+shard, collective, or launch. The user's subsequent SM90 comparison/optimization
+request motivates the local epilogue change; wire protocol and arithmetic remain fixed.
+
 ## Sources
 
 - **verified** MetaX starting HEAD `a7c4a7968a787a5bf5a36fbbfc6532ae1de7a176`.
@@ -30,7 +41,7 @@ no baseline measurement is part of this audit or optimization.
 | Head | Fence/flag exchange | LL8 candidate exchange | **verified** Explicit MX-7 design; original units/litmus pass 5/5 |
 | Residual prefetch | Async producer path and consumer epilogue | V2 GEMM Early/Finish path | **verified** No separate communication kernel |
 | Solver | Analytic stage terms plus measured communication | Measured rank stages plus measured communication, top-4 E2E | **verified** Both include 56 ARs and one exchange/step |
-| Stream creation | `torch.cuda.Stream` | Same; approved SDK-owned stream adapter remains a draft | **verified** Initialization occurs outside TPOT timing |
+| Stream creation | `torch.cuda.Stream` | Approved SDK-owned nonblocking stream; lifetime correction below | **verified** Initialization occurs outside TPOT timing |
 
 ## What explains the current gap
 
@@ -66,8 +77,9 @@ Fine-memory throughput and serialized receive waits remain separate hypotheses.
 
 ## Controlled implementation experiments
 
-All sources are copied under `runs/mx7/sm90_comparison/`; production headers,
-TP1 and MoE are unchanged while these experiments qualify.
+Experimental sources remain copied under `runs/mx7/sm90_comparison/`.
+The qualified pair-lane shared epilogue is committed at `8b32ec8f7`; production
+peer primitives, TP1 and MoE remain unchanged. The eight-plan frozen gate passes8/8.
 
 - `baseline`: current production body.
 - `two_pass`: send all items before receive, recomputing BF16 values on receive.
@@ -160,3 +172,25 @@ initialization/event/copy/explicit-destroy processes; six focused CPU lifecycle
 checks pass (full focused CPU suite56). It is integrated only into the TP engine.
 The edit acquired GPUs1–5's existing locks between payloads, preserving source
 identity during every in-flight check. Full-model qualification continues.
+
+## Complete-model acceptance of the local mapping change
+
+- **verified** TP2/TP4 × B1/B16 ordered-BF16 AR units: each5/5 fresh processes,
+  nine legal geometries/process, zero bit mismatches; all-rank resident1, stack/static0.
+- **verified** Full TP4 B16 C-1:8192 positions, ratio1.0, maximum gap0.171875;
+  five fresh1024-token C-2 processes pass. Tokens also match the old same-geometry
+  implementation byte for byte. Full-model resources:233 MTreg, stack/static0, resident1.
+- **verified** Same-card-group A/B/A/B, two fresh processes/arm, warm1+timed2:
+  old12.537724/12.515307ms; new3.081912/3.080873ms. No trace/DIAG/watchdog.
+  `MX7_tp_optimization_c550.csv` binds the measurements, pin and binaries.
+- **verified** The first SDK full-model litmus produced correct tokens but exited−6
+  when tensor storage cleanup tried to record an event after stream destruction.
+  That failed exit is retained in the correctness CSV. The corrected engine
+  releases pinned copy storage inside generation, returns ordinary CPU storage,
+  and frees GPU storage before destroying streams. Four-card pinned-lifetime
+  probes and a complete new B16 injected-delay cohort both pass5/5 fresh processes.
+- **verified** `5636b54ae` contains the lifetime correction; no AR fence, number
+  format, tolerance, HF reference or guard policy changed.
+- **stated** External baselines remain the original frozen30 passing cells.
+  Communication calibration is on C0's primary{1,3} and TP4{1,2,3,5}; the earlier
+  {4,5} microbenchmarks are diagnostics. New ten-scope solver selection continues.

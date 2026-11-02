@@ -1,297 +1,253 @@
-# MX-7: Qwen3-1.7B tensor parallelism on C550
+# MX-7: Qwen3-1.7B TP2 / TP4 on C550
 
-Evidence labels: **verified** = executed here; **stated** = supplied specification;
-**inferred** = reasoning, not a measurement. Raw evidence is under `runs/mx7/`.
+Evidence: **verified** = executed here; **stated** = user specification; **inferred** = reasoning.
+Raw successes, failures, generated sources and binaries remain under `runs/mx7/`.
 
-## Current status (verified; CP3 partially complete)
+## Scope and source identity
 
-- Ten of ten formal final cells complete: TP2/TP4 B1/2/4/8/16; all 30 vLLM/SGLang/torch.compile baseline cells pass.
-- **stated** Collect baselines once and reuse across GPU groups. **verified** The original matrix is frozen in `MX7_tp_baselines_frozen_c550.csv`; group-change repeats are canceled.
-- `MX7_tp_comparison_c550.csv` combines all three baselines, selected TileMega results, TTFT/E2E/throughput, speedups and source hashes; all ten selected results are included.
-- B16 trace and extra new-group litmus remain; native queues use guarded{1,2,3,5}. SM90 audit and isolated AR experiments: `MX7_tp_sm90_comparison_c550.md`.
+- **stated** BF16 greedy, ISL/OSL=64/1024, TP2/TP4 × B=1/2/4/8/16.
+- **verified** model directory `/root/models/qwen3_1_7b_rand`.
+- **verified** branch `tilemega-metax`; starting HEAD `6cab45b9604e306fef1916863fe16b09d895c32f`.
+- **verified** evidence aggregation HEAD `8b32ec8f77907711ee60141943679e79b651cef7`; commits since start: 102.
+  The report/publish commit follows this evidence HEAD; final HEAD/push status is in the delivery message.
+- **verified** specification SHA256 `5caed7edd4477b8fb63d33bed9254bbc4e33d92041eb5969113fefeb805d7cee`.
+- **stated** subsequent all-card authorization and torch.compile continuation:
+  SHA256 `f67014253a3cca7234429ff3671e293c0104fb04b68fde1bb9dc52b518c0b284`.
+- **verified** TP1 passes the frozen CU-byte/function-instruction-count gate; protected MoE files/final CSV are unchanged; no MoE performance runs.
 
-## Historical A5 stop: resumed with all-card authorization
+## Environment, C0 and execution sequence (10-line onboarding summary)
 
-- **verified** at 22:07:12 and 22:10:45 CST on 2026-11-01, `mx-smi -i 4,5,6,7`
-  reports GPU6 **Not Available**, GPUs4/5/7 Available, and no device processes.
-  The same state persists at 22:27:25 after our submitters have exited.
-- **verified** a fresh original probe fails inside the initialization call at
-  `experiments/mx7/ll_litmus.cu:147`, before peer binding or the LL kernel:
-  `mxkwCreateQueueBlock` ioctl fails (`queues.c:850`), then
-  `Device::acquireQueue` fails (`mx_device.cpp:1626`), followed by SIGSEGV.
-  A signal backtrace reaches `mcMemset+0x2ae` / `wcudaMemset+0x4f`;
-  host markers show a successful 4 MiB allocation immediately before memset.
-  This is logical device0 in the guarded {6,7} group, hence physical GPU6.
-- **verified** independent vLLM and SGLang TP4 initialization also reports this
-  queue failure. This is not evidence of LL tearing or AR numerical failure.
-  Why GPU6 became unavailable is **unresolved**; primitive-specific causation
-  is not established by the chronology or these host stacks.
-- **inferred, A5** further progress requires device recovery outside the
-  specified implementation. All our GPU submitters have been stopped; no
-  reset, driver, clock or power change was attempted. Raw logs, failures and
-  interrupted cohorts remain, including `runs/mx7/A_STOP.json`.
-- Communication primitives/allocation and the TP2 main group are **undecided**.
-  No production TP device code or TP model launch was attempted. There is
-  **no TileMega TPOT, speedup, scaling efficiency or final selected TP pin**.
-- Code stop HEAD: `1f6dc640b` (23 commits after the starting HEAD);
-  results/report are committed separately immediately afterwards.
+- **verified** MACA3.8.2.6, cucc/mxcc1.0.0(890c70f3aa), driver3.8.1.
+- **verified** Torch2.10.0+metax3.8.2.2; Transformers5.12.0; SGLang0.5.14+detached.c432db2fb.maca3.8.2.122; vLLM0.25.0+empty.
+- **verified** NCCL/Gloo available; torch.compile TP uses NCCL. TileMega uses direct MACA P2P.
+- **verified** read-only `mx-smi topo -m/-p/-d`: MX links, PCIe NODE labels; reachability is separately qualified.
+- **verified** LL8/fine-grained allocation/volatile AS1 scalar64 store/`__ldcg`64 load: pair/all-to-all P1024/P262144 each5/5 ×2000epochs ×104CTAs, zero tearing/timeouts.
+- **verified** TP2 main{1,3}:2373.504ns single-way; secondary{4,5}:2629.120ns (five processes).
+- **verified** At104CTAs on{1,2,3,5}, selected writes:9.385GB/s to one peer,19.088GB/s aggregate to three peers (five processes).
+- **verified** TP4 B1 retains{1,3,4,5}; B2/B4/B8/B16 use requalified{1,2,3,5} after GPU4 remained occupied; GPUs0/6/7 unavailable.
+- **inferred** Each rank executes qkv→attention→o+AR→gate_up→down+AR per layer, then head LL argmax exchange produces the common token.
+- **inferred** Producers write BF16 partials to all peers, then read q in ascending order; epoch=past+1, prompt runs from past0 and suppresses early token writes.
 
-## Resume: C0 qualified; implementation and baselines continuing
+Source hashes, frozen references, exact build/run commands and topology: `runs/mx7/sync/onboarding.md`.
 
-- **stated** user authorizes all physical cards and further torch.compile adaptation;
-  instruction SHA256 `f67014253a3cca7234429ff3671e293c0104fb04b68fde1bb9dc52b518c0b284`.
-- **verified** LL8 / fine-grained allocation / volatile AS1 store / `__ldcg` load:
-  pair and four-card P=1024/262144 each pass 5/5 fresh processes, 2000 epochs,
-  104 CTAs, zero tearing/timeouts. Current TP4 group {1,3,4,5}, TP2 main {1,3}.
-- **verified** single-way latency: {1,3} 2373.504 ns; {4,5} 2629.120 ns (5 processes).
-  Selected coalesced P2P bandwidth at 104 CTAs: one peer 8.121 GB/s;
-  three peers 19.253 GB/s aggregate. These are diagnostics, not model speedups.
-- **verified** GPUs0/6/7 became unavailable during previous optional probe runs;
-  their cause remains unresolved. Failed records remain; no reset was attempted.
-  No further unsafe system-atomic probe combinations are scheduled.
-- **verified** repaired torch.compile TP2 completes both fresh processes for all five batches.
-  B1/B2/B4/B8/B16 TPOT=14.034457/16.258904/16.603267/21.626714/32.918588ms.
-  Isolated accelerate 1.15.0 resolves the dependency; compiled autograd resolves
-  HF's TP gradient-hook compiler rejection without removing hooks or using eager.
-- **verified** guarded TP2 torch.compile and TP4 baseline campaigns are running.
-  The now-qualified native implementation and development results are recorded below.
+SM90 comparison and ongoing communication diagnostics: `MX7_tp_sm90_comparison_c550.md`; combined measurements: `MX7_tp_comparison_c550.csv`.
 
-## CP2 implementation progress
+## Baselines
 
-- **verified** peer-bound runtime, poisoned-plan checks, prompt mode, residual AR
-  and LL head exchange compile. No production communication fence was added.
-- **verified** the initial development builds were rejected at 256 MTreg and
-  336–472 stack bytes. The approved per-item send/receive fallback is used.
-  Dynamic private pointer-array indexing also materialized a 232-byte operand;
-  constant-field pointer selection removes it without changing the protocol.
-- **verified** development TP2 B1 / TP4 B1 / TP4 B16 now have respectively
-  229 / 225 / 226 MTreg, zero stack/static memory. All ranks query resident=1.
-- **verified** the eight frozen CU/instruction comparisons pass after these
-  changes. CPU tests:29 passed. All eight AR/head unit scopes pass5/5.
-- **verified** development C-1: TP2 B1 / TP4 B1 / TP4 B16 all have ratio1.0,
-  max gaps0.15625 /0.109375 /0.125. TP2/4 B1/B16 C-2 and injected-delay
-  litmus each pass5/5 fresh1024-token processes; all ranks agree at every position.
-- **verified** preliminary AR TP2 B1: 5/5 fresh processes, nine legal geometry
-  cases per process, exact ordered BF16 reference and zero mismatches.
+**verified** Two fresh processes/cell, each warm1+timed2; TPOT=(E2E_N1024−E2E_N1)/1023.
+**stated** Baselines are collected once and reused across physical GPU groups; changing groups does not trigger another measurement.
+**verified** The original30 passing cells are frozen in `MX7_tp_baselines_frozen_c550.csv`; original GPU groups remain in their raw records.
+TP1 values and baseline scaling efficiencies are retained in the frozen reference. Partial group-change repeats remain archived and are not used.
 
-## Autonomous handling during CP2 / calibration
+| TP | B | vLLM ms | SGLang ms | torch.compile ms |
+|---:|---:|---:|---:|---:|
+| 2 | 1 | 3.912 | 3.084 | 14.034 |
+| 2 | 2 | 4.002 | 3.439 | 16.259 |
+| 2 | 4 | 4.032 | 3.487 | 16.603 |
+| 2 | 8 | 4.302 | 3.777 | 21.627 |
+| 2 | 16 | 4.625 | 4.216 | 32.919 |
+| 4 | 1 | 3.115 | 2.530 | 16.607 |
+| 4 | 2 | 3.852 | 3.042 | 15.453 |
+| 4 | 4 | 3.694 | 3.083 | 15.342 |
+| 4 | 8 | 3.763 | 3.177 | 16.940 |
+| 4 | 16 | 3.938 | 3.366 | 22.851 |
 
-- **verified, B4** the combined TP4 development driver scheduled20 fresh
-  processes under one900s guard. Fifteen exited normally; a sixteenth produced
-  matching1024 tokens before batch teardown was interrupted. Individual runs
-  took about52–65s, so this is aggregate batching exhaustion, not a kernel hang.
-  Original guard124 and all process outputs remain. B16 litmus is isolated
-  into a fresh five-process job and passes5/5; no protocol or limit is changed.
-- **verified, B4** constant probe TP2 B8/TN128 failed in the non-AR comparison:
-  its fixed32784-byte workspace was smaller than the GEMM's LDS layout.
-  Workspace, generation offset and launch allocation now use the same actual
-  layout bound. Old failure remains; affected/unmeasured scopes are rebuilt.
-  Earlier B1/B2/B4 layouts fit and their valid three-process samples are retained.
-  Repaired TP2 B8/B16 probes each complete three fresh processes without error.
-- **verified, B4** three development resource-ledger LDS entries used an assumed
-  floor. Corrected CU-derived values are appended, preserving the original rows;
-  all four development plans subsequently pass actual all-rank resident=1 queries.
+## TileMega final selected plans
 
-## Specification and scope
+**verified** Two additional fresh processes/cell, warm1+timed2; TPOT=(E2E−TTFT)/1023.
+TTFT includes prompt mode and63 extra head evaluations. Ratios use the same TP degree.
+Efficiency=TP1_frozen_TPOT/(TP×TP_TPOT); throughput counts all B×1024 output tokens.
 
-- **verified** starting branch/HEAD: `tilemega-metax`,
-  `6cab45b9604e306fef1916863fe16b09d895c32f`; clean tree; fetch/pull current.
-- **verified** external specification: `/root/Prompt/TileMega_MX7_prompt.md`, UTF-8/LF,
-  SHA256 `5caed7edd4477b8fb63d33bed9254bbc4e33d92041eb5969113fefeb805d7cee`.
-- **stated** scope: Qwen3-1.7B, TP2/TP4, B=1/2/4/8/16, BF16 greedy,
-  ISL/OSL=64/1024. The user subsequently authorized all GPUs; TP1 and MoE remain frozen.
-- **verified** background read: `MX7_plan.md`, `MX6_final_review.md`, `CLAUDE.md`.
-  No H800 commits merged; those implementations are read-only references.
+| TP | B | GPUs | TPOT ms | TTFT ms | E2E ms | tokens/s | fastest/TM | TP1/TM | efficiency |
+|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|
+| 2 | 1 | 1,3 | 2.518 | 156.069 | 2732.281 | 374.778 | 1.224 | 1.298 | 64.9% |
+| 2 | 2 | 1,3 | 2.802 | 173.801 | 3039.908 | 673.706 | 1.227 | 1.288 | 64.4% |
+| 2 | 4 | 1,3 | 3.655 | 256.689 | 3995.686 | 1025.105 | 0.954 | 1.073 | 53.6% |
+| 2 | 8 | 1,3 | 4.806 | 323.228 | 5239.997 | 1563.360 | 0.786 | 0.886 | 44.3% |
+| 2 | 16 | 1,3 | 7.246 | 464.117 | 7877.102 | 2079.953 | 0.582 | 0.715 | 35.8% |
+| 4 | 1 | 1,3,4,5 | 2.459 | 152.856 | 2668.781 | 383.696 | 1.029 | 1.329 | 33.2% |
+| 4 | 2 | 1,2,3,5 | 2.776 | 172.343 | 3012.120 | 679.920 | 1.096 | 1.300 | 32.5% |
+| 4 | 4 | 1,2,3,5 | 3.784 | 236.795 | 4108.002 | 997.079 | 0.815 | 1.036 | 25.9% |
+| 4 | 8 | 1,2,3,5 | 6.210 | 420.380 | 6773.014 | 1209.508 | 0.512 | 0.686 | 17.1% |
+| 4 | 16 | 1,2,3,5 | 12.506 | 885.048 | 13678.825 | 1197.764 | 0.269 | 0.414 | 10.4% |
 
-## CP0: environment and frozen references
+Each engine ratio, both process values, pin/binary/cost SHA and source identity are in `MX7_tp_final_c550.csv`.
+All ten pins come from source-bound k-best/top4 and the1% measured selection rule; no development coordinates are final.
+**verified** Per-cell sealed cost tables (SHA256): `44c318739d7c50dd1551a254a5d8af28adee38204a158d3cf12dce8404e14229`, `7ad97df7881ba38ddaa0b720fb1eb6dc287fb60de042d989bee76fea3a3ecaad`.
+Competitive noisy keys receive two extra fresh processes; remaining noisy keys use p90.
 
-- **verified** MACA `3.8.2.6`; cucc/mxcc `1.0.0 (890c70f3aa)`; driver `3.8.1`.
-  `cmake --build build --target tilemega -j 8` succeeds at the starting source.
-- **verified** Torch `2.10.0+metax3.8.2.2`, Transformers `5.12.0`,
-  SGLang `0.5.14+detached.c432db2fb.maca3.8.2.122`;
-  vLLM environment `/root/venv_vllm`: `0.25.0+empty`.
-- **verified** `torch.distributed`: NCCL and Gloo available;
-  MPI/UCC/XCCL unavailable. Availability alone does not qualify an engine.
-- **verified** `mx-smi -i 4,5,6,7`: four available C550s, 64 GiB each, no owners.
-  Read-only topology commands: `mx-smi topo -m`, `-p`, `-d`.
-  The link matrix labels every pair MX; PCIe-only labels them NODE.
-  Device P2P access and LL visibility are tested separately below.
-- **verified** the two frozen dense pins reproduce the exact `config_json`
-  of the selected 2026-10-29 MX-5 source-bound comparison rows (B1/B16).
-- **verified** all eight reference plans compiled from unchanged starting source:
-  dense B1/B16, Qwen MoE B1/B16 decode/prompt, OLMoE B1 decode/prompt.
-  `MX7_frozen_gate_c550.csv` records CU/binary/pin SHA256 and per-function
-  instruction counts from `scripts/mx_mir_report.py`; no MoE GPU runs occurred.
-- **verified** protected MoE source and final CSV hashes are unchanged.
-  Onboarding environment, reference hashes and exact prospective TP invocation:
-  `runs/mx7/sync/onboarding.md` (not committed).
+Selected communication cost terms (diagnostic, µs; final column is an **inferred**28-layer projection):
 
-## CP1: partial, stopped at A5
+| TP | B | o TN | down TN | extra o AR | extra down AR | total AR ms/step |
+|---:|---:|---:|---:|---:|---:|---:|
+| 2 | 1 | 32 | 32 | 5.87 | 6.64 | 0.350 |
+| 2 | 16 | 16 | 32 | 64.86 | 69.82 | 3.771 |
+| 4 | 1 | 32 | 32 | 13.35 | 13.08 | 0.740 |
+| 4 | 16 | 16 | 16 | 170.00 | 169.30 | 9.500 |
 
-- **verified** all 12 ordered pairs within GPUs 4–7 support peer access and
-  pass a device load/store reachability check. No topology-based speed claim.
-- **verified** group guards use the existing per-card locks in ascending order;
-  CPU mocks cover lock order, any-card occupancy and unchanged single-card use.
-- **verified** default `cudaMalloc` / volatile LL8 pair cohort: 0/5 passed;
-  torn=0, timeouts=1128 per process. These failures are retained in the probe CSV.
-- **verified** fine-grained allocation / volatile LL8 passed 5/5 pair processes
-  at P=1024 and 5/5 all-to-all processes at each P=1024 and P=262144;
-  each passing process covers 2000 epochs with all 104 CTAs.
-  These are historical passing cohorts, not a current communication decision.
-  Pair matrix: 219/252 completed cohorts, including all 126 small-packet
-  combinations (8 passed); all-to-all matrix: 13/252 completed, none passed.
-  Additional fine-grained all-to-all passing cohorts are recorded separately.
-  Each cohort has five fresh processes; passing ones cover all 2000 epochs.
-- **verified** fine-grained volatile ping-pong on {4,5}: median single-way
-  latency 2557.952 ns over five processes; pointer device ownership and 64-byte
-  alignment pass 5/5. This does not determine the main TP2 group: {6,7} and
-  the required bandwidth matrix are incomplete. Large-packet LL timings use
-  strided accesses and must not be presented as bandwidth measurements.
-- **verified** frontend TP changes pass the eight-plan frozen gate; TP codegen
-  changes separately pass all eight again: generated CU bytes and all function
-  instruction counts match. No frozen-path GPU performance run was necessary.
-- **verified** 23 CPU tests pass for shard packing, group guards, optional ABI,
-  TP communication cost ranking, k-best, qualification hashes, the 1% rule,
-  noise eligibility and trace attribution/compression.
-- **verified** TP2 baselines below each use two fresh processes, warm1/timed2;
-  TP4 has 14 incomplete single-process records: 4 measured, 4 dependency N/A,
-  6 environment-invalid. They are not formal two-process baseline results.
-  TP1 columns and baseline scaling efficiencies use frozen MX-5 values.
+## Correctness and resources
 
-Historical baseline availability is retained in `MX7_tp_baselines_c550.csv`; the frozen passing matrix supersedes the initial torch.compile N/A outcomes.
+- **verified** shard/guard/ABI/selection/trace CPU tests pass (individual runs retained in correctness CSV).
+- **verified** AR and head units: TP2/TP4 × B1/B16, each5/5 fresh processes; exact ordered BF16 reference.
+- **verified** injected-delay development litmus: TP2/TP4 × B1/B16, each5/5 fresh1024-token processes;
+  sequences exactly match ordinary builds; ordinary development C-2 also passes5/5 in all four cells.
+- **verified** all40 qualified candidates pass512-position HF C-1 and two fresh1024-token C-2 processes.
+- **verified** all ten selected rebuilds pass512-position C-1 and five fresh1024-token C-2 processes;
+  every generated token agrees across ranks, including all timing runs.
+- **verified** actual all-rank resident=1; MTreg≤255, stack0, static-smem0, dynamic LDS≤64KiB.
+  Rejected candidates and actual resources remain in `MX7_resources_c550.csv`.
+- **verified** eight frozen plans pass generated-CU byte equality and per-function instruction-count equality
+  after relevant frontend/codegen/backend/runtime changes (`MX7_frozen_gate_c550.csv`).
 
-## Historical prepared implementation at A5 (superseded)
+## TP4 trace: rank0 per-layer medians (µs)
 
-- **verified** rank-sharded meta export, frontend recipes/`serving.tp`, shard
-  loading/state, optional Python ABI, TP cohort engine and measurement/check
-  tools, dense TP cost-domain/build/measurement tools, k-best qualification
-  orchestration and trace collection are committed. Their GPU TP paths are
-  unverified; this preparatory work is not a usable native TP implementation.
-- **verified** `MX7_frozen_gate_c550.csv`: 8 reference builds plus 8 frontend
-  and 8 codegen rechecks, all pass CU-byte and function-instruction equality.
-  `MX7_resources_c550.csv` contains the 24 CPU resource reports; resident
-  occupancy is explicitly **not queried**. No GPU resource gate is claimed.
-- **verified** `MX7_tp_correctness_c550.csv` records CPU tests only. AR/head
-  exchange tests, whole-model litmus, C-1/C-2 and rank-token gates remain open.
-- **verified** the uncompiled runtime draft is preserved as
-  `runs/mx7/sync/runtime_tp_unfinished.patch`; the repository runtime was restored
-  to the frozen version. TP1 and protected MoE code/data hashes remain intact.
+**verified** One diagnostic process/B,1023 decode steps,104CTAs/rank; o/down include AR, head includes exchange.
+Each duration uses max CTA release minus the previous stage release. Trace values are not E2E acceptance data.
 
-## Autonomous handling
+| B | Layer | qkv | attention | o+AR | gate_up | down+AR |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 0 | 7.25 | 25.31 | 18.44 | 13.70 | 22.90 |
+| 1 | 1 | 7.51 | 25.16 | 19.70 | 13.61 | 21.86 |
+| 1 | 2 | 7.49 | 25.16 | 19.41 | 13.58 | 21.76 |
+| 1 | 3 | 7.52 | 25.32 | 19.46 | 13.59 | 23.87 |
+| 1 | 4 | 7.50 | 25.13 | 18.45 | 13.60 | 22.47 |
+| 1 | 5 | 7.51 | 25.24 | 19.94 | 13.60 | 21.93 |
+| 1 | 6 | 7.51 | 25.22 | 20.03 | 13.59 | 21.96 |
+| 1 | 7 | 7.48 | 25.32 | 20.24 | 13.64 | 22.08 |
+| 1 | 8 | 7.50 | 25.22 | 19.31 | 13.64 | 22.55 |
+| 1 | 9 | 7.50 | 25.22 | 19.96 | 13.61 | 21.95 |
+| 1 | 10 | 7.48 | 25.12 | 20.09 | 13.57 | 21.98 |
+| 1 | 11 | 7.49 | 25.16 | 20.41 | 13.62 | 24.22 |
+| 1 | 12 | 7.50 | 25.27 | 19.07 | 13.61 | 21.95 |
+| 1 | 13 | 7.49 | 25.11 | 19.66 | 13.62 | 21.71 |
+| 1 | 14 | 7.50 | 25.34 | 19.67 | 13.62 | 21.63 |
+| 1 | 15 | 7.50 | 25.27 | 19.78 | 13.59 | 21.53 |
+| 1 | 16 | 7.46 | 25.20 | 19.65 | 13.68 | 21.62 |
+| 1 | 17 | 7.50 | 25.26 | 19.52 | 13.64 | 21.62 |
+| 1 | 18 | 7.50 | 25.29 | 19.47 | 13.63 | 21.59 |
+| 1 | 19 | 7.50 | 25.16 | 19.60 | 13.65 | 23.31 |
+| 1 | 20 | 7.52 | 25.15 | 17.97 | 13.65 | 23.13 |
+| 1 | 21 | 7.51 | 25.16 | 20.13 | 13.64 | 22.12 |
+| 1 | 22 | 7.51 | 25.10 | 20.01 | 13.65 | 22.08 |
+| 1 | 23 | 7.49 | 25.24 | 20.61 | 13.65 | 22.01 |
+| 1 | 24 | 7.51 | 25.28 | 19.33 | 13.65 | 22.36 |
+| 1 | 25 | 7.52 | 25.27 | 20.07 | 13.63 | 21.91 |
+| 1 | 26 | 7.50 | 25.18 | 19.99 | 13.64 | 21.61 |
+| 1 | 27 | 7.50 | 25.13 | 20.31 | 13.62 | 29.33 |
+| 1 | head | 109.59 | — | — | — | — |
+| 16 | 0 | 14.04 | 42.63 | 171.45 | 16.29 | 154.07 |
+| 16 | 1 | 14.35 | 42.78 | 169.79 | 16.55 | 155.73 |
+| 16 | 2 | 14.46 | 42.73 | 167.44 | 16.31 | 164.96 |
+| 16 | 3 | 14.50 | 42.52 | 165.66 | 16.33 | 191.18 |
+| 16 | 4 | 14.56 | 42.80 | 165.09 | 16.39 | 201.81 |
+| 16 | 5 | 14.36 | 42.55 | 165.26 | 16.31 | 204.36 |
+| 16 | 6 | 14.39 | 42.76 | 166.90 | 16.29 | 213.04 |
+| 16 | 7 | 14.41 | 42.50 | 166.47 | 16.26 | 207.61 |
+| 16 | 8 | 14.47 | 42.66 | 166.61 | 16.27 | 210.90 |
+| 16 | 9 | 14.52 | 42.54 | 166.42 | 16.23 | 207.61 |
+| 16 | 10 | 14.50 | 42.68 | 165.18 | 16.28 | 204.40 |
+| 16 | 11 | 14.44 | 42.60 | 165.61 | 16.29 | 206.45 |
+| 16 | 12 | 14.49 | 42.79 | 165.93 | 16.27 | 208.39 |
+| 16 | 13 | 14.35 | 42.55 | 165.54 | 16.32 | 207.31 |
+| 16 | 14 | 14.44 | 42.70 | 166.96 | 16.29 | 213.77 |
+| 16 | 15 | 14.48 | 42.58 | 166.50 | 16.32 | 210.68 |
+| 16 | 16 | 14.45 | 42.54 | 166.85 | 16.32 | 209.78 |
+| 16 | 17 | 14.47 | 42.57 | 166.22 | 16.28 | 205.57 |
+| 16 | 18 | 14.47 | 42.50 | 166.59 | 16.31 | 208.14 |
+| 16 | 19 | 14.39 | 42.47 | 166.53 | 16.26 | 209.02 |
+| 16 | 20 | 14.46 | 42.57 | 166.65 | 16.31 | 208.51 |
+| 16 | 21 | 14.40 | 42.57 | 166.47 | 16.27 | 208.64 |
+| 16 | 22 | 14.43 | 42.46 | 165.11 | 16.24 | 204.80 |
+| 16 | 23 | 14.38 | 42.54 | 165.55 | 16.31 | 208.21 |
+| 16 | 24 | 14.41 | 42.51 | 165.07 | 16.30 | 202.34 |
+| 16 | 25 | 14.46 | 42.53 | 165.34 | 16.27 | 207.78 |
+| 16 | 26 | 14.40 | 42.42 | 166.63 | 16.31 | 210.28 |
+| 16 | 27 | 14.45 | 42.58 | 166.76 | 16.29 | 211.22 |
+| 16 | head | 212.99 | — | — | — | — |
 
-- **verified, B2** torch.compile TP2 fails during HF `tp_plan="auto"` loading:
-  `ValueError: Using a tp_plan requires accelerate.` All ten failed jobs and
-  source identities are retained; all five cells are N/A. No eager substitution
-  or dependency installation was made. NCCL process-group initialization works.
-- **verified, B4** cost benches now use the dense V2 synchronization and a local
-  grid variable for the compiler assumption, as the dense program does.
-  CPU resource rejections and the earlier build snapshot remain under runs.
-- **verified, B4** an initial frozen-gate report path error and a test invocation
-  error were corrected; earlier logs remain. The completed frozen gate and
-  corrected test invocation are reported above.
-- **verified, B4** small-packet screening was prioritized using the same binaries,
-  polling bound, 104 CTAs and five-process cohorts. Only our job submitters were
-  paused/released; active guarded probes were allowed to finish.
-- **verified, B4** compile-time primitive specializations keep the LL protocol
-  unchanged. Seven small-packet pair cohorts passed 5/5; one exited SIGSEGV.
-  Later unrelated combinations also failed. They are retained as failures,
-  not used to select a primitive while the device is unavailable.
-- **verified, B4/B5** gdb is absent; signal stacks and host markers located the
-  initialization failure. TP4 queue failures are environment-invalid records,
-  not engine qualification or performance data. No retries conceal failures.
-- **verified** provisional cost builds stay under runs; no GPU stage costs,
-  communication constants or eligible cost table were published.
+Maximum inter-rank stage-duration differences (all layers/steps):
+- **verified** B1: o=44.410µs, down=6.600µs.
+- **verified** B16: o=83.420µs, down=98.600µs.
 
-## GPU use
+Per-rank medians, raw losslessly compressed traces and source hashes: `MX7_tp_trace_c550.csv`.
 
-**inferred** child-job wall time from each guard's pgid-file to result-file
-timestamps, including initialization/cleanup and excluding lock waiting:
-GPU4 1.394 h, GPU5 1.394 h, GPU6 2.681 h, GPU7 2.681 h; total **8.150 card-h**.
-This estimates reserved job time, not hardware busy time. Accounting details:
-`runs/mx7/sync/gpu_usage.json`. No jobs ran on GPUs0–3.
+## Autonomous handling and preserved failures
 
-## Historical remaining work at A5 (superseded)
+- **verified, B2/B4** original torch.compile lacked accelerate, then fullgraph rejected HF TP gradient hooks.
+  Isolated accelerate1.15.0 plus compiled_autograd=True adapts the compiler; no hooks removed or eager fallback.
+- **verified, B1** initial native builds reached256MTreg and336–472 stack bytes. Approved per-item send/receive
+  plus constant-field peer-pointer selection removes operand materialization; TP1 frozen output remains identical.
+- **verified, B4** old GPU6 queue initialization caused the historical A5 stop before LL launch.
+  All-card authorization permits healthy groups; optional system-atomic probes also coincided with GPU0/7 loss.
+  Causation is unresolved. Old failures remain; unsafe optional combinations are not retried.
+  The optional primitive-combination matrix is incomplete; the chosen production combination is fully qualified.
+- **verified, B4** one driver bundled20 fresh TP4 checks under one900s guard: aggregate timeout124.
+  Individual runs completed in52–65s. B16 injected-delay checks were isolated and pass5/5; no limit reduction.
+- **verified, B4** calibration B8/TN128 non-AR kernel used an undersized fixed LDS workspace.
+  Host/device now use the actual GEMM LDS bound; old illegal-access record retained. Repaired scopes pass.
+- **verified, B4** cost queue rebalanced five incomplete chunks onto idle cards, based solely on completion;
+  completed three-process chunks retained; old partial records preserved and relative paths canonically validated.
+- **verified, B4** resource ledger assumption corrected by appending CU-derived LDS values; old rows retained.
+  One pending query was prematurely labeled rejected; an appended correction and terminal-cohort checks fix the ledger.
+  Trace aggregation now normalizes empty layer keys; one repeated head reference remains, pointing to the same process.
+- **verified, B4** low disk space handled by hardlinking byte/permission/mtime-identical sealed inputs (219.9MiB freed);
+  logical paths and hashes are unchanged. Rank-by-rank lossless trace compression bounds temporary disk to about1.5GiB.
+- **verified, B4** read-only recovery preflight validates four candidate bundles and the selected final artifact before GPU work.
+- **verified, B7** cost/constants noise supplements follow the competitive2% rule, otherwise p90.
 
-| Item | Existing location / missing target | Reason |
-|---|---|---|
-| C0 decision, bandwidth, main pair | `experiments/mx7/ll_litmus.cu:147` | GPU6 fails before LL launch |
-| TP AR and head exchange | `DecodeGemmV2.h:332`, `DecodeHeadV2.h:32`; new `TpLinkV2.h` / `PeerAccess.h` not created | C0 selection prerequisite |
-| Binding and native ABI | `DecodeProgramV2.cuh:36`, `DecodeRuntimeV2.cuh:143` | Native TP path not implemented |
-| GPU checks and engine validation | `tp_engine.py:21`, `plan.py:114` | Optional native ABI is absent |
-| GPU costs/constants/top4/finals/trace | `tilemega/tp/solve_tp.py`, `experiments/mx7/` | CP2 and C0 unfinished |
+- **verified, B4** earlier timing pairs shared one guard preflight while retaining two fresh processes, each warm1/timed2;
+  per-process PID/command/exit records and guard provenance remain; each timing job retains the900s limit.
 
-`MX7_tp_constants_c550.csv`, `MX7_tp_selection_c550.csv`,
-`MX7_tp_final_c550.csv` and selected TP pins do not exist; no synthetic rows.
+- **verified, B5** TP4 B2 candidate3/4 timing cohorts exited guard75 after external GPU3/GPU5 load appeared.
+  Invalid cohorts are excluded; each original cohort gets at most one new two-process timing cohort after idle checks.
+  Successful candidate builds/checks/timings remain unchanged; failed raw metrics and source-bound retry receipts remain.
+- **verified, B4/B5** final TP4 B2 checks later met external GPU3 interference after three C-2 processes.
+  The whole interrupted cohort is unqualified; original artifacts/timings remain archived and were not promoted after the group change.
+- **verified, B4** resume validation first found a manifest field mismatch and then an archived-root path error.
+  Both occurred before a GPU child launch; original logs/receipts are retained separately from the one B5 retry.
 
-## Historical expectations at A5 (superseded)
+- **verified, B4** remaining scopes guard each fresh process separately; passing runs survive later interruptions.
+  C-2 still needs5 selected/2 candidate processes; timing still needs2 warm1/timed2 processes. Guard thresholds are unchanged.
+  After CUDA-stream initialization stalls, CPU scheduling additionally waits for≤64MiB unattributed memory/card; this narrows launch admission and changes no guard or device code.
+- **verified, B4** B16 trace GPU capture and CPU analysis are separate; real B1 reanalysis matches all141 original stage statistics.
 
-No TileMega TP measurement exists, so the TPOT/speedup expectations cannot be
-evaluated. **Inferred** next steps require recovering GPU6 first, diagnosing
-the availability loss, and repeating affected qualification samples while
-retaining failures. A GPU-State check in the guard would help reject this
-environment earlier; it has not been added after the A5 stop.
+- **verified, B4** GPU4 stayed occupied, so only the four unfinished TP4 scopes moved to{1,2,3,5} under all-card authorization.
+  P2P and both LL8 all-to-all sizes pass5/5; AR/head units are rechecked and45 TP4 constants are new.
+  The partial baseline-repeat campaign was canceled by the user; all comparisons reuse the original frozen30 cells.
+  1840 single-rank cost rows and six completed final cells are retained. Remaining scopes are selected again with group-bound costs.
+- **verified, B4** one calibration aggregator shadowed the group string with a list before subprocess creation; fixed before GPU launch;
+  the original CPU error log remains. No numerical test, sample count or guard threshold was changed.
 
-## CP2 completed: development timing (not final solver pins)
+- **verified, B5** new-group SGLang B4 first initialization exceeded900s; the guard terminated only its own job and retained logs.
+  The retry also timed out; both failed repeat attempts remain archived and do not replace the original passing baseline.
 
-**verified** Two fresh processes/cell, warm1/timed2, trace/DIAG/watchdog disabled.
+- **verified, B4** a one-peer bandwidth launch exposed four devices; the host rejected it before peer kernels. Corrected two-device launches retain that failure.
+- **verified, B5** an extra selected-pin/new-group B1 delay check and its one retry met GPU5 interference(guard75) during CUDA-stream creation.
+  This additional experiment remains incomplete(1 pass,2 invalid attempts); the four originally required development litmus cohorts remain5/5 each.
+  After the startup scheduling fix, a new full selected-pin cohort at B1 and B16 passes5/5 each; the prior read-only stacks/invalid attempts remain.
+  No incomplete cohort is reported as a synchronization pass.
 
-| TP | B | TPOT ms | TTFT ms | E2E ms | tokens/s |
-|---:|---:|---:|---:|---:|---:|
-| 2 | 1 | 2.715717 | 168.492100 | 2946.670257 | 347.511064 |
-| 4 | 1 | 2.683521 | 167.517441 | 2912.759244 | 351.558600 |
-| 4 | 16 | 12.796976 | 773.029572 | 13864.336179 | 1181.737189 |
+## Deviations from inferred expectations
 
-**verified** Development C-1, ordinary C-2/injected-delay5/5, AR/head units5/5 and all-rank resident1 pass.
-**inferred, C** TP4 B16 exceeds the2.5–2.7ms expectation; measured AR deltas grow strongly with B.
-This is a missed goal, not a correctness gate. CP3 cost qualification/top4/final trace continues.
-**verified, B4** five incomplete cost chunks were rescheduled based only on completion; valid complete chunks retained.
-Old partial records remain. Seven focused CPU selection/trace tests also pass.
+- **verified** TP2 B1: 2.518ms versus stated inferred2.35–2.5ms; no goal-based rework.
+- **verified** TP2 B16: 7.246ms versus stated inferred3.3–3.4ms; no goal-based rework.
+- **verified** TP4 B1: 2.459ms versus stated inferred1.85–2.05ms; no goal-based rework.
+- **verified** TP4 B16: 12.506ms versus stated inferred2.5–2.7ms; no goal-based rework.
+- **verified, C** selected pred/meas range0.931–1.000; outliers retained in selection CSV.
+- **inferred** P2P packet throughput and measured per-AR overhead limit scaling; trace gives stage locations.
+- **stated, C** prompt-mode TTFT includes work absent from the separate TP1 prefill path.
+- **verified, C** largest torch.compile fresh-process range=30.2% (TP4 B1); both round values remain in CSV, using the specified two-process median.
 
-## CP3: eligible costs and selection in progress
+## GPU accounting and completion
 
-- **verified**1840 stage-cost keys,87 fresh processes; one competitive noisy key received two additional processes.
-- **verified**26 remaining noisy stage keys use p90;80 AR and10 head constants qualified,12 noisy constants use p90.
-- **verified** cost table SHA256 `7ad97df7881ba38ddaa0b720fb1eb6dc287fb60de042d989bee76fea3a3ecaad`, solver_eligible=true.
-- **verified, B4** baseline submitter briefly paused while active guarded work finished, then automatically resumed after qualification.
-- **verified** top4 resource qualification has started at TP2 B1. Baseline collection and final trace orchestration continue.
+**inferred** child-job wall time, includes initialization/cleanup, excludes lock waiting/preflight; not hardware busy time.
+Per-card hours: 0=0.080, 1=10.725, 2=4.528, 3=10.752, 4=5.458, 5=9.992, 6=2.681, 7=2.685; total=46.902 card-h.
+**verified** CP0–CP3 production-path evidence and all required CSVs/pins are present; selected-path tests are complete.
+**inferred** further communication designs require a new specification; none added beyond this prompt.
 
-- **verified, B4** partial resource aggregation mislabeled one pending residency query as rejected.
-  The tool now skips pending queries, and correctness cohorts require successful process/guard exits.
-  Original row retained with an appended label correction; no actual resource failure occurred.
+## SM90 comparison and optimization continuation
 
-## CP3 selected final scopes (10/10 complete)
-
-**verified** Every listed rebuild passes C-1, five fresh C-2, all-rank residency and two independent timing processes.
-
-| TP | B | TPOT ms | TTFT ms | E2E ms | tokens/s | fastest/TM | efficiency |
-|---:|---:|---:|---:|---:|---:|---:|---:|
-| 2 | 1 | 2.518292 | 156.069054 | 2732.281269 | 374.778406 | 1.224495 | 64.88% |
-| 2 | 2 | 2.801669 | 173.800575 | 3039.908012 | 673.706477 | 1.227377 | 64.41% |
-| 2 | 4 | 3.654934 | 256.689407 | 3995.686440 | 1025.105466 | 0.954132 | 53.63% |
-| 2 | 8 | 4.806225 | 323.228035 | 5239.996563 | 1563.359804 | 0.785841 | 44.29% |
-| 2 | 16 | 7.246320 | 464.116928 | 7877.102111 | 2079.952809 | 0.581775 | 35.77% |
-| 4 | 1 | 2.459360 | 152.856125 | 2668.781133 | 383.695837 | 1.028708 | 33.22% |
-| 4 | 2 | 2.775930 | 172.343357 | 3012.119512 | 679.920008 | 1.095809 | 32.50% |
-| 4 | 4 | 3.784171 | 236.794628 | 4108.001560 | 997.078667 | 0.814760 | 25.90% |
-| 4 | 8 | 6.209808 | 420.380348 | 6773.014042 | 1209.508043 | 0.511534 | 17.14% |
-| 4 | 16 | 12.506136 | 885.047806 | 13678.825411 | 1197.764307 | 0.269136 | 10.36% |
-
-**verified, B4** Timing pairs share preflight but retain two fresh processes, warm1/timed2 and separate PID/command/exit evidence;900s is unchanged.
-**verified, C** TP2 B4/B8/B16 regress against SGLang; B8/B16 also regress against TP1. TP4 B1 is only1.029× over SGLang and misses the stated inferred target. TP4 B1 trace is being collected.
-
-**verified, B4** Trace aggregation now normalizes an empty head-layer key. One repeated head reference remains append-only and points to the same single trace process; it is not a second sample.
-**verified** TP4 B1 trace and all-rank trace-kernel residency queries pass. Diagnostic per-layer means(µs):qkv7.491,attention25.214,o+AR19.653,gate_up13.626,down+AR22.466;head109.590µs/step.
-
-**verified, B5** TP4 B2 candidate3/4 timing and final-check cohorts met external GPU3/GPU5 load (guard75).
-Original successful candidates and failed metrics remain source-bound; invalid whole cohorts are excluded.
-**verified, B4** Per-process guards now retain valid fresh starts separately: counts remain C-2(5),timing(2),warm1/timed2; guard thresholds unchanged.
-Read-only recovery validates prior four bundles and the1% decision before any GPU launch; original prelaunch tooling errors remain archived.
-**verified, B4** Immutable sealed-input hardlinks free219.9MiB without changing paths/hashes/mode/mtime. Trace dumps compress rank-by-rank (about1.5GiB peak).
-B16 trace capture is separated from CPU analysis; real B1 reanalysis preserves all141 stage statistics exactly.
-**verified, B4** GPU4 remains occupied. Own CPU-only old-group waiters were retired; no GPU or foreign process was signaled.
-Alternative{1,2,3,5} passes P2P12-pair matrix and LL8 all-to-all P1024/P262144, each5/5 fresh processes with zero tearing/timeouts.
-Only unfinished TP4 B2/B4/B8/B16 move:45 new communication constants qualified (3 or5 fresh processes/key); new top4 selection continues; baseline repeats are canceled per user instruction.
-Completed six finals and1840 single-rank cost rows stay unchanged. Costs retain physical-group metadata; baseline comparisons reuse the frozen original 30 passing cells.
-**verified, B4** A calibration aggregator variable-shadowing error occurred before subprocess creation; fixed, original CPU log retained. One-peer bandwidth host argument error corrected to a two-card visible group; native code unchanged.
-**verified, B5** New-group SGLang B4 first initialization hits900s; own jobs are cleaned up; the one fresh-process retry also hits900s (round1 N/A), both raw timeouts retained. An extra selected-pin/new-group B1 check and its retry are invalidated by GPU5 interference during CUDA-stream creation:1 pass,2 invalid attempts, old experiment incomplete; all four originally required development litmus cohorts remain5/5; a new full5-process B1/B16 extra cohort waits under corrected startup scheduling.
-**verified**43 CPU regression tests pass; replacement-group AR/head units B1/B16 each5/5; no native/TP1/MoE code changed in this continuation.
+**verified** SM90 audit: `MX7_tp_sm90_comparison_c550.md`. Shared AR now assigns one contiguous LL8 packet/lane, preserving the wire format, rank-sum order and rounding. Eight frozen builds pass8/8; four AR corner scopes each pass5/5 fresh processes.
+**verified** TP4 B16 same-geometry development P-PAIR:12.526515→3.081392ms(4.065×); SGLang/TM1.092×. Full-model C-1 passes; five C-2 starts and the original1024-token sequence match. `MX7_tp_optimization_c550.csv` retains this control separately from the original final table above.
+**verified, B4** Initial SDK stream cleanup exited−6 after correct tokens; the failure is retained. Releasing pinned/GPU storage before stream destruction fixes it: pinned-lifetime and fresh full-model injected-delay cohorts each pass5/5.
+**verified** No external baseline is rerun. New communication constants and ten-scope top-4 re-selection are in progress; final coordinates continue to come from the solver.

@@ -32,8 +32,7 @@ def collect(root):
                 fresh_processes=5, scope=f"TP4 B{cohort['batch']}; ordered BF16 reference; requalified physical group",
                 gpu_indices='1,2,3,5', source_head=first['source_head'], test_sha256=first['source_sha256'],
                 raw_log=str(cohort['summary']['path']), raw_log_sha256=cohort['summary']['sha256']))
-    proofs = set((root / 'litmus_g1235').glob('B*/QUALIFIED.json'))
-    proofs |= set((root / 'litmus_g1235_ready').glob('B*/QUALIFIED.json'))
+    proofs = set(root.glob('litmus_g1235*/B*/QUALIFIED.json'))
     for proof in sorted(proofs):
         data = json.loads(proof.read_text())
         reference = checked(data['reference'])
