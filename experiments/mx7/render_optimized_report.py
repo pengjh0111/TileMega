@@ -98,6 +98,17 @@ def main():
         values = [float(baselines[t, b, s]['tpot_ms']) for s in ('vllm', 'sglang', 'torchcompile')]
         new, old = float(row['tpot_ms']), float(initial[key]['tpot_ms'])
         lines.append(f'| {t} | {b} | ' + ' | '.join(f'{v:.3f}' for v in values + [new, min(values)/new, old, old/new]) + ' |')
+    lines += ['', 'Baseline efficiency uses each engine\'s frozen TP1 reference: TP1_TPOT/(TP×TP_TPOT).', '',
+              '| TP | B | vLLM efficiency | SGLang efficiency | torch.compile efficiency |',
+              '|---:|---:|---:|---:|---:|']
+    for t, b in sorted(final):
+        values = []
+        for system in ('vllm', 'sglang', 'torchcompile'):
+            row = baselines[t,b,system]
+            efficiency = float(row['tp1_frozen_tpot_ms'])/(t*float(row['tpot_ms']))
+            assert abs(efficiency-float(row['scaling_efficiency'])) < 1e-12
+            values.append(f'{100*efficiency:.1f}%')
+        lines.append(f'| {t} | {b} | ' + ' | '.join(values) + ' |')
     lines += ['', '| TP | B | TTFT ms | E2E ms | tokens/s | TP1/TM | scaling efficiency |',
               '|---:|---:|---:|---:|---:|---:|---:|']
     for (t, b), row in sorted(final.items()):
