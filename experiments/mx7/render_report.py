@@ -200,6 +200,9 @@ def main():
         '  the original CPU error log remains. No numerical test, sample count or guard threshold was changed.', '',
         '- **verified, B5** new-group SGLang B4 first initialization exceeded900s; the guard terminated only its own job and retained logs.',
         '  One fresh-process retry is recorded; any remaining unavailable baseline is explicit N/A under§4.4, with no eager or old-group substitution.', '',
+        '- **verified, B4** a one-peer bandwidth launch exposed four devices; the host rejected it before peer kernels. Corrected two-device launches retain that failure.',
+        '- **verified, B5** one new-group B1 delay check met GPU5 interference(guard75) during CUDA-stream creation;',
+        '  its read-only Python stack and invalid attempt remain; only a fresh guarded retry can contribute to the five-process result.', '',
         '## Deviations from inferred expectations', '']
     for t, b, low, high in [(2, 1, 2.35, 2.50), (2, 16, 3.3, 3.4), (4, 1, 1.85, 2.05), (4, 16, 2.5, 2.7)]:
         row = final[str(t), str(b)]

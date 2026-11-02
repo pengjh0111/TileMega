@@ -93,11 +93,15 @@ def collect(root):
                 if key in value:
                     row[key] = statistics.median(value[key] for value in values)
         else:
-            # Unsupported allocation/API outcomes still keep all five stderr records.
             command = first['command']
-            row.update(width=int(command[-7]), allocation=int(command[-4]), store=int(command[-3]),
-                       load=int(command[-2]), packets=int(command[-6]), requested_epochs=int(command[-5]),
-                       all_to_all=int(command[-1]))
+            if row['record_type'] == 'p2p_timing':
+                row.update(width=8, allocation=int(command[-5]), store=int(command[-4]),
+                           load=int(command[-3]), ctas=int(command[-2]), peers=int(command[-1]))
+            else:
+                # Unsupported allocation/API outcomes keep all five stderr records.
+                row.update(width=int(command[-7]), allocation=int(command[-4]), store=int(command[-3]),
+                           load=int(command[-2]), packets=int(command[-6]), requested_epochs=int(command[-5]),
+                           all_to_all=int(command[-1]))
         result.append(row)
     return result
 
