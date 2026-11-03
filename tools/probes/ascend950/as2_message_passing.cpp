@@ -9,7 +9,14 @@
 #include <vector>
 
 using namespace tilemega::ascend;
-constexpr unsigned kCell=128, kElements=4096, kStride=kElements+kCell;
+#if defined(TILEMEGA_DMA_CONSUMER_ONLY) && TILEMEGA_DMA_CONSUMER_ONLY
+constexpr bool kDmaConsumerOnly=true;
+constexpr unsigned kElements=32768;
+#else
+constexpr bool kDmaConsumerOnly=false;
+constexpr unsigned kElements=4096;
+#endif
+constexpr unsigned kCell=128, kStride=kElements+kCell;
 constexpr unsigned kEpochs=8, kPhases=12, kGlobalFields=6, kPhaseFields=8;
 constexpr unsigned kFields=kGlobalFields+kPhases*kPhaseFields;
 constexpr uint64_t kWaitTicks=2000000000ULL;
@@ -164,8 +171,15 @@ __aicore__ inline void RunProtocol(Dma& dma,GM_ADDR values,GM_ADDR payload,GM_AD
       for(unsigned j=0;j<ni;++j) {
         if(!p.Wait(p.Cell(phase,Ready,inputs[j]),epoch,4))return;
         AscendC::GlobalTensor<float> data;data.SetGlobalBuffer((__gm__ float*)PayloadSlot(payload,phase,p.workers,inputs[j]));
-        AcquireData(data);
-        for(unsigned i=0;i<elements;++i)scalar_errors+=data.GetValue(i)!=Expected(inputs[j],epoch,i);
+        if constexpr(kDmaConsumerOnly) {
+          // The old payload was deliberately read through Scalar above. Only
+          // the DMA consumer bypasses cache maintenance; Scalar consumers
+          // still require the original acquire and are not admitted here.
+          AscendC::DataSyncBarrier<AscendC::MemDsbT::ALL>();
+        }else {
+          AcquireData(data);
+          for(unsigned i=0;i<elements;++i)scalar_errors+=data.GetValue(i)!=Expected(inputs[j],epoch,i);
+        }
         auto result=consumed+uint64_t((phase*p.workers+p.worker)*2+j)*kStride*sizeof(float);
         dma_errors+=dma.Consume(PayloadSlot(payload,phase,p.workers,inputs[j]),result,elements,inputs[j],epoch);
       }
@@ -198,6 +212,7 @@ int main(int argc,char** argv) {
     if(argc!=3 && argc!=4)throw std::invalid_argument("usage: as2_message_passing <8|14> new_output [abort-worker]");
     const auto parsed=std::stoul(argv[1]);
     if(parsed!=8 && parsed!=14)throw std::invalid_argument("Bounded G8/G14 only");
+    if(kDmaConsumerOnly && parsed!=8)throw std::invalid_argument("DMA-only protocol starts with G8 on physical1");
     const unsigned groups=parsed,workers=3*groups;
     const auto fault=argc==4?std::stoul(argv[3]):workers;
     if(fault>workers || (argc==4 && fault==workers))throw std::invalid_argument("Abort worker must be a launched actor");
@@ -291,12 +306,15 @@ int main(int argc,char** argv) {
     std::ofstream result(out/"result.json");
     result<<"{\"status\":\""<<(pass?"pass":expected_abort?"expected_abort":"fail")<<"\",\"groups\":"<<groups
       <<",\"workers\":"<<workers<<",\"phases\":"<<kPhases<<",\"epochs_per_phase\":"<<kEpochs
-      <<",\"payload_elements\":[32,1056,4096],\"self_timeouts\":"<<deadlines<<",\"aborted_actors\":"<<aborts
+      <<",\"payload_elements\":[32,1056,"<<kElements<<"],\"self_timeouts\":"<<deadlines<<",\"aborted_actors\":"<<aborts
       <<",\"injected_abort_worker\":"<<(fault<workers?std::to_string(fault):"null")
       <<",\"pre_read_errors\":"<<pre_errors<<",\"scalar_errors\":"<<scalar_errors<<",\"dma_errors\":"<<dma_errors
       <<",\"guard_errors\":"<<guard_errors<<",\"mapping_errors\":"<<host_errors<<",\"unfinished\":"<<unfinished
       <<",\"stale_scalar_preread\":true,\"consumer_DMA\":true,\"reverse_ack\":true,\"explicit_all_actor_phase_boundaries\":true,"
-        "\"per_actor_single_writer_abort\":true,\"conservative_DSB_full_cache_acquire\":true,\"host_kernel_launches\":1,"
+        "\"per_actor_single_writer_abort\":true,\"conservative_DSB_full_cache_acquire\":"<<(kDmaConsumerOnly?"false":"true")
+      <<",\"post_wait_scalar_consumer_checked\":"<<(kDmaConsumerOnly?"false":"true")
+      <<",\"whole_cache_acquire_before_consumer_DMA\":"<<(kDmaConsumerOnly?"false":"true")
+      <<",\"model_visibility_policy_enabled\":false,\"host_kernel_launches\":1,"
         "\"wait_deadline_ticks\":2000000000,\"directions\":[\"AIC_AIC\",\"AIC_AIV\",\"AIV_AIC\",\"AIV_AIV\"],"
         "\"cube_payload\":\"FP32 identity BlockMmad FIX\",\"aiv_payload\":\"MTE2_MTE3\",\"model_G14_enabled\":false}\n";
     if(!result)throw std::runtime_error("Cannot save result");return pass || expected_abort?0:2;
