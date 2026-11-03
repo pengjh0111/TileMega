@@ -177,6 +177,7 @@ def main():
         '  four-card retained-pinned-lifetime and fresh full-model delay cohorts each pass5/5 after the fix.',
         '- **verified, B4** optional relaxed-system primitives pass their LL/AR qualification but do not improve stage time; production primitives stay unchanged.',
         '- **stated** all external baselines are frozen once; interrupted group-change repeats are archived and excluded.', '',
+        '- **verified, B4** one push hit remote `commit_refs` failure; after confirming the remote HEAD, normal retry succeeds without force or GPU changes.', '',
         '## Deviations and limitations', '',
         *expected,
         f'- **verified, C** final pred/meas range{min(pred):.3f}–{max(pred):.3f}; outliers remain in selection CSV; trace locates device-stage costs.',

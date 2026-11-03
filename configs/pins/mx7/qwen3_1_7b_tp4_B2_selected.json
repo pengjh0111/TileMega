@@ -53,9 +53,9 @@
   },
   "evidence": {
     "tp": 4,
-    "cost_table_sha256": "44c318739d7c50dd1551a254a5d8af28adee38204a158d3cf12dce8404e14229",
+    "cost_table_sha256": "2927cf91afbc8589f8706d50699bc837fa7a6898978ed0fefed6fcab2c906f6e",
     "candidate_rank": 1,
-    "predicted_ns": 2738491.3196480935,
+    "predicted_ns": 1835201.3196480938,
     "source_rows": {
       "qkv": [
         902
@@ -85,16 +85,16 @@
     "selection": {
       "selected": 0,
       "measured_ns": [
-        2781120.7028100397,
-        2773484.7434214656,
-        2784639.4107037038,
-        2796491.627090721
+        1879905.1872927072,
+        1872802.898681059,
+        1875434.3457032042,
+        1891536.9016931322
       ],
       "pred_over_meas": [
-        0.9846718687474177,
-        0.9874369513457687,
-        0.9836933676651027,
-        0.9795599933542111
+        0.9762201477251136,
+        0.9800023915707623,
+        0.9789419308942525,
+        0.9706611158389964
       ],
       "threshold": 0.01,
       "rule": "fastest at least1percent faster than prediction-best, else prediction-best"
@@ -102,170 +102,146 @@
     "candidates": [
       {
         "candidate_rank": 1,
-        "predicted_ns": 2738491.3196480935,
+        "predicted_ns": 1835201.3196480938,
         "fresh_process_ns": [
-          2782166.7427279036,
-          2780074.6628921754
+          1880704.5582132023,
+          1879105.8163722123
         ],
         "measurements": [
           {
-            "path": "/root/tilemega/runs/mx7/resume1/selection_g1235_ready/tp4/B2/rank0000001/build/timing_process1/measure/measurements.json",
-            "sha256": "1b9ae6fdc541b99006353132fdd979af637642e0e9d18f6ffedb05ad0ce85efb"
+            "path": "/root/tilemega/runs/mx7/sm90_comparison/selection/tp4/B2/rank0000001/build/timing_process1/measure/measurements.json",
+            "sha256": "5d1634b5ba19f5353c33565d3e91ba0064e9dd38a45c824a3fed657c8542c5f9"
           },
           {
-            "path": "/root/tilemega/runs/mx7/resume1/selection_g1235_ready/tp4/B2/rank0000001/build/timing_process2/measure/measurements.json",
-            "sha256": "250722c7838ca8d0565bd824185c531db84214e752c46f9acbe44805fbd469bb"
+            "path": "/root/tilemega/runs/mx7/sm90_comparison/selection/tp4/B2/rank0000001/build/timing_process2/measure/measurements.json",
+            "sha256": "55d1af50b5e7083225a6f032ac6e313d343859678bc2cf14aa8ba293707fd08a"
           }
         ],
         "processes": [
           {
-            "path": "/root/tilemega/runs/mx7/resume1/selection_g1235_ready/tp4/B2/rank0000001/build/timing1_qualified_process.json",
-            "sha256": "98a64610a3369f27239337aedf389efd4466e5328b4e1078b621e501bf153e21"
+            "path": "/root/tilemega/runs/mx7/sm90_comparison/selection/tp4/B2/rank0000001/build/timing_process1/PROCESS.json",
+            "sha256": "4ec8a99b8e9b4b5876b8cf6d3db24de4a69049dd5ec6d1de9cde213fd22f36e6"
           },
           {
-            "path": "/root/tilemega/runs/mx7/resume1/selection_g1235_ready/tp4/B2/rank0000001/build/timing2_qualified_process.json",
-            "sha256": "e4e3f964da86b04bce2cc81f47df560f9fdf28a9c3d7b323df7b9d5dfbaacdd1"
+            "path": "/root/tilemega/runs/mx7/sm90_comparison/selection/tp4/B2/rank0000001/build/timing_process2/PROCESS.json",
+            "sha256": "860e9125fa6c00caebb24ba8606063d723c7998693ed0284218561e3acdebc7e"
           }
         ],
-        "independent_guards": [
-          {
-            "path": "/root/tilemega/runs/mx7/resume1/selection_g1235_ready/tp4/B2/rank0000001/build/timing1_execution/GUARDED_ATTEMPTS.json",
-            "sha256": "4e1bf42cbb4d32ef1cc3ee7dc1c019236d512b533454a6b0aac923e0ca55f4af"
-          },
-          {
-            "path": "/root/tilemega/runs/mx7/resume1/selection_g1235_ready/tp4/B2/rank0000001/build/timing2_execution/GUARDED_ATTEMPTS.json",
-            "sha256": "33b53445f710e2ca886c7b39f49d5216dd765a4dd73331dcf6e79b78e6aee717"
-          }
-        ],
-        "producer": {
-          "path": "/root/tilemega/runs/mx7/resume1/selection_g1235_ready/tp4/B2/inputs/process_cohorts.py",
-          "sha256": "021927b25df2dd83c048951233cfc64779b5b5d2530594b985256f330c65a9eb"
+        "guard": {
+          "path": "/root/tilemega/runs/mx7/sm90_comparison/selection/tp4/B2/rank0000001/build/timing_execution/execution/guard/guard_result.json",
+          "sha256": "3fe3fc4d1c9744bf5304bd8c651d7619a2d05e58eaf385476d6234feaaad12b2"
+        },
+        "driver": {
+          "path": "/root/tilemega/runs/mx7/sm90_comparison/selection/tp4/B2/rank0000001/build/timing_execution/driver.py",
+          "sha256": "4a8e9d9ae58b50ddee96b0043298ad49743bf2ff099d37851566189f168cba3e"
         }
       },
       {
         "candidate_rank": 2,
-        "predicted_ns": 2738641.3196480935,
+        "predicted_ns": 1835351.3196480938,
         "fresh_process_ns": [
-          2774296.4197114063,
-          2772673.067131525
+          1872659.861699169,
+          1872945.9356629488
         ],
         "measurements": [
           {
-            "path": "/root/tilemega/runs/mx7/resume1/selection_g1235_ready/tp4/B2/rank0000002/build/timing_process1/measure/measurements.json",
-            "sha256": "db0246930e08ec72e4feb617b04e5a76a6d2b09e7ef2603d430b08a8b1280101"
+            "path": "/root/tilemega/runs/mx7/sm90_comparison/selection/tp4/B2/rank0000002/build/timing_process1/measure/measurements.json",
+            "sha256": "5eb5347f375290e07df69ac9db2f7a1fb2b71fc0ded0cc9097919f576e75c231"
           },
           {
-            "path": "/root/tilemega/runs/mx7/resume1/selection_g1235_ready/tp4/B2/rank0000002/build/timing_process2/measure/measurements.json",
-            "sha256": "e4ad6dea38a2e72fc835b224f38ad5047f2222115b32e569a6ebacb48c271e05"
+            "path": "/root/tilemega/runs/mx7/sm90_comparison/selection/tp4/B2/rank0000002/build/timing_process2/measure/measurements.json",
+            "sha256": "d2f437a46a32804ab797d5cbcea763980051ada7b25c70f00aa39c9f68e74c1b"
           }
         ],
         "processes": [
           {
-            "path": "/root/tilemega/runs/mx7/resume1/selection_g1235_ready/tp4/B2/rank0000002/build/timing1_qualified_process.json",
-            "sha256": "fd8b45fdc7601a4ea0b2e57c30555627541ea03877821c9b5334272b8a717999"
+            "path": "/root/tilemega/runs/mx7/sm90_comparison/selection/tp4/B2/rank0000002/build/timing_process1/PROCESS.json",
+            "sha256": "77a60057020815965390a8bf9ebfc7783612da9f7db2346c8db8e95c122de5c2"
           },
           {
-            "path": "/root/tilemega/runs/mx7/resume1/selection_g1235_ready/tp4/B2/rank0000002/build/timing2_qualified_process.json",
-            "sha256": "58cc656736234a7c2c0aa7ac98852639b5432df0a22ac4b60fde3487f68cfe29"
+            "path": "/root/tilemega/runs/mx7/sm90_comparison/selection/tp4/B2/rank0000002/build/timing_process2/PROCESS.json",
+            "sha256": "a3b1409b14ac64b65d2bf8e25c2246ead7d3cb048f78a69e88ed48c97e298769"
           }
         ],
-        "independent_guards": [
-          {
-            "path": "/root/tilemega/runs/mx7/resume1/selection_g1235_ready/tp4/B2/rank0000002/build/timing1_execution/GUARDED_ATTEMPTS.json",
-            "sha256": "077e37e16d1c9ecaf0098a067f8f4a7061d5074ab752d03dbbbb3c8636729f2a"
-          },
-          {
-            "path": "/root/tilemega/runs/mx7/resume1/selection_g1235_ready/tp4/B2/rank0000002/build/timing2_execution/GUARDED_ATTEMPTS.json",
-            "sha256": "36de01f9bb36cfb352d395c91787d275ec4df4a11d52bee1ce21201d0c351912"
-          }
-        ],
-        "producer": {
-          "path": "/root/tilemega/runs/mx7/resume1/selection_g1235_ready/tp4/B2/inputs/process_cohorts.py",
-          "sha256": "021927b25df2dd83c048951233cfc64779b5b5d2530594b985256f330c65a9eb"
+        "guard": {
+          "path": "/root/tilemega/runs/mx7/sm90_comparison/selection/tp4/B2/rank0000002/build/timing_execution/execution/guard/guard_result.json",
+          "sha256": "3fe3fc4d1c9744bf5304bd8c651d7619a2d05e58eaf385476d6234feaaad12b2"
+        },
+        "driver": {
+          "path": "/root/tilemega/runs/mx7/sm90_comparison/selection/tp4/B2/rank0000002/build/timing_execution/driver.py",
+          "sha256": "a01656d2962b4ca58bd23adaf519fc44a75fa5d46c7ae8c04056b6cad5699d9c"
         }
       },
       {
         "candidate_rank": 3,
-        "predicted_ns": 2739231.3196480935,
+        "predicted_ns": 1835941.3196480938,
         "fresh_process_ns": [
-          2784463.44812041,
-          2784815.373286998
+          1875747.1359996735,
+          1875121.5554067348
         ],
         "measurements": [
           {
-            "path": "/root/tilemega/runs/mx7/resume1/selection_g1235_ready/tp4/B2/rank0000003/build/timing_process1/measure/measurements.json",
-            "sha256": "c00eb5dfbbd4f8ea33e3750ec2be5fc12b8a7edf5c34c3fe0155220e81f048da"
+            "path": "/root/tilemega/runs/mx7/sm90_comparison/selection/tp4/B2/rank0000003/build/timing_process1/measure/measurements.json",
+            "sha256": "e04247b3878a6fbfb3abe012f9e70d517ac2f34352063d174ac4966f9f56541a"
           },
           {
-            "path": "/root/tilemega/runs/mx7/resume1/selection_g1235_ready/tp4/B2/rank0000003/build/timing_process2/measure/measurements.json",
-            "sha256": "554c774a3fdbfb4b1c9b1bceafe09a3b75c76ad73e48bba71f68f0260e706752"
+            "path": "/root/tilemega/runs/mx7/sm90_comparison/selection/tp4/B2/rank0000003/build/timing_process2/measure/measurements.json",
+            "sha256": "d4067b247a03ccfa4fd0bc744cfb1ed6a88cf9ae0a7631fe60ee2f8fc99e3300"
           }
         ],
         "processes": [
           {
-            "path": "/root/tilemega/runs/mx7/resume1/selection_g1235_ready/tp4/B2/rank0000003/build/timing1_qualified_process.json",
-            "sha256": "f504d233b2d2d62293753821f7ded47f9da5b12bf3c34c3fe4c2a464ec1400de"
+            "path": "/root/tilemega/runs/mx7/sm90_comparison/selection/tp4/B2/rank0000003/build/timing_process1/PROCESS.json",
+            "sha256": "86a5984b247c7a89aaab13f82735434f0704a6535870cf32eaf67a2bfb716256"
           },
           {
-            "path": "/root/tilemega/runs/mx7/resume1/selection_g1235_ready/tp4/B2/rank0000003/build/timing2_qualified_process.json",
-            "sha256": "1f5d9abd8b3c7eca0140ddd718f179b75bb77d9fd263c6c52eb11e5426d83522"
+            "path": "/root/tilemega/runs/mx7/sm90_comparison/selection/tp4/B2/rank0000003/build/timing_process2/PROCESS.json",
+            "sha256": "e8ef2fdb72f65ca0a9e91a56dc90c2522ec6647bc500534e15d480cdbdb3d877"
           }
         ],
-        "independent_guards": [
-          {
-            "path": "/root/tilemega/runs/mx7/resume1/selection_g1235_ready/tp4/B2/rank0000003/build/timing1_execution/GUARDED_ATTEMPTS.json",
-            "sha256": "a1806f23cccc6327d4673d04b6a714485b7a3d9b117b0865c1129617f9a6b7af"
-          },
-          {
-            "path": "/root/tilemega/runs/mx7/resume1/selection_g1235_ready/tp4/B2/rank0000003/build/timing2_execution/GUARDED_ATTEMPTS.json",
-            "sha256": "d8a255b7ba4fa15e9f0cf84d81497e33074b45f1c72246f0490c474c54f29aff"
-          }
-        ],
-        "producer": {
-          "path": "/root/tilemega/runs/mx7/resume1/selection_g1235_ready/tp4/B2/inputs/process_cohorts.py",
-          "sha256": "021927b25df2dd83c048951233cfc64779b5b5d2530594b985256f330c65a9eb"
+        "guard": {
+          "path": "/root/tilemega/runs/mx7/sm90_comparison/selection/tp4/B2/rank0000003/build/timing_execution/execution/guard/guard_result.json",
+          "sha256": "3fe3fc4d1c9744bf5304bd8c651d7619a2d05e58eaf385476d6234feaaad12b2"
+        },
+        "driver": {
+          "path": "/root/tilemega/runs/mx7/sm90_comparison/selection/tp4/B2/rank0000003/build/timing_execution/driver.py",
+          "sha256": "26a68a0e21985b8983cb2ac6a177720c93f308443c9816f7a392d06fc3efcd35"
         }
       },
       {
         "candidate_rank": 4,
-        "predicted_ns": 2739331.3196480935,
+        "predicted_ns": 1836041.3196480938,
         "fresh_process_ns": [
-          2798417.0222751442,
-          2794566.2319062976
+          1891018.1552666957,
+          1892055.6481195686
         ],
         "measurements": [
           {
-            "path": "/root/tilemega/runs/mx7/resume1/selection_g1235_ready/tp4/B2/rank0000004/build/timing_process1/measure/measurements.json",
-            "sha256": "c2f0a0bf824e762eeec8d5761c0791c6038a0109c95202bb17d7b026b3bf12b3"
+            "path": "/root/tilemega/runs/mx7/sm90_comparison/selection/tp4/B2/rank0000004/build/timing_process1/measure/measurements.json",
+            "sha256": "6f32f3baa2036a4c8d24c23845750aae9625f04cfa19ed52ec6b3742533fa1c5"
           },
           {
-            "path": "/root/tilemega/runs/mx7/resume1/selection_g1235_ready/tp4/B2/rank0000004/build/timing_process2/measure/measurements.json",
-            "sha256": "9191037c6a674abdf5e04d55c1a29ccd6ea0341425f4ae20b295ec36248f44e7"
+            "path": "/root/tilemega/runs/mx7/sm90_comparison/selection/tp4/B2/rank0000004/build/timing_process2/measure/measurements.json",
+            "sha256": "add00df020681bf4d8cc4a8d1c25318ad46da9f96b00575b366fcce522d24419"
           }
         ],
         "processes": [
           {
-            "path": "/root/tilemega/runs/mx7/resume1/selection_g1235_ready/tp4/B2/rank0000004/build/timing1_qualified_process.json",
-            "sha256": "c216dd48b3b7e61402e49e3c11a782e2c48f2be845974b82124ea98a3ec45c54"
+            "path": "/root/tilemega/runs/mx7/sm90_comparison/selection/tp4/B2/rank0000004/build/timing_process1/PROCESS.json",
+            "sha256": "ea89d8c5013d611235fc1bb90ff5ed0443d52209a624c6faf8fe88de75866f0b"
           },
           {
-            "path": "/root/tilemega/runs/mx7/resume1/selection_g1235_ready/tp4/B2/rank0000004/build/timing2_qualified_process.json",
-            "sha256": "341bdbbd2e924317e492e16bd510b6378fece9894edc16647b581586c877ae7b"
+            "path": "/root/tilemega/runs/mx7/sm90_comparison/selection/tp4/B2/rank0000004/build/timing_process2/PROCESS.json",
+            "sha256": "18fa326fc27066cc317be6196d4b174e12b076e17e5d5448b6a721894b00f4d8"
           }
         ],
-        "independent_guards": [
-          {
-            "path": "/root/tilemega/runs/mx7/resume1/selection_g1235_ready/tp4/B2/rank0000004/build/timing1_execution/GUARDED_ATTEMPTS.json",
-            "sha256": "a67affca392b8c387a0197bae4a660463799df276dc480f9210488738237d006"
-          },
-          {
-            "path": "/root/tilemega/runs/mx7/resume1/selection_g1235_ready/tp4/B2/rank0000004/build/timing2_execution/GUARDED_ATTEMPTS.json",
-            "sha256": "510b567feab506543cd8f64b266cea34d5e8d52a821cd8b1be69283c670e684b"
-          }
-        ],
-        "producer": {
-          "path": "/root/tilemega/runs/mx7/resume1/selection_g1235_ready/tp4/B2/inputs/process_cohorts.py",
-          "sha256": "021927b25df2dd83c048951233cfc64779b5b5d2530594b985256f330c65a9eb"
+        "guard": {
+          "path": "/root/tilemega/runs/mx7/sm90_comparison/selection/tp4/B2/rank0000004/build/timing_execution/execution/guard/guard_result.json",
+          "sha256": "3fe3fc4d1c9744bf5304bd8c651d7619a2d05e58eaf385476d6234feaaad12b2"
+        },
+        "driver": {
+          "path": "/root/tilemega/runs/mx7/sm90_comparison/selection/tp4/B2/rank0000004/build/timing_execution/driver.py",
+          "sha256": "bae7908624f9f348925ec75e6332a93e3c35647d9843d337b938cf383e38af32"
         }
       }
     ]

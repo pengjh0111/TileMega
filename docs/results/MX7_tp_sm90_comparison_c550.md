@@ -1,5 +1,11 @@
 # MX-7: SM90 / MetaX TP implementation audit
 
+**verified — final acceptance complete:** all10 optimized scopes finish top4/1%
+selection, C-1, five-process C-2 and two fresh warm1/timed2 measurements.
+All4 selected delay cohorts pass5/5; both final traces and8 frozen gates pass.
+The progress paragraphs below are historical; final data are in `MX7_tp_c550.md`
+and `MX7_tp_final_c550.csv`. No external baseline is repeated.
+
 Evidence: **verified** = source or local execution checked; **stated** = remote report;
 **inferred** = interpretation. The original 30 external baseline cells stay frozen;
 no baseline measurement is part of this audit or optimization.
@@ -288,3 +294,14 @@ traces(B1/B16) also complete. Only six middle-batch solver scopes remain.
 two fresh warm1/timed2 timings. Candidate medians2.292612/2.292182/
 2.294272/2.274298ms retain predicted rank1 under the1% rule. Five optimized
 final scopes complete; TP4 B2/B4/B8 and TP2 B4/B8 remain in the queue.
+
+## Final acceptance
+
+**verified** `runs/mx7/sm90_comparison/FINAL_ACCEPTANCE.json` validates
+all40 candidate and10 selected binary identities, guard/process exit0,
+50 C-1 checks,80 candidate C-2 processes,50 selected C-2 processes and100
+fresh timing processes. All warm/timed requests match their fresh C-2 reference.
+Maximum accepted resources:234MTreg,39072B dynamic LDS, stack/static0,
+actual resident1 on every rank. All30 frozen baseline rows and prior CSV
+prefixes remain unchanged; all10 original pins are archived byte for byte
+under `configs/pins/mx7/history/vector8/`. No required testing process remains.
