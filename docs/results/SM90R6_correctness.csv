@@ -1,0 +1,10 @@
+check,target,protocol,result,note
+A1 negative test,"Sm90DenseCoordinates::Validate, unfused MoE","unit, sm90_dense_coordinates_test",pass,"refuses moe && !expert_fuse, including the schema-5 form REF-R3 loads in"
+sm90_dense_coordinates,coordinate serialization and legality,ctest,pass,
+sm90_dense_router,router top-k and schedule,ctest,pass,first run since R5: the target did not compile
+sm90_dense_local_route,per-CTA routing vs R4 last arriver,ctest,pass,first run ever: the target was missing the repo include dir
+sm90_dense_epilogue,head and epilogue contract,ctest,pass,first run since R5
+sm90_dense_moe,standalone M4/M5/M6 stages,ctest,FAIL,"stale pre-E2 contract: expects the router stage to publish top-k/weights/schedule, gets zeros. To be rewritten in P5 on user instruction"
+generated_feature_contract,generated feature compilation,ctest,FAIL,"stale pre-native contract: ""H800 decode requires native tmexec coordinates; legacy execution options are invalid"". Rewrite in P5"
+r15_model_registry,model registry CLI,ctest,FAIL,unsupported model architecture from download_models.py
+python ctests (7),r15_* suite,ctest,pass,only after configuring Python3_EXECUTABLE to a torch environment

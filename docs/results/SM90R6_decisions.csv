@@ -1,0 +1,6 @@
+dt,phase,status,input,measurement,branch
+DT-P1,CP-P,pending,P1 self-check: per-family deviation of the pooled score against Sm90DenseCostModel,"qkv/o/gate_up/down 0.00% at B1,B16 x residency 1,2 (one cell 1.37%); lm_head 0.94/1.88/3.02/6.05%; attention 21.70-25.60%",not taken yet: V1-V4 are evaluated at CP-P after P2-P5. The attention deviation is structural - the stage model adds Waves() to the block compute while Eq (7) overlaps them - so it is U3 rather than a mapping error
+DT-B,before DNN timing,pending,,,
+DT-P,before any parallel timing,pending,,,
+DT-F1,after I-3,pending,,,
+DT-N0,NAFNet,pending,,,
