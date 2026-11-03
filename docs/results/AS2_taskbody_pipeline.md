@@ -1,6 +1,7 @@
 # TaskBody and pipeline checkpoints
 
-Latest continuation: [native BF16 local residual](AS2_local_residual_20261102.md).
+Latest continuation: [cache retirement and bounded DMA/QK work](AS2_cache_runtime_20261103.md).
+Previous continuation: [native BF16 local residual](AS2_local_residual_20261102.md).
 Previous continuation: [2026-11-02 FP32 valid-PV](AS2_valid_pv_20261102.md).
 Previous continuation: [Body/session/context search](AS2_taskbody_round_20261102.md).
 Earlier continuation: [2026-11-02](#2026-11-02-continuation). The section below
