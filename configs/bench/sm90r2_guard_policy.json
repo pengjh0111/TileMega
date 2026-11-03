@@ -13,8 +13,8 @@
     "2": 142.84,
     "3": 133.31,
     "4": 134.19,
-    "5": 82.63,
-    "6": 92.54,
+    "5": 132.29,
+    "6": 203.93,
     "7": 84.48
   },
   "idle_power_mapping_provenance": {
@@ -63,5 +63,15 @@
       4
     ],
     "reason": "SM clocks held at 1980 MHz while idle on 0-4 (and 6), set outside this harness; idle draw rose to 129.5-142.9 W from 81.5-87.8 W, above the old idle + 30 W bound, so the guard could never start a group on them. Cards 5 and 7 idle at 345 MHz and keep their values."
+  },
+  "idle_power_recalibration_r6": {
+    "date": "2026-11-03",
+    "evidence": "verified",
+    "method": "6 samples 5 s apart, 0 MiB used, 0% util, no compute apps",
+    "cards": [
+      5,
+      6
+    ],
+    "reason": "SM clocks on 5 and 6 now idle at 1830 MHz, set outside this harness; idle draw rose to 132.3 W (gpu5) and 203.9 W (gpu6) from the 82.63 and 92.54 recorded in R5, so the guard refused every job on them with \"preflight occupied\". Idle values updated; no clock, power limit or persistence setting was changed. Card 7 still idles at 345 MHz and 83.2 W and keeps its value; 0-4 remain at 1980 MHz within their R5 values."
   }
 }
