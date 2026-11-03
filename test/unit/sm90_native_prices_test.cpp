@@ -14,6 +14,18 @@
 using namespace tilemega;
 using namespace tilemega::solver;
 
+// Section 2.4's closed form for a stage that fits one wave. The tasks of a
+// wave contend for the stage's DRAM, so a task's transfer runs at the smaller
+// of its own per-CTA ceiling and its share of the stage bandwidth.
+static double ClosedForm(Sm90NativeStagePrice const& price, double dram_gbps, int grid) {
+  auto const& e = price.head_and_tail;
+  int wave = std::min(price.tasks, grid);
+  double rate = std::min(e.dram_rate_cap, dram_gbps / wave);
+  double m = e.dram_bytes / rate;
+  return price.hop_ns + e.fixed_ns + std::max(e.compute_ns, m) +
+         std::min(e.compute_ns, m) / e.pipeline_steps;
+}
+
 int main(int argc, char** argv) {
   if (argc < 2) {std::fprintf(stderr, "usage: %s <target.json>\n", argv[0]); return 2;}
   auto target = TargetSpec::FromJson(argv[1]);
@@ -41,10 +53,7 @@ int main(int argc, char** argv) {
         // Section 2.4: the closed form for a single wave, which is what a
         // stage whose task count fits the grid runs.
         if (price.tasks <= cost.Grid(residency)) {
-          auto const& e = price.head_and_tail;
-          double m = e.dram_bytes / e.dram_rate_cap;
-          double closed = price.hop_ns + e.fixed_ns + std::max(e.compute_ns, m) +
-                          std::min(e.compute_ns, m) / e.pipeline_steps;
+          double closed = ClosedForm(price, constants.dram_gbps, cost.Grid(residency));
           double gap = std::fabs(pooled - closed) / closed * 100;
           std::printf("    closed form %10.1f  gap %5.2f%%\n", closed, gap);
           if (gap > 0.5) ++failures;
@@ -75,10 +84,38 @@ int main(int argc, char** argv) {
                   batch, residency, price.tasks, comparable, pooled, deviation);
       // Attention's closed form, same rule as the GEMM families above.
       if (price.tasks <= cost.Grid(residency)) {
-        auto const& e = price.head_and_tail;
-        double m = e.dram_bytes / e.dram_rate_cap;
-        double closed = price.hop_ns + e.fixed_ns + std::max(e.compute_ns, m) +
-                        std::min(e.compute_ns, m) / e.pipeline_steps;
+        double closed = ClosedForm(price, constants.dram_gbps, cost.Grid(residency));
+        double gap = std::fabs(pooled - closed) / closed * 100;
+        std::printf("    closed form %10.1f  gap %5.2f%%\n", closed, gap);
+        if (gap > 0.5) ++failures;
+      }
+    }
+  }
+  // Section 2.4 item 1: the MoE families too. Qwen3-30B-A3B decode, shapes
+  // 5-7 per expert, E = 128 top-8 (the solver's own workload for those cells).
+  Sm90DenseWorkload moe;
+  moe.shapes = {{{6144, 2048}, {4096, 2048}, {0, 0}, {0, 0}, {151936, 2048},
+                 {128, 2048}, {1536, 2048}, {2048, 768}}};
+  moe.layers = 48; moe.head_dim = 128; moe.queries = 4; moe.hkv = 4;
+  moe.qk_norm = true; moe.moe = true; moe.experts = 128; moe.top_k = 8;
+  for (int batch : {1, 16}) {
+    moe.batch = batch;
+    for (unsigned family = 5; family < 8; ++family) {
+      // Only the measured geometries exist: the constants are exact-match
+      // lookups and throw Sm90NativeMissing otherwise (F17).
+      Sm90DenseGemm g;
+      g.tile_n = family == 5 ? 8 : family == 6 ? 96 : 128;
+      g.warps_k = 4;
+      g.slot_bytes = 2 * g.tile_n * 64;
+      double stage = cost.Gemm(moe, family, g, 1);
+      auto price = Sm90NativeGemmPrice(moe, family, g, 1, cost, /*weight_stream=*/true);
+      auto problem = Sm90NativeSingleStageProblem(price, cost, 1);
+      double pooled = EvaluateFlow(problem).makespan_ns;
+      std::printf("MoE B%-3d family%u tasks%-5d stage %10.1f pooled %10.1f dev %6.2f%%\n",
+                  batch, family, price.tasks, stage, pooled,
+                  std::fabs(pooled - stage) / stage * 100);
+      if (price.tasks <= cost.Grid(1)) {
+        double closed = ClosedForm(price, constants.dram_gbps, cost.Grid(1));
         double gap = std::fabs(pooled - closed) / closed * 100;
         std::printf("    closed form %10.1f  gap %5.2f%%\n", closed, gap);
         if (gap > 0.5) ++failures;
