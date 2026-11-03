@@ -1,6 +1,6 @@
 dt,phase,status,input,measurement,branch,evidence
-STOP-F5,onboarding,stopped,F5 claims resource infeasibility surfaces at nvcc static_assert,No GPU measurement; source audit finds CUDA plan-creation resource and occupancy checks,Prompt section 0.3 and section 12 stop condition 1,verified source inspection; Sm90ForwardRuntime.cuh:112-118; Sm90ForwardProgram.cuh:281-286; ForwardCodegen.cpp:800-802
-DT-TVM,B1,not_reached,CUDA build self-check and per-cell BF16 results,not_measured,not_taken,No TVM build or import attempted before STOP-F5
+STOP-F5,onboarding,resolved_by_user,F5 claims resource infeasibility surfaces at nvcc static_assert,No GPU measurement; source audit finds CUDA plan-creation resource and occupancy checks,User accepts factual correction and resumes,verified source inspection; Sm90ForwardRuntime.cuh:112-118; Sm90ForwardProgram.cuh:281-286; ForwardCodegen.cpp:800-802
+DT-TVM,B1 source build,stopped,TVM v0.27.0.post1 source build with CUDA/cuBLAS/cuDNN/LLVM23 and arch90,exit1 after1483.623s; LLVM23 SubtargetSubTypeKV/SubtargetFeatureKV lack key(); no final shared libraries,3: stop; no runtime selfcheck or BF16 cell attempted,verified; runs/dnn1/tvm/build_failure.json; build_cpu.log:811
 DT-A,CP-A,not_reached,RC-7 time share,not_measured,not_taken,Stopped before stage instrumentation and attribution
 DT-TM,CP-A,not_reached,Time share of stages with M utilization below 0.8,not_measured,not_taken,No trace or conditional implementation
 DT-SK,CP-A,not_reached,RC-4 share and active cluster feasibility,not_measured,not_taken,No trace or cluster query
