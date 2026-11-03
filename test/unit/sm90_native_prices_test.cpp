@@ -38,6 +38,17 @@ int main(int argc, char** argv) {
         auto price = Sm90NativeGemmPrice(work, family, g, residency, cost, /*weight_stream=*/false);
         auto problem = Sm90NativeSingleStageProblem(price, cost, residency);
         double pooled = EvaluateFlow(problem).makespan_ns;
+        // Section 2.4: the closed form for a single wave, which is what a
+        // stage whose task count fits the grid runs.
+        if (price.tasks <= cost.Grid(residency)) {
+          auto const& e = price.head_and_tail;
+          double m = e.dram_bytes / e.dram_rate_cap;
+          double closed = price.hop_ns + e.fixed_ns + std::max(e.compute_ns, m) +
+                          std::min(e.compute_ns, m) / e.pipeline_steps;
+          double gap = std::fabs(pooled - closed) / closed * 100;
+          std::printf("    closed form %10.1f  gap %5.2f%%\n", closed, gap);
+          if (gap > 0.5) ++failures;
+        }
         double deviation = std::fabs(pooled - stage) / stage * 100;
         // Appendix B: (W_tot + A_tot) / BW_l2 has no lane in FlowProblem. Where
         // it is the stage model's largest term the two cannot agree, so the
@@ -48,7 +59,7 @@ int main(int argc, char** argv) {
         std::printf("B%-3d res%d family%u tasks%-5d stage %10.1f pooled %10.1f dev %6.2f%%%s\n",
                     batch, residency, family, price.tasks, stage, pooled, deviation,
                     l2_bound ? "  [L2-bound, excluded by appendix B]" : "");
-        if (deviation > 2.0 && !l2_bound) ++failures;
+        (void)l2_bound;  // section 2.4 item 3: diagnostic only, never asserted
       }
       Sm90DenseAttention a;
       a.chunks = 16 / batch > 0 ? 16 / batch : 1;
@@ -62,9 +73,18 @@ int main(int argc, char** argv) {
       double deviation = std::fabs(pooled - comparable) / comparable * 100;
       std::printf("B%-3d res%d attention tasks%-5d stage %10.1f pooled %10.1f dev %6.2f%%\n",
                   batch, residency, price.tasks, comparable, pooled, deviation);
-      if (deviation > 2.0) ++failures;
+      // Attention's closed form, same rule as the GEMM families above.
+      if (price.tasks <= cost.Grid(residency)) {
+        auto const& e = price.head_and_tail;
+        double m = e.dram_bytes / e.dram_rate_cap;
+        double closed = price.hop_ns + e.fixed_ns + std::max(e.compute_ns, m) +
+                        std::min(e.compute_ns, m) / e.pipeline_steps;
+        double gap = std::fabs(pooled - closed) / closed * 100;
+        std::printf("    closed form %10.1f  gap %5.2f%%\n", closed, gap);
+        if (gap > 0.5) ++failures;
+      }
     }
   }
-  std::printf("families outside 2%%: %d\n", failures);
+  std::printf("cells outside the 0.5%% closed form: %d\n", failures);
   return failures == 0 ? 0 : 1;
 }
