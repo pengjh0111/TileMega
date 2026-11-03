@@ -42,9 +42,10 @@ template<class T> void Binary(std::filesystem::path const& p,std::vector<T> cons
 }
 AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem const& p,
     ascend::WorkerMap const& map,std::vector<solver::AscendScheduledTask> const& input,
-    solver::AscendSchedule const& schedule,bool diagnostic,unsigned attention_precision,bool local_tail_k7,bool local_q_tail3,bool local_residual_tail3,bool swiglu_tile,bool swiglu_l1_k256,bool vector_argmax,bool gemm_session,bool reg_swiglu,bool local_residual) {
+    solver::AscendSchedule const& schedule,bool diagnostic,unsigned attention_precision,bool local_tail_k7,bool local_q_tail3,bool local_residual_tail3,bool swiglu_tile,bool swiglu_l1_k256,bool vector_argmax,bool gemm_session,bool reg_swiglu,bool local_residual,bool local_residual_export_raw) {
   using namespace ascend::llm;
   if(attention_precision>14)throw std::invalid_argument("Unknown native attention precision contract");
+  if(!local_residual && !local_residual_export_raw)throw std::invalid_argument("Raw export policy requires a local residual implementation");
   if(swiglu_l1_k256 && !swiglu_tile)throw std::invalid_argument("K256 requires the strided SwiGLU contract");
   if(local_residual_tail3 && !local_q_tail3)throw std::invalid_argument("Residual tail3 requires its Q projection contract");
   if((local_tail_k7 || local_q_tail3) && (p.model.dims.batch!=16 || p.model.dims.seq!=64))
@@ -334,9 +335,15 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
     for(auto& s:out.stages)if(s.kind==0 && s.epilogue==1) {
       if(s.variant!=1 || !ascend::local_residual::Shape(s.rows,s.columns,s.k,s.epilogue,s.extent,s.tasks))
         throw std::invalid_argument("Unregistered local residual geometry or split reduction");
-      s.variant=9;++bound;
+      s.variant=local_residual_export_raw?9:10;++bound;
     }
     if(bound!=56)throw std::invalid_argument("Local residual must bind all 56 Qwen0.6 O/down projections");
+    for(auto const& s:out.stages)if(s.kind==0 && s.variant==10)for(auto const& other:out.stages) {
+      for(auto offset:other.operands)if(offset==s.workspace)
+        throw std::invalid_argument("Unmaterialized private residual output has a semantic operand use");
+      if(&s!=&other && s.workspace==other.workspace)
+        throw std::invalid_argument("Unmaterialized residual output aliases another workspace");
+    }
   }
   if(local_residual_tail3 && local_residual_stages!=64)
     throw std::invalid_argument("Residual tail3 must bind all 64 Llama8B O/down projections");
@@ -405,7 +412,7 @@ void AscendLlmPlan::Write(std::filesystem::path const& root) const {
   Binary(root/"offsets.bin",offsets);Binary(root/"queue.bin",queue);
   std::ofstream out(root/"buffers.json");out<<buffers_json<<'\n';if(!out)throw std::runtime_error("Cannot write LLM allocation manifest");
   const bool streaming=std::any_of(stages.begin(),stages.end(),[](auto const& s){return s.kind==13 && ascend::llm::IsStreamingAttention(s.variant);});
-  const bool local_residual=std::any_of(stages.begin(),stages.end(),[](auto const& s){return s.kind==0 && s.variant==9;});
+  const bool local_residual=std::any_of(stages.begin(),stages.end(),[](auto const& s){return s.kind==0 && (s.variant==9 || s.variant==10);});
   json::Array contracts;
   for(unsigned i=0;i<stages.size();++i) {
     auto const& s=stages[i];std::string id;
@@ -436,6 +443,7 @@ void AscendLlmPlan::Write(std::filesystem::path const& root) const {
     if(s.kind==0 && s.variant==7)id+="_worker_session";
     if(s.kind==0 && s.variant==8)id="as2_mix_gemm_regbase_swiglu_u16_16x128x128";
     if(s.kind==0 && s.variant==9)id="as2_mix_gemm_bf16_ub_aiv0_residual_gm_export_16x128x128";
+    if(s.kind==0 && s.variant==10)id="as2_mix_gemm_bf16_ub_aiv0_residual_no_raw_gm_16x128x128";
     double low=std::numeric_limits<double>::infinity(),high=0;std::set<std::string> provenance;
     if(!task_prices.empty())for(unsigned t=0;t<tasks.size();++t)if(tasks[t].stage==i) {
       low=std::min(low,task_prices.at(t).service_ns);high=std::max(high,task_prices.at(t).service_ns);
@@ -478,15 +486,16 @@ void AscendLlmPlan::Write(std::filesystem::path const& root) const {
       {"full_row_norm_method",s.kind==1&&s.variant==3?"CANN9.1.0_power_two_fold_square_reduce_Newton_refinement":s.kind==1&&s.variant==2?"CANN9.1.0_register_square_reduce_Newton_refinement":"existing_Rsqrt"},
       {"aic_l1_bytes",s.kind==0||(s.kind==13&&ascend::llm::IsCubeAttention(s.variant))?524288:0},{"aic_l0a_bytes",s.kind==0||(s.kind==13&&ascend::llm::IsCubeAttention(s.variant))?65536:0},
       {"aic_l0b_bytes",s.kind==0||(s.kind==13&&ascend::llm::IsCubeAttention(s.variant))?65536:0},{"aic_l0c_bytes",s.kind==0||(s.kind==13&&ascend::llm::IsCubeAttention(s.variant))?262144:0},
-      {"aiv_ub_bytes",s.kind==0&&s.variant==9?int(ascend::local_residual::kUbBytes):s.kind!=0||s.epilogue?106496:0},
+      {"aiv_ub_bytes",s.kind==0&&(s.variant==9||s.variant==10)?int(ascend::local_residual::kUbBytes):s.kind!=0||s.epilogue?106496:0},
       {"image_aiv_ub_reservation",local_residual?int(ascend::local_residual::kUbBytes):106496},
-      {"local_payload_slot_bytes",s.kind==0&&s.variant==9?int(ascend::local_residual::kTileBytes):0},
-      {"local_payload_slot_offset",s.kind==0&&s.variant==9?int(ascend::local_residual::kSlot):0},
+      {"local_payload_slot_bytes",s.kind==0&&(s.variant==9||s.variant==10)?int(ascend::local_residual::kTileBytes):0},
+      {"local_payload_slot_offset",s.kind==0&&(s.variant==9||s.variant==10)?int(ascend::local_residual::kSlot):0},
       {"local_raw_gm_export",s.kind==0 && s.variant==9},
+      {"private_raw_gm_materialized",!(s.kind==0 && s.variant==10)},
       {"internal_hard_event_slot",7},{"logical_task_completion_publishers",1},
       {"gm_group_workspace_bytes",s.kind==13&&ascend::llm::IsCubeAttention(s.variant)?double(ascend::llm::attention::kGroupBytes):0},
       {"mix_gm_phases",s.kind==13&&ascend::llm::IsCubeAttention(s.variant)?3:s.kind==0&&s.epilogue?1:0},
-      {"handoff",s.kind==0&&s.variant==9?"same_group_L0C_UB_AIV0_payload_GM_ready_done_reverse_ack":"GM_single_owner_frontier"},
+      {"handoff",s.kind==0&&(s.variant==9||s.variant==10)?"same_group_L0C_UB_AIV0_payload_GM_ready_done_reverse_ack":"GM_single_owner_frontier"},
       {"service_ns",high && low==high?json::Value(low):json::Value{}},
       {"service_ns_min",high?json::Value(low):json::Value{}},{"service_ns_max",high?json::Value(high):json::Value{}},
       {"price_provenance",std::move(sources)},
@@ -507,7 +516,7 @@ std::string LowerAscendLlm(AscendLlmPlan const& p) {
     unsigned geometry=s.variant>=2?1:s.variant;
     const bool swiglu_family=(s.columns==6144 && s.k==1024) || (s.columns==12288 && s.k==2048) ||
         (s.columns==16384 && (s.k==2048 || s.k==3072)) || (s.columns==28672 && s.k==4096);
-    if(s.variant>9 || (s.variant==9 && !ascend::local_residual::Shape(s.rows,s.columns,s.k,s.epilogue,s.extent,s.tasks)) ||
+    if(s.variant>10 || ((s.variant==9 || s.variant==10) && !ascend::local_residual::Shape(s.rows,s.columns,s.k,s.epilogue,s.extent,s.tasks)) ||
         (s.variant==6 && (s.epilogue!=3 || !s.rows || s.rows>16 || s.extent>1)) ||
         ((s.variant==4 || s.variant==5) &&
           ((s.rows!=1 && s.rows!=16 && s.rows!=64 && s.rows!=1024) || (s.variant==5 && s.rows!=16) ||
@@ -538,7 +547,9 @@ std::string LowerAscendLlm(AscendLlmPlan const& p) {
   bool vector_argmax=false;for(auto const& s:p.stages)if(s.kind==0 && (s.variant==6 || (s.variant==7 && s.epilogue==3)))vector_argmax=true;
   bool session=false;for(auto const& s:p.stages)if(s.kind==0 && s.variant==7)session=true;
   bool reg_swiglu=false;for(auto const& s:p.stages)if(s.kind==0 && s.variant==8)reg_swiglu=true;
-  bool local_residual=false;for(auto const& s:p.stages)if(s.kind==0 && s.variant==9)local_residual=true;
+  bool local_residual=false,no_raw=false;for(auto const& s:p.stages)if(s.kind==0 && (s.variant==9 || s.variant==10)) {
+    local_residual=true;no_raw|=s.variant==10;
+  }
   return std::string("// Generated by TileMega: verified CTG tables and candidate geometry, LLM ABI v4.\n")+
     (p.metadata.groups==14?"#define TILEMEGA_LLM_G14 1\n":"")+
     "#define TILEMEGA_LLM_SPLIT_K "+std::to_string(unsigned(split))+"\n"+
@@ -553,6 +564,7 @@ std::string LowerAscendLlm(AscendLlmPlan const& p) {
     "#define TILEMEGA_LLM_VECTOR_ARGMAX "+std::to_string(unsigned(vector_argmax))+"\n"+
     "#define TILEMEGA_LLM_REG_SWIGLU "+std::to_string(unsigned(reg_swiglu))+"\n"+
     "#define TILEMEGA_LLM_LOCAL_RESIDUAL "+std::to_string(unsigned(local_residual))+"\n"+
+    "#define TILEMEGA_LLM_LOCAL_RESIDUAL_NO_RAW "+std::to_string(unsigned(no_raw))+"\n"+
     "#define TILEMEGA_LLM_GEMM_SESSION "+std::to_string(unsigned(session))+"\n"+
     "#define TILEMEGA_LLM_STREAMING_ATTENTION "+std::to_string(unsigned(streaming))+"\n"+
     "#define TILEMEGA_LLM_PRECISION_CONTRACT "+std::to_string(streaming?streaming_contract:1)+"\n"+

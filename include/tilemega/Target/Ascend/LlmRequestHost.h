@@ -51,12 +51,21 @@ inline void Save(fs::path const& path,void const* data,size_t bytes) {
 }
 inline void ValidateCompiledBodies(std::vector<llm::Stage> const& stages) {
   for(auto const& s:stages)if(s.kind==0) {
-    if(s.variant==9) {
+    if(s.variant==9 || s.variant==10) {
 #if defined(TILEMEGA_LLM_LOCAL_RESIDUAL) && TILEMEGA_LLM_LOCAL_RESIDUAL
+#if !defined(TILEMEGA_LLM_LOCAL_RESIDUAL_NO_RAW) || !TILEMEGA_LLM_LOCAL_RESIDUAL_NO_RAW
+      if(s.variant==10)throw std::invalid_argument("Unmaterialized residual raw output requires its compiled Body");
+#endif
       if(kCompiledVariant!=1 ||
           !local_residual::Shape(s.rows,s.columns,s.k,s.epilogue,s.extent,s.tasks) ||
           s.workspace==llm::kAbsent || s.operands[2]==llm::kAbsent || s.operands[3]==llm::kAbsent)
         throw std::invalid_argument("Unregistered local BF16 residual recipe");
+      if(s.variant==10)for(auto const& other:stages) {
+        for(auto offset:other.operands)if(offset==s.workspace)
+          throw std::invalid_argument("Unmaterialized residual raw output has an operand consumer");
+        if(&other!=&s && other.workspace==s.workspace)
+          throw std::invalid_argument("Unmaterialized residual raw output aliases another workspace");
+      }
       auto base=s;base.variant=1;ValidateCompiledBodies({base});continue;
 #else
       throw std::invalid_argument("Local residual requires its explicitly compiled Body");
@@ -341,6 +350,9 @@ inline void Complete(Plan const& p,DevicePlan const& d,unsigned epoch,fs::path c
 }
 inline void Dump(Plan const& p,DevicePlan const& d,uint8_t* arena,unsigned past,unsigned diagnostic,fs::path const& out) {
   for(unsigned id=0;id<p.allocations.size();++id) {
+    bool unmaterialized=false;
+    for(auto const& s:p.stages)if(s.kind==0 && s.variant==10 && s.workspace==p.allocations[id].offset)unmaterialized=true;
+    if(unmaterialized)continue;
     auto const& a=p.allocations[id];bool logits=false;
     for(auto const& s:p.stages)if(s.kind==0 && s.epilogue==3 && s.workspace==a.offset)logits=true;
     auto limit=diagnostic==1 && p.m.batch==1?4ULL*1048576:1048576ULL;

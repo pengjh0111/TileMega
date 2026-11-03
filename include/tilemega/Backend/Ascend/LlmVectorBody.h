@@ -351,17 +351,19 @@ class LlmVectorBody {
     AscendC::Cast(bo_,work_,AscendC::RoundMode::CAST_RINT,n);Store(output,n);return true;
   }
 #if defined(TILEMEGA_LLM_LOCAL_RESIDUAL) && TILEMEGA_LLM_LOCAL_RESIDUAL
-  __aicore__ inline bool LocalResidual(GM_ADDR raw_output,GM_ADDR rhs,GM_ADDR output,unsigned n) {
+  template<bool ExportRaw=true> __aicore__ inline bool LocalResidual(GM_ADDR raw_output,GM_ADDR rhs,GM_ADDR output,unsigned n) {
     if(n!=128)return false;
     // One TPipe owns both scratch and the fixed receive slot. A second CATLASS
     // Resource here would reset the vector worker's live buffer/flag allocator.
     auto raw=storage_.Get<uint8_t>()[local_residual::kSlot].ReinterpretCast<bfloat16_t>();
     AscendC::PipeBarrier<PIPE_ALL>();
+    if constexpr(ExportRaw) {
     AscendC::GlobalTensor<bfloat16_t> dst;dst.SetGlobalBuffer((__gm__ bfloat16_t*)raw_output);
     AscendC::DataCopyExtParams copy{1,n*2,0,0,0};AscendC::DataCopyPad(dst,raw,copy);
     CompleteDma<AscendC::HardEvent::MTE3_S>();
-    // Retain the original raw BF16 GM output for C1/teacher/C2 in both modes;
-    // the residual computation itself consumes the Fixpipe UB value directly.
+    }
+    // ExportRaw=false is a distinct implementation: this private temporary
+    // has no semantic consumers and is never captured as a GM tensor.
     Load(by_,rhs,n);CompleteDma<AscendC::HardEvent::MTE2_V>();
     return PointwiseLoaded(raw,output,n,false);
   }

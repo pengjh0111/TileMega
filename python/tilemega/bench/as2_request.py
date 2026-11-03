@@ -93,14 +93,14 @@ from tilemega.bench.as2_precision import REPLAY, STREAMING, CONTRACTS, validate_
 SOURCE_CAPABILITIES=('TILEMEGA_LLM_SPLIT_K','TILEMEGA_LLM_LOCAL_TAIL_K7','TILEMEGA_LLM_LOCAL_Q_TAIL_K3',
                      'TILEMEGA_LLM_WIDE_QK','TILEMEGA_LLM_FP32_KV_CACHE','TILEMEGA_LLM_SWIGLU_TILE',
                      'TILEMEGA_LLM_SWIGLU_L1_K256','TILEMEGA_LLM_VECTOR_ARGMAX','TILEMEGA_LLM_G14',
-                     'TILEMEGA_LLM_STREAMING_ATTENTION','TILEMEGA_LLM_GEMM_SESSION','TILEMEGA_LLM_REG_SWIGLU','TILEMEGA_LLM_FP32_KV_CACHE_B1','TILEMEGA_LLM_VALID_PV','TILEMEGA_LLM_LOCAL_RESIDUAL')
+                     'TILEMEGA_LLM_STREAMING_ATTENTION','TILEMEGA_LLM_GEMM_SESSION','TILEMEGA_LLM_REG_SWIGLU','TILEMEGA_LLM_FP32_KV_CACHE_B1','TILEMEGA_LLM_VALID_PV','TILEMEGA_LLM_LOCAL_RESIDUAL','TILEMEGA_LLM_LOCAL_RESIDUAL_NO_RAW')
 SOURCE_GEOMETRY=('TILEMEGA_LLM_VARIANT','TILEMEGA_LLM_TM','TILEMEGA_LLM_TN','TILEMEGA_LLM_TK')
 SOURCE_CONTRACT=('TILEMEGA_LLM_PRECISION_CONTRACT',)
 PRECISION_CONTRACT=REPLAY
 
 
 def gemm_variant_geometry(stage):
-    if stage[31]==9:
+    if stage[31] in (9,10):
         if (stage[18],stage[19],stage[20],stage[21])!=(1,8,1,1024) or stage[22] not in (2048,3072) or stage[23]>1 or stage[16]==(1<<64)-1:
             raise ValueError('Unregistered local BF16 residual shape')
         return 1
@@ -123,6 +123,17 @@ def gemm_variant_geometry(stage):
             stage[23]>1 or stage[16]==(1<<64)-1):
         raise ValueError('Unregistered strided SwiGLU shape')
     return 1 if stage[31] in (2,3,4,5,6) else stage[31]
+
+
+def unmaterialized_raw_offsets(stages):
+    result=set()
+    for i,s in enumerate(stages):
+        if s[17]!=0 or s[31]!=10:continue
+        gemm_variant_geometry(s)
+        if any(s[16] in other[:16] or j!=i and other[16]==s[16] for j,other in enumerate(stages)):
+            raise ValueError('Unmaterialized residual raw output has a consumer or aliases another workspace')
+        result.add(s[16])
+    return result
 
 
 def source_parts(path):
@@ -269,6 +280,7 @@ def bind(prefill, decode, inputs, out,emit_source=False):
                 if stage[i] not in remap:raise ValueError('Operand is not a named allocation base')
                 stage[i]=remap[stage[i]]
             stages.append(struct.pack('<17Q16I',*stage))
+        unmaterialized=unmaterialized_raw_offsets(list(struct.iter_unpack('<17Q16I',b''.join(stages))))
         (dest/'metadata.bin').write_bytes(struct.pack('<12I3Q',*m))
         (dest/'stages.bin').write_bytes(b''.join(stages))
         (dest/'allocations.bin').write_bytes(b''.join(struct.pack('<3Q2I',b['offset_bytes'],b['bytes'],b['allocated_bytes'],int(b.get('required_input',False)),0) for b in union))
@@ -289,6 +301,7 @@ def bind(prefill, decode, inputs, out,emit_source=False):
             source_hashes={name:digest(plan['path']/name) for name in TABLES+(('pricing_bounds.bin','prices.json') if priced else ())},
             bound_hashes={name:digest(dest/name) for name in TABLES+(('pricing_bounds.bin','prices.json') if priced else ())})
         receipt['phases'][plan['phase']]['bound_hashes']['active_bytes.bin']=digest(dest/'active_bytes.bin')
+        receipt['phases'][plan['phase']]['unmaterialized_private_buffer_ids']=[b['id'] for b in union if b['offset_bytes'] in unmaterialized]
         for name in ('implementations.json',):
             receipt['phases'][plan['phase']]['source_hashes'][name]=digest(plan['path']/name)
             receipt['phases'][plan['phase']]['bound_hashes'][name]=digest(dest/name)

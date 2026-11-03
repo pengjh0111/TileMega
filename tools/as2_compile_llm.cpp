@@ -145,7 +145,7 @@ int main(int argc,char** argv) {
     const auto precision_contract=attention_precision==13?tilemega::ascend::llm::kStreamingFp32Precision:attention_precision==12?tilemega::ascend::llm::kStreamingPrecision:
       tilemega::ascend::llm::kReplayPrecision;
     tilemega::json::Value decomposition;
-    bool local_q_tail3=false,local_residual_tail3=false,swiglu_tile=false,swiglu_l1_k256=false,vector_argmax=false,gemm_session=false,reg_swiglu=false,local_residual=false;
+    bool local_q_tail3=false,local_residual_tail3=false,swiglu_tile=false,swiglu_l1_k256=false,vector_argmax=false,gemm_session=false,reg_swiglu=false,local_residual=false,local_residual_export_raw=true;
     tilemega::json::Value binding;
     if(body) {
       auto path=fs::weakly_canonical(argv[priced_body?10:9]);
@@ -185,6 +185,7 @@ int main(int argc,char** argv) {
         throw std::invalid_argument("Observed decomposition model/phase/geometry mismatch");
       if(auto flag=decomposition.Find("reg_swiglu"))reg_swiglu=flag->AsBool("reg_swiglu");
       if(auto flag=decomposition.Find("local_residual"))local_residual=flag->AsBool("local_residual");
+      if(auto flag=decomposition.Find("local_residual_export_raw"))local_residual_export_raw=flag->AsBool("local_residual_export_raw");
       if(auto flag=decomposition.Find("gemm_session"))gemm_session=flag->AsBool("gemm_session");
       if(auto tile=decomposition.Find("swiglu_tile"))swiglu_tile=tile->AsBool("swiglu_tile");
       if(auto value=decomposition.Find("vector_argmax"))vector_argmax=value->AsBool("vector_argmax");
@@ -501,7 +502,7 @@ int main(int argc,char** argv) {
           Write(output/"uncompressed_schedule.json",ScheduleReport(scheduled));
           scheduled=tilemega::solver::ElideAscendFifoWaits(tasks,workers,std::move(scheduled));
         }
-        auto native=tilemega::codegen::MaterializeAscendLlm(*module,problem,workers,tasks,scheduled,!priced,attention_precision,body,local_q_tail3,local_residual_tail3,swiglu_tile,swiglu_l1_k256,vector_argmax,gemm_session,reg_swiglu,local_residual);
+        auto native=tilemega::codegen::MaterializeAscendLlm(*module,problem,workers,tasks,scheduled,!priced,attention_precision,body,local_q_tail3,local_residual_tail3,swiglu_tile,swiglu_l1_k256,vector_argmax,gemm_session,reg_swiglu,local_residual,local_residual_export_raw);
         if(priced) {
           auto const& measured=prices.At("stages").AsArray("stage prices");
           for(unsigned i=0;i<native.stages.size();++i) {
@@ -548,6 +549,7 @@ int main(int argc,char** argv) {
         result.Set("priced_solver_executed",priced);
         result.Set("reg_swiglu",reg_swiglu);
         result.Set("local_residual",local_residual);
+        result.Set("local_residual_export_raw",local_residual_export_raw);
         result.Set("gemm_session",gemm_session);
         result.Set("swiglu_l1_k",swiglu_l1_k256?256:128);
         result.Set("precision_contract_id",precision_contract);

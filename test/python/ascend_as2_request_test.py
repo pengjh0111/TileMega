@@ -6,7 +6,7 @@ import tempfile
 import unittest
 import torch
 from tilemega.bench.as2_models import RUNS
-from tilemega.bench.as2_request import bind, digest, request_source,cached_kv_state,compatible_source,gemm_variant_geometry,rebind_inputs
+from tilemega.bench.as2_request import bind, digest, request_source,cached_kv_state,compatible_source,gemm_variant_geometry,rebind_inputs,unmaterialized_raw_offsets
 from tilemega.bench.as2_native_audit import compare_capture_payloads,mix_prefix
 from tilemega.bench.as2_native import incremental_packing_bytes,validate_rope_reuse
 from tilemega.bench.as2_last_forward import matching_prefix_rows
@@ -48,6 +48,13 @@ class RequestCapturePayloadTest(unittest.TestCase):
         self.assertEqual(gemm_variant_geometry(s),1)
         gm=s.copy();gm[31]=1
         self.assertEqual(logical_bytes(gm,[0]*15,0,63)-logical_bytes(s,[0]*15,0,63),256)
+        no_raw=s.copy();no_raw[31]=10
+        self.assertEqual(logical_bytes(gm,[0]*15,0,63)-logical_bytes(no_raw,[0]*15,0,63),512)
+        self.assertEqual(unmaterialized_raw_offsets([no_raw]),{512})
+        reader=[0]*33;reader[17]=11;reader[0]=512
+        with self.assertRaisesRegex(ValueError,'consumer'):unmaterialized_raw_offsets([no_raw,reader])
+        reader[0]=0;reader[16]=512
+        with self.assertRaisesRegex(ValueError,'aliases'):unmaterialized_raw_offsets([no_raw,reader])
         for field,value in ((18,2),(19,7),(20,16),(21,2048),(22,8192),(23,3),(16,(1<<64)-1)):
             invalid=s.copy();invalid[field]=value
             with self.assertRaisesRegex(ValueError,'local BF16 residual'):gemm_variant_geometry(invalid)

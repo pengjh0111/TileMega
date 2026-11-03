@@ -108,6 +108,15 @@ def audit_request(binding,jobs,out,reset_admission=True):
     if len(jobs)<(5 if reset_admission else 2):raise ValueError('Insufficient fresh processes for the selected admission')
     records=[];identities=set();canonical=None;binary=None;previous_end=None;scope=None;captures={}
     description=json.loads((binding/'request.json').read_text())
+    from tilemega.bench.as2_request import unmaterialized_raw_offsets
+    omitted=set()
+    for phase,entry in description['phases'].items():
+        stages=list(struct.iter_unpack('<17Q16I',(binding/phase/'stages.bin').read_bytes()))
+        offsets=unmaterialized_raw_offsets(stages)
+        ids={b['id'] for b in description['buffers'] if b['offset_bytes'] in offsets}
+        if ids!=set(entry.get('unmaterialized_private_buffer_ids',[])):
+            raise ValueError('Private GM materialization receipt differs from actual Stage implementations')
+        omitted.update(f'{phase}/{i}.bin' for i in ids)
     ss=list(struct.iter_unpack('<17Q16I',(binding/'decode/stages.bin').read_bytes()))
     heads=[s for s in ss if s[17]==0 and s[18]==3]
     if len(heads)!=1:raise ValueError('Require one complete vocabulary projection')
@@ -162,6 +171,7 @@ def audit_request(binding,jobs,out,reset_admission=True):
                     if len(trace)!=count or any((r[0],r[1],r[2],r[5])!=(t[2],t[0],t[1],epoch) or r[4]<r[3] or r[6:8]!=stages[t[0]][:2] for t,r in zip(tasks,trace)):
                         raise ValueError('Invalid request task ownership/ABI receipt')
             hashes={str(p.relative_to(request)):(digest(p),p.stat().st_size) for p in request.rglob('*.bin') if p.name!='trace.bin'}
+            if omitted.intersection(hashes):raise ValueError('Unmaterialized private output was captured as a GM tensor')
             previous=canonical if reset_admission else captures.get(diagnostic)
             if previous is not None and hashes!=previous:raise ValueError('Request reset payload, KV or token differs')
             if reset_admission:canonical=hashes
@@ -193,6 +203,7 @@ def audit_request(binding,jobs,out,reset_admission=True):
         compared_files_per_request=len(canonical),payload_kv_tokens_controls_bitwise_equal=True,
         selected_submissions_sequential=True,device_locked=False,binary_sha256=binary,records=records,
         numerical_gate='not_implied',performance_gate='not_implied')
+    result['unmaterialized_private_capture_paths']=sorted(omitted)
     if not reset_admission:
         result['diagnostic_only_large_capture_paths']=extra
         result['diagnostic_only_large_capture_count']=len(extra)

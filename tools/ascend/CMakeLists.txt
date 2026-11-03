@@ -138,3 +138,6 @@ target_include_directories(as2_host_local_residual_disabled PRIVATE "${TILEMEGA_
 add_executable(as2_host_local_residual_enabled "${TILEMEGA_ROOT}/test/unit/ascend_llm_local_residual_contract_test.cpp")
 target_include_directories(as2_host_local_residual_enabled PRIVATE "${TILEMEGA_ROOT}/include" "$ENV{ASCEND_HOME_PATH}/include")
 target_compile_definitions(as2_host_local_residual_enabled PRIVATE TILEMEGA_LLM_LOCAL_RESIDUAL=1 TILEMEGA_LLM_FP32_KV_CACHE=1 TILEMEGA_LLM_FP32_KV_CACHE_B1=1 TILEMEGA_LLM_VARIANT=1 TILEMEGA_LLM_SWIGLU_TILE=1 TILEMEGA_LLM_VECTOR_ARGMAX=1 TILEMEGA_AS2_CANN_NORM_PRIMITIVES=1)
+add_executable(as2_host_local_no_raw_enabled "${TILEMEGA_ROOT}/test/unit/ascend_llm_local_residual_contract_test.cpp")
+target_include_directories(as2_host_local_no_raw_enabled PRIVATE "${TILEMEGA_ROOT}/include" "$ENV{ASCEND_HOME_PATH}/include")
+target_compile_definitions(as2_host_local_no_raw_enabled PRIVATE TILEMEGA_LLM_LOCAL_RESIDUAL=1 TILEMEGA_LLM_LOCAL_RESIDUAL_NO_RAW=1 TILEMEGA_LLM_FP32_KV_CACHE=1 TILEMEGA_LLM_FP32_KV_CACHE_B1=1 TILEMEGA_LLM_VARIANT=1 TILEMEGA_LLM_SWIGLU_TILE=1 TILEMEGA_LLM_VECTOR_ARGMAX=1 TILEMEGA_AS2_CANN_NORM_PRIMITIVES=1)
