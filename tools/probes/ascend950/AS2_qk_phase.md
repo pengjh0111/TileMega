@@ -63,3 +63,8 @@ Binary SHA256:
 `e5b1532034e11600716fdb32b042889f98cdf50bceabe8e01a72fa283c4b8c4d`.
 Compile logs/private finite five-process driver remain under `tilemega-as2`.
 No device lock/reset, other-process operation or CUDA regression is used.
+
+Subsequent actual G8 CTG/Solver/Plan integration and its inconclusive full
+request timing are documented in
+[`AS2_cache_runtime_20261103.md`](../../../docs/results/AS2_cache_runtime_20261103.md#integrated-qk-phase-candidate).
+The standalone G1 probe above remains a separate, narrower evidence claim.

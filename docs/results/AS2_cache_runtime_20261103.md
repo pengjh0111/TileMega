@@ -32,8 +32,8 @@ The older150.121319GiB excursion/failing disk Gate remains recorded; this
 cleanup does not retroactively pass it. Budget remains150GiB.
 
 Completed within/across-cohort sharing reclaims10309988352B without losing
-any path or payload; all four C3 cohorts pass the post-sharing audit. Latest
-sample143.459900GiB generated,8231.567215GiB free on the shared filesystem.
+any path or payload; all four C3 cohorts pass the post-sharing audit. At that
+QKV checkpoint the sample is143.459900GiB generated,8231.567215GiB free.
 
 Evidence: `runs/as2/cleanup/development_cache_20261103_v1/`,
 `cleanup/qkv_dma_{control,candidate}_{preview,apply}_20261103_v1.json`, and
@@ -156,3 +156,81 @@ One own NPU job at a time, physical1 only; physical0's Alarm remains a hold.
 Functional jobs may coexist with external load; performance waits for observed
 idle. No device/advisory lock, exclusive mode, reset, other-process operation,
 CUDA regression, official-weight download or shared configuration change.
+
+## Integrated QK phase candidate
+
+`verified-code/run`, commit88babfb2d: Attention kind13/variant13 now consumes
+the actual imported CTG/Solver/Plan. Explicit CLI implementation
+`cube-fp32-cached-qk-phase-drain`, `QkPhaseContract.h` and source capability
+`TILEMEGA_LLM_QK_PHASE_DRAIN` bind all28 Qwen0.6 B1 decode Attention stages,
+G8, D128/GQA2. It retains the existing per-phase MMAD object; only intermediate
+per-tile FIX_S completions move to one phase-final completion. UnitFlag/one
+L0C bank, FP32 QK/P/softmax/PV, physical stride1088, full-capacity PV, GM
+handoff, owner/participant and external Task retirement are unchanged.
+The QKV cache experiment is **not** combined with this candidate.
+
+Bootstrap tables/FIFOs/allocations are identical except28 Attention IDs.
+Both bootstrap and actual context-priced recipes pass full1024, teacher512,
+C2 and5/5-process C3; all457 common full-request numeric captures of the
+priced recipes match bitwise. Missing capability, wrong shape/metadata or
+precision rejects before execution. Image SHA256:
+`d5f1eb793ffa5b3454e89afb9849d318e997c4d0d206e7a5f8ec9053a6e228ae`.
+
+Three context profiles/recipe use the existing sourced five-process G8
+conservative dispatcher calibration. The median across28 context-weighted
+Attention owner-service estimates is33.243198→27.050677us, including internal
+C/V coordination. This is not hardware busy time or an additive TPOT share.
+Actual native structural/EFT comparisons select phase completion, predicting
+5314.842745→5143.757701ms/request. Full chain and independent numerical
+admission: `search/qk_phase_priced_pipeline_20261103_v1.json` and
+`search/qk_phase_priced_admission_20261103_v1.json`.
+
+Five fixed alternated process pairs,1 warmup/3 complete requests/process:
+
+| Metric | Conservative | QK phase completion |
+|---|---:|---:|
+| TPOT,ms |5.000577|4.832419|
+| TTFT,ms |33.863493|34.076563|
+| E2E,ms |5149.325484|4977.820105|
+| Output token/s |198.860997|205.712536|
+
+These are medians across process medians. Four pair ratios are1.0324–1.0392;
+the last is0.8729. Retaining all five gives geometric ratio1.000868,
+nominal log-t95%[0.910152,1.100627], CV0.167%/7.947%;9/10 receipts have
+external-PID flags. **Inconclusive, no default or formal eager Gate.** The
+nonstationary long wait below also prevents treating that interval as a
+reliable stationary confidence statement. All40 natural token payloads match.
+Evidence: `bench/taskbody_qk_phase_priced_pairs_20261103_v1/`.
+
+The final candidate process completes normally/exit0 in577.56s, but its
+first timed request takes554.806960s (TPOT542.299964ms); subsequent requests
+take5.887192s and5.800889s. Its own CANN log reports three180s stream-wait
+notices: stream57/SQ6, runtime task2047, unchanged SQ head1106/pending942.
+These runtime IDs are **not** TileMega Task IDs. No Host wrapper timeout or
+OOM occurs; the runtime wait notices remain explicit failures of timing
+reliability, not a claimed kernel deadlock or a discarded sample.
+
+All36 during-job device observations show100% utilization, including our
+work, with other processes appearing. After this job exits, no own job/PID
+remains, physical1 is healthy and still100% utilized. This establishes shared
+load after completion; it does not isolate the stall's underlying admission,
+scheduling or execution cause. Further long timing is held; no device reset
+or other-process action occurs. Minimal command/source/image, full raw sample,
+own runtime log and hardware timeline:
+`failures/qk_phase_long_request_20261103_v1/`.
+
+Next bounded diagnostic uses the existing opt-in Host progress receipts in
+`LlmRequestHost.h` (launch submission/return/stream completion), outside bench
+mode, after an idle window. Investigate admission and bounded submission
+before repeating a long study. Streaming/local Attention, cross-task credit
+regions, both-AIV cooperation and new-recipe admission in the other nine
+dense cells remain pending;
+this phase-completion result does not finish the TaskBody/Pipeline prompt.
+
+Final sampled usage145.751961GiB/150GiB. This continuation retires the above
+31507 cache files and reclaims21447503872B through verified storage sharing;
+all numeric evidence remains.108 own NPU jobs run sequentially on physical1,
+all exit0,2076.095s cumulative job wall time including initialization/I/O/waits,
+**not** inferred device compute time. Host timeouts/OOM0; the three runtime
+stream-wait notices and older disk excursion remain explicit. No own NPU job
+is left running. Resume: `runs/as2/search/qk_phase_checkpoint_20261103_v1.json`.
