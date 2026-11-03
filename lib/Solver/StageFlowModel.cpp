@@ -102,7 +102,7 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
   struct Later {bool operator()(Event const& a,Event const& b) const{return std::tie(a.time,a.serial)>std::tie(b.time,b.serial);}};
   std::priority_queue<Event,std::vector<Event>,Later> events;std::uint64_t serial=0;
   auto push=[&](double time,Kind kind,int id,std::size_t begin=0,std::size_t end=0,int cause=-1){events.push({time,kind,id,begin,end,serial++,cause});};
-  struct Cohort {int space,piece,cause=-1,edge=-1;std::size_t begin=0,count=0;double start=0,main=0,wait=0,fixed=0,end=0,publication=0;bool compute=false,bytes=false,closing=false,fused=false;};
+  struct Cohort {int space,piece,cause=-1,edge=-1;std::size_t begin=0,count=0;double start=0,main=0,wait=0,fixed=0,end=0,publication=0;double compute_end=-1,bytes_end=-1;bool compute=false,bytes=false,closing=false,fused=false;};
   static thread_local std::vector<Cohort> cohorts;cohorts.clear();
   static thread_local std::vector<int> cohort_tasks;cohort_tasks.clear();cohort_tasks.reserve(total);
   std::vector<int> fluid_owner;DramFluidServer fluid(p.dram_gbps);
@@ -189,6 +189,13 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
       page_hold[c.space][task]=0;
     }
     auto& s=result.spaces[c.space];s.mainloop_ns+=(now-c.main)*c.count;
+    // Continuation 1 section 2.3: an n-step operand pipeline runs in
+    // max{c, m} + min{c, m}/n, and only the task at the head of a track pays
+    // the second term. min{c, m} is read off the two completion stamps
+    // rather than re-derived, so it is the realized transfer, not an estimate.
+    double steps=p.spaces[c.space].pieces[c.piece].parts.pipeline_steps;
+    if(steps>0 && c.compute_end>=0 && c.bytes_end>=0)
+      gated+=(std::min(c.compute_end,c.bytes_end)-c.main)/steps;
     push(gated+(!options.no_sync && publishes[c.space]?p.publication_ns:0),PublishEnd,id);
   }};
   while(finished<total) {
@@ -234,9 +241,9 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
           result.main_bytes+=main_total;
           if(bytes>0){int id=inflight?inflight->Add(bytes,parts.dram_rate_cap,
               parts.inflight_bytes,c.count):fluid.Add(bytes,parts.dram_rate_cap,c.count);
-            if(id!=int(fluid_owner.size()))throw std::runtime_error("fluid id discontinuity");fluid_owner.push_back(event.id);}else c.bytes=true;
+            if(id!=int(fluid_owner.size()))throw std::runtime_error("fluid id discontinuity");fluid_owner.push_back(event.id);}else {c.bytes=true;c.bytes_end=now;}
           push(now+parts.compute_ns,ComputeEnd,event.id);
-        }else if(event.kind==ComputeEnd){c.compute=true;close(event.id);}
+        }else if(event.kind==ComputeEnd){c.compute=true;c.compute_end=now;close(event.id);}
         else {
           int s=c.space;c.end=now;c.publication=!options.no_sync && publishes[s]?p.publication_ns:0;last_completed=event.id;if(!c.fused)free+=c.count;finished+=c.count;for(std::size_t i=c.begin;i<c.begin+c.count;++i)completed[s][cohort_tasks[i]]=1;
           auto& stats=result.spaces[s];stats.last_end=now;stats.last_edge=last_edge[s][cohort_tasks[c.begin+c.count-1]];stats.publication_ns+=(!options.no_sync && publishes[s]?p.publication_ns:0)*c.count;
@@ -282,7 +289,7 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
       if(owner<0){auto const& prefetch=prefetch_cohorts[-owner-1];
         for(int j=prefetch.first;j<prefetch.first+prefetch.count;++j)
           mark_prefetched(prefetch.space,j,now);
-      }else {cohorts[owner].bytes=true;close(owner);}}
+      }else {cohorts[owner].bytes=true;cohorts[owner].bytes_end=now;close(owner);}}
   }
   result.makespan_ns=now;result.delivered_bytes=inflight?inflight->Delivered():fluid.Delivered();
   double tolerance=std::max(1e-6,result.expected_bytes*1e-10);

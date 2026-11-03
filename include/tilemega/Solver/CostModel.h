@@ -67,6 +67,12 @@ struct TaskPriceParts {
   double fixed_ns=0, compute_ns=0, dram_bytes=0, dram_rate_cap=0;
   double no_producer_dram_bytes=0;
   double inflight_bytes=0; // serving: per-task outstanding DRAM bytes
+  // Continuation 1 section 2.3: the exposed fill of this task's operand
+  // pipeline, in steps. A task in the middle of a track overlaps its transfer
+  // with its neighbours and pays max{c, m}; a track's first task has nothing
+  // ahead of it, so one step's worth of the shorter side is exposed. 0 means
+  // no fill term, which is every historical caller.
+  double pipeline_steps=0;
 };
 double IsolatedNs(TaskPriceParts const& parts,double fair_rate);
 
