@@ -1,6 +1,7 @@
 # TaskBody and pipeline checkpoints
 
-Latest continuation: [2026-11-02 FP32 valid-PV](AS2_valid_pv_20261102.md).
+Latest continuation: [native BF16 local residual](AS2_local_residual_20261102.md).
+Previous continuation: [2026-11-02 FP32 valid-PV](AS2_valid_pv_20261102.md).
 Previous continuation: [Body/session/context search](AS2_taskbody_round_20261102.md).
 Earlier continuation: [2026-11-02](#2026-11-02-continuation). The section below
 records the earlier2026-10-30 checkpoint; its device holds and compile-only
