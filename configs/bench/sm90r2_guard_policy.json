@@ -8,14 +8,14 @@
   "hidden_violations": 3,
   "max_idle_wait_s": 21600,
   "idle_power_w_by_gpu": {
-    "0": 135.61,
-    "1": 129.54,
-    "2": 142.84,
-    "3": 133.31,
-    "4": 134.19,
+    "0": 142.23,
+    "1": 135.82,
+    "2": 149.18,
+    "3": 139.0,
+    "4": 142.8,
     "5": 132.29,
     "6": 203.93,
-    "7": 84.48
+    "7": 136.3
   },
   "idle_power_mapping_provenance": {
     "evidence": "inferred transfer of original measured idle power by GPU UUID; no new power calibration",
@@ -67,11 +67,15 @@
   "idle_power_recalibration_r6": {
     "date": "2026-11-03",
     "evidence": "verified",
-    "method": "6 samples 5 s apart, 0 MiB used, 0% util, no compute apps",
+    "method": "6 samples 5 s apart, skipping any card with memory in use or non-zero utilisation",
     "cards": [
-      5,
-      6
+      0,
+      1,
+      2,
+      3,
+      4,
+      7
     ],
-    "reason": "SM clocks on 5 and 6 now idle at 1830 MHz, set outside this harness; idle draw rose to 132.3 W (gpu5) and 203.9 W (gpu6) from the 82.63 and 92.54 recorded in R5, so the guard refused every job on them with \"preflight occupied\". Idle values updated; no clock, power limit or persistence setting was changed. Card 7 still idles at 345 MHz and 83.2 W and keeps its value; 0-4 remain at 1980 MHz within their R5 values."
+    "reason": "SM clocks on the timing cards are being changed outside this harness during the round (U13): 0-4 sit at 1980 MHz, card 5 moved 345 -> 1830 MHz and card 7 345 -> 1980 MHz within twenty minutes, so idle draw rose well past the values R5 recorded and the guard refused every job with \"preflight occupied\". Only the recorded idle power is refreshed, from measurement, on cards that were verifiably free (0 MiB, 0% util, no owners). No clock, power limit or persistence setting was changed, and the guard keeps its memory, foreign-process and lock checks."
   }
 }

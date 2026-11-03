@@ -6,7 +6,7 @@ Each process claims its card and records the SM and memory clocks and the
 throttle reasons on both sides of the measurement, so a round that ran while
 the card was clamped can be told apart from one that did not.
 """
-import argparse, csv, json, os, statistics, subprocess, sys
+import argparse, csv, json, os, statistics, subprocess, sys, time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -20,6 +20,11 @@ ITEMS = ('hbm_read', 'hbm_read_bulk', 'bf16_wgmma', 'bf16_mma_sync')
 
 def build():
     OUT.mkdir(parents=True, exist_ok=True)
+    # One job per card runs concurrently, so they must not all write the same
+    # binary at once: compile only when it is older than its source.
+    source = ROOT / 'scripts/sm90r6_hw_peaks.cu'
+    if BINARY.exists() and BINARY.stat().st_mtime >= source.stat().st_mtime:
+        return BINARY
     command = ['nvcc', '-std=c++17', '-gencode=arch=compute_90a,code=sm_90a', '-O3',
                '-I', str(ROOT / 'include'), '-I', str(ROOT / 'third_party/cutlass/include'),
                '--expt-relaxed-constexpr', '-o', str(BINARY),
@@ -84,12 +89,23 @@ def run(a):
             for item in ITEMS:
                 per_config = {}
                 marks = []
+                units = {}
+                failures = []
                 for process in range(a.processes):
-                    payload, before, after, error = one(binary, claimed, item, a.gib, process)
+                    # A guard rejection is someone else's job arriving between
+                    # the claim and the preflight, not a fault of this process,
+                    # so it is retried rather than costing a sample.
+                    for attempt in range(4):
+                        payload, before, after, error = one(binary, claimed, item, a.gib, process)
+                        if payload is not None or 'rc=75' not in error:
+                            break
+                        time.sleep(90)
                     if payload is None:
+                        failures.append(error)
                         print(json.dumps({'gpu': claimed, 'item': item, 'process': process,
                                           'error': error}), flush=True)
                         continue
+                    units = payload['units']
                     for sample in payload['samples']:
                         per_config.setdefault(sample['config'], []).append(sample['value'])
                     marks.append((before, after))
@@ -100,7 +116,8 @@ def run(a):
                         median=f'{statistics.median(values):.3f}',
                         minimum=f'{min(values):.3f}', maximum=f'{max(values):.3f}',
                         spread_pct=f'{(max(values) - min(values)) / statistics.median(values) * 100:.2f}',
-                        unit=payload['units'].get(item.replace('_bulk', ''), ''),
+                        unit=units.get(item.replace('_bulk', ''), ''),
+                        failed_processes=len(failures),
                         sm_mhz=';'.join(sorted({m[0]['sm_mhz'] for m in marks})),
                         mem_mhz=';'.join(sorted({m[0]['mem_mhz'] for m in marks})),
                         throttle_reasons=';'.join(throttled)))
