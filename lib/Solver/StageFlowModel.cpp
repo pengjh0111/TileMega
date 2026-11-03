@@ -249,7 +249,7 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
           auto& stats=result.spaces[s];stats.last_end=now;stats.last_edge=last_edge[s][cohort_tasks[c.begin+c.count-1]];stats.publication_ns+=(!options.no_sync && publishes[s]?p.publication_ns:0)*c.count;
           int before=prefix[s];while(prefix[s]+1<p.spaces[s].count && completed[s][prefix[s]+1])++prefix[s];
           if(prefix[s]!=before)for(int e:outgoing[s]){auto const& edge=p.edges[e];auto begin=edge_cursor[e];while(edge_cursor[e]<edge.sorted->size() && edge.sorted->at(edge_cursor[e]).first<=prefix[s])++edge_cursor[e];
-            double hop=options.no_sync || (p.spaces[edge.consumer].fused_reducer || p.spaces[edge.consumer].handoff_reducer) || (edge.colocated && edge.kappa==1)?0:p.hop_ns;
+            double hop=options.no_sync || (p.spaces[edge.consumer].fused_reducer || p.spaces[edge.consumer].handoff_reducer) || (edge.colocated && edge.kappa==1)?0:(edge.hop_ns>=0?edge.hop_ns:p.hop_ns);
             if(begin!=edge_cursor[e])push(now+hop,edge.phase?GateArrival:Arrival,e,begin,edge_cursor[e],event.id);
             if(edge.phase) {
               begin=first_cursor[e];
@@ -304,7 +304,7 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
   while(last_completed>=0) {
     if(seen[last_completed])throw std::runtime_error("cyclic flow critical chain");seen[last_completed]=true;
     auto const& c=cohorts[last_completed];double hop=0;
-    if(c.edge>=0){auto const& e=p.edges[c.edge];if(!options.no_sync && !(e.colocated && e.kappa==1))hop=p.hop_ns;}
+    if(c.edge>=0){auto const& e=p.edges[c.edge];if(!options.no_sync && !(e.colocated && e.kappa==1))hop=e.hop_ns>=0?e.hop_ns:p.hop_ns;}
     result.critical_chain.push_back(c.space);
     result.critical_links.push_back({c.space,cohort_tasks[c.begin+c.count-1],c.edge,c.start,c.end,c.wait,c.fixed,std::max(0.,c.end-c.publication-c.main),c.publication,hop});
     last_completed=c.cause;

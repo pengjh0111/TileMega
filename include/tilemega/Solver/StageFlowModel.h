@@ -22,6 +22,9 @@ struct FlowRelease {int producer=0,consumer=0,kappa=1;bool all_producer=false,co
   bool phase=false;
   std::shared_ptr<std::vector<std::pair<int,int>> const> first;
   int phase_iterations=1;
+  // P2: each coupling's own visibility delay, h_e(chi_e) of Eq. (8). Negative
+  // defers to FlowProblem::hop_ns, which is what every historical caller gets.
+  double hop_ns=-1;
 };
 struct FlowProblem {
   std::vector<FlowSpace> spaces;
@@ -37,7 +40,16 @@ struct FlowProblem {
   std::vector<double> inflight_curve_bytes,inflight_curve_gbps;
   std::vector<double> cta_stream_curve_bytes,cta_stream_curve_gbps;
 };
-struct FlowOptions {bool no_sync=false,no_fixed=false,infinite_workers=false,no_external=false;};
+// P2: an optional binding of tasks to workers, Eq. (10)'s pi. `worker_of_task`
+// is indexed as the spaces are, and `order` lists each worker's task sequence
+// as (space, task). Empty means the pooled policy of Eq. (8).
+struct FlowPlacement {
+  std::vector<std::vector<int>> worker_of_task;
+  std::vector<std::vector<std::pair<int,int>>> order;
+  bool empty() const {return worker_of_task.empty();}
+};
+struct FlowOptions {bool no_sync=false,no_fixed=false,infinite_workers=false,no_external=false;
+  FlowPlacement placement;};
 struct FlowSpaceResult {double first_start=-1,last_end=0,wait_ns=0,fixed_ns=0,mainloop_ns=0,publication_ns=0;int last_edge=-1;};
 struct FlowChainLink {int space=-1,task=-1,edge=-1;double start_ns=0,end_ns=0,wait_ns=0,fixed_ns=0,mainloop_ns=0,publication_ns=0,hop_ns=0;};
 struct FlowTraffic {
