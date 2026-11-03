@@ -246,6 +246,26 @@ def phase_pair_contract(prefill,decode):
     return dict(derived_kv_layers=len(states[0]),generated_source_contract=source)
 
 
+def request_phase_key(candidate):
+    # Prices are part of this identity: identical math with two independently
+    # measured prices must not silently reuse whichever measurement came first.
+    return json.dumps({k:v for k,v in candidate.items() if k!='id'},sort_keys=True)
+
+
+def request_phase_inputs(candidate):
+    return {k:digest(Path(candidate[k])) for k in ('prices','body_binding','decomposition') if candidate.get(k)}
+
+
+def check_reused_phase(original,inputs,expected):
+    if inputs!=expected or digest(Path(original['search']))!=original['search_sha256']:
+        raise ValueError('Shared request phase inputs or solved receipt changed')
+    result=json.loads(Path(original['search']).read_text())
+    selected=next(r for r in result['rows'] if r['id']==result['selected'])
+    for name,sha in selected['tables_sha256'].items():
+        if digest(Path(original['plan'])/name)!=sha:
+            raise ValueError('Shared request phase Plan changed')
+
+
 def request_domains(domain):
     recipes=domain['recipes']
     if (domain['schema']!='tilemega.as2.outer_request_search_domain.v1' or
@@ -255,9 +275,11 @@ def request_domains(domain):
         raise ValueError('Request recipe ids must be unique safe path components')
     domains={};identities=[];devices=set();costs={}
     for phase in ('prefill','decode'):
+        unique={}
+        for r in recipes:unique.setdefault(request_phase_key(r[phase]),dict(r[phase],id=r['id']))
         child=dict(schema='tilemega.as2.outer_search_domain.v1',export=domain[phase+'_export'],
             batch=domain['batch'],candidate_timeout_s=domain.get('candidate_timeout_s',600),
-            candidates=[dict(r[phase],id=r['id']) for r in recipes])
+            candidates=list(unique.values()))
         if domain.get('target_config'):child['target_config']=domain['target_config']
         _,identity=validate(child)
         if identity['phase']!=phase:raise ValueError('Request phase export mismatch')
@@ -278,7 +300,7 @@ def solve_request(domain_path,out,compiler):
     domain_path,out=controlled(domain_path),controlled(out)
     if out.exists():raise FileExistsError(out)
     domain=json.loads(domain_path.read_text());domains,identity=request_domains(domain)
-    out.mkdir();rows=[]
+    out.mkdir();rows=[];phase_cache={}
     summary=dict(schema='tilemega.as2.outer_request_search_result.v1',status='in_progress',identity=identity,
         domain=str(domain_path),domain_sha256=digest(domain_path),compiler_sha256=digest(compiler),
         objective='predicted_prefill_ns + 1023 * context_weighted_predicted_decode_ns',
@@ -287,6 +309,15 @@ def solve_request(domain_path,out,compiler):
         row=dict(id=recipe['id'],status='running',phases={});rows.append(row)
         recipe_out=out/recipe['id'];recipe_out.mkdir()
         for phase in ('prefill','decode'):
+            check_compiler_identity(compiler,summary['compiler_sha256'])
+            key=(phase,request_phase_key(recipe[phase]))
+            inputs=request_phase_inputs(recipe[phase])
+            if key in phase_cache:
+                original,price,expected=phase_cache[key]
+                check_reused_phase(original,inputs,expected)
+                row['phases'][phase]=dict(original,reused_solved_phase=True)
+                row['predicted_'+phase+'_ns']=price
+                continue
             child=dict(domains[phase],candidates=[dict(recipe[phase],id=recipe['id'])])
             path=recipe_out/(phase+'_domain.json');write(path,child)
             code=solve(path,recipe_out/phase,compiler)
@@ -300,6 +331,7 @@ def solve_request(domain_path,out,compiler):
             winner=next(r for r in result['rows'] if r['id']==result['selected'])
             row['phases'][phase]['plan']=result['selected_plan']
             row['predicted_'+phase+'_ns']=winner['predicted_forward_ns']
+            phase_cache[key]=(dict(row['phases'][phase]),winner['predicted_forward_ns'],inputs)
         if row['status']=='running':
             try:
                 row['pair_contract']=phase_pair_contract(*(Path(row['phases'][p]['plan']) for p in ('prefill','decode')))
@@ -311,6 +343,7 @@ def solve_request(domain_path,out,compiler):
         summary['status']='fail';write(out/'search.json',summary);return 1
     selected=select_request(rows,domain['output_count'])
     summary.update(status='selected_prediction_not_device_admitted',selected=selected['id'],
+        unique_solved_phases=len(phase_cache),
         selected_phases={p:r['plan'] for p,r in selected['phases'].items()},
         note='Both phases used native Import/CTG/ISL/priced schedule/materialization; state compatibility checked before joint recipe selection. No device/default admission.')
     write(out/'search.json',summary);print(json.dumps({k:v for k,v in summary.items() if k!='rows'}));return 0
