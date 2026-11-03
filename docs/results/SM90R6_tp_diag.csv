@@ -1,7 +1,7 @@
-engine,tp,custom_allreduce,nccl_transports,trtllm_allreduce_strategy,log
-vllm,2,enabled,P2P/CUMEM,n/a,/root/TileMega-r6/runs/sm90r6/a3/vllm_tp2/run.log
-vllm,4,enabled,P2P/CUMEM,n/a,/root/TileMega-r6/runs/sm90r6/a3/vllm_tp4/run.log
-sglang,2,enabled,P2P/IPC,n/a,/root/TileMega-r6/runs/sm90r6/a3/sglang_tp2/run.log
-sglang,4,enabled,P2P/IPC,n/a,/root/TileMega-r6/runs/sm90r6/a3/sglang_tp4/run.log
-trtllm,2,not stated in the log,P2P/CUMEM,n/a,/root/TileMega-r6/runs/sm90r6/a3/trtllm_tp2/run.log
-trtllm,4,not stated in the log,P2P/CUMEM,n/a,/root/TileMega-r6/runs/sm90r6/a3/trtllm_tp4/run.log
+engine,tp,custom_allreduce,nccl_transports,trtllm_allreduce_strategy,trtllm_strategy_default,evidence,log
+vllm,2,enabled,P2P/CUMEM,n/a,,verified,/root/TileMega-r6/runs/sm90r6/a3/vllm_tp2/run.log
+vllm,4,enabled,P2P/CUMEM,n/a,,verified,/root/TileMega-r6/runs/sm90r6/a3/vllm_tp4/run.log
+sglang,2,enabled,P2P/IPC,n/a,,verified,/root/TileMega-r6/runs/sm90r6/a3/sglang_tp2/run.log
+sglang,4,enabled,P2P/IPC,n/a,,verified,/root/TileMega-r6/runs/sm90r6/a3/sglang_tp4/run.log
+trtllm,2,not stated in the log,P2P/CUMEM,n/a,AUTO (tensorrt_llm 0.21.0 _torch/model_config.py:82 allreduce_strategy = AllReduceStrategy.AUTO; _torch/distributed/ops.py:378 same default); neither trtllm_baseline.py nor trtllm-llmapi-launch sets it,stated,/root/TileMega-r6/runs/sm90r6/a3/trtllm_tp2/run.log
+trtllm,4,not stated in the log,P2P/CUMEM,n/a,AUTO (tensorrt_llm 0.21.0 _torch/model_config.py:82 allreduce_strategy = AllReduceStrategy.AUTO; _torch/distributed/ops.py:378 same default); neither trtllm_baseline.py nor trtllm-llmapi-launch sets it,stated,/root/TileMega-r6/runs/sm90r6/a3/trtllm_tp4/run.log
