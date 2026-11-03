@@ -1,0 +1,10 @@
+dt,phase,status,input,measurement,branch,evidence
+STOP-F5,onboarding,stopped,F5 claims resource infeasibility surfaces at nvcc static_assert,No GPU measurement; source audit finds CUDA plan-creation resource and occupancy checks,Prompt section 0.3 and section 12 stop condition 1,verified source inspection; Sm90ForwardRuntime.cuh:112-118; Sm90ForwardProgram.cuh:281-286; ForwardCodegen.cpp:800-802
+DT-TVM,B1,not_reached,CUDA build self-check and per-cell BF16 results,not_measured,not_taken,No TVM build or import attempted before STOP-F5
+DT-A,CP-A,not_reached,RC-7 time share,not_measured,not_taken,Stopped before stage instrumentation and attribution
+DT-TM,CP-A,not_reached,Time share of stages with M utilization below 0.8,not_measured,not_taken,No trace or conditional implementation
+DT-SK,CP-A,not_reached,RC-4 share and active cluster feasibility,not_measured,not_taken,No trace or cluster query
+DT-S,CP-S,not_reached,Prediction ratios and Kendall tau,not_measured,not_taken,No solver changes or P-SEL measurements
+DT-NAF,C,not_reached,Sanitizer and buffer comparisons,not_measured,not_taken,No NAFNet GPU job
+DT-ANCHOR,T,not_reached,Frozen baseline anchor deltas,not_measured,not_taken,No baselines frozen
+P-SEL,selection,not_reached,Four measured candidates and tie threshold,not_measured,not_taken,No candidate builds or measurements
