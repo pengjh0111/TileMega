@@ -3,6 +3,7 @@
 #include <tilemega/Solver/PlanSkeleton.h>
 #include <tilemega/Support/Json.h>
 #include <tilemega/Target/Ascend/LocalResidualContract.h>
+#include <tilemega/Target/Ascend/QkvDmaContract.h>
 #include <mlir/IR/Verifier.h>
 #include <algorithm>
 #include <fstream>
@@ -42,7 +43,7 @@ template<class T> void Binary(std::filesystem::path const& p,std::vector<T> cons
 }
 AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem const& p,
     ascend::WorkerMap const& map,std::vector<solver::AscendScheduledTask> const& input,
-    solver::AscendSchedule const& schedule,bool diagnostic,unsigned attention_precision,bool local_tail_k7,bool local_q_tail3,bool local_residual_tail3,bool swiglu_tile,bool swiglu_l1_k256,bool vector_argmax,bool gemm_session,bool reg_swiglu,bool local_residual,bool local_residual_export_raw) {
+    solver::AscendSchedule const& schedule,bool diagnostic,unsigned attention_precision,bool local_tail_k7,bool local_q_tail3,bool local_residual_tail3,bool swiglu_tile,bool swiglu_l1_k256,bool vector_argmax,bool gemm_session,bool reg_swiglu,bool local_residual,bool local_residual_export_raw,bool qkv_dma_acquire) {
   using namespace ascend::llm;
   if(attention_precision>14)throw std::invalid_argument("Unknown native attention precision contract");
   if(!local_residual && !local_residual_export_raw)throw std::invalid_argument("Raw export policy requires a local residual implementation");
@@ -345,6 +346,18 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
         throw std::invalid_argument("Unmaterialized residual output aliases another workspace");
     }
   }
+  if(qkv_dma_acquire) {
+    if(gemm_session || local_residual || local_tail_k7 || local_q_tail3 || local_residual_tail3 ||
+        p.model.dims.batch!=1 || p.model.dims.seq!=1 || map.launch.num_groups!=8)
+      throw std::invalid_argument("DMA-only QKV requires its G8 single-row decode contract");
+    unsigned bound=0;
+    for(auto& s:out.stages)if(s.kind==0 && s.epilogue==0) {
+      if(s.variant!=1 || !ascend::qkv_dma::Shape(s))
+        throw std::invalid_argument("Unregistered DMA-only QKV geometry or split reduction");
+      s.variant=11;++bound;
+    }
+    if(bound!=28)throw std::invalid_argument("DMA-only QKV must bind all 28 Qwen0.6 projections");
+  }
   if(local_residual_tail3 && local_residual_stages!=64)
     throw std::invalid_argument("Residual tail3 must bind all 64 Llama8B O/down projections");
   for(unsigned s=0;s<out.stages.size();++s)if(out.stages[s].kind==6) {
@@ -444,6 +457,7 @@ void AscendLlmPlan::Write(std::filesystem::path const& root) const {
     if(s.kind==0 && s.variant==8)id="as2_mix_gemm_regbase_swiglu_u16_16x128x128";
     if(s.kind==0 && s.variant==9)id="as2_mix_gemm_bf16_ub_aiv0_residual_gm_export_16x128x128";
     if(s.kind==0 && s.variant==10)id="as2_mix_gemm_bf16_ub_aiv0_residual_no_raw_gm_16x128x128";
+    if(s.kind==0 && s.variant==11)id="as2_catlass_bf16_qkv_dma_acquire_16x128x128_nk";
     double low=std::numeric_limits<double>::infinity(),high=0;std::set<std::string> provenance;
     if(!task_prices.empty())for(unsigned t=0;t<tasks.size();++t)if(tasks[t].stage==i) {
       low=std::min(low,task_prices.at(t).service_ns);high=std::max(high,task_prices.at(t).service_ns);
@@ -490,6 +504,7 @@ void AscendLlmPlan::Write(std::filesystem::path const& root) const {
       {"image_aiv_ub_reservation",local_residual?int(ascend::local_residual::kUbBytes):106496},
       {"local_payload_slot_bytes",s.kind==0&&(s.variant==9||s.variant==10)?int(ascend::local_residual::kTileBytes):0},
       {"local_payload_slot_offset",s.kind==0&&(s.variant==9||s.variant==10)?int(ascend::local_residual::kSlot):0},
+      {"payload_acquire",s.kind==0 && s.variant==11?"MTE2_DMA_after_ready_first_task_conservative":"entire_DCache_DSB"},
       {"local_raw_gm_export",s.kind==0 && s.variant==9},
       {"private_raw_gm_materialized",!(s.kind==0 && s.variant==10)},
       {"internal_hard_event_slot",7},{"logical_task_completion_publishers",1},
@@ -516,7 +531,7 @@ std::string LowerAscendLlm(AscendLlmPlan const& p) {
     unsigned geometry=s.variant>=2?1:s.variant;
     const bool swiglu_family=(s.columns==6144 && s.k==1024) || (s.columns==12288 && s.k==2048) ||
         (s.columns==16384 && (s.k==2048 || s.k==3072)) || (s.columns==28672 && s.k==4096);
-    if(s.variant>10 || ((s.variant==9 || s.variant==10) && !ascend::local_residual::Shape(s.rows,s.columns,s.k,s.epilogue,s.extent,s.tasks)) ||
+    if(s.variant>11 || (s.variant==11 && !ascend::qkv_dma::Shape(s)) || ((s.variant==9 || s.variant==10) && !ascend::local_residual::Shape(s.rows,s.columns,s.k,s.epilogue,s.extent,s.tasks)) ||
         (s.variant==6 && (s.epilogue!=3 || !s.rows || s.rows>16 || s.extent>1)) ||
         ((s.variant==4 || s.variant==5) &&
           ((s.rows!=1 && s.rows!=16 && s.rows!=64 && s.rows!=1024) || (s.variant==5 && s.rows!=16) ||
@@ -547,6 +562,7 @@ std::string LowerAscendLlm(AscendLlmPlan const& p) {
   bool vector_argmax=false;for(auto const& s:p.stages)if(s.kind==0 && (s.variant==6 || (s.variant==7 && s.epilogue==3)))vector_argmax=true;
   bool session=false;for(auto const& s:p.stages)if(s.kind==0 && s.variant==7)session=true;
   bool reg_swiglu=false;for(auto const& s:p.stages)if(s.kind==0 && s.variant==8)reg_swiglu=true;
+  bool qkv_dma=false;for(auto const& s:p.stages)qkv_dma|=s.kind==0 && s.variant==11;
   bool local_residual=false,no_raw=false;for(auto const& s:p.stages)if(s.kind==0 && (s.variant==9 || s.variant==10)) {
     local_residual=true;no_raw|=s.variant==10;
   }
@@ -563,6 +579,7 @@ std::string LowerAscendLlm(AscendLlmPlan const& p) {
     "#define TILEMEGA_LLM_SWIGLU_L1_K256 "+std::to_string(unsigned(k256))+"\n"+
     "#define TILEMEGA_LLM_VECTOR_ARGMAX "+std::to_string(unsigned(vector_argmax))+"\n"+
     "#define TILEMEGA_LLM_REG_SWIGLU "+std::to_string(unsigned(reg_swiglu))+"\n"+
+    "#define TILEMEGA_LLM_QKV_DMA_ACQUIRE "+std::to_string(unsigned(qkv_dma))+"\n"+
     "#define TILEMEGA_LLM_LOCAL_RESIDUAL "+std::to_string(unsigned(local_residual))+"\n"+
     "#define TILEMEGA_LLM_LOCAL_RESIDUAL_NO_RAW "+std::to_string(unsigned(no_raw))+"\n"+
     "#define TILEMEGA_LLM_GEMM_SESSION "+std::to_string(unsigned(session))+"\n"+

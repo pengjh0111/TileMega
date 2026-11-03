@@ -22,6 +22,18 @@ void native_cost(GM_ADDR table,GM_ADDR control,GM_ADDR source,GM_ADDR dest,GM_AD
     PublishSingleOwnerEvent(cells+worker*128,i);
     dispatch+=AscendC::GetSystemCycle()-begin;
   }
+  uint64_t dma_dispatch=0;
+  if ASCEND_IS_AIC {
+    for(unsigned i=1;i<=kRepeats;++i) {
+      auto begin=AscendC::GetSystemCycle();
+      if(i==1)AcquireData(metadata);
+      auto stage=ReadLlmPod<llm::Stage>(table);
+      if(stage.width!=128){WriteControl(abort,4);return;}
+      if(i!=1)AcquireDmaPayloadAfterReady();
+      PublishSingleOwnerEvent(cells+worker*128,kRepeats+i);
+      dma_dispatch+=AscendC::GetSystemCycle()-begin;
+    }
+  }
   // The round trip uses the same single-writer GM frontier protocol as the
   // executor. Half a round trip is an empirical symmetric estimate, not a
   // claim that opposite directions have identical one-way latency.
@@ -38,9 +50,9 @@ void native_cost(GM_ADDR table,GM_ADDR control,GM_ADDR source,GM_ADDR dest,GM_AD
       PublishSingleOwnerEvent(ack,i);
     }
   }
-  PublishSingleOwnerEvent(cells+worker*128,kRepeats+1);
+  PublishSingleOwnerEvent(cells+worker*128,2*kRepeats+1);
   for(unsigned w=0;w<workers;++w)
-    if(!WaitProgress(cells+w*128,kRepeats+1,abort,kDeadline))return;
+    if(!WaitProgress(cells+w*128,2*kRepeats+1,abort,kDeadline))return;
   uint64_t copy_ticks=0;
   if ASCEND_IS_AIV {
     AscendC::TPipe pipe;AscendC::TBuf<AscendC::TPosition::VECCALC> buffer;
@@ -62,6 +74,7 @@ void native_cost(GM_ADDR table,GM_ADDR control,GM_ADDR source,GM_ADDR dest,GM_AD
   AscendC::GlobalTensor<uint64_t> times;
   times.SetGlobalBuffer((__gm__ uint64_t*)(timing+worker*512));
   times.SetValue(0,dispatch);times.SetValue(1,roundtrip);times.SetValue(2,copy_ticks);
+  times.SetValue(3,dma_dispatch);
   AscendC::DataCacheCleanAndInvalid<uint64_t,AscendC::CacheLine::ENTIRE_DATA_CACHE>(times);
 }
 static void Check(aclError value,char const* call) {
@@ -101,7 +114,9 @@ int main(int argc,char** argv) {
     }
     std::cout<<"{\"schema\":\"tilemega.as2.native_cost_probe.v1\",\"groups\":"<<groups<<",\"workers\":"<<workers<<",\"repeats\":32,\"dispatcher_ticks_sum\":[";
     for(unsigned w=0;w<workers;++w){if(w)std::cout<<',';std::cout<<timing[w*64];}
-    std::cout<<"],\"aiv_copy_ticks\":[";
+    std::cout<<"],\"dispatcher_dma_aic_ticks_sum\":[";
+    for(unsigned w=0;w<groups;++w){if(w)std::cout<<',';std::cout<<timing[w*64+3];}
+    std::cout<<"],\"dma_dispatch_policy\":\"first_acquire_32_task_immutable_POD_DMA_DSB_publication_v1\",\"aiv_copy_ticks\":[";
     for(unsigned w=groups;w<workers;++w){if(w!=groups)std::cout<<',';std::cout<<timing[w*64+2];}
     std::cout<<"],\"roundtrip_ticks_sum\":"<<timing[1]<<",\"copy_logical_read_write_bytes\":"<<2*bytes
       <<",\"copy_working_set_bytes\":"<<2*bytes<<",\"payload_samples_passed\":"<<samples

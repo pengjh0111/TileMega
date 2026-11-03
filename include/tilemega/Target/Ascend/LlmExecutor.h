@@ -2,6 +2,7 @@
 #pragma once
 #include <tilemega/Target/Ascend/LlmPlanABI.h>
 #include <tilemega/Target/Ascend/ProgressPrimitives.h>
+#include <tilemega/Target/Ascend/QkvDmaContract.h>
 
 namespace tilemega::ascend {
 #if defined(TILEMEGA_LLM_ATTENTION_PROFILE) && TILEMEGA_LLM_ATTENTION_PROFILE
@@ -22,7 +23,7 @@ template<class T> __aicore__ inline T ReadLlmPod(GM_ADDR address,unsigned index=
   return value;
 }
 // Body owns a worker-lifetime pipeline. Scalar plan/control reads and DMA
-// payloads keep the AS-1 visibility contract; no cache operations are removed.
+// payloads use conservative acquire unless a bounded DMA-only recipe is bound.
 template<bool Cube,class Body> __aicore__ inline void ExecuteLlm(Body& body,
     GM_ADDR arena,GM_ADDR metadata,GM_ADDR stages,GM_ADDR tasks,GM_ADDR waits,
     GM_ADDR offsets,GM_ADDR queue,GM_ADDR controls,GM_ADDR scratch,GM_ADDR trace,
@@ -60,9 +61,14 @@ template<bool Cube,class Body> __aicore__ inline void ExecuteLlm(Body& body,
       if(wait.worker!=worker && !WaitProgress(cells+wait.worker*128,base+wait.prefix,abort,m.wait_ticks))return;
     }
     if(ReadControl(abort))return;
-    // The entire-cache acquire is the measured stale-cache-safe baseline.
-    // It also invalidates scalar reads of recycled per-forward plan-adjacent data.
-    AscendC::GlobalTensor<uint8_t> payload;payload.SetGlobalBuffer(arena);AcquireData(payload);
+    AscendC::GlobalTensor<uint8_t> payload;payload.SetGlobalBuffer(arena);
+#if defined(TILEMEGA_LLM_QKV_DMA_ACQUIRE) && TILEMEGA_LLM_QKV_DMA_ACQUIRE
+    // The first acquire covers immutable descriptors for this launch. Only
+    // payload visibility varies afterwards; queue order and waits are intact.
+    if(slot==begin)AcquireData(payload);
+#else
+    AcquireData(payload);
+#endif
 #if defined(TILEMEGA_LLM_CACHE_STAGE) && TILEMEGA_LLM_CACHE_STAGE
     // Stage tables are immutable for this launch. Cache only adjacent equal
     // IDs in the existing FIFO; payload acquire and every wait remain intact.
@@ -72,6 +78,18 @@ template<bool Cube,class Body> __aicore__ inline void ExecuteLlm(Body& body,
     auto const& stage=cached_stage;
 #else
     auto stage=ReadLlmPod<llm::Stage>(stages,task.stage);
+#endif
+#if defined(TILEMEGA_LLM_QKV_DMA_ACQUIRE) && TILEMEGA_LLM_QKV_DMA_ACQUIRE
+    if(slot!=begin) {
+      if constexpr(Cube) {
+        if(stage.kind==0 && stage.variant==11) {
+          if(!qkv_dma::Shape(stage) || m.groups!=8 || m.batch!=1 || m.seq!=1 || task.mix_aiv_lanes) {
+            WriteControl(abort,10);return;
+          }
+          AcquireDmaPayloadAfterReady();
+        }else AcquireData(payload);
+      }else AcquireData(payload);
+    }
 #endif
     const uint64_t start=forward.diagnostic==1?AscendC::GetSystemCycle():0;bool ok=false;
     uint64_t body_start=0,body_end=0;

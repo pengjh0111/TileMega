@@ -24,6 +24,11 @@ def task_overheads(stage,profile,cost):
         raise ValueError('Measured coordination span differs from implementation')
     cube_owner=stage[17]==0 or composite
     overhead=cost['dispatcher_aic_ns'] if cube_owner else cost['dispatcher_aiv_ns']
+    if stage[17]==0 and stage[31]==11:
+        overhead=cost.get('dispatcher_dma_aic_ns')
+        if (cost.get('dma_dispatch_policy')!='first_acquire_32_task_immutable_POD_DMA_DSB_publication_v1' or
+                not isinstance(overhead,(int,float)) or not math.isfinite(overhead) or overhead<=0):
+            raise ValueError('DMA-only QKV requires its measured dispatcher policy')
     # The cooperative owner's reservation already contains nested participant
     # coordination. Disjoint GEMM/epilogue spans exclude both dispatchers.
     if stage[17]==0 and stage[18]:overhead+=cost['dispatcher_aiv_ns']
@@ -41,13 +46,21 @@ def cost_measurement(value,job):
             min(dispatch)<=0 or min(copy)<=0 or value['roundtrip_ticks_sum']<=0 or
             value['copy_logical_read_write_bytes']<=0):
         raise ValueError('Missing worker measurements')
-    return dict(groups=groups,source_binary_sha256=job['executable_sha256'],
+    result=dict(groups=groups,source_binary_sha256=job['executable_sha256'],
         dispatcher_aic_ns=statistics.median(dispatch[:groups])/repeats,
         dispatcher_aiv_ns=statistics.median(dispatch[groups:])/repeats,
         cross_worker_ready_ns=value['roundtrip_ticks_sum']/(2*repeats),
         gm_bytes_per_ns=value['copy_logical_read_write_bytes']/max(copy),
         timing_status=job['timing_status'],physical_device_id=job['physical_device_id'],
         started_at=job['started_at'],finished_at=job['finished_at'],pid=job['pid'],start_ticks=job['start_ticks'])
+    if 'dispatcher_dma_aic_ticks_sum' in value:
+        dma=value['dispatcher_dma_aic_ticks_sum']
+        if (len(dma)!=groups or min(dma)<=0 or
+                value.get('dma_dispatch_policy')!='first_acquire_32_task_immutable_POD_DMA_DSB_publication_v1'):
+            raise ValueError('Incomplete DMA-only dispatcher measurements')
+        result.update(dispatcher_dma_aic_ns=statistics.median(dma)/repeats,
+            dma_dispatch_policy=value['dma_dispatch_policy'])
+    return result
 
 
 def costs(jobs,out):
@@ -81,6 +94,11 @@ def costs(jobs,out):
     for key in ('dispatcher_aic_ns','dispatcher_aiv_ns','cross_worker_ready_ns','gm_bytes_per_ns'):
         result[key]=statistics.median(r[key] for r in rows)
         if not math.isfinite(result[key]) or result[key]<=0:raise ValueError('Unknown/nonpositive native cost')
+    if any('dispatcher_dma_aic_ns' in r for r in rows):
+        if not all('dispatcher_dma_aic_ns' in r for r in rows):raise ValueError('Mixed dispatcher policies')
+        result.update(dispatcher_dma_aic_ns=statistics.median(r['dispatcher_dma_aic_ns'] for r in rows),
+            dma_dispatch_policy=rows[0]['dma_dispatch_policy'])
+        result['definitions']['dma_dispatcher']='One conservative first acquire amortized over32 tasks; immutable POD + DMA DSB + publication; excludes queue/waits and Body. Context-local approximation, not exact per-FIFO startup.'
     out.write_text(json.dumps(result,indent=2)+'\n');print(json.dumps({k:v for k,v in result.items() if k!='rows'}))
 
 

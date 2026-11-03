@@ -78,6 +78,8 @@ struct Stage {
   // raw GM output retained, unchanged ready/done/reverse-ack/owner prefix.
   // GEMM10=same local residual, private raw GM temporary unmaterialized.
   // Its reserved allocation is never read by a semantic consumer or captured.
+  // GEMM11=Qwen0.6 B1 decode QKV, variant1 math with DMA-only payload acquire;
+  // immutable descriptors receive a conservative first-task launch acquire.
   // Split GEMM: extent=2/3, width=ceil(k/extent), group=1 (tile-major/part-minor CTG).
   // Kind6 is its AIV combine; workspace is FP32 [part,row,col], operand5
   // is the BF16 raw sum before the separately preserved residual rounding.

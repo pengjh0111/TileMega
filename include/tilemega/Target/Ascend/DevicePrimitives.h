@@ -44,6 +44,11 @@ template<class T> __aicore__ inline void AcquireData(AscendC::GlobalTensor<T> co
   AscendC::DataCacheCleanAndInvalid<T, AscendC::CacheLine::ENTIRE_DATA_CACHE>(tensor);
   AscendC::DataSyncBarrier<AscendC::MemDsbT::ALL>();
 }
+// Only for payload consumed by MTE2 after the producer has completed FIX/MTE3
+// and published its single-writer frontier. Scalar payload reads still acquire.
+__aicore__ inline void AcquireDmaPayloadAfterReady() {
+  AscendC::DataSyncBarrier<AscendC::MemDsbT::ALL>();
+}
 // Slot 7 is separate from CATLASS's MTE2/MTE1 and MMAD/FIX pipeline slots.
 template<AscendC::HardEvent event> __aicore__ inline void CompleteDma() {
   AscendC::SetFlag<event>(7);

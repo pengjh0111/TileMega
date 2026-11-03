@@ -9,6 +9,7 @@
 #include <tilemega/Backend/Ascend/GemmSession.h>
 #endif
 #include <tilemega/Backend/Ascend/LlmAttentionShape.h>
+#include <tilemega/Target/Ascend/QkvDmaContract.h>
 #include <tilemega/Target/Ascend/DevicePrimitives.h>
 
 namespace tilemega::ascend {
@@ -31,7 +32,14 @@ template<unsigned TM,unsigned TN,unsigned TK,unsigned Variant> class LlmCubeBody
 #endif
  public:
   __aicore__ inline bool Run(llm::Stage const& s,unsigned tile,GM_ADDR arena,unsigned owner_group) {
-    const unsigned variant=(s.variant==9 || s.variant==10)?1:s.variant==8?4:s.variant==7?(s.epilogue==2?4:s.epilogue==3?6:1):s.variant;
+    const unsigned variant=(s.variant==9 || s.variant==10 || s.variant==11)?1:s.variant==8?4:s.variant==7?(s.epilogue==2?4:s.epilogue==3?6:1):s.variant;
+    if(s.variant==11) {
+#if defined(TILEMEGA_LLM_QKV_DMA_ACQUIRE) && TILEMEGA_LLM_QKV_DMA_ACQUIRE
+      if(!qkv_dma::Shape(s))return false;
+#else
+      return false;
+#endif
+    }
 #if defined(TILEMEGA_LLM_GEMM_SESSION) && TILEMEGA_LLM_GEMM_SESSION
     if(s.variant!=7)session_.FinishRecipe();
 #else

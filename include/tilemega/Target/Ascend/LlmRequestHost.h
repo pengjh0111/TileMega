@@ -2,6 +2,7 @@
 #pragma once
 #include <tilemega/Target/Ascend/LocalResidualContract.h>
 #include <tilemega/Target/Ascend/LlmGroupContract.h>
+#include <tilemega/Target/Ascend/QkvDmaContract.h>
 #include <tilemega/Target/Ascend/LlmPlanABI.h>
 #include <tilemega/Target/Ascend/BodyProfileCapture.h>
 #include <acl/acl.h>
@@ -51,6 +52,15 @@ inline void Save(fs::path const& path,void const* data,size_t bytes) {
 }
 inline void ValidateCompiledBodies(std::vector<llm::Stage> const& stages) {
   for(auto const& s:stages)if(s.kind==0) {
+    if(s.variant==11) {
+#if defined(TILEMEGA_LLM_QKV_DMA_ACQUIRE) && TILEMEGA_LLM_QKV_DMA_ACQUIRE
+      if(kCompiledVariant!=1 || !qkv_dma::Shape(s))
+        throw std::invalid_argument("Unregistered DMA-only QKV recipe");
+      auto base=s;base.variant=1;ValidateCompiledBodies({base});continue;
+#else
+      throw std::invalid_argument("DMA-only QKV requires its compiled visibility contract");
+#endif
+    }
     if(s.variant==9 || s.variant==10) {
 #if defined(TILEMEGA_LLM_LOCAL_RESIDUAL) && TILEMEGA_LLM_LOCAL_RESIDUAL
 #if !defined(TILEMEGA_LLM_LOCAL_RESIDUAL_NO_RAW) || !TILEMEGA_LLM_LOCAL_RESIDUAL_NO_RAW
@@ -215,6 +225,9 @@ struct Plan {
     if(metadata.size()!=1)throw std::invalid_argument("Malformed request metadata");m=metadata[0];
     stages=Read<llm::Stage>(root/"stages.bin");tasks=Read<llm::Task>(root/"tasks.bin");
     ValidateCompiledBodies(stages);
+    unsigned dma_qkv=0;for(auto const& s:stages)dma_qkv+=s.kind==0 && s.variant==11;
+    if(dma_qkv && (dma_qkv!=28 || m.groups!=8 || m.batch!=1 || m.seq!=1))
+      throw std::invalid_argument("DMA-only QKV metadata differs from its admitted topology");
     waits=Read<llm::Wait>(root/"waits.bin");allocations=Read<llm::Allocation>(root/"allocations.bin");
     offsets=Read<uint32_t>(root/"offsets.bin");queue=Read<uint32_t>(root/"queue.bin");
     if(m.version!=llm::kVersion || !llm::SupportsGroups(m.groups) || m.workers!=3*m.groups ||
