@@ -14,12 +14,18 @@ namespace tilemega::solver {
 //
 // A stage's tasks are not all equally priced: the first task a CTA runs pays
 // the stage's first-byte latency, so a stage is two pieces rather than one.
+// A track's two ends cannot overlap with a neighbour, so a stage has up to
+// four prices rather than two (continuation 1 section 2.3): the head of a
+// track pays the first-byte latency and one pipeline step of fill, the tail
+// pays its epilogue outside the overlap, and a short stage whose task count
+// does not exceed the grid has tasks that are both.
 struct Sm90NativeStagePrice {
   std::string name, category;
   int tasks = 0;
-  // How many tasks carry `first`: one per CTA that gets any work at all.
-  int first_tasks = 0;
-  TaskPriceParts first, rest;
+  // One per CTA that gets any work: the first min(T, G) indices are heads and
+  // the last min(T, G) are tails, so they coincide when T <= G.
+  int ends = 0;
+  TaskPriceParts head_and_tail, head, tail, middle;
   // The boundary ahead of this stage, as a constant (V3 barrier by default).
   double hop_ns = 0;
 };

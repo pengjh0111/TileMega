@@ -16,6 +16,33 @@ double RateCap(Sm90NativeConstants const& c, double slot_capacity_bytes) {
   double ring = slot_capacity_bytes / c.dram_latency;  // bytes/ns
   return std::min(c.CtaDramGbps(), ring);
 }
+// Section 2.3: assemble the four prices. A middle task carries its epilogue
+// in c_x, where the next task's transfer hides it; a track's tail has no next
+// task, so its epilogue is exposed in o_x. A track's head additionally pays
+// the first-byte latency and one step of pipeline fill, and for that fill the
+// compute compared against the transfer excludes the epilogue.
+void Finish(Sm90NativeStagePrice& price, TaskPriceParts const& base, double epilogue,
+            double steps, double first_byte) {
+  TaskPriceParts middle = base;
+  middle.compute_ns = base.compute_ns + epilogue;
+
+  TaskPriceParts tail = base;
+  tail.compute_ns = base.compute_ns;
+  tail.fixed_ns = base.fixed_ns + epilogue;
+
+  TaskPriceParts head = middle;
+  head.fixed_ns = base.fixed_ns + first_byte;
+  head.pipeline_steps = steps;
+
+  TaskPriceParts both = tail;
+  both.fixed_ns = base.fixed_ns + epilogue + first_byte;
+  both.pipeline_steps = steps;
+
+  price.middle = middle;
+  price.tail = tail;
+  price.head = head;
+  price.head_and_tail = both;
+}
 }  // namespace
 
 Sm90NativeStagePrice Sm90NativeGemmPrice(Sm90DenseWorkload const& work, unsigned family,
@@ -38,7 +65,7 @@ Sm90NativeStagePrice Sm90NativeGemmPrice(Sm90DenseWorkload const& work, unsigned
   price.name = "gemm" + std::to_string(family);
   price.category = "gemm";
   price.tasks = int(std::llround(tasks));
-  price.first_tasks = std::min(price.tasks, grid);
+  
   price.hop_ns = c.Barrier(grid);
 
   // :47, per task: this task's own weight and activation bytes through the
@@ -49,7 +76,9 @@ Sm90NativeStagePrice Sm90NativeGemmPrice(Sm90DenseWorkload const& work, unsigned
   if (g.multicast) activation /= 2.0;  // :45, L2 serves each A slot once per pair
 
   TaskPriceParts parts;
-  parts.compute_ns = (weights + activation) / c.sm_gbps;
+  // Eq. (7) c_x: the body's arithmetic and on-chip accesses.
+  double body_ns = (weights + activation) / c.sm_gbps;
+  parts.compute_ns = body_ns;
   parts.dram_bytes = weights;  // the stage's w_tot is tasks x this (:41)
   // :50 feeds w_tot through BW_dram only when the weights are not already in
   // flight from the previous stage; weight_stream is exactly that case (D6).
@@ -61,17 +90,19 @@ Sm90NativeStagePrice Sm90NativeGemmPrice(Sm90DenseWorkload const& work, unsigned
                                               "lm_head", "router", "expert_gate_up",
                                               "expert_down"};
   std::string geometry = family >= 5 && work.experts == 64 ? "_e64" : "";
-  parts.fixed_ns = c.Epilogue(kEpilogue[family] + geometry, g.tile_n, b, g.warps_k);
+  double epilogue = c.Epilogue(kEpilogue[family] + geometry, g.tile_n, b, g.warps_k);
+  // o_x: per-task costs that nothing overlaps.
+  parts.fixed_ns = 0;
   if (family >= 6)
     parts.fixed_ns += c.TaskExpert((family == 6 ? "expert_gate_up" : "expert_down") + geometry, b);
   if (work.tp > 1 && (family == 1 || family == 3))
     parts.fixed_ns += c.AllReduce(b, g.tile_n, work.tp);
-
-  price.rest = parts;
-  price.first = parts;
-  // :59 the stage pays its first bytes once; a predecessor that streamed them
-  // leaves only the L2 hit.
-  price.first.fixed_ns += pre ? c.l2_latency : c.dram_latency;
+  // n_x: the slots this task's weights pass through, so max{c,m} + min{c,m}/n
+  // is the n-step pipeline. One slot means no overlap at all.
+  double steps = std::max(1.0, std::ceil(weights / double(g.slot_bytes)));
+  double first_byte = pre ? c.l2_latency : c.dram_latency;
+  price.ends = std::min(price.tasks, grid);
+  Finish(price, parts, epilogue, steps, first_byte);
   return price;
 }
 
@@ -89,7 +120,7 @@ Sm90NativeStagePrice Sm90NativeAttentionPrice(Sm90DenseWorkload const& work,
   price.name = "attention";
   price.category = "attention";
   price.tasks = int(std::llround(tasks));
-  price.first_tasks = std::min(price.tasks, grid);
+  
   price.hop_ns = c.Barrier(grid);
 
   TaskPriceParts parts;
@@ -105,11 +136,11 @@ Sm90NativeStagePrice Sm90NativeAttentionPrice(Sm90DenseWorkload const& work,
   // :88 prepare is the stage's own entry cost; the merge is the handoff, so it
   // belongs to the reducer space rather than to these tasks.
   parts.fixed_ns = 0;
-  price.rest = parts;
-  price.first = parts;
-  // :88 charges the stage's first bytes once. The stage model uses L_l2 here,
-  // not L_dram: the KV history of the previous step is still in L2.
-  price.first.fixed_ns += c.l2_latency;
+  // n_x for attention is its KV block count (section 2.3 item 3).
+  double steps = std::max(1.0, blocks);
+  price.ends = std::min(price.tasks, grid);
+  // :88 uses L_l2, not L_dram: last step's KV history is still in L2.
+  Finish(price, parts, /*epilogue=*/0.0, steps, c.l2_latency);
   return price;
 }
 
@@ -141,14 +172,22 @@ FlowProblem Sm90NativeSingleStageProblem(Sm90NativeStagePrice const& price,
   space.category = price.category;
   space.count = price.tasks;
   space.order = 1;
-  // The first task a CTA runs carries the first-byte latency; the rest do not.
-  // Tasks are handed to workers in index order, so the first `first_tasks`
-  // indices are exactly one per busy CTA.
-  space.pieces.push_back(FlowPiece{price.first_tasks, price.first});
-  if (price.tasks > price.first_tasks)
-    space.pieces.push_back(FlowPiece{price.tasks - price.first_tasks, price.rest});
-  space.piece_of_task.assign(price.tasks, 0);
-  for (int task = price.first_tasks; task < price.tasks; ++task) space.piece_of_task[task] = 1;
+  // Section 2.3 item 4: tasks go to tracks in index order, so the first
+  // `ends` indices head a track and the last `ends` indices tail one. The two
+  // sets overlap when the stage has no more tasks than the grid has tracks.
+  enum {kBoth = 0, kHead = 1, kTail = 2, kMiddle = 3};
+  space.pieces.push_back(FlowPiece{0, price.head_and_tail});
+  space.pieces.push_back(FlowPiece{0, price.head});
+  space.pieces.push_back(FlowPiece{0, price.tail});
+  space.pieces.push_back(FlowPiece{0, price.middle});
+  space.piece_of_task.assign(price.tasks, kMiddle);
+  for (int task = 0; task < price.tasks; ++task) {
+    bool head = task < price.ends;
+    bool tail = task >= price.tasks - price.ends;
+    int piece = head && tail ? kBoth : head ? kHead : tail ? kTail : kMiddle;
+    space.piece_of_task[task] = piece;
+    ++space.pieces[piece].count;
+  }
   problem.spaces.push_back(space);
 
   // The stage's in-edge is that boundary: every producer must finish, which
