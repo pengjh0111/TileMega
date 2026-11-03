@@ -186,7 +186,7 @@ def stop_owned_group(proc):
     proc.wait(timeout=5)
 
 
-def main(project='as1', command_preflight=None):
+def main(project='as1', command_preflight=None, storage_preflight=None):
     global WORK, RUNS
     if project not in {'as1', 'as2'}:
         raise ValueError('Unknown controlled project')
@@ -199,6 +199,8 @@ def main(project='as1', command_preflight=None):
     parser.add_argument('--sample-s', type=float, default=15)
     parser.add_argument('--telemetry-timeout-s', type=float, default=30)
     parser.add_argument('--required-free-mib', type=int, default=0)
+    if storage_preflight is not None:
+        parser.add_argument('--output-reserve-bytes', type=int, default=1<<30)
     parser.add_argument('command', nargs=argparse.REMAINDER)
     args = parser.parse_args()
     command = args.command[1:] if args.command[:1] == ['--'] else args.command
@@ -255,6 +257,15 @@ def main(project='as1', command_preflight=None):
     record.update(parent_pid=os.getpid(), project=project,
                   manifest_id=str(out.relative_to(ROOT)), required_free_mib=args.required_free_mib)
     record_path.write_text(json.dumps(record, indent=2)+'\n')
+    if storage_preflight is not None:
+        proof=storage_preflight(command,args.output_reserve_bytes)
+        record['storage_preflight']=proof
+        if proof['status']=='blocked':
+            record.update(status='blocked-resource',reason=proof['reason'],exit_code=75,
+                          elapsed_s=time.monotonic()-started)
+            record_path.write_text(json.dumps(record,indent=2)+'\n')
+            (out/'after.json').write_text(json.dumps(snapshot(args.telemetry_timeout_s),indent=2)+'\n')
+            print(json.dumps(record));return 75
     if command_preflight is not None:
         proof = command_preflight(command, physical)
         record['capability_preflight'] = proof

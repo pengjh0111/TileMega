@@ -18,6 +18,27 @@ cleanup=importlib.util.module_from_spec(spec);spec.loader.exec_module(cleanup)
 
 
 class AscendAs2Safety(unittest.TestCase):
+    def test_storage_budget_accounts_for_declared_output_before_job_start(self):
+        from tilemega.bench import as2_run as runner
+        policy=dict(project_generated_soft_limit_bytes=150,stop_below_free_fraction=.15,stop_below_free_inode_fraction=.05)
+        result=Mock(stdout='20 controlled-path',returncode=0)
+        with patch.object(Path,'read_text',return_value=json.dumps(policy)), patch.object(runner.subprocess,'run',return_value=result), patch.object(runner.shutil,'disk_usage',return_value=Mock(free=1000,total=2000)):
+            self.assertEqual(runner.storage_preflight([],50)['status'],'checked')
+            self.assertEqual(runner.storage_preflight([],51)['status'],'blocked')
+            self.assertEqual(runner.storage_preflight([],-1)['status'],'blocked')
+
+    def test_storage_rejection_creates_no_child_and_is_resource_limited(self):
+        from tilemega.bench import as1_run as runner
+        out=RUNS/'jobs'/('storage_budget_contract_'+str(time.time_ns()))
+        argv=['as2_run','--physical-device','1','--output-reserve-bytes','51','--out',str(out),'--',sys.executable,'-c','pass']
+        observed=dict(exit_code=0,output='| 1 | Ascend950PR | OK |\n| 0000:55:00.0 | 0 | 0 / 0 | 5000 / 131072 |')
+        with patch.object(sys,'argv',argv), patch.object(runner,'snapshot',return_value=observed), patch.object(runner.subprocess,'Popen') as child:
+            code=runner.main(project='as2',storage_preflight=lambda cmd,n:dict(status='blocked',reason='declared output exceeds budget',output_reserve_bytes=n))
+            self.assertEqual(code,75);child.assert_not_called()
+        receipt=json.loads((out/'job.json').read_text())
+        self.assertEqual(receipt['status'],'blocked-resource');self.assertNotIn('pid',receipt)
+        self.assertEqual(receipt['storage_preflight']['output_reserve_bytes'],51)
+
     def test_management_driver_libraries_do_not_change_compute_environment(self):
         from tilemega.bench import as1_run as runner
         proc=Mock(pid=12345,returncode=0);proc.communicate.return_value=('healthy query',None)
