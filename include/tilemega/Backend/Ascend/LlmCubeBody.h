@@ -199,8 +199,9 @@ template<unsigned TM,unsigned TN,unsigned TK,unsigned Variant> class LlmCubeBody
         for(unsigned col=0;col<(qk_keys+63)/64;++col) {
           Qk::RunBorrowed(mm,work+llm::attention::kQ,key,
             work+llm::attention::kScores,h.rows,h.keys,h.width,row,col);
-          CompleteDma<AscendC::HardEvent::FIX_S>();
+          if(s.variant!=13)CompleteDma<AscendC::HardEvent::FIX_S>();
         }
+      if(s.variant==13)CompleteDma<AscendC::HardEvent::FIX_S>();
     }else {
       typename Pv::TileMmad mm(resource_);
       for(unsigned row=0;row<(h.rows+31)/32;++row) {

@@ -17,13 +17,13 @@ inline constexpr uint64_t kAbsent=~uint64_t(0);
 __aicore__
 #endif
 inline constexpr bool IsCubeAttention(uint32_t variant) {
-  return (variant>=4 && variant<=9) || variant==12;
+  return (variant>=4 && variant<=9) || variant==12 || variant==13;
 }
 #if defined(__CCE_AICORE__) && __CCE_AICORE__ != 0
 __aicore__
 #endif
 inline constexpr bool IsCachedAttention(uint32_t variant) {
-  return variant==9 || variant==12;
+  return variant==9 || variant==12 || variant==13;
 }
 #if defined(__CCE_AICORE__) && __CCE_AICORE__ != 0
 __aicore__
@@ -96,6 +96,8 @@ struct Stage {
   // 11=same bounded streaming, split Q/K scale and FP32 P (contract3).
   // 12=variant9/D128, PV K rounded to valid_keys in64-key units. Physical
   // probability stride stays1088 and the original FP32 reduction is preserved.
+  // 13=variant9/Qwen0.6 B1 decode: one FIX_S drain at QK phase exit,
+  // with unchanged score/P/PV layout, FP32 math and external task completion.
   float epsilon;
 };
 struct Task {

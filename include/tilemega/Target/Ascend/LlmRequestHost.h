@@ -3,6 +3,7 @@
 #include <tilemega/Target/Ascend/LocalResidualContract.h>
 #include <tilemega/Target/Ascend/LlmGroupContract.h>
 #include <tilemega/Target/Ascend/QkvDmaContract.h>
+#include <tilemega/Target/Ascend/QkPhaseContract.h>
 #include <tilemega/Target/Ascend/LlmPlanABI.h>
 #include <tilemega/Target/Ascend/BodyProfileCapture.h>
 #include <acl/acl.h>
@@ -172,8 +173,15 @@ inline void ValidateCompiledBodies(std::vector<llm::Stage> const& stages) {
   for(auto const& s:stages)if(s.kind==25 &&
       (s.extent!=8 || s.width!=768 || s.group!=1 || s.query_rows!=4 || s.kv_block!=128 || s.variant))
     throw std::invalid_argument("Unregistered QKV pack geometry");
-  for(auto const& s:stages)if(s.kind==13 && s.variant>12)
+  for(auto const& s:stages)if(s.kind==13 && s.variant>13)
     throw std::invalid_argument("Unregistered native attention implementation");
+  for(auto const& s:stages)if(s.kind==13 && s.variant==13) {
+#if !defined(TILEMEGA_LLM_QK_PHASE_DRAIN) || !TILEMEGA_LLM_QK_PHASE_DRAIN
+    throw std::invalid_argument("QK phase drain requires its explicitly compiled Body");
+#else
+    if(!qk_phase::Shape(s))throw std::invalid_argument("Unregistered QK phase drain shape");
+#endif
+  }
   for(auto const& s:stages)if(s.kind==13 && s.variant==12) {
 #if !defined(TILEMEGA_LLM_VALID_PV) || !TILEMEGA_LLM_VALID_PV
     throw std::invalid_argument("Valid-extent PV requires its explicitly compiled Body");
@@ -228,6 +236,9 @@ struct Plan {
     unsigned dma_qkv=0;for(auto const& s:stages)dma_qkv+=s.kind==0 && s.variant==11;
     if(dma_qkv && (dma_qkv!=28 || m.groups!=8 || m.batch!=1 || m.seq!=1))
       throw std::invalid_argument("DMA-only QKV metadata differs from its admitted topology");
+    unsigned phase_qk=0;for(auto const& s:stages)phase_qk+=s.kind==13 && s.variant==13;
+    if(phase_qk && (phase_qk!=28 || m.groups!=8 || m.batch!=1 || m.seq!=1))
+      throw std::invalid_argument("QK phase metadata differs from its admitted topology");
     waits=Read<llm::Wait>(root/"waits.bin");allocations=Read<llm::Allocation>(root/"allocations.bin");
     offsets=Read<uint32_t>(root/"offsets.bin");queue=Read<uint32_t>(root/"queue.bin");
     if(m.version!=llm::kVersion || !llm::SupportsGroups(m.groups) || m.workers!=3*m.groups ||

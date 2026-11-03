@@ -133,14 +133,14 @@ int main(int argc,char** argv) {
     unsigned attention_precision=0;
     if(emit && argc>=9) {
       std::string attention=argv[8];
-      if(attention!="bf16" && attention!="fp32" && attention!="fp32-scores" && attention!="math-sdpa" && attention!="cube-fp32" && attention!="cube-fp32-newton" && attention!="cube-fp32-newton-full" && attention!="cube-fp32-newton-fold" && attention!="cube-fp32-fold-softmax" && attention!="cube-fp32-wide-qk" && attention!="cube-fp32-valid-qk" && attention!="cube-fp32-cached-kv" && attention!="cube-fp32-cached-valid-pv" && attention!="aiv-bf16-streaming" && attention!="aiv-fp32-streaming")throw std::invalid_argument("Unknown attention implementation precision");
-      if(attention=="cube-fp32-cached-kv" || attention=="cube-fp32-cached-valid-pv") {
+      if(attention!="bf16" && attention!="fp32" && attention!="fp32-scores" && attention!="math-sdpa" && attention!="cube-fp32" && attention!="cube-fp32-newton" && attention!="cube-fp32-newton-full" && attention!="cube-fp32-newton-fold" && attention!="cube-fp32-fold-softmax" && attention!="cube-fp32-wide-qk" && attention!="cube-fp32-valid-qk" && attention!="cube-fp32-cached-kv" && attention!="cube-fp32-cached-valid-pv" && attention!="cube-fp32-cached-qk-phase-drain" && attention!="aiv-bf16-streaming" && attention!="aiv-fp32-streaming")throw std::invalid_argument("Unknown attention implementation precision");
+      if(attention=="cube-fp32-cached-kv" || attention=="cube-fp32-cached-valid-pv" || attention=="cube-fp32-cached-qk-phase-drain") {
         auto const& model=receipt.At("model_id").AsString("model");
         if((batch!=1 && batch!=16) || (model!="qwen3_0_6b" && model!="qwen3_1_7b" &&
             model!="llama3_2_1b" && model!="llama3_2_3b" && model!="llama3_1_8b"))
           throw std::invalid_argument("Cached FP32 KV candidates require one of the five dense B1/B16 models");
       }
-      attention_precision=attention=="cube-fp32-cached-valid-pv"?14:attention=="aiv-fp32-streaming"?13:attention=="aiv-bf16-streaming"?12:attention=="fp32"?1:attention=="fp32-scores"?2:attention=="math-sdpa"?3:attention=="cube-fp32"?4:attention=="cube-fp32-newton"?5:attention=="cube-fp32-newton-full"?6:attention=="cube-fp32-newton-fold"?7:attention=="cube-fp32-fold-softmax"?8:attention=="cube-fp32-wide-qk"?9:attention=="cube-fp32-valid-qk"?10:attention=="cube-fp32-cached-kv"?11:0;
+      attention_precision=attention=="cube-fp32-cached-qk-phase-drain"?15:attention=="cube-fp32-cached-valid-pv"?14:attention=="aiv-fp32-streaming"?13:attention=="aiv-bf16-streaming"?12:attention=="fp32"?1:attention=="fp32-scores"?2:attention=="math-sdpa"?3:attention=="cube-fp32"?4:attention=="cube-fp32-newton"?5:attention=="cube-fp32-newton-full"?6:attention=="cube-fp32-newton-fold"?7:attention=="cube-fp32-fold-softmax"?8:attention=="cube-fp32-wide-qk"?9:attention=="cube-fp32-valid-qk"?10:attention=="cube-fp32-cached-kv"?11:0;
     }
     const auto precision_contract=attention_precision==13?tilemega::ascend::llm::kStreamingFp32Precision:attention_precision==12?tilemega::ascend::llm::kStreamingPrecision:
       tilemega::ascend::llm::kReplayPrecision;
@@ -229,6 +229,13 @@ int main(int argc,char** argv) {
         receipt.At("model_id").AsString("model")!="qwen3_0_6b" || attention_precision!=11 ||
         gemm_session || reg_swiglu || local_residual || !swiglu_tile || !vector_argmax))
       throw std::invalid_argument("DMA-only QKV model admission starts with Qwen0.6 B1 cached decode");
+    if(attention_precision==15 && (!decomposition.Find("attention_implementation") ||
+        decomposition.At("attention_implementation").AsString("attention_implementation")!="cube-fp32-cached-qk-phase-drain"))
+      throw std::invalid_argument("QK phase drain requires its explicit implementation binding");
+    if(attention_precision==15 && (batch!=1 || phase!="decode" ||
+        receipt.At("model_id").AsString("model")!="qwen3_0_6b" || gemm_session || reg_swiglu ||
+        local_residual || qkv_dma_acquire || !swiglu_tile || !vector_argmax))
+      throw std::invalid_argument("QK phase drain starts with Qwen0.6 B1 G8 cached decode");
     auto start=std::chrono::steady_clock::now();
     tilemega::analysis::IslContext isl;
     auto bridge=tilemega::frontend::ReadExportBridge((input/"export.json").string());
@@ -325,6 +332,7 @@ int main(int argc,char** argv) {
     if(body)result.Set("body_binding_candidate",binding);
     if(prepare) {
       const int groups=std::stoi(argv[5]);
+      if(attention_precision==15 && groups!=8)throw std::invalid_argument("QK phase drain requires verified G8");
       auto target=tilemega::TargetSpec::FromJson(target_path.string());
       if(!target.ascend_capability)throw std::invalid_argument("Native LLM requires an Ascend 950PR target");
       if(qkv_dma_acquire && groups!=8)throw std::invalid_argument("DMA-only QKV requires verified G8");
@@ -398,7 +406,7 @@ int main(int argc,char** argv) {
           roles.push_back(projected.combine?R::kAivOnly:s.kind==tilemega::frontend::PlanTaskKind::kGemm?
             (local_q_tail3 && plan.gemms.at(s.gemm).n==4096 && plan.gemms.at(s.gemm).k==4096 && plan.gemms.at(s.gemm).epilogue==tilemega::frontend::PlanGemm::Epilogue::kStore?R::kMix1_2:
              options.gemms.at(s.gemm).split_k>1 || plan.gemms.at(s.gemm).epilogue==tilemega::frontend::PlanGemm::Epilogue::kStore?R::kAicOnly:R::kMix1_2):
-            s.kind==tilemega::frontend::PlanTaskKind::kFusedAttention && attention_precision>=4 && (attention_precision<12 || attention_precision==14)?R::kMix1_2:R::kAivOnly);
+            s.kind==tilemega::frontend::PlanTaskKind::kFusedAttention && attention_precision>=4 && (attention_precision<12 || attention_precision==14 || attention_precision==15)?R::kMix1_2:R::kAivOnly);
         }
         skeleton.BindAscendWorkers(workers,roles,true);
         if(decomposed)if(auto rules=decomposition.Find("placement_affinities")) {
@@ -550,7 +558,7 @@ int main(int argc,char** argv) {
         result.Set("status","native_plan_materialized_not_device_verified");
         result.Set("solver_executed",true);
         result.Set("solver_scope",priced?"two_plan_empirical_native_rank_EFT_search":"structural_native_schedule_only");
-        result.Set("attention_implementation",attention_precision==14?"mix_fp32_cached_kv_valid_qk_pv64_fold_softmax1088":attention_precision==13?"aiv_fp32_streaming_query_k32_v1":attention_precision==12?"aiv_bf16_streaming_query_k32_v1":attention_precision==11?"mix_fp32_cached_kv_valid_qk64_fold_softmax1088":attention_precision==10?"mix_fp32_cube_valid_qk64_fold_softmax1088":attention_precision==9?"mix_fp32_cube_qk256_fold_softmax1088":attention_precision==8?"mix_fp32_cube_newton_norm_fold_softmax1088":attention_precision==7?"mix_fp32_cube_newton_qk_half_fold_fullnorm":attention_precision==6?"mix_fp32_cube_newton_qk_and_fullnorm":attention_precision==5?"mix_fp32_cube_newton_qknorm":attention_precision==1?"fp32_chunk32_merge":attention_precision==2?"fp32_scores_bf16_probability":attention_precision==3?"math_sdpa_fp32_split_scale":attention_precision>=4?"mix_fp32_cube_qk_vector_softmax_pv":"bf16_scores_probabilities");
+        result.Set("attention_implementation",attention_precision==15?"mix_fp32_cached_kv_valid_qk64_phase_drain_fold_softmax1088":attention_precision==14?"mix_fp32_cached_kv_valid_qk_pv64_fold_softmax1088":attention_precision==13?"aiv_fp32_streaming_query_k32_v1":attention_precision==12?"aiv_bf16_streaming_query_k32_v1":attention_precision==11?"mix_fp32_cached_kv_valid_qk64_fold_softmax1088":attention_precision==10?"mix_fp32_cube_valid_qk64_fold_softmax1088":attention_precision==9?"mix_fp32_cube_qk256_fold_softmax1088":attention_precision==8?"mix_fp32_cube_newton_norm_fold_softmax1088":attention_precision==7?"mix_fp32_cube_newton_qk_half_fold_fullnorm":attention_precision==6?"mix_fp32_cube_newton_qk_and_fullnorm":attention_precision==5?"mix_fp32_cube_newton_qknorm":attention_precision==1?"fp32_chunk32_merge":attention_precision==2?"fp32_scores_bf16_probability":attention_precision==3?"math_sdpa_fp32_split_scale":attention_precision>=4?"mix_fp32_cube_qk_vector_softmax_pv":"bf16_scores_probabilities");
         result.Set("selection",priced?selected_algorithm:"diagnostic_unpriced_bootstrap_not_optimized");
         result.Set("priced_solver_executed",priced);
         result.Set("reg_swiglu",reg_swiglu);

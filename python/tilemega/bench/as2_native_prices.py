@@ -19,7 +19,7 @@ def combined_timing_status(statuses):
 
 
 def task_overheads(stage,profile,cost):
-    composite=stage[17]==13 and stage[31] in (4,5,6,7,8,9,12)
+    composite=stage[17]==13 and stage[31] in (4,5,6,7,8,9,12,13)
     if bool(profile.get('internal_mix_coordination_included'))!=composite:
         raise ValueError('Measured coordination span differs from implementation')
     cube_owner=stage[17]==0 or composite

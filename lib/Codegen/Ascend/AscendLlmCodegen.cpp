@@ -4,6 +4,7 @@
 #include <tilemega/Support/Json.h>
 #include <tilemega/Target/Ascend/LocalResidualContract.h>
 #include <tilemega/Target/Ascend/QkvDmaContract.h>
+#include <tilemega/Target/Ascend/QkPhaseContract.h>
 #include <mlir/IR/Verifier.h>
 #include <algorithm>
 #include <fstream>
@@ -45,7 +46,7 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
     ascend::WorkerMap const& map,std::vector<solver::AscendScheduledTask> const& input,
     solver::AscendSchedule const& schedule,bool diagnostic,unsigned attention_precision,bool local_tail_k7,bool local_q_tail3,bool local_residual_tail3,bool swiglu_tile,bool swiglu_l1_k256,bool vector_argmax,bool gemm_session,bool reg_swiglu,bool local_residual,bool local_residual_export_raw,bool qkv_dma_acquire) {
   using namespace ascend::llm;
-  if(attention_precision>14)throw std::invalid_argument("Unknown native attention precision contract");
+  if(attention_precision>15)throw std::invalid_argument("Unknown native attention precision contract");
   if(!local_residual && !local_residual_export_raw)throw std::invalid_argument("Raw export policy requires a local residual implementation");
   if(swiglu_l1_k256 && !swiglu_tile)throw std::invalid_argument("K256 requires the strided SwiGLU contract");
   if(local_residual_tail3 && !local_q_tail3)throw std::invalid_argument("Residual tail3 requires its Q projection contract");
@@ -237,11 +238,11 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
         throw std::invalid_argument("Native GQA head geometry is not registered");
       if(stage.kind==13 && attention_precision) {
         if(stage.kv_block!=1088)throw std::invalid_argument("FP32 chunk/merge candidate requires the unified KV ownership domain");
-        stage.variant=attention_precision==14?12:attention_precision==13?11:attention_precision==12?10:attention_precision==11?9:attention_precision==10?8:attention_precision==9?7:attention_precision==8?6:attention_precision>=5?5:attention_precision;
+        stage.variant=attention_precision==15?13:attention_precision==14?12:attention_precision==13?11:attention_precision==12?10:attention_precision==11?9:attention_precision==10?8:attention_precision==9?7:attention_precision==8?6:attention_precision>=5?5:attention_precision;
         if((attention_precision==12 || attention_precision==13) && !((stage.width==128 && (stage.group==2 || stage.group==3 || stage.group==4)) ||
             (stage.width==64 && stage.group==4)))
           throw std::invalid_argument("Streaming attention requires head128/GQA2/3/4 or head64/GQA4");
-        if(attention_precision>=4 && (attention_precision<12 || attention_precision==14)) {
+        if(attention_precision>=4 && (attention_precision<12 || attention_precision==14 || attention_precision==15)) {
           if((map.launch.num_groups!=8 && map.launch.num_groups!=14) || !((stage.width==128 && (stage.group==2 || stage.group==3 || stage.group==4)) || (stage.width==64 && stage.group==4)))
             throw std::invalid_argument("Cooperative FP32 attention requires target-admitted G8/G14 and head128/GQA2/3/4 or head64/GQA4");
           if(attention_workspace==kAbsent) {
@@ -346,6 +347,15 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
         throw std::invalid_argument("Unmaterialized residual output aliases another workspace");
     }
   }
+  if(attention_precision==15) {
+    if(p.model.dims.batch!=1 || p.model.dims.seq!=1 || map.launch.num_groups!=8)
+      throw std::invalid_argument("QK phase drain requires its G8 single-row decode contract");
+    unsigned bound=0;for(auto const& s:out.stages)if(s.kind==13) {
+      if(s.variant!=13 || !ascend::qk_phase::Shape(s))throw std::invalid_argument("Unregistered QK phase drain shape");
+      ++bound;
+    }
+    if(bound!=28)throw std::invalid_argument("QK phase drain must bind all28 Qwen0.6 layers");
+  }
   if(qkv_dma_acquire) {
     if(gemm_session || local_residual || local_tail_k7 || local_q_tail3 || local_residual_tail3 ||
         p.model.dims.batch!=1 || p.model.dims.seq!=1 || map.launch.num_groups!=8)
@@ -448,7 +458,7 @@ void AscendLlmPlan::Write(std::filesystem::path const& root) const {
     else if(s.kind==11)id="as2_aiv_embedding_i32_bf16";
     else if(s.kind==13)id=s.kv_block==128?"as2_aiv_gqa_fp32_log2_partials_kv128":
       metadata.seq==1?"as2_aiv_gqa_bf16_scores_probability_k32":"as2_aiv_causal_prefill_private_kv_k32";
-    if(s.kind==13 && s.variant)id=s.variant==12?"as2_mix_fp32_cached_kv_valid_qk_pv64_fold_softmax1088_gm":s.variant==11?"aiv_fp32_streaming_query_k32_v1":s.variant==10?"aiv_bf16_streaming_query_k32_v1":ascend::llm::IsCachedAttention(s.variant)?"as2_mix_fp32_cached_kv_valid_qk64_fold_softmax1088_gm":s.variant==8?"as2_mix_fp32_cube_valid_qk64_fold_softmax1088_gm":s.variant==7?"as2_mix_fp32_cube_qk256_fold_softmax1088_gm":s.variant==6?"as2_mix_fp32_cube_newton_fold_softmax1088_gm":s.variant==5?"as2_mix_fp32_cube_cann_newton_qknorm_gm":s.variant==4?"as2_mix_fp32_qk_vector_div_softmax_pv_gm":s.variant==1?"as2_aiv_gqa_fp32_chunk32_normalized_merge":
+    if(s.kind==13 && s.variant)id=s.variant==13?"as2_mix_fp32_cached_kv_valid_qk64_phase_drain_fold_softmax1088_gm":s.variant==12?"as2_mix_fp32_cached_kv_valid_qk_pv64_fold_softmax1088_gm":s.variant==11?"aiv_fp32_streaming_query_k32_v1":s.variant==10?"aiv_bf16_streaming_query_k32_v1":ascend::llm::IsCachedAttention(s.variant)?"as2_mix_fp32_cached_kv_valid_qk64_fold_softmax1088_gm":s.variant==8?"as2_mix_fp32_cube_valid_qk64_fold_softmax1088_gm":s.variant==7?"as2_mix_fp32_cube_qk256_fold_softmax1088_gm":s.variant==6?"as2_mix_fp32_cube_newton_fold_softmax1088_gm":s.variant==5?"as2_mix_fp32_cube_cann_newton_qknorm_gm":s.variant==4?"as2_mix_fp32_qk_vector_div_softmax_pv_gm":s.variant==1?"as2_aiv_gqa_fp32_chunk32_normalized_merge":
       s.variant==2?"as2_aiv_gqa_fp32_scores_bf16_probability_k32":"as2_aiv_gqa_math_sdpa_fp32_split_scale";
     else if(s.kind==14)id="as2_aiv_normalized_partial_log2_merge";
     else if(s.kind==15)id=s.variant==1?"as2_aiv_argmax_value_index_reduce":"as2_aiv_ordered_argmax_scalar_reduce";
@@ -487,6 +497,7 @@ void AscendLlmPlan::Write(std::filesystem::path const& root) const {
       {"partial_dtype",(s.kind==0 || s.kind==6)&&s.extent>1?"fp32":"not_applicable"},
       {"partial_workspace_bytes",(s.kind==0 || s.kind==6)&&s.extent>1?double(uint64_t(s.rows)*s.columns*s.extent*4):0},
       {"attention_skips_masked_qk_tiles",s.kind==13 && (s.variant==8 || ascend::llm::IsCachedAttention(s.variant) || s.variant==10 || s.variant==11)},
+      {"attention_qk_phase_drain",s.kind==13 && s.variant==13},
       {"attention_pv_valid_k64",s.kind==13 && s.variant==12},
       {"attention_streaming_kv_chunk",s.kind==13 && ascend::llm::IsStreamingAttention(s.variant)?32:0},
       {"attention_gm_score_probability_planes",s.kind==13 && !ascend::llm::IsStreamingAttention(s.variant)},
@@ -545,7 +556,7 @@ std::string LowerAscendLlm(AscendLlmPlan const& p) {
   bool wide_qk=false;for(auto const& s:p.stages)if(s.kind==13 && s.variant==7)wide_qk=true;
   bool streaming=false,replay=false;unsigned streaming_contract=0;
   for(auto const& s:p.stages)if(s.kind==13) {
-    if(s.variant>12)throw std::invalid_argument("Unregistered attention implementation");
+    if(s.variant>13 || (s.variant==13 && !ascend::qk_phase::Shape(s)))throw std::invalid_argument("Unregistered attention implementation");
     streaming|=ascend::llm::IsStreamingAttention(s.variant);replay|=!ascend::llm::IsStreamingAttention(s.variant);
     if(ascend::llm::IsStreamingAttention(s.variant)) {
       if(streaming_contract && streaming_contract!=s.variant-8)throw std::invalid_argument("Mixed streaming precision contracts");
@@ -553,6 +564,7 @@ std::string LowerAscendLlm(AscendLlmPlan const& p) {
     }
   }
   if(streaming && replay)throw std::invalid_argument("Mixed attention precision contracts in one image");
+  bool phase_qk=false;for(auto const& s:p.stages)phase_qk|=s.kind==13 && s.variant==13;
   bool valid_pv=false;for(auto const& s:p.stages)if(s.kind==13 && s.variant==12)valid_pv=true;
   bool cached_kv=false;for(auto const& s:p.stages)if(s.kind==13 && ascend::llm::IsCachedAttention(s.variant))cached_kv=true;
   bool swiglu_tile=false,k256=false;
@@ -572,6 +584,7 @@ std::string LowerAscendLlm(AscendLlmPlan const& p) {
     "#define TILEMEGA_LLM_LOCAL_TAIL_K7 "+std::to_string(unsigned(local))+"\n"+
     "#define TILEMEGA_LLM_LOCAL_Q_TAIL_K3 "+std::to_string(unsigned(q_tail))+"\n"+
     "#define TILEMEGA_LLM_WIDE_QK "+std::to_string(unsigned(wide_qk))+"\n"+
+    "#define TILEMEGA_LLM_QK_PHASE_DRAIN "+std::to_string(unsigned(phase_qk))+"\n"+
     "#define TILEMEGA_LLM_VALID_PV "+std::to_string(unsigned(valid_pv))+"\n"+
     "#define TILEMEGA_LLM_FP32_KV_CACHE_B1 "+std::to_string(unsigned(cached_kv && p.metadata.batch==1))+"\n"+
     "#define TILEMEGA_LLM_FP32_KV_CACHE "+std::to_string(unsigned(cached_kv))+"\n"+

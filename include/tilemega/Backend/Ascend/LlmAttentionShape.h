@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Target/Ascend/LlmPlanABI.h>
+#include <tilemega/Target/Ascend/QkPhaseContract.h>
 
 namespace tilemega::ascend {
 struct LlmAttentionShape {
@@ -17,6 +18,13 @@ __aicore__ inline bool DescribeLlmAttention(llm::Stage const& s,unsigned tile,
     return false;
 #else
     if(s.width!=128)return false;
+#endif
+  }
+  if(s.variant==13) {
+#if !defined(TILEMEGA_LLM_QK_PHASE_DRAIN) || !TILEMEGA_LLM_QK_PHASE_DRAIN
+    return false;
+#else
+    if(!qk_phase::Shape(s) || m.batch!=1 || m.seq!=1 || m.groups!=8)return false;
 #endif
   }
   if(llm::IsCachedAttention(s.variant)) {

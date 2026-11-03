@@ -69,7 +69,7 @@ def cached_kv_state(stages,buffers,metadata):
     state=[];ordinary=False;used=set();by_offset={b['offset_bytes']:b for b in buffers}
     for s in stages:
         if s[17]!=13:continue
-        if s[31] not in (9,12):ordinary=True;continue
+        if s[31] not in (9,12,13):ordinary=True;continue
         heads=(s[24]==128 and s[25] in (2,3,4)) or (s[24]==64 and s[25]==4)
         if metadata[8] not in (1,16) or metadata[10]!=1088 or s[23]!=8 or s[26]!=1088 or not heads:
             raise ValueError('Unregistered derived KV shape')
@@ -93,7 +93,7 @@ from tilemega.bench.as2_precision import REPLAY, STREAMING, CONTRACTS, validate_
 SOURCE_CAPABILITIES=('TILEMEGA_LLM_SPLIT_K','TILEMEGA_LLM_LOCAL_TAIL_K7','TILEMEGA_LLM_LOCAL_Q_TAIL_K3',
                      'TILEMEGA_LLM_WIDE_QK','TILEMEGA_LLM_FP32_KV_CACHE','TILEMEGA_LLM_SWIGLU_TILE',
                      'TILEMEGA_LLM_SWIGLU_L1_K256','TILEMEGA_LLM_VECTOR_ARGMAX','TILEMEGA_LLM_G14',
-                     'TILEMEGA_LLM_STREAMING_ATTENTION','TILEMEGA_LLM_GEMM_SESSION','TILEMEGA_LLM_REG_SWIGLU','TILEMEGA_LLM_FP32_KV_CACHE_B1','TILEMEGA_LLM_VALID_PV','TILEMEGA_LLM_LOCAL_RESIDUAL','TILEMEGA_LLM_LOCAL_RESIDUAL_NO_RAW','TILEMEGA_LLM_QKV_DMA_ACQUIRE')
+                     'TILEMEGA_LLM_STREAMING_ATTENTION','TILEMEGA_LLM_GEMM_SESSION','TILEMEGA_LLM_REG_SWIGLU','TILEMEGA_LLM_FP32_KV_CACHE_B1','TILEMEGA_LLM_VALID_PV','TILEMEGA_LLM_LOCAL_RESIDUAL','TILEMEGA_LLM_LOCAL_RESIDUAL_NO_RAW','TILEMEGA_LLM_QKV_DMA_ACQUIRE','TILEMEGA_LLM_QK_PHASE_DRAIN')
 SOURCE_GEOMETRY=('TILEMEGA_LLM_VARIANT','TILEMEGA_LLM_TM','TILEMEGA_LLM_TN','TILEMEGA_LLM_TK')
 SOURCE_CONTRACT=('TILEMEGA_LLM_PRECISION_CONTRACT',)
 PRECISION_CONTRACT=REPLAY
