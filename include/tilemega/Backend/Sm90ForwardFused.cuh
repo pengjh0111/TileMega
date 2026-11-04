@@ -178,6 +178,8 @@ struct Sm90ForwardDwPw {
       __syncwarp();
     }else {
       Sm90DenseRoles::Consumer();
+      TM_FWD_TRACE_ACC(wait_trace);TM_FWD_TRACE_ACC(dw_trace);
+      TM_FWD_TRACE_ACC(pw_trace);TM_FWD_TRACE_ACC(epilogue_trace);TM_FWD_TRACE_ACC(main_trace);
       for(int local=0;local<tasks;++local) {
         int task=int(blockIdx.x)+local*int(gridDim.x);
         int tile=task/splits,split=task%splits;
@@ -191,11 +193,18 @@ struct Sm90ForwardDwPw {
         // accumulator is fenced around that register work; without the fence
         // the compiler may reuse the accumulator's registers.
         Gmma::Gmma::Fence(accum);
+        TM_FWD_TRACE_BEGIN(main_trace);
         for(int block=0;block<blocks;++block) {
           int slot=(local*blocks+block)%Slots;
+          TM_FWD_TRACE_BEGIN(wait_trace);
           Async::Wait(state.full+slot,(phase>>slot)&1);phase^=1u<<slot;
+          TM_FWD_TRACE_END(wait_trace);
+          if(local==0 && block==0) {TM_FWD_TRACE_FIRST_READY();}
+          TM_FWD_TRACE_BEGIN(dw_trace);
           Depthwise(halo+slot*kHaloElements,filters+slot*kFilterElements,panel,rows,
               tile_w,p.channels,block,p.dw_vectors);
+          TM_FWD_TRACE_END(dw_trace);
+          TM_FWD_TRACE_BEGIN(pw_trace);
           // The panel is a generic-store producer for WGMMA's shared reads.
           Async::FenceProxyAsyncShared();
           codegen::executor::ComputeSync();
@@ -205,9 +214,11 @@ struct Sm90ForwardDwPw {
           Sm90Gmma<arch::Sm90>::template Wait<0>();
           Gmma::Gmma::Fence(accum);
           codegen::executor::ComputeSync();
+          TM_FWD_TRACE_END(pw_trace);
           Async::Arrive(state.empty+slot);
         }
         float* values=Gmma::Materialize(accum,scratch);
+        TM_FWD_TRACE_END(main_trace);
         // The task's rows are the pixels of its TW x TH tile, so the store
         // walks the tile inside the image.
         auto epilogue=p.epilogue;
@@ -217,10 +228,15 @@ struct Sm90ForwardDwPw {
           epilogue.residual+=(std::size_t(tile_y)*p.output_width+tile_x)*epilogue.residual_stride;
         int width=p.out_channels-split*Chain::kWidth;
         if(width>Chain::kWidth)width=Chain::kWidth;
+        TM_FWD_TRACE_BEGIN(epilogue_trace);
         Chain::Finish(values,rows,split*TN,width>0?width:0,epilogue,
             p.output+(std::size_t(tile_y)*p.output_width+tile_x)*p.output_stride,
             p.output_stride);
+        TM_FWD_TRACE_END(epilogue_trace);
       }
+      TM_FWD_TRACE_FLUSH(main_trace,kMainLoop);
+      TM_FWD_TRACE_FLUSH(wait_trace,kHaloWait);TM_FWD_TRACE_FLUSH(dw_trace,kFusedDepthwise);
+      TM_FWD_TRACE_FLUSH(pw_trace,kFusedPointwise);TM_FWD_TRACE_FLUSH(epilogue_trace,kEpilogue);
       if(threadIdx.x==0 && tasks)
         for(int slot=0;slot<Slots;++slot)state.consumer_generations[slot]=(phase>>slot)&1;
     }

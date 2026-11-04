@@ -13,6 +13,7 @@
 #include <mlir/IR/BuiltinAttributes.h>
 
 #include <cmath>
+#include <cstdlib>
 #include <functional>
 #include <iomanip>
 #include <map>
@@ -311,6 +312,13 @@ std::string ElementChain(codegen::DmEpilogueChain const& chain,Binding& bind,
 }  // namespace
 
 std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
+  int trace_level=0;
+  if(auto* setting=std::getenv("TILEMEGA_TRACE_STAGE")) {
+    std::string value(setting);
+    if(value!="0" && value!="1" && value!="2")
+      throw std::invalid_argument("TILEMEGA_TRACE_STAGE must be 0, 1 or 2");
+    trace_level=value[0]-'0';
+  }
   auto plan=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
   auto text=module->getAttrOfType<mlir::StringAttr>("tmexec.sm90_forward");
   if(!plan || !text)
@@ -358,6 +366,14 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
      // The DNN plans bind 64-bit token identifiers; the serving ABI spells
      // that dtype as the DM buffer table's fourth code.
      <<"#define TM_DTYPE_I64 3\n"
+     // Native compile argv is fixed: bind the build environment into the
+     // source so artifact identity sees the same trace macro nvcc compiles.
+     <<"#define TILEMEGA_TRACE_STAGE "<<trace_level<<"\n"
+     <<"#if defined(TILEMEGA_TRACE_STAGE) && TILEMEGA_TRACE_STAGE\n"
+     <<"#define TILEMEGA_FORWARD_TRACE_STAGES "<<stages.size()<<"\n"
+     <<"#define TILEMEGA_FORWARD_TRACE_GRID "
+     <<module->getAttrOfType<mlir::IntegerAttr>("tmexec.sm90_forward_grid").getInt()<<"\n"
+     <<"#endif\n"
      <<"#include <tilemega/Codegen/tasks/Sm90ForwardProgram.cuh>\n\n"
      <<"namespace tilemega::codegen::native_forward {\n"
      <<"using namespace tilemega::backend;\n"
@@ -823,6 +839,46 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
   out<<"}};\n"
      <<"}  // namespace tilemega::codegen::native_forward\n"
      <<"#include <tilemega/Codegen/tasks/Sm90ForwardRuntime.cuh>\n";
+  // The trace ABI belongs to generated forward artifacts; the shared host
+  // runtime stays independent of the attribution-only record layout.
+  out<<R"FWDTRACE(
+#if TILEMEGA_TRACE_STAGE
+extern "C" unsigned tm_forward_trace_schema() {return 1;}
+extern "C" unsigned tm_forward_trace_stages() {return TILEMEGA_FORWARD_TRACE_STAGES;}
+extern "C" unsigned tm_forward_trace_grid() {return TILEMEGA_FORWARD_TRACE_GRID;}
+extern "C" unsigned tm_forward_trace_segments() {
+  return tilemega::backend::kSm90ForwardTraceSegments;
+}
+extern "C" unsigned tm_forward_trace_record_bytes() {
+  return sizeof(tilemega::backend::Sm90ForwardTraceRecord);
+}
+extern "C" unsigned long long tm_forward_trace_bytes() {
+  return sizeof(tilemega::backend::sm90_forward_trace_records);
+}
+extern "C" char const* tm_forward_trace_segment_name(unsigned index) {
+  using namespace tilemega::backend;
+  return index<kSm90ForwardTraceSegments?kSm90ForwardTraceNames[index]:nullptr;
+}
+extern "C" int tm_forward_trace_reset() {
+  using namespace tilemega::backend;
+  auto status=cudaDeviceSynchronize();
+  if(status!=cudaSuccess)return int(status);
+  void* pointer=nullptr;
+  status=cudaGetSymbolAddress(&pointer,sm90_forward_trace_records);
+  if(status==cudaSuccess)status=cudaMemset(pointer,0,sizeof(sm90_forward_trace_records));
+  if(status==cudaSuccess)status=cudaDeviceSynchronize();
+  return int(status);
+}
+extern "C" int tm_forward_trace_copy(void* output,unsigned long long bytes) {
+  using namespace tilemega::backend;
+  if(!output || bytes!=sizeof(sm90_forward_trace_records))return -1;
+  auto status=cudaDeviceSynchronize();
+  if(status==cudaSuccess)
+    status=cudaMemcpyFromSymbol(output,sm90_forward_trace_records,sizeof(sm90_forward_trace_records));
+  return int(status);
+}
+#endif
+)FWDTRACE";
   return out.str();
 }
 

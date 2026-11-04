@@ -2,6 +2,7 @@
 #pragma once
 
 #include <tilemega/Backend/Sm90ForwardEpilogue.cuh>
+#include <tilemega/Backend/Sm90ForwardMark.cuh>
 #include <tilemega/Backend/Sm90DenseAttentionMath.cuh>
 #include <tilemega/Backend/Sm90DenseLayout.h>
 #include <tilemega/Backend/Sm90DenseRing.cuh>
@@ -98,10 +99,16 @@ struct Sm90ForwardEncoderAttention {
     }
     Sm90DenseRoles::Consumer();
     int warp=int(threadIdx.x)>>5,lane=int(threadIdx.x)&31;
+    TM_FWD_TRACE_ACC(wait_trace);TM_FWD_TRACE_ACC(qk_trace);
+    TM_FWD_TRACE_ACC(softmax_trace);TM_FWD_TRACE_ACC(pv_trace);
     for(int local=0;local<tasks;++local) {
       int task=int(blockIdx.x)+local*int(gridDim.x);
       int head=task/(Seq/Rows),block=task%(Seq/Rows),slot=local%Slots;
+      TM_FWD_TRACE_BEGIN(wait_trace);
       Async::Wait(state.full+slot,(phase>>slot)&1);phase^=1u<<slot;
+      TM_FWD_TRACE_END(wait_trace);
+      if(local==0) {TM_FWD_TRACE_FIRST_READY();}
+      TM_FWD_TRACE_BEGIN(qk_trace);
       auto const* keys=kv+slot*2*Seq*D;
       auto const* values=keys+Seq*D;
       unsigned q=Async::Shared(queries+slot*Rows*D);
@@ -128,6 +135,8 @@ struct Sm90ForwardEncoderAttention {
         }
       }
       codegen::executor::ComputeSync();
+      TM_FWD_TRACE_END(qk_trace);
+      TM_FWD_TRACE_BEGIN(softmax_trace);
       // Exact row softmax over the whole sequence, then O = P V.
       for(int row=int(threadIdx.x);row<Rows;row+=128) {
         float maximum=-INFINITY;
@@ -140,6 +149,8 @@ struct Sm90ForwardEncoderAttention {
         for(int col=0;col<Seq;++col)scores[row*Seq+col]*=inverse;
       }
       codegen::executor::ComputeSync();
+      TM_FWD_TRACE_END(softmax_trace);
+      TM_FWD_TRACE_BEGIN(pv_trace);
       // O = P V reads the swizzled V tile directly: the product is 16 x D per
       // task, so its FMAs are a small share of the body's work.
       auto const* value_base=reinterpret_cast<char const*>(values);
@@ -152,9 +163,12 @@ struct Sm90ForwardEncoderAttention {
         p.output[(std::size_t(block)*Rows+row)*p.heads*D+head*D+channel]=Element(sum);
       }
       codegen::executor::ComputeSync();
+      TM_FWD_TRACE_END(pv_trace);
       Async::FenceProxyAsyncShared();
       Async::Arrive(state.empty+slot);
     }
+    TM_FWD_TRACE_FLUSH(wait_trace,kKvWait);TM_FWD_TRACE_FLUSH(qk_trace,kAttentionQk);
+    TM_FWD_TRACE_FLUSH(softmax_trace,kAttentionSoftmax);TM_FWD_TRACE_FLUSH(pv_trace,kAttentionPv);
     if(threadIdx.x==0 && tasks)
       for(int slot=0;slot<Slots;++slot)state.consumer_generations[slot]=(phase>>slot)&1;
     __syncthreads();

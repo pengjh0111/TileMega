@@ -4,6 +4,7 @@
 #include <tilemega/Backend/Sm90DenseGemm.h>
 #include <tilemega/Codegen/DmDescriptors.h>
 #include <tilemega/Backend/Sm90DenseLayout.h>
+#include <tilemega/Backend/Sm90ForwardMark.cuh>
 #include <tilemega/Backend/Sm90ForwardGemm.cuh>
 #include <tilemega/Backend/Sm90ForwardDepthwise.cuh>
 #include <tilemega/Backend/Sm90ForwardFused.cuh>
@@ -272,6 +273,9 @@ struct Program {
   template<unsigned I>
   using At=typename decltype(ForwardStageLookup<I>(Map{}))::Type;
   static constexpr unsigned kStages=sizeof...(Stage);
+#if TILEMEGA_TRACE_STAGE
+  static_assert(kStages==TILEMEGA_FORWARD_TRACE_STAGES);
+#endif
   static constexpr int kBatch=Batch,kResidency=Residency,kThreads=160;
   static constexpr unsigned kBuffers=Buffers,kMaps=Maps;
   static_assert(kStages>=1 && (Residency==1 || Residency==2));
@@ -299,10 +303,16 @@ struct Program {
     using Body=At<I>;
     auto* rings=reinterpret_cast<backend::Sm90DenseRingState*>(shared);
     auto const& bank=ForwardOperandHeader::Bank(shared,I%2);
+#if TILEMEGA_TRACE_STAGE
+    backend::Sm90ForwardTraceEnter(I);
+#endif
     Body::template Run<Binding>(b,shared,rings[I%2],bank);
     if(threadIdx.x==0) {
       if constexpr(I+1<kStages)At<I+1>::template PublishOperands<Binding>(b,
           ForwardOperandHeader::Bank(shared,(I+1)%2));
+#if TILEMEGA_TRACE_STAGE
+      backend::Sm90ForwardTraceArrive();
+#endif
       auto* counter=&events[I].arrivals;
       asm volatile("red.release.gpu.global.add.u64 [%0], %1;"::"l"(counter),"l"(1ull):"memory");
       unsigned long long seen;
@@ -310,6 +320,9 @@ struct Program {
       while(seen<gridDim.x);
     }
     __syncthreads();
+#if TILEMEGA_TRACE_STAGE
+    backend::Sm90ForwardTraceLeave();
+#endif
   }
   template<unsigned... I>
   __device__ static __forceinline__ void Run(Binding const& b,char* shared,ForwardCounter* events,

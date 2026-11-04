@@ -2,6 +2,7 @@
 #pragma once
 
 #include <tilemega/Backend/Sm90ForwardEpilogue.cuh>
+#include <tilemega/Backend/Sm90ForwardMark.cuh>
 #include <tilemega/Backend/Sm90DenseLayout.h>
 #include <tilemega/Backend/Sm90DenseRing.cuh>
 #include <tilemega/Backend/Sm90DenseRoles.cuh>
@@ -81,6 +82,8 @@ struct Sm90ForwardDepthwise {
       int tiles_w,int tiles) {
     Sm90DenseRoles::Consumer();
     auto* values=reinterpret_cast<float*>(scratch);
+    TM_FWD_TRACE_ACC(wait_trace);TM_FWD_TRACE_ACC(compute_trace);
+    TM_FWD_TRACE_ACC(epilogue_trace);
     for(int local=0;local<tasks;++local) {
       int task=int(blockIdx.x)+local*int(gridDim.x);
       int tile=task%tiles,block=task/tiles;
@@ -90,7 +93,11 @@ struct Sm90ForwardDepthwise {
       int tile_w=min(TW,p.output_width-tile_x),tile_h=min(TH,p.output_height-tile_y);
       int rows=tile_w*tile_h;
       int slot=local%Slots;
+      TM_FWD_TRACE_BEGIN(wait_trace);
       Async::Wait(state.full+slot,(phase>>slot)&1);phase^=1u<<slot;
+      TM_FWD_TRACE_END(wait_trace);
+      if(local==0) {TM_FWD_TRACE_FIRST_READY();}
+      TM_FWD_TRACE_BEGIN(compute_trace);
       auto const* halo=slots+slot*kSlotElements;
       auto const* filters=halo+kHaloElements;
       for(int i=int(threadIdx.x);i<TW*TH*CT;i+=128) {
@@ -110,6 +117,7 @@ struct Sm90ForwardDepthwise {
         values[pixel*CT+channel]=sum;
       }
       codegen::executor::ComputeSync();
+      TM_FWD_TRACE_END(compute_trace);
       Async::FenceProxyAsyncShared();
       Async::Arrive(state.empty+slot);
       auto epilogue=p.epilogue;
@@ -121,9 +129,13 @@ struct Sm90ForwardDepthwise {
       int width=p.channels-block*CT;
       if(width>CT)width=CT;
       if(Chain::kGated)width/=2;
+      TM_FWD_TRACE_BEGIN(epilogue_trace);
       Chain::Finish(values,rows,block*CT,width>0?width:0,epilogue,
           p.output+(std::size_t(tile_y)*p.output_width+tile_x)*p.output_stride,p.output_stride);
+      TM_FWD_TRACE_END(epilogue_trace);
     }
+    TM_FWD_TRACE_FLUSH(wait_trace,kHaloWait);TM_FWD_TRACE_FLUSH(compute_trace,kDepthwiseCompute);
+    TM_FWD_TRACE_FLUSH(epilogue_trace,kEpilogue);
     if(threadIdx.x==0 && tasks)
       for(int slot=0;slot<Slots;++slot)state.consumer_generations[slot]=(phase>>slot)&1;
   }

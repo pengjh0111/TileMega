@@ -2,6 +2,7 @@
 #pragma once
 
 #include <tilemega/Backend/Sm90ForwardEpilogue.cuh>
+#include <tilemega/Backend/Sm90ForwardMark.cuh>
 #include <tilemega/Backend/Sm90Gmma.h>
 #include <tilemega/Backend/Sm90DenseLayout.h>
 #include <tilemega/Backend/Sm90DenseRing.cuh>
@@ -119,6 +120,9 @@ struct Sm90ForwardGemm {
       Sm90DenseRingState& state,Element* a,Element* b,char* scratch,int tasks,unsigned phase) {
     Sm90DenseRoles::Consumer();
     using namespace cute;
+    TM_FWD_TRACE_ACC(wait_trace);TM_FWD_TRACE_ACC(main_trace);
+    TM_FWD_TRACE_ACC(partial_trace);TM_FWD_TRACE_ACC(reduce_trace);
+    TM_FWD_TRACE_ACC(epilogue_trace);
     for(int local=0;local<tasks;++local) {
       int task=int(blockIdx.x)+local*int(gridDim.x);
       int n_tile=NTile(task),m_tile=MTile(task),slice=Slice(task);
@@ -129,9 +133,13 @@ struct Sm90ForwardGemm {
       if(width>Chain::kWidth)width=Chain::kWidth;
       auto accum=partition_fragment_C(typename Gmma::Mma{},Shape<Int<TM>,Int<TN>>{});
       clear(accum);
+      TM_FWD_TRACE_BEGIN(main_trace);
       for(int iteration=0;iteration<kIterations;++iteration) {
         int slot=(local*kIterations+iteration)%Slots;
+        TM_FWD_TRACE_BEGIN(wait_trace);
         Async::Wait(state.full+slot,(phase>>slot)&1);phase^=1u<<slot;
+        TM_FWD_TRACE_END(wait_trace);
+        if(local==0 && iteration==0) {TM_FWD_TRACE_FIRST_READY();}
         Gmma::Accumulate(b+slot*TN*TK,a+slot*TM*TK,accum);
         // WGMMA reads the slot asynchronously: its commit must land before the
         // slot is released for the producer's next async write.
@@ -140,6 +148,7 @@ struct Sm90ForwardGemm {
         Async::Arrive(state.empty+slot);
       }
       float* tile_values=Gmma::Materialize(accum,scratch);
+      TM_FWD_TRACE_END(main_trace);
       // The chain addresses this tile's rows: its residual, row statistics and
       // output all start at the tile's first row.
       auto epilogue=p.epilogue;
@@ -159,12 +168,15 @@ struct Sm90ForwardGemm {
       auto* output=p.output+(Chain::kWrite==kDenseWrite?
           std::size_t(m_tile)*TM*p.output_stride:0);
       if constexpr(SplitK==1) {
+        TM_FWD_TRACE_BEGIN(epilogue_trace);
         Chain::Finish(tile_values,rows,n_tile*TN,width>0?width:0,epilogue,output,p.output_stride);
+        TM_FWD_TRACE_END(epilogue_trace);
       }else {
         // Each slice stores its partial; the last arriver of the tile sums the
         // slices in fixed order and runs the chain once.
         // The partials cross SMs, whose L1 caches are not coherent: both sides
         // use GPU-scope relaxed accesses, published by the counter's release.
+        TM_FWD_TRACE_BEGIN(partial_trace);
         for(int i=int(threadIdx.x);i<TM*TN;i+=128) {
           auto* address=p.partial+(std::size_t(tile)*SplitK+slice)*TM*TN+i;
           asm volatile("st.relaxed.gpu.global.f32 [%0], %1;"::"l"(address),
@@ -180,7 +192,9 @@ struct Sm90ForwardGemm {
           if(*flag)p.counters[tile]=0;
         }
         codegen::executor::ComputeSync();
+        TM_FWD_TRACE_END(partial_trace);
         if(*flag) {
+          TM_FWD_TRACE_BEGIN(reduce_trace);
           for(int i=int(threadIdx.x);i<TM*TN;i+=128) {
             float value=0;
             #pragma unroll
@@ -194,11 +208,17 @@ struct Sm90ForwardGemm {
             tile_values[i]=value;
           }
           codegen::executor::ComputeSync();
+          TM_FWD_TRACE_END(reduce_trace);
+          TM_FWD_TRACE_BEGIN(epilogue_trace);
           Chain::Finish(tile_values,rows,n_tile*TN,width>0?width:0,epilogue,output,
               p.output_stride);
+          TM_FWD_TRACE_END(epilogue_trace);
         }
       }
     }
+    TM_FWD_TRACE_FLUSH(wait_trace,kSlotWait);TM_FWD_TRACE_FLUSH(main_trace,kMainLoop);
+    TM_FWD_TRACE_FLUSH(partial_trace,kPartialWrite);TM_FWD_TRACE_FLUSH(reduce_trace,kSplitKReduce);
+    TM_FWD_TRACE_FLUSH(epilogue_trace,kEpilogue);
     if(threadIdx.x==0 && tasks)
       for(int slot=0;slot<Slots;++slot)state.consumer_generations[slot]=(phase>>slot)&1;
   }
