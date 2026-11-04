@@ -94,17 +94,17 @@ struct Sm90ForwardMaxPool {
 #if TILEMEGA_TRACE_STAGE
             TM_FWD_TRACE_BEGIN(load_trace);
             float value=float(p.input[((std::size_t(image)*p.height+sy)*p.width+sx)*p.channels+c]);
-            TM_FWD_WINDOW_END(load_trace,task+int(gridDim.x)>=Batch*total && c+128>=p.channels && r==min(Window-1,p.height-1-y) && s==min(Window-1,p.width-1-x));
+            TM_FWD_WINDOW_END(load_trace,task+int(gridDim.x)>=total && c+128>=p.channels && r==min(Window-1,p.height-1-y) && s==min(Window-1,p.width-1-x));
             TM_FWD_TRACE_BEGIN(compute_trace);
             best=fmaxf(best,value);
-            TM_FWD_WINDOW_END(compute_trace,task+int(gridDim.x)>=Batch*total && c+128>=p.channels && r==min(Window-1,p.height-1-y) && s==min(Window-1,p.width-1-x));
+            TM_FWD_WINDOW_END(compute_trace,task+int(gridDim.x)>=total && c+128>=p.channels && r==min(Window-1,p.height-1-y) && s==min(Window-1,p.width-1-x));
 #else
             best=fmaxf(best,float(p.input[((std::size_t(image)*p.height+sy)*p.width+sx)*p.channels+c]));
 #endif
           }
         TM_FWD_TRACE_BEGIN(store_trace);
         p.output[std::size_t(task)*p.channels+c]=Element(best);
-        TM_FWD_WINDOW_END(store_trace,task+int(gridDim.x)>=Batch*total && c+128>=p.channels);
+        TM_FWD_WINDOW_END(store_trace,task+int(gridDim.x)>=total && c+128>=p.channels);
       }
     }
     TM_FWD_TRACE_FLUSH(load_trace,kSmallLoad);TM_FWD_TRACE_FLUSH(compute_trace,kSmallCompute);
