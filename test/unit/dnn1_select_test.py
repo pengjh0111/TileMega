@@ -73,7 +73,7 @@ class Protocol(unittest.TestCase):
 
 
 class Orchestration(unittest.TestCase):
-    def exercise(self, child_failure=False):
+    def exercise(self, child_failure=False, parallel=False):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
             export = directory / 'export'
@@ -98,9 +98,13 @@ class Orchestration(unittest.TestCase):
             argv = ['dnn1_select.py', '--candidates', str(source), '--out', str(directory / 'out'),
                     '--export', str(export), '--bridge', str(directory / 'bridge.json'),
                     '--inputs', str(directory / 'inputs_b{batch}.safetensors')]
+            if parallel:
+                argv += ['--cpu-affinity', '32,33,34,35']
             commands, sessions = [], []
             def child(command, **kwargs):
                 commands.append(command)
+                self.assertEqual(Path(command[0]).resolve(),
+                                 (module.ROOT / 'scripts/dnn1_idle_floor_python.py').resolve())
                 self.assertEqual(command[1:3], ['-m', 'tilemega.dnn.benchmark_timing_only'])
                 self.assertNotIn('tilemega.bench.scheduler', command)
                 self.assertNotIn('tilemega.bench.gpu_guard', command)
@@ -136,10 +140,17 @@ class Orchestration(unittest.TestCase):
                     self.assertEqual(result['winner_rank'], 0)
                     self.assertEqual(result['winner_binary_sha256'], candidates[0]['binary_sha256'])
                     self.assertEqual(len(sessions), 9)
+                    expected = dict(gpu=0, parallel=True, cpu_affinity=[32,33,34,35]) if parallel else dict(gpu=0)
+                    self.assertTrue(all(session == expected for session in sessions))
                     self.assertEqual(len(commands), 8)
+                    wrapper = str((module.ROOT / 'scripts/dnn1_idle_floor_python.py').resolve())
+                    self.assertEqual(result['source_sha256'][wrapper], module.sha(wrapper))
 
     def test_eight_children_reuse_the_outer_guard(self):
         self.exercise()
+
+    def test_explicit_cpu_trial_reaches_each_session_check(self):
+        self.exercise(parallel=True)
 
     def test_first_child_failure_stops_selection(self):
         self.exercise(child_failure=True)

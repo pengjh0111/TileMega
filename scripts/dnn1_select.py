@@ -75,12 +75,18 @@ def main():
     parser.add_argument('--export', dest='export_dir', type=Path, required=True)
     parser.add_argument('--bridge', type=Path, required=True)
     parser.add_argument('--inputs', required=True, help='fixed path, optionally containing {batch}')
+    parser.add_argument('--python', default=str(ROOT / 'scripts/dnn1_idle_floor_python.py'),
+                        help='child Python entry; DNN1 resource-only campaigns pass their guarded wrapper')
+    parser.add_argument('--cpu-affinity', help='explicit disjoint CPU IDs for a NUMA concurrency trial')
     args = parser.parse_args()
     sys.path[:0] = [str(ROOT / 'python'), str(ROOT / 'python/tilemega/serving')]
     from dnn1_baselines import require_session
     from tilemega.build.identity import verify
     gpu = int(os.environ.get('TILEMEGA_DEVICE_INDEX', '-1'))
-    require_session(dict(gpu=gpu))
+    session = dict(gpu=gpu)
+    if args.cpu_affinity:
+        session.update(parallel=True, cpu_affinity=[int(x) for x in args.cpu_affinity.split(',')])
+    require_session(session)
     # The solver invokes this command inside its guard. A nested scheduler would
     # wait on the very GPU/NUMA locks already held by this parent session.
     args.out.mkdir(parents=True, exist_ok=False)
@@ -89,6 +95,7 @@ def main():
                     ROOT / 'scripts/dnn1_baselines.py']
     frozen = {str(p.resolve()): sha(p) for p in source_paths}
     frozen[str(args.candidates.resolve())] = sha(args.candidates)
+    frozen[str(Path(args.python).resolve())] = sha(args.python)
     raw = json.loads(args.candidates.read_text())
     candidates = sorted((c for c in raw if c['status'] == 'compiled'), key=lambda c: c['rank'])
     if not 1 <= len(candidates) <= 4:
@@ -120,6 +127,7 @@ def main():
     if constants:
         frozen[str(Path(constants).resolve())] = sha(constants)
     write(args.out / 'session.json', dict(schema=1, protocol='P-SEL', gpu=gpu, batch=batch,
+        cpu_affinity=sorted(os.sched_getaffinity(0)), concurrency_trial=bool(args.cpu_affinity),
         started=time.time(), guard_pid=os.environ.get('TILEMEGA_DNN1_GUARD_PID'),
         source_sha256=frozen, candidate_statuses=raw, driver_command=[sys.executable, *sys.argv],
         candidate_order=[c['rank'] for c in candidates] + [c['rank'] for c in candidates[::-1]],
@@ -127,11 +135,11 @@ def main():
     visits = []
     counts = {c['rank']: 0 for c in candidates}
     for visit, candidate in enumerate(candidates + candidates[::-1]):
-        require_session(dict(gpu=gpu))
+        require_session(session)
         rank = candidate['rank']
         folder = args.out / f'visit-{visit:02d}-candidate-{rank}'
         config = args.out / f'candidate-{rank}/selected-config.json'
-        command = [sys.executable, '-m', 'tilemega.dnn.benchmark_timing_only',
+        command = [args.python, '-m', 'tilemega.dnn.benchmark_timing_only',
             '--protocol', 'P-SEL', '--library', candidate['binary'], '--export', str(args.export_dir),
             '--bridge', str(args.bridge), '--inputs', str(inputs), '--batch', str(batch),
             '--selection-config', str(config), '--round-index', str(counts[rank]), '--out', str(folder)]
