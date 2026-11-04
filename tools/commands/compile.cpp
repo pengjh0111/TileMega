@@ -323,7 +323,7 @@ int RunCompile(int argc, char** argv) {
     std::filesystem::path input(argv[1]);
     std::string variants_path,solve_target,dump_cg,hop_path,domain_path,rejections_path,evaluation_cases_path;
     std::string diagnostic_class_map;
-    std::string seed_geometry,forward_geometry,native_tmexec;
+    std::string seed_geometry,forward_geometry,native_tmexec,native_probe,native_probe_limit;
     std::string serving_phase, emit_mode,measure_command,serving_warm_start,paged_seed_from,artifact_cache;
     std::string frontend_mode="decoder";
     std::string shared_weight_layout;
@@ -431,6 +431,8 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--shared-weight-layout") shared_weight_layout=value;
       else if (flag=="--seed-geometry") seed_geometry=value;
       else if (flag=="--tmexec-config") native_tmexec=value;
+      else if (flag=="--native-probe") native_probe=value;
+      else if (flag=="--native-probe-limit") native_probe_limit=value;
       else if (flag=="--forward-geometry") forward_geometry=value;
       else if (flag=="--frontend") frontend_mode=value;
       else if (flag=="--moe-dynamic") moe_dynamic=std::stoi(value);
@@ -598,6 +600,8 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--numerical-rejections") rejections_path=value;
       else throw std::runtime_error("unknown option: "+flag);
     }
+    if((!native_probe.empty() || !native_probe_limit.empty()) && native_tmexec.empty())
+      throw std::invalid_argument("native probe options require --tmexec-config");
     if(!native_tmexec.empty() && serving_phase=="forward") {
       // Native DNN forward (prompt §10 N-1): fixed coordinates over a DNN
       // export, with no legacy execution option accepted.
@@ -635,12 +639,20 @@ int RunCompile(int argc, char** argv) {
     }
     if(!native_tmexec.empty()) {
       std::set<std::string> allowed={"--tmexec-config","--serving","--emit","--batch", "--runtime-target",
-          "--capacity","--prompt-len","--past-range","--dump-cg","--nvcc-split-compile"};
+          "--capacity","--prompt-len","--past-range","--dump-cg","--nvcc-split-compile",
+          "--native-probe","--native-probe-limit"};
       for(int i=3;i<argc;i+=2)if(!allowed.count(argv[i]))
         throw std::invalid_argument("native dense build does not accept legacy option "+std::string(argv[i]));
       if(serving_phase!="decode" || (emit_mode!="serving" && emit_mode!="kernel-sequence") || runtime_target.empty() ||
          serving_capacity!=1088 || serving_prompt_len!=64 || serving_past_lo!=64 || serving_past_hi!=1086)
         throw std::invalid_argument("native dense build requires decode/serving, H800 target and 64:1086 positions");
+      if(!native_probe.empty()) {
+        if(emit_mode!="serving" || !dump_cg.empty())
+          throw std::invalid_argument("native probes use serving emission and retain per-geometry IR");
+        return tilemega::commands::CompileNativeDenseProbe(input.string(),argv[2],native_tmexec,
+            runtime_target,serving_batch,native_probe,native_probe_limit,nvcc_split_compile);
+      }
+      if(!native_probe_limit.empty())throw std::invalid_argument("--native-probe-limit requires --native-probe");
       return tilemega::commands::CompileNativeDenseFixed(input.string(),argv[2],native_tmexec,
           runtime_target,serving_batch,dump_cg,nvcc_split_compile,emit_mode=="kernel-sequence");
     }

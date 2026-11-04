@@ -216,6 +216,21 @@ int CompileNativeDenseFixed(std::string const& input,std::string const& output,
       split_compile,"fixed",{},kernel_sequence);
 }
 
+int CompileNativeDenseProbe(std::string const& input,std::string const& output,
+    std::string const& coordinates,std::string const& target,int batch,
+    std::string const& family,std::string const& entry_limit,int split_compile) {
+  if(entry_limit.empty())throw std::invalid_argument("--native-probe requires --native-probe-limit with the R5 entry-size audit");
+  std::string root=TILEMEGA_SOURCE_DIR;
+  std::string command="python3 "+Quote(root+"/scripts/sm90r6_native_probe.py")+
+      " --input "+Quote(input)+" --out "+Quote(output)+" --coordinates "+Quote(coordinates)+
+      " --target "+Quote(target)+" --batch "+std::to_string(batch)+" --native-probe "+Quote(family)+
+      " --entry-limit "+Quote(entry_limit)+" --split-compile "+std::to_string(split_compile)+
+      " --compiler "+Quote(std::filesystem::read_symlink("/proc/self/exe").string());
+  int result=std::system(command.c_str());
+  if(result<0 || !WIFEXITED(result))throw std::runtime_error("native probe builder did not exit normally");
+  return WEXITSTATUS(result);
+}
+
 bool IsNativeDenseInput(std::string const& input) {
   auto bridge=frontend::ReadExportBridge(input);
   // Native plans (consumer RMS) are the only ones with native MoE layers.
