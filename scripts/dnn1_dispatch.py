@@ -169,7 +169,7 @@ def completed_rejections(root, job):
         if not guard_path.is_file() or not session_path.is_file():
             return None
         guard, session = baseline.read(guard_path), baseline.read(session_path)
-        if (guard.get('code') != 75 or session.get('status') != 'hard_stop'
+        if (guard.get('code') != 75 or session.get('status') not in ('hard_stop', 'complete')
                 or not session.get('ended') or session['ended'] > job['ended']):
             return None
         attempts = list(payload.rglob('logical-attempt.json'))
@@ -283,7 +283,7 @@ def main():
         require_allowed_gpu(policy, str(g), timing=True)
     config = baseline.read(a.base_spec)
     driver_name = config.get('baseline_driver', 'dnn1_baselines')
-    if driver_name not in ('dnn1_baselines', 'dnn1_tvm_infra_driver'):
+    if driver_name not in ('dnn1_baselines', 'dnn1_tvm_infra_driver', 'dnn1_tvm_reuse_driver'):
         raise ValueError('unsupported versioned CPU baseline driver')
     baseline = importlib.import_module(driver_name)
     binding = affinities(gpus, a.cpus_per_worker, explicit=config.get('cpu_affinity'))
@@ -308,6 +308,9 @@ def main():
                ROOT/'scripts/dnn1_supervised_python.py',ROOT/'scripts/dnn1_guard_entry.py',python]
     if driver_name != 'dnn1_baselines':
         sources.append(ROOT/'scripts'/f'{driver_name}.py')
+    if driver_name == 'dnn1_tvm_reuse_driver':
+        # Existing adopted payloads still use v1; keep pinning its unchanged file.
+        sources.append(ROOT/'scripts/dnn1_tvm_infra_driver.py')
     frozen = {str(path.resolve()): baseline.sha(path) for path in sources}
     if previous:
         changes = {path: dict(before=digest, after=frozen.get(path))

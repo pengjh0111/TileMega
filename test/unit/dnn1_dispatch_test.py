@@ -61,6 +61,11 @@ class Dispatch(unittest.TestCase):
                     patch('tilemega.bench.gpu_guard.session_members',return_value=set()):
                 proof=module.completed_rejections(root,job)
                 self.assertEqual(proof[0]['exited_processes'][0]['pid'],99999999)
+                session.write_text(json.dumps(dict(status='complete',ended=20)))
+                self.assertEqual(module.completed_rejections(root,job)[0]['guard_sha256'],module.baseline.sha(guard))
+                guard.write_text(json.dumps(dict(code=0)))
+                self.assertIsNone(module.completed_rejections(root,job))
+                guard.write_text(json.dumps(dict(code=75)))
                 for field,value in [('exit_code',0),('ended',0)]:
                     self.assertIsNone(module.completed_rejections(root,dict(job,**{field:value})))
                 with patch('tilemega.bench.gpu_guard.process_start',return_value='live'):
