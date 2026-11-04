@@ -57,6 +57,7 @@ struct Sm90NativePipelineResult {
   // Algorithm 1's trajectory, one list per seed: the score after each accepted
   // move. Monotone within a seed; a later seed starts wherever it starts.
   std::vector<std::vector<double>> descent;
+  std::vector<std::vector<Sm90DenseCoordinates>> descent_coordinates;
   std::size_t memo_hits = 0, evaluations = 0;
   double seconds = 0;
 };

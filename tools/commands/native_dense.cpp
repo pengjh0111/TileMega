@@ -297,8 +297,11 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
       return json::Value(output);
     };
     json::Array trajectories;
-    for(auto const& trajectory:pipelined.descent) {
-      json::Array values;for(auto value:trajectory)values.emplace_back(value);
+    for(std::size_t seed=0;seed<pipelined.descent.size();++seed) {
+      json::Array values;
+      for(std::size_t move=0;move<pipelined.descent[seed].size();++move)
+        values.emplace_back(json::Object{{"score_ns",pipelined.descent[seed][move]},
+            {"coordinates",pipelined.descent_coordinates[seed][move].ToJson()}});
       trajectories.emplace_back(values);
     }
     pipeline_record=json::Object{{"objective",o.operator_sum?"operator-sum":"completion"},

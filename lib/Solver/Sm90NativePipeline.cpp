@@ -161,8 +161,33 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
 
   Sm90NativePipelineResult result;
   std::map<std::string, double> memo;  // Algorithm 1 line 11's E
+  std::string origin;
+  std::map<std::pair<unsigned,int>,std::vector<Sm90DenseGemm>> family_domain;
+  auto geometries=[&](unsigned family,int residency)->std::vector<Sm90DenseGemm> const& {
+    auto key=std::make_pair(family,residency);
+    auto found=family_domain.find(key);
+    if(found==family_domain.end())found=family_domain.emplace(key,
+        space.FamilyCandidates(family,residency)).first;
+    return found->second;
+  };
   auto derive=[&](Sm90DenseCoordinates& c) {
     Sm90DenseSearchSpace::Structure(c);
+    for(unsigned family:c.Active()) {
+      auto& geometry=c.gemms[family];
+      auto const& domain=geometries(family,c.residency);
+      auto same=std::find_if(domain.begin(),domain.end(),[&](auto const& g) {
+        return g.tile_n==geometry.tile_n && g.TileK()==geometry.TileK() &&
+               g.warps_n==geometry.warps_n && g.warps_k==geometry.warps_k;
+      });
+      if(same==domain.end())return false;
+      geometry.slots=same->slots;
+    }
+    auto attention=space.AttentionCandidates(c.residency);
+    auto same=std::find_if(attention.begin(),attention.end(),[&](auto const& a) {
+      return a.chunks==c.attention.chunks && a.block_keys==c.attention.block_keys;
+    });
+    if(same==attention.end())return false;
+    c.attention.slots=same->slots;
     if(c.expert_fuse) {
       for(int slots=8;slots>=2;--slots) {
         c.gemms[6].slots=c.gemms[7].slots=slots;
@@ -189,6 +214,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     candidate.pool_score_ns = value;
     candidate.evaluation_ms=std::chrono::duration<double,std::milli>(Clock::now()-before).count();
     candidate.structural_class = Sm90NativeStructuralClass(c);
+    candidate.origin=origin;
     result.evaluated.push_back(std::move(candidate));
     return value;
   };
@@ -197,11 +223,14 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
   // (2) the additive model's top-1 and (3) its per-family optima, which the
   // existing search already produces.
   std::vector<Sm90DenseCoordinates> starts;
+  std::set<std::string> start_keys;
   auto project=[&](Sm90DenseCoordinates seed) {
     if(options.pinned_theta)seed.gemms=options.pinned_theta->gemms;
     if(options.retile_only) {seed.attention.chunks=1;seed.expert_fuse=false;}
     if(options.realize_aggregate)seed.group_wait=false;
-    if(derive(seed))starts.push_back(seed);
+    bool projected=options.pinned_theta || options.retile_only || options.realize_aggregate;
+    if((projected?derive(seed):space.Legal(seed)) && start_keys.insert(CoordinateKey(seed)).second)
+      starts.push_back(seed);
   };
   for (auto const& seed : seeds)project(seed);
   Sm90DenseSearchOptions additive;
@@ -212,44 +241,56 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
   for(auto const& candidate:seeded.per_structure_optima)project(candidate.coordinates);
   if (starts.empty())
     throw std::invalid_argument("native pipeline search found no legal seed");
+  for(std::size_t i=0;i<starts.size();++i) {
+    origin="seed:"+std::to_string(i);score(starts[i]);
+  }
 
   // Lines 5-13: coordinate descent. A move is accepted only when it improves
   // the whole-program score, and derived coordinates are re-derived after each
   // move exactly as the additive search does.
-  for (auto const& start : starts) {
+  for (std::size_t seed=0;seed<starts.size();++seed) {
     if (spent_ms() > options.budget_ms) break;
-    auto current = start;
+    auto current = starts[seed];
     double best = score(current);
     result.descent.emplace_back();
     result.descent.back().push_back(best);
+    result.descent_coordinates.push_back({current});
+    auto consider=[&](Sm90DenseCoordinates trial,std::string coordinate) {
+      if(spent_ms()>options.budget_ms || !derive(trial))return false;
+      origin="seed:"+std::to_string(seed)+"/"+coordinate;
+      double value=score(trial);
+      if(value>=best)return false;
+      best=value;current=trial;
+      result.descent.back().push_back(value);
+      result.descent_coordinates.back().push_back(current);
+      return true;
+    };
     for (bool changed = true; changed && spent_ms() <= options.budget_ms;) {
       changed = false;
       // The per-family geometry.
       for (unsigned family : current.Active()) {
         if(options.pinned_theta)continue;
-        for (auto const& geometry : space.FamilyCandidates(family, current.residency)) {
-          if (spent_ms() > options.budget_ms) break;
-          auto trial = current;
-          trial.gemms[family] = geometry;
-          if (!derive(trial)) continue;
-          double value = score(trial);
-          if (value < best) {
-            best = value; current = trial; changed = true;
-            result.descent.back().push_back(value);
+        for (auto const& geometry : geometries(family, current.residency)) {
+          for(bool multicast:{false,true}) {
+            if(multicast && (current.cluster<2 || family>4 || geometry.slots%2 ||
+                double(work.batch)/geometry.tile_n<=cost.Constants().MulticastKappa()))continue;
+            auto trial=current;trial.gemms[family]=geometry;
+            trial.gemms[family].multicast=multicast;
+            changed|=consider(trial,"family:"+std::to_string(family));
           }
         }
       }
       // The attention structure, unless AB-4a forbids changing it.
       if (!options.retile_only) {
         for (auto const& attention : space.AttentionCandidates(current.residency)) {
-          if (spent_ms() > options.budget_ms) break;
-          auto trial = current;
-          trial.attention = attention;
-          if (!derive(trial)) continue;
-          double value = score(trial);
-          if (value < best) {
-            best = value; current = trial; changed = true;
-            result.descent.back().push_back(value);
+          for(bool dsmem:{false,true}) {
+            if(dsmem && (current.cluster<2 || attention.chunks<2 ||
+                         current.cluster%attention.chunks))continue;
+            auto trial=current;trial.attention=attention;trial.attention.dsmem=dsmem;
+            if(dsmem)try {cost.Constants().AttentionMergeDsmem(work.head_dim,work.queries,
+                work.qk_norm?(work.qk_norm_row?2:1):0,attention.chunks);}
+              catch(Sm90NativeMissing const&) {continue;}
+            changed|=consider(trial,"attention");
           }
         }
       }
@@ -263,12 +304,8 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
           if(dimension==2)trial.group_wait=options.realize_aggregate?false:bool(setting);
           if(dimension==3)trial.embed_la=bool(setting);
           if(dimension==4)trial.expert_fuse=options.retile_only?false:bool(setting);
-          if (!derive(trial)) continue;
-          double value = score(trial);
-          if (value < best) {
-            best = value; current = trial; changed = true;
-            result.descent.back().push_back(value);
-          }
+          if(trial.cluster>1 && trial.cluster>cost.Constants().ClusterStar(trial.residency))continue;
+          changed|=consider(trial,"structure:"+std::to_string(dimension));
         }
       }
     }
