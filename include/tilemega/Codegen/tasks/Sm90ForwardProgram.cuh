@@ -108,6 +108,11 @@ struct ForwardGemmStage {
     p.epilogue=EpilogueOf<B,Bind>(b,Shape::kEpsilon,Shape::kResidualStride,Shape::kNormWidth);
     // The convolution geometry is a compile-time trait of the body itself.
     p.output_stride=Shape::kOutputStride;
+    if constexpr(Body::kScaleInput) {
+      p.input_scale=b.template Get<Bind::kInputScale>();
+      p.scale_rows=Shape::kScaleRows;p.scale_channels=Shape::kScaleChannels;
+      p.scale_stride=Shape::kScaleStride;
+    }
   }
   template<class B>
   __device__ static __forceinline__ void Run(B const&,char* shared,int offset,

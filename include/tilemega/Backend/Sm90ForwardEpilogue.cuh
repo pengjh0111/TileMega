@@ -271,7 +271,8 @@ struct Sm90ForwardEpilogueChain {
   // `channel` is the tile's first column in the producer's packed channel
   // space; after a gate pair the stored channels are half of it. `width` is
   // how many of the final columns the model keeps.
-  template<int PoolRows=0,int PoolParts=0,int PoolChannels=0>
+  template<int PoolRows=0,int PoolParts=0,int PoolChannels=0,
+      int PoolTileW=0,int PoolTileH=0,int PoolImageW=0>
   __device__ static __forceinline__ void Finish(float* tile,int rows,int channel,int width,
       Sm90ForwardEpilogueOperands const& p,Element* output,int stride) {
     // The packed weight tile may extend past valid affine/residual buffers.
@@ -329,7 +330,22 @@ struct Sm90ForwardEpilogueChain {
           float sum=0;int row=begin;
           do {sum+=tile[row*N+col];++row;}
           while(row<rows && (p.row_base+int(Sm90ForwardRowOffset(p,row,1)))/PoolRows==image);
-          atomicAdd(p.channel_partial+std::size_t(image)*PoolParts*PoolChannels+channel+col,sum);
+          int part;
+          if constexpr(PoolTileW>0) {
+            static_assert(PoolTileH>0 && PoolImageW>0 && PoolRows%PoolImageW==0);
+            static_assert(PoolParts>=((PoolImageW+PoolTileW-1)/PoolTileW)*
+                ((PoolRows/PoolImageW+PoolTileH-1)/PoolTileH));
+            int pixel=p.row_base-image*PoolRows;
+            part=(pixel/PoolImageW/PoolTileH)*((PoolImageW+PoolTileW-1)/PoolTileW)+
+                (pixel%PoolImageW)/PoolTileW;
+          }else {
+            static_assert(PoolParts>=(PoolRows+2*M-2)/M);
+            part=p.row_base/M-(image*PoolRows)/M;
+          }
+          // Each spatial tile or dense (M-tile,image) pair has one writer for
+          // each output channel. The grid barrier publishes all parts before
+          // GAP reduces them in increasing part order, without atomic sums.
+          p.channel_partial[(std::size_t(image)*PoolParts+part)*PoolChannels+channel+col]=sum;
           begin=row;
         }
       }
@@ -381,12 +397,12 @@ struct Sm90ForwardEpilogueChain {
 
 // Pool side-output geometry is static, keeping the runtime operand bank in
 // its original 1 KB prologue. The base write mapping retains its own geometry.
-template<int Rows,int Parts,int Channels,class Chain>
+template<int Rows,int Parts,int Channels,class Chain,int TileW=0,int TileH=0,int ImageW=0>
 struct Sm90ForwardPoolEpilogueChain:Chain {
   static_assert(Rows>0 && Parts>0 && Channels>0);
   __device__ static __forceinline__ void Finish(float* tile,int rows,int channel,int width,
       Sm90ForwardEpilogueOperands const& p,cutlass::bfloat16_t* output,int stride) {
-    Chain::template Finish<Rows,Parts,Channels>(tile,rows,channel,width,p,output,stride);
+    Chain::template Finish<Rows,Parts,Channels,TileW,TileH,ImageW>(tile,rows,channel,width,p,output,stride);
   }
 };
 

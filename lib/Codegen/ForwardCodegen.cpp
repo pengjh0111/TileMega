@@ -67,7 +67,7 @@ std::string Identifier(unsigned value) {
 struct Binding {
   unsigned map=kAbsent,value_map=kAbsent,query_map=kAbsent;
   unsigned input=kAbsent,weight=kAbsent,depthwise=kAbsent,expand=kAbsent,output=kAbsent;
-  unsigned partial=kAbsent,counters=kAbsent;
+  unsigned partial=kAbsent,counters=kAbsent,input_scale=kAbsent;
   unsigned vector[4]={kAbsent,kAbsent,kAbsent,kAbsent};
   unsigned residual=kAbsent,stats=kAbsent,row_stats=kAbsent,channel_partial=kAbsent;
   unsigned dw_vector[4]={kAbsent,kAbsent,kAbsent,kAbsent};
@@ -80,7 +80,7 @@ struct Binding {
        <<",\n      kInput="<<Identifier(input)<<",kWeight="<<Identifier(weight)
        <<",kDepthwise="<<Identifier(depthwise)<<",kExpand="<<Identifier(expand)
        <<",\n      kOutput="<<Identifier(output)<<",kPartial="<<Identifier(partial)
-       <<",kCounters="<<Identifier(counters)
+       <<",kCounters="<<Identifier(counters)<<",kInputScale="<<Identifier(input_scale)
        <<",\n      kVector0="<<Identifier(vector[0])<<",kVector1="<<Identifier(vector[1])
        <<",kVector2="<<Identifier(vector[2])<<",kVector3="<<Identifier(vector[3])
        <<",\n      kResidual="<<Identifier(residual)<<",kStats="<<Identifier(stats)
@@ -104,6 +104,7 @@ struct Geometry {
   int width=0,height=0,channels=0,out_channels=0,output_width=0,output_height=0;
   int stride=1,output_stride=0,residual_stride=0,heads=0,sequence=0,norm_width=0;
   int depthwise_pack=1,padded_channels=0;
+  int scale_rows=0,scale_channels=0,scale_stride=0;
   int pool_rows=0,pool_parts=0,pool_channels=0;
   int write_kind=0,shuffle_factor=1,write_width=0,write_height=0,write_channels=0;
   double epsilon=0,scale=0;
@@ -117,6 +118,7 @@ struct Geometry {
        <<",kHeads="<<heads<<",kSequence="<<sequence
        <<",kNormWidth="<<norm_width<<",kDepthwisePack="<<depthwise_pack
        <<",kPaddedChannels="<<padded_channels
+       <<",kScaleRows="<<scale_rows<<",kScaleChannels="<<scale_channels<<",kScaleStride="<<scale_stride
        <<",kPoolRows="<<pool_rows<<",kPoolParts="<<pool_parts<<",kPoolChannels="<<pool_channels
        <<";\n"
        <<"  static constexpr float kEpsilon="<<Float(epsilon)<<",kScale="<<Float(scale)
@@ -486,8 +488,12 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
       shape.pool_rows=int(output.logical[1])*int(output.logical[2]);
       shape.pool_parts=int(partial.physical[1]);shape.pool_channels=int(partial.physical[2]);
       if(shape.pool_rows<=0)throw std::invalid_argument("native forward pooling has no pixels");
+      bool spatial=c.body==Sm90ForwardBody::kDepthwise || c.body==Sm90ForwardBody::kDwPw ||
+          c.body==Sm90ForwardBody::kInvertedResidual;
       return "Sm90ForwardPoolEpilogueChain<"+std::to_string(shape.pool_rows)+','+
-          std::to_string(shape.pool_parts)+','+std::to_string(shape.pool_channels)+','+chain+'>';
+          std::to_string(shape.pool_parts)+','+std::to_string(shape.pool_channels)+','+chain+','+
+          std::to_string(spatial?c.tile_w:0)+','+std::to_string(spatial?c.tile_h:0)+','+
+          std::to_string(spatial?int(output.logical[2]):0)+'>';
     };
     shape.epsilon=0;
     if(auto epsilon=stage.getAs<mlir::FloatAttr>("dm_norm_epsilon"))
@@ -571,6 +577,19 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
           spec.box[0]=64;spec.box[1]=unsigned(c.tile_m);
           bind.map=maps.Add(spec);
         }
+        if(access.a_scale!=codegen::kDmNoIndex) {
+          if(im2col || access.a_scale>=layouts.size())
+            throw std::invalid_argument("native SCA input scaling requires a dense pointwise view");
+          auto const& scale=layouts.at(access.a_scale);
+          auto dtype=Entry(buffers[access.a_scale],"buffer").getAs<mlir::StringAttr>("dtype");
+          if(scale.rank!=2 || scale.logical[0]!=unsigned(batch.getInt()) ||
+              !scale.logical[1] || scale.logical[1]!=unsigned(k) ||
+              scale.physical[1]<scale.logical[1] || scale.strides[1]!=1 ||
+              !dtype || dtype.getValue()!="bf16" || !access.rows_per_batch)
+            throw std::invalid_argument("native SCA scale must be BF16 [batch,logical K] with a contiguous channel axis");
+          bind.input_scale=access.a_scale;shape.scale_rows=int(access.rows_per_batch);
+          shape.scale_channels=int(scale.logical[1]);shape.scale_stride=int(scale.strides[0]);
+        }
         // The weight is packed into whole TN x 64 pages, so the body contracts
         // the padded extents and stores only the model's own columns.
         int padded_n=(n+c.tile_n-1)/c.tile_n*c.tile_n;
@@ -649,7 +668,9 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
             std::to_string(c.split_k)+",Sm90ForwardAMode::"+(im2col?"kIm2col":"kDense")+','+
             std::to_string(rows)+','+std::to_string(padded_n)+','+std::to_string(padded_k)+','+
             std::to_string(store)+','+chain_text+','+
-            (im2col?"Conv_"+std::to_string(index):"Sm90ForwardNoConv")+'>';
+            (im2col?"Conv_"+std::to_string(index):"Sm90ForwardNoConv")+
+            (bind.input_scale!=kAbsent?",true,Sm90ForwardInputScale<"+std::to_string(shape.scale_rows)+
+                ","+std::to_string(shape.scale_channels)+","+std::to_string(shape.scale_stride)+">":"")+'>';
         wrapper="ForwardGemmStage";
         break;
       }

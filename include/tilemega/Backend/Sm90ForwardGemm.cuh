@@ -27,6 +27,8 @@ struct Sm90ForwardGemmOperands {
   std::uint64_t* counters;         // split-K: one per output tile
   Sm90ForwardEpilogueOperands epilogue;
   int output_stride;               // channels of one output row
+  cutlass::bfloat16_t const* input_scale; // optional [batch,scale_stride] SCA vector
+  int scale_rows,scale_channels,scale_stride;
 };
 
 // A dense stage's A has no convolution geometry; a conv stage's comes from the
@@ -38,8 +40,19 @@ struct Sm90ForwardNoConv {
 
 // N is the weight's padded extent (a whole number of TN tiles); NStore is how
 // many of the chain's output columns the model actually keeps.
+// A value-keyed geometry type lets repeated model stages share one math body.
+template<int Rows,int Channels,int Stride>
+struct Sm90ForwardInputScale {
+  static constexpr int kScaleRows=Rows,kScaleChannels=Channels,kScaleStride=Stride;
+};
+
+struct Sm90ForwardNoInputScale {
+  static constexpr int kScaleRows=1,kScaleChannels=0,kScaleStride=0;
+};
+
 template<int TM,int TN,int TK,int Slots,int SplitK,Sm90ForwardAMode AMode,int M,int N,int K,
-         int NStore,class Chain,class Conv=Sm90ForwardNoConv>
+         int NStore,class Chain,class Conv=Sm90ForwardNoConv,bool ScaleInput=false,
+         class ScaleShape=Sm90ForwardNoInputScale>
 struct Sm90ForwardGemm {
   using Element=cutlass::bfloat16_t;
   using Async=codegen::executor::Async<arch::Sm90>;
@@ -53,6 +66,12 @@ struct Sm90ForwardGemm {
   static_assert(M>=1,"a stage has at least one row");
   static_assert(AMode==Sm90ForwardAMode::kDense || Conv::kC%TK==0,
       "an im2col stage reads whole 64-channel blocks");
+  static constexpr bool kScaleInput=ScaleInput;
+  static_assert(!ScaleInput || (ScaleShape::kScaleRows>0 && M%ScaleShape::kScaleRows==0 &&
+      ScaleShape::kScaleChannels>0 && ScaleShape::kScaleChannels<=K &&
+      ScaleShape::kScaleStride>=ScaleShape::kScaleChannels), "invalid typed input-scale geometry");
+  static_assert(!ScaleInput || AMode==Sm90ForwardAMode::kDense,
+      "per-image input scaling requires the dense pointwise A view");
   static constexpr int kThreads=160,kIterations=K/(SplitK*TK);
   // One task per (M tile, N tile, k slice); the M tiles of a conv stage walk
   // the flattened NPQ pixel space, as the im2col map's traversal does.
@@ -121,6 +140,37 @@ struct Sm90ForwardGemm {
     __syncwarp();
   }
 
+  // Called only after the TMA full-slot acquire; the graph rounds the scaled
+  // input to BF16 before the tensor-core contraction. Probes call this body too.
+  __device__ static __forceinline__ void ScalePanel(
+      Sm90ForwardGemmOperands const& p,Element* panel,int m_tile,int k_panel) {
+    if constexpr(ScaleInput) {
+      // A lane's channel is invariant across this panel's element loop.
+      // NAF image rows divide TM, so its one scale load serves all rows.
+      // A general cross-image tile caches each covered image once instead.
+      constexpr int scale_rows=ScaleShape::kScaleRows;
+      constexpr int images=scale_rows%TM==0?1:(TM+2*scale_rows-2)/scale_rows;
+      int first_image=(m_tile*TM)/scale_rows;
+      int channel=k_panel*TK+int(threadIdx.x)%TK;
+      float scales[images];
+      #pragma unroll
+      for(int image=0;image<images;++image)
+        scales[image]=channel<ScaleShape::kScaleChannels && first_image+image<M/scale_rows?
+            float(p.input_scale[std::size_t(first_image+image)*ScaleShape::kScaleStride+channel]):0.f;
+      for(int i=int(threadIdx.x);i<TM*TK;i+=128) {
+        int row=m_tile*TM+i/TK;
+        auto* value=reinterpret_cast<Element*>(reinterpret_cast<char*>(panel)+Swizzled(i/TK,i%TK));
+        // Keep the graph's BF16 multiply rounding before the tensor-core dot.
+        int image=images==1?0:row/scale_rows-first_image;
+        *value=row<M && channel<ScaleShape::kScaleChannels?
+            Element(float(*value)*scales[image]):Element(0);
+      }
+      codegen::executor::ComputeSync();
+      Async::FenceProxyAsyncShared();
+      codegen::executor::ComputeSync();
+    }
+  }
+
   __device__ static __noinline__ void Consume(Sm90ForwardGemmOperands const& p,
       Sm90DenseRingState& state,Element* a,Element* b,char* scratch,int tasks,unsigned phase) {
     Sm90DenseRoles::Consumer();
@@ -145,6 +195,7 @@ struct Sm90ForwardGemm {
         Async::Wait(state.full+slot,(phase>>slot)&1);phase^=1u<<slot;
         TM_FWD_TRACE_END(wait_trace);
         if(local==0 && iteration==0) {TM_FWD_TRACE_FIRST_READY();}
+        ScalePanel(p,a+slot*TM*TK,m_tile,slice*kIterations+iteration);
         Gmma::Accumulate(b+slot*TN*TK,a+slot*TM*TK,accum);
         // WGMMA reads the slot asynchronously: its commit must land before the
         // slot is released for the producer's next async write.

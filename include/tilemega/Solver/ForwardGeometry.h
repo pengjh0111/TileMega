@@ -58,6 +58,35 @@ inline int Sm90ForwardArenaBytes(TargetSpec const& target,int residency) {
   if(arena<1024)throw std::invalid_argument("target leaves no forward arena");
   return arena;
 }
+// Each producer task owns one partial per image/channel. A dense M tile may
+// straddle images, so reserve the maximum count including its leading overlap.
+inline int Sm90ForwardPoolParts(Sm90ForwardShape const& producer,
+    Sm90ForwardStage const& coordinate) {
+  if(producer.body!=coordinate.body)
+    throw std::invalid_argument("pool producer body disagrees with coordinates");
+  coordinate.Validate();
+  auto positive=[&](char const* key) -> long long {
+    double value=producer.dnn1_geometry.At(key).AsNumber(key);
+    if(!std::isfinite(value) || value<=0 || value>std::numeric_limits<int>::max() || std::floor(value)!=value)
+      throw std::invalid_argument(std::string("invalid pool producer geometry: ")+key);
+    return static_cast<long long>(value);
+  };
+  long long parts=0;
+  if(coordinate.body==Sm90ForwardBody::kGemm || coordinate.body==Sm90ForwardBody::kConv) {
+    auto rows=positive("rows"),batch=positive("batch");
+    if(rows%batch)throw std::invalid_argument("pool producer rows do not form complete images");
+    rows/=batch;
+    parts=(rows+2LL*coordinate.tile_m-2)/coordinate.tile_m;
+  }else if(coordinate.body==Sm90ForwardBody::kDepthwise || coordinate.body==Sm90ForwardBody::kDwPw ||
+      coordinate.body==Sm90ForwardBody::kInvertedResidual) {
+    auto width=positive("output_width"),height=positive("output_height");
+    parts=((width+coordinate.tile_w-1)/coordinate.tile_w)*
+        ((height+coordinate.tile_h-1)/coordinate.tile_h);
+  }else throw std::invalid_argument("global pool has no supported tile producer");
+  if(parts<=0 || parts>std::numeric_limits<int>::max())
+    throw std::invalid_argument("pool partial count exceeds the native range");
+  return int(parts);
+}
 struct Sm90ForwardResourceUsage {
   int shared_bytes=0,slot_bytes=0,store_columns=0,arena_bytes=0,budget_bytes=0;
   long long task_count=0;

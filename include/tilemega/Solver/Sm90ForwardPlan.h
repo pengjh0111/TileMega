@@ -23,8 +23,9 @@ std::vector<Sm90ForwardShape> Sm90ForwardShapesFromPlan(frontend::ModelPlan cons
 
 // The plan plus its coordinates as one module the forward lowering consumes:
 // the model plan with its weights repacked into the native tile pages, and
-// the tmexec coordinates, batch and arena budget.
-mlir::OwningOpRef<mlir::ModuleOp> MaterializeSm90Forward(frontend::ModelPlan const&,
+// the tmexec coordinates, batch and arena budget. Coordinate-dependent buffer
+// layouts are published back to the plan so its manifest matches allocation.
+mlir::OwningOpRef<mlir::ModuleOp> MaterializeSm90Forward(frontend::ModelPlan&,
     Sm90ForwardCoordinates const&,int batch,TargetSpec const&,mlir::MLIRContext&,
     std::string const& origin);
 

@@ -125,6 +125,26 @@ json::Array Dnn1Steps(codegen::DmEpilogueChain const& chain,bool& gated,bool& ne
     row_stats|=chain.side[i].kind==codegen::DmSideOutputKind::kRowStats;
   return steps;
 }
+std::size_t Dnn1PoolProducer(frontend::ModelPlan const& plan,std::size_t pool_index) {
+  auto partial=plan.stages.at(pool_index).operands[0];
+  std::size_t found=plan.stages.size();
+  for(std::size_t i=0;i<pool_index;++i) {
+    auto const& stage=plan.stages[i];bool writes=false;
+    if(stage.kind==PlanTaskKind::kDepthwiseConv)writes=stage.operands[3]==partial;
+    if(frontend::IsGemmStage(stage.kind)) {
+      auto const& chain=plan.gemms.at(stage.gemm).chain;
+      for(unsigned j=0;j<chain.side_count;++j)
+        writes|=chain.side[j].kind==codegen::DmSideOutputKind::kChannelPartialSums &&
+            chain.side[j].buffer==partial;
+    }
+    if(writes) {
+      if(found!=plan.stages.size())throw std::invalid_argument("pool partial buffer has multiple producers");
+      found=i;
+    }
+  }
+  if(found==plan.stages.size())throw std::invalid_argument("pool partial buffer has no earlier producer");
+  return found;
+}
 void Dnn1EncodeGeometry(frontend::ModelPlan const& plan,std::size_t index,int batch,Sm90ForwardShape& shape) {
   auto const& stage=plan.stages.at(index);json::Value g(json::Object{});
   auto number=[&](char const* key,std::int64_t value) {g.Set(key,double(value));};
@@ -197,6 +217,7 @@ void Dnn1EncodeGeometry(frontend::ModelPlan const& plan,std::size_t index,int ba
       auto const& partial=plan.buffers.at(stage.operands[0]).layout;
       if(partial.rank!=3 || partial.physical[0]!=unsigned(batch))
         throw std::invalid_argument("DNN GAP partial layout must be [B,parts,C]");
+      number("pool_producer_stage",Dnn1PoolProducer(plan,index));
       number("parts",partial.physical[1]);number("output_pitch",Dnn1Pitch(plan.buffers.at(stage.operands[2])));
       shape.m=batch;shape.channels=shape.n=stage.extent;shape.k=partial.physical[1];shape.pixels=batch;
       shape.activation_bytes=4LL*batch*partial.physical[1]*shape.channels;
@@ -337,7 +358,7 @@ std::vector<Sm90ForwardShape> Sm90ForwardShapesFromPlan(frontend::ModelPlan cons
   return shapes;
 }
 
-mlir::OwningOpRef<mlir::ModuleOp> MaterializeSm90Forward(frontend::ModelPlan const& plan,
+mlir::OwningOpRef<mlir::ModuleOp> MaterializeSm90Forward(frontend::ModelPlan& plan,
     Sm90ForwardCoordinates const& coordinates,int batch,TargetSpec const& target,
     mlir::MLIRContext& context,std::string const& origin) {
   if(target.arch_tag!="sm_90" || target.NvccArch()!="sm_90a" || target.res.num_sms<=0 ||
@@ -349,6 +370,24 @@ mlir::OwningOpRef<mlir::ModuleOp> MaterializeSm90Forward(frontend::ModelPlan con
     coordinates.stages[i].Validate();
     if(coordinates.stages[i].body!=Sm90ForwardBodyOf(plan,i))
       throw std::invalid_argument("native forward coordinates name another body for a stage");
+  }
+  auto producer_shapes=Sm90ForwardShapesFromPlan(plan);
+  for(std::size_t i=0;i<plan.stages.size();++i) {
+    auto& stage=plan.stages[i];
+    if(stage.kind!=PlanTaskKind::kGlobalPoolReduce)continue;
+    auto producer=Dnn1PoolProducer(plan,i);
+    int parts=Sm90ForwardPoolParts(producer_shapes.at(producer),coordinates.stages.at(producer));
+    auto& partial=plan.buffers.at(stage.operands[0]);auto& layout=partial.layout;
+    auto channels=layout.physical[2];
+    if(layout.rank!=3 || layout.physical[0]!=unsigned(batch) || !channels ||
+        std::uint64_t(parts)*channels>std::numeric_limits<std::uint32_t>::max())
+      throw std::invalid_argument("native pool partial allocation exceeds its descriptor");
+    layout.logical[1]=layout.physical[1]=unsigned(parts);
+    layout.strides[2]=1;layout.strides[1]=channels;layout.strides[0]=std::uint64_t(parts)*channels;
+    partial.per_batch=std::uint32_t(layout.strides[0]);
+    // The legacy field describes contiguous scalar row bands, whereas this
+    // native plan binds tiled ownership through the validated rank-3 layout.
+    stage.partial_rows_per_image=0;
   }
   int arena=Sm90ForwardArenaBytes(target,coordinates.residency);
 
