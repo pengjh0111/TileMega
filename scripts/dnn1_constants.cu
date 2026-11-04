@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // DNN1 Phase X. This source is compiled twice: uninstrumented direct
 // primitives and production-body segment probes with a build-local clock64
-// Mark overlay. It never substitutes a copied implementation for a body.
+// Mark overlay. The required scalar-store reference is a separate probe.
 #ifndef DNN1_SEGMENT_PROBES
 #define DNN1_SEGMENT_PROBES 0
 #endif
 #ifndef DNN1_SHARED_LIMIT
 #define DNN1_SHARED_LIMIT 232448
+#endif
+#ifndef DNN1_FIXED_FORWARD
+#define DNN1_FIXED_FORWARD 0
 #endif
 #if DNN1_SEGMENT_PROBES
 #define TILEMEGA_TRACE_STAGE 1
@@ -19,6 +22,9 @@
 #else
 #define TILEMEGA_TRACE_STAGE 0
 #include <tilemega/Backend/Sm90ForwardSmall.cuh>
+#if DNN1_FIXED_FORWARD
+#include <tilemega/Backend/Sm90ForwardGemv.cuh>
+#endif
 #endif
 #include <cuda_runtime.h>
 #include <algorithm>
@@ -127,14 +133,19 @@ std::string Geometry(int m,int n) {
 #if !DNN1_SEGMENT_PROBES
 // Input initialization and result drainage are outside the clock interval.
 // There is no timing-overhead subtraction and no empirical fitting.
-template<int M,int N,class Step,bool Store>
+template<int M,int N,class Step,int Store=0,int Width=N>
 __global__ void Epilogue(Sm90ForwardEpilogueOperands p,BF* output,int count,U64* stamps) {
   extern __shared__ __align__(16) float tile[];
   using Chain=Sm90ForwardEpilogueChain<M,N>;
   for(int sample=0;sample<count;++sample) {
     for(int i=threadIdx.x;i<M*N;i+=128)tile[i]=float((i%31)-15)*0.03125f;
     codegen::executor::ComputeSync();U64 begin=Cycles();
-    if constexpr(Store)Chain::Finish(tile,M,0,N,p,output+(sample%16)*M*N,N);
+    if constexpr(Store==1) {
+      // The scalar reference is required by Phase X even after FX-4 replaces
+      // production dense stores. It is a probe, never a production fallback.
+      for(int i=threadIdx.x;i<M*Width;i+=128)
+        output[(sample%16)*M*N+(i/Width)*N+i%Width]=BF(tile[(i/Width)*N+i%Width]);
+    }else if constexpr(Store==2)Chain::Finish(tile,M,0,Width,p,output+(sample%16)*M*N,N);
     else {int channel=0,width=N;Chain::template Apply<Step>(tile,M,channel,width,p);}
     codegen::executor::ComputeSync();
     if(threadIdx.x==0)stamps[sample]=Cycles()-begin;
@@ -144,11 +155,12 @@ __global__ void Epilogue(Sm90ForwardEpilogueOperands p,BF* output,int count,U64*
     }
   }
 }
-template<int M,int N,class Step,bool Store=false>
+template<int M,int N,class Step,int Store=0,int Width=N>
 void EpilogueCase(char const* name) {
-  std::string key=Geometry(M,N)+";op="+name;
+  std::string key=Geometry(M,Store?Width:N)+";op="+name;
+  constexpr int SharedBytes=4*M*N+8*M+16;
   Add("epi_"+std::to_string(M)+"_"+std::to_string(N)+"_"+name,
-      Store?"epilogue_store_ns":"epilogue_step_ns",key,4*M*N,[key](int count) {
+      Store?"epilogue_store_ns":"epilogue_step_ns",key,SharedBytes,[key](int count) {
     Buffer<float> vectors(4*N),stats(2*M);Buffer<BF> residual(M*N),output(16*M*N);Buffer<U64> stamps(count);
     Fill(vectors,0.5f);Fill(residual,0.25f);
     std::vector<float> stat(2*M);
@@ -156,17 +168,20 @@ void EpilogueCase(char const* name) {
     Check(cudaMemcpy(stats.p,stat.data(),stat.size()*4,cudaMemcpyHostToDevice));
     Sm90ForwardEpilogueOperands p{};
     for(int i=0;i<4;++i)p.vectors[i]=vectors.p+i*N;
+    if(std::string(key).find(";op=residual")!=std::string::npos &&
+        std::string(key).find(";op=residual_")==std::string::npos)p.vectors[0]=nullptr;
     p.residual=residual;p.stats=stats;p.epsilon=1e-5f;p.residual_stride=N;p.norm_width=N;
-    auto kernel=Epilogue<M,N,Step,Store>;Shared(kernel,4*M*N,128);
-    kernel<<<1,128,4*M*N>>>(p,output,count,stamps);Check(cudaDeviceSynchronize());
+    auto kernel=Epilogue<M,N,Step,Store,Width>;Shared(kernel,SharedBytes,128);
+    kernel<<<1,128,SharedBytes>>>(p,output,count,stamps);Check(cudaDeviceSynchronize());
     Samples(Store?"epilogue_store_ns":"epilogue_step_ns",key,stamps,count,1,
-        Store?"production_Finish_dense_clock64":"production_Apply_clock64");
+        Store==1?"reference_scalar_2byte_clock64":Store==2?"production_Finish_dense_clock64":"production_Apply_clock64");
   });
 }
 template<int M,int N>void Epilogues() {
   using Op=Sm90ForwardOp;
   EpilogueCase<M,N,Sm90ForwardEpilogueStep<Op::kBias>>("bias");
   EpilogueCase<M,N,Sm90ForwardEpilogueStep<Op::kScale>>("scale");
+  EpilogueCase<M,N,Sm90ForwardEpilogueStep<Op::kResidual>>("residual");
   EpilogueCase<M,N,Sm90ForwardEpilogueStep<Op::kResidual>>("residual_scaled");
   EpilogueCase<M,N,Sm90ForwardEpilogueStep<Op::kDeferredLayerNorm,0,
       codegen::DmActivation::kRelu,codegen::DmGatePair::kSimpleGate,16,1>>("deferred_ln");
@@ -179,7 +194,10 @@ template<int M,int N>void Epilogues() {
   ACT("relu",kRelu);ACT("relu6",kRelu6);ACT("gelu_erf",kGeluErf);
   ACT("gelu_tanh",kGeluTanh);ACT("tanh",kTanh);ACT("silu",kSilu);
 #undef ACT
-  EpilogueCase<M,N,Sm90ForwardEpilogueStep<Op::kBias>,true>("scalar_2byte");
+  EpilogueCase<M,N,Sm90ForwardEpilogueStep<Op::kBias>,1>("scalar_2byte");
+#if DNN1_FIXED_FORWARD
+  EpilogueCase<M,N,Sm90ForwardEpilogueStep<Op::kBias>,2>("vector_16byte");
+#else
   Pending("epi_"+std::to_string(M)+"_"+std::to_string(N)+"_vector16",
       "epilogue_store_ns",Geometry(M,N)+";op=vector_16byte",
       "FX4 production vector store not yet available; integrate actual callable then rebuild");
@@ -187,6 +205,7 @@ template<int M,int N>void Epilogues() {
     Pending("epi_"+std::to_string(M)+"_"+std::to_string(N)+"_"+op+"_fx2",
       "epilogue_step_ns",Geometry(M,N)+";op="+op+";implementation=FX2_row_cache",
       "FX2 row-cache scratch/API pending; current per-element global loads recorded separately by build variant");
+#endif
 }
 // width=0 deliberately isolates Finish's real cross-tile row-stat protocol:
 // volatile partial writes, atomics, fixed-order last-arriver reduction and
@@ -194,7 +213,7 @@ template<int M,int N>void Epilogues() {
 // It is explicitly not a measurement of the preceding per-column statistics.
 template<int Rows,int Tiles>
 __global__ void Rowstat(Sm90ForwardEpilogueOperands p,BF* sink,U64* stamps) {
-  __shared__ float dummy[1];
+  extern __shared__ float dummy[];
   p.row_tile=blockIdx.x;
   codegen::executor::ComputeSync();U64 begin=Cycles();
   Sm90ForwardEpilogueChain<Rows,32>::Finish(dummy,Rows,0,0,p,sink,32);
@@ -203,14 +222,16 @@ __global__ void Rowstat(Sm90ForwardEpilogueOperands p,BF* sink,U64* stamps) {
 }
 template<int Rows,int Tiles>void RowstatCase() {
   auto key="rows="+std::to_string(Rows)+";tiles="+std::to_string(Tiles);
-  Add("rowstat_"+std::to_string(Rows)+"_"+std::to_string(Tiles),"rowstat_ns",key,4,[key](int count) {
+  constexpr int SharedBytes=4*Rows*32+16;
+  Add("rowstat_"+std::to_string(Rows)+"_"+std::to_string(Tiles),"rowstat_ns",key,SharedBytes,[key](int count) {
     Buffer<float> partial(2*Rows*Tiles),stats(2*Rows);Buffer<U64> counters(Rows),stamps(Tiles);
     Buffer<BF> sink(1);Sm90ForwardEpilogueOperands p{};
     p.row_stats=stats;p.row_partials=partial;p.row_counters=counters;p.row_tiles=Tiles;
     std::vector<double> values;std::vector<U64> host(Tiles),zeros(Rows);
+    Shared(Rowstat<Rows,Tiles>,SharedBytes,128);
     for(int sample=0;sample<count;++sample) {
       Check(cudaMemset(counters.p,0,Rows*8));
-      Rowstat<Rows,Tiles><<<Tiles,128>>>(p,sink,stamps);Check(cudaDeviceSynchronize());
+      Rowstat<Rows,Tiles><<<Tiles,128,SharedBytes>>>(p,sink,stamps);Check(cudaDeviceSynchronize());
       Check(cudaMemcpy(host.data(),stamps.p,Tiles*8,cudaMemcpyDeviceToHost));
       Check(cudaMemcpy(zeros.data(),counters.p,Rows*8,cudaMemcpyDeviceToHost));
       if(std::any_of(zeros.begin(),zeros.end(),[](U64 x){return x!=0;}))
@@ -219,14 +240,17 @@ template<int Rows,int Tiles>void RowstatCase() {
     }
     Emit("rowstat_ns",key,std::move(values),"ns","production_Finish_width0_max_CTA_clock64");
   });
+#if !DNN1_FIXED_FORWARD
   Pending("rowstat_"+std::to_string(Rows)+"_"+std::to_string(Tiles)+"_fx3","rowstat_ns",
       key+";implementation=FX3_block_counter",
       "FX3 block-counter production implementation pending; measure actual Finish protocol after integration");
+#endif
 }
 template<class Body>
 __global__ void Small(Sm90ForwardSmallOperands p,int count,U64* stamps) {
   extern __shared__ __align__(1024) char shared[];
   auto& state=*reinterpret_cast<Sm90DenseRingState*>(shared);
+  state.Initialize();
   for(int sample=0;sample<count;++sample) {
     // GlobalPool consumes and clears its partials. Restore outside timing.
     if(p.accumulator)for(int i=threadIdx.x;i<p.width*p.channels;i+=160)p.accumulator[i]=0.25f;
@@ -235,6 +259,7 @@ __global__ void Small(Sm90ForwardSmallOperands p,int count,U64* stamps) {
     __syncthreads();
     if(threadIdx.x==0)stamps[sample]=Cycles()-begin;
   }
+  state.Invalidate();
 }
 template<class Body>void SmallCase(std::string id,std::string key,int width,int height,int channels,
                                    int out_channels,double elements) {
@@ -242,7 +267,7 @@ template<class Body>void SmallCase(std::string id,std::string key,int width,int 
     // Buffers intentionally contain nonzero values and remain observable.
     std::size_t pixels=std::size_t(width)*height;
     Buffer<BF> input(std::max<std::size_t>(pixels*std::max(channels,out_channels),4096)),
-      weight(std::max<std::size_t>(std::size_t(channels)*out_channels,4096)),
+      weight(std::max<std::size_t>(std::size_t(channels)*((out_channels+255)/256*256),4096)),
       table(std::max<std::size_t>(pixels*channels,4096)),
       output(std::max<std::size_t>(pixels*std::max(channels,out_channels),4096));
     Buffer<float> bias(std::max(channels,out_channels)),accum(std::size_t(width)*channels),stats(2*std::max(width,height));
@@ -260,18 +285,47 @@ template<class Body>void SmallCase(std::string id,std::string key,int width,int 
 void Catalog() {
 #define EP(M) Epilogues<M,32>();Epilogues<M,64>();Epilogues<M,128>();Epilogues<M,256>()
   EP(64);EP(128);
+#if DNN1_FIXED_FORWARD
+  Epilogues<256,64>(); // The legal 16x16 depthwise spatial tile.
+  // Exact store widths present in the five model plans; no interpolation.
+  EpilogueCase<64,8,Sm90ForwardEpilogueStep<Sm90ForwardOp::kBias>,1,3>("scalar_2byte");
+  EpilogueCase<128,8,Sm90ForwardEpilogueStep<Sm90ForwardOp::kBias>,1,3>("scalar_2byte");
+#define TAIL(M,N) EpilogueCase<M,N,Sm90ForwardEpilogueStep<Sm90ForwardOp::kBias>,2>("vector_16byte")
+  TAIL(64,16);TAIL(128,16);TAIL(64,24);TAIL(128,24);
+  TAIL(256,32);
+#undef TAIL
+#endif
 #undef EP
-#define RS(R) RowstatCase<R,1>();RowstatCase<R,2>();RowstatCase<R,4>();RowstatCase<R,8>();RowstatCase<R,24>();RowstatCase<R,48>()
+#define RS(R) RowstatCase<R,1>();RowstatCase<R,2>();RowstatCase<R,3>();RowstatCase<R,4>();RowstatCase<R,6>();RowstatCase<R,8>();RowstatCase<R,12>();RowstatCase<R,16>();RowstatCase<R,24>();RowstatCase<R,48>()
   RS(64);RS(128);
 #undef RS
   SmallCase<Sm90ForwardLayout<64,128>>("small_layout3","kind=layout;pixels=1024;channels=3;padded=64",32,32,64,3,1024*3);
   SmallCase<Sm90ForwardMaxPool<3,2>>("small_pool64","kind=pool;window=3;stride=2;pixels=256;channels=64",32,32,64,64,256*64);
+#if DNN1_FIXED_FORWARD
+#define GAP(P,C) SmallCase<Sm90ForwardGlobalPool<1>>("small_global_pool" #P "_" #C,"kind=global_pool;parts=" #P ";channels=" #C,P,49,C,C,P*C)
+  GAP(1,512);GAP(2,512);GAP(4,512);GAP(7,512);
+  GAP(1,1024);GAP(2,1024);GAP(4,1024);GAP(7,1024);
+  GAP(1,1280);GAP(2,1280);GAP(4,1280);GAP(7,1280);
+  GAP(256,32);GAP(128,64);GAP(64,128);GAP(32,256);GAP(16,512);
+#undef GAP
+#define GEMV(B,K) SmallCase<Sm90ForwardGemv<B,K>>("small_gemv" #B "_k" #K,"kind=gemv;block=" #B ";rows=1;k=" #K ";n=1000",1,1,K,1000,K*1000)
+  GEMV(64,512);GEMV(128,512);GEMV(256,512);
+  GEMV(64,1024);GEMV(128,1024);GEMV(256,1024);
+  GEMV(64,1280);GEMV(128,1280);GEMV(256,1280);
+#undef GEMV
+#define LN(C,S) SmallCase<Sm90ForwardLayerNorm<C,S>>("small_layernorm" #C "_" #S,"kind=layernorm;rows=128;channels=" #C ";stride=" #S,128,1,S,S,128*C)
+  LN(32,64);LN(64,64);LN(128,128);LN(256,256);LN(768,768);
+#undef LN
+#else
   SmallCase<Sm90ForwardGlobalPool>("small_global_pool512","kind=global_pool;parts=24;channels=512;pixels=49",24,49,512,512,24*512);
   SmallCase<Sm90ForwardGemv<8>>("small_gemv8","kind=gemv;block=8;rows=1;k=1024;n=1024",1,1,1024,1024,1024*1024);
-  SmallCase<Sm90ForwardLayerNorm<768>>("small_layernorm768","kind=layernorm;rows=128;channels=768",128,1,768,768,128*768);
+  SmallCase<Sm90ForwardLayerNorm<768>>("small_layernorm768","kind=layernorm;rows=128;channels=768;stride=768",128,1,768,768,128*768);
+#endif
   SmallCase<Sm90ForwardEmbeddingSum<768>>("small_embedding768","kind=embedding;rows=128;channels=768",128,128,768,768,128*768);
+#if !DNN1_FIXED_FORWARD
   for(int block:{64,128,256})Pending("small_gemv"+std::to_string(block)+"_bulk","small_body_ns",
       "kind=gemv;block="+std::to_string(block),"FX5 bulk GEMV implementation pending; current scalar body is not its substitute");
+#endif
 }
 #else
 // A build-local Mark overlay changes only TraceNow to clock64. Span totals
@@ -375,11 +429,19 @@ __global__ void Attention(const __grid_constant__ CUtensorMap key,const __grid_c
   state.Initialize();Sm90ForwardTraceEnter(0);p.key=&key;p.value=&value;p.query=&query;
   Body::Run(p,shared,state);state.Invalidate();
 }
+#if DNN1_FIXED_FORWARD
+template<int Rows>void AttentionCase() {
+  constexpr int Seq=128,Heads=4,D=64;
+  using Body=Sm90ForwardEncoderAttention<1,Seq,D,Heads,Rows,2>;
+  std::string mode="tensor_core";
+#else
 void AttentionCase() {
   constexpr int Seq=128,Rows=16,Heads=4,D=64;
   using Body=Sm90ForwardEncoderAttention<Seq,D,Heads,Rows,2>;
-  std::string key="seq=128;rows=16;heads=4;batch=1;pv=scalar";
-  Add("attention_128_16_scalar","attention_ns",key,Body::kSharedBytes,[key](int count) {
+  std::string mode="scalar";
+#endif
+  std::string key="seq=128;rows="+std::to_string(Rows)+";heads=4;batch=1;pv="+mode;
+  Add("attention_128_"+std::to_string(Rows)+"_"+mode,"attention_ns",key,Body::kSharedBytes,[key](int count) {
     Buffer<BF> qkv(Seq*3*Heads*D),output(Seq*Heads*D);Fill(qkv,0.25f);
     CUtensorMap maps[3]{};
     for(int i=0;i<3;++i)codegen::executor::EncodeTiledMap<3>(maps[i],qkv.p+i*Heads*D,
@@ -400,9 +462,11 @@ void AttentionCase() {
     for(int s=0;s<3;++s)Emit("attention_ns",key+";segment="+names[s],std::move(values[s]),"ns",
         "production_Run_full_segment_clock64_spans");
   });
+#if !DNN1_FIXED_FORWARD
   for(int rows:{16,32,64,128})Pending("attention_128_"+std::to_string(rows)+"_fx1","attention_ns",
       "seq=128;rows="+std::to_string(rows)+";pv=tensor_core",
       "FX1 batch-aware tensor-core PV body pending; scalar QK MMA is not a replacement");
+#endif
 }
 void Catalog() {
 #define SK(M,N) SplitCase<M,N,2>();SplitCase<M,N,4>();SplitCase<M,N,8>();SplitCase<M,N,16>()
@@ -415,7 +479,11 @@ void Catalog() {
   DepthwiseCase<W,H,64,32,2>();DepthwiseCase<W,H,64,64,2>();DepthwiseCase<W,H,128,128,2>()
   DW(8,8);DW(8,16);DW(16,16);
 #undef DW
+#if DNN1_FIXED_FORWARD
+  AttentionCase<16>();AttentionCase<32>();AttentionCase<64>();AttentionCase<128>();
+#else
   AttentionCase();
+#endif
 }
 #endif
 std::string Json(std::string const& s) {

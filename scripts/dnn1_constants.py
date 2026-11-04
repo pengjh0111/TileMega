@@ -101,13 +101,16 @@ def build(args):
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
     env = dict(os.environ, CUDA_VISIBLE_DEVICES='')
+    source_root = (args.source_root or ROOT).resolve()
+    fixed = args.implementation == 'fixed'
+    extra = ('Backend/Sm90ForwardGemv.cuh', 'Backend/Sm90ForwardResources.h') if fixed else ()
     headers, inputs = {}, {}
-    for rel in (*FORWARD_HEADERS, *OTHER_HEADERS):
-        source = ROOT / 'include/tilemega' / rel
+    for rel in (*FORWARD_HEADERS, *extra, *OTHER_HEADERS):
+        source = source_root / 'include/tilemega' / rel
         dest = out / 'include/tilemega' / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, dest)
-        headers[str(source.relative_to(ROOT))] = sha(source)
+        headers[str(source.relative_to(source_root))] = sha(source)
         inputs[str(dest)] = sha(dest)
     source = out / SOURCE.name
     shutil.copy2(SOURCE, source)
@@ -122,12 +125,14 @@ def build(args):
     inputs[str(overlay)] = sha(overlay)
     inputs[str(source)] = sha(source)
     receipt = dict(schema=1, status='building', created_unix=time.time(),
+        source_root=str(source_root), implementation=args.implementation,
         source=str(source), source_sha256=sha(source), collector_sha256=sha(__file__),
         original_sources=headers, snapshot_sources=inputs,
         clock_overlay=dict(original_sha256=sha(mark), overlay_sha256=sha(overlay),
             only_instruction_replacement='%globaltimer -> %clock64', time_domain='SM clock cycles'),
         method=METHOD, gpu_executed=False, commands=[], binaries={})
-    receipt['variant'] = digest(dict(source=sha(source), headers=headers, overlay=sha(overlay)))
+    receipt['variant'] = digest(dict(source=sha(source), headers=headers, overlay=sha(overlay),
+                                    implementation=args.implementation))
     target = read(ROOT / 'configs/targets/sm_90_h800.json')
     resources = target['resources']
     shared_limit = resources['max_dynamic_smem_per_cta']
@@ -140,9 +145,10 @@ def build(args):
         command = [args.nvcc, '-std=c++17', '-O3', '-gencode=arch=compute_90a,code=sm_90a',
             '-lineinfo', '--expt-relaxed-constexpr', f'-DDNN1_SHARED_LIMIT={shared_limit}',
             '-I' + str(out / 'overlay' if flag else out / 'include'),
-            '-I' + str(out / 'include'), '-I' + str(ROOT / 'include'),
-            '-I' + str(ROOT / 'third_party/cutlass/include'),
-            '-I' + str(ROOT / 'third_party/cutlass/tools/util/include'),
+            '-I' + str(out / 'include'), '-I' + str(source_root / 'include'),
+            '-I' + str(source_root / 'third_party/cutlass/include'),
+            '-I' + str(source_root / 'third_party/cutlass/tools/util/include'),
+            f'-DDNN1_FIXED_FORWARD={int(fixed)}',
             f'-DDNN1_SEGMENT_PROBES={flag}', str(source), '-o', str(binary)]
         log = out / (kind + '_build.log')
         receipt['commands'].append(dict(command=command, shell=shlex.join(command), log=str(log)))
@@ -365,7 +371,8 @@ def append_forward_section(target, constants):
     close = len(original.rstrip()) - 1
     if close < 0 or original[close] != '}':
         raise ValueError('target must be a JSON object')
-    encoded = json.dumps(constants, indent=2, sort_keys=True)
+    # Compact only the new section to respect the committed-data size limit.
+    encoded = json.dumps(constants, sort_keys=True, separators=(',', ':'))
     addition = '  "sm90_forward_constants": ' + encoded.replace('\n', '\n  ')
     prefix = original[:close].rstrip()
     updated = prefix + (',' if value else '') + '\n' + addition + '\n' + original[close:]
@@ -514,6 +521,8 @@ def main():
     b = subs.add_parser('build')
     b.add_argument('--out', type=Path, required=True)
     b.add_argument('--nvcc', default='/usr/local/cuda/bin/nvcc')
+    b.add_argument('--source-root', type=Path, help='explicit isolated forward implementation tree')
+    b.add_argument('--implementation', choices=('original', 'fixed'), default='original')
     b.add_argument('--timeout-s', type=float, default=3600)
     b.set_defaults(function=build)
     q = subs.add_parser('queue')
