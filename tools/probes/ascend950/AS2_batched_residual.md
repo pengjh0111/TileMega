@@ -42,7 +42,9 @@ guard holes with an independent CPU reference. Five fresh processes are
 required for device admission. Component cycle samples are diagnostic only.
 
 Current device execution/model numerics/C3/pricing/TPOT: **not run**. On
-2026-11-04 both950PR devices report Alarm; device jobs remain blocked-health.
+the initial2026-11-04 checkpoint both950PR devices report Alarm. The later
+user override makes Health metadata only; device jobs now wait for an empty
+device process list under `configs/bench/as2_run_policy.json`.
 The native CTG bootstrap and CANN compilation do not establish numerical or
 performance admission. Preserve frozen tolerances, teacher512, C2/C3 and
 complete64/1024 request checks before enabling this candidate.

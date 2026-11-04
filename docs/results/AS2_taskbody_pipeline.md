@@ -1,5 +1,6 @@
 # TaskBody and pipeline checkpoints
 
+Current admission: [process-idle override; Health is metadata](AS2_process_admission_20261104.md).
 Latest continuation: [batched residual and bounded Host diagnosis](AS2_dense_20261104.md).
 Previous continuation: [cache retirement and bounded DMA/QK work](AS2_cache_runtime_20261103.md).
 Previous continuation: [native BF16 local residual](AS2_local_residual_20261102.md).

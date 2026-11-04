@@ -3,7 +3,9 @@
 Status: **in_progress; G-PIPELINE is not passed**. Current reconciliation starts at
 `f0177daa8bdd90a22f2b433c0eccf9f723266892`; new K256 evidence retains its own source/build identity.
 The [latest TaskBody checkpoint](AS2_dense_20261104.md) adds compiled batched
-residual and bounded Host diagnosis; new NPU work is blocked by device Alarm.
+residual and bounded Host diagnosis. Under the later
+[process-idle override](AS2_process_admission_20261104.md), new NPU work waits
+for an empty process list; Health/utilization are metadata only.
 The [earlier full-model continuation](AS2_taskbody_round_20261102.md) records
 Body/session/KV checks, local timing and context-weighted request search.
 Experimental defaults remain disabled. Device evidence applies to its own
