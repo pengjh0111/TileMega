@@ -131,6 +131,14 @@ def main():
             if state['status'] == 'primary_complete' and pending:
                 report['status'] = 'remeasure_queued'
                 if not args.once:
+                    hashes = {str(baseline.ROOT / path): digest
+                              for path, digest in frozen['source_sha256'].items()}
+                    hashes.update(frozen['tvm_source_identity']['modified_sources'])
+                    hashes.update(frozen['tvm_source_identity']['patches'])
+                    hashes.update({item['path']: item['sha256'] for item in frozen['libraries']})
+                    changed = [path for path, digest in hashes.items() if sha(path) != digest]
+                    if changed:
+                        raise RuntimeError('frozen recipe changed before cached remeasurement: ' + repr(changed))
                     retry = epoch / f'remeasure{len(roots):03d}'
                     retry.mkdir(exist_ok=False)
                     config = read(epoch / 'base-spec.json')
