@@ -318,7 +318,8 @@ struct Sm90DenseLocalRoute {
 // weights fits the card; recorded deviation from §8's per-TN packing). A
 // slot is then assembled from runs of whole or half pages per 64-column panel.
 template<int Batch,int N,int K,int TN,int TK,int Slots,int WN,int WK,Sm90DenseMoeMode Mode,int U,
-         int Experts,int TopK,bool FloatWeights,int Page=0,int RegisterStages=1,bool SoftmaxAll=false>
+         int Experts,int TopK,bool FloatWeights,int Page=0,int RegisterStages=1,bool SoftmaxAll=false,
+         bool FinishRouting=false>
 struct Sm90DenseMoeGemm {
   static constexpr bool kInputNorm=Mode!=Sm90DenseMoeMode::kDown;
   using Core=Sm90DenseGemm<Batch,N,K,TN,TK,Slots,WN,WK,ServingEpilogueOp::kStore,U,kInputNorm,
@@ -335,8 +336,7 @@ struct Sm90DenseMoeGemm {
   static_assert(Batch<=Schedule::kMaxRows && Experts<=128 && TopK<=8);
   static_assert(Mode!=Sm90DenseMoeMode::kGateUp || TN%(2*U)==0);
   static_assert(Page==0 || (Page==64 && kDynamic && TN%32==0 && N%64==0 && K%64==0));
-  // Kept as the reference the E2 equivalence test compares against; the
-  // router stage no longer runs it.
+  // The global LA variant publishes the same fixed-order routing table.
   using RouterFinish=Sm90DenseRouterFinish<Batch,Experts,TopK,kTiles,FloatWeights,SoftmaxAll>;
 
   __device__ static __forceinline__ int TotalTasks(Sm90DenseMoeOperands const& p) {
@@ -667,7 +667,9 @@ struct Sm90DenseMoeGemm {
     // before it starts; the router's closing grid barrier orders this write
     // ahead of every M56 task, and the previous layer's M56 finished before
     // that barrier. Only the last CTA does it, and it owns no router task.
-    if constexpr(Mode==Sm90DenseMoeMode::kRouter)
+    if constexpr(Mode==Sm90DenseMoeMode::kRouter && FinishRouting)
+      RouterFinish{}(p,tasks,reinterpret_cast<char*>(scratch));
+    else if constexpr(Mode==Sm90DenseMoeMode::kRouter)
       if(p.gate_up_done && int(blockIdx.x)==int(gridDim.x)-1 && tid<Experts)
         p.gate_up_done[tid]=0;
   }
@@ -718,7 +720,7 @@ struct Sm90DenseMoeGemm {
 // x''.
 template<int Batch,int NGateUp,int NDown,int Hidden,int TNGu,int TKGu,int TNDn,int TKDn,int Slots,
          int WNGu,int WKGu,int WNDn,int WKDn,int U,int Experts,int TopK,bool FloatWeights,
-         int Page=0,int RegisterStages=1,bool SoftmaxAll=false>
+         int Page=0,int RegisterStages=1,bool SoftmaxAll=false,bool LocalRouting=true>
 struct Sm90DenseMoeFusedGemm {
   using Element=cutlass::bfloat16_t;
   using Async=codegen::executor::Async<arch::Sm90>;
@@ -1001,7 +1003,10 @@ struct Sm90DenseMoeFusedGemm {
     // the router stage left in L2; the closing grid barrier of that stage has
     // already made them visible. The producer waits for it because every task
     // index depends on n_active.
-    if(threadIdx.x<128)LocalRoute::Build(p.logits,routing);
+    if(threadIdx.x<128) {
+      if constexpr(LocalRouting)LocalRoute::Build(p.logits,routing);
+      else LocalRoute::Load(p.schedule,p.route_weights,p.route_index,routing);
+    }
     __syncthreads();
     int active=routing.active;
     int total=active*(kTilesGu+kTilesDn);
@@ -1009,7 +1014,8 @@ struct Sm90DenseMoeFusedGemm {
     if(threadIdx.x<128) {
       // One CTA republishes the global schedule for the routing check; it is
       // off the task path because no stage reads it any more.
-      if(blockIdx.x==0)LocalRoute::Publish(routing,p.schedule,p.route_weights,p.route_index);
+      if constexpr(LocalRouting)
+        if(blockIdx.x==0)LocalRoute::Publish(routing,p.schedule,p.route_weights,p.route_index);
       Consume(p,state,a,b,scratch,tasks,phase,active,routing);
     }else {
       Produce(p,state,a,b,tasks,phase,active,routing);

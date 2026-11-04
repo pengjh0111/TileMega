@@ -38,7 +38,10 @@ void NativeBoundaryContracts(mlir::ModuleOp module,bool write) {
       auto g=mlir::cast<mlir::DictionaryAttr>(gemms[integer(s,"gemm")]);
       d.epilogue=g.get("epilogue")?string(g,"epilogue"):"store";
       d.n=integer(g,"n");d.implementation="mma_sync/"+d.epilogue;
-      if(d.epilogue=="moe_router")experts=d.n;
+      if(d.epilogue=="moe_router") {
+        experts=d.n;
+        if(c.GlobalRoute())d.implementation+=std::string("/route-")+c.RouteName();
+      }
       if(d.epilogue=="moe_gate_up")gu_tiles=d.n/c.gemms[6].tile_n;
     }else if(d.kind=="kFusedAttention") {
       d.groups=integer(s,"extent");
@@ -65,6 +68,12 @@ void NativeBoundaryContracts(mlir::ModuleOp module,bool write) {
           b.getI64IntegerAttr(c.attention.merge_stage?1:batch*d.groups));
       attribute(task,c.attention.merge_stage?"tmexec.merge_required_count":"tmexec.handoff_required_count",
           b.getI64IntegerAttr(c.attention.merge_stage?grid:c.attention.chunks));
+    }
+    if(d.epilogue=="moe_router" && c.GlobalRoute()) {
+      attribute(task,"tmexec.route_implementation",b.getStringAttr(c.RouteName()));
+      attribute(task,"tmexec.route_event_extent",b.getI64IntegerAttr(1));
+      attribute(task,"tmexec.route_required_count",b.getI64IntegerAttr(
+          c.route==Sm90DenseCoordinates::Route::kStage?grid:experts/c.gemms[5].tile_n));
     }
     if(d.epilogue=="residual_ar")
       attribute(task,"tmexec.data_world",b.getI64IntegerAttr(c.tp));

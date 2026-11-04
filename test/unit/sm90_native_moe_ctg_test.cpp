@@ -21,6 +21,9 @@ int main(int argc,char** argv) {
   auto imported=ImportSm90Dense(argv[3],c,context);
   auto work=Sm90DenseWorkloadFromPlan(imported.plan,batch);
   Sm90NativeCtgCache cache;
+  for(auto route:{Sm90DenseCoordinates::Route::kLocal,Sm90DenseCoordinates::Route::kLastArriver,
+                  Sm90DenseCoordinates::Route::kStage}) {
+  c.route=route;
   auto ctg=InstantiateSm90NativeCtg(imported,c,batch,context,cache,cost.Grid(c.residency));
   assert(ctg.approximation.At("kind").AsString("kind")==kSm90NativeMoeDomainApproximation);
   auto flow=Sm90NativeCtgScore(imported,work,c,cost,context,cache);
@@ -32,7 +35,10 @@ int main(int argc,char** argv) {
   for(unsigned i=0;i<flow.nodes.size();++i) {
     auto const& node=flow.nodes[i];auto const& space=flow.problem.spaces[i];
     assert(node.price.tasks==space.count && space.count==ctg.spaces[i].count);
-    if(node.price.name=="route_local") {++routes;assert(space.count==cost.Grid(c.residency));}
+    if(node.price.name==std::string("route_")+c.RouteName()) {
+      ++routes;assert(space.count==(c.GlobalRoute()?1:cost.Grid(c.residency)));
+      assert(space.handoff_reducer==(route==Sm90DenseCoordinates::Route::kLastArriver));
+    }
     if(node.price.name=="moe_combine") {++combines;assert(space.count==dt && space.handoff_reducer);}
     if(node.price.name=="gemm6") {++gateups;assert(space.count==gu && space.pages_per_worker==0);}
     if(node.price.name=="gemm7") {++downs;assert(space.count==dn && node.kappa==gt);}
@@ -47,10 +53,11 @@ int main(int argc,char** argv) {
       ++counted;assert(!edge.all_producer && edge.kappa==gt && edge.hop_ns==0);
       for(auto [last,task]:*edge.sorted)assert(last==std::min(gu,(task/dt+1)*gt)-1);
     }
-    if(p=="route_local") {
-      assert(!edge.all_producer && edge.kappa==1 && edge.hop_ns==0);
+    if(p==std::string("route_")+c.RouteName()) {
+      assert(edge.all_producer==c.GlobalRoute() && edge.kappa==1);
+      assert(edge.hop_ns==(c.GlobalRoute()?constants.Barrier(flow.problem.workers):0));
       for(auto [last,task]:*edge.sorted)
-        assert(last==(task+(q=="gemm7"?gu:0))%flow.problem.workers);
+        assert(last==(c.GlobalRoute()?0:(task+(q=="gemm7"?gu:0))%flow.problem.workers));
     }
     if(q=="gemm0" && edge.producer>0)assert(p=="moe_combine");
   }
@@ -73,4 +80,5 @@ int main(int argc,char** argv) {
   std::cout<<json::Value(json::Object{{"passed",true},{"batch",batch},{"layers",work.layers},
       {"spaces",int(flow.nodes.size())},{"pool_ns",flow.step_ns},{"replay_ns",replay.replay.makespan_ns},
       {"isolated_ns",isolated.step_ns},{"approximation",ctg.approximation}}).Dump()<<'\n';
+  }
 }

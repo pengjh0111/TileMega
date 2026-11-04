@@ -68,6 +68,17 @@ int main() {
  for(unsigned i:m.Active()) {auto& g=m.gemms[i];g.tile_n=32;g.slot_bytes=2*g.tile_n*64;}
  m.gemms[4].tile_n=128;m.gemms[4].slot_bytes=2*128*64;
  m.swiglu_u=8;m.attention.chunks=16;m.weight_stream=true;m.layer_loop=true;m.embed_la=true;
+ for(auto route:{Sm90DenseCoordinates::Route::kLastArriver,Sm90DenseCoordinates::Route::kStage}) {
+  auto global=m;global.expert_fuse=true;global.route=route;
+  global.Validate(moe_nk,1);
+  assert(global.ToJson().At("schema").AsNumber("schema")==9);
+  auto loaded=Sm90DenseCoordinates::FromJson(global.ToJson());
+  assert(loaded.route==route && loaded.ToJson().Dump()==global.ToJson().Dump());
+  global.moe=false;bool invalid=false;
+  try {global.Validate(nk,1);}catch(std::invalid_argument const&) {invalid=true;}
+  assert(invalid);
+ }
+
  m.expert_fuse=true;m.gemms[7].slots=m.gemms[6].slots;
  bool unfused_refused=false;
  auto unfused=m;unfused.expert_fuse=false;

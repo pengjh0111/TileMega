@@ -301,10 +301,10 @@ struct Embedding {
 template<int Batch,int N,int K,int TN,int TK,int Slots,int WN,int WK,backend::Sm90DenseMoeMode Mode,
          int U,int Experts,int TopK,bool FloatWeights,int Page,unsigned W,unsigned X,unsigned Out,
          unsigned Schedule,unsigned Routes,unsigned Index,unsigned Counter,unsigned GateUpDone,
-         unsigned Map,int RegisterStages,bool SoftmaxAll=false>
+         unsigned Map,int RegisterStages,bool SoftmaxAll=false,bool FinishRouting=false>
 struct Moe {
   using Body=backend::Sm90DenseMoeGemm<Batch,N,K,TN,TK,Slots,WN,WK,Mode,U,Experts,TopK,FloatWeights,
-      Page,RegisterStages,SoftmaxAll>;
+      Page,RegisterStages,SoftmaxAll,FinishRouting>;
   static_assert(GateUpDone==kAbsent || Mode==backend::Sm90DenseMoeMode::kRouter,
       "only the router clears the fused stage's counters");
   static constexpr bool kUsesOperandRecord=true;
@@ -343,6 +343,41 @@ struct Moe {
   }
 };
 
+template<int Batch,int Experts,int TopK,bool FloatWeights,bool SoftmaxAll,
+         unsigned Logits,unsigned Schedule,unsigned Routes,unsigned Index,unsigned Done>
+struct MoeRoute {
+  using Route=backend::Sm90DenseLocalRoute<Batch,Experts,TopK,FloatWeights,SoftmaxAll>;
+  using Local=backend::Sm90DenseLocalSchedule<Batch,Experts,TopK>;
+  static constexpr bool kUsesOperandRecord=true;
+  static constexpr int kTasks=1,kSharedBytes=1024+sizeof(Local),kRingSlots=0,kMaxPreissue=0;
+  static constexpr backend::Sm90DenseLayout kLayout{0,0,1024,kSharedBytes};
+  template<int Bytes> static constexpr backend::Sm90DensePayload Payload() {return {};}
+  template<class B>
+  __device__ static __forceinline__ void PublishOperands(B const& b,int layer,int,float,
+      backend::Sm90DenseOperandBank& record,unsigned long long) {
+    auto& p=record.moe;
+    p.output=b.template Get<Logits>(layer);
+    p.schedule=reinterpret_cast<int*>(b.template Get<Schedule>(layer));
+    p.route_weights=b.template Get<Routes>(layer);
+    p.route_index=reinterpret_cast<int*>(b.template Get<Index>(layer));
+    if constexpr(Done!=kAbsent)p.gate_up_done=reinterpret_cast<unsigned*>(b.template Get<Done>(layer));
+    else p.gate_up_done=nullptr;
+  }
+  template<int Prefix,class B,class Tail>
+  __device__ static __forceinline__ void Run(B const&,int,char* shared,float,
+      backend::Sm90DenseRingState&,Tail tail,backend::Sm90DenseOperandBank const& record,bool) {
+    if(blockIdx.x==0 && threadIdx.x<128) {
+      auto const& p=record.moe;auto& local=*reinterpret_cast<Local*>(shared+1024);
+      Route::Build(static_cast<float const*>(p.output),local);
+      Route::Publish(local,p.schedule,p.route_weights,p.route_index);
+      if(p.gate_up_done && threadIdx.x<Experts)p.gate_up_done[threadIdx.x]=0;
+      executor::ComputeSync();
+    }
+    if(threadIdx.x==128)tail();
+    __syncthreads();
+  }
+};
+
 // MR7: M5 and M6 as one stage. WGu/WDn are the two weight bases, Hid is h
 // (the gate_up output and the down tasks' activation) and Out the per-route
 // partials P. GateUpDone holds the per-slot counters the router cleared.
@@ -350,10 +385,10 @@ template<int Batch,int NGateUp,int NDown,int Hidden,int TNGu,int TKGu,int TNDn,i
          int WNGu,int WKGu,int WNDn,int WKDn,int U,int Experts,int TopK,bool FloatWeights,int Page,
          unsigned WGu,unsigned WDn,unsigned X,unsigned Hid,unsigned Out,unsigned Schedule,
          unsigned Routes,unsigned Index,unsigned Counter,unsigned GateUpDone,unsigned Map,
-         int RegisterStages,unsigned Logits=kAbsent,bool SoftmaxAll=false>
+         int RegisterStages,unsigned Logits=kAbsent,bool SoftmaxAll=false,bool LocalRouting=true>
 struct MoeFused {
   using Body=backend::Sm90DenseMoeFusedGemm<Batch,NGateUp,NDown,Hidden,TNGu,TKGu,TNDn,TKDn,Slots,
-      WNGu,WKGu,WNDn,WKDn,U,Experts,TopK,FloatWeights,Page,RegisterStages,SoftmaxAll>;
+      WNGu,WKGu,WNDn,WKDn,U,Experts,TopK,FloatWeights,Page,RegisterStages,SoftmaxAll,LocalRouting>;
   // E2: the stage routes locally, so it needs the router's logits buffer.
   static_assert(Logits!=kAbsent,"the fused expert stage routes from the logits");
   static_assert(GateUpDone!=kAbsent && Map!=kAbsent,

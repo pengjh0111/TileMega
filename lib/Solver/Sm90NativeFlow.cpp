@@ -237,10 +237,14 @@ Sm90NativeFlowResult Sm90NativeCtgScore(frontend::ImportedSemantics const& impor
           constants.AttentionMergeDsmem(work.head_dim,work.queries,norm,c.attention.chunks):
           constants.AttentionMerge(work.head_dim,work.queries,norm,c.attention.chunks);
     }else if(task.role==frontend::OpRole::kMoERouting) {
-      price.name="route_local";price.category="reducer";
+      price.name=std::string("route_")+c.RouteName();price.category="reducer";
+      if(c.route==Sm90DenseCoordinates::Route::kLastArriver) {
+        node.sync=Sm90SyncKind::kHandoff;price.hop_ns=0;
+      }
       price.middle.fixed_ns=constants.RouteLa(problem.workers,work.batch,work.experts,
           work.softmax_all)-problem.hop_ns;
-      price.approximation="older-body RouteLa proxy for per-CTA local routing";
+      price.approximation=c.GlobalRoute()?"older-body RouteLa proxy; global schedule loads uncalibrated":
+          "older-body RouteLa proxy for per-CTA local routing";
     }else if(task.role==frontend::OpRole::kMoECombine) {
       price.name="moe_combine";price.category="reducer";
       node.sync=Sm90SyncKind::kHandoff;price.hop_ns=0;
@@ -305,7 +309,7 @@ Sm90NativeFlowResult Sm90NativeCtgScore(frontend::ImportedSemantics const& impor
     edge.kappa=edge.all_producer?problem.spaces[edge.producer].count:node.kappa;
     edge.hop_ns=node.price.hop_ns;
     if(ctg.spaces[coupling.producer].role==frontend::OpRole::kMoERouting) {
-      edge.all_producer=false;edge.kappa=1;edge.hop_ns=0;
+      edge.all_producer=c.GlobalRoute();edge.kappa=1;edge.hop_ns=c.GlobalRoute()?problem.hop_ns:0;
     }
     edge.sorted=Sm90NativeReleaseTable(coupling.relation,
         problem.spaces[edge.producer].count,problem.spaces[edge.consumer].count,

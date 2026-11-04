@@ -2208,7 +2208,8 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   if(plan_per_layer!=(c.moe?6u:5u))
     throw std::invalid_argument("native layer groups need whole groups of supported layers");
   bool merge_stage=c.attention.merge_stage && c.attention.chunks>1;
-  unsigned per_layer=plan_per_layer-(c.expert_fuse?1u:0u)+unsigned(merge_stage),per_group=per_layer%2?2:1;
+  bool route_stage=c.route==solver::Sm90DenseCoordinates::Route::kStage;
+  unsigned per_layer=plan_per_layer-(c.expert_fuse?1u:0u)+unsigned(merge_stage)+unsigned(route_stage),per_group=per_layer%2?2:1;
   unsigned group_size=per_layer*per_group;
   if(layers%per_group)
     throw std::invalid_argument("native layer groups need whole groups of supported layers");
@@ -2291,7 +2292,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
           gate_up_done=c.expert_fuse && operands && operands.size()>4?operand(4):"kAbsent";
           // E2: the last CTA clears the fused stage's counters, so it must own
           // no router task of its own.
-          if(c.expert_fuse && n/cfg.tile_n>=grid)
+          if(c.expert_fuse && !c.GlobalRoute() && n/cfg.tile_n>=grid)
             throw std::invalid_argument("native router must leave the last CTA free (R5 E2)");
           // E2: the fused stage routes from these logits and republishes the
           // routes, so hold both the router's output and its index buffer.
@@ -2330,7 +2331,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
             throw std::invalid_argument("native fused experts republish the routes (R5 E2)");
           e.tail=","+std::to_string(map_index({integerField(g,"a"),4,64,16,k/64,experts,2*k,128,
               2*16*k,64,activation_rows,cfg.TileK()/64,1}))+","+std::to_string(cfg.register_stages)+
-              ","+router_logits+(moe_softmax_all?",true":",false");
+              ","+router_logits+(moe_softmax_all?",true":",false")+(c.GlobalRoute()?",false":"");
           e.stream=0;
           weight=gu.weight_name;bytes+=gu.bytes;tasks+=gu.tasks;
           gate_up_held.held=false;
@@ -2351,6 +2352,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
               64,activation_rows,cfg.TileK()/64,1}));
         e.tail=","+map+","+std::to_string(cfg.register_stages)+
             (moe_softmax_all?",true":",false");
+        if(e.family==5 && c.route==solver::Sm90DenseCoordinates::Route::kLastArriver)e.tail+=",true";
         }
       }else {
       if(op=="residual_ar" && tp==1)
@@ -2445,6 +2447,15 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     row<<"  {"<<quoteCString(kind)<<','<<quoteCString(weight)<<','<<bytes<<"ull,"
        <<tasks<<','<<extent<<','<<group<<','<<width<<','<<chunks<<"},\n";
     info.push_back(row.str());
+    if(e.family==5 && route_stage) {
+      Emitted route;route.kind="kMoeRoute";route.family=-3;
+      auto routes=dictionaryEntry(buffers[std::stoll(e.ids[4])],"buffers");
+      route.head="MoeRoute<"+std::to_string(batch)+','+std::to_string(nk[5][0])+",8,"+
+          (stringField(routes,"dtype")=="f32"?"true":"false")+','+(moe_softmax_all?"true":"false");
+      route.ids={e.ids[2],e.ids[3],e.ids[4],e.ids[5],e.ids[7]};
+      emitted.push_back(std::move(route));
+      info.push_back("  {\"kMoeRoute\",\"\",0ull,1,0,0,0,0},\n");
+    }
     if(kind=="kFusedAttention" && merge_stage) {
       Emitted merge;merge.kind="kAttentionMerge";merge.family=-2;
       merge.head="AttentionMerge<"+std::to_string(batch)+','+std::to_string(extent)+','+
@@ -2461,6 +2472,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   std::vector<int> layer_families=c.moe?(c.expert_fuse?std::vector<int>{0,-1,1,5,7}:
       std::vector<int>{0,-1,1,5,6,7}):std::vector<int>{0,-1,1,2,3};
   if(merge_stage)layer_families.insert(layer_families.begin()+2,-2);
+  if(route_stage)layer_families.insert(std::find(layer_families.begin(),layer_families.end(),5)+1,-3);
   if(emitted.front().kind!="kEmbedding" || emitted.back().kind!="kArgmaxReduce" ||
      emitted[emitted.size()-2].family!=4)
     throw std::invalid_argument("native program lacks its embedding, lm_head or argmax");

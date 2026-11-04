@@ -200,7 +200,7 @@ Sm90NativeCtg InstantiateSm90NativeCtg(frontend::ImportedSemantics const& input,
   Sm90NativeCtg result;result.binding=base.binding;
   result.approximation=json::Object{{"kind",kSm90NativeMoeDomainApproximation},
       {"gate_up",gu_domain.ToJson()},{"down",dn_domain.ToJson()},
-      {"local_route_tasks",workers},{"route_price","older-body RouteLa minus grid barrier"}};
+      {"routing",c.RouteName()},{"route_tasks",c.GlobalRoute()?1:workers},{"route_price","older-body RouteLa minus grid barrier"}};
   // The generic importer supplies the exact dense/attention projections.
   // Native expert axes and residual def-use are reconstructed below; its
   // original MoE module is not presented as the projected executable IR.
@@ -261,14 +261,15 @@ Sm90NativeCtg InstantiateSm90NativeCtg(frontend::ImportedSemantics const& input,
     }else if(family==5) {
       if(previous!=output)throw std::invalid_argument("router does not follow its residual input");
       all(output,current);router=current;
-      auto local=result.spaces[current];local.name+=".local_route";
-      local.role=frontend::OpRole::kMoERouting;local.ownership=identity(workers);
+      auto local=result.spaces[current];local.name+=c.GlobalRoute()?".global_route":".local_route";
+      local.role=frontend::OpRole::kMoERouting;local.ownership=identity(c.GlobalRoute()?1:workers);
       route=add(std::move(local));all(router,route);previous=route;continue;
     }else if(family==6) {
       if(previous!=route)throw std::invalid_argument("experts do not follow local routing");
       all(output,current);
       // Each CTA builds the route table it uses for its own grid-stride tasks.
-      edge(route,current,analysis::CouplingRelation::FromIslText(
+      if(c.GlobalRoute())all(route,current);
+      else edge(route,current,analysis::CouplingRelation::FromIslText(
           "{ [p] -> [q] : 0<=p<"+std::to_string(workers)+" and 0<=q<"+
           std::to_string(gu_domain.tasks)+" and q % "+std::to_string(workers)+" = p }"));
       gate_up=current;
@@ -276,7 +277,8 @@ Sm90NativeCtg InstantiateSm90NativeCtg(frontend::ImportedSemantics const& input,
       if(previous!=gate_up)throw std::invalid_argument("down does not follow its gate_up");
       edge(gate_up,current,Sm90NativeMoeExpertCoupling(gu_domain,dn_domain));
       // A CTA with only down work still performs its own local route build.
-      edge(route,current,analysis::CouplingRelation::FromIslText(
+      if(c.GlobalRoute())all(route,current);
+      else edge(route,current,analysis::CouplingRelation::FromIslText(
           "{ [p] -> [q] : 0<=p<"+std::to_string(workers)+" and 0<=q<"+
           std::to_string(dn_domain.tasks)+" and (q+"+std::to_string(gu_domain.tasks)+") % "+
           std::to_string(workers)+" = p }"));
