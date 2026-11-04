@@ -13,6 +13,7 @@ import time
 from .baselines import sha, timed
 from baseline_common import guarded_main, observe, require_guard, versions
 from tilemega.build.identity import verify
+from .execution import execution_identity
 
 
 def main():
@@ -87,7 +88,7 @@ def main():
         values = timed(run, args.warmup, args.iterations)
         torch.cuda.synchronize()
         observe(guard_path, 'after-measurement')
-        execution = native.plan.execution_identity(mode)
+        execution = execution_identity(native.plan, identity, mode)
     ordered = sorted(values)
     result = dict(schema_version=1, evidence='verified', system='tilemega', model=manifest['model'],
         batch=args.batch, precision='bf16', executor=args.executor, round_index=args.round_index,

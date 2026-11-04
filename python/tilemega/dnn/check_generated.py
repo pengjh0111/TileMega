@@ -92,9 +92,15 @@ def _diagnose(library, plan, module, arguments, bridge, destination,
     from .diagnose import reference_aliases
     parameters = {row['name'] for row in bridge['signature']['inputs'] if row['kind'] == 'PARAMETER'}
     terminal = reference_aliases(bridge['nodes'], set(materialized), captured, parameters)
-    accessor = library.lib.tm_dm_debug_buffer
-    accessor.argtypes = [C.c_void_p,C.c_uint32,C.POINTER(C.c_uint64)]
-    accessor.restype = C.c_void_p
+    native = bool(manifest.get('native_forward'))
+    if native:
+        accessor = library.lib.tm_plan_read_buffer
+        accessor.argtypes = [C.c_void_p,C.c_uint32,C.c_void_p,C.c_uint64]
+        accessor.restype = C.c_int
+    else:
+        accessor = library.lib.tm_dm_debug_buffer
+        accessor.argtypes = [C.c_void_p,C.c_uint32,C.POINTER(C.c_uint64)]
+        accessor.restype = C.c_void_p
     runtime = C.CDLL('/usr/local/cuda/lib64/libcudart.so')
     runtime.cudaMemcpy.argtypes = [C.c_void_p,C.c_void_p,C.c_size_t,C.c_int]
     runtime.cudaMemcpy.restype = C.c_int
@@ -105,22 +111,35 @@ def _diagnose(library, plan, module, arguments, bridge, destination,
         reference_name = terminal.get(buffer.name)
         if reference_name is None or buffer.dtype != 0 or buffer.name not in materialized:
             continue
-        meta = (C.c_uint64*18)(); pointer = accessor(plan.handle,index,meta)
-        kind,rank = meta[:2]; logical,physical = list(meta[2:6]),list(meta[6:10])
-        count = buffer.elements_constant+int(logical[0])*buffer.elements_per_batch
-        if not pointer or not rank or rank>4:
-            continue
-        # Layout metadata gives the physical allocation. External buffers may
-        # be described independently of the internal tensor's per-batch size.
-        count = 1
-        for extent in physical[:rank]: count *= extent
-        value = torch.empty(count,device='cuda',dtype=torch.bfloat16)
-        status = runtime.cudaMemcpy(value.data_ptr(),pointer,value.numel()*2,3)
+        if native:
+            layout = manifest['buffers'][index]
+            rank, logical, physical = layout['rank'], layout['logical'], layout['physical']
+            if not rank:
+                continue
+            kind = 1 if layout['layout'] == 'nhwc' else 0
+            top, left = layout.get('halo_top', 0), layout.get('halo_left', 0)
+            count = 1
+            for extent in physical[:rank]: count *= extent
+            available = buffer.elements_constant + manifest['runtime_batch'] * buffer.elements_per_batch
+            if count > available:
+                raise ValueError('native diagnostic layout exceeds bound storage: ' + buffer.name)
+            value = torch.empty(count, device='cpu', dtype=torch.bfloat16)
+            status = accessor(plan.handle, index, value.data_ptr(), count * 2)
+            value = value.cuda()
+        else:
+            meta = (C.c_uint64*18)(); pointer = accessor(plan.handle,index,meta)
+            kind,rank = meta[:2]; logical,physical = list(meta[2:6]),list(meta[6:10])
+            if not pointer or not rank or rank>4:
+                continue
+            top,_,left,_ = meta[14:18]
+            count = 1
+            for extent in physical[:rank]: count *= extent
+            value = torch.empty(count,device='cuda',dtype=torch.bfloat16)
+            status = runtime.cudaMemcpy(value.data_ptr(),pointer,value.numel()*2,3)
         if status:
             raise RuntimeError(f'diagnostic buffer copy failed: {status}')
         value=value.reshape(physical[:rank])
         if kind == 1:
-            top,_,left,_ = meta[14:18]
             value=value[:,top:top+logical[1],left:left+logical[2],:logical[3]].permute(0,3,1,2)
         reference=captured[reference_name].float().to('cuda')
         bf16_reference=captured_bf16[reference_name].float().to('cuda')

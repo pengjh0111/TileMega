@@ -55,6 +55,27 @@ def materialized_buffers(source, manifest):
     Operand positions follow DmStageRunner and GemmDesc. Side outputs are
     emitted explicitly by EmitDm; their buffer and auxiliary are both kept.
     """
+    if manifest.get('native_forward'):
+        buffers = manifest['buffers']
+        writers = {}
+        bindings = re.findall(r'struct Bind_([0-9]+)\s*\{(.*?)\n\};', source, re.S)
+        if [int(index) for index, _ in bindings] != list(range(len(manifest['stages']))):
+            raise ValueError('native diagnostic bindings do not cover the stage list')
+        for index, binding in bindings:
+            for field in ('kOutput', 'kRowStats', 'kChannelPartial'):
+                match = re.search(r'\b' + field + r'=([^,;\s]+)', binding)
+                if not match:
+                    raise ValueError('native binding lacks output field: ' + field)
+                if match[1] == 'kAbsent':
+                    continue
+                output = integer(match[1])
+                if output >= len(buffers):
+                    raise ValueError('native diagnostic output exceeds buffer table')
+                writers.setdefault(output, []).append(int(index))
+        return {buffer['name']: dict(writers=writers.get(index, []),
+                                    external=buffer.get('role') == 'external')
+                for index, buffer in enumerate(buffers)
+                if index in writers or buffer.get('role') == 'external'}
     gemms = table(source, 'GemmDesc', 'kGemms')
     stages = table(source, 'StageDesc', 'kStages')
     buffers = manifest['buffers']
