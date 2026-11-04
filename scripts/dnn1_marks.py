@@ -217,7 +217,7 @@ def analyze(directory, work, target, peak_tflops, process):
 def write_csv(path, rows):
     path = Path(path)
     with path.open('w', newline='') as stream:
-        writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
+        writer = csv.DictWriter(stream, fieldnames=list(rows[0]), lineterminator='\n')
         writer.writeheader()
         writer.writerows(rows)
 
@@ -274,13 +274,45 @@ def main():
         category = classify(w,median,median_spans,target['sm90_native_constants']['dram_gbps'],
                             target['sm90_native_constants']['cta_dram_gbps'],
                             group[0]['lower_memory_ns'],group[0]['lower_compute_ns'])
-        merged.append(dict(index=index, body=group[0]['body'], stage_ns=median,
-                           category=category))
+        row = dict(group[0])
+        for key in row:
+            numeric = [r[key] for r in group if isinstance(r[key], (int, float))
+                       and not isinstance(r[key], bool)]
+            if (key.endswith(('_ns', '_count')) or key == 'measured_over_lower') and numeric:
+                row[key] = statistics.median(numeric)
+        row.pop('process')
+        row.update(stage_ns=median, category=category,
+            critical_ctas=';'.join(str(r['critical_cta']) for r in group),
+            processes=len(group),
+            aggregation='median of per-process critical-CTA fields; spans need not add')
+        # The representative CTA belongs to the process closest to the stage
+        # median. All process-level CTA/span pairings remain in the raw CSV.
+        representative = min(group, key=lambda r: abs(r['stage_ns']-median))
+        row['critical_cta'] = representative['critical_cta']
+        row['representative_process'] = representative['process']
+        for key in ('n','k','pixels','channels'):
+            row[key] = w.get(key) or ''
+        merged.append(row)
+    write_csv(args.out / 'stage_ledger.csv', merged)
     total = sum(r['stage_ns'] for r in merged)
     shares = {f'RC-{i}':sum(r['stage_ns'] for r in merged if r['category']==f'RC-{i}')/total
               for i in range(1,8)}
+    lower = sum(r['lower_bound_ns'] for r in merged)
+    low_util = sum(r['stage_ns'] for r in merged if r['body'] in ('gemm','conv')
+                   and r['row_utilization'] != ''
+                   and r['row_utilization'] < .8) / total
+    rc1_first = sum(r['stage_ns'] for r in merged if r['category']=='RC-1'
+                    and r['first_ready_ns'] != '' and r['first_ready_ns'] > r['stage_ns']/4) / total
     summary = dict(model=args.model, batch=args.batch, processes=len(args.trace),
                    stage_time_ns=total, category_shares=shares,
+                   serial_stage_lower_bound_ns=lower, lower_over_instrumented_stage_time=lower/total,
+                   low_m_row_utilization_time_share=low_util,
+                   rc1_first_ready_over_quarter_time_share=rc1_first,
+                   top10_excess=[{key:r[key] for key in ('index','representative','body','category',
+                       'stage_ns','lower_bound_ns','excess_ns','measured_over_lower','tasks',
+                       'concurrent_ctas','k_iter','slots','weight_bytes_per_task','m','tm',
+                       'row_utilization','covered_batches','required_batches')}
+                       for r in sorted(merged,key=lambda r:r['excess_ns'],reverse=True)[:10]],
                    dt_a='STOP_RC7' if shares['RC-7']>.2 else 'continue',
                    peak_tflops=args.peak_tflops, peak_source=args.peak_source,
                    coverage_scope='original implementation; no full-correct-forward assertion',

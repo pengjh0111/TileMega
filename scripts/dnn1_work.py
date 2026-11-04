@@ -106,7 +106,7 @@ def describe(source_path,manifest_path,identity_path=None,logical_plan_path=None
         match=re.search(rf'using Body_{index}=(\w+)(?:<([^;]*)>)?;',source)
         if not match:raise ValueError('missing typed body')
         name,raw=match.group(1),match.group(2) or '';args=split_fields(raw)
-        kind=stage['body'];m=tm=0;k_iter=None;slots=0;tasks=0;weight_task=0
+        kind=stage['body'];m=tm=n=k=pixels=channels=0;k_iter=None;slots=0;tasks=0;weight_task=0
         weight=activation=output=flops=0;coverage=batch;notes=[];issued_flops=0;mma_issued_flops=0
         vectors={bind.get('kVector'+str(i)) for i in range(4)}-{None}
         vectors|={bind.get('kDwVector'+str(i)) for i in range(4)}-{None}
@@ -139,7 +139,7 @@ def describe(source_path,manifest_path,identity_path=None,logical_plan_path=None
         elif kind in ('depthwise','dwpw','inverted_residual'):
             tw,th,cb=map(integer,args[:3]);slots=integer(args[4] if kind=='depthwise' else args[5]);tm=tw*th
             channels=shape['kChannels'];out_channels=shape['kOutChannels'];p=shape['kOutputHeight'];q=shape['kOutputWidth']
-            padded=shape['kPaddedChannels'];pack=shape['kDepthwisePack'];m=p*q;coverage=1
+            padded=shape['kPaddedChannels'];pack=shape['kDepthwisePack'];m=p*q;pixels=m;coverage=1
             tasks=((q+tw-1)//tw)*((p+th-1)//th)
             weight=2*channels*9*pack;activation=2*shape['kWidth']*shape['kHeight']*padded
             if kind=='depthwise':
@@ -156,7 +156,8 @@ def describe(source_path,manifest_path,identity_path=None,logical_plan_path=None
             if len(args)==5:seq,d,heads,rows,slots=map(integer,args);coverage=1
             elif len(args)>=6:coverage,seq,d,heads,rows,slots=map(integer,args[:6])
             else:raise ValueError('unknown attention template')
-            m=seq;tm=rows;tasks=coverage*heads*(seq//rows);k_iter=d//16
+            m=seq;n=seq;k=d;pixels=coverage*seq;channels=heads*d
+            tm=rows;tasks=coverage*heads*(seq//rows);k_iter=d//16
             activation=coverage*2*seq*heads*d*3;output=coverage*2*seq*heads*d
             flops=issued_flops=logical_flops=coverage*4*heads*seq*seq*d
             if coverage!=batch:notes.append('known F11: template/maps/tasks/output cover one sequence, not runtime batch')
@@ -166,29 +167,31 @@ def describe(source_path,manifest_path,identity_path=None,logical_plan_path=None
             notes.append('original layout width/height and offsets cover one image; padded channels are not copied')
         elif kind=='pool':
             window,stride=map(integer,args[:2]);width=shape['kWidth'];height=shape['kHeight'];channels=shape['kChannels'];coverage=1
-            pw=(width+1)//stride;ph=(height+1)//stride;tasks=pw*ph
+            pw=(width+1)//stride;ph=(height+1)//stride;tasks=pw*ph;pixels=pw*ph
             activation=2*width*height*channels;output=2*pw*ph*channels
             validw=sum(sum(0<=x*stride-1+s<width for s in range(window)) for x in range(pw))
             validh=sum(sum(0<=y*stride-1+r<height for r in range(window)) for y in range(ph))
             flops=validw*validh*channels;issued_flops=logical_flops=flops
             notes.append('original pool loops/addresses cover one image')
         elif kind=='global_pool':
-            channels=shape['kChannels'];parts=shape['kWidth'];tasks=(channels+127)//128;coverage=1
+            channels=shape['kChannels'];parts=shape['kWidth'];pixels=shape['kHeight']
+            tasks=(channels+127)//128;coverage=1
             activation=4*parts*channels;output=2*channels;flops=(parts+1)*channels
             issued_flops=logical_flops=flops
             notes.append('original GAP writes output[c] only; input partial extent from generated Shape width')
         elif kind=='gemv':
             block=integer(args[0]);m=shape['kWidth'] if shape['kWidth']>0 else 1
-            k=shape['kChannels'];n=shape['kOutChannels'];tasks=m*((n+block-1)//block)
+            k=shape['kChannels'];n=shape['kOutChannels'];channels=k;pixels=m
+            tasks=m*((n+block-1)//block)
             weight=2*((n+block-1)//block)*block*k;activation=2*m*k;output=2*m*n
             weight_task=2*block*k;flops=2*m*n*k;issued_flops=logical_flops=flops
         elif kind=='embedding':
-            channels=integer(args[0]);rows=shape['kWidth'];tasks=(rows+3)//4
+            channels=integer(args[0]);rows=shape['kWidth'];tasks=(rows+3)//4;pixels=rows
             activation=2*rows*channels*3;output=2*rows*channels+(8*rows if row_stats is not None else 0)
             flops=5*rows*channels;issued_flops=logical_flops=flops
             notes.append('embedding bytes count addressed table elements; repeated table/cache reuse is not measured DRAM')
         elif kind=='layer_norm':
-            channels=integer(args[0]);rows=shape['kWidth']*shape['kHeight'];tasks=(rows+3)//4
+            channels=integer(args[0]);rows=shape['kWidth']*shape['kHeight'];tasks=(rows+3)//4;pixels=rows
             activation=2*rows*channels;output=2*rows*channels;weight=4*channels
             flops=8*rows*channels+320*rows;issued_flops=logical_flops=flops
             notes.append('scalar arithmetic count is an inferred operation count; no tensor-core throughput claim')
@@ -199,7 +202,8 @@ def describe(source_path,manifest_path,identity_path=None,logical_plan_path=None
         if mma_issued_flops:issued_flops=mma_issued_flops
         if not tasks:raise ValueError('zero actual task count')
         work.append(dict(index=index,body=kind,representative=stage.get('representative',''),
-            task_body=name,template_arguments=args,tasks=tasks,grid=grid,slots=slots,k_iter=k_iter,m=m,tm=tm,
+            task_body=name,template_arguments=args,tasks=tasks,grid=grid,slots=slots,k_iter=k_iter,
+            m=m,n=n,k=k,pixels=pixels,channels=channels,tm=tm,
             weight_bytes_per_task=weight_task,weight_bytes=weight,activation_bytes=activation,
             output_bytes=output,dram_bytes=weight+activation+output,flops=flops,issued_flops=issued_flops,
             mma_flops_including_m_tail=mma_issued_flops,
