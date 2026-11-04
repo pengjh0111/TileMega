@@ -20,6 +20,20 @@ baseline=module.baseline
 
 
 class Dispatch(unittest.TestCase):
+    def test_only_completed_resource_rejection_allows_other_cells_to_progress(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary);session=root/'raw/dnn1-cell-x/attempt1/job/cell-result.json'
+            session.parent.mkdir(parents=True);failure=dict(root=str(root),exit_code=1)
+            for status,ended,error,blocks in [
+                ('hard_stop',10,'whole cell invalidated by timing guard/throttle',False),
+                ('hard_stop',10,'TVM infrastructure rejection; no FP16 alternative: interrupted',False),
+                ('hard_stop',10,'correctness below original threshold',True),
+                ('hard_stop',None,'whole cell invalidated by timing guard/throttle',True),
+                ('running',10,'whole cell invalidated by timing guard/throttle',True)]:
+                session.write_text(json.dumps(dict(status=status,ended=ended,error=error)))
+                self.assertEqual(bool(module.blocking_failures([failure])),blocks)
+            self.assertTrue(module.blocking_failures([dict(reason='frozen source changed')]))
+
     def test_recovery_root_is_fresh_without_modifying_old_cache(self):
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary);old=root/'recovery';old.mkdir();evidence=old/'attempt.json'

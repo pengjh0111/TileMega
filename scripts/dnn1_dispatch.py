@@ -242,6 +242,22 @@ def migrate_waiter(worker):
                 pass
 
 
+def blocking_failures(failures):
+    """A completed resource rejection must not starve unrelated queued cells."""
+    blocking = []
+    for failure in failures:
+        root = failure.get('root')
+        sessions = list(Path(root).glob('raw/dnn1-cell-*/attempt*/job/cell-result.json')) if root else []
+        results = [baseline.read(path) for path in sessions]
+        latest = max(results, key=lambda row: row.get('ended') or 0) if results else {}
+        error = latest.get('error', '')
+        resource = ('whole cell invalidated by timing guard/throttle' in error or
+                    'TVM infrastructure rejection; no FP16 alternative' in error)
+        if not (latest.get('status') == 'hard_stop' and latest.get('ended') and resource):
+            blocking.append(failure)
+    return blocking
+
+
 def main():
     global baseline
     p = argparse.ArgumentParser(description=__doc__)
@@ -426,7 +442,7 @@ def main():
                 del workers[g]
                 del state['workers'][str(g)]
             for g in gpus:
-                if (not pending or len(workers)>=a.max_parallel or state['failures']):
+                if (not pending or len(workers)>=a.max_parallel or blocking_failures(state['failures'])):
                     break
                 if g in workers or not snapshots[str(g)]['eligible']:
                     continue
@@ -453,7 +469,7 @@ def main():
                     assigned=time.time(),cpu_affinity=binding[g])
                 event('cell_assigned',gpu=g,key=key,pid=process.pid,cpu_affinity=binding[g])
             state['pending']=pending
-            if not workers and (not pending or state['failures']):
+            if not workers and (not pending or blocking_failures(state['failures'])):
                 state['status']='primary_complete' if not state['failures'] else 'needs_diagnosis'
                 collect_view();persist();return 0 if not state['failures'] else 2
             state['status']='running' if workers else 'waiting_for_idle_cards'
