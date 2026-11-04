@@ -346,7 +346,8 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
     std::ofstream(directory/"receipt.json")<<receipt.Dump(2)<<'\n';return receipt;
   };
   save();
-  if(o.measured) {
+  bool compiled_finalists=o.measured || o.search=="pipeline";
+  if(compiled_finalists) {
     for(unsigned i=0;i<configs.size();++i) {
       auto binary=directory/("candidate-"+std::to_string(i)+".so");
       NativeCandidateCounts counts;
@@ -360,6 +361,83 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
       else {row.Set("status","compiled");row.Set("binary",binary.string());row.Set("binary_sha256",Hash(binary.string()));}
       candidates.push_back(row);save();
     }
+    if(o.search=="pipeline") {
+      // A requested launch bound is not a measurement of the linked kernel.
+      // Query the cubin before either predicted or measured final selection.
+      for(int pass=0;pass<3;++pass) {
+        auto list=directory/("occupancy-input-"+std::to_string(pass)+".json");
+        std::ofstream(list)<<json::Value(candidates).Dump(2)<<'\n';
+        auto probe=directory/("occupancy-"+std::to_string(pass));
+        auto command="python3 "+Quote(std::string(TILEMEGA_SOURCE_DIR)+
+            "/scripts/sm90r6_probe_native.py")+" --candidates "+Quote(list.string())+
+            " --out "+Quote(probe.string());
+        if(std::system(command.c_str()))
+          throw std::runtime_error("native finalist occupancy query failed; evidence: "+probe.string());
+        auto evidence=json::ParseFile((probe/"result.json").string());
+        pipeline_record.Set("occupancy_pass_"+std::to_string(pass),evidence);
+        bool changed=false;
+        for(auto const& resource:evidence.At("candidates").AsArray("occupancy candidates")) {
+          int i=int(resource.At("rank").AsNumber("occupancy rank"));
+          if(i<0 || i>=int(candidates.size()) ||
+             resource.At("binary_sha256").AsString("binary hash")!=
+                 candidates[i].At("binary_sha256").AsString("candidate binary hash"))
+            throw std::runtime_error("occupancy result does not bind a compiled finalist");
+          int actual=int(resource.At("effective_residency").AsNumber("measured residency"));
+          candidates[i].Set("occupancy",resource);
+          if(actual<1) {candidates[i].Set("status","occupancy_rejected");continue;}
+          auto c=result.ranked[i].coordinates;
+          if(actual==c.residency)continue;
+          if(pass==2)throw std::runtime_error("native occupancy correction did not converge");
+          mlir::MLIRContext context;
+          auto imported=solver::ImportSm90Dense(o.input,c,context);
+          solver::Sm90NativeCtgCache cache;
+          auto corrected=solver::RepriceSm90NativeResidency(space,c,actual,o.operator_sum,
+              [&](solver::Sm90DenseCoordinates const& coordinate,bool isolated) {
+                return solver::Sm90NativeCtgScore(imported,work,coordinate,cost,context,cache,isolated);
+              });
+          if(!corrected) {
+            candidates[i].Set("status","occupancy_coordinate_rejected");continue;
+          }
+          c=corrected->coordinates;double score=corrected->replay_ns;
+          candidates[i].Set("occupancy_pool_score_ns",corrected->pool_score_ns);
+          candidates[i].Set("occupancy_rescore_ms",corrected->evaluation_ms);
+          auto base=directory/("candidate-"+std::to_string(i)+"-occupancy-"+std::to_string(pass));
+          configs[i]=base.string()+".tmexec.json";
+          std::ofstream(configs[i])<<c.ToJson().Dump(2)<<'\n';
+          result.ranked[i].coordinates=c;result.ranked[i].prediction=cost.Predict(work,c);
+          result.ranked[i].prediction.step_ns=score;
+          result.ranked[i].origin=corrected->structural_class;
+          ranked[i].Set("origin",corrected->structural_class);
+          ranked[i].Set("coordinates",c.ToJson());ranked[i].Set("prediction",result.ranked[i].prediction.ToJson());
+          auto binary=base.string()+".so";
+          NativeCandidateCounts counts;
+          auto rejected=TryMeasuredNativeCompile(counts,[&] {
+            CompileNativeDenseArtifact(o.input,binary,configs[i].string(),o.target,o.batch,
+                "",o.split_compile,"solver",json::Object{{"selection","occupancy-corrected"},{"rank",i}});
+          });
+          candidates[i].Set("coordinates",configs[i].string());candidates[i].Set("predicted_ns",score);
+          if(rejected) {
+            candidates[i].Set("status","resource_rejected");candidates[i].Set("compile_result",*rejected);
+          }else {
+            candidates[i].Set("status","compiled");candidates[i].Set("binary",binary);
+            candidates[i].Set("binary_sha256",Hash(binary));changed=true;
+          }
+          save();
+        }
+        save();
+        if(!changed)break;
+      }
+    }
+    if(!o.measured) {
+      winner=-1;
+      for(unsigned i=0;i<candidates.size();++i)
+        if(candidates[i].At("status").AsString("status")=="compiled" &&
+           (winner<0 || result.ranked[i].prediction.step_ns<result.ranked[winner].prediction.step_ns))
+          winner=i;
+      if(winner<0)throw std::runtime_error("no resource-verified native finalist remains");
+    }
+  }
+  if(o.measured) {
     auto list=directory/"candidates.json";
     std::ofstream(list)<<json::Value(candidates).Dump(2)<<'\n';
     // One P-SEL session measures every compiled candidate in interleaved order.
@@ -382,13 +460,16 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   auto receipt=save();
   CompileNativeDenseArtifact(o.input,o.output,selected.string(),o.target,o.batch,o.dump_cg,
       o.split_compile,"solver",receipt);
-  if(o.measured) {
-    auto reference=directory/("candidate-"+std::to_string(winner)+".so");
+  if(compiled_finalists && requested.extension()==".so") {
+    auto reference=fs::path(candidates[winner].At("binary").AsString("winner binary"));
     auto command="python3 "+Quote(std::string(TILEMEGA_SOURCE_DIR)+
         "/scripts/check_sm90r2_rebuild.py")+" --reference "+Quote(reference.string())+
         " --candidate "+Quote(requested.string())+" --out "+Quote(requested.string()+".rebuild");
     if(std::system(command.c_str()))
       throw std::runtime_error("selected native artifact changed during final rebuild");
+  }else if(compiled_finalists && Hash(requested.string())!=
+      Hash(candidates[winner].At("binary").AsString("winner binary")+".cu")) {
+    throw std::runtime_error("selected native source changed after resource verification");
   }
   return 0;
 }

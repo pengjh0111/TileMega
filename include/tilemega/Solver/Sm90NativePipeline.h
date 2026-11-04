@@ -66,6 +66,10 @@ struct Sm90NativePipelineResult {
 // tasks exist or how they synchronize (continuation 1 section 3).
 std::string Sm90NativeStructuralClass(Sm90DenseCoordinates const&);
 
+std::optional<Sm90NativePipelineCandidate> RepriceSm90NativeResidency(
+    Sm90DenseSearchSpace const&,Sm90DenseCoordinates const&,int actual_residency,bool operator_sum,
+    std::function<Sm90NativeFlowResult(Sm90DenseCoordinates const&,bool)> const& evaluate);
+
 Sm90NativePipelineResult SolveSm90NativePipeline(
     Sm90DenseSearchSpace const& space, Sm90DenseWorkload const& work,
     Sm90DenseCostModel const& cost, Sm90NativePipelineOptions const& options,

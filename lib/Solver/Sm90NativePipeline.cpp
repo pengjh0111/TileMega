@@ -148,6 +148,25 @@ std::string Sm90NativeStructuralClass(Sm90DenseCoordinates const& c) {
   return key;
 }
 
+std::optional<Sm90NativePipelineCandidate> RepriceSm90NativeResidency(
+    Sm90DenseSearchSpace const& space,Sm90DenseCoordinates const& original,int actual,
+    bool isolated,std::function<Sm90NativeFlowResult(Sm90DenseCoordinates const&,bool)> const& evaluate) {
+  if(actual<1)return std::nullopt;
+  if(actual>2 || !evaluate)throw std::invalid_argument("invalid native occupancy correction");
+  Sm90NativePipelineCandidate result;result.coordinates=original;result.coordinates.residency=actual;
+  // Keep the compiled geometry and ring depths. Changing them would turn a
+  // residency correction into an unmeasured new search move.
+  if(!space.Legal(result.coordinates))return std::nullopt;
+  auto start=std::chrono::steady_clock::now();
+  auto flow=evaluate(result.coordinates,isolated);
+  result.pool_score_ns=flow.step_ns;
+  result.replay_ns=isolated?flow.step_ns:Replay(flow,result.coordinates);
+  result.evaluation_ms=std::chrono::duration<double,std::milli>(
+      std::chrono::steady_clock::now()-start).count();
+  result.structural_class=Sm90NativeStructuralClass(result.coordinates);result.origin="compiled occupancy";
+  return result;
+}
+
 Sm90NativePipelineResult SolveSm90NativePipeline(
     Sm90DenseSearchSpace const& space, Sm90DenseWorkload const& work,
     Sm90DenseCostModel const& cost, Sm90NativePipelineOptions const& options,

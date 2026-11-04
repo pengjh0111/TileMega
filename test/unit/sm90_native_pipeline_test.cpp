@@ -46,6 +46,29 @@ int main(int argc, char** argv) {
   Sm90DenseSearchSpace space{work.shapes, work.batch, work.head_dim, work.queries, target, work.hkv};
   space.weight_stream = true; space.layer_loop = true;
 
+  Sm90DenseCoordinates compiled;compiled.residency=2;
+  for(unsigned f:compiled.Active()) {
+    auto& g=compiled.gemms[f];g.tile_n=f==4?128:32;g.slot_bytes=2*g.tile_n*64;g.slots=2;
+    g.warps_n=4;g.warps_k=1;
+  }
+  compiled.attention.chunks=16;compiled.attention.slots=2;
+  Sm90DenseSearchSpace::Structure(compiled);assert(space.Legal(compiled));
+  int rescored=0;
+  auto occupancy_score=[&](Sm90DenseCoordinates const& c,bool isolated) {
+    assert(c.residency==1 && isolated==bool(rescored));++rescored;
+    assert(c.ToJson().At("gemms").Dump()==compiled.ToJson().At("gemms").Dump());
+    Sm90NativeFlowResult flow;flow.problem=binding;flow.step_ns=99;return flow;
+  };
+  auto corrected=RepriceSm90NativeResidency(space,compiled,1,false,occupancy_score);
+  assert(corrected && corrected->coordinates.residency==1 && corrected->pool_score_ns==99);
+  assert(std::abs(corrected->replay_ns-17)<1e-9);
+  auto isolated_correction=RepriceSm90NativeResidency(space,compiled,1,true,occupancy_score);
+  assert(isolated_correction && isolated_correction->replay_ns==99 && rescored==2);
+  assert(!RepriceSm90NativeResidency(space,compiled,0,false,occupancy_score));
+  auto illegal=compiled;illegal.gemms[0].slots=100;
+  assert(!RepriceSm90NativeResidency(space,illegal,1,false,occupancy_score));
+  assert(rescored==2);
+
   Sm90NativePipelineOptions options;
   options.budget_ms = 20000;  // the unit test is not the round's budget
   // Search mechanics use a deterministic fixture. Real CTG construction,
