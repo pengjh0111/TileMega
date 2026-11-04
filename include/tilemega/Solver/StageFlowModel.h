@@ -13,6 +13,9 @@ struct FlowSpace {
   double rank_ns=0;
   std::vector<FlowPiece> pieces;
   std::vector<int> piece_of_task;
+  // Negative capacity inherits the historical program-wide ring. Native
+  // stages supply their own slot size and count; zero disables prefetch.
+  int page_bytes=0,pages_per_worker=-1;
 };
 struct FlowRelease {int producer=0,consumer=0,kappa=1;bool all_producer=false,colocated=false;
   std::shared_ptr<std::vector<std::pair<int,int>> const> sorted; // (coarsened maximum predecessor, consumer)

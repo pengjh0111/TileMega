@@ -40,9 +40,21 @@ void SetFlowCalibration(FlowProblem& p,TargetSpec const& target,ScalarType dtype
 }
 FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
   if(p.workers<=0 || !(p.dram_gbps>0))throw std::invalid_argument("invalid flow resources");
-  bool const paged=p.page_bytes>0 || p.pages_per_worker>0;
-  if(paged && (p.page_bytes<=0 || p.pages_per_worker<=0))
+  bool const global_ring=p.page_bytes>0 || p.pages_per_worker>0;
+  bool const paged=global_ring || std::any_of(p.spaces.begin(),p.spaces.end(),
+      [](auto const& s){return s.pages_per_worker>0;});
+  if(global_ring && (p.page_bytes<=0 || p.pages_per_worker<=0))
     throw std::invalid_argument("paged flow needs a positive page size and ring capacity");
+  std::vector<int> page_size;
+  std::vector<double> ring_capacity;
+  for(auto const& s:p.spaces) {
+    if(s.pages_per_worker < -1 || (s.pages_per_worker>0 && s.page_bytes<=0))
+      throw std::invalid_argument("invalid per-space page ring");
+    bool inherit=s.pages_per_worker<0;
+    page_size.push_back(inherit?p.page_bytes:s.page_bytes);
+    ring_capacity.push_back(inherit?double(p.page_bytes)*p.pages_per_worker+p.lookahead_bytes:
+        double(s.page_bytes)*s.pages_per_worker);
+  }
   bool audit=std::getenv("TILEMEGA_FLOW_AUDIT") && std::string(std::getenv("TILEMEGA_FLOW_AUDIT"))!="0";
   int n=p.spaces.size();long total=0;for(auto const& s:p.spaces){if(s.count<0 || s.piece_of_task.size()!=std::size_t(s.count))throw std::invalid_argument("flow piece coverage");total+=s.count;}
   long workers=options.infinite_workers?total:p.workers,free=workers,finished=0;
@@ -145,8 +157,6 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
   // than the executor.  The Level-1 home is the L1 grid-stride owner; Level-2
   // materialization is checked separately by the FIFO fluid simulator.
   std::vector<double> held_pages(workers,0);
-  double const per_worker_capacity=double(p.page_bytes)*p.pages_per_worker+
-      p.lookahead_bytes;
   std::optional<InflightDramServer> inflight;
   if(p.inflight_dram)inflight.emplace(p.dram_gbps,p.inflight_curve_bytes,
       p.inflight_curve_gbps,p.cta_stream_curve_bytes,p.cta_stream_curve_gbps);
@@ -169,9 +179,10 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
       // other workers, or reserve space for a later task before its predecessor.
       for(int w=0;w<workers;++w)while(worker_prefetch_cursor[w]<placement.order[w].size()) {
         auto [s,j]=placement.order[w][worker_prefetch_cursor[w]];
+        double per_worker_capacity=ring_capacity[s];
         auto const& parts=p.spaces[s].pieces[p.spaces[s].piece_of_task[j]].parts;
         double bytes=options.no_external?0:std::min(parts.no_producer_dram_bytes,per_worker_capacity);
-        double reserve=bytes>0?std::ceil(bytes/p.page_bytes)*p.page_bytes:0;
+        double reserve=bytes>0?std::ceil(bytes/page_size[s])*page_size[s]:0;
         if(bytes<0 || reserve>per_worker_capacity)
           throw std::runtime_error("invalid bound prefetch reservation");
         if(held_pages[w]+reserve>per_worker_capacity+1e-6)break;
@@ -191,12 +202,13 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
     }
     while(prefetch_space<prefetch_spaces.size()) {
       int s=prefetch_spaces[prefetch_space];
+      double per_worker_capacity=ring_capacity[s];
       if(prefetch_task>=p.spaces[s].count){++prefetch_space;prefetch_task=0;continue;}
       int j=prefetch_task,pi=p.spaces[s].piece_of_task[j];
       auto const& parts=p.spaces[s].pieces[pi].parts;
       double bytes=options.no_external?0:std::min(parts.no_producer_dram_bytes,per_worker_capacity);
       if(bytes<0)throw std::runtime_error("negative no-producer prefetch bytes");
-      double reserve=bytes>0?std::ceil(bytes/p.page_bytes)*p.page_bytes:0;
+      double reserve=bytes>0?std::ceil(bytes/page_size[s])*page_size[s]:0;
       if(reserve>per_worker_capacity)throw std::runtime_error("prefetch exceeds a worker page ring");
       int count=0;
       if(reserve>0) {

@@ -223,6 +223,17 @@ int TestStageFlow(int argc, char** argv) try {
   paged.pages_per_worker=1;
   if(EvaluateFlow(paged).makespan_ns<=paged_result.makespan_ns)
     throw std::runtime_error("one-page ring illegally prefetched a seven-page operand");
+  // A stage's own ring overrides the program default. The producer has no
+  // ring; the consumer can fetch either 16 or all 100 bytes during its wait.
+  paged.page_bytes=0;paged.pages_per_worker=0;
+  paged.spaces[0].pages_per_worker=0;
+  paged.spaces[1].page_bytes=16;paged.spaces[1].pages_per_worker=1;
+  Near(EvaluateFlow(paged).makespan_ns,28.4,"consumer's one-slot ring");
+  paged.spaces[1].pages_per_worker=8;
+  Near(EvaluateFlow(paged).makespan_ns,21,"consumer's eight-slot ring");
+  FlowOptions ring_order;ring_order.placement.worker_of_task={{0},{0}};
+  ring_order.placement.order={{{0,0},{1,0}}};
+  Near(EvaluateFlow(paged,ring_order).makespan_ns,21,"bound consumer ring");
   tilemega::codegen::RuntimeTaskGraph paged_graph;
   paged_graph.stage_offsets={0,1,2};paged_graph.successors={{1},{}};
   MaterializedPlan paged_plan;paged_plan.queue={{{0,0},{1,0}}};
