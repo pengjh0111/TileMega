@@ -103,6 +103,10 @@ class Sm90ForwardConstants {
     json::Value const* match=nullptr;std::string matched_key;
     for(auto const& [key,row]:table->AsObject("forward measured table")) {
       auto fields=ParseKey(key);bool matches=true;
+      // Historical DW keys without a gate describe the ungated primitive.
+      // A gated measurement is a different operation, not an extra match
+      // for a geometry-only selector. Keep raw keys and medians unchanged.
+      if(metric=="dw_tap_ns" && !selector.count("gate") && fields.count("gate"))continue;
       for(auto const& [k,v]:selector) {
         auto found=fields.find(k);
         if(found==fields.end() || found->second!=v){matches=false;break;}
