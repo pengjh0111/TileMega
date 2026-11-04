@@ -19,12 +19,14 @@ class CpuLane(unittest.TestCase):
         command = c.nvcc_command(Path('/cuda/nvcc'), Path('/source'), Path('/out/plan.so'), self.manifest())
         self.assertEqual(command, ['/cuda/nvcc', '-rdc=true', '-std=c++17', '-O3', '-gencode',
             'arch=compute_90a,code=sm_90a', '--expt-relaxed-constexpr', '-shared', '-Xcompiler',
-            '-fPIC', '-cudart', 'shared', '-Xptxas', '-v', '--split-compile', '4',
+            '-fPIC', '-cudart', 'shared', '-Xptxas', '-v', '--split-compile', '1',
             '-I/source/include', '-I/source/third_party/cutlass/include', '/out/plan.so.cu',
             '-o', '/out/plan.so', '-Xptxas', '--device-function-maxrregcount=168'])
-        self.assertNotIn('--device-function-maxrregcount=255', c.nvcc_command(
+        self.assertIn('--device-function-maxrregcount=255', c.nvcc_command(
             Path('/cuda/nvcc'), Path('/source'), Path('/out/plan.so'), self.manifest(255)))
-        with self.assertRaises(ValueError): c.nvcc_command(Path('/n'), Path('/s'), Path('/o'), self.manifest(256))
+        self.assertNotIn('--device-function-maxrregcount=256', c.nvcc_command(
+            Path('/cuda/nvcc'), Path('/source'), Path('/out/plan.so'), self.manifest(256)))
+        with self.assertRaises(ValueError): c.nvcc_command(Path('/n'), Path('/s'), Path('/o'), self.manifest(257))
 
     def test_source_mutation_and_output_overwrite(self):
         with tempfile.TemporaryDirectory() as d:
@@ -74,6 +76,7 @@ class CpuLane(unittest.TestCase):
                      patch.object(c.os, 'sched_setaffinity'), patch.object(c.os, 'sched_getaffinity', return_value=c.AFFINITY):
                     with self.assertRaises(RuntimeError): c.compile_artifact(a)
                 self.assertEqual(len(calls), 1)
+                self.assertEqual(Path(str(a.output) + '.cpu-build-driver.py').read_bytes(), Path(c.__file__).read_bytes())
                 self.assertFalse(Path(str(a.output) + '.identity.json').exists())
                 result = json.loads(Path(str(a.output) + '.compile-result.json').read_text())
                 self.assertEqual(result['status'], 'compiler_error')

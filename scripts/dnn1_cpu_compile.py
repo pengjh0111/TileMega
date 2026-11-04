@@ -46,17 +46,18 @@ def nvcc_command(nvcc, root, output, manifest):
         raise ValueError('DNN CPU lane requires a native forward manifest')
     registers = manifest['register_contract']
     limit = registers['callee_limit']
-    if registers['threads'] != 160 or type(limit) is not int or not 1 <= limit <= 255:
+    if registers['threads'] != 160 or type(limit) is not int or not 1 <= limit <= 256:
         raise ValueError('invalid SM90 native forward register contract')
-    # SM90 architecture ceiling is 255; the manifest supplies the computed
+    # cuda_occupancy.h uses a 256-register allocation ceiling for SM90; the
+    # manifest supplies the computed
     # occupancy-constrained ceiling, matching native_forward.cpp.
     args = [str(nvcc), '-rdc=true', '-std=c++17', '-O3', '-gencode',
             'arch=compute_90a,code=sm_90a', '--expt-relaxed-constexpr', '-shared',
             '-Xcompiler', '-fPIC', '-cudart', 'shared', '-Xptxas', '-v',
-            '--split-compile', '4', '-I' + str(root / 'include'),
+            '--split-compile', '1', '-I' + str(root / 'include'),
             '-I' + str(root / 'third_party/cutlass/include'),
             str(output) + '.cu', '-o', str(output)]
-    if limit < 255: args += ['-Xptxas', '--device-function-maxrregcount=' + str(limit)]
+    if limit < 256: args += ['-Xptxas', '--device-function-maxrregcount=' + str(limit)]
     return args
 
 
@@ -113,6 +114,17 @@ def compile_artifact(a):
     for key in ('TILEMEGA_DEVICE_INDEX', 'TILEMEGA_GPU_LOCK_HELD', 'TILEMEGA_DEVICE_GROUP'):
         env.pop(key, None)
     try:
+        archives = {}
+        for suffix, original in [('cpu-build-driver.py', Path(__file__).resolve()),
+                                 ('cpu-build-limits.py', ROOT / 'scripts/run_sm90r1_build.py')]:
+            archive = Path(str(output) + '.' + suffix)
+            archive.write_bytes(original.read_bytes())
+            hashes[str(archive)] = sha(archive)
+            if hashes[str(archive)] != hashes[str(original)]:
+                raise RuntimeError('build driver changed during archival')
+            archives[suffix] = dict(path=str(archive), sha256=hashes[str(archive)])
+        record['driver_archives'] = archives
+        write(receipt_path, record)
         os.sched_setaffinity(0, AFFINITY)
         if os.sched_getaffinity(0) != AFFINITY: raise RuntimeError('CPU affinity not applied')
         identity_call(root, ['--capture', '--compiler', str(compiler), '--snapshot', str(snapshot)], env)
