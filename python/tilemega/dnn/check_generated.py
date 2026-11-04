@@ -202,7 +202,7 @@ def output_metrics(actual,fp32,bf16,*,restoration=False,elementwise=False,thresh
 
 def check(library_path, export_dir, bridge_path, batch, *, epochs=1, diagnostics=None,
           input_tensors=None,elementwise=False,synthetic_weights=False,local_through=None,
-          thresholds=None):
+          thresholds=None,reference_cache=None):
     if local_through is not None and diagnostics is None:
         raise ValueError('local replay requires a diagnostic output path')
     torch.set_num_threads(4); torch.manual_seed(20261009)
@@ -214,6 +214,9 @@ def check(library_path, export_dir, bridge_path, batch, *, epochs=1, diagnostics
     if not synthetic_weights and manifest['checkpoint']['sha256'] != _sha(export_dir/'checkpoint/model.safetensors'):
         raise ValueError('source checkpoint differs from its manifest')
     restoration=manifest['model']=='nafnet'
+    if reference_cache is not None and (not restoration or diagnostics is not None or synthetic_weights or local_through is not None):
+        raise ValueError('immutable reference cache requires an unmodified NAFNet final-output check')
+    if restoration:torch.set_num_threads(1)
     library = PlanLibrary(library_path)
     if library.info.phase != FORWARD or library.info.capacity != 0:
         raise ValueError('DNN correctness requires a stateless forward plan')
@@ -282,11 +285,29 @@ def check(library_path, export_dir, bridge_path, batch, *, epochs=1, diagnostics
     # Export preserves the original positional/keyword pytree contract.
     # HF BERT's supplied keyword inputs must not become positional inputs.
     cpu_arguments=[value.cpu() for value in arguments]
-    positional,keywords=torch.utils._pytree.tree_unflatten(cpu_arguments,program.call_spec.in_spec)
-    expected_bf16 = module(*positional,**keywords)
-    fp32_arguments=[value.float() if value.is_floating_point() else value for value in cpu_arguments]
-    positional,keywords=torch.utils._pytree.tree_unflatten(fp32_arguments,program.call_spec.in_spec)
-    expected_fp32 = oracle(*positional,**keywords)
+    reference_metadata = None
+    if reference_cache is not None:
+        from .reference_cache import load_reference_cache
+        expected_bf16, expected_fp32 = load_reference_cache(
+            reference_cache,export_dir,bridge_path,batch,input_tensors)
+        reference_metadata = dict(path=str(reference_cache),manifest_sha256=_sha(Path(reference_cache)/'manifest.json'))
+    else:
+        saved_deterministic = torch.are_deterministic_algorithms_enabled()
+        saved_mkldnn = torch.backends.mkldnn.deterministic
+        try:
+            if restoration:
+                torch.use_deterministic_algorithms(True)
+                torch.backends.mkldnn.deterministic = True
+            positional,keywords=torch.utils._pytree.tree_unflatten(cpu_arguments,program.call_spec.in_spec)
+            expected_bf16 = module(*positional,**keywords)
+            fp32_arguments=[value.float() if value.is_floating_point() else value for value in cpu_arguments]
+            positional,keywords=torch.utils._pytree.tree_unflatten(fp32_arguments,program.call_spec.in_spec)
+            expected_fp32 = oracle(*positional,**keywords)
+        finally:
+            # Scope deterministic settings to the CPU oracle; GPU weight
+            # packing and native execution retain their original recipe.
+            torch.use_deterministic_algorithms(saved_deterministic)
+            torch.backends.mkldnn.deterministic = saved_mkldnn
     def leaves(value):
         return [item for item in torch.utils._pytree.tree_flatten(value)[0] if isinstance(item, torch.Tensor)]
     expected_bf16, expected_fp32 = [[item.to('cuda') for item in leaves(value)]
@@ -335,7 +356,7 @@ def check(library_path, export_dir, bridge_path, batch, *, epochs=1, diagnostics
     identity = json.loads(identity_path.read_text())
     if identity['binary_sha256'] != _sha(library.path):
         raise ValueError('generated library no longer matches its build identity')
-    return dict(evidence='verified', passed=True, scope='upstream DNN graph execution smoke; not G-DNN',
+    return dict(reference_cache=reference_metadata,evidence='verified', passed=True, scope='upstream DNN graph execution smoke; not G-DNN',
         reference='fixed synthetic state promoted to FP32' if synthetic_weights else 'exported BF16 checkpoint promoted to FP32',
         synthetic_weights=synthetic_weights, synthetic_seed=20261010 if synthetic_weights else None, batch=batch,
         criterion='elementwise BF16 tolerance' if elementwise else 'model output metric',

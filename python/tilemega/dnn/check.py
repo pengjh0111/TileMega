@@ -310,8 +310,10 @@ def check(args):
 def check_random(args):
     from .check_generated import check as generated_check
     thresholds = dict(cosine=.999 if args.model == 'bert' else .9999, psnr=40.0)
+    cache = getattr(args, 'reference_cache', None)
+    options = dict(reference_cache=cache) if cache is not None else {}
     result = generated_check(args.library, args.export, args.bridge, args.batch,
-                             input_tensors=args.inputs, thresholds=thresholds)
+                             input_tensors=args.inputs, thresholds=thresholds, **options)
     metrics = []
     for case in result['cases']:
         for row in case['outputs']:
@@ -339,6 +341,7 @@ def main(argv=None):
     parser.add_argument('--data', type=Path)
     parser.add_argument('--random-inputs', action='store_true')
     parser.add_argument('--inputs', type=Path, help='identified random safetensors inputs')
+    parser.add_argument('--reference-cache', type=Path, help='immutable deterministic CPU NAFNet reference')
     parser.add_argument('--checkpoint', type=Path)
     parser.add_argument('--nafnet-weights', type=Path, default=DEFAULT_NAFNET)
     parser.add_argument('--batch', type=int, required=True)
@@ -350,6 +353,8 @@ def main(argv=None):
         parser.error('dataset checks require --data; DNN1 equivalence uses --random-inputs')
     if args.random_inputs and args.checkpoint is not None:
         parser.error('random equivalence uses the exported checkpoint; do not pass --checkpoint')
+    if args.reference_cache is not None and (not args.random_inputs or args.model != 'nafnet' or args.inputs is None):
+        parser.error('--reference-cache requires NAFNet random equivalence and identified --inputs')
     args.out.parent.mkdir(parents=True, exist_ok=True)
     result = check_random(args) if args.random_inputs else check(args)
     args.out.write_text(json.dumps(result, indent=2) + '\n')
