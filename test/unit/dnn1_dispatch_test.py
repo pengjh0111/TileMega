@@ -20,6 +20,31 @@ baseline=module.baseline
 
 
 class Dispatch(unittest.TestCase):
+    def test_completed_rejected_payload_requires_full_dead_process_evidence(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary);payload=root/'raw/dnn1-cell-x/attempt1/job';payload.mkdir(parents=True)
+            guard=payload.parent/'guard_result.json';session=payload/'cell-result.json'
+            guard.write_text(json.dumps(dict(code=75)))
+            session.write_text(json.dumps(dict(status='hard_stop',ended=20)))
+            logical=payload/'logical-attempt.json'
+            logical.write_text(json.dumps(dict(pid=99999999,returncode=75,ended=19)))
+            job=dict(exit_code=75,ended=21)
+            with patch('tilemega.bench.gpu_guard.process_start',return_value=None), \
+                    patch('tilemega.bench.gpu_guard.session_members',return_value=set()):
+                proof=module.completed_rejections(root,job)
+                self.assertEqual(proof[0]['exited_processes'][0]['pid'],99999999)
+                for field,value in [('exit_code',0),('ended',0)]:
+                    self.assertIsNone(module.completed_rejections(root,dict(job,**{field:value})))
+                with patch('tilemega.bench.gpu_guard.process_start',return_value='live'):
+                    self.assertIsNone(module.completed_rejections(root,job))
+                with patch('tilemega.bench.gpu_guard.session_members',return_value={123}):
+                    self.assertIsNone(module.completed_rejections(root,job))
+                session.write_text(json.dumps(dict(status='running',ended=20)))
+                self.assertIsNone(module.completed_rejections(root,job))
+                session.write_text(json.dumps(dict(status='hard_stop',ended=20)))
+                logical.unlink()
+                self.assertIsNone(module.completed_rejections(root,job))
+
     def test_running_payload_is_never_signalled_for_migration(self):
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary);(root/'scheduler').mkdir()

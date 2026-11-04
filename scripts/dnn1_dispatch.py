@@ -134,8 +134,46 @@ class AdoptedWorker:
         return self.returncode
 
 
+def completed_rejections(root, job):
+    """Verify historical payloads are rejected and all recorded processes exited.
+
+    This permits cached remeasurement to leave a busy card without accepting
+    any part of the rejected session. Missing or live evidence remains a veto.
+    """
+    from tilemega.bench.gpu_guard import process_start, session_members
+    payloads = list((root / 'raw').glob('dnn1-cell-*/attempt*/job'))
+    if not payloads:
+        return []
+    if job.get('exit_code') != 75 or not job.get('ended'):
+        return None
+    receipts = []
+    for payload in payloads:
+        guard_path, session_path = payload.parent/'guard_result.json', payload/'cell-result.json'
+        if not guard_path.is_file() or not session_path.is_file():
+            return None
+        guard, session = baseline.read(guard_path), baseline.read(session_path)
+        if (guard.get('code') != 75 or session.get('status') != 'hard_stop'
+                or not session.get('ended') or session['ended'] > job['ended']):
+            return None
+        attempts = list(payload.rglob('logical-attempt.json'))
+        if not attempts:
+            return None
+        exited = []
+        for path in attempts:
+            attempt = baseline.read(path)
+            pid = attempt.get('pid')
+            if (not pid or 'returncode' not in attempt or not attempt.get('ended')
+                    or attempt['ended'] > session['ended']
+                    or process_start(pid) is not None or session_members(pid)):
+                return None
+            exited.append(dict(path=str(path), sha256=baseline.sha(path), pid=pid))
+        receipts.append(dict(session=str(session_path), session_sha256=baseline.sha(session_path),
+            guard=str(guard_path), guard_sha256=baseline.sha(guard_path), exited_processes=exited))
+    return receipts
+
+
 def migrate_waiter(worker):
-    """Cancel only an owned, paused scheduler that has never run a payload."""
+    """Cancel only owned CPU waiters with no live or unfinished GPU payload."""
     from tilemega.bench.gpu_guard import descendants, process_start
     process, root = worker['process'], worker['root']
     state_path = root / 'scheduler/state.json'
@@ -156,7 +194,8 @@ def migrate_waiter(worker):
         job = jobs.get('dnn1-cell-' + worker['key'], {})
         if job.get('status') != 'pending':
             return None
-        if any((root / 'raw').glob('dnn1-cell-*/attempt*/job')):
+        rejected = completed_rejections(root, job)
+        if rejected is None:
             return None
         ids = descendants(process.pid)
         commands = {str(pid): Path(f'/proc/{pid}/cmdline').read_bytes().replace(b'\0', b' ').decode()
@@ -164,10 +203,14 @@ def migrate_waiter(worker):
         if any('dnn1_guard_entry.py' in command or '--tune-request' in command
                for command in commands.values()):
             return None
+        if rejected and any('tilemega.bench.scheduler' not in command
+                            for pid, command in commands.items() if int(pid) != process.pid):
+            return None
         starts = {str(pid): process_start(pid) for pid in ids}
         receipt = dict(time=time.time(), key=worker['key'], launcher_pid=process.pid,
             scheduler_state=jobs, descendants=commands, process_start=starts,
-            reason='no GPU payload; requeue on another idle card through a fresh guard')
+            completed_rejected_payloads=rejected,
+            reason='no live GPU payload; preserve rejected history and requeue through a fresh guard')
         baseline.write(root / 'migration.json', receipt)
         os.killpg(process.pid, signal.SIGTERM)
         os.killpg(process.pid, signal.SIGCONT)
