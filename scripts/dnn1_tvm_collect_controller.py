@@ -41,6 +41,50 @@ def key(row):
     return tuple(row[name] for name in ('model', 'batch', 'system', 'arm', 'precision'))
 
 
+def infrastructure_retries(roots, clean):
+    """Retain failed sessions, but do not confuse guard rejection with BF16 support.
+
+    Only dispatcher-terminal workers with an explicit hard-stop resource error
+    qualify. A compiler/numerical failure or an incomplete live session does not.
+    """
+    covered = {(item[0], int(item[1])) for item in clean}
+    failures = {}
+    for root in roots:
+        state_path = root/'dispatch/state.json'
+        if not state_path.exists():
+            continue
+        state = read(state_path)
+        live = {worker['run_root'] for worker in state.get('workers', {}).values()}
+        for failure in state.get('failures', []):
+            worker = Path(failure['root'])
+            if str(worker) in live:
+                continue
+            sessions = worker.glob('raw/dnn1-cell-*/attempt*/job/cell-result.json')
+            for session in sorted(sessions, key=lambda path: read(path).get('ended', 0)):
+                result = read(session)
+                cell = (result.get('model'), result.get('batch'))
+                error = result.get('error', '')
+                resource_error = (
+                    'whole cell invalidated by timing guard/throttle' in error or
+                    'TVM infrastructure rejection; no FP16 alternative' in error)
+                if not result.get('ended'):
+                    continue
+                failures.pop(cell, None)
+                if cell in covered or result.get('status') != 'hard_stop' or not resource_error:
+                    continue
+                jobs = result.get('logical_jobs', [])
+                completed_bf16 = any(job.get('arm', {}).get('system') == 'tvm' and
+                    job.get('arm', {}).get('precision') == 'bf16' and
+                    any(attempt.get('returncode') == 0 for attempt in job.get('attempts', []))
+                    for job in jobs)
+                failures[cell] = dict(model=cell[0], batch=cell[1],
+                    rejected_session=str(session), session_sha256=sha(session),
+                    reason=error, completed_bf16_process=completed_bf16,
+                    cache_policy=('reuse only exact identity on same GPU; other GPU may retune'
+                                  if completed_bf16 else 'fresh isolated recovery root'))
+    return failures
+
+
 def reconcile(epoch, roots, cache):
     selected, clean, bad = {}, set(), set()
     fields, evidence = [], []
@@ -113,6 +157,8 @@ def main():
         try:
             roots = [epoch] + sorted(epoch.glob('remeasure[0-9][0-9][0-9]'))
             rows, clean, pending = reconcile(epoch, roots, cache)
+            infrastructure = infrastructure_retries(roots, clean)
+            pending = sorted(set(pending) | set(infrastructure))
             active = roots[-1]
             state_path = active / 'dispatch/state.json'
             state = read(state_path) if state_path.exists() else {'status': 'starting', 'accepted': [], 'workers': {}}
@@ -126,9 +172,10 @@ def main():
                     if (root/'dispatch/state.json').exists()),
                 clean_performance_cells=len({(k[0], k[1]) for k in clean}),
                 pending_remeasure=[dict(model=model, batch=batch) for model, batch in pending],
+                infrastructure_retries=list(infrastructure.values()),
                 unresolved_rows=failed_rows, status='collecting',
                 scope='original collector retained; quarantined rows require fresh cached sessions; at most one max3 dispatcher active')
-            if state['status'] == 'primary_complete' and pending:
+            if state['status'] in {'primary_complete', 'needs_diagnosis'} and pending and not state.get('workers'):
                 report['status'] = 'remeasure_queued'
                 if not args.once:
                     hashes = {str(baseline.ROOT / path): digest
@@ -143,6 +190,14 @@ def main():
                     retry.mkdir(exist_ok=False)
                     config = read(epoch / 'base-spec.json')
                     config['cells'] = report['pending_remeasure']
+                    config['tvm_infrastructure_retry_evidence'] = list(infrastructure.values())
+                    recovery = config.setdefault('tvm_infrastructure_recovery', {})
+                    for (model, batch), evidence in infrastructure.items():
+                        cell_key = f'{model}_b{batch}'
+                        if not evidence['completed_bf16_process']:
+                            recovery[cell_key] = dict(work_dir=str(retry/'recovery_cache'/cell_key),
+                                rejected_session=evidence['rejected_session'],
+                                reason='completed infrastructure rejection; original partial cache retained')
                     baseline.write(retry / 'base-spec.json', config)
                     baseline.write(retry / 'trigger.json', report)
                     command = [sys.executable, str(baseline.ROOT/'scripts/dnn1_dispatch.py'),
@@ -152,7 +207,8 @@ def main():
                         process = subprocess.Popen(command, cwd=baseline.ROOT, stdin=subprocess.DEVNULL,
                             stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
                     baseline.write(retry/'launch.json', dict(command=command, pid=process.pid,
-                        started=time.time(), cache_policy='same recipe6 identity; completed models reused, no retuning'))
+                        started=time.time(), cache_policy='exact recipe6 identity including GPU UUID; '
+                        'same-GPU completed model reused; changed GPU or incomplete cache can retune'))
             elif state['status'] == 'primary_complete':
                 expected = {(model, str(batch)) for model in baseline.MODELS for batch in baseline.BATCHES}
                 covered = {(identity[0], identity[1]) for identity in clean}
