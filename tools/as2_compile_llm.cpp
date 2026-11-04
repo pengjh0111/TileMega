@@ -145,7 +145,7 @@ int main(int argc,char** argv) {
     const auto precision_contract=attention_precision==13?tilemega::ascend::llm::kStreamingFp32Precision:attention_precision==12?tilemega::ascend::llm::kStreamingPrecision:
       tilemega::ascend::llm::kReplayPrecision;
     tilemega::json::Value decomposition;
-    bool local_q_tail3=false,local_residual_tail3=false,swiglu_tile=false,swiglu_l1_k256=false,vector_argmax=false,gemm_session=false,reg_swiglu=false,local_residual=false,local_residual_export_raw=true,qkv_dma_acquire=false;
+    bool local_q_tail3=false,local_residual_tail3=false,swiglu_tile=false,swiglu_l1_k256=false,vector_argmax=false,gemm_session=false,reg_swiglu=false,local_residual=false,local_residual_export_raw=true,qkv_dma_acquire=false,batched_residual=false;
     tilemega::json::Value binding;
     if(body) {
       auto path=fs::weakly_canonical(argv[priced_body?10:9]);
@@ -184,6 +184,7 @@ int main(int argc,char** argv) {
           decomposition.At("batch").AsNumber("batch")!=batch || serving.argmax_tile_n!=128)
         throw std::invalid_argument("Observed decomposition model/phase/geometry mismatch");
       if(auto flag=decomposition.Find("reg_swiglu"))reg_swiglu=flag->AsBool("reg_swiglu");
+      if(auto flag=decomposition.Find("batched_residual"))batched_residual=flag->AsBool("batched_residual");
       if(auto flag=decomposition.Find("qkv_dma_acquire"))qkv_dma_acquire=flag->AsBool("qkv_dma_acquire");
       if(auto flag=decomposition.Find("local_residual"))local_residual=flag->AsBool("local_residual");
       if(auto flag=decomposition.Find("local_residual_export_raw"))local_residual_export_raw=flag->AsBool("local_residual_export_raw");
@@ -225,6 +226,10 @@ int main(int argc,char** argv) {
         receipt.At("model_id").AsString("model")!="qwen3_0_6b" || attention_precision!=11 ||
         gemm_session || reg_swiglu || !swiglu_tile || !vector_argmax))
       throw std::invalid_argument("Local residual model admission starts with Qwen0.6 B1 cached decode");
+    if(batched_residual && (batch!=16 || phase!="decode" ||
+        receipt.At("model_id").AsString("model")!="qwen3_0_6b" || attention_precision!=11 ||
+        gemm_session || reg_swiglu || local_residual || qkv_dma_acquire || !swiglu_tile || !vector_argmax))
+      throw std::invalid_argument("Batched residual starts with Qwen0.6 B16 cached decode");
     if(qkv_dma_acquire && (batch!=1 || phase!="decode" ||
         receipt.At("model_id").AsString("model")!="qwen3_0_6b" || attention_precision!=11 ||
         gemm_session || reg_swiglu || local_residual || !swiglu_tile || !vector_argmax))
@@ -335,6 +340,7 @@ int main(int argc,char** argv) {
       if(attention_precision==15 && groups!=8)throw std::invalid_argument("QK phase drain requires verified G8");
       auto target=tilemega::TargetSpec::FromJson(target_path.string());
       if(!target.ascend_capability)throw std::invalid_argument("Native LLM requires an Ascend 950PR target");
+      if(batched_residual && groups!=8)throw std::invalid_argument("Batched residual requires verified G8");
       if(qkv_dma_acquire && groups!=8)throw std::invalid_argument("DMA-only QKV requires verified G8");
       if(local_residual && (groups!=8 || target.ascend_capability->Budget(tilemega::ascend::TrackRole::kAiv).ub<136192))
         throw std::invalid_argument("Local residual requires verified G8 and disjoint UB scratch/slot budgets");
@@ -516,7 +522,7 @@ int main(int argc,char** argv) {
           Write(output/"uncompressed_schedule.json",ScheduleReport(scheduled));
           scheduled=tilemega::solver::ElideAscendFifoWaits(tasks,workers,std::move(scheduled));
         }
-        auto native=tilemega::codegen::MaterializeAscendLlm(*module,problem,workers,tasks,scheduled,!priced,attention_precision,body,local_q_tail3,local_residual_tail3,swiglu_tile,swiglu_l1_k256,vector_argmax,gemm_session,reg_swiglu,local_residual,local_residual_export_raw,qkv_dma_acquire);
+        auto native=tilemega::codegen::MaterializeAscendLlm(*module,problem,workers,tasks,scheduled,!priced,attention_precision,body,local_q_tail3,local_residual_tail3,swiglu_tile,swiglu_l1_k256,vector_argmax,gemm_session,reg_swiglu,local_residual,local_residual_export_raw,qkv_dma_acquire,batched_residual);
         if(priced) {
           auto const& measured=prices.At("stages").AsArray("stage prices");
           for(unsigned i=0;i<native.stages.size();++i) {
@@ -562,6 +568,7 @@ int main(int argc,char** argv) {
         result.Set("selection",priced?selected_algorithm:"diagnostic_unpriced_bootstrap_not_optimized");
         result.Set("priced_solver_executed",priced);
         result.Set("reg_swiglu",reg_swiglu);
+        result.Set("batched_residual",batched_residual);
         result.Set("qkv_dma_acquire",qkv_dma_acquire);
         result.Set("local_residual",local_residual);
         result.Set("local_residual_export_raw",local_residual_export_raw);

@@ -80,6 +80,8 @@ struct Stage {
   // Its reserved allocation is never read by a semantic consumer or captured.
   // GEMM11=Qwen0.6 B1 decode QKV, variant1 math with DMA-only payload acquire;
   // immutable descriptors receive a conservative first-task launch acquire.
+  // GEMM12=Qwen0.6 B16 decode, one strided residual tile per MIX task;
+  // same BF16 GM operands/rounding and conservative external completion.
   // Split GEMM: extent=2/3, width=ceil(k/extent), group=1 (tile-major/part-minor CTG).
   // Kind6 is its AIV combine; workspace is FP32 [part,row,col], operand5
   // is the BF16 raw sum before the separately preserved residual rounding.

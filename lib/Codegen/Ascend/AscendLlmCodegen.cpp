@@ -5,6 +5,7 @@
 #include <tilemega/Target/Ascend/LocalResidualContract.h>
 #include <tilemega/Target/Ascend/QkvDmaContract.h>
 #include <tilemega/Target/Ascend/QkPhaseContract.h>
+#include <tilemega/Target/Ascend/BatchedResidualContract.h>
 #include <mlir/IR/Verifier.h>
 #include <algorithm>
 #include <fstream>
@@ -44,7 +45,7 @@ template<class T> void Binary(std::filesystem::path const& p,std::vector<T> cons
 }
 AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem const& p,
     ascend::WorkerMap const& map,std::vector<solver::AscendScheduledTask> const& input,
-    solver::AscendSchedule const& schedule,bool diagnostic,unsigned attention_precision,bool local_tail_k7,bool local_q_tail3,bool local_residual_tail3,bool swiglu_tile,bool swiglu_l1_k256,bool vector_argmax,bool gemm_session,bool reg_swiglu,bool local_residual,bool local_residual_export_raw,bool qkv_dma_acquire) {
+    solver::AscendSchedule const& schedule,bool diagnostic,unsigned attention_precision,bool local_tail_k7,bool local_q_tail3,bool local_residual_tail3,bool swiglu_tile,bool swiglu_l1_k256,bool vector_argmax,bool gemm_session,bool reg_swiglu,bool local_residual,bool local_residual_export_raw,bool qkv_dma_acquire,bool batched_residual) {
   using namespace ascend::llm;
   if(attention_precision>15)throw std::invalid_argument("Unknown native attention precision contract");
   if(!local_residual && !local_residual_export_raw)throw std::invalid_argument("Raw export policy requires a local residual implementation");
@@ -356,6 +357,19 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
     }
     if(bound!=28)throw std::invalid_argument("QK phase drain must bind all28 Qwen0.6 layers");
   }
+  if(batched_residual) {
+    if(gemm_session || local_residual || qkv_dma_acquire || reg_swiglu || local_tail_k7 ||
+        local_q_tail3 || local_residual_tail3 || p.model.dims.batch!=16 || p.model.dims.seq!=1 ||
+        map.launch.num_groups!=8)
+      throw std::invalid_argument("Batched residual starts with G8 Qwen0.6 B16 decode");
+    unsigned bound=0;
+    for(auto& s:out.stages)if(s.kind==0 && s.epilogue==1) {
+      if(s.variant!=1 || !ascend::batched_residual::Shape(s))
+        throw std::invalid_argument("Unregistered batched residual geometry or split reduction");
+      s.variant=12;++bound;
+    }
+    if(bound!=56)throw std::invalid_argument("Batched residual must bind all 56 O/down projections");
+  }
   if(qkv_dma_acquire) {
     if(gemm_session || local_residual || local_tail_k7 || local_q_tail3 || local_residual_tail3 ||
         p.model.dims.batch!=1 || p.model.dims.seq!=1 || map.launch.num_groups!=8)
@@ -467,6 +481,7 @@ void AscendLlmPlan::Write(std::filesystem::path const& root) const {
     if(s.kind==0 && s.variant==8)id="as2_mix_gemm_regbase_swiglu_u16_16x128x128";
     if(s.kind==0 && s.variant==9)id="as2_mix_gemm_bf16_ub_aiv0_residual_gm_export_16x128x128";
     if(s.kind==0 && s.variant==10)id="as2_mix_gemm_bf16_ub_aiv0_residual_no_raw_gm_16x128x128";
+    if(s.kind==0 && s.variant==12)id="as2_mix_gemm_batched_residual_16x128x128_gm";
     if(s.kind==0 && s.variant==11)id="as2_catlass_bf16_qkv_dma_acquire_16x128x128_nk";
     double low=std::numeric_limits<double>::infinity(),high=0;std::set<std::string> provenance;
     if(!task_prices.empty())for(unsigned t=0;t<tasks.size();++t)if(tasks[t].stage==i) {
@@ -485,6 +500,8 @@ void AscendLlmPlan::Write(std::filesystem::path const& root) const {
       {"l1_k",s.kind==0?(s.variant==5?256:s.variant?128:64):0},
       {"l0_k",s.kind==0?(s.extent>1?64:32):0},
       {"mmad_lifetime",s.kind==0?(s.variant==7?"worker recipe; FIX-complete per task, drained before another MMAD dtype/layout":"per_task; drained before reuse"):"not_applicable"},
+      {"strided_residual_tile",s.kind==0 && s.variant==12},
+      {"residual_dma_row_batches",s.kind==0 && s.epilogue==1?int(s.variant==12?1:std::min(s.rows,16u)):0},
       {"register_swiglu",s.kind==0 && s.variant==8},
       {"strided_swiglu_tile",s.kind==0 && (s.variant==4 || s.variant==5 || s.variant==8 || (s.variant==7 && s.epilogue==2))},
       {"split_count",(s.kind==0 || s.kind==6)&&s.extent>1?int(s.extent):1},
@@ -542,7 +559,7 @@ std::string LowerAscendLlm(AscendLlmPlan const& p) {
     unsigned geometry=s.variant>=2?1:s.variant;
     const bool swiglu_family=(s.columns==6144 && s.k==1024) || (s.columns==12288 && s.k==2048) ||
         (s.columns==16384 && (s.k==2048 || s.k==3072)) || (s.columns==28672 && s.k==4096);
-    if(s.variant>11 || (s.variant==11 && !ascend::qkv_dma::Shape(s)) || ((s.variant==9 || s.variant==10) && !ascend::local_residual::Shape(s.rows,s.columns,s.k,s.epilogue,s.extent,s.tasks)) ||
+    if(s.variant>12 || (s.variant==12 && !ascend::batched_residual::Shape(s)) || (s.variant==11 && !ascend::qkv_dma::Shape(s)) || ((s.variant==9 || s.variant==10) && !ascend::local_residual::Shape(s.rows,s.columns,s.k,s.epilogue,s.extent,s.tasks)) ||
         (s.variant==6 && (s.epilogue!=3 || !s.rows || s.rows>16 || s.extent>1)) ||
         ((s.variant==4 || s.variant==5) &&
           ((s.rows!=1 && s.rows!=16 && s.rows!=64 && s.rows!=1024) || (s.variant==5 && s.rows!=16) ||
@@ -574,6 +591,7 @@ std::string LowerAscendLlm(AscendLlmPlan const& p) {
   bool vector_argmax=false;for(auto const& s:p.stages)if(s.kind==0 && (s.variant==6 || (s.variant==7 && s.epilogue==3)))vector_argmax=true;
   bool session=false;for(auto const& s:p.stages)if(s.kind==0 && s.variant==7)session=true;
   bool reg_swiglu=false;for(auto const& s:p.stages)if(s.kind==0 && s.variant==8)reg_swiglu=true;
+  bool batched=false;for(auto const& s:p.stages)batched|=s.kind==0 && s.variant==12;
   bool qkv_dma=false;for(auto const& s:p.stages)qkv_dma|=s.kind==0 && s.variant==11;
   bool local_residual=false,no_raw=false;for(auto const& s:p.stages)if(s.kind==0 && (s.variant==9 || s.variant==10)) {
     local_residual=true;no_raw|=s.variant==10;
@@ -592,6 +610,7 @@ std::string LowerAscendLlm(AscendLlmPlan const& p) {
     "#define TILEMEGA_LLM_SWIGLU_L1_K256 "+std::to_string(unsigned(k256))+"\n"+
     "#define TILEMEGA_LLM_VECTOR_ARGMAX "+std::to_string(unsigned(vector_argmax))+"\n"+
     "#define TILEMEGA_LLM_REG_SWIGLU "+std::to_string(unsigned(reg_swiglu))+"\n"+
+    "#define TILEMEGA_LLM_BATCHED_RESIDUAL "+std::to_string(unsigned(batched))+"\n"+
     "#define TILEMEGA_LLM_QKV_DMA_ACQUIRE "+std::to_string(unsigned(qkv_dma))+"\n"+
     "#define TILEMEGA_LLM_LOCAL_RESIDUAL "+std::to_string(unsigned(local_residual))+"\n"+
     "#define TILEMEGA_LLM_LOCAL_RESIDUAL_NO_RAW "+std::to_string(unsigned(no_raw))+"\n"+

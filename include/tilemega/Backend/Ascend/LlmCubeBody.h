@@ -10,6 +10,7 @@
 #endif
 #include <tilemega/Backend/Ascend/LlmAttentionShape.h>
 #include <tilemega/Target/Ascend/QkvDmaContract.h>
+#include <tilemega/Target/Ascend/BatchedResidualContract.h>
 #include <tilemega/Target/Ascend/DevicePrimitives.h>
 
 namespace tilemega::ascend {
@@ -32,7 +33,14 @@ template<unsigned TM,unsigned TN,unsigned TK,unsigned Variant> class LlmCubeBody
 #endif
  public:
   __aicore__ inline bool Run(llm::Stage const& s,unsigned tile,GM_ADDR arena,unsigned owner_group) {
-    const unsigned variant=(s.variant==9 || s.variant==10 || s.variant==11)?1:s.variant==8?4:s.variant==7?(s.epilogue==2?4:s.epilogue==3?6:1):s.variant;
+    const unsigned variant=(s.variant==9 || s.variant==10 || s.variant==11 || s.variant==12)?1:s.variant==8?4:s.variant==7?(s.epilogue==2?4:s.epilogue==3?6:1):s.variant;
+    if(s.variant==12) {
+#if defined(TILEMEGA_LLM_BATCHED_RESIDUAL) && TILEMEGA_LLM_BATCHED_RESIDUAL
+      if(TM!=16 || TN!=128 || TK!=128 || !batched_residual::Shape(s))return false;
+#else
+      return false;
+#endif
+    }
     if(s.variant==11) {
 #if defined(TILEMEGA_LLM_QKV_DMA_ACQUIRE) && TILEMEGA_LLM_QKV_DMA_ACQUIRE
       if(!qkv_dma::Shape(s))return false;

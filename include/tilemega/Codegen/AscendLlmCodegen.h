@@ -22,6 +22,6 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp,solver::SymbolicProblem const&
     solver::AscendSchedule const&,bool diagnostic,unsigned attention_precision=0,bool local_tail_k7=false,
     bool local_q_tail3=false,bool local_residual_tail3=false,bool swiglu_tile=false,
     bool swiglu_l1_k256=false,bool vector_argmax=false,bool gemm_session=false,bool reg_swiglu=false,
-    bool local_residual=false,bool local_residual_export_raw=true,bool qkv_dma_acquire=false);
+    bool local_residual=false,bool local_residual_export_raw=true,bool qkv_dma_acquire=false,bool batched_residual=false);
 std::string LowerAscendLlm(AscendLlmPlan const&);
 }

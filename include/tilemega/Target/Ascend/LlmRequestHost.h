@@ -4,6 +4,7 @@
 #include <tilemega/Target/Ascend/LlmGroupContract.h>
 #include <tilemega/Target/Ascend/QkvDmaContract.h>
 #include <tilemega/Target/Ascend/QkPhaseContract.h>
+#include <tilemega/Target/Ascend/BatchedResidualContract.h>
 #include <tilemega/Target/Ascend/LlmPlanABI.h>
 #include <tilemega/Target/Ascend/BodyProfileCapture.h>
 #include <acl/acl.h>
@@ -53,6 +54,15 @@ inline void Save(fs::path const& path,void const* data,size_t bytes) {
 }
 inline void ValidateCompiledBodies(std::vector<llm::Stage> const& stages) {
   for(auto const& s:stages)if(s.kind==0) {
+    if(s.variant==12) {
+#if defined(TILEMEGA_LLM_BATCHED_RESIDUAL) && TILEMEGA_LLM_BATCHED_RESIDUAL
+      if(kCompiledVariant!=1 || !batched_residual::Shape(s))
+        throw std::invalid_argument("Unregistered batched BF16 residual recipe");
+      auto base=s;base.variant=1;ValidateCompiledBodies({base});continue;
+#else
+      throw std::invalid_argument("Batched residual requires its explicitly compiled Body");
+#endif
+    }
     if(s.variant==11) {
 #if defined(TILEMEGA_LLM_QKV_DMA_ACQUIRE) && TILEMEGA_LLM_QKV_DMA_ACQUIRE
       if(kCompiledVariant!=1 || !qkv_dma::Shape(s))
@@ -233,6 +243,9 @@ struct Plan {
     if(metadata.size()!=1)throw std::invalid_argument("Malformed request metadata");m=metadata[0];
     stages=Read<llm::Stage>(root/"stages.bin");tasks=Read<llm::Task>(root/"tasks.bin");
     ValidateCompiledBodies(stages);
+    unsigned batched=0;for(auto const& s:stages)batched+=s.kind==0 && s.variant==12;
+    if(batched && (batched!=56 || m.groups!=8 || m.batch!=16 || m.seq!=1))
+      throw std::invalid_argument("Batched residual metadata differs from its bounded topology");
     unsigned dma_qkv=0;for(auto const& s:stages)dma_qkv+=s.kind==0 && s.variant==11;
     if(dma_qkv && (dma_qkv!=28 || m.groups!=8 || m.batch!=1 || m.seq!=1))
       throw std::invalid_argument("DMA-only QKV metadata differs from its admitted topology");

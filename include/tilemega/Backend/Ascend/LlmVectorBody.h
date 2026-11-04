@@ -6,6 +6,7 @@
 #if defined(TILEMEGA_LLM_VECTOR_ARGMAX) && TILEMEGA_LLM_VECTOR_ARGMAX
 #include <tilemega/Backend/Ascend/ArgmaxTile.h>
 #endif
+#include <tilemega/Backend/Ascend/ResidualTile.h>
 #if defined(TILEMEGA_LLM_SWIGLU_TILE) && TILEMEGA_LLM_SWIGLU_TILE
 #include <tilemega/Backend/Ascend/SwiGluTile.h>
 #endif
@@ -329,6 +330,13 @@ class LlmVectorBody {
     AscendC::Mul(work_,work_,y_,n);AscendC::PipeBarrier<PIPE_V>();
     AscendC::Cast(bo_,work_,AscendC::RoundMode::CAST_RINT,n);Store(output,n);return true;
   }
+#if defined(TILEMEGA_LLM_BATCHED_RESIDUAL) && TILEMEGA_LLM_BATCHED_RESIDUAL
+  __aicore__ inline bool ResidualTile(GM_ADDR input,GM_ADDR rhs,GM_ADDR output,
+      unsigned rows,unsigned columns,unsigned left_stride,unsigned right_stride,unsigned output_stride) {
+    return RunResidualTile({bx_,by_,bo_,x_,y_,work_},input,rhs,output,rows,columns,
+        left_stride,right_stride,output_stride);
+  }
+#endif
   __aicore__ inline bool Pointwise(GM_ADDR input,GM_ADDR rhs,GM_ADDR output,unsigned n,bool swiglu) {
     if(!n || n>kElements)return false;
     Load(bx_,input,n);Load(by_,rhs,n);CompleteDma<AscendC::HardEvent::MTE2_V>();
