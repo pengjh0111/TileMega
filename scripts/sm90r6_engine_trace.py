@@ -104,39 +104,53 @@ def kernels(report, directory):
     return [(name, int(start), int(end)) for name, start, end in rows]
 
 
-def steps(trace_rows, skip=256, want=32):
-    """Split the kernel stream into decode steps by the sequence's own period.
+def steps(trace_rows, step_ns, want=32):
+    """Split the kernel stream into decode steps of the measured step time.
 
-    A decode step repeats the same kernel sequence, so the step boundary is
-    where the most frequent kernel name recurs. Taking that name's occurrences
-    as fence posts needs no engine-specific knowledge.
+    The first version anchored on the most frequent kernel name, which is wrong
+    for an engine that packs a step into one CUDA graph node: it reported one
+    kernel per step and an 18 us step for a model whose DRAM floor alone is
+    4.7 ms. The generation rate is the ground truth instead - a decode step is
+    one token - so the stream is cut at that period, taken from the middle of
+    the trace where the engine is in steady state.
     """
-    from collections import Counter
-    names = [r[0] for r in trace_rows]
-    if not names:
+    if not trace_rows or step_ns <= 0:
         return []
-    anchor = Counter(names).most_common(1)[0][0]
-    marks = [i for i, name in enumerate(names) if name == anchor]
-    if len(marks) < 4:
+    begin, end = trace_rows[0][1], trace_rows[-1][2]
+    total = (end - begin) / step_ns
+    if total < 4:
         return []
-    windows = [(marks[i], marks[i + 1]) for i in range(len(marks) - 1)]
-    # The steady state: drop the prefill and the first `skip` steps if they
-    # exist, then take the middle `want`.
-    usable = windows[skip:] if len(windows) > skip + want else windows[len(windows) // 4:]
-    if len(usable) > want:
-        middle = len(usable) // 2
-        usable = usable[middle - want // 2: middle + want - want // 2]
-    return usable
+    # Anchor on the middle of the kernel sequence, not the middle of the wall
+    # clock: the trace also covers model load and the untimed warmup, so the
+    # time midpoint can fall in an idle gap where no kernel runs at all.
+    middle = trace_rows[len(trace_rows) // 2][1]
+    first = middle - (want / 2) * step_ns
+    windows = []
+    index = 0
+    for step in range(want):
+        low = first + step * step_ns
+        high = low + step_ns
+        if low < begin or high > end:
+            continue
+        while index < len(trace_rows) and trace_rows[index][1] < low:
+            index += 1
+        start_index = index
+        cursor = index
+        while cursor < len(trace_rows) and trace_rows[cursor][1] < high:
+            cursor += 1
+        if cursor > start_index:
+            windows.append((start_index, cursor, low, high))
+    return windows
 
 
 def metrics(trace_rows, windows, floor_bytes, bw_gbps):
     """Appendix E, per step, reported as the median over the windows."""
     per_step = []
-    for begin, end in windows:
+    for begin, end, low, high in windows:
         block = trace_rows[begin:end]
         if not block:
             continue
-        step_ns = trace_rows[end][1] - block[0][1]
+        step_ns = high - low
         # The union of the kernel intervals: overlap from programmatic
         # dependent launch is counted once, as appendix E requires.
         union, merged = 0, []
@@ -190,20 +204,22 @@ def main():
                           'returncode': code, 'error': 'no trace'}), flush=True)
         return 1
     rows = kernels(report, directory)
+    measured = directory / f'job/measurements/B{a.batch}/measurements.json'
+    step_ns = (json.loads(measured.read_text())['tpot_seconds'] * 1e9
+               if measured.exists() else 0)
     if not rows:
         print(json.dumps({'engine': a.engine, 'model': a.model, 'batch': a.batch,
                           'error': 'nsys captured no kernels: the engine re-execs under its '
                                    'own launcher, so the traced process is not the one that '
                                    'runs them', 'baseline_returncode': code}), flush=True)
         return 2
-    windows = steps(rows)
+    windows = steps(rows, step_ns)
     result = metrics(rows, windows, a.bytes, a.bw_gbps)
     if result is None:
-        print(json.dumps({'engine': a.engine, 'error': 'no periodic step found',
-                          'kernels': len(rows)}), flush=True)
+        print(json.dumps({'engine': a.engine, 'error': 'no usable step window',
+                          'kernels': len(rows), 'step_ns': step_ns}), flush=True)
         return 1
-    measured = directory / f'job/measurements/B{a.batch}/measurements.json'
-    under_nsys = json.loads(measured.read_text())['tpot_seconds'] * 1e3 if measured.exists() else None
+    under_nsys = step_ns / 1e6 if step_ns else None
     row = dict(engine=a.engine, model=a.model, batch=a.batch, tp=1, baseline_returncode=code,
                kernels_per_step=f"{result['kernels_per_step']:.1f}",
                step_us=f"{result['step_us']:.2f}", busy_us=f"{result['busy_us']:.2f}",
