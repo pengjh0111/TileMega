@@ -220,6 +220,10 @@ def queue(args):
     selected = [x for x in catalog if x['status'] == 'ready' and re.search(args.case_pattern, x['id'])]
     if not selected:
         raise ValueError('case pattern selects no ready primitives')
+    affinity = json.loads(args.cpu_affinity) if args.cpu_affinity else {}
+    for gpu in cards:
+        if affinity and (str(gpu) not in affinity or not affinity[str(gpu)]):
+            raise ValueError('explicit CPU affinity required for every parallel card')
     spec = dict(schema=1, build=str(args.build.resolve()), build_sha256=sha(args.build),
         variant=receipt['variant'], gpus=cards, rounds=5, samples=args.samples,
         cases=selected, pending=[x for x in catalog if x['status'] == 'pending'],
@@ -228,6 +232,11 @@ def queue(args):
         collector_sha256=sha(__file__), source_recipe=str(Path(__file__).resolve()),
         policy=str(POLICY), policy_sha256=sha(POLICY), method=METHOD,
         uuid_by_gpu=policy['idle_power_mapping_provenance']['uuid_by_gpu'],
+        cpu_affinity=affinity, parallel=bool(affinity),
+        batch_processes=args.batch_processes,
+        process_scope='one fresh process per binary per round; cases share CUDA context' if args.batch_processes else 'one fresh process per case per round',
+        guard_python=dict(path=str(Path(args.python).resolve()), sha256=sha(args.python),
+            idle_memory_floor_mib=1 if Path(args.python).name=='dnn1_idle_floor_python.py' else 0),
         measurement_status='not_started', created_unix=time.time())
     write(out / 'queue-spec.json', spec)
     # The scheduler binds its process to one physical GPU lock. Give each
@@ -238,9 +247,14 @@ def queue(args):
         require_allowed_gpu(policy, str(gpu), timing=True)
         node = 0 if gpu < 4 else 1
         card = out / f'gpu{gpu}'
+        env = gpu_env(gpu)
+        binding = f'--cpunodebind={node}'
+        if affinity:
+            env['TILEMEGA_NUMA_CONCURRENCY_TRIAL'] = '1'
+            binding = '--physcpubind=' + ','.join(map(str, affinity[str(gpu)]))
         for round_ in range(5):
             name = f'dnn1-constants-g{gpu}-r{round_}'
-            command = ['numactl', f'--cpunodebind={node}', args.python,
+            command = ['numactl', binding, args.python,
                 str(ROOT / 'scripts/run_r16_with_device_identity.py'), '--guard-policy', str(POLICY),
                 '--out', '{attempt_dir}/job', '--expected-uuid',
                 policy['idle_power_mapping_provenance']['uuid_by_gpu'][str(gpu)],
@@ -249,13 +263,13 @@ def queue(args):
                 '--gpu', str(gpu), '--round', str(round_), '--out', '{attempt_dir}/job']
             jobs.append(dict(name=name, gpu=True, timing=True, priority=10,
                 timeout_s=args.session_timeout_s, needs_free_mib=4096, cwd=str(ROOT),
-                after=previous, env=gpu_env(gpu), command=command))
+                after=previous, env=env, command=command))
             previous = [name]
         write(card / 'queue/queue_dnn1_constants.json', jobs)
         command = ['env', '-u', 'TILEMEGA_DEVICE_GROUP', '-u', 'TILEMEGA_GPU_LOCK_HELD',
             '-u', 'TILEMEGA_RUN_NONCE', '-u', 'TILEMEGA_NUMA_CONCURRENCY_VERIFIED',
             '-u', 'TILEMEGA_NUMA_CONCURRENCY_TRIAL',
-            *[f'{k}={v}' for k, v in gpu_env(gpu).items()], args.python,
+            *[f'{k}={v}' for k, v in env.items()], args.python,
             '-m', 'tilemega.bench.scheduler', '--queue-dir', str(card / 'queue'),
             '--out', str(card / 'scheduler'), '--policy', str(POLICY), '--deadline-hours', '96']
         launcher = card / 'launch.sh'
@@ -285,49 +299,87 @@ def held(path):
     return False
 
 
-def require_session(gpu):
+def require_session(gpu, spec=None):
     e = os.environ
     node = 0 if gpu < 4 else 1
     if (e.get('TILEMEGA_GPU_LOCK_HELD') != '1' or e.get('TILEMEGA_TIMING') != '1' or
             e.get('TILEMEGA_DEVICE_INDEX') != str(gpu) or e.get('CUDA_VISIBLE_DEVICES') != str(gpu) or
             e.get('TILEMEGA_DEVICE_GROUP') is not None or
             e.get('TILEMEGA_GPU_LOCK') != f'/tmp/tilemega_gpu{gpu}.lock' or
-            not held(f'/tmp/tilemega_gpu{gpu}.lock') or not held(f'/tmp/tilemega_numa{node}.lock')):
+            not held(f'/tmp/tilemega_gpu{gpu}.lock')):
         raise ValueError('scheduler single-GPU timing guard and actual GPU/NUMA flocks required')
+    if spec and spec.get('parallel'):
+        affinity = set(spec['cpu_affinity'][str(gpu)])
+        if (e.get('TILEMEGA_NUMA_CONCURRENCY_TRIAL') != '1' or
+                e.get('TILEMEGA_NUMA_CONCURRENCY_VERIFIED') == '1' or
+                not affinity or not set(os.sched_getaffinity(0)) <= affinity):
+            raise ValueError('parallel constants need declared affinity and explicit NUMA trial')
+    elif not held(f'/tmp/tilemega_numa{node}.lock'):
+        raise ValueError('serial constants require actual NUMA flock')
 
 
 def run(args):
-    require_session(args.gpu)
     spec = read(args.spec)
+    require_session(args.gpu, spec)
     if sha(__file__) != spec['collector_sha256']:
         raise ValueError('collector or queue recipe changed')
     if args.gpu not in spec['gpus'] or args.round not in range(5):
         raise ValueError('invalid physical GPU or round')
     if sha(spec['build']) != spec['build_sha256'] or sha(POLICY) != spec['policy_sha256']:
         raise ValueError('build receipt or guard policy changed after queue')
+    if spec.get('guard_python') and sha(spec['guard_python']['path']) != spec['guard_python']['sha256']:
+        raise ValueError('guard Python wrapper changed after queue')
     receipt, _ = verify_build(spec['build'])
     sys.path.insert(0, str(ROOT / 'python'))
-    from tilemega.bench.gpu_guard import gpu, throttle_invalid
+    from dnn1_device import gpu
     args.out.mkdir(parents=True, exist_ok=True)
     session = dict(schema=1, gpu=args.gpu, round=args.round, variant=receipt['variant'],
         build_sha256=spec['build_sha256'], pid=os.getpid(), cases=[], started_unix=time.time(),
         method=METHOD, source_spec=str(args.spec.resolve()))
     write(args.out / 'constants_session.json', session)
+    batches = {}
+    if spec.get('batch_processes'):
+        session['process_scope'] = spec['process_scope']
+        for kind in sorted({item['binary'] for item in spec['cases']}):
+            items = [item for item in spec['cases'] if item['binary'] == kind]
+            for item in items:
+                (args.out / 'cases' / item['id']).mkdir(parents=True, exist_ok=False)
+            binary = receipt['binaries'][kind]
+            command = [binary['path'], '--batch-cases', ','.join(item['id'] for item in items),
+                '--batch-root', str(args.out / 'cases'), '--samples', str(spec['samples'])]
+            before = gpu(args.gpu)
+            process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            stdout, stderr = process.communicate()
+            after = gpu(args.gpu)
+            (args.out / f'{kind}_batch_stdout.log').write_text(stdout)
+            (args.out / f'{kind}_batch_stderr.log').write_text(stderr)
+            batches[kind] = dict(command=command, pid=process.pid, returncode=process.returncode,
+                before=before, after=after, clock_metadata_scope='binary process boundaries; each case has independent clock64/globaltimer calibration')
+            write(args.out / 'batch_processes.json', batches)
+            if process.returncode:
+                raise RuntimeError(f'{kind} batch probe failed: {stderr}')
     for item in spec['cases']:
         path = args.out / 'cases' / item['id']
-        path.mkdir(parents=True, exist_ok=False)
         binary = receipt['binaries'][item['binary']]
-        before = gpu(args.gpu)
-        command = [binary['path'], '--case', item['id'], '--samples', str(spec['samples']),
-                   '--raw', str(path / 'samples.csv')]
-        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        stdout, stderr = process.communicate()
-        after = gpu(args.gpu)
-        (path / 'stdout.csv').write_text(stdout)
-        (path / 'stderr.log').write_text(stderr)
+        if batches:
+            group = batches[item['binary']]
+            before,after,command = group['before'],group['after'],group['command']
+            returncode,pid = group['returncode'],group['pid']
+            stdout,stderr = (path/'stdout.csv').read_text(),(path/'stderr.log').read_text()
+        else:
+            path.mkdir(parents=True, exist_ok=False)
+            before = gpu(args.gpu)
+            command = [binary['path'], '--case', item['id'], '--samples', str(spec['samples']),
+                       '--raw', str(path / 'samples.csv')]
+            process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            stdout, stderr = process.communicate()
+            after = gpu(args.gpu)
+            returncode,pid = process.returncode,process.pid
+            (path / 'stdout.csv').write_text(stdout)
+            (path / 'stderr.log').write_text(stderr)
         rows = []
         timing = None
-        if process.returncode == 0:
+        if returncode == 0:
             rows = list(csv.DictReader(io.StringIO(stdout)))
             if not rows or any(not math.isfinite(float(r['median_ns'])) or float(r['median_ns']) <= 0 for r in rows):
                 raise ValueError('no positive finite primitive measurements')
@@ -340,10 +392,13 @@ def run(args):
                 'clock_resolution_ns', 'observed_globaltimer_step_ns'), map(float, calibration.groups())))
             timing.update(observer_empty_ComputeSync_median_ns=float(observer.group(1)),
                           observer_subtracted=False)
-        invalid = throttle_invalid(before) or throttle_invalid(after)
-        row = dict(case=item, command=command, process_pid=process.pid, fresh_executable_process=True,
-            returncode=process.returncode, before=before, after=after,
-            throttle_invalid=invalid, valid=process.returncode == 0 and not invalid,
+        row = dict(case=item, command=command, process_pid=pid, fresh_executable_process=True,
+            process_scope=spec.get('process_scope','one fresh process per case per round'),
+            clock_metadata_scope='binary process boundaries' if batches else 'case process boundaries',
+            guard_python=spec.get('guard_python'),
+            returncode=returncode, before=before, after=after,
+            throttle_invalid=None, power_monitoring=False,
+            resource_policy='processes and extra memory only', valid=returncode == 0,
             timing=timing,
             rows=rows, binary_sha256=binary['sha256'], raw=str(path / 'samples.csv'),
             stdout=str(path / 'stdout.csv'), stderr=str(path / 'stderr.log'),
@@ -352,11 +407,11 @@ def run(args):
         write(path / 'result.json', row)
         session['cases'].append(str(path / 'result.json'))
         write(args.out / 'constants_session.json', session)
-        if process.returncode:
+        if returncode:
             raise RuntimeError('primitive failed; original log: ' + str(path / 'stderr.log'))
-        if invalid:
-            raise RuntimeError('throttled constants session invalid; requeue new attempt under guard')
     session.update(completed_unix=time.time(), status='complete')
+    from dnn1_baselines import passive_context_drain
+    session['exit_context_drain'] = passive_context_drain(dict(gpu=args.gpu))
     write(args.out / 'constants_session.json', session)
 
 
@@ -446,12 +501,15 @@ def collect(args):
                         raise ValueError('wrong post-warmup primitive sample count')
                     key = (gpu, row['metric'], row['key'])
                     groups.setdefault(key, []).append(dict(round=round_, median=float(row['median_ns']),
+                        process_pid=result['process_pid'],
                         p99=float(row['p99_ns']), samples=int(row['samples']), unit=row['unit'],
                         method=row['method'], clock_start=result['before']['sm_clock_mhz'],
                         clock_end=result['after']['sm_clock_mhz'], result=path))
                 evidence.append(dict(session=str(accepted), result=path, result_sha256=sha(path),
                                      physical_device_identity_sha256=sha(identity_file)))
     constants = dict(schema=1, variant=receipt['variant'], method=METHOD,
+        process_scope=spec.get('process_scope','one fresh process per case per round'),
+        guard_python=spec.get('guard_python'),
         header_sha256=receipt['original_sources'], probe_sha256=receipt['source_sha256'],
         clock_overlay=receipt['clock_overlay'], build_receipt=str(Path(spec['build']).resolve()),
         by_gpu={}, pending=spec['pending'], resource_infeasible=spec.get('resource_infeasible', []),
@@ -470,6 +528,8 @@ def collect(args):
     for (gpu, metric, key), rows in sorted(groups.items()):
         if len(rows) != 5 or {r['round'] for r in rows} != set(range(5)):
             raise ValueError('exactly five fresh processes required for: ' + str((gpu, metric, key)))
+        if len({r['process_pid'] for r in rows}) != 5:
+            raise ValueError('five distinct process IDs required per constant')
         values = [r['median'] for r in rows]
         med = statistics.median(values)
         relative_range = (max(values) - min(values)) / med
@@ -529,6 +589,8 @@ def main():
     q.add_argument('--build', type=Path, required=True)
     q.add_argument('--out', type=Path, required=True)
     q.add_argument('--gpus', default='0,5,7')
+    q.add_argument('--cpu-affinity', help='JSON mapping physical GPU to disjoint CPU lists; NUMA trial')
+    q.add_argument('--batch-processes', action='store_true', help='one fresh process per binary per round, independently calibrated/reset cases')
     q.add_argument('--python', default=PYTHON)
     q.add_argument('--case-pattern', default='.*')
     q.add_argument('--samples', type=int, default=256)

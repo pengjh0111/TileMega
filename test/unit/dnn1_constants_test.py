@@ -13,6 +13,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location('dnn1_constants', ROOT / 'scripts/dnn1_constants.py')
@@ -22,7 +23,11 @@ SPEC.loader.exec_module(MODULE)
 
 class ConstantsIntegrity(unittest.TestCase):
     def test_target_append_preserves_every_existing_value_and_bytes(self):
-        original = (ROOT / 'configs/targets/sm_90_h800.json').read_text()
+        # Exercise the append transition even after the shipped target has
+        # measured forward constants. The existing-section refusal is tested below.
+        base = json.loads((ROOT / 'configs/targets/sm_90_h800.json').read_text())
+        base.pop('sm90_forward_constants', None)
+        original = json.dumps(base, indent=2) + '\n'
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'target.json'
             path.write_text(original)
@@ -40,6 +45,23 @@ class ConstantsIntegrity(unittest.TestCase):
     def test_unguarded_execution_rejected(self):
         with self.assertRaises(ValueError):
             MODULE.require_session(0)
+
+    def test_parallel_session_requires_trial_actual_gpu_lock_and_cpu_subset(self):
+        env = dict(TILEMEGA_GPU_LOCK_HELD='1', TILEMEGA_TIMING='1',
+            TILEMEGA_DEVICE_INDEX='0', CUDA_VISIBLE_DEVICES='0',
+            TILEMEGA_GPU_LOCK='/tmp/tilemega_gpu0.lock',
+            TILEMEGA_NUMA_CONCURRENCY_TRIAL='1')
+        spec = dict(parallel=True, cpu_affinity={'0': [32, 33, 34, 35]})
+        with patch.dict(MODULE.os.environ, env, clear=True), \
+                patch.object(MODULE, 'held', return_value=True), \
+                patch.object(MODULE.os, 'sched_getaffinity', return_value={32, 33}):
+            MODULE.require_session(0, spec)
+            with patch.object(MODULE.os, 'sched_getaffinity', return_value={0, 32}):
+                with self.assertRaises(ValueError): MODULE.require_session(0, spec)
+            with patch.object(MODULE, 'held', return_value=False):
+                with self.assertRaises(ValueError): MODULE.require_session(0, spec)
+            with patch.dict(MODULE.os.environ, {'TILEMEGA_NUMA_CONCURRENCY_VERIFIED': '1'}):
+                with self.assertRaises(ValueError): MODULE.require_session(0, spec)
 
     def test_collector_requires_five_accepted_unchanged_process_receipts(self):
         # Real parsing is exercised against explicit synthetic CPU fixtures.

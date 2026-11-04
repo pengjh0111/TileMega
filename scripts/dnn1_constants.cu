@@ -489,28 +489,7 @@ void Catalog() {
 std::string Json(std::string const& s) {
   std::string out="\"";for(char c:s){if(c=='\"'||c=='\\')out+='\\';out+=c;}return out+'\"';
 }
-int main(int argc,char** argv) {try {
-  std::string selected,raw_path;bool list=false;int count=256;
-  for(int i=1;i<argc;++i) {
-    std::string arg=argv[i];
-    if(arg=="--list")list=true;
-    else if(arg=="--case" && i+1<argc)selected=argv[++i];
-    else if(arg=="--samples" && i+1<argc)count=std::stoi(argv[++i]);
-    else if(arg=="--raw" && i+1<argc)raw_path=argv[++i];
-    else throw std::runtime_error("usage: --list | --case ID [--samples 256] [--raw PATH]");
-  }
-  Catalog();
-  if(list){for(auto const& c:cases)std::cout<<"{\"id\":"<<Json(c.id)<<",\"metric\":"<<Json(c.metric)
-      <<",\"key\":"<<Json(c.key)<<",\"status\":"<<Json(c.status)<<",\"reason\":"<<Json(c.reason)
-      <<",\"shared_bytes\":"<<c.shared<<",\"binary\":\""<<(DNN1_SEGMENT_PROBES?"segments":"direct")<<"\"}\n";return 0;}
-  auto found=std::find_if(cases.begin(),cases.end(),[&](auto const& c){return c.id==selected;});
-  if(found==cases.end() || !found->run)throw std::runtime_error("unknown/pending case: "+selected);
-  if(count<kDiscard+16)throw std::runtime_error("at least 24 samples are required");
-  auto env=[](char const* k){auto* v=std::getenv(k);return v?std::string(v):std::string();};
-  auto gpu=env("TILEMEGA_DEVICE_INDEX");
-  if((gpu!="0" && gpu!="5" && gpu!="7") || env("CUDA_VISIBLE_DEVICES")!=gpu ||
-      env("TILEMEGA_GPU_LOCK_HELD")!="1" || env("TILEMEGA_TIMING")!="1")
-    throw std::runtime_error("GPU case requires explicit GPU0/5/7 timing guard; use collector run");
+void RunOne(Case const& item,int count,std::string const& raw_path) {
   Check(cudaSetDevice(0));Buffer<U64> clock(3);Calibrate<<<1,1>>>(clock);Check(cudaDeviceSynchronize());
   U64 calibration[3];Check(cudaMemcpy(calibration,clock.p,24,cudaMemcpyDeviceToHost));
   cycles_per_ns=double(calibration[0])/calibration[1];
@@ -523,6 +502,51 @@ int main(int argc,char** argv) {try {
   std::cerr<<"observer_empty_ComputeSync_median_ns="<<double(overhead[kDiscard+(256-kDiscard)/2])/cycles_per_ns
       <<" observer_subtracted=false\n";
   if(!raw_path.empty()){raw.open(raw_path);if(!raw)throw std::runtime_error("cannot open raw sample file");raw<<"metric,key,sample,value\n";}
-  std::cout<<"metric,key,samples,median_ns,p99_ns,unit,method\n";found->run(count);
+  std::cout<<"metric,key,samples,median_ns,p99_ns,unit,method\n";item.run(count);
+  if(raw.is_open())raw.close();
+  raw.clear();
+}
+int main(int argc,char** argv) {try {
+  std::string selected,raw_path,batch_cases,batch_root;bool list=false;int count=256;
+  for(int i=1;i<argc;++i) {
+    std::string arg=argv[i];
+    if(arg=="--list")list=true;
+    else if(arg=="--case" && i+1<argc)selected=argv[++i];
+    else if(arg=="--batch-cases" && i+1<argc)batch_cases=argv[++i];
+    else if(arg=="--batch-root" && i+1<argc)batch_root=argv[++i];
+    else if(arg=="--samples" && i+1<argc)count=std::stoi(argv[++i]);
+    else if(arg=="--raw" && i+1<argc)raw_path=argv[++i];
+    else throw std::runtime_error("usage: --list | --case ID [--samples 256] [--raw PATH]");
+  }
+  Catalog();
+  if(list){for(auto const& c:cases)std::cout<<"{\"id\":"<<Json(c.id)<<",\"metric\":"<<Json(c.metric)
+      <<",\"key\":"<<Json(c.key)<<",\"status\":"<<Json(c.status)<<",\"reason\":"<<Json(c.reason)
+      <<",\"shared_bytes\":"<<c.shared<<",\"binary\":\""<<(DNN1_SEGMENT_PROBES?"segments":"direct")<<"\"}\n";return 0;}
+  auto found=std::find_if(cases.begin(),cases.end(),[&](auto const& c){return c.id==selected;});
+  if(batch_cases.empty() && (found==cases.end() || !found->run))throw std::runtime_error("unknown/pending case: "+selected);
+  if(count<kDiscard+16)throw std::runtime_error("at least 24 samples are required");
+  auto env=[](char const* k){auto* v=std::getenv(k);return v?std::string(v):std::string();};
+  auto gpu=env("TILEMEGA_DEVICE_INDEX");
+  if((gpu!="0" && gpu!="5" && gpu!="7") || env("CUDA_VISIBLE_DEVICES")!=gpu ||
+      env("TILEMEGA_GPU_LOCK_HELD")!="1" || env("TILEMEGA_TIMING")!="1")
+    throw std::runtime_error("GPU case requires explicit GPU0/5/7 timing guard; use collector run");
+  if(batch_cases.empty())RunOne(*found,count,raw_path);
+  else {
+    if(batch_root.empty())throw std::runtime_error("--batch-root required");
+    std::istringstream ids(batch_cases);std::string id;
+    while(std::getline(ids,id,',')) {
+      auto item=std::find_if(cases.begin(),cases.end(),[&](auto const& c){return c.id==id;});
+      if(item==cases.end() || !item->run)throw std::runtime_error("unknown batch case: "+id);
+      std::ofstream out(batch_root+"/"+id+"/stdout.csv"),err(batch_root+"/"+id+"/stderr.log");
+      if(!out || !err)throw std::runtime_error("batch case output directory missing: "+id);
+      auto* old_out=std::cout.rdbuf(out.rdbuf());auto* old_err=std::cerr.rdbuf(err.rdbuf());
+      try {RunOne(*item,count,batch_root+"/"+id+"/samples.csv");}
+      catch(std::exception const& e) {
+        std::cerr<<e.what()<<'\n';std::cout.flush();std::cerr.flush();
+        std::cout.rdbuf(old_out);std::cerr.rdbuf(old_err);throw;
+      }
+      std::cout.flush();std::cerr.flush();std::cout.rdbuf(old_out);std::cerr.rdbuf(old_err);
+    }
+  }
   return 0;
 }catch(std::exception const& error){std::cerr<<error.what()<<'\n';return 2;}}
