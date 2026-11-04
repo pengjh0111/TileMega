@@ -68,8 +68,19 @@ struct Sm90ForwardDepthwise {
       auto* base=slots+slot*kSlotElements;
       Async::Wait(state.empty+slot,(phase>>slot)&1);
       Async::ExpectTx(state.full+slot,2*kHaloElements+filter_bytes);
-      Async::Tensor4D(base,p.activation,block*CT,tile_x*Stride-1,tile_y*Stride-1,image,
-          state.full+slot);
+      if constexpr(Chain::kGated) {
+        // SimpleGate pairs the two logical C/2 halves, even when they belong
+        // to different channel blocks. The two half-width halos keep the
+        // same total slot bytes as an ordinary CT-channel halo.
+        static_assert(CT%(2*Chain::kGateUnit)==0);
+        Async::Tensor4D(base,p.activation,block*(CT/2),tile_x*Stride-1,tile_y*Stride-1,image,
+            state.full+slot);
+        Async::Tensor4D(base+kHaloElements/2,p.activation,p.channels/2+block*(CT/2),
+            tile_x*Stride-1,tile_y*Stride-1,image,state.full+slot);
+      }else {
+        Async::Tensor4D(base,p.activation,block*CT,tile_x*Stride-1,tile_y*Stride-1,image,
+            state.full+slot);
+      }
       if(filter_bytes)
         Async::Bulk(base+kHaloElements,p.weight+std::size_t(block)*CT*9*Pack,filter_bytes,
             state.full+slot);
@@ -114,7 +125,13 @@ struct Sm90ForwardDepthwise {
             #pragma unroll
             for(int s=0;s<3;++s) {
               int hx=x*Stride+s,hy=y*Stride+r;
-              sum+=float(halo[(hy*kHaloW+hx)*CT+channel])*float(filter[(r*3+s)*Pack]);
+              int offset;
+              if constexpr(Chain::kGated) {
+                constexpr int unit=Chain::kGateUnit;
+                int band=(channel/unit)%2,pair=(channel/(2*unit))*unit+channel%unit;
+                offset=band*(kHaloElements/2)+(hy*kHaloW+hx)*(CT/2)+pair;
+              }else offset=(hy*kHaloW+hx)*CT+channel;
+              sum+=float(halo[offset])*float(filter[(r*3+s)*Pack]);
             }
         }
         values[pixel*CT+channel]=sum;
@@ -153,9 +170,15 @@ struct Sm90ForwardDepthwise {
     int total=Batch*tiles*blocks;
     int tasks=total/int(gridDim.x)+(int(blockIdx.x)<total%int(gridDim.x));
     unsigned phase=0;
-    #pragma unroll
-    for(int i=0;i<Slots;++i)phase|=(threadIdx.x<128?
-        state.consumer_generations[i]:state.producer_generations[i])<<i;
+    // Only the issuing producer reads its phase. Other producer lanes do not
+    // use it and could otherwise read while lane 0 publishes its next phase.
+    if(threadIdx.x<128) {
+      #pragma unroll
+      for(int i=0;i<Slots;++i)phase|=state.consumer_generations[i]<<i;
+    }else if(threadIdx.x==128) {
+      #pragma unroll
+      for(int i=0;i<Slots;++i)phase|=state.producer_generations[i]<<i;
+    }
     if(threadIdx.x<128)Consume(p,state,slots,scratch,tasks,phase,tiles_w,tiles);
     else Produce(p,state,slots,tasks,phase,tiles_w,tiles);
     __syncthreads();

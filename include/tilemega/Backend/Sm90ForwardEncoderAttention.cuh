@@ -72,9 +72,15 @@ struct Sm90ForwardEncoderAttention {
     auto* probability=reinterpret_cast<Element*>(shared+kProbabilityOffset);
     int tasks=kTasks/int(gridDim.x)+(int(blockIdx.x)<kTasks%int(gridDim.x));
     unsigned phase=0;
-    #pragma unroll
-    for(int i=0;i<Slots;++i)phase|=(threadIdx.x<128?
-        state.consumer_generations[i]:state.producer_generations[i])<<i;
+    // Only the issuing producer reads its phase. Other producer lanes do not
+    // use it and could otherwise read while lane 0 publishes its next phase.
+    if(threadIdx.x<128) {
+      #pragma unroll
+      for(int i=0;i<Slots;++i)phase|=state.consumer_generations[i]<<i;
+    }else if(threadIdx.x==128) {
+      #pragma unroll
+      for(int i=0;i<Slots;++i)phase|=state.producer_generations[i]<<i;
+    }
     if(threadIdx.x>=128) {
       Sm90DenseRoles::Producer();
       if(threadIdx.x==128) {

@@ -142,6 +142,7 @@ struct Sm90ForwardEpilogueChain {
   static constexpr int kWrite=Write;
   static constexpr bool kGated=((Step::kKind==Sm90ForwardOp::kGatePair) || ...);
   static constexpr int kWidth=kGated?N/2:N;
+  static constexpr int kGateUnit=(0 + ... + (Step::kKind==Sm90ForwardOp::kGatePair?int(Step::kUnit):0));
   static_assert(!kGated || N%2==0);
   // A deferred or reconstructed LayerNorm needs the producing body's per-row
   // (mu, 1/sigma) over the A tile; the body computes them only when asked.
@@ -216,7 +217,7 @@ struct Sm90ForwardEpilogueChain {
             index=Sm90ForwardRowOffset(p,row,p.residual_stride)+channel+col;
           }
           float add=float(p.residual[index]);
-          if(p.vectors[S::kVector])add*=float(p.vectors[S::kVector][channel+col]);
+          if(p.vectors[S::kVector])value*=float(p.vectors[S::kVector][channel+col]);
           value+=add;
         }else if constexpr(S::kKind==Sm90ForwardOp::kDeferredLayerNorm) {
           // (acc - mu cs_n)/sigma + b', with (mu, sigma) from the row stats

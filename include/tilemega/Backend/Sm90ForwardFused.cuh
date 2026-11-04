@@ -138,9 +138,15 @@ struct Sm90ForwardDwPw {
     int image_tasks=tiles_w*tiles_h*splits,total=Batch*image_tasks;
     int tasks=total/int(gridDim.x)+(int(blockIdx.x)<total%int(gridDim.x));
     unsigned phase=0;
-    #pragma unroll
-    for(int i=0;i<Slots;++i)phase|=(threadIdx.x<128?
-        state.consumer_generations[i]:state.producer_generations[i])<<i;
+    // Only the issuing producer reads its phase. Other producer lanes do not
+    // use it and could otherwise read while lane 0 publishes its next phase.
+    if(threadIdx.x<128) {
+      #pragma unroll
+      for(int i=0;i<Slots;++i)phase|=state.consumer_generations[i]<<i;
+    }else if(threadIdx.x==128) {
+      #pragma unroll
+      for(int i=0;i<Slots;++i)phase|=state.producer_generations[i]<<i;
+    }
     int blocks=(p.padded_channels+CB-1)/CB;
     if(threadIdx.x>=128) {
       Sm90DenseRoles::Producer();

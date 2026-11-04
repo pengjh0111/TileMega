@@ -388,9 +388,32 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
      <<Quoted(coordinates.ToJson().Dump(0))<<";\n"
      <<"constexpr int kNativeForwardArena="<<arena<<";\n";
 
+  // Depthwise SimpleGate has natural half-channel inputs. Its producer
+  // gathers the two halves; pack filters and pre-gate affine vectors into
+  // the same 16-pair order used by the shared epilogue.
+  std::map<unsigned,unsigned> depthwise_gate_pack;
+  for(auto value:stages) {
+    auto stage=Entry(value,"stage");
+    if(String(stage,"kind")!="kDepthwiseConv")continue;
+    auto chain=frontend::DecodeDmChain(stage.get("dm_chain"));
+    unsigned unit=0;
+    for(unsigned i=0;i<chain.count;++i)
+      if(chain.operations[i].kind==codegen::DmEpilogueKind::kGatePair)unit=chain.operations[i].unit;
+    if(!unit)continue;
+    auto operands=stage.getAs<mlir::DenseI64ArrayAttr>("operands");
+    if(!operands || operands.size()<2)throw std::invalid_argument("depthwise gate lacks its filter operand");
+    depthwise_gate_pack[unsigned(operands[1])]=unit;
+    for(unsigned i=0;i<chain.count;++i) {
+      auto const& op=chain.operations[i];
+      if(op.kind==codegen::DmEpilogueKind::kGatePair)break;
+      if(op.kind==codegen::DmEpilogueKind::kBias || op.kind==codegen::DmEpilogueKind::kScale)
+        depthwise_gate_pack[op.parameter[0]]=unit;
+    }
+  }
   // Buffers keep their plan order: the harness binds external tensors by
   // index. The table is written once the stages have named their scratch.
   std::ostringstream table;
+  unsigned packed_index=0;
   for(auto value:buffers) {
     auto buffer=Entry(value,"buffer");
     auto dtype=buffer.getAs<mlir::StringAttr>("dtype");
@@ -400,12 +423,19 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
     auto external=buffer.getAs<mlir::StringAttr>("external_name");
     auto bound=external && !external.getValue().empty()?external.getValue().str():
         String(buffer,"name");
+    std::string recipe=pack?pack.getValue().str():std::string();
+    if(auto gate=depthwise_gate_pack.find(packed_index);gate!=depthwise_gate_pack.end()) {
+      if(recipe.empty())throw std::invalid_argument("depthwise gate parameter lacks a packing recipe");
+      recipe=json::Value(json::Object{{"kind","gate_pair_interleave"},{"u",int(gate->second)},
+          {"source",json::Parse(recipe)}}).Dump(0);
+    }
+    ++packed_index;
     table<<"  {"<<Quoted(bound)<<','
          <<(role && role.getValue()=="external"?"TM_BUFFER_EXTERNAL":"TM_BUFFER_INTERNAL")<<','
          <<(name=="f32"?"TM_DTYPE_F32":name=="i32"?"TM_DTYPE_I32":
             name=="i64"?"TM_DTYPE_I64":"TM_DTYPE_BF16")<<','
          <<Integer(buffer,"constant",0)<<"ull,"<<Integer(buffer,"per_batch",0)<<"ull,"
-         <<Quoted(pack?pack.getValue().str():std::string())<<"},\n";
+         <<Quoted(recipe)<<"},\n";
   }
 
   MapTable maps;
@@ -647,7 +677,10 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
         spec.strides[0]=l.strides[2]*2;spec.strides[1]=l.strides[1]*2;
         spec.strides[2]=l.strides[0]*2;
         spec.swizzle=0;
-        spec.box[0]=64;spec.box[1]=unsigned((c.tile_w-1)*conv.stride_w+conv.s);
+        bool input_gated=false;
+        for(unsigned i=0;i<chain.count;++i)
+          input_gated|=chain.operations[i].kind==codegen::DmEpilogueKind::kGatePair;
+        spec.box[0]=input_gated?32:64;spec.box[1]=unsigned((c.tile_w-1)*conv.stride_w+conv.s);
         spec.box[2]=unsigned((c.tile_h-1)*conv.stride_h+conv.r);spec.box[3]=1;
         if(c.channel_block!=64)
           throw std::invalid_argument("a depthwise tiled map reads one 64-channel block");
