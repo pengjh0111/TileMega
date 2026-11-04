@@ -74,6 +74,17 @@ int main(int argc,char** argv) {try {
         {"constants_from_older_body",stale},{"space_hits",double(state.cache.space_hits)},
         {"space_misses",double(state.cache.space_misses)},
         {"release_hits",double(state.cache.release_hits)},{"release_misses",double(state.cache.release_misses)}};
+    if(auto const* requested=cell.Find("decompose");requested && requested->AsBool("decompose")) {
+      auto decomposition=DecomposeFlow(flow.problem);
+      if(decomposition.original.makespan_ns!=flow.step_ns)
+        throw std::runtime_error("decomposition changed the original prediction");
+      row.Set("decomposition",json::Object{{"original_ns",decomposition.original.makespan_ns},
+          {"no_sync_ns",decomposition.no_sync},{"no_fixed_ns",decomposition.no_fixed},
+          {"infinite_ns",decomposition.infinite},{"no_external_ns",decomposition.no_external},
+          {"synchronization_ns",decomposition.synchronization},{"fixed_ns",decomposition.fixed},
+          {"contention_ns",decomposition.contention},{"chain_ns",decomposition.chain},
+          {"pg_upper_bound_ns",decomposition.pg_upper_bound}});
+    }
     output<<row.Dump(0);output.flush();
     std::cout<<cell.At("id").AsString("id")<<" pool_ms="<<flow.step_ns/1e6
         <<" replay_ms="<<replay.replay.makespan_ns/1e6<<" additive_ms="<<additive.step_ns/1e6<<'\n'<<std::flush;
