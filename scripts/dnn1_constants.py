@@ -29,7 +29,7 @@ import traceback
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / 'scripts/dnn1_constants.cu'
 POLICY = ROOT / 'configs/bench/sm90r2_guard_policy.json'
-PYTHON = '/root/TileMega/runs/r16/env/tensorrt-dnn/bin/python'
+PYTHON = str(ROOT / 'scripts/dnn1_supervised_python.py')
 PCI = {0: '0000:0f:00.0', 5: '0000:87:00.0', 7: '0000:b7:00.0'}
 FORWARD_HEADERS = (
     'Backend/Sm90ForwardEpilogue.cuh', 'Backend/Sm90ForwardGemm.cuh',
