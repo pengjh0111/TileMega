@@ -34,6 +34,9 @@ def validate(manifest, defines):
             c.get('schema') not in (5, 6, 7, 8) or
             c.get('model') not in LAYER):
         raise ValueError('native dense architecture or coordinate schema is invalid')
+    if (c['attention'].get('merge') not in ('la', 'dsmem', 'stage') or
+            (c['attention'].get('merge') == 'stage' and c['schema'] != 8)):
+        raise ValueError('native independent attention merge coordinate is invalid')
     # Schema 7 exists only to carry tp > 1; a TP1 program names no degree.
     tp = c.get('tp', 1)
     argmax_stage = c.get('argmax', 'la') == 'stage'
@@ -65,6 +68,9 @@ def dispatch(manifest, defines, source):
     if fused and c['model'] != 'moe':
         raise ValueError('native expert fusion needs a MoE coordinate')
     layer = FUSED_LAYER if fused else LAYER[c['model']]
+    merge_stage = c['attention'].get('merge') == 'stage' and c['attention']['chunks'] > 1
+    if merge_stage:
+        layer = (*layer[:2], 'attention_merge', *layer[2:])
     per_group = 2 if len(layer) % 2 else 1
     size = per_group*len(layer)
     head = size + 1
@@ -123,7 +129,7 @@ def dispatch(manifest, defines, source):
     # Manifest GEMM i is certified against the typed stage that runs it: the
     # GEMM positions of its layer within the group, or the head. A fused stage
     # runs two manifest GEMMs (expert gate_up, then down).
-    positions = [k for k, name in enumerate(layer) if name != 'attention'
+    positions = [k for k, name in enumerate(layer) if name not in ('attention', 'attention_merge')
                  for _ in range(2 if name == 'expert_fused' else 1)]
     gemms = manifest['gemms']
     if len(gemms) != len(positions)*layers + 1:
@@ -223,6 +229,8 @@ def dispatch(manifest, defines, source):
         actual = dict(tile_m=16, tile_n=tn, tile_k=tk, stages=slots,
                       warps_n=wn, warps_k=wk, split_k=1)
         f = c['gemms'][family]
+        if merge_stage and family == 'o':
+            stream = 0
         placement(number, typed, min(slots, k // tk) * tk * tn * 2 if stream is None else stream)
         if (gemm['index'] != index or gemm.get('impl') != 'native_mma_sync' or
                 batch != manifest['runtime_batch'] or gemm['n'] != n or gemm['k'] != k or
@@ -243,15 +251,26 @@ def dispatch(manifest, defines, source):
         raise ValueError('native dense attention call differs from manifest')
     a = c['attention']
     expected = [a[k] for k in ('chunks', 'block_keys', 'slots', 'new_row_work')]
+    merges = re.findall(r'using (Stage|Body)_(\d+)\s*=\s*AttentionMerge<([^;]+)>;', source)
+    if len(merges) != (per_group if merge_stage else 0):
+        raise ValueError('native attention merge stage differs from its coordinate identity')
+    merge_calls = {number: (typed, raw) for typed, number, raw in merges}
     shape = None
     for typed, number, raw in attention:
         args = raw.split(',')
         # batch, Hkv, D, Q, norm, chunks, keys, slots, row work, capacity, 11 buffers, K/V maps
         # [, DSMEM merge (D10b)].
-        dsmem = len(args) == 24
-        if len(args) not in (23, 24) or (dsmem and args[23] != 'true') or \
-                dsmem != (a.get('merge') == 'dsmem'):
+        flags = (['false', 'true'] if merge_stage else
+                 ['true'] if a.get('merge') == 'dsmem' else [])
+        dsmem = a.get('merge') == 'dsmem'
+        if args[23:] != flags or len(args) != 23 + len(flags):
             raise ValueError('native dense attention call signature is invalid')
+        if merge_stage:
+            merge_typed, merge_raw = merge_calls.get(str(int(number) + 1), ('', ''))
+            expected_merge = [*args[:4], args[5], args[18], args[19], args[13]]
+            if merge_raw.split(',') != expected_merge:
+                raise ValueError('native attention merge operands differ from its producer')
+            placement(str(int(number) + 1), merge_typed, 0)
         batch, hkv, dim, queries, norm, chunks, keys, slots, row, capacity = map(int, args[:10])
         current = (dim, queries, norm)
         # A tensor parallel rank holds 8 / tp of a dense model's KV heads.
@@ -280,6 +299,6 @@ def implementations(manifest):
                        for g in manifest['gemms']],
                 attention=dict(impl='native_tma_mma_sync', task_body='Sm90DenseAttentionBody',
                                chunks=c['attention']['chunks'],
-                               merge=('dsmem' if c['attention'].get('merge') == 'dsmem' else 'last_arriver')
+                               merge=(c['attention']['merge'] if c['attention'].get('merge') in ('dsmem', 'stage') else 'last_arriver')
                                if c['attention']['chunks'] > 1 else 'none',
                                buffers=c['attention']['slots'], partition='actual_past'))

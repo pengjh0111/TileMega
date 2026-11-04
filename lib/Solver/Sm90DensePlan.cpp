@@ -43,7 +43,7 @@ void NativeBoundaryContracts(mlir::ModuleOp module,bool write) {
     }else if(d.kind=="kFusedAttention") {
       d.groups=integer(s,"extent");
       d.implementation="attention/chunks="+std::to_string(c.attention.chunks)+
-          (c.attention.dsmem?"/dsmem":"/global");
+          (c.attention.dsmem?"/dsmem":c.attention.merge_stage?"/stage":"/global");
     }else if(d.kind=="kArgmaxReduce")d.implementation=c.argmax_stage?"argmax/stage":"argmax/handoff";
     else if(d.kind=="kEmbedding")d.implementation=c.embed_la?"embedding/handoff":"embedding/stage";
     else throw std::invalid_argument("native boundary has an unsupported stage kind");
@@ -61,8 +61,10 @@ void NativeBoundaryContracts(mlir::ModuleOp module,bool write) {
     attribute(task,"tmexec.implementation",b.getStringAttr(d.implementation));
     attribute(task,"tmexec.placement",b.getStringAttr("template"));
     if(d.kind=="kFusedAttention" && c.attention.chunks>1) {
-      attribute(task,"tmexec.handoff_event_extent",b.getI64IntegerAttr(batch*d.groups));
-      attribute(task,"tmexec.handoff_required_count",b.getI64IntegerAttr(c.attention.chunks));
+      attribute(task,c.attention.merge_stage?"tmexec.merge_event_extent":"tmexec.handoff_event_extent",
+          b.getI64IntegerAttr(c.attention.merge_stage?1:batch*d.groups));
+      attribute(task,c.attention.merge_stage?"tmexec.merge_required_count":"tmexec.handoff_required_count",
+          b.getI64IntegerAttr(c.attention.merge_stage?grid:c.attention.chunks));
     }
     if(d.epilogue=="residual_ar")
       attribute(task,"tmexec.data_world",b.getI64IntegerAttr(c.tp));

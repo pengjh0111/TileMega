@@ -47,38 +47,60 @@ class NativeContractTests(unittest.TestCase):
         return plan
 
     def source(self, c, prefixes=(0,) * 12, offsets=None, loop=None):
-        offsets = offsets or [(i % 2) * ARENA for i in range(12)]
+        merge_stage = c['attention'].get('merge') == 'stage' and c['attention']['chunks'] > 1
+        typed = [None, 0, 'attention', 'attention_merge', 1, 2, 3, 4] if merge_stage else TYPED
+        head = len(typed) - 1
+        offsets = offsets or [(i % 2) * ARENA for i in range(len(typed))]
         loop = c['layer_loop'] if loop is None else loop
         embed = str(c['emb'] == 'la').lower()
         text = ('#define TILEMEGA_STATIC_DENSE_NATIVE 1\n#define TILEMEGA_ARCH_ID 900\n'
                 '#define TILEMEGA_SWIGLU_U 8\n'
                 'constexpr char kNativeCoordinateIdentity[]=' + json.dumps(json.dumps(c)) + ';\n'
                 'using Body_0=Embedding<1,1024,151936,1088,0,1,2>;\n'
-                f'using Body_11=Head<HeadGemm_11,0,1,2,1024,1088,{embed}>;\n')
+                f'using Body_{head}=Head<HeadGemm_{head},0,1,2,1024,1088,{embed}>;\n')
         a = c['attention']
-        for number, family in enumerate(TYPED):
+        flags = ',false,true' if merge_stage else ''
+        for number, family in enumerate(typed):
             if family == 'attention':
                 text += (f'using Body_{number}=Attention<1,8,128,2,1,{a["chunks"]},{a["block_keys"]},'
                          f'{a["slots"]},{a["new_row_work"]},1088,0,kLayerSlot|1u,kLayerSlot|2u,3,4,5,'
-                         f'kLayerSlot|3u,kLayerSlot|4u,8,9,10,1,2>;\n')
+                         f'kLayerSlot|3u,kLayerSlot|4u,8,9,10,1,2{flags}>;\n')
+            elif family == 'attention_merge':
+                text += f'using Body_{number}=AttentionMerge<1,8,128,2,{a["chunks"]},8,9,3>;\n'
             elif family is not None:
                 name, n, k, op, norm = SHAPES[family]
                 g = c['gemms'][name]
                 tn, tk = g['tile_n'], g['slot_bytes'] // (2 * g['tile_n'])
-                alias = 'HeadGemm' if number == 11 else 'Body'
+                alias = 'HeadGemm' if number == head else 'Body'
                 text += (f'using {alias}_{number}=Gemm<1,{n},{k},{tn},{tk},{g["slots"]},{g["warps_n"]},'
                          f'{g["warps_k"]},backend::ServingEpilogueOp::{op},8,{norm},kLayerSlot|0u,'
                          f'kAbsent,2,kAbsent,{g["register_stages"]},0>;\n')
-        for i in range(12):
+        for i in range(len(typed)):
             # D8: Qwen (Q2 D128) groups hold 512 qkv columns, 16 TN32 tiles.
-            tiles = ',16' if i in (1, 6) and c['group_wait'] else ''
+            tiles = ',16' if typed[i] == 0 and c['group_wait'] else ''
             text += f'using Stage_{i}=Placement<Body_{i},{offsets[i]},{prefixes[i]}{tiles}>;\n'
-        pair = ','.join(f'Stage_{i}' for i in range(1, 11))
+        pair = ','.join(f'Stage_{i}' for i in range(1, head))
         return text + (f'using NativeProgram=Program<1,1088,1,12,3,{ARENA},2,5,{str(loop).lower()},'
-                       f'{embed},Stage_0,LayerGroup<2,{pair}>,Stage_11,{c["cluster"]}>;\n')
+                       f'{embed},Stage_0,LayerGroup<{1 if merge_stage else 2},{pair}>,Stage_{head},{c["cluster"]}>;\n')
 
     def check(self, c, source):
         return validate_gemm_dispatch(self.manifest(c), build_defines(source, []), source)
+
+    def test_independent_attention_merge_is_bound_to_producer(self):
+        c = copy.deepcopy(self.coordinates)
+        c.update(schema=8, tp=1, argmax='la')
+        c['attention']['merge'] = 'stage'
+        source = self.source(c)
+        self.assertEqual(len(self.check(c, source)), 9)
+        for bad in (source.replace('16,8,9,3>;', '16,9,8,3>;'),
+                    source.replace(',false,true>;', '>;'),
+                    source.replace('Body_3=AttentionMerge', 'Body_4=AttentionMerge'),
+                    source.replace('Placement<Body_3,115712,0>', 'Placement<Body_3,115712,1024>')):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                self.check(c, bad)
+        c['attention']['chunks'] = 1
+        self.assertEqual(len(self.check(c, self.source(c))), 9)
+        self.assertEqual(implementations(self.manifest(c), {})['attention']['merge'], 'none')
 
     def test_receipt_matches_typed_native_calls(self):
         rows = self.check(self.coordinates, self.source(self.coordinates))

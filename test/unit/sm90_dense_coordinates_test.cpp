@@ -32,6 +32,11 @@ int main() {
  auto restored=Sm90DenseCoordinates::FromJson(independent.ToJson());
  restored.Validate(nk,1);assert(restored.argmax_stage && restored.tp==1);
  assert(c.ToJson().At("schema").AsNumber("schema")==6);
+ auto merge=c;merge.attention.merge_stage=true;
+ auto merge_restored=Sm90DenseCoordinates::FromJson(merge.ToJson());
+ merge_restored.Validate(nk,1);
+ assert(merge_restored.attention.merge_stage && !merge_restored.argmax_stage);
+ assert(merge_restored.ToJson().Dump()==merge.ToJson().Dump());
  // D5/D6 rules: full residency, the first-task stream and full-width attention.
  assert(d.gemms[0].FullyResident(1024)==(d.gemms[0].slots==16) && d.gemms[0].StreamBytes(1024)==3*2*32*64);
  assert(d.attention.FullyResident(575) && d.attention.StreamBytes(128)==3*4*64*128);

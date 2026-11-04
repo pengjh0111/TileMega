@@ -229,7 +229,8 @@ Sm90NativeFlowResult Sm90NativeCtgScore(frontend::ImportedSemantics const& impor
     price.hop_ns=problem.hop_ns;
     if(task.role==frontend::OpRole::kServingMerge) {
       price.name="attention_merge";price.category="reducer";
-      node.sync=Sm90SyncKind::kHandoff;price.hop_ns=0;
+      node.sync=c.attention.merge_stage?Sm90SyncKind::kAggregate:Sm90SyncKind::kHandoff;
+      price.hop_ns=c.attention.merge_stage?problem.hop_ns:0;
       int norm=work.qk_norm?(work.qk_norm_row?2:1):0;
       price.middle.fixed_ns=c.attention.dsmem?
           constants.AttentionMergeDsmem(work.head_dim,work.queries,norm,c.attention.chunks):
@@ -258,12 +259,13 @@ Sm90NativeFlowResult Sm90NativeCtgScore(frontend::ImportedSemantics const& impor
       page=c.attention.block_keys*work.head_dim*4;pages=stream?c.attention.slots:0;
     }else if(stage.kind==frontend::PlanTaskKind::kGemm) {
       f=Sm90DenseFamily(imported.plan,imported.plan.gemms.at(stage.gemm));
-      bool pre=stream && ((f==0 && task.stage>1 && resident(3)) ||
+      bool stage_stream=stream && !(f==1 && c.attention.merge_stage && c.attention.chunks>1);
+      bool pre=stage_stream && ((f==0 && task.stage>1 && resident(3)) ||
           (f==1 && !c.attention.FullWidth(work.head_dim,work.queries,arena) &&
               c.attention.FullyResident(575)) || (f==2 && resident(1)) ||
           (f==3 && resident(2)) || (f==4 && resident(3)));
-      price=Sm90NativeGemmPrice(work,f,c.gemms[f],c.residency,cost,stream,pre);
-      page=c.gemms[f].slot_bytes;pages=stream?c.gemms[f].slots:0;
+      price=Sm90NativeGemmPrice(work,f,c.gemms[f],c.residency,cost,stage_stream,pre);
+      page=c.gemms[f].slot_bytes;pages=stage_stream?c.gemms[f].slots:0;
     }else throw std::invalid_argument("native CTG has an unpriced task role");
     if(price.category=="reducer" || price.category=="embedding")
       price.head=price.tail=price.head_and_tail=price.middle;

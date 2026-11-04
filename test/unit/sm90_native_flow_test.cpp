@@ -91,6 +91,17 @@ int main(int argc,char**argv){
           for(auto [last,consumer]:*edge.sorted)
             assert(last==(consumer/(batch*c.attention.chunks)+1)*16-1);
         }
+      auto merge_c=c;merge_c.attention.merge_stage=true;
+      auto merge_flow=Sm90NativeCtgScore(imported,actual_work,merge_c,cost,context,cache);
+      assert(merge_flow.problem.spaces.size()==actual.problem.spaces.size());
+      for(auto const& edge:merge_flow.problem.edges)
+        if(merge_flow.nodes[edge.consumer].price.name=="attention_merge") {
+          assert(edge.all_producer && edge.hop_ns==constants.Barrier(cost.Grid(c.residency)));
+          assert(!merge_flow.problem.spaces[edge.consumer].handoff_reducer);
+          auto const& output=merge_flow.problem.spaces[edge.consumer+1];
+          assert(output.pages_per_worker==0);
+          assert(merge_flow.nodes[edge.consumer+1].price.middle.no_producer_dram_bytes==0);
+        }
       auto isolated=Sm90NativeCtgScore(imported,actual_work,c,cost,context,cache,true);
       double sum=0;
       for(auto const& node:isolated.nodes)sum+=EvaluateFlow(

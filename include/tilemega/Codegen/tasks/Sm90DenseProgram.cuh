@@ -188,13 +188,14 @@ struct Gemm {
 template<int Batch,int Hkv,int D,int Q,int Norm,int Chunks,int Keys,int Slots,int RowWork,
          int Capacity,unsigned Qkv,unsigned Key,unsigned Value,unsigned Output,
          unsigned Cosine,unsigned Sine,unsigned QNorm,unsigned KNorm,
-         unsigned Partial,unsigned Lse,unsigned Arrivals,unsigned KeyMap,unsigned ValueMap,bool Dsmem=false>
+         unsigned Partial,unsigned Lse,unsigned Arrivals,unsigned KeyMap,unsigned ValueMap,
+         bool Dsmem=false,bool StageMerge=false>
 struct Attention {
   static constexpr bool kUsesOperandRecord=true;
   // A1 (RC1): mode 2 normalizes the whole projected row, so Prepare reads
   // every KV group of its token rather than only this task's group.
   static constexpr bool kRowNorm=Norm==2;
-  using Body=backend::Sm90DenseAttentionBody<Batch,Hkv,D,Q,Norm,Chunks,Keys,Slots,RowWork,Capacity,Dsmem>;
+  using Body=backend::Sm90DenseAttentionBody<Batch,Hkv,D,Q,Norm,Chunks,Keys,Slots,RowWork,Capacity,Dsmem,StageMerge>;
   // D10b: the leader's inbox barrier counts its S - 1 peer chunks.
   static constexpr int kInboxWriters=Dsmem?Chunks-1:0;
   static constexpr int kTasks=Body::kTasks,kSharedBytes=Body::kSharedBytes;
@@ -230,6 +231,41 @@ struct Attention {
       backend::Sm90DenseRingState& ring,Tail tail,backend::Sm90DenseOperandBank const& record,
       bool streamed) {
     StageEntry<Body>::template Attention<Prefix>(record.attention,shared,&ring,tail,streamed);
+  }
+};
+
+template<int Batch,int Hkv,int D,int Q,int Chunks,unsigned Partial,unsigned Lse,unsigned Output>
+struct AttentionMerge {
+  static_assert(Chunks>1);
+  static constexpr bool kUsesOperandRecord=true;
+  static constexpr int kTasks=Batch*Hkv,kSharedBytes=1024+4*Chunks*Q;
+  static constexpr int kRingSlots=0,kMaxPreissue=0;
+  static constexpr backend::Sm90DenseLayout kLayout{0,0,1024,kSharedBytes};
+  using Body=backend::Sm90DenseAttentionBody<Batch,Hkv,D,Q,0,Chunks,64,2,0,1088>;
+  template<int Bytes> static constexpr backend::Sm90DensePayload Payload() {return {};}
+  template<class B>
+  __device__ static __forceinline__ void PublishOperands(B const& b,int layer,int,float,
+      backend::Sm90DenseOperandBank& record,unsigned long long) {
+    record.attention.partial=reinterpret_cast<float*>(b.template Get<Partial>(layer));
+    record.attention.lse=reinterpret_cast<float*>(b.template Get<Lse>(layer));
+    record.attention.output=b.template Get<Output>(layer);
+  }
+  template<int Prefix,class B,class Tail>
+  __device__ static __forceinline__ void Run(B const&,int,char* shared,float,
+      backend::Sm90DenseRingState&,Tail tail,backend::Sm90DenseOperandBank const& record,bool) {
+    auto const& p=record.attention;auto* weight=reinterpret_cast<float*>(shared+1024);
+    if(threadIdx.x<128)for(int task=blockIdx.x;task<kTasks;task+=gridDim.x) {
+      // Runtime tasks are group-major; partial storage is batch-major.
+      int bg=(task%Batch)*Hkv+task/Batch;
+      for(int i=threadIdx.x;i<Chunks*Q;i+=128)weight[i]=p.lse[std::size_t(bg)*Chunks*Q+i];
+      executor::ComputeSync();
+      Body::Combine(p,weight,bg,[&](int c,int i) {
+        return *reinterpret_cast<float4 const*>(p.partial+(std::size_t(bg)*Chunks+c)*Q*D+i);
+      });
+      executor::ComputeSync();
+    }
+    if(threadIdx.x==128)tail();
+    __syncthreads();
   }
 };
 

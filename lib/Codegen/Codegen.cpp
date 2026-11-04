@@ -2207,7 +2207,8 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   unsigned plan_per_layer=unsigned(stages.size()-3)/layers;
   if(plan_per_layer!=(c.moe?6u:5u))
     throw std::invalid_argument("native layer groups need whole groups of supported layers");
-  unsigned per_layer=plan_per_layer-(c.expert_fuse?1u:0u),per_group=per_layer%2?2:1;
+  bool merge_stage=c.attention.merge_stage && c.attention.chunks>1;
+  unsigned per_layer=plan_per_layer-(c.expert_fuse?1u:0u)+unsigned(merge_stage),per_group=per_layer%2?2:1;
   unsigned group_size=per_layer*per_group;
   if(layers%per_group)
     throw std::invalid_argument("native layer groups need whole groups of supported layers");
@@ -2430,7 +2431,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
         if(chunks<2 || c.cluster%int(chunks) || batch*int(extent)*int(chunks)>grid)
           throw std::invalid_argument("native DSMEM merge needs S | cluster and one task wave");
         e.tail+=",true";
-      }
+      }else if(merge_stage)e.tail+=",false,true";
     }else if(kind=="kEmbedding") {
       tasks=batch;head<<"Embedding<"<<batch<<','<<width<<','<<extent<<','<<capacity;
       if(operand(3)!="kAbsent")throw std::invalid_argument("native embedding writes no norm sums");
@@ -2444,12 +2445,22 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     row<<"  {"<<quoteCString(kind)<<','<<quoteCString(weight)<<','<<bytes<<"ull,"
        <<tasks<<','<<extent<<','<<group<<','<<width<<','<<chunks<<"},\n";
     info.push_back(row.str());
+    if(kind=="kFusedAttention" && merge_stage) {
+      Emitted merge;merge.kind="kAttentionMerge";merge.family=-2;
+      merge.head="AttentionMerge<"+std::to_string(batch)+','+std::to_string(extent)+','+
+          std::to_string(width)+','+std::to_string(group)+','+std::to_string(chunks);
+      merge.ids={e.ids[8],e.ids[9],e.ids[3]};emitted.push_back(std::move(merge));
+      std::ostringstream merge_info;
+      merge_info<<"  {\"kAttentionMerge\",\"\",0ull,"<<batch*extent<<','<<extent<<','<<group<<','
+          <<width<<','<<chunks<<"},\n";
+      info.push_back(merge_info.str());
+    }
   }
   // qkv, attention, o, then gate_up, down (dense) or router, expert gate_up,
   // expert down (MoE); MR7 fuses the two expert stages into the down slot.
-  static constexpr int kDenseFamilies[5]={0,-1,1,2,3},kMoeFamilies[6]={0,-1,1,5,6,7},
-      kMoeFusedFamilies[5]={0,-1,1,5,7};
-  auto const* layer_families=c.moe?(c.expert_fuse?kMoeFusedFamilies:kMoeFamilies):kDenseFamilies;
+  std::vector<int> layer_families=c.moe?(c.expert_fuse?std::vector<int>{0,-1,1,5,7}:
+      std::vector<int>{0,-1,1,5,6,7}):std::vector<int>{0,-1,1,2,3};
+  if(merge_stage)layer_families.insert(layer_families.begin()+2,-2);
   if(emitted.front().kind!="kEmbedding" || emitted.back().kind!="kArgmaxReduce" ||
      emitted[emitted.size()-2].family!=4)
     throw std::invalid_argument("native program lacks its embedding, lm_head or argmax");
