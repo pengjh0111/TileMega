@@ -27,7 +27,7 @@ def main():
     a=p.parse_args()
     from tilemega.serving.baseline_common import require_guard,observe
     physical=require_guard(tp=1)[0]
-    if int(physical) not in (0,5,7):raise ValueError('DNN1 capture uses scheduled priority cards 0/5/7')
+    if int(physical) not in (0,1,2,3,4,5,7):raise ValueError('DNN1 capture excludes GPU6')
     a.out.mkdir(parents=True,exist_ok=False)
     try:
         from dnn1_work import describe,generated_tables
