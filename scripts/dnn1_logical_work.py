@@ -28,14 +28,14 @@ def logical_work(plan_path, manifest, inputs_path=None):
         result=unknown('no exact logical operation/weight count for this body')
         source=str(Path(plan_path).resolve())+':stage '+str(t['index'])
         if body in ('gemm','conv','gemv'):
-            m=c['batch']*c['output_height']*c['output_width'] if c else batch*g['rows_per_batch']
+            m=batch*c['output_height']*c['output_width'] if c else batch*g['rows_per_batch']
             n=g['n'];k=c['channels']*c['kernel_r']*c['kernel_s'] if c else g['k']
             result.update(logical_m=m,logical_n=n,logical_k=k,logical_flops=2*m*n*k,
                 logical_weight_bytes=2*n*k,logical_status='verified plan extents; inferred core MAC work without tile/channel padding',
                 logical_weight_scope='BF16 main matmul/conv weights only; affine/epilogue extras excluded',
                 logical_work_complete=False)
         elif body in ('depthwise','dwpw','inverted_residual'):
-            pixels=c['batch']*c['output_height']*c['output_width'];channels=c['channels'];taps=c['kernel_r']*c['kernel_s']
+            pixels=batch*c['output_height']*c['output_width'];channels=c['channels'];taps=c['kernel_r']*c['kernel_s']
             flops=2*pixels*channels*taps;weight=2*channels*taps
             if g:flops+=2*pixels*g['n']*channels;weight+=2*g['n']*channels
             result.update(logical_m=pixels,logical_n=g['n'] if g else channels,logical_k=channels if g else taps,
@@ -83,6 +83,11 @@ def logical_work(plan_path, manifest, inputs_path=None):
             result.update(logical_weight_bytes=weight if valid else None,
                 logical_status='verified plan affine bytes; exact normalization scalar operation count unknown',
                 logical_weight_scope='explicit LayerNorm affine parameters',logical_work_complete=False)
+        # Export descriptors can retain batch=1; the validated serving plan owns
+        # the semantic number of images. Preserve both for an explicit audit.
+        if c:
+            result['logical_descriptor_batch']=c['batch']
+            result['logical_runtime_batch']=batch
         result['logical_geometry_source']=source
         rows.append(result)
     return rows

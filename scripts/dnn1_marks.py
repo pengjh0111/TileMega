@@ -198,7 +198,7 @@ def analyze(directory, work, target, peak_tflops, process):
                    covered_batches=w.get('covered_batches',''),required_batches=w.get('runtime_batch',''),
                    coverage_status=('local_scope_missing_batches' if w.get('covered_batches')!=w.get('runtime_batch')
                                     else 'local_scope_full_batch; upstream correctness not asserted'),
-                   bound_scope='actual original body extent, not a claim of a complete correct forward',
+                   bound_scope='actual typed body extent; correctness requires separate evidence',
                    geometry_notes=json.dumps(w.get('notes',[]),ensure_ascii=False))
         for name, span in spans.items():
             row[name+'_ns'], row[name+'_count'] = span['total_ns'], span['count']
@@ -227,6 +227,7 @@ def main():
     p.add_argument('--trace', type=Path, required=True, action='append')
     p.add_argument('--work', type=Path, required=True,
                    help='stage work JSON: explicit traffic/FLOPs/tasks from the compiled plan')
+    p.add_argument('--captured-work', type=Path, help='original captured geometry; permits explicit reanalysis of identical artifact and inputs')
     p.add_argument('--target', type=Path, required=True)
     p.add_argument('--peak-tflops', type=float, required=True,
                    help='stated or measured peak; source must be recorded in --peak-source')
@@ -238,6 +239,21 @@ def main():
     if args.peak_tflops <= 0:
         p.error('peak must be positive')
     work = json.loads(args.work.read_text())
+    captured_hash = hashlib.sha256(args.work.read_bytes()).hexdigest()
+    geometry_reanalysis = None
+    if args.captured_work:
+        captured = json.loads(args.captured_work.read_text())
+        for key in ('source_sha256', 'manifest_sha256', 'logical_plan_sha256',
+                    'logical_inputs_sha256', 'runtime_batch', 'grid'):
+            if not work.get(key) or work.get(key) != captured.get(key):
+                raise ValueError('corrected geometry refers to another artifact/input: '+key)
+        if len(work['stages']) != len(captured['stages']):
+            raise ValueError('corrected geometry changes stage count')
+        captured_hash = hashlib.sha256(args.captured_work.read_bytes()).hexdigest()
+        geometry_reanalysis = dict(captured_work=str(args.captured_work),
+            captured_work_sha256=captured_hash, corrected_work=str(args.work),
+            corrected_work_sha256=hashlib.sha256(args.work.read_bytes()).hexdigest(),
+            source_sha256=work['source_sha256'], method='redecode generated template arity; retain original trace metadata and bytes')
     if isinstance(work, dict):
         if work.get('runtime_batch')!=args.batch:
             raise ValueError('work JSON belongs to another batch')
@@ -248,7 +264,7 @@ def main():
         trace_info,_=read_trace(directory)
         binding=trace_info.get('metadata',{})
         expected_work=binding.get('work_sha256')
-        if expected_work and expected_work!=hashlib.sha256(args.work.read_bytes()).hexdigest():
+        if expected_work and expected_work!=captured_hash:
             raise ValueError('trace was captured with another work JSON')
         if binding.get('model',args.model)!=args.model or binding.get('batch',args.batch)!=args.batch:
             raise ValueError('trace metadata belongs to another cell')
@@ -315,7 +331,7 @@ def main():
                        for r in sorted(merged,key=lambda r:r['excess_ns'],reverse=True)[:10]],
                    dt_a='STOP_RC7' if shares['RC-7']>.2 else 'continue',
                    peak_tflops=args.peak_tflops, peak_source=args.peak_source,
-                   coverage_scope='original implementation; no full-correct-forward assertion',
+                   geometry_reanalysis=geometry_reanalysis, coverage_scope='typed implementation extent; no full-correct-forward assertion',
                    missing_batch_stage_indices=[int(w['index']) for w in work
                        if w.get('covered_batches')!=w.get('runtime_batch')],
                    critical_cta='argmax CTA arrival timestamp for each stage/process',

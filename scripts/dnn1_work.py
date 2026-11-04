@@ -139,9 +139,12 @@ def describe(source_path,manifest_path,identity_path=None,logical_plan_path=None
         elif kind in ('depthwise','dwpw','inverted_residual'):
             tw,th,cb=map(integer,args[:3]);slots=integer(args[4] if kind=='depthwise' else args[5]);tm=tw*th
             channels=shape['kChannels'];out_channels=shape['kOutChannels'];p=shape['kOutputHeight'];q=shape['kOutputWidth']
-            padded=shape['kPaddedChannels'];pack=shape['kDepthwisePack'];m=p*q;pixels=m;coverage=1
-            tasks=((q+tw-1)//tw)*((p+th-1)//th)
-            weight=2*channels*9*pack;activation=2*shape['kWidth']*shape['kHeight']*padded
+            padded=shape['kPaddedChannels'];pack=shape['kDepthwisePack']
+            batch_arg=7 if kind=='depthwise' else 9
+            coverage=integer(args[batch_arg]) if len(args)>batch_arg else 1
+            m=coverage*p*q;pixels=m
+            tasks=coverage*((q+tw-1)//tw)*((p+th-1)//th)
+            weight=2*channels*9*pack;activation=coverage*2*shape['kWidth']*shape['kHeight']*padded
             if kind=='depthwise':
                 tasks*=(channels+cb-1)//cb;stored=channels//2 if 'Sm90ForwardOp::kGatePair' in raw else channels
                 output=2*m*stored;flops=2*m*channels*9;weight_task=2*cb*9*pack
@@ -151,7 +154,7 @@ def describe(source_path,manifest_path,identity_path=None,logical_plan_path=None
                 weight_task=2*tn*padded+2*channels*9*pack
             if residual is not None:activation+=output
             issued_flops=logical_flops=flops
-            notes.append('original spatial body has no batch task/offset; TMA batch coordinate=0')
+            notes.append('explicit template Batch covers image tasks and TMA offsets' if len(args)>batch_arg else 'original spatial body has no batch task/offset; TMA batch coordinate=0')
         elif kind=='encoder_attention':
             if len(args)==5:seq,d,heads,rows,slots=map(integer,args);coverage=1
             elif len(args)>=6:coverage,seq,d,heads,rows,slots=map(integer,args[:6])
@@ -162,23 +165,27 @@ def describe(source_path,manifest_path,identity_path=None,logical_plan_path=None
             flops=issued_flops=logical_flops=coverage*4*heads*seq*seq*d
             if coverage!=batch:notes.append('known F11: template/maps/tasks/output cover one sequence, not runtime batch')
         elif kind=='layout':
-            pixels=shape['kWidth']*shape['kHeight'];channels=shape['kOutChannels'];coverage=1
-            tasks=pixels;activation=2*pixels*channels;output=2*pixels*channels;logical_flops=0
-            notes.append('original layout width/height and offsets cover one image; padded channels are not copied')
+            image_pixels=shape['kWidth']*shape['kHeight'];channels=shape['kOutChannels']
+            coverage=integer(args[2]) if len(args)>=3 else 1;pixels=coverage*image_pixels
+            block=integer(args[1]) if len(args)>=3 else 1
+            tasks=coverage*((image_pixels+block-1)//block)
+            activation=2*pixels*channels;output=2*pixels*channels;logical_flops=0
+            notes.append('explicit template Batch and pixel Block; padded channels are not copied' if len(args)>=3 else 'original layout width/height and offsets cover one image; padded channels are not copied')
         elif kind=='pool':
-            window,stride=map(integer,args[:2]);width=shape['kWidth'];height=shape['kHeight'];channels=shape['kChannels'];coverage=1
-            pw=(width+1)//stride;ph=(height+1)//stride;tasks=pw*ph;pixels=pw*ph
-            activation=2*width*height*channels;output=2*pw*ph*channels
+            window,stride=map(integer,args[:2]);width=shape['kWidth'];height=shape['kHeight'];channels=shape['kChannels'];coverage=integer(args[2]) if len(args)>=3 else 1
+            pw=(width+1)//stride;ph=(height+1)//stride;tasks=coverage*pw*ph;pixels=coverage*pw*ph
+            activation=coverage*2*width*height*channels;output=coverage*2*pw*ph*channels
             validw=sum(sum(0<=x*stride-1+s<width for s in range(window)) for x in range(pw))
             validh=sum(sum(0<=y*stride-1+r<height for r in range(window)) for y in range(ph))
-            flops=validw*validh*channels;issued_flops=logical_flops=flops
-            notes.append('original pool loops/addresses cover one image')
+            flops=coverage*validw*validh*channels;issued_flops=logical_flops=flops
+            notes.append('explicit template Batch covers pool image offsets' if len(args)>=3 else 'original pool loops/addresses cover one image')
         elif kind=='global_pool':
             channels=shape['kChannels'];parts=shape['kWidth'];pixels=shape['kHeight']
-            tasks=(channels+127)//128;coverage=1
-            activation=4*parts*channels;output=2*channels;flops=(parts+1)*channels
+            coverage=integer(args[0]) if args else 1
+            tasks=coverage*((channels+127)//128)
+            activation=coverage*4*parts*channels;output=coverage*2*channels;flops=coverage*(parts+1)*channels
             issued_flops=logical_flops=flops
-            notes.append('original GAP writes output[c] only; input partial extent from generated Shape width')
+            notes.append('explicit template Batch covers GAP images; input partial extent from generated Shape width' if args else 'original GAP writes output[c] only; input partial extent from generated Shape width')
         elif kind=='gemv':
             block=integer(args[0]);m=shape['kWidth'] if shape['kWidth']>0 else 1
             k=shape['kChannels'];n=shape['kOutChannels'];channels=k;pixels=m
@@ -218,7 +225,7 @@ def describe(source_path,manifest_path,identity_path=None,logical_plan_path=None
         logical_plan_sha256=sha(logical_plan_path) if logical_plan_path else None,
         logical_inputs_sha256=sha(inputs_path) if inputs_path else None,
         manifest=str(manifest_path.resolve()),manifest_sha256=sha(manifest_path),runtime_batch=batch,grid=grid,
-        body_header_status='original body semantics for attribution; no optimization selected here',
+        body_header_status='body semantics decoded from generated template arity; runtime correctness requires separate proof',
         lower_bound_method='weight + required activation + output addressed bytes; compiled M/N/K mathematical FLOPs, M-tail issuance separately recorded; scalar counts inferred; split-K/row partials excluded as overhead',
         trace=defines.get('TILEMEGA_TRACE_STAGE','0') not in ('0','false'),stages=work)
 

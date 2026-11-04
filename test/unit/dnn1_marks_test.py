@@ -80,6 +80,37 @@ class Ledger(unittest.TestCase):
             self.assertEqual(rows[0]['k'], '256')
             self.assertEqual(rows[0]['processes'], '5')
 
+    def test_explicit_geometry_reanalysis_keeps_original_trace_binding(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fixture(root/'trace')
+            stages = [dict(index=i, body='gemm', dram_bytes=300, flops=100, tasks=2,
+                slots=2, geometry_source='CPU_FIXTURE', k_iter=4, weight_bytes_per_task=100,
+                m=49, tm=64, covered_batches=1, runtime_batch=1) for i in range(2)]
+            captured = dict(source_sha256='source', manifest_sha256='manifest',
+                logical_plan_sha256='plan', logical_inputs_sha256='inputs',
+                runtime_batch=1, grid=2, stages=stages)
+            (root/'captured.json').write_text(json.dumps(captured))
+            info = json.loads((root/'trace/trace.json').read_text())
+            info['metadata'] = dict(work_sha256=hashlib.sha256((root/'captured.json').read_bytes()).hexdigest())
+            (root/'trace/trace.json').write_text(json.dumps(info))
+            corrected = json.loads(json.dumps(captured))
+            corrected['stages'][0]['tasks'] = 4
+            (root/'corrected.json').write_text(json.dumps(corrected))
+            (root/'target.json').write_text(json.dumps(dict(sm90_native_constants=dict(dram_gbps=100,cta_dram_gbps=100))))
+            argv = ['dnn1_marks.py','--work',str(root/'corrected.json'),
+                '--captured-work',str(root/'captured.json'),'--target',str(root/'target.json'),
+                '--trace',str(root/'trace'),'--model','CPU_FIXTURE','--batch','1',
+                '--peak-tflops','1','--peak-source','CPU_FIXTURE','--out',str(root/'out')]
+            with patch.object(sys,'argv',argv),contextlib.redirect_stdout(io.StringIO()):
+                module.main()
+            result=json.loads((root/'out/summary.json').read_text())
+            self.assertEqual(result['geometry_reanalysis']['captured_work_sha256'],info['metadata']['work_sha256'])
+            corrected['source_sha256']='another-artifact'
+            (root/'corrected.json').write_text(json.dumps(corrected))
+            with patch.object(sys,'argv',argv),self.assertRaisesRegex(ValueError,'another artifact/input'):
+                module.main()
+
     def test_raw_hash_and_actual_barrier_overlap_are_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
