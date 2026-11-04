@@ -21,6 +21,7 @@ struct Sm90NativeCtg {
   // witnesses below without rebuilding an MLIR module (R6 U2).
   mlir::OwningOpRef<mlir::ModuleOp> module;
   analysis::ParamBinding binding;
+  json::Value approximation; // null for exact dense domains
   std::vector<Sm90NativeCtgSpace> spaces;
   std::vector<Sm90NativeCtgEdge> edges;
 };
@@ -35,7 +36,7 @@ struct Sm90NativeCtgCache {
   std::size_t release_hits=0,release_misses=0;
 };
 Sm90NativeCtg InstantiateSm90NativeCtg(frontend::ImportedSemantics const&,
-    Sm90DenseCoordinates const&,int batch,mlir::MLIRContext&,Sm90NativeCtgCache&);
+    Sm90DenseCoordinates const&,int batch,mlir::MLIRContext&,Sm90NativeCtgCache&,int workers=0);
 std::shared_ptr<std::vector<std::pair<int,int>> const> Sm90NativeReleaseTable(
     analysis::CouplingRelation const& producer_to_consumer,int producers,int consumers,
     int kappa,analysis::ParamBinding const&,Sm90NativeCtgCache&);

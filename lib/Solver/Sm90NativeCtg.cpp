@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/Sm90NativeCtg.h>
 #include <tilemega/Solver/Sm90DensePlan.h>
+#include <tilemega/Solver/Sm90NativeMoeDomain.h>
 #include <tilemega/Solver/RuntimeProjection.h>
 #include <algorithm>
 #include <limits>
@@ -50,10 +51,8 @@ std::string SpaceKey(analysis::SemanticOp const& semantic,
 }
 }
 
-Sm90NativeCtg InstantiateSm90NativeCtg(frontend::ImportedSemantics const& input,
+static Sm90NativeCtg InstantiateSm90NativeBaseCtg(frontend::ImportedSemantics const& input,
     Sm90DenseCoordinates const& c,int batch,mlir::MLIRContext& context,Sm90NativeCtgCache& cache) {
-  if(c.moe)throw std::invalid_argument(
-      "native MoE CTG requires explicit routing and combine semantics");
   SolverPhase total(&cache.timing,"native_ctg_total");
   auto imported=input;
   bool relift=false;
@@ -180,6 +179,121 @@ Sm90NativeCtg InstantiateSm90NativeCtg(frontend::ImportedSemantics const& input,
     result.edges.push_back({pair.first,pair.second,relations.size()==1?relations.front():
         analysis::CouplingRelation::UnionAll(relations)});
     cache.edges.insert_or_assign(edge_keys.at(pair),result.edges.back().relation);
+  }
+  return result;
+}
+
+Sm90NativeCtg InstantiateSm90NativeCtg(frontend::ImportedSemantics const& input,
+    Sm90DenseCoordinates const& c,int batch,mlir::MLIRContext& context,
+    Sm90NativeCtgCache& cache,int workers) {
+  if(c.moe && workers<1)
+    throw std::invalid_argument("native MoE local routing needs the physical worker count");
+  auto base=InstantiateSm90NativeBaseCtg(input,c,batch,context,cache);
+  if(!c.moe)return base;
+  if(!c.expert_fuse)
+    throw std::invalid_argument("native MoE unfused schedule publication is not implemented");
+  auto work=Sm90DenseWorkloadFromPlan(input.plan,batch);
+  auto gu_domain=Sm90NativeMoeDomain(work.experts,work.top_k,batch,
+      work.shapes[6][0]/c.gemms[6].tile_n);
+  auto dn_domain=Sm90NativeMoeDomain(work.experts,work.top_k,batch,
+      work.shapes[7][0]/c.gemms[7].tile_n);
+  Sm90NativeCtg result;result.binding=base.binding;
+  result.approximation=json::Object{{"kind",kSm90NativeMoeDomainApproximation},
+      {"gate_up",gu_domain.ToJson()},{"down",dn_domain.ToJson()},
+      {"local_route_tasks",workers},{"route_price","older-body RouteLa minus grid barrier"}};
+  // The generic importer supplies the exact dense/attention projections.
+  // Native expert axes and residual def-use are reconstructed below; its
+  // original MoE module is not presented as the projected executable IR.
+  auto add=[&](Sm90NativeCtgSpace item) {
+    auto key="native-moe-projection-v1:"+std::to_string(int(item.role))+":"+item.ownership.ToString();
+    auto found=cache.spaces.find(key);
+    if(found!=cache.spaces.end()) {item.count=found->second.count;++cache.space_hits;}
+    else {
+      ++cache.space_misses;
+      item.count=int(item.ownership.Reverse().ImageCard().Eval(result.binding));
+      if(item.count<1)throw std::invalid_argument("empty native predictive task domain");
+      cache.spaces.emplace(key,item);
+    }
+    result.spaces.push_back(std::move(item));return int(result.spaces.size())-1;
+  };
+  auto identity=[](int count) {
+    return analysis::CouplingRelation::FromIslText("{ [t] -> [j] : t=j and 0<=t<"+
+        std::to_string(count)+" }");
+  };
+  auto edge=[&](int producer,int consumer,analysis::CouplingRelation relation) {
+    if(producer<0 || consumer<=producer)
+      throw std::invalid_argument("native MoE dependency has no preceding producer");
+    auto key="native-moe-projection-v1:"+relation.ToString();
+    auto [found,inserted]=cache.edges.emplace(key,relation);
+    inserted?++cache.edge_misses:++cache.edge_hits;
+    result.edges.push_back({producer,consumer,found->second});
+  };
+  auto all=[&](int producer,int consumer) {
+    if(producer<0)throw std::invalid_argument("native MoE input has no producer");
+    edge(producer,consumer,analysis::CouplingRelation::FromIslText(
+        "{ [p] -> [q] : 0<=p<"+std::to_string(result.spaces[producer].count)+
+        " and 0<=q<"+std::to_string(result.spaces[consumer].count)+" }"));
+  };
+  std::map<int,int> mapped;
+  int previous=-1,output=-1,router=-1,route=-1,gate_up=-1;
+  for(int original=0;original<int(base.spaces.size());++original) {
+    auto item=base.spaces[original];auto const& stage=input.plan.stages.at(item.stage);
+    int family=stage.kind==frontend::PlanTaskKind::kGemm?
+        int(Sm90DenseFamily(input.plan,input.plan.gemms.at(stage.gemm))):-1;
+    if(family==6)item.ownership=gu_domain.ownership;
+    if(family==7)item.ownership=dn_domain.ownership;
+    int current=add(std::move(item));mapped.emplace(original,current);
+    auto const& task=result.spaces[current];
+    if(task.role==frontend::OpRole::kEmbedding) {
+      if(previous>=0)throw std::invalid_argument("unexpected native MoE embedding position");
+    }else if(family==0 || family==4 || task.role==frontend::OpRole::kServingArgmax) {
+      // Combine writes the in-place residual consumed by the next layer/head.
+      all(previous,current);
+    }else if(task.role==frontend::OpRole::kServingFusedAttention ||
+             task.role==frontend::OpRole::kServingMerge) {
+      int found=0;
+      for(auto const& source:base.edges)if(source.consumer==original) {
+        edge(mapped.at(source.producer),current,source.relation);++found;
+      }
+      if(!found)throw std::invalid_argument("native attention has no CTG producer");
+    }else if(family==1) {
+      all(previous,current);output=current;
+    }else if(family==5) {
+      if(previous!=output)throw std::invalid_argument("router does not follow its residual input");
+      all(output,current);router=current;
+      auto local=result.spaces[current];local.name+=".local_route";
+      local.role=frontend::OpRole::kMoERouting;local.ownership=identity(workers);
+      route=add(std::move(local));all(router,route);previous=route;continue;
+    }else if(family==6) {
+      if(previous!=route)throw std::invalid_argument("experts do not follow local routing");
+      all(output,current);
+      // Each CTA builds the route table it uses for its own grid-stride tasks.
+      edge(route,current,analysis::CouplingRelation::FromIslText(
+          "{ [p] -> [q] : 0<=p<"+std::to_string(workers)+" and 0<=q<"+
+          std::to_string(gu_domain.tasks)+" and q % "+std::to_string(workers)+" = p }"));
+      gate_up=current;
+    }else if(family==7) {
+      if(previous!=gate_up)throw std::invalid_argument("down does not follow its gate_up");
+      edge(gate_up,current,Sm90NativeMoeExpertCoupling(gu_domain,dn_domain));
+      // A CTA with only down work still performs its own local route build.
+      edge(route,current,analysis::CouplingRelation::FromIslText(
+          "{ [p] -> [q] : 0<=p<"+std::to_string(workers)+" and 0<=q<"+
+          std::to_string(dn_domain.tasks)+" and (q+"+std::to_string(gu_domain.tasks)+") % "+
+          std::to_string(workers)+" = p }"));
+      auto combine=result.spaces[current];combine.name+=".combine";
+      combine.role=frontend::OpRole::kMoECombine;combine.ownership=identity(dn_domain.tiles);
+      int reduction=add(std::move(combine));
+      edge(current,reduction,Sm90NativeMoeCombineCoupling(dn_domain));
+      // The residual add reads the same column interval from O's output.
+      int ot=c.gemms[1].tile_n,dt=c.gemms[7].tile_n;
+      edge(output,reduction,analysis::CouplingRelation::FromIslText(
+          "{ [p] -> [q] : 0<=p<"+std::to_string(result.spaces[output].count)+
+          " and 0<=q<"+std::to_string(dn_domain.tiles)+" and p*"+std::to_string(ot)+
+          "<(q+1)*"+std::to_string(dt)+" and q*"+std::to_string(dt)+"<(p+1)*"+
+          std::to_string(ot)+" }"));
+      previous=reduction;continue;
+    }else throw std::invalid_argument("unrecognized native MoE predictive stage");
+    previous=current;
   }
   return result;
 }

@@ -7,6 +7,7 @@
 #include <tilemega/Solver/Sm90DenseSearch.h>
 #include <tilemega/Solver/Sm90NativePipeline.h>
 #include <tilemega/Solver/Sm90NativeConstants.h>
+#include <tilemega/Solver/Sm90NativeMoeDomain.h>
 #include <tilemega/Solver/Sm90DenseRegisterContract.h>
 #include <tilemega/Frontend/ExportBridge.h>
 #include <tilemega/Support/Json.h>
@@ -288,12 +289,25 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
       return solver::Sm90NativeCtgScore(imported,work,c,cost,context,cache,isolated);
     };
     auto pipelined=solver::SolveSm90NativePipeline(space,work,cost,pipeline,evaluate,seeds);
-    auto rows=[](std::vector<solver::Sm90NativePipelineCandidate> const& input) {
+    auto rows=[&](std::vector<solver::Sm90NativePipelineCandidate> const& input) {
       json::Array output;
-      for(auto const& candidate:input)output.emplace_back(json::Object{
+      for(auto const& candidate:input) {
+        json::Value row=json::Object{
           {"coordinates",candidate.coordinates.ToJson()},{"structure",candidate.structural_class},
           {"pool_score_ns",candidate.pool_score_ns},{"replay_ns",candidate.replay_ns},
-          {"evaluation_ms",candidate.evaluation_ms},{"origin",candidate.origin}});
+          {"evaluation_ms",candidate.evaluation_ms},{"origin",candidate.origin}};
+        if(work.moe) {
+          auto const& c=candidate.coordinates;
+          row.Set("task_domain_approximation",json::Object{
+              {"kind",solver::kSm90NativeMoeDomainApproximation},
+              {"gate_up",solver::Sm90NativeMoeDomain(work.experts,work.top_k,work.batch,
+                  work.shapes[6][0]/c.gemms[6].tile_n).ToJson()},
+              {"down",solver::Sm90NativeMoeDomain(work.experts,work.top_k,work.batch,
+                  work.shapes[7][0]/c.gemms[7].tile_n).ToJson()},
+              {"route_price","older-body RouteLa proxy for per-CTA local routing"}});
+        }
+        output.push_back(std::move(row));
+      }
       return json::Value(output);
     };
     json::Array trajectories;

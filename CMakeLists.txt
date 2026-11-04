@@ -940,6 +940,12 @@ if(TILEMEGA_BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/test/python/run_sm90_native_ctg_test.py
       $<TARGET_FILE:sm90_native_flow_test> ${CMAKE_CURRENT_SOURCE_DIR})
     # P1: the per-task prices must reproduce the stage model they come from.
+    add_executable(sm90_native_moe_ctg_test test/unit/sm90_native_moe_ctg_test.cpp)
+    target_link_libraries(sm90_native_moe_ctg_test PRIVATE TileMega::tilemega)
+    target_compile_options(sm90_native_moe_ctg_test PRIVATE -UNDEBUG)
+    add_test(NAME sm90_native_moe_ctg COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/python/run_sm90_native_moe_ctg_test.py
+      $<TARGET_FILE:sm90_native_moe_ctg_test> ${CMAKE_CURRENT_SOURCE_DIR})
     add_executable(sm90_native_moe_domain_test test/unit/sm90_native_moe_domain_test.cpp)
     target_link_libraries(sm90_native_moe_domain_test PRIVATE TileMega::tilemega)
     target_compile_options(sm90_native_moe_domain_test PRIVATE -UNDEBUG)

@@ -31,6 +31,7 @@ struct Sm90NativeFlowResult {
   double pool_score_ns = 0;      // Eq. (8) over the complete decode step
   double step_ns = 0;
   FlowProblem problem;
+  json::Value approximation;
   FlowResult evaluated;
   std::vector<Sm90NativeStageNode> nodes;
   std::vector<double> stage_ns;  // per node, from FlowSpaceResult

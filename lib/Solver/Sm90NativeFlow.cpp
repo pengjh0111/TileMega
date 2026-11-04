@@ -212,8 +212,9 @@ Sm90NativeFlowResult Sm90NativePoolScore(Sm90DenseWorkload const& work,
 Sm90NativeFlowResult Sm90NativeCtgScore(frontend::ImportedSemantics const& imported,
     Sm90DenseWorkload const& work,Sm90DenseCoordinates const& c,Sm90DenseCostModel const& cost,
     mlir::MLIRContext& context,Sm90NativeCtgCache& cache,bool isolated) {
-  auto ctg=InstantiateSm90NativeCtg(imported,c,work.batch,context,cache);
+  auto ctg=InstantiateSm90NativeCtg(imported,c,work.batch,context,cache,cost.Grid(c.residency));
   Sm90NativeFlowResult result;
+  result.approximation=ctg.approximation;
   auto& problem=result.problem;
   auto const& constants=cost.Constants();
   problem.workers=cost.Grid(c.residency);problem.dram_gbps=constants.dram_gbps;
@@ -235,6 +236,16 @@ Sm90NativeFlowResult Sm90NativeCtgScore(frontend::ImportedSemantics const& impor
       price.middle.fixed_ns=c.attention.dsmem?
           constants.AttentionMergeDsmem(work.head_dim,work.queries,norm,c.attention.chunks):
           constants.AttentionMerge(work.head_dim,work.queries,norm,c.attention.chunks);
+    }else if(task.role==frontend::OpRole::kMoERouting) {
+      price.name="route_local";price.category="reducer";
+      price.middle.fixed_ns=constants.RouteLa(problem.workers,work.batch,work.experts,
+          work.softmax_all)-problem.hop_ns;
+      price.approximation="older-body RouteLa proxy for per-CTA local routing";
+    }else if(task.role==frontend::OpRole::kMoECombine) {
+      price.name="moe_combine";price.category="reducer";
+      node.sync=Sm90SyncKind::kHandoff;price.hop_ns=0;
+      double tile=c.gemms[7].tile_n*double(work.batch);
+      price.middle.fixed_ns=constants.l2_latency+(9*tile*4+tile*2)/constants.sm_gbps;
     }else if(task.role==frontend::OpRole::kServingArgmax) {
       price.name="argmax";price.category="reducer";
       node.sync=c.argmax_stage?Sm90SyncKind::kAggregate:Sm90SyncKind::kHandoff;
@@ -259,13 +270,20 @@ Sm90NativeFlowResult Sm90NativeCtgScore(frontend::ImportedSemantics const& impor
       page=c.attention.block_keys*work.head_dim*4;pages=stream?c.attention.slots:0;
     }else if(stage.kind==frontend::PlanTaskKind::kGemm) {
       f=Sm90DenseFamily(imported.plan,imported.plan.gemms.at(stage.gemm));
-      bool stage_stream=stream && !(f==1 && c.attention.merge_stage && c.attention.chunks>1);
-      bool pre=stage_stream && ((f==0 && task.stage>1 && resident(3)) ||
+      bool stage_stream=stream && f!=6 && !(f==1 && c.attention.merge_stage && c.attention.chunks>1);
+      unsigned last=c.moe?7:3;
+      bool pre=stage_stream && ((f==0 && task.stage>1 && resident(last)) ||
           (f==1 && !c.attention.FullWidth(work.head_dim,work.queries,arena) &&
               c.attention.FullyResident(575)) || (f==2 && resident(1)) ||
-          (f==3 && resident(2)) || (f==4 && resident(3)));
+          (f==3 && resident(2)) || (f==4 && resident(last)) ||
+          (f==5 && resident(1)) || (f==7 && !c.expert_fuse && resident(6)));
       price=Sm90NativeGemmPrice(work,f,c.gemms[f],c.residency,cost,stage_stream,pre);
       page=c.gemms[f].slot_bytes;pages=stage_stream?c.gemms[f].slots:0;
+      if(c.moe && f==6)price.hop_ns=0;
+      if(c.moe && f==7 && c.expert_fuse) {
+        node.sync=Sm90SyncKind::kCounted;node.kappa=work.shapes[6][0]/c.gemms[6].tile_n;
+        price.hop_ns=0;
+      }
     }else throw std::invalid_argument("native CTG has an unpriced task role");
     if(price.category=="reducer" || price.category=="embedding")
       price.head=price.tail=price.head_and_tail=price.middle;
@@ -286,6 +304,9 @@ Sm90NativeFlowResult Sm90NativeCtgScore(frontend::ImportedSemantics const& impor
     edge.all_producer=node.sync==Sm90SyncKind::kAggregate;
     edge.kappa=edge.all_producer?problem.spaces[edge.producer].count:node.kappa;
     edge.hop_ns=node.price.hop_ns;
+    if(ctg.spaces[coupling.producer].role==frontend::OpRole::kMoERouting) {
+      edge.all_producer=false;edge.kappa=1;edge.hop_ns=0;
+    }
     edge.sorted=Sm90NativeReleaseTable(coupling.relation,
         problem.spaces[edge.producer].count,problem.spaces[edge.consumer].count,
         edge.kappa,ctg.binding,cache);
