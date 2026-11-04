@@ -30,6 +30,7 @@ class LocalThetaTests(unittest.TestCase):
         options = [dict(geometry=dict(tile_n=32)), dict(geometry=dict(tile_n=64))]
         records = [dict(family='qkv', geometry=row['geometry'], process_id=i,
                         fresh_process=True, guard_code=0,
+                        development=False,gpu=2,reference_sha256='a0',input_state='A0 prompt-prefilled KV',
                         stage_ns=[5, 1, 3] if j == 0 else [1, 9, 7])
                    for j, row in enumerate(options) for i in range(3)]
         chosen, evidence = theta.measured_choice(options, records, 3)
@@ -40,3 +41,12 @@ class LocalThetaTests(unittest.TestCase):
         records[-1]['guard_code'] = 75
         with self.assertRaises(ValueError):
             theta.measured_choice(options, records, 3)
+
+    def test_development_and_cross_card_timings_are_rejected(self):
+        options=[dict(geometry=dict(tile_n=32))]
+        records=[dict(geometry=options[0]['geometry'],process_id=i,fresh_process=True,guard_code=0,
+            development=False,gpu=2,reference_sha256='a0',input_state='A0 prompt-prefilled KV',stage_ns=[1,2]) for i in range(3)]
+        records[0]['development']=True
+        with self.assertRaises(ValueError):theta.measured_choice(options,records,2)
+        records[0]['development']=False;records[1]['gpu']=5
+        with self.assertRaises(ValueError):theta.measured_choice(options,records,2)

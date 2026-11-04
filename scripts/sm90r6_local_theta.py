@@ -28,8 +28,14 @@ def traffic_choice(options, grid):
 
 def measured_choice(options, records, layers):
     by_geometry = {}
+    if (not records or len({row.get('gpu') for row in records})!=1 or
+            any(row.get('gpu') not in (0,1,2,3,4,5,7) for row in records) or
+            len({row.get('reference_sha256') for row in records})!=1 or
+            any(not row.get('reference_sha256') for row in records)):
+        raise ValueError('measured family must use one card and one A0 input reference')
     for row in records:
-        if row['guard_code'] != 0 or not row['fresh_process']:
+        if (row['guard_code'] != 0 or not row['fresh_process'] or row.get('development') is not False or
+                row.get('input_state')!='A0 prompt-prefilled KV'):
             raise ValueError('unaccepted probe process')
         key = geometry_key(row['geometry'])
         processes = by_geometry.setdefault(key, {})
@@ -47,6 +53,8 @@ def measured_choice(options, records, layers):
     chosen = min(options, key=lambda row: duration[geometry_key(row['geometry'])])
     return chosen, dict(isolated_ns=duration[geometry_key(chosen['geometry'])],
                        processes=3, instances_per_process=layers,
+                       gpu=records[0]['gpu'],reference_sha256=records[0]['reference_sha256'],
+                       input_state='A0 prompt-prefilled KV',
                        tie_break='equal medians retain native enumeration order')
 
 
