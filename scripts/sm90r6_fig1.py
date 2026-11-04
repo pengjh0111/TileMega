@@ -78,6 +78,9 @@ def merge(directory):
     check = read(directory / 'isolated-measurements/result.json')
     if not check['passed'] or len(check['processes']) != 3 or not check['same_card']:
         raise ValueError('incomplete isolated TN sweep')
+    isolated_gpus={process['gpu'] for process in check['processes']}
+    if len(isolated_gpus)!=1 or not isolated_gpus<={0,1,2,3,4,5,7}:
+        raise ValueError('isolated TN sweep mixed or used an ineligible card')
     isolated = defaultdict(dict)
     for line in (directory / 'isolated-measurements/measurements.jsonl').read_text().splitlines():
         row = json.loads(line); tn = row['geometry']['tile_n']; process = row['process_id']
@@ -106,6 +109,10 @@ def merge(directory):
         if len(isolated[tn]) != 3:
             raise ValueError('isolated TN needs three fresh processes')
         phases, instances, overhead = d0(directory / label / 'd0', cell['model'], family)
+        d0_gpus=[process['gpu'] for process in read(directory/label/'d0/result.json')['processes']]
+        if not set(d0_gpus)<={0,1,2,3,4,5,7}:raise ValueError('ineligible D0 card')
+        explanation=('critical-CTA split at m2: gate-up includes local routing; down includes waits/combine'
+                     if family=='expert_gate_up' else 'critical-CTA qkv interval from begin to task arrival')
         rows.append(dict(model=cell['model'], batch=cell['batch'], family=family, tile_n=tn,
             isolated_us=st.median(isolated[tn].values()), isolated_processes=3,
             in_program_stage_us=phases['stage'], gate_up_us=phases.get('gate_up', ''),
@@ -114,8 +121,9 @@ def merge(directory):
             d0_instances='|'.join(map(str, instances)), instrumentation_overhead_pct=overhead,
             tpot_ms=timing['arms'][label]['tpot_ms'], range_pct=timing['arms'][label]['range_pct'],
             timing_processes=3, gpu=timing['rows'][0]['gpu'],
+            isolated_gpu=next(iter(isolated_gpus)),d0_gpus='|'.join(map(str,d0_gpus)),
             coordinates_sha256=sha(artifact['coordinates']), binary_sha256=sha(artifact['binary']),
-            evidence='verified', note='critical-CTA split at m2: gate-up includes local routing; down includes waits/combine; barrier tail separate; medians of per-instance differences; trial concurrency',
+            evidence='verified', note=explanation+'; barrier tail separate; medians of per-instance differences; D0 diagnostic; trial concurrency',
             raw=str(directory.resolve()), timing_sha256=sha(directory / 'timing.json')))
     return rows
 
