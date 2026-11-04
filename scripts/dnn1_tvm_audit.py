@@ -74,8 +74,31 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--input', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--verified-out', type=Path)
+    parser.add_argument('--quarantine-out', type=Path)
     args = parser.parse_args()
     report = audit(args.input, args.out)
+    if bool(args.verified_out) != bool(args.quarantine_out):
+        parser.error('provide both verified and quarantine outputs')
+    if args.verified_out:
+        verdict = {(cell['session'], cell['precision']): cell['sampled_windows_clean']
+                   for cell in report['cells']}
+        with args.input.open(newline='') as stream:
+            reader = csv.DictReader(stream)
+            fields, rows = reader.fieldnames, list(reader)
+        clean, quarantine = [], []
+        for row in rows:
+            selected = quarantine if (row['system'] == 'tvm' and row['status'] == 'pass'
+                and not verdict[(row['cell_session'], row['precision'])]) else clean
+            selected.append(row)
+        for path, selected in ((args.verified_out, clean), (args.quarantine_out, quarantine)):
+            if path.resolve() == args.input.resolve():
+                raise ValueError('retain the original collector or publisher input')
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open('w', newline='') as stream:
+                writer = csv.DictWriter(stream, fieldnames=fields, lineterminator='\n')
+                writer.writeheader()
+                writer.writerows(selected)
     print(json.dumps(dict(cells=len(report['cells']),
                           sampled_windows_clean=sum(c['sampled_windows_clean'] for c in report['cells']))))
 
