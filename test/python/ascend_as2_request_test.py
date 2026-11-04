@@ -137,7 +137,7 @@ class RequestCapturePayloadTest(unittest.TestCase):
 
     def test_final_attention_owner_has_three_phase_token_for_all_registered_bodies(self):
         m=[4,2,6,1,1,0,0,100];tasks=[(0,0,1,7,0,0,1)];s=[0]*33;s[17]=13
-        for variant in (4,5,6,7,8,9,12):
+        for variant in (4,5,6,7,8,9,12,13):
             s[31]=variant
             self.assertEqual(mix_prefix(m,tasks,[s],1,3),4*307+2)
         s[31]=10
