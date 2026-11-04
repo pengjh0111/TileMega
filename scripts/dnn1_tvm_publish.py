@@ -73,9 +73,11 @@ def publish(source, destination, base=None):
             raise ValueError('publish to an independent destination; retain the supplied base CSV')
         with base.open(newline='') as stream:
             reader = csv.DictReader(stream)
-            if reader.fieldnames != fields:
-                raise ValueError('baseline CSV schemas differ; do not silently drop primary fields')
+            base_fields = reader.fieldnames
             existing = list(reader)
+        # Historical and current collectors expose different evidence columns.
+        # Keep their union; missing values remain empty, never inferred.
+        fields = list(base_fields) + [name for name in fields if name not in base_fields]
         def key(row):
             return tuple(row[name] for name in ('model', 'batch', 'system', 'arm', 'precision'))
         incoming = {key(row): row for row in rows if row['system'] == 'tvm' and row['status'] == 'pass'}
