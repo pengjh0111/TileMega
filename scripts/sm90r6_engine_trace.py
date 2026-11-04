@@ -50,7 +50,7 @@ def trace(engine, model, batch, tokens, gpu, directory):
     hook_source = (ROOT/'scripts/sm90r6_trace_hooks/sitecustomize.py').read_bytes()
     (hooks/'sitecustomize.py').write_bytes(hook_source)
     (directory/'protocol.json').write_text(json.dumps(dict(
-        schema=2, engine=engine, model=model, batch=batch, capture_steps=[257, 320],
+        schema=2, engine=engine, model=model, batch=batch, gpu=gpu, capture_steps=[257, 320],
         analysis_steps=[273, 304], hook_sha256=hashlib.sha256(hook_source).hexdigest(),
         wrapper_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         baseline_sha256=hashlib.sha256((ROOT/f'python/tilemega/serving/{engine}_baseline.py').read_bytes()).hexdigest()
@@ -89,6 +89,9 @@ def trace(engine, model, batch, tokens, gpu, directory):
     for key in ('TILEMEGA_GPU_LOCK_HELD', 'TILEMEGA_DEVICE_GROUP', 'TILEMEGA_RUN_NONCE',
                 'TILEMEGA_NUMA_CONCURRENCY_VERIFIED'):
         environment.pop(key, None)
+    if engine == 'trtllm':
+        # Frozen TP1 baseline: run_r16_baselines.py sets this explicitly.
+        environment['TLLM_WORKER_USE_SINGLE_PROCESS'] = '1'
     (directory / 'command.json').write_text(json.dumps(command, indent=2)+'\n')
     with (directory / 'run.log').open('w') as log:
         code = subprocess.call(command, cwd=str(ROOT), env=environment,
@@ -124,7 +127,13 @@ def steps(trace_rows, want=32, captured=64):
     """Use the captured kernel sequence, never a TPOT-sized time window."""
     if not trace_rows:
         raise ValueError('capture contains no kernels')
-    boundaries = [i for i,row in enumerate(trace_rows) if row[0] == trace_rows[0][0]]
+    names = [row[0] for row in trace_rows]
+    boundaries = []
+    for width in range(1,min(32,len(names))+1):
+        prefix = names[:width]
+        boundaries = [i for i in range(len(names)-width+1) if names[i:i+width] == prefix]
+        if len(boundaries) == captured:
+            break
     if len(boundaries) != captured:
         raise ValueError('first-kernel anchor does not identify exactly 64 decode steps')
     def sequence(begin, end):
@@ -135,8 +144,24 @@ def steps(trace_rows, want=32, captured=64):
     # Independent streams may interleave differently; their own ordered
     # sequences must repeat. Outer capture edges may contain in-flight work.
     template = sequence(boundaries[1], boundaries[2])
-    if any(sequence(boundaries[i], boundaries[i+1]) != template for i in range(2,captured-1)):
-        raise ValueError('per-stream kernel sequences do not repeat between decode anchors')
+    anchor_stream = trace_rows[0][3] if len(trace_rows[0])>3 else 0
+    if any(sequence(boundaries[i], boundaries[i+1]).get(anchor_stream) != template[anchor_stream]
+           for i in range(2,captured-1)):
+        raise ValueError('compute-stream kernel sequence does not repeat between decode anchors')
+    all_streams = sequence(0,len(trace_rows))
+    if all_streams.keys() != template.keys():
+        raise ValueError('capture contains an unaccounted CUDA stream')
+    for stream, values in all_streams.items():
+        if stream == anchor_stream:
+            continue
+        # Auxiliary work can cross the compute-stream anchor. Its full
+        # ordered sequence must remain periodic, with at most one partial
+        # cycle at each capture edge; time windows assign actual GPU work.
+        minimum = max(1,math.ceil(len(values)/(captured+1)))
+        maximum = len(values)//(captured-1)
+        if not any(all(name == values[i%period] for i,name in enumerate(values))
+                   for period in range(minimum,maximum+1)):
+            raise ValueError('auxiliary stream kernel order is not periodic')
     first = (captured-want)//2
     if first < 0 or first+want >= captured:
         raise ValueError('middle windows need the following step start')
@@ -275,6 +300,11 @@ def main():
         (directory/'result.json').write_text(json.dumps(dict(returncode=code))+'\n')
     if code:
         return code
+    measurement = json.loads((directory/f'job/measurements/B{a.batch}/measurements.json').read_text())
+    if int(measurement['gpu_index']) != gpu or measurement['max_tokens'] != 1024:
+        raise ValueError('baseline measurement identity differs from the trace request')
+    if a.engine == 'trtllm' and not measurement['configuration']['worker_use_single_process']:
+        raise ValueError('TRT-LLM trace differs from the frozen TP1 process configuration')
     capture_complete(directory)
     rows = kernels(report, directory)
     windows = steps(rows)
@@ -295,6 +325,12 @@ def main():
                   excess_share=result['in_kernel_excess_us']/result['step_us'],
                   classes_share={k: v/result['busy_us'] for k,v in result['classes'].items()},
                   bytes_step=a.bytes, bw_gbps=a.bw_gbps, raw_directory=str(directory))
+    result.update(full_run_tpot_ms=1000*measurement['tpot_seconds'],
+                  baseline_configuration=measurement['configuration'],
+                  checkpoint=measurement['checkpoint'],
+                  prompt_ids_sha256=measurement['prompt_ids_sha256'],
+                  acceptance=measurement['acceptance'],
+                  timing_scope='median kernel-anchored decode interval within the 64-step capture')
     (directory/'windows.json').write_text(json.dumps(windows)+'\n')
     mapping = [dict(operator_index=i, kernels=[dict(position=p, name=r[0]) for p,r in group])
                for i,group in enumerate(gemm_groups(rows[windows[0][0]:windows[0][1]]))]

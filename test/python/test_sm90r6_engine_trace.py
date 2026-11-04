@@ -92,6 +92,26 @@ class TraceProtocol(unittest.TestCase):
         self.assertEqual(trace.classify('flashinfer::norm::RMSNormKernel'), 'norm')
         self.assertEqual(trace.classify('flashinfer::activation::act_and_mul_kernel'), 'activation')
 
+    def test_repeated_first_name_uses_prefix(self):
+        rows=[]
+        for i in range(64):
+            start=i*10
+            rows.extend([('copy',start,start+1),('embedding',start+1,start+2),
+                         ('copy',start+2,start+3),('gemm',start+3,start+4)])
+        windows=trace.steps(rows)
+        self.assertEqual(windows[0],(64,68,160,170))
+
+    def test_auxiliary_cycle_can_cross_anchor(self):
+        rows=[]
+        for i in range(64):
+            start=i*20
+            rows.extend([('anchor',start,start+1,1),('gemm',start+4,start+8,1),
+                         ('metadata_a',start+2,start+3,2)])
+            shift=1 if i%2 else -1
+            rows.append(('metadata_b',start+20+shift,start+20+shift+.5,2))
+        rows.sort(key=lambda r:r[1])
+        self.assertEqual(len(trace.steps(rows)),32)
+
 
 if __name__ == '__main__':
     unittest.main()
