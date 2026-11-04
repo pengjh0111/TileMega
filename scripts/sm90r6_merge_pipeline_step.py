@@ -51,7 +51,7 @@ def merge(source, output, warm=None):
         if row['coordinates']['model'] == 'moe' and not approximate:
             raise ValueError('MoE prediction must identify its expected-task approximation')
         note = ('approximate rounded expected expert task domain; local routing uses older-body RouteLa proxy; '
-                if approximate else '') + 'frozen F; report only; CP-P correctness gates remain incomplete'
+                if approximate else '') + 'frozen F; report only; correctness gate is independent of diagnostic ratios'
         for metric, field in [('PoolScore_ms', 'pool_ns'), ('replay_ms', 'replay_ns'), ('additive_ms', 'additive_ns')]:
             value = row[field] / 1e6
             if not math.isfinite(value) or value <= 0:

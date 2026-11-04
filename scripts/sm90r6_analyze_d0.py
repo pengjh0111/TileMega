@@ -27,12 +27,17 @@ def family(row):
     raise ValueError('unclassified dense runtime stage: '+str(row))
 
 
-def predictions(data):
+def stage_mapping(data):
     c=data['coordinates'];argmax='argmax' if c.get('argmax','la')=='stage' else 'lm_head'
     mapping=dict(gemm0='qkv',gemm1='o',gemm2='gate_up',gemm3='down',gemm4='lm_head',
                  argmax=argmax,argmax_la=argmax,attention='attention',merge='attention',
                  embedding=argmax if c['emb']=='la' else 'embedding',embedding_la=argmax)
     if c['attention'].get('merge','la')=='stage':mapping['merge']='attention_merge'
+    return mapping
+
+
+def predictions(data):
+    mapping=stage_mapping(data)
     flow=defaultdict(float);counts=defaultdict(int)
     for row in data['spaces']:
         k=mapping[row['kind']]
@@ -112,6 +117,10 @@ def analyze(directory,prediction,bandwidth,compute):
         for k,v in per_type.items():totals[k].append(st.median(v))
         overheads.append(run['overhead_pct']);processes.append(str(trial))
     flow,additive,_=predictions(prediction);rows=[]
+    components=defaultdict(lambda:defaultdict(float));mapping=stage_mapping(prediction)
+    for space in prediction['spaces']:
+        components[mapping[space['kind']]][space['kind']]+=(
+            space['last_end_ns']-max(0,space['first_start_ns']))/1000
     for kind in sorted(totals):
         count=instance_counts[kind];measured=st.median(spans[kind])/1000
         flow_us=flow.get(kind,0)/count/1000;additive_us=additive.get(kind,0)/count/1000
@@ -119,6 +128,8 @@ def analyze(directory,prediction,bandwidth,compute):
         rows.append(dict(model=model,batch=batch,stage=kind,instances_per_step=count,processes=3,
             measured_span_us=measured,flow_span_us=flow_us,flow_over_measured=flow_us/measured,
             additive_stage_us=additive_us,additive_over_measured=additive_us/measured,
+            flow_components_per_instance_us=json.dumps(
+                {k:v/count for k,v in components[kind].items()},sort_keys=True,separators=(',',':')),
             attributed_step_us=boundary,memory_compute_floor_us=floor,
             attributed_excess_us=boundary-count*floor,barrier_tail_us=st.median(tails[kind])/1000,
             instrumentation_overhead_pct=st.median(overheads),evidence='verified measurements; inferred bounds',
