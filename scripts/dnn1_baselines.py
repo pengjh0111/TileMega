@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """DNN1 baseline queue/run/collect; a whole cell owns one guarded GPU session.
 
-Queue generation and collection are CPU-only. Run requires the existing
-physical-card guard, NUMA lock, and identity wrapper. External baselines are
+Queue generation and collection are CPU-only. Run uses the existing guard
+and identity wrapper. Serial cells hold the NUMA lock; user-authorized
+concurrent cells use declared CPU affinity and the guard's trial mode.
+External baselines are
 frozen independently of final native selection; missing native prefixes are
 recorded as incomplete P-CELL, never synthesized from unsafe artifacts.
 """
@@ -34,7 +36,8 @@ DEFAULT_EXTRA_PATH = '/root/TileMega/runs/r16/env/dnn-export/lib/python3.10/site
 POLICY = ROOT / 'configs/bench/sm90r2_guard_policy.json'
 MODELS = ('resnet18', 'mbv1', 'mbv2', 'bert', 'nafnet')
 BATCHES = (1, 2, 4, 8, 16)
-PCI = {0: '0000:0f:00.0', 5: '0000:87:00.0', 7: '0000:b7:00.0'}
+PCI = {0: '0000:0f:00.0', 1: '0000:10:00.0', 2: '0000:41:00.0',
+       3: '0000:44:00.0', 4: '0000:86:00.0', 5: '0000:87:00.0', 7: '0000:b7:00.0'}
 ARMS = (
     dict(arm='tensorrt-bf16', system='tensorrt', precision='bf16'),
     dict(arm='tensorrt-fp16', system='tensorrt', precision='fp16'),
@@ -137,7 +140,15 @@ def require_session(cell):
             env.get('TILEMEGA_TIMING') != '1'):
         raise HardStop('cell execution requires the unchanged single-card timing guard')
     node = 0 if gpu < 4 else 1
-    if not held(f'/tmp/tilemega_gpu{gpu}.lock') or not held(f'/tmp/tilemega_numa{node}.lock'):
+    if not held(f'/tmp/tilemega_gpu{gpu}.lock'):
+        raise HardStop('the outer session must hold the physical GPU lock')
+    if cell.get('parallel'):
+        affinity = set(cell.get('cpu_affinity') or [])
+        if (env.get('TILEMEGA_NUMA_CONCURRENCY_TRIAL') != '1' or
+                env.get('TILEMEGA_NUMA_CONCURRENCY_VERIFIED') == '1' or
+                not affinity or not set(os.sched_getaffinity(0)) <= affinity):
+            raise HardStop('parallel cells require explicit trial metadata and declared CPU affinity')
+    elif not held(f'/tmp/tilemega_numa{node}.lock'):
         raise HardStop('the outer session must hold both physical GPU and NUMA locks')
 
 
@@ -358,7 +369,7 @@ def queue(args):
     config = read(args.spec)
     gpu = config.get('gpu', 0)
     if gpu not in PCI:
-        raise ValueError('DNN1 baseline sessions use GPU0, GPU5 or GPU7')
+        raise ValueError('DNN1 baseline session GPU is excluded; GPU6 remains unavailable')
     sys.path.insert(0, str(ROOT / 'python'))
     from tilemega.bench.gpu_guard import require_allowed_gpu
     policy = read(POLICY)
@@ -391,6 +402,17 @@ def queue(args):
         raise ValueError('cells must be distinct DNN1 model/batch pairs')
     jobs, previous, snapshots = [], [], []
     env = gpu_env(gpu, config.get('env'))
+    systems = set(config.get('systems', ('tensorrt', 'torchcompile', 'tvm')))
+    if not systems or not systems <= {'tensorrt', 'torchcompile', 'tvm'}:
+        raise ValueError('systems must select supported baseline systems')
+    arms = [arm for arm in ARMS if arm['system'] in systems]
+    parallel = config.get('parallel', False)
+    affinity = config.get('cpu_affinity') or []
+    if parallel:
+        if not affinity or any(type(cpu) is not int or cpu < 0 for cpu in affinity):
+            raise ValueError('parallel cells require an explicit nonempty CPU affinity')
+        env['TILEMEGA_NUMA_CONCURRENCY_TRIAL'] = '1'
+        env.pop('TILEMEGA_NUMA_CONCURRENCY_VERIFIED', None)
     uuid = policy['idle_power_mapping_provenance']['uuid_by_gpu'][str(gpu)]
     node = 0 if gpu < 4 else 1
     for model, batch in pairs:
@@ -421,8 +443,12 @@ def queue(args):
             libraries=config.get('libraries', {}), logical_timeout_s=config.get('logical_timeout_s', 3600),
             native_prefix=config.get('native_prefixes', {}).get(key),
             native_prefix_unavailable_reason=config.get('native_prefix_unavailable_reasons', {}).get(key),
-            protocol=PROTOCOL, arms=list(ARMS), order=[
-                [arm['arm'] for arm in (reversed(ARMS) if r == 1 else ARMS)] for r in range(3)])
+            parallel=parallel, cpu_affinity=affinity,
+            scheduling_amendment=config.get('scheduling_amendment'),
+            protocol=PROTOCOL, arms=arms, order=[
+                [arm['arm'] for arm in (reversed(arms) if r == 1 else arms)] for r in range(3)])
+        if parallel:
+            cell['inductor_cache'] = str(ROOT / f'runs/dnn1/inductor/gpu{gpu}')
         cell['prefix'] = prefix_status(cell)
         cell['p_cell_complete'] = cell['prefix']['available']
         cell_path = cell_root / 'spec.json'
@@ -434,7 +460,8 @@ def queue(args):
         jobs.append(dict(name=export_name, gpu=False, timing=False, priority=10,
             timeout_s=7200, cwd=str(ROOT), after=previous, env=dict(env, CUDA_VISIBLE_DEVICES=''),
             command=['flock', f'/tmp/tilemega_gpu{gpu}.lock', *export_command]))
-        command = ['numactl', f'--cpunodebind={node}', python,
+        binding = '--physcpubind=' + ','.join(map(str, affinity)) if parallel else f'--cpunodebind={node}'
+        command = ['numactl', binding, python,
             str(ROOT / 'scripts/run_r16_with_device_identity.py'), '--guard-policy', str(POLICY),
             '--out', '{attempt_dir}/job', '--expected-uuid', uuid, '--expected-pci', PCI[gpu],
             '--numa-node', str(node), '--allow-no-measurements', '--', python,
@@ -452,9 +479,10 @@ def queue(args):
         '-u', 'TILEMEGA_NUMA_CONCURRENCY_TRIAL', *[f'{k}={v}' for k, v in env.items()],
         python, '-m', 'tilemega.bench.scheduler', '--queue-dir', str(out / 'queue'),
         '--out', str(out / 'scheduler'), '--policy', str(POLICY), '--deadline-hours', '96']
+    scheduler_lock = f'/tmp/tilemega_dnn1_baseline_scheduler_gpu{gpu}.lock' if parallel else '/tmp/tilemega_dnn1_baseline_scheduler.lock'
     launcher.write_text('#!/usr/bin/env bash\nset -euo pipefail\ncd ' + shlex.quote(str(ROOT)) + '\n' +
         shlex.join([python, str(Path(__file__).resolve()), 'preflight', '--run-root', str(out)]) + '\n' +
-        shlex.join(['flock', '/tmp/tilemega_dnn1_baseline_scheduler.lock', *start]) + '\n')
+        shlex.join(['flock', scheduler_lock, *start]) + '\n')
     launcher.chmod(0o755)
     print(compact(dict(queue=str(out / 'queue'), cells=len(cells), gpu=gpu,
                        launcher=str(launcher), executed_gpu=False)))
@@ -475,7 +503,7 @@ def preflight(args):
                     raise PreparationPending('awaiting the final baseline source: ' + path)
                 if expected is None or sha(path) != expected:
                     raise PreparationPending('baseline source changed; refresh the unstarted queue: ' + path)
-            if cell['tvm_selfcheck'] not in checked:
+            if any(a['system']=='tvm' for a in cell['arms']) and cell['tvm_selfcheck'] not in checked:
                 checked[cell['tvm_selfcheck']] = validate_tvm_selfcheck(cell)
         record = dict(schema=1, status='ready', checked_selfchecks=checked, source_files=sorted(sources),
                       gpu=spec['gpu'], cells=len(spec['cells']), executed_gpu=False)
@@ -720,19 +748,25 @@ def run(args):
         run_export(cell, args.out)
         return
     try:
-        selfcheck = validate_tvm_selfcheck(cell)
+        selfcheck = (validate_tvm_selfcheck(cell) if any(a['system']=='tvm' for a in cell['arms']) else
+                     dict(status='deferred', reason='user prioritizes TRT/torch.compile; TVM evidence collected separately'))
     except PreparationPending as error:
         write(args.out / 'cell-result.json', dict(schema=1, status='preparation_pending',
             model=cell['model'], batch=cell['batch'], gpu=cell['gpu'], error=str(error),
             logical_jobs=[], order=[], prefix=cell['prefix'], p_cell_complete=False))
         raise
     require_session(cell)
-    with Path('/tmp/tilemega_dnn1_baseline_cell.lock').open('a') as serial:
+    cell_lock = (f"/tmp/tilemega_dnn1_baseline_cell_gpu{cell['gpu']}.lock" if cell.get('parallel') else
+                 '/tmp/tilemega_dnn1_baseline_cell.lock')
+    with Path(cell_lock).open('a') as serial:
         fcntl.flock(serial, fcntl.LOCK_EX)
         record = dict(schema=1, cell=str(args.cell.resolve()), cell_sha256=sha(args.cell),
             model=cell['model'], batch=cell['batch'], gpu=cell['gpu'], protocol=cell['protocol'],
             prefix=cell['prefix'], p_cell_complete=cell['p_cell_complete'], started=time.time(),
-            order=[], logical_jobs=[], native_visits=[], status='running', runtime_libraries={})
+            order=[], logical_jobs=[], native_visits=[], status='running', runtime_libraries={},
+            parallel=cell.get('parallel', False), cpu_affinity=sorted(os.sched_getaffinity(0)),
+            numa_concurrency_verified=False if cell.get('parallel') else None,
+            scheduling_amendment=cell.get('scheduling_amendment'))
         destination = args.out / 'cell-result.json'
         def save():
             write(destination, record)

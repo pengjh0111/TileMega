@@ -30,8 +30,8 @@ def main():
     if args.round_index >= processes:
         parser.error('round-index exceeds the fresh process count for ' + args.protocol)
     gpu_index = int(require_guard()[0])
-    if gpu_index not in (0, 5, 7):
-        raise ValueError('DNN1 timing uses GPU0, GPU5 or GPU7')
+    if gpu_index not in (0, 1, 2, 3, 4, 5, 7):
+        raise ValueError('DNN1 timing uses the user-authorized healthy cards; GPU6 is excluded')
     selection = json.loads(args.selection_config.read_text())
     identity_path = Path(str(args.library) + '.identity.json')
     identity = verify(args.library)
