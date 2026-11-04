@@ -150,12 +150,16 @@ def worker(gpu, queue):
         if unit['kind'] == 'h2' and not build_moe_cell(unit):
             queue.finish(unit, 90)
             continue
-        if unit['kind'] == 'h2':
-            # random_checkpoint refuses an existing directory, so a retried
-            # cell must start from a clean one.
-            stale = ROOT / f"runs/sm90r6/h2/{unit['model']}-B{unit['batch']}/checkpoint"
-            if stale.exists():
-                subprocess.call(['rm', '-rf', str(stale)])
+        # Every attempt starts from a clean working directory. Both collectors
+        # build a random checkpoint, and random_checkpoint refuses to write into
+        # a directory that exists - so a killed attempt's leftovers made every
+        # retry fail, first on the directory and then on individual shards whose
+        # supervisor was still holding them open.
+        working = (ROOT / f"runs/sm90r6/h2/{unit['model']}-B{unit['batch']}"
+                   if unit['kind'] == 'h2'
+                   else ROOT / f"runs/sm90r6/i1/{unit['engine']}-{unit['model']}-B{unit['batch']}")
+        if unit['kind'] in ('h2', 'i1') and working.exists():
+            subprocess.call(['rm', '-rf', str(working)])
         log = OUT / f"{unit['name']}.log"
         with log.open('a') as stream:
             stream.write(f"\n=== gpu {gpu} at {time.strftime('%H:%M:%S')}\n")
