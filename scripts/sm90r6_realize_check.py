@@ -35,7 +35,10 @@ def main():
     a.out.mkdir(parents=True, exist_ok=True)
     reference = None
     checks = []
-    for name, binary in [('reference', a.reference), ('candidate', a.candidate)]:
+    implementations = [('reference', a.reference), ('candidate', a.candidate)]
+    if a.reference.resolve() == a.candidate.resolve():
+        implementations = [('candidate', a.candidate)]
+    for name, binary in implementations:
         for loop in [False, True]:
             with ServingEngine(checkpoint, None, binary, a.batch, prompt_len=64,
                     max_new_tokens=a.steps, mode='L1', decode_loop=loop,
