@@ -20,6 +20,7 @@ def main():
     p.add_argument('--model', required=True, choices=['qwen3_30b_a3b', 'olmoe_1b_7b'])
     p.add_argument('--batch', type=int, required=True, choices=[1, 2, 4, 8, 16])
     p.add_argument('--steps', type=int, default=1024)
+    p.add_argument('--sanitize', action='store_true', help='run memcheck on the routing collector')
     p.add_argument('--cell', type=Path, required=True)
     p.add_argument('--gpus', type=int, nargs='+', default=[0, 5, 7])
     p.add_argument('--out', type=Path, default=ROOT / 'runs/sm90r6/h2/attempts')
@@ -55,6 +56,9 @@ def main():
             '--model', a.model, '--batch', str(a.batch), '--steps', str(a.steps),
             '--decode', str(cell / 'decode.so'), '--bridge', str(cell / 'decode.export.json'),
             '--out', str(directory)]
+        if a.sanitize:
+            collect = ['compute-sanitizer', '--tool', 'memcheck', '--error-exitcode', '86',
+                       '--log-file', str(directory / 'memcheck.log'), *collect]
         checkpoint = [sys.executable, '-u', str(ROOT / 'python/tilemega/serving/random_checkpoint.py'),
             '--config', str(model_dir(a.model)), '--out', str(directory / 'checkpoint'),
             '--seed', '0', '--max-gib', '64', '--', *collect]
