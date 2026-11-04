@@ -1471,6 +1471,10 @@ add_executable(tilemega-native-evaluate EXCLUDE_FROM_ALL tools/experimental/tile
 target_link_libraries(tilemega-native-evaluate PRIVATE TileMega::tilemega)
 set_target_properties(tilemega-native-evaluate PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 
+add_executable(tilemega-native-search EXCLUDE_FROM_ALL tools/experimental/tilemega-native-search.cpp)
+target_link_libraries(tilemega-native-search PRIVATE TileMega::tilemega)
+set_target_properties(tilemega-native-search PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+
 option(TILEMEGA_BUILD_EXPERIMENTAL "Build historical experiment tools" OFF)
 if(TILEMEGA_BUILD_EXPERIMENTAL)
   add_executable(tilemega-flow-validation tools/experimental/tilemega-flow-validation.cpp)
