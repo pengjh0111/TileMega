@@ -61,7 +61,7 @@ struct Sm90ForwardGemm {
   static constexpr int kSlotBytes=2*TK*(TM+TN);
   // The accumulator tile the chain rewrites, then the per-row (mu, 1/sigma)
   // a deferred normalization needs and the split-K last-arriver flag.
-  static constexpr int kScratchBytes=4*TM*TN+16;
+  static constexpr int kScratchBytes=4*TM*TN+Chain::kScratchBytes+16;
   // 1 KB header, the ring, then that scratch.
   static constexpr Sm90DenseLayout kLayout{1024,1024+2*Slots*TK*TM,
       1024+Slots*kSlotBytes,(1024+Slots*kSlotBytes+kScratchBytes+1023)/1024*1024};
@@ -85,12 +85,17 @@ struct Sm90ForwardGemm {
       // pixel is the tile's first output pixel, in NPQ raster order.
       constexpr int kBlocks=Conv::kC/TK;
       int panel=k/TK,tap=panel/kBlocks,c=(panel%kBlocks)*TK;
-      int row=m_tile*TM,image=row/(Conv::kP*Conv::kQ),pixel=row%(Conv::kP*Conv::kQ);
-      int w=(pixel%Conv::kQ)*Conv::kStrideW+Conv::kHaloW-Conv::kPadW;
-      int h=(pixel/Conv::kQ)*Conv::kStrideH+Conv::kHaloH-Conv::kPadH;
-      Async::TensorIm2col4D(a,p.activation,c,w,h,image,
-          std::uint16_t((tap%Conv::kS)*Conv::kDilationW),
-          std::uint16_t((tap/Conv::kS)*Conv::kDilationH),barrier);
+      // Each shared descriptor produces 64 pixels. A TM128 tile issues
+      // two disjoint requests, whose bytes jointly satisfy the same mbarrier.
+      #pragma unroll
+      for(int base=0;base<TM;base+=64) {
+        int row=m_tile*TM+base,image=row/(Conv::kP*Conv::kQ),pixel=row%(Conv::kP*Conv::kQ);
+        int w=(pixel%Conv::kQ)*Conv::kStrideW+Conv::kHaloW-Conv::kPadW;
+        int h=(pixel/Conv::kQ)*Conv::kStrideH+Conv::kHaloH-Conv::kPadH;
+        Async::TensorIm2col4D(a+base*TK,p.activation,c,w,h,image,
+            std::uint16_t((tap%Conv::kS)*Conv::kDilationW),
+            std::uint16_t((tap/Conv::kS)*Conv::kDilationH),barrier);
+      }
     }
   }
 
@@ -152,13 +157,14 @@ struct Sm90ForwardGemm {
       // The chain addresses this tile's rows: its residual, row statistics and
       // output all start at the tile's first row.
       auto epilogue=p.epilogue;
-      if(epilogue.residual)epilogue.residual+=std::size_t(m_tile)*TM*epilogue.residual_stride;
+      if(epilogue.residual && !Chain::kShuffledResidual)
+        epilogue.residual+=std::size_t(m_tile)*TM*epilogue.residual_stride;
       if(epilogue.row_stats) {
         epilogue.row_stats+=std::size_t(m_tile)*TM*2;
         epilogue.row_tiles=kTiles;epilogue.row_tile=n_tile;
         if(epilogue.row_partials)
           epilogue.row_partials+=std::size_t(m_tile)*TM*kTiles*2;
-        if(epilogue.row_counters)epilogue.row_counters+=std::size_t(m_tile)*TM;
+        if(epilogue.row_counters)epilogue.row_counters+=std::size_t(m_tile);
       }
       // The producer of this stage's normalized input wrote its row sums.
       if(epilogue.stats)epilogue.stats+=std::size_t(m_tile)*TM*2;

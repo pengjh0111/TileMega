@@ -45,8 +45,9 @@ struct Sm90ForwardFusedOperands {
 // channels per task. The pointwise contracts the depthwise result, so the
 // GEMM's M is the tile's pixel count padded to 64.
 template<int TW,int TH,int CB,int TN,int Stride,int Slots,class Chain,int Pack=8,
-         class DwChain=Sm90ForwardElementChain<>>
+         class DwChain=Sm90ForwardElementChain<>,int Batch=1>
 struct Sm90ForwardDwPw {
+  static_assert(Batch>=1);
   using Element=cutlass::bfloat16_t;
   using Async=codegen::executor::Async<arch::Sm90>;
   static_assert(TW*TH<=64 && CB%64==0 && (Stride==1 || Stride==2));
@@ -67,7 +68,7 @@ struct Sm90ForwardDwPw {
   static_assert(Pack>=1 && Pack<=8);
   static constexpr int kFilterElements=CB*9*Pack;
   static constexpr int kWeightBytes=2*kFilterElements;
-  static constexpr int kScratchBytes=4*kRows*TN;
+  static constexpr int kScratchBytes=4*kRows*TN+Chain::kScratchBytes;
   // Every WGMMA operand tile must start at a multiple of the 128-byte
   // swizzle's 1 KB period: a merely 128-byte-aligned base shifts the XOR
   // pattern and the MMA reads the wrong k columns for some rows.
@@ -134,7 +135,7 @@ struct Sm90ForwardDwPw {
     // The weight is packed into whole TN-wide tiles, so a projection narrower
     // than TN still has one tile and the epilogue stores only its own columns.
     int splits=(p.out_channels+TN-1)/TN;
-    int total=tiles_w*tiles_h*splits;
+    int image_tasks=tiles_w*tiles_h*splits,total=Batch*image_tasks;
     int tasks=total/int(gridDim.x)+(int(blockIdx.x)<total%int(gridDim.x));
     unsigned phase=0;
     #pragma unroll
@@ -146,7 +147,8 @@ struct Sm90ForwardDwPw {
       if(threadIdx.x==128) {
         Async::ProxyAsyncGlobalFence();
         for(int local=0;local<tasks;++local) {
-          int task=int(blockIdx.x)+local*int(gridDim.x);
+          int task=int(blockIdx.x)+local*int(gridDim.x),image=task/image_tasks;
+          task%=image_tasks;
           int tile=task/splits,tile_x=(tile%tiles_w)*TW,tile_y=(tile/tiles_w)*TH;
           for(int block=0;block<blocks;++block) {
             int slot=(local*blocks+block)%Slots;
@@ -160,7 +162,7 @@ struct Sm90ForwardDwPw {
             Async::Wait(state.empty+slot,(phase>>slot)&1);
             Async::ExpectTx(state.full+slot,2*(kHaloElements+kPageElements)+filter_bytes);
             Async::Tensor4D(halo+slot*kHaloElements,p.activation,block*CB,
-                tile_x*Stride-1,tile_y*Stride-1,0,state.full+slot);
+                tile_x*Stride-1,tile_y*Stride-1,image,state.full+slot);
             // This block's pointwise pages: TN x 64 pages of the K panels the
             // block covers, contiguous per (output tile, k panel).
             Async::Bulk(pages+slot*kPageElements,
@@ -181,7 +183,8 @@ struct Sm90ForwardDwPw {
       TM_FWD_TRACE_ACC(wait_trace);TM_FWD_TRACE_ACC(dw_trace);
       TM_FWD_TRACE_ACC(pw_trace);TM_FWD_TRACE_ACC(epilogue_trace);TM_FWD_TRACE_ACC(main_trace);
       for(int local=0;local<tasks;++local) {
-        int task=int(blockIdx.x)+local*int(gridDim.x);
+        int task=int(blockIdx.x)+local*int(gridDim.x),image=task/image_tasks;
+          task%=image_tasks;
         int tile=task/splits,split=task%splits;
         int tile_x=(tile%tiles_w)*TW,tile_y=(tile/tiles_w)*TH;
         int tile_w=min(TW,max(0,p.output_width-tile_x));
@@ -223,14 +226,16 @@ struct Sm90ForwardDwPw {
         // walks the tile inside the image.
         auto epilogue=p.epilogue;
         epilogue.tile_width=tile_w;epilogue.image_width=p.output_width;
+        epilogue.row_base=(image*p.output_height+tile_y)*p.output_width+tile_x;
         // The residual is this tile's own pixels, like the output.
         if(epilogue.residual)
-          epilogue.residual+=(std::size_t(tile_y)*p.output_width+tile_x)*epilogue.residual_stride;
-        int width=p.out_channels-split*Chain::kWidth;
+          epilogue.residual+=((std::size_t(image)*p.output_height+tile_y)*p.output_width+tile_x)*epilogue.residual_stride;
+        int stored_channels=Chain::kGated?p.out_channels/2:p.out_channels;
+        int width=stored_channels-split*Chain::kWidth;
         if(width>Chain::kWidth)width=Chain::kWidth;
         TM_FWD_TRACE_BEGIN(epilogue_trace);
         Chain::Finish(values,rows,split*TN,width>0?width:0,epilogue,
-            p.output+(std::size_t(tile_y)*p.output_width+tile_x)*p.output_stride,
+            p.output+((std::size_t(image)*p.output_height+tile_y)*p.output_width+tile_x)*p.output_stride,
             p.output_stride);
         TM_FWD_TRACE_END(epilogue_trace);
       }

@@ -10,6 +10,7 @@
 #include <tilemega/Backend/Sm90ForwardFused.cuh>
 #include <tilemega/Backend/Sm90ForwardEncoderAttention.cuh>
 #include <tilemega/Backend/Sm90ForwardSmall.cuh>
+#include <tilemega/Backend/Sm90ForwardGemv.cuh>
 #include <tilemega/Codegen/tasks/ServingAbi.h>
 #include <tuple>
 #include <type_traits>

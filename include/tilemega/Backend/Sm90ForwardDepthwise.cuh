@@ -27,8 +27,9 @@ struct Sm90ForwardDepthwiseOperands {
   int padded_channels,output_stride;
 };
 
-template<int TW,int TH,int CT,int Stride,int Slots,class Chain,int Pack=8>
+template<int TW,int TH,int CT,int Stride,int Slots,class Chain,int Pack=8,int Batch=1>
 struct Sm90ForwardDepthwise {
+  static_assert(Batch>=1);
   using Element=cutlass::bfloat16_t;
   using Async=codegen::executor::Async<arch::Sm90>;
   static_assert((Stride==1 || Stride==2) && TW>0 && TH>0 && CT%8==0);
@@ -42,7 +43,7 @@ struct Sm90ForwardDepthwise {
   static constexpr int kFilterElements=CT*9*Pack;
   static constexpr int kSlotElements=kHaloElements+kFilterElements;
   static constexpr int kSlotBytes=2*kSlotElements;
-  static constexpr int kScratchBytes=4*TW*TH*CT;
+  static constexpr int kScratchBytes=4*TW*TH*CT+Chain::kScratchBytes;
   static constexpr Sm90DenseLayout kLayout{1024,1024,
       1024+Slots*kSlotBytes,
       (1024+Slots*kSlotBytes+kScratchBytes+1023)/1024*1024};
@@ -56,7 +57,8 @@ struct Sm90ForwardDepthwise {
     Async::ProxyAsyncGlobalFence();
     for(int local=0;local<tasks;++local) {
       int task=int(blockIdx.x)+local*int(gridDim.x);
-      int tile=task%tiles,block=task/tiles;
+      int blocks=(p.channels+CT-1)/CT,image=task/(tiles*blocks);
+      int tile=task%tiles,block=(task/tiles)%blocks;
       int tile_x=(tile%tiles_w)*TW,tile_y=(tile/tiles_w)*TH;
       int slot=local%Slots;
       int channels=p.channels-block*CT;
@@ -66,7 +68,7 @@ struct Sm90ForwardDepthwise {
       auto* base=slots+slot*kSlotElements;
       Async::Wait(state.empty+slot,(phase>>slot)&1);
       Async::ExpectTx(state.full+slot,2*kHaloElements+filter_bytes);
-      Async::Tensor4D(base,p.activation,block*CT,tile_x*Stride-1,tile_y*Stride-1,0,
+      Async::Tensor4D(base,p.activation,block*CT,tile_x*Stride-1,tile_y*Stride-1,image,
           state.full+slot);
       if(filter_bytes)
         Async::Bulk(base+kHaloElements,p.weight+std::size_t(block)*CT*9*Pack,filter_bytes,
@@ -86,7 +88,8 @@ struct Sm90ForwardDepthwise {
     TM_FWD_TRACE_ACC(epilogue_trace);
     for(int local=0;local<tasks;++local) {
       int task=int(blockIdx.x)+local*int(gridDim.x);
-      int tile=task%tiles,block=task/tiles;
+      int blocks=(p.channels+CT-1)/CT,image=task/(tiles*blocks);
+      int tile=task%tiles,block=(task/tiles)%blocks;
       int tile_x=(tile%tiles_w)*TW,tile_y=(tile/tiles_w)*TH;
       // An edge tile is narrower than TW: its pixels are decomposed by its
       // own width, and the store walks the same tile.
@@ -122,8 +125,9 @@ struct Sm90ForwardDepthwise {
       Async::Arrive(state.empty+slot);
       auto epilogue=p.epilogue;
       epilogue.tile_width=tile_w;epilogue.image_width=p.output_width;
+      epilogue.row_base=(image*p.output_height+tile_y)*p.output_width+tile_x;
       if(epilogue.residual)
-        epilogue.residual+=(std::size_t(tile_y)*p.output_width+tile_x)*epilogue.residual_stride;
+        epilogue.residual+=((std::size_t(image)*p.output_height+tile_y)*p.output_width+tile_x)*epilogue.residual_stride;
       // The block's channels in the producer's packed space; a gate pair in
       // the chain halves them, and Finish stores at the halved offset.
       int width=p.channels-block*CT;
@@ -131,7 +135,7 @@ struct Sm90ForwardDepthwise {
       if(Chain::kGated)width/=2;
       TM_FWD_TRACE_BEGIN(epilogue_trace);
       Chain::Finish(values,rows,block*CT,width>0?width:0,epilogue,
-          p.output+(std::size_t(tile_y)*p.output_width+tile_x)*p.output_stride,p.output_stride);
+          p.output+((std::size_t(image)*p.output_height+tile_y)*p.output_width+tile_x)*p.output_stride,p.output_stride);
       TM_FWD_TRACE_END(epilogue_trace);
     }
     TM_FWD_TRACE_FLUSH(wait_trace,kHaloWait);TM_FWD_TRACE_FLUSH(compute_trace,kDepthwiseCompute);
@@ -146,7 +150,7 @@ struct Sm90ForwardDepthwise {
     auto* scratch=shared+kLayout.scratch;
     int tiles_w=(p.output_width+TW-1)/TW,tiles_h=(p.output_height+TH-1)/TH;
     int tiles=tiles_w*tiles_h,blocks=(p.channels+CT-1)/CT;
-    int total=tiles*blocks;
+    int total=Batch*tiles*blocks;
     int tasks=total/int(gridDim.x)+(int(blockIdx.x)<total%int(gridDim.x));
     unsigned phase=0;
     #pragma unroll

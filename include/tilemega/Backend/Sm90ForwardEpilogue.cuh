@@ -80,10 +80,11 @@ enum class Sm90ForwardOp : unsigned {
 template<Sm90ForwardOp Kind,unsigned Vector=0,
          codegen::DmActivation Activation=codegen::DmActivation::kRelu,
          codegen::DmGatePair Gate=codegen::DmGatePair::kSimpleGate,unsigned Unit=16,
-         unsigned Vector2=0>
+         unsigned Vector2=0,int ResidualMap=kDenseWrite>
 struct Sm90ForwardEpilogueStep {
   static constexpr Sm90ForwardOp kKind=Kind;
   static constexpr unsigned kVector=Vector,kVector2=Vector2,kUnit=Unit;
+  static constexpr int kResidualMap=ResidualMap;
   static constexpr codegen::DmActivation kActivation=Activation;
   static constexpr codegen::DmGatePair kGate=Gate;
 };
@@ -147,6 +148,11 @@ struct Sm90ForwardEpilogueChain {
   static constexpr bool kNeedsStats=
       ((Step::kKind==Sm90ForwardOp::kDeferredLayerNorm ||
         Step::kKind==Sm90ForwardOp::kResidualLN) || ...);
+  static constexpr bool kShuffledResidual=
+      ((Step::kKind==Sm90ForwardOp::kResidual && Step::kResidualMap==kShuffleWrite) || ...);
+  // Row-normalization scratch is dead after Apply; its first word then
+  // broadcasts the row-block last-arriver decision to the consumers.
+  static constexpr int kScratchBytes=kNeedsStats?2*M*int(sizeof(float)):16;
 
   // One step over the tile. `channel` is the tile's first channel in the
   // step's own channel space and `width` its live columns: both halve at a
@@ -180,6 +186,14 @@ struct Sm90ForwardEpilogueChain {
       channel/=2;width=half;
       return;
     }else {
+      auto* row_norm=tile+M*N;
+      if constexpr(S::kKind==Sm90ForwardOp::kDeferredLayerNorm ||
+                   S::kKind==Sm90ForwardOp::kResidualLN) {
+        for(int row=tid;row<rows;row+=128)
+          Sm90ForwardRowNorm(p.stats,row,p.norm_width,p.epsilon,
+              row_norm[2*row],row_norm[2*row+1]);
+        codegen::executor::ComputeSync();
+      }
       for(int i=tid;i<rows*width;i+=128) {
         int row=i/width,col=i%width;float value=tile[row*N+col];
         if constexpr(S::kKind==Sm90ForwardOp::kBias)
@@ -189,19 +203,29 @@ struct Sm90ForwardEpilogueChain {
         else if constexpr(S::kKind==Sm90ForwardOp::kActivation)
           value=Sm90ForwardActivate(S::kActivation,value);
         else if constexpr(S::kKind==Sm90ForwardOp::kResidual) {
-          float add=float(p.residual[Sm90ForwardRowOffset(p,row,p.residual_stride)+channel+col]);
+          std::size_t index;
+          if constexpr(S::kResidualMap==kShuffleWrite) {
+            static_assert(Write==kShuffleWrite && Width>0 && Height>0);
+            int source=p.row_base+row,image=source/(Width*Height),pixel=source%(Width*Height);
+            int group=(channel+col)%(Shuffle*Shuffle);
+            std::size_t destination=(std::size_t(image)*Height*Shuffle+(pixel/Width)*Shuffle+group/Shuffle)*
+                (std::size_t(Width)*Shuffle)+std::size_t(pixel%Width)*Shuffle+group%Shuffle;
+            index=destination*std::size_t(p.residual_stride)+(channel+col)/(Shuffle*Shuffle);
+          }else {
+            static_assert(S::kResidualMap==kDenseWrite);
+            index=Sm90ForwardRowOffset(p,row,p.residual_stride)+channel+col;
+          }
+          float add=float(p.residual[index]);
           if(p.vectors[S::kVector])add*=float(p.vectors[S::kVector][channel+col]);
           value+=add;
         }else if constexpr(S::kKind==Sm90ForwardOp::kDeferredLayerNorm) {
           // (acc - mu cs_n)/sigma + b', with (mu, sigma) from the row stats
           // the producing stage wrote (prompt §10 N-1 item 6).
-          float mean,inverse;
-          Sm90ForwardRowNorm(p.stats,row,p.norm_width,p.epsilon,mean,inverse);
+          float mean=row_norm[2*row],inverse=row_norm[2*row+1];
           value=(value-mean*float(p.vectors[S::kVector][channel+col]))*inverse+
               float(p.vectors[S::kVector2][channel+col]);
         }else if constexpr(S::kKind==Sm90ForwardOp::kResidualLN) {
-          float mean,inverse;
-          Sm90ForwardRowNorm(p.stats,row,p.norm_width,p.epsilon,mean,inverse);
+          float mean=row_norm[2*row],inverse=row_norm[2*row+1];
           float source=float(
               p.residual[Sm90ForwardRowOffset(p,row,p.residual_stride)+channel+col]);
           value+=(source-mean)*inverse*float(p.vectors[S::kVector][channel+col])+
@@ -217,49 +241,92 @@ struct Sm90ForwardEpilogueChain {
   // `channel` is the tile's first column in the producer's packed channel
   // space; after a gate pair the stored channels are half of it. `width` is
   // how many of the final columns the model keeps.
+  template<int PoolRows=0,int PoolParts=0,int PoolChannels=0>
   __device__ static __forceinline__ void Finish(float* tile,int rows,int channel,int width,
       Sm90ForwardEpilogueOperands const& p,Element* output,int stride) {
-    int live=N;
+    // The packed weight tile may extend past valid affine/residual buffers.
+    // Apply only the live pre-gate columns; width is the final written width.
+    int live=kGated?2*width:width;
     (Apply<Step>(tile,rows,channel,live,p),...);
-    if(p.row_stats)
+    if(p.row_stats) {
       for(int row=int(threadIdx.x);row<rows;row+=128) {
         float sum=0,squares=0;
         for(int col=0;col<width;++col) {float v=tile[row*N+col];sum+=v;squares+=v*v;}
         if(p.row_tiles<=1) {p.row_stats[2*row]=sum;p.row_stats[2*row+1]=squares;continue;}
-        // This tile's share of the row, then the row's last arriver sums the
-        // shares in tile order.
         auto* slot=p.row_partials+(std::size_t(row)*p.row_tiles+p.row_tile)*2;
         asm volatile("st.relaxed.gpu.global.f32 [%0], %1;"::"l"(slot),"f"(sum):"memory");
         asm volatile("st.relaxed.gpu.global.f32 [%0], %1;"::"l"(slot+1),"f"(squares):"memory");
-        unsigned long long old;
-        asm volatile("atom.acq_rel.gpu.global.add.u64 %0, [%1], 1;":"=l"(old)
-            :"l"(p.row_counters+row):"memory");
-        if(int(old+1)!=p.row_tiles)continue;
-        p.row_counters[row]=0;
-        float total=0,total_squares=0;
-        for(int tile_index=0;tile_index<p.row_tiles;++tile_index) {
-          auto const* other=p.row_partials+(std::size_t(row)*p.row_tiles+tile_index)*2;
-          float a,b;
-          asm volatile("ld.relaxed.gpu.global.f32 %0, [%1];":"=f"(a):"l"(other):"memory");
-          asm volatile("ld.relaxed.gpu.global.f32 %0, [%1];":"=f"(b):"l"(other+1):"memory");
-          total+=a;total_squares+=b;
+      }
+      if(p.row_tiles>1) {
+        // Every writer publishes its own global stores before thread 0
+        // announces the whole row block. The acquire is relayed by the barrier.
+        __threadfence();
+        codegen::executor::ComputeSync();
+        auto* last=reinterpret_cast<int*>(tile+M*N);
+        if(threadIdx.x==0) {
+          unsigned long long old;
+          asm volatile("atom.acq_rel.gpu.global.add.u64 %0, [%1], 1;":"=l"(old)
+              :"l"(p.row_counters):"memory");
+          *last=int(old+1)==p.row_tiles;
+          if(*last)p.row_counters[0]=0;
         }
-        p.row_stats[2*row]=total;p.row_stats[2*row+1]=total_squares;
+        codegen::executor::ComputeSync();
+        if(*last)
+          for(int row=int(threadIdx.x);row<rows;row+=128) {
+            float total=0,total_squares=0;
+            for(int tile_index=0;tile_index<p.row_tiles;++tile_index) {
+              auto const* other=p.row_partials+(std::size_t(row)*p.row_tiles+tile_index)*2;
+              float a,b;
+              asm volatile("ld.relaxed.gpu.global.f32 %0, [%1];":"=f"(a):"l"(other):"memory");
+              asm volatile("ld.relaxed.gpu.global.f32 %0, [%1];":"=f"(b):"l"(other+1):"memory");
+              total+=a;total_squares+=b;
+            }
+            p.row_stats[2*row]=total;p.row_stats[2*row+1]=total_squares;
+          }
+        codegen::executor::ComputeSync();
       }
-    if(p.channel_partial)
-      for(int col=int(threadIdx.x);col<kWidth;col+=128) {
-        float sum=0;
-        for(int row=0;row<rows;++row)sum+=tile[row*N+col];
-        atomicAdd(p.channel_partial+channel+col,sum);
+    }
+    if constexpr(PoolRows>0) {
+      static_assert(PoolParts>0 && PoolChannels>0);
+      if(p.channel_partial)
+      for(int col=int(threadIdx.x);col<width;col+=128) {
+        // A dense M tile can cross image boundaries (e.g. 49 pixels/image).
+        // Keep each image's original row order; the side buffer is [B,parts,C].
+        for(int begin=0;begin<rows;) {
+          int image=(p.row_base+int(Sm90ForwardRowOffset(p,begin,1)))/PoolRows;
+          float sum=0;int row=begin;
+          do {sum+=tile[row*N+col];++row;}
+          while(row<rows && (p.row_base+int(Sm90ForwardRowOffset(p,row,1)))/PoolRows==image);
+          atomicAdd(p.channel_partial+std::size_t(image)*PoolParts*PoolChannels+channel+col,sum);
+          begin=row;
+        }
       }
-    for(int i=int(threadIdx.x);i<rows*width;i+=128) {
-      int row=i/width,col=i%width;
-      float value=tile[row*N+col];
-      if constexpr(Write==kDenseWrite) {
-        output[Sm90ForwardRowOffset(p,row,stride)+channel+col]=Element(value);
-      }else {
-        // Both remaining mappings address the whole image, so they locate the
-        // producing body's own row inside it.
+    }
+    if constexpr(Write==kDenseWrite) {
+      int groups=width/8;
+      for(int i=int(threadIdx.x);i<rows*groups;i+=128) {
+        int row=i/groups,col=(i%groups)*8;
+        unsigned words[4];
+        #pragma unroll
+        for(int pair=0;pair<4;++pair) {
+          Element low(tile[row*N+col+2*pair]),high(tile[row*N+col+2*pair+1]);
+          words[pair]=unsigned(low.raw())|(unsigned(high.raw())<<16);
+        }
+        auto* address=output+Sm90ForwardRowOffset(p,row,stride)+channel+col;
+        asm volatile("st.global.v4.u32 [%0], {%1,%2,%3,%4};"::"l"(address),
+            "r"(words[0]),"r"(words[1]),"r"(words[2]),"r"(words[3]):"memory");
+      }
+      int tail=width%8;
+      for(int i=int(threadIdx.x);i<rows*tail;i+=128) {
+        int row=i/tail,col=8*groups+i%tail;
+        output[Sm90ForwardRowOffset(p,row,stride)+channel+col]=Element(tile[row*N+col]);
+      }
+    }else {
+      // NCHW/shuffle channel-adjacent values have different pixel addresses;
+      // the dense row's 16-byte contiguous store does not apply to them.
+      for(int i=int(threadIdx.x);i<rows*width;i+=128) {
+        int row=i/width,col=i%width;
+        float value=tile[row*N+col];
         constexpr int kPixels=Width*Height;
         int source=p.row_base+row,image=source/kPixels,pixel=source%kPixels;
         int y=pixel/Width,x=pixel%Width;
@@ -267,16 +334,27 @@ struct Sm90ForwardEpilogueChain {
           int c=channel+col;
           output[((std::size_t(image)*Channels+c)*Height+y)*Width+x]=Element(value);
         }else {
-          // Channel g*C + c of pixel (y, x) is output pixel
-          // (y*f + g/f, x*f + g%f), channel c.
-          int group=(channel+col)/Channels;
+          // PyTorch PixelShuffle orders the packed channel as c*f*f+g.
+          // The physical pixel pitch may exceed the logical channel count.
+          int group=(channel+col)%(Shuffle*Shuffle);
           std::size_t destination=(std::size_t(image)*Height*Shuffle+y*Shuffle+group/Shuffle)*
               (std::size_t(Width)*Shuffle)+std::size_t(x)*Shuffle+group%Shuffle;
-          output[destination*Channels+(channel+col)%Channels]=Element(value);
+          output[destination*std::size_t(stride)+(channel+col)/(Shuffle*Shuffle)]=Element(value);
         }
       }
     }
     codegen::executor::ComputeSync();
+  }
+};
+
+// Pool side-output geometry is static, keeping the runtime operand bank in
+// its original 1 KB prologue. The base write mapping retains its own geometry.
+template<int Rows,int Parts,int Channels,class Chain>
+struct Sm90ForwardPoolEpilogueChain:Chain {
+  static_assert(Rows>0 && Parts>0 && Channels>0);
+  __device__ static __forceinline__ void Finish(float* tile,int rows,int channel,int width,
+      Sm90ForwardEpilogueOperands const& p,cutlass::bfloat16_t* output,int stride) {
+    Chain::template Finish<Rows,Parts,Channels>(tile,rows,channel,width,p,output,stride);
   }
 };
 
