@@ -663,7 +663,7 @@ int RunCompile(int argc, char** argv) {
       std::set<std::string> allowed={"--solve","--serving","--emit","--batch","--seed-arch",
           "--selection","--measure-cmd","--measure-top",
           "--dump-cg","--runtime-target","--capacity","--prompt-len","--past-range",
-          "--nvcc-split-compile","--tp","--search","--objective","--space",
+          "--nvcc-split-compile","--tp","--search","--analysis","--objective","--space",
           "--realize","--pin-theta","--seed-coordinates","--search-budget-ms"};
       for(int i=3;i<argc;i+=2)if(!allowed.count(argv[i]))
         throw std::invalid_argument("native solve does not accept legacy option "+std::string(argv[i]));
