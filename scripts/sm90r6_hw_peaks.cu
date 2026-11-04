@@ -31,8 +31,7 @@ void Check(cudaError_t status, char const* what) {
   }
 }
 
-// (b) ld.global.nc.v4 with `InFlight` independent loads per thread. The reads
-// are non-temporal so they do not displace one another in L2.
+// (b) ld.global.nc.v4 with `InFlight` independent loads per thread.
 template <int InFlight>
 __global__ void HbmVector(float4 const* __restrict__ data, std::size_t vectors,
                           float4* __restrict__ sink) {
@@ -113,10 +112,9 @@ using Element = cutlass::bfloat16_t;
 
 // WGMMA m64n256k16 SS. Both operands stay in shared memory across the whole
 // loop, so the rate is the tensor cores' and not the memory system's.
-// One warpgroup per CTA and two CTAs per SM, so both warpgroup slots an SM
-// offers are busy; the k16 atom's operands must be laid out at K = 64, the
-// swizzle atom's tile, so each call issues four k16 steps.
-__global__ __launch_bounds__(128) void Bf16Wgmma(int iterations, float* __restrict__ sink) {
+// The k16 atom's operands are laid out at K = 64, the swizzle atom's tile,
+// so each independent consumer warpgroup issues four k16 steps per call.
+__global__ __launch_bounds__(256) void Bf16Wgmma(int iterations, float* __restrict__ sink) {
   using namespace cute;
   extern __shared__ char storage[];
   auto* a = reinterpret_cast<Element*>(storage);
@@ -127,7 +125,7 @@ __global__ __launch_bounds__(128) void Bf16Wgmma(int iterations, float* __restri
 
   using Operation = typename Gmma::template SS<256>;
   auto tiled = make_tiled_mma(Operation{});
-  auto thread_mma = tiled.get_thread_slice(threadIdx.x);
+  auto thread_mma = tiled.get_thread_slice(threadIdx.x % 128);
   auto sa = make_tensor(make_smem_ptr(a), tilemega::backend::Sm90KLayout<64, 64>{});
   auto sb = make_tensor(make_smem_ptr(b), tilemega::backend::Sm90KLayout<256, 64>{});
   auto fragment_a = thread_mma.partition_fragment_A(sa);
@@ -143,7 +141,7 @@ __global__ __launch_bounds__(128) void Bf16Wgmma(int iterations, float* __restri
     Gmma::template Wait<0>();
     Gmma::Fence(accum);
   }
-  if (threadIdx.x == 1024) sink[0] = float(accum(0));
+  if (threadIdx.x % 128 == 0) sink[blockIdx.x * 2 + threadIdx.x / 128] = float(accum(0));
 }
 
 // mma.sync m16n8k16, the same operands held in registers.
@@ -156,7 +154,7 @@ __global__ __launch_bounds__(256) void Bf16MmaSync(int iterations, float* __rest
                  "{%0,%1,%2,%3}, {%4,%5,%6,%7}, {%8,%9}, {%0,%1,%2,%3};"
                  : "+f"(c[0]), "+f"(c[1]), "+f"(c[2]), "+f"(c[3])
                  : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b[0]), "r"(b[1]));
-  if (threadIdx.x == 1024) sink[0] = c[0];
+  if (threadIdx.x == 0) sink[blockIdx.x] = c[0];
 }
 
 struct Sample {std::string item, config; double value = 0;};
@@ -183,13 +181,19 @@ int main(int argc, char** argv) {
   // argv[2] runs one item alone, which is how each is validated and how the
   // collection script keeps a process to a single measurement.
   std::string only = argc > 2 ? argv[2] : "";
+  cudaDeviceProp properties{};
+  Check(cudaGetDeviceProperties(&properties, 0), "device properties");
+  if (properties.multiProcessorCount != kSms) {
+    std::fprintf(stderr, "H1 expects 132 SMs, found %d\n", properties.multiProcessorCount);
+    return 2;
+  }
   auto wanted = [&](char const* item) {return only.empty() || only == item;};
   std::size_t bytes = gib << 30;
   char* data = nullptr;
   Check(cudaMalloc(&data, bytes), "alloc");
   Check(cudaMemset(data, 1, bytes), "memset");
   float* sink = nullptr;
-  Check(cudaMalloc(&sink, 256), "alloc sink");
+  Check(cudaMalloc(&sink, 2 * kSms * sizeof(float)), "alloc sink");
 
   std::vector<Sample> samples;
   // (b) vector reads.
@@ -209,6 +213,16 @@ int main(int argc, char** argv) {
   for (int ctas : wanted("hbm_read_bulk") ? std::vector<int>{kSms, 2 * kSms} : std::vector<int>{}) {
     std::size_t blocks = bytes / kBlockBytes;
     for (int flight : {2, 4, 8}) {
+      // User decision 2026-11-04: keep the requested x8 configuration as
+      // unsupported evidence; 256 KiB plus barriers exceeds this CTA's limit.
+      if (std::size_t(flight) * (kBlockBytes + sizeof(std::uint64_t)) >
+          properties.sharedMemPerBlockOptin) {
+        std::fprintf(stderr, "UNSUPPORTED cp.async.bulk x%d, %d grid cta/sm: "
+            "shared_bytes=%zu limit=%zu\n", flight, ctas / kSms,
+            std::size_t(flight) * (kBlockBytes + sizeof(std::uint64_t)),
+            properties.sharedMemPerBlockOptin);
+        continue;
+      }
       struct Ctx {char const* d; std::size_t n; float* s; int ctas, flight;} ctx{
           data, blocks, sink, ctas, flight};
       auto run = +[](void* raw) {
@@ -240,12 +254,12 @@ int main(int argc, char** argv) {
       auto* c = static_cast<Ctx*>(raw);
       std::size_t smem = (64 * 64 + 256 * 64) * sizeof(Element);
       cudaFuncSetAttribute(Bf16Wgmma, cudaFuncAttributeMaxDynamicSharedMemorySize, int(smem));
-      Bf16Wgmma<<<2 * kSms, 128, smem>>>(c->n, c->s);
+      Bf16Wgmma<<<kSms, 256, smem>>>(c->n, c->s);
     };
     double ms = TimeKernel(run, &ctx, 3);
-    // 264 CTAs, one warpgroup each, m64n256k64 per iteration (four k16 steps).
+    // 132 CTAs, two warpgroups each, four m64n256k16 operations per iteration.
     double flops = 2.0 * kSms * 64.0 * 256.0 * 64.0 * 2.0 * iterations;
-    samples.push_back({"bf16_wgmma", "m64n256k16 SS, 1 wg/cta, 2 cta/sm",
+    samples.push_back({"bf16_wgmma", "m64n256k16 SS, 2 wg/cta, 132 cta",
                        flops / (ms * 1e-3) / 1e12});
   }
   if (wanted("bf16_mma_sync")) {
@@ -267,7 +281,13 @@ int main(int argc, char** argv) {
     std::printf("%s{\"item\":\"%s\",\"config\":\"%s\",\"value\":%.3f}", i ? "," : "",
                 samples[i].item.c_str(), samples[i].config.c_str(), samples[i].value);
   std::printf("],\"units\":{\"hbm_read\":\"GB/s\",\"bf16_wgmma\":\"TFLOPS\","
-              "\"bf16_mma_sync\":\"TFLOPS\"}}\n");
+              "\"bf16_mma_sync\":\"TFLOPS\"},\"device\":{\"sms\":%d,"
+              "\"shared_bytes_per_sm\":%zu,\"shared_bytes_per_cta\":%zu},"
+              "\"unsupported\":[{\"config\":\"cp.async.bulk x8\","
+              "\"required_shared_bytes\":262208,\"reason\":\"per_cta_shared_memory_limit\","
+              "\"user_decision\":\"2026-11-04: record unsupported and continue\"}]}\n",
+              properties.multiProcessorCount, properties.sharedMemPerMultiprocessor,
+              properties.sharedMemPerBlockOptin);
   cudaFree(data); cudaFree(sink);
   return 0;
 }
