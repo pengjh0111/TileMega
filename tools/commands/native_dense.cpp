@@ -5,6 +5,7 @@
 #include <tilemega/Codegen/CouplingGraphToCUDA.h>
 #include <tilemega/Solver/Sm90DensePlan.h>
 #include <tilemega/Solver/Sm90DenseSearch.h>
+#include <tilemega/Solver/Sm90NativePipeline.h>
 #include <tilemega/Solver/Sm90NativeConstants.h>
 #include <tilemega/Solver/Sm90DenseRegisterContract.h>
 #include <tilemega/Frontend/ExportBridge.h>
@@ -255,8 +256,40 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   if(!decisions)throw std::invalid_argument("target lacks sm90_native_decisions (prompt §11 decision tables)");
   space.weight_stream=decisions->At("weight_stream").AsBool("weight_stream");
   space.layer_loop=decisions->At("layer_loop").AsBool("layer_loop");
+  if(o.search!="pipeline" && o.search!="additive")
+    throw std::invalid_argument("--search takes pipeline or additive");
   solver::Sm90DenseSearchOptions search;search.top=o.measure_top;
   auto result=solver::SearchSm90Dense(space,work,cost,search);
+  // P3: Algorithm 1 replaces the additive ranking for every selection this
+  // round. `--search additive` is kept only to reproduce the R3-R5 choices
+  // (continuation 1 section 1.3), so it never decides a final coordinate here.
+  if(o.search=="pipeline") {
+    solver::Sm90NativePipelineOptions pipeline;
+    pipeline.finalists=o.measure_top;
+    pipeline.operator_sum=o.operator_sum;
+    pipeline.retile_only=o.retile_only;
+    pipeline.realize_aggregate=o.realize_aggregate;
+    pipeline.budget_ms=o.search_budget_ms;
+    std::vector<solver::Sm90DenseCoordinates> seeds;
+    if(!o.pin_theta.empty()) {
+      // AB-1: each family's geometry is fixed by a local criterion and the
+      // rest of the decisions are still Algorithm 1's.
+      auto pinned=solver::Sm90DenseCoordinates::FromJson(json::ParseFile(o.pin_theta));
+      seeds.push_back(pinned);
+    }
+    auto pipelined=solver::SolveSm90NativePipeline(space,work,cost,pipeline,seeds);
+    result.ranked.clear();
+    for(auto const& candidate:pipelined.finalists) {
+      solver::Sm90DenseCandidate entry;
+      entry.coordinates=candidate.coordinates;
+      entry.prediction=cost.Predict(work,candidate.coordinates);
+      entry.prediction.step_ns=candidate.replay_ns;
+      entry.origin=candidate.structural_class;
+      result.ranked.push_back(std::move(entry));
+    }
+    result.evaluated=pipelined.evaluations;
+    result.elapsed_ms=pipelined.seconds*1000;
+  }
   json::Array ranked,candidates;
   std::vector<fs::path> configs;
   for(unsigned i=0;i<result.ranked.size();++i) {
