@@ -153,8 +153,7 @@ def require_session(cell):
 
 
 def telemetry(cell):
-    sys.path.insert(0, str(ROOT / 'python'))
-    from tilemega.bench.gpu_guard import gpu
+    from dnn1_device import gpu
     return gpu(cell['gpu'])
 
 
@@ -168,15 +167,15 @@ def exit_context_snapshot(cell, timeout_s):
         return subprocess.check_output(['nvidia-smi', '-i', str(cell['gpu']), flag,
             '--format=csv,noheader,nounits'], text=True, timeout=remaining)
     apps = query('--query-compute-apps=pid,used_memory')
-    detail = query('--query-gpu=memory.used,utilization.gpu,clocks.current.sm,temperature.gpu,clocks_event_reasons.active')
+    detail = query('--query-gpu=memory.used,clocks.current.sm')
     owners = {}
     for line in apps.splitlines():
         pid, used = line.split(',')
         owners[int(pid)] = int(used)
-    used, utilization, sm, temperature, throttle = detail.strip().split(',')
+    used, sm = detail.strip().split(',')
     return dict(time=time.time(), gpu_index=cell['gpu'], owners=owners, used_mib=float(used),
-        utilization_pct=float(utilization), sm_clock_mhz=float(sm), temperature_c=float(temperature),
-        throttle_mask=int(throttle.strip(), 0), raw_compute_apps=apps, raw_gpu_detail=detail)
+        sm_clock_mhz=float(sm), power_monitoring=False,
+        raw_compute_apps=apps, raw_gpu_detail=detail)
 
 
 def passive_context_drain(cell, timeout_s=10.0, interval_s=.25, *, observe=None, clock=None, sleep=None):
@@ -395,7 +394,9 @@ def queue(args):
         raise FileNotFoundError(python)
     harness = ROOT / 'python/tilemega/dnn/baselines.py'
     recipe_sources = {str(path): sha(path) if path.is_file() else None for path in (
-        Path(__file__).resolve(), harness, harness.with_name('tvm_baseline.py'))}
+        Path(__file__).resolve(), harness, harness.with_name('tvm_baseline.py'),
+        ROOT/'scripts/dnn1_device.py',ROOT/'scripts/dnn1_resource_entry.py',
+        ROOT/'scripts/dnn1_supervised_python.py',ROOT/'scripts/dnn1_guard_entry.py')}
     cells = config.get('cells') or [dict(model=m, batch=b) for m in MODELS for b in BATCHES]
     pairs = [(row['model'], row['batch']) for row in cells]
     if len(set(pairs)) != len(pairs) or any(m not in MODELS or b not in BATCHES for m, b in pairs):

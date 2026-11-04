@@ -14,6 +14,7 @@ import sys
 import time
 
 import dnn1_baselines as baseline
+import dnn1_device as device
 
 ROOT = baseline.ROOT
 
@@ -60,11 +61,10 @@ def accepted(root):
 
 
 def available(row, policy, needs_mib, locked):
-    from tilemega.bench.gpu_guard import idle
     if locked:
         return False, 'physical GPU lock held'
-    if not idle(row, policy, needs_mib):
-        return False, 'existing guard idle/ownership/memory/power/throttle check rejected'
+    if not device.idle(row, policy, needs_mib):
+        return False, 'process or extra memory occupancy; or insufficient free memory'
     return True, 'idle scheduling hint; child guard still makes the final decision'
 
 
@@ -95,7 +95,8 @@ def main():
     p.add_argument('--once', action='store_true', help='CPU-only monitoring snapshot; dispatch nothing')
     a = p.parse_args()
     sys.path.insert(0, str(ROOT / 'python'))
-    from tilemega.bench.gpu_guard import gpu, require_allowed_gpu
+    from tilemega.bench.gpu_guard import require_allowed_gpu
+    gpu=device.gpu
     gpus = list(map(int, a.gpus.split(',')))
     if (not gpus or len(gpus) != len(set(gpus)) or any(g not in baseline.PCI for g in gpus)
             or a.max_parallel < 1 or a.cpus_per_worker < 1 or a.poll_seconds < 1):
@@ -110,7 +111,9 @@ def main():
     if (a.out / 'state.json').exists():
         raise FileExistsError('retain dispatcher evidence; choose a new output directory')
     sources = [Path(__file__), ROOT / 'scripts/dnn1_baselines.py',
-               ROOT / 'python/tilemega/dnn/baselines.py', ROOT / 'python/tilemega/dnn/tvm_baseline.py']
+               ROOT / 'python/tilemega/dnn/baselines.py', ROOT / 'python/tilemega/dnn/tvm_baseline.py',
+               ROOT/'scripts/dnn1_device.py',ROOT/'scripts/dnn1_resource_entry.py',
+               ROOT/'scripts/dnn1_supervised_python.py',ROOT/'scripts/dnn1_guard_entry.py']
     frozen = {str(path.resolve()): baseline.sha(path) for path in sources}
     config = baseline.read(a.base_spec)
     prior = [record for root in a.reuse_root for record in accepted(root.resolve())]
@@ -122,6 +125,7 @@ def main():
     if len({(r['model'],r['batch']) for r in pending}) != len(pending):
         raise ValueError('duplicate pending baseline cells')
     state = dict(schema=1, status='monitoring', pid=os.getpid(), started=time.time(),
+        resource_policy=device.POLICY,power_monitoring=False,
         gpus=gpus, excluded_gpus=[6], max_parallel=a.max_parallel, cpu_affinity=binding,
         pending=pending, workers={}, accepted=prior, failures=[], source_sha256=frozen,
         scheduling_amendment='user 2026-11-04: parallel healthy cards, exclude GPU6; same-card/session constraint waived',

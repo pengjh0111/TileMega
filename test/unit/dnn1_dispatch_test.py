@@ -31,8 +31,7 @@ class Dispatch(unittest.TestCase):
 
     def test_physical_lock_and_guard_idle_both_gate_dispatch(self):
         calls=[]
-        fake=types.SimpleNamespace(idle=lambda row,policy,needs: calls.append(needs) or row['idle'])
-        with patch.dict(sys.modules,{'tilemega.bench.gpu_guard':fake}):
+        with patch.object(module.device,'idle',lambda row,policy,needs: calls.append(needs) or row['idle']):
             self.assertFalse(module.available(dict(idle=True),{},8192,True)[0])
             self.assertEqual(calls,[])
             self.assertFalse(module.available(dict(idle=False),{},8192,False)[0])

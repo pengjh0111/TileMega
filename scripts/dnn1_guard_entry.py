@@ -16,6 +16,9 @@ import time
 
 
 def run(guard_main=None):
+    sys.path.insert(0,str(Path(__file__).resolve().parent))
+    from dnn1_device import install
+    install()
     from tilemega.bench.gpu_guard import descendants, process_start, session_members
     if guard_main is None:
         from tilemega.bench.gpu_guard import main as guard_main
@@ -65,7 +68,16 @@ def run(guard_main=None):
     os.environ['TILEMEGA_DNN1_GUARD_PID'] = str(os.getpid())
     os.environ['TILEMEGA_DNN1_GUARD_START'] = process_start(os.getpid())
     try:
-        return guard_main()
+        result=guard_main()
+        path=out/'guard_result.json'
+        if path.is_file():
+            import hashlib
+            from dnn1_device import POLICY
+            record=json.loads(path.read_text())
+            record.update(resource_policy=POLICY,power_monitoring=False,
+                resource_provider_sha256=hashlib.sha256(Path(__file__).with_name('dnn1_device.py').read_bytes()).hexdigest())
+            path.write_text(json.dumps(record,indent=2)+'\n')
+        return result
     finally:
         for number, handler in original.items():
             signal.signal(number, handler)
