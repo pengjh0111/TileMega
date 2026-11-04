@@ -189,15 +189,79 @@ def completed_rejections(root, job):
     return receipts
 
 
+def initial_wait_probe(root):
+    from tilemega.bench.gpu_guard import process_start
+    try:
+        pid = int((root / 'scheduler/scheduler.pid').read_text())
+        process = Path(f'/proc/{pid}')
+        wait = (process / 'wchan').read_text().strip()
+        descriptors = {p.name: os.readlink(p) for p in (process / 'fd').iterdir()}
+        return dict(pid=pid, start=process_start(pid), wchan=wait, descriptors=descriptors)
+    except (OSError, ValueError):
+        return None
+
+
+def initial_cpu_waiter(root, key, commands, probe):
+    """Prove a scheduler has not passed its first CPU-export lock acquisition."""
+    if (root / 'scheduler/state.json').exists():
+        return None
+    if any(path.is_file() for path in (root / 'raw').rglob('*')):
+        return None
+    queue_paths = list((root / 'queue').glob('queue_*.json'))
+    if len(queue_paths) != 1:
+        return None
+    steps = baseline.read(queue_paths[0])
+    if len(steps) != 2:
+        return None
+    export, cell = steps
+    if (export.get('name') != 'dnn1-export-' + key or export.get('gpu') is not False
+            or export.get('after') or cell.get('name') != 'dnn1-cell-' + key
+            or cell.get('gpu') is not True or cell.get('after') != [export['name']]):
+        return None
+    command = export.get('command', [])
+    if (len(command) < 3 or command[0] != 'flock'
+            or not command[1].startswith('/tmp/tilemega_gpu')
+            or not probe or probe.get('wchan') != 'locks_lock_inode_wait'
+            or command[1] not in probe.get('descriptors', {}).values()):
+        return None
+    scheduler_path = root / 'scheduler/scheduler.pid'
+    if not scheduler_path.is_file():
+        return None
+    scheduler_pid = scheduler_path.read_text().strip()
+    if int(scheduler_pid) != probe.get('pid') or probe.get('start') is None:
+        return None
+    scheduler_command = commands.get(scheduler_pid, '')
+    if ('-m tilemega.bench.scheduler ' not in scheduler_command
+            or '--queue-dir ' + str(root / 'queue') not in scheduler_command
+            or '--out ' + str(root / 'scheduler') not in scheduler_command):
+        return None
+    # A child payload may have escaped the launcher's process group. Refuse any
+    # descendant other than the known launcher/flock/scheduler chain.
+    for pid, command in commands.items():
+        if pid == scheduler_pid:
+            continue
+        if command.strip() == 'bash ' + str(root / 'launch.sh'):
+            continue
+        if (command.startswith('flock /tmp/tilemega_dnn1_baseline_scheduler_gpu')
+                and '-m tilemega.bench.scheduler ' in command
+                and '--queue-dir ' + str(root / 'queue') in command):
+            continue
+        return None
+    return dict(stage='before_first_state_persist', scheduler_pid=int(scheduler_pid),
+                queue=str(queue_paths[0]), queue_sha256=baseline.sha(queue_paths[0]),
+                raw_files=[], commands=commands, lock_wait_probe=probe)
+
+
 def migrate_waiter(worker):
     """Cancel only owned CPU waiters with no live or unfinished GPU payload."""
     from tilemega.bench.gpu_guard import descendants, process_start
     process, root = worker['process'], worker['root']
     state_path = root / 'scheduler/state.json'
-    if not state_path.is_file():
+    jobs = baseline.read(state_path) if state_path.is_file() else None
+    if jobs is not None and jobs.get('dnn1-cell-' + worker['key'], {}).get('status') != 'pending':
         return None
-    jobs = baseline.read(state_path)
-    if jobs.get('dnn1-cell-' + worker['key'], {}).get('status') != 'pending':
+    probe = initial_wait_probe(root) if jobs is None else None
+    if jobs is None and not probe:
         return None
     try:
         if process.poll() is not None or os.getpgid(process.pid) != process.pid:
@@ -207,16 +271,25 @@ def migrate_waiter(worker):
     os.killpg(process.pid, signal.SIGSTOP)
     cancelled = False
     try:
-        jobs = baseline.read(root / 'scheduler/state.json')
-        job = jobs.get('dnn1-cell-' + worker['key'], {})
-        if job.get('status') != 'pending':
-            return None
-        rejected = completed_rejections(root, job)
-        if rejected is None:
-            return None
         ids = descendants(process.pid)
         commands = {str(pid): Path(f'/proc/{pid}/cmdline').read_bytes().replace(b'\0', b' ').decode()
                     for pid in ids if Path(f'/proc/{pid}/cmdline').exists()}
+        initial = None
+        if not state_path.is_file():
+            initial = initial_cpu_waiter(root, worker['key'], commands, probe)
+            if initial is None:
+                return None
+            if process_start(probe['pid']) != probe['start']:
+                return None
+            jobs, rejected = {}, []
+        else:
+            jobs = baseline.read(state_path)
+            job = jobs.get('dnn1-cell-' + worker['key'], {})
+            if job.get('status') != 'pending':
+                return None
+            rejected = completed_rejections(root, job)
+            if rejected is None:
+                return None
         if any('dnn1_guard_entry.py' in command or '--tune-request' in command
                for command in commands.values()):
             return None
@@ -227,6 +300,7 @@ def migrate_waiter(worker):
         receipt = dict(time=time.time(), key=worker['key'], launcher_pid=process.pid,
             scheduler_state=jobs, descendants=commands, process_start=starts,
             completed_rejected_payloads=rejected,
+            initial_cpu_waiter=initial,
             reason='no live GPU payload; preserve rejected history and requeue through a fresh guard')
         baseline.write(root / 'migration.json', receipt)
         os.killpg(process.pid, signal.SIGTERM)

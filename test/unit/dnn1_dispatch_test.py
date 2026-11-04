@@ -20,6 +20,24 @@ baseline=module.baseline
 
 
 class Dispatch(unittest.TestCase):
+    def test_initial_cpu_wait_requires_lock_chain_and_no_payload(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary);(root/'queue').mkdir();(root/'scheduler').mkdir()
+            (root/'scheduler/scheduler.pid').write_text('123')
+            queue=root/'queue/queue_dnn1_baselines.json'
+            queue.write_text(json.dumps([
+                dict(name='dnn1-export-x',gpu=False,after=[],command=['flock','/tmp/tilemega_gpu5.lock','python']),
+                dict(name='dnn1-cell-x',gpu=True,after=['dnn1-export-x'])]))
+            commands={'100':'bash '+str(root/'launch.sh'),
+                '123':'python -m tilemega.bench.scheduler --queue-dir '+str(root/'queue')+' --out '+str(root/'scheduler')+' '}
+            probe=dict(pid=123,start='1000',wchan='locks_lock_inode_wait',descriptors={'5':'/tmp/tilemega_gpu5.lock'})
+            self.assertIsNotNone(module.initial_cpu_waiter(root,'x',commands,probe))
+            self.assertIsNone(module.initial_cpu_waiter(root,'x',commands,dict(probe,wchan='do_wait')))
+            self.assertIsNone(module.initial_cpu_waiter(root,'x',commands,dict(probe,descriptors={})))
+            self.assertIsNone(module.initial_cpu_waiter(root,'x',dict(commands,child='python --tune-request x'),probe))
+            payload=root/'raw/attempt/guard.jsonl';payload.parent.mkdir(parents=True);payload.write_text('{}')
+            self.assertIsNone(module.initial_cpu_waiter(root,'x',commands,probe))
+
     def test_only_completed_resource_rejection_allows_other_cells_to_progress(self):
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary);session=root/'raw/dnn1-cell-x/attempt1/job/cell-result.json'
