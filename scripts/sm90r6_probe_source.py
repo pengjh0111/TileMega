@@ -83,7 +83,9 @@ def geometry_source(source, coordinates, family, geometry, swiglu_u):
     while isinstance(leaf,dict):
         if leaf.get('kind') in ('gate_up_interleave','expert_stack') and 'u' in leaf:leaf['u']=swiglu_u
         leaf=leaf.get('source')
-    weight_name=re.sub(r'@t\d+x\d+$',f'@t{tn}x{tk}',weight_name)
+    # Expert weights can have a bare .packed name. Every imported layout needs
+    # its own binding name, including those without an existing tile suffix.
+    weight_name=re.sub(r'@t\d+x\d+$','',weight_name)+f'@t{tn}x{tk}'
     buffers[weight]='  {'+','.join([json.dumps(weight_name),match[2],match[3],match[4]+'ull',match[5]+'ull',
         json.dumps(json.dumps(recipe,separators=(',',':')))])+'},'
     maps=list(parsed['maps'])

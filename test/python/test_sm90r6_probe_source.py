@@ -4,7 +4,7 @@ import sys
 import unittest
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'scripts'))
-from sm90r6_probe_source import compose,template
+from sm90r6_probe_source import compose,template,geometry_source,array
 
 
 def fixture(alternative=False):
@@ -42,6 +42,27 @@ constexpr std::array<StageInfo,12> kNativeStages={{
 
 
 class ProbeSource(unittest.TestCase):
+    def test_bare_packed_weights_get_distinct_layout_bindings(self):
+        import json,re
+        source,c=fixture()
+        recipe=dict(kind='tile_pages',tile_n=16,tile_k=64,
+                    source=dict(kind='gate_up_interleave',u=16))
+        source=source.replace('"weight16",1,0,1024ull,0ull,"recipe16"',
+            '"expert.gate_up.packed",1,0,1024ull,0ull,'+json.dumps(json.dumps(recipe)))
+        variants=[]
+        for tn in (32,64):
+            geometry=dict(tile_n=tn,slot_bytes=2*tn*64,slots=2,warps_n=2,warps_k=2,
+                          register_stages=1,multicast=False)
+            leaf=geometry_source(source,c,'qkv',geometry,16)
+            self.assertIn(f'expert.gate_up.packed@t{tn}x64',leaf)
+            variants.append((geometry,leaf,c))
+        combined,_=compose(source,c,variants,'qkv')
+        names={}
+        for row in array(combined,'kNativeBuffers')[1]:
+            name=json.loads(re.match(r'\s*\{("(?:\\.|[^"\\])*")',row)[1])
+            self.assertTrue(name not in names or names[name]==row)
+            names[name]=row
+
     def test_layout_and_map_remapping(self):
         source,c=fixture();other,d=fixture(True)
         text,ledger=compose(source,c,[({'tile_n':16},source,c),({'tile_n':32},other,d)],'qkv')
