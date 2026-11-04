@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 from collections import Counter
 import copy
+import contextlib
 import fcntl
 import hashlib
 import importlib.metadata
@@ -27,7 +28,7 @@ TVM_COMMIT = "7b5acb32bd271342a24130f4ef439ff6c2e52c6c"
 TARGET = "cuda -arch=sm_90a"
 # v0.27 requires structured Target construction; this is the same fixed target.
 TARGET_CONFIG = {"kind": "cuda", "arch": "sm_90a"}
-RECIPE = dict(schema=5, completed_measurements="commit-before-next-build", builder_workers="min(8, CPU affinity)", ffi="pinned-submodule-python-build", importer_output_dtype="aten-with-fp32-accumulation", target=TARGET, import_exported_program=True,
+RECIPE = dict(schema=6, builder_device_visibility="none", builder_target_scope="explicit", completed_measurements="commit-before-next-build", builder_workers="min(8, CPU affinity)", ffi="pinned-submodule-python-build", importer_output_dtype="aten-with-fp32-accumulation", target=TARGET, import_exported_program=True,
               keep_params_as_input=True, partition=["cublas", "cudnn"],
               run_codegen=True, pipeline="zero", tune_before_default_schedule=True,
               schedules=["Matmul", "GEMV", "Reduction", "GeneralReduction", "Fallback"],
@@ -409,6 +410,31 @@ def _count_database(database):
                 failed_trials=len(records) - successful)
 
 
+@contextlib.contextmanager
+def _cpu_builder_environment():
+    # LocalBuilder creates and closes its PopenPool synchronously. Hide CUDA
+    # before those interpreters import TVM, then restore it before the runner.
+    previous = os.environ.get("CUDA_VISIBLE_DEVICES")
+    os.environ["CUDA_VISIBLE_DEVICES"] = ""
+    try:
+        yield
+    finally:
+        if previous is None:
+            os.environ.pop("CUDA_VISIBLE_DEVICES", None)
+        else:
+            os.environ["CUDA_VISIBLE_DEVICES"] = previous
+
+
+def _build_with_explicit_target(mod, target, params):
+    from tvm.s_tir.meta_schedule.builder.local_builder import default_build
+    if os.environ.get("CUDA_VISIBLE_DEVICES") != "":
+        raise RuntimeError("DNN1 LocalBuilder must compile without a visible CUDA device")
+    # NVRTC's callback reads Target.current(); passing target as an argument
+    # alone makes this release probe a GPU to infer its architecture.
+    with target:
+        return default_build(mod, target, params)
+
+
 def _tune_worker(request):
     _guard()
     tvm, _, _ = _load_tvm()
@@ -423,7 +449,8 @@ def _tune_worker(request):
     started = time.monotonic()
     from tvm.ir.utils import derived_object
     workers = min(8, len(os.sched_getaffinity(0)))
-    delegate = ms.builder.LocalBuilder(max_workers=workers)
+    with _cpu_builder_environment():
+        delegate = ms.builder.LocalBuilder(max_workers=workers, f_build=_build_with_explicit_target)
     scheduler = ms.task_scheduler.GradientBased()
 
     @derived_object
@@ -433,7 +460,8 @@ def _tune_worker(request):
             # every task has run. Retain finished samples before the wall cap.
             for task_id in range(len(scheduler.tasks_)):
                 scheduler.touch_task(task_id)
-            results = delegate.build(inputs)
+            with _cpu_builder_environment():
+                results = delegate.build(inputs)
             with (directory / "builder_results.jsonl").open("a") as log:
                 for index, result in enumerate(results):
                     error = str(result.error_msg) if result.error_msg is not None else None
