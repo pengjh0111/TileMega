@@ -19,7 +19,7 @@ def source_versions(receipt):
     source = identity['tvm_source_identity']
     if diag['tvm_version'] != identity['tvm_version'] or diag['tvm_commit'] != identity['tvm_commit']:
         raise ValueError('TVM diagnostics and compiled identity disagree')
-    return {
+    versions = {
         'tvm': identity['tvm_version'],
         'tvm_source_commit': identity['tvm_commit'],
         'apache-tvm-ffi': identity['dependency_versions']['apache-tvm-ffi'],
@@ -27,6 +27,23 @@ def source_versions(receipt):
         'tvm_source_diff_sha256': source['source_diff_sha256'],
         'tvm_recipe_schema': identity['recipe']['schema'],
     }
+    transport = diag.get('cache_transport')
+    if transport:
+        original = dict(transport['source_identity'])
+        current = dict(identity)
+        old_gpu, new_gpu = original.pop('gpu_uuid'), current.pop('gpu_uuid')
+        if (original != current or transport['destination_identity'] != identity or
+                transport['source_gpu_uuid'] != old_gpu or
+                transport['execution_gpu_uuid'] != new_gpu or
+                transport['source_vm_sha256'] != diag['model_sha256'] or
+                transport['retuned'] is not False or
+                transport['compiler_or_model_changed'] is not False):
+            raise ValueError('transported VM provenance does not match its unchanged numerical identity')
+        versions.update(tvm_cache_transport=transport['version'],
+            tvm_tuning_gpu_uuid=transport['tuning_gpu_uuid'],
+            tvm_execution_gpu_uuid=new_gpu,
+            tvm_transport_source_compiled_sha256=transport['source_compiled_sha256'])
+    return versions
 
 
 def publish(source, destination, base=None):
