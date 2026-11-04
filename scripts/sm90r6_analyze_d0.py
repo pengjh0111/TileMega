@@ -56,6 +56,8 @@ def analyze(directory,prediction,bandwidth,compute):
     h=config['hidden_size'];hq=config['num_attention_heads'];hkv=config['num_key_value_heads'];dim=config.get('head_dim') or h//hq
     accepted=read(directory/'checks/result.json')
     if not accepted['passed'] or len(accepted['processes'])!=3:raise ValueError('D0 requires three accepted processes')
+    gpus=[process['gpu'] for process in accepted['processes']]
+    if not set(gpus)<={0,1,2,3,4,5,7}:raise ValueError('D0 used an ineligible timing card')
     totals=defaultdict(list);spans=defaultdict(list);floors=defaultdict(list);tails=defaultdict(list)
     processes=[];instance_counts={};overheads=[]
     for process in accepted['processes']:
@@ -126,6 +128,7 @@ def analyze(directory,prediction,bandwidth,compute):
         flow_us=flow.get(kind,0)/count/1000;additive_us=additive.get(kind,0)/count/1000
         boundary=st.median(totals[kind])/1000;floor=st.median(floors[kind])/1000
         rows.append(dict(model=model,batch=batch,stage=kind,instances_per_step=count,processes=3,
+            d0_gpus='|'.join(map(str,gpus)),
             measured_span_us=measured,flow_span_us=flow_us,flow_over_measured=flow_us/measured,
             additive_stage_us=additive_us,additive_over_measured=additive_us/measured,
             flow_components_per_instance_us=json.dumps(

@@ -43,6 +43,7 @@ def stage_rows(path, dense):
         for metric,value in values.items():
             note=('A0; 3 fresh processes; mean semantic spans vs median CTA envelope' if dense else
                   'F; existing R5 marks only; 1 historical process; median semantic spans vs critical-CTA boundary')
+            if dense:note+='; D0 GPUs '+row.get('d0_gpus','recorded in raw')
             result.append(dict(check='V1(b)',model=key[0],batch=key[1],tp=1,
                 candidate=('A0' if dense else 'F')+':'+stage,metric=metric,value=value,
                 reference=observed,ratio=value/observed,status='reported',
