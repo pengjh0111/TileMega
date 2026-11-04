@@ -283,9 +283,11 @@ struct Sm90ForwardEpilogueChain {
         float sum=0,squares=0;
         for(int col=0;col<width;++col) {float v=tile[row*N+col];sum+=v;squares+=v*v;}
         if(p.row_tiles<=1) {p.row_stats[2*row]=sum;p.row_stats[2*row+1]=squares;continue;}
-        auto* slot=p.row_partials+(std::size_t(row)*p.row_tiles+p.row_tile)*2;
-        asm volatile("st.relaxed.gpu.global.f32 [%0], %1;"::"l"(slot),"f"(sum):"memory");
-        asm volatile("st.relaxed.gpu.global.f32 [%0], %1;"::"l"(slot+1),"f"(squares):"memory");
+        // Each M block owns exactly rows*tiles pairs, including its short tail.
+        // Tile-major pairs make adjacent row threads access adjacent 8B words.
+        auto* slot=p.row_partials+(std::size_t(p.row_tile)*rows+row)*2;
+        asm volatile("st.relaxed.gpu.global.v2.f32 [%0], {%1,%2};"::"l"(slot),
+            "f"(sum),"f"(squares):"memory");
       }
       if(p.row_tiles>1) {
         // Every writer publishes its own global stores before thread 0
@@ -305,10 +307,10 @@ struct Sm90ForwardEpilogueChain {
           for(int row=int(threadIdx.x);row<rows;row+=128) {
             float total=0,total_squares=0;
             for(int tile_index=0;tile_index<p.row_tiles;++tile_index) {
-              auto const* other=p.row_partials+(std::size_t(row)*p.row_tiles+tile_index)*2;
+              auto const* other=p.row_partials+(std::size_t(tile_index)*rows+row)*2;
               float a,b;
-              asm volatile("ld.relaxed.gpu.global.f32 %0, [%1];":"=f"(a):"l"(other):"memory");
-              asm volatile("ld.relaxed.gpu.global.f32 %0, [%1];":"=f"(b):"l"(other+1):"memory");
+              asm volatile("ld.relaxed.gpu.global.v2.f32 {%0,%1}, [%2];"
+                  :"=f"(a),"=f"(b):"l"(other):"memory");
               total+=a;total_squares+=b;
             }
             p.row_stats[2*row]=total;p.row_stats[2*row+1]=total_squares;
