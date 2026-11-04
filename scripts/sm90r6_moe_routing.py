@@ -12,13 +12,12 @@ a guess between the 1-expert and top_k-expert extremes.
 Diagnostic, not a timing path: the per-step launches and the buffer reads make
 the wall clock meaningless, which is why the prompt puts it outside P-FINAL.
 """
-import argparse, json, os, statistics
+import argparse, json, math, os, statistics
 from pathlib import Path
 
 import torch
 
-from tilemega.cache import atomic_json
-from tilemega.moe.full import generation_tokens
+from tilemega.cache import atomic_json, file_sha
 from tilemega.moe.routing_check import capture, index_names
 from tilemega.serving.engine import ServingEngine
 
@@ -28,8 +27,44 @@ ROOT = Path(__file__).resolve().parents[1]
 def expert_bytes(config):
     """One expert's weight bytes: gate, up and down at bf16."""
     hidden = int(config['hidden_size'])
-    inter = int(config['moe_intermediate_size'])
+    inter = int(config['moe_intermediate_size'] if 'moe_intermediate_size' in config
+                else config['intermediate_size'])
     return 2 * (2 * inter * hidden + inter * hidden)
+
+
+def generation_routes(engine, rows, steps, vocab_size, capture_step):
+    """Capture each generated token's routes, including the prompt's last position."""
+    if engine.prefill is not None or engine.decode_loop:
+        raise ValueError('H2 requires prompt-mode decode, one launch per position')
+    stream = torch.cuda.current_stream()
+    engine.state.kv_storage.zero_()
+    engine.state.tokens.fill_(-1)
+    engine.state.tokens[:, :engine.prompt_len].copy_(rows.to(
+        device=engine.state.tokens.device, dtype=torch.int32))
+    for position in range(engine.prompt_len - 1):
+        engine.decode.launch(position, engine.decode_mode, stream.cuda_stream)
+    for step in range(steps):
+        position = engine.prompt_len - 1 + step
+        engine.decode.launch(position, engine.decode_mode, stream.cuda_stream)
+        stream.synchronize()
+        capture_step(engine.decode, step, position)
+    tokens = engine.state.tokens[:, engine.prompt_len:engine.prompt_len + steps].cpu()
+    if not torch.all((tokens >= 0) & (tokens < vocab_size)):
+        raise AssertionError('H2 generated unwritten or out-of-vocabulary tokens')
+    return tokens.tolist()
+
+
+def distinct_experts(routes, batch, experts, top_k):
+    counts = []
+    for layer in routes:
+        if len(layer) != batch:
+            raise ValueError('routing batch extent differs')
+        for row in layer:
+            if len(row) != top_k or len(set(row)) != top_k or any(
+                    not isinstance(e, int) or e < 0 or e >= experts for e in row):
+                raise ValueError('routing buffer contains unwritten, repeated or invalid experts')
+        counts.append(len({e for row in layer for e in row}))
+    return counts
 
 
 def main():
@@ -42,9 +77,14 @@ def main():
     p.add_argument('--bridge', type=Path, required=True)
     p.add_argument('--batch', type=int, required=True)
     p.add_argument('--steps', type=int, default=1024)
+    p.add_argument('--model', required=True, choices=['qwen3_30b_a3b', 'olmoe_1b_7b'])
     p.add_argument('--prompts', type=Path, default=ROOT / 'configs/prompts/qwen_isl64.json')
     p.add_argument('--out', type=Path, required=True)
     a = p.parse_args()
+    if a.steps < 1 or a.steps > 1024:
+        p.error('--steps must lie in [1, 1024]')
+    if a.prefill is not None:
+        p.error('H2 uses the native decode plan for teacher-forced prompt positions')
     if os.environ.get('TILEMEGA_GPU_LOCK_HELD') != '1':
         raise ValueError('GPU work requires the scheduler guard')
     checkpoint = Path(os.environ['TILEMEGA_RANDOM_CHECKPOINT'])
@@ -53,26 +93,47 @@ def main():
     names = index_names(json.loads(a.bridge.read_text()), layers)
     rows = torch.tensor(json.loads(a.prompts.read_text())[:a.batch], dtype=torch.int64)
 
-    # Only the decode steps are wanted; the prefill launch is skipped so step 0
-    # is the first generated token, matching how the bound counts steps.
-    trace, phases = [], []
+    a.out.mkdir(parents=True, exist_ok=True)
+    trace, indices, positions = [], [], []
 
-    def capture_step(plan, phase):
-        phases.append(phase)
-        if phase != 'prefill' and len(trace) < a.steps:
-            step = capture(plan, names, a.batch, 1, top_k)
-            # Per layer, the experts this step actually touches across the batch.
-            trace.append([len({e for row in step[layer] for e in row}) for layer in range(layers)])
+    def capture_step(plan, step, position):
+        routes = capture(plan, names, a.batch, 1, top_k)
+        if len(routes) != layers:
+            raise ValueError('routing layer extent differs')
+        try:
+            counts = distinct_experts(routes, a.batch, config['num_experts'], top_k)
+        except ValueError:
+            atomic_json(a.out / 'invalid_routing.json', dict(step=step, position=position,
+                names=names, routes=routes, decode_sha256=file_sha(a.decode)))
+            raise
+        trace.append(counts)
+        indices.append(routes)
+        positions.append(position)
+        trajectory.write(json.dumps(dict(step=step, position=position, indices=routes,
+                                          distinct=counts)) + '\n')
+        if (step + 1) % 64 == 0:
+            trajectory.flush()
+            print(json.dumps({'event': 'routing_progress', 'steps': step + 1}), flush=True)
 
-    with ServingEngine(checkpoint, None, a.decode, a.batch, prompt_len=rows.shape[1],
+    with (a.out / 'routing_steps.jsonl').open('x') as trajectory, ServingEngine(
+                       checkpoint, None, a.decode, a.batch, prompt_len=rows.shape[1],
                        max_new_tokens=a.steps, mode='L1', prefill_mode='L1', decode_loop=False,
                        step_events=False) as engine:
-        tokens = generation_tokens(engine, rows, a.steps, 1, config['vocab_size'], capture_step)
+        tokens = generation_routes(engine, rows, a.steps, config['vocab_size'], capture_step)
     del engine
     torch.cuda.empty_cache()
 
-    a.out.mkdir(parents=True, exist_ok=True)
+    if len(trace) != a.steps:
+        raise ValueError('incomplete routing trajectory')
     atomic_json(a.out / 'routing_trace.json', trace)
+    atomic_json(a.out / 'routing_indices.json', indices)
+    atomic_json(a.out / 'tokens.json', tokens)
+    atomic_json(a.out / 'metadata.json', dict(model=a.model, batch=a.batch, steps=a.steps,
+        positions=positions, first_generated_position=int(rows.shape[1]) - 1,
+        decode_sha256=file_sha(a.decode), bridge_sha256=file_sha(a.bridge),
+        prompt_sha256=file_sha(a.prompts), gpu=os.environ['TILEMEGA_DEVICE_INDEX'],
+        checkpoint=json.loads((checkpoint / 'random_checkpoint.json').read_text())['checkpoint_sha256'],
+        evidence='verified', timing=False))
     per_expert = expert_bytes(config)
     rows_out = []
     for layer in range(layers):
@@ -80,11 +141,11 @@ def main():
         counts.sort()
         n = len(counts)
         rows_out.append(dict(
-            model=config.get('_name_or_path') or config['architectures'][0], batch=a.batch,
+            model=a.model, batch=a.batch,
             layer=layer, steps=n, experts=config['num_experts'], top_k=top_k,
-            distinct_mean=f'{statistics.fmean(counts):.4f}',
-            distinct_p10=counts[max(0, int(0.10 * n) - 1)],
-            distinct_p90=counts[min(n - 1, int(0.90 * n))],
+            distinct_mean=statistics.fmean(counts),
+            distinct_p10=counts[math.ceil(0.10 * n) - 1],
+            distinct_p90=counts[math.ceil(0.90 * n) - 1],
             distinct_min=counts[0], distinct_max=counts[-1],
             expert_bytes=per_expert,
             layer_bytes_mean=int(statistics.fmean(counts) * per_expert)))
