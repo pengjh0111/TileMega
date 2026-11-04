@@ -273,6 +273,27 @@ struct Sm90DenseLocalRoute {
     codegen::executor::ComputeSync();
   }
 
+  // A published schedule has the same active-slot order as Build. Consumers
+  // need only the fields read by expert tasks; histogram scratch stays dead.
+  __device__ static __forceinline__ void Load(int const* schedule,void const* route_weights,
+      int const* route_index,LocalSchedule& s) {
+    int tid=threadIdx.x;
+    if(tid==0)s.active=schedule[Schedule::Active()];
+    codegen::executor::ComputeSync();
+    for(int a=tid;a<s.active;a+=128) {
+      s.expert[a]=schedule[Schedule::Expert(a)];
+      s.count[a]=schedule[Schedule::Count(a)];
+      s.slot_of[s.expert[a]]=static_cast<unsigned char>(a);
+      for(int r=0;r<s.count[a];++r)s.rows[a][r]=schedule[Schedule::Row(a,r)];
+    }
+    for(int i=tid;i<Batch*TopK;i+=128) {
+      s.sel[i]=route_index[i];
+      if constexpr(FloatWeights)s.weight[i]=static_cast<float const*>(route_weights)[i];
+      else s.weight[i]=float(static_cast<cutlass::bfloat16_t const*>(route_weights)[i]);
+    }
+    codegen::executor::ComputeSync();
+  }
+
   // CTA 0 alone republishes the schedule globally, for routing_check.py.
   __device__ static __forceinline__ void Publish(LocalSchedule const& s,
       int* schedule,void* route_weights,int* route_index) {

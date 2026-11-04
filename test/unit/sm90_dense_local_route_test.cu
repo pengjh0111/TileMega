@@ -28,14 +28,16 @@ __global__ void reference_kernel(float const* logits,int* schedule,void* weights
 }
 
 // E2: every CTA builds the schedule locally; CTA 0 republishes it.
-template<int Batch,int Experts,int TopK,bool FloatWeights,bool SoftmaxAll>
+template<int Batch,int Experts,int TopK,bool FloatWeights,bool SoftmaxAll,bool Reload=false>
 __global__ void local_kernel(float const* logits,int* schedule,void* weights,int* index,
-                             int* agreement) {
+                             int* agreement,int const* published,void const* published_weights,
+                             int const* published_index) {
   using Route=Sm90DenseLocalRoute<Batch,Experts,TopK,FloatWeights,SoftmaxAll>;
   using Local=Sm90DenseLocalSchedule<Batch,Experts,TopK>;
   __shared__ __align__(16) char storage[sizeof(Local)];
   auto& routing=*reinterpret_cast<Local*>(storage);
-  Route::Build(logits,routing);
+  if constexpr(Reload)Route::Load(published,published_weights,published_index,routing);
+  else Route::Build(logits,routing);
   __syncthreads();
   if(blockIdx.x==0)Route::Publish(routing,schedule,weights,index);
   // Every CTA must agree with CTA 0: the design relies on all of them deriving
@@ -82,13 +84,14 @@ void compare(char const* label,std::vector<float> const& host_logits) {
   reference_kernel<Batch,Experts,TopK,FloatWeights,SoftmaxAll><<<1,128,2048>>>(
       logits,schedule_a,weights_a,index_a,counter,done);
   local_kernel<Batch,Experts,TopK,FloatWeights,SoftmaxAll><<<kGrid,128>>>(
-      logits,schedule_b,weights_b,index_b,agreement);
+      logits,schedule_b,weights_b,index_b,agreement,schedule_a,weights_a,index_a);
   if(cudaDeviceSynchronize()!=cudaSuccess) {
     std::printf("FAIL %s: %s\n",label,cudaGetErrorString(cudaGetLastError()));++failures;return;
   }
   std::vector<int> a(Schedule::kInts),b(Schedule::kInts),ia(Batch*TopK),ib(Batch*TopK);
   std::vector<float> wa(Batch*TopK),wb(Batch*TopK);
   std::vector<int> agree(kGrid);
+  auto matches=[&] {
   cudaMemcpy(a.data(),schedule_a,a.size()*sizeof(int),cudaMemcpyDeviceToHost);
   cudaMemcpy(b.data(),schedule_b,b.size()*sizeof(int),cudaMemcpyDeviceToHost);
   cudaMemcpy(ia.data(),index_a,ia.size()*sizeof(int),cudaMemcpyDeviceToHost);
@@ -109,6 +112,19 @@ void compare(char const* label,std::vector<float> const& host_logits) {
     ok=ok && ia[s]==ib[s] && std::memcmp(&wa[s],&wb[s],sizeof(float))==0;
   }
   for(int g=1;g<kGrid && ok;++g)ok=ok && agree[g]==agree[0];
+  return ok;
+  };
+  bool ok=matches();
+  cudaMemset(schedule_b,0,Schedule::kInts*sizeof(int));
+  cudaMemset(weights_b,0,Batch*TopK*sizeof(float));
+  cudaMemset(index_b,0xff,Batch*TopK*sizeof(int));
+  local_kernel<Batch,Experts,TopK,FloatWeights,SoftmaxAll,true><<<kGrid,128>>>(
+      logits,schedule_b,weights_b,index_b,agreement,schedule_a,weights_a,index_a);
+  if(cudaDeviceSynchronize()!=cudaSuccess) {
+    std::printf("FAIL %s: global schedule load failed\n",label);++failures;return;
+  }
+  ok=matches() && ok;
+  int active=a[Schedule::Active()];
   std::printf("%-44s active=%3d %s\n",label,active,ok?"match":"MISMATCH");
   if(!ok)++failures;
   for(void* p:{(void*)logits,(void*)schedule_a,(void*)schedule_b,(void*)index_a,(void*)index_b,
