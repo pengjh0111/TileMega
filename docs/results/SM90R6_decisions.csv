@@ -5,3 +5,5 @@ DT-P,before any parallel timing,pending,,H1/I1 collection completed under explic
 DT-F1,after I-3,pending,,,
 DT-N0,NAFNet,pending,,,
 MoE-P2-task-domain,CP-P,user approved 2026-11-04,E*(1-(1-k/E)^B) expected active experts; integer CTG FlowSpace domains,modeling convention; not a hardware measurement,Round expected active-expert tile task counts to nearest integer; project dependencies onto that finite CTG domain; explicitly label predictions approximate; retain H2 observed routes unchanged
+H1-bulk-slots,H1,user approved,8 x 32768-byte in-flight slots per CTA,verified: 262208 bytes including barriers exceeds the 232448-byte opt-in CTA limit; SM90R6_hw_support.csv,record x8 unsupported; retain supported x2/x4 measurements
+AB1b-empty-window,Phase X,user approved,"legal tasks must lie in [G/2, 2G]; empty-domain case","verified Llama-8B lm_head: tasks 501 or 1002; G=132; selected nearest shell 501, distance 237 above upper bound 264","first minimize distance to the task interval, then minimum traffic, then original distance-to-G tie-break; annotate every exception; native enumeration order retains remaining ties"
