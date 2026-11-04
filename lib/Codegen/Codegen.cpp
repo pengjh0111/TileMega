@@ -2293,7 +2293,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
           // E2: the fused stage routes from these logits and republishes the
           // routes, so hold both the router's output and its index buffer.
           router_logits=id(g,"d");
-          router_index=operands && operands.size()>3?operand(3):"kAbsent";
+          router_index=operands && operands.size()>2?operand(2):"kAbsent";
         }
         if(c.expert_fuse && e.family==6) {
           // M56 is emitted at the down stage; hold this one's geometry for it.
