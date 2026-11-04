@@ -1011,6 +1011,13 @@ if(TILEMEGA_BUILD_TESTS)
       tilemega_configure_cuda_target(${test}_test)
       add_test(NAME ${test} COMMAND ${test}_test)
     endforeach()
+    add_executable(sm90_dense_moe_b16_test test/unit/sm90_dense_moe_test.cu)
+    target_link_libraries(sm90_dense_moe_b16_test PRIVATE TileMega::tilemega)
+    target_compile_definitions(sm90_dense_moe_b16_test PRIVATE TEST_BATCH=16)
+    target_compile_options(sm90_dense_moe_b16_test PRIVATE -UNDEBUG
+      $<$<COMPILE_LANGUAGE:CUDA>:-O3;--expt-relaxed-constexpr>)
+    tilemega_configure_cuda_target(sm90_dense_moe_b16_test)
+    add_test(NAME sm90_dense_moe_b16 COMMAND sm90_dense_moe_b16_test)
     add_executable(dm_epilogue_chain_view_test test/unit/dm_epilogue_tile_test.cu)
     target_link_libraries(dm_epilogue_chain_view_test PRIVATE TileMega::tilemega)
     target_compile_definitions(dm_epilogue_chain_view_test PRIVATE TILEMEGA_DM_CHAIN_REFERENCE=1)
@@ -1620,7 +1627,7 @@ add_test(NAME generated_feature_contract
   COMMAND ${CMAKE_COMMAND} -E env "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python"
     "TILEMEGA_BIN=$<TARGET_FILE:tilemega>"
     ${Python3_EXECUTABLE} -m unittest discover
-    -s ${CMAKE_CURRENT_SOURCE_DIR}/test/python -p test_generated_features.py)
+    -s ${CMAKE_CURRENT_SOURCE_DIR}/test/python -p test_native_generated_features.py)
 add_test(NAME dnn_bf16_gates
   COMMAND ${CMAKE_COMMAND} -E env "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python"
     ${Python3_EXECUTABLE} -m unittest discover

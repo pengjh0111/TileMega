@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
-// Native MoE bodies (prompt §8 M4-M6) in one grid-synchronized kernel:
-// router + top-k last arriver, grouped gate_up (cp.async row gather), down +
-// per-tile combine. FP64 reference with the bodies' BF16 roundings; two
-// launches exercise the monotonic router counter and the ctr[j] reset.
+// Current E2 routing: local/fused, global LA/fused, route-stage/fused,
+// global LA/unfused, and route-stage/unfused. Check exact route, partial and
+// residual equality plus the independent FP64 arithmetic reference.
 #ifndef TEST_BATCH
 #define TEST_BATCH 1
 #endif
@@ -10,6 +9,7 @@
 #include <tilemega/Codegen/executor/TensorMapTiled.h>
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <cstdio>
 #include <numeric>
 #include <set>
@@ -21,10 +21,14 @@ using BF=cutlass::bfloat16_t;
 using U64=unsigned long long;
 constexpr int B=TEST_BATCH,E=128,TopK=8,H=512,I=192,U=16,kGrid=132;
 constexpr int TNgu=96,TKgu=128,TNdn=128,TKdn=64;
-using Router=Sm90DenseMoeGemm<B,E,H,8,256,2,1,4,Sm90DenseMoeMode::kRouter,U,E,TopK,false>;
+template<int Route> using Router=Sm90DenseMoeGemm<B,E,H,8,256,2,1,4,
+    Sm90DenseMoeMode::kRouter,U,E,TopK,false,0,1,false,Route==1>;
 // The experts keep the legacy prefill's 64 x 64 pages (Page = 64).
-using GateUp=Sm90DenseMoeGemm<B,2*I,H,TNgu,TKgu,3,4,1,Sm90DenseMoeMode::kGateUp,U,E,TopK,false,64>;
-using Down=Sm90DenseMoeGemm<B,H,I,TNdn,TKdn,3,4,1,Sm90DenseMoeMode::kDown,U,E,TopK,false,64>;
+using GateUp=Sm90DenseMoeGemm<B,2*I,H,TNgu,TKgu,3,4,1,Sm90DenseMoeMode::kGateUp,U,E,TopK,false,64,1,false,false,true>;
+using Down=Sm90DenseMoeGemm<B,H,I,TNdn,TKdn,3,4,1,Sm90DenseMoeMode::kDown,U,E,TopK,false,64,1,false,false,true>;
+template<int Route> using Fused=Sm90DenseMoeFusedGemm<B,2*I,H,H,TNgu,TKgu,TNdn,TKdn,3,
+    4,1,4,1,U,E,TopK,false,64,1,false,Route==0>;
+using LocalRoute=Sm90DenseLocalRoute<B,E,TopK,false>;
 using Schedule=Sm90DenseMoeSchedule<E>;
 void Check(cudaError_t e,int line) {
   if(e!=cudaSuccess)throw std::runtime_error(std::string(cudaGetErrorString(e))+" at line "+std::to_string(line));
@@ -41,14 +45,30 @@ __device__ void GridBarrier(U64* counter,U64 round) {
   }
   __syncthreads();
 }
+template<int Route,bool Fuse>
 __global__ __launch_bounds__(160) void moe(Sm90DenseMoeOperands r,Sm90DenseMoeOperands g,
-    Sm90DenseMoeOperands d,U64* barrier,int launch) {
+    Sm90DenseMoeOperands d,Sm90DenseMoeFusedOperands f,U64* barrier,int launch) {
   extern __shared__ __align__(1024) char shared[];
   auto* rings=reinterpret_cast<Sm90DenseRingState*>(shared);
   rings[0].Initialize();rings[1].Initialize();
-  Router::Run(r,shared,&rings[0]);GridBarrier(barrier,launch*3);
-  GateUp::Run(g,shared,&rings[1]);GridBarrier(barrier,launch*3+1);
-  Down::Run(d,shared,&rings[0]);GridBarrier(barrier,launch*3+2);
+  Router<Route>::Run(r,shared,&rings[0]);GridBarrier(barrier,launch*4);
+  if constexpr(Route==2)if(blockIdx.x==0 && threadIdx.x<128) {
+    auto& routing=*reinterpret_cast<Sm90DenseLocalSchedule<B,E,TopK>*>(shared+1024);
+    LocalRoute::Build(static_cast<float const*>(r.output),routing);
+    LocalRoute::Publish(routing,r.schedule,r.route_weights,r.route_index);
+  }
+  GridBarrier(barrier,launch*4+1);
+  if(threadIdx.x==0) {
+    U64 now,start;asm volatile("mov.u64 %0, %%globaltimer;":"=l"(start));
+    do {asm volatile("mov.u64 %0, %%globaltimer;":"=l"(now));}
+    while(now-start<((blockIdx.x*37+launch*13)%23)*1000);
+  }
+  __syncthreads();
+  if constexpr(Fuse)Fused<Route>::Run(f,shared,&rings[1]);
+  else GateUp::Run(g,shared,&rings[1]);
+  GridBarrier(barrier,launch*4+2);
+  if constexpr(!Fuse)Down::Run(d,shared,&rings[0]);
+  GridBarrier(barrier,launch*4+3);
   rings[0].Invalidate();rings[1].Invalidate();
 }
 
@@ -89,11 +109,13 @@ int main() {try {
   }
   // Device state.
   BF *dx=Device(x),*dr=Device(packed_router),*dgu=Device(packed_gu),*ddn=Device(packed_dn);
-  float *logits,*partial;BF *h,*weights;int *schedule,*index;std::uint64_t *router_ctr,*tile_ctr;U64* barrier;
+  float *logits,*partial;BF *h,*weights;int *schedule,*index;unsigned* gu_done;
+  std::uint64_t *router_ctr,*tile_ctr;U64* barrier;
   check(cudaMalloc(&logits,B*E*4));check(cudaMalloc(&partial,std::size_t(B)*TopK*H*4));
   check(cudaMalloc(&h,std::size_t(E)*16*I*2));check(cudaMalloc(&weights,B*TopK*2));
   check(cudaMalloc(&schedule,Schedule::kInts*4));check(cudaMalloc(&index,B*TopK*4));
   check(cudaMalloc(&router_ctr,8));check(cudaMalloc(&tile_ctr,8*(H/TNdn)));check(cudaMalloc(&barrier,8));
+  check(cudaMalloc(&gu_done,E*sizeof(unsigned)));check(cudaMemset(gu_done,0,E*sizeof(unsigned)));
   check(cudaMemset(router_ctr,0,8));check(cudaMemset(tile_ctr,0,8*(H/TNdn)));check(cudaMemset(barrier,0,8));
   check(cudaMemset(h,0,std::size_t(E)*16*I*2));
   CUtensorMap* maps;check(cudaMalloc(&maps,256));
@@ -105,11 +127,15 @@ int main() {try {
   tilemega::codegen::executor::EncodeTiledMap<4>(host_maps[1],h,
       {{64,16,I/64,E},{2ull*I,128,2ull*16*I},{64,std::uint32_t(rows),TKdn/64,1}});
   check(cudaMemcpy(maps,host_maps,sizeof host_maps,cudaMemcpyHostToDevice));
-  Sm90DenseMoeOperands r{maps,dr,nullptr,logits,schedule,weights,index,nullptr,router_ctr,1e-6f,nullptr};
-  Sm90DenseMoeOperands g{nullptr,dgu,dx,h,schedule,nullptr,nullptr,nullptr,nullptr,1e-6f,nullptr};
-  Sm90DenseMoeOperands d{maps+1,ddn,nullptr,partial,schedule,weights,nullptr,dx,tile_ctr,1e-6f,nullptr};
-  int shared=std::max({Router::kSharedBytes,GateUp::kSharedBytes,Down::kSharedBytes});
-  check(cudaFuncSetAttribute(moe,cudaFuncAttributeMaxDynamicSharedMemorySize,shared));
+  Sm90DenseMoeOperands r{maps,dr,nullptr,logits,schedule,weights,index,nullptr,router_ctr,1e-6f,gu_done};
+  Sm90DenseMoeOperands g{nullptr,dgu,dx,h,schedule,weights,index,nullptr,nullptr,1e-6f,nullptr};
+  Sm90DenseMoeOperands d{maps+1,ddn,nullptr,partial,schedule,weights,index,dx,tile_ctr,1e-6f,nullptr};
+  Sm90DenseMoeFusedOperands f{maps+1,dgu,ddn,dx,h,partial,schedule,weights,index,dx,tile_ctr,gu_done,logits,1e-6f};
+  int shared=std::max({Router<0>::kSharedBytes,GateUp::kSharedBytes,Down::kSharedBytes,Fused<0>::kSharedBytes});
+  using Kernel=void(*)(Sm90DenseMoeOperands,Sm90DenseMoeOperands,Sm90DenseMoeOperands,
+      Sm90DenseMoeFusedOperands,U64*,int);
+  Kernel kernels[]={moe<0,true>,moe<1,true>,moe<2,true>,moe<1,false>,moe<2,false>};
+  for(auto kernel:kernels)check(cudaFuncSetAttribute(kernel,cudaFuncAttributeMaxDynamicSharedMemorySize,shared));
   // Reference (one launch from x).
   std::vector<double> inv(B);
   for(int b=0;b<B;++b) {
@@ -154,13 +180,37 @@ int main() {try {
   auto bad=[&](char const* what,int b,int c,double got,double want) {
     if(errors<4)std::fprintf(stderr,"B%d %s b%d c%d got %g want %g\n",B,what,b,c,got,want);++errors;
   };
-  for(int launch=0;launch<2;++launch) {
+  std::vector<BF> reference_x,reference_weights;std::vector<float> reference_partial;
+  std::vector<int> reference_index,reference_schedule;
+  constexpr int rounds=128;
+  for(int launch=0;launch<5*rounds;++launch) {
     check(cudaMemcpy(dx,x.data(),x.size()*2,cudaMemcpyHostToDevice));
-    moe<<<kGrid,160,shared>>>(r,g,d,barrier,launch);
+    auto kernel=kernels[launch/rounds];
+    void* arguments[]={&r,&g,&d,&f,&barrier,&launch};
+    check(cudaLaunchKernel(reinterpret_cast<void*>(kernel),dim3(kGrid),dim3(160),arguments,shared));
     check(cudaGetLastError());check(cudaDeviceSynchronize());
     auto got_index=Host(index,B*TopK);auto got_weights=Host(weights,B*TopK);
     auto got_schedule=Host(schedule,Schedule::kInts);auto got_x=Host(dx,B*H);
     auto counters=Host(tile_ctr,H/TNdn);
+    auto got_partial=Host(partial,std::size_t(B)*TopK*H);
+    std::vector<int> active_schedule{got_schedule[Schedule::Active()]};
+    for(int a=0;a<got_schedule[Schedule::Active()];++a) {
+      active_schedule.push_back(got_schedule[Schedule::Expert(a)]);
+      int count=got_schedule[Schedule::Count(a)];active_schedule.push_back(count);
+      for(int q=0;q<count;++q)active_schedule.push_back(got_schedule[Schedule::Row(a,q)]);
+    }
+    if(launch==0) {
+      reference_x=got_x;reference_weights=got_weights;reference_index=got_index;
+      reference_partial=got_partial;reference_schedule=active_schedule;
+    }else {
+      auto equal=[](auto const& a,auto const& b) {
+        return a.size()==b.size() && std::memcmp(a.data(),b.data(),a.size()*sizeof(a[0]))==0;
+      };
+      if(!equal(reference_x,got_x))bad("bitwise residual",launch/rounds,launch,1,0);
+      if(!equal(reference_partial,got_partial))bad("bitwise partial",launch/rounds,launch,1,0);
+      if(!equal(reference_weights,got_weights) || reference_index!=got_index ||
+         reference_schedule!=active_schedule)bad("bitwise routing",launch/rounds,launch,1,0);
+    }
     std::set<int> active;
     for(int b=0;b<B;++b)for(int k=0;k<TopK;++k) {
       active.insert(top[b][k]);
@@ -186,6 +236,7 @@ int main() {try {
       if(std::fabs(got-want)>std::fabs(want)/32+2e-2)bad("x''",b,n,got,want);
     }
   }
-  std::printf("{\"batch\":%d,\"launches\":2,\"errors\":%d,\"pass\":%s}\n",B,errors,errors?"false":"true");
+  std::printf("{\"batch\":%d,\"variants\":5,\"launches\":%d,\"errors\":%d,\"pass\":%s}\n",
+      B,5*rounds,errors,errors?"false":"true");
   return errors?1:0;
 }catch(std::exception const& e) {std::fprintf(stderr,"%s\n",e.what());return 2;}}
