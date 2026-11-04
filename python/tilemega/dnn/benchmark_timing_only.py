@@ -23,8 +23,12 @@ def main():
     parser.add_argument('--executor', choices=('L1',), default='L1')
     parser.add_argument('--warmup', type=int, choices=(50,), default=50)
     parser.add_argument('--iterations', type=int, choices=(200,), default=200)
+    parser.add_argument('--protocol', choices=('P-DNN', 'P-SEL', 'P-PAIR'), default='P-DNN')
     parser.add_argument('--round-index', type=int, choices=(0, 1, 2), required=True)
     args = parser.parse_args()
+    processes = 2 if args.protocol == 'P-SEL' else 3
+    if args.round_index >= processes:
+        parser.error('round-index exceeds the fresh process count for ' + args.protocol)
     gpu_index = int(require_guard()[0])
     if gpu_index not in (0, 5, 7):
         raise ValueError('DNN1 timing uses GPU0, GPU5 or GPU7')
@@ -55,7 +59,7 @@ def main():
         model=manifest['model'], batch=args.batch, fresh_process=args.round_index,
         stage='measure', e3_validated=False, selection=selection['selection'],
         artifact_id=identity['artifact_id'], source_head=selection['source_head'],
-        protocol=dict(warmup=50, iterations=200, fresh_processes=3),
+        protocol=dict(name=args.protocol, warmup=50, iterations=200, fresh_processes=processes),
         command=[sys.executable, *sys.argv], started=time.time(),
         user_amendment=dict(scope='DNN1 five models and five batches',
             inputs='fixed random inputs and existing random weights',
@@ -87,6 +91,7 @@ def main():
     ordered = sorted(values)
     result = dict(schema_version=1, evidence='verified', system='tilemega', model=manifest['model'],
         batch=args.batch, precision='bf16', executor=args.executor, round_index=args.round_index,
+        protocol=args.protocol,
         pid=os.getpid(), gpu_index=gpu_index, versions=versions(),
         artifact_id=identity['artifact_id'], execution_identity=execution,
         input_sha256=sha(args.inputs), numerical_gate_sha256=None,
