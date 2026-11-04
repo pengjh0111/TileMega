@@ -99,6 +99,30 @@ struct Sm90ForwardTraceAccumulator {
   }
 };
 
+// Scalar small bodies interleave phases. Record their first-to-last phase
+// windows with two clock reads per phase/CTA, rather than per-element reads
+// that would dominate the operation being observed. Windows are not additive.
+struct Sm90ForwardTraceWindow {
+  unsigned long long total=0,count=0,first=0,last=0;
+  __device__ __forceinline__ void Begin() {
+    if(threadIdx.x==0 && !count)first=Sm90ForwardTraceNow();
+  }
+  __device__ __forceinline__ void End(bool final) {
+    if(threadIdx.x==0) {
+      ++count;
+      if(final) {last=Sm90ForwardTraceNow();total=last-first;}
+    }
+  }
+  __device__ __forceinline__ void Point(bool final) {
+    Begin();
+    if(threadIdx.x==0) {++count;if(final)last=Sm90ForwardTraceNow();}
+  }
+  __device__ __forceinline__ void Flush(Sm90ForwardTraceSegment segment) const {
+    if(threadIdx.x==0)
+      Sm90ForwardTraceCurrent().segments[unsigned(segment)]={total,count,first,last};
+  }
+};
+
 }  // namespace tilemega::backend
 #define TM_FWD_TRACE_ACC(name) ::tilemega::backend::Sm90ForwardTraceAccumulator name
 #define TM_FWD_TRACE_BEGIN(name) name.Begin()
@@ -106,6 +130,9 @@ struct Sm90ForwardTraceAccumulator {
 #define TM_FWD_TRACE_POINT(name) name.Point()
 #define TM_FWD_TRACE_FLUSH(name,kind) name.Flush(::tilemega::backend::Sm90ForwardTraceSegment::kind)
 #define TM_FWD_TRACE_FIRST_READY() ::tilemega::backend::Sm90ForwardTraceFirstReady()
+#define TM_FWD_WINDOW_ACC(name) ::tilemega::backend::Sm90ForwardTraceWindow name
+#define TM_FWD_WINDOW_END(name,final) name.End(final)
+#define TM_FWD_WINDOW_POINT(name,final) name.Point(final)
 #else
 #define TM_FWD_TRACE_ACC(name)
 #define TM_FWD_TRACE_BEGIN(name)
@@ -113,4 +140,7 @@ struct Sm90ForwardTraceAccumulator {
 #define TM_FWD_TRACE_POINT(name)
 #define TM_FWD_TRACE_FLUSH(name,kind)
 #define TM_FWD_TRACE_FIRST_READY()
+#define TM_FWD_WINDOW_ACC(name)
+#define TM_FWD_WINDOW_END(name,final)
+#define TM_FWD_WINDOW_POINT(name,final)
 #endif

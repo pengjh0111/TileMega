@@ -57,7 +57,7 @@ class ForwardTrace:
             raise RuntimeError(f'tm_forward_trace_copy: CUDA status {status}')
         raw = bytes(buffer)
         info = dict(self.info, clock='globaltimer nanoseconds', launches=1,
-                    aggregation='consumer thread 0, sum/count across all local tasks',
+                    aggregation='consumer thread 0: body segments sum/count; scalar small phases use first-to-last windows/count',
                     timing_eligible=False, raw_sha256=hashlib.sha256(raw).hexdigest(),
                     metadata=metadata or {})
         if not isinstance(self.library, C.CDLL):
@@ -322,7 +322,7 @@ def main():
                    stage_window='max leave[i] - max leave[i-1]; first starts at min enter[0]',
                    segment_aggregation='critical CTA thread0 sum across local tasks; all-CTA sum/max are separate nonadditive diagnostics',
                    limitations=['instrumented builds cannot provide E2E latency',
-                       'small-body scalar clocks perturb execution; load/compute/store envelopes may contain interleaved operations',
+                       'small phases use two clock reads per phase/CTA; windows contain interleaved operations and cannot be added',
                        'slot/halo/KV waits may nest in compute envelopes; never sum all segments',
                        'CPU work geometry/traffic must be explicit, not copied blindly from old solver shapes'])
     (args.out / 'summary.json').write_text(json.dumps(summary, indent=2)+'\n')

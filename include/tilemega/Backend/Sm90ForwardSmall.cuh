@@ -44,19 +44,19 @@ struct Sm90ForwardLayout {
   __device__ static __forceinline__ void Run(Sm90ForwardSmallOperands const& p,char*,
       Sm90DenseRingState&) {
     if(threadIdx.x>=128)return;
-    TM_FWD_TRACE_ACC(load_trace);TM_FWD_TRACE_ACC(compute_trace);
-    TM_FWD_TRACE_ACC(store_trace);
+    TM_FWD_WINDOW_ACC(load_trace);TM_FWD_WINDOW_ACC(compute_trace);
+    TM_FWD_WINDOW_ACC(store_trace);
     int pixels=p.width*p.height;
     for(int task=int(blockIdx.x);task<pixels;task+=int(gridDim.x))
       for(int c=int(threadIdx.x);c<p.out_channels;c+=128) {
 #if TILEMEGA_TRACE_STAGE
         TM_FWD_TRACE_BEGIN(load_trace);
         Element value=p.input[std::size_t(c)*pixels+task];
-        TM_FWD_TRACE_END(load_trace);
-        TM_FWD_TRACE_POINT(compute_trace);  // A layout copy has no arithmetic phase.
+        TM_FWD_WINDOW_END(load_trace,task+int(gridDim.x)>=pixels && c+128>=p.out_channels);
+        TM_FWD_WINDOW_POINT(compute_trace,task+int(gridDim.x)>=pixels && c+128>=p.out_channels);  // A layout copy has no arithmetic phase.
         TM_FWD_TRACE_BEGIN(store_trace);
         p.output[std::size_t(task)*p.channels+c]=value;
-        TM_FWD_TRACE_END(store_trace);
+        TM_FWD_WINDOW_END(store_trace,task+int(gridDim.x)>=pixels && c+128>=p.out_channels);
 #else
         p.output[std::size_t(task)*p.channels+c]=p.input[std::size_t(c)*pixels+task];
 #endif
@@ -76,8 +76,8 @@ struct Sm90ForwardMaxPool {
   __device__ static __forceinline__ void Run(Sm90ForwardSmallOperands const& p,char*,
       Sm90DenseRingState&) {
     if(threadIdx.x>=128)return;
-    TM_FWD_TRACE_ACC(load_trace);TM_FWD_TRACE_ACC(compute_trace);
-    TM_FWD_TRACE_ACC(store_trace);
+    TM_FWD_WINDOW_ACC(load_trace);TM_FWD_WINDOW_ACC(compute_trace);
+    TM_FWD_WINDOW_ACC(store_trace);
     int out_w=(p.width+1)/Stride,out_h=(p.height+1)/Stride;
     int total=out_w*out_h;
     for(int task=int(blockIdx.x);task<total;task+=int(gridDim.x)) {
@@ -93,17 +93,17 @@ struct Sm90ForwardMaxPool {
 #if TILEMEGA_TRACE_STAGE
             TM_FWD_TRACE_BEGIN(load_trace);
             float value=float(p.input[(std::size_t(sy)*p.width+sx)*p.channels+c]);
-            TM_FWD_TRACE_END(load_trace);
+            TM_FWD_WINDOW_END(load_trace,task+int(gridDim.x)>=total && c+128>=p.channels && r==min(Window-1,p.height-1-y) && s==min(Window-1,p.width-1-x));
             TM_FWD_TRACE_BEGIN(compute_trace);
             best=fmaxf(best,value);
-            TM_FWD_TRACE_END(compute_trace);
+            TM_FWD_WINDOW_END(compute_trace,task+int(gridDim.x)>=total && c+128>=p.channels && r==min(Window-1,p.height-1-y) && s==min(Window-1,p.width-1-x));
 #else
             best=fmaxf(best,float(p.input[(std::size_t(sy)*p.width+sx)*p.channels+c]));
 #endif
           }
         TM_FWD_TRACE_BEGIN(store_trace);
         p.output[std::size_t(task)*p.channels+c]=Element(best);
-        TM_FWD_TRACE_END(store_trace);
+        TM_FWD_WINDOW_END(store_trace,task+int(gridDim.x)>=total && c+128>=p.channels);
       }
     }
     TM_FWD_TRACE_FLUSH(load_trace,kSmallLoad);TM_FWD_TRACE_FLUSH(compute_trace,kSmallCompute);
@@ -123,8 +123,8 @@ struct Sm90ForwardGlobalPool {
   __device__ static __forceinline__ void Run(Sm90ForwardSmallOperands const& p,char*,
       Sm90DenseRingState&) {
     if(threadIdx.x>=128)return;
-    TM_FWD_TRACE_ACC(load_trace);TM_FWD_TRACE_ACC(compute_trace);
-    TM_FWD_TRACE_ACC(store_trace);
+    TM_FWD_WINDOW_ACC(load_trace);TM_FWD_WINDOW_ACC(compute_trace);
+    TM_FWD_WINDOW_ACC(store_trace);
     float inverse=1.0f/float(p.height);
     for(int c=int(blockIdx.x)*128+int(threadIdx.x);c<p.channels;c+=int(gridDim.x)*128) {
       float sum=0;
@@ -133,10 +133,10 @@ struct Sm90ForwardGlobalPool {
 #if TILEMEGA_TRACE_STAGE
         TM_FWD_TRACE_BEGIN(load_trace);
         float value=*address;
-        TM_FWD_TRACE_END(load_trace);
+        TM_FWD_WINDOW_END(load_trace,c+int(gridDim.x)*128>=p.channels && part+1==p.width);
         TM_FWD_TRACE_BEGIN(compute_trace);
         sum+=value;
-        TM_FWD_TRACE_END(compute_trace);
+        TM_FWD_WINDOW_END(compute_trace,c+int(gridDim.x)*128>=p.channels && part+1==p.width);
 #else
         sum+=*address;
 #endif
@@ -144,11 +144,11 @@ struct Sm90ForwardGlobalPool {
         // launch must start from zero: the only reader clears them.
         TM_FWD_TRACE_BEGIN(store_trace);
         *address=0.0f;
-        TM_FWD_TRACE_END(store_trace);
+        TM_FWD_WINDOW_END(store_trace,false);
       }
       TM_FWD_TRACE_BEGIN(store_trace);
       p.output[c]=Element(sum*inverse);
-      TM_FWD_TRACE_END(store_trace);
+      TM_FWD_WINDOW_END(store_trace,c+int(gridDim.x)*128>=p.channels);
     }
     TM_FWD_TRACE_FLUSH(load_trace,kSmallLoad);TM_FWD_TRACE_FLUSH(compute_trace,kSmallCompute);
     TM_FWD_TRACE_FLUSH(store_trace,kSmallStore);
@@ -173,8 +173,8 @@ struct Sm90ForwardGemv {
   __device__ static __forceinline__ void Run(Sm90ForwardSmallOperands const& p,char*,
       Sm90DenseRingState&) {
     if(threadIdx.x>=128)return;
-    TM_FWD_TRACE_ACC(load_trace);TM_FWD_TRACE_ACC(compute_trace);
-    TM_FWD_TRACE_ACC(store_trace);
+    TM_FWD_WINDOW_ACC(load_trace);TM_FWD_WINDOW_ACC(compute_trace);
+    TM_FWD_WINDOW_ACC(store_trace);
     int blocks=(p.out_channels+Block-1)/Block,panels=p.channels/kTileK;
     int rows=p.width>0?p.width:1,total=blocks*rows;
     for(int task=int(blockIdx.x);task<total;task+=int(gridDim.x)) {
@@ -191,10 +191,10 @@ struct Sm90ForwardGemv {
           {
             TM_FWD_TRACE_BEGIN(load_trace);
             float weight=float(page[Swizzled(i,c)]),value=float(source[panel*kTileK+c]);
-            TM_FWD_TRACE_END(load_trace);
+            TM_FWD_WINDOW_END(load_trace,task+int(gridDim.x)>=total && (i+128>=Block || channel+128>=p.out_channels) && panel+1==panels && c+1==kTileK);
             TM_FWD_TRACE_BEGIN(compute_trace);
             sum+=weight*value;
-            TM_FWD_TRACE_END(compute_trace);
+            TM_FWD_WINDOW_END(compute_trace,task+int(gridDim.x)>=total && (i+128>=Block || channel+128>=p.out_channels) && panel+1==panels && c+1==kTileK);
           }
 #else
             sum+=float(page[Swizzled(i,c)])*float(source[panel*kTileK+c]);
@@ -202,7 +202,7 @@ struct Sm90ForwardGemv {
         }
         TM_FWD_TRACE_BEGIN(store_trace);
         p.output[std::size_t(row)*p.out_channels+channel]=Element(sum);
-        TM_FWD_TRACE_END(store_trace);
+        TM_FWD_WINDOW_END(store_trace,task+int(gridDim.x)>=total && (i+128>=Block || channel+128>=p.out_channels));
       }
     }
     TM_FWD_TRACE_FLUSH(load_trace,kSmallLoad);TM_FWD_TRACE_FLUSH(compute_trace,kSmallCompute);
@@ -223,8 +223,8 @@ struct Sm90ForwardEmbeddingSum {
   __device__ static __forceinline__ void Run(Sm90ForwardSmallOperands const& p,char*,
       Sm90DenseRingState&) {
     if(threadIdx.x>=128)return;
-    TM_FWD_TRACE_ACC(load_trace);TM_FWD_TRACE_ACC(compute_trace);
-    TM_FWD_TRACE_ACC(store_trace);
+    TM_FWD_WINDOW_ACC(load_trace);TM_FWD_WINDOW_ACC(compute_trace);
+    TM_FWD_WINDOW_ACC(store_trace);
     int rows=p.width,warp=int(threadIdx.x)>>5,lane=int(threadIdx.x)&31;
     for(int row=int(blockIdx.x)*kWarps+warp;row<rows;row+=int(gridDim.x)*kWarps) {
       int token=int(p.index0[row]),type=p.index1?int(p.index1[row]):0;
@@ -236,22 +236,22 @@ struct Sm90ForwardEmbeddingSum {
         // The embedding load envelope includes its original additions.
         TM_FWD_TRACE_BEGIN(load_trace);
         float value=float(word[c])+float(types[c])+float(position[c]);
-        TM_FWD_TRACE_END(load_trace);
+        TM_FWD_WINDOW_END(load_trace,row+int(gridDim.x)*kWarps>=rows && c+32>=Width);
         TM_FWD_TRACE_BEGIN(store_trace);
         p.output[std::size_t(row)*Width+c]=Element(value);
-        TM_FWD_TRACE_END(store_trace);
+        TM_FWD_WINDOW_END(store_trace,!p.stats && row+int(gridDim.x)*kWarps>=rows && c+32>=Width);
         TM_FWD_TRACE_BEGIN(compute_trace);
         sum+=value;squares+=value*value;
-        TM_FWD_TRACE_END(compute_trace);
+        TM_FWD_WINDOW_END(compute_trace,!p.stats && row+int(gridDim.x)*kWarps>=rows && c+32>=Width);
       }
       if(p.stats) {
         TM_FWD_TRACE_BEGIN(compute_trace);
         sum=Sm90DenseAttentionMath::WarpSum(sum);
         squares=Sm90DenseAttentionMath::WarpSum(squares);
-        TM_FWD_TRACE_END(compute_trace);
+        TM_FWD_WINDOW_END(compute_trace,row+int(gridDim.x)*kWarps>=rows);
         TM_FWD_TRACE_BEGIN(store_trace);
         if(!lane) {p.stats[2*row]=sum;p.stats[2*row+1]=squares;}
-        TM_FWD_TRACE_END(store_trace);
+        TM_FWD_WINDOW_END(store_trace,row+int(gridDim.x)*kWarps>=rows);
       }
     }
     TM_FWD_TRACE_FLUSH(load_trace,kSmallLoad);TM_FWD_TRACE_FLUSH(compute_trace,kSmallCompute);
@@ -270,8 +270,8 @@ struct Sm90ForwardLayerNorm {
   __device__ static __forceinline__ void Run(Sm90ForwardSmallOperands const& p,char*,
       Sm90DenseRingState&) {
     if(threadIdx.x>=128)return;
-    TM_FWD_TRACE_ACC(load_trace);TM_FWD_TRACE_ACC(compute_trace);
-    TM_FWD_TRACE_ACC(store_trace);
+    TM_FWD_WINDOW_ACC(load_trace);TM_FWD_WINDOW_ACC(compute_trace);
+    TM_FWD_WINDOW_ACC(store_trace);
     int rows=p.width*p.height;
     // One warp per row: the row fits a single pass over Channels.
     int warp=int(threadIdx.x)>>5,lane=int(threadIdx.x)&31;
@@ -281,30 +281,30 @@ struct Sm90ForwardLayerNorm {
       for(int c=lane;c<Channels;c+=32) {
         TM_FWD_TRACE_BEGIN(load_trace);
         float value=float(source[c]);
-        TM_FWD_TRACE_END(load_trace);
+        TM_FWD_WINDOW_END(load_trace,false);
         TM_FWD_TRACE_BEGIN(compute_trace);
         sum+=value;squares+=value*value;
-        TM_FWD_TRACE_END(compute_trace);
+        TM_FWD_WINDOW_END(compute_trace,false);
       }
       TM_FWD_TRACE_BEGIN(compute_trace);
       sum=Sm90DenseAttentionMath::WarpSum(sum);
       squares=Sm90DenseAttentionMath::WarpSum(squares);
       float mean=sum/Channels;
       float inverse=rsqrtf(squares/Channels-mean*mean+p.epsilon);
-      TM_FWD_TRACE_END(compute_trace);
+      TM_FWD_WINDOW_END(compute_trace,false);
       for(int c=lane;c<Channels;c+=32) {
 #if TILEMEGA_TRACE_STAGE
         TM_FWD_TRACE_BEGIN(load_trace);
         float value=float(source[c]);
-        TM_FWD_TRACE_END(load_trace);
+        TM_FWD_WINDOW_END(load_trace,row+int(gridDim.x)*4>=rows && c+32>=Channels);
         // Affine parameter reads stay interleaved with the original expression.
         TM_FWD_TRACE_BEGIN(compute_trace);
         auto result=Element((value-mean)*inverse*
             float(p.weight[c])+(p.table?float(p.table[c]):0.0f));
-        TM_FWD_TRACE_END(compute_trace);
+        TM_FWD_WINDOW_END(compute_trace,row+int(gridDim.x)*4>=rows && c+32>=Channels);
         TM_FWD_TRACE_BEGIN(store_trace);
         p.output[std::size_t(row)*Channels+c]=result;
-        TM_FWD_TRACE_END(store_trace);
+        TM_FWD_WINDOW_END(store_trace,row+int(gridDim.x)*4>=rows && c+32>=Channels);
 #else
         p.output[std::size_t(row)*Channels+c]=Element((float(source[c])-mean)*inverse*
             float(p.weight[c])+(p.table?float(p.table[c]):0.0f));

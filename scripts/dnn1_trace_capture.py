@@ -37,6 +37,11 @@ def main():
         identity=json.loads(identity_path.read_text())
         if not identity['trace'] or identity['binary_sha256']!=sha(a.library):
             raise ValueError('capture requires the identified TRACE artifact, never an E2E timing artifact')
+        root=Path(__file__).resolve().parents[1]
+        for rel in ('include/tilemega/Backend/Sm90ForwardMark.cuh',
+                    'include/tilemega/Backend/Sm90ForwardSmall.cuh'):
+            if identity['source']['source_files'].get(rel)!=sha(root/rel):
+                raise ValueError('trace observation header changed; rebuild the frozen attribution artifact: '+rel)
         work=describe(source_path,manifest_path,identity_path,a.logical_plan,a.inputs)
         if work['runtime_batch']!=a.batch:raise ValueError('artifact batch differs')
         (a.out/'work.json').write_text(json.dumps(work,indent=2)+'\n')
@@ -111,7 +116,8 @@ def main():
                 gpu_index=int(physical),process_index=a.process_index,
                 artifact_id=identity['artifact_id'],library_sha256=sha(a.library),
                 source_sha256=sha(source_path),bridge_sha256=sha(a.bridge),input_sha256=sha(a.inputs),
-                work_sha256=sha(a.out/'work.json'),warmup=50,after=after))
+                work_sha256=sha(a.out/'work.json'),warmup=50,after=after,
+                small_phase_aggregation='first-to-last occurrence windows; interleaved phases are not additive'))
             finite={name:bool(torch.isfinite(tensors[name]).all().item()) for name in outputs}
         receipt=dict(evidence='verified attribution launch; no latency or correctness claim',
             model=export_manifest['model'],batch=a.batch,physical_gpu=int(physical),process_index=a.process_index,
