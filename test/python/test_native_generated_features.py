@@ -3,6 +3,7 @@ import copy
 import json
 import lzma
 import os
+import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -14,6 +15,26 @@ from check_sm90_moe_combine_contract import check as check_combine
 
 ROOT = Path(__file__).resolve().parents[2]
 COMPILER = os.environ.get('TILEMEGA_BIN')
+
+
+def check_execution_graph(manifest):
+    text = Path(manifest['ctg']).read_text()
+    marker = 'tmcg.graph @native_execution '
+    if text.count(marker) != 1 or 'tmexec.native_execution_graph = @native_execution' not in text:
+        raise ValueError('native lowering must name one scheduling graph')
+    graph = text.split(marker, 1)[1]
+    c = manifest['native_dense']
+    layers = sum(g['family'] == 'qkv' for g in manifest['gemms'])
+    kinds = re.findall(r'kind = #tmcg.task_kind<"([^"]+)">', graph)
+    expected = dict(gemm=len(manifest['gemms']), embedding=1, argmax_reduce=1,
+                    fused_attention=layers, attention_merge=layers if c['attention']['chunks'] > 1 else 0,
+                    moe_topk=layers if c['model'] == 'moe' else 0,
+                    moe_combine=layers if c['model'] == 'moe' else 0)
+    if len(kinds) != sum(expected.values()) or any(kinds.count(k) != n for k, n in expected.items()):
+        raise ValueError('native execution graph omits or duplicates a task/reducer space')
+    if c['model'] == 'moe' and 'approximate_expected_active_expert_tile_tasks_round_nearest' not in graph:
+        raise ValueError('native MoE task domain must retain its approximation label')
+    return expected
 
 
 @unittest.skipUnless(COMPILER, 'native generation requires TILEMEGA_BIN')
@@ -51,6 +72,7 @@ class NativeGeneratedFeatureTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout)
         text = source.read_text()
         manifest = json.loads(Path(str(source)+'.plan.json').read_text())
+        check_execution_graph(manifest)
         self.assertEqual(len(validate_gemm_dispatch(manifest, build_defines(text, []), text)),
                          len(manifest['gemms']))
         corrupted = copy.deepcopy(manifest)

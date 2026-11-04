@@ -10,6 +10,9 @@ unsigned Sm90DenseFamily(frontend::ModelPlan const&,frontend::PlanGemm const&);
 Sm90DenseShapeTable Sm90DenseShapes(frontend::ModelPlan const&);
 Sm90DenseWorkload Sm90DenseWorkloadFromPlan(frontend::ModelPlan const&,int batch);
 void ValidateSm90NativeBoundaryContracts(mlir::ModuleOp);
+void ValidateSm90NativeExecutionGraph(mlir::ModuleOp);
+void WriteSm90NativeExecutionGraph(mlir::ModuleOp,frontend::ImportedSemantics const&,
+    Sm90DenseCoordinates const&,int batch,int grid,mlir::MLIRContext&);
 frontend::ImportedSemantics ImportSm90Dense(std::string const& export_path,
     Sm90DenseCoordinates const&,mlir::MLIRContext&);
 mlir::OwningOpRef<mlir::ModuleOp> MaterializeSm90Dense(

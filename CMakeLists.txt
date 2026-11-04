@@ -199,6 +199,7 @@ add_library(tilemega_core STATIC
   lib/Solver/Sm90NativePrices.cpp
   lib/Solver/Sm90NativeFlow.cpp
   lib/Solver/Sm90NativeCtg.cpp
+  lib/Solver/Sm90NativeWriteback.cpp
   lib/Solver/Sm90NativeMoeDomain.cpp
   lib/Solver/Sm90NativePipeline.cpp
   lib/Solver/Sm90NativeConstants.cpp

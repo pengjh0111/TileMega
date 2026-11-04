@@ -60,6 +60,7 @@ void NativeBoundaryContracts(mlir::ModuleOp module,bool write) {
   };
   std::map<std::string,int> task_stage;
   module.walk([&](dialect::TileSpaceOp task) {
+    if(task->getParentOfType<dialect::GraphOp>())return;
     int stage=task.getStage();
     auto const& d=descriptions.at(stage);task_stage.emplace(task.getSymName().str(),stage);
     attribute(task,"tmexec.implementation",b.getStringAttr(d.implementation));
@@ -85,6 +86,7 @@ void NativeBoundaryContracts(mlir::ModuleOp module,bool write) {
       attribute(task,"tmexec.data_world",b.getI64IntegerAttr(c.tp));
   });
   module.walk([&](dialect::CouplingOp edge) {
+    if(edge->getParentOfType<dialect::GraphOp>())return;
     auto const& p=descriptions.at(task_stage.at(edge.getSrc().str()));
     auto const& q=descriptions.at(task_stage.at(edge.getDst().str()));
     std::string kind="aggregate";int extent=1,required=grid;
@@ -106,8 +108,9 @@ void NativeBoundaryContracts(mlir::ModuleOp module,bool write) {
 void ValidateSm90NativeBoundaryContracts(mlir::ModuleOp module) {
   auto version=module->getAttrOfType<mlir::IntegerAttr>("tmexec.native_contract_version");
   if(!version)return; // Artifacts preceding per-edge WriteBack remain readable.
-  if(version.getInt()!=1)throw std::invalid_argument("unsupported native boundary contract version");
+  if(version.getInt()!=1 && version.getInt()!=2)throw std::invalid_argument("unsupported native boundary contract version");
   NativeBoundaryContracts(module,false);
+  if(version.getInt()==2)ValidateSm90NativeExecutionGraph(module);
 }
 
 unsigned Sm90DenseFamily(frontend::ModelPlan const& plan,frontend::PlanGemm const& g) {
@@ -327,8 +330,9 @@ mlir::OwningOpRef<mlir::ModuleOp> MaterializeSm90Dense(
     (*module)->setAttr("tmexec.placement",b.getStringAttr("template"));
   }
   codegen::ResolveServingWeightPacking(*module);
-  (*module)->setAttr("tmexec.native_contract_version",b.getI64IntegerAttr(1));
+  (*module)->setAttr("tmexec.native_contract_version",b.getI64IntegerAttr(2));
   NativeBoundaryContracts(*module,true);
+  WriteSm90NativeExecutionGraph(*module,imported,c,batch,target.res.num_sms*c.residency,context);
   if(mlir::failed(mlir::verify(*module)))throw std::invalid_argument("native dense CTG verification failed");
   return module;
 }

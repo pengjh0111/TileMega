@@ -128,6 +128,27 @@ int main(int argc,char**argv){
       if(batch==1) {
         auto executable=MaterializeSm90Dense(imported,grouped_c,batch,target,context,"fixed");
         ValidateSm90NativeBoundaryContracts(*executable);
+        int execution_spaces=0,execution_merges=0;
+        executable->walk([&](dialect::TileSpaceOp task) {
+          if(!task->getParentOfType<dialect::GraphOp>())return;
+          ++execution_spaces;execution_merges+=task.getKind().getValue().getValue()=="attention_merge";
+        });
+        assert(execution_spaces==int(ctg.spaces.size()) && execution_merges==work.layers);
+        {
+          mlir::OwningOpRef<mlir::ModuleOp> damaged=mlir::cast<mlir::ModuleOp>(executable->clone());
+          damaged->walk([&](dialect::GraphOp graph){graph->removeAttr("tmexec.edge_count");});
+          bool rejected=false;
+          try {(void)codegen::CouplingGraphToCUDA{}.Lower(*damaged);}
+          catch(std::invalid_argument const& e) {rejected=std::string(e.what()).find("native execution contract mismatch")!=std::string::npos;}
+          assert(rejected);
+        }
+        {
+          mlir::OwningOpRef<mlir::ModuleOp> damaged=mlir::cast<mlir::ModuleOp>(executable->clone());
+          (*damaged)->removeAttr("tmexec.native_execution_graph");bool rejected=false;
+          try {(void)codegen::CouplingGraphToCUDA{}.Lower(*damaged);}
+          catch(std::invalid_argument const& e) {rejected=std::string(e.what()).find("native execution graph is missing")!=std::string::npos;}
+          assert(rejected);
+        }
         mlir::OpBuilder builder(&context);bool corrupted=false;
         executable->walk([&](dialect::CouplingOp edge) {
           auto kind=edge->getAttrOfType<mlir::StringAttr>("tmexec.sync_kind");
