@@ -96,29 +96,35 @@ struct Sm90ForwardDwPw {
       Element* panel,int rows,int tile_w,int channels,int block,
       float const* const (&dw_vectors)[4]) {
     auto* base=reinterpret_cast<char*>(panel);
-    for(int i=int(threadIdx.x);i<kRows*CB;i+=128) {
-      int channel=i%CB,pixel=i/CB,x=tile_w>0?pixel%tile_w:0,y=tile_w>0?pixel/tile_w:0;
-      float sum=0;
-      // Channels past the image's own are the plan's zero padding, and their
-      // weights are outside the packed KRSC extent.
-      if(pixel<rows && block*CB+channel<channels) {
-        auto const* filter=weights+std::size_t(channel)*9*Pack;
+    // Keep channel-invariant filter and affine values in registers while
+    // preserving the original tap order and each pixel's FP32 operations.
+    constexpr int channel_lanes=CB<128?CB:128,pixel_groups=128/channel_lanes;
+    for(int channel=int(threadIdx.x)%channel_lanes;channel<CB;channel+=channel_lanes) {
+      bool live=block*CB+channel<channels;
+      float filter[9]{};
+      typename DwChain::ChannelValues affine{};
+      if(live) {
         #pragma unroll
-        for(int r=0;r<3;++r)
-          #pragma unroll
-          for(int s=0;s<3;++s) {
-            int hx=x*Stride+s,hy=y*Stride+r;
-            sum+=float(halo[(hy*kHaloW+hx)*CB+channel])*float(filter[(r*3+s)*Pack]);
-          }
+        for(int tap=0;tap<9;++tap)
+          filter[tap]=float(weights[(std::size_t(channel)*9+tap)*Pack]);
+        affine=DwChain::Load(block*CB+channel,dw_vectors);
       }
-      // The plan's depthwise epilogue (its folded BN and activation) applies
-      // here, before the result becomes the pointwise's A. The A panel of k
-      // block (channel / 64) is swizzled like any WGMMA operand; the rows
-      // past this tile's pixels contribute zero.
-      if(pixel<rows && block*CB+channel<channels)
-        sum=DwChain::Apply(sum,block*CB+channel,dw_vectors);
-      auto* target=base+(channel/64)*kRows*128+Swizzled(pixel,channel);
-      *reinterpret_cast<Element*>(target)=Element(sum);
+      for(int pixel=int(threadIdx.x)/channel_lanes;pixel<kRows;pixel+=pixel_groups) {
+        int x=tile_w>0?pixel%tile_w:0,y=tile_w>0?pixel/tile_w:0;
+        float sum=0;
+        if(pixel<rows && live) {
+          #pragma unroll
+          for(int r=0;r<3;++r)
+            #pragma unroll
+            for(int s=0;s<3;++s) {
+              int hx=x*Stride+s,hy=y*Stride+r;
+              sum+=float(halo[(hy*kHaloW+hx)*CB+channel])*filter[r*3+s];
+            }
+          sum=DwChain::ApplyCached(sum,affine);
+        }
+        auto* target=base+(channel/64)*kRows*128+Swizzled(pixel,channel);
+        *reinterpret_cast<Element*>(target)=Element(sum);
+      }
     }
     codegen::executor::ComputeSync();
   }

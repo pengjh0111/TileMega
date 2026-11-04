@@ -108,6 +108,35 @@ __device__ __forceinline__ float Sm90ForwardActivate(codegen::DmActivation kind,
 // depthwise epilogue carries are implemented; the build rejects the rest.
 template<class... Step>
 struct Sm90ForwardElementChain {
+  struct ChannelValues {float value[4];};
+  template<class S>
+  __device__ static __forceinline__ void LoadOne(ChannelValues& cached,int channel,
+      float const* const (&vectors)[4]) {
+    if constexpr(S::kKind==Sm90ForwardOp::kScale || S::kKind==Sm90ForwardOp::kBias)
+      cached.value[S::kVector]=vectors[S::kVector][channel];
+  }
+  __device__ static __forceinline__ ChannelValues Load(int channel,
+      float const* const (&vectors)[4]) {
+    ChannelValues cached{};
+    (LoadOne<Step>(cached,channel,vectors),...);
+    return cached;
+  }
+  template<class S>
+  __device__ static __forceinline__ void ApplyCachedOne(float& value,ChannelValues const& cached) {
+    if constexpr(S::kKind==Sm90ForwardOp::kScale)
+      value*=cached.value[S::kVector];
+    else if constexpr(S::kKind==Sm90ForwardOp::kBias)
+      value+=cached.value[S::kVector];
+    else if constexpr(S::kKind==Sm90ForwardOp::kActivation)
+      value=Sm90ForwardActivate(S::kActivation,value);
+    else
+      static_assert(S::kKind==Sm90ForwardOp::kScale,
+          "a register-resident chain implements scale, bias and activation");
+  }
+  __device__ static __forceinline__ float ApplyCached(float value,ChannelValues const& cached) {
+    (ApplyCachedOne<Step>(value,cached),...);
+    return value;
+  }
   template<class S>
   __device__ static __forceinline__ void ApplyOne(float& value,int channel,
       float const* const (&vectors)[4]) {
