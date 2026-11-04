@@ -27,7 +27,7 @@ def convert(source, table, *, allow_subset=False):
     if set(cards)!={'0','5','7'}:raise ValueError('all three physical cards required')
     # Bind the conversion to the actual accepted measurements, not merely two
     # mutually consistent derived files. No GPU operation is performed here.
-    samples={};sessions={}
+    samples={};sessions={};sample_groups={}
     for evidence in proof['evidence']:
         result_path=Path(evidence['result']);session_path=Path(evidence['session'])
         if sha(result_path)!=evidence['result_sha256']:raise ValueError('measurement receipt changed')
@@ -47,6 +47,7 @@ def convert(source, table, *, allow_subset=False):
         for r in result['rows']:
             key=(str(session['gpu']),r['metric'],r['key'])
             samples.setdefault(key,[]).append((result['process_pid'],float(r['median_ns'])))
+            sample_groups.setdefault(key,set()).add(result['case']['binary'])
     keys=sorted((metric,key,row['unit']) for metric,values in cards['0'].items() for key,row in values.items())
     if any(sorted((m,k,r['unit']) for m,vs in card.items() for k,r in vs.items())!=keys for card in cards.values()):
         raise ValueError('physical cards contain different constants')
@@ -67,7 +68,10 @@ def convert(source, table, *, allow_subset=False):
             for field in ('median','p99','process_range','relative_range'):
                 if float(raw[field])!=value[field]:raise ValueError('raw CSV/JSON mismatch')
             if value['unstable']!=(value['relative_range']>.10):raise ValueError('unstable flag mismatch')
-            group='segments' if metric in ('attention_ns','dw_tap_ns','splitk_partial_ns','splitk_reduce_diag_ns','splitk_write_diag_ns') else 'direct'
+            groups=sample_groups[(gpu,metric,key)]
+            if len(groups)!=1 or not groups.issubset({'direct','segments'}):
+                raise ValueError('measurement binary group differs across processes')
+            group=next(iter(groups))
             if clock_group is not None and group!=clock_group:raise ValueError('clock grouping mismatch')
             clock_group=group
             pair={field:raw[field] for field in ('start_sm_clocks_mhz','end_sm_clocks_mhz')}
