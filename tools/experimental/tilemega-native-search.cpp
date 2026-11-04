@@ -4,6 +4,7 @@
 #include <tilemega/Analysis/ISLContext.h>
 #include <algorithm>
 #include <cmath>
+#include <chrono>
 #include <fstream>
 #include <iostream>
 using namespace tilemega;
@@ -36,13 +37,39 @@ int main(int argc,char** argv) {try {
     space.layer_loop=decisions.At("layer_loop").AsBool("layer_loop");
     if(!space.Legal(seed) || !space.Legal(inspected))throw std::invalid_argument("illegal seed or inspected coordinate");
     Sm90NativeCtgCache cache;
+    std::string mode="reuse";
+    if(auto const* setting=cell.Find("analysis"))mode=setting->AsString("analysis");
+    if(mode!="reuse" && mode!="rederive" && mode!="materialize")
+      throw std::invalid_argument("invalid analysis mode");
+    std::map<std::string,std::string> identities;
+    json::Array analysis_calls;
     auto evaluate=[&](Sm90DenseCoordinates const& c,bool isolated) {
-      return Sm90NativeCtgScore(imported,work,c,cost,context,cache,isolated);
+      auto flow=Sm90NativeAnalyze(imported,work,c,cost,context,cache,mode,isolated);
+      identities[c.ToJson().Dump(0)]=Sm90NativeFlowIdentity(flow.problem);
+      analysis_calls.emplace_back(json::Object{{"coordinates",c.ToJson()},
+          {"analysis_ms",flow.analysis_ms},{"release_ms",flow.release_ms},
+          {"pricing_ms",flow.pricing_ms},{"evaluation_ms",flow.evaluation_ms},
+          {"derivations",double(flow.derivations)},
+          {"enumerated_tasks",double(flow.enumerated_tasks)},
+          {"enumerated_edges",double(flow.enumerated_edges)}});
+      return flow;
     };
     Sm90NativePipelineOptions options;options.budget_ms=cell.At("budget_ms").AsNumber("budget_ms");
     if(!std::isfinite(options.budget_ms) || options.budget_ms<=0)
       throw std::invalid_argument("search budget must be finite and positive");
     auto result=SolveSm90NativePipeline(space,work,cost,options,evaluate,{seed});
+    auto verification_start=std::chrono::steady_clock::now();
+    if(mode!="reuse") {
+      Sm90NativeCtgCache reference;
+      // Verification is outside the search budget and cannot alter E or Q_short.
+      for(auto const& c:result.evaluated) {
+        auto flow=Sm90NativeCtgScore(imported,work,c.coordinates,cost,context,reference);
+        if(Sm90NativeFlowIdentity(flow.problem)!=identities.at(c.coordinates.ToJson().Dump(0)))
+          throw std::runtime_error("analysis mode changed a searched candidate's FlowProblem");
+      }
+    }
+    double verification_ms=std::chrono::duration<double,std::milli>(
+        std::chrono::steady_clock::now()-verification_start).count();
     auto identity=inspected.ToJson().Dump(0);
     auto contains=[&](auto const& candidates) {
       return std::any_of(candidates.begin(),candidates.end(),[&](auto const& c) {
@@ -50,18 +77,22 @@ int main(int argc,char** argv) {try {
       });
     };
     // Inspection follows the frozen search. It neither adds a seed nor changes Q_short.
-    auto probe=evaluate(inspected,false);
+    Sm90NativeCtgCache inspection_cache;
+    auto probe=Sm90NativeCtgScore(imported,work,inspected,cost,context,inspection_cache);
     int better=0;for(auto const& candidate:result.evaluated)better+=candidate.pool_score_ns<probe.step_ns;
     auto rows=[](auto const& candidates) {
       json::Array values;
       for(auto const& c:candidates)values.emplace_back(json::Object{{"coordinates",c.coordinates.ToJson()},
           {"pool_ns",c.pool_score_ns},{"replay_ns",c.replay_ns},{"evaluation_ms",c.evaluation_ms},
+          {"discovered_ms",c.discovered_ms},
           {"origin",c.origin},{"structural_class",c.structural_class}});
       return values;
     };
     json::Array trajectories;
     for(auto const& path:result.descent) {json::Array points;for(auto x:path)points.emplace_back(x);trajectories.emplace_back(points);}
     json::Value row=json::Object{{"input",cell},{"scope","offline Algorithm 1 through finalists; no compilation or occupancy"},
+        {"analysis",mode},{"analysis_calls",analysis_calls},{"verification_ms",verification_ms},
+        {"bitwise_flow_verified_against_reuse",mode!="reuse"},
         {"evaluated",rows(result.evaluated)},{"shortlist",rows(result.shortlist)},
         {"finalists",rows(result.finalists)},{"descent_scores",trajectories},
         {"seconds",result.seconds},{"evaluations",double(result.evaluations)},
