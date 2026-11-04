@@ -64,12 +64,13 @@ def validate(directory):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--root', type=Path, required=True)
+    parser.add_argument('--root', type=Path, action='append', required=True)
     parser.add_argument('--csv', type=Path, required=True)
     parser.add_argument('--complete-matrix', action='store_true')
     args = parser.parse_args()
     cells = {}
-    for path in sorted(args.root.rglob('summary.json')):
+    paths = {path.resolve() for root in args.root for path in root.rglob('summary.json')}
+    for path in sorted(paths):
         directory = path.parent
         if not (directory / 'result.json').exists() or not (directory / 'metadata.json').exists():
             continue
