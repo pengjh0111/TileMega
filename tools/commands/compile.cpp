@@ -638,11 +638,11 @@ int RunCompile(int argc, char** argv) {
           "--capacity","--prompt-len","--past-range","--dump-cg","--nvcc-split-compile"};
       for(int i=3;i<argc;i+=2)if(!allowed.count(argv[i]))
         throw std::invalid_argument("native dense build does not accept legacy option "+std::string(argv[i]));
-      if(serving_phase!="decode" || emit_mode!="serving" || runtime_target.empty() ||
+      if(serving_phase!="decode" || (emit_mode!="serving" && emit_mode!="kernel-sequence") || runtime_target.empty() ||
          serving_capacity!=1088 || serving_prompt_len!=64 || serving_past_lo!=64 || serving_past_hi!=1086)
         throw std::invalid_argument("native dense build requires decode/serving, H800 target and 64:1086 positions");
       return tilemega::commands::CompileNativeDenseFixed(input.string(),argv[2],native_tmexec,
-          runtime_target,serving_batch,dump_cg,nvcc_split_compile);
+          runtime_target,serving_batch,dump_cg,nvcc_split_compile,emit_mode=="kernel-sequence");
     }
     if(resource_probe_min_free_mib<1024)
       throw std::invalid_argument("--resource-probe-min-free-mib must be at least 1024; smaller reservations serialize probes");

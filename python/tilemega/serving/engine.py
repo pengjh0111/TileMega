@@ -39,6 +39,7 @@ class ServingEngine:
         # prompt positions teacher-forced, so a model needs no prefill binary.
         self.prefill_lib = PlanLibrary(prefill_so) if prefill_so is not None else None
         self.decode_lib = PlanLibrary(decode_so)
+        self.execution = self.decode_lib.execution
         libraries = [lib for lib in (self.prefill_lib, self.decode_lib) if lib is not None]
         static_abi = getattr(self.decode_lib.lib, 'tm_plan_static_dense_abi', None)
         self.static_vocab_size = (int(json.loads((Path(model_dir) / 'config.json').read_text())['vocab_size'])

@@ -51,6 +51,14 @@ def validate(manifest, defines):
     if (c.get('argmax', 'la') not in ('la', 'stage') or
             (argmax_stage and (c['schema'] < 8 or tp != 1))):
         raise ValueError('native independent argmax coordinate is invalid')
+    sequence = manifest.get('execution') == 'kernel_sequence'
+    if sequence != (defines.get('TILEMEGA_NATIVE_KERNEL_SEQUENCE') == '1'):
+        raise ValueError('native kernel sequence execution differs from generated macros')
+    if sequence and (tp != 1 or c.get('group_wait') or c.get('emb') != 'stage' or
+                     not argmax_stage or c['attention'].get('merge') != 'stage' or
+                     c.get('expert_fuse') or (c['model'] == 'moe' and
+                                             (route != 'stage' or combine != 'stage'))):
+        raise ValueError('native kernel sequence requires aggregate realization')
     if ((c['schema'] < 8 and (c['schema'] == 7) != (tp > 1)) or tp not in (1, 2, 4, 8) or
             (tp > 1 and c['model'] != 'dense') or
             defines.get('TILEMEGA_NATIVE_TP') != (str(tp) if tp > 1 else None) or

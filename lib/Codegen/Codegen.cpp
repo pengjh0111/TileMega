@@ -2012,6 +2012,11 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     throw std::invalid_argument("native dense plan lacks its typed coordinates or batch");
   auto c=solver::Sm90DenseCoordinates::FromJson(json::Parse(coordinate.getValue().str()));
   solver::ValidateSm90NativeBoundaryContracts(module);
+  bool kernel_sequence=module->hasAttr("tmexec.native_kernel_sequence");
+  if(kernel_sequence && (c.tp!=1 || c.group_wait || c.embed_la || !c.argmax_stage ||
+      c.attention.dsmem || !c.attention.merge_stage || c.expert_fuse ||
+      (c.moe && (c.route!=solver::Sm90DenseCoordinates::Route::kStage || !c.combine_stage))))
+    throw std::invalid_argument("kernel-sequence requires aggregate realization coordinates");
   int batch=batch_attr.getInt(),capacity=integerField(serving,"capacity");
   // Megatron tensor parallel: the module records the degree its shapes were
   // sharded for (absent: 1) and the coordinate must agree.
@@ -2604,8 +2609,16 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
      <<">;\nconstexpr std::array<StageInfo,"<<info.size()<<"> kNativeStages={{\n";
   for(auto const& row:info)out<<row;
   out<<"}};\n"
-     <<"}  // namespace tilemega::codegen::native_dense\n"
-     <<"#include <tilemega/Codegen/tasks/Sm90DenseRuntime.cuh>\n";
+     <<"}  // namespace tilemega::codegen::native_dense\n";
+  if(kernel_sequence) {
+    out<<"#define TILEMEGA_NATIVE_KERNEL_SEQUENCE 1\n"
+       <<"#include <tilemega/Codegen/tasks/Sm90DenseSequence.cuh>\n"
+       <<"namespace tilemega::codegen::native_dense {\n"
+       <<"using NativeSequence=KernelSequence<NativeProgram,Stage_0,Stage_"<<head<<",ArgmaxStage";
+    for(unsigned i=1;i<=per_layer;++i)out<<",Stage_"<<i;
+    out<<">;\n}\n";
+  }
+  out<<"#include <tilemega/Codegen/tasks/Sm90DenseRuntime.cuh>\n";
   return out.str();
 }
 }  // namespace

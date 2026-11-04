@@ -60,7 +60,7 @@ void CheckManifestTp(std::string const& input,int tp) {
 static int CompileNativeDenseArtifact(std::string const& input,std::string const& output,
     std::string const& coordinates,std::string const& target_path,int batch,
     std::string const& dump_cg,int split_compile,std::string const& origin,
-    json::Value const& selection={}) {
+    json::Value const& selection={},bool kernel_sequence=false) {
   namespace fs=std::filesystem;
   if(split_compile<1 || split_compile>8)
     throw std::invalid_argument("native split compilation must use 1 through 8 workers");
@@ -80,6 +80,7 @@ static int CompileNativeDenseArtifact(std::string const& input,std::string const
   mlir::MLIRContext context;
   auto imported=solver::ImportSm90Dense(input,c,context);
   auto module=solver::MaterializeSm90Dense(imported,c,batch,target,context,origin);
+  if(kernel_sequence)(*module)->setAttr("tmexec.native_kernel_sequence",mlir::UnitAttr::get(&context));
   auto source=codegen::CouplingGraphToCUDA{}.Lower(*module);
   fs::create_directories(requested.parent_path());
   auto cu=shared?fs::path(requested.string()+".cu"):requested;
@@ -111,6 +112,7 @@ static int CompileNativeDenseArtifact(std::string const& input,std::string const
       {"native_dense",c.ToJson()},{"native_origin",origin},{"native_selection",selection},{"gemms",gemms},
       {"export_sha256",input_hash},{"coordinates_sha256",coordinates_hash},
       {"ctg_sha256",Hash(cg.string())},{"ctg",cg.string()}};
+  if(kernel_sequence)manifest.emplace_back("execution","kernel_sequence");
   std::ofstream(requested.string()+".plan.json")<<json::Value(manifest).Dump(2)<<'\n';
   if(!shared)return 0;
   std::string root=TILEMEGA_SOURCE_DIR;
@@ -200,7 +202,7 @@ static int CompileNativeDenseArtifact(std::string const& input,std::string const
   }
   identity(false);
   json::Value execution=json::Object{{"decode_mode","L1"},{"decode_loop",1},
-      {"prefill_mode","L1"},{"source","native static program"}};
+      {"prefill_mode","L1"},{"source",kernel_sequence?"native kernel sequence":"native static program"}};
   std::ofstream(requested.string()+".serving.json")<<execution.Dump(2)<<'\n';
   std::cerr<<"NATIVE_DENSE origin="<<origin<<" grid="<<target.res.num_sms*c.residency
       <<" stages="<<imported.plan.stages.size()<<" ctg="<<cg.string()<<'\n';
@@ -209,9 +211,9 @@ static int CompileNativeDenseArtifact(std::string const& input,std::string const
 
 int CompileNativeDenseFixed(std::string const& input,std::string const& output,
     std::string const& coordinates,std::string const& target_path,int batch,
-    std::string const& dump_cg,int split_compile) {
+    std::string const& dump_cg,int split_compile,bool kernel_sequence) {
   return CompileNativeDenseArtifact(input,output,coordinates,target_path,batch,dump_cg,
-      split_compile,"fixed");
+      split_compile,"fixed",{},kernel_sequence);
 }
 
 bool IsNativeDenseInput(std::string const& input) {
