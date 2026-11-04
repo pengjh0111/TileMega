@@ -197,7 +197,7 @@ def run_unit(template, unit, cls, stall_s=STALL_S, nodes=None):
                        TILEMEGA_GPU_LOCK=f'/tmp/tilemega_gpu{gpu}.lock', TILEMEGA_NUMA_NODE=str(numa(gpu)),
                        PYTHONPATH=str(ROOT / 'python'))
             with (attempt / 'scheduler.log').open('w') as log:
-                scheduler = subprocess.Popen([PYTHON, '-m', 'tilemega.bench.scheduler', '--queue-dir',
+                scheduler = subprocess.Popen([PYTHON, str(ROOT / 'scripts/sm90r6_scheduler.py'), '--queue-dir',
                                               str(attempt / 'queue'), '--out', str(attempt / 'scheduler'),
                                               '--policy', str(POLICY), '--deadline-hours', '24'],
                                              cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT,
