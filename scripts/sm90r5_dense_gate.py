@@ -41,6 +41,7 @@ def solve_ranked(graph, source, batch):
                '--solve', str(TARGET), '--serving', 'decode', '--emit', 'serving',
                '--batch', str(batch), '--runtime-target', str(TARGET),
                '--selection', 'predicted', '--measure-top', '4']
+    command += ['--search', 'additive']
     run(command, source.with_suffix('.solve.log'))
     receipt = Path(str(source) + '.search') / 'receipt.json'
     return read(receipt)['ranked']
@@ -76,11 +77,55 @@ def head():
     return subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
 
 
+def pipeline_gate(out, compiler, reference):
+    """R6 P4: identical frozen coordinates through both compiler paths."""
+    from concurrent.futures import ThreadPoolExecutor
+    cells = [(model,batch) for model in ('qwen3_1_7b','llama3_1_8b',
+              'qwen3_30b_a3b','olmoe_1b_7b') for batch in (1,16)]
+    out.mkdir(parents=True, exist_ok=False)
+    def check(cell):
+        model,batch=cell; directory=out/f'{model}-B{batch}';directory.mkdir()
+        if model=='olmoe_1b_7b':
+            frozen=Path(f'/root/TileMega-r5/runs/sm90r5/a1/olmoe-B{batch}/winner.tmexec.json')
+            coordinates=read(frozen)
+        else:
+            root='sm90r5/ref_r4' if model=='qwen3_30b_a3b' else 'sm90r3'
+            frozen=ROOT/f'configs/serving/{root}/{model}_b{batch}.json'
+            config=read(frozen);coordinates=config.get('coordinates',config)
+        binding=directory/'coordinates.json';write(binding,coordinates)
+        graph=extract(model,'decode',directory/'decode.export.json')
+        sources=[]
+        for name,binary in [('reference',reference),('current',compiler)]:
+            source=directory/f'{name}.cu'
+            command=[str(binary.resolve()),'compile',str(graph.resolve()),str(source.resolve()),
+                     '--tmexec-config',str(binding.resolve()),'--serving','decode','--emit','serving',
+                     '--batch',str(batch),'--runtime-target',str(TARGET)]
+            run(command,directory/f'{name}.log');sources.append(source)
+        identical=sources[0].read_bytes()==sources[1].read_bytes()
+        result=dict(model=model,batch=batch,passed=identical,frozen_source=str(frozen),
+                    frozen_source_sha256=sha(frozen),coordinates_sha256=sha(binding),
+                    reference_sha256=sha(sources[0]),current_sha256=sha(sources[1]))
+        write(directory/'result.json',result)
+        print(json.dumps(result),flush=True)
+        return result
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results=list(pool.map(check,cells))
+    receipt=dict(evidence='verified',head=head(),reference_compiler_sha256=sha(reference),
+                 current_compiler_sha256=sha(compiler),cells=results,passed=all(r['passed'] for r in results))
+    write(out/'manifest.json',receipt)
+    return 0 if receipt['passed'] else 1
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('action', choices=('ref', 'check'))
+    p.add_argument('action', choices=('ref', 'check', 'pipeline'))
     p.add_argument('--out', type=Path, required=True)
+    p.add_argument('--compiler', type=Path, default=COMPILER)
+    p.add_argument('--reference-compiler', type=Path)
     a = p.parse_args()
+    if a.action=='pipeline':
+        if not a.reference_compiler:p.error('pipeline requires --reference-compiler')
+        return pipeline_gate(a.out,a.compiler,a.reference_compiler)
     cells = build(a.out)
     manifest = {'head': head(), 'cells': cells}
     if a.action == 'ref':
