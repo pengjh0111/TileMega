@@ -28,10 +28,8 @@ MODULE='tilemega.bench.as2_taskbody_watch'
 
 
 def available_devices(snapshot,required,purpose):
-    if purpose=='performance':return idle_devices(snapshot,required,0)
-    if purpose!='functional':raise ValueError('Unknown NPU job purpose')
-    return {i:d for i,d in devices_from_snapshot(snapshot).items()
-            if d.get('health')=='OK' and d['free_mib']>=required}
+    if purpose not in ('functional','performance'):raise ValueError('Unknown NPU job purpose')
+    return idle_devices(snapshot,required)
 
 
 class DeviceUnsafe(BaseException):pass
@@ -74,11 +72,11 @@ def prepare(directory,argmax_probe):
     write(directory/'protocol.json',dict(schema='tilemega.as2.taskbody_acceptance_watch.v1',
         prepared_at=dt.datetime.now(dt.timezone.utc).isoformat(),hours=8,pairs=5,warmup=1,repetitions=3,
         isl=64,osl=1024,confidence_method='paired_log_t_95',max_process_cv=.05,
-        idle_observations=3,idle_interval_s=30,maximum_idle_utilization_percent=0,
-        functional_admission='healthy and sufficient HBM; external utilization does not block',
-        performance_admission='healthy, sufficient HBM and repeated observed idle; no reservation',
+        idle_observations=3,idle_interval_s=30,idle_criterion='empty selected-device process list',
+        functional_admission='no observed device processes and sufficient HBM; health/utilization metadata only',
+        performance_admission='repeated process-idle observations and sufficient HBM; no reservation',
         inherited_safety_holds=json.loads((RUNS/'resume.json').read_text()).get('safety_holds',[]),
-        reentry='User explicitly requested bounded testing after healthy repeated idle observations; old device exit is not relabelled verified',
+        reentry='User explicitly permits process-idle devices regardless of Health; old execution failures remain evidence',
         frozen_code={str(p):digest(p) for p in sorted((REPO/'python/tilemega/bench').glob('as[12]_*.py'))},
         compiler_sha256=digest(WORK/'build/host/as2_compile_llm'),
         argmax_probe=str(probe),argmax_probe_sha256=digest(probe),
@@ -161,7 +159,7 @@ class Watch:
     def choose(self,required,physical=None,purpose='functional'):
         consecutive={};pinned=physical
         needed=self.protocol['idle_observations'] if purpose=='performance' else 1
-        self.state['status']='waiting_healthy_idle' if purpose=='performance' else 'waiting_functional_resources';self.save()
+        self.state['status']='waiting_process_idle';self.save()
         while time.monotonic()<self.end:
             if unfinished_owned_jobs():
                 self.state['waiting_reason']='Existing owned NPU submission is still active';self.save()
@@ -176,7 +174,7 @@ class Watch:
                     self.state['last_admission']=dict(purpose=purpose,physical_device_id=chosen,evidence=str(out),observations=consecutive[chosen],
                         previous_device_exit='not_proven_by_idle; fresh bounded reentry authorized by user')
                     self.state['status']='running';self.save();return chosen
-                self.state['waiting_reason']='Require health/HBM and no active own job'+('; repeated idle for timing' if purpose=='performance' else '; external utilization allowed')
+                self.state['waiting_reason']='Require an empty device process list, sufficient HBM and no active own job; health/utilization are metadata only'
                 self.save()
             time.sleep(min(self.protocol['idle_interval_s'],max(0,self.end-time.monotonic())))
         raise Deadline('Eight-hour window expired while waiting for idle hardware')

@@ -37,10 +37,20 @@ def controlled(raw):
     return path
 
 
-def idle_devices(state, required_free_mib, maximum_utilization=0):
+def idle_devices(state, required_free_mib, maximum_utilization=None):
+    # The legacy third argument is retained for private reproduction scripts.
+    # Only the observed process table determines idle; health/util are logged.
     return {i:d for i,d in devices_from_snapshot(state).items()
-            if d.get('health')=='OK' and d.get('utilization_percent') is not None
-            and d['utilization_percent']<=maximum_utilization and d['free_mib']>=required_free_mib}
+            if d.get('processes')==[] and d['free_mib']>=required_free_mib}
+
+
+def defer_busy_admission(state,job_id):
+    item=state['jobs'][job_id];receipt=item.get('receipt',{})
+    if receipt.get('status')!='blocked-busy' or receipt.get('pid'):return False
+    state.setdefault('admission_attempts',[]).append(dict(id=job_id,**item))
+    del state['jobs'][job_id]
+    state['waiting_reason']='Another process appeared before launch; retry observation without reserving the device'
+    return True
 
 
 def validate_job(job):
@@ -246,11 +256,6 @@ def serious_failure(job_dir,receipt):
             with p.open('rb') as stream:
                 stream.seek(max(0,p.stat().st_size-(1<<20)));tail=stream.read().decode(errors='replace')
             if re.search(r'507033|TsdOpen|CreateSession.*fail',tail,re.I):return 'Device session initialization failed'
-    after=job_dir/'after.json'
-    if after.exists():
-        devices=devices_from_snapshot(json.loads(after.read_text()))
-        selected=devices.get(receipt.get('physical_device_id'),{})
-        if selected and selected.get('health')!='OK':return 'Selected device health changed'
     return None
 
 
@@ -295,15 +300,15 @@ def run(directory,hours):
         selected=None
         for job in pending:
             functional=job['kind']=='functional' and not job.get('require_idle',False)
-            devices=idle_devices(observed,job['required_free_mib'],100 if functional else policy['maximum_idle_utilization_percent'])
+            devices=idle_devices(observed,job['required_free_mib'])
             if job.get('physical_device','auto')!='auto':devices={i:d for i,d in devices.items() if i==job['physical_device']}
             eligible={i:d for i,d in devices.items() if functional or previous.get(i,0)>=policy['idle_observations']-1}
             if eligible:
                 selected=(job,max(eligible,key=lambda i:eligible[i]['free_mib']));break
-        available=idle_devices(observed,0,policy['maximum_idle_utilization_percent'])
+        available=idle_devices(observed,0)
         previous={i:previous.get(i,0)+1 for i in available}
         if selected is None:
-            state['waiting_reason']='Waiting for repeated healthy idle observations and sufficient HBM; no device reserved'
+            state['waiting_reason']='Waiting for an empty device process list and sufficient HBM; health/utilization do not gate admission; no device reserved'
             write(directory/'state.json',state);time.sleep(policy['idle_interval_s']);continue
         job,physical=selected
         disk=subprocess.run([sys.executable,str(REPO/'scripts/as2_disk_status.py')],capture_output=True,text=True)
@@ -336,6 +341,8 @@ def run(directory,hours):
                 subprocess.run([sys.executable,str(REPO/'scripts/as2_register.py'),'--path',str(path),
                     '--stage','AS2-focus','--category','result' if result.returncode==0 else 'failure','--completed'],
                     stdout=subprocess.DEVNULL,check=True)
+        if defer_busy_admission(state,job['id']):
+            previous={};write(directory/'state.json',state);continue
         pause=serious_failure(job_dir,receipt)
         summarize(directory,state);write(directory/'state.json',state);previous={}
         if result.returncode==0 and job.get('storage_family'):

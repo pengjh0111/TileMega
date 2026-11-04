@@ -11,16 +11,18 @@ from tilemega.bench.as2_taskbody_watch import interval_summary,available_devices
 
 
 class FiniteWatch(unittest.TestCase):
-    def test_busy_external_work_allows_functionality_but_not_performance(self):
+    def test_process_idle_applies_to_both_functional_and_performance_work(self):
         output='''| 0 | Ascend950PR | OK | 55 | 41 |
 | | | 0000:D7:00.0 | 95 0 / 0 7000 / 131072 |
 | 1 | Ascend950PR | Alarm | 55 | 41 |
-| | | 0000:55:00.0 | 0 0 / 0 5000 / 131072 |
+| | | 0000:55:00.0 | 100 0 / 0 5000 / 131072 |
+| NPU ID | Process id | Process name | Process memory(MB) |
 | 0 | 123456 | python | 332 |
++------------------+
 '''
         state=dict(exit_code=0,output=output)
-        self.assertEqual(set(available_devices(state,16000,'functional')),{0})
-        self.assertEqual(available_devices(state,16000,'performance'),{})
+        self.assertEqual(set(available_devices(state,16000,'functional')),{1})
+        self.assertEqual(set(available_devices(state,16000,'performance')),{1})
         self.assertEqual(available_devices(state,130000,'functional'),{})
         self.assertEqual(available_devices(dict(state,exit_code=1),0,'functional'),{})
 

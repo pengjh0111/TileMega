@@ -17,6 +17,13 @@ spec=importlib.util.spec_from_file_location('as1_cleanup',REPO/'scripts/as1_clea
 cleanup=importlib.util.module_from_spec(spec);spec.loader.exec_module(cleanup)
 
 
+def observation(health='OK',used=5000,pids=(),utilization=0):
+    rows=''.join(f'| 1 | {pid} | python | 300 |\n' for pid in pids)
+    return dict(exit_code=0,output=f'| 1 | Ascend950PR | {health} |\n'
+        f'| 0000:55:00.0 | {utilization} | 0 / 0 | {used} / 131072 |\n'
+        '| NPU ID | Process id | Process name | Process memory(MB) |\n'+rows+'+------------------+\n')
+
+
 class AscendAs2Safety(unittest.TestCase):
     def test_storage_budget_accounts_for_declared_output_before_job_start(self):
         from tilemega.bench import as2_run as runner
@@ -31,7 +38,7 @@ class AscendAs2Safety(unittest.TestCase):
         from tilemega.bench import as1_run as runner
         out=RUNS/'jobs'/('storage_budget_contract_'+str(time.time_ns()))
         argv=['as2_run','--physical-device','1','--output-reserve-bytes','51','--out',str(out),'--',sys.executable,'-c','pass']
-        observed=dict(exit_code=0,output='| 1 | Ascend950PR | OK |\n| 0000:55:00.0 | 0 | 0 / 0 | 5000 / 131072 |')
+        observed=observation()
         with patch.object(sys,'argv',argv), patch.object(runner,'snapshot',return_value=observed), patch.object(runner.subprocess,'Popen') as child:
             code=runner.main(project='as2',storage_preflight=lambda cmd,n:dict(status='blocked',reason='declared output exceeds budget',output_reserve_bytes=n))
             self.assertEqual(code,75);child.assert_not_called()
@@ -97,8 +104,8 @@ class AscendAs2Safety(unittest.TestCase):
         for snapshot, status, other in [
             (dict(exit_code=187,output='dcmi module initialize failed. ret is -8005'), 'telemetry_unavailable', None),
             (dict(exit_code=0,output='unrecognized table'), 'telemetry_unavailable', None),
-            (dict(exit_code=0,output='| 1 | Ascend950PR | OK |\n| 0000:D7:00.0 | 0 | 0 / 0 | 130000 / 131072 |'), 'blocked-resource', False),
-            (dict(exit_code=0,output='| 1 | Ascend950PR | Critical |\n| 0000:D7:00.0 | 0 | 0 / 0 | 5000 / 131072 |'), 'blocked-health', False),
+            (observation(used=130000), 'blocked-resource', False),
+            (observation(health='Critical',pids=[123456]), 'blocked-busy', True),
         ]:
             out=RUNS/'jobs'/('telemetry_contract_'+str(time.time_ns()))
             argv=['as2_run','--physical-device','1','--required-free-mib','8192','--out',str(out),'--',sys.executable,'-c','pass']
@@ -112,7 +119,30 @@ class AscendAs2Safety(unittest.TestCase):
             if status=='telemetry_unavailable':
                 self.assertNotEqual(receipt['mapping_evidence'],'verified')
             if status=='blocked-resource':
-                self.assertEqual(receipt['pci_bus_id'],'0000:d7:00.0')
+                self.assertEqual(receipt['pci_bus_id'],'0000:55:00.0')
+
+    def test_process_idle_alarm_device_is_admitted_without_a_utilization_gate(self):
+        from tilemega.bench import as1_run as runner
+        out=RUNS/'jobs'/('process_admission_contract_'+str(time.time_ns()))
+        argv=['as2_run','--physical-device','1','--required-free-mib','8192','--out',str(out),'--',sys.executable,'-c','pass']
+        child=Mock(pid=99999999);child.wait.return_value=0;child.poll.return_value=0
+        identity=dict(pid=child.pid,start_ticks=1,session=child.pid,process_group=child.pid)
+        with patch.object(sys,'argv',argv),patch.object(runner,'snapshot',return_value=observation('Alarm',utilization=100)),patch.object(runner.subprocess,'Popen',return_value=child) as spawn,patch.object(runner,'process_identity',return_value=identity):
+            self.assertEqual(runner.main(project='as2'),0);spawn.assert_called_once()
+        receipt=json.loads((out/'job.json').read_text())
+        self.assertEqual(receipt['observed_device_at_launch']['health'],'Alarm')
+        self.assertEqual(receipt['observed_device_at_launch']['processes'],[])
+        self.assertEqual(receipt['status'],'passed');self.assertFalse(receipt['device_locked'])
+
+    def test_arriving_device_process_prevents_child_launch(self):
+        from tilemega.bench import as1_run as runner
+        out=RUNS/'jobs'/('process_arrival_contract_'+str(time.time_ns()))
+        argv=['as2_run','--physical-device','1','--out',str(out),'--',sys.executable,'-c','pass']
+        with patch.object(sys,'argv',argv),patch.object(runner,'snapshot',side_effect=[observation(),observation(pids=[123456]),observation(pids=[123456])]),patch.object(runner.subprocess,'Popen') as spawn:
+            self.assertEqual(runner.main(project='as2'),75);spawn.assert_not_called()
+        receipt=json.loads((out/'job.json').read_text())
+        self.assertEqual(receipt['status'],'blocked-busy');self.assertNotIn('pid',receipt)
+        self.assertEqual(receipt['observed_device_at_launch']['processes'],[123456])
 
     def test_unfinished_owned_receipt_is_observed_without_a_lock(self):
         from tilemega.bench.as2_run import unfinished_owned_jobs
@@ -153,10 +183,10 @@ time.sleep(40)
         env=os.environ.copy();env['PYTHONPATH']=str(REPO/'python')
         # This child is CPU-only; exercise process-group cleanup independently
         # of the separately tested production NPU submission preflight.
-        entry="""import sys
+        entry=f"""import sys
 from unittest.mock import patch
 from tilemega.bench import as1_run
-with patch.object(as1_run,'snapshot',return_value={'exit_code':0,'output':''}):
+with patch.object(as1_run,'snapshot',return_value={observation()!r}):
     sys.exit(as1_run.main(project='as2'))
 """
         try:

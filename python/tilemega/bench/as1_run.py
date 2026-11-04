@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run one project job on one visible NPU; observe other jobs without excluding them."""
+"""Run one job on an observed process-idle NPU without reserving the device."""
 import argparse
 import datetime as dt
 import hashlib
@@ -36,7 +36,7 @@ def observed_processes(output):
     result={}
     for _,pid in re.findall(r'^\|\s*(\d+)\s*\|\s*(\d+)\s*\|',output,re.MULTILINE):
         try:result[pid]=process_identity(int(pid))
-        except (FileNotFoundError,ProcessLookupError):result[pid]=None
+        except OSError:result[pid]=None
     return result
 
 
@@ -89,6 +89,26 @@ def snapshot(timeout_s=30):
         return {**stamp, 'error': str(exc)}
 
 
+def device_process_table(output):
+    """None means unknown, not an empty list; a partial table cannot admit work."""
+    header=re.search(r'^\|\s*NPU ID\s*\|\s*Process id\s*\|',output,re.MULTILINE|re.IGNORECASE)
+    if header is None:
+        return {} if re.search(r'\bNo running processes found\b',output,re.IGNORECASE) else None
+    lines=[line.strip() for line in output[header.start():].splitlines() if line.strip()]
+    if not lines or not re.fullmatch(r'\+(?:[-=]+\+)+',lines[-1]):return None
+    processes={}
+    for line in lines[1:]:
+        if line.startswith('+') or re.search(r'\bNo running processes found\b',line,re.IGNORECASE):continue
+        match=re.match(r'^\|\s*(\d+)\s*\|\s*(\d+)\s*\|',line)
+        if not match:return None
+        processes.setdefault(int(match[1]),[]).append(int(match[2]))
+    if (not processes and '-' not in lines[-1] and
+            sum(line.startswith('+') for line in lines[1:])<2 and
+            not re.search(r'\bNo running processes found\b',output,re.IGNORECASE)):
+        return None
+    return processes
+
+
 def devices_from_snapshot(state):
     if state.get('exit_code') != 0:
         return {}
@@ -114,7 +134,20 @@ def devices_from_snapshot(state):
                                         'health':health,
                                         'utilization_percent':int(utilization) if utilization else None}
                 current = None
+    processes=device_process_table(state.get('output',''))
+    for physical,device in devices.items():
+        device['processes']=processes.get(physical,[]) if processes is not None else None
     return devices
+
+
+def device_admission(device,required_free_mib):
+    if not device or device.get('processes') is None:
+        return 'telemetry_unavailable','Cannot verify the selected device process list'
+    if device['processes']:
+        return 'blocked-busy','Selected device has observed processes; no child launched'
+    if device['free_mib']<required_free_mib:
+        return 'blocked-resource','Insufficient observed free HBM'
+    return None
 
 
 def child_env(out, physical):
@@ -217,8 +250,10 @@ def main(project='as1', command_preflight=None, storage_preflight=None):
     if args.physical_device == 'auto':
         if not devices:
             parser.error('Cannot choose device automatically; specify inventoried physical ID')
-        physical = max(devices, key=lambda n: devices[n]['free_mib'])
-        reason = 'Largest observed free HBM; external jobs are observation only'
+        idle={n:d for n,d in devices.items() if device_admission(d,args.required_free_mib) is None}
+        physical = max(idle or devices, key=lambda n: devices[n]['free_mib'])
+        reason = ('Observed process-idle device, then largest free HBM; no device reserved' if idle else
+                  'No initially eligible process-idle device; record the largest-free-HBM candidate')
     else:
         physical = int(args.physical_device)
         reason = 'Explicit inventoried physical device selection'
@@ -233,12 +268,11 @@ def main(project='as1', command_preflight=None, storage_preflight=None):
     record['pci_bus_id'] = devices.get(physical, {}).get('pci_bus_id')
     telemetry_ok = before.get('exit_code') == 0 and physical in devices
     record['telemetry_status'] = 'available' if telemetry_ok else 'unavailable'
-    external_pids = [int(pid) for dev, pid in re.findall(
-        r'^\|\s*(\d+)\s*\|\s*(\d+)\s*\|', before.get('output', ''), re.MULTILINE)
-        if int(dev) == physical]
+    external_pids = devices.get(physical,{}).get('processes')
     record['external_pids_observed_before'] = external_pids
-    record['other_processes_present_before'] = bool(external_pids) if telemetry_ok else None
+    record['other_processes_present_before'] = bool(external_pids) if external_pids is not None else None
     record['timing_status'] = 'contended' if external_pids else 'load_not_fully_characterized'
+    record['admission_basis']='complete selected-device process list; health/utilization are metadata only'
     mapping = RUNS / 'inventory' / ('acl_device_' + str(physical) + '.json')
     if mapping.is_file():
         verified_map = json.loads(mapping.read_text())
@@ -257,6 +291,14 @@ def main(project='as1', command_preflight=None, storage_preflight=None):
     record.update(parent_pid=os.getpid(), project=project,
                   manifest_id=str(out.relative_to(ROOT)), required_free_mib=args.required_free_mib)
     record_path.write_text(json.dumps(record, indent=2)+'\n')
+    def refuse_admission(admission):
+        status,reason=admission
+        record.update(status=status,reason=reason,exit_code=75,elapsed_s=time.monotonic()-started)
+        record_path.write_text(json.dumps(record,indent=2)+'\n')
+        (out/'after.json').write_text(json.dumps(snapshot(args.telemetry_timeout_s),indent=2)+'\n')
+        print(json.dumps(record));return 75
+    initial_admission=device_admission(devices.get(physical),args.required_free_mib)
+    if initial_admission:return refuse_admission(initial_admission)
     if storage_preflight is not None:
         proof=storage_preflight(command,args.output_reserve_bytes)
         record['storage_preflight']=proof
@@ -276,15 +318,14 @@ def main(project='as1', command_preflight=None, storage_preflight=None):
             (out/'after.json').write_text(json.dumps(snapshot(args.telemetry_timeout_s), indent=2)+'\n')
             print(json.dumps(record))
             return 78
-    unhealthy=telemetry_ok and devices[physical].get('health')!='OK'
-    if unhealthy or args.required_free_mib and (not telemetry_ok or devices[physical]['free_mib'] < args.required_free_mib):
-        status = 'blocked-health' if unhealthy else 'blocked-resource' if telemetry_ok else 'telemetry_unavailable'
-        reason = 'Selected device health changed before child launch' if unhealthy else 'Insufficient observed free HBM' if telemetry_ok else 'Cannot verify the requested HBM budget from npu-smi'
-        record.update(status=status, reason=reason, exit_code=75, elapsed_s=time.monotonic()-started)
-        record_path.write_text(json.dumps(record, indent=2)+'\n')
-        (out / 'after.json').write_text(json.dumps(snapshot(args.telemetry_timeout_s), indent=2)+'\n')
-        print(json.dumps(record))
-        return 75
+    # Storage/capability checks can take time. Re-observe just before Popen;
+    # this is an admission observation, never a lock or a device reservation.
+    prelaunch=snapshot(args.telemetry_timeout_s)
+    (out/'prelaunch.json').write_text(json.dumps(prelaunch,indent=2)+'\n')
+    selected=devices_from_snapshot(prelaunch).get(physical)
+    record['observed_device_at_launch']=selected
+    admission=device_admission(selected,args.required_free_mib)
+    if admission:return refuse_admission(admission)
     proc = None
     exit_code = 125
     try:

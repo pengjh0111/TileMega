@@ -28,19 +28,30 @@ class As2Queue(unittest.TestCase):
         for ratios in ([1.02]*15,[1.02]*4,[1.,1.,1.,1.,float('nan')]):
             with self.assertRaises(ValueError):paired_interval(ratios)
 
-    def test_idle_requires_healthy_observation_not_empty_process_list(self):
+    def test_idle_uses_process_table_not_health_or_utilization(self):
         output='''| 0 | Ascend950PR | OK | 55 | 41 |
 | | | 0000:D7:00.0 | 0 0 / 0 7667 / 131072 |
-| 1 | Ascend950PR | Critical | 55 | 41 |
-| | | 0000:55:00.0 | 0 0 / 0 5000 / 131072 |
+| 1 | Ascend950PR | Alarm | 55 | 41 |
+| | | 0000:55:00.0 | 100 0 / 0 5000 / 131072 |
+| NPU ID | Process id | Process name | Process memory(MB) |
+ +------------------+
 | 0 | 123456 | python | 332 |
++------------------+
 '''
         state=dict(exit_code=0,output=output)
-        self.assertEqual(set(queue.idle_devices(state,16000)),{0})
+        self.assertEqual(set(queue.idle_devices(state,16000)),{1})
+        self.assertEqual(set(queue.idle_devices(state,16000,0)),{1})
+        self.assertEqual(set(queue.idle_devices(dict(state,output=output.replace('+------------------+','+==================+')),16000)),{1})
+        self.assertEqual(devices_from_snapshot(state)[0]['processes'],[123456])
         self.assertEqual(devices_from_snapshot(state)[0]['pci_bus_id'],'0000:d7:00.0')
         self.assertEqual(queue.idle_devices(dict(state,exit_code=1),0),{})
-        self.assertEqual(queue.idle_devices(dict(state,output=output.replace('| 0 0 / 0','| 9 0 / 0')),0),{})
+        for text in (output.split('| NPU ID | Process id')[0],output.rstrip().rsplit('\n',1)[0],
+                     output.replace('| 0 | 123456 |','| unknown | 123456 |')):
+            self.assertEqual(queue.idle_devices(dict(state,output=text),0),{})
+        self.assertEqual(set(queue.idle_devices(dict(state,output=output.replace('| 0 | 123456 |','| 1 | 123456 |')),0)),{0})
         self.assertEqual(queue.idle_devices(state,130000),{})
+        empty=output.split('| NPU ID | Process id')[0]+'No running processes found\n'
+        self.assertEqual(set(queue.idle_devices(dict(state,output=empty),16000)),{0,1})
 
     def test_full_generation_timing_rejects_truncation_and_wrong_denominator(self):
         root=queue.RUNS/'probes';root.mkdir(exist_ok=True)
@@ -88,6 +99,19 @@ class As2Queue(unittest.TestCase):
             self.assertIsNotNone(queue.serious_failure(folder,dict(status='timeout')))
             (folder/'stderr.log').write_text('Unsupported graph configuration')
             self.assertIsNone(queue.serious_failure(folder,dict(status='failed')))
+            (folder/'after.json').write_text(json.dumps(dict(exit_code=0,output='| 1 | Ascend950PR | Alarm |\n| 0000:55:00.0 | 100 | 0 / 0 | 5000 / 131072 |')))
+            self.assertIsNone(queue.serious_failure(folder,dict(status='passed',physical_device_id=1)))
+
+    def test_process_arrival_is_requeued_only_when_no_child_started(self):
+        item=dict(status='blocked-busy',job_directory='retained_attempt',receipt=dict(status='blocked-busy'))
+        state=dict(jobs=dict(sample=item))
+        self.assertTrue(queue.defer_busy_admission(state,'sample'))
+        self.assertNotIn('sample',state['jobs'])
+        self.assertEqual(state['admission_attempts'][0]['job_directory'],'retained_attempt')
+        for receipt in (dict(status='blocked-busy',pid=123),dict(status='timeout'),dict(status='failed')):
+            state=dict(jobs=dict(sample=dict(receipt=receipt)))
+            self.assertFalse(queue.defer_busy_admission(state,'sample'))
+            self.assertIn('sample',state['jobs']);self.assertNotIn('admission_attempts',state)
 
     def test_row_admission_uses_complete_baselines_and_retry_identity(self):
         job=dict(wait_for_baselines=True,model_id='model',batch=16)
