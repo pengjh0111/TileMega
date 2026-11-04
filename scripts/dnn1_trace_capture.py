@@ -19,6 +19,8 @@ def main():
     for name in ('library','export','bridge','inputs','out'):
         p.add_argument('--'+name,type=Path,required=True)
     p.add_argument('--logical-plan',type=Path)
+    p.add_argument('--observation-source-root',type=Path,
+                   help='frozen source snapshot whose observation headers match the artifact identity')
     p.add_argument('--batch',type=int,choices=(1,2,4,8,16),required=True)
     p.add_argument('--warmup',type=int,choices=(50,),default=50)
     p.add_argument('--synthetic-weights',action='store_true',
@@ -37,7 +39,7 @@ def main():
         identity=json.loads(identity_path.read_text())
         if not identity['trace'] or identity['binary_sha256']!=sha(a.library):
             raise ValueError('capture requires the identified TRACE artifact, never an E2E timing artifact')
-        root=Path(__file__).resolve().parents[1]
+        root=(a.observation_source_root or Path(__file__).resolve().parents[1]).resolve()
         for rel in ('include/tilemega/Backend/Sm90ForwardMark.cuh',
                     'include/tilemega/Backend/Sm90ForwardSmall.cuh'):
             if identity['source']['source_files'].get(rel)!=sha(root/rel):
@@ -125,6 +127,7 @@ def main():
             artifact_id=identity['artifact_id'],library_sha256=sha(a.library),identity_sha256=sha(identity_path),
             input_sha256=sha(a.inputs),bridge_sha256=sha(a.bridge),synthetic_weights=a.synthetic_weights,
             source_checkpoint_sha256=checkpoint_sha,archive_sha256=sha(a.export/'exported_program.pt2'),
+            observation_source_root=str(root),
             weight_seed=20261010 if a.synthetic_weights else export_manifest.get('initialization_seed'),
             output_finite=finite,correctness='not evaluated; known original batch defects remain visible in work.json',
             trace_directory=str((a.out/'raw').resolve()),work_json=str((a.out/'work.json').resolve()),
