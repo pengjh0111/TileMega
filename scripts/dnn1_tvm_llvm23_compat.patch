@@ -1,0 +1,63 @@
+diff --git a/src/target/llvm/llvm_instance.cc b/src/target/llvm/llvm_instance.cc
+index 0b1275498c..c3433fd4d7 100644
+--- a/src/target/llvm/llvm_instance.cc
++++ b/src/target/llvm/llvm_instance.cc
+@@ -94,6 +94,16 @@ namespace tvm {
+ namespace codegen {
+ 
+ namespace {
++// LLVM 23 snapshots expose either key() or Key under the same version macro.
++template <typename T>
++auto SubtargetKey(const T& value, int) -> decltype(value.key()) {
++  return value.key();
++}
++template <typename T>
++auto SubtargetKey(const T& value, long) -> decltype(value.Key) {
++  return value.Key;
++}
++
+ namespace defaults {
+ static const char* cpu = "generic";
+ #if TVM_LLVM_VERSION <= 170
+@@ -469,11 +479,7 @@ bool LLVMTargetInfo::IsValidCPU(const std::string& cpu) const {
+   if (mc_info) {
+ #if TVM_LLVM_VERSION >= 170
+     for (const auto& desc : mc_info->getAllProcessorDescriptions()) {
+-#if TVM_LLVM_VERSION >= 230
+-      if (cpu == desc.key()) {
+-#else
+-      if (cpu == desc.Key) {
+-#endif
++      if (cpu == SubtargetKey(desc, 0)) {
+         return true;
+       }
+     }
+@@ -911,11 +917,7 @@ const ffi::Array<ffi::String> LLVMTargetInfo::GetAllLLVMTargetArches() const {
+       MCInfo->getAllProcessorDescriptions();
+ #endif
+   for (const auto& arch : llvm_arches) {
+-#if TVM_LLVM_VERSION >= 230
+-    cpu_arches.push_back(arch.key());
+-#else
+-    cpu_arches.push_back(arch.Key);
+-#endif
++    cpu_arches.push_back(SubtargetKey(arch, 0));
+   }
+ 
+   return cpu_arches;
+@@ -946,13 +948,8 @@ const ffi::Map<ffi::String, ffi::String> LLVMTargetInfo::GetAllLLVMCpuFeatures()
+   // TVM doesn't have an FFI friendly Set, so use a Map instead for now
+   ffi::Map<ffi::String, ffi::String> cpu_features;
+   for (const auto& feat : llvm_features) {
+-#if TVM_LLVM_VERSION >= 230
+-    if (MCInfo->checkFeatures("+" + std::string(feat.key()))) {
+-      cpu_features.Set(feat.key(), "");
+-#else
+-    if (MCInfo->checkFeatures("+" + std::string(feat.Key))) {
+-      cpu_features.Set(feat.Key, "");
+-#endif
++    if (MCInfo->checkFeatures("+" + std::string(SubtargetKey(feat, 0)))) {
++      cpu_features.Set(SubtargetKey(feat, 0), "");
+     }
+   }
+ 
