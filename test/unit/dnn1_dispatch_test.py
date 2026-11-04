@@ -29,6 +29,17 @@ class Dispatch(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'not enough disjoint'):
                 module.affinities([0,1,2,3],9,range(64))
 
+    def test_explicit_affinity_rejects_overlap_wrong_node_and_unavailable_cpus(self):
+        def nodes(path, *args, **kwargs):
+            return '0-31' if 'node0' in str(path) else '32-63'
+        with patch.object(Path, 'read_text', nodes):
+            self.assertEqual(module.affinities([1, 4], 8, range(64),
+                {'1': [8, 9], '4': [40, 41]}), {1: [8, 9], 4: [40, 41]})
+            for config in ({'1': [8], '2': [8]}, {'1': [40], '2': [9]},
+                           {'1': [8], '2': [80]}, {'1': [8]}):
+                with self.assertRaises(ValueError):
+                    module.affinities([1, 2], 8, range(64), config)
+
     def test_physical_lock_and_guard_idle_both_gate_dispatch(self):
         calls=[]
         with patch.object(module.device,'idle',lambda row,policy,needs: calls.append(needs) or row['idle']):

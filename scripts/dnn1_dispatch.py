@@ -27,9 +27,24 @@ def cpu_list(text):
     return result
 
 
-def affinities(gpus, count, allowed=None):
+def affinities(gpus, count, allowed=None, explicit=None):
     allowed = set(os.sched_getaffinity(0) if allowed is None else allowed)
     result = {}
+    if explicit is not None:
+        if set(map(int, explicit)) != set(gpus):
+            raise ValueError('explicit CPU affinity must cover exactly the selected GPUs')
+        occupied = set()
+        for gpu in gpus:
+            cpus = explicit[str(gpu)] if str(gpu) in explicit else explicit[gpu]
+            node = 0 if gpu < 4 else 1
+            local = cpu_list(Path(f'/sys/devices/system/node/node{node}/cpulist').read_text())
+            if (not cpus or any(type(cpu) is not int for cpu in cpus)
+                    or len(set(cpus)) != len(cpus) or not set(cpus) <= allowed & local
+                    or occupied & set(cpus)):
+                raise ValueError('explicit CPU affinity must be allowed, NUMA-local and disjoint')
+            result[gpu] = sorted(cpus)
+            occupied.update(cpus)
+        return result
     for node in (0, 1):
         devices = [g for g in gpus if (0 if g < 4 else 1) == node]
         cpus = sorted(cpu_list(Path(f'/sys/devices/system/node/node{node}/cpulist').read_text()) & allowed)
@@ -104,7 +119,17 @@ def main():
     policy = baseline.read(baseline.POLICY)
     for g in gpus:
         require_allowed_gpu(policy, str(g), timing=True)
-    binding = affinities(gpus, a.cpus_per_worker)
+    config = baseline.read(a.base_spec)
+    binding = affinities(gpus, a.cpus_per_worker, explicit=config.get('cpu_affinity'))
+    python = Path(config.get('python', ROOT/'scripts/dnn1_supervised_python.py')).absolute()
+    if not python.is_file():
+        raise FileNotFoundError(python)
+    systems = config.get('systems', ['tensorrt', 'torchcompile'])
+    if not systems or not set(systems) <= {'tensorrt', 'torchcompile', 'tvm'}:
+        raise ValueError('systems must select supported baseline systems')
+    if python == ROOT/'scripts/dnn1_idle_floor_python.py':
+        from dnn1_idle_floor_python import idle
+        device.idle = idle
     a.out.mkdir(parents=True, exist_ok=True)
     singleton = (a.out / 'dispatcher.lock').open('a')
     fcntl.flock(singleton, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -113,9 +138,8 @@ def main():
     sources = [Path(__file__), ROOT / 'scripts/dnn1_baselines.py',
                ROOT / 'python/tilemega/dnn/baselines.py', ROOT / 'python/tilemega/dnn/tvm_baseline.py',
                ROOT/'scripts/dnn1_device.py',ROOT/'scripts/dnn1_resource_entry.py',
-               ROOT/'scripts/dnn1_supervised_python.py',ROOT/'scripts/dnn1_guard_entry.py']
+               ROOT/'scripts/dnn1_supervised_python.py',ROOT/'scripts/dnn1_guard_entry.py',python]
     frozen = {str(path.resolve()): baseline.sha(path) for path in sources}
-    config = baseline.read(a.base_spec)
     prior = [record for root in a.reuse_root for record in accepted(root.resolve())]
     if len({r['key'] for r in prior}) != len(prior):
         raise ValueError('duplicate accepted prior cells; select one complete session explicitly')
@@ -129,7 +153,8 @@ def main():
         gpus=gpus, excluded_gpus=[6], max_parallel=a.max_parallel, cpu_affinity=binding,
         pending=pending, workers={}, accepted=prior, failures=[], source_sha256=frozen,
         scheduling_amendment='user 2026-11-04: parallel healthy cards, exclude GPU6; same-card/session constraint waived',
-        systems=['tensorrt','torchcompile'], tvm_status='deferred; prior errors retained; does not block primary systems',
+        systems=systems, python=str(python),
+        tvm_status='scheduled' if 'tvm' in systems else 'not requested',
         numa_concurrency='user-authorized trial with disjoint CPU sets; not claimed verified')
     (a.out / 'dispatcher.pid').write_text(str(os.getpid()) + '\n')
     workers = {}
@@ -215,7 +240,7 @@ def main():
                 folder=a.out/'workers'/key;folder.mkdir(parents=True,exist_ok=False)
                 child=dict(config,gpu=g,cells=[pair],parallel=True,cpu_affinity=binding[g],
                     systems=state['systems'],scheduling_amendment=state['scheduling_amendment'],
-                    python=str(ROOT/'scripts/dnn1_supervised_python.py'))
+                    python=str(python))
                 child['native_prefixes']={}
                 baseline.write(folder/'input.json',child)
                 baseline.queue(argparse.Namespace(spec=folder/'input.json',out=folder/'run',refresh_prepared=False))
