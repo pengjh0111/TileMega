@@ -368,7 +368,7 @@ int RunCompile(int argc, char** argv) {
     int skeleton_k=8,search_passes=3,search_jobs=1,search_top_m=8,
         search_budget_ms=0,measure_top=6;
   // Continuation 1 sections 3 and 5: the search path and the ablation arms.
-  std::string native_search="pipeline",pin_theta;
+  std::string native_search="pipeline",pin_theta,seed_coordinates;
   bool operator_sum=false,retile_only=false,realize_aggregate=false;
     // Megatron tensor parallel degree for a native dense solve.
     int serving_tp=1;
@@ -416,6 +416,7 @@ int RunCompile(int argc, char** argv) {
         realize_aggregate=value=="aggregate";
       }
       else if (flag=="--pin-theta") pin_theta=value;
+      else if (flag=="--seed-coordinates") seed_coordinates=value;
       else if (flag=="--tp") serving_tp=std::stoi(value);
       else if (flag=="--top-m") search_top_m=std::stoi(value);
       else if (flag=="--search-jobs") search_jobs=std::stoi(value);
@@ -657,7 +658,8 @@ int RunCompile(int argc, char** argv) {
       std::set<std::string> allowed={"--solve","--serving","--emit","--batch","--seed-arch",
           "--selection","--measure-cmd","--measure-top",
           "--dump-cg","--runtime-target","--capacity","--prompt-len","--past-range",
-          "--nvcc-split-compile","--tp"};
+          "--nvcc-split-compile","--tp","--search","--objective","--space",
+          "--realize","--pin-theta","--seed-coordinates","--search-budget-ms"};
       for(int i=3;i<argc;i+=2)if(!allowed.count(argv[i]))
         throw std::invalid_argument("native solve does not accept legacy option "+std::string(argv[i]));
       if(emit_mode!="serving" || serving_capacity!=1088 || serving_prompt_len!=64 ||
@@ -674,6 +676,7 @@ int RunCompile(int argc, char** argv) {
       native.search=native_search;native.operator_sum=operator_sum;
       native.retile_only=retile_only;native.realize_aggregate=realize_aggregate;
       native.pin_theta=pin_theta;
+      native.seed_coordinates=seed_coordinates;
       if(search_budget_ms>0)native.search_budget_ms=search_budget_ms;
       native.solve_command=quote(std::filesystem::read_symlink("/proc/self/exe").string())+" compile";
       for(int i=1;i<argc;++i)native.solve_command+=' '+quote(argv[i]);

@@ -260,6 +260,7 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
     throw std::invalid_argument("--search takes pipeline or additive");
   solver::Sm90DenseSearchOptions search;search.top=o.measure_top;
   auto result=solver::SearchSm90Dense(space,work,cost,search);
+  json::Value pipeline_record;
   // P3: Algorithm 1 replaces the additive ranking for every selection this
   // round. `--search additive` is kept only to reproduce the R3-R5 choices
   // (continuation 1 section 1.3), so it never decides a final coordinate here.
@@ -271,6 +272,8 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
     pipeline.realize_aggregate=o.realize_aggregate;
     pipeline.budget_ms=o.search_budget_ms;
     std::vector<solver::Sm90DenseCoordinates> seeds;
+    if(!o.seed_coordinates.empty())
+      seeds.push_back(solver::Sm90DenseCoordinates::FromJson(json::ParseFile(o.seed_coordinates)));
     if(!o.pin_theta.empty()) {
       // AB-1: each family's geometry is fixed by a local criterion and the
       // rest of the decisions are still Algorithm 1's.
@@ -278,7 +281,36 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
       pipeline.pinned_theta=pinned;
       seeds.push_back(pinned);
     }
-    auto pipelined=solver::SolveSm90NativePipeline(space,work,cost,pipeline,seeds);
+    mlir::MLIRContext context;
+    auto imported=solver::ImportSm90Dense(o.input,result.ranked.front().coordinates,context);
+    solver::Sm90NativeCtgCache cache;
+    auto evaluate=[&](solver::Sm90DenseCoordinates const& c,bool isolated) {
+      return solver::Sm90NativeCtgScore(imported,work,c,cost,context,cache,isolated);
+    };
+    auto pipelined=solver::SolveSm90NativePipeline(space,work,cost,pipeline,evaluate,seeds);
+    auto rows=[](std::vector<solver::Sm90NativePipelineCandidate> const& input) {
+      json::Array output;
+      for(auto const& candidate:input)output.emplace_back(json::Object{
+          {"coordinates",candidate.coordinates.ToJson()},{"structure",candidate.structural_class},
+          {"pool_score_ns",candidate.pool_score_ns},{"replay_ns",candidate.replay_ns},
+          {"evaluation_ms",candidate.evaluation_ms},{"origin",candidate.origin}});
+      return json::Value(output);
+    };
+    json::Array trajectories;
+    for(auto const& trajectory:pipelined.descent) {
+      json::Array values;for(auto value:trajectory)values.emplace_back(value);
+      trajectories.emplace_back(values);
+    }
+    pipeline_record=json::Object{{"objective",o.operator_sum?"operator-sum":"completion"},
+        {"evaluated",rows(pipelined.evaluated)},{"shortlist",rows(pipelined.shortlist)},
+        {"finalists",rows(pipelined.finalists)},{"descent",trajectories},
+        {"memo_hits",double(pipelined.memo_hits)},{"coupling_hits",double(cache.coupling.hits)},
+        {"coupling_misses",double(cache.coupling.misses)},
+        {"release_hits",double(cache.release_hits)},{"release_misses",double(cache.release_misses)},
+        {"space_hits",double(cache.space_hits)},{"space_misses",double(cache.space_misses)},
+        {"edge_hits",double(cache.edge_hits)},{"edge_misses",double(cache.edge_misses)}};
+    if(!o.seed_coordinates.empty())pipeline_record.Set("frozen_seed_sha256",Hash(o.seed_coordinates));
+    {std::ofstream timing(directory/"ctg-timing.json");cache.timing.Write(timing,"native",o.input,o.batch);}
     result.ranked.clear();
     for(auto const& candidate:pipelined.finalists) {
       solver::Sm90DenseCandidate entry;
@@ -302,11 +334,12 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   }
   json::Value measurement;int winner=0;
   auto save=[&] {
-    json::Value receipt=json::Object{{"schema",2},{"selection",o.measured?"measure":"predicted"},
+    json::Value receipt=json::Object{{"schema",o.search=="pipeline"?3:2},{"selection",o.measured?"measure":"predicted"},
         {"target_sha256",target_sha},{"export_sha256",input_sha},{"solve_command",o.solve_command},
         {"constants",constants.section},{"constants_from_older_body",stale},
         {"search_ms",result.elapsed_ms},{"evaluated",double(result.evaluated)},
-        {"ranked",ranked},{"candidates",candidates},{"measurement",measurement},{"winner",winner}};
+        {"ranked",ranked},{"candidates",candidates},{"measurement",measurement},{"winner",winner},
+        {"pipeline",pipeline_record}};
     std::ofstream(directory/"receipt.json")<<receipt.Dump(2)<<'\n';return receipt;
   };
   save();

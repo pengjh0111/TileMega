@@ -5,6 +5,7 @@
 #include <tilemega/Solver/Sm90DenseSearch.h>
 #include <string>
 #include <optional>
+#include <functional>
 #include <vector>
 
 namespace tilemega::solver {
@@ -44,6 +45,7 @@ struct Sm90NativePipelineCandidate {
   Sm90DenseCoordinates coordinates;
   double pool_score_ns = 0;
   double replay_ns = 0;
+  double evaluation_ms = 0;
   std::string origin;            // which seed or move produced it
   std::string structural_class;  // continuation 1 section 3's structural key
 };
@@ -66,5 +68,6 @@ std::string Sm90NativeStructuralClass(Sm90DenseCoordinates const&);
 Sm90NativePipelineResult SolveSm90NativePipeline(
     Sm90DenseSearchSpace const& space, Sm90DenseWorkload const& work,
     Sm90DenseCostModel const& cost, Sm90NativePipelineOptions const& options,
+    std::function<Sm90NativeFlowResult(Sm90DenseCoordinates const&,bool)> const& evaluate,
     std::vector<Sm90DenseCoordinates> const& seeds = {});
 }  // namespace tilemega::solver

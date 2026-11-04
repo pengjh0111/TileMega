@@ -48,7 +48,14 @@ int main(int argc, char** argv) {
 
   Sm90NativePipelineOptions options;
   options.budget_ms = 20000;  // the unit test is not the round's budget
-  auto result = SolveSm90NativePipeline(space, work, cost, options);
+  // Search mechanics use a deterministic fixture. Real CTG construction,
+  // reducers and isolated scoring are covered by sm90_native_flow_test.
+  auto evaluate=[&](Sm90DenseCoordinates const& c,bool isolated) {
+    auto flow=Sm90NativePoolScore(work,c,cost);
+    if(isolated)flow.step_ns=Sm90NativeOperatorSumScore(work,c,cost);
+    return flow;
+  };
+  auto result = SolveSm90NativePipeline(space, work, cost, options,evaluate);
 
   std::printf("evaluated %zu, memo hits %zu, shortlist %zu, finalists %zu, %.2f s\n",
               result.evaluations, result.memo_hits, result.shortlist.size(),
@@ -81,7 +88,7 @@ int main(int argc, char** argv) {
   // AB-2 keeps the mechanism and changes only the objective.
   auto sum = options;
   sum.operator_sum = true;
-  auto other = SolveSm90NativePipeline(space, work, cost, sum);
+  auto other = SolveSm90NativePipeline(space, work, cost, sum,evaluate);
   assert(!other.finalists.empty());
   for(auto const& candidate:other.finalists) {
     assert(candidate.replay_ns==candidate.pool_score_ns);
@@ -100,7 +107,7 @@ int main(int argc, char** argv) {
 
   auto pin=options;pin.budget_ms=1000;
   pin.pinned_theta=result.finalists.front().coordinates;
-  auto pinned=SolveSm90NativePipeline(space,work,cost,pin,{*pin.pinned_theta});
+  auto pinned=SolveSm90NativePipeline(space,work,cost,pin,evaluate,{*pin.pinned_theta});
   assert(!pinned.evaluated.empty());
   for(auto const& candidate:pinned.evaluated)for(unsigned f:candidate.coordinates.Active()) {
     auto const& a=candidate.coordinates.gemms[f];auto const& b=pin.pinned_theta->gemms[f];

@@ -15,12 +15,10 @@ std::string CoordinateKey(Sm90DenseCoordinates const& c) {
   return c.ToJson().Dump();
 }
 
-double Replay(Sm90DenseWorkload const& work, Sm90DenseCoordinates const& c,
-              Sm90DenseCostModel const& cost) {
-  auto flow = Sm90NativePoolScore(work, c, cost);
+double Replay(Sm90NativeFlowResult const& flow, Sm90DenseCoordinates const& c) {
   std::vector<int> offsets(flow.problem.spaces.size());
   if(c.expert_fuse)for(std::size_t s=1;s<offsets.size();++s)
-    if(flow.problem.spaces[s].name=="gemm7" && flow.problem.spaces[s-1].name=="gemm6")
+    if(flow.nodes[s].price.name=="gemm7" && flow.nodes[s-1].price.name=="gemm6")
       offsets[s]=flow.problem.spaces[s-1].count;
   return RefineAndReplaySm90Native(flow.problem,
       Sm90NativeCandidateTracks(flow.problem,offsets)).replay.makespan_ns;
@@ -152,7 +150,9 @@ std::string Sm90NativeStructuralClass(Sm90DenseCoordinates const& c) {
 Sm90NativePipelineResult SolveSm90NativePipeline(
     Sm90DenseSearchSpace const& space, Sm90DenseWorkload const& work,
     Sm90DenseCostModel const& cost, Sm90NativePipelineOptions const& options,
+    std::function<Sm90NativeFlowResult(Sm90DenseCoordinates const&,bool)> const& evaluate,
     std::vector<Sm90DenseCoordinates> const& seeds) {
+  if(!evaluate)throw std::invalid_argument("native search requires a CTG evaluator");
   using Clock = std::chrono::steady_clock;
   auto started = Clock::now();
   auto spent_ms = [&] {
@@ -161,6 +161,17 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
 
   Sm90NativePipelineResult result;
   std::map<std::string, double> memo;  // Algorithm 1 line 11's E
+  auto derive=[&](Sm90DenseCoordinates& c) {
+    Sm90DenseSearchSpace::Structure(c);
+    if(c.expert_fuse) {
+      for(int slots=8;slots>=2;--slots) {
+        c.gemms[6].slots=c.gemms[7].slots=slots;
+        if(space.Legal(c))return true;
+      }
+      return false;
+    }
+    return space.Legal(c);
+  };
 
   auto score = [&](Sm90DenseCoordinates const& c) -> double {
     auto key = CoordinateKey(c);
@@ -169,19 +180,14 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
       ++result.memo_hits;
       return found->second;
     }
-    double value;
-    if (options.operator_sum) {
-      // AB-2: the same descent and shortlist, scored by the sum of the
-      // operators' own times rather than by the program's completion.
-      value = Sm90NativeOperatorSumScore(work,c,cost);
-    } else {
-      value = Sm90NativePoolScore(work, c, cost).step_ns;
-    }
+    auto before=Clock::now();
+    double value=evaluate(c,options.operator_sum).step_ns;
     memo.emplace(key, value);
     ++result.evaluations;
     Sm90NativePipelineCandidate candidate;
     candidate.coordinates = c;
     candidate.pool_score_ns = value;
+    candidate.evaluation_ms=std::chrono::duration<double,std::milli>(Clock::now()-before).count();
     candidate.structural_class = Sm90NativeStructuralClass(c);
     result.evaluated.push_back(std::move(candidate));
     return value;
@@ -195,20 +201,20 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     if(options.pinned_theta)seed.gemms=options.pinned_theta->gemms;
     if(options.retile_only) {seed.attention.chunks=1;seed.expert_fuse=false;}
     if(options.realize_aggregate)seed.group_wait=false;
-    Sm90DenseSearchSpace::Structure(seed);
-    if(space.Legal(seed))starts.push_back(seed);
+    if(derive(seed))starts.push_back(seed);
   };
   for (auto const& seed : seeds)project(seed);
   Sm90DenseSearchOptions additive;
-  additive.top = 4;
+  additive.top = 1;
   auto seeded = SearchSm90Dense(space, work, cost, additive);
   for (auto const& candidate : seeded.ranked)
     project(candidate.coordinates);
+  for(auto const& candidate:seeded.per_structure_optima)project(candidate.coordinates);
   if (starts.empty())
     throw std::invalid_argument("native pipeline search found no legal seed");
 
   // Lines 5-13: coordinate descent. A move is accepted only when it improves
-  // the whole-program score, and thederived coordinates are re-derived after each
+  // the whole-program score, and derived coordinates are re-derived after each
   // move exactly as the additive search does.
   for (auto const& start : starts) {
     if (spent_ms() > options.budget_ms) break;
@@ -225,8 +231,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
           if (spent_ms() > options.budget_ms) break;
           auto trial = current;
           trial.gemms[family] = geometry;
-          Sm90DenseSearchSpace::Structure(trial);
-          if (!space.Legal(trial)) continue;
+          if (!derive(trial)) continue;
           double value = score(trial);
           if (value < best) {
             best = value; current = trial; changed = true;
@@ -240,8 +245,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
           if (spent_ms() > options.budget_ms) break;
           auto trial = current;
           trial.attention = attention;
-          Sm90DenseSearchSpace::Structure(trial);
-          if (!space.Legal(trial)) continue;
+          if (!derive(trial)) continue;
           double value = score(trial);
           if (value < best) {
             best = value; current = trial; changed = true;
@@ -250,14 +254,16 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
         }
       }
       // The program-level coordinates, which are the structural class.
-      for (int residency : {1, 2}) {
-        for (bool wait : {false, true}) {
+      for(int dimension=0;dimension<5;++dimension) {
+        for(int setting:{0,1}) {
           if (spent_ms() > options.budget_ms) break;
           auto trial = current;
-          trial.residency = residency;
-          trial.group_wait = options.realize_aggregate ? false : wait;
-          Sm90DenseSearchSpace::Structure(trial);
-          if (!space.Legal(trial)) continue;
+          if(dimension==0)trial.residency=setting+1;
+          if(dimension==1)trial.cluster=setting+1;
+          if(dimension==2)trial.group_wait=options.realize_aggregate?false:bool(setting);
+          if(dimension==3)trial.embed_la=bool(setting);
+          if(dimension==4)trial.expert_fuse=options.retile_only?false:bool(setting);
+          if (!derive(trial)) continue;
           double value = score(trial);
           if (value < best) {
             best = value; current = trial; changed = true;
@@ -292,7 +298,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
   // from any one structural class so the measured set stays varied.
   for (auto& candidate : result.shortlist)
     candidate.replay_ns = options.operator_sum?candidate.pool_score_ns:
-        Replay(work, candidate.coordinates, cost);
+        Replay(evaluate(candidate.coordinates,false), candidate.coordinates);
   auto by_replay = result.shortlist;
   std::stable_sort(by_replay.begin(), by_replay.end(),
                    [](auto const& a, auto const& b) {return a.replay_ns < b.replay_ns;});

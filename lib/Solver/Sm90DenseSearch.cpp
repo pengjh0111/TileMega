@@ -122,6 +122,11 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
     return a.prediction.step_ns<b.prediction.step_ns;
   });
   if(pool.empty())throw std::invalid_argument("native search found no legal coordinate");
+  std::set<std::pair<int,int>> optimum_structures;
+  for(auto const& candidate:pool)
+    if(candidate.origin.find("_optimum")!=std::string::npos &&
+       optimum_structures.emplace(candidate.coordinates.residency,candidate.coordinates.cluster).second)
+      result.per_structure_optima.push_back(candidate);
   if(int(pool.size())>o.top)pool.resize(o.top);
   result.ranked=std::move(pool);
   result.elapsed_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();
