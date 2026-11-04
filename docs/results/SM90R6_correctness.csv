@@ -8,3 +8,4 @@ sm90_dense_moe,standalone M4/M5/M6 stages,ctest,FAIL,"stale pre-E2 contract: exp
 generated_feature_contract,generated feature compilation,ctest,FAIL,"stale pre-native contract: ""H800 decode requires native tmexec coordinates; legacy execution options are invalid"". Rewrite in P5"
 r15_model_registry,model registry CLI,ctest,FAIL,unsupported model architecture from download_models.py
 python ctests (7),r15_* suite,ctest,pass,only after configuring Python3_EXECUTABLE to a torch environment
+H2 routing buffer binding,"OLMoE B1 fixed coordinates, codegen index operand fix 1bf8412ef",5 fresh guarded processes x 1024 generated steps,pass 5/5,verified: tokens and all layer routing indices byte-identical; 16 layers x 8 distinct experts per step; evidence runs/sm90r6/h2/olmoe-B1-five-process-timing-cards; decode SHA256 64cf37674b9d2013113a4b2e341b0df6e49397383072277bc79a7111782012c4; not C-1 or the eight-cell pipeline gate
