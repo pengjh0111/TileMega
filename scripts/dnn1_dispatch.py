@@ -98,6 +98,90 @@ def halt_worker(process):
     stop(process)
 
 
+class AdoptedWorker:
+    """Observe a surviving launcher without restarting its GPU descendants."""
+    def __init__(self, pid, root):
+        from tilemega.bench.gpu_guard import process_start
+        self.pid, self.root = pid, Path(root)
+        self.started = process_start(pid)
+        self.returncode = None
+        stat = Path(f'/proc/{pid}/stat')
+        live = self.started is not None and stat.exists() and stat.read_text().rsplit(')', 1)[1].split()[0] != 'Z'
+        if live:
+            command = Path(f'/proc/{pid}/cmdline').read_bytes()
+            if str(self.root / 'launch.sh').encode() not in command:
+                raise ValueError('adoption PID does not identify the recorded launcher')
+
+    def poll(self):
+        from tilemega.bench.gpu_guard import process_start
+        stat = Path(f'/proc/{self.pid}/stat')
+        try:
+            alive = (self.started is not None and process_start(self.pid) == self.started
+                     and stat.read_text().rsplit(')', 1)[1].split()[0] != 'Z')
+        except OSError:
+            alive = False
+        if alive:
+            return None
+        self.returncode = 0 if len(accepted(self.root)) == 1 else 1
+        return self.returncode
+
+    def wait(self, timeout=None):
+        started = time.monotonic()
+        while self.poll() is None:
+            if timeout is not None and time.monotonic() - started >= timeout:
+                raise subprocess.TimeoutExpired(str(self.pid), timeout)
+            time.sleep(.05)
+        return self.returncode
+
+
+def migrate_waiter(worker):
+    """Cancel only an owned, paused scheduler that has never run a payload."""
+    from tilemega.bench.gpu_guard import descendants, process_start
+    process, root = worker['process'], worker['root']
+    state_path = root / 'scheduler/state.json'
+    if not state_path.is_file():
+        return None
+    jobs = baseline.read(state_path)
+    if jobs.get('dnn1-cell-' + worker['key'], {}).get('status') != 'pending':
+        return None
+    try:
+        if process.poll() is not None or os.getpgid(process.pid) != process.pid:
+            return None
+    except ProcessLookupError:
+        return None
+    os.killpg(process.pid, signal.SIGSTOP)
+    cancelled = False
+    try:
+        jobs = baseline.read(root / 'scheduler/state.json')
+        job = jobs.get('dnn1-cell-' + worker['key'], {})
+        if job.get('status') != 'pending':
+            return None
+        if any((root / 'raw').glob('dnn1-cell-*/attempt*/job')):
+            return None
+        ids = descendants(process.pid)
+        commands = {str(pid): Path(f'/proc/{pid}/cmdline').read_bytes().replace(b'\0', b' ').decode()
+                    for pid in ids if Path(f'/proc/{pid}/cmdline').exists()}
+        if any('dnn1_guard_entry.py' in command or '--tune-request' in command
+               for command in commands.values()):
+            return None
+        starts = {str(pid): process_start(pid) for pid in ids}
+        receipt = dict(time=time.time(), key=worker['key'], launcher_pid=process.pid,
+            scheduler_state=jobs, descendants=commands, process_start=starts,
+            reason='no GPU payload; requeue on another idle card through a fresh guard')
+        baseline.write(root / 'migration.json', receipt)
+        os.killpg(process.pid, signal.SIGTERM)
+        os.killpg(process.pid, signal.SIGCONT)
+        cancelled = True
+        process.wait(timeout=10)
+        return receipt
+    finally:
+        if not cancelled:
+            try:
+                os.killpg(process.pid, signal.SIGCONT)
+            except ProcessLookupError:
+                pass
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--base-spec', type=Path, required=True)
@@ -108,6 +192,7 @@ def main():
     p.add_argument('--poll-seconds', type=float, default=15)
     p.add_argument('--reuse-root', type=Path, action='append', default=[])
     p.add_argument('--once', action='store_true', help='CPU-only monitoring snapshot; dispatch nothing')
+    p.add_argument('--resume', action='store_true', help='adopt recorded launchers; never restart their payloads')
     a = p.parse_args()
     sys.path.insert(0, str(ROOT / 'python'))
     from tilemega.bench.gpu_guard import require_allowed_gpu
@@ -133,13 +218,23 @@ def main():
     a.out.mkdir(parents=True, exist_ok=True)
     singleton = (a.out / 'dispatcher.lock').open('a')
     fcntl.flock(singleton, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    if (a.out / 'state.json').exists():
+    previous = baseline.read(a.out / 'state.json') if a.resume else None
+    if (a.out / 'state.json').exists() and not a.resume:
         raise FileExistsError('retain dispatcher evidence; choose a new output directory')
     sources = [Path(__file__), ROOT / 'scripts/dnn1_baselines.py',
                ROOT / 'python/tilemega/dnn/baselines.py', ROOT / 'python/tilemega/dnn/tvm_baseline.py',
                ROOT/'scripts/dnn1_device.py',ROOT/'scripts/dnn1_resource_entry.py',
                ROOT/'scripts/dnn1_supervised_python.py',ROOT/'scripts/dnn1_guard_entry.py',python]
     frozen = {str(path.resolve()): baseline.sha(path) for path in sources}
+    if previous:
+        changes = {path: dict(before=digest, after=frozen.get(path))
+                   for path, digest in previous['source_sha256'].items()
+                   if frozen.get(path) != digest}
+        if set(changes) - {str(Path(__file__).resolve())}:
+            raise ValueError('resume may change only the CPU dispatcher source')
+        if (previous['gpus'] != gpus or previous['cpu_affinity'] != {str(g): cpus for g, cpus in binding.items()}
+                or previous['systems'] != systems or previous['python'] != str(python)):
+            raise ValueError('resume must preserve the recorded resource and framework configuration')
     prior = [record for root in a.reuse_root for record in accepted(root.resolve())]
     if len({r['key'] for r in prior}) != len(prior):
         raise ValueError('duplicate accepted prior cells; select one complete session explicitly')
@@ -158,6 +253,16 @@ def main():
         numa_concurrency='user-authorized trial with disjoint CPU sets; not claimed verified')
     (a.out / 'dispatcher.pid').write_text(str(os.getpid()) + '\n')
     workers = {}
+    if previous:
+        state = previous
+        state.setdefault('resume_history', []).append(dict(time=time.time(), previous_pid=state['pid'],
+            pid=os.getpid(), source_changes=changes))
+        state.update(pid=os.getpid(), source_sha256=frozen, status='resuming')
+        pending = state['pending']
+        for g, record in state['workers'].items():
+            root = Path(record['run_root'])
+            workers[int(g)] = dict(process=AdoptedWorker(record['pid'], root), root=root,
+                key=record['key'], log=(root.parent / 'worker.log').open('a'))
     stopping = False
     def event(kind, **values):
         row = dict(time=time.time(), event=kind, **values)
@@ -231,13 +336,39 @@ def main():
                 state['status']='monitor_only';persist();print(json.dumps(snapshots),flush=True);return 0
             if any(baseline.sha(path)!=digest for path,digest in frozen.items()):
                 state['failures'].append(dict(reason='baseline recipe changed during dispatcher lifetime'))
+            for g, worker in list(workers.items()):
+                alternatives = [card for card in gpus if card not in workers
+                                and snapshots[str(card)]['eligible']]
+                if (snapshots[str(g)]['eligible']
+                        or time.time() - state['workers'][str(g)]['assigned'] < 2*a.poll_seconds):
+                    continue
+                try:
+                    receipt = migrate_waiter(worker)
+                except Exception as error:
+                    event('migration_error', gpu=g, key=worker['key'], error=repr(error))
+                    continue
+                if receipt is None:
+                    continue
+                cell = baseline.read(baseline.read(worker['root'] / 'queue-spec.json')['cells'][0])
+                pending.insert(0, dict(model=cell['model'], batch=cell['batch']))
+                state.setdefault('migrations', []).append(dict(gpu=g, root=str(worker['root']), **receipt))
+                worker['log'].close()
+                event('pending_migrated', gpu=g, key=worker['key'], alternatives=alternatives,
+                      root=str(worker['root']))
+                del workers[g]
+                del state['workers'][str(g)]
             for g in gpus:
                 if (not pending or len(workers)>=a.max_parallel or state['failures']):
                     break
                 if g in workers or not snapshots[str(g)]['eligible']:
                     continue
                 pair=pending.pop(0);key=f"{pair['model']}_b{pair['batch']}"
-                folder=a.out/'workers'/key;folder.mkdir(parents=True,exist_ok=False)
+                folder=a.out/'workers'/key
+                version=1
+                while folder.exists():
+                    version+=1
+                    folder=a.out/'workers'/f'{key}__dispatch{version:03d}'
+                folder.mkdir(parents=True,exist_ok=False)
                 child=dict(config,gpu=g,cells=[pair],parallel=True,cpu_affinity=binding[g],
                     systems=state['systems'],scheduling_amendment=state['scheduling_amendment'],
                     python=str(python))

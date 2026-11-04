@@ -2,6 +2,8 @@
 import importlib.util
 import json
 import os
+import signal
+import subprocess
 from pathlib import Path
 import sys
 import tempfile
@@ -11,12 +13,55 @@ from unittest.mock import patch
 
 ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT/'scripts'))
+sys.path.insert(0,str(ROOT/'python'))
 spec=importlib.util.spec_from_file_location('dnn1_dispatch',ROOT/'scripts/dnn1_dispatch.py')
 module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
 baseline=module.baseline
 
 
 class Dispatch(unittest.TestCase):
+    def test_running_payload_is_never_signalled_for_migration(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary);(root/'scheduler').mkdir()
+            (root/'scheduler/state.json').write_text(json.dumps({'dnn1-cell-x':dict(status='running')}))
+            with patch.object(os,'killpg',side_effect=AssertionError('active payload signalled')):
+                self.assertIsNone(module.migrate_waiter(dict(root=root,key='x',process=None)))
+
+    def test_only_payload_free_pending_worker_is_cancelled(self):
+        for has_payload in (False,True):
+            with self.subTest(has_payload=has_payload), tempfile.TemporaryDirectory() as temporary:
+                root=Path(temporary);(root/'scheduler').mkdir()
+                (root/'scheduler/state.json').write_text(json.dumps({'dnn1-cell-x':dict(status='pending')}))
+                if has_payload:
+                    (root/'raw/dnn1-cell-x/attempt1/job').mkdir(parents=True)
+                process=subprocess.Popen([sys.executable,'-c','import time; time.sleep(30)'],start_new_session=True)
+                try:
+                    result=module.migrate_waiter(dict(root=root,key='x',process=process))
+                    if has_payload:
+                        self.assertIsNone(result)
+                        self.assertIsNone(process.poll())
+                    else:
+                        self.assertEqual(result['key'],'x')
+                        self.assertIsNotNone(process.poll())
+                        self.assertTrue((root/'migration.json').exists())
+                finally:
+                    if process.poll() is None:
+                        os.killpg(process.pid,signal.SIGCONT)
+                        os.killpg(process.pid,signal.SIGTERM)
+                        process.wait(timeout=5)
+
+    def test_adoption_observes_existing_launcher_without_restart(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary);(root/'launch.sh').write_text('sleep 30\n')
+            process=subprocess.Popen(['bash',str(root/'launch.sh')],start_new_session=True)
+            try:
+                adopted=module.AdoptedWorker(process.pid,root)
+                self.assertEqual(adopted.pid,process.pid)
+                self.assertIsNone(adopted.poll())
+            finally:
+                os.killpg(process.pid,signal.SIGTERM)
+                process.wait(timeout=5)
+
     def test_cpu_ranges_and_per_card_affinities_are_disjoint(self):
         self.assertEqual(module.cpu_list('0-2,8,10-11'),{0,1,2,8,10,11})
         def nodes(path, *args, **kwargs):
