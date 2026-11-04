@@ -27,7 +27,7 @@ def validate(manifest, defines):
     if (defines.get('TILEMEGA_STATIC_FORWARD_NATIVE') != '1' or
             defines.get('TILEMEGA_ARCH_ID') != '900' or
             manifest.get('native_origin') not in ('fixed', 'solver') or
-            c.get('schema') != 1 or c.get('model') != 'dnn' or
+            c.get('schema') not in (1, 2) or c.get('model') != 'dnn' or
             manifest.get('residency') != c['residency'] or
             manifest.get('runtime_batch', 0) < 1):
         raise ValueError('native forward architecture or coordinate schema is invalid')
@@ -54,6 +54,7 @@ def dispatch(manifest, defines, source):
     arena = re.search(r'constexpr int kNativeForwardArena=(\d+);', source)
     if arena is None or int(arena[1]) <= 0 or int(arena[1]) % 1024:
         raise ValueError('native forward arena budget is invalid')
+    schema = c['schema']
     stages = len(c['stages'])
     placements = dict(re.findall(r'using Stage_(\d+)=Placement<Wrap_(\d+),kOffset_\1>;', source))
     wrappers = dict(re.findall(r'using Wrap_(\d+)=(\w+)<Body_\1,Bind_\1,Shape_\1>;', source))
@@ -75,7 +76,8 @@ def dispatch(manifest, defines, source):
         arguments = raw[1] if raw else ''
         if body in ('gemm', 'conv'):
             tm, tn, tk, slots, split, mode = head(arguments, 6)
-            if (tm != '64' or tk != '64' or int(tn) != stage['tile_n'] or
+            if (int(tm) != (64 if schema == 1 else stage['tile_m']) or
+                    int(tm) not in (64, 128) or tk != '64' or int(tn) != stage['tile_n'] or
                     int(slots) != stage['slots'] or int(split) != stage['split_k'] or
                     mode != 'Sm90ForwardAMode::' + ('kIm2col' if body == 'conv' else 'kDense')):
                 raise ValueError(f'native forward GEMM stage {index} differs from its coordinate')
@@ -91,10 +93,37 @@ def dispatch(manifest, defines, source):
                     int(slots) != stage['slots'] or not stage['fused']):
                 raise ValueError(f'native forward fused stage {index} differs from its coordinate')
         elif body == 'encoder_attention':
-            sequence, dim, _heads, rows, slots = head(arguments, 5)
-            if (dim != '64' or rows != '16' or int(slots) != stage['slots'] or
-                    int(sequence) % 64):
+            if schema == 1:
+                sequence, dim, _heads, rows, slots = head(arguments, 5)
+                valid = dim == '64' and rows == '16' and int(slots) == stage['slots'] and int(sequence) % 64 == 0
+            else:
+                batch, sequence, dim, heads, rows, slots = head(arguments, 6)
+                valid = (int(batch) == manifest['runtime_batch'] and dim == '64' and int(heads) > 0
+                         and int(rows) == stage['tile_m'] and int(rows) in (16,32,64,128)
+                         and int(sequence) % 64 == 0 and int(sequence) % int(rows) == 0
+                         and int(slots) == stage['slots'])
+                if len(arguments.split(',')) > 6:
+                    raise ValueError('production attention cannot select a scalar reference')
+            if not valid:
                 raise ValueError(f'native forward attention stage {index} differs from its coordinate')
+        elif schema == 2 and body == 'gemv':
+            block, contraction = head(arguments, 2)
+            if int(block) != stage['tile_n'] or int(block) not in (64,128,256) or int(contraction) <= 0 or int(contraction) % 64:
+                raise ValueError(f'native forward GEMV stage {index} differs from its coordinate')
+        elif schema == 2 and body == 'layout':
+            channels, pixels, batch = head(arguments, 3)
+            if int(channels) < 1 or int(pixels) != 128 or int(batch) != manifest['runtime_batch']:
+                raise ValueError(f'native forward layout stage {index} differs from its batch')
+        elif schema == 2 and body == 'pool':
+            window, stride, batch = head(arguments, 3)
+            if window != '3' or stride != '2' or int(batch) != manifest['runtime_batch']:
+                raise ValueError(f'native forward pool stage {index} differs from its batch')
+        elif schema == 2 and body == 'global_pool':
+            if int(arguments) != manifest['runtime_batch']:
+                raise ValueError(f'native forward global pool stage {index} differs from its batch')
+        if schema == 2 and body in ('depthwise','dwpw','inverted_residual'):
+            if int(arguments.rsplit(',',1)[1]) != manifest['runtime_batch']:
+                raise ValueError(f'native forward spatial stage {index} differs from its batch')
         result.append(dict(index=index, body=body, task_body=BODIES[body],
                            stage_wrapper=wrappers[key]))
     program = re.search(r'using NativeForwardProgram=Program<(\d+),(\d+),(\d+),(\d+),'

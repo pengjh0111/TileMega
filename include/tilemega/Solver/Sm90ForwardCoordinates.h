@@ -26,13 +26,23 @@ inline constexpr char const* kSm90ForwardBodies[]={
 struct Sm90ForwardStage {
   Sm90ForwardBody body=Sm90ForwardBody::kGemm;
   // GEMM/conv: N tile and the K split; both 1 for the small bodies.
-  int tile_n=64,split_k=1,slots=2;
+  int tile_m=64,tile_n=64,split_k=1,slots=2;
   // Depthwise and fused bodies: the spatial tile and its channel block.
   int tile_w=8,tile_h=8,channel_block=64;
   // Fused bodies only: whether the plan's fusion is taken (structural).
   bool fused=false;
 
   void Validate() const {
+    bool matrix=body==Sm90ForwardBody::kGemm || body==Sm90ForwardBody::kConv;
+    if(matrix && tile_m!=64 && tile_m!=128)
+      throw std::invalid_argument("forward TM must be 64 or 128 until DT-TM enables 32");
+    if(matrix && tile_m*tile_n>16384)
+      throw std::invalid_argument("forward WGMMA accumulator exceeds Sm90Gmma.h capacity");
+    if(body==Sm90ForwardBody::kEncoderAttention &&
+        tile_m!=16 && tile_m!=32 && tile_m!=64 && tile_m!=128)
+      throw std::invalid_argument("forward attention query rows must be 16, 32, 64 or 128");
+    if(body==Sm90ForwardBody::kGemv && tile_n!=64 && tile_n!=128 && tile_n!=256)
+      throw std::invalid_argument("forward GEMV block must be 64, 128 or 256");
     bool gemm=body==Sm90ForwardBody::kGemm || body==Sm90ForwardBody::kConv ||
         body==Sm90ForwardBody::kDwPw || body==Sm90ForwardBody::kInvertedResidual;
     if(gemm && tile_n!=32 && tile_n!=64 && tile_n!=128 && tile_n!=256)
@@ -45,12 +55,12 @@ struct Sm90ForwardStage {
     if(spatial && !((tile_w==8 && tile_h==8) || (tile_w==8 && tile_h==16) ||
                     (tile_w==16 && tile_h==16)))
       throw std::invalid_argument("forward spatial tile must be 8x8, 8x16 or 16x16");
-    if(spatial && channel_block%64)throw std::invalid_argument("forward channel block is a multiple of 64");
+    if(spatial && (channel_block<=0 || channel_block%64))throw std::invalid_argument("forward channel block is a multiple of 64");
     if(fused && body!=Sm90ForwardBody::kDwPw && body!=Sm90ForwardBody::kInvertedResidual)
       throw std::invalid_argument("only the DWPW and inverted-residual bodies fuse");
   }
   json::Value ToJson() const {
-    return json::Object{{"body",kSm90ForwardBodies[unsigned(body)]},{"tile_n",tile_n},
+    return json::Object{{"body",kSm90ForwardBodies[unsigned(body)]},{"tile_m",tile_m},{"tile_n",tile_n},
         {"split_k",split_k},{"slots",slots},{"tile_w",tile_w},{"tile_h",tile_h},
         {"channel_block",channel_block},{"fused",fused}};
   }
@@ -62,10 +72,11 @@ struct Sm90ForwardCoordinates {
   json::Value ToJson() const {
     json::Array rows;
     for(auto const& stage:stages)rows.emplace_back(stage.ToJson());
-    return json::Object{{"schema",1},{"model","dnn"},{"residency",residency},{"stages",std::move(rows)}};
+    return json::Object{{"schema",2},{"model","dnn"},{"residency",residency},{"stages",std::move(rows)}};
   }
   static Sm90ForwardCoordinates FromJson(json::Value const& value) {
-    if(value.At("schema").AsNumber("schema")!=1)
+    auto schema=value.At("schema").AsNumber("schema");
+    if(schema!=1 && schema!=2)
       throw std::invalid_argument("unknown sm90 forward coordinate schema");
     Sm90ForwardCoordinates result;
     result.residency=int(value.At("residency").AsNumber("residency"));
@@ -76,6 +87,7 @@ struct Sm90ForwardCoordinates {
       for(unsigned i=0;i<sizeof(kSm90ForwardBodies)/sizeof(*kSm90ForwardBodies);++i)
         if(body==kSm90ForwardBodies[i]) {stage.body=Sm90ForwardBody(i);found=true;break;}
       if(!found)throw std::invalid_argument("unknown sm90 forward body: "+body);
+      stage.tile_m=schema==1?64:int(row.At("tile_m").AsNumber("tile_m"));
       stage.tile_n=int(row.At("tile_n").AsNumber("tile_n"));
       stage.split_k=int(row.At("split_k").AsNumber("split_k"));
       stage.slots=int(row.At("slots").AsNumber("slots"));
@@ -105,6 +117,8 @@ struct Sm90ForwardShape {
   // so its stage cannot split the contraction (prompt §10 N-1 item 6).
   bool whole_row=false;
   int epilogue_ops=0;
+  // DNN1 exact plan/body mapping metadata; populated before search, never inferred from totals.
+  json::Value dnn1_geometry;
 };
 
 }  // namespace tilemega::solver

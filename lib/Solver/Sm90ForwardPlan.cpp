@@ -6,7 +6,7 @@
 #include <tilemega/Frontend/DmDescriptorCodec.h>
 #include <tilemega/Frontend/DnnModelPlan.h>
 #include <tilemega/Frontend/ExportBridge.h>
-#include <tilemega/Solver/Sm90DenseResources.h>
+#include <tilemega/Solver/ForwardGeometry.h>
 
 #include <mlir/IR/Builders.h>
 #include <mlir/IR/Verifier.h>
@@ -75,8 +75,155 @@ Sm90ForwardBody Sm90ForwardBodyOf(frontend::ModelPlan const& plan,std::size_t in
   }
 }
 
+namespace {
+int Dnn1PlanBatch(frontend::ModelPlan const& plan) {
+  int result=0;
+  for(auto const& b:plan.buffers)if(b.role=="external" && b.per_batch && !b.constant) {
+    std::uint64_t elements=1;
+    for(unsigned axis=0;axis<b.layout.rank;++axis)elements*=b.layout.physical[axis];
+    if(!b.layout.rank || elements%b.per_batch || !elements)
+      throw std::invalid_argument("DNN external layout does not bind a whole batch");
+    int batch=int(elements/b.per_batch);
+    if(result && result!=batch)throw std::invalid_argument("DNN external inputs disagree on batch");
+    result=batch;
+  }
+  if(result<=0)throw std::invalid_argument("DNN plan has no bound external batch");
+  return result;
+}
+std::int64_t Dnn1Pitch(frontend::PlanBuffer const& b) {
+  if(!b.layout.rank)throw std::invalid_argument("DNN buffer lacks its row layout");
+  return b.layout.physical[b.layout.rank-1];
+}
+json::Array Dnn1Steps(codegen::DmEpilogueChain const& chain,bool& gated,bool& needs_stats,bool& row_stats) {
+  json::Array steps;
+  for(unsigned i=0;i<chain.count;++i) {
+    auto const& op=chain.operations[i];using Kind=codegen::DmEpilogueKind;
+    std::string key;
+    switch(op.kind) {
+      case Kind::kBias:key="bias";break;
+      case Kind::kScale:key="scale";break;
+      case Kind::kResidual:key=op.parameter[1]==codegen::kDmNoIndex?"residual":"residual_scaled";break;
+      case Kind::kDeferredLayerNorm:key="deferred_ln";needs_stats=true;break;
+      case Kind::kResidualLN:key="residual_ln";needs_stats=true;break;
+      case Kind::kGatePair:
+        key=op.gate==codegen::DmGatePair::kSwiGLU?"swiglu":"simple_gate";gated=true;break;
+      case Kind::kActivation:
+        switch(op.activation) {
+          case codegen::DmActivation::kRelu:key="relu";break;
+          case codegen::DmActivation::kRelu6:key="relu6";break;
+          case codegen::DmActivation::kGeluErf:key="gelu_erf";break;
+          case codegen::DmActivation::kGeluTanh:key="gelu_tanh";break;
+          case codegen::DmActivation::kTanh:key="tanh";break;
+          case codegen::DmActivation::kSilu:key="silu";break;
+        }
+        break;
+      default:throw std::invalid_argument("DNN1 geometry cannot price this epilogue operation");
+    }
+    steps.emplace_back(key);
+  }
+  for(unsigned i=0;i<chain.side_count;++i)
+    row_stats|=chain.side[i].kind==codegen::DmSideOutputKind::kRowStats;
+  return steps;
+}
+void Dnn1EncodeGeometry(frontend::ModelPlan const& plan,std::size_t index,int batch,Sm90ForwardShape& shape) {
+  auto const& stage=plan.stages.at(index);json::Value g(json::Object{});
+  auto number=[&](char const* key,std::int64_t value) {g.Set(key,double(value));};
+  number("batch",batch);number("rows",0);number("channels",shape.channels);
+  bool gated=false,needs_stats=false,row_stats=false;
+  g.Set("epilogue_steps",json::Array{});g.Set("depthwise_epilogue_steps",json::Array{});
+  g.Set("store_kind","scalar_2byte");g.Set("pv_kind","tensor_core");
+  auto image=[&](codegen::ConvDesc const& c) {
+    number("width",c.w);number("height",c.h);number("output_width",c.q);number("output_height",c.p);
+    number("padded_channels",plan.buffers.at(c.input_layout).layout.physical[3]);
+  };
+  auto chain=[&](codegen::DmEpilogueChain const& operations) {
+    g.Set("epilogue_steps",Dnn1Steps(operations,gated,needs_stats,row_stats));
+  };
+  switch(shape.body) {
+    case Sm90ForwardBody::kGemm:case Sm90ForwardBody::kConv:case Sm90ForwardBody::kGemv: {
+      auto const& gemm=plan.gemms.at(stage.gemm);auto const& out=plan.buffers.at(gemm.d);
+      if(!gemm.access.rows_per_batch)throw std::invalid_argument("DNN GEMM lacks explicit rows_per_batch");
+      shape.m=std::int64_t(batch)*gemm.access.rows_per_batch;shape.pixels=shape.m;
+      if(gemm.access.a==codegen::DmAAccess::kIm2Col)image(plan.convolutions.at(gemm.access.conv));
+      chain(gemm.chain);number("store_columns",gated?gemm.n/2:gemm.n);number("rows",shape.m);
+      number("output_pitch",Dnn1Pitch(out));
+      g.Set("store_kind",gemm.access.write.kind==codegen::DmWriteKind::kDense?"vector_16byte":"scalar_2byte");
+      // Coordinate-dependent padded N remains ceil(N/TN)*TN in codegen/cost.
+      shape.weight_bytes=2*shape.n*shape.k;shape.activation_bytes=2*shape.m*shape.k;
+      shape.output_bytes=2*shape.m*(gated?gemm.n/2:gemm.n);
+      break;
+    }
+    case Sm90ForwardBody::kDepthwise:case Sm90ForwardBody::kDwPw:case Sm90ForwardBody::kInvertedResidual: {
+      auto const& c=plan.convolutions.at(stage.conv);image(c);
+      auto const& filters=plan.buffers.at(stage.operands[1]);
+      auto taps=std::int64_t(c.c)*c.r*c.s;
+      if(!taps || !filters.constant || filters.constant%taps)
+        throw std::invalid_argument("DNN DW filter packing is not whole KRSC");
+      number("depthwise_pack",filters.constant/taps);
+      if(shape.body==Sm90ForwardBody::kDepthwise)chain(stage.chain);
+      else {
+        bool dw_gated=false,dw_stats=false,dw_rows=false;
+        g.Set("depthwise_epilogue_steps",Dnn1Steps(stage.chain,dw_gated,dw_stats,dw_rows));
+        if(dw_gated || dw_stats || dw_rows)throw std::invalid_argument("fused DW register chain is not channel-wise");
+        chain(plan.gemms.at(stage.gemm).chain);
+      }
+      number("store_columns",gated?shape.out_channels/2:shape.out_channels);
+      g.Set("store_kind","vector_16byte");
+      shape.output_bytes=2*shape.pixels*(gated?shape.out_channels/2:shape.out_channels);
+      break;
+    }
+    case Sm90ForwardBody::kEncoderAttention:
+      number("seq",stage.width);number("heads",stage.extent);number("head_dim",stage.group);
+      shape.m=2LL*batch*stage.extent*stage.width;shape.n=stage.width;shape.k=stage.group;
+      shape.pixels=std::int64_t(batch)*stage.extent*(stage.width/16);
+      shape.activation_bytes=6LL*batch*stage.width*stage.extent*stage.group;
+      shape.output_bytes=2LL*batch*stage.width*stage.extent*stage.group;break;
+    case Sm90ForwardBody::kLayout: {
+      auto const& out=plan.buffers.at(stage.operands[1]).layout;
+      if(out.rank!=4 || out.kind!=codegen::DmLayout::kNHWC)
+        throw std::invalid_argument("DNN layout conversion needs NHWC output");
+      number("width",out.logical[2]);number("height",out.logical[1]);
+      number("input_channels",out.logical[3]);number("padded_channels",out.physical[3]);
+      shape.m=std::int64_t(batch)*out.logical[1]*out.logical[2];shape.n=shape.channels=out.logical[3];shape.k=1;
+      shape.pixels=shape.m;shape.activation_bytes=shape.output_bytes=2*shape.m*shape.channels;break;
+    }
+    case Sm90ForwardBody::kPool: {
+      auto const& c=plan.convolutions.at(stage.conv);image(c);shape.channels=plan.buffers.at(stage.operands[0]).layout.physical[3];
+      shape.m=shape.pixels=std::int64_t(batch)*c.p*c.q;shape.n=shape.channels;shape.k=c.r*c.s;
+      shape.kernel=c.r;shape.stride=c.stride_h;shape.activation_bytes=2LL*batch*c.h*c.w*shape.channels;
+      shape.output_bytes=2*shape.m*shape.channels;break;
+    }
+    case Sm90ForwardBody::kGlobalPool: {
+      auto const& partial=plan.buffers.at(stage.operands[0]).layout;
+      if(partial.rank!=3 || partial.physical[0]!=unsigned(batch))
+        throw std::invalid_argument("DNN GAP partial layout must be [B,parts,C]");
+      number("parts",partial.physical[1]);number("output_pitch",Dnn1Pitch(plan.buffers.at(stage.operands[2])));
+      shape.m=batch;shape.channels=shape.n=stage.extent;shape.k=partial.physical[1];shape.pixels=batch;
+      shape.activation_bytes=4LL*batch*partial.physical[1]*shape.channels;
+      shape.output_bytes=2LL*batch*shape.channels;break;
+    }
+    case Sm90ForwardBody::kEmbedding:
+      shape.m=shape.pixels=std::int64_t(batch)*stage.rows_per_batch;shape.n=shape.channels=stage.width;shape.k=1;
+      number("rows",shape.m);number("seq",stage.rows_per_batch);
+      shape.activation_bytes=6*shape.m*shape.channels+16*shape.m;shape.output_bytes=2*shape.m*shape.channels;
+      row_stats=stage.operands[6]!=codegen::kDmNoIndex;break;
+    case Sm90ForwardBody::kLayerNorm: {
+      auto const& input=plan.buffers.at(stage.operands[0]);auto pitch=Dnn1Pitch(input);
+      if(!pitch || input.per_batch%pitch)throw std::invalid_argument("DNN LN has an incomplete physical row");
+      shape.m=shape.pixels=std::int64_t(batch)*input.per_batch/pitch;shape.n=shape.channels=stage.width;shape.k=1;
+      number("rows",shape.m);number("output_pitch",pitch);
+      shape.weight_bytes=4*shape.channels;shape.activation_bytes=shape.output_bytes=2*shape.m*shape.channels;break;
+    }
+  }
+  number("channels",shape.channels);g.Set("gated",gated);g.Set("needs_stats",needs_stats);g.Set("has_row_stats",row_stats);
+  g.Set("source","DnnModelPlan descriptors; explicit batch and A rows; logical width distinct from physical pitch");
+  shape.dnn1_geometry=std::move(g);
+}
+}  // namespace
+
 std::vector<Sm90ForwardShape> Sm90ForwardShapesFromPlan(frontend::ModelPlan const& plan) {
   std::vector<Sm90ForwardShape> shapes;
+  int batch=Dnn1PlanBatch(plan);
   for(std::size_t index=0;index<plan.stages.size();++index) {
     auto const& stage=plan.stages[index];
     Sm90ForwardShape shape;
@@ -184,6 +331,7 @@ std::vector<Sm90ForwardShape> Sm90ForwardShapesFromPlan(frontend::ModelPlan cons
       // FLOPs of both matmuls, which the cost model reads through m, n, k.
       shape.m=std::int64_t(stage.extent)*stage.width;shape.n=stage.width;shape.k=stage.group;
     }
+    Dnn1EncodeGeometry(plan,index,batch,shape);
     shapes.push_back(shape);
   }
   return shapes;
@@ -202,10 +350,7 @@ mlir::OwningOpRef<mlir::ModuleOp> MaterializeSm90Forward(frontend::ModelPlan con
     if(coordinates.stages[i].body!=Sm90ForwardBodyOf(plan,i))
       throw std::invalid_argument("native forward coordinates name another body for a stage");
   }
-  auto budget=Sm90DenseSharedBudget(target,coordinates.residency);
-  // D5: a 1 KB header and two equal, 1 KB-aligned arenas.
-  int arena=(budget-1024)/2/1024*1024;
-  if(arena<1024)throw std::invalid_argument("the target leaves no native forward arena");
+  int arena=Sm90ForwardArenaBytes(target,coordinates.residency);
 
   mlir::OpBuilder b(&context);
   auto module=mlir::OwningOpRef<mlir::ModuleOp>(
@@ -220,9 +365,9 @@ mlir::OwningOpRef<mlir::ModuleOp> MaterializeSm90Forward(frontend::ModelPlan con
     auto const& stage=plan.stages[i];
     if(!frontend::IsGemmStage(stage.kind))continue;
     auto const& c=coordinates.stages[i];
-    int tile_n=c.body==Sm90ForwardBody::kGemv?8:c.tile_n;
+    int tile_n=c.tile_n;
     records[stage.gemm]=b.getDictionaryAttr({
-        b.getNamedAttr("tile_m",b.getI64IntegerAttr(64)),
+        b.getNamedAttr("tile_m",b.getI64IntegerAttr(c.tile_m)),
         b.getNamedAttr("tile_n",b.getI64IntegerAttr(tile_n)),
         b.getNamedAttr("tile_k",b.getI64IntegerAttr(64)),
         b.getNamedAttr("stages",b.getI64IntegerAttr(c.slots)),

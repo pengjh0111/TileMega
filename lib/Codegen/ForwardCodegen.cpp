@@ -104,6 +104,7 @@ struct Geometry {
   int width=0,height=0,channels=0,out_channels=0,output_width=0,output_height=0;
   int stride=1,output_stride=0,residual_stride=0,heads=0,sequence=0,norm_width=0;
   int depthwise_pack=1,padded_channels=0;
+  int pool_rows=0,pool_parts=0,pool_channels=0;
   int write_kind=0,shuffle_factor=1,write_width=0,write_height=0,write_channels=0;
   double epsilon=0,scale=0;
   std::string Emit(unsigned index) const {
@@ -116,6 +117,7 @@ struct Geometry {
        <<",kHeads="<<heads<<",kSequence="<<sequence
        <<",kNormWidth="<<norm_width<<",kDepthwisePack="<<depthwise_pack
        <<",kPaddedChannels="<<padded_channels
+       <<",kPoolRows="<<pool_rows<<",kPoolParts="<<pool_parts<<",kPoolChannels="<<pool_channels
        <<";\n"
        <<"  static constexpr float kEpsilon="<<Float(epsilon)<<",kScale="<<Float(scale)
        <<";\n};\n";
@@ -225,6 +227,11 @@ std::string Chain(codegen::DmEpilogueChain const& chain,int rows,int width,Bindi
       case Kind::kActivation:out<<"kActivation";break;
       case Kind::kGatePair:out<<"kGatePair";if(gated)*gated=true;break;
       case Kind::kResidual:
+        if(op.residual_map.kind==codegen::DmWriteKind::kPixelShuffle) {
+          if(!shape || shape->write_kind!=2 || int(op.residual_map.factor)!=shape->shuffle_factor)
+            throw std::invalid_argument("native forward residual shuffle differs from its output mapping");
+        }else if(op.residual_map.kind!=codegen::DmWriteKind::kDense)
+          throw std::invalid_argument("native forward residual map must be dense or pixel shuffle");
         out<<"kResidual";residual(op.parameter[0]);first=slot(op.parameter[1]);break;
       case Kind::kDeferredLayerNorm:
         out<<"kDeferredLayerNorm";statistics(op.parameter[0],op.norm_width,op.norm_epsilon);
@@ -248,7 +255,7 @@ std::string Chain(codegen::DmEpilogueChain const& chain,int rows,int width,Bindi
     }
     out<<",codegen::DmGatePair::"
        <<(op.gate==codegen::DmGatePair::kSwiGLU?"kSwiGLU":"kSimpleGate")
-       <<','<<(op.unit?op.unit:16u)<<','<<second<<'>';
+       <<','<<(op.unit?op.unit:16u)<<','<<second<<','<<unsigned(op.residual_map.kind)<<'>';
   }
   for(unsigned i=0;i<chain.side_count;++i) {
     auto const& side=chain.side[i];
@@ -419,6 +426,7 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
     return unsigned(buffers.size()+scratch.size()-1);
   };
   std::vector<std::string> placements;
+  std::vector<unsigned> aligned_outputs;
   for(unsigned index=0;index<stages.size();++index) {
     auto stage=Entry(stages[index],"stage");
     auto const& c=coordinates.stages[index];
@@ -436,10 +444,26 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
             String(Entry(buffers[id],"buffer"),"name"));
     };
     Geometry shape;
+    auto pool_chain=[&](std::string chain) {
+      if(bind.channel_partial==kAbsent)return chain;
+      auto const& partial=layouts.at(bind.channel_partial);
+      auto const& output=layouts.at(bind.output);
+      if(partial.rank!=3 || output.rank!=4 || output.kind!=codegen::DmLayout::kNHWC ||
+          shape.write_kind!=0 || partial.physical[0]!=unsigned(batch.getInt()) ||
+          !partial.physical[1] || !partial.physical[2] ||
+          partial.physical[2]!=output.logical[3])
+        throw std::invalid_argument("native forward channel partials require [B,parts,C] and a dense NHWC producer");
+      shape.pool_rows=int(output.logical[1])*int(output.logical[2]);
+      shape.pool_parts=int(partial.physical[1]);shape.pool_channels=int(partial.physical[2]);
+      if(shape.pool_rows<=0)throw std::invalid_argument("native forward pooling has no pixels");
+      return "Sm90ForwardPoolEpilogueChain<"+std::to_string(shape.pool_rows)+','+
+          std::to_string(shape.pool_parts)+','+std::to_string(shape.pool_channels)+','+chain+'>';
+    };
     shape.epsilon=0;
     if(auto epsilon=stage.getAs<mlir::FloatAttr>("dm_norm_epsilon"))
       shape.epsilon=epsilon.getValueAsDouble();
     std::string body,wrapper;
+    int stored_width=0;
 
     auto conv_index=unsigned(Integer(stage,"dm_conv",codegen::kDmNoIndex));
     bool has_conv=conv_index!=codegen::kDmNoIndex && conv_index<convs.size();
@@ -489,7 +513,9 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
         }else {
           // The stage computes one output row per A row of its own mapping:
           // the plan may start at another row (BERT's pooler reads row zero).
-          rows=rows_of(unsigned(Integer(gemm,"d")));
+          if(!access.rows_per_batch)
+            throw std::invalid_argument("native DNN dense A mapping requires rows_per_batch");
+          rows=int(access.rows_per_batch)*int(batch.getInt());
           MapSpec spec;
           auto l=layouts.at(a);
           if(l.rank==4 && l.kind==codegen::DmLayout::kNHWC) {
@@ -512,7 +538,7 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
           spec.dims[0]=l.physical[1];
           spec.dims[1]=(l.physical[0]-access.a_row_offset+stride-1)/stride;
           spec.strides[0]=l.strides[0]*2*stride;
-          spec.box[0]=64;spec.box[1]=64;
+          spec.box[0]=64;spec.box[1]=unsigned(c.tile_m);
           bind.map=maps.Add(spec);
         }
         // The weight is packed into whole TN x 64 pages, so the body contracts
@@ -523,9 +549,9 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
         if(padded_k%(c.split_k*64))
           throw std::invalid_argument("native forward split-K does not divide the contraction");
         if(c.split_k>1) {
-          auto tiles=std::uint64_t((rows+63)/64)*((padded_n)/c.tile_n);
+          auto tiles=std::uint64_t((rows+c.tile_m-1)/c.tile_m)*((padded_n)/c.tile_n);
           bind.partial=add_scratch("native_forward.partial."+std::to_string(index),"f32",
-              tiles*unsigned(c.split_k)*64*unsigned(c.tile_n));
+              tiles*unsigned(c.split_k)*unsigned(c.tile_m)*unsigned(c.tile_n));
           // One 64-bit arrival counter per output tile, held as two i32 slots.
           bind.counters=add_scratch("native_forward.counter."+std::to_string(index),"i32",
               2*tiles);
@@ -537,7 +563,7 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
           if(!access.write.factor || out.rank!=4)
             throw std::invalid_argument("a shuffled writeback needs its factor and NHWC output");
           shape.write_kind=2;shape.shuffle_factor=int(access.write.factor);
-          shape.write_channels=int(out.physical[3]);
+          shape.write_channels=int(out.logical[3]);
           shape.write_width=int(out.logical[2])/shape.shuffle_factor;
           shape.write_height=int(out.logical[1])/shape.shuffle_factor;
           if(shape.write_width*shape.shuffle_factor!=int(out.logical[2]) ||
@@ -558,7 +584,7 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
               std::uint64_t(Integer(buffer,"per_batch",0))*std::uint64_t(batch.getInt());
           auto written=shape.write_kind==2?
               std::uint64_t(rows)*std::uint64_t(shape.shuffle_factor)*shape.shuffle_factor*
-                  std::uint64_t(shape.write_channels):
+                  std::uint64_t(shape.output_stride):
               shape.write_kind==1?std::uint64_t(rows)*std::uint64_t(shape.write_channels):
               std::uint64_t(rows)*std::uint64_t(shape.output_stride);
           if(written>elements)
@@ -566,19 +592,19 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
                 String(buffer,"name"));
         }
         bool gated=false;
-        auto chain_text=Chain(chain,64,c.tile_n,bind,require_fp32,&shape,&gated);
+        auto chain_text=pool_chain(Chain(chain,c.tile_m,c.tile_n,bind,require_fp32,&shape,&gated));
         // A row-statistics side output of a tiled stage reduces its tiles in a
-        // fixed order: the shares and the per-row arrival counters are the
+        // fixed order: the shares and one arrival counter per M tile are the
         // program's own state (the chain has just named the side outputs).
         if(bind.row_stats!=kAbsent && padded_n/c.tile_n>1) {
           auto tiles=std::uint64_t(padded_n/c.tile_n);
           bind.row_partials=add_scratch("native_forward.row_partial."+std::to_string(index),
               "f32",std::uint64_t(rows)*tiles*2);
           bind.row_counters=add_scratch("native_forward.row_counter."+std::to_string(index),
-              "i32",2*std::uint64_t(rows));
+              "i32",2*((std::uint64_t(rows)+63)/64));
         }
         if(bind.residual!=kAbsent)shape.residual_stride=width_of(bind.residual);
-        int store=gated?n/2:n;
+        int store=gated?n/2:n;stored_width=store;
         bool whole_row=false;
         for(unsigned i=0;i<chain.count;++i) {
           auto operation=chain.operations[i].kind;
@@ -589,7 +615,7 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
           throw std::invalid_argument("a deferred normalization stage cannot split its K");
         if(gated && (n%2 || c.tile_n%2))
           throw std::invalid_argument("a gated native forward GEMM needs an even N and TN");
-        body="Sm90ForwardGemm<64,"+std::to_string(c.tile_n)+",64,"+std::to_string(c.slots)+','+
+        body="Sm90ForwardGemm<"+std::to_string(c.tile_m)+','+std::to_string(c.tile_n)+",64,"+std::to_string(c.slots)+','+
             std::to_string(c.split_k)+",Sm90ForwardAMode::"+(im2col?"kIm2col":"kDense")+','+
             std::to_string(rows)+','+std::to_string(padded_n)+','+std::to_string(padded_k)+','+
             std::to_string(store)+','+chain_text+','+
@@ -602,7 +628,7 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
           throw std::invalid_argument("native forward depthwise coordinates need a conv stage");
         auto chain=frontend::DecodeDmChain(stage.get("dm_chain"));
         auto const& conv=convs[conv_index];
-        bind.weight=operand(1);bind.output=operand(2);
+        bind.weight=operand(1);bind.output=operand(2);bind.channel_partial=operand(3);
         shape.output_stride=width_of(bind.output);
         {
           auto filter=Entry(buffers[bind.weight],"buffer");
@@ -626,11 +652,13 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
         if(c.channel_block!=64)
           throw std::invalid_argument("a depthwise tiled map reads one 64-channel block");
         bind.map=maps.Add(spec);
-        auto chain_text=Chain(chain,c.tile_w*c.tile_h,c.channel_block,bind,require_fp32,&shape);
+        bool gated=false;
+        auto chain_text=pool_chain(Chain(chain,c.tile_w*c.tile_h,c.channel_block,bind,require_fp32,&shape,&gated));
+        stored_width=gated?int(conv.c)/2:int(conv.c);
         if(bind.residual!=kAbsent)shape.residual_stride=width_of(bind.residual);
         body="Sm90ForwardDepthwise<"+std::to_string(c.tile_w)+','+std::to_string(c.tile_h)+','+
             std::to_string(c.channel_block)+','+std::to_string(conv.stride_h)+','+
-            std::to_string(c.slots)+','+chain_text+','+std::to_string(shape.depthwise_pack)+'>';
+            std::to_string(c.slots)+','+chain_text+','+std::to_string(shape.depthwise_pack)+','+std::to_string(batch.getInt())+'>';
         wrapper="ForwardDepthwiseStage";
         break;
       }
@@ -669,7 +697,9 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
         spec.box[2]=unsigned((c.tile_h-1)*conv.stride_h+conv.r);spec.box[3]=1;
         bind.map=maps.Add(spec);
         shape.output_stride=width_of(bind.output);
-        auto chain_text=Chain(chain,64,c.tile_n,bind,require_fp32,&shape);
+        bool gated=false;
+        auto chain_text=pool_chain(Chain(chain,64,c.tile_n,bind,require_fp32,&shape,&gated));
+        stored_width=gated?shape.out_channels/2:shape.out_channels;
         if(bind.residual!=kAbsent)shape.residual_stride=width_of(bind.residual);
         // The stage's own chain is the depthwise's epilogue; the GEMM's is the
         // pointwise's.
@@ -678,7 +708,7 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
         body="Sm90ForwardDwPw<"+std::to_string(c.tile_w)+','+std::to_string(c.tile_h)+','+
             std::to_string(c.channel_block)+','+std::to_string(c.tile_n)+','+
             std::to_string(conv.stride_h)+','+std::to_string(c.slots)+','+chain_text+','+
-            std::to_string(shape.depthwise_pack)+','+depthwise_chain+'>';
+            std::to_string(shape.depthwise_pack)+','+depthwise_chain+','+std::to_string(batch.getInt())+'>';
         wrapper="ForwardFusedStage";
         break;
       }
@@ -690,8 +720,9 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
         if(operand(2)!=kAbsent)
           throw std::invalid_argument("native forward attention does not implement a mask");
         int sequence=int(Integer(stage,"width")),heads=int(Integer(stage,"extent"));
+        int query_rows=c.tile_m,model_batch=int(batch.getInt());
         int head_dim=int(Integer(stage,"group"));
-        if(head_dim!=64 || sequence%64)
+        if(head_dim!=64 || sequence%64 || sequence%query_rows)
           throw std::invalid_argument("native forward attention requires D64 and a 64-row sequence");
         auto const& l=layouts.at(packed);
         if(l.rank!=2 || int(l.physical[1])!=3*heads*head_dim)
@@ -704,9 +735,9 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
           spec.buffer=packed;spec.rank=3;
           spec.offset=std::uint64_t(part)*head_dim;
           spec.dims[0]=unsigned(head_dim);spec.dims[1]=unsigned(heads);
-          spec.dims[2]=unsigned(sequence);
+          spec.dims[2]=unsigned(model_batch*sequence);
           spec.strides[0]=std::uint64_t(head_dim)*3*2;spec.strides[1]=l.strides[0]*2;
-          spec.box[0]=64;spec.box[1]=1;spec.box[2]=part?64:16;
+          spec.box[0]=64;spec.box[1]=1;spec.box[2]=part?64:unsigned(query_rows);
           auto id=maps.Add(spec);
           if(part==0)bind.query_map=id;
           else if(part==1)bind.map=id;
@@ -714,8 +745,9 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
         }
         shape.heads=heads;shape.sequence=sequence;
         shape.scale=1.0/std::sqrt(double(head_dim));
-        body="Sm90ForwardEncoderAttention<"+std::to_string(sequence)+",64,"+
-            std::to_string(heads)+",16,"+std::to_string(c.slots)+'>';
+        body="Sm90ForwardEncoderAttention<"+std::to_string(model_batch)+','+
+            std::to_string(sequence)+",64,"+std::to_string(heads)+','+
+            std::to_string(query_rows)+','+std::to_string(c.slots)+'>';
         wrapper="ForwardAttentionStage";
         break;
       }
@@ -756,7 +788,7 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
           }
           shape.channels=int(Integer(gemm,"k"));shape.out_channels=int(Integer(gemm,"n"));
           shape.width=rows_of(bind.output);shape.height=1;
-          body="Sm90ForwardGemv<8>";
+          body="Sm90ForwardGemv<"+std::to_string(c.tile_n)+','+std::to_string(shape.channels)+'>';
           break;
         }
         bind.input=operand(0);bind.output=operand(1);
@@ -769,13 +801,13 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
           shape.width=int(l.logical[2]);shape.height=int(l.logical[1]);
           if(l.halo_top || l.halo_left)
             throw std::invalid_argument("a native forward image carries no halo region");
-          body="Sm90ForwardLayout<"+std::to_string(shape.channels)+",64>";
+          body="Sm90ForwardLayout<"+std::to_string(shape.channels)+",128,"+std::to_string(batch.getInt())+'>';
         }else if(c.body==Sm90ForwardBody::kPool) {
           if(kind!="kPool")throw std::invalid_argument("native forward pool coordinates need its stage");
           auto const& l=layouts.at(bind.input);
           shape.channels=int(l.physical[3]);
           shape.width=int(l.logical[2]);shape.height=int(l.logical[1]);
-          body="Sm90ForwardMaxPool<3,2>";
+          body="Sm90ForwardMaxPool<3,2,"+std::to_string(batch.getInt())+'>';
         }else if(c.body==Sm90ForwardBody::kGlobalPool) {
           if(kind!="kGlobalPoolReduce")
             throw std::invalid_argument("native forward pooling coordinates need its stage");
@@ -785,20 +817,26 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
           auto const& l=layouts.at(bind.partial);
           if(l.rank!=3)throw std::invalid_argument("native forward pooling needs its partial sums");
           shape.channels=int(Integer(stage,"extent"));
+          shape.out_channels=width_of(bind.output);
           shape.width=int(l.physical[1]);
           shape.height=int(Integer(stage,"dm_rows_per_batch",0));
           if(shape.height<=0)
             throw std::invalid_argument("native forward pooling needs its pixel count");
-          body="Sm90ForwardGlobalPool";
+          body="Sm90ForwardGlobalPool<"+std::to_string(batch.getInt())+'>';
         }else {
           if(kind!="kLayerNorm")
             throw std::invalid_argument("native forward LayerNorm coordinates need its stage");
           // The stage's operands are {input, gamma, beta, output}, and the
           // affine pair are the exported tables in model precision.
           bind.weight=operand(1);bind.table=operand(2);bind.output=operand(3);
-          shape.channels=width_of(bind.input);
+          shape.channels=int(Integer(stage,"width"));
+          shape.output_stride=width_of(bind.output);
+          if(shape.channels<=0 || shape.channels>width_of(bind.input) ||
+              shape.output_stride!=width_of(bind.input))
+            throw std::invalid_argument("native forward LayerNorm width/pitch is inconsistent");
           shape.width=rows_of(bind.input);shape.height=1;
-          body="Sm90ForwardLayerNorm<"+std::to_string(shape.channels)+'>';
+          body="Sm90ForwardLayerNorm<"+std::to_string(shape.channels)+','+
+              std::to_string(shape.output_stride)+'>';
         }
         break;
       }
@@ -807,6 +845,13 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
             std::string(solver::kSm90ForwardBodies[unsigned(c.body)]));
     }
 
+    if(shape.write_kind==0 && stored_width>=8) {
+      if(shape.output_stride%8)
+        throw std::invalid_argument("native forward dense vector stores require an eight-element row pitch");
+      auto output=Entry(buffers[bind.output],"buffer");
+      auto role=output.getAs<mlir::StringAttr>("role");
+      if(role && role.getValue()=="external")aligned_outputs.push_back(bind.output);
+    }
     if(kind!="kEmbeddingSum")accumulated(bind.row_stats);
     accumulated(bind.channel_partial);
     types<<bind.Emit(index)<<shape.Emit(index)
@@ -838,7 +883,16 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
   for(auto const& spec:maps.specs)out<<spec.Emit();
   out<<"}};\n"
      <<"}  // namespace tilemega::codegen::native_forward\n"
-     <<"#include <tilemega/Codegen/tasks/Sm90ForwardRuntime.cuh>\n";
+     <<"#define tm_plan_create tm_forward_create_aligned_storage\n"
+     <<"#include <tilemega/Codegen/tasks/Sm90ForwardRuntime.cuh>\n"
+     <<"#undef tm_plan_create\n";
+  out<<"extern \"C\" void* tm_plan_create(int batch,void* const* external,int device) {\n"
+     <<"  if(!external)return nullptr;\n";
+  for(unsigned id:aligned_outputs)
+    out<<"  if(reinterpret_cast<std::uintptr_t>(external["<<id<<"])%16) {\n"
+       <<"    std::fprintf(stderr,\"native forward output binding "<<id
+       <<" requires 16-byte alignment\\n\");return nullptr;\n  }\n";
+  out<<"  return tm_forward_create_aligned_storage(batch,external,device);\n}\n";
   // The trace ABI belongs to generated forward artifacts; the shared host
   // runtime stays independent of the attribution-only record layout.
   out<<R"FWDTRACE(
