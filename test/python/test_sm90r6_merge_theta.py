@@ -7,7 +7,7 @@ import unittest
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'scripts'))
 from sm90d1_common import sha,write
 from sm90r6_local_theta import measured_choice,traffic_choice
-from sm90r6_merge_theta import family_rows
+from sm90r6_merge_theta import family_rows,process_key
 
 
 class ThetaEvidence(unittest.TestCase):
@@ -23,12 +23,14 @@ class ThetaEvidence(unittest.TestCase):
         self.a0=dict(gemms=dict(qkv=options[0]['geometry']))
         self.records=[]
         for process in range(3):
-            guard=self.directory/f'guard{process}.json';write(guard,dict(code=0))
-            raw=self.directory/f'trace{process}.tsv';raw.write_text('retained ledger\n')
+            attempt=self.directory/f'p{process}'
+            guard=attempt/'guard/guard_result.json';guard.parent.mkdir(parents=True);write(guard,dict(code=0))
             for index,option in enumerate(options):
+                part=attempt/'trace'/f'part-{index}';part.mkdir(parents=True)
+                raw=part/'stage_trace.tsv';raw.write_text('retained ledger\n')
                 self.records.append(dict(family='qkv',geometry=option['geometry'],gpu=7,
                     reference_sha256='reference',guard_code=0,fresh_process=True,development=False,
-                    input_state='A0 prompt-prefilled KV',process_id=100+process,
+                    input_state='A0 prompt-prefilled KV',process_id=f'{100+process}:{part}',
                     stage_ns=[(4-index)*1000,(4-index)*1000],guard=str(guard),raw=str(raw),raw_sha256=sha(raw)))
         write(self.directory/'result.json',dict(passed=True,development=False,same_card=True,processes=[0,1,2]))
         self.save()
@@ -55,8 +57,14 @@ class ThetaEvidence(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'changed'):self.run_family()
 
     def test_mixing_three_different_process_sets_is_rejected(self):
-        self.records[0]['process_id']=999;self.save()
+        self.records[0]['process_id']=self.records[0]['process_id'].replace('100:', '999:');self.save()
         with self.assertRaisesRegex(ValueError,'share three fresh'):self.run_family()
+
+    def test_part_cannot_claim_another_guard_or_raw_ledger(self):
+        row=dict(self.records[0]);row['guard']=self.records[-1]['guard']
+        with self.assertRaisesRegex(ValueError,'bound'):process_key(row)
+        row=dict(self.records[0]);row['raw']=self.records[1]['raw']
+        with self.assertRaisesRegex(ValueError,'bound'):process_key(row)
 
 
 if __name__=='__main__':unittest.main()

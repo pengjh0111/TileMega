@@ -10,6 +10,19 @@ from sm90r6_local_theta import geometry_key,measured_choice,traffic_choice
 from sm90r6_merge_analysis import write
 
 
+def process_key(row):
+    pid, separator, output = str(row['process_id']).partition(':')
+    part = Path(output)
+    if (not separator or not pid.isdigit() or not part.name.startswith('part-') or
+            not part.name[5:].isdigit() or part.parent.name != 'trace' or
+            Path(row['raw']) != part/'stage_trace.tsv' or
+            Path(row['guard']) != part.parent.parent/'guard/guard_result.json'):
+        raise ValueError('isolated part is not bound to its fresh process and guard')
+    # One fresh worker runs every binary part. The part path distinguishes raw
+    # ledgers, while PID plus the retained attempt directory identifies a process.
+    return pid+':'+str(part.parent)
+
+
 def selection(path,coordinate,domains):
     data=read(str(path)+'.selection.json')
     if data['a0_sha256']!=sha(coordinate) or data['domains_sha256']!=sha(domains):
@@ -37,7 +50,7 @@ def family_rows(root,cell,domain,a0,choices):
         if sha(row['raw'])!=row['raw_sha256'] or read(row['guard'])['code']:
             raise ValueError('unaccepted or changed isolated ledger')
         key=geometry_key(row['geometry'])
-        process_sets.setdefault(key,set()).add(row['process_id'])
+        process_sets.setdefault(key,set()).add(process_key(row))
         times.setdefault(key,[]).append(statistics.median(row['stage_ns']))
     if len({tuple(sorted(value)) for value in process_sets.values()})!=1 or len(guard_paths)!=3:
         raise ValueError('family geometries did not share three fresh processes')
