@@ -38,7 +38,7 @@ def merge(root,curve):
     with curve.open() as stream:rows=list(csv.DictReader(stream))
     rows=[row for row in rows if row['kind']!='measured_winner']
     columns=('measurement_protocol','measurement_gpu','range_pct','pair_comparisons','pair_status',
-             'measurement_raw','measurement_sha256','pair_raw','pair_sha256')
+             'measurement_raw','measurement_sha256','pair_raw','pair_sha256','pair_representative')
     for row in rows:
         for column in columns:row[column]=''
     for model in MODELS:
@@ -76,6 +76,7 @@ def merge(root,curve):
             comparison,pair_path=paired(root,name,coordinates)
             for mode,row in selected.items():
                 alias=comparison.get('aliases',{}).get(mode,mode)
+                row['pair_representative']=alias
                 row['pair_comparisons']=json.dumps([p for p in comparison['pairs'] if alias in p['arms']],sort_keys=True,separators=(',',':'))
                 row['pair_status']=comparison['reason']
                 row['pair_raw']=str(pair_path.relative_to(root));row['pair_sha256']=sha(pair_path)
