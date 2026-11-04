@@ -4,3 +4,4 @@ DT-B,before DNN timing,pending,,,
 DT-P,before any parallel timing,pending,,H1/I1 collection completed under explicit user-authorized free-card concurrency trial; four-card P-PAIR gate not yet collected,pending; trial does not certify DT-P or set TILEMEGA_NUMA_CONCURRENCY_VERIFIED
 DT-F1,after I-3,pending,,,
 DT-N0,NAFNet,pending,,,
+MoE-P2-task-domain,CP-P,user approved 2026-11-04,E*(1-(1-k/E)^B) expected active experts; integer CTG FlowSpace domains,modeling convention; not a hardware measurement,Round expected active-expert tile task counts to nearest integer; project dependencies onto that finite CTG domain; explicitly label predictions approximate; retain H2 observed routes unchanged
