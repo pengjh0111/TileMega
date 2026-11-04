@@ -1,5 +1,5 @@
 dt,phase,status,input,measurement,branch
-DT-P1,CP-P,pending,continuation1 section 4 replaces original V1-V4 stopping rules,"P1 historical diagnostics retained in raw evidence; full CP-P V1(a), V2, V3 and V4 report pending","stated instruction: report model deviations and ranking; no U3 stop or constant fit; only pipeline source compatibility, P5 bitwise equivalence and C-2 block CP-P; proceed to X after CP-P push"
+DT-P1,CP-P,reported; correctness gates passed,continuation1 section 4 replaces original V1-V4 stopping rules,"verified CP-P: v12 source gate 8/8; P5 C-2 and litmus 5/5; V1(a), V2, V3 and V4 reported with dataset gaps and time-limit exceedances retained",continuation1 section 4: checkpoint pushed 3f5321097; continue Phase X; DNN/P6 handled separately
 DT-B,before DNN timing,pending,,,
 DT-P,before any parallel timing,pending,,H1/I1 collection completed under explicit user-authorized free-card concurrency trial; four-card P-PAIR gate not yet collected,pending; trial does not certify DT-P or set TILEMEGA_NUMA_CONCURRENCY_VERIFIED
 DT-F1,after I-3,pending,,,
