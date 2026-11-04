@@ -21,6 +21,7 @@ namespace tilemega::solver {
 // does not exceed the grid has tasks that are both.
 struct Sm90NativeStagePrice {
   std::string name, category;
+  std::string approximation; // empty for exact task counts
   int tasks = 0;
   // One per CTA that gets any work: the first min(T, G) indices are heads and
   // the last min(T, G) are tails, so they coincide when T <= G.

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/Sm90NativePrices.h>
+#include <tilemega/Solver/Sm90NativeMoeDomain.h>
 #include <algorithm>
 #include <cmath>
 #include <memory>
@@ -58,7 +59,7 @@ Sm90NativeStagePrice Sm90NativeGemmPrice(Sm90DenseWorkload const& work, unsigned
   // MR6's n_active = E (1 - (1 - k/E)^B) and the per-family row count.
   double n = work.shapes[family][0], k = work.shapes[family][1];
   double active = family >= 6
-      ? work.experts * (1 - std::pow(1 - double(work.top_k) / work.experts, b)) : 1.0;
+      ? Sm90NativeExpectedActiveExperts(work.experts,work.top_k,b) : 1.0;
   double rows = family == 6 ? b * double(work.top_k) / active
                             : family == 7 ? (b <= 8 ? 8 : 16) : b;
   double tasks = n / g.tile_n * active;
@@ -66,7 +67,9 @@ Sm90NativeStagePrice Sm90NativeGemmPrice(Sm90DenseWorkload const& work, unsigned
   Sm90NativeStagePrice price;
   price.name = "gemm" + std::to_string(family);
   price.category = "gemm";
-  price.tasks = int(std::llround(tasks));
+  if(family>=6)price.approximation=kSm90NativeMoeDomainApproximation;
+  price.tasks = family>=6?Sm90NativeExpectedExpertTasks(work.experts,work.top_k,b,
+      work.shapes[family][0]/g.tile_n):int(std::llround(tasks));
   
   price.hop_ns = c.Barrier(grid);
 

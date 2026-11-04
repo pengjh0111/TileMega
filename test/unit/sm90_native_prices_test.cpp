@@ -3,6 +3,7 @@
 // with the additive model is diagnostic and imposes no acceptance threshold.
 #include <tilemega/Solver/Sm90NativePrices.h>
 #include <tilemega/Solver/Sm90DenseCoordinates.h>
+#include <tilemega/Solver/Sm90NativeMoeDomain.h>
 #include <cassert>
 #include <cmath>
 #include <cstdio>
@@ -47,6 +48,14 @@ int main(int argc, char** argv) {
   work.layers = 28; work.head_dim = 128; work.queries = 2; work.hkv = 8;
   work.qk_norm = true;
 
+  {
+  auto moe=work;moe.moe=true;moe.experts=128;moe.top_k=8;moe.batch=16;
+  moe.shapes[6]={1536,2048};
+  Sm90DenseGemm expert;expert.tile_n=96;expert.slot_bytes=2*96*64;
+  auto expert_price=Sm90NativeGemmPrice(moe,6,expert,1,cost,false);
+  assert(expert_price.tasks==1319);
+  assert(expert_price.approximation==kSm90NativeMoeDomainApproximation);
+  }
   int failures = 0;
   for (int batch : {1, 16}) {
     work.batch = batch;
