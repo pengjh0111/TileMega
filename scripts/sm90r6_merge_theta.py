@@ -51,6 +51,7 @@ def family_rows(root,cell,domain,a0,choices):
             warps_n=geometry['warps_n'],warps_k=geometry['warps_k'],slots=geometry['slots'],
             register_stages=geometry.get('register_stages',1),multicast=int(geometry.get('multicast',False)),
             mma=geometry['mma'],tasks=entry['tasks'],traffic_bytes=entry['traffic_bytes'],
+            task_domain='rounded expected expert tile tasks' if family.startswith('expert_') else 'exact',
             isolated_us=statistics.median(times[key])/1000,gpu=evidence['gpu'],processes=3,
             instances_per_process=cell['layers'],grid=domain['grid'],
             task_window_exception=(traffic_evidence['exception'] or '') if arm=='AB1b' else '',
