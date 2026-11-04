@@ -5,6 +5,7 @@
 #include <tilemega/Target/Ascend/QkvDmaContract.h>
 #include <tilemega/Target/Ascend/QkPhaseContract.h>
 #include <tilemega/Target/Ascend/BatchedResidualContract.h>
+#include <tilemega/Target/Ascend/RequestSubmission.h>
 #include <tilemega/Target/Ascend/LlmPlanABI.h>
 #include <tilemega/Target/Ascend/BodyProfileCapture.h>
 #include <acl/acl.h>
@@ -442,6 +443,8 @@ template<class Launch> int RunRequest(fs::path const& binding,fs::path const& ou
     unsigned warmup,unsigned repetitions,unsigned diagnostic,Launch launch,bool teacher_forced=false,
     bool performance_only=false) {
   const bool host_progress=HostProgressEnabled();
+  const unsigned submission_window=DiagnosticSubmissionWindow(
+      std::getenv("TILEMEGA_LLM_DIAGNOSTIC_WINDOW"),performance_only,host_progress);
   if(performance_only && host_progress)throw std::invalid_argument("Host progress is diagnostic-only, never request timing");
   Plan pre(binding/"prefill"),dec(binding/"decode");
   if(outputs<2 || outputs>1024 || (performance_only && (diagnostic || teacher_forced)) ||
@@ -530,16 +533,24 @@ template<class Launch> int RunRequest(fs::path const& binding,fs::path const& ou
       Complete(pre,pd,0,failure);
     }
     auto first=std::chrono::steady_clock::now();
-    for(unsigned step=1;step<outputs;++step) {
+    SubmitDecodeForwards(outputs,submission_window,[&](unsigned step) {
       unsigned mode=diagnostic;
 #if defined(TILEMEGA_LLM_PROFILE_BOUNDARY_FORWARDS) && TILEMEGA_LLM_PROFILE_BOUNDARY_FORWARDS
       // Only the last profile is downloaded. Earlier forwards keep the same
       // mathematics/visibility without repeatedly overwriting unused traces.
       if(mode==2 && step+1!=outputs)mode=0;
 #endif
+      if(submission_window)progress(repetition,step,"decode_host_submit");
       launch(dd,arena,scratch,device.stream,dec.m.groups,step-1,63+step,mode);++launches;
+      if(submission_window)progress(repetition,step,"decode_host_launch_returned");
       if(step%64==0 || step+1==outputs)progress(repetition,step,"decode_host_enqueued");
-    }
+    },[&](unsigned step) {
+      progress(repetition,step,"decode_window_wait");
+      Check(aclrtSynchronizeStream(device.stream),"diagnostic submission window");
+      auto boundary=out/("diagnostic_window_"+std::to_string(repetition)+"_"+std::to_string(step));
+      fs::create_directory(boundary);Complete(dec,dd,step-1,boundary);
+      progress(repetition,step,"decode_window_completed");
+    });
     Check(aclrtSynchronizeStream(device.stream),"request final token");
     progress(repetition,outputs-1,"final_stream_completed");
     auto last=std::chrono::steady_clock::now();
@@ -571,6 +582,7 @@ template<class Launch> int RunRequest(fs::path const& binding,fs::path const& ou
     auto ms=[](auto a,auto b){return std::chrono::duration<double,std::milli>(a-b).count();};
     if(teacher_forced)samples<<"{\"request_mode\":\"teacher_forced\",\"timing_admitted\":false,\"decoder_steps\":"<<outputs-1<<"}\n";
     else samples<<"{\"repetition\":"<<repetition<<",\"warmup\":"<<(repetition<0?"true":"false")
+      <<",\"timing_admitted\":"<<(!host_progress && !diagnostic?"true":"false")
       <<",\"output_count\":"<<outputs<<",\"decode_forwards\":"<<outputs-1
       <<",\"ttft_ms\":"<<ms(first,t0)<<",\"e2e_ms\":"<<ms(last,t0)<<",\"tpot_ms\":"<<ms(last,first)/(outputs-1)
       <<",\"output_tokens_per_second\":"<<pre.m.batch*outputs*1000/ms(last,t0)<<"}\n";samples.flush();
@@ -585,6 +597,8 @@ template<class Launch> int RunRequest(fs::path const& binding,fs::path const& ou
     <<"\",\"performance_only\":"<<(performance_only?"true":"false")<<",\"binding_directory\":"<<std::quoted(binding.string())
     <<",\"isl\":64,\"osl\":"<<outputs<<",\"batch\":"<<pre.m.batch<<",\"capacity\":1088,\"warmup\":"<<warmup
     <<",\"repetitions\":"<<repetitions<<",\"diagnostic\":"<<diagnostic<<",\"host_kernel_launches\":"<<launches
+    <<",\"diagnostic_submission_window\":"<<submission_window
+    <<",\"timing_admitted\":"<<(!host_progress && !diagnostic?"true":"false")
     <<",\"request_mode\":\""<<(teacher_forced?"teacher_forced":"natural_greedy")<<"\""
 #if defined(TILEMEGA_LLM_COMPRESSED_PROFILE) && TILEMEGA_LLM_COMPRESSED_PROFILE
     <<",\"body_profile_storage\":\""<<(diagnostic==2?"gzip_roundtrip_sha256":"not_body_profile")<<"\""

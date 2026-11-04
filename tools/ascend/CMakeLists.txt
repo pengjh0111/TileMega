@@ -161,3 +161,5 @@ target_include_directories(as2_host_batched_residual_enabled PRIVATE "${TILEMEGA
 target_compile_definitions(as2_host_batched_residual_enabled PRIVATE TILEMEGA_LLM_BATCHED_RESIDUAL=1 TILEMEGA_LLM_VARIANT=1 TILEMEGA_LLM_SWIGLU_TILE=1 TILEMEGA_LLM_VECTOR_ARGMAX=1 TILEMEGA_LLM_FP32_KV_CACHE=1 TILEMEGA_AS2_CANN_NORM_PRIMITIVES=1)
 as1_asc_target(as2_batched_residual "${TILEMEGA_ROOT}/tools/probes/ascend950/as2_batched_residual.cpp")
 target_compile_options(as2_batched_residual PRIVATE --cce-res-usage)
+add_executable(as2_host_submission_contracts "${TILEMEGA_ROOT}/test/unit/ascend_request_submission_test.cpp")
+target_include_directories(as2_host_submission_contracts PRIVATE "${TILEMEGA_ROOT}/include")
