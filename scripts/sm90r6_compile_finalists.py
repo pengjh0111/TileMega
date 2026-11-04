@@ -16,6 +16,34 @@ def key(coordinates):
     return json.dumps(coordinates, sort_keys=True, separators=(',', ':'))
 
 
+def probe(out,candidates,identity):
+    while True:
+        directory = Path(tempfile.mkdtemp(prefix='occupancy-', dir=out))/'probe'
+        command = [sys.executable, str(ROOT/'scripts/sm90r6_probe_native.py'),
+                   '--candidates', str(out/'candidates.json'), '--out', str(directory)]
+        with (directory.parent/'run.log').open('w') as log:
+            status = subprocess.call(command, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
+        write(directory.parent/'returncode.json', dict(returncode=status))
+        if status == 75:
+            continue
+        if status:
+            raise RuntimeError('occupancy query failed; see '+str(directory.parent/'run.log'))
+        occupancy = json.loads((directory/'result.json').read_text())
+        for resource in occupancy['candidates']:
+            row = candidates[resource['rank']]
+            if resource['binary_sha256'] != row['binary_sha256']:
+                raise ValueError('occupancy evidence does not bind the retained finalist')
+            row['occupancy'] = resource
+            if resource['effective_residency'] != resource['requested_residency']:
+                row['status'] = 'requires_occupancy_rescore'
+        write(out/'candidates.json', candidates)
+        needs_rescore = any(row['status'] == 'requires_occupancy_rescore' for row in candidates)
+        write(out/'result.json', dict(candidates=candidates, occupancy=str(directory/'result.json'),
+            status='requires_occupancy_rescore' if needs_rescore else 'ready_for_P_SEL',
+            selection='not_measured', source=identity))
+        return 3 if needs_rescore else 0
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--receipt', type=Path, required=True)
@@ -23,6 +51,9 @@ def main():
     p.add_argument('--target', type=Path, default=ROOT / 'configs/targets/sm_90_h800.json')
     p.add_argument('--out', type=Path, required=True)
     p.add_argument('--split-compile', type=int, default=4)
+    phase=p.add_mutually_exclusive_group()
+    phase.add_argument('--compile-only',action='store_true')
+    phase.add_argument('--probe-only',action='store_true')
     a = p.parse_args()
     receipt = json.loads(a.receipt.read_text())
     request = receipt['input']
@@ -35,11 +66,18 @@ def main():
         raise ValueError('expected four distinct retained finalists')
     if any(key(c['coordinates']) not in evaluated for c in finalists):
         raise ValueError('finalist is absent from the retained E')
-    a.out = a.out.resolve();a.out.mkdir(parents=True, exist_ok=False)
+    a.out = a.out.resolve()
     identity = dict(receipt=str(a.receipt.resolve()), receipt_sha256=sha(a.receipt),
         compiler=str(a.compiler.resolve()), compiler_sha256=sha(a.compiler),
         target=str(a.target.resolve()), target_sha256=sha(a.target), input=request,
         scope='fixed builds of retained offline Algorithm 1 finalists; no new search or measured selection')
+    if a.probe_only:
+        if json.loads((a.out/'source.json').read_text())!=identity:
+            raise ValueError('occupancy resume source differs from the compile request')
+        candidates=json.loads((a.out/'candidates.json').read_text())
+        if len(candidates)!=len(finalists):raise ValueError('incomplete compilation before occupancy resume')
+        return probe(a.out,candidates,identity)
+    a.out.mkdir(parents=True, exist_ok=False)
     write(a.out/'source.json', identity)
     candidates = []
     for rank, candidate in enumerate(finalists):
@@ -75,31 +113,11 @@ def main():
         print(json.dumps(dict(rank=rank, status=row['status'], cell=request['id'])), flush=True)
     if not any(row['status'] == 'compiled' for row in candidates):
         raise ValueError('all finalists were rejected by resource compilation')
-    while True:
-        directory = Path(tempfile.mkdtemp(prefix='occupancy-', dir=a.out))/'probe'
-        command = [sys.executable, str(ROOT/'scripts/sm90r6_probe_native.py'),
-                   '--candidates', str(a.out/'candidates.json'), '--out', str(directory)]
-        with (directory.parent/'run.log').open('w') as log:
-            status = subprocess.call(command, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
-        write(directory.parent/'returncode.json', dict(returncode=status))
-        if status == 75:
-            continue
-        if status:
-            raise RuntimeError('occupancy query failed; see '+str(directory.parent/'run.log'))
-        occupancy = json.loads((directory/'result.json').read_text())
-        for resource in occupancy['candidates']:
-            row = candidates[resource['rank']]
-            if resource['binary_sha256'] != row['binary_sha256']:
-                raise ValueError('occupancy evidence does not bind the retained finalist')
-            row['occupancy'] = resource
-            if resource['effective_residency'] != resource['requested_residency']:
-                row['status'] = 'requires_occupancy_rescore'
-        write(a.out/'candidates.json', candidates)
-        needs_rescore = any(row['status'] == 'requires_occupancy_rescore' for row in candidates)
-        write(a.out/'result.json', dict(candidates=candidates, occupancy=str(directory/'result.json'),
-            status='requires_occupancy_rescore' if needs_rescore else 'ready_for_P_SEL',
-            selection='not_measured', source=identity))
-        return 3 if needs_rescore else 0
+    if a.compile_only:
+        write(a.out/'result.json',dict(candidates=candidates,status='compiled_awaiting_occupancy',
+            selection='not_measured',source=identity))
+        return 0
+    return probe(a.out,candidates,identity)
 
 
 if __name__ == '__main__':
