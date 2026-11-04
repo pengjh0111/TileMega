@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 import fcntl
+import importlib
 import json
 import os
 from pathlib import Path
@@ -226,6 +227,7 @@ def migrate_waiter(worker):
 
 
 def main():
+    global baseline
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--base-spec', type=Path, required=True)
     p.add_argument('--out', type=Path, required=True)
@@ -248,6 +250,10 @@ def main():
     for g in gpus:
         require_allowed_gpu(policy, str(g), timing=True)
     config = baseline.read(a.base_spec)
+    driver_name = config.get('baseline_driver', 'dnn1_baselines')
+    if driver_name not in ('dnn1_baselines', 'dnn1_tvm_infra_driver'):
+        raise ValueError('unsupported versioned CPU baseline driver')
+    baseline = importlib.import_module(driver_name)
     binding = affinities(gpus, a.cpus_per_worker, explicit=config.get('cpu_affinity'))
     python = Path(config.get('python', ROOT/'scripts/dnn1_supervised_python.py')).absolute()
     if not python.is_file():
@@ -268,6 +274,8 @@ def main():
                ROOT / 'python/tilemega/dnn/baselines.py', ROOT / 'python/tilemega/dnn/tvm_baseline.py',
                ROOT/'scripts/dnn1_device.py',ROOT/'scripts/dnn1_resource_entry.py',
                ROOT/'scripts/dnn1_supervised_python.py',ROOT/'scripts/dnn1_guard_entry.py',python]
+    if driver_name != 'dnn1_baselines':
+        sources.append(ROOT/'scripts'/f'{driver_name}.py')
     frozen = {str(path.resolve()): baseline.sha(path) for path in sources}
     if previous:
         changes = {path: dict(before=digest, after=frozen.get(path))
@@ -306,6 +314,7 @@ def main():
             root = Path(record['run_root'])
             workers[int(g)] = dict(process=AdoptedWorker(record['pid'], root), root=root,
                 key=record['key'], log=(root.parent / 'worker.log').open('a'))
+    state['baseline_driver'] = driver_name
     stopping = False
     def event(kind, **values):
         row = dict(time=time.time(), event=kind, **values)
