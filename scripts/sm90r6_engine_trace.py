@@ -11,6 +11,7 @@ GPU worker brackets decode steps 257..320 with cudaProfilerStart/Stop. Only
 that range is analyzed, and kernel sequence repetition determines boundaries.
 """
 import argparse, csv, hashlib, json, math, os, re, statistics, subprocess, sys, tempfile
+from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -26,11 +27,11 @@ NSYS = '/usr/local/bin/nsys'
 # kernel name -> class, in the order appendix E lists them.
 CLASSES = (('allreduce', r'(allreduce|all_reduce|nccl|ncclDevKernel)'),
            ('rope_kv', r'(rope|rotary|kv_cache|reshape_and_cache|cache_kernel)'),
-           ('attention', r'(attn|attention|flash|paged|mha|mla)'),
-           ('gemm', r'(gemm|gemv|cutlass|matmul|linear|sm90_xmma|wgmma|splitk|s16816|f16f16|nvjet_)'),
            ('norm', r'(rms_?norm|layer_?norm|norm_kernel|triton_red_fused_.*mean_.*pow)'),
            ('activation', r'(silu|gelu|swiglu|act_and_mul)'),
-           ('sampling', r'(argmax|sample|topk|top_k|softmax_kernel|logits)'))
+           ('sampling', r'(argmax|sample|topk|top_k|softmax_kernel|logits)'),
+           ('attention', r'(attn|attention|flash|paged|mha|mla)'),
+           ('gemm', r'(gemm|gemv|cutlass|matmul|linear|sm90_xmma|wgmma|splitk|s16816|f16f16|nvjet_)'))
 
 
 def classify(name):
@@ -113,26 +114,34 @@ def kernels(report, directory):
         connection.close()
         return []
     rows = connection.execute(
-        'SELECT s.value, k.start, k.end FROM CUPTI_ACTIVITY_KIND_KERNEL k '
+        'SELECT s.value, k.start, k.end, k.streamId FROM CUPTI_ACTIVITY_KIND_KERNEL k '
         'JOIN StringIds s ON k.demangledName = s.id ORDER BY k.start').fetchall()
     connection.close()
-    return [(name, int(start), int(end)) for name, start, end in rows]
+    return [(name, int(start), int(end), stream) for name, start, end, stream in rows]
 
 
 def steps(trace_rows, want=32, captured=64):
     """Use the captured kernel sequence, never a TPOT-sized time window."""
-    if not trace_rows or len(trace_rows) % captured:
-        raise ValueError('capture is not a whole number of 64 kernel sequences')
-    period = len(trace_rows)//captured
-    names = [row[0] for row in trace_rows]
-    template = names[:period]
-    if any(names[i*period:(i+1)*period] != template for i in range(captured)):
-        raise ValueError('kernel sequence does not repeat for all 64 captured decode steps')
+    if not trace_rows:
+        raise ValueError('capture contains no kernels')
+    boundaries = [i for i,row in enumerate(trace_rows) if row[0] == trace_rows[0][0]]
+    if len(boundaries) != captured:
+        raise ValueError('first-kernel anchor does not identify exactly 64 decode steps')
+    def sequence(begin, end):
+        streams = defaultdict(list)
+        for row in trace_rows[begin:end]:
+            streams[row[3] if len(row)>3 else 0].append(row[0])
+        return dict(streams)
+    # Independent streams may interleave differently; their own ordered
+    # sequences must repeat. Outer capture edges may contain in-flight work.
+    template = sequence(boundaries[1], boundaries[2])
+    if any(sequence(boundaries[i], boundaries[i+1]) != template for i in range(2,captured-1)):
+        raise ValueError('per-stream kernel sequences do not repeat between decode anchors')
     first = (captured-want)//2
     if first < 0 or first+want >= captured:
         raise ValueError('middle windows need the following step start')
-    return [(i*period, (i+1)*period, trace_rows[i*period][1],
-             trace_rows[(i+1)*period][1]) for i in range(first, first+want)]
+    return [(boundaries[i], boundaries[i+1], trace_rows[boundaries[i]][1],
+             trace_rows[boundaries[i+1]][1]) for i in range(first, first+want)]
 
 
 def capture_complete(directory):
@@ -150,12 +159,16 @@ def capture_complete(directory):
 
 def gemm_groups(block):
     groups = []
+    last_by_stream = {}
     for index, row in enumerate(block):
         name = row[0].lower()
+        stream = row[3] if len(row)>3 else 0
+        previous = last_by_stream.get(stream)
+        last_by_stream[stream] = index
         if classify(name) != 'gemm':
             continue
         if 'splitkreduce' in name:
-            if (not groups or groups[-1][-1][0] != index-1 or
+            if (not groups or groups[-1][-1][0] != previous or
                     'splitk' not in groups[-1][0][1][0].lower()):
                 raise ValueError('split-K reduction has no adjacent producer')
             groups[-1].append((index, row))
@@ -179,7 +192,7 @@ def gemm_metrics(trace_rows, windows, config, model, engine, batch):
                              f'{len(gemms)} kernels versus {len(order)} operators')
         for family, group in zip(order, gemms):
             # Include an operator's split-K reduction, excluding launch gaps.
-            duration = sum(finish-start for _, (_, start, finish) in group)
+            duration = sum(row[2]-row[1] for _, row in group)
             rates[family].append(weights[family]/duration)
     return [dict(engine=engine, model=model, batch=batch, family=family,
                  observations=len(values), weight_bytes=weights[family],
@@ -196,12 +209,13 @@ def metrics(trace_rows, windows, floor_bytes, bw_gbps):
         if not block:
             continue
         step_ns = high - low
-        if any(start < low or finish > high for _, start, finish in block):
+        if any(row[1] < low or row[2] > high for row in block):
             raise ValueError('kernel crosses a detected decode boundary')
         # The union of the kernel intervals: overlap from programmatic
         # dependent launch is counted once, as appendix E requires.
         union, merged = 0, []
-        for _, start, finish in sorted((r for r in block), key=lambda r: r[1]):
+        for row in sorted(block, key=lambda r: r[1]):
+            start, finish = row[1:3]
             if merged and start <= merged[-1][1]:
                 merged[-1][1] = max(merged[-1][1], finish)
             else:
@@ -209,7 +223,8 @@ def metrics(trace_rows, windows, floor_bytes, bw_gbps):
         for start, finish in merged:
             union += finish - start
         by_class = {}
-        for name, start, finish in block:
+        for row in block:
+            name, start, finish = row[:3]
             by_class[classify(name)] = by_class.get(classify(name), 0) + (finish - start)
         floor_ns = floor_bytes / (bw_gbps * 1e9) * 1e9
         per_step.append(dict(kernels=len(block), step_us=step_ns / 1e3, busy_us=union / 1e3,

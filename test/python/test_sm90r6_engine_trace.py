@@ -74,6 +74,24 @@ class TraceProtocol(unittest.TestCase):
         self.assertEqual(trace.classify('reshape_and_cache_flash_kernel'), 'rope_kv')
         self.assertEqual(trace.classify('unrolled_elementwise_kernel<FillFunctor>'), 'other')
 
+    def test_independent_stream_interleaving(self):
+        rows = []
+        for i in range(64):
+            start = i*20
+            body = [('gemm_splitK',start+2,start+5,1),
+                    ('norm_kernel',start+3,start+4,2),
+                    ('splitKreduce',start+6,start+7,1)]
+            if i%2:
+                body[0] = ('gemm_splitK',start+3,start+6,1)
+                body[1] = ('norm_kernel',start+2,start+4,2)
+            rows.append(('step_start',start,start+1,1))
+            rows.extend(sorted(body,key=lambda r:r[1]))
+        windows = trace.steps(rows)
+        self.assertEqual(len(windows),32)
+        self.assertEqual(len(trace.gemm_groups(rows[windows[0][0]:windows[0][1]])),1)
+        self.assertEqual(trace.classify('flashinfer::norm::RMSNormKernel'), 'norm')
+        self.assertEqual(trace.classify('flashinfer::activation::act_and_mul_kernel'), 'activation')
+
 
 if __name__ == '__main__':
     unittest.main()
