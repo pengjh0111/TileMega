@@ -28,6 +28,8 @@ def critical_segments(group, family):
 
 
 def d0(directory, model, family):
+    if any(sha(path) != digest for path, digest in read(directory / 'inputs.json').items()):
+        raise ValueError('I3 D0 collection inputs changed')
     accepted = read(directory / 'result.json')
     if not accepted['passed'] or len(accepted['processes']) != 3:
         raise ValueError('I3 requires three accepted D0 processes')
@@ -68,7 +70,8 @@ def merge(directory):
     cell = read(directory / 'cells.json')[0]
     family = 'expert_gate_up' if cell['family'] == 6 else 'qkv'
     timing = read(directory / 'timing.json')
-    if (any(a['processes'] != 3 for a in timing['arms'].values()) or
+    if (timing['spec']['model'] != cell['model'] or timing['spec']['batch'] != cell['batch'] or
+            any(a['processes'] != 3 for a in timing['arms'].values()) or
             len({r['gpu'] for r in timing['rows']}) != 1 or
             any(r['gpu'] == 6 for r in timing['rows'])):
         raise ValueError('I3 P-ABL process count or card mismatch')
@@ -90,8 +93,14 @@ def merge(directory):
         label = 'TN' + str(tn); artifact = read(directory / label / 'artifacts.json')
         if read(artifact['coordinates']) != variant['coordinates']:
             raise ValueError('I3 variant changed from the fixed-coordinate sweep')
+        identity = read(artifact['binary'] + '.identity.json')
+        if (identity['plan']['native_dense'] != variant['coordinates'] or
+                identity['binary_sha256'] != sha(artifact['binary']) or
+                timing['spec']['arms'][label]['decode_sha256'] != sha(artifact['binary'])):
+            raise ValueError('I3 timing binary does not match its variant')
         c2 = read(artifact['c2'])
         if (not c2['passed'] or len(c2['processes']) < 5 or
+                c2['steps'] != 1024 or c2['model'] != cell['model'] or c2['batch'] != cell['batch'] or
                 c2['artifacts']['candidate']['sha256'] != sha(artifact['binary'])):
             raise ValueError('missing I3 full-model correctness')
         if len(isolated[tn]) != 3:
