@@ -2015,6 +2015,25 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   // sharded for (absent: 1) and the coordinate must agree.
   int tp=serving.get("tp")?int(integerField(serving,"tp")):1;
   if(tp!=c.tp)throw std::invalid_argument("native dense coordinate tp differs from the plan's");
+  // P4 lowering: when the decision layer recorded how each boundary is
+  // realized, that record governs, and a disagreement with what this
+  // coordinate implies is a defect in one of the two rather than something to
+  // paper over. A module without the attribute is a pre-P4 artifact and is
+  // generated exactly as before.
+  if(auto kinds=module->getAttrOfType<mlir::DictionaryAttr>("tmexec.sync_kind")) {
+    auto expect=[&](char const* stage,char const* value) {
+      auto recorded=kinds.getAs<mlir::StringAttr>(stage);
+      if(recorded && recorded.getValue()!=value)
+        throw std::invalid_argument(std::string("tmexec.sync_kind for ")+stage+" is "+
+            recorded.getValue().str()+" but the coordinate implies "+value);
+    };
+    expect("qkv",c.group_wait?"group":"aggregate");
+    expect("attention",c.group_wait?"group":"aggregate");
+    expect("o",c.tp>1?"data":"aggregate");
+    if(c.moe)expect("expert_down",c.expert_fuse?"counted":"aggregate");
+    else expect("down",c.tp>1?"data":"aggregate");
+    expect("lm_head",c.embed_la?"handoff":"aggregate");
+  }
   if(capacity!=1088)throw std::invalid_argument("native dense decode binds capacity 1088");
   auto buffers=arrayField(plan,"buffers"),gemms=arrayField(plan,"gemms"),stages=arrayField(plan,"stages");
   unsigned argmax_index=~0u;
