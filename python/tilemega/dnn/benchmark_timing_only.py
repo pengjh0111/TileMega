@@ -19,15 +19,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ('library', 'export', 'bridge', 'inputs', 'selection-config', 'out'):
         parser.add_argument('--' + name, type=Path, required=True)
-    parser.add_argument('--batch', type=int, choices=(1,), default=1)
+    parser.add_argument('--batch', type=int, choices=(1, 2, 4, 8, 16), default=1)
     parser.add_argument('--executor', choices=('L1',), default='L1')
     parser.add_argument('--warmup', type=int, choices=(50,), default=50)
     parser.add_argument('--iterations', type=int, choices=(200,), default=200)
     parser.add_argument('--round-index', type=int, choices=(0, 1, 2), required=True)
     args = parser.parse_args()
     gpu_index = int(require_guard()[0])
-    if gpu_index not in (0, 1, 2, 3, 4, 7):
-        raise ValueError('GPU6 excluded; GPU5 functional-only')
+    if gpu_index not in (0, 5, 7):
+        raise ValueError('DNN1 timing uses GPU0, GPU5 or GPU7')
     selection = json.loads(args.selection_config.read_text())
     identity_path = Path(str(args.library) + '.identity.json')
     identity = verify(args.library)
@@ -57,9 +57,9 @@ def main():
         artifact_id=identity['artifact_id'], source_head=selection['source_head'],
         protocol=dict(warmup=50, iterations=200, fresh_processes=3),
         command=[sys.executable, *sys.argv], started=time.time(),
-        user_amendment=dict(scope='TileMega dense25, MoE5 and five DNN E2E; frozen external baselines',
-            solver_gate='not_met', c1='not_performed', c2='not_performed', hf='not_performed',
-            full_ctest='not_performed', external_baselines='not_remeasured'))
+        user_amendment=dict(scope='DNN1 five models and five batches',
+            inputs='fixed random inputs and existing random weights',
+            validation='separate correctness processes; this process only measures'))
     receipt.write_text(json.dumps(record, indent=2) + '\n')
     measurement_out = args.out / 'measurements'
     measurement_out.mkdir()
@@ -93,7 +93,7 @@ def main():
         numerical_validation='not requested or run in this closeout timing process',
         numeric_validation='not_performed',
         selection_config=str(args.selection_config.resolve()), selection_config_sha256=sha(args.selection_config),
-        selected_source_head=selection['source_head'], scope_expansion='frozen SM90R1 DNN selection reused for SM90R2 closeout',
+        selected_source_head=selection['source_head'], scope_expansion='DNN1 selected native forward artifact',
         source_checkpoint_sha256=sha(args.export / 'checkpoint/model.safetensors'),
         library_path=str(args.library.resolve()), identity_path=str(identity_path.resolve()),
         identity=identity, input_path=str(args.inputs.resolve()), export_path=str(args.export.resolve()),

@@ -161,7 +161,7 @@ def _diagnose(library, plan, module, arguments, bridge, destination,
         buffers=rows),indent=2)+'\n')
 
 
-def output_metrics(actual,fp32,bf16,*,restoration=False,elementwise=False):
+def output_metrics(actual,fp32,bf16,*,restoration=False,elementwise=False,thresholds=None):
     cosine=torch.nn.functional.cosine_similarity(
         actual.reshape(-1,actual.shape[-1]),fp32.reshape(-1,fp32.shape[-1]),dim=1)
     metrics=dict(cosine_min=cosine.min().item(),max_error=(actual-fp32).abs().max().item(),
@@ -173,15 +173,17 @@ def output_metrics(actual,fp32,bf16,*,restoration=False,elementwise=False):
         from .check import psnr
         tm_psnr=psnr(actual,fp32);bf16_psnr=psnr(bf16,fp32)
         metrics.update(psnr_fp32=tm_psnr.tolist(),bf16_psnr_fp32=bf16_psnr.tolist())
-        if not torch.all(tm_psnr>=bf16_psnr-1):
-            raise AssertionError(f'NAFNet PSNR with FP32 {tm_psnr.tolist()} is below BF16 - 1 dB {bf16_psnr.tolist()}')
-    elif cosine.min()<.999:
+        minimum = thresholds['psnr'] if thresholds is not None else bf16_psnr-1
+        if not torch.all(tm_psnr>=minimum):
+            raise AssertionError(f'NAFNet PSNR with FP32 {tm_psnr.tolist()} is below {minimum}')
+    elif cosine.min()<(thresholds['cosine'] if thresholds is not None else .999):
         raise AssertionError(f'cosine with FP32 oracle is {cosine.min().item()}')
     return metrics
 
 
 def check(library_path, export_dir, bridge_path, batch, *, epochs=1, diagnostics=None,
-          input_tensors=None,elementwise=False,synthetic_weights=False,local_through=None):
+          input_tensors=None,elementwise=False,synthetic_weights=False,local_through=None,
+          thresholds=None):
     if local_through is not None and diagnostics is None:
         raise ValueError('local replay requires a diagnostic output path')
     torch.set_num_threads(4); torch.manual_seed(20261009)
@@ -300,7 +302,8 @@ def check(library_path, export_dir, bridge_path, batch, *, epochs=1, diagnostics
                     actual = tensors[name].float()
                     if not torch.isfinite(actual).all():
                         raise AssertionError('generated DNN produced a nonfinite output')
-                    metrics=dict(name=name,**output_metrics(actual,fp32,bf16,restoration=restoration,elementwise=elementwise))
+                    metrics=dict(name=name,**output_metrics(actual,fp32,bf16,restoration=restoration,
+                                 elementwise=elementwise,thresholds=thresholds))
                     if image_input and actual.ndim == 2:
                         metrics['top1_agreement'] = (actual.argmax(-1)==fp32.argmax(-1)).float().mean().item()
                     row['outputs'].append(metrics)

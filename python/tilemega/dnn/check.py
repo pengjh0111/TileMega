@@ -5,6 +5,7 @@ import argparse
 import copy
 import hashlib
 import json
+import os
 from pathlib import Path
 
 import torch
@@ -306,11 +307,38 @@ def check(args):
             launches=native.launches, metrics=metrics, samples_detail=records)
 
 
+def check_random(args):
+    from .check_generated import check as generated_check
+    thresholds = dict(cosine=.999 if args.model == 'bert' else .9999, psnr=40.0)
+    result = generated_check(args.library, args.export, args.bridge, args.batch,
+                             input_tensors=args.inputs, thresholds=thresholds)
+    metrics = []
+    for case in result['cases']:
+        for row in case['outputs']:
+            if args.model == 'nafnet':
+                passed = bool(row.get('psnr_fp32')) and all(v >= 40 for v in row['psnr_fp32'])
+            else:
+                passed = row['cosine_min'] >= thresholds['cosine']
+                if args.model != 'bert':
+                    passed = passed and row.get('top1_agreement') == 1.0
+            metrics.append(dict(epoch=case['epoch'], mode=case['mode'], passed=passed, **row))
+    result.update(scope='DNN1 random-input equivalence; not dataset accuracy',
+                  model=args.model, samples=args.batch,
+                  pid=os.getpid(), library_sha256=sha(args.library),
+                  random_input_seed=20261009 if args.inputs is None else None, metrics=metrics,
+                  passed=bool(metrics) and all(row['passed'] for row in metrics),
+                  thresholds=thresholds, user_amendment='random weights and random inputs authorized')
+    return result
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--model', choices=('resnet18', 'mbv1', 'mbv2', 'bert', 'nafnet'), required=True)
-    for option in ('library', 'export', 'bridge', 'data', 'out'):
+    for option in ('library', 'export', 'bridge', 'out'):
         parser.add_argument('--' + option, type=Path, required=True)
+    parser.add_argument('--data', type=Path)
+    parser.add_argument('--random-inputs', action='store_true')
+    parser.add_argument('--inputs', type=Path, help='identified random safetensors inputs')
     parser.add_argument('--checkpoint', type=Path)
     parser.add_argument('--nafnet-weights', type=Path, default=DEFAULT_NAFNET)
     parser.add_argument('--batch', type=int, required=True)
@@ -318,11 +346,15 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.mask and args.model != 'bert':
         parser.error('--mask requires BERT')
+    if not args.random_inputs and args.data is None:
+        parser.error('dataset checks require --data; DNN1 equivalence uses --random-inputs')
+    if args.random_inputs and args.checkpoint is not None:
+        parser.error('random equivalence uses the exported checkpoint; do not pass --checkpoint')
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    result = check(args)
+    result = check_random(args) if args.random_inputs else check(args)
     args.out.write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps({key: result[key] for key in
-        ('passed', 'model', 'samples', 'artifact_id', 'metrics')}), flush=True)
+        ('passed', 'model', 'samples', 'artifact_id', 'metrics') if key in result}), flush=True)
     if not result['passed']:
         raise SystemExit(1)
 

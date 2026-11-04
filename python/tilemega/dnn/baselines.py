@@ -14,6 +14,16 @@ import os
 from pathlib import Path
 import statistics
 import sys
+import traceback
+
+_run_context = {}
+
+
+class BaselineFailure(RuntimeError):
+    def __init__(self, message, kind, metrics=None):
+        self.failure_kind = kind
+        self.metrics = metrics
+        super().__init__(message)
 
 _helper_directory = str(Path(__file__).resolve().parents[1] / 'serving')
 sys.path.insert(0, _helper_directory)
@@ -215,23 +225,78 @@ def numerical_metrics(actual, reference, name):
                                                        expected.reshape(1, -1)).item()
         row = dict(output=index, shape=list(value.shape), cosine_vs_fp32=cosine,
                    max_abs_vs_fp32=error.abs().max().item(), mse_vs_fp32=error.square().mean().item())
+        flattened_rows = value.reshape(-1, value.shape[-1])
+        expected_rows = expected.reshape(-1, expected.shape[-1])
+        row['cosine_min_vs_fp32'] = torch.nn.functional.cosine_similarity(
+            flattened_rows, expected_rows, dim=1).min().item()
         if name in ('resnet18', 'mbv1', 'mbv2'):
             row['top1_agreement_vs_fp32'] = (value.argmax(-1) == expected.argmax(-1)).float().mean().item()
         if name == 'nafnet':
             row['psnr_vs_fp32_db'] = -10 * math.log10(max(row['mse_vs_fp32'], 1e-30))
+            mse = error.square().flatten(1).mean(-1)
+            row['psnr_per_image_vs_fp32_db'] = (-10 * torch.log10(mse.clamp_min(1e-30))).tolist()
+            row['psnr_min_vs_fp32_db'] = min(row['psnr_per_image_vs_fp32_db'])
             row['psnr_peak'] = 1.0
         rows.append(row)
     return rows
 
 
-def torch_runner(module, args, kwargs, mode, metadata):
+def correctness_gate(name, rows):
+    if not rows:
+        raise BaselineFailure('baseline has no output metrics', 'correctness', rows)
+    for row in rows:
+        if name == 'nafnet':
+            passed = row.get('psnr_min_vs_fp32_db', row['psnr_vs_fp32_db']) >= 40
+        else:
+            threshold = .999 if name.startswith('bert') else .9999
+            minimum = row.get('cosine_min_vs_fp32', row['cosine_vs_fp32'])
+            passed = math.isfinite(minimum) and minimum >= threshold
+            if name in ('resnet18', 'mbv1', 'mbv2'):
+                passed = passed and row['top1_agreement_vs_fp32'] == 1.0
+        if not passed:
+            raise BaselineFailure('baseline failed the FP32 equivalence gate: ' +
+                                  json.dumps(rows, sort_keys=True), 'correctness', rows)
+    return True
+
+
+def inputs_digest(args, kwargs):
+    import torch
+    rows = []
+    for name, value in [(str(i), x) for i, x in enumerate(args)] + list(kwargs.items()):
+        if not isinstance(value, torch.Tensor):
+            raise TypeError('DNN inputs must be tensors')
+        value = value.detach().cpu().contiguous()
+        rows.append(dict(name=name, dtype=str(value.dtype), shape=list(value.shape),
+                         sha256=hashlib.sha256(value.view(torch.uint8).numpy().tobytes()).hexdigest()))
+    return hashlib.sha256(json.dumps(rows, sort_keys=True).encode()).hexdigest(), rows
+
+
+def torch_library_identity(metadata):
+    import torch
+    path = Path(torch.__file__).parent / 'lib/libtorch_cuda.so'
+    metadata['library_path'] = str(path.resolve())
+    metadata['library_sha256'] = sha(path)
+    from torch._inductor.codecache import PyCodeCache
+    modules = getattr(PyCodeCache, 'modules', [])
+    if isinstance(modules, dict):
+        modules = modules.values()
+    files = sorted({str(Path(m.__file__).resolve()) for m in modules
+                    if getattr(m, '__file__', None) and Path(m.__file__).is_file()})
+    metadata['compiled_wrappers'] = [dict(path=p, sha256=sha(p)) for p in files]
+    metadata['compiled_wrapper_digest'] = hashlib.sha256(
+        json.dumps(metadata['compiled_wrappers'], sort_keys=True).encode()).hexdigest()
+
+
+def torch_runner(module, args, kwargs, mode, metadata, *, freezing=False, fullgraph=True):
     import torch
     # Exported metadata assertions compare the device index as well as its type.
     device = torch.device('cuda', torch.cuda.current_device())
     module = portable_module(module, device=device, dtype=torch.bfloat16)
     args, kwargs = convert_inputs(args, kwargs, dtype=torch.bfloat16, device=device)
-    compiled = torch.compile(module, mode=mode, fullgraph=True)
-    metadata.update(compile_mode=mode, fullgraph=True,
+    torch._inductor.config.freezing = bool(freezing)
+    compiled = torch.compile(module, mode=mode, fullgraph=fullgraph)
+    metadata.update(compile_mode=mode, fullgraph=fullgraph,
+                    freezing=bool(torch._inductor.config.freezing), freezing_requested=bool(freezing),
                     cuda_graph='enabled by official compile mode; actual capture is backend controlled')
     return lambda: compiled(*args, **kwargs)
 
@@ -351,9 +416,15 @@ def timed(run, warmup, iterations):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--export', type=Path, required=True)
-    parser.add_argument('--system', choices=('torchcompile', 'tensorrt', 'export-onnx'), required=True)
+    parser.add_argument('--system', choices=('torchcompile', 'tensorrt', 'export-onnx', 'tvm'), required=True)
     parser.add_argument('--precision', choices=('bf16', 'fp16'), default='bf16')
     parser.add_argument('--compile-mode', choices=('max-autotune', 'reduce-overhead'), default='max-autotune')
+    parser.add_argument('--freezing', action='store_true')
+    parser.add_argument('--fullgraph', choices=('true', 'false'), default='true')
+    parser.add_argument('--correctness-only', action='store_true')
+    parser.add_argument('--tvm-work-dir', type=Path)
+    parser.add_argument('--tvm-max-trials', type=int, choices=(2000,), default=2000)
+    parser.add_argument('--tvm-timeout-s', type=int, choices=(1800,), default=1800)
     parser.add_argument('--batch', type=int, default=1)
     parser.add_argument('--seed', type=int, default=20261007)
     parser.add_argument('--warmup', type=int, default=50)
@@ -363,10 +434,16 @@ def main():
                         help='explicit shared serialized TensorRT engine cache; strict input/GPU identity')
     parser.add_argument('--out', type=Path)
     options = parser.parse_args()
+    _run_context.update(options={k: str(v) if isinstance(v, Path) else v
+                                 for k, v in vars(options).items()}, out=options.out, phase='arguments')
     if not 1 <= options.batch <= 64 or options.warmup < 1 or options.iterations < 1:
         parser.error('invalid batch, warmup or iterations')
     if options.engine_cache is not None and options.system != 'tensorrt':
         parser.error('--engine-cache is only valid with --system tensorrt')
+    if options.freezing and options.system != 'torchcompile':
+        parser.error('--freezing is only valid with --system torchcompile')
+    if options.system == 'tvm' and options.tvm_work_dir is None:
+        parser.error('--system tvm requires --tvm-work-dir')
     import torch
     torch.set_num_threads(4)
     if options.system == 'export-onnx':
@@ -378,47 +455,105 @@ def main():
     if options.system == 'torchcompile' and options.precision != 'bf16':
         parser.error('torch.compile uses BF16 in the R16 protocol')
     options.out.mkdir(parents=True, exist_ok=True)
+    if (options.out / 'measurements.json').exists() or (options.out / 'failure.json').exists():
+        raise FileExistsError('retain prior baseline process evidence')
+    _run_context['phase'] = 'initialization'
     guard_log = options.out / 'guard.jsonl'
     observe(guard_log, 'before-initialization')
     program, manifest = load_export(options.export)
     module = program.module()
     args, kwargs = make_inputs(program, options.batch, options.seed)
+    input_hash, input_rows = inputs_digest(args, kwargs)
     reference_args, reference_kwargs = convert_inputs(args, kwargs, dtype=torch.float32)
     with torch.inference_mode():
         reference = [x.detach().clone() for x in leaves(portable_module(copy.deepcopy(module), dtype=torch.float32)(
             *reference_args, **reference_kwargs))]
     metadata = dict(input_seed=options.seed, inputs='fixed synthetic tensors resident on device',
+                    inputs_sha256=input_hash, input_tensors=input_rows,
+                    driver_sha256=sha(__file__),
                     reference='exported BF16 weights and inputs promoted to FP32; no accuracy certification')
+    _run_context['configuration'] = metadata
     with torch.inference_mode():
-        run = (torch_runner(module, args, kwargs, options.compile_mode, metadata)
-               if options.system == 'torchcompile' else tensorrt_runner(
-                   options.export, args, kwargs, options.precision, options.batch, options.out, metadata,
-                   options.engine_cache))
-        for _ in range(options.warmup):
+        _run_context['phase'] = 'compile'
+        if options.system == 'torchcompile':
+            run = torch_runner(module, args, kwargs, options.compile_mode, metadata,
+                               freezing=options.freezing, fullgraph=options.fullgraph == 'true')
+        elif options.system == 'tensorrt':
+            run = tensorrt_runner(options.export, args, kwargs, options.precision,
+                                  options.batch, options.out, metadata, options.engine_cache)
+        else:
+            import importlib.util
+            adapter_path = Path(__file__).with_name('tvm_baseline.py')
+            spec = importlib.util.spec_from_file_location('dnn1_tvm_baseline', adapter_path)
+            adapter = importlib.util.module_from_spec(spec)
+            sys.modules[spec.name] = adapter
+            spec.loader.exec_module(adapter)
+            run = adapter.tvm_runner(options.export, program, args, kwargs, options.precision,
+                                     options.batch, options.out, metadata,
+                                     work_dir=options.tvm_work_dir,
+                                     max_trials_global=options.tvm_max_trials,
+                                     timeout_s=options.tvm_timeout_s)
+        for index in range(options.warmup):
             run()
+            _run_context['phase'] = 'warmup'
         torch.cuda.synchronize()
+        _run_context['phase'] = 'correctness'
         actual = [x.detach().clone() for x in leaves(run())]
         torch.cuda.synchronize()
         correctness = numerical_metrics(actual, reference, manifest['model'])
+        correctness_gate(manifest['model'], correctness)
+        _run_context['phase'] = 'measurement'
         observe(guard_log, 'before-measurement')
-        values = timed(run, 0, options.iterations)
+        values = [] if options.correctness_only else timed(run, 0, options.iterations)
         observe(guard_log, 'after-measurement')
+    if options.system == 'torchcompile':
+        torch_library_identity(metadata)
     ordered = sorted(values)
     result = dict(schema_version=1, evidence='verified', system=options.system,
         model=manifest['model'], batch=options.batch, precision=options.precision,
         round_index=options.round_index, pid=os.getpid(), gpu_index=int(require_guard()[0]),
+        process_role='correctness' if options.correctness_only else 'measurement',
+        timing_status='not_measured' if options.correctness_only else 'measured',
         versions=versions(), accuracy_eligible=manifest.get('accuracy_eligible', False),
         random_weights=manifest.get('random_weights', False),
         exported_program_sha256=manifest['artifacts']['exported_program.pt2'],
         source_checkpoint_sha256=sha(options.export / 'checkpoint/model.safetensors'),
-        measurement=dict(warmup=options.warmup, iterations=options.iterations,
-                         clock='CUDA events', fresh_processes='outer scheduler; this receipt is one process'),
-        median_ms=statistics.median(values), p90_ms=ordered[math.ceil(0.9 * len(ordered)) - 1],
+        measurement=None if options.correctness_only else dict(
+            warmup=options.warmup, iterations=options.iterations,
+            clock='CUDA events', fresh_processes='outer scheduler; this receipt is one process'),
+        correctness_passed=True,
+        correctness_protocol=dict(warmup=options.warmup, input_seed=options.seed,
+                                  reference='same exported BF16 weights promoted to FP32'),
+        median_ms=statistics.median(values) if values else None,
+        p90_ms=ordered[math.ceil(0.9 * len(ordered)) - 1] if values else None,
         samples_ms=values, correctness=correctness, configuration=metadata,
         guard_log=str(guard_log.resolve()))
     (options.out / 'measurements.json').write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps({k: v for k, v in result.items() if k != 'samples_ms'}), flush=True)
 
 
+def entrypoint():
+    try:
+        main()
+    except Exception as error:
+        out = _run_context.get('out')
+        if out is not None:
+            out = Path(out)
+            out.mkdir(parents=True, exist_ok=True)
+            kind = getattr(error, 'failure_kind', None)
+            phase = _run_context.get('phase', 'unknown')
+            if kind is None:
+                kind = phase if phase in ('compile', 'correctness') else 'runtime'
+            failure = dict(evidence='verified failure', failure_kind=kind, phase=phase,
+                           error_type=type(error).__name__, error=str(error),
+                           traceback=traceback.format_exc(), options=_run_context.get('options'),
+                           correctness=getattr(error, 'metrics', None),
+                           configuration=_run_context.get('configuration', {}))
+            path = out / 'failure.json'
+            if not path.exists():
+                path.write_text(json.dumps(failure, indent=2) + '\n')
+        raise
+
+
 if __name__ == '__main__':
-    guarded_main(main)
+    guarded_main(entrypoint)
