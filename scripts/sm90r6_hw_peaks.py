@@ -98,6 +98,7 @@ def one(binary, gpu, item, gib, process, parallel_trial=False):
 def run(a):
     binary = build()
     rows = []
+    completed = set()
     for gpu in a.gpus:
         # Untimed or not, every GPU job takes its card's lock (section 1.5).
         claimed, handle = dispatch.claim('exclusive', f'h1-gpu{gpu}', only=gpu)
@@ -143,6 +144,13 @@ def run(a):
                         source_sha256=hashlib.sha256((ROOT / 'scripts/sm90r6_hw_peaks.cu').read_bytes()).hexdigest(),
                         throttle_reasons=';'.join(throttled)))
                     print(json.dumps(rows[-1]), flush=True)
+                # A wholly missing item produces no rows. It must still fail
+                # completion rather than disappear from the acceptance check.
+                expected_configs = {'hbm_read': 2, 'hbm_read_bulk': 4,
+                                    'bf16_wgmma': 1, 'bf16_mma_sync': 1}[item]
+                if len(per_config) == expected_configs and not failures and all(
+                        len(values) == a.processes for values in per_config.values()):
+                    completed.add((claimed, item))
         finally:
             handle.close()
     if rows:
@@ -162,8 +170,7 @@ def run(a):
                 writer.writerows(existing + rows)
             temporary.replace(a.csv)
         print(json.dumps({'csv': str(a.csv), 'rows': len(existing) + len(rows)}), flush=True)
-    return 0 if rows and all(r['processes'] == a.processes and not r['failed_processes']
-                            for r in rows) else 1
+    return 0 if completed == {(gpu, item) for gpu in a.gpus for item in a.items} else 1
 
 
 def main():
