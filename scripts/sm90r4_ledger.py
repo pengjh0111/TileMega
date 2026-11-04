@@ -30,10 +30,12 @@ def run(a):
     ids = json.loads(a.prompt_ids.read_text())[:a.batch]
     checkpoint = os.environ['TILEMEGA_RANDOM_CHECKPOINT']
     result = {}
+    reference_tokens = None
+    prefill = None if str(a.prefill) == 'prompt' else a.prefill
     for label, decode in (('trace', a.decode), ('reference', a.reference)):
         if decode is None:
             continue
-        with ServingEngine(checkpoint, a.prefill, decode, a.batch, prompt_len=64,
+        with ServingEngine(checkpoint, prefill, decode, a.batch, prompt_len=64,
                            max_new_tokens=a.tokens, mode='L1', decode_loop=True,
                            step_events=True, prefill_mode='L1') as engine:
             prompt = torch.tensor(ids, dtype=torch.int32)
@@ -42,6 +44,11 @@ def run(a):
             window = generation.step_ms[-SLOTS:]
             result[label] = dict(window_step_ms=window, window_mean_ms=sum(window) / len(window),
                                  tokens=generation.tokens[:, :8].tolist())
+            tokens = generation.tokens.tolist()
+            write(a.out / (label+'-tokens.json'),tokens)
+            if reference_tokens is not None and tokens != reference_tokens:
+                raise AssertionError('instrumented and reference generation tokens differ')
+            reference_tokens = tokens
             if label == 'trace':
                 dump = engine.decode_lib.lib.tm_plan_dump_serving_trace
                 dump.argtypes = [C.c_void_p, C.c_char_p]
@@ -57,6 +64,9 @@ def run(a):
                                   result['reference']['window_mean_ms'] - 1) * 100
     write(a.out / 'run.json', dict(result, decode_sha256=sha(a.decode), batch=a.batch,
                                    tokens=a.tokens, slots=SLOTS, driver_sha256=sha(__file__),
+                                   reference_sha256=sha(a.reference) if a.reference else None,
+                                   checkpoint=read(Path(checkpoint)/'random_checkpoint.json')['checkpoint_sha256'],
+                                   full_token_equivalence=a.reference is not None,
                                    diagnostic_only=True, performance_eligible=False))
 
 

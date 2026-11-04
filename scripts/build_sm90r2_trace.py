@@ -28,7 +28,7 @@ def main():
     a = p.parse_args()
     original, output = a.input.resolve(), a.out.resolve()
     runs = (ROOT / 'runs').resolve()
-    allowed = ('sm90r2', 'sm90r3', 'sm90r4', 'sm90r5')
+    allowed = ('sm90r2', 'sm90r3', 'sm90r4', 'sm90r5', 'sm90r6')
     if not any(output.is_relative_to(runs / r) for r in allowed) or output == original:
         p.error('diagnostic outputs belong under runs/' + ', runs/'.join(allowed))
     sys.path.insert(0, str(ROOT / 'python'))
@@ -64,14 +64,18 @@ def main():
     command = [str(output) if x == str(original) else str(output) + '.cu'
                if x == sources[0] else x for x in command]
     if a.source_root:
-        command = [x.replace(recorded, source['root']) for x in command]
+        command = [x if x in (str(output),str(output)+'.cu') else
+                   x.replace(recorded,source['root']) for x in command]
     command[1:1] = ['-lineinfo', f'-DTILEMEGA_TRACE_STAGE={a.stage_level}',
                     '-DTILEMEGA_TRACE_STEP=1']
     if a.native_phases:
         command.insert(1, '-DTILEMEGA_TRACE_NATIVE_PHASES=1')
     Path(str(output) + '.build_command.txt').write_text(shlex.join(command) + '\n')
     with Path(str(output) + '.ptxas.log').open('w') as log:
-        subprocess.run(command, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, check=True)
+        subprocess.run([sys.executable,str(ROOT/'scripts/run_sm90r1_build.py'),
+            '--receipt',str(output)+'.build_limits.json','--max-gib','48','--timeout','5400',
+            '--lock','/tmp/tilemega_sm90r2_native_build.lock','--',*command],
+            cwd=ROOT,stdout=log,stderr=subprocess.STDOUT,check=True)
     result = generate(output, source['root'], str(output) + '.source.json')
     if not result['trace']:
         raise ValueError('trace identity was not recorded')
