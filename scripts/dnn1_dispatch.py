@@ -20,6 +20,22 @@ import dnn1_device as device
 ROOT = baseline.ROOT
 
 
+def fresh_recovery(config, cell_key, worker_folder):
+    """Retain prior incomplete caches when a migrated cell needs another root."""
+    recovery = dict(config.get('tvm_infrastructure_recovery', {}))
+    if cell_key in recovery:
+        value = dict(recovery[cell_key])
+        previous = Path(value['work_dir'])
+        if previous.exists():
+            fresh = previous.with_name(previous.name + '__' + worker_folder.name)
+            if fresh.exists():
+                raise FileExistsError('recovery allocation must never overwrite ' + str(fresh))
+            value.update(work_dir=str(fresh), previous_recovery_work_dir=str(previous),
+                         recovery_reason='new queued attempt retains all previous cache evidence')
+            recovery[cell_key] = value
+    return recovery
+
+
 def cpu_list(text):
     result = set()
     for item in text.strip().split(','):
@@ -424,6 +440,8 @@ def main():
                 child=dict(config,gpu=g,cells=[pair],parallel=True,cpu_affinity=binding[g],
                     systems=state['systems'],scheduling_amendment=state['scheduling_amendment'],
                     python=str(python))
+                if config.get('tvm_infrastructure_recovery'):
+                    child['tvm_infrastructure_recovery'] = fresh_recovery(config,key,folder)
                 child['native_prefixes']={}
                 baseline.write(folder/'input.json',child)
                 baseline.queue(argparse.Namespace(spec=folder/'input.json',out=folder/'run',refresh_prepared=False))

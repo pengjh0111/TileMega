@@ -20,6 +20,20 @@ baseline=module.baseline
 
 
 class Dispatch(unittest.TestCase):
+    def test_recovery_root_is_fresh_without_modifying_old_cache(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary);old=root/'recovery';old.mkdir();evidence=old/'attempt.json'
+            evidence.write_text('retained interrupted attempt')
+            config=dict(tvm_infrastructure_recovery={'x':dict(work_dir=str(old),rejected_session='raw/session')})
+            result=module.fresh_recovery(config,'x',root/'x__dispatch003')
+            self.assertEqual(result['x']['work_dir'],str(root/'recovery__x__dispatch003'))
+            self.assertEqual(config['tvm_infrastructure_recovery']['x']['work_dir'],str(old))
+            self.assertEqual(evidence.read_text(),'retained interrupted attempt')
+            self.assertFalse(Path(result['x']['work_dir']).exists())
+            Path(result['x']['work_dir']).mkdir()
+            with self.assertRaises(FileExistsError):
+                module.fresh_recovery(config,'x',root/'x__dispatch003')
+
     def test_completed_rejected_payload_requires_full_dead_process_evidence(self):
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary);payload=root/'raw/dnn1-cell-x/attempt1/job';payload.mkdir(parents=True)
