@@ -144,7 +144,8 @@ inline Sm90ForwardResourceUsage QuerySm90ForwardResources(Sm90ForwardShape const
       r.task_count=1LL*positive("batch")*positive("output_width")*positive("output_height");
       break;
     case Sm90ForwardBody::kGlobalPool:
-      r.shared_bytes=1024;r.task_count=1LL*positive("batch")*ceildiv(positive("channels"),128);
+      r.shared_bytes=Sm90ForwardGlobalPoolLayout().end;
+      r.task_count=1LL*positive("batch")*ceildiv(positive("channels"),128);
       break;
     case Sm90ForwardBody::kEmbedding:
     case Sm90ForwardBody::kLayerNorm:

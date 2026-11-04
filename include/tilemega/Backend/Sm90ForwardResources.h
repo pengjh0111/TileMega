@@ -49,4 +49,8 @@ constexpr Sm90DenseLayout Sm90ForwardGemvLayout(int k,int block) {
   int end=Sm90ForwardAlign(page+2*block*64);
   return {1024,page,end,end};
 }
+// The cooperative GAP reducer owns 32 partial rows by 128 channel lanes.
+constexpr Sm90DenseLayout Sm90ForwardGlobalPoolLayout() {
+  return {1024,1024,1024,1024+32*128*4};
+}
 }  // namespace tilemega::backend

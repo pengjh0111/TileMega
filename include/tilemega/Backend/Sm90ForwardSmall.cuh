@@ -5,6 +5,7 @@
 #include <tilemega/Backend/Sm90ForwardMark.cuh>
 #include <tilemega/Backend/Sm90DenseAttentionMath.cuh>
 #include <tilemega/Backend/Sm90DenseLayout.h>
+#include <tilemega/Backend/Sm90ForwardResources.h>
 #include <tilemega/Backend/Sm90DenseRing.cuh>
 #include <tilemega/Codegen/executor/Async.cuh>
 
@@ -120,41 +121,56 @@ template<int Batch=1>
 struct Sm90ForwardGlobalPool {
   static_assert(Batch>=1);
   using Element=cutlass::bfloat16_t;
-  static constexpr int kThreads=160;
-  static constexpr Sm90DenseLayout kLayout{1024,1024,1024,1024};
-  static constexpr int kSharedBytes=1024;
-  __device__ static __forceinline__ void Run(Sm90ForwardSmallOperands const& p,char*,
+  // Load 32 partial rows cooperatively, then retain the original part order.
+  static constexpr int kParts=32,kColumns=128,kThreads=160;
+  static constexpr auto kLayout=Sm90ForwardGlobalPoolLayout();
+  static constexpr int kSharedBytes=kLayout.end;
+  __device__ static __forceinline__ void Run(Sm90ForwardSmallOperands const& p,char* shared,
       Sm90DenseRingState&) {
     if(threadIdx.x>=128)return;
-    TM_FWD_WINDOW_ACC(load_trace);TM_FWD_WINDOW_ACC(compute_trace);
-    TM_FWD_WINDOW_ACC(store_trace);
+    TM_FWD_WINDOW_ACC(load_trace);TM_FWD_WINDOW_ACC(compute_trace);TM_FWD_WINDOW_ACC(store_trace);
+    auto* tile=reinterpret_cast<float*>(shared+1024);
+    int tid=int(threadIdx.x),blocks=(p.channels+127)/128,total=Batch*blocks;
     float inverse=1.0f/float(p.height);
-    for(int task=int(blockIdx.x);task<Batch*((p.channels+127)/128);task+=int(gridDim.x)) {
-      int blocks=(p.channels+127)/128,image=task/blocks;
-      int c=(task%blocks)*128+int(threadIdx.x);
-      if(c>=p.channels)continue;
+    for(int task=int(blockIdx.x);task<total;task+=int(gridDim.x)) {
+      int image=task/blocks,first=(task%blocks)*128,live=min(128,p.channels-first);
       float sum=0;
-      for(int part=0;part<p.width;++part) {
-        auto* address=p.accumulator+(std::size_t(image)*p.width+part)*p.channels+c;
-#if TILEMEGA_TRACE_STAGE
+      // One or two partials have no latency chain to hide. This small-shape
+      // specialization avoids the cooperative path's synchronization cost.
+      if(p.width<=2) {
+        if(tid<live)for(int part=0;part<p.width;++part) {
+          auto* address=p.accumulator+(std::size_t(image)*p.width+part)*p.channels+first+tid;
+          TM_FWD_TRACE_BEGIN(load_trace);float value=*address;
+          TM_FWD_WINDOW_END(load_trace,task+int(gridDim.x)>=total && part+1==p.width);
+          TM_FWD_TRACE_BEGIN(compute_trace);sum+=value;
+          TM_FWD_WINDOW_END(compute_trace,task+int(gridDim.x)>=total && part+1==p.width);
+          TM_FWD_TRACE_BEGIN(store_trace);*address=0.f;TM_FWD_WINDOW_END(store_trace,false);
+        }
+      }else for(int base=0;base<p.width;base+=kParts) {
+        int count=min(kParts,p.width-base);
         TM_FWD_TRACE_BEGIN(load_trace);
-        float value=*address;
-        TM_FWD_WINDOW_END(load_trace,task+int(gridDim.x)>=Batch*((p.channels+127)/128) && part+1==p.width);
-        TM_FWD_TRACE_BEGIN(compute_trace);
-        sum+=value;
-        TM_FWD_WINDOW_END(compute_trace,task+int(gridDim.x)>=Batch*((p.channels+127)/128) && part+1==p.width);
-#else
-        sum+=*address;
-#endif
-        // The producing epilogue accumulates into these partials, so each
-        // launch must start from zero: the only reader clears them.
+        for(int i=tid;i<count*live;i+=128) {
+          int row=i/live,col=i%live;
+          tile[row*kColumns+col]=p.accumulator[(std::size_t(image)*p.width+base+row)*p.channels+first+col];
+        }
+        TM_FWD_WINDOW_END(load_trace,task+int(gridDim.x)>=total && base+count==p.width);
         TM_FWD_TRACE_BEGIN(store_trace);
-        *address=0.0f;
+        for(int i=tid;i<count*live;i+=128) {
+          int row=i/live,col=i%live;
+          p.accumulator[(std::size_t(image)*p.width+base+row)*p.channels+first+col]=0.f;
+        }
         TM_FWD_WINDOW_END(store_trace,false);
+        codegen::executor::ComputeSync();
+        TM_FWD_TRACE_BEGIN(compute_trace);
+        if(tid<live)for(int part=0;part<count;++part)sum+=tile[part*kColumns+tid];
+        TM_FWD_WINDOW_END(compute_trace,task+int(gridDim.x)>=total && base+count==p.width);
+        codegen::executor::ComputeSync();
       }
       TM_FWD_TRACE_BEGIN(store_trace);
-      p.output[std::size_t(image)*p.out_channels+c]=Element(sum*inverse);
-      TM_FWD_WINDOW_END(store_trace,task+int(gridDim.x)>=Batch*((p.channels+127)/128));
+      if(tid<live)p.output[std::size_t(image)*p.out_channels+first+tid]=Element(sum*inverse);
+      TM_FWD_WINDOW_END(store_trace,task+int(gridDim.x)>=total);
+      // The program's grid-barrier leader must follow every channel store.
+      codegen::executor::ComputeSync();
     }
     TM_FWD_TRACE_FLUSH(load_trace,kSmallLoad);TM_FWD_TRACE_FLUSH(compute_trace,kSmallCompute);
     TM_FWD_TRACE_FLUSH(store_trace,kSmallStore);
