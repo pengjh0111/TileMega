@@ -27,8 +27,10 @@ struct Sm90NativeStageNode {
 };
 
 struct Sm90NativeFlowResult {
-  double pool_score_ns = 0;      // Eq. (8) over one layer's stages
-  double step_ns = 0;            // the score times the layer instances
+  double pool_score_ns = 0;      // Eq. (8) over the complete decode step
+  double step_ns = 0;
+  FlowProblem problem;
+  FlowResult evaluated;
   std::vector<Sm90NativeStageNode> nodes;
   std::vector<double> stage_ns;  // per node, from FlowSpaceResult
   std::size_t cache_hits = 0, cache_misses = 0;
@@ -38,7 +40,11 @@ struct Sm90NativeFlowResult {
 // sync kind decided by the coordinate (group_wait, expert_fuse, embed_la, tp).
 std::vector<Sm90NativeStageNode> Sm90NativeStages(Sm90DenseWorkload const& work,
                                                  Sm90DenseCoordinates const& coordinates,
-                                                 Sm90DenseCostModel const& cost);
+                                                 Sm90DenseCostModel const& cost,
+                                                 bool isolated = false);
+
+double Sm90NativeOperatorSumScore(Sm90DenseWorkload const& work,
+    Sm90DenseCoordinates const& coordinates,Sm90DenseCostModel const& cost);
 
 // Eq. (8): build the FlowProblem from those stages and evaluate it.
 Sm90NativeFlowResult Sm90NativePoolScore(Sm90DenseWorkload const& work,

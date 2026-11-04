@@ -6,6 +6,7 @@
 // mechanism.
 #include <tilemega/Solver/Sm90NativePipeline.h>
 #include <cassert>
+#include <cmath>
 #include <cstdio>
 #include <set>
 
@@ -16,6 +17,26 @@ int main(int argc, char** argv) {
   auto target = TargetSpec::FromJson(argv[1]);
   auto constants = Sm90NativeConstants::FromTarget(json::ParseFile(argv[1]), argv[2]);
   Sm90DenseCostModel cost(target, constants);
+
+  // Eq. (10) must consume Eq. (9)'s singleton placement. Pooling the
+  // two producers would finish in 10; their required owner finishes in 20.
+  FlowProblem binding;binding.workers=2;binding.dram_gbps=1;
+  FlowSpace producer;producer.count=2;producer.piece_of_task={0,0};
+  TaskPriceParts ten;ten.compute_ns=10;
+  producer.pieces={{2,ten}};binding.spaces.push_back(producer);
+  FlowSpace consumer;consumer.count=1;consumer.order=1;consumer.piece_of_task={0};
+  TaskPriceParts five;five.compute_ns=5;
+  consumer.pieces={{1,five}};binding.spaces.push_back(consumer);
+  FlowRelease edge;edge.producer=0;edge.consumer=1;edge.hop_ns=2;
+  edge.sorted=std::make_shared<std::vector<std::pair<int,int>> const>(
+      std::vector<std::pair<int,int>>{{1,0}});binding.edges.push_back(edge);
+  auto constrained=RefineAndReplaySm90Native(binding,{{0,0},{1}});
+  assert(constrained.placement.worker_of_task==std::vector<std::vector<int>>({{0,0},{1}}));
+  assert(std::abs(constrained.replay.makespan_ns-27)<1e-9);
+  assert(std::abs(constrained.estimated_finish_ns[1][0]-27)<1e-9);
+  assert(std::abs(EvaluateFlow(binding).makespan_ns-17)<1e-9);
+  assert(Sm90NativeCandidateTracks(binding,{0,1})==
+      std::vector<std::vector<int>>({{0,1},{1}}));
 
   Sm90DenseWorkload work;
   work.shapes = {{{4096, 2048}, {2048, 2048}, {6144, 2048}, {2048, 3072}, {151936, 2048}}};
@@ -62,8 +83,29 @@ int main(int argc, char** argv) {
   sum.operator_sum = true;
   auto other = SolveSm90NativePipeline(space, work, cost, sum);
   assert(!other.finalists.empty());
+  for(auto const& candidate:other.finalists) {
+    assert(candidate.replay_ns==candidate.pool_score_ns);
+    double independent=0;
+    for(auto const& node:Sm90NativeStages(work,candidate.coordinates,cost,true)) {
+      auto single=Sm90NativeSingleStageProblem(node.price,cost,candidate.coordinates.residency);
+      for(auto const& s:single.spaces)for(auto const& piece:s.pieces)
+        assert(piece.parts.no_producer_dram_bytes==0);
+      independent+=node.instances*EvaluateFlow(single).makespan_ns;
+    }
+    assert(std::abs(candidate.pool_score_ns-independent)<1e-6);
+  }
   std::printf("operator-sum: evaluated %zu, best %.1f ns (pool objective best %.1f)\n",
               other.evaluations, other.finalists.front().pool_score_ns,
               result.finalists.front().pool_score_ns);
+
+  auto pin=options;pin.budget_ms=1000;
+  pin.pinned_theta=result.finalists.front().coordinates;
+  auto pinned=SolveSm90NativePipeline(space,work,cost,pin,{*pin.pinned_theta});
+  assert(!pinned.evaluated.empty());
+  for(auto const& candidate:pinned.evaluated)for(unsigned f:candidate.coordinates.Active()) {
+    auto const& a=candidate.coordinates.gemms[f];auto const& b=pin.pinned_theta->gemms[f];
+    assert(a.tile_n==b.tile_n && a.TileK()==b.TileK() && a.warps_n==b.warps_n &&
+           a.warps_k==b.warps_k && a.multicast==b.multicast);
+  }
   return 0;
 }

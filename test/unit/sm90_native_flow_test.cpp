@@ -28,6 +28,9 @@ int main(int argc,char**argv){
         batch,int(wait),flow.pool_score_ns,flow.step_ns,additive.step_ns,flow.step_ns/additive.step_ns);
       assert(flow.pool_score_ns > 0 && flow.step_ns > 0);
       assert(flow.stage_ns.size() == flow.nodes.size());
+      assert(flow.problem.spaces.back().name=="gemm4");
+      assert(std::count_if(flow.problem.spaces.begin(),flow.problem.spaces.end(),
+          [](auto const& s){return s.name=="gemm4";})==1);
       if (wait) waited = flow.step_ns; else barriered = flow.step_ns;
     }
     // A cheaper boundary cannot make the program slower.

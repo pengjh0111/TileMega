@@ -45,7 +45,7 @@ std::shared_ptr<std::vector<std::pair<int, int>> const> ReleaseTable(
 
 std::vector<Sm90NativeStageNode> Sm90NativeStages(Sm90DenseWorkload const& work,
                                                   Sm90DenseCoordinates const& c,
-                                                  Sm90DenseCostModel const& cost) {
+                                                  Sm90DenseCostModel const& cost,bool isolated) {
   // The stage sequence and the `pre` rule are the cost model's own
   // (Sm90DenseCostModel.cpp:99-118); only the pricing and the boundary
   // semantics differ here.
@@ -66,23 +66,16 @@ std::vector<Sm90NativeStageNode> Sm90NativeStages(Sm90DenseWorkload const& work,
   for (unsigned f : c.Active()) {
     Sm90NativeStageNode node;
     node.price = Sm90NativeGemmPrice(work, f, c.gemms[f], c.residency, cost,
-                                     c.weight_stream, pre[f]);
+                                     !isolated && c.weight_stream, !isolated && pre[f]);
     node.instances = f == 4 ? 1 : work.layers;
     // Appendix A. qkv releases attention by KV group when the coordinate asks
     // for the group wait (Coarsen); o and down reduce across ranks inside the
     // epilogue at tp > 1 (Realize, data); the fused expert stage waits on a
     // per-expert count; everything else is the V3 barrier.
-    if (f == 0 && c.group_wait) {
-      node.sync = Sm90SyncKind::kGroup;
-      node.kappa = std::max(1, int(work.shapes[0][0] / c.gemms[0].tile_n) /
-                               std::max(1, work.hkv));
-    } else if (work.tp > 1 && (f == 1 || f == 3)) {
-      node.sync = Sm90SyncKind::kData;
-    } else if (c.moe && c.expert_fuse && f == 7) {
+    if (c.moe && c.expert_fuse && f == 7) {
       node.sync = Sm90SyncKind::kCounted;
       node.kappa = std::max(1, int(work.shapes[6][0] / c.gemms[6].tile_n));
-    } else if (f == 4 && c.embed_la) {
-      node.sync = Sm90SyncKind::kHandoff;
+      node.price.hop_ns=0;
     }
     nodes.push_back(std::move(node));
   }
@@ -91,9 +84,25 @@ std::vector<Sm90NativeStageNode> Sm90NativeStages(Sm90DenseWorkload const& work,
   attention.price = Sm90NativeAttentionPrice(work, c.attention, c.residency, cost);
   attention.instances = work.layers;
   attention.sync = c.group_wait ? Sm90SyncKind::kGroup : Sm90SyncKind::kAggregate;
-  attention.kappa = c.group_wait ? std::max(1, work.hkv) : 1;
+  attention.kappa = c.group_wait ?
+      std::max(1,work.shapes[0][0]/c.gemms[0].tile_n/work.hkv) : 1;
+  if(c.group_wait)attention.price.hop_ns=std::max(0.,
+      cost.Constants().Barrier(cost.Grid(c.residency))-
+      cost.Constants().GroupWaitSaving(cost.Grid(c.residency)));
+  if(isolated)for(auto* part:{&attention.price.middle,&attention.price.head,
+      &attention.price.tail,&attention.price.head_and_tail})part->no_producer_dram_bytes=0;
   nodes.insert(nodes.begin() + 1, std::move(attention));
   return nodes;
+}
+
+double Sm90NativeOperatorSumScore(Sm90DenseWorkload const& work,
+    Sm90DenseCoordinates const& c,Sm90DenseCostModel const& cost) {
+  double sum=0;
+  for(auto const& node:Sm90NativeStages(work,c,cost,true)) {
+    auto isolated=Sm90NativeSingleStageProblem(node.price,cost,c.residency);
+    sum+=node.instances*EvaluateFlow(isolated).makespan_ns;
+  }
+  return sum;
 }
 
 Sm90NativeFlowResult Sm90NativePoolScore(Sm90DenseWorkload const& work,
@@ -104,7 +113,7 @@ Sm90NativeFlowResult Sm90NativePoolScore(Sm90DenseWorkload const& work,
   Sm90NativeFlowResult result;
   result.nodes = Sm90NativeStages(work, c, cost);
 
-  FlowProblem problem;
+  auto& problem=result.problem;
   problem.workers = cost.Grid(c.residency);
   problem.dram_gbps = constants.dram_gbps;
   problem.hop_ns = constants.Barrier(problem.workers);
@@ -114,20 +123,14 @@ Sm90NativeFlowResult Sm90NativePoolScore(Sm90DenseWorkload const& work,
   // once. Multiplying one layer's makespan by the layer count would charge
   // the head 28 times and would also hide the boundary between layers.
   std::vector<std::size_t> node_of_space;
-  for (std::size_t i = 0; i < result.nodes.size(); ++i)
-    for (int instance = 0; instance < result.nodes[i].instances; ++instance)
-      node_of_space.push_back(i);
-  // Layer-major order: the stages of layer 0, then layer 1, and so on.
-  std::stable_sort(node_of_space.begin(), node_of_space.end(),
-                   [&](std::size_t a, std::size_t b) {
-                     return result.nodes[a].instances > result.nodes[b].instances;
-                   });
-  node_of_space.clear();
   int layers = 0;
   for (auto const& node : result.nodes) layers = std::max(layers, node.instances);
   for (int layer = 0; layer < layers; ++layer)
     for (std::size_t i = 0; i < result.nodes.size(); ++i)
-      if (layer < result.nodes[i].instances) node_of_space.push_back(i);
+      if (result.nodes[i].price.name!="gemm4" && layer < result.nodes[i].instances)
+        node_of_space.push_back(i);
+  for(std::size_t i=0;i<result.nodes.size();++i)
+    if(result.nodes[i].price.name=="gemm4")node_of_space.push_back(i);
 
   for (std::size_t space_index = 0; space_index < node_of_space.size(); ++space_index) {
     std::size_t i = node_of_space[space_index];
@@ -186,7 +189,8 @@ Sm90NativeFlowResult Sm90NativePoolScore(Sm90DenseWorkload const& work,
     problem.edges.push_back(std::move(edge));
   }
 
-  auto evaluated = EvaluateFlow(problem);
+  result.evaluated=EvaluateFlow(problem);
+  auto const& evaluated=result.evaluated;
   // The makespan of the whole step is the score; nothing is multiplied.
   result.pool_score_ns = evaluated.makespan_ns;
   result.step_ns = evaluated.makespan_ns;

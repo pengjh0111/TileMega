@@ -4,6 +4,7 @@
 #include <tilemega/Solver/Sm90DenseSearchSpace.h>
 #include <tilemega/Solver/Sm90DenseSearch.h>
 #include <string>
+#include <optional>
 #include <vector>
 
 namespace tilemega::solver {
@@ -17,13 +18,27 @@ struct Sm90NativePipelineOptions {
   int finalists = 4;              // ranked by replay
   int per_class = 2;              // at most this many finalists share a class
   double budget_ms = 600000;      // --search-budget-ms
-  // AB-2: score with the additive model instead of Eq. (8).
+  // AB-2: sum isolated evaluations with the same prices and evaluator.
   bool operator_sum = false;
   // AB-4a: forbid the structural rows of Table 1 other than Retile.
   bool retile_only = false;
   // AB-4b: every coupling becomes an aggregate (V3) boundary.
   bool realize_aggregate = false;
+  std::optional<Sm90DenseCoordinates> pinned_theta;
 };
+
+struct Sm90NativeReplayResult {
+  FlowPlacement placement;
+  std::vector<std::vector<double>> estimated_start_ns,estimated_finish_ns;
+  FlowResult replay;
+};
+
+// Eq. (9)'s candidate set is the native skeleton's singleton track. Offsets
+// account for families sharing a fused stage's grid-stride task list.
+std::vector<std::vector<int>> Sm90NativeCandidateTracks(
+    FlowProblem const&,std::vector<int> const& offsets={});
+Sm90NativeReplayResult RefineAndReplaySm90Native(FlowProblem const&,
+    std::vector<std::vector<int>> const& candidate_tracks);
 
 struct Sm90NativePipelineCandidate {
   Sm90DenseCoordinates coordinates;

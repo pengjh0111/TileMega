@@ -275,6 +275,7 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
       // AB-1: each family's geometry is fixed by a local criterion and the
       // rest of the decisions are still Algorithm 1's.
       auto pinned=solver::Sm90DenseCoordinates::FromJson(json::ParseFile(o.pin_theta));
+      pipeline.pinned_theta=pinned;
       seeds.push_back(pinned);
     }
     auto pipelined=solver::SolveSm90NativePipeline(space,work,cost,pipeline,seeds);
