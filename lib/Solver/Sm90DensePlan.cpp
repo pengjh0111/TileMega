@@ -197,6 +197,35 @@ mlir::OwningOpRef<mlir::ModuleOp> MaterializeSm90Dense(
   theta.set(role.getValue(),b.getI64IntegerAttr(batch));
   (*module)->setAttr("tilemega.theta",theta.getDictionary(&context));
   (*module)->setAttr("tmexec.nonpaged_weight_layout_tiled",b.getBoolAttr(true));
+  // P4 WriteBack: the decision layer records how each boundary is realized, so
+  // codegen reads the synchronization from the IR instead of re-deriving it
+  // from the stage structure. The placement is the skeleton's closed-form
+  // template this round (prompt §4.0 item 3).
+  {
+    // Each boundary's kind follows from the coordinate alone (appendix A): the
+    // group wait coarsens qkv -> attention, tp realizes o and down as in-
+    // epilogue reductions, fusion makes the expert boundary a count, and the
+    // head's last arriver is a handoff. The event extents are derived at
+    // lowering from the same coordinate, where the shapes are in scope.
+    mlir::NamedAttrList kinds;
+    auto kind=[&](char const* stage,char const* value) {
+      kinds.set(stage,b.getStringAttr(value));
+    };
+    kind("qkv",c.group_wait?"group":"aggregate");
+    kind("attention",c.group_wait?"group":"aggregate");
+    kind("o",c.tp>1?"data":"aggregate");
+    if(c.moe) {
+      kind("router","aggregate");
+      kind("expert_gate_up","aggregate");
+      kind("expert_down",c.expert_fuse?"counted":"aggregate");
+    } else {
+      kind("gate_up","aggregate");
+      kind("down",c.tp>1?"data":"aggregate");
+    }
+    kind("lm_head",c.embed_la?"handoff":"aggregate");
+    (*module)->setAttr("tmexec.sync_kind",kinds.getDictionary(&context));
+    (*module)->setAttr("tmexec.placement",b.getStringAttr("template"));
+  }
   codegen::ResolveServingWeightPacking(*module);
   if(mlir::failed(mlir::verify(*module)))throw std::invalid_argument("native dense CTG verification failed");
   return module;
