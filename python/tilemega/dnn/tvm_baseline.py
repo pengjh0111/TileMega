@@ -27,7 +27,7 @@ TVM_COMMIT = "7b5acb32bd271342a24130f4ef439ff6c2e52c6c"
 TARGET = "cuda -arch=sm_90a"
 # v0.27 requires structured Target construction; this is the same fixed target.
 TARGET_CONFIG = {"kind": "cuda", "arch": "sm_90a"}
-RECIPE = dict(schema=4, builder_workers="min(8, CPU affinity)", ffi="pinned-submodule-python-build", importer_output_dtype="aten-with-fp32-accumulation", target=TARGET, import_exported_program=True,
+RECIPE = dict(schema=5, completed_measurements="commit-before-next-build", builder_workers="min(8, CPU affinity)", ffi="pinned-submodule-python-build", importer_output_dtype="aten-with-fp32-accumulation", target=TARGET, import_exported_program=True,
               keep_params_as_input=True, partition=["cublas", "cudnn"],
               run_codegen=True, pipeline="zero", tune_before_default_schedule=True,
               schedules=["Matmul", "GEMV", "Reduction", "GeneralReduction", "Fallback"],
@@ -424,10 +424,15 @@ def _tune_worker(request):
     from tvm.ir.utils import derived_object
     workers = min(8, len(os.sched_getaffinity(0)))
     delegate = ms.builder.LocalBuilder(max_workers=workers)
+    scheduler = ms.task_scheduler.GradientBased()
 
     @derived_object
     class JournalBuilder(ms.builder.PyBuilder):
         def build(self, inputs):
+            # GradientBased otherwise defers all initial-round commits until
+            # every task has run. Retain finished samples before the wall cap.
+            for task_id in range(len(scheduler.tasks_)):
+                scheduler.touch_task(task_id)
             results = delegate.build(inputs)
             with (directory / "builder_results.jsonl").open("a") as log:
                 for index, result in enumerate(results):
@@ -456,6 +461,7 @@ def _tune_worker(request):
             database = ms.relax_integration.tune_relax(
                 mod, params={}, target=target, work_dir=str(directory),
                 max_trials_global=request["max_trials_global"], builder=JournalBuilder(),
+                task_scheduler=scheduler,
                 measure_callbacks=[JournalMeasurement(), *ms.measure_callback.MeasureCallback.create("default")])
         else:
             database = ms.database.JSONDatabase(work_dir=str(directory))
