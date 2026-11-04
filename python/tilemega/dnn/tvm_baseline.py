@@ -25,6 +25,8 @@ import traceback
 
 TVM_COMMIT = "7b5acb32bd271342a24130f4ef439ff6c2e52c6c"
 TARGET = "cuda -arch=sm_90a"
+# v0.27 requires structured Target construction; this is the same fixed target.
+TARGET_CONFIG = {"kind": "cuda", "arch": "sm_90a"}
 RECIPE = dict(schema=1, target=TARGET, import_exported_program=True,
               keep_params_as_input=True, partition=["cublas", "cudnn"],
               run_codegen=True, pipeline="zero", tune_before_default_schedule=True,
@@ -398,7 +400,7 @@ def _tune_worker(request):
         import transformers.modeling_outputs  # registers the stored output pytree
     torch.set_num_threads(4)
     program = torch.export.load(request["export"])
-    target = tvm.target.Target(TARGET)
+    target = tvm.target.Target(TARGET_CONFIG)
     directory = Path(request["tune_dir"])
     started = time.monotonic()
     with target:
@@ -567,10 +569,10 @@ def tvm_runner(directory, program, args, kwargs, precision, batch, out, metadata
                     cache_directory=str(entry), gpu_uuid=gpu_uuid,
                     cache_identity=identity)
         publish()
+        phase = "compile"
         from tvm import relax
         from tvm.s_tir import dlight, meta_schedule as ms
-        target = tvm.target.Target(TARGET)
-        phase = "compile"
+        target = tvm.target.Target(TARGET_CONFIG)
         with (entry / "cache.lock").open("a+b") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
             receipt_path, library_path = entry / "compiled.json", entry / "model.so"
@@ -611,7 +613,7 @@ def tvm_runner(directory, program, args, kwargs, precision, batch, out, metadata
                     diag["scheduled_tir_function_count"] = sum(
                         bool(function.attrs.get("tirx.is_scheduled", False)) for function in primfuncs)
                     (entry / "ir/final.py").write_text(mod.script())
-                    executable = tvm.compile(mod, target=TARGET)
+                    executable = tvm.compile(mod, target=target)
                 diag.update(_source_diagnostics(executable, entry / "sources"))
                 (entry / "export").mkdir(exist_ok=True)
                 executable.export_library(str(library_path), workspace_dir=str(entry / "export"))
