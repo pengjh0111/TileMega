@@ -2,11 +2,12 @@
 
 Status: **in_progress; G-PIPELINE is not passed**. Current reconciliation starts at
 `f0177daa8bdd90a22f2b433c0eccf9f723266892`; new K256 evidence retains its own source/build identity.
-The [latest TaskBody continuation](AS2_taskbody_round_20261102.md) adds real
-full-model Body/session/KV checks, paired local timing and context-weighted
-request recipe search. Experimental defaults remain disabled. Its device
-identity/health evidence supersedes earlier snapshots only for its own paths;
-historical G14/K256 failures remain recorded.
+The [latest TaskBody checkpoint](AS2_dense_20261104.md) adds compiled batched
+residual and bounded Host diagnosis; new NPU work is blocked by device Alarm.
+The [earlier full-model continuation](AS2_taskbody_round_20261102.md) records
+Body/session/KV checks, local timing and context-weighted request search.
+Experimental defaults remain disabled. Device evidence applies to its own
+time/path; historical G14/K256 failures remain recorded.
 `verified-code` means inspected source; `verified-run` means retained actual
 execution. Earlier runs retain their original date/device/software identity.
 Prompt SHA256: `673b6deb619cb02f1c3f2d0875af2bdafb835bca09e3875d7dbfb840b1be00d6`.
