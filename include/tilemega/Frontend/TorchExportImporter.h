@@ -36,6 +36,9 @@ struct ImportOptions {
   bool phase_analysis = false;  // R12: only materialized paged decode plans.
   int phase_batch = 0;         // Fixed batch of the materialized serving plan.
   analysis::ParamBinding task_binding;  // Bound DM task/event capacity; absent for legacy plans.
+  // An implementation may expand a declared reduction into physical partial
+  // and reducer spaces while retaining the same imported semantic graph.
+  std::optional<analysis::Granularity> launch_granularity;
 };
 struct ImportedSemantics {
   ExportBridge bridge;

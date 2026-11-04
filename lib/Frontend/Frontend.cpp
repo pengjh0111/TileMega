@@ -965,6 +965,7 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
   analysis::Granularity g = plan.stages.empty()
       ? LaunchGranularity(lifted)
       : LaunchGranularity(lifted, plan, runtimeGemms);
+  if(options.launch_granularity)g=*options.launch_granularity;
   analysis::OperatorGraph graph = [&] { solver::SolverPhase phase(timing,"instantiate");
     return analysis::Instantiate(lifted.sem,g); }();
 
