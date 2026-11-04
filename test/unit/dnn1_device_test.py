@@ -11,6 +11,15 @@ import dnn1_device as device
 
 
 class ResourcePolicy(unittest.TestCase):
+    def test_versioned_floor_accepts_only_observed_idle_rounding(self):
+        from dnn1_idle_floor_python import idle
+        row = dict(gpu_index=3, owners={}, used_mib=1, free_mib=81079)
+        self.assertTrue(idle(row, {}, 8192))
+        self.assertFalse(device.idle(row, {}, 8192))
+        for change in (dict(used_mib=2), dict(used_mib=-1),
+                       dict(owners={123: 1}), dict(gpu_index=6), dict(free_mib=1)):
+            self.assertFalse(idle(dict(row, **change), {}, 8192))
+
     def test_standalone_and_package_observers_both_use_the_provider(self):
         device.install()
         import baseline_common
