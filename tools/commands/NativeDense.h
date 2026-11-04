@@ -17,6 +17,7 @@ struct NativeDenseSolveOptions {
   // `pipeline` is the default for native decode; `additive` reproduces the
   // R3-R5 selections and is never used for a final choice this round.
   std::string search="pipeline";
+  std::string analysis="reuse";
   // AB-2: rank by the sum of the operators' own times (Eq. 7 per operator)
   // instead of the program's completion (Eq. 8).
   bool operator_sum=false;

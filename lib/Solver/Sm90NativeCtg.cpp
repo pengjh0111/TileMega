@@ -306,6 +306,23 @@ std::shared_ptr<std::vector<std::pair<int,int>> const> Sm90NativeReleaseTable(
   if(producers<1 || consumers<1 || kappa<1)
     throw std::invalid_argument("native release table requires positive task and event extents");
   auto bound=relation.BindParams(binding);
+  if(cache.materialize) {
+    auto points=bound.Points();
+    cache.enumerated_edges+=points.size();
+    std::vector<int> maximum(consumers,-1);
+    for(auto const& [producer,consumer]:points) {
+      if(producer.size()!=1 || consumer.size()!=1 || producer[0]<0 ||
+         producer[0]>=producers || consumer[0]<0 || consumer[0]>=consumers)
+        throw std::invalid_argument("materialized coupling is outside the scalar task domains");
+      maximum[consumer[0]]=std::max(maximum[consumer[0]],int(producer[0]));
+    }
+    auto sorted=std::make_shared<std::vector<std::pair<int,int>>>();
+    for(int consumer=0;consumer<consumers;++consumer)
+      if(maximum[consumer]>=0)
+        sorted->emplace_back(CoarsenRelease(maximum[consumer],producers,kappa),consumer);
+    std::sort(sorted->begin(),sorted->end());
+    return sorted;
+  }
   std::ostringstream key;
   key<<bound.ToString()<<'\n'<<producers<<':'<<consumers<<':'<<kappa;
   auto found=cache.releases.find(key.str());

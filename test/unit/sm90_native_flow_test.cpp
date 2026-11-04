@@ -27,6 +27,24 @@ int main(int argc,char**argv){
   assert(cache.release_hits==1 && cache.release_misses==1);
   auto coarse=Sm90NativeReleaseTable(relation,8,3,4,{},cache);
   assert((*coarse==std::vector<std::pair<int,int>>({{3,1},{3,2},{7,0}})));
+  Sm90NativeCtgCache explicit_cache;explicit_cache.materialize=true;
+  assert(*Sm90NativeReleaseTable(relation,8,3,4,{},explicit_cache)==*coarse);
+  assert(explicit_cache.enumerated_edges==8 && explicit_cache.release_hits==0);
+  auto sparse=analysis::CouplingRelation::FromIslText(
+      "{ [p] -> [c] : 0<=p<9 and 0<=c<6 and p=2*c }");
+  assert(*Sm90NativeReleaseTable(sparse,9,6,4,{},explicit_cache)==
+         *Sm90NativeReleaseTable(sparse,9,6,4,{},cache));
+  assert(explicit_cache.enumerated_edges==13);
+  FlowProblem identity_test;identity_test.spaces.resize(1);
+  identity_test.spaces[0].pieces.resize(1);identity_test.edges.resize(1);
+  identity_test.edges[0].sorted=coarse;
+  auto identity=Sm90NativeFlowIdentity(identity_test);
+  auto changed_identity=identity_test;changed_identity.spaces[0].pieces[0].parts.fixed_ns=-0.;
+  assert(Sm90NativeFlowIdentity(changed_identity)!=identity);
+  changed_identity=identity_test;changed_identity.edges[0].first=coarse;
+  assert(Sm90NativeFlowIdentity(changed_identity)!=identity);
+  changed_identity=identity_test;changed_identity.spaces[0].pages_per_worker=1;
+  assert(Sm90NativeFlowIdentity(changed_identity)!=identity);
   Sm90DenseWorkload work;
   work.shapes={{{4096,2048},{2048,2048},{6144,2048},{2048,3072},{151936,2048}}};
   work.layers=28;work.head_dim=128;work.queries=2;work.hkv=8;work.qk_norm=true;

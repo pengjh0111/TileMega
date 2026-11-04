@@ -26,6 +26,8 @@ struct Sm90NativeCtg {
   std::vector<Sm90NativeCtgEdge> edges;
 };
 struct Sm90NativeCtgCache {
+  bool materialize=false;
+  std::size_t enumerated_tasks=0,enumerated_edges=0;
   analysis::CouplingCache coupling;
   SolverTiming timing;
   std::map<std::string,Sm90NativeCtgSpace> spaces;

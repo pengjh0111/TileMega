@@ -368,7 +368,7 @@ int RunCompile(int argc, char** argv) {
     int skeleton_k=8,search_passes=3,search_jobs=1,search_top_m=8,
         search_budget_ms=0,measure_top=6;
   // Continuation 1 sections 3 and 5: the search path and the ablation arms.
-  std::string native_search="pipeline",pin_theta,seed_coordinates;
+  std::string native_search="pipeline",native_analysis="reuse",pin_theta,seed_coordinates;
   bool operator_sum=false,retile_only=false,realize_aggregate=false;
     // Megatron tensor parallel degree for a native dense solve.
     int serving_tp=1;
@@ -400,6 +400,11 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--search-passes") search_passes=std::stoi(value);
       else if (flag=="--measure-top") measure_top=std::stoi(value);
       else if (flag=="--search") native_search=value;
+      else if (flag=="--analysis") {
+        if(value!="reuse" && value!="rederive" && value!="materialize")
+          throw std::runtime_error("--analysis takes reuse, rederive, or materialize");
+        native_analysis=value;
+      }
       else if (flag=="--objective") {
         if(value!="operator-sum" && value!="completion")
           throw std::runtime_error("--objective takes operator-sum or completion");
@@ -673,7 +678,7 @@ int RunCompile(int argc, char** argv) {
       native.dump_cg=dump_cg;native.measure_command=measure_command;native.batch=serving_batch;
       native.split_compile=nvcc_split_compile;native.measure_top=measure_top;
       native.measured=search_selection=="measure";native.tp=serving_tp;
-      native.search=native_search;native.operator_sum=operator_sum;
+      native.search=native_search;native.analysis=native_analysis;native.operator_sum=operator_sum;
       native.retile_only=retile_only;native.realize_aggregate=realize_aggregate;
       native.pin_theta=pin_theta;
       native.seed_coordinates=seed_coordinates;

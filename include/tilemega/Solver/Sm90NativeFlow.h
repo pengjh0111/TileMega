@@ -36,7 +36,13 @@ struct Sm90NativeFlowResult {
   std::vector<Sm90NativeStageNode> nodes;
   std::vector<double> stage_ns;  // per node, from FlowSpaceResult
   std::size_t cache_hits = 0, cache_misses = 0;
+  double analysis_ms=0,release_ms=0,pricing_ms=0,evaluation_ms=0;
+  std::size_t derivations=0,enumerated_tasks=0,enumerated_edges=0;
 };
+
+// Exact value encoding, including floating-point representations and optional
+// tables. It intentionally excludes pointers, padding, and measured CPU time.
+std::string Sm90NativeFlowIdentity(FlowProblem const&);
 
 // The stages of one decode step at these coordinates, with each boundary's
 // sync kind decided by the coordinate (group_wait, expert_fuse, embed_la, tp).
@@ -57,4 +63,7 @@ Sm90NativeFlowResult Sm90NativePoolScore(Sm90DenseWorkload const& work,
 Sm90NativeFlowResult Sm90NativeCtgScore(frontend::ImportedSemantics const&,
     Sm90DenseWorkload const&,Sm90DenseCoordinates const&,Sm90DenseCostModel const&,
     mlir::MLIRContext&,Sm90NativeCtgCache&,bool isolated=false);
+Sm90NativeFlowResult Sm90NativeAnalyze(frontend::ImportedSemantics const&,
+    Sm90DenseWorkload const&,Sm90DenseCoordinates const&,Sm90DenseCostModel const&,
+    mlir::MLIRContext&,Sm90NativeCtgCache&,std::string const& mode,bool isolated=false);
 }  // namespace tilemega::solver

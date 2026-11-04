@@ -248,6 +248,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     candidate.coordinates = c;
     candidate.pool_score_ns = value;
     candidate.evaluation_ms=std::chrono::duration<double,std::milli>(Clock::now()-before).count();
+    candidate.discovered_ms=spent_ms();
     candidate.structural_class = Sm90NativeStructuralClass(c);
     candidate.origin=origin;
     result.evaluated.push_back(std::move(candidate));

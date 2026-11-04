@@ -46,6 +46,7 @@ struct Sm90NativePipelineCandidate {
   double pool_score_ns = 0;
   double replay_ns = 0;
   double evaluation_ms = 0;
+  double discovered_ms = 0;
   std::string origin;            // which seed or move produced it
   std::string structural_class;  // continuation 1 section 3's structural key
 };

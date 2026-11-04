@@ -259,6 +259,8 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   space.layer_loop=decisions->At("layer_loop").AsBool("layer_loop");
   if(o.search!="pipeline" && o.search!="additive")
     throw std::invalid_argument("--search takes pipeline or additive");
+  if(o.search!="pipeline" && o.analysis!="reuse")
+    throw std::invalid_argument("non-reuse analysis requires pipeline search");
   solver::Sm90DenseSearchOptions search;search.top=o.measure_top;
   auto result=solver::SearchSm90Dense(space,work,cost,search);
   json::Value pipeline_record;
@@ -285,17 +287,40 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
     mlir::MLIRContext context;
     auto imported=solver::ImportSm90Dense(o.input,result.ranked.front().coordinates,context);
     solver::Sm90NativeCtgCache cache;
+    std::map<std::string,std::string> flow_identities;
+    json::Array analysis_calls;
     auto evaluate=[&](solver::Sm90DenseCoordinates const& c,bool isolated) {
-      return solver::Sm90NativeCtgScore(imported,work,c,cost,context,cache,isolated);
+      auto flow=solver::Sm90NativeAnalyze(imported,work,c,cost,context,cache,o.analysis,isolated);
+      if(o.analysis!="reuse")flow_identities[c.ToJson().Dump(0)]=solver::Sm90NativeFlowIdentity(flow.problem);
+      analysis_calls.emplace_back(json::Object{{"coordinates",c.ToJson()},
+          {"analysis_ms",flow.analysis_ms},{"release_ms",flow.release_ms},
+          {"pricing_ms",flow.pricing_ms},{"evaluation_ms",flow.evaluation_ms},
+          {"derivations",double(flow.derivations)},
+          {"enumerated_tasks",double(flow.enumerated_tasks)},
+          {"enumerated_edges",double(flow.enumerated_edges)}});
+      return flow;
     };
     auto pipelined=solver::SolveSm90NativePipeline(space,work,cost,pipeline,evaluate,seeds);
+    auto verification_start=std::chrono::steady_clock::now();
+    if(o.analysis!="reuse") {
+      solver::Sm90NativeCtgCache reference;
+      for(auto const& candidate:pipelined.evaluated) {
+        auto const& c=candidate.coordinates;
+        auto flow=solver::Sm90NativeCtgScore(imported,work,c,cost,context,reference,o.operator_sum);
+        if(solver::Sm90NativeFlowIdentity(flow.problem)!=flow_identities.at(c.ToJson().Dump(0)))
+          throw std::runtime_error("analysis mode changed the exact searched FlowProblem");
+      }
+    }
+    double analysis_verification_ms=std::chrono::duration<double,std::milli>(
+        std::chrono::steady_clock::now()-verification_start).count();
     auto rows=[&](std::vector<solver::Sm90NativePipelineCandidate> const& input) {
       json::Array output;
       for(auto const& candidate:input) {
         json::Value row=json::Object{
           {"coordinates",candidate.coordinates.ToJson()},{"structure",candidate.structural_class},
           {"pool_score_ns",candidate.pool_score_ns},{"replay_ns",candidate.replay_ns},
-          {"evaluation_ms",candidate.evaluation_ms},{"origin",candidate.origin}};
+          {"evaluation_ms",candidate.evaluation_ms},{"discovered_ms",candidate.discovered_ms},
+          {"origin",candidate.origin}};
         if(work.moe) {
           auto const& c=candidate.coordinates;
           row.Set("task_domain_approximation",json::Object{
@@ -319,6 +344,9 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
       trajectories.emplace_back(values);
     }
     pipeline_record=json::Object{{"objective",o.operator_sum?"operator-sum":"completion"},
+        {"analysis",o.analysis},{"analysis_calls",analysis_calls},
+        {"analysis_verification_ms",analysis_verification_ms},
+        {"bitwise_flow_verified_against_reuse",o.analysis!="reuse"},
         {"evaluated",rows(pipelined.evaluated)},{"shortlist",rows(pipelined.shortlist)},
         {"finalists",rows(pipelined.finalists)},{"descent",trajectories},
         {"memo_hits",double(pipelined.memo_hits)},{"coupling_hits",double(cache.coupling.hits)},

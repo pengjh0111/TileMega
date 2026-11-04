@@ -4,6 +4,7 @@
 #include <tilemega/Solver/Sm90DenseResources.h>
 #include <algorithm>
 #include <cmath>
+#include <chrono>
 #include <memory>
 #include <string>
 #include <utility>
@@ -212,7 +213,28 @@ Sm90NativeFlowResult Sm90NativePoolScore(Sm90DenseWorkload const& work,
 Sm90NativeFlowResult Sm90NativeCtgScore(frontend::ImportedSemantics const& imported,
     Sm90DenseWorkload const& work,Sm90DenseCoordinates const& c,Sm90DenseCostModel const& cost,
     mlir::MLIRContext& context,Sm90NativeCtgCache& cache,bool isolated) {
+  using Clock=std::chrono::steady_clock;
+  auto milliseconds=[](auto a,auto b){return std::chrono::duration<double,std::milli>(b-a).count();};
+  auto start=Clock::now();
+  auto old_misses=cache.coupling.misses;
+  auto old_tasks=cache.enumerated_tasks,old_edges=cache.enumerated_edges;
   auto ctg=InstantiateSm90NativeCtg(imported,c,work.batch,context,cache,cost.Grid(c.residency));
+  if(cache.materialize)for(auto const& space:ctg.spaces) {
+    auto tasks=space.ownership.BindParams(ctg.binding).Reverse().Image().Points();
+    std::vector<int> ids;
+    for(auto const& [domain,range]:tasks) {
+      if(!domain.empty() || range.size()!=1 || range[0]<0 || range[0]>=space.count)
+        throw std::invalid_argument("materialized task is outside its scalar domain");
+      ids.push_back(range[0]);
+    }
+    std::sort(ids.begin(),ids.end());
+    if(int(ids.size())!=space.count)
+      throw std::invalid_argument("materialized task count differs from CTG");
+    for(int i=0;i<space.count;++i)if(ids[i]!=i)
+      throw std::invalid_argument("materialized task domain is not the native contiguous domain");
+    cache.enumerated_tasks+=ids.size();
+  }
+  auto analyzed=Clock::now();
   Sm90NativeFlowResult result;
   result.approximation=ctg.approximation;
   auto& problem=result.problem;
@@ -303,6 +325,7 @@ Sm90NativeFlowResult Sm90NativeCtgScore(frontend::ImportedSemantics const& impor
     space.page_bytes=page;space.pages_per_worker=pages;
     problem.spaces.push_back(std::move(space));result.nodes.push_back(std::move(node));
   }
+  auto priced=Clock::now();
   for(auto const& coupling:ctg.edges) {
     auto const& node=result.nodes[coupling.consumer];
     FlowRelease edge;edge.producer=coupling.producer;edge.consumer=coupling.consumer;
@@ -317,6 +340,7 @@ Sm90NativeFlowResult Sm90NativeCtgScore(frontend::ImportedSemantics const& impor
         edge.kappa,ctg.binding,cache);
     problem.edges.push_back(std::move(edge));
   }
+  auto released=Clock::now();
   if(isolated) {
     for(auto const& node:result.nodes)
       result.pool_score_ns+=EvaluateFlow(Sm90NativeSingleStageProblem(
@@ -328,6 +352,59 @@ Sm90NativeFlowResult Sm90NativeCtgScore(frontend::ImportedSemantics const& impor
   }
   result.step_ns=result.pool_score_ns;result.cache_hits=cache.coupling.hits;
   result.cache_misses=cache.coupling.misses;
+  result.analysis_ms=milliseconds(start,analyzed);
+  result.pricing_ms=milliseconds(analyzed,priced);
+  result.release_ms=milliseconds(priced,released);
+  result.evaluation_ms=milliseconds(released,Clock::now());
+  result.derivations=cache.coupling.misses-old_misses;
+  result.enumerated_tasks=cache.enumerated_tasks-old_tasks;
+  result.enumerated_edges=cache.enumerated_edges-old_edges;
   return result;
+}
+
+std::string Sm90NativeFlowIdentity(FlowProblem const& problem) {
+  std::string encoded;
+  auto scalar=[&](auto value){encoded.append(reinterpret_cast<char const*>(&value),sizeof(value));};
+  auto string=[&](std::string const& value){scalar(value.size());encoded.append(value);};
+  auto vector=[&](auto const& values){scalar(values.size());for(auto value:values)scalar(value);};
+  auto table=[&](auto const& values) {
+    scalar(bool(values));if(!values)return;
+    scalar(values->size());for(auto [a,b]:*values){scalar(a);scalar(b);}
+  };
+  scalar(problem.workers);scalar(problem.dram_gbps);scalar(problem.publication_ns);
+  scalar(problem.consumer_wait_ns);scalar(problem.hop_ns);scalar(problem.dram_floor_ns);
+  scalar(problem.floor_ns);scalar(problem.all_external_miss);scalar(problem.inflight_dram);
+  scalar(problem.page_bytes);scalar(problem.pages_per_worker);scalar(problem.lookahead_bytes);
+  vector(problem.inflight_curve_bytes);vector(problem.inflight_curve_gbps);
+  vector(problem.cta_stream_curve_bytes);vector(problem.cta_stream_curve_gbps);
+  scalar(problem.spaces.size());
+  for(auto const& s:problem.spaces) {
+    string(s.name);string(s.category);scalar(s.count);scalar(s.order);scalar(s.fused_reducer);
+    scalar(s.handoff_reducer);scalar(s.rank_ns);scalar(s.page_bytes);scalar(s.pages_per_worker);
+    vector(s.piece_of_task);scalar(s.pieces.size());
+    for(auto const& piece:s.pieces) {
+      scalar(piece.count);auto const& p=piece.parts;
+      scalar(p.fixed_ns);scalar(p.compute_ns);scalar(p.dram_bytes);scalar(p.dram_rate_cap);
+      scalar(p.no_producer_dram_bytes);scalar(p.inflight_bytes);scalar(p.pipeline_steps);
+      scalar(p.pipeline_compute_ns);
+    }
+  }
+  scalar(problem.edges.size());
+  for(auto const& e:problem.edges) {
+    scalar(e.producer);scalar(e.consumer);scalar(e.kappa);scalar(e.all_producer);
+    scalar(e.colocated);table(e.sorted);scalar(e.phase);table(e.first);
+    scalar(e.phase_iterations);scalar(e.hop_ns);
+  }
+  return encoded;
+}
+
+Sm90NativeFlowResult Sm90NativeAnalyze(frontend::ImportedSemantics const& imported,
+    Sm90DenseWorkload const& work,Sm90DenseCoordinates const& c,Sm90DenseCostModel const& cost,
+    mlir::MLIRContext& context,Sm90NativeCtgCache& reused,std::string const& mode,bool isolated) {
+  if(mode=="reuse")return Sm90NativeCtgScore(imported,work,c,cost,context,reused,isolated);
+  if(mode!="rederive" && mode!="materialize")
+    throw std::invalid_argument("--analysis takes reuse, rederive, or materialize");
+  Sm90NativeCtgCache fresh;fresh.materialize=mode=="materialize";
+  return Sm90NativeCtgScore(imported,work,c,cost,context,fresh,isolated);
 }
 }  // namespace tilemega::solver
