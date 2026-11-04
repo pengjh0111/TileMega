@@ -14,6 +14,16 @@ spec.loader.exec_module(routing)
 
 
 class RoutingTest(unittest.TestCase):
+    def test_model_specific_frozen_prompts(self):
+        path, rows = routing.prompt_rows(None, 'olmoe_1b_7b', 16, 50304)
+        self.assertEqual(path.name, 'olmo_isl64.json')
+        self.assertEqual(tuple(rows.shape), (16, 64))
+        with self.assertRaises(ValueError):
+            routing.prompt_rows(ROOT/'configs/prompts/qwen_isl64.json',
+                                'olmoe_1b_7b', 4, 50304)
+        path, rows = routing.prompt_rows(None, 'qwen3_30b_a3b', 16, 151936)
+        self.assertEqual(path.name, 'qwen_isl64.json')
+
     def test_unique_across_batch(self):
         self.assertEqual(routing.distinct_experts([[[1, 2], [2, 3]]], 2, 4, 2), [3])
         for indices in [[[0, 0]], [[-1, 2]], [[0, 4]], [[0]], []]:

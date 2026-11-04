@@ -23,6 +23,10 @@ def validate(directory):
     if read(directory / 'guard/guard_result.json')['code'] != 0:
         return None
     meta = read(directory / 'metadata.json')
+    family = {'olmoe_1b_7b': 'olmo', 'qwen3_30b_a3b': 'qwen'}[meta['model']]
+    prompt = Path(__file__).resolve().parents[1] / f'configs/prompts/{family}_isl64.json'
+    if meta['prompt_sha256'] != sha(prompt):
+        raise ValueError(f'{directory}: H2 input is not this model’s frozen prompt')
     trace = read(directory / 'routing_trace.json')
     indices = read(directory / 'routing_indices.json')
     summary = read(directory / 'summary.json')

@@ -24,6 +24,18 @@ from tilemega.serving.engine import ServingEngine
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def prompt_rows(path, model, batch, vocab_size):
+    if path is None:
+        family = {'olmoe_1b_7b': 'olmo', 'qwen3_30b_a3b': 'qwen'}[model]
+        path = ROOT / f'configs/prompts/{family}_isl64.json'
+    values = json.loads(path.read_text())
+    if len(values) < batch or any(len(row) != 64 for row in values[:batch]) or any(
+            type(token) is not int or token < 0 or token >= vocab_size
+            for row in values[:batch] for token in row):
+        raise ValueError('H2 prompts require B rows of 64 in-vocabulary token IDs')
+    return path, torch.tensor(values[:batch], dtype=torch.int64)
+
+
 def expert_bytes(config):
     """One expert's weight bytes: gate, up and down at bf16."""
     hidden = int(config['hidden_size'])
@@ -78,7 +90,7 @@ def main():
     p.add_argument('--batch', type=int, required=True)
     p.add_argument('--steps', type=int, default=1024)
     p.add_argument('--model', required=True, choices=['qwen3_30b_a3b', 'olmoe_1b_7b'])
-    p.add_argument('--prompts', type=Path, default=ROOT / 'configs/prompts/qwen_isl64.json')
+    p.add_argument('--prompts', type=Path)
     p.add_argument('--out', type=Path, required=True)
     a = p.parse_args()
     if a.steps < 1 or a.steps > 1024:
@@ -91,7 +103,7 @@ def main():
     config = json.loads((checkpoint / 'config.json').read_text())
     layers, top_k = config['num_hidden_layers'], config['num_experts_per_tok']
     names = index_names(json.loads(a.bridge.read_text()), layers)
-    rows = torch.tensor(json.loads(a.prompts.read_text())[:a.batch], dtype=torch.int64)
+    a.prompts, rows = prompt_rows(a.prompts, a.model, a.batch, config['vocab_size'])
 
     a.out.mkdir(parents=True, exist_ok=True)
     trace, indices, positions = [], [], []
