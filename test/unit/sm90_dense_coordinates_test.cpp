@@ -74,6 +74,7 @@ int main() {
   assert(global.ToJson().At("schema").AsNumber("schema")==9);
   auto loaded=Sm90DenseCoordinates::FromJson(global.ToJson());
   assert(loaded.route==route && loaded.ToJson().Dump()==global.ToJson().Dump());
+  auto separate=global;separate.expert_fuse=false;separate.ValidateSchedule(moe_nk,1,128,1,1088,232448);
   global.moe=false;bool invalid=false;
   try {global.Validate(nk,1);}catch(std::invalid_argument const&) {invalid=true;}
   assert(invalid);

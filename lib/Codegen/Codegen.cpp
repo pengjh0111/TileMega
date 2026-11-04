@@ -2239,7 +2239,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   } gate_up_held;
   std::string gate_up_done="kAbsent";
   // E2: the router's logits buffer id, consumed by the fused expert stage.
-  std::string router_logits,router_index;
+  std::string router_logits,router_index,router_routes;
   std::vector<std::int64_t> keys,values;
   std::array<int,2> kv_maps{-1,-1};
   std::int64_t kv_bytes=0;  // one layer's K (or V): B*Hkv*Cap*D BF16
@@ -2275,7 +2275,11 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
           throw std::invalid_argument("native expert gate_up pages interleave U = 16");
         if(e.family==6)e.stream=0;
         int experts=nk[5][0];
-        auto routes=e.family==6?std::string("kAbsent"):operand(1);
+        auto routes=e.family==6?(c.GlobalRoute()?router_routes:std::string("kAbsent")):operand(1);
+        if(c.moe && !c.expert_fuse && e.family>=6 &&
+            backend::Sm90DenseLayout::MoeUnfused(cfg.tile_n,cfg.TileK(),cfg.slots,cfg.warps_k,batch,experts).end-
+            1024>arena)
+          throw std::invalid_argument("native unfused expert storage exceeds its arena");
         bool float_routes=routes!="kAbsent" &&
             stringField(dictionaryEntry(buffers[std::stoll(routes)],"buffers"),"dtype")=="f32";
         weight=name(integerField(g,"b"));bytes=2ull*n*k*(e.family==5?1:experts);
@@ -2296,7 +2300,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
             throw std::invalid_argument("native router must leave the last CTA free (R5 E2)");
           // E2: the fused stage routes from these logits and republishes the
           // routes, so hold both the router's output and its index buffer.
-          router_logits=id(g,"d");
+          router_logits=id(g,"d");router_routes=routes;
           router_index=operands && operands.size()>2?operand(2):"kAbsent";
         }
         if(c.expert_fuse && e.family==6) {
@@ -2340,7 +2344,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
             <<cfg.warps_n<<','<<cfg.warps_k<<",backend::Sm90DenseMoeMode::"<<mode<<",16,"<<experts<<",8,"
             <<(float_routes?"true":"false")<<','<<page;
         e.ids={id(g,"b"),id(g,e.family==7?"c":"a"),id(g,"d"),operand(0),routes,
-            e.family==5?operand(2):"kAbsent",e.family==5?operand(3):e.family==7?operand(2):"kAbsent",
+            e.family==5?operand(2):c.GlobalRoute()?router_index:"kAbsent",e.family==5?operand(3):e.family==7?operand(2):"kAbsent",
             gate_up_done};
         std::string map="kAbsent";
         if(e.family==5)
@@ -2353,6 +2357,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
         e.tail=","+map+","+std::to_string(cfg.register_stages)+
             (moe_softmax_all?",true":",false");
         if(e.family==5 && c.route==solver::Sm90DenseCoordinates::Route::kLastArriver)e.tail+=",true";
+        if(e.family>=6 && c.GlobalRoute())e.tail+=",false,true";
         }
       }else {
       if(op=="residual_ar" && tp==1)

@@ -68,6 +68,11 @@ struct Sm90DenseLayout {
              +16+4;            // offsets[4], active
     return (bytes+15)/16*16;
   }
+  static constexpr Sm90DenseLayout MoeUnfused(int tn,int tk,int slots,int wk,int batch,int experts) {
+    auto layout=Gemm(tn,tk,slots,wk,batch);
+    layout.end=(layout.end+127)/128*128+(MoeRouteBytes(experts)+127)/128*128;
+    return layout;
+  }
   // E2 adds the local routing schedule after the scratch: `route` bytes, 128
   // byte aligned so the structure's own 16-byte alignment is satisfied from any
   // arena offset.

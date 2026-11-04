@@ -39,7 +39,7 @@ def validate(manifest, defines):
         raise ValueError('native independent attention merge coordinate is invalid')
     route = c.get('route', 'local')
     if route not in ('local', 'la', 'stage') or (route != 'local' and
-            (c['schema'] != 9 or c['model'] != 'moe' or not c.get('expert_fuse'))):
+            (c['schema'] != 9 or c['model'] != 'moe')):
         raise ValueError('native global routing coordinate is invalid')
     # Schema 7 exists only to carry tp > 1; a TP1 program names no degree.
     tp = c.get('tp', 1)
@@ -171,6 +171,14 @@ def dispatch(manifest, defines, source):
             raise ValueError('native routing operand column is invalid')
         return tuple(row[index].strip().removesuffix('u') for row in parsed)
 
+    if route_mode != 'local' and not fused:
+        for l in range(per_group):
+            base = 1 + l * len(layer)
+            router = calls[str(base + layer.index('router'))][2].split(',')
+            for family in ('expert_gate_up', 'expert_down'):
+                expert = calls[str(base + layer.index(family))][2].split(',')
+                if any(operand_column(expert[i]) != operand_column(router[i]) for i in (17,18,19)):
+                    raise ValueError('native unfused expert schedule differs from its router')
     routes = re.findall(r'using (Body)_(\d+)\s*=\s*MoeRoute<([^;]+)>;', source)
     if len(routes) != (per_group if route_mode == 'stage' else 0):
         raise ValueError('native routing stage differs from its coordinate identity')
@@ -230,14 +238,15 @@ def dispatch(manifest, defines, source):
             # 25 arguments: 8 buffers (the last is MR7's gu_done, which only a
             # fused plan's router carries) and the router's softmax convention.
             legacy = len(args) == 23
-            if len(args) not in (23, 25, 26) or args[8] != 'backend::Sm90DenseMoeMode::' + MOE_MODES[family] or \
+            if len(args) not in (23, 25, 26, 27) or args[8] != 'backend::Sm90DenseMoeMode::' + MOE_MODES[family] or \
                     args[9] != '16' or args[10] not in ('64', '128') or args[11] != '8' or \
                     args[13] not in (('0', '64') if family != 'router' else ('0',)) or \
                     (legacy and (args[10] != '128' or fused)) or \
                     (not legacy and (args[24] not in ('true', 'false') or
                                      (args[21] != 'kAbsent') != (family == 'router' and fused))):
                 raise ValueError('native MoE call signature is invalid')
-            if args[25:] != (['true'] if family == 'router' and route_mode == 'la' else []):
+            if args[25:] != (['true'] if family == 'router' and route_mode == 'la' else
+                              ['false', 'true'] if family != 'router' and route_mode != 'local' else []):
                 raise ValueError('native router last-arriver mode differs from its coordinate identity')
             register_stages = int(args[22 if legacy else 23])
             stream = 0 if family == 'expert_gate_up' else None

@@ -24,6 +24,9 @@ int main(int argc,char** argv) {
   for(auto route:{Sm90DenseCoordinates::Route::kLocal,Sm90DenseCoordinates::Route::kLastArriver,
                   Sm90DenseCoordinates::Route::kStage}) {
   c.route=route;
+  for(bool fused:{true,false}) {
+  if(!fused && !c.GlobalRoute())continue;
+  c.expert_fuse=fused;
   auto ctg=InstantiateSm90NativeCtg(imported,c,batch,context,cache,cost.Grid(c.residency));
   assert(ctg.approximation.At("kind").AsString("kind")==kSm90NativeMoeDomainApproximation);
   auto flow=Sm90NativeCtgScore(imported,work,c,cost,context,cache);
@@ -41,7 +44,7 @@ int main(int argc,char** argv) {
     }
     if(node.price.name=="moe_combine") {++combines;assert(space.count==dt && space.handoff_reducer);}
     if(node.price.name=="gemm6") {++gateups;assert(space.count==gu && space.pages_per_worker==0);}
-    if(node.price.name=="gemm7") {++downs;assert(space.count==dn && node.kappa==gt);}
+    if(node.price.name=="gemm7") {++downs;assert(space.count==dn && node.kappa==(c.expert_fuse?gt:1));}
   }
   assert(routes==work.layers && combines==work.layers && gateups==work.layers && downs==work.layers);
   int counted=0;std::vector<int> incoming(flow.nodes.size());
@@ -50,8 +53,10 @@ int main(int argc,char** argv) {
     auto const& p=flow.nodes[edge.producer].price.name;
     auto const& q=flow.nodes[edge.consumer].price.name;
     if(p=="gemm6" && q=="gemm7") {
-      ++counted;assert(!edge.all_producer && edge.kappa==gt && edge.hop_ns==0);
-      for(auto [last,task]:*edge.sorted)assert(last==std::min(gu,(task/dt+1)*gt)-1);
+      ++counted;
+      assert(edge.all_producer==!c.expert_fuse && edge.kappa==(c.expert_fuse?gt:gu));
+      assert(edge.hop_ns==(c.expert_fuse?0:constants.Barrier(flow.problem.workers)));
+      for(auto [last,task]:*edge.sorted)assert(last==(c.expert_fuse?std::min(gu,(task/dt+1)*gt)-1:gu-1));
     }
     if(p==std::string("route_")+c.RouteName()) {
       assert(edge.all_producer==c.GlobalRoute() && edge.kappa==1);
@@ -74,11 +79,12 @@ int main(int argc,char** argv) {
   auto cached=Sm90NativeCtgScore(imported,work,c,cost,context,cache);
   assert(cached.step_ns==flow.step_ns && cache.space_hits>0 && cache.release_hits>0);
   std::vector<int> offsets(flow.nodes.size());
-  for(unsigned i=1;i<flow.nodes.size();++i)if(flow.nodes[i].price.name=="gemm7")offsets[i]=gu;
+  for(unsigned i=1;i<flow.nodes.size();++i)if(c.expert_fuse && flow.nodes[i].price.name=="gemm7")offsets[i]=gu;
   auto replay=RefineAndReplaySm90Native(flow.problem,Sm90NativeCandidateTracks(flow.problem,offsets));
   assert(std::isfinite(replay.replay.makespan_ns) && replay.replay.makespan_ns>0);
   std::cout<<json::Value(json::Object{{"passed",true},{"batch",batch},{"layers",work.layers},
       {"spaces",int(flow.nodes.size())},{"pool_ns",flow.step_ns},{"replay_ns",replay.replay.makespan_ns},
       {"isolated_ns",isolated.step_ns},{"approximation",ctg.approximation}}).Dump()<<'\n';
+  }
   }
 }

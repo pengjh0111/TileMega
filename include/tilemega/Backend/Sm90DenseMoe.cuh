@@ -319,7 +319,7 @@ struct Sm90DenseLocalRoute {
 // slot is then assembled from runs of whole or half pages per 64-column panel.
 template<int Batch,int N,int K,int TN,int TK,int Slots,int WN,int WK,Sm90DenseMoeMode Mode,int U,
          int Experts,int TopK,bool FloatWeights,int Page=0,int RegisterStages=1,bool SoftmaxAll=false,
-         bool FinishRouting=false>
+         bool FinishRouting=false,bool GlobalSchedule=false>
 struct Sm90DenseMoeGemm {
   static constexpr bool kInputNorm=Mode!=Sm90DenseMoeMode::kDown;
   using Core=Sm90DenseGemm<Batch,N,K,TN,TK,Slots,WN,WK,ServingEpilogueOp::kStore,U,kInputNorm,
@@ -328,9 +328,14 @@ struct Sm90DenseMoeGemm {
   using Async=codegen::executor::Async<arch::Sm90>;
   using Schedule=Sm90DenseMoeSchedule<Experts>;
   static constexpr int kTiles=N/TN,kIterations=K/TK,kRows=Core::kRows,kThreads=Core::kThreads;
-  static constexpr int kSharedBytes=Core::kSharedBytes,kSlotBytes=Core::kSlotBytes;
-  static constexpr auto kLayout=Core::kLayout;
   static constexpr bool kDynamic=Mode!=Sm90DenseMoeMode::kRouter;
+  static_assert(!GlobalSchedule || kDynamic);
+  using LocalSchedule=Sm90DenseLocalSchedule<Batch,Experts,TopK>;
+  using LocalRoute=Sm90DenseLocalRoute<Batch,Experts,TopK,FloatWeights,SoftmaxAll>;
+  static constexpr auto kLayout=GlobalSchedule?
+      Sm90DenseLayout::MoeUnfused(TN,TK,Slots,WK,Batch,Experts):Core::kLayout;
+  static constexpr int kSharedBytes=kLayout.end,kSlotBytes=Core::kSlotBytes;
+  static constexpr int kRouteOffset=(Core::kSharedBytes+127)/128*128;
   // M5/M6 run n_active x kTiles tasks; this bounds them.
   static constexpr int kMaxTasks=kDynamic?Experts*kTiles:kTiles;
   static_assert(Batch<=Schedule::kMaxRows && Experts<=128 && TopK<=8);
@@ -508,7 +513,6 @@ struct Sm90DenseMoeGemm {
   }
   // E2: `routing` replaces every global record read in the expert epilogues.
   // The router mode never uses it and passes null.
-  using LocalSchedule=Sm90DenseLocalSchedule<Batch,Experts,TopK>;
   __device__ static __forceinline__ void Epilogue(Sm90DenseMoeOperands const& p,float const* tile,
       float const* norms,int t,int* flag,LocalSchedule const* routing=nullptr) {
     int tid=threadIdx.x,group=t/kTiles,j=t%kTiles;
@@ -607,7 +611,8 @@ struct Sm90DenseMoeGemm {
   }
 
   __device__ static __noinline__ void Consume(Sm90DenseMoeOperands const& p,
-      Sm90DenseRingState& state,Element* a,Element* b,float* scratch,int tasks,unsigned phase) {
+      Sm90DenseRingState& state,Element* a,Element* b,float* scratch,int tasks,unsigned phase,
+      LocalSchedule const* routing=nullptr) {
     Sm90DenseRoles::Consumer();
     using namespace cute;
     int tid=threadIdx.x,lane=tid%(32*WN),split=tid/(32*WN);
@@ -653,7 +658,7 @@ struct Sm90DenseMoeGemm {
         }
       if(tid==0)Sm90DenseMark(1);
       codegen::executor::ComputeSync();
-      Epilogue(p,scratch,norms,t,flag);
+      Epilogue(p,scratch,norms,t,flag,routing);
       codegen::executor::ComputeSync();
       if(tid==0)Sm90DenseMark(2);
     }
@@ -690,11 +695,17 @@ struct Sm90DenseMoeGemm {
         state.consumer_generations[i]:state.producer_generations[i])<<i;
     // The producer's first record is read beside n_active (MR1); a CTA past
     // the last task discards it.
+    LocalSchedule* routing=nullptr;
+    if constexpr(GlobalSchedule) {
+      routing=reinterpret_cast<LocalSchedule*>(shared+kRouteOffset);
+      if(threadIdx.x<128)LocalRoute::Load(p.schedule,p.route_weights,p.route_index,*routing);
+      __syncthreads();
+    }
     Record first{};
     if(threadIdx.x>=128)first=Load(p.schedule,int(blockIdx.x));
     int total=TotalTasks(p);
     int tasks=total/int(gridDim.x)+(int(blockIdx.x)<total%int(gridDim.x));
-    if(threadIdx.x<128)Consume(p,state,a,b,scratch,tasks,phase);
+    if(threadIdx.x<128)Consume(p,state,a,b,scratch,tasks,phase,routing);
     else {
       Produce<Prefix>(p,state,a,b,tasks,phase,streamed,first);
       if(threadIdx.x==128)tail();

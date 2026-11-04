@@ -301,10 +301,10 @@ struct Embedding {
 template<int Batch,int N,int K,int TN,int TK,int Slots,int WN,int WK,backend::Sm90DenseMoeMode Mode,
          int U,int Experts,int TopK,bool FloatWeights,int Page,unsigned W,unsigned X,unsigned Out,
          unsigned Schedule,unsigned Routes,unsigned Index,unsigned Counter,unsigned GateUpDone,
-         unsigned Map,int RegisterStages,bool SoftmaxAll=false,bool FinishRouting=false>
+         unsigned Map,int RegisterStages,bool SoftmaxAll=false,bool FinishRouting=false,bool GlobalSchedule=false>
 struct Moe {
   using Body=backend::Sm90DenseMoeGemm<Batch,N,K,TN,TK,Slots,WN,WK,Mode,U,Experts,TopK,FloatWeights,
-      Page,RegisterStages,SoftmaxAll,FinishRouting>;
+      Page,RegisterStages,SoftmaxAll,FinishRouting,GlobalSchedule>;
   static_assert(GateUpDone==kAbsent || Mode==backend::Sm90DenseMoeMode::kRouter,
       "only the router clears the fused stage's counters");
   static constexpr bool kUsesOperandRecord=true;

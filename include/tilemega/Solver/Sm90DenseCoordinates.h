@@ -174,12 +174,9 @@ struct Sm90DenseCoordinates {
     // MR7: the fused stage is MoE only and runs one ring for both task types.
     if(expert_fuse && (!moe || gemms[6].slots!=gemms[7].slots))
       throw std::invalid_argument("illegal sm90 dense expert fusion coordinate");
-    // E2 moved routing into the router stage's own CTAs, which no longer
-    // publish the global schedule the unfused M5/M6 read through TotalTasks,
-    // so an unfused MoE coordinate builds and then reads a slot nobody wrote.
-    // Legal() already refuses it, but the fixed path does not go through
-    // Legal(), and schema 5 loads REF-R3's cells as expert_fuse false.
-    if(moe && !expert_fuse)
+    // Separate expert stages require a globally published schedule. Local E2
+    // routing remains available only inside the fused expert stage.
+    if(moe && !expert_fuse && !GlobalRoute())
       throw std::invalid_argument(
           "unfused MoE requires the router's schedule publication (R6 P5)");
     attention.Validate();
@@ -193,6 +190,12 @@ struct Sm90DenseCoordinates {
     for(unsigned i:Active())
       if(gemms[i].SharedBytes(batch,ResidualFamily(i))-1024>Sm90DenseArena(budget))
         throw std::invalid_argument("native GEMM storage exceeds its arena");
+    if(moe && !expert_fuse)for(unsigned i:{6u,7u}) {
+      auto const& g=gemms[i];
+      if(backend::Sm90DenseLayout::MoeUnfused(g.tile_n,g.TileK(),g.slots,g.warps_k,batch,nk[5][0]).end-
+          1024>Sm90DenseArena(budget))
+        throw std::invalid_argument("native unfused expert storage exceeds its arena");
+    }
     // Attention may take the whole budget when two slots exceed one arena.
     if(attention.SharedBytes(dim,queries)>budget)
       throw std::invalid_argument("native attention exceeds the shared-memory budget");

@@ -190,7 +190,7 @@ Sm90NativeCtg InstantiateSm90NativeCtg(frontend::ImportedSemantics const& input,
     throw std::invalid_argument("native MoE local routing needs the physical worker count");
   auto base=InstantiateSm90NativeBaseCtg(input,c,batch,context,cache);
   if(!c.moe)return base;
-  if(!c.expert_fuse)
+  if(!c.expert_fuse && !c.GlobalRoute())
     throw std::invalid_argument("native MoE unfused schedule publication is not implemented");
   auto work=Sm90DenseWorkloadFromPlan(input.plan,batch);
   auto gu_domain=Sm90NativeMoeDomain(work.experts,work.top_k,batch,
