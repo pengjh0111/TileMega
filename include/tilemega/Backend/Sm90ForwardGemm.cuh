@@ -183,10 +183,13 @@ struct Sm90ForwardGemm {
         // The partials cross SMs, whose L1 caches are not coherent: both sides
         // use GPU-scope relaxed accesses, published by the counter's release.
         TM_FWD_TRACE_BEGIN(partial_trace);
-        for(int i=int(threadIdx.x);i<TM*TN;i+=128) {
+        // Every legal output tile and CUDA allocation is 16-byte aligned.
+        // Group independent elements; publication and slice order are unchanged.
+        static_assert((TM*TN)%512==0);
+        for(int i=int(threadIdx.x)*4;i<TM*TN;i+=512) {
           auto* address=p.partial+(std::size_t(tile)*SplitK+slice)*TM*TN+i;
-          asm volatile("st.relaxed.gpu.global.f32 [%0], %1;"::"l"(address),
-              "f"(tile_values[i]):"memory");
+          asm volatile("st.relaxed.gpu.global.v4.f32 [%0], {%1,%2,%3,%4};"::"l"(address),
+              "f"(tile_values[i]),"f"(tile_values[i+1]),"f"(tile_values[i+2]),"f"(tile_values[i+3]):"memory");
         }
         codegen::executor::ComputeSync();
         auto* flag=reinterpret_cast<int*>(scratch+kScratchBytes-16);
@@ -201,17 +204,18 @@ struct Sm90ForwardGemm {
         TM_FWD_TRACE_END(partial_trace);
         if(*flag) {
           TM_FWD_TRACE_BEGIN(reduce_trace);
-          for(int i=int(threadIdx.x);i<TM*TN;i+=128) {
-            float value=0;
+          for(int i=int(threadIdx.x)*4;i<TM*TN;i+=512) {
+            float value0=0,value1=0,value2=0,value3=0;
             #pragma unroll
             for(int s=0;s<SplitK;++s) {
               auto const* address=p.partial+(std::size_t(tile)*SplitK+s)*TM*TN+i;
-              float part;
-              asm volatile("ld.relaxed.gpu.global.f32 %0, [%1];":"=f"(part)
-                  :"l"(address):"memory");
-              value+=part;
+              float part0,part1,part2,part3;
+              asm volatile("ld.relaxed.gpu.global.v4.f32 {%0,%1,%2,%3}, [%4];"
+                  :"=f"(part0),"=f"(part1),"=f"(part2),"=f"(part3):"l"(address):"memory");
+              value0+=part0;value1+=part1;value2+=part2;value3+=part3;
             }
-            tile_values[i]=value;
+            tile_values[i]=value0;tile_values[i+1]=value1;
+            tile_values[i+2]=value2;tile_values[i+3]=value3;
           }
           codegen::executor::ComputeSync();
           TM_FWD_TRACE_END(reduce_trace);
