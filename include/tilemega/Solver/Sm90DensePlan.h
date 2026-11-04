@@ -9,6 +9,7 @@ namespace tilemega::solver {
 unsigned Sm90DenseFamily(frontend::ModelPlan const&,frontend::PlanGemm const&);
 Sm90DenseShapeTable Sm90DenseShapes(frontend::ModelPlan const&);
 Sm90DenseWorkload Sm90DenseWorkloadFromPlan(frontend::ModelPlan const&,int batch);
+void ValidateSm90NativeBoundaryContracts(mlir::ModuleOp);
 frontend::ImportedSemantics ImportSm90Dense(std::string const& export_path,
     Sm90DenseCoordinates const&,mlir::MLIRContext&);
 mlir::OwningOpRef<mlir::ModuleOp> MaterializeSm90Dense(

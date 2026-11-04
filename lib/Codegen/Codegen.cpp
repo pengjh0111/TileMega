@@ -25,6 +25,7 @@
 #include <tilemega/Dialect/CouplingGraph/BoundDependency.h>
 #include <tilemega/Dialect/CouplingGraph/CountedDependency.h>
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
+#include <tilemega/Solver/Sm90DensePlan.h>
 #include <tilemega/Dialect/CouplingGraph/PlacementPlan.h>
 #include <tilemega/Solver/VariantSchedule.h>
 #include <tilemega/Solver/Sm90DenseCoordinates.h>
@@ -2010,6 +2011,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   if(!coordinate || !batch_attr || stringField(plan,"dtype")!="bf16")
     throw std::invalid_argument("native dense plan lacks its typed coordinates or batch");
   auto c=solver::Sm90DenseCoordinates::FromJson(json::Parse(coordinate.getValue().str()));
+  solver::ValidateSm90NativeBoundaryContracts(module);
   int batch=batch_attr.getInt(),capacity=integerField(serving,"capacity");
   // Megatron tensor parallel: the module records the degree its shapes were
   // sharded for (absent: 1) and the coordinate must agree.

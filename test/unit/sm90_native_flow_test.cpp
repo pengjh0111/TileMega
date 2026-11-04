@@ -2,6 +2,9 @@
 #include <tilemega/Solver/Sm90NativeCtg.h>
 #include <tilemega/Solver/Sm90DensePlan.h>
 #include <tilemega/Analysis/ISLContext.h>
+#include <tilemega/Codegen/CouplingGraphToCUDA.h>
+#include <tilemega/Dialect/CouplingGraph/CGOps.h>
+#include <mlir/IR/Builders.h>
 #include <cassert>
 #include <cstdio>
 #include <iostream>
@@ -88,6 +91,22 @@ int main(int argc,char**argv){
           Sm90NativeSingleStageProblem(node.price,cost,c.residency)).makespan_ns;
       assert(std::abs(sum-isolated.step_ns)<1e-6);
       if(batch==1) {
+        auto executable=MaterializeSm90Dense(imported,grouped_c,batch,target,context,"fixed");
+        ValidateSm90NativeBoundaryContracts(*executable);
+        mlir::OpBuilder builder(&context);bool corrupted=false;
+        executable->walk([&](dialect::CouplingOp edge) {
+          auto kind=edge->getAttrOfType<mlir::StringAttr>("tmexec.sync_kind");
+          if(kind.getValue()!="group" || corrupted)return;
+          assert(edge->getAttrOfType<mlir::IntegerAttr>("tmexec.event_extent").getInt()==8);
+          assert(edge->getAttrOfType<mlir::IntegerAttr>("tmexec.required_count").getInt()==16);
+          edge->setAttr("tmexec.required_count",builder.getI64IntegerAttr(17));corrupted=true;
+        });
+        assert(corrupted);bool rejected=false;
+        try {(void)codegen::CouplingGraphToCUDA{}.Lower(*executable);}
+        catch(std::invalid_argument const& error) {
+          rejected=std::string(error.what()).find("native boundary contract mismatch")!=std::string::npos;
+        }
+        assert(rejected);
         auto changed=c;changed.gemms[0].tile_n*=2;changed.gemms[0].slot_bytes*=2;
         auto variant=InstantiateSm90NativeCtg(imported,changed,batch,context,cache);
         assert(variant.spaces[1].count*2==ctg.spaces[1].count);
