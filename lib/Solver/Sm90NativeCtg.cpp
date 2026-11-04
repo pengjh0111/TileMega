@@ -56,12 +56,28 @@ Sm90NativeCtg InstantiateSm90NativeCtg(frontend::ImportedSemantics const& input,
       "native MoE CTG requires explicit routing and combine semantics");
   SolverPhase total(&cache.timing,"native_ctg_total");
   auto imported=input;
+  bool relift=false;
+  for(auto& gemm:imported.plan.gemms) {
+    if(gemm.epilogue==frontend::PlanGemm::Epilogue::kArgmaxPartial &&
+       gemm.partial_tile_n!=unsigned(c.gemms[4].tile_n)) {
+      gemm.partial_tile_n=c.gemms[4].tile_n;relift=true;
+    }
+    if(gemm.epilogue==frontend::PlanGemm::Epilogue::kSwiGLU &&
+       gemm.interleave_u!=unsigned(c.swiglu_u)) {
+      gemm.interleave_u=c.swiglu_u;relift=true;
+    }
+  }
+  if(relift)imported.lifted=frontend::LiftSemantics(imported.plan,imported.lift_options);
   frontend::ImportOptions options;options.phase_batch=batch;
   for(auto const& gemm:imported.plan.gemms) {
     auto const& geometry=c.gemms[Sm90DenseFamily(imported.plan,gemm)];
     options.gemms.push_back({16,geometry.tile_n,geometry.TileK(),geometry.slots,1,kSm90DenseGemmImpl});
   }
   auto granularity=frontend::LaunchGranularity(imported.lifted,imported.plan,options.gemms);
+  for(auto const& op:imported.lifted.ops)
+    if(op.role==frontend::OpRole::kServingArgmax ||
+       (c.embed_la && op.role==frontend::OpRole::kEmbedding))
+      granularity.Tile(op.name,"m",analysis::ClosedForm::Constant(batch));
   // Native attention executes Chunks partial tasks and one group reducer.
   // The ordinary serving importer only describes the unsplit result. Use
   // the declared reduction transform so all outgoing uses name its reducer.

@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/Sm90NativeFlow.h>
+#include <tilemega/Solver/Sm90DensePlan.h>
+#include <tilemega/Solver/Sm90DenseResources.h>
 #include <algorithm>
 #include <cmath>
 #include <memory>
@@ -205,6 +207,98 @@ Sm90NativeFlowResult Sm90NativePoolScore(Sm90DenseWorkload const& work,
     result.cache_hits = cache->hits;
     result.cache_misses = cache->misses;
   }
+  return result;
+}
+Sm90NativeFlowResult Sm90NativeCtgScore(frontend::ImportedSemantics const& imported,
+    Sm90DenseWorkload const& work,Sm90DenseCoordinates const& c,Sm90DenseCostModel const& cost,
+    mlir::MLIRContext& context,Sm90NativeCtgCache& cache,bool isolated) {
+  auto ctg=InstantiateSm90NativeCtg(imported,c,work.batch,context,cache);
+  Sm90NativeFlowResult result;
+  auto& problem=result.problem;
+  auto const& constants=cost.Constants();
+  problem.workers=cost.Grid(c.residency);problem.dram_gbps=constants.dram_gbps;
+  problem.hop_ns=constants.Barrier(problem.workers);
+  bool stream=c.weight_stream && !isolated;
+  auto resident=[&](unsigned f){return c.gemms[f].FullyResident(work.shapes[f][1]);};
+  int arena=Sm90DenseArenaBytes(Sm90DenseSharedBudget(cost.Target(),c.residency));
+  for(auto const& task:ctg.spaces) {
+    Sm90NativeStageNode node;auto& price=node.price;
+    auto const& stage=imported.plan.stages.at(task.stage);
+    int f=-1,page=0,pages=0;
+    price.tasks=task.count;price.ends=std::min(task.count,problem.workers);
+    price.hop_ns=problem.hop_ns;
+    if(task.role==frontend::OpRole::kServingMerge) {
+      price.name="attention_merge";price.category="reducer";
+      node.sync=Sm90SyncKind::kHandoff;price.hop_ns=0;
+      int norm=work.qk_norm?(work.qk_norm_row?2:1):0;
+      price.middle.fixed_ns=c.attention.dsmem?
+          constants.AttentionMergeDsmem(work.head_dim,work.queries,norm,c.attention.chunks):
+          constants.AttentionMerge(work.head_dim,work.queries,norm,c.attention.chunks);
+    }else if(task.role==frontend::OpRole::kServingArgmax) {
+      price.name="argmax";price.category="reducer";
+      node.sync=Sm90SyncKind::kHandoff;price.hop_ns=0;
+      price.middle.fixed_ns=constants.ArgmaxLa(problem.workers,work.batch)-problem.hop_ns+
+          (work.tp>1?constants.HeadExchange(work.batch,work.tp):0);
+    }else if(task.role==frontend::OpRole::kEmbedding) {
+      price.name="embedding";price.category="embedding";
+      if(c.embed_la) {
+        // The head's last arriver gathers all B rows in one LA group.
+        price.middle.fixed_ns=constants.dram_latency+
+            4.*work.shapes[0][1]*work.batch/constants.sm_gbps;
+        node.sync=Sm90SyncKind::kHandoff;price.hop_ns=0;
+      }else price.middle.fixed_ns=constants.Embedding(problem.workers,
+          work.shapes[0][1],work.batch);
+    }else if(task.role==frontend::OpRole::kServingFusedAttention) {
+      price=Sm90NativeAttentionPrice(work,c.attention,c.residency,cost);
+      node.sync=c.group_wait?Sm90SyncKind::kGroup:Sm90SyncKind::kAggregate;
+      node.kappa=c.group_wait?work.shapes[0][0]/work.hkv/c.gemms[0].tile_n:1;
+      if(c.group_wait)price.hop_ns=std::max(0.,problem.hop_ns-
+          constants.GroupWaitSaving(problem.workers));
+      page=c.attention.block_keys*work.head_dim*4;pages=stream?c.attention.slots:0;
+    }else if(stage.kind==frontend::PlanTaskKind::kGemm) {
+      f=Sm90DenseFamily(imported.plan,imported.plan.gemms.at(stage.gemm));
+      bool pre=stream && ((f==0 && task.stage>1 && resident(3)) ||
+          (f==1 && !c.attention.FullWidth(work.head_dim,work.queries,arena) &&
+              c.attention.FullyResident(575)) || (f==2 && resident(1)) ||
+          (f==3 && resident(2)) || (f==4 && resident(3)));
+      price=Sm90NativeGemmPrice(work,f,c.gemms[f],c.residency,cost,stream,pre);
+      page=c.gemms[f].slot_bytes;pages=stream?c.gemms[f].slots:0;
+    }else throw std::invalid_argument("native CTG has an unpriced task role");
+    if(price.category=="reducer" || price.category=="embedding")
+      price.head=price.tail=price.head_and_tail=price.middle;
+    if(!stream)for(auto* parts:{&price.middle,&price.head,&price.tail,&price.head_and_tail})
+      parts->no_producer_dram_bytes=0;
+    if(price.tasks!=task.count)
+      throw std::invalid_argument("native CTG count differs from the task price contract");
+    auto single=Sm90NativeSingleStageProblem(price,cost,c.residency);
+    FlowSpace space=std::move(single.spaces.back());
+    space.name=task.name+":"+price.name;space.order=problem.spaces.size();
+    space.handoff_reducer=node.sync==Sm90SyncKind::kHandoff;
+    space.page_bytes=page;space.pages_per_worker=pages;
+    problem.spaces.push_back(std::move(space));result.nodes.push_back(std::move(node));
+  }
+  for(auto const& coupling:ctg.edges) {
+    auto const& node=result.nodes[coupling.consumer];
+    FlowRelease edge;edge.producer=coupling.producer;edge.consumer=coupling.consumer;
+    edge.all_producer=node.sync==Sm90SyncKind::kAggregate;
+    edge.kappa=edge.all_producer?problem.spaces[edge.producer].count:node.kappa;
+    edge.hop_ns=node.price.hop_ns;
+    edge.sorted=Sm90NativeReleaseTable(coupling.relation,
+        problem.spaces[edge.producer].count,problem.spaces[edge.consumer].count,
+        edge.kappa,ctg.binding,cache);
+    problem.edges.push_back(std::move(edge));
+  }
+  if(isolated) {
+    for(auto const& node:result.nodes)
+      result.pool_score_ns+=EvaluateFlow(Sm90NativeSingleStageProblem(
+          node.price,cost,c.residency)).makespan_ns;
+  }else {
+    result.evaluated=EvaluateFlow(problem);result.pool_score_ns=result.evaluated.makespan_ns;
+    for(auto const& space:result.evaluated.spaces)
+      result.stage_ns.push_back(space.last_end-std::max(0.,space.first_start));
+  }
+  result.step_ns=result.pool_score_ns;result.cache_hits=cache.coupling.hits;
+  result.cache_misses=cache.coupling.misses;
   return result;
 }
 }  // namespace tilemega::solver

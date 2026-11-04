@@ -64,12 +64,39 @@ int main(int argc,char**argv){
       for(std::size_t i=0;i<ctg.edges.size();++i)
         assert(again.edges[i].relation.ToString()==ctg.edges[i].relation.ToString());
       assert(again.spaces.size()==ctg.spaces.size());
+      auto actual_work=Sm90DenseWorkloadFromPlan(imported.plan,batch);
+      auto actual=Sm90NativeCtgScore(imported,actual_work,c,cost,context,cache);
+      assert(actual.step_ns>0 && actual.problem.spaces.back().count==1);
+      assert(actual.problem.spaces.back().handoff_reducer);
+      assert(std::count_if(actual.nodes.begin(),actual.nodes.end(),
+          [](auto const& n){return n.price.name=="attention_merge";})==
+          (c.attention.chunks>1?actual_work.layers:0));
+      for(auto const& edge:actual.problem.edges)if(edge.all_producer)
+        for(auto [last,consumer]:*edge.sorted)
+          assert(last==actual.problem.spaces[edge.producer].count-1);
+      auto grouped_c=c;grouped_c.group_wait=true;
+      auto grouped_flow=Sm90NativeCtgScore(imported,actual_work,grouped_c,cost,context,cache);
+      for(auto const& edge:grouped_flow.problem.edges)
+        if(grouped_flow.nodes[edge.consumer].price.name=="attention") {
+          assert(!edge.all_producer && edge.kappa==16);
+          for(auto [last,consumer]:*edge.sorted)
+            assert(last==(consumer/(batch*c.attention.chunks)+1)*16-1);
+        }
+      auto isolated=Sm90NativeCtgScore(imported,actual_work,c,cost,context,cache,true);
+      double sum=0;
+      for(auto const& node:isolated.nodes)sum+=EvaluateFlow(
+          Sm90NativeSingleStageProblem(node.price,cost,c.residency)).makespan_ns;
+      assert(std::abs(sum-isolated.step_ns)<1e-6);
       if(batch==1) {
         auto changed=c;changed.gemms[0].tile_n*=2;changed.gemms[0].slot_bytes*=2;
         auto variant=InstantiateSm90NativeCtg(imported,changed,batch,context,cache);
         assert(variant.spaces[1].count*2==ctg.spaces[1].count);
         auto restored=InstantiateSm90NativeCtg(imported,c,batch,context,cache);
         assert(!restored.module && restored.spaces[1].count==ctg.spaces[1].count);
+        auto head=c;head.gemms[4].tile_n/=2;
+        auto head_variant=InstantiateSm90NativeCtg(imported,head,batch,context,cache);
+        assert(head_variant.spaces[head_variant.spaces.size()-2].count==
+            2*ctg.spaces[ctg.spaces.size()-2].count);
       }
     }
     double waited = 0, barriered = 0;

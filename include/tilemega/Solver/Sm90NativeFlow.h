@@ -3,6 +3,7 @@
 #include <tilemega/Solver/Sm90NativePrices.h>
 #include <tilemega/Solver/Sm90DenseCoordinates.h>
 #include <tilemega/Analysis/CouplingCache.h>
+#include <tilemega/Solver/Sm90NativeCtg.h>
 #include <string>
 #include <vector>
 
@@ -51,4 +52,8 @@ Sm90NativeFlowResult Sm90NativePoolScore(Sm90DenseWorkload const& work,
                                          Sm90DenseCoordinates const& coordinates,
                                          Sm90DenseCostModel const& cost,
                                          analysis::CouplingCache* cache = nullptr);
+
+Sm90NativeFlowResult Sm90NativeCtgScore(frontend::ImportedSemantics const&,
+    Sm90DenseWorkload const&,Sm90DenseCoordinates const&,Sm90DenseCostModel const&,
+    mlir::MLIRContext&,Sm90NativeCtgCache&,bool isolated=false);
 }  // namespace tilemega::solver
