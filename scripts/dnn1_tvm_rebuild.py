@@ -47,6 +47,7 @@ def main():
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--jobs", type=int, default=8)
     parser.add_argument("--timeout-s", type=int, default=14400)
+    parser.add_argument("--python", default="/root/TileMega/runs/r16/env/tensorrt-dnn/bin/python")
     options = parser.parse_args()
     if options.jobs < 1 or not 1 <= options.timeout_s <= 14400:
         parser.error("invalid CPU jobs or wall limit")
@@ -110,6 +111,15 @@ def main():
         receipt["buildinfo_patch"] = dict(path=str(buildinfo_patch), sha256=sha(buildinfo_patch),
                                           original_source_sha256=BUILDINFO_BEFORE,
                                           patched_source_sha256=BUILDINFO_AFTER)
+        dtype_patch = Path(__file__).with_name("dnn1_tvm_torch_dtype.patch")
+        applied = subprocess.run(["git", "-C", str(source), "apply", "--reverse", "--check",
+                                  str(dtype_patch)], capture_output=True).returncode == 0
+        if not applied:
+            subprocess.run(["git", "-C", str(source), "apply", "--check", str(dtype_patch)], check=True)
+            subprocess.run(["git", "-C", str(source), "apply", str(dtype_patch)], check=True)
+        shutil.copy2(dtype_patch, out / dtype_patch.name)
+        receipt["torch_dtype_patch"] = dict(path=str(dtype_patch), sha256=sha(dtype_patch),
+                                            applied_by_script=not applied)
         failure = repo / "runs/dnn1/tvm/build_failure.json"
         receipt["original_failure"] = dict(path=str(failure), sha256=sha(failure))
         receipt["cmake_cache_sha256"] = sha(build / "CMakeCache.txt")
@@ -162,6 +172,32 @@ static_assert(std::is_constructible_v<llvm::StringRef, decltype(SubtargetKey(std
                                 for path in sorted((build / "lib").glob("*.so*"))]
         if result:
             raise subprocess.CalledProcessError(result, command)
+        # The compiler's C++ FFI headers and Python extension must come from
+        # the same pinned submodule. A newer PyPI wheel can load successfully
+        # yet crash when serializing IR during MetaSchedule initialization.
+        ffi_source = source / "3rdparty/tvm-ffi"
+        wheel_dir = out / "ffi-wheels"
+        wheel_dir.mkdir()
+        ffi_env = dict(env, CMAKE_BUILD_PARALLEL_LEVEL=str(options.jobs))
+        wheel_command = [options.python, "-m", "pip", "wheel", "--no-deps",
+                         "--wheel-dir", str(wheel_dir), str(ffi_source)]
+        with (out / "ffi_build.log").open("w") as log:
+            subprocess.run(wheel_command, stdout=log, stderr=subprocess.STDOUT,
+                           env=ffi_env, check=True,
+                           timeout=max(1, options.timeout_s-(time.monotonic()-started)))
+        wheel, = wheel_dir.glob("apache_tvm_ffi-*.whl")
+        destination = source.parent / "ffi_python"
+        install_command = [options.python, "-m", "pip", "install", "--no-deps", "--no-index",
+                           "--upgrade", "--target", str(destination), str(wheel)]
+        with (out / "ffi_install.log").open("w") as log:
+            subprocess.run(install_command, stdout=log, stderr=subprocess.STDOUT,
+                           env=ffi_env, check=True,
+                           timeout=max(1, options.timeout_s-(time.monotonic()-started)))
+        receipt["python_ffi"] = dict(
+            source_commit=subprocess.check_output(["git", "-C", str(ffi_source),
+                                                    "rev-parse", "HEAD"], text=True).strip(),
+            wheel=str(wheel), wheel_sha256=sha(wheel), target=str(destination),
+            build_command=wheel_command, install_command=install_command)
     except Exception as error:
         receipt.update(state="failed", error=f"{type(error).__name__}: {error}")
         raise

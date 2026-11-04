@@ -27,12 +27,23 @@ TVM_COMMIT = "7b5acb32bd271342a24130f4ef439ff6c2e52c6c"
 TARGET = "cuda -arch=sm_90a"
 # v0.27 requires structured Target construction; this is the same fixed target.
 TARGET_CONFIG = {"kind": "cuda", "arch": "sm_90a"}
-RECIPE = dict(schema=1, target=TARGET, import_exported_program=True,
+RECIPE = dict(schema=4, builder_workers="min(8, CPU affinity)", ffi="pinned-submodule-python-build", importer_output_dtype="aten-with-fp32-accumulation", target=TARGET, import_exported_program=True,
               keep_params_as_input=True, partition=["cublas", "cudnn"],
               run_codegen=True, pipeline="zero", tune_before_default_schedule=True,
               schedules=["Matmul", "GEMV", "Reduction", "GeneralReduction", "Fallback"],
               tuning=dict(max_trials_global=2000, timeout_s=1800,
                           search_strategy="evolutionary", cost_model="xgb"))
+
+
+def _device_target_config(tvm):
+    _guard()
+    device = tvm.cuda(0)
+    # This release's CUDA canonicalizer only fills arch. MetaSchedule requires
+    # explicit hardware limits; obtain them from the already-guarded device.
+    return dict(TARGET_CONFIG,
+                max_threads_per_block=int(device.max_threads_per_block),
+                max_shared_memory_per_block=int(device.max_shared_memory_per_block),
+                thread_warp_size=int(device.warp_size))
 
 
 class TvmBaselineError(RuntimeError):
@@ -74,12 +85,17 @@ def _source_identity():
     root = _root()
     repo = Path(__file__).resolve().parents[3]
     patches = [repo / "scripts" / name for name in
-               ("dnn1_tvm_llvm23_compat.patch", "dnn1_tvm_buildinfo.patch")]
+               ("dnn1_tvm_llvm23_compat.patch", "dnn1_tvm_buildinfo.patch", "dnn1_tvm_torch_dtype.patch")]
     files = [root / "source" / name for name in
-             ("src/target/llvm/llvm_instance.cc", "python/tvm/support/libinfo.py")]
+             ("src/target/llvm/llvm_instance.cc", "python/tvm/support/libinfo.py",
+              "python/tvm/relax/frontend/torch/base_fx_graph_translator.py",
+              "python/tvm/relax/frontend/torch/exported_program_translator.py")]
     diff = subprocess.check_output(["git", "-C", str(root / "source"),
                                     "diff", "--binary", "HEAD"])
-    return dict(commit=TVM_COMMIT, patches={str(path): _sha(path) for path in patches},
+    ffi_commit = subprocess.check_output(["git", "-C", str(root / "source/3rdparty/tvm-ffi"),
+                                          "rev-parse", "HEAD"], text=True).strip()
+    return dict(commit=TVM_COMMIT, ffi_commit=ffi_commit,
+                patches={str(path): _sha(path) for path in patches},
                 modified_sources={str(path): _sha(path) for path in files},
                 source_diff_sha256=hashlib.sha256(diff).hexdigest(),
                 original_stub_source_sha256="c12245def0db46c5700cd8e5924027d12a96e3ed1298830de5c07cfc691f5b88")
@@ -87,7 +103,7 @@ def _source_identity():
 
 def _load_tvm():
     root = _root()
-    local = [str(root / "python_deps"), str(root / "source/python")]
+    local = [str(root / "ffi_python"), str(root / "python_deps"), str(root / "source/python")]
     for entry in reversed(local):
         if entry not in sys.path:
             sys.path.insert(0, entry)
@@ -98,6 +114,8 @@ def _load_tvm():
     try:
         import tvm
         import tvm_ffi
+        if not Path(tvm_ffi.__file__).resolve().is_relative_to(root / "ffi_python"):
+            raise RuntimeError("TVM FFI must use the Python build from the pinned C++ submodule")
         if not Path(tvm.__file__).resolve().is_relative_to(root / "source/python"):
             raise RuntimeError(f"TVM did not import from the isolated source tree: {tvm.__file__}")
         commit = subprocess.check_output(
@@ -123,7 +141,7 @@ def _libraries():
     root = _root()
     candidates = sorted((root / "build/lib").glob("libtvm*.so"))
     candidates += sorted((root / "build").glob("libtvm*.so"))
-    candidates += sorted((root / "python_deps/tvm_ffi").glob("**/libtvm_ffi.so"))
+    candidates += sorted((root / "ffi_python/tvm_ffi").glob("**/libtvm_ffi.so"))
     result = []
     seen = set()
     for path in candidates:
@@ -364,7 +382,7 @@ def _prepare_module(program, precision, batch, evidence_dir):
     params = detached.get("main", [])
     input_count = int(mod["main"].attrs["num_input"])
     mod, binding = _static_batch(mod, batch, input_count)
-    input_names = [value.name_hint for value in list(mod["main"].params)[:input_count]]
+    input_names = [value.name for value in list(mod["main"].params)[:input_count]]
     parameter_dtypes = Counter(str(value.dtype) for value in params)
     mod = partition_for_cublas(mod)
     mod = partition_for_cudnn(mod)
@@ -400,9 +418,36 @@ def _tune_worker(request):
         import transformers.modeling_outputs  # registers the stored output pytree
     torch.set_num_threads(4)
     program = torch.export.load(request["export"])
-    target = tvm.target.Target(TARGET_CONFIG)
+    target = tvm.target.Target(_device_target_config(tvm))
     directory = Path(request["tune_dir"])
     started = time.monotonic()
+    from tvm.ir.utils import derived_object
+    workers = min(8, len(os.sched_getaffinity(0)))
+    delegate = ms.builder.LocalBuilder(max_workers=workers)
+
+    @derived_object
+    class JournalBuilder(ms.builder.PyBuilder):
+        def build(self, inputs):
+            results = delegate.build(inputs)
+            with (directory / "builder_results.jsonl").open("a") as log:
+                for index, result in enumerate(results):
+                    error = str(result.error_msg) if result.error_msg is not None else None
+                    log.write(json.dumps(dict(time=time.time(), error=error,
+                                              artifact=result.artifact_path)) + "\n")
+                    if error and not (directory / "first_build_error.py").exists():
+                        (directory / "first_build_error.py").write_text(inputs[index].mod.script())
+            return results
+
+    @derived_object
+    class JournalMeasurement(ms.measure_callback.PyMeasureCallback):
+        def apply(self, scheduler, task_id, candidates, builds, results):
+            with (directory / "runner_results.jsonl").open("a") as log:
+                for result in results:
+                    log.write(json.dumps(dict(time=time.time(), task_id=task_id,
+                        error=str(result.error_msg) if result.error_msg is not None else None,
+                        run_secs=[float(x) for x in result.run_secs]
+                                 if result.run_secs is not None else None)) + "\n")
+
     with target:
         mod, _, _, _ = _prepare_module(program, request["precision"], request["batch"],
                                       directory / "ir")
@@ -410,7 +455,8 @@ def _tune_worker(request):
         if extracted:
             database = ms.relax_integration.tune_relax(
                 mod, params={}, target=target, work_dir=str(directory),
-                max_trials_global=request["max_trials_global"])
+                max_trials_global=request["max_trials_global"], builder=JournalBuilder(),
+                measure_callbacks=[JournalMeasurement(), *ms.measure_callback.MeasureCallback.create("default")])
         else:
             database = ms.database.JSONDatabase(work_dir=str(directory))
     result = dict(_count_database(database), task_count=len(extracted),
@@ -463,6 +509,10 @@ def _run_tuning(export_path, precision, batch, tune_dir, max_trials_global, time
                   process_returncode=code,
                   inflight_trials="unknown at timeout" if timed_out else 0,
                   work_dir=str(tune_dir), log=str(tune_dir / "tuning.log"))
+    if (tune_dir / "builder_results.jsonl").exists():
+        builds = [json.loads(line) for line in (tune_dir / "builder_results.jsonl").read_text().splitlines()]
+        result.update(attempted_builds=len(builds), build_errors=sum(bool(x["error"]) for x in builds),
+                      builder_journal=str(tune_dir / "builder_results.jsonl"))
     if (tune_dir / "completed.json").exists():
         result["task_count"] = json.loads((tune_dir / "completed.json").read_text())["task_count"]
     _json(tune_dir / "receipt.json", result)
@@ -551,6 +601,7 @@ def tvm_runner(directory, program, args, kwargs, precision, batch, out, metadata
         dependency_versions = {name: importlib.metadata.version(name) for name in
                                ("torch", "numpy", "apache-tvm-ffi", "xgboost", "ml_dtypes")}
         identity = dict(schema_version=1, precision=precision, batch=batch,
+                        target_configuration=_device_target_config(tvm),
                         exported_program_sha256=_sha(directory / "exported_program.pt2"),
                         source_checkpoint_sha256=_sha(directory / "checkpoint/model.safetensors"),
                         adapter_sha256=_sha(__file__), recipe=RECIPE,
@@ -572,7 +623,7 @@ def tvm_runner(directory, program, args, kwargs, precision, batch, out, metadata
         phase = "compile"
         from tvm import relax
         from tvm.s_tir import dlight, meta_schedule as ms
-        target = tvm.target.Target(TARGET_CONFIG)
+        target = tvm.target.Target(identity["target_configuration"])
         with (entry / "cache.lock").open("a+b") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
             receipt_path, library_path = entry / "compiled.json", entry / "model.so"
