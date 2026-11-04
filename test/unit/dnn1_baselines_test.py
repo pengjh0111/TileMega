@@ -117,6 +117,16 @@ real_selfcheck = dict(cuda_exist=True,
     libinfo=dict(USE_CUDA='/usr/local/cuda', USE_CUBLAS='ON', USE_CUDNN='/workspace/cudnn'))
 module.write(OUT / 'selfcheck.json', real_selfcheck)
 assert module.validate_tvm_selfcheck(base)['receipt'] == real_selfcheck
+library_fixture = OUT / 'selfcheck-library.so'
+library_fixture.write_text('CPU metadata fixture; no dynamic library loaded')
+selfcheck_with_library = dict(real_selfcheck, libraries=[dict(path=str(library_fixture), sha256=module.sha(library_fixture))])
+module.write(OUT / 'selfcheck.json', selfcheck_with_library)
+validated = module.validate_tvm_selfcheck(base)
+assert validated['path'] == base['tvm_selfcheck']
+assert validated['sha256'] == module.sha(base['tvm_selfcheck'])
+assert validated['receipt'] == selfcheck_with_library
+module.write(OUT / 'selfcheck.json', real_selfcheck)
+checks.append('selfcheck provenance remains the receipt path/hash after validating actual library hashes')
 for bad in (dict(real_selfcheck, enabled=dict(USE_CUDA=True, USE_CUBLAS=True, USE_CUDNN=False)),
             dict(real_selfcheck, libinfo=dict(USE_CUDA='/usr/local/cuda', USE_CUBLAS='ON', USE_CUDNN='OFF')),
             dict(real_selfcheck, enabled={})):
@@ -193,6 +203,8 @@ def fake_logical(cell, arm, role, index, destination):
 original_logical = module.logical
 module.require_session = lambda cell: None
 module.logical = fake_logical
+original_drain = module.passive_context_drain
+module.passive_context_drain = lambda cell: dict(status='CPU_fixture_no_GPU_observation')
 cell_path = OUT / 'cell/spec.json'
 module.write(cell_path, base)
 session_out = OUT / 'raw/cell/attempt1/job'
@@ -318,6 +330,28 @@ assert any(row['arm']['arm'] == 'tvm-fp16' for row in compile_failed['logical_jo
 assert any(row['arm']['arm'].endswith('fullgraph-false') for row in compile_failed['logical_jobs'])
 module.logical = fake_logical
 checks.append('model compile failures, including both explicit reference arms, finish as N/A without blocking later cells')
+
+fake_now = 0.
+def fake_clock():
+    return fake_now
+def fake_sleep(duration):
+    global fake_now
+    fake_now += duration
+observations = iter([dict(owners={17:16}), dict(owners={}), dict(owners={18:16}),
+                     dict(owners={}), dict(owners={})])
+drain = original_drain(base, observe=lambda cell: next(observations), clock=fake_clock, sleep=fake_sleep)
+assert drain['status'] == 'empty_observed' and len(drain['samples']) == 5
+assert drain['elapsed_s'] == 1. and drain['attribution'].startswith('unknown')
+fake_now = 0.
+drain = original_drain(base, timeout_s=1., observe=lambda cell: dict(owners={23:16}),
+                       clock=fake_clock, sleep=fake_sleep)
+assert drain['status'] == 'timeout' and drain['elapsed_s'] == 1.
+assert all(row['telemetry']['owners'] == {23:16} for row in drain['samples'])
+def unavailable(cell):
+    raise RuntimeError('CPU fixture NVML unavailable')
+drain = original_drain(base, observe=unavailable, clock=fake_clock, sleep=fake_sleep)
+assert drain['status'] == 'telemetry_unavailable' and 'NVML unavailable' in drain['error']
+checks.append('exit drain is bounded and passive, retains owners without attribution, and requires consecutive empty samples')
 
 original_execute, original_telemetry = module.execute, module.telemetry
 module.telemetry = lambda cell: dict(throttle_mask=0, sm_clock_mhz=345)

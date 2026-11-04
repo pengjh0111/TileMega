@@ -147,6 +147,62 @@ def telemetry(cell):
     return gpu(cell['gpu'])
 
 
+def exit_context_snapshot(cell, timeout_s):
+    """Read metadata without creating a CUDA context, with a shared deadline."""
+    deadline = time.monotonic() + timeout_s
+    def query(flag):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError('exit metadata deadline expired')
+        return subprocess.check_output(['nvidia-smi', '-i', str(cell['gpu']), flag,
+            '--format=csv,noheader,nounits'], text=True, timeout=remaining)
+    apps = query('--query-compute-apps=pid,used_memory')
+    detail = query('--query-gpu=memory.used,utilization.gpu,clocks.current.sm,temperature.gpu,clocks_event_reasons.active')
+    owners = {}
+    for line in apps.splitlines():
+        pid, used = line.split(',')
+        owners[int(pid)] = int(used)
+    used, utilization, sm, temperature, throttle = detail.strip().split(',')
+    return dict(time=time.time(), gpu_index=cell['gpu'], owners=owners, used_mib=float(used),
+        utilization_pct=float(utilization), sm_clock_mhz=float(sm), temperature_c=float(temperature),
+        throttle_mask=int(throttle.strip(), 0), raw_compute_apps=apps, raw_gpu_detail=detail)
+
+
+def passive_context_drain(cell, timeout_s=10.0, interval_s=.25, *, observe=None, clock=None, sleep=None):
+    """Wait for two empty NVML compute-app samples; the outer guard still decides.
+
+    Child exit can precede CUDA context disappearance. An observed PID is not
+    attributed to our subprocess, and no owner is signalled or exempted. This
+    exit-only wait never changes a measurement or the guard's acceptance rules.
+    """
+    clock, sleep = clock or time.monotonic, sleep or time.sleep
+    begin = clock()
+    record = dict(started=time.time(), timeout_s=timeout_s, interval_s=interval_s,
+                  required_empty_samples=2, samples=[], attribution='unknown; observation only')
+    empty = 0
+    while True:
+        try:
+            row = (observe(cell) if observe else
+                   exit_context_snapshot(cell, max(.001, timeout_s - (clock() - begin))))
+            if not isinstance(row.get('owners'), dict):
+                raise ValueError('exit metadata omitted the compute-app owners')
+        except Exception as error:
+            record.update(status='telemetry_unavailable', error=str(error))
+            break
+        record['samples'].append(dict(elapsed_s=clock() - begin, telemetry=row))
+        empty = empty + 1 if not row.get('owners') else 0
+        if empty >= record['required_empty_samples']:
+            record['status'] = 'empty_observed'
+            break
+        remaining = timeout_s - (clock() - begin)
+        if remaining <= 0:
+            record['status'] = 'timeout'
+            break
+        sleep(min(interval_s, remaining))
+    record.update(ended=time.time(), elapsed_s=clock() - begin)
+    return record
+
+
 def strict_correctness(model, metrics):
     if not isinstance(metrics, list) or not metrics:
         return False, 'missing baseline correctness metrics'
@@ -199,9 +255,9 @@ def validate_tvm_selfcheck(cell):
         raise HardStop('DT-TVM branch 3: ' + compact(value))
     for library in value.get('libraries') or []:
         if library.get('path') and library.get('sha256'):
-            path = Path(library['path'])
-            if not path.is_file() or sha(path) != library['sha256']:
-                raise PreparationPending('repeat selfcheck after the TVM source-build library changed: ' + str(path))
+            library_path = Path(library['path'])
+            if not library_path.is_file() or sha(library_path) != library['sha256']:
+                raise PreparationPending('repeat selfcheck after the TVM source-build library changed: ' + str(library_path))
     return dict(path=str(path), sha256=sha(path), receipt=value)
 
 
@@ -755,6 +811,9 @@ def run(args):
             record.update(status='hard_stop', ended=time.time(), error=str(error), traceback=traceback.format_exc())
             save()
             raise
+        finally:
+            record['exit_context_drain'] = passive_context_drain(cell)
+            save()
         save()
         print(compact(dict(status=record['status'], model=cell['model'], batch=cell['batch'],
             jobs=len(record['logical_jobs']), native_prefix=cell['prefix'], p_cell_complete=cell['p_cell_complete'])))
