@@ -1,11 +1,21 @@
 diff --git a/python/tvm/relax/frontend/torch/base_fx_graph_translator.py b/python/tvm/relax/frontend/torch/base_fx_graph_translator.py
-index 3706411e43..da5cd3899f 100644
+index 3706411e43..f9e5949e97 100644
 --- a/python/tvm/relax/frontend/torch/base_fx_graph_translator.py
 +++ b/python/tvm/relax/frontend/torch/base_fx_graph_translator.py
-@@ -734,6 +734,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
+@@ -734,6 +734,22 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
  
      def _pow(self, node: fx.Node) -> relax.Var:
          lhs, rhs = self.retrieve_args(node)
++        if (isinstance(lhs, relax.Expr) and isinstance(rhs, (int, float)) and rhs == 2
++                and str(lhs.ty.dtype) in ("bfloat16", "float16", "float32", "float64")):
++            # CUDA fast pow uses log(base), which is invalid for negative
++            # bases even when the exponent is exactly two. ATen square is
++            # defined there; multiply also preserves that domain under fast math.
++            dtype = str(lhs.ty.dtype)
++            value = (self.block_builder.emit(relax.op.astype(lhs, "float32"))
++                     if dtype in ("bfloat16", "float16") else lhs)
++            value = self.block_builder.emit(relax.op.multiply(value, value))
++            return self.block_builder.emit(relax.op.astype(value, dtype))
 +        if isinstance(lhs, relax.Expr) and str(lhs.ty.dtype) == "bfloat16":
 +            value = self.block_builder.emit(relax.op.astype(lhs, "float32"))
 +            exponent = (self.block_builder.emit(relax.op.astype(rhs, "float32"))
@@ -15,7 +25,7 @@ index 3706411e43..da5cd3899f 100644
          # torch integer pow returns an integer tensor, but relax.op.power legalizes to
          # TOPI power which requires floating-point inputs. Decompose an integer base with
          # a constant non-negative integer exponent into repeated multiplication instead.
-@@ -916,13 +922,14 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
+@@ -916,13 +932,14 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                  dtype = res.ty.dtype
                  res = self.block_builder.emit(relax.op.multiply(res, relax.const(alpha, dtype)))
          if beta != 0:
@@ -32,7 +42,7 @@ index 3706411e43..da5cd3899f 100644
  
      def _avg_pool1d_impl(
          self,
-@@ -1253,10 +1260,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
+@@ -1253,10 +1270,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
          )
  
          if self._is_no_bias(bias):
@@ -46,7 +56,7 @@ index 3706411e43..da5cd3899f 100644
  
      def _conv2d(self, node: fx.Node) -> relax.Var:
          args = self.retrieve_args(node)
-@@ -1543,7 +1551,13 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
+@@ -1543,7 +1561,13 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
              shape_tuple = [int(s) for s in normalized_shape]
              beta = relax.const(np.zeros(shape_tuple), x.ty.dtype)
  
@@ -61,7 +71,7 @@ index 3706411e43..da5cd3899f 100644
              relax.op.nn.layer_norm(
                  x,
                  gamma,
-@@ -1552,6 +1566,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
+@@ -1552,6 +1576,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                  epsilon=eps,
              )
          )
@@ -69,7 +79,7 @@ index 3706411e43..da5cd3899f 100644
  
      def _layer_norm(self, node: fx.Node) -> relax.Var:
          x = self.env[node.args[0]]
-@@ -1581,7 +1596,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
+@@ -1581,7 +1606,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
          x = args[0]
          weight = args[1]
          bias = args[2] if len(args) > 2 else None
