@@ -2458,7 +2458,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   auto const& embedding=emitted.front();
   if(emitted.back().ids[2]!=embedding.ids[0])
     throw std::invalid_argument("native argmax and embedding disagree on the token buffer");
-  info.pop_back();
+  if(!c.argmax_stage)info.pop_back();
   int hidden=int(integerField(dictionaryEntry(stages[0],"stages"),"width"));
   // Per-layer columns: an operand position of a layer stage whose buffer
   // differs between layers. Everything else must be identical in all layers.
@@ -2524,7 +2524,8 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     if(n==head)types<<"using Body_"<<head<<"=Head<HeadGemm_"<<head<<','<<embedding.ids[0]<<','<<embedding.ids[1]<<','
                    <<embedding.ids[2]<<','<<hidden<<','<<capacity<<','
                    <<(c.embed_la?"true":"false")
-                   <<(tp>1?","+std::to_string(tp)+","+std::to_string(nk[4][0]):std::string())<<">;\n";
+                   <<(tp>1?","+std::to_string(tp)+","+std::to_string(nk[4][0]):
+                       c.argmax_stage?",1,0,true":std::string())<<">;\n";
     // D6: a ring stage streams into the next ring stage unless either is full
     // width; the prologue has no ring and nothing crosses the step boundary.
     // Layer 0's qkv follows the prologue and is told so at run time.
@@ -2547,12 +2548,19 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     if(group_tiles)types<<','<<group_tiles;
     types<<">;\n";
   }
+  if(c.argmax_stage) {
+    auto const& a=emitted.back();
+    types<<"using ArgmaxStage=Placement<Argmax<"<<batch<<','<<hidden<<','<<capacity;
+    for(auto const& id:a.ids)types<<','<<id;
+    types<<','<<embedding.ids[1]<<','<<embedding.ids[2]<<','<<(c.embed_la?"true":"false")<<">,0>;\n";
+  }
   out<<types.str()<<"using NativeProgram=Program<"<<batch<<','<<capacity<<','<<c.residency<<','
      <<buffers.size()<<','<<map_order.size()<<','<<arena<<','<<layers<<','<<slots<<','
      <<(c.layer_loop?"true":"false")<<','<<(c.embed_la?"true":"false")<<",Stage_0,LayerGroup<"
      <<per_group;
   for(unsigned j=1;j<=group_size;++j)out<<",Stage_"<<j;
-  out<<">,Stage_"<<head<<','<<c.cluster<<(tp>1?","+std::to_string(tp):std::string())
+  out<<">,Stage_"<<head<<','<<c.cluster<<(tp>1?","+std::to_string(tp):
+      c.argmax_stage?",1,ArgmaxStage":std::string())
      <<">;\nconstexpr std::array<StageInfo,"<<info.size()<<"> kNativeStages={{\n";
   for(auto const& row:info)out<<row;
   out<<"}};\n"

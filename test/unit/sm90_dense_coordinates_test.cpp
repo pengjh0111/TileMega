@@ -28,6 +28,10 @@ int main() {
  c.swiglu_u=8;c.attention.chunks=16;c.weight_stream=true;c.layer_loop=true;c.embed_la=true;
  c.Validate(nk,1);auto json=c.ToJson();auto d=Sm90DenseCoordinates::FromJson(json);d.Validate(nk,1);
  assert(d.gemms[2].tile_n==48 && d.gemms[1].tile_n==8 && d.weight_stream && d.layer_loop && d.embed_la);
+ auto independent=c;independent.argmax_stage=true;
+ auto restored=Sm90DenseCoordinates::FromJson(independent.ToJson());
+ restored.Validate(nk,1);assert(restored.argmax_stage && restored.tp==1);
+ assert(c.ToJson().At("schema").AsNumber("schema")==6);
  // D5/D6 rules: full residency, the first-task stream and full-width attention.
  assert(d.gemms[0].FullyResident(1024)==(d.gemms[0].slots==16) && d.gemms[0].StreamBytes(1024)==3*2*32*64);
  assert(d.attention.FullyResident(575) && d.attention.StreamBytes(128)==3*4*64*128);

@@ -31,12 +31,16 @@ def validate(manifest, defines):
             defines.get('TILEMEGA_ARCH_ID') != '900' or
             manifest.get('runtime_batch') not in (1, 2, 4, 8, 16) or
             manifest.get('native_origin') not in ('fixed', 'solver') or
-            c.get('schema') not in (5, 6, 7) or
+            c.get('schema') not in (5, 6, 7, 8) or
             c.get('model') not in LAYER):
         raise ValueError('native dense architecture or coordinate schema is invalid')
     # Schema 7 exists only to carry tp > 1; a TP1 program names no degree.
     tp = c.get('tp', 1)
-    if ((c['schema'] == 7) != (tp > 1) or tp not in (1, 2, 4, 8) or
+    argmax_stage = c.get('argmax', 'la') == 'stage'
+    if (c.get('argmax', 'la') not in ('la', 'stage') or
+            (argmax_stage and (c['schema'] != 8 or tp != 1))):
+        raise ValueError('native independent argmax coordinate is invalid')
+    if ((c['schema'] != 8 and (c['schema'] == 7) != (tp > 1)) or tp not in (1, 2, 4, 8) or
             (tp > 1 and c['model'] != 'dense') or
             defines.get('TILEMEGA_NATIVE_TP') != (str(tp) if tp > 1 else None) or
             (tp > 1) != ('TILEMEGA_NATIVE_TP_HIDDEN' in defines)):
@@ -50,6 +54,7 @@ def dispatch(manifest, defines, source):
     validate(manifest, defines)
     c = manifest['native_dense']
     tp = c.get('tp', 1)
+    argmax_stage = c.get('argmax', 'la') == 'stage'
     match = re.search(r'kNativeCoordinateIdentity\[\]\s*=\s*("(?:\\.|[^"\\])*");', source)
     if match is None or json.loads(json.loads(match[1])) != c:
         raise ValueError('native dense coordinate identity differs from generated source')
@@ -84,18 +89,20 @@ def dispatch(manifest, defines, source):
     # ... Stage_{S+1}, cluster> (D10).
     # ... cluster[, tp]> and Head<..., embed[, tp, vocab per rank]> (tp > 1 only).
     program = re.search(r'using NativeProgram\s*=\s*Program<(?:\d+,){5}(\d+),(\d+),\d+,(true|false),'
-                        rf'(true|false),Stage_0,LayerGroup<{per_group}{group}>,Stage_{head},(\d+)(?:,(\d+))?>;',
+                        rf'(true|false),Stage_0,LayerGroup<{per_group}{group}>,Stage_{head},(\d+)(?:,(\d+))?(,ArgmaxStage)?>;',
                         source)
     lm = re.search(rf'using Body_{head}\s*=\s*Head<HeadGemm_{head},\d+,\d+,\d+,\d+,\d+,(true|false)'
-                   r'(?:,(\d+),(\d+))?>;', source)
-    if (program is not None and lm is not None) and (program[6] != (str(tp) if tp > 1 else None) or
-            lm[2] != (str(tp) if tp > 1 else None) or
+                   r'(?:,(\d+),(\d+))?(,true)?>;', source)
+    degree = str(tp) if tp > 1 or argmax_stage else None
+    if (program is not None and lm is not None) and (program[6] != degree or
+            lm[2] != degree or
             (tp > 1 and int(lm[3]) != manifest['gemms'][-1]['n'])):
         raise ValueError('native dense tensor parallel program differs from its coordinate identity')
     embed = c['emb'] == 'la'
     if (program is None or lm is None or (program[3] == 'true') != (c['layer_loop'] is True) or
             (program[4] == 'true') != embed or (lm[1] == 'true') != embed or
-            int(program[5]) != c['cluster']):
+            int(program[5]) != c['cluster'] or bool(program[7]) != argmax_stage or
+            bool(lm[4]) != argmax_stage or (argmax_stage and lm[3] != '0')):
         raise ValueError('native dense program structure differs from its coordinate identity')
     arena, layers = int(program[1]), int(program[2])
     streaming = c['weight_stream'] is True
@@ -126,6 +133,16 @@ def dispatch(manifest, defines, source):
     expected_calls = {str(1 + (l % per_group)*len(layer) + k) for l in range(per_group) for k in positions}
     if set(calls) != expected_calls | {str(head)}:
         raise ValueError('native dense GEMM call count differs from manifest')
+    post = re.findall(r'using ArgmaxStage\s*=\s*Placement<Argmax<([^;]+)>,0>;', source)
+    if bool(post) != argmax_stage or len(post) > 1:
+        raise ValueError('native argmax stage differs from its coordinate identity')
+    if argmax_stage:
+        head_args = re.search(rf'using Body_{head}=Head<([^;]+)>;', source)[1].split(',')
+        gemm_args = calls[str(head)][2].split(',')
+        expected = [str(manifest['runtime_batch']), head_args[4], head_args[5],
+                    gemm_args[13], gemm_args[14], *head_args[1:4], head_args[6]]
+        if post[0].split(',') != expected:
+            raise ValueError('native argmax stage operands differ from its producer')
     result = []
     for index, gemm in enumerate(gemms):
         if index == len(positions)*layers:

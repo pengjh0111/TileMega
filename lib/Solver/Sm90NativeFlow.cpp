@@ -236,15 +236,16 @@ Sm90NativeFlowResult Sm90NativeCtgScore(frontend::ImportedSemantics const& impor
           constants.AttentionMerge(work.head_dim,work.queries,norm,c.attention.chunks);
     }else if(task.role==frontend::OpRole::kServingArgmax) {
       price.name="argmax";price.category="reducer";
-      node.sync=Sm90SyncKind::kHandoff;price.hop_ns=0;
-      price.middle.fixed_ns=constants.ArgmaxLa(problem.workers,work.batch)-problem.hop_ns+
+      node.sync=c.argmax_stage?Sm90SyncKind::kAggregate:Sm90SyncKind::kHandoff;
+      price.hop_ns=c.argmax_stage?problem.hop_ns:0;
+      price.middle.fixed_ns=constants.ArgmaxLa(problem.workers,c.argmax_stage?1:work.batch)-problem.hop_ns+
           (work.tp>1?constants.HeadExchange(work.batch,work.tp):0);
     }else if(task.role==frontend::OpRole::kEmbedding) {
       price.name="embedding";price.category="embedding";
       if(c.embed_la) {
         // The head's last arriver gathers all B rows in one LA group.
         price.middle.fixed_ns=constants.dram_latency+
-            4.*work.shapes[0][1]*work.batch/constants.sm_gbps;
+            4.*work.shapes[0][1]*(c.argmax_stage?1:work.batch)/constants.sm_gbps;
         node.sync=Sm90SyncKind::kHandoff;price.hop_ns=0;
       }else price.middle.fixed_ns=constants.Embedding(problem.workers,
           work.shapes[0][1],work.batch);

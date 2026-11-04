@@ -44,7 +44,7 @@ void NativeBoundaryContracts(mlir::ModuleOp module,bool write) {
       d.groups=integer(s,"extent");
       d.implementation="attention/chunks="+std::to_string(c.attention.chunks)+
           (c.attention.dsmem?"/dsmem":"/global");
-    }else if(d.kind=="kArgmaxReduce")d.implementation="argmax/handoff";
+    }else if(d.kind=="kArgmaxReduce")d.implementation=c.argmax_stage?"argmax/stage":"argmax/handoff";
     else if(d.kind=="kEmbedding")d.implementation=c.embed_la?"embedding/handoff":"embedding/stage";
     else throw std::invalid_argument("native boundary has an unsupported stage kind");
     descriptions.push_back(std::move(d));
@@ -73,7 +73,7 @@ void NativeBoundaryContracts(mlir::ModuleOp module,bool write) {
     std::string kind="aggregate";int extent=1,required=grid;
     if(q.kind=="kFusedAttention" && p.epilogue=="store" && c.group_wait) {
       kind="group";extent=q.groups;required=p.n/c.gemms[0].tile_n/q.groups;
-    }else if(q.kind=="kArgmaxReduce")kind="handoff";
+    }else if(q.kind=="kArgmaxReduce" && !c.argmax_stage)kind="handoff";
     else if(p.epilogue=="moe_gate_up" && q.epilogue=="moe_down" && c.expert_fuse) {
       kind="counted";extent=experts;required=gu_tiles;
     }

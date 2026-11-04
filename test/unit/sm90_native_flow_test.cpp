@@ -71,6 +71,12 @@ int main(int argc,char**argv){
       auto actual=Sm90NativeCtgScore(imported,actual_work,c,cost,context,cache);
       assert(actual.step_ns>0 && actual.problem.spaces.back().count==1);
       assert(actual.problem.spaces.back().handoff_reducer);
+      auto stage_c=c;stage_c.argmax_stage=true;
+      auto stage_flow=Sm90NativeCtgScore(imported,actual_work,stage_c,cost,context,cache);
+      assert(stage_flow.problem.spaces.back().count==batch);
+      assert(!stage_flow.problem.spaces.back().handoff_reducer);
+      assert(stage_flow.problem.edges.back().all_producer);
+      assert(stage_flow.problem.edges.back().hop_ns==constants.Barrier(cost.Grid(c.residency)));
       assert(std::count_if(actual.nodes.begin(),actual.nodes.end(),
           [](auto const& n){return n.price.name=="attention_merge";})==
           (c.attention.chunks>1?actual_work.layers:0));

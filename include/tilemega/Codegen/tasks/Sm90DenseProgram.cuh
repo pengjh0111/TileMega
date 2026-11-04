@@ -362,7 +362,7 @@ struct MoeFused {
 // Tp > 1: this rank holds VocabLocal rows of the vocabulary, and the last
 // arriver exchanges its per-row winner with every rank (prompt appendix C.3).
 template<class G,unsigned Tokens,unsigned Table,unsigned X,int Width,int Capacity,bool Embed,
-         int Tp=1,int VocabLocal=0>
+         int Tp=1,int VocabLocal=0,bool PartialOnly=false>
 struct Head:G {
   static_assert(G::kUsesOperandRecord);
   static_assert((Tp==1)==(VocabLocal==0),"a sharded head names its rank's vocabulary");
@@ -389,11 +389,55 @@ struct Head:G {
   __device__ static __forceinline__ void Run(B const&,int,char* shared,float,
       backend::Sm90DenseRingState& ring,Tail tail,backend::Sm90DenseOperandBank const& record,
       bool streamed) {
-    if constexpr(Tp>1)
+    if constexpr(PartialOnly) {
+      static_assert(Tp==1,"independent argmax requires an explicit TP exchange stage");
+      StageEntry<typename G::Body>::template Head<Prefix>(record.gemm,shared,&ring,tail,streamed,
+          backend::Sm90DenseHeadPartialFinish<G::kBatch>{});
+    }else if constexpr(Tp>1)
       StageEntry<typename G::Body>::template Head<Prefix>(record.gemm,shared,&ring,tail,streamed,
           Finish{&record.head,&record.tp_head});
     else StageEntry<typename G::Body>::template Head<Prefix>(record.gemm,shared,&ring,tail,streamed,
         Finish{&record.head});
+  }
+};
+
+template<int Batch,int Width,int Capacity,unsigned Values,unsigned Indices,unsigned Tokens,
+         unsigned Table,unsigned X,bool Embed>
+struct Argmax {
+  static constexpr bool kUsesOperandRecord=false;
+  static constexpr int kTasks=Batch,kSharedBytes=1024,kRingSlots=0,kMaxPreissue=0;
+  static constexpr backend::Sm90DenseLayout kLayout{};
+  template<int Bytes> static constexpr backend::Sm90DensePayload Payload() {return {};}
+  template<int Prefix,class B,class Tail>
+  __device__ static __forceinline__ void Run(B const& b,int past,char*,float,
+      backend::Sm90DenseRingState&,Tail tail) {
+    auto* values=reinterpret_cast<float const*>(b.template Get<Values>());
+    auto* indices=reinterpret_cast<int const*>(b.template Get<Indices>());
+    auto* tokens=reinterpret_cast<int*>(b.template Get<Tokens>());
+    for(int row=blockIdx.x;row<Batch;row+=gridDim.x) {
+      if(threadIdx.x<32) {
+        int lane=threadIdx.x,grid=gridDim.x;
+        float value=-INFINITY;int index=INT_MAX;
+        // Keep the LA implementation's lane traversal and XOR reduction order.
+        for(int part=lane;part<grid;part+=32) {
+          float v=values[row*grid+part];int id=indices[row*grid+part];
+          if(v>value || (v==value && id<index)) {value=v;index=id;}
+        }
+        #pragma unroll
+        for(int d=16;d;d>>=1) {
+          float v=__shfl_xor_sync(0xffffffff,value,d);
+          int id=__shfl_xor_sync(0xffffffff,index,d);
+          if(v>value || (v==value && id<index)) {value=v;index=id;}
+        }
+        if(lane==0 && past+1>=b.prompt_len)tokens[row*Capacity+past+1]=index;
+      }
+      __syncthreads();
+      if constexpr(Embed)if(threadIdx.x<128)
+        backend::Sm90DenseEmbedding<Width,1,Capacity>::Run(tokens,b.template Get<Table>(),
+            b.template Get<X>(),row,past+1);
+    }
+    if(threadIdx.x==128)tail();
+    __syncthreads();
   }
 };
 
@@ -463,8 +507,10 @@ struct LayerGroup {
 // ranks; DSMEM merges and activation multicast stay within one cluster.
 template<int Batch,int Capacity,int Residency,unsigned Buffers,unsigned Maps,int Arena,
          int Layers,unsigned LayerSlots,bool Loop,bool Embed,class Prologue,class Group,class LmHead,
-         int Cluster=1,int Tp=1>
+         int Cluster=1,int Tp=1,class PostHead=void>
 struct Program {
+  static constexpr bool kPostHead=!std::is_void_v<PostHead>;
+  using Final=std::conditional_t<kPostHead,PostHead,Prologue>;
   using Binding=Bindings<Buffers,Maps,Layers,LayerSlots,Tp>;
   static constexpr int kTp=Tp;
   static_assert(Tp==1 || Tp==2 || Tp==4 || Tp==8,"tensor parallel degree must be 1, 2, 4 or 8");
@@ -473,7 +519,7 @@ struct Program {
   static constexpr int kBatch=Batch,kCapacity=Capacity,kResidency=Residency,kThreads=160;
   static constexpr unsigned kBuffers=Buffers,kMaps=Maps,kLayers=Layers;
   static constexpr unsigned kGroup=Group::kSize,kPerGroup=Group::kLayers,kPerLayer=kGroup/kPerGroup;
-  static constexpr unsigned kStages=2+kPerLayer*Layers,kHead=1+kPerLayer*Layers;
+  static constexpr unsigned kStages=2+kPerLayer*Layers+unsigned(kPostHead),kHead=1+kPerLayer*Layers;
   // D8: one monotonic counter per KV group follows the boundary counters.
   static constexpr unsigned kGroupCounters=GroupStage<0>::kGroupTiles?
       unsigned(GroupStage<0>::kTasks/GroupStage<0>::kGroupTiles):0u;
@@ -543,6 +589,7 @@ struct Program {
   }
   static_assert(Placed<Prologue,0>() && Placed<LmHead,kHead%2>() &&
       GroupPlaced(std::make_integer_sequence<unsigned,kGroup>{}));
+  static_assert(!kPostHead || Placed<Final,(kHead+1)%2>());
   template<unsigned... J>
   static constexpr int GroupBytes(std::integer_sequence<unsigned,J...>) {
     int value=1024;((value=value<GroupStage<J>::kSharedBytes?GroupStage<J>::kSharedBytes:value),...);
@@ -550,7 +597,7 @@ struct Program {
   }
   static constexpr int kArenaSharedBytes=[] {
     int value=GroupBytes(std::make_integer_sequence<unsigned,kGroup>{});
-    for(int bytes:{Prologue::kSharedBytes,LmHead::kSharedBytes})
+    for(int bytes:{Prologue::kSharedBytes,LmHead::kSharedBytes,Final::kSharedBytes})
       value=value<bytes?bytes:value;
     return value;
   }();
@@ -562,6 +609,7 @@ struct Program {
   static constexpr unsigned long long Tasks(unsigned g) {
     if(g==0)return Prologue::kTasks;
     if(g==kHead)return LmHead::kTasks;
+    if constexpr(kPostHead)if(g==kHead+1)return Final::kTasks;
     return GroupTasks((g-1)%kGroup,std::make_integer_sequence<unsigned,kGroup>{});
   }
 
@@ -784,7 +832,12 @@ struct Program {
         std::make_integer_sequence<unsigned,kGroup>{});
     // No stream crosses the step boundary; with Embed the head publishes the
     // next step's layer-0 qkv bank in place of the skipped prologue.
-    Boundary<LmHead,std::conditional_t<Embed,GroupStage<0>,Prologue>,kHead%2,true,
+    if constexpr(kPostHead) {
+      Boundary<LmHead,Final,kHead%2,true>(
+          b,past,shared,epsilon,events,iteration,trace,kHead,0,0,true);
+      Boundary<Final,std::conditional_t<Embed,GroupStage<0>,Prologue>,(kHead+1)%2,true,
+          Embed?1u:0u>(b,past,shared,epsilon,events,iteration,trace,kHead+1,0,0,false);
+    }else Boundary<LmHead,std::conditional_t<Embed,GroupStage<0>,Prologue>,kHead%2,true,
         Embed?1u:(kHead%2)^1u>(b,past,shared,epsilon,events,iteration,trace,kHead,0,0,true);
 #if TILEMEGA_TRACE_STEP
     if(threadIdx.x==0 && record)record->end=Now();

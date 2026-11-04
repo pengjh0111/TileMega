@@ -187,6 +187,18 @@ class NativeContractTests(unittest.TestCase):
             with self.subTest(old=old), self.assertRaisesRegex(ValueError, 'program structure'):
                 self.check(la, self.source(la).replace(old, new))
 
+    def test_independent_argmax_binds_partial_and_reducer(self):
+        c = dict(self.coordinates, schema=8, tp=1, argmax='stage')
+        source = self.source(c).replace('1024,1088,false>;', '1024,1088,false,1,0,true>;')
+        source = source.replace('Stage_11,1>;', 'Stage_11,1,1,ArgmaxStage>;')
+        source += 'using ArgmaxStage=Placement<Argmax<1,1024,1088,2,kAbsent,0,1,2,false>,0>;\n'
+        self.assertEqual(len(self.check(c, source)), 9)
+        for old, new in [(',1,0,true>;', ',1,0>;'),
+                         (',1,1,ArgmaxStage>;', ',1,1>;'),
+                         ('1088,2,kAbsent,0,1,2,false', '1088,3,kAbsent,0,1,2,false')]:
+            with self.subTest(old=old), self.assertRaises(ValueError):
+                self.check(c, source.replace(old, new))
+
 
 if __name__ == '__main__':
     unittest.main()

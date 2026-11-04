@@ -16,6 +16,19 @@ struct Sm90DenseNoFinish {
                              char*,int) const {}
 };
 
+template<int Batch>
+struct Sm90DenseHeadPartialFinish {
+  __device__ __forceinline__ void operator()(Sm90DenseOperands const& p,Sm90DenseRingState&,
+      float const* best,int const* arg,char*,int) const {
+    if(threadIdx.x<Batch) {
+      int offset=int(threadIdx.x)*int(gridDim.x)+int(blockIdx.x);
+      reinterpret_cast<float*>(p.output)[offset]=best[threadIdx.x];
+      p.argmax_index[offset]=arg[threadIdx.x];
+    }
+    codegen::executor::ComputeSync();
+  }
+};
+
 // D9 (prompt §7): lm_head with the argmax folded in. Each CTA has reduced its
 // tasks to one (value, index) per row; it publishes that partial into the
 // GEMM's [B][G] value/index outputs and counts on lm_ctr. The last arriver

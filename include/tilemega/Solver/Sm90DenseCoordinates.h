@@ -92,6 +92,7 @@ struct Sm90DenseCoordinates {
   // D9 ②: the head's last arriver writes the next step's embedding ("la")
   // or a separate embedding stage runs each step ("stage"); P-SEL decides.
   bool embed_la=false;
+  bool argmax_stage=false;
   // D8 (prompt §7): attention waits only for its KV group's qkv tiles
   // (group counters) instead of the grid barrier after qkv; P-SEL decides.
   bool group_wait=false;
@@ -153,6 +154,8 @@ struct Sm90DenseCoordinates {
       throw std::invalid_argument("sm90 dense tp must be 1, 2, 4 or 8");
     // A sharded MoE would have to route across ranks; out of scope this round.
     if(tp>1 && moe)throw std::invalid_argument("sm90 dense tensor parallel MoE is unsupported");
+    if(tp>1 && argmax_stage)
+      throw std::invalid_argument("independent argmax requires an explicit TP exchange stage");
     // D10b chunks share one cluster; D10c multicast pairs exist only in
     // clusters and only for the static dense-shaped GEMM families.
     if((attention.dsmem && cluster%attention.chunks) ||
@@ -206,14 +209,15 @@ struct Sm90DenseCoordinates {
     }
     // Schema 7 adds tp; a TP1 coordinate still serializes as schema 6, so every
     // R3/R4 coordinate file and its hash are unchanged.
-    json::Object result{{"schema",tp>1?7:6},{"model",moe?"moe":"dense"},{"gemms",families},
+    json::Object result{{"schema",argmax_stage?8:tp>1?7:6},{"model",moe?"moe":"dense"},{"gemms",families},
         {"attention",json::Object{{"chunks",attention.chunks},{"block_keys",attention.block_keys},
             {"slots",attention.slots},{"new_row_work",attention.new_row_work},
             {"merge",attention.dsmem?"dsmem":"la"}}},
         {"residency",residency},{"swiglu_u",swiglu_u},{"weight_stream",weight_stream},
         {"layer_loop",layer_loop},{"emb",embed_la?"la":"stage"},{"group_wait",group_wait},
         {"cluster",cluster},{"expert_fuse",expert_fuse}};
-    if(tp>1)result.emplace_back("tp",tp);
+    if(tp>1 || argmax_stage)result.emplace_back("tp",tp);
+    if(argmax_stage)result.emplace_back("argmax","stage");
     return result;
   }
 
@@ -239,9 +243,12 @@ struct Sm90DenseCoordinates {
     // `expert_fuse`. Schema 5 still loads: REF-R3's 30 cells are written in
     // it and predate the fusion, which is exactly `expert_fuse` false.
     int schema=integer(value,"schema");
-    if(schema!=5 && schema!=6 && schema!=7)
+    if(schema!=5 && schema!=6 && schema!=7 && schema!=8)
       throw std::invalid_argument("unknown sm90 dense coordinate schema");
-    if(schema>=7)
+    if(schema==8)
+      keys(value,{"schema","model","gemms","attention","residency","swiglu_u","weight_stream",
+          "layer_loop","emb","group_wait","cluster","expert_fuse","tp","argmax"});
+    else if(schema>=7)
       keys(value,{"schema","model","gemms","attention","residency","swiglu_u","weight_stream",
           "layer_loop","emb","group_wait","cluster","expert_fuse","tp"});
     else
@@ -252,6 +259,11 @@ struct Sm90DenseCoordinates {
     if(model!="dense" && model!="moe")throw std::invalid_argument("unknown sm90 dense model");
     result.moe=model=="moe";
     if(schema>=7)result.tp=integer(value,"tp");
+    if(schema==8) {
+      auto mode=value.At("argmax").AsString("argmax");
+      if(mode!="la" && mode!="stage")throw std::invalid_argument("unknown native argmax implementation");
+      result.argmax_stage=mode=="stage";
+    }
     std::vector<std::string> names;
     for(unsigned i:result.Active())names.push_back(kSm90DenseFamilies[i]);
     for(auto const& item:value.At("gemms").AsObject("sm90 dense coordinate"))

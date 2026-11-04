@@ -75,8 +75,8 @@ Sm90NativeCtg InstantiateSm90NativeCtg(frontend::ImportedSemantics const& input,
   }
   auto granularity=frontend::LaunchGranularity(imported.lifted,imported.plan,options.gemms);
   for(auto const& op:imported.lifted.ops)
-    if(op.role==frontend::OpRole::kServingArgmax ||
-       (c.embed_la && op.role==frontend::OpRole::kEmbedding))
+    if(!c.argmax_stage && (op.role==frontend::OpRole::kServingArgmax ||
+       (c.embed_la && op.role==frontend::OpRole::kEmbedding)))
       granularity.Tile(op.name,"m",analysis::ClosedForm::Constant(batch));
   // Native attention executes Chunks partial tasks and one group reducer.
   // The ordinary serving importer only describes the unsplit result. Use
