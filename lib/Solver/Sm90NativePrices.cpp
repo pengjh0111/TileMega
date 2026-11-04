@@ -33,10 +33,12 @@ void Finish(Sm90NativeStagePrice& price, TaskPriceParts const& base, double epil
   TaskPriceParts head = middle;
   head.fixed_ns = base.fixed_ns + first_byte;
   head.pipeline_steps = steps;
+  head.pipeline_compute_ns = base.compute_ns;
 
   TaskPriceParts both = tail;
   both.fixed_ns = base.fixed_ns + epilogue + first_byte;
   both.pipeline_steps = steps;
+  both.pipeline_compute_ns = base.compute_ns;
 
   price.middle = middle;
   price.tail = tail;

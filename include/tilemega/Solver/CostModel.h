@@ -73,6 +73,9 @@ struct TaskPriceParts {
   // ahead of it, so one step's worth of the shorter side is exposed. 0 means
   // no fill term, which is every historical caller.
   double pipeline_steps=0;
+  // A non-tail epilogue overlaps subsequent transfers but is not pipeline
+  // fill. Negative preserves the historical use of the full compute time.
+  double pipeline_compute_ns=-1;
 };
 double IsolatedNs(TaskPriceParts const& parts,double fair_rate);
 

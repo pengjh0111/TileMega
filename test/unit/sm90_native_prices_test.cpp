@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
-// P1's self-check: for each family, the whole stage priced per task and run
-// through the shared evaluator with an all-producer in-edge must agree with
-// Sm90DenseCostModel's own stage time to within 2%. Disagreement means the
-// mapping in Sm90NativePrices.cpp is wrong, never that a constant is.
+// Continuation 1 section 2: check Eq. (7)'s pipeline arithmetic. Comparison
+// with the additive model is diagnostic and imposes no acceptance threshold.
 #include <tilemega/Solver/Sm90NativePrices.h>
 #include <tilemega/Solver/Sm90DenseCoordinates.h>
 #include <cassert>
@@ -31,6 +29,17 @@ int main(int argc, char** argv) {
   auto target = TargetSpec::FromJson(argv[1]);
   auto constants = Sm90NativeConstants::FromTarget(json::ParseFile(argv[1]), argc > 2 ? argv[2] : ".");
   Sm90DenseCostModel cost(target, constants);
+
+  // Two tasks on one track: the first task has body=10, epilogue=6,
+  // transfer=20 and two pipeline steps. Fill is 10/2, not (10+6)/2.
+  FlowProblem fill;
+  fill.workers=1;fill.dram_gbps=1;
+  FlowSpace s;s.count=2;s.piece_of_task={0,1};
+  TaskPriceParts first;first.compute_ns=16;first.dram_bytes=20;first.dram_rate_cap=1;
+  first.pipeline_steps=2;first.pipeline_compute_ns=10;
+  TaskPriceParts last;last.compute_ns=10;last.dram_bytes=20;last.fixed_ns=6;last.dram_rate_cap=1;
+  s.pieces={{1,first},{1,last}};fill.spaces.push_back(s);
+  assert(std::abs(EvaluateFlow(fill).makespan_ns-51)<1e-9);
 
   // Qwen3-1.7B decode, the shape table the dense cells are solved on.
   Sm90DenseWorkload work;

@@ -246,9 +246,13 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
     // max{c, m} + min{c, m}/n, and only the task at the head of a track pays
     // the second term. min{c, m} is read off the two completion stamps
     // rather than re-derived, so it is the realized transfer, not an estimate.
-    double steps=p.spaces[c.space].pieces[c.piece].parts.pipeline_steps;
-    if(steps>0 && c.compute_end>=0 && c.bytes_end>=0)
-      gated+=(std::min(c.compute_end,c.bytes_end)-c.main)/steps;
+    auto const& parts=p.spaces[c.space].pieces[c.piece].parts;
+    double steps=parts.pipeline_steps;
+    if(steps>0 && c.compute_end>=0 && c.bytes_end>=0) {
+      double compute=parts.pipeline_compute_ns<0?c.compute_end-c.main:
+          std::min(c.compute_end-c.main,parts.pipeline_compute_ns);
+      gated+=std::min(compute,c.bytes_end-c.main)/steps;
+    }
     push(gated+(!options.no_sync && publishes[c.space]?p.publication_ns:0),PublishEnd,id);
   }};
   while(finished<total) {
