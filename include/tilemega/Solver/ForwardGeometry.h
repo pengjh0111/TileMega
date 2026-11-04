@@ -141,7 +141,8 @@ inline Sm90ForwardResourceUsage QuerySm90ForwardResources(Sm90ForwardShape const
       break;
     case Sm90ForwardBody::kPool:
       r.shared_bytes=1024;
-      r.task_count=1LL*positive("batch")*positive("output_width")*positive("output_height");
+      r.task_count=ceildiv(1LL*positive("batch")*positive("output_width")*
+          positive("output_height")*shape.channels,128);
       break;
     case Sm90ForwardBody::kGlobalPool:
       r.shared_bytes=Sm90ForwardGlobalPoolLayout().end;

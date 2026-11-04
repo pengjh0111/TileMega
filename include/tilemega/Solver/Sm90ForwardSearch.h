@@ -279,7 +279,8 @@ class Sm90ForwardCostModel {
       case Sm90ForwardBody::kLayout:
         return ForwardField(g,"batch")*ForwardCeil(ForwardField(g,"width")*ForwardField(g,"height"),128);
       case Sm90ForwardBody::kPool:
-        return ForwardField(g,"batch")*ForwardField(g,"output_width")*ForwardField(g,"output_height");
+        return ForwardCeil(ForwardField(g,"batch")*ForwardField(g,"output_width")*
+            ForwardField(g,"output_height")*s.channels,128);
       case Sm90ForwardBody::kGlobalPool:
         return ForwardField(g,"batch")*ForwardCeil(s.channels,128);
       case Sm90ForwardBody::kGemv:return s.m*ForwardCeil(s.n,c.tile_n);

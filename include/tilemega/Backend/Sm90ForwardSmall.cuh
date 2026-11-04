@@ -67,8 +67,9 @@ struct Sm90ForwardLayout {
 };
 
 // 3x3 stride-2 max pool with one-pixel padding (ResNet18's stem pool).
-template<int Window,int Stride,int Batch=1>
+template<int Window,int Stride,int Batch=1,int Elements=128>
 struct Sm90ForwardMaxPool {
+  static_assert(Elements==128,"max-pool assigns one element per consumer");
   static_assert(Batch>=1 && Window==3 && Stride==2);
   using Element=cutlass::bfloat16_t;
   static constexpr int kThreads=160;
@@ -80,11 +81,14 @@ struct Sm90ForwardMaxPool {
     TM_FWD_WINDOW_ACC(load_trace);TM_FWD_WINDOW_ACC(compute_trace);
     TM_FWD_WINDOW_ACC(store_trace);
     int out_w=(p.width+1)/Stride,out_h=(p.height+1)/Stride;
-    int pixels=out_w*out_h,total=Batch*pixels;
-    for(int task=int(blockIdx.x);task<total;task+=int(gridDim.x)) {
-      int image=task/pixels,pixel=task%pixels;
-      int x=(pixel%out_w)*Stride-1,y=(pixel/out_w)*Stride-1;
-      for(int c=int(threadIdx.x);c<p.channels;c+=128) {
+    int pixels=out_w*out_h,total=Batch*pixels*p.channels,tasks=(total+127)/128;
+    for(int task=int(blockIdx.x);task<tasks;task+=int(gridDim.x)) {
+      // Flatten pixel/channel work: e.g. C64 gives two pixels to all 128 consumers.
+      int element=task*128+int(threadIdx.x);
+      if(element<total) {
+        int pixel_index=element/p.channels,c=element%p.channels;
+        int image=pixel_index/pixels,pixel=pixel_index%pixels;
+        int x=(pixel%out_w)*Stride-1,y=(pixel/out_w)*Stride-1;
         float best=-INFINITY;
         #pragma unroll
         for(int r=0;r<Window;++r)
@@ -95,17 +99,17 @@ struct Sm90ForwardMaxPool {
 #if TILEMEGA_TRACE_STAGE
             TM_FWD_TRACE_BEGIN(load_trace);
             float value=float(p.input[((std::size_t(image)*p.height+sy)*p.width+sx)*p.channels+c]);
-            TM_FWD_WINDOW_END(load_trace,task+int(gridDim.x)>=total && c+128>=p.channels && r==min(Window-1,p.height-1-y) && s==min(Window-1,p.width-1-x));
+            TM_FWD_WINDOW_END(load_trace,task+int(gridDim.x)>=tasks && r==min(Window-1,p.height-1-y) && s==min(Window-1,p.width-1-x));
             TM_FWD_TRACE_BEGIN(compute_trace);
             best=fmaxf(best,value);
-            TM_FWD_WINDOW_END(compute_trace,task+int(gridDim.x)>=total && c+128>=p.channels && r==min(Window-1,p.height-1-y) && s==min(Window-1,p.width-1-x));
+            TM_FWD_WINDOW_END(compute_trace,task+int(gridDim.x)>=tasks && r==min(Window-1,p.height-1-y) && s==min(Window-1,p.width-1-x));
 #else
             best=fmaxf(best,float(p.input[((std::size_t(image)*p.height+sy)*p.width+sx)*p.channels+c]));
 #endif
           }
         TM_FWD_TRACE_BEGIN(store_trace);
-        p.output[std::size_t(task)*p.channels+c]=Element(best);
-        TM_FWD_WINDOW_END(store_trace,task+int(gridDim.x)>=total && c+128>=p.channels);
+        p.output[element]=Element(best);
+        TM_FWD_WINDOW_END(store_trace,task+int(gridDim.x)>=tasks);
       }
     }
     TM_FWD_TRACE_FLUSH(load_trace,kSmallLoad);TM_FWD_TRACE_FLUSH(compute_trace,kSmallCompute);

@@ -840,7 +840,7 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
           auto const& l=layouts.at(bind.input);
           shape.channels=int(l.physical[3]);
           shape.width=int(l.logical[2]);shape.height=int(l.logical[1]);
-          body="Sm90ForwardMaxPool<3,2,"+std::to_string(batch.getInt())+'>';
+          body="Sm90ForwardMaxPool<3,2,"+std::to_string(batch.getInt())+",128>";
         }else if(c.body==Sm90ForwardBody::kGlobalPool) {
           if(kind!="kGlobalPoolReduce")
             throw std::invalid_argument("native forward pooling coordinates need its stage");

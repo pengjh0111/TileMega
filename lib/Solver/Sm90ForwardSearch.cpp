@@ -73,7 +73,9 @@ Sm90ForwardCostModel::TaskWork Sm90ForwardCostModel::TaskBytes(
       rows=std::min<long long>(128,ForwardField(g,"width")*ForwardField(g,"height"));
       channels=ForwardField(g,"input_channels");return {0,4*rows*channels,rows*channels};
     case Sm90ForwardBody::kPool:
-      channels=s.channels;return {0,2*channels*(s.kernel*s.kernel+1),channels};
+      channels=std::min<long long>(128,ForwardField(g,"batch")*ForwardField(g,"output_width")*
+          ForwardField(g,"output_height")*s.channels);
+      return {0,2*channels*(s.kernel*s.kernel+1),channels};
     case Sm90ForwardBody::kGlobalPool:
       channels=std::min<long long>(128,s.channels);rows=ForwardField(g,"parts");
       return {0,channels*(8*rows+2),channels*rows};

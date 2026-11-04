@@ -30,6 +30,14 @@ class WorkGeometry(unittest.TestCase):
                 self.assertEqual([r['tasks'] for r in rows],[128,4096,16,64,64])
                 self.assertEqual(rows[3]['activation_bytes'],16*32*32*64*2)
                 self.assertEqual(rows[3]['weight_bytes'],64*9*8*2)
+                previous_pool = rows[1]
+                flat = bodies.copy()
+                flat[1] = ('pool', 'Sm90ForwardMaxPool<3,2,16,128>')
+                src.write_text('\n'.join(f'using Body_{i}={t};' for i,(_,t) in enumerate(flat)))
+                flattened = dnn1_work.describe(src,manifest)['stages'][1]
+                self.assertEqual(flattened['tasks'], 2048)
+                for key in ('covered_batches', 'activation_bytes', 'output_bytes', 'flops'):
+                    self.assertEqual(flattened[key], previous_pool[key])
                 old=['Sm90ForwardLayout<64>','Sm90ForwardMaxPool<3,2>','Sm90ForwardGlobalPool','Sm90ForwardDepthwise<8,8,64,1,2,Chain,8>','Sm90ForwardDwPw<8,8,64,64,1,2,Chain,8,Dw>']
                 src.write_text('\n'.join(f'using Body_{i}={t};' for i,t in enumerate(old)))
                 rows=dnn1_work.describe(src,manifest)['stages']

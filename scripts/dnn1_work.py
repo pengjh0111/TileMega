@@ -174,6 +174,11 @@ def describe(source_path,manifest_path,identity_path=None,logical_plan_path=None
         elif kind=='pool':
             window,stride=map(integer,args[:2]);width=shape['kWidth'];height=shape['kHeight'];channels=shape['kChannels'];coverage=integer(args[2]) if len(args)>=3 else 1
             pw=(width+1)//stride;ph=(height+1)//stride;tasks=coverage*pw*ph;pixels=coverage*pw*ph
+            if len(args)>=4:
+                elements=integer(args[3])
+                if elements!=128:raise ValueError("unknown max-pool consumer assignment")
+                tasks=(pixels*channels+elements-1)//elements
+                notes.append("flattened pixel/channel tasks, explicit128 elements per task")
             activation=coverage*2*width*height*channels;output=coverage*2*pw*ph*channels
             validw=sum(sum(0<=x*stride-1+s<width for s in range(window)) for x in range(pw))
             validh=sum(sum(0<=y*stride-1+r<height for r in range(window)) for y in range(ph))
