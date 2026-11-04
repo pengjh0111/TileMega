@@ -113,6 +113,18 @@ class MoeWeights(unittest.TestCase):
         self.assertTrue(torch.equal(packed,_packed_gpu(recipe,self.values.__getitem__)))
         self.assertEqual(len(_recipe_sources(recipe)),5)
 
+    def test_native_large_k_pages(self):
+        for part in ('gate_up','down'):
+            matrix=self.reference(part,part=='gate_up')
+            for tk in (256,512):
+                recipe=self.recipe(part,(64,tk),part=='gate_up')
+                expected=torch.zeros((5,matrix.shape[1],tk),dtype=torch.bfloat16)
+                expected[:,:,:matrix.shape[2]]=matrix
+                packed=_packed_cpu(recipe,Source(self.values))
+                self.assertTrue(torch.equal(self.untile(packed,64,tk,matrix.shape[1],tk),expected))
+                self.assertTrue(torch.equal(packed,_packed_gpu(recipe,self.values.__getitem__)))
+                self.assertEqual(len(_recipe_sources(recipe)),11 if part=='gate_up' else 5)
+
     def test_shared_deployment_and_legacy_aliases(self):
         recipes = dict(gate_up=self.recipe('gate_up',(32,32),True), down=self.recipe('down',(32,32)),
             router=dict(kind='fold_rmsnorm', norm=self.norm,
