@@ -139,7 +139,7 @@ def analyze(directory, work, target, peak_tflops, process):
         w = dict(work[index], grid=info['grid'])
         if int(w['index']) != index or any(key not in w for key in (
                 'dram_bytes', 'flops', 'tasks', 'body', 'slots', 'geometry_source',
-                'k_iter', 'weight_bytes_per_task', 'm', 'tm')):
+                'k_iter', 'weight_bytes_per_task', 'm', 'tm', 'covered_batches', 'runtime_batch')):
             raise ValueError('work ledger lacks measured-plan geometry/traffic/source fields')
         enter = min(x['enter'] for x in group)
         arrival = max(x['arrive'] for x in group)
@@ -157,6 +157,11 @@ def analyze(directory, work, target, peak_tflops, process):
         lower = max(memory_ns, compute_ns)
         if lower <= 0:
             raise ValueError('explicit work ledger must provide a positive lower bound')
+        logical_flops=w.get('logical_flops');logical_weights=w.get('logical_weight_bytes')
+        logical_compute=(logical_flops/(.8*peak_tflops*1e3) if logical_flops is not None else None)
+        logical_memory=(logical_weights/dram if logical_weights is not None else None)
+        logical_terms=[x for x in (logical_compute,logical_memory) if x is not None]
+        logical_lower=max(logical_terms) if logical_terms else None
         spans = critical['spans']
         small_active=[spans[n] for n in ('small_load','small_compute','small_store') if spans[n]['count']]
         small_envelope=(max(x['last_end'] for x in small_active)-min(x['first_begin'] for x in small_active)
@@ -170,7 +175,16 @@ def analyze(directory, work, target, peak_tflops, process):
                    critical_barrier_tail_ns=critical['leave']-critical['arrive'],
                    first_ready_ns=(critical['first_ready']-critical['enter']
                                    if critical['first_ready'] else ''),
-                   lower_bound_ns=lower, lower_memory_ns=memory_ns,
+                   lower_bound_ns=lower, current_implementation_lower_ns=lower,
+                   model_logical_valid_lower_ns=logical_lower if logical_lower is not None else '',
+                   model_logical_flops=logical_flops if logical_flops is not None else '',
+                   model_logical_weight_bytes=logical_weights if logical_weights is not None else '',
+                   model_logical_compute_ns=logical_compute if logical_compute is not None else '',
+                   model_logical_weight_ns=logical_memory if logical_memory is not None else '',
+                   model_logical_status=w.get('logical_status','unknown'),
+                   model_logical_weight_scope=w.get('logical_weight_scope','unknown'),
+                   model_logical_work_complete=w.get('logical_work_complete',False),
+                   lower_memory_ns=memory_ns,
                    lower_compute_ns=compute_ns, excess_ns=stage_ns-lower,
                    measured_over_lower=stage_ns/lower, category=category,
                    tasks=w['tasks'], concurrent_ctas=min(w['tasks'], info['grid']),
@@ -180,7 +194,12 @@ def analyze(directory, work, target, peak_tflops, process):
                        ((w['m']+w['tm']-1)//w['tm'])*w['tm']) if w['m'] and w['tm'] else ''),
                    tail_row_utilization=((w['m'] % w['tm']) / w['tm']
                        if w['m'] and w['tm'] and w['m'] % w['tm'] else 1),
-                   geometry_source=w['geometry_source'], trace=str(Path(directory).resolve()))
+                   geometry_source=w['geometry_source'], trace=str(Path(directory).resolve()),
+                   covered_batches=w.get('covered_batches',''),required_batches=w.get('runtime_batch',''),
+                   coverage_status=('local_scope_missing_batches' if w.get('covered_batches')!=w.get('runtime_batch')
+                                    else 'local_scope_full_batch; upstream correctness not asserted'),
+                   bound_scope='actual original body extent, not a claim of a complete correct forward',
+                   geometry_notes=json.dumps(w.get('notes',[]),ensure_ascii=False))
         for name, span in spans.items():
             row[name+'_ns'], row[name+'_count'] = span['total_ns'], span['count']
             active = [g['spans'][name] for g in group if g['spans'][name]['count']]
@@ -219,9 +238,20 @@ def main():
     if args.peak_tflops <= 0:
         p.error('peak must be positive')
     work = json.loads(args.work.read_text())
+    if isinstance(work, dict):
+        if work.get('runtime_batch')!=args.batch:
+            raise ValueError('work JSON belongs to another batch')
+        work = work['stages']
     target = json.loads(args.target.read_text())
     rows, segments = [], []
     for process, directory in enumerate(args.trace):
+        trace_info,_=read_trace(directory)
+        binding=trace_info.get('metadata',{})
+        expected_work=binding.get('work_sha256')
+        if expected_work and expected_work!=hashlib.sha256(args.work.read_bytes()).hexdigest():
+            raise ValueError('trace was captured with another work JSON')
+        if binding.get('model',args.model)!=args.model or binding.get('batch',args.batch)!=args.batch:
+            raise ValueError('trace metadata belongs to another cell')
         current, current_segments = analyze(directory, work, target, args.peak_tflops, process)
         rows.extend(dict(model=args.model, batch=args.batch, **r) for r in current)
         segments.extend(dict(model=args.model, batch=args.batch, **r) for r in current_segments)
@@ -253,6 +283,9 @@ def main():
                    stage_time_ns=total, category_shares=shares,
                    dt_a='STOP_RC7' if shares['RC-7']>.2 else 'continue',
                    peak_tflops=args.peak_tflops, peak_source=args.peak_source,
+                   coverage_scope='original implementation; no full-correct-forward assertion',
+                   missing_batch_stage_indices=[int(w['index']) for w in work
+                       if w.get('covered_batches')!=w.get('runtime_batch')],
                    critical_cta='argmax CTA arrival timestamp for each stage/process',
                    stage_window='max leave[i] - max leave[i-1]; first starts at min enter[0]',
                    segment_aggregation='critical CTA thread0 sum across local tasks; all-CTA sum/max are separate nonadditive diagnostics',
