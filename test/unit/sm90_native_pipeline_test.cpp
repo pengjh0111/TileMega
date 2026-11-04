@@ -137,5 +137,14 @@ int main(int argc, char** argv) {
     assert(a.tile_n==b.tile_n && a.TileK()==b.TileK() && a.warps_n==b.warps_n &&
            a.warps_k==b.warps_k && a.multicast==b.multicast);
   }
+  auto aggregate=options;aggregate.realize_aggregate=true;aggregate.budget_ms=1000;
+  auto aggregate_result=SolveSm90NativePipeline(space,work,cost,aggregate,evaluate,
+      {result.finalists.front().coordinates});
+  assert(!aggregate_result.evaluated.empty());
+  for(auto const& candidate:aggregate_result.evaluated) {
+    auto const& c=candidate.coordinates;
+    assert(!c.group_wait && !c.embed_la && c.argmax_stage && c.attention.merge_stage);
+    assert(!c.attention.dsmem && !c.expert_fuse);
+  }
   return 0;
 }

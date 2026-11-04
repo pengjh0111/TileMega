@@ -193,7 +193,19 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
         space.FamilyCandidates(family,residency)).first;
     return found->second;
   };
+  auto constrain=[&](Sm90DenseCoordinates& c) {
+    if(options.retile_only) {c.attention.chunks=1;c.attention.dsmem=false;c.expert_fuse=false;}
+    if(options.realize_aggregate) {
+      c.group_wait=false;c.embed_la=false;c.argmax_stage=true;
+      c.attention.dsmem=false;c.attention.merge_stage=true;c.expert_fuse=false;
+      if(c.moe) {c.route=Sm90DenseCoordinates::Route::kStage;c.combine_stage=true;}
+    }
+    // An unfuse move also chooses the minimal global publication needed by
+    // its two stages. A local route cannot survive outside the fused stage.
+    if(c.moe && !c.expert_fuse && !c.GlobalRoute())c.route=Sm90DenseCoordinates::Route::kLastArriver;
+  };
   auto derive=[&](Sm90DenseCoordinates& c) {
+    constrain(c);
     Sm90DenseSearchSpace::Structure(c);
     for(unsigned family:c.Active()) {
       auto& geometry=c.gemms[family];
@@ -249,8 +261,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
   std::set<std::string> start_keys;
   auto project=[&](Sm90DenseCoordinates seed) {
     if(options.pinned_theta)seed.gemms=options.pinned_theta->gemms;
-    if(options.retile_only) {seed.attention.chunks=1;seed.expert_fuse=false;}
-    if(options.realize_aggregate)seed.group_wait=false;
+    constrain(seed);
     bool projected=options.pinned_theta || options.retile_only || options.realize_aggregate;
     if((projected?derive(seed):space.Legal(seed)) && start_keys.insert(CoordinateKey(seed)).second)
       starts.push_back(seed);
@@ -306,10 +317,14 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
       // The attention structure, unless AB-4a forbids changing it.
       if (!options.retile_only) {
         for (auto const& attention : space.AttentionCandidates(current.residency)) {
-          for(bool dsmem:{false,true}) {
+          for(int realization:{0,1,2}) {
+            bool dsmem=realization==1,independent=realization==2;
+            if(options.realize_aggregate && !independent)continue;
+            if(independent && attention.chunks==1 && !options.realize_aggregate)continue;
             if(dsmem && (current.cluster<2 || attention.chunks<2 ||
                          current.cluster%attention.chunks))continue;
             auto trial=current;trial.attention=attention;trial.attention.dsmem=dsmem;
+            trial.attention.merge_stage=independent;
             if(dsmem)try {cost.Constants().AttentionMergeDsmem(work.head_dim,work.queries,
                 work.qk_norm?(work.qk_norm_row?2:1):0,attention.chunks);}
               catch(Sm90NativeMissing const&) {continue;}
@@ -318,8 +333,10 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
         }
       }
       // The program-level coordinates, which are the structural class.
-      for(int dimension=0;dimension<5;++dimension) {
-        for(int setting:{0,1}) {
+      for(int dimension=0;dimension<8;++dimension) {
+        if(dimension==5 && current.tp>1)continue;
+        if(dimension>=6 && !current.moe)continue;
+        for(int setting=0;setting<(dimension==7?3:2);++setting) {
           if (spent_ms() > options.budget_ms) break;
           auto trial = current;
           if(dimension==0)trial.residency=setting+1;
@@ -327,6 +344,12 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
           if(dimension==2)trial.group_wait=options.realize_aggregate?false:bool(setting);
           if(dimension==3)trial.embed_la=bool(setting);
           if(dimension==4)trial.expert_fuse=options.retile_only?false:bool(setting);
+          if(dimension==5)trial.argmax_stage=bool(setting);
+          if(dimension==6)trial.combine_stage=bool(setting);
+          if(dimension==7) {
+            trial.route=static_cast<Sm90DenseCoordinates::Route>(setting);
+            if(!trial.expert_fuse && !trial.GlobalRoute())continue;
+          }
           if(trial.cluster>1 && trial.cluster>cost.Constants().ClusterStar(trial.residency))continue;
           changed|=consider(trial,"structure:"+std::to_string(dimension));
         }
