@@ -44,10 +44,12 @@ def numa(gpu):
     return 0 if gpu < 4 else 1
 
 
-def allowed(policy):
+def allowed(policy, timing=True):
     gpus = set(range(8))
     for source in (policy, read(policy['gpu_allowlist_file']) if policy.get('gpu_allowlist_file') else {}):
-        if source.get('allowed_timing_gpu_indices') is not None:
+        if source.get('allowed_gpu_indices') is not None:
+            gpus &= set(source['allowed_gpu_indices'])
+        if timing and source.get('allowed_timing_gpu_indices') is not None:
             gpus &= set(source['allowed_timing_gpu_indices'])
     return sorted(gpus)
 
@@ -166,7 +168,7 @@ def claim_group(label, size, exclude=(), poll=30):
             pass
 
 
-def claim(cls, label, exclude=(), only=None, nodes=None, poll=30):
+def claim(cls, label, exclude=(), only=None, nodes=None, poll=30, timing=True):
     """Block until a card is claimed; returns (gpu, handle). Closing the handle releases it."""
     policy = read(POLICY)
     if cls == 'machine':
@@ -178,7 +180,7 @@ def claim(cls, label, exclude=(), only=None, nodes=None, poll=30):
                 live = live_claims()
                 # A waiting machine unit drains the machine: nothing new starts.
                 candidates = [] if cls != 'machine' and machine_waiting() else \
-                    [only] if only is not None else [g for g in allowed(policy) if g not in exclude and
+                    [only] if only is not None else [g for g in allowed(policy,timing=timing) if g not in exclude and
                                                      (nodes is None or numa(g) in nodes)]
                 for gpu in candidates:
                     if not compatible(cls, gpu, live) or (only is None and not idle_card(gpu, policy)):

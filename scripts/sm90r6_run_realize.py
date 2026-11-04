@@ -26,7 +26,7 @@ def main():
     p.add_argument('--gpus', type=int, nargs='+', default=[0, 1, 2, 3, 4, 5, 7])
     a = p.parse_args()
     if a.processes < 5 or not a.gpus or any(g not in (0, 1, 2, 3, 4, 5, 7) for g in a.gpus):
-        p.error('use at least five processes and cards 0-5,7')
+        p.error('C-2 requires at least five processes on cards 0-5 or 7 (prompt section 1.5)')
     if not 1 <= a.steps <= 1024:
         p.error('steps must lie in [1,1024]')
     artifacts = {}
@@ -42,7 +42,7 @@ def main():
     while len(accepted) < a.processes:
         directory = Path(tempfile.mkdtemp(prefix=f'p{len(accepted)}-try{attempt}-', dir=a.out.resolve()))
         attempt += 1
-        gpu, claim = dispatch.claim('trial', directory.name, exclude=set(range(8)) - set(a.gpus))
+        gpu, claim = dispatch.claim('trial', directory.name, exclude=set(range(8)) - set(a.gpus),timing=False)
         try:
             env = dict(os.environ, CUDA_VISIBLE_DEVICES=str(gpu), TILEMEGA_DEVICE_INDEX=str(gpu),
                 TILEMEGA_GPU_LOCK=f'/tmp/tilemega_gpu{gpu}.lock', TILEMEGA_TIMING='0',
