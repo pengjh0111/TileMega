@@ -60,7 +60,8 @@ PROTOCOL = dict(warmup=50, iterations=200, timing_processes=3, correctness_proce
 FIELDS = ['model', 'batch', 'system', 'arm', 'precision', 'gpu', 'status', 'reason',
     'sm_clock_start_mhz', 'sm_clock_end_mhz', 'sm_clock_source', 'processes',
     'attempt_processes', 'failed_attempts', 'correctness_processes',
-    'correctness_passes', 'correctness_metrics_identical', 'median_ms', 'p90_ms',
+    'correctness_passes', 'correctness_metrics_identical', 'correctness_policy',
+    'strict_v1_status', 'median_ms', 'p90_ms',
     'process_range_ms', 'process_range_pct', 'correctness', 'versions',
     'engine_or_library_sha256', 'exported_program_sha256', 'source_checkpoint_sha256',
     'inputs_sha256', 'native_prefix_available', 'p_cell_complete', 'cell_session', 'source']
@@ -436,6 +437,7 @@ def queue(args):
             recipe_sources=recipe_sources,
             collector_sha256=sha(__file__), exported_program_sha256=ep_sha,
             source_checkpoint_sha256=checkpoint_sha, seed=20261007,
+            correctness_policy=config.get('correctness_policy', 'identical-metrics-v1'),
             tvm_selfcheck=str(Path(config.get('tvm_selfcheck', ROOT / 'runs/dnn1/tvm/selfcheck.json')).resolve()),
             tvm_root=str(ROOT / 'runs/dnn1/tvm'), engine_cache=str(out / 'engine-cache'),
             onnx_preparation=str(Path(config.get('onnx_preparation',
@@ -875,7 +877,15 @@ def aggregate_arm(cell, session, name, jobs, accepted):
     timing = [read(row['final']['measurement']) for row in measured]
     correctness = [value['correctness'] for value in values]
     identical = len(correctness) == 5 and len({compact(value) for value in correctness}) == 1
-    complete = len(measured) == 3 and len(passing) == 5 and identical
+    policy = cell.get('correctness_policy', 'identical-metrics-v1')
+    if policy not in ('identical-metrics-v1', 'five-independent-gates-v2'):
+        raise ValueError('unknown baseline correctness policy: ' + policy)
+    # Independent compiler/autotuner processes may choose different legal
+    # reductions. V2 retains every numerical gate, recording reproducibility
+    # separately; it is only enabled by an explicitly amended cell spec.
+    gates = all(strict_correctness(cell['model'], metrics)[0] for metrics in correctness)
+    complete = (len(measured) == 3 and len(passing) == 5 and gates
+                and (identical or policy == 'five-independent-gates-v2'))
     failures = [dict(failure_kind=row.get('final', {}).get('failure', {}).get('failure_kind'),
                      error=row.get('final', {}).get('failure', {}).get('error'),
                      source=row.get('final', {}).get('folder'))
@@ -888,7 +898,9 @@ def aggregate_arm(cell, session, name, jobs, accepted):
     elif failures:
         reason = compact(list({compact(value): value for value in failures}.values()))
     elif not complete:
-        reason = 'requires exactly 3 timing processes and 5 identical passing correctness metrics'
+        reason = ('requires exactly 3 timing processes and 5 identical passing correctness metrics'
+                  if policy == 'identical-metrics-v1' else
+                  'requires exactly 3 timing processes and 5 independently passing numerical gates')
     versions = [value.get('versions', {}) for value in values]
     hashes = [artifact_hashes(value, session, arm['system']) for value in timing]
     if complete and (not all(hashes) or len({compact(value) for value in versions}) != 1):
@@ -903,6 +915,7 @@ def aggregate_arm(cell, session, name, jobs, accepted):
         processes=len(measured), attempt_processes=sum(len(row.get('attempts', [])) for row in jobs),
         failed_attempts=sum(attempt.get('status') != 'pass' for row in jobs for attempt in row.get('attempts', [])),
         correctness_processes=len(passing), correctness_passes=f'{len(passing)}/5',
+        correctness_policy=policy, strict_v1_status='pass' if complete and identical else 'N/A',
         correctness_metrics_identical=identical, median_ms=statistics.median(medians) if complete else '',
         p90_ms=statistics.median(v['p90_ms'] for v in timing) if complete else '',
         process_range_ms=max(medians) - min(medians) if complete else '',

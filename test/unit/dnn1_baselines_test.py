@@ -239,6 +239,13 @@ different = copy.deepcopy(original)
 different['correctness'][0]['cosine_vs_fp32'] = .99999
 module.write(path, different)
 assert module.aggregate_arm(base, session, passing_arm, jobs, True)['status'] == 'N/A'
+v2 = dict(base, correctness_policy='five-independent-gates-v2')
+reassessed = module.aggregate_arm(v2, session, passing_arm, jobs, True)
+assert reassessed['status'] == 'pass' and reassessed['strict_v1_status'] == 'N/A'
+assert not reassessed['correctness_metrics_identical']
+different['correctness'][0]['cosine_vs_fp32'] = .9
+module.write(path, different)
+assert module.aggregate_arm(v2, session, passing_arm, jobs, True)['status'] == 'N/A'
 module.write(path, original)
 checks.append('median/p90/ranges use 3 timing processes; guard rejection and 5-process mismatch exclude data')
 

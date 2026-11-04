@@ -470,6 +470,7 @@ def main():
             *reference_args, **reference_kwargs))]
     metadata = dict(input_seed=options.seed, inputs='fixed synthetic tensors resident on device',
                     inputs_sha256=input_hash, input_tensors=input_rows,
+                    reference_outputs_sha256=inputs_digest(reference, {})[0],
                     driver_sha256=sha(__file__),
                     reference='exported BF16 weights and inputs promoted to FP32; no accuracy certification')
     _run_context['configuration'] = metadata
@@ -501,6 +502,19 @@ def main():
         actual = [x.detach().clone() for x in leaves(run())]
         torch.cuda.synchronize()
         correctness = numerical_metrics(actual, reference, manifest['model'])
+        metadata['actual_outputs_sha256'] = inputs_digest(actual, {})[0]
+        metadata['output_ranges'] = [dict(min=float(x.min()), max=float(x.max()),
+            abs_max=float(x.abs().max()), nonzero=int(x.count_nonzero()), elements=x.numel())
+            for x in actual]
+        metadata['reference_output_ranges'] = [dict(min=float(x.min()), max=float(x.max()),
+            abs_max=float(x.abs().max()), nonzero=int(x.count_nonzero()), elements=x.numel())
+            for x in reference]
+        if os.environ.get('TILEMEGA_DNN1_SAVE_CORRECTNESS') == '1':
+            from safetensors.torch import save_file
+            tensors = {f'{kind}_{i}': value.detach().cpu().contiguous()
+                       for kind, values in [('actual', actual), ('reference', reference)]
+                       for i, value in enumerate(values)}
+            save_file(tensors, str(options.out / 'correctness_outputs.safetensors'))
         correctness_gate(manifest['model'], correctness)
         _run_context['phase'] = 'measurement'
         observe(guard_log, 'before-measurement')
