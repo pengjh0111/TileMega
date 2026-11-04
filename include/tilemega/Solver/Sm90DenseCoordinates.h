@@ -106,6 +106,7 @@ struct Sm90DenseCoordinates {
   bool expert_fuse=false;
   enum class Route {kLocal,kLastArriver,kStage};
   Route route=Route::kLocal;
+  bool combine_stage=false;
   bool GlobalRoute() const {return route!=Route::kLocal;}
   char const* RouteName() const {return route==Route::kLocal?"local":route==Route::kLastArriver?"la":"stage";}
   // Megatron tensor parallel degree (schema 7). The shapes are already one
@@ -157,7 +158,7 @@ struct Sm90DenseCoordinates {
     if(tp!=1 && tp!=2 && tp!=4 && tp!=8)
       throw std::invalid_argument("sm90 dense tp must be 1, 2, 4 or 8");
     // A sharded MoE would have to route across ranks; out of scope this round.
-    if(GlobalRoute() && !moe)throw std::invalid_argument("global MoE routing requires MoE");
+    if((GlobalRoute() || combine_stage) && !moe)throw std::invalid_argument("global MoE routing requires MoE");
     if(tp>1 && moe)throw std::invalid_argument("sm90 dense tensor parallel MoE is unsupported");
     if(tp>1 && argmax_stage)
       throw std::invalid_argument("independent argmax requires an explicit TP exchange stage");
@@ -217,16 +218,19 @@ struct Sm90DenseCoordinates {
     }
     // Schema 7 adds tp; a TP1 coordinate still serializes as schema 6, so every
     // R3/R4 coordinate file and its hash are unchanged.
-    json::Object result{{"schema",GlobalRoute()?9:(argmax_stage || attention.merge_stage)?8:tp>1?7:6},{"model",moe?"moe":"dense"},{"gemms",families},
+    json::Object result{{"schema",(GlobalRoute() || combine_stage)?9:(argmax_stage || attention.merge_stage)?8:tp>1?7:6},{"model",moe?"moe":"dense"},{"gemms",families},
         {"attention",json::Object{{"chunks",attention.chunks},{"block_keys",attention.block_keys},
             {"slots",attention.slots},{"new_row_work",attention.new_row_work},
             {"merge",attention.dsmem?"dsmem":attention.merge_stage?"stage":"la"}}},
         {"residency",residency},{"swiglu_u",swiglu_u},{"weight_stream",weight_stream},
         {"layer_loop",layer_loop},{"emb",embed_la?"la":"stage"},{"group_wait",group_wait},
         {"cluster",cluster},{"expert_fuse",expert_fuse}};
-    if(tp>1 || argmax_stage || attention.merge_stage || GlobalRoute())result.emplace_back("tp",tp);
-    if(argmax_stage || attention.merge_stage || GlobalRoute())result.emplace_back("argmax",argmax_stage?"stage":"la");
-    if(GlobalRoute())result.emplace_back("route",RouteName());
+    if(tp>1 || argmax_stage || attention.merge_stage || GlobalRoute() || combine_stage)result.emplace_back("tp",tp);
+    if(argmax_stage || attention.merge_stage || GlobalRoute() || combine_stage)result.emplace_back("argmax",argmax_stage?"stage":"la");
+    if(GlobalRoute() || combine_stage) {
+      result.emplace_back("route",RouteName());
+      result.emplace_back("combine",combine_stage?"stage":"la");
+    }
     return result;
   }
 
@@ -256,7 +260,7 @@ struct Sm90DenseCoordinates {
       throw std::invalid_argument("unknown sm90 dense coordinate schema");
     if(schema==9)
       keys(value,{"schema","model","gemms","attention","residency","swiglu_u","weight_stream",
-          "layer_loop","emb","group_wait","cluster","expert_fuse","tp","argmax","route"});
+          "layer_loop","emb","group_wait","cluster","expert_fuse","tp","argmax","route","combine"});
     else if(schema==8)
       keys(value,{"schema","model","gemms","attention","residency","swiglu_u","weight_stream",
           "layer_loop","emb","group_wait","cluster","expert_fuse","tp","argmax"});
@@ -280,6 +284,11 @@ struct Sm90DenseCoordinates {
       auto mode=value.At("route").AsString("route");
       if(mode!="local" && mode!="la" && mode!="stage")throw std::invalid_argument("unknown MoE routing implementation");
       result.route=mode=="la"?Route::kLastArriver:mode=="stage"?Route::kStage:Route::kLocal;
+      if(auto const* combine=value.Find("combine")) {
+        auto text=combine->AsString("combine");
+        if(text!="la" && text!="stage")throw std::invalid_argument("unknown MoE combine implementation");
+        result.combine_stage=text=="stage";
+      }
     }
     std::vector<std::string> names;
     for(unsigned i:result.Active())names.push_back(kSm90DenseFamilies[i]);

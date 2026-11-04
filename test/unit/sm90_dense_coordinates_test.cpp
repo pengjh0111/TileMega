@@ -72,6 +72,7 @@ int main() {
   auto global=m;global.expert_fuse=true;global.route=route;
   global.Validate(moe_nk,1);
   assert(global.ToJson().At("schema").AsNumber("schema")==9);
+  global.combine_stage=true;
   auto loaded=Sm90DenseCoordinates::FromJson(global.ToJson());
   assert(loaded.route==route && loaded.ToJson().Dump()==global.ToJson().Dump());
   auto separate=global;separate.expert_fuse=false;separate.ValidateSchedule(moe_nk,1,128,1,1088,232448);

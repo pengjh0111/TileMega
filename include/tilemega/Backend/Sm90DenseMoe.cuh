@@ -313,13 +313,65 @@ struct Sm90DenseLocalRoute {
   }
 };
 
+// Independent-stage counterpart of the E3 LA combiner. Keep its fixed k
+// accumulation and BF16 store order identical; the default LA body stays intact.
+template<int Batch,int N,int TN,int TopK>
+struct Sm90DenseMoeCombine {
+  using Element=cutlass::bfloat16_t;
+  __device__ static __forceinline__ void Run(float const* partial,Element* x,int j) {
+    int tid=threadIdx.x;
+        static_assert(TN%4==0,"E3 reads the combine in float4 columns");
+        constexpr int kGroups=Batch*TN/4,kPer=(kGroups+127)/128,kBatch=2;
+        #pragma unroll 1
+        for(int first=0;first<kPer;first+=kBatch) {
+          float4 part[kBatch][TopK];uint2 old_x[kBatch];
+          int row[kBatch],col[kBatch];bool ok[kBatch];
+          #pragma unroll
+          for(int m=0;m<kBatch;++m) {
+            int g=tid+128*(first+m);
+            ok[m]=first+m<kPer && g<kGroups;
+            row[m]=g/(TN/4);col[m]=j*TN+4*(g%(TN/4));
+            if(ok[m]) {
+              #pragma unroll
+              for(int k=0;k<TopK;++k)
+                part[m][k]=*reinterpret_cast<float4 const*>(
+                    partial+std::size_t(row[m]*TopK+k)*N+col[m]);
+              old_x[m]=*reinterpret_cast<uint2 const*>(x+std::size_t(row[m])*N+col[m]);
+            }
+          }
+          #pragma unroll
+          for(int m=0;m<kBatch;++m)if(ok[m]) {
+            float sum[4]={0,0,0,0};
+            #pragma unroll
+            for(int k=0;k<TopK;++k) {
+              sum[0]+=part[m][k].x;sum[1]+=part[m][k].y;
+              sum[2]+=part[m][k].z;sum[3]+=part[m][k].w;
+            }
+            // bitcast/raw keep this to the documented bf16 bit API; the four
+            // results are packed into one 8-byte store, which the column
+            // alignment (TN and N multiples of 4) makes well aligned.
+            std::uint16_t out[4];
+            #pragma unroll
+            for(int c=0;c<4;++c) {
+              auto bits=std::uint16_t(c<2?(old_x[m].x>>(16*c)):(old_x[m].y>>(16*(c-2))));
+              out[c]=Element(float(Element::bitcast(bits))+sum[c]).raw();
+            }
+            uint2 stored;
+            stored.x=unsigned(out[0])|(unsigned(out[1])<<16);
+            stored.y=unsigned(out[2])|(unsigned(out[3])<<16);
+            *reinterpret_cast<uint2*>(x+std::size_t(row[m])*N+col[m])=stored;
+          }
+        }
+  }
+};
+
 // Page: 0 when the weights are TN x TK tile pages; 64 when the experts keep
 // the 64 x 64 pages the legacy MoE prefill shares (one copy of the expert
 // weights fits the card; recorded deviation from §8's per-TN packing). A
 // slot is then assembled from runs of whole or half pages per 64-column panel.
 template<int Batch,int N,int K,int TN,int TK,int Slots,int WN,int WK,Sm90DenseMoeMode Mode,int U,
          int Experts,int TopK,bool FloatWeights,int Page=0,int RegisterStages=1,bool SoftmaxAll=false,
-         bool FinishRouting=false,bool GlobalSchedule=false>
+         bool FinishRouting=false,bool GlobalSchedule=false,bool StageCombine=false>
 struct Sm90DenseMoeGemm {
   static constexpr bool kInputNorm=Mode!=Sm90DenseMoeMode::kDown;
   using Core=Sm90DenseGemm<Batch,N,K,TN,TK,Slots,WN,WK,ServingEpilogueOp::kStore,U,kInputNorm,
@@ -545,6 +597,7 @@ struct Sm90DenseMoeGemm {
         float weight=routing->weight[route];
         partial[std::size_t(route)*N+j*TN+col]=weight*Value(tile,row,col);
       }
+      if constexpr(!StageCombine) {
       codegen::executor::ComputeSync();
       if(tid==0) {
         unsigned long long old;
@@ -607,6 +660,7 @@ struct Sm90DenseMoeGemm {
         }
       }
       if(tid==0 && *flag)Sm90DenseMark(5);
+      }
     }
   }
 
@@ -731,7 +785,7 @@ struct Sm90DenseMoeGemm {
 // x''.
 template<int Batch,int NGateUp,int NDown,int Hidden,int TNGu,int TKGu,int TNDn,int TKDn,int Slots,
          int WNGu,int WKGu,int WNDn,int WKDn,int U,int Experts,int TopK,bool FloatWeights,
-         int Page=0,int RegisterStages=1,bool SoftmaxAll=false,bool LocalRouting=true>
+         int Page=0,int RegisterStages=1,bool SoftmaxAll=false,bool LocalRouting=true,bool StageCombine=false>
 struct Sm90DenseMoeFusedGemm {
   using Element=cutlass::bfloat16_t;
   using Async=codegen::executor::Async<arch::Sm90>;
@@ -741,7 +795,7 @@ struct Sm90DenseMoeFusedGemm {
   using Gu=Sm90DenseMoeGemm<Batch,NGateUp,Hidden,TNGu,TKGu,Slots,WNGu,WKGu,
       Sm90DenseMoeMode::kGateUp,U,Experts,TopK,FloatWeights,Page,RegisterStages>;
   using Dn=Sm90DenseMoeGemm<Batch,NDown,kIntermediate,TNDn,TKDn,Slots,WNDn,WKDn,
-      Sm90DenseMoeMode::kDown,U,Experts,TopK,FloatWeights,Page,RegisterStages>;
+      Sm90DenseMoeMode::kDown,U,Experts,TopK,FloatWeights,Page,RegisterStages,false,false,false,StageCombine>;
   static constexpr int kTilesGu=NGateUp/TNGu,kTilesDn=NDown/TNDn;
   static constexpr int kIterGu=Hidden/TKGu,kIterDn=kIntermediate/TKDn;
   static constexpr int kRows=Sm90DenseLayout::ActivationRows(Batch);

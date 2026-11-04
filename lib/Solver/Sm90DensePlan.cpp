@@ -43,6 +43,7 @@ void NativeBoundaryContracts(mlir::ModuleOp module,bool write) {
         if(c.GlobalRoute())d.implementation+=std::string("/route-")+c.RouteName();
       }
       if(d.epilogue=="moe_gate_up")gu_tiles=d.n/c.gemms[6].tile_n;
+      if(d.epilogue=="moe_down" && c.combine_stage)d.implementation+="/combine-stage";
     }else if(d.kind=="kFusedAttention") {
       d.groups=integer(s,"extent");
       d.implementation="attention/chunks="+std::to_string(c.attention.chunks)+
@@ -74,6 +75,11 @@ void NativeBoundaryContracts(mlir::ModuleOp module,bool write) {
       attribute(task,"tmexec.route_event_extent",b.getI64IntegerAttr(1));
       attribute(task,"tmexec.route_required_count",b.getI64IntegerAttr(
           c.route==Sm90DenseCoordinates::Route::kStage?grid:experts/c.gemms[5].tile_n));
+    }
+    if(d.epilogue=="moe_down" && c.combine_stage) {
+      attribute(task,"tmexec.combine_implementation",b.getStringAttr("stage"));
+      attribute(task,"tmexec.combine_event_extent",b.getI64IntegerAttr(1));
+      attribute(task,"tmexec.combine_required_count",b.getI64IntegerAttr(grid));
     }
     if(d.epilogue=="residual_ar")
       attribute(task,"tmexec.data_world",b.getI64IntegerAttr(c.tp));

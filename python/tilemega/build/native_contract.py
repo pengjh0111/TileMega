@@ -41,6 +41,10 @@ def validate(manifest, defines):
     if route not in ('local', 'la', 'stage') or (route != 'local' and
             (c['schema'] != 9 or c['model'] != 'moe')):
         raise ValueError('native global routing coordinate is invalid')
+    combine = c.get('combine', 'la')
+    if combine not in ('la', 'stage') or (combine == 'stage' and
+            (c['schema'] != 9 or c['model'] != 'moe')):
+        raise ValueError('native combine coordinate is invalid')
     # Schema 7 exists only to carry tp > 1; a TP1 program names no degree.
     tp = c.get('tp', 1)
     argmax_stage = c.get('argmax', 'la') == 'stage'
@@ -79,6 +83,9 @@ def dispatch(manifest, defines, source):
     if route_mode == 'stage':
         at = layer.index('router') + 1
         layer = (*layer[:at], 'moe_route', *layer[at:])
+    combine_stage = c.get('combine', 'la') == 'stage'
+    if combine_stage:
+        layer = (*layer, 'moe_combine')
     per_group = 2 if len(layer) % 2 else 1
     size = per_group*len(layer)
     head = size + 1
@@ -137,7 +144,7 @@ def dispatch(manifest, defines, source):
     # Manifest GEMM i is certified against the typed stage that runs it: the
     # GEMM positions of its layer within the group, or the head. A fused stage
     # runs two manifest GEMMs (expert gate_up, then down).
-    positions = [k for k, name in enumerate(layer) if name not in ('attention', 'attention_merge', 'moe_route')
+    positions = [k for k, name in enumerate(layer) if name not in ('attention', 'attention_merge', 'moe_route', 'moe_combine')
                  for _ in range(2 if name == 'expert_fused' else 1)]
     gemms = manifest['gemms']
     if len(gemms) != len(positions)*layers + 1:
@@ -194,6 +201,21 @@ def dispatch(manifest, defines, source):
                 any(operand_column(a) != operand_column(b) for a, b in zip(actual[5:], expected[5:]))):
             raise ValueError('native routing stage operands differ from its router')
         placement(number, typed, 0)
+    combines = re.findall(r'using (Body)_(\d+)\s*=\s*MoeCombine<([^;]+)>;', source)
+    if len(combines) != (per_group if combine_stage else 0):
+        raise ValueError('native combine stage differs from its coordinate identity')
+    for typed, number, raw in combines:
+        preceding = calls.get(str(int(number) - 1))
+        if preceding is None or preceding[1] not in ('MoeFused', 'Moe'):
+            raise ValueError('native combine stage lacks its expert producer')
+        args = preceding[2].split(',')
+        expected = ([args[0], args[2], args[6], args[15], args[22], args[20]] if fused else
+                    [args[0], args[1], args[3], args[11], args[16], args[15]])
+        actual = raw.split(',')
+        if (len(actual) != 6 or actual[:4] != expected[:4] or
+                any(operand_column(a) != operand_column(b) for a,b in zip(actual[4:],expected[4:]))):
+            raise ValueError('native combine stage operands differ from its producer')
+        placement(number, typed, 0)
     result = []
     for index, gemm in enumerate(gemms):
         if index == len(positions)*layers:
@@ -213,14 +235,15 @@ def dispatch(manifest, defines, source):
             # operands (the 10th gu_done), map, register stages. E2 appends the
             # logits buffer and the softmax convention; 30 args is a program
             # emitted before E2, and such binaries are still loadable.
-            if len(args) not in (30, 32, 33) or args[13] != '16' or \
+            if len(args) not in (30, 32, 33, 34) or args[13] != '16' or \
                     args[14] not in ('64', '128') or args[15] != '8' or \
                     args[17] not in ('0', '64') or args[27] == 'kAbsent':
                 raise ValueError('native fused MoE call signature is invalid')
             if len(args) >= 32 and (args[30] == 'kAbsent' or
                                     args[31] not in ('true', 'false')):
                 raise ValueError('native fused MoE local route operands are invalid')
-            if args[32:] != (['false'] if route_mode != 'local' else []):
+            if args[32:] != ((['false'] if route_mode != 'local' else ['true'] if combine_stage else []) +
+                             (['true'] if combine_stage else [])):
                 raise ValueError('native fused MoE routing differs from its coordinate identity')
             down = family == 'expert_down'
             values = list(map(int, args[:13]))
@@ -238,15 +261,16 @@ def dispatch(manifest, defines, source):
             # 25 arguments: 8 buffers (the last is MR7's gu_done, which only a
             # fused plan's router carries) and the router's softmax convention.
             legacy = len(args) == 23
-            if len(args) not in (23, 25, 26, 27) or args[8] != 'backend::Sm90DenseMoeMode::' + MOE_MODES[family] or \
+            if len(args) not in (23, 25, 26, 27, 28) or args[8] != 'backend::Sm90DenseMoeMode::' + MOE_MODES[family] or \
                     args[9] != '16' or args[10] not in ('64', '128') or args[11] != '8' or \
                     args[13] not in (('0', '64') if family != 'router' else ('0',)) or \
                     (legacy and (args[10] != '128' or fused)) or \
                     (not legacy and (args[24] not in ('true', 'false') or
                                      (args[21] != 'kAbsent') != (family == 'router' and fused))):
                 raise ValueError('native MoE call signature is invalid')
-            if args[25:] != (['true'] if family == 'router' and route_mode == 'la' else
-                              ['false', 'true'] if family != 'router' and route_mode != 'local' else []):
+            if args[25:] != ((['true'] if family == 'router' and route_mode == 'la' else
+                              ['false', 'true'] if family != 'router' and route_mode != 'local' else []) +
+                             (['true'] if family == 'expert_down' and combine_stage else [])):
                 raise ValueError('native router last-arriver mode differs from its coordinate identity')
             register_stages = int(args[22 if legacy else 23])
             stream = 0 if family == 'expert_gate_up' else None
@@ -279,7 +303,7 @@ def dispatch(manifest, defines, source):
         actual = dict(tile_m=16, tile_n=tn, tile_k=tk, stages=slots,
                       warps_n=wn, warps_k=wk, split_k=1)
         f = c['gemms'][family]
-        if merge_stage and family == 'o':
+        if (merge_stage and family == 'o') or (combine_stage and family in ('qkv', 'lm_head')):
             stream = 0
         placement(number, typed, min(slots, k // tk) * tk * tn * 2 if stream is None else stream)
         if (gemm['index'] != index or gemm.get('impl') != 'native_mma_sync' or

@@ -143,6 +143,7 @@ std::string Sm90NativeStructuralClass(Sm90DenseCoordinates const& c) {
   key += c.embed_la ? "/la1" : "/la0";
   key += c.argmax_stage ? "/argstage" : "/argla";
   if(c.moe)key+=std::string("/route-")+c.RouteName();
+  if(c.moe)key+=c.combine_stage?"/combinestage":"/combinela";
   key += c.expert_fuse ? "/ef1" : "/ef0";
   key += "/ch" + std::to_string(c.attention.chunks);
   key += c.attention.dsmem ? "/ds1" : "/ds0";

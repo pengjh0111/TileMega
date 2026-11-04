@@ -27,6 +27,8 @@ int main(int argc,char** argv) {
   for(bool fused:{true,false}) {
   if(!fused && !c.GlobalRoute())continue;
   c.expert_fuse=fused;
+  for(bool combine:{false,true}) {
+  c.combine_stage=combine;
   auto ctg=InstantiateSm90NativeCtg(imported,c,batch,context,cache,cost.Grid(c.residency));
   assert(ctg.approximation.At("kind").AsString("kind")==kSm90NativeMoeDomainApproximation);
   auto flow=Sm90NativeCtgScore(imported,work,c,cost,context,cache);
@@ -42,7 +44,7 @@ int main(int argc,char** argv) {
       ++routes;assert(space.count==(c.GlobalRoute()?1:cost.Grid(c.residency)));
       assert(space.handoff_reducer==(route==Sm90DenseCoordinates::Route::kLastArriver));
     }
-    if(node.price.name=="moe_combine") {++combines;assert(space.count==dt && space.handoff_reducer);}
+    if(node.price.name=="moe_combine") {++combines;assert(space.count==dt && space.handoff_reducer==!c.combine_stage);}
     if(node.price.name=="gemm6") {++gateups;assert(space.count==gu && space.pages_per_worker==0);}
     if(node.price.name=="gemm7") {++downs;assert(space.count==dn && node.kappa==(c.expert_fuse?gt:1));}
   }
@@ -85,6 +87,7 @@ int main(int argc,char** argv) {
   std::cout<<json::Value(json::Object{{"passed",true},{"batch",batch},{"layers",work.layers},
       {"spaces",int(flow.nodes.size())},{"pool_ns",flow.step_ns},{"replay_ns",replay.replay.makespan_ns},
       {"isolated_ns",isolated.step_ns},{"approximation",ctg.approximation}}).Dump()<<'\n';
+  }
   }
   }
 }

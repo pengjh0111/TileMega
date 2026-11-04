@@ -2209,7 +2209,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     throw std::invalid_argument("native layer groups need whole groups of supported layers");
   bool merge_stage=c.attention.merge_stage && c.attention.chunks>1;
   bool route_stage=c.route==solver::Sm90DenseCoordinates::Route::kStage;
-  unsigned per_layer=plan_per_layer-(c.expert_fuse?1u:0u)+unsigned(merge_stage)+unsigned(route_stage),per_group=per_layer%2?2:1;
+  unsigned per_layer=plan_per_layer-(c.expert_fuse?1u:0u)+unsigned(merge_stage)+unsigned(route_stage)+unsigned(c.combine_stage),per_group=per_layer%2?2:1;
   unsigned group_size=per_layer*per_group;
   if(layers%per_group)
     throw std::invalid_argument("native layer groups need whole groups of supported layers");
@@ -2335,7 +2335,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
             throw std::invalid_argument("native fused experts republish the routes (R5 E2)");
           e.tail=","+std::to_string(map_index({integerField(g,"a"),4,64,16,k/64,experts,2*k,128,
               2*16*k,64,activation_rows,cfg.TileK()/64,1}))+","+std::to_string(cfg.register_stages)+
-              ","+router_logits+(moe_softmax_all?",true":",false")+(c.GlobalRoute()?",false":"");
+              ","+router_logits+(moe_softmax_all?",true":",false")+(c.GlobalRoute()?",false":c.combine_stage?",true":"")+(c.combine_stage?",true":"");
           e.stream=0;
           weight=gu.weight_name;bytes+=gu.bytes;tasks+=gu.tasks;
           gate_up_held.held=false;
@@ -2358,6 +2358,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
             (moe_softmax_all?",true":",false");
         if(e.family==5 && c.route==solver::Sm90DenseCoordinates::Route::kLastArriver)e.tail+=",true";
         if(e.family>=6 && c.GlobalRoute())e.tail+=",false,true";
+        if(e.family==7 && c.combine_stage)e.tail+=",true";
         }
       }else {
       if(op=="residual_ar" && tp==1)
@@ -2452,6 +2453,16 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     row<<"  {"<<quoteCString(kind)<<','<<quoteCString(weight)<<','<<bytes<<"ull,"
        <<tasks<<','<<extent<<','<<group<<','<<width<<','<<chunks<<"},\n";
     info.push_back(row.str());
+    if(e.family==7 && c.combine_stage) {
+      Emitted combine;combine.kind="kMoeCombine";combine.family=-4;
+      combine.head="MoeCombine<"+std::to_string(batch)+','+std::to_string(nk[7][0])+','+
+          std::to_string(c.gemms[7].tile_n)+",8";
+      combine.ids=c.expert_fuse?std::vector<std::string>{e.ids[4],e.ids[2]}:
+          std::vector<std::string>{e.ids[2],e.ids[1]};
+      emitted.push_back(std::move(combine));
+      info.push_back("  {\"kMoeCombine\",\"\",0ull,"+std::to_string(nk[7][0]/c.gemms[7].tile_n)+
+          ",0,0,0,0},\n");
+    }
     if(e.family==5 && route_stage) {
       Emitted route;route.kind="kMoeRoute";route.family=-3;
       auto routes=dictionaryEntry(buffers[std::stoll(e.ids[4])],"buffers");
@@ -2478,6 +2489,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
       std::vector<int>{0,-1,1,5,6,7}):std::vector<int>{0,-1,1,2,3};
   if(merge_stage)layer_families.insert(layer_families.begin()+2,-2);
   if(route_stage)layer_families.insert(std::find(layer_families.begin(),layer_families.end(),5)+1,-3);
+  if(c.combine_stage)layer_families.push_back(-4);
   if(emitted.front().kind!="kEmbedding" || emitted.back().kind!="kArgmaxReduce" ||
      emitted[emitted.size()-2].family!=4)
     throw std::invalid_argument("native program lacks its embedding, lm_head or argmax");

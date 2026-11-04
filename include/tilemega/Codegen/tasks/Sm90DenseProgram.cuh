@@ -301,10 +301,10 @@ struct Embedding {
 template<int Batch,int N,int K,int TN,int TK,int Slots,int WN,int WK,backend::Sm90DenseMoeMode Mode,
          int U,int Experts,int TopK,bool FloatWeights,int Page,unsigned W,unsigned X,unsigned Out,
          unsigned Schedule,unsigned Routes,unsigned Index,unsigned Counter,unsigned GateUpDone,
-         unsigned Map,int RegisterStages,bool SoftmaxAll=false,bool FinishRouting=false,bool GlobalSchedule=false>
+         unsigned Map,int RegisterStages,bool SoftmaxAll=false,bool FinishRouting=false,bool GlobalSchedule=false,bool StageCombine=false>
 struct Moe {
   using Body=backend::Sm90DenseMoeGemm<Batch,N,K,TN,TK,Slots,WN,WK,Mode,U,Experts,TopK,FloatWeights,
-      Page,RegisterStages,SoftmaxAll,FinishRouting,GlobalSchedule>;
+      Page,RegisterStages,SoftmaxAll,FinishRouting,GlobalSchedule,StageCombine>;
   static_assert(GateUpDone==kAbsent || Mode==backend::Sm90DenseMoeMode::kRouter,
       "only the router clears the fused stage's counters");
   static constexpr bool kUsesOperandRecord=true;
@@ -385,10 +385,10 @@ template<int Batch,int NGateUp,int NDown,int Hidden,int TNGu,int TKGu,int TNDn,i
          int WNGu,int WKGu,int WNDn,int WKDn,int U,int Experts,int TopK,bool FloatWeights,int Page,
          unsigned WGu,unsigned WDn,unsigned X,unsigned Hid,unsigned Out,unsigned Schedule,
          unsigned Routes,unsigned Index,unsigned Counter,unsigned GateUpDone,unsigned Map,
-         int RegisterStages,unsigned Logits=kAbsent,bool SoftmaxAll=false,bool LocalRouting=true>
+         int RegisterStages,unsigned Logits=kAbsent,bool SoftmaxAll=false,bool LocalRouting=true,bool StageCombine=false>
 struct MoeFused {
   using Body=backend::Sm90DenseMoeFusedGemm<Batch,NGateUp,NDown,Hidden,TNGu,TKGu,TNDn,TKDn,Slots,
-      WNGu,WKGu,WNDn,WKDn,U,Experts,TopK,FloatWeights,Page,RegisterStages,SoftmaxAll,LocalRouting>;
+      WNGu,WKGu,WNDn,WKDn,U,Experts,TopK,FloatWeights,Page,RegisterStages,SoftmaxAll,LocalRouting,StageCombine>;
   // E2: the stage routes locally, so it needs the router's logits buffer.
   static_assert(Logits!=kAbsent,"the fused expert stage routes from the logits");
   static_assert(GateUpDone!=kAbsent && Map!=kAbsent,
@@ -425,6 +425,29 @@ struct MoeFused {
       backend::Sm90DenseRingState& ring,Tail tail,backend::Sm90DenseOperandBank const& record,
       bool streamed) {
     Body::template Run<Prefix,Tail>(record.moe_fused,shared,&ring,tail,streamed);
+  }
+};
+
+template<int Batch,int N,int TN,int TopK,unsigned Partial,unsigned Residual>
+struct MoeCombine {
+  static constexpr bool kUsesOperandRecord=true;
+  static constexpr int kTasks=N/TN,kSharedBytes=1024,kRingSlots=0,kMaxPreissue=0;
+  static constexpr backend::Sm90DenseLayout kLayout{};
+  template<int Bytes> static constexpr backend::Sm90DensePayload Payload() {return {};}
+  template<class B>
+  __device__ static __forceinline__ void PublishOperands(B const& b,int layer,int,float,
+      backend::Sm90DenseOperandBank& record,unsigned long long) {
+    record.moe.output=b.template Get<Partial>(layer);
+    record.moe.x=b.template Get<Residual>(layer);
+  }
+  template<int Prefix,class B,class Tail>
+  __device__ static __forceinline__ void Run(B const&,int,char*,float,
+      backend::Sm90DenseRingState&,Tail tail,backend::Sm90DenseOperandBank const& record,bool) {
+    if(threadIdx.x<128)for(int task=blockIdx.x;task<kTasks;task+=gridDim.x)
+      backend::Sm90DenseMoeCombine<Batch,N,TN,TopK>::Run(
+          static_cast<float const*>(record.moe.output),record.moe.x,task);
+    if(threadIdx.x==128)tail();
+    __syncthreads();
   }
 };
 

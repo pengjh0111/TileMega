@@ -247,7 +247,8 @@ Sm90NativeFlowResult Sm90NativeCtgScore(frontend::ImportedSemantics const& impor
           "older-body RouteLa proxy for per-CTA local routing";
     }else if(task.role==frontend::OpRole::kMoECombine) {
       price.name="moe_combine";price.category="reducer";
-      node.sync=Sm90SyncKind::kHandoff;price.hop_ns=0;
+      node.sync=c.combine_stage?Sm90SyncKind::kAggregate:Sm90SyncKind::kHandoff;
+      price.hop_ns=c.combine_stage?problem.hop_ns:0;
       double tile=c.gemms[7].tile_n*double(work.batch);
       price.middle.fixed_ns=constants.l2_latency+(9*tile*4+tile*2)/constants.sm_gbps;
     }else if(task.role==frontend::OpRole::kServingArgmax) {
@@ -274,7 +275,7 @@ Sm90NativeFlowResult Sm90NativeCtgScore(frontend::ImportedSemantics const& impor
       page=c.attention.block_keys*work.head_dim*4;pages=stream?c.attention.slots:0;
     }else if(stage.kind==frontend::PlanTaskKind::kGemm) {
       f=Sm90DenseFamily(imported.plan,imported.plan.gemms.at(stage.gemm));
-      bool stage_stream=stream && f!=6 && !(f==1 && c.attention.merge_stage && c.attention.chunks>1);
+      bool stage_stream=stream && f!=6 && !(c.combine_stage && (f==0 || f==4)) && !(f==1 && c.attention.merge_stage && c.attention.chunks>1);
       unsigned last=c.moe?7:3;
       bool pre=stage_stream && ((f==0 && task.stage>1 && resident(last)) ||
           (f==1 && !c.attention.FullWidth(work.head_dim,work.queries,arena) &&
