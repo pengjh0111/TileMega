@@ -34,6 +34,11 @@ def units(a):
                 for batch in (1, 16):
                     work.append(dict(name=f'i1-{engine}-{model}-B{batch}', kind='i1',
                                      engine=engine, model=model, batch=batch))
+    if 'h1' in a.phases:
+        # H1 wants cards 0-5 and 7 (section 9.1); 0, 5 and 7 are already
+        # collected, so the remaining cards are units like any other.
+        for gpu in (1, 2, 3, 4):
+            work.append(dict(name=f'h1-gpu{gpu}', kind='h1', gpu=gpu))
     if 'h2' in a.phases:
         for model in ('qwen3_30b_a3b', 'olmoe_1b_7b'):
             for batch in (1, 2, 4, 8, 16):
@@ -43,6 +48,9 @@ def units(a):
 
 
 def command(unit, gpu):
+    if unit['kind'] == 'h1':
+        return [PYTHON, str(ROOT / 'scripts/sm90r6_hw_peaks.py'), '--gpus', str(gpu),
+                '--processes', '5', '--csv', str(ROOT / f'runs/sm90r6/h1/gpu{gpu}.csv')]
     if unit['kind'] == 'i1':
         return [PYTHON, str(ROOT / 'scripts/sm90r6_engine_trace.py'),
                 '--engine', unit['engine'], '--model', unit['model'],
@@ -58,6 +66,11 @@ def build_moe_cell(unit):
     cell = BUILDS / f"{unit['model']}-B{unit['batch']}"
     if (cell / 'decode.so').exists():
         return True
+    # sm90r4_fixed.py creates its directory with exist_ok=False, so a previous
+    # failed attempt's directory blocks every rebuild; clear a cell that has
+    # no artifact in it.
+    if cell.exists():
+        subprocess.call(['rm', '-rf', str(cell)])
     # OLMoE's REF-R4 cells carry group_wait with a whole-row QK norm, which
     # R5's A1 made illegal, so R5 re-solved all five; those winners are the
     # buildable coordinates. Qwen3-30B-A3B's REF-R4 cells are still legal.
@@ -90,14 +103,26 @@ class Queue:
     def flush(self):
         self.state_path.write_text(json.dumps(self.state, indent=2) + '\n')
 
-    def take(self):
+    def take(self, gpu):
+        """The next unit this worker may run; an h1 unit is pinned to its card."""
         with self.lock:
-            while self.pending:
-                unit = self.pending.pop(0)
+            for index, unit in enumerate(self.pending):
                 if self.state[unit['name']]['status'] in ('done', 'failed'):
+                    self.pending.pop(index)
+                    return self.take_locked(gpu)
+                if unit['kind'] == 'h1' and unit['gpu'] != gpu:
                     continue
-                return unit
+                return self.pending.pop(index)
             return None
+
+    def take_locked(self, gpu):
+        for index, unit in enumerate(self.pending):
+            if self.state[unit['name']]['status'] in ('done', 'failed'):
+                continue
+            if unit['kind'] == 'h1' and unit['gpu'] != gpu:
+                continue
+            return self.pending.pop(index)
+        return None
 
     def finish(self, unit, code, requeue=False):
         with self.lock:
@@ -119,7 +144,7 @@ class Queue:
 
 def worker(gpu, queue):
     while True:
-        unit = queue.take()
+        unit = queue.take(gpu)
         if unit is None:
             return
         if unit['kind'] == 'h2' and not build_moe_cell(unit):
