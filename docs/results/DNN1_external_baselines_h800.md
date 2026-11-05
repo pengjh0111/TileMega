@@ -90,7 +90,13 @@ BERT B1 source11 on GPU2 passes5/5; median1.418496ms, p901.431584ms and10.436973
 
 The first timing process's separate profiler trace observes one cudaGraphLaunch. CPU disassembly of that actual accepted engine contains SM90a code and950 BF16 instruction lines. The pinned Model::RunAsGraph captures RunImpl and instantiates/updates the graph on each call before launching; graph_mode=True does not establish TRT-style cached replay equivalence. Profiling is outside the200 timed samples. Raw PID boundaries establish sampled singleton windows with provisional container ownership, not continuous exclusivity or host PID identity.
 
+Verified CPU B1 import counts are296/25,215/36,446/1,224/120,008 operators for RN18/MBV1/MBV2/BERT/NAF. Official FX2AIT expands grouped convolution into per-group slices, convolutions and concatenation; MBV1/MBV2/NAF contain4,974/7,171/19,902 imported convolutions. These are not measured final kernel counts. The pinned direct depthwise config has no BF16 datatype branch and was not substituted. This frontend/codegen limit is separate from hardware BF16 support. A CPU set-membership topological-sort candidate preserves tested ordering but remains inactive; no diagnostic compiler macro, alternative lowering or precision fallback enters formal rows.
+
 Baseline-only FIFO admission preserves normal physical flock ordering, original six5s preflight samples,0–1MiB memory floor, process/reservation gates, bounded120s settling and NUMA/CPU binding. Independent NVML-only ABBA observations did not reproduce a prior owner-empty4MiB transient; no cause or cadence fix is claimed, and no floor was raised.
+
+## Requested fresh TVM campaign
+
+A separate25-cell fresh-cache campaign is prepared with max_trials_global=10000 and tuning-child wall9000s, retaining default64-candidate batches and the unchanged BF16/direct-VM recipe. Requested candidates are not promised successful records; actual sent/build/committed/success/failure counts and early stops will be retained. The original formal25 are frozen. The controller currently only polls an explicit final AIT25/pushed-ledger release, with zero GPU jobs, queries or locks; no10000-trial result is claimed.
 
 ## Evidence
 
