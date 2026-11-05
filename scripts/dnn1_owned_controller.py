@@ -39,7 +39,7 @@ class OwnedController:
             argv = (proc / 'cmdline').read_bytes().split(b'\0')
             role = ('guard' if b'tilemega.bench.gpu_guard' in argv else
                     'scheduler' if b'tilemega.bench.scheduler' in argv else 'child')
-            return dict(pid=pid, start=fields[19], role=role,
+            return dict(pid=pid, start=fields[19], ppid=int(fields[1]), role=role,
                         command=b' '.join(argv).decode(errors='replace'))
         except (OSError, IndexError):
             return None
@@ -50,6 +50,73 @@ class OwnedController:
 
     def register(self, process):
         self.processes.append(process)
+
+    def cancel_cpu_waiter(self, process, folder):
+        """Retire one untouched worker; refuse any live payload or unknown child."""
+        folder = Path(folder)
+        root = self.record(process.pid)
+        if root is None:
+            return False
+        signals, frozen = [], []
+        def subtree():
+            rows = self.scan()
+            selected = {process.pid}
+            while True:
+                expanded = selected | {r['pid'] for r in rows if r['ppid'] in selected}
+                if expanded == selected:
+                    return [r for r in rows if r['pid'] in selected]
+                selected = expanded
+        def untouched():
+            if list(folder.glob('raw/**/measurement*/command.json')):
+                return False
+            for path in folder.glob('raw/**/pgid'):
+                try:
+                    pgid = int(path.read_text())
+                except (OSError, ValueError):
+                    return False
+                # Payloads start new sessions, so they need not remain in the tree.
+                for proc in Path('/proc').iterdir():
+                    if not proc.name.isdigit():
+                        continue
+                    try:
+                        fields = (proc / 'stat').read_text().rsplit(')', 1)[1].split()
+                        if fields[0] != 'Z' and int(fields[2]) == pgid:
+                            return False
+                    except (OSError, IndexError, ValueError):
+                        continue
+            return True
+        initial = subtree()
+        try:
+            for row in initial:
+                if row['role'] in ('scheduler', 'guard'):
+                    self.send(row, signal.SIGSTOP, signals)
+                    frozen.append(row)
+            rows = subtree()
+            safe = lambda row: (row['role'] in ('scheduler', 'guard') or
+                Path(row['command'].split()[0]).name in ('bash', 'flock', 'nvidia-smi'))
+            if not untouched() or not rows or not all(safe(row) for row in rows):
+                return False
+            for number in (signal.SIGTERM, signal.SIGKILL):
+                for row in rows:
+                    self.send(row, number, signals)
+                    self.send(row, signal.SIGCONT, signals)
+                deadline = time.monotonic() + self.grace_s
+                while subtree() and time.monotonic() < deadline:
+                    time.sleep(.05)
+                rows = subtree()
+                if not rows:
+                    break
+            if rows:
+                raise RuntimeError('CPU waiter scope failed to drain')
+            process.wait(timeout=1)
+            result = dict(time=time.time(), root=root, captured=initial, signals=signals,
+                remaining=[], all_owned_worker_drained=True,
+                policy='no measurement command, live payload PGID, or unknown child; raw retained')
+            (folder / 'cpu_waiter_retired.json').write_text(json.dumps(result, indent=2) + '\n')
+            return True
+        finally:
+            for row in frozen:
+                self.send(row, signal.SIGCONT, signals)
 
     def send(self, row, number, signals):
         current = self.record(row['pid'])

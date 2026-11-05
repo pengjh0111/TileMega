@@ -158,8 +158,9 @@ def release(config, destination):
     return runner.require_tvm_complete()
 
 
-def enqueue(epoch, model, batch, gpu, provider='original'):
-    folder = epoch / 'jobs' / f'{model}_b{batch}'
+def enqueue(epoch, model, batch, gpu, provider='original', admission=1):
+    suffix = '' if admission == 1 else f'_admission{admission}'
+    folder = epoch / 'jobs' / f'{model}_b{batch}{suffix}'
     cell_runner.queue(argparse.Namespace(out=folder, model=model, batch=batch,
                                         gpu=gpu, graph=True, provider=provider))
     log = (folder / 'scheduler.log').open('w')
@@ -167,6 +168,14 @@ def enqueue(epoch, model, batch, gpu, provider='original'):
         stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
     base.write(folder / 'launch.json', dict(pid=process.pid, started=time.time()))
     return process, log, folder, model, batch
+
+
+def available_card(epoch, gpu):
+    if main_reservations(gpu) or base.held(f'/tmp/tilemega_gpu{gpu}.lock'):
+        return False
+    snapshot = resource_snapshot(epoch, gpu)
+    return bool(snapshot is not None and not snapshot['owners'] and
+                0 <= snapshot['used_mib'] <= 1 and snapshot['free_mib'] >= 8192)
 
 
 def _dispatch(args, lifetime):
@@ -194,7 +203,9 @@ def _dispatch(args, lifetime):
     publication = release(config, epoch)
     pending = collection_cells(config)
     requested_cells = len(pending)
-    active, accepted, failures = {}, [], []
+    active, accepted, failures, admissions = {}, [], [], {}
+    reassign_after = max(45, config.get('cpu_waiter_reassign_after_s', 90))
+    max_admissions = min(8, max(1, config.get('max_admissions_per_cell', 8)))
     while pending or active:
         for gpu, (process, log, folder, model, batch) in list(active.items()):
             if process.poll() is None:
@@ -219,31 +230,48 @@ def _dispatch(args, lifetime):
                     policy='preserve original graph failure; no silent uncaptured fallback'))
             disk_snapshot(epoch, 'after-cell', model, batch)
             del active[gpu]
+        for gpu, (process, log, folder, model, batch) in list(active.items()):
+            key = (model, batch)
+            if (admissions[key] >= max_admissions or
+                    time.time() - base.read(folder / 'launch.json')['started'] < reassign_after):
+                continue
+            alternate = next((g for g in gpus if g != gpu and g not in active and
+                              available_card(epoch, g)), None)
+            if alternate is None or not lifetime.cancel_cpu_waiter(process, folder):
+                continue
+            log.close()
+            del active[gpu]
+            admissions[key] += 1
+            active[alternate] = enqueue(epoch, model, batch, alternate,
+                config.get('guard_provider', 'original'), admissions[key])
+            lifetime.register(active[alternate][0])
+            with (epoch / 'cpu_reassignments.jsonl').open('a') as stream:
+                stream.write(json.dumps(dict(time=time.time(), model=model, batch=batch,
+                    old_gpu=gpu, new_gpu=alternate, previous_folder=str(folder),
+                    next_folder=str(active[alternate][2]), admission=admissions[key],
+                    scope='CPU-only; never interrupt a model payload')) + '\n')
         for gpu in gpus:
             if not pending or len(active) >= 2:
                 break
             if gpu in active:
                 continue
-            if main_reservations(gpu):
-                continue
-            snapshot = resource_snapshot(epoch, gpu)
-            if snapshot is None:
-                continue
-            if (snapshot['owners'] or snapshot['used_mib'] > 1 or snapshot['free_mib'] < 8192 or
-                    base.held(f'/tmp/tilemega_gpu{gpu}.lock')):
+            if not available_card(epoch, gpu):
                 continue
             disk = disk_snapshot(epoch, 'before-cell', *pending[0])
             if disk['filesystem_free_bytes'] < config.get('minimum_free_gib', 16) * (1 << 30):
                 continue
             model, batch = pending.pop(0)
+            admissions[(model, batch)] = 1
             active[gpu] = enqueue(epoch, model, batch, gpu, config.get('guard_provider', 'original'))
             lifetime.register(active[gpu][0])
         base.write(epoch / 'state.json', dict(status='collecting' if pending or active else
             ('complete' if not failures else 'needs_diagnosis'), accepted=len(accepted),
             pending=[f'{m}_b{b}' for m, b in pending],
-            gpu_workers={str(g): dict(pid=p.pid, model=m, batch=b) for g,(p,_,_,m,b) in active.items()},
+            gpu_workers={str(g): dict(pid=p.pid, model=m, batch=b, folder=str(folder),
+                admission=admissions[(m,b)]) for g,(p,_,folder,m,b) in active.items()},
             failures=failures, release=publication, graph_mode=True, priority=200,
             max_background_cards=2, gpus=gpus, requested_cells=requested_cells,
+            cpu_waiter_reassign_after_s=reassign_after, max_admissions_per_cell=max_admissions,
             power_monitoring=False, time=time.time()))
         if pending or active:
             time.sleep(15)

@@ -16,6 +16,58 @@ from dnn1_owned_controller import OwnedController
 
 
 class OwnedTest(unittest.TestCase):
+    def test_five_fresh_cpu_waiters_retire_without_touching_other_worker(self):
+        with tempfile.TemporaryDirectory() as folder:
+            with OwnedController(folder, grace_s=.3) as owner:
+                foreign_worker = subprocess.Popen([sys.executable, '-c', 'import time;time.sleep(60)'],
+                    start_new_session=True)
+                owner.register(foreign_worker)
+                for index in range(5):
+                    out = Path(folder) / str(index)
+                    out.mkdir()
+                    worker = subprocess.Popen([sys.executable, '-c', 'import time;time.sleep(60)',
+                        'tilemega.bench.scheduler'], start_new_session=True)
+                    owner.register(worker)
+                    self.assertTrue(owner.cancel_cpu_waiter(worker, out))
+                    result = json.loads((out / 'cpu_waiter_retired.json').read_text())
+                    self.assertTrue(result['all_owned_worker_drained'])
+                    self.assertNotIn(foreign_worker.pid, [r['pid'] for r in result['signals']])
+                    self.assertIsNone(foreign_worker.poll())
+
+    def test_started_measurement_or_unknown_child_prevents_retirement(self):
+        with tempfile.TemporaryDirectory() as folder:
+            with OwnedController(folder, grace_s=.3) as owner:
+                worker = subprocess.Popen([sys.executable, '-c', 'import time;time.sleep(60)',
+                    'tilemega.bench.scheduler'], start_new_session=True)
+                owner.register(worker)
+                command = Path(folder) / 'raw/attempt1/job/ait/measurement0/command.json'
+                command.parent.mkdir(parents=True)
+                command.write_text('{}')
+                self.assertFalse(owner.cancel_cpu_waiter(worker, folder))
+                self.assertIsNone(worker.poll())
+                command.unlink()
+                unknown = subprocess.Popen([sys.executable, '-c', 'import time;time.sleep(60)'],
+                    start_new_session=True)
+                owner.register(unknown)
+                self.assertFalse(owner.cancel_cpu_waiter(unknown, folder))
+                self.assertIsNone(unknown.poll())
+
+    def test_live_separate_payload_pgid_prevents_retirement(self):
+        with tempfile.TemporaryDirectory() as folder:
+            with OwnedController(folder, grace_s=.3) as owner:
+                worker = subprocess.Popen([sys.executable, '-c', 'import time;time.sleep(60)',
+                    'tilemega.bench.scheduler'], start_new_session=True)
+                payload = subprocess.Popen([sys.executable, '-c', 'import time;time.sleep(60)'],
+                    start_new_session=True)
+                owner.register(worker)
+                owner.register(payload)
+                pgid = Path(folder) / 'raw/attempt1/pgid'
+                pgid.parent.mkdir(parents=True)
+                pgid.write_text(str(payload.pid))
+                self.assertFalse(owner.cancel_cpu_waiter(worker, folder))
+                self.assertIsNone(worker.poll())
+                self.assertIsNone(payload.poll())
+
     def test_pid_reuse_is_not_signalled(self):
         with tempfile.TemporaryDirectory() as folder:
             owner = OwnedController(folder)

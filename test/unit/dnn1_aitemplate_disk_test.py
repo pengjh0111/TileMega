@@ -12,6 +12,23 @@ import dnn1_aitemplate_collect as controller
 
 
 class DiskTest(unittest.TestCase):
+    def test_reassignment_admission_requires_current_empty_and_unreserved_card(self):
+        clean = dict(owners={}, used_mib=0, free_mib=80000)
+        with tempfile.TemporaryDirectory() as folder:
+            epoch = Path(folder)
+            with patch.object(controller, 'main_reservations', return_value=[]), \
+                    patch.object(controller.base, 'held', return_value=False), \
+                    patch.object(controller, 'resource_snapshot', return_value=clean):
+                self.assertTrue(controller.available_card(epoch, 4))
+                for dirty in (dict(clean, used_mib=4), dict(clean, owners={'123': 1}),
+                              dict(clean, free_mib=100), dict(clean, used_mib=-1)):
+                    with patch.object(controller, 'resource_snapshot', return_value=dirty):
+                        self.assertFalse(controller.available_card(epoch, 4))
+                with patch.object(controller, 'main_reservations', return_value=['reserved']):
+                    self.assertFalse(controller.available_card(epoch, 4))
+                with patch.object(controller.base, 'held', return_value=True):
+                    self.assertFalse(controller.available_card(epoch, 4))
+
     def test_gpu_telemetry_timeout_skips_card_and_preserves_error(self):
         with tempfile.TemporaryDirectory() as folder:
             epoch = Path(folder)
