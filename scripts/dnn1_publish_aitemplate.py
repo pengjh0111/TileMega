@@ -87,7 +87,7 @@ def accepted_row(value, fields):
 
 def write_csv(path, rows, fields=None):
     with Path(path).open('w', newline='') as stream:
-        writer = csv.DictWriter(stream, fieldnames=fields or list(rows[0]))
+        writer = csv.DictWriter(stream, fieldnames=fields or list(rows[0]), lineterminator='\n')
         writer.writeheader()
         writer.writerows(rows)
 
