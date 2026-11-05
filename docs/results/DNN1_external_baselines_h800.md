@@ -1,6 +1,6 @@
 # DNN1 H800 external baselines
 
-Verified checkpoint: TVM **25/25 BF16 cells accepted**; AITemplate **1/25 BF16 cells accepted (partial)**. TileMega native optimization remains paused. Existing TRT/torch.compile primary125 rows are unchanged.
+Verified checkpoint: TVM **25/25 BF16 cells accepted**; AITemplate **5/25 BF16 cells accepted (partial)**. TileMega native optimization remains paused. Existing TRT/torch.compile primary125 rows are unchanged.
 
 Current data: [canonical150 rows](DNN1_baselines.csv), [TVM diagnostics](DNN1_tvm_diag.csv), [per-task allocation](DNN1_tvm_task_coverage.csv). Superseded importer failures are retained in [history](DNN1_tvm_history.csv) and [diagnostic history](DNN1_tvm_diag_history.csv); the five historical FP16 failures are not a new fallback cohort.
 
@@ -72,11 +72,11 @@ Selected databases total37,285 committed records: 32,386 successful, 4,899 faile
 
 ## AITemplate status
 
-Verified partial checkpoint: [AIT accepted1 CSV](DNN1_aitemplate_partial.csv), [AIT artifact/clock diagnostics](DNN1_aitemplate_diag.csv). Only RN18 B1 is accepted; the other24 cells remain in collection, not N/A. The canonical150 rows are unchanged until the full AIT cohort has terminal evidence.
+Verified partial checkpoint: [AIT accepted5 CSV](DNN1_aitemplate_partial.csv), [AIT artifact/clock diagnostics](DNN1_aitemplate_diag.csv). All five RN18 batches are accepted; the other20 cells remain in collection, not N/A. The canonical150 rows are unchanged until the full AIT cohort has terminal evidence.
 
 | model | B1 ms | B2 | B4 | B8 | B16 |
 |---|---:|---|---|---|---|
-| resnet18 | 0.399760 | pending | pending | pending | pending |
+| resnet18 | 0.399760 | 0.437856 | 0.501408 | 0.672944 | 0.991360 |
 | mbv1 | pending | pending | pending | pending | pending |
 | mbv2 | pending | pending | pending | pending | pending |
 | bert | pending | pending | pending | pending | pending |
@@ -86,7 +86,7 @@ Pinned AIT23a2e348857591ac41f4946f0177c53d833a0104; source/recipe7 uses uniform 
 
 RN18 B1 on physicalGPU0 passes5/5 fresh processes; three timing medians0.399824/0.399440/0.399760ms yield0.096058% process range. Median p90 is0.404128ms; all six measurement clock boundaries are1980MHz. Library SHA32f615d82c4c4adcd33fb8608c31ce78dabb97960a658f3fc0d9c82d4068615e is identical across all5 processes. The actual engine has no CUDA-driver symbol references; its ELF has no libcuda dependency, so this cell does not validate a TMA-dependent engine's shared-link chain.
 
-The first timing process's separate profiler trace observes one cudaGraphLaunch. The pinned Model::RunAsGraph captures RunImpl and instantiates/updates the graph on each call before launching; graph_mode=True does not establish TRT-style cached replay equivalence. Profiling is outside the200 timed samples. Raw PID boundaries establish sampled singleton windows with provisional container ownership, not continuous exclusivity or host PID identity.
+The first timing process's separate profiler trace observes one cudaGraphLaunch. CPU disassembly of that actual accepted engine contains SM90a code and950 BF16 instruction lines. The pinned Model::RunAsGraph captures RunImpl and instantiates/updates the graph on each call before launching; graph_mode=True does not establish TRT-style cached replay equivalence. Profiling is outside the200 timed samples. Raw PID boundaries establish sampled singleton windows with provisional container ownership, not continuous exclusivity or host PID identity.
 
 Baseline-only FIFO admission preserves normal physical flock ordering, original six5s preflight samples,0–1MiB memory floor, process/reservation gates, bounded120s settling and NUMA/CPU binding. Independent NVML-only ABBA observations did not reproduce a prior owner-empty4MiB transient; no cause or cadence fix is claimed, and no floor was raised.
 
