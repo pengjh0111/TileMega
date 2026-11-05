@@ -267,6 +267,58 @@ struct Sm90ForwardEpilogueChain {
     }
   }
 
+  // Affine/ReLU/residual entries do not change element ownership or width.
+  // Keep each entry's FP32 rounding boundary while eliminating intermediate
+  // shared-memory passes. Gate compaction and normalization keep their own
+  // collective algorithms.
+  static constexpr bool kRegisterPointwise=kSteps>1 &&
+      ((Step::kKind==Sm90ForwardOp::kBias || Step::kKind==Sm90ForwardOp::kScale ||
+        Step::kKind==Sm90ForwardOp::kResidual ||
+        (Step::kKind==Sm90ForwardOp::kActivation &&
+         (Step::kActivation==codegen::DmActivation::kRelu ||
+          Step::kActivation==codegen::DmActivation::kRelu6))) && ...);
+
+  template<class S>
+  __device__ static __forceinline__ void ApplyRegisterOne(float& value,
+      int row,int col,int channel,Sm90ForwardEpilogueOperands const& p) {
+    if constexpr(S::kKind==Sm90ForwardOp::kBias)
+      value=__fadd_rn(value,p.vectors[S::kVector][channel+col]);
+    else if constexpr(S::kKind==Sm90ForwardOp::kScale)
+      value=__fmul_rn(value,p.vectors[S::kVector][channel+col]);
+    else if constexpr(S::kKind==Sm90ForwardOp::kActivation)
+      value=Sm90ForwardActivate(S::kActivation,value);
+    else if constexpr(S::kKind==Sm90ForwardOp::kResidual) {
+      std::size_t index;
+      if constexpr(S::kResidualMap==kShuffleWrite) {
+        static_assert(Write==kShuffleWrite && Width>0 && Height>0);
+        int source=p.row_base+row,image=source/(Width*Height),pixel=source%(Width*Height);
+        int group=(channel+col)%(Shuffle*Shuffle);
+        std::size_t destination=(std::size_t(image)*Height*Shuffle+(pixel/Width)*Shuffle+group/Shuffle)*
+            (std::size_t(Width)*Shuffle)+std::size_t(pixel%Width)*Shuffle+group%Shuffle;
+        index=destination*std::size_t(p.residual_stride)+(channel+col)/(Shuffle*Shuffle);
+      }else {
+        static_assert(S::kResidualMap==kDenseWrite);
+        index=Sm90ForwardRowOffset(p,row,p.residual_stride)+channel+col;
+      }
+      float add=float(p.residual[index]);
+      // Preserve the two roundings observed in production Finish. A
+      // standalone Apply compiles differently, so its FMA contraction is
+      // not a valid oracle for the complete chain.
+      if(p.vectors[S::kVector])value=__fmul_rn(value,p.vectors[S::kVector][channel+col]);
+      value=__fadd_rn(value,add);
+    }
+  }
+
+  __device__ static __forceinline__ void ApplyRegister(float* tile,int rows,
+      int channel,int width,Sm90ForwardEpilogueOperands const& p) {
+    for(int i=int(threadIdx.x);i<rows*width;i+=128) {
+      int row=i/width,col=i%width;float value=tile[row*N+col];
+      (ApplyRegisterOne<Step>(value,row,col,channel,p),...);
+      tile[row*N+col]=value;
+    }
+    codegen::executor::ComputeSync();
+  }
+
   // Side outputs read the finished tile; row stats feed a later deferred norm.
   // `channel` is the tile's first column in the producer's packed channel
   // space; after a gate pair the stored channels are half of it. `width` is
@@ -278,7 +330,8 @@ struct Sm90ForwardEpilogueChain {
     // The packed weight tile may extend past valid affine/residual buffers.
     // Apply only the live pre-gate columns; width is the final written width.
     int live=kGated?2*width:width;
-    (Apply<Step>(tile,rows,channel,live,p),...);
+    if constexpr(kRegisterPointwise)ApplyRegister(tile,rows,channel,live,p);
+    else (Apply<Step>(tile,rows,channel,live,p),...);
     if(p.row_stats) {
       for(int row=int(threadIdx.x);row<rows;row+=128) {
         float sum=0,squares=0;
