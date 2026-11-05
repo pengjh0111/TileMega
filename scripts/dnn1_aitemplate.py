@@ -24,7 +24,7 @@ import traceback
 ROOT = Path(__file__).resolve().parents[1]
 AIT_ROOT = ROOT / "runs/dnn1/resume/aitemplate"
 AIT_COMMIT = "23a2e348857591ac41f4946f0177c53d833a0104"
-RECIPE_SCHEMA = 11
+RECIPE_SCHEMA = 12
 BF16_POOL_SOURCE_SHA = 'fc84ab0252c59f86e85de54484beb4edbe4f59afb817013cbf9ce4401f8b6243'
 BF16_GATHER_SOURCE_SHA = {
     'aitemplate/backend/cuda/cuda_common.py': '23a8e2ae50568c2d1cbf43c9aa3349c7f7527f6f251d0ed8ffbfd2124e5f3405',
@@ -32,6 +32,7 @@ BF16_GATHER_SOURCE_SHA = {
 }
 RELATIONAL_SOURCE_SHA = '1f1c16760e95239a57b04f898ad6f7b253bb7941d50f667de913aec2f743f17a'
 BUILD_FIX_SOURCE_SHA = {
+    'aitemplate/compiler/transform/transform_strided_slice.py': '7dff32910fc78e9772db32dde3d29aabd92ad2e3d6c914f0a075f4513985bbbc',
     'aitemplate/backend/common/tensor/slice_common.py': '9537dc36061d1b3865d61b0341d0438408f1e5a48f03300cefa3dc1c401ec633',
     'aitemplate/backend/cuda/tensor/expand_static_shape.py': 'c1e0650ec580a00bd4441c699251827c8f382132e6c62b1b293c89a14fba6f33',
 }
@@ -47,6 +48,7 @@ RECIPE = dict(schema=RECIPE_SCHEMA, frontend="uniform-static-ATen-NHWC", precisi
               backend_relational_patch="dnn1_aitemplate_nonfinite_literal.patch",
               backend_slice_patch="dnn1_aitemplate_slice_width.patch",
               backend_expand_patch="dnn1_aitemplate_expand_linkage.patch",
+              backend_pooler_stride_patch="dnn1_aitemplate_pooler_stride.patch",
               runtime_outputs="IR names/shapes/dtypes checked against official runtime enums")
 
 
@@ -106,7 +108,8 @@ def source_identity():
         if sha(AIT_ROOT / 'python' / relative) != digest:
             raise ValueError('AIT slice/expand source differs from the verified build fixes')
     paths.extend(ROOT / 'scripts' / name for name in (
-        'dnn1_aitemplate_slice_width.patch', 'dnn1_aitemplate_expand_linkage.patch'))
+        'dnn1_aitemplate_slice_width.patch', 'dnn1_aitemplate_expand_linkage.patch',
+        'dnn1_aitemplate_pooler_stride.patch'))
     commit = subprocess.check_output(["git", "-C", str(AIT_ROOT / "source"),
                                       "rev-parse", "HEAD"], text=True).strip()
     if commit != AIT_COMMIT:

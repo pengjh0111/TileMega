@@ -1,0 +1,12 @@
+--- a/aitemplate/compiler/transform/transform_strided_slice.py
++++ b/aitemplate/compiler/transform/transform_strided_slice.py
+@@ -26,6 +26,9 @@
+ 
+ 
+ def _is_supported_gemm_or_bmm(gemm_or_bmm_op: Operator, slice_op: Operator) -> bool:
++    # This backend ignores input-accessor strides and offsets.
++    if gemm_or_bmm_op._attrs["op"] == "gemm_rcr_bias_tanh":
++        return False
+     if not gemm_or_bmm_op._attrs["op"].startswith(("gemm_rcr", "bmm")):
+         return False
+     slice_output_tensor = slice_op._attrs["outputs"][0]
