@@ -25,6 +25,13 @@ from dnn1_tvm_resume_sample import prior_identity
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def gpu_pool(raw):
+    values = [int(value) for value in raw.split(',')]
+    if not values or len(values) != len(set(values)) or not set(values) <= {0,1,2,3,4,5,7}:
+        raise ValueError('collection requires distinct cards0–5/7, neverGPU6')
+    return values
+
+
 def csv_write(path, rows):
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open('w', newline='') as stream:
@@ -200,8 +207,8 @@ def enqueue(cell, epoch, gpu, cpus):
 def dispatch(args):
     epoch = args.epoch.resolve()
     config = base.read(epoch / 'spec.json')
-    gpus = [int(s) for s in args.gpus.split(',')]
-    if not set(gpus) <= {0,1,5,7} or not 1 <= args.max_parallel <= 2:
+    gpus = gpu_pool(args.gpus)
+    if not 1 <= args.max_parallel <= 2:
         raise ValueError('background resumption uses at most2 healthy cards, neverGPU6')
     binding = affinities(gpus, 8, explicit={str(g): AFFINITY[g] for g in gpus})
     lock = (epoch / 'controller.lock').open('a')

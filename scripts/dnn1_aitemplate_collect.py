@@ -35,6 +35,14 @@ def campaign_paths(config):
     return [Path(p) for p in config.get('tvm_epochs', [config['tvm_epoch']])]
 
 
+def gpu_pool(config):
+    values = config.get('gpus', [5, 7, 0, 1])
+    if (not values or any(type(value) is not int for value in values) or
+            len(values) != len(set(values)) or not set(values) <= {0,1,2,3,4,5,7}):
+        raise ValueError('collection requires distinct cards0–5/7, neverGPU6')
+    return values
+
+
 def release(config, destination):
     tvm = Path(config['tvm_epoch'])
     campaigns = campaign_paths(config)
@@ -105,6 +113,7 @@ def enqueue(epoch, model, batch, gpu):
 def dispatch(args):
     epoch = args.epoch.resolve()
     config = base.read(epoch / 'spec.json')
+    gpus = gpu_pool(config)
     lock = (epoch / 'controller.lock').open('a')
     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     if (epoch / 'started.json').exists():
@@ -149,7 +158,7 @@ def dispatch(args):
                 failures.append(dict(model=model, batch=batch, folder=str(folder), error=repr(error),
                     policy='preserve original graph failure; no silent uncaptured fallback'))
             del active[gpu]
-        for gpu in (5, 7, 0, 1):
+        for gpu in gpus:
             if not pending or len(active) >= 2:
                 break
             if gpu in active:
@@ -167,7 +176,7 @@ def dispatch(args):
             pending=[f'{m}_b{b}' for m, b in pending],
             gpu_workers={str(g): dict(pid=p.pid, model=m, batch=b) for g,(p,_,_,m,b) in active.items()},
             failures=failures, release=publication, graph_mode=True, priority=200,
-            max_background_cards=2, power_monitoring=False, time=time.time()))
+            max_background_cards=2, gpus=gpus, power_monitoring=False, time=time.time()))
         if pending or active:
             time.sleep(15)
     return int(bool(failures))
