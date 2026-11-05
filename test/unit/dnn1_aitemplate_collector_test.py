@@ -1,7 +1,9 @@
 """CPU fixtures for the independent AIT strict collector; no GPU measurements."""
 import argparse
 import json
+import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -185,7 +187,20 @@ class CollectorTest(unittest.TestCase):
         self.assertTrue(job['gpu'] and job['timing'])
         self.assertEqual(job['env']['CUDA_VISIBLE_DEVICES'], '2')
         self.assertIn('--physcpubind=16,17,18,19,20,21,22,23', job['command'])
+        self.assertEqual(job['command'][:2], ['numactl', '--all'])
         self.assertIn('0000:41:00.0', job['command'])
+
+    def test_five_fresh_children_bind_declared_cpus_from_restricted_controller(self):
+        allowed = sorted(os.sched_getaffinity(0))
+        if len(allowed) < 2:
+            self.skipTest('requires two permitted CPUs')
+        target, control = allowed[0], allowed[-1]
+        for _ in range(5):
+            result = subprocess.run(['taskset', '-c', str(control), 'numactl', '--all',
+                f'--physcpubind={target}', sys.executable, '-c',
+                'import os,json;print(json.dumps(sorted(os.sched_getaffinity(0))))'],
+                check=True, text=True, capture_output=True)
+            self.assertEqual(json.loads(result.stdout), [target])
 
 
 if __name__ == '__main__':

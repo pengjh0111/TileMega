@@ -54,7 +54,7 @@ def queue(options):
     env = protocol.gpu_env(gpu, dict(TILEMEGA_NUMA_CONCURRENCY_TRIAL='1', NUM_BUILDERS='4',
                                    OPENBLAS_NUM_THREADS='4', MKL_NUM_THREADS='4',
                                    CACHE_DIR=str(profile_cache)))
-    command = ['numactl', '--physcpubind=' + ','.join(map(str, affinity)), python,
+    command = ['numactl', '--all', '--physcpubind=' + ','.join(map(str, affinity)), python,
         str(ROOT / 'scripts/run_r16_with_device_identity.py'), '--guard-policy', str(protocol.POLICY),
         '--out', '{attempt_dir}/job', '--expected-uuid', uuid, '--expected-pci', pci,
         '--numa-node', str(0 if gpu < 4 else 1), '--allow-no-measurements', '--', python,
