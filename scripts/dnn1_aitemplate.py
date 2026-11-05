@@ -24,13 +24,13 @@ import traceback
 ROOT = Path(__file__).resolve().parents[1]
 AIT_ROOT = ROOT / "runs/dnn1/resume/aitemplate"
 AIT_COMMIT = "23a2e348857591ac41f4946f0177c53d833a0104"
-RECIPE_SCHEMA = 3
+RECIPE_SCHEMA = 4
 RECIPE = dict(schema=RECIPE_SCHEMA, frontend="uniform-static-ATen-NHWC", precision="bf16",
               target="cuda-sm90a", use_fp16_acc=False, use_fast_math=True,
               allow_cutlass_sm90=True, force_cutlass_sm90=False,
               optimize_graph=True, profile_timeout_s=500, profile_devices=[0],
               num_runtimes=1, graph_mode=True, warmup=50, iterations=200,
-              profiler_link_libraries=["cuda"])
+              profiler_link_libraries=["cuda"], shared_link_libraries=["cuda"])
 
 
 def sha(path):
@@ -91,6 +91,12 @@ def target():
     from aitemplate.backend.cuda.target_def import CUDA
 
     class HopperCUDA(CUDA):
+        def compile_options(self):
+            # Builder places these flags before objects; retain the driver even
+            # when the host linker's default is --as-needed.
+            return (super().compile_options() +
+                    " -Xlinker=--no-as-needed -lcuda -Xlinker=--as-needed")
+
         def compile_cmd(self, executable=False):
             command = super().compile_cmd(executable=executable)
             # SM90 TMA profilers call the driver API when encoding tensor maps.

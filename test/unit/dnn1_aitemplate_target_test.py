@@ -16,6 +16,8 @@ class TargetTest(unittest.TestCase):
                 self.kwargs = kwargs
             def compile_cmd(self, executable=False):
                 return 'nvcc -o {target} {src}' if executable else 'nvcc -c -o {target} {src}'
+            def compile_options(self):
+                return '--other-shared-options'
             def _build_nvcc_compiler_options(self):
                 return ['-gencode=arch=compute_90,code=[sm_90,compute_90]', '--keep-other-options']
         fake = ModuleType('aitemplate.backend.cuda.target_def')
@@ -41,10 +43,14 @@ class TargetTest(unittest.TestCase):
     def test_cli_recipe_identity_cannot_revert_to_pre_linkfix_schema(self):
         with patch.dict(runner.RECIPE):
             runner.configure_graph_recipe(False)
-            self.assertEqual(runner.RECIPE['schema'], '3-no-graph-reference')
+            self.assertEqual(runner.RECIPE['schema'], '4-no-graph-reference')
             runner.configure_graph_recipe(True)
-            self.assertEqual(runner.RECIPE['schema'], 3)
+            self.assertEqual(runner.RECIPE['schema'], 4)
             self.assertTrue(runner.RECIPE['graph_mode'])
+
+    def test_shared_link_retains_driver_before_object_files(self):
+        self.assertEqual(self.target().compile_options(),
+            '--other-shared-options -Xlinker=--no-as-needed -lcuda -Xlinker=--as-needed')
 
 
 if __name__ == '__main__':
