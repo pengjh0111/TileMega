@@ -86,15 +86,18 @@ class OwnedController:
                         continue
             return True
         initial = subtree()
+        if any(row['role'] == 'guard' for row in initial):
+            return False
         try:
             for row in initial:
-                if row['role'] in ('scheduler', 'guard'):
+                if row['role'] == 'scheduler':
                     self.send(row, signal.SIGSTOP, signals)
                     frozen.append(row)
             rows = subtree()
             safe = lambda row: (row['role'] in ('scheduler', 'guard') or
                 Path(row['command'].split()[0]).name in ('bash', 'flock', 'nvidia-smi'))
-            if not untouched() or not rows or not all(safe(row) for row in rows):
+            if (any(row['role'] == 'guard' for row in rows) or not untouched() or
+                    not rows or not all(safe(row) for row in rows)):
                 return False
             for number in (signal.SIGTERM, signal.SIGKILL):
                 for row in rows:

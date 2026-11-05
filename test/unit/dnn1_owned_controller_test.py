@@ -68,6 +68,17 @@ class OwnedTest(unittest.TestCase):
                 self.assertIsNone(worker.poll())
                 self.assertIsNone(payload.poll())
 
+    def test_live_guard_keeps_its_physical_lock_queue_position(self):
+        with tempfile.TemporaryDirectory() as folder:
+            with OwnedController(folder, grace_s=.3) as owner:
+                guard = subprocess.Popen([sys.executable, '-c', 'import time;time.sleep(60)',
+                    'tilemega.bench.gpu_guard'], start_new_session=True)
+                owner.register(guard)
+                with patch('dnn1_owned_controller.os.kill', wraps=os.kill) as kill:
+                    self.assertFalse(owner.cancel_cpu_waiter(guard, folder))
+                    kill.assert_not_called()
+                self.assertIsNone(guard.poll())
+
     def test_pid_reuse_is_not_signalled(self):
         with tempfile.TemporaryDirectory() as folder:
             owner = OwnedController(folder)

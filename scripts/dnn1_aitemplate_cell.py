@@ -24,19 +24,21 @@ def queue(options):
     out.mkdir(parents=True, exist_ok=False)
     gpu, affinity = options.gpu, AFFINITY[options.gpu]
     provider = getattr(options, 'provider', 'original')
-    if provider not in ('original', 'bounded-settle'):
+    if provider not in ('original', 'bounded-settle', 'fifo-settle'):
         raise ValueError('unknown versioned AIT guard provider')
-    python = str(ROOT / 'scripts' / ('dnn1_settling_background_python.py'
-                 if provider == 'bounded-settle' else 'dnn1_background_python.py'))
+    python = str(ROOT / 'scripts' / dict(original='dnn1_background_python.py',
+        **{'bounded-settle': 'dnn1_settling_background_python.py',
+           'fifo-settle': 'dnn1_fifo_background_python.py'})[provider])
     sources = source_identity()['files']
     sources.update({str(Path(__file__).resolve()): sha(__file__)})
     for name in ('dnn1_device.py', 'dnn1_baselines.py', 'dnn1_idle_floor_python.py',
                  'dnn1_resource_entry.py', 'dnn1_baseline_boundaries.py',
                  'dnn1_background_python.py', 'dnn1_background_cards.py'):
         sources[str(ROOT / 'scripts' / name)] = sha(ROOT / 'scripts' / name)
-    if provider == 'bounded-settle':
+    if provider in ('bounded-settle', 'fifo-settle'):
         for path in (Path(python), ROOT / 'scripts/dnn1_preflight_settle.py',
                      ROOT / 'scripts/dnn1_preflight_settle_guard.patch',
+                     ROOT / 'scripts/dnn1_settling_background_python.py',
                      ROOT / 'python/tilemega/bench/gpu_guard.py'):
             sources[str(path)] = sha(path)
     profile_cache = AIT_ROOT / 'profile_cache' / f'gpu{gpu}'

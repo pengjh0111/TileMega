@@ -170,8 +170,8 @@ def enqueue(epoch, model, batch, gpu, provider='original', admission=1):
     return process, log, folder, model, batch
 
 
-def available_card(epoch, gpu):
-    if main_reservations(gpu) or base.held(f'/tmp/tilemega_gpu{gpu}.lock'):
+def available_card(epoch, gpu, *, fifo=False):
+    if main_reservations(gpu) or (not fifo and base.held(f'/tmp/tilemega_gpu{gpu}.lock')):
         return False
     snapshot = resource_snapshot(epoch, gpu)
     return bool(snapshot is not None and not snapshot['owners'] and
@@ -206,6 +206,7 @@ def _dispatch(args, lifetime):
     active, accepted, failures, admissions = {}, [], [], {}
     reassign_after = max(45, config.get('cpu_waiter_reassign_after_s', 90))
     max_admissions = min(8, max(1, config.get('max_admissions_per_cell', 8)))
+    fifo = config.get('guard_provider') == 'fifo-settle'
     while pending or active:
         for gpu, (process, log, folder, model, batch) in list(active.items()):
             if process.poll() is None:
@@ -232,7 +233,7 @@ def _dispatch(args, lifetime):
             del active[gpu]
         for gpu, (process, log, folder, model, batch) in list(active.items()):
             key = (model, batch)
-            if (admissions[key] >= max_admissions or
+            if (fifo or admissions[key] >= max_admissions or
                     time.time() - base.read(folder / 'launch.json')['started'] < reassign_after):
                 continue
             alternate = next((g for g in gpus if g != gpu and g not in active and
@@ -255,7 +256,7 @@ def _dispatch(args, lifetime):
                 break
             if gpu in active:
                 continue
-            if not available_card(epoch, gpu):
+            if not available_card(epoch, gpu, fifo=fifo):
                 continue
             disk = disk_snapshot(epoch, 'before-cell', *pending[0])
             if disk['filesystem_free_bytes'] < config.get('minimum_free_gib', 16) * (1 << 30):
