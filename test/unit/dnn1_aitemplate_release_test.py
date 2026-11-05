@@ -13,6 +13,15 @@ import dnn1_aitemplate_collect as controller
 
 
 class ReleaseTest(unittest.TestCase):
+    def test_dispatcher_startup_state_waits_without_releasing(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'state.json'
+            self.assertEqual(controller.tvm_state(path)['status'], 'state_initializing')
+            path.write_text('{')
+            self.assertEqual(controller.tvm_state(path)['status'], 'state_initializing')
+            path.write_text('{"status":"collecting"}')
+            self.assertEqual(controller.tvm_state(path)['status'], 'collecting')
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)

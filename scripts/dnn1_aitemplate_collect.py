@@ -24,6 +24,13 @@ def rows(path):
         return list(csv.DictReader(stream))
 
 
+def tvm_state(path):
+    try:
+        return base.read(path)
+    except (FileNotFoundError, json.JSONDecodeError) as error:
+        return dict(status='state_initializing', workers={}, error=repr(error))
+
+
 def release(config, destination):
     tvm = Path(config['tvm_epoch'])
     state = base.read(tvm / 'state.json')
@@ -95,7 +102,7 @@ def dispatch(args):
         raise FileExistsError('audit the preserved controller state before resuming')
     base.write(epoch / 'started.json', dict(time=time.time(), driver_sha256=base.sha(__file__)))
     while True:
-        state = base.read(Path(config['tvm_epoch']) / 'state.json')
+        state = tvm_state(Path(config['tvm_epoch']) / 'state.json')
         if state.get('status') == 'needs_diagnosis':
             base.write(epoch / 'state.json', dict(status='blocked_tvm_repair', tvm_state=state))
             return 1
