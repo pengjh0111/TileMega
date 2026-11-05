@@ -95,6 +95,8 @@ def require_freeze(scan, filename):
     freeze = read(filename)
     expected = dict(head=scan['head'], source_digest=scan['source_snapshot']['source_digest'],
                     compiler_sha256=scan['compiler_sha256'])
+    if 'out' in scan:
+        expected['scan_sha256'] = sha(Path(scan['out']) / 'scan.json')
     if freeze.get('frozen') is not True or any(freeze.get(k) != v for k, v in expected.items()):
         raise ValueError('GPU scan requires the parent source freeze for this HEAD/compiler')
     validate_live(scan)
@@ -149,6 +151,7 @@ def prepare(args):
     baseline = subprocess.check_output(['git', '-C', str(source), 'show',
                                       revision + ':docs/results/DNN1_baselines.csv'])
     (out / 'frozen_baselines.csv').write_bytes(baseline)
+    files[str(out / 'frozen_baselines.csv')] = hashlib.sha256(baseline).hexdigest()
     lookup = baseline_lookup(list(csv.DictReader(io.StringIO(baseline.decode()))))
     scan = dict(schema=1, head=head, promoted_change=args.promoted_change, source_root=str(source),
         compiler=str(compiler), compiler_sha256=sha(compiler), exports=str(exports), out=str(out),
@@ -161,7 +164,8 @@ def prepare(args):
     scan['files'][scan['reject_cuda']] = sha(scan['reject_cuda'])
     write(out / 'scan.json', scan)
     print(json.dumps(dict(scan=str(out / 'scan.json'), freeze_required=dict(frozen=True,
-        head=head, source_digest=frozen['source_digest'], compiler_sha256=sha(compiler)))))
+        head=head, source_digest=frozen['source_digest'], compiler_sha256=sha(compiler),
+        scan_sha256=sha(out / 'scan.json')))))
 
 
 def validate_artifact(scan, cell):

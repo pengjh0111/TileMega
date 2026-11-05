@@ -79,6 +79,12 @@ class ScoreboardTests(unittest.TestCase):
         f=self.root/'freeze.json';sb.write(f,dict(frozen=True,head='a',source_digest='digest',compiler_sha256=sb.sha(compiler)))
         with patch.object(sb,'git',return_value='a'):sb.require_freeze(scan,f)
         with patch.object(sb,'git',return_value='b'),self.assertRaises(ValueError):sb.require_freeze(scan,f)
+        scan['out']=str(self.root);manifest=self.root/'scan.json';sb.write(manifest,scan)
+        freeze=sb.read(f);freeze['scan_sha256']=sb.sha(manifest);sb.write(f,freeze)
+        with patch.object(sb,'git',return_value='a'):sb.require_freeze(scan,f)
+        sb.write(manifest,dict(scan,baselines='modified'))
+        with patch.object(sb,'git',return_value='a'),self.assertRaises(ValueError):sb.require_freeze(scan,f)
+        sb.write(manifest,scan)
         payload.write_text('newkernel')
         with patch.object(sb,'git',return_value='a'),self.assertRaises(ValueError):sb.require_freeze(scan,f)
 
