@@ -1,0 +1,114 @@
+diff --git a/python/tvm/backend/cuda/codegen/header.py b/python/tvm/backend/cuda/codegen/header.py
+index edb682af06..ccd53049c5 100644
+--- a/python/tvm/backend/cuda/codegen/header.py
++++ b/python/tvm/backend/cuda/codegen/header.py
+@@ -432,6 +432,16 @@ __host__ __device__ half4 make_half4(__half x, __half y, __half z, __half w) {
+ """
+     if "bf16" in tags:
+         header += R"""
++struct __align__(2) nv_bfloat163 {
++  nv_bfloat16 x, y, z;
++  __host__ __device__ nv_bfloat163() : x(0), y(0), z(0) {}
++  __host__ __device__ nv_bfloat163(nv_bfloat16 x, nv_bfloat16 y, nv_bfloat16 z)
++      : x(x), y(y), z(z) {}
++};
++static_assert(sizeof(nv_bfloat163) == 6, "three BF16 lanes must not read or write padding");
++__host__ __device__ nv_bfloat163 make_nv_bfloat163(nv_bfloat16 x, nv_bfloat16 y, nv_bfloat16 z) {
++    return nv_bfloat163(x, y, z);
++}
+ using nv_bfloat164 = half4_bfloat164<nv_bfloat16, nv_bfloat162>;
+ __host__ __device__ nv_bfloat164 make_nv_bfloat164(nv_bfloat16 x, nv_bfloat16 y, nv_bfloat16 z, nv_bfloat16 w) {
+     return nv_bfloat164(x, y, z, w);
+diff --git a/src/backend/cuda/codegen/codegen_cuda.cc b/src/backend/cuda/codegen/codegen_cuda.cc
+index ffe0222189..ef2f4f66e6 100644
+--- a/src/backend/cuda/codegen/codegen_cuda.cc
++++ b/src/backend/cuda/codegen/codegen_cuda.cc
+@@ -481,7 +481,8 @@ void CodeGenCUDA::PrintType(const PrimType& t, std::ostream& os) {  // NOLINT(*)
+     if (t.IsScalar()) {
+       os << "nv_bfloat16";
+     } else if (lanes <= 8) {
+-      TVM_FFI_ICHECK_EQ(lanes % 2, 0) << "only support even lane for bfloat16 type";
++      TVM_FFI_ICHECK(lanes == 3 || lanes % 2 == 0)
++          << "only support three or even lanes for bfloat16 type";
+       if (lanes <= 4) {
+         os << "nv_bfloat16" << lanes;
+       } else {
+@@ -1833,6 +1834,23 @@ void CodeGenCUDA::Dispatch_(const prim::RampNode* op, std::ostream& os) {
+ void CodeGenCUDA::Dispatch_(const prim::BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
+   PrimType op_ty = op->ty.as_or_throw<PrimType>();
+   int lanes = op_ty.lanes();
++  if (op_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt) &&
++      op_ty.bits() == 32 && lanes > 4 && lanes <= 8) {
++    // CUDA stores each pair of 32-bit lanes in one 64-bit vector member.
++    TVM_FFI_ICHECK_EQ(lanes % 2, 0);
++    std::string v = PrintExpr(op->value);
++    std::string word = "((static_cast<unsigned long long>(static_cast<unsigned int>(" + v +
++                       ")) << 32) | static_cast<unsigned int>(" + v + "))";
++    PrintVecConstructor(op_ty, os);
++    os << '(';
++    for (int i = 0; i < lanes / 2; ++i) {
++      if (i != 0) os << ", ";
++      if (op_ty.MatchesCode(DLDataTypeCode::kDLInt)) os << "static_cast<long long>";
++      os << '(' << word << ')';
++    }
++    os << ')';
++    return;
++  }
+   if ((op_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) && op_ty.bits() == 8 &&
+       lanes == 4) {
+     // make_int8x4
+@@ -2165,28 +2183,23 @@ void CodeGenCUDA::PrintVecElemLoadExpr(const PrimType& t, int i, const std::stri
+     }
+   }
+ 
+-  if (t.MatchesElementType(DLDataTypeCode::kDLFloat, 16)) {
+-    if (i == 0) {
+-      PrintVecConstructor(t, os);
+-      os << '(';
+-    }
+-    if (i == lanes - 1) {
+-      os << value << ")";
+-    } else {
+-      os << value << ",";
+-    }
+-    return;
+-  }
+-
+-  if (t.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) {
++  if (t.MatchesElementType(DLDataTypeCode::kDLFloat, 16) ||
++      t.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) {
+     if (i == 0) {
+       PrintVecConstructor(t, os);
+       os << '(';
+     }
+-    if (i == lanes - 1) {
+-      os << value << ")";
++    if (lanes > 4) {
++      if (i % 2 == 0) {
++        if (i != 0) os << ',';
++        os << (t.MatchesCode(DLDataTypeCode::kDLBfloat) ? "__pack_nv_bfloat162(" : "__pack_half2(");
++        os << value << ',';
++      } else {
++        os << value << ')';
++        if (i == lanes - 1) os << ')';
++      }
+     } else {
+-      os << value << ",";
++      os << value << (i == lanes - 1 ? ")" : ",");
+     }
+     return;
+   }
+diff --git a/src/sym/int_set.cc b/src/sym/int_set.cc
+index dab779437e..6eb958f369 100644
+--- a/src/sym/int_set.cc
++++ b/src/sym/int_set.cc
+@@ -1090,7 +1090,8 @@ ffi::Array<IntSet> EvalSet(const ffi::Array<Range>& region, const ffi::Map<Var,
+ IntSet EvalSet(IntSet s, const std::unordered_map<const VarNode*, IntSet>& dom_map) {
+   Analyzer ana;
+   auto dmap = ConvertDomMap(dom_map);
+-  IntervalSetEvaluator m(ana.get(), dmap);
++  // Re-relaxing an existing set must include every lane of vector-valued bounds.
++  IntervalSetEvaluator m(ana.get(), dmap, {}, true);
+   const IntervalSetNode* s_int = s.as<IntervalSetNode>();
+   PrimExpr vmax = s_int->HasUpperBound() ? m.Eval(s_int->max_value).max() : s_int->max_value;
+   PrimExpr vmin = s_int->HasLowerBound() ? m.Eval(s_int->min_value).min() : s_int->min_value;
