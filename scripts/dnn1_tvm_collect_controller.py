@@ -73,6 +73,17 @@ def infrastructure_retries(roots, clean):
                 if cell in covered or result.get('status') != 'hard_stop' or not resource_error:
                     continue
                 jobs = result.get('logical_jobs', [])
+                genuine_failure = any(
+                    attempt.get('returncode') == 1 and
+                    attempt.get('failure', {}).get('failure_kind') in
+                        ('import', 'tune', 'compile', 'runtime', 'numerical') and
+                    'incomplete or failed TVM cache attempt' not in
+                        attempt.get('failure', {}).get('error', '')
+                    for job in jobs for attempt in job.get('attempts', []))
+                # A later cache rejection must not hide the compiler error that
+                # created that incomplete cache and trigger another blind tune.
+                if genuine_failure:
+                    continue
                 completed_bf16 = any(job.get('arm', {}).get('system') == 'tvm' and
                     job.get('arm', {}).get('precision') == 'bf16' and
                     any(attempt.get('returncode') == 0 for attempt in job.get('attempts', []))

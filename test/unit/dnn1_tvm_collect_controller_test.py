@@ -62,6 +62,16 @@ class InfrastructureRequeue(unittest.TestCase):
         later, _ = self.fixture('later', error='genuine compiler error', ended=20)
         self.assertEqual(module.infrastructure_retries([root, later], set()), {})
 
+    def test_later_incomplete_cache_does_not_hide_original_compile_failure(self):
+        root, session = self.fixture(
+            error='TVM infrastructure rejection; no FP16 alternative: incomplete cache', code=1)
+        result = json.loads(session.read_text())
+        result['logical_jobs'].insert(0, dict(arm=dict(system='tvm', precision='bf16'),
+            attempts=[dict(returncode=1, failure=dict(failure_kind='compile',
+                error='There are some consumers of the cache-write stage not inlined'))]))
+        session.write_text(json.dumps(result))
+        self.assertEqual(module.infrastructure_retries([root], set()), {})
+
 
 if __name__ == '__main__':
     unittest.main()
