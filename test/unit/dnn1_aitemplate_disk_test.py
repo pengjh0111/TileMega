@@ -12,6 +12,15 @@ import dnn1_aitemplate_collect as controller
 
 
 class DiskTest(unittest.TestCase):
+    def test_gpu_telemetry_timeout_skips_card_and_preserves_error(self):
+        with tempfile.TemporaryDirectory() as folder:
+            epoch = Path(folder)
+            with patch.object(controller.device, 'gpu', side_effect=subprocess.TimeoutExpired('nvidia-smi', 15)):
+                self.assertIsNone(controller.resource_snapshot(epoch, 4))
+            error = json.loads((epoch / 'resource_errors.jsonl').read_text())
+            self.assertEqual(error['gpu'], 4)
+            self.assertIn('skip this card', error['disposition'])
+
     def test_cache_measurement_preserves_files_and_records_available_bytes(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

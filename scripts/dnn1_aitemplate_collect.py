@@ -66,6 +66,16 @@ def disk_snapshot(epoch, phase, model, batch):
     return record
 
 
+def resource_snapshot(epoch, gpu):
+    try:
+        return device.gpu(gpu)
+    except (OSError, subprocess.SubprocessError, ValueError) as error:
+        with (epoch / 'resource_errors.jsonl').open('a') as stream:
+            stream.write(json.dumps(dict(time=time.time(), gpu=gpu, error=repr(error),
+                disposition='skip this card; no cached-good telemetry substitution')) + '\n')
+        return None
+
+
 def release(config, destination):
     tvm = Path(config['tvm_epoch'])
     campaigns = campaign_paths(config)
@@ -118,7 +128,23 @@ def release(config, destination):
         cpu_prepare=dict(path=config['cpu_prepare'], sha256=base.sha(config['cpu_prepare'])))
     path = ROOT / 'runs/dnn1/resume_tvm/aitemplate_release.json'
     if path.exists():
-        raise FileExistsError('retain the earlier AIT release ledger')
+        if config.get('reuse_release_sha256') != base.sha(path):
+            raise FileExistsError('retain the earlier AIT release ledger; explicit hash-bound reuse required')
+        publication = runner.require_tvm_complete()
+        previous = base.read(path)
+        def signature(records):
+            return {(record['model'], record['batch']):
+                dict(status=record['status'], source_version=record['source_version'],
+                     files=base.read(record['path'])['files']) for record in records}
+        if (previous['primary_evidence'] != result['primary_evidence'] or
+                signature(previous['cells']) != signature(result['cells'])):
+            raise ValueError('reused release must authorize the identical25 TVM artifacts')
+        binding = destination / 'source_release_binding.json'
+        base.write(binding, dict(tvm_release=publication, current_cpu_prepare=result['cpu_prepare'],
+            current_AIT_identity=proof['identity'], graph_mode=True,
+            retained_release_unchanged=True, verified_TVM25_evidence=records))
+        return dict(publication, current_source_binding=str(binding),
+                    current_source_binding_sha256=base.sha(binding))
     base.write(path, result)
     return runner.require_tvm_complete()
 
@@ -189,7 +215,9 @@ def dispatch(args):
                 continue
             if main_reservations(gpu):
                 continue
-            snapshot = device.gpu(gpu)
+            snapshot = resource_snapshot(epoch, gpu)
+            if snapshot is None:
+                continue
             if (snapshot['owners'] or snapshot['used_mib'] > 1 or snapshot['free_mib'] < 8192 or
                     base.held(f'/tmp/tilemega_gpu{gpu}.lock')):
                 continue

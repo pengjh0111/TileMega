@@ -73,6 +73,22 @@ class ReleaseTest(unittest.TestCase):
         self.assertEqual(len(ledger['cells']), 25)
         self.assertTrue(ledger['graph_mode'])
 
+    def test_explicit_release_reuse_binds_new_source_without_rewriting_TVM_ledger(self):
+        self.release()
+        ledger = self.root / 'runs/dnn1/resume_tvm/aitemplate_release.json'
+        digest = controller.base.sha(ledger)
+        self.config['reuse_release_sha256'] = digest
+        self.out = self.root / 'retry'
+        value = self.release()
+        self.assertEqual(controller.base.sha(ledger), digest)
+        self.assertTrue(Path(value['current_source_binding']).is_file())
+
+    def test_implicit_release_reuse_cannot_overwrite_prior_ledger(self):
+        self.release()
+        self.out = self.root / 'retry'
+        with self.assertRaises(FileExistsError):
+            self.release()
+
     def test_finalizer_also_requires_original_dispatcher_drained(self):
         upstream = self.root / 'upstream.json'
         controller.base.write(upstream, {'status':'needs_diagnosis', 'workers':{}})
