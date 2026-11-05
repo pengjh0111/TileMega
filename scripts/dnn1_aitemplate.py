@@ -24,8 +24,12 @@ import traceback
 ROOT = Path(__file__).resolve().parents[1]
 AIT_ROOT = ROOT / "runs/dnn1/resume/aitemplate"
 AIT_COMMIT = "23a2e348857591ac41f4946f0177c53d833a0104"
-RECIPE_SCHEMA = 7
+RECIPE_SCHEMA = 8
 BF16_POOL_SOURCE_SHA = 'fc84ab0252c59f86e85de54484beb4edbe4f59afb817013cbf9ce4401f8b6243'
+BF16_GATHER_SOURCE_SHA = {
+    'aitemplate/backend/cuda/cuda_common.py': '23a8e2ae50568c2d1cbf43c9aa3349c7f7527f6f251d0ed8ffbfd2124e5f3405',
+    'aitemplate/backend/cuda/tensor/gather.py': '64881dd7a6db38b7c41fea8153b98d1e4c885697077d47072cd8df45ceabfd0e',
+}
 RECIPE = dict(schema=RECIPE_SCHEMA, frontend="uniform-static-ATen-NHWC", precision="bf16",
               target="cuda-sm90a", use_fp16_acc=False, use_fast_math=True,
               allow_cutlass_sm90=True, force_cutlass_sm90=False,
@@ -34,6 +38,7 @@ RECIPE = dict(schema=RECIPE_SCHEMA, frontend="uniform-static-ATen-NHWC", precisi
               num_runtimes=1, graph_mode=True, warmup=50, iterations=200,
               profiler_link_libraries=["cuda"], shared_link_libraries=["cuda"],
               backend_patch="dnn1_aitemplate_bf16_maxpool.patch",
+              backend_gather_patch="dnn1_aitemplate_bf16_gather.patch",
               runtime_outputs="IR names/shapes/dtypes checked against official runtime enums")
 
 
@@ -82,6 +87,10 @@ def source_identity():
     if sha(pool) != BF16_POOL_SOURCE_SHA:
         raise ValueError('AIT BF16 max-pool backend source differs from the verified patch')
     paths.append(ROOT / 'scripts/dnn1_aitemplate_bf16_maxpool.patch')
+    for relative, digest in BF16_GATHER_SOURCE_SHA.items():
+        if sha(AIT_ROOT / 'python' / relative) != digest:
+            raise ValueError('AIT BF16 gather backend source differs from the verified patch')
+    paths.append(ROOT / 'scripts/dnn1_aitemplate_bf16_gather.patch')
     commit = subprocess.check_output(["git", "-C", str(AIT_ROOT / "source"),
                                       "rev-parse", "HEAD"], text=True).strip()
     if commit != AIT_COMMIT:
