@@ -31,11 +31,18 @@ def tvm_state(path):
         return dict(status='state_initializing', workers={}, error=repr(error))
 
 
+def campaign_paths(config):
+    return [Path(p) for p in config.get('tvm_epochs', [config['tvm_epoch']])]
+
+
 def release(config, destination):
     tvm = Path(config['tvm_epoch'])
-    state = base.read(tvm / 'state.json')
-    if state.get('status') != 'primary_complete' or state.get('workers') or state.get('active'):
-        raise RuntimeError('TVM repairs remain incomplete or active')
+    campaigns = campaign_paths(config)
+    allowed = ('primary_complete', 'needs_diagnosis') if len(campaigns) > 1 else ('primary_complete',)
+    for directory in campaigns:
+        state = base.read(directory / 'state.json')
+        if (state.get('status') not in allowed or state.get('workers') or state.get('active') or state.get('pending')):
+            raise RuntimeError('TVM repairs remain incomplete or active')
     proof = base.read(config['cpu_prepare'])
     if (len(proof['rows']) != 25 or {(r['model'], r['batch']) for r in proof['rows']} != CELLS or
             any(r['status'] != 'ir_created' for r in proof['rows']) or
@@ -44,6 +51,8 @@ def release(config, destination):
     frozen = tvm / 'frozen20.csv'
     if base.sha(frozen) != config['frozen20_sha256']:
         raise ValueError('the frozen20 snapshot changed')
+    if any(base.sha(directory / 'frozen20.csv') != config['frozen20_sha256'] for directory in campaigns):
+        raise ValueError('TVM epochs do not share the identical frozen20 snapshot')
     primary = Path(config['primary_csv'])
     if base.sha(primary) != config['primary_sha256']:
         raise ValueError('primary125 snapshot changed')
@@ -52,7 +61,7 @@ def release(config, destination):
             sum(r['status'] == 'pass' for r in primary_rows) != 120 or
             sum(r['status'] == 'N/A' for r in primary_rows) != 5):
         raise ValueError('primary snapshot is not the frozen completed125')
-    selected = rows(frozen) + rows(tvm / 'accepted_delta.csv')
+    selected = rows(frozen) + [row for directory in campaigns for row in rows(directory / 'accepted_delta.csv')]
     if len(selected) != 25 or {(r['model'], int(r['batch'])) for r in selected} != CELLS:
         raise ValueError('exactly25 distinct accepted TVM cells are required')
     evidence = destination / 'release_evidence'
@@ -74,7 +83,7 @@ def release(config, destination):
             path=str(filename), sha256=base.sha(filename), source_version=source))
     result = dict(schema=1, primary_cells_complete=125,
         primary_evidence=dict(path=str(primary), sha256=base.sha(primary)), cells=records,
-        dispatchers=[str(tvm / 'state.json'), *config.get('additional_dispatchers', [])], graph_mode=True,
+        dispatchers=[str(p / 'state.json') for p in campaigns] + config.get('additional_dispatchers', []), graph_mode=True,
         cpu_prepare=dict(path=config['cpu_prepare'], sha256=base.sha(config['cpu_prepare'])))
     path = ROOT / 'runs/dnn1/resume_tvm/aitemplate_release.json'
     if path.exists():
@@ -101,15 +110,18 @@ def dispatch(args):
     if (epoch / 'started.json').exists():
         raise FileExistsError('audit the preserved controller state before resuming')
     base.write(epoch / 'started.json', dict(time=time.time(), driver_sha256=base.sha(__file__)))
+    campaigns = campaign_paths(config)
     while True:
-        state = tvm_state(Path(config['tvm_epoch']) / 'state.json')
-        if state.get('status') == 'needs_diagnosis':
-            base.write(epoch / 'state.json', dict(status='blocked_tvm_repair', tvm_state=state))
-            return 1
-        if state.get('status') == 'primary_complete' and not state.get('workers'):
+        states = [tvm_state(p / 'state.json') for p in campaigns]
+        drained = all(s.get('status') in ('primary_complete', 'needs_diagnosis') and
+                      not s.get('workers') and not s.get('active') and not s.get('pending') for s in states)
+        if drained:
+            if sum(s.get('accepted', 0) for s in states) != 5:
+                base.write(epoch / 'state.json', dict(status='blocked_tvm_repair', tvm_states=states))
+                return 1
             break
         base.write(epoch / 'state.json', dict(status='waiting_tvm25', time=time.time(),
-            tvm_accepted=state.get('accepted'), gpu_workers={}))
+            tvm_accepted=sum(s.get('accepted', 0) for s in states), tvm_states=states, gpu_workers={}))
         time.sleep(30)
     publication = release(config, epoch)
     pending = [(m, b) for m in base.MODELS for b in (1, 2, 4, 8, 16)]

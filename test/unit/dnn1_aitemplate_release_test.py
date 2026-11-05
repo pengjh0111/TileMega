@@ -82,6 +82,34 @@ class ReleaseTest(unittest.TestCase):
         self.assertEqual(len(ledger['dispatchers']),2)
         self.assertIn(str(upstream),ledger['dispatchers'])
 
+    def split_epochs(self):
+        other=self.root/'second';other.mkdir()
+        selected=controller.rows(self.tvm/'accepted_delta.csv')
+        self.write_csv(self.tvm/'accepted_delta.csv',selected[:4])
+        self.write_csv(other/'accepted_delta.csv',selected[4:])
+        (other/'frozen20.csv').write_bytes((self.tvm/'frozen20.csv').read_bytes())
+        controller.base.write(self.tvm/'state.json',{'status':'needs_diagnosis','workers':{},'accepted':4})
+        controller.base.write(other/'state.json',{'status':'primary_complete','workers':{},'accepted':1})
+        self.config['tvm_epochs']=[str(self.tvm),str(other)]
+        return other
+
+    def test_split_epoch_keeps_all25_distinct_cells_and_both_drain_gates(self):
+        self.split_epochs();self.release()
+        ledger=controller.base.read(self.root/'runs/dnn1/resume_tvm/aitemplate_release.json')
+        self.assertEqual(len(ledger['cells']),25)
+        self.assertEqual(len(ledger['dispatchers']),2)
+
+    def test_duplicate_across_epochs_is_rejected_without_picking_a_winner(self):
+        other=self.split_epochs()
+        selected=controller.rows(self.tvm/'accepted_delta.csv')
+        self.write_csv(other/'accepted_delta.csv',[selected[0]])
+        with self.assertRaisesRegex(ValueError,'distinct'):self.release()
+
+    def test_split_epoch_never_releases_while_one_payload_remains(self):
+        other=self.split_epochs()
+        controller.base.write(other/'state.json',{'status':'collecting','workers':{'5':{'pid':123}}})
+        with self.assertRaisesRegex(RuntimeError,'active'):self.release()
+
     def test_active_repair_never_releases(self):
         self.state['workers'] = {'5': {'pid': 123}}
         controller.base.write(self.tvm / 'state.json', self.state)
