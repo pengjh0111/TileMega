@@ -15,6 +15,7 @@ import dnn1_device as device
 import dnn1_aitemplate as runner
 import dnn1_aitemplate_cell as cell_runner
 from dnn1_background_cards import main_reservations
+from dnn1_owned_controller import OwnedController
 
 ROOT = runner.ROOT
 CELLS = {(m, b) for m in base.MODELS for b in (1, 2, 4, 8, 16)}
@@ -159,7 +160,7 @@ def enqueue(epoch, model, batch, gpu):
     return process, log, folder, model, batch
 
 
-def dispatch(args):
+def _dispatch(args, lifetime):
     epoch = args.epoch.resolve()
     config = base.read(epoch / 'spec.json')
     gpus = gpu_pool(config)
@@ -226,6 +227,7 @@ def dispatch(args):
                 continue
             model, batch = pending.pop(0)
             active[gpu] = enqueue(epoch, model, batch, gpu)
+            lifetime.register(active[gpu][0])
         base.write(epoch / 'state.json', dict(status='collecting' if pending or active else
             ('complete' if not failures else 'needs_diagnosis'), accepted=len(accepted),
             pending=[f'{m}_b{b}' for m, b in pending],
@@ -235,6 +237,11 @@ def dispatch(args):
         if pending or active:
             time.sleep(15)
     return int(bool(failures))
+
+
+def dispatch(args):
+    with OwnedController(args.epoch) as lifetime:
+        return _dispatch(args, lifetime)
 
 
 if __name__ == '__main__':
