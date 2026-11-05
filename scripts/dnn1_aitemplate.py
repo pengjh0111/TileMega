@@ -24,11 +24,12 @@ import traceback
 ROOT = Path(__file__).resolve().parents[1]
 AIT_ROOT = ROOT / "runs/dnn1/resume/aitemplate"
 AIT_COMMIT = "23a2e348857591ac41f4946f0177c53d833a0104"
-RECIPE_SCHEMA = 4
+RECIPE_SCHEMA = 5
 RECIPE = dict(schema=RECIPE_SCHEMA, frontend="uniform-static-ATen-NHWC", precision="bf16",
               target="cuda-sm90a", use_fp16_acc=False, use_fast_math=True,
               allow_cutlass_sm90=True, force_cutlass_sm90=False,
-              optimize_graph=True, profile_timeout_s=500, profile_devices=[0],
+              optimize_graph=True, profile_timeout_s=500,
+              profile_devices="guarded physical card; model runtime local0",
               num_runtimes=1, graph_mode=True, warmup=50, iterations=200,
               profiler_link_libraries=["cuda"], shared_link_libraries=["cuda"])
 
@@ -40,6 +41,14 @@ def sha(path):
 def configure_graph_recipe(graph):
     RECIPE.update(graph_mode=graph,
                   schema=RECIPE_SCHEMA if graph else f'{RECIPE_SCHEMA}-no-graph-reference')
+
+
+def guarded_profile_devices(device_index):
+    if (type(device_index) is not int or device_index not in (0, 1, 2, 3, 4, 5, 7) or
+            os.environ.get('CUDA_VISIBLE_DEVICES') != str(device_index) or
+            os.environ.get('TILEMEGA_DEVICE_INDEX') != str(device_index)):
+        raise ValueError('profilers require the guarded physical card and singleton CVD')
+    return [device_index]
 
 
 def save(path, value):
@@ -228,7 +237,8 @@ def sample(options):
     identity.update(model=options.model, batch=options.batch,
                     exported_program_sha256=manifest["artifacts"]["exported_program.pt2"],
                     source_checkpoint_sha256=sha(export / "checkpoint/model.safetensors"),
-                    gpu_uuid=str(properties.uuid), torch_version=torch.__version__)
+                    gpu_uuid=str(properties.uuid), torch_version=torch.__version__,
+                    profile_devices=guarded_profile_devices(device_index), runtime_local_device=0)
     key = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
     cache = options.cache / key
     cache.mkdir(parents=True, exist_ok=True)
@@ -249,7 +259,8 @@ def sample(options):
             if attempt.exists():
                 raise RuntimeError("incomplete AIT cache retained; use a fresh cache directory")
             save(attempt, dict(identity=identity, started=time.time()))
-            engine = compile_model(outputs, target(), str(cache), "engine", profile_devs=[0],
+            engine = compile_model(outputs, target(), str(cache), "engine",
+                                   profile_devs=guarded_profile_devices(device_index),
                                    num_runtimes=1, do_optimize_graph=True, profile_timeout=500)
             save(compiled, dict(identity=identity, graph=info, library=engine.lib_path,
                                 library_sha256=sha(engine.lib_path)))

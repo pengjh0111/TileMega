@@ -43,9 +43,9 @@ class TargetTest(unittest.TestCase):
     def test_cli_recipe_identity_cannot_revert_to_pre_linkfix_schema(self):
         with patch.dict(runner.RECIPE):
             runner.configure_graph_recipe(False)
-            self.assertEqual(runner.RECIPE['schema'], '4-no-graph-reference')
+            self.assertEqual(runner.RECIPE['schema'], '5-no-graph-reference')
             runner.configure_graph_recipe(True)
-            self.assertEqual(runner.RECIPE['schema'], 4)
+            self.assertEqual(runner.RECIPE['schema'], 5)
             self.assertTrue(runner.RECIPE['graph_mode'])
 
     def test_shared_link_retains_driver_before_object_files(self):
