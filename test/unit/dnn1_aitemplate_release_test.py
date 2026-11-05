@@ -25,8 +25,12 @@ class ReleaseTest(unittest.TestCase):
         controller.base.write(proof, dict(identity=self.identity,
             rows=[dict(model=m, batch=b, status='ir_created') for m,b in controller.CELLS]))
         primary = self.root / 'primary.csv'
-        self.write_csv(primary, [dict(model=m, batch=b, arm=a, status='N/A' if m == 'nafnet' and a == 4 else 'pass')
-            for m,b in controller.CELLS for a in range(5)])
+        self.write_csv(primary, [dict(model=m, batch=b, arm=a,
+            system='tensorrt' if a < 2 else 'torchcompile',
+            status='N/A' if m == 'nafnet' and a == 4 else 'pass')
+            for m,b in controller.CELLS for a in range(5)] +
+            [dict(model=m, batch=b, arm='tvm-bf16', system='tvm', status='pass')
+             for m,b in controller.CELLS])
         selected = []
         for m,b in sorted(controller.CELLS):
             folder = self.tvm / f'{m}_{b}'; folder.mkdir()

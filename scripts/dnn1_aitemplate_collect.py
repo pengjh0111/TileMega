@@ -39,7 +39,7 @@ def release(config, destination):
     primary = Path(config['primary_csv'])
     if base.sha(primary) != config['primary_sha256']:
         raise ValueError('primary125 snapshot changed')
-    primary_rows = rows(primary)
+    primary_rows = [r for r in rows(primary) if r['system'] in ('tensorrt', 'torchcompile')]
     if (len(primary_rows) != 125 or len({(r['model'], r['batch'], r['arm']) for r in primary_rows}) != 125 or
             sum(r['status'] == 'pass' for r in primary_rows) != 120 or
             sum(r['status'] == 'N/A' for r in primary_rows) != 5):
