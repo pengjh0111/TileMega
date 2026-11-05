@@ -24,7 +24,7 @@ import traceback
 ROOT = Path(__file__).resolve().parents[1]
 AIT_ROOT = ROOT / "runs/dnn1/resume/aitemplate"
 AIT_COMMIT = "23a2e348857591ac41f4946f0177c53d833a0104"
-RECIPE_SCHEMA = 6
+RECIPE_SCHEMA = 7
 BF16_POOL_SOURCE_SHA = 'fc84ab0252c59f86e85de54484beb4edbe4f59afb817013cbf9ce4401f8b6243'
 RECIPE = dict(schema=RECIPE_SCHEMA, frontend="uniform-static-ATen-NHWC", precision="bf16",
               target="cuda-sm90a", use_fp16_acc=False, use_fast_math=True,
@@ -33,7 +33,8 @@ RECIPE = dict(schema=RECIPE_SCHEMA, frontend="uniform-static-ATen-NHWC", precisi
               profile_devices="guarded physical card; model runtime local0",
               num_runtimes=1, graph_mode=True, warmup=50, iterations=200,
               profiler_link_libraries=["cuda"], shared_link_libraries=["cuda"],
-              backend_patch="dnn1_aitemplate_bf16_maxpool.patch")
+              backend_patch="dnn1_aitemplate_bf16_maxpool.patch",
+              runtime_outputs="IR names/shapes/dtypes checked against official runtime enums")
 
 
 def sha(path):
@@ -51,6 +52,23 @@ def guarded_profile_devices(device_index):
             os.environ.get('TILEMEGA_DEVICE_INDEX') != str(device_index)):
         raise ValueError('profilers require the guarded physical card and singleton CVD')
     return [device_index]
+
+
+def allocate_outputs(engine, graph_outputs, torch_module, dtype_to_enum, string_to_dtype):
+    specs = {output['name']: output for output in graph_outputs}
+    runtime = engine.get_output_name_to_index_map()
+    if set(specs) != set(runtime):
+        raise ValueError('compiled output names differ from the unchanged imported graph')
+    buffers = {}
+    for name, index in runtime.items():
+        spec = specs[name]
+        if engine.get_output_dtype(index) != dtype_to_enum(spec['dtype']):
+            raise ValueError('compiled output dtype differs from imported IR: ' + name)
+        shape = engine.get_output_maximum_shape(index)
+        if list(shape) != list(spec['shape']):
+            raise ValueError('compiled output shape differs from static imported IR: ' + name)
+        buffers[name] = torch_module.empty(shape, device='cuda', dtype=string_to_dtype(spec['dtype']))
+    return buffers
 
 
 def save(path, value):
@@ -275,9 +293,10 @@ def sample(options):
                       if name in engine.get_input_name_to_index_map()}
     if set(runtime_inputs) != set(engine.get_input_name_to_index_map()):
         raise ValueError("runtime inputs differ from the compiled input ABI")
-    actual_outputs = {name: torch.empty(engine.get_output_maximum_shape(index), device="cuda",
-                                      dtype=getattr(torch, engine.get_output_dtype(index)))
-                      for name, index in engine.get_output_name_to_index_map().items()}
+    from aitemplate.compiler.dtype import dtype_str_to_enum
+    from aitemplate.utils.torch_utils import string_to_torch_dtype
+    actual_outputs = allocate_outputs(engine, info['outputs'], torch,
+                                      dtype_str_to_enum, string_to_torch_dtype)
 
     def run():
         engine.run_with_tensors(runtime_inputs, actual_outputs,
