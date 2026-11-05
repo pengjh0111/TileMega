@@ -51,10 +51,13 @@ def disk_snapshot(epoch, phase, model, batch):
         if not directory.exists():
             owned[str(directory)] = dict(allocated_bytes=0)
             continue
-        result = subprocess.run(['du', '--summarize', '--block-size=1', '--', str(directory)],
-            text=True, capture_output=True, timeout=30)
-        owned[str(directory)] = (dict(allocated_bytes=int(result.stdout.split()[0]))
-            if result.returncode == 0 else dict(error=result.stderr.strip()))
+        try:
+            result = subprocess.run(['du', '--summarize', '--block-size=1', '--', str(directory)],
+                text=True, capture_output=True, timeout=30)
+            owned[str(directory)] = (dict(allocated_bytes=int(result.stdout.split()[0]))
+                if result.returncode == 0 else dict(error=result.stderr.strip()))
+        except (OSError, subprocess.TimeoutExpired, ValueError, IndexError) as error:
+            owned[str(directory)] = dict(error=repr(error))
     record = dict(time=time.time(), phase=phase, model=model, batch=batch,
         filesystem_total_bytes=usage.total, filesystem_free_bytes=usage.free,
         owned_caches=owned, deleted_files=False)

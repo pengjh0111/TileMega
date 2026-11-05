@@ -2,6 +2,7 @@
 import json
 from pathlib import Path
 import sys
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -27,6 +28,18 @@ class DiskTest(unittest.TestCase):
             self.assertGreater(value['filesystem_free_bytes'], 0)
             self.assertFalse(value['deleted_files'])
             self.assertEqual(json.loads((epoch / 'disk_usage.jsonl').read_text()), value)
+
+    def test_size_probe_timeout_records_error_without_losing_collected_cell(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'ait/engines').mkdir(parents=True)
+            epoch = root / 'epoch'
+            epoch.mkdir()
+            with patch.object(controller, 'ROOT', root), patch.object(controller.runner, 'AIT_ROOT', root / 'ait'), \
+                    patch.object(controller.subprocess, 'run', side_effect=subprocess.TimeoutExpired('du', 30)):
+                value = controller.disk_snapshot(epoch, 'after-cell', 'resnet18', 1)
+            self.assertIn('error', value['owned_caches'][str(root / 'ait/engines')])
+            self.assertGreater(value['filesystem_free_bytes'], 0)
 
 
 if __name__ == '__main__':
