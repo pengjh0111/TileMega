@@ -12,6 +12,7 @@ import time
 
 from dnn1_aitemplate import ROOT, AIT_ROOT, require_tvm_complete, save, sha, source_identity
 import dnn1_baselines as protocol
+from dnn1_baseline_boundaries import idle_boundary, final_boundary
 
 AFFINITY = {0: list(range(32, 40)), 1: list(range(40, 48)), 2: list(range(16, 24)),
             3: list(range(24, 32)), 4: list(range(48, 56)), 5: list(range(56, 64)),
@@ -22,11 +23,12 @@ def queue(options):
     out = options.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
     gpu, affinity = options.gpu, AFFINITY[options.gpu]
-    python = str(ROOT / 'scripts/dnn1_idle_floor_python.py')
+    python = str(ROOT / 'scripts/dnn1_background_python.py')
     sources = source_identity()['files']
     sources.update({str(Path(__file__).resolve()): sha(__file__)})
     for name in ('dnn1_device.py', 'dnn1_baselines.py', 'dnn1_idle_floor_python.py',
-                 'dnn1_resource_entry.py'):
+                 'dnn1_resource_entry.py', 'dnn1_baseline_boundaries.py',
+                 'dnn1_background_python.py', 'dnn1_background_cards.py'):
         sources[str(ROOT / 'scripts' / name)] = sha(ROOT / 'scripts' / name)
     cell = dict(model=options.model, batch=options.batch, gpu=gpu, cpu_affinity=affinity,
                 parallel=True, python=python, timeout_s=14400, cache=str(AIT_ROOT / 'engines'),
@@ -74,13 +76,18 @@ def run(options):
                    gpu=cell['gpu'], graph_mode=cell.get('graph_mode', True),
                    started=time.time(), status='running', processes=[])
     for number in range(5):
+        for path, digest in cell['source_sha256'].items():
+            if sha(path) != digest:
+                raise ValueError('prepared AIT source changed: ' + path)
         role = 'measurement' if number < 3 else 'correctness'
         folder = options.out / f'{role}-{number}'
-        before = protocol.telemetry(cell)
-        if before['owners'] or before['used_mib'] > 1:
-            session.update(status='infrastructure_rejection', error='nonempty pre-process GPU')
+        before_drain = idle_boundary(cell)
+        if before_drain['status'] != 'empty_observed':
+            session.update(status='infrastructure_rejection', error='nonempty pre-process GPU',
+                           boundary=before_drain)
             save(options.out / 'cell-result.json', session)
             return 75
+        before = final_boundary(before_drain)
         command = [cell['python'], str(ROOT / 'scripts/dnn1_aitemplate.py'), 'sample',
                    '--model', cell['model'], '--batch', str(cell['batch']), '--seed', '20261007',
                    '--out', str(folder / 'payload'), '--cache', cell['cache'],
@@ -92,10 +99,11 @@ def run(options):
         if number == 0:
             command += ['--profile-capture']
         result = protocol.execute(command, folder, os.environ.copy(), cell['timeout_s'])
-        drain = protocol.passive_context_drain(cell)
-        after = protocol.telemetry(cell)
+        drain = idle_boundary(cell)
+        after = (drain['samples'][-1]['telemetry'] if drain['samples'] else
+                 dict(owners={}, used_mib=float('inf')))
         receipt = folder / 'payload/measurements.json'
-        result.update(role=role, before=before, after=after, drain=drain,
+        result.update(role=role, before=before, after=after, before_drain=before_drain, drain=drain,
                       receipt=str(receipt), receipt_sha256=sha(receipt) if receipt.exists() else None)
         session['processes'].append(result)
         save(options.out / 'cell-result.json', session)
@@ -168,6 +176,12 @@ def collect(options):
             issues.append('dirty process memory boundary')
         if process.get('drain', {}).get('status') != 'empty_observed':
             issues.append('process context did not drain')
+        try:
+            if (process['before'] != final_boundary(process['before_drain']) or
+                    process['after'] != final_boundary(process['drain'])):
+                issues.append('boundary differs from the final two idle observations')
+        except (KeyError, ValueError):
+            issues.append('missing two-sample process-and-memory boundary')
         if receipt.get('graph_mode', {}).get('requested') != session.get('graph_mode'):
             issues.append('graph mode differs from the fixed cohort')
         if receipt.get('identity', {}).get('recipe', {}).get('graph_mode') != session.get('graph_mode'):

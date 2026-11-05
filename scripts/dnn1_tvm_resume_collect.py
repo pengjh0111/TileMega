@@ -19,6 +19,7 @@ import dnn1_tvm_audit as auditor
 from dnn1_aitemplate_cell import AFFINITY, audit_windows
 from dnn1_dispatch import affinities
 from dnn1_background_cards import main_reservations
+from dnn1_baseline_boundaries import idle_boundary, final_boundary
 from dnn1_tvm_resume_sample import prior_identity
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -42,25 +43,31 @@ def run_cell(args):
         gpu=cell['gpu'], logical_jobs=[], started=time.time(), cell_spec=str(args.cell),
         cell_spec_sha256=base.sha(args.cell), p_cell_complete=False)
     for index in range(5):
+        for filename, digest in cell.get('protocol_sources', {}).items():
+            if base.sha(filename) != digest:
+                raise ValueError('prepared background protocol source changed: ' + filename)
         role = 'measurement' if index < 3 else 'correctness'
         position = index if index < 3 else index - 3
         folder = args.out / 'measurements' / f'{role}-{position}' / 'tvm-bf16/attempt1'
         payload = folder / 'payload'
-        before = base.telemetry(cell)
-        if before['owners'] or before['used_mib'] > 1:
-            session.update(status='infrastructure_rejection', error='nonempty pre-process GPU', ended=time.time())
+        before_drain = idle_boundary(cell)
+        if before_drain['status'] != 'empty_observed':
+            session.update(status='infrastructure_rejection', error='nonempty pre-process GPU',
+                           boundary=before_drain, ended=time.time())
             base.write(args.out / 'cell-result.json', session)
             return 75
+        before = final_boundary(before_drain)
         command = [cell['python'], str(ROOT / 'scripts/dnn1_tvm_resume_sample.py'),
             '--cell', str(args.cell), '--out', str(payload), '--round-index', str(index)]
         if role == 'correctness':
             command += ['--correctness-only']
         result = base.execute(command, folder, os.environ.copy(), 5400)
-        drain = base.passive_context_drain(cell)
-        after = base.telemetry(cell)
+        drain = idle_boundary(cell)
+        after = (drain['samples'][-1]['telemetry'] if drain['samples'] else
+                 dict(owners={}, used_mib=float('inf')))
         receipt = payload / 'measurements.json'
         result.update(folder=str(payload), process_before=before, process_after=after,
-            drain=drain, measurement=str(receipt) if receipt.exists() else None,
+            before_drain=before_drain, drain=drain, measurement=str(receipt) if receipt.exists() else None,
             receipt_sha256=base.sha(receipt) if receipt.exists() else None,
             status='pass' if result['returncode'] == 0 else 'fail')
         if receipt.exists():
@@ -110,6 +117,9 @@ def collect_cell(cell, attempt, destination):
                 (process['process_before'], process['process_after'])) or
                 process['drain']['status'] != 'empty_observed'):
             raise ValueError('dirty process/memory boundary or undrained context')
+        if (process['process_before'] != final_boundary(process['before_drain']) or
+                process['process_after'] != final_boundary(process['drain'])):
+            raise ValueError('process boundary differs from the final two idle observations')
         if (receipt['system'] != 'tvm' or receipt['model'] != cell['model'] or
                 receipt['batch'] != cell['batch'] or receipt['gpu_index'] != cell['gpu'] or
                 receipt['precision'] != 'bf16' or receipt['pid'] != process['pid']):
@@ -151,8 +161,13 @@ def enqueue(cell, epoch, gpu, cpus):
     folder = epoch / 'jobs' / key
     folder.mkdir(parents=True, exist_ok=False)
     cell = dict(cell, gpu=gpu, cpu_affinity=cpus, parallel=True,
-        python=str(ROOT / 'scripts/dnn1_idle_floor_python.py'),
+        python=str(ROOT / 'scripts/dnn1_background_python.py'),
         correctness_policy='five-independent-gates-v2', prefix=dict(available=False))
+    cell['boundary_protocol'] = 'paired-process-memory-v2'
+    cell['protocol_sources'] = {str(ROOT / 'scripts' / name): base.sha(ROOT / 'scripts' / name)
+        for name in ('dnn1_tvm_resume_collect.py', 'dnn1_baseline_boundaries.py',
+                     'dnn1_background_python.py', 'dnn1_background_cards.py',
+                     'dnn1_idle_floor_python.py', 'dnn1_baselines.py')}
     cell['prior_files'] = prior_identity(cell)['files']
     base.write(folder / 'cell.json', cell)
     env = base.gpu_env(gpu, dict(TILEMEGA_NUMA_CONCURRENCY_TRIAL='1',

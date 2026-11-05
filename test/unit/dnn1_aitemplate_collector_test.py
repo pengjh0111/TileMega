@@ -92,7 +92,10 @@ class CollectorTest(unittest.TestCase):
             self.session['processes'].append(dict(pid=100+i, receipt=str(path),
                 receipt_sha256=collector.sha(path), returncode=0,
                 before={'owners': {}, 'used_mib': 0}, after={'owners': {}, 'used_mib': 0},
-                drain={'status': 'empty_observed'}))
+                before_drain={'status': 'empty_observed', 'samples': [
+                    {'telemetry': {'owners': {}, 'used_mib': 0}} for _ in range(2)]},
+                drain={'status': 'empty_observed', 'samples': [
+                    {'telemetry': {'owners': {}, 'used_mib': 0}} for _ in range(2)]}))
         self.outer.append(dict(time=70, phase='after', exit_code=0, owners={}))
 
     def tearDown(self):
@@ -165,6 +168,10 @@ class CollectorTest(unittest.TestCase):
 
     def test_transient_dirty_memory_is_rejected(self):
         self.session['processes'][0]['before']['used_mib'] = 4
+        self.assertEqual(self.collect()[0], 1)
+
+    def test_extra_good_reread_cannot_replace_final_boundary(self):
+        self.session['processes'][0]['drain']['samples'][-1]['telemetry']['used_mib'] = 1
         self.assertEqual(self.collect()[0], 1)
 
     def test_queue_matches_scheduler_glob_and_records_guarded_numa_command(self):

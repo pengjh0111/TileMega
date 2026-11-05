@@ -67,6 +67,9 @@ class CollectorTest(unittest.TestCase):
                 process_before={'owners': {}, 'used_mib': 0},
                 process_after={'owners': {}, 'used_mib': 0}, drain={'status': 'empty_observed'},
                 clock_start={'sm_clock_mhz': 1980}, clock_end={'sm_clock_mhz': 1980})
+            process['before_drain'] = dict(status='empty_observed', samples=[
+                {'telemetry': dict(process['process_before'])} for _ in range(2)])
+            process['drain']['samples'] = [{'telemetry': dict(process['process_after'])} for _ in range(2)]
             self.session['logical_jobs'].append(dict(arm={'arm': 'tvm-bf16', 'system': 'tvm',
                 'precision': 'bf16'}, role=role, index=index, status='pass',
                 attempts=[process], final=process))
@@ -123,6 +126,11 @@ class CollectorTest(unittest.TestCase):
     def test_pass_flag_does_not_override_original_threshold(self):
         self.mutate_receipt(0, lambda r: r.update(correctness=[{'psnr_min_vs_fp32_db': 20.}]))
         with self.assertRaises(ValueError): self.collect()
+
+    def test_extra_good_reread_cannot_replace_the_actual_final_observation(self):
+        process = self.session['logical_jobs'][0]['final']
+        process['drain']['samples'][-1]['telemetry']['used_mib'] = 1
+        with self.assertRaisesRegex(ValueError, 'final two idle observations'): self.collect()
 
 
 if __name__ == '__main__':
