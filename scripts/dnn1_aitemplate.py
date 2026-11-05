@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Isolated AITemplate import, CPU profiler build, and guarded fixed-recipe sample.
 
-GPU sampling stays disabled until the strict recipe6 TVM publisher accepts 25 cells.
+GPU sampling waits for primary completion and a source-bound TVM result/failure
+for every cell, after the remaining TVM tuners drain.
 Each invocation emits one process receipt; P5/P-DNN orchestration is external.
 """
 from __future__ import annotations
@@ -158,11 +159,32 @@ def cpu_profilers(outputs, options):
 
 
 def require_tvm_complete():
-    path = ROOT / "runs/dnn1/resume_tvm/formal_v3/publication_state.json"
-    state = json.loads(path.read_text())
-    if state.get("clean_performance_cells") != 25 or state.get("pending_remeasure"):
-        raise RuntimeError("AIT GPU execution waits for all 25 strict-clean TVM cells")
-    return dict(path=str(path), sha256=sha(path))
+    path = ROOT / "runs/dnn1/resume_tvm/aitemplate_release.json"
+    release = json.loads(path.read_text()) if path.exists() else {}
+    expected = {(model, batch) for model in ("resnet18", "mbv1", "mbv2", "bert", "nafnet")
+                for batch in (1, 2, 4, 8, 16)}
+    cells = release.get("cells", [])
+    if (release.get("schema") != 1 or release.get("primary_cells_complete") != 125 or
+            len(cells) != 25 or {(r["model"], r["batch"]) for r in cells} != expected):
+        raise RuntimeError("AIT waits for 125 primary cells and 25 validated TVM results/failures")
+    for record in [release["primary_evidence"], *cells]:
+        source = Path(record["path"])
+        if sha(source) != record["sha256"]:
+            raise ValueError("AIT release evidence changed: " + str(source))
+    for record in cells:
+        if record["status"] not in ("validated", "genuine_failure") or not record.get("source_version"):
+            raise ValueError("AIT release requires a source version and terminal cell evidence")
+        if record["status"] == "genuine_failure" and record.get("failure_kind") not in (
+                "import", "tune", "compile", "runtime", "numerical"):
+            raise ValueError("an infrastructure rejection does not release the AIT gate")
+    if not release.get("dispatchers"):
+        raise ValueError("AIT release requires drained TVM dispatcher evidence")
+    for filename in release["dispatchers"]:
+        state = json.loads(Path(filename).read_text())
+        if state.get("workers") or state.get("status") not in ("primary_complete", "needs_diagnosis"):
+            raise RuntimeError("AIT GPU execution waits for the remaining TVM tuners to drain")
+    return dict(path=str(path), sha256=sha(path),
+                policy="primary125; TVM25 validated or genuine failure; drained TVM tuners")
 
 
 def sample(options):

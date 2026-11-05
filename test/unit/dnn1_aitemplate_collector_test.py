@@ -10,6 +10,56 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
 import dnn1_aitemplate_cell as collector
+import dnn1_aitemplate as runner
+
+
+class ReleaseGateTest(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.directory = self.root / 'runs/dnn1/resume_tvm'
+        self.directory.mkdir(parents=True)
+        evidence = self.directory / 'evidence.json'
+        collector.save(evidence, {'fixture': True})
+        self.dispatcher = self.directory / 'dispatcher.json'
+        collector.save(self.dispatcher, {'status': 'primary_complete', 'workers': {}})
+        record = {'path': str(evidence), 'sha256': collector.sha(evidence)}
+        self.release = dict(schema=1, primary_cells_complete=125, primary_evidence=record,
+            dispatchers=[str(self.dispatcher)], cells=[dict(record, model=model, batch=batch,
+                status='validated', source_version='fixture-source-version')
+                for model in ('resnet18', 'mbv1', 'mbv2', 'bert', 'nafnet')
+                for batch in (1, 2, 4, 8, 16)])
+
+    def check(self):
+        collector.save(self.directory / 'aitemplate_release.json', self.release)
+        with patch.object(runner, 'ROOT', self.root):
+            return runner.require_tvm_complete()
+
+    def test_different_version_and_genuine_tuner_failure_release_gate(self):
+        self.release['cells'][-1].update(status='genuine_failure', failure_kind='tune',
+                                         source_version='fixed-source-version')
+        self.assertIn('TVM25', self.check()['policy'])
+
+    def test_infrastructure_rejection_does_not_release_gate(self):
+        self.release['cells'][-1].update(status='genuine_failure', failure_kind='infrastructure')
+        with self.assertRaises(ValueError):
+            self.check()
+
+    def test_incomplete_coverage_does_not_release_gate(self):
+        self.release['cells'].pop()
+        with self.assertRaises(RuntimeError):
+            self.check()
+
+    def test_active_tuner_does_not_release_gate(self):
+        collector.save(self.dispatcher, {'status': 'running', 'workers': {'0': {'pid': 123}}})
+        with self.assertRaises(RuntimeError):
+            self.check()
+
+    def test_changed_evidence_does_not_release_gate(self):
+        Path(self.release['primary_evidence']['path']).write_text('changed')
+        with self.assertRaises(ValueError):
+            self.check()
 
 
 class CollectorTest(unittest.TestCase):
