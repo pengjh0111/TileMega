@@ -9,7 +9,7 @@ int main(int argc,char** argv) {
   std::string key="tw=8;th=8;channels=32;ct=64;stride=1;pack=8";
   std::string gated=key+";gate=simple_gate;bias=1";
   auto selector=Sm90ForwardConstants::ParseKey(key);
-  for(int schema:{1,2}) {
+  for(int schema:{1,2,3}) {
     json::Value section=json::Object{{"schema",schema},{"variant","SYNTHETIC_CPU_ONLY"},
         {"synthetic_cpu_fixture",true}};
     if(schema==1) {
@@ -19,8 +19,16 @@ int main(int argc,char** argv) {
             {"processes",5},{"unit","ns/element/tap"},{"unstable",false}});
       section.Set("by_gpu",json::Object{{"0",json::Object{{"dw_tap_ns",table}}}});
     }else {
-      section.Set("keys",json::Array{json::Array{"dw_tap_ns",key,"ns/element/tap"},
-          json::Array{"dw_tap_ns",gated,"ns/element/tap"}});
+      if(schema==2)
+        section.Set("keys",json::Array{json::Array{"dw_tap_ns",key,"ns/element/tap"},
+            json::Array{"dw_tap_ns",gated,"ns/element/tap"}});
+      else {
+        section.Set("key_layouts",json::Array{
+            json::Array{"dw_tap_ns","ns/element/tap",json::Array{"tw","th","channels","ct","stride","pack"}},
+            json::Array{"dw_tap_ns","ns/element/tap",json::Array{"tw","th","channels","ct","stride","pack","gate","bias"}}});
+        section.Set("keys",json::Array{json::Array{0,"8","8","32","64","1","8"},
+            json::Array{1,"8","8","32","64","1","8","simple_gate","1"}});
+      }
       section.Set("median_by_gpu",json::Object{{"0",json::Array{2,9}},
           {"5",json::Array{2,9}},{"7",json::Array{2,9}}});
       section.Set("processes",5);section.Set("unstable",json::Array{});
@@ -31,6 +39,8 @@ int main(int argc,char** argv) {
     assert(constants.Get("dw_tap_ns",selector,"ns/element/tap").ns==2);
     auto explicit_gate=selector;explicit_gate["gate"]="simple_gate";
     assert(constants.Get("dw_tap_ns",explicit_gate,"ns/element/tap").ns==9);
+    if(schema>=2)
+      assert(constants.Get("dw_tap_ns",explicit_gate,"ns/element/tap").source.find("median_by_gpu.0[1]")!=std::string::npos);
     explicit_gate["gate"]="missing";bool rejected=false;
     try{constants.Get("dw_tap_ns",explicit_gate,"ns/element/tap");}
     catch(Sm90ForwardMissing const&){rejected=true;}

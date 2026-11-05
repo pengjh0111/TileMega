@@ -61,10 +61,11 @@ class Sm90ForwardConstants {
     if(!section)throw Sm90ForwardMissing(c.file_+": missing sm90_forward_constants; no measured forward table");
     c.section_=*section;
     double schema=section->At("schema").AsNumber("forward constants schema");
-    if(schema!=1 && schema!=2)
+    if(schema!=1 && schema!=2 && schema!=3)
       throw std::invalid_argument("unsupported forward constants schema");
     c.storage_schema_=int(schema);
-    if(schema==2)c.ExpandCompact();
+    if(schema==3)c.ExpandDictionary();
+    if(schema>=2)c.ExpandCompact();
     c.variant_=section->At("variant").AsString("forward constants variant");
     if(auto const* fixture=section->Find("synthetic_cpu_fixture"))
       if(fixture->AsBool("synthetic fixture") && std::getenv("DNN1_CPU_CONTRACT_TEST")==nullptr)
@@ -123,11 +124,11 @@ class Sm90ForwardConstants {
       throw std::invalid_argument("invalid/insufficient measured constant: "+metric+"["+matched_key+"]");
     auto* unstable=match->Find("unstable");
     std::string source=file_+"#sm90_forward_constants.";
-    if(storage_schema_==2)
+    if(storage_schema_>=2)
       source+="median_by_gpu."+std::to_string(gpu_)+"["+
           std::to_string(compact_indices_.at({metric,matched_key}))+ "] ("+metric+"["+matched_key+"])";
     else source+="by_gpu."+std::to_string(gpu_)+"."+metric+"["+matched_key+"]";
-    if(storage_schema_==2) {
+    if(storage_schema_>=2) {
       auto found=compact_provenance_.find(compact_indices_.at({metric,matched_key}));
       if(found!=compact_provenance_.end())source+="; "+found->second;
     }
@@ -160,6 +161,36 @@ class Sm90ForwardConstants {
     return result;
   }
  private:
+  // Schema3 shares metric/unit/selector field names; values stay exact strings.
+  // Reconstruct schema2 keys without changing key order, median doubles, or IDs.
+  void ExpandDictionary() {
+    auto const& layouts=section_.At("key_layouts").AsArray("selector layouts");
+    if(layouts.empty())throw std::invalid_argument("empty selector layouts");
+    json::Array expanded;
+    for(auto const& value:section_.At("keys").AsArray("dictionary keys")) {
+      auto const& row=value.AsArray("dictionary key");
+      if(row.empty())throw std::invalid_argument("empty dictionary key");
+      auto index=ForwardInteger(row[0],"selector layout index",true);
+      if(std::size_t(index)>=layouts.size())throw std::invalid_argument("selector layout index out of range");
+      auto const& layout=layouts[index].AsArray("selector layout");
+      if(layout.size()!=3)throw std::invalid_argument("selector layout needs metric/unit/fields");
+      auto const& names=layout[2].AsArray("selector fields");
+      if(names.empty() || row.size()!=names.size()+1)
+        throw std::invalid_argument("dictionary key has wrong field count");
+      std::string key;
+      for(std::size_t i=0;i<names.size();++i) {
+        auto const& name=names[i].AsString("selector field");
+        auto const& field=row[i+1].AsString("selector exact value");
+        if(name.empty() || name.find_first_of(";=")!=std::string::npos ||
+            field.empty() || field.find(';')!=std::string::npos)
+          throw std::invalid_argument("invalid selector dictionary field");
+        key+=(i?";":"")+name+"="+field;
+      }
+      ParseKey(key); // Also reject duplicate fields before normal compact checks.
+      expanded.emplace_back(json::Array{layout[0],std::move(key),layout[1]});
+    }
+    section_.Set("keys",std::move(expanded));
+  }
   void ExpandCompact() {
     auto const& keys=section_.At("keys").AsArray("compact constant keys");
     auto const& cards=section_.At("median_by_gpu").AsObject("compact card medians");
