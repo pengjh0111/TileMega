@@ -76,3 +76,26 @@ Historical production header snapshots and raw measurement receipts remain in
 recreate an earlier binary. New header implementations require new measurements.
 In particular, register-chain Apply needs distinct composite measurements;
 adding the older single-step costs overcounts its shared-memory passes.
+
+## Composite register Apply
+
+After the production epilogue gains `kRegisterPointwise`, inventory its actual
+emitted plan choices and generate distinct ordered-chain probes:
+
+```sh
+python3 scripts/dnn1_chain_apply_probe.py keys --generated-cu runs/plans/*/plan.so.cu --out runs/reprobe/chain_required.json
+python3 scripts/dnn1_chain_apply_probe.py generate --required runs/reprobe/chain_required.json --source-root runs/accepted-register-chain/source --out runs/reprobe/chains --build
+```
+
+The source root must contain the register-chain implementation. Each timed
+interval calls `Chain::ApplyRegister` once, retains operation/vector order and
+explicit residual scale-pointer mode, and excludes initialization and FP32
+output drainage. An independent CPU float oracle checks the resulting live
+values. Live row/column tails and spatial residual pitches remain separate
+keys. Finish/store, row statistics and pool side outputs need their own terms.
+First-channel/first-row address transfer is stated explicitly; shuffled
+residuals and nonzero offsets require separate mapped probes and are rejected.
+This inventory covers the provided emitted choices, including TM32 when
+present; it does not fabricate costs for other solver choices. Its CPU build
+and source checks establish probe readiness. Performance requires accepted
+five-process measurements on all three physical cards.
