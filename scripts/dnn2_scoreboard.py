@@ -424,14 +424,17 @@ def run(args):
                         failed.append(cell['key'])
                 del active[gpu]
             if not cancelled and not failed:
-                for gpu in gpus:
+                # Prefer a free physical lock, but let the ordinary guard
+                # queue behind a holder when an owner-free card is between
+                # payloads. Requiring an unheld lock here starves under a
+                # continuous stream of other authorized jobs.
+                for gpu in sorted(gpus, key=lambda g: protocol.held(f'/tmp/tilemega_gpu{g}.lock')):
                     if not pending or len(active) >= args.max_parallel:
                         break
                     if gpu in active:
                         continue
                     sample = device.gpu(gpu)
-                    if (not empty_boundary(sample) or sample['free_mib'] < 8192 or
-                            protocol.held(f'/tmp/tilemega_gpu{gpu}.lock')):
+                    if not empty_boundary(sample) or sample['free_mib'] < 8192:
                         continue
                     cell = pending.pop(0)
                     attempts[cell['key']] += 1
