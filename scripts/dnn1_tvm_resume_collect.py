@@ -16,7 +16,7 @@ import dnn1_baselines as base
 import dnn1_device as device
 import dnn1_tvm_publish as publisher
 import dnn1_tvm_audit as auditor
-from dnn1_aitemplate_cell import audit_windows
+from dnn1_aitemplate_cell import AFFINITY, audit_windows
 from dnn1_dispatch import affinities
 from dnn1_tvm_resume_sample import prior_identity
 
@@ -187,7 +187,7 @@ def dispatch(args):
     gpus = [int(s) for s in args.gpus.split(',')]
     if not set(gpus) <= {0,1,2,3,4,5,7} or not 1 <= args.max_parallel <= 2:
         raise ValueError('background resumption uses at most2 healthy cards, neverGPU6')
-    binding = affinities(gpus, 8)
+    binding = affinities(gpus, 8, explicit={str(g): AFFINITY[g] for g in gpus})
     lock = (epoch / 'controller.lock').open('a')
     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     pending, active, accepted, failures = list(config['cells']), {}, [], []
