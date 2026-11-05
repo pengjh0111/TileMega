@@ -9,6 +9,7 @@ from pathlib import Path
 from sm90d1_common import read,sha
 from sm90r6_merge_analysis import MODES,MODELS,identity,write
 from sm90r6_pair_winners import summarize
+from sm90r3_llm import processes
 
 
 def paired(root,name,coordinates):
@@ -17,6 +18,48 @@ def paired(root,name,coordinates):
     if distinct==1:
         if data['pairs'] or data['reason']!='all three P-SEL winners have identical coordinates':
             raise ValueError('identical AB5 winners should retain the no-pair decision')
+        return data,path
+    if data.get('status') in ('partial_pair_only','excluded_pair_tokens'):
+        audit_path=directory/'partial-audit.json';audit=read(audit_path)
+        measurement=directory/'measurement/unit/result.json';raw=read(measurement)
+        inputs=read(directory/'measurement/inputs.json')
+        if (audit.get('status')!=data['status'] or audit.get('cell')!=name or
+                sha(measurement)!=audit.get('source_result_sha256') or
+                sha(measurement)!=data.get('raw_sha256') or
+                sha(audit_path)!=data.get('partial_audit_sha256')):
+            raise ValueError('partial AB5 pair audit provenance changed')
+        if any(sha(input_path)!=digest for input_path,digest in inputs.items()):
+            raise ValueError('partial AB5 paired input changed')
+        if any(sha(path)!=digest for path,digest in audit.get('token_files_sha256',{}).items()):
+            raise ValueError('partial AB5 token evidence changed')
+        aliases=data.get('aliases',{})
+        if set(aliases)!=set(MODES) or any(coordinates[mode]!=coordinates[alias]
+                                           for mode,alias in aliases.items()):
+            raise ValueError('partial AB5 aliases do not represent selected coordinates')
+        representatives=list(dict.fromkeys(aliases.values()))
+        expected=list(itertools.combinations(representatives,2))
+        blocks=audit.get('pair_blocks',[]);count=processes(data['model'])
+        if len(blocks)!=len(expected) or len(raw.get('rows',[]))!=len(expected)*2*count:
+            raise ValueError('partial AB5 pair block count changed')
+        valid=[]
+        for index,(pair,block_audit) in enumerate(zip(expected,blocks)):
+            block=raw['rows'][index*2*count:(index+1)*2*count]
+            if (tuple((block_audit['reference'],block_audit['candidate']))!=pair or
+                    [row['arm'] for row in block]!=list(pair)*count or
+                    set(row['gpu'] for row in block)!={data['gpu']}):
+                raise ValueError('partial AB5 pair order or card changed')
+            tokens=[read(row['tokens']) for row in block]
+            matched=all(value==tokens[0] for value in tokens)
+            if matched!=block_audit['tokens_match']:
+                raise ValueError('partial AB5 token audit does not reproduce')
+            if matched:
+                valid.extend(summarize(block,[pair],data['model']))
+            elif block_audit.get('decision')!='not_comparable_tokens_differ':
+                raise ValueError('unmatched AB5 tokens lack an explicit exclusion')
+        if valid!=data['pairs'] or bool(valid)!=(data['status']=='partial_pair_only'):
+            raise ValueError('partial AB5 valid-pair summaries do not reproduce')
+        if sorted({row['gpu'] for row in raw['rows']})!=[data['gpu']] or data['gpu'] not in (0,1,2,3,4,5,7):
+            raise ValueError('partial AB5 P-PAIR must use one eligible card')
         return data,path
     measurement=directory/'measurement';inputs=read(measurement/'inputs.json')
     if any(sha(path)!=digest for path,digest in inputs.items()):
