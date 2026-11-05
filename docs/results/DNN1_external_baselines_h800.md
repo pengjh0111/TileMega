@@ -72,7 +72,7 @@ Selected databases total37,285 committed records: 32,386 successful, 4,899 faile
 
 ## AITemplate status
 
-Verified partial checkpoint: [AIT accepted10 CSV](DNN1_aitemplate_partial.csv), [AIT artifact/clock diagnostics](DNN1_aitemplate_diag.csv). All five RN18 and five BERT batches are accepted; the other15 cells remain in collection or compiler-failure review, not yet final N/A. The canonical150 rows are unchanged until the full AIT cohort has terminal evidence.
+Verified partial checkpoint: [AIT accepted10 CSV](DNN1_aitemplate_partial.csv), [AIT artifact/clock diagnostics](DNN1_aitemplate_diag.csv). All five RN18 and five BERT batches are accepted; the other15 cells remain in collection or compiler-failure review, not yet final N/A. The canonical150 rows remain frozen; AIT results are published in their separate cohort CSV.
 
 | model | B1 ms | B2 | B4 | B8 | B16 |
 |---|---:|---|---|---|---|
