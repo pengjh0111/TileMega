@@ -24,11 +24,11 @@ import traceback
 ROOT = Path(__file__).resolve().parents[1]
 AIT_ROOT = ROOT / "runs/dnn1/resume/aitemplate"
 AIT_COMMIT = "23a2e348857591ac41f4946f0177c53d833a0104"
-RECIPE_SCHEMA = 10
+RECIPE_SCHEMA = 11
 BF16_POOL_SOURCE_SHA = 'fc84ab0252c59f86e85de54484beb4edbe4f59afb817013cbf9ce4401f8b6243'
 BF16_GATHER_SOURCE_SHA = {
     'aitemplate/backend/cuda/cuda_common.py': '23a8e2ae50568c2d1cbf43c9aa3349c7f7527f6f251d0ed8ffbfd2124e5f3405',
-    'aitemplate/backend/cuda/tensor/gather.py': '64881dd7a6db38b7c41fea8153b98d1e4c885697077d47072cd8df45ceabfd0e',
+    'aitemplate/backend/cuda/tensor/gather.py': 'd7d82c7ee853a3958c49fbeaf159681e25459cee30c05bb28cdcd85d24943777',
 }
 RELATIONAL_SOURCE_SHA = '1f1c16760e95239a57b04f898ad6f7b253bb7941d50f667de913aec2f743f17a'
 BUILD_FIX_SOURCE_SHA = {
