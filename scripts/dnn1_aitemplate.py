@@ -24,13 +24,17 @@ import traceback
 ROOT = Path(__file__).resolve().parents[1]
 AIT_ROOT = ROOT / "runs/dnn1/resume/aitemplate"
 AIT_COMMIT = "23a2e348857591ac41f4946f0177c53d833a0104"
-RECIPE_SCHEMA = 9
+RECIPE_SCHEMA = 10
 BF16_POOL_SOURCE_SHA = 'fc84ab0252c59f86e85de54484beb4edbe4f59afb817013cbf9ce4401f8b6243'
 BF16_GATHER_SOURCE_SHA = {
     'aitemplate/backend/cuda/cuda_common.py': '23a8e2ae50568c2d1cbf43c9aa3349c7f7527f6f251d0ed8ffbfd2124e5f3405',
     'aitemplate/backend/cuda/tensor/gather.py': '64881dd7a6db38b7c41fea8153b98d1e4c885697077d47072cd8df45ceabfd0e',
 }
 RELATIONAL_SOURCE_SHA = '1f1c16760e95239a57b04f898ad6f7b253bb7941d50f667de913aec2f743f17a'
+BUILD_FIX_SOURCE_SHA = {
+    'aitemplate/backend/common/tensor/slice_common.py': '9537dc36061d1b3865d61b0341d0438408f1e5a48f03300cefa3dc1c401ec633',
+    'aitemplate/backend/cuda/tensor/expand_static_shape.py': 'c1e0650ec580a00bd4441c699251827c8f382132e6c62b1b293c89a14fba6f33',
+}
 RECIPE = dict(schema=RECIPE_SCHEMA, frontend="uniform-static-ATen-NHWC", precision="bf16",
               target="cuda-sm90a", use_fp16_acc=False, use_fast_math=True,
               allow_cutlass_sm90=True, force_cutlass_sm90=False,
@@ -41,6 +45,8 @@ RECIPE = dict(schema=RECIPE_SCHEMA, frontend="uniform-static-ATen-NHWC", precisi
               backend_patch="dnn1_aitemplate_bf16_maxpool.patch",
               backend_gather_patch="dnn1_aitemplate_bf16_gather.patch",
               backend_relational_patch="dnn1_aitemplate_nonfinite_literal.patch",
+              backend_slice_patch="dnn1_aitemplate_slice_width.patch",
+              backend_expand_patch="dnn1_aitemplate_expand_linkage.patch",
               runtime_outputs="IR names/shapes/dtypes checked against official runtime enums")
 
 
@@ -96,6 +102,11 @@ def source_identity():
     if sha(AIT_ROOT / 'python/aitemplate/backend/cuda/tensor/relational.py') != RELATIONAL_SOURCE_SHA:
         raise ValueError('AIT relational literal source differs from the verified patch')
     paths.append(ROOT / 'scripts/dnn1_aitemplate_nonfinite_literal.patch')
+    for relative, digest in BUILD_FIX_SOURCE_SHA.items():
+        if sha(AIT_ROOT / 'python' / relative) != digest:
+            raise ValueError('AIT slice/expand source differs from the verified build fixes')
+    paths.extend(ROOT / 'scripts' / name for name in (
+        'dnn1_aitemplate_slice_width.patch', 'dnn1_aitemplate_expand_linkage.patch'))
     commit = subprocess.check_output(["git", "-C", str(AIT_ROOT / "source"),
                                       "rev-parse", "HEAD"], text=True).strip()
     if commit != AIT_COMMIT:

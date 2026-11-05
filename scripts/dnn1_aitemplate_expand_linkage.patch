@@ -1,0 +1,20 @@
+--- a/aitemplate/backend/cuda/tensor/expand_static_shape.py
++++ b/aitemplate/backend/cuda/tensor/expand_static_shape.py
+@@ -72,6 +72,8 @@
+ // (used within repeat.cuh, included below )
+ // Note: 44kb is sufficient in this case to fully utilize the GPU parallelism
+ #define SHM_MAX 1024 * 44
++
++namespace {
+ 
+ {{custom_libs}}
+ 
+@@ -148,6 +150,8 @@
+     }
+ 
+ }
++
++} // namespace
+ 
+ /**
+  * Expand Operator entry point, optimized for static shapes. Only the head dimension may be dynamic.
