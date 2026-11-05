@@ -34,7 +34,7 @@ class DeviceTest(unittest.TestCase):
             calls = []
             def popen(command, **kwargs):
                 calls.append(('old-Popen', kwargs['env']['CUDA_VISIBLE_DEVICES']))
-                return SimpleNamespace(kill=lambda: None)
+                return SimpleNamespace(kill=lambda: None, stdout=None, stderr=None)
             def run(command, **kwargs):
                 calls.append(('new-run', kwargs['env']['CUDA_VISIBLE_DEVICES']))
                 return SimpleNamespace(stdout='test', stderr='')

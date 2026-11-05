@@ -30,8 +30,10 @@ def queue(options):
                  'dnn1_resource_entry.py', 'dnn1_baseline_boundaries.py',
                  'dnn1_background_python.py', 'dnn1_background_cards.py'):
         sources[str(ROOT / 'scripts' / name)] = sha(ROOT / 'scripts' / name)
+    profile_cache = AIT_ROOT / 'profile_cache' / f'gpu{gpu}'
     cell = dict(model=options.model, batch=options.batch, gpu=gpu, cpu_affinity=affinity,
                 parallel=True, python=python, timeout_s=14400, cache=str(AIT_ROOT / 'engines'),
+                profile_cache=str(profile_cache),
                 source_sha256=sources, graph_mode=getattr(options, 'graph', True))
     save(out / 'cell.json', cell)
     metadata = subprocess.check_output(['nvidia-smi', '-i', str(gpu),
@@ -40,7 +42,8 @@ def queue(options):
     domain, bus, slot = pci.split(':')
     pci = f'{int(domain, 16):04x}:{bus}:{slot}'
     env = protocol.gpu_env(gpu, dict(TILEMEGA_NUMA_CONCURRENCY_TRIAL='1', NUM_BUILDERS='4',
-                                   OPENBLAS_NUM_THREADS='4', MKL_NUM_THREADS='4'))
+                                   OPENBLAS_NUM_THREADS='4', MKL_NUM_THREADS='4',
+                                   CACHE_DIR=str(profile_cache)))
     command = ['numactl', '--physcpubind=' + ','.join(map(str, affinity)), python,
         str(ROOT / 'scripts/run_r16_with_device_identity.py'), '--guard-policy', str(protocol.POLICY),
         '--out', '{attempt_dir}/job', '--expected-uuid', uuid, '--expected-pci', pci,
@@ -62,6 +65,19 @@ def queue(options):
     return 0
 
 
+def profile_cache_snapshot(directory):
+    directory = Path(directory)
+    files, errors = {}, {}
+    if directory.exists():
+        for path in sorted(directory.rglob('*')):
+            if path.is_file():
+                try:
+                    files[str(path)] = sha(path)
+                except OSError as error:
+                    errors[str(path)] = repr(error)
+    return dict(path=str(directory), files=files, errors=errors)
+
+
 def run(options):
     require_tvm_complete()
     cell = json.loads(options.cell.read_text())
@@ -75,6 +91,14 @@ def run(options):
     session = dict(schema=1, system='aitemplate', model=cell['model'], batch=cell['batch'],
                    gpu=cell['gpu'], graph_mode=cell.get('graph_mode', True),
                    started=time.time(), status='running', processes=[])
+    profile_cache = cell.get('profile_cache', os.environ.get('CACHE_DIR', ''))
+    if (not profile_cache or os.environ.get('CACHE_DIR') != profile_cache or
+            not Path(profile_cache).resolve().is_relative_to((AIT_ROOT / 'profile_cache').resolve())):
+        raise ValueError('an explicit independent AIT profile cache under runs is required')
+    session['profile_cache_before'] = profile_cache_snapshot(profile_cache)
+    def publish_session():
+        session['profile_cache_after'] = profile_cache_snapshot(profile_cache)
+        save(options.out / 'cell-result.json', session)
     for number in range(5):
         for path, digest in cell['source_sha256'].items():
             if sha(path) != digest:
@@ -85,7 +109,7 @@ def run(options):
         if before_drain['status'] != 'empty_observed':
             session.update(status='infrastructure_rejection', error='nonempty pre-process GPU',
                            boundary=before_drain)
-            save(options.out / 'cell-result.json', session)
+            publish_session()
             return 75
         before = final_boundary(before_drain)
         command = [cell['python'], str(ROOT / 'scripts/dnn1_aitemplate.py'), 'sample',
@@ -106,14 +130,14 @@ def run(options):
         result.update(role=role, before=before, after=after, before_drain=before_drain, drain=drain,
                       receipt=str(receipt), receipt_sha256=sha(receipt) if receipt.exists() else None)
         session['processes'].append(result)
-        save(options.out / 'cell-result.json', session)
+        publish_session()
         if (result['returncode'] or after['owners'] or after['used_mib'] > 1 or
                 drain['status'] != 'empty_observed'):
             session.update(status='failed', ended=time.time())
-            save(options.out / 'cell-result.json', session)
+            publish_session()
             return result['returncode'] or 75
     session.update(status='complete_pending_outer_audit', ended=time.time())
-    save(options.out / 'cell-result.json', session)
+    publish_session()
     return 0
 
 
