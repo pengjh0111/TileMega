@@ -2,6 +2,7 @@
 """Validate explicit terminal AIT failures without fabricating timing evidence."""
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -79,14 +80,16 @@ def row(value, fields, declaration):
         gpu_uuid=identity['gpu_uuid'], precision='bf16', graph_requested=True,
         graph_observations=compact(dict(requested=True, capture_verified=False,
             scope='no accepted whole-model timing; graph execution not established')),
-        recipe=compact(identity['recipe']), source_identity_sha256='',
+        recipe=compact(identity['recipe']),
+        source_identity_sha256=hashlib.sha256(compact(identity).encode()).hexdigest(),
         installed_sources_sha256=identity['installed_sources_sha256'],
         library='', library_sha256='', compiled_receipt='', compiled_receipt_sha256='',
         sm_clock_start_mhz='', sm_clock_end_mhz='', session='', session_sha256='',
         outer_guard=value['outer_guard']['path'], outer_guard_sha256=value['outer_guard']['sha256'],
         profile_cache_before='', profile_cache_after='',
         error_chain=compact(dict(declaration=str(Path(declaration).resolve()),
-            declaration_sha256=base.sha(declaration), failure_kind=value['failure_kind'],
+            declaration_sha256=base.sha(declaration), validator_sha256=base.sha(__file__),
+            failure_kind=value['failure_kind'],
             reason=value['reason'], scheduler_exit=scheduler['exit_code'],
             evidence={name: value.get(name) for name in
                 ('cell', 'attempt_identity', 'scheduler', 'outer_guard', 'command', 'stderr',

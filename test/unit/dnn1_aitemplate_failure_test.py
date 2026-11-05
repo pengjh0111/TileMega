@@ -18,7 +18,9 @@ class FailureTest(unittest.TestCase):
         self.cell = dict(model='mbv1', batch=2, gpu=1, graph_mode=True,
             source_sha256={'runner': 'sha'})
         self.identity = dict(model='mbv1', batch=2, recipe=dict(schema=7,
-            precision='bf16', graph_mode=True), files={'runner': 'sha'})
+            precision='bf16', graph_mode=True), files={'runner': 'sha'},
+            gpu_uuid='GPU-test', installed_sources_sha256='installed',
+            exported_program_sha256='export', source_checkpoint_sha256='checkpoint')
         self.scheduler = {'ait-mbv1-b2': dict(status='failed', exit_code=1,
             attempts=1, started=1, run_s=5000)}
         self.value = dict(schema=1, system='aitemplate', status='N/A', final=True,
@@ -76,6 +78,19 @@ class FailureTest(unittest.TestCase):
         self.value['original_failure'] = self.write('failure.json', {})
         with self.assertRaisesRegex(ValueError, 'original exception'):
             failure.validate(self.value)
+
+    def test_failed_rows_retain_version_hashes_and_have_no_timing(self):
+        declaration = self.root / 'declaration.json'
+        declaration.write_text(json.dumps(self.value))
+        row, diag = failure.row(self.value,
+            ['median_ms', 'p90_ms', 'sm_clock_start_mhz', 'sm_clock_end_mhz'], declaration)
+        self.assertEqual(row['status'], 'N/A')
+        self.assertEqual(row['median_ms'], '')
+        self.assertEqual(row['sm_clock_start_mhz'], '')
+        self.assertEqual(row['correctness_passes'], 'not reached')
+        self.assertEqual(len(diag['source_identity_sha256']), 64)
+        self.assertEqual(diag['graph_requested'], True)
+        self.assertIn('validator_sha256', json.loads(diag['error_chain']))
 
     def test_build_timeout_requires_four_hours_and_no_completed_engine(self):
         self.value['failure_kind'] = 'build_timeout'
