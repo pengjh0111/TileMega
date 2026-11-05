@@ -1,0 +1,21 @@
+--- a/python/tvm/s_tir/meta_schedule/runner/utils.py
++++ b/python/tvm/s_tir/meta_schedule/runner/utils.py
+@@ -58,7 +58,17 @@
+ 
+     def alloc_tensor(_, dtype, shape) -> tvm.runtime.Tensor:
+         arg = tvm.runtime.empty(shape=shape, dtype=dtype, device=device)
+-        f_random_fill(arg)
++        if dtype.startswith(("int", "uint")) or dtype == "bool":
++            import numpy as np
++            # Integer buffers may be indices; floating bit patterns are invalid.
++            arg.copyfrom(np.zeros(shape, dtype=dtype))
++        elif dtype == "bfloat16":
++            import numpy as np
++            import ml_dtypes
++            values = np.random.default_rng(0).uniform(1.0, 10.0, size=shape)
++            arg.copyfrom(values.astype(ml_dtypes.bfloat16))
++        else:
++            f_random_fill(arg)
+         return arg
+ 
+     def alloc_fail(*arg_info) -> None:
