@@ -24,11 +24,12 @@ import traceback
 ROOT = Path(__file__).resolve().parents[1]
 AIT_ROOT = ROOT / "runs/dnn1/resume/aitemplate"
 AIT_COMMIT = "23a2e348857591ac41f4946f0177c53d833a0104"
-RECIPE = dict(schema=2, frontend="uniform-static-ATen-NHWC", precision="bf16",
+RECIPE = dict(schema=3, frontend="uniform-static-ATen-NHWC", precision="bf16",
               target="cuda-sm90a", use_fp16_acc=False, use_fast_math=True,
               allow_cutlass_sm90=True, force_cutlass_sm90=False,
               optimize_graph=True, profile_timeout_s=500, profile_devices=[0],
-              num_runtimes=1, graph_mode=True, warmup=50, iterations=200)
+              num_runtimes=1, graph_mode=True, warmup=50, iterations=200,
+              profiler_link_libraries=["cuda"])
 
 
 def sha(path):
@@ -84,6 +85,11 @@ def target():
     from aitemplate.backend.cuda.target_def import CUDA
 
     class HopperCUDA(CUDA):
+        def compile_cmd(self, executable=False):
+            command = super().compile_cmd(executable=executable)
+            # SM90 TMA profilers call the driver API when encoding tensor maps.
+            return command + " -lcuda" if executable else command
+
         def _build_nvcc_compiler_options(self):
             # Pinned FBCUDA uses 90a for CUTLASS SM90 TMA kernels; its OSS
             # sibling leaves codegen at 90 even when those kernels are enabled.
