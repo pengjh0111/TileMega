@@ -45,7 +45,7 @@ requirements from generated model CUDA. See the generator's `keys --help`.
 After building, prepare queues with the existing measurement workflow:
 
 ```sh
-python3 scripts/dnn1_constants.py queue --build runs/reprobe/tm32/build/build.json --out runs/reprobe/tm32/measure --gpus 0,5,7 --batch-processes --python scripts/dnn1_idle_floor_python.py
+python3 scripts/dnn1_constants.py queue --build runs/reprobe/tm32/build/build.json --out runs/reprobe/tm32/measure --gpus 0,5,7 --batch-processes --strict-processes --python scripts/dnn1_idle_floor_python.py
 ```
 
 Queues require the established GPU ownership, NUMA affinity and scheduler locks.

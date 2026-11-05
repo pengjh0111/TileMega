@@ -238,6 +238,10 @@ def queue(args):
         guard_python=dict(path=str(Path(args.python).resolve()), sha256=sha(args.python),
             idle_memory_floor_mib=1 if Path(args.python).name=='dnn1_idle_floor_python.py' else 0),
         measurement_status='not_started', created_unix=time.time())
+    runner = Path(__file__).resolve()
+    if getattr(args, 'strict_processes', False):
+        runner = ROOT / 'scripts/dnn1_strict_constants.py'
+        spec.update(strict_processes=True, strict_entry=str(runner), strict_entry_sha256=sha(runner))
     write(out / 'queue-spec.json', spec)
     # The scheduler binds its process to one physical GPU lock. Give each
     # card a separate scheduler and run the three launchers serially.
@@ -259,7 +263,7 @@ def queue(args):
                 '--out', '{attempt_dir}/job', '--expected-uuid',
                 policy['idle_power_mapping_provenance']['uuid_by_gpu'][str(gpu)],
                 '--expected-pci', PCI[gpu], '--numa-node', str(node), '--allow-no-measurements',
-                '--', args.python, str(Path(__file__).resolve()), 'run', '--spec', str(out / 'queue-spec.json'),
+                '--', args.python, str(runner), 'run', '--spec', str(out / 'queue-spec.json'),
                 '--gpu', str(gpu), '--round', str(round_), '--out', '{attempt_dir}/job']
             jobs.append(dict(name=name, gpu=True, timing=True, priority=10,
                 timeout_s=args.session_timeout_s, needs_free_mib=4096, cwd=str(ROOT),
@@ -470,6 +474,14 @@ def collect(args):
             accepted = attempt / 'job/constants_session.json'
             if not guard.is_file() or read(guard).get('code') != 0:
                 raise ValueError('missing guard acceptance: ' + name)
+            if spec.get('strict_processes'):
+                strict = read(accepted.parent / 'strict_acceptance.json')
+                if (strict.get('status') != 'sampled_boundaries_and_windows_pass' or
+                        strict['strict_entry_sha256'] != spec['strict_entry_sha256'] or
+                        sha(spec['strict_entry']) != spec['strict_entry_sha256'] or
+                        sha(accepted.parent/'strict_boundaries.json') != strict['boundaries_sha256'] or
+                        sha(accepted.parent/'strict_windows.json') != strict['windows_sha256']):
+                    raise ValueError('missing or changed strict process acceptance: ' + name)
             identity_file = accepted.parent / 'physical-device-identity.json'
             identity = read(identity_file)
             if (identity['gpu_index'] != gpu or identity['nvml_uuid'] != spec['uuid_by_gpu'][str(gpu)] or
@@ -591,6 +603,7 @@ def main():
     q.add_argument('--gpus', default='0,5,7')
     q.add_argument('--cpu-affinity', help='JSON mapping physical GPU to disjoint CPU lists; NUMA trial')
     q.add_argument('--batch-processes', action='store_true', help='one fresh process per binary per round, independently calibrated/reset cases')
+    q.add_argument('--strict-processes', action='store_true', help='require empty <=1MiB boundaries and sampled stable singleton probe owners')
     q.add_argument('--python', default=PYTHON)
     q.add_argument('--case-pattern', default='.*')
     q.add_argument('--samples', type=int, default=256)
