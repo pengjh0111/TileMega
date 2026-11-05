@@ -24,14 +24,16 @@ import traceback
 ROOT = Path(__file__).resolve().parents[1]
 AIT_ROOT = ROOT / "runs/dnn1/resume/aitemplate"
 AIT_COMMIT = "23a2e348857591ac41f4946f0177c53d833a0104"
-RECIPE_SCHEMA = 5
+RECIPE_SCHEMA = 6
+BF16_POOL_SOURCE_SHA = 'fc84ab0252c59f86e85de54484beb4edbe4f59afb817013cbf9ce4401f8b6243'
 RECIPE = dict(schema=RECIPE_SCHEMA, frontend="uniform-static-ATen-NHWC", precision="bf16",
               target="cuda-sm90a", use_fp16_acc=False, use_fast_math=True,
               allow_cutlass_sm90=True, force_cutlass_sm90=False,
               optimize_graph=True, profile_timeout_s=500,
               profile_devices="guarded physical card; model runtime local0",
               num_runtimes=1, graph_mode=True, warmup=50, iterations=200,
-              profiler_link_libraries=["cuda"], shared_link_libraries=["cuda"])
+              profiler_link_libraries=["cuda"], shared_link_libraries=["cuda"],
+              backend_patch="dnn1_aitemplate_bf16_maxpool.patch")
 
 
 def sha(path):
@@ -58,6 +60,10 @@ def save(path, value):
 def source_identity():
     paths = [Path(__file__), *sorted((ROOT / "python/tilemega/dnn").glob("aitemplate_*.py")),
              ROOT / "python/tilemega/dnn/baselines.py"]
+    pool = AIT_ROOT / 'python/aitemplate/backend/cuda/pool2d/max_pool2d.py'
+    if sha(pool) != BF16_POOL_SOURCE_SHA:
+        raise ValueError('AIT BF16 max-pool backend source differs from the verified patch')
+    paths.append(ROOT / 'scripts/dnn1_aitemplate_bf16_maxpool.patch')
     commit = subprocess.check_output(["git", "-C", str(AIT_ROOT / "source"),
                                       "rev-parse", "HEAD"], text=True).strip()
     if commit != AIT_COMMIT:
