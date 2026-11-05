@@ -32,7 +32,7 @@ def selection(path,coordinate,domains):
     return read(path),{row['family']:row for row in data['choices']}
 
 
-def family_rows(root,cell,domain,a0,choices):
+def family_rows(root,cell,domain,a0,choices,allow_missing_a0=False):
     family=domain['family'];directory=root/'ab1/measurements-v1'/cell['input']['id']/family
     result=read(directory/'result.json')
     if (not result['passed'] or result['development'] or not result['same_card'] or
@@ -58,14 +58,19 @@ def family_rows(root,cell,domain,a0,choices):
     selected={'A0':a0['gemms'][family],'AB1a':chosen['geometry'],'AB1b':traffic['geometry']}
     rows=[]
     for arm,geometry in selected.items():
-        key=geometry_key(geometry);entry=by_geometry[key]
+        key=geometry_key(geometry);entry=by_geometry.get(key)
+        missing=entry is None
+        if missing and not (allow_missing_a0 and arm=='A0'):
+            raise ValueError('selected geometry absent from isolated domain: '+arm+'/'+family)
         rows.append(dict(model=cell['input']['model'],batch=cell['input']['batch'],family=family,arm=arm,
             tile_n=geometry['tile_n'],tile_k=geometry.get('tile_k',geometry['slot_bytes']//(2*geometry['tile_n'])),
             warps_n=geometry['warps_n'],warps_k=geometry['warps_k'],slots=geometry['slots'],
             register_stages=geometry.get('register_stages',1),multicast=int(geometry.get('multicast',False)),
-            mma=geometry['mma'],tasks=entry['tasks'],traffic_bytes=entry['traffic_bytes'],
+            mma=geometry['mma'],tasks='' if missing else entry['tasks'],traffic_bytes='' if missing else entry['traffic_bytes'],
             task_domain='rounded expected expert tile tasks' if family.startswith('expert_') else 'exact',
-            isolated_us=statistics.median(times[key])/1000,gpu=evidence['gpu'],processes=3,
+            isolated_us='' if missing else statistics.median(times[key])/1000,
+            measurement_status='missing_a0_geometry' if missing else 'verified',
+            gpu='' if missing else evidence['gpu'],processes=0 if missing else 3,
             instances_per_process=cell['layers'],grid=domain['grid'],
             task_window_exception=(traffic_evidence['exception'] or '') if arm=='AB1b' else '',
             window_distance=traffic_evidence['window_distance'] if arm=='AB1b' else '',
@@ -73,7 +78,7 @@ def family_rows(root,cell,domain,a0,choices):
     return rows
 
 
-def merge(root,measured_root):
+def merge(root,measured_root,allow_missing_a0=False):
     domains=root/'ab5/domains-v1/domains.jsonl';rows=[];seen=set()
     for line in domains.read_text().splitlines():
         if not line.strip():continue
@@ -94,7 +99,7 @@ def merge(root,measured_root):
         if any(set(values)!=expected for values in choices.values()):raise ValueError('incomplete family selection')
         for domain in cell['domains']:
             if domain['family'] in expected and domain['residency']==a0['residency']:
-                values=family_rows(root,cell,domain,a0,choices)
+                values=family_rows(root,cell,domain,a0,choices,allow_missing_a0)
                 if any(row['reference_sha256']!=sha(binary) for row in values):
                     raise ValueError('isolated operands do not come from selected A0')
                 rows.extend(values)
@@ -108,5 +113,6 @@ if __name__=='__main__':
     p.add_argument('--root',type=Path,required=True)
     p.add_argument('--measured-root',type=Path,required=True)
     p.add_argument('--out',type=Path,required=True)
-    a=p.parse_args();rows=merge(a.root,a.measured_root);write(a.out,rows)
+    p.add_argument('--allow-missing-a0',action='store_true',help='retain an explicit unmeasured A0 row when its geometry is absent')
+    a=p.parse_args();rows=merge(a.root,a.measured_root,a.allow_missing_a0);write(a.out,rows)
     print(json.dumps(dict(rows=len(rows),cells=8,families=44)))

@@ -50,6 +50,15 @@ class ThetaEvidence(unittest.TestCase):
         self.assertEqual(rows[-1]['task_window_exception'],'nearest_task_window_shell')
         self.assertEqual(rows[-1]['window_distance'],16)
 
+    def test_missing_a0_requires_opt_in_and_keeps_a_blank_row(self):
+        self.a0['gemms']['qkv']=dict(self.a0['gemms']['qkv'],tile_n=96)
+        with self.assertRaisesRegex(ValueError,'absent'):self.run_family()
+        rows=family_rows(self.root,self.cell,self.domain,self.a0,self.choices,True)
+        self.assertEqual(rows[0]['measurement_status'],'missing_a0_geometry')
+        self.assertEqual(rows[0]['isolated_us'],'')
+        self.assertEqual(rows[0]['processes'],0)
+        self.assertEqual(rows[1]['measurement_status'],'verified')
+
     def test_changed_raw_or_rejected_guard_is_not_reported(self):
         guard=Path(self.records[0]['guard']);write(guard,dict(code=75))
         with self.assertRaisesRegex(ValueError,'unaccepted'):self.run_family()
