@@ -73,6 +73,15 @@ class ReleaseTest(unittest.TestCase):
         self.assertEqual(len(ledger['cells']), 25)
         self.assertTrue(ledger['graph_mode'])
 
+    def test_finalizer_also_requires_original_dispatcher_drained(self):
+        upstream = self.root / 'upstream.json'
+        controller.base.write(upstream, {'status':'needs_diagnosis', 'workers':{}})
+        self.config['additional_dispatchers'] = [str(upstream)]
+        self.release()
+        ledger = controller.base.read(self.root / 'runs/dnn1/resume_tvm/aitemplate_release.json')
+        self.assertEqual(len(ledger['dispatchers']),2)
+        self.assertIn(str(upstream),ledger['dispatchers'])
+
     def test_active_repair_never_releases(self):
         self.state['workers'] = {'5': {'pid': 123}}
         controller.base.write(self.tvm / 'state.json', self.state)

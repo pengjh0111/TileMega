@@ -74,7 +74,7 @@ def release(config, destination):
             path=str(filename), sha256=base.sha(filename), source_version=source))
     result = dict(schema=1, primary_cells_complete=125,
         primary_evidence=dict(path=str(primary), sha256=base.sha(primary)), cells=records,
-        dispatchers=[str(tvm / 'state.json')], graph_mode=True,
+        dispatchers=[str(tvm / 'state.json'), *config.get('additional_dispatchers', [])], graph_mode=True,
         cpu_prepare=dict(path=config['cpu_prepare'], sha256=base.sha(config['cpu_prepare'])))
     path = ROOT / 'runs/dnn1/resume_tvm/aitemplate_release.json'
     if path.exists():
