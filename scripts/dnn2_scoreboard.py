@@ -215,6 +215,53 @@ def empty_boundary(row):
     return not row.get('owners') and 0 <= row.get('used_mib', float('inf')) <= 1
 
 
+def idle_boundary(cell, timeout_s=10., interval_s=.25, *, observe=None, clock=None, sleep=None):
+    """Keep two consecutive process-and-memory observations, with no later re-read.
+
+    The inherited drain counts process owners only. Its return followed by a
+    separate memory sample is not a single boundary observation. Keep every
+    sample, reset on either resource, and use only the final observed sample.
+    """
+    clock, sleep = clock or time.monotonic, sleep or time.sleep
+    if observe is None:
+        imports(ROOT)
+        from dnn1_baselines import exit_context_snapshot
+        observe = lambda value: exit_context_snapshot(value, max(.001, timeout_s - (clock() - start)))
+    start = clock()
+    record = dict(started=time.time(), timeout_s=timeout_s, interval_s=interval_s,
+                  required_empty_samples=2, memory_floor_mib=1, samples=[],
+                  attribution='unknown; observations only', power_monitoring=False)
+    streak = 0
+    while True:
+        try:
+            row = observe(cell)
+            if not isinstance(row.get('owners'), dict) or 'used_mib' not in row:
+                raise ValueError('boundary telemetry omitted owners or memory')
+        except Exception as error:
+            record.update(status='telemetry_unavailable', error=str(error))
+            break
+        record['samples'].append(dict(elapsed_s=clock()-start, telemetry=row))
+        streak = streak + 1 if empty_boundary(row) else 0
+        if streak >= 2:
+            record['status'] = 'empty_observed'
+            break
+        remaining = timeout_s - (clock()-start)
+        if remaining <= 0:
+            record['status'] = 'timeout'
+            break
+        sleep(min(interval_s, remaining))
+    record.update(ended=time.time(), elapsed_s=clock()-start)
+    return record
+
+
+def final_boundary(drain):
+    if drain.get('status') != 'empty_observed' or len(drain.get('samples', [])) < 2:
+        raise ResourceRejection('two process-and-memory idle samples were not observed')
+    if any(not empty_boundary(s['telemetry']) for s in drain['samples'][-2:]):
+        raise ResourceRejection('final resource observations were not idle')
+    return drain['samples'][-1]['telemetry']
+
+
 def cell_run(args):
     scan, cell = read(args.scan), read(args.cell)
     require_freeze(scan, args.source_freeze)
@@ -232,13 +279,11 @@ def cell_run(args):
         for role, count in (('correctness', 5), ('timing', 3)):
             for index in range(count):
                 validate_live(scan)
-                before_drain = protocol.passive_context_drain(cell)
-                before = protocol.telemetry(cell)
+                before_drain = idle_boundary(cell)
                 record.setdefault('boundaries', []).append(dict(role=role, index=index,
-                    before=before, before_drain=before_drain))
+                    before_drain=before_drain))
                 write(args.out / 'result.json', record)
-                if before_drain['status'] != 'empty_observed' or not empty_boundary(before):
-                    raise ResourceRejection('nonempty GPU before fresh process')
+                before = final_boundary(before_drain)
                 folder = args.out / f'{role}-{index}'
                 common = ['--library', cell['library'], '--export', cell['export'],
                           '--bridge', cell['bridge'], '--inputs', cell['inputs'],
@@ -256,15 +301,14 @@ def cell_run(args):
                         '--round-index', str(index), '--warmup', '50', '--iterations', '200',
                         '--out', str(folder / 'payload')]
                 process = protocol.execute(command, folder, env, 3600)
-                drain = protocol.passive_context_drain(cell)
-                after = protocol.telemetry(cell)
+                drain = idle_boundary(cell)
+                after = drain['samples'][-1]['telemetry'] if drain['samples'] else {}
                 process.update(index=index, receipt=str(destination),
                     receipt_sha256=sha(destination) if destination.exists() else None,
                     before=before, after=after, drain=drain, before_drain=before_drain)
                 record[role].append(process)
                 write(args.out / 'result.json', record)
-                if not empty_boundary(after) or drain['status'] != 'empty_observed':
-                    raise ResourceRejection('GPU did not drain after fresh process')
+                final_boundary(drain)
                 if process['returncode']:
                     raise ValueError('fresh process failed; retain its original error')
                 if role == 'correctness' and read(destination).get('passed') is not True:
@@ -459,6 +503,9 @@ def collect_cell(scan, cell, session_path, guard_path):
                     not empty_boundary(process['before']) or not empty_boundary(process['after']) or
                     process['drain']['status'] != 'empty_observed'):
                 raise ValueError('process failed, evidence changed, or process boundary was dirty')
+            if (final_boundary(process['before_drain']) != process['before'] or
+                    final_boundary(process['drain']) != process['after']):
+                raise ValueError('boundary metadata is not its final consecutive-idle observation')
             value = read(process['receipt'])
             if value['artifact_id'] != session['artifact_id'] or value['pid'] != process['pid']:
                 raise ValueError('processes used different artifacts')

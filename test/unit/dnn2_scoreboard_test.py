@@ -108,6 +108,28 @@ class ScoreboardTests(unittest.TestCase):
         # limitation while still requiring both inner boundary observations.
         self.assertIn('no outer sample',self.window(self.windows())['outer_observation'])
 
+    def test_memory_or_owner_resets_the_consecutive_idle_boundary(self):
+        class Clock:
+            def __init__(self):self.t=0.
+            def now(self):return self.t
+            def sleep(self,seconds):self.t+=seconds
+        cases=[([0,4,0,1],4,'empty_observed'),([0,4,4,4,4],5,'timeout')]
+        for memories,count,status in cases:
+            clock=Clock();rows=iter(dict(owners={},used_mib=x) for x in memories)
+            d=sb.idle_boundary({},timeout_s=1.,interval_s=.25,observe=lambda _:next(rows),
+                               clock=clock.now,sleep=clock.sleep)
+            self.assertEqual(len(d['samples']),count);self.assertEqual(d['status'],status)
+            if status=='empty_observed':self.assertEqual(sb.final_boundary(d),{'owners':{},'used_mib':1})
+            else:
+                with self.assertRaises(sb.ResourceRejection):sb.final_boundary(d)
+        clock=Clock();rows=iter([dict(owners={},used_mib=0),dict(owners={99:1},used_mib=1),
+                               dict(owners={},used_mib=0),dict(owners={},used_mib=0)])
+        d=sb.idle_boundary({},observe=lambda _:next(rows),clock=clock.now,sleep=clock.sleep)
+        self.assertEqual(len(d['samples']),4)
+        # Reject the historical owner-only [0,4] result; do not look backward.
+        d['samples'][-1]['telemetry']['used_mib']=4
+        with self.assertRaises(sb.ResourceRejection):sb.final_boundary(d)
+
     def fixture(self):
         inputs=self.root/'inputs';inputs.write_bytes(b'fixedinput')
         cell=dict(model='resnet18',batch=1,inputs=str(inputs))
@@ -128,9 +150,10 @@ class ScoreboardTests(unittest.TestCase):
                         measurement=dict(warmup=50,iterations=200),samples_ms=[1.]*200,
                         median_ms=1.,p90_ms=1.,guard_log=str(log))
                 p=self.root/f'{role}{i}.json';sb.write(p,value)
+                boundary=dict(owners={},used_mib=0)
+                drain=dict(status='empty_observed',samples=[dict(telemetry=boundary),dict(telemetry=boundary)])
                 session[role].append(dict(pid=pid,returncode=0,receipt=str(p),receipt_sha256=sb.sha(p),
-                    before=dict(owners={},used_mib=0),after=dict(owners={},used_mib=0),
-                    drain=dict(status='empty_observed')))
+                    before=boundary,after=boundary,drain=drain,before_drain=drain))
         guard=self.root/'guard_result.json';sb.write(guard,dict(code=0))
         guard.with_name('guard.jsonl').write_text('')
         result=self.root/'result.json';sb.write(result,session)
