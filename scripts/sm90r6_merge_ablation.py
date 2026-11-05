@@ -20,8 +20,14 @@ def compact(coordinates):
     return [json.dumps(v, sort_keys=True, separators=(',', ':')) for v in (geometry, structure)]
 
 
-def merge(root,allow_partial=False):
+def merge(root,allow_partial=False,only_cells=None):
     cells = read(root / 'ab5/domains-v1/cells.json')
+    expected_cells=8
+    if only_cells is not None:
+        names=set(only_cells)
+        if not names or not names<={cell['id'] for cell in cells}:
+            raise ValueError('unknown or empty per-cell audit domain')
+        cells=[cell for cell in cells if cell['id'] in names];expected_cells=len(names)
     frozen = {r['input']['id']: r for r in
               (json.loads(line) for line in (root / 'acceptance/v1/predictions.jsonl').read_text().splitlines()
                if line.strip())}
@@ -109,7 +115,7 @@ def merge(root,allow_partial=False):
                 raw=str(root/'ablation/pabl-v1'/name/'incomplete.json'),
                 raw_sha256=sha(root/'ablation/pabl-v1'/name/'incomplete.json'))
             rows.append(gap)
-    if len(cells) != 8 or len(rows) != 64:
+    if len(cells) != expected_cells or len(rows) != expected_cells*8:
         raise ValueError('complete eight-cell/eight-arm matrix required')
     return rows
 
@@ -119,4 +125,5 @@ if __name__ == '__main__':
     p.add_argument('--root', type=Path, required=True)
     p.add_argument('--out', type=Path, required=True)
     p.add_argument('--allow-partial',action='store_true',help='include the two declared seven-arm cells with explicit missing rows')
-    a = p.parse_args(); write(a.out, merge(a.root,a.allow_partial))
+    p.add_argument('--cell',action='append',help='audit selected completed cells without claiming the full matrix')
+    a = p.parse_args(); write(a.out, merge(a.root,a.allow_partial,a.cell))
