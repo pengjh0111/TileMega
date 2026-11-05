@@ -1,0 +1,34 @@
+--- a/aitemplate/backend/cuda/tensor/relational.py
++++ b/aitemplate/backend/cuda/tensor/relational.py
+@@ -15,11 +15,22 @@
+ 
+ from typing import Any, Dict
+ 
++import math
++
+ import jinja2
+ from aitemplate.backend import registry
+ from aitemplate.backend.backend_spec import CUDASpec
+ from aitemplate.backend.common.elementwise_common import gen_int_var_product_str
+ from aitemplate.utils import shape_utils
++
++
++def _cuda_scalar_literal(value):
++    if isinstance(value, float):
++        if math.isnan(value):
++            return "__int_as_float(0x7fc00000)"
++        if math.isinf(value):
++            return "__int_as_float(0xff800000)" if value < 0 else "__int_as_float(0x7f800000)"
++    return str(value)
+ 
+ 
+ CUDA_HEADER_FILES = """
+@@ -173,7 +184,7 @@
+         operator=func_attrs["func"].value,
+         prefix=backend_spec.prefix,
+         right_operand=func_attrs["args"][1],
+-        right_operand_value=str(func_attrs["args"][1]._attrs["value"]),
++        right_operand_value=_cuda_scalar_literal(func_attrs["args"][1]._attrs["value"]),
+         output_read_t=output_read_t,
+         input_read_t=input_read_t,
+     )
