@@ -150,9 +150,10 @@ def release(config, destination):
     return runner.require_tvm_complete()
 
 
-def enqueue(epoch, model, batch, gpu):
+def enqueue(epoch, model, batch, gpu, provider='original'):
     folder = epoch / 'jobs' / f'{model}_b{batch}'
-    cell_runner.queue(argparse.Namespace(out=folder, model=model, batch=batch, gpu=gpu, graph=True))
+    cell_runner.queue(argparse.Namespace(out=folder, model=model, batch=batch,
+                                        gpu=gpu, graph=True, provider=provider))
     log = (folder / 'scheduler.log').open('w')
     process = subprocess.Popen(['bash', str(folder / 'launch.sh')], cwd=ROOT,
         stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
@@ -226,7 +227,7 @@ def _dispatch(args, lifetime):
             if disk['filesystem_free_bytes'] < config.get('minimum_free_gib', 16) * (1 << 30):
                 continue
             model, batch = pending.pop(0)
-            active[gpu] = enqueue(epoch, model, batch, gpu)
+            active[gpu] = enqueue(epoch, model, batch, gpu, config.get('guard_provider', 'original'))
             lifetime.register(active[gpu][0])
         base.write(epoch / 'state.json', dict(status='collecting' if pending or active else
             ('complete' if not failures else 'needs_diagnosis'), accepted=len(accepted),

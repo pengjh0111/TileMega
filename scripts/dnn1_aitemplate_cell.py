@@ -23,17 +23,27 @@ def queue(options):
     out = options.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
     gpu, affinity = options.gpu, AFFINITY[options.gpu]
-    python = str(ROOT / 'scripts/dnn1_background_python.py')
+    provider = getattr(options, 'provider', 'original')
+    if provider not in ('original', 'bounded-settle'):
+        raise ValueError('unknown versioned AIT guard provider')
+    python = str(ROOT / 'scripts' / ('dnn1_settling_background_python.py'
+                 if provider == 'bounded-settle' else 'dnn1_background_python.py'))
     sources = source_identity()['files']
     sources.update({str(Path(__file__).resolve()): sha(__file__)})
     for name in ('dnn1_device.py', 'dnn1_baselines.py', 'dnn1_idle_floor_python.py',
                  'dnn1_resource_entry.py', 'dnn1_baseline_boundaries.py',
                  'dnn1_background_python.py', 'dnn1_background_cards.py'):
         sources[str(ROOT / 'scripts' / name)] = sha(ROOT / 'scripts' / name)
+    if provider == 'bounded-settle':
+        for path in (Path(python), ROOT / 'scripts/dnn1_preflight_settle.py',
+                     ROOT / 'scripts/dnn1_preflight_settle_guard.patch',
+                     ROOT / 'python/tilemega/bench/gpu_guard.py'):
+            sources[str(path)] = sha(path)
     profile_cache = AIT_ROOT / 'profile_cache' / f'gpu{gpu}'
     cell = dict(model=options.model, batch=options.batch, gpu=gpu, cpu_affinity=affinity,
                 parallel=True, python=python, timeout_s=14400, cache=str(AIT_ROOT / 'engines'),
                 profile_cache=str(profile_cache),
+                guard_provider=provider,
                 source_sha256=sources, graph_mode=getattr(options, 'graph', True))
     save(out / 'cell.json', cell)
     metadata = subprocess.check_output(['nvidia-smi', '-i', str(gpu),
