@@ -208,6 +208,10 @@ def _dispatch(args, lifetime):
     max_admissions = min(8, max(1, config.get('max_admissions_per_cell', 8)))
     fifo = config.get('guard_provider') == 'fifo-settle'
     while pending or active:
+        limit_path = epoch / 'dispatch_limit.json'
+        limit = base.read(limit_path)['max_background_cards'] if limit_path.exists() else 2
+        if type(limit) is not int or limit not in (1, 2):
+            raise ValueError('AIT dispatcher limit must be one or two physical cards')
         for gpu, (process, log, folder, model, batch) in list(active.items()):
             if process.poll() is None:
                 continue
@@ -252,7 +256,7 @@ def _dispatch(args, lifetime):
                     next_folder=str(active[alternate][2]), admission=admissions[key],
                     scope='CPU-only; never interrupt a model payload')) + '\n')
         for gpu in gpus:
-            if not pending or len(active) >= 2:
+            if not pending or len(active) >= limit:
                 break
             if gpu in active:
                 continue
@@ -271,7 +275,8 @@ def _dispatch(args, lifetime):
             gpu_workers={str(g): dict(pid=p.pid, model=m, batch=b, folder=str(folder),
                 admission=admissions[(m,b)]) for g,(p,_,folder,m,b) in active.items()},
             failures=failures, release=publication, graph_mode=True, priority=200,
-            max_background_cards=2, gpus=gpus, requested_cells=requested_cells,
+            max_background_cards=limit, dispatch_limit_sha256=(base.sha(limit_path)
+                if limit_path.exists() else None), gpus=gpus, requested_cells=requested_cells,
             cpu_waiter_reassign_after_s=reassign_after, max_admissions_per_cell=max_admissions,
             power_monitoring=False, time=time.time()))
         if pending or active:
