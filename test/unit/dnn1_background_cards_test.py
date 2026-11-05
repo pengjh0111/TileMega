@@ -35,8 +35,9 @@ class BorrowTest(unittest.TestCase):
             self.assertTrue(self.reasons())
 
     def test_completed_history_does_not_reserve_idle_card(self):
-        self.state.write_text(json.dumps({'main': {'status': 'done'}}))
-        self.assertEqual(self.reasons(), [])
+        for status in ('done', 'failed', 'cancelled', 'not_run'):
+            self.state.write_text(json.dumps({'main': {'status': status}}))
+            self.assertEqual(self.reasons(), [])
 
     def test_scoreboard_flock_reserves_even_before_queue_appears(self):
         self.assertTrue(self.reasons(gpu=0, held=True))

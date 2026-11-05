@@ -7,7 +7,7 @@ import dnn1_baselines as base
 
 PREFERRED = (5, 7)
 BORROWABLE = (0, 1)
-TERMINAL = {'done', 'failed', 'cancelled', 'canceled', 'skipped'}
+TERMINAL = {'done', 'failed', 'cancelled', 'canceled', 'skipped', 'not_run'}
 DNN2 = Path('/root/TileMega-dnn2')
 
 
