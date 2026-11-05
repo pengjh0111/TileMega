@@ -24,7 +24,8 @@ import traceback
 ROOT = Path(__file__).resolve().parents[1]
 AIT_ROOT = ROOT / "runs/dnn1/resume/aitemplate"
 AIT_COMMIT = "23a2e348857591ac41f4946f0177c53d833a0104"
-RECIPE = dict(schema=3, frontend="uniform-static-ATen-NHWC", precision="bf16",
+RECIPE_SCHEMA = 3
+RECIPE = dict(schema=RECIPE_SCHEMA, frontend="uniform-static-ATen-NHWC", precision="bf16",
               target="cuda-sm90a", use_fp16_acc=False, use_fast_math=True,
               allow_cutlass_sm90=True, force_cutlass_sm90=False,
               optimize_graph=True, profile_timeout_s=500, profile_devices=[0],
@@ -34,6 +35,11 @@ RECIPE = dict(schema=3, frontend="uniform-static-ATen-NHWC", precision="bf16",
 
 def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def configure_graph_recipe(graph):
+    RECIPE.update(graph_mode=graph,
+                  schema=RECIPE_SCHEMA if graph else f'{RECIPE_SCHEMA}-no-graph-reference')
 
 
 def save(path, value):
@@ -320,8 +326,7 @@ def main():
     parser.add_argument('--graph', action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument('--profile-capture', action='store_true')
     options = parser.parse_args()
-    RECIPE.update(graph_mode=options.graph,
-                  schema=2 if options.graph else '2-no-graph-reference')
+    configure_graph_recipe(options.graph)
     if options.all_cells and options.command != "prepare":
         parser.error("--all-cells is CPU graph import only")
     if not options.all_cells and not options.model:

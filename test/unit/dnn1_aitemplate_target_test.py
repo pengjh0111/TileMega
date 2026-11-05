@@ -38,6 +38,14 @@ class TargetTest(unittest.TestCase):
         self.assertEqual(runner.RECIPE['precision'], 'bf16')
         self.assertTrue(runner.RECIPE['graph_mode'])
 
+    def test_cli_recipe_identity_cannot_revert_to_pre_linkfix_schema(self):
+        with patch.dict(runner.RECIPE):
+            runner.configure_graph_recipe(False)
+            self.assertEqual(runner.RECIPE['schema'], '3-no-graph-reference')
+            runner.configure_graph_recipe(True)
+            self.assertEqual(runner.RECIPE['schema'], 3)
+            self.assertTrue(runner.RECIPE['graph_mode'])
+
 
 if __name__ == '__main__':
     unittest.main()
