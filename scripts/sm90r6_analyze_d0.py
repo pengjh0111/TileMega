@@ -33,6 +33,7 @@ def stage_mapping(data):
                  argmax=argmax,argmax_la=argmax,attention='attention',merge='attention',
                  embedding=argmax if c['emb']=='la' else 'embedding',embedding_la=argmax)
     if c['attention'].get('merge','la')=='stage':mapping['merge']='attention_merge'
+    mapping['attention_merge']=mapping['merge']
     return mapping
 
 
