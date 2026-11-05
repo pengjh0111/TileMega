@@ -1,6 +1,6 @@
 # DNN1 H800 external baselines
 
-Verified checkpoint: TVM **25/25 BF16 cells accepted**; AITemplate **5/25 BF16 cells accepted (partial)**. TileMega native optimization remains paused. Existing TRT/torch.compile primary125 rows are unchanged.
+Verified checkpoint: TVM **25/25 BF16 cells accepted**; AITemplate **10/25 BF16 cells accepted (partial)**. TileMega native optimization remains paused. Existing TRT/torch.compile primary125 rows are unchanged.
 
 Current data: [canonical150 rows](DNN1_baselines.csv), [TVM diagnostics](DNN1_tvm_diag.csv), [per-task allocation](DNN1_tvm_task_coverage.csv). Superseded importer failures are retained in [history](DNN1_tvm_history.csv) and [diagnostic history](DNN1_tvm_diag_history.csv); the five historical FP16 failures are not a new fallback cohort.
 
