@@ -6,6 +6,7 @@ import csv
 import fcntl
 import json
 from pathlib import Path
+import shutil
 import subprocess
 import time
 
@@ -41,6 +42,25 @@ def gpu_pool(config):
             len(values) != len(set(values)) or not set(values) <= {0,1,2,3,4,5,7}):
         raise ValueError('collection requires distinct cards0–5/7, neverGPU6')
     return values
+
+
+def disk_snapshot(epoch, phase, model, batch):
+    usage = shutil.disk_usage(ROOT)
+    owned = {}
+    for directory in (runner.AIT_ROOT / 'engines', epoch / 'jobs'):
+        if not directory.exists():
+            owned[str(directory)] = dict(allocated_bytes=0)
+            continue
+        result = subprocess.run(['du', '--summarize', '--block-size=1', '--', str(directory)],
+            text=True, capture_output=True, timeout=30)
+        owned[str(directory)] = (dict(allocated_bytes=int(result.stdout.split()[0]))
+            if result.returncode == 0 else dict(error=result.stderr.strip()))
+    record = dict(time=time.time(), phase=phase, model=model, batch=batch,
+        filesystem_total_bytes=usage.total, filesystem_free_bytes=usage.free,
+        owned_caches=owned, deleted_files=False)
+    with (epoch / 'disk_usage.jsonl').open('a') as stream:
+        stream.write(json.dumps(record) + '\n')
+    return record
 
 
 def release(config, destination):
@@ -157,6 +177,7 @@ def dispatch(args):
             except Exception as error:
                 failures.append(dict(model=model, batch=batch, folder=str(folder), error=repr(error),
                     policy='preserve original graph failure; no silent uncaptured fallback'))
+            disk_snapshot(epoch, 'after-cell', model, batch)
             del active[gpu]
         for gpu in gpus:
             if not pending or len(active) >= 2:
@@ -168,6 +189,9 @@ def dispatch(args):
             snapshot = device.gpu(gpu)
             if (snapshot['owners'] or snapshot['used_mib'] > 1 or snapshot['free_mib'] < 8192 or
                     base.held(f'/tmp/tilemega_gpu{gpu}.lock')):
+                continue
+            disk = disk_snapshot(epoch, 'before-cell', *pending[0])
+            if disk['filesystem_free_bytes'] < config.get('minimum_free_gib', 16) * (1 << 30):
                 continue
             model, batch = pending.pop(0)
             active[gpu] = enqueue(epoch, model, batch, gpu)
