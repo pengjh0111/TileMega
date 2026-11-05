@@ -13,6 +13,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+import sys
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -115,6 +116,20 @@ class ConstantsIntegrity(unittest.TestCase):
                     rows = list(csv.DictReader(stream))
                 self.assertEqual(len(rows), 3)
                 self.assertTrue(all(row['processes'] == '5' for row in rows))
+                sys.path.insert(0, str(ROOT / 'scripts'))
+                from dnn1_compact_constants import convert
+                summary = root / 'complete/sm90_forward_constants.json'
+                table = summary.parent / 'DNN1_constants.csv'
+                complete, _ = convert(summary, table)
+                partial = MODULE.read(summary)
+                partial.update(completeness='partial_pending_FX',
+                    pending=[dict(id='unimplemented_cpu_fixture')])
+                MODULE.write(summary, partial)
+                with self.assertRaisesRegex(ValueError, 'complete genuine'):
+                    convert(summary, table)
+                subset, _ = convert(summary, table, allow_subset=True)
+                self.assertEqual(subset['median_by_gpu'], complete['median_by_gpu'])
+                self.assertEqual(subset['pending'], partial['pending'])
                 # Four valid rounds are insufficient, even though all numeric
                 # rows are present. Guard rejection cannot be log-scraped away.
                 state_path = root / 'gpu0/scheduler/state.json'

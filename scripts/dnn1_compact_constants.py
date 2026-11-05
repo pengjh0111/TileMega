@@ -18,7 +18,7 @@ def convert(source, table, *, allow_subset=False):
     original=json.loads(source.read_text())
     receipt=source.parent/'collection_receipt.json'
     proof=json.loads(receipt.read_text())
-    if original['schema']!=1 or (original['completeness']!='complete' and not allow_subset) or original.get('synthetic_cpu_fixture') or original.get('pending'):
+    if original['schema']!=1 or (original['completeness']!='complete' and not allow_subset) or original.get('synthetic_cpu_fixture') or (original.get('pending') and not allow_subset):
         raise ValueError('complete genuine schema1 calibration required')
     if proof['status']!='collected':raise ValueError('accepted collection receipt required')
     root=Path(original['raw_measurement_root']);spec=root/'queue-spec.json'
@@ -51,7 +51,7 @@ def convert(source, table, *, allow_subset=False):
     keys=sorted((metric,key,row['unit']) for metric,values in cards['0'].items() for key,row in values.items())
     if any(sorted((m,k,r['unit']) for m,vs in card.items() for k,r in vs.items())!=keys for card in cards.values()):
         raise ValueError('physical cards contain different constants')
-    csv_rows=list(csv.DictReader(table.open()))
+    with table.open() as stream:csv_rows=list(csv.DictReader(stream))
     csv_map={(r['gpu'],r['metric'],r['key']):r for r in csv_rows}
     if len(csv_rows)!=len(csv_map) or len(csv_map)!=len(keys)*3:raise ValueError('raw CSV coverage mismatch')
     medians={g:[] for g in cards};clocks={g:{} for g in cards};rows=[]
