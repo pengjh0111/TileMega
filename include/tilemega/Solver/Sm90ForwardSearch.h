@@ -324,16 +324,44 @@ class Sm90ForwardCostModel {
                json::Value* terms=nullptr) const;
   double LegacyStage(Sm90ForwardShape const& s,Sm90ForwardStage const& c,int residency,
                      json::Value* terms=nullptr) const;
+  static int PoolProducer(std::vector<Sm90ForwardShape> const& shapes,std::size_t index) {
+    if(index>=shapes.size())throw std::invalid_argument("pool index exceeds program");
+    if(shapes[index].body!=Sm90ForwardBody::kGlobalPool)return -1;
+    auto producer=ForwardField(shapes[index].dnn1_geometry,"pool_producer_stage",true);
+    if(producer>=static_cast<long long>(index))
+      throw std::invalid_argument("pool producer must precede its consumer");
+    return int(producer);
+  }
+  static Sm90ForwardShape PoolShape(std::vector<Sm90ForwardShape> const& shapes,
+      std::size_t index,Sm90ForwardStage const& producer_coordinate) {
+    int producer=PoolProducer(shapes,index);
+    if(producer<0)throw std::invalid_argument("pool geometry requested for another body");
+    auto resolved=shapes[index];
+    auto batch=ForwardField(resolved.dnn1_geometry,"batch");
+    if(batch!=ForwardField(shapes[producer].dnn1_geometry,"batch"))
+      throw std::invalid_argument("pool batch differs from its producer");
+    int parts=Sm90ForwardPoolParts(shapes[producer],producer_coordinate);
+    if(resolved.channels<=0 || batch>std::numeric_limits<long long>::max()/4/parts/resolved.channels)
+      throw std::invalid_argument("pool activation extent exceeds prediction range");
+    resolved.k=parts;resolved.activation_bytes=4LL*batch*parts*resolved.channels;
+    resolved.dnn1_geometry.Set("parts",parts);
+    return resolved;
+  }
   Sm90ForwardPrediction Predict(std::vector<Sm90ForwardShape> const& shapes,
                                Sm90ForwardCoordinates const& c) const {
     if(shapes.size()!=c.stages.size())throw std::invalid_argument("coordinate stage count differs");
     Sm90ForwardPrediction result;result.constants_receipt=forward_.Receipt();
     for(std::size_t i=0;i<shapes.size();++i) {
-      Sm90ForwardPrediction::Stage p{kSm90ForwardBodies[unsigned(shapes[i].body)],0,
-          Tasks(shapes[i],c.stages[i]),{}};
-      p.ns=Stage(shapes[i],c.stages[i],c.residency,&p.terms);
+      int producer=PoolProducer(shapes,i);
+      auto s=producer<0?shapes[i]:PoolShape(shapes,i,c.stages[producer]);
+      Sm90ForwardPrediction::Stage p{kSm90ForwardBodies[unsigned(s.body)],0,
+          Tasks(s,c.stages[i]),{}};
+      p.ns=Stage(s,c.stages[i],c.residency,&p.terms);
+      if(producer>=0)p.terms.Set("pool_link",json::Object{{"producer_stage",producer},
+          {"parts",int(s.k)},{"producer_coordinate",c.stages[producer].ToJson()},
+          {"source","ForwardGeometry.h::Sm90ForwardPoolParts; shared with Materialize"}});
       json::Value legacy_terms;
-      double legacy=LegacyStage(shapes[i],c.stages[i],c.residency,&legacy_terms);
+      double legacy=LegacyStage(s,c.stages[i],c.residency,&legacy_terms);
       p.terms.Set("legacy_diagnostic",legacy_terms);result.legacy_total_ns+=legacy;
       result.total_ns+=p.ns;result.stages.push_back(std::move(p));
     }

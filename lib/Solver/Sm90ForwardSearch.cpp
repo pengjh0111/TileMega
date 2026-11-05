@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: BSD-3-Clause
-// DNN1 S2/S4 CPU-only draft, not enabled in the tracked native solver.
 #include <tilemega/Solver/Sm90ForwardSearch.h>
 #include <chrono>
 #include <numeric>
@@ -105,55 +104,97 @@ double Sm90ForwardCostModel::Epilogue(Sm90ForwardShape const& s,Sm90ForwardStage
   }
   if(resource.store_columns<=0)
     throw Sm90ForwardMissing("resource helper did not provide actual epilogue store_columns");
-  // Store geometry can be smaller than TN (gate halves, final N=3, tails).
-  // Missing widths are errors until the required-keys probe manifest is run.
-  auto store=Tile(ep_m,int(resource.store_columns));
-  store["op"]=ForwardString(g,"store_kind");
-  result+=Measured(forward_,"epilogue_store_ns",store,"ns",1,terms);
+  bool row_stats=g.At("has_row_stats").AsBool("has_row_stats");
+  bool pool=g.At("has_channel_pool").AsBool("has_channel_pool");
+  if(row_stats && pool)throw std::invalid_argument("Finish probes do not combine row and channel side outputs");
+  if(row_stats) {
+    if(!Matrix(s.body) || s.m%ep_m || s.n%ep_n || g.At("gated").AsBool("gated") ||
+        ForwardString(g,"store_kind")!="vector_16byte")
+      throw Sm90ForwardMissing("row-stat Finish needs an exact new geometry probe");
+    result+=Measured(forward_,"rowstat_finish_store_ns",{{"tm",S(ep_m)},{"tn",S(ep_n)},
+        {"live_rows",S(ep_m)},{"tiles",S(s.n/ep_n)},
+        {"store_columns",S(resource.store_columns)},{"store","dense_vector16"},
+        {"output_pitch",S(ForwardField(g,"output_pitch"))}},"ns",1,terms);
+  }else if(pool) {
+    // Source: forward.pool_finish_store_ns, empty-Apply production Finish.
+    // Use the exact task-class histogram, never an unweighted key average.
+    // The stage model remains waves times mean task service; class counts and
+    // every measured coefficient are exposed for checking this approximation.
+    auto rows=ForwardField(g,"pool_rows"),channels=ForwardField(g,"pool_channels");
+    Sm90ForwardSelector base{{"pool_rows",S(rows)},{"pool_channels",S(channels)},
+        {"parts",S(Sm90ForwardPoolParts(s,c))},{"tm",S(ep_m)},{"tn",S(ep_n)},
+        {"width",S(resource.store_columns)},{"stride",S(ForwardField(g,"output_pitch"))}};
+    std::map<Sm90ForwardSelector,long long> classes;long long count=0;
+    if(Matrix(s.body)) {
+      base["tw"]=base["th"]=base["image_width"]=base["live_tile_width"]="0";
+      for(long long row=0;row<s.m;row+=ep_m) {
+        auto key=base;key["live_rows"]=S(std::min<long long>(ep_m,s.m-row));
+        key["row_base_mod_image"]=S(row%rows);++classes[key];++count;
+      }
+    }else {
+      auto width=ForwardField(g,"output_width"),height=ForwardField(g,"output_height");
+      if((width>c.tile_w && width%c.tile_w) || (height>c.tile_h && height%c.tile_h))
+        throw Sm90ForwardMissing("mixed spatial edge pool Finish needs separate measured classes");
+      base["tw"]=S(c.tile_w);base["th"]=S(c.tile_h);base["image_width"]=S(width);
+      base["live_tile_width"]=S(std::min<long long>(width,c.tile_w));
+      base["live_rows"]=S(std::min<long long>(width,c.tile_w)*std::min<long long>(height,c.tile_h));
+      base["row_base_mod_image"]="0";
+      count=ForwardCeil(width,c.tile_w)*ForwardCeil(height,c.tile_h)*ForwardField(g,"batch");
+      classes[base]=count;
+    }
+    if(!count)throw std::invalid_argument("pool Finish task class set is empty");
+    for(auto const& [key,multiplicity]:classes) {
+      result+=Measured(forward_,"pool_finish_store_ns",key,"ns",double(multiplicity)/count,terms);
+      terms.back().Set("task_class_count",double(multiplicity));
+      terms.back().Set("row_task_count",double(count));
+    }
+  }else {
+    auto store=Tile(ep_m,int(resource.store_columns));
+    store["op"]=ForwardString(g,"store_kind");
+    result+=Measured(forward_,"epilogue_store_ns",store,"ns",1,terms);
+  }
   if(c.split_k>1) {
     auto selector=Tile(c.tile_m,c.tile_n);selector["slices"]=S(c.split_k);
     result+=Measured(forward_,"splitk_partial_ns",selector,"ns",1,terms);
   }else Term(terms,"splitk_partial_ns",0,"structural: split_k=1 has no partial or reduction");
-  auto const* row=g.Find("has_row_stats");
-  if(!row)throw Sm90ForwardMissing("missing plan-derived has_row_stats flag");
-  if(row->AsBool("has_row_stats")) {
-    if((ForwardCeil(s.n,ep_n)*ep_n)<=0 || (ForwardCeil(s.n,ep_n)*ep_n)%ep_n)
-      throw std::invalid_argument("row-stat padded N must contain whole TN tiles");
-    result+=Measured(forward_,"rowstat_ns",{{"rows",S(ep_m)},
-        {"tiles",S(ForwardCeil(s.n,ep_n))}},"ns",1,terms);
-  }else Term(terms,"rowstat_ns",0,"structural: stage has no row-statistics side output");
+  // Row-stat Finish already includes local sums, partials, last-arriver and
+  // output store. Adding historical rowstat_ns or store would count it twice.
   return result;
 }
 
 double Sm90ForwardCostModel::BodyCost(Sm90ForwardShape const& s,Sm90ForwardStage const& c,
     Sm90ForwardResourceUsage const& resource,json::Array& terms) const {
   auto const& g=s.dnn1_geometry;double result=0;
-  if(s.body==Sm90ForwardBody::kDepthwise || Fused(s.body)) {
-    // Source: forward.dw_tap_ns[tw,th,live_channels,ct,stride,pack], measured
-    // production Depthwise compute segment, normalized per live element/tap.
-    auto depthwise=[&](int live,long long blocks) {
-      if(!blocks)return;
-      Sm90ForwardSelector selector{{"tw",S(c.tile_w)},{"th",S(c.tile_h)},
+  if(Fused(s.body)) {
+    // Source: forward.dwpw_depthwise_ns; production fused Depthwise already
+    // includes cached scale/bias/Relu6, so do not add those DW steps again.
+    auto const& ops=Steps(s,"depthwise_epilogue_steps");
+    if(ops.size()!=3 || ops[0].AsString("scale")!="scale" ||
+        ops[1].AsString("bias")!="bias" || ops[2].AsString("activation")!="relu6")
+      throw Sm90ForwardMissing("DWPW depthwise chain differs from the measured primitive");
+    for(int live:{64,32,16}) {
+      long long blocks=live==64?s.channels/64:(s.channels%64==live?1:0);
+      if(blocks)result+=Measured(forward_,"dwpw_depthwise_ns",{{"tw",S(c.tile_w)},{"th",S(c.tile_h)},
+          {"ct",S(c.channel_block)},{"channels",S(live)},{"stride",S(s.stride)},
+          {"pack",S(ForwardField(g,"depthwise_pack"))},{"chain","scale+bias+relu6"}},"ns/task/channel_block",blocks,terms);
+    }
+    if(s.channels%64!=0 && s.channels%64!=16 && s.channels%64!=32)
+      throw Sm90ForwardMissing("unmeasured DWPW live channel tail");
+    return result;
+  }
+  if(s.body==Sm90ForwardBody::kDepthwise) {
+    auto live=std::min<long long>(s.channels,c.channel_block);
+    Sm90ForwardSelector selector{{"tw",S(c.tile_w)},{"th",S(c.tile_h)},
         {"channels",S(live)},{"ct",S(c.channel_block)},{"stride",S(s.stride)},
         {"pack",S(ForwardField(g,"depthwise_pack"))}};
-      result+=Measured(forward_,"dw_tap_ns",selector,"ns/element/tap",
-          double(c.tile_w)*c.tile_h*live*s.kernel*s.kernel*blocks,terms);
-    };
-    long long blocks=Fused(s.body)?ForwardCeil(ForwardField(g,"padded_channels"),c.channel_block):1;
-    if(Fused(s.body)) {
-      depthwise(c.channel_block,s.channels/c.channel_block);
-      if(s.channels%c.channel_block)depthwise(int(s.channels%c.channel_block),1);
-    }else depthwise(int(std::min<long long>(s.channels,c.channel_block)),1);
-    if(Fused(s.body)) {
-      // Fused-body interpretation (pending A2 confirmation): actual DW tap
-      // work + its own channel epilogue; matrix async is priced by Stage.
-      // No bare WGMMA instruction timing is mislabeled a fused body cost.
-      for(auto const& entry:Steps(s,"depthwise_epilogue_steps")) {
-        auto ep=Tile(c.tile_w*c.tile_h,c.channel_block);ep["op"]=entry.AsString("DW epilogue op");
-        result+=Measured(forward_,"epilogue_step_ns",ep,"ns",blocks,terms);
-      }
+    if(g.At("gated").AsBool("gated")) {
+      auto const& ops=Steps(s,"epilogue_steps");
+      if(ops.size()!=2 || ops[0].AsString("bias")!="bias" || ops[1].AsString("gate")!="simple_gate")
+        throw Sm90ForwardMissing("gated DW chain differs from measured compute primitive");
+      selector["gate"]="simple_gate";selector["bias"]="1";
     }
-    return result;
+    return Measured(forward_,"dw_tap_ns",selector,"ns/element/tap",
+        double(c.tile_w)*c.tile_h*live*s.kernel*s.kernel,terms);
   }
   if(s.body==Sm90ForwardBody::kEncoderAttention) {
     // Head/batch replication changes task count; one task still reads one
@@ -196,6 +237,7 @@ double Sm90ForwardCostModel::BodyCost(Sm90ForwardShape const& s,Sm90ForwardStage
 double Sm90ForwardCostModel::Stage(Sm90ForwardShape const& s,Sm90ForwardStage const& c,int residency,
     json::Value* terms) const {
   c.Validate();
+  auto const& g=s.dnn1_geometry;
   if(c.body!=s.body)throw std::invalid_argument("coordinate and shape body differ");
   auto resource=QuerySm90ForwardResources(s,c,target_,residency);
   if(!resource.feasible)throw std::invalid_argument("cost called for resource-infeasible candidate: "+resource.reason);
@@ -216,13 +258,39 @@ double Sm90ForwardCostModel::Stage(Sm90ForwardShape const& s,Sm90ForwardStage co
     k_iter=s.k/(c.split_k*64);
     if(k_iter<=0)throw std::invalid_argument("GEMM has zero K iterations");
     weight_task=2LL*c.tile_n*(s.k/c.split_k);
-    activation_task=2LL*c.tile_m*(s.k/c.split_k);
-    if(resource.slot_bytes!=2LL*64*(c.tile_m+c.tile_n))
+    int activation_rows=backend::Sm90ForwardActivationRows(c.tile_m,s.body==Sm90ForwardBody::kConv);
+    activation_task=2LL*activation_rows*(s.k/c.split_k);
+    if(resource.slot_bytes!=2LL*64*(activation_rows+c.tile_n))
       throw std::invalid_argument("shared helper slot_bytes differs from production GEMM ring");
     async_ns=double(weight_task+activation_task)/native_.sm_gbps;
     rate=std::min(native_.CtaDramGbps(),double(c.slots)*resource.slot_bytes/native_.dram_latency);
     memory_ns=double(weight_task)/rate;
     data_ns=std::max(async_ns,memory_ns)+std::min(async_ns,memory_ns)/k_iter;
+    if(c.tile_m==32) {
+      // Source: forward.matrix_k64_ns[tm32,tn,tk64,repeat64,impl=mma_sync].
+      // Resident operands isolate the actual new mma.sync instruction stream.
+      // This is a task arithmetic limiter, not an eta fit or a claim that
+      // historical TM64 WGMMA calibration used the same probe recipe.
+      double math=Measured(forward_,"matrix_k64_ns",{{"tm","32"},{"tn",S(c.tile_n)},
+          {"tk","64"},{"repeat","64"},{"impl","mma_sync"}},"ns/k64",k_iter,components);
+      data_ns=std::max(data_ns,math);
+    }
+    if(g.At("has_input_scale").AsBool("has_input_scale")) {
+      auto rows=ForwardField(g,"scale_rows"),channels=ForwardField(g,"scale_channels");
+      if(rows%c.tile_m || ForwardField(g,"scale_stride")<channels ||
+          channels>s.k || (channels!=32 && channels%64))
+        throw Sm90ForwardMissing("SCA panel geometry differs from the measured cached path");
+      long long full=channels/64,tail=channels%64;
+      // Source: forward.sca_panel_ns, actual ScalePanel per K64. Shapes with
+      // split-K have equal full-panel slices; the only tail is C32/Sk1.
+      if(tail && c.split_k!=1)throw Sm90ForwardMissing("split SCA tail requires its own measured panel distribution");
+      if(full)body_ns+=Measured(forward_,"sca_panel_ns",{{"tm",S(c.tile_m)},
+          {"tk","64"},{"live_k","64"},{"implementation","typed_cached_per_lane_bf16"}},
+          "ns/k64/cta",double(full)/c.split_k,components);
+      if(tail)body_ns+=Measured(forward_,"sca_panel_ns",{{"tm",S(c.tile_m)},
+          {"tk","64"},{"live_k",S(tail)},{"implementation","typed_cached_per_lane_bf16"}},
+          "ns/k64/cta",1,components);
+    }
     ep_ns=Epilogue(s,c,resource,components);
   }else {
     auto work=TaskBytes(s,c);
@@ -288,12 +356,12 @@ std::vector<Sm90ForwardStage> Sm90ForwardSearchSpace::Candidates(std::size_t ind
   auto const& s=shapes[index];std::vector<Sm90ForwardStage> result;
   auto push=[&](Sm90ForwardStage c){c.body=s.body;try{c.Validate();}catch(std::invalid_argument const&){return;}result.push_back(c);};
   if(Matrix(s.body)) {
-    for(int m:{64,128})for(int n:{32,64,128,256}) {
+    for(int m:{32,64,128})for(int n:{32,64,128,256}) {
       if(n>ForwardCeil(s.n,32)*32)continue;
       for(int split:{1,2,4,8,16}) {
         if(split>1 && (s.whole_row || s.k%(1LL*split*64) || s.k/split<128))continue;
         Sm90ForwardStage c;c.tile_m=m;c.tile_n=n;c.split_k=split;
-        c.slots=s.k/64>=4?4:2;push(c);
+        for(int slots:{2,3,4,6,8}){c.slots=slots;push(c);}
       }
     }
   }else if(s.body==Sm90ForwardBody::kDepthwise || Fused(s.body)) {
@@ -302,7 +370,8 @@ std::vector<Sm90ForwardStage> Sm90ForwardSearchSpace::Candidates(std::size_t ind
       for(int n:(Fused(s.body)?std::vector<int>{64,128,256}:std::vector<int>{64})) {
         if(Fused(s.body) && n>s.out_channels && n!=64)continue;
         Sm90ForwardStage c;c.tile_w=tile.first;c.tile_h=tile.second;c.tile_n=n;
-        c.fused=Fused(s.body);c.channel_block=64;c.slots=2;push(c);
+        c.fused=Fused(s.body);c.channel_block=64;
+        for(int slots:{2,3,4,6,8}){c.slots=slots;push(c);}
       }
     }
   }else if(s.body==Sm90ForwardBody::kEncoderAttention) {
@@ -320,6 +389,12 @@ Sm90ForwardSearchResult SearchSm90Forward(Sm90ForwardSearchSpace const& space,
     Sm90ForwardCostModel const& cost,int top) {
   if(top!=4)throw std::invalid_argument("DNN1 compiles predicted top4; pass measure_top=4");
   if(space.shapes.empty())throw std::invalid_argument("forward search needs at least one stage");
+  std::vector<std::vector<std::size_t>> consumers(space.shapes.size());
+  std::vector<int> producers(space.shapes.size(),-1);
+  for(std::size_t i=0;i<space.shapes.size();++i) {
+    producers[i]=Sm90ForwardCostModel::PoolProducer(space.shapes,i);
+    if(producers[i]>=0)consumers[producers[i]].push_back(i);
+  }
   auto start=std::chrono::steady_clock::now();Sm90ForwardSearchResult result;
   std::vector<Sm90ForwardCandidate> pool;json::Array residency_receipts;
   for(int residency:{1,2}) {
@@ -335,7 +410,17 @@ Sm90ForwardSearchResult SearchSm90Forward(Sm90ForwardSearchSpace const& space,
         options[i].push_back(c);
         // Missing constants abort the search; do not quietly make an
         // unmeasured candidate disappear and bias the selected coordinate.
-        prices[i].push_back(cost.Stage(space.shapes[i],c,residency));++result.evaluated;
+        // A pool has no independent coordinate choice. Charge its exact
+        // producer-selected partial count to that producer during local
+        // ranking; Predict expands the linked group back into separate stages.
+        double price=producers[i]<0?cost.Stage(space.shapes[i],c,residency):0;
+        for(auto pool_index:consumers[i]) {
+          auto pool_options=space.Candidates(pool_index,residency);
+          if(pool_options.size()!=1)throw std::invalid_argument("linked pool must have exactly one coordinate");
+          auto pool_shape=Sm90ForwardCostModel::PoolShape(space.shapes,pool_index,c);
+          price+=cost.Stage(pool_shape,pool_options.front(),residency);
+        }
+        prices[i].push_back(price);++result.evaluated;
       }
       if(options[i].empty()) {complete=false;stage_receipts.emplace_back(json::Object{{"stage",int(i)},
           {"legal_candidate_count",int(raw.size())},{"shared_filtered_count",filtered},
@@ -345,10 +430,13 @@ Sm90ForwardSearchResult SearchSm90Forward(Sm90ForwardSearchSpace const& space,
       std::vector<Sm90ForwardStage> sorted;std::vector<double> sorted_prices;
       for(auto j:order){sorted.push_back(options[i][j]);sorted_prices.push_back(prices[i][j]);}
       options[i]=std::move(sorted);prices[i]=std::move(sorted_prices);
-      json::Value chosen_terms;cost.Stage(space.shapes[i],options[i][0],residency,&chosen_terms);
+      json::Value chosen_terms=json::Object{{"resolution","program coordinates below"}};
+      if(producers[i]<0)cost.Stage(space.shapes[i],options[i][0],residency,&chosen_terms);
       stage_receipts.emplace_back(json::Object{{"stage",int(i)},{"legal_candidate_count",int(raw.size())},
           {"shared_filtered_count",filtered},{"remaining_candidate_count",int(options[i].size())},
-          {"selected",options[i][0].ToJson()},{"selected_terms",chosen_terms},{"rejected",rejected}});
+          {"selected",options[i][0].ToJson()},{"selected_terms",chosen_terms},
+          {"linked_contribution_ns",prices[i][0]},{"pool_producer_stage",producers[i]},
+          {"rejected",rejected}});
     }
     if(!complete){residency_receipts.emplace_back(json::Object{{"residency",residency},
         {"feasible",false},{"stages",stage_receipts}});continue;}
@@ -366,6 +454,9 @@ Sm90ForwardSearchResult SearchSm90Forward(Sm90ForwardSearchSpace const& space,
       for(std::size_t i=0;i<c.stages.size();++i) {
         chosen_receipts[i].Set("selected",c.stages[i].ToJson());
         chosen_receipts[i].Set("selected_terms",prediction.stages[i].terms);
+        double linked=producers[i]<0?prediction.stages[i].ns:0;
+        for(auto pool_index:consumers[i])linked+=prediction.stages[pool_index].ns;
+        chosen_receipts[i].Set("linked_contribution_ns",linked);
       }
       json::Value receipt=json::Object{{"residency",residency},{"stages",chosen_receipts},
           {"changed_stage",changed<options.size()?int(changed):-1}};
