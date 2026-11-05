@@ -7,6 +7,7 @@ import unittest
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'scripts'))
 from sm90r6_ablate import ARMS,sha,validate
+from sm90r6_ablation_gates import validate_subset
 
 
 class AblationGates(unittest.TestCase):
@@ -37,6 +38,18 @@ class AblationGates(unittest.TestCase):
 
     def test_complete_artifact_bound_gates(self):
         self.assertEqual(tuple(validate(self.arms,'model',1)),ARMS)
+
+    def test_partial_domain_keeps_all_remaining_gates(self):
+        arms=copy.deepcopy(self.arms);del arms['AB1a']
+        self.assertEqual(len(validate_subset(arms,'model',1,('AB1a',))),7)
+        with self.assertRaises(ValueError):validate_subset(arms,'model',1)
+        self.change(arms['AB4c']['c1'],lambda d:d['spec']['correctness'].update(c1=255))
+        with self.assertRaises(ValueError):validate_subset(arms,'model',1,('AB1a',))
+
+    def test_partial_domain_cannot_omit_f_or_two_arms(self):
+        for excluded in [('F',),('AB1a','AB1b')]:
+            arms={k:v for k,v in self.arms.items() if k not in excluded}
+            with self.assertRaises(ValueError):validate_subset(arms,'model',1,excluded)
 
     def test_missing_f_is_rejected(self):
         arms=copy.deepcopy(self.arms);del arms['F']

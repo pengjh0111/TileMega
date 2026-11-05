@@ -5,7 +5,8 @@ import json
 from pathlib import Path
 
 from sm90d1_common import read, sha
-from sm90r6_ablate import ARMS, validate
+from sm90r6_ablate import ARMS
+from sm90r6_ablation_gates import validate_subset
 from sm90r6_merge_analysis import write
 
 
@@ -19,7 +20,7 @@ def compact(coordinates):
     return [json.dumps(v, sort_keys=True, separators=(',', ':')) for v in (geometry, structure)]
 
 
-def merge(root):
+def merge(root,allow_partial=False):
     cells = read(root / 'ab5/domains-v1/cells.json')
     frozen = {r['input']['id']: r for r in
               (json.loads(line) for line in (root / 'acceptance/v1/predictions.jsonl').read_text().splitlines()
@@ -27,12 +28,19 @@ def merge(root):
     rows = []
     for cell in cells:
         name = cell['id']; directory = root / 'ablation/pabl-v1' / name
+        excluded=()
+        missing={'olmoe_1b_7b-B1':'AB1a','qwen3_30b_a3b-B16':'AB1b'}
+        if allow_partial and name in missing:
+            excluded=(missing[name],);directory=root/'ablation/pabl-partial-v1'/name
+        expected=tuple(arm for arm in ARMS if arm not in excluded)
         manifest = read(directory / 'arms.json')
-        validate(manifest, cell['model'], cell['batch'])
+        validate_subset(manifest, cell['model'], cell['batch'],excluded)
         measured = read(directory / 'measurement/result.json')
-        if measured['source_sha256'] != sha(directory / 'arms.json') or set(measured['arms']) != set(ARMS):
+        if measured['source_sha256'] != sha(directory / 'arms.json') or set(measured['arms']) != set(expected):
             raise ValueError('P-ABL manifest changed or matrix incomplete')
-        for arm in ARMS:
+        if excluded and (measured.get('excluded_arm')!=excluded[0] or measured['protocol']!='P-ABL partial seven-arm'):
+            raise ValueError('partial P-ABL must declare the approved missing arm and protocol deviation')
+        for arm in expected:
             binary = Path(manifest[arm]['binary']); identity = read(str(binary) + '.identity.json')
             coordinate = identity['plan']['native_dense']; selected_rank = ''; solve_seconds = ''
             receipt_path = ''; receipt_sha = ''
@@ -90,8 +98,17 @@ def merge(root):
                 geometry_tn_tk_wn_wk_slots_rs_mc_mma=geometry, structure=structure,
                 coordinates_sha256=identity['plan']['coordinates_sha256'], binary_sha256=sha(binary),
                 gpu=measured['gpu'], concurrency='trial', evidence='verified',
+                measurement_status='verified',measurement_protocol=measured['protocol'],
                 search_receipt=receipt_path, search_receipt_sha256=receipt_sha,
                 raw=str(directory / 'measurement/result.json'), raw_sha256=sha(directory / 'measurement/result.json')))
+        for arm in excluded:
+            gap={key:'' for key in rows[-1]}
+            gap.update(model=cell['model'],batch=cell['batch'],arm=arm,processes=0,
+                decision='incomplete',measurement_status='unavailable_AB1_arm',
+                measurement_protocol=measured['protocol'],evidence='stated exception',
+                raw=str(root/'ablation/pabl-v1'/name/'incomplete.json'),
+                raw_sha256=sha(root/'ablation/pabl-v1'/name/'incomplete.json'))
+            rows.append(gap)
     if len(cells) != 8 or len(rows) != 64:
         raise ValueError('complete eight-cell/eight-arm matrix required')
     return rows
@@ -101,4 +118,5 @@ if __name__ == '__main__':
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--root', type=Path, required=True)
     p.add_argument('--out', type=Path, required=True)
-    a = p.parse_args(); write(a.out, merge(a.root))
+    p.add_argument('--allow-partial',action='store_true',help='include the two declared seven-arm cells with explicit missing rows')
+    a = p.parse_args(); write(a.out, merge(a.root,a.allow_partial))
