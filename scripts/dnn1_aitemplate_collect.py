@@ -13,6 +13,7 @@ import dnn1_baselines as base
 import dnn1_device as device
 import dnn1_aitemplate as runner
 import dnn1_aitemplate_cell as cell_runner
+from dnn1_background_cards import main_reservations
 
 ROOT = runner.ROOT
 CELLS = {(m, b) for m in base.MODELS for b in (1, 2, 4, 8, 16)}
@@ -129,10 +130,12 @@ def dispatch(args):
                 failures.append(dict(model=model, batch=batch, folder=str(folder), error=repr(error),
                     policy='preserve original graph failure; no silent uncaptured fallback'))
             del active[gpu]
-        for gpu in (5, 7):
+        for gpu in (5, 7, 0, 1):
             if not pending or len(active) >= 2:
                 break
             if gpu in active:
+                continue
+            if main_reservations(gpu):
                 continue
             snapshot = device.gpu(gpu)
             if (snapshot['owners'] or snapshot['used_mib'] > 1 or snapshot['free_mib'] < 8192 or

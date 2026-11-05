@@ -18,6 +18,7 @@ import dnn1_tvm_publish as publisher
 import dnn1_tvm_audit as auditor
 from dnn1_aitemplate_cell import AFFINITY, audit_windows
 from dnn1_dispatch import affinities
+from dnn1_background_cards import main_reservations
 from dnn1_tvm_resume_sample import prior_identity
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -185,7 +186,7 @@ def dispatch(args):
     epoch = args.epoch.resolve()
     config = base.read(epoch / 'spec.json')
     gpus = [int(s) for s in args.gpus.split(',')]
-    if not set(gpus) <= {0,1,2,3,4,5,7} or not 1 <= args.max_parallel <= 2:
+    if not set(gpus) <= {0,1,5,7} or not 1 <= args.max_parallel <= 2:
         raise ValueError('background resumption uses at most2 healthy cards, neverGPU6')
     binding = affinities(gpus, 8, explicit={str(g): AFFINITY[g] for g in gpus})
     lock = (epoch / 'controller.lock').open('a')
@@ -212,6 +213,8 @@ def dispatch(args):
                 break
             if gpu in active:
                 continue
+            if main_reservations(gpu):
+                continue
             row = device.gpu(gpu)
             if (row['owners'] or row['used_mib'] > 1 or row['free_mib'] < 8192 or
                     base.held(f'/tmp/tilemega_gpu{gpu}.lock')):
@@ -228,7 +231,8 @@ def dispatch(args):
             pending=[f"{c['model']}_b{c['batch']}" for c in pending],
             active=workers, workers=workers,
             accepted=len(accepted), failures=failures, max_background_cards=args.max_parallel,
-            gpus=gpus, priority=200, power_monitoring=False, time=time.time()))
+            gpus=gpus, borrowed_main_cards=[g for g in active if g in (0,1)],
+            priority=200, power_monitoring=False, time=time.time()))
         if pending or active:
             time.sleep(15)
 
