@@ -68,7 +68,7 @@ class CollectorTest(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.outer = []
         self.session = dict(model='resnet18', batch=1, gpu=0, ended=60,
-                            status='complete_pending_outer_audit', processes=[])
+                            graph_mode=True, status='complete_pending_outer_audit', processes=[])
         for i in range(5):
             directory = self.root / str(i)
             directory.mkdir()
@@ -76,7 +76,11 @@ class CollectorTest(unittest.TestCase):
             role = 'measurement' if i < 3 else 'correctness'
             value = dict(system='aitemplate', model='resnet18', batch=1, precision='bf16',
                 gpu_index=0, pid=100+i, process_role=role, correctness_passed=True,
-                correctness=[dict(cosine=1., top1_equal=True)], identity={'synthetic': 'fixture'},
+                correctness=[dict(cosine_vs_fp32=1., top1_agreement_vs_fp32=1.)],
+                identity={'synthetic': 'fixture', 'recipe': {'graph_mode': True}},
+                graph_mode={'requested': True}, protocol={'warmup': 50},
+                library_sha256='library-fixture', compiled_receipt_sha256='compiled-fixture',
+                inputs_sha256='inputs-fixture',
                 samples_ms=[float(i+1)]*200 if role == 'measurement' else [],
                 median_ms=float(i+1) if role == 'measurement' else None,
                 p90_ms=float(i+1) if role == 'measurement' else None)
@@ -87,7 +91,8 @@ class CollectorTest(unittest.TestCase):
             self.outer.append(dict(time=10*i+3, owners={str(1000+i): 100}))
             self.session['processes'].append(dict(pid=100+i, receipt=str(path),
                 receipt_sha256=collector.sha(path), returncode=0,
-                before={'owners': {}}, after={'owners': {}}))
+                before={'owners': {}, 'used_mib': 0}, after={'owners': {}, 'used_mib': 0},
+                drain={'status': 'empty_observed'}))
         self.outer.append(dict(time=70, phase='after', exit_code=0, owners={}))
 
     def tearDown(self):
@@ -135,6 +140,31 @@ class CollectorTest(unittest.TestCase):
         value['identity']['different_recipe'] = True
         collector.save(path, value)
         item['receipt_sha256'] = collector.sha(path)
+        self.assertEqual(self.collect()[0], 1)
+
+    def mutate(self, change):
+        item = self.session['processes'][0]
+        path = Path(item['receipt'])
+        value = json.loads(path.read_text())
+        change(value)
+        collector.save(path, value)
+        item['receipt_sha256'] = collector.sha(path)
+
+    def test_graph_reference_cannot_join_graph_cohort(self):
+        self.mutate(lambda r: r['graph_mode'].update(requested=False))
+        self.assertEqual(self.collect()[0], 1)
+
+    def test_changed_library_cannot_join_cohort(self):
+        self.mutate(lambda r: r.update(library_sha256='other-library'))
+        self.assertEqual(self.collect()[0], 1)
+
+    def test_pass_flag_does_not_override_original_threshold(self):
+        self.mutate(lambda r: r.update(correctness=[dict(cosine_vs_fp32=.99,
+                                                        top1_agreement_vs_fp32=1.)]))
+        self.assertEqual(self.collect()[0], 1)
+
+    def test_transient_dirty_memory_is_rejected(self):
+        self.session['processes'][0]['before']['used_mib'] = 4
         self.assertEqual(self.collect()[0], 1)
 
     def test_queue_matches_scheduler_glob_and_records_guarded_numa_command(self):

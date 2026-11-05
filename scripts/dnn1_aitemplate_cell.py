@@ -30,7 +30,7 @@ def queue(options):
         sources[str(ROOT / 'scripts' / name)] = sha(ROOT / 'scripts' / name)
     cell = dict(model=options.model, batch=options.batch, gpu=gpu, cpu_affinity=affinity,
                 parallel=True, python=python, timeout_s=14400, cache=str(AIT_ROOT / 'engines'),
-                source_sha256=sources)
+                source_sha256=sources, graph_mode=getattr(options, 'graph', True))
     save(out / 'cell.json', cell)
     metadata = subprocess.check_output(['nvidia-smi', '-i', str(gpu),
         '--query-gpu=uuid,pci.bus_id', '--format=csv,noheader,nounits'], text=True).strip()
@@ -47,7 +47,7 @@ def queue(options):
         '--out', '{attempt_dir}/job/ait']
     (out / 'queue').mkdir()
     save(out / 'queue/queue_dnn1_ait.json', [dict(name=f'ait-{options.model}-b{options.batch}', gpu=True,
-         timing=True, priority=10, timeout_s=86400, needs_free_mib=8192, cwd=str(ROOT),
+         timing=True, priority=200, timeout_s=86400, needs_free_mib=8192, cwd=str(ROOT),
          after=[], env=env, command=command)])
     launcher = ['env', '-u', 'TILEMEGA_DEVICE_GROUP', '-u', 'TILEMEGA_GPU_LOCK_HELD',
         '-u', 'TILEMEGA_RUN_NONCE', *[f'{key}={value}' for key, value in env.items()], python,
@@ -71,7 +71,8 @@ def run(options):
             raise ValueError('prepared AIT source changed: ' + path)
     options.out.mkdir(parents=True, exist_ok=False)
     session = dict(schema=1, system='aitemplate', model=cell['model'], batch=cell['batch'],
-                   gpu=cell['gpu'], started=time.time(), status='running', processes=[])
+                   gpu=cell['gpu'], graph_mode=cell.get('graph_mode', True),
+                   started=time.time(), status='running', processes=[])
     for number in range(5):
         role = 'measurement' if number < 3 else 'correctness'
         folder = options.out / f'{role}-{number}'
@@ -86,6 +87,10 @@ def run(options):
                    '--round-index', str(number)]
         if role == 'correctness':
             command += ['--correctness-only']
+        if not cell.get('graph_mode', True):
+            command += ['--no-graph']
+        if number == 0:
+            command += ['--profile-capture']
         result = protocol.execute(command, folder, os.environ.copy(), cell['timeout_s'])
         drain = protocol.passive_context_drain(cell)
         after = protocol.telemetry(cell)
@@ -94,7 +99,8 @@ def run(options):
                       receipt=str(receipt), receipt_sha256=sha(receipt) if receipt.exists() else None)
         session['processes'].append(result)
         save(options.out / 'cell-result.json', session)
-        if result['returncode'] or after['owners']:
+        if (result['returncode'] or after['owners'] or after['used_mib'] > 1 or
+                drain['status'] != 'empty_observed'):
             session.update(status='failed', ended=time.time())
             save(options.out / 'cell-result.json', session)
             return result['returncode'] or 75
@@ -157,6 +163,20 @@ def collect(options):
             issues.append('process identifies another GPU')
         if receipt.get('pid') != process['pid']:
             issues.append('receipt identifies another process')
+        if any(p.get('owners') or not 0 <= p.get('used_mib', -1) <= 1
+               for p in (process['before'], process['after'])):
+            issues.append('dirty process memory boundary')
+        if process.get('drain', {}).get('status') != 'empty_observed':
+            issues.append('process context did not drain')
+        if receipt.get('graph_mode', {}).get('requested') != session.get('graph_mode'):
+            issues.append('graph mode differs from the fixed cohort')
+        if receipt.get('identity', {}).get('recipe', {}).get('graph_mode') != session.get('graph_mode'):
+            issues.append('compiled graph mode identity differs')
+        passed, reason = protocol.strict_correctness(session['model'], receipt.get('correctness', []))
+        if not passed:
+            issues.append('original numerical threshold failed: ' + reason)
+        if receipt.get('protocol', {}).get('warmup') != 50:
+            issues.append('P-DNN requires 50 warmups')
         windows.append(audit_windows(process, receipt, outer))
         rows.append(receipt)
     if any(w['issues'] for w in windows):
@@ -169,6 +189,9 @@ def collect(options):
     identities = {json.dumps(r['identity'], sort_keys=True) for r in rows}
     if len(identities) != 1:
         issues.append('processes used different compiled identities')
+    for key in ('library_sha256', 'compiled_receipt_sha256', 'inputs_sha256'):
+        if any(not r.get(key) for r in rows) or len({r.get(key) for r in rows}) != 1:
+            issues.append('processes used different or absent ' + key)
     timing = {}
     if not issues:
         medians = [r['median_ms'] for r in measurements]
@@ -179,6 +202,8 @@ def collect(options):
     result = dict(status='pass' if not issues else 'quarantined', issues=issues,
                   model=session['model'], batch=session['batch'], system='aitemplate',
                   gpu=session['gpu'], precision='bf16', processes=len(rows),
+                  graph_mode=session.get('graph_mode'),
+                  graph_observations=[r.get('graph_mode') for r in rows],
                   correctness_passes=sum(r.get('correctness_passed', False) for r in rows),
                   correctness_policy='P-CORR-v2: original thresholds in every fresh process',
                   correctness=[r['correctness'] for r in rows], windows=windows,
@@ -197,6 +222,7 @@ def main():
     preparer.add_argument('--batch', type=int, choices=[1, 2, 4, 8, 16], required=True)
     preparer.add_argument('--gpu', type=int, choices=sorted(AFFINITY), required=True)
     preparer.add_argument('--out', type=Path, required=True)
+    preparer.add_argument('--graph', action=argparse.BooleanOptionalAction, default=True)
     runner = sub.add_parser('run')
     runner.add_argument('--cell', type=Path, required=True)
     runner.add_argument('--out', type=Path, required=True)

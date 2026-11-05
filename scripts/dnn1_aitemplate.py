@@ -24,11 +24,11 @@ import traceback
 ROOT = Path(__file__).resolve().parents[1]
 AIT_ROOT = ROOT / "runs/dnn1/resume/aitemplate"
 AIT_COMMIT = "23a2e348857591ac41f4946f0177c53d833a0104"
-RECIPE = dict(schema=1, frontend="uniform-static-ATen-NHWC", precision="bf16",
+RECIPE = dict(schema=2, frontend="uniform-static-ATen-NHWC", precision="bf16",
               target="cuda-sm90a", use_fp16_acc=False, use_fast_math=True,
               allow_cutlass_sm90=True, force_cutlass_sm90=False,
               optimize_graph=True, profile_timeout_s=500, profile_devices=[0],
-              num_runtimes=1, graph_mode=False, warmup=50, iterations=200)
+              num_runtimes=1, graph_mode=True, warmup=50, iterations=200)
 
 
 def sha(path):
@@ -246,7 +246,8 @@ def sample(options):
 
     def run():
         engine.run_with_tensors(runtime_inputs, actual_outputs,
-            stream_ptr=torch.cuda.current_stream().cuda_stream, sync=False, graph_mode=False)
+            stream_ptr=torch.cuda.current_stream().cuda_stream, sync=False,
+            graph_mode=RECIPE['graph_mode'])
         return [actual_outputs[f"output_{i}"] for i in range(len(actual_outputs))]
 
     with torch.inference_mode():
@@ -261,6 +262,23 @@ def sample(options):
         values = [] if options.correctness_only else baseline.timed(run, 0, 200)
         baseline.observe(guard_log, "after-measurement")
     ordered = sorted(values)
+    graph_observation = dict(requested=RECIPE['graph_mode'],
+        scope='official runtime graph mode; whole-model capture is not asserted')
+    if options.profile_capture:
+        try:
+            with torch.profiler.profile(activities=[torch.profiler.ProfilerActivity.CPU,
+                                                    torch.profiler.ProfilerActivity.CUDA]) as profiler:
+                run()
+                torch.cuda.synchronize()
+            trace = options.out / 'capture_trace.json'
+            profiler.export_chrome_trace(str(trace))
+            events = json.loads(trace.read_text())['traceEvents']
+            graph_observation.update(profiler_trace=str(trace),
+                cuda_graph_launch_events=sum('cudagraphlaunch' in e.get('name', '').lower() for e in events),
+                trace_sha256=sha(trace))
+            graph_observation['capture_verified'] = graph_observation['cuda_graph_launch_events'] > 0
+        except Exception as error:
+            graph_observation.update(profiler_error=repr(error), capture_verified=False)
     save(options.out / "measurements.json", dict(schema_version=1, evidence="verified",
          system="aitemplate", model=options.model, batch=options.batch, precision="bf16",
          pid=os.getpid(), gpu_index=device_index, round_index=options.round_index,
@@ -270,6 +288,8 @@ def sample(options):
          p90_ms=ordered[math.ceil(.9 * len(ordered))-1] if values else None,
          guard_log=str(guard_log.resolve()), identity=identity, tvm_publication=publication,
          cache_hit=cache_hit, compiled_receipt_sha256=sha(compiled),
+         library_sha256=sha(engine.lib_path),
+         graph_mode=graph_observation,
          protocol=dict(warmup=50, iterations=0 if options.correctness_only else 200,
                        input_seed=options.seed, reference="same exported BF16 weights promoted FP32"),
          inputs_sha256=baseline.inputs_digest(args, kwargs)[0],
@@ -291,7 +311,11 @@ def main():
     parser.add_argument("--builders", type=int, default=2)
     parser.add_argument("--correctness-only", action="store_true")
     parser.add_argument("--round-index", type=int, default=0)
+    parser.add_argument('--graph', action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument('--profile-capture', action='store_true')
     options = parser.parse_args()
+    RECIPE.update(graph_mode=options.graph,
+                  schema=2 if options.graph else '2-no-graph-reference')
     if options.all_cells and options.command != "prepare":
         parser.error("--all-cells is CPU graph import only")
     if not options.all_cells and not options.model:
