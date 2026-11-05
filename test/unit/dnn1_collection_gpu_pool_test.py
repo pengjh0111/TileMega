@@ -30,6 +30,12 @@ class CollectionPoolTest(unittest.TestCase):
     def test_old_ait_epochs_keep_their_original_pool(self):
         self.assertEqual(ait.gpu_pool({}), [5, 7, 0, 1])
 
+    def test_canary_and_remaining_cells_are_explicit_without_duplicates(self):
+        self.assertEqual(ait.collection_cells({'cells':[['resnet18',1]]}), [('resnet18',1)])
+        self.assertEqual(len(ait.collection_cells({})), 25)
+        with self.assertRaises(ValueError):
+            ait.collection_cells({'cells':[['resnet18',1],['resnet18',1]]})
+
 
 if __name__ == '__main__':
     unittest.main()

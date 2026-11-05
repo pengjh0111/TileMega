@@ -45,6 +45,14 @@ def gpu_pool(config):
     return values
 
 
+def collection_cells(config):
+    values = config.get('cells', [[m, b] for m in base.MODELS for b in (1, 2, 4, 8, 16)])
+    cells = [tuple(value) for value in values]
+    if not cells or len(cells) != len(set(cells)) or not set(cells) <= CELLS:
+        raise ValueError('AIT collection requires distinct supported cells')
+    return cells
+
+
 def disk_snapshot(epoch, phase, model, batch):
     usage = shutil.disk_usage(ROOT)
     owned = {}
@@ -184,7 +192,8 @@ def _dispatch(args, lifetime):
             tvm_accepted=sum(s.get('accepted', 0) for s in states), tvm_states=states, gpu_workers={}))
         time.sleep(30)
     publication = release(config, epoch)
-    pending = [(m, b) for m in base.MODELS for b in (1, 2, 4, 8, 16)]
+    pending = collection_cells(config)
+    requested_cells = len(pending)
     active, accepted, failures = {}, [], []
     while pending or active:
         for gpu, (process, log, folder, model, batch) in list(active.items()):
@@ -234,7 +243,8 @@ def _dispatch(args, lifetime):
             pending=[f'{m}_b{b}' for m, b in pending],
             gpu_workers={str(g): dict(pid=p.pid, model=m, batch=b) for g,(p,_,_,m,b) in active.items()},
             failures=failures, release=publication, graph_mode=True, priority=200,
-            max_background_cards=2, gpus=gpus, power_monitoring=False, time=time.time()))
+            max_background_cards=2, gpus=gpus, requested_cells=requested_cells,
+            power_monitoring=False, time=time.time()))
         if pending or active:
             time.sleep(15)
     return int(bool(failures))
