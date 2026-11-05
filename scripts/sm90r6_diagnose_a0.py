@@ -50,15 +50,20 @@ def summarize(receipt, predictions, winner, frozen):
         delta_replay_ns=a['replay_ns']-f['replay_ns'])
 
 
-def diagnose(root, cell, evaluator, out):
+def diagnose(root, cell, evaluator, out, measurement_root=None):
     out.mkdir(parents=True, exist_ok=False)
-    directory = root/'ablation/pabl-v1'/cell
+    directory = (measurement_root or root/'ablation/pabl-v1')/cell
     measured_path = directory/'measurement/result.json'
     measured = read(measured_path)
-    if measured['protocol'] != 'P-ABL' or measured['source_sha256'] != sha(directory/'arms.json'):
+    allowed=measured['protocol']=='P-ABL'
+    if measurement_root is not None:
+        missing={'olmoe_1b_7b-B1':'AB1a','qwen3_30b_a3b-B16':'AB1b'}
+        allowed=allowed or (measured['protocol']=='P-ABL partial seven-arm' and
+            measured.get('excluded_arm')==missing.get(cell) and cell in missing)
+    if not allowed or measured['source_sha256'] != sha(directory/'arms.json'):
         raise ValueError('DT-A0 requires the completed original P-ABL manifest')
     evidence = dict(measurement=str(measured_path), measurement_sha256=sha(measured_path),
-                    triggered=triggered(measured), action='report only; no new search or selection')
+                    triggered=triggered(measured),measurement_protocol=measured['protocol'], action='report only; no new search or selection')
     if not evidence['triggered']:
         write(out/'result.json', evidence)
         return evidence
@@ -109,4 +114,5 @@ if __name__ == '__main__':
     p.add_argument('--cell', required=True)
     p.add_argument('--evaluator', type=Path, required=True)
     p.add_argument('--out', type=Path, required=True)
-    a = p.parse_args(); print(json.dumps(diagnose(a.root, a.cell, a.evaluator, a.out)))
+    p.add_argument('--measurement-root',type=Path,help='explicit root for declared partial P-ABL cells')
+    a = p.parse_args(); print(json.dumps(diagnose(a.root, a.cell, a.evaluator, a.out,a.measurement_root)))

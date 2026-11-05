@@ -2,9 +2,11 @@ import copy
 from pathlib import Path
 import sys
 import unittest
+import tempfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]/'scripts'))
-from sm90r6_diagnose_a0 import summarize, triggered
+from sm90r6_diagnose_a0 import summarize, triggered, diagnose
+from sm90d1_common import write,sha
 
 
 class Diagnosis(unittest.TestCase):
@@ -16,6 +18,23 @@ class Diagnosis(unittest.TestCase):
         self.assertFalse(triggered(m))
         m['comparisons']['F']['change_pct'] = 0
         with self.assertRaises(ValueError): triggered(m)
+
+    def test_partial_diagnostic_keeps_protocol_and_rejects_wrong_exclusion(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);base=root/'partial';cell='olmoe_1b_7b-B1'
+            directory=base/cell;(directory/'measurement').mkdir(parents=True)
+            write(directory/'arms.json',{})
+            measured=dict(protocol='P-ABL partial seven-arm',excluded_arm='AB1a',
+                source_sha256=sha(directory/'arms.json'),
+                arms={arm:dict(tpot_ms=1,range_pct=.1) for arm in ('A0','F')},
+                comparisons={'F':dict(change_pct=0,threshold_pct=.5)})
+            path=directory/'measurement/result.json';write(path,measured)
+            result=diagnose(root,cell,root/'unused',root/'good',base)
+            self.assertFalse(result['triggered'])
+            self.assertEqual(result['measurement_protocol'],measured['protocol'])
+            measured['excluded_arm']='AB1b';write(path,measured)
+            with self.assertRaisesRegex(ValueError,'P-ABL manifest'):
+                diagnose(root,cell,root/'unused',root/'bad',base)
 
     def fixture(self):
         candidates = [dict(coordinates=i, pool_ns=p, structural_class=s)
