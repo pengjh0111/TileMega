@@ -55,6 +55,12 @@ def merge(root,allow_partial=False,only_cells=None):
                 if prediction['coordinates'] != coordinate:
                     raise ValueError('F coordinates changed')
                 pool, replay, objective = prediction['pool_ns'], prediction['replay_ns'], 'frozen F prediction'
+                a0_source=read(root/'a0/finalists-v1'/name/'source.json')
+                if sha(a0_source['receipt'])!=a0_source['receipt_sha256']:
+                    raise ValueError('A0 search receipt changed')
+                matches=[c for c in read(a0_source['receipt'])['evaluated'] if c['coordinates']==coordinate]
+                if len(matches)!=1:raise ValueError('F structural class is not unique in original E')
+                structural_class=matches[0]['structural_class']
             else:
                 if arm in ('A0', 'AB1a', 'AB1b'):
                     if arm == 'A0':
@@ -81,6 +87,7 @@ def merge(root,allow_partial=False,only_cells=None):
                 if arm != 'AB4c' and sha(binary) != sha(selected_binary):
                     raise ValueError('P-ABL binary differs from P-SEL')
                 pool, replay = candidate['pool_ns'], candidate['replay_ns']
+                structural_class=candidate['structural_class']
                 objective = receipt.get('objective', 'pipeline')
                 solve_seconds = receipt.get('seconds', '')
                 if arm == 'AB4c':
@@ -102,6 +109,7 @@ def merge(root,allow_partial=False,only_cells=None):
                 winner_build_seconds=build_time['ended'] - build_time['started'],
                 winner_build_queue_seconds=build_time['started'] - build_time['queued'],
                 geometry_tn_tk_wn_wk_slots_rs_mc_mma=geometry, structure=structure,
+                structural_class=structural_class,
                 coordinates_sha256=identity['plan']['coordinates_sha256'], binary_sha256=sha(binary),
                 gpu=measured['gpu'], concurrency='trial', evidence='verified',
                 measurement_status='verified',measurement_protocol=measured['protocol'],
