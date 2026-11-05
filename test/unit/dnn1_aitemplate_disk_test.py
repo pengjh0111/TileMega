@@ -12,6 +12,18 @@ import dnn1_aitemplate_collect as controller
 
 
 class DiskTest(unittest.TestCase):
+    def test_dispatch_limit_accepts_only_authorized_one_through_four(self):
+        with tempfile.TemporaryDirectory() as folder:
+            epoch = Path(folder)
+            self.assertEqual(controller.dispatch_limit(epoch), 2)
+            for value in (1, 2, 3, 4):
+                (epoch / 'dispatch_limit.json').write_text(json.dumps(dict(max_background_cards=value)))
+                self.assertEqual(controller.dispatch_limit(epoch), value)
+            for value in (0, 5, True, '4', 2.5):
+                (epoch / 'dispatch_limit.json').write_text(json.dumps(dict(max_background_cards=value)))
+                with self.assertRaises(ValueError):
+                    controller.dispatch_limit(epoch)
+
     def test_reassignment_admission_requires_current_empty_and_unreserved_card(self):
         clean = dict(owners={}, used_mib=0, free_mib=80000)
         with tempfile.TemporaryDirectory() as folder:

@@ -53,6 +53,14 @@ def collection_cells(config):
     return cells
 
 
+def dispatch_limit(epoch):
+    path = epoch / 'dispatch_limit.json'
+    value = base.read(path)['max_background_cards'] if path.exists() else 2
+    if type(value) is not int or value not in (1, 2, 3, 4):
+        raise ValueError('AIT dispatcher limit must be one through four physical cards')
+    return value
+
+
 def disk_snapshot(epoch, phase, model, batch):
     usage = shutil.disk_usage(ROOT)
     owned = {}
@@ -209,9 +217,7 @@ def _dispatch(args, lifetime):
     fifo = config.get('guard_provider') == 'fifo-settle'
     while pending or active:
         limit_path = epoch / 'dispatch_limit.json'
-        limit = base.read(limit_path)['max_background_cards'] if limit_path.exists() else 2
-        if type(limit) is not int or limit not in (1, 2):
-            raise ValueError('AIT dispatcher limit must be one or two physical cards')
+        limit = dispatch_limit(epoch)
         for gpu, (process, log, folder, model, batch) in list(active.items()):
             if process.poll() is None:
                 continue
