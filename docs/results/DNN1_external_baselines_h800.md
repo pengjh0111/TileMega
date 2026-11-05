@@ -1,6 +1,6 @@
 # DNN1 H800 external baselines
 
-Verified checkpoint: TVM **25/25 BF16 cells accepted**; AITemplate **GPU collection pending**. TileMega native optimization remains paused. Existing TRT/torch.compile primary125 rows are unchanged.
+Verified checkpoint: TVM **25/25 BF16 cells accepted**; AITemplate **5/25 BF16 cells accepted (partial)**. TileMega native optimization remains paused. Existing TRT/torch.compile primary125 rows are unchanged.
 
 Current data: [canonical150 rows](DNN1_baselines.csv), [TVM diagnostics](DNN1_tvm_diag.csv), [per-task allocation](DNN1_tvm_task_coverage.csv). Superseded importer failures are retained in [history](DNN1_tvm_history.csv) and [diagnostic history](DNN1_tvm_diag_history.csv); the five historical FP16 failures are not a new fallback cohort.
 
@@ -72,8 +72,24 @@ Selected databases total37,285 committed records: 32,386 successful, 4,899 faile
 
 ## AITemplate status
 
-Pinned AIT23a2e348857591ac41f4946f0177c53d833a0104; uniform static ATen/NHWC BF16, FP32 accumulation, SM90a, graph_mode=True,50/200 and original oracle. Recipe3 adds only explicit -lcuda for SM90 TMA profiler executables; CPU25 import readiness was refreshed after the source change. The original CPU profiler link error is retained. AIT GPU engines, profiler selections, correctness, capture traces and timings remain pending; CPU build success is not GPU support/performance evidence. AIT starts only after all25 validated TVM outcomes and drainage. No FP16 substitution or silent no-graph fallback.
+Verified partial checkpoint: [AIT accepted5 CSV](DNN1_aitemplate_partial.csv), [AIT artifact/clock diagnostics](DNN1_aitemplate_diag.csv). All five RN18 batches are accepted; the other20 cells remain in collection, not N/A. The canonical150 rows are unchanged until the full AIT cohort has terminal evidence.
+
+| model | B1 ms | B2 | B4 | B8 | B16 |
+|---|---:|---|---|---|---|
+| resnet18 | 0.399760 | 0.437856 | 0.501408 | 0.672944 | 0.991360 |
+| mbv1 | pending | pending | pending | pending | pending |
+| mbv2 | pending | pending | pending | pending | pending |
+| bert | pending | pending | pending | pending | pending |
+| nafnet | pending | pending | pending | pending | pending |
+
+Pinned AIT23a2e348857591ac41f4946f0177c53d833a0104; source/recipe7 uses uniform static ATen/NHWC BF16, FP32 accumulation, SM90a, graph_mode=True,50/200 and the original oracle. CPU25 readiness was refreshed against the exact source identity. Explicit driver linking, guarded physical profiler mapping, BF16 max-pool generation and official integer-enum output allocation fix demonstrated build/host errors; the original failures remain in runs. No precision/model/tolerance substitution or silent no-graph fallback is used.
+
+RN18 B1 on physicalGPU0 passes5/5 fresh processes; three timing medians0.399824/0.399440/0.399760ms yield0.096058% process range. Median p90 is0.404128ms; all six measurement clock boundaries are1980MHz. Library SHA32f615d82c4c4adcd33fb8608c31ce78dabb97960a658f3fc0d9c82d4068615e is identical across all5 processes. The actual engine has no CUDA-driver symbol references; its ELF has no libcuda dependency, so this cell does not validate a TMA-dependent engine's shared-link chain.
+
+The first timing process's separate profiler trace observes one cudaGraphLaunch. CPU disassembly of that actual accepted engine contains SM90a code and950 BF16 instruction lines. The pinned Model::RunAsGraph captures RunImpl and instantiates/updates the graph on each call before launching; graph_mode=True does not establish TRT-style cached replay equivalence. Profiling is outside the200 timed samples. Raw PID boundaries establish sampled singleton windows with provisional container ownership, not continuous exclusivity or host PID identity.
+
+Baseline-only FIFO admission preserves normal physical flock ordering, original six5s preflight samples,0–1MiB memory floor, process/reservation gates, bounded120s settling and NUMA/CPU binding. Independent NVML-only ABBA observations did not reproduce a prior owner-empty4MiB transient; no cause or cadence fix is claimed, and no floor was raised.
 
 ## Evidence
 
-Raw publication/hash/PID proofs: runs/dnn1/resume_tvm/completed25_publication_v1/. Exact source/task/receipt audits: runs/dnn1/baseline_completion_audit/tvm_cpu_audit*. Fairness probes: runs/dnn1/resume_tvm/fairness_v1/{convergence.json,design_space_receipt.json,static_weights_v1/summary.json}. Final BERT16: baseline_only_resume_20261105_v2_integrity. AIT source/CPU25: runs/dnn1/resume/aitemplate/linkfix_graph_v3/. All raw data, errors, traces, binaries and generated sources remain ignored under runs/.
+Raw publication/hash/PID proofs: runs/dnn1/resume_tvm/completed25_publication_v1/. Exact source/task/receipt audits: runs/dnn1/baseline_completion_audit/tvm_cpu_audit*. Fairness probes: runs/dnn1/resume_tvm/fairness_v1/{convergence.json,design_space_receipt.json,static_weights_v1/summary.json}. Final BERT16: baseline_only_resume_20261105_v2_integrity. AIT source/CPU25: runs/dnn1/resume/aitemplate/runtime_ABI_graph_v7/; accepted canary: baseline_only_graph_v7_canary_fifo_20261105; remaining24: baseline_only_graph_v7_remaining24_fifo_20261105. Independent build/API/observer proofs: runs/dnn1/baseline_completion_audit/ait_*. All raw data, errors, traces, binaries and generated sources remain ignored under runs/.
