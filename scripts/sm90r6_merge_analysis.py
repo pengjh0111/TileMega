@@ -30,7 +30,7 @@ def write(path, rows):
         writer = csv.DictWriter(stream, list(rows[0]), lineterminator='\n')
         writer.writeheader()
         for row in rows:
-            writer.writerow({k:format(v,'.9g') if isinstance(v,float) else v for k,v in row.items()})
+            writer.writerow(row)
 
 
 def inputs(cell):
