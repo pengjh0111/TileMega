@@ -650,7 +650,7 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
           bind.row_partials=add_scratch("native_forward.row_partial."+std::to_string(index),
               "f32",std::uint64_t(rows)*tiles*2);
           bind.row_counters=add_scratch("native_forward.row_counter."+std::to_string(index),
-              "i32",2*((std::uint64_t(rows)+63)/64));
+              "i32",2*((std::uint64_t(rows)+c.tile_m-1)/c.tile_m));
         }
         if(bind.residual!=kAbsent)shape.residual_stride=width_of(bind.residual);
         int store=gated?n/2:n;stored_width=store;

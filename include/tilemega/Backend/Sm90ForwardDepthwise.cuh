@@ -33,7 +33,7 @@ struct Sm90ForwardDepthwise {
   using Element=cutlass::bfloat16_t;
   using Async=codegen::executor::Async<arch::Sm90>;
   static_assert((Stride==1 || Stride==2) && TW>0 && TH>0 && CT%8==0);
-  static_assert(Slots>=2 && Slots<=4);
+  static_assert(Slots>=2 && Slots<=8);
   static constexpr int kThreads=160;
   static constexpr int kHaloW=(TW-1)*Stride+3,kHaloH=(TH-1)*Stride+3;
   // A slot holds one channel block's halo and that block's filters, which

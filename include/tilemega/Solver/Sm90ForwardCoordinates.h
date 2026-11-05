@@ -34,8 +34,8 @@ struct Sm90ForwardStage {
 
   void Validate() const {
     bool matrix=body==Sm90ForwardBody::kGemm || body==Sm90ForwardBody::kConv;
-    if(matrix && tile_m!=64 && tile_m!=128)
-      throw std::invalid_argument("forward TM must be 64 or 128 until DT-TM enables 32");
+    if(matrix && tile_m!=32 && tile_m!=64 && tile_m!=128)
+      throw std::invalid_argument("forward TM must be 32, 64 or 128");
     if(matrix && tile_m*tile_n>16384)
       throw std::invalid_argument("forward WGMMA accumulator exceeds Sm90Gmma.h capacity");
     if(body==Sm90ForwardBody::kEncoderAttention &&

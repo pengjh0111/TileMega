@@ -117,15 +117,15 @@ inline Sm90ForwardResourceUsage QuerySm90ForwardResources(Sm90ForwardShape const
   switch(c.body) {
     case Sm90ForwardBody::kGemm:
     case Sm90ForwardBody::kConv: {
-      r.slot_bytes=Sm90ForwardGemmSlotBytes(c.tile_m,c.tile_n,64);
+      r.slot_bytes=Sm90ForwardGemmSlotBytes(c.tile_m,c.tile_n,64,c.body==Sm90ForwardBody::kConv);
       r.shared_bytes=Sm90ForwardGemmLayout(c.tile_m,c.tile_n,64,c.slots,
-          Sm90ForwardChainScratchBytes(c.tile_m,needs_stats)).end;
+          Sm90ForwardChainScratchBytes(c.tile_m,needs_stats),c.body==Sm90ForwardBody::kConv).end;
       r.task_count=ceildiv(shape.m,c.tile_m)*ceildiv(shape.n,c.tile_n)*c.split_k;
       r.store_columns=std::min(c.tile_n/(g.At("gated").AsBool("gated")?2:1),positive("store_columns"));
       break;
     }
     case Sm90ForwardBody::kDepthwise: {
-      if(c.slots>4)throw std::invalid_argument("depthwise supports at most four ring slots");
+      if(c.slots>8)throw std::invalid_argument("depthwise supports at most eight ring slots");
       int pack=positive("depthwise_pack"),rows=c.tile_w*c.tile_h;
       r.slot_bytes=Sm90ForwardDepthwiseSlotBytes(c.tile_w,c.tile_h,c.channel_block,shape.stride,pack);
       r.shared_bytes=Sm90ForwardDepthwiseLayout(c.tile_w,c.tile_h,c.channel_block,shape.stride,

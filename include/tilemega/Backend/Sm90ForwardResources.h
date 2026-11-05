@@ -7,10 +7,14 @@ constexpr int Sm90ForwardAlign(int bytes) {return (bytes+1023)/1024*1024;}
 constexpr int Sm90ForwardChainScratchBytes(int rows,bool needs_stats) {
   return needs_stats?8*rows:16;
 }
-constexpr int Sm90ForwardGemmSlotBytes(int tm,int tn,int tk) {return 2*tk*(tm+tn);}
-constexpr Sm90DenseLayout Sm90ForwardGemmLayout(int tm,int tn,int tk,int slots,int chain_scratch) {
-  int scratch=1024+slots*Sm90ForwardGemmSlotBytes(tm,tn,tk);
-  return {1024,1024+2*slots*tk*tm,scratch,
+// The existing im2col tensor map transfers 64 rows even when MMA consumes 32.
+constexpr int Sm90ForwardActivationRows(int tm,bool im2col) {return im2col && tm==32?64:tm;}
+constexpr int Sm90ForwardGemmSlotBytes(int tm,int tn,int tk,bool im2col=false) {
+  return 2*tk*(Sm90ForwardActivationRows(tm,im2col)+tn);
+}
+constexpr Sm90DenseLayout Sm90ForwardGemmLayout(int tm,int tn,int tk,int slots,int chain_scratch,bool im2col=false) {
+  int scratch=1024+slots*Sm90ForwardGemmSlotBytes(tm,tn,tk,im2col);
+  return {1024,1024+2*slots*tk*Sm90ForwardActivationRows(tm,im2col),scratch,
       Sm90ForwardAlign(scratch+4*tm*tn+chain_scratch+16)};
 }
 constexpr int Sm90ForwardDepthwiseSlotBytes(int tw,int th,int channels,int stride,int pack) {

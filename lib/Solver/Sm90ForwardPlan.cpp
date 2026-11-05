@@ -149,7 +149,8 @@ void Dnn1EncodeGeometry(frontend::ModelPlan const& plan,std::size_t index,int ba
   auto const& stage=plan.stages.at(index);json::Value g(json::Object{});
   auto number=[&](char const* key,std::int64_t value) {g.Set(key,double(value));};
   number("batch",batch);number("rows",0);number("channels",shape.channels);
-  bool gated=false,needs_stats=false,row_stats=false;
+  bool gated=false,needs_stats=false,row_stats=false,channel_pool=false;
+  g.Set("has_input_scale",false);
   g.Set("epilogue_steps",json::Array{});g.Set("depthwise_epilogue_steps",json::Array{});
   g.Set("store_kind","scalar_2byte");g.Set("pv_kind","tensor_core");
   auto image=[&](codegen::ConvDesc const& c) {
@@ -158,6 +159,18 @@ void Dnn1EncodeGeometry(frontend::ModelPlan const& plan,std::size_t index,int ba
   };
   auto chain=[&](codegen::DmEpilogueChain const& operations) {
     g.Set("epilogue_steps",Dnn1Steps(operations,gated,needs_stats,row_stats));
+    for(unsigned i=0;i<operations.side_count;++i)
+      channel_pool|=operations.side[i].kind==codegen::DmSideOutputKind::kChannelPartialSums;
+  };
+  auto output_geometry=[&](frontend::PlanBuffer const& out) {
+    number("output_pitch",Dnn1Pitch(out));
+    if(channel_pool) {
+      auto const& layout=out.layout;
+      if(layout.rank!=4 || layout.kind!=codegen::DmLayout::kNHWC)
+        throw std::invalid_argument("channel pool producer needs an NHWC output");
+      number("pool_rows",std::int64_t(layout.logical[1])*layout.logical[2]);
+      number("pool_channels",layout.logical[3]);
+    }
   };
   switch(shape.body) {
     case Sm90ForwardBody::kGemm:case Sm90ForwardBody::kConv:case Sm90ForwardBody::kGemv: {
@@ -166,7 +179,15 @@ void Dnn1EncodeGeometry(frontend::ModelPlan const& plan,std::size_t index,int ba
       shape.m=std::int64_t(batch)*gemm.access.rows_per_batch;shape.pixels=shape.m;
       if(gemm.access.a==codegen::DmAAccess::kIm2Col)image(plan.convolutions.at(gemm.access.conv));
       chain(gemm.chain);number("store_columns",gated?gemm.n/2:gemm.n);number("rows",shape.m);
-      number("output_pitch",Dnn1Pitch(out));
+      output_geometry(out);
+      if(gemm.access.a_scale!=codegen::kDmNoIndex) {
+        auto const& scale=plan.buffers.at(gemm.access.a_scale).layout;
+        if(shape.body!=Sm90ForwardBody::kGemm || scale.rank!=2 ||
+            scale.logical[0]!=unsigned(batch) || !scale.logical[1] || scale.strides[1]!=1)
+          throw std::invalid_argument("SCA prediction requires dense [batch,channels] scale: index="+std::to_string(index)+" mode="+std::to_string(int(gemm.access.a))+" rank="+std::to_string(scale.rank)+" B="+std::to_string(scale.logical[0])+" C="+std::to_string(scale.logical[1])+" stride="+std::to_string(scale.strides[1]));
+        g.Set("has_input_scale",true);number("scale_rows",gemm.access.rows_per_batch);
+        number("scale_channels",scale.logical[1]);number("scale_stride",scale.strides[0]);
+      }
       g.Set("store_kind",gemm.access.write.kind==codegen::DmWriteKind::kDense?"vector_16byte":"scalar_2byte");
       // Coordinate-dependent padded N remains ceil(N/TN)*TN in codegen/cost.
       shape.weight_bytes=2*shape.n*shape.k;shape.activation_bytes=2*shape.m*shape.k;
@@ -187,6 +208,10 @@ void Dnn1EncodeGeometry(frontend::ModelPlan const& plan,std::size_t index,int ba
         if(dw_gated || dw_stats || dw_rows)throw std::invalid_argument("fused DW register chain is not channel-wise");
         chain(plan.gemms.at(stage.gemm).chain);
       }
+      if(shape.body==Sm90ForwardBody::kDepthwise) {
+        channel_pool|=stage.operands[3]!=codegen::kDmNoIndex;
+        output_geometry(plan.buffers.at(stage.operands[2]));
+      }else output_geometry(plan.buffers.at(plan.gemms.at(stage.gemm).d));
       number("store_columns",gated?shape.out_channels/2:shape.out_channels);
       g.Set("store_kind","vector_16byte");
       shape.output_bytes=2*shape.pixels*(gated?shape.out_channels/2:shape.out_channels);
@@ -236,7 +261,7 @@ void Dnn1EncodeGeometry(frontend::ModelPlan const& plan,std::size_t index,int ba
       shape.weight_bytes=4*shape.channels;shape.activation_bytes=shape.output_bytes=2*shape.m*shape.channels;break;
     }
   }
-  number("channels",shape.channels);g.Set("gated",gated);g.Set("needs_stats",needs_stats);g.Set("has_row_stats",row_stats);
+  number("channels",shape.channels);g.Set("gated",gated);g.Set("needs_stats",needs_stats);g.Set("has_row_stats",row_stats);g.Set("has_channel_pool",channel_pool);
   g.Set("source","DnnModelPlan descriptors; explicit batch and A rows; logical width distinct from physical pitch");
   shape.dnn1_geometry=std::move(g);
 }

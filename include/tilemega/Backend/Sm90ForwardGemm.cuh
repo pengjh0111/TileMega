@@ -3,7 +3,8 @@
 
 #include <tilemega/Backend/Sm90ForwardEpilogue.cuh>
 #include <tilemega/Backend/Sm90ForwardMark.cuh>
-#include <tilemega/Backend/Sm90Gmma.h>
+#include <tilemega/Backend/Sm90ForwardMma32.cuh>
+#include <tilemega/Backend/Sm90ForwardResources.h>
 #include <tilemega/Backend/Sm90DenseLayout.h>
 #include <tilemega/Backend/Sm90DenseRing.cuh>
 #include <tilemega/Backend/Sm90DenseRoles.cuh>
@@ -56,8 +57,8 @@ template<int TM,int TN,int TK,int Slots,int SplitK,Sm90ForwardAMode AMode,int M,
 struct Sm90ForwardGemm {
   using Element=cutlass::bfloat16_t;
   using Async=codegen::executor::Async<arch::Sm90>;
-  using Gmma=Sm90ForwardGmma<arch::Sm90,TM,TN,TK>;
-  static_assert(TM==64 || TM==128);
+  using Gmma=Sm90ForwardMath<TM,TN>;
+  static_assert(TM==32 || TM==64 || TM==128);
   static_assert(TN==32 || TN==64 || TN==128 || TN==256);
   static_assert(TK==64 && Slots>=2 && Slots<=8);
   static_assert(SplitK>=1 && K%(SplitK*TK)==0,"split-K divides the contraction into whole k tiles");
@@ -77,13 +78,14 @@ struct Sm90ForwardGemm {
   // the flattened NPQ pixel space, as the im2col map's traversal does.
   static constexpr int kTiles=N/TN,kMTiles=(M+TM-1)/TM;
   static constexpr int kOutputTiles=kMTiles*kTiles,kTasks=kOutputTiles*SplitK;
-  static constexpr int kSlotBytes=2*TK*(TM+TN);
+  static constexpr int kActivationRows=Sm90ForwardActivationRows(TM,AMode==Sm90ForwardAMode::kIm2col);
+  static constexpr int kSlotBytes=2*TK*(kActivationRows+TN);
   // The accumulator tile the chain rewrites, then the per-row (mu, 1/sigma)
   // a deferred normalization needs and the split-K last-arriver flag.
   static constexpr int kScratchBytes=4*TM*TN+Chain::kScratchBytes+16;
   // 1 KB header, the ring, then that scratch.
-  static constexpr Sm90DenseLayout kLayout{1024,1024+2*Slots*TK*TM,
-      1024+Slots*kSlotBytes,(1024+Slots*kSlotBytes+kScratchBytes+1023)/1024*1024};
+  static constexpr Sm90DenseLayout kLayout=Sm90ForwardGemmLayout(TM,TN,TK,Slots,
+      Chain::kScratchBytes,AMode==Sm90ForwardAMode::kIm2col);
   static constexpr int kSharedBytes=kLayout.end;
 
   // Byte offset of element (row, column) of a 64-column SW128 A panel.
@@ -133,7 +135,7 @@ struct Sm90ForwardGemm {
       // Weights: the tile's K-major pages are contiguous per (tile, k).
       Async::Bulk(b+slot*TN*TK,p.weight+(std::size_t(n_tile)*(K/TK)+k/TK)*TN*TK,2*TN*TK,
           state.full+slot);
-      IssueA(a+slot*TM*TK,p,m_tile,k,state.full+slot);
+      IssueA(a+slot*kActivationRows*TK,p,m_tile,k,state.full+slot);
       phase^=1u<<slot;
     }
     if(tasks)for(int slot=0;slot<Slots;++slot)state.producer_generations[slot]=(phase>>slot)&1;
@@ -186,8 +188,7 @@ struct Sm90ForwardGemm {
       // The padded tail of N has weights but no output columns.
       int width=NStore-n_tile*Chain::kWidth;
       if(width>Chain::kWidth)width=Chain::kWidth;
-      auto accum=partition_fragment_C(typename Gmma::Mma{},Shape<Int<TM>,Int<TN>>{});
-      clear(accum);
+      auto accum=Gmma::Make();
       TM_FWD_TRACE_BEGIN(main_trace);
       for(int iteration=0;iteration<kIterations;++iteration) {
         int slot=(local*kIterations+iteration)%Slots;
@@ -195,11 +196,11 @@ struct Sm90ForwardGemm {
         Async::Wait(state.full+slot,(phase>>slot)&1);phase^=1u<<slot;
         TM_FWD_TRACE_END(wait_trace);
         if(local==0 && iteration==0) {TM_FWD_TRACE_FIRST_READY();}
-        ScalePanel(p,a+slot*TM*TK,m_tile,slice*kIterations+iteration);
-        Gmma::Accumulate(b+slot*TN*TK,a+slot*TM*TK,accum);
+        ScalePanel(p,a+slot*kActivationRows*TK,m_tile,slice*kIterations+iteration);
+        Gmma::Accumulate(b+slot*TN*TK,a+slot*kActivationRows*TK,accum);
         // WGMMA reads the slot asynchronously: its commit must land before the
         // slot is released for the producer's next async write.
-        Sm90Gmma<arch::Sm90>::template Wait<0>();
+        Gmma::Wait();
         Async::FenceProxyAsyncShared();
         Async::Arrive(state.empty+slot);
       }
@@ -287,7 +288,7 @@ struct Sm90ForwardGemm {
   __device__ static __forceinline__ void Run(Sm90ForwardGemmOperands const& p,char* shared,
       Sm90DenseRingState& state) {
     auto* a=reinterpret_cast<Element*>(shared+1024);
-    auto* b=a+Slots*TM*TK;
+    auto* b=a+Slots*kActivationRows*TK;
     auto* scratch=shared+kLayout.scratch;
     unsigned phase=0;
     // Only the issuing producer reads its phase. Other producer lanes do not

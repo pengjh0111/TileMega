@@ -77,7 +77,7 @@ def dispatch(manifest, defines, source):
         if body in ('gemm', 'conv'):
             tm, tn, tk, slots, split, mode = head(arguments, 6)
             if (int(tm) != (64 if schema == 1 else stage['tile_m']) or
-                    int(tm) not in (64, 128) or tk != '64' or int(tn) != stage['tile_n'] or
+                    int(tm) not in (32, 64, 128) or tk != '64' or int(tn) != stage['tile_n'] or
                     int(slots) != stage['slots'] or int(split) != stage['split_k'] or
                     mode != 'Sm90ForwardAMode::' + ('kIm2col' if body == 'conv' else 'kDense')):
                 raise ValueError(f'native forward GEMM stage {index} differs from its coordinate')
