@@ -1573,6 +1573,10 @@ add_test(NAME dnn_bf16_gates
   COMMAND ${CMAKE_COMMAND} -E env "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python"
     ${Python3_EXECUTABLE} -m unittest discover
     -s ${CMAKE_CURRENT_SOURCE_DIR}/test/python -p test_dnn_gates.py)
+add_test(NAME dnn3_weights
+  COMMAND ${CMAKE_COMMAND} -E env "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python"
+    ${Python3_EXECUTABLE} -m unittest discover
+    -s ${CMAKE_CURRENT_SOURCE_DIR}/test/python -p test_dnn3_weights.py)
 
 if(TILEMEGA_BUILD_TESTS AND Python3_EXECUTABLE)
   add_test(NAME serving_workload_host COMMAND ${CMAKE_COMMAND} -E env
