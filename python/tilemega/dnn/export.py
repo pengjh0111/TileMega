@@ -10,7 +10,14 @@ from pathlib import Path
 
 import torch
 
-MODELS = ('resnet18', 'mbv1', 'mbv2', 'bert', 'nafnet')
+MODELS = ('resnet18', 'resnet34', 'vgg16', 'alexnet', 'mbv1', 'mbv2', 'bert', 'nafnet')
+TORCHVISION_MODELS = {
+    'resnet18': ('resnet18', 'ResNet18_Weights', 'IMAGENET1K_V1'),
+    'resnet34': ('resnet34', 'ResNet34_Weights', 'IMAGENET1K_V1'),
+    'vgg16': ('vgg16', 'VGG16_Weights', 'IMAGENET1K_V1'),
+    'alexnet': ('alexnet', 'AlexNet_Weights', 'IMAGENET1K_V1'),
+    'mbv2': ('mobilenet_v2', 'MobileNet_V2_Weights', 'IMAGENET1K_V2'),
+}
 DEFAULT_NAFNET = Path('/root/models/nafnet/NAFNet-SIDD-width32.pth')
 
 
@@ -24,16 +31,12 @@ def model(name, structure_only=False, nafnet_weights=DEFAULT_NAFNET, checkpoint=
     if random_weights and (structure_only or checkpoint):
         raise ValueError('random weights cannot be combined with structure-only or a checkpoint')
     initialize = structure_only or random_weights
-    if name in ('resnet18', 'mbv2'):
+    if name in TORCHVISION_MODELS:
         import torchvision.models as tv
-        if name == 'resnet18':
-            module = tv.resnet18(weights=None if initialize or checkpoint else
-                                 tv.ResNet18_Weights.IMAGENET1K_V1)
-            source = 'torchvision/resnet18/IMAGENET1K_V1'
-        else:
-            module = tv.mobilenet_v2(weights=None if initialize or checkpoint else
-                                     tv.MobileNet_V2_Weights.IMAGENET1K_V2)
-            source = 'torchvision/mobilenet_v2/IMAGENET1K_V2'
+        constructor, enumeration, variant = TORCHVISION_MODELS[name]
+        weights = None if initialize or checkpoint else getattr(getattr(tv, enumeration), variant)
+        module = getattr(tv, constructor)(weights=weights)
+        source = f'torchvision/{constructor}/{variant}'
         if checkpoint and not structure_only:
             module.load_state_dict(torch.load(checkpoint, map_location='cpu', weights_only=True), strict=True)
     elif name == 'mbv1':

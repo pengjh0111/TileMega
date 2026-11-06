@@ -17,6 +17,7 @@ import sys
 import traceback
 
 _run_context = {}
+CLASSIFICATION_MODELS = ('resnet18', 'resnet34', 'vgg16', 'alexnet', 'mbv1', 'mbv2')
 
 
 class BaselineFailure(RuntimeError):
@@ -229,7 +230,7 @@ def numerical_metrics(actual, reference, name):
         expected_rows = expected.reshape(-1, expected.shape[-1])
         row['cosine_min_vs_fp32'] = torch.nn.functional.cosine_similarity(
             flattened_rows, expected_rows, dim=1).min().item()
-        if name in ('resnet18', 'mbv1', 'mbv2'):
+        if name in CLASSIFICATION_MODELS:
             row['top1_agreement_vs_fp32'] = (value.argmax(-1) == expected.argmax(-1)).float().mean().item()
         if name == 'nafnet':
             row['psnr_vs_fp32_db'] = -10 * math.log10(max(row['mse_vs_fp32'], 1e-30))
@@ -251,7 +252,7 @@ def correctness_gate(name, rows):
             threshold = .999 if name.startswith('bert') else .9999
             minimum = row.get('cosine_min_vs_fp32', row['cosine_vs_fp32'])
             passed = math.isfinite(minimum) and minimum >= threshold
-            if name in ('resnet18', 'mbv1', 'mbv2'):
+            if name in CLASSIFICATION_MODELS:
                 passed = passed and row['top1_agreement_vs_fp32'] == 1.0
         if not passed:
             raise BaselineFailure('baseline failed the FP32 equivalence gate: ' +
