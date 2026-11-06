@@ -1,0 +1,55 @@
+{
+  "schema": 1,
+  "workload_id": "dnn-classic-v1",
+  "allowed_gpu_indices": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "devices": {
+    "0": {
+      "uuid": "GPU-73c1a37e-d3c0-dc24-b81d-6a5563ebe677",
+      "pci": "0000:0f:00.0",
+      "numa_node": 0
+    },
+    "1": {
+      "uuid": "GPU-344fa712-6ca8-3673-b04b-33b9c3cbffac",
+      "pci": "0000:10:00.0",
+      "numa_node": 0
+    },
+    "2": {
+      "uuid": "GPU-701b606f-5e57-e434-5e2b-d5cc774c3c9e",
+      "pci": "0000:41:00.0",
+      "numa_node": 0
+    },
+    "3": {
+      "uuid": "GPU-5b5e235a-09a2-fe8b-7754-916b7eb85976",
+      "pci": "0000:44:00.0",
+      "numa_node": 0
+    },
+    "4": {
+      "uuid": "GPU-1f2fad96-e938-be19-e775-94e8ae7501a4",
+      "pci": "0000:86:00.0",
+      "numa_node": 1
+    },
+    "5": {
+      "uuid": "GPU-676e5df2-ee6c-11b3-6faa-e1ab1911e0c3",
+      "pci": "0000:87:00.0",
+      "numa_node": 1
+    },
+    "6": {
+      "uuid": "GPU-ac78f16f-955d-c08b-e6fe-4e4554c8954d",
+      "pci": "0000:b7:00.0",
+      "numa_node": 1
+    }
+  },
+  "retired_gpu_uuid": "GPU-e7663e49-e611-cb17-4991-afa1b0cfe2e2",
+  "resource_policy": "processes-and-extra-memory-only",
+  "power_monitoring": false,
+  "evidence": "verified current NVML UUID/PCI mapping; user stated original throttled GPU removed and all remaining seven cards authorized",
+  "observed_utc": "2026-11-06T01:48:31.747479+00:00"
+}
