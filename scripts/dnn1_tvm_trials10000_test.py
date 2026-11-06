@@ -248,6 +248,12 @@ class Contracts(unittest.TestCase):
         harness = self.root / 'python/tilemega/dnn/baselines.py'
         harness.parent.mkdir(parents=True)
         harness.write_text('# synthetic identity fixture; never executed\n')
+        for relative in ('python/tilemega/dnn/tvm_baseline.py', 'scripts/dnn1_device.py',
+                         'scripts/dnn1_resource_entry.py', 'scripts/dnn1_supervised_python.py',
+                         'scripts/dnn1_guard_entry.py'):
+            path = self.root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('# synthetic identity fixture; never executed\n')
         export = self.root / 'runs/dnn1/exports/alexnet'
         (export / 'checkpoint').mkdir(parents=True)
         (export / 'exported_program.pt2').write_bytes(b'synthetic export; never loaded')
@@ -269,6 +275,13 @@ class Contracts(unittest.TestCase):
         self.assertEqual(len(cell['arms']), 5)
         self.assertEqual({arm['system'] for arm in cell['arms']}, {'tensorrt', 'torchcompile'})
         self.assertNotIn('tvm', {arm['system'] for arm in cell['arms']})
+        self.assertEqual(cell['recipe_sources'][str(mapping)], sample.sha(mapping))
+        with redirect_stdout(io.StringIO()):
+            collect.base.preflight(SimpleNamespace(run_root=queued))
+        mapping.write_text(mapping.read_text() + '\n')
+        with redirect_stdout(io.StringIO()), self.assertRaisesRegex(collect.base.PreparationPending,
+                'baseline source changed.*classic_h800_devices'):
+            collect.base.preflight(SimpleNamespace(run_root=queued))
         command = sample.read(queued / 'queue/queue_dnn1_baselines.json')[-1]['command']
         self.assertEqual(command[command.index('--expected-uuid') + 1],
                          'GPU-ac78f16f-955d-c08b-e6fe-4e4554c8954d')
@@ -286,6 +299,31 @@ class Contracts(unittest.TestCase):
             collect.base.collect(SimpleNamespace(run_root=empty, out=destination))
         self.assertTrue((destination / 'DNN_classic_baselines.csv').exists())
         self.assertFalse((destination / 'DNN1_baselines.csv').exists())
+
+    def test_tvm_device_mapping_sha_is_frozen_and_mutation_rejected(self):
+        tvm_root = collect.ROOT / 'runs/dnn1/resume_tvm/typed_runner_repair_v1/tvm'
+        identity, files = collect.source_freeze(tvm_root)
+        self.assertEqual(files[str(collect.base.CLASSIC_DEVICES)], sample.sha(collect.base.CLASSIC_DEVICES))
+        self.assertIn('source_diff_sha256', identity)
+        mapping = self.root / 'classic_h800_devices.json'
+        mapping.write_bytes(collect.base.CLASSIC_DEVICES.read_bytes())
+        preparation = self.root / 'preparation_classic_v1.json'
+        sample.save(preparation, dict(synthetic=True))
+        epoch = self.root / 'runs/dnn1/synthetic_freeze_only'
+        manifest = dict(profile=sample.PROFILE, budget=sample.BUDGET, fresh_database=True,
+            official_cuda_graph=False, workload_id=sample.WORKLOAD_ID, workload=sample.WORKLOAD,
+            asset_preparation=dict(path=str(preparation), sha256=sample.sha(preparation)),
+            epoch=str(epoch), cells=[dict(model=m, batch=b) for m, b in collect.CELLS],
+            max_parallel=2, other_baseline_max_parallel=2, process_timeout_s=18000, cell_timeout_s=108000,
+            gpus=[0, 6], protocol_sources={str(mapping): sample.sha(mapping)}, protected_files={},
+            tvm_root=str(tvm_root), source_identity=dict(source_diff_sha256=hashlib.sha256(b'').hexdigest()))
+        sample.save(epoch / 'manifest.json', manifest)
+        with patch.object(collect, 'ROOT', self.root), \
+             patch.object(collect.subprocess, 'check_output', return_value=b''):
+            collect.validate_manifest(epoch)
+            mapping.write_text(mapping.read_text() + '\n')
+            with self.assertRaisesRegex(ValueError, 'frozen experiment.*classic_h800_devices'):
+                collect.validate_manifest(epoch)
 
     def test_historical_csv_bytes_preserved(self):
         expected = {'DNN1_baselines.csv': '5f0288c1a68a3d02481ba54dbb49943275a0372934921039d4985e4a43997917',
