@@ -10,6 +10,9 @@ from pathlib import Path
 import dnn1_aitemplate as runner
 import dnn1_baselines as base
 import dnn1_aitemplate_failure as failure
+import dnn1_aitemplate_classic_release as classic
+
+LEGACY_MODELS = ('resnet18', 'mbv1', 'mbv2', 'bert', 'nafnet')
 
 
 def compact(value):
@@ -101,21 +104,35 @@ def publish(args):
     declarations = [(path, base.read(path)) for path in args.failure_declaration]
     keys = [(v['model'], v['batch']) for v in values] + [
         (value['model'], value['batch']) for _, value in declarations]
+    workload = getattr(args, 'workload', classic.WORKLOAD_ID)
+    models = classic.MODELS if workload == classic.WORKLOAD_ID else LEGACY_MODELS
+    expected = {(model, batch) for model in models for batch in base.BATCHES}
     if not keys or len(set(keys)) != len(keys):
         raise ValueError('accepted cells must be nonempty and distinct across epochs')
-    if args.complete and set(keys) != {(model, batch) for model in base.MODELS for batch in base.BATCHES}:
+    if not set(keys) <= expected:
+        raise ValueError('publication contains cells from another workload')
+    if args.complete and set(keys) != expected:
         raise ValueError('complete publication requires exactly25 distinct terminal cells')
-    order = {m: i for i, m in enumerate(base.MODELS)}
+    order = {m: i for i, m in enumerate(models)}
     values.sort(key=lambda r: (order[r['model']], r['batch']))
     pairs = [accepted_row(value, fields) for value in values]
     pairs.extend(failure.row(value, fields, path) for path, value in declarations)
     pairs.sort(key=lambda pair: (order[pair[0]['model']], pair[0]['batch']))
     args.out.mkdir(parents=True, exist_ok=True)
-    name = 'DNN1_aitemplate.csv' if args.complete else 'DNN1_aitemplate_partial.csv'
+    prefix = 'DNN_classic' if workload == classic.WORKLOAD_ID else 'DNN1'
+    name = prefix + ('_aitemplate.csv' if args.complete else '_aitemplate_partial.csv')
     write_csv(args.out / name, [p[0] for p in pairs], fields)
-    write_csv(args.out / 'DNN1_aitemplate_diag.csv', [p[1] for p in pairs])
+    write_csv(args.out / (prefix + '_aitemplate_diag.csv'), [p[1] for p in pairs])
+    if args.complete and workload == classic.WORKLOAD_ID:
+        runner.save(args.out / 'DNN_classic_aitemplate_completion.json', dict(
+            schema=1, system='aitemplate', status='final_25_terminal', repair_pending=False,
+            workload_id=classic.WORKLOAD_ID, workload=classic.WORKLOAD,
+            csv_sha256=base.sha(args.out / name),
+            cells=[dict(model=p[0]['model'], batch=int(p[0]['batch']),
+                        status=p[0]['status'], final=True) for p in pairs]))
     print(compact(dict(status='complete' if args.complete else 'partial', accepted=len(values),
-        terminal=len(pairs), requested=25, csv=str(args.out / name), canonical150_unchanged=True)))
+        terminal=len(pairs), requested=25, workload_id=workload,
+        csv=str(args.out / name), canonical150_unchanged=True)))
 
 
 if __name__ == '__main__':
@@ -123,6 +140,8 @@ if __name__ == '__main__':
     parser.add_argument('--epoch', type=Path, action='append', required=True)
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--complete', action='store_true')
+    parser.add_argument('--workload', choices=[classic.WORKLOAD_ID, 'dnn1-legacy'],
+                        default=classic.WORKLOAD_ID)
     parser.add_argument('--failure-declaration', type=Path, action='append', default=[],
                         help='explicit final N/A declaration with SHA-bound original failure evidence')
     publish(parser.parse_args())
