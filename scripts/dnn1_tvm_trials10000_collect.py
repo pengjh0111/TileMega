@@ -31,7 +31,7 @@ import dnn1_tvm_resume_finalize as finalizer
 from dnn1_aitemplate_cell import AFFINITY
 from dnn1_baseline_boundaries import idle_boundary, final_boundary
 from dnn1_background_cards import main_reservations
-from dnn1_dispatch import affinities
+from dnn1_dispatch import affinities, cpu_list
 from dnn1_owned_controller import OwnedController, NONCE_KEY
 import dnn1_tvm_trials10000_sample as experiment
 
@@ -64,14 +64,29 @@ def csv_write(path, rows):
     temporary.replace(path)
 
 
-def gpu_pool(value):
+def gpu_pool(value, allowed=range(7)):
     gpus = [int(x) for x in value.split(',')]
-    need(gpus and len(set(gpus)) == len(gpus) and set(gpus) <= set(range(7)),
+    need(gpus and len(set(gpus)) == len(gpus) and set(gpus) <= set(allowed),
          'distinct assigned indices0–6 only; index7 does not exist')
     return gpus
 
 
-def source_freeze(tvm_root):
+def tuning_affinities(spec, gpus):
+    """Disjoint tuner cores per card, all on the node the spec declares for tuning."""
+    node = spec['tuning_numa_node']
+    local = cpu_list(Path(f'/sys/devices/system/node/node{node}/cpulist').read_text())
+    declared, occupied = spec['tuning_cpu_affinity'], set()
+    need(set(declared) >= set(map(str, gpus)), 'every card needs declared tuner cores')
+    for gpu in gpus:
+        cpus = declared[str(gpu)]
+        need(cpus and all(type(cpu) is int for cpu in cpus) and len(set(cpus)) == len(cpus) and
+             set(cpus) <= local & os.sched_getaffinity(0) and not occupied & set(cpus) and
+             not set(cpus) & set(AFFINITY[gpu]), 'tuner cores must be allowed, on the tuning node and disjoint')
+        occupied.update(cpus)
+    return {str(gpu): sorted(declared[str(gpu)]) for gpu in gpus}
+
+
+def source_freeze(tvm_root, device_files=()):
     from tilemega.dnn import tvm_baseline as adapter
     old = os.environ.get('TILEMEGA_DNN1_TVM_ROOT')
     os.environ['TILEMEGA_DNN1_TVM_ROOT'] = str(tvm_root)
@@ -109,35 +124,38 @@ def source_freeze(tvm_root):
         files[str(path)] = sha(path)
     files[str(base.POLICY)] = sha(base.POLICY)
     files[str(base.CLASSIC_DEVICES)] = sha(base.CLASSIC_DEVICES)
+    files.update({str(path): sha(path) for path in device_files})
     allowlist = Path(read(base.POLICY)['gpu_allowlist_file'])
     files[str(allowlist)] = sha(allowlist)
     return identity, files
 
 
-def asset_cells(exports, preparation, historical_rows):
+def asset_cells(exports, preparation, historical_rows, new_models=NEW_MODELS,
+                retained_models=('resnet18', 'bert'), batches=base.BATCHES):
     need(preparation.get('schema') == 1 and preparation.get('status') == 'ready' and
-         preparation.get('seed') == 20261007 and set(preparation.get('models', [])) == set(NEW_MODELS),
-         'ready CPU asset proof for the three new models and fixed seed is required')
+         preparation.get('seed') == 20261007 and set(preparation.get('models', [])) == set(new_models),
+         'ready CPU asset proof for the new models and fixed seed is required')
     fresh = preparation.get('cells', [])
-    need(len(fresh) == 15 and {(c['model'], c['batch']) for c in fresh} ==
-         {(m, b) for m in NEW_MODELS for b in base.BATCHES}, 'new model CPU proof must cover exactly15 cells')
+    need(len(fresh) == len(new_models) * len(batches) and {(c['model'], c['batch']) for c in fresh} ==
+         {(m, b) for m in new_models for b in batches},
+         f'new model CPU proof must cover exactly{len(new_models) * len(batches)} cells')
     fresh = {(c['model'], c['batch']): c for c in fresh}
     retained = [r for r in historical_rows if r['system'] == 'tvm' and
-                r['model'] in ('resnet18', 'bert') and r['precision'] == 'bf16' and r['status'] == 'pass']
-    need(len(retained) == 10 and {(r['model'], int(r['batch'])) for r in retained} ==
-         {(m, b) for m in ('resnet18', 'bert') for b in base.BATCHES},
+                r['model'] in retained_models and r['precision'] == 'bf16' and r['status'] == 'pass']
+    need(len(retained) == len(retained_models) * len(batches) and {(r['model'], int(r['batch'])) for r in retained} ==
+         {(m, b) for m in retained_models for b in batches},
          'the ten historical RN18/BERT TVM references must remain available')
     retained = {(r['model'], int(r['batch'])): r for r in retained}
     cells = []
-    for model in PRIORITY_MODELS:
+    for model in tuple(new_models) + tuple(retained_models):
         export = (exports / model).resolve()
-        for batch in base.BATCHES:
+        for batch in batches:
             assets = {str(p): sha(p) for p in (export / 'manifest.json',
                 export / 'exported_program.pt2', export / 'checkpoint/model.safetensors',
                 export / f'inputs_b{batch}.safetensors')}
             archive_sha = assets[str(export / 'exported_program.pt2')]
             checkpoint_sha = assets[str(export / 'checkpoint/model.safetensors')]
-            if model in NEW_MODELS:
+            if model in new_models:
                 proof = fresh[model, batch]
                 need(proof.get('status') == 'ready' and Path(proof['export']).resolve() == export and
                      proof['exported_program_sha256'] == archive_sha and
@@ -147,7 +165,7 @@ def asset_cells(exports, preparation, historical_rows):
                      proof['inputs_file_sha256'] == assets[str(export / f'inputs_b{batch}.safetensors')],
                      'new model CPU asset proof differs: ' + model + f'_b{batch}')
                 expected_inputs = proof['expected_inputs_sha256']
-                identity_source = 'preparation_classic_v1 CPU runtime-input proof'
+                identity_source = str(preparation.get('identity_source', 'preparation_classic_v1 CPU runtime-input proof'))
             else:
                 old = retained[model, batch]
                 need(old['exported_program_sha256'] == archive_sha and
@@ -161,7 +179,53 @@ def asset_cells(exports, preparation, historical_rows):
     return cells
 
 
+def prepare_spec_workload(options, spec):
+    """Manifest of a queue-spec workload: no AIT binding and no historical cells."""
+    epoch = options.epoch.resolve()
+    need(spec['workload_id'] in experiment.SPEC_WORKLOADS, 'unknown spec workload')
+    need(epoch.is_relative_to(experiment.epoch_root(spec, ROOT)), 'new epochs belong below the workload root')
+    need(not epoch.exists(), 'use a new absent epoch; prior caches/evidence are immutable')
+    device_file = ROOT / spec['device_file']
+    devices = read(device_file)
+    need(devices.get('workload_id') == spec['workload_id'], 'device file belongs to another workload')
+    allowed = devices['allowed_gpu_indices']
+    gpus = gpu_pool(options.gpus, allowed)
+    workload = dict(id=spec['workload_id'], models=list(spec['models']), batches=list(spec['batches']))
+    tvm_root = options.tvm_root.resolve()
+    identity, files = source_freeze(tvm_root, (device_file, Path(options.workload_spec).resolve()))
+    protected = {str((ROOT / name).resolve()): sha(ROOT / name) for name in (
+        'docs/results/DNN1_baselines.csv', 'docs/results/DNN1_tvm_diag.csv')}
+    preparation = options.asset_preparation.resolve()
+    cells = asset_cells(options.exports, read(preparation), [], tuple(spec['models']), (), tuple(spec['batches']))
+    manifest = dict(schema=1, profile=experiment.PROFILE, budget=dict(experiment.BUDGET),
+        workload_id=spec['workload_id'], workload=workload, release_gate=spec['release_gate'],
+        output_stem=spec['output_stem'], device_file=str(device_file), allowed_gpu_indices=allowed,
+        tuning_cpu_affinity=tuning_affinities(spec, gpus), tuning_numa_node=spec['tuning_numa_node'],
+        asset_preparation=dict(path=str(preparation), sha256=sha(preparation)),
+        priority_models=list(spec['models']),
+        compatibility_entry=dict(experiment.COMPATIBILITY), fresh_database=True,
+        official_cuda_graph=False, epoch=str(epoch), tvm_root=str(tvm_root), cells=cells,
+        process_timeout_s=PROCESS_TIMEOUT, cell_timeout_s=CELL_TIMEOUT,
+        gpus=gpus, max_parallel=options.max_parallel,
+        other_baseline_max_parallel=options.other_baseline_max_parallel,
+        concurrency_scope='parent partition across TRT/TC/TVM; allocated pool only, global slots<=4',
+        source_identity=identity, protocol_sources=files, protected_files=protected,
+        status='prepared only; explicit run required', created=time.time())
+    need(experiment.release_required(manifest) is False, 'spec workloads carry no AIT release')
+    need(1 <= manifest['max_parallel'] <= 4, 'at most four active physical cards')
+    dispatch_limit(epoch, manifest)
+    affinities(gpus, 8, explicit={str(g): AFFINITY[g] for g in gpus})
+    epoch.mkdir(parents=True, exist_ok=False)
+    save(epoch / 'manifest.json', manifest)
+    save(epoch / 'progress.json', dict(status='prepared_not_running', accepted=0, pending=len(cells),
+        active={}, GPU_jobs_started=0, manifest_sha256=sha(epoch / 'manifest.json')))
+    print(json.dumps(dict(status='prepared_only', epoch=str(epoch), cells=len(cells),
+        release_gate=manifest['release_gate'], manifest_sha256=sha(epoch / 'manifest.json'))))
+
+
 def prepare(options):
+    if getattr(options, 'workload_spec', None):
+        return prepare_spec_workload(options, read(options.workload_spec))
     epoch = options.epoch.resolve()
     need(epoch.is_relative_to(ROOT / 'runs/dnn1'), 'new epochs belong below runs/dnn1')
     need(not epoch.exists(), 'use a new absent epoch; prior caches/evidence are immutable')
@@ -209,16 +273,22 @@ def validate_manifest(epoch):
     need(manifest.get('profile') == experiment.PROFILE and manifest['budget'] == experiment.BUDGET and
          manifest['fresh_database'] is True and manifest['official_cuda_graph'] is False,
          'fixed fresh10000 epoch required')
-    need(manifest.get('workload_id') == experiment.WORKLOAD_ID and manifest.get('workload') == experiment.WORKLOAD,
+    classic = manifest.get('workload_id') == experiment.WORKLOAD_ID
+    need((classic and manifest.get('workload') == experiment.WORKLOAD) or
+         (manifest.get('workload_id') in experiment.SPEC_WORKLOADS and not experiment.release_required(manifest) and
+          manifest['workload'].get('id') == manifest['workload_id']),
          'manifest belongs to a different workload; retain it and prepare a new epoch')
     need(sha(manifest['asset_preparation']['path']) == manifest['asset_preparation']['sha256'],
          'classic CPU asset preparation proof changed')
-    need(manifest['epoch'] == str(epoch) and epoch.is_relative_to(ROOT / 'runs/dnn1'), 'epoch binding differs')
-    need({(c['model'], c['batch']) for c in manifest['cells']} == CELLS and len(manifest['cells']) == 25,
+    need(manifest['epoch'] == str(epoch) and epoch.is_relative_to(experiment.epoch_root(manifest, ROOT)),
+         'epoch binding differs')
+    expected = CELLS if classic else {(m, b) for m in manifest['workload']['models'] for b in manifest['workload']['batches']}
+    need({(c['model'], c['batch']) for c in manifest['cells']} == expected and len(manifest['cells']) == len(expected),
          'full25 distinct cells required')
     need(1 <= manifest['max_parallel'] <= 4 and manifest['process_timeout_s'] >= 18000 and
          manifest['cell_timeout_s'] > 5 * manifest['process_timeout_s'], 'dispatch limit/outer timeouts changed')
-    need(gpu_pool(','.join(map(str, manifest['gpus']))) == manifest['gpus'], 'GPU pool changed')
+    need(gpu_pool(','.join(map(str, manifest['gpus'])), experiment.allowed_gpus(manifest)) == manifest['gpus'],
+         'GPU pool changed')
     dispatch_limit(epoch, manifest)
     for field in ('protocol_sources', 'protected_files'):
         for path, digest in manifest[field].items():
@@ -287,7 +357,7 @@ def terminal_ait(csv_path):
 
 def seal_release(options):
     epoch = options.epoch.resolve()
-    validate_manifest(epoch)
+    need(experiment.release_required(validate_manifest(epoch)), 'this workload has no AIT release to seal')
     need(not (epoch / 'release.json').exists(), 'retain existing release; do not silently refresh it')
     csv_path = options.ait_csv.resolve()
     need(csv_path.is_relative_to(ROOT), 'AIT terminal CSV must be in the published repository')
@@ -332,6 +402,9 @@ def validate_ait_completion(path, csv_path, rows):
 
 def validate_release(epoch, expected=None):
     manifest = validate_manifest(epoch)
+    if not experiment.release_required(manifest):
+        need(expected is None and not (Path(epoch) / 'release.json').exists(), 'this workload has no AIT release')
+        return manifest, None
     path = Path(epoch) / 'release.json'
     digest = sha(path)
     need(expected is None or expected == digest, 'AIT/push release changed during collection')
@@ -445,7 +518,7 @@ def collect_cell(folder, manifest, release_sha):
         diag = receipt['configuration']['tvm_diag']
         expected_recipe = diag['cache_identity']['recipe']
         need(expected_recipe['schema'] == experiment.PROFILE and expected_recipe['tuning'] == experiment.BUDGET and
-             expected_recipe['workload'] == experiment.WORKLOAD and
+             expected_recipe['workload'] == experiment.workload_of(cell) and
              expected_recipe['fresh_database'] is True and expected_recipe['prior_database'] is None and
              expected_recipe['official_cuda_graph'] is False, 'wrong compiled fresh-budget identity')
         need(expected_recipe['compatibility_entry'] == experiment.COMPATIBILITY and
@@ -485,7 +558,7 @@ def collect_cell(folder, manifest, release_sha):
          'actual builder attempt/error counts differ')
     destination = folder / 'audits' / uuid.uuid4().hex
     row = finalizer.collect(cell, attempt, destination)
-    row.update(workload_id=experiment.WORKLOAD_ID,
+    row.update(workload_id=experiment.workload_id_of(cell),
         experiment_profile=experiment.PROFILE, requested_trials=10000, tuning_timeout_s=9000,
         committed_trials=tuning['committed_trials'], successful_trials=tuning['successful_trials'],
         failed_trials=tuning['failed_trials'], attempted_builds=tuning.get('attempted_builds', ''),
@@ -509,18 +582,22 @@ def enqueue(spec, manifest, gpu, release_sha, lifetime):
     key = f"{spec['model']}_b{spec['batch']}"
     folder = epoch / 'jobs' / key
     folder.mkdir(parents=True, exist_ok=False)
+    required = experiment.release_required(manifest)
     cell = dict(spec, epoch=str(epoch), profile=experiment.PROFILE, budget=dict(experiment.BUDGET),
-        workload_id=experiment.WORKLOAD_ID, workload=experiment.WORKLOAD,
+        workload_id=experiment.workload_id_of(manifest), workload=experiment.workload_of(manifest),
         fresh_database=True, official_cuda_graph=False, prior_database=None,
         tvm_root=manifest['tvm_root'], gpu=gpu, cpu_affinity=AFFINITY[gpu], parallel=True,
         python=str(ROOT / 'scripts/dnn1_fifo_background_python.py'),
         process_timeout_s=manifest['process_timeout_s'], cell_timeout_s=manifest['cell_timeout_s'],
         protocol_sources=manifest['protocol_sources'], epoch_manifest=str(epoch / 'manifest.json'),
         asset_preparation=manifest['asset_preparation'],
-        epoch_manifest_sha256=sha(epoch / 'manifest.json'), release=str(epoch / 'release.json'),
+        epoch_manifest_sha256=sha(epoch / 'manifest.json'), release=str(epoch / 'release.json') if required else None,
         release_sha256=release_sha, cache_root=str(epoch / 'cache' / key),
         correctness_policy='five-independent-gates-v2', prefix=dict(available=False),
         boundary_protocol='paired-process-memory-v2')
+    if not required:
+        cell.update(release_gate=manifest['release_gate'], allowed_gpu_indices=manifest['allowed_gpu_indices'],
+            tuning_cpu_affinity=manifest['tuning_cpu_affinity'][str(gpu)])
     need(not Path(cell['cache_root']).exists(), 'fresh per-cell cache root already exists')
     save(folder / 'cell.json', cell)
     env = base.gpu_env(gpu, dict(TILEMEGA_NUMA_CONCURRENCY_TRIAL='1',
@@ -531,7 +608,8 @@ def enqueue(spec, manifest, gpu, release_sha, lifetime):
     device_uuid, pci = [s.strip() for s in values]
     domain, bus, slot = pci.split(':')
     pci = f'{int(domain,16):04x}:{bus}:{slot}'
-    expected = base.classic_device_identity(gpu)
+    expected = (base.classic_device_identity(gpu) if required else
+                base.workload_device_identity(gpu, dict(device_file=manifest['device_file'])))
     need(device_uuid == expected['uuid'] and pci.lower() == expected['pci'].lower(),
          'current NVML identity differs from the frozen classic device mapping')
     python = cell['python']
@@ -615,7 +693,8 @@ def collect_epoch(epoch, manifest, release_sha):
                 continue
         failure['retained_tuning_attempts'] = trials
     ordered = [accepted[f"{c['model']}_b{c['batch']}"] for c in manifest['cells'] if f"{c['model']}_b{c['batch']}" in accepted]
-    csv_write(Path(epoch) / 'DNN_classic_tvm_trials10000.csv', ordered)
+    stem = manifest.get('output_stem', 'DNN_classic')
+    csv_write(Path(epoch) / f'{stem}_tvm_trials10000.csv', ordered)
     outcomes = []
     for spec in manifest['cells']:
         key = f"{spec['model']}_b{spec['batch']}"
@@ -626,14 +705,14 @@ def collect_epoch(epoch, manifest, release_sha):
             outcome.update(model=spec['model'], batch=spec['batch'], system='tvm',
                 arm='tvm-bf16', precision='bf16', status='quarantined',
                 reason=base.compact(failures[key]), source=failures[key]['folder'],
-                workload_id=experiment.WORKLOAD_ID,
+                workload_id=experiment.workload_id_of(manifest),
                 experiment_profile=experiment.PROFILE, requested_trials=10000, tuning_timeout_s=9000,
                 experiment_manifest_sha256=sha(Path(epoch) / 'manifest.json'))
             outcomes.append(outcome)
-    csv_write(Path(epoch) / 'DNN_classic_tvm_trials10000_outcomes.csv', outcomes)
-    save(Path(epoch) / 'collection.json', dict(status='complete' if len(accepted) == 25 else 'incomplete',
+    csv_write(Path(epoch) / f'{stem}_tvm_trials10000_outcomes.csv', outcomes)
+    save(Path(epoch) / 'collection.json', dict(status='complete' if len(accepted) == len(manifest['cells']) else 'incomplete',
         accepted=len(accepted), terminal=len(outcomes), failures=failures, profile=experiment.PROFILE,
-        workload_id=experiment.WORKLOAD_ID,
+        workload_id=experiment.workload_id_of(manifest),
         manifest_sha256=sha(Path(epoch) / 'manifest.json'), release_sha256=release_sha,
         original_results_unchanged=manifest['protected_files'], time=time.time()))
     return accepted, failures
@@ -643,7 +722,7 @@ def dispatch_limit(epoch, manifest):
     path = Path(epoch) / 'dispatch_limit.json'
     if path.exists():
         value = read(path)
-        need(value.get('workload_id') == experiment.WORKLOAD_ID and
+        need(value.get('workload_id') == experiment.workload_id_of(manifest) and
              value.get('manifest_sha256') == sha(Path(epoch) / 'manifest.json') and value.get('reason'),
              'dynamic limit must bind the prepared workload and explicit parent allocation')
         limit, others = value['max_parallel'], value['other_baseline_max_parallel']
@@ -658,14 +737,15 @@ def dispatch_limit(epoch, manifest):
 def dispatch(options):
     epoch = options.epoch.resolve()
     manifest, release_sha = validate_release(epoch)
-    released = read(epoch / 'release.json')
-    remote = subprocess.check_output(['git', '-C', str(ROOT), 'ls-remote', 'origin',
-        'refs/heads/' + released['pushed_branch']], text=True).strip().split()
-    need(remote, 'cannot verify pushed AIT checkpoint')
-    if remote[0] != released['pushed_commit']:
-        need(subprocess.run(['git', '-C', str(ROOT), 'merge-base', '--is-ancestor',
-            released['pushed_commit'], remote[0]], check=False).returncode == 0,
-            'the released AIT checkpoint is not on the current remote branch')
+    if experiment.release_required(manifest):
+        released = read(epoch / 'release.json')
+        remote = subprocess.check_output(['git', '-C', str(ROOT), 'ls-remote', 'origin',
+            'refs/heads/' + released['pushed_branch']], text=True).strip().split()
+        need(remote, 'cannot verify pushed AIT checkpoint')
+        if remote[0] != released['pushed_commit']:
+            need(subprocess.run(['git', '-C', str(ROOT), 'merge-base', '--is-ancestor',
+                released['pushed_commit'], remote[0]], check=False).returncode == 0,
+                'the released AIT checkpoint is not on the current remote branch')
     need(not prior_jobs_live(epoch), 'earlier controller jobs still live; refuse duplicate dispatch')
     lock = (epoch / 'controller.lock').open('a')
     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -711,10 +791,10 @@ def dispatch(options):
                 if pending or active:
                     time.sleep(15)
             accepted, failures = collect_epoch(epoch, manifest, release_sha)
-            save(epoch / 'progress.json', dict(status='complete' if len(accepted) == 25 else 'needs_diagnosis',
+            save(epoch / 'progress.json', dict(status='complete' if len(accepted) == len(manifest['cells']) else 'needs_diagnosis',
                 accepted=len(accepted), pending=[], active={}, failures=failures,
                 profile=experiment.PROFILE, power_monitoring=False, ended=time.time()))
-            return int(len(accepted) != 25)
+            return int(len(accepted) != len(manifest['cells']))
     except BaseException as error:
         save(epoch / 'controller_error.json', dict(error=repr(error), run_id=run_id,
             unfinished_cohorts_invalidated=True, release_sha256=release_sha, time=time.time()))
@@ -764,6 +844,8 @@ def main():
     p.add_argument('--max-parallel', type=int, choices=range(1, 5), required=True)
     p.add_argument('--other-baseline-max-parallel', type=int, choices=range(4), required=True,
         help='parent-reserved concurrent TRT/TC/AIT slots; total including TVM must be <=4')
+    p.add_argument('--workload-spec', type=Path,
+        help='queue-spec workload JSON; absent keeps dnn-classic-v1 and its AIT release')
     p = sub.add_parser('release')
     p.add_argument('--epoch', type=Path, required=True)
     p.add_argument('--ait-csv', type=Path, required=True)
@@ -790,6 +872,8 @@ def main():
     if options.action == 'run':
         return dispatch(options)
     if options.action == 'wait':
+        if not experiment.release_required(validate_manifest(options.epoch.resolve())):
+            return dispatch(options)
         return wait_for_release(options)
     manifest, digest = validate_release(options.epoch.resolve())
     collect_epoch(options.epoch.resolve(), manifest, digest)
