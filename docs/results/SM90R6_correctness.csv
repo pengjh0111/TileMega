@@ -1,44 +1,317 @@
-check,target,protocol,result,note
-A1 negative test,"Sm90DenseCoordinates::Validate, unfused MoE","unit, sm90_dense_coordinates_test",pass,"refuses moe && !expert_fuse, including the schema-5 form REF-R3 loads in"
-sm90_dense_coordinates,coordinate serialization and legality,ctest,pass,
-sm90_dense_router,router top-k and schedule,ctest,pass,first run since R5: the target did not compile
-sm90_dense_local_route,per-CTA routing vs R4 last arriver,ctest,pass,first run ever: the target was missing the repo include dir
-sm90_dense_epilogue,head and epilogue contract,ctest,pass,first run since R5
-sm90_dense_moe,standalone M4/M5/M6 stages,ctest,FAIL,Historical pre-P5 failure of the stale M4/M5/M6 publication contract; superseded by the verified P5 current MoE body checks and CP-P regression below.
-generated_feature_contract,generated feature compilation,ctest,FAIL,Historical pre-P5 failure of the stale legacy-coordinate contract; superseded by the verified 14 native generated-feature variants and CP-P regression below.
-r15_model_registry,model registry CLI,ctest,FAIL,Recorded environment issue: unsupported model architecture from download_models.py; excluded from the CP-P gate under continuation 1 section 7.
-python ctests (7),r15_* suite,ctest,pass,only after configuring Python3_EXECUTABLE to a torch environment
-routing buffer binding diagnostic,"OLMoE B1 fixed coordinates, codegen index operand fix 1bf8412ef",5 fresh guarded processes x 1024 generated steps,pass 5/5,"verified: tokens and all layer routing indices byte-identical; 16 layers x 8 distinct experts per step; evidence runs/sm90r6/h2/olmoe-B1-five-process-timing-cards; decode SHA256 64cf37674b9d2013113a4b2e341b0df6e49397383072277bc79a7111782012c4; not C-1 or the eight-cell pipeline gate; WRONG MODEL PROMPT: qwen_isl64 used for OLMoE, invalid for H2; corrected-prompt recollection required"
-H2 OLMoE frozen-prompt reproducibility,OLMoE B1 fixed build with olmo_isl64.json,5 fresh guarded processes x 1024 generated steps,pass 5/5,verified: tokens and all 16 layer route-index trajectories identical; decode SHA256 64cf37674b9d2013113a4b2e341b0df6e49397383072277bc79a7111782012c4; routing SHA256 5176f13ae3cca52db6e59b242b68171fd9f99ff6a2375ec2c77be22b557531d9; evidence runs/sm90r6/h2/olmo-frozen-prompts-v4; B4 memcheck 0 errors on prompt positions and first generated position
-R6 frozen-coordinate source compatibility,Qwen3-1.7B/Llama3.1-8B/Qwen3-30B-A3B/OLMoE x B1/B16,same fixed coordinates; frozen c98cbd3c8 compiler versus current compiler; no GPU,pass 8/8,verified: emitted CUDA byte-identical; reference compiler 69f87f8e4fd4a6f862a4332dae346607b020290bfe28e8f5a9e24964019d0e35; current compiler a33ac77756fcbfc15d24f5b919db656cea6ab3b1b9da52e8f585066078b25249; evidence runs/sm90r6/pipeline_gate/v1; per-edge P4 WriteBack and P5 gates remain pending
-R6 source compatibility v2,four frozen LLM models x B1/B16,same fixed coordinates; frozen c98cbd3c8 compiler versus current compiler; no GPU,pass 8/8,verified: emitted CUDA byte-identical; per-edge P4 synchronization contracts; current compiler 11ed7c697ca63e92798183384ee543f66310915c1bf18652b6d94dd79d65c34c; evidence runs/sm90r6/pipeline_gate/v2
-R6 source compatibility v3,four frozen LLM models x B1/B16,same fixed coordinates; frozen c98cbd3c8 compiler versus current compiler; no GPU,pass 8/8,verified: emitted CUDA byte-identical; opt-in independent argmax; default coordinates preserved; current compiler 3446c93e285262385e45edc51ee98ab59d59422ce9363f5da1e3988a731a78e4; evidence runs/sm90r6/pipeline_gate/v3
-independent argmax publication litmus,B1/B16 x grid132/264 x embedding stage/handoff,5 fresh guarded processes; 8 cases x 256 rounds; delayed rotating producer,pass 5/5,verified: zero errors comparing LA and independent argmax tokens plus embedding rows; ties and NaN partials included; full-model C-2 remains separate; evidence runs/sm90r6/p5/argmax-v1/litmus
-P5 independent argmax token equivalence and C-2,Qwen3-1.7B B1; frozen theta; embedding la,5 fresh guarded processes; reference/candidate x single-step/persistent launch; 1024 tokens per row,pass 5/5,"verified: all four paths and all processes byte-identical; deterministic random checkpoint, not pretrained C-1; tokens SHA256 13823383728b9efb5b138634b2dbe672a7ff3ec2d047df8bd9c08282359bc648; evidence runs/sm90r6/p5/argmax-v1/B1; no end-to-end speedup claim"
-P5 independent argmax token equivalence and C-2,Qwen3-1.7B B16; frozen theta; embedding stage,5 fresh guarded processes; reference/candidate x single-step/persistent launch; 1024 tokens per row,pass 5/5,"verified: all four paths and all processes byte-identical; deterministic random checkpoint, not pretrained C-1; tokens SHA256 b8642515be103ec69a941b46c351f69992844b88be480baad331d07c486891a1; evidence runs/sm90r6/p5/argmax-v1/B16; no end-to-end speedup claim"
-R6 source compatibility v4,four frozen LLM models x B1/B16,fixed coordinates; frozen compiler versus occupancy-aware compiler,pass 8/8,verified: CUDA byte-identical; current compiler f461a1c898dd004d667504350a94e3d5f3c633d2f47df16895965be1686fcbfe; evidence runs/sm90r6/pipeline_gate/v4
-P3 linked occupancy and predicted selection,Qwen1.7 B1/B16 LA/stage argmax binaries; one full predicted B1 solve,guarded CUDA driver query of linked cubins; artifact and final-source hashes,pass,"verified: all four existing binaries residency1; linked registers254 (entry ptxas82); predicted selection compiles and verifies its finalist; correction helper tests 2-to-1 and operator-sum, but physical correction was not triggered; evidence runs/sm90r6/occupancy"
-R6 source compatibility v5,four frozen LLM models x B1/B16,same fixed coordinates; frozen compiler versus independent-merge compiler,pass 8/8,verified: generated CUDA byte-identical; evidence runs/sm90r6/pipeline_gate/v5
-independent attention merge publication litmus,B1/B16 x grid132/264; Q2/Q8; chunks2/16/64,5 fresh guarded processes; 8 cases x 128 rounds; rotating delayed producer; empty chunks and all-masked rows,pass 5/5,verified: BF16 context bit-identical to existing LA merge; failed initial comparator lacked post-stage global join and is retained; corrected test source and all accepted runs at runs/sm90r6/p5/attention-merge-v1/litmus-v2
-P5 independent attention merge equivalence and C-2,Qwen3-1.7B B1; frozen theta; chunks16,5 fresh guarded processes; reference/candidate x single-step/persistent launch; 1024 tokens,pass 5/5,verified: all four paths and processes token-identical; random checkpoint; candidate SHA256 7886a92dbb641bf5351a3e86fe5d32ec77dcfce838f0fe3f7396c6a10f2b1b89; evidence runs/sm90r6/p5/attention-merge-v1/B1/checks; no performance claim
-MoE expected task-domain projection,E64/E128 x B1/2/4/8/16 x 8/16/24/32 tiles per expert,40 counts versus 60-digit decimal reference; 160 gate-up/down geometry pairs; coupling release endpoints and invalid inputs,pass,verified: round expected tile tasks rather than active experts; preserve finite last-slot truncation and per-column combine dependency; approximation label in prices/domain JSON; full MoE CTG integration pending; runs/sm90r6/moe-domain/tests4.log
-P5 global route schedule load,E64/E128 x B1/2/4/8/16; float/BF16 weights; selected/all softmax,5 fresh guarded processes; 120 configurations each,pass 5/5,verified: Build/Publish versus RouterFinish/Load active routing fields bit-identical; runs/sm90r6/p5/moe-global-v1/route-load; primitive only
-P5 independent MoE combine publication litmus,B1/B16; E64/E128; TN32/128; float/BF16 weights; grid132/264,5 fresh guarded processes; 8 cases x 128 generations; delayed producers,pass 5/5,verified: fixed-order combine partials/residuals bit-identical and counters reset; binary c7d97ad532fb6401c560e6fd51907dd60cae0ea8d204bc5ff09a36c0703f22e2; runs/sm90r6/p5/moe-global-v1/combine-litmus
-P5 unfused M56 equivalence and C-2,Qwen3-30B-A3B B1; frozen theta,5 fresh guarded processes; reference/candidate x single-step/persistent; 1024 tokens,pass 5/5,verified: all paths and processes identical; random checkpoint; tokens SHA256 b958eaba4b8b4f56bf3e998c4219e4b0a71a177bda57fc330ea3487679d74ae3; candidate 914bd16b9911f632eb0ff11fd880ce2e0a239c6cc74334af13924abdf72ca1ba; runs/sm90r6/p5/moe-global-v1/qwen3_30b_a3b-B1-unfused-la/checks/result.json
-P5 independent MoE route equivalence and C-2,Qwen3-30B-A3B B1; frozen theta,5 fresh guarded processes; reference/candidate x single-step/persistent; 1024 tokens,pass 5/5,verified: all paths and processes identical; random checkpoint; tokens SHA256 b958eaba4b8b4f56bf3e998c4219e4b0a71a177bda57fc330ea3487679d74ae3; candidate a7639715b41b5192c6967336c26dea5f0de6f6f89e186597eada63028eed8f5f; runs/sm90r6/p5/moe-global-v1/qwen3_30b_a3b-B1-stage/checks/result.json
-R6 source compatibility v9,four frozen LLM models x B1/B16,fixed coordinates; immutable compiler snapshot versus frozen compiler,pass 8/8,verified: CUDA byte-identical; snapshot compiler d5de24e888d358fa58a451403f618680be12c4e4eaea9ea4e90621a08ae32cec; runs/sm90r6/pipeline_gate/v9-results; v8 mixed-compiler provenance excluded
-P5 current generated feature contract,Qwen dense and MoE x B1/B16; 14 generated variants,CPU source generation; actual typed-call/manifest validation and corrupted binding rejection,pass,"verified: 2 test methods / 14 variants, 478.269 seconds; runs/sm90r6/p5/native-features-v2; initial reduced-layer fixture failed dependency projection and is retained; final uses full frozen exports"
-P5 independent MoE combine equivalence and C-2,Qwen3-30B-A3B B1; frozen theta,5 fresh guarded processes; reference/candidate x single-step/persistent; 1024 tokens,pass 5/5,verified: all paths and processes identical; random checkpoint; candidate cb94677b8818c180c0c602e8b4fd9063534c10b09a8bf183a655c68085337e4c; runs/sm90r6/p5/moe-global-v1/qwen3_30b_a3b-B1-combine-stage/checks/result.json
-R6 source compatibility v10,four frozen LLM models x B1/B16,fixed coordinates; immutable compiler snapshot versus frozen compiler,pass 8/8,verified: default CUDA byte-identical after opt-in kernel-sequence codegen; runs/sm90r6/pipeline_gate/v10/manifest.json
-P5 current MoE body contract,B1; local/fused; global LA/fused; route-stage/fused; LA/unfused; route-stage/unfused,5 fresh guarded processes; 5 variants x 128 launches; delayed CTA; FP64 oracle and exact publication checks,pass 5/5,verified: zero errors; supersedes stale pre-E2 test failure above; binary b9ae46a3abbc5bedd72021311258264dbbcdf62dbd7ef18fc9a647e1bbe5467b; runs/sm90r6/p5/moe-global-v1/current-moe-B1/result.json
-P5 current MoE body contract,B16; local/fused; global LA/fused; route-stage/fused; LA/unfused; route-stage/unfused,5 fresh guarded processes; 5 variants x 128 launches; delayed CTA; FP64 oracle and exact publication checks,pass 5/5,verified: zero errors; supersedes stale pre-E2 test failure above; binary 0770444cd0c2d4d5be2e151e037b4e19304abeb9c7fde9f980e966741c30c0f0; runs/sm90r6/p5/moe-global-v1/current-moe-B16/result.json
-AB4c dense kernel-sequence equivalence and C-2,Qwen3-1.7B B1; aggregate frozen theta,5 fresh guarded processes on eligible cards; reference/candidate x single-step/persistent; 1024 tokens,pass 5/5,verified: all paths and processes token-identical; random checkpoint; candidate ea04d872cf7e6088128493d00e81678153e360a0fd2b77d8c9e8fb976c1d8c9b; runs/sm90r6/ab4c/frozen-theta-v1/qwen3_1_7b-B1/checks-retry/result.json; GPU6 debug attempts excluded
-P5 global LA MoE equivalence and C-2,Qwen3-30B-A3B B1; frozen theta,5 fresh guarded processes on eligible cards; reference/candidate x single-step/persistent; 1024 tokens,pass 5/5,verified: all paths token-identical; deterministic random checkpoint; runs/sm90r6/p5/moe-global-v1/qwen3_30b_a3b-B1-la/checks/result.json
-P5 aggregate MoE equivalence and C-2,Qwen3-30B-A3B B1; frozen theta,5 fresh guarded processes on eligible cards; reference/candidate x single-step/persistent; 1024 tokens,pass 5/5,verified: all paths token-identical; deterministic random checkpoint; runs/sm90r6/p5/moe-global-v1/qwen3_30b_a3b-B1-aggregate/checks/result.json
-AB4c MoE kernel-sequence equivalence and C-2,Qwen3-30B-A3B B1; frozen theta,5 fresh guarded processes on eligible cards; reference/candidate x single-step/persistent; 1024 tokens,pass 5/5,verified: all paths token-identical; deterministic random checkpoint; runs/sm90r6/ab4c/frozen-theta-v1/qwen3_30b_a3b-B1/checks/result.json
-P4 native scheduling graph and CP-P regression,all reducers and edge contracts; CPU/runtime host contracts,8-cell frozen source gate; 14 generated feature variants; corruption rejection; 14 CPU ctests; 11 Python contract checks; 4 linked-identity checks,pass,verified; default CUDA unchanged; native CTG and flow tests also pass; MoE finite-domain approximation retained; runs/sm90r6/cp-p/checkpoint.json
-AB1-qkv-ledger-development,Qwen3-1.7B B1 isolated qkv,5 fresh guarded processes,5/5 pass,development trace coverage only; not a numerical oracle or end-to-end acceptance; runs/sm90r6/ab1/probe-development-v1/checks/result.json
-AB1-head-prefix-development,Qwen3-1.7B B16 isolated head,5 fresh guarded processes,5/5 pass,development zero-KV input; full untimed model prefix; L unrolled measured targets; runs/sm90r6/ab1/head-development-v1/checks/result.json
-AB1-head-prefilled-development,Qwen3-1.7B B16 isolated head,5 fresh guarded processes,5/5 pass,A0 prompt-prefilled KV; GPU0; immutable inputs; complete CTA ledgers and monotonic timestamps; excluded from formal theta selection; runs/sm90r6/ab1/head-development-v1/checks-prefilled-v2/result.json
-R6 default source compatibility after probe repairs,four frozen LLM models x B1/B16,immutable compiler versus retained V12 reference CUDA,pass 8/8,verified: all default sources byte-identical after diagnostic probe repairs; reference and input hashes verified; runs/sm90r6/pipeline_gate/v13/manifest.json
-accepted C2 evidence audit,all available completed R6 C2 source runs including retries,five fresh processes; 1024 tokens; single-step and persistent; accepted guard,pass,"verified 75 complete source runs / 375 accepted processes; two further accepted processes remain partial; guards, process groups, token arrays, prompt/checkpoint/binary identities audited; per-run provenance in SM90R6_c2.csv; raw correctness-audit-v2/c2-audit.json"
+[
+  {
+    "check": "A1 negative test",
+    "target": "Sm90DenseCoordinates::Validate, unfused MoE",
+    "protocol": "unit, sm90_dense_coordinates_test",
+    "result": "pass",
+    "note": "refuses moe && !expert_fuse, including the schema-5 form REF-R3 loads in"
+  },
+  {
+    "check": "sm90_dense_coordinates",
+    "target": "coordinate serialization and legality",
+    "protocol": "ctest",
+    "result": "pass",
+    "note": ""
+  },
+  {
+    "check": "sm90_dense_router",
+    "target": "router top-k and schedule",
+    "protocol": "ctest",
+    "result": "pass",
+    "note": "first run since R5: the target did not compile"
+  },
+  {
+    "check": "sm90_dense_local_route",
+    "target": "per-CTA routing vs R4 last arriver",
+    "protocol": "ctest",
+    "result": "pass",
+    "note": "first run ever: the target was missing the repo include dir"
+  },
+  {
+    "check": "sm90_dense_epilogue",
+    "target": "head and epilogue contract",
+    "protocol": "ctest",
+    "result": "pass",
+    "note": "first run since R5"
+  },
+  {
+    "check": "sm90_dense_moe",
+    "target": "standalone M4/M5/M6 stages",
+    "protocol": "ctest",
+    "result": "FAIL",
+    "note": "Historical pre-P5 failure of the stale M4/M5/M6 publication contract; superseded by the verified P5 current MoE body checks and CP-P regression below."
+  },
+  {
+    "check": "generated_feature_contract",
+    "target": "generated feature compilation",
+    "protocol": "ctest",
+    "result": "FAIL",
+    "note": "Historical pre-P5 failure of the stale legacy-coordinate contract; superseded by the verified 14 native generated-feature variants and CP-P regression below."
+  },
+  {
+    "check": "r15_model_registry",
+    "target": "model registry CLI",
+    "protocol": "ctest",
+    "result": "FAIL",
+    "note": "Recorded environment issue: unsupported model architecture from download_models.py; excluded from the CP-P gate under continuation 1 section 7."
+  },
+  {
+    "check": "python ctests (7)",
+    "target": "r15_* suite",
+    "protocol": "ctest",
+    "result": "pass",
+    "note": "only after configuring Python3_EXECUTABLE to a torch environment"
+  },
+  {
+    "check": "routing buffer binding diagnostic",
+    "target": "OLMoE B1 fixed coordinates, codegen index operand fix 1bf8412ef",
+    "protocol": "5 fresh guarded processes x 1024 generated steps",
+    "result": "pass 5/5",
+    "note": "verified: tokens and all layer routing indices byte-identical; 16 layers x 8 distinct experts per step; evidence runs/sm90r6/h2/olmoe-B1-five-process-timing-cards; decode SHA256 64cf37674b9d2013113a4b2e341b0df6e49397383072277bc79a7111782012c4; not C-1 or the eight-cell pipeline gate; WRONG MODEL PROMPT: qwen_isl64 used for OLMoE, invalid for H2; corrected-prompt recollection required"
+  },
+  {
+    "check": "H2 OLMoE frozen-prompt reproducibility",
+    "target": "OLMoE B1 fixed build with olmo_isl64.json",
+    "protocol": "5 fresh guarded processes x 1024 generated steps",
+    "result": "pass 5/5",
+    "note": "verified: tokens and all 16 layer route-index trajectories identical; decode SHA256 64cf37674b9d2013113a4b2e341b0df6e49397383072277bc79a7111782012c4; routing SHA256 5176f13ae3cca52db6e59b242b68171fd9f99ff6a2375ec2c77be22b557531d9; evidence runs/sm90r6/h2/olmo-frozen-prompts-v4; B4 memcheck 0 errors on prompt positions and first generated position"
+  },
+  {
+    "check": "R6 frozen-coordinate source compatibility",
+    "target": "Qwen3-1.7B/Llama3.1-8B/Qwen3-30B-A3B/OLMoE x B1/B16",
+    "protocol": "same fixed coordinates; frozen c98cbd3c8 compiler versus current compiler; no GPU",
+    "result": "pass 8/8",
+    "note": "verified: emitted CUDA byte-identical; reference compiler 69f87f8e4fd4a6f862a4332dae346607b020290bfe28e8f5a9e24964019d0e35; current compiler a33ac77756fcbfc15d24f5b919db656cea6ab3b1b9da52e8f585066078b25249; evidence runs/sm90r6/pipeline_gate/v1; per-edge P4 WriteBack and P5 gates remain pending"
+  },
+  {
+    "check": "R6 source compatibility v2",
+    "target": "four frozen LLM models x B1/B16",
+    "protocol": "same fixed coordinates; frozen c98cbd3c8 compiler versus current compiler; no GPU",
+    "result": "pass 8/8",
+    "note": "verified: emitted CUDA byte-identical; per-edge P4 synchronization contracts; current compiler 11ed7c697ca63e92798183384ee543f66310915c1bf18652b6d94dd79d65c34c; evidence runs/sm90r6/pipeline_gate/v2"
+  },
+  {
+    "check": "R6 source compatibility v3",
+    "target": "four frozen LLM models x B1/B16",
+    "protocol": "same fixed coordinates; frozen c98cbd3c8 compiler versus current compiler; no GPU",
+    "result": "pass 8/8",
+    "note": "verified: emitted CUDA byte-identical; opt-in independent argmax; default coordinates preserved; current compiler 3446c93e285262385e45edc51ee98ab59d59422ce9363f5da1e3988a731a78e4; evidence runs/sm90r6/pipeline_gate/v3"
+  },
+  {
+    "check": "independent argmax publication litmus",
+    "target": "B1/B16 x grid132/264 x embedding stage/handoff",
+    "protocol": "5 fresh guarded processes; 8 cases x 256 rounds; delayed rotating producer",
+    "result": "pass 5/5",
+    "note": "verified: zero errors comparing LA and independent argmax tokens plus embedding rows; ties and NaN partials included; full-model C-2 remains separate; evidence runs/sm90r6/p5/argmax-v1/litmus"
+  },
+  {
+    "check": "P5 independent argmax token equivalence and C-2",
+    "target": "Qwen3-1.7B B1; frozen theta; embedding la",
+    "protocol": "5 fresh guarded processes; reference/candidate x single-step/persistent launch; 1024 tokens per row",
+    "result": "pass 5/5",
+    "note": "verified: all four paths and all processes byte-identical; deterministic random checkpoint, not pretrained C-1; tokens SHA256 13823383728b9efb5b138634b2dbe672a7ff3ec2d047df8bd9c08282359bc648; evidence runs/sm90r6/p5/argmax-v1/B1; no end-to-end speedup claim"
+  },
+  {
+    "check": "P5 independent argmax token equivalence and C-2",
+    "target": "Qwen3-1.7B B16; frozen theta; embedding stage",
+    "protocol": "5 fresh guarded processes; reference/candidate x single-step/persistent launch; 1024 tokens per row",
+    "result": "pass 5/5",
+    "note": "verified: all four paths and all processes byte-identical; deterministic random checkpoint, not pretrained C-1; tokens SHA256 b8642515be103ec69a941b46c351f69992844b88be480baad331d07c486891a1; evidence runs/sm90r6/p5/argmax-v1/B16; no end-to-end speedup claim"
+  },
+  {
+    "check": "R6 source compatibility v4",
+    "target": "four frozen LLM models x B1/B16",
+    "protocol": "fixed coordinates; frozen compiler versus occupancy-aware compiler",
+    "result": "pass 8/8",
+    "note": "verified: CUDA byte-identical; current compiler f461a1c898dd004d667504350a94e3d5f3c633d2f47df16895965be1686fcbfe; evidence runs/sm90r6/pipeline_gate/v4"
+  },
+  {
+    "check": "P3 linked occupancy and predicted selection",
+    "target": "Qwen1.7 B1/B16 LA/stage argmax binaries; one full predicted B1 solve",
+    "protocol": "guarded CUDA driver query of linked cubins; artifact and final-source hashes",
+    "result": "pass",
+    "note": "verified: all four existing binaries residency1; linked registers254 (entry ptxas82); predicted selection compiles and verifies its finalist; correction helper tests 2-to-1 and operator-sum, but physical correction was not triggered; evidence runs/sm90r6/occupancy"
+  },
+  {
+    "check": "R6 source compatibility v5",
+    "target": "four frozen LLM models x B1/B16",
+    "protocol": "same fixed coordinates; frozen compiler versus independent-merge compiler",
+    "result": "pass 8/8",
+    "note": "verified: generated CUDA byte-identical; evidence runs/sm90r6/pipeline_gate/v5"
+  },
+  {
+    "check": "independent attention merge publication litmus",
+    "target": "B1/B16 x grid132/264; Q2/Q8; chunks2/16/64",
+    "protocol": "5 fresh guarded processes; 8 cases x 128 rounds; rotating delayed producer; empty chunks and all-masked rows",
+    "result": "pass 5/5",
+    "note": "verified: BF16 context bit-identical to existing LA merge; failed initial comparator lacked post-stage global join and is retained; corrected test source and all accepted runs at runs/sm90r6/p5/attention-merge-v1/litmus-v2"
+  },
+  {
+    "check": "P5 independent attention merge equivalence and C-2",
+    "target": "Qwen3-1.7B B1; frozen theta; chunks16",
+    "protocol": "5 fresh guarded processes; reference/candidate x single-step/persistent launch; 1024 tokens",
+    "result": "pass 5/5",
+    "note": "verified: all four paths and processes token-identical; random checkpoint; candidate SHA256 7886a92dbb641bf5351a3e86fe5d32ec77dcfce838f0fe3f7396c6a10f2b1b89; evidence runs/sm90r6/p5/attention-merge-v1/B1/checks; no performance claim"
+  },
+  {
+    "check": "MoE expected task-domain projection",
+    "target": "E64/E128 x B1/2/4/8/16 x 8/16/24/32 tiles per expert",
+    "protocol": "40 counts versus 60-digit decimal reference; 160 gate-up/down geometry pairs; coupling release endpoints and invalid inputs",
+    "result": "pass",
+    "note": "verified: round expected tile tasks rather than active experts; preserve finite last-slot truncation and per-column combine dependency; approximation label in prices/domain JSON; full MoE CTG integration pending; runs/sm90r6/moe-domain/tests4.log"
+  },
+  {
+    "check": "P5 global route schedule load",
+    "target": "E64/E128 x B1/2/4/8/16; float/BF16 weights; selected/all softmax",
+    "protocol": "5 fresh guarded processes; 120 configurations each",
+    "result": "pass 5/5",
+    "note": "verified: Build/Publish versus RouterFinish/Load active routing fields bit-identical; runs/sm90r6/p5/moe-global-v1/route-load; primitive only"
+  },
+  {
+    "check": "P5 independent MoE combine publication litmus",
+    "target": "B1/B16; E64/E128; TN32/128; float/BF16 weights; grid132/264",
+    "protocol": "5 fresh guarded processes; 8 cases x 128 generations; delayed producers",
+    "result": "pass 5/5",
+    "note": "verified: fixed-order combine partials/residuals bit-identical and counters reset; binary c7d97ad532fb6401c560e6fd51907dd60cae0ea8d204bc5ff09a36c0703f22e2; runs/sm90r6/p5/moe-global-v1/combine-litmus"
+  },
+  {
+    "check": "P5 unfused M56 equivalence and C-2",
+    "target": "Qwen3-30B-A3B B1; frozen theta",
+    "protocol": "5 fresh guarded processes; reference/candidate x single-step/persistent; 1024 tokens",
+    "result": "pass 5/5",
+    "note": "verified: all paths and processes identical; random checkpoint; tokens SHA256 b958eaba4b8b4f56bf3e998c4219e4b0a71a177bda57fc330ea3487679d74ae3; candidate 914bd16b9911f632eb0ff11fd880ce2e0a239c6cc74334af13924abdf72ca1ba; runs/sm90r6/p5/moe-global-v1/qwen3_30b_a3b-B1-unfused-la/checks/result.json"
+  },
+  {
+    "check": "P5 independent MoE route equivalence and C-2",
+    "target": "Qwen3-30B-A3B B1; frozen theta",
+    "protocol": "5 fresh guarded processes; reference/candidate x single-step/persistent; 1024 tokens",
+    "result": "pass 5/5",
+    "note": "verified: all paths and processes identical; random checkpoint; tokens SHA256 b958eaba4b8b4f56bf3e998c4219e4b0a71a177bda57fc330ea3487679d74ae3; candidate a7639715b41b5192c6967336c26dea5f0de6f6f89e186597eada63028eed8f5f; runs/sm90r6/p5/moe-global-v1/qwen3_30b_a3b-B1-stage/checks/result.json"
+  },
+  {
+    "check": "R6 source compatibility v9",
+    "target": "four frozen LLM models x B1/B16",
+    "protocol": "fixed coordinates; immutable compiler snapshot versus frozen compiler",
+    "result": "pass 8/8",
+    "note": "verified: CUDA byte-identical; snapshot compiler d5de24e888d358fa58a451403f618680be12c4e4eaea9ea4e90621a08ae32cec; runs/sm90r6/pipeline_gate/v9-results; v8 mixed-compiler provenance excluded"
+  },
+  {
+    "check": "P5 current generated feature contract",
+    "target": "Qwen dense and MoE x B1/B16; 14 generated variants",
+    "protocol": "CPU source generation; actual typed-call/manifest validation and corrupted binding rejection",
+    "result": "pass",
+    "note": "verified: 2 test methods / 14 variants, 478.269 seconds; runs/sm90r6/p5/native-features-v2; initial reduced-layer fixture failed dependency projection and is retained; final uses full frozen exports"
+  },
+  {
+    "check": "P5 independent MoE combine equivalence and C-2",
+    "target": "Qwen3-30B-A3B B1; frozen theta",
+    "protocol": "5 fresh guarded processes; reference/candidate x single-step/persistent; 1024 tokens",
+    "result": "pass 5/5",
+    "note": "verified: all paths and processes identical; random checkpoint; candidate cb94677b8818c180c0c602e8b4fd9063534c10b09a8bf183a655c68085337e4c; runs/sm90r6/p5/moe-global-v1/qwen3_30b_a3b-B1-combine-stage/checks/result.json"
+  },
+  {
+    "check": "R6 source compatibility v10",
+    "target": "four frozen LLM models x B1/B16",
+    "protocol": "fixed coordinates; immutable compiler snapshot versus frozen compiler",
+    "result": "pass 8/8",
+    "note": "verified: default CUDA byte-identical after opt-in kernel-sequence codegen; runs/sm90r6/pipeline_gate/v10/manifest.json"
+  },
+  {
+    "check": "P5 current MoE body contract",
+    "target": "B1; local/fused; global LA/fused; route-stage/fused; LA/unfused; route-stage/unfused",
+    "protocol": "5 fresh guarded processes; 5 variants x 128 launches; delayed CTA; FP64 oracle and exact publication checks",
+    "result": "pass 5/5",
+    "note": "verified: zero errors; supersedes stale pre-E2 test failure above; binary b9ae46a3abbc5bedd72021311258264dbbcdf62dbd7ef18fc9a647e1bbe5467b; runs/sm90r6/p5/moe-global-v1/current-moe-B1/result.json"
+  },
+  {
+    "check": "P5 current MoE body contract",
+    "target": "B16; local/fused; global LA/fused; route-stage/fused; LA/unfused; route-stage/unfused",
+    "protocol": "5 fresh guarded processes; 5 variants x 128 launches; delayed CTA; FP64 oracle and exact publication checks",
+    "result": "pass 5/5",
+    "note": "verified: zero errors; supersedes stale pre-E2 test failure above; binary 0770444cd0c2d4d5be2e151e037b4e19304abeb9c7fde9f980e966741c30c0f0; runs/sm90r6/p5/moe-global-v1/current-moe-B16/result.json"
+  },
+  {
+    "check": "AB4c dense kernel-sequence equivalence and C-2",
+    "target": "Qwen3-1.7B B1; aggregate frozen theta",
+    "protocol": "5 fresh guarded processes on eligible cards; reference/candidate x single-step/persistent; 1024 tokens",
+    "result": "pass 5/5",
+    "note": "verified: all paths and processes token-identical; random checkpoint; candidate ea04d872cf7e6088128493d00e81678153e360a0fd2b77d8c9e8fb976c1d8c9b; runs/sm90r6/ab4c/frozen-theta-v1/qwen3_1_7b-B1/checks-retry/result.json; GPU6 debug attempts excluded"
+  },
+  {
+    "check": "P5 global LA MoE equivalence and C-2",
+    "target": "Qwen3-30B-A3B B1; frozen theta",
+    "protocol": "5 fresh guarded processes on eligible cards; reference/candidate x single-step/persistent; 1024 tokens",
+    "result": "pass 5/5",
+    "note": "verified: all paths token-identical; deterministic random checkpoint; runs/sm90r6/p5/moe-global-v1/qwen3_30b_a3b-B1-la/checks/result.json"
+  },
+  {
+    "check": "P5 aggregate MoE equivalence and C-2",
+    "target": "Qwen3-30B-A3B B1; frozen theta",
+    "protocol": "5 fresh guarded processes on eligible cards; reference/candidate x single-step/persistent; 1024 tokens",
+    "result": "pass 5/5",
+    "note": "verified: all paths token-identical; deterministic random checkpoint; runs/sm90r6/p5/moe-global-v1/qwen3_30b_a3b-B1-aggregate/checks/result.json"
+  },
+  {
+    "check": "AB4c MoE kernel-sequence equivalence and C-2",
+    "target": "Qwen3-30B-A3B B1; frozen theta",
+    "protocol": "5 fresh guarded processes on eligible cards; reference/candidate x single-step/persistent; 1024 tokens",
+    "result": "pass 5/5",
+    "note": "verified: all paths token-identical; deterministic random checkpoint; runs/sm90r6/ab4c/frozen-theta-v1/qwen3_30b_a3b-B1/checks/result.json"
+  },
+  {
+    "check": "P4 native scheduling graph and CP-P regression",
+    "target": "all reducers and edge contracts; CPU/runtime host contracts",
+    "protocol": "8-cell frozen source gate; 14 generated feature variants; corruption rejection; 14 CPU ctests; 11 Python contract checks; 4 linked-identity checks",
+    "result": "pass",
+    "note": "verified; default CUDA unchanged; native CTG and flow tests also pass; MoE finite-domain approximation retained; runs/sm90r6/cp-p/checkpoint.json"
+  },
+  {
+    "check": "AB1-qkv-ledger-development",
+    "target": "Qwen3-1.7B B1 isolated qkv",
+    "protocol": "5 fresh guarded processes",
+    "result": "5/5 pass",
+    "note": "development trace coverage only; not a numerical oracle or end-to-end acceptance; runs/sm90r6/ab1/probe-development-v1/checks/result.json"
+  },
+  {
+    "check": "AB1-head-prefix-development",
+    "target": "Qwen3-1.7B B16 isolated head",
+    "protocol": "5 fresh guarded processes",
+    "result": "5/5 pass",
+    "note": "development zero-KV input; full untimed model prefix; L unrolled measured targets; runs/sm90r6/ab1/head-development-v1/checks/result.json"
+  },
+  {
+    "check": "AB1-head-prefilled-development",
+    "target": "Qwen3-1.7B B16 isolated head",
+    "protocol": "5 fresh guarded processes",
+    "result": "5/5 pass",
+    "note": "A0 prompt-prefilled KV; GPU0; immutable inputs; complete CTA ledgers and monotonic timestamps; excluded from formal theta selection; runs/sm90r6/ab1/head-development-v1/checks-prefilled-v2/result.json"
+  },
+  {
+    "check": "R6 default source compatibility after probe repairs",
+    "target": "four frozen LLM models x B1/B16",
+    "protocol": "immutable compiler versus retained V12 reference CUDA",
+    "result": "pass 8/8",
+    "note": "verified: all default sources byte-identical after diagnostic probe repairs; reference and input hashes verified; runs/sm90r6/pipeline_gate/v13/manifest.json"
+  },
+  {
+    "check": "accepted C2 evidence audit",
+    "target": "all completed R6 C2 source runs including recovered retries",
+    "protocol": "five fresh processes; 1024 tokens; single-step and persistent; accepted guard",
+    "result": "pass",
+    "note": "verified 77 complete source runs / 385 accepted processes; no partial source runs remain; per-run provenance in SM90R6_c2.csv; raw final-audit-v1/c2-audit.json"
+  },
+  {
+    "check": "final P-ABL and P-PAIR timing audit",
+    "target": "8 ablation units and 7 nonidentical AB5 pair units",
+    "protocol": "same-card order; fresh PID/PGID; warmup+3 samples; exact token shapes; prompt/checkpoint/binary/guard identity; timing recomputation",
+    "result": "pass",
+    "note": "verified 15 units / 372 accepted processes; validates measurement evidence, not cross-arm output equivalence; AB5 token exclusions retained; raw final-audit-v1/timing-audit.json"
+  },
+  {
+    "check": "final selected AB4 C1",
+    "target": "AB4b and AB4c selected winners across eight cells",
+    "protocol": "256 positions; HF C1 thresholds retained",
+    "result": "pass 16/16",
+    "note": "verified selected manifests bind 16 passing C1 records; raw final-audit-v1/c1-audit.json"
+  }
+]

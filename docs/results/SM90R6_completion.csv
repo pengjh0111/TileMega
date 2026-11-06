@@ -1,0 +1,173 @@
+[
+  {
+    "item": "CP-P correctness",
+    "status": "complete",
+    "expected": "8 source cells;14 feature variants",
+    "observed": "passed",
+    "detail": "Existing current-body synchronization and C2 gates retained; V1-V4 reported under continuation rules",
+    "evidence": "runs/sm90r6/cp-p/checkpoint.json",
+    "evidence_sha256": "ecf7bb275a52f8bc86162dd24d1303b3e15a7a06cf95fe8a6c4cc623df4c3729"
+  },
+  {
+    "item": "V2 dataset and model accuracy",
+    "status": "reported_with_gaps",
+    "expected": "current-body measured candidate cohort",
+    "observed": "TP subset; dense/MoE historical-body rows excluded",
+    "detail": "Low correlations and missing current-body candidate coverage retained; continuation does not make these a stopping gate",
+    "evidence": "docs/results/SM90R6_pipeline_acceptance.csv",
+    "evidence_sha256": "d661e37746ee798ac6eb370b119b51ece405211b44308de3d5ede38568f6990b"
+  },
+  {
+    "item": "H1",
+    "status": "complete_with_unsupported_configuration",
+    "expected": "56",
+    "observed": "56",
+    "detail": "Five accepted fresh processes per supported configuration; bulk x8 is user-approved unsupported",
+    "evidence": "docs/results/SM90R6_hw_peaks.csv",
+    "evidence_sha256": "83798a549238b75b1e684266da848f36992b103497799f2b71c5e9fc4ab4ca9c"
+  },
+  {
+    "item": "H2",
+    "status": "complete",
+    "expected": "10 cells;320 layer rows",
+    "observed": "10 cells;320 layer rows",
+    "detail": "1024 positions and frozen model-specific prompts",
+    "evidence": "docs/results/SM90R6_moe_routing.csv",
+    "evidence_sha256": "35cdea00db68a0c0088c45e155ae49ed21955f40436b94fe615644d3af3af504"
+  },
+  {
+    "item": "H3 LLM",
+    "status": "complete_in_scope",
+    "expected": "281 cells;2 bases",
+    "observed": "562 rows",
+    "detail": "Frozen LLM timing sources per prompt; DNN bounds remain separate",
+    "evidence": "docs/results/SM90R6_hw_bound.csv",
+    "evidence_sha256": "d0d4edf95d7ddaacf33dd71b435602a52f40a0a3b00847d1b9370f6c1277b4c0"
+  },
+  {
+    "item": "I1",
+    "status": "complete",
+    "expected": "12 cells;60 GEMM rows",
+    "observed": "12 cells;60 GEMM rows",
+    "detail": "Complete H1 normalization and accepted captures",
+    "evidence": "docs/results/SM90R6_kernel_boundary.csv",
+    "evidence_sha256": "b96fecc030ad9f09aa56adaf898d73e5c3949f968dbba9a88212b205b70054ae"
+  },
+  {
+    "item": "Dense A0 D0",
+    "status": "complete",
+    "expected": "4 cells x3 processes",
+    "observed": "26 stage rows",
+    "detail": "Full 520-token equivalence and 16 retained steady-state steps",
+    "evidence": "docs/results/SM90R6_d0_dense.csv",
+    "evidence_sha256": "645d61381f4d94b72d9d8f67aa0df52bd803149f149f5f56d250648fced047b1"
+  },
+  {
+    "item": "I3 / DT-F1",
+    "status": "complete",
+    "expected": "primary and mandatory fallback",
+    "observed": "3 TN rows",
+    "detail": "Both optima agree; fallback has only one legal TN; Fig1 not replaced",
+    "evidence": "docs/results/SM90R6_fig1.csv",
+    "evidence_sha256": "39d5b0c82f77fb83b075ca93b3f29a1f74e0999335c2db35fce3218efc155956"
+  },
+  {
+    "item": "AB1 isolated probes",
+    "status": "collected_with_missing_reference",
+    "expected": "44 families;132 selected rows",
+    "observed": "132 processes;131 timed rows and1 blank A0 row",
+    "detail": "Qwen MoE B1 expert gate_up A0 geometry absent from legal probe domain",
+    "evidence": "docs/results/SM90R6_ab1_theta.csv",
+    "evidence_sha256": "b5fc6eeb2e0bfcbf8e9cf5701810980e06c60f94f3947e61e2b95a4b7adf3cf4"
+  },
+  {
+    "item": "P-ABL",
+    "status": "collected_with_unavailable_arms",
+    "expected": "8 cells x8 arms",
+    "observed": "62 measured rows;2 missing rows;186 processes",
+    "detail": "Six full eight-arm units; two explicitly labeled seven-arm protocol exceptions; OLMoE B1 AB1a compile conflict and Qwen MoE B16 AB1b no legal pinned seed",
+    "evidence": "docs/results/SM90R6_ablation.csv",
+    "evidence_sha256": "41e0c36130d73500ed80c68f5572ee551d4e5b80a348f5869dc449c3646be838"
+  },
+  {
+    "item": "DT-A0",
+    "status": "complete",
+    "expected": "8 decisions",
+    "observed": "8 decisions;5 triggered",
+    "detail": "All triggered ranks and full decompositions reproduced without reselection",
+    "evidence": "docs/results/SM90R6_a0_diagnostics.csv",
+    "evidence_sha256": "cdfc5b099167cb1a944796d94e3133a3cfc6d2b16801eb2b1d65959c71b4f855"
+  },
+  {
+    "item": "AB5 CPU and PSEL",
+    "status": "complete",
+    "expected": "6114 E5-1 measurements;72 budget searches;24 winners",
+    "observed": "all retained;620 budget rows including24 measured winners",
+    "detail": "CPU/offline and measured PSEL data retain provenance and distinct protocol labels",
+    "evidence": "docs/results/SM90R6_ab5_budget.csv",
+    "evidence_sha256": "2575555c581644f30ddea0b7830ae31eeeb031c6b7cb65fb37558a248c15add5"
+  },
+  {
+    "item": "AB5 P-PAIR",
+    "status": "collected_with_token_exclusions",
+    "expected": "8 cell decisions;21 distinct pair blocks",
+    "observed": "186 processes;7 comparable blocks;14 excluded blocks",
+    "detail": "1 full cell,4 partial cells,2 fully excluded cells,1 identical-coordinate cell; excluded output differences are not performance comparisons",
+    "evidence": "docs/results/SM90R6_ab5_budget.csv",
+    "evidence_sha256": "2575555c581644f30ddea0b7830ae31eeeb031c6b7cb65fb37558a248c15add5"
+  },
+  {
+    "item": "C2",
+    "status": "complete",
+    "expected": "5 fresh processes per available source run",
+    "observed": "77 source runs;385 accepted processes",
+    "detail": "Final raw guards/process groups/token arrays/checkpoints/binary identities pass",
+    "evidence": "docs/results/SM90R6_c2.csv",
+    "evidence_sha256": "122433bc2bea3a4282b482a6da66d1afe2c3e25d87944f6549f397ed92c112a6"
+  },
+  {
+    "item": "Final timing evidence",
+    "status": "complete",
+    "expected": "all final PABL and pair processes",
+    "observed": "15 units;372 accepted processes",
+    "detail": "Same-card order, identity, samples and exact timing recomputation pass",
+    "evidence": "runs/sm90r6/final-audit-v1/timing-audit.json",
+    "evidence_sha256": "26bd8dfcff865b221dc7d4d965042c7368277d436e3237035b919fbddaecaf48"
+  },
+  {
+    "item": "DT-P",
+    "status": "incomplete",
+    "expected": "2 standalone-vs-four-card cohort comparisons",
+    "observed": "0",
+    "detail": "Not collected; user-authorized trial concurrency does not certify the DT-P gate",
+    "evidence": "docs/results/SM90R6_decisions.csv",
+    "evidence_sha256": "4b03fc134087ffe2f75848058fc4daa0eb42ef08c29963524085c59e5d0e4978"
+  },
+  {
+    "item": "DNN / P6 / N0-N3 / DT-B / DT-N0",
+    "status": "separate_scope",
+    "expected": "external worktree results",
+    "observed": "not audited in this session",
+    "detail": "User assigned DNN to a separate process; no claim of complete full-R6 acceptance",
+    "evidence": "docs/results/SM90R6_decisions.csv",
+    "evidence_sha256": "4b03fc134087ffe2f75848058fc4daa0eb42ef08c29963524085c59e5d0e4978"
+  },
+  {
+    "item": "AB4b / AB4c C1",
+    "status": "complete",
+    "expected": 16,
+    "observed": 16,
+    "detail": "All eight selected pairs pass the required 256-position C1 gate",
+    "evidence": "runs/sm90r6/final-audit-v1/c1-audit.json",
+    "evidence_sha256": "ef2a6d53d34a8fe0d5b86385409f1171a9f6e328f9437cd8b47920fc7abeb931"
+  },
+  {
+    "item": "Phase A retained checkpoint",
+    "status": "complete",
+    "expected": "A1 negative test;A2 five TP2 batches;A3 six records;A4 corrections",
+    "observed": "A2 five complete 3-process rows;A3 six logs;retained source gates",
+    "detail": "A3 TRT strategy default remains stated from code; no new runtime inference",
+    "evidence": "docs/results/SM90R6_tp_diag.csv",
+    "evidence_sha256": "8dbf1f2f91f185f30b178fbfd59c4922a66372e4ea2c533d0692a261c8cfe44e"
+  }
+]
