@@ -25,6 +25,11 @@ struct DnnPlanOptions {
   bool dwpw_fuse=false;
   std::optional<std::set<unsigned>> dwpw_fuse_gemms;
   bool deferred_layernorm=false;
+  // The F3 forward skeleton (DNN3 prompt §4): an image of at most eight
+  // channels keeps the eight-channel block (the gather stem reads one 16 B
+  // tap per pixel), an identity adaptive pool is an alias, and a Linear over
+  // an NHWC image reorders its weight columns instead of the activation.
+  bool f3=false;
   std::optional<std::set<unsigned>> deferred_layernorm_gemms;
   std::optional<std::set<DeferredLayerNormEdge>> deferred_layernorm_edges;
 };
