@@ -1,6 +1,8 @@
 """Preserve independent TP starts when a later guarded process is interrupted."""
 import hashlib
+import itertools
 import json
+import os
 from pathlib import Path
 import sys
 import time
@@ -71,7 +73,8 @@ def wait_idle(cell, folder, root):
                                          startup_hidden_mib=startup_limit)) + '\n')
         if ready:
             return
-        if time.monotonic() - start > policy['max_idle_wait_s']:
+        if (os.getenv('MX_GPU_UNLIMITED_RETRIES') != '1' and
+                time.monotonic() - start > policy['max_idle_wait_s']):
             raise RuntimeError('no idle TP group; no new GPU process was launched')
         time.sleep(policy['interval_s'])
 
@@ -110,9 +113,11 @@ def output_job(cell, folder, role, output, command):
             raise ValueError('retained guarded process command differs')
         return target, run
     failures = []
-    for number in (0, 1):
-        target = output if not number else output.with_name(output.stem + '_retry1' + output.suffix)
-        execution = folder / (role + '_execution' + ('_retry1' if number else ''))
+    unlimited = os.getenv('MX_GPU_UNLIMITED_RETRIES') == '1'
+    for number in itertools.count() if unlimited else (0, 1):
+        suffix = f'_retry{number}' if number else ''
+        target = output.with_name(output.stem + suffix + output.suffix)
+        execution = folder / (role + '_execution' + suffix)
         argv = list(map(str, command(target)))
         process = cell.run_command(execution, argv, guarded=True)
         run = dict(role=role, output=str(target), manifest=process['guard_manifest'])

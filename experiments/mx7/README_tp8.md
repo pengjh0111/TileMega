@@ -8,9 +8,9 @@ From the repository root:
 
 ```bash
 scripts/mx_tp8_sweep.sh plan
-scripts/mx_tp8_sweep.sh prepare --out runs/mx7/tp8
-scripts/mx_tp8_sweep.sh run --out runs/mx7/tp8
-scripts/mx_tp8_sweep.sh status --out runs/mx7/tp8
+scripts/mx_tp8_sweep.sh prepare --out runs/mx7/tp8_queue
+scripts/mx_tp8_sweep.sh run --out runs/mx7/tp8_queue
+scripts/mx_tp8_sweep.sh status --out runs/mx7/tp8_queue
 ```
 
 `plan` prints the scope without importing a GPU framework or creating a run.
@@ -23,9 +23,9 @@ The command defaults to `plan` to make an accidental invocation harmless.
 For an unattended run:
 
 ```bash
-mkdir -p runs/mx7/tp8
-nohup scripts/mx_tp8_sweep.sh run --out runs/mx7/tp8 \
-  > runs/mx7/tp8/launcher.log 2>&1 &
+mkdir -p runs/mx7/tp8_queue
+nohup scripts/mx_tp8_sweep.sh run --out runs/mx7/tp8_queue \
+  > runs/mx7/tp8_queue/launcher.log 2>&1 &
 ```
 
 Each GPU job waits for all requested cards to satisfy the existing guard's
@@ -33,9 +33,12 @@ availability, ownership, hidden-memory, utilization, power and free-memory
 conditions. It also checks the same per-card locks used by other TileMega
 jobs. Readiness polling holds no GPU locks; the guard acquires the complete
 group before launching the child, monitors it while running and checks it
-after exit. No foreign process is stopped. The wait expires after six hours
-by default; use `--idle-wait-s 86400` for a 24-hour window. `--poll-s` defaults
-to 10 seconds. Actual GPU jobs retain their 900-second limit.
+after exit. No foreign process is stopped. Device monitoring has no deadline
+by default (`--idle-wait-s -1`), and occupancy/guard interruptions have no retry
+limit, as requested by the user on 2026-11-07 (stated). `--poll-s` defaults to
+10 seconds. Each invalid attempt keeps a distinct directory and process record;
+the next attempt waits for idle cards again. Actual GPU jobs retain their
+900-second limit.
 
 The baseline scope has 15 cells and 30 fresh processes. Systems are interleaved
 within each batch and round. Each process uses BF16 greedy generation,
@@ -72,9 +75,11 @@ Executables default to the existing validated environments:
 The torch.compile environment includes the prior TP adaptation and pinned
 accelerate dependency. There is no eager substitute for a failing compiled
 baseline. An engine failure or malformed output is recorded as N/A with the
-original log; a busy-card refusal remains pending. A running guard
-interruption gets at most one fresh attempt, with both attempts retained.
-Numerical or synchronization failures stop TileMega acceptance.
+original log; a busy-card refusal remains pending. Running guard interruptions
+return to the queue without exhausting a retry counter. This also applies to
+solver correctness/timing cohorts, residency queries and nested qualification
+jobs. Numerical or synchronization failures stop TileMega acceptance and
+cannot be relabelled as occupancy failures.
 
 Use the same `--out` and options to resume. Successful jobs and baseline
 rounds are hash-checked and reused. A campaign lock prevents two launchers
@@ -95,8 +100,13 @@ Changing source code or model inputs requires a new campaign identity.
 | `ACCEPTED.json` | Written only after all required campaign checks finish |
 | `LAST_STOP.json` | Latest stop reason; earlier attempts are retained |
 
-Validation on 2026-11-06 (verified): 60 focused CPU tests pass; TP8 export and
+Validation on 2026-11-07 (verified): 65 focused CPU tests pass; TP8 export and
 a development-only B1 plan compile with 512 threads, MTreg229, stack0 and
 static0. The CPU legality helper enumerates 700 TP8 coordinates with the
 expected rank shapes. These are preparation checks, not GPU correctness or
 performance results. No TP8 timing result is claimed until collected.
+
+The earlier bounded-attempt campaign remains intact under `runs/mx7/tp8/`.
+It produced no passing TP8 timing cells. The persistent queue uses
+`runs/mx7/tp8_queue/`, with a new source identity; its launcher is recorded in
+`runs/mx7/TP8_ACTIVE.json`. No old failure row or frozen TP2/TP4 data is changed.

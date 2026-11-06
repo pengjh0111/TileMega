@@ -1,5 +1,6 @@
 """Independent guards preserve valid starts without hiding numerical failures."""
 import json
+import os
 from pathlib import Path
 import tempfile
 from types import MethodType, SimpleNamespace
@@ -36,6 +37,32 @@ class FakeCommands:
 
 
 class ProcessCohortTests(unittest.TestCase):
+    @patch('tilemega.tp.process_cohorts.wait_idle')
+    def test_unlimited_queue_preserves_every_interrupted_output(self, wait):
+        with tempfile.TemporaryDirectory() as directory, \
+                patch.dict(os.environ, MX_GPU_UNLIMITED_RETRIES='1'):
+            root = Path(directory)
+            cell = FakeCommands([(75, 'running interference GPU3', 101 + i, False) for i in range(3)] +
+                                [(0, 'child exit 0', 104, False)])
+            target, accepted = output_job(cell, root, 'native', root / 'tokens', lambda out: ['dummy', out])
+            self.assertEqual(target.name, 'tokens_retry3')
+            self.assertEqual(len(accepted['failed_runs']), 3)
+            self.assertEqual(len(cell.calls), 4)
+            self.assertEqual(validate_run(accepted['manifest'])['attempts'][-1]['child_pid'], 104)
+
+    def test_unlimited_queue_does_not_expire_during_idle_wait(self):
+        with tempfile.TemporaryDirectory() as directory, \
+                patch.dict(os.environ, MX_GPU_UNLIMITED_RETRIES='1'):
+            root = Path(directory);config = root / 'configs/bench';config.mkdir(parents=True)
+            (config / 'guard_policy_c550.json').write_text(json.dumps(dict(max_idle_wait_s=0, interval_s=0)))
+            cell = SimpleNamespace(a=SimpleNamespace(group='1,3'))
+            with patch('tilemega.bench.gpu_guard.gpu', return_value={}), \
+                    patch('tilemega.bench.gpu_guard.idle', side_effect=[False, False, True, True]), \
+                    patch('tilemega.tp.process_cohorts.time.sleep'):
+                wait_idle(cell, root / 'execution', root)
+            rows = (root / 'execution_readiness.jsonl').read_text().splitlines()
+            self.assertEqual(len(rows), 3)
+
     def test_startup_scheduling_waits_without_changing_guard_policy(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

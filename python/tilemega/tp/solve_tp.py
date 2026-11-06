@@ -1,6 +1,7 @@
 """Qualify dense TP k-best candidates, then select by four measured cohorts."""
 import argparse
 import hashlib
+import itertools
 import json
 import os
 from pathlib import Path
@@ -124,13 +125,14 @@ class Cell:
         validate_inputs(spec)
         save(folder / 'query_inputs.json', spec)
         independent = getattr(self.a, 'guard_each_process', False)
-        for attempt in range(2 if independent else 1):
-            query_folder = folder / ('occupancy' if not attempt else 'occupancy_guard_retry1')
+        unlimited = independent and os.getenv('MX_GPU_UNLIMITED_RETRIES') == '1'
+        for attempt in itertools.count() if unlimited else range(2 if independent else 1):
+            query_folder = folder / ('occupancy' if not attempt else f'occupancy_guard_retry{attempt}')
             query_result = query_folder / 'result.json'
             execution = self.run_command(query_folder, [sys.executable, '-m', 'tilemega.tp.plan_occupancy',
                 '--inputs', folder / 'query_inputs.json', '--out', query_result], guarded=True, cap=300)
             if independent and execution['returncode'] == 75:
-                if attempt:
+                if attempt and not unlimited:
                     raise RuntimeError('residency query interrupted twice; preserve both guard records')
                 continue
             if execution['returncode'] or not json.loads(query_result.read_text())['qualified']:

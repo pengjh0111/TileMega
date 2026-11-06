@@ -56,6 +56,35 @@ def read(path):
     return json.loads(Path(path).read_text())
 
 
+def assert_no_numerical_failure(folder):
+    for path in Path(folder).rglob('*.json'):
+        try:
+            value = read(path)
+        except (OSError, ValueError):
+            continue
+        pending = [value]
+        while pending:
+            item = pending.pop()
+            if isinstance(item, dict):
+                if any(item.get(key) is False for key in ('pass', 'rank_tokens_identical', 'timed_tokens_identical')):
+                    raise RuntimeError('numerical failure cannot be retried as GPU interference: ' + str(path))
+                pending.extend(item.values())
+            elif isinstance(item, list):
+                pending.extend(item)
+
+
+def interference_failure(folder, code):
+    if code == 75:
+        return True
+    # Qualification helpers launch guarded jobs internally and propagate a
+    # guard refusal as an ordinary nonzero Python exit.
+    paths = list(Path(folder).rglob('guard_result.json'))
+    if not code or not paths:
+        return False
+    latest = max(paths, key=lambda p: p.stat().st_mtime_ns)
+    return read(latest).get('code') == 75
+
+
 def validate_measurement(value, batch, system, directory):
     if (value['tp'], value['batch'], value['max_tokens']) != (8, batch, 1024):
         raise ValueError('measurement is outside the requested TP8 scope')
@@ -94,6 +123,7 @@ class Campaign:
         self.lock = (self.out / 'campaign.lock').open('a')
         fcntl.flock(self.lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         self.env = dict(os.environ, PYTHONPATH=str(ROOT / 'python'), MX_GPU_WAIT_IDLE='1',
+                        MX_GPU_UNLIMITED_RETRIES='1',
                         MX_GPU_IDLE_WAIT_S=str(args.idle_wait_s), MX_GPU_POLL_S=str(args.poll_s),
                         MX_GPU_JOB_LOG=str(self.out / 'gpu_jobs.log'),
                         TILEMEGA_GPU_JOB_LOG=str(self.out / 'gpu_jobs.log'), NEEDS_MIB='12288')
@@ -105,7 +135,8 @@ class Campaign:
                       systems=list(SYSTEMS), isl=64, osl=1024, fresh_processes=2, warmup=1, repeats=2,
                       python=dict(tilemega=sys.executable, vllm=args.vllm_python,
                                   sglang=args.sglang_python, torchcompile=args.torchcompile_python),
-                      cucc=args.cucc, costs=ref(args.costs) if args.costs else None)
+                      cucc=args.cucc, costs=ref(args.costs) if args.costs else None,
+                      queue_policy='unlimited device-occupancy retries; numerical failures stop')
         identity = self.out / 'IDENTITY.json'
         if identity.exists():
             original = read(identity)
@@ -160,7 +191,7 @@ class Campaign:
             for item in value['artifacts']:
                 checked(item)
             return Path(value['folder']), value
-        for attempt in range(2):
+        while True:
             number = len(list(base.glob('attempt*')))
             folder = base / f'attempt{number:03d}'
             folder.mkdir()
@@ -170,6 +201,8 @@ class Campaign:
                 wrapper = 'mx_gpu_group_job.sh' if ',' in group else 'mx_gpu_job.sh'
                 actual = [str(ROOT / 'scripts' / wrapper), group, '900', str(folder / 'guard'), *argv]
             print(name, 'attempt', number, flush=True)
+            replace_json(base / 'QUEUE.json', dict(state='queued_or_running', attempt=number,
+                time=time.time(), command=actual, retry_limit=None))
             started = time.time()
             with (folder / 'stdout.log').open('x') as stream:
                 child = subprocess.Popen(actual, cwd=ROOT, env=self.env if group else self.cpu_env,
@@ -188,14 +221,13 @@ class Campaign:
             guard_path = folder / 'guard/guard_result.json'
             if group is not None and code == 0 and (not guard_path.exists() or read(guard_path)['code']):
                 raise RuntimeError('successful child lacks a passing guard')
-            if code == 75:
-                # An idle-window expiry or unlaunched preflight is pending, not an engine N/A.
-                guard = read(guard_path) if guard_path.exists() else {}
-                if not (folder / 'guard/pgid').exists():
-                    raise RuntimeError('GPU group not idle; resume the same command later: ' + str(folder))
-                if attempt == 0:
-                    continue
-                raise RuntimeError('guard interference repeated: ' + str(folder) + ' ' + str(guard))
+            if interference_failure(folder, code):
+                assert_no_numerical_failure(folder)
+                replace_json(base / 'QUEUE.json', dict(state='waiting_to_retry', attempt=number,
+                    time=time.time(), process=ref(folder / 'PROCESS.json'), retry_limit=None))
+                print(name, 'GPU guard interruption; retaining attempt and requeuing', flush=True)
+                time.sleep(float(self.env.get('MX_GPU_POLL_S', '10')))
+                continue
             value = dict(folder=str(folder), command=argv, returncode=code,
                          process=ref(folder / 'PROCESS.json'), artifacts=[])
             if code and not allow_failure:
@@ -205,8 +237,9 @@ class Campaign:
             value['artifacts'] = [ref(p) for p in sorted(folder.rglob('*'))
                                   if p.is_file() and p.name != 'monotonic_duration.json']
             save(receipt, value)
+            replace_json(base / 'QUEUE.json', dict(state='complete' if code == 0 else 'N/A',
+                time=time.time(), accepted=ref(receipt)))
             return folder, value
-        raise AssertionError('unreachable')
 
     def prepare(self):
         export, _ = self.job('export', lambda p: ['env', f'MODEL={self.a.model}',
@@ -430,18 +463,18 @@ def summarize(out, write=True):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=('plan', 'prepare', 'run', 'status'), nargs='?', default='plan')
-    parser.add_argument('--out', type=Path, default=ROOT / 'runs/mx7/tp8')
+    parser.add_argument('--out', type=Path, default=ROOT / 'runs/mx7/tp8_queue')
     parser.add_argument('--model', type=Path, default=Path('/root/models/qwen3_1_7b_rand'))
     parser.add_argument('--costs', type=Path, help='reuse an eligible TP8 measured table; never reuse TP2/TP4 coordinates')
     parser.add_argument('--workers', type=int, default=8)
     parser.add_argument('--poll-s', type=float, default=10)
-    parser.add_argument('--idle-wait-s', type=float, default=21600)
+    parser.add_argument('--idle-wait-s', type=float, default=-1, help='-1 monitors without a deadline (default)')
     parser.add_argument('--cucc', default='/opt/maca/tools/cu-bridge/bin/cucc')
     parser.add_argument('--vllm-python', default='/root/venv_vllm/bin/python')
     parser.add_argument('--sglang-python', default=sys.executable)
     parser.add_argument('--torchcompile-python', default='/root/venv_mx7_tc/bin/python')
     args = parser.parse_args()
-    if args.workers < 1 or args.poll_s <= 0 or args.idle_wait_s < 0:
+    if args.workers < 1 or args.poll_s <= 0 or args.idle_wait_s < -1:
         parser.error('invalid worker count or idle-wait interval')
     if args.command == 'plan':
         print(json.dumps(dict(tp=8, group=GROUP, model=str(args.model), batch=BATCHES, systems=SYSTEMS,
@@ -461,6 +494,7 @@ def main():
         return 0
     campaign = Campaign(args)
     try:
+        summarize(campaign.out)
         campaign.prepare()
         if args.command == 'prepare':
             print('CPU preparation complete; GPU tests have not started.', flush=True)

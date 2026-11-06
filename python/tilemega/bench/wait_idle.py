@@ -31,7 +31,7 @@ def sample(indices, policy, needs):
 def wait(indices, policy, needs, log, timeout, interval):
     if not indices or len(set(indices)) != len(indices) or not set(map(int, indices)) <= set(range(8)):
         raise ValueError('unique physical GPUs 0 through 7 are required')
-    if timeout < 0 or interval <= 0 or needs < 0:
+    if timeout < -1 or interval <= 0 or needs < 0:
         raise ValueError('invalid idle-wait limits')
     log = Path(log)
     log.parent.mkdir(parents=True, exist_ok=True)
@@ -49,9 +49,9 @@ def wait(indices, policy, needs, log, timeout, interval):
                   f'telemetry_errors={list(row["errors"])}', flush=True)
             last_notice = time.monotonic()
         elapsed = time.monotonic() - started
-        if elapsed >= timeout:
+        if timeout >= 0 and elapsed >= timeout:
             raise TimeoutError('GPU idle window not reached; no child was launched')
-        time.sleep(min(interval, timeout - elapsed))
+        time.sleep(interval if timeout < 0 else min(interval, timeout - elapsed))
 
 
 def main():
@@ -60,7 +60,7 @@ def main():
     parser.add_argument('--policy', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--needs-free-mib', type=int, default=12288)
-    parser.add_argument('--timeout-s', type=float, default=21600)
+    parser.add_argument('--timeout-s', type=float, default=21600, help='-1 waits without a deadline')
     parser.add_argument('--interval-s', type=float, default=10)
     args = parser.parse_args()
     try:

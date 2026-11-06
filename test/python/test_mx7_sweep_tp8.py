@@ -68,6 +68,16 @@ class EightCardTests(unittest.TestCase):
         self.assertFalse(value['ready'])
         self.assertEqual(set(value['errors']), {'0', '1'})
 
+    def test_unlimited_idle_wait_survives_arbitrarily_long_occupancy(self):
+        import itertools
+        with tempfile.TemporaryDirectory() as tmp, \
+                patch.object(wait_idle, 'sample', side_effect=[dict(ready=False, rows={}, locked=['4'], errors={})] * 3 +
+                    [dict(ready=True, rows={}, locked=[], errors={})]), \
+                patch.object(wait_idle.time, 'monotonic', side_effect=itertools.count(0, 1000000)), \
+                patch.object(wait_idle.time, 'sleep') as sleep:
+            self.assertTrue(wait_idle.wait(['0'], POLICY, 12288, Path(tmp) / 'monitor.jsonl', -1, 1)['ready'])
+            self.assertEqual(sleep.call_count, 3)
+
     def test_tp8_selection_uses_its_own_measured_scope(self):
         rows, constants = fixture()
         for row in rows:
@@ -169,17 +179,50 @@ class CollectionTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'changed'):
                 campaign.job('mock', command)
 
-    def test_guard_refusal_is_pending_instead_of_engine_na(self):
+    def test_guard_refusals_retry_until_success_without_a_limit(self):
         with tempfile.TemporaryDirectory() as tmp:
             campaign = sweep.Campaign.__new__(sweep.Campaign)
             campaign.out = Path(tmp)
             campaign.cpu_env = campaign.env = dict(os.environ)
-            with patch.object(sweep.subprocess, 'Popen') as start:
-                start.return_value.wait.return_value = 75
-                start.return_value.pid = 12345
-                with self.assertRaisesRegex(RuntimeError, 'not idle'):
+            codes = iter([75, 75, 75, 0])
+            def spawn(argv, **kwargs):
+                code = next(codes)
+                guard = Path(argv[3]);guard.mkdir()
+                (guard / 'guard_result.json').write_text(json.dumps(dict(code=code)))
+                return SimpleNamespace(pid=12345, wait=lambda: code)
+            with patch.object(sweep.subprocess, 'Popen', side_effect=spawn) as start, \
+                    patch.object(sweep.time, 'sleep') as sleep:
+                folder, result = campaign.job('guard', lambda p: ['true'], sweep.GROUP, allow_failure=True)
+            self.assertEqual(start.call_count, 4)
+            self.assertEqual(sleep.call_count, 3)
+            self.assertEqual(result['returncode'], 0)
+            self.assertEqual(folder.name, 'attempt003')
+            self.assertEqual(len(list((Path(tmp) / 'jobs/guard').glob('attempt*/PROCESS.json'))), 4)
+
+    def test_numerical_failure_stops_even_when_guard_reports_interference(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            campaign = sweep.Campaign.__new__(sweep.Campaign)
+            campaign.out = Path(tmp)
+            campaign.cpu_env = campaign.env = dict(os.environ)
+            def spawn(argv, **kwargs):
+                guard = Path(argv[3]);guard.mkdir()
+                (guard / 'guard_result.json').write_text(json.dumps(dict(code=75)))
+                (guard.parent / 'check.json').write_text(json.dumps({'pass': False}))
+                return SimpleNamespace(pid=12345, wait=lambda: 75)
+            with patch.object(sweep.subprocess, 'Popen', side_effect=spawn) as start:
+                with self.assertRaisesRegex(RuntimeError, 'numerical failure'):
                     campaign.job('guard', lambda p: ['true'], sweep.GROUP, allow_failure=True)
-            self.assertFalse((Path(tmp) / 'jobs/guard/ACCEPTED.json').exists())
+            self.assertEqual(start.call_count, 1)
+
+    def test_nested_helper_guard_failure_can_be_requeued(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            path = root / 'nested/guard_result.json'
+            path.parent.mkdir()
+            path.write_text(json.dumps(dict(code=75)))
+            self.assertTrue(sweep.interference_failure(root, 1))
+            path.write_text(json.dumps(dict(code=1)))
+            self.assertFalse(sweep.interference_failure(root, 1))
 
 
 if __name__ == '__main__':
