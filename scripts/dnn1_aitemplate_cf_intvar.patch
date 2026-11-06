@@ -1,0 +1,16 @@
+--- a/aitemplate/compiler/transform/constant_folding.py
++++ b/aitemplate/compiler/transform/constant_folding.py
+@@ -63,6 +63,13 @@
+ 
+ 
+ def _non_output_from_tensor(tensor: Tensor) -> Tensor:
++    if isinstance(tensor, IntVarTensor):
++        new_tensor = IntVarTensor(tensor._attrs["int_var"])
++        new_tensor._attrs = tensor._attrs.copy()
++        new_tensor._attrs["src_ops"] = tensor._attrs["src_ops"].copy()
++        new_tensor._attrs["dst_ops"] = tensor._attrs["dst_ops"].copy()
++        new_tensor._attrs["is_output"] = False
++        return new_tensor
+     new_tensor = Tensor(
+         shape=tensor._attrs["shape"],
+         name=tensor._attrs["name"],
