@@ -33,8 +33,8 @@ def main():
     rank = int(os.environ['RANK'])
     local_rank = int(os.environ['LOCAL_RANK'])
     world = int(os.environ['WORLD_SIZE'])
-    if world not in (2, 4):
-        raise ValueError('MX7 baseline requires TP2 or TP4')
+    if world not in (2, 4, 8):
+        raise ValueError('MX7 baseline requires TP2, TP4 or TP8')
     torch.cuda.set_device(local_rank)
     # CP0 verified is_nccl_available(); MetaX provides this backend through MCCL.
     dist.init_process_group(backend='nccl')

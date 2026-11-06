@@ -253,7 +253,7 @@ class Cell:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--tp', type=int, choices=(2, 4), required=True)
+    parser.add_argument('--tp', type=int, choices=(2, 4, 8), required=True)
     parser.add_argument('--batch', type=int, choices=(1, 2, 4, 8, 16), required=True)
     parser.add_argument('--group', required=True)
     parser.add_argument('--guard-each-process', action='store_true')

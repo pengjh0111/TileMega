@@ -15,6 +15,12 @@ cd "$ROOT"
 export PYTHONPATH=$ROOT/python${PYTHONPATH:+:$PYTHONPATH}
 LOG=${TILEMEGA_GPU_JOB_LOG:-$ROOT/runs/mx1/gpu_jobs.log}
 mkdir -p "$out" "$(dirname "$LOG")"
+if [ "${MX_GPU_WAIT_IDLE:-0}" = 1 ]; then
+  python -m tilemega.bench.wait_idle --group "$g" \
+    --policy configs/bench/guard_policy_c550.json --out "$out/readiness.jsonl" \
+    --needs-free-mib "${NEEDS_MIB:-12288}" --timeout-s "${MX_GPU_IDLE_WAIT_S:-21600}" \
+    --interval-s "${MX_GPU_POLL_S:-10}" || exit "$?"
+fi
 echo "$(date -Is) gpu=$g timeout=$t out=$out cmd=$*" >> "$LOG"
 set +e
 python scripts/mx_job_duration.py --out "$out/monotonic_duration.json" -- \

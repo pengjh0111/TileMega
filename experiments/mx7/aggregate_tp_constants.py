@@ -2,7 +2,7 @@
 import argparse,collections,hashlib,json,os,pathlib,statistics,subprocess,sys
 p=argparse.ArgumentParser(description=__doc__)
 for name in ['measurements','builds','out','work']:p.add_argument('--'+name,type=pathlib.Path,required=True)
-p.add_argument('--tp',type=int,choices=(2,4),action='append')
+p.add_argument('--tp',type=int,choices=(2,4,8),action='append')
 p.add_argument('--group',help='physical group for a single requested TP degree')
 a=p.parse_args();a.work.mkdir(parents=True,exist_ok=False)
 if a.group and (not a.tp or len(a.tp)!=1 or len(set(a.group.split(',')))!=a.tp[0]):p.error('--group requires exactly one matching --tp')

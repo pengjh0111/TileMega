@@ -97,8 +97,8 @@ def device_indices():
     if group is None:return [os.getenv('TILEMEGA_DEVICE_INDEX','0')]
     try:indices=sorted(set(int(g) for g in group.split(',')))
     except ValueError:raise ValueError('device group requires integer GPU indices') from None
-    if len(indices) not in (2,4) or not set(indices)<=set(range(8)):
-        raise ValueError('device group requires 2 or 4 GPUs from 0 through 7')
+    if len(indices) not in (2,4,8) or not set(indices)<=set(range(8)):
+        raise ValueError('device group requires 2, 4 or 8 GPUs from 0 through 7')
     return list(map(str,indices))
 
 @contextmanager

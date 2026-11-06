@@ -25,8 +25,8 @@ class TpServingEngine:
         self.devices = tuple(map(int, devices))
         self.lib = PlanLibrary(decode_so)
         self.tp = self.lib.tp_world()
-        if self.tp not in (2, 4) or len(self.devices) != self.tp or set(self.devices) != set(range(self.tp)):
-            raise ValueError('logical devices must cover exactly the TP2/TP4 plan world')
+        if self.tp not in (2, 4, 8) or len(self.devices) != self.tp or set(self.devices) != set(range(self.tp)):
+            raise ValueError('logical devices must cover exactly the TP2/TP4/TP8 plan world')
         if (self.lib.info.phase != 1 or self.lib.info.past_lo != 0 or
                 prompt_len < 1 or max_new_tokens < 1 or
                 prompt_len + max_new_tokens > self.lib.info.capacity or

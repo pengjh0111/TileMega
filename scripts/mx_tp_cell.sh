@@ -4,7 +4,7 @@ set -eu
 command=$1; tp=$2; batch=$3
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$ROOT"
-case "$tp" in 2|4) ;; *) echo 'only TP2 and TP4 are enabled' >&2; exit 2;; esac
+case "$tp" in 2|4|8) ;; *) echo 'only TP2, TP4 and TP8 are enabled' >&2; exit 2;; esac
 case "$batch" in 1|2|4|8|16) ;; *) echo 'batch must be 1,2,4,8,16' >&2; exit 2;; esac
 export PYTHONPATH="$ROOT/python${PYTHONPATH:+:$PYTHONPATH}"
 MODEL=${MODEL:-/root/models/qwen3_1_7b_rand}
@@ -39,7 +39,11 @@ PY
   ;;
 check|measure)
   : "${GROUP:?GROUP must be the C0-approved TP group}"
-  devices=0,1; [ "$tp" -eq 2 ] || devices=0,1,2,3
+  devices=$(python - "$tp" <<'PY'
+import sys
+print(','.join(map(str, range(int(sys.argv[1])))))
+PY
+)
   [ "$(awk -F, '{print NF}' <<< "$GROUP")" -eq "$tp" ] || { echo 'TP group size mismatch' >&2; exit 2; }
   out=${OUT:-$cell/$command/round${ROUND:-1}}
   mkdir -p "$out"

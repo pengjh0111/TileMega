@@ -22,7 +22,7 @@ def main() -> None:
     parser.add_argument("--warmup", type=int, default=1)
     parser.add_argument("--repeats", type=int, default=3)
     parser.add_argument("--mem-fraction", type=float, default=0.85)
-    parser.add_argument("--tp", type=int, choices=(1, 2, 4), default=1)
+    parser.add_argument("--tp", type=int, choices=(1, 2, 4, 8), default=1)
     args = parser.parse_args()
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from measurement_policy import TimingPolicy

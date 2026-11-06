@@ -126,7 +126,8 @@ def main():
     if set(constants) != {'t_ar', 't_head_x'}:
         raise ValueError('AR and head constants are required')
     from tilemega.tp.selection_tp import stage_lists
-    for tp in (2, 4):
+    degrees = sorted({row['key']['tp'] for row in catalog['rows']})
+    for tp in degrees:
         for batch in (1, 2, 4, 8, 16):
             stage_lists(catalog['rows'], f'qwen3_1_7b_tp{tp}', batch, constants)
     catalog.update(tp_constants=constants, constants_evidence=ref(args.constants),
@@ -134,7 +135,7 @@ def main():
     args.out.parent.mkdir(parents=True, exist_ok=True)
     save(args.out, catalog)
     save(qualification, dict(solver_eligible=True, cost_table_sha256=sha(args.out),
-         kind='mx7_tp_measured_stage_costs', complete_scopes=10,
+         kind='mx7_tp_measured_stage_costs', complete_scopes=5 * len(degrees),
          source_digest=catalog['source_digest'], history=[ref(args.catalog)],
          supplement_requested_keys=len(noisy),
          noisy_keys=[dict(key=row['key'], p90_ns=row['p90_ns']) for row in catalog['rows'] if row['noisy']]))

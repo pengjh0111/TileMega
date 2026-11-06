@@ -63,8 +63,8 @@ __device__ __forceinline__ unsigned Hash(unsigned epoch, unsigned item, unsigned
 
 template <class Word>
 struct Args {
-  Word* recv[4];
-  Word* ack[4];
+  Word* recv[8];
+  Word* ack[8];
   unsigned long long* errors;
   int rank, world, packets, epochs, store_method, load_method, all_to_all;
 };
@@ -153,10 +153,10 @@ template <class Word>
 static int Run(int packets, int epochs, int alloc, int store, int load, bool all) {
   int world = 0;
   Check(cudaGetDeviceCount(&world), "device_count");
-  if (world != (all ? 4 : 2)) throw std::runtime_error("litmus visible group has wrong size");
-  Args<Word> args[4]{};
-  cudaStream_t streams[4]{};
-  cudaEvent_t begin[4]{}, end[4]{};
+  if (all ? (world != 2 && world != 4 && world != 8) : world != 2) throw std::runtime_error("litmus visible group has wrong size");
+  Args<Word> args[8]{};
+  cudaStream_t streams[8]{};
+  cudaEvent_t begin[8]{}, end[8]{};
   for (int r = 0; r < world; ++r) {
     Check(cudaSetDevice(r), "set_device");
     args[r].recv[r] = static_cast<Word*>(Allocate(std::size_t(world) * packets * sizeof(Word), alloc));

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -eu
-[ "$#" -ge 4 ] || { echo 'usage: mx_gpu_group_job.sh <g1,g2[,g3,g4]> <timeout_s> <out_dir> <command...>' >&2; exit 2; }
+[ "$#" -ge 4 ] || { echo 'usage: mx_gpu_group_job.sh <g1,g2[,g3,g4,...]> <timeout_s> <out_dir> <command...>' >&2; exit 2; }
 group=$(python - "$1" <<'PY'
 import sys
 try:g=sorted(set(map(int,sys.argv[1].split(','))))
 except ValueError:raise SystemExit('GPU group must contain integer indices')
-if len(g) not in (2,4) or not set(g)<=set(range(8)):
- raise SystemExit('GPU group requires 2 or 4 cards from 0 through 7')
+if len(g) not in (2,4,8) or not set(g)<=set(range(8)):
+ raise SystemExit('GPU group requires 2, 4 or 8 cards from 0 through 7')
 print(','.join(map(str,g)))
 PY
 )
@@ -19,6 +19,12 @@ cd "$ROOT"
 export PYTHONPATH="$ROOT/python${PYTHONPATH:+:$PYTHONPATH}"
 LOG=${MX_GPU_JOB_LOG:-$ROOT/runs/mx7/gpu_jobs.log}
 mkdir -p "$out" "$(dirname "$LOG")"
+if [ "${MX_GPU_WAIT_IDLE:-0}" = 1 ]; then
+  python -m tilemega.bench.wait_idle --group "$group" \
+    --policy configs/bench/guard_policy_c550.json --out "$out/readiness.jsonl" \
+    --needs-free-mib "${NEEDS_MIB:-12288}" --timeout-s "${MX_GPU_IDLE_WAIT_S:-21600}" \
+    --interval-s "${MX_GPU_POLL_S:-10}" || exit "$?"
+fi
 printf '%s group=%s timeout=%s out=%s command=' "$(date --iso-8601=seconds)" "$group" "$t" "$out" >> "$LOG"
 printf '%q ' "$@" >> "$LOG"
 printf '\n' >> "$LOG"

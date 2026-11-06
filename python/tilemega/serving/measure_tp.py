@@ -24,7 +24,7 @@ def require_group():
     if os.getenv('TILEMEGA_GPU_LOCK_HELD') != '1' or not text:
         raise RuntimeError('TP requires scripts/mx_gpu_group_job.sh')
     physical = list(map(int, text.split(',')))
-    if len(physical) not in (2, 4) or len(set(physical)) != len(physical) or not set(physical) <= set(range(8)) or any(
+    if len(physical) not in (2, 4, 8) or len(set(physical)) != len(physical) or not set(physical) <= set(range(8)) or any(
             os.getenv(name) != text for name in ('CUDA_VISIBLE_DEVICES', 'MACA_VISIBLE_DEVICES')):
         raise ValueError('invalid guarded physical GPU group')
     return physical

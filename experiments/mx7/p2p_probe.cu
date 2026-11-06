@@ -23,7 +23,7 @@ int main() {
   try {
     int world = 0;
     Check(cudaGetDeviceCount(&world), "device_count");
-    if (world != 4) throw std::runtime_error("P2P probe requires exactly four visible GPUs");
+    if (world != 2 && world != 4 && world != 8) throw std::runtime_error("P2P probe requires two, four or eight visible GPUs");
     std::vector<unsigned long long*> pointers(world);
     for (int r = 0; r < world; ++r) {
       Check(cudaSetDevice(r), "set_device");

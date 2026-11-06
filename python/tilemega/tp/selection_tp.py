@@ -40,7 +40,7 @@ def communication_cost(constants,stage,tp,batch,tn=None):
 
 
 def stage_lists(rows,model,batch,tp_constants):
-    if model not in('qwen3_1_7b_tp2','qwen3_1_7b_tp4'):
+    if model not in('qwen3_1_7b_tp2','qwen3_1_7b_tp4','qwen3_1_7b_tp8'):
         raise ValueError('unsupported TP model scope')
     tp=int(model.rsplit('tp',1)[1])
     result={name:[]for name in STAGES};attention={}
@@ -94,7 +94,7 @@ def k_best(lists,layers):
 
 def pin(choice,cost_sha,tp,purpose='resource_probe'):
     if len(cost_sha)!=64 or any(c not in'0123456789abcdef'for c in cost_sha):raise ValueError('invalid cost table SHA256')
-    if purpose not in('manual','resource_probe')or tp not in(2,4):raise ValueError('invalid TP pin purpose or degree')
+    if purpose not in('manual','resource_probe')or tp not in(2,4,8):raise ValueError('invalid TP pin purpose or degree')
     stages=choice['stages'];attn=stages['attention']['key']
     if any(stages[name]['key']['tp']!=tp for name in STAGES):raise ValueError('mixed TP scopes in choice')
     config=dict(threads=512,purpose=purpose,attn_version=2,split=1,b_min=attn['b_min'],

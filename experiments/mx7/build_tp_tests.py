@@ -10,6 +10,7 @@ import time
 
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--out',type=Path,required=True)
+parser.add_argument('--tp',type=int,choices=(2,4,8),action='append')
 args=parser.parse_args();args.out.mkdir(parents=True,exist_ok=False)
 frozen=args.out/'frozen';shutil.copytree('include',frozen/'include')
 for name in ('tp_allreduce_v2.cu','tp_head_exchange_v2.cu'):
@@ -34,4 +35,4 @@ def one(key):
  (out/'BUILD.json').write_text(json.dumps(identity,indent=2)+'\n');print(kind,tp,b,r.returncode,flush=True)
  return r.returncode
 with concurrent.futures.ThreadPoolExecutor(max_workers=8)as pool:
- assert all(code==0 for code in pool.map(one,[(kind,t,b)for kind in ('ar','head')for t in(2,4)for b in(1,16)]))
+ assert all(code==0 for code in pool.map(one,[(kind,t,b)for kind in ('ar','head')for t in(args.tp or (2,4))for b in(1,16)]))

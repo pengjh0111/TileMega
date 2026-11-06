@@ -15,7 +15,7 @@ import time
 ROOT=Path(__file__).resolve().parents[2]
 MODELS={f'qwen3_1_7b_tp{tp}':dict(tp=tp,hidden=2048,intermediate=6144//tp,
     hkv=8//tp,q=2,dim=128,vocabulary=151936//tp,epsilon=1e-6,layers=28)
-    for tp in (2,4)}
+    for tp in (2,4,8)}
 
 
 def save(p,value):
@@ -28,9 +28,10 @@ def sha(p):return hashlib.sha256(Path(p).read_bytes()).hexdigest()
 def ref(p):return dict(path=str(Path(p).resolve()),sha256=sha(p))
 
 
-def domain(helper):
+def domain(helper, degrees=(2,4)):
     requests=[];regular=[]
     for model,m in MODELS.items():
+        if m['tp'] not in degrees:continue
         for b in (1,2,4,8,16):
             for stage in ('qkv','o','gate_up','down','head'):
                 n,k,op,norm={
@@ -49,6 +50,7 @@ def domain(helper):
     flags=[tuple(map(int,line.split()))for line in result.stdout.splitlines()];assert len(flags)==len(regular)
     rows=[dict(key,first_chunks=chunks)for key,(legal,chunks)in zip(regular,flags)if legal]
     for model,m in MODELS.items():
+        if m['tp'] not in degrees:continue
         for b,prefetch,b_min in itertools.product((1,2,4,8,16),(0,1,2),(1,2,4,8)):
             rows.append(dict(model=model,b=b,stage='attention',dim=128,q=2,hkv=m['hkv'],
                              prefetch=prefetch,b_min=b_min,attn_version=2,epsilon=m['epsilon'],tp=m['tp']))
@@ -70,6 +72,7 @@ def main():
     parser.add_argument('--out',type=Path,required=True)
     parser.add_argument('--workers',type=int,default=24)
     parser.add_argument('--resume',action='store_true')
+    parser.add_argument('--tp',type=int,choices=(2,4,8),action='append')
     args=parser.parse_args();destination=args.out.resolve();destination.mkdir(parents=True,exist_ok=args.resume)
     frozen=destination/'frozen'
     if not frozen.exists():
@@ -88,8 +91,9 @@ def main():
         if sha(frozen/name)!=digest:raise ValueError('frozen cost source changed')
     helper=destination/'cost_domain'
     if not helper.exists():subprocess.run(['c++','-std=c++17','-I'+str(frozen/'include'),str(frozen/'experiments/mx7/cost_domain.cpp'),'-o',str(helper)],check=True)
-    if not(destination/'DOMAIN.json').exists():save(destination/'DOMAIN.json',domain(helper))
+    if not(destination/'DOMAIN.json').exists():save(destination/'DOMAIN.json',domain(helper,args.tp or (2,4)))
     keys=json.loads((destination/'DOMAIN.json').read_text());builds=destination/'builds';builds.mkdir(exist_ok=True)
+    if {key['tp']for key in keys}!=set(args.tp or (2,4)):raise ValueError('resumed TP domain differs')
     from tilemega.build.identity import parse_resources
     base=[source['compiler']['path'],'-std=c++17','-O3','-shared','-Xcompiler=-fPIC,-resource-usage','-fno-strict-aliasing',
         '-mllvm','--max-mtreg-number=255','-DTILEMEGA_WATCHDOG=0','-DTILEMEGA_MX_DIAG=0','-I'+str(frozen/'include')]
