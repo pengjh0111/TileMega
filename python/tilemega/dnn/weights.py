@@ -7,7 +7,8 @@ import torch
 
 
 DNN_RECIPES = frozenset(('conv_bn_fold', 'bn_bias', 'bn_scale', 'fold_layernorm',
-                         'linear_bias', 'qkv_concat_bias', 'gate_pair_interleave'))
+                         'linear_bias', 'qkv_concat_bias', 'gate_pair_interleave',
+                         'linear_nhwc_flatten'))
 
 
 def recipe_sources(recipe: Mapping, nested) -> tuple[str, ...]:
@@ -135,6 +136,15 @@ def pack(recipe: Mapping, source, nested):
         output = torch.stack([item.reshape(heads, dim, *tail) for item in items], dim=1)
         output = output.reshape(3 * heads * dim, *tail)
         return output.to(torch.bfloat16) if part == 'weight' else output.float()
+    if kind == 'linear_nhwc_flatten':
+        # PyTorch flattens the pooled image as (c, h, w), while the F3 forward
+        # keeps it NHWC: reorder the Linear's columns instead of the activation.
+        c, h, w = (int(recipe[key]) for key in ('c', 'h', 'w'))
+        if weight is None or weight.ndim != 2 or c <= 0 or h <= 0 or w <= 0:
+            raise ValueError('linear_nhwc_flatten requires a matrix and positive C, H, W')
+        if weight.shape[1] != c * h * w:
+            raise ValueError('linear_nhwc_flatten columns differ from C*H*W')
+        return weight.reshape(weight.shape[0], c, h, w).permute(0, 2, 3, 1).reshape(weight.shape)
     if kind == 'gate_pair_interleave':
         unit = int(recipe['u'])
         if weight is None or weight.ndim not in (1, 2, 4) or unit <= 0 or weight.shape[0] % (2 * unit):
