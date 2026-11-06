@@ -17,7 +17,7 @@ import sys
 import traceback
 
 _run_context = {}
-CLASSIFICATION_MODELS = ('resnet18', 'resnet34', 'vgg16', 'alexnet', 'mbv1', 'mbv2')
+CLASSIFICATION_MODELS = ('resnet18', 'resnet34', 'resnet50', 'vgg16', 'alexnet', 'mbv1', 'mbv2')
 
 
 class BaselineFailure(RuntimeError):

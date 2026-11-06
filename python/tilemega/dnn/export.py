@@ -10,10 +10,11 @@ from pathlib import Path
 
 import torch
 
-MODELS = ('resnet18', 'resnet34', 'vgg16', 'alexnet', 'mbv1', 'mbv2', 'bert', 'nafnet')
+MODELS = ('resnet18', 'resnet34', 'resnet50', 'vgg16', 'alexnet', 'mbv1', 'mbv2', 'bert', 'nafnet')
 TORCHVISION_MODELS = {
     'resnet18': ('resnet18', 'ResNet18_Weights', 'IMAGENET1K_V1'),
     'resnet34': ('resnet34', 'ResNet34_Weights', 'IMAGENET1K_V1'),
+    'resnet50': ('resnet50', 'ResNet50_Weights', 'IMAGENET1K_V2'),
     'vgg16': ('vgg16', 'VGG16_Weights', 'IMAGENET1K_V1'),
     'alexnet': ('alexnet', 'AlexNet_Weights', 'IMAGENET1K_V1'),
     'mbv2': ('mobilenet_v2', 'MobileNet_V2_Weights', 'IMAGENET1K_V2'),
