@@ -8,6 +8,11 @@ namespace tilemega::commands {
 int CompileNativeForwardFixed(std::string const& input,std::string const& output,
     std::string const& coordinates,std::string const& target,int batch,bool fuse,
     std::string const& dump_cg,int split_compile);
+// The plan alone, as JSON: every stage's body, operand mode and shape, plus
+// the activation footprint. CPU only, so a plan gate needs neither coordinates
+// nor a GPU (DNN3 prompt §4 gate 1, and §0.3's stage inventory).
+int DumpNativeForwardPlan(std::string const& input,std::string const& output,
+    int batch,bool fuse,std::string const& abi);
 struct NativeForwardSolveOptions {
   std::string input,output,target,dump_cg,measure_command,solve_command;
   int batch=1,split_compile=2,measure_top=4;

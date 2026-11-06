@@ -324,6 +324,7 @@ int RunCompile(int argc, char** argv) {
     std::string variants_path,solve_target,dump_cg,hop_path,domain_path,rejections_path,evaluation_cases_path;
     std::string diagnostic_class_map;
     std::string seed_geometry,forward_geometry,native_tmexec;
+    std::string native_abi="legacy",native_dump_plan;
     std::string serving_phase, emit_mode,measure_command,serving_warm_start,paged_seed_from,artifact_cache;
     std::string frontend_mode="decoder";
     std::string shared_weight_layout;
@@ -405,6 +406,10 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--shared-weight-layout") shared_weight_layout=value;
       else if (flag=="--seed-geometry") seed_geometry=value;
       else if (flag=="--tmexec-config") native_tmexec=value;
+      // F3 (DNN3 prompt §1.6): which forward skeleton the plan is built for,
+      // and the CPU-only plan dump its stage gate reads.
+      else if (flag=="--abi") native_abi=value;
+      else if (flag=="--dump-plan") native_dump_plan=value;
       else if (flag=="--forward-geometry") forward_geometry=value;
       else if (flag=="--frontend") frontend_mode=value;
       else if (flag=="--moe-dynamic") moe_dynamic=std::stoi(value);
@@ -571,6 +576,14 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--diagnostic-class-map") diagnostic_class_map=value;
       else if (flag=="--numerical-rejections") rejections_path=value;
       else throw std::runtime_error("unknown option: "+flag);
+    }
+    if(!native_dump_plan.empty()) {
+      // CPU only: no coordinates, no target and no GPU, so a plan gate can run
+      // for every model and batch before any kernel exists.
+      if(serving_phase!="forward" || frontend_mode!="dnn")
+        throw std::invalid_argument("a native forward plan dump needs a DNN forward export");
+      return tilemega::commands::DumpNativeForwardPlan(input.string(),native_dump_plan,
+          serving_batch,dnn_dwpw_fuse!="0",native_abi);
     }
     if(!native_tmexec.empty() && serving_phase=="forward") {
       // Native DNN forward (prompt §10 N-1): fixed coordinates over a DNN

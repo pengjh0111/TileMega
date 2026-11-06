@@ -220,6 +220,52 @@ int CompileNativeForwardFixed(std::string const& input,std::string const& output
       split_compile,"fixed");
 }
 
+int DumpNativeForwardPlan(std::string const& input,std::string const& output,
+    int batch,bool fuse,std::string const& abi_name) {
+  namespace fs=std::filesystem;
+  solver::Sm90ForwardAbi abi;
+  if(abi_name=="legacy")abi=solver::Sm90ForwardAbi::kLegacy;
+  else if(abi_name=="f3")abi=solver::Sm90ForwardAbi::kF3;
+  else throw std::invalid_argument("native forward abi must be legacy or f3");
+  auto plan=solver::BuildSm90ForwardPlan(input,batch,fuse,abi);
+  auto shapes=solver::Sm90ForwardShapesFromPlan(plan,abi);
+  json::Array rows;
+  for(std::size_t i=0;i<plan.stages.size();++i) {
+    auto const& s=shapes[i];
+    rows.emplace_back(json::Object{{"index",int(i)},
+        {"body",solver::kSm90ForwardBodies[unsigned(s.body)]},
+        {"mode",solver::kSm90ForwardModes[unsigned(s.mode)]},
+        {"representative",plan.stages[i].representative},
+        {"m",double(s.m)},{"n",double(s.n)},{"k",double(s.k)},
+        {"pixels",double(s.pixels)},{"channels",double(s.channels)},
+        {"out_channels",double(s.out_channels)},
+        {"kernel",s.kernel},{"stride",s.stride},{"whole_row",s.whole_row},
+        {"epilogue_ops",s.epilogue_ops},
+        {"weight_bytes",double(s.weight_bytes)},
+        {"activation_bytes",double(s.activation_bytes)},
+        {"output_bytes",double(s.output_bytes)}});
+  }
+  // U6: the plan prints its own activation total so a build that would not fit
+  // is caught before any GPU work.
+  double activation=0,weights=0;
+  for(auto const& b:plan.buffers) {
+    double elements=double(b.constant)+double(b.per_batch)*batch;
+    double width=b.dtype=="f32" || b.dtype=="i32"?4:b.dtype=="i64"?8:2;
+    (b.source==frontend::PlanBuffer::Source::kWeight?weights:activation)+=elements*width;
+  }
+  json::Object manifest={{"schema",1},{"model",fs::path(input).stem().string()},
+      {"batch",batch},{"abi",abi_name},{"dwpw_fuse",fuse},
+      {"stages",int(plan.stages.size())},{"gemms",int(plan.gemms.size())},
+      {"buffers",int(plan.buffers.size())},
+      {"activation_bytes",activation},{"weight_bytes",weights},
+      {"stage_rows",rows}};
+  fs::create_directories(fs::absolute(output).parent_path());
+  std::ofstream(output)<<json::Value(manifest).Dump(2)<<'\n';
+  std::cerr<<"NATIVE_FORWARD_PLAN abi="<<abi_name<<" model="<<fs::path(input).stem().string()
+      <<" batch="<<batch<<" stages="<<plan.stages.size()<<'\n';
+  return 0;
+}
+
 int SolveNativeForward(NativeForwardSolveOptions const& o) {
   namespace fs=std::filesystem;
   if(o.measure_top<1 || o.measure_top>6 ||
