@@ -37,6 +37,10 @@ def install_converters():
     AIT_CONVERTERS[torch.ops.aten.permute.default] = generic_permute
     AIT_CONVERTERS[torch.ops.aten.slice.Tensor] = default_slice
     from tilemega.dnn import aitemplate_aten  # registers static ATen schemas
+    for opname in ("adaptive_avg_pool2d", "_adaptive_avg_pool2d"):
+        target = getattr(torch.ops.aten, opname).default
+        AIT_CONVERTERS[target] = aitemplate_aten.identity_adaptive_avg_pool(
+            AIT_CONVERTERS.get(target))
     from tilemega.dnn.aitemplate_layout import install
     install()
     install_converters.installed = True

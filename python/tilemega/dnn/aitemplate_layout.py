@@ -54,7 +54,8 @@ def dim(value):
 POINTWISE = {'add', 'sub', 'mul', 'div', 'pow', 'sqrt', 'rsqrt', 'neg', 'abs',
              'relu', 'sigmoid', 'tanh', 'hardtanh', 'clamp', 'gelu', 'silu',
              'exp', 'log', '_to_copy', 'clone', 'contiguous', 'detach'}
-NHWC_BODIES = {'convolution', 'batch_norm', 'max_pool2d', 'avg_pool2d', 'adaptive_avg_pool2d'}
+NHWC_BODIES = {'convolution', 'batch_norm', 'max_pool2d', 'avg_pool2d', 'adaptive_avg_pool2d',
+               '_adaptive_avg_pool2d'}
 
 
 def wrap(target, converter):

@@ -124,6 +124,23 @@ def layernorm(target, args, kwargs, name):
     return ops.layernorm()(args[0], args[2], args[3], args[1], eps=float(args[4]))
 
 
+def identity_adaptive_avg_pool(converter):
+    def convert(target, args, kwargs, name):
+        value = args[0]
+        size = args[1] if len(args) > 1 else kwargs.get("output_size")
+        size = (size, size) if isinstance(size, int) else size
+        shape = value.shape()
+        if len(shape) == 4 and isinstance(size, (tuple, list)) and len(size) == 2:
+            spatial = [dim._attrs["values"] for dim in shape[1:3]]
+            if all(len(set(values)) == 1 and (want is None or want == values[0])
+                   for values, want in zip(spatial, size)):
+                return value
+        if converter is None:
+            raise NotImplementedError("nonidentity adaptive average pooling has no converter")
+        return converter(target, args, kwargs, name)
+    return convert
+
+
 def promoted_binary(converter):
     def convert(target, args, kwargs, name):
         values = list(args)
