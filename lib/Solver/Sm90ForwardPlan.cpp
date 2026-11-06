@@ -23,7 +23,8 @@ std::uint64_t Elements(frontend::PlanBuffer const& buffer,int batch) {
 }
 }  // namespace
 
-frontend::ModelPlan BuildSm90ForwardPlan(std::string const& export_path,int batch,bool fuse) {
+frontend::ModelPlan BuildSm90ForwardPlan(std::string const& export_path,int batch,bool fuse,
+    Sm90ForwardAbi abi) {
   if(batch<1)throw std::invalid_argument("a native forward plan needs a positive batch");
   auto bridge=frontend::ReadExportBridge(export_path);
   frontend::DnnPlanOptions options;
@@ -36,13 +37,17 @@ frontend::ModelPlan BuildSm90ForwardPlan(std::string const& export_path,int batc
   options.global_pool_channels=128;
   options.dwpw_fuse=fuse;
   options.deferred_layernorm=true;
+  // F-1, F-3 and F-4: the stem keeps eight channels, an identity adaptive
+  // pool is an alias, and an NHWC flatten reorders the Linear weight.
+  options.f3=abi==Sm90ForwardAbi::kF3;
   auto plan=frontend::BuildDnnModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,options);
   if(!plan.dm || !plan.forward)
     throw std::invalid_argument("the export is not a DNN forward model");
   return plan;
 }
 
-Sm90ForwardBody Sm90ForwardBodyOf(frontend::ModelPlan const& plan,std::size_t index) {
+Sm90ForwardBody Sm90ForwardBodyOf(frontend::ModelPlan const& plan,std::size_t index,
+    Sm90ForwardAbi abi) {
   auto const& stage=plan.stages.at(index);
   switch(stage.kind) {
     case PlanTaskKind::kGemm: {
@@ -58,7 +63,9 @@ Sm90ForwardBody Sm90ForwardBodyOf(frontend::ModelPlan const& plan,std::size_t in
       if(gemm.access.a!=codegen::DmAAccess::kDense)
         throw std::invalid_argument("native forward A access must be dense or im2col");
       // A projection whose A is a single pooled row per image is a GEMV: the
-      // WGMMA bodies would run one row of a 64-row tile.
+      // WGMMA bodies would run one row of a 64-row tile. F3 keeps it a GEMM
+      // and runs it in swap-AB mode instead (DNN3 prompt §4 F-6).
+      if(abi==Sm90ForwardAbi::kF3)return Sm90ForwardBody::kGemm;
       auto rows=plan.buffers.at(gemm.a).layout.physical[0];
       return rows<16?Sm90ForwardBody::kGemv:Sm90ForwardBody::kGemm;
     }
@@ -267,13 +274,35 @@ void Dnn1EncodeGeometry(frontend::ModelPlan const& plan,std::size_t index,int ba
 }
 }  // namespace
 
-std::vector<Sm90ForwardShape> Sm90ForwardShapesFromPlan(frontend::ModelPlan const& plan) {
+Sm90ForwardMode Sm90ForwardModeOf(frontend::ModelPlan const& plan,std::size_t index,
+    Sm90ForwardAbi abi) {
+  if(abi!=Sm90ForwardAbi::kF3)return Sm90ForwardMode::kNormal;
+  auto const& stage=plan.stages.at(index);
+  if(stage.kind!=PlanTaskKind::kGemm)return Sm90ForwardMode::kNormal;
+  auto const& gemm=plan.gemms.at(stage.gemm);
+  // The stem: the only convolution whose input is physically eight channels,
+  // which the producer gathers with cp.async instead of an im2col TMA (§6.6).
+  if(gemm.access.a==codegen::DmAAccess::kIm2Col) {
+    auto const& conv=plan.convolutions.at(gemm.access.conv);
+    return plan.buffers.at(conv.input_layout).layout.physical[3]<=8?
+        Sm90ForwardMode::kGather:Sm90ForwardMode::kNormal;
+  }
+  // At most sixteen rows: the weight becomes the WGMMA A operand (§6.7).
+  if(!gemm.access.rows_per_batch)
+    throw std::invalid_argument("native DNN dense A mapping requires rows_per_batch");
+  auto rows=std::int64_t(gemm.access.rows_per_batch)*Dnn1PlanBatch(plan);
+  return rows<=16?Sm90ForwardMode::kSwapAB:Sm90ForwardMode::kNormal;
+}
+
+std::vector<Sm90ForwardShape> Sm90ForwardShapesFromPlan(frontend::ModelPlan const& plan,
+    Sm90ForwardAbi abi) {
   std::vector<Sm90ForwardShape> shapes;
   int batch=Dnn1PlanBatch(plan);
   for(std::size_t index=0;index<plan.stages.size();++index) {
     auto const& stage=plan.stages[index];
     Sm90ForwardShape shape;
-    shape.body=Sm90ForwardBodyOf(plan,index);
+    shape.body=Sm90ForwardBodyOf(plan,index,abi);
+    shape.mode=Sm90ForwardModeOf(plan,index,abi);
     auto conv=[&]() -> codegen::ConvDesc const& {
       if(stage.conv==codegen::kDmNoIndex || stage.conv>=plan.convolutions.size())
         throw std::invalid_argument("a native forward conv stage has no descriptor");
@@ -392,11 +421,13 @@ mlir::OwningOpRef<mlir::ModuleOp> MaterializeSm90Forward(frontend::ModelPlan& pl
   if(plan.stages.size()!=coordinates.stages.size())
     throw std::invalid_argument("native forward coordinates do not cover every stage");
   for(std::size_t i=0;i<plan.stages.size();++i) {
-    coordinates.stages[i].Validate();
-    if(coordinates.stages[i].body!=Sm90ForwardBodyOf(plan,i))
+    coordinates.stages[i].Validate(coordinates.abi);
+    if(coordinates.stages[i].body!=Sm90ForwardBodyOf(plan,i,coordinates.abi))
       throw std::invalid_argument("native forward coordinates name another body for a stage");
+    if(coordinates.stages[i].mode!=Sm90ForwardModeOf(plan,i,coordinates.abi))
+      throw std::invalid_argument("native forward coordinates name another operand mode");
   }
-  auto producer_shapes=Sm90ForwardShapesFromPlan(plan);
+  auto producer_shapes=Sm90ForwardShapesFromPlan(plan,coordinates.abi);
   for(std::size_t i=0;i<plan.stages.size();++i) {
     auto& stage=plan.stages[i];
     if(stage.kind!=PlanTaskKind::kGlobalPoolReduce)continue;
