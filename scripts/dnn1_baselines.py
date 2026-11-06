@@ -39,6 +39,8 @@ BATCHES = (1, 2, 4, 8, 16)
 WORKLOAD_ID = 'dnn-classic-v1'
 ACTIVE_GPUS = (0, 1, 2, 3, 4, 5, 6)
 CLASSIC_DEVICES = ROOT / 'configs/dnn/classic_h800_devices.json'
+# Only these ids may replace the classic constants from a queue spec.
+SPEC_WORKLOADS = ('dnn3-v1',)
 PCI = {0: '0000:0f:00.0', 1: '0000:10:00.0', 2: '0000:41:00.0',
        3: '0000:44:00.0', 4: '0000:86:00.0', 5: '0000:87:00.0',
        6: '0000:b7:00.0', 7: '0000:b7:00.0'}
@@ -138,6 +140,8 @@ def require_session(cell):
     gpu = cell['gpu']
     if cell.get('workload_id') == WORKLOAD_ID and gpu not in ACTIVE_GPUS:
         raise HardStop('classic workload uses only the currently assigned indices0–6')
+    if 'active_gpus' in cell and gpu not in cell['active_gpus']:
+        raise HardStop('workload uses only its declared device indices')
     env = os.environ
     if (gpu not in PCI or env.get('TILEMEGA_GPU_LOCK_HELD') != '1' or
             env.get('CUDA_VISIBLE_DEVICES') != str(gpu) or
@@ -384,12 +388,55 @@ def classic_device_identity(gpu):
     return identity
 
 
+def queue_workload(config):
+    """Absent fields keep dnn-classic-v1; any other id declares its whole workload."""
+    workload_id = config.get('workload_id', WORKLOAD_ID)
+    fields = ('models', 'batches', 'arms', 'device_file')
+    if workload_id == WORKLOAD_ID:
+        if any(name in config for name in fields):
+            raise ValueError('the classic workload takes no queue-spec overrides')
+        return dict(id=WORKLOAD_ID, models=MODELS, batches=BATCHES, arms=None,
+                    device_file=CLASSIC_DEVICES, active_gpus=ACTIVE_GPUS)
+    if workload_id not in SPEC_WORKLOADS:
+        raise ValueError('new queues require the active classic workload; retain historical queues')
+    if any(name not in config for name in fields):
+        raise ValueError('a spec workload must declare models, batches, arms and device_file')
+    models, batches, arms = map(tuple, (config['models'], config['batches'], config['arms']))
+    known = {arm['arm'] for arm in ARMS if arm['system'] != 'tvm'}
+    if (not models or len(set(models)) != len(models) or not batches or
+            not set(batches) <= set(BATCHES) or not arms or not set(arms) <= known):
+        raise ValueError('invalid spec workload models, batches or arms')
+    if workload_id == 'dnn3-v1' and 'tensorrt-fp16' in arms:
+        raise ValueError('dnn3-v1 collects BF16 baselines only')
+    path = Path(config['device_file'])
+    path = path if path.is_absolute() else ROOT / path
+    devices = read(path)
+    if devices.get('workload_id') != workload_id:
+        raise ValueError('device file belongs to another workload')
+    return dict(id=workload_id, models=models, batches=batches, arms=arms, device_file=path,
+                active_gpus=tuple(devices['allowed_gpu_indices']))
+
+
+def workload_device_identity(gpu, workload):
+    devices = read(workload['device_file'])
+    allowed = devices.get('allowed_gpu_indices')
+    if (devices.get('schema') != 1 or gpu not in allowed or
+            set(devices.get('devices', {})) != set(map(str, allowed))):
+        raise ValueError('device file must enumerate exactly its allowed indices')
+    identity = devices['devices'][str(gpu)]
+    if not identity['uuid'].startswith('GPU-') or identity['pci'].lower() != PCI[gpu]:
+        raise ValueError('current device UUID/PCI mapping differs from the workload device file')
+    return identity
+
+
 def queue(args):
     config = read(args.spec)
-    if config.get('workload_id', WORKLOAD_ID) != WORKLOAD_ID:
-        raise ValueError('new queues require the active classic workload; retain historical queues')
+    workload = queue_workload(config)
+    classic = workload['id'] == WORKLOAD_ID
+    if not classic and not {'exports_root', 'inductor_cache', 'tvm_root'} <= set(config):
+        raise ValueError('a spec workload must not fall back to the dnn1 asset roots')
     gpu = config.get('gpu', 0)
-    identity = classic_device_identity(gpu)
+    identity = classic_device_identity(gpu) if classic else workload_device_identity(gpu, workload)
     sys.path.insert(0, str(ROOT / 'python'))
     from tilemega.bench.gpu_guard import require_allowed_gpu
     policy = read(POLICY)
@@ -416,19 +463,20 @@ def queue(args):
     harness = ROOT / 'python/tilemega/dnn/baselines.py'
     recipe_sources = {str(path): sha(path) if path.is_file() else None for path in (
         Path(__file__).resolve(), harness, harness.with_name('tvm_baseline.py'),
-        CLASSIC_DEVICES,
+        workload['device_file'], CLASSIC_DEVICES,
         ROOT/'scripts/dnn1_device.py',ROOT/'scripts/dnn1_resource_entry.py',
         ROOT/'scripts/dnn1_supervised_python.py',ROOT/'scripts/dnn1_guard_entry.py')}
-    cells = config.get('cells') or [dict(model=m, batch=b) for m in MODELS for b in BATCHES]
+    cells = config.get('cells') or [dict(model=m, batch=b) for m in workload['models'] for b in workload['batches']]
     pairs = [(row['model'], row['batch']) for row in cells]
-    if len(set(pairs)) != len(pairs) or any(m not in MODELS or b not in BATCHES for m, b in pairs):
+    if len(set(pairs)) != len(pairs) or any(m not in workload['models'] or b not in workload['batches'] for m, b in pairs):
         raise ValueError('cells must be distinct DNN1 model/batch pairs')
     jobs, previous, snapshots = [], [], []
     env = gpu_env(gpu, config.get('env'))
     systems = set(config.get('systems', ('tensorrt', 'torchcompile')))
     if not systems or not systems <= {'tensorrt', 'torchcompile'}:
         raise ValueError('classic primary queues select TRT/TC; TVM uses its fresh10000 entry')
-    arms = [arm for arm in ARMS if arm['system'] in systems]
+    arms = [arm for arm in ARMS if arm['system'] in systems and
+            (workload['arms'] is None or arm['arm'] in workload['arms'])]
     parallel = config.get('parallel', False)
     affinity = config.get('cpu_affinity') or []
     if parallel:
@@ -438,6 +486,7 @@ def queue(args):
         env.pop('TILEMEGA_NUMA_CONCURRENCY_VERIFIED', None)
     uuid, pci = identity['uuid'], identity['pci']
     node = 0 if gpu < 4 else 1
+    inductor_root = Path(config.get('inductor_cache', ROOT / 'runs/dnn1/inductor'))
     for model, batch in pairs:
         key = f'{model}_b{batch}'
         cell_root = out / 'cells' / key
@@ -453,7 +502,7 @@ def queue(args):
         if not manifest.get('timing_eligible', manifest.get('accuracy_eligible', False)):
             raise ValueError('export is not timing eligible: ' + key)
         cell = dict(schema=1, model=model, batch=batch, gpu=gpu, export=str(export),
-            workload_id=WORKLOAD_ID,
+            workload_id=workload['id'],
             cell_root=str(cell_root), python=python, baselines=str(harness),
             baseline_harness_sha256=sha(harness), collector=str(Path(__file__).resolve()),
             recipe_sources=recipe_sources,
@@ -461,10 +510,10 @@ def queue(args):
             source_checkpoint_sha256=checkpoint_sha, seed=20261007,
             correctness_policy=config.get('correctness_policy', 'identical-metrics-v1'),
             tvm_selfcheck=str(Path(config.get('tvm_selfcheck', ROOT / 'runs/dnn1/tvm/selfcheck.json')).resolve()),
-            tvm_root=str(ROOT / 'runs/dnn1/tvm'), engine_cache=str(out / 'engine-cache'),
+            tvm_root=str(config.get('tvm_root', ROOT / 'runs/dnn1/tvm')), engine_cache=str(out / 'engine-cache'),
             onnx_preparation=str(Path(config.get('onnx_preparation',
                 Path(config.get('exports_root', ROOT / 'runs/dnn1/exports')) / 'preparation_v2.json')).resolve()),
-            inductor_cache=str(ROOT / 'runs/dnn1/inductor'), env=env,
+            inductor_cache=str(inductor_root), env=env,
             libraries=config.get('libraries', {}), logical_timeout_s=config.get('logical_timeout_s', 3600),
             native_prefix=config.get('native_prefixes', {}).get(key),
             native_prefix_unavailable_reason=config.get('native_prefix_unavailable_reasons', {}).get(key),
@@ -472,8 +521,10 @@ def queue(args):
             scheduling_amendment=config.get('scheduling_amendment'),
             protocol=PROTOCOL, arms=arms, order=[
                 [arm['arm'] for arm in (reversed(arms) if r == 1 else arms)] for r in range(3)])
+        if not classic:
+            cell.update(active_gpus=list(workload['active_gpus']), device_file=str(workload['device_file']))
         if parallel:
-            cell['inductor_cache'] = str(ROOT / f'runs/dnn1/inductor/gpu{gpu}')
+            cell['inductor_cache'] = str(inductor_root / f'gpu{gpu}')
         cell['prefix'] = prefix_status(cell)
         cell['p_cell_complete'] = cell['prefix']['available']
         cell_path = cell_root / 'spec.json'
@@ -497,7 +548,7 @@ def queue(args):
         previous = [name]
     write(out / 'queue' / 'queue_dnn1_baselines.json', jobs)
     write(out / 'queue-spec.json', dict(schema=1, config=config, cells=snapshots,
-        workload_id=WORKLOAD_ID, workload=dict(models=list(MODELS), batches=list(BATCHES)),
+        workload_id=workload['id'], workload=dict(models=list(workload['models']), batches=list(workload['batches'])),
         gpu=gpu, protocol=PROTOCOL, source_spec=str(args.spec.resolve()), source_spec_sha256=sha(args.spec)))
     launcher = out / 'launch.sh'
     start = ['env', '-u', 'TILEMEGA_DEVICE_GROUP', '-u', 'TILEMEGA_GPU_LOCK_HELD',
@@ -1015,8 +1066,12 @@ def collect(args):
             order=session.get('order', []), prefix=cell['prefix'], p_cell_complete=cell['p_cell_complete']))
     args.out.mkdir(parents=True, exist_ok=True)
     classic = spec.get('workload_id') == WORKLOAD_ID
-    stem = 'DNN_classic' if classic else 'DNN1'
-    for filename, fields, rows in [(stem + '_baselines.csv', FIELDS, baseline_rows),
+    stem = 'DNN_classic' if classic else spec.get('config', {}).get('output_stem', 'DNN1')
+    baseline_fields = FIELDS
+    if spec.get('workload_id') in SPEC_WORKLOADS:
+        baseline_fields = FIELDS + ['workload_id']
+        baseline_rows = [dict(row, workload_id=spec['workload_id']) for row in baseline_rows]
+    for filename, fields, rows in [(stem + '_baselines.csv', baseline_fields, baseline_rows),
                                     (stem + '_tvm_diag.csv', TVM_FIELDS, tvm_rows)]:
         with (args.out / filename).open('w', newline='') as stream:
             writer = csv.DictWriter(stream, fieldnames=fields, lineterminator='\n')
