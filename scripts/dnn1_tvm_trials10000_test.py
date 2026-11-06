@@ -99,8 +99,8 @@ class Contracts(unittest.TestCase):
         self.assertFalse({'max_trials_per_task', 'num_trials_per_iter'} & {k.arg for k in calls[0].keywords})
 
     def test_cards_and_timeouts(self):
-        self.assertEqual(collect.gpu_pool('0,1,2,3,4,5,7'), [0, 1, 2, 3, 4, 5, 7])
-        for value in ('6', '0,0', ''):
+        self.assertEqual(collect.gpu_pool('0,1,2,3,4,5,6'), [0, 1, 2, 3, 4, 5, 6])
+        for value in ('7', '0,0', ''):
             with self.assertRaises(ValueError):
                 collect.gpu_pool(value)
         self.assertGreaterEqual(collect.PROCESS_TIMEOUT, 18000)
@@ -138,7 +138,7 @@ class Contracts(unittest.TestCase):
 
     def test_prepare_full25_without_cache_jobs_or_processes(self):
         exports = self.root / 'runs/dnn1/exports'
-        rows = []
+        rows, fresh = [], []
         for model, batch in sorted(collect.CELLS):
             export = exports / model
             for name in ('manifest.json', 'exported_program.pt2', 'checkpoint/model.safetensors',
@@ -146,9 +146,19 @@ class Contracts(unittest.TestCase):
                 path = export / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(name.encode())
-            rows.append(dict(model=model, batch=batch, system='tvm', precision='bf16', status='pass',
+            row = dict(model=model, batch=batch, system='tvm', precision='bf16', status='pass',
                 exported_program_sha256=sample.sha(export / 'exported_program.pt2'),
-                source_checkpoint_sha256=sample.sha(export / 'checkpoint/model.safetensors'), inputs_sha256='fixed'))
+                source_checkpoint_sha256=sample.sha(export / 'checkpoint/model.safetensors'), inputs_sha256='fixed')
+            if model in ('resnet18', 'bert'):
+                rows.append(row)
+            else:
+                fresh.append(dict(model=model, batch=batch, status='ready', export=str(export.resolve()),
+                    exported_program_sha256=row['exported_program_sha256'],
+                    source_checkpoint_sha256=row['source_checkpoint_sha256'],
+                    manifest_sha256=sample.sha(export / 'manifest.json'),
+                    inputs_file=str((export / f'inputs_b{batch}.safetensors').resolve()),
+                    inputs_file_sha256=sample.sha(export / f'inputs_b{batch}.safetensors'),
+                    expected_inputs_sha256='fixed'))
         docs = self.root / 'docs/results'
         docs.mkdir(parents=True)
         csv_path = docs / 'DNN1_baselines.csv'
@@ -162,9 +172,13 @@ class Contracts(unittest.TestCase):
         old_cache.write_bytes(b'old immutable cache')
         proof = self.root / 'ait_source7.json'
         sample.save(proof, dict(identity=dict(files={})))
+        asset_preparation = exports / 'preparation_classic_v1.json'
+        sample.save(asset_preparation, dict(schema=1, status='ready', seed=20261007,
+            models=list(collect.NEW_MODELS), cells=fresh))
         epoch = self.root / 'runs/dnn1/new_epoch'
         args = SimpleNamespace(epoch=epoch, tvm_root=self.root / 'tvm', ait_source_proof=proof,
-            exports=exports, gpus='0,1,2,3,4,5,7', max_parallel=4)
+            asset_preparation=asset_preparation, exports=exports, gpus='0,1,2,3,4,5',
+            max_parallel=2, other_baseline_max_parallel=2)
         before = {p: sample.sha(p) for p in (csv_path, old_cache)}
         with patch.object(collect, 'ROOT', self.root), patch.object(collect, 'source_freeze',
              return_value=({'source_diff_sha256': hashlib.sha256(b'').hexdigest()}, {})), \
@@ -174,7 +188,12 @@ class Contracts(unittest.TestCase):
         manifest = sample.read(epoch / 'manifest.json')
         self.assertEqual(len(manifest['cells']), 25)
         self.assertEqual(manifest['budget'], sample.BUDGET)
-        self.assertEqual(manifest['max_parallel'], 4)
+        self.assertEqual(manifest['max_parallel'], 2)
+        self.assertEqual(manifest['workload_id'], sample.WORKLOAD_ID)
+        self.assertEqual(manifest['workload'], sample.WORKLOAD)
+        self.assertEqual([c['model'] for c in manifest['cells'][:15:5]], list(collect.NEW_MODELS))
+        self.assertEqual({r['model'] for r in rows}, {'resnet18', 'bert'})
+        self.assertEqual(len(rows), 10)
         self.assertFalse((epoch / 'cache').exists())
         self.assertFalse((epoch / 'jobs').exists())
         self.assertEqual(sample.read(epoch / 'progress.json')['GPU_jobs_started'], 0)
@@ -183,6 +202,96 @@ class Contracts(unittest.TestCase):
         gpu.assert_not_called()
         with patch.object(collect, 'ROOT', self.root), self.assertRaisesRegex(ValueError, 'absent epoch'):
             collect.prepare(args)
+        for field, bad in [('seed', 20261008), ('status', 'pending'), ('cells', fresh[:-1])]:
+            altered = dict(sample.read(asset_preparation), **{field: bad})
+            with self.assertRaises(ValueError):
+                collect.asset_cells(exports, altered, rows)
+        altered = sample.read(asset_preparation)
+        altered['cells'][0]['inputs_file_sha256'] = 'wrong'
+        with self.assertRaisesRegex(ValueError, 'asset proof differs'):
+            collect.asset_cells(exports, altered, rows)
+        changed_rows = [dict(r, source_checkpoint_sha256='wrong') for r in rows]
+        with self.assertRaisesRegex(ValueError, 'historical RN18/BERT assets changed'):
+            collect.asset_cells(exports, sample.read(asset_preparation), changed_rows)
+
+    def test_classic_workload_and_slot_partition(self):
+        self.assertEqual(tuple(collect.base.MODELS), sample.MODELS)
+        self.assertEqual(sample.MODELS, ('resnet18', 'resnet34', 'vgg16', 'alexnet', 'bert'))
+        self.assertEqual(len(collect.CELLS), 25)
+        sample.save(self.root / 'manifest.json', dict(synthetic=True))
+        manifest = dict(gpus=list(range(6)), max_parallel=2, other_baseline_max_parallel=2)
+        self.assertEqual(collect.dispatch_limit(self.root, manifest), 2)
+        sample.save(self.root / 'dispatch_limit.json', dict(workload_id=sample.WORKLOAD_ID,
+            manifest_sha256=sample.sha(self.root / 'manifest.json'), reason='parent: other baselines drained',
+            max_parallel=4, other_baseline_max_parallel=0))
+        self.assertEqual(collect.dispatch_limit(self.root, manifest), 4)
+        value = sample.read(self.root / 'dispatch_limit.json')
+        sample.save(self.root / 'dispatch_limit.json', dict(value, other_baseline_max_parallel=1))
+        with self.assertRaisesRegex(ValueError, 'at most four'):
+            collect.dispatch_limit(self.root, manifest)
+        sample.save(self.root / 'dispatch_limit.json', dict(value, manifest_sha256='old workload'))
+        with self.assertRaisesRegex(ValueError, 'bind the prepared workload'):
+            collect.dispatch_limit(self.root, manifest)
+
+    def test_old_ait25_cannot_release_classic_workload(self):
+        historical = [dict(model=m, batch=str(b), system='aitemplate') for m in
+            ('resnet18', 'mbv1', 'mbv2', 'bert', 'nafnet') for b in sample.BATCHES]
+        with patch.object(collect, 'csv_rows', return_value=historical):
+            with self.assertRaisesRegex(ValueError, 'exactly25 distinct terminal'):
+                collect.terminal_ait(self.root / 'unused.csv')
+
+    def test_classic_primary_queue_default_arms_and_output_names(self):
+        mapping = self.root / 'configs/dnn/classic_h800_devices.json'
+        sample.save(mapping, dict(schema=1, allowed_gpu_indices=list(range(7)),
+            devices={str(g): dict(uuid='GPU-ac78f16f-955d-c08b-e6fe-4e4554c8954d' if g == 6 else
+                f'GPU-current-{g}', pci=collect.base.PCI[g]) for g in range(7)}))
+        harness = self.root / 'python/tilemega/dnn/baselines.py'
+        harness.parent.mkdir(parents=True)
+        harness.write_text('# synthetic identity fixture; never executed\n')
+        export = self.root / 'runs/dnn1/exports/alexnet'
+        (export / 'checkpoint').mkdir(parents=True)
+        (export / 'exported_program.pt2').write_bytes(b'synthetic export; never loaded')
+        (export / 'checkpoint/model.safetensors').write_bytes(b'synthetic weights; never loaded')
+        sample.save(export / 'manifest.json', dict(model='alexnet', timing_eligible=True,
+            artifacts={'exported_program.pt2': sample.sha(export / 'exported_program.pt2')},
+            checkpoint=dict(sha256=sample.sha(export / 'checkpoint/model.safetensors'))))
+        spec = self.root / 'queue-config.json'
+        sample.save(spec, dict(workload_id=sample.WORKLOAD_ID, gpu=6,
+            cells=[dict(model='alexnet', batch=1)]))
+        queued = self.root / 'queued'
+        with patch.object(collect.base, 'ROOT', self.root), \
+             patch.object(collect.base, 'CLASSIC_DEVICES', mapping), \
+             patch('tilemega.bench.gpu_guard.require_allowed_gpu'), redirect_stdout(io.StringIO()):
+            collect.base.queue(SimpleNamespace(spec=spec, out=queued, refresh_prepared=False))
+        queue_spec = sample.read(queued / 'queue-spec.json')
+        cell = sample.read(queue_spec['cells'][0])
+        self.assertEqual(queue_spec['workload_id'], sample.WORKLOAD_ID)
+        self.assertEqual(len(cell['arms']), 5)
+        self.assertEqual({arm['system'] for arm in cell['arms']}, {'tensorrt', 'torchcompile'})
+        self.assertNotIn('tvm', {arm['system'] for arm in cell['arms']})
+        command = sample.read(queued / 'queue/queue_dnn1_baselines.json')[-1]['command']
+        self.assertEqual(command[command.index('--expected-uuid') + 1],
+                         'GPU-ac78f16f-955d-c08b-e6fe-4e4554c8954d')
+        self.assertEqual(command[command.index('--expected-pci') + 1], '0000:b7:00.0')
+        self.assertFalse(any('e7663e49' in arg for arg in command))
+        for model in collect.NEW_MODELS:
+            good = [dict(cosine_min_vs_fp32=.99999, top1_agreement_vs_fp32=1.)]
+            self.assertTrue(collect.base.strict_correctness(model, good)[0])
+            self.assertFalse(collect.base.strict_correctness(model, [dict(good[0], top1_agreement_vs_fp32=0.)])[0])
+        empty = self.root / 'empty-run'
+        sample.save(empty / 'queue-spec.json', dict(workload_id=sample.WORKLOAD_ID, cells=[]))
+        sample.save(empty / 'scheduler/state.json', {})
+        destination = self.root / 'collected'
+        with redirect_stdout(io.StringIO()):
+            collect.base.collect(SimpleNamespace(run_root=empty, out=destination))
+        self.assertTrue((destination / 'DNN_classic_baselines.csv').exists())
+        self.assertFalse((destination / 'DNN1_baselines.csv').exists())
+
+    def test_historical_csv_bytes_preserved(self):
+        expected = {'DNN1_baselines.csv': '5f0288c1a68a3d02481ba54dbb49943275a0372934921039d4985e4a43997917',
+                    'DNN1_tvm_diag.csv': '99398a22e71063179c4c46c1a334beaa27cd55f3d90c46c35e2073997365cfee'}
+        for name, digest in expected.items():
+            self.assertEqual(sample.sha(collect.ROOT / 'docs/results' / name), digest)
 
     def fake_cell(self):
         prepared = self.root / 'cell.json'
@@ -242,12 +351,14 @@ class Contracts(unittest.TestCase):
         rows = [dict(model=m, batch=str(b), status='pass') for m, b in sorted(collect.CELLS)]
         ledger = self.root / 'AIT_complete.json'
         declaration = dict(schema=1, system='aitemplate', status='final_25_terminal', repair_pending=False,
+            workload_id=sample.WORKLOAD_ID, workload=sample.WORKLOAD,
             csv_sha256=sample.sha(csv_path), cells=[dict(model=r['model'], batch=int(r['batch']),
                 status=r['status'], final=True) for r in rows])
         with patch.object(collect, 'ROOT', self.root):
             sample.save(ledger, declaration)
             collect.validate_ait_completion(ledger, csv_path, rows)
-            for field, bad in [('repair_pending', True), ('status', 'cohort_drained'), ('csv_sha256', 'wrong')]:
+            for field, bad in [('repair_pending', True), ('status', 'cohort_drained'), ('csv_sha256', 'wrong'),
+                               ('workload_id', 'historical-workload')]:
                 sample.save(ledger, dict(declaration, **{field: bad}))
                 with self.assertRaises(ValueError):
                     collect.validate_ait_completion(ledger, csv_path, rows)
@@ -357,7 +468,8 @@ class Contracts(unittest.TestCase):
     def test_controller_audit_error_cleans_registered_own_job(self):
         epoch = self.root
         sample.save(epoch / 'release.json', dict(pushed_commit='commit', pushed_branch='branch'))
-        manifest = dict(cells=[dict(model='bert', batch=1)], gpus=[0], max_parallel=1)
+        manifest = dict(cells=[dict(model='bert', batch=1)], gpus=[0], max_parallel=1,
+            other_baseline_max_parallel=3)
         owned = SimpleNamespace(nonce='test-nonce', registered=[], cleaned=False)
         class Lifetime:
             def __init__(self, out):

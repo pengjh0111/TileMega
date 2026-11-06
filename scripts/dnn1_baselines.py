@@ -34,10 +34,14 @@ ROOT = next(p for p in Path(__file__).resolve().parents
 DEFAULT_PYTHON = '/root/TileMega/runs/r16/env/tensorrt-dnn/bin/python'
 DEFAULT_EXTRA_PATH = '/root/TileMega/runs/r16/env/dnn-export/lib/python3.10/site-packages'
 POLICY = ROOT / 'configs/bench/sm90r2_guard_policy.json'
-MODELS = ('resnet18', 'mbv1', 'mbv2', 'bert', 'nafnet')
+MODELS = ('resnet18', 'resnet34', 'vgg16', 'alexnet', 'bert')
 BATCHES = (1, 2, 4, 8, 16)
+WORKLOAD_ID = 'dnn-classic-v1'
+ACTIVE_GPUS = (0, 1, 2, 3, 4, 5, 6)
+CLASSIC_DEVICES = ROOT / 'configs/dnn/classic_h800_devices.json'
 PCI = {0: '0000:0f:00.0', 1: '0000:10:00.0', 2: '0000:41:00.0',
-       3: '0000:44:00.0', 4: '0000:86:00.0', 5: '0000:87:00.0', 7: '0000:b7:00.0'}
+       3: '0000:44:00.0', 4: '0000:86:00.0', 5: '0000:87:00.0',
+       6: '0000:b7:00.0', 7: '0000:b7:00.0'}
 ARMS = (
     dict(arm='tensorrt-bf16', system='tensorrt', precision='bf16'),
     dict(arm='tensorrt-fp16', system='tensorrt', precision='fp16'),
@@ -132,6 +136,8 @@ def held(path):
 
 def require_session(cell):
     gpu = cell['gpu']
+    if cell.get('workload_id') == WORKLOAD_ID and gpu not in ACTIVE_GPUS:
+        raise HardStop('classic workload uses only the currently assigned indices0–6')
     env = os.environ
     if (gpu not in PCI or env.get('TILEMEGA_GPU_LOCK_HELD') != '1' or
             env.get('CUDA_VISIBLE_DEVICES') != str(gpu) or
@@ -365,11 +371,25 @@ def normalize_diag(value):
         library_sha256=value.get('compiled_library_sha256', value.get('library_sha256')))
 
 
+def classic_device_identity(gpu):
+    if gpu not in ACTIVE_GPUS:
+        raise ValueError('new baseline queues use only indices0–6; index7 does not exist')
+    devices = read(CLASSIC_DEVICES)
+    if (devices.get('schema') != 1 or devices.get('allowed_gpu_indices') != list(ACTIVE_GPUS) or
+            set(devices.get('devices', {})) != set(map(str, ACTIVE_GPUS))):
+        raise ValueError('current classic device mapping must enumerate exactly indices0–6')
+    identity = devices['devices'][str(gpu)]
+    if not identity['uuid'].startswith('GPU-') or identity['pci'].lower() != PCI[gpu]:
+        raise ValueError('current device UUID/PCI mapping differs from classic topology')
+    return identity
+
+
 def queue(args):
     config = read(args.spec)
+    if config.get('workload_id', WORKLOAD_ID) != WORKLOAD_ID:
+        raise ValueError('new queues require the active classic workload; retain historical queues')
     gpu = config.get('gpu', 0)
-    if gpu not in PCI:
-        raise ValueError('DNN1 baseline session GPU is excluded; GPU6 remains unavailable')
+    identity = classic_device_identity(gpu)
     sys.path.insert(0, str(ROOT / 'python'))
     from tilemega.bench.gpu_guard import require_allowed_gpu
     policy = read(POLICY)
@@ -396,6 +416,7 @@ def queue(args):
     harness = ROOT / 'python/tilemega/dnn/baselines.py'
     recipe_sources = {str(path): sha(path) if path.is_file() else None for path in (
         Path(__file__).resolve(), harness, harness.with_name('tvm_baseline.py'),
+        CLASSIC_DEVICES,
         ROOT/'scripts/dnn1_device.py',ROOT/'scripts/dnn1_resource_entry.py',
         ROOT/'scripts/dnn1_supervised_python.py',ROOT/'scripts/dnn1_guard_entry.py')}
     cells = config.get('cells') or [dict(model=m, batch=b) for m in MODELS for b in BATCHES]
@@ -404,9 +425,9 @@ def queue(args):
         raise ValueError('cells must be distinct DNN1 model/batch pairs')
     jobs, previous, snapshots = [], [], []
     env = gpu_env(gpu, config.get('env'))
-    systems = set(config.get('systems', ('tensorrt', 'torchcompile', 'tvm')))
-    if not systems or not systems <= {'tensorrt', 'torchcompile', 'tvm'}:
-        raise ValueError('systems must select supported baseline systems')
+    systems = set(config.get('systems', ('tensorrt', 'torchcompile')))
+    if not systems or not systems <= {'tensorrt', 'torchcompile'}:
+        raise ValueError('classic primary queues select TRT/TC; TVM uses its fresh10000 entry')
     arms = [arm for arm in ARMS if arm['system'] in systems]
     parallel = config.get('parallel', False)
     affinity = config.get('cpu_affinity') or []
@@ -415,7 +436,7 @@ def queue(args):
             raise ValueError('parallel cells require an explicit nonempty CPU affinity')
         env['TILEMEGA_NUMA_CONCURRENCY_TRIAL'] = '1'
         env.pop('TILEMEGA_NUMA_CONCURRENCY_VERIFIED', None)
-    uuid = policy['idle_power_mapping_provenance']['uuid_by_gpu'][str(gpu)]
+    uuid, pci = identity['uuid'], identity['pci']
     node = 0 if gpu < 4 else 1
     for model, batch in pairs:
         key = f'{model}_b{batch}'
@@ -432,6 +453,7 @@ def queue(args):
         if not manifest.get('timing_eligible', manifest.get('accuracy_eligible', False)):
             raise ValueError('export is not timing eligible: ' + key)
         cell = dict(schema=1, model=model, batch=batch, gpu=gpu, export=str(export),
+            workload_id=WORKLOAD_ID,
             cell_root=str(cell_root), python=python, baselines=str(harness),
             baseline_harness_sha256=sha(harness), collector=str(Path(__file__).resolve()),
             recipe_sources=recipe_sources,
@@ -466,7 +488,7 @@ def queue(args):
         binding = '--physcpubind=' + ','.join(map(str, affinity)) if parallel else f'--cpunodebind={node}'
         command = ['numactl', binding, python,
             str(ROOT / 'scripts/run_r16_with_device_identity.py'), '--guard-policy', str(POLICY),
-            '--out', '{attempt_dir}/job', '--expected-uuid', uuid, '--expected-pci', PCI[gpu],
+            '--out', '{attempt_dir}/job', '--expected-uuid', uuid, '--expected-pci', pci,
             '--numa-node', str(node), '--allow-no-measurements', '--', python,
             str(Path(__file__).resolve()), 'run', '--cell', str(cell_path), '--out', '{attempt_dir}/job']
         jobs.append(dict(name=name, gpu=True, timing=True, priority=10, timeout_s=config.get('cell_timeout_s', 86400),
@@ -475,6 +497,7 @@ def queue(args):
         previous = [name]
     write(out / 'queue' / 'queue_dnn1_baselines.json', jobs)
     write(out / 'queue-spec.json', dict(schema=1, config=config, cells=snapshots,
+        workload_id=WORKLOAD_ID, workload=dict(models=list(MODELS), batches=list(BATCHES)),
         gpu=gpu, protocol=PROTOCOL, source_spec=str(args.spec.resolve()), source_spec_sha256=sha(args.spec)))
     launcher = out / 'launch.sh'
     start = ['env', '-u', 'TILEMEGA_DEVICE_GROUP', '-u', 'TILEMEGA_GPU_LOCK_HELD',
@@ -991,13 +1014,16 @@ def collect(args):
             guard=guard, status=job.get('status'), session=str(session_path),
             order=session.get('order', []), prefix=cell['prefix'], p_cell_complete=cell['p_cell_complete']))
     args.out.mkdir(parents=True, exist_ok=True)
-    for filename, fields, rows in [('DNN1_baselines.csv', FIELDS, baseline_rows),
-                                    ('DNN1_tvm_diag.csv', TVM_FIELDS, tvm_rows)]:
+    classic = spec.get('workload_id') == WORKLOAD_ID
+    stem = 'DNN_classic' if classic else 'DNN1'
+    for filename, fields, rows in [(stem + '_baselines.csv', FIELDS, baseline_rows),
+                                    (stem + '_tvm_diag.csv', TVM_FIELDS, tvm_rows)]:
         with (args.out / filename).open('w', newline='') as stream:
             writer = csv.DictWriter(stream, fieldnames=fields, lineterminator='\n')
             writer.writeheader()
             writer.writerows(rows)
     write(args.out / 'collection-audit.json', dict(schema=1, evidence='verified', protocol=PROTOCOL,
+        workload_id=spec.get('workload_id', 'dnn1-historical'),
         collector_sha256=sha(__file__), cells=audit, rows=len(baseline_rows),
         passing_rows=sum(row['status'] == 'pass' for row in baseline_rows)))
     print(compact(dict(out=str(args.out), rows=len(baseline_rows),

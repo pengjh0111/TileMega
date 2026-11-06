@@ -16,7 +16,11 @@ import traceback
 sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / 'scripts'), str(ROOT / 'python')]
-PROFILE = 'dnn1-tvm-fresh10000-wall9000-v1'
+PROFILE = 'dnn-classic-tvm-fresh10000-wall9000-v1'
+WORKLOAD_ID = 'dnn-classic-v1'
+MODELS = ('resnet18', 'resnet34', 'vgg16', 'alexnet', 'bert')
+BATCHES = (1, 2, 4, 8, 16)
+WORKLOAD = dict(id=WORKLOAD_ID, models=list(MODELS), batches=list(BATCHES))
 BUDGET = dict(max_trials_global=10000, timeout_s=9000,
     max_trials_per_task=None, num_trials_per_iter=64,
     semantics='requested candidate budget; actual attempted/committed/success/failure counts retained')
@@ -52,6 +56,10 @@ def save(path, value):
 def validate_cell(cell):
     need(cell.get('profile') == PROFILE and cell.get('budget') == BUDGET,
          'the fixed fresh10000/9000 profile is required')
+    need(cell.get('workload_id') == WORKLOAD_ID and cell.get('workload') == WORKLOAD and
+         cell['model'] in MODELS and cell['batch'] in BATCHES,
+         'the active classic five-model workload is required')
+    need(cell['gpu'] in range(7), 'new jobs require explicitly assigned indices0–6')
     need(cell.get('fresh_database') is True and cell.get('official_cuda_graph') is False,
          'only fresh databases and uncaptured VM execution are authorized')
     need(not cell.get('prior_database') and not cell.get('prior_files') and not cell.get('library'),
@@ -66,12 +74,14 @@ def validate_cell(cell):
         need(sha(name) == digest, 'frozen experiment dependency changed: ' + name)
     for name, digest in cell['assets'].items():
         need(sha(name) == digest, 'fixed export/checkpoint/input asset changed: ' + name)
+    need(sha(cell['asset_preparation']['path']) == cell['asset_preparation']['sha256'],
+         'classic CPU asset proof changed')
     need(sha(cell['epoch_manifest']) == cell['epoch_manifest_sha256'], 'epoch manifest changed')
     need(sha(cell['release']) == cell['release_sha256'], 'AIT/push release changed')
 
 
 def recipe(adapter_recipe, cell):
-    return dict(adapter_recipe, schema=PROFILE, official_cuda_graph=False,
+    return dict(adapter_recipe, schema=PROFILE, workload=WORKLOAD, official_cuda_graph=False,
         fresh_database=True, prior_database=None, tuning=dict(BUDGET),
         compatibility_entry=dict(COMPATIBILITY),
         experiment_driver_sha256=sha(__file__),
@@ -108,8 +118,8 @@ def sample(options):
     need(options.correctness_only == (options.round_index >= 3), 'fixed P-DNN/P5 process roles required')
     from tilemega.dnn import baselines as baseline
     baseline.require_guard()
-    need(os.environ.get('TILEMEGA_DEVICE_INDEX') == str(cell['gpu']) and cell['gpu'] != 6,
-         'wrong physical GPU or excluded GPU6')
+    need(os.environ.get('TILEMEGA_DEVICE_INDEX') == str(cell['gpu']) and cell['gpu'] in range(7),
+         'wrong physical GPU or index outside the assigned0–6 pool')
     import torch
     from tilemega.dnn import tvm_baseline as adapter
     torch.set_num_threads(4)
@@ -130,6 +140,7 @@ def sample(options):
     metadata = dict(input_seed=20261007, inputs_sha256=baseline.inputs_digest(args, kwargs)[0],
         reference_outputs_sha256=baseline.inputs_digest(reference, {})[0],
         experiment_profile=PROFILE, experiment_budget=dict(BUDGET),
+        workload_id=WORKLOAD_ID, workload=WORKLOAD,
         compatibility_entry=dict(COMPATIBILITY), fresh_database=True, prior_database=None,
         official_cuda_graph=False, experiment_cell_sha256=sha(options.cell),
         experiment_driver_sha256=sha(__file__), epoch_manifest_sha256=cell['epoch_manifest_sha256'])
@@ -158,6 +169,7 @@ def sample(options):
          diag['tuning']['maximum_trials'] == 10000 and diag['tuning']['timeout_s'] == 9000 and
          diag['tuning'].get('initial_database_records') == 0, 'compiled VM has another tuning identity')
     result = dict(schema_version=1, evidence='verified', system='tvm', model=cell['model'],
+        workload_id=WORKLOAD_ID,
         batch=cell['batch'], precision='bf16', pid=os.getpid(), round_index=options.round_index,
         gpu_index=int(baseline.require_guard()[0]), correctness_passed=True,
         process_role='correctness' if options.correctness_only else 'measurement',
@@ -189,6 +201,7 @@ def main():
         save(options.out / 'failure.json', dict(system='tvm', status='failed',
             failure_kind=getattr(error, 'failure_kind', 'infrastructure'), error=repr(error),
             traceback=traceback.format_exc(), experiment_profile=PROFILE,
+            workload_id=WORKLOAD_ID,
             experiment_budget=dict(BUDGET), compatibility_entry=dict(COMPATIBILITY),
             fresh_database=True, driver_sha256=sha(__file__), time=time.time()))
         raise
