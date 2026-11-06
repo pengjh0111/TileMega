@@ -178,14 +178,18 @@ class CollectorTest(unittest.TestCase):
 
     def test_queue_matches_scheduler_glob_and_records_guarded_numa_command(self):
         output = self.root / 'queue-run'
+        release = self.root / 'classic-release.json'
+        release.write_text('{"frozen":true}')
         with patch.object(collector, 'source_identity', return_value={'files': {}}), \
              patch.object(collector.subprocess, 'check_output', return_value='GPU-fixture, 00000000:41:00.0'):
-            collector.queue(argparse.Namespace(out=output, gpu=2, model='resnet18', batch=1))
+            collector.queue(argparse.Namespace(out=output, gpu=2, model='resnet18', batch=1, release=release))
         queues = list((output/'queue').glob('queue_*.json'))
         self.assertEqual(len(queues), 1)
         job = json.loads(queues[0].read_text())[0]
         self.assertTrue(job['gpu'] and job['timing'])
         self.assertEqual(job['env']['CUDA_VISIBLE_DEVICES'], '2')
+        self.assertEqual(job['env']['TILEMEGA_DNN1_AIT_RELEASE'], str(release))
+        self.assertEqual(job['env']['TILEMEGA_DNN1_AIT_RELEASE_SHA256'], collector.sha(release))
         self.assertIn('--physcpubind=16,17,18,19,20,21,22,23', job['command'])
         self.assertEqual(job['command'][:2], ['numactl', '--all'])
         self.assertIn('0000:41:00.0', job['command'])

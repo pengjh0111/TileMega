@@ -18,7 +18,7 @@ import dnn1_aitemplate as runner
 
 class DeviceTest(unittest.TestCase):
     def test_guard_mismatch_or_excluded_card_cannot_start_profilers(self):
-        for card, cvd in [(5, '0'), (6, '6'), (0, '0,1')]:
+        for card, cvd in [(5, '0'), (7, '7'), (0, '0,1')]:
             with patch.dict(os.environ, CUDA_VISIBLE_DEVICES=cvd, TILEMEGA_DEVICE_INDEX=str(card)):
                 with self.assertRaises(ValueError):
                     runner.guarded_profile_devices(card)
@@ -30,7 +30,7 @@ class DeviceTest(unittest.TestCase):
         task_node = next(n for n in task_tree.body if isinstance(n, ast.ClassDef) and n.name == 'Task')
         funcs = [n for n in profiler_tree.body if isinstance(n, ast.FunctionDef)
                  and n.name in ('run_task', 'update_inplace')]
-        for card in (0, 2, 5, 7):
+        for card in (0, 2, 5, 6):
             calls = []
             def popen(command, **kwargs):
                 calls.append(('old-Popen', kwargs['env']['CUDA_VISIBLE_DEVICES']))

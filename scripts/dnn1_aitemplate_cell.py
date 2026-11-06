@@ -10,18 +10,20 @@ import shlex
 import subprocess
 import time
 
-from dnn1_aitemplate import ROOT, AIT_ROOT, require_tvm_complete, save, sha, source_identity
+from dnn1_aitemplate import ROOT, AIT_ROOT, require_gpu_release, save, sha, source_identity
 import dnn1_baselines as protocol
 from dnn1_baseline_boundaries import idle_boundary, final_boundary
 
 AFFINITY = {0: list(range(32, 40)), 1: list(range(40, 48)), 2: list(range(16, 24)),
             3: list(range(24, 32)), 4: list(range(48, 56)), 5: list(range(56, 64)),
-            7: list(range(64, 72))}
+            6: list(range(64, 72)), 7: list(range(64, 72))}
 
 
 def queue(options):
     out = options.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
+    if options.gpu not in range(7):
+        raise ValueError("current GPU indices are0–6; index7 is absent")
     gpu, affinity = options.gpu, AFFINITY[options.gpu]
     provider = getattr(options, 'provider', 'original')
     if provider not in ('original', 'bounded-settle', 'fifo-settle'):
@@ -47,6 +49,11 @@ def queue(options):
                 profile_cache=str(profile_cache),
                 guard_provider=provider,
                 source_sha256=sources, graph_mode=getattr(options, 'graph', True))
+    release_path = getattr(options, 'release', None)
+    if release_path is None:
+        raise ValueError('classic AIT queue requires an immutable source/asset release')
+    cell['release_path'] = str(Path(release_path).resolve())
+    cell['release_sha256'] = sha(release_path)
     save(out / 'cell.json', cell)
     metadata = subprocess.check_output(['nvidia-smi', '-i', str(gpu),
         '--query-gpu=uuid,pci.bus_id', '--format=csv,noheader,nounits'], text=True).strip()
@@ -55,7 +62,9 @@ def queue(options):
     pci = f'{int(domain, 16):04x}:{bus}:{slot}'
     env = protocol.gpu_env(gpu, dict(TILEMEGA_NUMA_CONCURRENCY_TRIAL='1', NUM_BUILDERS='4',
                                    OPENBLAS_NUM_THREADS='4', MKL_NUM_THREADS='4',
-                                   CACHE_DIR=str(profile_cache)))
+                                   CACHE_DIR=str(profile_cache),
+                                   TILEMEGA_DNN1_AIT_RELEASE=cell['release_path'],
+                                   TILEMEGA_DNN1_AIT_RELEASE_SHA256=cell['release_sha256']))
     command = ['numactl', '--all', '--physcpubind=' + ','.join(map(str, affinity)), python,
         str(ROOT / 'scripts/run_r16_with_device_identity.py'), '--guard-policy', str(protocol.POLICY),
         '--out', '{attempt_dir}/job', '--expected-uuid', uuid, '--expected-pci', pci,
@@ -91,11 +100,13 @@ def profile_cache_snapshot(directory):
 
 
 def run(options):
-    require_tvm_complete()
     cell = json.loads(options.cell.read_text())
+    if sha(cell['release_path']) != cell['release_sha256']:
+        raise ValueError('classic release changed since queue preparation')
+    require_gpu_release(cell['release_path'])
     protocol.require_session(cell)
-    if cell['gpu'] == 6:
-        raise ValueError('GPU6 is excluded')
+    if cell['gpu'] not in range(7):
+        raise ValueError('current GPU indices are0–6; index7 is absent')
     for path, digest in cell['source_sha256'].items():
         if sha(path) != digest:
             raise ValueError('prepared AIT source changed: ' + path)
@@ -270,7 +281,8 @@ def main():
     preparer = sub.add_parser('queue')
     preparer.add_argument('--model', choices=protocol.MODELS, required=True)
     preparer.add_argument('--batch', type=int, choices=[1, 2, 4, 8, 16], required=True)
-    preparer.add_argument('--gpu', type=int, choices=sorted(AFFINITY), required=True)
+    preparer.add_argument('--gpu', type=int, choices=range(7), required=True)
+    preparer.add_argument('--release', type=Path, required=True)
     preparer.add_argument('--out', type=Path, required=True)
     preparer.add_argument('--graph', action=argparse.BooleanOptionalAction, default=True)
     runner = sub.add_parser('run')

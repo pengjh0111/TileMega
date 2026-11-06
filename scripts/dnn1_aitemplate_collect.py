@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Release AIT only after source-bound TVM25, then dispatch guarded P5 cells."""
+"""Release source/asset-frozen classic AIT independently of parallel baselines."""
 from __future__ import annotations
 import argparse
 import csv
@@ -18,6 +18,8 @@ from dnn1_background_cards import main_reservations
 from dnn1_owned_controller import OwnedController
 
 ROOT = runner.ROOT
+LEGACY_CELLS = {(m, b) for m in ('resnet18', 'mbv1', 'mbv2', 'bert', 'nafnet')
+                for b in (1, 2, 4, 8, 16)}
 CELLS = {(m, b) for m in base.MODELS for b in (1, 2, 4, 8, 16)}
 
 
@@ -38,10 +40,10 @@ def campaign_paths(config):
 
 
 def gpu_pool(config):
-    values = config.get('gpus', [5, 7, 0, 1])
+    values = config.get('gpus', [0, 1, 2, 3, 4, 5, 6])
     if (not values or any(type(value) is not int for value in values) or
-            len(values) != len(set(values)) or not set(values) <= {0,1,2,3,4,5,7}):
-        raise ValueError('collection requires distinct cards0–5/7, neverGPU6')
+            len(values) != len(set(values)) or not set(values) <= set(range(7))):
+        raise ValueError('collection requires distinct current cards0–6, never absent7')
     return values
 
 
@@ -93,7 +95,7 @@ def resource_snapshot(epoch, gpu):
         return None
 
 
-def release(config, destination):
+def release_legacy(config, destination):
     tvm = Path(config['tvm_epoch'])
     campaigns = campaign_paths(config)
     allowed = ('primary_complete', 'needs_diagnosis') if len(campaigns) > 1 else ('primary_complete',)
@@ -102,7 +104,7 @@ def release(config, destination):
         if (state.get('status') not in allowed or state.get('workers') or state.get('active') or state.get('pending')):
             raise RuntimeError('TVM repairs remain incomplete or active')
     proof = base.read(config['cpu_prepare'])
-    if (len(proof['rows']) != 25 or {(r['model'], r['batch']) for r in proof['rows']} != CELLS or
+    if (len(proof['rows']) != 25 or {(r['model'], r['batch']) for r in proof['rows']} != LEGACY_CELLS or
             any(r['status'] != 'ir_created' for r in proof['rows']) or
             proof['identity'] != runner.source_identity()):
         raise ValueError('CPU25 proof does not match the current uniform graph recipe/source')
@@ -120,7 +122,7 @@ def release(config, destination):
             sum(r['status'] == 'N/A' for r in primary_rows) != 5):
         raise ValueError('primary snapshot is not the frozen completed125')
     selected = rows(frozen) + [row for directory in campaigns for row in rows(directory / 'accepted_delta.csv')]
-    if len(selected) != 25 or {(r['model'], int(r['batch'])) for r in selected} != CELLS:
+    if len(selected) != 25 or {(r['model'], int(r['batch'])) for r in selected} != LEGACY_CELLS:
         raise ValueError('exactly25 distinct accepted TVM cells are required')
     evidence = destination / 'release_evidence'
     evidence.mkdir(parents=True, exist_ok=False)
@@ -166,11 +168,16 @@ def release(config, destination):
     return runner.require_tvm_complete()
 
 
-def enqueue(epoch, model, batch, gpu, provider='original', admission=1):
+def release(config, destination):
+    from dnn1_aitemplate_classic_release import create
+    return create(config, destination)
+
+
+def enqueue(epoch, model, batch, gpu, provider='original', admission=1, release_path=None):
     suffix = '' if admission == 1 else f'_admission{admission}'
     folder = epoch / 'jobs' / f'{model}_b{batch}{suffix}'
     cell_runner.queue(argparse.Namespace(out=folder, model=model, batch=batch,
-                                        gpu=gpu, graph=True, provider=provider))
+                                        gpu=gpu, graph=True, provider=provider, release=release_path))
     log = (folder / 'scheduler.log').open('w')
     process = subprocess.Popen(['bash', str(folder / 'launch.sh')], cwd=ROOT,
         stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
@@ -195,19 +202,8 @@ def _dispatch(args, lifetime):
     if (epoch / 'started.json').exists():
         raise FileExistsError('audit the preserved controller state before resuming')
     base.write(epoch / 'started.json', dict(time=time.time(), driver_sha256=base.sha(__file__)))
-    campaigns = campaign_paths(config)
-    while True:
-        states = [tvm_state(p / 'state.json') for p in campaigns]
-        drained = all(s.get('status') in ('primary_complete', 'needs_diagnosis') and
-                      not s.get('workers') and not s.get('active') and not s.get('pending') for s in states)
-        if drained:
-            if sum(s.get('accepted', 0) for s in states) != 5:
-                base.write(epoch / 'state.json', dict(status='blocked_tvm_repair', tvm_states=states))
-                return 1
-            break
-        base.write(epoch / 'state.json', dict(status='waiting_tvm25', time=time.time(),
-            tvm_accepted=sum(s.get('accepted', 0) for s in states), tvm_states=states, gpu_workers={}))
-        time.sleep(30)
+    from dnn1_aitemplate_classic_release import check_workload
+    check_workload(config)
     publication = release(config, epoch)
     pending = collection_cells(config)
     requested_cells = len(pending)
@@ -254,7 +250,7 @@ def _dispatch(args, lifetime):
             del active[gpu]
             admissions[key] += 1
             active[alternate] = enqueue(epoch, model, batch, alternate,
-                config.get('guard_provider', 'original'), admissions[key])
+                config.get('guard_provider', 'original'), admissions[key], publication['path'])
             lifetime.register(active[alternate][0])
             with (epoch / 'cpu_reassignments.jsonl').open('a') as stream:
                 stream.write(json.dumps(dict(time=time.time(), model=model, batch=batch,
@@ -273,7 +269,8 @@ def _dispatch(args, lifetime):
                 continue
             model, batch = pending.pop(0)
             admissions[(model, batch)] = 1
-            active[gpu] = enqueue(epoch, model, batch, gpu, config.get('guard_provider', 'original'))
+            active[gpu] = enqueue(epoch, model, batch, gpu, config.get('guard_provider', 'original'),
+                                  release_path=publication['path'])
             lifetime.register(active[gpu][0])
         base.write(epoch / 'state.json', dict(status='collecting' if pending or active else
             ('complete' if not failures else 'needs_diagnosis'), accepted=len(accepted),

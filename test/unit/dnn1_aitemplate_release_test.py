@@ -32,16 +32,16 @@ class ReleaseTest(unittest.TestCase):
         self.identity = {'recipe': {'graph_mode': True}, 'source': 'fixture-source'}
         proof = self.root / 'cpu.json'
         controller.base.write(proof, dict(identity=self.identity,
-            rows=[dict(model=m, batch=b, status='ir_created') for m,b in controller.CELLS]))
+            rows=[dict(model=m, batch=b, status='ir_created') for m,b in controller.LEGACY_CELLS]))
         primary = self.root / 'primary.csv'
         self.write_csv(primary, [dict(model=m, batch=b, arm=a,
             system='tensorrt' if a < 2 else 'torchcompile',
             status='N/A' if m == 'nafnet' and a == 4 else 'pass')
-            for m,b in controller.CELLS for a in range(5)] +
+            for m,b in controller.LEGACY_CELLS for a in range(5)] +
             [dict(model=m, batch=b, arm='tvm-bf16', system='tvm', status='pass')
-             for m,b in controller.CELLS])
+             for m,b in controller.LEGACY_CELLS])
         selected = []
-        for m,b in sorted(controller.CELLS):
+        for m,b in sorted(controller.LEGACY_CELLS):
             folder = self.tvm / f'{m}_{b}'; folder.mkdir()
             files = [folder / f'{i}.json' for i in range(6)]
             for path in files:
@@ -64,7 +64,7 @@ class ReleaseTest(unittest.TestCase):
         with patch.object(controller, 'ROOT', self.root), \
              patch.object(controller.runner, 'ROOT', self.root), \
              patch.object(controller.runner, 'source_identity', return_value=self.identity):
-            return controller.release(self.config, self.out)
+            return controller.release_legacy(self.config, self.out)
 
     def test_full25_and_drained_repairs_release_versioned_evidence(self):
         value = self.release()
