@@ -1,0 +1,10 @@
+--- a/aitemplate/backend/common/tensor/slice_common.py
++++ b/aitemplate/backend/common/tensor/slice_common.py
+@@ -471,6 +471,7 @@
+   dim3 grid_config = dim3(num_blocks_x, NumInputs);
+ 
+ #define HANDLE_ONE_VEC_TYPE(load_vec_type, vec_type)                          \\
++    if constexpr (sizeof(vec_type) >= sizeof(ELEM_T) && sizeof(vec_type) % sizeof(ELEM_T) == 0) \\
+     if (min_vec_type == load_vec_type) {                                      \\
+       if (ElemsPerThread * sizeof(ELEM_T) < sizeof(vec_type)) {               \\
+          throw std::runtime_error(                                            \\

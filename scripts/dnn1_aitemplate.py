@@ -24,15 +24,71 @@ import traceback
 ROOT = Path(__file__).resolve().parents[1]
 AIT_ROOT = ROOT / "runs/dnn1/resume/aitemplate"
 AIT_COMMIT = "23a2e348857591ac41f4946f0177c53d833a0104"
-RECIPE = dict(schema=1, frontend="uniform-static-ATen-NHWC", precision="bf16",
+RECIPE_SCHEMA = 14
+WORKLOAD_ID = "dnn-classic-v1"
+MODELS = ("resnet18", "resnet34", "vgg16", "alexnet", "bert")
+WORKLOAD = dict(id=WORKLOAD_ID, models=list(MODELS), batches=[1, 2, 4, 8, 16])
+BF16_POOL_SOURCE_SHA = 'fc84ab0252c59f86e85de54484beb4edbe4f59afb817013cbf9ce4401f8b6243'
+BF16_GATHER_SOURCE_SHA = {
+    'aitemplate/backend/cuda/cuda_common.py': '23a8e2ae50568c2d1cbf43c9aa3349c7f7527f6f251d0ed8ffbfd2124e5f3405',
+    'aitemplate/backend/cuda/tensor/gather.py': 'd7d82c7ee853a3958c49fbeaf159681e25459cee30c05bb28cdcd85d24943777',
+}
+RELATIONAL_SOURCE_SHA = '1f1c16760e95239a57b04f898ad6f7b253bb7941d50f667de913aec2f743f17a'
+BUILD_FIX_SOURCE_SHA = {
+    'aitemplate/compiler/transform/constant_folding.py': '59af44cb069c4206263c88a30c496d7356ce71d68a8d222814bfe39921458711',
+    'aitemplate/compiler/transform/transform_strided_slice.py': '7dff32910fc78e9772db32dde3d29aabd92ad2e3d6c914f0a075f4513985bbbc',
+    'aitemplate/backend/common/tensor/slice_common.py': '9537dc36061d1b3865d61b0341d0438408f1e5a48f03300cefa3dc1c401ec633',
+    'aitemplate/backend/cuda/tensor/expand_static_shape.py': 'c1e0650ec580a00bd4441c699251827c8f382132e6c62b1b293c89a14fba6f33',
+}
+RECIPE = dict(schema=RECIPE_SCHEMA, workload_id=WORKLOAD_ID, workload=WORKLOAD, frontend="uniform-static-ATen-NHWC", precision="bf16",
               target="cuda-sm90a", use_fp16_acc=False, use_fast_math=True,
               allow_cutlass_sm90=True, force_cutlass_sm90=False,
-              optimize_graph=True, profile_timeout_s=500, profile_devices=[0],
-              num_runtimes=1, graph_mode=False, warmup=50, iterations=200)
+              optimize_graph=True, profile_timeout_s=500,
+              profile_devices="guarded physical card; model runtime local0",
+              num_runtimes=1, graph_mode=True, warmup=50, iterations=200,
+              profiler_link_libraries=["cuda"], shared_link_libraries=["cuda"],
+              backend_patch="dnn1_aitemplate_bf16_maxpool.patch",
+              backend_gather_patch="dnn1_aitemplate_bf16_gather.patch",
+              backend_relational_patch="dnn1_aitemplate_nonfinite_literal.patch",
+              backend_slice_patch="dnn1_aitemplate_slice_width.patch",
+              backend_expand_patch="dnn1_aitemplate_expand_linkage.patch",
+              backend_pooler_stride_patch="dnn1_aitemplate_pooler_stride.patch",
+              backend_constant_folding_patch="dnn1_aitemplate_cf_intvar.patch",
+              runtime_outputs="IR names/shapes/dtypes checked against official runtime enums")
 
 
 def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def configure_graph_recipe(graph):
+    RECIPE.update(graph_mode=graph,
+                  schema=RECIPE_SCHEMA if graph else f'{RECIPE_SCHEMA}-no-graph-reference')
+
+
+def guarded_profile_devices(device_index):
+    if (type(device_index) is not int or device_index not in (0, 1, 2, 3, 4, 5, 6) or
+            os.environ.get('CUDA_VISIBLE_DEVICES') != str(device_index) or
+            os.environ.get('TILEMEGA_DEVICE_INDEX') != str(device_index)):
+        raise ValueError('profilers require the guarded physical card and singleton CVD')
+    return [device_index]
+
+
+def allocate_outputs(engine, graph_outputs, torch_module, dtype_to_enum, string_to_dtype):
+    specs = {output['name']: output for output in graph_outputs}
+    runtime = engine.get_output_name_to_index_map()
+    if set(specs) != set(runtime):
+        raise ValueError('compiled output names differ from the unchanged imported graph')
+    buffers = {}
+    for name, index in runtime.items():
+        spec = specs[name]
+        if engine.get_output_dtype(index) != dtype_to_enum(spec['dtype']):
+            raise ValueError('compiled output dtype differs from imported IR: ' + name)
+        shape = engine.get_output_maximum_shape(index)
+        if list(shape) != list(spec['shape']):
+            raise ValueError('compiled output shape differs from static imported IR: ' + name)
+        buffers[name] = torch_module.empty(shape, device='cuda', dtype=string_to_dtype(spec['dtype']))
+    return buffers
 
 
 def save(path, value):
@@ -41,7 +97,26 @@ def save(path, value):
 
 def source_identity():
     paths = [Path(__file__), *sorted((ROOT / "python/tilemega/dnn").glob("aitemplate_*.py")),
-             ROOT / "python/tilemega/dnn/baselines.py"]
+             ROOT / "python/tilemega/dnn/baselines.py",
+             ROOT / "scripts/dnn1_aitemplate_classic_release.py",
+             ROOT / "configs/dnn/classic_h800_devices.json"]
+    pool = AIT_ROOT / 'python/aitemplate/backend/cuda/pool2d/max_pool2d.py'
+    if sha(pool) != BF16_POOL_SOURCE_SHA:
+        raise ValueError('AIT BF16 max-pool backend source differs from the verified patch')
+    paths.append(ROOT / 'scripts/dnn1_aitemplate_bf16_maxpool.patch')
+    for relative, digest in BF16_GATHER_SOURCE_SHA.items():
+        if sha(AIT_ROOT / 'python' / relative) != digest:
+            raise ValueError('AIT BF16 gather backend source differs from the verified patch')
+    paths.append(ROOT / 'scripts/dnn1_aitemplate_bf16_gather.patch')
+    if sha(AIT_ROOT / 'python/aitemplate/backend/cuda/tensor/relational.py') != RELATIONAL_SOURCE_SHA:
+        raise ValueError('AIT relational literal source differs from the verified patch')
+    paths.append(ROOT / 'scripts/dnn1_aitemplate_nonfinite_literal.patch')
+    for relative, digest in BUILD_FIX_SOURCE_SHA.items():
+        if sha(AIT_ROOT / 'python' / relative) != digest:
+            raise ValueError('AIT compiler support source differs from the verified fixes')
+    paths.extend(ROOT / 'scripts' / name for name in (
+        'dnn1_aitemplate_slice_width.patch', 'dnn1_aitemplate_expand_linkage.patch',
+        'dnn1_aitemplate_pooler_stride.patch', 'dnn1_aitemplate_cf_intvar.patch'))
     commit = subprocess.check_output(["git", "-C", str(AIT_ROOT / "source"),
                                       "rev-parse", "HEAD"], text=True).strip()
     if commit != AIT_COMMIT:
@@ -84,6 +159,17 @@ def target():
     from aitemplate.backend.cuda.target_def import CUDA
 
     class HopperCUDA(CUDA):
+        def compile_options(self):
+            # Builder places these flags before objects; retain the driver even
+            # when the host linker's default is --as-needed.
+            return (super().compile_options() +
+                    " -Xlinker=--no-as-needed -lcuda -Xlinker=--as-needed")
+
+        def compile_cmd(self, executable=False):
+            command = super().compile_cmd(executable=executable)
+            # SM90 TMA profilers call the driver API when encoding tensor maps.
+            return command + " -lcuda" if executable else command
+
         def _build_nvcc_compiler_options(self):
             # Pinned FBCUDA uses 90a for CUTLASS SM90 TMA kernels; its OSS
             # sibling leaves codegen at 90 even when those kernels are enabled.
@@ -106,7 +192,7 @@ def prepare(options):
     torch, baseline, importer = load_dependencies(cpu=True)
     identity = source_identity()
     rows = []
-    cells = ([(m, b) for m in ("resnet18", "mbv1", "mbv2", "bert", "nafnet")
+    cells = ([(m, b) for m in MODELS
               for b in (1, 2, 4, 8, 16)] if options.all_cells else
              [(options.model, options.batch)])
     for model, batch in cells:
@@ -115,14 +201,23 @@ def prepare(options):
             program, manifest = baseline.load_export(ROOT / "runs/dnn1/exports" / model)
             args, kwargs = baseline.make_inputs(program, batch, options.seed)
             outputs, inputs, counters = importer(program, args, kwargs, options.out)
+            export = ROOT / "runs/dnn1/exports" / model
+            asset_paths = dict(exported_program=export / "exported_program.pt2",
+                checkpoint=export / "checkpoint/model.safetensors",
+                manifest=export / "manifest.json", inputs=export / f"inputs_b{batch}.safetensors")
             row.update(status="ir_created", **graph_info(outputs, inputs, counters),
-                       exported_program_sha256=manifest["artifacts"]["exported_program.pt2"])
+                       exported_program_sha256=manifest["artifacts"]["exported_program.pt2"],
+                       source_checkpoint_sha256=sha(asset_paths['checkpoint']),
+                       inputs_sha256=baseline.inputs_digest(args, kwargs)[0],
+                       asset_files={name: dict(path=str(path), sha256=sha(path))
+                                    for name, path in asset_paths.items()})
             if options.command == "cpu-profiler":
                 row["profiler"] = cpu_profilers(outputs, options)
         except Exception as error:
             row.update(status="error", error=repr(error), traceback=traceback.format_exc())
         rows.append(row)
         save(options.out / "prepare.json", dict(identity=identity, rows=rows,
+             workload_id=WORKLOAD_ID, workload=WORKLOAD, input_seed=options.seed,
              scope="CPU IR/profiler compilation only; no GPU numerical/performance claim"))
         print(json.dumps(dict(model=model, batch=batch, status=row["status"])), flush=True)
     return int(any(row["status"] != "ir_created" for row in rows))
@@ -187,12 +282,22 @@ def require_tvm_complete():
                 policy="primary125; TVM25 validated or genuine failure; drained TVM tuners")
 
 
+def require_gpu_release(path=None):
+    from dnn1_aitemplate_classic_release import ENVIRONMENT, validate
+    configured = os.environ.get(ENVIRONMENT)
+    if not configured or (path is not None and Path(configured).resolve() != Path(path).resolve()):
+        raise RuntimeError("classic AIT requires its source/asset-frozen GPU release")
+    if os.environ.get(ENVIRONMENT + "_SHA256") != sha(configured):
+        raise ValueError("classic AIT GPU release changed")
+    return validate(configured)
+
+
 def sample(options):
-    publication = require_tvm_complete()
+    publication = require_gpu_release()
     torch, baseline, importer = load_dependencies(cpu=False)
     device_index = int(baseline.require_guard()[0])
-    if device_index == 6:
-        raise ValueError("GPU6 is excluded")
+    if device_index not in range(7):
+        raise ValueError("current classic GPU indices are0–6; index7 is absent")
     if torch.cuda.get_device_capability() != (9, 0):
         raise ValueError("the fixed AIT recipe requires SM90")
     identity = source_identity()
@@ -201,6 +306,10 @@ def sample(options):
     export = ROOT / "runs/dnn1/exports" / options.model
     program, manifest = baseline.load_export(export)
     args, kwargs = baseline.make_inputs(program, options.batch, options.seed)
+    from dnn1_aitemplate_classic_release import sample_assets
+    sample_assets(publication, options.model, options.batch,
+        manifest['artifacts']['exported_program.pt2'], sha(export / 'checkpoint/model.safetensors'),
+        baseline.inputs_digest(args, kwargs)[0])
     reference_args, reference_kwargs = baseline.convert_inputs(args, kwargs, dtype=torch.float32)
     with torch.inference_mode():
         reference = [x.detach().clone() for x in baseline.leaves(
@@ -210,7 +319,8 @@ def sample(options):
     identity.update(model=options.model, batch=options.batch,
                     exported_program_sha256=manifest["artifacts"]["exported_program.pt2"],
                     source_checkpoint_sha256=sha(export / "checkpoint/model.safetensors"),
-                    gpu_uuid=str(properties.uuid), torch_version=torch.__version__)
+                    gpu_uuid=str(properties.uuid), torch_version=torch.__version__,
+                    profile_devices=guarded_profile_devices(device_index), runtime_local_device=0)
     key = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
     cache = options.cache / key
     cache.mkdir(parents=True, exist_ok=True)
@@ -231,7 +341,8 @@ def sample(options):
             if attempt.exists():
                 raise RuntimeError("incomplete AIT cache retained; use a fresh cache directory")
             save(attempt, dict(identity=identity, started=time.time()))
-            engine = compile_model(outputs, target(), str(cache), "engine", profile_devs=[0],
+            engine = compile_model(outputs, target(), str(cache), "engine",
+                                   profile_devs=guarded_profile_devices(device_index),
                                    num_runtimes=1, do_optimize_graph=True, profile_timeout=500)
             save(compiled, dict(identity=identity, graph=info, library=engine.lib_path,
                                 library_sha256=sha(engine.lib_path)))
@@ -240,13 +351,15 @@ def sample(options):
                       if name in engine.get_input_name_to_index_map()}
     if set(runtime_inputs) != set(engine.get_input_name_to_index_map()):
         raise ValueError("runtime inputs differ from the compiled input ABI")
-    actual_outputs = {name: torch.empty(engine.get_output_maximum_shape(index), device="cuda",
-                                      dtype=getattr(torch, engine.get_output_dtype(index)))
-                      for name, index in engine.get_output_name_to_index_map().items()}
+    from aitemplate.compiler.dtype import dtype_str_to_enum
+    from aitemplate.utils.torch_utils import string_to_torch_dtype
+    actual_outputs = allocate_outputs(engine, info['outputs'], torch,
+                                      dtype_str_to_enum, string_to_torch_dtype)
 
     def run():
         engine.run_with_tensors(runtime_inputs, actual_outputs,
-            stream_ptr=torch.cuda.current_stream().cuda_stream, sync=False, graph_mode=False)
+            stream_ptr=torch.cuda.current_stream().cuda_stream, sync=False,
+            graph_mode=RECIPE['graph_mode'])
         return [actual_outputs[f"output_{i}"] for i in range(len(actual_outputs))]
 
     with torch.inference_mode():
@@ -261,6 +374,23 @@ def sample(options):
         values = [] if options.correctness_only else baseline.timed(run, 0, 200)
         baseline.observe(guard_log, "after-measurement")
     ordered = sorted(values)
+    graph_observation = dict(requested=RECIPE['graph_mode'],
+        scope='official runtime graph mode; whole-model capture is not asserted')
+    if options.profile_capture:
+        try:
+            with torch.profiler.profile(activities=[torch.profiler.ProfilerActivity.CPU,
+                                                    torch.profiler.ProfilerActivity.CUDA]) as profiler:
+                run()
+                torch.cuda.synchronize()
+            trace = options.out / 'capture_trace.json'
+            profiler.export_chrome_trace(str(trace))
+            events = json.loads(trace.read_text())['traceEvents']
+            graph_observation.update(profiler_trace=str(trace),
+                cuda_graph_launch_events=sum('cudagraphlaunch' in e.get('name', '').lower() for e in events),
+                trace_sha256=sha(trace))
+            graph_observation['capture_verified'] = graph_observation['cuda_graph_launch_events'] > 0
+        except Exception as error:
+            graph_observation.update(profiler_error=repr(error), capture_verified=False)
     save(options.out / "measurements.json", dict(schema_version=1, evidence="verified",
          system="aitemplate", model=options.model, batch=options.batch, precision="bf16",
          pid=os.getpid(), gpu_index=device_index, round_index=options.round_index,
@@ -268,8 +398,11 @@ def sample(options):
          correctness_passed=True, correctness=metrics, samples_ms=values,
          median_ms=statistics.median(values) if values else None,
          p90_ms=ordered[math.ceil(.9 * len(ordered))-1] if values else None,
-         guard_log=str(guard_log.resolve()), identity=identity, tvm_publication=publication,
+         guard_log=str(guard_log.resolve()), identity=identity, baseline_release=publication,
+         workload_id=WORKLOAD_ID, workload=WORKLOAD,
          cache_hit=cache_hit, compiled_receipt_sha256=sha(compiled),
+         library_sha256=sha(engine.lib_path),
+         graph_mode=graph_observation,
          protocol=dict(warmup=50, iterations=0 if options.correctness_only else 200,
                        input_seed=options.seed, reference="same exported BF16 weights promoted FP32"),
          inputs_sha256=baseline.inputs_digest(args, kwargs)[0],
@@ -281,7 +414,7 @@ def sample(options):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=["prepare", "cpu-profiler", "sample"])
-    parser.add_argument("--model", choices=["resnet18", "mbv1", "mbv2", "bert", "nafnet"])
+    parser.add_argument("--model", choices=MODELS)
     parser.add_argument("--batch", type=int, choices=[1, 2, 4, 8, 16], default=1)
     parser.add_argument("--all-cells", action="store_true")
     parser.add_argument("--seed", type=int, default=20261007)
@@ -291,7 +424,10 @@ def main():
     parser.add_argument("--builders", type=int, default=2)
     parser.add_argument("--correctness-only", action="store_true")
     parser.add_argument("--round-index", type=int, default=0)
+    parser.add_argument('--graph', action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument('--profile-capture', action='store_true')
     options = parser.parse_args()
+    configure_graph_recipe(options.graph)
     if options.all_cells and options.command != "prepare":
         parser.error("--all-cells is CPU graph import only")
     if not options.all_cells and not options.model:

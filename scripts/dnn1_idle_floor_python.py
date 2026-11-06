@@ -11,12 +11,13 @@ import json
 import os
 import runpy
 import sys
+import dnn1_device as device
 
 REAL_PYTHON = '/root/TileMega/runs/r16/env/tensorrt-dnn/bin/python'
 
 
 def idle(row, policy, needs=0, nonce=None):
-    return (row['gpu_index'] in (0, 1, 2, 3, 4, 5, 7)
+    return (row['gpu_index'] in device.allowed_gpu_indices()
             and not row['owners'] and 0 <= row['used_mib'] <= 1
             and row['free_mib'] >= needs)
 

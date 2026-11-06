@@ -337,7 +337,7 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--base-spec', type=Path, required=True)
     p.add_argument('--out', type=Path, required=True)
-    p.add_argument('--gpus', default='0,1,2,3,4,5,7')
+    p.add_argument('--gpus', default='0,1,2,3,4,5,6')
     p.add_argument('--max-parallel', type=int, default=7)
     p.add_argument('--cpus-per-worker', type=int, default=8)
     p.add_argument('--poll-seconds', type=float, default=15)
@@ -350,8 +350,9 @@ def main():
     gpu=device.gpu
     gpus = list(map(int, a.gpus.split(',')))
     if (not gpus or len(gpus) != len(set(gpus)) or any(g not in baseline.PCI for g in gpus)
+            or any(g not in device.allowed_gpu_indices() for g in gpus)
             or a.max_parallel < 1 or a.cpus_per_worker < 1 or a.poll_seconds < 1):
-        p.error('distinct authorized GPUs excluding GPU6 and positive limits are required')
+        p.error('distinct currently mapped GPUs and positive limits are required')
     policy = baseline.read(baseline.POLICY)
     for g in gpus:
         require_allowed_gpu(policy, str(g), timing=True)
@@ -405,9 +406,9 @@ def main():
         raise ValueError('duplicate pending baseline cells')
     state = dict(schema=1, status='monitoring', pid=os.getpid(), started=time.time(),
         resource_policy=device.POLICY,power_monitoring=False,
-        gpus=gpus, excluded_gpus=[6], max_parallel=a.max_parallel, cpu_affinity=binding,
+        gpus=gpus, excluded_gpus=[], max_parallel=a.max_parallel, cpu_affinity=binding,
         pending=pending, workers={}, accepted=prior, failures=[], source_sha256=frozen,
-        scheduling_amendment='user 2026-11-04: parallel healthy cards, exclude GPU6; same-card/session constraint waived',
+        scheduling_amendment='user 2026-11-06: seven remaining GPUs authorized after removal; parallel cells, no same-card/session constraint',
         systems=systems, python=str(python),
         tvm_status='scheduled' if 'tvm' in systems else 'not requested',
         numa_concurrency='user-authorized trial with disjoint CPU sets; not claimed verified')

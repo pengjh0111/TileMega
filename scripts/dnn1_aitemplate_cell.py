@@ -10,27 +10,50 @@ import shlex
 import subprocess
 import time
 
-from dnn1_aitemplate import ROOT, AIT_ROOT, require_tvm_complete, save, sha, source_identity
+from dnn1_aitemplate import ROOT, AIT_ROOT, require_gpu_release, save, sha, source_identity
 import dnn1_baselines as protocol
+from dnn1_baseline_boundaries import idle_boundary, final_boundary
 
 AFFINITY = {0: list(range(32, 40)), 1: list(range(40, 48)), 2: list(range(16, 24)),
             3: list(range(24, 32)), 4: list(range(48, 56)), 5: list(range(56, 64)),
-            7: list(range(64, 72))}
+            6: list(range(64, 72)), 7: list(range(64, 72))}
 
 
 def queue(options):
     out = options.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
+    if options.gpu not in range(7):
+        raise ValueError("current GPU indices are0–6; index7 is absent")
     gpu, affinity = options.gpu, AFFINITY[options.gpu]
-    python = str(ROOT / 'scripts/dnn1_idle_floor_python.py')
+    provider = getattr(options, 'provider', 'original')
+    if provider not in ('original', 'bounded-settle', 'fifo-settle'):
+        raise ValueError('unknown versioned AIT guard provider')
+    python = str(ROOT / 'scripts' / dict(original='dnn1_background_python.py',
+        **{'bounded-settle': 'dnn1_settling_background_python.py',
+           'fifo-settle': 'dnn1_fifo_background_python.py'})[provider])
     sources = source_identity()['files']
     sources.update({str(Path(__file__).resolve()): sha(__file__)})
     for name in ('dnn1_device.py', 'dnn1_baselines.py', 'dnn1_idle_floor_python.py',
-                 'dnn1_resource_entry.py'):
+                 'dnn1_resource_entry.py', 'dnn1_baseline_boundaries.py',
+                 'dnn1_background_python.py', 'dnn1_background_cards.py'):
         sources[str(ROOT / 'scripts' / name)] = sha(ROOT / 'scripts' / name)
+    if provider in ('bounded-settle', 'fifo-settle'):
+        for path in (Path(python), ROOT / 'scripts/dnn1_preflight_settle.py',
+                     ROOT / 'scripts/dnn1_preflight_settle_guard.patch',
+                     ROOT / 'scripts/dnn1_settling_background_python.py',
+                     ROOT / 'python/tilemega/bench/gpu_guard.py'):
+            sources[str(path)] = sha(path)
+    profile_cache = AIT_ROOT / 'profile_cache' / f'gpu{gpu}'
     cell = dict(model=options.model, batch=options.batch, gpu=gpu, cpu_affinity=affinity,
                 parallel=True, python=python, timeout_s=14400, cache=str(AIT_ROOT / 'engines'),
-                source_sha256=sources)
+                profile_cache=str(profile_cache),
+                guard_provider=provider,
+                source_sha256=sources, graph_mode=getattr(options, 'graph', True))
+    release_path = getattr(options, 'release', None)
+    if release_path is None:
+        raise ValueError('classic AIT queue requires an immutable source/asset release')
+    cell['release_path'] = str(Path(release_path).resolve())
+    cell['release_sha256'] = sha(release_path)
     save(out / 'cell.json', cell)
     metadata = subprocess.check_output(['nvidia-smi', '-i', str(gpu),
         '--query-gpu=uuid,pci.bus_id', '--format=csv,noheader,nounits'], text=True).strip()
@@ -38,8 +61,11 @@ def queue(options):
     domain, bus, slot = pci.split(':')
     pci = f'{int(domain, 16):04x}:{bus}:{slot}'
     env = protocol.gpu_env(gpu, dict(TILEMEGA_NUMA_CONCURRENCY_TRIAL='1', NUM_BUILDERS='4',
-                                   OPENBLAS_NUM_THREADS='4', MKL_NUM_THREADS='4'))
-    command = ['numactl', '--physcpubind=' + ','.join(map(str, affinity)), python,
+                                   OPENBLAS_NUM_THREADS='4', MKL_NUM_THREADS='4',
+                                   CACHE_DIR=str(profile_cache),
+                                   TILEMEGA_DNN1_AIT_RELEASE=cell['release_path'],
+                                   TILEMEGA_DNN1_AIT_RELEASE_SHA256=cell['release_sha256']))
+    command = ['numactl', '--all', '--physcpubind=' + ','.join(map(str, affinity)), python,
         str(ROOT / 'scripts/run_r16_with_device_identity.py'), '--guard-policy', str(protocol.POLICY),
         '--out', '{attempt_dir}/job', '--expected-uuid', uuid, '--expected-pci', pci,
         '--numa-node', str(0 if gpu < 4 else 1), '--allow-no-measurements', '--', python,
@@ -47,7 +73,7 @@ def queue(options):
         '--out', '{attempt_dir}/job/ait']
     (out / 'queue').mkdir()
     save(out / 'queue/queue_dnn1_ait.json', [dict(name=f'ait-{options.model}-b{options.batch}', gpu=True,
-         timing=True, priority=10, timeout_s=86400, needs_free_mib=8192, cwd=str(ROOT),
+         timing=True, priority=200, timeout_s=86400, needs_free_mib=8192, cwd=str(ROOT),
          after=[], env=env, command=command)])
     launcher = ['env', '-u', 'TILEMEGA_DEVICE_GROUP', '-u', 'TILEMEGA_GPU_LOCK_HELD',
         '-u', 'TILEMEGA_RUN_NONCE', *[f'{key}={value}' for key, value in env.items()], python,
@@ -60,46 +86,81 @@ def queue(options):
     return 0
 
 
+def profile_cache_snapshot(directory):
+    directory = Path(directory)
+    files, errors = {}, {}
+    if directory.exists():
+        for path in sorted(directory.rglob('*')):
+            if path.is_file():
+                try:
+                    files[str(path)] = sha(path)
+                except OSError as error:
+                    errors[str(path)] = repr(error)
+    return dict(path=str(directory), files=files, errors=errors)
+
+
 def run(options):
-    require_tvm_complete()
     cell = json.loads(options.cell.read_text())
+    if sha(cell['release_path']) != cell['release_sha256']:
+        raise ValueError('classic release changed since queue preparation')
+    require_gpu_release(cell['release_path'])
     protocol.require_session(cell)
-    if cell['gpu'] == 6:
-        raise ValueError('GPU6 is excluded')
+    if cell['gpu'] not in range(7):
+        raise ValueError('current GPU indices are0–6; index7 is absent')
     for path, digest in cell['source_sha256'].items():
         if sha(path) != digest:
             raise ValueError('prepared AIT source changed: ' + path)
     options.out.mkdir(parents=True, exist_ok=False)
     session = dict(schema=1, system='aitemplate', model=cell['model'], batch=cell['batch'],
-                   gpu=cell['gpu'], started=time.time(), status='running', processes=[])
+                   gpu=cell['gpu'], graph_mode=cell.get('graph_mode', True),
+                   started=time.time(), status='running', processes=[])
+    profile_cache = cell.get('profile_cache', os.environ.get('CACHE_DIR', ''))
+    if (not profile_cache or os.environ.get('CACHE_DIR') != profile_cache or
+            not Path(profile_cache).resolve().is_relative_to((AIT_ROOT / 'profile_cache').resolve())):
+        raise ValueError('an explicit independent AIT profile cache under runs is required')
+    session['profile_cache_before'] = profile_cache_snapshot(profile_cache)
+    def publish_session():
+        session['profile_cache_after'] = profile_cache_snapshot(profile_cache)
+        save(options.out / 'cell-result.json', session)
     for number in range(5):
+        for path, digest in cell['source_sha256'].items():
+            if sha(path) != digest:
+                raise ValueError('prepared AIT source changed: ' + path)
         role = 'measurement' if number < 3 else 'correctness'
         folder = options.out / f'{role}-{number}'
-        before = protocol.telemetry(cell)
-        if before['owners'] or before['used_mib'] > 1:
-            session.update(status='infrastructure_rejection', error='nonempty pre-process GPU')
-            save(options.out / 'cell-result.json', session)
+        before_drain = idle_boundary(cell)
+        if before_drain['status'] != 'empty_observed':
+            session.update(status='infrastructure_rejection', error='nonempty pre-process GPU',
+                           boundary=before_drain)
+            publish_session()
             return 75
+        before = final_boundary(before_drain)
         command = [cell['python'], str(ROOT / 'scripts/dnn1_aitemplate.py'), 'sample',
                    '--model', cell['model'], '--batch', str(cell['batch']), '--seed', '20261007',
                    '--out', str(folder / 'payload'), '--cache', cell['cache'],
                    '--round-index', str(number)]
         if role == 'correctness':
             command += ['--correctness-only']
+        if not cell.get('graph_mode', True):
+            command += ['--no-graph']
+        if number == 0:
+            command += ['--profile-capture']
         result = protocol.execute(command, folder, os.environ.copy(), cell['timeout_s'])
-        drain = protocol.passive_context_drain(cell)
-        after = protocol.telemetry(cell)
+        drain = idle_boundary(cell)
+        after = (drain['samples'][-1]['telemetry'] if drain['samples'] else
+                 dict(owners={}, used_mib=float('inf')))
         receipt = folder / 'payload/measurements.json'
-        result.update(role=role, before=before, after=after, drain=drain,
+        result.update(role=role, before=before, after=after, before_drain=before_drain, drain=drain,
                       receipt=str(receipt), receipt_sha256=sha(receipt) if receipt.exists() else None)
         session['processes'].append(result)
-        save(options.out / 'cell-result.json', session)
-        if result['returncode'] or after['owners']:
+        publish_session()
+        if (result['returncode'] or after['owners'] or after['used_mib'] > 1 or
+                drain['status'] != 'empty_observed'):
             session.update(status='failed', ended=time.time())
-            save(options.out / 'cell-result.json', session)
+            publish_session()
             return result['returncode'] or 75
     session.update(status='complete_pending_outer_audit', ended=time.time())
-    save(options.out / 'cell-result.json', session)
+    publish_session()
     return 0
 
 
@@ -157,6 +218,26 @@ def collect(options):
             issues.append('process identifies another GPU')
         if receipt.get('pid') != process['pid']:
             issues.append('receipt identifies another process')
+        if any(p.get('owners') or not 0 <= p.get('used_mib', -1) <= 1
+               for p in (process['before'], process['after'])):
+            issues.append('dirty process memory boundary')
+        if process.get('drain', {}).get('status') != 'empty_observed':
+            issues.append('process context did not drain')
+        try:
+            if (process['before'] != final_boundary(process['before_drain']) or
+                    process['after'] != final_boundary(process['drain'])):
+                issues.append('boundary differs from the final two idle observations')
+        except (KeyError, ValueError):
+            issues.append('missing two-sample process-and-memory boundary')
+        if receipt.get('graph_mode', {}).get('requested') != session.get('graph_mode'):
+            issues.append('graph mode differs from the fixed cohort')
+        if receipt.get('identity', {}).get('recipe', {}).get('graph_mode') != session.get('graph_mode'):
+            issues.append('compiled graph mode identity differs')
+        passed, reason = protocol.strict_correctness(session['model'], receipt.get('correctness', []))
+        if not passed:
+            issues.append('original numerical threshold failed: ' + reason)
+        if receipt.get('protocol', {}).get('warmup') != 50:
+            issues.append('P-DNN requires 50 warmups')
         windows.append(audit_windows(process, receipt, outer))
         rows.append(receipt)
     if any(w['issues'] for w in windows):
@@ -169,6 +250,9 @@ def collect(options):
     identities = {json.dumps(r['identity'], sort_keys=True) for r in rows}
     if len(identities) != 1:
         issues.append('processes used different compiled identities')
+    for key in ('library_sha256', 'compiled_receipt_sha256', 'inputs_sha256'):
+        if any(not r.get(key) for r in rows) or len({r.get(key) for r in rows}) != 1:
+            issues.append('processes used different or absent ' + key)
     timing = {}
     if not issues:
         medians = [r['median_ms'] for r in measurements]
@@ -179,6 +263,8 @@ def collect(options):
     result = dict(status='pass' if not issues else 'quarantined', issues=issues,
                   model=session['model'], batch=session['batch'], system='aitemplate',
                   gpu=session['gpu'], precision='bf16', processes=len(rows),
+                  graph_mode=session.get('graph_mode'),
+                  graph_observations=[r.get('graph_mode') for r in rows],
                   correctness_passes=sum(r.get('correctness_passed', False) for r in rows),
                   correctness_policy='P-CORR-v2: original thresholds in every fresh process',
                   correctness=[r['correctness'] for r in rows], windows=windows,
@@ -195,8 +281,10 @@ def main():
     preparer = sub.add_parser('queue')
     preparer.add_argument('--model', choices=protocol.MODELS, required=True)
     preparer.add_argument('--batch', type=int, choices=[1, 2, 4, 8, 16], required=True)
-    preparer.add_argument('--gpu', type=int, choices=sorted(AFFINITY), required=True)
+    preparer.add_argument('--gpu', type=int, choices=range(7), required=True)
+    preparer.add_argument('--release', type=Path, required=True)
     preparer.add_argument('--out', type=Path, required=True)
+    preparer.add_argument('--graph', action=argparse.BooleanOptionalAction, default=True)
     runner = sub.add_parser('run')
     runner.add_argument('--cell', type=Path, required=True)
     runner.add_argument('--out', type=Path, required=True)

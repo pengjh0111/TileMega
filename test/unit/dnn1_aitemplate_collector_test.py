@@ -1,7 +1,9 @@
 """CPU fixtures for the independent AIT strict collector; no GPU measurements."""
 import argparse
 import json
+import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -68,7 +70,7 @@ class CollectorTest(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.outer = []
         self.session = dict(model='resnet18', batch=1, gpu=0, ended=60,
-                            status='complete_pending_outer_audit', processes=[])
+                            graph_mode=True, status='complete_pending_outer_audit', processes=[])
         for i in range(5):
             directory = self.root / str(i)
             directory.mkdir()
@@ -76,7 +78,11 @@ class CollectorTest(unittest.TestCase):
             role = 'measurement' if i < 3 else 'correctness'
             value = dict(system='aitemplate', model='resnet18', batch=1, precision='bf16',
                 gpu_index=0, pid=100+i, process_role=role, correctness_passed=True,
-                correctness=[dict(cosine=1., top1_equal=True)], identity={'synthetic': 'fixture'},
+                correctness=[dict(cosine_vs_fp32=1., top1_agreement_vs_fp32=1.)],
+                identity={'synthetic': 'fixture', 'recipe': {'graph_mode': True}},
+                graph_mode={'requested': True}, protocol={'warmup': 50},
+                library_sha256='library-fixture', compiled_receipt_sha256='compiled-fixture',
+                inputs_sha256='inputs-fixture',
                 samples_ms=[float(i+1)]*200 if role == 'measurement' else [],
                 median_ms=float(i+1) if role == 'measurement' else None,
                 p90_ms=float(i+1) if role == 'measurement' else None)
@@ -87,7 +93,11 @@ class CollectorTest(unittest.TestCase):
             self.outer.append(dict(time=10*i+3, owners={str(1000+i): 100}))
             self.session['processes'].append(dict(pid=100+i, receipt=str(path),
                 receipt_sha256=collector.sha(path), returncode=0,
-                before={'owners': {}}, after={'owners': {}}))
+                before={'owners': {}, 'used_mib': 0}, after={'owners': {}, 'used_mib': 0},
+                before_drain={'status': 'empty_observed', 'samples': [
+                    {'telemetry': {'owners': {}, 'used_mib': 0}} for _ in range(2)]},
+                drain={'status': 'empty_observed', 'samples': [
+                    {'telemetry': {'owners': {}, 'used_mib': 0}} for _ in range(2)]}))
         self.outer.append(dict(time=70, phase='after', exit_code=0, owners={}))
 
     def tearDown(self):
@@ -137,18 +147,64 @@ class CollectorTest(unittest.TestCase):
         item['receipt_sha256'] = collector.sha(path)
         self.assertEqual(self.collect()[0], 1)
 
+    def mutate(self, change):
+        item = self.session['processes'][0]
+        path = Path(item['receipt'])
+        value = json.loads(path.read_text())
+        change(value)
+        collector.save(path, value)
+        item['receipt_sha256'] = collector.sha(path)
+
+    def test_graph_reference_cannot_join_graph_cohort(self):
+        self.mutate(lambda r: r['graph_mode'].update(requested=False))
+        self.assertEqual(self.collect()[0], 1)
+
+    def test_changed_library_cannot_join_cohort(self):
+        self.mutate(lambda r: r.update(library_sha256='other-library'))
+        self.assertEqual(self.collect()[0], 1)
+
+    def test_pass_flag_does_not_override_original_threshold(self):
+        self.mutate(lambda r: r.update(correctness=[dict(cosine_vs_fp32=.99,
+                                                        top1_agreement_vs_fp32=1.)]))
+        self.assertEqual(self.collect()[0], 1)
+
+    def test_transient_dirty_memory_is_rejected(self):
+        self.session['processes'][0]['before']['used_mib'] = 4
+        self.assertEqual(self.collect()[0], 1)
+
+    def test_extra_good_reread_cannot_replace_final_boundary(self):
+        self.session['processes'][0]['drain']['samples'][-1]['telemetry']['used_mib'] = 1
+        self.assertEqual(self.collect()[0], 1)
+
     def test_queue_matches_scheduler_glob_and_records_guarded_numa_command(self):
         output = self.root / 'queue-run'
+        release = self.root / 'classic-release.json'
+        release.write_text('{"frozen":true}')
         with patch.object(collector, 'source_identity', return_value={'files': {}}), \
              patch.object(collector.subprocess, 'check_output', return_value='GPU-fixture, 00000000:41:00.0'):
-            collector.queue(argparse.Namespace(out=output, gpu=2, model='resnet18', batch=1))
+            collector.queue(argparse.Namespace(out=output, gpu=2, model='resnet18', batch=1, release=release))
         queues = list((output/'queue').glob('queue_*.json'))
         self.assertEqual(len(queues), 1)
         job = json.loads(queues[0].read_text())[0]
         self.assertTrue(job['gpu'] and job['timing'])
         self.assertEqual(job['env']['CUDA_VISIBLE_DEVICES'], '2')
+        self.assertEqual(job['env']['TILEMEGA_DNN1_AIT_RELEASE'], str(release))
+        self.assertEqual(job['env']['TILEMEGA_DNN1_AIT_RELEASE_SHA256'], collector.sha(release))
         self.assertIn('--physcpubind=16,17,18,19,20,21,22,23', job['command'])
+        self.assertEqual(job['command'][:2], ['numactl', '--all'])
         self.assertIn('0000:41:00.0', job['command'])
+
+    def test_five_fresh_children_bind_declared_cpus_from_restricted_controller(self):
+        allowed = sorted(os.sched_getaffinity(0))
+        if len(allowed) < 2:
+            self.skipTest('requires two permitted CPUs')
+        target, control = allowed[0], allowed[-1]
+        for _ in range(5):
+            result = subprocess.run(['taskset', '-c', str(control), 'numactl', '--all',
+                f'--physcpubind={target}', sys.executable, '-c',
+                'import os,json;print(json.dumps(sorted(os.sched_getaffinity(0))))'],
+                check=True, text=True, capture_output=True)
+            self.assertEqual(json.loads(result.stdout), [target])
 
 
 if __name__ == '__main__':
