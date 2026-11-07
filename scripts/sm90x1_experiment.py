@@ -429,4 +429,18 @@ def tables(a):
             '[verified] Guard acceptance in this container is provisional_container_pid_namespace; host PID ownership cannot be fully verified. '
             'A foreign compute context observed by the guard prevents acceptance.',
             '[stated] Phase 2 target date: 2026-11-21. Pending phases remain gated by Phase 0 and the pilot cost projection.']
+    phase0=read(RUN/'phase0.json') if (RUN/'phase0.json').exists() else None
+    report+=['## Phase 0 setup','']
+    for c in all_cells:
+        binding=RUN/'cells'/c['cell']/'phase0/W/binding.json'
+        if c['pilot'] and binding.exists():
+            b=read(binding)
+            report+=['[verified] '+c['cell']+': native build '+str(round(b['wall_s'],2))+
+                     ' s; sampled peak process-tree RSS '+str(round(b['peak_tree_rss_bytes']/2**30,3))+
+                     ' GiB; build HEAD '+b['head']+'; host ABI status '+str(b['host_abi_status'])+'.']
+    if phase0:
+        report+=['[verified] Phase 0 complete='+str(phase0['complete'])+', stop='+str(phase0['stop'])+
+                 '. Accepted TPOT comparisons: SM90X1_phase0.csv.']
+    report+=['[verified] The R3 rounded solver table was rechecked: 30 cells, c0/winner geometric mean '
+             '1.004542368, maximum 1.053627213. The additive/independent-family comment remains in Sm90DenseSearch.cpp.']
     (RESULTS/'SM90X1_h800.md').write_text('\n\n'.join(report)+'\n')

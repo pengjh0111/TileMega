@@ -39,8 +39,13 @@ def main():
     fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
     # Existing Phase 0 parents own complete units and may chain corr -> final.
     # Wait for those parents rather than duplicate their units during the handoff.
+    def started(pid):
+        try:return Path('/proc',str(pid),'stat').read_text().rsplit(')',1)[1].split()[19]
+        except (OSError,IndexError):return None
+    parents={pid:started(pid) for pid in a.wait_pids if started(pid) is not None}
+    write(RUN/'campaign-state.json',dict(status='waiting_phase0',parents=parents,at=time.time()))
     deadline=time.monotonic()+6*3600
-    while any(Path('/proc',str(pid)).exists() for pid in a.wait_pids):
+    while any(started(pid)==token for pid,token in parents.items()):
         if time.monotonic()>deadline:
             return stop('Phase 0 still waits on existing guarded units after six hours','blocked')
         time.sleep(30)
