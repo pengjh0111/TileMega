@@ -1,0 +1,93 @@
+{
+  "evidence": "verified",
+  "variant": "dnn3-f3-store16-bounded-unsigned-v11",
+  "target": "runs/dnn3/f3_constants_v12/complete_target.json",
+  "target_sha256": "38905bf5e4f0f1871e184032f4df7b988fb8d9287bbd0bb08d37f583e6d51577",
+  "header_set_sha256": "dd5a9d8a8db689ba676349d0d235deef74e6aeaf0452fd9c2b9931cb1588cdf9",
+  "keys": {
+    "f3_k64_ns": 24,
+    "f3_epilogue_ns": 68,
+    "f3_splitk_ns": 134,
+    "f3_small_ns": 6,
+    "f3_attention_task_ns": 1
+  },
+  "passes": "5/5 fresh GPU1 processes per key",
+  "qualification": "provisional_container_pid_namespace",
+  "sources": [
+    {
+      "result": "runs/dnn3/f3_constants_v12/collection/raw/dnn3-calibrate-mainloops/attempt1/constants/result.json",
+      "sha256": "399131382e41430c6c7854e24c9490937de4d603273dc9fcb8571f33a777a03d",
+      "build_sha256": "c332591cf3f96aa3393edc8e555717f0df3e3bc1a355d36cbe869d6726546739",
+      "guard_sha256": "db193a91994b20d7cd87e4418441c2b8ecca1a78e7dd8208d4b32f0e0eeb0f02",
+      "method": "see process records"
+    },
+    {
+      "result": "runs/dnn3/f3_constants_v12/collection/raw/dnn3-calibrate-epilogues/attempt1/constants/result.json",
+      "sha256": "a8c4201d0bce0104b34e5020c314c2ff18bc29bbf9038c6ae5d35c6d4f071125",
+      "build_sha256": "f4a1f7923292d16f39060512fcd7342bac07ef052701fb7d05486b42c884044d",
+      "guard_sha256": "db193a91994b20d7cd87e4418441c2b8ecca1a78e7dd8208d4b32f0e0eeb0f02",
+      "method": "see process records"
+    },
+    {
+      "result": "runs/dnn3/f3_constants_v12/collection/raw/dnn3-calibrate-split/attempt1/constants/result.json",
+      "sha256": "cae71a24eb6e3b990527f579539a744e4f18807c0cd408bc461cb38f70037152",
+      "build_sha256": "eb518d2632bfc4a4a1f6985874140a5d5dafaf6df4bae8a8a4bc64be18f60b97",
+      "guard_sha256": "db193a91994b20d7cd87e4418441c2b8ecca1a78e7dd8208d4b32f0e0eeb0f02",
+      "method": "clock64 production regions; split/swap one sample per launch; 20ms globaltimer calibration; 8 warm samples discarded"
+    },
+    {
+      "result": "runs/dnn3/f3_constants_v12/collection/raw/dnn3-calibrate-swap/attempt1/constants/result.json",
+      "sha256": "7b2cf874df944c0419e7150d1f10bcafb24561f58df449ebdc66d291d117db10",
+      "build_sha256": "f72bba5b2671720722357498f703350bc589d32a23d49d5dbfc9eb45bb453e4a",
+      "guard_sha256": "db193a91994b20d7cd87e4418441c2b8ecca1a78e7dd8208d4b32f0e0eeb0f02",
+      "method": "clock64 production regions; split/swap one sample per launch; 20ms globaltimer calibration; 8 warm samples discarded"
+    },
+    {
+      "result": "runs/dnn3/f3_constants_v12/collection/raw/dnn3-calibrate-small/attempt1/constants/result.json",
+      "sha256": "a4b7d2558a91a7bcee303aea4969e25ef214a3000ee32878e860aa120c7d323e",
+      "build_sha256": "28117deeaa1cc6eca7508b9760015ff8bfdc1bd0a34e5c70915663c8f71d0b53",
+      "guard_sha256": "db193a91994b20d7cd87e4418441c2b8ecca1a78e7dd8208d4b32f0e0eeb0f02",
+      "method": "clock64 production regions; split/swap one sample per launch; 20ms globaltimer calibration; 8 warm samples discarded"
+    },
+    {
+      "result": "runs/dnn3/f3_constants_v12/collection/raw/dnn3-calibrate-attention/attempt1/constants/result.json",
+      "sha256": "6211132b5303a9f75da7c88e2cee2fbc868434313ef4255365d22f81dfe32c84",
+      "build_sha256": "bb6f299c6247fdf64497168838bb63d7a0e4768b972c31222cb80953c29b5a2c",
+      "guard_sha256": "db193a91994b20d7cd87e4418441c2b8ecca1a78e7dd8208d4b32f0e0eeb0f02",
+      "method": "clock64 production regions; split/swap one sample per launch; 20ms globaltimer calibration; 8 warm samples discarded"
+    },
+    {
+      "result": "runs/dnn3/f3_constants_v12/collection/raw/dnn3-calibrate-split_repair/attempt1/constants/result.json",
+      "sha256": "b9e2acb6673597adde573211de3407a4c31bf0c51492ffcebc169057f91761a3",
+      "build_sha256": "b61650157d99e62ba9888f12f44707d2b8903c0834fe147e150480a387a051d0",
+      "guard_sha256": "db193a91994b20d7cd87e4418441c2b8ecca1a78e7dd8208d4b32f0e0eeb0f02",
+      "method": "two consumer warpgroups; no producer work in plain split region; clock64 production regions; split/swap one sample per launch; 20ms globaltimer calibration; 8 warm samples discarded"
+    }
+  ],
+  "cpu_gate": {
+    "source": "runs/dnn3/f3_solve_v12/result.json",
+    "sha256": "dcb503e224ed9f19412696dee06223df96a60cc3394512806666bc09904d64d9",
+    "solves": 20,
+    "generated_candidates": 80,
+    "status": "passed"
+  },
+  "native_gate": "running; do not mark CP3 complete or install production table yet",
+  "rejected_probe_builds": [
+    {
+      "name": "split_128x256",
+      "spill_max": 56,
+      "register_max": 168,
+      "log": "/root/TileMega-dnn3/runs/dnn3/f3_constants_v12/split/split_128x256.ptxas.log",
+      "log_sha256": "659fea33c11f4cfbc749adfc1cc3b64d268b7cbda990e894a305d08e255d0c4a",
+      "gpu_executed": false
+    },
+    {
+      "name": "split_256x128",
+      "spill_max": 44,
+      "register_max": 168,
+      "log": "/root/TileMega-dnn3/runs/dnn3/f3_constants_v12/split/split_256x128.ptxas.log",
+      "log_sha256": "6d7daca451033a8ddbba804fa386d363f52f82c7ace7b10aec1f07e9164c0515",
+      "gpu_executed": false
+    }
+  ]
+}

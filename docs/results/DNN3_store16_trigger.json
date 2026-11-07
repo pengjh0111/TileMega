@@ -434,5 +434,5 @@
   },
   "v11_e2e_acceptance": "RN18 +0.193% within3% sentinel tolerance; BERT -19.293%,VGG -5.747%,RN50 -14.731%; original coordinates retained; nontrace50warm200 singleprocess; provisional PID namespace",
   "header_sha256": "6f1e6e2e9ad8919af4dc792e4f24b6efedde47ce278d1eb565b087bdff3d46a3",
-  "fresh_calibration": "sixCPU families108 accepted standard probes plus2wide consumer-only split repairs; GPU1 collection running; productiontarget still has noF3table"
+  "fresh_calibration": "current351-header snapshot;233 measured keys5/5 fresh GPU1 processes; strict isolated target38905bf5...;20CPUsolve/80emit pass;80native running; productiontarget still has noF3table"
 }
