@@ -1,0 +1,77 @@
+{
+  "evidence": "verified",
+  "status": "in_progress",
+  "phase_m": "rejected multicast after four matching-coordinate E2E regressions",
+  "native_gate": "80/80 passed",
+  "installed_constants": "20/20 solve and80/80 coordinate equivalence verified",
+  "models": [
+    {
+      "model": "resnet50",
+      "accepted_cells": 5,
+      "anchor_action": "resample_trt_tc_all_batches",
+      "anchor": "runs/dnn3/phase_z_v16/resnet50/anchor/raw/dnn3-phase-z-anchor/attempt1/anchor/result.json",
+      "anchor_sha256": "1500826eb0e0209d2171d5636367bf2f35e7a414bdca7eaefb66d01883750d2d",
+      "endpoints": [
+        {
+          "batch": 1,
+          "frozen_ms": 0.3596479892730713,
+          "median_ms": 0.36163198947906494,
+          "action": "retain_frozen"
+        },
+        {
+          "batch": 16,
+          "frozen_ms": 0.820112019777298,
+          "median_ms": 0.7980320155620575,
+          "action": "resample_trt_tc_all_batches"
+        }
+      ]
+    },
+    {
+      "model": "vgg16",
+      "accepted_cells": 5,
+      "anchor_action": "resample_trt_tc_all_batches",
+      "anchor": "runs/dnn3/phase_z_v16/vgg16/anchor/raw/dnn3-phase-z-anchor/attempt1/anchor/result.json",
+      "anchor_sha256": "d56a7cdd2e7c19edcbc4a8d925bb4768d4e199e153a2517bcc09ed4600b41594",
+      "endpoints": [
+        {
+          "batch": 1,
+          "frozen_ms": 0.33961600065231323,
+          "median_ms": 0.31646400690078735,
+          "action": "resample_trt_tc_all_batches"
+        },
+        {
+          "batch": 16,
+          "frozen_ms": 1.400272011756897,
+          "median_ms": 1.399951994419098,
+          "action": "retain_frozen"
+        }
+      ]
+    },
+    {
+      "model": "bert",
+      "accepted_cells": 5,
+      "anchor_action": "retain_frozen",
+      "anchor": "runs/dnn3/phase_z_v16/bert/anchor/raw/dnn3-phase-z-anchor/attempt1/anchor/result.json",
+      "anchor_sha256": "a45608c0ed6b9707a8c5c6e980c1b55378e8bfa8a2ccd82942a246c9af8a8a70",
+      "endpoints": [
+        {
+          "batch": 1,
+          "frozen_ms": 0.48583999276161194,
+          "median_ms": 0.4843200147151947,
+          "action": "retain_frozen"
+        },
+        {
+          "batch": 16,
+          "frozen_ms": 1.0868639945983887,
+          "median_ms": 1.076848030090332,
+          "action": "retain_frozen"
+        }
+      ]
+    }
+  ],
+  "resnet18": "whole unstarted model transferred from occupied GPU1 through blocked GPU0 to idle GPU3; no mixed-card cell; all raw handoffs retained",
+  "resnet18_lane": "runs/dnn3/phase_z_rn18_gpu3_v18",
+  "assembly": "runs/dnn3/phase_z_v17",
+  "remaining": "RN18 P-SEL/P-CORR/P-DNN; measured-drift RN50/VGG full TRT/TC resampling; exact-winner stage ledgers; CP-Z report",
+  "qualification": "provisional_container_pid_namespace; ownership unverified; anchors do not change that qualification"
+}
