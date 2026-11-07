@@ -30,6 +30,15 @@ def stop(reason, status='stopped'):
     return 1
 
 
+def live_start(pid):
+    try:
+        fields = Path('/proc', str(pid), 'stat').read_text().rsplit(')', 1)[1].split()
+        # Container PID 1 may retain finished children indefinitely as zombies.
+        return fields[19] if fields[0] not in ('Z', 'X') else None
+    except (OSError, IndexError):
+        return None
+
+
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--wait-pids',nargs='*',type=int,default=[])
@@ -39,13 +48,10 @@ def main():
     fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
     # Existing Phase 0 parents own complete units and may chain corr -> final.
     # Wait for those parents rather than duplicate their units during the handoff.
-    def started(pid):
-        try:return Path('/proc',str(pid),'stat').read_text().rsplit(')',1)[1].split()[19]
-        except (OSError,IndexError):return None
-    parents={pid:started(pid) for pid in a.wait_pids if started(pid) is not None}
+    parents={pid:live_start(pid) for pid in a.wait_pids if live_start(pid) is not None}
     write(RUN/'campaign-state.json',dict(status='waiting_phase0',parents=parents,at=time.time()))
     deadline=time.monotonic()+6*3600
-    while any(started(pid)==token for pid,token in parents.items()):
+    while any(live_start(pid)==token for pid,token in parents.items()):
         if time.monotonic()>deadline:
             return stop('Phase 0 still waits on existing guarded units after six hours','blocked')
         time.sleep(30)
