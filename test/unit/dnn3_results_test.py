@@ -50,6 +50,23 @@ class ResultsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'all five batches'):
             results.baseline(cell, anchor, [], [])
 
+    def test_resampling_retains_tvm_and_independent_numerical_gates(self):
+        cell = dict(model='bert', batch=4, gpu=2)
+        anchor = dict(status='passed', protocol='P-ANCHOR', model='bert', gpu=2,
+                      action='resample_trt_tc_all_batches', anchors=[dict(batch=b) for b in (1, 16)])
+        rows = [dict(model='bert', batch=str(b), gpu='2', arm=a, precision='bf16',
+                     status='pass', median_ms='2', processes='3', correctness_processes='5',
+                     strict_v1_status='N/A', correctness_policy='five-independent-gates-v2')
+                for b in results.BATCHES for a in results.ARMS]
+        tvm = dict(model='bert', batch='4', arm='tvm-bf16', precision='bf16',
+                   status='pass', median_ms='1')
+        stale_tc = dict(tvm, arm='torchcompile-max-autotune', median_ms='.5')
+        self.assertEqual(results.baseline(cell, anchor, [tvm, stale_tc], rows), tvm)
+        self.assertEqual(results.baseline(cell, anchor, [stale_tc], rows)['median_ms'], '2')
+        rows[0]['correctness_processes'] = '4'
+        with self.assertRaisesRegex(ValueError, 'process/correctness gates'):
+            results.baseline(cell, anchor, [tvm], rows)
+
 
 if __name__ == '__main__':
     unittest.main()

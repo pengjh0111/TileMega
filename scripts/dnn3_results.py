@@ -54,9 +54,13 @@ def baseline(cell, anchor, frozen, resampled):
         if {(int(r['batch']), r['arm']) for r in rows} != {(b, a) for b in BATCHES for a in ARMS}:
             raise ValueError('DT-ANCHOR requires all five batches and four TRT/TC arms on this card')
         passed = [r for r in rows if r['status'] == 'pass']
-        if any(int(r['correctness_processes']) < 5 or int(r['processes']) != 3 or
-               r['strict_v1_status'] != 'pass' for r in passed):
+        if any(int(r['correctness_processes']) != 5 or int(r['processes']) != 3 or
+               (r['strict_v1_status'] != 'pass' and
+                r.get('correctness_policy') != 'five-independent-gates-v2') for r in passed):
             raise ValueError('resampled baselines lack required process/correctness gates')
+        # DT-ANCHOR resamples TRT/TC only; accepted TVM measurements stay frozen.
+        rows += [r for r in frozen if r['model'] == cell['model'] and
+                 r['precision'] == 'bf16' and r.get('arm') == 'tvm-bf16']
     else:
         raise ValueError('unknown DT-ANCHOR action')
     eligible = [r for r in rows if r['model'] == cell['model'] and int(r['batch']) == cell['batch']
