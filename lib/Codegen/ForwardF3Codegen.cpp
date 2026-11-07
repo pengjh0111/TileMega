@@ -369,6 +369,8 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
           spec.dims[0]=l.physical[1];
           spec.dims[1]=(l.physical[0]-access.a_row_offset+stride-1)/stride;
           spec.strides[0]=l.strides[0]*2*stride;
+          if(std::uint64_t(k)>spec.dims[0])
+            throw std::invalid_argument("an F3 dense A row is narrower than its contraction");
           // swap-AB loads the activation as the WGMMA's B operand, so the box
           // is the stage's own rows; normal mode takes the M tile.
           spec.box[0]=64;spec.box[1]=unsigned(swap?(rows<=8?8:16):c.tile_m);
