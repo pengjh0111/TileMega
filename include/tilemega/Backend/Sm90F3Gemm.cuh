@@ -6,6 +6,7 @@
 #include <tilemega/Backend/Sm90F3Ring.cuh>
 #include <tilemega/Backend/Sm90Gmma.h>
 #include <cute/tensor.hpp>
+#include <type_traits>
 
 // The F3 forward GEMM/convolution body (DNN3 prompt §6). Two consumer
 // warpgroups share one CTA tile, a single producer warp feeds an eight-deep
@@ -115,7 +116,7 @@ struct Sm90F3Gemm {
   __device__ static __forceinline__ void IssueA(Element* a,Sm90F3GemmOperands const& p,
       int m_tile,int k,std::uint64_t* barrier) {
     if constexpr(Mode==Sm90F3Mode::kNormal) {
-      if constexpr(Conv::kC==64 && Conv::kR==1 && Conv::kS==1)
+      if constexpr(std::is_same_v<Conv,Sm90F3NoConv>)
         Base::Tensor2D(a,p.activation,k,m_tile*TM,barrier);
       else {
         // One 64-pixel im2col request per 64 rows of the tile, all completing
