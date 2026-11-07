@@ -10,6 +10,13 @@ from sm90d1_common import ROOT, PYTHON, read, sha, write
 from sm90r4_inputs import extract, model_dir
 
 
+def native_command(compiler, graph, binary, coordinates, batch):
+    return [str(Path(compiler).resolve()), 'compile', str(Path(graph).resolve()), str(Path(binary).resolve()),
+            '--tmexec-config', str(Path(coordinates).resolve()), '--serving', 'decode', '--emit', 'serving',
+            '--batch', str(batch), '--runtime-target', str(ROOT / 'configs/targets/sm_90_h800.json'),
+            '--nvcc-split-compile', '2']
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--model', required=True)
@@ -23,10 +30,7 @@ def main():
     directory.mkdir(parents=True, exist_ok=False)
     graph, binary = directory / 'decode.export.json', directory / 'decode.so'
     extract(a.model, 'decode', graph)
-    target = ROOT / 'configs/targets/sm_90_h800.json'
-    command = [str(a.compiler.resolve()), 'compile', str(graph), str(binary),
-               '--tmexec-config', str(a.coordinates.resolve()), '--serving', 'decode', '--emit', 'serving',
-               '--batch', str(a.batch), '--runtime-target', str(target), '--nvcc-split-compile', '2']
+    command = native_command(a.compiler, graph, binary, a.coordinates, a.batch)
     with (directory / 'decode.log').open('w') as log:
         status = subprocess.call(command, cwd=ROOT, env=dict(os.environ, CUDA_VISIBLE_DEVICES=''),
                                  stdout=log, stderr=subprocess.STDOUT)
