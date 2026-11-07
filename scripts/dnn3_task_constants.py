@@ -81,6 +81,8 @@ def main():
     p.add_argument('--tiles',help='explicit normal tiles to repair, comma separated')
     p.add_argument('--out',type=Path,required=True)
     p.add_argument('--build',type=Path)
+    p.add_argument('--build-only',action='store_true',help='prepare probes without queueing GPU measurements')
+    p.add_argument('--cpu-set',default='128-135',help='NUMA0 measurement worker cores')
     p.add_argument('--execute',action='store_true')
     args=p.parse_args();args.out=args.out.resolve()
     if args.execute:
@@ -137,12 +139,14 @@ def main():
         raise RuntimeError('no resource-admissible calibration binaries')
     build=args.out/'build.json';save(build,dict(inputs=frozen,probes=probes,rejected=rejected,
         source=str(source),consumer_only=args.consumer_only,method=('two consumer warpgroups; no producer work in plain split region; ' if args.consumer_only else '')+'clock64 production regions; split/swap one sample per launch; 20ms globaltimer calibration; 8 warm samples discarded'))
+    if args.build_only:
+        return
     env=dict(CUDA_VISIBLE_DEVICES='1',TILEMEGA_DEVICE_INDEX='1',TILEMEGA_GPU_LOCK='/tmp/tilemega_gpu1.lock',
         TILEMEGA_NUMA_NODE='0',TILEMEGA_GPU_PID_MODE='namespace_limited',TILEMEGA_NUMA_CONCURRENCY_TRIAL='1',
         PYTHONPATH=str(ROOT/'python'))
     queue=args.out/'queue';queue.mkdir()
     name='dnn3-'+args.family+'-constants'
-    command=['taskset','-c','128-135',sys.executable,str(Path(__file__).resolve()),'--family',args.family,
+    command=['taskset','-c',args.cpu_set,sys.executable,str(Path(__file__).resolve()),'--family',args.family,
              '--execute','--build',str(build),'--out','{attempt_dir}/constants']
     save(queue/'queue_constants.json',[dict(name=name,gpu=True,timing=True,timeout_s=10800,
          needs_free_mib=4096,command=command,cwd=str(ROOT),env=env)])

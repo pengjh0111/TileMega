@@ -79,6 +79,8 @@ def main():
     parser.add_argument('--classes',default=','.join(CLASSES))
     parser.add_argument('--execute',action='store_true')
     parser.add_argument('--build',type=Path)
+    parser.add_argument('--build-only',action='store_true',help='prepare probes without queueing GPU measurements')
+    parser.add_argument('--cpu-set',default='128-135',help='NUMA0 measurement worker cores')
     args=parser.parse_args();args.out=args.out.resolve()
     if args.execute:
         execute(args);return
@@ -125,12 +127,14 @@ def main():
         raise ValueError('epilogue sources changed or no legal probes remain')
     build=args.out/'build.json'
     save(build,dict(inputs=frozen,probes=probes,rejected_builds=rejected))
+    if args.build_only:
+        return
     environment=dict(CUDA_VISIBLE_DEVICES='1',TILEMEGA_DEVICE_INDEX='1',
         TILEMEGA_GPU_LOCK='/tmp/tilemega_gpu1.lock',TILEMEGA_NUMA_NODE='0',
         TILEMEGA_GPU_PID_MODE='namespace_limited',TILEMEGA_NUMA_CONCURRENCY_TRIAL='1',
         PYTHONPATH=str(ROOT/'python'))
     queue=args.out/'queue';queue.mkdir()
-    command=['taskset','-c','128-135',sys.executable,str(Path(__file__).resolve()),
+    command=['taskset','-c',args.cpu_set,sys.executable,str(Path(__file__).resolve()),
              '--execute','--build',str(build),'--out','{attempt_dir}/constants']
     save(queue/'queue_constants.json',[dict(name='dnn3-resident-epilogues',gpu=True,
          timing=True,timeout_s=3600,needs_free_mib=4096,command=command,

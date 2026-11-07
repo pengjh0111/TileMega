@@ -34,6 +34,7 @@ def main():
                    help='explicit ordered result files; later repaired probes replace earlier duplicate keys')
     p.add_argument('--target',type=Path,default=ROOT/'configs/targets/sm_90_h800.json')
     p.add_argument('--out',type=Path,required=True)
+    p.add_argument('--variant',default='dnn3-f3-no-call-predicate-v2',help='identity of the measured F3 body variant')
     p.add_argument('--dependency-audit',type=Path,
                    help='pre-change nvcc dependency proof for headers unused by every measured probe')
     args=p.parse_args()
@@ -107,7 +108,7 @@ def main():
             table[key]=dict(median=median,processes=5,unit=UNITS[metric],
                 unstable=(max(medians)-min(medians))/median>.1,
                 fresh_process_medians=medians,binary_sha256=row['binary_sha256'],raw_source=source['result'])
-    section=dict(schema=1,variant='dnn3-f3-no-call-predicate-v2',
+    section=dict(schema=1,variant=args.variant,
         method='GPU1; median of five fresh-process medians; production regions; no interpolation',
         header_sha256=headers,raw_sources=sources,rejected_probe_builds=rejected,
         duplicate_resolution='last explicitly listed repaired result; no averaging or fastest selection',

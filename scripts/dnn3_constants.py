@@ -74,6 +74,8 @@ def main():
     parser.add_argument('--all-normal',action='store_true',help='all11 normal tiles plus gather128x64')
     parser.add_argument('--all-gather',action='store_true',help='all11 gather tiles as well')
     parser.add_argument('--build',type=Path)
+    parser.add_argument('--build-only',action='store_true',help='prepare probes without queueing GPU measurements')
+    parser.add_argument('--cpu-set',default='128-135',help='NUMA0 measurement worker cores')
     parser.add_argument('--execute',action='store_true')
     args=parser.parse_args()
     args.out=args.out.resolve()
@@ -112,12 +114,14 @@ def main():
     if inputs()!=frozen:
         raise ValueError('constant inputs changed during builds')
     build=args.out/'build.json';save(build,dict(inputs=frozen,probes=probes))
+    if args.build_only:
+        return
     environment=dict(CUDA_VISIBLE_DEVICES='1',TILEMEGA_DEVICE_INDEX='1',
         TILEMEGA_GPU_LOCK='/tmp/tilemega_gpu1.lock',TILEMEGA_NUMA_NODE='0',
         TILEMEGA_GPU_PID_MODE='namespace_limited',TILEMEGA_NUMA_CONCURRENCY_TRIAL='1',
         PYTHONPATH=str(ROOT/'python'))
     queue=args.out/'queue';queue.mkdir()
-    cmd=['taskset','-c','128-135',sys.executable,str(Path(__file__).resolve()),
+    cmd=['taskset','-c',args.cpu_set,sys.executable,str(Path(__file__).resolve()),
          '--execute','--build',str(build),'--out','{attempt_dir}/constants']
     save(queue/'queue_constants.json',[dict(name='dnn3-resident-constants',gpu=True,timing=True,
          timeout_s=3600,needs_free_mib=4096,command=cmd,cwd=str(ROOT),env=environment)])
