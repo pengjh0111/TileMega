@@ -383,7 +383,8 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
           bind.residual_map=maps.Add(spec);
         }
         if(!swap && !solver::Sm90F3TileFeasible(c.tile_m,c.tile_n,f3chain.chain_class))
-          throw std::invalid_argument("DT-SPILL excluded this F3 tile and chain: "+
+          throw std::invalid_argument("DT-SPILL excluded this F3 tile and chain at stage "+
+              std::to_string(index)+": "+
               std::to_string(c.tile_m)+"x"+std::to_string(c.tile_n)+" "+
               solver::kSm90F3ChainClasses[unsigned(f3chain.chain_class)]);
         if(c.split_k>1) {

@@ -5,6 +5,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -95,9 +96,31 @@ def main():
         '--batch', str(plan['batch']), '--abi', 'f3', '--tmexec-config', str(prototype),
         '--runtime-target', str(ROOT / 'configs/targets/sm_90_h800.json')]
     environment = dict(os.environ, CUDA_VISIBLE_DEVICES='')
+    exclusions = []
     with (args.out / 'codegen.log').open('w') as stream:
-        subprocess.run(command, env=environment, cwd=ROOT, stdout=stream,
-                       stderr=subprocess.STDOUT, check=True)
+        while True:
+            done = subprocess.run(command, env=environment, cwd=ROOT, capture_output=True, text=True)
+            stream.write(done.stdout + done.stderr)
+            stream.flush()
+            if done.returncode == 0:
+                break
+            rejected = re.search(r'DT-SPILL excluded this F3 tile and chain at stage (\d+): (\d+)x(\d+) (\w+)',
+                                 done.stderr + done.stdout)
+            if rejected is None:
+                raise RuntimeError('F3 seed codegen failed; retain ' + str(args.out / 'codegen.log'))
+            index = int(rejected[1])
+            c = coordinates['stages'][index]
+            if c['tile_n'] <= 32 or c['mode'] != 'normal':
+                raise ValueError('no smaller legal normal seed tile')
+            exclusions.append(dict(stage=index, tile_m=c['tile_m'], tile_n=c['tile_n'],
+                                   chain=rejected[4], reason='measured DT-SPILL exclusion'))
+            c['tile_n'] //= 2
+            stage = plan['stage_rows'][index]
+            tiles = math.ceil(stage['m']/c['tile_m'])*math.ceil(stage['n']/c['tile_n'])
+            iterations = math.ceil(stage['k']/64)
+            c['split_k'] = max([s for s in range(1,17) if iterations % s == 0 and tiles*s <= 132] or [1])
+            prototype.write_text(json.dumps(coordinates, indent=2) + '\n')
+    (args.out / 'seed.exclusions.json').write_text(json.dumps(exclusions, indent=2) + '\n')
     matrices = [i for i, c in enumerate(coordinates['stages']) if c['body'] in ('gemm', 'conv')]
     host = args.out / 'layout_probe.cu'
     host.write_text(source.read_text().split('#include <tilemega/Codegen/tasks/Sm90F3Runtime.cuh>')[0]
