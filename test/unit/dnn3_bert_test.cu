@@ -224,7 +224,11 @@ template<int B> void SmallBertCase() {
 int main(int,char**) try {
   std::cout<<std::unitbuf;
   DenseCase<128,2304,768,128,64,3,0>();
+  DenseCase<2048,2304,768,128,128,1,0>();
+  DenseCase<128,768,768,128,64,6,1>();
+  DenseCase<2048,768,768,128,64,1,1>();
   DenseCase<128,768,3072,128,64,4,1>();
+  DenseCase<2048,768,3072,128,64,1,1>();
   // The requested 128x256 deferred-LN+GELU tile spills; DT-SPILL excludes it.
   DenseCase<2048,3072,768,128,128,1,2>();
   DenseCase<131,768,256,64,64,1,1>();
