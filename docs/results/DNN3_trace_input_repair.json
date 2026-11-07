@@ -1,0 +1,24 @@
+{
+  "evidence": "verified",
+  "status": "passed",
+  "scope": "trace harness input initialization; non-trace Phase Z outputs/timings unchanged",
+  "defect": "Independent-reference branch skipped NativeForward.__call__; separate trace plan input allocations remained unfilled before direct launch",
+  "failure": {
+    "log": "runs/dnn3/phase_z_ledgers_v19/bert/bert_b1/marks/scheduler/dnn3-marks.log",
+    "sha256": "fb108c472665d90805b622a1296378fdcd51e85cb52b2fcbed0505ec04962cbd",
+    "guard_code": 1,
+    "acceptance": "rejected; no ledger accepted"
+  },
+  "repair": "Always initialize/check trace plan through NativeForward.__call__ before resetting trace records and making the recorded launch; compare against independently cloned non-trace outputs",
+  "regression": {
+    "model": "bert",
+    "batch": 1,
+    "same_trace_binary_sha256": "479c2856c54e1b191667c6d07a772a15fa8296811be9bcd4d55eeee2ad46b7de",
+    "result": "runs/dnn3/phase_z_ledgers_v20/bert/bert_b1/marks/raw/dnn3-marks/attempt1/trace/result.json",
+    "sha256": "5feda435004b3fb29db2669c58d2da4c58f2e2049efdba178dee714b16c71734",
+    "guard_sha256": "db193a91994b20d7cd87e4418441c2b8ecca1a78e7dd8208d4b32f0e0eeb0f02",
+    "output_comparison": "bitwise equal to independent non-trace reference in warmup and recorded launch",
+    "processes": 1
+  },
+  "remaining": "collect other exact-winner ledgers; no new synchronization or race claim"
+}

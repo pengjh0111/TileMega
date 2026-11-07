@@ -33,8 +33,13 @@ def collect(args, identity):
                                                    args.bridge, args.batch) as accepted:
             reference = [value.clone() for value in accepted([inputs[name] for name in accepted.inputs])]
     with torch.inference_mode(), NativeForward(args.library, args.export, args.bridge, args.batch) as native:
+        # __call__ fills the bound input allocations before any direct launch.
+        # An independent reference does not initialize this separate plan.
+        checked = native([inputs[name] for name in native.inputs])
         if reference is None:
-            reference = [value.clone() for value in native([inputs[name] for name in native.inputs])]
+            reference = [value.clone() for value in checked]
+        elif any(not torch.equal(a, b) for a, b in zip(reference, checked)):
+            raise AssertionError('trace warmup differs from independent reference')
         lib = native.library.lib
         dimensions = {}
         for name in ('schema', 'stages', 'grid', 'segments', 'record_bytes', 'bytes'):
