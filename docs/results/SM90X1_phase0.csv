@@ -8,7 +8,7 @@ llama3_2_1b-B16,16,False,not_run,1.248745252159793,,,,,,trial,,,not_run,0,0
 llama3_2_3b-B1,1,False,not_run,2.8292358659921564,,,,,,trial,,,not_run,0,0
 llama3_2_3b-B16,16,False,not_run,3.0695994360461643,,,,,,trial,,,not_run,0,0
 llama3_1_8b-B1,1,False,not_run,5.568147247305772,,,,,,trial,,,not_run,0,0
-llama3_1_8b-B16,16,True,not_run,5.869959058756244,,,,,,trial,True,True,passed,0,1
+llama3_1_8b-B16,16,True,gate_pass,5.869959058756244,5.86725115151425,-0.04613162059375897,0.017711261856848327,3,0,trial,True,True,passed,0,1
 mistral_7b_v0_3-B1,1,False,not_run,5.3308211231688665,,,,,,trial,,,not_run,0,0
 mistral_7b_v0_3-B16,16,False,not_run,5.61957944868311,,,,,,trial,,,not_run,0,0
 qwen3_30b_a3b-B1,1,False,not_run,3.7428,,,,,,machine,,,not_run,0,0

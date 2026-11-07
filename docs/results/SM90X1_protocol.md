@@ -33,7 +33,8 @@ ownership or rule out interference between telemetry samples.
 [verified] One initially accepted Qwen Phase 0 non-HF correctness process
 contained three distinct sampled GPU PIDs. Its complete five-process P-CORR
 unit and initial P-FINAL summaries were archived for repetition. The initial
-0.94494 ms P-FINAL is excluded until the clean correctness and timing repeat.
+0.94494 ms P-FINAL is excluded from accepted data. Clean correctness and fresh
+timing are required for its replacement.
 
 [verified] CLI enumeration can import once for every family:
 
