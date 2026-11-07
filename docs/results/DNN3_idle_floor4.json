@@ -1,0 +1,31 @@
+{
+  "evidence": "verified",
+  "purpose": "versioned handling of observed owner-free NVML residue; original provider immutable",
+  "provider": "scripts/dnn3_idle_floor_python.py",
+  "provider_sha256": "47cfc05d393e582a8f7af51ebde654217e1f4e95f77f5d5b582b4bcdc409ae41",
+  "idle_memory_floor_mib": 4,
+  "owner_free_samples": {
+    "1": {
+      "samples": 5,
+      "used_mib": 4,
+      "free_mib": [
+        81076.0
+      ]
+    },
+    "3": {
+      "samples": 5,
+      "used_mib": 4,
+      "free_mib": [
+        81076.0
+      ]
+    }
+  },
+  "preflight_source": "runs/dnn3/idle_floor4_preflight/samples.json",
+  "preflight_sha256": "44e5d88175573d6a6b0e412ef754ccb719c7e859b9941bb42bff81edfef2c4e6",
+  "host_admission_contract": "allowed device + no owners + used0..4MiB + sufficient free memory; rejects owners/5MiB/disallowed device/insufficient free",
+  "power_monitoring": false,
+  "ownership_verified": false,
+  "qualification": "provisional_container_pid_namespace",
+  "recovery_journal": "runs/dnn3/idle_floor4_preflight/recovery.json",
+  "recovery_rule": "only own pending attempt0 schedulers with no children were replaced; original attempt results retained"
+}
