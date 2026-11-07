@@ -98,6 +98,12 @@ all missing cells. The two end-to-end CLI enumerations emitted byte-identical
 coordinates for all six pilot families. Main GPU sweep/arm orchestration remains
 unvalidated until the Phase 0 gate opens.
 
+[verified] All 14 frozen W references also passed the CLI's `--mode check`
+against their actual decode exports. Full-family enumeration passed for both
+pilots and both Qwen MoE cells. Every emitted W file exactly preserves the
+frozen coordinate bytes. Guard and extra-owner rejections are counted in
+`SM90X1_phase0.csv`; rejected raw attempts are never merged into a valid unit.
+
 [verified] Empty/pending CSV fields are unavailable measurements. They are not
 zeros. Diagnostic tau is tau-b with exact ties, pooled by concatenating variant
 observations; selections/reversals also apply the conservative noise threshold.
