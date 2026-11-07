@@ -15,6 +15,8 @@ int DumpNativeForwardPlan(std::string const& input,std::string const& output,
     int batch,bool fuse,std::string const& abi);
 struct NativeForwardSolveOptions {
   std::string input,output,target,dump_cg,measure_command,solve_command;
+  // "legacy" or "f3": which forward skeleton the plan and search are for.
+  std::string abi="legacy";
   int batch=1,split_compile=2,measure_top=4;
   bool measured=true,fuse=true;
 };

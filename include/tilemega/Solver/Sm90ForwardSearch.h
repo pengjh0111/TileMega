@@ -381,6 +381,10 @@ class Sm90ForwardCostModel {
 
 struct Sm90ForwardSearchSpace {
   std::vector<Sm90ForwardShape> shapes;TargetSpec target;
+  // Which skeleton the candidates are for: F3 admits the larger tiles, any
+  // divisor as the K split, and a split over a deferred-normalization chain,
+  // whose last arriver runs the whole chain (DNN3 prompt §4 F-5, §6.5).
+  Sm90ForwardAbi abi=Sm90ForwardAbi::kLegacy;
   int Grid(int residency)const{return target.res.num_sms*residency;}
   std::vector<Sm90ForwardStage> Candidates(std::size_t index,int residency)const;
 };

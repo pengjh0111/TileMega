@@ -281,9 +281,12 @@ int SolveNativeForward(NativeForwardSolveOptions const& o) {
   auto constants=solver::Sm90NativeConstants::FromTarget(json::ParseFile(o.target),TILEMEGA_SOURCE_DIR);
   json::Array stale;
   for(auto const& header:constants.StaleHeaders(TILEMEGA_SOURCE_DIR))stale.emplace_back(header);
-  auto plan=solver::BuildSm90ForwardPlan(o.input,o.batch,o.fuse);
+  auto abi=o.abi=="f3"?solver::Sm90ForwardAbi::kF3:solver::Sm90ForwardAbi::kLegacy;
+  if(o.abi!="f3" && o.abi!="legacy")
+    throw std::invalid_argument("native forward abi must be legacy or f3");
+  auto plan=solver::BuildSm90ForwardPlan(o.input,o.batch,o.fuse,abi);
   solver::Sm90ForwardCostModel cost(target,constants);
-  solver::Sm90ForwardSearchSpace space{solver::Sm90ForwardShapesFromPlan(plan),target};
+  solver::Sm90ForwardSearchSpace space{solver::Sm90ForwardShapesFromPlan(plan,abi),target,abi};
   auto result=solver::SearchSm90Forward(space,cost,o.measure_top);
   json::Array ranked,candidates;
   std::vector<fs::path> configs;

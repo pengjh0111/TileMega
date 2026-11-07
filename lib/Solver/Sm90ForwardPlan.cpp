@@ -432,7 +432,8 @@ mlir::OwningOpRef<mlir::ModuleOp> MaterializeSm90Forward(frontend::ModelPlan& pl
     auto& stage=plan.stages[i];
     if(stage.kind!=PlanTaskKind::kGlobalPoolReduce)continue;
     auto producer=Dnn1PoolProducer(plan,i);
-    int parts=Sm90ForwardPoolParts(producer_shapes.at(producer),coordinates.stages.at(producer));
+    int parts=Sm90ForwardPoolParts(producer_shapes.at(producer),
+        coordinates.stages.at(producer),coordinates.abi);
     auto& partial=plan.buffers.at(stage.operands[0]);auto& layout=partial.layout;
     auto channels=layout.physical[2];
     if(layout.rank!=3 || layout.physical[0]!=unsigned(batch) || !channels ||

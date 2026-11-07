@@ -603,7 +603,7 @@ int RunCompile(int argc, char** argv) {
        tilemega::TargetSpec::FromJson(solve_target).arch_tag=="sm_90") {
       std::set<std::string> allowed={"--solve","--serving","--emit","--batch","--frontend",
           "--dwpw-fuse","--selection","--measure-cmd","--measure-top","--dump-cg",
-          "--runtime-target","--nvcc-split-compile"};
+          "--runtime-target","--nvcc-split-compile","--abi"};
       for(int i=3;i<argc;i+=2)if(!allowed.count(argv[i]))
         throw std::invalid_argument("native forward solve does not accept legacy option "+
             std::string(argv[i]));
@@ -616,6 +616,7 @@ int RunCompile(int argc, char** argv) {
       native.dump_cg=dump_cg;native.measure_command=measure_command;native.batch=serving_batch;
       native.split_compile=nvcc_split_compile;native.measure_top=measure_top;
       native.measured=search_selection=="measure";native.fuse=dnn_dwpw_fuse!="0";
+      native.abi=native_abi;
       native.solve_command=quote(std::filesystem::read_symlink("/proc/self/exe").string())+" compile";
       for(int i=1;i<argc;++i)native.solve_command+=' '+quote(argv[i]);
       return tilemega::commands::SolveNativeForward(native);

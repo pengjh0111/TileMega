@@ -58,13 +58,23 @@ inline int Sm90ForwardArenaBytes(TargetSpec const& target,int residency) {
   if(arena<1024)throw std::invalid_argument("target leaves no forward arena");
   return arena;
 }
+// F3 fixes the GAP producer's partial-sum granularity at 64 rows (DNN3 prompt
+// §4 F-7): one slot per (image, 64-row block). A dense M tile may straddle two
+// images, so a block's leading overlap gets its own slot. The plan and the
+// body both call this, so neither can compute a different count.
+inline constexpr int kSm90ForwardF3PoolRows=64;
+inline int Sm90ForwardF3PoolParts(long long rows_per_image) {
+  if(rows_per_image<=0)throw std::invalid_argument("a pooled image has pixels");
+  return int((rows_per_image+kSm90ForwardF3PoolRows-1)/kSm90ForwardF3PoolRows+1);
+}
 // Each producer task owns one partial per image/channel. A dense M tile may
 // straddle images, so reserve the maximum count including its leading overlap.
 inline int Sm90ForwardPoolParts(Sm90ForwardShape const& producer,
-    Sm90ForwardStage const& coordinate) {
+    Sm90ForwardStage const& coordinate,
+    Sm90ForwardAbi abi=Sm90ForwardAbi::kLegacy) {
   if(producer.body!=coordinate.body)
     throw std::invalid_argument("pool producer body disagrees with coordinates");
-  coordinate.Validate();
+  coordinate.Validate(abi);
   auto positive=[&](char const* key) -> long long {
     double value=producer.dnn1_geometry.At(key).AsNumber(key);
     if(!std::isfinite(value) || value<=0 || value>std::numeric_limits<int>::max() || std::floor(value)!=value)
@@ -76,7 +86,8 @@ inline int Sm90ForwardPoolParts(Sm90ForwardShape const& producer,
     auto rows=positive("rows"),batch=positive("batch");
     if(rows%batch)throw std::invalid_argument("pool producer rows do not form complete images");
     rows/=batch;
-    parts=(rows+2LL*coordinate.tile_m-2)/coordinate.tile_m;
+    parts=abi==Sm90ForwardAbi::kF3?Sm90ForwardF3PoolParts(rows):
+        (rows+2LL*coordinate.tile_m-2)/coordinate.tile_m;
   }else if(coordinate.body==Sm90ForwardBody::kDepthwise || coordinate.body==Sm90ForwardBody::kDwPw ||
       coordinate.body==Sm90ForwardBody::kInvertedResidual) {
     auto width=positive("output_width"),height=positive("output_height");

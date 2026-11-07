@@ -354,10 +354,37 @@ double Sm90ForwardCostModel::LegacyStage(Sm90ForwardShape const& s,Sm90ForwardSt
 std::vector<Sm90ForwardStage> Sm90ForwardSearchSpace::Candidates(std::size_t index,int residency)const {
   if(index>=shapes.size() || (residency!=1 && residency!=2))throw std::invalid_argument("bad forward candidate request");
   auto const& s=shapes[index];std::vector<Sm90ForwardStage> result;
-  auto push=[&](Sm90ForwardStage c){c.body=s.body;try{c.Validate();}catch(std::invalid_argument const&){return;}result.push_back(c);};
+  bool f3=abi==Sm90ForwardAbi::kF3;
+  auto push=[&](Sm90ForwardStage c){c.body=s.body;c.mode=f3?s.mode:Sm90ForwardMode::kNormal;
+      try{c.Validate(abi);}catch(std::invalid_argument const&){return;}result.push_back(c);};
   if(Matrix(s.body)) {
-    for(int m:{32,64,128})for(int n:{32,64,128,256}) {
+    // F3 swap-AB fixes the tile at 128 weight rows by all M rows, and admits a
+    // deeper split because each slice is only Mp x 64 of activation (§6.7).
+    if(f3 && s.mode==Sm90ForwardMode::kSwapAB) {
+      auto iterations=s.k/64;
+      for(int split=1;split<=32;++split) {
+        if(iterations%split || split>iterations)continue;
+        Sm90ForwardStage c;c.tile_n=128;c.split_k=split;
+        for(int slots:{2,3,4,6,8}){c.slots=slots;push(c);}
+      }
+      return result;
+    }
+    for(int m:(f3?std::vector<int>{64,128,256}:std::vector<int>{32,64,128}))
+      for(int n:{32,64,128,256}) {
       if(n>ForwardCeil(s.n,32)*32)continue;
+      // TM 256 only pays for itself with enough rows to fill it (§6.1).
+      if(f3 && m==256 && s.m<512)continue;
+      if(f3) {
+        // Any divisor of the whole contraction, and a deferred normalization
+        // no longer blocks the split: F3's last arriver runs the chain (§6.5).
+        auto iterations=s.k/64;
+        for(int split=1;split<=16;++split) {
+          if(!iterations || iterations%split)continue;
+          Sm90ForwardStage c;c.tile_m=m;c.tile_n=n;c.split_k=split;
+          for(int slots:{2,3,4,6,8}){c.slots=slots;push(c);}
+        }
+        continue;
+      }
       for(int split:{1,2,4,8,16}) {
         if(split>1 && (s.whole_row || s.k%(1LL*split*64) || s.k/split<128))continue;
         Sm90ForwardStage c;c.tile_m=m;c.tile_n=n;c.split_k=split;
