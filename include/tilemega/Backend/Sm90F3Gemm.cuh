@@ -681,10 +681,10 @@ struct Sm90F3Gemm {
   __device__ static __forceinline__ void Consume(Sm90F3GemmOperands const& p,
       Sm90F3Ring& ring,Element* arena,char* side,Sm90F3Phase& phase,
       Sm90F3Header* header,int wg) {
-    int tasks=LocalTasks();
     Accumulators accum;
-    for(int local=0;local<tasks;++local) {
-      int task=Task(local),m_tile=MTile(task),n_tile=NTile(task);
+    // Cached per-shape task counts otherwise stay live across BERT's layers.
+    for(int local=0,task=int(blockIdx.x);task<kTasks;++local,task+=int(gridDim.x)) {
+      int m_tile=MTile(task),n_tile=NTile(task);
       TM_F3_TRACE_BEGIN(kMainLoop);
       MainLoop(ring,arena,phase,accum,wg,(local*kIterations)%Slots,kIterations);
       TM_F3_TRACE_END(kMainLoop);

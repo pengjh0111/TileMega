@@ -151,10 +151,9 @@ struct Sm90F3GemmSwapAB {
     auto thread=mma.get_slice(int(threadIdx.x)%128);
     auto owned=thread.partition_C(make_identity_tensor(
         cute::Shape<cute::_64,cute::Int<kRows>>{}));
-    int tasks=LocalTasks();
     Accumulators accum;
-    for(int local=0;local<tasks;++local) {
-      int task=Task(local),n_tile=NTile(task);
+    for(int local=0,task=int(blockIdx.x);task<kTasks;++local,task+=int(gridDim.x)) {
+      int n_tile=NTile(task);
       TM_F3_TRACE_BEGIN(kMainLoop);
       cute::clear(accum.tile[0]);
       int previous=-1;

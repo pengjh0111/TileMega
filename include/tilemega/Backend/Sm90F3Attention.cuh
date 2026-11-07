@@ -63,8 +63,8 @@ struct Sm90F3Attention {
   __device__ static __forceinline__ void Consume(Sm90F3AttentionOperands const& p,
       Sm90F3Ring& ring,char* arena,Sm90F3Phase& phase) {
     int warp=int(threadIdx.x)/32,lane=int(threadIdx.x)%32;
-    for(int local=0;local<LocalTasks();++local) {
-      int task=int(blockIdx.x)+local*int(gridDim.x),slot=local%kSlots;
+    for(int local=0,task=int(blockIdx.x);task<kTasks;++local,task+=int(gridDim.x)) {
+      int slot=local%kSlots;
       int image=task/Heads,head=task%Heads;
       TM_F3_TRACE_BEGIN(kSlotWait);
       Base::Wait(ring.full+slot,phase.Bit(phase.full,slot));
