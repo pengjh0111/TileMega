@@ -54,28 +54,38 @@ class Sm90ForwardConstants {
  public:
   // Actual collector schema: sm90_forward_constants.by_gpu[gpu][metric][key].
   // Never blend cards: GPU0's externally locked clock differs from GPUs5/7.
-  static Sm90ForwardConstants FromFile(std::string file,int gpu) {
-    if(gpu!=0 && gpu!=5 && gpu!=7)throw std::invalid_argument("forward constants GPU must be 0, 5 or 7");
+  static Sm90ForwardConstants FromFile(std::string file,int gpu,
+      Sm90ForwardAbi abi=Sm90ForwardAbi::kLegacy) {
+    bool f3=abi==Sm90ForwardAbi::kF3;
+    if(f3?gpu!=1:(gpu!=0 && gpu!=5 && gpu!=7))
+      throw std::invalid_argument(f3?"F3 constants require calibration GPU1":
+          "forward constants GPU must be 0, 5 or 7");
     Sm90ForwardConstants c;c.file_=std::move(file);c.gpu_=gpu;c.target_=json::ParseFile(c.file_);
-    auto const* section=c.target_.Find("sm90_forward_constants");
-    if(!section)throw Sm90ForwardMissing(c.file_+": missing sm90_forward_constants; no measured forward table");
+    c.section_name_=f3?"sm90_f3_constants":"sm90_forward_constants";
+    auto const* section=c.target_.Find(c.section_name_);
+    if(!section)throw Sm90ForwardMissing(c.file_+": missing "+c.section_name_+"; no measured table");
     c.section_=*section;
     double schema=section->At("schema").AsNumber("forward constants schema");
-    if(schema!=1 && schema!=2 && schema!=3)
+    if(f3?schema!=1:(schema!=1 && schema!=2 && schema!=3))
       throw std::invalid_argument("unsupported forward constants schema");
     c.storage_schema_=int(schema);
     if(schema==3)c.ExpandDictionary();
     if(schema>=2)c.ExpandCompact();
     c.variant_=section->At("variant").AsString("forward constants variant");
     if(auto const* fixture=section->Find("synthetic_cpu_fixture"))
-      if(fixture->AsBool("synthetic fixture") && std::getenv("DNN1_CPU_CONTRACT_TEST")==nullptr)
+      if(fixture->AsBool("synthetic fixture") &&
+          std::getenv(f3?"DNN3_CPU_CONTRACT_TEST":"DNN1_CPU_CONTRACT_TEST")==nullptr)
         throw std::invalid_argument("synthetic fixture is not calibrated constants");
     c.file_sha256_=HashFile(c.file_);
     return c;
   }
-  static Sm90ForwardConstants FromEnvironment() {
+  static Sm90ForwardConstants FromEnvironment(Sm90ForwardAbi abi=Sm90ForwardAbi::kLegacy) {
     auto* path=std::getenv("TILEMEGA_FORWARD_CONSTANTS_FILE");
     auto* gpu=std::getenv("TILEMEGA_DEVICE_INDEX");
+    if(abi==Sm90ForwardAbi::kF3) {
+      if(!path || !*path)throw Sm90ForwardMissing("set TILEMEGA_FORWARD_CONSTANTS_FILE to the F3 target JSON");
+      return FromFile(path,1,abi);
+    }
     if(!path || !*path || !gpu || !*gpu)
       throw Sm90ForwardMissing("set TILEMEGA_FORWARD_CONSTANTS_FILE to the actual --solve target JSON and TILEMEGA_DEVICE_INDEX");
     std::string card=gpu;
@@ -104,6 +114,7 @@ class Sm90ForwardConstants {
     json::Value const* match=nullptr;std::string matched_key;
     for(auto const& [key,row]:table->AsObject("forward measured table")) {
       auto fields=ParseKey(key);bool matches=true;
+      if(section_name_=="sm90_f3_constants" && fields.size()!=selector.size())continue;
       // Historical DW keys without a gate describe the ungated primitive.
       // A gated measurement is a different operation, not an extra match
       // for a geometry-only selector. Keep raw keys and medians unchanged.
@@ -123,7 +134,7 @@ class Sm90ForwardConstants {
         match->At("unit").AsString("constant unit")!=unit)
       throw std::invalid_argument("invalid/insufficient measured constant: "+metric+"["+matched_key+"]");
     auto* unstable=match->Find("unstable");
-    std::string source=file_+"#sm90_forward_constants.";
+    std::string source=file_+"#"+section_name_+".";
     if(storage_schema_>=2)
       source+="median_by_gpu."+std::to_string(gpu_)+"["+
           std::to_string(compact_indices_.at({metric,matched_key}))+ "] ("+metric+"["+matched_key+"])";
@@ -157,6 +168,7 @@ class Sm90ForwardConstants {
     json::Value result=json::Object{{"file",file_},{"sha256",file_sha256_},{"gpu",gpu_},{"variant",variant_},
       {"storage_schema",storage_schema_},
       {"method",section_.At("method")},{"header_sha256",section_.At("header_sha256")}};
+    if(section_name_=="sm90_f3_constants")result.Set("section",section_name_);
     if(auto const* supplements=section_.Find("supplements"))result.Set("supplements",*supplements);
     return result;
   }
@@ -251,7 +263,8 @@ class Sm90ForwardConstants {
       throw std::runtime_error("constants file hash failed");
     return buffer;
   }
-  int gpu_=0,storage_schema_=1;std::string file_,file_sha256_,variant_;json::Value target_,section_;
+  int gpu_=0,storage_schema_=1;std::string file_,file_sha256_,variant_;
+  std::string section_name_="sm90_forward_constants";json::Value target_,section_;
   std::map<std::pair<std::string,std::string>,std::size_t> compact_indices_;
   std::map<std::size_t,std::string> compact_provenance_;
 };
@@ -275,9 +288,10 @@ class Sm90ForwardCostModel {
   // Keep the existing native_forward.cpp two-argument public constructor.
   // The allowed Python/script harness binds the actual --solve target JSON
   // through TILEMEGA_FORWARD_CONSTANTS_FILE; TargetSpec::ToJson loses extras.
-  Sm90ForwardCostModel(TargetSpec target,Sm90NativeConstants constants)
+  Sm90ForwardCostModel(TargetSpec target,Sm90NativeConstants constants,
+      Sm90ForwardAbi abi=Sm90ForwardAbi::kLegacy)
       :target_(std::move(target)),native_(std::move(constants)),
-       forward_(Sm90ForwardConstants::FromEnvironment()) {
+       forward_(Sm90ForwardConstants::FromEnvironment(abi)),abi_(abi) {
     if(target_.arch_tag!="sm_90" || target_.res.num_sms<=0)
       throw std::invalid_argument("forward model needs a complete H800 target");
     if(forward_.Target().At("sm90_native_constants").Dump(0)!=native_.section.Dump(0))
@@ -322,6 +336,8 @@ class Sm90ForwardCostModel {
   }
   double Stage(Sm90ForwardShape const& s,Sm90ForwardStage const& c,int residency,
                json::Value* terms=nullptr) const;
+  double F3Stage(Sm90ForwardShape const&,Sm90ForwardStage const&,bool preissued,
+                 json::Value* terms=nullptr) const;
   double LegacyStage(Sm90ForwardShape const& s,Sm90ForwardStage const& c,int residency,
                      json::Value* terms=nullptr) const;
   static int PoolProducer(std::vector<Sm90ForwardShape> const& shapes,std::size_t index) {
@@ -333,14 +349,15 @@ class Sm90ForwardCostModel {
     return int(producer);
   }
   static Sm90ForwardShape PoolShape(std::vector<Sm90ForwardShape> const& shapes,
-      std::size_t index,Sm90ForwardStage const& producer_coordinate) {
+      std::size_t index,Sm90ForwardStage const& producer_coordinate,
+      Sm90ForwardAbi abi=Sm90ForwardAbi::kLegacy) {
     int producer=PoolProducer(shapes,index);
     if(producer<0)throw std::invalid_argument("pool geometry requested for another body");
     auto resolved=shapes[index];
     auto batch=ForwardField(resolved.dnn1_geometry,"batch");
     if(batch!=ForwardField(shapes[producer].dnn1_geometry,"batch"))
       throw std::invalid_argument("pool batch differs from its producer");
-    int parts=Sm90ForwardPoolParts(shapes[producer],producer_coordinate);
+    int parts=Sm90ForwardPoolParts(shapes[producer],producer_coordinate,abi);
     if(resolved.channels<=0 || batch>std::numeric_limits<long long>::max()/4/parts/resolved.channels)
       throw std::invalid_argument("pool activation extent exceeds prediction range");
     resolved.k=parts;resolved.activation_bytes=4LL*batch*parts*resolved.channels;
@@ -350,25 +367,40 @@ class Sm90ForwardCostModel {
   Sm90ForwardPrediction Predict(std::vector<Sm90ForwardShape> const& shapes,
                                Sm90ForwardCoordinates const& c) const {
     if(shapes.size()!=c.stages.size())throw std::invalid_argument("coordinate stage count differs");
+    if(c.abi!=abi_)throw std::invalid_argument("prediction ABI differs from its measured constants");
     Sm90ForwardPrediction result;result.constants_receipt=forward_.Receipt();
     for(std::size_t i=0;i<shapes.size();++i) {
       int producer=PoolProducer(shapes,i);
-      auto s=producer<0?shapes[i]:PoolShape(shapes,i,c.stages[producer]);
-      Sm90ForwardPrediction::Stage p{kSm90ForwardBodies[unsigned(s.body)],0,
-          Tasks(s,c.stages[i]),{}};
-      p.ns=Stage(s,c.stages[i],c.residency,&p.terms);
+      auto s=producer<0?shapes[i]:PoolShape(shapes,i,c.stages[producer],abi_);
+      bool f3=abi_==Sm90ForwardAbi::kF3;
+      long long tasks=f3?QuerySm90ForwardF3Resources(s,c.stages[i],target_,c.residency).task_count:
+          Tasks(s,c.stages[i]);
+      Sm90ForwardPrediction::Stage p{kSm90ForwardBodies[unsigned(s.body)],0,tasks,{}};
+      if(f3) {
+        if(c.residency!=1)throw std::invalid_argument("F3 prediction requires residency1");
+        bool matrix=s.body==Sm90ForwardBody::kGemm || s.body==Sm90ForwardBody::kConv;
+        auto current=QuerySm90ForwardF3Resources(s,c.stages[i],target_,1);
+        bool preissued=i>0 && matrix && c.stages[i].mode!=Sm90ForwardMode::kGather &&
+            !current.exclusive &&
+            !QuerySm90ForwardF3Resources(shapes[i-1],c.stages[i-1],target_,1).exclusive;
+        p.ns=F3Stage(s,c.stages[i],preissued,&p.terms);
+      }else p.ns=Stage(s,c.stages[i],c.residency,&p.terms);
       if(producer>=0)p.terms.Set("pool_link",json::Object{{"producer_stage",producer},
           {"parts",int(s.k)},{"producer_coordinate",c.stages[producer].ToJson()},
-          {"source","ForwardGeometry.h::Sm90ForwardPoolParts; shared with Materialize"}});
-      json::Value legacy_terms;
-      double legacy=LegacyStage(s,c.stages[i],c.residency,&legacy_terms);
-      p.terms.Set("legacy_diagnostic",legacy_terms);result.legacy_total_ns+=legacy;
+          {"source",f3?"ForwardGeometry.h::Sm90ForwardF3PoolParts; shared with Materialize":
+              "ForwardGeometry.h::Sm90ForwardPoolParts; shared with Materialize"}});
+      if(!f3) {
+        json::Value legacy_terms;
+        double legacy=LegacyStage(s,c.stages[i],c.residency,&legacy_terms);
+        p.terms.Set("legacy_diagnostic",legacy_terms);result.legacy_total_ns+=legacy;
+      }
       result.total_ns+=p.ns;result.stages.push_back(std::move(p));
     }
     return result;
   }
   Sm90NativeConstants const& Constants()const{return native_;}
   Sm90ForwardConstants const& ForwardConstants()const{return forward_;}
+  Sm90ForwardAbi Abi()const{return abi_;}
  private:
   double Epilogue(Sm90ForwardShape const&,Sm90ForwardStage const&,Sm90ForwardResourceUsage const&,
                   json::Array&)const;
@@ -377,6 +409,7 @@ class Sm90ForwardCostModel {
   struct TaskWork {long long async_bytes,dram_bytes,elements;};
   static TaskWork TaskBytes(Sm90ForwardShape const&,Sm90ForwardStage const&);
   TargetSpec target_;Sm90NativeConstants native_;Sm90ForwardConstants forward_;
+  Sm90ForwardAbi abi_=Sm90ForwardAbi::kLegacy;
 };
 
 struct Sm90ForwardSearchSpace {

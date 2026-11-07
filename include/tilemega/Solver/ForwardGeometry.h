@@ -3,6 +3,7 @@
 #include <tilemega/Solver/ServingSeedGeometry.h>
 #include <tilemega/Solver/DmGemmTraits.h>
 #include <tilemega/Backend/Sm90ForwardResources.h>
+#include <tilemega/Backend/Sm90F3Ring.cuh>
 #include <tilemega/Solver/Sm90ForwardCoordinates.h>
 #include <tilemega/Solver/Sm90DenseResources.h>
 #include <cmath>
@@ -165,8 +166,82 @@ struct Sm90ForwardResourceUsage {
   bool exclusive=false,feasible=false;
   std::string reason;
 };
+inline Sm90ForwardResourceUsage QuerySm90ForwardF3Resources(
+    Sm90ForwardShape const& shape,Sm90ForwardStage const& c,
+    TargetSpec const& target,int residency) {
+  using namespace tilemega::backend;
+  c.Validate(Sm90ForwardAbi::kF3);
+  Sm90ForwardResourceUsage r;
+  r.budget_bytes=Sm90F3Budget::kBudget;r.arena_bytes=Sm90F3Budget::kArena;
+  if(residency!=1 || target.res.max_dynamic_smem_per_cta<r.budget_bytes) {
+    r.reason="F3 requires one CTA and its 232448-byte shared budget";return r;
+  }
+  auto const& g=shape.dnn1_geometry;
+  auto integer=[&](char const* key,bool zero=false) {
+    double value=g.At(key).AsNumber(key);
+    if(!std::isfinite(value) || value<(zero?0:1) ||
+        value>std::numeric_limits<int>::max() || std::floor(value)!=value)
+      throw std::invalid_argument(std::string("invalid F3 resource geometry: ")+key);
+    return int(value);
+  };
+  auto ceildiv=[](long long x,long long y){return (x+y-1)/y;};
+  bool matrix=c.body==Sm90ForwardBody::kGemm || c.body==Sm90ForwardBody::kConv;
+  int payload=1024;
+  if(matrix) {
+    if(shape.m<=0 || shape.n<=0 || shape.k<=0 || shape.k%(64LL*c.split_k)) {
+      r.reason="F3 matrix extents or whole-k64 split are invalid";return r;
+    }
+    bool swap=c.mode==Sm90ForwardMode::kSwapAB;
+    if(!swap && c.tile_m==256 && shape.m<512) {
+      r.reason="F3 TM256 requires at least 512 matrix rows";return r;
+    }
+    if(c.mode!=shape.mode || (swap && shape.m>16)) {
+      r.reason="F3 operand mode differs from plan rows";return r;
+    }
+    int vectors=integer("f3_vectors",true),rows=shape.m<=8?8:16;
+    bool residual=g.At("f3_residual").AsBool("F3 residual");
+    bool stats=g.At("needs_stats").AsBool("F3 input statistics");
+    int pool_images=0;
+    if(g.At("has_channel_pool").AsBool("F3 GAP side output")) {
+      int area=integer("pool_rows");
+      pool_images=area>=64?2:(64+area-1)/area+1;
+    }
+    int columns=c.tile_m==64?c.tile_n/2:c.tile_n;
+    auto layout=Sm90F3MakeGemmLayout(swap?rows:c.tile_m,swap?128:c.tile_n,c.slots,
+        swap,rows,residual,vectors,stats,swap?0:2*columns,pool_images);
+    payload=layout.end;r.slot_bytes=layout.slot_bytes;
+    r.store_columns=int(std::min<long long>(shape.n,swap?128:c.tile_n));
+    r.task_count=(swap?1:ceildiv(shape.m,c.tile_m))*
+        ceildiv(shape.n,swap?128:c.tile_n)*c.split_k;
+    r.exclusive=layout.Spanning();
+  }else {
+    long long items=0,per_cta=256;
+    switch(c.body) {
+      case Sm90ForwardBody::kEncoderAttention:
+        payload=2*3*128*64*2;
+        r.task_count=1LL*integer("batch")*integer("heads");break;
+      case Sm90ForwardBody::kLayout:
+        items=1LL*integer("batch")*ceildiv(1LL*integer("width")*integer("height"),8);break;
+      case Sm90ForwardBody::kPool:
+        items=1LL*integer("batch")*integer("output_width")*integer("output_height")*
+            ceildiv(integer("channels"),8);break;
+      case Sm90ForwardBody::kGlobalPool:
+        items=1LL*integer("batch")*integer("channels");break;
+      case Sm90ForwardBody::kLayerNorm:case Sm90ForwardBody::kEmbedding:
+        items=integer("rows");per_cta=8;break;
+      default:r.reason="unsupported F3 body";return r;
+    }
+    if(items)r.task_count=ceildiv(items,per_cta);
+  }
+  r.shared_bytes=Sm90F3Budget::kHeader+payload;
+  r.feasible=Sm90F3Budget::Fits(payload) && r.task_count>0;
+  r.reason=r.feasible?"F3 production layout fits":"F3 payload exceeds shared budget";
+  return r;
+}
 inline Sm90ForwardResourceUsage QuerySm90ForwardResources(Sm90ForwardShape const& shape,
-    Sm90ForwardStage const& c,TargetSpec const& target,int residency) {
+    Sm90ForwardStage const& c,TargetSpec const& target,int residency,
+    Sm90ForwardAbi abi=Sm90ForwardAbi::kLegacy) {
+  if(abi==Sm90ForwardAbi::kF3)return QuerySm90ForwardF3Resources(shape,c,target,residency);
   using namespace tilemega::backend;
   c.Validate();
   auto const& g=shape.dnn1_geometry;

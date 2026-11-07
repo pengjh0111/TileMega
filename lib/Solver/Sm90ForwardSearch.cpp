@@ -236,6 +236,10 @@ double Sm90ForwardCostModel::BodyCost(Sm90ForwardShape const& s,Sm90ForwardStage
 
 double Sm90ForwardCostModel::Stage(Sm90ForwardShape const& s,Sm90ForwardStage const& c,int residency,
     json::Value* terms) const {
+  if(abi_==Sm90ForwardAbi::kF3) {
+    if(residency!=1)throw std::invalid_argument("F3 costs require residency1");
+    return F3Stage(s,c,Matrix(s.body) && c.mode!=Sm90ForwardMode::kGather,terms);
+  }
   c.Validate();
   auto const& g=s.dnn1_geometry;
   if(c.body!=s.body)throw std::invalid_argument("coordinate and shape body differ");
@@ -331,6 +335,68 @@ double Sm90ForwardCostModel::Stage(Sm90ForwardShape const& s,Sm90ForwardStage co
   return total;
 }
 
+double Sm90ForwardCostModel::F3Stage(Sm90ForwardShape const& s,Sm90ForwardStage const& c,
+    bool preissued,json::Value* terms) const {
+  if(abi_!=Sm90ForwardAbi::kF3 || c.body!=s.body)
+    throw std::invalid_argument("F3 cost called with a different ABI/body");
+  auto resource=QuerySm90ForwardF3Resources(s,c,target_,1);
+  if(!resource.feasible)
+    throw std::invalid_argument("F3 cost called for infeasible resources: "+resource.reason);
+  int grid=Grid(1);
+  double waves=double(ForwardCeil(resource.task_count,grid));
+  double barrier=native_.Barrier(grid),first=preissued?native_.l2_latency:native_.dram_latency;
+  double data=0,math=0,epilogue=0,split=0,task=0;
+  long long k_iter=0,a_bytes=0,b_bytes=0;
+  json::Array components;
+  if(Matrix(s.body)) {
+    bool swap=c.mode==Sm90ForwardMode::kSwapAB;
+    int tm=swap?(s.m<=8?8:16):c.tile_m,tn=swap?128:c.tile_n;
+    k_iter=s.k/(64*c.split_k);
+    a_bytes=2LL*tm*(s.k/c.split_k);b_bytes=2LL*tn*(s.k/c.split_k);
+    data=double(a_bytes+b_bytes)/native_.sm_gbps;
+    Term(components,"t_data",data,NativeKey(forward_,"sm_gbps"));
+    math=Measured(forward_,"f3_k64_ns",{{"mode",kSm90ForwardModes[unsigned(c.mode)]},
+        {"tm",S(tm)},{"tn",S(tn)}},"ns",k_iter,components);
+    auto tile=Sm90ForwardSelector{{"tm",S(tm)},{"tn",S(tn)}};
+    auto ep=tile;ep["class"]=ForwardString(s.dnn1_geometry,"f3_chain_class");
+    epilogue=Measured(forward_,"f3_epilogue_ns",ep,"ns",1,components);
+    if(c.split_k>1) {
+      tile["slices"]=S(c.split_k);
+      split=Measured(forward_,"f3_splitk_ns",tile,"ns",1,components);
+    }else Term(components,"f3_splitk_ns",0,"structural: split_k=1");
+    task=std::max(data,math)+epilogue+split;
+  }else if(s.body==Sm90ForwardBody::kEncoderAttention) {
+    task=Measured(forward_,"f3_attention_task_ns",{},"ns/task",1,components);
+  }else {
+    std::string kind;int items=256;
+    switch(s.body) {
+      case Sm90ForwardBody::kLayout:kind="layout";break;
+      case Sm90ForwardBody::kPool:
+        if(s.kernel!=2 && s.kernel!=3)throw Sm90ForwardMissing("unmeasured F3 pool window");
+        kind="pool"+S(s.kernel);break;
+      case Sm90ForwardBody::kGlobalPool:kind="global_pool";break;
+      case Sm90ForwardBody::kLayerNorm:kind="layernorm";items=8;break;
+      case Sm90ForwardBody::kEmbedding:kind="embedding";items=8;break;
+      default:throw Sm90ForwardMissing("unmeasured F3 small body");
+    }
+    task=Measured(forward_,"f3_small_ns",{{"kind",kind}},"ns/work_item",items,components);
+  }
+  double floor=Matrix(s.body)?double(s.weight_bytes)/native_.dram_gbps:0;
+  double raw=barrier+first+waves*task,total=std::max(raw,floor);
+  if(!std::isfinite(total) || !(total>0))throw std::invalid_argument("invalid F3 prediction");
+  if(terms)*terms=json::Object{{"abi","f3"},{"tasks",double(resource.task_count)},
+      {"grid",grid},{"waves",waves},{"preissued",preissued},{"k_iter",double(k_iter)},
+      {"a_task_bytes",double(a_bytes)},{"b_task_bytes",double(b_bytes)},
+      {"t_data_ns",data},{"t_math_ns",math},{"epilogue_ns",epilogue},
+      {"splitk_ns",split},{"t_task_ns",task},{"barrier_ns",barrier},{"first_ns",first},
+      {"barrier_source",NativeKey(forward_,"c_bar_ns["+S(grid)+"]")},
+      {"first_source",NativeKey(forward_,preissued?"l2_latency_ns":"dram_latency_ns")},
+      {"weight_floor_ns",floor},{"weight_floor_source",NativeKey(forward_,"dram_gbps")},
+      {"raw_ns",raw},{"stage_ns",total},{"components",std::move(components)},
+      {"resources",ResourceReceipt(resource)}};
+  return total;
+}
+
 double Sm90ForwardCostModel::LegacyStage(Sm90ForwardShape const& s,Sm90ForwardStage const& c,
     int residency,json::Value* terms) const {
   long long tasks=Tasks(s,c);int grid=Grid(residency);
@@ -355,6 +421,7 @@ std::vector<Sm90ForwardStage> Sm90ForwardSearchSpace::Candidates(std::size_t ind
   if(index>=shapes.size() || (residency!=1 && residency!=2))throw std::invalid_argument("bad forward candidate request");
   auto const& s=shapes[index];std::vector<Sm90ForwardStage> result;
   bool f3=abi==Sm90ForwardAbi::kF3;
+  if(f3 && residency!=1)return result;
   // DT-SPILL: the measured register map keeps a spilling tile out of the legal
   // set entirely, so no candidate can reach a build that would spill.
   auto chain_class=Sm90F3ChainClass::kPlain;
@@ -385,14 +452,13 @@ std::vector<Sm90ForwardStage> Sm90ForwardSearchSpace::Candidates(std::size_t ind
       for(int split=1;split<=32;++split) {
         if(iterations%split || split>iterations)continue;
         Sm90ForwardStage c;c.tile_n=128;c.split_k=split;
-        for(int slots:{2,3,4,6,8}){c.slots=slots;push(c);}
+        for(int slots:{2,3,4,5,6,7,8}){c.slots=slots;push(c);}
       }
       return result;
     }
     for(int m:(f3?std::vector<int>{64,128,256}:std::vector<int>{32,64,128}))
       for(int n:{32,64,128,256}) {
-      if(n>ForwardCeil(s.n,32)*32)continue;
-      // TM 256 only pays for itself with enough rows to fill it (§6.1).
+      if(!f3 && n>ForwardCeil(s.n,32)*32)continue;
       if(f3 && m==256 && s.m<512)continue;
       if(f3) {
         // Any divisor of the whole contraction, and a deferred normalization
@@ -401,7 +467,7 @@ std::vector<Sm90ForwardStage> Sm90ForwardSearchSpace::Candidates(std::size_t ind
         for(int split=1;split<=16;++split) {
           if(!iterations || iterations%split)continue;
           Sm90ForwardStage c;c.tile_m=m;c.tile_n=n;c.split_k=split;
-          for(int slots:{2,3,4,6,8}){c.slots=slots;push(c);}
+          for(int slots:{2,3,4,5,6,7,8}){c.slots=slots;push(c);}
         }
         continue;
       }
@@ -422,6 +488,7 @@ std::vector<Sm90ForwardStage> Sm90ForwardSearchSpace::Candidates(std::size_t ind
       }
     }
   }else if(s.body==Sm90ForwardBody::kEncoderAttention) {
+    if(f3) {Sm90ForwardStage c;c.tile_m=128;push(c);return result;}
     auto seq=ForwardField(s.dnn1_geometry,"seq");
     for(int rows:{16,32,64,128})if(seq%rows==0) {Sm90ForwardStage c;c.tile_m=rows;push(c);}
   }else if(s.body==Sm90ForwardBody::kGemv) {
@@ -436,6 +503,8 @@ Sm90ForwardSearchResult SearchSm90Forward(Sm90ForwardSearchSpace const& space,
     Sm90ForwardCostModel const& cost,int top) {
   if(top!=4)throw std::invalid_argument("DNN1 compiles predicted top4; pass measure_top=4");
   if(space.shapes.empty())throw std::invalid_argument("forward search needs at least one stage");
+  if(space.abi!=cost.Abi())throw std::invalid_argument("search ABI differs from cost model");
+  bool f3=space.abi==Sm90ForwardAbi::kF3;
   std::vector<std::vector<std::size_t>> consumers(space.shapes.size());
   std::vector<int> producers(space.shapes.size(),-1);
   for(std::size_t i=0;i<space.shapes.size();++i) {
@@ -444,14 +513,14 @@ Sm90ForwardSearchResult SearchSm90Forward(Sm90ForwardSearchSpace const& space,
   }
   auto start=std::chrono::steady_clock::now();Sm90ForwardSearchResult result;
   std::vector<Sm90ForwardCandidate> pool;json::Array residency_receipts;
-  for(int residency:{1,2}) {
+  for(int residency:(f3?std::vector<int>{1}:std::vector<int>{1,2})) {
     std::vector<std::vector<Sm90ForwardStage>> options(space.shapes.size());
     std::vector<std::vector<double>> prices(space.shapes.size());json::Array stage_receipts;
     bool complete=true;
     for(std::size_t i=0;i<space.shapes.size();++i) {
       auto raw=space.Candidates(i,residency);int filtered=0;json::Array rejected;
       for(auto const& c:raw) {
-        auto resources=QuerySm90ForwardResources(space.shapes[i],c,space.target,residency);
+        auto resources=QuerySm90ForwardResources(space.shapes[i],c,space.target,residency,space.abi);
         if(!resources.feasible) {++filtered;rejected.emplace_back(json::Object{{"coordinate",c.ToJson()},
             {"resources",ResourceReceipt(resources)}});continue;}
         options[i].push_back(c);
@@ -464,7 +533,7 @@ Sm90ForwardSearchResult SearchSm90Forward(Sm90ForwardSearchSpace const& space,
         for(auto pool_index:consumers[i]) {
           auto pool_options=space.Candidates(pool_index,residency);
           if(pool_options.size()!=1)throw std::invalid_argument("linked pool must have exactly one coordinate");
-          auto pool_shape=Sm90ForwardCostModel::PoolShape(space.shapes,pool_index,c);
+          auto pool_shape=Sm90ForwardCostModel::PoolShape(space.shapes,pool_index,c,space.abi);
           price+=cost.Stage(pool_shape,pool_options.front(),residency);
         }
         prices[i].push_back(price);++result.evaluated;
@@ -475,12 +544,15 @@ Sm90ForwardSearchResult SearchSm90Forward(Sm90ForwardSearchSpace const& space,
       std::vector<std::size_t> order(options[i].size());std::iota(order.begin(),order.end(),0);
       std::stable_sort(order.begin(),order.end(),[&](auto a,auto b){return prices[i][a]<prices[i][b];});
       std::vector<Sm90ForwardStage> sorted;std::vector<double> sorted_prices;
+      auto ranked_count=order.size();
+      if(f3 && order.size()>16)order.resize(16);
       for(auto j:order){sorted.push_back(options[i][j]);sorted_prices.push_back(prices[i][j]);}
       options[i]=std::move(sorted);prices[i]=std::move(sorted_prices);
       json::Value chosen_terms=json::Object{{"resolution","program coordinates below"}};
       if(producers[i]<0)cost.Stage(space.shapes[i],options[i][0],residency,&chosen_terms);
       stage_receipts.emplace_back(json::Object{{"stage",int(i)},{"legal_candidate_count",int(raw.size())},
           {"shared_filtered_count",filtered},{"remaining_candidate_count",int(options[i].size())},
+          {"ranked_candidate_count",int(ranked_count)},
           {"selected",options[i][0].ToJson()},{"selected_terms",chosen_terms},
           {"linked_contribution_ns",prices[i][0]},{"pool_producer_stage",producers[i]},
           {"rejected",rejected}});
@@ -494,7 +566,7 @@ Sm90ForwardSearchResult SearchSm90Forward(Sm90ForwardSearchSpace const& space,
     std::stable_sort(contributions.begin(),contributions.end(),[&](auto a,auto b){return prices[a][0]>prices[b][0];});
     if(contributions.size()>8)contributions.resize(8);
     auto build=[&](std::size_t changed,std::string origin) {
-      Sm90ForwardCoordinates c;c.residency=residency;
+      Sm90ForwardCoordinates c;c.residency=residency;c.abi=space.abi;
       for(std::size_t i=0;i<options.size();++i)c.stages.push_back(options[i][i==changed?1:0]);
       auto prediction=cost.Predict(space.shapes,c);
       auto chosen_receipts=stage_receipts;
@@ -524,14 +596,16 @@ Sm90ForwardSearchResult SearchSm90Forward(Sm90ForwardSearchSpace const& space,
   if(pool.size()>4)pool.resize(4);
   result.ranked=std::move(pool);
   result.elapsed_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();
+  std::string bound=f3?"<=9 total; actual spanning first-byte rerank once; top4":
+      "<=9 per residency; <=18 total; global top4";
   result.receipt=json::Object{{"residencies",residency_receipts},{"program_candidate_count",int(programs)},
       {"compiled_top_count",int(result.ranked.size())},{"evaluated_stage_candidates",double(result.evaluated)},
-      {"bound_interpretation","<=9 per residency; <=18 total; global top4"},
+      {"bound_interpretation",bound},
       {"elapsed_ms",result.elapsed_ms},{"constants",cost.ForwardConstants().Receipt()}};
   for(auto& selected:result.ranked) {
     selected.search_receipt.Set("program_candidate_count",int(programs));
     selected.search_receipt.Set("compiled_top_count",int(result.ranked.size()));
-    selected.search_receipt.Set("bound_interpretation","<=9 per residency; <=18 total; global top4");
+    selected.search_receipt.Set("bound_interpretation",bound);
     selected.prediction.search_receipt=selected.search_receipt;
   }
   return result;

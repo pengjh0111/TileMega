@@ -272,6 +272,41 @@ void Dnn1EncodeGeometry(frontend::ModelPlan const& plan,std::size_t index,int ba
   g.Set("source","DnnModelPlan descriptors; explicit batch and A rows; logical width distinct from physical pitch");
   shape.dnn1_geometry=std::move(g);
 }
+void F3EncodeGeometry(frontend::ModelPlan const& plan,std::size_t index,
+    Sm90ForwardShape& shape) {
+  auto& g=shape.dnn1_geometry;
+  bool residual=false,deferred=false,residual_ln=false,activation=false;
+  std::vector<unsigned> vectors;
+  auto add=[&](unsigned id) {
+    if(id!=codegen::kDmNoIndex && std::find(vectors.begin(),vectors.end(),id)==vectors.end())
+      vectors.push_back(id);
+  };
+  if(shape.body==Sm90ForwardBody::kGemm || shape.body==Sm90ForwardBody::kConv) {
+    auto const& gemm=plan.gemms.at(plan.stages.at(index).gemm);
+    auto const& chain=gemm.chain;
+    shape.weight_bytes=2LL*plan.buffers.at(gemm.b).constant;
+    for(unsigned i=0;i<chain.count;++i) {
+      auto const& op=chain.operations[i];
+      using K=codegen::DmEpilogueKind;
+      switch(op.kind) {
+        case K::kBias:case K::kScale:add(op.parameter[0]);break;
+        case K::kActivation:activation=true;break;
+        case K::kResidual:residual=true;add(op.parameter[1]);break;
+        case K::kDeferredLayerNorm:
+          deferred=true;add(op.parameter[1]);add(op.parameter[2]);break;
+        case K::kResidualLN:
+          residual=residual_ln=true;add(op.parameter[2]);add(op.parameter[3]);break;
+        default:throw std::invalid_argument("unsupported F3 resource epilogue operation");
+      }
+    }
+  }
+  if(vectors.size()>4)throw std::invalid_argument("F3 epilogue has over four vectors");
+  auto chain=Sm90F3ClassOf(residual,deferred,residual_ln,
+      g.At("has_row_stats").AsBool("row statistics"),activation,
+      shape.mode==Sm90ForwardMode::kSwapAB);
+  g.Set("f3_vectors",int(vectors.size()));g.Set("f3_residual",residual);
+  g.Set("f3_chain_class",kSm90F3ChainClasses[unsigned(chain)]);
+}
 }  // namespace
 
 Sm90ForwardMode Sm90ForwardModeOf(frontend::ModelPlan const& plan,std::size_t index,
@@ -331,7 +366,9 @@ std::vector<Sm90ForwardShape> Sm90ForwardShapesFromPlan(frontend::ModelPlan cons
           shape.pixels=shape.m;shape.channels=c.c;shape.out_channels=c.k;
           shape.kernel=int(c.r);shape.stride=int(c.stride_h);
         }else {
-          shape.m=plan.buffers.at(gemm.a).layout.physical[0];
+          shape.m=abi==Sm90ForwardAbi::kF3?
+              std::int64_t(gemm.access.rows_per_batch)*batch:
+              plan.buffers.at(gemm.a).layout.physical[0];
           shape.pixels=shape.m;shape.channels=gemm.k;shape.out_channels=gemm.n;
         }
         shape.weight_bytes=2*shape.n*shape.k;
@@ -407,6 +444,7 @@ std::vector<Sm90ForwardShape> Sm90ForwardShapesFromPlan(frontend::ModelPlan cons
       shape.m=std::int64_t(stage.extent)*stage.width;shape.n=stage.width;shape.k=stage.group;
     }
     Dnn1EncodeGeometry(plan,index,batch,shape);
+    if(abi==Sm90ForwardAbi::kF3)F3EncodeGeometry(plan,index,shape);
     shapes.push_back(shape);
   }
   return shapes;
