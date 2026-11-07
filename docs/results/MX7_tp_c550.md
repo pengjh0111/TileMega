@@ -1,4 +1,4 @@
-# MX-7: Qwen3-1.7B TP2 / TP4 on C550
+# MX-7: Qwen3-1.7B TP2 / TP4 / TP8 on C550
 
 Evidence: **verified** = executed or source-checked here; **stated** = specification/remote report; **inferred** = reasoning.
 BF16 greedy, ISL/OSL=64/1024. Raw successes, failures, generated sources and binaries remain under `runs/mx7/`.
@@ -6,7 +6,7 @@ BF16 greedy, ISL/OSL=64/1024. Raw successes, failures, generated sources and bin
 ## Scope and identity
 
 - **verified** `tilemega-metax`, MX-7 start `6cab45b9604e306fef1916863fe16b09d895c32f`, SM90 audit start `a7c4a7968a787a5bf5a36fbbfc6532ae1de7a176`.
-- **verified** aggregation HEAD `a1f86508a8d1d171dac1870972b2b0125f88ebf2`;115 commits since MX-7 start; publication commit follows.
+- **verified** TP2/TP4 aggregation HEAD `a1f86508a8d1d171dac1870972b2b0125f88ebf2`;115 commits since MX-7 start; historical publication follows.
 - **verified** prompt SHA256 `5caed7edd4477b8fb63d33bed9254bbc4e33d92041eb5969113fefeb805d7cee`.
 - **verified** resume1 SHA256 `f67014253a3cca7234429ff3671e293c0104fb04b68fde1bb9dc52b518c0b284`.
 - **stated** later user authorization: all GPUs; SDK-owned ExternalStream adapter; baselines measured once; compare SM90 and optimize TP bodies.
@@ -229,3 +229,19 @@ Per-card hours: 0=0.080, 1=16.990, 2=8.110, 3=17.017, 4=5.465, 5=13.581, 6=2.681
 **verified** new ten-cell solver selection, final E2E/C-1/C-2, four delay cohorts and two final traces are complete.
 **verified** all required CSVs and selected pins are present; external baselines and protected MoE paths are unchanged.
 **inferred** no unimplemented correctness gate remains; performance targets are expectations, not acceptance gates.
+
+## TP8 final update (user-stopped validation)
+
+**verified** all15 TP8 external baseline cells are frozen. B1/B2/B4/B8 retain original TileMega data; only B16 changes. BF16 greedy, ISL/OSL64/1024; TPOT in ms.
+**verified** TP8 optimization code HEAD `2efd59ae6`; data publication follows. All new GPU work has stopped at the user's instruction.
+
+| B | vLLM | SGLang | torch.compile | TileMega | fastest/TM |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 2.942771 | 2.397910 | 17.341626 | 1.821471 | 1.316x |
+| 2 | 3.217482 | 2.723171 | 18.446115 | 1.882461 | 1.447x |
+| 4 | 3.558092 | 2.778020 | 19.267516 | 1.983761 | 1.400x |
+| 8 | 3.390532 | 2.824548 | 19.619999 | 2.199825 | 1.284x |
+| 16 | 3.555431 | 3.000452 | 18.769523 | 2.676431 | 1.121x |
+
+**verified** new B16 C-1,5/5 C-2 and resources pass; new delay checks complete2/5, remaining work explicitly cancelled by the user. No complete new synchronization gate is claimed.
+Detailed performance/provenance and the cancellation: [TP8 report](MX7_tp8_optimization_c550.md); [current20-cell table](MX7_tp8_final_c550.csv).

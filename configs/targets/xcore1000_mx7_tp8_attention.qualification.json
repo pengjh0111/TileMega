@@ -1,0 +1,506 @@
+{
+  "solver_eligible": true,
+  "cost_table_sha256": "708867761fd24e6e1839c2e41b35c5425358d425cc35178874f00f8690493bdd",
+  "kind": "mx7_tp_measured_stage_costs",
+  "complete_scopes": 5,
+  "source_digest": "ae3bf259d5e54b67a4898a04d17f9a48034b2ab7e81d6b889d74c99c92c793d6",
+  "history": [
+    {
+      "path": "/root/tilemega/runs/mx7/tp8_opt/attention/run/jobs/aggregate/attempt000/catalog.json",
+      "sha256": "0fd8a69219e1a78dd36753533ff2d2218fc0ef8508f5aba481dcb7aeeb0b5bb9"
+    }
+  ],
+  "component_catalogs": [
+    {
+      "path": "/root/tilemega/runs/mx7/tp8_queue/jobs/qualify_costs/attempt000/costs.json",
+      "sha256": "4c74597bedb17b0fa6df6c79a53c7bcb02d7b10a9c91167d307221be8cc0b668"
+    },
+    {
+      "path": "/root/tilemega/runs/mx7/tp8_opt/attention/run/jobs/aggregate/attempt000/catalog.json",
+      "sha256": "0fd8a69219e1a78dd36753533ff2d2218fc0ef8508f5aba481dcb7aeeb0b5bb9"
+    }
+  ],
+  "supplement_requested_keys": 1,
+  "noisy_keys": [
+    {
+      "key": {
+        "model": "qwen3_1_7b_tp8",
+        "b": 1,
+        "stage": "qkv",
+        "n": 512,
+        "k": 2048,
+        "tn": 32,
+        "wn": 1,
+        "d": 2,
+        "part": 0,
+        "op": 0,
+        "norm": 1,
+        "hidden": 2048,
+        "intermediate": 768,
+        "epsilon": 1e-06,
+        "tp": 8,
+        "first_chunks": 0,
+        "prefetch": 2,
+        "r_next": 119
+      },
+      "p90_ns": 13050.0
+    },
+    {
+      "key": {
+        "model": "qwen3_1_7b_tp8",
+        "b": 1,
+        "stage": "o",
+        "n": 2048,
+        "k": 256,
+        "tn": 32,
+        "wn": 1,
+        "d": 1,
+        "part": 1,
+        "op": 1,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 768,
+        "epsilon": 1e-06,
+        "tp": 8,
+        "first_chunks": 0,
+        "prefetch": 1,
+        "r_next": 62
+      },
+      "p90_ns": 4110.0
+    },
+    {
+      "key": {
+        "model": "qwen3_1_7b_tp8",
+        "b": 1,
+        "stage": "o",
+        "n": 2048,
+        "k": 256,
+        "tn": 32,
+        "wn": 1,
+        "d": 3,
+        "part": 1,
+        "op": 1,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 768,
+        "epsilon": 1e-06,
+        "tp": 8,
+        "first_chunks": 0,
+        "prefetch": 3,
+        "r_next": 52
+      },
+      "p90_ns": 4110.0
+    },
+    {
+      "key": {
+        "model": "qwen3_1_7b_tp8",
+        "b": 1,
+        "stage": "o",
+        "n": 2048,
+        "k": 256,
+        "tn": 32,
+        "wn": 1,
+        "d": 4,
+        "part": 0,
+        "op": 1,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 768,
+        "epsilon": 1e-06,
+        "tp": 8,
+        "first_chunks": 0,
+        "prefetch": 4,
+        "r_next": 149
+      },
+      "p90_ns": 15250.0
+    },
+    {
+      "key": {
+        "model": "qwen3_1_7b_tp8",
+        "b": 1,
+        "stage": "gate_up",
+        "n": 1536,
+        "k": 2048,
+        "tn": 128,
+        "wn": 1,
+        "d": 1,
+        "part": 0,
+        "op": 2,
+        "norm": 1,
+        "hidden": 2048,
+        "intermediate": 768,
+        "epsilon": 1e-06,
+        "tp": 8,
+        "first_chunks": 0,
+        "prefetch": 1,
+        "r_next": 127
+      },
+      "p90_ns": 19534.0
+    },
+    {
+      "key": {
+        "model": "qwen3_1_7b_tp8",
+        "b": 2,
+        "stage": "qkv",
+        "n": 512,
+        "k": 2048,
+        "tn": 16,
+        "wn": 1,
+        "d": 2,
+        "part": 0,
+        "op": 0,
+        "norm": 1,
+        "hidden": 2048,
+        "intermediate": 768,
+        "epsilon": 1e-06,
+        "tp": 8,
+        "first_chunks": 0,
+        "prefetch": 2,
+        "r_next": 97
+      },
+      "p90_ns": 13342.0
+    },
+    {
+      "key": {
+        "model": "qwen3_1_7b_tp8",
+        "b": 2,
+        "stage": "o",
+        "n": 2048,
+        "k": 256,
+        "tn": 64,
+        "wn": 1,
+        "d": 2,
+        "part": 1,
+        "op": 1,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 768,
+        "epsilon": 1e-06,
+        "tp": 8,
+        "first_chunks": 0,
+        "prefetch": 2,
+        "r_next": 82
+      },
+      "p90_ns": 4434.0
+    },
+    {
+      "key": {
+        "model": "qwen3_1_7b_tp8",
+        "b": 2,
+        "stage": "gate_up",
+        "n": 1536,
+        "k": 2048,
+        "tn": 32,
+        "wn": 1,
+        "d": 4,
+        "part": 0,
+        "op": 2,
+        "norm": 1,
+        "hidden": 2048,
+        "intermediate": 768,
+        "epsilon": 1e-06,
+        "tp": 8,
+        "first_chunks": 0,
+        "prefetch": 4,
+        "r_next": 149
+      },
+      "p90_ns": 21690.0
+    },
+    {
+      "key": {
+        "model": "qwen3_1_7b_tp8",
+        "b": 4,
+        "stage": "o",
+        "n": 2048,
+        "k": 256,
+        "tn": 32,
+        "wn": 1,
+        "d": 1,
+        "part": 1,
+        "op": 1,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 768,
+        "epsilon": 1e-06,
+        "tp": 8,
+        "first_chunks": 0,
+        "prefetch": 1,
+        "r_next": 66
+      },
+      "p90_ns": 4180.0
+    },
+    {
+      "key": {
+        "model": "qwen3_1_7b_tp8",
+        "b": 8,
+        "stage": "o",
+        "n": 2048,
+        "k": 256,
+        "tn": 32,
+        "wn": 1,
+        "d": 4,
+        "part": 1,
+        "op": 1,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 768,
+        "epsilon": 1e-06,
+        "tp": 8,
+        "first_chunks": 0,
+        "prefetch": 4,
+        "r_next": 56
+      },
+      "p90_ns": 4690.0
+    },
+    {
+      "key": {
+        "model": "qwen3_1_7b_tp8",
+        "b": 8,
+        "stage": "o",
+        "n": 2048,
+        "k": 256,
+        "tn": 64,
+        "wn": 1,
+        "d": 1,
+        "part": 1,
+        "op": 1,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 768,
+        "epsilon": 1e-06,
+        "tp": 8,
+        "first_chunks": 0,
+        "prefetch": 1,
+        "r_next": 82
+      },
+      "p90_ns": 5310.0
+    },
+    {
+      "key": {
+        "model": "qwen3_1_7b_tp8",
+        "b": 16,
+        "stage": "o",
+        "n": 2048,
+        "k": 256,
+        "tn": 32,
+        "wn": 1,
+        "d": 2,
+        "part": 1,
+        "op": 1,
+        "norm": 0,
+        "hidden": 2048,
+        "intermediate": 768,
+        "epsilon": 1e-06,
+        "tp": 8,
+        "first_chunks": 0,
+        "prefetch": 2,
+        "r_next": 64
+      },
+      "p90_ns": 5260.0
+    },
+    {
+      "key": {
+        "model": "qwen3_1_7b_tp8",
+        "b": 1,
+        "stage": "attention",
+        "dim": 128,
+        "q": 2,
+        "hkv": 1,
+        "prefetch": 0,
+        "b_min": 1,
+        "attn_version": 2,
+        "epsilon": 1e-06,
+        "tp": 8,
+        "length": 512
+      },
+      "p90_ns": 21320.0
+    },
+    {
+      "key": {
+        "model": "qwen3_1_7b_tp8",
+        "b": 1,
+        "stage": "attention",
+        "dim": 128,
+        "q": 2,
+        "hkv": 1,
+        "prefetch": 0,
+        "b_min": 1,
+        "attn_version": 2,
+        "epsilon": 1e-06,
+        "tp": 8,
+        "length": 1088
+      },
+      "p90_ns": 24590.0
+    },
+    {
+      "key": {
+        "model": "qwen3_1_7b_tp8",
+        "b": 1,
+        "stage": "attention",
+        "dim": 128,
+        "q": 2,
+        "hkv": 1,
+        "prefetch": 0,
+        "b_min": 2,
+        "attn_version": 2,
+        "epsilon": 1e-06,
+        "tp": 8,
+        "length": 768
+      },
+      "p90_ns": 22087.0
+    },
+    {
+      "key": {
+        "model": "qwen3_1_7b_tp8",
+        "b": 1,
+        "stage": "attention",
+        "dim": 128,
+        "q": 2,
+        "hkv": 1,
+        "prefetch": 1,
+        "b_min": 1,
+        "attn_version": 2,
+        "epsilon": 1e-06,
+        "tp": 8,
+        "length": 512
+      },
+      "p90_ns": 22110.0
+    },
+    {
+      "key": {
+        "model": "qwen3_1_7b_tp8",
+        "b": 1,
+        "stage": "attention",
+        "dim": 128,
+        "q": 2,
+        "hkv": 1,
+        "prefetch": 1,
+        "b_min": 1,
+        "attn_version": 2,
+        "epsilon": 1e-06,
+        "tp": 8,
+        "length": 768
+      },
+      "p90_ns": 23330.0
+    },
+    {
+      "key": {
+        "model": "qwen3_1_7b_tp8",
+        "b": 1,
+        "stage": "attention",
+        "dim": 128,
+        "q": 2,
+        "hkv": 1,
+        "prefetch": 1,
+        "b_min": 1,
+        "attn_version": 2,
+        "epsilon": 1e-06,
+        "tp": 8,
+        "length": 1088
+      },
+      "p90_ns": 25650.0
+    },
+    {
+      "key": {
+        "model": "qwen3_1_7b_tp8",
+        "b": 1,
+        "stage": "attention",
+        "dim": 128,
+        "q": 2,
+        "hkv": 1,
+        "prefetch": 1,
+        "b_min": 2,
+        "attn_version": 2,
+        "epsilon": 1e-06,
+        "tp": 8,
+        "length": 256
+      },
+      "p90_ns": 22012.0
+    },
+    {
+      "key": {
+        "model": "qwen3_1_7b_tp8",
+        "b": 1,
+        "stage": "attention",
+        "dim": 128,
+        "q": 2,
+        "hkv": 1,
+        "prefetch": 1,
+        "b_min": 2,
+        "attn_version": 2,
+        "epsilon": 1e-06,
+        "tp": 8,
+        "length": 768
+      },
+      "p90_ns": 22930.0
+    },
+    {
+      "key": {
+        "model": "qwen3_1_7b_tp8",
+        "b": 2,
+        "stage": "attention",
+        "dim": 128,
+        "q": 2,
+        "hkv": 1,
+        "prefetch": 1,
+        "b_min": 1,
+        "attn_version": 2,
+        "epsilon": 1e-06,
+        "tp": 8,
+        "length": 512
+      },
+      "p90_ns": 23070.0
+    },
+    {
+      "key": {
+        "model": "qwen3_1_7b_tp8",
+        "b": 4,
+        "stage": "attention",
+        "dim": 128,
+        "q": 2,
+        "hkv": 1,
+        "prefetch": 0,
+        "b_min": 1,
+        "attn_version": 2,
+        "epsilon": 1e-06,
+        "tp": 8,
+        "length": 768
+      },
+      "p90_ns": 23438.0
+    },
+    {
+      "key": {
+        "model": "qwen3_1_7b_tp8",
+        "b": 16,
+        "stage": "attention",
+        "dim": 128,
+        "q": 2,
+        "hkv": 1,
+        "prefetch": 0,
+        "b_min": 1,
+        "attn_version": 2,
+        "epsilon": 1e-06,
+        "tp": 8,
+        "length": 1088
+      },
+      "p90_ns": 38895.0
+    },
+    {
+      "key": {
+        "model": "qwen3_1_7b_tp8",
+        "b": 1,
+        "stage": "attention",
+        "dim": 128,
+        "q": 2,
+        "hkv": 1,
+        "prefetch": 0,
+        "attn_version": 3,
+        "epsilon": 1e-06,
+        "tp": 8,
+        "split": 4,
+        "length": 768
+      },
+      "p90_ns": 25167.0
+    }
+  ]
+}
