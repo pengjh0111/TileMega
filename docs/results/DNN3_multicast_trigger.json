@@ -1,0 +1,50 @@
+{
+  "evidence": "verified",
+  "decision": "DT-MC",
+  "checkpoint": "runs/dnn3/cp3_v12.json",
+  "checkpoint_sha256": "8ae85e8b1050ace040d9a554ef31326c167e7435985ca4f10fbbb0700902f60d",
+  "model": "bert",
+  "batch": 16,
+  "gpu": 3,
+  "smoke": "runs/dnn3/f3_cp3_smoke_v12/bert_b16/smoke_gpu3/result.json",
+  "smoke_sha256": "228dbcd8f7e61d256e7d49fffdf24e799f30b81740d9f61719dda07fca8f1fb0",
+  "smoke_ms": 2.221808075904846,
+  "fastest_frozen_arm": "torchcompile-max-autotune-freezing",
+  "baseline_ms": 1.0868639945983887,
+  "baseline_csv_sha256": "5f0288c1a68a3d02481ba54dbb49943275a0372934921039d4985e4a43997917",
+  "ratio": 2.04423744548262,
+  "threshold": 0.95,
+  "branch": "enable_private_MC_validation",
+  "qualification": "provisional_container_pid_namespace; frozen baseline comparison per DT-MC; end-to-end acceptance still required",
+  "accepted_coordinate_comparison": {
+    "reference_ms": 2.0910719633102417,
+    "relative_difference": 0.06252109678121487,
+    "changed_coordinate_rows": 61,
+    "changed_fields": {
+      "slots": 49,
+      "tile_m": 12,
+      "tile_n": 24,
+      "split_k": 1
+    },
+    "raw_difference_report": "runs/dnn3/f3_cp3_smoke_v12/bert_coordinate_differences.json",
+    "interpretation": "verified coordinate changes and timing difference; cause not isolated; current headers identical; top4 P-SEL pending"
+  },
+  "unit_gate": {
+    "status": "passed",
+    "result": "runs/dnn3/f3_multicast_v13/raw/dnn3-multicast-unit/attempt1/cohort/result.json",
+    "sha256": "1af3399f246dbb76c7e136f34190c28f323d691de564f0b4a2798f91baa5f25f",
+    "guard_sha256": "db193a91994b20d7cd87e4418441c2b8ecca1a78e7dd8208d4b32f0e0eeb0f02",
+    "passes": {
+      "unit": "5/5",
+      "memcheck": "1/1",
+      "initcheck": "1/1",
+      "racecheck": "5/5",
+      "synccheck": "5/5"
+    },
+    "fresh_pids": 17,
+    "output_hash": "462c4f883f0683a4",
+    "binary_sha256": "5f6ae60c85dfc0c4d5a0e9d5535b98f80b790448cf0ce82423bd47502ba8c476",
+    "source_sha256": "6318fa63e2851ca1774dc07652fa11a36866b53731dde23a7c1984f53ac98895"
+  },
+  "acceptance": "private unit protocol accepted; full model gates and E2E still pending"
+}

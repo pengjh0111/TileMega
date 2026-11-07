@@ -72,9 +72,16 @@
     "status": "passed"
   },
   "native_gate": {
-    "checkpoint": "DNN3_cp3_v12.json",
-    "status": "passed20_rank0",
-    "remaining": "top4 native80 and runtime residency/P-SEL; production table remains isolated"
+    "status": "passed",
+    "source": "runs/dnn3/f3_compile80_v12/result.json",
+    "sha256": "e947e9d9db0f755f78ea6a80e4df6211fafe94d9f50ab83d051d661da39cc2a9",
+    "candidates": 80,
+    "spill_max": 0,
+    "entry_register_max": 168,
+    "artifact_identity_verifications": "80/80",
+    "table": "DNN3_native_v12.csv",
+    "table_sha256": "0a224e810a395fae565851ab8ee5644d5cc5902f569645a389a345674b27daa4",
+    "remaining": "runtime residency, P-SEL/P-CORR/P-DNN and Phase M E2E acceptance remain separate; production table isolated"
   },
   "rejected_probe_builds": [
     {
