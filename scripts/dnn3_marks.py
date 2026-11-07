@@ -121,7 +121,7 @@ def main():
     if args.reference:
         args.reference = args.reference.resolve()
         accepted = verify(args.reference)
-        if accepted['trace'] or accepted['plan']['coordinates_sha256'] != identity['plan']['coordinates_sha256']:
+        if accepted['trace'] or accepted['plan']['native_forward'] != identity['plan']['native_forward']:
             raise ValueError('trace reference must be non-trace and use identical coordinates')
     entries = [r for name, r in identity['resources'].items() if 'sm90_forward_f3_kernel' in name]
     if len(entries) != 1 or entries[0]['registers'] > 168:
