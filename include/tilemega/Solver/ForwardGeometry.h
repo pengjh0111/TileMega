@@ -58,6 +58,33 @@ inline int Sm90ForwardArenaBytes(TargetSpec const& target,int residency) {
   if(arena<1024)throw std::invalid_argument("target leaves no forward arena");
   return arena;
 }
+// DT-SPILL / §13 U1, measured by `scripts/dnn3_spill_sweep.py` on nvcc 12.8.93
+// (receipt `runs/dnn3/spill/spill.json`). A `__noinline__` consumer — which
+// §5.4 item 2 requires so BERT's twelve identical layers share one body — is
+// allocated at most 168 registers by ptxas whatever register ceiling the build
+// passes. A warpgroup accumulator of 128 FP32 therefore never fits, and even
+// 64 FP32 spills once the chain also holds a residual tile and three vectors.
+// These shapes leave the legal set rather than run with spill traffic.
+//
+// `residual` is what costs the headroom: its shared read and the extra live
+// address per element are what push a 64-float accumulator over the ABI cap.
+inline bool Sm90F3TileFeasible(int tile_m,int tile_n,bool residual,int vectors,
+    bool row_stats) {
+  (void)vectors;
+  // Per-thread accumulator floats: a 64-row tile splits its columns, a taller
+  // one splits its rows and a 256-row tile holds two 64-row accumulators.
+  int wg_cols=tile_m==64?tile_n/2:tile_n;
+  int sub_tiles=tile_m==256?2:1;
+  int accumulator=sub_tiles*64*wg_cols/128;
+  if(accumulator>64)return false;
+  if(accumulator<64)return true;
+  // Measured: at a full 64-float accumulator a residual chain still fits while
+  // its warpgroup owns at most 64 columns and one accumulator, and spills once
+  // it owns 128 columns or a second accumulator with the row-statistics pass.
+  if(residual && wg_cols>=128)return false;
+  if(residual && row_stats && sub_tiles==2)return false;
+  return true;
+}
 // F3 fixes the GAP producer's partial-sum granularity at 64 rows (DNN3 prompt
 // §4 F-7): one slot per (image, 64-row block). A dense M tile may straddle two
 // images, so a block's leading overlap gets its own slot. The plan and the
