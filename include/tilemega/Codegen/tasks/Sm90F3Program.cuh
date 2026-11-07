@@ -170,7 +170,9 @@ struct SmallStage {
   template<class B>
   __device__ static __forceinline__ void Consume(B const& b,backend::Sm90F3Ring& ring,
       char* arena,char*,backend::Sm90F3Phase& phase,backend::Sm90F3Header* header,int wg) {
+    TM_F3_TRACE_BEGIN(kSmallCompute);
     Body::Consume(Operands(b),ring,arena,phase,header,wg);
+    TM_F3_TRACE_END(kSmallCompute);
   }
 };
 
@@ -246,16 +248,19 @@ struct Program {
     auto* header=reinterpret_cast<backend::Sm90F3Header*>(shared);
     backend::Sm90F3Phase phase[2]{};
     int wg=int(threadIdx.x)/128;
-    ((ConsumeOne<I>(b,shared,header,phase,wg),Gate<I>(events,epoch,true)),...);
+    ((ConsumeOne<I>(b,shared,header,phase,wg),Gate<I>(events,epoch,true),TraceLeave()),...);
   }
+  __device__ static __forceinline__ void TraceLeave() {TM_F3_TRACE_LEAVE();}
   template<unsigned I>
   __device__ static __forceinline__ void ConsumeOne(Binding const& b,char* shared,
       backend::Sm90F3Header* header,backend::Sm90F3Phase (&phase)[2],int wg) {
     using S=At<I>;
+    TM_F3_TRACE_ENTER(I);
     auto* arena=Arena(shared,S::kOffset);
     // A spanning stage owns both arenas, so its slots start at the header.
     auto* side=arena+SideOffset<I>();
     S::template Consume<Binding>(b,header->rings[I%2],arena,side,phase[I%2],header,wg);
+    TM_F3_TRACE_ARRIVE();
   }
   template<unsigned I>
   static constexpr int Prefix() {

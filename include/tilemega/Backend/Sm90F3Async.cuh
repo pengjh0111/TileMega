@@ -13,6 +13,12 @@ namespace tilemega::backend {
 struct Sm90F3Async {
   using Base=codegen::executor::Async<arch::Sm90>;
 
+  __device__ static __forceinline__ unsigned long long GlobalTimer() {
+    unsigned long long value;
+    asm volatile("mov.u64 %0, %%globaltimer;":"=l"(value)::"memory");
+    return value;
+  }
+
   // Register attention operands use the SM80 warp MMA layout unchanged.
   __device__ static __forceinline__ void MatrixLoad4(unsigned (&r)[4],unsigned address) {
     asm volatile("ldmatrix.sync.aligned.m8n8.x4.shared.b16 {%0,%1,%2,%3}, [%4];"

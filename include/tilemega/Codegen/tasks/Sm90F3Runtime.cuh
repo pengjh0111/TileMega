@@ -185,3 +185,40 @@ extern "C" int tm_plan_read_buffer(void* opaque,std::uint32_t index,void* host,
 extern "C" void tm_plan_destroy(void* opaque) {
   delete static_cast<tilemega::codegen::forward_f3::Plan*>(opaque);
 }
+
+#if TILEMEGA_TRACE_STAGE
+extern "C" unsigned tm_forward_trace_schema() {return 1;}
+extern "C" unsigned tm_forward_trace_stages() {return TILEMEGA_FORWARD_TRACE_STAGES;}
+extern "C" unsigned tm_forward_trace_grid() {return TILEMEGA_FORWARD_TRACE_GRID;}
+extern "C" unsigned tm_forward_trace_segments() {
+  return tilemega::backend::kSm90F3TraceSegments;
+}
+extern "C" unsigned tm_forward_trace_record_bytes() {
+  return sizeof(tilemega::backend::Sm90F3TraceRecord);
+}
+extern "C" unsigned long long tm_forward_trace_bytes() {
+  return sizeof(tilemega::backend::sm90_f3_trace_records);
+}
+extern "C" char const* tm_forward_trace_segment_name(unsigned index) {
+  using namespace tilemega::backend;
+  return index<kSm90F3TraceSegments?kSm90F3TraceNames[index]:nullptr;
+}
+extern "C" int tm_forward_trace_reset() {
+  using namespace tilemega::backend;
+  auto status=cudaDeviceSynchronize();
+  if(status!=cudaSuccess)return int(status);
+  void* pointer=nullptr;
+  status=cudaGetSymbolAddress(&pointer,sm90_f3_trace_records);
+  if(status==cudaSuccess)status=cudaMemset(pointer,0,sizeof(sm90_f3_trace_records));
+  if(status==cudaSuccess)status=cudaDeviceSynchronize();
+  return int(status);
+}
+extern "C" int tm_forward_trace_copy(void* output,unsigned long long bytes) {
+  using namespace tilemega::backend;
+  if(!output || bytes!=sizeof(sm90_f3_trace_records))return -1;
+  auto status=cudaDeviceSynchronize();
+  if(status==cudaSuccess)
+    status=cudaMemcpyFromSymbol(output,sm90_f3_trace_records,sizeof(sm90_f3_trace_records));
+  return int(status);
+}
+#endif

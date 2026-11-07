@@ -190,6 +190,13 @@ F3Chain EmitF3Chain(codegen::DmEpilogueChain const& chain,int tile_m,int tile_n,
 }  // namespace
 
 std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
+  int trace_level=0;
+  if(auto* setting=std::getenv("TILEMEGA_TRACE_STAGE")) {
+    std::string value(setting);
+    if(value!="0" && value!="1" && value!="2")
+      throw std::invalid_argument("TILEMEGA_TRACE_STAGE must be 0, 1 or 2");
+    trace_level=value[0]-'0';
+  }
   auto plan=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
   auto text=module->getAttrOfType<mlir::StringAttr>("tmexec.sm90_forward");
   if(!plan || !text)
@@ -234,6 +241,12 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
      <<"// Generated from a DnnModelPlan and F3 forward coordinates.\n"
      <<"#define TILEMEGA_STATIC_FORWARD_F3 1\n#define TILEMEGA_ARCH_ID 900\n"
      <<"#define TM_DTYPE_I64 3\n"
+     <<"#define TILEMEGA_TRACE_STAGE "<<trace_level<<"\n"
+     <<"#if TILEMEGA_TRACE_STAGE\n"
+     <<"#define TILEMEGA_FORWARD_TRACE_STAGES "<<stages.size()<<"\n"
+     <<"#define TILEMEGA_FORWARD_TRACE_GRID "
+     <<module->getAttrOfType<mlir::IntegerAttr>("tmexec.sm90_forward_grid").getInt()<<"\n"
+     <<"#endif\n"
      <<"#include <tilemega/Codegen/tasks/Sm90F3Program.cuh>\n\n"
      <<"namespace tilemega::codegen::forward_f3 {\n"
      <<"using namespace tilemega::backend;\n"

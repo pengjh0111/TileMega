@@ -4,6 +4,7 @@
 #include <tilemega/Backend/Sm90F3Async.cuh>
 #include <tilemega/Backend/Sm90F3Epilogue.cuh>
 #include <tilemega/Backend/Sm90F3Ring.cuh>
+#include <tilemega/Backend/Sm90F3Mark.cuh>
 #include <tilemega/Backend/Sm90Gmma.h>
 #include <cute/tensor.hpp>
 #include <type_traits>
@@ -196,6 +197,7 @@ struct Sm90F3Gemm {
     int previous=-1;
     for(int k=0;k<iterations;++k) {
       int slot=(first_slot+k)%Slots;
+      TM_F3_TRACE_BEGIN(kSlotWait);
       if constexpr(Mode==Sm90F3Mode::kGather) {
         Base::Wait(ring.gfull+slot,phase.Bit(phase.gather,slot));
         phase.gather^=1u<<slot;
@@ -207,6 +209,8 @@ struct Sm90F3Gemm {
         phase.full^=1u<<slot;
       }
       auto* a=SlotA(arena,slot);
+      TM_F3_TRACE_END(kSlotWait);
+      TM_F3_TRACE_FIRST_READY();
       auto* b=SlotB(arena,slot);
       #pragma unroll
       for(int s=0;s<Split::kSubTiles;++s) {
@@ -321,9 +325,12 @@ struct Sm90F3Gemm {
     auto owned=mma.get_slice(int(threadIdx.x)%128).partition_C(
         make_identity_tensor(cute::Shape<cute::_64,cute::Int<Split::kWgCols>>{}));
     if constexpr(Chain::kNeedsResidual || kVectors>0 || Chain::kNeedsStats) {
+      TM_F3_TRACE_BEGIN(kSideWait);
       Base::Wait(&ring.side_full,phase.side_full&1u);
       phase.side_full^=1u;
+      TM_F3_TRACE_END(kSideWait);
     }
+    TM_F3_TRACE_BEGIN(kEpilogue);
     auto const& e=p.epilogue;
     constexpr int kElements=int(cute::size(Fragment{}));
     // Every SM90 GMMA FP32 accumulator lays its fastest value mode out as the
@@ -367,6 +374,22 @@ struct Sm90F3Gemm {
               row_accum.square[s][(i%4)/2]+=tile(i+1)*tile(i+1);
             }
           }
+#if !TILEMEGA_TRACE_STAGE
+          if(tile_row>=live_rows || tile_col>=width)continue;
+          auto* address=output+std::size_t(m_tile*TM+tile_row)*stride+n_tile*TN+tile_col;
+          if(tile_col+1<width) {
+            Element low(tile(i)),high(tile(i+1));
+            Async::Store32(address,unsigned(low.raw())|(unsigned(high.raw())<<16));
+          }else *address=Element(tile(i));
+#endif
+        }
+#if TILEMEGA_TRACE_STAGE
+        TM_F3_TRACE_BEGIN(kStore);
+        CUTE_UNROLL
+        for(int i=0;i<kElements;i+=2) {
+          if(get<1>(owned(i))/64!=block)continue;
+          int tile_row,tile_col;
+          Coordinate(wg,s,get<0>(owned(i)),get<1>(owned(i)),tile_row,tile_col);
           if(tile_row>=live_rows || tile_col>=width)continue;
           auto* address=output+std::size_t(m_tile*TM+tile_row)*stride+n_tile*TN+tile_col;
           if(tile_col+1<width) {
@@ -374,11 +397,14 @@ struct Sm90F3Gemm {
             Async::Store32(address,unsigned(low.raw())|(unsigned(high.raw())<<16));
           }else *address=Element(tile(i));
         }
+        TM_F3_TRACE_END(kStore);
+#endif
       }
     }
     PoolPartials(p,reinterpret_cast<char*>(arena_base),accumulators,owned,wg,
         m_tile,n_tile,live_rows,width);
     RowStats(p,row_accum,owned,wg,m_tile,n_tile,live_rows,header);
+    TM_F3_TRACE_END(kEpilogue);
     if constexpr(Chain::kNeedsResidual || kVectors>0 || Chain::kNeedsStats) {
       Async::template NamedBarrier<Sm90F3Async::kBarConsumers,256>();
       if((threadIdx.x&31)==0)Base::Arrive(&ring.side_empty);
@@ -659,7 +685,9 @@ struct Sm90F3Gemm {
     Accumulators accum;
     for(int local=0;local<tasks;++local) {
       int task=Task(local),m_tile=MTile(task),n_tile=NTile(task);
+      TM_F3_TRACE_BEGIN(kMainLoop);
       MainLoop(ring,arena,phase,accum,wg,(local*kIterations)%Slots,kIterations);
+      TM_F3_TRACE_END(kMainLoop);
       if constexpr(SplitK==1) {
         Epilogue(p,ring,side,phase,accum,wg,m_tile,n_tile,LiveRows(m_tile),Width(n_tile),header,arena);
       }else {
@@ -682,6 +710,7 @@ struct Sm90F3Gemm {
     auto owned=mma.get_slice(int(threadIdx.x)%128).partition_C(
         make_identity_tensor(cute::Shape<cute::_64,cute::Int<Split::kWgCols>>{}));
     int tile=m_tile*kTiles+n_tile,slice=Slice(task);
+    TM_F3_TRACE_BEGIN(kSplitK);
     auto* base=p.epilogue.partial+(std::size_t(tile)*SplitK+slice)*TM*TN;
     #pragma unroll
     for(int s=0;s<Split::kSubTiles;++s) {
@@ -708,6 +737,7 @@ struct Sm90F3Gemm {
         __syncwarp();
         if((threadIdx.x&31)==0)Base::Arrive(&ring.side_empty);
       }
+      TM_F3_TRACE_END(kSplitK);
       return;
     }
     #pragma unroll
@@ -730,6 +760,7 @@ struct Sm90F3Gemm {
         values(i)=total0;values(i+1)=total1;
       }
     }
+    TM_F3_TRACE_END(kSplitK);
     Epilogue(p,ring,side,phase,accumulators,wg,m_tile,n_tile,LiveRows(m_tile),
         Width(n_tile),header,arena);
   }
