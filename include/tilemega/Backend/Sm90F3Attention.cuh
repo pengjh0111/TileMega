@@ -57,7 +57,8 @@ struct Sm90F3Attention {
     __syncwarp();
   }
 
-  // Outlining spills at the device-call register ceiling; inline keeps 166 registers.
+  // The K loop keeps one query fragment live: 150 registers, no spills in P-UNIT.
+  // Outlining still spills at the device-call register ceiling.
   __device__ static __forceinline__ void Consume(Sm90F3AttentionOperands const& p,
       Sm90F3Ring& ring,char* arena,Sm90F3Phase& phase) {
     int warp=int(threadIdx.x)/32,lane=int(threadIdx.x)%32;
@@ -68,19 +69,17 @@ struct Sm90F3Attention {
       phase.full^=1u<<slot;
       unsigned q=Base::Shared(arena+slot*kSlotBytes);
       unsigned key=q+2*Seq*D,value=key+2*Seq*D;
-      unsigned query[4][4];
-      #pragma unroll
-      for(int k=0;k<4;++k)
-        Async::MatrixLoad4(query[k],q+Swizzled(warp*16+lane%16,k*16+(lane/16)*8));
       float scores[16][4]{};
-      #pragma unroll
-      for(int pair=0;pair<8;++pair) {
+      #pragma unroll 1
+      for(int k=0;k<4;++k) {
+        unsigned query[4];
+        Async::MatrixLoad4(query,q+Swizzled(warp*16+lane%16,k*16+(lane/16)*8));
         #pragma unroll
-        for(int k=0;k<4;++k) {
+        for(int pair=0;pair<8;++pair) {
           unsigned b[4];int j=lane/8;
           Async::MatrixLoad4(b,key+Swizzled(pair*16+(j/2)*8+lane%8,k*16+(j%2)*8));
-          Async::Mma16x8x16(scores[2*pair],query[k],b[0],b[1]);
-          Async::Mma16x8x16(scores[2*pair+1],query[k],b[2],b[3]);
+          Async::Mma16x8x16(scores[2*pair],query,b[0],b[1]);
+          Async::Mma16x8x16(scores[2*pair+1],query,b[2],b[3]);
         }
       }
       float maximum[2]={-INFINITY,-INFINITY},sum[2]={0.f,0.f};
