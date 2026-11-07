@@ -107,6 +107,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--device', type=int, default=0)
+    parser.add_argument('--cpu-set', default='128-135', help='NUMA0 functional worker cores')
     parser.add_argument('--build', type=Path)
     parser.add_argument('--suite', choices=tuple(SOURCES), default='body')
     parser.add_argument('--case', choices=('all', 'gather', 'pool', 'split', 'conv', 'swap', 'small'), default='all')
@@ -140,7 +141,7 @@ def main():
     queue = out / 'queue'
     queue.mkdir()
     gpu = str(options.device)
-    command = ['taskset', '-c', '128-135', sys.executable, str(Path(__file__).resolve()),
+    command = ['taskset', '-c', options.cpu_set, sys.executable, str(Path(__file__).resolve()),
                '--execute', '--build', str(build), '--out', '{attempt_dir}/cohort', '--case', options.case,
                '--suite', options.suite]
     environment = dict(CUDA_VISIBLE_DEVICES=gpu, TILEMEGA_DEVICE_INDEX=gpu,
