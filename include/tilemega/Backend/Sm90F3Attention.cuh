@@ -3,6 +3,7 @@
 
 #include <tilemega/Backend/Sm90F3Async.cuh>
 #include <tilemega/Backend/Sm90F3Ring.cuh>
+#include <tilemega/Backend/Sm90F3Mark.cuh>
 #include <cutlass/bfloat16.h>
 #include <cmath>
 #include <cuda.h>
@@ -65,10 +66,14 @@ struct Sm90F3Attention {
     for(int local=0;local<LocalTasks();++local) {
       int task=int(blockIdx.x)+local*int(gridDim.x),slot=local%kSlots;
       int image=task/Heads,head=task%Heads;
+      TM_F3_TRACE_BEGIN(kSlotWait);
       Base::Wait(ring.full+slot,phase.Bit(phase.full,slot));
+      TM_F3_TRACE_END(kSlotWait);
+      TM_F3_TRACE_FIRST_READY();
       phase.full^=1u<<slot;
       unsigned q=Base::Shared(arena+slot*kSlotBytes);
       unsigned key=q+2*Seq*D,value=key+2*Seq*D;
+      TM_F3_TRACE_BEGIN(kAttentionQk);
       float scores[16][4]{};
       #pragma unroll 1
       for(int k=0;k<4;++k) {
@@ -82,6 +87,8 @@ struct Sm90F3Attention {
           Async::Mma16x8x16(scores[2*pair+1],query,b[2],b[3]);
         }
       }
+      TM_F3_TRACE_END(kAttentionQk);
+      TM_F3_TRACE_BEGIN(kAttentionSoftmax);
       float maximum[2]={-INFINITY,-INFINITY},sum[2]={0.f,0.f};
       #pragma unroll
       for(int block=0;block<16;++block) {
@@ -110,6 +117,8 @@ struct Sm90F3Attention {
         sum[row]+=__shfl_xor_sync(0xffffffffu,sum[row],1);
         sum[row]+=__shfl_xor_sync(0xffffffffu,sum[row],2);
       }
+      TM_F3_TRACE_END(kAttentionSoftmax);
+      TM_F3_TRACE_BEGIN(kAttentionPv);
       float output[8][4]{};
       #pragma unroll
       for(int pair=0;pair<4;++pair) {
@@ -122,6 +131,8 @@ struct Sm90F3Attention {
           Async::Mma16x8x16(output[2*pair+1],probability[k],b[2],b[3]);
         }
       }
+      TM_F3_TRACE_END(kAttentionPv);
+      TM_F3_TRACE_BEGIN(kStore);
       #pragma unroll
       for(int block=0;block<8;++block) {
         #pragma unroll
@@ -131,6 +142,7 @@ struct Sm90F3Attention {
               Element(output[block][e]/sum[e/2]);
         }
       }
+      TM_F3_TRACE_END(kStore);
       __syncwarp();
       if(lane==0)Base::Arrive(ring.empty+slot);
     }

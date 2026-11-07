@@ -30,8 +30,8 @@ inline constexpr char const* kSm90F3TraceNames[]={
 static_assert(sizeof(kSm90F3TraceNames)/sizeof(*kSm90F3TraceNames)==kSm90F3TraceSegments);
 
 // All fields are uint64 nanoseconds from %globaltimer. Each CTA has one writer
-// (consumer thread zero); body spans accumulate in registers across tasks and
-// are flushed once. Nested wait spans are diagnostics, not additive phases.
+// (consumer thread zero); body spans update the global record per task.
+// Nested wait spans are diagnostics, not additive phases.
 struct Sm90F3TraceSpan {
   unsigned long long total_ns,count,first_begin,last_end;
 };

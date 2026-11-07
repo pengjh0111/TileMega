@@ -155,11 +155,15 @@ struct Sm90F3GemmSwapAB {
     Accumulators accum;
     for(int local=0;local<tasks;++local) {
       int task=Task(local),n_tile=NTile(task);
+      TM_F3_TRACE_BEGIN(kMainLoop);
       cute::clear(accum.tile[0]);
       int previous=-1;
       for(int k=0;k<kIterations;++k) {
         int slot=(local*kIterations+k)%Slots;
+        TM_F3_TRACE_BEGIN(kSlotWait);
         Base::Wait(ring.full+slot,phase.Bit(phase.full,slot));
+        TM_F3_TRACE_END(kSlotWait);
+        TM_F3_TRACE_FIRST_READY();
         phase.full^=1u<<slot;
         auto weight=make_tensor(make_smem_ptr(
             SlotWeight(arena,slot)+std::size_t(wg)*kWgRows*64),Sm90KLayout<kWgRows,64>{});
@@ -187,6 +191,7 @@ struct Sm90F3GemmSwapAB {
         __syncwarp();
         if((threadIdx.x&31)==0)Base::Arrive(ring.empty+previous);
       }
+      TM_F3_TRACE_END(kMainLoop);
       if constexpr(SplitK==1)Epilogue(p,ring,side,phase,accum,owned,wg,n_tile);
       else SplitKEpilogue(p,ring,side,phase,accum,owned,wg,task,n_tile,header);
     }
@@ -200,23 +205,42 @@ struct Sm90F3GemmSwapAB {
       Owned const& owned,int wg,int n_tile) {
     using namespace cute;
     if constexpr(kVectors>0) {
+      TM_F3_TRACE_BEGIN(kSideWait);
       Base::Wait(&ring.side_full,phase.side_full&1u);
+      TM_F3_TRACE_END(kSideWait);
       phase.side_full^=1u;
     }
+    TM_F3_TRACE_BEGIN(kEpilogue);
     auto const& e=p.epilogue;
     auto& tile=accumulators.tile[0];
+#if TILEMEGA_TRACE_STAGE
+    float values[cute::size(Fragment{})]{};
+    CUTE_UNROLL
+    for(int i=0;i<int(cute::size(Fragment{}));++i) {
+      int feature=wg*kWgRows+get<0>(owned(i)),row=get<1>(owned(i));
+      int column=n_tile*kTileN+feature;
+      if(row<M && column<NStore)values[i]=Chain::Apply(tile(i),row,feature,side,0.f,0.f,e);
+    }
+    TM_F3_TRACE_BEGIN(kStore);
+#endif
     CUTE_UNROLL
     for(int i=0;i<int(cute::size(Fragment{}));++i) {
       int feature=wg*kWgRows+get<0>(owned(i)),row=get<1>(owned(i));
       int column=n_tile*kTileN+feature;
       if(row>=M || column>=NStore)continue;
+#if TILEMEGA_TRACE_STAGE
+      float value=values[i];
+#else
       float value=Chain::Apply(tile(i),row,feature,side,0.f,0.f,e);
+#endif
       e.output[std::size_t(row)*e.output_stride+column]=Element(value);
     }
+    TM_F3_TRACE_END(kStore);
     if constexpr(kVectors>0) {
       Async::template NamedBarrier<Sm90F3Async::kBarConsumers,256>();
       if((threadIdx.x&31)==0)Base::Arrive(&ring.side_empty);
     }
+    TM_F3_TRACE_END(kEpilogue);
   }
 
   // The partial layout is [tile][slice][kRows][128]: the same fixed ascending
@@ -227,6 +251,7 @@ struct Sm90F3GemmSwapAB {
       Owned const& owned,int wg,int task,int n_tile,Sm90F3Header* header) {
     using namespace cute;
     int slice=Slice(task);
+    TM_F3_TRACE_BEGIN(kSplitK);
     auto* base=p.epilogue.partial+(std::size_t(n_tile)*SplitK+slice)*kRows*kTileN;
     auto& tile=accumulators.tile[0];
     CUTE_UNROLL
@@ -251,6 +276,7 @@ struct Sm90F3GemmSwapAB {
         __syncwarp();
         if((threadIdx.x&31)==0)Base::Arrive(&ring.side_empty);
       }
+      TM_F3_TRACE_END(kSplitK);
       return;
     }
     CUTE_UNROLL
@@ -268,6 +294,7 @@ struct Sm90F3GemmSwapAB {
       }
       tile(i)=total;
     }
+    TM_F3_TRACE_END(kSplitK);
     Epilogue(p,ring,side,phase,accumulators,owned,wg,n_tile);
   }
 };
