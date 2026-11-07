@@ -81,7 +81,8 @@ def execute(args, libraries):
 
     def run(name, command):
         with (args.out / (name + '.log')).open('w') as stream:
-            subprocess.run([sys.executable, *command], cwd=ROOT, env=os.environ,
+            subprocess.run([str(ROOT / 'scripts/dnn3_idle_floor_python.py'), *command],
+                           cwd=ROOT, env=os.environ,
                            stdout=stream, stderr=subprocess.STDOUT, check=True, timeout=1200)
 
     def common(lib):
