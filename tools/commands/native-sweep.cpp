@@ -105,7 +105,8 @@ int RunNativeSweep(int argc,char** argv) {
   for(auto const& entry:entries) {
     auto const& v=entry.second;
     auto name=v.reference?"W":mode=="T" || mode=="N"?mode:"v"+std::to_string(index++);
-    std::string text=(v.reference?reference:v.coordinates.ToJson()).Dump(2)+"\n";
+    std::string text=(v.reference?reference:v.coordinates.ToJson()).Dump(2);
+    if(text.empty() || text.back()!='\n')text+='\n';
     std::string path;
     if(v.selected) {
       auto directory=mode=="sweep" && args.at("--family")=="all"?out/entry.first:out;
