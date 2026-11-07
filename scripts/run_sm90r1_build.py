@@ -16,15 +16,21 @@ def main():
     parser.add_argument('--receipt', required=True, type=Path)
     parser.add_argument('--max-gib', type=int, default=64)
     parser.add_argument('--timeout', type=int, default=7200)
-    parser.add_argument('--lock', type=Path, default=Path('/tmp/tilemega_sm90r1_build.lock'))
+    parser.add_argument('--lock', type=Path, default=Path('/tmp/tilemega_sm90r1_build.lock'),
+                        help='build lock; TILEMEGA_NVCC_LOCK overrides this path')
     parser.add_argument('command', nargs=argparse.REMAINDER)
     args = parser.parse_args()
+    requested_lock = str(args.lock)
+    if os.environ.get('TILEMEGA_NVCC_LOCK'):
+        args.lock = Path(os.environ['TILEMEGA_NVCC_LOCK'])
     command = args.command[1:] if args.command[:1] == ['--'] else args.command
     if not command or args.max_gib < 1 or args.timeout < 1:
         parser.error('a command and positive resource limits are required')
     args.receipt.parent.mkdir(parents=True, exist_ok=True)
     record = dict(command=command, max_address_space_gib=args.max_gib,
-                  timeout_s=args.timeout, lock=str(args.lock), queued=time.time(),
+                  timeout_s=args.timeout, lock=str(args.lock), requested_lock=requested_lock,
+                  lock_override_env='TILEMEGA_NVCC_LOCK' if os.environ.get('TILEMEGA_NVCC_LOCK') else None,
+                  queued=time.time(),
                   status='queued', classification='compilation; not a numerical test')
     process = None
 
