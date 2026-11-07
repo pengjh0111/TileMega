@@ -86,5 +86,39 @@
     "source": "runs/dnn3/f3_dtst_trace_v1/vgg16/marks/scheduler/dnn3-marks.log",
     "sha256": "6e9a3b5a8d1e7c67bc041297ef2f1271a7b3909c3276913b2d045e0d43695363",
     "cancelled_cohort": "runs/dnn3/f3_compile80_v7/result.json"
+  },
+  "occupancy_model_regression": {
+    "evidence": "verified",
+    "source": "test/unit/dnn3_f3_occupancy_test.cpp",
+    "sha256": "7568f4a9556e23c2845ca59581f32ea73505be0a5cbf712329f9d3fb22f4c67d",
+    "vendor_header": "/usr/local/cuda/include/cuda_occupancy.h",
+    "vendor_sha256": "d076afacc2165c6c48ba36aaef6897df5fbbdd9a6bc7458161d8a59f764d3f6c",
+    "tests": [
+      {
+        "threads": 288,
+        "registers": 168,
+        "resident_blocks": 1
+      },
+      {
+        "threads": 288,
+        "registers": 169,
+        "resident_blocks": 0
+      },
+      {
+        "threads": 288,
+        "registers": 179,
+        "resident_blocks": 0
+      },
+      {
+        "threads": 288,
+        "registers": 224,
+        "resident_blocks": 0
+      },
+      {
+        "threads": 256,
+        "registers": 224,
+        "resident_blocks": 1
+      }
+    ]
   }
 }

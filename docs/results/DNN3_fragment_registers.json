@@ -1,0 +1,164 @@
+{
+  "evidence": "verified",
+  "diagnostic": true,
+  "experiments": [
+    {
+      "scope": "f3_fresh_thread_v8",
+      "source": "runs/dnn3/f3_fresh_thread_v8/result.json",
+      "sha256": "b2bf6c3dd233c5a246ab9ff738885253e9f49f2637d911446af2345f71db9f23",
+      "variant": "fresh thread index in GEMM producer/fragment mapping; original288 launch bound; gather slice fix",
+      "rows": [
+        {
+          "name": "resnet18_b8",
+          "exit_code": 0,
+          "evidence": "verified",
+          "compile_exit": 0,
+          "spill_max": 0,
+          "register_max": 103,
+          "C7509": false,
+          "gpu_executed": false,
+          "artifact_id": "bfa2f5edfe43e967b6db73fad5cb51809320f0e6371ce6fc6f8e894a0d2aba8f"
+        },
+        {
+          "name": "resnet18_b16",
+          "exit_code": 0,
+          "evidence": "verified",
+          "compile_exit": 0,
+          "spill_max": 0,
+          "register_max": 105,
+          "C7509": false,
+          "gpu_executed": false,
+          "artifact_id": "e225d9e1486765d796d4d6f146b4abbfa65e361de5eb855aa3d70c67ff4b6a3c"
+        },
+        {
+          "name": "resnet50_b4",
+          "exit_code": 0,
+          "evidence": "verified",
+          "compile_exit": 0,
+          "spill_max": 0,
+          "register_max": 120,
+          "C7509": false,
+          "gpu_executed": false,
+          "artifact_id": "a0eb3973c51ccb72114485087dec6a590c8c5ce0dbb26501fbd2baef6eef192c"
+        },
+        {
+          "name": "vgg16_b2",
+          "exit_code": 0,
+          "evidence": "verified",
+          "compile_exit": 0,
+          "spill_max": 0,
+          "register_max": 161,
+          "C7509": false,
+          "gpu_executed": false,
+          "artifact_id": "15c6c4363efdbb8ddc4c912f693209f49ec40a9aa1e8f394841b3a553d6a68a9"
+        },
+        {
+          "name": "bert_b16",
+          "exit_code": 0,
+          "evidence": "verified",
+          "compile_exit": 0,
+          "spill_max": 0,
+          "register_max": 168,
+          "C7509": false,
+          "gpu_executed": false,
+          "artifact_id": "5714f598fcf69c99f0411ccc2bc7f6eac8512f6037ff3b1104c4c0ed9998eaca"
+        }
+      ]
+    },
+    {
+      "scope": "f3_fragment_v8",
+      "source": "runs/dnn3/f3_fragment_v8/result.json",
+      "sha256": "e3394cc4cdbbbf55ed0288c8a8b5b1e8d70f8ff2b27a25a31bd1d223e6d67aa2",
+      "variant": "fresh epilogue fragment mapping only; original288 launch bound; gather slice fix",
+      "rows": [
+        {
+          "name": "resnet18_b8",
+          "exit_code": 0,
+          "evidence": "verified",
+          "compile_exit": 0,
+          "spill_max": 0,
+          "register_max": 103,
+          "C7509": false,
+          "gpu_executed": false,
+          "artifact_id": "70b7b3d954e715248a04dd11270908118588640743c4aa549dcd985ed7dded54"
+        },
+        {
+          "name": "resnet50_b4",
+          "exit_code": 0,
+          "evidence": "verified",
+          "compile_exit": 0,
+          "spill_max": 0,
+          "register_max": 120,
+          "C7509": false,
+          "gpu_executed": false,
+          "artifact_id": "911376d742e62702451d548dae6a36dea2014eaf2c2fcb763eea3a4e9abf1a4b"
+        },
+        {
+          "name": "bert_b16",
+          "exit_code": 0,
+          "evidence": "verified",
+          "compile_exit": 0,
+          "spill_max": 0,
+          "register_max": 168,
+          "C7509": false,
+          "gpu_executed": false,
+          "artifact_id": "4d81ef1f0ee3b984f17224e5e4daf38c88194d43906f553e74996c016f8d67c5"
+        },
+        {
+          "name": "resnet18_b1",
+          "evidence": "verified",
+          "compile_exit": 0,
+          "spill_max": 0,
+          "register_max": 64,
+          "C7509": false,
+          "gpu_executed": false,
+          "artifact_id": "fb328741bbcf0cf6dcb8268e1b2678ec2eef1dc0f7da4a78fda410826789cef1",
+          "source": "runs/dnn3/f3_fragment_v8/resnet18_b1/result.json",
+          "sha256": "fd0ed9b4b61964f24d07b04ecb4f5b213bf0851bb7452b801a4bd73d4d381ddd"
+        },
+        {
+          "name": "vgg16_b16",
+          "evidence": "verified",
+          "compile_exit": 0,
+          "spill_max": 0,
+          "register_max": 168,
+          "C7509": false,
+          "gpu_executed": false,
+          "artifact_id": "ed543b00fb26e1a3ffa23d98800fb8e0702eadb98642953ad8593fe200373606",
+          "source": "runs/dnn3/f3_fragment_v8/vgg16_b16/result.json",
+          "sha256": "3f867121f1aec7edac4d0f9df9886e6a8ee2d34a56806fdd2511adf58c7c8647"
+        }
+      ],
+      "full_gates": [
+        {
+          "model": "resnet18",
+          "batch": 1,
+          "status": "passed",
+          "processes": 17,
+          "passes": "corr5/5; mem1/1; init1/1; race5/5; sync5/5",
+          "source": "runs/dnn3/f3_fragment_v8/resnet18_b1/full_gate/raw/dnn3-f3-model-gates/attempt1/cohort/result.json",
+          "sha256": "1b808b760658fad968e901dd3695fb7604bc5061b19ebd1d2f30d7868bb83346"
+        }
+      ]
+    }
+  ],
+  "runtime_checks": [
+    {
+      "model": "resnet18",
+      "batch": 8,
+      "status": "passed",
+      "passes": "5/5",
+      "source": "runs/dnn3/f3_fragment_v8/resnet18_b8/corr_gate/raw/dnn3-f3-model-gates/attempt1/cohort/result.json",
+      "sha256": "601537e520837a2c45d2ee859fd0dac980986c50e55dad0e42bb05966714ae0a"
+    },
+    {
+      "model": "resnet50",
+      "batch": 4,
+      "status": "passed",
+      "passes": "5/5",
+      "source": "runs/dnn3/f3_fragment_v8/resnet50_b4/corr_gate/raw/dnn3-f3-model-gates/attempt1/cohort/result.json",
+      "sha256": "0d282bd8196360406cdd00b9dd50cca9003a351da1b6a5a73be0013626d67c6a"
+    }
+  ],
+  "production_promotion": "pending RN18 B1 and BERT/VGG B16 E2E smoke plus full gates"
+}
