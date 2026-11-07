@@ -17,7 +17,8 @@ import sys
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / 'test/unit/dnn3_f3_test.cu'
+SOURCES = dict(body=ROOT / 'test/unit/dnn3_f3_test.cu',
+               attention=ROOT / 'test/unit/dnn3_attention_test.cu')
 
 
 def sha(path):
@@ -28,8 +29,8 @@ def save(path, value):
     Path(path).write_text(json.dumps(value, indent=2) + '\n')
 
 
-def inputs():
-    paths = [Path(__file__).resolve(), SOURCE, *sorted((ROOT / 'include').rglob('*.h')),
+def inputs(suite):
+    paths = [Path(__file__).resolve(), SOURCES[suite], *sorted((ROOT / 'include').rglob('*.h')),
              *sorted((ROOT / 'include').rglob('*.cuh'))]
     return {str(path.relative_to(ROOT)): sha(path) for path in paths}
 
@@ -41,7 +42,7 @@ def execute(options):
     out.mkdir(parents=True, exist_ok=True)
     build = json.loads(options.build.read_text())
     binary = Path(build['binary'])
-    if sha(binary) != build['binary_sha256'] or inputs() != build['inputs']:
+    if sha(binary) != build['binary_sha256'] or inputs(options.suite) != build['inputs']:
         raise ValueError('unit binary or source differs from its build receipt')
     result = dict(evidence='verified', build=str(options.build), passed=False,
                   scope='focused F3 ' + options.case + ' regressions; not complete P-UNIT',
@@ -73,7 +74,9 @@ def execute(options):
         return 1
     result['unit_passes'] = '5/5'
     result['output_hash'] = hashes[0]
-    cases = ('gather', 'pool', 'split', 'conv', 'swap', 'small') if options.case == 'all' else (options.case,)
+    cases = (('attention',) if options.suite == 'attention' else
+             ('gather', 'pool', 'split', 'conv', 'swap', 'small') if options.case == 'all'
+             else (options.case,))
     for case in cases:
         for tool, count in (('memcheck', 1), ('initcheck', 1), ('racecheck', 5), ('synccheck', 5)):
             for index in range(count):
@@ -92,7 +95,7 @@ def execute(options):
                                       tool in ('racecheck', 'synccheck') else 'P-SAN_failed')
                     save(out / 'result.json', result)
                     return 1
-    if inputs() != build['inputs'] or sha(binary) != build['binary_sha256']:
+    if inputs(options.suite) != build['inputs'] or sha(binary) != build['binary_sha256']:
         raise ValueError('unit inputs changed during the cohort')
     result.update(passed=True, finished=time.time())
     save(out / 'result.json', result)
@@ -104,6 +107,7 @@ def main():
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--device', type=int, default=0)
     parser.add_argument('--build', type=Path)
+    parser.add_argument('--suite', choices=tuple(SOURCES), default='body')
     parser.add_argument('--case', choices=('all', 'gather', 'pool', 'split', 'conv', 'swap', 'small'), default='all')
     parser.add_argument('--execute', action='store_true')
     options = parser.parse_args()
@@ -113,19 +117,19 @@ def main():
     out.mkdir(parents=True, exist_ok=False)
     binary = out / 'dnn3_f3_test'
     log = out / 'ptxas.log'
-    before = inputs()
+    before = inputs(options.suite)
     command = ['taskset', '-c', '136-143', 'nvcc', '-rdc=true', '-std=c++17', '-O3',
                '-gencode', 'arch=compute_90a,code=sm_90a', '--expt-relaxed-constexpr',
                '-Xptxas', '-v', '-Xptxas', '--device-function-maxrregcount=224',
                '-I' + str(ROOT / 'include'), '-I' + str(ROOT / 'third_party/cutlass/include'),
-               str(SOURCE), '-o', str(binary)]
+               str(SOURCES[options.suite]), '-o', str(binary)]
     with log.open('w') as stream:
         done = subprocess.run(command, cwd=ROOT, env=dict(os.environ, CUDA_VISIBLE_DEVICES=''),
                               stdout=stream, stderr=subprocess.STDOUT, timeout=1800)
     text = log.read_text()
     spills = [int(x) for x in re.findall(r'(\d+) bytes spill (?:stores|loads)', text)]
     registers = [int(x) for x in re.findall(r'Used (\d+) registers', text)]
-    if done.returncode or before != inputs() or not spills or any(spills) or not registers or max(registers) > 224:
+    if done.returncode or before != inputs(options.suite) or not spills or any(spills) or not registers or max(registers) > 224:
         raise RuntimeError('F3 unit build failed DT-SPILL/source stability; retain ' + str(log))
     build = out / 'build.json'
     save(build, dict(binary=str(binary), binary_sha256=sha(binary), inputs=before,
@@ -136,7 +140,8 @@ def main():
     queue.mkdir()
     gpu = str(options.device)
     command = ['taskset', '-c', '128-135', sys.executable, str(Path(__file__).resolve()),
-               '--execute', '--build', str(build), '--out', '{attempt_dir}/cohort', '--case', options.case]
+               '--execute', '--build', str(build), '--out', '{attempt_dir}/cohort', '--case', options.case,
+               '--suite', options.suite]
     environment = dict(CUDA_VISIBLE_DEVICES=gpu, TILEMEGA_DEVICE_INDEX=gpu,
                        TILEMEGA_GPU_LOCK=f'/tmp/tilemega_gpu{gpu}.lock', TILEMEGA_NUMA_NODE='0',
                        TILEMEGA_GPU_PID_MODE='namespace_limited', TILEMEGA_NUMA_CONCURRENCY_TRIAL='1',
