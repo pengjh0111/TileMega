@@ -1,0 +1,158 @@
+{
+  "evidence": "verified",
+  "status": "passed",
+  "decision": "rejected",
+  "reason": "No measured E2E gain in any of four current-solver-coordinate sentinel cells; retain ordinary F3 and keep private multicast off",
+  "native_gate": "runs/dnn3/f3_compile80_v12/result.json",
+  "native_gate_sha256": "e947e9d9db0f755f78ea6a80e4df6211fafe94d9f50ab83d051d661da39cc2a9",
+  "screen": "runs/dnn3/f3_multicast_solved_screen_v15/result.json",
+  "screen_sha256": "17d3166c39af5b5aecbb299e65003ecad6e0f879f7f8cae8a9722a0f995e821e",
+  "build": "runs/dnn3/f3_multicast_solved_v15/result.json",
+  "build_sha256": "7b7a83674dd9e8ec2a990a964340b3f4b326feba35aeb0e8f4c572fa21ccae7f",
+  "coordinate_audit": "runs/dnn3/f3_multicast_solved_v15/coordinate_audit.json",
+  "coordinate_audit_sha256": "77c38e2b70b225044c687e79fd31d1d3ab9568f01400e886f159e2f2e3cb6980",
+  "rows": [
+    {
+      "model": "bert",
+      "batch": 16,
+      "gpu": 2,
+      "samples": {
+        "control": {
+          "ms": 2.2428640127182007,
+          "result": "/root/TileMega-dnn3/runs/dnn3/f3_multicast_solved_screen_v15/bert_b16/control/result.json",
+          "sha256": "b5edfc0f229e40a0d319bbc5f7edff823486f4f2f348ace6b5ae190401c79731",
+          "gate": {
+            "result": "/root/TileMega-dnn3/runs/dnn3/f3_cp3_smoke_v12/bert_b16/gate/raw/dnn3-f3-model-gates/attempt1/cohort/result.json",
+            "sha256": "1eee5dd8606b2a97282281f6a0ae659b74c47f18237ebe9a30e0709f8174046d",
+            "guard_sha256": "db193a91994b20d7cd87e4418441c2b8ecca1a78e7dd8208d4b32f0e0eeb0f02"
+          }
+        },
+        "multicast": {
+          "ms": 2.828559994697571,
+          "result": "/root/TileMega-dnn3/runs/dnn3/f3_multicast_solved_screen_v15/bert_b16/multicast/result.json",
+          "sha256": "e481c999df2ab1fa9ce93a55265239e1ce03c32360cfe51a1a598acb11f558d9",
+          "gate": {
+            "result": "/root/TileMega-dnn3/runs/dnn3/f3_multicast_solved_screen_v15/bert_b16/multicast_corr5_gpu2/raw/dnn3-f3-model-gates/attempt1/cohort/result.json",
+            "sha256": "bf2122c0c79a13eb25b7eee943f0df68581db35b64834acf6a2cc0d726a84537",
+            "guard_sha256": "db193a91994b20d7cd87e4418441c2b8ecca1a78e7dd8208d4b32f0e0eeb0f02"
+          }
+        }
+      },
+      "relative_difference": 0.2611375360513033,
+      "evidence": "verified",
+      "qualification": "provisional_container_pid_namespace; same GPU2 sequential comparison; current v12 rank0 coordinates; full sanitizer acceptance separate"
+    },
+    {
+      "model": "resnet18",
+      "batch": 1,
+      "gpu": 2,
+      "samples": {
+        "control": {
+          "ms": 0.22246399521827698,
+          "result": "/root/TileMega-dnn3/runs/dnn3/f3_multicast_solved_screen_v15/resnet18_b1/control/result.json",
+          "sha256": "8b5f15c013496f159529fb52b0e1641e19fdb065dc122ed0d999182f33adef5b",
+          "gate": {
+            "result": "/root/TileMega-dnn3/runs/dnn3/f3_cp3_smoke_v12/resnet18_b1/gate/raw/dnn3-f3-model-gates/attempt1/cohort/result.json",
+            "sha256": "dbd7ce254c00634b4f87557061ee09e325c9bcb7f3b253e434dbec196fdf8c3c",
+            "guard_sha256": "db193a91994b20d7cd87e4418441c2b8ecca1a78e7dd8208d4b32f0e0eeb0f02"
+          }
+        },
+        "multicast": {
+          "ms": 0.22575999796390533,
+          "result": "/root/TileMega-dnn3/runs/dnn3/f3_multicast_solved_screen_v15/resnet18_b1/multicast/result.json",
+          "sha256": "1ce18f46095e622ef53b7f436566349aabbb64cf5bbe9955f1d6e9999c8ab557",
+          "gate": {
+            "result": "/root/TileMega-dnn3/runs/dnn3/f3_multicast_solved_screen_v15/resnet18_b1/multicast_corr5_gpu2/raw/dnn3-f3-model-gates/attempt1/cohort/result.json",
+            "sha256": "d39b81fd6b91f3a6cb944a77cedf08fbbd1997a26d4771269dd7c66dff1edae0",
+            "guard_sha256": "db193a91994b20d7cd87e4418441c2b8ecca1a78e7dd8208d4b32f0e0eeb0f02"
+          }
+        }
+      },
+      "relative_difference": 0.014815892982567247,
+      "evidence": "verified",
+      "qualification": "provisional_container_pid_namespace; same GPU2 sequential comparison; current v12 rank0 coordinates; full sanitizer acceptance separate"
+    },
+    {
+      "model": "resnet50",
+      "batch": 16,
+      "gpu": 2,
+      "samples": {
+        "control": {
+          "ms": 1.2163520455360413,
+          "result": "/root/TileMega-dnn3/runs/dnn3/f3_multicast_solved_screen_v15/resnet50_b16/control/result.json",
+          "sha256": "79d060630382bf71f5e83b3563015c7a093e8953b6e39f5892883d70e8d78102",
+          "gate": {
+            "result": "/root/TileMega-dnn3/runs/dnn3/f3_multicast_solved_screen_v15/resnet50_b16/control_corr5_gpu2/raw/dnn3-f3-model-gates/attempt1/cohort/result.json",
+            "sha256": "86ff850e103a20b39b673e2b7ec2aa38d44fac1454e0587ce70adf9e011f3253",
+            "guard_sha256": "db193a91994b20d7cd87e4418441c2b8ecca1a78e7dd8208d4b32f0e0eeb0f02"
+          }
+        },
+        "multicast": {
+          "ms": 1.3380480408668518,
+          "result": "/root/TileMega-dnn3/runs/dnn3/f3_multicast_solved_screen_v15/resnet50_b16/multicast/result.json",
+          "sha256": "a23419637836b6f1c5d872c399bfea4290d7b4a546e8bd9a116cba76dc88b982",
+          "gate": {
+            "result": "/root/TileMega-dnn3/runs/dnn3/f3_multicast_solved_screen_v15/resnet50_b16/multicast_corr5_gpu2/raw/dnn3-f3-model-gates/attempt1/cohort/result.json",
+            "sha256": "22785f097bf790b6747a06a40b1c89760e5ce6d8d9747dfeae67504a1438253d",
+            "guard_sha256": "db193a91994b20d7cd87e4418441c2b8ecca1a78e7dd8208d4b32f0e0eeb0f02"
+          }
+        }
+      },
+      "relative_difference": 0.100049977946294,
+      "evidence": "verified",
+      "qualification": "provisional_container_pid_namespace; same GPU2 sequential comparison; current v12 rank0 coordinates; full sanitizer acceptance separate"
+    },
+    {
+      "model": "vgg16",
+      "batch": 16,
+      "gpu": 2,
+      "samples": {
+        "control": {
+          "ms": 2.4177600145339966,
+          "result": "/root/TileMega-dnn3/runs/dnn3/f3_multicast_solved_screen_v15/vgg16_b16/control/result.json",
+          "sha256": "47bc4e5f7307584d18ad80573c06b6cb8a8a7b395f9a1be82a7d4fdba0c6d0b6",
+          "gate": {
+            "result": "/root/TileMega-dnn3/runs/dnn3/f3_multicast_solved_screen_v15/vgg16_b16/control_corr5_gpu2/raw/dnn3-f3-model-gates/attempt1/cohort/result.json",
+            "sha256": "2f59978b0475171a7b2b4c6444cf58abcc09a8bc055e7e5342ec4749983e1dc3",
+            "guard_sha256": "db193a91994b20d7cd87e4418441c2b8ecca1a78e7dd8208d4b32f0e0eeb0f02"
+          }
+        },
+        "multicast": {
+          "ms": 3.272144079208374,
+          "result": "/root/TileMega-dnn3/runs/dnn3/f3_multicast_solved_screen_v15/vgg16_b16/multicast/result.json",
+          "sha256": "3baf69d36988ab69d278000d3051ba09cd162aae1209607b0ae4178166d0d80c",
+          "gate": {
+            "result": "/root/TileMega-dnn3/runs/dnn3/f3_multicast_solved_screen_v15/vgg16_b16/multicast_corr5_gpu2/raw/dnn3-f3-model-gates/attempt1/cohort/result.json",
+            "sha256": "ce09ec5255eac66ea69a29a8f0e3d75495541229e696399177999826704427d7",
+            "guard_sha256": "db193a91994b20d7cd87e4418441c2b8ecca1a78e7dd8208d4b32f0e0eeb0f02"
+          }
+        }
+      },
+      "relative_difference": 0.35337835828964725,
+      "evidence": "verified",
+      "qualification": "provisional_container_pid_namespace; same GPU2 sequential comparison; current v12 rank0 coordinates; full sanitizer acceptance separate"
+    }
+  ],
+  "unit_gate": {
+    "status": "passed",
+    "result": "runs/dnn3/f3_multicast_v13/raw/dnn3-multicast-unit/attempt1/cohort/result.json",
+    "sha256": "1af3399f246dbb76c7e136f34190c28f323d691de564f0b4a2798f91baa5f25f",
+    "guard_sha256": "db193a91994b20d7cd87e4418441c2b8ecca1a78e7dd8208d4b32f0e0eeb0f02",
+    "passes": {
+      "unit": "5/5",
+      "memcheck": "1/1",
+      "initcheck": "1/1",
+      "racecheck": "5/5",
+      "synccheck": "5/5"
+    },
+    "fresh_pids": 17,
+    "output_hash": "462c4f883f0683a4",
+    "binary_sha256": "5f6ae60c85dfc0c4d5a0e9d5535b98f80b790448cf0ce82423bd47502ba8c476",
+    "source_sha256": "6318fa63e2851ca1774dc07652fa11a36866b53731dde23a7c1984f53ac98895"
+  },
+  "scope": "P-SMOKE only; four unique cells; current v12 rank0 coordinates; old-coordinate BERT ablation recorded separately",
+  "qualification": "provisional_container_pid_namespace; no sanitizer acceptance or activation claim for rejected full-model variants; obsolete full sanitizer jobs cancelled with receipts",
+  "private_source": "runs/dnn3/f3_multicast_source_baecaa9a0",
+  "private_source_digest": "b3570d98f35a41c648bf19297b532382d94546e8a30b86547ec823027434a596",
+  "remaining": "Phase Z P-SEL, winner correctness, P-DNN, P-ANCHOR, exact-winner ledgers"
+}
