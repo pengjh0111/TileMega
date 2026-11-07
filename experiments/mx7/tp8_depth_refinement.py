@@ -32,7 +32,10 @@ def family_matches(choice, config):
         if (key['tn'], key['wn'], bool(key['part'])) != (old['tn'], old['wn'], old['part'] == 'kTileRange'):
             return False
     attention = choice['stages']['attention']['key']
-    return attention['b_min'] == config['b_min']
+    if attention.get('attn_version',2)!=config['attn_version']:
+        return False
+    return (attention['b_min']==config['b_min']if config['attn_version']==2 else
+            attention['split']==config['split'])
 
 
 def refinements(catalog, batch, config, limit=25000):

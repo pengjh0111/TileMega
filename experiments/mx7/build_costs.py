@@ -28,7 +28,8 @@ def sha(p):return hashlib.sha256(Path(p).read_bytes()).hexdigest()
 def ref(p):return dict(path=str(Path(p).resolve()),sha256=sha(p))
 
 
-def domain(helper, degrees=(2,4)):
+def domain(helper, degrees=(2,4), attention_version=2, attention_only=False):
+    if attention_version==3 and set(degrees)!={8}:raise ValueError('attention V3 trial is TP8 only')
     requests=[];regular=[]
     for model,m in MODELS.items():
         if m['tp'] not in degrees:continue
@@ -49,18 +50,26 @@ def domain(helper, degrees=(2,4)):
     result=subprocess.run([helper],input=''.join(requests),capture_output=True,text=True,check=True)
     flags=[tuple(map(int,line.split()))for line in result.stdout.splitlines()];assert len(flags)==len(regular)
     rows=[dict(key,first_chunks=chunks)for key,(legal,chunks)in zip(regular,flags)if legal]
+    if attention_only:rows=[]
     for model,m in MODELS.items():
         if m['tp'] not in degrees:continue
-        for b,prefetch,b_min in itertools.product((1,2,4,8,16),(0,1,2),(1,2,4,8)):
-            rows.append(dict(model=model,b=b,stage='attention',dim=128,q=2,hkv=m['hkv'],
-                             prefetch=prefetch,b_min=b_min,attn_version=2,epsilon=m['epsilon'],tp=m['tp']))
+        partitions=(1,2,4,8)if attention_version==2 else(1,2,4)
+        for b,prefetch,partition in itertools.product((1,2,4,8,16),(0,1,2),partitions):
+            row=dict(model=model,b=b,stage='attention',dim=128,q=2,hkv=m['hkv'],
+                     prefetch=prefetch,attn_version=attention_version,epsilon=m['epsilon'],tp=m['tp'])
+            row['b_min'if attention_version==2 else'split']=partition
+            rows.append(row)
     return rows
 
 
 def definitions(key,pw):
     values=dict(B=key['b'])
     if key['stage']=='attention':
-        values.update(HKV=key['hkv'],DIM=128,Q=2,PREFETCH=key['prefetch'],BMIN=key['b_min'])
+        values.update(HKV=key['hkv'],DIM=128,Q=2,PREFETCH=key['prefetch'])
+        if key.get('attn_version',2)==3:
+            values['SPLIT']=key['split']
+            return 'attention_tp8_v3_bench.cu',values,'Mx7AttentionBench'
+        values['BMIN']=key['b_min']
         return 'attention_v2_bench.cu',values,'Mx7AttentionBench'
     values.update(TN=key['tn'],WN=key['wn'],D=key['d'],PW=pw,N=key['n'],K=key['k'],PART=key['part'],
                   STAGE={'qkv':0,'o':1,'down':1,'head':2,'gate_up':4}[key['stage']])
@@ -73,12 +82,17 @@ def main():
     parser.add_argument('--workers',type=int,default=24)
     parser.add_argument('--resume',action='store_true')
     parser.add_argument('--tp',type=int,choices=(2,4,8),action='append')
+    parser.add_argument('--attention-version',type=int,choices=(2,3),default=2)
+    parser.add_argument('--attention-only',action='store_true')
     args=parser.parse_args();destination=args.out.resolve();destination.mkdir(parents=True,exist_ok=args.resume)
     frozen=destination/'frozen'
     if not frozen.exists():
         frozen.mkdir();shutil.copytree(ROOT/'include',frozen/'include');(frozen/'experiments/mx7').mkdir(parents=True)
         for name in ('dense_stage_bench.cu','attention_v2_bench.cu','cost_domain.cpp','measure_costs.py'):
             shutil.copy2(ROOT/'experiments/mx7'/name,frozen/'experiments/mx7'/name)
+        if args.attention_version==3:
+            for name in ('attention_tp8_v3_bench.cu','build_costs.py'):
+                shutil.copy2(ROOT/'experiments/mx7'/name,frozen/'experiments/mx7'/name)
         files={str(p.relative_to(frozen)):sha(p)for p in frozen.rglob('*')if p.is_file()}
         compiler=Path('/opt/maca/tools/cu-bridge/bin/cucc')
         source=dict(head=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),files=files,
@@ -91,9 +105,11 @@ def main():
         if sha(frozen/name)!=digest:raise ValueError('frozen cost source changed')
     helper=destination/'cost_domain'
     if not helper.exists():subprocess.run(['c++','-std=c++17','-I'+str(frozen/'include'),str(frozen/'experiments/mx7/cost_domain.cpp'),'-o',str(helper)],check=True)
-    if not(destination/'DOMAIN.json').exists():save(destination/'DOMAIN.json',domain(helper,args.tp or (2,4)))
+    if not(destination/'DOMAIN.json').exists():save(destination/'DOMAIN.json',domain(helper,args.tp or (2,4),args.attention_version,args.attention_only))
     keys=json.loads((destination/'DOMAIN.json').read_text());builds=destination/'builds';builds.mkdir(exist_ok=True)
     if {key['tp']for key in keys}!=set(args.tp or (2,4)):raise ValueError('resumed TP domain differs')
+    if any(key.get('attn_version')!=args.attention_version for key in keys if key['stage']=='attention'):
+        raise ValueError('resumed attention version differs')
     from tilemega.build.identity import parse_resources
     base=[source['compiler']['path'],'-std=c++17','-O3','-shared','-Xcompiler=-fPIC,-resource-usage','-fno-strict-aliasing',
         '-mllvm','--max-mtreg-number=255','-DTILEMEGA_WATCHDOG=0','-DTILEMEGA_MX_DIAG=0','-I'+str(frozen/'include')]

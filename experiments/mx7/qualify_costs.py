@@ -53,6 +53,7 @@ def main():
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--work', type=Path, required=True)
     parser.add_argument('--card', type=int, choices=range(8), default=7)
+    parser.add_argument('--merge-tp8-costs',type=Path,help='merge qualified TP8 regular/V2 rows with this attention-only trial')
     args = parser.parse_args()
     qualification = args.out.with_suffix('.qualification.json')
     if args.out.exists() or qualification.exists():
@@ -122,6 +123,20 @@ def main():
             row['spread'] = (max(values) - min(values)) / row['median_ns']
     for row in catalog['rows']:
         row['noisy'] = row['spread'] > .02
+    if args.merge_tp8_costs:
+        from tilemega.tp.solve_tp import check_qualification
+        base,_=check_qualification(args.merge_tp8_costs)
+        if any(row['key']['tp']!=8 for row in base['rows']+catalog['rows']):
+            raise ValueError('attention trial merge requires TP8-only rows')
+        if any(row['key']['stage']!='attention'or row['key'].get('attn_version')!=3 for row in catalog['rows']):
+            raise ValueError('merge input must contain only V3 attention measurements')
+        catalog['component_catalogs']=[ref(args.merge_tp8_costs),ref(args.catalog)]
+        catalog['rows']=base['rows']+catalog['rows']
+        catalog['resource_rejections']=base['resource_rejections']+catalog['resource_rejections']
+        catalog['CPU_resource_rejections']=base['CPU_resource_rejections']+catalog['CPU_resource_rejections']
+        catalog['requested_keys']+=base['requested_keys']
+        catalog['source_digest']=hashlib.sha256((base['source_digest']+catalog['source_digest']).encode()).hexdigest()
+        catalog['source_digest_kind']='sha256 of ordered component source digests'
     constants = json.loads(args.constants.read_text())
     if set(constants) != {'t_ar', 't_head_x'}:
         raise ValueError('AR and head constants are required')
@@ -137,6 +152,7 @@ def main():
     save(qualification, dict(solver_eligible=True, cost_table_sha256=sha(args.out),
          kind='mx7_tp_measured_stage_costs', complete_scopes=5 * len(degrees),
          source_digest=catalog['source_digest'], history=[ref(args.catalog)],
+         component_catalogs=catalog.get('component_catalogs',[]),
          supplement_requested_keys=len(noisy),
          noisy_keys=[dict(key=row['key'], p90_ns=row['p90_ns']) for row in catalog['rows'] if row['noisy']]))
     print('qualified', len(catalog['rows']), 'rows, supplements', len(noisy), flush=True)

@@ -148,3 +148,43 @@ All-rank residency is queried separately before publication.
 Diagnostic trace tools now accept TP2, TP4 and TP8, and require complete rank
 cohorts. Trace data stay outside performance acceptance. The existing TP1,
 TP2/TP4 and MoE device bodies are unchanged by this refinement.
+
+## TP8-only attention V3 continuation
+
+After the explicit TP8 V3 proposal, the user asked to continue further
+optimization towards 1.05x/1.10x over the frozen fastest baseline on 2026-11-08
+(stated). This continuation is interpreted as permission for that previously
+specified TP8-only trial (inferred). The original MX7 restriction stays in
+force for TP2/TP4; all previous selected pins still use their recorded versions.
+
+```bash
+PYTHONPATH=python python experiments/mx7/build_costs.py \
+  --tp 8 --attention-version 3 --attention-only --workers 8 \
+  --out runs/mx7/tp8_opt/attention/cost_build
+PYTHONPATH=python python experiments/mx7/tp8_attention_optimize.py
+```
+
+The new benchmark uses StageSyncV2, matching the actual dense TP program.
+Prefetch0/1/2 and split1/2/4 each have five length points and three fresh cost
+processes; competitive noise receives two supplementary processes. The new
+attention measurements are merged with the original qualified regular stages,
+attention V2 and communication constants. Both component catalogs remain
+referenced by SHA256. No baseline or regular-stage calibration is repeated.
+
+The standard k-best/top4 solver ranks the combined domain separately for all
+five batches. Each candidate receives C-1, two fresh C-2 starts and two fresh
+warmup1/timed2 measurements; the selected rebuild receives five fresh C-2
+starts. These are the original cohort guard path: processes remain independent
+and one guard monitors the complete cohort continuously, with a 900s limit.
+Source-bound driver files and per-process receipts are retained.
+
+The selected candidate additionally receives alternating new-process A/B timing
+against the previous TileMega pin. A win must exceed 1% and the arms' process
+spread, otherwise the old plan remains selected. B1/B16 selected delay checks
+run five fresh processes. Reports use the ordinary process path, no cached
+weight screening, trace, DIAG, watchdog or delay instrumentation.
+
+**verified (2026-11-08):** all45 V3 benchmark coordinates compile within the
+resource limits; all eight frozen plans retain identical generated CU and
+function instruction counts. Full-model results remain pending until their
+native/HF, C-2, residency, timing and delay gates complete.
