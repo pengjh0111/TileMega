@@ -12,7 +12,7 @@ import time
 from sm90d1_common import ROOT, PYTHON, read, sha, write
 from sm90r4_inputs import model_dir
 from sm90r4_fixed import native_command
-from sm90r4_dispatch import run_unit
+from sm90x1_hardware import run_unit, audit_unit
 import sm90x1_analysis as stats
 
 RUN=ROOT/'runs/sm90x1'
@@ -232,6 +232,8 @@ def measurement(a):
                 result=read(d/e['id']/'corr/result.json')
                 if not result['pass'] or not result['c1_pass'] or not result['c2_pass']:
                     raise ValueError('P-CORR must pass before arm timing')
+                if not audit_unit(d/e['id']/'corr')['passed']:
+                    raise ValueError('P-CORR hardware audit must pass before arm timing')
             order=[]
             for i in range(c['processes']):
                 order+=labels if i%2==0 else list(reversed(labels))
@@ -331,6 +333,9 @@ def tables(a):
                 if result and label in result['arms']:
                     if not row.get('c1_pass') or not row.get('c2_pass'):
                         raise ValueError('uncertified TPOT cannot enter report')
+                    if not audit_unit(plan_dir/entry['id']/'corr')['passed'] or \
+                       not audit_unit(measured/'time')['passed']:
+                        raise ValueError('hardware-rejected TPOT cannot enter report')
                     row.update(result['arms'][label],status='measured',gpu=protocol['gpu'])
                     for ref,suffix in [('W','w'),('Wstar','wstar')]:
                         other=result['arms'][ref];change=100*(row['tpot_ms']/other['tpot_ms']-1)
@@ -441,6 +446,10 @@ def tables(a):
             '[verified] Raw records, all failed attempts, trace overhead and build resource samples stay under runs/sm90x1.',
             '[verified] Guard acceptance in this container is provisional_container_pid_namespace; host PID ownership cannot be fully verified. '
             'A foreign compute context observed by the guard prevents acceptance.',
+            '[verified] An additional experiment audit rejects a native process if sampled running owners include more than one distinct GPU PID; '
+            'the first C-1 process permits two for its native parent and HF child. '
+            'A Qwen Phase 0 correctness unit failed this audit and was archived together with its initial P-FINAL; both are being repeated. '
+            'This count audit cannot establish host PID ownership in the container namespace.',
             '[stated] Phase 2 target date: 2026-11-21. Pending phases remain gated by Phase 0 and the pilot cost projection.']
     phase0=read(RUN/'phase0.json') if (RUN/'phase0.json').exists() else None
     report+=['## Phase 0 setup','']

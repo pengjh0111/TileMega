@@ -47,6 +47,18 @@ class AnalysisTest(unittest.TestCase):
 
 
 class ProtocolTest(unittest.TestCase):
+    def test_unresolved_extra_owners_are_rejected(self):
+        from sm90x1_hardware import audit_samples
+        def row(phase, *owners):return dict(phase=phase, owners={str(p):100 for p in owners})
+        clean=[row('preflight'),row('running',100),row('after')]
+        self.assertTrue(audit_samples(clean)['passed'])
+        # A transient second owner must reject even if it exits before the guard.
+        extra=clean[:2]+[row('running',100,200)]+clean[2:]
+        self.assertFalse(audit_samples(extra)['passed'])
+        self.assertTrue(audit_samples(extra,hf=True)['passed'])
+        switched=clean[:2]+[row('running',200)]+clean[2:]
+        self.assertFalse(audit_samples(switched)['passed'])
+
     def test_frozen_cells_and_hashes(self):
         import hashlib
         import json
@@ -111,7 +123,8 @@ class ProtocolTest(unittest.TestCase):
                 write(d/'time/unit.json',dict(gpu=0))
             args=argparse.Namespace(cell='all',tag='phase2',phase=2,k=None)
             with patch.object(experiment,'RUN',run),patch.object(experiment,'RESULTS',results), \
-                 patch.object(experiment,'pilot_gate',return_value=dict(continue_=True)):
+                 patch.object(experiment,'pilot_gate',return_value=dict(continue_=True)), \
+                 patch.object(experiment,'audit_unit',return_value=dict(passed=True)):
                 with contextlib.redirect_stdout(io.StringIO()):experiment.tables(args)
             with (results/'SM90X1_summary.csv').open() as f:
                 summary=list(csv.DictReader(f))

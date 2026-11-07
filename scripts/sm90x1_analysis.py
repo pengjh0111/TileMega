@@ -7,6 +7,7 @@ import statistics as st
 
 from sm90d1_common import read
 from sm90r4_ledger import kind, tsv
+from sm90x1_hardware import audit_trace_unit
 
 
 def span(values):
@@ -72,6 +73,8 @@ def trace_process(path, moe):
 
 
 def aggregate(unit, family, moe):
+    if not audit_trace_unit(unit)['passed']:
+        raise ValueError(f'trace hardware audit failed: {unit}')
     record = read(Path(unit) / 'unit.json')
     processes = [trace_process(p,moe) for p in record['runs']]
     own = [p['own'][family] for p in processes]
@@ -118,5 +121,5 @@ def reversals(rows):
 
 def write_csv(path, rows, fields):
     with Path(path).open('w') as f:
-        writer=csv.DictWriter(f,fieldnames=fields,extrasaction='ignore')
+        writer=csv.DictWriter(f,fieldnames=fields,extrasaction='ignore',lineterminator='\n')
         writer.writeheader();writer.writerows(rows)

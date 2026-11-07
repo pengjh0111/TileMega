@@ -13,7 +13,8 @@ import time
 from sm90d1_common import ROOT, PYTHON, read, sha, write
 from sm90r4_inputs import extract, model_dir
 from sm90r4_fixed import native_command
-from sm90r4_dispatch import run_unit, claim, POLICY, watch, STALL_S
+from sm90r4_dispatch import claim, POLICY, watch, STALL_S
+from sm90x1_hardware import run_unit, audit_unit, audit_samples, audit_trace_unit
 from sm90r3_llm import environment, MODELS, PCI
 
 RUN = ROOT / 'runs/sm90x1'
@@ -162,6 +163,8 @@ def measurement(a):
             corr = read(d / a.tag / 'corr/result.json')
             if not corr['pass'] or not corr['c1_pass'] or not corr['c2_pass']:
                 raise ValueError('P-CORR must pass before timing')
+            if not audit_unit(d / a.tag / 'corr')['passed']:
+                raise ValueError('P-CORR hardware audit must pass before timing')
         spec_path = d / a.tag / f'{a.action}-spec.json'
         write(spec_path, spec)
         result = run_unit(spec_path, unit, c['class'])
@@ -202,6 +205,8 @@ def trace_cell(a,c,build_id,reference=False):
         raise ValueError('trace identity is performance-ineligible')
     unit = d / 'trace' if a.phase == 0 else artifact / 'trace'
     if (unit / 'unit.json').exists():
+        if not audit_trace_unit(unit)['passed']:
+            raise ValueError(f'cached trace failed the GPU-owner audit: {unit}')
         return
     unit.mkdir(parents=True, exist_ok=True)
     attempt = unit / f'try{time.time_ns()}'
@@ -242,6 +247,11 @@ def trace_cell(a,c,build_id,reference=False):
         state = read(attempt / 'scheduler/state.json')
         if scheduler.returncode or len(state)!=2 or any(r['status']!='done' for r in state.values()):
             raise RuntimeError(f'trace unit incomplete: {unit}')
+        audits = [audit_samples([json.loads(line) for line in
+                  (Path(r['out'])/'guard.jsonl').read_text().splitlines()]) for r in state.values()]
+        write(attempt/'hardware-audit.json', dict(passed=all(r['passed'] for r in audits), checks=audits))
+        if not all(r['passed'] for r in audits):
+            raise RuntimeError(f'trace GPU-owner audit failed: {attempt}')
         runs = [str(Path(r['out']) / 'job/trace') for r in state.values()]
         write(unit / 'unit.json', dict(gpu=gpu, runs=runs, processes=2, **{'class':c['class']},
                                        performance_eligible=False, head=binding['head']))
@@ -265,6 +275,10 @@ def tables(a):
             binding = read(d / 'W/binding.json')
             if binding['trace'] or not corr['pass']:
                 raise ValueError('ineligible result')
+            if not all(audit_unit(d / kind)['passed'] for kind in ('corr', 'time')):
+                row.update(status='hardware_rejected')
+                rows.append(row)
+                continue
             timing = result['arms']['W']
             change = 100*(timing['tpot_ms']/c['accepted_tpot_ms']-1)
             row.update(status='gate_fail' if abs(change)>2 else 'gate_pass',
@@ -272,13 +286,13 @@ def tables(a):
                        processes=timing['processes'], gpu=read(d / 'time/unit.json')['gpu'])
             stopped |= abs(change)>2
         rows.append(row)
-    complete = sum(r['status'] != 'not_run' for r in rows) == 2
+    complete = sum(r['status'] in ('gate_pass', 'gate_fail') for r in rows) == 2
     write(RUN / 'phase0.json', dict(rows=rows, stop=stopped, complete=complete,
                                    head=head(), gate_pct=2, evidence='verified'))
     results = ROOT / 'docs/results'
     results.mkdir(exist_ok=True)
     with (results / 'SM90X1_phase0.csv').open('w') as f:
-        writer = csv.DictWriter(f, fieldnames=list(rows[0]));writer.writeheader();writer.writerows(rows)
+        writer = csv.DictWriter(f, fieldnames=list(rows[0]), lineterminator='\n');writer.writeheader();writer.writerows(rows)
     print(json.dumps(dict(stop=stopped, complete=complete, measured=[r for r in rows if r['status']!='not_run']),indent=2))
     return 2 if stopped else 0 if complete else 3
 
