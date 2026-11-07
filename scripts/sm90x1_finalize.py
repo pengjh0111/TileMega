@@ -11,7 +11,8 @@ from sm90x1_campaign import live_start
 
 FILES = ['docs/results/SM90X1_'+name for name in (
     'phase0.csv', 'candidates.csv', 'stage_deltas.csv', 'arms.csv', 'summary.csv',
-    'figure_arms.csv', 'figure_scatter.csv', 'h800.md')]
+    'figure_arms.csv', 'figure_scatter.csv', 'h800.md',
+    'uncertified_arms.csv', 'summary_user_waived.csv')]
 TERMINAL = {'complete', 'finished_with_failures', 'stopped', 'blocked'}
 
 
