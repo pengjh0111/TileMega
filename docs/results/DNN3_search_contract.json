@@ -22,7 +22,7 @@
       ]
     }
   ],
-  "production_f3_constants_complete": true,
+  "production_f3_constants_complete": false,
   "full20_solve_compile_gate": "CPU20/20 and CUDA codegen80/80 pass; native resources and P-SEL pending",
   "plan_gate": {
     "cells": 20,
@@ -79,5 +79,6 @@
     "source": "runs/dnn3/f3_compile20_v6/result.json",
     "sha256": "92bf270d85ee2e538ba127e40a232f011416d7d2f3365589de1569393551bf97",
     "maxnreg224_repair": "rejected after actual zero residency; see DNN3_entry_registers.json"
-  }
+  },
+  "current_calibration": "pending new backend header hashes; historical233-key solve remains verified"
 }

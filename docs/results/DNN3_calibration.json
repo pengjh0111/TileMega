@@ -95,5 +95,6 @@
   "qualification": "provisional_container_pid_namespace",
   "probe_method": "One production region per CUDA launch removes artificial loop-carried spills. The 20 wide split keys use 256 consumer threads capped at224; production ABI remains288.",
   "full20_solve_compile": "20 CPU solves and80 top-four CUDA emissions pass; native resources and P-SEL pending",
-  "historical_calibration": "Earlier167-key v2 inventory remains in DNN3_constants.csv and git history; not mixed into this table"
+  "historical_calibration": "Earlier167-key v2 inventory remains in DNN3_constants.csv and git history; not mixed into this table",
+  "current_backend_status": "Historical233 measurements retained; new gather producer fix changes header hash, so fresh calibration required before current-backend packing"
 }
