@@ -101,6 +101,7 @@ def main():
         parser.add_argument('--'+name, type=Path, required=True)
     parser.add_argument('--batch', type=int, required=True)
     parser.add_argument('--device', type=int, default=1)
+    parser.add_argument('--cpu-set', default='128-135')
     parser.add_argument('--execute', action='store_true')
     args = parser.parse_args()
     for name in ('library', 'export', 'bridge', 'inputs', 'out'):
@@ -123,7 +124,7 @@ def main():
         PYTHONPATH=str(ROOT / 'python'))
     queue = args.out / 'queue'
     queue.mkdir()
-    command = ['taskset', '-c', '128-135', '/root/TileMega/runs/r16/env/tensorrt-dnn/bin/python',
+    command = ['taskset', '-c', args.cpu_set, '/root/TileMega/runs/r16/env/tensorrt-dnn/bin/python',
                str(Path(__file__).resolve()), '--execute', '--batch', str(args.batch)]
     for name in ('library', 'export', 'bridge', 'inputs'):
         command += ['--'+name, str(getattr(args, name))]
