@@ -158,7 +158,7 @@
   "private_builds": {
     "f3_store16_v9": {
       "source": "runs/dnn3/f3_store16_v9/result.json",
-      "sha256": "e43732ebb7ad569333b5f5ad1d87851d3bdb969c96b8f8fff97ef83a7d38a154",
+      "sha256": "3f8e5181b05b7f25503ba74f5bf8de9471cc01b9fdf96bb75e12ebbb08c50e7a",
       "rows": [
         {
           "name": "resnet18_b1",
@@ -191,6 +191,17 @@
           "C7509": false,
           "gpu_executed": false,
           "artifact_id": "d6440f17dd516338857c7361f663902a97e9bead10541efbfa969c4dd8dd123d"
+        },
+        {
+          "name": "bert_b16",
+          "exit_code": 0,
+          "evidence": "verified",
+          "compile_exit": 0,
+          "spill_max": 0,
+          "register_max": 167,
+          "C7509": false,
+          "gpu_executed": false,
+          "artifact_id": "d3fd95a76b133ffa91b90ac007954d2c619d3acbfa1af7e28e0008bdf84fd203"
         }
       ]
     },
@@ -245,7 +256,7 @@
     },
     "f3_store16_bounded_v11": {
       "source": "runs/dnn3/f3_store16_bounded_v11/result.json",
-      "sha256": "9a84c943a9d87bd329056e09f280820b3819669cc82ac0bbe112dbbfb05c90cb",
+      "sha256": "df88995457a3dc58bf453cdc7aaf71e10d0b08ac702af0b8c70044183d30224c",
       "rows": [
         {
           "name": "resnet18_b1",
@@ -279,9 +290,81 @@
           "C7509": false,
           "gpu_executed": false,
           "artifact_id": "1fc7eb16455ce9f65fccaf94cf93889442416ce2cc457fd531a582dbc9bb52ff"
+        },
+        {
+          "name": "bert_b16",
+          "exit_code": 0,
+          "evidence": "verified",
+          "compile_exit": 0,
+          "spill_max": 0,
+          "register_max": 168,
+          "C7509": false,
+          "gpu_executed": false,
+          "artifact_id": "b7ebd07696ee64a9a8f5edb1474b23b6c5c2f55468bf024886a54960d3faeec7"
         }
       ]
     }
   },
-  "production_promotion": "pending; RN50 B16 spills with unrestricted16B stores; v11 keeps4B for128-register accumulator fragments while testing16B on smaller fragments"
+  "production_promotion": "pending; RN50 B16 spills with unrestricted16B stores; v11 keeps4B for128-register accumulator fragments while testing16B on smaller fragments",
+  "v11_terminal_gates": [
+    {
+      "group": "body",
+      "source": "runs/dnn3/f3_store16_bounded_v11/body/raw/dnn3-focused-f3-gates/attempt1/cohort/result.json",
+      "sha256": "c6070686636c927b70b43430910207e04e2e66f5071f6b097d7efb20cf1e60a0",
+      "processes": 77,
+      "output_hash": "378b101f7093ca43",
+      "status": "passed"
+    },
+    {
+      "group": "bert_units",
+      "source": "runs/dnn3/f3_store16_bounded_v11/bert_units/raw/dnn3-focused-f3-gates/attempt1/cohort/result.json",
+      "sha256": "09467530fa42aed93e078fa31c025c173a3be628d9ff995779152d2ae8e66832",
+      "processes": 17,
+      "output_hash": "5a49f45252116d68",
+      "status": "passed"
+    },
+    {
+      "group": "resnet18_b1",
+      "source": "runs/dnn3/f3_store16_bounded_v11/resnet18_b1/acceptance_gate/raw/dnn3-f3-model-gates/attempt1/cohort/result.json",
+      "sha256": "c5613cd8fe35d083df3a8758d3500b98def7e2ad055945623774f1b158d61f34",
+      "processes": 17,
+      "output_hash": null,
+      "status": "passed"
+    },
+    {
+      "group": "resnet50_b16_accepted",
+      "source": "runs/dnn3/f3_store16_bounded_v11/resnet50_b16_accepted/acceptance_gate/raw/dnn3-f3-model-gates/attempt1/cohort/result.json",
+      "sha256": "0a05a3ae2f29e45cd6fadcfa4f6930e43261f6de1054733521d140231817f9fc",
+      "processes": 5,
+      "output_hash": null,
+      "status": "passed"
+    }
+  ],
+  "v11_sass": {
+    "source": "runs/dnn3/f3_store16_bounded_v11/sass/result.json",
+    "sha256": "1d7be68a8ef55a271420d8218a9a5c3287ee23856340664cb6a3b010ac11a578",
+    "rows": [
+      {
+        "name": "bert_b16_accepted",
+        "binary_sha256": "a40be20d836e6d66950f3db613567a10d1d4c9f025e360e0736c09845092f9e5",
+        "sass_sha256": "061c4ac91cebcfd13b3c352301ec6fb2c36c008a007342ad1f0bdb9a92aac15e",
+        "calls": 0,
+        "vector_stores": 288,
+        "hgmma": 196,
+        "wait0": 98,
+        "wait1": 49
+      },
+      {
+        "name": "resnet18_b1",
+        "binary_sha256": "484511726f7e2d33b867584e36db7ca5fd5457eeac967b26d8931cc886123110",
+        "sass_sha256": "a17163be45c38074ca39af2ab9803028f4db9c3722bb9e2d73b3efc72d80d305",
+        "calls": 0,
+        "vector_stores": 4,
+        "hgmma": 100,
+        "wait0": 46,
+        "wait1": 25
+      }
+    ]
+  },
+  "v11_acceptance_pending": "BERT/VGG full model sanitizer; tail17; controlled same-GPU E2E smokes. All4 solved and3 accepted-coordinate builds zero spill; no ROOT promotion."
 }
