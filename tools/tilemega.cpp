@@ -10,6 +10,7 @@
 int main(int argc, char** argv) try {
   struct Command { char const* name; int (*run)(int, char**); };
   Command const commands[] = {
+    {"inspect native-sweep", tilemega::commands::native_sweep::RunNativeSweep},
     {"inspect request-floor", tilemega::commands::request_floor::RunRequestFloor},
     {"audit sass", tilemega::commands::audit_binary::RunSass},
     {"audit arch", tilemega::commands::audit_binary::RunArch},

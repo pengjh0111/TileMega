@@ -940,6 +940,14 @@ if(TILEMEGA_BUILD_TESTS)
     target_link_libraries(sm90_dense_tp_test PRIVATE cuda)
     add_test(NAME sm90_dense_tp COMMAND sm90_dense_tp_test)
     set_tests_properties(sm90_dense_tp PROPERTIES SKIP_RETURN_CODE 77)
+    add_executable(sm90_native_sweep_test test/unit/sm90_native_sweep_test.cpp)
+    target_include_directories(sm90_native_sweep_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tools/commands)
+    target_link_libraries(sm90_native_sweep_test PRIVATE TileMega::tilemega)
+    target_compile_options(sm90_native_sweep_test PRIVATE -UNDEBUG)
+    add_test(NAME sm90_native_sweep COMMAND sm90_native_sweep_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/configs/targets/sm_90_h800.json
+      ${CMAKE_CURRENT_SOURCE_DIR}/configs/serving/sm90r3/qwen3_0_6b_b1.json
+      ${CMAKE_CURRENT_SOURCE_DIR})
     add_executable(sm90_dense_search_space_test test/unit/sm90_dense_search_space_test.cpp)
     target_link_libraries(sm90_dense_search_space_test PRIVATE TileMega::tilemega)
     target_compile_options(sm90_dense_search_space_test PRIVATE -UNDEBUG)
@@ -1491,6 +1499,7 @@ add_library(tilemega_commands OBJECT
   tools/commands/calibrate.cpp
   tools/commands/calibration-suite.cpp
   tools/commands/compile.cpp
+  tools/commands/native-sweep.cpp
   tools/commands/native_dense.cpp
   tools/commands/native_forward.cpp
   tools/commands/derive.cpp

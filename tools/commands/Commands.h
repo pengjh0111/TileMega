@@ -23,3 +23,4 @@ namespace tilemega::commands::audit_binary { int RunSass(int, char**); int RunAr
 namespace tilemega::commands::device { int RunDevice(int, char**); }
 namespace tilemega::commands::calibration_suite { int RunSuite(int, char**); }
 namespace tilemega::commands::request_floor { int RunRequestFloor(int, char**); }
+namespace tilemega::commands::native_sweep { int RunNativeSweep(int, char**); }
