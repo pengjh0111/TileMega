@@ -1,0 +1,1301 @@
+{
+  "schema": 1,
+  "base_head": "3ff07bc2e",
+  "coordinate_encoding": "UTF-8 json.dumps(sort_keys=True, indent=2) + LF",
+  "cells": [
+    {
+      "cell": "qwen3_0_6b-B1",
+      "model": "qwen3_0_6b",
+      "batch": 1,
+      "moe": false,
+      "pilot": true,
+      "w_source": "configs/serving/sm90r3/qwen3_0_6b_b1.json",
+      "w_coordinates_sha256": "6b60bfaa4cc784c4c56a97621067e3fbae5ee2c21cdc13f4536f14a138253482",
+      "coordinates": {
+        "schema": 5,
+        "model": "dense",
+        "gemms": {
+          "qkv": {
+            "tile_n": 32,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 32768,
+            "slots": 2,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "o": {
+            "tile_n": 16,
+            "warps_n": 2,
+            "warps_k": 2,
+            "slot_bytes": 32768,
+            "slots": 2,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "gate_up": {
+            "tile_n": 48,
+            "warps_n": 2,
+            "warps_k": 2,
+            "slot_bytes": 24576,
+            "slots": 2,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "down": {
+            "tile_n": 8,
+            "warps_n": 1,
+            "warps_k": 4,
+            "slot_bytes": 16384,
+            "slots": 3,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "lm_head": {
+            "tile_n": 128,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 16384,
+            "slots": 3,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          }
+        },
+        "attention": {
+          "chunks": 16,
+          "block_keys": 64,
+          "slots": 2,
+          "new_row_work": 0,
+          "merge": "la"
+        },
+        "residency": 1,
+        "swiglu_u": 8,
+        "weight_stream": false,
+        "layer_loop": true,
+        "emb": "stage",
+        "group_wait": true,
+        "cluster": 1
+      },
+      "k": 4,
+      "prefill": "/root/TileMega/runs/sm90r2/build/sm90r3-final-prefill/qwen3_0_6b-B1/prefill.so",
+      "prefill_sha256": "468f2c9b1d03ae39666af87e1c05fe98d3846b643df74be92c3fab8ced3ef510",
+      "accepted_tpot_ms": 0.9286410440640744,
+      "processes": 3,
+      "class": "trial",
+      "provenance": {
+        "config_sha256": "574d65473844a8c8adc9cd87868442d00e6e48523930e91cfb541f06a7f00f14",
+        "binary_sha256": "895d0a2caf89f1a088b3a3e1968146e4b9044ca402d0a7442e9a4bfe98917c5d",
+        "method": "accepted serving configuration"
+      }
+    },
+    {
+      "cell": "qwen3_0_6b-B16",
+      "model": "qwen3_0_6b",
+      "batch": 16,
+      "moe": false,
+      "pilot": false,
+      "w_source": "configs/serving/sm90r3/qwen3_0_6b_b16.json",
+      "w_coordinates_sha256": "ce7d24015d49a0d237a12b432ed9189fe43ee09a8d3bbaacb1b998ab2f2d733c",
+      "coordinates": {
+        "schema": 5,
+        "model": "dense",
+        "gemms": {
+          "qkv": {
+            "tile_n": 32,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 32768,
+            "slots": 2,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "o": {
+            "tile_n": 8,
+            "warps_n": 1,
+            "warps_k": 4,
+            "slot_bytes": 16384,
+            "slots": 2,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": true
+          },
+          "gate_up": {
+            "tile_n": 32,
+            "warps_n": 2,
+            "warps_k": 2,
+            "slot_bytes": 32768,
+            "slots": 2,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "down": {
+            "tile_n": 16,
+            "warps_n": 2,
+            "warps_k": 2,
+            "slot_bytes": 16384,
+            "slots": 3,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "lm_head": {
+            "tile_n": 128,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 16384,
+            "slots": 3,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          }
+        },
+        "attention": {
+          "chunks": 1,
+          "block_keys": 64,
+          "slots": 3,
+          "new_row_work": 0,
+          "merge": "la"
+        },
+        "residency": 1,
+        "swiglu_u": 16,
+        "weight_stream": false,
+        "layer_loop": true,
+        "emb": "stage",
+        "group_wait": true,
+        "cluster": 2
+      },
+      "k": 4,
+      "prefill": "/root/TileMega/runs/sm90r2/build/sm90r3-final-prefill/qwen3_0_6b-B16/prefill.so",
+      "prefill_sha256": "b87bd4f61d54ca791649b44701506f3fbf33e95edd5f9649d350cd90f7228d44",
+      "accepted_tpot_ms": 1.3762123969029398,
+      "processes": 3,
+      "class": "trial",
+      "provenance": {
+        "config_sha256": "cf1a009650ca2e25630b27b6c0dc433067021ae57df9919ba545e2af8d476624",
+        "binary_sha256": "c80b0c25025c8d690ec7befd83a3b03955035d1935dc3fe1a9b84cc66ce04ab3",
+        "method": "accepted serving configuration"
+      }
+    },
+    {
+      "cell": "qwen3_1_7b-B1",
+      "model": "qwen3_1_7b",
+      "batch": 1,
+      "moe": false,
+      "pilot": false,
+      "w_source": "configs/serving/sm90r3/qwen3_1_7b_b1.json",
+      "w_coordinates_sha256": "75519d01bba87f972b952f1845bfd8c5fa35132f3375df74ab69f30fa77a385f",
+      "coordinates": {
+        "schema": 5,
+        "model": "dense",
+        "gemms": {
+          "qkv": {
+            "tile_n": 32,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 16384,
+            "slots": 3,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "o": {
+            "tile_n": 16,
+            "warps_n": 2,
+            "warps_k": 2,
+            "slot_bytes": 32768,
+            "slots": 2,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "gate_up": {
+            "tile_n": 48,
+            "warps_n": 2,
+            "warps_k": 2,
+            "slot_bytes": 24576,
+            "slots": 2,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "down": {
+            "tile_n": 16,
+            "warps_n": 2,
+            "warps_k": 2,
+            "slot_bytes": 16384,
+            "slots": 3,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "lm_head": {
+            "tile_n": 128,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 16384,
+            "slots": 3,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          }
+        },
+        "attention": {
+          "chunks": 16,
+          "block_keys": 64,
+          "slots": 2,
+          "new_row_work": 0,
+          "merge": "la"
+        },
+        "residency": 1,
+        "swiglu_u": 8,
+        "weight_stream": false,
+        "layer_loop": true,
+        "emb": "la",
+        "group_wait": true,
+        "cluster": 1
+      },
+      "k": 4,
+      "prefill": "/root/TileMega/runs/sm90r2/build/sm90r3-final-prefill/qwen3_1_7b-B1/prefill.so",
+      "prefill_sha256": "6f6740f70e5e89f439b6eb8466df0372aaa7f100c8583953eb4c1055e95079f8",
+      "accepted_tpot_ms": 1.6754311115689438,
+      "processes": 3,
+      "class": "trial",
+      "provenance": {
+        "config_sha256": "66c7d8b7eb1358ab31f44e0b53571e1aab3ce110906c1b650b1ac400c8c1e543",
+        "binary_sha256": "0f8989856fc251ab335ffac54e110efa788800c31bd8429a112bc3a2baba299c",
+        "method": "accepted serving configuration"
+      }
+    },
+    {
+      "cell": "qwen3_1_7b-B16",
+      "model": "qwen3_1_7b",
+      "batch": 16,
+      "moe": false,
+      "pilot": false,
+      "w_source": "configs/serving/sm90r3/qwen3_1_7b_b16.json",
+      "w_coordinates_sha256": "b4c25e0c4452358871d731fe88d863f046f775645245d679212a9ce0ca4e9493",
+      "coordinates": {
+        "schema": 5,
+        "model": "dense",
+        "gemms": {
+          "qkv": {
+            "tile_n": 32,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 16384,
+            "slots": 3,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "o": {
+            "tile_n": 16,
+            "warps_n": 1,
+            "warps_k": 4,
+            "slot_bytes": 16384,
+            "slots": 3,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "gate_up": {
+            "tile_n": 48,
+            "warps_n": 2,
+            "warps_k": 2,
+            "slot_bytes": 24576,
+            "slots": 2,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "down": {
+            "tile_n": 16,
+            "warps_n": 2,
+            "warps_k": 2,
+            "slot_bytes": 16384,
+            "slots": 3,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "lm_head": {
+            "tile_n": 128,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 16384,
+            "slots": 3,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          }
+        },
+        "attention": {
+          "chunks": 1,
+          "block_keys": 64,
+          "slots": 3,
+          "new_row_work": 0,
+          "merge": "la"
+        },
+        "residency": 1,
+        "swiglu_u": 8,
+        "weight_stream": false,
+        "layer_loop": true,
+        "emb": "stage",
+        "group_wait": true,
+        "cluster": 1
+      },
+      "k": 4,
+      "prefill": "/root/TileMega/runs/sm90r2/build/sm90r3-final-prefill/qwen3_1_7b-B16/prefill.so",
+      "prefill_sha256": "58ef0f527de222df9f675a5a1d9c1a4c90bdc708e634cfd4c97de8262ebd4b30",
+      "accepted_tpot_ms": 2.087255141776117,
+      "processes": 3,
+      "class": "trial",
+      "provenance": {
+        "config_sha256": "70e1560e24a7642b17337a68dfeb0aacce96ffe8fd42a317e53931894dc4b509",
+        "binary_sha256": "329e36e28446d800d427d707a29f013b4679ea7cf10f6b1a2c73482080635ae0",
+        "method": "accepted serving configuration"
+      }
+    },
+    {
+      "cell": "llama3_2_1b-B1",
+      "model": "llama3_2_1b",
+      "batch": 1,
+      "moe": false,
+      "pilot": false,
+      "w_source": "configs/serving/sm90r3/llama3_2_1b_b1.json",
+      "w_coordinates_sha256": "144c9fe1d536f4d4cb93f41c2d7865b0acfb8f89cc1bda967364c42629d1768a",
+      "coordinates": {
+        "schema": 5,
+        "model": "dense",
+        "gemms": {
+          "qkv": {
+            "tile_n": 32,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 32768,
+            "slots": 2,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "o": {
+            "tile_n": 16,
+            "warps_n": 2,
+            "warps_k": 2,
+            "slot_bytes": 32768,
+            "slots": 2,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "gate_up": {
+            "tile_n": 64,
+            "warps_n": 2,
+            "warps_k": 2,
+            "slot_bytes": 16384,
+            "slots": 3,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "down": {
+            "tile_n": 16,
+            "warps_n": 2,
+            "warps_k": 2,
+            "slot_bytes": 16384,
+            "slots": 3,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "lm_head": {
+            "tile_n": 128,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 16384,
+            "slots": 3,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          }
+        },
+        "attention": {
+          "chunks": 16,
+          "block_keys": 64,
+          "slots": 2,
+          "new_row_work": 0,
+          "merge": "la"
+        },
+        "residency": 1,
+        "swiglu_u": 16,
+        "weight_stream": false,
+        "layer_loop": true,
+        "emb": "la",
+        "group_wait": true,
+        "cluster": 1
+      },
+      "k": 4,
+      "prefill": "/root/TileMega/runs/sm90r2/build/sm90r3-final-prefill/llama3_2_1b-B1/prefill.so",
+      "prefill_sha256": "f3da0f7d449a84a60ba0265fe788a182792f716cb06664f126a03c65b70d8bd6",
+      "accepted_tpot_ms": 1.119497414329658,
+      "processes": 3,
+      "class": "trial",
+      "provenance": {
+        "config_sha256": "de902304a0d6fa210685aff8d4d71ba61122af7f85aea53a50675ce7ec037cd0",
+        "binary_sha256": "c8464433833c496752d8d3e23d86c981fb0ac14047810710c2507de58e1ffaab",
+        "method": "accepted serving configuration"
+      }
+    },
+    {
+      "cell": "llama3_2_1b-B16",
+      "model": "llama3_2_1b",
+      "batch": 16,
+      "moe": false,
+      "pilot": false,
+      "w_source": "configs/serving/sm90r3/llama3_2_1b_b16.json",
+      "w_coordinates_sha256": "abe0dd7de784784aab6042fddf6fb96f09d573a46c56120114e87bf25846f592",
+      "coordinates": {
+        "schema": 5,
+        "model": "dense",
+        "gemms": {
+          "qkv": {
+            "tile_n": 32,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 32768,
+            "slots": 2,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "o": {
+            "tile_n": 16,
+            "warps_n": 2,
+            "warps_k": 2,
+            "slot_bytes": 16384,
+            "slots": 3,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "gate_up": {
+            "tile_n": 64,
+            "warps_n": 2,
+            "warps_k": 2,
+            "slot_bytes": 16384,
+            "slots": 3,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "down": {
+            "tile_n": 16,
+            "warps_n": 2,
+            "warps_k": 2,
+            "slot_bytes": 16384,
+            "slots": 3,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "lm_head": {
+            "tile_n": 128,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 16384,
+            "slots": 3,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          }
+        },
+        "attention": {
+          "chunks": 1,
+          "block_keys": 64,
+          "slots": 4,
+          "new_row_work": 0,
+          "merge": "la"
+        },
+        "residency": 1,
+        "swiglu_u": 16,
+        "weight_stream": false,
+        "layer_loop": true,
+        "emb": "stage",
+        "group_wait": true,
+        "cluster": 1
+      },
+      "k": 4,
+      "prefill": "/root/TileMega/runs/sm90r2/build/sm90r3-final-prefill/llama3_2_1b-B16/prefill.so",
+      "prefill_sha256": "e8f8be734820b9dd17601e797018171dc68ec1214c58a11a1ad7533110fd3a16",
+      "accepted_tpot_ms": 1.248745252159793,
+      "processes": 3,
+      "class": "trial",
+      "provenance": {
+        "config_sha256": "24fb392ce02547fa282810786772e5f8e66067236327520ec8e35ba9edf6af7e",
+        "binary_sha256": "446022dcbe2397bdeabf870571981c435f8541e74b4da754281ac38bb5ef64a1",
+        "method": "accepted serving configuration"
+      }
+    },
+    {
+      "cell": "llama3_2_3b-B1",
+      "model": "llama3_2_3b",
+      "batch": 1,
+      "moe": false,
+      "pilot": false,
+      "w_source": "configs/serving/sm90r3/llama3_2_3b_b1.json",
+      "w_coordinates_sha256": "a17aefcbad9be658ae8ad15d74b974607bd4b46ec04fca2aaaad07f57e5087c2",
+      "coordinates": {
+        "schema": 5,
+        "model": "dense",
+        "gemms": {
+          "qkv": {
+            "tile_n": 32,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 32768,
+            "slots": 2,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "o": {
+            "tile_n": 32,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 32768,
+            "slots": 2,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "gate_up": {
+            "tile_n": 64,
+            "warps_n": 2,
+            "warps_k": 2,
+            "slot_bytes": 16384,
+            "slots": 3,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "down": {
+            "tile_n": 32,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 32768,
+            "slots": 2,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "lm_head": {
+            "tile_n": 128,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 16384,
+            "slots": 3,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          }
+        },
+        "attention": {
+          "chunks": 16,
+          "block_keys": 64,
+          "slots": 2,
+          "new_row_work": 0,
+          "merge": "la"
+        },
+        "residency": 1,
+        "swiglu_u": 16,
+        "weight_stream": false,
+        "layer_loop": true,
+        "emb": "la",
+        "group_wait": true,
+        "cluster": 1
+      },
+      "k": 4,
+      "prefill": "/root/TileMega/runs/sm90r2/build/sm90r3-final-prefill/llama3_2_3b-B1/prefill.so",
+      "prefill_sha256": "b0ea43b6c60cf488c541a83b1c326b73693faad74dcf159f44bdbb3664aa7737",
+      "accepted_tpot_ms": 2.8292358659921564,
+      "processes": 3,
+      "class": "trial",
+      "provenance": {
+        "config_sha256": "1f501569204fabcdac71d8d02942d42fa2b5e134e7d9293db6be417d3a3f4a5c",
+        "binary_sha256": "76c08932f0ac79c851a8f4140a8bb79efa21eb4d3b98a0a6cecbf247a4de2bf3",
+        "method": "accepted serving configuration"
+      }
+    },
+    {
+      "cell": "llama3_2_3b-B16",
+      "model": "llama3_2_3b",
+      "batch": 16,
+      "moe": false,
+      "pilot": false,
+      "w_source": "configs/serving/sm90r3/llama3_2_3b_b16.json",
+      "w_coordinates_sha256": "1515e1d7734d3513f8982cd8b6610cb645240fa33b545c504daa90aac4f3e473",
+      "coordinates": {
+        "schema": 5,
+        "model": "dense",
+        "gemms": {
+          "qkv": {
+            "tile_n": 64,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 32768,
+            "slots": 2,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "o": {
+            "tile_n": 32,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 32768,
+            "slots": 2,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "gate_up": {
+            "tile_n": 64,
+            "warps_n": 2,
+            "warps_k": 2,
+            "slot_bytes": 16384,
+            "slots": 3,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "down": {
+            "tile_n": 32,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 32768,
+            "slots": 2,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "lm_head": {
+            "tile_n": 256,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 32768,
+            "slots": 2,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          }
+        },
+        "attention": {
+          "chunks": 1,
+          "block_keys": 64,
+          "slots": 2,
+          "new_row_work": 0,
+          "merge": "la"
+        },
+        "residency": 1,
+        "swiglu_u": 16,
+        "weight_stream": false,
+        "layer_loop": true,
+        "emb": "stage",
+        "group_wait": true,
+        "cluster": 1
+      },
+      "k": 4,
+      "prefill": "/root/TileMega/runs/sm90r2/build/sm90r3-final-prefill/llama3_2_3b-B16/prefill.so",
+      "prefill_sha256": "e791f031b0425ceb7e9ad1ab939fd6a707e4748eac0cfbf90435b62c385348c8",
+      "accepted_tpot_ms": 3.0695994360461643,
+      "processes": 3,
+      "class": "trial",
+      "provenance": {
+        "config_sha256": "a5a3159c695786f93c82032f4696b577ac0b5867c4fa3c809e360d2d017ce971",
+        "binary_sha256": "2064320d6374d6f09f6a8868788546a982c7100ffb4cbb119ec57e204bfbdaf9",
+        "method": "accepted serving configuration"
+      }
+    },
+    {
+      "cell": "llama3_1_8b-B1",
+      "model": "llama3_1_8b",
+      "batch": 1,
+      "moe": false,
+      "pilot": false,
+      "w_source": "configs/serving/sm90r3/llama3_1_8b_b1.json",
+      "w_coordinates_sha256": "73ca35ee961f43db61fb6291e4c00239a7bb7508f36139022f0b347dcf175525",
+      "coordinates": {
+        "schema": 5,
+        "model": "dense",
+        "gemms": {
+          "qkv": {
+            "tile_n": 32,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 32768,
+            "slots": 2,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "o": {
+            "tile_n": 32,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 16384,
+            "slots": 3,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "gate_up": {
+            "tile_n": 224,
+            "warps_n": 2,
+            "warps_k": 2,
+            "slot_bytes": 28672,
+            "slots": 2,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "down": {
+            "tile_n": 32,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 16384,
+            "slots": 3,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "lm_head": {
+            "tile_n": 128,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 16384,
+            "slots": 3,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          }
+        },
+        "attention": {
+          "chunks": 16,
+          "block_keys": 64,
+          "slots": 2,
+          "new_row_work": 0,
+          "merge": "la"
+        },
+        "residency": 1,
+        "swiglu_u": 16,
+        "weight_stream": false,
+        "layer_loop": true,
+        "emb": "la",
+        "group_wait": true,
+        "cluster": 1
+      },
+      "k": 4,
+      "prefill": "/root/TileMega/runs/sm90r2/build/sm90r3-final-prefill/llama3_1_8b-B1/prefill.so",
+      "prefill_sha256": "998886aa1d5d7b9a42cb6b40252679b1f6fa9dd188c1b6da3a08992351aee902",
+      "accepted_tpot_ms": 5.568147247305772,
+      "processes": 5,
+      "class": "trial",
+      "provenance": {
+        "config_sha256": "e64a54307de53029f2f52cb62f7b847eba945bbca71c30b569a4d8eecbaf420f",
+        "binary_sha256": "d51bd09acecb64cf245f9601ebb4bacfe202368d0a796b67095688d97aa1270c",
+        "method": "accepted serving configuration"
+      }
+    },
+    {
+      "cell": "llama3_1_8b-B16",
+      "model": "llama3_1_8b",
+      "batch": 16,
+      "moe": false,
+      "pilot": true,
+      "w_source": "configs/serving/sm90r3/llama3_1_8b_b16.json",
+      "w_coordinates_sha256": "7c7a953e95eda24710058ed110714e8fb4e361007b8cd8f0e66fdaee50aa5960",
+      "coordinates": {
+        "schema": 5,
+        "model": "dense",
+        "gemms": {
+          "qkv": {
+            "tile_n": 64,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 32768,
+            "slots": 2,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "o": {
+            "tile_n": 32,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 16384,
+            "slots": 3,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "gate_up": {
+            "tile_n": 112,
+            "warps_n": 2,
+            "warps_k": 2,
+            "slot_bytes": 28672,
+            "slots": 2,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "down": {
+            "tile_n": 32,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 16384,
+            "slots": 3,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "lm_head": {
+            "tile_n": 256,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 32768,
+            "slots": 2,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          }
+        },
+        "attention": {
+          "chunks": 1,
+          "block_keys": 64,
+          "slots": 2,
+          "new_row_work": 0,
+          "merge": "la"
+        },
+        "residency": 1,
+        "swiglu_u": 8,
+        "weight_stream": false,
+        "layer_loop": true,
+        "emb": "stage",
+        "group_wait": true,
+        "cluster": 1
+      },
+      "k": 4,
+      "prefill": "/root/TileMega/runs/sm90r2/build/sm90r3-final-prefill/llama3_1_8b-B16/prefill.so",
+      "prefill_sha256": "414229597b8be99d2da5c134587b6e7527d4677526683baaae842c65dca7f6c6",
+      "accepted_tpot_ms": 5.869959058756244,
+      "processes": 5,
+      "class": "trial",
+      "provenance": {
+        "config_sha256": "bb87b0cd1c1d3ad8835658cb5f990213b3270328d1b8cb603a5d8f6e4d180e88",
+        "binary_sha256": "2aa4835d133ced2fd47c4064e63450b750423a59ad1f0be7de07b6acbdefeccf",
+        "method": "accepted serving configuration"
+      }
+    },
+    {
+      "cell": "mistral_7b_v0_3-B1",
+      "model": "mistral_7b_v0_3",
+      "batch": 1,
+      "moe": false,
+      "pilot": false,
+      "w_source": "configs/serving/sm90r4/mistral_7b_v0_3_b1.json",
+      "w_coordinates_sha256": "73ca35ee961f43db61fb6291e4c00239a7bb7508f36139022f0b347dcf175525",
+      "coordinates": {
+        "schema": 5,
+        "model": "dense",
+        "gemms": {
+          "qkv": {
+            "tile_n": 32,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 32768,
+            "slots": 2,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "o": {
+            "tile_n": 32,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 16384,
+            "slots": 3,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "gate_up": {
+            "tile_n": 224,
+            "warps_n": 2,
+            "warps_k": 2,
+            "slot_bytes": 28672,
+            "slots": 2,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "down": {
+            "tile_n": 32,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 16384,
+            "slots": 3,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "lm_head": {
+            "tile_n": 128,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 16384,
+            "slots": 3,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          }
+        },
+        "attention": {
+          "chunks": 16,
+          "block_keys": 64,
+          "slots": 2,
+          "new_row_work": 0,
+          "merge": "la"
+        },
+        "residency": 1,
+        "swiglu_u": 16,
+        "weight_stream": false,
+        "layer_loop": true,
+        "emb": "la",
+        "group_wait": true,
+        "cluster": 1
+      },
+      "k": 4,
+      "prefill": "/root/TileMega/runs/sm90r4/build/prefill/mistral_7b_v0_3-B1/prefill.so",
+      "prefill_sha256": "d6cc08b9da060af7ce38dd96ecdccbc1a499e3b626b36649d9616ec9315119a0",
+      "accepted_tpot_ms": 5.3308211231688665,
+      "processes": 5,
+      "class": "trial",
+      "provenance": {
+        "config_sha256": "7a2fb30cb200cff839a4ca03b26ff8f4f98723760d5a9dc75ff4804ce3a941ab",
+        "binary_sha256": "0beea1ab77a51dfffde72c0dd8e686aecc012dd36587e2bb328529c7516278e7",
+        "method": "accepted serving configuration"
+      }
+    },
+    {
+      "cell": "mistral_7b_v0_3-B16",
+      "model": "mistral_7b_v0_3",
+      "batch": 16,
+      "moe": false,
+      "pilot": false,
+      "w_source": "configs/serving/sm90r4/mistral_7b_v0_3_b16.json",
+      "w_coordinates_sha256": "fd7e6fdca0d557fe7304cadc9288923072833ef1695b3bb1c847690372910cd3",
+      "coordinates": {
+        "schema": 5,
+        "model": "dense",
+        "gemms": {
+          "qkv": {
+            "tile_n": 64,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 32768,
+            "slots": 2,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "o": {
+            "tile_n": 32,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 16384,
+            "slots": 3,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "gate_up": {
+            "tile_n": 112,
+            "warps_n": 2,
+            "warps_k": 2,
+            "slot_bytes": 28672,
+            "slots": 2,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "down": {
+            "tile_n": 32,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 16384,
+            "slots": 3,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "lm_head": {
+            "tile_n": 128,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 16384,
+            "slots": 3,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          }
+        },
+        "attention": {
+          "chunks": 1,
+          "block_keys": 64,
+          "slots": 2,
+          "new_row_work": 0,
+          "merge": "la"
+        },
+        "residency": 1,
+        "swiglu_u": 8,
+        "weight_stream": false,
+        "layer_loop": true,
+        "emb": "stage",
+        "group_wait": true,
+        "cluster": 1
+      },
+      "k": 4,
+      "prefill": "/root/TileMega/runs/sm90r4/build/prefill/mistral_7b_v0_3-B16/prefill.so",
+      "prefill_sha256": "98d481f00179dc59c8bad5957a5c4e44630a2139fadf870e9f477ec320c50110",
+      "accepted_tpot_ms": 5.61957944868311,
+      "processes": 5,
+      "class": "trial",
+      "provenance": {
+        "config_sha256": "2d4ae1d609888385b2a302a2374782c91a4838b3aa2d0978bd4ace5b55e1c07d",
+        "binary_sha256": "10f59cdc7b978dab81ffb806edc39c4d3878e18a3567bfc64c04318e635adb38",
+        "method": "accepted serving configuration"
+      }
+    },
+    {
+      "cell": "qwen3_30b_a3b-B1",
+      "model": "qwen3_30b_a3b",
+      "batch": 1,
+      "moe": true,
+      "pilot": false,
+      "w_source": "configs/serving/sm90r5/ref_r4/qwen3_30b_a3b_b1.json",
+      "w_coordinates_sha256": "b3d7b9a04d08429a038c17dede77d10519ad748f3fe2a802a47c0c58fc1a5c24",
+      "coordinates": {
+        "schema": 6,
+        "model": "moe",
+        "gemms": {
+          "qkv": {
+            "tile_n": 32,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 32768,
+            "slots": 2,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "o": {
+            "tile_n": 16,
+            "warps_n": 2,
+            "warps_k": 2,
+            "slot_bytes": 16384,
+            "slots": 3,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "router": {
+            "tile_n": 8,
+            "warps_n": 1,
+            "warps_k": 4,
+            "slot_bytes": 16384,
+            "slots": 2,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "expert_gate_up": {
+            "tile_n": 96,
+            "warps_n": 2,
+            "warps_k": 2,
+            "slot_bytes": 24576,
+            "slots": 2,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "expert_down": {
+            "tile_n": 128,
+            "warps_n": 2,
+            "warps_k": 2,
+            "slot_bytes": 32768,
+            "slots": 2,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "lm_head": {
+            "tile_n": 128,
+            "warps_n": 1,
+            "warps_k": 4,
+            "slot_bytes": 16384,
+            "slots": 3,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          }
+        },
+        "attention": {
+          "chunks": 1,
+          "block_keys": 64,
+          "slots": 2,
+          "new_row_work": 0,
+          "merge": "la"
+        },
+        "residency": 1,
+        "swiglu_u": 16,
+        "weight_stream": false,
+        "layer_loop": true,
+        "emb": "la",
+        "group_wait": true,
+        "cluster": 1,
+        "expert_fuse": true
+      },
+      "k": 4,
+      "prefill": "/root/TileMega/runs/sm90r1/D1/B1-prefill-DN-v2.so",
+      "prefill_sha256": "b996b79daaf631df4f58cfdac60d6be58bcc9b5a26ee1718e43e92119edf1ab5",
+      "accepted_tpot_ms": 3.7428,
+      "processes": 5,
+      "class": "machine",
+      "provenance": {
+        "config_sha256": "2b677e4926251a40101d00a899eb471a46fd7ac9cb32ae277e679a6e25351cd4",
+        "binary_sha256": "f81fd331cb79b0f082d12a943ce31dfdc2f8cf852e07505091f6f1f8e8331e42",
+        "binding_file": "/root/TileMega-r5/runs/sm90r4/build/r5-final/qwen3_30b_a3b-B1/binding.json",
+        "binding_sha256": "9869eb77fba1ef84b8e752b7c32809bc2972f21406b1343197ae2a74627b61a6",
+        "spec_file": "/root/TileMega-r5/runs/sm90r5/pair/e23-qwen3_30b_a3b-B1/spec.json",
+        "spec_sha256": "e10c5b87a9f03d7f2fa7a2f8f6e068e174de1f1e326e5b1ea70ee79b7aea2c0a",
+        "arm": "e123",
+        "final_table": "docs/results/SM90R5_moe_final.csv",
+        "method": "final table pair e123 -> spec binary SHA -> binding coordinate SHA and binary plan exact equality"
+      }
+    },
+    {
+      "cell": "qwen3_30b_a3b-B16",
+      "model": "qwen3_30b_a3b",
+      "batch": 16,
+      "moe": true,
+      "pilot": false,
+      "w_source": "configs/serving/sm90r5/ref_r4/qwen3_30b_a3b_b16.json",
+      "w_coordinates_sha256": "ef232b80819dbb04aef7468cbc3cfe6b6aea7ec3927ebb1bc2f0dbd38367e5ba",
+      "coordinates": {
+        "schema": 6,
+        "model": "moe",
+        "gemms": {
+          "qkv": {
+            "tile_n": 64,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 32768,
+            "slots": 2,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "o": {
+            "tile_n": 16,
+            "warps_n": 2,
+            "warps_k": 2,
+            "slot_bytes": 16384,
+            "slots": 3,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "router": {
+            "tile_n": 8,
+            "warps_n": 1,
+            "warps_k": 4,
+            "slot_bytes": 16384,
+            "slots": 2,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "expert_gate_up": {
+            "tile_n": 192,
+            "warps_n": 2,
+            "warps_k": 2,
+            "slot_bytes": 24576,
+            "slots": 2,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "expert_down": {
+            "tile_n": 256,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 32768,
+            "slots": 2,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          },
+          "lm_head": {
+            "tile_n": 128,
+            "warps_n": 4,
+            "warps_k": 1,
+            "slot_bytes": 16384,
+            "slots": 3,
+            "mma": "mma_sync",
+            "register_stages": 1,
+            "multicast": false
+          }
+        },
+        "attention": {
+          "chunks": 1,
+          "block_keys": 64,
+          "slots": 2,
+          "new_row_work": 0,
+          "merge": "la"
+        },
+        "residency": 1,
+        "swiglu_u": 16,
+        "weight_stream": false,
+        "layer_loop": true,
+        "emb": "stage",
+        "group_wait": true,
+        "cluster": 1,
+        "expert_fuse": true
+      },
+      "k": 4,
+      "prefill": "/root/TileMega/runs/sm90r1/D1/B16/prefill-DN.so",
+      "prefill_sha256": "0bf63a4c1701a43c7980a687ff57885638796fbf0d4b12d81e002fcaa73d8111",
+      "accepted_tpot_ms": 14.9315,
+      "processes": 5,
+      "class": "machine",
+      "provenance": {
+        "config_sha256": "26730a2c2ea971bc33b0a81585a7c48c9f92006b37d0a63b4933fd8e6509d6cf",
+        "binary_sha256": "2790d0a7c80ea847929ff1efc39802ed61a50dd90585f31d809e5d6537a7c1b6",
+        "binding_file": "/root/TileMega-r5/runs/sm90r4/build/r5-final/qwen3_30b_a3b-B16/binding.json",
+        "binding_sha256": "859f3b1736df0a20e614806cbaf9b7ea36728818bb00e430f77890601ca2d304",
+        "spec_file": "/root/TileMega-r5/runs/sm90r5/pair/e23-qwen3_30b_a3b-B16/spec.json",
+        "spec_sha256": "831458c1355e100f097768f1e4a503ad2fc755a1ddb9629e9d7085bdadcdfee4",
+        "arm": "e123",
+        "final_table": "docs/results/SM90R5_moe_final.csv",
+        "method": "final table pair e123 -> spec binary SHA -> binding coordinate SHA and binary plan exact equality"
+      }
+    }
+  ]
+}
