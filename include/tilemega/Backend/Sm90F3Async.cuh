@@ -30,14 +30,15 @@ struct Sm90F3Async {
   __device__ static __forceinline__ void NamedBarrier() {
     static_assert(Id>=0 && Id<16,"a named barrier id is 0..15");
     static_assert(Threads>0 && Threads%32==0 && Threads<=1024);
-    asm volatile("bar.sync %0, %1;" ::"n"(Id),"n"(Threads):"memory");
+    // Role loops meet at different PCs; bar.sync is the aligned alias.
+    asm volatile("barrier.sync %0, %1;" ::"n"(Id),"n"(Threads):"memory");
   }
   // Arrive without blocking: the producer announces its own gate arrival.
   template<int Id,int Threads>
   __device__ static __forceinline__ void NamedArrive() {
     static_assert(Id>=0 && Id<16,"a named barrier id is 0..15");
     static_assert(Threads>0 && Threads%32==0 && Threads<=1024);
-    asm volatile("bar.arrive %0, %1;" ::"n"(Id),"n"(Threads):"memory");
+    asm volatile("barrier.arrive %0, %1;" ::"n"(Id),"n"(Threads):"memory");
   }
 
   // The stage gate (§5.5). `events[]` only ever grows: an epoch multiplies the
