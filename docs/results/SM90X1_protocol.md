@@ -22,6 +22,19 @@ the timing policy. Only GPU0–3 are visible in this container. Guard acceptance
 may be provisional because host PIDs are outside the container namespace; this
 is retained in raw guard receipts rather than described as verified ownership.
 
+[verified] The experiment additionally audits the complete sampled PID set of
+every accepted process. A native timing, trace or non-HF correctness process
+permits at most one distinct GPU PID; the first C-1 process permits two for its
+native parent and HF child. Extra owners reject the whole unit, including
+transient owners that leave before the guard's final sample. Raw attempts and
+rejected summaries are retained. This count audit cannot prove host PID
+ownership or rule out interference between telemetry samples.
+
+[verified] One initially accepted Qwen Phase 0 non-HF correctness process
+contained three distinct sampled GPU PIDs. Its complete five-process P-CORR
+unit and initial P-FINAL summaries were archived for repetition. The initial
+0.94494 ms P-FINAL is excluded until the clean correctness and timing repeat.
+
 [verified] CLI enumeration can import once for every family:
 
 ```sh
