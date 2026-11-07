@@ -138,7 +138,7 @@ F3Chain EmitF3Chain(codegen::DmEpilogueChain const& chain,int tile_m,int tile_n,
         result.residual=true;
         // A scaled residual rounds its multiply before the add; an unscaled
         // one has no vector, and the body checks the pointer for that.
-        first=op.parameter[1]==codegen::kDmNoIndex?0u:slot(op.parameter[1]);
+        first=op.parameter[1]==codegen::kDmNoIndex?kAbsent:slot(op.parameter[1]);
         break;
       case Kind::kDeferredLayerNorm:
         steps<<"kDeferredLayerNorm";deferred=true;result.stats=true;

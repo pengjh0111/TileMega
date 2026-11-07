@@ -114,7 +114,8 @@ struct Sm90F3Chain {
       // One 32-bit shared read takes the (col, col+1) pair; this element keeps
       // its own half. The scale, when the plan named one, rounds before the add.
       float add=float(ResidualAt(side,row,col));
-      if(p.vectors[S::kVector])value=__fmul_rn(value,Side::Vector(side,S::kVector)[col]);
+      if constexpr(S::kVector<4)
+        if(p.vectors[S::kVector])value=__fmul_rn(value,Side::Vector(side,S::kVector)[col]);
       value=__fadd_rn(value,add);
     }else if constexpr(S::kKind==Sm90ForwardOp::kDeferredLayerNorm) {
       // (acc - mu u_n) * inv + v_n, with (mu, inv) from the producer's sums.
