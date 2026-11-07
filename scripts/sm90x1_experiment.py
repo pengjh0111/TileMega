@@ -1,5 +1,7 @@
 """SM90X1 phase-gated sweeps, measured compositions and reportable arm units."""
 import argparse
+import concurrent.futures
+import fcntl
 import itertools
 import json
 import math
@@ -14,6 +16,7 @@ from sm90r4_inputs import model_dir
 from sm90r4_fixed import native_command
 from sm90x1_hardware import run_unit, audit_unit
 import sm90x1_analysis as stats
+import sm90x1_waiver as waiver
 
 RUN=ROOT/'runs/sm90x1'
 RESULTS=ROOT/'docs/results'
@@ -98,42 +101,62 @@ def build(a):
     for c in rows(a):
         d=cell_dir(c,a)
         plan=read(d/'arm-plan.json') if a.arms_only else read(d/'build-plan.json')
-        for entry in plan:
-            out=d/entry['id']
-            if (out/'binding.json').exists():
-                binding=read(out/'binding.json')
-                if binding['head']!=base.head() or sha(binding['decode'])!=binding['decode_sha256']:
-                    raise ValueError('existing build differs; retain it and choose another tag')
-                continue
-            out.mkdir(exist_ok=True)
-            if (out/'build.json').exists():
-                continue  # failed binaries remain failed rows, never silently replaced
-            binary=out/'decode.so'
-            command=native_command(compiler,RUN/'cells'/c['cell']/'decode.export.json',binary,
-                                   entry['coordinates'],c['batch'])
-            start=time.monotonic();peak=0
-            with (out/'build.log').open('w') as log:
-                process=subprocess.Popen(command,cwd=ROOT,env=dict(os.environ,CUDA_VISIBLE_DEVICES=''),
-                                         stdout=log,stderr=subprocess.STDOUT)
-                while process.poll() is None:
-                    peak=max(peak,base.tree_rss(process.pid));time.sleep(0.5)
-            record=dict(entry,cell=c['cell'],head=base.head(),status=process.returncode,
-                        wall_s=time.monotonic()-start,peak_tree_rss_bytes=peak,command=command)
-            write(out/'build.json',record)
-            if process.returncode:
-                continue
-            with (out/'host_abi.log').open('w') as log:
-                status=subprocess.call([PYTHON,str(ROOT/'scripts/check_sm90r2_native_abi.py'),
-                        '--prefill',c['prefill'],'--decode',str(binary),'--model-config',
-                        str(model_dir(c['model'])/'config.json')],cwd=ROOT,
-                        env=dict(os.environ,CUDA_VISIBLE_DEVICES='',PYTHONPATH=str(ROOT/'python')),
-                        stdout=log,stderr=subprocess.STDOUT)
-            identity=read(str(binary)+'.identity.json')
-            record.update(decode=str(binary),decode_sha256=sha(binary),prefill=c['prefill'],
-                          host_abi_status=status,trace=identity['trace'],source_head=identity['source']['head'])
-            if status or identity['trace'] or identity['source']['head']!=base.head():
-                write(out/'failure.json',record);continue
-            write(out/'binding.json',record)
+        workers=getattr(a,'build_workers',1)
+        # Alias arms may share one binary. The per-output lock also protects
+        # concurrent resume and postprocessing drivers.
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+            futures=[pool.submit(build_entry,a,c,entry,compiler,workers) for entry in plan]
+            for future in futures:future.result()
+
+
+def build_entry(a,c,entry,compiler,workers):
+    import sm90x1 as base
+    d=cell_dir(c,a)
+    out=d/entry['id'];out.mkdir(parents=True,exist_ok=True)
+    with (out/'native-build.lock').open('a') as lock:
+        fcntl.flock(lock,fcntl.LOCK_EX)
+        return build_locked(a,c,entry,compiler,workers,out)
+
+
+def build_locked(a,c,entry,compiler,workers,out):
+    import sm90x1 as base
+    if (out/'binding.json').exists():
+        binding=read(out/'binding.json')
+        if binding['head']!=base.head() or sha(binding['decode'])!=binding['decode_sha256']:
+            raise ValueError('existing build differs; retain it and choose another tag')
+        return
+    out.mkdir(exist_ok=True)
+    if (out/'build.json').exists():
+        return  # failed binaries remain failed rows, never silently replaced
+    binary=out/'decode.so'
+    command=native_command(compiler,RUN/'cells'/c['cell']/'decode.export.json',binary,
+                           entry['coordinates'],c['batch'])
+    start=time.monotonic();peak=0
+    env=dict(os.environ,CUDA_VISIBLE_DEVICES='')
+    if workers>1 or not env.get('TILEMEGA_NVCC_LOCK'):
+        env['TILEMEGA_NVCC_LOCK']=str(out/'nvcc.lock')
+    with (out/'build.log').open('w') as log:
+        process=subprocess.Popen(command,cwd=ROOT,env=env,
+                                 stdout=log,stderr=subprocess.STDOUT)
+        while process.poll() is None:
+            peak=max(peak,base.tree_rss(process.pid));time.sleep(0.5)
+    record=dict(entry,cell=c['cell'],head=base.head(),status=process.returncode,
+                wall_s=time.monotonic()-start,peak_tree_rss_bytes=peak,command=command)
+    write(out/'build.json',record)
+    if process.returncode:
+        return
+    with (out/'host_abi.log').open('w') as log:
+        status=subprocess.call([PYTHON,str(ROOT/'scripts/check_sm90r2_native_abi.py'),
+                '--prefill',c['prefill'],'--decode',str(binary),'--model-config',
+                str(model_dir(c['model'])/'config.json')],cwd=ROOT,
+                env=dict(os.environ,CUDA_VISIBLE_DEVICES='',PYTHONPATH=str(ROOT/'python')),
+                stdout=log,stderr=subprocess.STDOUT)
+    identity=read(str(binary)+'.identity.json')
+    record.update(decode=str(binary),decode_sha256=sha(binary),prefill=c['prefill'],
+                  host_abi_status=status,trace=identity['trace'],source_head=identity['source']['head'])
+    if status or identity['trace'] or identity['source']['head']!=base.head():
+        write(out/'failure.json',record);return
+    write(out/'binding.json',record)
 
 
 def trace(a):
@@ -150,7 +173,7 @@ def analyze(a):
     for c in rows(a):
         d=cell_dir(c,a);out=[];deltas=[]
         for row in read(d/'variants.json'):
-            row=dict(row)
+            row=dict(row,**{'class':c['class']})
             if row['selected']:
                 family=row['family']
                 measured=stats.aggregate(d/row['build_id']/'trace',family,c['moe'])
@@ -218,6 +241,9 @@ def measurement(a):
         if sha(c['prefill'])!=c['prefill_sha256']:raise ValueError('frozen prefill changed')
         labels=list(bindings)
         if a.action=='corr':
+            if waiver.authorization(c):
+                waiver.record(c,d)
+                continue
             for entry in {e['id']:e for e in plan}.values():
                 label=entry['arm'];binding=bindings[label]
                 spec=dict(name=f"sm90x1-corr-{a.tag}-{c['cell']}-{entry['id']}",kind='corr',model=c['model'],
@@ -229,9 +255,13 @@ def measurement(a):
                 if not result['pass']:
                     raise ValueError('P-CORR failed; cell must remain a failure row')
         else:
+            correctness_waived=False
             for e in plan:
-                result=read(d/e['id']/'corr/result.json')
-                if not result['pass'] or not result['c1_pass'] or not result['c2_pass']:
+                if not waiver.passed(d/e['id']/'corr'):
+                    if waiver.authorization(c):
+                        waiver.record(c,d)
+                        correctness_waived=True
+                        continue
                     raise ValueError('P-CORR must pass before arm timing')
                 if not audit_unit(d/e['id']/'corr')['passed']:
                     raise ValueError('P-CORR hardware audit must pass before arm timing')
@@ -241,6 +271,8 @@ def measurement(a):
             spec=dict(name=f"sm90x1-sel-{a.tag}-{c['cell']}",kind='sel',model=c['model'],batch=c['batch'],
                       arms={label:dict(decode=b['decode'],prefill=c['prefill']) for label,b in bindings.items()},
                       order=order,**{'class':c['class']})
+            if correctness_waived:
+                spec.update(correctness_waiver=waiver.authorization(c),performance_eligible=False)
             path=d/'time-spec.json';write(path,spec);run_unit(path,d/'time',c['class'])
 
 
@@ -286,6 +318,7 @@ def decomposition(c,family):
 def tables(a):
     import sm90x1 as base
     all_cells=base.cells('all');candidates=[];stages=[];arms_out=[];ratios=[];choices=[];reversed_pairs=[]
+    waived_out=[];all_ratios=[];all_choices=[];waived_cells=set()
     for c in all_cells:
         tag=a.tag if a.phase==3 or a.cell!='all' else ('phase1' if c['pilot'] else 'phase2')
         d=RUN/'cells'/c['cell']/tag
@@ -317,6 +350,7 @@ def tables(a):
         plan=read(plan_dir/'arm-plan.json') if (plan_dir/'arm-plan.json').exists() else []
         result=read(measured/'time/result.json') if (measured/'time/result.json').exists() else None
         protocol=read(measured/'time/unit.json') if result else {}
+        cell_certified=True
         for label in ['W','L','Wstar']+(['T'] if a.phase==3 and c['moe'] else ['T','N'] if a.phase==3 else []):
             entry=next((e for e in plan if e['arm']==label),None)
             row=dict(cell=c['cell'],batch=c['batch'],arm=label,status='blocked' if failure_text else 'not_run',
@@ -328,41 +362,70 @@ def tables(a):
                     row.update(binary_sha256=binding['decode_sha256'],build_head=binding['head'])
                     if binding['trace']:raise ValueError('trace build cannot enter arms table')
                 corr_path=plan_dir/entry['id']/'corr/result.json'
+                corr={}
                 if corr_path.exists():
                     corr=read(corr_path);row.update(c1_pass=corr['c1_pass'],c2_pass=corr['c2_pass'])
                     if not corr['pass']:row['status']='corr_fail'
                 elif (plan_dir/entry['id']/'build.json').exists() and not (plan_dir/entry['id']/'binding.json').exists():
                     row['status']='build_fail'
+                uncertified=not(corr.get('pass') and row.get('c1_pass') and row.get('c2_pass'))
+                if uncertified and waiver.authorization(c):
+                    row.update(status='correctness_waived',correctness_status='waived_by_user',
+                               c1_pass='',c2_pass='',performance_eligible=False)
+                    waived_cells.add(c['cell'])
                 if result and label in result['arms']:
-                    if not row.get('c1_pass') or not row.get('c2_pass'):
+                    if uncertified and not waiver.authorization(c):
                         raise ValueError('uncertified TPOT cannot enter report')
-                    if not audit_unit(plan_dir/entry['id']/'corr')['passed'] or \
-                       not audit_unit(measured/'time')['passed']:
+                    if not audit_unit(measured/'time')['passed'] or (not uncertified and
+                            not audit_unit(plan_dir/entry['id']/'corr')['passed']):
                         raise ValueError('hardware-rejected TPOT cannot enter report')
+                    placeholder=dict(row)
                     row.update(result['arms'][label],status='measured',gpu=protocol['gpu'])
+                    if protocol.get('mode')=='parallel_processes':
+                        row['gpu']=';'.join(map(str,result['arms'][label]['gpus']))
+                        row['execution_mode']='parallel_processes'
+                    row.update(correctness_status='passed',performance_eligible=True)
                     for ref,suffix in [('W','w'),('Wstar','wstar')]:
                         other=result['arms'][ref];change=100*(row['tpot_ms']/other['tpot_ms']-1)
                         threshold=max(0.5,2*max(row['range_pct'],other['range_pct']))
                         row['change_vs_'+suffix+'_pct']=change
                         row['decision_vs_'+suffix]='indistinguishable' if abs(change)<=threshold else 'faster' if change<0 else 'slower'
+                    if uncertified:
+                        cell_certified=False;waived_cells.add(c['cell'])
+                        row.update(status='measured_under_user_waiver',correctness_status='waived_by_user',
+                                   performance_eligible=False,waiver_reason=waiver.authorization(c)['reason'],
+                                   normalized_tpot=row['tpot_ms']/result['arms']['Wstar']['tpot_ms'])
+                        waived_out.append(row);row=placeholder
             arms_out.append(row)
         if result:
-            r=result['arms'];ratios.append(dict(cell=c['cell'],batch=c['batch'],X=r['L']['tpot_ms']/r['Wstar']['tpot_ms'],
-                                              Xprime=r['L']['tpot_ms']/r['W']['tpot_ms']))
+            r=result['arms'];ratio=dict(cell=c['cell'],batch=c['batch'],X=r['L']['tpot_ms']/r['Wstar']['tpot_ms'],
+                                      Xprime=r['L']['tpot_ms']/r['W']['tpot_ms'])
+            all_ratios.append(ratio)
+            if cell_certified:ratios.append(ratio)
             coords={e['arm']:read(e['coordinates']) for e in plan}
             for f in families(c):
-                choices.append(dict(cell=c['cell'],batch=c['batch'],family=f,
+                choice=dict(cell=c['cell'],batch=c['batch'],family=f,
                     Y=int(decomposition(coords['L'],f)!=decomposition(coords['Wstar'],f)),
-                    Yprime=int(decomposition(coords['L'],f)!=decomposition(coords['W'],f))))
+                    Yprime=int(decomposition(coords['L'],f)!=decomposition(coords['W'],f)))
+                all_choices.append(choice)
+                if cell_certified:choices.append(choice)
     candidates_fields=['cell','family','variant','decomposition_key','coordinates_sha256','legal','reason',
         'predicted_stage_ns','predicted_step_ns','modeled_bytes','own_us','step_us','delta_own_us',
         'delta_step_us','delta_coupled_us','processes','selected','own_us_range_pct','step_us_range_pct','gpu','class','build_status','failure_reason']
     stats.write_csv(RESULTS/'SM90X1_candidates.csv',candidates,candidates_fields)
     stats.write_csv(RESULTS/'SM90X1_stage_deltas.csv',stages,
                     ['cell','family','variant','stage_kind','delta_us','stage','stage_name','gpu','class'])
-    stats.write_csv(RESULTS/'SM90X1_arms.csv',arms_out,['cell','arm','coordinates_sha256','binary_sha256',
+    arm_fields=['cell','arm','coordinates_sha256','binary_sha256',
         'c1_pass','c2_pass','tpot_ms','range_pct','processes','change_vs_wstar_pct','decision_vs_wstar',
-        'change_vs_w_pct','decision_vs_w','gpu','class','status','build_head','failure_reason'])
+        'change_vs_w_pct','decision_vs_w','gpu','class','status','build_head','failure_reason',
+        'correctness_status','performance_eligible','execution_mode']
+    stats.write_csv(RESULTS/'SM90X1_arms.csv',arms_out,arm_fields)
+    stats.write_csv(RESULTS/'SM90X1_uncertified_arms.csv',waived_out,
+                    arm_fields+['normalized_tpot','waiver_reason'])
+    supplemental=waiver.aggregates(all_cells,all_ratios,all_choices,waived_cells)
+    stats.write_csv(RESULTS/'SM90X1_summary_user_waived.csv',supplemental,
+                    ['metric','batch','count','denominator','value','min','max','status',
+                     'correctness_waived_cells','performance_eligible'])
     summary=[]
     for batch in [1,16,'overall']:
         selected=[c for c in all_cells if batch=='overall' or c['batch']==batch]
@@ -416,8 +479,11 @@ def tables(a):
     stats.write_csv(RESULTS/'SM90X1_figure_scatter.csv',[r for r in candidates if r['family'] in illustrative and r.get('processes')],
                     ['cell','family','variant','own_us','step_us','processes','gpu','class'])
     write(RUN/'rank-reversals.json',reversed_pairs)
-    write(RUN/'main-complete.json',dict(complete=len(ratios)==14,measured=len(ratios),required=14))
-    print(json.dumps(dict(measured_cells=len(ratios),required_cells=14,summary=summary[:4]),indent=2))
+    write(RUN/'main-complete.json',dict(complete=len(all_ratios)==14,strict_complete=len(ratios)==14,
+                                       measured=len(ratios),timed=len(all_ratios),required=14,
+                                       correctness_waived_cells=sorted(waived_cells)))
+    print(json.dumps(dict(measured_cells=len(ratios),timed_cells=len(all_ratios),required_cells=14,
+                         correctness_waived_cells=sorted(waived_cells),summary=summary[:4]),indent=2))
     pilot_names={c['cell'] for c in all_cells if c['pilot']}
     if all(any(r['cell']==name for r in ratios) for name in pilot_names):
         pilot_args=argparse.Namespace(**vars(a));pilot_args.tag='phase1'
@@ -459,7 +525,7 @@ def tables(a):
             'the first C-1 process permits two for its native parent and HF child. '
             'Rejected Qwen Phase 0 correctness units and the initial P-FINAL were excluded; clean correctness and fresh timing are required for acceptance. '
             'This count audit cannot establish host PID ownership in the container namespace.',
-            '[stated] Phase 2 target date: 2026-11-21. Pending phases remain gated by Phase 0 and the pilot cost projection.']
+            '[stated] Phase 2 target date: 2026-11-21. Optional Phase 3 arms and cells are outside this required 14-cell collection and were not scheduled.']
     phase0=read(RUN/'phase0.json') if (RUN/'phase0.json').exists() else None
     report+=['## Phase 0 setup','']
     for c in all_cells:
@@ -538,4 +604,40 @@ def tables(a):
     report+=['## Improvements beyond P-PAIR','',
              '[verified] '+str(len(ratios))+'/14 measured cells; L or W* faster than W beyond threshold: '+
              json.dumps(improvements) if ratios else '[verified] No reportable arm measurements are available yet.']
+    authorized=[c['cell'] for c in all_cells if waiver.authorization(c)]
+    if authorized:
+        report+=['## User-authorized P-CORR waiver','',
+                 '[stated] The user explicitly skipped the remaining correctness acceptance for '+
+                 ', '.join(authorized)+' and requested direct performance timing.',
+                 '[verified] '+str(len(all_ratios))+'/14 cells have completed non-trace timing; '+
+                 str(len(ratios))+'/14 have complete P-CORR. Uncertified timings are in '
+                 'SM90X1_uncertified_arms.csv and are excluded from the strict arm values, '
+                 'paper aggregates and normalized figure above. No correctness pass is fabricated.',
+                 '[verified] SM90X1_summary_user_waived.csv provides separate X/Xprime and Y/Yprime '
+                 'aggregates including the explicitly waived measurements. Its eligibility and waiver '
+                 'columns distinguish these from the strict paper results.']
+        if waived_out:
+            table=['| Cell | Arm | TPOT ms | Range % | Processes | GPU | Class |',
+                   '|---|---|---:|---:|---:|---:|---|']
+            table += ['| '+r['cell']+' | '+r['arm']+' | '+str(r['tpot_ms'])+' | '+str(r['range_pct'])+
+                      ' | '+str(r['processes'])+' | '+str(r['gpu'])+' | '+r['class']+' |' for r in waived_out]
+            report.append('\n'.join(table))
+        table=['| Batch | Timed cells | X | X\u2032 | Y | Y\u2032 | Eligibility |',
+               '|---|---:|---:|---:|---:|---:|---|']
+        for batch in (1,16,'overall'):
+            metrics={r['metric']:r for r in supplemental if r['batch']==batch}
+            values=[]
+            for metric in ('X','Xprime','Y','Yprime'):
+                r=metrics[metric]
+                value='pending' if r['value']=='' else (
+                    f"{r['value']:.6f} [{r['min']:.6f}, {r['max']:.6f}]" if metric.startswith('X') else
+                    f"{r['count']}/{r['denominator']} ({r['value']:.6f})")
+                values.append(value)
+            eligibility='strict' if metrics['X']['performance_eligible'] else 'includes user-waived P-CORR'
+            table.append('| '+str(batch)+' | '+str(metrics['X']['count'])+'/'+str(metrics['X']['denominator'])+
+                         ' | '+' | '.join(values)+' | '+eligibility+' |')
+        report.append('\n'.join(table))
+    notes=RUN/'deviations.json'
+    if notes.exists():
+        report+=['## Execution notes','',*read(notes)['paragraphs']]
     (RESULTS/'SM90X1_h800.md').write_text('\n\n'.join(report)+'\n')
