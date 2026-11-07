@@ -18,7 +18,8 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = dict(body=ROOT / 'test/unit/dnn3_f3_test.cu',
-               attention=ROOT / 'test/unit/dnn3_attention_test.cu')
+               attention=ROOT / 'test/unit/dnn3_attention_test.cu',
+               bert=ROOT / 'test/unit/dnn3_bert_test.cu')
 
 
 def sha(path):
@@ -74,7 +75,7 @@ def execute(options):
         return 1
     result['unit_passes'] = '5/5'
     result['output_hash'] = hashes[0]
-    cases = (('attention',) if options.suite == 'attention' else
+    cases = ((options.suite,) if options.suite != 'body' else
              ('gather', 'pool', 'split', 'conv', 'swap', 'small') if options.case == 'all'
              else (options.case,))
     for case in cases:

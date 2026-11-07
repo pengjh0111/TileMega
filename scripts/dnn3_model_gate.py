@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run F3 classification correctness in five guarded processes (DNN3 §2)."""
+"""Run F3 DNN correctness in five guarded processes (DNN3 §2)."""
 import argparse
 import json
 import os
@@ -40,8 +40,8 @@ def main():
         args.inputs = args.inputs.resolve()
     args.out.mkdir(parents=True, exist_ok=True)
     model = json.loads((args.export / 'manifest.json').read_text())['model']
-    if model not in ('resnet18', 'resnet50', 'vgg16'):
-        raise ValueError('this gate requires a classification export')
+    if model not in ('resnet18', 'resnet50', 'vgg16', 'bert'):
+        raise ValueError('this gate requires one of the four DNN3 exports')
     identity = verify(args.library)
     if identity['plan']['native_forward']['abi'] != 'f3' or identity['trace']:
         raise ValueError('requires a non-trace F3 model artifact')
@@ -63,8 +63,9 @@ def main():
             raise ValueError('correctness requires the scheduler/guard reservation')
         from tilemega.dnn.check_generated import check
         result = check(args.library, args.export, args.bridge, args.batch,
-                       epochs=3, input_tensors=args.inputs, thresholds={'cosine': .9999})
-        if any(output.get('top1_agreement') != 1.0
+                       epochs=3, input_tensors=args.inputs,
+                       thresholds={'cosine': .999 if model == 'bert' else .9999})
+        if model != 'bert' and any(output.get('top1_agreement') != 1.0
                for case in result['cases'] for output in case['outputs']):
             raise AssertionError('classification top-1 differs from FP32')
         save(args.out / 'check.json', result)
@@ -77,7 +78,9 @@ def main():
         if not os.environ.get('TILEMEGA_GPU_LOCK'):
             raise ValueError('cohort requires the scheduler/guard reservation')
         inputs = [Path(__file__), args.bridge, args.library,
-                  Path(str(args.library) + '.identity.json')]
+                  Path(str(args.library) + '.identity.json'), args.export / 'manifest.json',
+                  args.export / 'exported_program.pt2',
+                  args.export / 'checkpoint/model.safetensors']
         inputs.extend((ROOT / 'python/tilemega/dnn').glob('*.py'))
         if args.inputs is not None:
             inputs.append(args.inputs)
