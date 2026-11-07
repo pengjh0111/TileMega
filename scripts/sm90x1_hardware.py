@@ -79,7 +79,9 @@ def quarantine(unit, reason):
 
 def run_unit(template, unit, cls):
     for _ in range(3):
-        result = dispatch_unit(template, unit, cls)
+        # An archived unit need not permanently exclude its now-idle card.
+        # claim() still requires the same free-owner, memory, power and lock checks.
+        result = dispatch_unit(template, unit, cls, reconsider_idle=True)
         audit = audit_unit(unit)
         if audit['passed']:return result
         quarantine(unit, audit)

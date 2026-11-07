@@ -172,7 +172,7 @@ def watch(scheduler, state_path, cls, gpu, stall_s):
     return False
 
 
-def run_unit(template, unit, cls, stall_s=STALL_S, nodes=None):
+def run_unit(template, unit, cls, stall_s=STALL_S, nodes=None, reconsider_idle=False):
     """Measure one spec on one free card; returns the collected result."""
     unit = Path(unit)
     if (unit / 'unit.json').exists():
@@ -181,7 +181,7 @@ def run_unit(template, unit, cls, stall_s=STALL_S, nodes=None):
     tries = sorted((p for p in unit.glob('try*') if p.is_dir()), key=lambda p: int(p.name[3:]))
     cards = [read(p / 'spec.json')['gpu'] for p in tries if (p / 'spec.json').exists()]
     while True:
-        gpu, handle = claim(cls, str(unit), exclude=cards[-1:], nodes=nodes)
+        gpu, handle = claim(cls, str(unit), exclude=() if reconsider_idle else cards[-1:], nodes=nodes)
         attempt = unit / f'try{len(tries) + 1}'
         attempt.mkdir()
         tries.append(attempt)
