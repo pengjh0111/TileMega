@@ -1,5 +1,5 @@
 cell,batch,pilot,status,accepted_tpot_ms,tpot_ms,change_pct,range_pct,processes,gpu,class
-qwen3_0_6b-B1,1,True,not_run,0.9286410440640744,,,,,,trial
+qwen3_0_6b-B1,1,True,gate_pass,0.9286410440640744,0.9449379491629553,1.7549197510762227,0.9420348880016786,3,0,trial
 qwen3_0_6b-B16,16,False,not_run,1.3762123969029398,,,,,,trial
 qwen3_1_7b-B1,1,False,not_run,1.6754311115689438,,,,,,trial
 qwen3_1_7b-B16,16,False,not_run,2.087255141776117,,,,,,trial
