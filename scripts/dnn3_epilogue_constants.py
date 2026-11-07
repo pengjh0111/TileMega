@@ -64,7 +64,7 @@ def execute(args):
     if inputs()!=build['inputs']:
         raise ValueError('epilogue inputs changed during collection')
     save(args.out/'result.json',dict(evidence='verified',status='passed',rows=rows,
-         scope='resident normal-mode epilogue only; swap, split-K and task families pending',
+         scope='resident normal-mode epilogue; one region per launch; host overhead not clocked',
          rejected_builds=build['rejected_builds'],build=str(args.build),
          build_sha256=sha(args.build),gpu=int(os.environ['TILEMEGA_DEVICE_INDEX']),
          qualification='provisional_container_pid_namespace'))
@@ -75,6 +75,7 @@ def main():
     parser.add_argument('--out',type=Path,required=True)
     parser.add_argument('--tile',default='128x64')
     parser.add_argument('--all-normal',action='store_true')
+    parser.add_argument('--tiles',help='explicit normal tiles to repair, comma separated')
     parser.add_argument('--classes',default=','.join(CLASSES))
     parser.add_argument('--execute',action='store_true')
     parser.add_argument('--build',type=Path)
@@ -84,6 +85,8 @@ def main():
     tm,tn=map(int,args.tile.split('x'))
     tiles=[(m,n) for m in (64,128,256) for n in (32,64,128,256)
            if (m,n)!=(256,256)] if args.all_normal else [(tm,tn)]
+    if args.tiles:
+        tiles=[tuple(map(int,tile.split('x'))) for tile in args.tiles.split(',')]
     classes=args.classes.split(',')
     if (any(c not in CLASSES for c in classes) or len(set(classes))!=len(classes) or
             any(m not in (64,128,256) or n not in (32,64,128,256) or

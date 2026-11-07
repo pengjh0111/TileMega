@@ -64,13 +64,13 @@ __global__ void Calibrate(U64* output) {
 }
 
 __global__ __launch_bounds__(288,1)
-void ResidentEpilogue(U64* stamps,Element* output,float* stats) {
+void ResidentEpilogue(U64* stamps,Element* output,float* stats,int sample) {
   extern __shared__ __align__(1024) char shared[];
   auto* header=reinterpret_cast<Sm90F3Header*>(shared);
   auto& ring=header->rings[0];
   char* arena=shared+Sm90F3Budget::kArena0;
   char* side=arena+Body::kSideOffset;
-  if(threadIdx.x==0){ring.Initialize();Sm90F3Async::Base::InitFence();}
+  if(Sm90F3Async::ThreadIndex()==0){ring.Initialize();Sm90F3Async::Base::InitFence();}
   for(int i=int(threadIdx.x);i<Side::kResidualBytes/2;i+=288)
     reinterpret_cast<Element*>(side)[i]=Element(.125f);
   for(int i=int(threadIdx.x);i<Body::kVectors*kTN;i+=288) {
@@ -85,16 +85,16 @@ void ResidentEpilogue(U64* stamps,Element* output,float* stats) {
       raw[2*row]=0.f;raw[2*row+1]=768.f;
     }
   __syncthreads();
-  if(threadIdx.x<256 && (threadIdx.x&31)==0)ring.Prime();
+  if(threadIdx.x<256 && (Sm90F3Async::ThreadIndex()&31)==0)ring.Prime();
   __syncthreads();
   Sm90F3Phase phase{};
   Sm90F3GemmOperands p{};
   p.epilogue.output=output;p.epilogue.output_stride=kTN;
   p.epilogue.norm_width=768;p.epilogue.epsilon=0.f;
   p.epilogue.row_stats=stats;
-  for(int sample=0;sample<kSamples;++sample) {
+  {
     if constexpr(kHasSide)
-      if(threadIdx.x==256) {
+      if(Sm90F3Async::ThreadIndex()==256) {
         Sm90F3Async::Base::Wait(&ring.side_empty,phase.side_empty&1u);
         phase.side_empty^=1u;
         Sm90F3Async::Base::Arrive(&ring.side_full);
@@ -110,11 +110,11 @@ void ResidentEpilogue(U64* stamps,Element* output,float* stats) {
       Body::Epilogue(p,ring,side,phase,accum,int(threadIdx.x)/128,
           0,0,kTM,kTN,header,reinterpret_cast<Element*>(arena));
       U64 end=Clock();
-      if(threadIdx.x==0)stamps[sample]=end-start;
+      if(Sm90F3Async::ThreadIndex()==0)stamps[sample]=end-start;
     }
     __syncthreads();
   }
-  if(threadIdx.x==0)ring.Invalidate();
+  if(Sm90F3Async::ThreadIndex()==0)ring.Invalidate();
 }
 
 int main()try {
@@ -132,7 +132,10 @@ int main()try {
   Check(cudaFuncSetAttribute(ResidentEpilogue,cudaFuncAttributeMaxDynamicSharedMemorySize,bytes));
   int active=0;Check(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&active,ResidentEpilogue,288,bytes));
   if(active<1)throw std::runtime_error("resident epilogue cannot launch one CTA");
-  ResidentEpilogue<<<1,288,bytes>>>(stamps,output,stats);
+  // Host launch overhead is outside the clock64 interval. A single region
+  // per launch avoids artificial loop-carried coordinates in the allocator.
+  for(int sample=0;sample<kSamples;++sample)
+    ResidentEpilogue<<<1,288,bytes>>>(stamps,output,stats,sample);
   Check(cudaGetLastError());Check(cudaDeviceSynchronize());
   std::vector<U64> raw(kSamples);Check(cudaMemcpy(raw.data(),stamps,kSamples*sizeof(U64),cudaMemcpyDeviceToHost));
   std::vector<Element> values(kTM*kTN);

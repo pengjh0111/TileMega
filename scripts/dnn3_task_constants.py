@@ -77,6 +77,7 @@ def main():
     p.add_argument('--family',choices=('split','swap','small','attention'),required=True)
     p.add_argument('--tile',default='128x64')
     p.add_argument('--all-tiles',action='store_true')
+    p.add_argument('--tiles',help='explicit normal tiles to repair, comma separated')
     p.add_argument('--out',type=Path,required=True)
     p.add_argument('--build',type=Path)
     p.add_argument('--execute',action='store_true')
@@ -91,6 +92,11 @@ def main():
         tm,tn=map(int,args.tile.split('x'))
         tiles=[(m,n) for m in (64,128,256) for n in (32,64,128,256)
                if (m,n)!=(256,256)] if args.all_tiles else [(tm,tn)]
+        if args.tiles:
+            tiles=[tuple(map(int,tile.split('x'))) for tile in args.tiles.split(',')]
+            if any(m not in (64,128,256) or n not in (32,64,128,256) or
+                   m==n==256 for m,n in tiles) or len(set(tiles))!=len(tiles):
+                raise ValueError('unsupported or duplicate normal repair tiles')
         inventory=[(f'split_{m}x{n}',0,m,n,NORMAL_SPLITS) for m,n in tiles]
         inventory.extend((f'split_swap_{m}',2,m,128,SWAP_SPLITS) for m in (8,16))
     else:
@@ -125,7 +131,7 @@ def main():
     if not probes:
         raise RuntimeError('no resource-admissible calibration binaries')
     build=args.out/'build.json';save(build,dict(inputs=frozen,probes=probes,rejected=rejected,
-        source=str(source),method='clock64 production regions; 20ms globaltimer calibration; 8 warm samples discarded'))
+        source=str(source),method='clock64 production regions; split/swap one sample per launch; 20ms globaltimer calibration; 8 warm samples discarded'))
     env=dict(CUDA_VISIBLE_DEVICES='1',TILEMEGA_DEVICE_INDEX='1',TILEMEGA_GPU_LOCK='/tmp/tilemega_gpu1.lock',
         TILEMEGA_NUMA_NODE='0',TILEMEGA_GPU_PID_MODE='namespace_limited',TILEMEGA_NUMA_CONCURRENCY_TRIAL='1',
         PYTHONPATH=str(ROOT/'python'))

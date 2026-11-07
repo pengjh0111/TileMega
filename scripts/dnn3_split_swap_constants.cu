@@ -36,9 +36,9 @@ __device__ __forceinline__ U64 ProbeClock() {
 #define F3_PROBE_END_kStore
 #if F3_PROBE_FAMILY==1
 #define F3_PROBE_BEGIN_kMainLoop U64 probe_begin_kMainLoop=ProbeClock()
-#define F3_PROBE_END_kMainLoop if(threadIdx.x==0)probe_stamps[2*probe_sample]=ProbeClock()-probe_begin_kMainLoop
+#define F3_PROBE_END_kMainLoop if(Sm90F3Async::ThreadIndex()==0)probe_stamps[2*probe_sample]=ProbeClock()-probe_begin_kMainLoop
 #define F3_PROBE_BEGIN_kEpilogue U64 probe_begin_kEpilogue=ProbeClock()
-#define F3_PROBE_END_kEpilogue if(threadIdx.x==0)probe_stamps[2*probe_sample+1]=ProbeClock()-probe_begin_kEpilogue
+#define F3_PROBE_END_kEpilogue if(Sm90F3Async::ThreadIndex()==0)probe_stamps[2*probe_sample+1]=ProbeClock()-probe_begin_kEpilogue
 #define F3_PROBE_BEGIN_kSplitK
 #define F3_PROBE_END_kSplitK
 #else
@@ -47,7 +47,7 @@ __device__ __forceinline__ U64 ProbeClock() {
 #define F3_PROBE_BEGIN_kEpilogue
 #define F3_PROBE_END_kEpilogue
 #define F3_PROBE_BEGIN_kSplitK U64 probe_begin_kSplitK=ProbeClock()
-#define F3_PROBE_END_kSplitK if(threadIdx.x==0)probe_stamps[2*probe_sample]=ProbeClock()-probe_begin_kSplitK
+#define F3_PROBE_END_kSplitK if(Sm90F3Async::ThreadIndex()==0)probe_stamps[2*probe_sample]=ProbeClock()-probe_begin_kSplitK
 #endif
 #include <tilemega/Backend/Sm90F3Gemm.cuh>
 #include <tilemega/Backend/Sm90F3SwapAB.cuh>
@@ -70,14 +70,14 @@ __global__ void Calibrate(U64* output) {
 }
 
 template<int S> __global__ __launch_bounds__(288,1)
-void Resident(U64* stamps,Element* output,float* partial,U64* counters) {
+void Resident(U64* stamps,Element* output,float* partial,U64* counters,int sample) {
   using B=Body<S>;
   extern __shared__ __align__(1024) char shared[];
   auto* header=reinterpret_cast<Sm90F3Header*>(shared);
   auto& ring=header->rings[0];
   auto* arena=reinterpret_cast<Element*>(shared+Sm90F3Budget::kArena0);
   auto* side=reinterpret_cast<char*>(arena)+B::kSideOffset;
-  if(threadIdx.x==0) {
+  if(Sm90F3Async::ThreadIndex()==0) {
     ring.Initialize();Sm90F3Async::Base::InitFence();probe_stamps=stamps;
   }
   if constexpr(F3_PROBE_FAMILY==1) {
@@ -85,18 +85,20 @@ void Resident(U64* stamps,Element* output,float* partial,U64* counters) {
     for(int i=int(threadIdx.x);i<kTN;i+=288)reinterpret_cast<float*>(side)[i]=0.f;
   }
   Sm90F3Async::Base::FenceProxyAsyncShared();__syncthreads();
-  if(threadIdx.x<256 && (threadIdx.x&31)==0)ring.Prime();
+  if(threadIdx.x<256 && (Sm90F3Async::ThreadIndex()&31)==0)ring.Prime();
   __syncthreads();Sm90F3Phase phase{};Sm90F3GemmOperands p{};
   p.epilogue.output=output;p.epilogue.output_stride=kTN;
   p.epilogue.partial=partial;p.epilogue.counters=counters;
-  for(int sample=0;sample<kSamples;++sample) {
-    if(threadIdx.x==0){probe_sample=sample;counters[0]=S-1;}
-    if constexpr(F3_PROBE_FAMILY!=1)
-      for(int i=int(threadIdx.x);i<S*kTM*kTN;i+=288)partial[i]=1.f;
+  // Untimed preparation stays outside the production split-K markers.
+  if constexpr(F3_PROBE_FAMILY!=1)
+    for(int i=int(threadIdx.x);i<S*kTM*kTN;i+=288)partial[i]=1.f;
+  __syncthreads();
+  {
+    if(Sm90F3Async::ThreadIndex()==0){probe_sample=sample;counters[0]=S-1;}
     __syncthreads();
     if constexpr(F3_PROBE_FAMILY==1) {
       if(threadIdx.x>=256) {
-        if(threadIdx.x==256) {
+        if(Sm90F3Async::ThreadIndex()==256) {
           for(int k=0;k<64;++k) {
             int slot=k%2;Sm90F3Async::Base::Wait(ring.empty+slot,phase.Bit(phase.empty,slot));
             phase.empty^=1u<<slot;Sm90F3Async::Base::Arrive(ring.full+slot);
@@ -114,13 +116,14 @@ void Resident(U64* stamps,Element* output,float* partial,U64* counters) {
             cute::make_identity_tensor(cute::Shape<cute::_64,cute::Int<kTM>>{}));
         B::SplitKEpilogue(p,ring,side,phase,accum,owned,int(threadIdx.x)/128,S-1,0,header);
       }else {
+        #pragma unroll
         for(int sub=0;sub<B::Split::kSubTiles;++sub)cute::fill(accum.tile[sub],1.f);
         B::SplitKEpilogue(p,ring,side,phase,accum,int(threadIdx.x)/128,S-1,0,0,header,arena);
       }
     }
     __syncthreads();
   }
-  if(threadIdx.x==0)ring.Invalidate();
+  if(Sm90F3Async::ThreadIndex()==0)ring.Invalidate();
 }
 
 template<int S> void Run() {
@@ -134,7 +137,9 @@ template<int S> void Run() {
   double cycles_per_ns=double(calibration[0])/calibration[1];
   constexpr int bytes=Sm90F3Budget::kHeader+B::kLayoutBytes;
   Check(cudaFuncSetAttribute(Resident<S>,cudaFuncAttributeMaxDynamicSharedMemorySize,bytes));
-  Resident<S><<<1,288,bytes>>>(stamps,output,partial,counters);
+  // Each sample is a fresh resident region; launch overhead is not clocked.
+  for(int sample=0;sample<kSamples;++sample)
+    Resident<S><<<1,288,bytes>>>(stamps,output,partial,counters,sample);
   Check(cudaGetLastError());Check(cudaDeviceSynchronize());
   std::vector<U64> raw(2*kSamples);Check(cudaMemcpy(raw.data(),stamps,raw.size()*sizeof(U64),cudaMemcpyDeviceToHost));
   std::vector<Element> values(kTM*kTN);Check(cudaMemcpy(values.data(),output,values.size()*sizeof(Element),cudaMemcpyDeviceToHost));
