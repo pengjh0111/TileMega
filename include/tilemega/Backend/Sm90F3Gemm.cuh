@@ -324,6 +324,7 @@ struct Sm90F3Gemm {
   // many of the first task's k blocks the previous stage already armed (§5.6).
   __device__ static __noinline__ void Produce(Sm90F3GemmOperands const& p,
       Sm90F3Ring& ring,Element* arena,char* side,Sm90F3Phase& phase,int prearmed) {
+    if constexpr(Mode==Sm90F3Mode::kGather) {ProduceGather(p,ring,arena,side,phase);return;}
     if(int(threadIdx.x)!=256) {__syncwarp();return;}
     // The activation was written by other CTAs with ordinary stores before the
     // gate, so the async proxy must be made to observe them.
@@ -340,6 +341,62 @@ struct Sm90F3Gemm {
       // needs it at the end, and issuing it earlier would park the producer on
       // `side_empty` while the previous task's epilogue still held it (§6.3).
       ProduceSide(p,ring,side,phase,m_tile,n_tile,LiveRows(m_tile));
+    }
+    __syncwarp();
+  }
+
+  // ---- gather mode (§6.6) -------------------------------------------------
+
+  // The stem's input is physically eight channels, so an im2col TMA would move
+  // a 64-channel box of mostly padding. Instead all 32 producer lanes gather
+  // the taps with `cp.async`: k = (r*S + s)*8 + c, so one 16 B copy is one
+  // tap's eight channels and a 64-wide k block is eight taps.
+  __device__ static __forceinline__ void ProduceGather(Sm90F3GemmOperands const& p,
+      Sm90F3Ring& ring,Element* arena,char* side,Sm90F3Phase& phase) {
+    static_assert(Mode!=Sm90F3Mode::kGather || Conv::kC<=8,
+        "gather mode is for a physically eight-channel input");
+    int lane=int(threadIdx.x)-256;
+    Base::ProxyAsyncGlobalFence();
+    int tasks=LocalTasks();
+    for(int local=0;local<tasks;++local) {
+      int task=Task(local),m_tile=MTile(task),n_tile=NTile(task);
+      for(int k=0;k<kIterations;++k) {
+        int slot=(local*kIterations+k)%Slots;
+        // Lane 0 alone owns the slot's release phase; the warp then gathers.
+        if(lane==0) {
+          Base::Wait(ring.empty+slot,phase.Bit(phase.empty,slot));
+          phase.empty^=1u<<slot;
+        }
+        __syncwarp();
+        auto* panel=reinterpret_cast<char*>(SlotA(arena,slot));
+        for(int m=lane;m<TM;m+=Sm90F3Ring::kGatherLanes) {
+          int row=m_tile*TM+m;
+          int image=row/(Conv::kP*Conv::kQ),pixel=row%(Conv::kP*Conv::kQ);
+          int q=pixel%Conv::kQ,r0=pixel/Conv::kQ;
+          #pragma unroll
+          for(int j=0;j<8;++j) {
+            int tap=k*8+j;
+            int rr=tap/Conv::kS,ss=tap%Conv::kS;
+            int y=r0*Conv::kStrideH-Conv::kPadH+rr*Conv::kDilationH;
+            int x=q*Conv::kStrideW-Conv::kPadW+ss*Conv::kDilationW;
+            bool valid=tap<kGatherTaps && row<M &&
+                x>=0 && x<Conv::kW && y>=0 && y<Conv::kH;
+            auto const* source=p.input+
+                ((std::size_t(image)*Conv::kH+y)*Conv::kW+x)*Conv::kC;
+            // The panel row is 128 B and SW128 swizzled exactly as a TMA box
+            // would leave it, so the consumer's descriptor is unchanged.
+            Base::Copy16(panel+std::size_t(m)*128+((j^(m%8))*16),source,valid);
+          }
+        }
+        // Every lane completes its own copies into the slot's gather barrier.
+        Base::CompleteCopies(ring.gfull+slot);
+        if(lane==0) {
+          Base::ExpectTx(ring.gfull+slot,2*TN*64);
+          Base::Bulk(SlotB(arena,slot),
+              p.weight+(std::size_t(n_tile)*(K/64)+k)*TN*64,2*TN*64,ring.gfull+slot);
+        }
+      }
+      if(lane==0)ProduceSide(p,ring,side,phase,m_tile,n_tile,LiveRows(m_tile));
     }
     __syncwarp();
   }
