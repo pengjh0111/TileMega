@@ -564,10 +564,10 @@ struct Sm90F3Gemm {
     for(int s=0;s<Split::kSubTiles;++s) {
       auto& values=accumulators.tile[s];
       CUTE_UNROLL
-      for(int i=0;i<int(size(values));++i) {
+      for(int i=0;i<int(size(values));i+=2) {
         int row,col;
         Coordinate(wg,s,get<0>(owned(i)),get<1>(owned(i)),row,col);
-        Async::StoreRelaxed(base+std::size_t(row)*TN+col,values(i));
+        Async::StorePartial2(base+std::size_t(row)*TN+col,values(i),values(i+1));
       }
     }
     Async::template NamedBarrier<Sm90F3Async::kBarConsumers,256>();
@@ -591,17 +591,20 @@ struct Sm90F3Gemm {
     for(int s=0;s<Split::kSubTiles;++s) {
       auto& values=accumulators.tile[s];
       CUTE_UNROLL
-      for(int i=0;i<int(size(values));++i) {
+      for(int i=0;i<int(size(values));i+=2) {
         int row,col;
         Coordinate(wg,s,get<0>(owned(i)),get<1>(owned(i)),row,col);
-        float total=0;
+        float total0=0,total1=0;
         // Ascending slice order, including this slice's own stored copy, so
         // repeated launches agree bitwise.
         #pragma unroll 1
-        for(int sl=0;sl<SplitK;++sl)
-          total+=Async::LoadRelaxed(p.epilogue.partial+
-              (std::size_t(tile)*SplitK+sl)*TM*TN+std::size_t(row)*TN+col);
-        values(i)=total;
+        for(int sl=0;sl<SplitK;++sl) {
+          float a,b;
+          Async::LoadPartial2(p.epilogue.partial+
+              (std::size_t(tile)*SplitK+sl)*TM*TN+std::size_t(row)*TN+col,a,b);
+          total0+=a;total1+=b;
+        }
+        values(i)=total0;values(i+1)=total1;
       }
     }
     Epilogue(p,ring,side,phase,accumulators,wg,m_tile,n_tile,LiveRows(m_tile),
