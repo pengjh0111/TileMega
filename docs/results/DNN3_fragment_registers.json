@@ -169,7 +169,7 @@
       "sha256": "0d282bd8196360406cdd00b9dd50cca9003a351da1b6a5a73be0013626d67c6a"
     }
   ],
-  "production_promotion": "rejected unconditional mapping: standalone required128x256 plain convolution spills740stores/1012loads; bounded map follow-up private",
+  "production_promotion": "Signed unrestricted mapping remains rejected by standalone128x256 spills. Later unsigned mapping plus register-bounded quad stores passed body/unit/model/E2E gates and was promoted baecaa9a0; see DNN3_store16_trigger.json.",
   "smoke": [
     {
       "model": "resnet18",
@@ -469,5 +469,12 @@
     "previous_accepted_ms": 2.6066399812698364,
     "relative_difference": 0.1560998059048624,
     "decision": "not accepted: >3% slower; solved coordinates also differ, so this does not isolate the header change"
+  },
+  "accepted_followup": {
+    "evidence": "verified",
+    "source": "docs/results/DNN3_store16_trigger.json",
+    "commit": "baecaa9a0",
+    "header_sha256": "6f1e6e2e9ad8919af4dc792e4f24b6efedde47ce278d1eb565b087bdff3d46a3",
+    "wide_shape_policy": "256x128 residual/normalization restrictions retained after production probe spills;128x256 unban still requires full-program evidence"
   }
 }
