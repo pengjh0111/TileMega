@@ -1,0 +1,39 @@
+{
+  "evidence": "verified",
+  "scope": "CPU contracts only; synthetic values are not calibration",
+  "source_commit": "f5b7823df",
+  "tests": [
+    {
+      "source": "test/unit/dnn3_f3_resources_test.cpp",
+      "status": "pass"
+    },
+    {
+      "source": "test/unit/dnn3_f3_search_test.cpp",
+      "status": "pass",
+      "synthetic_cpu_fixture": true
+    },
+    {
+      "source": "test/unit/dnn1_forward_constant_gate.cpp",
+      "status": "pass",
+      "schemas": [
+        1,
+        2,
+        3
+      ]
+    }
+  ],
+  "production_f3_constants_complete": false,
+  "full20_solve_compile_gate": "pending",
+  "plan_gate": {
+    "cells": 20,
+    "failures": 0,
+    "source": "runs/dnn3/f3_solver_geometry_v1/plan_gate/gate.json",
+    "sha256": "8a41f31aff63d979ba752cdd74bcf03332a1febe460b2cf94142ff21dcc3430e"
+  },
+  "cpu_ctest": {
+    "passed": 16,
+    "total": 16,
+    "source": "runs/dnn3/build/f3_search_cpu_ctest.log",
+    "sha256": "34e40672c04f4667b2f6451f99213c7c9083163a4b5bf5a0808509da3feafc1b"
+  }
+}
