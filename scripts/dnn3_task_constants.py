@@ -77,6 +77,7 @@ def main():
     p.add_argument('--family',choices=('split','swap','small','attention'),required=True)
     p.add_argument('--tile',default='128x64')
     p.add_argument('--all-tiles',action='store_true')
+    p.add_argument('--consumer-only',action='store_true',help='plain split calibration with only its two consumer warpgroups')
     p.add_argument('--tiles',help='explicit normal tiles to repair, comma separated')
     p.add_argument('--out',type=Path,required=True)
     p.add_argument('--build',type=Path)
@@ -84,6 +85,8 @@ def main():
     args=p.parse_args();args.out=args.out.resolve()
     if args.execute:
         execute(args);return
+    if args.consumer_only and args.family!='split':
+        raise ValueError('consumer-only fixture is only for plain split-K')
     source=ROOT/'scripts'/('dnn3_split_swap_constants.cu' if args.family in ('split','swap') else 'dnn3_task_constants.cu')
     args.out.mkdir(parents=True,exist_ok=False);frozen=inputs(source);inventory=[]
     if args.family=='swap':
@@ -98,7 +101,8 @@ def main():
                    m==n==256 for m,n in tiles) or len(set(tiles))!=len(tiles):
                 raise ValueError('unsupported or duplicate normal repair tiles')
         inventory=[(f'split_{m}x{n}',0,m,n,NORMAL_SPLITS) for m,n in tiles]
-        inventory.extend((f'split_swap_{m}',2,m,128,SWAP_SPLITS) for m in (8,16))
+        if not args.consumer_only:
+            inventory.extend((f'split_swap_{m}',2,m,128,SWAP_SPLITS) for m in (8,16))
     else:
         inventory=[(kind,code,0,0,[1]) for code,kind in enumerate(
             ['layout','pool2','pool3','global_pool','layernorm','embedding','attention'])
@@ -109,6 +113,7 @@ def main():
         cmd=['nvcc','-rdc=true','-std=c++17','-O3','-gencode','arch=compute_90a,code=sm_90a',
              '--expt-relaxed-constexpr','-Xptxas','-v','-Xptxas','--device-function-maxrregcount=224',
              '-DF3_PROBE_FAMILY='+str(family),'-DF3_PROBE_TM='+str(tm),'-DF3_PROBE_TN='+str(tn),
+             '-DF3_PROBE_CONSUMER_ONLY='+str(int(args.consumer_only)),
              '-I'+str(ROOT/'include'),'-I'+str(ROOT/'third_party/cutlass/include'),str(source),'-o',str(binary)]
         wrapper=['taskset','-c','136-143','python3',str(ROOT/'scripts/run_sm90r1_build.py'),
                  '--receipt',str(binary)+'.limits.json','--max-gib','48','--timeout','1800',
@@ -131,7 +136,7 @@ def main():
     if not probes:
         raise RuntimeError('no resource-admissible calibration binaries')
     build=args.out/'build.json';save(build,dict(inputs=frozen,probes=probes,rejected=rejected,
-        source=str(source),method='clock64 production regions; split/swap one sample per launch; 20ms globaltimer calibration; 8 warm samples discarded'))
+        source=str(source),consumer_only=args.consumer_only,method=('two consumer warpgroups; no producer work in plain split region; ' if args.consumer_only else '')+'clock64 production regions; split/swap one sample per launch; 20ms globaltimer calibration; 8 warm samples discarded'))
     env=dict(CUDA_VISIBLE_DEVICES='1',TILEMEGA_DEVICE_INDEX='1',TILEMEGA_GPU_LOCK='/tmp/tilemega_gpu1.lock',
         TILEMEGA_NUMA_NODE='0',TILEMEGA_GPU_PID_MODE='namespace_limited',TILEMEGA_NUMA_CONCURRENCY_TRIAL='1',
         PYTHONPATH=str(ROOT/'python'))

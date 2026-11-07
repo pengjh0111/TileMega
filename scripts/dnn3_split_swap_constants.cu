@@ -17,6 +17,9 @@ __device__ __forceinline__ U64 ProbeClock() {
 #ifndef F3_PROBE_FAMILY
 #define F3_PROBE_FAMILY 0
 #endif
+#ifndef F3_PROBE_CONSUMER_ONLY
+#define F3_PROBE_CONSUMER_ONLY 0
+#endif
 #ifndef F3_PROBE_TM
 #define F3_PROBE_TM 128
 #endif
@@ -55,6 +58,8 @@ using namespace tilemega::backend;
 using Element=cutlass::bfloat16_t;
 constexpr int kTM=F3_PROBE_TM,kTN=F3_PROBE_TN,kSamples=72,kDiscard=8;
 constexpr bool kSwap=F3_PROBE_FAMILY!=0;
+static_assert(!F3_PROBE_CONSUMER_ONLY || F3_PROBE_FAMILY==0);
+constexpr int kProbeThreads=F3_PROBE_CONSUMER_ONLY?256:288;
 template<int S> using Side=Sm90F3SideLayout<kTM,kTN,false,F3_PROBE_FAMILY==1?1:0,false>;
 template<int S> using Chain=std::conditional_t<F3_PROBE_FAMILY==1,
     Sm90F3Chain<Side<S>,Sm90F3Step<Sm90F3Op::kBias>,Sm90F3Step<Sm90F3Op::kActivation>>,
@@ -69,7 +74,13 @@ __global__ void Calibrate(U64* output) {
   output[0]=ProbeClock()-ticks;output[1]=Timer()-start;
 }
 
+// The plain split region has no producer work. Its isolated fixture can
+// launch the same two consumer warpgroups without reserving an idle warp.
+#if F3_PROBE_CONSUMER_ONLY
+template<int S> __global__ __maxnreg__(224)
+#else
 template<int S> __global__ __launch_bounds__(288,1)
+#endif
 void Resident(U64* stamps,Element* output,float* partial,U64* counters,int sample) {
   using B=Body<S>;
   extern __shared__ __align__(1024) char shared[];
@@ -81,8 +92,8 @@ void Resident(U64* stamps,Element* output,float* partial,U64* counters,int sampl
     ring.Initialize();Sm90F3Async::Base::InitFence();probe_stamps=stamps;
   }
   if constexpr(F3_PROBE_FAMILY==1) {
-    for(int i=int(threadIdx.x);i<2*B::kSlotBytes/2;i+=288)arena[i]=Element(.125f);
-    for(int i=int(threadIdx.x);i<kTN;i+=288)reinterpret_cast<float*>(side)[i]=0.f;
+    for(int i=int(threadIdx.x);i<2*B::kSlotBytes/2;i+=kProbeThreads)arena[i]=Element(.125f);
+    for(int i=int(threadIdx.x);i<kTN;i+=kProbeThreads)reinterpret_cast<float*>(side)[i]=0.f;
   }
   Sm90F3Async::Base::FenceProxyAsyncShared();__syncthreads();
   if(threadIdx.x<256 && (Sm90F3Async::ThreadIndex()&31)==0)ring.Prime();
@@ -91,7 +102,7 @@ void Resident(U64* stamps,Element* output,float* partial,U64* counters,int sampl
   p.epilogue.partial=partial;p.epilogue.counters=counters;
   // Untimed preparation stays outside the production split-K markers.
   if constexpr(F3_PROBE_FAMILY!=1)
-    for(int i=int(threadIdx.x);i<S*kTM*kTN;i+=288)partial[i]=1.f;
+    for(int i=int(threadIdx.x);i<S*kTM*kTN;i+=kProbeThreads)partial[i]=1.f;
   __syncthreads();
   {
     if(Sm90F3Async::ThreadIndex()==0){probe_sample=sample;counters[0]=S-1;}
@@ -139,7 +150,7 @@ template<int S> void Run() {
   Check(cudaFuncSetAttribute(Resident<S>,cudaFuncAttributeMaxDynamicSharedMemorySize,bytes));
   // Each sample is a fresh resident region; launch overhead is not clocked.
   for(int sample=0;sample<kSamples;++sample)
-    Resident<S><<<1,288,bytes>>>(stamps,output,partial,counters,sample);
+    Resident<S><<<1,kProbeThreads,bytes>>>(stamps,output,partial,counters,sample);
   Check(cudaGetLastError());Check(cudaDeviceSynchronize());
   std::vector<U64> raw(2*kSamples);Check(cudaMemcpy(raw.data(),stamps,raw.size()*sizeof(U64),cudaMemcpyDeviceToHost));
   std::vector<Element> values(kTM*kTN);Check(cudaMemcpy(values.data(),output,values.size()*sizeof(Element),cudaMemcpyDeviceToHost));
@@ -148,7 +159,7 @@ template<int S> void Run() {
   U64 counter=~U64(0);Check(cudaMemcpy(&counter,counters,sizeof(U64),cudaMemcpyDeviceToHost));
   if(F3_PROBE_FAMILY!=1 && counter!=0)throw std::runtime_error("last arriver did not reset counter");
   std::cout<<std::setprecision(17)<<"{\"tile_m\":"<<kTM<<",\"tile_n\":"<<kTN
-      <<",\"slices\":"<<S<<",\"cycles_per_ns\":"<<cycles_per_ns<<",\"rows\":[";
+      <<",\"probe_threads\":"<<kProbeThreads<<",\"slices\":"<<S<<",\"cycles_per_ns\":"<<cycles_per_ns<<",\"rows\":[";
   for(int metric=0;metric<(F3_PROBE_FAMILY==1?2:1);++metric) {
     std::vector<double> ns;
     for(int i=kDiscard;i<kSamples;++i)ns.push_back(raw[2*i+metric]/cycles_per_ns/
