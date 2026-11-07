@@ -4,6 +4,7 @@
 #include <tilemega/Backend/Sm90F3Gemm.cuh>
 #include <tilemega/Backend/Sm90F3SwapAB.cuh>
 #include <tilemega/Backend/Sm90F3Small.cuh>
+#include <tilemega/Backend/Sm90F3Attention.cuh>
 #include <tilemega/Codegen/DmDescriptors.h>
 #include <tilemega/Codegen/tasks/ServingAbi.h>
 #include <type_traits>
@@ -114,6 +115,28 @@ struct GemmStage {
   __device__ static __forceinline__ void Consume(B const& b,backend::Sm90F3Ring& ring,
       char* arena,char* side,backend::Sm90F3Phase& phase,backend::Sm90F3Header* header,int wg) {
     Body::Consume(Operands(b),ring,reinterpret_cast<Element*>(arena),side,phase,header,wg);
+  }
+};
+
+template<class Body,class Bind,class Shape>
+struct AttentionStage {
+  using Kind=Body;
+  static constexpr bool kUsesRing=true,kCanPreissue=false;
+  static constexpr int kSharedBytes=Body::kLayoutBytes;
+  template<class B>
+  __device__ static __forceinline__ backend::Sm90F3AttentionOperands Operands(B const& b) {
+    return {b.template Map<Bind::kQueryMap>(),b.template Map<Bind::kMap>(),
+            b.template Map<Bind::kValueMap>(),b.template Get<Bind::kOutput>()};
+  }
+  template<class B>
+  __device__ static __forceinline__ void Produce(B const& b,backend::Sm90F3Ring& ring,
+      char* arena,char*,backend::Sm90F3Phase& phase,int) {
+    Body::Produce(Operands(b),ring,arena,phase);
+  }
+  template<class B>
+  __device__ static __forceinline__ void Consume(B const& b,backend::Sm90F3Ring& ring,
+      char* arena,char*,backend::Sm90F3Phase& phase,backend::Sm90F3Header*,int) {
+    Body::Consume(Operands(b),ring,arena,phase);
   }
 };
 

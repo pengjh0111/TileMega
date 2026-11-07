@@ -13,6 +13,23 @@ namespace tilemega::backend {
 struct Sm90F3Async {
   using Base=codegen::executor::Async<arch::Sm90>;
 
+  // Register attention operands use the SM80 warp MMA layout unchanged.
+  __device__ static __forceinline__ void MatrixLoad4(unsigned (&r)[4],unsigned address) {
+    asm volatile("ldmatrix.sync.aligned.m8n8.x4.shared.b16 {%0,%1,%2,%3}, [%4];"
+        :"=r"(r[0]),"=r"(r[1]),"=r"(r[2]),"=r"(r[3]):"r"(address));
+  }
+  __device__ static __forceinline__ void MatrixLoad4Trans(unsigned (&r)[4],unsigned address) {
+    asm volatile("ldmatrix.sync.aligned.m8n8.x4.trans.shared.b16 {%0,%1,%2,%3}, [%4];"
+        :"=r"(r[0]),"=r"(r[1]),"=r"(r[2]),"=r"(r[3]):"r"(address));
+  }
+  __device__ static __forceinline__ void Mma16x8x16(float (&c)[4],unsigned const (&a)[4],
+      unsigned b0,unsigned b1) {
+    asm volatile("mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 "
+        "{%0,%1,%2,%3}, {%4,%5,%6,%7}, {%8,%9}, {%0,%1,%2,%3};"
+        :"+f"(c[0]),"+f"(c[1]),"+f"(c[2]),"+f"(c[3])
+        :"r"(a[0]),"r"(a[1]),"r"(a[2]),"r"(a[3]),"r"(b0),"r"(b1));
+  }
+
   // Named barriers (§5.1 item 4). F3 owns ids 1..4 with explicit counts, so a
   // body must never call the legacy `executor::ComputeSync`, which occupies
   // `bar 1, 128` and would release a 288-thread CTA one warpgroup early.
