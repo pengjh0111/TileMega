@@ -1,0 +1,1 @@
+cell,family,variant,decomposition_key,coordinates_sha256,legal,reason,predicted_stage_ns,predicted_step_ns,modeled_bytes,own_us,step_us,delta_own_us,delta_step_us,delta_coupled_us,processes,selected,own_us_range_pct,step_us_range_pct
