@@ -20,6 +20,9 @@ LEGACY = (r'\b(?:GemmInvocation|StageDesc|ServingGemmTaskBody|ServingGemvTaskBod
 
 
 def validate(manifest, defines):
+    if manifest['native_forward'].get('abi') == 'f3':
+        from tilemega.dnn.f3_contract import validate as f3_validate
+        return f3_validate(manifest, defines)
     c = manifest['native_forward']
     required = dict(phase='forward', mode='L1', loop=1)
     if any(manifest.get(k) != v for k, v in required.items()):
@@ -44,6 +47,9 @@ def head(raw, count):
 
 
 def dispatch(manifest, defines, source):
+    if manifest['native_forward'].get('abi') == 'f3':
+        from tilemega.dnn.f3_contract import dispatch as f3_dispatch
+        return f3_dispatch(manifest, defines, source)
     validate(manifest, defines)
     c = manifest['native_forward']
     match = re.search(r'kNativeForwardIdentity\[\]\s*=\s*("(?:\\.|[^"\\])*");', source)
@@ -138,6 +144,9 @@ def dispatch(manifest, defines, source):
 
 
 def implementations(manifest):
+    if manifest['native_forward'].get('abi') == 'f3':
+        from tilemega.dnn.f3_contract import implementations as f3_implementations
+        return f3_implementations(manifest)
     c = manifest['native_forward']
     return dict(execution_arch_id=900, program='sm90_forward_native',
                 residency=c['residency'],
