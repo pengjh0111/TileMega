@@ -5,67 +5,95 @@
       "family": "mainloops",
       "keys": 22,
       "passes_per_key": "5/5",
-      "source": "runs/dnn3/f3_constants_v2/mainloops/raw/dnn3-resident-constants/attempt1/constants/result.json",
-      "sha256": "c0f2be402d28d9b245eb0460059fc7ff9502e2b5933ee5ba8df2a1e8ef4a3757",
-      "build_sha256": "f2ed82944e672ffcd7bcd972cb8254253071d41c6cb785a65c3981980eb1a2ef",
-      "header_set_sha256": "ae2fc5d3feaa238e4c74421a63de059ccfb044eb2257098ee329e14bce33a098",
-      "rejected_builds": 0
+      "consumer_only": false,
+      "result": "runs/dnn3/f3_constants_v5/mainloops/raw/dnn3-resident-constants/attempt1/constants/result.json",
+      "sha256": "306b77884216f93acc3bf819f20cb30f95df279d3e2a67bd23ec35c6f9dc1caf",
+      "build_sha256": "956e6354d39e547cc45a21e0b963d1749d0ccd7bc662e644a29a65b8b32f1cc8",
+      "guard_sha256": "db193a91994b20d7cd87e4418441c2b8ecca1a78e7dd8208d4b32f0e0eeb0f02",
+      "method": "see process records"
     },
     {
       "family": "swap",
       "keys": 4,
       "passes_per_key": "5/5",
-      "source": "runs/dnn3/f3_constants_v2/swap/raw/dnn3-swap-constants/attempt1/constants/result.json",
-      "sha256": "73770557bf98fbdc01524a3bc07bb12f757825f2aa861a4dc09a1f0c89e79fff",
-      "build_sha256": "26752ea93d4a2f150cd3762d22f99c84e3167d3459a516dd5355ea35d00ea721",
-      "header_set_sha256": "ae2fc5d3feaa238e4c74421a63de059ccfb044eb2257098ee329e14bce33a098",
-      "rejected_builds": 0
+      "consumer_only": false,
+      "result": "runs/dnn3/f3_constants_v5/swap/raw/dnn3-swap-constants/attempt1/constants/result.json",
+      "sha256": "9f3226b25f0e34bf0f8c33dddd1daba1f8c36ff8289489f17fd4ad469549a56a",
+      "build_sha256": "c225831f5f81b44594531e2f97f5a34563f3f5bb09c9ed36a275475c105a7547",
+      "guard_sha256": "db193a91994b20d7cd87e4418441c2b8ecca1a78e7dd8208d4b32f0e0eeb0f02",
+      "method": "clock64 production regions; split/swap one sample per launch; 20ms globaltimer calibration; 8 warm samples discarded"
     },
     {
       "family": "split",
-      "keys": 84,
+      "keys": 114,
       "passes_per_key": "5/5",
-      "source": "runs/dnn3/f3_constants_v2/split/raw/dnn3-split-constants/attempt1/constants/result.json",
-      "sha256": "3bd34cb3515a2742ae254d2eb002f1f9cfa3de33ad9231e994faf177026beb51",
-      "build_sha256": "0d4b73f9cf4dfbb1dc14b9b1fa5f89a1556989131428d3f311f88314e9253120",
-      "header_set_sha256": "ae2fc5d3feaa238e4c74421a63de059ccfb044eb2257098ee329e14bce33a098",
-      "rejected_builds": 5
+      "consumer_only": false,
+      "result": "runs/dnn3/f3_constants_v5/split/raw/dnn3-split-constants/attempt1/constants/result.json",
+      "sha256": "1f78343dfab4e7794a35333d18cace4736831ceee69986f4bcaa4f9c87e77813",
+      "build_sha256": "e205cb0ec37c4e68f542cc1902a0788d6925a238f8608d27790bdbe4f70fd206",
+      "guard_sha256": "db193a91994b20d7cd87e4418441c2b8ecca1a78e7dd8208d4b32f0e0eeb0f02",
+      "method": "clock64 production regions; split/swap one sample per launch; 20ms globaltimer calibration; 8 warm samples discarded"
     },
     {
       "family": "small",
       "keys": 6,
       "passes_per_key": "5/5",
-      "source": "runs/dnn3/f3_constants_v2/small/raw/dnn3-small-constants/attempt1/constants/result.json",
-      "sha256": "08198fffed036176a725e5dcd57e168b0f3f238c24823dc7e2cb52d02caf4b14",
-      "build_sha256": "0122ebd4a9407ec0df4cf62d89f373e7096e483c3b425b502adef8049b69124e",
-      "header_set_sha256": "ae2fc5d3feaa238e4c74421a63de059ccfb044eb2257098ee329e14bce33a098",
-      "rejected_builds": 0
+      "consumer_only": false,
+      "result": "runs/dnn3/f3_constants_v5/small/raw/dnn3-small-constants/attempt1/constants/result.json",
+      "sha256": "dd282f5c9c9a28b0e2f89082b01cd0887ff33d9b8e9a17ef2b6bc6e13d2da72e",
+      "build_sha256": "6f30e2632440b0adb2f8f9529bc843e3f0d7cc8c9d92a27399eae6c07890cfb1",
+      "guard_sha256": "db193a91994b20d7cd87e4418441c2b8ecca1a78e7dd8208d4b32f0e0eeb0f02",
+      "method": "clock64 production regions; split/swap one sample per launch; 20ms globaltimer calibration; 8 warm samples discarded"
     },
     {
       "family": "attention",
       "keys": 1,
       "passes_per_key": "5/5",
-      "source": "runs/dnn3/f3_constants_v2/attention/raw/dnn3-attention-constants/attempt1/constants/result.json",
-      "sha256": "3d81229594ba6f61aa959dd6153d36e01e0242238d9cb406d01aec879c15a927",
-      "build_sha256": "8caa874ce8ed87a56e9535322bfbc0db6abf11b3b434b070ec4270596ea63823",
-      "header_set_sha256": "ae2fc5d3feaa238e4c74421a63de059ccfb044eb2257098ee329e14bce33a098",
-      "rejected_builds": 0
+      "consumer_only": false,
+      "result": "runs/dnn3/f3_constants_v5/attention/raw/dnn3-attention-constants/attempt1/constants/result.json",
+      "sha256": "f106e8991245bff67445ace5bf69c2e79eefe5e45ed99feb9e24fb8a04418eb9",
+      "build_sha256": "b6feb2cbe0e2ccd0a7796256d3135ca4c049e6623d3bc0ec641acf4a8f1b3149",
+      "guard_sha256": "db193a91994b20d7cd87e4418441c2b8ecca1a78e7dd8208d4b32f0e0eeb0f02",
+      "method": "clock64 production regions; split/swap one sample per launch; 20ms globaltimer calibration; 8 warm samples discarded"
     },
     {
       "family": "epilogues",
-      "keys": 50,
+      "keys": 66,
       "passes_per_key": "5/5",
-      "source": "runs/dnn3/f3_constants_v2/epilogues/raw/dnn3-resident-epilogues/attempt1/constants/result.json",
-      "sha256": "aa29978d16629bedcfa676d8b00f3a331d39a82c6ca16ea43f13e28e1d7cd0ee",
-      "build_sha256": "cb8126a59b549486cbd18139cd1782e105898a89357ba41e27d63be8c0f8714d",
-      "header_set_sha256": "ae2fc5d3feaa238e4c74421a63de059ccfb044eb2257098ee329e14bce33a098",
-      "rejected_builds": 16
+      "consumer_only": false,
+      "result": "runs/dnn3/f3_constants_v5/epilogues/raw/dnn3-resident-epilogues/attempt1/constants/result.json",
+      "sha256": "3500f184794b743a2e226a9c6f9fc8eaa5cece8056f587768fe49bb1ed3c9879",
+      "build_sha256": "fe8ed9188ea8b23bdf1509e7cf35e4ab89940a76add2b53fd5efaef59bc12584",
+      "guard_sha256": "db193a91994b20d7cd87e4418441c2b8ecca1a78e7dd8208d4b32f0e0eeb0f02",
+      "method": "see process records"
+    },
+    {
+      "family": "split",
+      "keys": 20,
+      "passes_per_key": "5/5",
+      "consumer_only": true,
+      "result": "runs/dnn3/f3_constants_v6/split/raw/dnn3-split-constants/attempt1/constants/result.json",
+      "sha256": "eea95de8d6fbe643015e5c724770cd9d57970d270d14cf85d7e06d60e55a16d0",
+      "build_sha256": "d5fb7317a019c03e873cdfbefe052b7d814cc08b77014bda9234df8faf25d136",
+      "guard_sha256": "db193a91994b20d7cd87e4418441c2b8ecca1a78e7dd8208d4b32f0e0eeb0f02",
+      "method": "two consumer warpgroups; no producer work in plain split region; clock64 production regions; split/swap one sample per launch; 20ms globaltimer calibration; 8 warm samples discarded"
     }
   ],
-  "measured_keys": 167,
-  "rejected_probe_builds": 21,
+  "measured_keys": 233,
+  "keys_by_metric": {
+    "f3_k64_ns": 24,
+    "f3_epilogue_ns": 68,
+    "f3_splitk_ns": 134,
+    "f3_small_ns": 6,
+    "f3_attention_task_ns": 1
+  },
+  "header_set_sha256": "e1b41038a580cceb7b28522a8258deccaad82cc880ca44380f75d9017ba19774",
+  "isolated_target": "runs/dnn3/f3_constants_v6/complete_target.json",
+  "target_sha256": "629df781bb942282a2d758296d8f7f488dc9a79048e6fc88e7b8667e438cec93",
+  "rejected_probe_builds": 2,
   "production_config_installed": false,
   "qualification": "provisional_container_pid_namespace",
-  "missing_probe_cause": "under diagnosis; do not infer production tile exclusions from harness spills",
-  "full20_solve_compile": "pending"
+  "probe_method": "One production region per CUDA launch removes artificial loop-carried spills. The 20 wide split keys use 256 consumer threads capped at224; production ABI remains288.",
+  "full20_solve_compile": "20 CPU solves and80 top-four CUDA emissions pass; native resources and P-SEL pending",
+  "historical_calibration": "Earlier167-key v2 inventory remains in DNN3_constants.csv and git history; not mixed into this table"
 }

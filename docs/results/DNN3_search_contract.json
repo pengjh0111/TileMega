@@ -1,6 +1,6 @@
 {
   "evidence": "verified",
-  "scope": "CPU contracts only; synthetic values are not calibration",
+  "scope": "CPU contracts and real measured solves/codegen; native acceptance separate",
   "source_commit": "f5b7823df",
   "tests": [
     {
@@ -22,8 +22,8 @@
       ]
     }
   ],
-  "production_f3_constants_complete": false,
-  "full20_solve_compile_gate": "pending",
+  "production_f3_constants_complete": true,
+  "full20_solve_compile_gate": "CPU20/20 and CUDA codegen80/80 pass; native resources and P-SEL pending",
   "plan_gate": {
     "cells": 20,
     "failures": 0,
@@ -35,5 +35,38 @@
     "total": 16,
     "source": "runs/dnn3/build/f3_search_cpu_ctest.log",
     "sha256": "34e40672c04f4667b2f6451f99213c7c9083163a4b5bf5a0808509da3feafc1b"
+  },
+  "production_f3_constants_installed": false,
+  "measured_solve": {
+    "cells": 20,
+    "candidates": 80,
+    "failures": 0,
+    "source": "runs/dnn3/f3_solve_v6b/result.json",
+    "sha256": "1a1c0a400795853f39264b233c046aa5dbbdfcc33db5b4ed1959646b3394b307",
+    "inputs": {
+      "/root/TileMega-dnn3/runs/dnn3/f3_constants_v6/complete_target.json": "629df781bb942282a2d758296d8f7f488dc9a79048e6fc88e7b8667e438cec93",
+      "/root/TileMega-dnn3/runs/dnn3/build/main/tools/tilemega": "0b2fac56ea3c174e0c260c520ff81a734a21abe8b0edd9f52f7091169cfb28e6",
+      "/root/TileMega-dnn3/scripts/dnn3_solve_gate.py": "93187be152aa84feb39614d8288e449ae4bf24877a05562c295b546f3c441861",
+      "/root/TileMega-dnn3/runs/dnn3/takeover_20261107/plan_gate/resnet18_b1.bridge.json": "013b2969f036a65786f97350234f480214d9252343c2163ff02edcc91b22ca1f",
+      "/root/TileMega-dnn3/runs/dnn3/takeover_20261107/plan_gate/resnet18_b2.bridge.json": "013b2969f036a65786f97350234f480214d9252343c2163ff02edcc91b22ca1f",
+      "/root/TileMega-dnn3/runs/dnn3/takeover_20261107/plan_gate/resnet18_b4.bridge.json": "013b2969f036a65786f97350234f480214d9252343c2163ff02edcc91b22ca1f",
+      "/root/TileMega-dnn3/runs/dnn3/takeover_20261107/plan_gate/resnet18_b8.bridge.json": "013b2969f036a65786f97350234f480214d9252343c2163ff02edcc91b22ca1f",
+      "/root/TileMega-dnn3/runs/dnn3/takeover_20261107/plan_gate/resnet18_b16.bridge.json": "013b2969f036a65786f97350234f480214d9252343c2163ff02edcc91b22ca1f",
+      "/root/TileMega-dnn3/runs/dnn3/takeover_20261107/plan_gate/resnet50_b1.bridge.json": "49bf39662b26316886aa179353843f7f46eefcca4ccc89f46068ab1a1deaafcb",
+      "/root/TileMega-dnn3/runs/dnn3/takeover_20261107/plan_gate/resnet50_b2.bridge.json": "49bf39662b26316886aa179353843f7f46eefcca4ccc89f46068ab1a1deaafcb",
+      "/root/TileMega-dnn3/runs/dnn3/takeover_20261107/plan_gate/resnet50_b4.bridge.json": "49bf39662b26316886aa179353843f7f46eefcca4ccc89f46068ab1a1deaafcb",
+      "/root/TileMega-dnn3/runs/dnn3/takeover_20261107/plan_gate/resnet50_b8.bridge.json": "49bf39662b26316886aa179353843f7f46eefcca4ccc89f46068ab1a1deaafcb",
+      "/root/TileMega-dnn3/runs/dnn3/takeover_20261107/plan_gate/resnet50_b16.bridge.json": "49bf39662b26316886aa179353843f7f46eefcca4ccc89f46068ab1a1deaafcb",
+      "/root/TileMega-dnn3/runs/dnn3/takeover_20261107/plan_gate/vgg16_b1.bridge.json": "c7906d1d54a112e9ea5403f580019c27607fa36b76deefb00c8152123437aac0",
+      "/root/TileMega-dnn3/runs/dnn3/takeover_20261107/plan_gate/vgg16_b2.bridge.json": "c7906d1d54a112e9ea5403f580019c27607fa36b76deefb00c8152123437aac0",
+      "/root/TileMega-dnn3/runs/dnn3/takeover_20261107/plan_gate/vgg16_b4.bridge.json": "c7906d1d54a112e9ea5403f580019c27607fa36b76deefb00c8152123437aac0",
+      "/root/TileMega-dnn3/runs/dnn3/takeover_20261107/plan_gate/vgg16_b8.bridge.json": "c7906d1d54a112e9ea5403f580019c27607fa36b76deefb00c8152123437aac0",
+      "/root/TileMega-dnn3/runs/dnn3/takeover_20261107/plan_gate/vgg16_b16.bridge.json": "c7906d1d54a112e9ea5403f580019c27607fa36b76deefb00c8152123437aac0",
+      "/root/TileMega-dnn3/runs/dnn3/takeover_20261107/plan_gate/bert_b1.bridge.json": "4fab99054ca60e3f5d572319264bf3ce547e7817c7a96c2ca72db79ab5cab45e",
+      "/root/TileMega-dnn3/runs/dnn3/takeover_20261107/plan_gate/bert_b2.bridge.json": "29a9556a9980a00eac07df52aec43455edcc601cc77faa4702307eb81aac5320",
+      "/root/TileMega-dnn3/runs/dnn3/takeover_20261107/plan_gate/bert_b4.bridge.json": "ab81d052231991dfccba5beab112dabb5e974e15540c7421bff2f050b57d863b",
+      "/root/TileMega-dnn3/runs/dnn3/takeover_20261107/plan_gate/bert_b8.bridge.json": "d8ffde167220d450dfbae6fa08cb99f3ee24a7b459e48aacc44e002191636be7",
+      "/root/TileMega-dnn3/runs/dnn3/takeover_20261107/plan_gate/bert_b16.bridge.json": "b260f356c701dab087bcb97c191e4b71de804f2ab3fa47c78647c2b6dcb239de"
+    }
   }
 }
