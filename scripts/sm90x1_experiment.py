@@ -454,7 +454,7 @@ def tables(a):
             '[verified] See SM90X1_candidates.csv, SM90X1_stage_deltas.csv, SM90X1_arms.csv and SM90X1_summary.csv.',
             '[verified] Raw records, all failed attempts, trace overhead and build resource samples stay under runs/sm90x1.',
             '[verified] Guard acceptance in this container is provisional_container_pid_namespace; host PID ownership cannot be fully verified. '
-            'A foreign compute context observed by the guard prevents acceptance.',
+            'Preflight and final samples require empty GPU owner sets. During execution the existing guard may ignore unresolved host PIDs.',
             '[verified] An additional experiment audit rejects a native process if sampled running owners include more than one distinct GPU PID; '
             'the first C-1 process permits two for its native parent and HF child. '
             'A Qwen Phase 0 correctness unit failed this audit and was archived together with its initial P-FINAL; both are being repeated. '
