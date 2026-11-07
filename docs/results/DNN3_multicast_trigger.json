@@ -46,5 +46,26 @@
     "binary_sha256": "5f6ae60c85dfc0c4d5a0e9d5535b98f80b790448cf0ce82423bd47502ba8c476",
     "source_sha256": "6318fa63e2851ca1774dc07652fa11a36866b53731dde23a7c1984f53ac98895"
   },
-  "acceptance": "private unit protocol accepted; full model gates and E2E still pending"
+  "acceptance": "private unit protocol accepted; full model gates and E2E still pending",
+  "model_gates": [
+    {
+      "model": "resnet18",
+      "batch": 1,
+      "status": "passed",
+      "children": 17,
+      "result": "runs/dnn3/f3_multicast_v13/resnet18_b1/acceptance_gate/raw/dnn3-f3-model-gates/attempt1/cohort/result.json",
+      "sha256": "165d05f6658d318484320b4de568dea9a126450f8dc2c6dbec8e9467a1dce25f",
+      "guard_sha256": "db193a91994b20d7cd87e4418441c2b8ecca1a78e7dd8208d4b32f0e0eeb0f02",
+      "racecheck": "5/5 fresh processes",
+      "synccheck": "5/5 fresh processes"
+    }
+  ],
+  "bert_attempt1": {
+    "status": "outer_guard_void",
+    "reason": "running telemetry unavailable: Command '['nvidia-smi', '-i', '0', '--query-gpu=uuid,pci.bus_id,memory.used,memory.free,memory.total,clocks.current.sm,clocks.current.memory', '--format=csv,noheader,nounits']' timed out after 15 seconds",
+    "completed_children": 9,
+    "early_smoke": "invalidated; diagnostic only; never performance accepted",
+    "invalidation_receipt": "runs/dnn3/f3_multicast_v13/bert_b16/early_timing_invalidated.json",
+    "remaining": "fresh accepted gate then new timing; partial sanitizer attempt proves no acceptance"
+  }
 }
