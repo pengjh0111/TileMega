@@ -185,7 +185,8 @@ struct Sm90F3GlobalPool {
         item+=1LL*gridDim.x*256) {
       int channel=int(item%p.channels),image=int(item/p.channels);
       float sum=0;
-      for(int part=0;part<p.parts;++part)
+      int first=(image*p.rows)/64,last=((image+1)*p.rows-1)/64;
+      for(int part=0;part<=last-first;++part)
         sum+=p.accumulator[(std::size_t(image)*p.parts+part)*p.channels+channel];
       p.output[std::size_t(image)*p.out_channels+channel]=Element(sum*inverse);
     }

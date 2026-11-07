@@ -223,7 +223,7 @@ struct Sm90F3Gemm {
   // through the chain's pool segments.
   static constexpr Sm90F3GemmLayout kLayout=Sm90F3MakeGemmLayout(TM,TN,Slots,
       false,0,Chain::kNeedsResidual,kVectors,Chain::kNeedsStats,
-      Split::kWgCols,Pool::kArea?Pool::kImages:0);
+      2*Split::kWgCols,Pool::kArea?Pool::kImages:0);
   static constexpr int kLayoutBytes=kLayout.end;
   static constexpr int kSideOffset=kLayout.side_base;
   static constexpr int kPoolOffset=kLayout.pool_base;
@@ -327,8 +327,10 @@ struct Sm90F3Gemm {
     }
     PoolPartials(p,reinterpret_cast<char*>(arena_base),accumulators,owned,wg,
         m_tile,n_tile,live_rows,width);
-    __syncwarp();
-    if((threadIdx.x&31)==0)Base::Arrive(&ring.side_empty);
+    if constexpr(Chain::kNeedsResidual || kVectors>0 || Chain::kNeedsStats) {
+      __syncwarp();
+      if((threadIdx.x&31)==0)Base::Arrive(&ring.side_empty);
+    }
   }
 
   // The GAP partial sums (§6.4 step 4). Eight lanes of a warp hold the same
@@ -342,55 +344,57 @@ struct Sm90F3Gemm {
       int live_rows,int width) {
     if constexpr(Pool::kArea>0) {
       using namespace cute;
-      auto* scratch=reinterpret_cast<float*>(arena+kPoolOffset);
+      auto* scratch=reinterpret_cast<float*>(arena+kPoolOffset)+
+          wg*4*Split::kWgCols*Pool::kImages;
       int warp=(int(threadIdx.x)%128)>>5,lane=int(threadIdx.x)&31;
       constexpr int kElements=int(cute::size(Fragment{}));
       constexpr int kImages=Pool::kImages;
       auto slot=[&](int w,int col,int image) {
         return scratch+(std::size_t(w)*Split::kWgCols+col)*kImages+image;
       };
-      for(int i=int(threadIdx.x)%128;i<4*Split::kWgCols*kImages;i+=128)
-        scratch[i]=0.f;
-      Async::template NamedBarrier<Sm90F3Async::kBarConsumers,256>();
       #pragma unroll
       for(int s=0;s<Split::kSubTiles;++s) {
         auto& tile=accumulators.tile[s];
         // The sub-tile's own 64-row block, and the first image it touches.
-        int block=(m_tile*TM+s*64)/64;
-        int first=(m_tile*TM+s*64)/Pool::kArea;
-        float sums[kImages];
-        #pragma unroll
-        for(int j=0;j<kImages;++j)sums[j]=0.f;
-        int column=-1;
+        int row_base=m_tile*TM+Split::ARows(wg)+s*64;
+        int block=row_base/64,first=row_base/Pool::kArea;
+        // CLayout_64xN orders each quartet as two columns over two rows.
+        // Reduce a thread's two rows before the eight-lane column reduction.
         CUTE_UNROLL
-        for(int i=0;i<kElements;++i) {
-          int tile_row,tile_col;
-          Coordinate(wg,s,get<0>(owned(i)),get<1>(owned(i)),tile_row,tile_col);
-          int row=m_tile*TM+tile_row;
-          // A new column closes the previous one's partials.
-          if(tile_col!=column) {
-            if(column>=0)Flush(slot,warp,column,lane,sums,width);
-            column=tile_col;
+        for(int group=0;group<kElements/4;++group) {
+          #pragma unroll
+          for(int half=0;half<2;++half) {
+            int i=group*4+half;
+            int column=get<1>(owned(i));
+            int tile_col=Split::BRows(wg)+column;
+            float sums[kImages];
             #pragma unroll
             for(int j=0;j<kImages;++j)sums[j]=0.f;
-          }
-          if(tile_row<live_rows && tile_col<width) {
-            int image=row/Pool::kArea-first;
-            if(image>=0 && image<kImages)sums[image]+=tile(i);
+            #pragma unroll
+            for(int r=0;r<2;++r) {
+              int index=i+2*r,row=row_base+get<0>(owned(index));
+              if(row-m_tile*TM<live_rows && tile_col<width) {
+                int image=row/Pool::kArea-first;
+                #pragma unroll
+                for(int j=0;j<kImages;++j)
+                  if(image==j)sums[j]+=tile(index);
+              }
+            }
+            Flush(slot,warp,column,lane,sums,Split::kWgCols);
           }
         }
-        if(column>=0)Flush(slot,warp,column,lane,sums,width);
         Async::template NamedBarrier<Sm90F3Async::kBarConsumers,256>();
         // One writer per (column, image): the warpgroup's first warp.
         if(warp==0)
           for(int col=lane;col<Split::kWgCols;col+=32) {
-            if(col>=width)continue;
+            if(Split::BRows(wg)+col>=width)continue;
             #pragma unroll
             for(int j=0;j<kImages;++j) {
               float total=0;
               #pragma unroll
               for(int w=0;w<4;++w)total+=*slot(w,col,j);
               int image=first+j;
+              if(image*Pool::kArea>=M)continue;
               int part=block-(image*Pool::kArea)/64;
               if(part<0 || part>=Pool::kParts)continue;
               int channel=n_tile*TN+Split::BRows(wg)+col;
@@ -414,7 +418,7 @@ struct Sm90F3Gemm {
         float value=sums[j];
         #pragma unroll
         for(int mask:{4,8,16})value+=__shfl_xor_sync(0xffffffffu,value,mask);
-        if((lane&28)==0 && column<width)*slot(warp,column,j)+=value;
+        if((lane&28)==0 && column<width)*slot(warp,column,j)=value;
       }
     }
   }
