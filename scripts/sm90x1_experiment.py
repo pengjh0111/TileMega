@@ -454,6 +454,13 @@ def tables(a):
     if phase0:
         report+=['[verified] Phase 0 complete='+str(phase0['complete'])+', stop='+str(phase0['stop'])+
                  '. Accepted TPOT comparisons: SM90X1_phase0.csv.']
+    trace_unit=RUN/'cells/qwen3_0_6b-B1/phase0/trace/unit.json'
+    if trace_unit.exists():
+        unit=read(trace_unit)
+        overhead=[read(Path(path)/'run.json')['overhead_pct'] for path in unit['runs']]
+        report+=['[verified, diagnostic] Level-2 W trace overhead on GPU'+str(unit['gpu'])+
+                 ': '+', '.join(str(round(v,3))+'%' for v in overhead)+
+                 '; two fresh processes, each compared with non-trace W in the same session.']
     report+=['[verified] The R3 rounded solver table was rechecked: 30 cells, c0/winner geometric mean '
              '1.004542368, maximum 1.053627213. The additive/independent-family comment remains in Sm90DenseSearch.cpp.']
     (RESULTS/'SM90X1_h800.md').write_text('\n\n'.join(report)+'\n')
