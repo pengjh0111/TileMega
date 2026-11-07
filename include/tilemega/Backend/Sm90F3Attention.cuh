@@ -57,7 +57,7 @@ struct Sm90F3Attention {
     __syncwarp();
   }
 
-  // The K loop keeps one query fragment live: 150 registers, no spills in P-UNIT.
+  // Immediate softmax packing keeps 121 registers, no spills in P-UNIT.
   // Outlining still spills at the device-call register ceiling.
   __device__ static __forceinline__ void Consume(Sm90F3AttentionOperands const& p,
       Sm90F3Ring& ring,char* arena,Sm90F3Phase& phase) {
@@ -93,26 +93,22 @@ struct Sm90F3Attention {
         maximum[row]=fmaxf(maximum[row],__shfl_xor_sync(0xffffffffu,maximum[row],1));
         maximum[row]=fmaxf(maximum[row],__shfl_xor_sync(0xffffffffu,maximum[row],2));
       }
+      unsigned probability[8][4];
       #pragma unroll
       for(int block=0;block<16;++block) {
+        float v[4];
         #pragma unroll
         for(int e=0;e<4;++e) {
-          float v=exp2f((scores[block][e]-maximum[e/2])*(.125f*1.4426950408889634f));
-          scores[block][e]=v;sum[e/2]+=v;
+          v[e]=exp2f((scores[block][e]-maximum[e/2])*(.125f*1.4426950408889634f));
+          sum[e/2]+=v[e];
         }
+        probability[block/2][2*(block%2)]=Pack(v[0],v[1]);
+        probability[block/2][2*(block%2)+1]=Pack(v[2],v[3]);
       }
       #pragma unroll
       for(int row=0;row<2;++row) {
         sum[row]+=__shfl_xor_sync(0xffffffffu,sum[row],1);
         sum[row]+=__shfl_xor_sync(0xffffffffu,sum[row],2);
-      }
-      unsigned probability[8][4];
-      #pragma unroll
-      for(int k=0;k<8;++k) {
-        probability[k][0]=Pack(scores[2*k][0],scores[2*k][1]);
-        probability[k][1]=Pack(scores[2*k][2],scores[2*k][3]);
-        probability[k][2]=Pack(scores[2*k+1][0],scores[2*k+1][1]);
-        probability[k][3]=Pack(scores[2*k+1][2],scores[2*k+1][3]);
       }
       float output[8][4]{};
       #pragma unroll
