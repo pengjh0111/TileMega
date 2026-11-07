@@ -53,8 +53,11 @@ def stage_lists(rows,model,batch,tp_constants):
         cost=positive(row['p90_ns']if row.get('noisy')else row['median_ns']);stage=key['stage']
         if stage not in result:raise ValueError('unknown stage')
         if stage=='attention':
-            if key.get('attn_version')!=2:raise ValueError('MX7 requires attention V2')
-            identity=(key['prefetch'],key['b_min'])
+            version=key.get('attn_version')
+            if version not in(2,3)or(version==3 and tp!=8):raise ValueError('attention V3 trial requires TP8')
+            partition=key['b_min']if version==2 else key['split']
+            if version==3 and partition not in(1,2,4):raise ValueError('TP8 attention split outside1/2/4')
+            identity=(version,key['prefetch'],partition)
             group=attention.setdefault(identity,{})
             if key['length']in group:raise ValueError('duplicate attention grid point')
             group[key['length']]=(cost,index,key)
@@ -97,7 +100,9 @@ def pin(choice,cost_sha,tp,purpose='resource_probe'):
     if purpose not in('manual','resource_probe')or tp not in(2,4,8):raise ValueError('invalid TP pin purpose or degree')
     stages=choice['stages'];attn=stages['attention']['key']
     if any(stages[name]['key']['tp']!=tp for name in STAGES):raise ValueError('mixed TP scopes in choice')
-    config=dict(threads=512,purpose=purpose,attn_version=2,split=1,b_min=attn['b_min'],
+    version=attn.get('attn_version',2)
+    if version==3 and tp!=8:raise ValueError('attention V3 trial requires TP8')
+    config=dict(threads=512,purpose=purpose,attn_version=version,split=attn.get('split',1),b_min=attn.get('b_min',1),
                 attn_prefetch=attn['prefetch'],default_enabled=False,diagnostic=True,final=False,solver_selected=False)
     for stage in('qkv','o','gate_up','down','head'):
         key=stages[stage]['key'];config[stage]={name:key[name]for name in('tn','wn','d','prefetch','r_next')}

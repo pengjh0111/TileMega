@@ -30,6 +30,40 @@ def fixture():
 
 
 class SelectionTests(unittest.TestCase):
+    def test_tp8_v3_and_v2_have_distinct_complete_length_grids(self):
+        rows, constants = fixture()
+        for item in rows:
+            item['key'].update(model='qwen3_1_7b_tp8', tp=8)
+        for group in constants.values():
+            for item in group:
+                item['key']['tp'] = 8
+        for item in list(rows):
+            if item['key']['stage'] == 'attention':
+                added = copy.deepcopy(item)
+                added['key'].pop('b_min')
+                added['key'].update(attn_version=3, split=4)
+                added['median_ns'] = 5
+                rows.append(added)
+        choices = stage_lists(rows, 'qwen3_1_7b_tp8', 1, constants)
+        self.assertEqual(len(choices['attention']), 2)
+        selected = pin(next(k_best(choices, 28)), 'a' * 64, 8)
+        self.assertEqual(selected['mx_decode_v2']['attn_version'], 3)
+        self.assertEqual(selected['mx_decode_v2']['split'], 4)
+        self.assertEqual(selected['mx_decode_v2']['b_min'], 1)
+
+    def test_v3_is_still_rejected_for_tp2_and_tp4(self):
+        for tp in (2, 4):
+            rows, constants = fixture()
+            for item in rows:
+                item['key'].update(model=f'qwen3_1_7b_tp{tp}', tp=tp)
+                if item['key']['stage'] == 'attention':
+                    item['key'].update(attn_version=3, split=4)
+            for group in constants.values():
+                for item in group:
+                    item['key']['tp'] = tp
+            with self.assertRaisesRegex(ValueError, 'requires TP8'):
+                stage_lists(rows, f'qwen3_1_7b_tp{tp}', 1, constants)
+
     def test_constants_follow_their_measured_physical_group(self):
         catalog = {'tp_gpu_groups': {'4': [1, 2, 3, 5]}}
         check_constant_group(catalog, 4, [1, 2, 3, 5])

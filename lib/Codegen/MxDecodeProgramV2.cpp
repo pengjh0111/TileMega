@@ -92,7 +92,7 @@ int MxDecodePrefetchV2(MxDecodeClassV2 const& c, int n, int k, int grid, int thr
 
 void CheckMxDecodeConfigV2(MxDecodeModel const& m, int batch, MxDecodeConfigV2 const& c, int grid) {
   if (m.tp != 1 && m.tp != 2 && m.tp != 4 && m.tp != 8) Fail("TP outside {1,2,4,8}");
-  if (m.tp > 1 && (grid != 104 || c.attn_version != 2)) Fail("TP requires grid104 and attention V2");
+  if (m.tp > 1 && (grid != 104 || (m.tp != 8 && c.attn_version != 2))) Fail("TP requires grid104; TP2/TP4 require attention V2");
   if (grid != 104) Fail("grid must be 104 (one CTA per AP)");
   if (c.threads != 512 && c.threads != 576) Fail("threads outside {512,576}");
   if (m.capacity <= 0 || m.capacity % 32) Fail("fragment KV capacity must be divisible by 32");
