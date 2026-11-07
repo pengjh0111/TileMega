@@ -380,6 +380,8 @@ int main(int argc,char** argv) try {
   }
   if(which=="gather" || which=="all") {
     GatherCase<7,2,3,1>();GatherCase<7,2,3,16>();GatherCase<3,1,1,1>();
+    ConvCase<1,9,8,64,7,2,3,128,64,4,7,false,true,false>();
+    ConvCase<1,9,8,64,3,1,1,64,32,4,2,false,true,false>();
   }
   if(which=="split" || which=="all") {
     PoolCase<64,1,8>();PoolCase<64,16,8>();PoolCase<128,1,8>();PoolCase<128,16,8>();

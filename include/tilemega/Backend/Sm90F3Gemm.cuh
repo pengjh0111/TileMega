@@ -633,6 +633,7 @@ struct Sm90F3Gemm {
     for(int local=0;local<tasks;++local) {
       int task=Task(local),m_tile=MTile(task),n_tile=NTile(task);
       for(int k=0;k<kIterations;++k) {
+        int global_k=Slice(task)*kIterations+k;
         int slot=(local*kIterations+k)%Slots;
         // Lane 0 alone owns the slot's release phase; the warp then gathers.
         if((tilemega::backend::Sm90F3Async::ThreadIndex()&31)==0) {
@@ -650,7 +651,7 @@ struct Sm90F3Gemm {
           int q=pixel%Conv::kQ,r0=pixel/Conv::kQ;
           #pragma unroll
           for(int j=0;j<8;++j) {
-            int tap=k*8+j;
+            int tap=global_k*8+j;
             int rr=tap/Conv::kS,ss=tap%Conv::kS;
             int y=r0*Conv::kStrideH-Conv::kPadH+rr*Conv::kDilationH;
             int x=q*Conv::kStrideW-Conv::kPadW+ss*Conv::kDilationW;
@@ -669,7 +670,7 @@ struct Sm90F3Gemm {
         if((tilemega::backend::Sm90F3Async::ThreadIndex()&31)==0) {
           Base::ExpectTx(ring.gfull+slot,2*TN*64);
           Base::Bulk(SlotB(arena,slot),
-              p.weight+(std::size_t(n_tile)*(K/64)+k)*TN*64,2*TN*64,ring.gfull+slot);
+              p.weight+(std::size_t(n_tile)*(K/64)+global_k)*TN*64,2*TN*64,ring.gfull+slot);
         }
       }
       if((tilemega::backend::Sm90F3Async::ThreadIndex()&31)==0)ProduceSide(p,ring,side,phase,m_tile,n_tile,LiveRows(m_tile));
