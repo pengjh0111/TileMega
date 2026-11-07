@@ -27,8 +27,14 @@ def collect(args, identity):
     from safetensors.torch import load_file
     from tilemega.dnn.check import NativeForward
     inputs = load_file(str(args.inputs), device='cuda')
+    reference = None
+    if args.reference:
+        with torch.inference_mode(), NativeForward(args.reference, args.export,
+                                                   args.bridge, args.batch) as accepted:
+            reference = [value.clone() for value in accepted([inputs[name] for name in accepted.inputs])]
     with torch.inference_mode(), NativeForward(args.library, args.export, args.bridge, args.batch) as native:
-        reference = native([inputs[name] for name in native.inputs])
+        if reference is None:
+            reference = [value.clone() for value in native([inputs[name] for name in native.inputs])]
         lib = native.library.lib
         dimensions = {}
         for name in ('schema', 'stages', 'grid', 'segments', 'record_bytes', 'bytes'):
@@ -91,6 +97,8 @@ def collect(args, identity):
     save(args.out / 'result.json', dict(evidence='verified', diagnostic_only=True,
         timing_valid=False, artifact_id=identity['artifact_id'], dimensions=dimensions,
         input_sha256=sha(args.inputs), ledger=str(args.out / 'ledger.csv'),
+        reference=str(args.reference) if args.reference else 'independent clone of first trace launch',
+        reference_sha256=sha(args.reference) if args.reference else None,
         limitation='Thread 0 attribution; nested segments are not additive; trace overhead changes scheduling.',
         largest_stages=sorted(rows, key=lambda row: row['stage_ns'], reverse=True)[:3]))
 
@@ -102,6 +110,7 @@ def main():
     parser.add_argument('--batch', type=int, required=True)
     parser.add_argument('--device', type=int, default=1)
     parser.add_argument('--cpu-set', default='128-135')
+    parser.add_argument('--reference', type=Path, help='accepted non-trace artifact at identical coordinates')
     parser.add_argument('--execute', action='store_true')
     args = parser.parse_args()
     for name in ('library', 'export', 'bridge', 'inputs', 'out'):
@@ -109,6 +118,14 @@ def main():
     identity = verify(args.library)
     if not identity['trace']:
         raise ValueError('attribution requires a separate trace artifact')
+    if args.reference:
+        args.reference = args.reference.resolve()
+        accepted = verify(args.reference)
+        if accepted['trace'] or accepted['plan']['coordinates_sha256'] != identity['plan']['coordinates_sha256']:
+            raise ValueError('trace reference must be non-trace and use identical coordinates')
+    entries = [r for name, r in identity['resources'].items() if 'sm90_forward_f3_kernel' in name]
+    if len(entries) != 1 or entries[0]['registers'] > 168:
+        raise ValueError('trace entry cannot reside with288 Hopper threads')
     log = Path(str(args.library)+'.ptxas.log').read_text()
     spills = re.findall(r'(\d+) bytes spill (?:stores|loads)', log)
     registers = re.findall(r'Used (\d+) registers', log)
@@ -124,20 +141,24 @@ def main():
         PYTHONPATH=str(ROOT / 'python'))
     queue = args.out / 'queue'
     queue.mkdir()
-    command = ['taskset', '-c', args.cpu_set, '/root/TileMega/runs/r16/env/tensorrt-dnn/bin/python',
+    command = ['taskset', '-c', args.cpu_set, str(ROOT/'scripts/dnn3_idle_floor_python.py'),
                str(Path(__file__).resolve()), '--execute', '--batch', str(args.batch)]
     for name in ('library', 'export', 'bridge', 'inputs'):
         command += ['--'+name, str(getattr(args, name))]
     command += ['--out', '{attempt_dir}/trace']
+    if args.reference:
+        command += ['--reference', str(args.reference)]
     save(queue / 'queue_marks.json', [dict(name='dnn3-marks', gpu=True, timing=False,
         timeout_s=1200, needs_free_mib=8192, command=command, cwd=str(ROOT), env=environment)])
     paths = [Path(__file__), args.library, Path(str(args.library)+'.identity.json'),
              args.inputs, args.bridge, args.export/'exported_program.pt2',
              args.export/'checkpoint/model.safetensors',
              *sorted((ROOT/'python/tilemega/dnn').glob('*.py'))]
+    if args.reference:
+        paths.extend((args.reference, Path(str(args.reference)+'.identity.json')))
     frozen = {str(path): sha(path) for path in paths}
     save(args.out/'inputs.json', frozen)
-    scheduler = [str(ROOT/'scripts/dnn1_idle_floor_python.py'), '-m', 'tilemega.bench.scheduler',
+    scheduler = [str(ROOT/'scripts/dnn3_idle_floor_python.py'), '-m', 'tilemega.bench.scheduler',
         '--queue-dir', str(queue), '--out', str(args.out/'scheduler'),
         '--policy', str(ROOT/'configs/bench/sm90r2_guard_policy.json'), '--deadline-hours', '6']
     with (args.out/'dispatch.log').open('w') as stream:
