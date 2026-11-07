@@ -7,8 +7,9 @@ def execution_identity(plan, identity, mode):
         return plan.execution_identity(mode)
     if mode not in (1, 2):
         raise ValueError('native forward needs L1 or L2 mode')
-    kernels = [row for name, row in identity['resources'].items()
-               if 'sm90_forward_native_kernel' in name]
+    abi = identity['plan']['native_forward'].get('abi', 'legacy')
+    prefix = 'sm90_forward_f3_kernel' if abi == 'f3' else 'sm90_forward_native_kernel'
+    kernels = [row for name, row in identity['resources'].items() if prefix in name]
     if len(kernels) != 1:
         raise ValueError('native forward requires one identified compiled entry point')
     # Both public modes dispatch the same typed forward program. Its entry is

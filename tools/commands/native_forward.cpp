@@ -53,9 +53,13 @@ static int CompileNativeForwardArtifact(std::string const& input,std::string con
   auto input_hash=Hash(input),coordinates_hash=Hash(coordinates),target_hash=Hash(target_path);
   auto c=solver::Sm90ForwardCoordinates::FromJson(json::ParseFile(coordinates));
   auto target=TargetSpec::FromJson(target_path);
-  // The launch's register ceiling follows the requested residency, exactly as
-  // the native dense build's does.
   auto registers=solver::NativeDenseRegisterContract(target,c.residency);
+  bool f3=c.abi==solver::Sm90ForwardAbi::kF3;
+  if(f3) {
+    if(c.residency!=1)throw std::invalid_argument("F3 requires one resident CTA per SM");
+    // F3 fixes its role ABI and device-function ceiling independently of dense.
+    registers.threads=288;registers.callee_limit=224;
+  }
   mlir::MLIRContext context;
   // The coordinates name their own skeleton, so the plan is built for the
   // same one the program will be generated for.
@@ -174,7 +178,8 @@ static int CompileNativeForwardArtifact(std::string const& input,std::string con
   bool stable=unchanged();
   bool normal_failure=status!=-1 && WIFEXITED(status) && WEXITSTATUS(status)==1;
   auto diagnostics=stable?NativeResourceDiagnostics(limits,command_args,registers.callee_limit,
-      normal_failure,log_text,kNativeForwardEntryPrefix):std::vector<NativeRegisterCallLimit>{};
+      normal_failure,log_text,f3?"sm90_forward_f3_kernel":kNativeForwardEntryPrefix):
+      std::vector<NativeRegisterCallLimit>{};
   bool succeeded=status==0 && limits.At("status").AsString("bounded status")=="completed" &&
       limits.At("exit_code").AsNumber("bounded exit")==0 &&
       limits.At("classification").AsString("bounded classification")=="compilation; not a numerical test" &&
