@@ -55,6 +55,24 @@ int main(int argc,char** argv) {
   auto broken=w;broken.gemms[0].tile_n=48;
   assert(Reason(space,broken)=="D8_qkv_group");
   assert(Sweep(space,work,cost,w,"qkv",1).front().reference);
+  // The attention model can tie block_keys=64 and 128. Preserve the solver's
+  // enumeration order across decomposition groups, rather than string sorting.
+  auto narrow=work;narrow.head_dim=64;narrow.queries=4;narrow.qk_norm=false;
+  Sm90DenseSearchSpace ns{narrow.shapes,1,64,4,target,8};
+  auto nw=w;nw.group_wait=false;nw.attention=ns.AttentionCandidates(w.residency).front();
+  Sm90DenseSearchSpace::Structure(nw);assert(ns.Legal(nw));
+  auto attention=Sweep(ns,narrow,cost,nw,"attention",100);
+  auto expected_attention=ns.AttentionCandidates(w.residency);
+  std::stable_sort(expected_attention.begin(),expected_attention.end(),[&](auto const& a,auto const& b) {
+    return cost.Attention(narrow,a,w.residency)<cost.Attention(narrow,b,w.residency);
+  });
+  unsigned index=1;
+  for(auto const& a:expected_attention) {
+    auto c=nw;c.attention=a;Sm90DenseSearchSpace::Structure(c);
+    if(Key(c,"attention")==Key(nw,"attention"))continue;
+    assert(attention.at(index++).coordinates.ToJson().Dump(0)==c.ToJson().Dump(0));
+  }
+  assert(index==attention.size());
   tilemega::json::Array choices;
   auto n=Control(space,work,cost,w,"N",choices);
   assert(space.Legal(n) && !n.embed_la && n.attention.chunks==1);

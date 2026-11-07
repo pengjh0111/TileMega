@@ -117,16 +117,18 @@ inline std::vector<Variant> Sweep(Sm90DenseSearchSpace const& space,Sm90DenseWor
     return sx!=sy?sx<sy:gx.TileK()>gy.TileK();
   };
   std::map<std::string,Variant> groups;
+  std::vector<std::string> group_order;
   for(auto const& c:raw) {
     auto v=evaluate(c,false);
     if(!traffic && v.key==reference_key)continue;
     auto it=groups.find(v.key);
+    if(it==groups.end())group_order.push_back(v.key);
     if(it==groups.end() || less(v,it->second))groups.insert_or_assign(v.key,std::move(v));
   }
   std::vector<Variant> result;
   if(!traffic) {result.push_back(evaluate(w,true));result[0].selected=true;}
   std::vector<Variant> ranked;
-  for(auto const& pair:groups)ranked.push_back(pair.second);
+  for(auto const& key:group_order)ranked.push_back(groups.at(key));
   std::stable_sort(ranked.begin(),ranked.end(),less);
   int count=int(result.size());
   for(auto& v:ranked)if(v.legal && count<top) {v.selected=true;++count;}
