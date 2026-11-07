@@ -85,7 +85,9 @@ inline constexpr char const* kSm90F3ChainClasses[]={
 // C7510 — the WGMMA pipeline is serialized across the call boundary, which is
 // the hazard `Sm90Gmma.h` already documents. Eighteen shapes spilled. With the
 // consumer inlined (producer stays out of line; it issues no WGMMA) only five
-// do, and 128x128 and 64x256 become legal for every chain.
+// do, and 128x128 and 64x256 become legal for every chain. The full BERT QKV
+// probe later spilled 40/32 bytes at 128x256 with deferred_ln (receipt
+// `runs/dnn3/fullmodel_20261107/bert_qkv_wide_probe/ptxas.log`).
 //
 // What remains illegal is a 128-float warpgroup accumulator paired with a
 // chain that needs more live state than the allocator has left. It is not a
@@ -100,7 +102,7 @@ inline bool Sm90F3TileFeasible(int tile_m,int tile_n,Sm90F3ChainClass chain) {
   if(accumulator<128)return true;
   using C=Sm90F3ChainClass;
   if(tile_m==128 && tile_n==256)
-    return chain==C::kPlain || chain==C::kBiasAct || chain==C::kDeferredLn;
+    return chain==C::kPlain || chain==C::kBiasAct;
   if(tile_m==256 && tile_n==128)
     return chain==C::kPlain || chain==C::kBiasAct || chain==C::kBiasResAct ||
         chain==C::kDeferredLnGelu;
