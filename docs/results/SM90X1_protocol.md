@@ -91,6 +91,13 @@ a Phase 0 build require rebuilding it. Main builds freeze one measurement HEAD;
 keep it until Phase 2 finishes. Compiler executables are copied into immutable
 SHA-named directories before builds.
 
+[verified] X1 enables the dispatcher's optional reconsideration of previously
+used cards after rejected units. A card must still pass the unchanged idle
+owner, memory, power and physical-lock checks. The R4 dispatch default is
+unchanged. `scripts/sm90x1_finalize.py` waits for a terminal campaign state,
+regenerates the compact tables, and commits only its generated result files;
+an unrelated edit or staged change stops finalization for review.
+
 [verified] CPU checks cover dense and fused MoE legality, exact W retention,
 per-group GEMM ranking, deepest fused slots, deterministic enumeration, N
 legality, latest-arriver own-time attribution, release telescoping, process-range
