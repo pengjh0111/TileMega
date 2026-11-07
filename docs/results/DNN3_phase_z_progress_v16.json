@@ -1,6 +1,6 @@
 {
   "evidence": "verified",
-  "status": "in_progress",
+  "status": "execution_complete_goal_not_met",
   "phase_m": "rejected multicast after four matching-coordinate E2E regressions",
   "native_gate": "80/80 passed",
   "installed_constants": "20/20 solve and80/80 coordinate equivalence verified",
@@ -24,7 +24,10 @@
           "median_ms": 0.7980320155620575,
           "action": "resample_trt_tc_all_batches"
         }
-      ]
+      ],
+      "timing_status": "passed",
+      "ledger_status": "passed",
+      "anchor_action_completed": true
     },
     {
       "model": "vgg16",
@@ -45,7 +48,10 @@
           "median_ms": 1.399951994419098,
           "action": "retain_frozen"
         }
-      ]
+      ],
+      "timing_status": "passed",
+      "ledger_status": "passed",
+      "anchor_action_completed": true
     },
     {
       "model": "bert",
@@ -66,7 +72,10 @@
           "median_ms": 1.076848030090332,
           "action": "retain_frozen"
         }
-      ]
+      ],
+      "timing_status": "passed",
+      "ledger_status": "passed",
+      "anchor_action_completed": true
     },
     {
       "model": "resnet18",
@@ -87,12 +96,21 @@
           "median_ms": 0.41815999150276184,
           "action": "resample_trt_tc_all_batches"
         }
-      ]
+      ],
+      "timing_status": "passed",
+      "ledger_status": "passed",
+      "anchor_action_completed": true
     }
   ],
-  "resnet18": "all5 cells and both anchors passed on GPU3; drift requires full TRT/TC resampling",
+  "resnet18": "all5 cells, anchors and whole-model TRT/TC resampling passed",
   "resnet18_lane": "runs/dnn3/phase_z_rn18_gpu3_v18",
   "assembly": "runs/dnn3/phase_z_v17",
-  "remaining": "measured-drift RN18/RN50/VGG full TRT/TC resampling; exact-winner stage ledgers; CP-Z report",
-  "qualification": "provisional_container_pid_namespace; ownership unverified; anchors do not change that qualification"
+  "remaining": [],
+  "qualification": "provisional_container_pid_namespace; ownership unverified; anchors do not change that qualification",
+  "checkpoint": "docs/results/DNN3_cpz_v16.json",
+  "wins": 0,
+  "cells": 20,
+  "ledger_cells": 20,
+  "resampled_baseline_rows": 60,
+  "all20_goal_met": false
 }

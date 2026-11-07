@@ -185,5 +185,6 @@
       "artifact_id": "a0ad031bfb65d622ec8a6d45bc3675be4845962670235837224c40e3a4c756b0"
     }
   ],
-  "timing_tables": "P-ANCHOR replacements still pending"
+  "timing_tables": "completed; docs/results/DNN3_final.csv;0/20 wins",
+  "checkpoint": "docs/results/DNN3_cpz_v16.json"
 }
