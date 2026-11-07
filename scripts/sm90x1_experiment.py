@@ -457,7 +457,7 @@ def tables(a):
             'Preflight and final samples require empty GPU owner sets. During execution the existing guard may ignore unresolved host PIDs.',
             '[verified] An additional experiment audit rejects a native process if sampled running owners include more than one distinct GPU PID; '
             'the first C-1 process permits two for its native parent and HF child. '
-            'A Qwen Phase 0 correctness unit failed this audit and was archived together with its initial P-FINAL; both are being repeated. '
+            'Rejected Qwen Phase 0 correctness units and the initial P-FINAL were excluded; clean correctness and fresh timing are required for acceptance. '
             'This count audit cannot establish host PID ownership in the container namespace.',
             '[stated] Phase 2 target date: 2026-11-21. Pending phases remain gated by Phase 0 and the pilot cost projection.']
     phase0=read(RUN/'phase0.json') if (RUN/'phase0.json').exists() else None
@@ -472,6 +472,17 @@ def tables(a):
     if phase0:
         report+=['[verified] Phase 0 complete='+str(phase0['complete'])+', stop='+str(phase0['stop'])+
                  '. Accepted TPOT comparisons: SM90X1_phase0.csv.']
+        for row in phase0['rows']:
+            if not row['pilot']:continue
+            if row['status'] in ('gate_pass','gate_fail'):
+                report+=['[verified] '+row['cell']+': '+row['status']+'; TPOT '+str(row['tpot_ms'])+
+                         ' ms vs accepted '+str(row['accepted_tpot_ms'])+' ms ('+str(row['change_pct'])+
+                         '%); range '+str(row['range_pct'])+'%; '+str(row['processes'])+
+                         ' fresh processes, GPU'+str(row['gpu'])+', class '+row['class']+'.']
+            else:
+                report+=['[verified] '+row['cell']+': P-FINAL '+row['status']+'; P-CORR '+row['corr_status']+
+                         '; rejected correctness units '+str(row['hardware_rejected_units'])+
+                         ', guard-rejected setup attempts '+str(row['guard_rejected_attempts'])+'.']
     trace_unit=RUN/'cells/qwen3_0_6b-B1/phase0/trace/unit.json'
     if trace_unit.exists():
         unit=read(trace_unit)
