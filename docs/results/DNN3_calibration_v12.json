@@ -71,7 +71,11 @@
     "generated_candidates": 80,
     "status": "passed"
   },
-  "native_gate": "running; do not mark CP3 complete or install production table yet",
+  "native_gate": {
+    "checkpoint": "DNN3_cp3_v12.json",
+    "status": "passed20_rank0",
+    "remaining": "top4 native80 and runtime residency/P-SEL; production table remains isolated"
+  },
   "rejected_probe_builds": [
     {
       "name": "split_128x256",
