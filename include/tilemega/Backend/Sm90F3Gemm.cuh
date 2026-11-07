@@ -315,6 +315,49 @@ struct Sm90F3Gemm {
     tile_col=Split::BRows(wg)+col;
   }
 
+  template<class Tile,class Owned>
+  __device__ static __forceinline__ void StoreQuad(Tile const& tile,Owned const& owned,
+      Element* output,int stride,int wg,int sub,int m_tile,int n_tile,
+      int live_rows,int width,int group) {
+    int quad=int(threadIdx.x)&3;
+    CUTE_UNROLL
+    for(int row=0;row<2;++row) {
+      unsigned words[4];
+      CUTE_UNROLL
+      for(int g=0;g<4;++g) {
+        int i=group*16+g*4+row*2;
+        words[g]=unsigned(Element(tile(i)).raw())|
+            (unsigned(Element(tile(i+1)).raw())<<16);
+      }
+      // A4x4 transpose within each quad: destination lane owns one8-column
+      // group, with its four packed column pairs in source-lane order.
+      unsigned x=__shfl_xor_sync(0xffffffffu,quad&1?words[0]:words[1],1);
+      unsigned y=__shfl_xor_sync(0xffffffffu,quad&1?words[2]:words[3],1);
+      if(quad&1) {words[0]=x;words[2]=y;} else {words[1]=x;words[3]=y;}
+      x=__shfl_xor_sync(0xffffffffu,quad&2?words[0]:words[2],2);
+      y=__shfl_xor_sync(0xffffffffu,quad&2?words[1]:words[3],2);
+      if(quad&2) {words[0]=x;words[1]=y;} else {words[2]=x;words[3]=y;}
+      int tile_row,tile_col;
+      Coordinate(wg,sub,cute::get<0>(owned(group*16+row*2)),
+          cute::get<1>(owned(group*16+row*2)),tile_row,tile_col);
+      tile_col+=quad*6;
+      if(tile_row>=live_rows || tile_col>=width)continue;
+      auto* address=output+std::size_t(m_tile*TM+tile_row)*stride+n_tile*TN+tile_col;
+      if(tile_col+7<width && (reinterpret_cast<std::uintptr_t>(address)&15u)==0)
+        Async::Store128(address,words[0],words[1],words[2],words[3]);
+      else {
+        CUTE_UNROLL
+        for(int pair=0;pair<4;++pair) {
+          if(tile_col+pair*2+1<width)Async::Store32(address+pair*2,words[pair]);
+          else if(tile_col+pair*2<width) {
+            Element value=Element::bitcast(static_cast<unsigned short>(words[pair]));
+            address[pair*2]=value;
+          }
+        }
+      }
+    }
+  }
+
   template<class Accum>
   __device__ static __forceinline__ void Epilogue(Sm90F3GemmOperands const& p,
       Sm90F3Ring& ring,char* side,Sm90F3Phase& phase,Accum& accumulators,int wg,
@@ -322,7 +365,7 @@ struct Sm90F3Gemm {
       Element* arena_base) {
     using namespace cute;
     Mma mma;
-    auto owned=mma.get_slice(int(threadIdx.x)%128).partition_C(
+    auto owned=mma.get_slice(int(Sm90F3Async::ThreadIndex()&127u)).partition_C(
         make_identity_tensor(cute::Shape<cute::_64,cute::Int<Split::kWgCols>>{}));
     if constexpr(Chain::kNeedsResidual || kVectors>0 || Chain::kNeedsStats) {
       TM_F3_TRACE_BEGIN(kSideWait);
@@ -343,6 +386,11 @@ struct Sm90F3Gemm {
     // a block's accumulator registers die at its store instead of staying
     // live across the whole tile.
     constexpr int kBlocks=(Split::kWgCols+63)/64;
+    // DT-SPILL: a128-register accumulator spills in RN50 B16 with quad
+    // temporaries. Retain its4B path; smaller fragments use16B stores.
+    constexpr bool kVectorStore=Split::kWgCols>=32 &&
+        Split::kWgRows*Split::kWgCols/128<128;
+    constexpr int kRegionColumns=kVectorStore?32:64;
     auto* output=e.output;
     int stride=e.output_stride;
     RowAccumulator row_accum;
@@ -351,10 +399,13 @@ struct Sm90F3Gemm {
       auto& tile=accumulators.tile[s];
       #pragma unroll
       for(int block=0;block<kBlocks;++block) {
+        CUTE_UNROLL
+        for(int half=0;half<(kVectorStore && Split::kWgCols>=64?2:1);++half) {
+        int group=kVectorStore?block*2+half:block;
         int cached=-1;float mean=0,inverse=0;
         CUTE_UNROLL
         for(int i=0;i<kElements;i+=2) {
-          if(get<1>(owned(i))/64!=block)continue;
+          if(get<1>(owned(i))/kRegionColumns!=group)continue;
           int tile_row,tile_col;
           Coordinate(wg,s,get<0>(owned(i)),get<1>(owned(i)),tile_row,tile_col);
           if constexpr(Chain::kNeedsStats)
@@ -375,19 +426,24 @@ struct Sm90F3Gemm {
             }
           }
 #if !TILEMEGA_TRACE_STAGE
+          if constexpr(!kVectorStore) {
           if(tile_row>=live_rows || tile_col>=width)continue;
           auto* address=output+std::size_t(m_tile*TM+tile_row)*stride+n_tile*TN+tile_col;
           if(tile_col+1<width) {
             Element low(tile(i)),high(tile(i+1));
             Async::Store32(address,unsigned(low.raw())|(unsigned(high.raw())<<16));
           }else *address=Element(tile(i));
+          }
 #endif
         }
-#if TILEMEGA_TRACE_STAGE
         TM_F3_TRACE_BEGIN(kStore);
+        if constexpr(kVectorStore)
+          StoreQuad(tile,owned,output,stride,wg,s,m_tile,n_tile,live_rows,width,group);
+#if TILEMEGA_TRACE_STAGE
+        else {
         CUTE_UNROLL
         for(int i=0;i<kElements;i+=2) {
-          if(get<1>(owned(i))/64!=block)continue;
+          if(get<1>(owned(i))/kRegionColumns!=group)continue;
           int tile_row,tile_col;
           Coordinate(wg,s,get<0>(owned(i)),get<1>(owned(i)),tile_row,tile_col);
           if(tile_row>=live_rows || tile_col>=width)continue;
@@ -397,8 +453,10 @@ struct Sm90F3Gemm {
             Async::Store32(address,unsigned(low.raw())|(unsigned(high.raw())<<16));
           }else *address=Element(tile(i));
         }
-        TM_F3_TRACE_END(kStore);
+        }
 #endif
+        TM_F3_TRACE_END(kStore);
+        }
       }
     }
     PoolPartials(p,reinterpret_cast<char*>(arena_base),accumulators,owned,wg,
@@ -708,7 +766,7 @@ struct Sm90F3Gemm {
       int task,int m_tile,int n_tile,Sm90F3Header* header,Element* arena) {
     using namespace cute;
     Mma mma;
-    auto owned=mma.get_slice(int(threadIdx.x)%128).partition_C(
+    auto owned=mma.get_slice(int(Sm90F3Async::ThreadIndex()&127u)).partition_C(
         make_identity_tensor(cute::Shape<cute::_64,cute::Int<Split::kWgCols>>{}));
     int tile=m_tile*kTiles+n_tile,slice=Slice(task);
     TM_F3_TRACE_BEGIN(kSplitK);
