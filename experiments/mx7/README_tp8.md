@@ -110,3 +110,41 @@ The earlier bounded-attempt campaign remains intact under `runs/mx7/tp8/`.
 It produced no passing TP8 timing cells. The persistent queue uses
 `runs/mx7/tp8_queue/`, with a new source identity; its launcher is recorded in
 `runs/mx7/TP8_ACTIVE.json`. No old failure row or frozen TP2/TP4 data is changed.
+
+## TileMega-only depth refinement
+
+The 2026-11-08 follow-up requests another optimization attempt and new TileMega
+measurements while reusing the completed TP8 baselines (stated).
+
+```bash
+PYTHONPATH=python python experiments/mx7/tp8_depth_refinement.py
+PYTHONPATH=python python experiments/mx7/tp8_refinement_accept.py
+```
+
+The second command can wait in parallel for the first command's qualified
+results. Both use the eight-card guards and unlimited occupancy waiting.
+No external baseline runner is invoked. The earlier completed matrix remains
+immutable under `runs/mx7/tp8_queue/`.
+
+Candidates retain each batch's selected TN/WN/partition and attention b_min.
+They come from the original eligible measured table's global k-best order;
+recorded ranks and source rows are retained. The experiment expands end-to-end
+coverage of pipeline depths and attention prefetch, rather than inheriting
+coordinates between batches. Compile and resource failures remain in the logs.
+
+The preliminary full-model screen caches only immutable packed weights and
+requires an identical weight-recipe signature on every reuse. Every generated
+token must match the original selected plan's reference. Screen values are
+explicitly diagnostic and cannot become published performance numbers.
+
+Each shortlisted winner is compared with the original plan in alternating
+ordinary fresh processes, two per arm, warmup1/timed2. A candidate must beat
+max(1%, both arms' process spread); otherwise the original plan is retained.
+Reported data use these independent processes with the normal engine and no
+weight-cache override. Every final selected plan receives C-1 and five fresh
+1024-token C-2 starts; B1/B16 receive five selected injected-delay starts.
+All-rank residency is queried separately before publication.
+
+Diagnostic trace tools now accept TP2, TP4 and TP8, and require complete rank
+cohorts. Trace data stay outside performance acceptance. The existing TP1,
+TP2/TP4 and MoE device bodies are unchanged by this refinement.
