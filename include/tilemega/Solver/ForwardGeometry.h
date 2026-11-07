@@ -59,16 +59,7 @@ inline int Sm90ForwardArenaBytes(TargetSpec const& target,int residency) {
   if(arena<1024)throw std::invalid_argument("target leaves no forward arena");
   return arena;
 }
-// DT-SPILL / §13 U1, measured by `scripts/dnn3_spill_sweep.py` on nvcc 12.8.93
-// (receipt `runs/dnn3/spill/spill.json`). A `__noinline__` consumer — which
-// §5.4 item 2 requires so BERT's twelve identical layers share one body — is
-// allocated at most 168 registers by ptxas whatever register ceiling the build
-// passes. A warpgroup accumulator of 128 FP32 therefore never fits, and even
-// 64 FP32 spills once the chain also holds a residual tile and three vectors.
-// These shapes leave the legal set rather than run with spill traffic.
-//
-// §9.2's epilogue classes. They key both the measured epilogue cost and the
-// register feasibility below, so a stage names its class exactly once.
+// One chain class identifies both register feasibility and measured cost.
 enum class Sm90F3ChainClass : unsigned {
   kPlain, kBiasAct, kBiasResAct, kDeferredLn, kDeferredLnGelu,
   kResidualLnRowStats, kSwapAbBiasAct
@@ -77,24 +68,11 @@ inline constexpr char const* kSm90F3ChainClasses[]={
     "plain","bias_act","bias_res_act","deferred_ln","deferred_ln_gelu",
     "residual_ln_rowstats","swapab_bias_act"};
 
-// DT-SPILL / §13 U1, measured by `scripts/dnn3_spill_sweep.py` on nvcc 12.8.93
-// over all 67 (tile, chain) shapes; receipts `runs/dnn3/spill/spill.json`
-// (before) and `runs/dnn3/spill_inline/spill.json` (after).
-//
-// The first sweep had `Consume` `__noinline__`, as §5.4 item 2 asks. ptxas then
-// caps it at 168 registers whatever ceiling the build passes, *and* reports
-// C7510 — the WGMMA pipeline is serialized across the call boundary, which is
-// the hazard `Sm90Gmma.h` already documents. Eighteen shapes spilled. With the
-// consumer inlined (producer stays out of line; it issues no WGMMA) only five
-// do, and 128x128 and 64x256 become legal for every chain. The full BERT QKV
-// probe later spilled 40/32 bytes at 128x256 with deferred_ln (receipt
-// `runs/dnn3/fullmodel_20261107/bert_qkv_wide_probe/ptxas.log`).
-//
-// What remains illegal is a 128-float warpgroup accumulator paired with a
-// chain that needs more live state than the allocator has left. It is not a
-// closed formula — 256x128 keeps `bias_res_act` but loses `deferred_ln`, while
-// 128x256 is the other way round — so the measured pairs are listed, never
-// predicted.
+// DT-SPILL: the fully inline production sweep on nvcc 12.8.93 rejects
+// 256x128 with residual or normalization chains (180/12/504/316 B stores).
+// Receipt: runs/dnn3/spill_inline_predicate_v2/spill.json. Keep the prior
+// full-model 128x256 normalization exclusions until that artifact passes.
+// Resident-probe loop spills are diagnosed separately and do not ban tiles.
 inline bool Sm90F3TileFeasible(int tile_m,int tile_n,Sm90F3ChainClass chain) {
   int wg_cols=tile_m==64?tile_n/2:tile_n;
   int sub_tiles=tile_m==256?2:1;
@@ -105,8 +83,7 @@ inline bool Sm90F3TileFeasible(int tile_m,int tile_n,Sm90F3ChainClass chain) {
   if(tile_m==128 && tile_n==256)
     return chain==C::kPlain || chain==C::kBiasAct;
   if(tile_m==256 && tile_n==128)
-    return chain==C::kPlain || chain==C::kBiasAct || chain==C::kBiasResAct ||
-        chain==C::kDeferredLnGelu;
+    return chain==C::kPlain || chain==C::kBiasAct;
   return true;
 }
 // The class of a chain, from what its steps need. Codegen and the solver call

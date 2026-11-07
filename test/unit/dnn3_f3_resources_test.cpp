@@ -6,6 +6,11 @@ using namespace tilemega;
 using namespace tilemega::solver;
 
 int main() {
+  for(auto chain:{Sm90F3ChainClass::kBiasResAct,Sm90F3ChainClass::kDeferredLn,
+                  Sm90F3ChainClass::kDeferredLnGelu,Sm90F3ChainClass::kResidualLnRowStats})
+    assert(!Sm90F3TileFeasible(256,128,chain));
+  assert(Sm90F3TileFeasible(256,128,Sm90F3ChainClass::kPlain));
+  assert(Sm90F3TileFeasible(256,128,Sm90F3ChainClass::kBiasAct));
   TargetSpec target;target.res.num_sms=132;
   target.res.max_dynamic_smem_per_cta=232448;
   target.res.max_smem_per_sm=233472;

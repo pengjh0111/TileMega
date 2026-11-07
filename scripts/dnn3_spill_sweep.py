@@ -42,7 +42,7 @@ using Side=Sm90F3SideLayout<{tm},{tn},{residual},{vectors},{stats}>;
 using Chain=Sm90F3Chain<Side,{steps}>;
 struct Conv {{static constexpr int kQ=56,kP=56,kC=64,kS=3,kR=3,kStrideW=1,kStrideH=1,
     kPadW=1,kPadH=1,kDilationW=1,kDilationH=1,kW=56,kH=56;}};
-using G=Sm90F3Gemm<{tm},{tn},2,{split},Sm90F3Mode::kNormal,{m},{n},576,{n},Chain,Conv>;
+using G=Sm90F3Gemm<{tm},{tn},2,{split},Sm90F3Mode::kNormal,{m},{n},{k},{n},Chain,Conv>;
 __global__ __launch_bounds__(288,1) void probe(Sm90F3GemmOperands p,char* out) {{
   extern __shared__ __align__(1024) char shared[];
   auto* header=reinterpret_cast<Sm90F3Header*>(shared);
@@ -64,7 +64,7 @@ def compile_one(job, folder, keep):
     # Enough rows to fill the tile, and N a whole number of TN tiles.
     m = max(512, tm * 4)
     source = folder / f'spill_{tm}x{tn}_{name}_s{split}.cu'
-    source.write_text(SOURCE.format(tm=tm, tn=tn, m=m, n=tn * 4, split=split, steps=steps,
+    source.write_text(SOURCE.format(tm=tm, tn=tn, m=m, n=tn * 4, k=576 if (576 // 64) % split == 0 else 768, split=split, steps=steps,
                                     vectors=vectors, residual=str(residual).lower(),
                                     stats=str(stats).lower()))
     done = subprocess.run(
