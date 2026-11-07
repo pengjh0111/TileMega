@@ -78,6 +78,7 @@ struct Sm90F3Gemm {
   using Side=typename Chain::Layout;
 
   static constexpr int kThreads=288;
+  static constexpr bool kCanPreissue=Mode==Sm90F3Mode::kNormal;
   static constexpr int kSlots=Slots;
   static constexpr int kIterations=K/(SplitK*64);
   static_assert(Slots>=2 && Slots<=8);
@@ -112,6 +113,30 @@ struct Sm90F3Gemm {
   }
 
   // ---- producer ------------------------------------------------------------
+
+  __device__ static __noinline__ void Preissue(Sm90F3GemmOperands const& p,
+      Sm90F3Ring& ring,Element* arena,Sm90F3Phase& phase) {
+    if(int(threadIdx.x)==256 && int(blockIdx.x)<kTasks) {
+      constexpr int prefix=Slots<kIterations?Slots:kIterations;
+      int first=int(blockIdx.x),n_tile=NTile(first),slice=Slice(first);
+      #pragma unroll
+      for(int slot=0;slot<prefix;++slot) {
+        Base::Wait(ring.empty+slot,phase.Bit(phase.empty,slot));
+        phase.empty^=1u<<slot;
+        Base::ExpectTx(ring.full+slot,kSlotBytes);
+        Base::Bulk(SlotB(arena,slot),p.weight+
+            (std::size_t(n_tile)*(K/64)+slice*kIterations+slot)*TN*64,
+            2*TN*64,ring.full+slot);
+      }
+      Base::PrefetchTensorMap(p.activation);
+      if(p.residual)Base::PrefetchTensorMap(p.residual);
+      for(int task=first;task<kTasks;task+=int(gridDim.x))
+        for(int k=task==first?prefix:0;k<kIterations;++k)
+          Base::Prefetch(p.weight+(std::size_t(NTile(task))*(K/64)+
+              Slice(task)*kIterations+k)*TN*64,2*TN*64);
+    }
+    __syncwarp();
+  }
 
   __device__ static __forceinline__ void IssueA(Element* a,Sm90F3GemmOperands const& p,
       int m_tile,int k,std::uint64_t* barrier) {

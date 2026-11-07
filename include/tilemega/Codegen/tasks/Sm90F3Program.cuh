@@ -88,7 +88,13 @@ template<class Body,class Bind,class Shape>
 struct GemmStage {
   using Kind=Body;
   static constexpr bool kUsesRing=true;
+  static constexpr bool kCanPreissue=Body::kCanPreissue;
   static constexpr int kSharedBytes=Body::kLayoutBytes;
+  template<class B>
+  __device__ static __forceinline__ void Preissue(B const& b,backend::Sm90F3Ring& ring,
+      char* arena,backend::Sm90F3Phase& phase) {
+    Body::Preissue(Operands(b),ring,reinterpret_cast<Element*>(arena),phase);
+  }
   template<class B>
   __device__ static __forceinline__ backend::Sm90F3GemmOperands Operands(B const& b) {
     backend::Sm90F3GemmOperands p{};
@@ -115,6 +121,7 @@ template<class Body,class Bind,class Shape>
 struct SmallStage {
   using Kind=Body;
   static constexpr bool kUsesRing=false;
+  static constexpr bool kCanPreissue=false;
   static constexpr int kSharedBytes=Body::kSharedBytes;
   template<class B>
   __device__ static __forceinline__ backend::Sm90F3SmallOperands Operands(B const& b) {
@@ -228,12 +235,30 @@ struct Program {
     S::template Consume<Binding>(b,header->rings[I%2],arena,side,phase[I%2],header,wg);
   }
   template<unsigned I>
+  static constexpr int Prefix() {
+    if constexpr(I==0 || !At<I>::kCanPreissue)return 0;
+    else if constexpr(At<I-1>::kSpanning || At<I>::kSpanning)return 0;
+    else return At<I>::Kind::kSlots<At<I>::Kind::kIterations?
+        At<I>::Kind::kSlots:At<I>::Kind::kIterations;
+  }
+  template<unsigned I>
+  __device__ static __forceinline__ void PreissueNext(Binding const& b,char* shared,
+      backend::Sm90F3Header* header,backend::Sm90F3Phase (&phase)[2]) {
+    if constexpr(I+1<kStages) {
+      if constexpr(Prefix<I+1>()>0) {
+        using S=At<I+1>;
+        S::template Preissue<Binding>(b,header->rings[(I+1)%2],
+            Arena(shared,S::kOffset),phase[(I+1)%2]);
+      }
+    }
+  }
+  template<unsigned I>
   __device__ static __forceinline__ void ProduceOne(Binding const& b,char* shared,
       backend::Sm90F3Header* header,backend::Sm90F3Phase (&phase)[2]) {
     using S=At<I>;
     auto* arena=Arena(shared,S::kOffset);
     auto* side=arena+SideOffset<I>();
-    S::template Produce<Binding>(b,header->rings[I%2],arena,side,phase[I%2],0);
+    S::template Produce<Binding>(b,header->rings[I%2],arena,side,phase[I%2],Prefix<I>());
   }
   template<unsigned I>
   static constexpr int SideOffset() {return At<I>::Kind::kSideOffset;}
@@ -244,7 +269,8 @@ struct Program {
       std::integer_sequence<unsigned,I...>) {
     auto* header=reinterpret_cast<backend::Sm90F3Header*>(shared);
     backend::Sm90F3Phase phase[2]{};
-    ((ProduceOne<I>(b,shared,header,phase),Gate<I>(events,epoch,false)),...);
+    ((ProduceOne<I>(b,shared,header,phase),PreissueNext<I>(b,shared,header,phase),
+        Gate<I>(events,epoch,false)),...);
   }
 };
 

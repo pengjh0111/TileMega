@@ -20,6 +20,8 @@ struct Sm90F3GemmSwapAB {
   using Side=typename Chain::Layout;
 
   static constexpr int kThreads=288;
+  static constexpr bool kCanPreissue=true;
+  static constexpr int kSlots=Slots;
   // The WGMMA's n extent: eight rows when the stage has at most eight, else
   // sixteen. Rows past M fall outside the activation box and arrive as zeros.
   static constexpr int kRows=M<=8?8:16;
@@ -57,8 +59,31 @@ struct Sm90F3GemmSwapAB {
     return SlotWeight(arena,slot)+std::size_t(kTileN)*64;
   }
 
+  __device__ static __noinline__ void Preissue(Sm90F3GemmOperands const& p,
+      Sm90F3Ring& ring,Element* arena,Sm90F3Phase& phase) {
+    if(int(threadIdx.x)==256 && int(blockIdx.x)<kTasks) {
+      constexpr int prefix=Slots<kIterations?Slots:kIterations;
+      int first=int(blockIdx.x),n_tile=NTile(first),slice=Slice(first);
+      #pragma unroll
+      for(int slot=0;slot<prefix;++slot) {
+        Base::Wait(ring.empty+slot,phase.Bit(phase.empty,slot));
+        phase.empty^=1u<<slot;
+        Base::ExpectTx(ring.full+slot,kSlotBytes);
+        Base::Bulk(SlotWeight(arena,slot),p.weight+
+            (std::size_t(n_tile)*(K/64)+slice*kIterations+slot)*kTileN*64,
+            2*kTileN*64,ring.full+slot);
+      }
+      Base::PrefetchTensorMap(p.activation);
+      for(int task=first;task<kTasks;task+=int(gridDim.x))
+        for(int k=task==first?prefix:0;k<kIterations;++k)
+          Base::Prefetch(p.weight+(std::size_t(NTile(task))*(K/64)+
+              Slice(task)*kIterations+k)*kTileN*64,2*kTileN*64);
+    }
+    __syncwarp();
+  }
+
   __device__ static __noinline__ void Produce(Sm90F3GemmOperands const& p,
-      Sm90F3Ring& ring,Element* arena,char* side,Sm90F3Phase& phase,int) {
+      Sm90F3Ring& ring,Element* arena,char* side,Sm90F3Phase& phase,int prearmed) {
     if(int(threadIdx.x)!=256) {__syncwarp();return;}
     Base::ProxyAsyncGlobalFence();
     int tasks=LocalTasks();
@@ -67,12 +92,14 @@ struct Sm90F3GemmSwapAB {
       for(int k=0;k<kIterations;++k) {
         int slot=(local*kIterations+k)%Slots;
         int block=slice*kIterations+k;
-        Base::Wait(ring.empty+slot,phase.Bit(phase.empty,slot));
-        phase.empty^=1u<<slot;
-        Base::ExpectTx(ring.full+slot,kSlotBytes);
-        Base::Bulk(SlotWeight(arena,slot),
-            p.weight+(std::size_t(n_tile)*(K/64)+block)*kTileN*64,2*kTileN*64,
-            ring.full+slot);
+        if(local!=0 || k>=prearmed) {
+          Base::Wait(ring.empty+slot,phase.Bit(phase.empty,slot));
+          phase.empty^=1u<<slot;
+          Base::ExpectTx(ring.full+slot,kSlotBytes);
+          Base::Bulk(SlotWeight(arena,slot),
+              p.weight+(std::size_t(n_tile)*(K/64)+block)*kTileN*64,2*kTileN*64,
+              ring.full+slot);
+        }
         // The activation's own row mapping is in its tensor map, so BERT's
         // pooler reads one row per sequence without a separate code path.
         Base::Tensor2D(SlotActivation(arena,slot),p.activation,block*64,0,ring.full+slot);
@@ -106,6 +133,17 @@ struct Sm90F3GemmSwapAB {
   }
 
   __device__ static __forceinline__ void Consume(Sm90F3GemmOperands const& p,
+      Sm90F3Ring& ring,Element* arena,char* side,Sm90F3Phase& phase,
+      Sm90F3Header* header,int wg) {
+    if constexpr(M<=8)ConsumeOutlined(p,ring,arena,side,phase,header,wg);
+    else ConsumeImpl(p,ring,arena,side,phase,header,wg);
+  }
+  __device__ static __noinline__ void ConsumeOutlined(Sm90F3GemmOperands const& p,
+      Sm90F3Ring& ring,Element* arena,char* side,Sm90F3Phase& phase,
+      Sm90F3Header* header,int wg) {
+    ConsumeImpl(p,ring,arena,side,phase,header,wg);
+  }
+  __device__ static __forceinline__ void ConsumeImpl(Sm90F3GemmOperands const& p,
       Sm90F3Ring& ring,Element* arena,char* side,Sm90F3Phase& phase,
       Sm90F3Header* header,int wg) {
     using namespace cute;
