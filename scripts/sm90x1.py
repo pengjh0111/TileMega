@@ -268,7 +268,22 @@ def tables(a):
         d = directory(c) / a.tag
         row = dict(cell=c['cell'], batch=c['batch'], pilot=c['pilot'], status='not_run',
                    accepted_tpot_ms=c['accepted_tpot_ms'], tpot_ms='', change_pct='',
-                   range_pct='', processes='', gpu='', **{'class': c['class']})
+                   range_pct='', processes='', gpu='', **{'class': c['class']},
+                   c1_pass='', c2_pass='', corr_status='not_run', hardware_rejected_units=0,
+                   guard_rejected_attempts=0)
+        rejected=list((d/'corr').glob('rejected-*/hardware-audit.json'))
+        row['hardware_rejected_units']=sum(not read(p)['passed'] for p in rejected)+\
+            len(list((d/'corr').glob('try*/hardware-audit-rejection.json')))
+        row['guard_rejected_attempts']=sum(bool(read(p)['code']) for p in
+            d.glob('*/try*/raw/*/attempt*/guard_result.json'))
+        if (d/'corr/result.json').exists():
+            corr=read(d/'corr/result.json')
+            valid=audit_unit(d/'corr')['passed']
+            row.update(c1_pass=corr['c1_pass'],c2_pass=corr['c2_pass'],
+                       corr_status='passed' if corr['pass'] and valid else 'rejected')
+        elif row['hardware_rejected_units']:
+            row['corr_status']='hardware_rejected; awaiting_clean_unit'
+        elif (d/'corr').exists():row['corr_status']='pending'
         if (d / 'time/result.json').exists():
             result = read(d / 'time/result.json')
             corr = read(d / 'corr/result.json')

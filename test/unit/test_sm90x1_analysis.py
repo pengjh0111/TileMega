@@ -98,6 +98,27 @@ class ProtocolTest(unittest.TestCase):
             self.assertEqual(len(metrics),12)
             self.assertTrue(all(r['value']=='' and r['status']=='pending' for r in metrics))
 
+    def test_hardware_rejected_finals_do_not_complete_phase0(self):
+        import argparse
+        import contextlib
+        import io
+        import sm90x1 as base
+        from sm90d1_common import write
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);(root/'docs/results').mkdir(parents=True)
+            for c in base.cells('pilot'):
+                d=root/'run/cells'/c['cell']/'phase0'
+                write(d/'time/result.json',dict(arms=dict(W=dict(tpot_ms=c['accepted_tpot_ms']))))
+                write(d/'corr/result.json',dict(c1_pass=True,c2_pass=True,**{'pass':True}))
+                write(d/'W/binding.json',dict(trace=False))
+            args=argparse.Namespace(tag='phase0')
+            with patch.object(base,'ROOT',root),patch.object(base,'RUN',root/'run'), \
+                 patch.object(base,'head',return_value='fixture'), \
+                 patch.object(base,'audit_unit',return_value=dict(passed=False)):
+                with contextlib.redirect_stdout(io.StringIO()):self.assertEqual(base.tables(args),3)
+            self.assertFalse(base.read(root/'run/phase0.json')['complete'])
+
     def test_complete_arm_ratios_and_selection_denominator(self):
         import argparse
         import contextlib
