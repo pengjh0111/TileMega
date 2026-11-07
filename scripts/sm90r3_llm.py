@@ -138,6 +138,9 @@ def measure(a):
              '--arm', a.arm, '--fresh', str(a.fresh), '--out', str(a.out.resolve())]
     command = [PYTHON, '-m', 'tilemega.serving.random_checkpoint', '--config', str(ROOT / model_dir),
                '--out', str(a.out / 'checkpoint'), '--seed', '0', '--max-gib', str(gib), '--', *child]
+    if a.out.resolve().is_relative_to(ROOT/'runs/sm90x1'):
+        from sm90x1_checkpoint import cached_command
+        command = cached_command(ROOT/model_dir, a.out/'checkpoint', gib, child) or command
     record = dict(spec=str(a.spec.resolve()), spec_name=spec['name'], kind=spec['kind'], arm=a.arm,
                   fresh=a.fresh, model=spec['model'], batch=spec['batch'],
                   decode_sha256=arm['decode_sha256'], prefill_sha256=arm['prefill_sha256'],
