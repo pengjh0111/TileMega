@@ -55,6 +55,9 @@ def main():
         if time.monotonic()>deadline:
             return stop('Phase 0 still waits on existing guarded units after six hours','blocked')
         time.sleep(30)
+    command('tables')
+    if read(RUN/'phase0.json')['stop']:
+        return stop('A completed Phase 0 pilot exceeds the 2% TPOT gate')
     for c in cells('pilot'):
         d=directory(c)/'phase0'
         if not (d/'W/binding.json').exists():
@@ -67,6 +70,10 @@ def main():
                 return stop('Phase 0 guard exhausted its six-hour idle window','blocked')
             if command(action,0,('--cell',c['cell'])):
                 return stop('Phase 0 '+action+' failed or remained blocked')
+            if action == 'time':
+                command('tables')
+                if read(RUN/'phase0.json')['stop']:
+                    return stop('A completed Phase 0 pilot exceeds the 2% TPOT gate')
     if command('tables'):
         return stop('Phase 0 TPOT deviates by more than 2%, or validation is incomplete')
     c=cells('pilot')[0]
