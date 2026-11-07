@@ -162,12 +162,15 @@ def main():
         raise ValueError('resampling scheduler did not complete all five batch cells')
     rows = []; receipts = []
     for job in jobs:
-        paths = [q for q in (args.out / 'raw' / job['name']).glob('attempt*/resample/result.json')
-                 if json.loads(q.read_text()).get('status') == 'passed']
-        if len(paths) != 1:
-            raise ValueError('resampling lacks a unique accepted batch receipt')
-        rows.extend(json.loads(paths[0].read_text())['rows'])
-        receipts.append(dict(path=str(paths[0]), sha256=sha(paths[0])))
+        attempt = Path(state[job['name']]['out'])
+        guard = json.loads((attempt / 'guard_result.json').read_text())
+        path = attempt / 'resample/result.json'
+        result = json.loads(path.read_text())
+        if guard['code'] != 0 or result['status'] != 'passed':
+            raise ValueError('resampling lacks an accepted batch receipt')
+        rows.extend(result['rows'])
+        receipts.append(dict(path=str(path), sha256=sha(path),
+                             guard_sha256=sha(attempt / 'guard_result.json')))
     with (args.out / 'baselines.csv').open('w', newline='') as stream:
         writer = csv.DictWriter(stream, fieldnames=FIELDS, lineterminator='\n')
         writer.writeheader(); writer.writerows(rows)
