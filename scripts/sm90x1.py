@@ -68,6 +68,23 @@ def prepare(a):
           hostname=os.uname().nodename, frozen_cells_sha256=sha(CELLS), at=time.time()))
 
 
+def tree_rss(pid):
+    processes = {}
+    for entry in Path('/proc').glob('[0-9]*/stat'):
+        try:
+            fields = entry.read_text().rsplit(')', 1)[1].split()
+            processes[int(entry.parent.name)] = (int(fields[1]), int(fields[21]))
+        except (OSError, ValueError, IndexError):
+            continue
+    descendants = {pid}
+    while True:
+        expanded = descendants | {p for p, (parent, _) in processes.items() if parent in descendants}
+        if expanded == descendants:
+            break
+        descendants = expanded
+    return sum(rss for p, (_, rss) in processes.items() if p in descendants)*os.sysconf('SC_PAGE_SIZE')
+
+
 def build(a):
     compiler = a.compiler.resolve()
     for c in cells(a.cell):
@@ -83,10 +100,16 @@ def build(a):
                    '--nvcc-split-compile', '2']
         start = time.monotonic()
         with (out / 'build.log').open('w') as log:
-            status = subprocess.call(command, cwd=ROOT, env=dict(os.environ, CUDA_VISIBLE_DEVICES=''),
-                                     stdout=log, stderr=subprocess.STDOUT)
+            process = subprocess.Popen(command, cwd=ROOT, env=dict(os.environ, CUDA_VISIBLE_DEVICES=''),
+                                       stdout=log, stderr=subprocess.STDOUT)
+            peak_rss = 0
+            while process.poll() is None:
+                peak_rss = max(peak_rss, tree_rss(process.pid))
+                time.sleep(0.5)
+            status = process.returncode
         record = dict(cell=c['cell'], head=head(), command=command, status=status,
-                      wall_s=time.monotonic()-start, compiler_sha256=sha(compiler))
+                      wall_s=time.monotonic()-start, peak_tree_rss_bytes=peak_rss,
+                      memory_method='sum process-tree RSS sampled every 0.5s', compiler_sha256=sha(compiler))
         write(out / 'build.json', record)
         if status:
             raise RuntimeError(f'build failed: {out}')
