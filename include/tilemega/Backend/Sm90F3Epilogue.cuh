@@ -89,6 +89,7 @@ __device__ __forceinline__ void Sm90F3RowNorm(float const* stats,int row,int wid
 template<class Side,class... Step>
 struct Sm90F3Chain {
   using Layout=Side;
+  static constexpr bool kWritesStats=false;
   static constexpr int kSteps=int(sizeof...(Step));
   static constexpr bool kNeedsResidual=
       ((Step::kKind==Sm90ForwardOp::kResidual ||
@@ -140,6 +141,11 @@ struct Sm90F3Chain {
     (ApplyOne<Step>(value,row,col,side,mean,inverse,p),...);
     return value;
   }
+};
+
+template<class Chain>
+struct Sm90F3WriteRowStats:Chain {
+  static constexpr bool kWritesStats=true;
 };
 
 }  // namespace tilemega::backend

@@ -148,6 +148,8 @@ struct alignas(16) Sm90F3Header {
   // from thread 0 of the arriving warpgroup to all 256 consumers.
   int last_arriver;
   int reserved[3];
+  // TM64 splits columns between WGs, so its row reduction joins both halves.
+  float row_stats[64][2];
 };
 static_assert(sizeof(Sm90F3Header)<=Sm90F3Budget::kHeader,
     "both F3 rings and the gate flags live in the 2 KB header");

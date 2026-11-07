@@ -183,7 +183,7 @@ F3Chain EmitF3Chain(codegen::DmEpilogueChain const& chain,int tile_m,int tile_n,
      <<(result.stats?"true":"false")<<'>';
   if(chain.count)out<<','<<steps.str();
   out<<'>';
-  result.text=out.str();
+  result.text=row_stats?"Sm90F3WriteRowStats<"+out.str()+'>':out.str();
   return result;
 }
 
