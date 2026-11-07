@@ -21,14 +21,14 @@
 namespace tilemega::codegen::forward_emit {
 
 using solver::Sm90ForwardBody;
-constexpr unsigned kAbsent=~0u;
+inline constexpr unsigned kAbsent=~0u;
 
-mlir::DictionaryAttr Entry(mlir::Attribute value,char const* what) {
+inline mlir::DictionaryAttr Entry(mlir::Attribute value,char const* what) {
   auto dictionary=llvm::dyn_cast<mlir::DictionaryAttr>(value);
   if(!dictionary)throw std::invalid_argument(std::string("native forward ")+what+" is malformed");
   return dictionary;
 }
-std::int64_t Integer(mlir::DictionaryAttr value,char const* field,std::int64_t fallback=-1) {
+inline std::int64_t Integer(mlir::DictionaryAttr value,char const* field,std::int64_t fallback=-1) {
   auto attribute=value.getAs<mlir::IntegerAttr>(field);
   if(!attribute) {
     if(fallback>=0)return fallback;
@@ -36,24 +36,24 @@ std::int64_t Integer(mlir::DictionaryAttr value,char const* field,std::int64_t f
   }
   return attribute.getInt();
 }
-std::string String(mlir::DictionaryAttr value,char const* field) {
+inline std::string String(mlir::DictionaryAttr value,char const* field) {
   auto attribute=value.getAs<mlir::StringAttr>(field);
   if(!attribute)throw std::invalid_argument(std::string("native forward stage lacks ")+field);
   return attribute.getValue().str();
 }
-std::string Quoted(std::string const& text) {
+inline std::string Quoted(std::string const& text) {
   // A C string literal, escaped as JSON and with the dump's own line break
   // removed so the initializer stays on one line.
   auto value=json::Value(text).Dump(0);
   while(!value.empty() && (value.back()=='\n' || value.back()=='\r'))value.pop_back();
   return value;
 }
-std::string Float(double value) {
+inline std::string Float(double value) {
   std::ostringstream out;
   out<<std::scientific<<std::setprecision(9)<<value<<'f';
   return out.str();
 }
-std::string Identifier(unsigned value) {
+inline std::string Identifier(unsigned value) {
   return value==codegen::kDmNoIndex?"kAbsent":std::to_string(value)+"u";
 }
 
@@ -122,7 +122,7 @@ struct Geometry {
   }
 };
 
-std::string EmitConv(unsigned index,codegen::ConvDesc const& conv,
+inline std::string EmitConv(unsigned index,codegen::ConvDesc const& conv,
                      codegen::DmBufferLayout const& layout) {
   std::ostringstream out;
   // kC is the input's padded channel block: the im2col panels walk it.
@@ -131,7 +131,9 @@ std::string EmitConv(unsigned index,codegen::ConvDesc const& conv,
      <<",\n      kStrideW="<<conv.stride_w<<",kStrideH="<<conv.stride_h
      <<",kPadW="<<conv.pad_w<<",kPadH="<<conv.pad_h
      <<",\n      kHaloW="<<layout.halo_left<<",kHaloH="<<layout.halo_top
-     <<",kDilationW="<<conv.dilation_w<<",kDilationH="<<conv.dilation_h<<";\n};\n";
+     <<",kDilationW="<<conv.dilation_w<<",kDilationH="<<conv.dilation_h
+     // The input extents, which an F3 gather producer bounds its taps against.
+     <<",kW="<<conv.w<<",kH="<<conv.h<<";\n};\n";
   return out.str();
 }
 
@@ -174,7 +176,7 @@ struct MapTable {
 // Sm90ForwardEpilogueChain. Only the operations the chain body implements are
 // accepted; an unknown one stops the build. Chain vectors fill the binding's
 // four vector slots in the order the operations name them.
-std::string Chain(codegen::DmEpilogueChain const& chain,int rows,int width,Binding& bind,
+inline std::string Chain(codegen::DmEpilogueChain const& chain,int rows,int width,Binding& bind,
                   std::function<void(unsigned)> const& fp32,Geometry* shape=nullptr,
                   bool* gated=nullptr) {
   std::ostringstream out;
@@ -269,7 +271,7 @@ std::string Chain(codegen::DmEpilogueChain const& chain,int rows,int width,Bindi
 // The fused depthwise's own epilogue, applied while its result is still in
 // registers: only the channel-wise operations such a chain carries are
 // implemented, and its vectors fill the binding's depthwise vector slots.
-std::string ElementChain(codegen::DmEpilogueChain const& chain,Binding& bind,
+inline std::string ElementChain(codegen::DmEpilogueChain const& chain,Binding& bind,
                          std::function<void(unsigned)> const& fp32) {
   std::ostringstream out;
   out<<"Sm90ForwardElementChain<";

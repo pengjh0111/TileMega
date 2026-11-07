@@ -589,7 +589,8 @@ int RunCompile(int argc, char** argv) {
       // Native DNN forward (prompt §10 N-1): fixed coordinates over a DNN
       // export, with no legacy execution option accepted.
       std::set<std::string> allowed={"--tmexec-config","--serving","--emit","--batch",
-          "--runtime-target","--frontend","--dwpw-fuse","--dump-cg","--nvcc-split-compile"};
+          "--runtime-target","--frontend","--dwpw-fuse","--dump-cg","--nvcc-split-compile",
+          "--abi"};
       for(int i=3;i<argc;i+=2)if(!allowed.count(argv[i]))
         throw std::invalid_argument("native forward build does not accept legacy option "+
             std::string(argv[i]));

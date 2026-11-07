@@ -57,7 +57,9 @@ static int CompileNativeForwardArtifact(std::string const& input,std::string con
   // the native dense build's does.
   auto registers=solver::NativeDenseRegisterContract(target,c.residency);
   mlir::MLIRContext context;
-  auto plan=solver::BuildSm90ForwardPlan(input,batch,fuse);
+  // The coordinates name their own skeleton, so the plan is built for the
+  // same one the program will be generated for.
+  auto plan=solver::BuildSm90ForwardPlan(input,batch,fuse,c.abi);
   auto module=solver::MaterializeSm90Forward(plan,c,batch,target,context,origin);
   auto source=codegen::CouplingGraphToCUDA{}.Lower(*module);
   fs::create_directories(requested.parent_path());
@@ -68,7 +70,7 @@ static int CompileNativeForwardArtifact(std::string const& input,std::string con
   if(error)throw std::runtime_error("cannot write the native forward plan module");
   module->print(ir);ir<<'\n';ir.close();
   json::Array stage_rows;
-  auto shapes=solver::Sm90ForwardShapesFromPlan(plan);
+  auto shapes=solver::Sm90ForwardShapesFromPlan(plan,c.abi);
   for(std::size_t i=0;i<plan.stages.size();++i)
     stage_rows.emplace_back(json::Object{{"index",int(i)},
         {"body",solver::kSm90ForwardBodies[unsigned(shapes[i].body)]},

@@ -2546,7 +2546,14 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
   if (!module || mlir::failed(mlir::verify(module)))
     throw std::invalid_argument("CouplingGraphToCUDA requires a verified CG ModuleOp");
   if(module->hasAttr("tmexec.sm90_dense"))return emitNativeDenseProgram(module);
-  if(module->hasAttr("tmexec.sm90_forward"))return EmitNativeForwardProgram(module);
+  if(module->hasAttr("tmexec.sm90_forward")) {
+    // The coordinates name their own skeleton: schema 3 with abi "f3" lowers
+    // through the F3 program, anything earlier through the legacy one.
+    auto text=module->getAttrOfType<mlir::StringAttr>("tmexec.sm90_forward");
+    auto abi=json::Parse(text.getValue().str()).Find("abi");
+    bool f3=abi && abi->AsString("abi")=="f3";
+    return f3?EmitF3ForwardProgram(module):EmitNativeForwardProgram(module);
+  }
   if(isStaticDenseDecode(module))
     throw std::invalid_argument("H800 dense decode requires native CTG/tmexec coordinates; legacy execution options are invalid");
   if (!module.getOps<dialect::FusedTileSpaceOp>().empty())

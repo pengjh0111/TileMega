@@ -105,7 +105,7 @@ struct Sm90F3GemmSwapAB {
     }
   }
 
-  __device__ static TILEMEGA_HOPPER_TASK_INLINE void Consume(Sm90F3GemmOperands const& p,
+  __device__ static __forceinline__ void Consume(Sm90F3GemmOperands const& p,
       Sm90F3Ring& ring,Element* arena,char* side,Sm90F3Phase& phase,
       Sm90F3Header* header,int wg) {
     using namespace cute;

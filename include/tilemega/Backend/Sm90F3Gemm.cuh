@@ -50,8 +50,25 @@ struct Sm90F3Split {
   __device__ static __forceinline__ int BRows(int wg) {return kSplitN?wg*kWgCols:0;}
 };
 
+// A GAP producer's extra epilogue duty (DNN3 prompt §4 F-7, §6.4 step 4): the
+// per-channel partial sums the later global-average stage reduces. The slot is
+// (image, 64-row block), so a 64-row sub-tile contributes to exactly one block
+// and each (image, block, column) has one writer — the sub-tile that owns
+// those rows. `Area` is the producer's pixels per image.
+template<int Area,int Parts,int Channels>
+struct Sm90F3Pool {
+  static constexpr int kArea=Area,kParts=Parts,kChannels=Channels;
+  static_assert(Area>0 && Parts>0 && Channels>0);
+  // How many images a 64-row block can touch, including its leading overlap.
+  static constexpr int kImages=Area>=64?2:(64+Area-1)/Area+1;
+  static_assert(Parts>=(Area+63)/64+1,"F-7 reserves ceil(area/64) + 1 slots per image");
+};
+struct Sm90F3NoPool {
+  static constexpr int kArea=0,kParts=0,kChannels=0,kImages=0;
+};
+
 template<int TM,int TN,int Slots,int SplitK,Sm90F3Mode Mode,int M,int N,int K,
-         int NStore,class Chain,class Conv=Sm90F3NoConv>
+         int NStore,class Chain,class Conv=Sm90F3NoConv,class Pool=Sm90F3NoPool>
 struct Sm90F3Gemm {
   using Element=cutlass::bfloat16_t;
   using Async=Sm90F3Async;
@@ -205,9 +222,11 @@ struct Sm90F3Gemm {
   // with (§5.2 item 4). A GAP producer's reduction area is added by codegen
   // through the chain's pool segments.
   static constexpr Sm90F3GemmLayout kLayout=Sm90F3MakeGemmLayout(TM,TN,Slots,
-      false,0,Chain::kNeedsResidual,kVectors,Chain::kNeedsStats,0,0);
+      false,0,Chain::kNeedsResidual,kVectors,Chain::kNeedsStats,
+      Split::kWgCols,Pool::kArea?Pool::kImages:0);
   static constexpr int kLayoutBytes=kLayout.end;
   static constexpr int kSideOffset=kLayout.side_base;
+  static constexpr int kPoolOffset=kLayout.pool_base;
   static_assert(Sm90F3Budget::Fits(kLayoutBytes),
       "an F3 GEMM stage must fit the shared budget");
   // expect_tx must equal the bytes actually transferred, and only the row
@@ -255,7 +274,8 @@ struct Sm90F3Gemm {
   template<class Accum>
   __device__ static __forceinline__ void Epilogue(Sm90F3GemmOperands const& p,
       Sm90F3Ring& ring,char* side,Sm90F3Phase& phase,Accum& accumulators,int wg,
-      int m_tile,int n_tile,int live_rows,int width,Sm90F3Header* header) {
+      int m_tile,int n_tile,int live_rows,int width,Sm90F3Header* header,
+      Element* arena_base) {
     using namespace cute;
     Mma mma;
     auto owned=mma.get_slice(int(threadIdx.x)%128).partition_C(
@@ -305,8 +325,98 @@ struct Sm90F3Gemm {
         }
       }
     }
+    PoolPartials(p,reinterpret_cast<char*>(arena_base),accumulators,owned,wg,
+        m_tile,n_tile,live_rows,width);
     __syncwarp();
     if((threadIdx.x&31)==0)Base::Arrive(&ring.side_empty);
+  }
+
+  // The GAP partial sums (§6.4 step 4). Eight lanes of a warp hold the same
+  // column, so they reduce through lane bits 2, 3 and 4; the warp's result
+  // lands in the pool scratch, and after the consumer barrier one thread per
+  // (column, image) sums the four warps of its warpgroup and publishes the
+  // slot. Each (image, block, column) has exactly one writing sub-tile.
+  template<class Accum,class Owned>
+  __device__ static __forceinline__ void PoolPartials(Sm90F3GemmOperands const& p,
+      char* arena,Accum& accumulators,Owned const& owned,int wg,int m_tile,int n_tile,
+      int live_rows,int width) {
+    if constexpr(Pool::kArea>0) {
+      using namespace cute;
+      auto* scratch=reinterpret_cast<float*>(arena+kPoolOffset);
+      int warp=(int(threadIdx.x)%128)>>5,lane=int(threadIdx.x)&31;
+      constexpr int kElements=int(cute::size(Fragment{}));
+      constexpr int kImages=Pool::kImages;
+      auto slot=[&](int w,int col,int image) {
+        return scratch+(std::size_t(w)*Split::kWgCols+col)*kImages+image;
+      };
+      for(int i=int(threadIdx.x)%128;i<4*Split::kWgCols*kImages;i+=128)
+        scratch[i]=0.f;
+      Async::template NamedBarrier<Sm90F3Async::kBarConsumers,256>();
+      #pragma unroll
+      for(int s=0;s<Split::kSubTiles;++s) {
+        auto& tile=accumulators.tile[s];
+        // The sub-tile's own 64-row block, and the first image it touches.
+        int block=(m_tile*TM+s*64)/64;
+        int first=(m_tile*TM+s*64)/Pool::kArea;
+        float sums[kImages];
+        #pragma unroll
+        for(int j=0;j<kImages;++j)sums[j]=0.f;
+        int column=-1;
+        CUTE_UNROLL
+        for(int i=0;i<kElements;++i) {
+          int tile_row,tile_col;
+          Coordinate(wg,s,get<0>(owned(i)),get<1>(owned(i)),tile_row,tile_col);
+          int row=m_tile*TM+tile_row;
+          // A new column closes the previous one's partials.
+          if(tile_col!=column) {
+            if(column>=0)Flush(slot,warp,column,lane,sums,width);
+            column=tile_col;
+            #pragma unroll
+            for(int j=0;j<kImages;++j)sums[j]=0.f;
+          }
+          if(tile_row<live_rows && tile_col<width) {
+            int image=row/Pool::kArea-first;
+            if(image>=0 && image<kImages)sums[image]+=tile(i);
+          }
+        }
+        if(column>=0)Flush(slot,warp,column,lane,sums,width);
+        Async::template NamedBarrier<Sm90F3Async::kBarConsumers,256>();
+        // One writer per (column, image): the warpgroup's first warp.
+        if(warp==0)
+          for(int col=lane;col<Split::kWgCols;col+=32) {
+            if(col>=width)continue;
+            #pragma unroll
+            for(int j=0;j<kImages;++j) {
+              float total=0;
+              #pragma unroll
+              for(int w=0;w<4;++w)total+=*slot(w,col,j);
+              int image=first+j;
+              int part=block-(image*Pool::kArea)/64;
+              if(part<0 || part>=Pool::kParts)continue;
+              int channel=n_tile*TN+Split::BRows(wg)+col;
+              Async::StoreRelaxed(p.epilogue.channel_partial+
+                  (std::size_t(image)*Pool::kParts+part)*Pool::kChannels+channel,total);
+            }
+          }
+        Async::template NamedBarrier<Sm90F3Async::kBarConsumers,256>();
+      }
+    }
+  }
+
+  // Reduce one column's partials over the eight lanes that share it (bits 2,
+  // 3 and 4 of the lane index) and leave the warp's result in its own slot.
+  template<class Slot>
+  __device__ static __forceinline__ void Flush(Slot const& slot,int warp,int column,
+      int lane,float (&sums)[Pool::kImages>0?Pool::kImages:1],int width) {
+    if constexpr(Pool::kArea>0) {
+      #pragma unroll
+      for(int j=0;j<Pool::kImages;++j) {
+        float value=sums[j];
+        #pragma unroll
+        for(int mask:{4,8,16})value+=__shfl_xor_sync(0xffffffffu,value,mask);
+        if((lane&28)==0 && column<width)*slot(warp,column,j)+=value;
+      }
+    }
   }
 
   // ---- role entry points (§5.4) -------------------------------------------
@@ -410,7 +520,7 @@ struct Sm90F3Gemm {
     __syncwarp();
   }
 
-  __device__ static TILEMEGA_HOPPER_TASK_INLINE void Consume(Sm90F3GemmOperands const& p,
+  __device__ static __forceinline__ void Consume(Sm90F3GemmOperands const& p,
       Sm90F3Ring& ring,Element* arena,char* side,Sm90F3Phase& phase,
       Sm90F3Header* header,int wg) {
     int tasks=LocalTasks();
@@ -419,9 +529,9 @@ struct Sm90F3Gemm {
       int task=Task(local),m_tile=MTile(task),n_tile=NTile(task);
       MainLoop(ring,arena,phase,accum,wg,(local*kIterations)%Slots,kIterations);
       if constexpr(SplitK==1) {
-        Epilogue(p,ring,side,phase,accum,wg,m_tile,n_tile,LiveRows(m_tile),Width(n_tile),header);
+        Epilogue(p,ring,side,phase,accum,wg,m_tile,n_tile,LiveRows(m_tile),Width(n_tile),header,arena);
       }else {
-        SplitKEpilogue(p,ring,side,phase,accum,wg,task,m_tile,n_tile,header);
+        SplitKEpilogue(p,ring,side,phase,accum,wg,task,m_tile,n_tile,header,arena);
       }
     }
   }
@@ -434,7 +544,7 @@ struct Sm90F3Gemm {
   template<class Accum>
   __device__ static __forceinline__ void SplitKEpilogue(Sm90F3GemmOperands const& p,
       Sm90F3Ring& ring,char* side,Sm90F3Phase& phase,Accum& accumulators,int wg,
-      int task,int m_tile,int n_tile,Sm90F3Header* header) {
+      int task,int m_tile,int n_tile,Sm90F3Header* header,Element* arena) {
     using namespace cute;
     Mma mma;
     auto owned=mma.get_slice(int(threadIdx.x)%128).partition_C(
@@ -486,7 +596,7 @@ struct Sm90F3Gemm {
       }
     }
     Epilogue(p,ring,side,phase,accumulators,wg,m_tile,n_tile,LiveRows(m_tile),
-        Width(n_tile),header);
+        Width(n_tile),header,arena);
   }
 };
 

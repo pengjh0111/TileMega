@@ -202,6 +202,7 @@ add_library(tilemega_core STATIC
   lib/Solver/Sm90ForwardSearch.cpp
   lib/Solver/Sm90ForwardPlan.cpp
   lib/Codegen/ForwardCodegen.cpp
+  lib/Codegen/ForwardF3Codegen.cpp
   lib/Solver/DnnStructureSearch.cpp
   lib/Solver/SkeletonFinalize.cpp
   lib/Solver/SkeletonPlacement.cpp
