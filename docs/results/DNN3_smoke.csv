@@ -1,0 +1,3 @@
+model,batch,gpu,median_ms,warmup,iterations,artifact_id,status,qualification,evidence,source
+resnet18,1,1,0.5903679728507996,50,200,09bccf222fe31342350600bd0cd62e622bd92f1fef243f10f6fe7ec57707ffef,observed; performance acceptance provisional,provisional_container_pid_namespace; inspect guard receipts,verified,runs/dnn3/fullmodel_20261107/smoke_identity_v2_b1/result.json
+resnet18,16,1,0.6780160069465637,50,200,f0eda14acfdf6c8864af5bb4d41b8065abb55d0ffa819f1cede5103daced5a70,observed; performance acceptance provisional,provisional_container_pid_namespace; inspect guard receipts,verified,runs/dnn3/fullmodel_20261107/smoke_identity_v2_b16/result.json
