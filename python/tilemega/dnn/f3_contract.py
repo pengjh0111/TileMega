@@ -47,8 +47,7 @@ def validate(manifest, defines):
                 raise ValueError('invalid F3 tile')
             if not 2 <= stage['slots'] <= 8 or not 1 <= stage['split_k'] <= (32 if stage['mode'] == 'swapab' else 16):
                 raise ValueError('invalid F3 slots or split-K')
-            if stage['mode'] == 'gather' and (stage['body'] != 'conv' or
-                    (stage['tile_m'], stage['tile_n'], stage['split_k']) != (128, 64, 1)):
+            if stage['mode'] == 'gather' and stage['body'] != 'conv':
                 raise ValueError('invalid F3 gather coordinate')
 
 

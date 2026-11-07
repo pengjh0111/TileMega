@@ -67,6 +67,23 @@ def main():
     for damaged in corruptions:
         assert damaged != source
         reject(s=damaged)
+    gather = next((i for i, s in enumerate(manifest['native_forward']['stages'])
+                   if s['mode'] == 'gather'), None)
+    if gather is not None:
+        # Phase C may change the seed tile, but gather still requires convolution.
+        for key, value in [('body', 'gemm'), ('tile_m', 32), ('tile_n', 16),
+                           ('slots', 1), ('slots', 9), ('split_k', 0), ('split_k', 17)]:
+            bad = copy.deepcopy(manifest)
+            stage = bad['native_forward']['stages'][gather]
+            stage[key] = value
+            bad['stages'][gather]['coordinate'] = stage
+            bad['stages'][gather]['body'] = stage['body']
+            try:
+                contract.validate(bad, defines)
+            except ValueError:
+                rejected += 1
+            else:
+                raise AssertionError('invalid gather domain was accepted')
     print(f'F3 contract: {len(actual)} typed stages accepted; {rejected} corruptions rejected')
 
 
