@@ -19,6 +19,9 @@ EXTRA_PATH = '/root/TileMega/runs/r16/env/dnn-export/lib/python3.10/site-package
 BATCHES = (1, 2, 4, 8, 16)
 # Appendix C: the stage count each model's F3 plan must have.
 EXPECTED_STAGES = {'resnet18': 24, 'resnet50': 57, 'vgg16': 22, 'bert': 63}
+# A legacy plan that cannot exist: F10 rejects VGG16's (7,7) adaptive pool,
+# the gap F-3 closes for F3 alone.
+EXPECTED_LEGACY_GAP = {'vgg16': 'adaptive pool must reduce to one pixel'}
 EXPORTS = {
     'resnet18': Path('/root/TileMega-dnn1/runs/dnn1/exports/resnet18'),
     'bert': Path('/root/TileMega-dnn1/runs/dnn1/exports/bert'),
@@ -85,8 +88,15 @@ def main():
                 path, done = dump(options.binary, source, model, batch, abi, options.out)
                 row = dict(model=model, batch=batch, abi=abi, status='pass')
                 if done.returncode or not path.is_file():
-                    row.update(status='fail', error=(done.stderr or done.stdout)[-700:])
-                    failures += 1
+                    # VGG16 has no legacy plan at all: F10 still rejects its
+                    # (7,7) adaptive pool, which is the frontend gap F-3 closes
+                    # for F3 only. That failure is the expected baseline.
+                    expected = (abi == 'legacy' and model in EXPECTED_LEGACY_GAP and
+                                EXPECTED_LEGACY_GAP[model] in (done.stderr or ''))
+                    row.update(status='expected_legacy_gap' if expected else 'fail',
+                               error=(done.stderr or done.stdout)[-700:])
+                    if not expected:
+                        failures += 1
                 else:
                     plan = json.loads(path.read_text())
                     row.update(stages=plan['stages'], gemms=plan['gemms'],
