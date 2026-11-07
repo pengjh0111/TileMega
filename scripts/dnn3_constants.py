@@ -71,6 +71,7 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out',type=Path,required=True)
     parser.add_argument('--tile',default='128x64',help='normal TMxTN; gather128x64 is also measured')
+    parser.add_argument('--all-normal',action='store_true',help='all11 normal tiles plus gather128x64')
     parser.add_argument('--build',type=Path)
     parser.add_argument('--execute',action='store_true')
     args=parser.parse_args()
@@ -83,7 +84,9 @@ def main():
         raise ValueError('unsupported F3 normal tile')
     args.out.mkdir(parents=True,exist_ok=False)
     frozen=inputs();probes=[]
-    for mode,m,n in [('normal',tm,tn),('gather',128,64)]:
+    normal=[(m,n) for m in (64,128,256) for n in (32,64,128,256)
+            if (m,n)!=(256,256)] if args.all_normal else [(tm,tn)]
+    for mode,m,n in [('normal',m,n) for m,n in normal]+[('gather',128,64)]:
         name=f'{mode}_{m}x{n}';binary=args.out/name;log=args.out/(name+'.ptxas.log')
         cmd=['taskset','-c','136-143','nvcc','-rdc=true','-std=c++17','-O3',
              '-gencode','arch=compute_90a,code=sm_90a','--expt-relaxed-constexpr',
