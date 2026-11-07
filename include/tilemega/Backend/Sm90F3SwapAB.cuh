@@ -232,7 +232,10 @@ struct Sm90F3GemmSwapAB {
     CUTE_UNROLL
     for(int i=0;i<int(cute::size(Fragment{}));++i) {
       int feature=wg*kWgRows+get<0>(owned(i)),row=get<1>(owned(i));
-      Async::StoreRelaxed(base+std::size_t(row)*kTileN+feature,tile(i));
+      // Warp bit 2 selects adjacent weight rows at the same activation row.
+      float adjacent=__shfl_xor_sync(0xffffffffu,tile(i),4);
+      if((threadIdx.x&4)==0)
+        Async::StorePartial2(base+std::size_t(row)*kTileN+feature,tile(i),adjacent);
     }
     Async::template NamedBarrier<Sm90F3Async::kBarConsumers,256>();
     if(threadIdx.x==0) {
@@ -255,9 +258,14 @@ struct Sm90F3GemmSwapAB {
       int feature=wg*kWgRows+get<0>(owned(i)),row=get<1>(owned(i));
       float total=0;
       #pragma unroll 1
-      for(int sl=0;sl<SplitK;++sl)
-        total+=Async::LoadRelaxed(p.epilogue.partial+
-            (std::size_t(n_tile)*SplitK+sl)*kRows*kTileN+std::size_t(row)*kTileN+feature);
+      for(int sl=0;sl<SplitK;++sl) {
+        float a=0,b=0;
+        if((threadIdx.x&4)==0)
+          Async::LoadPartial2(p.epilogue.partial+
+              (std::size_t(n_tile)*SplitK+sl)*kRows*kTileN+std::size_t(row)*kTileN+feature,a,b);
+        b=__shfl_xor_sync(0xffffffffu,b,4);
+        total+=(threadIdx.x&4)?b:a;
+      }
       tile(i)=total;
     }
     Epilogue(p,ring,side,phase,accumulators,owned,wg,n_tile);
