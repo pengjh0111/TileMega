@@ -90,12 +90,12 @@ template<int B> __global__ __launch_bounds__(288,1) void Pool(Sm90F3SmallOperand
   if(threadIdx.x<256)Sm90F3GlobalPool<B>::Consume(p,h.rings[0],nullptr,phase,&h,int(threadIdx.x)/128);
 }
 
-template<int TM,int B> void PoolCase() {
-  constexpr int area=49,M=B*area,N=128,K=64,TN=64,parts=2;
+template<int TM,int B,int SplitK=1> void PoolCase() {
+  constexpr int area=49,M=B*area,N=128,K=64*SplitK,TN=64,parts=2;
   using Chain=Sm90F3Chain<Sm90F3SideLayout<TM,TN,true,2,false>,
       Sm90F3Step<Sm90ForwardOp::kScale,0>,Sm90F3Step<Sm90ForwardOp::kBias,1>,
       Sm90F3Step<Sm90ForwardOp::kResidual,~0u>>;
-  using G=Sm90F3Gemm<TM,TN,3,1,Sm90F3Mode::kNormal,M,N,K,N,Chain,
+  using G=Sm90F3Gemm<TM,TN,3,SplitK,Sm90F3Mode::kNormal,M,N,K,N,Chain,
       Sm90F3NoConv,Sm90F3Pool<area,parts,N>>;
   std::vector<E> input(M*K),weight(N*K),packed(N*K),residual(M*N);
   for(int i=0;i<N*K;++i)weight[i]=E(float((i*7+3)%13-6)/32);
@@ -104,6 +104,10 @@ template<int TM,int B> void PoolCase() {
   for(int i=0;i<M*N;++i)residual[i]=E(float((i*11)%7-3)/16);
   Device<E> a(M*K),w(N*K),r(M*N),o(M*N),pooled(B*N);
   Device<float> scale(TN*2),bias(TN*2),partial(B*parts*N+32);
+  constexpr int tiles=((M+TM-1)/TM)*(N/TN);
+  Device<float> split_partial(tiles*SplitK*TM*TN);
+  Device<unsigned long long> counters(tiles);
+  counters.Put(std::vector<unsigned long long>(tiles,0));
   w.Put(packed);r.Put(residual);scale.Put(std::vector<float>(N,.5f));bias.Put(std::vector<float>(N,.25f));
   constexpr float canary=-12345.25f;
   partial.Put(std::vector<float>(partial.size,canary));
@@ -114,6 +118,7 @@ template<int TM,int B> void PoolCase() {
   p.epilogue.vectors[0]=scale.data;p.epilogue.vectors[1]=bias.data;
   p.epilogue.residual=r.data;p.epilogue.output=o.data;
   p.epilogue.output_stride=N;p.epilogue.residual_stride=N;p.epilogue.channel_partial=partial.data+16;
+  p.epilogue.partial=split_partial.data;p.epilogue.counters=counters.data;
   for(int repeat=0;repeat<3;++repeat) {
     for(int i=0;i<M*K;++i)input[i]=E(float((i*17+7)%19-9)*(repeat+1)/32);
     a.Put(input);Launch<G>(p,am,rm);
@@ -125,6 +130,9 @@ template<int TM,int B> void PoolCase() {
       sums[(image*parts+part)*N+n]+=value;mean[image*N+n]+=value;
     }
     Compare(o.Get(),expected);
+    if constexpr(SplitK>1)
+      for(auto value:counters.Get())
+        if(value!=0)throw std::runtime_error("split-K counter did not reset");
     auto actual=partial.Get();
     for(int i=0;i<16;++i)
       if(actual[i]!=canary || actual[actual.size()-16+i]!=canary)
@@ -141,7 +149,9 @@ template<int TM,int B> void PoolCase() {
     Pool<B><<<132,288>>>(small);Check(cudaGetLastError());Check(cudaDeviceSynchronize());
     for(auto& value:mean)value/=area;Compare(pooled.Get(),mean);Hash(actual);
   }
-  std::cout<<"pool_tm"<<TM<<"_b"<<B<<" PASS\n";
+  std::cout<<"pool_tm"<<TM<<"_b"<<B;
+  if constexpr(SplitK>1)std::cout<<"_s"<<SplitK;
+  std::cout<<" PASS\n";
 }
 
 template<int Window,int Stride,int Pad,int B> struct Conv {
@@ -182,13 +192,18 @@ template<int Window,int Stride,int Pad,int B> void GatherCase() {
 
 int main(int argc,char** argv) try {
   std::string which=argc>1?argv[1]:"all";
-  if(which!="pool" && which!="gather" && which!="all")throw std::invalid_argument("expected pool, gather or all");
+  if(which!="pool" && which!="gather" && which!="split" && which!="all")
+    throw std::invalid_argument("expected pool, gather, split or all");
   if(which=="pool" || which=="all") {
     PoolCase<64,1>();PoolCase<64,16>();PoolCase<128,1>();PoolCase<128,16>();
     PoolCase<256,1>();PoolCase<256,16>();
   }
   if(which=="gather" || which=="all") {
     GatherCase<7,2,3,1>();GatherCase<7,2,3,16>();GatherCase<3,1,1,1>();
+  }
+  if(which=="split" || which=="all") {
+    PoolCase<64,1,8>();PoolCase<64,16,8>();PoolCase<128,1,8>();PoolCase<128,16,8>();
+    PoolCase<256,1,8>();PoolCase<256,16,8>();
   }
   std::cout<<"output_hash="<<std::hex<<hash<<"\n";return 0;
 }catch(std::exception const& e) {std::cerr<<e.what()<<'\n';return 1;}

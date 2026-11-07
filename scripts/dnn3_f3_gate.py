@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build and guard the focused F3 GAP/residual and gather regression gates.
+"""Build and guard the focused F3 GAP/residual, gather and split-K gates.
 
 This covers small adversarial shapes, not the complete §6.8 P-UNIT table.
 All subprocesses in a cohort hold the same scheduler/guard reservation.
@@ -44,7 +44,7 @@ def execute(options):
     if sha(binary) != build['binary_sha256'] or inputs() != build['inputs']:
         raise ValueError('unit binary or source differs from its build receipt')
     result = dict(evidence='verified', build=str(options.build), passed=False,
-                  scope='focused F3 GAP/residual and gather regressions; not complete P-UNIT',
+                  scope='focused F3 GAP/residual, gather and split-K regressions; not complete P-UNIT',
                   gpu=int(os.environ['TILEMEGA_DEVICE_INDEX']), processes=[], started=time.time())
     hashes = []
 
@@ -73,7 +73,7 @@ def execute(options):
         return 1
     result['unit_passes'] = '5/5'
     result['output_hash'] = hashes[0]
-    for case in ('gather', 'pool'):
+    for case in ('gather', 'pool', 'split'):
         for tool, count in (('memcheck', 1), ('initcheck', 1), ('racecheck', 5), ('synccheck', 5)):
             for index in range(count):
                 name = f'{case}-{tool}-{index+1}'
