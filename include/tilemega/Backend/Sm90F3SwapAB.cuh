@@ -83,6 +83,12 @@ struct Sm90F3GemmSwapAB {
   }
 
   static constexpr int kVectors=Side::kVectorBytes/(4*kTileN);
+  static constexpr Sm90F3GemmLayout kLayout=Sm90F3MakeGemmLayout(kRows,kTileN,Slots,
+      true,kRows,false,kVectors,false,0,0);
+  static constexpr int kLayoutBytes=kLayout.end;
+  static constexpr int kSideOffset=kLayout.side_base;
+  static_assert(Sm90F3Budget::Fits(kLayoutBytes),
+      "an F3 swap-AB stage must fit the shared budget");
   __device__ static __forceinline__ int SideBytes() {return 4*kTileN*kVectors;}
 
   __device__ static __forceinline__ void ProduceSide(Sm90F3GemmOperands const& p,

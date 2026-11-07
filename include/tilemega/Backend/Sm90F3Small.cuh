@@ -68,6 +68,7 @@ struct Sm90F3Layout {
   static constexpr int kBlock=8;
   static_assert(Channels>=1 && Channels<=8,"an F3 layout stage fills one eight-channel block");
   static constexpr int kSharedBytes=1024;
+  static constexpr int kSideOffset=0;
 
   __device__ static __forceinline__ void Produce(Sm90F3SmallOperands const&,
       Sm90F3Ring&,char*,Sm90F3Phase&,int) {}
@@ -119,6 +120,7 @@ struct Sm90F3MaxPool {
   using Element=cutlass::bfloat16_t;
   static constexpr int kThreads=288;
   static constexpr int kSharedBytes=1024;
+  static constexpr int kSideOffset=0;
   static_assert(Window>=1 && WindowW>=1 && Stride>=1 && Pad>=0);
   static_assert(Channels%8==0,"a pooled image carries whole eight-channel lines");
 
@@ -170,6 +172,7 @@ struct Sm90F3GlobalPool {
   using Element=cutlass::bfloat16_t;
   static constexpr int kThreads=288;
   static constexpr int kSharedBytes=1024;
+  static constexpr int kSideOffset=0;
 
   __device__ static __forceinline__ void Produce(Sm90F3SmallOperands const&,
       Sm90F3Ring&,char*,Sm90F3Phase&,int) {}
@@ -196,6 +199,7 @@ struct Sm90F3LayerNorm {
   using Element=cutlass::bfloat16_t;
   static constexpr int kThreads=288;
   static constexpr int kSharedBytes=1024;
+  static constexpr int kSideOffset=0;
   static_assert(Channels%8==0 && Stride>=Channels);
   static constexpr int kWarps=8,kLines=Channels/8;
 
@@ -247,6 +251,7 @@ struct Sm90F3EmbeddingSum {
   using Element=cutlass::bfloat16_t;
   static constexpr int kThreads=288;
   static constexpr int kSharedBytes=1024;
+  static constexpr int kSideOffset=0;
   static_assert(Width%8==0);
   static constexpr int kWarps=8,kLines=Width/8;
 

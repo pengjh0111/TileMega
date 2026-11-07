@@ -201,6 +201,15 @@ struct Sm90F3Gemm {
 
   static constexpr int kVectors=Side::kVectorBytes/(4*TN);
   static constexpr int kResidualBoxes=(TN+63)/64;
+  // The stage's own arena layout, from the same function the solver prices it
+  // with (§5.2 item 4). A GAP producer's reduction area is added by codegen
+  // through the chain's pool segments.
+  static constexpr Sm90F3GemmLayout kLayout=Sm90F3MakeGemmLayout(TM,TN,Slots,
+      false,0,Chain::kNeedsResidual,kVectors,Chain::kNeedsStats,0,0);
+  static constexpr int kLayoutBytes=kLayout.end;
+  static constexpr int kSideOffset=kLayout.side_base;
+  static_assert(Sm90F3Budget::Fits(kLayoutBytes),
+      "an F3 GEMM stage must fit the shared budget");
   // expect_tx must equal the bytes actually transferred, and only the row
   // statistics shrink on a short tail, so the count is per task.
   __device__ static __forceinline__ int SideBytes(int live_rows) {
