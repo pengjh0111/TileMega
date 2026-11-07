@@ -11,7 +11,8 @@ import time
 
 from sm90d1_common import ROOT, PYTHON, read, sha, write
 from sm90r4_inputs import extract, model_dir
-from sm90r4_dispatch import run_unit
+from sm90r4_dispatch import run_unit, claim, POLICY
+from sm90r3_llm import environment, MODELS, PCI
 
 RUN = ROOT / 'runs/sm90x1'
 CELLS = ROOT / 'configs/serving/sm90x1/cells.json'
@@ -153,6 +154,70 @@ def measurement(a):
                               result={k: v for k, v in result.items() if k not in ('rows', 'spec')})), flush=True)
 
 
+def trace(a):
+    for c in cells(a.cell):
+        d = directory(c) / a.tag
+        binding = read(d / 'W/binding.json')
+        if binding['head'] != head():
+            raise ValueError('trace and non-trace W must use the same HEAD')
+        binary = d / 'W/trace.so'
+        if not binary.exists():
+            command = [PYTHON, str(ROOT / 'scripts/run_sm90r1_build.py'), '--receipt',
+                       str(d / 'W/trace-limits.json'), '--max-gib', '48', '--timeout', '5400',
+                       '--lock', '/tmp/tilemega_sm90r2_native_build.lock', '--', PYTHON,
+                       str(ROOT / 'scripts/build_sm90r2_trace.py'), '--input', binding['decode'],
+                       '--out', str(binary), '--stage-level', '2']
+            with (d / 'W/trace-build.log').open('w') as log:
+                subprocess.check_call(command, cwd=ROOT, env=dict(os.environ, CUDA_VISIBLE_DEVICES=''),
+                                      stdout=log, stderr=subprocess.STDOUT)
+        identity = read(str(binary) + '.identity.json')
+        if not identity['trace'] or identity['performance_eligible']:
+            raise ValueError('trace identity is performance-ineligible')
+        unit = d / 'trace'
+        if (unit / 'unit.json').exists():
+            continue
+        unit.mkdir(parents=True, exist_ok=True)
+        gpu, handle = claim(c['class'], str(unit))
+        try:
+            policy = read(POLICY)
+            uuid = policy['idle_power_mapping_provenance']['uuid_by_gpu'][str(gpu)]
+            model_inputs, prompt, gib = MODELS[c['model']]
+            jobs, previous = [], []
+            for fresh in range(2):
+                name = f"sm90x1-trace-{c['cell']}-{fresh}"
+                out = '{attempt_dir}/job'
+                command = ['numactl', f'--cpunodebind={0 if gpu < 4 else 1}', PYTHON,
+                           str(ROOT / 'scripts/run_r16_with_device_identity.py'), '--guard-policy', str(POLICY),
+                           '--out', out, '--expected-uuid', uuid, '--expected-pci', f'0000:{PCI[gpu]}:00.0',
+                           '--numa-node', str(0 if gpu < 4 else 1), '--allow-no-measurements', '--',
+                           PYTHON, '-m', 'tilemega.serving.random_checkpoint', '--config', str(ROOT / model_inputs),
+                           '--out', out+'/checkpoint', '--seed', '0', '--max-gib', str(gib), '--',
+                           PYTHON, str(ROOT / 'scripts/sm90r4_ledger.py'), 'run', '--prefill', c['prefill'],
+                           '--decode', str(binary), '--reference', binding['decode'], '--prompt-ids',
+                           str(ROOT / prompt), '--batch', str(c['batch']), '--tokens', '520', '--out', out+'/trace']
+                jobs.append(dict(name=name, gpu=True, timing=True, priority=10, timeout_s=3600,
+                                 needs_free_mib=32768, cwd=str(ROOT), after=previous,
+                                 env=environment(gpu, 'trial' if c['class']=='trial' else 'serial'), command=command))
+                previous = [name]
+            write(unit / 'queue/trace.json', jobs)
+            env = dict(os.environ, **environment(gpu, 'trial' if c['class']=='trial' else 'serial'))
+            with (unit / 'scheduler.log').open('w') as log:
+                subprocess.check_call([PYTHON, '-m', 'tilemega.bench.scheduler', '--queue-dir',
+                                       str(unit / 'queue'), '--out', str(unit / 'scheduler'), '--policy',
+                                       str(POLICY), '--deadline-hours', '24'], cwd=ROOT, env=env,
+                                      stdout=log, stderr=subprocess.STDOUT)
+            state = read(unit / 'scheduler/state.json')
+            if any(r['status']!='done' for r in state.values()):
+                raise RuntimeError(f'trace unit incomplete: {unit}')
+            runs = [str(Path(r['out']) / 'job/trace') for r in state.values()]
+            write(unit / 'unit.json', dict(gpu=gpu, runs=runs, processes=2, **{'class':c['class']},
+                                           performance_eligible=False, head=head()))
+        finally:
+            handle.close()
+        print(json.dumps(dict(cell=c['cell'], overhead_pct=[read(Path(p)/'run.json')['overhead_pct']
+                                                          for p in runs])), flush=True)
+
+
 def tables(a):
     rows = []
     stopped = False
@@ -187,7 +252,7 @@ def tables(a):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('action', choices=('prepare', 'build', 'corr', 'time', 'tables'))
+    p.add_argument('action', choices=('prepare', 'build', 'corr', 'time', 'trace', 'tables'))
     p.add_argument('--cell', default='pilot', help='pilot, all, or exact model-Bbatch')
     p.add_argument('--tag', default='phase0')
     p.add_argument('--compiler', type=Path, default=ROOT / 'runs/sm90x1/compiler/tools/tilemega')
