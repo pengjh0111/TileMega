@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "authorization": "User authorizes any idle allowed GPU, parallel CPU preparation and parallel GPU testing; same-card and whole-machine serialization are no longer required.",
+  "gpu_unit_class": "trial",
+  "cross_gpu_comparisons_allowed": true,
+  "native_build_workers": 3,
+  "trace_build_workers": 2,
+  "gpu_poll_seconds": 5,
+  "max_ram_fraction": 0.7,
+  "checkpoint_cache": {
+    "path": "/root/TileMega-x1/runs/sm90x1/checkpoint-cache",
+    "config_sha256": "2850ddb3bf7aecad20b611e2d44f3077fc8193f4827c93beddd4c02ad63c2297",
+    "checkpoint_sha256": "2ce4ccb3bac783cba132292ceb8a1851b68e4df172a9b32000533829681475b9"
+  },
+  "correctness_waivers": {
+    "qwen3_30b_a3b-B16": {
+      "authorized_by_user": true,
+      "skip_remaining_pcorr": true,
+      "instruction": "\u8df3\u8fc7\u8fd9\u4e2a\u6b63\u786e\u6027\u9a8c\u6536\uff0c\u76f4\u63a5\u8fdb\u884c\u6027\u80fd\u8ba1\u65f6\u6d4b\u8bd5",
+      "reason": "User explicitly skips the remaining MoE B16 correctness acceptance and requests immediate performance timing.",
+      "at": 1794091578.7713802
+    }
+  },
+  "parallel_selection_processes": true,
+  "max_parallel_timing_processes": 4,
+  "selection_process_authorization": "User requested concurrent testing, including remaining processes within the final cell; idle allowed GPU, guard and trial leases remain required."
+}

@@ -1,9 +1,10 @@
 """Conservative owner-count audit above the unchanged scheduler/guard."""
 import json
+import fcntl
 from pathlib import Path
 import time
 
-from sm90d1_common import read, write
+from sm90d1_common import ROOT, PYTHON, read, write
 from sm90r4_dispatch import run_unit as dispatch_unit
 
 
@@ -78,10 +79,21 @@ def quarantine(unit, reason):
 
 
 def run_unit(template, unit, cls):
+    unit=Path(unit);unit.mkdir(parents=True,exist_ok=True)
+    with (unit/'dispatch.lock').open('a') as lock:
+        fcntl.flock(lock,fcntl.LOCK_EX)
+        return _run_unit(template,unit,cls)
+
+
+def _run_unit(template, unit, cls):
+    from sm90x1_parallel import enabled, run_unit as parallel_unit
+    if enabled(read(template)):
+        return parallel_unit(template,unit,cls)
     for _ in range(3):
         # An archived unit need not permanently exclude its now-idle card.
         # claim() still requires the same free-owner, memory, power and lock checks.
-        result = dispatch_unit(template, unit, cls, reconsider_idle=True)
+        result = dispatch_unit(template, unit, cls, reconsider_idle=True, poll_s=5,stall_s=60,preflight_handoff=True,
+                               scheduler_command=[PYTHON,str(ROOT/'scripts/sm90x1_scheduler.py')])
         audit = audit_unit(unit)
         if audit['passed']:return result
         quarantine(unit, audit)

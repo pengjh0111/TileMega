@@ -2,6 +2,7 @@
 """SM90X1 frozen inputs and Phase 0 validation; raw evidence stays in runs/sm90x1."""
 import argparse
 import csv
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -19,6 +20,7 @@ from sm90r3_llm import environment, MODELS, PCI
 
 RUN = ROOT / 'runs/sm90x1'
 CELLS = ROOT / 'configs/serving/sm90x1/cells.json'
+EXECUTION_POLICY = ROOT / 'configs/bench/sm90x1_parallel_policy.json'
 BASE = '3ff07bc2e'
 
 
@@ -32,6 +34,11 @@ def coordinate_bytes(c):
 
 def cells(selected=None):
     rows = read(CELLS)['cells']
+    if EXECUTION_POLICY.exists():
+        policy=read(EXECUTION_POLICY)
+        for cell in rows:
+            cell['recorded_class']=cell['class']
+            cell['class']=policy['gpu_unit_class']
     if selected == 'pilot':
         rows = [c for c in rows if c['pilot']]
     elif selected and selected != 'all':
@@ -186,10 +193,25 @@ def trace(a):
 
 
 def trace_cell(a,c,build_id,reference=False):
+    artifact=directory(c)/a.tag/build_id
+    artifact.mkdir(parents=True,exist_ok=True)
+    # The ready queue and the serial resume path may reach the same variant.
+    with (artifact/'trace-unit.lock').open('a') as lock:
+        fcntl.flock(lock,fcntl.LOCK_EX)
+        return _trace_cell(a,c,build_id,reference)
+
+
+def _trace_cell(a,c,build_id,reference=False):
     d = directory(c) / a.tag
     artifact = d / build_id
     binding = read(artifact / 'binding.json')
     validate_runtime(binding)
+    binary = prepare_trace_binary(artifact,binding)
+    unit = d / 'trace' if a.phase == 0 else artifact / 'trace'
+    return run_trace_unit(a,c,build_id,reference,artifact,binding,binary,unit)
+
+
+def prepare_trace_binary(artifact,binding,lock_path=None):
     binary = artifact / 'trace.so'
     if not binary.exists():
         command = [PYTHON, str(ROOT / 'scripts/run_sm90r1_build.py'), '--receipt',
@@ -198,12 +220,17 @@ def trace_cell(a,c,build_id,reference=False):
                    str(ROOT / 'scripts/build_sm90r2_trace.py'), '--input', binding['decode'],
                    '--out', str(binary), '--stage-level', '2']
         with (artifact / 'trace-build.log').open('w') as log:
-            subprocess.check_call(command, cwd=ROOT, env=dict(os.environ, CUDA_VISIBLE_DEVICES=''),
+            env=dict(os.environ, CUDA_VISIBLE_DEVICES='')
+            if lock_path is not None:env['TILEMEGA_NVCC_LOCK']=str(lock_path)
+            subprocess.check_call(command, cwd=ROOT, env=env,
                                   stdout=log, stderr=subprocess.STDOUT)
     identity = read(str(binary) + '.identity.json')
-    if not identity['trace'] or identity['performance_eligible']:
+    if not identity['trace'] or identity['performance_eligible'] or identity['source']['head']!=binding['head']:
         raise ValueError('trace identity is performance-ineligible')
-    unit = d / 'trace' if a.phase == 0 else artifact / 'trace'
+    return binary
+
+
+def run_trace_unit(a,c,build_id,reference,artifact,binding,binary,unit):
     if (unit / 'unit.json').exists():
         if not audit_trace_unit(unit)['passed']:
             raise ValueError(f'cached trace failed the GPU-owner audit: {unit}')
@@ -211,7 +238,7 @@ def trace_cell(a,c,build_id,reference=False):
     unit.mkdir(parents=True, exist_ok=True)
     attempt = unit / f'try{time.time_ns()}'
     attempt.mkdir()
-    gpu, handle = claim(c['class'], str(unit))
+    gpu, handle = claim(c['class'], str(unit), poll=5)
     try:
         policy = read(POLICY)
         uuid = policy['idle_power_mapping_provenance']['uuid_by_gpu'][str(gpu)]
@@ -229,6 +256,12 @@ def trace_cell(a,c,build_id,reference=False):
                        PYTHON, str(ROOT / 'scripts/sm90r4_ledger.py'), 'run', '--prefill', c['prefill'],
                        '--decode', str(binary), *(['--reference', binding['decode']] if reference else []), '--prompt-ids',
                        str(ROOT / prompt), '--batch', str(c['batch']), '--tokens', '520', '--out', out+'/trace']
+            from sm90x1_checkpoint import cached_command
+            ledger = command.index(str(ROOT / 'scripts/sm90r4_ledger.py')) - 1
+            reused = cached_command(ROOT/model_inputs, out+'/checkpoint', gib, command[ledger:], scope=unit)
+            if reused:
+                checkpoint = command.index('-m') - 1
+                command = command[:checkpoint] + reused
             jobs.append(dict(name=name, gpu=True, timing=True, priority=10, timeout_s=3600,
                              needs_free_mib=32768, cwd=str(ROOT), after=previous,
                              env=environment(gpu, 'trial' if c['class']=='trial' else 'serial'), command=command))
@@ -236,11 +269,12 @@ def trace_cell(a,c,build_id,reference=False):
         write(attempt / 'queue/queue_trace.json', jobs)
         env = dict(os.environ, **environment(gpu, 'trial' if c['class']=='trial' else 'serial'))
         with (attempt / 'scheduler.log').open('w') as log:
-            scheduler = subprocess.Popen([PYTHON, '-m', 'tilemega.bench.scheduler', '--queue-dir',
+            scheduler = subprocess.Popen([PYTHON, str(ROOT/'scripts/sm90x1_scheduler.py'), '--queue-dir',
                                    str(attempt / 'queue'), '--out', str(attempt / 'scheduler'), '--policy',
                                    str(POLICY), '--deadline-hours', '24'], cwd=ROOT, env=env,
                                   stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
-            stalled = watch(scheduler, attempt / 'scheduler/state.json', c['class'], gpu, STALL_S)
+            stalled = watch(scheduler, attempt / 'scheduler/state.json', c['class'], gpu, 60, poll=5,
+                            preflight_handoff=True)
         if stalled:
             write(attempt / 'abandoned.json', dict(reason='foreign occupancy while another allowed card was free'))
             raise RuntimeError(f'trace unit stalled; claim released and evidence retained: {attempt}')
@@ -320,8 +354,10 @@ def main():
     p.add_argument('--phase', type=int, choices=(0,1,2,3), default=0)
     p.add_argument('--k', type=int, choices=(3,4))
     p.add_argument('--arms-only', action='store_true')
+    p.add_argument('--build-workers',type=int,default=1)
     p.add_argument('--compiler', type=Path, default=ROOT / 'runs/sm90x1/compiler/tools/tilemega')
     a = p.parse_args()
+    if a.build_workers<1:p.error('--build-workers must be positive')
     a.tag = a.tag or f'phase{a.phase}'
     a.cell = a.cell or ('all' if a.phase>=2 or a.action=='tables' else 'pilot')
     if a.phase:
@@ -332,7 +368,11 @@ def main():
         for c in experiment.rows(a):
             local=argparse.Namespace(**vars(a));local.cell=c['cell']
             try:
-                (experiment.measurement if a.action in ('corr','time') else getattr(experiment,a.action))(local)
+                destination=experiment.cell_dir(c,a)
+                destination.mkdir(parents=True,exist_ok=True)
+                with (destination/f'action-{a.action}.lock').open('a') as lock:
+                    fcntl.flock(lock,fcntl.LOCK_EX)
+                    (experiment.measurement if a.action in ('corr','time') else getattr(experiment,a.action))(local)
             except Exception as error:
                 record=dict(cell=c['cell'],action=a.action,error=str(error),at=time.time())
                 path=experiment.cell_dir(c,a)/'failures'/f'{a.action}-{time.time_ns()}.json'

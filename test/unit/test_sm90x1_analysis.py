@@ -70,7 +70,7 @@ class ProtocolTest(unittest.TestCase):
         for c in rows:
             self.assertEqual(hashlib.sha256(sm90x1.coordinate_bytes(c['coordinates'])).hexdigest(),
                              c['w_coordinates_sha256'])
-            self.assertEqual(c['class'],'machine' if c['moe'] else 'trial')
+            self.assertEqual(c.get('recorded_class',c['class']),'machine' if c['moe'] else 'trial')
 
     def test_incomplete_gate_blocks_sweeps(self):
         import sm90x1_experiment as experiment

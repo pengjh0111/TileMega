@@ -152,10 +152,10 @@ def abandon(scheduler, state_path):
             subprocess.run(['pkill', '-KILL', '-s', str(record['pid'])], check=False)
 
 
-def watch(scheduler, state_path, cls, gpu, stall_s):
+def watch(scheduler, state_path, cls, gpu, stall_s, poll=30,preflight_handoff=False):
     policy, progress, since = read(POLICY), None, time.time()
     while scheduler.poll() is None:
-        time.sleep(30)
+        time.sleep(poll)
         try:
             state = read(state_path)
         except (OSError, ValueError):
@@ -164,15 +164,21 @@ def watch(scheduler, state_path, cls, gpu, stall_s):
         if done != progress:
             progress, since = done, time.time()
             continue
-        if (any(r['status'] == 'running' for r in state.values()) or time.time() - since < stall_s or
+        running=[r for r in state.values() if r['status']=='running']
+        active_child=any((Path(r['out'])/'pgid').exists() for r in running)
+        if ((running and (not preflight_handoff or active_child)) or time.time() - since < stall_s or
                 idle_card(gpu, policy) or not alternative(cls, gpu, policy)):
             continue
-        abandon(scheduler, state_path)
-        return True
+        if preflight_handoff:
+            from sm90x1_scheduler import abandon_preflight
+            if abandon_preflight(scheduler,state_path):return True
+        else:
+            abandon(scheduler, state_path)
+            return True
     return False
 
 
-def run_unit(template, unit, cls, stall_s=STALL_S, nodes=None, reconsider_idle=False):
+def run_unit(template, unit, cls, stall_s=STALL_S, nodes=None, reconsider_idle=False, poll_s=30,scheduler_command=None,preflight_handoff=False):
     """Measure one spec on one free card; returns the collected result."""
     unit = Path(unit)
     if (unit / 'unit.json').exists():
@@ -181,7 +187,7 @@ def run_unit(template, unit, cls, stall_s=STALL_S, nodes=None, reconsider_idle=F
     tries = sorted((p for p in unit.glob('try*') if p.is_dir()), key=lambda p: int(p.name[3:]))
     cards = [read(p / 'spec.json')['gpu'] for p in tries if (p / 'spec.json').exists()]
     while True:
-        gpu, handle = claim(cls, str(unit), exclude=() if reconsider_idle else cards[-1:], nodes=nodes)
+        gpu, handle = claim(cls, str(unit), exclude=() if reconsider_idle else cards[-1:], nodes=nodes, poll=poll_s)
         attempt = unit / f'try{len(tries) + 1}'
         attempt.mkdir()
         tries.append(attempt)
@@ -197,12 +203,14 @@ def run_unit(template, unit, cls, stall_s=STALL_S, nodes=None, reconsider_idle=F
                        TILEMEGA_GPU_LOCK=f'/tmp/tilemega_gpu{gpu}.lock', TILEMEGA_NUMA_NODE=str(numa(gpu)),
                        PYTHONPATH=str(ROOT / 'python'))
             with (attempt / 'scheduler.log').open('w') as log:
-                scheduler = subprocess.Popen([PYTHON, '-m', 'tilemega.bench.scheduler', '--queue-dir',
+                launcher=scheduler_command or [PYTHON, '-m', 'tilemega.bench.scheduler']
+                scheduler = subprocess.Popen([*launcher, '--queue-dir',
                                               str(attempt / 'queue'), '--out', str(attempt / 'scheduler'),
                                               '--policy', str(POLICY), '--deadline-hours', '24'],
                                              cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT,
                                              start_new_session=True)
-                stalled = watch(scheduler, attempt / 'scheduler/state.json', cls, gpu, stall_s)
+                stalled = watch(scheduler, attempt / 'scheduler/state.json', cls, gpu, stall_s, poll=poll_s,
+                                preflight_handoff=preflight_handoff)
         finally:
             handle.close()
         if stalled:
