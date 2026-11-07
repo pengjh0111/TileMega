@@ -13,11 +13,11 @@ from tilemega.tp import trace
 
 
 class TraceTests(unittest.TestCase):
-    def capture(self, root):
+    def capture(self, root, world=4):
         root.mkdir()
         shutil.copy2(trace.__file__, root / 'collector.py')
         records, ranks = [], []
-        for rank in range(4):
+        for rank in range(world):
             path = root / f'rank{rank}.csv'
             with path.open('w', newline='') as stream:
                 writer = csv.writer(stream, lineterminator='\n')
@@ -30,12 +30,26 @@ class TraceTests(unittest.TestCase):
             record = compress_trace(path)
             records.append(record)
             ranks.append(read_trace(Path(record['path']), layers=1, grid=2))
-        data = dict(kind='mx7_tp_stage_capture', tp=4, batch=1, gpu_indices=[1,3,4,5],
+        data = dict(kind='mx7_tp_stage_capture', tp=world, batch=1,
+                    gpu_indices=[1,3,4,5] if world == 4 else list(range(world)),
                     trace_slots=66, decode_samples=2, raw_traces=records, timing_eligible=False,
                     collector={'sha256': hashlib.sha256((root / 'collector.py').read_bytes()).hexdigest()})
         capture = root / 'capture.json'
         capture.write_text(json.dumps(data))
         return capture, summarize(ranks, layers=1)
+
+    def test_eight_rank_analysis_requires_all_ranks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            capture, expected = self.capture(root / 'capture', world=8)
+            guard = root / 'guard.json'
+            guard.write_text(json.dumps(dict(code=0, gpu_indices=list(map(str, range(8))))))
+            report = analyze_capture(capture, guard, root / 'analysis/trace.json', layers=1, grid=2)
+            self.assertEqual(report['stages'], expected)
+            self.assertEqual(len(report['raw_traces']), 8)
+            data = json.loads(capture.read_text());data['raw_traces'].pop();capture.write_text(json.dumps(data))
+            with self.assertRaisesRegex(ValueError, 'all-rank'):
+                analyze_capture(capture, guard, root / 'incomplete/trace.json', layers=1, grid=2)
 
     def test_separate_cpu_analysis_preserves_stage_values_and_raw_bytes(self):
         with tempfile.TemporaryDirectory() as directory:

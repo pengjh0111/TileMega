@@ -26,13 +26,16 @@ def analyze_capture(capture_path, guard_path, out, layers=28, grid=104):
     guard = json.loads(guard_path.read_text())
     if guard['code'] != 0:
         raise ValueError('GPU capture did not pass its guard')
-    if list(map(int, guard['gpu_indices'])) != data['gpu_indices'] or data['tp'] != 4:
+    world = data['tp']
+    if (world not in (2, 4, 8) or len(data['gpu_indices']) != world or
+            len(set(data['gpu_indices'])) != world or
+            list(map(int, guard['gpu_indices'])) != data['gpu_indices']):
         raise ValueError('trace capture and guard GPU groups differ')
     collector = capture_path.parent / 'collector.py'
     if sha(collector) != data['collector']['sha256']:
         raise ValueError('archived GPU trace collector differs')
-    if data.get('kind') != 'mx7_tp_stage_capture' or len(data['raw_traces']) != 4:
-        raise ValueError('complete four-rank GPU trace capture required')
+    if data.get('kind') != 'mx7_tp_stage_capture' or len(data['raw_traces']) != world:
+        raise ValueError('complete all-rank GPU trace capture required')
     out.parent.mkdir(parents=True, exist_ok=True)
     analyzer = out.parent / 'analyzer.py'
     dependency = out.parent / 'analyzer_trace.py'
@@ -75,7 +78,7 @@ def main():
     if data.get('decode_samples') != 1023 or data.get('trace_slots') != 1087:
         parser.error('final trace requires the complete ISL64/OSL1024 scope')
     analyze_capture(args.capture, args.guard, args.out)
-    print('TP4 trace CPU analysis complete', data['batch'], flush=True)
+    print(f'TP{data["tp"]} trace CPU analysis complete', data['batch'], flush=True)
 
 
 if __name__ == '__main__':

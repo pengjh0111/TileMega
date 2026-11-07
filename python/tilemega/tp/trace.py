@@ -127,13 +127,13 @@ def main():
     for name in ('model', 'decode-so', 'prompt-ids', 'out'):
         parser.add_argument('--' + name, type=Path, required=True)
     parser.add_argument('--batch', type=int, choices=(1, 16), required=True)
-    parser.add_argument('--devices', default='0,1,2,3')
+    parser.add_argument('--devices', help='logical devices; defaults to the guarded TP group size')
     parser.add_argument('--capture-only', action='store_true')
     args = parser.parse_args()
     physical = require_group()
-    if len(physical) != 4:
-        parser.error('final trace scope is TP4')
     metadata = json.loads(Path(str(args.decode_so) + '.plan.json').read_text())
+    if metadata.get('tp') != len(physical):
+        parser.error('trace plan and guarded TP degree differ')
     if not metadata.get('trace_stage'):
         parser.error('a TILEMEGA_TRACE_STAGE=1 binary is required')
     args.out.mkdir(parents=True, exist_ok=False)
@@ -144,8 +144,9 @@ def main():
     prompt_len = len(prompt[0])
     os.environ['TILEMEGA_TRACE_LAUNCHES'] = str(prompt_len + 1024 - 1)
     records, samples = [], []
+    devices = tuple(map(int, args.devices.split(','))) if args.devices else tuple(range(len(physical)))
     with TpServingEngine(args.model, args.decode_so, args.batch, prompt_len, 1024,
-                         tuple(map(int, args.devices.split(',')))) as engine:
+                         devices) as engine:
         result = engine.generate(torch.tensor(prompt, dtype=torch.int32))
         dump = engine.lib.lib.tm_plan_dump_serving_trace
         dump.argtypes, dump.restype = [C.c_void_p, C.c_char_p], C.c_int
@@ -161,7 +162,7 @@ def main():
                 samples.append(read_trace(Path(record['path']), minimum_slot=prompt_len))
             records.append(record)
         identity = engine.ranks[0]['plan'].execution_identity(1, True)
-    report = dict(tp=4, batch=args.batch, gpu_indices=physical, prompt_mode=True,
+    report = dict(tp=len(physical), batch=args.batch, gpu_indices=physical, prompt_mode=True,
                   trace_slots=prompt_len + 1024 - 1, decode_samples=1023,
                   formula='max CTA release(stage) minus max CTA release(previous stage); first qkv uses min start',
                   raw_traces=records, execution_identity=identity,
@@ -176,11 +177,11 @@ def main():
     if args.capture_only:
         report['kind'] = 'mx7_tp_stage_capture'
         (args.out / 'capture.json').write_text(json.dumps(report, indent=2) + '\n')
-        print('TP4 trace GPU capture complete', args.batch, flush=True)
+        print(f'TP{len(physical)} trace GPU capture complete', args.batch, flush=True)
     else:
         report['stages'] = summarize(samples)
         (args.out / 'trace.json').write_text(json.dumps(report, indent=2) + '\n')
-        print('TP4 trace complete', args.batch, '1023 decode steps per rank', flush=True)
+        print(f'TP{len(physical)} trace complete', args.batch, '1023 decode steps per rank', flush=True)
 
 
 if __name__ == '__main__':
