@@ -438,9 +438,8 @@ def tables(a):
             '[verified] Only four H800 cards are currently visible; timing policy still excludes GPU6.',
             '[verified] '+str(len(ratios))+'/14 cells have reportable non-trace arm measurements.',
             '## Numbers for the paper','',
-            '[verified] X, X\u2032, Y, Y\u2032 are unavailable until every required cell has completed. '
-            'Missing cells remain in the arm table; no partial-cell geometric mean is substituted.' if len(ratios)!=14 else
-            '[verified] Overall and batch results: '+json.dumps([r for r in summary if r['metric'] in ('X','Xprime','Y','Yprime')]),
+            '[verified] Each batch and overall aggregate requires all its required cells. '
+            'Missing cells remain in the arm table; no partial-cell geometric mean is substituted.',
             '[verified, diagnostic] Strongest rank reversals: '+json.dumps(reversed_pairs[:2]),
             '## Protocol and deviations','',
             '[verified] R5 baseline 3ff07bc2e was fast-forwarded onto tilemega before new tooling. '
@@ -507,4 +506,25 @@ def tables(a):
         values=[str(round(metrics[m]['value'],6)) if metrics[m]['value']!='' else '—' for m in ('tau','coupled_share')]
         family_table.append('| '+family+' | '+' | '.join(values)+' | '+metrics['tau']['class']+' |')
     report.append('\n'.join(family_table))
+    paper_table=['| Batch | Measured cells | X [min, max] | X\u2032 [min, max] | Y | Y\u2032 |',
+                 '|---|---:|---:|---:|---:|---:|']
+    for batch in (1,16,'overall'):
+        metrics={r['metric']:r for r in summary if r['batch']==batch and not r.get('family') and not r.get('cell')}
+        values=[]
+        for metric in ('X','Xprime','Y','Yprime'):
+            m=metrics[metric]
+            if m['value']=='':value='pending'
+            elif metric.startswith('X'):
+                value=f"{m['value']:.6f} [{m['min']:.6f}, {m['max']:.6f}]"
+            else:value=f"{m['count']}/{m['denominator']} ({m['value']:.6f})"
+            values.append(value)
+        coverage=f"{metrics['X']['count']}/{metrics['X']['denominator']}"
+        paper_table.append('| '+str(batch)+' | '+coverage+' | '+' | '.join(values)+' |')
+    paper_index=report.index('## Numbers for the paper')+2
+    report.insert(paper_index,'\n'.join(paper_table))
+    improvements=[{k:r[k] for k in ('cell','arm','change_vs_w_pct','range_pct','processes','gpu','class')}
+                  for r in arms_out if r.get('decision_vs_w')=='faster' and r['arm'] in ('L','Wstar')]
+    report+=['## Improvements beyond P-PAIR','',
+             '[verified] '+str(len(ratios))+'/14 measured cells; L or W* faster than W beyond threshold: '+
+             json.dumps(improvements) if ratios else '[verified] No reportable arm measurements are available yet.']
     (RESULTS/'SM90X1_h800.md').write_text('\n\n'.join(report)+'\n')
