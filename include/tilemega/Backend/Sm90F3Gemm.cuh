@@ -491,6 +491,9 @@ struct Sm90F3Gemm {
           phase.empty^=1u<<slot;
         }
         __syncwarp();
+        // Close the producer's own async-copy lifetime before reusing a slot.
+        // One committed group per k block preserves the Slots-deep window.
+        Async::template GatherWait<Slots-1>();
         auto* panel=reinterpret_cast<char*>(SlotA(arena,slot));
         for(int m=lane;m<TM;m+=Sm90F3Ring::kGatherLanes) {
           int row=m_tile*TM+m;
@@ -511,6 +514,7 @@ struct Sm90F3Gemm {
             Base::Copy16(panel+std::size_t(m)*128+((j^(m%8))*16),source,valid);
           }
         }
+        Async::GatherCommit();
         // Every lane completes its own copies into the slot's gather barrier.
         Base::CompleteCopies(ring.gfull+slot);
         if(lane==0) {
@@ -521,6 +525,7 @@ struct Sm90F3Gemm {
       }
       if(lane==0)ProduceSide(p,ring,side,phase,m_tile,n_tile,LiveRows(m_tile));
     }
+    Async::template GatherWait<0>();
     __syncwarp();
   }
 

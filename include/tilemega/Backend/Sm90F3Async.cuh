@@ -17,6 +17,15 @@ struct Sm90F3Async {
   // body must never call the legacy `executor::ComputeSync`, which occupies
   // `bar 1, 128` and would release a 288-thread CTA one warpgroup early.
   enum : int {kBarAll=0, kBarGate=1, kBarConsumers=2, kBarWg0=3, kBarWg1=4};
+
+  __device__ static __forceinline__ void GatherCommit() {
+    asm volatile("cp.async.commit_group;" ::: "memory");
+  }
+  template<int Pending>
+  __device__ static __forceinline__ void GatherWait() {
+    static_assert(Pending>=0 && Pending<8);
+    asm volatile("cp.async.wait_group %0;" :: "n"(Pending):"memory");
+  }
   template<int Id,int Threads>
   __device__ static __forceinline__ void NamedBarrier() {
     static_assert(Id>=0 && Id<16,"a named barrier id is 0..15");
