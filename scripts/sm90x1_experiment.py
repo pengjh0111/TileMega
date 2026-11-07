@@ -288,7 +288,19 @@ def tables(a):
         d=RUN/'cells'/c['cell']/tag
         source=RUN/'cells'/c['cell']/('phase1' if c['pilot'] else 'phase2')
         diagnostic=d if (d/'analysis.json').exists() else source
-        data=read(diagnostic/'analysis.json') if (diagnostic/'analysis.json').exists() else []
+        data=read(diagnostic/'analysis.json') if (diagnostic/'analysis.json').exists() else \
+             read(diagnostic/'variants.json') if (diagnostic/'variants.json').exists() else []
+        failures=[read(path) for path in sorted((d/'failures').glob('*.json'))]
+        failure_text='; '.join(r['action']+': '+r['error'] for r in failures)
+        if not data and failure_text:
+            data=[dict(cell=c['cell'],family=f,variant='enumeration_failed',legal='',selected=False,
+                       reason=failure_text) for f in families(c)]
+        for r in data:
+            if r.get('build_id'):
+                artifact=d/r['build_id']
+                r['build_status']='compiled' if (artifact/'binding.json').exists() else \
+                    'failed' if (artifact/'build.json').exists() else 'not_run'
+            if failure_text:r['failure_reason']=failure_text
         candidates+=data
         if (diagnostic/'stage-deltas.json').exists():stages+=read(diagnostic/'stage-deltas.json')
         for family in families(c):
@@ -302,7 +314,8 @@ def tables(a):
         protocol=read(measured/'time/unit.json') if result else {}
         for label in ['W','L','Wstar']+(['T'] if a.phase==3 and c['moe'] else ['T','N'] if a.phase==3 else []):
             entry=next((e for e in plan if e['arm']==label),None)
-            row=dict(cell=c['cell'],batch=c['batch'],arm=label,status='not_run',gpu='',**{'class':c['class']})
+            row=dict(cell=c['cell'],batch=c['batch'],arm=label,status='blocked' if failure_text else 'not_run',
+                     failure_reason=failure_text,gpu='',**{'class':c['class']})
             if entry:
                 row['coordinates_sha256']=entry['coordinates_sha256']
                 if (plan_dir/entry['id']/'binding.json').exists():
@@ -335,13 +348,13 @@ def tables(a):
                     Yprime=int(decomposition(coords['L'],f)!=decomposition(coords['W'],f))))
     candidates_fields=['cell','family','variant','decomposition_key','coordinates_sha256','legal','reason',
         'predicted_stage_ns','predicted_step_ns','modeled_bytes','own_us','step_us','delta_own_us',
-        'delta_step_us','delta_coupled_us','processes','selected','own_us_range_pct','step_us_range_pct']
+        'delta_step_us','delta_coupled_us','processes','selected','own_us_range_pct','step_us_range_pct','build_status','failure_reason']
     stats.write_csv(RESULTS/'SM90X1_candidates.csv',candidates,candidates_fields)
     stats.write_csv(RESULTS/'SM90X1_stage_deltas.csv',stages,
                     ['cell','family','variant','stage_kind','delta_us','stage','stage_name'])
     stats.write_csv(RESULTS/'SM90X1_arms.csv',arms_out,['cell','arm','coordinates_sha256','binary_sha256',
         'c1_pass','c2_pass','tpot_ms','range_pct','processes','change_vs_wstar_pct','decision_vs_wstar',
-        'change_vs_w_pct','decision_vs_w','gpu','class','status','build_head'])
+        'change_vs_w_pct','decision_vs_w','gpu','class','status','build_head','failure_reason'])
     summary=[]
     for batch in [1,16,'overall']:
         selected=[c for c in all_cells if batch=='overall' or c['batch']==batch]
@@ -398,7 +411,7 @@ def tables(a):
         diagnostic=[r for r in candidates if r['cell'] in pilot_names and r.get('processes')]
         text=['# SM90X1 pilot','', '[verified] X='+str(math.exp(st.mean(math.log(r['X']) for r in pr)))]
         text+=['[verified] Y='+str(sum(r['Y'] for r in pc)/len(pc)),
-               '[verified] Illegal groups='+str(sum(not r['legal'] for r in candidates if r['cell'] in pilot_names)),
+               '[verified] Illegal groups='+str(sum(r['legal'] is False for r in candidates if r['cell'] in pilot_names)),
                '[inferred] Projection: '+json.dumps(projection)]
         for f in sorted({r['family'] for r in diagnostic}):
             data=[r for r in diagnostic if r['family']==f]
