@@ -351,8 +351,12 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
           if(l.rank==4 && l.kind==codegen::DmLayout::kNHWC) {
             if(l.halo_top || l.halo_left)
               throw std::invalid_argument("a dense A view needs an image without a halo");
-            auto pixels=std::uint64_t(l.physical[0])*l.physical[1]*l.physical[2];
-            l.rank=2;l.physical[0]=unsigned(pixels);l.physical[1]=l.physical[3];
+            auto image_elements=std::uint64_t(l.physical[1])*l.physical[2]*l.physical[3];
+            // VGG FC1 consumes a whole flattened NHWC image; its weight recipe
+            // already permutes NCHW columns, so the TMA row must span all K.
+            auto row_width=image_elements==std::uint64_t(k)?unsigned(k):l.physical[3];
+            auto dense_rows=std::uint64_t(l.physical[0])*image_elements/row_width;
+            l.rank=2;l.physical[0]=unsigned(dense_rows);l.physical[1]=row_width;
             l.strides[0]=l.physical[1];
           }
           if(l.rank!=2)throw std::invalid_argument("a dense F3 GEMM reads a rank-2 A");
