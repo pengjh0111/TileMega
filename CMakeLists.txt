@@ -940,6 +940,8 @@ if(TILEMEGA_BUILD_TESTS)
     target_link_libraries(sm90_dense_tp_test PRIVATE cuda)
     add_test(NAME sm90_dense_tp COMMAND sm90_dense_tp_test)
     set_tests_properties(sm90_dense_tp PROPERTIES SKIP_RETURN_CODE 77)
+    add_test(NAME sm90x1_analysis COMMAND ${Python3_EXECUTABLE} -m unittest discover
+      -s ${CMAKE_CURRENT_SOURCE_DIR}/test/unit -p test_sm90x1_analysis.py)
     add_executable(sm90_native_sweep_test test/unit/sm90_native_sweep_test.cpp)
     target_include_directories(sm90_native_sweep_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tools/commands)
     target_link_libraries(sm90_native_sweep_test PRIVATE TileMega::tilemega)
