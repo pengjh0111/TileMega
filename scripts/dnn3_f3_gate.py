@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build and guard the focused F3 GAP/residual, gather and split-K gates.
+"""Build and guard focused F3 convolution, GAP, gather and split-K gates.
 
 This covers small adversarial shapes, not the complete §6.8 P-UNIT table.
 All subprocesses in a cohort hold the same scheduler/guard reservation.
@@ -29,7 +29,7 @@ def save(path, value):
 
 
 def inputs():
-    paths = [SOURCE, *sorted((ROOT / 'include').rglob('*.h')),
+    paths = [Path(__file__).resolve(), SOURCE, *sorted((ROOT / 'include').rglob('*.h')),
              *sorted((ROOT / 'include').rglob('*.cuh'))]
     return {str(path.relative_to(ROOT)): sha(path) for path in paths}
 
@@ -44,7 +44,7 @@ def execute(options):
     if sha(binary) != build['binary_sha256'] or inputs() != build['inputs']:
         raise ValueError('unit binary or source differs from its build receipt')
     result = dict(evidence='verified', build=str(options.build), passed=False,
-                  scope='focused F3 GAP/residual, gather and split-K regressions; not complete P-UNIT',
+                  scope='focused F3 ' + options.case + ' regressions; not complete P-UNIT',
                   gpu=int(os.environ['TILEMEGA_DEVICE_INDEX']), processes=[], started=time.time())
     hashes = []
 
@@ -58,7 +58,7 @@ def execute(options):
         return done.returncode, log.read_text()
 
     for index in range(5):
-        code, text = run(f'unit-{index+1}', [str(binary), 'all'])
+        code, text = run(f'unit-{index+1}', [str(binary), options.case])
         if code:
             result['stop'] = 'P-UNIT_failed'
             save(out / 'result.json', result)
@@ -73,7 +73,8 @@ def execute(options):
         return 1
     result['unit_passes'] = '5/5'
     result['output_hash'] = hashes[0]
-    for case in ('gather', 'pool', 'split'):
+    cases = ('gather', 'pool', 'split', 'conv', 'swap', 'small') if options.case == 'all' else (options.case,)
+    for case in cases:
         for tool, count in (('memcheck', 1), ('initcheck', 1), ('racecheck', 5), ('synccheck', 5)):
             for index in range(count):
                 name = f'{case}-{tool}-{index+1}'
@@ -91,6 +92,8 @@ def execute(options):
                                       tool in ('racecheck', 'synccheck') else 'P-SAN_failed')
                     save(out / 'result.json', result)
                     return 1
+    if inputs() != build['inputs'] or sha(binary) != build['binary_sha256']:
+        raise ValueError('unit inputs changed during the cohort')
     result.update(passed=True, finished=time.time())
     save(out / 'result.json', result)
     return 0
@@ -101,6 +104,7 @@ def main():
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--device', type=int, default=0)
     parser.add_argument('--build', type=Path)
+    parser.add_argument('--case', choices=('all', 'gather', 'pool', 'split', 'conv', 'swap', 'small'), default='all')
     parser.add_argument('--execute', action='store_true')
     options = parser.parse_args()
     if options.execute:
@@ -132,7 +136,7 @@ def main():
     queue.mkdir()
     gpu = str(options.device)
     command = ['taskset', '-c', '128-135', sys.executable, str(Path(__file__).resolve()),
-               '--execute', '--build', str(build), '--out', '{attempt_dir}/cohort']
+               '--execute', '--build', str(build), '--out', '{attempt_dir}/cohort', '--case', options.case]
     environment = dict(CUDA_VISIBLE_DEVICES=gpu, TILEMEGA_DEVICE_INDEX=gpu,
                        TILEMEGA_GPU_LOCK=f'/tmp/tilemega_gpu{gpu}.lock', TILEMEGA_NUMA_NODE='0',
                        TILEMEGA_GPU_PID_MODE='namespace_limited', TILEMEGA_NUMA_CONCURRENCY_TRIAL='1',
