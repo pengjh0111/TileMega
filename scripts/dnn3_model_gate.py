@@ -24,14 +24,20 @@ def main():
     parser.add_argument('--export', type=Path, required=True)
     parser.add_argument('--bridge', type=Path, required=True)
     parser.add_argument('--batch', type=int, required=True)
+    parser.add_argument('--inputs', type=Path, help='fixed safetensors inputs shared with timing')
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--device', type=int, default=1)
+    parser.add_argument('--python', type=Path,
+                        default=Path('/root/TileMega/runs/r16/env/tensorrt-dnn/bin/python'))
     parser.add_argument('--execute', action='store_true')
     parser.add_argument('--check-one', action='store_true')
     parser.add_argument('--sanitizers', action='store_true')
+    parser.add_argument('--diagnostic-tool', choices=('memcheck', 'initcheck', 'racecheck', 'synccheck'))
     args = parser.parse_args()
     args.library, args.export, args.bridge, args.out = (
         path.resolve() for path in (args.library, args.export, args.bridge, args.out))
+    if args.inputs is not None:
+        args.inputs = args.inputs.resolve()
     args.out.mkdir(parents=True, exist_ok=True)
     model = json.loads((args.export / 'manifest.json').read_text())['model']
     if model not in ('resnet18', 'resnet50', 'vgg16'):
@@ -57,27 +63,38 @@ def main():
             raise ValueError('correctness requires the scheduler/guard reservation')
         from tilemega.dnn.check_generated import check
         result = check(args.library, args.export, args.bridge, args.batch,
-                       epochs=3, thresholds={'cosine': .9999})
+                       epochs=3, input_tensors=args.inputs, thresholds={'cosine': .9999})
         if any(output.get('top1_agreement') != 1.0
                for case in result['cases'] for output in case['outputs']):
             raise AssertionError('classification top-1 differs from FP32')
         save(args.out / 'check.json', result)
         return 0
-    base = [sys.executable, str(Path(__file__).resolve()), '--library', str(args.library),
+    base = [str(args.python), str(Path(__file__).resolve()), '--library', str(args.library),
             '--export', str(args.export), '--bridge', str(args.bridge), '--batch', str(args.batch)]
+    if args.inputs is not None:
+        base.extend(['--inputs', str(args.inputs)])
     if args.execute:
         if not os.environ.get('TILEMEGA_GPU_LOCK'):
             raise ValueError('cohort requires the scheduler/guard reservation')
         inputs = [Path(__file__), args.bridge, args.library,
                   Path(str(args.library) + '.identity.json')]
         inputs.extend((ROOT / 'python/tilemega/dnn').glob('*.py'))
+        if args.inputs is not None:
+            inputs.append(args.inputs)
         frozen = {str(path): sha(path) for path in inputs}
-        receipt = dict(protocol='P-CORR', evidence='verified', execution=execution,
-                       inputs=frozen, processes=[], required_processes=5)
+        required = 1 if args.diagnostic_tool else 5
+        receipt = dict(protocol='diagnostic' if args.diagnostic_tool else 'P-CORR',
+                       evidence='verified', execution=execution,
+                       inputs=frozen, processes=[], required_processes=required)
         save(args.out / 'result.json', receipt)
         reference = None
         jobs = [('corr-' + str(i), []) for i in range(1, 6)]
-        if args.sanitizers:
+        if args.diagnostic_tool:
+            name = args.diagnostic_tool + '-1'
+            jobs = [(name, ['compute-sanitizer', '--tool', args.diagnostic_tool,
+                '--error-exitcode', '86', '--print-limit', '32',
+                '--log-file', str(args.out / (name + '.sanitizer.log'))])]
+        elif args.sanitizers:
             for tool, count in (('memcheck', 1), ('initcheck', 1), ('racecheck', 5), ('synccheck', 5)):
                 jobs.extend((f'{tool}-{i}', ['compute-sanitizer', '--tool', tool,
                     '--error-exitcode', '86', '--log-file', str(args.out / f'{tool}-{i}.sanitizer.log')])
@@ -106,7 +123,7 @@ def main():
             save(args.out / 'result.json', receipt)
         if any(sha(path) != value for path, value in frozen.items()):
             raise ValueError('model gate inputs changed during the cohort')
-        receipt.update(status='passed', passes='5/5', cases=reference)
+        receipt.update(status='passed', passes=f'{required}/{required}', cases=reference)
         save(args.out / 'result.json', receipt)
         return 0
     environment = dict(CUDA_VISIBLE_DEVICES=str(args.device), TILEMEGA_DEVICE_INDEX=str(args.device),
@@ -118,6 +135,8 @@ def main():
     command = ['taskset', '-c', '128-135', *base, '--execute', '--out', '{attempt_dir}/cohort']
     if args.sanitizers:
         command.append('--sanitizers')
+    if args.diagnostic_tool:
+        command.extend(['--diagnostic-tool', args.diagnostic_tool])
     save(queue / 'queue_model.json', [dict(name='dnn3-f3-model-gates', gpu=True, timing=False,
         timeout_s=10800, needs_free_mib=8192, command=command, cwd=str(ROOT), env=environment)])
     scheduler = [str(ROOT / 'scripts/dnn1_idle_floor_python.py'), '-m', 'tilemega.bench.scheduler',
