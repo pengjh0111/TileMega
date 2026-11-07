@@ -1,0 +1,149 @@
+{
+  "evidence": "verified",
+  "diagnostic_only": true,
+  "variant": "original288 launch; minimal fresh fragment mapping; accepted narrow VGG coords",
+  "ledger": "runs/dnn3/f3_dtst_trace_v2/vgg16/marks/raw/dnn3-marks/attempt1/trace/ledger.csv",
+  "sha256": "eb5f5ffebec49863253b5daa3953f321706306c5e2a3b1985f5ee41a458f16d6",
+  "artifact_id": "221892d4c9955a72183020c8c3f852f5dbb916cca2ec52d09b5be499e8630748",
+  "entry_registers": 144,
+  "spill_max": 0,
+  "stages": [
+    {
+      "stage": 1,
+      "body": "conv",
+      "mode": "gather",
+      "stage_ns": 283936,
+      "store_max_cta_ns": 49632,
+      "store_share": 0.17479995491941847
+    },
+    {
+      "stage": 2,
+      "body": "conv",
+      "mode": "normal",
+      "stage_ns": 350912,
+      "store_max_cta_ns": 42048,
+      "store_share": 0.11982491336859384
+    },
+    {
+      "stage": 4,
+      "body": "conv",
+      "mode": "normal",
+      "stage_ns": 187712,
+      "store_max_cta_ns": 26112,
+      "store_share": 0.13910671667234914
+    },
+    {
+      "stage": 5,
+      "body": "conv",
+      "mode": "normal",
+      "stage_ns": 299712,
+      "store_max_cta_ns": 28960,
+      "store_share": 0.09662609438394192
+    },
+    {
+      "stage": 7,
+      "body": "conv",
+      "mode": "normal",
+      "stage_ns": 176992,
+      "store_max_cta_ns": 24800,
+      "store_share": 0.14011932742722835
+    },
+    {
+      "stage": 8,
+      "body": "conv",
+      "mode": "normal",
+      "stage_ns": 278656,
+      "store_max_cta_ns": 24928,
+      "store_share": 0.08945796968305007
+    },
+    {
+      "stage": 9,
+      "body": "conv",
+      "mode": "normal",
+      "stage_ns": 248320,
+      "store_max_cta_ns": 23296,
+      "store_share": 0.09381443298969072
+    },
+    {
+      "stage": 11,
+      "body": "conv",
+      "mode": "normal",
+      "stage_ns": 155104,
+      "store_max_cta_ns": 16704,
+      "store_share": 0.10769548174128327
+    },
+    {
+      "stage": 12,
+      "body": "conv",
+      "mode": "normal",
+      "stage_ns": 249824,
+      "store_max_cta_ns": 15200,
+      "store_share": 0.06084283335468169
+    },
+    {
+      "stage": 13,
+      "body": "conv",
+      "mode": "normal",
+      "stage_ns": 220864,
+      "store_max_cta_ns": 14752,
+      "store_share": 0.06679223413503332
+    },
+    {
+      "stage": 15,
+      "body": "conv",
+      "mode": "normal",
+      "stage_ns": 94144,
+      "store_max_cta_ns": 3008,
+      "store_share": 0.03195105370496261
+    },
+    {
+      "stage": 16,
+      "body": "conv",
+      "mode": "normal",
+      "stage_ns": 93120,
+      "store_max_cta_ns": 3264,
+      "store_share": 0.03505154639175258
+    },
+    {
+      "stage": 17,
+      "body": "conv",
+      "mode": "normal",
+      "stage_ns": 92736,
+      "store_max_cta_ns": 2240,
+      "store_share": 0.024154589371980676
+    },
+    {
+      "stage": 19,
+      "body": "gemm",
+      "mode": "swapab",
+      "stage_ns": 138656,
+      "store_max_cta_ns": 736,
+      "store_share": 0.005308100623124856
+    },
+    {
+      "stage": 20,
+      "body": "gemm",
+      "mode": "swapab",
+      "stage_ns": 33344,
+      "store_max_cta_ns": 256,
+      "store_share": 0.007677543186180422
+    },
+    {
+      "stage": 21,
+      "body": "gemm",
+      "mode": "swapab",
+      "stage_ns": 60608,
+      "store_max_cta_ns": 256,
+      "store_share": 0.004223864836325237
+    }
+  ],
+  "triggered": true,
+  "decision": "DT-ST triggered by VGG stage store spans>10%; private quad transpose16B implementation under validation",
+  "bert_trace": {
+    "source": "runs/dnn3/f3_dtst_trace_v2/bert/native/result.json",
+    "spill_max": 88,
+    "gpu_executed": false,
+    "decision": "resource rejected; do not infer store share"
+  },
+  "limitation": "thread0 attribution; nested spans not additive; trace scheduling differs from non-trace E2E"
+}

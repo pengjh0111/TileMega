@@ -135,9 +135,18 @@
           "batch": 1,
           "status": "passed",
           "processes": 17,
-          "passes": "corr5/5; mem1/1; init1/1; race5/5; sync5/5",
+          "passes": "corr5/5;mem1/1;init1/1;race5/5;sync5/5",
           "source": "runs/dnn3/f3_fragment_v8/resnet18_b1/full_gate/raw/dnn3-f3-model-gates/attempt1/cohort/result.json",
           "sha256": "1b808b760658fad968e901dd3695fb7604bc5061b19ebd1d2f30d7868bb83346"
+        },
+        {
+          "model": "bert",
+          "batch": 16,
+          "status": "passed",
+          "processes": 17,
+          "passes": "corr5/5;mem1/1;init1/1;race5/5;sync5/5",
+          "source": "runs/dnn3/f3_fragment_v8/bert_b16/full_gate/raw/dnn3-f3-model-gates/attempt1/cohort/result.json",
+          "sha256": "aa412a0c305b76b5ceebed8a05dd93f8a69b921876d4f5b5de3deaa38e62e644"
         }
       ]
     }
@@ -160,5 +169,174 @@
       "sha256": "0d282bd8196360406cdd00b9dd50cca9003a351da1b6a5a73be0013626d67c6a"
     }
   ],
-  "production_promotion": "pending RN18 B1 and BERT/VGG B16 E2E smoke plus full gates"
+  "production_promotion": "rejected unconditional mapping: standalone required128x256 plain convolution spills740stores/1012loads; bounded map follow-up private",
+  "smoke": [
+    {
+      "model": "resnet18",
+      "batch": 1,
+      "gpu": 1,
+      "median_ms": 0.22761599719524384,
+      "reference_ms": 0.2236800044775,
+      "relative_change": 0.01759653361478608,
+      "source": "runs/dnn3/f3_fragment_v8/resnet18_b1/smoke_gpu1/result.json",
+      "sha256": "b039f583347f0449f15221277040b0b1a03acb5a249617f0e14bf24e2fc77bcb"
+    }
+  ],
+  "wide_probe": {
+    "source": "runs/dnn3/f3_wide_fragment_probe/result.json",
+    "sha256": "5237378a6f3a761a9e6019a35dfa905d4e3794d1cab19ae8e089659190996a2e",
+    "decision": "do not broaden legality; original288-thread entry still spills in11of12 isolated wide-chain probes; full models remain acceptance criterion",
+    "rows": [
+      {
+        "tm": 128,
+        "tn": 256,
+        "chain": "plain",
+        "exit_code": 0,
+        "spills": 100,
+        "registers": 168,
+        "source_sha256": "369b86efef58b30243d794317b8f83acc6fe35151b71da3ce7dc401356500ebd",
+        "log_sha256": "09c5f632e655da46f5374766d8c0fb3b4d659c0e819488c0a6a4f15f4b483176",
+        "gpu_executed": false
+      },
+      {
+        "tm": 128,
+        "tn": 256,
+        "chain": "bias_act",
+        "exit_code": 0,
+        "spills": 32,
+        "registers": 168,
+        "source_sha256": "659b8b89b815553b26edddb37e0bd6a160947c7d6b6cdd7ee99705367681db0f",
+        "log_sha256": "0ed87773f8010c614094387de0d8d7110c5926a72c647e793dbc3589828b8e7e",
+        "gpu_executed": false
+      },
+      {
+        "tm": 128,
+        "tn": 256,
+        "chain": "bias_res_act",
+        "exit_code": 0,
+        "spills": 1256,
+        "registers": 168,
+        "source_sha256": "b8b8f792b617932bcb0e753f08eb23942a76487262d8d696f9dcaac8d6d65dd1",
+        "log_sha256": "73b0982baa4840e5b757562e49427961ed23d76b9d8d49526df5034276a669d6",
+        "gpu_executed": false
+      },
+      {
+        "tm": 128,
+        "tn": 256,
+        "chain": "deferred_ln",
+        "exit_code": 0,
+        "spills": 84,
+        "registers": 168,
+        "source_sha256": "d3bb5fab915ceaed7d60cbeb21606dd6a83198a2314dfd065f10f929a0fd3726",
+        "log_sha256": "104f04c5e496ed4af7abc98b27ef0590384a563feb0c6414c2c329c29ea2c669",
+        "gpu_executed": false
+      },
+      {
+        "tm": 128,
+        "tn": 256,
+        "chain": "deferred_ln_gelu",
+        "exit_code": 0,
+        "spills": 40,
+        "registers": 168,
+        "source_sha256": "442d4234085c0265a20930855317c183a638bf3509c48a2a22df04e8990b3826",
+        "log_sha256": "3d360accfea334b17a513db111801d53aff85882e09b436904edd63caa172585",
+        "gpu_executed": false
+      },
+      {
+        "tm": 128,
+        "tn": 256,
+        "chain": "residual_ln_rowstats",
+        "exit_code": 0,
+        "spills": 252,
+        "registers": 168,
+        "source_sha256": "30c21cd478d256f46690e8e9ea9e5281d805e7c58129cd28a72fbe644f2dc1b6",
+        "log_sha256": "a16247166609c85948e19135870c577dec6b6ba40df8a36b1439c4b5fb186933",
+        "gpu_executed": false
+      },
+      {
+        "tm": 256,
+        "tn": 128,
+        "chain": "plain",
+        "exit_code": 0,
+        "spills": 0,
+        "registers": 168,
+        "source_sha256": "1616ec724c85a7ace565fcc3d4187f17296c760e1c4c36c0a3885ec9734d72c1",
+        "log_sha256": "712f6e00ef2a0ca82e173101d63dcf2b56585db70ed86dfbd570c21a93a54a50",
+        "gpu_executed": false
+      },
+      {
+        "tm": 256,
+        "tn": 128,
+        "chain": "bias_act",
+        "exit_code": 0,
+        "spills": 24,
+        "registers": 168,
+        "source_sha256": "4fec9daead5371adc551be5720cb794691dff1257a69eb88167bbb60bf3db149",
+        "log_sha256": "4ef2057c85e88b5398f058e69a7886630251fcc1a686633a31d7656a136caa45",
+        "gpu_executed": false
+      },
+      {
+        "tm": 256,
+        "tn": 128,
+        "chain": "bias_res_act",
+        "exit_code": 0,
+        "spills": 20,
+        "registers": 168,
+        "source_sha256": "e54a15c533422a75a83dc7aa8eef4c5dcd69436365a05e3d1411944f34441d01",
+        "log_sha256": "2b1ead0de55f43757339a83967ec8ec2e93066e6773eb184f5bb3ef735900452",
+        "gpu_executed": false
+      },
+      {
+        "tm": 256,
+        "tn": 128,
+        "chain": "deferred_ln",
+        "exit_code": 0,
+        "spills": 12,
+        "registers": 168,
+        "source_sha256": "31a112243feca0b6e2c5d5cf5ba2c225d55dcd9429f03b023d1cec87caffe1ba",
+        "log_sha256": "54a64c3cfe0221c6b500e03ddeddec08684f41b58ff77f9336245bd79dfe4bdb",
+        "gpu_executed": false
+      },
+      {
+        "tm": 256,
+        "tn": 128,
+        "chain": "deferred_ln_gelu",
+        "exit_code": 0,
+        "spills": 148,
+        "registers": 168,
+        "source_sha256": "a51d2b9fd93d707c9fdf2d9914f636f551a455db259f0d0285c1d9c63a4a4396",
+        "log_sha256": "616ff902e41c0bc3cd1fb83e0a087aa4764ed23d0547e2fff34c42f9715647cc",
+        "gpu_executed": false
+      },
+      {
+        "tm": 256,
+        "tn": 128,
+        "chain": "residual_ln_rowstats",
+        "exit_code": 0,
+        "spills": 92,
+        "registers": 168,
+        "source_sha256": "087c4dfa4b04d970254a430c2bb72151c58f67f83b3e1cd7957e3d94a2806045",
+        "log_sha256": "6cc71cdbdd3fb133b54e00ed46ff7196f8efba2d0ff52d0869a94e067e2aec8a",
+        "gpu_executed": false
+      }
+    ]
+  },
+  "unit_regression": {
+    "source": "runs/dnn3/f3_fragment_units_v8/body/ptxas.log",
+    "sha256": "8654292bca042ff7e221cf6c944e640af7887364f1dfebdc3c375c8085ed222e",
+    "stores": 740,
+    "loads": 1012,
+    "registers": 168,
+    "gpu_executed": false,
+    "shape": "M50176N256K64,128x256,plain"
+  },
+  "bounded_followup": {
+    "source": "runs/dnn3/f3_fragment_bounded_v8/result.json",
+    "state": "VGG B16 still spills320B; no promotion; body SAN cohort may still be running"
+  },
+  "full_thread_followup": {
+    "source": "runs/dnn3/f3_thread_units_v8/body/ptxas.log",
+    "sha256": "7b534a59471248a0f958d5f7928f5b45d94fee4f33d9a656a65a176a01a1c30a",
+    "state": "same standalone128x256 test spills740stores/1012loads; no promotion"
+  }
 }
