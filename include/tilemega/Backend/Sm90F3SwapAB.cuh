@@ -59,7 +59,7 @@ struct Sm90F3GemmSwapAB {
     return SlotWeight(arena,slot)+std::size_t(kTileN)*64;
   }
 
-  __device__ static __noinline__ void Preissue(Sm90F3GemmOperands const& p,
+  __device__ static __forceinline__ void Preissue(Sm90F3GemmOperands const& p,
       Sm90F3Ring& ring,Element* arena,Sm90F3Phase& phase) {
     if(int(threadIdx.x)==256 && int(blockIdx.x)<kTasks) {
       constexpr int prefix=Slots<kIterations?Slots:kIterations;
@@ -82,7 +82,7 @@ struct Sm90F3GemmSwapAB {
     __syncwarp();
   }
 
-  __device__ static __noinline__ void Produce(Sm90F3GemmOperands const& p,
+  __device__ static __forceinline__ void Produce(Sm90F3GemmOperands const& p,
       Sm90F3Ring& ring,Element* arena,char* side,Sm90F3Phase& phase,int prearmed) {
     if(int(threadIdx.x)!=256) {__syncwarp();return;}
     Base::ProxyAsyncGlobalFence();
@@ -138,7 +138,7 @@ struct Sm90F3GemmSwapAB {
     if constexpr(M<=8)ConsumeOutlined(p,ring,arena,side,phase,header,wg);
     else ConsumeImpl(p,ring,arena,side,phase,header,wg);
   }
-  __device__ static __noinline__ void ConsumeOutlined(Sm90F3GemmOperands const& p,
+  __device__ static __forceinline__ void ConsumeOutlined(Sm90F3GemmOperands const& p,
       Sm90F3Ring& ring,Element* arena,char* side,Sm90F3Phase& phase,
       Sm90F3Header* header,int wg) {
     ConsumeImpl(p,ring,arena,side,phase,header,wg);
@@ -180,7 +180,7 @@ struct Sm90F3GemmSwapAB {
         cute::warpgroup_fence_operand(accum.tile[0]);
         if(previous>=0) {
           __syncwarp();
-          if((threadIdx.x&31)==0)Base::Arrive(ring.empty+previous);
+          if((tilemega::backend::Sm90F3Async::ThreadIndex()&31)==0)Base::Arrive(ring.empty+previous);
         }
         previous=slot;
       }
@@ -188,7 +188,7 @@ struct Sm90F3GemmSwapAB {
       cute::warpgroup_fence_operand(accum.tile[0]);
       if(previous>=0) {
         __syncwarp();
-        if((threadIdx.x&31)==0)Base::Arrive(ring.empty+previous);
+        if((tilemega::backend::Sm90F3Async::ThreadIndex()&31)==0)Base::Arrive(ring.empty+previous);
       }
       TM_F3_TRACE_END(kMainLoop);
       if constexpr(SplitK==1)Epilogue(p,ring,side,phase,accum,owned,wg,n_tile);
@@ -237,7 +237,7 @@ struct Sm90F3GemmSwapAB {
     TM_F3_TRACE_END(kStore);
     if constexpr(kVectors>0) {
       Async::template NamedBarrier<Sm90F3Async::kBarConsumers,256>();
-      if((threadIdx.x&31)==0)Base::Arrive(&ring.side_empty);
+      if((tilemega::backend::Sm90F3Async::ThreadIndex()&31)==0)Base::Arrive(&ring.side_empty);
     }
     TM_F3_TRACE_END(kEpilogue);
   }
@@ -258,11 +258,11 @@ struct Sm90F3GemmSwapAB {
       int feature=wg*kWgRows+get<0>(owned(i)),row=get<1>(owned(i));
       // Warp bit 2 selects adjacent weight rows at the same activation row.
       float adjacent=__shfl_xor_sync(0xffffffffu,tile(i),4);
-      if((threadIdx.x&4)==0)
+      if((tilemega::backend::Sm90F3Async::ThreadIndex()&4)==0)
         Async::StorePartial2(base+std::size_t(row)*kTileN+feature,tile(i),adjacent);
     }
     Async::template NamedBarrier<Sm90F3Async::kBarConsumers,256>();
-    if(threadIdx.x==0) {
+    if(tilemega::backend::Sm90F3Async::ThreadIndex()==0) {
       auto old=Async::CounterAdd(p.epilogue.counters+n_tile,1);
       header->last_arriver=int(old+1)==SplitK;
       if(header->last_arriver)p.epilogue.counters[n_tile]=0;
@@ -273,7 +273,7 @@ struct Sm90F3GemmSwapAB {
         Base::Wait(&ring.side_full,phase.side_full&1u);
         phase.side_full^=1u;
         __syncwarp();
-        if((threadIdx.x&31)==0)Base::Arrive(&ring.side_empty);
+        if((tilemega::backend::Sm90F3Async::ThreadIndex()&31)==0)Base::Arrive(&ring.side_empty);
       }
       TM_F3_TRACE_END(kSplitK);
       return;
@@ -285,7 +285,7 @@ struct Sm90F3GemmSwapAB {
       #pragma unroll 1
       for(int sl=0;sl<SplitK;++sl) {
         float a=0,b=0;
-        if((threadIdx.x&4)==0)
+        if((tilemega::backend::Sm90F3Async::ThreadIndex()&4)==0)
           Async::LoadPartial2(p.epilogue.partial+
               (std::size_t(n_tile)*SplitK+sl)*kRows*kTileN+std::size_t(row)*kTileN+feature,a,b);
         b=__shfl_xor_sync(0xffffffffu,b,4);

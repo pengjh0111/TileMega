@@ -179,7 +179,7 @@ struct Sm90F3GlobalPool {
 
   __device__ static __forceinline__ void Consume(Sm90F3SmallOperands const& p,
       Sm90F3Ring&,char*,Sm90F3Phase&,Sm90F3Header*,int) {
-    float inverse=1.0f/float(p.rows);
+    float inverse=Sm90F3Async::DivideNormalization(1.0f,float(p.rows));
     long long items=1LL*Batch*p.channels;
     for(long long item=blockIdx.x*256+threadIdx.x;item<items;
         item+=1LL*gridDim.x*256) {
@@ -226,8 +226,8 @@ struct Sm90F3LayerNorm {
         sum+=__shfl_xor_sync(0xffffffffu,sum,offset);
         squares+=__shfl_xor_sync(0xffffffffu,squares,offset);
       }
-      float mean=sum/Channels;
-      float inverse=rsqrtf(squares/Channels-mean*mean+p.epsilon);
+      float mean=Sm90F3Async::DivideNormalization(sum,float(Channels));
+      float inverse=rsqrtf(Sm90F3Async::DivideNormalization(squares,float(Channels))-mean*mean+p.epsilon);
       for(int line=lane;line<kLines;line+=32) {
         auto octet=Sm90F3LoadOct(source+line*8);
         Sm90F3Oct out;

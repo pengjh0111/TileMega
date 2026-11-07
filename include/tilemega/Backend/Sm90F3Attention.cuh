@@ -39,9 +39,9 @@ struct Sm90F3Attention {
     return unsigned(Element(a).raw())|(unsigned(Element(b).raw())<<16);
   }
 
-  __device__ static __noinline__ void Produce(Sm90F3AttentionOperands const& p,
+  __device__ static __forceinline__ void Produce(Sm90F3AttentionOperands const& p,
       Sm90F3Ring& ring,char* arena,Sm90F3Phase& phase) {
-    if(threadIdx.x==256) {
+    if(tilemega::backend::Sm90F3Async::ThreadIndex()==256) {
       Base::ProxyAsyncGlobalFence();
       for(int local=0;local<LocalTasks();++local) {
         int task=int(blockIdx.x)+local*int(gridDim.x),slot=local%kSlots;
@@ -139,12 +139,12 @@ struct Sm90F3Attention {
         for(int e=0;e<4;++e) {
           int row=warp*16+lane/4+8*(e/2),col=block*8+2*(lane%4)+(e&1);
           p.output[(std::size_t(image)*Seq+row)*Heads*D+head*D+col]=
-              Element(output[block][e]/sum[e/2]);
+              Element(Async::DivideNormalization(output[block][e],sum[e/2]));
         }
       }
       TM_F3_TRACE_END(kStore);
       __syncwarp();
-      if(lane==0)Base::Arrive(ring.empty+slot);
+      if((tilemega::backend::Sm90F3Async::ThreadIndex()&31)==0)Base::Arrive(ring.empty+slot);
     }
   }
 };

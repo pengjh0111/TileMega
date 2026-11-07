@@ -13,7 +13,7 @@
 // so each step is one shared-memory read and one FP32 operation per element.
 //
 // Every step's arithmetic is the legacy chain's, operation for operation and
-// rounding for rounding (`Sm90ForwardEpilogue.cuh:60-68,92-104,251-262,284-309`),
+// rounding except the compensated FP32 normalization division,
 // so only the accumulation order of the contraction itself differs (§13 U9).
 namespace tilemega::backend {
 
@@ -79,8 +79,8 @@ struct Sm90F3SideLayout {
 __device__ __forceinline__ void Sm90F3RowNorm(float const* stats,int row,int width,
     float epsilon,float& mean,float& inverse) {
   float sum=stats[2*row],squares=stats[2*row+1];
-  mean=sum/float(width);
-  inverse=rsqrtf(squares/float(width)-mean*mean+epsilon);
+  mean=Sm90F3Async::DivideNormalization(sum,float(width));
+  inverse=rsqrtf(Sm90F3Async::DivideNormalization(squares,float(width))-mean*mean+epsilon);
 }
 
 // One element's chain. `row` and `col` are the element's coordinates inside

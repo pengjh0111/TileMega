@@ -118,7 +118,7 @@ struct Sm90F3Gemm {
 
   // ---- producer ------------------------------------------------------------
 
-  __device__ static __noinline__ void Preissue(Sm90F3GemmOperands const& p,
+  __device__ static __forceinline__ void Preissue(Sm90F3GemmOperands const& p,
       Sm90F3Ring& ring,Element* arena,Sm90F3Phase& phase) {
     if(int(threadIdx.x)==256 && int(blockIdx.x)<kTasks) {
       constexpr int prefix=Slots<kIterations?Slots:kIterations;
@@ -244,7 +244,7 @@ struct Sm90F3Gemm {
   // One arrival per consumer warp, after the warp's own WGMMA reads retired.
   __device__ static __forceinline__ void Release(Sm90F3Ring& ring,int slot) {
     __syncwarp();
-    if((threadIdx.x&31)==0)Base::Arrive(ring.empty+slot);
+    if((tilemega::backend::Sm90F3Async::ThreadIndex()&31)==0)Base::Arrive(ring.empty+slot);
   }
 
   // ---- producer side prefetch (§6.4 step 1) -------------------------------
@@ -407,7 +407,7 @@ struct Sm90F3Gemm {
     TM_F3_TRACE_END(kEpilogue);
     if constexpr(Chain::kNeedsResidual || kVectors>0 || Chain::kNeedsStats) {
       Async::template NamedBarrier<Sm90F3Async::kBarConsumers,256>();
-      if((threadIdx.x&31)==0)Base::Arrive(&ring.side_empty);
+      if((tilemega::backend::Sm90F3Async::ThreadIndex()&31)==0)Base::Arrive(&ring.side_empty);
     }
   }
 
@@ -432,7 +432,7 @@ struct Sm90F3Gemm {
           if constexpr(Split::kSplitN) {
             int row,col;
             Coordinate(wg,sub,get<0>(owned(2*r)),get<1>(owned(2*r)),row,col);
-            if(wg==1 && (lane&3)==0 && row<live_rows) {
+            if(wg==1 && (tilemega::backend::Sm90F3Async::ThreadIndex()&3)==0 && row<live_rows) {
               header->row_stats[row][0]=sums[r];header->row_stats[row][1]=squares[r];
             }
           }
@@ -443,7 +443,7 @@ struct Sm90F3Gemm {
         for(int r=0;r<2;++r) {
           int row,col;
           Coordinate(wg,sub,get<0>(owned(2*r)),get<1>(owned(2*r)),row,col);
-          if((lane&3)==0 && row<live_rows && (!Split::kSplitN || wg==0)) {
+          if((tilemega::backend::Sm90F3Async::ThreadIndex()&3)==0 && row<live_rows && (!Split::kSplitN || wg==0)) {
             float sum=sums[r],square=squares[r];
             if constexpr(Split::kSplitN) {
               sum+=header->row_stats[row][0];square+=header->row_stats[row][1];
@@ -459,7 +459,7 @@ struct Sm90F3Gemm {
       if constexpr(kTiles>1)__threadfence();
       Async::template NamedBarrier<Sm90F3Async::kBarConsumers,256>();
       if constexpr(kTiles>1) {
-        if(threadIdx.x==0) {
+        if(tilemega::backend::Sm90F3Async::ThreadIndex()==0) {
           auto old=Async::CounterAdd(e.row_counters+m_tile,1);
           header->last_arriver=int(old+1)==kTiles;
           if(header->last_arriver)e.row_counters[m_tile]=0;
@@ -594,7 +594,7 @@ struct Sm90F3Gemm {
 
   // The producer warp: the leader issues every transfer, and `prearmed` is how
   // many of the first task's k blocks the previous stage already armed (§5.6).
-  __device__ static __noinline__ void Produce(Sm90F3GemmOperands const& p,
+  __device__ static __forceinline__ void Produce(Sm90F3GemmOperands const& p,
       Sm90F3Ring& ring,Element* arena,char* side,Sm90F3Phase& phase,int prearmed) {
     if constexpr(Mode==Sm90F3Mode::kGather) {ProduceGather(p,ring,arena,side,phase);return;}
     if(int(threadIdx.x)!=256) {__syncwarp();return;}
@@ -635,7 +635,7 @@ struct Sm90F3Gemm {
       for(int k=0;k<kIterations;++k) {
         int slot=(local*kIterations+k)%Slots;
         // Lane 0 alone owns the slot's release phase; the warp then gathers.
-        if(lane==0) {
+        if((tilemega::backend::Sm90F3Async::ThreadIndex()&31)==0) {
           Base::Wait(ring.empty+slot,phase.Bit(phase.empty,slot));
           phase.empty^=1u<<slot;
         }
@@ -666,13 +666,13 @@ struct Sm90F3Gemm {
         Async::GatherCommit();
         // Every lane completes its own copies into the slot's gather barrier.
         Base::CompleteCopies(ring.gfull+slot);
-        if(lane==0) {
+        if((tilemega::backend::Sm90F3Async::ThreadIndex()&31)==0) {
           Base::ExpectTx(ring.gfull+slot,2*TN*64);
           Base::Bulk(SlotB(arena,slot),
               p.weight+(std::size_t(n_tile)*(K/64)+k)*TN*64,2*TN*64,ring.gfull+slot);
         }
       }
-      if(lane==0)ProduceSide(p,ring,side,phase,m_tile,n_tile,LiveRows(m_tile));
+      if((tilemega::backend::Sm90F3Async::ThreadIndex()&31)==0)ProduceSide(p,ring,side,phase,m_tile,n_tile,LiveRows(m_tile));
     }
     Async::template GatherWait<0>();
     __syncwarp();
@@ -723,7 +723,7 @@ struct Sm90F3Gemm {
       }
     }
     Async::template NamedBarrier<Sm90F3Async::kBarConsumers,256>();
-    if(threadIdx.x==0) {
+    if(tilemega::backend::Sm90F3Async::ThreadIndex()==0) {
       auto old=Async::CounterAdd(p.epilogue.counters+tile,1);
       header->last_arriver=int(old+1)==SplitK;
       if(header->last_arriver)p.epilogue.counters[tile]=0;
@@ -735,7 +735,7 @@ struct Sm90F3Gemm {
         Base::Wait(&ring.side_full,phase.side_full&1u);
         phase.side_full^=1u;
         __syncwarp();
-        if((threadIdx.x&31)==0)Base::Arrive(&ring.side_empty);
+        if((tilemega::backend::Sm90F3Async::ThreadIndex()&31)==0)Base::Arrive(&ring.side_empty);
       }
       TM_F3_TRACE_END(kSplitK);
       return;

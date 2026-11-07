@@ -221,14 +221,14 @@ struct Program {
     if constexpr(I+1<kStages) {
       if(consumer) {
         Async::template NamedBarrier<Async::kBarConsumers,256>();
-        if(threadIdx.x==0) {
+        if(tilemega::backend::Sm90F3Async::ThreadIndex()==0) {
           Async::GateArrive(&events[I].arrivals);
           Async::GateWait(&events[I].arrivals,epoch*gridDim.x);
         }
         Async::template NamedBarrier<Async::kBarGate,288>();
       }else {
         Async::template NamedBarrier<Async::kBarGate,288>();
-        if(threadIdx.x==256)Async::Base::ProxyAsyncGlobalFence();
+        if(tilemega::backend::Sm90F3Async::ThreadIndex()==256)Async::Base::ProxyAsyncGlobalFence();
         __syncwarp();
       }
     }
@@ -311,14 +311,14 @@ void sm90_forward_f3_kernel(const __grid_constant__ typename P::Binding b,
   // Thread zero initializes both arenas' barriers, one fence publishes them,
   // then every consumer warp primes the empty barriers so the producer's first
   // wait on phase 0 passes (§5.3 item 1).
-  if(threadIdx.x==0) {
+  if(tilemega::backend::Sm90F3Async::ThreadIndex()==0) {
     header->rings[0].Initialize();
     header->rings[1].Initialize();
     header->last_arriver=0;
     backend::Sm90F3Async::Base::InitFence();
   }
   __syncthreads();
-  if(threadIdx.x<256 && (threadIdx.x&31)==0) {
+  if(threadIdx.x<256 && (tilemega::backend::Sm90F3Async::ThreadIndex()&31)==0) {
     header->rings[0].Prime();
     header->rings[1].Prime();
   }
@@ -327,7 +327,7 @@ void sm90_forward_f3_kernel(const __grid_constant__ typename P::Binding b,
   if(threadIdx.x>=256)P::ProducerLoop(b,shared,events,epoch,sequence);
   else P::ConsumerLoop(b,shared,events,epoch,sequence);
   __syncthreads();
-  if(threadIdx.x==0) {header->rings[0].Invalidate();header->rings[1].Invalidate();}
+  if(tilemega::backend::Sm90F3Async::ThreadIndex()==0) {header->rings[0].Invalidate();header->rings[1].Invalidate();}
 }
 
 }  // namespace tilemega::codegen::forward_f3

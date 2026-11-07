@@ -19,6 +19,26 @@ struct Sm90F3Async {
     return value;
   }
 
+  // Positive finite F3 normalization denominators (row
+  // counts or softmax sums). Reciprocal and quotient residuals stay FP32.
+  // This avoids CUDA division slowpath calls that serialize WGMMA. It is
+  // compensated division, not a claim of general IEEE correctly-rounded div.
+  __device__ static __forceinline__ float DivideNormalization(float a,float b) {
+    float reciprocal;
+    asm("rcp.approx.ftz.f32 %0, %1;":"=f"(reciprocal):"f"(b));
+    reciprocal=__fmaf_rn(__fmaf_rn(-b,reciprocal,1.0f),reciprocal,reciprocal);
+    float quotient=__fmul_rn(a,reciprocal);
+    return __fmaf_rn(__fmaf_rn(-quotient,b,a),reciprocal,quotient);
+  }
+
+  // Recompute leader tests at their use. Caching them across a whole BERT
+  // kernel makes ptxas spill a packed predicate word despite spare FP32 regs.
+  __device__ static __forceinline__ unsigned ThreadIndex() {
+    unsigned value;
+    asm volatile("mov.u32 %0, %%tid.x;":"=r"(value));
+    return value;
+  }
+
   // Register attention operands use the SM80 warp MMA layout unchanged.
   __device__ static __forceinline__ void MatrixLoad4(unsigned (&r)[4],unsigned address) {
     asm volatile("ldmatrix.sync.aligned.m8n8.x4.shared.b16 {%0,%1,%2,%3}, [%4];"
