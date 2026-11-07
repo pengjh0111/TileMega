@@ -42,7 +42,8 @@ def seed(stage):
     c = dict(body=stage['body'], mode=stage['mode'], tile_m=64, tile_n=64,
              split_k=1, slots=2, tile_w=8, tile_h=8, channel_block=64, fused=False)
     if stage['body'] not in ('gemm', 'conv'):
-        if stage['body'] not in ('layout', 'pool', 'global_pool', 'layer_norm', 'embedding'):
+        if stage['body'] not in ('layout', 'pool', 'global_pool', 'layer_norm', 'embedding',
+                                 'encoder_attention'):
             raise ValueError('no §6.9 seed for body: ' + stage['body'])
         return c
     m, n, k = (stage[key] for key in ('m', 'n', 'k'))

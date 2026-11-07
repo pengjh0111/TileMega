@@ -4,7 +4,7 @@ import re
 
 BODIES = dict(layout='Sm90F3Layout', pool='Sm90F3MaxPool',
               global_pool='Sm90F3GlobalPool', layer_norm='Sm90F3LayerNorm',
-              embedding='Sm90F3EmbeddingSum')
+              embedding='Sm90F3EmbeddingSum', encoder_attention='Sm90F3Attention')
 
 
 def body_of(stage):
@@ -78,7 +78,8 @@ def dispatch(manifest, defines, source):
     for index, stage in enumerate(c['stages']):
         key = str(index)
         name = body_of(stage)
-        wrapper = 'GemmStage' if stage['body'] in ('gemm', 'conv') else 'SmallStage'
+        wrapper = ('GemmStage' if stage['body'] in ('gemm', 'conv') else
+                   'AttentionStage' if stage['body'] == 'encoder_attention' else 'SmallStage')
         if wrappers[key] != (key, wrapper, key, key, key) or bodies[key][1] != name:
             raise ValueError(f'F3 stage {index} runs another typed body')
         args = bodies[key][2].split(',')
@@ -92,11 +93,16 @@ def dispatch(manifest, defines, source):
         elif name == 'Sm90F3Layout':
             valid = len(args) == 2 and int(args[0]) > 0 and int(args[1]) == manifest['runtime_batch']
         elif name == 'Sm90F3MaxPool':
-            valid = len(args) == 6 and args[:4] == ['3', '3', '2', '1'] and int(args[5]) == manifest['runtime_batch']
+            valid = (len(args) == 6 and args[:4] in
+                     (['3', '3', '2', '1'], ['2', '2', '2', '0'])
+                     and int(args[4]) > 0 and int(args[4]) % 8 == 0
+                     and int(args[5]) == manifest['runtime_batch'])
         elif name == 'Sm90F3GlobalPool':
             valid = len(args) == 1 and int(args[0]) == manifest['runtime_batch']
         elif name == 'Sm90F3LayerNorm':
             valid = len(args) == 2 and int(args[0]) > 0 and int(args[1]) > 0
+        elif name == 'Sm90F3Attention':
+            valid = args == [str(manifest['runtime_batch']), '128', '64', '12']
         else:
             valid = len(args) == 1 and int(args[0]) > 0
         if not valid:

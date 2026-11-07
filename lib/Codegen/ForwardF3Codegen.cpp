@@ -35,7 +35,7 @@ using solver::Sm90F3ChainClass;
 // `Binding` carries operands F3 has no body for (depthwise filters, expand
 // weights, per-image input scales), so F3 emits its own trait.
 struct F3Binding {
-  unsigned map=kAbsent,residual_map=kAbsent;
+  unsigned map=kAbsent,residual_map=kAbsent,query_map=kAbsent,value_map=kAbsent;
   unsigned input=kAbsent,weight=kAbsent,output=kAbsent;
   unsigned partial=kAbsent,counters=kAbsent;
   unsigned vector[4]={kAbsent,kAbsent,kAbsent,kAbsent};
@@ -46,6 +46,7 @@ struct F3Binding {
     std::ostringstream out;
     out<<"struct Bind_"<<index<<" {\n  static constexpr unsigned kMap="<<Identifier(map)
        <<",kResidualMap="<<Identifier(residual_map)
+       <<",kQueryMap="<<Identifier(query_map)<<",kValueMap="<<Identifier(value_map)
        <<",\n      kInput="<<Identifier(input)<<",kWeight="<<Identifier(weight)
        <<",kOutput="<<Identifier(output)
        <<",\n      kPartial="<<Identifier(partial)<<",kCounters="<<Identifier(counters)
@@ -518,9 +519,33 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
         wrapper="SmallStage";
         break;
       }
+      case Sm90ForwardBody::kEncoderAttention: {
+        if(kind!="kEncoderAttention" || operand(2)!=kAbsent)
+          throw std::invalid_argument("F3 attention requires an unmasked encoder stage");
+        unsigned packed=operand(0);
+        bind.output=operand(1);
+        int sequence=int(Integer(stage,"width")),heads=int(Integer(stage,"extent"));
+        int head_dim=int(Integer(stage,"group"));
+        auto const& l=layouts.at(packed);
+        if(sequence!=128 || heads!=12 || head_dim!=64 || l.rank!=2 ||
+            l.physical[0]!=unsigned(model_batch*sequence) || l.physical[1]!=2304)
+          throw std::invalid_argument("F3 attention requires packed Bx128x12x3x64 QKV");
+        for(unsigned part=0;part<3;++part) {
+          MapSpec spec;
+          spec.buffer=packed;spec.rank=3;spec.offset=std::uint64_t(part)*head_dim;
+          spec.dims[0]=64;spec.dims[1]=12;spec.dims[2]=unsigned(model_batch*sequence);
+          spec.strides[0]=std::uint64_t(head_dim)*3*2;spec.strides[1]=l.strides[0]*2;
+          spec.box[0]=64;spec.box[1]=1;spec.box[2]=128;
+          auto id=maps.Add(spec);
+          if(part==0)bind.query_map=id;
+          else if(part==1)bind.map=id;
+          else bind.value_map=id;
+        }
+        body="Sm90F3Attention<"+std::to_string(model_batch)+",128,64,12>";
+        wrapper="AttentionStage";
+        break;
+      }
       default:
-        // Attention is the one remaining body (§7); everything else is a
-        // legacy-only kind the four DNN3 models never reach.
         throw std::invalid_argument("the F3 forward lowering does not implement the body "+
             std::string(solver::kSm90ForwardBodies[unsigned(c.body)]));
     }
