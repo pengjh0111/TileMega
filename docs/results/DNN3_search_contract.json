@@ -68,5 +68,16 @@
       "/root/TileMega-dnn3/runs/dnn3/takeover_20261107/plan_gate/bert_b8.bridge.json": "d8ffde167220d450dfbae6fa08cb99f3ee24a7b459e48aacc44e002191636be7",
       "/root/TileMega-dnn3/runs/dnn3/takeover_20261107/plan_gate/bert_b16.bridge.json": "b260f356c701dab087bcb97c191e4b71de804f2ab3fa47c78647c2b6dcb239de"
     }
+  },
+  "native_winner_gate": {
+    "evidence": "verified",
+    "status": "failed",
+    "cells": 20,
+    "zero_spill_certified": 8,
+    "spill_rejections": 10,
+    "identity_contract_repair_pending": 2,
+    "source": "runs/dnn3/f3_compile20_v6/result.json",
+    "sha256": "92bf270d85ee2e538ba127e40a232f011416d7d2f3365589de1569393551bf97",
+    "maxnreg224_repair": "rejected after actual zero residency; see DNN3_entry_registers.json"
   }
 }

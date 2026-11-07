@@ -47,7 +47,7 @@
   ],
   "source": "runs/dnn3/f3_entry_register_probe/result.json",
   "sha256": "a150d867b58ff1333e79e7aceae52c23a862b20b614ddc3e6d6b31aa46b5103d",
-  "promotion": "root maxnreg224 entry; same288-thread launch and R1 ABI; other native cells pending",
+  "promotion": "REJECTED and root entry reverted: zero-spill static224 cap can have zero residency for288 threads",
   "rn18_b1_smoke": {
     "evidence": "verified",
     "gpu": 1,
@@ -73,5 +73,18 @@
     "cost_values_unchanged": true,
     "isolated_target": "runs/dnn3/f3_constants_v6/entry_target.json",
     "target_sha256": "9699c458135eb01bdfe89bac37131dfd7e902d31939b59ee69a8806f5b755059"
+  },
+  "runtime_acceptance": "RN18 B1 launch/corr/SAN/smoke verified; does not establish launchability of high-register cells",
+  "runtime_rejection": {
+    "evidence": "verified",
+    "model": "vgg16",
+    "batch": 16,
+    "trace": true,
+    "ptxas_registers": 179,
+    "spill_bytes": 0,
+    "reason": "tm_plan_create rejects zero active blocks per SM for288 threads",
+    "source": "runs/dnn3/f3_dtst_trace_v1/vgg16/marks/scheduler/dnn3-marks.log",
+    "sha256": "6e9a3b5a8d1e7c67bc041297ef2f1271a7b3909c3276913b2d045e0d43695363",
+    "cancelled_cohort": "runs/dnn3/f3_compile80_v7/result.json"
   }
 }
