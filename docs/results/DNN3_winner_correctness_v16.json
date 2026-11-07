@@ -1,0 +1,189 @@
+{
+  "evidence": "verified",
+  "status": "passed",
+  "cells": 20,
+  "passes": "100/100 fresh child processes;5/5 per selected winner",
+  "rows": [
+    {
+      "model": "resnet18",
+      "batch": 1,
+      "gpu": 3,
+      "winner": 2,
+      "cell": "runs/dnn3/phase_z_rn18_gpu3_v18/resnet18/b1/raw/dnn3-phase-z-cell/attempt1/cell/result.json",
+      "gate": "runs/dnn3/phase_z_rn18_gpu3_v18/resnet18/b1/raw/dnn3-phase-z-cell/attempt1/cell/winner_corr/result.json",
+      "artifact_id": "b530c956ebbc97242be7b849374e5d4d70eb91ed385979b2a310ee4f83dc0b73"
+    },
+    {
+      "model": "resnet18",
+      "batch": 2,
+      "gpu": 3,
+      "winner": 1,
+      "cell": "runs/dnn3/phase_z_rn18_gpu3_v18/resnet18/b2/raw/dnn3-phase-z-cell/attempt1/cell/result.json",
+      "gate": "runs/dnn3/phase_z_rn18_gpu3_v18/resnet18/b2/raw/dnn3-phase-z-cell/attempt1/cell/winner_corr/result.json",
+      "artifact_id": "7221a716c821ab9cf235eac3eaaa587d688fdcfaf783b7780ec148a459dd94d3"
+    },
+    {
+      "model": "resnet18",
+      "batch": 4,
+      "gpu": 3,
+      "winner": 2,
+      "cell": "runs/dnn3/phase_z_rn18_gpu3_v18/resnet18/b4/raw/dnn3-phase-z-cell/attempt1/cell/result.json",
+      "gate": "runs/dnn3/phase_z_rn18_gpu3_v18/resnet18/b4/raw/dnn3-phase-z-cell/attempt1/cell/winner_corr/result.json",
+      "artifact_id": "748ec3412d4fde19068e4bb6cdbd2c056228d2631b362481ae1b1211146543f2"
+    },
+    {
+      "model": "resnet18",
+      "batch": 8,
+      "gpu": 3,
+      "winner": 1,
+      "cell": "runs/dnn3/phase_z_rn18_gpu3_v18/resnet18/b8/raw/dnn3-phase-z-cell/attempt1/cell/result.json",
+      "gate": "runs/dnn3/phase_z_rn18_gpu3_v18/resnet18/b8/raw/dnn3-phase-z-cell/attempt1/cell/winner_corr/result.json",
+      "artifact_id": "28a0b4b60dda53a193f949cfb8086f90673f2ac393d74bad03f786ee5bce9d5e"
+    },
+    {
+      "model": "resnet18",
+      "batch": 16,
+      "gpu": 3,
+      "winner": 1,
+      "cell": "runs/dnn3/phase_z_rn18_gpu3_v18/resnet18/b16/raw/dnn3-phase-z-cell/attempt1/cell/result.json",
+      "gate": "runs/dnn3/phase_z_rn18_gpu3_v18/resnet18/b16/raw/dnn3-phase-z-cell/attempt1/cell/winner_corr/result.json",
+      "artifact_id": "1028c8552790929b89b53300d7255459583ff07658abf42b5038b303ae6b2928"
+    },
+    {
+      "model": "resnet50",
+      "batch": 1,
+      "gpu": 0,
+      "winner": 0,
+      "cell": "runs/dnn3/phase_z_v16/resnet50/b1/raw/dnn3-phase-z-cell/attempt1/cell/result.json",
+      "gate": "runs/dnn3/phase_z_v16/resnet50/b1/raw/dnn3-phase-z-cell/attempt1/cell/winner_corr/result.json",
+      "artifact_id": "e8c4f6aa4e390e4e5b218200d1ad6108526d607a1bee4fea12209bdf424383b3"
+    },
+    {
+      "model": "resnet50",
+      "batch": 2,
+      "gpu": 0,
+      "winner": 0,
+      "cell": "runs/dnn3/phase_z_v16/resnet50/b2/raw/dnn3-phase-z-cell/attempt1/cell/result.json",
+      "gate": "runs/dnn3/phase_z_v16/resnet50/b2/raw/dnn3-phase-z-cell/attempt1/cell/winner_corr/result.json",
+      "artifact_id": "43c77b0a89a342557858f73dfebd856025995b1360ae7f5608bce13637e797a0"
+    },
+    {
+      "model": "resnet50",
+      "batch": 4,
+      "gpu": 0,
+      "winner": 1,
+      "cell": "runs/dnn3/phase_z_v16/resnet50/b4/raw/dnn3-phase-z-cell/attempt1/cell/result.json",
+      "gate": "runs/dnn3/phase_z_v16/resnet50/b4/raw/dnn3-phase-z-cell/attempt1/cell/winner_corr/result.json",
+      "artifact_id": "39d52f8530cce5e24b2b23de02578b1c34a5cf3e9b3d6165250a77cb21ecb62d"
+    },
+    {
+      "model": "resnet50",
+      "batch": 8,
+      "gpu": 0,
+      "winner": 1,
+      "cell": "runs/dnn3/phase_z_v16/resnet50/b8/raw/dnn3-phase-z-cell/attempt1/cell/result.json",
+      "gate": "runs/dnn3/phase_z_v16/resnet50/b8/raw/dnn3-phase-z-cell/attempt1/cell/winner_corr/result.json",
+      "artifact_id": "13f9e4e1870fb353b96574d2a2d807996adb2cddd73a83cb9879b2792ec56ce3"
+    },
+    {
+      "model": "resnet50",
+      "batch": 16,
+      "gpu": 0,
+      "winner": 2,
+      "cell": "runs/dnn3/phase_z_v16/resnet50/b16/raw/dnn3-phase-z-cell/attempt1/cell/result.json",
+      "gate": "runs/dnn3/phase_z_v16/resnet50/b16/raw/dnn3-phase-z-cell/attempt1/cell/winner_corr/result.json",
+      "artifact_id": "fc87d02342de46d63de3b970406583d7c809e57953c1da016133989a595370d6"
+    },
+    {
+      "model": "vgg16",
+      "batch": 1,
+      "gpu": 2,
+      "winner": 1,
+      "cell": "runs/dnn3/phase_z_v16/vgg16/b1/raw/dnn3-phase-z-cell/attempt1/cell/result.json",
+      "gate": "runs/dnn3/phase_z_v16/vgg16/b1/raw/dnn3-phase-z-cell/attempt1/cell/winner_corr/result.json",
+      "artifact_id": "322dcee022a88accea3a67cd32ec03929649953d7b1fd887837fdc94d547ce3f"
+    },
+    {
+      "model": "vgg16",
+      "batch": 2,
+      "gpu": 2,
+      "winner": 1,
+      "cell": "runs/dnn3/phase_z_v16/vgg16/b2/raw/dnn3-phase-z-cell/attempt1/cell/result.json",
+      "gate": "runs/dnn3/phase_z_v16/vgg16/b2/raw/dnn3-phase-z-cell/attempt1/cell/winner_corr/result.json",
+      "artifact_id": "309762c4f8fe548eacb94dd32cd7b81fc6180657735f4074ae0d476ec7d570bf"
+    },
+    {
+      "model": "vgg16",
+      "batch": 4,
+      "gpu": 2,
+      "winner": 1,
+      "cell": "runs/dnn3/phase_z_v16/vgg16/b4/raw/dnn3-phase-z-cell/attempt1/cell/result.json",
+      "gate": "runs/dnn3/phase_z_v16/vgg16/b4/raw/dnn3-phase-z-cell/attempt1/cell/winner_corr/result.json",
+      "artifact_id": "983813dea41e7137fec5e56c8b0d07bae3f91104fbf0bdc421362b21fc031dfb"
+    },
+    {
+      "model": "vgg16",
+      "batch": 8,
+      "gpu": 2,
+      "winner": 1,
+      "cell": "runs/dnn3/phase_z_v16/vgg16/b8/raw/dnn3-phase-z-cell/attempt1/cell/result.json",
+      "gate": "runs/dnn3/phase_z_v16/vgg16/b8/raw/dnn3-phase-z-cell/attempt1/cell/winner_corr/result.json",
+      "artifact_id": "b250ca96595a0855dbc62041194dd7e82f4572f79b072b5f9925ce0b673b0c8e"
+    },
+    {
+      "model": "vgg16",
+      "batch": 16,
+      "gpu": 2,
+      "winner": 1,
+      "cell": "runs/dnn3/phase_z_v16/vgg16/b16/raw/dnn3-phase-z-cell/attempt1/cell/result.json",
+      "gate": "runs/dnn3/phase_z_v16/vgg16/b16/raw/dnn3-phase-z-cell/attempt1/cell/winner_corr/result.json",
+      "artifact_id": "d709cf86cd9d9a18a5f11a5e695237218fc05b8b7c3a584756fee8aaa83f7cb4"
+    },
+    {
+      "model": "bert",
+      "batch": 1,
+      "gpu": 3,
+      "winner": 2,
+      "cell": "runs/dnn3/phase_z_v16/bert/b1/raw/dnn3-phase-z-cell/attempt1/cell/result.json",
+      "gate": "runs/dnn3/phase_z_v16/bert/b1/raw/dnn3-phase-z-cell/attempt1/cell/winner_corr/result.json",
+      "artifact_id": "cd53392ef42fcf59989df42e7a83e3e39437ff0620280a6b568da5898ec11893"
+    },
+    {
+      "model": "bert",
+      "batch": 2,
+      "gpu": 3,
+      "winner": 1,
+      "cell": "runs/dnn3/phase_z_v16/bert/b2/raw/dnn3-phase-z-cell/attempt1/cell/result.json",
+      "gate": "runs/dnn3/phase_z_v16/bert/b2/raw/dnn3-phase-z-cell/attempt1/cell/winner_corr/result.json",
+      "artifact_id": "4041f7999afb5b21d25c05747ef42acbca439f0901093c3fe13537cd487bded6"
+    },
+    {
+      "model": "bert",
+      "batch": 4,
+      "gpu": 3,
+      "winner": 1,
+      "cell": "runs/dnn3/phase_z_v16/bert/b4/raw/dnn3-phase-z-cell/attempt1/cell/result.json",
+      "gate": "runs/dnn3/phase_z_v16/bert/b4/raw/dnn3-phase-z-cell/attempt1/cell/winner_corr/result.json",
+      "artifact_id": "91ef45df174041e1c8251c1bc0f0b101ec396f8d485d6a0b75453b538713fc26"
+    },
+    {
+      "model": "bert",
+      "batch": 8,
+      "gpu": 3,
+      "winner": 1,
+      "cell": "runs/dnn3/phase_z_v16/bert/b8/raw/dnn3-phase-z-cell/attempt1/cell/result.json",
+      "gate": "runs/dnn3/phase_z_v16/bert/b8/raw/dnn3-phase-z-cell/attempt1/cell/winner_corr/result.json",
+      "artifact_id": "fd226bd814a02e3a803ebe7792873befda745dab01da3888cbd29a1dad75f577"
+    },
+    {
+      "model": "bert",
+      "batch": 16,
+      "gpu": 3,
+      "winner": 1,
+      "cell": "runs/dnn3/phase_z_v16/bert/b16/raw/dnn3-phase-z-cell/attempt1/cell/result.json",
+      "gate": "runs/dnn3/phase_z_v16/bert/b16/raw/dnn3-phase-z-cell/attempt1/cell/winner_corr/result.json",
+      "artifact_id": "a0ad031bfb65d622ec8a6d45bc3675be4845962670235837224c40e3a4c756b0"
+    }
+  ],
+  "timing_tables": "P-ANCHOR replacements still pending"
+}

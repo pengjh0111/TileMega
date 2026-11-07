@@ -67,11 +67,32 @@
           "action": "retain_frozen"
         }
       ]
+    },
+    {
+      "model": "resnet18",
+      "accepted_cells": 5,
+      "anchor_action": "resample_trt_tc_all_batches",
+      "anchor": "runs/dnn3/phase_z_rn18_gpu3_v18/resnet18/anchor/raw/dnn3-phase-z-anchor/attempt1/anchor/result.json",
+      "anchor_sha256": "900d8092f7ebc4d85d3d9ad05959694d8d01f941bf4f3866a3765638adda3030",
+      "endpoints": [
+        {
+          "batch": 1,
+          "frozen_ms": 0.20524799823760986,
+          "median_ms": 0.2157279998064041,
+          "action": "resample_trt_tc_all_batches"
+        },
+        {
+          "batch": 16,
+          "frozen_ms": 0.43880000710487366,
+          "median_ms": 0.41815999150276184,
+          "action": "resample_trt_tc_all_batches"
+        }
+      ]
     }
   ],
-  "resnet18": "whole unstarted model transferred from occupied GPU1 through blocked GPU0 to idle GPU3; no mixed-card cell; all raw handoffs retained",
+  "resnet18": "all5 cells and both anchors passed on GPU3; drift requires full TRT/TC resampling",
   "resnet18_lane": "runs/dnn3/phase_z_rn18_gpu3_v18",
   "assembly": "runs/dnn3/phase_z_v17",
-  "remaining": "RN18 P-SEL/P-CORR/P-DNN; measured-drift RN50/VGG full TRT/TC resampling; exact-winner stage ledgers; CP-Z report",
+  "remaining": "measured-drift RN18/RN50/VGG full TRT/TC resampling; exact-winner stage ledgers; CP-Z report",
   "qualification": "provisional_container_pid_namespace; ownership unverified; anchors do not change that qualification"
 }
