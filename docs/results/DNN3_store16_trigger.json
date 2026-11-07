@@ -138,7 +138,7 @@
     }
   ],
   "triggered": true,
-  "decision": "DT-ST triggered by VGG stage store spans>10%; private quad transpose16B implementation under validation",
+  "decision": "DT-ST triggered by valid VGG store spans>10%; bounded quad transpose accepted after correctness and four same-card E2E smokes",
   "bert_trace": {
     "source": "runs/dnn3/f3_dtst_trace_v2/bert/native/result.json",
     "spill_max": 88,
@@ -305,7 +305,7 @@
       ]
     }
   },
-  "production_promotion": "pending; RN50 B16 spills with unrestricted16B stores; v11 keeps4B for128-register accumulator fragments while testing16B on smaller fragments",
+  "production_promotion": "baecaa9a0; exact v11 unsigned fragment mapping and register-bounded16B stores;128-register accumulator fragments retain4B",
   "v11_terminal_gates": [
     {
       "group": "body",
@@ -338,6 +338,30 @@
       "processes": 5,
       "output_hash": null,
       "status": "passed"
+    },
+    {
+      "group": "tail",
+      "source": "runs/dnn3/f3_store16_bounded_v11/tail/raw/dnn3-store16-tail/attempt1/cohort/result.json",
+      "sha256": "1c3cce4d281f429d94a3027c41a637046a529bd70f3c1312636c0fb6fcdbb4d3",
+      "processes": 17,
+      "output_hash": "fff5718944c6f753",
+      "status": "passed"
+    },
+    {
+      "group": "bert_b16_accepted",
+      "source": "runs/dnn3/f3_store16_bounded_v11/bert_b16_accepted/acceptance_gate_gpu0/raw/dnn3-f3-model-gates/attempt1/cohort/result.json",
+      "sha256": "a7f6f20c36899165df68a5992b1a1dc4f18bae855f34f5e995801ff24e9949e2",
+      "processes": 17,
+      "output_hash": null,
+      "status": "passed"
+    },
+    {
+      "group": "vgg16_b16_accepted",
+      "source": "runs/dnn3/f3_store16_bounded_v11/vgg16_b16_accepted/acceptance_gate/raw/dnn3-f3-model-gates/attempt1/cohort/result.json",
+      "sha256": "a6fa7a227489de12f080f88790fba60744d86dceb597f47904d01a6885d6dfa6",
+      "processes": 17,
+      "output_hash": null,
+      "status": "passed"
     }
   ],
   "v11_sass": {
@@ -366,5 +390,49 @@
       }
     ]
   },
-  "v11_acceptance_pending": "BERT/VGG full model sanitizer; tail17; controlled same-GPU E2E smokes. All4 solved and3 accepted-coordinate builds zero spill; no ROOT promotion."
+  "v11_smokes": {
+    "resnet18_b1": {
+      "source": "runs/dnn3/f3_store16_bounded_v11/resnet18_b1/smoke_gpu1/result.json",
+      "sha256": "688890ff26969724e2ff45b4f1a7c481578c1b61aad33b60ce5c93ace6c7f78c",
+      "candidate_ms": 0.22411199659109116,
+      "reference_ms": 0.22368000447750092,
+      "ratio": 1.001931295175889,
+      "gpu": 1,
+      "reference_plan": "runs/dnn3/f3_solve_native_v6b/resnet18_b1/model.so.plan.json",
+      "coordinates_sha256": "270d12715168288c4397ec217b76152f78378b4438c28dde4d07ce72b0c5e2b2"
+    },
+    "bert_b16_accepted": {
+      "source": "runs/dnn3/f3_store16_bounded_v11/bert_b16_accepted/smoke_gpu3/result.json",
+      "sha256": "a85f4a24ad5850716805911f74581e7d58e2d6471f7fb14e4ba74ea4c76a9a3f",
+      "candidate_ms": 2.0910719633102417,
+      "reference_ms": 2.590943932533264,
+      "ratio": 0.8070695537072936,
+      "gpu": 3,
+      "reference_plan": "runs/dnn3/inline_div_predicate_v1/bert_b16/model.so.plan.json",
+      "coordinates_sha256": "fce884c71ac61913f3c1b8a45957efbe640d51305c4fdfa7aa3b8d526d710149"
+    },
+    "vgg16_b16_accepted": {
+      "source": "runs/dnn3/f3_store16_bounded_v11/vgg16_b16_accepted/smoke_gpu3/result.json",
+      "sha256": "d3ea1d7f47601d30aea7c3778d7f8a6b2596f6db7613aee2ef01bceb87696a97",
+      "candidate_ms": 2.2935839891433716,
+      "reference_ms": 2.4334239959716797,
+      "ratio": 0.9425336451601525,
+      "gpu": 3,
+      "reference_plan": "runs/dnn3/inline_roles_v1/vgg16_b16_narrow/model.so.plan.json",
+      "coordinates_sha256": "5d5c767c5a794c870ff48bc5b7a4c1fca971cafc87b3a7ca67f7935e469c237a"
+    },
+    "resnet50_b16_accepted": {
+      "source": "runs/dnn3/f3_store16_bounded_v11/resnet50_b16_accepted/smoke_gpu1/result.json",
+      "sha256": "8aad689f3df9a4fd74e19e7ab90e9530b317863690b6d3410a34e1d837fa3ca0",
+      "candidate_ms": 1.142848014831543,
+      "reference_ms": 1.3402880430221558,
+      "ratio": 0.8526883611186935,
+      "gpu": 1,
+      "reference_plan": "runs/dnn3/inline_div_predicate_v1/rn50_b16_compact/model.so.plan.json",
+      "coordinates_sha256": "e173da0da20d94376e2ad1b79605c0439293c19bc0cd3a673f86869dc7bc4c8b"
+    }
+  },
+  "v11_e2e_acceptance": "RN18 +0.193% within3% sentinel tolerance; BERT -19.293%,VGG -5.747%,RN50 -14.731%; original coordinates retained; nontrace50warm200 singleprocess; provisional PID namespace",
+  "header_sha256": "6f1e6e2e9ad8919af4dc792e4f24b6efedde47ce278d1eb565b087bdff3d46a3",
+  "fresh_calibration": "sixCPU families108 accepted standard probes plus2wide consumer-only split repairs; GPU1 collection running; productiontarget still has noF3table"
 }
