@@ -66,24 +66,56 @@ inline int Sm90ForwardArenaBytes(TargetSpec const& target,int residency) {
 // 64 FP32 spills once the chain also holds a residual tile and three vectors.
 // These shapes leave the legal set rather than run with spill traffic.
 //
-// `residual` is what costs the headroom: its shared read and the extra live
-// address per element are what push a 64-float accumulator over the ABI cap.
-inline bool Sm90F3TileFeasible(int tile_m,int tile_n,bool residual,int vectors,
-    bool row_stats) {
-  (void)vectors;
-  // Per-thread accumulator floats: a 64-row tile splits its columns, a taller
-  // one splits its rows and a 256-row tile holds two 64-row accumulators.
+// §9.2's epilogue classes. They key both the measured epilogue cost and the
+// register feasibility below, so a stage names its class exactly once.
+enum class Sm90F3ChainClass : unsigned {
+  kPlain, kBiasAct, kBiasResAct, kDeferredLn, kDeferredLnGelu,
+  kResidualLnRowStats, kSwapAbBiasAct
+};
+inline constexpr char const* kSm90F3ChainClasses[]={
+    "plain","bias_act","bias_res_act","deferred_ln","deferred_ln_gelu",
+    "residual_ln_rowstats","swapab_bias_act"};
+
+// DT-SPILL / §13 U1, measured by `scripts/dnn3_spill_sweep.py` on nvcc 12.8.93
+// over all 67 (tile, chain) shapes; receipts `runs/dnn3/spill/spill.json`
+// (before) and `runs/dnn3/spill_inline/spill.json` (after).
+//
+// The first sweep had `Consume` `__noinline__`, as §5.4 item 2 asks. ptxas then
+// caps it at 168 registers whatever ceiling the build passes, *and* reports
+// C7510 — the WGMMA pipeline is serialized across the call boundary, which is
+// the hazard `Sm90Gmma.h` already documents. Eighteen shapes spilled. With the
+// consumer inlined (producer stays out of line; it issues no WGMMA) only five
+// do, and 128x128 and 64x256 become legal for every chain.
+//
+// What remains illegal is a 128-float warpgroup accumulator paired with a
+// chain that needs more live state than the allocator has left. It is not a
+// closed formula — 256x128 keeps `bias_res_act` but loses `deferred_ln`, while
+// 128x256 is the other way round — so the measured pairs are listed, never
+// predicted.
+inline bool Sm90F3TileFeasible(int tile_m,int tile_n,Sm90F3ChainClass chain) {
   int wg_cols=tile_m==64?tile_n/2:tile_n;
   int sub_tiles=tile_m==256?2:1;
   int accumulator=sub_tiles*64*wg_cols/128;
-  if(accumulator>64)return false;
-  if(accumulator<64)return true;
-  // Measured: at a full 64-float accumulator a residual chain still fits while
-  // its warpgroup owns at most 64 columns and one accumulator, and spills once
-  // it owns 128 columns or a second accumulator with the row-statistics pass.
-  if(residual && wg_cols>=128)return false;
-  if(residual && row_stats && sub_tiles==2)return false;
+  if(accumulator>128)return false;
+  if(accumulator<128)return true;
+  using C=Sm90F3ChainClass;
+  if(tile_m==128 && tile_n==256)
+    return chain==C::kPlain || chain==C::kBiasAct || chain==C::kDeferredLn;
+  if(tile_m==256 && tile_n==128)
+    return chain==C::kPlain || chain==C::kBiasAct || chain==C::kBiasResAct ||
+        chain==C::kDeferredLnGelu;
   return true;
+}
+// The class of a chain, from what its steps need. Codegen and the solver call
+// this on the same plan chain, so neither can name a different class.
+inline Sm90F3ChainClass Sm90F3ClassOf(bool residual,bool deferred_norm,
+    bool residual_norm,bool row_stats,bool activation,bool swap_ab) {
+  using C=Sm90F3ChainClass;
+  if(swap_ab)return C::kSwapAbBiasAct;
+  if(residual_norm || (row_stats && residual))return C::kResidualLnRowStats;
+  if(deferred_norm)return activation?C::kDeferredLnGelu:C::kDeferredLn;
+  if(residual)return C::kBiasResAct;
+  return activation?C::kBiasAct:C::kPlain;
 }
 // F3 fixes the GAP producer's partial-sum granularity at 64 rows (DNN3 prompt
 // §4 F-7): one slot per (image, 64-row block). A dense M tile may straddle two

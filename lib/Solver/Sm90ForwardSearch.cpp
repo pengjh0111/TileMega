@@ -357,21 +357,25 @@ std::vector<Sm90ForwardStage> Sm90ForwardSearchSpace::Candidates(std::size_t ind
   bool f3=abi==Sm90ForwardAbi::kF3;
   // DT-SPILL: the measured register map keeps a spilling tile out of the legal
   // set entirely, so no candidate can reach a build that would spill.
-  bool residual=false,row_stats=false;int vectors=0;
+  auto chain_class=Sm90F3ChainClass::kPlain;
   if(f3) {
     auto const& g=s.dnn1_geometry;
+    bool residual=false,deferred=false,residual_norm=false,activation=false,row_stats=false;
     if(auto const* steps=g.Find("epilogue_steps"))
       for(auto const& step:steps->AsArray("epilogue steps")) {
         auto key=step.AsString("epilogue step");
-        if(key=="residual" || key=="residual_scaled" || key=="residual_ln")residual=true;
-        if(key=="bias" || key=="scale" || key=="residual_scaled")++vectors;
-        if(key=="deferred_ln" || key=="residual_ln")vectors+=2;
+        if(key=="residual" || key=="residual_scaled")residual=true;
+        else if(key=="residual_ln")residual_norm=true;
+        else if(key=="deferred_ln")deferred=true;
+        else if(key!="bias" && key!="scale")activation=true;
       }
     if(auto const* flag=g.Find("has_row_stats"))row_stats=flag->AsBool("has_row_stats");
+    chain_class=Sm90F3ClassOf(residual,deferred,residual_norm,row_stats,activation,
+        s.mode==Sm90ForwardMode::kSwapAB);
   }
   auto push=[&](Sm90ForwardStage c){c.body=s.body;c.mode=f3?s.mode:Sm90ForwardMode::kNormal;
       if(f3 && Matrix(s.body) && c.mode!=Sm90ForwardMode::kSwapAB &&
-         !Sm90F3TileFeasible(c.tile_m,c.tile_n,residual,vectors,row_stats))return;
+         !Sm90F3TileFeasible(c.tile_m,c.tile_n,chain_class))return;
       try{c.Validate(abi);}catch(std::invalid_argument const&){return;}result.push_back(c);};
   if(Matrix(s.body)) {
     // F3 swap-AB fixes the tile at 128 weight rows by all M rows, and admits a

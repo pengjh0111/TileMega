@@ -410,7 +410,7 @@ struct Sm90F3Gemm {
     __syncwarp();
   }
 
-  __device__ static __noinline__ void Consume(Sm90F3GemmOperands const& p,
+  __device__ static TILEMEGA_HOPPER_TASK_INLINE void Consume(Sm90F3GemmOperands const& p,
       Sm90F3Ring& ring,Element* arena,char* side,Sm90F3Phase& phase,
       Sm90F3Header* header,int wg) {
     int tasks=LocalTasks();
