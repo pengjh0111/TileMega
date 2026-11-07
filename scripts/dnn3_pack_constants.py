@@ -34,9 +34,23 @@ def main():
                    help='explicit ordered result files; later repaired probes replace earlier duplicate keys')
     p.add_argument('--target',type=Path,default=ROOT/'configs/targets/sm_90_h800.json')
     p.add_argument('--out',type=Path,required=True)
+    p.add_argument('--dependency-audit',type=Path,
+                   help='pre-change nvcc dependency proof for headers unused by every measured probe')
     args=p.parse_args()
     if args.out.resolve()==args.target.resolve():
         raise ValueError('pack to an isolated target; install only after the full20 solve/compile gate')
+    dependency=None;covered={};unused_changes={}
+    if args.dependency_audit:
+        dependency=json.loads(args.dependency_audit.read_text())
+        if (dependency['status']!='passed' or dependency['target_sha256']!=sha(args.target)
+                or dependency['script_sha256']!=sha(ROOT/'scripts/dnn3_calibration_dependencies.py')):
+            raise ValueError('dependency audit differs from the measured target or audit script')
+        for row in dependency['rows']:
+            if sha(Path(row['dependencies']))!=row['dependencies_sha256']:
+                raise ValueError('raw nvcc dependency evidence changed')
+            if any(sha(ROOT/'include'/name)!=digest for name,digest in row['headers'].items()):
+                raise ValueError('a measured probe dependency changed; remeasure it')
+            covered[(row['build_sha256'],row['binary_sha256'])]=row
     tables={};headers=None;sources=[];rejected=[];duplicates=[]
     for path in args.results:
         path=path.resolve();d=json.loads(path.read_text())
@@ -49,12 +63,18 @@ def main():
         build_path=Path(d['build']);build=json.loads(build_path.read_text())
         if sha(build_path)!=d['build_sha256']:
             raise ValueError('calibration build receipt changed')
+        if dependency and any((sha(build_path),p['binary_sha256']) not in covered
+                              for p in build['probes']):
+            raise ValueError('dependency audit omits a measured probe')
         current={}
         for name,digest in build['inputs'].items():
             source=Path(name)
             if '/include/' not in name:continue
             if sha(source)!=digest:
-                raise ValueError('calibration header changed: '+name)
+                relative=name.split('/include/',1)[1]
+                if not dependency or any(relative in r['headers'] for r in dependency['rows']):
+                    raise ValueError('calibration header changed: '+name)
+                unused_changes[relative]=dict(measured_sha256=digest,current_sha256=sha(source))
             relative=name.split('/include/',1)[1]
             if relative in current and current[relative]!=digest:
                 raise ValueError('duplicate header path with different contents')
@@ -93,6 +113,10 @@ def main():
         duplicate_resolution='last explicitly listed repaired result; no averaging or fastest selection',
         replaced_keys=duplicates,qualification='provisional_container_pid_namespace',
         by_gpu={'1':tables},coverage='measured keys only; full20 solve/compile acceptance is separate')
+    if dependency:
+        section['dependency_audit']=dict(source=str(args.dependency_audit.resolve()),
+            sha256=sha(args.dependency_audit),probes=len(dependency['rows']),
+            unused_header_changes=unused_changes)
     target=json.loads(args.target.read_text());native=target['sm90_native_constants']
     target['sm90_f3_constants']=section
     assert target['sm90_native_constants']==native
