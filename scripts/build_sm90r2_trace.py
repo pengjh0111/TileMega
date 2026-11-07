@@ -28,11 +28,11 @@ def main():
     a = p.parse_args()
     original, output = a.input.resolve(), a.out.resolve()
     runs = (ROOT / 'runs').resolve()
-    allowed = ('sm90r2', 'sm90r3', 'sm90r4', 'sm90r5')
+    allowed = ('sm90r2', 'sm90r3', 'sm90r4', 'sm90r5', 'sm90x1')
     if not any(output.is_relative_to(runs / r) for r in allowed) or output == original:
         p.error('diagnostic outputs belong under runs/' + ', runs/'.join(allowed))
     sys.path.insert(0, str(ROOT / 'python'))
-    from tilemega.build.identity import generate, verify, validate_snapshot_inputs
+    from tilemega.build.identity import generate, verify, validate_snapshot_inputs, digest
     identity = verify(original)
     source = dict(identity['source'])
     recorded = source['root']
@@ -75,6 +75,9 @@ def main():
     result = generate(output, source['root'], str(output) + '.source.json')
     if not result['trace']:
         raise ValueError('trace identity was not recorded')
+    result['performance_eligible'] = False
+    result['artifact_id'] = digest({k: v for k, v in result.items() if k != 'artifact_id'})
+    Path(str(output) + '.identity.json').write_text(json.dumps(result, indent=2) + '\n')
     record = dict(reference_artifact_id=identity['artifact_id'], trace_artifact_id=result['artifact_id'],
                   performance_eligible=False, native_phases=a.native_phases,
                   method='same generated program; boundary timestamps and optional native phase probes')
