@@ -338,5 +338,136 @@
     "source": "runs/dnn3/f3_thread_units_v8/body/ptxas.log",
     "sha256": "7b534a59471248a0f958d5f7928f5b45d94fee4f33d9a656a65a176a01a1c30a",
     "state": "same standalone128x256 test spills740stores/1012loads; no promotion"
+  },
+  "f3_fragment_bounded_v8": {
+    "source": "runs/dnn3/f3_fragment_bounded_v8/result.json",
+    "sha256": "69cfe6f07aa0483ddf524397911ff06b6aa087f499a68c1595039502c4db1245",
+    "rows": [
+      {
+        "name": "resnet18_b8",
+        "exit_code": 0,
+        "evidence": "verified",
+        "compile_exit": 0,
+        "spill_max": 0,
+        "register_max": 103,
+        "C7509": false,
+        "gpu_executed": false,
+        "artifact_id": "dc8ddf508401efd59717fc4e3b549f54ab8489c7c70d7b2dd3dde8a616575d1e"
+      },
+      {
+        "name": "resnet50_b4",
+        "exit_code": 0,
+        "evidence": "verified",
+        "compile_exit": 0,
+        "spill_max": 0,
+        "register_max": 120,
+        "C7509": false,
+        "gpu_executed": false,
+        "artifact_id": "d2b4412c5c7b9809adf63187c5a575fbb19cbfe91b4c87dea99537e9fd0f3887"
+      },
+      {
+        "name": "vgg16_b16",
+        "exit_code": 1,
+        "evidence": "verified",
+        "compile_exit": 0,
+        "spill_max": 320,
+        "register_max": 168,
+        "C7509": false,
+        "gpu_executed": false
+      },
+      {
+        "name": "bert_b16",
+        "exit_code": 0,
+        "evidence": "verified",
+        "compile_exit": 0,
+        "spill_max": 0,
+        "register_max": 168,
+        "C7509": false,
+        "gpu_executed": false,
+        "artifact_id": "58fdbedc89bec6dfe38baee5e8b555177f44dd433225cfcb5b9683884280f529"
+      },
+      {
+        "name": "resnet18_b1",
+        "exit_code": 0,
+        "evidence": "verified",
+        "compile_exit": 0,
+        "spill_max": 0,
+        "register_max": 64,
+        "C7509": false,
+        "gpu_executed": false,
+        "artifact_id": "49a6fb70e21bf9625c058042d75b3cc18c7afa7c3fb7445f89c599e2ac840a85"
+      }
+    ],
+    "production_promotion": "pending complete body/model gates and E2E preservation"
+  },
+  "f3_fragment_unsigned2_v10": {
+    "source": "runs/dnn3/f3_fragment_unsigned2_v10/result.json",
+    "sha256": "5fe03dd64c2a19cc896672b1220900e5880d9144453250f85cb1b8d11d6ad113",
+    "rows": [
+      {
+        "name": "resnet18_b8",
+        "exit_code": 0,
+        "evidence": "verified",
+        "compile_exit": 0,
+        "spill_max": 0,
+        "register_max": 144,
+        "C7509": false,
+        "gpu_executed": false,
+        "artifact_id": "dfcde88c58f38c21d493ca7fec60350919036490d7473fd7f06c47940105ab21"
+      },
+      {
+        "name": "resnet50_b16",
+        "exit_code": 0,
+        "evidence": "verified",
+        "compile_exit": 0,
+        "spill_max": 0,
+        "register_max": 168,
+        "C7509": false,
+        "gpu_executed": false,
+        "artifact_id": "4f7a69ada3f56ff82f4ddb179094db4c9302d1e384b7889a5dff69b6665d16d4"
+      },
+      {
+        "name": "vgg16_b16",
+        "exit_code": 0,
+        "evidence": "verified",
+        "compile_exit": 0,
+        "spill_max": 0,
+        "register_max": 166,
+        "C7509": false,
+        "gpu_executed": false,
+        "artifact_id": "3222eeb2eb08c5483ef58d4e54908011b30a80cf13516d88924d2d840dea6ec8"
+      },
+      {
+        "name": "bert_b16",
+        "exit_code": 0,
+        "evidence": "verified",
+        "compile_exit": 0,
+        "spill_max": 0,
+        "register_max": 168,
+        "C7509": false,
+        "gpu_executed": false,
+        "artifact_id": "3a5041f4d7c462cc58bccfcf7af84fd19e8562ea1b8da795a85d53dcb8917ee4"
+      },
+      {
+        "name": "resnet18_b1",
+        "exit_code": 0,
+        "evidence": "verified",
+        "compile_exit": 0,
+        "spill_max": 0,
+        "register_max": 90,
+        "C7509": false,
+        "gpu_executed": false,
+        "artifact_id": "faacf28828ed0465d833e684c9edfaaf30b67745fb723782fa898e4c144ce7f3"
+      }
+    ],
+    "production_promotion": "pending complete body/model gates and E2E preservation"
+  },
+  "unconditional_bert_smoke": {
+    "source": "runs/dnn3/f3_fragment_v8/bert_b16/smoke_gpu3/result.json",
+    "sha256": "4f4c363fb3a89db9e4ba3d3d0ca62a63c7aa55646e7b464b404fd873867e7367",
+    "median_ms": 3.013535976409912,
+    "previous_accepted_ms": 2.6066399812698364,
+    "relative_difference": 0.1560998059048624,
+    "decision": "not accepted: >3% slower; solved coordinates also differ, so this does not isolate the header change"
   }
 }

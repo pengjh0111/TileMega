@@ -145,5 +145,143 @@
     "gpu_executed": false,
     "decision": "resource rejected; do not infer store share"
   },
-  "limitation": "thread0 attribution; nested spans not additive; trace scheduling differs from non-trace E2E"
+  "limitation": "thread0 attribution; nested spans not additive; trace scheduling differs from non-trace E2E",
+  "tail_gate": {
+    "source": "runs/dnn3/f3_store16_v9/tail/raw/dnn3-store16-tail/attempt1/cohort/result.json",
+    "sha256": "c3105d58aa49a2b367384428cd42048df8ca8b97ec8c929f236bd48469022d92",
+    "cases_per_process": 384,
+    "passes": "unit5/5;mem1/1;init1/1;race5/5;sync5/5",
+    "output_hash": "fff5718944c6f753",
+    "binary_sha256": "611fb75504b63f637370e60dc3bf81eed1dc8b679bfd9949f207ed6a6298ca22",
+    "source_sha256": "81c19e29a40c6faa3ecbe5be10c3b6402858722aa3346cbacdc1186ef9695555"
+  },
+  "private_builds": {
+    "f3_store16_v9": {
+      "source": "runs/dnn3/f3_store16_v9/result.json",
+      "sha256": "e43732ebb7ad569333b5f5ad1d87851d3bdb969c96b8f8fff97ef83a7d38a154",
+      "rows": [
+        {
+          "name": "resnet18_b1",
+          "exit_code": 0,
+          "evidence": "verified",
+          "compile_exit": 0,
+          "spill_max": 0,
+          "register_max": 68,
+          "C7509": false,
+          "gpu_executed": false,
+          "artifact_id": "487c968caaaeb6d3f002cf82a640f4a309fd5cc732c9413a1b75c7129ed530fb"
+        },
+        {
+          "name": "resnet50_b16",
+          "exit_code": 1,
+          "evidence": "verified",
+          "compile_exit": 0,
+          "spill_max": 288,
+          "register_max": 168,
+          "C7509": false,
+          "gpu_executed": false
+        },
+        {
+          "name": "vgg16_b16",
+          "exit_code": 0,
+          "evidence": "verified",
+          "compile_exit": 0,
+          "spill_max": 0,
+          "register_max": 168,
+          "C7509": false,
+          "gpu_executed": false,
+          "artifact_id": "d6440f17dd516338857c7361f663902a97e9bead10541efbfa969c4dd8dd123d"
+        }
+      ]
+    },
+    "f3_store16_unsigned_v10": {
+      "source": "runs/dnn3/f3_store16_unsigned_v10/result.json",
+      "sha256": "4181ecaa12ffb1a888d272f1c1c437a2d807cbfd30fccbcbec12d4ef6ccabd19",
+      "rows": [
+        {
+          "name": "resnet18_b1",
+          "exit_code": 0,
+          "evidence": "verified",
+          "compile_exit": 0,
+          "spill_max": 0,
+          "register_max": 72,
+          "C7509": false,
+          "gpu_executed": false,
+          "artifact_id": "e2632b349c2550c2d6af642d884dd8f4e7e436a3b562688fa005bccb5a6c5f6c"
+        },
+        {
+          "name": "resnet50_b16",
+          "exit_code": 1,
+          "evidence": "verified",
+          "compile_exit": 0,
+          "spill_max": 836,
+          "register_max": 168,
+          "C7509": false,
+          "gpu_executed": false
+        },
+        {
+          "name": "vgg16_b16",
+          "exit_code": 0,
+          "evidence": "verified",
+          "compile_exit": 0,
+          "spill_max": 0,
+          "register_max": 168,
+          "C7509": false,
+          "gpu_executed": false,
+          "artifact_id": "b33d3884cb08f577b94efb47abd2538a46216f4a3dfe831c6a122585cd46fd74"
+        },
+        {
+          "name": "bert_b16",
+          "exit_code": 0,
+          "evidence": "verified",
+          "compile_exit": 0,
+          "spill_max": 0,
+          "register_max": 168,
+          "C7509": false,
+          "gpu_executed": false,
+          "artifact_id": "872cba46cb5150b778a52d9db1746b7934a9c4210393adcdd638a5dae3cf296f"
+        }
+      ]
+    },
+    "f3_store16_bounded_v11": {
+      "source": "runs/dnn3/f3_store16_bounded_v11/result.json",
+      "sha256": "9a84c943a9d87bd329056e09f280820b3819669cc82ac0bbe112dbbfb05c90cb",
+      "rows": [
+        {
+          "name": "resnet18_b1",
+          "exit_code": 0,
+          "evidence": "verified",
+          "compile_exit": 0,
+          "spill_max": 0,
+          "register_max": 72,
+          "C7509": false,
+          "gpu_executed": false,
+          "artifact_id": "fdae7a3d7c8b828c3740aebe970077889c84e66ea50661aad6cab24ce399e27d"
+        },
+        {
+          "name": "resnet50_b16",
+          "exit_code": 0,
+          "evidence": "verified",
+          "compile_exit": 0,
+          "spill_max": 0,
+          "register_max": 168,
+          "C7509": false,
+          "gpu_executed": false,
+          "artifact_id": "b4765c81162ec27356d3a97832df13c61bf36e0f143f79791f71cb27b493f5da"
+        },
+        {
+          "name": "vgg16_b16",
+          "exit_code": 0,
+          "evidence": "verified",
+          "compile_exit": 0,
+          "spill_max": 0,
+          "register_max": 166,
+          "C7509": false,
+          "gpu_executed": false,
+          "artifact_id": "1fc7eb16455ce9f65fccaf94cf93889442416ce2cc457fd531a582dbc9bb52ff"
+        }
+      ]
+    }
+  },
+  "production_promotion": "pending; RN50 B16 spills with unrestricted16B stores; v11 keeps4B for128-register accumulator fragments while testing16B on smaller fragments"
 }
