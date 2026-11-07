@@ -32,7 +32,7 @@
     "archive_bytes": 9758036,
     "system_compiler_runtime_driver_changed": false
   },
-  "acceptance": "RN50 B16 full17 nonblocking children pass; VGG16 B16 pending. No filter, suppression, launch-blocking or oracle change.",
+  "acceptance": "RN50 B16, VGG16 B16 and candidate maxnreg224 RN18 B1 each pass all17 nonblocking children. No filter, suppression, launch-blocking or oracle change.",
   "rn50_b16_acceptance": {
     "evidence": "verified",
     "status": "passed",
@@ -45,5 +45,46 @@
     "sha256": "1a6d2c12cc557b072a47218aae5d4694c44cba038bc7c43e4a93afd6665a400d",
     "tool": "2025.2.1.0",
     "binary_unchanged": true
-  }
+  },
+  "new_tool_gates": [
+    {
+      "case": "resnet50_b16_compact_san129",
+      "source": "runs/dnn3/inline_div_predicate_v1/rn50_b16_compact/full_gate_san129/raw/dnn3-f3-model-gates/attempt1/cohort/result.json",
+      "sha256": "1a6d2c12cc557b072a47218aae5d4694c44cba038bc7c43e4a93afd6665a400d",
+      "binary_sha256": "b4fdc570c92d208b87f3bc559c95151d58191d464ec6cd61fd57a17b9e18bdf7",
+      "dispatch_sha256": "ad9e30ff95dad4c4ae5ae038c538e8d5aa6f1509f5ca190d97d04c75e79fc308",
+      "status": "passed",
+      "numerical": "5/5",
+      "memcheck": "1/1",
+      "initcheck": "1/1",
+      "racecheck": "5/5",
+      "synccheck": "5/5"
+    },
+    {
+      "case": "vgg16_b16_narrow_inline_san129",
+      "source": "runs/dnn3/inline_roles_v1/vgg16_b16_narrow/full_gate_san129/raw/dnn3-f3-model-gates/attempt1/cohort/result.json",
+      "sha256": "9288de25731a4006827f49ec08f260145296d9e75934d4cf49979a4e6b051cc0",
+      "binary_sha256": "1af8ccda2e5ff6ca5eb880f61f0d4de6fe3e0eb85be10e40627b51eb7d80ea4b",
+      "dispatch_sha256": "0cfcfd1b7645e63107696265cb216136c14e55dace0ceff3d8a68655088c653b",
+      "status": "passed",
+      "numerical": "5/5",
+      "memcheck": "1/1",
+      "initcheck": "1/1",
+      "racecheck": "5/5",
+      "synccheck": "5/5"
+    },
+    {
+      "case": "resnet18_b1_measured_maxnreg224_san129",
+      "source": "runs/dnn3/f3_compile80_v7/resnet18_b1/candidate-0/full_gate_san129/raw/dnn3-f3-model-gates/attempt1/cohort/result.json",
+      "sha256": "df724e1c1c971a54a1fbc6639d4f53f490b45abdd1234f174473d2ae16ea90f2",
+      "binary_sha256": "b6c4423b1e51769537bc234f21a74792b014098768fc9b4b10d85fb37c388a87",
+      "dispatch_sha256": "6a142a4e275a17efc778177cbdf68fd77fae2cb42f5b8999cf8588f90f89bf30",
+      "status": "passed",
+      "numerical": "5/5",
+      "memcheck": "1/1",
+      "initcheck": "1/1",
+      "racecheck": "5/5",
+      "synccheck": "5/5"
+    }
+  ]
 }
