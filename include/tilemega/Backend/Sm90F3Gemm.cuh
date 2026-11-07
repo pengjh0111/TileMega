@@ -329,7 +329,7 @@ struct Sm90F3Gemm {
     PoolPartials(p,reinterpret_cast<char*>(arena_base),accumulators,owned,wg,
         m_tile,n_tile,live_rows,width);
     if constexpr(Chain::kNeedsResidual || kVectors>0 || Chain::kNeedsStats) {
-      __syncwarp();
+      Async::template NamedBarrier<Sm90F3Async::kBarConsumers,256>();
       if((threadIdx.x&31)==0)Base::Arrive(&ring.side_empty);
     }
   }

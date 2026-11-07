@@ -175,8 +175,10 @@ struct Sm90F3GemmSwapAB {
       float value=Chain::Apply(tile(i),row,feature,side,0.f,0.f,e);
       e.output[std::size_t(row)*e.output_stride+column]=Element(value);
     }
-    __syncwarp();
-    if((threadIdx.x&31)==0)Base::Arrive(&ring.side_empty);
+    if constexpr(kVectors>0) {
+      Async::template NamedBarrier<Sm90F3Async::kBarConsumers,256>();
+      if((threadIdx.x&31)==0)Base::Arrive(&ring.side_empty);
+    }
   }
 
   // The partial layout is [tile][slice][kRows][128]: the same fixed ascending
