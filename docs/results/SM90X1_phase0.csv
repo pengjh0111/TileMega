@@ -1,5 +1,5 @@
 cell,batch,pilot,status,accepted_tpot_ms,tpot_ms,change_pct,range_pct,processes,gpu,class,c1_pass,c2_pass,corr_status,hardware_rejected_units,guard_rejected_attempts
-qwen3_0_6b-B1,1,True,not_run,0.9286410440640744,,,,,,trial,,,hardware_rejected; awaiting_clean_unit,2,6
+qwen3_0_6b-B1,1,True,gate_pass,0.9286410440640744,0.9438172580489028,1.6342389862946005,0.7603717751163044,3,0,trial,True,True,passed,2,7
 qwen3_0_6b-B16,16,False,not_run,1.3762123969029398,,,,,,trial,,,not_run,0,0
 qwen3_1_7b-B1,1,False,not_run,1.6754311115689438,,,,,,trial,,,not_run,0,0
 qwen3_1_7b-B16,16,False,not_run,2.087255141776117,,,,,,trial,,,not_run,0,0
@@ -11,5 +11,5 @@ llama3_1_8b-B1,1,False,not_run,5.568147247305772,,,,,,trial,,,not_run,0,0
 llama3_1_8b-B16,16,True,gate_pass,5.869959058756244,5.86725115151425,-0.04613162059375897,0.017711261856848327,3,0,trial,True,True,passed,0,1
 mistral_7b_v0_3-B1,1,False,not_run,5.3308211231688665,,,,,,trial,,,not_run,0,0
 mistral_7b_v0_3-B16,16,False,not_run,5.61957944868311,,,,,,trial,,,not_run,0,0
-qwen3_30b_a3b-B1,1,False,not_run,3.7428,,,,,,machine,,,not_run,0,0
-qwen3_30b_a3b-B16,16,False,not_run,14.9315,,,,,,machine,,,not_run,0,0
+qwen3_30b_a3b-B1,1,False,not_run,3.7428,,,,,,trial,,,not_run,0,0
+qwen3_30b_a3b-B16,16,False,not_run,14.9315,,,,,,trial,,,not_run,0,0

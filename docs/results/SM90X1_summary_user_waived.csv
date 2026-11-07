@@ -1,0 +1,13 @@
+metric,batch,count,denominator,value,min,max,status,correctness_waived_cells,performance_eligible
+X,1,7,7,0.9854577718268717,0.9376489101041693,1.0214611806151506,complete,,True
+Xprime,1,7,7,0.9786399141726679,0.9400446784635306,1.0216418140575736,complete,,True
+Y,1,10,41,0.24390243902439024,,,complete,,True
+Yprime,1,14,41,0.34146341463414637,,,complete,,True
+X,16,7,7,1.0018150304125115,0.9990220568995324,1.0130837921968456,complete_under_user_waiver,qwen3_30b_a3b-B16,False
+Xprime,16,7,7,0.9983995995341611,0.9860033896953407,1.0017793443225342,complete_under_user_waiver,qwen3_30b_a3b-B16,False
+Y,16,2,41,0.04878048780487805,,,complete_under_user_waiver,qwen3_30b_a3b-B16,False
+Yprime,16,2,41,0.04878048780487805,,,complete_under_user_waiver,qwen3_30b_a3b-B16,False
+X,overall,14,14,0.993602741367486,0.9376489101041693,1.0214611806151506,complete_under_user_waiver,qwen3_30b_a3b-B16,False
+Xprime,overall,14,14,0.9884703831669098,0.9400446784635306,1.0216418140575736,complete_under_user_waiver,qwen3_30b_a3b-B16,False
+Y,overall,12,82,0.14634146341463414,,,complete_under_user_waiver,qwen3_30b_a3b-B16,False
+Yprime,overall,16,82,0.1951219512195122,,,complete_under_user_waiver,qwen3_30b_a3b-B16,False
