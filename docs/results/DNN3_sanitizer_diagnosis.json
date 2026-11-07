@@ -1,0 +1,49 @@
+{
+  "evidence": "verified",
+  "diagnostic_only": true,
+  "crash": {
+    "model": "resnet50",
+    "batch": 16,
+    "tool": "system CUDA12.8 compute-sanitizer racecheck",
+    "signal": "SIGSEGV",
+    "native_pc_library": "/usr/local/cuda-12.8/compute-sanitizer/libsanitizer-collection.so",
+    "first8_frames": "libsanitizer-collection.so",
+    "source": "runs/dnn3/inline_div_predicate_v1/rn50_b16_compact/race_native_stack/scheduler/dnn3-host-stack.log",
+    "sha256": "30711ed59abbe6f52f60a327b2d42c2593b21b006bed234ca4dabf3c77452fe7",
+    "debugger": "GNU gdb12.1, all-thread native backtrace",
+    "acceptance": "rejected: debugger wrapper can exit0 after inferior SIGSEGV; not a sanitizer pass"
+  },
+  "vendor_evidence": {
+    "evidence": "stated",
+    "source": "https://docs.nvidia.com/compute-sanitizer/ReleaseNotes/index.html#updates-in-2025-2-1",
+    "release": "2025.2.1",
+    "fix": "Racecheck corruption, crash or invalid results with cp.async.mbarrier.arrive synchronization"
+  },
+  "diagnosis": {
+    "evidence": "inferred",
+    "claim": "The vendor fix is relevant because F3 gather uses this synchronization instruction; exact internal crash cause is unproven"
+  },
+  "isolated_package": {
+    "version": "2025.2.1.0 build35969825",
+    "distribution": "cuda_sanitizer_api12.9.79",
+    "manifest_url": "https://developer.download.nvidia.com/compute/cuda/redist/redistrib_12.9.1.json",
+    "manifest_sha256": "8335301010b0023ee1ff61eb11e2600ca62002d76780de4089011ad77e0c7630",
+    "archive_sha256": "e23aad21132ff58b92a22aad372a7048793400b79c625665d325d4ecec6979bf",
+    "archive_bytes": 9758036,
+    "system_compiler_runtime_driver_changed": false
+  },
+  "acceptance": "RN50 B16 full17 nonblocking children pass; VGG16 B16 pending. No filter, suppression, launch-blocking or oracle change.",
+  "rn50_b16_acceptance": {
+    "evidence": "verified",
+    "status": "passed",
+    "numerical": "5/5",
+    "memcheck": "1/1",
+    "initcheck": "1/1",
+    "racecheck": "5/5",
+    "synccheck": "5/5",
+    "source": "runs/dnn3/inline_div_predicate_v1/rn50_b16_compact/full_gate_san129/raw/dnn3-f3-model-gates/attempt1/cohort/result.json",
+    "sha256": "1a6d2c12cc557b072a47218aae5d4694c44cba038bc7c43e4a93afd6665a400d",
+    "tool": "2025.2.1.0",
+    "binary_unchanged": true
+  }
+}
