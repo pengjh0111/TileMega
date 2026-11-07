@@ -27,6 +27,7 @@ def main():
     parser.add_argument('--inputs', type=Path, help='fixed safetensors inputs shared with timing')
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--device', type=int, default=1)
+    parser.add_argument('--cpu-set', default='128-135', help='NUMA0 functional worker cores')
     parser.add_argument('--python', type=Path,
                         default=Path('/root/TileMega/runs/r16/env/tensorrt-dnn/bin/python'))
     parser.add_argument('--execute', action='store_true')
@@ -135,7 +136,7 @@ def main():
         PYTHONPATH=str(ROOT / 'python'))
     queue = args.out / 'queue'
     queue.mkdir()
-    command = ['taskset', '-c', '128-135', *base, '--execute', '--out', '{attempt_dir}/cohort']
+    command = ['taskset', '-c', args.cpu_set, *base, '--execute', '--out', '{attempt_dir}/cohort']
     if args.sanitizers:
         command.append('--sanitizers')
     if args.diagnostic_tool:
