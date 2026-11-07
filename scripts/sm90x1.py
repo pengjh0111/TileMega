@@ -13,7 +13,7 @@ import time
 from sm90d1_common import ROOT, PYTHON, read, sha, write
 from sm90r4_inputs import extract, model_dir
 from sm90r4_fixed import native_command
-from sm90r4_dispatch import run_unit, claim, POLICY
+from sm90r4_dispatch import run_unit, claim, POLICY, watch, STALL_S
 from sm90r3_llm import environment, MODELS, PCI
 
 RUN = ROOT / 'runs/sm90x1'
@@ -204,6 +204,8 @@ def trace_cell(a,c,build_id,reference=False):
     if (unit / 'unit.json').exists():
         return
     unit.mkdir(parents=True, exist_ok=True)
+    attempt = unit / f'try{time.time_ns()}'
+    attempt.mkdir()
     gpu, handle = claim(c['class'], str(unit))
     try:
         policy = read(POLICY)
@@ -226,15 +228,19 @@ def trace_cell(a,c,build_id,reference=False):
                              needs_free_mib=32768, cwd=str(ROOT), after=previous,
                              env=environment(gpu, 'trial' if c['class']=='trial' else 'serial'), command=command))
             previous = [name]
-        write(unit / 'queue/queue_trace.json', jobs)
+        write(attempt / 'queue/queue_trace.json', jobs)
         env = dict(os.environ, **environment(gpu, 'trial' if c['class']=='trial' else 'serial'))
-        with (unit / 'scheduler.log').open('w') as log:
-            subprocess.check_call([PYTHON, '-m', 'tilemega.bench.scheduler', '--queue-dir',
-                                   str(unit / 'queue'), '--out', str(unit / 'scheduler'), '--policy',
+        with (attempt / 'scheduler.log').open('w') as log:
+            scheduler = subprocess.Popen([PYTHON, '-m', 'tilemega.bench.scheduler', '--queue-dir',
+                                   str(attempt / 'queue'), '--out', str(attempt / 'scheduler'), '--policy',
                                    str(POLICY), '--deadline-hours', '24'], cwd=ROOT, env=env,
-                                  stdout=log, stderr=subprocess.STDOUT)
-        state = read(unit / 'scheduler/state.json')
-        if any(r['status']!='done' for r in state.values()):
+                                  stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+            stalled = watch(scheduler, attempt / 'scheduler/state.json', c['class'], gpu, STALL_S)
+        if stalled:
+            write(attempt / 'abandoned.json', dict(reason='foreign occupancy while another allowed card was free'))
+            raise RuntimeError(f'trace unit stalled; claim released and evidence retained: {attempt}')
+        state = read(attempt / 'scheduler/state.json')
+        if scheduler.returncode or len(state)!=2 or any(r['status']!='done' for r in state.values()):
             raise RuntimeError(f'trace unit incomplete: {unit}')
         runs = [str(Path(r['out']) / 'job/trace') for r in state.values()]
         write(unit / 'unit.json', dict(gpu=gpu, runs=runs, processes=2, **{'class':c['class']},
