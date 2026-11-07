@@ -64,7 +64,9 @@ def main():
         headers=current
         source=dict(result=str(path.relative_to(ROOT)),sha256=sha(path),
                     build_sha256=sha(build_path),guard_sha256=sha(guard),method=d.get('method','see process records'))
-        sources.append(source);rejected.extend(d.get('rejected',build.get('rejected',[])))
+        sources.append(source)
+        rejected.extend(d.get('rejected',d.get('rejected_builds',
+            build.get('rejected',build.get('rejected_builds',[])))))
         for row in d['rows']:
             processes=row['processes'];metric=row['metric'];key=selector(row)
             if row['passes']!='5/5' or len(processes)!=5:
