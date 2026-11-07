@@ -86,7 +86,8 @@ def aggregate(unit, family, moe):
         stages.append(dict(s, ledger_us=st.median(p['stages'][index]['ledger_us'] for p in processes)))
     return dict(own_us=st.median(own), step_us=st.median(step),
                 own_us_range_pct=span(own), step_us_range_pct=span(step),
-                own_process_us=own, step_process_us=step, processes=len(processes), stages=stages)
+                own_process_us=own, step_process_us=step, processes=len(processes), stages=stages,
+                gpu=record['gpu'], **{'class':record['class']})
 
 
 def kendall(rows):

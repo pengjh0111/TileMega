@@ -72,7 +72,7 @@ def prepare(a):
         for family in families(c):
             for v in manifest['variants']:
                 if v['family']!=family:continue
-                v=dict(v,cell=c['cell'],family=family)
+                v=dict(v,cell=c['cell'],family=family,**{'class':c['class']})
                 if v['selected']:
                     key=json.dumps(v['coordinates'],sort_keys=True)
                     entry=plan.get(key)
@@ -163,7 +163,8 @@ def analyze(a):
                 for s in measured['stages']:
                     deltas.append(dict(cell=c['cell'],family=family,variant=row['variant'],
                                        stage=s['stage'],stage_kind=s['stage_kind'],stage_name=s['stage_name'],
-                                       delta_us=s['ledger_us']-reference_stages[s['stage']]['ledger_us']))
+                                       delta_us=s['ledger_us']-reference_stages[s['stage']]['ledger_us'],
+                                       gpu=measured['gpu'],**{'class':c['class']}))
             out.append(row)
         write(d/'analysis.json',out);write(d/'stage-deltas.json',deltas)
 
@@ -298,13 +299,15 @@ def tables(a):
             data=[dict(cell=c['cell'],family=f,variant='enumeration_failed',legal='',selected=False,
                        reason=failure_text) for f in families(c)]
         for r in data:
+            r['class']=c['class']
             if r.get('build_id'):
                 artifact=d/r['build_id']
                 r['build_status']='compiled' if (artifact/'binding.json').exists() else \
                     'failed' if (artifact/'build.json').exists() else 'not_run'
             if failure_text:r['failure_reason']=failure_text
         candidates+=data
-        if (diagnostic/'stage-deltas.json').exists():stages+=read(diagnostic/'stage-deltas.json')
+        if (diagnostic/'stage-deltas.json').exists():
+            stages += [dict(r, **{'class':c['class']}) for r in read(diagnostic/'stage-deltas.json')]
         for family in families(c):
             measured=[r for r in data if r['family']==family and r['selected'] and 'own_us' in r]
             for reversal in stats.reversals(measured):
@@ -353,10 +356,10 @@ def tables(a):
                     Yprime=int(decomposition(coords['L'],f)!=decomposition(coords['W'],f))))
     candidates_fields=['cell','family','variant','decomposition_key','coordinates_sha256','legal','reason',
         'predicted_stage_ns','predicted_step_ns','modeled_bytes','own_us','step_us','delta_own_us',
-        'delta_step_us','delta_coupled_us','processes','selected','own_us_range_pct','step_us_range_pct','build_status','failure_reason']
+        'delta_step_us','delta_coupled_us','processes','selected','own_us_range_pct','step_us_range_pct','gpu','class','build_status','failure_reason']
     stats.write_csv(RESULTS/'SM90X1_candidates.csv',candidates,candidates_fields)
     stats.write_csv(RESULTS/'SM90X1_stage_deltas.csv',stages,
-                    ['cell','family','variant','stage_kind','delta_us','stage','stage_name'])
+                    ['cell','family','variant','stage_kind','delta_us','stage','stage_name','gpu','class'])
     stats.write_csv(RESULTS/'SM90X1_arms.csv',arms_out,['cell','arm','coordinates_sha256','binary_sha256',
         'c1_pass','c2_pass','tpot_ms','range_pct','processes','change_vs_wstar_pct','decision_vs_wstar',
         'change_vs_w_pct','decision_vs_w','gpu','class','status','build_head','failure_reason'])
@@ -391,20 +394,27 @@ def tables(a):
         for metric in ['X','Xprime']:
             summary.append(dict(metric=metric+'_cell',cell=r['cell'],batch=r['batch'],value=r[metric],
                                 count=1,denominator=1,status='complete'))
+    for row in summary:
+        selected=[c for c in all_cells if
+                  (not row.get('cell') or row['cell']==c['cell']) and
+                  (row['batch']=='overall' or row['batch']==c['batch']) and
+                  (not row.get('family') or row['family'] in families(c))]
+        row['class']='+'.join(sorted({c['class'] for c in selected}))
     stats.write_csv(RESULTS/'SM90X1_summary.csv',summary,
-                    ['metric','batch','family','cell','count','denominator','value','min','max','status'])
+                    ['metric','batch','family','cell','count','denominator','value','min','max','status','class'])
     normalized=[]
     for row in arms_out:
         if row['status']=='measured':
             ref=next(r for r in arms_out if r['cell']==row['cell'] and r['arm']=='Wstar')
-            normalized.append(dict(cell=row['cell'],arm=row['arm'],normalized_tpot=row['tpot_ms']/ref['tpot_ms']))
-    stats.write_csv(RESULTS/'SM90X1_figure_arms.csv',normalized,['cell','arm','normalized_tpot'])
+            normalized.append(dict(cell=row['cell'],arm=row['arm'],normalized_tpot=row['tpot_ms']/ref['tpot_ms'],
+                                   gpu=row['gpu'],**{'class':row['class']}))
+    stats.write_csv(RESULTS/'SM90X1_figure_arms.csv',normalized,['cell','arm','normalized_tpot','gpu','class'])
     reversed_pairs.sort(key=lambda r:-r['strength_pct'])
     illustrative=list(dict.fromkeys(r['family'] for r in reversed_pairs))[:2]
     if len(illustrative)<2:
         illustrative=list(dict.fromkeys(illustrative+['qkv','attention']))[:2]
     stats.write_csv(RESULTS/'SM90X1_figure_scatter.csv',[r for r in candidates if r['family'] in illustrative and r.get('processes')],
-                    ['cell','family','variant','own_us','step_us','processes'])
+                    ['cell','family','variant','own_us','step_us','processes','gpu','class'])
     write(RUN/'rank-reversals.json',reversed_pairs)
     write(RUN/'main-complete.json',dict(complete=len(ratios)==14,measured=len(ratios),required=14))
     print(json.dumps(dict(measured_cells=len(ratios),required_cells=14,summary=summary[:4]),indent=2))
@@ -472,4 +482,29 @@ def tables(a):
                  '; two fresh processes, each compared with non-trace W in the same session.']
     report+=['[verified] The R3 rounded solver table was rechecked: 30 cells, c0/winner geometric mean '
              '1.004542368, maximum 1.053627213. The additive/independent-family comment remains in Sm90DenseSearch.cpp.']
+    environment=RUN/'software-environment.json'
+    if environment.exists():
+        env=read(environment)
+        report+=['## Environment','', '[verified] Host '+env['hostname']+'; '+env['cpu']+'; '+env['memory']+'.',
+                 '[verified] '+env['platform']+'; '+env['python']+'; Torch / Torch CUDA / Transformers: '+
+                 env['torch_cuda_transformers']['stdout'].strip()+'.',
+                 '[verified] GPU inventory and driver:\n\n```text\n'+env['gpu']['stdout'].strip()+'\n```',
+                 '[verified] CUDA compiler:\n\n```text\n'+env['cuda']['stdout'].strip()+'\n```']
+    report+=['## Required cells','', '[verified] TPOT in ms; unavailable fields are pending or failed.']
+    cell_table=['| Cell | W | L | W* | Status | Class |', '|---|---:|---:|---:|---|---|']
+    for c in all_cells:
+        arm_rows={r['arm']:r for r in arms_out if r['cell']==c['cell']}
+        values=[str(round(arm_rows[label]['tpot_ms'],6)) if arm_rows[label].get('tpot_ms') else '—'
+                for label in ('W','L','Wstar')]
+        statuses=', '.join(sorted({r['status'] for r in arm_rows.values()}))
+        cell_table.append('| '+c['cell']+' | '+' | '.join(values)+' | '+statuses+' | '+c['class']+' |')
+    report.append('\n'.join(cell_table))
+    report+=['', '## Family diagnostics','', '[verified, diagnostic] Pooled tau-b and coupled share across measured variants.',
+             ]
+    family_table=['| Family | Tau | Coupled share | Class |', '|---|---:|---:|---|']
+    for family in sorted({f for c in all_cells for f in families(c)}):
+        metrics={r['metric']:r for r in summary if r['batch']=='overall' and r.get('family')==family}
+        values=[str(round(metrics[m]['value'],6)) if metrics[m]['value']!='' else '—' for m in ('tau','coupled_share')]
+        family_table.append('| '+family+' | '+' | '.join(values)+' | '+metrics['tau']['class']+' |')
+    report.append('\n'.join(family_table))
     (RESULTS/'SM90X1_h800.md').write_text('\n\n'.join(report)+'\n')
