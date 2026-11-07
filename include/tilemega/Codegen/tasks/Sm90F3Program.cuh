@@ -303,7 +303,8 @@ struct Program {
 };
 
 template<class P>
-__global__ __launch_bounds__(288,1)
+// Explicit register budget avoids launch-bound spills in inline model bodies.
+__global__ __maxnreg__(224)
 void sm90_forward_f3_kernel(const __grid_constant__ typename P::Binding b,
     ForwardCounter* events,unsigned long long epoch) {
   extern __shared__ __align__(1024) char shared[];
