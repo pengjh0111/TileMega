@@ -16,11 +16,14 @@
 #ifndef DNN4_ATTN_ROWS
 #define DNN4_ATTN_ROWS 128
 #endif
+#ifndef DNN4_TASK_BATCH
+#define DNN4_TASK_BATCH 16
+#endif
 using namespace tilemega::backend;
 using E=cutlass::bfloat16_t;
 using U64=unsigned long long;
 constexpr int kKind=DNN4_TASK_KIND,kRows=DNN4_ATTN_ROWS;
-constexpr int kGrid=132,kSamples=32,kDiscard=8,kBatch=16;
+constexpr int kGrid=132,kSamples=32,kDiscard=8,kBatch=DNN4_TASK_BATCH;
 void Check(cudaError_t e){if(e!=cudaSuccess)throw std::runtime_error(cudaGetErrorString(e));}
 template<class T> struct Device {
  T* data;std::size_t count;

@@ -70,6 +70,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--target', type=Path, default=ROOT / 'configs/targets/sm_90_h800.json')
+    parser.add_argument('--attention-recheck', help='accepted five-process actual-batch recheck directory')
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=False)
     sources = {}
@@ -176,12 +177,23 @@ def main():
             sass_sha256=p['sass_sha256'], spill_bytes=p['spill_bytes'], qualification=p['qualification'])
 
     tasks, tasks_source = read('tasks', 'tasks_constants_v2')
+    attention_overrides = {}
+    if args.attention_recheck:
+        checked, checked_source = read('attention_recheck', args.attention_recheck)
+        for row in checked:
+            if row['probe'].get('kind') != 6:
+                raise ValueError('attention override contains another body')
+            attention_overrides[row['probe']['rows']] = (row, checked_source)
     for row in tasks:
         p = row['probe']
         kind = row['processes'][0]['measurement']['kind']
         attention = kind == 'attention'
+        source = tasks_source
+        if attention and p['rows'] in attention_overrides:
+            row, source = attention_overrides[p['rows']]
+            p = row['probe']
         add('f4_attention_ns' if attention else 'f4_small_ns',
-            dict(rows=p['rows']) if attention else dict(kind=kind), row['median_ns'], tasks_source,
+            dict(rows=p['rows']) if attention else dict(kind=kind), row['median_ns'], source,
             unit='ns/task' if attention else 'ns/work_item', sass_sha256=p['sass_sha256'])
 
     swap, swap_source = read('swap', 'swap_constants_v1')

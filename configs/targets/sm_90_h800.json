@@ -4030,6 +4030,11 @@
           "sha256": "5eb5181132f3f60b01de6c01631ab7616e2cba1ab4636382fd370ff87f7d2148",
           "build_sha256": "6385aacb854e5dc5bf784584bbe746eb35c57fdc91fa502be74f7b9530717a27"
         },
+        "attention_recheck": {
+          "path": "runs/dnn4/phase_c/attention_recheck_v1/raw/dnn4-attention-constant-recheck/attempt1/cal/result.json",
+          "sha256": "2631749a8ebcc74ae2382181ec23b2145e4c6b8a48b0957568ec28f55f76b074",
+          "build_sha256": "3356d9e01ff1aff700fab4b12d3318d16a10486e0b1b2c38ff84cdc01424ceba"
+        },
         "swap": {
           "path": "runs/dnn4/phase_c/swap_constants_v1/raw/dnn4-f4-swap-cal/attempt1/cal/result.json",
           "sha256": "2c90713c29a527ca01aa7f8a79f3af7ae9f79aa2def41dcda9eb41c449e91a7f",
@@ -4590,7 +4595,7 @@
         "kind=embedding": {"median":85.20646503762865,"unit":"ns/work_item","processes":5,"source":"runs/dnn4/phase_c/tasks_constants_v2/raw/dnn4-f4-task-cal/attempt1/cal/result.json","evidence":"verified","sass_sha256":"42cfa7b34bb56b2cd8ed4e19925bc7186467bea792f89bcd8ab78036447d2cee"}
       },
       "f4_attention_ns": {
-        "rows=16": {"median":1341.0505476022672,"unit":"ns/task","processes":5,"source":"runs/dnn4/phase_c/tasks_constants_v2/raw/dnn4-f4-task-cal/attempt1/cal/result.json","evidence":"verified","sass_sha256":"1dbc1ce073eebbe5b89e7b307b1ff047f381ffd085a2030aca26e42b2647166c"},
+        "rows=16": {"median":1734.349947770173,"unit":"ns/task","processes":5,"source":"runs/dnn4/phase_c/attention_recheck_v1/raw/dnn4-attention-constant-recheck/attempt1/cal/result.json","evidence":"verified","sass_sha256":"c7744e089d0c3fb358ae6cf0177722cceb863891ad94382d67d9d8a2dac1acee"},
         "rows=32": {"median":1378.539173051365,"unit":"ns/task","processes":5,"source":"runs/dnn4/phase_c/tasks_constants_v2/raw/dnn4-f4-task-cal/attempt1/cal/result.json","evidence":"verified","sass_sha256":"a2f6dd0574e69533516613e1a370daadce8d6ed4e4701780bfce8746b58c31ab"},
         "rows=64": {"median":1750.0031252481058,"unit":"ns/task","processes":5,"source":"runs/dnn4/phase_c/tasks_constants_v2/raw/dnn4-f4-task-cal/attempt1/cal/result.json","evidence":"verified","sass_sha256":"f90b252d0418129f80d495462870bcc7d6b9f7a13ef307f6448c86716489ef0e"},
         "rows=128": {"median":3064.1468862569286,"unit":"ns/task","processes":5,"source":"runs/dnn4/phase_c/tasks_constants_v2/raw/dnn4-f4-task-cal/attempt1/cal/result.json","evidence":"verified","sass_sha256":"73f43764a689e5a959b695c5315939a45d76a7dd1ae2c6e198c2ad1d315b71b3"}
