@@ -61,13 +61,26 @@ def main():
               ('GELU reciprocal B16', base/'gelu_rcp_models_v1/b16/experiment.json'),
               ('attention unroll B1', base/'attention_unroll_models_v2/b1/experiment.json'),
               ('FFN1 TM256 B16', base/'ffn1_tm256_b16_v1/experiment.json'),
-              ('Repeat P1 B8', base/'side_norm_alias_b8_v1/experiment.json')]
+              ('Repeat P1 B8', base/'side_norm_alias_b8_v1/experiment.json'),
+              ('binding arithmetic B1', base/'repeat_arithmetic_models_v1/b1/experiment.json'),
+              ('binding arithmetic B2', base/'repeat_arithmetic_models_v1/b2/experiment.json'),
+              ('Repeat P1 normalization B16', base/'repeat_side_norm_b16_v1/experiment.json')]
     rows = []
     choices = []
     for name, path in probes:
         if not path.exists():
             continue
         experiment = read(path)
+        if name.startswith('binding arithmetic'):
+            suite = ('repeat_arithmetic_odd_unit_v1' if experiment['batch'] == 1
+                     else 'repeat_arithmetic_alias_unit_v1')
+            unit = read(base/suite/'raw/dnn4-focused-f3-gates/attempt1/cohort/result.json')
+            if not unit['passed'] or len(unit['processes']) != 17 or any(p['exit_code'] for p in unit['processes']):
+                raise ValueError('arithmetic binding requires pattern reconstruction and unit/sanitizer gates')
+        if name == 'Repeat P1 normalization B16':
+            unit = read(base/'repeat_single_unit_v3/raw/dnn4-focused-f3-gates/attempt1/cohort/result.json')
+            if not unit['passed'] or len(unit['processes']) != 17 or any(p['exit_code'] for p in unit['processes']):
+                raise ValueError('B16 loop combination requires the separately qualified Repeat component gate')
         if name == 'FFN1 TM256 B16' or name == 'Repeat P1 B8':
             suites = (('ffn1_tm256_unit_v1',) if name.startswith('FFN1') else
                       ('side_norm_reg64_unit_v1', 'alias_repeat_reg64_unit_v1'))
@@ -304,6 +317,43 @@ def main():
               'existing CNN results and all60 baseline arms are reused. GPU ownership remains '
               'qualified by the container PID namespace. See DNN4_BERT_optimization.csv for identities, '
               'clocks, correctness receipts and raw timing sources.']
+    pending = []
+    for path in (base/'repeat_arithmetic_models_v1/b1', base/'repeat_arithmetic_models_v1/b2',
+                 base/'repeat_side_norm_b16_v1'):
+        if (path/'native/result.json').exists() and not (path/'experiment.json').exists():
+            identity = verify(path/'native/model.so')
+            state = read(path/f'correctness/{identity["artifact_id"][:20]}/scheduler/state.json')
+            reservation = state['dnn4-f3-model-gates']
+            gate = read(Path(reservation['out'])/'cohort/result.json')
+            if reservation['status'] != 'done' or gate['status'] != 'passed' or gate['passes'] != '5/5':
+                raise ValueError('pending candidate lacks complete strict correctness')
+            pending.append(path.name if path.name.startswith('repeat_') else 'binding arithmetic '+path.name)
+    if pending:
+        cpu = read(base/'host_build_v1/main_codegen_result.json')['cases']
+        if (len(cpu) != 4 or any(c['status'] != 'passed' or c['logical_stages'] != 63 or
+                                not c['invalid_arithmetic_rejected'] for c in cpu) or
+                '100% tests passed, 0 tests failed out of 7' not in
+                (base/'checkpoint_ctest_v7.log').read_text()):
+            raise ValueError('pending implementation lacks host codegen/ctest receipts')
+        lines += ['', 'Verified pending candidates: '+', '.join(pending)+'. '
+                  'All compile without spill and pass five fresh strict FP32/byte checks. '
+                  'Arithmetic remaps use only exactly verified constant, affine or period-two columns; '
+                  'irregular columns keep the original load. Odd56/224 and alias64/216 component cohorts '
+                  'each pass unit5/5 and sanitizer1/1/5/5, including absent and irregular index cases. '
+                  'Four real codegen cases preserve63 logical stages and reject invalid settings; '
+                  'the incremental host build and seven related ctest cases pass. '
+                  'The arithmetic feature stays explicitly selected and default0 pending complete GPU3 pairs. '
+                  'An additional GPU0 diagnostic is a recorded card-allocation deviation caused by '
+                  'prolonged foreign occupancy; it cannot replace G22 admission or the current accepted artifacts.']
+    diagnostic = base/'ncu_b16_v1/result.json'
+    if diagnostic.exists():
+        ncu = read(diagnostic)
+        if ncu['error'] != 'ERR_NVGPUCTRPERM' or ncu['settings_changed']:
+            raise ValueError('unexpected hardware-counter diagnostic state')
+        lines += ['', 'Verified hardware-counter diagnostic: ncu2025.1.1 exits1 with ERR_NVGPUCTRPERM; '
+                  'no counter samples are available and no device/driver settings were changed. '
+                  'Fresh host CMake configuration also fails because the external MLIR installation '
+                  'lacks obj.MLIRCAPIDebug/Debug.cpp.o. The existing configured incremental build succeeds.']
     current = args.out/'DNN4_BERT_current.csv'
     if current.exists():
         with current.open() as stream:
