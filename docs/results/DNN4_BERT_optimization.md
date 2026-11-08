@@ -44,6 +44,8 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | GELU reciprocal B1 | 3 | 0.483824 | 0.498944 | -3.125 | 6.581 | False |
 | GELU reciprocal B16 | 3 | 1.427840 | 1.415392 | +0.872 | 1.605 | False |
 | attention unroll B1 | 3 | 0.498944 | 0.495792 | +0.632 | 7.254 | False |
+| FFN1 TM256 B16 | 3 | 1.427968 | 1.635488 | -14.533 | 3.027 | False |
+| Repeat P1 B8 | 3 | 1.045552 | 1.037936 | +0.728 | 2.439 | False |
 
 Verified attention experiment: QK/PV columns were distributed across eight consumer warps without changing any output accumulation order. Per-head unit5/5 and sanitizer memcheck1/1, initcheck1/1, racecheck5/5, synccheck5/5 passed; whole-model outputs also matched the control byte for byte. Neither timing gain exceeded process variability, so the original header was restored. The initial driver added an unnecessary3% cutoff, which does not affect either rejection because both measured noise thresholds exceed3%. Frozen sources and the patch remain under runs/dnn4/bert_priority.
 
@@ -81,6 +83,8 @@ Verified middle-batch P1 normalization preserves accepted coordinates and passes
 Verified FFN2 TK128 retains split3 and the tile,using the largest legal six-slot ring. B1 model checks5/5 pass;GPU3 ratio1.033929,noise4.85% gives no gain,and accepted coordinates stay unchanged. Verified GELU reciprocal without Newton refinement passes the2^24-point grid and all finite BF16 values5/5 with max normalized error1.972e-7. The explicitly reserved GPU3 precision cohort is used; earlier scheduler-environment attempts are excluded. Unit5/5,sanitizer1/1/5/5 and B1/B16 model checks5/5 pass. The132-CTA three-task epilogue ratio is0.923058 over the current approximation on GPU3, but B1 E2E ratio1.031251 and B16 ratio0.991282 fail noise6.58%/1.60%. The prototype is archived and both production header and temporary gate option are restored.
 
 Verified attention QK contraction-loop unrolling preserves MMA order and passes per-head unit5/5 plus sanitizer1/1/5/5. The B1 program compiles without spill and passes model checks5/5, but its0.63% gain is below7.25% noise. The B16 program spills16B stores/244B loads and is never executed. Initial pragma-macro compilation failures are retained separately. The prototype header and temporary gate option are restored.
+
+Verified cooperative FFN1 TM256/TN128 uses two m64 fragments per WG,maximum legal four slots and register stores. Its exact NT12/spanning body passes unit5/5 and sanitizer1/1/5/5; the full B16 program is nonspilling and passes model checks5/5. GPU3 P-PAIR ratio1.145325 exceeds3.03% noise;reject and retain the accepted B16 coordinates. The B8 alias-safe loop combined with P1 normalization and64/216 also passes model checks5/5, but its0.73% gain fails2.44% noise and DT-CODE3%;retain the flat B8 winner.
 
 GPU3 foreign occupancy delayed additional same-card G22 probes; only our pending schedulers were cancelled, and fresh candidate/control pairs moved to authorized GPU2. The separately identified B1/B2/B16 follow-ups do not silently replace the earlier frozen20-cell collection. That BERT batch collection completed on GPU3: B1/B2/B4/B8/B16 =0.614016/0.695504/0.790144/1.043264/1.463168ms. None beats its frozen BF16 target. CNN collection is complete and paused; existing CNN results and all60 baseline arms are reused. GPU ownership remains qualified by the container PID namespace. See DNN4_BERT_optimization.csv for identities, clocks, correctness receipts and raw timing sources.
 

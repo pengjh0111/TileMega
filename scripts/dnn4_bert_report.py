@@ -59,13 +59,22 @@ def main():
               ('FFN2 TK128 B1', base/'ffn2_tk128_b1_v1/experiment.json'),
               ('GELU reciprocal B1', base/'gelu_rcp_models_v1/b1/experiment.json'),
               ('GELU reciprocal B16', base/'gelu_rcp_models_v1/b16/experiment.json'),
-              ('attention unroll B1', base/'attention_unroll_models_v2/b1/experiment.json')]
+              ('attention unroll B1', base/'attention_unroll_models_v2/b1/experiment.json'),
+              ('FFN1 TM256 B16', base/'ffn1_tm256_b16_v1/experiment.json'),
+              ('Repeat P1 B8', base/'side_norm_alias_b8_v1/experiment.json')]
     rows = []
     choices = []
     for name, path in probes:
         if not path.exists():
             continue
         experiment = read(path)
+        if name == 'FFN1 TM256 B16' or name == 'Repeat P1 B8':
+            suites = (('ffn1_tm256_unit_v1',) if name.startswith('FFN1') else
+                      ('side_norm_reg64_unit_v1', 'alias_repeat_reg64_unit_v1'))
+            for suite in suites:
+                unit = read(base/suite/'raw/dnn4-focused-f3-gates/attempt1/cohort/result.json')
+                if not unit['passed'] or len(unit['processes']) != 17 or any(p['exit_code'] for p in unit['processes']):
+                    raise ValueError('FFN1/Repeat combination requires its focused unit/sanitizer gates')
         if name.startswith('attention unroll'):
             unit = read(base/'attention_unroll_unit_v2/raw/dnn4-focused-f3-gates/attempt1/cohort/result.json')
             if not unit['passed'] or len(unit['processes']) != 17 or any(p['exit_code'] for p in unit['processes']):
@@ -280,6 +289,12 @@ def main():
               'but its0.63% gain is below7.25% noise. The B16 program spills16B stores/244B loads and is '
               'never executed. Initial pragma-macro compilation failures are retained separately. '
               'The prototype header and temporary gate option are restored.', '',
+              'Verified cooperative FFN1 TM256/TN128 uses two m64 fragments per WG,maximum legal four slots '
+              'and register stores. Its exact NT12/spanning body passes unit5/5 and sanitizer1/1/5/5; '
+              'the full B16 program is nonspilling and passes model checks5/5. GPU3 P-PAIR ratio1.145325 '
+              'exceeds3.03% noise;reject and retain the accepted B16 coordinates. The B8 alias-safe loop '
+              'combined with P1 normalization and64/216 also passes model checks5/5, but its0.73% gain '
+              'fails2.44% noise and DT-CODE3%;retain the flat B8 winner.', '',
               'GPU3 foreign occupancy delayed additional same-card G22 probes; only our pending '
               'schedulers were cancelled, and fresh candidate/control pairs moved to authorized GPU2. '
               'The separately identified B1/B2/B16 follow-ups do not silently replace the earlier frozen20-cell collection. '
