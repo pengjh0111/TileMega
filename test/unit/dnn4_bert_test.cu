@@ -16,6 +16,10 @@
 #include <array>
 #include <unordered_map>
 
+#ifndef TILEMEGA_F3_REGISTER_BUDGET
+#define TILEMEGA_F3_REGISTER_BUDGET 0
+#endif
+
 using namespace tilemega::backend;
 using E=cutlass::bfloat16_t;
 namespace ex=tilemega::codegen::executor;
@@ -80,9 +84,9 @@ __global__ __launch_bounds__(384,1) void Body(Sm90F3GemmOperands p,
   auto* arena=reinterpret_cast<E*>(shared+Sm90F3Budget::kArena0);
   auto* side=reinterpret_cast<char*>(arena)+G::kSideOffset;
   if(threadIdx.x>=256) {
-    Sm90F3Async::RegDealloc<56>();G::Produce(p,h->rings[0],arena,side,phase,0);
+    Sm90F3Async::RegDealloc<(TILEMEGA_F3_REGISTER_BUDGET?64:56)>();G::Produce(p,h->rings[0],arena,side,phase,0);
   }else {
-    Sm90F3Async::RegAlloc<224>();G::Consume(p,h->rings[0],arena,side,phase,h,int(threadIdx.x)/128);
+    Sm90F3Async::RegAlloc<(TILEMEGA_F3_REGISTER_BUDGET?216:224)>();G::Consume(p,h->rings[0],arena,side,phase,h,int(threadIdx.x)/128);
   }
   __syncthreads();
   if(threadIdx.x==0) {h->rings[0].Invalidate();h->rings[1].Invalidate();}

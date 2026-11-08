@@ -128,8 +128,8 @@ def main():
     parser.add_argument('--case', choices=('all', 'gather', 'pool', 'split', 'conv', 'swap', 'small'), default='all')
     parser.add_argument('--execute', action='store_true')
     options = parser.parse_args()
-    if options.register_budget and options.suite not in ('repeat', 'repeat_odd', 'repeat_alias'):
-        parser.error('--register-budget requires a Repeat suite')
+    if options.register_budget and options.suite not in ('repeat', 'repeat_odd', 'repeat_alias', 'bert_side_norm'):
+        parser.error('--register-budget requires a Repeat or BERT side-normalization suite')
     if options.execute:
         return execute(options)
     out = options.out.resolve()
