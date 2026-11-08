@@ -58,13 +58,18 @@ def main():
               ('P1 normalization B8', base/'side_norm_middle_v1/b8/experiment.json'),
               ('FFN2 TK128 B1', base/'ffn2_tk128_b1_v1/experiment.json'),
               ('GELU reciprocal B1', base/'gelu_rcp_models_v1/b1/experiment.json'),
-              ('GELU reciprocal B16', base/'gelu_rcp_models_v1/b16/experiment.json')]
+              ('GELU reciprocal B16', base/'gelu_rcp_models_v1/b16/experiment.json'),
+              ('attention unroll B1', base/'attention_unroll_models_v2/b1/experiment.json')]
     rows = []
     choices = []
     for name, path in probes:
         if not path.exists():
             continue
         experiment = read(path)
+        if name.startswith('attention unroll'):
+            unit = read(base/'attention_unroll_unit_v2/raw/dnn4-focused-f3-gates/attempt1/cohort/result.json')
+            if not unit['passed'] or len(unit['processes']) != 17 or any(p['exit_code'] for p in unit['processes']):
+                raise ValueError('attention unroll requires unit5 and sanitizer1/1/5/5')
         if name.startswith('GELU reciprocal'):
             precision = read(base/'gelu_rcp_accuracy_v1/gpu3_v2/raw/dnn4-gelu-rcp-accuracy-gpu3/attempt1/probe/result.json')
             unit = read(base/'gelu_rcp_unit_v1/raw/dnn4-focused-f3-gates/attempt1/cohort/result.json')
@@ -270,6 +275,11 @@ def main():
               'The132-CTA three-task epilogue ratio is0.923058 over the current approximation on GPU3, '
               'but B1 E2E ratio1.031251 and B16 ratio0.991282 fail noise6.58%/1.60%. '
               'The prototype is archived and both production header and temporary gate option are restored.', '',
+              'Verified attention QK contraction-loop unrolling preserves MMA order and passes per-head unit5/5 '
+              'plus sanitizer1/1/5/5. The B1 program compiles without spill and passes model checks5/5, '
+              'but its0.63% gain is below7.25% noise. The B16 program spills16B stores/244B loads and is '
+              'never executed. Initial pragma-macro compilation failures are retained separately. '
+              'The prototype header and temporary gate option are restored.', '',
               'GPU3 foreign occupancy delayed additional same-card G22 probes; only our pending '
               'schedulers were cancelled, and fresh candidate/control pairs moved to authorized GPU2. '
               'The separately identified B1/B2/B16 follow-ups do not silently replace the earlier frozen20-cell collection. '
