@@ -84,9 +84,9 @@ __global__ __launch_bounds__(384,1) void Body(Sm90F3GemmOperands p,
   auto* arena=reinterpret_cast<E*>(shared+Sm90F3Budget::kArena0);
   auto* side=reinterpret_cast<char*>(arena)+G::kSideOffset;
   if(threadIdx.x>=256) {
-    Sm90F3Async::RegDealloc<(TILEMEGA_F3_REGISTER_BUDGET?64:56)>();G::Produce(p,h->rings[0],arena,side,phase,0);
+    Sm90F3Async::RegDealloc<(TILEMEGA_F3_REGISTER_BUDGET==2?72:(TILEMEGA_F3_REGISTER_BUDGET?64:56))>();G::Produce(p,h->rings[0],arena,side,phase,0);
   }else {
-    Sm90F3Async::RegAlloc<(TILEMEGA_F3_REGISTER_BUDGET?216:224)>();G::Consume(p,h->rings[0],arena,side,phase,h,int(threadIdx.x)/128);
+    Sm90F3Async::RegAlloc<(TILEMEGA_F3_REGISTER_BUDGET==2?208:(TILEMEGA_F3_REGISTER_BUDGET?216:224))>();G::Consume(p,h->rings[0],arena,side,phase,h,int(threadIdx.x)/128);
   }
   __syncthreads();
   if(threadIdx.x==0) {h->rings[0].Invalidate();h->rings[1].Invalidate();}
@@ -239,6 +239,17 @@ template<int B> void SmallBertCase() {
 
 int main(int,char**) try {
   std::cout<<std::unitbuf;
+#if TILEMEGA_F3_REGISTER_BUDGET == 2
+  DenseCase<1024,2304,768,256,96,1,0,1>();
+  DenseCase<1024,2304,768,128,192,1,0,12>();
+  DenseCase<1024,3072,768,128,96,1,2,12>();
+  DenseCase<1024,768,3072,128,64,1,1,12>();
+  DenseCase<1024,768,768,128,64,1,1,12>();
+  DenseCase<2048,2304,768,128,96,1,0,12>();
+  DenseCase<2048,3072,768,128,128,1,2,12>();
+  DenseCase<2048,768,3072,128,128,1,1,12>();
+  DenseCase<2048,768,768,128,128,1,1,12>();
+#else
   DenseCase<128,2304,768,128,64,3,0>();
   DenseCase<2048,2304,768,128,128,1,0>();
   DenseCase<128,768,768,128,64,6,1>();
@@ -258,5 +269,6 @@ int main(int,char**) try {
   DenseCase<128,768,768,128,192,1,1>();
   DenseCase<512,768,768,256,96,1,0>();
   SmallBertCase<1>();SmallBertCase<16>();
+#endif
   std::cout<<"output_hash="<<std::hex<<hash<<'\n';return 0;
 }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}

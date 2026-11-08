@@ -124,7 +124,7 @@ def main():
     parser.add_argument('--cpu-set', default='120-127', help='NUMA0 functional worker cores')
     parser.add_argument('--build', type=Path)
     parser.add_argument('--suite', choices=tuple(SOURCES), default='body')
-    parser.add_argument('--register-budget', type=int, choices=(0, 1), default=0)
+    parser.add_argument('--register-budget', type=int, choices=(0, 1, 2), default=0)
     parser.add_argument('--repeat-arithmetic', action='store_true')
     parser.add_argument('--case', choices=('all', 'gather', 'pool', 'split', 'conv', 'swap', 'small'), default='all')
     parser.add_argument('--execute', action='store_true')
@@ -164,7 +164,7 @@ def main():
     if options.suite == 'repeat_alias':
         command.insert(-4, '-DDNN4_ALIAS_REPEAT_TEST=1')
     if options.register_budget:
-        command.insert(-4, '-DTILEMEGA_F3_REGISTER_BUDGET=1')
+        command.insert(-4, '-DTILEMEGA_F3_REGISTER_BUDGET=' + str(options.register_budget))
     if options.repeat_arithmetic:
         command.insert(-4, '-DTILEMEGA_F3_REPEAT_ARITHMETIC=1')
     if options.suite == 'bert_side_norm':
