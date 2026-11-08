@@ -52,6 +52,9 @@ def append_existing(destination, name, additions):
         fields, rows = reader.fieldnames, list(reader)
     for addition in additions:
         row = {key: str(addition.get(key, '')) for key in fields}
+        if name == 'DNN4_correctness.csv' and row.get('protocol') == 'P-CORR' and row.get('output_hash'):
+            rows = [prior for prior in rows if not (prior['protocol'] == 'P-CORR' and
+                    prior['source'] == row['source'] and not prior['output_hash'])]
         if row not in rows:
             rows.append(row)
     write(destination / name, rows)
