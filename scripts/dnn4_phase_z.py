@@ -143,6 +143,22 @@ class Cell:
             return
         receipt = read(self.source / 'winner.cu.search/receipt.json')
         self.prepared = prepare(receipt, (self.source / 'candidate-0.cu').read_text())
+        overrides = self.out / 'coordinate_overrides.json'
+        if overrides.exists():
+            original = self.out / 'tune_inputs.initial.json'
+            if not original.exists():
+                save(original, self.prepared)
+            for override in read(overrides):
+                group = next(g for g in self.prepared['groups'] if g['stages'] == override['stages'])
+                rank, replacement = override['variant'], override['use_candidate']
+                prior = copy.deepcopy(group['candidates'][rank])
+                group['candidates'][rank] = copy.deepcopy(group['candidates'][replacement])
+                coordinate = group['candidates'][rank]['coordinate']
+                for stage in group['stages']:
+                    self.prepared['variants'][rank]['stages'][stage] = coordinate
+                group['distinct_candidates'] = len({coordinate_key(c['coordinate']) for c in group['candidates']})
+                group.setdefault('native_rejections', []).append(dict(override, rejected=prior))
+            self.prepared['overrides'] = dict(path=str(overrides), sha256=hashlib.sha256(overrides.read_bytes()).hexdigest())
         save(self.out / 'tune_inputs.json', self.prepared)
         rank0 = self.build(self.prepared['rank0'])
         rank0_gate = self.gate(rank0)
