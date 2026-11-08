@@ -93,36 +93,39 @@ __device__ __forceinline__ void AliasedMainLoop(Sm90F3Ring& ring,Element* arena,
   if(previous>=0)Body::Release(ring,previous);
 }
 
-__global__ __launch_bounds__(288,1) void ResidentMainLoop(U64* stamps,float* sink) {
+__global__ __launch_bounds__(384,1) void ResidentMainLoop(U64* stamps,float* sink) {
   extern __shared__ __align__(1024) char shared[];
   auto* header=reinterpret_cast<Sm90F3Header*>(shared);
   auto& ring=header->rings[0];
   auto* arena=reinterpret_cast<Element*>(shared+Sm90F3Budget::kArena0);
   if(threadIdx.x==0){ring.Initialize();Sm90F3Async::Base::InitFence();}
-  for(int i=int(threadIdx.x);i<kStorageSlots*Body::kSlotBytes/2;i+=288)arena[i]=Element(.125f);
+  for(int i=int(threadIdx.x);i<kStorageSlots*Body::kSlotBytes/2;i+=384)arena[i]=Element(.125f);
   Sm90F3Async::Base::FenceProxyAsyncShared();
   __syncthreads();
   if(threadIdx.x<256 && (threadIdx.x&31)==0)ring.Prime();
   __syncthreads();
   Sm90F3Phase phase{};
-  for(int sample=0;sample<kSamples;++sample) {
-    __syncthreads();
-    if(threadIdx.x>=256) {
+  if(threadIdx.x>=256) {
+    Sm90F3Async::RegDealloc<56>();
+    for(int sample=0;sample<kSamples;++sample)
       for(int k=0;k<kIterations;++k) {
         int slot=k%kSlots;
         if(threadIdx.x==256) {
           Sm90F3Async::Base::Wait(ring.empty+slot,phase.Bit(phase.empty,slot));
           phase.empty^=1u<<slot;
         }
-        __syncwarp();
-        // The gather barrier needs all 32 lane arrivals and the leader's
-        // transaction arrival even though this probe transfers no bytes.
         if constexpr(F3_PROBE_GATHER) {
-          Sm90F3Async::Base::Arrive(ring.gfull+slot);
-          if(threadIdx.x==256)Sm90F3Async::Base::Arrive(ring.gfull+slot);
+          if(threadIdx.x<288 || threadIdx.x>=320) {
+            Sm90F3Async::NamedBarrier<Sm90F3Async::kBarGather,96>();
+            Sm90F3Async::Base::Arrive(ring.gfull+slot);
+            if(threadIdx.x==256)Sm90F3Async::Base::Arrive(ring.gfull+slot);
+          }
         }else if(threadIdx.x==256)Sm90F3Async::Base::Arrive(ring.full+slot);
+        __syncwarp();
       }
-    }else {
+  }else {
+    Sm90F3Async::RegAlloc<224>();
+    for(int sample=0;sample<kSamples;++sample) {
       Body::Accumulators accum;
       U64 start=Clock();
       if constexpr(kAlias) AliasedMainLoop(ring,arena,phase,accum,int(threadIdx.x)/128);
@@ -149,9 +152,9 @@ int main()try {
   constexpr int bytes=Sm90F3Budget::kHeader+kStorageSlots*Body::kSlotBytes;
   Check(cudaFuncSetAttribute(ResidentMainLoop,cudaFuncAttributeMaxDynamicSharedMemorySize,bytes));
   int active=0;
-  Check(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&active,ResidentMainLoop,288,bytes));
+  Check(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&active,ResidentMainLoop,384,bytes));
   if(active<1)throw std::runtime_error("resident probe cannot launch one CTA");
-  ResidentMainLoop<<<1,288,bytes>>>(stamps,sink);
+  ResidentMainLoop<<<1,384,bytes>>>(stamps,sink);
   Check(cudaGetLastError());Check(cudaDeviceSynchronize());
   std::vector<U64> raw(kSamples);Check(cudaMemcpy(raw.data(),stamps,kSamples*sizeof(U64),cudaMemcpyDeviceToHost));
   std::vector<float> values(256);Check(cudaMemcpy(values.data(),sink,256*sizeof(float),cudaMemcpyDeviceToHost));

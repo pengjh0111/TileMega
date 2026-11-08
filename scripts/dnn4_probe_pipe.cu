@@ -58,7 +58,7 @@ __global__ void Flush(uint4* output,std::size_t size) {
 }
 
 template<int K>
-__global__ __launch_bounds__(288,1) void Pipe(
+__global__ __launch_bounds__(384,1) void Pipe(
     const __grid_constant__ CUtensorMap map,Element const* weight,
     int source_tiles,int active,Tick* stamps,float* sink) {
   if(int(blockIdx.x)>=active)return;
@@ -73,6 +73,7 @@ __global__ __launch_bounds__(288,1) void Pipe(
   __syncthreads();
   Sm90F3Phase phase{};
   if(threadIdx.x>=256) {
+    Sm90F3Async::RegDealloc<56>();
     if(threadIdx.x==256) {
       Sm90F3GemmOperands operands{};operands.activation=&map;operands.weight=weight;
       Sm90F3Async::Base::ProxyAsyncGlobalFence();
@@ -85,6 +86,7 @@ __global__ __launch_bounds__(288,1) void Pipe(
     }
     __syncwarp();
   }else {
+    Sm90F3Async::RegAlloc<224>();
     typename G::Accumulators accum;
     for(int local=0;local<2;++local) {
       Tick start=Clock();
@@ -122,15 +124,15 @@ void Run(bool dram,int active) {
   double cycles_per_ns=double(ticks[0])/ticks[1];
   Check(cudaFuncSetAttribute(Pipe<K>,cudaFuncAttributeMaxDynamicSharedMemorySize,Sm90F3Budget::kBudget));
   int occupancy=0;
-  Check(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy,Pipe<K>,288,Sm90F3Budget::kBudget));
+  Check(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy,Pipe<K>,384,Sm90F3Budget::kBudget));
   if(occupancy!=1)throw std::runtime_error("probe must have one CTA per SM");
-  Pipe<K><<<kGrid,288,Sm90F3Budget::kBudget>>>(map,b.data,source_tiles,active,stamps.data,sink.data);
+  Pipe<K><<<kGrid,384,Sm90F3Budget::kBudget>>>(map,b.data,source_tiles,active,stamps.data,sink.data);
   Check(cudaGetLastError());Check(cudaDeviceSynchronize());
   if(dram) {
     Flush<<<kGrid,256>>>(flush.data,(128u<<20)/sizeof(uint4));
     Check(cudaGetLastError());Check(cudaDeviceSynchronize());
   }
-  Pipe<K><<<kGrid,288,Sm90F3Budget::kBudget>>>(map,b.data,source_tiles,active,stamps.data,sink.data);
+  Pipe<K><<<kGrid,384,Sm90F3Budget::kBudget>>>(map,b.data,source_tiles,active,stamps.data,sink.data);
   Check(cudaGetLastError());Check(cudaDeviceSynchronize());
   std::vector<Tick> raw(active);std::vector<float> values(active*256);
   Check(cudaMemcpy(raw.data(),stamps.data,raw.size()*sizeof(Tick),cudaMemcpyDeviceToHost));

@@ -8,6 +8,7 @@ import math
 import os
 from pathlib import Path
 import re
+import shutil
 import statistics
 import subprocess
 import sys
@@ -46,7 +47,14 @@ def icache_asm(path):
 
 def build(args):
     args.out.mkdir(parents=True,exist_ok=False)
-    frozen=inputs();specs=[];skipped=[]
+    original=inputs();source=args.out/'source';source.mkdir()
+    for name in original:
+        destination=source/name;destination.parent.mkdir(parents=True,exist_ok=True)
+        shutil.copyfile(ROOT/name,destination)
+    frozen={str(source/name):value for name,value in original.items()}
+    if inputs()!=original or any(sha(path)!=value for path,value in frozen.items()):
+        raise ValueError('probe source changed while freezing')
+    specs=[];skipped=[]
     for tm,tn in TILES:
         for slots in [2,3,4,6,8]:
             if slots*128*(tm+tn)>230400:
@@ -66,23 +74,22 @@ def build(args):
         name=kind if kind=='icache' else f"{kind}_{spec['tile_m']}x{spec['tile_n']}_s{spec['slots']}"
         binary=args.out/name;log=args.out/(name+'.ptxas.log')
         cpu=136+2*(index%4)
-        command=['taskset','-c',f'{cpu}-{cpu+1}','nvcc','-rdc=true','-std=c++17','-O3',
+        command=['taskset','-c',f'{cpu}-{cpu+1}','nvcc','-std=c++17','-O3',
                  '-gencode','arch=compute_90a,code=sm_90a','--expt-relaxed-constexpr',
-                 '-Xptxas','-v','-Xptxas','--device-function-maxrregcount=224',
-                 '-I'+str(ROOT/'include'),'-I'+str(ROOT/'third_party/cutlass/include'),
+                 '-Xptxas','-v',                 '-I'+str(source/'include'),'-I'+str(ROOT/'third_party/cutlass/include'),
                  '-I'+str(args.out)]
         if kind!='icache':
             prefix='DNN4' if kind=='pipe' else 'F3_PROBE'
             command += [f'-D{prefix}_TM={spec["tile_m"]}',f'-D{prefix}_TN={spec["tile_n"]}',
                         f'-DDNN4_SLOTS={spec["slots"]}']
-        command += [str(ROOT/f'scripts/dnn4_probe_{kind}.cu'),'-o',str(binary)]
+        command += [str(source/f'scripts/dnn4_probe_{kind}.cu'),'-o',str(binary)]
         start=time.time()
         with log.open('w') as stream:
             done=subprocess.run(command,stdout=stream,stderr=subprocess.STDOUT,timeout=1800,
                                 env=dict(os.environ,CUDA_VISIBLE_DEVICES=''))
         text=log.read_text()
         spills=list(map(int,re.findall(r'(\d+) bytes spill (?:stores|loads)',text)))
-        if done.returncode or not spills or any(spills):
+        if done.returncode or not spills or any(spills) or re.search(r'C750[47]',text):
             raise RuntimeError('probe compile/spill failure: '+str(log))
         sass=args.out/(name+'.sass')
         with sass.open('w') as stream:
@@ -98,8 +105,8 @@ def build(args):
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
         probes=list(pool.map(compile_one,enumerate(specs)))
-    if inputs()!=frozen:raise RuntimeError('probe sources changed during build')
-    save(args.out/'build.json',dict(evidence='verified',threads=288,inputs=frozen,probes=probes,
+    if any(sha(path)!=value for path,value in frozen.items()):raise RuntimeError('frozen probe sources changed during build')
+    save(args.out/'build.json',dict(evidence='verified',threads=384,inputs=frozen,original_inputs=original,probes=probes,
          skipped=skipped,icache_include_sha256=sha(args.out/'dnn4_icache_ops.inc'),
          nvcc_version=subprocess.check_output(['nvcc','--version'],text=True)))
 
@@ -107,7 +114,8 @@ def build(args):
 def fixtures(build,kind):
     result=[]
     for p in build['probes']:
-        if kind!='all' and kind!=p['kind']:continue
+        if kind=='core' and p['kind']=='icache':continue
+        if kind not in ('all','core') and kind!=p['kind']:continue
         if p['kind']=='icache':
             for kb in [8,32,128,512]:result.append((p,[str(kb)],'icache'))
         elif p['kind']=='resident':result.append((p,[],'resident'))
@@ -131,7 +139,7 @@ def execute(args):
     sys.path.insert(0,str(ROOT/'scripts'))
     from dnn1_device import gpu
     build=json.loads(args.build.read_text())
-    if inputs()!=build['inputs']:raise ValueError('probe source identity changed')
+    if any(sha(path)!=value for path,value in build['inputs'].items()):raise ValueError('probe source identity changed')
     args.out.mkdir(parents=True,exist_ok=False)
     rows=[]
     for probe,arguments,family in fixtures(build,args.kind):
@@ -159,9 +167,9 @@ def execute(args):
         rows.append(row)
         save(args.out/'result.json',dict(evidence='verified',status='partial',rows=rows))
         print(json.dumps(dict(name=name,**row['median'])),flush=True)
-    if inputs()!=build['inputs']:raise ValueError('probe sources changed during measurement')
+    if any(sha(path)!=value for path,value in build['inputs'].items()):raise ValueError('probe sources changed during measurement')
     save(args.out/'result.json',dict(evidence='verified',status='passed',rows=rows,
-         build=str(args.build),build_sha256=sha(args.build),gpu=1,threads=288,
+         build=str(args.build),build_sha256=sha(args.build),gpu=1,threads=384,
          qualification='provisional_container_pid_namespace'))
 
 
@@ -170,7 +178,7 @@ def main():
     p.add_argument('action',choices=['build','execute'])
     p.add_argument('--out',type=Path,required=True)
     p.add_argument('--build',type=Path)
-    p.add_argument('--kind',choices=['all','pipe','resident','icache'],default='all')
+    p.add_argument('--kind',choices=['all','core','pipe','resident','icache'],default='all')
     args=p.parse_args();args.out=args.out.resolve()
     if args.action=='build':build(args)
     else:
