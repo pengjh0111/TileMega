@@ -64,13 +64,34 @@ def main():
               ('Repeat P1 B8', base/'side_norm_alias_b8_v1/experiment.json'),
               ('binding arithmetic B1', base/'repeat_arithmetic_models_v1/b1/experiment.json'),
               ('binding arithmetic B2', base/'repeat_arithmetic_models_v1/b2/experiment.json'),
-              ('Repeat P1 normalization B16', base/'repeat_side_norm_b16_v1/experiment.json')]
+              ('Repeat P1 normalization B16', base/'repeat_side_norm_b16_v1/experiment.json'),
+              ('statistics TMA B16', base/'stats_tma_b16_v1/experiment.json'),
+              ('Repeat arithmetic P1 reg64 B4', base/'repeat_arithmetic_middle_v1/b4/experiment.json'),
+              ('Repeat arithmetic P1 reg56 B4', base/'repeat_arithmetic_b4_reg56_v1/experiment.json'),
+              ('P1 normalization arithmetic B2', base/'arithmetic_side_norm_b2_v1/experiment.json'),
+              ('in-situ P1 B16', base/'side_norm_retune_b16_v1/experiment.json')]
     rows = []
     choices = []
     for name, path in probes:
         if not path.exists():
             continue
         experiment = read(path)
+        if name == 'statistics TMA B16':
+            state = read(base/'stats_tma_unit_v1/scheduler/state.json')['dnn4-focused-f3-gates']
+            unit = read(Path(state['out'])/'cohort/result.json')
+            if state['status'] != 'done' or state['exit_code'] or not unit['passed'] or len(unit['processes']) != 17:
+                raise ValueError('statistics TMA requires an accepted complete unit/sanitizer cohort')
+        if name.startswith('Repeat arithmetic P1') or name == 'P1 normalization arithmetic B2':
+            suites = (('repeat_arithmetic_odd_unit_v1', 'side_norm_unit_v2') if 'reg56' in name else
+                      ('repeat_arithmetic_alias_unit_v1', 'side_norm_reg64_unit_v1'))
+            for suite in suites:
+                unit = read(base/suite/'raw/dnn4-focused-f3-gates/attempt1/cohort/result.json')
+                if not unit['passed'] or len(unit['processes']) != 17 or any(p['exit_code'] for p in unit['processes']):
+                    raise ValueError('arithmetic/P1 combination requires both component gates')
+        if name == 'in-situ P1 B16':
+            qualification = read(path.parent/'trace_qualification.json')
+            if not qualification['passed'] or abs(qualification['relative_difference']) > .05:
+                raise ValueError('in-situ P1 requires qualified boundary traces')
         if name.startswith('binding arithmetic'):
             suite = ('repeat_arithmetic_odd_unit_v1' if experiment['batch'] == 1
                      else 'repeat_arithmetic_alias_unit_v1')
@@ -361,11 +382,11 @@ def main():
                   'without spill. Four real codegen cases and seven related ctests pass. '
                   f'B2 GPU3 P-PAIR {pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms '
                   f'beats{100*pair["threshold"]:.2f}% noise;P-DNN '
-                  f'{final["measurement"]["candidate_ms"]:.6f}ms is accepted for B2 only. '
+                  f'{final["measurement"]["candidate_ms"]:.6f}ms passes B2 admission. '
                   'B1 has no significant gain;B16 Repeat plus P1 normalization also fails '
                   'DT-CODE and keeps the flat control. GPU0 allocation-deviation diagnostics '
                   'are separately identified and cannot replace G22 admission. '
-                  'The arithmetic feature remains default0 and is explicitly selected for B2.']
+                  'The arithmetic feature remains default0 and is explicitly selected by admitted profiles.']
     diagnostic = base/'ncu_b16_v1/result.json'
     if diagnostic.exists():
         ncu = read(diagnostic)
@@ -375,6 +396,59 @@ def main():
                   'no counter samples are available and no device/driver settings were changed. '
                   'Fresh host CMake configuration also fails because the external MLIR installation '
                   'lacks obj.MLIRCAPIDebug/Debug.cpp.o. The existing configured incremental build succeeds.']
+    statistics_tma = base/'stats_tma_b16_v1/experiment.json'
+    if statistics_tma.exists():
+        decision = read(statistics_tma)
+        assert not decision['accepted']
+        lines += ['', 'Verified statistics-TMA prototype maps even-M statistics as a BF16 byte view '
+                  'and loads all NT parts with one unswizzled3D TMA;odd M and NT1 keep Bulk. '
+                  'This explicitly deviates from per-part Bulk in section5.2. Focused units '
+                  'pass5/5,memcheck1/1,initcheck1/1,racecheck5/5,synccheck5/5;the complete '
+                  'second guarded cohort is used and the interrupted first is excluded. '
+                  'B16 compiles without spill and passes model5/5. GPU3 P-PAIR '
+                  f'ratio{decision["pair"]["ratio"]:.6f} exceeds '
+                  f'{100*decision["pair"]["threshold"]:.2f}% noise. Reject;the prototype '
+                  'patch is archived and all production files are restored.']
+    spill_lines = []
+    for name in ('repeat_arithmetic_middle_v1/b8', 'repeat_arithmetic_b8_reg56_v1'):
+        log = base/name/'native/model.so.ptxas.log'
+        if log.exists():
+            spills = list(map(int, re.findall(r'(\d+) bytes spill (?:stores|loads)', log.read_text())))
+            if any(spills):
+                spill_lines.append(name+':'+','.join(str(n) for n in spills)+'B stores/loads')
+    if spill_lines:
+        lines += ['', 'Verified B8 arithmetic Repeat plus P1 normalization fails the compilation '
+                  'gate under64/216 and prescribed56/224 ('+';'.join(spill_lines)+'). '
+                  'Neither spilled binary is executed;B8 retains its accepted flat program.']
+    middle = base/'repeat_arithmetic_b4_reg56_v1/experiment.json'
+    if middle.exists():
+        decision = read(middle)
+        pair = decision['pair']
+        lines += ['', 'Verified B4 arithmetic Repeat plus P1 normalization retains the accepted '
+                  'coordinates. The64/216 profile gains2.89%,above2.63% noise but below '
+                  'DT-CODE3%,so it is rejected. Prescribed56/224 compiles without spill '
+                  'and passes strict model5/5. Its GPU3 P-PAIR '
+                  f'{pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms gives '
+                  f'{100*(1-pair["ratio"]):.2f}% gain against '
+                  f'{100*pair["threshold"]:.2f}% noise;the final P-DNN is recorded separately. '
+                  'Arithmetic and P1 component units pass5/5 and sanitizer1/1/5/5 separately.']
+        final = middle.parent/'g22_followup_final_v1/final_result.json'
+        if final.exists():
+            final = read(final)
+            assert decision['accepted'] and not final['smoke_regression']
+            measured = final['measurement']
+            lines += ['', f'Verified B4 admitted P-DNN median{measured["candidate_ms"]:.6f}ms,'
+                      f'p90{measured["p90_ms"]:.6f}ms,process range{measured["process_range_ms"]:.6f}ms. '
+                      'SASS and identities are retained with the default56/224 profile;no production '
+                      'header changes are needed. It remains above the fixed BF16 target and retains '
+                      'the original GPU3 anchor without re-anchoring.']
+    rejected_combination = base/'arithmetic_side_norm_b2_v1/native/model.so.ptxas.log'
+    if rejected_combination.exists():
+        spills = re.findall(r'(\d+) bytes spill (?:stores|loads)', rejected_combination.read_text())
+        if any(map(int, spills)):
+            lines += ['', 'Verified B2 P1 normalization plus the admitted arithmetic loop spills '
+                      '/'.join(spills)+'B stores/loads under64/216. The compilation gate rejects '
+                      'it before execution;the admitted arithmetic-only B2 profile remains selected.']
     current = args.out/'DNN4_BERT_current.csv'
     if current.exists():
         with current.open() as stream:
@@ -389,6 +463,23 @@ def main():
             lines.append(f'| {row["batch"]} | {float(row["median_ms"]):.6f} | '
                          f'{float(row["p90_ms"]):.6f} | {float(row["process_range_ms"]):.6f} | '
                          f'{float(row["baseline_ms"]):.4f} | {float(row["ratio"]):.4f} |')
+        lines += ['', 'Verified largest three stages for each current unmet BERT cell '
+                  '(P-TRACE1 attribution only;segments can overlap and are not timing results). '
+                  'Each ledger checks the exact accepted reference binary SHA256.', '',
+                  '| Batch | Largest stage | Second | Third |',
+                  '| --- | --- | --- | --- |']
+        for row in latest:
+            with Path(row['ledger_source']).open() as stream:
+                stages = list(csv.DictReader(stream))
+            descriptions = []
+            for stage in sorted(stages, key=lambda s: float(s['stage_ns']), reverse=True)[:3]:
+                segments = sorted(((key.removesuffix('_max_cta_ns'), float(value))
+                                   for key, value in stage.items() if key.endswith('_max_cta_ns')),
+                                  key=lambda item: item[1], reverse=True)[:2]
+                descriptions.append(f's{stage["stage"]} {stage["body"]} '
+                    f'{float(stage["stage_ns"])/1000:.2f}us ('+
+                    ','.join(f'{name}={ns/1000:.2f}' for name, ns in segments)+')')
+            lines.append(f'| {row["batch"]} | '+' | '.join(descriptions)+' |')
     (args.out/'DNN4_BERT_optimization.md').write_text('\n'.join(lines)+'\n')
     print(json.dumps(dict(comparisons=len(rows), report=str(args.out/'DNN4_BERT_optimization.md'))))
 

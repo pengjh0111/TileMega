@@ -30,9 +30,11 @@ def main():
             {'TILEMEGA_F3_REPEAT': '1', 'TILEMEGA_F3_REPEAT_LAYERS': '1',
              'TILEMEGA_F3_REGISTER_BUDGET': '1',
              'TILEMEGA_F3_REPEAT_ARITHMETIC': '1'}),
-        4: ('side_norm_middle_v1/b4/g22_final_v1/final_result.json',
-            'side_norm_middle_v1/b4/experiment.json',
-            {'TILEMEGA_F3_SIDE_NORM': '1'}),
+        4: ('repeat_arithmetic_b4_reg56_v1/g22_followup_final_v1/final_result.json',
+            'repeat_arithmetic_b4_reg56_v1/experiment.json',
+            {'TILEMEGA_F3_SIDE_NORM': '1', 'TILEMEGA_F3_REPEAT': '1',
+             'TILEMEGA_F3_REPEAT_LAYERS': '1',
+             'TILEMEGA_F3_REPEAT_ARITHMETIC': '1'}),
         16: ('side_norm_models_v2/b16/g22_v1/final_result.json',
              'side_norm_models_v2/b16/g22_v1/experiment.json',
              {'TILEMEGA_F3_SIDE_NORM': '1'})}
@@ -46,7 +48,8 @@ def main():
             measurement = final['measurement']
             decision = read(base/pair_name)
             pair = decision['pair']
-            threshold = max(pair['threshold'], .03 if batch in (1, 2) else 0)
+            threshold = max(pair['threshold'],
+                            .03 if profile.get('TILEMEGA_F3_REPEAT') == '1' else 0)
             assert decision['accepted'] and pair['ratio'] < 1-threshold
             assert pair['gpu'] == 3 and len(pair['measurements']) == 6
             assert all(m['guard']['code'] == 0 for m in pair['measurements'])
@@ -79,6 +82,18 @@ def main():
             process = read(m['measurement'])
             assert Path(process['numerical_gate_path']).resolve() == gate.resolve()
         ms = measurement['candidate_ms']
+        if batch == 1:
+            ledger = read(base/'repeat_single_models_v1/b1/ledger_gpu3_v1/result.json')['ledger']
+        elif batch == 16:
+            ledger = read(base/'side_norm_models_v2/b16/ledger_gpu3_v1/result.json')['ledger']
+        else:
+            ledger = final['ledger']
+        ledger = Path(ledger)
+        if ledger.is_dir():
+            ledger = ledger/'ledger.csv'
+        trace = read(ledger.parent/'result.json')
+        assert trace['trace_level'] == 1 and trace['gpu'] == 3
+        assert trace['reference_sha256'] == identity['binary_sha256']
         rows.append(dict(model='bert', batch=batch, gpu=3, median_ms=ms,
             p90_ms=measurement['p90_ms'], process_range_ms=measurement['process_range_ms'],
             baseline_ms=targets[batch], ratio=ms/targets[batch],
@@ -92,7 +107,8 @@ def main():
                                for m in measured], separators=(',', ':')),
             correctness='strict FP32 P-CORR5/5;cross-process output bytes identical',
             evidence='verified', scope=scope, qualification=measurement['qualification'],
-            library=str(library), gate=str(gate), pair_source=pair_source, source=str(source)))
+            library=str(library), gate=str(gate), pair_source=pair_source, source=str(source),
+            ledger_source=str(ledger)))
     output = ROOT/'docs/results/DNN4_BERT_current.csv'
     with output.open('w', newline='') as stream:
         writer = csv.DictWriter(stream, list(rows[0]), lineterminator='\n')
