@@ -38,13 +38,21 @@ def main():
               ('Repeat single B16', base/'repeat_single_models_v1/b16/comparison/experiment.json'),
               ('Repeat declined B2', base/'repeat_single_middle_models_v1/b2/comparison/experiment.json'),
               ('Repeat single B4', base/'repeat_single_middle_models_v1/b4/comparison/experiment.json'),
-              ('FFN1 TMA192 B16', base/'ffn1_tma192_b16_v1/comparison/experiment.json')]
+              ('Repeat inline16 B1', base/'repeat_single_inline16_b1_v1/experiment.json'),
+              ('FFN1 TMA192 B16', base/'ffn1_tma192_b16_v1/comparison/experiment.json'),
+              ('P1 normalization B16', base/'side_norm_models_v2/b16/experiment.json'),
+              ('P1 normalization B16 G22', base/'side_norm_models_v2/b16/g22_v1/experiment.json')]
     rows = []
     choices = []
     for name, path in probes:
         if not path.exists():
             continue
         experiment = read(path)
+        if name.startswith('P1 normalization'):
+            unit = read(base/'side_norm_unit_v2/raw/dnn4-focused-f3-gates/attempt1/cohort/result.json')
+            if not unit['passed'] or len(unit['processes']) != 17 or any(
+                    p['exit_code'] for p in unit['processes']):
+                raise ValueError('P1 normalization requires unit5 and sanitizer1/1/5/5')
         identity = verify(Path(experiment['library']))
         source_text = Path(experiment['library']+'.cu').read_text()
         repeat = re.search(r',Stage_0,Repeat<(6|12),', source_text)
@@ -144,6 +152,24 @@ def main():
               'GPU3 P-DNN has median0.498176ms,p900.500640ms,process range0.013232ms. This is still '
               'above the unchanged0.4858ms BF16 goal. Failed or killed partial paired cohorts are discarded '
               'in full; occupancy exit75 retries the complete cohort.', '',
+              'Verified follow-up rejects16-bit inline parameter tables: odd-loop unit5/5 and '
+              'sanitizer1/1/5/5 pass;full B1 FP32/byte checks5/5 pass, but the complete P-PAIR '
+              'against the accepted loop is0.498656→0.507488ms,ratio1.017712,noise0.9369%. '
+              'The prototype headers are restored. Verified B8 has incompatible canonical buffer '
+              'aliases;codegen now retains its exact flat program instead of failing. Four real '
+              'CPU codegen cases cover B1 one/two-layer loops,B2 nonperiodic fallback and B8 alias '
+              'fallback;all retain63 logical stages. No new B8 performance is claimed.', '',
+              'Verified P1 row normalization is explicitly selected only for B16: the side warp '
+              'reduces the existing statistics in their original order and publishes cached '
+              '(mean,inv) through32 individual release arrivals before consumer side_full. '
+              'This deviates from consumer-side normalization in section5.2. The first prototype '
+              'failed racecheck with89 errors and is rejected regardless of timing. The repaired '
+              'implementation passes unit5/5 and isolated memcheck1/1,initcheck1/1,racecheck5/5, '
+              'synccheck5/5. B1 loop and B16 whole-model FP32/byte checks each pass5/5. '
+              'B16 GPU2/GPU3 complete paired gains are3.03%/2.71%;GPU3 P-DNN median1.421744ms, '
+              'p901.446144ms,process range0.001824ms. This still exceeds the unchanged1.0869ms '
+              'BF16 goal. Combining P1 normalization with the periodic B2 loop spills8B stores/32B '
+              'loads and is never executed;the standalone periodic B2 loop also remains rejected.', '',
               'GPU3 foreign occupancy delayed additional same-card G22 probes; only our pending '
               'schedulers were cancelled, and fresh candidate/control pairs moved to authorized GPU2. '
               'The separately identified B1 follow-up does not silently replace the earlier frozen20-cell collection. '
