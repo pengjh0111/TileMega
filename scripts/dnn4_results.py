@@ -143,7 +143,8 @@ def main():
             p90_ms=final['p90_ms'], process_range_ms=final['process_range_ms'],
             baseline_arm=targets[(model, batch)]['baseline_arm'], baseline_ms=target,
             ratio=ratio, faster_than_baseline=ratio < 1, winner=winner['name'],
-            coordinate_summary=compact(summary), artifact_id=identity['artifact_id'], clocks=clocks,
+            coordinate_summary=compact(summary), artifact_id=identity['artifact_id'],
+            source_digest=identity['source']['source_digest'], binary_sha256=identity['binary_sha256'], clocks=clocks,
             evidence='verified', scope='partial Phase Z' if args.partial else 'complete anchored Phase Z',
             qualification=result['qualification'], source=str(folder / 'result.json')))
         for row in table(Path(result['ledger'])):

@@ -72,6 +72,8 @@ def main():
                        faster_than_baseline=new['faster_than_baseline'] if new else '')
             row.update({arm+'_ms': indexed[model, batch, arm]['median_ms'] for arm in ARMS})
             row.update(winner=new['winner'] if new else '', artifact_id=new['artifact_id'] if new else '',
+                       source_digest=new['source_digest'] if new else '',
+                       binary_sha256=new['binary_sha256'] if new else '',
                        coordinate_summary=new['coordinate_summary'] if new else '',
                        clocks=new['clocks'] if new else '',
                        correctness='P-CORR 5/5 cross-process output hashes' if new else '',
@@ -81,6 +83,9 @@ def main():
                        source=new['source'] if new else '')
             rows.append(row)
     measured = [r for r in rows if r['status'] == 'measured']
+    sources = {r['source_digest'] for r in measured}
+    if len(sources) != 1:
+        raise ValueError('CNN collection requires one frozen production source digest')
     aggregates = []
     groups = [('model', m, [r for r in measured if r['model'] == m]) for m in MODELS]
     groups += [('batch', b, [r for r in measured if r['batch'] == b]) for b in BATCHES]
@@ -101,6 +106,7 @@ def main():
     lines = ['# DNN4 CNN collection', '',
              f'Verified: {len(measured)}/15 CNN cells collected; '
              f'{sum(float(r["ratio_to_baseline"]) < 1 for r in measured)}/{len(measured)} beat the fixed fastest BF16 target.', '',
+             'Verified frozen production source digest: `'+next(iter(sources))+'`.', '',
              'Existing TileMega results are reused. All 60 CNN baseline arms are reused from '
              'DNN3_baselines_phase_z.csv with their original GPU, input, checkpoint and measurement receipts; '
              'this export copies those prior measurements without running benchmarks. New Phase Z anchor checks '
