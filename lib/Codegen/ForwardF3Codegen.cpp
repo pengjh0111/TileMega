@@ -205,7 +205,21 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
   // model comparison. VGG16 B16 currently regresses4.56% in P-PAIR.
   bool enable_tma_stem=false;
   bool enable_repeat=false;
+  bool enable_side_norm=false;
+  unsigned attention_rows=0;
   unsigned repeat_layers=2;
+  if(auto* setting=std::getenv("TILEMEGA_F3_SIDE_NORM")) {
+    std::string value=setting;
+    if(value!="0" && value!="1")
+      throw std::invalid_argument("TILEMEGA_F3_SIDE_NORM must be0 or1");
+    enable_side_norm=value=="1";
+  }
+  if(auto* setting=std::getenv("TILEMEGA_F3_ATTENTION_ROWS")) {
+    std::string value=setting;
+    if(value!="16" && value!="32" && value!="64" && value!="128")
+      throw std::invalid_argument("TILEMEGA_F3_ATTENTION_ROWS must be16,32,64 or128");
+    attention_rows=unsigned(std::stoul(value));
+  }
   if(auto* setting=std::getenv("TILEMEGA_F3_REPEAT")) {
     std::string value=setting;
     if(value!="0" && value!="1")throw std::invalid_argument("TILEMEGA_F3_REPEAT must be0 or1");
@@ -269,6 +283,8 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
   };
 
   std::ostringstream out,types;
+  if(enable_side_norm)out<<"#define TILEMEGA_F3_SIDE_NORM 1\n";
+  if(attention_rows)out<<"#define TILEMEGA_F3_ATTENTION_ROWS "<<attention_rows<<"\n";
   out<<"// SPDX-License-Identifier: BSD-3-Clause\n"
      <<"// Generated from a DnnModelPlan and F3 forward coordinates.\n"
      <<"#define TILEMEGA_STATIC_FORWARD_F3 1\n#define TILEMEGA_ARCH_ID 900\n"
@@ -599,6 +615,7 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
         int sequence=int(Integer(stage,"width")),heads=int(Integer(stage,"extent"));
         int head_dim=int(Integer(stage,"group"));
         auto const& l=layouts.at(packed);
+        unsigned query_rows=attention_rows?attention_rows:std::min(128,16*model_batch);
         if(sequence!=128 || heads!=12 || head_dim!=64 || l.rank!=2 ||
             l.physical[0]!=unsigned(model_batch*sequence) || l.physical[1]!=2304)
           throw std::invalid_argument("F3 attention requires packed Bx128x12x3x64 QKV");
@@ -608,14 +625,14 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
           spec.dims[0]=64;spec.dims[1]=12;spec.dims[2]=unsigned(model_batch*sequence);
           spec.strides[0]=std::uint64_t(head_dim)*3*2;spec.strides[1]=l.strides[0]*2;
           spec.box[0]=64;spec.box[1]=1;
-          spec.box[2]=part==0?std::min(128,16*model_batch):128;
+          spec.box[2]=part==0?query_rows:128;
           auto id=maps.Add(spec);
           if(part==0)bind.query_map=id;
           else if(part==1)bind.map=id;
           else bind.value_map=id;
         }
         body="Sm90F3Attention<"+std::to_string(model_batch)+','+
-            std::to_string(std::min(128,16*model_batch))+'>';
+            std::to_string(query_rows)+'>';
         wrapper="AttentionStage";
         break;
       }

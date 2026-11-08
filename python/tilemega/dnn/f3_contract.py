@@ -140,6 +140,11 @@ def validate(manifest, defines):
 
 def dispatch(manifest, defines, source):
     validate(manifest, defines)
+    rows_override = defines.get('TILEMEGA_F3_ATTENTION_ROWS')
+    if rows_override is not None and rows_override not in ('16', '32', '64', '128'):
+        raise ValueError('invalid explicit F3 attention row count')
+    if defines.get('TILEMEGA_F3_SIDE_NORM', '0') not in ('0', '1'):
+        raise ValueError('invalid explicit F3 side normalization mode')
     c = manifest['native_forward']
     match = re.search(r'kF3ForwardIdentity\[\]\s*=\s*("(?:\\.|[^"\\])*");', source)
     if match is None or json.loads(json.loads(match[1])) != c:
@@ -203,7 +208,7 @@ def dispatch(manifest, defines, source):
             valid = len(args) == 2 and int(args[0]) > 0 and int(args[1]) > 0
         elif name == 'Sm90F3Attention':
             batch=manifest['runtime_batch']
-            valid = args == ([str(batch),str(min(128,16*batch))] if c['schema']==4
+            valid = args == ([str(batch),rows_override or str(min(128,16*batch))] if c['schema']==4
                              else [str(batch),'128','64','12'])
         else:
             valid = len(args) == 1 and int(args[0]) > 0

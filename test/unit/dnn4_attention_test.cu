@@ -17,7 +17,7 @@ template<class T> struct Device {
  std::vector<T> Get(){std::vector<T> v(count);Check(cudaMemcpy(v.data(),data,count*sizeof(T),cudaMemcpyDeviceToHost));return v;}
 };
 std::uint64_t hash=14695981039346656037ull;
-template<int B> __global__ __launch_bounds__(384,1) void AttentionKernel(
+template<int B,int Rows> __global__ __launch_bounds__(384,1) void AttentionKernel(
  const __grid_constant__ CUtensorMap q,const __grid_constant__ CUtensorMap k,
  const __grid_constant__ CUtensorMap v,E* output) {
  extern __shared__ __align__(1024) char shared[];
@@ -27,19 +27,19 @@ template<int B> __global__ __launch_bounds__(384,1) void AttentionKernel(
  if(threadIdx.x<256 && (threadIdx.x&31)==0)h->rings[0].Prime();
  __syncthreads();
  Sm90F3AttentionOperands p{&q,&k,&v,output};Sm90F3Phase phase{};
- if(threadIdx.x>=256){Sm90F3Async::RegDealloc<56>();Sm90F3Attention<B>::Produce(p,h->rings[0],shared+2048,phase);}
- else {Sm90F3Async::RegAlloc<224>();Sm90F3Attention<B>::Consume(p,h->rings[0],shared+2048,phase);}
+ if(threadIdx.x>=256){Sm90F3Async::RegDealloc<56>();Sm90F3Attention<B,Rows>::Produce(p,h->rings[0],shared+2048,phase);}
+ else {Sm90F3Async::RegAlloc<224>();Sm90F3Attention<B,Rows>::Consume(p,h->rings[0],shared+2048,phase);}
  __syncthreads();if(threadIdx.x==0)h->rings[0].Invalidate();
 }
-template<int B> void Case() {
+template<int B,int Rows=(16*B<128?16*B:128)> void Case() {
  constexpr int S=128,D=64,H=12;
  std::vector<E> input(B*S*H*3*D);
  for(std::size_t i=0;i<input.size();++i)input[i]=E(float(int(i%37)-18)/32);
  Device<E> a(input.size()),o(B*S*H*D);a.Put(input);CUtensorMap maps[3]{};
  for(int part=0;part<3;++part)ex::EncodeTiledMap<3>(maps[part],a.data+part*D,
-  {{D,H,B*S},{3*D*2,3*H*D*2},{64,1,unsigned(part==0?std::min(128,16*B):128)}});
- Check(cudaFuncSetAttribute(AttentionKernel<B>,cudaFuncAttributeMaxDynamicSharedMemorySize,Sm90F3Budget::kBudget));
- AttentionKernel<B><<<132,384,Sm90F3Budget::kBudget>>>(maps[0],maps[1],maps[2],o.data);
+  {{D,H,B*S},{3*D*2,3*H*D*2},{64,1,unsigned(part==0?Rows:128)}});
+ Check(cudaFuncSetAttribute(AttentionKernel<B,Rows>,cudaFuncAttributeMaxDynamicSharedMemorySize,Sm90F3Budget::kBudget));
+ AttentionKernel<B,Rows><<<132,384,Sm90F3Budget::kBudget>>>(maps[0],maps[1],maps[2],o.data);
  Check(cudaGetLastError());Check(cudaDeviceSynchronize());auto actual=o.Get();
  for(int b=0;b<B;++b)for(int head=0;head<H;++head) {
   double dot=0,aa=0,rr=0;
@@ -63,7 +63,7 @@ template<int B> void Case() {
   if(cosine<.9999)throw std::runtime_error("attention head mismatch b="+std::to_string(b)+" h="+std::to_string(head)+" cosine="+std::to_string(cosine));
  }
  for(E e:actual){auto bits=e.raw();for(int byte=0;byte<2;++byte){hash^=(bits>>(byte*8))&255;hash*=1099511628211ull;}}
- std::cout<<"attention_b"<<B<<" PASS\n";
+ std::cout<<"attention_b"<<B<<"_rows"<<Rows<<" PASS\n";
 }
-int main(int,char**)try{Case<1>();Case<2>();Case<4>();Case<16>();std::cout<<"output_hash="<<std::hex<<hash<<'\n';return 0;}
+int main(int,char**)try{Case<1>();Case<2>();Case<4>();Case<16>();Case<16,64>();std::cout<<"output_hash="<<std::hex<<hash<<'\n';return 0;}
 catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}
