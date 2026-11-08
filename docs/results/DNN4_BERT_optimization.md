@@ -1,6 +1,6 @@
 # DNN4 BERT optimization progress
 
-Verified guarded comparisons use the same BF16 model inputs and the coordinates identified by each artifact. All candidates passed five fresh FP32-reference processes with identical cross-process output hashes. P-PAIR uses A/B/A/B/A/B, three fresh processes per side, 50 warmups and 200 events per process. Acceptance requires a gain larger than max(0.5%, twice the larger process range). GPU1 diagnostics guide optimization; G22 diagnostics compare on GPU3 against rank0 and do not replace selection against the eventual final winner or three-process P-DNN.
+Verified guarded comparisons use the same BF16 model inputs and the coordinates identified by each artifact. All candidates passed five fresh FP32-reference processes with identical cross-process output hashes. P-PAIR uses A/B/A/B/A/B, three fresh processes per side, 50 warmups and 200 events per process. Acceptance requires a gain larger than max(0.5%, twice the larger process range). GPU1 diagnostics guide optimization; G22 diagnostics compare on GPU3 against the explicitly identified control and do not replace selection against the eventual final winner or three-process P-DNN.
 
 | Experiment | GPU | Reference ms | Candidate ms | Gain % | Noise threshold % | Significant gain |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -26,6 +26,14 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | FFN1 TMA192 B16 | 2 | 1.467632 | 1.495152 | -1.875 | 1.786 | False |
 | P1 normalization B16 | 2 | 1.473008 | 1.428352 | +3.032 | 1.768 | True |
 | P1 normalization B16 G22 | 3 | 1.463872 | 1.424240 | +2.707 | 2.521 | True |
+| scalar phase B1 | 2 | 0.497920 | 0.499296 | -0.276 | 6.703 | False |
+| FFN2 arena B1 | 3 | 0.498064 | 0.487936 | +2.033 | 6.361 | False |
+| FFN2 split4 B1 | 3 | 0.483856 | 0.512000 | -5.817 | 5.800 | False |
+| attention Rows64 B16 | 2 | 1.428832 | 1.420240 | +0.601 | 1.695 | False |
+| 96-lane normalization B1 | 2 | 0.486912 | 0.501776 | -3.053 | 6.605 | False |
+| 96-lane normalization B16 | 3 | 1.425968 | 1.419824 | +0.431 | 0.655 | False |
+| Repeat reg64 B2 GPU2 | 2 | 0.694512 | 0.642496 | +7.490 | 7.989 | False |
+| Repeat reg64 B2 G22 | 3 | 0.695536 | 0.659808 | +5.137 | 0.500 | True |
 
 Verified attention experiment: QK/PV columns were distributed across eight consumer warps without changing any output accumulation order. Per-head unit5/5 and sanitizer memcheck1/1, initcheck1/1, racecheck5/5, synccheck5/5 passed; whole-model outputs also matched the control byte for byte. Neither timing gain exceeded process variability, so the original header was restored. The initial driver added an unnecessary3% cutoff, which does not affect either rejection because both measured noise thresholds exceed3%. Frozen sources and the patch remain under runs/dnn4/bert_priority.
 
@@ -48,4 +56,20 @@ Verified follow-up rejects16-bit inline parameter tables: odd-loop unit5/5 and s
 
 Verified P1 row normalization is explicitly selected only for B16: the side warp reduces the existing statistics in their original order and publishes cached (mean,inv) through32 individual release arrivals before consumer side_full. This deviates from consumer-side normalization in section5.2. The first prototype failed racecheck with89 errors and is rejected regardless of timing. The repaired implementation passes unit5/5 and isolated memcheck1/1,initcheck1/1,racecheck5/5, synccheck5/5. B1 loop and B16 whole-model FP32/byte checks each pass5/5. B16 GPU2/GPU3 complete paired gains are3.03%/2.71%;GPU3 P-DNN median1.421744ms, p901.446144ms,process range0.001824ms. This still exceeds the unchanged1.0869ms BF16 goal. Combining P1 normalization with the periodic B2 loop spills8B stores/32B loads and is never executed;the standalone periodic B2 loop also remains rejected.
 
-GPU3 foreign occupancy delayed additional same-card G22 probes; only our pending schedulers were cancelled, and fresh candidate/control pairs moved to authorized GPU2. The separately identified B1 follow-up does not silently replace the earlier frozen20-cell collection. That BERT batch collection completed on GPU3: B1/B2/B4/B8/B16 =0.614016/0.695504/0.790144/1.043264/1.463168ms. None beats its frozen BF16 target. CNN collection is complete and paused; existing CNN results and all60 baseline arms are reused. GPU ownership remains qualified by the container PID namespace. See DNN4_BERT_optimization.csv for identities, clocks, correctness receipts and raw timing sources.
+Verified explicit scalar phase selection eliminates B1 local-memory instructions and passes odd-body unit5/5 and sanitizer1/1/5/5, but has no significant E2E gain; the prototype is archived and restored. B2 still spills28B and is never executed. Combining scalar phase with FFN2 Slots6 restores one-arena preissue and measures 2.03% faster, below its6.36% noise threshold;it is not admitted. A separate FFN2 split4/Slots6 variant regresses5.82% and is also rejected. Fixed BF16 targets and the50/200 measurement protocol remain unchanged.
+
+Verified attention Rows64 B16 passes per-head unit5/5,sanitizer1/1/5/5 and whole-model FP32/byte checks5/5, but its0.60% gain over the accepted Rows128 P1-normalization control is below1.70% noise. Three-warp row normalization also passes unit5/5,sanitizer1/1/5/5 and B1/B16 model checks5/5;B1 regresses3.05%, and B16 improves0.43% below0.66% noise. Both mechanisms are rejected for performance admission;the three-warp implementation is archived and restored. Codegen exposes explicit SIDE_NORM and ATTENTION_ROWS settings while preserving the default source. A real three-profile CPU test checks all12 query-map boxes, all63 stage bindings and invalid setting rejection.
+
+Verified opt-in register profile64/216 keeps the per-SMSP sum496 below the entry pool504. It deviates from the prescribed56/224 fallback. The periodic B2 single-layer loop now compiles without spill;focused odd-body unit5/5 and memcheck1/1,initcheck1/1,racecheck5/5,synccheck5/5 pass. Whole-model FP32/byte checks5/5 pass. GPU2 gain7.49% is below7.99% noise and is not admitted;the required GPU3 comparison confirms5.14% gain with0.50% noise and passes DT-CODE. B2 SASS falls from1868800B to275584B. Three existing B1 variants become nonspilling;their strict model checks5/5 pass,but G22 four-candidate P-SEL retains the previously accepted loop. One remaining B1 variant spills12B and is never executed. No new coordinate scan is added;the profile stays explicit. A real four-profile CPU test also verifies invalid register-budget rejection.
+
+GPU3 foreign occupancy delayed additional same-card G22 probes; only our pending schedulers were cancelled, and fresh candidate/control pairs moved to authorized GPU2. The separately identified B1/B2/B16 follow-ups do not silently replace the earlier frozen20-cell collection. That BERT batch collection completed on GPU3: B1/B2/B4/B8/B16 =0.614016/0.695504/0.790144/1.043264/1.463168ms. None beats its frozen BF16 target. CNN collection is complete and paused; existing CNN results and all60 baseline arms are reused. GPU ownership remains qualified by the container PID namespace. See DNN4_BERT_optimization.csv for identities, clocks, correctness receipts and raw timing sources.
+
+Verified current accepted artifacts (GPU3;50/200;three-process P-DNN). B4/B8 reuse the original measurements;B1/B2/B16 are follow-ups that retain the original anchor without re-anchoring. All fixed BF16 targets remain unmet. DNN4_BERT_current.csv records complete identities,profiles and evidence paths.
+
+| Batch | Median ms | p90 ms | Process range ms | Fixed BF16 ms | Ratio |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 0.498176 | 0.500640 | 0.013232 | 0.4858 | 1.0254 |
+| 2 | 0.630928 | 0.635808 | 0.004736 | 0.5171 | 1.2201 |
+| 4 | 0.790144 | 0.793408 | 0.006816 | 0.5905 | 1.3381 |
+| 8 | 1.043264 | 1.055872 | 0.009120 | 0.7457 | 1.3990 |
+| 16 | 1.421744 | 1.446144 | 0.001824 | 1.0869 | 1.3081 |

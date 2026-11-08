@@ -41,15 +41,29 @@ def main():
               ('Repeat inline16 B1', base/'repeat_single_inline16_b1_v1/experiment.json'),
               ('FFN1 TMA192 B16', base/'ffn1_tma192_b16_v1/comparison/experiment.json'),
               ('P1 normalization B16', base/'side_norm_models_v2/b16/experiment.json'),
-              ('P1 normalization B16 G22', base/'side_norm_models_v2/b16/g22_v1/experiment.json')]
+              ('P1 normalization B16 G22', base/'side_norm_models_v2/b16/g22_v1/experiment.json'),
+              ('scalar phase B1', base/'scalar_phase_b1_v1/experiment.json'),
+              ('FFN2 arena B1', base/'ffn2_arena_b1_v1/experiment.json'),
+              ('FFN2 split4 B1', base/'ffn2_split4_b1_v1/experiment.json'),
+              ('attention Rows64 B16', base/'attention_rows64_b16_v1/experiment.json'),
+              ('96-lane normalization B1', base/'side_norm96_models_v1/b1/experiment.json'),
+              ('96-lane normalization B16', base/'side_norm96_models_v1/b16/experiment.json'),
+              ('Repeat reg64 B2 GPU2', base/'register64_216_b2_v1/comparison/experiment.json'),
+              ('Repeat reg64 B2 G22', base/'register64_216_b2_v1/g22_v1/experiment.json')]
     rows = []
     choices = []
     for name, path in probes:
         if not path.exists():
             continue
         experiment = read(path)
-        if name.startswith('P1 normalization'):
-            unit = read(base/'side_norm_unit_v2/raw/dnn4-focused-f3-gates/attempt1/cohort/result.json')
+        if 'reg64' in name:
+            unit = read(base/'register64_216_unit_v1/raw/dnn4-focused-f3-gates/attempt1/cohort/result.json')
+            if not unit['passed'] or len(unit['processes']) != 17 or any(
+                    p['exit_code'] for p in unit['processes']):
+                raise ValueError('64/216 requires unit5 and sanitizer1/1/5/5')
+        if 'normalization' in name:
+            suite = 'side_norm96_unit_v1' if name.startswith('96-lane') else 'side_norm_unit_v2'
+            unit = read(base/suite/'raw/dnn4-focused-f3-gates/attempt1/cohort/result.json')
             if not unit['passed'] or len(unit['processes']) != 17 or any(
                     p['exit_code'] for p in unit['processes']):
                 raise ValueError('P1 normalization requires unit5 and sanitizer1/1/5/5')
@@ -105,7 +119,7 @@ def main():
              'All candidates passed five fresh FP32-reference processes with identical cross-process output hashes. '
              'P-PAIR uses A/B/A/B/A/B, three fresh processes per side, 50 warmups and 200 events per process. '
              'Acceptance requires a gain larger than max(0.5%, twice the larger process range). '
-             'GPU1 diagnostics guide optimization; G22 diagnostics compare on GPU3 against rank0 and do not '
+             'GPU1 diagnostics guide optimization; G22 diagnostics compare on GPU3 against the explicitly identified control and do not '
              'replace selection against the eventual final winner or three-process P-DNN.', '',
              '| Experiment | GPU | Reference ms | Candidate ms | Gain % | Noise threshold % | Significant gain |',
              '| --- | --- | --- | --- | --- | --- | --- |']
@@ -170,15 +184,56 @@ def main():
               'p901.446144ms,process range0.001824ms. This still exceeds the unchanged1.0869ms '
               'BF16 goal. Combining P1 normalization with the periodic B2 loop spills8B stores/32B '
               'loads and is never executed;the standalone periodic B2 loop also remains rejected.', '',
+              'Verified explicit scalar phase selection eliminates B1 local-memory instructions '
+              'and passes odd-body unit5/5 and sanitizer1/1/5/5, but has no significant E2E gain; '
+              'the prototype is archived and restored. B2 still spills28B and is never executed. '
+              'Combining scalar phase with FFN2 Slots6 restores one-arena preissue and measures '
+              '2.03% faster, below its6.36% noise threshold;it is not admitted. A separate FFN2 '
+              'split4/Slots6 variant regresses5.82% and is also rejected. Fixed BF16 targets and '
+              'the50/200 measurement protocol remain unchanged.', '',
+              'Verified attention Rows64 B16 passes per-head unit5/5,sanitizer1/1/5/5 and '
+              'whole-model FP32/byte checks5/5, but its0.60% gain over the accepted Rows128 '
+              'P1-normalization control is below1.70% noise. Three-warp row normalization '
+              'also passes unit5/5,sanitizer1/1/5/5 and B1/B16 model checks5/5;B1 regresses3.05%, '
+              'and B16 improves0.43% below0.66% noise. Both mechanisms are rejected for '
+              'performance admission;the three-warp implementation is archived and restored. '
+              'Codegen exposes explicit SIDE_NORM and ATTENTION_ROWS settings while preserving '
+              'the default source. A real three-profile CPU test checks all12 query-map boxes, '
+              'all63 stage bindings and invalid setting rejection.', '',
+              'Verified opt-in register profile64/216 keeps the per-SMSP sum496 below the '
+              'entry pool504. It deviates from the prescribed56/224 fallback. The periodic B2 '
+              'single-layer loop now compiles without spill;focused odd-body unit5/5 and '
+              'memcheck1/1,initcheck1/1,racecheck5/5,synccheck5/5 pass. Whole-model FP32/byte '
+              'checks5/5 pass. GPU2 gain7.49% is below7.99% noise and is not admitted;the '
+              'required GPU3 comparison confirms5.14% gain with0.50% noise and passes DT-CODE. '
+              'B2 SASS falls from1868800B to275584B. Three existing B1 variants become '
+              'nonspilling;their strict model checks5/5 pass,but G22 four-candidate P-SEL '
+              'retains the previously accepted loop. One remaining B1 variant spills12B and '
+              'is never executed. No new coordinate scan is added;the profile stays explicit. '
+              'A real four-profile CPU test also verifies invalid register-budget rejection.', '',
               'GPU3 foreign occupancy delayed additional same-card G22 probes; only our pending '
               'schedulers were cancelled, and fresh candidate/control pairs moved to authorized GPU2. '
-              'The separately identified B1 follow-up does not silently replace the earlier frozen20-cell collection. '
+              'The separately identified B1/B2/B16 follow-ups do not silently replace the earlier frozen20-cell collection. '
               'That BERT batch collection '
               'completed on GPU3: B1/B2/B4/B8/B16 =0.614016/0.695504/0.790144/1.043264/1.463168ms. '
               'None beats its frozen BF16 target. CNN collection is complete and paused; '
               'existing CNN results and all60 baseline arms are reused. GPU ownership remains '
               'qualified by the container PID namespace. See DNN4_BERT_optimization.csv for identities, '
               'clocks, correctness receipts and raw timing sources.']
+    current = args.out/'DNN4_BERT_current.csv'
+    if current.exists():
+        with current.open() as stream:
+            latest = list(csv.DictReader(stream))
+        lines += ['', 'Verified current accepted artifacts (GPU3;50/200;three-process P-DNN). '
+                  'B4/B8 reuse the original measurements;B1/B2/B16 are follow-ups that retain '
+                  'the original anchor without re-anchoring. All fixed BF16 targets remain unmet. '
+                  'DNN4_BERT_current.csv records complete identities,profiles and evidence paths.', '',
+                  '| Batch | Median ms | p90 ms | Process range ms | Fixed BF16 ms | Ratio |',
+                  '| --- | --- | --- | --- | --- | --- |']
+        for row in latest:
+            lines.append(f'| {row["batch"]} | {float(row["median_ms"]):.6f} | '
+                         f'{float(row["p90_ms"]):.6f} | {float(row["process_range_ms"]):.6f} | '
+                         f'{float(row["baseline_ms"]):.4f} | {float(row["ratio"]):.4f} |')
     (args.out/'DNN4_BERT_optimization.md').write_text('\n'.join(lines)+'\n')
     print(json.dumps(dict(comparisons=len(rows), report=str(args.out/'DNN4_BERT_optimization.md'))))
 
