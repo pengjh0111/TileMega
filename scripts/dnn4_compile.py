@@ -21,6 +21,8 @@ def main():
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--trace-level', type=int, choices=(0, 1, 2, 3))
     parser.add_argument('--prefetch-distance', type=int, choices=(1, 2))
+    parser.add_argument('--cpu-set', default='136-143')
+    parser.add_argument('--build-lock', default='/tmp/tilemega_dnn4_native.lock')
     parser.add_argument('--gather-reference', action='store_true',
                         help='DT-STEM control: retain the96-lane producer with otherwise identical source')
     args = parser.parse_args()
@@ -90,10 +92,10 @@ def main():
     Path(str(library) + '.build_command.txt').write_text(shlex.join(command) + '\n')
     log = Path(str(library) + '.ptxas.log')
     with log.open('w') as stream:
-        done = subprocess.run(['taskset', '-c', '136-143', sys.executable,
+        done = subprocess.run(['taskset', '-c', args.cpu_set, sys.executable,
             str(ROOT / 'scripts/run_sm90r1_build.py'), '--receipt',
             str(library) + '.build_limits.json', '--max-gib', '48', '--timeout', '1800',
-            '--lock', '/tmp/tilemega_dnn4_native.lock', '--', *command], cwd=ROOT,
+            '--lock', args.build_lock, '--', *command], cwd=ROOT,
             env=dict(os.environ, CUDA_VISIBLE_DEVICES=''), stdout=stream,
             stderr=subprocess.STDOUT)
     text = log.read_text()

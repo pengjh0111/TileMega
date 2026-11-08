@@ -81,8 +81,16 @@ int main(int argc,char** argv) {
  audit.ranked[1]=a;assert(AuditSm90ForwardF4Candidates(audit).At("passed").AsBool("identical"));
  auto searched=SearchSm90Forward(Sm90ForwardSearchSpace{{s,s},target,Sm90ForwardAbi::kF3},cost);
  assert(!searched.ranked.empty());
- for(auto const& candidate:searched.ranked)for(auto const& stage:candidate.search_receipt.At("stages").AsArray("stages"))
+ for(auto const& candidate:searched.ranked)for(auto const& stage:candidate.search_receipt.At("stages").AsArray("stages")) {
   assert(stage.At("remaining_candidate_count").AsNumber("top8")<=8);
+  auto const& tuning=stage.At("tuning_candidates").AsArray("tuning choices");
+  assert(!tuning.empty() && tuning.size()<=6);
+  for(std::size_t i=0;i<tuning.size();++i)for(std::size_t j=0;j<i;++j) {
+   double a=tuning[i].At("prediction_ns").AsNumber("prediction");
+   double b=tuning[j].At("prediction_ns").AsNumber("prediction");
+   assert(std::abs(a-b)>=.005*std::min(a,b));
+  }
+ }
  assert(searched.receipt.Find("f4_candidate_selfcheck"));
  std::cout<<"F4 formula, seven coordinate sensitivities, spanning and near-tie audit PASS\n";
 }

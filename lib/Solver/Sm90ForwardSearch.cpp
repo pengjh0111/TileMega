@@ -680,7 +680,7 @@ Sm90ForwardSearchResult SearchSm90Forward(Sm90ForwardSearchSpace const& space,
       stage_receipts.emplace_back(json::Object{{"stage",int(i)},{"legal_candidate_count",int(raw.size())},
           {"shared_filtered_count",filtered},{"remaining_candidate_count",int(options[i].size())},
           {"ranked_candidate_count",int(ranked_count)},
-          {"selected",options[i][0].ToJson()},{"selected_terms",chosen_terms},
+          {"selected",options[i][0].ToJson(space.abi)},{"selected_terms",chosen_terms},
           {"linked_contribution_ns",prices[i][0]},{"pool_producer_stage",producers[i]},
           {"rejected",rejected}});
     }
@@ -725,6 +725,21 @@ Sm90ForwardSearchResult SearchSm90Forward(Sm90ForwardSearchSpace const& space,
           });
           begin=end;
         }
+        // P-TUNE must continue below the top8 when those contain near ties.
+        // Keep six separated choices from this same enumeration; program
+        // search still uses only the prescribed top8.
+        json::Array tuning;std::vector<double> tuning_prices;
+        for(auto j:order) {
+          bool separated=true;
+          for(double value:tuning_prices)
+            if(std::abs(prices[i][j]-value)<.005*std::min(prices[i][j],value))separated=false;
+          if(!separated)continue;
+          tuning.emplace_back(json::Object{{"coordinate",options[i][j].ToJson(space.abi)},
+              {"prediction_ns",prices[i][j]},{"wave_task_ns",work[j]}});
+          tuning_prices.push_back(prices[i][j]);
+          if(tuning.size()==6)break;
+        }
+        stage_receipts[i].Set("tuning_candidates",std::move(tuning));
         if(order.size()>8)order.resize(8);
         std::vector<Sm90ForwardStage> selected;std::vector<double> values;json::Array ranked;
         for(auto j:order) {
@@ -749,7 +764,7 @@ Sm90ForwardSearchResult SearchSm90Forward(Sm90ForwardSearchSpace const& space,
       auto prediction=cost.Predict(space.shapes,c);
       auto chosen_receipts=stage_receipts;
       for(std::size_t i=0;i<c.stages.size();++i) {
-        chosen_receipts[i].Set("selected",c.stages[i].ToJson());
+        chosen_receipts[i].Set("selected",c.stages[i].ToJson(space.abi));
         chosen_receipts[i].Set("selected_terms",prediction.stages[i].terms);
         double linked=producers[i]<0?prediction.stages[i].ns:0;
         for(auto pool_index:consumers[i])linked+=prediction.stages[pool_index].ns;

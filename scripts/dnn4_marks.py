@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import re
 import struct
+import statistics
 import subprocess
 import sys
 
@@ -23,6 +24,7 @@ def save(path, value):
 def collect(args, identity):
     from tilemega.serving.baseline_common import require_guard
     require_guard()
+    from dnn1_device import gpu
     import torch
     from safetensors.torch import load_file
     from tilemega.dnn.check import NativeForward
@@ -63,25 +65,34 @@ def collect(args, identity):
         reset.restype = C.c_int
         if reset():
             raise RuntimeError('forward trace reset failed')
-        native.plan.launch(0, 1, torch.cuda.current_stream().cuda_stream)
-        torch.cuda.synchronize()
-        if any(not torch.equal(value, native.tensors[name])
-               for value, name in zip(reference, native.outputs)):
-            raise AssertionError('traced execution differs from checked output')
         data = C.create_string_buffer(dimensions['bytes'])
         copy = lib.tm_forward_trace_copy
         copy.argtypes = [C.c_void_p, C.c_ulonglong]
         copy.restype = C.c_int
-        if copy(data, dimensions['bytes']):
-            raise RuntimeError('forward trace copy failed')
-    (args.out / 'records.bin').write_bytes(data.raw)
+        samples = []
+        start_clock = gpu(str(args.device))['sm_clock_mhz']
+        for sample in range(args.samples):
+            native.plan.launch(0, 1, torch.cuda.current_stream().cuda_stream)
+            torch.cuda.synchronize()
+            if any(not torch.equal(value, native.tensors[name])
+                   for value, name in zip(reference, native.outputs)):
+                raise AssertionError('traced execution differs from checked output')
+            if copy(data, dimensions['bytes']):
+                raise RuntimeError('forward trace copy failed')
+            samples.append(data.raw)
+            name = 'records.bin' if args.samples == 1 else f'records_{sample:03d}.bin'
+            (args.out / name).write_bytes(data.raw)
+    end_clock = gpu(str(args.device))['sm_clock_mhz']
     trace_level=int(identity['defines'].get('TILEMEGA_TRACE_STAGE','0'))
     manifest = identity['plan']
     stages = manifest['native_forward']['stages']
     rows = []
     words = dimensions['record_bytes']//8
-    for stage in range(dimensions['stages']):
-        records = [struct.unpack_from('<'+'Q'*words, data.raw,
+    sample_rows = []
+    for raw in samples:
+      one = []
+      for stage in range(dimensions['stages']):
+        records = [struct.unpack_from('<'+'Q'*words, raw,
                    (stage*dimensions['grid']+cta)*dimensions['record_bytes'])
                    for cta in range(dimensions['grid'])]
         if any(not r[0] or not (r[0] <= r[1] <= r[2]) for r in records):
@@ -98,7 +109,15 @@ def collect(args, identity):
             row[name+'_max_cta_ns'] = max(s[0] for s in spans)
             row[name+'_mean_cta_ns'] = sum(s[0] for s in spans)/dimensions['grid']
             row[name+'_count'] = sum(s[1] for s in spans)
-        rows.append(row)
+        one.append(row)
+      sample_rows.append(one)
+    rows = [dict(row) for row in sample_rows[0]]
+    if args.samples > 1:
+        save(args.out / 'samples.json', sample_rows)
+        for stage, row in enumerate(rows):
+            for key in row:
+                if key not in ('stage', 'body', 'mode'):
+                    row[key] = statistics.median(s[stage][key] for s in sample_rows)
     with (args.out / 'ledger.csv').open('w', newline='') as stream:
         writer = csv.DictWriter(stream, list(rows[0]), lineterminator='\n')
         writer.writeheader()
@@ -106,6 +125,8 @@ def collect(args, identity):
     save(args.out / 'result.json', dict(evidence='verified', diagnostic_only=True,
         timing_valid=False, artifact_id=identity['artifact_id'], dimensions=dimensions,
         trace_level=trace_level, input_sha256=sha(args.inputs), ledger=str(args.out / 'ledger.csv'),
+        samples=args.samples, warmup=args.warmup, gpu=args.device,
+        start_sm_clock_mhz=start_clock, end_sm_clock_mhz=end_clock,
         reference=str(args.reference) if args.reference else 'independent clone of first trace launch',
         reference_sha256=sha(args.reference) if args.reference else None,
         limitation=('Boundary markers only; compare total window against a non-trace build.' if trace_level==3 else 'Thread 0 attribution; nested segments are not additive; trace overhead changes scheduling.'),
@@ -122,12 +143,15 @@ def main():
     parser.add_argument('--reference', type=Path, help='accepted non-trace artifact at identical coordinates')
     parser.add_argument('--execute', action='store_true')
     parser.add_argument('--warmup', type=int, default=50)
+    parser.add_argument('--samples', type=int, choices=(1, 50), default=1)
     args = parser.parse_args()
     for name in ('library', 'export', 'bridge', 'inputs', 'out'):
         setattr(args, name, getattr(args, name).resolve())
     identity = verify(args.library)
     if not identity['trace']:
         raise ValueError('attribution requires a separate trace artifact')
+    if args.samples > 1 and identity['defines'].get('TILEMEGA_TRACE_STAGE') != '3':
+        raise ValueError('P-TUNE samples require boundary trace level3')
     if args.reference:
         args.reference = args.reference.resolve()
         accepted = verify(args.reference)
@@ -152,13 +176,14 @@ def main():
     queue = args.out / 'queue'
     queue.mkdir()
     command = ['taskset', '-c', args.cpu_set, str(ROOT/'scripts/dnn4_guard_python.py'),
-               str(Path(__file__).resolve()), '--execute', '--batch', str(args.batch), '--warmup', str(args.warmup)]
+               str(Path(__file__).resolve()), '--execute', '--batch', str(args.batch), '--warmup', str(args.warmup),
+               '--samples', str(args.samples), '--device', str(args.device)]
     for name in ('library', 'export', 'bridge', 'inputs'):
         command += ['--'+name, str(getattr(args, name))]
     command += ['--out', '{attempt_dir}/trace']
     if args.reference:
         command += ['--reference', str(args.reference)]
-    save(queue / 'queue_marks.json', [dict(name='dnn4-marks', gpu=True, timing=False,
+    save(queue / 'queue_marks.json', [dict(name='dnn4-marks', gpu=True, timing=args.samples > 1,
         timeout_s=1200, needs_free_mib=8192, command=command, cwd=str(ROOT), env=environment)])
     paths = [Path(__file__), args.library, Path(str(args.library)+'.identity.json'),
              args.inputs, args.bridge, args.export/'exported_program.pt2',
