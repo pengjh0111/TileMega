@@ -69,7 +69,9 @@ def main():
               ('Repeat arithmetic P1 reg64 B4', base/'repeat_arithmetic_middle_v1/b4/experiment.json'),
               ('Repeat arithmetic P1 reg56 B4', base/'repeat_arithmetic_b4_reg56_v1/experiment.json'),
               ('P1 normalization arithmetic B2', base/'arithmetic_side_norm_b2_v1/experiment.json'),
-              ('in-situ P1 B16', base/'side_norm_retune_b16_v1/experiment.json')]
+              ('in-situ P1 B16', base/'side_norm_retune_b16_v1/experiment.json'),
+              ('in-situ P1 B8', base/'side_norm_retune_b8_v1/experiment.json'),
+              ('FFN1 TK128 B16', base/'ffn1_tk128_b16_v1/experiment.json')]
     rows = []
     choices = []
     for name, path in probes:
@@ -88,10 +90,14 @@ def main():
                 unit = read(base/suite/'raw/dnn4-focused-f3-gates/attempt1/cohort/result.json')
                 if not unit['passed'] or len(unit['processes']) != 17 or any(p['exit_code'] for p in unit['processes']):
                     raise ValueError('arithmetic/P1 combination requires both component gates')
-        if name == 'in-situ P1 B16':
+        if name.startswith('in-situ P1'):
             qualification = read(path.parent/'trace_qualification.json')
             if not qualification['passed'] or abs(qualification['relative_difference']) > .05:
                 raise ValueError('in-situ P1 requires qualified boundary traces')
+        if name == 'FFN1 TK128 B16':
+            unit = read(Path(experiment['unit_gate']))
+            if not unit['passed'] or len(unit['processes']) != 17 or any(p['exit_code'] for p in unit['processes']):
+                raise ValueError('wide-K FFN1 requires its exact focused unit and sanitizer gates')
         if name.startswith('binding arithmetic'):
             suite = ('repeat_arithmetic_odd_unit_v1' if experiment['batch'] == 1
                      else 'repeat_arithmetic_alias_unit_v1')
@@ -409,6 +415,43 @@ def main():
                   f'ratio{decision["pair"]["ratio"]:.6f} exceeds '
                   f'{100*decision["pair"]["threshold"]:.2f}% noise. Reject;the prototype '
                   'patch is archived and all production files are restored.']
+    for batch in (8, 16):
+        folder = base/f'side_norm_retune_b{batch}_v1'
+        if not (folder/'tune_selection.json').exists():
+            continue
+        selection = read(folder/'tune_selection.json')
+        qualification = read(folder/'trace_qualification.json')
+        eligible = selection.get('eligible_variants', list(range(6)))
+        lines += ['', f'Verified P1 B{batch} in-situ follow-up: boundary overhead '
+                  f'{100*qualification["relative_difference"]:.3f}% passes5%;'
+                  f'{len(eligible)}/6 existing variants complete three fresh20/50 traces each. '
+                  'Spilled variants, if any, are excluded before execution and remain recorded. '
+                  'Group-window winners describe local selection;only the assembled nontrace '
+                  'program can qualify through the complete GPU3 end-to-end pair.']
+        if (folder/'experiment.json').exists():
+            decision = read(folder/'experiment.json')
+            lines += [f'Verified assembled B{batch} P-PAIR ratio{decision["pair"]["ratio"]:.6f};'
+                      f'noise{100*decision["pair"]["threshold"]:.3f}%;'
+                      f'accepted={decision["accepted"]}.']
+    wide_k = base/'ffn1_tk128_b16_v1/experiment.json'
+    if wide_k.exists():
+        decision = read(wide_k)
+        lines += ['', 'Verified FFN1 TK128 uses three slots and register stores on the12 FFN1 '
+                  'stages;all other accepted B16 coordinates remain unchanged. The exact '
+                  '2048x3072x768,NT12 unit passes5/5,memcheck1/1,initcheck1/1,racecheck5/5,'
+                  'synccheck5/5;the whole model passes5/5 without spill. '
+                  f'GPU3 P-PAIR ratio{decision["pair"]["ratio"]:.6f} regresses and is rejected. '
+                  'The regression unit remains as coverage for wide-K spanning slots.']
+    scalar = base/'scalar_arithmetic_b8_v1/native/model.so.ptxas.log'
+    if scalar.exists():
+        unit = read(base/'scalar_arithmetic_alias_unit_v1/raw/dnn4-focused-f3-gates/attempt1/cohort/result.json')
+        spills = list(map(int, re.findall(r'(\d+) bytes spill (?:stores|loads)', scalar.read_text())))
+        if not unit['passed'] or len(unit['processes']) != 17 or not any(spills):
+            raise ValueError('scalar arithmetic rejection lacks its unit or compilation evidence')
+        lines += ['', 'Verified scalar phase plus arithmetic alias component passes unit5/5 and '
+                  'sanitizer1/1/5/5. The B8 Repeat/P1 whole-model build still spills '
+                  +'/'.join(map(str, spills))+'B stores/loads under64/216;it is never executed. '
+                  'The prototype patch is archived and its production header is restored.']
     spill_lines = []
     for name in ('repeat_arithmetic_middle_v1/b8', 'repeat_arithmetic_b8_reg56_v1'):
         log = base/name/'native/model.so.ptxas.log'

@@ -55,6 +55,8 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | statistics TMA B16 | 3 | 1.421776 | 1.465552 | -3.079 | 0.943 | False |
 | Repeat arithmetic P1 reg64 B4 | 3 | 0.761344 | 0.739344 | +2.890 | 2.627 | False |
 | Repeat arithmetic P1 reg56 B4 | 3 | 0.760288 | 0.733952 | +3.464 | 0.500 | True |
+| in-situ P1 B16 | 3 | 1.428960 | 1.427312 | +0.115 | 0.898 | False |
+| FFN1 TK128 B16 | 3 | 1.423696 | 1.466832 | -3.030 | 1.349 | False |
 
 Verified attention experiment: QK/PV columns were distributed across eight consumer warps without changing any output accumulation order. Per-head unit5/5 and sanitizer memcheck1/1, initcheck1/1, racecheck5/5, synccheck5/5 passed; whole-model outputs also matched the control byte for byte. Neither timing gain exceeded process variability, so the original header was restored. The initial driver added an unnecessary3% cutoff, which does not affect either rejection because both measured noise thresholds exceed3%. Frozen sources and the patch remain under runs/dnn4/bert_priority.
 
@@ -64,6 +66,7 @@ Verified in-situ experiments use the six already authorized candidate programs, 
 
 in-situ B16: group0→candidate5, group1→candidate1, group2→candidate0, group3→candidate2, group4→candidate1, group5→candidate1.
 in-situ B1: group0→candidate3, group1→candidate0, group2→candidate0, group3→candidate0, group4→candidate4.
+in-situ P1 B16: group0→candidate5, group1→candidate1, group2→candidate0, group3→candidate2, group4→candidate4, group5→candidate1.
 
 Verified post-collection checks reject40/232: the89-case scan still spills28B on256x128 residual_ln_rowstats, and the full B16 program spills36B; it is never executed. B1 compiles without spill but has no significant gain. FFN1 128x256 uses one deterministic legal four-slot register-store variant; it regresses and is rejected. Distance1 has no significant gain.
 
@@ -102,6 +105,15 @@ Verified arithmetic remaps use compile-time checked constant, affine or period-t
 Verified hardware-counter diagnostic: ncu2025.1.1 exits1 with ERR_NVGPUCTRPERM; no counter samples are available and no device/driver settings were changed. Fresh host CMake configuration also fails because the external MLIR installation lacks obj.MLIRCAPIDebug/Debug.cpp.o. The existing configured incremental build succeeds.
 
 Verified statistics-TMA prototype maps even-M statistics as a BF16 byte view and loads all NT parts with one unswizzled3D TMA;odd M and NT1 keep Bulk. This explicitly deviates from per-part Bulk in section5.2. Focused units pass5/5,memcheck1/1,initcheck1/1,racecheck5/5,synccheck5/5;the complete second guarded cohort is used and the interrupted first is excluded. B16 compiles without spill and passes model5/5. GPU3 P-PAIR ratio1.030790 exceeds 0.94% noise. Reject;the prototype patch is archived and all production files are restored.
+
+Verified P1 B8 in-situ follow-up: boundary overhead 3.682% passes5%;4/6 existing variants complete three fresh20/50 traces each. Spilled variants, if any, are excluded before execution and remain recorded. Group-window winners describe local selection;only the assembled nontrace program can qualify through the complete GPU3 end-to-end pair.
+
+Verified P1 B16 in-situ follow-up: boundary overhead 3.258% passes5%;6/6 existing variants complete three fresh20/50 traces each. Spilled variants, if any, are excluded before execution and remain recorded. Group-window winners describe local selection;only the assembled nontrace program can qualify through the complete GPU3 end-to-end pair.
+Verified assembled B16 P-PAIR ratio0.998847;noise0.898%;accepted=False.
+
+Verified FFN1 TK128 uses three slots and register stores on the12 FFN1 stages;all other accepted B16 coordinates remain unchanged. The exact 2048x3072x768,NT12 unit passes5/5,memcheck1/1,initcheck1/1,racecheck5/5,synccheck5/5;the whole model passes5/5 without spill. GPU3 P-PAIR ratio1.030299 regresses and is rejected. The regression unit remains as coverage for wide-K spanning slots.
+
+Verified scalar phase plus arithmetic alias component passes unit5/5 and sanitizer1/1/5/5. The B8 Repeat/P1 whole-model build still spills 8/32B stores/loads under64/216;it is never executed. The prototype patch is archived and its production header is restored.
 
 Verified B8 arithmetic Repeat plus P1 normalization fails the compilation gate under64/216 and prescribed56/224 (repeat_arithmetic_middle_v1/b8:8,24B stores/loads;repeat_arithmetic_b8_reg56_v1:32,104B stores/loads). Neither spilled binary is executed;B8 retains its accepted flat program.
 
