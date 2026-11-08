@@ -21,6 +21,8 @@ def main():
     parser.add_argument('--batch', type=int, required=True)
     parser.add_argument('--layers', choices=('1', '2'), required=True)
     parser.add_argument('--expect', choices=('repeat', 'flat'), required=True)
+    parser.add_argument('--register-budget', choices=('0', '1', '2'),
+                        default=os.environ.get('TILEMEGA_F3_REGISTER_BUDGET', '0'))
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=False)
     sources = []
@@ -34,7 +36,8 @@ def main():
         with source.with_suffix('.log').open('w') as log:
             done = subprocess.run(command, env=dict(os.environ, CUDA_VISIBLE_DEVICES='',
                 TILEMEGA_F3_REPEAT=setting, TILEMEGA_F3_REPEAT_LAYERS=args.layers,
-                TILEMEGA_F3_REPEAT_ARITHMETIC=arithmetic),
+                TILEMEGA_F3_REPEAT_ARITHMETIC=arithmetic,
+                TILEMEGA_F3_REGISTER_BUDGET=args.register_budget),
                 stdout=log, stderr=subprocess.STDOUT)
         if arithmetic == '2':
             assert done.returncode and 'TILEMEGA_F3_REPEAT_ARITHMETIC must be0 or1' in source.with_suffix('.log').read_text()
@@ -44,6 +47,13 @@ def main():
         manifest = json.loads(Path(str(source)+'.plan.json').read_text())
         assert len(dispatch(manifest, build_defines(text, []), text)) == 63
         sources.append(text)
+    invalid = args.out/'invalid-register.cu'
+    command[3] = str(invalid.resolve())
+    with invalid.with_suffix('.log').open('w') as log:
+        done = subprocess.run(command, env=dict(os.environ, CUDA_VISIBLE_DEVICES='',
+            TILEMEGA_F3_REGISTER_BUDGET='3', TILEMEGA_F3_REPEAT_ARITHMETIC='0'),
+            stdout=log, stderr=subprocess.STDOUT)
+    assert done.returncode and 'TILEMEGA_F3_REGISTER_BUDGET must be0,1 or2' in invalid.with_suffix('.log').read_text()
     repeated = ',Stage_0,Repeat<' in sources[1]
     assert sources[2] == '#define TILEMEGA_F3_REPEAT_ARITHMETIC 1\n'+sources[1]
     assert repeated == (args.expect == 'repeat')
@@ -52,7 +62,8 @@ def main():
         assert re.sub(r'// F3 Repeat declined:[^\n]*\n', '', sources[1]) == sources[0]
     print(json.dumps(dict(status='passed', evidence='verified', batch=args.batch,
                           layers=args.layers, repeated=repeated, logical_stages=63,
-                          arithmetic_profile=True, invalid_arithmetic_rejected=True)))
+                          arithmetic_profile=True, invalid_arithmetic_rejected=True,
+                          register_budget=args.register_budget, invalid_register_rejected=True)))
 
 
 if __name__ == '__main__':

@@ -46,6 +46,8 @@ def main():
     assert side == '#define TILEMEGA_F3_SIDE_NORM 1\n'+flat
     budget, _ = generate('register64', {'TILEMEGA_F3_REGISTER_BUDGET': '1'})
     assert budget == '#define TILEMEGA_F3_REGISTER_BUDGET 1\n'+flat
+    budget, _ = generate('register72', {'TILEMEGA_F3_REGISTER_BUDGET': '2'})
+    assert budget == '#define TILEMEGA_F3_REGISTER_BUDGET 2\n'+flat
     rows, manifest = generate('rows64', {'TILEMEGA_F3_SIDE_NORM': '1',
                                        'TILEMEGA_F3_ATTENTION_ROWS': '64'})
     query_maps = [int(x) for x in re.findall(r'kQueryMap=(\d+)', side)]
@@ -70,8 +72,8 @@ def main():
             raise AssertionError('unidentified attention row change accepted')
     generate('invalid_rows', {'TILEMEGA_F3_ATTENTION_ROWS': '48'}, succeeds=False)
     generate('invalid_side', {'TILEMEGA_F3_SIDE_NORM': '2'}, succeeds=False)
-    generate('invalid_budget', {'TILEMEGA_F3_REGISTER_BUDGET': '2'}, succeeds=False)
-    print(json.dumps(dict(status='passed', evidence='verified', profiles=4,
+    generate('invalid_budget', {'TILEMEGA_F3_REGISTER_BUDGET': '3'}, succeeds=False)
+    print(json.dumps(dict(status='passed', evidence='verified', profiles=5,
                           query_maps=12, invalid_settings_rejected=3)))
 
 
