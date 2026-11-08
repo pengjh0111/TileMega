@@ -52,7 +52,10 @@ def main():
               ('Repeat reg64 B2 G22', base/'register64_216_b2_v1/g22_v1/experiment.json'),
               ('Repeat alias B8 G22', base/'alias_repeat_b8_v1/g22_v1/experiment.json'),
               ('prefetch table B1', base/'prefetch_table_models_v1/b1/experiment.json'),
-              ('prefetch table B2', base/'prefetch_table_models_v1/b2/experiment.json')]
+              ('prefetch table B2', base/'prefetch_table_models_v1/b2/experiment.json'),
+              ('P1 normalization B2', base/'side_norm_middle_v1/b2/experiment.json'),
+              ('P1 normalization B4', base/'side_norm_middle_v1/b4/experiment.json'),
+              ('P1 normalization B8', base/'side_norm_middle_v1/b8/experiment.json')]
     rows = []
     choices = []
     for name, path in probes:
@@ -74,6 +77,10 @@ def main():
             if not unit['passed'] or len(unit['processes']) != 17 or any(
                     p['exit_code'] for p in unit['processes']):
                 raise ValueError('64/216 requires unit5 and sanitizer1/1/5/5')
+        if name == 'P1 normalization B2':
+            unit = read(base/'side_norm_reg64_unit_v1/raw/dnn4-focused-f3-gates/attempt1/cohort/result.json')
+            if not unit['passed'] or len(unit['processes']) != 17 or any(p['exit_code'] for p in unit['processes']):
+                raise ValueError('B2 normalization requires the combined64/216 unit/sanitizer gate')
         if 'normalization' in name:
             suite = 'side_norm96_unit_v1' if name.startswith('96-lane') else 'side_norm_unit_v2'
             unit = read(base/suite/'raw/dnn4-focused-f3-gates/attempt1/cohort/result.json')
@@ -239,6 +246,12 @@ def main():
               'pass odd-body unit5/5,sanitizer1/1/5/5 and B1/B2 model checks5/5. '
               'Complete GPU3 P-PAIR gives B1 ratio1.039358,noise6.8132% and B2 ratio0.959454,noise5.6363%. '
               'Neither gain exceeds noise;the prototype header is archived and restored.', '',
+              'Verified middle-batch P1 normalization preserves accepted coordinates and passes strict '
+              'model checks5/5. B2 GPU3 ratio0.950017 is below5.61% noise,so its old loop stays selected. '
+              'B4 GPU3 ratio0.963260 beats1.94% noise;P-DNN median0.760672ms,p900.764224ms,range0.006784ms. '
+              'The64/216 side-normalization unit also passes5/5 and sanitizer1/1/5/5. '
+              'B8 ratio0.970675 gives2.9325% gain below2.9386% noise and is rejected. '
+              'B4 remains above its fixed BF16 goal and retains the original anchor without re-anchoring.', '',
               'GPU3 foreign occupancy delayed additional same-card G22 probes; only our pending '
               'schedulers were cancelled, and fresh candidate/control pairs moved to authorized GPU2. '
               'The separately identified B1/B2/B16 follow-ups do not silently replace the earlier frozen20-cell collection. '
@@ -253,7 +266,7 @@ def main():
         with current.open() as stream:
             latest = list(csv.DictReader(stream))
         lines += ['', 'Verified current accepted artifacts (GPU3;50/200;three-process P-DNN). '
-                  'B4/B8 reuse the original measurements;B1/B2/B16 are follow-ups that retain '
+                  'B8 reuses the original measurements;B1/B2/B4/B16 are follow-ups that retain '
                   'the original anchor without re-anchoring. All fixed BF16 targets remain unmet. '
                   'DNN4_BERT_current.csv records complete identities,profiles and evidence paths.', '',
                   '| Batch | Median ms | p90 ms | Process range ms | Fixed BF16 ms | Ratio |',

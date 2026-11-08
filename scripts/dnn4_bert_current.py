@@ -29,6 +29,9 @@ def main():
             'register64_216_b2_v1/g22_v1/experiment.json',
             {'TILEMEGA_F3_REPEAT': '1', 'TILEMEGA_F3_REPEAT_LAYERS': '1',
              'TILEMEGA_F3_REGISTER_BUDGET': '1'}),
+        4: ('side_norm_middle_v1/b4/g22_final_v1/final_result.json',
+            'side_norm_middle_v1/b4/experiment.json',
+            {'TILEMEGA_F3_SIDE_NORM': '1'}),
         16: ('side_norm_models_v2/b16/g22_v1/final_result.json',
              'side_norm_models_v2/b16/g22_v1/experiment.json',
              {'TILEMEGA_F3_SIDE_NORM': '1'})}

@@ -37,6 +37,9 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | Repeat alias B8 G22 | 3 | 1.051232 | 1.070064 | -1.791 | 2.965 | False |
 | prefetch table B1 | 3 | 0.498800 | 0.518432 | -3.936 | 6.813 | False |
 | prefetch table B2 | 3 | 0.658608 | 0.631904 | +4.055 | 5.636 | False |
+| P1 normalization B2 | 3 | 0.658144 | 0.625248 | +4.998 | 5.611 | False |
+| P1 normalization B4 | 3 | 0.789984 | 0.760960 | +3.674 | 1.944 | True |
+| P1 normalization B8 | 3 | 1.050832 | 1.020016 | +2.933 | 2.939 | False |
 
 Verified attention experiment: QK/PV columns were distributed across eight consumer warps without changing any output accumulation order. Per-head unit5/5 and sanitizer memcheck1/1, initcheck1/1, racecheck5/5, synccheck5/5 passed; whole-model outputs also matched the control byte for byte. Neither timing gain exceeded process variability, so the original header was restored. The initial driver added an unnecessary3% cutoff, which does not affect either rejection because both measured noise thresholds exceed3%. Frozen sources and the patch remain under runs/dnn4/bert_priority.
 
@@ -69,14 +72,16 @@ Verified B8 alias handling now gives each repeated operand role a virtual index 
 
 Verified host-selected Repeat prefetch tables preserve prefetch distance and byte budgets, pass odd-body unit5/5,sanitizer1/1/5/5 and B1/B2 model checks5/5. Complete GPU3 P-PAIR gives B1 ratio1.039358,noise6.8132% and B2 ratio0.959454,noise5.6363%. Neither gain exceeds noise;the prototype header is archived and restored.
 
+Verified middle-batch P1 normalization preserves accepted coordinates and passes strict model checks5/5. B2 GPU3 ratio0.950017 is below5.61% noise,so its old loop stays selected. B4 GPU3 ratio0.963260 beats1.94% noise;P-DNN median0.760672ms,p900.764224ms,range0.006784ms. The64/216 side-normalization unit also passes5/5 and sanitizer1/1/5/5. B8 ratio0.970675 gives2.9325% gain below2.9386% noise and is rejected. B4 remains above its fixed BF16 goal and retains the original anchor without re-anchoring.
+
 GPU3 foreign occupancy delayed additional same-card G22 probes; only our pending schedulers were cancelled, and fresh candidate/control pairs moved to authorized GPU2. The separately identified B1/B2/B16 follow-ups do not silently replace the earlier frozen20-cell collection. That BERT batch collection completed on GPU3: B1/B2/B4/B8/B16 =0.614016/0.695504/0.790144/1.043264/1.463168ms. None beats its frozen BF16 target. CNN collection is complete and paused; existing CNN results and all60 baseline arms are reused. GPU ownership remains qualified by the container PID namespace. See DNN4_BERT_optimization.csv for identities, clocks, correctness receipts and raw timing sources.
 
-Verified current accepted artifacts (GPU3;50/200;three-process P-DNN). B4/B8 reuse the original measurements;B1/B2/B16 are follow-ups that retain the original anchor without re-anchoring. All fixed BF16 targets remain unmet. DNN4_BERT_current.csv records complete identities,profiles and evidence paths.
+Verified current accepted artifacts (GPU3;50/200;three-process P-DNN). B8 reuses the original measurements;B1/B2/B4/B16 are follow-ups that retain the original anchor without re-anchoring. All fixed BF16 targets remain unmet. DNN4_BERT_current.csv records complete identities,profiles and evidence paths.
 
 | Batch | Median ms | p90 ms | Process range ms | Fixed BF16 ms | Ratio |
 | --- | --- | --- | --- | --- | --- |
 | 1 | 0.498176 | 0.500640 | 0.013232 | 0.4858 | 1.0254 |
 | 2 | 0.630928 | 0.635808 | 0.004736 | 0.5171 | 1.2201 |
-| 4 | 0.790144 | 0.793408 | 0.006816 | 0.5905 | 1.3381 |
+| 4 | 0.760672 | 0.764224 | 0.006784 | 0.5905 | 1.2882 |
 | 8 | 1.043264 | 1.055872 | 0.009120 | 0.7457 | 1.3990 |
 | 16 | 1.421744 | 1.446144 | 0.001824 | 1.0869 | 1.3081 |
