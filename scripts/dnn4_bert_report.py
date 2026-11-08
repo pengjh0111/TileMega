@@ -49,13 +49,26 @@ def main():
               ('96-lane normalization B1', base/'side_norm96_models_v1/b1/experiment.json'),
               ('96-lane normalization B16', base/'side_norm96_models_v1/b16/experiment.json'),
               ('Repeat reg64 B2 GPU2', base/'register64_216_b2_v1/comparison/experiment.json'),
-              ('Repeat reg64 B2 G22', base/'register64_216_b2_v1/g22_v1/experiment.json')]
+              ('Repeat reg64 B2 G22', base/'register64_216_b2_v1/g22_v1/experiment.json'),
+              ('Repeat alias B8 G22', base/'alias_repeat_b8_v1/g22_v1/experiment.json'),
+              ('prefetch table B1', base/'prefetch_table_models_v1/b1/experiment.json'),
+              ('prefetch table B2', base/'prefetch_table_models_v1/b2/experiment.json')]
     rows = []
     choices = []
     for name, path in probes:
         if not path.exists():
             continue
         experiment = read(path)
+        if name.startswith('prefetch table'):
+            unit = read(base/'prefetch_table_unit_v1/raw/dnn4-focused-f3-gates/attempt1/cohort/result.json')
+            if not unit['passed'] or len(unit['processes']) != 17 or any(p['exit_code'] for p in unit['processes']):
+                raise ValueError('prefetch table requires unit5 and sanitizer1/1/5/5')
+        if 'alias B8' in name:
+            for suite in ('alias_repeat_unit_v1', 'alias_repeat_reg64_unit_v1'):
+                unit = read(base/suite/'raw/dnn4-focused-f3-gates/attempt1/cohort/result.json')
+                if not unit['passed'] or len(unit['processes']) != 17 or any(
+                        p['exit_code'] for p in unit['processes']):
+                    raise ValueError('virtual aliases require both register-profile unit/sanitizer gates')
         if 'reg64' in name:
             unit = read(base/'register64_216_unit_v1/raw/dnn4-focused-f3-gates/attempt1/cohort/result.json')
             if not unit['passed'] or len(unit['processes']) != 17 or any(
@@ -169,8 +182,8 @@ def main():
               'Verified follow-up rejects16-bit inline parameter tables: odd-loop unit5/5 and '
               'sanitizer1/1/5/5 pass;full B1 FP32/byte checks5/5 pass, but the complete P-PAIR '
               'against the accepted loop is0.498656→0.507488ms,ratio1.017712,noise0.9369%. '
-              'The prototype headers are restored. Verified B8 has incompatible canonical buffer '
-              'aliases;codegen now retains its exact flat program instead of failing. Four real '
+              'The prototype headers are restored. Earlier B8 canonical buffer aliases required '
+              'retaining its exact flat program instead of failing. Four real '
               'CPU codegen cases cover B1 one/two-layer loops,B2 nonperiodic fallback and B8 alias '
               'fallback;all retain63 logical stages. No new B8 performance is claimed.', '',
               'Verified P1 row normalization is explicitly selected only for B16: the side warp '
@@ -211,6 +224,21 @@ def main():
               'retains the previously accepted loop. One remaining B1 variant spills12B and '
               'is never executed. No new coordinate scan is added;the profile stays explicit. '
               'A real four-profile CPU test also verifies invalid register-budget rejection.', '',
+              'Verified B8 alias handling now gives each repeated operand role a virtual index '
+              'when physical aliases vary across layers. Physical allocations and prefetch IDs '
+              'stay unchanged. Six real CPU codegen cases certify63-stage coverage;B1 one/two-layer '
+              'and accepted periodic B2 sources remain byte-identical. B8 one/two-layer contract '
+              'tests each reject six remap corruptions and preserve the flat source. Virtual-ID '
+              'units under56/224 and64/216 each pass5/5 and sanitizer1/1/5/5. The B8 model spills '
+              '4B stores/28B loads under56/224 and is never executed;64/216 compiles without spill '
+              'and passes strict model checks5/5. GPU2 was cancelled before measurement because '
+              'a separate baseline controller held its lock;that controller was left running. '
+              'GPU3 P-PAIR is1.051232→1.070064ms,ratio1.017914,noise2.9649%;DT-CODE fails, '
+              'so B8 keeps the published flat winner. The newly valid Repeat path remains opt-in.', '',
+              'Verified host-selected Repeat prefetch tables preserve prefetch distance and byte budgets, '
+              'pass odd-body unit5/5,sanitizer1/1/5/5 and B1/B2 model checks5/5. '
+              'Complete GPU3 P-PAIR gives B1 ratio1.039358,noise6.8132% and B2 ratio0.959454,noise5.6363%. '
+              'Neither gain exceeds noise;the prototype header is archived and restored.', '',
               'GPU3 foreign occupancy delayed additional same-card G22 probes; only our pending '
               'schedulers were cancelled, and fresh candidate/control pairs moved to authorized GPU2. '
               'The separately identified B1/B2/B16 follow-ups do not silently replace the earlier frozen20-cell collection. '
