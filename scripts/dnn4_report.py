@@ -121,7 +121,18 @@ Diagnosis SHA256:`1bb34856e94c78d2bc751983d3b654b13b8e0bd372463634b89213d03e25b5
     add('Verified VGG16 B16 combined trace variant4 FC1 S28 Slots8 spills 32 B; replace only that stage with the already valid S28 Slots6 choice. Six variants contain five distinct FC1 choices; other groups retain six. No spilling program is timed. The known accepted VGG seed was absent from model top-six: post-selection same-card P-PAIR 1.345568→1.261584 ms (−6.24%, threshold 0.5%) accepts its exact rebuilt coordinates; P-DNN/ledger repeated.')
     add('Verified bounded existing-seed stage rescue on RN50: B1 P-PAIR ratio1.002624 (threshold0.5%), B16 ratio0.998805 (threshold1.9803%). Neither has a significant gain; retain the already collected winners. Both assembled candidates passed five fresh byte-hashed FP32 checks; no final timing was repeated after rejection.')
     add('Verified priority BERT attention experiment: distribute B1/B2 QK and PV across eight consumer warps, preserving each output accumulation order. Unit5/5 andsanitizers1/1/5/5 pass;full-model5/5 outputs also match the control byte for byte. GPU1 P-PAIR ratios0.982973/0.985021 do not exceed the5.5807%/5.3426% noise thresholds. Reject and restore the original attention path;source patch and frozen builds remain raw. The diagnostic driver also imposed an unnecessary3% cutoff;it has no effect because both measured noise thresholds are larger.')
-    add('Verified priority BERT B16 follow-up on GPU1: a single TK128/max-legal-Slots variant on12 QKV stages gives P-PAIR ratio1.002617, below significance;reject. Existing TMA stores on24 residual-reuse stages give1.528224→1.490880ms,ratio0.975564 versus1.3222% noise;retain this checked5/5 candidate for later GPU3 admission. The six already authorized in-situ variants are also being compared on GPU1;these diagnostics do not replace G22 final measurements.')
+    add('Verified priority BERT B16 follow-up on GPU1: a single TK128/max-legal-Slots variant on12 QKV stages gives P-PAIR ratio1.002617, below significance;reject. Existing TMA stores on24 residual-reuse stages give1.528224→1.490880ms,ratio0.975564 versus1.3222% noise;retain this checked5/5 candidate. The six already authorized in-situ variants are compared on GPU1;these diagnostics do not replace G22 final measurements.')
+    for batch in (1,16):
+        probe = ROOT/f'runs/dnn4/bert_priority/in_situ_b{batch}_gpu1_v1'
+        if not (probe/'experiment.json').exists():
+            continue
+        d = json.loads((probe/'experiment.json').read_text());pair=d['pair']
+        text = f"Verified GPU1 BERT B{batch} assembled in-situ program:P-CORR5/5;P-PAIR {pair['reference_ms']:.6f}→{pair['candidate_ms']:.6f}ms,ratio{pair['ratio']:.6f},threshold{pair['threshold']:.6f}. "
+        g22 = probe/'g22_pair/result.json'
+        if g22.exists():
+            p = json.loads(g22.read_text())
+            text += f"GPU3 versus rank0:ratio{p['ratio']:.6f},threshold{p['threshold']:.6f}. "
+        add(text+'Final-winner admission is tracked separately;DNN4_BERT_optimization.csv contains diagnostic receipts.')
     add('## Phase Z results')
     add('Verified measured rows use fixed G22 cards: RN18/BERT GPU3, RN50 GPU0, VGG GPU2; P-CORR 5/5 byte-identical; P-DNN 50 warmups + 200 events × three fresh processes. Ratio=TileMega/fixed DNN3 target. Pending rows carry no timing inference. P90 pools 600 event samples; process range uses the three medians. DNN4_final.csv contains full coordinate counts, identities, clocks and raw receipts.')
     values = []
