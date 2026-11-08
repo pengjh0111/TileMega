@@ -18,7 +18,9 @@ import sys
 import time
 
 ROOT = Path(os.environ.get('TILEMEGA_DNN4_REPO', Path(__file__).resolve().parents[1]))
-SOURCES = dict(stem=ROOT / 'test/unit/dnn4_stem_test.cu',
+SOURCES = dict(store_bert=ROOT / 'test/unit/dnn4_store_bert_test.cu',
+               store=ROOT / 'test/unit/dnn4_store_test.cu',
+               stem=ROOT / 'test/unit/dnn4_stem_test.cu',
                body=ROOT / 'test/unit/dnn4_f3_test.cu',
                attention=ROOT / 'test/unit/dnn4_attention_test.cu',
                bert=ROOT / 'test/unit/dnn4_bert_test.cu',

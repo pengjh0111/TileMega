@@ -180,6 +180,11 @@ struct Sm90F3Async {
     asm volatile("st.global.v4.b32 [%0], {%1,%2,%3,%4};" ::"l"(address),
         "r"(a),"r"(b),"r"(c),"r"(d):"memory");
   }
+  __device__ static __forceinline__ void StoreShared128(void* address,unsigned a,unsigned b,
+      unsigned c,unsigned d) {
+    asm volatile("st.shared.v4.b32 [%0], {%1,%2,%3,%4};" ::"r"(Base::Shared(address)),
+        "r"(a),"r"(b),"r"(c),"r"(d):"memory");
+  }
 
   // A row-statistics or GAP side output is read by a later stage on another
   // SM, so it is published at GPU scope before the stage gate's release.

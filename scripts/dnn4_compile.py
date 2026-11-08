@@ -20,6 +20,8 @@ def main():
     parser.add_argument('--input', type=Path, required=True, help='source artifact prefix (.so)')
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--trace-level', type=int, choices=(0, 1, 2, 3))
+    parser.add_argument('--gather-reference', action='store_true',
+                        help='DT-STEM control: retain the96-lane producer with otherwise identical source')
     args = parser.parse_args()
     args.input = args.input.resolve()
     args.out = args.out.resolve()
@@ -51,6 +53,12 @@ def main():
                         lambda m: m[1] + ',64>;', source)
         source_path.write_text(source)
         manifest_path.write_text(json.dumps(manifest, indent=2) + '\n')
+    if args.gather_reference:
+        source_path = Path(str(library) + '.cu')
+        source = source_path.read_text()
+        if 'Sm90F3Mode::kTmaStem' not in source:
+            raise ValueError('DT-STEM control needs a TMA stem source')
+        source_path.write_text(source.replace('Sm90F3Mode::kTmaStem','Sm90F3Mode::kGather'))
     if args.trace_level is not None:
         source_path = Path(str(library) + '.cu')
         source, count = re.subn(r'#define TILEMEGA_TRACE_STAGE [0-3]\b',

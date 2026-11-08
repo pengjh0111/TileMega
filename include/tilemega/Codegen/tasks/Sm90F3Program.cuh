@@ -122,6 +122,7 @@ struct GemmStage {
     p.weight=b.template Get<Bind::kWeight>();
     p.input=b.template Get<Bind::kInput>();
     p.epilogue=EpilogueOf<B,Bind,Shape>(b);
+    if constexpr(Body::kTmaStore)p.output_map=b.template Map<Bind::kOutputMap>();
     return p;
   }
   template<class B>

@@ -29,6 +29,7 @@ struct Sm90F3GemmSwapAB {
   static constexpr int kTileN=128;
   static constexpr int kWgRows=64;            // each warpgroup's weight rows
   static constexpr int kTK=TK,kPanels=TK/64;
+  static constexpr bool kTmaStore=false;
   static constexpr int kIterations=K/(SplitK*TK);
   static_assert(TK==64 || TK==128);
   static_assert(K%(SplitK*TK)==0,"split-K divides the contraction into whole slots");

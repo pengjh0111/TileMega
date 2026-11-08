@@ -35,7 +35,7 @@ using solver::Sm90F3ChainClass;
 // `Binding` carries operands F3 has no body for (depthwise filters, expand
 // weights, per-image input scales), so F3 emits its own trait.
 struct F3Binding {
-  unsigned map=kAbsent,residual_map=kAbsent,query_map=kAbsent,value_map=kAbsent;
+  unsigned map=kAbsent,residual_map=kAbsent,query_map=kAbsent,value_map=kAbsent,output_map=kAbsent;
   unsigned input=kAbsent,weight=kAbsent,output=kAbsent;
   unsigned partial=kAbsent,counters=kAbsent;
   unsigned vector[4]={kAbsent,kAbsent,kAbsent,kAbsent};
@@ -47,6 +47,7 @@ struct F3Binding {
     out<<"struct Bind_"<<index<<" {\n  static constexpr unsigned kMap="<<Identifier(map)
        <<",kResidualMap="<<Identifier(residual_map)
        <<",kQueryMap="<<Identifier(query_map)<<",kValueMap="<<Identifier(value_map)
+       <<",kOutputMap="<<Identifier(output_map)
        <<",\n      kInput="<<Identifier(input)<<",kWeight="<<Identifier(weight)
        <<",kOutput="<<Identifier(output)
        <<",\n      kPartial="<<Identifier(partial)<<",kCounters="<<Identifier(counters)
@@ -194,6 +195,14 @@ F3Chain EmitF3Chain(codegen::DmEpilogueChain const& chain,int tile_m,int tile_n,
 }  // namespace
 
 std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
+  // DT-STEM is retained as an explicit diagnostic until it wins a same-card
+  // model comparison. VGG16 B16 currently regresses4.56% in P-PAIR.
+  bool enable_tma_stem=false;
+  if(auto* setting=std::getenv("TILEMEGA_F3_TMA_STEM")) {
+    std::string value=setting;
+    if(value!="0" && value!="1")throw std::invalid_argument("TILEMEGA_F3_TMA_STEM must be0 or1");
+    enable_tma_stem=value=="1";
+  }
   int trace_level=0;
   if(auto* setting=std::getenv("TILEMEGA_TRACE_STAGE")) {
     std::string value(setting);
@@ -320,6 +329,7 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
         auto chain=frontend::DecodeDmChain(gemm.get("dm_chain"));
         bool im2col=c.body==Sm90ForwardBody::kConv;
         bool gather=c.mode==Sm90ForwardMode::kGather;
+        bool tma_stem=gather && enable_tma_stem;
         bool swap=c.mode==Sm90ForwardMode::kSwapAB;
         unsigned a=unsigned(Integer(gemm,"a"));
         bind.weight=unsigned(Integer(gemm,"b"));
@@ -340,7 +350,7 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
               throw std::invalid_argument("F3 gather mode needs an eight-channel input");
             bind.input=conv.input_layout;
           }
-          {
+          if(!gather || tma_stem) {
             MapSpec spec;
             spec.buffer=conv.input_layout;spec.kind=1;spec.rank=4;
             spec.conv=conv;spec.layout=input;
@@ -446,19 +456,28 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
           if(swap)throw std::invalid_argument("a swap-AB stage does not produce GAP partials");
         }
         shape.rows=rows;
+        bool tma_store=c.store==solver::Sm90ForwardStore::kTma;
+        if(tma_store) {
+          if(swap || c.tile_m<128 || tile_n%64)
+            throw std::invalid_argument("F3 TMA store needs a full64-column WG tile");
+          MapSpec spec;spec.buffer=bind.output;spec.rank=2;
+          spec.dims[0]=n;spec.dims[1]=rows;spec.strides[0]=shape.output_stride*2;
+          spec.box[0]=64;spec.box[1]=64;
+          bind.output_map=maps.Add(spec);
+        }
         if(swap) {
           body="Sm90F3GemmSwapAB<"+std::to_string(c.slots)+','+std::to_string(c.split_k)+','+
               std::to_string(rows)+','+std::to_string(padded_n)+','+
               std::to_string(padded_k)+','+std::to_string(n)+','+f3chain.text+','+
               std::to_string(c.tk)+'>';
         }else {
-          char const* mode=gather?"kTmaStem":"kNormal";
+          char const* mode=gather?(tma_stem?"kTmaStem":"kGather"):"kNormal";
           body="Sm90F3Gemm<"+std::to_string(c.tile_m)+','+std::to_string(c.tile_n)+','+
               std::to_string(c.slots)+','+std::to_string(c.split_k)+
               ",Sm90F3Mode::"+mode+','+std::to_string(rows)+','+std::to_string(padded_n)+','+
               std::to_string(padded_k)+','+std::to_string(n)+','+f3chain.text+','+
               ((im2col||gather)?"Conv_"+std::to_string(index):"Sm90F3NoConv")+','+pool+','+
-              std::to_string(c.tk)+'>';
+              std::to_string(c.tk)+','+(tma_store?"true":"false")+'>';
         }
         wrapper="GemmStage";
         break;

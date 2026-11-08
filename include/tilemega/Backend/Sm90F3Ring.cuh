@@ -64,12 +64,12 @@ constexpr int Sm90F3PoolScratchBytes(int columns,int segments) {
 // `pool_segments` is nonzero only for a GAP producer.
 struct Sm90F3GemmLayout {
   int slots=0,slot_bytes=0,side_bytes=0,pool_bytes=0,end=0;
-  int slot_base=0,side_base=0,pool_base=0;
+  int slot_base=0,side_base=0,store_base=0,store_bytes=0,pool_base=0;
   constexpr bool Spanning() const {return Sm90F3Budget::Spanning(end);}
 };
 constexpr Sm90F3GemmLayout Sm90F3MakeGemmLayout(int tile_m,int tile_n,int slots,
     bool swap_ab,int swap_rows,bool residual,int vectors,bool row_stats,
-    int pool_columns,int pool_segments,int tk=64,int stat_parts=1) {
+    int pool_columns,int pool_segments,int tk=64,int stat_parts=1,bool tma_store=false) {
   Sm90F3GemmLayout l;
   l.slots=slots;
   l.slot_bytes=swap_ab?Sm90F3SwapSlotBytes(swap_rows,tk):Sm90F3SlotBytes(tile_m,tile_n,tk);
@@ -83,7 +83,9 @@ constexpr Sm90F3GemmLayout Sm90F3MakeGemmLayout(int tile_m,int tile_n,int slots,
   // Both the side area and the pool scratch start 1 KB aligned, so an SW128
   // descriptor can address the residual tile from its own base.
   l.side_base=(l.side_base+1023)/1024*1024;
-  l.pool_base=(l.side_base+l.side_bytes+1023)/1024*1024;
+  l.store_base=(l.side_base+l.side_bytes+1023)/1024*1024;
+  l.store_bytes=tma_store && !residual?32768:0;
+  l.pool_base=l.store_base+l.store_bytes;
   l.end=(l.pool_base+l.pool_bytes+1023)/1024*1024;
   return l;
 }

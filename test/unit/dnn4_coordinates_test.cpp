@@ -40,5 +40,11 @@ int main() {
   static_assert(!arena.Spanning() && span.Spanning());
   static_assert(span.slot_bytes==2*arena.slot_bytes && span.end==196608);
   static_assert(Sm90F3Budget::Fits(span.end));
+  constexpr auto stored=Sm90F3MakeGemmLayout(128,64,4,false,0,false,0,false,0,0,64,1,true);
+  static_assert(stored.end==arena.end+32768 && stored.store_bytes==32768);
+  static_assert(stored.store_base>=stored.side_base+stored.side_bytes);
+  constexpr auto residual=Sm90F3MakeGemmLayout(128,64,2,false,0,true,2,false,0,0);
+  constexpr auto reused=Sm90F3MakeGemmLayout(128,64,2,false,0,true,2,false,0,0,64,1,true);
+  static_assert(reused.end==residual.end && reused.store_bytes==0);
   std::cout<<"F3 schema compatibility, slot widths and arena boundaries PASS\n";
 }

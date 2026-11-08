@@ -11,7 +11,8 @@ import subprocess
 ROOT=Path(__file__).resolve().parents[1]
 def sha(p):return hashlib.sha256(Path(p).read_bytes()).hexdigest()
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--out',type=Path,required=True);a=p.parse_args();out=a.out.resolve();out.mkdir(parents=True,exist_ok=False)
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--out',type=Path,required=True)
+    p.add_argument('--tma-store',action='store_true');a=p.parse_args();out=a.out.resolve();out.mkdir(parents=True,exist_ok=False)
     shutil.copytree(ROOT/'include',out/'include');rows=[];skipped=[]
     text='''#include <tilemega/Backend/Sm90F3Gemm.cuh>
 using namespace tilemega::backend;
@@ -43,14 +44,16 @@ template<class B> __device__ __forceinline__ void Run(Sm90F3GemmOperands p,
         for tn in (32,64,96,128,192,256):
             for kind,(residual,vectors,stats,steps) in kinds.items():
                 name=f'scan_m{tm}_n{tn}_{kind}'
+                if a.tma_store and (tm<128 or tn%64):
+                    skipped.append(dict(tile_m=tm,tile_n=tn,chain=kind,reason='TMA store needs whole64-column WG tiles'));continue
                 if tm*tn>32768 or (kind=='residual_ln_rowstats' and (tn%64 or (tm==64 and tn==192))):
                     skipped.append(dict(tile_m=tm,tile_n=tn,chain=kind,reason='accumulator or whole64-column statistics block'));continue
                 index=len(rows);side=f'Sm90F3SideLayout<{tm},{tn},{str(residual).lower()},{vectors},{str(stats).lower()},12>'
                 chain=f'Sm90F3Chain<{side}'+(','+steps if steps else '')+'>'
                 if kind=='residual_ln_rowstats':chain='Sm90F3WriteRowStats<'+chain+'>'
-                text+=f'using B{index}=Sm90F3Gemm<{tm},{tn},2,1,Sm90F3Mode::kNormal,{512 if tm==256 else 128},768,768,768,{chain}>;\n'
+                text+=f'using B{index}=Sm90F3Gemm<{tm},{tn},2,1,Sm90F3Mode::kNormal,{512 if tm==256 else 128},768,768,768,{chain},Sm90F3NoConv,Sm90F3NoPool,64,{str(a.tma_store).lower()}>;\n'
                 text+=f'extern "C" __global__ __launch_bounds__(384,1) void {name}(Sm90F3GemmOperands p,const __grid_constant__ CUtensorMap a,const __grid_constant__ CUtensorMap r){{Run<B{index}>(p,&a,&r);}}\n'
-                rows.append(dict(name=name,tile_m=tm,tile_n=tn,chain=kind))
+                rows.append(dict(name=name,tile_m=tm,tile_n=tn,chain=kind,store='tma' if a.tma_store else 'reg'))
     (out/'scan.cu').write_text(text);log=out/'ptxas.log';binary=out/'scan.cubin'
     command=['taskset','-c','136-143','nvcc','-std=c++17','-O3','-gencode','arch=compute_90a,code=sm_90a','--expt-relaxed-constexpr','--cubin','-Xptxas','-v','-I'+str(out/'include'),'-I'+str(ROOT/'third_party/cutlass/include'),str(out/'scan.cu'),'-o',str(binary)]
     with log.open('w') as f:r=subprocess.run(command,stdout=f,stderr=subprocess.STDOUT,env=dict(os.environ,CUDA_VISIBLE_DEVICES=''),timeout=1800)

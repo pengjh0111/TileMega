@@ -24,6 +24,7 @@ struct Sm90F3GemmOperands {
   cutlass::bfloat16_t const* weight;
   cutlass::bfloat16_t const* input;  // gather mode reads the image directly
   Sm90F3EpilogueOperands epilogue;
+  CUtensorMap const* output_map=nullptr;
 };
 
 // A stage's convolution geometry, as compile-time constants exactly as the
@@ -70,7 +71,8 @@ struct Sm90F3NoPool {
 };
 
 template<int TM,int TN,int Slots,int SplitK,Sm90F3Mode Mode,int M,int N,int K,
-         int NStore,class Chain,class Conv=Sm90F3NoConv,class Pool=Sm90F3NoPool,int TK=64>
+         int NStore,class Chain,class Conv=Sm90F3NoConv,class Pool=Sm90F3NoPool,int TK=64,
+         bool TmaStore=false>
 struct Sm90F3Gemm {
   using Element=cutlass::bfloat16_t;
   using Async=Sm90F3Async;
@@ -82,6 +84,8 @@ struct Sm90F3Gemm {
   static constexpr bool kCanPreissue=Mode==Sm90F3Mode::kNormal;
   static constexpr int kSlots=Slots;
   static constexpr int kTK=TK,kPanels=TK/64;
+  static constexpr bool kTmaStore=TmaStore;
+  static_assert(!TmaStore || (TM>=128 && TN%64==0 && Mode!=Sm90F3Mode::kSwapAB));
   static constexpr int kIterations=K/(SplitK*TK);
   static_assert(TK==64 || TK==128);
   static_assert(Slots>=2 && Slots<=8);
@@ -286,7 +290,7 @@ struct Sm90F3Gemm {
   // through the chain's pool segments.
   static constexpr Sm90F3GemmLayout kLayout=Sm90F3MakeGemmLayout(TM,TN,Slots,
       false,0,Chain::kNeedsResidual,kVectors,Chain::kNeedsStats,
-      2*Split::kWgCols,Pool::kArea?Pool::kImages:0,TK,Side::kStatParts);
+      2*Split::kWgCols,Pool::kArea?Pool::kImages:0,TK,Side::kStatParts,TmaStore);
   static constexpr int kLayoutBytes=kLayout.end;
   static constexpr int kSideOffset=kLayout.side_base;
   static constexpr int kPoolOffset=kLayout.pool_base;
@@ -358,7 +362,7 @@ struct Sm90F3Gemm {
   template<class Tile,class Owned>
   __device__ static __forceinline__ void StoreQuad(Tile const& tile,Owned const& owned,
       Element* output,int stride,int wg,int sub,int m_tile,int n_tile,
-      int live_rows,int width,int group) {
+      int live_rows,int width,int group,char* staging=nullptr) {
     int quad=int(threadIdx.x)&3;
     CUTE_UNROLL
     for(int row=0;row<2;++row) {
@@ -381,6 +385,17 @@ struct Sm90F3Gemm {
       Coordinate(wg,sub,cute::get<0>(owned(group*16+row*2)),
           cute::get<1>(owned(group*16+row*2)),tile_row,tile_col);
       tile_col+=quad*6;
+      if constexpr(TmaStore) {
+        // TMA's horizontal store granule may cover a partial logical tail.
+        // Only complete64-column boxes use it; the partial box keeps the
+        // exact generic predicates. This also avoids staging fully OOB boxes.
+        if(n_tile*TN+(group/2)*64+64<=NStore) {
+        int row=tile_row-Split::ARows(wg)-sub*64,col=tile_col%64;
+        auto* address=staging+row*128+(((col/8)^(row%8))*16);
+        Async::StoreShared128(address,words[0],words[1],words[2],words[3]);
+        continue;
+        }
+      }
       if(tile_row>=live_rows || tile_col>=width)continue;
       auto* address=output+std::size_t(m_tile*TM+tile_row)*stride+n_tile*TN+tile_col;
       if(tile_col+7<width && (reinterpret_cast<std::uintptr_t>(address)&15u)==0)
@@ -402,7 +417,7 @@ struct Sm90F3Gemm {
   __device__ static __forceinline__ void Epilogue(Sm90F3GemmOperands const& p,
       Sm90F3Ring& ring,char* side,Sm90F3Phase& phase,Accum& accumulators,int wg,
       int m_tile,int n_tile,int live_rows,int width,Sm90F3Header* header,
-      Element* arena_base) {
+      Element* arena_base,int* store_count=nullptr) {
     using namespace cute;
     Mma mma;
     auto owned=mma.get_slice(int(Sm90F3Async::ThreadIndex()&127u)).partition_C(
@@ -428,8 +443,8 @@ struct Sm90F3Gemm {
     constexpr int kBlocks=(Split::kWgCols+63)/64;
     // DT-SPILL: a128-register accumulator spills in RN50 B16 with quad
     // temporaries. Retain its4B path; smaller fragments use16B stores.
-    constexpr bool kVectorStore=Split::kWgCols>=32 && Split::kWgCols%32==0 &&
-        Split::kWgRows*Split::kWgCols/128<128;
+    constexpr bool kVectorStore=TmaStore || (Split::kWgCols>=32 && Split::kWgCols%32==0 &&
+        Split::kWgRows*Split::kWgCols/128<128);
     constexpr int kRegionColumns=kVectorStore?32:64;
     constexpr int kRegions=(Split::kWgCols+kRegionColumns-1)/kRegionColumns;
     auto* output=e.output;
@@ -453,6 +468,20 @@ struct Sm90F3Gemm {
       auto& tile=accumulators.tile[s];
       #pragma unroll
       for(int block=0;block<kBlocks;++block) {
+        char* staging=nullptr;
+        if constexpr(TmaStore) {
+          bool full_box=n_tile*TN+block*64+64<=NStore;
+          int q=store_count?(full_box?(*store_count)++:*store_count):s*kBlocks+block;
+          if constexpr(Chain::kNeedsResidual)
+            staging=side+Side::kResidualBase+(block*TM+Split::ARows(wg)+s*64)*128;
+          else {
+            if(q>=2) {
+              if((threadIdx.x&127)==0)Base::template BulkWait<1,true>();
+              WgBarrier(wg);
+            }
+            staging=reinterpret_cast<char*>(arena_base)+kLayout.store_base+wg*16384+(q%2)*8192;
+          }
+        }
         if constexpr(Chain::kWritesStats) {
           row_accum.sum[s][0]=row_accum.sum[s][1]=0;
           row_accum.square[s][0]=row_accum.square[s][1]=0;
@@ -501,8 +530,11 @@ struct Sm90F3Gemm {
           }
         }
         TM_F3_TRACE_BEGIN(kStore);
+        // Quad transposition changes lane ownership. Finish every source
+        // residual read before any lane overwrites that same shared box.
+        if constexpr(TmaStore && Chain::kNeedsResidual)WgBarrier(wg);
         if constexpr(kVectorStore)
-          StoreQuad(tile,owned,output,stride,wg,s,m_tile,n_tile,live_rows,width,group);
+          StoreQuad(tile,owned,output,stride,wg,s,m_tile,n_tile,live_rows,width,group,staging);
 #if TILEMEGA_TRACE_STAGE == 1
         else {
         CUTE_UNROLL
@@ -521,6 +553,15 @@ struct Sm90F3Gemm {
 #endif
         TM_F3_TRACE_END(kStore);
         }
+        if constexpr(TmaStore) {
+          Base::FenceProxyAsyncShared();
+          WgBarrier(wg);
+          if((threadIdx.x&127)==0 && n_tile*TN+block*64+64<=NStore) {
+            Async::TensorStore2D(p.output_map,n_tile*TN+block*64,
+                m_tile*TM+Split::ARows(wg)+s*64,staging);
+            Base::BulkCommit();
+          }
+        }
         RowStatsBlock(p,row_accum,owned,wg,m_tile,n_tile,live_rows,header,s,block);
       }
     }
@@ -528,9 +569,16 @@ struct Sm90F3Gemm {
         m_tile,n_tile,live_rows,width);
     TM_F3_TRACE_END(kEpilogue);
     if constexpr(Chain::kNeedsResidual || kVectors>0 || Chain::kNeedsStats) {
+      if constexpr(TmaStore && Chain::kNeedsResidual)
+        if((threadIdx.x&127)==0)Base::template BulkWait<0,true>();
       Async::template NamedBarrier<Sm90F3Async::kBarConsumers,256>();
       if((tilemega::backend::Sm90F3Async::ThreadIndex()&31)==0)Base::Arrive(&ring.side_empty);
     }
+  }
+
+  __device__ static __forceinline__ void WgBarrier(int wg) {
+    if(wg==0)Async::template NamedBarrier<Async::kBarWg0,128>();
+    else Async::template NamedBarrier<Async::kBarWg1,128>();
   }
 
   template<class Owned>
@@ -788,6 +836,7 @@ struct Sm90F3Gemm {
       Sm90F3Ring& ring,Element* arena,char* side,Sm90F3Phase& phase,
       Sm90F3Header* header,int wg) {
     Accumulators accum;
+    int store_count=0;
     // Cached per-shape task counts otherwise stay live across BERT's layers.
     for(int local=0,task=int(blockIdx.x);task<kTasks;++local,task+=int(gridDim.x)) {
       int m_tile=MTile(task),n_tile=NTile(task);
@@ -795,11 +844,16 @@ struct Sm90F3Gemm {
       MainLoop(ring,arena,phase,accum,wg,(local*kIterations)%Slots,kIterations);
       TM_F3_TRACE_END(kMainLoop);
       if constexpr(SplitK==1) {
-        Epilogue(p,ring,side,phase,accum,wg,m_tile,n_tile,LiveRows(m_tile),Width(n_tile),header,arena);
+        Epilogue(p,ring,side,phase,accum,wg,m_tile,n_tile,LiveRows(m_tile),Width(n_tile),header,arena,&store_count);
       }else {
-        SplitKEpilogue(p,ring,side,phase,accum,wg,task,m_tile,n_tile,header,arena);
+        SplitKEpilogue(p,ring,side,phase,accum,wg,task,m_tile,n_tile,header,arena,&store_count);
       }
     }
+    if constexpr(TmaStore)
+      if((threadIdx.x&127)==0) {
+        Base::template BulkWait<0,false>();
+        Base::ProxyAsyncGlobalFence();
+      }
   }
 
   // ---- split-K (§6.5) -----------------------------------------------------
@@ -810,7 +864,7 @@ struct Sm90F3Gemm {
   template<class Accum>
   __device__ static __forceinline__ void SplitKEpilogue(Sm90F3GemmOperands const& p,
       Sm90F3Ring& ring,char* side,Sm90F3Phase& phase,Accum& accumulators,int wg,
-      int task,int m_tile,int n_tile,Sm90F3Header* header,Element* arena) {
+      int task,int m_tile,int n_tile,Sm90F3Header* header,Element* arena,int* store_count=nullptr) {
     using namespace cute;
     int tile=m_tile*kTiles+n_tile,slice=Slice(task);
     TM_F3_TRACE_BEGIN(kSplitK);
@@ -868,7 +922,7 @@ struct Sm90F3Gemm {
     }
     TM_F3_TRACE_END(kSplitK);
     Epilogue(p,ring,side,phase,accumulators,wg,m_tile,n_tile,LiveRows(m_tile),
-        Width(n_tile),header,arena);
+        Width(n_tile),header,arena,store_count);
   }
 };
 
