@@ -45,6 +45,18 @@ def compact(value):
     return json.dumps(value, sort_keys=True, separators=(',', ':'))
 
 
+def append_existing(destination, name, additions):
+    source = ROOT / 'docs/results' / name
+    with source.open() as stream:
+        reader = csv.DictReader(stream)
+        fields, rows = reader.fieldnames, list(reader)
+    for addition in additions:
+        row = {key: str(addition.get(key, '')) for key in fields}
+        if row not in rows:
+            rows.append(row)
+    write(destination / name, rows)
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--cells', type=Path, required=True)
@@ -79,7 +91,7 @@ def main():
             if anchor['action'] != 'retain_frozen':
                 raise ValueError('DT-ANCHOR resampling must be exported before complete assembly')
             anchor_results[model] = dict(source=str(path), sha256=sha(path), anchors=anchor['anchors'])
-    finals, ledger, tune, codes, correctness = [], [], [], [], []
+    finals, ledger, tune, codes, correctness, model_rows = [], [], [], [], [], []
     for model, batch, folder, result in cells:
         final = read(folder / 'final/result.json')
         measurements = final['measurements']
@@ -117,6 +129,20 @@ def main():
                 source=result['ledger']))
         prepared = read(folder / 'tune_inputs.json')
         selected = read(folder / 'tune_selection.json')
+        paired = read(folder / 'tuned_pair_decision.json')
+        rank0_ms = paired.get('reference_ms')
+        passes, model_source = '3/3', folder / 'tuned_pair/result.json'
+        if rank0_ms is None:
+            selection = read(folder / 'selection/result.json')
+            rank0_library = str(next(c['library'] for c in read(folder / 'selection_candidates.json')
+                                    if read(Path(c['library'] + '.plan.json'))['native_forward'] == prepared['rank0']))
+            rank0_ms = next(c['median_ms'] for c in selection['ranking'] if c['library'] == rank0_library)
+            passes, model_source = '2/2', folder / 'selection/result.json'
+        predicted, observed = prepared['predicted_ns'], rank0_ms*1e6
+        model_rows.append(dict(model=model, batch=batch, stage='TOTAL_Z', body='program',
+            predicted_ns=predicted, observed_ns=observed, relative_error=abs(predicted-observed)/observed,
+            actual_over_predicted=observed/predicted, passes=passes, protocol='P-PAIR/P-SEL rank0;DT-MODEL six choices',
+            evidence='verified non-trace time;prediction remains unvalidated', source=str(model_source)))
         for group, selection in zip(prepared['groups'], selected['groups']):
             for rank, window in enumerate(selection['windows_ns']):
                 option = group['candidates'][min(rank, len(group['candidates'])-1)]
@@ -128,8 +154,10 @@ def main():
                         source=str(folder / 'tune_selection.json')))
         sass = library.parent / 'model.sass'
         instructions = len(re.findall(r'/\*[0-9a-f]+\*/\s+[^/\n]', sass.read_text()))
-        codes.append(dict(model=model, batch=batch, sass_bytes=instructions*16,
-                          sass_sha256=sha(sass), library_sha256=sha(library), source=str(sass)))
+        codes.append(dict(kind='f4_phase_z_winner', model=model, batch=batch,
+                          sass_instructions=instructions, sass_bytes=instructions*16,
+                          sass_sha256=sha(sass), library_sha256=sha(library), source=str(sass),
+                          evidence='verified CPU disassembly;primary F3 kernel;16B instructions'))
         correctness.append(dict(phase='Z', suite=winner['name'], protocol='P-CORR', model=model,
             batch=batch, passes='5/5', status='passed', output_hash='', scope='final winner;FP32 oracle;five fresh deterministic processes',
             evidence='verified', source=str(Path(winner['gate']).parent.parent / 'result.json')))
@@ -146,6 +174,9 @@ def main():
                         scope='partial Phase Z' if args.partial else 'complete anchored Phase Z'))
     for name, rows in [('final', finals), ('ratios', ratios), ('tune', tune), ('ledger', ledger)]:
         write(args.out / f'DNN4_{name}.csv', rows)
+    for name, additions in [('DNN4_correctness.csv', correctness), ('DNN4_icache.csv', codes),
+                            ('DNN4_model.csv', model_rows)]:
+        append_existing(args.out, name, additions)
     save_path = args.out / 'assembly.json'
     save_path.write_text(json.dumps(dict(status='partial' if args.partial else 'passed', cells=len(finals),
         fixed_targets_sha256=sha(ROOT / 'docs/results/DNN3_final.csv'), anchors=anchor_results,
