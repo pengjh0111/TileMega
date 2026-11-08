@@ -109,9 +109,11 @@ def main():
     if 'USETMAXREG.TRY_ALLOC.CTAPOOL' not in code or 'USETMAXREG.DEALLOC.CTAPOOL' not in code:
         raise RuntimeError('linked kernel lacks register reallocation')
     identity = generate(library, ROOT, receipt)
+    instructions = len(re.findall(r'/\*[0-9a-f]+\*/', code))
     result = dict(status='passed', evidence='verified', library=str(library),
                   artifact_id=identity['artifact_id'], source_snapshot_sha256=sha(receipt),
                   sass_sha256=sha(sass),
+                  sass_instructions=instructions, sass_bytes=16*instructions,
                   sass_register_max=max(map(int, re.findall(r'\bR(\d+)\b', code))))
     (args.out / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps(result))
