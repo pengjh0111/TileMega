@@ -1,0 +1,2 @@
+decision,when,input,measurement,branch,evidence
+SPEC-P-CAL-L2,opening inspection;before Phase P probes or production edits,section3.1 K2048 BF16;A one128-row tile;B eight256-column tiles;total strictly below8MiB,A=524288B;B=8388608B;total=8912896B=8.5MiB;contradicts total<8388608B,stop and report under section1.2;no probe configuration changed;proposed minimal wording total<9MiB only for128x256,verified exact byte arithmetic;no GPU inference
