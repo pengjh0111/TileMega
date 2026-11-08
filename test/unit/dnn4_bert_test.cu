@@ -114,10 +114,10 @@ void CompareStats(std::vector<float> const& actual,std::vector<float> const& exp
   Hash(actual);
 }
 
-template<int M,int N,int K,int TM,int TN,int SplitK,int Kind>
+template<int M,int N,int K,int TM,int TN,int SplitK,int Kind,int Parts=(Kind==1?N:K)/64>
 void DenseCase() {
   std::cout<<"START dense m="<<M<<" n="<<N<<" k="<<K<<" tm="<<TM<<"\n";
-  using Side=Sm90F3SideLayout<TM,TN,Kind==1,2,true>;
+  using Side=Sm90F3SideLayout<TM,TN,Kind==1,2,true,Parts>;
   using Norm=Sm90F3Step<Sm90ForwardOp::kDeferredLayerNorm,0,
       tilemega::codegen::DmActivation::kRelu,1>;
   using Bias=Sm90F3Step<Sm90ForwardOp::kBias,0>;
@@ -140,13 +140,12 @@ void DenseCase() {
   for(int m=0;m<M;++m)for(int n=0;n<N;++n)
     residual[m*N+n]=E(float((m*11+n*5)%19)/32);
   Device<E> a(input.size()),w(packed.size()),r(residual.size()),o(M*N);
-  Device<float> v0(N),v1(N),stats(2*M),row_stats(2*M),row_partials(2*M*(N/TN));
+  Device<float> v0(N),v1(N),stats(2*M*Parts),row_partials(2*M*(N/64));
   Device<float> partial(SplitK*tiles*TM*TN);
-  Device<unsigned long long> counters(tiles),row_counters(mt);
+  Device<unsigned long long> counters(tiles);
   w.Put(packed);r.Put(residual);
   v0.Put(std::vector<float>(N,.25f));v1.Put(std::vector<float>(N,.75f));
   counters.Put(std::vector<unsigned long long>(tiles,0));
-  row_counters.Put(std::vector<unsigned long long>(mt,0));
   CUtensorMap am{},rm{};
   ex::EncodeTiledMap<2>(am,a.data,{{K,M},{K*2},{64,TM}});
   ex::EncodeTiledMap<2>(rm,r.data,{{N,M},{N*2},{64,TM}});
@@ -156,17 +155,19 @@ void DenseCase() {
   e.norm_width=Kind==1?N:K;e.epsilon=1e-5f;
   e.partial=partial.data;e.counters=counters.data;
   if constexpr(Kind==1) {
-    e.row_stats=row_stats.data;e.row_partials=row_partials.data;e.row_counters=row_counters.data;
+    e.row_partials=row_partials.data;
   }
   for(int repeat=0;repeat<3;++repeat) {
     for(int m=0;m<M;++m)for(int k=0;k<K;++k)
       input[m*K+k]=E(float((m*11+k*17+repeat)%19)/32);
-    std::vector<float> sums(2*M,0),expected(M*N),expected_stats(2*M,0);
+    std::vector<float> sums(2*M,0),chunks(2*M*Parts,0),expected(M*N),expected_stats(2*M,0);
     for(int m=0;m<M;++m)for(int k=0;k<(Kind==1?N:K);++k) {
       float value=float(Kind==1?residual[m*N+k]:input[m*K+k]);
       sums[2*m]+=value;sums[2*m+1]+=value*value;
+      int part=k*Parts/(Kind==1?N:K);
+      chunks[(part*M+m)*2]+=value;chunks[(part*M+m)*2+1]+=value*value;
     }
-    a.Put(input);stats.Put(sums);Launch<G>(p,am,rm);
+    a.Put(input);stats.Put(chunks);Launch<G>(p,am,rm);
     std::array<std::array<float,13>,19> cache{};
     for(int m=0;m<19;++m)for(int n=0;n<13;++n)for(int k=0;k<K;++k)
       cache[m][n]+=float(input[m*K+k])*float(weight[n*K+k]);
@@ -184,9 +185,15 @@ void DenseCase() {
       }
     }
     Compare(o.Get(),expected);
-    if constexpr(Kind==1)CompareStats(row_stats.Get(),expected_stats);
+    if constexpr(Kind==1) {
+      auto raw=row_partials.Get();std::vector<float> reduced(2*M,0);
+      for(int part=0;part<N/64;++part)for(int row=0;row<M;++row) {
+        reduced[2*row]+=raw[(part*M+row)*2];
+        reduced[2*row+1]+=raw[(part*M+row)*2+1];
+      }
+      CompareStats(reduced,expected_stats);
+    }
     for(auto value:counters.Get())if(value)throw std::runtime_error("dense split counter reset");
-    for(auto value:row_counters.Get())if(value)throw std::runtime_error("row counter reset");
   }
   std::cout<<"dense_m"<<M<<"_n"<<N<<"_k"<<K<<"_tm"<<TM<<"_s"<<SplitK<<" PASS\n";
 }
@@ -233,6 +240,8 @@ int main(int,char**) try {
   DenseCase<128,768,3072,128,64,4,1>();
   DenseCase<2048,768,3072,128,64,1,1>();
   DenseCase<2048,3072,768,128,128,1,2>();
+  DenseCase<128,768,768,64,128,1,1>();
+  DenseCase<128,768,768,64,64,1,1,1>();
   DenseCase<131,768,256,64,64,1,1>();
   DenseCase<259,768,256,128,64,2,1>();
   SmallBertCase<1>();SmallBertCase<16>();

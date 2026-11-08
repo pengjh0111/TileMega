@@ -19,7 +19,7 @@ struct LayoutOf<Sm90F3Gemm<TM,TN,Slots,S,Mode,M,N,K,NS,Chain,Conv,Pool>> {
  static constexpr auto Get(int slots) {
   return Sm90F3MakeGemmLayout(TM,TN,slots,false,0,Chain::kNeedsResidual,
    Chain::Layout::kVectorBytes/(4*TN),Chain::kNeedsStats,
-   2*Sm90F3Split<TM,TN>::kWgCols,Pool::kArea?Pool::kImages:0);
+   2*Sm90F3Split<TM,TN>::kWgCols,Pool::kArea?Pool::kImages:0,64,Chain::Layout::kStatParts);
  }
 };
 template<int Slots,int S,int M,int N,int K,int NS,class Chain>

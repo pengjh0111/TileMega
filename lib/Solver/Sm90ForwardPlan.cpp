@@ -43,6 +43,24 @@ frontend::ModelPlan BuildSm90ForwardPlan(std::string const& export_path,int batc
   auto plan=frontend::BuildDnnModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,options);
   if(!plan.dm || !plan.forward)
     throw std::invalid_argument("the export is not a DNN forward model");
+  if(options.f3) {
+    for(auto const& gemm:plan.gemms)
+      for(unsigned i=0;i<gemm.chain.side_count;++i) {
+        auto const& side=gemm.chain.side[i];
+        if(side.kind!=codegen::DmSideOutputKind::kRowStats)continue;
+        auto& buffer=plan.buffers.at(side.buffer);
+        auto& layout=buffer.layout;
+        if(layout.rank!=2 || layout.physical[1]!=2 || gemm.n%64)
+          throw std::invalid_argument("F3 statistics need whole 64-column blocks");
+        auto rows=layout.physical[0],parts=gemm.n/64;
+        layout.rank=3;
+        layout.logical[0]=layout.physical[0]=parts;
+        layout.logical[1]=layout.physical[1]=rows;
+        layout.logical[2]=layout.physical[2]=2;
+        layout.strides[0]=std::uint64_t(rows)*2;layout.strides[1]=2;layout.strides[2]=1;
+        buffer.constant*=parts;buffer.per_batch*=parts;
+      }
+  }
   return plan;
 }
 
@@ -276,6 +294,7 @@ void F3EncodeGeometry(frontend::ModelPlan const& plan,std::size_t index,
     Sm90ForwardShape& shape) {
   auto& g=shape.dnn1_geometry;
   bool residual=false,deferred=false,residual_ln=false,activation=false;
+  unsigned stat_parts=1;
   std::vector<unsigned> vectors;
   auto add=[&](unsigned id) {
     if(id!=codegen::kDmNoIndex && std::find(vectors.begin(),vectors.end(),id)==vectors.end())
@@ -293,9 +312,13 @@ void F3EncodeGeometry(frontend::ModelPlan const& plan,std::size_t index,
         case K::kActivation:activation=true;break;
         case K::kResidual:residual=true;add(op.parameter[1]);break;
         case K::kDeferredLayerNorm:
-          deferred=true;add(op.parameter[1]);add(op.parameter[2]);break;
+          deferred=true;add(op.parameter[1]);add(op.parameter[2]);
+          stat_parts=plan.buffers.at(op.parameter[0]).layout.rank==3?
+              plan.buffers.at(op.parameter[0]).layout.physical[0]:1;break;
         case K::kResidualLN:
-          residual=residual_ln=true;add(op.parameter[2]);add(op.parameter[3]);break;
+          residual=residual_ln=true;add(op.parameter[2]);add(op.parameter[3]);
+          stat_parts=plan.buffers.at(op.parameter[1]).layout.rank==3?
+              plan.buffers.at(op.parameter[1]).layout.physical[0]:1;break;
         default:throw std::invalid_argument("unsupported F3 resource epilogue operation");
       }
     }
@@ -305,6 +328,7 @@ void F3EncodeGeometry(frontend::ModelPlan const& plan,std::size_t index,
       g.At("has_row_stats").AsBool("row statistics"),activation,
       shape.mode==Sm90ForwardMode::kSwapAB);
   g.Set("f3_vectors",int(vectors.size()));g.Set("f3_residual",residual);
+  g.Set("f3_stat_parts",int(stat_parts));
   g.Set("f3_chain_class",kSm90F3ChainClasses[unsigned(chain)]);
 }
 }  // namespace

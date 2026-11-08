@@ -123,6 +123,16 @@ struct Sm90F3Async {
     asm volatile("ld.relaxed.gpu.global.v2.f32 {%0,%1}, [%2];":"=f"(a),"=f"(b)
         :"l"(address):"memory");
   }
+  __device__ static __forceinline__ void StorePartial4(float* address,float a,float b,
+      float c,float d) {
+    asm volatile("st.relaxed.gpu.global.v4.f32 [%0], {%1,%2,%3,%4};" ::"l"(address),
+        "f"(a),"f"(b),"f"(c),"f"(d):"memory");
+  }
+  __device__ static __forceinline__ void LoadPartial4(float const* address,
+      float& a,float& b,float& c,float& d) {
+    asm volatile("ld.relaxed.gpu.global.v4.f32 {%0,%1,%2,%3}, [%4];"
+        :"=f"(a),"=f"(b),"=f"(c),"=f"(d):"l"(address):"memory");
+  }
   __device__ static __forceinline__ unsigned long long CounterAdd(
       unsigned long long* counter,unsigned long long value) {
     unsigned long long old;
@@ -134,6 +144,11 @@ struct Sm90F3Async {
   // Output stores (§6.4 step 5, and DT-ST's 16 B upgrade in §10.1).
   __device__ static __forceinline__ void Store32(void* address,unsigned word) {
     asm volatile("st.global.b32 [%0], %1;" ::"l"(address),"r"(word):"memory");
+  }
+  __device__ static __forceinline__ float Exp2(float value) {
+    float result;
+    asm("ex2.approx.ftz.f32 %0, %1;":"=f"(result):"f"(value));
+    return result;
   }
   __device__ static __forceinline__ void Store128(void* address,unsigned a,unsigned b,
       unsigned c,unsigned d) {

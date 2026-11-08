@@ -55,8 +55,6 @@ __device__ __forceinline__ void Sm90F3TraceEnter(unsigned stage) {
   if(threadIdx.x==0) {
     sm90_f3_trace_stage[blockIdx.x]=stage;
 #if TILEMEGA_TRACE_STAGE == 3
-    Sm90F3TraceCurrent().arrive=0;
-    Sm90F3TraceCurrent().leave=0;
     Sm90F3TraceCurrent().first_ready=0;
 #else
     Sm90F3TraceCurrent()={};

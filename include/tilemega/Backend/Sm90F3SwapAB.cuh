@@ -167,7 +167,7 @@ struct Sm90F3GemmSwapAB {
         TM_F3_TRACE_BEGIN(kSlotWait);
         Base::Wait(ring.full+slot,phase.Bit(phase.full,slot));
         TM_F3_TRACE_END(kSlotWait);
-        TM_F3_TRACE_FIRST_READY();
+        if(k==0)TM_F3_TRACE_FIRST_READY();
         phase.full^=1u<<slot;
         cute::warpgroup_fence_operand(accum.tile[0]);
         cute::warpgroup_arrive();
@@ -251,8 +251,7 @@ struct Sm90F3GemmSwapAB {
     TM_F3_TRACE_END(kEpilogue);
   }
 
-  // The partial layout is [tile][slice][kRows][128]: the same fixed ascending
-  // slice order the normal mode reduces in.
+  // Fragment-order vectors expose all slice loads before their fixed-order sum.
   template<class Accum,class Owned>
   __device__ static __forceinline__ void SplitKEpilogue(Sm90F3GemmOperands const& p,
       Sm90F3Ring& ring,char* side,Sm90F3Phase& phase,Accum& accumulators,
@@ -260,16 +259,15 @@ struct Sm90F3GemmSwapAB {
     using namespace cute;
     int slice=Slice(task);
     TM_F3_TRACE_BEGIN(kSplitK);
-    auto* base=p.epilogue.partial+(std::size_t(n_tile)*SplitK+slice)*kRows*kTileN;
+    constexpr int kElements=int(cute::size(Fragment{}));
+    static_assert(kElements%4==0 && kElements*256==kRows*kTileN);
+    int thread=int(threadIdx.x);
+    auto* base=p.epilogue.partial+
+        ((std::size_t(n_tile)*SplitK+slice)*256+thread)*kElements;
     auto& tile=accumulators.tile[0];
     CUTE_UNROLL
-    for(int i=0;i<int(cute::size(Fragment{}));++i) {
-      int feature=wg*kWgRows+get<0>(owned(i)),row=get<1>(owned(i));
-      // Warp bit 2 selects adjacent weight rows at the same activation row.
-      float adjacent=__shfl_xor_sync(0xffffffffu,tile(i),4);
-      if((tilemega::backend::Sm90F3Async::ThreadIndex()&4)==0)
-        Async::StorePartial2(base+std::size_t(row)*kTileN+feature,tile(i),adjacent);
-    }
+    for(int i=0;i<kElements;i+=4)
+      Async::StorePartial4(base+i,tile(i),tile(i+1),tile(i+2),tile(i+3));
     Async::template NamedBarrier<Sm90F3Async::kBarConsumers,256>();
     if(tilemega::backend::Sm90F3Async::ThreadIndex()==0) {
       auto old=Async::CounterAdd(p.epilogue.counters+n_tile,1);
@@ -287,20 +285,27 @@ struct Sm90F3GemmSwapAB {
       TM_F3_TRACE_END(kSplitK);
       return;
     }
+    // S=32 has no positive v4 chunk with S*C<=64; one vector needs128 values.
+    constexpr int kLimit=64/SplitK/4*4;
+    constexpr int kChunk=kLimit<4?4:(kLimit<kElements?kLimit:kElements);
     CUTE_UNROLL
-    for(int i=0;i<int(cute::size(Fragment{}));++i) {
-      int feature=wg*kWgRows+get<0>(owned(i)),row=get<1>(owned(i));
-      float total=0;
-      #pragma unroll 1
+    for(int begin=0;begin<kElements;begin+=kChunk) {
+      float loaded[SplitK][kChunk];
+      CUTE_UNROLL
       for(int sl=0;sl<SplitK;++sl) {
-        float a=0,b=0;
-        if((tilemega::backend::Sm90F3Async::ThreadIndex()&4)==0)
-          Async::LoadPartial2(p.epilogue.partial+
-              (std::size_t(n_tile)*SplitK+sl)*kRows*kTileN+std::size_t(row)*kTileN+feature,a,b);
-        b=__shfl_xor_sync(0xffffffffu,b,4);
-        total+=(threadIdx.x&4)?b:a;
+        CUTE_UNROLL
+        for(int c=0;c<kChunk && begin+c<kElements;c+=4)
+          Async::LoadPartial4(p.epilogue.partial+
+              ((std::size_t(n_tile)*SplitK+sl)*256+thread)*kElements+begin+c,
+              loaded[sl][c],loaded[sl][c+1],loaded[sl][c+2],loaded[sl][c+3]);
       }
-      tile(i)=total;
+      CUTE_UNROLL
+      for(int c=0;c<kChunk && begin+c<kElements;++c) {
+        float total=0;
+        CUTE_UNROLL
+        for(int sl=0;sl<SplitK;++sl)total+=loaded[sl][c];
+        tile(begin+c)=total;
+      }
     }
     TM_F3_TRACE_END(kSplitK);
     Epilogue(p,ring,side,phase,accumulators,owned,wg,n_tile);

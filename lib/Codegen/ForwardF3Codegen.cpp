@@ -92,8 +92,10 @@ struct F3Chain {
 
 F3Chain EmitF3Chain(codegen::DmEpilogueChain const& chain,int tile_m,int tile_n,
                     F3Binding& bind,std::function<void(unsigned)> const& fp32,
-                    F3Geometry* shape,bool swap_ab) {
+                    F3Geometry* shape,bool swap_ab,
+                    std::vector<codegen::DmBufferLayout> const& layouts) {
   F3Chain result;
+  unsigned stat_parts=1;
   unsigned slots=0;
   auto slot=[&](unsigned buffer) {
     for(unsigned i=0;i<slots;++i)if(bind.vector[i]==buffer)return i;
@@ -106,6 +108,8 @@ F3Chain EmitF3Chain(codegen::DmEpilogueChain const& chain,int tile_m,int tile_n,
     if(bind.stats!=kAbsent && bind.stats!=buffer)
       throw std::invalid_argument("an F3 epilogue has two statistics sources");
     bind.stats=buffer;
+    auto const& layout=layouts.at(buffer);
+    stat_parts=layout.rank==3?layout.physical[0]:1;
     if(!norm_width)throw std::invalid_argument("a deferred normalization needs its width");
     if(shape) {
       if(shape->norm_width && shape->norm_width!=int(norm_width))
@@ -180,7 +184,7 @@ F3Chain EmitF3Chain(codegen::DmEpilogueChain const& chain,int tile_m,int tile_n,
   std::ostringstream out;
   out<<"Sm90F3Chain<Sm90F3SideLayout<"<<tile_m<<','<<tile_n<<','
      <<(result.residual?"true":"false")<<','<<slots<<','
-     <<(result.stats?"true":"false")<<'>';
+     <<(result.stats?"true":"false")<<','<<stat_parts<<'>';
   if(chain.count)out<<','<<steps.str();
   out<<'>';
   result.text=row_stats?"Sm90F3WriteRowStats<"+out.str()+'>':out.str();
@@ -383,11 +387,11 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
           throw std::invalid_argument("F3 implements the dense writeback only");
         int tile_n=swap?128:c.tile_n;
         int padded_n=(n+tile_n-1)/tile_n*tile_n;
-        if(padded_k%(c.split_k*64))
+        if(padded_k%(c.split_k*c.tk))
           throw std::invalid_argument("F3 split-K does not divide the contraction");
         shape.output_stride=width_of(bind.output);
         auto f3chain=EmitF3Chain(chain,swap?(rows<=8?8:16):c.tile_m,tile_n,bind,
-                                 require_fp32,&shape,swap);
+                                 require_fp32,&shape,swap,layouts);
         if(bind.residual!=kAbsent) {
           shape.residual_stride=width_of(bind.residual);
           // The producer prefetches the residual tile through its own SW128
@@ -415,12 +419,9 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
               tiles*unsigned(c.split_k)*per_tile);
           bind.counters=add_scratch("f3.counter."+std::to_string(index),"i32",2*tiles);
         }
-        if(bind.row_stats!=kAbsent && padded_n/tile_n>1) {
-          auto tiles=std::uint64_t(padded_n/tile_n);
-          bind.row_partials=add_scratch("f3.row_partial."+std::to_string(index),"f32",
-              std::uint64_t(rows)*tiles*2);
-          bind.row_counters=add_scratch("f3.row_counter."+std::to_string(index),"i32",
-              2*((std::uint64_t(rows)+c.tile_m-1)/c.tile_m));
+        if(bind.row_stats!=kAbsent) {
+          if(tile_n%64)throw std::invalid_argument("F3 statistics tile needs 64 columns");
+          bind.row_partials=bind.row_stats;bind.row_stats=kAbsent;
         }
         // A GAP producer also writes the per-(image, 64-row block) channel
         // partials the later global-average stage reduces (F-7, §6.4 step 4).

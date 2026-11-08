@@ -36,11 +36,11 @@ struct Sm90F3EpilogueOperands {
   float const* vectors[4];
   cutlass::bfloat16_t const* residual;
   float const* stats;            // the producer's per-row (sum, sum of squares)
-  float* row_stats;              // side output: per-row (sum, sum of squares)
-  float* row_partials;           // per (n_tile, row) share when NT > 1
+  float* row_stats;              // small-body side output, one pair per row
+  float* row_partials;           // GEMM side output: [N/64][M][2]
   unsigned long long* row_counters;
   float* channel_partial;        // GAP side output: [image][part][channel]
-  float* partial;                // split-K: [tile][slice][TM][TN] fp32
+  float* partial;                // split-K: [tile][slice][thread][fragment] fp32
   unsigned long long* counters;  // split-K: one per output tile
   cutlass::bfloat16_t* output;
   int output_stride,residual_stride,norm_width;
@@ -50,11 +50,13 @@ struct Sm90F3EpilogueOperands {
 // Where the producer put this task's side data inside the stage's side area
 // (§6.4 step 1). The offsets are compile-time, so a step's read is a single
 // shared load from a known base.
-template<int TM,int TN,bool Residual,int Vectors,bool RowStats>
+template<int TM,int TN,bool Residual,int Vectors,bool RowStats,int StatParts=1>
 struct Sm90F3SideLayout {
+  static_assert(StatParts>=1);
+  static constexpr int kStatParts=StatParts;
   static constexpr int kResidualBytes=Residual?Sm90F3ResidualBytes(TM,TN):0;
   static constexpr int kVectorBytes=Sm90F3VectorBytes(TN,Vectors);
-  static constexpr int kRowStatBytes=RowStats?Sm90F3RowStatBytes(TM):0;
+  static constexpr int kRowStatBytes=RowStats?StatParts*Sm90F3RowStatBytes(TM):0;
   static constexpr int kResidualBase=0;
   static constexpr int kVectorBase=kResidualBytes;
   static constexpr int kRowStatBase=kVectorBase+kVectorBytes;
@@ -69,16 +71,21 @@ struct Sm90F3SideLayout {
   __device__ static __forceinline__ float const* Vector(char const* side,unsigned slot) {
     return reinterpret_cast<float const*>(side+kVectorBase)+std::size_t(slot)*TN;
   }
-  __device__ static __forceinline__ float const* RowStat(char const* side) {
-    return reinterpret_cast<float const*>(side+kRowStatBase);
+  __device__ static __forceinline__ float const* RowStat(char const* side,int part=0) {
+    return reinterpret_cast<float const*>(side+kRowStatBase)+part*TM*2;
   }
 };
 
 // (mean, 1/sigma) of one row from the producer's raw sums, in the legacy
 // order: mean = sum/width, inv = rsqrt(sumsq/width - mean^2 + eps).
+template<int TM,int Parts>
 __device__ __forceinline__ void Sm90F3RowNorm(float const* stats,int row,int width,
     float epsilon,float& mean,float& inverse) {
-  float sum=stats[2*row],squares=stats[2*row+1];
+  float sum=0,squares=0;
+  #pragma unroll
+  for(int part=0;part<Parts;++part) {
+    sum+=stats[(part*TM+row)*2];squares+=stats[(part*TM+row)*2+1];
+  }
   mean=Sm90F3Async::DivideNormalization(sum,float(width));
   inverse=rsqrtf(Sm90F3Async::DivideNormalization(squares,float(width))-mean*mean+epsilon);
 }

@@ -216,7 +216,7 @@ struct Sm90F3Gemm {
       }
       auto* a=SlotA(arena,slot);
       TM_F3_TRACE_END(kSlotWait);
-      TM_F3_TRACE_FIRST_READY();
+      if(k==0)TM_F3_TRACE_FIRST_READY();
       auto* b=SlotB(arena,slot);
       #pragma unroll
       for(int s=0;s<Split::kSubTiles;++s) {
@@ -265,7 +265,7 @@ struct Sm90F3Gemm {
   // through the chain's pool segments.
   static constexpr Sm90F3GemmLayout kLayout=Sm90F3MakeGemmLayout(TM,TN,Slots,
       false,0,Chain::kNeedsResidual,kVectors,Chain::kNeedsStats,
-      2*Split::kWgCols,Pool::kArea?Pool::kImages:0,TK);
+      2*Split::kWgCols,Pool::kArea?Pool::kImages:0,TK,Side::kStatParts);
   static constexpr int kLayoutBytes=kLayout.end;
   static constexpr int kSideOffset=kLayout.side_base;
   static constexpr int kPoolOffset=kLayout.pool_base;
@@ -274,8 +274,9 @@ struct Sm90F3Gemm {
   // expect_tx must equal the bytes actually transferred, and only the row
   // statistics shrink on a short tail, so the count is per task.
   __device__ static __forceinline__ int SideBytes(int live_rows) {
+    constexpr int aligned_parts=M%2?(Side::kStatParts+1)/2:Side::kStatParts;
     return (Chain::kNeedsResidual?kResidualBoxes*TM*128:0)+4*TN*kVectors+
-        (Chain::kNeedsStats?(live_rows/2)*16:0);
+        (Chain::kNeedsStats?aligned_parts*(live_rows/2)*16:0);
   }
 
   __device__ static __forceinline__ void ProduceSide(Sm90F3GemmOperands const& p,
@@ -286,11 +287,17 @@ struct Sm90F3Gemm {
       // Bulk sizes are multiples of 16 B. Publish an odd final 8 B pair
       // through the leader's barrier arrival without reading past the buffer.
       if constexpr(Chain::kNeedsStats) {
-        if(live_rows&1) {
-          int row=live_rows-1;float a,b;
-          Async::LoadPartial2(p.epilogue.stats+2*(m_tile*TM+row),a,b);
-          auto* tail=reinterpret_cast<float*>(side+Side::kRowStatBase)+2*row;
-          tail[0]=a;tail[1]=b;
+        #pragma unroll
+        for(int part=0;part<Side::kStatParts;++part) {
+          // An odd M misaligns odd part bases by8B; those short unit tails
+          // use generic pair copies before expect_tx instead of invalid bulk.
+          int first=(M%2 && part%2)?0:live_rows-(live_rows&1);
+          for(int row=first;row<live_rows;++row) {
+            float a,b;
+            Async::LoadPartial2(p.epilogue.stats+2*(std::size_t(part)*M+m_tile*TM+row),a,b);
+            auto* tail=reinterpret_cast<float*>(side+Side::kRowStatBase)+2*(part*TM+row);
+            tail[0]=a;tail[1]=b;
+          }
         }
       }
       Base::ExpectTx(&ring.side_full,unsigned(SideBytes(live_rows)));
@@ -307,11 +314,14 @@ struct Sm90F3Gemm {
         if(p.epilogue.vectors[v])
           Base::Bulk(side+Side::kVectorBase+std::size_t(v)*TN*4,
               p.epilogue.vectors[v]+std::size_t(n_tile)*TN,4*TN,&ring.side_full);
-      if constexpr(Chain::kNeedsStats)
-        if(live_rows>=2)
-          Base::Bulk(side+Side::kRowStatBase,
-              p.epilogue.stats+std::size_t(m_tile)*TM*2,unsigned((live_rows/2)*16),
-              &ring.side_full);
+      if constexpr(Chain::kNeedsStats) {
+        #pragma unroll
+        for(int part=0;part<Side::kStatParts;++part)
+          if(live_rows>=2 && !(M%2 && part%2))
+            Base::Bulk(side+Side::kRowStatBase+part*TM*8,
+                p.epilogue.stats+(std::size_t(part)*M+m_tile*TM)*2,
+                unsigned((live_rows/2)*16),&ring.side_full);
+      }
     }
   }
 
@@ -411,7 +421,7 @@ struct Sm90F3Gemm {
         for(int half=0;half<2;++half) {
           int row,col;
           Coordinate(wg,s,get<0>(owned(2*half)),get<1>(owned(2*half)),row,col);
-          Sm90F3RowNorm(Side::RowStat(side),row,e.norm_width,e.epsilon,
+          Sm90F3RowNorm<TM,Side::kStatParts>(Side::RowStat(side),row,e.norm_width,e.epsilon,
               means[s][half],inverses[s][half]);
         }
       }
@@ -421,6 +431,10 @@ struct Sm90F3Gemm {
       auto& tile=accumulators.tile[s];
       #pragma unroll
       for(int block=0;block<kBlocks;++block) {
+        if constexpr(Chain::kWritesStats) {
+          row_accum.sum[s][0]=row_accum.sum[s][1]=0;
+          row_accum.square[s][0]=row_accum.square[s][1]=0;
+        }
         CUTE_UNROLL
         for(int half=0;half<(kVectorStore && Split::kWgCols>=64?2:1);++half) {
         int group=kVectorStore?block*2+half:block;
@@ -474,11 +488,11 @@ struct Sm90F3Gemm {
 #endif
         TM_F3_TRACE_END(kStore);
         }
+        RowStatsBlock(p,row_accum,owned,wg,m_tile,n_tile,live_rows,header,s,block);
       }
     }
     PoolPartials(p,reinterpret_cast<char*>(arena_base),accumulators,owned,wg,
         m_tile,n_tile,live_rows,width);
-    RowStats(p,row_accum,owned,wg,m_tile,n_tile,live_rows,header);
     TM_F3_TRACE_END(kEpilogue);
     if constexpr(Chain::kNeedsResidual || kVectors>0 || Chain::kNeedsStats) {
       Async::template NamedBarrier<Sm90F3Async::kBarConsumers,256>();
@@ -487,73 +501,46 @@ struct Sm90F3Gemm {
   }
 
   template<class Owned>
-  __device__ static __forceinline__ void RowStats(Sm90F3GemmOperands const& p,
-      RowAccumulator const& row_accum,Owned const& owned,int wg,int m_tile,int n_tile,
-      int live_rows,Sm90F3Header* header) {
+  __device__ static __forceinline__ void RowStatsBlock(Sm90F3GemmOperands const& p,
+      RowAccumulator const& partial,Owned const& owned,int wg,int m_tile,int n_tile,
+      int live_rows,Sm90F3Header* header,int sub,int block) {
     if constexpr(Chain::kWritesStats) {
+      static_assert(TN%64==0,"statistics writers own whole64-column blocks");
       using namespace cute;
-      auto const& e=p.epilogue;
-      int lane=int(threadIdx.x)&31;
+      constexpr bool kMerge=TM==64 && TN==64;
+      float sums[2]={partial.sum[sub][0],partial.sum[sub][1]};
+      float squares[2]={partial.square[sub][0],partial.square[sub][1]};
       #pragma unroll
-      for(int sub=0;sub<Split::kSubTiles;++sub) {
-        float sums[2]={row_accum.sum[sub][0],row_accum.sum[sub][1]};
-        float squares[2]={row_accum.square[sub][0],row_accum.square[sub][1]};
-        #pragma unroll
-        for(int r=0;r<2;++r) {
-          sums[r]+=__shfl_xor_sync(0xffffffffu,sums[r],1);
-          sums[r]+=__shfl_xor_sync(0xffffffffu,sums[r],2);
-          squares[r]+=__shfl_xor_sync(0xffffffffu,squares[r],1);
-          squares[r]+=__shfl_xor_sync(0xffffffffu,squares[r],2);
-          if constexpr(Split::kSplitN) {
-            int row,col;
-            Coordinate(wg,sub,get<0>(owned(2*r)),get<1>(owned(2*r)),row,col);
-            if(wg==1 && (tilemega::backend::Sm90F3Async::ThreadIndex()&3)==0 && row<live_rows) {
-              header->row_stats[row][0]=sums[r];header->row_stats[row][1]=squares[r];
-            }
-          }
-        }
-        if constexpr(Split::kSplitN)
-          Async::template NamedBarrier<Sm90F3Async::kBarConsumers,256>();
-        #pragma unroll
-        for(int r=0;r<2;++r) {
+      for(int r=0;r<2;++r) {
+        sums[r]+=__shfl_xor_sync(0xffffffffu,sums[r],1);
+        sums[r]+=__shfl_xor_sync(0xffffffffu,sums[r],2);
+        squares[r]+=__shfl_xor_sync(0xffffffffu,squares[r],1);
+        squares[r]+=__shfl_xor_sync(0xffffffffu,squares[r],2);
+        if constexpr(kMerge) {
           int row,col;
           Coordinate(wg,sub,get<0>(owned(2*r)),get<1>(owned(2*r)),row,col);
-          if((tilemega::backend::Sm90F3Async::ThreadIndex()&3)==0 && row<live_rows && (!Split::kSplitN || wg==0)) {
-            float sum=sums[r],square=squares[r];
-            if constexpr(Split::kSplitN) {
-              sum+=header->row_stats[row][0];square+=header->row_stats[row][1];
-            }
-            int global_row=m_tile*TM+row;
-            auto* destination=kTiles==1?e.row_stats+2*global_row:
-                e.row_partials+(std::size_t(n_tile)*M+global_row)*2;
-            Async::StorePartial2(destination,sum,square);
+          if(wg==1 && (threadIdx.x&3)==0 && row<live_rows) {
+            header->row_stats[row][0]=sums[r];header->row_stats[row][1]=squares[r];
           }
         }
       }
-      // Publish every writer's pair before the CTA leader announces its N tile.
-      if constexpr(kTiles>1)__threadfence();
-      Async::template NamedBarrier<Sm90F3Async::kBarConsumers,256>();
-      if constexpr(kTiles>1) {
-        if(tilemega::backend::Sm90F3Async::ThreadIndex()==0) {
-          auto old=Async::CounterAdd(e.row_counters+m_tile,1);
-          header->last_arriver=int(old+1)==kTiles;
-          if(header->last_arriver)e.row_counters[m_tile]=0;
-        }
-        Async::template NamedBarrier<Sm90F3Async::kBarConsumers,256>();
-        if(header->last_arriver)
-          for(int row=int(threadIdx.x);row<live_rows;row+=256) {
-            int global_row=m_tile*TM+row;
-            float sum=0,square=0;
-            #pragma unroll 1
-            for(int n=0;n<kTiles;++n) {
-              float a,b;
-              Async::LoadPartial2(e.row_partials+(std::size_t(n)*M+global_row)*2,a,b);
-              sum+=a;square+=b;
-            }
-            Async::StorePartial2(e.row_stats+2*global_row,sum,square);
+      if constexpr(kMerge)Async::template NamedBarrier<Sm90F3Async::kBarConsumers,256>();
+      #pragma unroll
+      for(int r=0;r<2;++r) {
+        int row,col;
+        Coordinate(wg,sub,get<0>(owned(2*r)),get<1>(owned(2*r)),row,col);
+        if((threadIdx.x&3)==0 && row<live_rows && (!kMerge || wg==0)) {
+          float sum=sums[r],square=squares[r];
+          if constexpr(kMerge) {
+            sum+=header->row_stats[row][0];square+=header->row_stats[row][1];
           }
-        Async::template NamedBarrier<Sm90F3Async::kBarConsumers,256>();
+          int n64=n_tile*(TN/64)+(TM==64?wg*(Split::kWgCols/64):0)+block;
+          int global_row=m_tile*TM+row;
+          Async::StorePartial2(p.epilogue.row_partials+
+              (std::size_t(n64)*M+global_row)*2,sum,square);
+        }
       }
+      if constexpr(kMerge)Async::template NamedBarrier<Sm90F3Async::kBarConsumers,256>();
     }
   }
 
@@ -792,22 +779,21 @@ struct Sm90F3Gemm {
       Sm90F3Ring& ring,char* side,Sm90F3Phase& phase,Accum& accumulators,int wg,
       int task,int m_tile,int n_tile,Sm90F3Header* header,Element* arena) {
     using namespace cute;
-    Mma mma;
-    auto owned=mma.get_slice(int(Sm90F3Async::ThreadIndex()&127u)).partition_C(
-        make_identity_tensor(cute::Shape<cute::_64,cute::Int<Split::kWgCols>>{}));
     int tile=m_tile*kTiles+n_tile,slice=Slice(task);
     TM_F3_TRACE_BEGIN(kSplitK);
-    auto* base=p.epilogue.partial+(std::size_t(tile)*SplitK+slice)*TM*TN;
+    constexpr int kFragment=int(size(Fragment{}));
+    constexpr int kElements=kFragment*Split::kSubTiles;
+    static_assert(kElements%4==0 && kElements*256==TM*TN);
+    int thread=int(threadIdx.x);
+    auto* base=p.epilogue.partial+
+        ((std::size_t(tile)*SplitK+slice)*256+thread)*kElements;
     #pragma unroll
-    for(int s=0;s<Split::kSubTiles;++s) {
-      auto& values=accumulators.tile[s];
-      CUTE_UNROLL
-      for(int i=0;i<int(size(values));i+=2) {
-        int row,col;
-        Coordinate(wg,s,get<0>(owned(i)),get<1>(owned(i)),row,col);
-        Async::StorePartial2(base+std::size_t(row)*TN+col,values(i),values(i+1));
-      }
-    }
+    for(int i=0;i<kElements;i+=4)
+      Async::StorePartial4(base+i,
+          accumulators.tile[i/kFragment](i%kFragment),
+          accumulators.tile[(i+1)/kFragment]((i+1)%kFragment),
+          accumulators.tile[(i+2)/kFragment]((i+2)%kFragment),
+          accumulators.tile[(i+3)/kFragment]((i+3)%kFragment));
     Async::template NamedBarrier<Sm90F3Async::kBarConsumers,256>();
     if(tilemega::backend::Sm90F3Async::ThreadIndex()==0) {
       auto old=Async::CounterAdd(p.epilogue.counters+tile,1);
@@ -826,24 +812,25 @@ struct Sm90F3Gemm {
       TM_F3_TRACE_END(kSplitK);
       return;
     }
+    constexpr int kChunk=(64/SplitK/4*4<kElements?64/SplitK/4*4:kElements);
+    static_assert(kChunk>=4);
     #pragma unroll
-    for(int s=0;s<Split::kSubTiles;++s) {
-      auto& values=accumulators.tile[s];
-      CUTE_UNROLL
-      for(int i=0;i<int(size(values));i+=2) {
-        int row,col;
-        Coordinate(wg,s,get<0>(owned(i)),get<1>(owned(i)),row,col);
-        float total0=0,total1=0;
-        // Ascending slice order, including this slice's own stored copy, so
-        // repeated launches agree bitwise.
-        #pragma unroll 1
-        for(int sl=0;sl<SplitK;++sl) {
-          float a,b;
-          Async::LoadPartial2(p.epilogue.partial+
-              (std::size_t(tile)*SplitK+sl)*TM*TN+std::size_t(row)*TN+col,a,b);
-          total0+=a;total1+=b;
-        }
-        values(i)=total0;values(i+1)=total1;
+    for(int begin=0;begin<kElements;begin+=kChunk) {
+      float loaded[SplitK][kChunk];
+      #pragma unroll
+      for(int sl=0;sl<SplitK;++sl) {
+        #pragma unroll
+        for(int c=0;c<kChunk && begin+c<kElements;c+=4)
+          Async::LoadPartial4(p.epilogue.partial+
+              ((std::size_t(tile)*SplitK+sl)*256+thread)*kElements+begin+c,
+              loaded[sl][c],loaded[sl][c+1],loaded[sl][c+2],loaded[sl][c+3]);
+      }
+      #pragma unroll
+      for(int c=0;c<kChunk && begin+c<kElements;++c) {
+        float total=0;
+        #pragma unroll
+        for(int sl=0;sl<SplitK;++sl)total+=loaded[sl][c];
+        accumulators.tile[(begin+c)/kFragment]((begin+c)%kFragment)=total;
       }
     }
     TM_F3_TRACE_END(kSplitK);

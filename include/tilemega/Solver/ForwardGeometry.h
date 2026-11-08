@@ -181,6 +181,10 @@ inline Sm90ForwardResourceUsage QuerySm90ForwardF3Resources(
     int vectors=integer("f3_vectors",true),rows=shape.m<=8?8:16;
     bool residual=g.At("f3_residual").AsBool("F3 residual");
     bool stats=g.At("needs_stats").AsBool("F3 input statistics");
+    if(g.At("has_row_stats").AsBool("F3 output statistics") && c.tile_n%64) {
+      r.reason="F3 statistics producers require 64-column blocks";return r;
+    }
+    int stat_parts=g.Find("f3_stat_parts")?integer("f3_stat_parts"):1;
     int pool_images=0;
     if(g.At("has_channel_pool").AsBool("F3 GAP side output")) {
       int area=integer("pool_rows");
@@ -188,7 +192,7 @@ inline Sm90ForwardResourceUsage QuerySm90ForwardF3Resources(
     }
     int columns=c.tile_m==64?c.tile_n/2:c.tile_n;
     auto layout=Sm90F3MakeGemmLayout(swap?rows:c.tile_m,swap?128:c.tile_n,c.slots,
-        swap,rows,residual,vectors,stats,swap?0:2*columns,pool_images,c.tk);
+        swap,rows,residual,vectors,stats,swap?0:2*columns,pool_images,c.tk,stat_parts);
     payload=layout.end;r.slot_bytes=layout.slot_bytes;
     r.store_columns=int(std::min<long long>(shape.n,swap?128:c.tile_n));
     r.task_count=(swap?1:ceildiv(shape.m,c.tile_m))*

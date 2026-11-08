@@ -69,14 +69,14 @@ struct Sm90F3GemmLayout {
 };
 constexpr Sm90F3GemmLayout Sm90F3MakeGemmLayout(int tile_m,int tile_n,int slots,
     bool swap_ab,int swap_rows,bool residual,int vectors,bool row_stats,
-    int pool_columns,int pool_segments,int tk=64) {
+    int pool_columns,int pool_segments,int tk=64,int stat_parts=1) {
   Sm90F3GemmLayout l;
   l.slots=slots;
   l.slot_bytes=swap_ab?Sm90F3SwapSlotBytes(swap_rows,tk):Sm90F3SlotBytes(tile_m,tile_n,tk);
   // The side area holds, in order, the residual tile, the per-column vectors
   // and the row statistics; the producer fills it under one barrier.
   l.side_bytes=(residual?Sm90F3ResidualBytes(tile_m,tile_n):0)+
-      Sm90F3VectorBytes(tile_n,vectors)+(row_stats?Sm90F3RowStatBytes(tile_m):0);
+      Sm90F3VectorBytes(tile_n,vectors)+(row_stats?stat_parts*Sm90F3RowStatBytes(tile_m):0);
   l.pool_bytes=pool_segments?Sm90F3PoolScratchBytes(pool_columns,pool_segments):0;
   l.slot_base=0;
   l.side_base=l.slot_base+slots*l.slot_bytes;

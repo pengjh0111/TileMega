@@ -33,6 +33,8 @@ def main():
     manifest = json.loads(manifest_path.read_text())
     coordinates = manifest['native_forward']
     if coordinates['schema'] == 3:
+        if any(s['body']=='encoder_attention' for s in coordinates['stages']):
+            raise ValueError('regenerate BERT sources: schema4 changes query maps and statistics storage')
         coordinates['schema'] = 4
         for index, stage in enumerate(coordinates['stages']):
             stage.update(tk=64, store='reg', mc=0)
