@@ -61,6 +61,10 @@ def execute(plan_path, out):
         processes.append(dict(name=step['name'],pid=child.pid,exit_code=code,
                               out=str(folder),command=command))
         save(out/'result.json',dict(status='partial',processes=processes))
+        if code==75:
+            # The per-process sampler can detect occupancy after preflight.
+            # Retry the whole reservation, never an incomplete A/B sequence.
+            raise SystemExit(75)
         if code:
             raise RuntimeError('fresh cohort child failed: '+step['name'])
     if len({p['pid'] for p in processes})!=len(processes):
