@@ -118,7 +118,8 @@ void CompareStats(std::vector<float> const& actual,std::vector<float> const& exp
   Hash(actual);
 }
 
-template<int M,int N,int K,int TM,int TN,int SplitK,int Kind,int Parts=(Kind==1?N:K)/64,int Slots=2>
+template<int M,int N,int K,int TM,int TN,int SplitK,int Kind,
+         int Parts=(Kind==1?N:K)/64,int Slots=2,int TK=64>
 void DenseCase() {
   std::cout<<"START dense m="<<M<<" n="<<N<<" k="<<K<<" tm="<<TM<<"\n";
   using Side=Sm90F3SideLayout<TM,TN,Kind==1,2,true,Parts>;
@@ -133,7 +134,8 @@ void DenseCase() {
       std::conditional_t<Kind==1,Sm90F3Chain<Side,Bias,Residual>,
                          Sm90F3Chain<Side,Norm,Gelu>>>;
   using Chain=std::conditional_t<Kind==1,Sm90F3WriteRowStats<Plain>,Plain>;
-  using G=Sm90F3Gemm<TM,TN,Slots,SplitK,Sm90F3Mode::kNormal,M,N,K,N,Chain>;
+  using G=Sm90F3Gemm<TM,TN,Slots,SplitK,Sm90F3Mode::kNormal,M,N,K,N,Chain,
+                    Sm90F3NoConv,Sm90F3NoPool,TK>;
   constexpr int tiles=((M+TM-1)/TM)*(N/TN),mt=(M+TM-1)/TM;
   std::vector<E> input(M*K),weight(N*K),packed(N*K),residual(M*N);
   for(int n=0;n<N;++n)for(int k=0;k<K;++k) {
@@ -244,6 +246,7 @@ int main(int,char**) try {
   DenseCase<128,768,3072,128,64,4,1>();
   DenseCase<2048,768,3072,128,64,1,1>();
   DenseCase<2048,3072,768,128,128,1,2>();
+  DenseCase<2048,3072,768,128,128,1,2,12,3,128>();
   DenseCase<2048,3072,768,256,128,1,2,12,4>();
   DenseCase<128,768,768,64,128,1,1>();
   DenseCase<128,768,768,64,64,1,1,1>();
