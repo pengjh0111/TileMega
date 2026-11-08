@@ -119,6 +119,7 @@ Diagnosis SHA256:`1bb34856e94c78d2bc751983d3b654b13b8e0bd372463634b89213d03e25b5
         ['BERT B16','49.82','63.89','51.25']])
     add('Verified worst-constant recheck: B1 Rows16 actual 96-task attention is 1734.34995 ns/task (was 1341.05); B1 total error remains 53.80%. Second P-MODEL fails. DT-MODEL uses six separated legal candidates and six variants, three fresh 20-warmup/50-window processes each. Groups with identical shape, chain and neighbors share choices; group windows are summed. Tuned/rank0 P-PAIR then nontrace P-SEL ABCDDCBA determines the winner.')
     add('Verified VGG16 B16 combined trace variant4 FC1 S28 Slots8 spills 32 B; replace only that stage with the already valid S28 Slots6 choice. Six variants contain five distinct FC1 choices; other groups retain six. No spilling program is timed. The known accepted VGG seed was absent from model top-six: post-selection same-card P-PAIR 1.345568→1.261584 ms (−6.24%, threshold 0.5%) accepts its exact rebuilt coordinates; P-DNN/ledger repeated.')
+    add('Verified bounded existing-seed stage rescue on RN50: B1 P-PAIR ratio1.002624 (threshold0.5%), B16 ratio0.998805 (threshold1.9803%). Neither has a significant gain; retain the already collected winners. Both assembled candidates passed five fresh byte-hashed FP32 checks; no final timing was repeated after rejection.')
     add('## Phase Z results')
     add('Verified measured rows use fixed G22 cards: RN18/BERT GPU3, RN50 GPU0, VGG GPU2; P-CORR 5/5 byte-identical; P-DNN 50 warmups + 200 events × three fresh processes. Ratio=TileMega/fixed DNN3 target. Pending rows carry no timing inference. P90 pools 600 event samples; process range uses the three medians. DNN4_final.csv contains full coordinate counts, identities, clocks and raw receipts.')
     values = []
@@ -156,6 +157,10 @@ Diagnosis SHA256:`1bb34856e94c78d2bc751983d3b654b13b8e0bd372463634b89213d03e25b5
         values.append([r['model']+' B'+r['batch'],*descriptions])
     table(['Cell','Largest','Second','Third'],values)
     add('## Anchors, deviations and limits')
+    cnn = [r for r in final if r['model'] != 'bert']
+    add(f'Stated latest priority: finish the three CNNs before BERT final collection. Verified CNN collection:{len(cnn)}/15; '
+        'DNN4_CNN_h800.md and DNN4_CNN_final.csv distinguish improvement over DNN3 TileMega from beating the fixed fastest BF16 target. '
+        'All60 existing CNN BF16 baseline arms are reused with original receipts. BERT optimization uses an isolated worktree and GPU1 with timing cores32–39 while the CNN production prefix stays frozen; BERT GPU3 final jobs are deferred.')
     add('Verified measurement scheduling update: later cells reserve the GPU once per protocol, with unchanged six-sample preflight and monitoring. Children remain fresh and sequential: P-SEL ABCDDCBA, P-PAIR ABABAB, P-DNN three processes, P-TUNE three processes × 50 samples. Same-library validation differs by +0.165% in P-DNN and +0.182% in trace window sum. Original receipts and resume commands remain available; raw cohort state identifies the shared guard.')
     anchors = ROOT/'runs/dnn4/phase_z/anchors_v1'
     for model in MODELS:
