@@ -93,7 +93,7 @@ def main():
             anchor_results[model] = dict(source=str(path), sha256=sha(path), anchors=anchor['anchors'])
     finals, ledger, tune, codes, correctness, model_rows = [], [], [], [], [], []
     for model, batch, folder, result in cells:
-        final = read(folder / 'final/result.json')
+        final = read(Path(result.get('final_measurement', folder / 'final/result.json')))
         measurements = final['measurements']
         if final['protocol'] != 'P-DNN' or len(measurements) != 3 or {m['arm'] for m in measurements} != {'B'}:
             raise ValueError('winner requires three fresh non-trace P-DNN processes')
@@ -162,7 +162,9 @@ def main():
                           sass_sha256=sha(sass), library_sha256=sha(library), source=str(sass),
                           evidence='verified CPU disassembly;primary F3 kernel;16B instructions'))
         correctness.append(dict(phase='Z', suite=winner['name'], protocol='P-CORR', model=model,
-            batch=batch, passes='5/5', status='passed', output_hash='', scope='final winner;FP32 oracle;five fresh deterministic processes',
+            batch=batch, passes='5/5', status='passed',
+            output_hash=compact([output['output_sha256'] for output in gate['cases'][0]['outputs']]),
+            scope='final winner;FP32 oracle;five fresh deterministic processes',
             evidence='verified', source=str(measured_gate.parent.parent / 'result.json')))
     ratios = []
     if finals:
