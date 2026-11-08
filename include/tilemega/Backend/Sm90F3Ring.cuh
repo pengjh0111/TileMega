@@ -3,6 +3,10 @@
 
 #include <cstdint>
 
+#ifndef TILEMEGA_F3_SIDE_NORM
+#define TILEMEGA_F3_SIDE_NORM 0
+#endif
+
 #if defined(__CUDACC__)
 #include <tilemega/Backend/Sm90F3Async.cuh>
 #endif
@@ -106,6 +110,9 @@ struct alignas(16) Sm90F3Ring {
   std::uint64_t full[kSlots],gfull[kSlots],empty[kSlots];
   std::uint64_t peer_empty[kSlots];
   std::uint64_t side_full,side_empty;
+#if TILEMEGA_F3_SIDE_NORM
+  std::uint64_t side_data,side_norm_done;
+#endif
   std::uint64_t pp_side_full[2],pp_side_empty[2],pp_order[2];
 
   using Async=Sm90F3Async::Base;
@@ -120,6 +127,10 @@ struct alignas(16) Sm90F3Ring {
       Async::Init(peer_empty+i,kConsumerWarps);
     }
     Async::Init(&side_full,1);
+#if TILEMEGA_F3_SIDE_NORM
+    Async::Init(&side_data,1);
+    Async::Init(&side_norm_done,32);
+#endif
     Async::Init(&side_empty,kConsumerWarps);
     for(int i=0;i<2;++i) {
       Async::Init(pp_side_full+i,1);Async::Init(pp_side_empty+i,4);
@@ -132,6 +143,10 @@ struct alignas(16) Sm90F3Ring {
       Async::Invalidate(peer_empty+i);
     }
     Async::Invalidate(&side_full);Async::Invalidate(&side_empty);
+#if TILEMEGA_F3_SIDE_NORM
+    Async::Invalidate(&side_data);
+    Async::Invalidate(&side_norm_done);
+#endif
     for(int i=0;i<2;++i) {
       Async::Invalidate(pp_side_full+i);Async::Invalidate(pp_side_empty+i);
     }

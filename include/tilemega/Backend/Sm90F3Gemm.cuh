@@ -332,6 +332,7 @@ struct Sm90F3Gemm {
   // ---- producer side prefetch (§6.4 step 1) -------------------------------
 
   static constexpr int kVectors=Side::kVectorBytes/(4*TN);
+  static constexpr bool kSideNorm=TILEMEGA_F3_SIDE_NORM && Chain::kNeedsStats && !PingPong;
   static constexpr int kResidualBoxes=(TN+63)/64;
   // The stage's own arena layout, from the same function the solver prices it
   // with (§5.2 item 4). A GAP producer's reduction area is added by codegen
@@ -358,6 +359,9 @@ struct Sm90F3Gemm {
     if constexpr(Chain::kNeedsResidual || kVectors>0 || Chain::kNeedsStats) {
       auto* empty=PingPong?ring.pp_side_empty+wg:&ring.side_empty;
       auto* full=PingPong?ring.pp_side_full+wg:&ring.side_full;
+#if TILEMEGA_F3_SIDE_NORM
+      if constexpr(kSideNorm)full=&ring.side_data;
+#endif
       Base::Wait(empty,PingPong?(phase.pp_side_empty>>wg)&1u:phase.side_empty&1u);
       if constexpr(PingPong)phase.pp_side_empty^=1u<<wg;
       else phase.side_empty^=1u;
@@ -512,7 +516,10 @@ struct Sm90F3Gemm {
         for(int half=0;half<2;++half) {
           int row,col;
           Coordinate(wg,s,get<0>(owned(2*half)),get<1>(owned(2*half)),row,col);
-          Sm90F3RowNorm<kTaskRows,Side::kStatParts>(Side::RowStat(side),row,e.norm_width,e.epsilon,
+          if constexpr(kSideNorm) {
+            means[s][half]=Side::RowStat(side)[2*row];
+            inverses[s][half]=Side::RowStat(side)[2*row+1];
+          }else Sm90F3RowNorm<kTaskRows,Side::kStatParts>(Side::RowStat(side),row,e.norm_width,e.epsilon,
               means[s][half],inverses[s][half]);
         }
       }
@@ -800,9 +807,41 @@ struct Sm90F3Gemm {
 
   // P0 issues A/B, P1 issues side operands independently; `prearmed` is how
   // many of the first task's k blocks the previous stage already armed (§5.6).
+  __device__ static __forceinline__ void PrepareSideNorm(Sm90F3GemmOperands const& p,
+      Sm90F3Ring& ring,char* side,Sm90F3Phase& phase,int live_rows) {
+#if TILEMEGA_F3_SIDE_NORM
+    unsigned bit=phase.side_full&1u;
+    Base::Wait(&ring.side_data,bit);
+    phase.side_full^=1u;
+    auto* stats=reinterpret_cast<float*>(side+Side::kRowStatBase);
+    for(int row=int(threadIdx.x)&31;row<live_rows;row+=32) {
+      float mean,inverse;
+      Sm90F3RowNorm<kTaskRows,Side::kStatParts>(stats,row,p.epilogue.norm_width,
+          p.epilogue.epsilon,mean,inverse);
+      stats[2*row]=mean;stats[2*row+1]=inverse;
+    }
+    // Each writer releases its own stores. The leader acquires all32 before
+    // publishing side_full, including for non-last split slices.
+    Base::Arrive(&ring.side_norm_done);
+    if(threadIdx.x==288) {
+      Base::Wait(&ring.side_norm_done,bit);
+      Base::Arrive(&ring.side_full);
+    }
+#endif
+  }
+
   __device__ static __forceinline__ void Produce(Sm90F3GemmOperands const& p,
       Sm90F3Ring& ring,Element* arena,char* side,Sm90F3Phase& phase,int prearmed) {
-    if(int(threadIdx.x)==288) {
+    if constexpr(kSideNorm) {
+      if(threadIdx.x>=288 && threadIdx.x<320) {
+        if(threadIdx.x==288)Base::ProxyAsyncGlobalFence();
+        for(int local=0;local<LocalTasks();++local) {
+          int task=Task(local),m_tile=MTile(task),n_tile=NTile(task);
+          if(threadIdx.x==288)ProduceSide(p,ring,side,phase,m_tile,n_tile,LiveRows(m_tile));
+          PrepareSideNorm(p,ring,side,phase,LiveRows(m_tile));
+        }
+      }
+    }else if(int(threadIdx.x)==288) {
       Base::ProxyAsyncGlobalFence();
       for(int local=0;local<LocalTasks();++local) {
         int task=Task(local),m_tile=MTile(task),n_tile=NTile(task);
