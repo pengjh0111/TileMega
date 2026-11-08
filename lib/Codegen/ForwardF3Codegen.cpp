@@ -657,19 +657,20 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
   if(repeated) {
     unsigned stride=count+map_count;
     remapping.resize(repetitions*stride);
-    for(unsigned rep=0;rep<repetitions;++rep) {
+    for(unsigned rep=0;rep<repetitions && repeated;++rep) {
       std::vector<bool> assigned(stride,false);
       for(unsigned i=0;i<count;++i)remapping[rep*stride+i]=i;
       for(unsigned i=0;i<map_count;++i)remapping[rep*stride+count+i]=i;
       auto assign=[&](std::vector<unsigned> const& from,std::vector<unsigned> const& to,unsigned offset) {
         for(unsigned j=0;j<from.size();++j) {
           if(from[j]==kAbsent) {
-            if(to[j]!=kAbsent)throw std::invalid_argument("F3 Repeat adds an unbound edge operand");
+            if(to[j]!=kAbsent)repeated=false;
             continue;
           }
           unsigned id=offset+from[j],position=rep*stride+id;
-          if(assigned[id] && remapping[position]!=to[j])
-            throw std::invalid_argument("F3 Repeat has conflicting canonical binding aliases");
+          // Reused buffers can alias differently in another layer. A shared
+          // remap cannot express that plan; its flat program remains valid.
+          if(assigned[id] && remapping[position]!=to[j])repeated=false;
           assigned[id]=true;remapping[position]=to[j];
         }
       };
@@ -714,7 +715,7 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
       else out<<"    {kAbsent,0},\n";
     }
     out<<"  }};\n};\n";
-  }else if(enable_repeat)out<<"// F3 Repeat declined: nonperiodic stage types or coordinates.\n";
+  }else if(enable_repeat)out<<"// F3 Repeat declined: nonperiodic stages, coordinates, or binding aliases.\n";
   out<<"using F3ForwardProgram=Program<"<<model_batch<<','<<count<<','<<map_count;
   if(repeated) {
     out<<",Stage_0,Repeat<"<<repetitions;
