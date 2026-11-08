@@ -36,6 +36,7 @@ enum class Sm90ForwardMode : unsigned {kNormal, kGather, kSwapAB};
 inline constexpr char const* kSm90ForwardModes[]={"normal","gather","swapab"};
 enum class Sm90ForwardStore : unsigned {kReg,kTma};
 inline constexpr char const* kSm90ForwardStores[]={"reg","tma"};
+enum class Sm90ForwardSchedule : unsigned {kCoop,kPingPong};
 
 struct Sm90ForwardStage {
   Sm90ForwardBody body=Sm90ForwardBody::kGemm;
@@ -45,6 +46,7 @@ struct Sm90ForwardStage {
   int tile_m=64,tile_n=64,split_k=1,slots=2;
   int tk=64,mc=0;
   Sm90ForwardStore store=Sm90ForwardStore::kReg;
+  Sm90ForwardSchedule schedule=Sm90ForwardSchedule::kCoop;
   // Depthwise and fused bodies: the spatial tile and its channel block.
   int tile_w=8,tile_h=8,channel_block=64;
   // Fused bodies only: whether the plan's fusion is taken (structural).
@@ -53,6 +55,10 @@ struct Sm90ForwardStage {
   void Validate(Sm90ForwardAbi abi=Sm90ForwardAbi::kLegacy) const {
     bool matrix=body==Sm90ForwardBody::kGemm || body==Sm90ForwardBody::kConv;
     bool f3=abi==Sm90ForwardAbi::kF3;
+    if(unsigned(schedule)>unsigned(Sm90ForwardSchedule::kPingPong) ||
+        (schedule==Sm90ForwardSchedule::kPingPong &&
+         (!f3 || !matrix || mode!=Sm90ForwardMode::kNormal || tile_m<128 || split_k!=1 || mc)))
+      throw std::invalid_argument("F3 ping-pong requires an unsplit normal tile with TM>=128");
     if(f3 && (tk!=64 && tk!=128))
       throw std::invalid_argument("F3 slot K width must be 64 or 128");
     if(mc<0 || mc>1 || unsigned(store)>unsigned(Sm90ForwardStore::kTma))
@@ -121,6 +127,7 @@ struct Sm90ForwardStage {
     if(abi==Sm90ForwardAbi::kF3) {
       result.Set("tk",tk);result.Set("store",kSm90ForwardStores[unsigned(store)]);
       result.Set("mc",mc);
+      if(schedule==Sm90ForwardSchedule::kPingPong)result.Set("sched","pp");
     }
     return result;
   }
@@ -182,6 +189,11 @@ struct Sm90ForwardCoordinates {
         if(store=="reg")stage.store=Sm90ForwardStore::kReg;
         else if(store=="tma")stage.store=Sm90ForwardStore::kTma;
         else throw std::invalid_argument("unknown F3 store: "+store);
+        if(auto* sched=row.Find("sched")) {
+          auto name=sched->AsString("sched");
+          if(name=="pp")stage.schedule=Sm90ForwardSchedule::kPingPong;
+          else if(name!="coop")throw std::invalid_argument("unknown F3 schedule: "+name);
+        }
       }
       stage.tile_w=int(row.At("tile_w").AsNumber("tile_w"));
       stage.tile_h=int(row.At("tile_h").AsNumber("tile_h"));

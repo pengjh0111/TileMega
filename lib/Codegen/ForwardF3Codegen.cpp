@@ -346,6 +346,8 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
         bool gather=c.mode==Sm90ForwardMode::kGather;
         bool tma_stem=gather && enable_tma_stem;
         bool swap=c.mode==Sm90ForwardMode::kSwapAB;
+        bool pp=c.schedule==solver::Sm90ForwardSchedule::kPingPong;
+        int task_rows=pp?c.tile_m/2:c.tile_m;
         unsigned a=unsigned(Integer(gemm,"a"));
         bind.weight=unsigned(Integer(gemm,"b"));
         bind.output=unsigned(Integer(gemm,"d"));
@@ -403,7 +405,7 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
             throw std::invalid_argument("an F3 dense A row is narrower than its contraction");
           // swap-AB loads the activation as the WGMMA's B operand, so the box
           // is the stage's own rows; normal mode takes the M tile.
-          spec.box[0]=64;spec.box[1]=unsigned(swap?(rows<=8?8:16):c.tile_m);
+          spec.box[0]=64;spec.box[1]=unsigned(swap?(rows<=8?8:16):task_rows);
           bind.map=maps.Add(spec);
           shape.channels=k;shape.out_channels=n;
         }
@@ -418,7 +420,7 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
         if(padded_k%(c.split_k*c.tk))
           throw std::invalid_argument("F3 split-K does not divide the contraction");
         shape.output_stride=width_of(bind.output);
-        auto f3chain=EmitF3Chain(chain,swap?(rows<=8?8:16):c.tile_m,tile_n,bind,
+        auto f3chain=EmitF3Chain(chain,swap?(rows<=8?8:16):task_rows,tile_n,bind,
                                  require_fp32,&shape,swap,layouts);
         if(bind.residual!=kAbsent) {
           shape.residual_stride=width_of(bind.residual);
@@ -430,7 +432,7 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
           spec.dims[0]=unsigned(shape.residual_stride);
           spec.dims[1]=unsigned(rows_of(bind.residual));
           spec.strides[0]=std::uint64_t(shape.residual_stride)*2;
-          spec.box[0]=64;spec.box[1]=unsigned(c.tile_m);
+          spec.box[0]=64;spec.box[1]=unsigned(task_rows);
           bind.residual_map=maps.Add(spec);
         }
         if(!swap && !solver::Sm90F3TileFeasible(c.tile_m,c.tile_n,f3chain.chain_class))
@@ -492,7 +494,8 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
               ",Sm90F3Mode::"+mode+','+std::to_string(rows)+','+std::to_string(padded_n)+','+
               std::to_string(padded_k)+','+std::to_string(n)+','+f3chain.text+','+
               ((im2col||gather)?"Conv_"+std::to_string(index):"Sm90F3NoConv")+','+pool+','+
-              std::to_string(c.tk)+','+(tma_store?"true":"false")+','+(c.mc?"true":"false")+'>';
+              std::to_string(c.tk)+','+(tma_store?"true":"false")+','+(c.mc?"true":"false")+
+              (pp?",true>":">");
         }
         wrapper="GemmStage";
         break;

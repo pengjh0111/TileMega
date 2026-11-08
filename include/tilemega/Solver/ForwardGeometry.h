@@ -165,6 +165,7 @@ inline Sm90ForwardResourceUsage QuerySm90ForwardF3Resources(
       r.reason="F3 matrix extents or whole-slot split are invalid";return r;
     }
     bool swap=c.mode==Sm90ForwardMode::kSwapAB;
+    bool pp=c.schedule==Sm90ForwardSchedule::kPingPong;
     if(!swap && c.tile_m==256 && shape.m<512) {
       r.reason="F3 TM256 requires at least 512 matrix rows";return r;
     }
@@ -184,16 +185,17 @@ inline Sm90ForwardResourceUsage QuerySm90ForwardF3Resources(
     int stat_parts=g.Find("f3_stat_parts")?integer("f3_stat_parts"):1;
     int pool_images=0;
     if(g.At("has_channel_pool").AsBool("F3 GAP side output")) {
+      if(pp) {r.reason="F3 ping-pong does not combine GAP partials";return r;}
       int area=integer("pool_rows");
       pool_images=area>=64?2:(64+area-1)/area+1;
     }
     int columns=c.tile_m==64?c.tile_n/2:c.tile_n;
     auto layout=Sm90F3MakeGemmLayout(swap?rows:c.tile_m,swap?128:c.tile_n,c.slots,
         swap,rows,residual,vectors,stats,swap?0:2*columns,pool_images,c.tk,stat_parts,
-        c.store==Sm90ForwardStore::kTma);
+        c.store==Sm90ForwardStore::kTma,pp);
     payload=layout.end;r.slot_bytes=layout.slot_bytes;
     r.store_columns=int(std::min<long long>(shape.n,swap?128:c.tile_n));
-    r.task_count=(swap?1:ceildiv(shape.m,c.tile_m))*
+    r.task_count=(swap?1:ceildiv(shape.m,pp?c.tile_m/2:c.tile_m))*
         ceildiv(shape.n,swap?128:c.tile_n)*c.split_k;
     r.exclusive=layout.Spanning();
   }else {

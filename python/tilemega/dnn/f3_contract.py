@@ -115,6 +115,11 @@ def validate(manifest, defines):
         if stage['body'] not in ('gemm', 'conv') and stage['mode'] != 'normal':
             raise ValueError('small F3 stage cannot use a GEMM operand mode')
         if stage['body'] in ('gemm', 'conv'):
+            sched = stage.get('sched', 'coop')
+            if (sched not in ('coop', 'pp') or (sched == 'pp' and
+                    (stage['mode'] != 'normal' or stage['tile_m'] < 128
+                     or stage['split_k'] != 1 or stage.get('mc', 0)))):
+                raise ValueError('invalid F3 ping-pong coordinate')
             if c['schema'] == 4 and (stage.get('tk') not in (64, 128)
                     or stage.get('store') not in ('reg', 'tma') or stage.get('mc') not in (0, 1)):
                 raise ValueError('invalid F3 pipeline coordinates')
@@ -169,9 +174,10 @@ def dispatch(manifest, defines, source):
                 suffix = []
                 while args and args[-1] in ('true','false'):
                     suffix.insert(0,args.pop()=='true')
-                valid = (valid and len(suffix)<=2 and args[-1] == str(stage['tk'])
+                valid = (valid and len(suffix)<=3 and args[-1] == str(stage['tk'])
                          and (suffix[0] if suffix else False) == (stage['store']=='tma')
-                         and (suffix[1] if len(suffix)==2 else False) == bool(stage['mc']))
+                         and (suffix[1] if len(suffix)>=2 else False) == bool(stage['mc'])
+                         and (suffix[2] if len(suffix)==3 else False) == (stage.get('sched','coop')=='pp'))
         elif name == 'Sm90F3GemmSwapAB':
             valid = (args[:2] == [str(stage[k]) for k in ('slots', 'split_k')]
                      and 1 <= int(args[2]) <= 16 and stage['tile_n'] == 128)

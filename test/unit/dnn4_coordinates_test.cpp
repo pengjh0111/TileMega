@@ -32,6 +32,14 @@ int main() {
   Reject([&]{Sm90ForwardCoordinates::FromJson(c.ToJson());});
   c.stages[0].mc=0;c.stages[0].tile_n=32;c.stages[0].store=Sm90ForwardStore::kTma;
   Reject([&]{Sm90ForwardCoordinates::FromJson(c.ToJson());});
+  c.stages[0]=stage;c.stages[0].schedule=Sm90ForwardSchedule::kPingPong;
+  loaded=Sm90ForwardCoordinates::FromJson(c.ToJson());
+  assert(loaded.stages[0].schedule==Sm90ForwardSchedule::kPingPong);
+  c.stages[0].split_k=2;Reject([&]{Sm90ForwardCoordinates::FromJson(c.ToJson());});
+  c.stages[0].split_k=1;c.stages[0].tile_m=64;
+  Reject([&]{Sm90ForwardCoordinates::FromJson(c.ToJson());});
+  c.stages[0].tile_m=128;c.stages[0].mc=1;
+  Reject([&]{Sm90ForwardCoordinates::FromJson(c.ToJson());});
   Sm90ForwardCoordinates legacy;legacy.stages={stage};
   auto v=legacy.ToJson();assert(v.At("schema").AsNumber("schema")==3);
   assert(Sm90ForwardCoordinates::FromJson(v).abi==Sm90ForwardAbi::kLegacy);
@@ -46,5 +54,9 @@ int main() {
   constexpr auto residual=Sm90F3MakeGemmLayout(128,64,2,false,0,true,2,false,0,0);
   constexpr auto reused=Sm90F3MakeGemmLayout(128,64,2,false,0,true,2,false,0,0,64,1,true);
   static_assert(reused.end==residual.end && reused.store_bytes==0);
+  constexpr auto pp=Sm90F3MakeGemmLayout(128,64,4,false,0,true,2,true,0,0,64,12,true,true);
+  static_assert(pp.slot_bytes==2*64*(64+64));
+  static_assert(pp.side_bytes%2048==0 && pp.store_bytes==0);
+  static_assert(pp.store_base>=pp.side_base+pp.side_bytes);
   std::cout<<"F3 schema compatibility, slot widths and arena boundaries PASS\n";
 }

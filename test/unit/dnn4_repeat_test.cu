@@ -9,7 +9,12 @@
 using namespace tilemega::codegen::forward_f3;
 using namespace tilemega::backend;
 using E=cutlass::bfloat16_t;
-constexpr int kM=128*67-3,kN=256,kCount=28,kMaps=12;
+#ifdef DNN4_PP_TEST
+constexpr bool kPp=true;
+#else
+constexpr bool kPp=false;
+#endif
+constexpr int kM=128*67-3,kN=256,kCount=kPp?29:28,kMaps=kPp?14:12;
 void Check(cudaError_t c){if(c!=cudaSuccess)throw std::runtime_error(cudaGetErrorString(c));}
 template<class T>struct Device {
  T* data;std::size_t count;
@@ -24,17 +29,20 @@ struct Shape {
 };
 template<unsigned Map,unsigned Input,unsigned Weight,unsigned Output>struct Bind {
  static constexpr unsigned kMap=Map,kInput=Input,kWeight=Weight,kOutput=Output;
- static constexpr unsigned kResidualMap=kAbsent,kOutputMap=kAbsent,kVector0=kAbsent,
+ static constexpr unsigned kResidualMap=kAbsent,kOutputMap=kAbsent,kVector0=kPp?28:kAbsent,
    kVector1=kAbsent,kVector2=kAbsent,kVector3=kAbsent,kResidual=kAbsent,kStats=kAbsent,
    kRowStats=kAbsent,kRowPartials=kAbsent,kRowCounters=kAbsent,kChannelPartial=kAbsent,
    kPartial=kAbsent,kCounters=kAbsent;
 };
-using ChainA=Sm90F3Chain<Sm90F3SideLayout<128,128,false,0,false>>;
-using ChainB=Sm90F3Chain<Sm90F3SideLayout<128,64,false,0,false>>;
+template<int TN>using Plain=Sm90F3Chain<Sm90F3SideLayout<128,TN,false,0,false>>;
+template<int TN>using Bias=Sm90F3Chain<Sm90F3SideLayout<64,TN,false,1,false>,
+    Sm90F3Step<Sm90ForwardOp::kBias,0>>;
+using ChainA=std::conditional_t<kPp,Bias<128>,Plain<128>>;
+using ChainB=std::conditional_t<kPp,Bias<64>,Plain<64>>;
 template<int Slots>using A=GemmStage<Sm90F3Gemm<128,128,Slots,1,Sm90F3Mode::kNormal,
-    kM,kN,kN,kN,ChainA>,Bind<0,1,16,2>,Shape>;
+    kM,kN,kN,kN,ChainA,Sm90F3NoConv,Sm90F3NoPool,64,false,false,kPp>,Bind<0,1,16,2>,Shape>;
 template<int Slots>using B=GemmStage<Sm90F3Gemm<128,64,Slots,1,Sm90F3Mode::kNormal,
-    kM,kN,kN,kN,ChainB>,Bind<1,2,17,3>,Shape>;
+    kM,kN,kN,kN,ChainB,Sm90F3NoConv,Sm90F3NoPool,64,false,false,kPp>,Bind<1,2,17,3>,Shape>;
 using LoopA=RepeatStage<A<3>,A<6>>;
 using LoopB=RepeatStage<B<4>,B<4>,B<8>>;
 template<unsigned Input,unsigned Output>struct Copy {
@@ -66,12 +74,17 @@ template<>struct RepeatTables<6,LoopA,LoopB> {
  inline static const std::array<RepeatWeight,15> weights=[] {
    std::array<RepeatWeight,15> x{};
    for(unsigned i=0;i<12;++i)x[i+1]={16+i,2*kN*kN};
+   if(kPp) {x[0]={16,2*kN*kN};x[13]={17,2*kN*kN};}
    return x;
  }();
 }
 ;
 }
-using P=Program<1,kCount,kMaps,Copy<0,1>,Repeat<6,LoopA,LoopB>,Copy<13,14>,Copy<14,15>>;
+using Before=std::conditional_t<kPp,GemmStage<Sm90F3Gemm<128,128,3,1,Sm90F3Mode::kNormal,
+    kM,kN,kN,kN,ChainA>,Bind<12,0,16,1>,Shape>,Copy<0,1>>;
+using After=std::conditional_t<kPp,GemmStage<Sm90F3Gemm<128,64,4,1,Sm90F3Mode::kNormal,
+    kM,kN,kN,kN,ChainB>,Bind<13,13,17,14>,Shape>,Copy<13,14>>;
+using P=Program<1,kCount,kMaps,Before,Repeat<6,LoopA,LoopB>,After,Copy<14,15>>;
 int main()try {
  std::array<E*,kCount> buffers{};
  for(unsigned i=0;i<kCount;++i)Check(cudaMalloc(&buffers[i],sizeof(E)*(i<16?kM*kN:kN*kN)));
@@ -89,7 +102,13 @@ int main()try {
    }
    Check(cudaMemcpy(buffers[16+i],packed.data(),packed.size()*2,cudaMemcpyHostToDevice));
    tilemega::codegen::executor::EncodeTiledMap<2>(binding.maps[i],buffers[1+i],
-       {{kN,kM},{kN*2},{64,128}});
+       {{kN,kM},{kN*2},{64,kPp?64:128}});
+ }
+ if(kPp) {
+   std::vector<float> bias(kN,.125f);
+   Check(cudaMemcpy(buffers[28],bias.data(),bias.size()*sizeof(float),cudaMemcpyHostToDevice));
+   tilemega::codegen::executor::EncodeTiledMap<2>(binding.maps[12],buffers[0],{{kN,kM},{kN*2},{64,128}});
+   tilemega::codegen::executor::EncodeTiledMap<2>(binding.maps[13],buffers[13],{{kN,kM},{kN*2},{64,128}});
  }
  Device<E*> pointers(kCount);pointers.Put(std::vector<E*>(buffers.begin(),buffers.end()));binding.buffers=pointers.data;
  auto const& table=P::RepeatIndices();Device<unsigned> indices(table.size());
@@ -102,12 +121,15 @@ int main()try {
  for(unsigned launch=1;launch<=5;++launch) {
    kernel<<<132,384,P::kSharedBytes>>>(binding,events.data,launch);Check(cudaDeviceSynchronize());
  }
- unsigned long long hash=14695981039346656037ull;float scale=1.f;
+ unsigned long long hash=14695981039346656037ull;
+ auto reference=input;
  for(unsigned i=1;i<16;++i) {
-   if(i>=2 && i<=13 && (i-2)%3==0)scale*=.5f;
+   bool gemm=(i>=2 && i<=13) || (kPp && (i==1 || i==14));
+   float scale=i==1 || (i>=2 && i<=13 && (i-2)%3==0)?.5f:1.f;
+   if(gemm)for(auto& x:reference)x=E(float(x)*scale+(kPp?.125f:0.f));
    std::vector<E> actual(input.size());Check(cudaMemcpy(actual.data(),buffers[i],actual.size()*2,cudaMemcpyDeviceToHost));
    for(unsigned j=0;j<input.size();++j) {
-     E expected(float(input[j])*scale);
+     E expected=reference[j];
      if(actual[j].raw()!=expected.raw())throw std::runtime_error("Repeat remap/order mismatch stage="+std::to_string(i)+" element="+std::to_string(j));
      hash^=actual[j].raw();hash*=1099511628211ull;
    }

@@ -69,14 +69,17 @@ struct Sm90F3GemmLayout {
 };
 constexpr Sm90F3GemmLayout Sm90F3MakeGemmLayout(int tile_m,int tile_n,int slots,
     bool swap_ab,int swap_rows,bool residual,int vectors,bool row_stats,
-    int pool_columns,int pool_segments,int tk=64,int stat_parts=1,bool tma_store=false) {
+    int pool_columns,int pool_segments,int tk=64,int stat_parts=1,bool tma_store=false,
+    bool ping_pong=false) {
   Sm90F3GemmLayout l;
   l.slots=slots;
-  l.slot_bytes=swap_ab?Sm90F3SwapSlotBytes(swap_rows,tk):Sm90F3SlotBytes(tile_m,tile_n,tk);
+  int rows=ping_pong?tile_m/2:tile_m;
+  l.slot_bytes=swap_ab?Sm90F3SwapSlotBytes(swap_rows,tk):Sm90F3SlotBytes(rows,tile_n,tk);
   // The side area holds, in order, the residual tile, the per-column vectors
   // and the row statistics; the producer fills it under one barrier.
-  l.side_bytes=(residual?Sm90F3ResidualBytes(tile_m,tile_n):0)+
-      Sm90F3VectorBytes(tile_n,vectors)+(row_stats?stat_parts*Sm90F3RowStatBytes(tile_m):0);
+  l.side_bytes=(residual?Sm90F3ResidualBytes(rows,tile_n):0)+
+      Sm90F3VectorBytes(tile_n,vectors)+(row_stats?stat_parts*Sm90F3RowStatBytes(rows):0);
+  if(ping_pong)l.side_bytes=2*((l.side_bytes+1023)/1024*1024);
   l.pool_bytes=pool_segments?Sm90F3PoolScratchBytes(pool_columns,pool_segments):0;
   l.slot_base=0;
   l.side_base=l.slot_base+slots*l.slot_bytes;
@@ -103,6 +106,7 @@ struct alignas(16) Sm90F3Ring {
   std::uint64_t full[kSlots],gfull[kSlots],empty[kSlots];
   std::uint64_t peer_empty[kSlots];
   std::uint64_t side_full,side_empty;
+  std::uint64_t pp_side_full[2],pp_side_empty[2],pp_order[2];
 
   using Async=Sm90F3Async::Base;
   // Thread zero alone initializes both arenas, then one fence publishes every
@@ -117,6 +121,9 @@ struct alignas(16) Sm90F3Ring {
     }
     Async::Init(&side_full,1);
     Async::Init(&side_empty,kConsumerWarps);
+    for(int i=0;i<2;++i) {
+      Async::Init(pp_side_full+i,1);Async::Init(pp_side_empty+i,4);
+    }
   }
   __device__ void Invalidate() {
     #pragma unroll
@@ -125,6 +132,9 @@ struct alignas(16) Sm90F3Ring {
       Async::Invalidate(peer_empty+i);
     }
     Async::Invalidate(&side_full);Async::Invalidate(&side_empty);
+    for(int i=0;i<2;++i) {
+      Async::Invalidate(pp_side_full+i);Async::Invalidate(pp_side_empty+i);
+    }
   }
   // Every consumer warp's lane 0 arrives once on each empty barrier, so the
   // producer's first wait on phase 0 passes.
@@ -132,6 +142,7 @@ struct alignas(16) Sm90F3Ring {
     #pragma unroll
     for(int i=0;i<kSlots;++i)Async::Arrive(empty+i);
     Async::Arrive(&side_empty);
+    Async::Arrive(pp_side_empty+int(threadIdx.x)/128);
   }
   // Called by every consumer warp's leader after a cluster-wide init fence.
   __device__ void PrimeCluster() {
@@ -147,6 +158,7 @@ struct Sm90F3Phase {
   unsigned full=0,gather=0,empty=0,peer_empty=0;
   // The side barriers are single, so one bit each.
   unsigned side_full=0,side_empty=0;
+  unsigned pp_side_full=0,pp_side_empty=0;
   __device__ __forceinline__ unsigned Bit(unsigned mask,int slot) const {
     return (mask>>slot)&1u;
   }

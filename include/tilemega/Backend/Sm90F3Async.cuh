@@ -14,6 +14,11 @@ namespace tilemega::backend {
 struct Sm90F3Async {
   using Base=codegen::executor::Async<arch::Sm90>;
 
+  __device__ static __forceinline__ void ArriveCount(std::uint64_t* barrier,unsigned count) {
+    asm volatile("mbarrier.arrive.shared.b64 _, [%0], %1;"
+        ::"r"(Base::Shared(barrier)),"r"(count):"memory");
+  }
+
   __device__ static __forceinline__ void BulkMulticast(void* destination,
       void const* source,unsigned bytes,std::uint64_t* barrier) {
     asm volatile("cp.async.bulk.shared::cluster.global.mbarrier::complete_tx::bytes.multicast::cluster "
