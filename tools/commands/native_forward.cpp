@@ -58,7 +58,7 @@ static int CompileNativeForwardArtifact(std::string const& input,std::string con
   if(f3) {
     if(c.residency!=1)throw std::invalid_argument("F3 requires one resident CTA per SM");
     // F3 fixes its role ABI and device-function ceiling independently of dense.
-    registers.threads=288;registers.callee_limit=224;
+    registers.threads=384;registers.callee_limit=224;
   }
   mlir::MLIRContext context;
   // The coordinates name their own skeleton, so the plan is built for the
@@ -79,7 +79,7 @@ static int CompileNativeForwardArtifact(std::string const& input,std::string con
     stage_rows.emplace_back(json::Object{{"index",int(i)},
         {"body",solver::kSm90ForwardBodies[unsigned(shapes[i].body)]},
         {"representative",plan.stages[i].representative},
-        {"coordinate",c.stages[i].ToJson()}});
+        {"coordinate",c.stages[i].ToJson(c.abi)}});
   // Activation layouts, so a stage-level comparison can read each buffer back
   // and map it onto the exported graph's own tensors.
   json::Array buffer_rows;
@@ -130,11 +130,12 @@ static int CompileNativeForwardArtifact(std::string const& input,std::string con
     if(std::system(command.c_str()))throw std::runtime_error("native forward artifact identity failed");
   };
   identity(true);
-  std::vector<std::string> command_args={NvccPath(),"-rdc=true","-std=c++17","-O3",
+  std::vector<std::string> command_args={NvccPath(),"-std=c++17","-O3",
       "-gencode","arch=compute_90a,code=sm_90a","--expt-relaxed-constexpr","-shared",
       "-Xcompiler","-fPIC","-cudart","shared","-Xptxas","-v","--split-compile",
       std::to_string(split_compile),"-I"+root+"/include","-I"+root+"/third_party/cutlass/include",
       cu.string(),"-o",requested.string()};
+  if(!f3)command_args.insert(command_args.begin()+1,"-rdc=true");
   if(registers.Constrained()) {
     command_args.push_back("-Xptxas");
     command_args.push_back("--device-function-maxrregcount="+std::to_string(registers.callee_limit));
@@ -239,7 +240,7 @@ int DumpNativeForwardPlan(std::string const& input,std::string const& output,
   json::Array rows;
   for(std::size_t i=0;i<plan.stages.size();++i) {
     auto const& s=shapes[i];
-    rows.emplace_back(json::Object{{"index",int(i)},
+    json::Object row={{"index",int(i)},
         {"body",solver::kSm90ForwardBodies[unsigned(s.body)]},
         {"mode",solver::kSm90ForwardModes[unsigned(s.mode)]},
         {"representative",plan.stages[i].representative},
@@ -250,7 +251,12 @@ int DumpNativeForwardPlan(std::string const& input,std::string const& output,
         {"epilogue_ops",s.epilogue_ops},
         {"weight_bytes",double(s.weight_bytes)},
         {"activation_bytes",double(s.activation_bytes)},
-        {"output_bytes",double(s.output_bytes)}});
+        {"output_bytes",double(s.output_bytes)}};
+    if(abi==solver::Sm90ForwardAbi::kF3) {
+      row.emplace_back("has_row_stats",s.dnn1_geometry.At("has_row_stats"));
+      row.emplace_back("f3_chain_class",s.dnn1_geometry.At("f3_chain_class"));
+    }
+    rows.emplace_back(std::move(row));
   }
   // U6: the plan prints its own activation total so a build that would not fit
   // is caught before any GPU work.

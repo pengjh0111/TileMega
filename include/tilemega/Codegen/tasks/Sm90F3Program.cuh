@@ -10,8 +10,12 @@
 #include <type_traits>
 #include <utility>
 
+#ifndef TILEMEGA_F3_PREFETCH_DISTANCE
+#define TILEMEGA_F3_PREFETCH_DISTANCE 1
+#endif
+
 // The F3 forward program (DNN3 prompt §5). One pass over a compile-time stage
-// list on a 288-thread CTA: two consumer warpgroups and one producer warp walk
+// list on a 384-thread CTA: two consumer warpgroups and one producer warpgroup walk
 // the same list, each calling its own half of every stage, and a stage's
 // boundary is the epoch-counted grid gate of §5.5.
 //
@@ -88,9 +92,23 @@ __device__ __forceinline__ backend::Sm90F3EpilogueOperands EpilogueOf(B const& b
 template<class Body,class Bind,class Shape>
 struct GemmStage {
   using Kind=Body;
+  static constexpr bool kMatrix=true;
+  static constexpr std::size_t kWeightBytes=Body::kWeightBytes;
   static constexpr bool kUsesRing=true;
   static constexpr bool kCanPreissue=Body::kCanPreissue;
   static constexpr int kSharedBytes=Body::kLayoutBytes;
+  template<class B>
+  __device__ static __forceinline__ void PrefetchWeights(B const& b,std::size_t limit) {
+    constexpr std::size_t kChunk=64*1024;
+    std::size_t part=((limit+gridDim.x-1)/gridDim.x+15)/16*16;
+    std::size_t begin=std::size_t(blockIdx.x)*part,end=begin+part;
+    if(end>limit)end=limit;
+    auto* weights=reinterpret_cast<char const*>(b.template Get<Bind::kWeight>());
+    for(std::size_t offset=begin;offset<end;offset+=kChunk) {
+      unsigned bytes=unsigned(end-offset<kChunk?end-offset:kChunk);
+      backend::Sm90F3Async::Base::Prefetch(weights+offset,bytes);
+    }
+  }
   template<class B>
   __device__ static __forceinline__ void Preissue(B const& b,backend::Sm90F3Ring& ring,
       char* arena,backend::Sm90F3Phase& phase) {
@@ -121,6 +139,7 @@ struct GemmStage {
 template<class Body,class Bind,class Shape>
 struct AttentionStage {
   using Kind=Body;
+  static constexpr bool kMatrix=false;
   static constexpr bool kUsesRing=true,kCanPreissue=false;
   static constexpr int kSharedBytes=Body::kLayoutBytes;
   template<class B>
@@ -143,6 +162,7 @@ struct AttentionStage {
 template<class Body,class Bind,class Shape>
 struct SmallStage {
   using Kind=Body;
+  static constexpr bool kMatrix=false;
   static constexpr bool kUsesRing=false;
   static constexpr bool kCanPreissue=false;
   static constexpr int kSharedBytes=Body::kSharedBytes;
@@ -204,15 +224,16 @@ struct Program {
   template<unsigned I>
   using At=typename decltype(Find<I>(Map{}))::Type;
   static constexpr unsigned kStages=sizeof...(Stage);
-  static constexpr int kBatch=Batch,kThreads=288,kResidency=1;
+  static constexpr int kBatch=Batch,kThreads=384,kResidency=1;
   static constexpr unsigned kBuffers=Buffers,kMaps=Maps;
   static_assert(kStages>=1);
+  static_assert(TILEMEGA_F3_PREFETCH_DISTANCE==1 || TILEMEGA_F3_PREFETCH_DISTANCE==2);
   static constexpr int kSharedBytes=backend::Sm90F3Budget::kBudget;
   static_assert(sizeof(Binding)+256<32764);
 
   // Both roles meet here. The consumers publish this stage's writes and count
   // one arrival per CTA against the epoch; the producer, which has already
-  // pre-issued the next stage, joins the same 288-thread barrier and only then
+  // pre-issued the next stage, joins the same 384-thread barrier and only then
   // fences its async proxy against the activations the gate just published.
   template<unsigned I>
   __device__ static __forceinline__ void Gate(ForwardCounter* events,
@@ -225,10 +246,11 @@ struct Program {
           Async::GateArrive(&events[I].arrivals);
           Async::GateWait(&events[I].arrivals,epoch*gridDim.x);
         }
-        Async::template NamedBarrier<Async::kBarGate,288>();
+        Async::template NamedBarrier<Async::kBarGate,384>();
       }else {
-        Async::template NamedBarrier<Async::kBarGate,288>();
-        if(tilemega::backend::Sm90F3Async::ThreadIndex()==256)Async::Base::ProxyAsyncGlobalFence();
+        Async::template NamedBarrier<Async::kBarGate,384>();
+        if(Async::ThreadIndex()==256 || Async::ThreadIndex()==288)
+          Async::Base::ProxyAsyncGlobalFence();
         __syncwarp();
       }
     }
@@ -281,11 +303,35 @@ struct Program {
     }
   }
   template<unsigned I>
+  static constexpr unsigned NextMatrix() {
+    if constexpr(I>=kStages)return kStages;
+    else if constexpr(At<I>::kMatrix)return I;
+    else return NextMatrix<I+1>();
+  }
+  template<unsigned I>
+  __device__ static __forceinline__ void PrefetchNextWeights(Binding const& b) {
+    constexpr unsigned next=NextMatrix<I+1>();
+    constexpr unsigned first=TILEMEGA_F3_PREFETCH_DISTANCE==1?next:NextMatrix<next+1>();
+    constexpr std::size_t kBudget=24*1024*1024;
+    if constexpr(first<kStages) {
+      constexpr auto bytes=At<first>::kWeightBytes;
+      At<first>::template PrefetchWeights<Binding>(b,bytes<kBudget?bytes:kBudget);
+      if constexpr(bytes<=8*1024*1024) {
+        constexpr unsigned second=NextMatrix<first+1>();
+        if constexpr(second<kStages) {
+          if constexpr(bytes+At<second>::kWeightBytes<=kBudget)
+            At<second>::template PrefetchWeights<Binding>(b,At<second>::kWeightBytes);
+        }
+      }
+    }
+  }
+  template<unsigned I>
   __device__ static __forceinline__ void ProduceOne(Binding const& b,char* shared,
       backend::Sm90F3Header* header,backend::Sm90F3Phase (&phase)[2]) {
     using S=At<I>;
     auto* arena=Arena(shared,S::kOffset);
     auto* side=arena+SideOffset<I>();
+    if(backend::Sm90F3Async::ThreadIndex()==288)PrefetchNextWeights<I>(b);
     S::template Produce<Binding>(b,header->rings[I%2],arena,side,phase[I%2],Prefix<I>());
   }
   template<unsigned I>
@@ -303,7 +349,7 @@ struct Program {
 };
 
 template<class P>
-__global__ __launch_bounds__(288,1)
+__global__ __launch_bounds__(384,1)
 void sm90_forward_f3_kernel(const __grid_constant__ typename P::Binding b,
     ForwardCounter* events,unsigned long long epoch) {
   extern __shared__ __align__(1024) char shared[];
@@ -324,8 +370,13 @@ void sm90_forward_f3_kernel(const __grid_constant__ typename P::Binding b,
   }
   __syncthreads();
   auto sequence=std::make_integer_sequence<unsigned,P::kStages>{};
-  if(threadIdx.x>=256)P::ProducerLoop(b,shared,events,epoch,sequence);
-  else P::ConsumerLoop(b,shared,events,epoch,sequence);
+  if(threadIdx.x>=256) {
+    backend::Sm90F3Async::template RegDealloc<56>();
+    P::ProducerLoop(b,shared,events,epoch,sequence);
+  }else {
+    backend::Sm90F3Async::template RegAlloc<224>();
+    P::ConsumerLoop(b,shared,events,epoch,sequence);
+  }
   __syncthreads();
   if(tilemega::backend::Sm90F3Async::ThreadIndex()==0) {header->rings[0].Invalidate();header->rings[1].Invalidate();}
 }

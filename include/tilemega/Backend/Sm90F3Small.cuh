@@ -64,7 +64,7 @@ __device__ __forceinline__ void Sm90F3StoreOct(void* address,Sm90F3Oct const& oc
 template<int Channels,int Batch>
 struct Sm90F3Layout {
   using Element=cutlass::bfloat16_t;
-  static constexpr int kThreads=288;
+  static constexpr int kThreads=384;
   static constexpr int kBlock=8;
   static_assert(Channels>=1 && Channels<=8,"an F3 layout stage fills one eight-channel block");
   static constexpr int kSharedBytes=1024;
@@ -118,7 +118,7 @@ struct Sm90F3Layout {
 template<int Window,int WindowW,int Stride,int Pad,int Channels,int Batch>
 struct Sm90F3MaxPool {
   using Element=cutlass::bfloat16_t;
-  static constexpr int kThreads=288;
+  static constexpr int kThreads=384;
   static constexpr int kSharedBytes=1024;
   static constexpr int kSideOffset=0;
   static_assert(Window>=1 && WindowW>=1 && Stride>=1 && Pad>=0);
@@ -170,7 +170,7 @@ struct Sm90F3MaxPool {
 template<int Batch>
 struct Sm90F3GlobalPool {
   using Element=cutlass::bfloat16_t;
-  static constexpr int kThreads=288;
+  static constexpr int kThreads=384;
   static constexpr int kSharedBytes=1024;
   static constexpr int kSideOffset=0;
 
@@ -198,7 +198,7 @@ struct Sm90F3GlobalPool {
 template<int Channels,int Stride>
 struct Sm90F3LayerNorm {
   using Element=cutlass::bfloat16_t;
-  static constexpr int kThreads=288;
+  static constexpr int kThreads=384;
   static constexpr int kSharedBytes=1024;
   static constexpr int kSideOffset=0;
   static_assert(Channels%8==0 && Stride>=Channels);
@@ -250,7 +250,7 @@ struct Sm90F3LayerNorm {
 template<int Width>
 struct Sm90F3EmbeddingSum {
   using Element=cutlass::bfloat16_t;
-  static constexpr int kThreads=288;
+  static constexpr int kThreads=384;
   static constexpr int kSharedBytes=1024;
   static constexpr int kSideOffset=0;
   static_assert(Width%8==0);

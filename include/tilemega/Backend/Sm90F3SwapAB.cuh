@@ -12,14 +12,14 @@
 // BERT's pooler, whose activation is one row per sequence.
 namespace tilemega::backend {
 
-template<int Slots,int SplitK,int M,int N,int K,int NStore,class Chain>
+template<int Slots,int SplitK,int M,int N,int K,int NStore,class Chain,int TK=64>
 struct Sm90F3GemmSwapAB {
   using Element=cutlass::bfloat16_t;
   using Async=Sm90F3Async;
   using Base=Sm90F3Async::Base;
   using Side=typename Chain::Layout;
 
-  static constexpr int kThreads=288;
+  static constexpr int kThreads=384;
   static constexpr bool kCanPreissue=true;
   static constexpr int kSlots=Slots;
   // The WGMMA's n extent: eight rows when the stage has at most eight, else
@@ -28,13 +28,16 @@ struct Sm90F3GemmSwapAB {
   static_assert(M>=1 && M<=16,"swap-AB is for a stage of at most sixteen rows");
   static constexpr int kTileN=128;
   static constexpr int kWgRows=64;            // each warpgroup's weight rows
-  static constexpr int kIterations=K/(SplitK*64);
-  static_assert(K%(SplitK*64)==0,"split-K divides the contraction into whole k blocks");
+  static constexpr int kTK=TK,kPanels=TK/64;
+  static constexpr int kIterations=K/(SplitK*TK);
+  static_assert(TK==64 || TK==128);
+  static_assert(K%(SplitK*TK)==0,"split-K divides the contraction into whole slots");
   static_assert(Slots>=2 && Slots<=8);
   static_assert(SplitK>=1 && SplitK<=32,"swap-AB admits a deeper split than normal mode");
   static constexpr int kTiles=(N+kTileN-1)/kTileN;
   static constexpr int kTasks=kTiles*SplitK;
-  static constexpr int kSlotBytes=Sm90F3SwapSlotBytes(kRows);
+  static constexpr int kSlotBytes=Sm90F3SwapSlotBytes(kRows,TK);
+  static constexpr std::size_t kWeightBytes=std::size_t(N)*K*2;
 
   using Gmma=Sm90Gmma<arch::Sm90>;
   using Mma=decltype(cute::make_tiled_mma(typename Gmma::template SS<kRows>{}));
@@ -56,7 +59,7 @@ struct Sm90F3GemmSwapAB {
     return arena+std::size_t(slot)*(kSlotBytes/2);
   }
   __device__ static __forceinline__ Element* SlotActivation(Element* arena,int slot) {
-    return SlotWeight(arena,slot)+std::size_t(kTileN)*64;
+    return SlotWeight(arena,slot)+std::size_t(kTileN)*TK;
   }
 
   __device__ static __forceinline__ void Preissue(Sm90F3GemmOperands const& p,
@@ -70,20 +73,20 @@ struct Sm90F3GemmSwapAB {
         phase.empty^=1u<<slot;
         Base::ExpectTx(ring.full+slot,kSlotBytes);
         Base::Bulk(SlotWeight(arena,slot),p.weight+
-            (std::size_t(n_tile)*(K/64)+slice*kIterations+slot)*kTileN*64,
-            2*kTileN*64,ring.full+slot);
+            (std::size_t(n_tile)*(K/64)+(slice*kIterations+slot)*kPanels)*kTileN*64,
+            2*kTileN*TK,ring.full+slot);
       }
       Base::PrefetchTensorMap(p.activation);
-      for(int task=first;task<kTasks;task+=int(gridDim.x))
-        for(int k=task==first?prefix:0;k<kIterations;++k)
-          Base::Prefetch(p.weight+(std::size_t(NTile(task))*(K/64)+
-              Slice(task)*kIterations+k)*kTileN*64,2*kTileN*64);
     }
     __syncwarp();
   }
 
   __device__ static __forceinline__ void Produce(Sm90F3GemmOperands const& p,
       Sm90F3Ring& ring,Element* arena,char* side,Sm90F3Phase& phase,int prearmed) {
+    if(int(threadIdx.x)==288) {
+      for(int local=0;local<LocalTasks();++local)
+        ProduceSide(p,ring,side,phase,NTile(Task(local)));
+    }
     if(int(threadIdx.x)!=256) {__syncwarp();return;}
     Base::ProxyAsyncGlobalFence();
     int tasks=LocalTasks();
@@ -91,27 +94,29 @@ struct Sm90F3GemmSwapAB {
       int task=Task(local),n_tile=NTile(task),slice=Slice(task);
       for(int k=0;k<kIterations;++k) {
         int slot=(local*kIterations+k)%Slots;
-        int block=slice*kIterations+k;
+        int block=(slice*kIterations+k)*kPanels;
         if(local!=0 || k>=prearmed) {
           Base::Wait(ring.empty+slot,phase.Bit(phase.empty,slot));
           phase.empty^=1u<<slot;
           Base::ExpectTx(ring.full+slot,kSlotBytes);
           Base::Bulk(SlotWeight(arena,slot),
-              p.weight+(std::size_t(n_tile)*(K/64)+block)*kTileN*64,2*kTileN*64,
+              p.weight+(std::size_t(n_tile)*(K/64)+block)*kTileN*64,2*kTileN*TK,
               ring.full+slot);
         }
         // The activation's own row mapping is in its tensor map, so BERT's
         // pooler reads one row per sequence without a separate code path.
-        Base::Tensor2D(SlotActivation(arena,slot),p.activation,block*64,0,ring.full+slot);
+        #pragma unroll
+        for(int kb=0;kb<kPanels;++kb)
+          Base::Tensor2D(SlotActivation(arena,slot)+std::size_t(kb)*kRows*64,
+              p.activation,(block+kb)*64,0,ring.full+slot);
       }
-      ProduceSide(p,ring,side,phase,n_tile);
     }
     __syncwarp();
   }
 
   static constexpr int kVectors=Side::kVectorBytes/(4*kTileN);
   static constexpr Sm90F3GemmLayout kLayout=Sm90F3MakeGemmLayout(kRows,kTileN,Slots,
-      true,kRows,false,kVectors,false,0,0);
+      true,kRows,false,kVectors,false,0,0,TK);
   static constexpr int kLayoutBytes=kLayout.end;
   static constexpr int kSideOffset=kLayout.side_base;
   static_assert(Sm90F3Budget::Fits(kLayoutBytes),
@@ -164,17 +169,21 @@ struct Sm90F3GemmSwapAB {
         TM_F3_TRACE_END(kSlotWait);
         TM_F3_TRACE_FIRST_READY();
         phase.full^=1u<<slot;
-        auto weight=make_tensor(make_smem_ptr(
-            SlotWeight(arena,slot)+std::size_t(wg)*kWgRows*64),Sm90KLayout<kWgRows,64>{});
-        auto activation=make_tensor(make_smem_ptr(
-            SlotActivation(arena,slot)),Sm90KLayout<kRows,64>{});
-        auto ra=thread.partition_fragment_A(weight);
-        auto rb=thread.partition_fragment_B(activation);
         cute::warpgroup_fence_operand(accum.tile[0]);
         cute::warpgroup_arrive();
+        #pragma unroll
+        for(int kb=0;kb<kPanels;++kb) {
+        auto weight=make_tensor(make_smem_ptr(
+            SlotWeight(arena,slot)+std::size_t(kb)*kTileN*64+
+            std::size_t(wg)*kWgRows*64),Sm90KLayout<kWgRows,64>{});
+        auto activation=make_tensor(make_smem_ptr(
+            SlotActivation(arena,slot)+std::size_t(kb)*kRows*64),Sm90KLayout<kRows,64>{});
+        auto ra=thread.partition_fragment_A(weight);
+        auto rb=thread.partition_fragment_B(activation);
         CUTE_UNROLL
         for(int step=0;step<size<2>(ra);++step)
           cute::gemm(mma,ra(cute::_,cute::_,step),rb(cute::_,cute::_,step),accum.tile[0]);
+        }
         cute::warpgroup_commit_batch();
         cute::warpgroup_wait<1>();
         cute::warpgroup_fence_operand(accum.tile[0]);
@@ -212,7 +221,7 @@ struct Sm90F3GemmSwapAB {
     TM_F3_TRACE_BEGIN(kEpilogue);
     auto const& e=p.epilogue;
     auto& tile=accumulators.tile[0];
-#if TILEMEGA_TRACE_STAGE
+#if TILEMEGA_TRACE_STAGE == 1
     float values[cute::size(Fragment{})]{};
     CUTE_UNROLL
     for(int i=0;i<int(cute::size(Fragment{}));++i) {
@@ -227,7 +236,7 @@ struct Sm90F3GemmSwapAB {
       int feature=wg*kWgRows+get<0>(owned(i)),row=get<1>(owned(i));
       int column=n_tile*kTileN+feature;
       if(row>=M || column>=NStore)continue;
-#if TILEMEGA_TRACE_STAGE
+#if TILEMEGA_TRACE_STAGE == 1
       float value=values[i];
 #else
       float value=Chain::Apply(tile(i),row,feature,side,0.f,0.f,e);

@@ -1,4 +1,4 @@
-"""Certify schema-3 coordinates against the generated F3 program."""
+"""Certify legacy schema-3 and pipelined schema-4 F3 artifacts."""
 import json
 import re
 
@@ -17,7 +17,7 @@ def body_of(stage):
 
 def validate(manifest, defines):
     c = manifest['native_forward']
-    if (c.get('schema') != 3 or c.get('abi') != 'f3' or c.get('model') != 'dnn'
+    if (c.get('schema') not in (3, 4) or c.get('abi') != 'f3' or c.get('model') != 'dnn'
             or c.get('residency') != 1 or manifest.get('residency') != 1
             or manifest.get('phase') != 'forward' or manifest.get('mode') != 'L1'
             or manifest.get('loop') != 1 or manifest.get('runtime_batch', 0) < 1
@@ -29,7 +29,8 @@ def validate(manifest, defines):
     if not c['stages'] or len(c['stages']) != len(manifest.get('stages', [])):
         raise ValueError('F3 manifest and coordinates disagree on stage count')
     contract = manifest.get('register_contract', {})
-    if (contract.get('threads') != 288 or contract.get('callee_limit') != 224
+    threads = 384 if c['schema'] == 4 else 288
+    if (contract.get('threads') != threads or contract.get('callee_limit') != 224
             or contract.get('requested_residency') != 1
             or not contract.get('runtime_occupancy_required')):
         raise ValueError('F3 register contract differs from its role ABI')
@@ -43,6 +44,9 @@ def validate(manifest, defines):
         if stage['body'] not in ('gemm', 'conv') and stage['mode'] != 'normal':
             raise ValueError('small F3 stage cannot use a GEMM operand mode')
         if stage['body'] in ('gemm', 'conv'):
+            if c['schema'] == 4 and (stage.get('tk') not in (64, 128)
+                    or stage.get('store') not in ('reg', 'tma') or stage.get('mc') not in (0, 1)):
+                raise ValueError('invalid F3 pipeline coordinates')
             if stage['tile_m'] not in (64, 128, 256) or stage['tile_n'] not in (32, 64, 128, 256):
                 raise ValueError('invalid F3 tile')
             if not 2 <= stage['slots'] <= 8 or not 1 <= stage['split_k'] <= (32 if stage['mode'] == 'swapab' else 16):
@@ -86,9 +90,13 @@ def dispatch(manifest, defines, source):
             expected_args = [str(stage[k]) for k in ('tile_m', 'tile_n', 'slots', 'split_k')]
             expected_args.append('Sm90F3Mode::' + ('kGather' if stage['mode'] == 'gather' else 'kNormal'))
             valid = args[:5] == expected_args
+            if c['schema'] == 4:
+                valid = valid and args[-1] == str(stage['tk'])
         elif name == 'Sm90F3GemmSwapAB':
             valid = (args[:2] == [str(stage[k]) for k in ('slots', 'split_k')]
                      and 1 <= int(args[2]) <= 16 and stage['tile_n'] == 128)
+            if c['schema'] == 4:
+                valid = valid and args[-1] == str(stage['tk'])
         elif name == 'Sm90F3Layout':
             valid = len(args) == 2 and int(args[0]) > 0 and int(args[1]) == manifest['runtime_batch']
         elif name == 'Sm90F3MaxPool':

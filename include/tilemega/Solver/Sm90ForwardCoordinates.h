@@ -25,7 +25,7 @@ inline constexpr char const* kSm90ForwardBodies[]={
 
 // Which forward skeleton a plan and its program use (DNN3 prompt §9.1). The
 // legacy 160-thread bodies keep every earlier coordinate meaning; F3 is the
-// 288-thread skeleton, whose GEMM stages also carry an operand mode.
+// 384-thread skeleton, whose GEMM stages also carry an operand mode.
 enum class Sm90ForwardAbi : unsigned {kLegacy, kF3};
 inline constexpr char const* kSm90ForwardAbis[]={"legacy","f3"};
 
@@ -34,6 +34,8 @@ inline constexpr char const* kSm90ForwardAbis[]={"legacy","f3"};
 // most sixteen rows, so the weight becomes the WGMMA's A operand.
 enum class Sm90ForwardMode : unsigned {kNormal, kGather, kSwapAB};
 inline constexpr char const* kSm90ForwardModes[]={"normal","gather","swapab"};
+enum class Sm90ForwardStore : unsigned {kReg,kTma};
+inline constexpr char const* kSm90ForwardStores[]={"reg","tma"};
 
 struct Sm90ForwardStage {
   Sm90ForwardBody body=Sm90ForwardBody::kGemm;
@@ -41,6 +43,8 @@ struct Sm90ForwardStage {
   Sm90ForwardMode mode=Sm90ForwardMode::kNormal;
   // GEMM/conv: N tile and the K split; both 1 for the small bodies.
   int tile_m=64,tile_n=64,split_k=1,slots=2;
+  int tk=64,mc=0;
+  Sm90ForwardStore store=Sm90ForwardStore::kReg;
   // Depthwise and fused bodies: the spatial tile and its channel block.
   int tile_w=8,tile_h=8,channel_block=64;
   // Fused bodies only: whether the plan's fusion is taken (structural).
@@ -49,6 +53,19 @@ struct Sm90ForwardStage {
   void Validate(Sm90ForwardAbi abi=Sm90ForwardAbi::kLegacy) const {
     bool matrix=body==Sm90ForwardBody::kGemm || body==Sm90ForwardBody::kConv;
     bool f3=abi==Sm90ForwardAbi::kF3;
+    if(f3 && (tk!=64 && tk!=128))
+      throw std::invalid_argument("F3 slot K width must be 64 or 128");
+    if(mc<0 || mc>1 || unsigned(store)>unsigned(Sm90ForwardStore::kTma))
+      throw std::invalid_argument("invalid F3 store or multicast coordinate");
+    if(!f3 && (tk!=64 || mc || store!=Sm90ForwardStore::kReg))
+      throw std::invalid_argument("F3 coordinates require the F3 skeleton");
+    if(f3 && !matrix && (tk!=64 || mc || store!=Sm90ForwardStore::kReg))
+      throw std::invalid_argument("only matrix stages carry F3 pipeline coordinates");
+    if(f3 && store==Sm90ForwardStore::kTma &&
+        (mode==Sm90ForwardMode::kSwapAB || tile_m<128 || tile_n%64))
+      throw std::invalid_argument("F3 TMA stores require whole 64-column normal tiles");
+    if(f3 && mc && mode!=Sm90ForwardMode::kNormal)
+      throw std::invalid_argument("F3 multicast requires normal operand mode");
     if(f3 && mode!=Sm90ForwardMode::kNormal && !matrix)
       throw std::invalid_argument("only a forward GEMM stage carries an operand mode");
     if(!f3 && mode!=Sm90ForwardMode::kNormal)
@@ -95,11 +112,16 @@ struct Sm90ForwardStage {
     if(fused && body!=Sm90ForwardBody::kDwPw && body!=Sm90ForwardBody::kInvertedResidual)
       throw std::invalid_argument("only the DWPW and inverted-residual bodies fuse");
   }
-  json::Value ToJson() const {
-    return json::Object{{"body",kSm90ForwardBodies[unsigned(body)]},
+  json::Value ToJson(Sm90ForwardAbi abi=Sm90ForwardAbi::kLegacy) const {
+    json::Value result=json::Object{{"body",kSm90ForwardBodies[unsigned(body)]},
         {"mode",kSm90ForwardModes[unsigned(mode)]},{"tile_m",tile_m},{"tile_n",tile_n},
         {"split_k",split_k},{"slots",slots},{"tile_w",tile_w},{"tile_h",tile_h},
         {"channel_block",channel_block},{"fused",fused}};
+    if(abi==Sm90ForwardAbi::kF3) {
+      result.Set("tk",tk);result.Set("store",kSm90ForwardStores[unsigned(store)]);
+      result.Set("mc",mc);
+    }
+    return result;
   }
 };
 
@@ -110,17 +132,17 @@ struct Sm90ForwardCoordinates {
   Sm90ForwardAbi abi=Sm90ForwardAbi::kLegacy;
   json::Value ToJson() const {
     json::Array rows;
-    for(auto const& stage:stages)rows.emplace_back(stage.ToJson());
-    return json::Object{{"schema",3},{"model","dnn"},{"abi",kSm90ForwardAbis[unsigned(abi)]},
+    for(auto const& stage:stages)rows.emplace_back(stage.ToJson(abi));
+    return json::Object{{"schema",abi==Sm90ForwardAbi::kF3?4:3},{"model","dnn"},{"abi",kSm90ForwardAbis[unsigned(abi)]},
         {"residency",residency},{"stages",std::move(rows)}};
   }
   static Sm90ForwardCoordinates FromJson(json::Value const& value) {
     auto schema=value.At("schema").AsNumber("schema");
-    if(schema!=1 && schema!=2 && schema!=3)
+    if(schema!=1 && schema!=2 && schema!=3 && schema!=4)
       throw std::invalid_argument("unknown sm90 forward coordinate schema");
     Sm90ForwardCoordinates result;
     result.residency=int(value.At("residency").AsNumber("residency"));
-    if(schema==3) {
+    if(schema>=3) {
       auto abi=value.At("abi").AsString("abi");
       bool found=false;
       for(unsigned i=0;i<sizeof(kSm90ForwardAbis)/sizeof(*kSm90ForwardAbis);++i)
@@ -134,7 +156,7 @@ struct Sm90ForwardCoordinates {
       for(unsigned i=0;i<sizeof(kSm90ForwardBodies)/sizeof(*kSm90ForwardBodies);++i)
         if(body==kSm90ForwardBodies[i]) {stage.body=Sm90ForwardBody(i);found=true;break;}
       if(!found)throw std::invalid_argument("unknown sm90 forward body: "+body);
-      if(schema==3) {
+      if(schema>=3) {
         auto mode=row.At("mode").AsString("mode");
         found=false;
         for(unsigned i=0;i<sizeof(kSm90ForwardModes)/sizeof(*kSm90ForwardModes);++i)
@@ -145,6 +167,21 @@ struct Sm90ForwardCoordinates {
       stage.tile_n=int(row.At("tile_n").AsNumber("tile_n"));
       stage.split_k=int(row.At("split_k").AsNumber("split_k"));
       stage.slots=int(row.At("slots").AsNumber("slots"));
+      if(schema==4) {
+        if(result.abi!=Sm90ForwardAbi::kF3)
+          throw std::invalid_argument("schema 4 coordinates require F3");
+        auto integer=[&](char const* key) {
+          double n=row.At(key).AsNumber(key);
+          if(!std::isfinite(n) || n<0 || n>128 || std::floor(n)!=n)
+            throw std::invalid_argument(std::string("invalid F3 coordinate: ")+key);
+          return int(n);
+        };
+        stage.tk=integer("tk");stage.mc=integer("mc");
+        auto store=row.At("store").AsString("store");
+        if(store=="reg")stage.store=Sm90ForwardStore::kReg;
+        else if(store=="tma")stage.store=Sm90ForwardStore::kTma;
+        else throw std::invalid_argument("unknown F3 store: "+store);
+      }
       stage.tile_w=int(row.At("tile_w").AsNumber("tile_w"));
       stage.tile_h=int(row.At("tile_h").AsNumber("tile_h"));
       stage.channel_block=int(row.At("channel_block").AsNumber("channel_block"));
@@ -155,7 +192,7 @@ struct Sm90ForwardCoordinates {
     if(result.residency!=1 && result.residency!=2)
       throw std::invalid_argument("sm90 forward residency must be 1 or 2");
     if(result.abi==Sm90ForwardAbi::kF3 && result.residency!=1)
-      throw std::invalid_argument("the F3 skeleton runs one 288-thread CTA per SM");
+      throw std::invalid_argument("the F3 skeleton runs one 384-thread CTA per SM");
     return result;
   }
 };

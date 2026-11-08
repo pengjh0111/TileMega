@@ -34,13 +34,13 @@ struct Sm90F3Budget {
 
 // One slot of a normal or gather GEMM stage: the A panel and the B page, both
 // SW128 K-major over a 64-wide k block (§6.2 item 2).
-constexpr int Sm90F3SlotBytes(int tile_m,int tile_n) {
-  return 128*(tile_m+tile_n);
+constexpr int Sm90F3SlotBytes(int tile_m,int tile_n,int tk=64) {
+  return 2*tk*(tile_m+tile_n);
 }
 // swap-AB: the weight page is 128 rows and the activation panel is Mp rows
 // (§6.7 item 3).
-constexpr int Sm90F3SwapSlotBytes(int rows) {
-  return 2*64*(128+rows);
+constexpr int Sm90F3SwapSlotBytes(int rows,int tk=64) {
+  return 2*tk*(128+rows);
 }
 // The residual tile the producer prefetches: ceil(TN/64) boxes of TM rows,
 // each row a 128 B SW128 line (§6.4 step 1).
@@ -69,10 +69,10 @@ struct Sm90F3GemmLayout {
 };
 constexpr Sm90F3GemmLayout Sm90F3MakeGemmLayout(int tile_m,int tile_n,int slots,
     bool swap_ab,int swap_rows,bool residual,int vectors,bool row_stats,
-    int pool_columns,int pool_segments) {
+    int pool_columns,int pool_segments,int tk=64) {
   Sm90F3GemmLayout l;
   l.slots=slots;
-  l.slot_bytes=swap_ab?Sm90F3SwapSlotBytes(swap_rows):Sm90F3SlotBytes(tile_m,tile_n);
+  l.slot_bytes=swap_ab?Sm90F3SwapSlotBytes(swap_rows,tk):Sm90F3SlotBytes(tile_m,tile_n,tk);
   // The side area holds, in order, the residual tile, the per-column vectors
   // and the row statistics; the producer fills it under one barrier.
   l.side_bytes=(residual?Sm90F3ResidualBytes(tile_m,tile_n):0)+
@@ -97,7 +97,7 @@ constexpr Sm90F3GemmLayout Sm90F3MakeGemmLayout(int tile_m,int tile_n,int slots,
 struct alignas(16) Sm90F3Ring {
   static constexpr int kSlots=8;
   static constexpr int kConsumerWarps=8;
-  static constexpr int kGatherLanes=32;
+  static constexpr int kGatherLanes=96;
   std::uint64_t full[kSlots],gfull[kSlots],empty[kSlots];
   std::uint64_t side_full,side_empty;
 

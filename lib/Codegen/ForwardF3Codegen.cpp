@@ -193,8 +193,8 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
   int trace_level=0;
   if(auto* setting=std::getenv("TILEMEGA_TRACE_STAGE")) {
     std::string value(setting);
-    if(value!="0" && value!="1" && value!="2")
-      throw std::invalid_argument("TILEMEGA_TRACE_STAGE must be 0, 1 or 2");
+    if(value!="0" && value!="1" && value!="2" && value!="3")
+      throw std::invalid_argument("TILEMEGA_TRACE_STAGE must be 0, 1, 2 or 3");
     trace_level=value[0]-'0';
   }
   auto plan=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
@@ -444,14 +444,16 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
         if(swap) {
           body="Sm90F3GemmSwapAB<"+std::to_string(c.slots)+','+std::to_string(c.split_k)+','+
               std::to_string(rows)+','+std::to_string(padded_n)+','+
-              std::to_string(padded_k)+','+std::to_string(n)+','+f3chain.text+'>';
+              std::to_string(padded_k)+','+std::to_string(n)+','+f3chain.text+','+
+              std::to_string(c.tk)+'>';
         }else {
           char const* mode=gather?"kGather":"kNormal";
           body="Sm90F3Gemm<"+std::to_string(c.tile_m)+','+std::to_string(c.tile_n)+','+
               std::to_string(c.slots)+','+std::to_string(c.split_k)+
               ",Sm90F3Mode::"+mode+','+std::to_string(rows)+','+std::to_string(padded_n)+','+
               std::to_string(padded_k)+','+std::to_string(n)+','+f3chain.text+','+
-              ((im2col||gather)?"Conv_"+std::to_string(index):"Sm90F3NoConv")+','+pool+'>';
+              ((im2col||gather)?"Conv_"+std::to_string(index):"Sm90F3NoConv")+','+pool+','+
+              std::to_string(c.tk)+'>';
         }
         wrapper="GemmStage";
         break;

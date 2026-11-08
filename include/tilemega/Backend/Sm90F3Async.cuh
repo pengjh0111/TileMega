@@ -56,10 +56,22 @@ struct Sm90F3Async {
         :"r"(a[0]),"r"(a[1]),"r"(a[2]),"r"(a[3]),"r"(b0),"r"(b1));
   }
 
-  // Named barriers (§5.1 item 4). F3 owns ids 1..4 with explicit counts, so a
+  template<int Registers>
+  __device__ static __forceinline__ void RegDealloc() {
+    static_assert(Registers>=24 && Registers<=256 && Registers%8==0);
+    asm volatile("setmaxnreg.dec.sync.aligned.u32 %0;" ::"n"(Registers):"memory");
+  }
+  template<int Registers>
+  __device__ static __forceinline__ void RegAlloc() {
+    static_assert(Registers>=24 && Registers<=256 && Registers%8==0);
+    asm volatile("setmaxnreg.inc.sync.aligned.u32 %0;" ::"n"(Registers):"memory");
+  }
+
+  // Named barriers (§5.1 item 4). F3 owns ids 1..5 with explicit counts, so a
   // body must never call the legacy `executor::ComputeSync`, which occupies
-  // `bar 1, 128` and would release a 288-thread CTA one warpgroup early.
-  enum : int {kBarAll=0, kBarGate=1, kBarConsumers=2, kBarWg0=3, kBarWg1=4};
+  // `bar 1, 128` and would release the CTA before all roles arrived.
+  enum : int {kBarAll=0, kBarGate=1, kBarConsumers=2, kBarWg0=3, kBarWg1=4,
+      kBarGather=5};
 
   __device__ static __forceinline__ void GatherCommit() {
     asm volatile("cp.async.commit_group;" ::: "memory");

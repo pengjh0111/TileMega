@@ -70,7 +70,7 @@ struct Sm90F3NoPool {
 };
 
 template<int TM,int TN,int Slots,int SplitK,Sm90F3Mode Mode,int M,int N,int K,
-         int NStore,class Chain,class Conv=Sm90F3NoConv,class Pool=Sm90F3NoPool>
+         int NStore,class Chain,class Conv=Sm90F3NoConv,class Pool=Sm90F3NoPool,int TK=64>
 struct Sm90F3Gemm {
   using Element=cutlass::bfloat16_t;
   using Async=Sm90F3Async;
@@ -78,17 +78,20 @@ struct Sm90F3Gemm {
   using Split=Sm90F3Split<TM,TN>;
   using Side=typename Chain::Layout;
 
-  static constexpr int kThreads=288;
+  static constexpr int kThreads=384;
   static constexpr bool kCanPreissue=Mode==Sm90F3Mode::kNormal;
   static constexpr int kSlots=Slots;
-  static constexpr int kIterations=K/(SplitK*64);
+  static constexpr int kTK=TK,kPanels=TK/64;
+  static constexpr int kIterations=K/(SplitK*TK);
+  static_assert(TK==64 || TK==128);
   static_assert(Slots>=2 && Slots<=8);
-  static_assert(K%(SplitK*64)==0,"split-K divides the contraction into whole k blocks");
+  static_assert(K%(SplitK*TK)==0,"split-K divides the contraction into whole slots");
   static_assert(N%TN==0,"N is padded to a whole number of TN tiles when the plan is built");
   static_assert(NStore>=1 && NStore<=N);
   static constexpr int kTiles=N/TN,kMTiles=(M+TM-1)/TM;
   static constexpr int kOutputTiles=kMTiles*kTiles,kTasks=kOutputTiles*SplitK;
-  static constexpr int kSlotBytes=Sm90F3SlotBytes(TM,TN);
+  static constexpr int kSlotBytes=Sm90F3SlotBytes(TM,TN,TK);
+  static constexpr std::size_t kWeightBytes=std::size_t(N)*K*2;
   // Gather reads R*S*8 taps as whole 64-wide k blocks (§6.6 item 2).
   static constexpr int kGatherTaps=Conv::kR*Conv::kS;
 
@@ -113,7 +116,7 @@ struct Sm90F3Gemm {
     return arena+std::size_t(slot)*(kSlotBytes/2);
   }
   __device__ static __forceinline__ Element* SlotB(Element* arena,int slot) {
-    return SlotA(arena,slot)+std::size_t(TM)*64;
+    return SlotA(arena,slot)+std::size_t(TM)*TK;
   }
 
   // ---- producer ------------------------------------------------------------
@@ -129,20 +132,16 @@ struct Sm90F3Gemm {
         phase.empty^=1u<<slot;
         Base::ExpectTx(ring.full+slot,kSlotBytes);
         Base::Bulk(SlotB(arena,slot),p.weight+
-            (std::size_t(n_tile)*(K/64)+slice*kIterations+slot)*TN*64,
-            2*TN*64,ring.full+slot);
+            (std::size_t(n_tile)*(K/64)+(slice*kIterations+slot)*kPanels)*TN*64,
+            2*TN*TK,ring.full+slot);
       }
       Base::PrefetchTensorMap(p.activation);
       if(p.residual)Base::PrefetchTensorMap(p.residual);
-      for(int task=first;task<kTasks;task+=int(gridDim.x))
-        for(int k=task==first?prefix:0;k<kIterations;++k)
-          Base::Prefetch(p.weight+(std::size_t(NTile(task))*(K/64)+
-              Slice(task)*kIterations+k)*TN*64,2*TN*64);
     }
     __syncwarp();
   }
 
-  __device__ static __forceinline__ void IssueA(Element* a,Sm90F3GemmOperands const& p,
+  __device__ static __forceinline__ void IssueAK64(Element* a,Sm90F3GemmOperands const& p,
       int m_tile,int k,std::uint64_t* barrier) {
     if constexpr(Mode==Sm90F3Mode::kNormal) {
       if constexpr(std::is_same_v<Conv,Sm90F3NoConv>)
@@ -165,19 +164,26 @@ struct Sm90F3Gemm {
     }
   }
 
+  __device__ static __forceinline__ void IssueA(Element* a,Sm90F3GemmOperands const& p,
+      int m_tile,int k,std::uint64_t* barrier) {
+    #pragma unroll
+    for(int panel=0;panel<kPanels;++panel)
+      IssueAK64(a+std::size_t(panel)*TM*64,p,m_tile,k+panel*64,barrier);
+  }
+
   // Dense A is one 2D box; an im2col A is TM/64 boxes. Either way the slot's
   // transaction count is the whole slot.
   __device__ static __forceinline__ void ProduceTaskK(Sm90F3GemmOperands const& p,
       Sm90F3Ring& ring,Element* arena,Sm90F3Phase& phase,int task,int k_index,int slot,
       bool skip_b) {
     int n_tile=NTile(task),m_tile=MTile(task),slice=Slice(task);
-    int k=(slice*kIterations+k_index)*64;
+    int k=(slice*kIterations+k_index)*TK;
     if(!skip_b) {
       Base::Wait(ring.empty+slot,phase.Bit(phase.empty,slot));
       phase.empty^=1u<<slot;
       Base::ExpectTx(ring.full+slot,kSlotBytes);
       Base::Bulk(SlotB(arena,slot),
-          p.weight+(std::size_t(n_tile)*(K/64)+k/64)*TN*64,2*TN*64,ring.full+slot);
+          p.weight+(std::size_t(n_tile)*(K/64)+k/64)*TN*64,2*TN*TK,ring.full+slot);
     }
     IssueA(SlotA(arena,slot),p,m_tile,k,ring.full+slot);
   }
@@ -214,17 +220,20 @@ struct Sm90F3Gemm {
       auto* b=SlotB(arena,slot);
       #pragma unroll
       for(int s=0;s<Split::kSubTiles;++s) {
-        auto panel=make_tensor(make_smem_ptr(
-            a+std::size_t(Split::ARows(wg)+s*64)*64),Sm90KLayout<64,64>{});
-        auto page=make_tensor(make_smem_ptr(
-            b+std::size_t(Split::BRows(wg))*64),Sm90KLayout<Split::kWgCols,64>{});
-        auto ra=thread.partition_fragment_A(panel);
-        auto rb=thread.partition_fragment_B(page);
         cute::warpgroup_fence_operand(accum[s]);
         cute::warpgroup_arrive();
+        #pragma unroll
+        for(int kb=0;kb<kPanels;++kb) {
+        auto panel=make_tensor(make_smem_ptr(
+            a+std::size_t(kb)*TM*64+std::size_t(Split::ARows(wg)+s*64)*64),Sm90KLayout<64,64>{});
+        auto page=make_tensor(make_smem_ptr(
+            b+std::size_t(kb)*TN*64+std::size_t(Split::BRows(wg))*64),Sm90KLayout<Split::kWgCols,64>{});
+        auto ra=thread.partition_fragment_A(panel);
+        auto rb=thread.partition_fragment_B(page);
         CUTE_UNROLL
         for(int step=0;step<size<2>(ra);++step)
           cute::gemm(mma,ra(cute::_,cute::_,step),rb(cute::_,cute::_,step),accum[s]);
+        }
         cute::warpgroup_commit_batch();
       }
       // The batch just issued may stay in flight; the previous one is done,
@@ -256,7 +265,7 @@ struct Sm90F3Gemm {
   // through the chain's pool segments.
   static constexpr Sm90F3GemmLayout kLayout=Sm90F3MakeGemmLayout(TM,TN,Slots,
       false,0,Chain::kNeedsResidual,kVectors,Chain::kNeedsStats,
-      2*Split::kWgCols,Pool::kArea?Pool::kImages:0);
+      2*Split::kWgCols,Pool::kArea?Pool::kImages:0,TK);
   static constexpr int kLayoutBytes=kLayout.end;
   static constexpr int kSideOffset=kLayout.side_base;
   static constexpr int kPoolOffset=kLayout.pool_base;
@@ -394,6 +403,19 @@ struct Sm90F3Gemm {
     auto* output=e.output;
     int stride=e.output_stride;
     RowAccumulator row_accum;
+    float means[Split::kSubTiles][2]{},inverses[Split::kSubTiles][2]{};
+    if constexpr(Chain::kNeedsStats) {
+      #pragma unroll
+      for(int s=0;s<Split::kSubTiles;++s) {
+        #pragma unroll
+        for(int half=0;half<2;++half) {
+          int row,col;
+          Coordinate(wg,s,get<0>(owned(2*half)),get<1>(owned(2*half)),row,col);
+          Sm90F3RowNorm(Side::RowStat(side),row,e.norm_width,e.epsilon,
+              means[s][half],inverses[s][half]);
+        }
+      }
+    }
     #pragma unroll
     for(int s=0;s<Split::kSubTiles;++s) {
       auto& tile=accumulators.tile[s];
@@ -402,17 +424,12 @@ struct Sm90F3Gemm {
         CUTE_UNROLL
         for(int half=0;half<(kVectorStore && Split::kWgCols>=64?2:1);++half) {
         int group=kVectorStore?block*2+half:block;
-        int cached=-1;float mean=0,inverse=0;
         CUTE_UNROLL
         for(int i=0;i<kElements;i+=2) {
           if(get<1>(owned(i))/kRegionColumns!=group)continue;
           int tile_row,tile_col;
           Coordinate(wg,s,get<0>(owned(i)),get<1>(owned(i)),tile_row,tile_col);
-          if constexpr(Chain::kNeedsStats)
-            if(tile_row!=cached) {
-              cached=tile_row;
-              Sm90F3RowNorm(Side::RowStat(side),tile_row,e.norm_width,e.epsilon,mean,inverse);
-            }
+          float mean=means[s][(i%4)/2],inverse=inverses[s][(i%4)/2];
           tile(i)=Chain::Apply(tile(i),tile_row,tile_col,side,mean,inverse,e);
           tile(i+1)=Chain::Apply(tile(i+1),tile_row,tile_col+1,side,mean,inverse,e);
           if constexpr(Chain::kWritesStats) {
@@ -425,7 +442,7 @@ struct Sm90F3Gemm {
               row_accum.square[s][(i%4)/2]+=tile(i+1)*tile(i+1);
             }
           }
-#if !TILEMEGA_TRACE_STAGE
+#if TILEMEGA_TRACE_STAGE != 1
           if constexpr(!kVectorStore) {
           if(tile_row>=live_rows || tile_col>=width)continue;
           auto* address=output+std::size_t(m_tile*TM+tile_row)*stride+n_tile*TN+tile_col;
@@ -439,7 +456,7 @@ struct Sm90F3Gemm {
         TM_F3_TRACE_BEGIN(kStore);
         if constexpr(kVectorStore)
           StoreQuad(tile,owned,output,stride,wg,s,m_tile,n_tile,live_rows,width,group);
-#if TILEMEGA_TRACE_STAGE
+#if TILEMEGA_TRACE_STAGE == 1
         else {
         CUTE_UNROLL
         for(int i=0;i<kElements;i+=2) {
@@ -650,27 +667,34 @@ struct Sm90F3Gemm {
     return width<0?0:width;
   }
 
-  // The producer warp: the leader issues every transfer, and `prearmed` is how
+  // P0 issues A/B, P1 issues side operands independently; `prearmed` is how
   // many of the first task's k blocks the previous stage already armed (§5.6).
   __device__ static __forceinline__ void Produce(Sm90F3GemmOperands const& p,
       Sm90F3Ring& ring,Element* arena,char* side,Sm90F3Phase& phase,int prearmed) {
-    if constexpr(Mode==Sm90F3Mode::kGather) {ProduceGather(p,ring,arena,side,phase);return;}
+    if(int(threadIdx.x)==288) {
+      Base::ProxyAsyncGlobalFence();
+      for(int local=0;local<LocalTasks();++local) {
+        int task=Task(local),m_tile=MTile(task),n_tile=NTile(task);
+        ProduceSide(p,ring,side,phase,m_tile,n_tile,LiveRows(m_tile));
+      }
+    }
+    if constexpr(Mode==Sm90F3Mode::kGather) {
+      if(threadIdx.x<288 || threadIdx.x>=320)ProduceGather(p,ring,arena,side,phase);
+      else __syncwarp();
+      return;
+    }
     if(int(threadIdx.x)!=256) {__syncwarp();return;}
     // The activation was written by other CTAs with ordinary stores before the
     // gate, so the async proxy must be made to observe them.
     Base::ProxyAsyncGlobalFence();
     int tasks=LocalTasks();
     for(int local=0;local<tasks;++local) {
-      int task=Task(local),m_tile=MTile(task),n_tile=NTile(task);
+      int task=Task(local);
       for(int k=0;k<kIterations;++k) {
         int slot=(local*kIterations+k)%Slots;
         bool skip=local==0 && k<prearmed;
         ProduceTaskK(p,ring,arena,phase,task,k,slot,skip);
       }
-      // The side data is issued after this task's k blocks: the epilogue only
-      // needs it at the end, and issuing it earlier would park the producer on
-      // `side_empty` while the previous task's epilogue still held it (§6.3).
-      ProduceSide(p,ring,side,phase,m_tile,n_tile,LiveRows(m_tile));
     }
     __syncwarp();
   }
@@ -678,38 +702,40 @@ struct Sm90F3Gemm {
   // ---- gather mode (§6.6) -------------------------------------------------
 
   // The stem's input is physically eight channels, so an im2col TMA would move
-  // a 64-channel box of mostly padding. Instead all 32 producer lanes gather
+  // a 64-channel box of mostly padding. Instead P0, P2 and P3 gather with 96 lanes
   // the taps with `cp.async`: k = (r*S + s)*8 + c, so one 16 B copy is one
   // tap's eight channels and a 64-wide k block is eight taps.
   __device__ static __forceinline__ void ProduceGather(Sm90F3GemmOperands const& p,
       Sm90F3Ring& ring,Element* arena,char* side,Sm90F3Phase& phase) {
     static_assert(Mode!=Sm90F3Mode::kGather || Conv::kC<=8,
         "gather mode is for a physically eight-channel input");
-    int lane=int(threadIdx.x)-256;
+    int lane=int(threadIdx.x)<288?int(threadIdx.x)-256:int(threadIdx.x)-288;
     Base::ProxyAsyncGlobalFence();
     int tasks=LocalTasks();
     for(int local=0;local<tasks;++local) {
       int task=Task(local),m_tile=MTile(task),n_tile=NTile(task);
       for(int k=0;k<kIterations;++k) {
-        int global_k=Slice(task)*kIterations+k;
+        int global_k=(Slice(task)*kIterations+k)*kPanels;
         int slot=(local*kIterations+k)%Slots;
-        // Lane 0 alone owns the slot's release phase; the warp then gathers.
-        if((tilemega::backend::Sm90F3Async::ThreadIndex()&31)==0) {
+        // P0's leader owns the release phase; all three gather warps rendezvous.
+        if(tilemega::backend::Sm90F3Async::ThreadIndex()==256) {
           Base::Wait(ring.empty+slot,phase.Bit(phase.empty,slot));
           phase.empty^=1u<<slot;
         }
-        __syncwarp();
+        Async::template NamedBarrier<Async::kBarGather,96>();
         // Close the producer's own async-copy lifetime before reusing a slot.
         // One committed group per k block preserves the Slots-deep window.
         Async::template GatherWait<Slots-1>();
         auto* panel=reinterpret_cast<char*>(SlotA(arena,slot));
+        #pragma unroll
+        for(int kb=0;kb<kPanels;++kb) {
         for(int m=lane;m<TM;m+=Sm90F3Ring::kGatherLanes) {
           int row=m_tile*TM+m;
           int image=row/(Conv::kP*Conv::kQ),pixel=row%(Conv::kP*Conv::kQ);
           int q=pixel%Conv::kQ,r0=pixel/Conv::kQ;
           #pragma unroll
           for(int j=0;j<8;++j) {
-            int tap=global_k*8+j;
+            int tap=(global_k+kb)*8+j;
             int rr=tap/Conv::kS,ss=tap%Conv::kS;
             int y=r0*Conv::kStrideH-Conv::kPadH+rr*Conv::kDilationH;
             int x=q*Conv::kStrideW-Conv::kPadW+ss*Conv::kDilationW;
@@ -719,19 +745,20 @@ struct Sm90F3Gemm {
                 ((std::size_t(image)*Conv::kH+y)*Conv::kW+x)*Conv::kC;
             // The panel row is 128 B and SW128 swizzled exactly as a TMA box
             // would leave it, so the consumer's descriptor is unchanged.
-            Base::Copy16(panel+std::size_t(m)*128+((j^(m%8))*16),source,valid);
+            Base::Copy16(panel+std::size_t(kb)*TM*128+std::size_t(m)*128+
+                ((j^(m%8))*16),source,valid);
           }
+        }
         }
         Async::GatherCommit();
         // Every lane completes its own copies into the slot's gather barrier.
         Base::CompleteCopies(ring.gfull+slot);
-        if((tilemega::backend::Sm90F3Async::ThreadIndex()&31)==0) {
-          Base::ExpectTx(ring.gfull+slot,2*TN*64);
+        if(tilemega::backend::Sm90F3Async::ThreadIndex()==256) {
+          Base::ExpectTx(ring.gfull+slot,2*TN*TK);
           Base::Bulk(SlotB(arena,slot),
-              p.weight+(std::size_t(n_tile)*(K/64)+global_k)*TN*64,2*TN*64,ring.gfull+slot);
+              p.weight+(std::size_t(n_tile)*(K/64)+global_k)*TN*64,2*TN*TK,ring.gfull+slot);
         }
       }
-      if((tilemega::backend::Sm90F3Async::ThreadIndex()&31)==0)ProduceSide(p,ring,side,phase,m_tile,n_tile,LiveRows(m_tile));
     }
     Async::template GatherWait<0>();
     __syncwarp();

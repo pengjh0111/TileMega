@@ -165,10 +165,13 @@ inline Sm90ForwardResourceUsage QuerySm90ForwardF3Resources(
   bool matrix=c.body==Sm90ForwardBody::kGemm || c.body==Sm90ForwardBody::kConv;
   int payload=1024;
   if(matrix) {
-    if(shape.m<=0 || shape.n<=0 || shape.k<=0 || shape.k%(64LL*c.split_k)) {
-      r.reason="F3 matrix extents or whole-k64 split are invalid";return r;
+    if(shape.m<=0 || shape.n<=0 || shape.k<=0 || shape.k%(1LL*c.tk*c.split_k)) {
+      r.reason="F3 matrix extents or whole-slot split are invalid";return r;
     }
     bool swap=c.mode==Sm90ForwardMode::kSwapAB;
+    if(c.store!=Sm90ForwardStore::kReg || c.mc) {
+      r.reason="F3 store and multicast mechanisms have not passed their gates";return r;
+    }
     if(!swap && c.tile_m==256 && shape.m<512) {
       r.reason="F3 TM256 requires at least 512 matrix rows";return r;
     }
@@ -185,7 +188,7 @@ inline Sm90ForwardResourceUsage QuerySm90ForwardF3Resources(
     }
     int columns=c.tile_m==64?c.tile_n/2:c.tile_n;
     auto layout=Sm90F3MakeGemmLayout(swap?rows:c.tile_m,swap?128:c.tile_n,c.slots,
-        swap,rows,residual,vectors,stats,swap?0:2*columns,pool_images);
+        swap,rows,residual,vectors,stats,swap?0:2*columns,pool_images,c.tk);
     payload=layout.end;r.slot_bytes=layout.slot_bytes;
     r.store_columns=int(std::min<long long>(shape.n,swap?128:c.tile_n));
     r.task_count=(swap?1:ceildiv(shape.m,c.tile_m))*
