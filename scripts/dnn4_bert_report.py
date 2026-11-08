@@ -55,13 +55,23 @@ def main():
               ('prefetch table B2', base/'prefetch_table_models_v1/b2/experiment.json'),
               ('P1 normalization B2', base/'side_norm_middle_v1/b2/experiment.json'),
               ('P1 normalization B4', base/'side_norm_middle_v1/b4/experiment.json'),
-              ('P1 normalization B8', base/'side_norm_middle_v1/b8/experiment.json')]
+              ('P1 normalization B8', base/'side_norm_middle_v1/b8/experiment.json'),
+              ('FFN2 TK128 B1', base/'ffn2_tk128_b1_v1/experiment.json'),
+              ('GELU reciprocal B1', base/'gelu_rcp_models_v1/b1/experiment.json'),
+              ('GELU reciprocal B16', base/'gelu_rcp_models_v1/b16/experiment.json')]
     rows = []
     choices = []
     for name, path in probes:
         if not path.exists():
             continue
         experiment = read(path)
+        if name.startswith('GELU reciprocal'):
+            precision = read(base/'gelu_rcp_accuracy_v1/gpu3_v2/raw/dnn4-gelu-rcp-accuracy-gpu3/attempt1/probe/result.json')
+            unit = read(base/'gelu_rcp_unit_v1/raw/dnn4-focused-f3-gates/attempt1/cohort/result.json')
+            if (precision['passes'] != '5/5' or precision['median']['bad'] or
+                    precision['median']['max_relative'] > 1e-6 or not unit['passed'] or
+                    len(unit['processes']) != 17 or any(p['exit_code'] for p in unit['processes'])):
+                raise ValueError('GELU reciprocal requires precision5 plus unit5/sanitizer1/1/5/5')
         if name.startswith('prefetch table'):
             unit = read(base/'prefetch_table_unit_v1/raw/dnn4-focused-f3-gates/attempt1/cohort/result.json')
             if not unit['passed'] or len(unit['processes']) != 17 or any(p['exit_code'] for p in unit['processes']):
@@ -252,6 +262,14 @@ def main():
               'The64/216 side-normalization unit also passes5/5 and sanitizer1/1/5/5. '
               'B8 ratio0.970675 gives2.9325% gain below2.9386% noise and is rejected. '
               'B4 remains above its fixed BF16 goal and retains the original anchor without re-anchoring.', '',
+              'Verified FFN2 TK128 retains split3 and the tile,using the largest legal six-slot ring. '
+              'B1 model checks5/5 pass;GPU3 ratio1.033929,noise4.85% gives no gain,and accepted coordinates stay unchanged. '
+              'Verified GELU reciprocal without Newton refinement passes the2^24-point grid and all finite BF16 '
+              'values5/5 with max normalized error1.972e-7. The explicitly reserved GPU3 precision cohort is used; '
+              'earlier scheduler-environment attempts are excluded. Unit5/5,sanitizer1/1/5/5 and B1/B16 model checks5/5 pass. '
+              'The132-CTA three-task epilogue ratio is0.923058 over the current approximation on GPU3, '
+              'but B1 E2E ratio1.031251 and B16 ratio0.991282 fail noise6.58%/1.60%. '
+              'The prototype is archived and both production header and temporary gate option are restored.', '',
               'GPU3 foreign occupancy delayed additional same-card G22 probes; only our pending '
               'schedulers were cancelled, and fresh candidate/control pairs moved to authorized GPU2. '
               'The separately identified B1/B2/B16 follow-ups do not silently replace the earlier frozen20-cell collection. '
