@@ -1,0 +1,4 @@
+key,mode,tile_m,tile_n,split_k,value_ns,active_ctas,passes,sass_sha256,source,evidence
+f4_splitk_ns,normal,64,32,6,2040.914745667912,132,5/5,e1b201c38d20339f15dd31064dc8ed12d47beb26f9f2f864f4f261938251bf23,/root/TileMega-dnn3/runs/dnn4/phase_r/split_cal_v2/raw/dnn4-split-calibration/attempt1/cal/result.json,verified;diagnostic constants;not yet installed
+f4_splitk_ns,normal,64,128,16,30827.358140578574,128,5/5,86998f4fb1ea9e4462da3e2ba6baa6ae4f09de60b5acb1dbcf7410424fb8fc41,/root/TileMega-dnn3/runs/dnn4/phase_r/split_cal_v2/raw/dnn4-split-calibration/attempt1/cal/result.json,verified;diagnostic constants;not yet installed
+f4_splitk_ns,swapab,16,128,32,4730.821188485853,128,5/5,66fe992f627b25412f304d9148426338f5b193a3023d5d578768bfa048c27ad7,/root/TileMega-dnn3/runs/dnn4/phase_r/split_cal_v2/raw/dnn4-split-calibration/attempt1/cal/result.json,verified;diagnostic constants;not yet installed
