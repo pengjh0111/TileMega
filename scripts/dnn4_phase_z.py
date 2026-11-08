@@ -131,7 +131,16 @@ class Cell:
 
     def measure(self, name, library, gate, protocol, extra=()):
         dest = self.out / name
-        self.run(name, [sys.executable, ROOT / 'scripts/dnn4_measure.py', '--library', library,
+        runner = ROOT / ('scripts/dnn4_cohort_measure.py' if getattr(self.args, 'cohorts', False)
+                         else 'scripts/dnn4_measure.py')
+        marker = self.out / (name + '.complete.json')
+        if marker.exists():
+            runner = Path(read(marker)['command'][1])
+            if runner.name not in ('dnn4_measure.py', 'dnn4_cohort_measure.py'):
+                raise ValueError('unexpected resumed measurement runner')
+        elif (dest / 'queue/queue_measure.json').exists() and not (dest / 'cohort_plan.json').exists():
+            runner = ROOT / 'scripts/dnn4_measure.py'
+        self.run(name, [sys.executable, runner, '--library', library,
             '--gate', gate, *self.common(), '--device', self.device, '--cpu-set', self.cpu,
             '--protocol', protocol, '--out', dest, *extra], dest / 'result.json')
         return read(dest / 'result.json')
@@ -181,7 +190,17 @@ class Cell:
                 continue
             library = self.build(coordinates, trace=3)
             trace_libraries[key] = library
-            processes = [read(self.trace(f'tune-{rank}-process-{i}', library) / 'samples.json') for i in range(3)]
+            old = any((self.out / f'tune-{rank}-process-{i}.complete.json').exists() for i in range(3))
+            if getattr(self.args, 'cohorts', False) and not old:
+                dest = self.out / f'tune-{rank}-cohort'
+                self.run(f'tune-{rank}-cohort', [sys.executable, ROOT/'scripts/dnn4_trace_cohort.py',
+                    '--library', library, *self.common(), '--device', self.device,
+                    '--cpu-set', self.cpu, '--out', dest], dest/'result.json')
+                processes = [read(Path(folder)/'samples.json') for folder in read(dest/'result.json')['traces']]
+                if len(processes) != 3:
+                    raise ValueError('P-TUNE requires three fresh trace processes')
+            else:
+                processes = [read(self.trace(f'tune-{rank}-process-{i}', library) / 'samples.json') for i in range(3)]
             group_windows = []
             for group in self.prepared['groups']:
                 values = [statistics.median(sum(sample[stage]['stage_ns'] for stage in group['stages'])
@@ -258,6 +277,8 @@ def main():
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--slot', type=int, choices=(0, 1), default=0)
     parser.add_argument('--compile-cache', type=Path, default=ROOT / 'runs/dnn4/phase_z/trace_precompiled_v1')
+    parser.add_argument('--cohorts', action=argparse.BooleanOptionalAction, default=True,
+                        help='reserve once per protocol while keeping every child process fresh')
     args = parser.parse_args()
     Cell(args).execute()
 
