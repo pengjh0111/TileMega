@@ -76,7 +76,7 @@ template<unsigned Input,unsigned Output>struct Copy {
 };
 struct TestTables {
  static constexpr unsigned kRepetitions=kOdd?4:6,kStages=kOdd?3:2;
- inline static const std::array<unsigned,kRepetitions*(kCount+kMaps)> indices=[] {
+ inline static constexpr std::array<unsigned,kRepetitions*(kCount+kMaps)> indices=[] {
    std::array<unsigned,kRepetitions*(kCount+kMaps)> x{};
    for(unsigned r=0;r<kRepetitions;++r) {
      auto* row=x.data()+r*(kCount+kMaps);
@@ -101,6 +101,17 @@ struct TestTables {
    return x;
  }();
 };
+struct PatternCases {
+ inline static constexpr std::array<unsigned,24> indices={
+   kAbsent,3,18,2,1,1,  kAbsent,5,15,7,4,kAbsent,
+   kAbsent,7,12,2,9,1,  kAbsent,9,9,7,16,kAbsent};
+};
+static_assert(RepeatIndexPattern<PatternCases,6,4,0>::kKind==1);
+static_assert(RepeatIndexPattern<PatternCases,6,4,1>::kKind==2);
+static_assert(RepeatIndexPattern<PatternCases,6,4,2>::kKind==2);
+static_assert(RepeatIndexPattern<PatternCases,6,4,3>::kKind==3);
+static_assert(RepeatIndexPattern<PatternCases,6,4,4>::kKind==0);
+static_assert(RepeatIndexPattern<PatternCases,6,4,5>::kKind==3);
 namespace tilemega::codegen::forward_f3 {
 template<>struct RepeatTables<6,LoopA,LoopB>:TestTables {};
 template<>struct RepeatTables<4,LoopA,LoopB,LoopC>:TestTables {};
@@ -111,7 +122,22 @@ using After=std::conditional_t<kPp,GemmStage<Sm90F3Gemm<128,64,4,1,Sm90F3Mode::k
     kM,kN,kN,kN,ChainB>,Bind<13,13,17,14>,Shape>,Copy<13,14>>;
 using Repeated=std::conditional_t<kOdd,Repeat<4,LoopA,LoopB,LoopC>,Repeat<6,LoopA,LoopB>>;
 using P=Program<1,kCount,kMaps,Before,Repeated,After,Copy<14,15>>;
+template<unsigned... I>
+__device__ void ProbeIndices(RepeatBindings<Bindings<4,2>,4,2,PatternCases,4> const& view,
+    unsigned* out,std::integer_sequence<unsigned,I...>) {
+ ((out[view.repetition*6+I]=view.template Index<I>()),...);
+}
+__global__ void PatternProbe(Bindings<4,2> binding,unsigned* out) {
+ RepeatBindings<Bindings<4,2>,4,2,PatternCases,4> view{binding,threadIdx.x};
+ ProbeIndices(view,out,std::make_integer_sequence<unsigned,6>{});
+}
 int main()try {
+ Device<unsigned> pattern_indices(24),pattern_output(24);
+ pattern_indices.Put(std::vector<unsigned>(PatternCases::indices.begin(),PatternCases::indices.end()));
+ Bindings<4,2> pattern_binding{};pattern_binding.repeat_indices=pattern_indices.data;
+ PatternProbe<<<1,4>>>(pattern_binding,pattern_output.data);Check(cudaDeviceSynchronize());
+ if(pattern_output.Get()!=std::vector<unsigned>(PatternCases::indices.begin(),PatternCases::indices.end()))
+   throw std::runtime_error("Repeat index pattern mismatch");
  std::array<E*,kCount> buffers{};
  for(unsigned i=0;i<kCount;++i)Check(cudaMalloc(&buffers[i],sizeof(E)*(i<16?kM*kN:kN*kN)));
  std::vector<E> input(kM*kN);

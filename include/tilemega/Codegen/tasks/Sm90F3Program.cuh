@@ -21,6 +21,12 @@
 #ifndef TILEMEGA_F3_PREFETCH_DISTANCE
 #define TILEMEGA_F3_PREFETCH_DISTANCE 2
 #endif
+#ifndef TILEMEGA_F3_REPEAT_ARITHMETIC
+#define TILEMEGA_F3_REPEAT_ARITHMETIC 0
+#endif
+#if TILEMEGA_F3_REPEAT_ARITHMETIC != 0 && TILEMEGA_F3_REPEAT_ARITHMETIC != 1
+#error "F3 Repeat arithmetic must be0 or1"
+#endif
 
 // The F3 forward program (DNN3 prompt §5). One pass over a compile-time stage
 // list on a 384-thread CTA: two consumer warpgroups and one producer warpgroup walk
@@ -367,17 +373,48 @@ struct Program {
   }
 };
 
+template<class Table,unsigned Stride,unsigned R,unsigned Column>
+struct RepeatIndexPattern {
+  static_assert(R>1 && Column<Stride);
+  static constexpr unsigned kFirst=Table::indices[Column];
+  static constexpr unsigned kSecond=Table::indices[Stride+Column];
+  // Unsigned differences also encode descending columns; every row is checked.
+  static constexpr unsigned kDelta=kSecond-kFirst;
+  static constexpr unsigned Classify() {
+    bool constant=true,affine=kFirst!=kAbsent,periodic=true;
+    for(unsigned r=0;r<R;++r) {
+      unsigned value=Table::indices[r*Stride+Column];
+      constant&=value==kFirst;
+      affine&=value!=kAbsent && value==kFirst+r*kDelta;
+      periodic&=value==(r%2?kSecond:kFirst);
+    }
+    return constant?1:affine?2:periodic?3:0;
+  }
+  static constexpr unsigned kKind=Classify();
+};
+
 // Canonical binding IDs are translated at run time; maps stay grid constants.
-template<class Base,unsigned Count,unsigned Maps>
+template<class Base,unsigned Count,unsigned Maps,class Table,unsigned R>
 struct RepeatBindings {
   Base const& base;
   unsigned repetition;
+  template<unsigned Column>
+  __device__ __forceinline__ unsigned Index() const {
+#if TILEMEGA_F3_REPEAT_ARITHMETIC
+    using P=RepeatIndexPattern<Table,Count+Maps,R,Column>;
+    if constexpr(P::kKind==1)return P::kFirst;
+    else if constexpr(P::kKind==2)return P::kFirst+repetition*P::kDelta;
+    else if constexpr(P::kKind==3)return repetition%2?P::kSecond:P::kFirst;
+    else
+#endif
+      return base.repeat_indices[repetition*(Count+Maps)+Column];
+  }
   template<unsigned Id>
   __device__ __forceinline__ Element* Get() const {
     if constexpr(Id==kAbsent)return nullptr;
     else {
       static_assert(Id<Count);
-      unsigned id=base.repeat_indices[repetition*(Count+Maps)+Id];
+      unsigned id=Index<Id>();
       return id==kAbsent?nullptr:base.buffers[id];
     }
   }
@@ -386,7 +423,7 @@ struct RepeatBindings {
     if constexpr(Id==kAbsent)return nullptr;
     else {
       static_assert(Id<Maps);
-      unsigned id=base.repeat_indices[repetition*(Count+Maps)+Count+Id];
+      unsigned id=Index<Count+Id>();
       return id==kAbsent?nullptr:&base.maps[id];
     }
   }
@@ -469,8 +506,8 @@ template<int Batch,unsigned Buffers,unsigned Maps,class Before,unsigned R,
     class... Body,class After,class Final>
 struct Program<Batch,Buffers,Maps,Before,Repeat<R,Body...>,After,Final> {
   using Binding=Bindings<Buffers,Maps>;
-  using View=RepeatBindings<Binding,Buffers,Maps>;
   using Tables=RepeatTables<R,Body...>;
+  using View=RepeatBindings<Binding,Buffers,Maps,Tables,R>;
   using BodyMap=Lookup<std::make_integer_sequence<unsigned,sizeof...(Body)>,Body...>;
   template<unsigned I>using At=typename decltype(Find<I>(BodyMap{}))::Type;
   static constexpr bool kRepeated=true;
