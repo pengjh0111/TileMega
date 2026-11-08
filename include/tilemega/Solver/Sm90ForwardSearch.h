@@ -21,6 +21,13 @@ namespace tilemega::solver {
 
 struct Sm90ForwardMissing:std::invalid_argument {using std::invalid_argument::invalid_argument;};
 using Sm90ForwardSelector=std::map<std::string,std::string>;
+inline int Sm90ForwardF4PrefetchDistance() {
+  auto* value=std::getenv("TILEMEGA_F3_PREFETCH_DISTANCE");
+  if(!value)return 2;
+  if(std::string(value)!="1" && std::string(value)!="2")
+    throw std::invalid_argument("TILEMEGA_F3_PREFETCH_DISTANCE must be1 or2");
+  return value[0]-'0';
+}
 inline long long ForwardCeil(long long a,long long b) {
   if(a<=0 || b<=0)throw std::invalid_argument("forward geometry extents must be positive");
   return (a+b-1)/b;

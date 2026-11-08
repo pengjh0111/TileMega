@@ -20,6 +20,7 @@ def main():
     parser.add_argument('--input', type=Path, required=True, help='source artifact prefix (.so)')
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--trace-level', type=int, choices=(0, 1, 2, 3))
+    parser.add_argument('--prefetch-distance', type=int, choices=(1, 2))
     parser.add_argument('--gather-reference', action='store_true',
                         help='DT-STEM control: retain the96-lane producer with otherwise identical source')
     args = parser.parse_args()
@@ -66,6 +67,16 @@ def main():
                                source_path.read_text())
         if count != 1:
             raise ValueError('expected one explicit trace level')
+        source_path.write_text(source)
+    if args.prefetch_distance is not None:
+        source_path = Path(str(library) + '.cu')
+        source = source_path.read_text()
+        if re.search(r'^#define TILEMEGA_F3_PREFETCH_DISTANCE ', source, re.M):
+            source = re.sub(r'^#define TILEMEGA_F3_PREFETCH_DISTANCE [12]$',
+                            '#define TILEMEGA_F3_PREFETCH_DISTANCE ' +
+                            str(args.prefetch_distance), source, flags=re.M)
+        else:
+            source = '#define TILEMEGA_F3_PREFETCH_DISTANCE ' + str(args.prefetch_distance) + '\n' + source
         source_path.write_text(source)
     receipt = args.out / 'source.json'
     snapshot(ROOT, receipt)

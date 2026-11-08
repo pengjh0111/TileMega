@@ -13,6 +13,7 @@
 #include <tilemega/Backend/ConvIteration.h>
 #include <tilemega/Backend/Sm90F3Ring.cuh>
 #include <tilemega/Solver/ForwardGeometry.h>
+#include <tilemega/Solver/Sm90ForwardSearch.h>
 
 #include <cmath>
 #include <cstdlib>
@@ -254,6 +255,7 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
      <<"// Generated from a DnnModelPlan and F3 forward coordinates.\n"
      <<"#define TILEMEGA_STATIC_FORWARD_F3 1\n#define TILEMEGA_ARCH_ID 900\n"
      <<"#define TM_DTYPE_I64 3\n"
+     <<"#define TILEMEGA_F3_PREFETCH_DISTANCE "<<solver::Sm90ForwardF4PrefetchDistance()<<"\n"
      <<"#define TILEMEGA_TRACE_STAGE "<<trace_level<<"\n"
      <<"#if TILEMEGA_TRACE_STAGE\n"
      <<"#define TILEMEGA_FORWARD_TRACE_STAGES "<<stages.size()<<"\n"

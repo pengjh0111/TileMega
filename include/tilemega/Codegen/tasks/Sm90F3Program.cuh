@@ -11,7 +11,7 @@
 #include <utility>
 
 #ifndef TILEMEGA_F3_PREFETCH_DISTANCE
-#define TILEMEGA_F3_PREFETCH_DISTANCE 1
+#define TILEMEGA_F3_PREFETCH_DISTANCE 2
 #endif
 
 // The F3 forward program (DNN3 prompt §5). One pass over a compile-time stage

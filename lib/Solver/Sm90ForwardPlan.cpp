@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/Sm90ForwardPlan.h>
+#include <tilemega/Solver/Sm90ForwardSearch.h>
 
 #include <tilemega/Backend/ConvIteration.h>
 #include <tilemega/Codegen/ServingPages.h>
@@ -474,6 +475,26 @@ std::vector<Sm90ForwardShape> Sm90ForwardShapesFromPlan(frontend::ModelPlan cons
   if(abi==Sm90ForwardAbi::kF3) {
     std::int64_t weights=0;
     for(auto const& s:shapes)weights+=s.weight_bytes;
+    std::vector<std::int64_t> prefetched(shapes.size(),0);
+    auto next_matrix=[&](std::size_t begin) {
+      while(begin<shapes.size() && shapes[begin].body!=Sm90ForwardBody::kGemm &&
+          shapes[begin].body!=Sm90ForwardBody::kConv)++begin;
+      return begin;
+    };
+    int distance=Sm90ForwardF4PrefetchDistance();
+    constexpr std::int64_t kPrefetchBudget=24LL*1024*1024;
+    for(std::size_t i=0;i<shapes.size();++i) {
+      auto first=next_matrix(i+1);
+      if(distance==2 && first<shapes.size())first=next_matrix(first+1);
+      if(first==shapes.size())continue;
+      auto bytes=shapes[first].weight_bytes;
+      prefetched[first]=std::min<std::int64_t>(bytes,kPrefetchBudget);
+      if(bytes<=8LL*1024*1024) {
+        auto second=next_matrix(first+1);
+        if(second<shapes.size() && bytes+shapes[second].weight_bytes<=kPrefetchBudget)
+          prefetched[second]=shapes[second].weight_bytes;
+      }
+    }
     for(std::size_t i=0;i<shapes.size();++i) {
       auto& s=shapes[i];auto& g=s.dnn1_geometry;
       g.Set("f4_model_weight_bytes",double(weights));
@@ -488,9 +509,8 @@ std::vector<Sm90ForwardShape> Sm90ForwardShapesFromPlan(frontend::ModelPlan cons
         activation=2*elements;
       }
       g.Set("f4_activation_resident_bytes",double(activation));
-      // Distance1: the immediately preceding stage's side warp starts the
-      // next matrix prefetch, including across intervening small bodies.
-      g.Set("f4_prefetch_weight_bytes",double(i?std::min<std::int64_t>(s.weight_bytes,24LL*1024*1024):0));
+      g.Set("f4_prefetch_distance",distance);
+      g.Set("f4_prefetch_weight_bytes",double(prefetched[i]));
     }
   }
   return shapes;
