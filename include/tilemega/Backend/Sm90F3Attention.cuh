@@ -17,14 +17,15 @@ struct Sm90F3AttentionOperands {
   cutlass::bfloat16_t* output;
 };
 
-template<int Batch,int Seq=128,int D=64,int Heads=12>
+template<int Batch,int Rows=(16*Batch<128?16*Batch:128)>
 struct Sm90F3Attention {
   using Element=cutlass::bfloat16_t;
   using Async=Sm90F3Async;
   using Base=Sm90F3Async::Base;
-  static_assert(Batch>=1 && Seq==128 && D==64 && Heads==12);
-  static constexpr int kSlots=2,kTasks=Batch*Heads;
-  static constexpr int kSlotElements=3*Seq*D,kSlotBytes=kSlotElements*2;
+  static constexpr int Seq=128,D=64,Heads=12,kBlocks=Seq/Rows;
+  static_assert(Batch>=1 && (Rows==16 || Rows==32 || Rows==64 || Rows==128));
+  static constexpr int kSlots=2,kTasks=Batch*Heads*kBlocks;
+  static constexpr int kSlotElements=(Rows+2*Seq)*D,kSlotBytes=kSlotElements*2;
   static constexpr int kSharedBytes=kSlots*kSlotBytes,kLayoutBytes=kSharedBytes;
   static constexpr int kSideOffset=0;
   static constexpr bool kCanPreissue=false;
@@ -45,14 +46,15 @@ struct Sm90F3Attention {
       Base::ProxyAsyncGlobalFence();
       for(int local=0;local<LocalTasks();++local) {
         int task=int(blockIdx.x)+local*int(gridDim.x),slot=local%kSlots;
-        int image=task/Heads,head=task%Heads;
+        int image=task/(Heads*kBlocks),head=(task/kBlocks)%Heads;
+        int query_row=(task%kBlocks)*Rows;
         Base::Wait(ring.empty+slot,phase.Bit(phase.empty,slot));
         phase.empty^=1u<<slot;
         Base::ExpectTx(ring.full+slot,kSlotBytes);
         char* panel=arena+slot*kSlotBytes;
-        Base::Tensor3D(panel,p.query,0,head,image*Seq,ring.full+slot);
-        Base::Tensor3D(panel+2*Seq*D,p.key,0,head,image*Seq,ring.full+slot);
-        Base::Tensor3D(panel+4*Seq*D,p.value,0,head,image*Seq,ring.full+slot);
+        Base::Tensor3D(panel,p.query,0,head,image*Seq+query_row,ring.full+slot);
+        Base::Tensor3D(panel+2*Rows*D,p.key,0,head,image*Seq,ring.full+slot);
+        Base::Tensor3D(panel+2*(Rows+Seq)*D,p.value,0,head,image*Seq,ring.full+slot);
       }
     }
     __syncwarp();
@@ -65,14 +67,20 @@ struct Sm90F3Attention {
     int warp=int(threadIdx.x)/32,lane=int(threadIdx.x)%32;
     for(int local=0,task=int(blockIdx.x);task<kTasks;++local,task+=int(gridDim.x)) {
       int slot=local%kSlots;
-      int image=task/Heads,head=task%Heads;
+      int image=task/(Heads*kBlocks),head=(task/kBlocks)%Heads;
+      int query_row=(task%kBlocks)*Rows;
       TM_F3_TRACE_BEGIN(kSlotWait);
       Base::Wait(ring.full+slot,phase.Bit(phase.full,slot));
       TM_F3_TRACE_END(kSlotWait);
       TM_F3_TRACE_FIRST_READY();
       phase.full^=1u<<slot;
+      if(warp>=Rows/16) {
+        __syncwarp();
+        if(lane==0)Base::Arrive(ring.empty+slot);
+        continue;
+      }
       unsigned q=Base::Shared(arena+slot*kSlotBytes);
-      unsigned key=q+2*Seq*D,value=key+2*Seq*D;
+      unsigned key=q+2*Rows*D,value=key+2*Seq*D;
       TM_F3_TRACE_BEGIN(kAttentionQk);
       float scores[16][4]{};
       #pragma unroll 1
@@ -106,7 +114,7 @@ struct Sm90F3Attention {
         float v[4];
         #pragma unroll
         for(int e=0;e<4;++e) {
-          v[e]=exp2f((scores[block][e]-maximum[e/2])*(.125f*1.4426950408889634f));
+          v[e]=Async::Exp2((scores[block][e]-maximum[e/2])*(.125f*1.4426950408889634f));
           sum[e/2]+=v[e];
         }
         probability[block/2][2*(block%2)]=Pack(v[0],v[1]);
@@ -136,10 +144,11 @@ struct Sm90F3Attention {
       #pragma unroll
       for(int block=0;block<8;++block) {
         #pragma unroll
-        for(int e=0;e<4;++e) {
-          int row=warp*16+lane/4+8*(e/2),col=block*8+2*(lane%4)+(e&1);
-          p.output[(std::size_t(image)*Seq+row)*Heads*D+head*D+col]=
-              Element(Async::DivideNormalization(output[block][e],sum[e/2]));
+        for(int e=0;e<4;e+=2) {
+          int row=query_row+warp*16+lane/4+8*(e/2),col=block*8+2*(lane%4);
+          unsigned packed=Pack(Async::DivideNormalization(output[block][e],sum[e/2]),
+              Async::DivideNormalization(output[block][e+1],sum[e/2]));
+          Async::Store32(p.output+(std::size_t(image)*Seq+row)*Heads*D+head*D+col,packed);
         }
       }
       TM_F3_TRACE_END(kStore);

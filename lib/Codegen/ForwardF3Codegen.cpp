@@ -558,13 +558,15 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
           spec.buffer=packed;spec.rank=3;spec.offset=std::uint64_t(part)*head_dim;
           spec.dims[0]=64;spec.dims[1]=12;spec.dims[2]=unsigned(model_batch*sequence);
           spec.strides[0]=std::uint64_t(head_dim)*3*2;spec.strides[1]=l.strides[0]*2;
-          spec.box[0]=64;spec.box[1]=1;spec.box[2]=128;
+          spec.box[0]=64;spec.box[1]=1;
+          spec.box[2]=part==0?std::min(128,16*model_batch):128;
           auto id=maps.Add(spec);
           if(part==0)bind.query_map=id;
           else if(part==1)bind.map=id;
           else bind.value_map=id;
         }
-        body="Sm90F3Attention<"+std::to_string(model_batch)+",128,64,12>";
+        body="Sm90F3Attention<"+std::to_string(model_batch)+','+
+            std::to_string(std::min(128,16*model_batch))+'>';
         wrapper="AttentionStage";
         break;
       }

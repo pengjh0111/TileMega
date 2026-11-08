@@ -202,8 +202,9 @@ inline Sm90ForwardResourceUsage QuerySm90ForwardF3Resources(
     long long items=0,per_cta=256;
     switch(c.body) {
       case Sm90ForwardBody::kEncoderAttention:
-        payload=2*3*128*64*2;
-        r.task_count=1LL*integer("batch")*integer("heads");break;
+        payload=2*(std::min(128,16*integer("batch"))+256)*128;
+        r.task_count=1LL*integer("batch")*integer("heads")*
+            (128/std::min(128,16*integer("batch")));break;
       case Sm90ForwardBody::kLayout:
         items=1LL*integer("batch")*ceildiv(1LL*integer("width")*integer("height"),8);break;
       case Sm90ForwardBody::kPool:

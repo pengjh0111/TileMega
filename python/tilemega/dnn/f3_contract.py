@@ -109,7 +109,9 @@ def dispatch(manifest, defines, source):
         elif name == 'Sm90F3LayerNorm':
             valid = len(args) == 2 and int(args[0]) > 0 and int(args[1]) > 0
         elif name == 'Sm90F3Attention':
-            valid = args == [str(manifest['runtime_batch']), '128', '64', '12']
+            batch=manifest['runtime_batch']
+            valid = args == ([str(batch),str(min(128,16*batch))] if c['schema']==4
+                             else [str(batch),'128','64','12'])
         else:
             valid = len(args) == 1 and int(args[0]) > 0
         if not valid:

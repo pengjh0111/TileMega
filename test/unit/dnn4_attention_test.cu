@@ -37,7 +37,7 @@ template<int B> void Case() {
  for(std::size_t i=0;i<input.size();++i)input[i]=E(float(int(i%37)-18)/32);
  Device<E> a(input.size()),o(B*S*H*D);a.Put(input);CUtensorMap maps[3]{};
  for(int part=0;part<3;++part)ex::EncodeTiledMap<3>(maps[part],a.data+part*D,
-  {{D,H,B*S},{3*D*2,3*H*D*2},{64,1,128}});
+  {{D,H,B*S},{3*D*2,3*H*D*2},{64,1,unsigned(part==0?std::min(128,16*B):128)}});
  Check(cudaFuncSetAttribute(AttentionKernel<B>,cudaFuncAttributeMaxDynamicSharedMemorySize,Sm90F3Budget::kBudget));
  AttentionKernel<B><<<132,384,Sm90F3Budget::kBudget>>>(maps[0],maps[1],maps[2],o.data);
  Check(cudaGetLastError());Check(cudaDeviceSynchronize());auto actual=o.Get();
@@ -65,5 +65,5 @@ template<int B> void Case() {
  for(E e:actual){auto bits=e.raw();for(int byte=0;byte<2;++byte){hash^=(bits>>(byte*8))&255;hash*=1099511628211ull;}}
  std::cout<<"attention_b"<<B<<" PASS\n";
 }
-int main(int,char**)try{Case<1>();Case<16>();std::cout<<"output_hash="<<std::hex<<hash<<'\n';return 0;}
+int main(int,char**)try{Case<1>();Case<2>();Case<4>();Case<16>();std::cout<<"output_hash="<<std::hex<<hash<<'\n';return 0;}
 catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}
