@@ -1,6 +1,6 @@
 # DNN4 BERT optimization progress
 
-Verified diagnostic comparisons below reuse the current frozen production coordinates and inputs. All candidates passed five fresh FP32-reference processes with identical cross-process output hashes. P-PAIR uses A/B/A/B/A/B, three fresh processes per side, 50 warmups and 200 events per process. Acceptance requires a gain larger than max(0.5%, twice the larger process range). GPU1 diagnostics guide optimization; G22 diagnostics compare on GPU3 against rank0 and do not replace selection against the eventual final winner or three-process P-DNN.
+Verified guarded comparisons use the same BF16 model inputs and the coordinates identified by each artifact. All candidates passed five fresh FP32-reference processes with identical cross-process output hashes. P-PAIR uses A/B/A/B/A/B, three fresh processes per side, 50 warmups and 200 events per process. Acceptance requires a gain larger than max(0.5%, twice the larger process range). GPU1 diagnostics guide optimization; G22 diagnostics compare on GPU3 against rank0 and do not replace selection against the eventual final winner or three-process P-DNN.
 
 | Experiment | GPU | Reference ms | Candidate ms | Gain % | Noise threshold % | Significant gain |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -11,6 +11,18 @@ Verified diagnostic comparisons below reuse the current frozen production coordi
 | in-situ B16 | 1 | 1.521344 | 1.468064 | +3.502 | 1.942 | True |
 | in-situ B16 | 3 | 1.519872 | 1.463936 | +3.680 | 1.143 | True |
 | in-situ B1 | 1 | 0.630176 | 0.614240 | +2.529 | 5.433 | False |
+| register40/232 B1 | 2 | 0.607888 | 0.616752 | -1.458 | 4.659 | False |
+| FFN1 128x256 B16 | 2 | 1.475936 | 1.670880 | -13.208 | 1.791 | False |
+| prefetch1 B16 | 2 | 1.464960 | 1.458768 | +0.423 | 2.580 | False |
+| Repeat inline B1 | 2 | 0.614864 | 0.622000 | -1.161 | 3.272 | False |
+| Repeat inline B16 | 2 | 1.464112 | 1.478592 | -0.989 | 1.377 | False |
+| GELU four B16 | 2 | 1.469824 | 1.470416 | -0.040 | 1.855 | False |
+| Repeat single B1 | 2 | 0.615280 | 0.497904 | +19.077 | 6.023 | True |
+| Repeat single B1 G22 | 3 | 0.615024 | 0.497616 | +19.090 | 5.489 | True |
+| Repeat single B16 | 2 | 1.468864 | 1.488016 | -1.304 | 2.561 | False |
+| Repeat declined B2 | 2 | 0.685648 | 0.694240 | -1.253 | 4.354 | False |
+| Repeat single B4 | 2 | 0.785616 | 0.784976 | +0.081 | 1.386 | False |
+| FFN1 TMA192 B16 | 2 | 1.467632 | 1.495152 | -1.875 | 1.786 | False |
 
 Verified attention experiment: QK/PV columns were distributed across eight consumer warps without changing any output accumulation order. Per-head unit5/5 and sanitizer memcheck1/1, initcheck1/1, racecheck5/5, synccheck5/5 passed; whole-model outputs also matched the control byte for byte. Neither timing gain exceeded process variability, so the original header was restored. The initial driver added an unnecessary3% cutoff, which does not affect either rejection because both measured noise thresholds exceed3%. Frozen sources and the patch remain under runs/dnn4/bert_priority.
 
@@ -21,4 +33,12 @@ Verified in-situ experiments use the six already authorized candidate programs, 
 in-situ B16: group0→candidate5, group1→candidate1, group2→candidate0, group3→candidate2, group4→candidate1, group5→candidate1.
 in-situ B1: group0→candidate3, group1→candidate0, group2→candidate0, group3→candidate0, group4→candidate4.
 
-Final BERT batch collection uses GPU3 and began after completion of all15 CNN cells and the CNN anchors. Existing CNN results and all60 baseline arms are reused. GPU ownership remains qualified by the container PID namespace. See DNN4_BERT_optimization.csv for identities, clocks, correctness receipts and raw timing sources.
+Verified post-collection checks reject40/232: the89-case scan still spills28B on256x128 residual_ln_rowstats, and the full B16 program spills36B; it is never executed. B1 compiles without spill but has no significant gain. FFN1 128x256 uses one deterministic legal four-slot register-store variant; it regresses and is rejected. Distance1 has no significant gain.
+
+Verified Repeat inline tables use grid-constant parameter storage instead of dependent global index reads. Unit5/5 and sanitizer memcheck1/1,initcheck1/1,racecheck5/5,synccheck5/5 pass; both whole-model comparisons fail DT-CODE. The implementation patch is archived and the production headers are restored. Four-element GELU scheduling also has no end-to-end gain: five full precision probes report0 bad values and preserve scalar bits; the132-CTA resident epilogue ratio is1.0072, and its full B16 comparison is rejected.
+
+Verified single-layer Repeat12x5 is an explicit deviation from the prescribed two-layer Repeat6x10. Logical stage numbers preserve arena parity for odd loop bodies. Odd and even body unit cohorts pass5/5; each passes isolated memcheck1/1,initcheck1/1,racecheck5/5, synccheck5/5. B1 and B16 strict whole-model checks pass5/5 with identical cross-process output hashes. GPU2 B1 improves19.08%;GPU3 complete P-PAIR confirms19.09%. B16 and B4 have no significant gain. The B2 published rank1 coordinates decline Repeat and remain flat; a separate periodic B2 candidate spills4B and is never executed. The mode remains explicitly selected rather than enabled for unmeasured coordinates.
+
+Verified B1 boundary trace sum535456ns exceeds fresh nontrace smoke498320ns by7.45%, so these windows are excluded from P-TUNE. Four of the six original complete variants spill and are never executed. Nontrace P-SEL uses the two legal loop variants, the accepted loop control and an existing distinct model-rank candidate; it retains the loop control. GPU3 P-DNN has median0.498176ms,p900.500640ms,process range0.013232ms. This is still above the unchanged0.4858ms BF16 goal. Failed or killed partial paired cohorts are discarded in full; occupancy exit75 retries the complete cohort.
+
+GPU3 foreign occupancy delayed additional same-card G22 probes; only our pending schedulers were cancelled, and fresh candidate/control pairs moved to authorized GPU2. The separately identified B1 follow-up does not silently replace the earlier frozen20-cell collection. That BERT batch collection completed on GPU3: B1/B2/B4/B8/B16 =0.614016/0.695504/0.790144/1.043264/1.463168ms. None beats its frozen BF16 target. CNN collection is complete and paused; existing CNN results and all60 baseline arms are reused. GPU ownership remains qualified by the container PID namespace. See DNN4_BERT_optimization.csv for identities, clocks, correctness receipts and raw timing sources.

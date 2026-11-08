@@ -3,6 +3,7 @@
 import argparse
 import csv
 import json
+import re
 from pathlib import Path
 import sys
 
@@ -25,7 +26,19 @@ def main():
               ('TK128 B16', base/'tk128_b16_v1/experiment.json'),
               ('residual TMA B16', base/'tma_residual_b16_v1/experiment.json'),
               ('in-situ B16', base/'in_situ_b16_gpu1_v1/experiment.json'),
-              ('in-situ B1', base/'in_situ_b1_gpu1_v1/experiment.json')]
+              ('in-situ B1', base/'in_situ_b1_gpu1_v1/experiment.json'),
+              ('register40/232 B1', base/'register_budget_v1/b1/experiment.json'),
+              ('FFN1 128x256 B16', base/'large_ffn_b16_v1/experiment.json'),
+              ('prefetch1 B16', base/'prefetch_b16_v1/comparison/experiment.json'),
+              ('Repeat inline B1', base/'repeat_inline_models_v1/b1/comparison/experiment.json'),
+              ('Repeat inline B16', base/'repeat_inline_models_v1/b16/comparison/experiment.json'),
+              ('GELU four B16', base/'gelu_four_b16_v1/comparison/experiment.json'),
+              ('Repeat single B1', base/'repeat_single_models_v1/b1/comparison/experiment.json'),
+              ('Repeat single B1 G22', base/'repeat_single_models_v1/b1/g22_v3/experiment.json'),
+              ('Repeat single B16', base/'repeat_single_models_v1/b16/comparison/experiment.json'),
+              ('Repeat declined B2', base/'repeat_single_middle_models_v1/b2/comparison/experiment.json'),
+              ('Repeat single B4', base/'repeat_single_middle_models_v1/b4/comparison/experiment.json'),
+              ('FFN1 TMA192 B16', base/'ffn1_tma192_b16_v1/comparison/experiment.json')]
     rows = []
     choices = []
     for name, path in probes:
@@ -33,12 +46,18 @@ def main():
             continue
         experiment = read(path)
         identity = verify(Path(experiment['library']))
+        source_text = Path(experiment['library']+'.cu').read_text()
+        repeat = re.search(r',Stage_0,Repeat<(6|12),', source_text)
         gate_path = Path(experiment['gate']).parent.parent/'result.json'
         gate = read(gate_path)
         if gate['status'] != 'passed' or gate['passes'] != '5/5' or any(
                 not o.get('output_sha256') for c in gate['cases'] for o in c['outputs']):
             raise ValueError('BERT comparison requires five fresh byte-hashed FP32 gates')
-        comparisons = [('GPU1 diagnostic', path.parent/'pair/result.json')]
+        pair_path = path.parent/'pair/result.json'
+        if not pair_path.exists():
+            pair_path = path.parent/'pair_gpu2/result.json'
+        first = read(pair_path)
+        comparisons = [(f'GPU{first["gpu"]} same-card diagnostic', pair_path)]
         g22 = path.parent/'g22_pair/result.json'
         if g22.exists():
             comparisons.append(('G22 diagnostic versus rank0', g22))
@@ -52,14 +71,15 @@ def main():
                 reference_ms=pair['reference_ms'], candidate_ms=pair['candidate_ms'],
                 ratio=pair['ratio'], gain_pct=100*(1-pair['ratio']),
                 threshold_pct=100*pair['threshold'],
-                accepted=pair['ratio']<1-pair['threshold'], scope=scope,
+                accepted=pair['ratio']<1-max(pair['threshold'], .03 if name.startswith('Repeat') else 0), scope=scope,
                 correctness='P-CORR5/5 with cross-process output byte hashes',
                 artifact_id=identity['artifact_id'], binary_sha256=identity['binary_sha256'],
                 source_digest=identity['source']['source_digest'],
                 clocks=json.dumps([{k:m[k] for k in ('start_sm_clock_mhz','end_sm_clock_mhz')}
                                    for m in pair['measurements']], separators=(',', ':')),
                 evidence='verified', qualification=pair['qualification'],
-                gate=str(gate_path), source=str(source)))
+                gate=str(gate_path), source=str(source),
+                repeat_layers=12//int(repeat[1]) if repeat else 0))
         selection = path.parent/'tune_selection.json'
         if selection.exists():
             d = read(selection)
@@ -73,7 +93,7 @@ def main():
         writer.writeheader()
         writer.writerows(rows)
     lines = ['# DNN4 BERT optimization progress', '',
-             'Verified diagnostic comparisons below reuse the current frozen production coordinates and inputs. '
+             'Verified guarded comparisons use the same BF16 model inputs and the coordinates identified by each artifact. '
              'All candidates passed five fresh FP32-reference processes with identical cross-process output hashes. '
              'P-PAIR uses A/B/A/B/A/B, three fresh processes per side, 50 warmups and 200 events per process. '
              'Acceptance requires a gain larger than max(0.5%, twice the larger process range). '
@@ -99,8 +119,38 @@ def main():
               'processes per variant and20 warmups/50 trace windows. Group sums select a coordinate, then '
               'the assembled nontrace program faces a whole-model P-PAIR gate. These experiments add no parameter scan.', '',
               *choices, '',
-              'Final BERT batch collection uses GPU3 and began after completion of all15 CNN cells and the '
-              'CNN anchors. Existing CNN results and all60 baseline arms are reused. GPU ownership remains '
+              'Verified post-collection checks reject40/232: the89-case scan still spills28B on256x128 '
+              'residual_ln_rowstats, and the full B16 program spills36B; it is never executed. B1 compiles '
+              'without spill but has no significant gain. FFN1 128x256 uses one deterministic legal '
+              'four-slot register-store variant; it regresses and is rejected. Distance1 has no significant gain.', '',
+              'Verified Repeat inline tables use grid-constant parameter storage instead of dependent '
+              'global index reads. Unit5/5 and sanitizer memcheck1/1,initcheck1/1,racecheck5/5,synccheck5/5 '
+              'pass; both whole-model comparisons fail DT-CODE. The implementation patch is archived '
+              'and the production headers are restored. Four-element GELU scheduling also has no '
+              'end-to-end gain: five full precision probes report0 bad values and preserve scalar bits; '
+              'the132-CTA resident epilogue ratio is1.0072, and its full B16 comparison is rejected.', '',
+              'Verified single-layer Repeat12x5 is an explicit deviation from the prescribed two-layer '
+              'Repeat6x10. Logical stage numbers preserve arena parity for odd loop bodies. Odd and even '
+              'body unit cohorts pass5/5; each passes isolated memcheck1/1,initcheck1/1,racecheck5/5, '
+              'synccheck5/5. B1 and B16 strict whole-model checks pass5/5 with identical cross-process '
+              'output hashes. GPU2 B1 improves19.08%;GPU3 complete P-PAIR confirms19.09%. B16 and B4 '
+              'have no significant gain. The B2 published rank1 coordinates decline Repeat and remain '
+              'flat; a separate periodic B2 candidate spills4B and is never executed. The mode remains '
+              'explicitly selected rather than enabled for unmeasured coordinates.', '',
+              'Verified B1 boundary trace sum535456ns exceeds fresh nontrace smoke498320ns by7.45%, '
+              'so these windows are excluded from P-TUNE. Four of the six original complete variants '
+              'spill and are never executed. Nontrace P-SEL uses the two legal loop variants, the accepted '
+              'loop control and an existing distinct model-rank candidate; it retains the loop control. '
+              'GPU3 P-DNN has median0.498176ms,p900.500640ms,process range0.013232ms. This is still '
+              'above the unchanged0.4858ms BF16 goal. Failed or killed partial paired cohorts are discarded '
+              'in full; occupancy exit75 retries the complete cohort.', '',
+              'GPU3 foreign occupancy delayed additional same-card G22 probes; only our pending '
+              'schedulers were cancelled, and fresh candidate/control pairs moved to authorized GPU2. '
+              'The separately identified B1 follow-up does not silently replace the earlier frozen20-cell collection. '
+              'That BERT batch collection '
+              'completed on GPU3: B1/B2/B4/B8/B16 =0.614016/0.695504/0.790144/1.043264/1.463168ms. '
+              'None beats its frozen BF16 target. CNN collection is complete and paused; '
+              'existing CNN results and all60 baseline arms are reused. GPU ownership remains '
               'qualified by the container PID namespace. See DNN4_BERT_optimization.csv for identities, '
               'clocks, correctness receipts and raw timing sources.']
     (args.out/'DNN4_BERT_optimization.md').write_text('\n'.join(lines)+'\n')
