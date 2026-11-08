@@ -87,6 +87,15 @@ class Cell:
                         return path
                 time.sleep(5)
             raise RuntimeError('rank0 native build not ready: ' + self.key)
+        cache = self.args.compile_cache.resolve() / self.key / 'artifacts' / (key + f'-trace{trace}')
+        if cache != self.out / 'artifacts' / (key + f'-trace{trace}') and (cache / 'result.json').exists():
+            library = cache / 'model.so'
+            plan = read(Path(str(library) + '.plan.json'))
+            if (read(cache / 'result.json')['status'] != 'passed' or
+                    plan['native_forward'] != coordinates or plan['runtime_batch'] != self.args.batch or
+                    plan['model'] != self.bridge.stem):
+                raise ValueError('precompiled artifact does not match the cell')
+            return library
         folder = self.out / 'sources' / key
         folder.mkdir(parents=True, exist_ok=True)
         coords = folder / 'coordinates.json'
@@ -248,6 +257,7 @@ def main():
     parser.add_argument('--target', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--slot', type=int, choices=(0, 1), default=0)
+    parser.add_argument('--compile-cache', type=Path, default=ROOT / 'runs/dnn4/phase_z/trace_precompiled_v1')
     args = parser.parse_args()
     Cell(args).execute()
 

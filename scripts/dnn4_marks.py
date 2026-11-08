@@ -3,6 +3,7 @@
 import argparse
 import csv
 import ctypes as C
+import gzip
 import json
 import os
 from pathlib import Path
@@ -81,7 +82,10 @@ def collect(args, identity):
                 raise RuntimeError('forward trace copy failed')
             samples.append(data.raw)
             name = 'records.bin' if args.samples == 1 else f'records_{sample:03d}.bin'
-            (args.out / name).write_bytes(data.raw)
+            if args.samples > 1:
+                (args.out / (name + '.gz')).write_bytes(gzip.compress(data.raw, compresslevel=1, mtime=0))
+            else:
+                (args.out / name).write_bytes(data.raw)
     end_clock = gpu(str(args.device))['sm_clock_mhz']
     trace_level=int(identity['defines'].get('TILEMEGA_TRACE_STAGE','0'))
     manifest = identity['plan']
