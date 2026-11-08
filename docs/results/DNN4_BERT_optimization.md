@@ -62,11 +62,18 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | FFN1 TK128 single-store B16 | 3 | 1.428400 | 1.456560 | -1.971 | 351.287 | False |
 | FFN1 TN256 single-store B16 | 0 | 1.423696 | 1.569584 | -10.247 | 2.093 | False |
 | consumer216 B8 diagnostic | 0 | 1.019408 | 1.017712 | +0.166 | 2.310 | False |
+| consumer216 in-situ B8 | 0 | 1.015856 | 1.040640 | -2.440 | 2.903 | False |
+| consumer216 in-situ B16 | 0 | 1.397248 | 1.375600 | +1.549 | 3.323 | False |
+| two-layer arithmetic B16 | 0 | 1.426400 | 1.438864 | -0.874 | 2.663 | False |
+| attention load pairs B1 | 0 | 0.483904 | 0.485600 | -0.350 | 1.157 | False |
 | phase72 B2 GPU2 diagnostic | 2 | 0.628096 | 0.599952 | +4.481 | 6.669 | False |
 | phase72 B4 GPU2 diagnostic | 2 | 0.736144 | 0.710800 | +3.443 | 2.339 | True |
 | phase72 B8 GPU2 diagnostic | 2 | 1.052320 | 1.009456 | +4.073 | 2.349 | True |
 | phase72 B16 GPU2 diagnostic | 2 | 1.426560 | 1.399680 | +1.884 | 1.923 | False |
 | phase72 B2 G22 | 3 | 0.627840 | 0.601776 | +4.151 | 6.721 | False |
+| phase72 B4 G22 | 3 | 0.733344 | 0.712320 | +2.867 | 2.540 | True |
+| phase72 B8 G22 | 3 | 1.051376 | 1.019376 | +3.044 | 0.735 | True |
+| phase72 B16 G22 | 3 | 1.423520 | 1.399776 | +1.668 | 1.059 | False |
 
 Verified attention experiment: QK/PV columns were distributed across eight consumer warps without changing any output accumulation order. Per-head unit5/5 and sanitizer memcheck1/1, initcheck1/1, racecheck5/5, synccheck5/5 passed; whole-model outputs also matched the control byte for byte. Neither timing gain exceeded process variability, so the original header was restored. The initial driver added an unnecessary3% cutoff, which does not affect either rejection because both measured noise thresholds exceed3%. Frozen sources and the patch remain under runs/dnn4/bert_priority.
 
@@ -78,6 +85,8 @@ in-situ B16: group0→candidate5, group1→candidate1, group2→candidate0, grou
 in-situ B1: group0→candidate3, group1→candidate0, group2→candidate0, group3→candidate0, group4→candidate4.
 in-situ P1 B16: group0→candidate5, group1→candidate1, group2→candidate0, group3→candidate2, group4→candidate4, group5→candidate1.
 in-situ P1 B8: group0→candidate2, group1→candidate0, group2→candidate1, group3→candidate2, group4→candidate2, group5→candidate0.
+consumer216 in-situ B8: group0→candidate0, group1→candidate0, group2→candidate0, group3→candidate0, group4→candidate1, group5→candidate0.
+consumer216 in-situ B16: group0→candidate5, group1→candidate1, group2→candidate0, group3→candidate2, group4→candidate4, group5→candidate1.
 
 Verified post-collection checks reject40/232: the89-case scan still spills28B on256x128 residual_ln_rowstats, and the full B16 program spills36B; it is never executed. B1 compiles without spill but has no significant gain. FFN1 128x256 uses one deterministic legal four-slot register-store variant; it regresses and is rejected. Distance1 has no significant gain.
 
@@ -131,26 +140,34 @@ Verified TK128 single-store prototype explicitly deviates from section6.2: one8K
 
 Verified TN256 single-buffer follow-up retains TK64 and four slots on the12 FFN1 stages. The first model fails correctness because its serialized weight-packing recipes still use TN128;that artifact is never timed. A separate corrected artifact updates all12 recipes,compiles without spill and passes model5/5. The exact TN256 component passes unit5/5 and sanitizer1/1/5/5;cross-stage ordering reuses the prior17/17 single-buffer protocol gate. GPU2 never launches under foreign occupancy;GPU0 allocation-deviation P-PAIR gives ratio1.102471,noise2.093%. Reject and restore the prototype headers;no G22 admission.
 
+Verified attention operand scheduling issues two independent shared matrix loads before their dependent MMAs,without changing any output accumulation order or Rows16 geometry. Per-head unit5/5 and sanitizer1/1/5/5 pass;the B1 model passes5/5 and its output bytes match the admitted control. SASS is259456B,maxR195,zero spill. GPU0 diagnostic P-PAIR gives ratio1.003505,noise1.157%. No significant end-to-end gain;archive and restore the isolated header.
+
+Verified72/216 B8 re-selection qualifies3.304% boundary overhead;3/6 existing variants complete3/3 fresh traces. B8 deliberately uses reduced three-member coverage;this is a diagnostic deviation,not complete P-TUNE coverage. The assembled nontrace model passes5/5;GPU0 P-PAIR givesratio1.024397 versus2.903% noise. Admission and current artifacts remain unchanged.
+
+Verified72/216 B16 re-selection qualifies2.234% boundary overhead;5/6 existing variants complete3/3 fresh traces. The assembled nontrace model passes5/5;GPU0 P-PAIR givesratio0.984507 versus3.323% noise. Admission and current artifacts remain unchanged.
+
+Verified prescribed two-layer Repeat6x10 combined with arithmetic bindings and P1 retains the B16 coordinates and56/224 roles. Alias and P1 component gates each pass17/17;the model passes5/5 without spill. GPU0 diagnostic P-PAIR gives ratio1.008738 versus2.663% noise and is rejected. The B8 counterpart spills52/192B stores/loads and is never executed.
+
 Verified profile2 B8 boundary overhead is3.419% on GPU0. Only2/6 existing variants are nonspilling;each completes three fresh20/50 traces. Four spilled variants are never executed. Required candidate coverage is incomplete;no assembled selection or admission is claimed. GPU2 partial traces remain separate and are not mixed with the GPU0 windows.
 
-Verified optional profile2 uses72/208 registers and explicit scalar phase selection only for that profile. Profiles0/1 retain their prior paths and the default remains0. Scalar/alias and P1 component cohorts each pass unit5/5 and sanitizer1/1/5/5;B2/B4/B8/B16 whole models each pass5/5 without spill. B8/B16 SASS is328576/395776B with zero local-memory instructions. The integrated B8 kernel has identical instruction bytes to its prototype. Seven related regression checks, real profile codegen and invalid-setting checks pass. GPU2 comparisons are diagnostics while GPU3 has foreign occupancy;they do not admit or replace any current artifact. B8/B16 first-time Repeat admission still requires3% plus noise;B2/B4 already use accepted Repeat and require a gain beyond noise. Fixed BF16 goals and original anchors remain unchanged.
+Verified optional profile2 uses72/208 registers and explicit scalar phase selection only for that profile. Profiles0/1 retain their prior paths and the default remains0. Scalar/alias and P1 component cohorts each pass unit5/5 and sanitizer1/1/5/5;B2/B4/B8/B16 whole models each pass5/5 without spill. B8/B16 SASS is328576/395776B with zero local-memory instructions. The integrated B8 kernel has identical instruction bytes to its prototype. Seven related regression checks, real profile codegen and invalid-setting checks pass. GPU2 comparisons remain diagnostics. Complete GPU3 pairs subsequently admit B4/B8;exact-binary ledgers and three-process P-DNN results are in the current catalog. B2 fails its noise gate and B16 fails the firstRepeat3% gate. B8/B16 first-time Repeat admission still requires3% plus noise;B2/B4 already use accepted Repeat and require a gain beyond noise. Fixed BF16 goals and original anchors remain unchanged.
 
-Verified B8 arithmetic Repeat plus P1 normalization fails the compilation gate under64/216 and prescribed56/224 (repeat_arithmetic_middle_v1/b8:8,24B stores/loads;repeat_arithmetic_b8_reg56_v1:32,104B stores/loads). Neither spilled binary is executed;B8 retains its accepted flat program.
+Verified B8 arithmetic Repeat plus P1 normalization fails the compilation gate under64/216 and prescribed56/224 (repeat_arithmetic_middle_v1/b8:8,24B stores/loads;repeat_arithmetic_b8_reg56_v1:32,104B stores/loads). Neither spilled binary is executed;profile2 later resolves this spill gate.
 
 Verified B4 arithmetic Repeat plus P1 normalization retains the accepted coordinates. The64/216 profile gains2.89%,above2.63% noise but below DT-CODE3%,so it is rejected. Prescribed56/224 compiles without spill and passes strict model5/5. Its GPU3 P-PAIR 0.760288→0.733952ms gives 3.46% gain against 0.50% noise;the final P-DNN is recorded separately. Arithmetic and P1 component units pass5/5 and sanitizer1/1/5/5 separately.
 
 Verified B4 admitted P-DNN median0.734352ms,p900.744128ms,process range0.007152ms. SASS and identities are retained with the default56/224 profile;no production header changes are needed. It remains above the fixed BF16 target and retains the original GPU3 anchor without re-anchoring.
 
-8Verified B2 P1 normalization plus the admitted arithmetic loop spills /16B stores/loads under64/216. The compilation gate rejects it before execution;the admitted arithmetic-only B2 profile remains selected.
+Verified B2 P1 normalization plus the admitted arithmetic loop spills 8/16B stores/loads under64/216. The compilation gate rejects it before execution;the admitted arithmetic-only B2 profile remains selected.
 
-Verified current accepted artifacts (GPU3;50/200;three-process P-DNN). B8 reuses the original measurements;B1/B2/B4/B16 are follow-ups that retain the original anchor without re-anchoring. All fixed BF16 targets remain unmet. DNN4_BERT_current.csv records complete identities,profiles and evidence paths.
+Verified current accepted artifacts (GPU3;50/200;three-process P-DNN). B1/B2/B4/B8/B16 are follow-ups that retain the original anchor without re-anchoring. All fixed BF16 targets remain unmet. DNN4_BERT_current.csv records complete identities,profiles and evidence paths.
 
 | Batch | Median ms | p90 ms | Process range ms | Fixed BF16 ms | Ratio |
 | --- | --- | --- | --- | --- | --- |
 | 1 | 0.498176 | 0.500640 | 0.013232 | 0.4858 | 1.0254 |
 | 2 | 0.608016 | 0.629664 | 0.020512 | 0.5171 | 1.1758 |
-| 4 | 0.734352 | 0.744128 | 0.007152 | 0.5905 | 1.2436 |
-| 8 | 1.043264 | 1.055872 | 0.009120 | 0.7457 | 1.3990 |
+| 4 | 0.706304 | 0.715328 | 0.007824 | 0.5905 | 1.1961 |
+| 8 | 1.016400 | 1.025344 | 0.004272 | 0.7457 | 1.3630 |
 | 16 | 1.421744 | 1.446144 | 0.001824 | 1.0869 | 1.3081 |
 
 Verified largest three stages for each current unmet BERT cell (P-TRACE1 attribution only;segments can overlap and are not timing results). Each ledger checks the exact accepted reference binary SHA256.
@@ -159,6 +176,6 @@ Verified largest three stages for each current unmet BERT cell (P-TRACE1 attribu
 | --- | --- | --- | --- |
 | 1 | s5 gemm 17.57us (main_loop=9.28,slot_wait=4.83) | s50 gemm 16.70us (main_loop=9.28,slot_wait=3.94) | s60 gemm 16.22us (main_loop=8.35,slot_wait=3.74) |
 | 2 | s5 gemm 18.82us (main_loop=11.10,slot_wait=3.74) | s30 gemm 18.66us (main_loop=10.05,epilogue=4.19) | s35 gemm 18.30us (main_loop=10.21,epilogue=4.29) |
-| 4 | s15 gemm 19.42us (main_loop=15.42,slot_wait=5.95) | s4 gemm 19.07us (epilogue=9.50,main_loop=8.29) | s5 gemm 19.07us (main_loop=15.26,slot_wait=6.40) |
-| 8 | s29 gemm 31.33us (main_loop=15.42,epilogue=13.66) | s34 gemm 31.20us (main_loop=15.78,epilogue=13.66) | s19 gemm 31.01us (main_loop=15.36,epilogue=13.47) |
+| 4 | s24 gemm 19.33us (epilogue=10.37,main_loop=8.58) | s40 gemm 19.33us (main_loop=14.98,slot_wait=4.96) | s25 gemm 18.94us (main_loop=15.62,slot_wait=5.12) |
+| 8 | s14 gemm 30.53us (main_loop=15.74,epilogue=12.96) | s59 gemm 30.14us (main_loop=15.58,epilogue=13.18) | s49 gemm 30.05us (main_loop=15.33,epilogue=12.83) |
 | 16 | s54 gemm 44.10us (main_loop=22.75,epilogue=17.66) | s4 gemm 44.06us (main_loop=23.07,epilogue=18.27) | s19 gemm 44.03us (main_loop=24.00,epilogue=17.02) |

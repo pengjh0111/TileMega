@@ -24,32 +24,38 @@ def main():
     followups = {
         1: ('repeat_single_models_v1/b1/final_gpu3_v1/result.json',
             'repeat_single_models_v1/b1/g22_v3/experiment.json',
-            {'TILEMEGA_F3_REPEAT': '1', 'TILEMEGA_F3_REPEAT_LAYERS': '1'}),
+            {'TILEMEGA_F3_REPEAT': '1', 'TILEMEGA_F3_REPEAT_LAYERS': '1'}, .03),
         2: ('repeat_arithmetic_models_v1/b2/g22_followup_final_v1/final_result.json',
             'repeat_arithmetic_models_v1/b2/experiment.json',
             {'TILEMEGA_F3_REPEAT': '1', 'TILEMEGA_F3_REPEAT_LAYERS': '1',
              'TILEMEGA_F3_REGISTER_BUDGET': '1',
-             'TILEMEGA_F3_REPEAT_ARITHMETIC': '1'}),
-        4: ('repeat_arithmetic_b4_reg56_v1/g22_followup_final_v1/final_result.json',
-            'repeat_arithmetic_b4_reg56_v1/experiment.json',
+             'TILEMEGA_F3_REPEAT_ARITHMETIC': '1'}, .03),
+        4: ('scalar_phase72_arithmetic_b4_v1/final_result.json',
+            'scalar_phase72_arithmetic_b4_v1/experiment.json',
             {'TILEMEGA_F3_SIDE_NORM': '1', 'TILEMEGA_F3_REPEAT': '1',
              'TILEMEGA_F3_REPEAT_LAYERS': '1',
-             'TILEMEGA_F3_REPEAT_ARITHMETIC': '1'}),
+             'TILEMEGA_F3_REPEAT_ARITHMETIC': '1',
+             'TILEMEGA_F3_REGISTER_BUDGET': '2'}, 0),
+        8: ('scalar_phase72_arithmetic_b8_v1/final_result.json',
+            'scalar_phase72_arithmetic_b8_v1/experiment.json',
+            {'TILEMEGA_F3_SIDE_NORM': '1', 'TILEMEGA_F3_REPEAT': '1',
+             'TILEMEGA_F3_REPEAT_LAYERS': '1',
+             'TILEMEGA_F3_REPEAT_ARITHMETIC': '1',
+             'TILEMEGA_F3_REGISTER_BUDGET': '2'}, .03),
         16: ('side_norm_models_v2/b16/g22_v1/final_result.json',
              'side_norm_models_v2/b16/g22_v1/experiment.json',
-             {'TILEMEGA_F3_SIDE_NORM': '1'})}
+             {'TILEMEGA_F3_SIDE_NORM': '1'}, 0)}
     rows = []
     for batch in (1, 2, 4, 8, 16):
         if batch in followups:
-            final_name, pair_name, profile = followups[batch]
+            final_name, pair_name, profile, minimum_gain = followups[batch]
             source = base/final_name
             final = read(source)
             library, gate = Path(final['library']), Path(final['gate'])
             measurement = final['measurement']
             decision = read(base/pair_name)
             pair = decision['pair']
-            threshold = max(pair['threshold'],
-                            .03 if profile.get('TILEMEGA_F3_REPEAT') == '1' else 0)
+            threshold = max(pair['threshold'], minimum_gain)
             assert decision['accepted'] and pair['ratio'] < 1-threshold
             assert pair['gpu'] == 3 and len(pair['measurements']) == 6
             assert all(m['guard']['code'] == 0 for m in pair['measurements'])

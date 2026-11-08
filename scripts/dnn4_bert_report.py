@@ -75,6 +75,10 @@ def main():
               ('FFN1 TK128 single-store B16', base/'single_store_tk128_b16_v1/experiment.json'),
               ('FFN1 TN256 single-store B16', base/'single_store_tn256_b16_v1/v2/experiment_gpu0.json'),
               ('consumer216 B8 diagnostic', base/'phase72_consumer216_b8_v1/experiment.json'),
+              ('consumer216 in-situ B8', base/'phase72_consumer216_retune_b8_gpu0_v1/experiment.json'),
+              ('consumer216 in-situ B16', base/'phase72_consumer216_retune_b16_gpu0_v1/experiment.json'),
+              ('two-layer arithmetic B16', base/'two_layer_arithmetic_b16_v1/experiment.json'),
+              ('attention load pairs B1', base/'attention_load_pair_b1_v1/experiment.json'),
               *[(f'phase72 B{batch} GPU2 diagnostic',
                  base/f'scalar_phase72_arithmetic_b{batch}_v1/gpu2_diagnostic_v1/experiment.json')
                 for batch in (2, 4, 8, 16)],
@@ -94,11 +98,22 @@ def main():
                 if state['status'] != 'done' or not unit['passed'] or len(unit['processes']) != 17:
                     raise ValueError('phase72 requires scalar phase and P1 component gates')
         if name in ('FFN1 TK128 single-store B16', 'FFN1 TN256 single-store B16',
-                    'consumer216 B8 diagnostic'):
+                    'consumer216 B8 diagnostic', 'two-layer arithmetic B16'):
             for unit_path in experiment['unit_gates']:
                 unit = read(Path(unit_path))
                 if not unit['passed'] or len(unit['processes']) != 17 or any(p['exit_code'] for p in unit['processes']):
-                    raise ValueError('single-buffer stores require exact FFN1 and interstage ordering gates')
+                    raise ValueError('prototype requires its complete stated component gates')
+        if name.startswith('consumer216 in-situ'):
+            qualification = read(path.parent/'trace_qualification.json')
+            selection = read(path.parent/'tune_selection.json')
+            required = 3 if experiment['batch'] == 8 else 4
+            if (not qualification['passed'] or abs(qualification['relative_difference']) > .05
+                    or len(selection['eligible_variants']) < required):
+                raise ValueError('consumer216 diagnostic lacks its stated trace coverage')
+        if name == 'attention load pairs B1':
+            unit = read(Path(experiment['unit_gate']))
+            if not unit['passed'] or len(unit['processes']) != 17 or not experiment['same_output_bytes']:
+                raise ValueError('attention scheduling requires component and unchanged-byte gates')
         if name == 'statistics TMA B16':
             state = read(base/'stats_tma_unit_v1/scheduler/state.json')['dnn4-focused-f3-gates']
             unit = read(Path(state['out'])/'cohort/result.json')
@@ -506,6 +521,45 @@ def main():
                   f'ratio{decision["pair"]["ratio"]:.6f},noise'
                   f'{100*decision["pair"]["threshold"]:.3f}%. '
                   'Reject and restore the prototype headers;no G22 admission.']
+    attention_loads = base/'attention_load_pair_b1_v1/experiment.json'
+    if attention_loads.exists():
+        decision = read(attention_loads)
+        lines += ['', 'Verified attention operand scheduling issues two independent shared '
+                  'matrix loads before their dependent MMAs,without changing any output '
+                  'accumulation order or Rows16 geometry. Per-head unit5/5 and '
+                  'sanitizer1/1/5/5 pass;the B1 model passes5/5 and its output bytes '
+                  'match the admitted control. SASS is259456B,maxR195,zero spill. '
+                  'GPU0 diagnostic P-PAIR gives '
+                  f'ratio{decision["pair"]["ratio"]:.6f},noise'
+                  f'{100*decision["pair"]["threshold"]:.3f}%. '
+                  'No significant end-to-end gain;archive and restore the isolated header.']
+    for batch in (8, 16):
+        experiment = base/f'phase72_consumer216_retune_b{batch}_gpu0_v1/experiment.json'
+        if experiment.exists():
+            decision = read(experiment)
+            selection = read(experiment.parent/'tune_selection.json')
+            qualification = read(experiment.parent/'trace_qualification.json')
+            lines += ['', f'Verified72/216 B{batch} re-selection qualifies'
+                      f'{100*qualification["relative_difference"]:.3f}% boundary overhead;'
+                      f'{len(selection["eligible_variants"])}/6 existing variants complete'
+                      '3/3 fresh traces. '
+                      + ('B8 deliberately uses reduced three-member coverage;this is a '
+                         'diagnostic deviation,not complete P-TUNE coverage. ' if batch == 8 else '')
+                      +
+                      'The assembled nontrace model passes5/5;GPU0 P-PAIR gives'
+                      f'ratio{decision["pair"]["ratio"]:.6f} versus'
+                      f'{100*decision["pair"]["threshold"]:.3f}% noise. '
+                      'Admission and current artifacts remain unchanged.']
+    two_layer = base/'two_layer_arithmetic_b16_v1/experiment.json'
+    if two_layer.exists():
+        decision = read(two_layer)
+        lines += ['', 'Verified prescribed two-layer Repeat6x10 combined with arithmetic '
+                  'bindings and P1 retains the B16 coordinates and56/224 roles. Alias '
+                  'and P1 component gates each pass17/17;the model passes5/5 without '
+                  'spill. GPU0 diagnostic P-PAIR gives '
+                  f'ratio{decision["pair"]["ratio"]:.6f} versus'
+                  f'{100*decision["pair"]["threshold"]:.3f}% noise and is rejected. '
+                  'The B8 counterpart spills52/192B stores/loads and is never executed.']
     retune = base/'phase72_retune_b8_gpu0_v1/incomplete_selection.json'
     if retune.exists():
         qualification = read(retune.parent/'trace_qualification.json')
@@ -530,9 +584,11 @@ def main():
                   'without spill. B8/B16 SASS is328576/395776B with zero local-memory '
                   'instructions. The integrated B8 kernel has identical instruction bytes '
                   'to its prototype. Seven related regression checks, real profile codegen '
-                  'and invalid-setting checks pass. GPU2 comparisons are diagnostics while '
-                  'GPU3 has foreign occupancy;they do not admit or replace any current '
-                  'artifact. B8/B16 first-time Repeat admission still requires3% plus noise;'
+                  'and invalid-setting checks pass. GPU2 comparisons remain diagnostics. '
+                  'Complete GPU3 pairs subsequently admit B4/B8;exact-binary ledgers and '
+                  'three-process P-DNN results are in the current catalog. B2 fails its '
+                  'noise gate and B16 fails the firstRepeat3% gate. B8/B16 first-time '
+                  'Repeat admission still requires3% plus noise;'
                   'B2/B4 already use accepted Repeat and require a gain beyond noise. '
                   'Fixed BF16 goals and original anchors remain unchanged.']
     spill_lines = []
@@ -545,7 +601,7 @@ def main():
     if spill_lines:
         lines += ['', 'Verified B8 arithmetic Repeat plus P1 normalization fails the compilation '
                   'gate under64/216 and prescribed56/224 ('+';'.join(spill_lines)+'). '
-                  'Neither spilled binary is executed;B8 retains its accepted flat program.']
+                  'Neither spilled binary is executed;profile2 later resolves this spill gate.']
     middle = base/'repeat_arithmetic_b4_reg56_v1/experiment.json'
     if middle.exists():
         decision = read(middle)
@@ -573,14 +629,14 @@ def main():
         spills = re.findall(r'(\d+) bytes spill (?:stores|loads)', rejected_combination.read_text())
         if any(map(int, spills)):
             lines += ['', 'Verified B2 P1 normalization plus the admitted arithmetic loop spills '
-                      '/'.join(spills)+'B stores/loads under64/216. The compilation gate rejects '
+                      + '/'.join(spills)+'B stores/loads under64/216. The compilation gate rejects '
                       'it before execution;the admitted arithmetic-only B2 profile remains selected.']
     current = args.out/'DNN4_BERT_current.csv'
     if current.exists():
         with current.open() as stream:
             latest = list(csv.DictReader(stream))
         lines += ['', 'Verified current accepted artifacts (GPU3;50/200;three-process P-DNN). '
-                  'B8 reuses the original measurements;B1/B2/B4/B16 are follow-ups that retain '
+                  'B1/B2/B4/B8/B16 are follow-ups that retain '
                   'the original anchor without re-anchoring. All fixed BF16 targets remain unmet. '
                   'DNN4_BERT_current.csv records complete identities,profiles and evidence paths.', '',
                   '| Batch | Median ms | p90 ms | Process range ms | Fixed BF16 ms | Ratio |',
