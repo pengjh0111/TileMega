@@ -21,6 +21,20 @@ namespace tilemega::backend {
 // both skeletons can read, and the activation set is shared.
 using Sm90F3Op=Sm90ForwardOp;
 
+// DT-GELU: A&S7.1.26, measured max normalized error1.972e-7 on the full grid
+// and finite BF16 domain;132-CTA resident epilogue ratio0.7487 (gelu_v1).
+__device__ __forceinline__ float Sm90F3GeluErf(float x) {
+  float z=fabsf(x*.70710678118654752f),denominator=__fmaf_rn(.3275911f,z,1.f),t;
+  asm("rcp.approx.ftz.f32 %0, %1;":"=f"(t):"f"(denominator));
+  t=__fmaf_rn(__fmaf_rn(-denominator,t,1.f),t,t);
+  float poly=__fmaf_rn(t,1.061405429f,-1.453152027f);
+  poly=__fmaf_rn(t,poly,1.421413741f);
+  poly=__fmaf_rn(t,poly,-.284496736f);
+  poly=t*__fmaf_rn(t,poly,.254829592f);
+  float erf=1.f-poly*Sm90F3Async::Exp2(-z*z*1.4426950408889634f);
+  return .5f*x*(1.f+copysignf(erf,x));
+}
+
 template<Sm90ForwardOp Kind,unsigned Vector=0,
          codegen::DmActivation Activation=codegen::DmActivation::kRelu,
          unsigned Vector2=0>
@@ -109,30 +123,40 @@ struct Sm90F3Chain {
   static_assert(((Step::kKind!=Sm90ForwardOp::kGatePair) && ...),
       "F3 does not implement a gate pair; the four DNN3 models never use one");
 
+  template<unsigned Slot>
+  __device__ static __forceinline__ float VectorAt(char const* side,int col,
+      float const* columns) {
+    return columns?columns[Slot]:Side::Vector(side,Slot)[col];
+  }
+
   template<class S>
   __device__ static __forceinline__ void ApplyOne(float& value,int row,int col,
-      char const* side,float mean,float inverse,Sm90F3EpilogueOperands const& p) {
+      char const* side,float mean,float inverse,Sm90F3EpilogueOperands const& p,
+      float const* columns) {
     if constexpr(S::kKind==Sm90ForwardOp::kBias)
-      value=__fadd_rn(value,Side::Vector(side,S::kVector)[col]);
+      value=__fadd_rn(value,VectorAt<S::kVector>(side,col,columns));
     else if constexpr(S::kKind==Sm90ForwardOp::kScale)
-      value=__fmul_rn(value,Side::Vector(side,S::kVector)[col]);
-    else if constexpr(S::kKind==Sm90ForwardOp::kActivation)
-      value=Sm90ForwardActivate(S::kActivation,value);
+      value=__fmul_rn(value,VectorAt<S::kVector>(side,col,columns));
+    else if constexpr(S::kKind==Sm90ForwardOp::kActivation) {
+      if constexpr(S::kActivation==codegen::DmActivation::kGeluErf)
+        value=Sm90F3GeluErf(value);
+      else value=Sm90ForwardActivate(S::kActivation,value);
+    }
     else if constexpr(S::kKind==Sm90ForwardOp::kResidual) {
       // One 32-bit shared read takes the (col, col+1) pair; this element keeps
       // its own half. The scale, when the plan named one, rounds before the add.
       float add=float(ResidualAt(side,row,col));
       if constexpr(S::kVector<4)
-        if(p.vectors[S::kVector])value=__fmul_rn(value,Side::Vector(side,S::kVector)[col]);
+        if(p.vectors[S::kVector])value=__fmul_rn(value,VectorAt<S::kVector>(side,col,columns));
       value=__fadd_rn(value,add);
     }else if constexpr(S::kKind==Sm90ForwardOp::kDeferredLayerNorm) {
       // (acc - mu u_n) * inv + v_n, with (mu, inv) from the producer's sums.
-      value=(value-mean*Side::Vector(side,S::kVector)[col])*inverse+
-          Side::Vector(side,S::kVector2)[col];
+      value=(value-mean*VectorAt<S::kVector>(side,col,columns))*inverse+
+          VectorAt<S::kVector2>(side,col,columns);
     }else if constexpr(S::kKind==Sm90ForwardOp::kResidualLN) {
       float source=float(ResidualAt(side,row,col));
-      value+=(source-mean)*inverse*Side::Vector(side,S::kVector)[col]+
-          Side::Vector(side,S::kVector2)[col];
+      value+=(source-mean)*inverse*VectorAt<S::kVector>(side,col,columns)+
+          VectorAt<S::kVector2>(side,col,columns);
     }
   }
 
@@ -144,8 +168,9 @@ struct Sm90F3Chain {
   }
 
   __device__ static __forceinline__ float Apply(float value,int row,int col,
-      char const* side,float mean,float inverse,Sm90F3EpilogueOperands const& p) {
-    (ApplyOne<Step>(value,row,col,side,mean,inverse,p),...);
+      char const* side,float mean,float inverse,Sm90F3EpilogueOperands const& p,
+      float const* columns=nullptr) {
+    (ApplyOne<Step>(value,row,col,side,mean,inverse,p,columns),...);
     return value;
   }
 };

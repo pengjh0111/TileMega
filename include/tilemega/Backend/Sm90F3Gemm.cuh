@@ -43,7 +43,7 @@ struct Sm90F3Split {
   static constexpr int kWgRows=kSplitN?64:64*kSubTiles;
   static constexpr int kWgCols=kSplitN?TN/2:TN;
   static_assert(TM==64 || TM==128 || TM==256,"an F3 CTA tile is 64, 128 or 256 rows");
-  static_assert(TN==32 || TN==64 || TN==128 || TN==256);
+  static_assert(TN==32 || TN==64 || TN==96 || TN==128 || TN==192 || TN==256);
   static_assert(!kSplitN || TN>=32,"a 64-row tile splits its columns between the warpgroups");
   // Each warpgroup's accumulator stays inside 128 FP32 registers per thread.
   static_assert(kWgRows*kWgCols/128<=128,"an F3 warpgroup accumulator exceeds 128 registers");
@@ -400,16 +400,17 @@ struct Sm90F3Gemm {
     // share a row and differ by one column. `dnn3_f3_layout_test` asserts that
     // for every tile this round instantiates; the store relies on it, and the
     // static step keeps the loop fully unrolled (DT-SPILL).
-    static_assert(kElements%2==0,"a GMMA accumulator holds whole column pairs");
+    static_assert(kElements%4==0,"a GMMA fragment pairs columns across two rows");
     // DT-SPILL: run the chain and the store one 64-column block at a time, so
     // a block's accumulator registers die at its store instead of staying
     // live across the whole tile.
     constexpr int kBlocks=(Split::kWgCols+63)/64;
     // DT-SPILL: a128-register accumulator spills in RN50 B16 with quad
     // temporaries. Retain its4B path; smaller fragments use16B stores.
-    constexpr bool kVectorStore=Split::kWgCols>=32 &&
+    constexpr bool kVectorStore=Split::kWgCols>=32 && Split::kWgCols%32==0 &&
         Split::kWgRows*Split::kWgCols/128<128;
     constexpr int kRegionColumns=kVectorStore?32:64;
+    constexpr int kRegions=(Split::kWgCols+kRegionColumns-1)/kRegionColumns;
     auto* output=e.output;
     int stride=e.output_stride;
     RowAccumulator row_accum;
@@ -438,34 +439,45 @@ struct Sm90F3Gemm {
         CUTE_UNROLL
         for(int half=0;half<(kVectorStore && Split::kWgCols>=64?2:1);++half) {
         int group=kVectorStore?block*2+half:block;
+        if(group>=kRegions)continue;
         CUTE_UNROLL
-        for(int i=0;i<kElements;i+=2) {
+        for(int i=0;i<kElements;i+=4) {
           if(get<1>(owned(i))/kRegionColumns!=group)continue;
           int tile_row,tile_col;
           Coordinate(wg,s,get<0>(owned(i)),get<1>(owned(i)),tile_row,tile_col);
-          float mean=means[s][(i%4)/2],inverse=inverses[s][(i%4)/2];
-          tile(i)=Chain::Apply(tile(i),tile_row,tile_col,side,mean,inverse,e);
-          tile(i+1)=Chain::Apply(tile(i+1),tile_row,tile_col+1,side,mean,inverse,e);
-          if constexpr(Chain::kWritesStats) {
-            if(tile_col<width) {
-              row_accum.sum[s][(i%4)/2]+=tile(i);
-              row_accum.square[s][(i%4)/2]+=tile(i)*tile(i);
-            }
-            if(tile_col+1<width) {
-              row_accum.sum[s][(i%4)/2]+=tile(i+1);
-              row_accum.square[s][(i%4)/2]+=tile(i+1)*tile(i+1);
-            }
+          float columns[2][4]{};
+          #pragma unroll
+          for(int v=0;v<kVectors;++v) {
+            auto pair=*reinterpret_cast<float2 const*>(Side::Vector(side,v)+tile_col);
+            columns[0][v]=pair.x;columns[1][v]=pair.y;
           }
+          #pragma unroll
+          for(int row=0;row<2;++row) {
+            int j=i+2*row,live_row=tile_row+8*row;
+            float mean=means[s][row],inverse=inverses[s][row];
+            tile(j)=Chain::Apply(tile(j),live_row,tile_col,side,mean,inverse,e,columns[0]);
+            tile(j+1)=Chain::Apply(tile(j+1),live_row,tile_col+1,side,mean,inverse,e,columns[1]);
+            if constexpr(Chain::kWritesStats) {
+              if(tile_col<width) {
+                row_accum.sum[s][row]+=tile(j);
+                row_accum.square[s][row]+=tile(j)*tile(j);
+              }
+              if(tile_col+1<width) {
+                row_accum.sum[s][row]+=tile(j+1);
+                row_accum.square[s][row]+=tile(j+1)*tile(j+1);
+              }
+            }
 #if TILEMEGA_TRACE_STAGE != 1
-          if constexpr(!kVectorStore) {
-          if(tile_row>=live_rows || tile_col>=width)continue;
-          auto* address=output+std::size_t(m_tile*TM+tile_row)*stride+n_tile*TN+tile_col;
-          if(tile_col+1<width) {
-            Element low(tile(i)),high(tile(i+1));
-            Async::Store32(address,unsigned(low.raw())|(unsigned(high.raw())<<16));
-          }else *address=Element(tile(i));
-          }
+            if constexpr(!kVectorStore) {
+              if(live_row>=live_rows || tile_col>=width)continue;
+              auto* address=output+std::size_t(m_tile*TM+live_row)*stride+n_tile*TN+tile_col;
+              if(tile_col+1<width) {
+                Element low(tile(j)),high(tile(j+1));
+                Async::Store32(address,unsigned(low.raw())|(unsigned(high.raw())<<16));
+              }else *address=Element(tile(j));
+            }
 #endif
+          }
         }
         TM_F3_TRACE_BEGIN(kStore);
         if constexpr(kVectorStore)

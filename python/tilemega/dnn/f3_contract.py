@@ -47,7 +47,8 @@ def validate(manifest, defines):
             if c['schema'] == 4 and (stage.get('tk') not in (64, 128)
                     or stage.get('store') not in ('reg', 'tma') or stage.get('mc') not in (0, 1)):
                 raise ValueError('invalid F3 pipeline coordinates')
-            if stage['tile_m'] not in (64, 128, 256) or stage['tile_n'] not in (32, 64, 128, 256):
+            tiles=(32,64,96,128,192,256) if c['schema']==4 else (32,64,128,256)
+            if stage['tile_m'] not in (64, 128, 256) or stage['tile_n'] not in tiles:
                 raise ValueError('invalid F3 tile')
             if not 2 <= stage['slots'] <= 8 or not 1 <= stage['split_k'] <= (32 if stage['mode'] == 'swapab' else 16):
                 raise ValueError('invalid F3 slots or split-K')

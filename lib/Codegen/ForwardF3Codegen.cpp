@@ -386,6 +386,8 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
         if(access.write.kind!=codegen::DmWriteKind::kDense)
           throw std::invalid_argument("F3 implements the dense writeback only");
         int tile_n=swap?128:c.tile_n;
+        if((tile_n==96 || tile_n==192) && n%tile_n)
+          throw std::invalid_argument("F3 TN96/192 must divide the output width");
         int padded_n=(n+tile_n-1)/tile_n*tile_n;
         if(padded_k%(c.split_k*c.tk))
           throw std::invalid_argument("F3 split-K does not divide the contraction");
@@ -420,7 +422,8 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
           bind.counters=add_scratch("f3.counter."+std::to_string(index),"i32",2*tiles);
         }
         if(bind.row_stats!=kAbsent) {
-          if(tile_n%64)throw std::invalid_argument("F3 statistics tile needs 64 columns");
+          if(tile_n%64 || (c.tile_m==64 && tile_n==192))
+            throw std::invalid_argument("F3 statistics require whole WG64-column blocks");
           bind.row_partials=bind.row_stats;bind.row_stats=kAbsent;
         }
         // A GAP producer also writes the per-(image, 64-row block) channel

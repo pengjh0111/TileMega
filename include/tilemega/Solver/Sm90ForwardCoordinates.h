@@ -94,8 +94,9 @@ struct Sm90ForwardStage {
       throw std::invalid_argument("forward GEMV block must be 64, 128 or 256");
     bool gemm=body==Sm90ForwardBody::kGemm || body==Sm90ForwardBody::kConv ||
         body==Sm90ForwardBody::kDwPw || body==Sm90ForwardBody::kInvertedResidual;
-    if(gemm && tile_n!=32 && tile_n!=64 && tile_n!=128 && tile_n!=256)
-      throw std::invalid_argument("forward TN must be 32, 64, 128 or 256");
+    if(gemm && tile_n!=32 && tile_n!=64 && tile_n!=128 && tile_n!=256 &&
+        !(f3 && (tile_n==96 || tile_n==192)))
+      throw std::invalid_argument("forward TN is outside the skeleton's tile set");
     // F3 drops the power-of-two rule: split-K only has to divide kIter.
     if(f3) {
       if(split_k<1 || split_k>16)

@@ -244,6 +244,11 @@ int main(int,char**) try {
   DenseCase<128,768,768,64,64,1,1,1>();
   DenseCase<131,768,256,64,64,1,1>();
   DenseCase<259,768,256,128,64,2,1>();
+  DenseCase<128,768,768,64,96,1,0>();
+  DenseCase<128,768,768,64,192,1,0>();
+  DenseCase<128,768,768,128,96,1,2>();
+  DenseCase<128,768,768,128,192,1,1>();
+  DenseCase<512,768,768,256,96,1,0>();
   SmallBertCase<1>();SmallBertCase<16>();
   std::cout<<"output_hash="<<std::hex<<hash<<'\n';return 0;
 }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}

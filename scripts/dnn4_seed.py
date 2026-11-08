@@ -46,7 +46,7 @@ def split_for(stage, tm, tn):
                 and tiles*s <= 132 and iterations//s >= 6] or [1])
 
 
-def seed(stage):
+def seed(stage, phase_l=False):
     c = dict(body=stage['body'], mode=stage['mode'], tile_m=64, tile_n=64,
              split_k=1, slots=2, tk=64, store='reg', mc=0,
              tile_w=8, tile_h=8, channel_block=64, fused=False)
@@ -69,9 +69,11 @@ def seed(stage):
             raise ValueError('regenerate the F3 plan with explicit row-stat metadata')
         tm = 64 if m <= 4096 else 256 if m >= 8192 and n <= 128 else 128
         padded_n = math.ceil(n / 32)*32
-        choices = [tn for tn in (256, 128, 64, 32) if padded_n % tn == 0
+        tiles = (256,192,128,96,64,32) if phase_l else (256,128,64,32)
+        choices = [tn for tn in tiles if padded_n % tn == 0
+                   and (tn not in (96,192) or n % tn == 0)
                    and math.ceil(m / tm)*(padded_n//tn) >= 66
-                   and (not stage['has_row_stats'] or tn % 64 == 0)]
+                   and (not stage['has_row_stats'] or (tn % 64 == 0 and not (tm==64 and tn==192)))]
         tn = max(choices or [64 if stage['has_row_stats'] else 32])
         c.update(tile_m=tm, tile_n=tn, split_k=split_for(stage, tm, tn))
     else:
@@ -85,6 +87,7 @@ def main():
     parser.add_argument('--bridge', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--binary', type=Path, default=ROOT / 'runs/dnn4/build/main/tools/tilemega')
+    parser.add_argument('--phase-l', action='store_true', help='enable the measured96/192-column tiles')
     args = parser.parse_args()
     args.out = args.out.resolve()
     args.out.mkdir(parents=True, exist_ok=True)
@@ -94,7 +97,7 @@ def main():
     if plan['abi'] != 'f3':
         raise ValueError('requires an F3 plan')
     coordinates = dict(schema=4, model='dnn', abi='f3', residency=1,
-                       stages=[seed(stage) for stage in plan['stage_rows']])
+                       stages=[seed(stage,args.phase_l) for stage in plan['stage_rows']])
     prototype = args.out / 'prototype.tmexec.json'
     prototype.write_text(json.dumps(coordinates, indent=2) + '\n')
     source = args.out / 'prototype.cu'

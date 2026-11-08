@@ -117,10 +117,10 @@ void CompareStats(std::vector<float> const& actual,std::vector<float> const& exp
 template<int M,int N,int K,int TM,int TN,int SplitK,int Kind,int Parts=(Kind==1?N:K)/64>
 void DenseCase() {
   std::cout<<"START dense m="<<M<<" n="<<N<<" k="<<K<<" tm="<<TM<<"\n";
-  using Side=Sm90F3SideLayout<TM,TN,Kind==1,2,true,Parts>;
+  using Side=Sm90F3SideLayout<TM,TN,Kind==1,Kind==1?3:2,true,Parts>;
   using Norm=Sm90F3Step<Sm90ForwardOp::kDeferredLayerNorm,0,
       tilemega::codegen::DmActivation::kRelu,1>;
-  using Bias=Sm90F3Step<Sm90ForwardOp::kBias,0>;
+  using Bias=Sm90F3Step<Sm90ForwardOp::kBias,2>;
   using Residual=Sm90F3Step<Sm90ForwardOp::kResidualLN,0,
       tilemega::codegen::DmActivation::kRelu,1>;
   using Gelu=Sm90F3Step<Sm90ForwardOp::kActivation,0,
@@ -140,18 +140,18 @@ void DenseCase() {
   for(int m=0;m<M;++m)for(int n=0;n<N;++n)
     residual[m*N+n]=E(float((m*11+n*5)%19)/32);
   Device<E> a(input.size()),w(packed.size()),r(residual.size()),o(M*N);
-  Device<float> v0(N),v1(N),stats(2*M*Parts),row_partials(2*M*(N/64));
+  Device<float> v0(N),v1(N),v2(N),stats(2*M*Parts),row_partials(2*M*(N/64));
   Device<float> partial(SplitK*tiles*TM*TN);
   Device<unsigned long long> counters(tiles);
   w.Put(packed);r.Put(residual);
-  v0.Put(std::vector<float>(N,.25f));v1.Put(std::vector<float>(N,.75f));
+  v0.Put(std::vector<float>(N,.25f));v1.Put(std::vector<float>(N,.75f));v2.Put(std::vector<float>(N,.25f));
   counters.Put(std::vector<unsigned long long>(tiles,0));
   CUtensorMap am{},rm{};
   ex::EncodeTiledMap<2>(am,a.data,{{K,M},{K*2},{64,TM}});
   ex::EncodeTiledMap<2>(rm,r.data,{{N,M},{N*2},{64,TM}});
   Sm90F3GemmOperands p{};p.input=a.data;p.weight=w.data;
   auto& e=p.epilogue;e.output=o.data;e.output_stride=N;e.residual=r.data;e.residual_stride=N;
-  e.vectors[0]=v0.data;e.vectors[1]=v1.data;e.stats=stats.data;
+  e.vectors[0]=v0.data;e.vectors[1]=v1.data;e.vectors[2]=v2.data;e.stats=stats.data;
   e.norm_width=Kind==1?N:K;e.epsilon=1e-5f;
   e.partial=partial.data;e.counters=counters.data;
   if constexpr(Kind==1) {
@@ -233,9 +233,9 @@ template<int B> void SmallBertCase() {
 
 int main(int,char**) try {
   std::cout<<std::unitbuf;
-  DenseCase<128,256,256,128,256,1,2>();
-  DenseCase<128,256,256,128,256,1,1>();
-  DenseCase<256,128,256,256,128,1,2>();
-  DenseCase<256,128,256,256,128,1,1>();
+  DenseCase<128,768,768,128,256,1,2>();
+  DenseCase<128,768,768,128,256,1,1>();
+  DenseCase<512,768,768,256,128,1,2>();
+  DenseCase<512,768,768,256,128,1,1>();
   std::cout<<"output_hash="<<std::hex<<hash<<'\n';return 0;
 }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}

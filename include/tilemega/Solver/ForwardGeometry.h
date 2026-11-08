@@ -68,22 +68,18 @@ inline constexpr char const* kSm90F3ChainClasses[]={
     "plain","bias_act","bias_res_act","deferred_ln","deferred_ln_gelu",
     "residual_ln_rowstats","swapab_bias_act"};
 
-// DT-SPILL: the fully inline production sweep on nvcc 12.8.93 rejects
-// 256x128 with residual or normalization chains (180/12/504/316 B stores).
-// Receipt: runs/dnn3/spill_inline_predicate_v2/spill.json. Keep the prior
-// full-model 128x256 normalization exclusions until that artifact passes.
-// Resident-probe loop spills are diagnosed separately and do not ban tiles.
+// nvcc12.8.93,384 threads56/224:88/89 whole production tile/chain instances
+// have zero spill (runs/dnn4/phase_l/register_scan_v1). Keep the measured
+// 256x128 residual-LN writer exclusion and whole64-column statistics rule.
 inline bool Sm90F3TileFeasible(int tile_m,int tile_n,Sm90F3ChainClass chain) {
   int wg_cols=tile_m==64?tile_n/2:tile_n;
   int sub_tiles=tile_m==256?2:1;
   int accumulator=sub_tiles*64*wg_cols/128;
   if(accumulator>128)return false;
-  if(accumulator<128)return true;
   using C=Sm90F3ChainClass;
-  if(tile_m==128 && tile_n==256)
-    return chain==C::kPlain || chain==C::kBiasAct;
-  if(tile_m==256 && tile_n==128)
-    return chain==C::kPlain || chain==C::kBiasAct;
+  if(chain==C::kResidualLnRowStats &&
+      ((tile_m==256 && tile_n==128) || tile_n%64 || (tile_m==64 && tile_n==192)))
+    return false;
   return true;
 }
 // The class of a chain, from what its steps need. Codegen and the solver call
@@ -181,7 +177,11 @@ inline Sm90ForwardResourceUsage QuerySm90ForwardF3Resources(
     int vectors=integer("f3_vectors",true),rows=shape.m<=8?8:16;
     bool residual=g.At("f3_residual").AsBool("F3 residual");
     bool stats=g.At("needs_stats").AsBool("F3 input statistics");
-    if(g.At("has_row_stats").AsBool("F3 output statistics") && c.tile_n%64) {
+    if((c.tile_n==96 || c.tile_n==192) && shape.n%c.tile_n) {
+      r.reason="F3 TN96/192 must divide the output width";return r;
+    }
+    if(g.At("has_row_stats").AsBool("F3 output statistics") &&
+        (c.tile_n%64 || (c.tile_m==64 && c.tile_n==192))) {
       r.reason="F3 statistics producers require 64-column blocks";return r;
     }
     int stat_parts=g.Find("f3_stat_parts")?integer("f3_stat_parts"):1;
