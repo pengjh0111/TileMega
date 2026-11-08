@@ -115,7 +115,7 @@ struct Sm90F3Layout {
 // 2x2/s2/p0 and ResNet's 3x3/s2/p1 share one body (§4 F-2). A work item is one
 // output pixel's block of eight channels, and each in-bounds tap is a 16 B
 // read reduced with `__hmax2` over four BF16 pairs.
-template<int Window,int WindowW,int Stride,int Pad,int Channels,int Batch>
+template<int Window,int WindowW,int Stride,int Pad,int Channels,int Batch,int Width=0,int Height=0>
 struct Sm90F3MaxPool {
   using Element=cutlass::bfloat16_t;
   static constexpr int kThreads=384;
@@ -129,36 +129,45 @@ struct Sm90F3MaxPool {
 
   __device__ static __forceinline__ void Consume(Sm90F3SmallOperands const& p,
       Sm90F3Ring&,char*,Sm90F3Phase&,Sm90F3Header*,int) {
-    int out_w=(p.width+2*Pad-WindowW)/Stride+1;
-    int out_h=(p.height+2*Pad-Window)/Stride+1;
-    int lines=Channels/8;
-    long long items=1LL*Batch*out_w*out_h*lines;
-    for(long long item=blockIdx.x*256+threadIdx.x;item<items;
-        item+=1LL*gridDim.x*256) {
-      int line=int(item%lines);
-      long long pixel=item/lines;
-      int x=int(pixel%out_w),rest=int(pixel/out_w);
-      int y=rest%out_h,image=rest/out_h;
-      __nv_bfloat162 best[4];
+    int input_w=Width?Width:p.width,input_h=Height?Height:p.height;
+    int out_w=(input_w+2*Pad-WindowW)/Stride+1;
+    int out_h=(input_h+2*Pad-Window)/Stride+1;
+    constexpr int lines=Channels/8;
+    unsigned items=unsigned(Batch*out_w*out_h*lines);
+    for(unsigned first=4*(blockIdx.x*256+threadIdx.x);first<items;
+        first+=4*gridDim.x*256) {
+      Sm90F3Oct taps[4][Window*WindowW];
       #pragma unroll
-      for(int i=0;i<4;++i)best[i]=__nv_bfloat162(-INFINITY,-INFINITY);
-      for(int r=0;r<Window;++r) {
-        int sy=y*Stride-Pad+r;
-        if(sy<0 || sy>=p.height)continue;
-        for(int s=0;s<WindowW;++s) {
-          int sx=x*Stride-Pad+s;
-          if(sx<0 || sx>=p.width)continue;
-          auto octet=Sm90F3LoadOct(p.input+
-              ((std::size_t(image)*p.height+sy)*p.width+sx)*Channels+line*8);
+      for(int j=0;j<4;++j) {
+        unsigned item=first+j,pixel=item/lines;
+        unsigned line=item%lines,x=pixel%out_w,rest=pixel/out_w;
+        unsigned y=rest%out_h,image=rest/out_h;
+        #pragma unroll
+        for(int r=0;r<Window;++r) {
+          int sy=int(y)*Stride-Pad+r;
           #pragma unroll
-          for(int i=0;i<4;++i)best[i]=__hmax2(best[i],octet.pair()[i]);
+          for(int s=0;s<WindowW;++s) {
+            int sx=int(x)*Stride-Pad+s;
+            auto& tap=taps[j][r*WindowW+s];
+            #pragma unroll
+            for(int pair=0;pair<4;++pair)tap.pair()[pair]=__nv_bfloat162(-INFINITY,-INFINITY);
+            if(item<items && sy>=0 && sy<input_h && sx>=0 && sx<input_w)
+              tap=Sm90F3LoadOct(p.input+((image*input_h+sy)*input_w+sx)*Channels+line*8);
+          }
         }
       }
-      Sm90F3Oct out;
       #pragma unroll
-      for(int i=0;i<4;++i)out.pair()[i]=best[i];
-      Sm90F3StoreOct(p.output+
-          ((std::size_t(image)*out_h+y)*out_w+x)*Channels+line*8,out);
+      for(int j=0;j<4;++j) {
+        Sm90F3Oct out;
+        #pragma unroll
+        for(int pair=0;pair<4;++pair) {
+          auto best=__nv_bfloat162(-INFINITY,-INFINITY);
+          #pragma unroll
+          for(int tap=0;tap<Window*WindowW;++tap)best=__hmax2(best,taps[j][tap].pair()[pair]);
+          out.pair()[pair]=best;
+        }
+        if(first+j<items)Sm90F3StoreOct(p.output+(first+j)*8,out);
+      }
     }
   }
 };

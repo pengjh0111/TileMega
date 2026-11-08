@@ -491,7 +491,8 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
         // VGG16's 2x2/s2/p0 and ResNet's 3x3/s2/p1 share it (§4 F-2).
         body="Sm90F3MaxPool<"+std::to_string(conv.r)+','+std::to_string(conv.s)+','+
             std::to_string(conv.stride_h)+','+std::to_string(conv.pad_h)+','+
-            std::to_string(shape.channels)+','+std::to_string(model_batch)+'>';
+            std::to_string(shape.channels)+','+std::to_string(model_batch)+','+
+            std::to_string(shape.width)+','+std::to_string(shape.height)+'>';
         wrapper="SmallStage";
         break;
       }

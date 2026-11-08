@@ -369,7 +369,7 @@ template<int B,int H,int C,int Window,int Stride,int Pad> void MaxPoolCase() {
   }
   Device<E> a(input.size()),o(expected.size());a.Put(input);
   Sm90F3SmallOperands p{};p.input=a.data;p.output=o.data;p.width=H;p.height=H;
-  LaunchSmall<Sm90F3MaxPool<Window,Window,Stride,Pad,C,B>>(p);CompareBits(o.Get(),expected);
+  LaunchSmall<Sm90F3MaxPool<Window,Window,Stride,Pad,C,B,H,H>>(p);CompareBits(o.Get(),expected);
   std::cout<<"maxpool_b"<<B<<"_h"<<H<<"_r"<<Window<<" PASS\n";
 }
 

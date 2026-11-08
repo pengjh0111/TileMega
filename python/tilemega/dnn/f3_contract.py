@@ -100,10 +100,11 @@ def dispatch(manifest, defines, source):
         elif name == 'Sm90F3Layout':
             valid = len(args) == 2 and int(args[0]) > 0 and int(args[1]) == manifest['runtime_batch']
         elif name == 'Sm90F3MaxPool':
-            valid = (len(args) == 6 and args[:4] in
+            valid = (len(args) in ((6,8) if c['schema']==4 else (6,)) and args[:4] in
                      (['3', '3', '2', '1'], ['2', '2', '2', '0'])
                      and int(args[4]) > 0 and int(args[4]) % 8 == 0
-                     and int(args[5]) == manifest['runtime_batch'])
+                     and int(args[5]) == manifest['runtime_batch']
+                     and (len(args)==6 or all(int(a)>0 for a in args[6:])))
         elif name == 'Sm90F3GlobalPool':
             valid = len(args) == 1 and int(args[0]) == manifest['runtime_batch']
         elif name == 'Sm90F3LayerNorm':
