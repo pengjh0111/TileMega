@@ -71,13 +71,19 @@ def main():
               ('P1 normalization arithmetic B2', base/'arithmetic_side_norm_b2_v1/experiment.json'),
               ('in-situ P1 B16', base/'side_norm_retune_b16_v1/experiment.json'),
               ('in-situ P1 B8', base/'side_norm_retune_b8_v1/experiment.json'),
-              ('FFN1 TK128 B16', base/'ffn1_tk128_b16_v1/experiment.json')]
+              ('FFN1 TK128 B16', base/'ffn1_tk128_b16_v1/experiment.json'),
+              ('FFN1 TK128 single-store B16', base/'single_store_tk128_b16_v1/experiment.json')]
     rows = []
     choices = []
     for name, path in probes:
         if not path.exists():
             continue
         experiment = read(path)
+        if name == 'FFN1 TK128 single-store B16':
+            for unit_path in experiment['unit_gates']:
+                unit = read(Path(unit_path))
+                if not unit['passed'] or len(unit['processes']) != 17 or any(p['exit_code'] for p in unit['processes']):
+                    raise ValueError('single-buffer stores require exact FFN1 and interstage ordering gates')
         if name == 'statistics TMA B16':
             state = read(base/'stats_tma_unit_v1/scheduler/state.json')['dnn4-focused-f3-gates']
             unit = read(Path(state['out'])/'cohort/result.json')
@@ -159,11 +165,14 @@ def main():
         if gate['status'] != 'passed' or gate['passes'] != '5/5' or any(
                 not o.get('output_sha256') for c in gate['cases'] for o in c['outputs']):
             raise ValueError('BERT comparison requires five fresh byte-hashed FP32 gates')
-        pair_path = path.parent/'pair/result.json'
+        pair_path = Path(experiment.get('pair_source', path.parent/'pair/result.json'))
         if not pair_path.exists():
             pair_path = path.parent/'pair_gpu2/result.json'
         first = read(pair_path)
         comparisons = [(f'GPU{first["gpu"]} same-card diagnostic', pair_path)]
+        if experiment.get('initial_pair_source'):
+            comparisons.append(('initial complete pair;extreme variability;not admission',
+                                Path(experiment['initial_pair_source'])))
         diagnostic = path.parent/'gpu0_diagnostic_v1/pair/result.json'
         if diagnostic.exists():
             comparisons.append(('GPU0 allocation deviation;diagnostic only;not admission', diagnostic))
@@ -452,6 +461,20 @@ def main():
                   'sanitizer1/1/5/5. The B8 Repeat/P1 whole-model build still spills '
                   +'/'.join(map(str, spills))+'B stores/loads under64/216;it is never executed. '
                   'The prototype patch is archived and its production header is restored.']
+    single_store = base/'single_store_tk128_b16_v1/experiment.json'
+    if single_store.exists():
+        decision = read(single_store)
+        assert not decision['accepted']
+        lines += ['', 'Verified TK128 single-store prototype explicitly deviates from section6.2: '
+                  'one8KiB staging box per WG replaces two and uses wait_group.read0 before '
+                  'each reuse. This fits three TK128 slots while retaining TMA writes. '
+                  'Exact FFN1 and cross-stage ordering cohorts each pass unit5/5 and '
+                  'sanitizer1/1/5/5;the whole model passes5/5 without spill. '
+                  'The first pair has351.287% noise and is inconclusive;all six processes '
+                  'remain recorded. A complete second pair measures '
+                  f'ratio{decision["pair"]["ratio"]:.6f} against '
+                  f'{100*decision["pair"]["threshold"]:.3f}% noise. Reject and restore the '
+                  'production files;the archived patch retains the prototype.']
     spill_lines = []
     for name in ('repeat_arithmetic_middle_v1/b8', 'repeat_arithmetic_b8_reg56_v1'):
         log = base/name/'native/model.so.ptxas.log'
