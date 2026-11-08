@@ -16,7 +16,7 @@
 // is CUTLASS's K_PIPE_MMAS=1 (§6.3, appendix B).
 namespace tilemega::backend {
 
-enum class Sm90F3Mode {kNormal, kGather, kSwapAB};
+enum class Sm90F3Mode {kNormal, kGather, kSwapAB, kTmaStem};
 
 struct Sm90F3GemmOperands {
   CUtensorMap const* activation;     // 2D {K, M} dense, or 4D im2col NHWC
@@ -143,7 +143,24 @@ struct Sm90F3Gemm {
 
   __device__ static __forceinline__ void IssueAK64(Element* a,Sm90F3GemmOperands const& p,
       int m_tile,int k,std::uint64_t* barrier) {
-    if constexpr(Mode==Sm90F3Mode::kNormal) {
+    if constexpr(Mode==Sm90F3Mode::kTmaStem) {
+      static_assert(Conv::kC==8);
+      #pragma unroll
+      for(int j=0;j<8;++j) {
+        int tap=k/8+j;
+        bool live=tap<kGatherTaps;
+        #pragma unroll
+        for(int base=0;base<TM;base+=64) {
+          int row=m_tile*TM+base,image=row/(Conv::kP*Conv::kQ),pixel=row%(Conv::kP*Conv::kQ);
+          int w=(pixel%Conv::kQ)*Conv::kStrideW-Conv::kPadW;
+          int h=(pixel/Conv::kQ)*Conv::kStrideH-Conv::kPadH;
+          // The padded final taps use an OOB C8 coordinate, yielding zeros.
+          Base::TensorIm2col4D(a+j*TM*8+base*8,p.activation,live?0:8,w,h,image,
+              std::uint16_t(live?(tap%Conv::kS)*Conv::kDilationW:0),
+              std::uint16_t(live?(tap/Conv::kS)*Conv::kDilationH:0),barrier);
+        }
+      }
+    }else if constexpr(Mode==Sm90F3Mode::kNormal) {
       if constexpr(std::is_same_v<Conv,Sm90F3NoConv>)
         Base::Tensor2D(a,p.activation,k,m_tile*TM,barrier);
       else {
@@ -224,8 +241,12 @@ struct Sm90F3Gemm {
         cute::warpgroup_arrive();
         #pragma unroll
         for(int kb=0;kb<kPanels;++kb) {
-        auto panel=make_tensor(make_smem_ptr(
-            a+std::size_t(kb)*TM*64+std::size_t(Split::ARows(wg)+s*64)*64),Sm90KLayout<64,64>{});
+        using StemLayout=decltype(tile_to_shape(gmma::Layout_K_INTER_Atom<Element>{},
+            Shape<Int<TM>,_64>{}));
+        using ALayout=std::conditional_t<Mode==Sm90F3Mode::kTmaStem,StemLayout,Sm90KLayout<TM,64>>;
+        auto full_a=make_tensor(make_smem_ptr(a+std::size_t(kb)*TM*64),ALayout{});
+        auto panel=local_tile(full_a,Shape<_64,_64>{},
+            make_coord((Split::ARows(wg)+s*64)/64,0));
         auto page=make_tensor(make_smem_ptr(
             b+std::size_t(kb)*TN*64+std::size_t(Split::BRows(wg))*64),Sm90KLayout<Split::kWgCols,64>{});
         auto ra=thread.partition_fragment_A(panel);

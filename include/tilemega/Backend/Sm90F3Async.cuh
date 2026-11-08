@@ -2,6 +2,7 @@
 #pragma once
 
 #include <tilemega/Codegen/executor/Async.cuh>
+#include <tilemega/Codegen/executor/TensorIm2col.h>
 #include <cstdint>
 
 // PTX the F3 forward skeleton needs beyond `Codegen/executor/Async.cuh`
@@ -12,6 +13,30 @@ namespace tilemega::backend {
 
 struct Sm90F3Async {
   using Base=codegen::executor::Async<arch::Sm90>;
+
+  // DT-STEM: the immutable executor encoder deliberately accepts C64 only.
+  // F3's stem uses a16B channel box and a nonswizzled tap-major A panel.
+  static CUresult EncodeStemMap(CUtensorMap& out,void* address,
+      codegen::ConvDesc const& conv,codegen::DmBufferLayout const& layout) {
+    if(!address || reinterpret_cast<std::uintptr_t>(address)%16 ||
+        layout.physical[3]!=8 || conv.dilation_h>128 || conv.dilation_w>128)
+      throw std::invalid_argument("F3 stem im2col requires aligned C8 and supported dilation");
+    cuuint64_t dimensions[]={layout.physical[3],layout.physical[2],
+        layout.physical[1],layout.physical[0]};
+    cuuint64_t strides[]={layout.strides[2]*2,layout.strides[1]*2,layout.strides[0]*2};
+    int lower[]={int(layout.halo_left)-int(conv.pad_w),int(layout.halo_top)-int(conv.pad_h)};
+    int upper[]={int(conv.w+layout.halo_left+conv.pad_w)-int(layout.physical[2])-int((conv.s-1)*conv.dilation_w),
+        int(conv.h+layout.halo_top+conv.pad_h)-int(layout.physical[1])-int((conv.r-1)*conv.dilation_h)};
+    cuuint32_t traversal[]={1,conv.stride_w,conv.stride_h,1};
+    void* entry=nullptr;cudaDriverEntryPointQueryResult query;
+    auto status=cudaGetDriverEntryPoint("cuTensorMapEncodeIm2col",&entry,cudaEnableDefault,&query);
+    if(status!=cudaSuccess || query!=cudaDriverEntryPointSuccess || !entry)
+      return CUDA_ERROR_NOT_SUPPORTED;
+    return reinterpret_cast<decltype(&cuTensorMapEncodeIm2col)>(entry)(&out,
+        CU_TENSOR_MAP_DATA_TYPE_BFLOAT16,4,address,dimensions,strides,lower,upper,8,64,
+        traversal,CU_TENSOR_MAP_INTERLEAVE_NONE,CU_TENSOR_MAP_SWIZZLE_NONE,
+        CU_TENSOR_MAP_L2_PROMOTION_L2_128B,CU_TENSOR_MAP_FLOAT_OOB_FILL_NONE);
+  }
 
   __device__ static __forceinline__ unsigned long long GlobalTimer() {
     unsigned long long value;

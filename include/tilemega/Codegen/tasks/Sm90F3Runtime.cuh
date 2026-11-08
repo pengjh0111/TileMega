@@ -137,9 +137,10 @@ extern "C" void* tm_plan_create(int batch,void* const* external,int device) {
       namespace ex=tilemega::codegen::executor;
       auto* address=plan->host_buffers[m.buffer]+m.offset;
       if(m.kind==1) {
-        auto shape=ex::TensorIm2colShape::Build(m.conv,m.layout);
-        auto status=ex::EncodeTensorIm2col(
-            *reinterpret_cast<ex::TensorMap*>(&plan->bindings.maps[i]),address,shape);
+        auto status=m.box[0]==8?
+            tilemega::backend::Sm90F3Async::EncodeStemMap(plan->bindings.maps[i],address,m.conv,m.layout):
+            ex::EncodeTensorIm2col(*reinterpret_cast<ex::TensorMap*>(&plan->bindings.maps[i]),
+                address,ex::TensorIm2colShape::Build(m.conv,m.layout));
         if(status!=CUDA_SUCCESS)
           throw std::invalid_argument("the driver rejected an F3 im2col map");
       }else if(m.rank==2)ex::EncodeTiledMap<2>(plan->bindings.maps[i],address,

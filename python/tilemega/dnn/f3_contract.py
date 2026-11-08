@@ -89,10 +89,15 @@ def dispatch(manifest, defines, source):
         args = bodies[key][2].split(',')
         if name == 'Sm90F3Gemm':
             expected_args = [str(stage[k]) for k in ('tile_m', 'tile_n', 'slots', 'split_k')]
-            expected_args.append('Sm90F3Mode::' + ('kGather' if stage['mode'] == 'gather' else 'kNormal'))
+            mode = args[4] if len(args)>4 else ''
+            allowed = ('Sm90F3Mode::kGather', 'Sm90F3Mode::kTmaStem') if stage['mode']=='gather' and c['schema']==4 else (
+                'Sm90F3Mode::kGather' if stage['mode']=='gather' else 'Sm90F3Mode::kNormal',)
+            expected_args.append(mode if mode in allowed else '')
             valid = args[:5] == expected_args
             if c['schema'] == 4:
-                valid = valid and args[-1] == str(stage['tk'])
+                explicit_store = args[-1] in ('true','false')
+                valid = (valid and args[-2 if explicit_store else -1] == str(stage['tk'])
+                         and ((args[-1]=='true') if explicit_store else False) == (stage['store']=='tma'))
         elif name == 'Sm90F3GemmSwapAB':
             valid = (args[:2] == [str(stage[k]) for k in ('slots', 'split_k')]
                      and 1 <= int(args[2]) <= 16 and stage['tile_n'] == 128)

@@ -336,14 +336,15 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
           types<<EmitConv(index,conv,input);
           padded_k=int(backend::ConvIterationGeometry::Build(conv,input,64).iterations)*64;
           if(gather) {
-            // The gather producer reads the image itself, not a tensor map.
             if(input.physical[3]>8)
               throw std::invalid_argument("F3 gather mode needs an eight-channel input");
             bind.input=conv.input_layout;
-          }else {
+          }
+          {
             MapSpec spec;
             spec.buffer=conv.input_layout;spec.kind=1;spec.rank=4;
             spec.conv=conv;spec.layout=input;
+            if(gather) {spec.box[0]=8;spec.swizzle=0;}
             bind.map=maps.Add(spec);
           }
         }else {
@@ -451,7 +452,7 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
               std::to_string(padded_k)+','+std::to_string(n)+','+f3chain.text+','+
               std::to_string(c.tk)+'>';
         }else {
-          char const* mode=gather?"kGather":"kNormal";
+          char const* mode=gather?"kTmaStem":"kNormal";
           body="Sm90F3Gemm<"+std::to_string(c.tile_m)+','+std::to_string(c.tile_n)+','+
               std::to_string(c.slots)+','+std::to_string(c.split_k)+
               ",Sm90F3Mode::"+mode+','+std::to_string(rows)+','+std::to_string(padded_n)+','+
