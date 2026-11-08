@@ -43,6 +43,11 @@ struct F3Binding {
   unsigned residual=kAbsent,stats=kAbsent,row_stats=kAbsent;
   unsigned row_partials=kAbsent,row_counters=kAbsent,channel_partial=kAbsent;
   unsigned index0=kAbsent,index1=kAbsent,table=kAbsent;
+  std::vector<unsigned> Buffers() const {
+    return {input,weight,output,partial,counters,vector[0],vector[1],vector[2],vector[3],
+        residual,stats,row_stats,row_partials,row_counters,channel_partial,index0,index1,table};
+  }
+  std::vector<unsigned> Maps() const {return {map,residual_map,query_map,value_map,output_map};}
   std::string Emit(unsigned index) const {
     std::ostringstream out;
     out<<"struct Bind_"<<index<<" {\n  static constexpr unsigned kMap="<<Identifier(map)
@@ -199,6 +204,12 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
   // DT-STEM is retained as an explicit diagnostic until it wins a same-card
   // model comparison. VGG16 B16 currently regresses4.56% in P-PAIR.
   bool enable_tma_stem=false;
+  bool enable_repeat=false;
+  if(auto* setting=std::getenv("TILEMEGA_F3_REPEAT")) {
+    std::string value=setting;
+    if(value!="0" && value!="1")throw std::invalid_argument("TILEMEGA_F3_REPEAT must be0 or1");
+    enable_repeat=value=="1";
+  }
   if(auto* setting=std::getenv("TILEMEGA_F3_TMA_STEM")) {
     std::string value=setting;
     if(value!="0" && value!="1")throw std::invalid_argument("TILEMEGA_F3_TMA_STEM must be0 or1");
@@ -296,6 +307,8 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
     return unsigned(buffers.size()+scratch.size()-1);
   };
   std::vector<std::string> placements;
+  std::vector<F3Binding> repeat_bindings;
+  std::vector<std::string> repeat_bodies,repeat_shapes,repeat_wrappers;
 
   for(unsigned index=0;index<stages.size();++index) {
     auto stage=Entry(stages[index],"stage");
@@ -611,6 +624,51 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
          <<",Wrap_"<<index<<"::kSharedBytes);\n"
          <<"using Stage_"<<index<<"=Placement<Wrap_"<<index<<",kOffset_"<<index<<">;\n";
     placements.push_back("Stage_"+std::to_string(index));
+    repeat_bindings.push_back(bind);repeat_bodies.push_back(body);
+    repeat_shapes.push_back(shape.Emit(0));repeat_wrappers.push_back(wrapper);
+  }
+
+  bool repeated=enable_repeat && stages.size()==63 &&
+      coordinates.stages[0].body==Sm90ForwardBody::kEmbedding &&
+      coordinates.stages[61].body==Sm90ForwardBody::kLayerNorm;
+  // A single-layer search alternative may break periodicity. Preserve those
+  // coordinates using the flat program rather than silently replacing them.
+  if(repeated)for(unsigned rep=0;rep<6;++rep)for(unsigned i=0;i<10;++i) {
+    unsigned actual=1+10*rep+i,canonical=11+i;
+    bool edge=(rep==0 && (i==0 || i==2)) || (rep==5 && i==9);
+    if(!edge && (repeat_bodies[actual]!=repeat_bodies[canonical] ||
+        repeat_shapes[actual]!=repeat_shapes[canonical]))repeated=false;
+    if(repeat_wrappers[actual]!=repeat_wrappers[canonical] || coordinates.stages[actual].mc)
+      repeated=false;
+  }
+  auto count=unsigned(buffers.size()+scratch.size()),map_count=unsigned(maps.specs.size());
+  std::vector<unsigned> remapping;
+  if(repeated) {
+    unsigned stride=count+map_count;
+    remapping.resize(6*stride);
+    for(unsigned rep=0;rep<6;++rep) {
+      std::vector<bool> assigned(stride,false);
+      for(unsigned i=0;i<count;++i)remapping[rep*stride+i]=i;
+      for(unsigned i=0;i<map_count;++i)remapping[rep*stride+count+i]=i;
+      auto assign=[&](std::vector<unsigned> const& from,std::vector<unsigned> const& to,unsigned offset) {
+        for(unsigned j=0;j<from.size();++j) {
+          if(from[j]==kAbsent) {
+            if(to[j]!=kAbsent)throw std::invalid_argument("F3 Repeat adds an unbound edge operand");
+            continue;
+          }
+          unsigned id=offset+from[j],position=rep*stride+id;
+          if(assigned[id] && remapping[position]!=to[j])
+            throw std::invalid_argument("F3 Repeat has conflicting canonical binding aliases");
+          assigned[id]=true;remapping[position]=to[j];
+        }
+      };
+      for(unsigned i=0;i<10;++i) {
+        auto const& canonical=repeat_bindings[11+i];
+        auto const& actual=repeat_bindings[1+10*rep+i];
+        assign(canonical.Buffers(),actual.Buffers(),0);
+        assign(canonical.Maps(),actual.Maps(),count);
+      }
+    }
   }
 
   out<<"constexpr std::array<tm_buffer_info,"<<(buffers.size()+scratch.size())
@@ -619,10 +677,38 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
     out<<"  {"<<Quoted(item.name)<<",TM_BUFFER_INTERNAL,"
        <<(item.dtype=="f32"?"TM_DTYPE_F32":"TM_DTYPE_I32")<<','<<item.elements
        <<"ull,0ull,\"\"},\n";
-  out<<"}};\n"<<types.str()
-     <<"using F3ForwardProgram=Program<"<<model_batch<<','
-     <<(buffers.size()+scratch.size())<<','<<maps.specs.size();
-  for(auto const& name:placements)out<<','<<name;
+  out<<"}};\n"<<types.str();
+  if(repeated) {
+    for(unsigned i=0;i<10;++i) {
+      out<<"using Loop_"<<i<<"=RepeatStage<Wrap_"<<11+i;
+      if(i==0 || i==2)
+        out<<','<<repeat_wrappers[1+i]<<"<Body_"<<1+i<<",Bind_"<<11+i<<",Shape_"<<1+i<<">";
+      else out<<",Wrap_"<<11+i;
+      if(i==9)out<<','<<repeat_wrappers[60]<<"<Body_60,Bind_20,Shape_60>";
+      out<<">;\n";
+    }
+    out<<"template<>struct RepeatTables<6";
+    for(unsigned i=0;i<10;++i)out<<",Loop_"<<i;
+    out<<"> {\n  inline static constexpr std::array<unsigned,"<<remapping.size()<<"> indices={{\n";
+    for(unsigned i=0;i<remapping.size();++i) {
+      if(i%24==0)out<<"    ";
+      out<<Identifier(remapping[i])<<',';
+      if(i%24==23)out<<'\n';
+    }
+    out<<"\n  }};\n  inline static constexpr std::array<RepeatWeight,63> weights={{\n";
+    for(unsigned i=0;i<63;++i) {
+      if(repeat_wrappers[i]=="GemmStage")
+        out<<"    {Bind_"<<i<<"::kWeight,unsigned(Wrap_"<<i<<"::kWeightBytes)},\n";
+      else out<<"    {kAbsent,0},\n";
+    }
+    out<<"  }};\n};\n";
+  }else if(enable_repeat)out<<"// F3 Repeat declined: nonperiodic stage types or coordinates.\n";
+  out<<"using F3ForwardProgram=Program<"<<model_batch<<','<<count<<','<<map_count;
+  if(repeated) {
+    out<<",Stage_0,Repeat<6";
+    for(unsigned i=0;i<10;++i)out<<",Loop_"<<i;
+    out<<">,Stage_61,Stage_62";
+  }else for(auto const& name:placements)out<<','<<name;
   out<<">;\n"
      <<"constexpr std::array<ForwardMapSpec,"<<maps.specs.size()<<"> kF3ForwardMaps={{\n";
   for(auto const& spec:maps.specs)out<<spec.Emit();

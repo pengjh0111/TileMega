@@ -9,6 +9,7 @@
 #include <tilemega/Codegen/tasks/ServingAbi.h>
 #include <type_traits>
 #include <utility>
+#include <array>
 
 #ifndef TILEMEGA_F3_PREFETCH_DISTANCE
 #define TILEMEGA_F3_PREFETCH_DISTANCE 2
@@ -26,6 +27,8 @@ namespace tilemega::codegen::forward_f3 {
 using Element=cutlass::bfloat16_t;
 inline constexpr unsigned kAbsent=~0u;
 
+struct RepeatWeight {unsigned buffer,bytes;};
+
 // The tensor maps travel as grid constants, as the TMA contract requires; the
 // bound pointers travel as a device array, because a model with hundreds of
 // stages has more buffers than the 32 KB parameter space holds.
@@ -33,6 +36,8 @@ template<unsigned Count,unsigned Maps>
 struct alignas(64) Bindings {
   CUtensorMap maps[Maps];
   Element* const* buffers;
+  unsigned const* repeat_indices=nullptr;
+  RepeatWeight const* repeat_weights=nullptr;
   template<unsigned Id>
   __device__ __forceinline__ Element* Get() const {
     if constexpr(Id==kAbsent)return nullptr;
@@ -229,6 +234,7 @@ struct Program {
   template<unsigned I>
   using At=typename decltype(Find<I>(Map{}))::Type;
   static constexpr unsigned kStages=sizeof...(Stage);
+  static constexpr bool kRepeated=false;
   static constexpr int kBatch=Batch,kThreads=384,kResidency=1;
   static constexpr unsigned kBuffers=Buffers,kMaps=Maps;
   static constexpr int kCluster=(MulticastStage<Stage>::value || ...)?2:1;
@@ -351,6 +357,253 @@ struct Program {
     backend::Sm90F3Phase phase[2]{};
     ((ProduceOne<I>(b,shared,header,phase),PreissueNext<I>(b,shared,header,phase),
         Gate<I>(events,epoch,false)),...);
+  }
+};
+
+// Canonical binding IDs are translated at run time; maps stay grid constants.
+template<class Base,unsigned Count,unsigned Maps>
+struct RepeatBindings {
+  Base const& base;
+  unsigned repetition;
+  template<unsigned Id>
+  __device__ __forceinline__ Element* Get() const {
+    if constexpr(Id==kAbsent)return nullptr;
+    else {
+      static_assert(Id<Count);
+      unsigned id=base.repeat_indices[repetition*(Count+Maps)+Id];
+      return id==kAbsent?nullptr:base.buffers[id];
+    }
+  }
+  template<unsigned Id>
+  __device__ __forceinline__ CUtensorMap const* Map() const {
+    if constexpr(Id==kAbsent)return nullptr;
+    else {
+      static_assert(Id<Maps);
+      unsigned id=base.repeat_indices[repetition*(Count+Maps)+Count+Id];
+      return id==kAbsent?nullptr:&base.maps[id];
+    }
+  }
+};
+
+// First/last variants preserve the embedding's NT=1 statistics and the final
+// FFN's lack of a statistics output without duplicating the middle layers.
+template<class Normal,class First=Normal,class Last=Normal>
+struct RepeatStage {
+  template<class S>static constexpr bool Span() {
+    return S::kSharedBytes>backend::Sm90F3Budget::kArena;
+  }
+  __device__ static __forceinline__ bool Spanning(unsigned rep,unsigned repeats) {
+    if(rep==0)return Span<First>();
+    if(rep+1==repeats)return Span<Last>();
+    return Span<Normal>();
+  }
+  template<class S,class B>
+  __device__ static __forceinline__ int PreissueAs(B const& b,char* shared,
+      backend::Sm90F3Header* header,backend::Sm90F3Phase (&phase)[2],
+      unsigned stage,bool previous_spanning) {
+    if constexpr(S::kCanPreissue && !Span<S>()) {
+      if(!previous_spanning) {
+        unsigned arena=stage%2;
+        S::Preissue(b,header->rings[arena],
+            shared+backend::Sm90F3Budget::Offset(stage,S::kSharedBytes),phase[arena]);
+        return S::Kind::kSlots<S::Kind::kIterations?S::Kind::kSlots:S::Kind::kIterations;
+      }
+    }
+    return 0;
+  }
+  template<class B>
+  __device__ static __forceinline__ int Preissue(B const& b,char* shared,
+      backend::Sm90F3Header* header,backend::Sm90F3Phase (&phase)[2],
+      unsigned stage,unsigned rep,unsigned repeats,bool previous_spanning) {
+    if constexpr(!std::is_same_v<First,Normal>)
+      if(rep==0)return PreissueAs<First>(b,shared,header,phase,stage,previous_spanning);
+    if constexpr(!std::is_same_v<Last,Normal>)
+      if(rep+1==repeats)return PreissueAs<Last>(b,shared,header,phase,stage,previous_spanning);
+    return PreissueAs<Normal>(b,shared,header,phase,stage,previous_spanning);
+  }
+  template<class S,class B>
+  __device__ static __forceinline__ void ProduceAs(B const& b,char* shared,
+      backend::Sm90F3Header* header,backend::Sm90F3Phase (&phase)[2],unsigned stage,int prefix) {
+    auto* arena=shared+backend::Sm90F3Budget::Offset(stage,S::kSharedBytes);
+    S::Produce(b,header->rings[stage%2],arena,arena+S::Kind::kSideOffset,phase[stage%2],prefix);
+  }
+  template<class B>
+  __device__ static __forceinline__ void Produce(B const& b,char* shared,
+      backend::Sm90F3Header* header,backend::Sm90F3Phase (&phase)[2],
+      unsigned stage,unsigned rep,unsigned repeats,int prefix) {
+    if constexpr(!std::is_same_v<First,Normal>)
+      if(rep==0) {ProduceAs<First>(b,shared,header,phase,stage,prefix);return;}
+    if constexpr(!std::is_same_v<Last,Normal>)
+      if(rep+1==repeats) {ProduceAs<Last>(b,shared,header,phase,stage,prefix);return;}
+    ProduceAs<Normal>(b,shared,header,phase,stage,prefix);
+  }
+  template<class S,class B>
+  __device__ static __forceinline__ void ConsumeAs(B const& b,char* shared,
+      backend::Sm90F3Header* header,backend::Sm90F3Phase (&phase)[2],unsigned stage,int wg) {
+    auto* arena=shared+backend::Sm90F3Budget::Offset(stage,S::kSharedBytes);
+    S::Consume(b,header->rings[stage%2],arena,arena+S::Kind::kSideOffset,phase[stage%2],header,wg);
+  }
+  template<class B>
+  __device__ static __forceinline__ void Consume(B const& b,char* shared,
+      backend::Sm90F3Header* header,backend::Sm90F3Phase (&phase)[2],
+      unsigned stage,unsigned rep,unsigned repeats,int wg) {
+    if constexpr(!std::is_same_v<First,Normal>)
+      if(rep==0) {ConsumeAs<First>(b,shared,header,phase,stage,wg);return;}
+    if constexpr(!std::is_same_v<Last,Normal>)
+      if(rep+1==repeats) {ConsumeAs<Last>(b,shared,header,phase,stage,wg);return;}
+    ConsumeAs<Normal>(b,shared,header,phase,stage,wg);
+  }
+};
+
+template<unsigned R,class... Stage>struct Repeat {};
+template<unsigned R,class... Stage>struct RepeatTables;
+
+template<int Batch,unsigned Buffers,unsigned Maps,class Before,unsigned R,
+    class... Body,class After,class Final>
+struct Program<Batch,Buffers,Maps,Before,Repeat<R,Body...>,After,Final> {
+  using Binding=Bindings<Buffers,Maps>;
+  using View=RepeatBindings<Binding,Buffers,Maps>;
+  using Tables=RepeatTables<R,Body...>;
+  using BodyMap=Lookup<std::make_integer_sequence<unsigned,sizeof...(Body)>,Body...>;
+  template<unsigned I>using At=typename decltype(Find<I>(BodyMap{}))::Type;
+  static constexpr bool kRepeated=true;
+  static constexpr unsigned kBody=sizeof...(Body),kStages=1+R*kBody+2;
+  static constexpr int kBatch=Batch,kThreads=384,kResidency=1,kCluster=1;
+  static constexpr unsigned kBuffers=Buffers,kMaps=Maps;
+  static constexpr int kSharedBytes=backend::Sm90F3Budget::kBudget;
+  static_assert(R>1 && kBody%2==0);
+  static_assert(sizeof(Binding)+256<32764);
+  static auto const& RepeatIndices() {return Tables::indices;}
+  static auto const& RepeatWeights() {return Tables::weights;}
+
+  __device__ static __forceinline__ void Gate(unsigned stage,ForwardCounter* events,
+      unsigned long long epoch,bool consumer) {
+    using A=backend::Sm90F3Async;
+    if(stage+1<kStages) {
+      if(consumer) {
+        A::template NamedBarrier<A::kBarConsumers,256>();
+        if(A::ThreadIndex()==0) {
+          A::GateArrive(&events[stage].arrivals);
+          A::GateWait(&events[stage].arrivals,epoch*gridDim.x);
+        }
+        A::template NamedBarrier<A::kBarGate,384>();
+      }else {
+        A::template NamedBarrier<A::kBarGate,384>();
+        if(A::ThreadIndex()==256 || A::ThreadIndex()==288)A::Base::ProxyAsyncGlobalFence();
+        __syncwarp();
+      }
+    }
+  }
+  __device__ static __forceinline__ void Prefetch(Binding const& b,unsigned stage) {
+    constexpr unsigned budget=24*1024*1024;
+    unsigned found=0,used=0;
+    for(unsigned i=stage+1;i<kStages;++i) {
+      auto info=b.repeat_weights[i];
+      if(!info.bytes)continue;
+      if(++found<TILEMEGA_F3_PREFETCH_DISTANCE)continue;
+      if(used+info.bytes>budget && used)break;
+      unsigned bytes=info.bytes<budget?info.bytes:budget;
+      unsigned part=((bytes+gridDim.x-1)/gridDim.x+15)/16*16;
+      unsigned begin=blockIdx.x*part,end=begin+part;
+      if(end>bytes)end=bytes;
+      auto* weight=reinterpret_cast<char const*>(b.buffers[info.buffer]);
+      for(unsigned offset=begin;offset<end;offset+=64*1024)
+        backend::Sm90F3Async::Base::Prefetch(weight+offset,
+            end-offset<64*1024?end-offset:64*1024);
+      used+=bytes;
+      if(found>TILEMEGA_F3_PREFETCH_DISTANCE || bytes>8*1024*1024)break;
+    }
+  }
+  template<class S>
+  __device__ static __forceinline__ void StaticConsume(Binding const& b,char* shared,
+      backend::Sm90F3Header* header,backend::Sm90F3Phase (&phase)[2],
+      unsigned stage,int wg,ForwardCounter* events,unsigned long long epoch) {
+    TM_F3_TRACE_ENTER(stage);
+    auto* arena=shared+backend::Sm90F3Budget::Offset(stage,S::kSharedBytes);
+    S::Consume(b,header->rings[stage%2],arena,arena+S::Kind::kSideOffset,phase[stage%2],header,wg);
+    TM_F3_TRACE_ARRIVE();Gate(stage,events,epoch,true);TM_F3_TRACE_LEAVE();
+  }
+  template<unsigned I>
+  __device__ static __forceinline__ void BodyConsume(View const& b,char* shared,
+      backend::Sm90F3Header* header,backend::Sm90F3Phase (&phase)[2],unsigned rep,
+      int wg,ForwardCounter* events,unsigned long long epoch) {
+    unsigned stage=1+rep*kBody+I;
+    TM_F3_TRACE_ENTER(stage);
+    At<I>::Consume(b,shared,header,phase,stage,rep,R,wg);
+    TM_F3_TRACE_ARRIVE();Gate(stage,events,epoch,true);TM_F3_TRACE_LEAVE();
+  }
+  template<unsigned... I>
+  __device__ static __forceinline__ void RepeatedConsumer(Binding const& b,char* shared,
+      backend::Sm90F3Header* header,backend::Sm90F3Phase (&phase)[2],int wg,
+      ForwardCounter* events,unsigned long long epoch,std::integer_sequence<unsigned,I...>) {
+    #pragma unroll 1
+    for(unsigned rep=0;rep<R;++rep) {
+      View view{b,rep};
+      (BodyConsume<I>(view,shared,header,phase,rep,wg,events,epoch),...);
+    }
+  }
+  template<class Sequence>
+  __device__ static __forceinline__ void ConsumerLoop(Binding const& b,char* shared,
+      ForwardCounter* events,unsigned long long epoch,Sequence) {
+    auto* header=reinterpret_cast<backend::Sm90F3Header*>(shared);
+    backend::Sm90F3Phase phase[2]{};int wg=threadIdx.x/128;
+    StaticConsume<Before>(b,shared,header,phase,0,wg,events,epoch);
+    RepeatedConsumer(b,shared,header,phase,wg,events,epoch,
+        std::make_integer_sequence<unsigned,kBody>{});
+    StaticConsume<After>(b,shared,header,phase,kStages-2,wg,events,epoch);
+    StaticConsume<Final>(b,shared,header,phase,kStages-1,wg,events,epoch);
+  }
+  template<class S>
+  __device__ static __forceinline__ void StaticProduce(Binding const& b,char* shared,
+      backend::Sm90F3Header* header,backend::Sm90F3Phase (&phase)[2],unsigned stage,int prefix) {
+    if(backend::Sm90F3Async::ThreadIndex()==288)Prefetch(b,stage);
+    auto* arena=shared+backend::Sm90F3Budget::Offset(stage,S::kSharedBytes);
+    S::Produce(b,header->rings[stage%2],arena,arena+S::Kind::kSideOffset,phase[stage%2],prefix);
+  }
+  template<unsigned I>
+  __device__ static __forceinline__ void BodyProduce(View const& view,char* shared,
+      backend::Sm90F3Header* header,backend::Sm90F3Phase (&phase)[2],unsigned rep,
+      int& prefix,ForwardCounter* events,unsigned long long epoch) {
+    unsigned stage=1+rep*kBody+I;
+    if(backend::Sm90F3Async::ThreadIndex()==288)Prefetch(view.base,stage);
+    At<I>::Produce(view,shared,header,phase,stage,rep,R,prefix);
+    bool spanning=At<I>::Spanning(rep,R);
+    if constexpr(I+1<kBody)
+      prefix=At<I+1>::Preissue(view,shared,header,phase,stage+1,rep,R,spanning);
+    else {
+      if(rep+1<R) {
+        View next{view.base,rep+1};
+        prefix=At<0>::Preissue(next,shared,header,phase,stage+1,rep+1,R,spanning);
+      }else prefix=RepeatStage<After>::Preissue(view.base,shared,header,phase,stage+1,0,1,spanning);
+    }
+    Gate(stage,events,epoch,false);
+  }
+  template<unsigned... I>
+  __device__ static __forceinline__ void RepeatedProducer(Binding const& b,char* shared,
+      backend::Sm90F3Header* header,backend::Sm90F3Phase (&phase)[2],int& prefix,
+      ForwardCounter* events,unsigned long long epoch,std::integer_sequence<unsigned,I...>) {
+    #pragma unroll 1
+    for(unsigned rep=0;rep<R;++rep) {
+      View view{b,rep};
+      (BodyProduce<I>(view,shared,header,phase,rep,prefix,events,epoch),...);
+    }
+  }
+  template<class Sequence>
+  __device__ static __forceinline__ void ProducerLoop(Binding const& b,char* shared,
+      ForwardCounter* events,unsigned long long epoch,Sequence) {
+    auto* header=reinterpret_cast<backend::Sm90F3Header*>(shared);
+    backend::Sm90F3Phase phase[2]{};
+    StaticProduce<Before>(b,shared,header,phase,0,0);
+    View first{b,0};
+    int prefix=At<0>::Preissue(first,shared,header,phase,1,0,R,RepeatStage<Before>::template Span<Before>());
+    Gate(0,events,epoch,false);
+    RepeatedProducer(b,shared,header,phase,prefix,events,epoch,
+        std::make_integer_sequence<unsigned,kBody>{});
+    StaticProduce<After>(b,shared,header,phase,kStages-2,prefix);
+    prefix=RepeatStage<Final>::Preissue(b,shared,header,phase,kStages-1,0,1,
+        RepeatStage<After>::template Span<After>());
+    Gate(kStages-2,events,epoch,false);
+    StaticProduce<Final>(b,shared,header,phase,kStages-1,prefix);
   }
 };
 

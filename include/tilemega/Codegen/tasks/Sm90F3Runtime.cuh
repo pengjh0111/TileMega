@@ -44,6 +44,23 @@ struct Plan {
   }
 };
 
+template<class P>
+inline void InstallRepeatTables(Plan& plan) {
+  if constexpr(P::kRepeated) {
+    auto const& indices=P::RepeatIndices();
+    auto const& weights=P::RepeatWeights();
+    void* index_device=nullptr;void* weight_device=nullptr;
+    Check(cudaMalloc(&index_device,sizeof(indices)));
+    plan.owned.push_back(index_device);
+    Check(cudaMemcpy(index_device,indices.data(),sizeof(indices),cudaMemcpyHostToDevice));
+    Check(cudaMalloc(&weight_device,sizeof(weights)));
+    plan.owned.push_back(weight_device);
+    Check(cudaMemcpy(weight_device,weights.data(),sizeof(weights),cudaMemcpyHostToDevice));
+    plan.bindings.repeat_indices=static_cast<unsigned const*>(index_device);
+    plan.bindings.repeat_weights=static_cast<RepeatWeight const*>(weight_device);
+  }
+}
+
 inline cudaLaunchConfig_t LaunchConfig(Plan const& plan,cudaStream_t stream,
     cudaLaunchAttribute& cluster) {
   cudaLaunchConfig_t config{};
@@ -154,6 +171,7 @@ extern "C" void* tm_plan_create(int batch,void* const* external,int device) {
     Check(cudaMemcpy(plan->device_buffers,plan->host_buffers.data(),
         plan->host_buffers.size()*sizeof(Element*),cudaMemcpyHostToDevice));
     plan->bindings.buffers=plan->device_buffers;
+    InstallRepeatTables<F3ForwardProgram>(*plan);
     for(unsigned i=0;i<kF3ForwardMaps.size();++i) {
       auto const& m=kF3ForwardMaps[i];
       namespace ex=tilemega::codegen::executor;

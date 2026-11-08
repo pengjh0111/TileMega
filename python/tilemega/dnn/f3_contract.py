@@ -15,6 +15,77 @@ def body_of(stage):
     return BODIES[stage['body']]
 
 
+def repeat_program(manifest, source, program, buffers, maps, bodies):
+    if len(manifest['native_forward']['stages']) != 63:
+        raise ValueError('F3 Repeat requires the complete twelve-layer BERT program')
+    if program[4] != ',Stage_0,Repeat<6' + ''.join(',Loop_' + str(i) for i in range(10)) + '>,Stage_61,Stage_62':
+        raise ValueError('F3 Repeat logical stage coverage differs from manifest')
+    loops = re.findall(r'using Loop_(\d+)=(RepeatStage<[^;]+>);', source)
+    expected = []
+    for i in range(10):
+        normal = f'Wrap_{11+i}'
+        first = f'GemmStage<Body_{1+i},Bind_{11+i},Shape_{1+i}>' if i in (0, 2) else normal
+        last = ',GemmStage<Body_60,Bind_20,Shape_60>' if i == 9 else ''
+        expected.append((str(i), f'RepeatStage<{normal},{first}{last}>'))
+    if loops != expected:
+        raise ValueError('F3 Repeat edge variants differ from their logical stages')
+    shapes = dict(re.findall(r'struct Shape_(\d+) \{([^}]+)\};', source))
+    bindings = {}
+    for index, fields in re.findall(r'struct Bind_(\d+) \{([^}]+)\};', source):
+        bindings[int(index)] = dict(re.findall(r'(k\w+)=(kAbsent|\d+)', fields))
+    bf = ('kInput kWeight kOutput kPartial kCounters kVector0 kVector1 kVector2 kVector3 '
+          'kResidual kStats kRowStats kRowPartials kRowCounters kChannelPartial kIndex0 kIndex1 kTable').split()
+    mf = 'kMap kResidualMap kQueryMap kValueMap kOutputMap'.split()
+    if len(bindings) != 63 or any(set(b) != set(bf+mf) for b in bindings.values()):
+        raise ValueError('F3 Repeat operand bindings are incomplete')
+    count, nmap = int(buffers[1]), int(maps[1])
+    indices = re.findall(r'std::array<unsigned,(\d+)> indices=\{\{([^}]+)\}\};', source)
+    tables = re.findall(r'template<>struct RepeatTables<6([^>]+)>', source)
+    if (len(indices) != 1 or int(indices[0][0]) != 6*(count+nmap)
+            or tables != [''.join(',Loop_' + str(i) for i in range(10))]):
+        raise ValueError('F3 Repeat binding table dimensions differ from program')
+    tokens = [t.strip() for t in indices[0][1].split(',') if t.strip()]
+    if any(re.fullmatch(r'kAbsent|\d+u?', t) is None for t in tokens):
+        raise ValueError('F3 Repeat remap contains a nonliteral index')
+    tokens = [t.removesuffix('u') for t in tokens]
+    expected_indices = []
+    for rep in range(6):
+        row = [str(i) for i in range(count)] + [str(i) for i in range(nmap)]
+        assigned = {}
+        for i in range(10):
+            actual, canonical = 1+10*rep+i, 11+i
+            edge = (rep == 0 and i in (0, 2)) or (rep == 5 and i == 9)
+            if not edge and (bodies[str(actual)][1:] != bodies[str(canonical)][1:]
+                             or shapes.get(str(actual)) != shapes.get(str(canonical))):
+                raise ValueError('F3 Repeat changes a nonperiodic stage body')
+            if actual not in bindings or canonical not in bindings:
+                raise ValueError('F3 Repeat stage binding is missing')
+            for fields, offset, limit in ((bf, 0, count), (mf, count, nmap)):
+                for field in fields:
+                    before, after = bindings[canonical][field], bindings[actual][field]
+                    if before == 'kAbsent':
+                        if after != 'kAbsent':
+                            raise ValueError('F3 Repeat adds an unbound edge operand')
+                        continue
+                    if int(before) >= limit or (after != 'kAbsent' and int(after) >= limit):
+                        raise ValueError('F3 Repeat binding index is out of range')
+                    position = offset + int(before)
+                    if position in assigned and assigned[position] != after:
+                        raise ValueError('F3 Repeat canonical binding aliases conflict')
+                    assigned[position] = after
+                    row[position] = after
+        expected_indices += row
+    if tokens != expected_indices:
+        raise ValueError('F3 Repeat binding remap differs from logical stage bindings')
+    weights = re.findall(r'std::array<RepeatWeight,63> weights=\{\{([^;]+)\}\};', source)
+    expected_weights = []
+    for i, stage in enumerate(manifest['native_forward']['stages']):
+        expected_weights.append(f'{{Bind_{i}::kWeight,unsigned(Wrap_{i}::kWeightBytes)}}'
+                                if stage['body'] in ('gemm', 'conv') else '{kAbsent,0}')
+    if len(weights) != 1 or re.sub(r'\s+', '', weights[0]) != ','.join(expected_weights) + ',':
+        raise ValueError('F3 Repeat weight prefetch table differs from logical stages')
+
+
 def validate(manifest, defines):
     c = manifest['native_forward']
     if (c.get('schema') not in (3, 4) or c.get('abi') != 'f3' or c.get('model') != 'dnn'
@@ -127,15 +198,19 @@ def dispatch(manifest, defines, source):
         if not valid:
             raise ValueError(f'F3 stage {index} differs from its coordinate or batch')
         result.append(dict(index=index, body=stage['body'], task_body=name, stage_wrapper=wrapper))
-    program = re.search(r'using F3ForwardProgram=Program<(\d+),(\d+),(\d+)((?:,Stage_\d+)+)>;', source)
+    program = re.search(r'using F3ForwardProgram=Program<(\d+),(\d+),(\d+)([^;]+)>;', source)
     buffers = re.search(r'std::array<tm_buffer_info,(\d+)> kF3ForwardBuffers=', source)
     maps = re.search(r'std::array<ForwardMapSpec,(\d+)> kF3ForwardMaps=', source)
     if (program is None or int(program[1]) != manifest['runtime_batch']
             or buffers is None or int(program[2]) != int(buffers[1])
             or int(program[2]) < len(manifest['buffers'])
-            or maps is None or int(program[3]) != int(maps[1])
-            or re.findall(r'Stage_(\d+)', program[4]) != [str(i) for i in range(count)]):
+            or maps is None or int(program[3]) != int(maps[1])):
         raise ValueError('F3 program structure differs from manifest')
+    if 'Repeat<' in program[4]:
+        repeat_program(manifest, source, program, buffers, maps, bodies)
+    elif (program[4] != ''.join(',Stage_' + str(i) for i in range(count))
+          or re.search(r'\b(?:Repeat|RepeatTables|RepeatStage)<', source)):
+        raise ValueError('F3 program stage coverage differs from manifest')
     return result
 
 
