@@ -471,7 +471,9 @@ struct Program<Batch,Buffers,Maps,Before,Repeat<R,Body...>,After,Final> {
   static constexpr int kBatch=Batch,kThreads=384,kResidency=1,kCluster=1;
   static constexpr unsigned kBuffers=Buffers,kMaps=Maps;
   static constexpr int kSharedBytes=backend::Sm90F3Budget::kBudget;
-  static_assert(R>1 && kBody%2==0);
+  // Arena and phase selection use the logical stage, including odd bodies
+  // whose first stage alternates arenas on successive repetitions.
+  static_assert(R>1 && kBody>0);
   static_assert(sizeof(Binding)+256<32764);
   static auto const& RepeatIndices() {return Tables::indices;}
   static auto const& RepeatWeights() {return Tables::weights;}

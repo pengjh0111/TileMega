@@ -18,14 +18,20 @@ def body_of(stage):
 def repeat_program(manifest, source, program, buffers, maps, bodies):
     if len(manifest['native_forward']['stages']) != 63:
         raise ValueError('F3 Repeat requires the complete twelve-layer BERT program')
-    if program[4] != ',Stage_0,Repeat<6' + ''.join(',Loop_' + str(i) for i in range(10)) + '>,Stage_61,Stage_62':
+    repeated = re.fullmatch(r',Stage_0,Repeat<(6|12)((?:,Loop_\d+)+)>,Stage_61,Stage_62', program[4])
+    if repeated is None:
+        raise ValueError('F3 Repeat logical stage coverage differs from manifest')
+    repetitions = int(repeated[1])
+    body = 60//repetitions
+    if repeated[2] != ''.join(',Loop_' + str(i) for i in range(body)):
         raise ValueError('F3 Repeat logical stage coverage differs from manifest')
     loops = re.findall(r'using Loop_(\d+)=(RepeatStage<[^;]+>);', source)
     expected = []
-    for i in range(10):
-        normal = f'Wrap_{11+i}'
-        first = f'GemmStage<Body_{1+i},Bind_{11+i},Shape_{1+i}>' if i in (0, 2) else normal
-        last = ',GemmStage<Body_60,Bind_20,Shape_60>' if i == 9 else ''
+    for i in range(body):
+        canonical = 1+body+i
+        normal = f'Wrap_{canonical}'
+        first = f'GemmStage<Body_{1+i},Bind_{canonical},Shape_{1+i}>' if i in (0, 2) else normal
+        last = f',GemmStage<Body_60,Bind_{canonical},Shape_60>' if i+1 == body else ''
         expected.append((str(i), f'RepeatStage<{normal},{first}{last}>'))
     if loops != expected:
         raise ValueError('F3 Repeat edge variants differ from their logical stages')
@@ -40,21 +46,21 @@ def repeat_program(manifest, source, program, buffers, maps, bodies):
         raise ValueError('F3 Repeat operand bindings are incomplete')
     count, nmap = int(buffers[1]), int(maps[1])
     indices = re.findall(r'std::array<unsigned,(\d+)> indices=\{\{([^}]+)\}\};', source)
-    tables = re.findall(r'template<>struct RepeatTables<6([^>]+)>', source)
-    if (len(indices) != 1 or int(indices[0][0]) != 6*(count+nmap)
-            or tables != [''.join(',Loop_' + str(i) for i in range(10))]):
+    tables = re.findall(r'template<>struct RepeatTables<'+str(repetitions)+r'([^>]+)>', source)
+    if (len(indices) != 1 or int(indices[0][0]) != repetitions*(count+nmap)
+            or tables != [''.join(',Loop_' + str(i) for i in range(body))]):
         raise ValueError('F3 Repeat binding table dimensions differ from program')
     tokens = [t.strip() for t in indices[0][1].split(',') if t.strip()]
     if any(re.fullmatch(r'kAbsent|\d+u?', t) is None for t in tokens):
         raise ValueError('F3 Repeat remap contains a nonliteral index')
     tokens = [t.removesuffix('u') for t in tokens]
     expected_indices = []
-    for rep in range(6):
+    for rep in range(repetitions):
         row = [str(i) for i in range(count)] + [str(i) for i in range(nmap)]
         assigned = {}
-        for i in range(10):
-            actual, canonical = 1+10*rep+i, 11+i
-            edge = (rep == 0 and i in (0, 2)) or (rep == 5 and i == 9)
+        for i in range(body):
+            actual, canonical = 1+body*rep+i, 1+body+i
+            edge = (rep == 0 and i in (0, 2)) or (rep+1 == repetitions and i+1 == body)
             if not edge and (bodies[str(actual)][1:] != bodies[str(canonical)][1:]
                              or shapes.get(str(actual)) != shapes.get(str(canonical))):
                 raise ValueError('F3 Repeat changes a nonperiodic stage body')

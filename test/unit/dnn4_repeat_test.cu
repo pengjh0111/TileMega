@@ -19,6 +19,11 @@ constexpr bool kPp=false;
 #endif
 constexpr int kTileM=kPp?DNN4_PP_TILE_M:128;
 constexpr int kM=kTileM*67-3,kN=256,kCount=kPp?29:28,kMaps=kPp?14:12;
+#ifdef DNN4_ODD_REPEAT_TEST
+constexpr bool kOdd=true;
+#else
+constexpr bool kOdd=false;
+#endif
 void Check(cudaError_t c){if(c!=cudaSuccess)throw std::runtime_error(cudaGetErrorString(c));}
 template<class T>struct Device {
  T* data;std::size_t count;
@@ -49,6 +54,9 @@ template<int Slots>using B=GemmStage<Sm90F3Gemm<kTileM,64,Slots,1,Sm90F3Mode::kN
     kM,kN,kN,kN,ChainB,Sm90F3NoConv,Sm90F3NoPool,64,false,false,kPp>,Bind<1,2,17,3>,Shape>;
 using LoopA=RepeatStage<A<3>,A<6>>;
 using LoopB=RepeatStage<B<4>,B<4>,B<8>>;
+template<int Slots>using C=GemmStage<Sm90F3Gemm<128,64,Slots,1,Sm90F3Mode::kNormal,
+    kM,kN,kN,kN,Plain<64>>,Bind<2,3,18,4>,Shape>;
+using LoopC=RepeatStage<C<4>,C<4>,C<8>>;
 template<unsigned Input,unsigned Output>struct Copy {
  struct Kind {static constexpr int kSideOffset=0;};
  static constexpr int kSharedBytes=0;
@@ -61,17 +69,18 @@ template<unsigned Input,unsigned Output>struct Copy {
    for(int i=int(blockIdx.x)*256+int(threadIdx.x);i<kM*kN;i+=int(gridDim.x)*256)dst[i]=src[i];
  }
 };
-namespace tilemega::codegen::forward_f3 {
-template<>struct RepeatTables<6,LoopA,LoopB> {
- inline static const std::array<unsigned,6*(kCount+kMaps)> indices=[] {
-   std::array<unsigned,6*(kCount+kMaps)> x{};
-   for(unsigned r=0;r<6;++r) {
+struct TestTables {
+ static constexpr unsigned kRepetitions=kOdd?4:6,kStages=kOdd?3:2;
+ inline static const std::array<unsigned,kRepetitions*(kCount+kMaps)> indices=[] {
+   std::array<unsigned,kRepetitions*(kCount+kMaps)> x{};
+   for(unsigned r=0;r<kRepetitions;++r) {
      auto* row=x.data()+r*(kCount+kMaps);
      for(unsigned i=0;i<kCount;++i)row[i]=i;
      for(unsigned i=0;i<kMaps;++i)row[kCount+i]=i;
-     row[1]=1+2*r;row[2]=2+2*r;row[3]=3+2*r;
-     row[16]=16+2*r;row[17]=17+2*r;
-     row[kCount]=2*r;row[kCount+1]=2*r+1;
+     for(unsigned j=0;j<=kStages;++j)row[1+j]=1+kStages*r+j;
+     for(unsigned j=0;j<kStages;++j) {
+       row[16+j]=16+kStages*r+j;row[kCount+j]=kStages*r+j;
+     }
    }
    return x;
  }();
@@ -81,14 +90,17 @@ template<>struct RepeatTables<6,LoopA,LoopB> {
    if(kPp) {x[0]={16,2*kN*kN};x[13]={17,2*kN*kN};}
    return x;
  }();
-}
-;
+};
+namespace tilemega::codegen::forward_f3 {
+template<>struct RepeatTables<6,LoopA,LoopB>:TestTables {};
+template<>struct RepeatTables<4,LoopA,LoopB,LoopC>:TestTables {};
 }
 using Before=std::conditional_t<kPp,GemmStage<Sm90F3Gemm<128,128,3,1,Sm90F3Mode::kNormal,
     kM,kN,kN,kN,ChainA>,Bind<12,0,16,1>,Shape>,Copy<0,1>>;
 using After=std::conditional_t<kPp,GemmStage<Sm90F3Gemm<128,64,4,1,Sm90F3Mode::kNormal,
     kM,kN,kN,kN,ChainB>,Bind<13,13,17,14>,Shape>,Copy<13,14>>;
-using P=Program<1,kCount,kMaps,Before,Repeat<6,LoopA,LoopB>,After,Copy<14,15>>;
+using Repeated=std::conditional_t<kOdd,Repeat<4,LoopA,LoopB,LoopC>,Repeat<6,LoopA,LoopB>>;
+using P=Program<1,kCount,kMaps,Before,Repeated,After,Copy<14,15>>;
 int main()try {
  std::array<E*,kCount> buffers{};
  for(unsigned i=0;i<kCount;++i)Check(cudaMalloc(&buffers[i],sizeof(E)*(i<16?kM*kN:kN*kN)));
@@ -97,7 +109,7 @@ int main()try {
  Check(cudaMemcpy(buffers[0],input.data(),input.size()*2,cudaMemcpyHostToDevice));
  P::Binding binding{};
  for(unsigned i=0;i<12;++i) {
-   unsigned tn=i%2?64:128;std::vector<E> packed(kN*kN,E(0));
+   unsigned tn=(kOdd?i%3!=0:i%2)?64:128;std::vector<E> packed(kN*kN,E(0));
    float scale=i%3==0?.5f:1.f;
    for(unsigned n=0;n<kN;++n) {
      unsigned row=n%tn,col=n%64;

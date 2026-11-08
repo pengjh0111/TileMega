@@ -18,7 +18,8 @@ import sys
 import time
 
 ROOT = Path(os.environ.get('TILEMEGA_DNN4_REPO', Path(__file__).resolve().parents[1]))
-SOURCES = dict(pingpong128=ROOT / 'test/unit/dnn4_repeat_test.cu',
+SOURCES = dict(repeat_odd=ROOT / 'test/unit/dnn4_repeat_test.cu',
+               pingpong128=ROOT / 'test/unit/dnn4_repeat_test.cu',
                pingpong=ROOT / 'test/unit/dnn4_repeat_test.cu',
                repeat=ROOT / 'test/unit/dnn4_repeat_test.cu',
                multicast=ROOT / 'test/unit/dnn4_multicast_test.cu',
@@ -150,6 +151,8 @@ def main():
         command.insert(-4, '-DDNN4_PP_TEST=1')
     if options.suite == 'pingpong128':
         command.insert(-4, '-DDNN4_PP_TILE_M=256')
+    if options.suite == 'repeat_odd':
+        command.insert(-4, '-DDNN4_ODD_REPEAT_TEST=1')
     with log.open('w') as stream:
         done = subprocess.run(command, cwd=ROOT, env=dict(os.environ, CUDA_VISIBLE_DEVICES=''),
                               stdout=stream, stderr=subprocess.STDOUT, timeout=1800)

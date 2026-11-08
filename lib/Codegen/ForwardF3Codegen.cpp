@@ -205,10 +205,17 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
   // model comparison. VGG16 B16 currently regresses4.56% in P-PAIR.
   bool enable_tma_stem=false;
   bool enable_repeat=false;
+  unsigned repeat_layers=2;
   if(auto* setting=std::getenv("TILEMEGA_F3_REPEAT")) {
     std::string value=setting;
     if(value!="0" && value!="1")throw std::invalid_argument("TILEMEGA_F3_REPEAT must be0 or1");
     enable_repeat=value=="1";
+  }
+  if(auto* setting=std::getenv("TILEMEGA_F3_REPEAT_LAYERS")) {
+    std::string value=setting;
+    if(value!="1" && value!="2")
+      throw std::invalid_argument("TILEMEGA_F3_REPEAT_LAYERS must be1 or2");
+    repeat_layers=value=="1"?1:2;
   }
   if(auto* setting=std::getenv("TILEMEGA_F3_TMA_STEM")) {
     std::string value=setting;
@@ -631,14 +638,15 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
     repeat_shapes.push_back(shape.Emit(0));repeat_wrappers.push_back(wrapper);
   }
 
+  unsigned repeat_body=5*repeat_layers,repetitions=12/repeat_layers;
   bool repeated=enable_repeat && stages.size()==63 &&
       coordinates.stages[0].body==Sm90ForwardBody::kEmbedding &&
       coordinates.stages[61].body==Sm90ForwardBody::kLayerNorm;
   // A single-layer search alternative may break periodicity. Preserve those
   // coordinates using the flat program rather than silently replacing them.
-  if(repeated)for(unsigned rep=0;rep<6;++rep)for(unsigned i=0;i<10;++i) {
-    unsigned actual=1+10*rep+i,canonical=11+i;
-    bool edge=(rep==0 && (i==0 || i==2)) || (rep==5 && i==9);
+  if(repeated)for(unsigned rep=0;rep<repetitions;++rep)for(unsigned i=0;i<repeat_body;++i) {
+    unsigned actual=1+repeat_body*rep+i,canonical=1+repeat_body+i;
+    bool edge=(rep==0 && (i==0 || i==2)) || (rep+1==repetitions && i+1==repeat_body);
     if(!edge && (repeat_bodies[actual]!=repeat_bodies[canonical] ||
         repeat_shapes[actual]!=repeat_shapes[canonical]))repeated=false;
     if(repeat_wrappers[actual]!=repeat_wrappers[canonical] || coordinates.stages[actual].mc)
@@ -648,8 +656,8 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
   std::vector<unsigned> remapping;
   if(repeated) {
     unsigned stride=count+map_count;
-    remapping.resize(6*stride);
-    for(unsigned rep=0;rep<6;++rep) {
+    remapping.resize(repetitions*stride);
+    for(unsigned rep=0;rep<repetitions;++rep) {
       std::vector<bool> assigned(stride,false);
       for(unsigned i=0;i<count;++i)remapping[rep*stride+i]=i;
       for(unsigned i=0;i<map_count;++i)remapping[rep*stride+count+i]=i;
@@ -665,9 +673,9 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
           assigned[id]=true;remapping[position]=to[j];
         }
       };
-      for(unsigned i=0;i<10;++i) {
-        auto const& canonical=repeat_bindings[11+i];
-        auto const& actual=repeat_bindings[1+10*rep+i];
+      for(unsigned i=0;i<repeat_body;++i) {
+        auto const& canonical=repeat_bindings[1+repeat_body+i];
+        auto const& actual=repeat_bindings[1+repeat_body*rep+i];
         assign(canonical.Buffers(),actual.Buffers(),0);
         assign(canonical.Maps(),actual.Maps(),count);
       }
@@ -682,16 +690,17 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
        <<"ull,0ull,\"\"},\n";
   out<<"}};\n"<<types.str();
   if(repeated) {
-    for(unsigned i=0;i<10;++i) {
-      out<<"using Loop_"<<i<<"=RepeatStage<Wrap_"<<11+i;
+    for(unsigned i=0;i<repeat_body;++i) {
+      unsigned canonical=1+repeat_body+i;
+      out<<"using Loop_"<<i<<"=RepeatStage<Wrap_"<<canonical;
       if(i==0 || i==2)
-        out<<','<<repeat_wrappers[1+i]<<"<Body_"<<1+i<<",Bind_"<<11+i<<",Shape_"<<1+i<<">";
-      else out<<",Wrap_"<<11+i;
-      if(i==9)out<<','<<repeat_wrappers[60]<<"<Body_60,Bind_20,Shape_60>";
+        out<<','<<repeat_wrappers[1+i]<<"<Body_"<<1+i<<",Bind_"<<canonical<<",Shape_"<<1+i<<">";
+      else out<<",Wrap_"<<canonical;
+      if(i+1==repeat_body)out<<','<<repeat_wrappers[60]<<"<Body_60,Bind_"<<canonical<<",Shape_60>";
       out<<">;\n";
     }
-    out<<"template<>struct RepeatTables<6";
-    for(unsigned i=0;i<10;++i)out<<",Loop_"<<i;
+    out<<"template<>struct RepeatTables<"<<repetitions;
+    for(unsigned i=0;i<repeat_body;++i)out<<",Loop_"<<i;
     out<<"> {\n  inline static constexpr std::array<unsigned,"<<remapping.size()<<"> indices={{\n";
     for(unsigned i=0;i<remapping.size();++i) {
       if(i%24==0)out<<"    ";
@@ -708,8 +717,8 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
   }else if(enable_repeat)out<<"// F3 Repeat declined: nonperiodic stage types or coordinates.\n";
   out<<"using F3ForwardProgram=Program<"<<model_batch<<','<<count<<','<<map_count;
   if(repeated) {
-    out<<",Stage_0,Repeat<6";
-    for(unsigned i=0;i<10;++i)out<<",Loop_"<<i;
+    out<<",Stage_0,Repeat<"<<repetitions;
+    for(unsigned i=0;i<repeat_body;++i)out<<",Loop_"<<i;
     out<<">,Stage_61,Stage_62";
   }else for(auto const& name:placements)out<<','<<name;
   out<<">;\n"
