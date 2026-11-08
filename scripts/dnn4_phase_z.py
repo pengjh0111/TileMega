@@ -156,7 +156,7 @@ class Cell:
 
     def execute(self):
         lock = (self.out / 'cell.lock').open('w')
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fcntl.flock(lock, fcntl.LOCK_EX)
         if (self.out / 'result.json').exists():
             return
         receipt = read(self.source / 'winner.cu.search/receipt.json')
