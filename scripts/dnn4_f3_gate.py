@@ -19,6 +19,7 @@ import time
 
 ROOT = Path(os.environ.get('TILEMEGA_DNN4_REPO', Path(__file__).resolve().parents[1]))
 SOURCES = dict(repeat_odd=ROOT / 'test/unit/dnn4_repeat_test.cu',
+               repeat_alias=ROOT / 'test/unit/dnn4_repeat_test.cu',
                bert_side_norm=ROOT / 'test/unit/dnn4_bert_test.cu',
                pingpong128=ROOT / 'test/unit/dnn4_repeat_test.cu',
                pingpong=ROOT / 'test/unit/dnn4_repeat_test.cu',
@@ -127,7 +128,7 @@ def main():
     parser.add_argument('--case', choices=('all', 'gather', 'pool', 'split', 'conv', 'swap', 'small'), default='all')
     parser.add_argument('--execute', action='store_true')
     options = parser.parse_args()
-    if options.register_budget and options.suite not in ('repeat', 'repeat_odd'):
+    if options.register_budget and options.suite not in ('repeat', 'repeat_odd', 'repeat_alias'):
         parser.error('--register-budget requires a Repeat suite')
     if options.execute:
         return execute(options)
@@ -157,6 +158,8 @@ def main():
         command.insert(-4, '-DDNN4_PP_TILE_M=256')
     if options.suite == 'repeat_odd':
         command.insert(-4, '-DDNN4_ODD_REPEAT_TEST=1')
+    if options.suite == 'repeat_alias':
+        command.insert(-4, '-DDNN4_ALIAS_REPEAT_TEST=1')
     if options.register_budget:
         command.insert(-4, '-DTILEMEGA_F3_REGISTER_BUDGET=1')
     if options.suite == 'bert_side_norm':

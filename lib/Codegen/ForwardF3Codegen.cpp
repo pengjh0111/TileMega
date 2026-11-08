@@ -48,9 +48,20 @@ struct F3Binding {
         residual,stats,row_stats,row_partials,row_counters,channel_partial,index0,index1,table};
   }
   std::vector<unsigned> Maps() const {return {map,residual_map,query_map,value_map,output_map};}
-  std::string Emit(unsigned index) const {
+  F3Binding Unaliased(unsigned& buffers,unsigned& maps) const {
+    auto result=*this;
+    for(auto* id:{&result.input,&result.weight,&result.output,&result.partial,&result.counters,
+        &result.vector[0],&result.vector[1],&result.vector[2],&result.vector[3],
+        &result.residual,&result.stats,&result.row_stats,&result.row_partials,
+        &result.row_counters,&result.channel_partial,&result.index0,&result.index1,&result.table})
+      if(*id!=kAbsent)*id=buffers++;
+    for(auto* id:{&result.map,&result.residual_map,&result.query_map,&result.value_map,&result.output_map})
+      if(*id!=kAbsent)*id=maps++;
+    return result;
+  }
+  std::string Emit(unsigned index,char const* prefix="Bind_") const {
     std::ostringstream out;
-    out<<"struct Bind_"<<index<<" {\n  static constexpr unsigned kMap="<<Identifier(map)
+    out<<"struct "<<prefix<<index<<" {\n  static constexpr unsigned kMap="<<Identifier(map)
        <<",kResidualMap="<<Identifier(residual_map)
        <<",kQueryMap="<<Identifier(query_map)<<",kValueMap="<<Identifier(value_map)
        <<",kOutputMap="<<Identifier(output_map)
@@ -679,32 +690,46 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
   }
   auto count=unsigned(buffers.size()+scratch.size()),map_count=unsigned(maps.specs.size());
   std::vector<unsigned> remapping;
+  std::vector<F3Binding> loop_bindings;
+  bool alias_remap=false;
   if(repeated) {
     unsigned stride=count+map_count;
     remapping.resize(repetitions*stride);
-    for(unsigned rep=0;rep<repetitions && repeated;++rep) {
-      std::vector<bool> assigned(stride,false);
-      for(unsigned i=0;i<count;++i)remapping[rep*stride+i]=i;
-      for(unsigned i=0;i<map_count;++i)remapping[rep*stride+count+i]=i;
-      auto assign=[&](std::vector<unsigned> const& from,std::vector<unsigned> const& to,unsigned offset) {
-        for(unsigned j=0;j<from.size();++j) {
-          if(from[j]==kAbsent) {
-            if(to[j]!=kAbsent)repeated=false;
-            continue;
+    for(unsigned i=0;i<repeat_body;++i)loop_bindings.push_back(repeat_bindings[1+repeat_body+i]);
+    auto remap=[&]() {
+      bool valid=true;
+      for(unsigned rep=0;rep<repetitions && valid;++rep) {
+        std::vector<bool> assigned(stride,false);
+        for(unsigned i=0;i<count;++i)remapping[rep*stride+i]=i;
+        for(unsigned i=0;i<map_count;++i)remapping[rep*stride+count+i]=i;
+        auto assign=[&](std::vector<unsigned> const& from,std::vector<unsigned> const& to,unsigned offset) {
+          for(unsigned j=0;j<from.size();++j) {
+            if(from[j]==kAbsent) {
+              if(to[j]!=kAbsent)valid=false;
+              continue;
+            }
+            unsigned id=offset+from[j],position=rep*stride+id;
+            if(assigned[id] && remapping[position]!=to[j])valid=false;
+            assigned[id]=true;remapping[position]=to[j];
           }
-          unsigned id=offset+from[j],position=rep*stride+id;
-          // Reused buffers can alias differently in another layer. A shared
-          // remap cannot express that plan; its flat program remains valid.
-          if(assigned[id] && remapping[position]!=to[j])repeated=false;
-          assigned[id]=true;remapping[position]=to[j];
+        };
+        for(unsigned i=0;i<repeat_body;++i) {
+          auto const& canonical=loop_bindings[i];
+          auto const& actual=repeat_bindings[1+repeat_body*rep+i];
+          assign(canonical.Buffers(),actual.Buffers(),0);
+          assign(canonical.Maps(),actual.Maps(),count);
         }
-      };
-      for(unsigned i=0;i<repeat_body;++i) {
-        auto const& canonical=repeat_bindings[1+repeat_body+i];
-        auto const& actual=repeat_bindings[1+repeat_body*rep+i];
-        assign(canonical.Buffers(),actual.Buffers(),0);
-        assign(canonical.Maps(),actual.Maps(),count);
       }
+      return valid;
+    };
+    if(!remap()) {
+      // A virtual index per operand preserves aliases that differ by layer.
+      // Only the Repeat view uses these IDs; physical bindings and prefetch
+      // tables retain their original IDs and allocation sizes.
+      unsigned next_buffer=0,next_map=0;
+      for(auto& binding:loop_bindings)binding=binding.Unaliased(next_buffer,next_map);
+      repeated=next_buffer<=count && next_map<=map_count && remap();
+      alias_remap=repeated;
     }
   }
 
@@ -718,11 +743,16 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
   if(repeated) {
     for(unsigned i=0;i<repeat_body;++i) {
       unsigned canonical=1+repeat_body+i;
-      out<<"using Loop_"<<i<<"=RepeatStage<Wrap_"<<canonical;
+      std::string bind=alias_remap?"LoopBind_"+std::to_string(i):"Bind_"+std::to_string(canonical);
+      std::string normal=alias_remap?"LoopWrap_"+std::to_string(i):"Wrap_"+std::to_string(canonical);
+      if(alias_remap)
+        out<<loop_bindings[i].Emit(i,"LoopBind_")<<"using "<<normal<<'='
+           <<repeat_wrappers[canonical]<<"<Body_"<<canonical<<','<<bind<<",Shape_"<<canonical<<">;\n";
+      out<<"using Loop_"<<i<<"=RepeatStage<"<<normal;
       if(i==0 || i==2)
-        out<<','<<repeat_wrappers[1+i]<<"<Body_"<<1+i<<",Bind_"<<canonical<<",Shape_"<<1+i<<">";
-      else out<<",Wrap_"<<canonical;
-      if(i+1==repeat_body)out<<','<<repeat_wrappers[60]<<"<Body_60,Bind_"<<canonical<<",Shape_60>";
+        out<<','<<repeat_wrappers[1+i]<<"<Body_"<<1+i<<','<<bind<<",Shape_"<<1+i<<">";
+      else out<<','<<normal;
+      if(i+1==repeat_body)out<<','<<repeat_wrappers[60]<<"<Body_60,"<<bind<<",Shape_60>";
       out<<">;\n";
     }
     out<<"template<>struct RepeatTables<"<<repetitions;

@@ -48,12 +48,17 @@ template<int TN>using Bias=Sm90F3Chain<Sm90F3SideLayout<kTileM/2,TN,false,1,fals
     Sm90F3Step<Sm90ForwardOp::kBias,0>>;
 using ChainA=std::conditional_t<kPp,Bias<128>,Plain<128>>;
 using ChainB=std::conditional_t<kPp,Bias<64>,Plain<64>>;
-template<int Slots>using A=GemmStage<Sm90F3Gemm<kTileM,128,Slots,1,Sm90F3Mode::kNormal,
-    kM,kN,kN,kN,ChainA,Sm90F3NoConv,Sm90F3NoPool,64,false,false,kPp>,Bind<0,1,16,2>,Shape>;
-template<int Slots>using B=GemmStage<Sm90F3Gemm<kTileM,64,Slots,1,Sm90F3Mode::kNormal,
-    kM,kN,kN,kN,ChainB,Sm90F3NoConv,Sm90F3NoPool,64,false,false,kPp>,Bind<1,2,17,3>,Shape>;
+template<int Slots,class Binding=Bind<0,1,16,2>>using A=GemmStage<Sm90F3Gemm<kTileM,128,Slots,1,Sm90F3Mode::kNormal,
+    kM,kN,kN,kN,ChainA,Sm90F3NoConv,Sm90F3NoPool,64,false,false,kPp>,Binding,Shape>;
+template<int Slots,class Binding=Bind<1,2,17,3>>using B=GemmStage<Sm90F3Gemm<kTileM,64,Slots,1,Sm90F3Mode::kNormal,
+    kM,kN,kN,kN,ChainB,Sm90F3NoConv,Sm90F3NoPool,64,false,false,kPp>,Binding,Shape>;
+#ifdef DNN4_ALIAS_REPEAT_TEST
+using LoopA=RepeatStage<A<3,Bind<8,20,22,21>>,A<6,Bind<8,20,22,21>>>;
+using LoopB=RepeatStage<B<4,Bind<9,23,25,24>>,B<4,Bind<9,23,25,24>>,B<8,Bind<9,23,25,24>>>;
+#else
 using LoopA=RepeatStage<A<3>,A<6>>;
 using LoopB=RepeatStage<B<4>,B<4>,B<8>>;
+#endif
 template<int Slots>using C=GemmStage<Sm90F3Gemm<128,64,Slots,1,Sm90F3Mode::kNormal,
     kM,kN,kN,kN,Plain<64>>,Bind<2,3,18,4>,Shape>;
 using LoopC=RepeatStage<C<4>,C<4>,C<8>>;
@@ -81,6 +86,11 @@ struct TestTables {
      for(unsigned j=0;j<kStages;++j) {
        row[16+j]=16+kStages*r+j;row[kCount+j]=kStages*r+j;
      }
+#ifdef DNN4_ALIAS_REPEAT_TEST
+     row[20]=1+2*r;row[21]=2+2*r;row[22]=16+2*r;
+     row[23]=2+2*r;row[24]=3+2*r;row[25]=17+2*r;
+     row[kCount+8]=2*r;row[kCount+9]=2*r+1;
+#endif
    }
    return x;
  }();

@@ -26,12 +26,17 @@ def repeat_program(manifest, source, program, buffers, maps, bodies):
     if repeated[2] != ''.join(',Loop_' + str(i) for i in range(body)):
         raise ValueError('F3 Repeat logical stage coverage differs from manifest')
     loops = re.findall(r'using Loop_(\d+)=(RepeatStage<[^;]+>);', source)
+    alias_bindings = {int(index): dict(re.findall(r'(k\w+)=(kAbsent|\d+)', fields))
+                      for index, fields in re.findall(r'struct LoopBind_(\d+) \{([^}]+)\};', source)}
+    if alias_bindings and set(alias_bindings) != set(range(body)):
+        raise ValueError('F3 Repeat virtual bindings do not cover its body')
     expected = []
     for i in range(body):
         canonical = 1+body+i
-        normal = f'Wrap_{canonical}'
-        first = f'GemmStage<Body_{1+i},Bind_{canonical},Shape_{1+i}>' if i in (0, 2) else normal
-        last = f',GemmStage<Body_60,Bind_{canonical},Shape_60>' if i+1 == body else ''
+        bind = f'LoopBind_{i}' if alias_bindings else f'Bind_{canonical}'
+        normal = f'LoopWrap_{i}' if alias_bindings else f'Wrap_{canonical}'
+        first = f'GemmStage<Body_{1+i},{bind},Shape_{1+i}>' if i in (0, 2) else normal
+        last = f',GemmStage<Body_60,{bind},Shape_60>' if i+1 == body else ''
         expected.append((str(i), f'RepeatStage<{normal},{first}{last}>'))
     if loops != expected:
         raise ValueError('F3 Repeat edge variants differ from their logical stages')
@@ -44,6 +49,30 @@ def repeat_program(manifest, source, program, buffers, maps, bodies):
     mf = 'kMap kResidualMap kQueryMap kValueMap kOutputMap'.split()
     if len(bindings) != 63 or any(set(b) != set(bf+mf) for b in bindings.values()):
         raise ValueError('F3 Repeat operand bindings are incomplete')
+    loop_wrappers = re.findall(r'using LoopWrap_(\d+)=(\w+)<Body_(\d+),LoopBind_(\d+),Shape_(\d+)>;', source)
+    expected_wrappers = []
+    if alias_bindings:
+        wrappers = dict(re.findall(r'using Wrap_(\d+)=(\w+)<', source))
+        next_buffer, next_map = 0, 0
+        for i in range(body):
+            canonical = 1+body+i
+            virtual, physical = alias_bindings[i], bindings[canonical]
+            if set(virtual) != set(bf+mf):
+                raise ValueError('F3 Repeat virtual operand bindings are incomplete')
+            for fields, start in ((bf, next_buffer), (mf, next_map)):
+                for field in fields:
+                    want = 'kAbsent' if physical[field] == 'kAbsent' else str(start)
+                    if virtual[field] != want:
+                        raise ValueError('F3 Repeat virtual binding changes an operand role')
+                    if want != 'kAbsent':
+                        start += 1
+                if fields is bf:
+                    next_buffer = start
+                else:
+                    next_map = start
+            expected_wrappers.append((str(i), wrappers[str(canonical)], str(canonical), str(i), str(canonical)))
+    if loop_wrappers != expected_wrappers:
+        raise ValueError('F3 Repeat virtual wrapper differs from its logical stage')
     count, nmap = int(buffers[1]), int(maps[1])
     indices = re.findall(r'std::array<unsigned,(\d+)> indices=\{\{([^}]+)\}\};', source)
     tables = re.findall(r'template<>struct RepeatTables<'+str(repetitions)+r'([^>]+)>', source)
@@ -68,7 +97,8 @@ def repeat_program(manifest, source, program, buffers, maps, bodies):
                 raise ValueError('F3 Repeat stage binding is missing')
             for fields, offset, limit in ((bf, 0, count), (mf, count, nmap)):
                 for field in fields:
-                    before, after = bindings[canonical][field], bindings[actual][field]
+                    before = (alias_bindings[i] if alias_bindings else bindings[canonical])[field]
+                    after = bindings[actual][field]
                     if before == 'kAbsent':
                         if after != 'kAbsent':
                             raise ValueError('F3 Repeat adds an unbound edge operand')
