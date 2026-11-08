@@ -14,7 +14,11 @@ constexpr bool kPp=true;
 #else
 constexpr bool kPp=false;
 #endif
-constexpr int kM=128*67-3,kN=256,kCount=kPp?29:28,kMaps=kPp?14:12;
+#ifndef DNN4_PP_TILE_M
+#define DNN4_PP_TILE_M 128
+#endif
+constexpr int kTileM=kPp?DNN4_PP_TILE_M:128;
+constexpr int kM=kTileM*67-3,kN=256,kCount=kPp?29:28,kMaps=kPp?14:12;
 void Check(cudaError_t c){if(c!=cudaSuccess)throw std::runtime_error(cudaGetErrorString(c));}
 template<class T>struct Device {
  T* data;std::size_t count;
@@ -35,13 +39,13 @@ template<unsigned Map,unsigned Input,unsigned Weight,unsigned Output>struct Bind
    kPartial=kAbsent,kCounters=kAbsent;
 };
 template<int TN>using Plain=Sm90F3Chain<Sm90F3SideLayout<128,TN,false,0,false>>;
-template<int TN>using Bias=Sm90F3Chain<Sm90F3SideLayout<64,TN,false,1,false>,
+template<int TN>using Bias=Sm90F3Chain<Sm90F3SideLayout<kTileM/2,TN,false,1,false>,
     Sm90F3Step<Sm90ForwardOp::kBias,0>>;
 using ChainA=std::conditional_t<kPp,Bias<128>,Plain<128>>;
 using ChainB=std::conditional_t<kPp,Bias<64>,Plain<64>>;
-template<int Slots>using A=GemmStage<Sm90F3Gemm<128,128,Slots,1,Sm90F3Mode::kNormal,
+template<int Slots>using A=GemmStage<Sm90F3Gemm<kTileM,128,Slots,1,Sm90F3Mode::kNormal,
     kM,kN,kN,kN,ChainA,Sm90F3NoConv,Sm90F3NoPool,64,false,false,kPp>,Bind<0,1,16,2>,Shape>;
-template<int Slots>using B=GemmStage<Sm90F3Gemm<128,64,Slots,1,Sm90F3Mode::kNormal,
+template<int Slots>using B=GemmStage<Sm90F3Gemm<kTileM,64,Slots,1,Sm90F3Mode::kNormal,
     kM,kN,kN,kN,ChainB,Sm90F3NoConv,Sm90F3NoPool,64,false,false,kPp>,Bind<1,2,17,3>,Shape>;
 using LoopA=RepeatStage<A<3>,A<6>>;
 using LoopB=RepeatStage<B<4>,B<4>,B<8>>;
@@ -102,7 +106,7 @@ int main()try {
    }
    Check(cudaMemcpy(buffers[16+i],packed.data(),packed.size()*2,cudaMemcpyHostToDevice));
    tilemega::codegen::executor::EncodeTiledMap<2>(binding.maps[i],buffers[1+i],
-       {{kN,kM},{kN*2},{64,kPp?64:128}});
+       {{kN,kM},{kN*2},{64,kPp?kTileM/2:128}});
  }
  if(kPp) {
    std::vector<float> bias(kN,.125f);
