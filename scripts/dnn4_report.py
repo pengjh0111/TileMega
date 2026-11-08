@@ -148,7 +148,9 @@ Diagnosis SHA256:`1bb34856e94c78d2bc751983d3b654b13b8e0bd372463634b89213d03e25b5
         descriptions = []
         for stage in stages:
             segments = sorted([(k.removesuffix('_max_cta_ns'),float(v)) for k,v in stage.items()
-                               if k.endswith('_max_cta_ns')],key=lambda x:x[1],reverse=True)[:2]
+                               if k.endswith('_max_cta_ns') and k not in
+                               ('slot_wait_max_cta_ns','side_wait_max_cta_ns')],
+                              key=lambda x:x[1],reverse=True)[:2]
             descriptions.append(f"s{stage['stage']} {stage['body']} {float(stage['stage_ns'])/1000:.3f}us ("
                                 +','.join(f'{k}={v/1000:.3f}' for k,v in segments)+')')
         values.append([r['model']+' B'+r['batch'],*descriptions])
