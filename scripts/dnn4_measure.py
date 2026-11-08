@@ -70,6 +70,27 @@ def main():
         artifacts['A'] = tuple(path.resolve() for path in
             (args.reference_library, args.reference_gate, args.reference_bridge))
         order = ['A', 'B', 'A', 'B', 'A', 'B']
+    for arm, (library, gate, bridge) in list(artifacts.items()):
+        checked = json.loads(gate.read_text())
+        outputs = [output for case in checked['cases'] for output in case['outputs']]
+        if not outputs or any('output_sha256' not in output for output in outputs):
+            # Earlier gates compared repeated output bytes inside a process,
+            # but only metrics across processes. Obtain five byte-hashed gates.
+            strict = args.out / ('byte-correctness-' + arm)
+            command = [sys.executable, str(ROOT / 'scripts/dnn4_model_gate.py'),
+                '--library', str(library), '--export', str(args.export), '--bridge', str(bridge),
+                '--inputs', str(args.inputs), '--batch', str(args.batch), '--device', '0',
+                '--out', str(strict)]
+            with (args.out / ('byte-correctness-' + arm + '.log')).open('w') as log:
+                subprocess.run(command, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, check=True)
+            state = json.loads((strict / 'scheduler/state.json').read_text())['dnn4-f3-model-gates']
+            if state['status'] != 'done':
+                raise ValueError('byte-hashed correctness guard did not accept the cohort')
+            gate = Path(state['out']) / 'cohort/corr-1/check.json'
+            artifacts[arm] = (library, gate, bridge)
+            checked = json.loads(gate.read_text())
+            if any('output_sha256' not in output for case in checked['cases'] for output in case['outputs']):
+                raise ValueError('new correctness gate lacks output byte hashes')
     for library, gate, bridge in artifacts.values():
         identity = verify(library)
         if identity['trace'] or identity['plan']['native_forward']['abi'] != 'f3':

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Run F3 DNN correctness in five guarded processes (DNN4 §2)."""
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -62,8 +63,16 @@ def main():
     if args.check_one:
         if not os.environ.get('TILEMEGA_GPU_LOCK'):
             raise ValueError('correctness requires the scheduler/guard reservation')
-        from tilemega.dnn.check_generated import check
-        result = check(args.library, args.export, args.bridge, args.batch,
+        from tilemega.dnn import check_generated as checker
+        metric = checker.output_metrics
+        def with_output_bytes(actual, *positional, **keywords):
+            value = metric(actual, *positional, **keywords)
+            # FP32 promotion is injective for the finite BF16 outputs checked here.
+            value['output_sha256'] = hashlib.sha256(
+                actual.detach().cpu().contiguous().numpy().tobytes()).hexdigest()
+            return value
+        checker.output_metrics = with_output_bytes
+        result = checker.check(args.library, args.export, args.bridge, args.batch,
                        epochs=3, input_tensors=args.inputs,
                        thresholds={'cosine': .999 if model == 'bert' else .9999})
         if model != 'bert' and any(output.get('top1_agreement') != 1.0

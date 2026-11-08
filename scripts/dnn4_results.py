@@ -105,9 +105,12 @@ def main():
         identity = verify(library)
         if identity['trace'] or identity['plan']['native_forward']['abi'] != 'f3':
             raise ValueError('final timing requires a non-trace F3 winner')
-        gate = read(Path(winner['gate']).parent.parent / 'result.json')
+        measured_gate = Path(read(Path(measurements[0]['measurement']))['numerical_gate_path'])
+        gate = read(measured_gate.parent.parent / 'result.json')
         if gate['status'] != 'passed' or gate['passes'] != '5/5':
             raise ValueError('winner lacks five-process FP32 correctness')
+        if any('output_sha256' not in output for case in gate['cases'] for output in case['outputs']):
+            raise ValueError('winner lacks cross-process output byte hashes')
         coordinate = identity['plan']['native_forward']
         stages = coordinate['stages']
         target = float(targets[(model, batch)]['baseline_ms'])
@@ -160,7 +163,7 @@ def main():
                           evidence='verified CPU disassembly;primary F3 kernel;16B instructions'))
         correctness.append(dict(phase='Z', suite=winner['name'], protocol='P-CORR', model=model,
             batch=batch, passes='5/5', status='passed', output_hash='', scope='final winner;FP32 oracle;five fresh deterministic processes',
-            evidence='verified', source=str(Path(winner['gate']).parent.parent / 'result.json')))
+            evidence='verified', source=str(measured_gate.parent.parent / 'result.json')))
     ratios = []
     if finals:
         for kind, groups in [('model', MODELS), ('batch', BATCHES), ('overall', ['all'])]:
