@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 
+#ifndef TILEMEGA_F3_REGISTER_BUDGET
+#define TILEMEGA_F3_REGISTER_BUDGET 0
+#endif
+#if TILEMEGA_F3_REGISTER_BUDGET != 0 && TILEMEGA_F3_REGISTER_BUDGET != 1
+#error "F3 register budget must be0 (56/224) or1 (64/216)"
+#endif
+
 #include <tilemega/Backend/Sm90F3Gemm.cuh>
 #include <tilemega/Backend/Sm90F3SwapAB.cuh>
 #include <tilemega/Backend/Sm90F3Small.cuh>
@@ -637,10 +644,13 @@ void sm90_forward_f3_kernel(const __grid_constant__ typename P::Binding b,
   if constexpr(P::kCluster==2)backend::Sm90F3Async::Base::ClusterSync();
   auto sequence=std::make_integer_sequence<unsigned,P::kStages>{};
   if(threadIdx.x>=256) {
-    backend::Sm90F3Async::template RegDealloc<56>();
+    // Both profiles fit the entry CTA's 504-register pool per SMSP. B2's
+    // repeated consumer uses at most R205; the second profile lends eight
+    // registers to the producer without exceeding that pool.
+    backend::Sm90F3Async::template RegDealloc<(TILEMEGA_F3_REGISTER_BUDGET?64:56)>();
     P::ProducerLoop(b,shared,events,epoch,sequence);
   }else {
-    backend::Sm90F3Async::template RegAlloc<224>();
+    backend::Sm90F3Async::template RegAlloc<(TILEMEGA_F3_REGISTER_BUDGET?216:224)>();
     P::ConsumerLoop(b,shared,events,epoch,sequence);
   }
   __syncthreads();

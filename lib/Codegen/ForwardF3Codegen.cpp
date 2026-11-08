@@ -206,8 +206,15 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
   bool enable_tma_stem=false;
   bool enable_repeat=false;
   bool enable_side_norm=false;
+  bool alternate_register_budget=false;
   unsigned attention_rows=0;
   unsigned repeat_layers=2;
+  if(auto* setting=std::getenv("TILEMEGA_F3_REGISTER_BUDGET")) {
+    std::string value=setting;
+    if(value!="0" && value!="1")
+      throw std::invalid_argument("TILEMEGA_F3_REGISTER_BUDGET must be0 or1");
+    alternate_register_budget=value=="1";
+  }
   if(auto* setting=std::getenv("TILEMEGA_F3_SIDE_NORM")) {
     std::string value=setting;
     if(value!="0" && value!="1")
@@ -284,6 +291,7 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
 
   std::ostringstream out,types;
   if(enable_side_norm)out<<"#define TILEMEGA_F3_SIDE_NORM 1\n";
+  if(alternate_register_budget)out<<"#define TILEMEGA_F3_REGISTER_BUDGET 1\n";
   if(attention_rows)out<<"#define TILEMEGA_F3_ATTENTION_ROWS "<<attention_rows<<"\n";
   out<<"// SPDX-License-Identifier: BSD-3-Clause\n"
      <<"// Generated from a DnnModelPlan and F3 forward coordinates.\n"

@@ -123,9 +123,12 @@ def main():
     parser.add_argument('--cpu-set', default='120-127', help='NUMA0 functional worker cores')
     parser.add_argument('--build', type=Path)
     parser.add_argument('--suite', choices=tuple(SOURCES), default='body')
+    parser.add_argument('--register-budget', type=int, choices=(0, 1), default=0)
     parser.add_argument('--case', choices=('all', 'gather', 'pool', 'split', 'conv', 'swap', 'small'), default='all')
     parser.add_argument('--execute', action='store_true')
     options = parser.parse_args()
+    if options.register_budget and options.suite not in ('repeat', 'repeat_odd'):
+        parser.error('--register-budget requires a Repeat suite')
     if options.execute:
         return execute(options)
     out = options.out.resolve()
@@ -154,6 +157,8 @@ def main():
         command.insert(-4, '-DDNN4_PP_TILE_M=256')
     if options.suite == 'repeat_odd':
         command.insert(-4, '-DDNN4_ODD_REPEAT_TEST=1')
+    if options.register_budget:
+        command.insert(-4, '-DTILEMEGA_F3_REGISTER_BUDGET=1')
     if options.suite == 'bert_side_norm':
         command.insert(-4, '-DTILEMEGA_F3_SIDE_NORM=1')
     with log.open('w') as stream:
