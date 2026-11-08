@@ -16,6 +16,9 @@ def save(p,v):Path(p).write_text(json.dumps(v,indent=2)+'\n')
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--out',type=Path,required=True)
     p.add_argument('--build',type=Path);p.add_argument('--execute',choices=('accuracy','epilogue'))
+    p.add_argument('--source',type=Path,default=ROOT/'scripts/dnn4_probe_gelu.cu')
+    p.add_argument('--cpu-set',default='136-143')
+    p.add_argument('--cal-cpu-set',default='32-39')
     a=p.parse_args();a.out=a.out.resolve();a.out.mkdir(parents=True,exist_ok=False)
     if a.execute:
         if os.environ.get('TILEMEGA_GPU_LOCK_HELD')!='1' or os.environ.get('TILEMEGA_DEVICE_INDEX')!=('0' if a.execute=='accuracy' else '1'):raise ValueError('wrong GPU reservation')
@@ -32,9 +35,9 @@ def main():
         metrics={k:statistics.median(r['measurement'][k] for r in rows) for k in rows[0]['measurement']}
         save(a.out/'result.json',dict(status='passed',evidence='verified',mode=a.execute,processes=rows,median=metrics,passes='5/5',build=str(a.build),sass_sha256=b['sass_sha256']))
         return
-    src=a.out/'source';src.mkdir();shutil.copytree(ROOT/'include',src/'include');shutil.copyfile(ROOT/'scripts/dnn4_probe_gelu.cu',src/'probe.cu')
+    src=a.out/'source';src.mkdir();shutil.copytree(ROOT/'include',src/'include');shutil.copyfile(a.source,src/'probe.cu')
     frozen={str(f):sha(f) for f in src.rglob('*') if f.is_file()};binary=a.out/'probe';log=a.out/'ptxas.log'
-    command=['taskset','-c','136-143','nvcc','-std=c++17','-O3','-gencode','arch=compute_90a,code=sm_90a','--expt-relaxed-constexpr','-Xptxas','-v','-I'+str(src/'include'),'-I'+str(ROOT/'third_party/cutlass/include'),str(src/'probe.cu'),'-o',str(binary)]
+    command=['taskset','-c',a.cpu_set,'nvcc','-std=c++17','-O3','-gencode','arch=compute_90a,code=sm_90a','--expt-relaxed-constexpr','-Xptxas','-v','-I'+str(src/'include'),'-I'+str(ROOT/'third_party/cutlass/include'),str(src/'probe.cu'),'-o',str(binary)]
     with log.open('w') as f:r=subprocess.run(command,stdout=f,stderr=subprocess.STDOUT,env=dict(os.environ,CUDA_VISIBLE_DEVICES=''),timeout=600)
     text=log.read_text();spills=list(map(int,re.findall(r'(\d+) bytes spill (?:stores|loads)',text)))
     if r.returncode or not spills or any(spills) or re.search(r'C750[47]',text):raise RuntimeError('compile/spill gate failed: '+str(log))
@@ -44,7 +47,7 @@ def main():
     jobs=[];queue=a.out/'queue';queue.mkdir()
     for mode,device in [('accuracy',0),('epilogue',1)]:
         env=dict(CUDA_VISIBLE_DEVICES=str(device),TILEMEGA_DEVICE_INDEX=str(device),TILEMEGA_GPU_LOCK=f'/tmp/tilemega_gpu{device}.lock',TILEMEGA_NUMA_NODE='0',TILEMEGA_GPU_PID_MODE='namespace_limited',TILEMEGA_NUMA_CONCURRENCY_TRIAL='1',PYTHONPATH=str(ROOT/'python'))
-        jobs.append(dict(name='dnn4-gelu-'+mode,gpu=True,timing=mode=='epilogue',timeout_s=1800,needs_free_mib=8192,cwd=str(ROOT),env=env,command=['taskset','-c','120-127' if device==0 else '104-111',str(ROOT/'scripts/dnn4_guard_python.py'),str(Path(__file__).resolve()),'--execute',mode,'--build',str(build),'--out','{attempt_dir}/probe']))
+        jobs.append(dict(name='dnn4-gelu-'+mode,gpu=True,timing=mode=='epilogue',timeout_s=1800,needs_free_mib=8192,cwd=str(ROOT),env=env,command=['taskset','-c','120-127' if device==0 else a.cal_cpu_set,str(ROOT/'scripts/dnn4_guard_python.py'),str(Path(__file__).resolve()),'--execute',mode,'--build',str(build),'--out','{attempt_dir}/probe']))
     save(queue/'queue_gelu.json',jobs)
     with (a.out/'dispatch.log').open('w') as f:subprocess.run([str(ROOT/'scripts/dnn4_guard_python.py'),'-m','tilemega.bench.scheduler','--queue-dir',str(queue),'--out',str(a.out/'scheduler'),'--policy',str(ROOT/'configs/bench/sm90r2_guard_policy.json'),'--deadline-hours','6'],env=dict(os.environ,PYTHONPATH=str(ROOT/'python')),stdout=f,stderr=subprocess.STDOUT,check=True)
     state=json.loads((a.out/'scheduler/state.json').read_text());print(json.dumps(state))

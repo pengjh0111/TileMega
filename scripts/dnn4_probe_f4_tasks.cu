@@ -120,5 +120,12 @@ int main()try {
   if(count)for(int sample=kDiscard;sample<kSamples;++sample)ns.push_back(raw[block*kSamples+sample]/cycles/count);
  }
  std::sort(ns.begin(),ns.end());char const* names[]={"layout","pool2","pool3","global_pool","layernorm","embedding","attention"};
- std::cout<<std::setprecision(17)<<"{\"kind\":\""<<names[kKind]<<"\",\"rows\":"<<kRows<<",\"ns\":"<<ns[ns.size()/2]<<",\"grid\":132,\"work_items\":"<<work_items<<",\"cycles_per_ns\":"<<cycles<<"}\n";
+ std::vector<double> windows;
+ for(int sample=kDiscard;sample<kSamples;++sample) {
+   U64 longest=0;
+   for(int block=0;block<kGrid;++block)longest=std::max(longest,raw[block*kSamples+sample]);
+   windows.push_back(longest/cycles);
+ }
+ std::sort(windows.begin(),windows.end());
+ std::cout<<std::setprecision(17)<<"{\"kind\":\""<<names[kKind]<<"\",\"rows\":"<<kRows<<",\"ns\":"<<ns[ns.size()/2]<<",\"window_ns\":"<<windows[windows.size()/2]<<",\"grid\":132,\"work_items\":"<<work_items<<",\"cycles_per_ns\":"<<cycles<<"}\n";
 }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}
