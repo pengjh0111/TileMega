@@ -337,6 +337,7 @@ double Sm90ForwardCostModel::Stage(Sm90ForwardShape const& s,Sm90ForwardStage co
 
 double Sm90ForwardCostModel::F3Stage(Sm90ForwardShape const& s,Sm90ForwardStage const& c,
     bool preissued,json::Value* terms) const {
+  if(forward_.F4())return F4Stage(s,c,preissued,terms);
   if(abi_!=Sm90ForwardAbi::kF3 || c.body!=s.body)
     throw std::invalid_argument("F3 cost called with a different ABI/body");
   auto resource=QuerySm90ForwardF3Resources(s,c,target_,1);
@@ -397,6 +398,85 @@ double Sm90ForwardCostModel::F3Stage(Sm90ForwardShape const& s,Sm90ForwardStage 
   return total;
 }
 
+double Sm90ForwardCostModel::F4Stage(Sm90ForwardShape const& s,Sm90ForwardStage const& c,
+    bool preissued,json::Value* terms) const {
+  if(abi_!=Sm90ForwardAbi::kF3 || c.body!=s.body || !forward_.F4())
+    throw std::invalid_argument("F4 cost requires its measured F3 pipeline table");
+  auto resource=QuerySm90ForwardF3Resources(s,c,target_,1);
+  if(!resource.feasible)throw std::invalid_argument("infeasible F4 coordinate: "+resource.reason);
+  int grid=Grid(1),active=int(std::min<long long>(resource.task_count,grid));
+  double waves=double(ForwardCeil(resource.task_count,grid));
+  json::Array components;
+  double gate=Measured(forward_,"f4_gate_ns",{},"ns",1,components);
+  double task=0,mma=0,ring=0,rate=0,data=0,epilogue=0,split=0,t_k=0;
+  long long k_iter=0,dram_bytes=0,effective_slot=resource.slot_bytes;
+  std::string source="l2";
+  if(Matrix(s.body)) {
+    auto const& geometry=s.dnn1_geometry;
+    constexpr long long kL2=32LL*1024*1024;
+    auto weights=ForwardField(geometry,"f4_model_weight_bytes",true);
+    auto activation=ForwardField(geometry,"f4_activation_resident_bytes",true);
+    auto prefetched=ForwardField(geometry,"f4_prefetch_weight_bytes",true);
+    bool b_l2=weights<=kL2 || prefetched>=s.weight_bytes;
+    bool a_l2=activation<=kL2;
+    source=a_l2 && b_l2?"l2":"dram";
+    dram_bytes=(b_l2?0:s.weight_bytes-prefetched)+std::max(0LL,activation-kL2);
+    bool swap=c.mode==Sm90ForwardMode::kSwapAB;
+    int tm=swap?(s.m<=8?8:16):c.tile_m,tn=swap?128:c.tile_n;
+    k_iter=s.k/(c.tk*c.split_k);
+    auto tile=Sm90ForwardSelector{{"tm",S(tm)},{"tn",S(tn)}};
+    auto pipeline=tile;pipeline["tk"]=S(c.tk);pipeline["mode"]=kSm90ForwardModes[unsigned(c.mode)];
+    mma=Measured(forward_,"f4_mma_ns",pipeline,"ns",1,components);
+    pipeline["src"]=source;
+    ring=Measured(forward_,"f4_ring_ns",pipeline,"ns",1,components)/(c.slots-1);
+    int n=std::max(33,std::min(active,132)),lo=(n/33)*33,hi=std::min(132,lo+33);
+    auto low=forward_.Get("f4_rate_gbps",{{"src",source},{"n",S(lo)}},"GB/s");
+    auto high=forward_.Get("f4_rate_gbps",{{"src",source},{"n",S(hi)}},"GB/s");
+    rate=lo==hi?low.ns:low.ns+(high.ns-low.ns)*double(n-lo)/(hi-lo);
+    components.emplace_back(json::Object{{"name","f4_rate_gbps"},{"value",rate},
+        {"active_ctas",active},{"interpolated_n",n},{"lower",low.ToJson()},{"upper",high.ToJson()}});
+    if(c.mc)effective_slot-=1LL*tn*c.tk;
+    data=double(effective_slot)/rate;t_k=std::max({mma,data,ring});
+    auto ep=tile;ep["class"]=ForwardString(geometry,"f3_chain_class");
+    ep["store"]=kSm90ForwardStores[unsigned(c.store)];
+    epilogue=Measured(forward_,"f4_epilogue_ns",ep,"ns",1,components);
+    if(c.split_k>1) {
+      tile["slices"]=S(c.split_k);
+      split=Measured(forward_,"f4_splitk_ns",tile,"ns",1,components);
+    }
+    task=k_iter*t_k+epilogue+split;
+  }else if(s.body==Sm90ForwardBody::kEncoderAttention) {
+    auto rows=std::min(128LL,16*ForwardField(s.dnn1_geometry,"batch"));
+    task=Measured(forward_,"f4_attention_ns",{{"rows",S(rows)}},"ns/task",1,components);
+  }else {
+    std::string kind;int items=256;
+    switch(s.body) {
+      case Sm90ForwardBody::kLayout:kind="layout";break;
+      case Sm90ForwardBody::kPool:kind="pool"+S(s.kernel);break;
+      case Sm90ForwardBody::kGlobalPool:kind="global_pool";break;
+      case Sm90ForwardBody::kLayerNorm:kind="layernorm";items=8;break;
+      case Sm90ForwardBody::kEmbedding:kind="embedding";items=8;break;
+      default:throw Sm90ForwardMissing("unmeasured F4 small body");
+    }
+    task=Measured(forward_,"f4_small_ns",{{"kind",kind}},"ns/work_item",items,components);
+  }
+  double first=Measured(forward_,"f4_first_ns",{{"src",preissued?"l2":source}},"ns",1,components);
+  double first_dram=forward_.Get("f4_first_ns",{{"src","dram"}},"ns").ns;
+  double raw=gate+first+waves*task;
+  double floor=gate+first_dram+double(dram_bytes)/native_.dram_gbps;
+  double total=std::max(raw,floor);
+  if(!std::isfinite(total) || total<=0)throw std::invalid_argument("invalid F4 prediction");
+  if(terms)*terms=json::Object{{"abi","f3"},{"model","f4"},
+      {"tasks",double(resource.task_count)},{"grid",grid},{"waves",waves},{"source",source},
+      {"preissued",preissued},{"k_iter",double(k_iter)},{"t_k_ns",t_k},
+      {"mma_ns",mma},{"ring_ns",ring},{"data_ns",data},{"rate_gbps",rate},
+      {"effective_slot_bytes",double(effective_slot)},{"epilogue_ns",epilogue},{"splitk_ns",split},
+      {"t_task_ns",task},{"wave_task_ns",waves*task},{"gate_ns",gate},{"first_ns",first},
+      {"dram_bytes",double(dram_bytes)},{"dram_floor_ns",floor},{"raw_ns",raw},{"stage_ns",total},
+      {"components",std::move(components)},{"resources",ResourceReceipt(resource)}};
+  return total;
+}
+
 double Sm90ForwardCostModel::LegacyStage(Sm90ForwardShape const& s,Sm90ForwardStage const& c,
     int residency,json::Value* terms) const {
   long long tasks=Tasks(s,c);int grid=Grid(residency);
@@ -417,7 +497,7 @@ double Sm90ForwardCostModel::LegacyStage(Sm90ForwardShape const& s,Sm90ForwardSt
   return total;
 }
 
-std::vector<Sm90ForwardStage> Sm90ForwardSearchSpace::Candidates(std::size_t index,int residency)const {
+std::vector<Sm90ForwardStage> Sm90ForwardSearchSpace::Candidates(std::size_t index,int residency,bool f4)const {
   if(index>=shapes.size() || (residency!=1 && residency!=2))throw std::invalid_argument("bad forward candidate request");
   auto const& s=shapes[index];std::vector<Sm90ForwardStage> result;
   bool f3=abi==Sm90ForwardAbi::kF3;
@@ -448,26 +528,35 @@ std::vector<Sm90ForwardStage> Sm90ForwardSearchSpace::Candidates(std::size_t ind
     // F3 swap-AB fixes the tile at 128 weight rows by all M rows, and admits a
     // deeper split because each slice is only Mp x 64 of activation (§6.7).
     if(f3 && s.mode==Sm90ForwardMode::kSwapAB) {
-      auto iterations=s.k/64;
+      for(int tk:(f4?std::vector<int>{64,128}:std::vector<int>{64})) {
+      auto iterations=s.k/tk;
       for(int split=1;split<=32;++split) {
-        if(iterations%split || split>iterations)continue;
-        Sm90ForwardStage c;c.tile_n=128;c.split_k=split;
+        if(s.k%(tk*split) || split>iterations)continue;
+        Sm90ForwardStage c;c.tile_n=128;c.split_k=split;c.tk=tk;
         for(int slots:{2,3,4,5,6,7,8}){c.slots=slots;push(c);}
+      }
       }
       return result;
     }
     for(int m:(f3?std::vector<int>{64,128,256}:std::vector<int>{32,64,128}))
-      for(int n:{32,64,128,256}) {
+      for(int n:(f4?std::vector<int>{32,64,96,128,192,256}:std::vector<int>{32,64,128,256})) {
       if(!f3 && n>ForwardCeil(s.n,32)*32)continue;
       if(f3 && m==256 && s.m<512)continue;
       if(f3) {
         // Any divisor of the whole contraction, and a deferred normalization
         // no longer blocks the split: F3's last arriver runs the chain (§6.5).
-        auto iterations=s.k/64;
+        for(int tk:(f4?std::vector<int>{64,128}:std::vector<int>{64})) {
+        auto iterations=s.k/tk;
         for(int split=1;split<=16;++split) {
-          if(!iterations || iterations%split)continue;
-          Sm90ForwardStage c;c.tile_m=m;c.tile_n=n;c.split_k=split;
-          for(int slots:{2,3,4,5,6,7,8}){c.slots=slots;push(c);}
+          if(!iterations || s.k%(tk*split))continue;
+          Sm90ForwardStage c;c.tile_m=m;c.tile_n=n;c.split_k=split;c.tk=tk;
+          for(int slots:{2,3,4,5,6,7,8}) {
+            c.slots=slots;push(c);
+            if(f4 && m>=128 && n%64==0) {
+              c.store=Sm90ForwardStore::kTma;push(c);c.store=Sm90ForwardStore::kReg;
+            }
+          }
+        }
         }
         continue;
       }
@@ -488,7 +577,7 @@ std::vector<Sm90ForwardStage> Sm90ForwardSearchSpace::Candidates(std::size_t ind
       }
     }
   }else if(s.body==Sm90ForwardBody::kEncoderAttention) {
-    if(f3) {Sm90ForwardStage c;c.tile_m=128;push(c);return result;}
+    if(f3) {Sm90ForwardStage c;c.tile_m=f4?int(std::min(128LL,16*ForwardField(s.dnn1_geometry,"batch"))):128;push(c);return result;}
     auto seq=ForwardField(s.dnn1_geometry,"seq");
     for(int rows:{16,32,64,128})if(seq%rows==0) {Sm90ForwardStage c;c.tile_m=rows;push(c);}
   }else if(s.body==Sm90ForwardBody::kGemv) {
@@ -499,12 +588,42 @@ std::vector<Sm90ForwardStage> Sm90ForwardSearchSpace::Candidates(std::size_t ind
   return result;
 }
 
+json::Value AuditSm90ForwardF4Candidates(Sm90ForwardSearchResult const& result) {
+  json::Array pairs;bool passed=true;
+  for(std::size_t i=0;i<result.ranked.size();++i)
+    for(std::size_t j=i+1;j<result.ranked.size();++j) {
+      auto const& a=result.ranked[i];auto const& b=result.ranked[j];
+      bool identical=a.coordinates.ToJson().Dump(0)==b.coordinates.ToJson().Dump(0);
+      double gap=std::abs(a.prediction.total_ns-b.prediction.total_ns)/
+          std::min(a.prediction.total_ns,b.prediction.total_ns);
+      bool ok=identical || gap>=.005;passed=passed && ok;
+      pairs.emplace_back(json::Object{{"a",int(i)},{"b",int(j)},
+          {"identical",identical},{"relative_gap",gap},{"passed",ok}});
+    }
+  return json::Object{{"passed",passed},{"candidate_count",int(result.ranked.size())},
+      {"minimum_relative_gap",.005},{"pairs",std::move(pairs)}};
+}
+
 Sm90ForwardSearchResult SearchSm90Forward(Sm90ForwardSearchSpace const& space,
     Sm90ForwardCostModel const& cost,int top) {
   if(top!=4)throw std::invalid_argument("DNN1 compiles predicted top4; pass measure_top=4");
   if(space.shapes.empty())throw std::invalid_argument("forward search needs at least one stage");
   if(space.abi!=cost.Abi())throw std::invalid_argument("search ABI differs from cost model");
   bool f3=space.abi==Sm90ForwardAbi::kF3;
+  bool f4=f3 && cost.ForwardConstants().F4();
+  std::map<std::string,bool> sensitive;
+  std::map<std::string,std::map<std::string,double>> sensitivity_groups;
+  for(auto field:{"tile_m","tile_n","tk","split_k","slots","store","mc"})sensitive[field]=false;
+  auto audit_field=[&](std::size_t stage,Sm90ForwardStage const& c,double price) {
+    if(!f4)return;
+    for(auto& [field,changed]:sensitive) {
+      if(changed)continue;
+      auto key=c.ToJson(space.abi);key.Set(field,"*");
+      auto group=S(stage)+":"+key.Dump(0);
+      auto [where,inserted]=sensitivity_groups[field].emplace(group,price);
+      if(!inserted && std::abs(price-where->second)>1e-9*std::max(1.,std::abs(price)))changed=true;
+    }
+  };
   std::vector<std::vector<std::size_t>> consumers(space.shapes.size());
   std::vector<int> producers(space.shapes.size(),-1);
   for(std::size_t i=0;i<space.shapes.size();++i) {
@@ -518,7 +637,7 @@ Sm90ForwardSearchResult SearchSm90Forward(Sm90ForwardSearchSpace const& space,
     std::vector<std::vector<double>> prices(space.shapes.size());json::Array stage_receipts;
     bool complete=true;
     for(std::size_t i=0;i<space.shapes.size();++i) {
-      auto raw=space.Candidates(i,residency);int filtered=0;json::Array rejected;
+      auto raw=space.Candidates(i,residency,f4);int filtered=0;json::Array rejected;
       for(auto const& c:raw) {
         auto resources=QuerySm90ForwardResources(space.shapes[i],c,space.target,residency,space.abi);
         if(!resources.feasible) {++filtered;rejected.emplace_back(json::Object{{"coordinate",c.ToJson()},
@@ -530,13 +649,21 @@ Sm90ForwardSearchResult SearchSm90Forward(Sm90ForwardSearchSpace const& space,
         // producer-selected partial count to that producer during local
         // ranking; Predict expands the linked group back into separate stages.
         double price=producers[i]<0?cost.Stage(space.shapes[i],c,residency):0;
+        audit_field(i,c,price);
         for(auto pool_index:consumers[i]) {
-          auto pool_options=space.Candidates(pool_index,residency);
+          auto pool_options=space.Candidates(pool_index,residency,f4);
           if(pool_options.size()!=1)throw std::invalid_argument("linked pool must have exactly one coordinate");
           auto pool_shape=Sm90ForwardCostModel::PoolShape(space.shapes,pool_index,c,space.abi);
           price+=cost.Stage(pool_shape,pool_options.front(),residency);
         }
         prices[i].push_back(price);++result.evaluated;
+        // DT-MC2 keeps multicast out of search. Audit its formula separately
+        // so an inactive mechanism is distinguished from an ignored field.
+        if(f4 && c.mode==Sm90ForwardMode::kNormal && Matrix(c.body)) {
+          auto diagnostic=c;diagnostic.mc=1;
+          if(QuerySm90ForwardF3Resources(space.shapes[i],diagnostic,space.target,1).feasible)
+            audit_field(i,diagnostic,cost.F4Stage(space.shapes[i],diagnostic,false));
+        }
       }
       if(options[i].empty()) {complete=false;stage_receipts.emplace_back(json::Object{{"stage",int(i)},
           {"legal_candidate_count",int(raw.size())},{"shared_filtered_count",filtered},
@@ -545,7 +672,7 @@ Sm90ForwardSearchResult SearchSm90Forward(Sm90ForwardSearchSpace const& space,
       std::stable_sort(order.begin(),order.end(),[&](auto a,auto b){return prices[i][a]<prices[i][b];});
       std::vector<Sm90ForwardStage> sorted;std::vector<double> sorted_prices;
       auto ranked_count=order.size();
-      if(f3 && order.size()>16)order.resize(16);
+      if(f3 && !f4 && order.size()>16)order.resize(16);
       for(auto j:order){sorted.push_back(options[i][j]);sorted_prices.push_back(prices[i][j]);}
       options[i]=std::move(sorted);prices[i]=std::move(sorted_prices);
       json::Value chosen_terms=json::Object{{"resolution","program coordinates below"}};
@@ -559,15 +686,66 @@ Sm90ForwardSearchResult SearchSm90Forward(Sm90ForwardSearchSpace const& space,
     }
     if(!complete){residency_receipts.emplace_back(json::Object{{"residency",residency},
         {"feasible",false},{"stages",stage_receipts}});continue;}
+    if(f4) {
+      std::vector<bool> spanning;
+      for(std::size_t i=0;i<options.size();++i)
+        spanning.push_back(QuerySm90ForwardF3Resources(space.shapes[i],options[i][0],space.target,1).exclusive);
+      for(std::size_t i=0;i<options.size();++i) {
+        std::vector<double> work(options[i].size());
+        for(std::size_t j=0;j<options[i].size();++j) {
+          auto const& c=options[i][j];json::Value terms;
+          auto r=QuerySm90ForwardF3Resources(space.shapes[i],c,space.target,1);
+          bool preissued=i>0 && Matrix(c.body) && c.mode!=Sm90ForwardMode::kGather &&
+              !c.mc && !r.exclusive && !spanning[i-1];
+          prices[i][j]=producers[i]<0?cost.F4Stage(space.shapes[i],c,preissued,&terms):0;
+          work[j]=producers[i]<0?terms.At("wave_task_ns").AsNumber("wave task"):0;
+          for(auto pool_index:consumers[i]) {
+            auto pool_options=space.Candidates(pool_index,residency,true);
+            auto shape=Sm90ForwardCostModel::PoolShape(space.shapes,pool_index,c,space.abi);
+            prices[i][j]+=cost.F4Stage(shape,pool_options.front(),false,&terms);
+            work[j]+=terms.At("wave_task_ns").AsNumber("pool wave task");
+          }
+        }
+        std::vector<std::size_t> order(options[i].size());std::iota(order.begin(),order.end(),0);
+        std::sort(order.begin(),order.end(),[&](auto a,auto b) {
+          if(prices[i][a]!=prices[i][b])return prices[i][a]<prices[i][b];
+          return options[i][a].ToJson(space.abi).Dump(0)<options[i][b].ToJson(space.abi).Dump(0);
+        });
+        // Anchor each tie window at its minimum. A pairwise fuzzy comparator
+        // is nontransitive and would violate std::sort's ordering contract.
+        for(std::size_t begin=0;begin<order.size();) {
+          auto end=begin+1;
+          while(end<order.size() && prices[i][order[end]]<1.005*prices[i][order[begin]])++end;
+          std::sort(order.begin()+begin,order.begin()+end,[&](auto a,auto b) {
+            if(work[a]!=work[b])return work[a]<work[b];
+            auto const& x=options[i][a];auto const& y=options[i][b];
+            if(x.slots!=y.slots)return x.slots>y.slots;
+            if(x.split_k!=y.split_k)return x.split_k<y.split_k;
+            return x.ToJson(space.abi).Dump(0)<y.ToJson(space.abi).Dump(0);
+          });
+          begin=end;
+        }
+        if(order.size()>8)order.resize(8);
+        std::vector<Sm90ForwardStage> selected;std::vector<double> values;json::Array ranked;
+        for(auto j:order) {
+          selected.push_back(options[i][j]);values.push_back(prices[i][j]);
+          ranked.emplace_back(json::Object{{"coordinate",options[i][j].ToJson(space.abi)},
+              {"prediction_ns",prices[i][j]},{"wave_task_ns",work[j]}});
+        }
+        options[i]=std::move(selected);prices[i]=std::move(values);
+        stage_receipts[i].Set("remaining_candidate_count",int(options[i].size()));
+        stage_receipts[i].Set("ranked_candidates",std::move(ranked));
+      }
+    }
     // "At most nine" applies independently inside the required residency
     // outer loop: <=9 per residency, <=18 combined, global predicted top4.
     std::vector<std::size_t> contributions(space.shapes.size());
     std::iota(contributions.begin(),contributions.end(),0);
     std::stable_sort(contributions.begin(),contributions.end(),[&](auto a,auto b){return prices[a][0]>prices[b][0];});
     if(contributions.size()>8)contributions.resize(8);
-    auto build=[&](std::size_t changed,std::string origin) {
+    auto build=[&](std::size_t changed,std::string origin,std::size_t alternative=1) {
       Sm90ForwardCoordinates c;c.residency=residency;c.abi=space.abi;
-      for(std::size_t i=0;i<options.size();++i)c.stages.push_back(options[i][i==changed?1:0]);
+      for(std::size_t i=0;i<options.size();++i)c.stages.push_back(options[i][i==changed?alternative:0]);
       auto prediction=cost.Predict(space.shapes,c);
       auto chosen_receipts=stage_receipts;
       for(std::size_t i=0;i<c.stages.size();++i) {
@@ -586,11 +764,34 @@ Sm90ForwardSearchResult SearchSm90Forward(Sm90ForwardSearchSpace const& space,
       pool.push_back({std::move(c),std::move(prediction),std::move(origin),std::move(receipt)});
     };
     auto prefix="r"+S(residency);build(options.size(),prefix+"_optimum");int generated=1;
-    for(auto stage:contributions)if(options[stage].size()>1){build(stage,prefix+"_stage"+S(stage)+"_alt1");++generated;}
+    for(auto stage:contributions)if(options[stage].size()>1) {
+      std::size_t alternative=1;
+      if(f4) {
+        auto const& best=options[stage][0];
+        while(alternative<options[stage].size()) {
+          auto const& c=options[stage][alternative];
+          if(c.tile_m!=best.tile_m || c.tile_n!=best.tile_n || c.tk!=best.tk || c.split_k!=best.split_k)break;
+          ++alternative;
+        }
+      }
+      if(alternative<options[stage].size()) {
+        build(stage,prefix+"_stage"+S(stage)+"_alt"+S(alternative),alternative);++generated;
+      }
+    }
     residency_receipts.emplace_back(json::Object{{"residency",residency},{"feasible",true},
         {"program_candidate_count",generated},{"stages",stage_receipts}});
   }
   if(pool.empty())throw std::invalid_argument("forward search has no resource-legal program");
+  if(f4) {
+    std::vector<Sm90ForwardCandidate> unique;
+    for(auto& p:pool) {
+      auto coordinate=p.coordinates.ToJson().Dump(0);
+      if(std::none_of(unique.begin(),unique.end(),[&](auto const& q) {
+        return coordinate==q.coordinates.ToJson().Dump(0);
+      }))unique.push_back(std::move(p));
+    }
+    pool=std::move(unique);
+  }
   auto programs=pool.size();
   std::stable_sort(pool.begin(),pool.end(),[](auto const& a,auto const& b){return a.prediction.total_ns<b.prediction.total_ns;});
   if(pool.size()>4)pool.resize(4);
@@ -602,10 +803,20 @@ Sm90ForwardSearchResult SearchSm90Forward(Sm90ForwardSearchSpace const& space,
       {"compiled_top_count",int(result.ranked.size())},{"evaluated_stage_candidates",double(result.evaluated)},
       {"bound_interpretation",bound},
       {"elapsed_ms",result.elapsed_ms},{"constants",cost.ForwardConstants().Receipt()}};
+  if(f4) {
+    result.receipt.Set("f4_candidate_selfcheck",AuditSm90ForwardF4Candidates(result));
+    json::Object fields;for(auto const& [field,changed]:sensitive)fields.emplace_back(field,changed);
+    result.receipt.Set("f4_coordinate_sensitivity",json::Object{{"scope","this_cell; OR across20 cells"},
+        {"fields",std::move(fields)},{"mc_scope","diagnostic counterfactual; DT-MC2 admission remains disabled"}});
+  }
   for(auto& selected:result.ranked) {
     selected.search_receipt.Set("program_candidate_count",int(programs));
     selected.search_receipt.Set("compiled_top_count",int(result.ranked.size()));
     selected.search_receipt.Set("bound_interpretation",bound);
+    if(f4)selected.search_receipt.Set("f4_candidate_selfcheck",
+        result.receipt.At("f4_candidate_selfcheck"));
+    if(f4)selected.search_receipt.Set("f4_coordinate_sensitivity",
+        result.receipt.At("f4_coordinate_sensitivity"));
     selected.prediction.search_receipt=selected.search_receipt;
   }
   return result;

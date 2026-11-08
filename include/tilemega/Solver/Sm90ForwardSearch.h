@@ -61,7 +61,8 @@ class Sm90ForwardConstants {
       throw std::invalid_argument(f3?"F3 constants require calibration GPU1":
           "forward constants GPU must be 0, 5 or 7");
     Sm90ForwardConstants c;c.file_=std::move(file);c.gpu_=gpu;c.target_=json::ParseFile(c.file_);
-    c.section_name_=f3?"sm90_f3_constants":"sm90_forward_constants";
+    c.section_name_=f3?(c.target_.Find("sm90_f4_constants")?
+        "sm90_f4_constants":"sm90_f3_constants"):"sm90_forward_constants";
     auto const* section=c.target_.Find(c.section_name_);
     if(!section)throw Sm90ForwardMissing(c.file_+": missing "+c.section_name_+"; no measured table");
     c.section_=*section;
@@ -105,16 +106,18 @@ class Sm90ForwardConstants {
   }
   Sm90ForwardConstant Get(std::string const& metric,Sm90ForwardSelector const& selector,
                           std::string const& unit) const {
+    std::string query;
+    for(auto const& [k,v]:selector)query+=(query.empty()?"":";")+k+"="+v;
+    auto cache_key=std::make_pair(metric+":"+unit,query);
+    if(auto hit=cache_.find(cache_key);hit!=cache_.end())return hit->second;
     auto const* cards=section_.Find("by_gpu");
     auto const* card=cards?cards->Find(std::to_string(gpu_)):nullptr;
     auto const* table=card?card->Find(metric):nullptr;
-    std::string query;
-    for(auto const& [k,v]:selector)query+=(query.empty()?"":";")+k+"="+v;
     if(!table)throw Sm90ForwardMissing(file_+": missing GPU"+std::to_string(gpu_)+" "+metric+"["+query+"]");
     json::Value const* match=nullptr;std::string matched_key;
     for(auto const& [key,row]:table->AsObject("forward measured table")) {
       auto fields=ParseKey(key);bool matches=true;
-      if(section_name_=="sm90_f3_constants" && fields.size()!=selector.size())continue;
+      if((section_name_=="sm90_f3_constants" || F4()) && fields.size()!=selector.size())continue;
       // Historical DW keys without a gate describe the ungated primitive.
       // A gated measurement is a different operation, not an extra match
       // for a geometry-only selector. Keep raw keys and medians unchanged.
@@ -130,7 +133,11 @@ class Sm90ForwardConstants {
     }
     if(!match)throw Sm90ForwardMissing(file_+": no measured "+metric+"["+query+"]; no interpolation or zero fill");
     double value=match->At("median").AsNumber("measured median");
-    if(!std::isfinite(value) || !(value>0) || match->At("processes").AsNumber("fresh processes")!=5 ||
+    bool gate_trace=F4() && metric=="f4_gate_ns" && match->Find("sampling_protocol") &&
+        match->At("sampling_protocol").AsString("gate protocol")=="P-TRACE3-four-sentinels" &&
+        match->At("processes").AsNumber("trace processes")==4;
+    if(!std::isfinite(value) || !(value>0) ||
+        (!gate_trace && match->At("processes").AsNumber("fresh processes")!=5) ||
         match->At("unit").AsString("constant unit")!=unit)
       throw std::invalid_argument("invalid/insufficient measured constant: "+metric+"["+matched_key+"]");
     auto* unstable=match->Find("unstable");
@@ -143,8 +150,8 @@ class Sm90ForwardConstants {
       auto found=compact_provenance_.find(compact_indices_.at({metric,matched_key}));
       if(found!=compact_provenance_.end())source+="; "+found->second;
     }
-    return {value,source,
-      unstable?unstable->AsBool("unstable"):false};
+    Sm90ForwardConstant result{value,source,unstable?unstable->AsBool("unstable"):false};
+    cache_.emplace(std::move(cache_key),result);return result;
   }
   // Historical reference is only the original N1 measured eta*P_sm product.
   // This never creates eta, refits a rate, or writes native.forward.
@@ -163,12 +170,13 @@ class Sm90ForwardConstants {
   }
   json::Value const& Target()const{return target_;}
   json::Value const& Section()const{return section_;}
+  bool F4()const{return section_name_=="sm90_f4_constants";}
   std::string const& File()const{return file_;}
   json::Value Receipt() const {
     json::Value result=json::Object{{"file",file_},{"sha256",file_sha256_},{"gpu",gpu_},{"variant",variant_},
       {"storage_schema",storage_schema_},
       {"method",section_.At("method")},{"header_sha256",section_.At("header_sha256")}};
-    if(section_name_=="sm90_f3_constants")result.Set("section",section_name_);
+    if(section_name_=="sm90_f3_constants" || F4())result.Set("section",section_name_);
     if(auto const* supplements=section_.Find("supplements"))result.Set("supplements",*supplements);
     return result;
   }
@@ -267,6 +275,7 @@ class Sm90ForwardConstants {
   std::string section_name_="sm90_forward_constants";json::Value target_,section_;
   std::map<std::pair<std::string,std::string>,std::size_t> compact_indices_;
   std::map<std::size_t,std::string> compact_provenance_;
+  mutable std::map<std::pair<std::string,std::string>,Sm90ForwardConstant> cache_;
 };
 
 struct Sm90ForwardPrediction {
@@ -338,6 +347,8 @@ class Sm90ForwardCostModel {
                json::Value* terms=nullptr) const;
   double F3Stage(Sm90ForwardShape const&,Sm90ForwardStage const&,bool preissued,
                  json::Value* terms=nullptr) const;
+  double F4Stage(Sm90ForwardShape const&,Sm90ForwardStage const&,bool preissued,
+                 json::Value* terms=nullptr) const;
   double LegacyStage(Sm90ForwardShape const& s,Sm90ForwardStage const& c,int residency,
                      json::Value* terms=nullptr) const;
   static int PoolProducer(std::vector<Sm90ForwardShape> const& shapes,std::size_t index) {
@@ -381,6 +392,7 @@ class Sm90ForwardCostModel {
         bool matrix=s.body==Sm90ForwardBody::kGemm || s.body==Sm90ForwardBody::kConv;
         auto current=QuerySm90ForwardF3Resources(s,c.stages[i],target_,1);
         bool preissued=i>0 && matrix && c.stages[i].mode!=Sm90ForwardMode::kGather &&
+            !c.stages[i].mc &&
             !current.exclusive &&
             !QuerySm90ForwardF3Resources(shapes[i-1],c.stages[i-1],target_,1).exclusive;
         p.ns=F3Stage(s,c.stages[i],preissued,&p.terms);
@@ -419,7 +431,7 @@ struct Sm90ForwardSearchSpace {
   // whose last arriver runs the whole chain (DNN3 prompt §4 F-5, §6.5).
   Sm90ForwardAbi abi=Sm90ForwardAbi::kLegacy;
   int Grid(int residency)const{return target.res.num_sms*residency;}
-  std::vector<Sm90ForwardStage> Candidates(std::size_t index,int residency)const;
+  std::vector<Sm90ForwardStage> Candidates(std::size_t index,int residency,bool f4=false)const;
 };
 struct Sm90ForwardCandidate {
   Sm90ForwardCoordinates coordinates;Sm90ForwardPrediction prediction;
@@ -429,6 +441,9 @@ struct Sm90ForwardSearchResult {
   std::vector<Sm90ForwardCandidate> ranked;long long evaluated=0;
   double elapsed_ms=0;json::Value receipt;
 };
+// §10.3: expose failures in the solve receipt as well as the CPU contract.
+// The caller decides whether an audit failure permits further experiment work.
+json::Value AuditSm90ForwardF4Candidates(Sm90ForwardSearchResult const&);
 Sm90ForwardSearchResult SearchSm90Forward(Sm90ForwardSearchSpace const&,
     Sm90ForwardCostModel const&,int top=4);
 

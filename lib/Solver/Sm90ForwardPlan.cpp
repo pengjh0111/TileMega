@@ -471,6 +471,28 @@ std::vector<Sm90ForwardShape> Sm90ForwardShapesFromPlan(frontend::ModelPlan cons
     if(abi==Sm90ForwardAbi::kF3)F3EncodeGeometry(plan,index,shape);
     shapes.push_back(shape);
   }
+  if(abi==Sm90ForwardAbi::kF3) {
+    std::int64_t weights=0;
+    for(auto const& s:shapes)weights+=s.weight_bytes;
+    for(std::size_t i=0;i<shapes.size();++i) {
+      auto& s=shapes[i];auto& g=s.dnn1_geometry;
+      g.Set("f4_model_weight_bytes",double(weights));
+      auto activation=s.activation_bytes;
+      if(s.body==Sm90ForwardBody::kGemm || s.body==Sm90ForwardBody::kConv) {
+        auto const& gemm=plan.gemms.at(plan.stages[i].gemm);
+        unsigned input=gemm.access.a==codegen::DmAAccess::kIm2Col?
+            plan.convolutions.at(gemm.access.conv).input_layout:gemm.a;
+        auto const& layout=plan.buffers.at(input).layout;
+        std::int64_t elements=1;
+        for(unsigned axis=0;axis<layout.rank;++axis)elements*=layout.physical[axis];
+        activation=2*elements;
+      }
+      g.Set("f4_activation_resident_bytes",double(activation));
+      // Distance1: the immediately preceding stage's side warp starts the
+      // next matrix prefetch, including across intervening small bodies.
+      g.Set("f4_prefetch_weight_bytes",double(i?std::min<std::int64_t>(s.weight_bytes,24LL*1024*1024):0));
+    }
+  }
   return shapes;
 }
 

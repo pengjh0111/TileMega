@@ -363,6 +363,12 @@ if(TILEMEGA_BUILD_TESTS)
   target_include_directories(dnn4_coordinates_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
   target_compile_options(dnn4_coordinates_test PRIVATE -UNDEBUG)
   add_test(NAME dnn4_coordinates COMMAND dnn4_coordinates_test)
+  add_executable(dnn4_cost_test test/unit/dnn4_cost_test.cpp)
+  target_link_libraries(dnn4_cost_test PRIVATE TileMega::tilemega)
+  target_compile_options(dnn4_cost_test PRIVATE -UNDEBUG)
+  add_test(NAME dnn4_cost COMMAND dnn4_cost_test
+    ${CMAKE_CURRENT_SOURCE_DIR}/configs/targets/sm_90_h800.json
+    ${CMAKE_CURRENT_BINARY_DIR}/dnn4_cost_fixture.json)
   add_executable(serving_implementation_test test/unit/serving_implementation_test.cpp)
   target_link_libraries(serving_implementation_test PRIVATE TileMega::tilemega)
   target_compile_options(serving_implementation_test PRIVATE -UNDEBUG)
