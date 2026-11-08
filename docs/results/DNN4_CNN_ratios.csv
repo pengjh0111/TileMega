@@ -1,9 +1,10 @@
 kind,group,measured_cells,expected_cells,geometric_ratio_to_baseline,geometric_speedup_over_dnn3,baseline_wins,evidence,scope
 model,resnet18,1,5,0.8123216150637558,1.4077289575990315,1,verified,partial
 model,resnet50,3,5,1.0503997122440218,1.3297295025173155,0,verified,partial
-model,vgg16,4,5,1.0036798764757475,1.7322848471121743,2,verified,partial
+model,vgg16,5,5,1.0057500647913538,1.7274969737746346,2,verified,complete
 batch,1,3,3,0.9347712598299542,1.4516180537838077,2,verified,complete
 batch,2,2,3,1.0606534468367628,1.4958695818741727,0,verified,partial
 batch,4,1,3,1.041307428141854,1.751475439495263,0,verified,partial
+batch,8,1,3,1.0140736058840225,1.708477447517509,0,verified,partial
 batch,16,2,3,0.9992296485380234,1.5767716168193353,1,verified,partial
-overall,CNN,8,15,0.9943094851386743,1.5285715527954853,3,verified,partial
+overall,CNN,9,15,0.9964863376253226,1.5475869120309795,3,verified,partial

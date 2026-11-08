@@ -103,7 +103,8 @@ def main():
              f'{sum(float(r["ratio_to_baseline"]) < 1 for r in measured)}/{len(measured)} beat the fixed fastest BF16 target.', '',
              'Existing TileMega results are reused. All 60 CNN baseline arms are reused from '
              'DNN3_baselines_phase_z.csv with their original GPU, input, checkpoint and measurement receipts; '
-             'no baseline was recollected for this collection. Phase Z anchor checks are tracked separately in DNN4_h800.md. '
+             'this export copies those prior measurements without running benchmarks. New Phase Z anchor checks '
+             'and any drift-triggered measurements are tracked separately in DNN4_h800.md. '
              'ResNet18 uses GPU3, ResNet50 GPU0 and VGG16 GPU2. All inputs/weights are BF16 and accumulations FP32.', '',
              'Measured TileMega winners passed five fresh FP32-reference processes with identical output byte hashes. '
              'Timing uses a nontrace build, 50 warmups and 200 CUDA events in each of three fresh processes; '
