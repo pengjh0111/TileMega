@@ -73,6 +73,8 @@ def main():
               ('in-situ P1 B8', base/'side_norm_retune_b8_v1/experiment.json'),
               ('FFN1 TK128 B16', base/'ffn1_tk128_b16_v1/experiment.json'),
               ('FFN1 TK128 single-store B16', base/'single_store_tk128_b16_v1/experiment.json'),
+              ('FFN1 TN256 single-store B16', base/'single_store_tn256_b16_v1/v2/experiment_gpu0.json'),
+              ('consumer216 B8 diagnostic', base/'phase72_consumer216_b8_v1/experiment.json'),
               *[(f'phase72 B{batch} GPU2 diagnostic',
                  base/f'scalar_phase72_arithmetic_b{batch}_v1/gpu2_diagnostic_v1/experiment.json')
                 for batch in (2, 4, 8, 16)],
@@ -91,7 +93,8 @@ def main():
                 unit = read(Path(state['out'])/'cohort/result.json')
                 if state['status'] != 'done' or not unit['passed'] or len(unit['processes']) != 17:
                     raise ValueError('phase72 requires scalar phase and P1 component gates')
-        if name == 'FFN1 TK128 single-store B16':
+        if name in ('FFN1 TK128 single-store B16', 'FFN1 TN256 single-store B16',
+                    'consumer216 B8 diagnostic'):
             for unit_path in experiment['unit_gates']:
                 unit = read(Path(unit_path))
                 if not unit['passed'] or len(unit['processes']) != 17 or any(p['exit_code'] for p in unit['processes']):
@@ -179,7 +182,7 @@ def main():
             raise ValueError('BERT comparison requires five fresh byte-hashed FP32 gates')
         pair_path = Path(experiment.get('pair_source', path.parent/'pair/result.json'))
         if not pair_path.exists():
-            pair_path = path.parent/'pair_gpu2/result.json'
+            pair_path = path.parent/f'pair_gpu{experiment["gpu"]}/result.json'
         first = read(pair_path)
         comparisons = [(f'GPU{first["gpu"]} same-card diagnostic', pair_path)]
         if experiment.get('initial_pair_source'):
@@ -488,6 +491,33 @@ def main():
                   f'ratio{decision["pair"]["ratio"]:.6f} against '
                   f'{100*decision["pair"]["threshold"]:.3f}% noise. Reject and restore the '
                   'production files;the archived patch retains the prototype.']
+    wide_store = base/'single_store_tn256_b16_v1/v2/experiment_gpu0.json'
+    if wide_store.exists():
+        decision = read(wide_store)
+        assert not decision['accepted']
+        lines += ['', 'Verified TN256 single-buffer follow-up retains TK64 and four slots on '
+                  'the12 FFN1 stages. The first model fails correctness because its serialized '
+                  'weight-packing recipes still use TN128;that artifact is never timed. '
+                  'A separate corrected artifact updates all12 recipes,compiles without spill '
+                  'and passes model5/5. The exact TN256 component passes unit5/5 and '
+                  'sanitizer1/1/5/5;cross-stage ordering reuses the prior17/17 single-buffer '
+                  'protocol gate. GPU2 never launches under foreign occupancy;GPU0 '
+                  'allocation-deviation P-PAIR gives '
+                  f'ratio{decision["pair"]["ratio"]:.6f},noise'
+                  f'{100*decision["pair"]["threshold"]:.3f}%. '
+                  'Reject and restore the prototype headers;no G22 admission.']
+    retune = base/'phase72_retune_b8_gpu0_v1/incomplete_selection.json'
+    if retune.exists():
+        qualification = read(retune.parent/'trace_qualification.json')
+        rejection = read(retune)
+        assert qualification['passed']
+        lines += ['', 'Verified profile2 B8 boundary overhead is'
+                  f'{100*qualification["relative_difference"]:.3f}% on GPU0. '
+                  f'Only{len(rejection["eligible"])}/6 existing variants are nonspilling;'
+                  'each completes three fresh20/50 traces. Four spilled variants are '
+                  'never executed. Required candidate coverage is incomplete;no assembled '
+                  'selection or admission is claimed. GPU2 partial traces remain separate '
+                  'and are not mixed with the GPU0 windows.']
     phase72 = base/'scalar_phase72_arithmetic_b8_v1/gpu2_diagnostic_v1/experiment.json'
     if phase72.exists():
         regression = read(base/'register72_host_v1/regression.json')
