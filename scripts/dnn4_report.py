@@ -133,6 +133,15 @@ Diagnosis SHA256:`1bb34856e94c78d2bc751983d3b654b13b8e0bd372463634b89213d03e25b5
             p = json.loads(g22.read_text())
             text += f"GPU3 versus rank0:ratio{p['ratio']:.6f},threshold{p['threshold']:.6f}. "
         add(text+'Final-winner admission is tracked separately;DNN4_BERT_optimization.csv contains diagnostic receipts.')
+    admission = ROOT/'runs/dnn4/phase_z/accepted_seed_guard_v1/bert_b16/result.json'
+    if admission.exists():
+        d = json.loads(admission.read_text())
+        if d.get('deduplicated'):
+            add('Verified BERT B16 final empirical admission:coordinates already match the completed winner;reuse the existing P-DNN and ledger without new GPU measurements.')
+        elif 'pair' in d:
+            p = d['pair']
+            add(f"Verified BERT B16 final empirical admission:P-PAIR ratio{p['ratio']:.6f},threshold{p['threshold']:.6f};"
+                + ('accept and repeat P-DNN/ledger.' if d['accepted'] else 'retain the previously selected winner.'))
     add('## Phase Z results')
     add('Verified measured rows use fixed G22 cards: RN18/BERT GPU3, RN50 GPU0, VGG GPU2; P-CORR 5/5 byte-identical; P-DNN 50 warmups + 200 events × three fresh processes. Ratio=TileMega/fixed DNN3 target. Pending rows carry no timing inference. P90 pools 600 event samples; process range uses the three medians. DNN4_final.csv contains full coordinate counts, identities, clocks and raw receipts.')
     values = []

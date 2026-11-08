@@ -99,7 +99,7 @@ def main():
               'processes per variant and20 warmups/50 trace windows. Group sums select a coordinate, then '
               'the assembled nontrace program faces a whole-model P-PAIR gate. These experiments add no parameter scan.', '',
               *choices, '',
-              'Final BERT batch collection continues on GPU3 after completion of all15 CNN cells and the '
+              'Final BERT batch collection uses GPU3 and began after completion of all15 CNN cells and the '
               'CNN anchors. Existing CNN results and all60 baseline arms are reused. GPU ownership remains '
               'qualified by the container PID namespace. See DNN4_BERT_optimization.csv for identities, '
               'clocks, correctness receipts and raw timing sources.']

@@ -21,4 +21,4 @@ Verified in-situ experiments use the six already authorized candidate programs, 
 in-situ B16: group0→candidate5, group1→candidate1, group2→candidate0, group3→candidate2, group4→candidate1, group5→candidate1.
 in-situ B1: group0→candidate3, group1→candidate0, group2→candidate0, group3→candidate0, group4→candidate4.
 
-Final BERT batch collection continues on GPU3 after completion of all15 CNN cells and the CNN anchors. Existing CNN results and all60 baseline arms are reused. GPU ownership remains qualified by the container PID namespace. See DNN4_BERT_optimization.csv for identities, clocks, correctness receipts and raw timing sources.
+Final BERT batch collection uses GPU3 and began after completion of all15 CNN cells and the CNN anchors. Existing CNN results and all60 baseline arms are reused. GPU ownership remains qualified by the container PID namespace. See DNN4_BERT_optimization.csv for identities, clocks, correctness receipts and raw timing sources.
