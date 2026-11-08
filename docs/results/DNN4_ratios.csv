@@ -1,7 +1,7 @@
 kind,group,cells,geometric_ratio,geometric_speedup,wins,evidence,scope
 model,resnet18,1,0.8123216150637558,1.2310395063432038,1,verified,partial Phase Z
-model,resnet50,1,1.1075606669674045,0.9028850787362152,0,verified,partial Phase Z
+model,resnet50,2,1.0615063065243195,0.9420575213295632,0,verified,partial Phase Z
 model,vgg16,2,0.9439234057453512,1.0594079921244977,2,verified,partial Phase Z
-batch,1,2,0.8960231084191856,1.1160426451101872,2,verified,partial Phase Z
+batch,1,3,0.9347712598299542,1.0697804296870568,2,verified,partial Phase Z
 batch,16,2,0.9992296485380234,1.0007709453608624,1,verified,partial Phase Z
-overall,all,4,0.9462202997757182,1.0568363416394988,3,verified,partial Phase Z
+overall,all,5,0.9600400158193575,1.0416232485335917,3,verified,partial Phase Z

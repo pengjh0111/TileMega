@@ -156,6 +156,7 @@ Diagnosis SHA256:`1bb34856e94c78d2bc751983d3b654b13b8e0bd372463634b89213d03e25b5
         values.append([r['model']+' B'+r['batch'],*descriptions])
     table(['Cell','Largest','Second','Third'],values)
     add('## Anchors, deviations and limits')
+    add('Verified measurement scheduling update: later cells reserve the GPU once per protocol, with unchanged six-sample preflight and monitoring. Children remain fresh and sequential: P-SEL ABCDDCBA, P-PAIR ABABAB, P-DNN three processes, P-TUNE three processes × 50 samples. Same-library validation differs by +0.165% in P-DNN and +0.182% in trace window sum. Original receipts and resume commands remain available; raw cohort state identifies the shared guard.')
     anchors = ROOT/'runs/dnn4/phase_z/anchors_v1'
     for model in MODELS:
         path = anchors/model/'result.json'

@@ -64,6 +64,7 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--cells', type=Path, required=True)
     p.add_argument('--anchors', type=Path)
+    p.add_argument('--resamples', type=Path, default=ROOT/'runs/dnn4/phase_z/resamples_v1')
     p.add_argument('--out', type=Path, required=True)
     p.add_argument('--partial', action='store_true', help='export completed cells with explicit partial scope')
     args = p.parse_args()
@@ -81,7 +82,7 @@ def main():
             if result['status'] != 'passed' or result['gpu'] != DEVICES[model]:
                 raise ValueError('cell is incomplete or on the wrong card')
             cells.append((model, batch, path.parent, result))
-    anchor_results = {}
+    anchor_results, resampled = {}, []
     if not args.partial:
         if args.anchors is None:
             p.error('complete export requires --anchors')
@@ -91,9 +92,26 @@ def main():
             anchor = read(Path(state['out']) / 'anchor/result.json')
             if state['status'] != 'done' or anchor['status'] != 'passed' or anchor['gpu'] != DEVICES[model]:
                 raise ValueError('P-ANCHOR did not complete on the prescribed card')
-            if anchor['action'] != 'retain_frozen':
-                raise ValueError('DT-ANCHOR resampling must be exported before complete assembly')
             anchor_results[model] = dict(source=str(path), sha256=sha(path), anchors=anchor['anchors'])
+            if anchor['action'] == 'resample_trt_tc_all_batches':
+                path = args.resamples/model/'result.json'
+                state = read(path)
+                baseline = Path(state['baseline_csv'])
+                if state['status'] != 'passed' or state['gpu'] != DEVICES[model] or sha(baseline) != state['baseline_sha256']:
+                    raise ValueError('DT-ANCHOR resampling is incomplete or changed')
+                captured = table(baseline)
+                arms = ('tensorrt-bf16','torchcompile-max-autotune','torchcompile-max-autotune-freezing',
+                        'torchcompile-reduce-overhead')
+                expected = {(batch,arm) for batch in BATCHES for arm in arms}
+                actual = {(int(r['batch']),r['arm']) for r in captured}
+                if actual != expected or len(captured)!=20 or any(
+                        r['model']!=model or int(r['gpu'])!=DEVICES[model] or r['precision']!='bf16'
+                        or r['status']!='pass' for r in captured):
+                    raise ValueError('DT-ANCHOR requires all five batches and four existing BF16 arms')
+                resampled.extend(captured)
+                anchor_results[model]['resample'] = dict(source=str(path),sha256=sha(path))
+            elif anchor['action'] != 'retain_frozen':
+                raise ValueError('unknown P-ANCHOR disposition')
     finals, ledger, tune, codes, correctness, model_rows = [], [], [], [], [], []
     for model, batch, folder, result in cells:
         final = read(Path(result.get('final_measurement', folder / 'final/result.json')))
@@ -182,6 +200,8 @@ def main():
                         scope='partial Phase Z' if args.partial else 'complete anchored Phase Z'))
     for name, rows in [('final', finals), ('ratios', ratios), ('tune', tune), ('ledger', ledger)]:
         write(args.out / f'DNN4_{name}.csv', rows)
+    if resampled:
+        write(args.out/'DNN4_baselines_phase_z.csv',resampled)
     for name, additions in [('DNN4_correctness.csv', correctness), ('DNN4_icache.csv', codes),
                             ('DNN4_model.csv', model_rows)]:
         append_existing(args.out, name, additions)
