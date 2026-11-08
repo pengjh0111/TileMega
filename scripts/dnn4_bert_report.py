@@ -72,13 +72,25 @@ def main():
               ('in-situ P1 B16', base/'side_norm_retune_b16_v1/experiment.json'),
               ('in-situ P1 B8', base/'side_norm_retune_b8_v1/experiment.json'),
               ('FFN1 TK128 B16', base/'ffn1_tk128_b16_v1/experiment.json'),
-              ('FFN1 TK128 single-store B16', base/'single_store_tk128_b16_v1/experiment.json')]
+              ('FFN1 TK128 single-store B16', base/'single_store_tk128_b16_v1/experiment.json'),
+              *[(f'phase72 B{batch} GPU2 diagnostic',
+                 base/f'scalar_phase72_arithmetic_b{batch}_v1/gpu2_diagnostic_v1/experiment.json')
+                for batch in (2, 4, 8, 16)],
+              *[(f'phase72 B{batch} G22',
+                 base/f'scalar_phase72_arithmetic_b{batch}_v1/experiment.json')
+                for batch in (2, 4, 8, 16)]]
     rows = []
     choices = []
     for name, path in probes:
         if not path.exists():
             continue
         experiment = read(path)
+        if name.startswith('phase72'):
+            for suite in ('scalar_phase72_arithmetic_alias_unit_v1', 'side_norm_reg72_unit_v1'):
+                state = read(base/suite/'scheduler/state.json')['dnn4-focused-f3-gates']
+                unit = read(Path(state['out'])/'cohort/result.json')
+                if state['status'] != 'done' or not unit['passed'] or len(unit['processes']) != 17:
+                    raise ValueError('phase72 requires scalar phase and P1 component gates')
         if name == 'FFN1 TK128 single-store B16':
             for unit_path in experiment['unit_gates']:
                 unit = read(Path(unit_path))
@@ -189,7 +201,8 @@ def main():
                 reference_ms=pair['reference_ms'], candidate_ms=pair['candidate_ms'],
                 ratio=pair['ratio'], gain_pct=100*(1-pair['ratio']),
                 threshold_pct=100*pair['threshold'],
-                accepted=pair['gpu'] != 0 and pair['ratio']<1-max(pair['threshold'], .03 if name.startswith('Repeat') else 0), scope=scope,
+                accepted=pair['gpu'] != 0 and pair['ratio']<1-max(pair['threshold'],
+                    .03 if name.startswith('Repeat') or (name.startswith('phase72') and experiment['batch'] in (8, 16)) else 0), scope=scope,
                 correctness='P-CORR5/5 with cross-process output byte hashes',
                 artifact_id=identity['artifact_id'], binary_sha256=identity['binary_sha256'],
                 source_digest=identity['source']['source_digest'],
@@ -475,6 +488,23 @@ def main():
                   f'ratio{decision["pair"]["ratio"]:.6f} against '
                   f'{100*decision["pair"]["threshold"]:.3f}% noise. Reject and restore the '
                   'production files;the archived patch retains the prototype.']
+    phase72 = base/'scalar_phase72_arithmetic_b8_v1/gpu2_diagnostic_v1/experiment.json'
+    if phase72.exists():
+        regression = read(base/'register72_host_v1/regression.json')
+        equivalent = read(base/'register72_integrated_b8_v1/equivalence.json')
+        assert regression['passed'] == 7 and equivalent['same_instruction_lines']
+        lines += ['', 'Verified optional profile2 uses72/208 registers and explicit scalar phase '
+                  'selection only for that profile. Profiles0/1 retain their prior paths and '
+                  'the default remains0. Scalar/alias and P1 component cohorts each pass '
+                  'unit5/5 and sanitizer1/1/5/5;B2/B4/B8/B16 whole models each pass5/5 '
+                  'without spill. B8/B16 SASS is328576/395776B with zero local-memory '
+                  'instructions. The integrated B8 kernel has identical instruction bytes '
+                  'to its prototype. Seven related regression checks, real profile codegen '
+                  'and invalid-setting checks pass. GPU2 comparisons are diagnostics while '
+                  'GPU3 has foreign occupancy;they do not admit or replace any current '
+                  'artifact. B8/B16 first-time Repeat admission still requires3% plus noise;'
+                  'B2/B4 already use accepted Repeat and require a gain beyond noise. '
+                  'Fixed BF16 goals and original anchors remain unchanged.']
     spill_lines = []
     for name in ('repeat_arithmetic_middle_v1/b8', 'repeat_arithmetic_b8_reg56_v1'):
         log = base/name/'native/model.so.ptxas.log'

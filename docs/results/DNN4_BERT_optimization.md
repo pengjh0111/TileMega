@@ -60,6 +60,10 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | FFN1 TK128 B16 | 3 | 1.423696 | 1.466832 | -3.030 | 1.349 | False |
 | FFN1 TK128 single-store B16 | 3 | 1.424992 | 1.453520 | -2.002 | 0.980 | False |
 | FFN1 TK128 single-store B16 | 3 | 1.428400 | 1.456560 | -1.971 | 351.287 | False |
+| phase72 B2 GPU2 diagnostic | 2 | 0.628096 | 0.599952 | +4.481 | 6.669 | False |
+| phase72 B4 GPU2 diagnostic | 2 | 0.736144 | 0.710800 | +3.443 | 2.339 | True |
+| phase72 B8 GPU2 diagnostic | 2 | 1.052320 | 1.009456 | +4.073 | 2.349 | True |
+| phase72 B16 GPU2 diagnostic | 2 | 1.426560 | 1.399680 | +1.884 | 1.923 | False |
 
 Verified attention experiment: QK/PV columns were distributed across eight consumer warps without changing any output accumulation order. Per-head unit5/5 and sanitizer memcheck1/1, initcheck1/1, racecheck5/5, synccheck5/5 passed; whole-model outputs also matched the control byte for byte. Neither timing gain exceeded process variability, so the original header was restored. The initial driver added an unnecessary3% cutoff, which does not affect either rejection because both measured noise thresholds exceed3%. Frozen sources and the patch remain under runs/dnn4/bert_priority.
 
@@ -121,6 +125,8 @@ Verified FFN1 TK128 uses three slots and register stores on the12 FFN1 stages;al
 Verified scalar phase plus arithmetic alias component passes unit5/5 and sanitizer1/1/5/5. The B8 Repeat/P1 whole-model build still spills 8/32B stores/loads under64/216;it is never executed. The prototype patch is archived and its production header is restored.
 
 Verified TK128 single-store prototype explicitly deviates from section6.2: one8KiB staging box per WG replaces two and uses wait_group.read0 before each reuse. This fits three TK128 slots while retaining TMA writes. Exact FFN1 and cross-stage ordering cohorts each pass unit5/5 and sanitizer1/1/5/5;the whole model passes5/5 without spill. The first pair has351.287% noise and is inconclusive;all six processes remain recorded. A complete second pair measures ratio1.020020 against 0.980% noise. Reject and restore the production files;the archived patch retains the prototype.
+
+Verified optional profile2 uses72/208 registers and explicit scalar phase selection only for that profile. Profiles0/1 retain their prior paths and the default remains0. Scalar/alias and P1 component cohorts each pass unit5/5 and sanitizer1/1/5/5;B2/B4/B8/B16 whole models each pass5/5 without spill. B8/B16 SASS is328576/395776B with zero local-memory instructions. The integrated B8 kernel has identical instruction bytes to its prototype. Seven related regression checks, real profile codegen and invalid-setting checks pass. GPU2 comparisons are diagnostics while GPU3 has foreign occupancy;they do not admit or replace any current artifact. B8/B16 first-time Repeat admission still requires3% plus noise;B2/B4 already use accepted Repeat and require a gain beyond noise. Fixed BF16 goals and original anchors remain unchanged.
 
 Verified B8 arithmetic Repeat plus P1 normalization fails the compilation gate under64/216 and prescribed56/224 (repeat_arithmetic_middle_v1/b8:8,24B stores/loads;repeat_arithmetic_b8_reg56_v1:32,104B stores/loads). Neither spilled binary is executed;B8 retains its accepted flat program.
 
