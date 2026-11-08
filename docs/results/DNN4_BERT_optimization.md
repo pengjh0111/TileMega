@@ -46,6 +46,12 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | attention unroll B1 | 3 | 0.498944 | 0.495792 | +0.632 | 7.254 | False |
 | FFN1 TM256 B16 | 3 | 1.427968 | 1.635488 | -14.533 | 3.027 | False |
 | Repeat P1 B8 | 3 | 1.045552 | 1.037936 | +0.728 | 2.439 | False |
+| binding arithmetic B1 | 3 | 0.484800 | 0.500544 | -3.248 | 6.304 | False |
+| binding arithmetic B1 | 0 | 0.484256 | 0.487056 | -0.578 | 5.880 | False |
+| binding arithmetic B2 | 3 | 0.659808 | 0.611152 | +7.374 | 1.351 | True |
+| binding arithmetic B2 | 0 | 0.633008 | 0.610976 | +3.481 | 1.372 | False |
+| Repeat P1 normalization B16 | 3 | 1.423392 | 1.426320 | -0.206 | 1.643 | False |
+| Repeat P1 normalization B16 | 0 | 1.421936 | 1.426672 | -0.333 | 2.923 | False |
 
 Verified attention experiment: QK/PV columns were distributed across eight consumer warps without changing any output accumulation order. Per-head unit5/5 and sanitizer memcheck1/1, initcheck1/1, racecheck5/5, synccheck5/5 passed; whole-model outputs also matched the control byte for byte. Neither timing gain exceeded process variability, so the original header was restored. The initial driver added an unnecessary3% cutoff, which does not affect either rejection because both measured noise thresholds exceed3%. Frozen sources and the patch remain under runs/dnn4/bert_priority.
 
@@ -88,7 +94,7 @@ Verified cooperative FFN1 TM256/TN128 uses two m64 fragments per WG,maximum lega
 
 GPU3 foreign occupancy delayed additional same-card G22 probes; only our pending schedulers were cancelled, and fresh candidate/control pairs moved to authorized GPU2. The separately identified B1/B2/B16 follow-ups do not silently replace the earlier frozen20-cell collection. That BERT batch collection completed on GPU3: B1/B2/B4/B8/B16 =0.614016/0.695504/0.790144/1.043264/1.463168ms. None beats its frozen BF16 target. CNN collection is complete and paused; existing CNN results and all60 baseline arms are reused. GPU ownership remains qualified by the container PID namespace. See DNN4_BERT_optimization.csv for identities, clocks, correctness receipts and raw timing sources.
 
-Verified pending candidates: binding arithmetic b1, binding arithmetic b2, repeat_side_norm_b16_v1. All compile without spill and pass five fresh strict FP32/byte checks. Arithmetic remaps use only exactly verified constant, affine or period-two columns; irregular columns keep the original load. Odd56/224 and alias64/216 component cohorts each pass unit5/5 and sanitizer1/1/5/5, including absent and irregular index cases. Four real codegen cases preserve63 logical stages and reject invalid settings; the incremental host build and seven related ctest cases pass. The arithmetic feature stays explicitly selected and default0 pending complete GPU3 pairs. An additional GPU0 diagnostic is a recorded card-allocation deviation caused by prolonged foreign occupancy; it cannot replace G22 admission or the current accepted artifacts.
+Verified arithmetic remaps use compile-time checked constant, affine or period-two index columns; irregular columns retain lookup. Odd56/224 and alias64/216 units each pass5/5 and sanitizer1/1/5/5;both models pass strict5/5 without spill. Four real codegen cases and seven related ctests pass. B2 GPU3 P-PAIR 0.659808→0.611152ms beats1.35% noise;P-DNN 0.608016ms is accepted for B2 only. B1 has no significant gain;B16 Repeat plus P1 normalization also fails DT-CODE and keeps the flat control. GPU0 allocation-deviation diagnostics are separately identified and cannot replace G22 admission. The arithmetic feature remains default0 and is explicitly selected for B2.
 
 Verified hardware-counter diagnostic: ncu2025.1.1 exits1 with ERR_NVGPUCTRPERM; no counter samples are available and no device/driver settings were changed. Fresh host CMake configuration also fails because the external MLIR installation lacks obj.MLIRCAPIDebug/Debug.cpp.o. The existing configured incremental build succeeds.
 
@@ -97,7 +103,7 @@ Verified current accepted artifacts (GPU3;50/200;three-process P-DNN). B8 reuses
 | Batch | Median ms | p90 ms | Process range ms | Fixed BF16 ms | Ratio |
 | --- | --- | --- | --- | --- | --- |
 | 1 | 0.498176 | 0.500640 | 0.013232 | 0.4858 | 1.0254 |
-| 2 | 0.630928 | 0.635808 | 0.004736 | 0.5171 | 1.2201 |
+| 2 | 0.608016 | 0.629664 | 0.020512 | 0.5171 | 1.1758 |
 | 4 | 0.760672 | 0.764224 | 0.006784 | 0.5905 | 1.2882 |
 | 8 | 1.043264 | 1.055872 | 0.009120 | 0.7457 | 1.3990 |
 | 16 | 1.421744 | 1.446144 | 0.001824 | 1.0869 | 1.3081 |

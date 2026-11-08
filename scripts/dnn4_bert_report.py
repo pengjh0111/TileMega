@@ -137,6 +137,9 @@ def main():
             pair_path = path.parent/'pair_gpu2/result.json'
         first = read(pair_path)
         comparisons = [(f'GPU{first["gpu"]} same-card diagnostic', pair_path)]
+        diagnostic = path.parent/'gpu0_diagnostic_v1/pair/result.json'
+        if diagnostic.exists():
+            comparisons.append(('GPU0 allocation deviation;diagnostic only;not admission', diagnostic))
         g22 = path.parent/'g22_pair/result.json'
         if g22.exists():
             comparisons.append(('G22 diagnostic versus rank0', g22))
@@ -150,7 +153,7 @@ def main():
                 reference_ms=pair['reference_ms'], candidate_ms=pair['candidate_ms'],
                 ratio=pair['ratio'], gain_pct=100*(1-pair['ratio']),
                 threshold_pct=100*pair['threshold'],
-                accepted=pair['ratio']<1-max(pair['threshold'], .03 if name.startswith('Repeat') else 0), scope=scope,
+                accepted=pair['gpu'] != 0 and pair['ratio']<1-max(pair['threshold'], .03 if name.startswith('Repeat') else 0), scope=scope,
                 correctness='P-CORR5/5 with cross-process output byte hashes',
                 artifact_id=identity['artifact_id'], binary_sha256=identity['binary_sha256'],
                 source_digest=identity['source']['source_digest'],
@@ -345,6 +348,24 @@ def main():
                   'The arithmetic feature stays explicitly selected and default0 pending complete GPU3 pairs. '
                   'An additional GPU0 diagnostic is a recorded card-allocation deviation caused by '
                   'prolonged foreign occupancy; it cannot replace G22 admission or the current accepted artifacts.']
+    arithmetic = base/'repeat_arithmetic_models_v1/b2/experiment.json'
+    if arithmetic.exists():
+        decision = read(arithmetic)
+        pair = decision['pair']
+        assert decision['accepted'] and pair['gpu'] == 3
+        final = read(arithmetic.parent/'g22_followup_final_v1/final_result.json')
+        assert not final['smoke_regression'] and final['measurement']['protocol'] == 'P-DNN'
+        lines += ['', 'Verified arithmetic remaps use compile-time checked constant, affine or '
+                  'period-two index columns; irregular columns retain lookup. Odd56/224 and '
+                  'alias64/216 units each pass5/5 and sanitizer1/1/5/5;both models pass strict5/5 '
+                  'without spill. Four real codegen cases and seven related ctests pass. '
+                  f'B2 GPU3 P-PAIR {pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms '
+                  f'beats{100*pair["threshold"]:.2f}% noise;P-DNN '
+                  f'{final["measurement"]["candidate_ms"]:.6f}ms is accepted for B2 only. '
+                  'B1 has no significant gain;B16 Repeat plus P1 normalization also fails '
+                  'DT-CODE and keeps the flat control. GPU0 allocation-deviation diagnostics '
+                  'are separately identified and cannot replace G22 admission. '
+                  'The arithmetic feature remains default0 and is explicitly selected for B2.']
     diagnostic = base/'ncu_b16_v1/result.json'
     if diagnostic.exists():
         ncu = read(diagnostic)
