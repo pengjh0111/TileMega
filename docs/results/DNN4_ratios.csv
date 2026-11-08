@@ -1,0 +1,4 @@
+kind,group,cells,geometric_ratio,geometric_speedup,wins,evidence,scope
+model,resnet18,1,0.8123216150637558,1.2310395063432038,1,verified,partial Phase Z
+batch,1,1,0.8123216150637558,1.2310395063432038,1,verified,partial Phase Z
+overall,all,1,0.8123216150637558,1.2310395063432038,1,verified,partial Phase Z
