@@ -66,6 +66,7 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | consumer216 in-situ B16 | 0 | 1.397248 | 1.375600 | +1.549 | 3.323 | False |
 | two-layer arithmetic B16 | 0 | 1.426400 | 1.438864 | -0.874 | 2.663 | False |
 | attention load pairs B1 | 0 | 0.483904 | 0.485600 | -0.350 | 1.157 | False |
+| consumer216 tuned B16 G22 | 3 | 1.424880 | 1.385024 | +2.797 | 1.938 | True |
 | phase72 B2 GPU2 diagnostic | 2 | 0.628096 | 0.599952 | +4.481 | 6.669 | False |
 | phase72 B4 GPU2 diagnostic | 2 | 0.736144 | 0.710800 | +3.443 | 2.339 | True |
 | phase72 B8 GPU2 diagnostic | 2 | 1.052320 | 1.009456 | +4.073 | 2.349 | True |
@@ -147,6 +148,8 @@ Verified72/216 B8 re-selection qualifies3.304% boundary overhead;3/6 existing va
 Verified72/216 B16 re-selection qualifies2.234% boundary overhead;5/6 existing variants complete3/3 fresh traces. The assembled nontrace model passes5/5;GPU0 P-PAIR givesratio0.984507 versus3.323% noise. Admission and current artifacts remain unchanged.
 
 Verified prescribed two-layer Repeat6x10 combined with arithmetic bindings and P1 retains the B16 coordinates and56/224 roles. Alias and P1 component gates each pass17/17;the model passes5/5 without spill. GPU0 diagnostic P-PAIR gives ratio1.008738 versus2.663% noise and is rejected. The B8 counterpart spills52/192B stores/loads and is never executed.
+
+Verified boundary-trace cache is rejected:thread0 keeps the four markers in unused header padding and flushes at leave;three fresh GPU3 processes compare output bytes against the admitted control. Window sum differs by7.057% from nontrace,above5%,so these windows never select coordinates. The first static-shared variant exceeds the full dynamic-memory allocation and is rejected before launch. Both patches remain raw and the production header is restored. B1 instead tests existing whole-program candidates using nontrace P-SEL and P-PAIR.
 
 Verified profile2 B8 boundary overhead is3.419% on GPU0. Only2/6 existing variants are nonspilling;each completes three fresh20/50 traces. Four spilled variants are never executed. Required candidate coverage is incomplete;no assembled selection or admission is claimed. GPU2 partial traces remain separate and are not mixed with the GPU0 windows.
 

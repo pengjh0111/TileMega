@@ -79,6 +79,9 @@ def main():
               ('consumer216 in-situ B16', base/'phase72_consumer216_retune_b16_gpu0_v1/experiment.json'),
               ('two-layer arithmetic B16', base/'two_layer_arithmetic_b16_v1/experiment.json'),
               ('attention load pairs B1', base/'attention_load_pair_b1_v1/experiment.json'),
+              ('consumer216 tuned B16 G22', base/'consumer216_tuned_b16_g22_v1/experiment.json'),
+              ('phase72 B1 G22', base/'phase72_b1_v1/experiment.json'),
+              ('Repeat candidate selection B1 G22', base/'repeat_candidate_selection_b1_v2/experiment.json'),
               *[(f'phase72 B{batch} GPU2 diagnostic',
                  base/f'scalar_phase72_arithmetic_b{batch}_v1/gpu2_diagnostic_v1/experiment.json')
                 for batch in (2, 4, 8, 16)],
@@ -560,6 +563,19 @@ def main():
                   f'ratio{decision["pair"]["ratio"]:.6f} versus'
                   f'{100*decision["pair"]["threshold"]:.3f}% noise and is rejected. '
                   'The B8 counterpart spills52/192B stores/loads and is never executed.']
+    boundary = base/'trace3_local_boundary_b1_v2/trace_qualification.json'
+    if boundary.exists():
+        qualification = read(boundary)
+        assert not qualification['passed']
+        lines += ['', 'Verified boundary-trace cache is rejected:thread0 keeps the four '
+                  'markers in unused header padding and flushes at leave;three fresh '
+                  'GPU3 processes compare output bytes against the admitted control. '
+                  f'Window sum differs by{100*qualification["relative_difference"]:.3f}% '
+                  'from nontrace,above5%,so these windows never select coordinates. '
+                  'The first static-shared variant exceeds the full dynamic-memory '
+                  'allocation and is rejected before launch. Both patches remain raw '
+                  'and the production header is restored. B1 instead tests existing '
+                  'whole-program candidates using nontrace P-SEL and P-PAIR.']
     retune = base/'phase72_retune_b8_gpu0_v1/incomplete_selection.json'
     if retune.exists():
         qualification = read(retune.parent/'trace_qualification.json')
