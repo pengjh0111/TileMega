@@ -44,6 +44,18 @@ struct Plan {
   }
 };
 
+inline cudaLaunchConfig_t LaunchConfig(Plan const& plan,cudaStream_t stream,
+    cudaLaunchAttribute& cluster) {
+  cudaLaunchConfig_t config{};
+  config.gridDim=dim3(plan.grid);config.blockDim=dim3(F3ForwardProgram::kThreads);
+  config.dynamicSmemBytes=F3ForwardProgram::kSharedBytes;config.stream=stream;
+  if constexpr(F3ForwardProgram::kCluster==2) {
+    cluster.id=cudaLaunchAttributeClusterDimension;
+    cluster.val.clusterDim={2,1,1};config.attrs=&cluster;config.numAttrs=1;
+  }
+  return config;
+}
+
 inline int Grid() {
   int device=0;cudaDeviceProp properties{};
   Check(cudaGetDevice(&device));Check(cudaGetDeviceProperties(&properties,device));
@@ -59,7 +71,9 @@ extern "C" char const* tm_plan_identity() {
 }
 extern "C" int tm_plan_static_dense_abi() {return 0;}
 extern "C" unsigned tm_plan_pdl_enabled(void*) {return 0;}
-extern "C" unsigned tm_plan_cluster_dim() {return 1;}
+extern "C" unsigned tm_plan_cluster_dim() {
+  return tilemega::codegen::forward_f3::F3ForwardProgram::kCluster;
+}
 extern "C" unsigned tm_plan_loop_modes(void*) {return 0;}
 extern "C" unsigned long long tm_plan_shared_bytes() {
   return tilemega::codegen::forward_f3::F3ForwardProgram::kSharedBytes;
@@ -109,6 +123,14 @@ extern "C" void* tm_plan_create(int batch,void* const* external,int device) {
         F3ForwardProgram::kThreads,F3ForwardProgram::kSharedBytes));
     if(resident<1)
       throw std::invalid_argument("an F3 forward CTA does not fit one SM");
+    if constexpr(F3ForwardProgram::kCluster==2) {
+      if(plan->grid!=132)throw std::invalid_argument("F3 multicast requires132 H800 SMs");
+      cudaLaunchAttribute cluster{};
+      auto config=LaunchConfig(*plan,nullptr,cluster);
+      int clusters=0;
+      Check(cudaOccupancyMaxActiveClusters(&clusters,kernel,&config));
+      if(clusters<66)throw std::invalid_argument("F3 multicast cannot keep66 clusters resident");
+    }
     for(unsigned i=0;i<kF3ForwardBuffers.size();++i) {
       auto const& desc=kF3ForwardBuffers[i];
       if(desc.role==TM_BUFFER_EXTERNAL) {
@@ -167,7 +189,12 @@ extern "C" int tm_plan_launch(void* opaque,unsigned,unsigned mode,
   auto& plan=*static_cast<Plan*>(opaque);
   // The whole of §5.7 item 1: one launch, no memset of any kind.
   ++plan.epoch;
-  sm90_forward_f3_kernel<F3ForwardProgram><<<plan.grid,F3ForwardProgram::kThreads,
+  if constexpr(F3ForwardProgram::kCluster==2) {
+    cudaLaunchAttribute cluster{};
+    auto config=LaunchConfig(plan,static_cast<cudaStream_t>(stream),cluster);
+    return int(cudaLaunchKernelEx(&config,sm90_forward_f3_kernel<F3ForwardProgram>,
+        plan.bindings,plan.events,plan.epoch));
+  }else sm90_forward_f3_kernel<F3ForwardProgram><<<plan.grid,F3ForwardProgram::kThreads,
       F3ForwardProgram::kSharedBytes,static_cast<cudaStream_t>(stream)>>>(
       plan.bindings,plan.events,plan.epoch);
   return int(cudaGetLastError());

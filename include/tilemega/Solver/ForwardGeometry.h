@@ -165,9 +165,6 @@ inline Sm90ForwardResourceUsage QuerySm90ForwardF3Resources(
       r.reason="F3 matrix extents or whole-slot split are invalid";return r;
     }
     bool swap=c.mode==Sm90ForwardMode::kSwapAB;
-    if(c.mc) {
-      r.reason="F3 multicast mechanism has not passed its gate";return r;
-    }
     if(!swap && c.tile_m==256 && shape.m<512) {
       r.reason="F3 TM256 requires at least 512 matrix rows";return r;
     }

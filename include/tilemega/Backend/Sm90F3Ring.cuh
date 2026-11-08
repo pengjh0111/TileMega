@@ -101,6 +101,7 @@ struct alignas(16) Sm90F3Ring {
   static constexpr int kConsumerWarps=8;
   static constexpr int kGatherLanes=96;
   std::uint64_t full[kSlots],gfull[kSlots],empty[kSlots];
+  std::uint64_t peer_empty[kSlots];
   std::uint64_t side_full,side_empty;
 
   using Async=Sm90F3Async::Base;
@@ -112,6 +113,7 @@ struct alignas(16) Sm90F3Ring {
       Async::Init(full+i,1);
       Async::Init(gfull+i,kGatherLanes+1);
       Async::Init(empty+i,kConsumerWarps);
+      Async::Init(peer_empty+i,kConsumerWarps);
     }
     Async::Init(&side_full,1);
     Async::Init(&side_empty,kConsumerWarps);
@@ -120,6 +122,7 @@ struct alignas(16) Sm90F3Ring {
     #pragma unroll
     for(int i=0;i<kSlots;++i) {
       Async::Invalidate(full+i);Async::Invalidate(gfull+i);Async::Invalidate(empty+i);
+      Async::Invalidate(peer_empty+i);
     }
     Async::Invalidate(&side_full);Async::Invalidate(&side_empty);
   }
@@ -130,12 +133,18 @@ struct alignas(16) Sm90F3Ring {
     for(int i=0;i<kSlots;++i)Async::Arrive(empty+i);
     Async::Arrive(&side_empty);
   }
+  // Called by every consumer warp's leader after a cluster-wide init fence.
+  __device__ void PrimeCluster() {
+    #pragma unroll
+    for(int i=0;i<kSlots;++i)
+      Async::RemoteArrive(Async::Mapa(peer_empty+i,Async::ClusterRank()^1u));
+  }
 };
 
 // The phase bits each role carries in registers, one per barrier, continued
 // across tasks and across the stages that share an arena (§5.3 item 2).
 struct Sm90F3Phase {
-  unsigned full=0,gather=0,empty=0;
+  unsigned full=0,gather=0,empty=0,peer_empty=0;
   // The side barriers are single, so one bit each.
   unsigned side_full=0,side_empty=0;
   __device__ __forceinline__ unsigned Bit(unsigned mask,int slot) const {

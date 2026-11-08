@@ -477,7 +477,7 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
               ",Sm90F3Mode::"+mode+','+std::to_string(rows)+','+std::to_string(padded_n)+','+
               std::to_string(padded_k)+','+std::to_string(n)+','+f3chain.text+','+
               ((im2col||gather)?"Conv_"+std::to_string(index):"Sm90F3NoConv")+','+pool+','+
-              std::to_string(c.tk)+','+(tma_store?"true":"false")+'>';
+              std::to_string(c.tk)+','+(tma_store?"true":"false")+','+(c.mc?"true":"false")+'>';
         }
         wrapper="GemmStage";
         break;

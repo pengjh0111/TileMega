@@ -14,8 +14,8 @@ HOST_QUERY = r'''
 using namespace tilemega::backend;
 using namespace tilemega::codegen::forward_f3;
 template<class B> struct LayoutOf;
-template<int TM,int TN,int Slots,int S,Sm90F3Mode Mode,int M,int N,int K,int NS,class Chain,class Conv,class Pool,int TK,bool Store>
-struct LayoutOf<Sm90F3Gemm<TM,TN,Slots,S,Mode,M,N,K,NS,Chain,Conv,Pool,TK,Store>> {
+template<int TM,int TN,int Slots,int S,Sm90F3Mode Mode,int M,int N,int K,int NS,class Chain,class Conv,class Pool,int TK,bool Store,bool Mc>
+struct LayoutOf<Sm90F3Gemm<TM,TN,Slots,S,Mode,M,N,K,NS,Chain,Conv,Pool,TK,Store,Mc>> {
  static constexpr auto Get(int slots,bool store=Store) {
   return Sm90F3MakeGemmLayout(TM,TN,slots,false,0,Chain::kNeedsResidual,
    Chain::Layout::kVectorBytes/(4*TN),Chain::kNeedsStats,

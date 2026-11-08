@@ -218,6 +218,10 @@ struct Lookup<std::integer_sequence<unsigned,I...>,Stage...>:Entry<I,Stage>... {
 template<unsigned I,class T>
 Entry<I,T> Find(Entry<I,T> const&);
 
+template<class S,class=void>struct MulticastStage:std::false_type {};
+template<class S>struct MulticastStage<S,std::void_t<decltype(S::Kind::kMulticast)>>
+    :std::bool_constant<S::Kind::kMulticast> {};
+
 template<int Batch,unsigned Buffers,unsigned Maps,class... Stage>
 struct Program {
   using Binding=Bindings<Buffers,Maps>;
@@ -227,6 +231,7 @@ struct Program {
   static constexpr unsigned kStages=sizeof...(Stage);
   static constexpr int kBatch=Batch,kThreads=384,kResidency=1;
   static constexpr unsigned kBuffers=Buffers,kMaps=Maps;
+  static constexpr int kCluster=(MulticastStage<Stage>::value || ...)?2:1;
   static_assert(kStages>=1);
   static_assert(TILEMEGA_F3_PREFETCH_DISTANCE==1 || TILEMEGA_F3_PREFETCH_DISTANCE==2);
   static constexpr int kSharedBytes=backend::Sm90F3Budget::kBudget;
@@ -365,11 +370,16 @@ void sm90_forward_f3_kernel(const __grid_constant__ typename P::Binding b,
     backend::Sm90F3Async::Base::InitFence();
   }
   __syncthreads();
+  if constexpr(P::kCluster==2)backend::Sm90F3Async::Base::ClusterSync();
   if(threadIdx.x<256 && (tilemega::backend::Sm90F3Async::ThreadIndex()&31)==0) {
     header->rings[0].Prime();
     header->rings[1].Prime();
+    if constexpr(P::kCluster==2) {
+      header->rings[0].PrimeCluster();header->rings[1].PrimeCluster();
+    }
   }
   __syncthreads();
+  if constexpr(P::kCluster==2)backend::Sm90F3Async::Base::ClusterSync();
   auto sequence=std::make_integer_sequence<unsigned,P::kStages>{};
   if(threadIdx.x>=256) {
     backend::Sm90F3Async::template RegDealloc<56>();
@@ -379,6 +389,7 @@ void sm90_forward_f3_kernel(const __grid_constant__ typename P::Binding b,
     P::ConsumerLoop(b,shared,events,epoch,sequence);
   }
   __syncthreads();
+  if constexpr(P::kCluster==2)backend::Sm90F3Async::Base::ClusterSync();
   if(tilemega::backend::Sm90F3Async::ThreadIndex()==0) {header->rings[0].Invalidate();header->rings[1].Invalidate();}
 }
 

@@ -95,9 +95,12 @@ def dispatch(manifest, defines, source):
             expected_args.append(mode if mode in allowed else '')
             valid = args[:5] == expected_args
             if c['schema'] == 4:
-                explicit_store = args[-1] in ('true','false')
-                valid = (valid and args[-2 if explicit_store else -1] == str(stage['tk'])
-                         and ((args[-1]=='true') if explicit_store else False) == (stage['store']=='tma'))
+                suffix = []
+                while args and args[-1] in ('true','false'):
+                    suffix.insert(0,args.pop()=='true')
+                valid = (valid and len(suffix)<=2 and args[-1] == str(stage['tk'])
+                         and (suffix[0] if suffix else False) == (stage['store']=='tma')
+                         and (suffix[1] if len(suffix)==2 else False) == bool(stage['mc']))
         elif name == 'Sm90F3GemmSwapAB':
             valid = (args[:2] == [str(stage[k]) for k in ('slots', 'split_k')]
                      and 1 <= int(args[2]) <= 16 and stage['tile_n'] == 128)

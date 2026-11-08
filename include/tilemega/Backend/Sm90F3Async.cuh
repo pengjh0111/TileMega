@@ -14,6 +14,13 @@ namespace tilemega::backend {
 struct Sm90F3Async {
   using Base=codegen::executor::Async<arch::Sm90>;
 
+  __device__ static __forceinline__ void BulkMulticast(void* destination,
+      void const* source,unsigned bytes,std::uint64_t* barrier) {
+    asm volatile("cp.async.bulk.shared::cluster.global.mbarrier::complete_tx::bytes.multicast::cluster "
+        "[%0], [%1], %2, [%3], %4;" ::"r"(Base::Shared(destination)),"l"(source),
+        "r"(bytes),"r"(Base::Shared(barrier)),"h"(std::uint16_t(3)):"memory");
+  }
+
   // DT-STEM: the immutable executor encoder deliberately accepts C64 only.
   // F3's stem uses a16B channel box and a nonswizzled tap-major A panel.
   static CUresult EncodeStemMap(CUtensorMap& out,void* address,

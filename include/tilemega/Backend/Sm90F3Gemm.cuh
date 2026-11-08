@@ -72,7 +72,7 @@ struct Sm90F3NoPool {
 
 template<int TM,int TN,int Slots,int SplitK,Sm90F3Mode Mode,int M,int N,int K,
          int NStore,class Chain,class Conv=Sm90F3NoConv,class Pool=Sm90F3NoPool,int TK=64,
-         bool TmaStore=false>
+         bool TmaStore=false,bool Multicast=false>
 struct Sm90F3Gemm {
   using Element=cutlass::bfloat16_t;
   using Async=Sm90F3Async;
@@ -81,7 +81,9 @@ struct Sm90F3Gemm {
   using Side=typename Chain::Layout;
 
   static constexpr int kThreads=384;
-  static constexpr bool kCanPreissue=Mode==Sm90F3Mode::kNormal;
+  static constexpr bool kMulticast=Multicast;
+  static_assert(!Multicast || Mode==Sm90F3Mode::kNormal);
+  static constexpr bool kCanPreissue=Mode==Sm90F3Mode::kNormal && !Multicast;
   static constexpr int kSlots=Slots;
   static constexpr int kTK=TK,kPanels=TK/64;
   static constexpr bool kTmaStore=TmaStore;
@@ -111,9 +113,34 @@ struct Sm90F3Gemm {
     float sum[Split::kSubTiles][2]{},square[Split::kSubTiles][2]{};
   };
 
-  __device__ static __forceinline__ int NTile(int task) {return task%kTiles;}
-  __device__ static __forceinline__ int MTile(int task) {return (task/kTiles)%kMTiles;}
-  __device__ static __forceinline__ int Slice(int task) {return task/kOutputTiles;}
+  // Pairs precede the odd-M tail, so paired CTAs have identical slot histories
+  // throughout multicast work. Tail tasks then use ordinary unicast reads.
+  static constexpr int kMPairs=kMTiles/2;
+  static constexpr int kPairedTasks=2*kMPairs*kTiles*SplitK;
+  __device__ static __forceinline__ bool Paired(int task) {
+    return Multicast && task<kPairedTasks;
+  }
+  __device__ static __forceinline__ int NTile(int task) {
+    if constexpr(Multicast) {
+      if constexpr(kMPairs>0)
+        if(Paired(task))return ((task/2)/kMPairs)%kTiles;
+      return (task-kPairedTasks)%kTiles;
+    }else return task%kTiles;
+  }
+  __device__ static __forceinline__ int MTile(int task) {
+    if constexpr(Multicast) {
+      if constexpr(kMPairs>0)
+        if(Paired(task))return 2*((task/2)%kMPairs)+(task&1);
+      return kMTiles-1;
+    }else return (task/kTiles)%kMTiles;
+  }
+  __device__ static __forceinline__ int Slice(int task) {
+    if constexpr(Multicast) {
+      if constexpr(kMPairs>0)
+        if(Paired(task))return (task/2)/(kMPairs*kTiles);
+      return (task-kPairedTasks)/kTiles;
+    }else return task/kOutputTiles;
+  }
 
   // A slot's A panel and B page.
   __device__ static __forceinline__ Element* SlotA(Element* arena,int slot) {
@@ -202,9 +229,19 @@ struct Sm90F3Gemm {
     if(!skip_b) {
       Base::Wait(ring.empty+slot,phase.Bit(phase.empty,slot));
       phase.empty^=1u<<slot;
+      if constexpr(Multicast)
+        if(Paired(task)) {
+          Base::WaitCluster(ring.peer_empty+slot,phase.Bit(phase.peer_empty,slot));
+          phase.peer_empty^=1u<<slot;
+        }
       Base::ExpectTx(ring.full+slot,kSlotBytes);
-      Base::Bulk(SlotB(arena,slot),
-          p.weight+(std::size_t(n_tile)*(K/64)+k/64)*TN*64,2*TN*TK,ring.full+slot);
+      auto* source=p.weight+(std::size_t(n_tile)*(K/64)+k/64)*TN*64;
+      if constexpr(Multicast) {
+        if(Paired(task)) {
+          int half=int(Base::ClusterRank())*TN*TK/2;
+          Async::BulkMulticast(SlotB(arena,slot)+half,source+half,TN*TK,ring.full+slot);
+        }else Base::Bulk(SlotB(arena,slot),source,2*TN*TK,ring.full+slot);
+      }else Base::Bulk(SlotB(arena,slot),source,2*TN*TK,ring.full+slot);
     }
     IssueA(SlotA(arena,slot),p,m_tile,k,ring.full+slot);
   }
@@ -214,7 +251,7 @@ struct Sm90F3Gemm {
   template<class Accum>
   __device__ static __forceinline__ void MainLoop(Sm90F3Ring& ring,Element* arena,
       Sm90F3Phase& phase,Accum& accumulators,int wg,int first_slot,
-      int iterations) {
+      int iterations,bool multicast_task=false) {
     using namespace cute;
     Mma mma;
     auto thread=mma.get_slice(int(threadIdx.x)%128);
@@ -266,19 +303,23 @@ struct Sm90F3Gemm {
       cute::warpgroup_wait<Split::kSubTiles>();
       #pragma unroll
       for(int s=0;s<Split::kSubTiles;++s)cute::warpgroup_fence_operand(accum[s]);
-      if(previous>=0)Release(ring,previous);
+      if(previous>=0)Release(ring,previous,multicast_task);
       previous=slot;
     }
     cute::warpgroup_wait<0>();
     #pragma unroll
     for(int s=0;s<Split::kSubTiles;++s)cute::warpgroup_fence_operand(accum[s]);
-    if(previous>=0)Release(ring,previous);
+    if(previous>=0)Release(ring,previous,multicast_task);
   }
 
   // One arrival per consumer warp, after the warp's own WGMMA reads retired.
-  __device__ static __forceinline__ void Release(Sm90F3Ring& ring,int slot) {
+  __device__ static __forceinline__ void Release(Sm90F3Ring& ring,int slot,bool multicast_task=false) {
     __syncwarp();
-    if((tilemega::backend::Sm90F3Async::ThreadIndex()&31)==0)Base::Arrive(ring.empty+slot);
+    if((tilemega::backend::Sm90F3Async::ThreadIndex()&31)==0) {
+      Base::Arrive(ring.empty+slot);
+      if constexpr(Multicast)
+        if(multicast_task)Base::RemoteArrive(Base::Mapa(ring.peer_empty+slot,Base::ClusterRank()^1u));
+    }
   }
 
   // ---- producer side prefetch (§6.4 step 1) -------------------------------
@@ -841,7 +882,7 @@ struct Sm90F3Gemm {
     for(int local=0,task=int(blockIdx.x);task<kTasks;++local,task+=int(gridDim.x)) {
       int m_tile=MTile(task),n_tile=NTile(task);
       TM_F3_TRACE_BEGIN(kMainLoop);
-      MainLoop(ring,arena,phase,accum,wg,(local*kIterations)%Slots,kIterations);
+      MainLoop(ring,arena,phase,accum,wg,(local*kIterations)%Slots,kIterations,Paired(task));
       TM_F3_TRACE_END(kMainLoop);
       if constexpr(SplitK==1) {
         Epilogue(p,ring,side,phase,accum,wg,m_tile,n_tile,LiveRows(m_tile),Width(n_tile),header,arena,&store_count);
