@@ -1,10 +1,10 @@
 kind,group,cells,geometric_ratio,geometric_speedup,wins,evidence,scope
-model,resnet18,1,0.8123216150637558,1.2310395063432038,1,verified,partial Phase Z
-model,resnet50,3,1.0503997122440218,0.9520185395554324,0,verified,partial Phase Z
+model,resnet18,5,0.874903024912747,1.1429838182348597,5,verified,partial Phase Z
+model,resnet50,5,1.0528137468018934,0.9498356219584666,0,verified,partial Phase Z
 model,vgg16,5,1.0057500647913538,0.9942828094248777,2,verified,partial Phase Z
 batch,1,3,0.9347712598299542,1.0697804296870568,2,verified,partial Phase Z
-batch,2,2,1.0606534468367628,0.9428150193471276,0,verified,partial Phase Z
-batch,4,1,1.041307428141854,0.9603311884410886,0,verified,partial Phase Z
-batch,8,1,1.0140736058840225,0.9861217116761916,0,verified,partial Phase Z
-batch,16,2,0.9992296485380234,1.0007709453608624,1,verified,partial Phase Z
-overall,all,9,0.9964863376253226,1.0035260517299722,3,verified,partial Phase Z
+batch,2,3,0.9776846284204341,1.022824713543486,1,verified,partial Phase Z
+batch,4,3,0.9731110024062629,1.027631994219824,1,verified,partial Phase Z
+batch,8,3,1.0060425442923895,0.9939937487468389,1,verified,partial Phase Z
+batch,16,3,0.9839801913642169,1.0162806210697928,2,verified,partial Phase Z
+overall,all,15,0.9748411307342852,1.0258081737346927,7,verified,partial Phase Z

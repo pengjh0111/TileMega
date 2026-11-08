@@ -160,9 +160,13 @@ Diagnosis SHA256:`1bb34856e94c78d2bc751983d3b654b13b8e0bd372463634b89213d03e25b5
     table(['Cell','Largest','Second','Third'],values)
     add('## Anchors, deviations and limits')
     cnn = [r for r in final if r['model'] != 'bert']
+    resumed = (ROOT/'runs/dnn4/phase_z/bert_z_resumed_after_cnn_v1.json').exists()
     add(f'Stated latest priority: finish the three CNNs before BERT final collection. Verified CNN collection:{len(cnn)}/15; '
         'DNN4_CNN_h800.md and DNN4_CNN_final.csv distinguish improvement over DNN3 TileMega from beating the fixed fastest BF16 target. '
         'All60 existing CNN BF16 baseline arms are reused with original receipts. BERT optimization uses an isolated worktree and GPU1 with timing cores32–39 while the CNN production prefix stays frozen; BERT GPU3 final jobs are deferred.')
+    if resumed:
+        lines[-2] = lines[-2].replace('BERT GPU3 final jobs are deferred.',
+            'BERT GPU3 final jobs resumed after all15 CNN cells and the RN18 endpoint anchor completed.')
     add('Verified measurement scheduling update: later cells reserve the GPU once per protocol, with unchanged six-sample preflight and monitoring. Children remain fresh and sequential: P-SEL ABCDDCBA, P-PAIR ABABAB, P-DNN three processes, P-TUNE three processes × 50 samples. Same-library validation differs by +0.165% in P-DNN and +0.182% in trace window sum. Original receipts and resume commands remain available; raw cohort state identifies the shared guard.')
     anchors = ROOT/'runs/dnn4/phase_z/anchors_v1'
     for model in MODELS:
