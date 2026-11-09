@@ -136,11 +136,20 @@ class AdmissionTest(unittest.TestCase):
     def test_ffn1_tma_keeps_current_profile_and_other_stages(self):
         for batch, columns, slots, name, count in [
                 (4, 128, 5, 'ffn1_tma128_phase72_b4_admitted_v1', 1),
-                (16, 256, 3, 'ffn1_tma256_matrix_b16_v1', 4)]:
+                (16, 256, 3, 'ffn1_tma256_matrix_b16_v2', 4)]:
             with self.subTest(batch=batch):
                 _, decision = self.candidate()
-                decision['unit_gates'] = [self.save(f'tma_component_{i}.json',
+                decision['unit_gates'] = [self.save(f'tma_component_{i}/result.json',
                     dict(passed=True, processes=self.processes)) for i in range(count)]
+                flags = [f'-DDNN4_FFN1_TMA{columns}_TEST=1',
+                    '-DTILEMEGA_F3_SIDE_NORM=1',
+                    f'-DTILEMEGA_F3_REGISTER_BUDGET={2 if batch == 4 else 3}']
+                if batch == 16:
+                    flags += ['-DTILEMEGA_F3_MATRIX_STORE=1',
+                              '-DTILEMEGA_F3_CYCLIC_SLOTS=1']
+                build = self.save('tma_build.json', dict(command=flags,
+                    binary_sha256='frozen'))
+                self.save('tma_component_0/plan.json', dict(build=build))
                 current = dict(stages=[dict(body='gemm', slots=6) for _ in range(63)])
                 candidate = copy.deepcopy(current)
                 for index in range(4, 60, 5):
@@ -159,6 +168,11 @@ class AdmissionTest(unittest.TestCase):
                 result = select_successors(self.base, batch, spec)
                 self.assertEqual(result[0], name+'/final_result.json')
                 self.assertEqual(result[2], profile)
+                self.save('tma_build.json', dict(command=flags[:-1],
+                    binary_sha256='frozen'))
+                with self.assertRaisesRegex(ValueError, 'exact compiled profile'):
+                    select_successors(self.base, batch, spec)
+                self.save('tma_build.json', dict(command=flags, binary_sha256='frozen'))
                 candidate['stages'][5]['slots'] = 3
                 self.save('qk.so.plan.json', dict(native_forward=candidate))
                 with self.assertRaisesRegex(ValueError, 'outside its fixed group'):

@@ -53,7 +53,7 @@ def select_successors(base, batch, specification):
                       {'TILEMEGA_F3_MATRIX_STORE': '1',
                        'TILEMEGA_F3_REGISTER_BUDGET': '3'}))
     if batch == 16:
-        names.append(('ffn1_tma256_matrix_b16_v1', {}))
+        names.append(('ffn1_tma256_matrix_b16_v2', {}))
     if batch == 4:
         names.append(('cyclic_phase72_b4_v1', {'TILEMEGA_F3_CYCLIC_SLOTS': '1'}))
         names.append(('ffn1_tma128_phase72_b4_admitted_v1', {}))
@@ -90,7 +90,7 @@ def select_successors(base, batch, specification):
                  int(name.startswith('attention_bundle_')) +
                  (2 if name == 'cyclic_phase72_b4_v1' else 0) +
                  int(name == 'ffn1_tma128_phase72_b4_admitted_v1') +
-                 int(name == 'ffn1_tma256_matrix_b16_v1') +
+                 int(name == 'ffn1_tma256_matrix_b16_v2') +
                  (3 if name == 'ffn1_reg64_side216_b2_admitted_v1' else 0) +
                  (4 if name == 'ffn2_reg64_split4_b2_v1' else 0) +
                  (2 if name == 'ffn2_tma256x64_b16_v1' else 0) +
@@ -139,8 +139,10 @@ def select_successors(base, batch, specification):
                     read(decision['reference']+'.plan.json')['native_forward']):
                 raise ValueError('follow-up changed the current coordinates')
         if name == 'ffn1_tma128_phase72_b4_admitted_v1':
+            validate_ffn1_component_profile(units[0], 128)
             validate_ffn1_tma_coordinates(final['library'], decision['reference'], 128, 5)
-        if name == 'ffn1_tma256_matrix_b16_v1':
+        if name == 'ffn1_tma256_matrix_b16_v2':
+            validate_ffn1_component_profile(units[0], 256)
             validate_ffn1_tma_coordinates(final['library'], decision['reference'], 256, 3)
         if name.startswith('ffn1_tma192_matrix_'):
             validate_ffn1_tma192_coordinates(final['library'], decision['reference'])
@@ -180,6 +182,21 @@ def validate_pp_coordinates(library, reference, allow_existing=False, wg_rows=12
         stage.update(tile_m=2*wg_rows, slots=7 if wg_rows == 64 else 5, sched='pp')
     if candidate != expected:
         raise ValueError('PP follow-up changed coordinates outside its fixed FFN1 combination')
+
+
+def validate_ffn1_component_profile(unit_path, columns):
+    unit = read(unit_path)
+    plan = read(Path(unit_path).parent/'plan.json')
+    build = read(plan['build'])
+    required = {f'-DDNN4_FFN1_TMA{columns}_TEST=1',
+                '-DTILEMEGA_F3_SIDE_NORM=1',
+                f'-DTILEMEGA_F3_REGISTER_BUDGET={2 if columns == 128 else 3}'}
+    if columns == 256:
+        required.update(('-DTILEMEGA_F3_MATRIX_STORE=1',
+                         '-DTILEMEGA_F3_CYCLIC_SLOTS=1'))
+    if (not required.issubset(set(build['command'])) or
+            any(p['binary_sha256'] != build['binary_sha256'] for p in unit['processes'])):
+        raise ValueError('FFN1 TMA component lacks its exact compiled profile')
 
 
 def validate_ffn1_tma_coordinates(library, reference, columns, slots):
