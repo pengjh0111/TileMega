@@ -6,12 +6,40 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'scripts'))
-from as2_dedup import file_stamp,link_identical,completed_request_directories
+from as2_dedup import file_stamp,link_identical,completed_request_directories,main
 
 
 class DedupSafety(unittest.TestCase):
+    def test_mixed_contexts_share_each_equal_payload_without_merging_different_values(self):
+        with tempfile.TemporaryDirectory(dir='/home/d50064638/junhuip/tilemega-as2/tmp') as raw:
+            root=Path(raw);runs=root/'runs';work=root/'work';runs.mkdir();work.mkdir()
+            binding=runs/'binding';binding.mkdir();jobs=[];payloads=[];rows=[]
+            for i,value in enumerate((b'late',b'early',b'early',b'late')):
+                out=runs/f'out{i}';folder=out/'request_0/decode';folder.mkdir(parents=True)
+                data=folder/'1.bin';data.write_bytes(value*32768);payloads.append(data)
+                job=runs/f'job{i}';job.mkdir();jobs.append(job)
+                receipt=dict(project='as2',status='passed',exit_code=0,device_locked=False,
+                    pid=999999990+i,start_ticks=0,executable_sha256='CPU-fixture',cpu_test_fixture=True,
+                    command=['CPU-fixture','request',str(binding),str(out),str(1024 if i%3==0 else 4),'0','1','0'])
+                (job/'job.json').write_text(json.dumps(receipt))
+                rows.append(dict(path=str(data),completed=True,active_refs=[],keep=True,category='result',stamp=file_stamp(data)))
+            (runs/'manifest.jsonl').write_text(''.join(json.dumps(row)+'\n' for row in rows))
+            command=['as2_dedup','--completed-jobs',*map(str,jobs),'--min-bytes','65536']
+            for apply in (False,True):
+                report=runs/('apply.json' if apply else 'preview.json')
+                argv=[*command,'--out',str(report),*(['--apply'] if apply else [])]
+                with patch('as2_dedup.project_paths',return_value=(runs,work,[runs])),patch.object(sys,'argv',argv):main()
+                result=json.loads(report.read_text());self.assertEqual(result['eligible_files'],2)
+                self.assertEqual(result['different_payloads_retained'],2)
+                if not apply:self.assertEqual(len({p.stat().st_ino for p in payloads}),4)
+            self.assertTrue(os.path.samefile(payloads[0],payloads[3]))
+            self.assertTrue(os.path.samefile(payloads[1],payloads[2]))
+            self.assertFalse(os.path.samefile(payloads[0],payloads[1]))
+            for p,value in zip(payloads,(b'late',b'early',b'early',b'late')):self.assertEqual(p.read_bytes(),value*32768)
+
     def test_storage_only_requires_completed_inactive_matching_request_producers(self):
         with tempfile.TemporaryDirectory(dir='/home/d50064638/junhuip/tilemega-as2/tmp') as directory:
             root=Path(directory);binding=root/'binding';binding.mkdir();out=root/'outputs';out.mkdir()

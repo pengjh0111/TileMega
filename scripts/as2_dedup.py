@@ -114,7 +114,7 @@ def main():
     manifest=runs/'manifest.jsonl';registered={}
     for line in manifest.read_text().splitlines():
         entry=json.loads(line);registered[entry['path']]=entry
-    canonical={};items=[];different=0
+    canonical={};first_hash={};items=[];different=0
     for directory in directories:
         for target in sorted(directory.rglob('*.bin')):
             if target.name in ('trace.bin','profile.bin') or target.stat().st_size<a.min_bytes:continue
@@ -123,14 +123,17 @@ def main():
                 raise ValueError('Missing completed manifest entry or active reference: '+str(target))
             stamp=file_stamp(target)
             if stamp!=entry['stamp']:raise ValueError('Manifest identity changed: '+str(target))
-            key=str(target.relative_to(directory));sha=digest(target)
+            relative=str(target.relative_to(directory));sha=digest(target)
             if file_stamp(target)!=stamp:raise ValueError('Artifact changed while hashing')
+            key=(relative,sha)
+            if relative in first_hash and first_hash[relative]!=sha:
+                if audit:raise ValueError('C3 payload no longer matches: '+str(target))
+                different+=1
             if key not in canonical:
+                first_hash.setdefault(relative,sha)
                 canonical[key]=(target,stamp,sha);continue
             source,source_stamp,expected=canonical[key]
-            if sha!=expected:
-                if audit:raise ValueError('C3 payload no longer matches: '+str(target))
-                different+=1;continue
+            if sha!=expected:raise RuntimeError('Storage hash index is inconsistent')
             if os.path.samefile(source,target):continue
             reclaim=target.stat().st_blocks*512 if target.stat().st_nlink==1 else 0
             if a.apply:
