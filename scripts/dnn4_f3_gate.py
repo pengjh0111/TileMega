@@ -18,7 +18,8 @@ import sys
 import time
 
 ROOT = Path(os.environ.get('TILEMEGA_DNN4_REPO', Path(__file__).resolve().parents[1]))
-SOURCES = dict(ffn1_tma128=ROOT / 'test/unit/dnn4_store_bert_test.cu',
+SOURCES = dict(ffn1_tma256=ROOT / 'test/unit/dnn4_store_bert_test.cu',
+               ffn1_tma128=ROOT / 'test/unit/dnn4_store_bert_test.cu',
                ffn2_reg64=ROOT / 'test/unit/dnn4_store_bert_test.cu',
                ffn1_reg64=ROOT / 'test/unit/dnn4_store_bert_test.cu',
                ffn2_store=ROOT / 'test/unit/dnn4_store_test.cu',
@@ -141,7 +142,7 @@ def main():
     parser.add_argument('--case', choices=('all', 'gather', 'pool', 'split', 'conv', 'swap', 'small'), default='all')
     parser.add_argument('--execute', action='store_true')
     options = parser.parse_args()
-    if options.register_budget and options.suite not in ('repeat', 'repeat_odd', 'repeat_alias', 'bert_side_norm', 'pp_store', 'pp_store_bert', 'ffn2_store', 'ffn2_store_bert', 'ffn1_reg64', 'ffn2_reg64', 'ffn1_tma128'):
+    if options.register_budget and options.suite not in ('repeat', 'repeat_odd', 'repeat_alias', 'bert_side_norm', 'pp_store', 'pp_store_bert', 'ffn2_store', 'ffn2_store_bert', 'ffn1_reg64', 'ffn2_reg64', 'ffn1_tma128', 'ffn1_tma256'):
         parser.error('--register-budget requires a Repeat or BERT side-normalization suite')
     if options.repeat_arithmetic and options.suite not in ('repeat', 'repeat_odd', 'repeat_alias'):
         parser.error('--repeat-arithmetic requires a Repeat suite')
@@ -178,6 +179,9 @@ def main():
         command.insert(-4, '-DTILEMEGA_F3_SIDE_NORM=1')
     if options.suite in ('ffn2_store', 'ffn2_store_bert'):
         command.insert(-4, '-DDNN4_FFN2_STORE_TEST=1')
+        command.insert(-4, '-DTILEMEGA_F3_SIDE_NORM=1')
+    if options.suite == 'ffn1_tma256':
+        command.insert(-4, '-DDNN4_FFN1_TMA256_TEST=1')
         command.insert(-4, '-DTILEMEGA_F3_SIDE_NORM=1')
     if options.suite == 'ffn1_tma128':
         command.insert(-4, '-DDNN4_FFN1_TMA128_TEST=1')

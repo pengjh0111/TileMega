@@ -27,7 +27,7 @@ constexpr bool kPingPong=false;
 
 #if defined(DNN4_FFN1_TMA128_TEST)
 constexpr int kProducerRegisters=72,kConsumerRegisters=208;
-#elif defined(DNN4_FFN2_STORE_TEST) || defined(DNN4_FFN1_REG64_TEST) || defined(DNN4_FFN2_REG64_TEST)
+#elif defined(DNN4_FFN1_TMA256_TEST) || defined(DNN4_FFN2_STORE_TEST) || defined(DNN4_FFN1_REG64_TEST) || defined(DNN4_FFN2_REG64_TEST)
 constexpr int kProducerRegisters=72,kConsumerRegisters=216;
 #else
 constexpr int kProducerRegisters=kPingPong?72:56;
@@ -145,7 +145,10 @@ void DenseCase() {
       std::conditional_t<Kind==1,Sm90F3Chain<Side,Bias,Residual>,
                          Sm90F3Chain<Side,Norm,Gelu>>>;
   using Chain=std::conditional_t<Kind==1,Sm90F3WriteRowStats<Plain>,Plain>;
-#if defined(DNN4_FFN1_TMA128_TEST)
+#if defined(DNN4_FFN1_TMA256_TEST)
+  constexpr int Slots=3;
+  constexpr bool kTmaStore=true;
+#elif defined(DNN4_FFN1_TMA128_TEST)
   constexpr int Slots=5;
   constexpr bool kTmaStore=true;
 #elif defined(DNN4_FFN1_REG64_TEST) || defined(DNN4_FFN2_REG64_TEST)
@@ -267,7 +270,10 @@ template<int B> void SmallBertCase() {
 
 int main(int,char**) try {
   std::cout<<std::unitbuf;
-#ifdef DNN4_FFN1_TMA128_TEST
+#ifdef DNN4_FFN1_TMA256_TEST
+  // Wide N accumulator, three spanning slots and the B16 odd-tail P1 GELU.
+  DenseCase<2049,3072,768,128,256,1,2>();
+#elif defined(DNN4_FFN1_TMA128_TEST)
   // M513 includes the B4 tail with five spanning slots and NT12 P1 GELU.
   DenseCase<513,3072,768,128,128,1,2>();
 #elif defined(DNN4_FFN2_REG64_TEST)
