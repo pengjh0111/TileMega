@@ -24,7 +24,7 @@ class PhysicalAdmission(unittest.TestCase):
         self.target.parent.mkdir(parents=True)
         self.proof = self.runs/'cpu_fixture_proof.json'
         self.proof.write_text(json.dumps(dict(status='pass', physical_device_id=0,
-            processes_passed_per_group=5, groups=[14], cpu_fixture=True)))
+            processes_passed_per_group=5, groups=[14], pci_bus_id='0000:d7:00.0',cpu_fixture=True)))
         self.target.write_text(json.dumps(dict(arch_tag='ascend_3510', product_sku='950PR',
             max_verified_mix_groups=14, verified_physical_device_ids=[0],
             topology_experiment=dict(source_summary=str(self.proof),
@@ -56,6 +56,7 @@ class PhysicalAdmission(unittest.TestCase):
 
     def test_g14_requires_the_actual_binary_topology_and_physical_proof(self):
         self.assertEqual(self.check(0)['status'], 'checked')
+        self.assertEqual(self.check(0)['expected_pci_bus_id'],'0000:d7:00.0')
         self.assertIn('physical-device1', self.check(1)['reason'])
         receipt = self.binding/'request.json'
         value = json.loads(receipt.read_text());value['groups']=8
@@ -87,13 +88,28 @@ class PhysicalAdmission(unittest.TestCase):
         argv=['as2_run','--physical-device','1','--out',str(out),'--',*self.command]
         with mock.patch.multiple(as1_run,ROOT=self.root,WORK=self.root/'tilemega-as2',RUNS=self.runs), \
              mock.patch.object(as1_run,'snapshot',return_value=dict(exit_code=0,output='')), \
-             mock.patch.object(as1_run,'devices_from_snapshot',return_value={1:dict(health='OK',free_mib=1000)}), \
+             mock.patch.object(as1_run,'devices_from_snapshot',return_value={1:dict(health='OK',free_mib=1000,processes=[])}), \
              mock.patch.object(as1_run.subprocess,'Popen') as child, mock.patch('sys.argv',argv):
             result=as1_run.main(project='as2',command_preflight=functools.partial(
                 model_topology_preflight,repo=self.repo))
         self.assertEqual(result,78);child.assert_not_called()
         receipt=json.loads((out/'job.json').read_text())
         self.assertEqual(receipt['status'],'blocked-capability');self.assertNotIn('pid',receipt)
+
+    def test_reenumerated_physical_number_cannot_inherit_g14_admission(self):
+        out=self.runs/'jobs/reenumerated'
+        argv=['as2_run','--physical-device','0','--out',str(out),'--',*self.command]
+        observed=dict(free_mib=1000,processes=[],pci_bus_id='0000:0e:00.0',health='OK')
+        with mock.patch.multiple(as1_run,ROOT=self.root,WORK=self.root/'tilemega-as2',RUNS=self.runs), \
+             mock.patch.object(as1_run,'snapshot',return_value=dict(exit_code=0,output='')), \
+             mock.patch.object(as1_run,'devices_from_snapshot',return_value={0:observed}), \
+             mock.patch.object(as1_run.subprocess,'Popen') as child,mock.patch('sys.argv',argv):
+            result=as1_run.main(project='as2',command_preflight=functools.partial(model_topology_preflight,repo=self.repo))
+        self.assertEqual(result,78);child.assert_not_called()
+        receipt=json.loads((out/'job.json').read_text())
+        self.assertEqual(receipt['status'],'blocked-capability')
+        self.assertNotIn('pid',receipt)
+        self.assertEqual(receipt['observed_device_at_launch']['pci_bus_id'],'0000:0e:00.0')
 
 
 if __name__=='__main__':unittest.main()

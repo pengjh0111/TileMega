@@ -7,6 +7,7 @@ import sys
 import shutil
 import subprocess
 import os
+import re
 from tilemega.bench.as1_run import main, process_identity
 
 
@@ -60,7 +61,7 @@ def model_topology_preflight(command, physical, repo=None):
             plan = controlled(command[1], runs)
             plans = [(plan, plan)]
         groups = set()
-        targets = []
+        targets = [];expected_pcis=set()
         for bound, source in plans:
             metadata = (bound/'metadata.bin').read_bytes()
             if len(metadata) != 72:
@@ -91,13 +92,18 @@ def model_topology_preflight(command, physical, repo=None):
             if (proof.get('status') != 'pass' or proof.get('physical_device_id') != physical or
                     proof.get('processes_passed_per_group', 0) < 5 or 14 not in proof.get('groups', [])):
                 raise ValueError('G14 requires matching five-process physical-card evidence')
+            pci=proof.get('pci_bus_id')
+            if not isinstance(pci,str) or not re.fullmatch(r'[0-9a-fA-F]{4}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\.[0-7]',pci):
+                raise ValueError('G14 evidence lacks a bound PCI device identity')
+            expected_pcis.add(pci.lower())
             targets.append(str(target_path))
         if len(groups) != 1:
             raise ValueError('Request phases use different model topologies')
         if declared_groups is not None and declared_groups != next(iter(groups)):
             raise ValueError('Request identity differs from its binary topology')
+        if len(expected_pcis)>1:raise ValueError('Request phases have different admitted PCI devices')
         return dict(status='checked', groups=next(iter(groups)), physical_device_id=physical,
-                    target_configs=sorted(set(targets)))
+                    target_configs=sorted(set(targets)),expected_pci_bus_id=next(iter(expected_pcis),None))
     except (OSError, ValueError, KeyError, TypeError, struct.error) as exc:
         return dict(status='blocked', reason=str(exc), physical_device_id=physical)
 

@@ -291,12 +291,12 @@ def main(project='as1', command_preflight=None, storage_preflight=None):
     record.update(parent_pid=os.getpid(), project=project,
                   manifest_id=str(out.relative_to(ROOT)), required_free_mib=args.required_free_mib)
     record_path.write_text(json.dumps(record, indent=2)+'\n')
-    def refuse_admission(admission):
+    def refuse_admission(admission,code=75):
         status,reason=admission
-        record.update(status=status,reason=reason,exit_code=75,elapsed_s=time.monotonic()-started)
+        record.update(status=status,reason=reason,exit_code=code,elapsed_s=time.monotonic()-started)
         record_path.write_text(json.dumps(record,indent=2)+'\n')
         (out/'after.json').write_text(json.dumps(snapshot(args.telemetry_timeout_s),indent=2)+'\n')
-        print(json.dumps(record));return 75
+        print(json.dumps(record));return code
     initial_admission=device_admission(devices.get(physical),args.required_free_mib)
     if initial_admission:return refuse_admission(initial_admission)
     if storage_preflight is not None:
@@ -326,6 +326,10 @@ def main(project='as1', command_preflight=None, storage_preflight=None):
     record['observed_device_at_launch']=selected
     admission=device_admission(selected,args.required_free_mib)
     if admission:return refuse_admission(admission)
+    expected_pci=record.get('capability_preflight',{}).get('expected_pci_bus_id')
+    if expected_pci and selected.get('pci_bus_id')!=expected_pci:
+        return refuse_admission(('blocked-capability',
+            'Current PCI device differs from the card bound to topology evidence'),78)
     proc = None
     exit_code = 125
     try:
