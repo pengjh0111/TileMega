@@ -222,6 +222,7 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
   bool cyclic_slots=false;
   bool coalesced_partials=false;
   bool matrix_store=false;
+  bool attention_vector_store=false;
   unsigned attention_rows=0;
   unsigned repeat_layers=2;
   if(auto* setting=std::getenv("TILEMEGA_F3_REPEAT_ARITHMETIC")) {
@@ -253,6 +254,12 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
     if(value!="0" && value!="1")
       throw std::invalid_argument("TILEMEGA_F3_MATRIX_STORE must be0 or1");
     matrix_store=value=="1";
+  }
+  if(auto* setting=std::getenv("TILEMEGA_F3_ATTENTION_VECTOR_STORE")) {
+    std::string value=setting;
+    if(value!="0" && value!="1")
+      throw std::invalid_argument("TILEMEGA_F3_ATTENTION_VECTOR_STORE must be0 or1");
+    attention_vector_store=value=="1";
   }
   if(auto* setting=std::getenv("TILEMEGA_F3_SIDE_NORM")) {
     std::string value=setting;
@@ -335,6 +342,7 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
   if(cyclic_slots)out<<"#define TILEMEGA_F3_CYCLIC_SLOTS 1\n";
   if(coalesced_partials)out<<"#define TILEMEGA_F3_COALESCED_PARTIALS 1\n";
   if(matrix_store)out<<"#define TILEMEGA_F3_MATRIX_STORE 1\n";
+  if(attention_vector_store)out<<"#define TILEMEGA_F3_ATTENTION_VECTOR_STORE 1\n";
   if(attention_rows)out<<"#define TILEMEGA_F3_ATTENTION_ROWS "<<attention_rows<<"\n";
   out<<"// SPDX-License-Identifier: BSD-3-Clause\n"
      <<"// Generated from a DnnModelPlan and F3 forward coordinates.\n"
