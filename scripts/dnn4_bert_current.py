@@ -54,6 +54,7 @@ def select_successors(base, batch, specification):
                        'TILEMEGA_F3_REGISTER_BUDGET': '3'}))
     if batch == 16:
         names.append(('ffn1_tma256_matrix_b16_v2', {}))
+        names.append(('qkv_tma192_matrix_b16_v1', {}))
     if batch == 4:
         names.append(('cyclic_phase72_b4_v1', {'TILEMEGA_F3_CYCLIC_SLOTS': '1'}))
         names.append(('ffn1_tma128_phase72_b4_admitted_v1', {}))
@@ -91,6 +92,7 @@ def select_successors(base, batch, specification):
                  (2 if name == 'cyclic_phase72_b4_v1' else 0) +
                  int(name == 'ffn1_tma128_phase72_b4_admitted_v1') +
                  int(name == 'ffn1_tma256_matrix_b16_v2') +
+                 int(name == 'qkv_tma192_matrix_b16_v1') +
                  (3 if name == 'ffn1_reg64_side216_b2_admitted_v1' else 0) +
                  (4 if name == 'ffn2_reg64_split4_b2_v1' else 0) +
                  (2 if name == 'ffn2_tma256x64_b16_v1' else 0) +
@@ -144,6 +146,12 @@ def select_successors(base, batch, specification):
         if name == 'ffn1_tma256_matrix_b16_v2':
             validate_ffn1_component_profile(units[0], 256)
             validate_ffn1_tma_coordinates(final['library'], decision['reference'], 256, 3)
+        if name == 'qkv_tma192_matrix_b16_v1':
+            validate_component_profile(units[0], {
+                '-DDNN4_QKV_TMA192_TEST=1', '-DTILEMEGA_F3_SIDE_NORM=1',
+                '-DTILEMEGA_F3_REGISTER_BUDGET=3',
+                '-DTILEMEGA_F3_MATRIX_STORE=1', '-DTILEMEGA_F3_CYCLIC_SLOTS=1'})
+            validate_qkv_tma192_coordinates(final['library'], decision['reference'])
         if name.startswith('ffn1_tma192_matrix_'):
             validate_ffn1_tma192_coordinates(final['library'], decision['reference'])
         if name == 'ffn2_tma256x64_b16_v1':
@@ -185,18 +193,35 @@ def validate_pp_coordinates(library, reference, allow_existing=False, wg_rows=12
 
 
 def validate_ffn1_component_profile(unit_path, columns):
-    unit = read(unit_path)
-    plan = read(Path(unit_path).parent/'plan.json')
-    build = read(plan['build'])
     required = {f'-DDNN4_FFN1_TMA{columns}_TEST=1',
                 '-DTILEMEGA_F3_SIDE_NORM=1',
                 f'-DTILEMEGA_F3_REGISTER_BUDGET={2 if columns == 128 else 3}'}
     if columns == 256:
         required.update(('-DTILEMEGA_F3_MATRIX_STORE=1',
                          '-DTILEMEGA_F3_CYCLIC_SLOTS=1'))
+    validate_component_profile(unit_path, required)
+
+
+def validate_component_profile(unit_path, required):
+    unit = read(unit_path)
+    plan = read(Path(unit_path).parent/'plan.json')
+    build = read(plan['build'])
     if (not required.issubset(set(build['command'])) or
             any(p['binary_sha256'] != build['binary_sha256'] for p in unit['processes'])):
-        raise ValueError('FFN1 TMA component lacks its exact compiled profile')
+        raise ValueError('F3 component lacks its exact compiled profile')
+
+
+def validate_qkv_tma192_coordinates(library, reference):
+    current = read(str(reference)+'.plan.json')['native_forward']
+    candidate = read(str(library)+'.plan.json')['native_forward']
+    expected = json.loads(json.dumps(current))
+    if len(expected['stages']) != 63:
+        raise ValueError('QKV follow-up requires the complete BERT program')
+    for index in range(1, 60, 5):
+        expected['stages'][index].update(tile_m=128, tile_n=192, tk=64,
+            slots=4, split_k=1, store='tma', mc=0)
+    if candidate != expected:
+        raise ValueError('QKV follow-up changed coordinates outside its fixed group')
 
 
 def validate_ffn1_tma_coordinates(library, reference, columns, slots):

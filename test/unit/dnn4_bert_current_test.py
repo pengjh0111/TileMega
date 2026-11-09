@@ -179,6 +179,41 @@ class AdmissionTest(unittest.TestCase):
                     select_successors(self.base, batch, spec)
                 self.save(name+'/experiment.json', dict(decision, accepted=False))
 
+    def test_qkv_requires_exact_components_and_preserves_other_groups(self):
+        _, decision = self.candidate()
+        decision['unit_gates'] = [self.save(f'qkv_component_{i}/result.json',
+            dict(passed=True, processes=self.processes)) for i in range(4)]
+        flags = ['-DDNN4_QKV_TMA192_TEST=1', '-DTILEMEGA_F3_SIDE_NORM=1',
+                 '-DTILEMEGA_F3_REGISTER_BUDGET=3', '-DTILEMEGA_F3_MATRIX_STORE=1',
+                 '-DTILEMEGA_F3_CYCLIC_SLOTS=1']
+        build = self.save('qkv_build.json', dict(command=flags, binary_sha256='frozen'))
+        self.save('qkv_component_0/plan.json', dict(build=build))
+        current = dict(stages=[dict(body='other') for _ in range(63)])
+        candidate = copy.deepcopy(current)
+        for index in range(1, 60, 5):
+            candidate['stages'][index].update(tile_m=128, tile_n=192, tk=64,
+                slots=4, split_k=1, store='tma', mc=0)
+        self.save('control.so.plan.json', dict(native_forward=current))
+        self.save('qk.so.plan.json', dict(native_forward=candidate))
+        name = 'qkv_tma192_matrix_b16_v1'
+        self.save(name+'/experiment.json', decision)
+        self.save(name+'/final_result.json', decision)
+        profile = dict(self.spec[2], TILEMEGA_F3_MATRIX_STORE='1',
+                       TILEMEGA_F3_ATTENTION_VECTOR_STORE='1')
+        spec = (self.spec[0], self.spec[1], profile, 0)
+        self.assertEqual(select_successors(self.base, 16, spec)[0], name+'/final_result.json')
+        self.save('qkv_build.json', dict(command=flags[:-1], binary_sha256='frozen'))
+        with self.assertRaisesRegex(ValueError, 'exact compiled profile'):
+            select_successors(self.base, 16, spec)
+        self.save('qkv_build.json', dict(command=flags, binary_sha256='wrong'))
+        with self.assertRaisesRegex(ValueError, 'exact compiled profile'):
+            select_successors(self.base, 16, spec)
+        self.save('qkv_build.json', dict(command=flags, binary_sha256='frozen'))
+        candidate['stages'][4]['slots'] = 3
+        self.save('qk.so.plan.json', dict(native_forward=candidate))
+        with self.assertRaisesRegex(ValueError, 'outside its fixed group'):
+            select_successors(self.base, 16, spec)
+
     def test_pp_requires_fixed_coordinates_and_three_percent(self):
         _, decision = self.candidate()
         units = [self.save(f'pp_unit_{i}.json', dict(passed=True, processes=self.processes))
