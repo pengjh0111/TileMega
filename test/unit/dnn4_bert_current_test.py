@@ -270,6 +270,34 @@ class AdmissionTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'changed the current coordinates'):
             select_successors(self.base, 8, self.spec)
 
+    def test_ffn1_only_candidate_requires_matrix_components(self):
+        _, decision = self.candidate()
+        (self.base/'qk_wgmma_b8_v1/final_result.json').unlink()
+        decision['unit_gates'] = [self.save(f'ffn_component_{i}.json',
+            dict(passed=True, processes=self.processes)) for i in range(2)]
+        current = dict(stages=[dict(body='other') for _ in range(63)])
+        candidate = copy.deepcopy(current)
+        for index in range(4, 60, 5):
+            candidate['stages'][index].update(tile_m=128, tile_n=192, tk=64,
+                slots=4, split_k=1, store='tma', mc=0)
+        self.save('control.so.plan.json', dict(native_forward=current))
+        self.save('qk.so.plan.json', dict(native_forward=candidate))
+        name = 'ffn1_tma192_matrix_b8_v1'
+        self.save(name+'/experiment.json', decision)
+        self.save(name+'/final_result.json', decision)
+        profile = select_successors(self.base, 8, self.spec)[2]
+        self.assertEqual(profile['TILEMEGA_F3_MATRIX_STORE'], '1')
+        self.assertEqual(profile['TILEMEGA_F3_REGISTER_BUDGET'], '3')
+        candidate['stages'][1]['tile_n'] = 192
+        self.save('qk.so.plan.json', dict(native_forward=candidate))
+        with self.assertRaisesRegex(ValueError, 'outside its fixed group'):
+            select_successors(self.base, 8, self.spec)
+        decision['unit_gates'].pop()
+        self.save(name+'/experiment.json', decision)
+        self.save(name+'/final_result.json', decision)
+        with self.assertRaisesRegex(ValueError, 'component receipts'):
+            select_successors(self.base, 8, self.spec)
+
 
 if __name__ == '__main__':
     unittest.main()

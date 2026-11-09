@@ -43,6 +43,9 @@ def select_successors(base, batch, specification):
         names.append((f'attention_bundle_b{batch}_v1',
                       {'TILEMEGA_F3_ATTENTION_VECTOR_STORE': '1',
                        'TILEMEGA_F3_WGMMA_QK': '1', 'TILEMEGA_F3_WGMMA_PV': '1'}))
+        names.append((f'ffn1_tma192_matrix_b{batch}_v1',
+                      {'TILEMEGA_F3_MATRIX_STORE': '1',
+                       'TILEMEGA_F3_REGISTER_BUDGET': '3'}))
     for name, features in names:
         folder = base/name
         if not (folder/'experiment.json').exists():
@@ -66,7 +69,12 @@ def select_successors(base, batch, specification):
                   4 if name == 'ppnorm_ffn1_b16_v1' else
                   6 if name == 'pp64_ffn1_b16_v1' else 0) +
                  int(candidate_profile.get('TILEMEGA_F3_ATTENTION_VECTOR_STORE') == '1') +
-                 int(name.startswith('attention_bundle_')))
+                 int(name.startswith('attention_bundle_')) +
+                 (2 if batch == 8 and name.startswith('ffn1_tma192_matrix_') else 0) +
+                 int(name.startswith('ffn1_tma192_matrix_') and all(
+                     candidate_profile.get(k) == '1' for k in
+                     ('TILEMEGA_F3_WGMMA_QK', 'TILEMEGA_F3_WGMMA_PV',
+                      'TILEMEGA_F3_ATTENTION_VECTOR_STORE'))))
         if (len(units) != count or len(set(map(str, units))) != count or
                 set(map(str, final.get('unit_gates', []))) != set(map(str, units)) or
                 final['pair'] != decision['pair']):
@@ -105,6 +113,8 @@ def select_successors(base, batch, specification):
             if (read(final['library']+'.plan.json')['native_forward'] !=
                     read(decision['reference']+'.plan.json')['native_forward']):
                 raise ValueError('attention stores changed the current coordinates')
+        if name.startswith('ffn1_tma192_matrix_'):
+            validate_ffn1_tma192_coordinates(final['library'], decision['reference'])
         # Completed raw prototypes never appear in this ordered admission list.
         final_name = name+'/final_result.json'
         pair_name = name+'/experiment.json'
@@ -133,6 +143,19 @@ def validate_pp_coordinates(library, reference, allow_existing=False, wg_rows=12
         stage.update(tile_m=2*wg_rows, slots=7 if wg_rows == 64 else 5, sched='pp')
     if candidate != expected:
         raise ValueError('PP follow-up changed coordinates outside its fixed FFN1 combination')
+
+
+def validate_ffn1_tma192_coordinates(library, reference):
+    current = read(str(reference)+'.plan.json')['native_forward']
+    candidate = read(str(library)+'.plan.json')['native_forward']
+    expected = json.loads(json.dumps(current))
+    if len(expected['stages']) != 63:
+        raise ValueError('FFN1 follow-up requires the complete BERT program')
+    for index in range(4, 60, 5):
+        expected['stages'][index].update(tile_m=128, tile_n=192, tk=64, slots=4,
+                                         split_k=1, store='tma', mc=0)
+    if candidate != expected:
+        raise ValueError('FFN1 follow-up changed coordinates outside its fixed group')
 
 
 def main():
