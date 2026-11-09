@@ -88,6 +88,7 @@ def select_successors(base, batch, specification):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', type=Path, default=ROOT/'docs/results/DNN4_BERT_current.csv')
+    parser.add_argument('--ledger-out', type=Path)
     args = parser.parse_args()
     base = ROOT/'runs/dnn4/bert_priority'
     targets = {int(r['batch']): float(r['baseline_ms']) for r in csv.DictReader(
@@ -211,11 +212,31 @@ def main():
                 for key in ('library', 'gate', 'pair_source', 'source', 'ledger_source'):
                     if old.get(key) and Path(old[key]).resolve() == Path(row[key]).resolve():
                         row[key] = old[key]
+    ledger_rows = []
+    for row in rows:
+        coordinates = read(row['library']+'.plan.json')['native_forward']['stages']
+        with Path(row['ledger_source']).open() as stream:
+            stages = list(csv.DictReader(stream))
+        assert sorted(int(s['stage']) for s in stages) == list(range(len(coordinates)))
+        for stage in stages:
+            ledger_rows.append(dict(model='bert', batch=row['batch'], gpu=3,
+                artifact_id=row['artifact_id'], binary_sha256=row['binary_sha256'],
+                profile=row['profile'], **stage,
+                coordinate=json.dumps(coordinates[int(stage['stage'])],
+                                      sort_keys=True, separators=(',', ':')),
+                evidence='verified exact accepted reference P-TRACE1;attribution only',
+                source=row['ledger_source']))
+    ledger_output = args.ledger_out or output.with_name(output.stem+'_ledger.csv')
+    with ledger_output.open('w', newline='') as stream:
+        writer = csv.DictWriter(stream, list(ledger_rows[0]), lineterminator='\n')
+        writer.writeheader()
+        writer.writerows(ledger_rows)
     with output.open('w', newline='') as stream:
         writer = csv.DictWriter(stream, list(rows[0]), lineterminator='\n')
         writer.writeheader()
         writer.writerows(rows)
     print(json.dumps(dict(evidence='verified', rows=5, output=str(output),
+                          ledger=str(ledger_output), ledger_rows=len(ledger_rows),
                           medians_ms={r['batch']: r['median_ms'] for r in rows})))
 
 

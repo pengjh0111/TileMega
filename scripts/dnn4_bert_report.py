@@ -757,7 +757,9 @@ def main():
         lines += ['', 'Verified current accepted artifacts (GPU3;50/200;three-process P-DNN). '
                   'B1/B2/B4/B8/B16 are follow-ups that retain '
                   'the original anchor without re-anchoring. '+target_status+
-                  'DNN4_BERT_current.csv records complete identities,profiles and evidence paths.', '',
+                  'DNN4_BERT_current.csv records complete identities,profiles and evidence paths;'
+                  'DNN4_BERT_current_ledger.csv preserves all315 current stage rows with exact '
+                  'accepted reference hashes and coordinates.', '',
                   '| Batch | Median ms | p90 ms | Process range ms | Fixed BF16 ms | Ratio |',
                   '| --- | --- | --- | --- | --- | --- |']
         for row in latest:
