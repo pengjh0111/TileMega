@@ -94,6 +94,11 @@ def main():
               ('cyclic in-situ B16', base/'cyclic216_retune_b16_v1/experiment.json'),
               ('repaired in-situ B8', base/'repair216_retune_b8_v1/experiment.json'),
               ('current whole-program B4', base/'current_selection_b4_v1/experiment.json'),
+              ('producer cyclic B1', base/'producer_cyclic_b1_v1/experiment.json'),
+              ('producer cyclic B16', base/'producer_cyclic_b16_v1/experiment.json'),
+              ('present bindings B2', base/'present_binding_b2_v1/experiment.json'),
+              ('present bindings B16', base/'present_binding_b16_v1/experiment.json'),
+              ('side216 B2', base/'side216_b2_v1/experiment.json'),
               *[(f'phase72 B{batch} GPU2 diagnostic',
                  base/f'scalar_phase72_arithmetic_b{batch}_v1/gpu2_diagnostic_v1/experiment.json')
                 for batch in (2, 4, 8, 16)],
@@ -109,7 +114,9 @@ def main():
         if name in ('attention Rows64 B1', 'coalesced partial B1', 'cyclic slots B1',
                     'cyclic slots tuned B16 prototype', 'cyclic216 B16 integrated',
                     'cyclic coalesced B1 prototype', 'cyclic admitted B8',
-                    'coalesced cyclic B1 integrated', 'coalesced cyclic B2 integrated'):
+                    'coalesced cyclic B1 integrated', 'coalesced cyclic B2 integrated',
+                    'producer cyclic B1', 'producer cyclic B16',
+                    'present bindings B2', 'present bindings B16', 'side216 B2'):
             unit_paths = experiment.get('unit_gates', [experiment.get('unit_gate')])
             for unit_path in unit_paths:
                 unit = read(Path(unit_path))
