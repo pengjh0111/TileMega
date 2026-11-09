@@ -25,6 +25,13 @@ constexpr bool kPingPong=true;
 constexpr bool kPingPong=false;
 #endif
 
+#ifdef DNN4_FFN2_STORE_TEST
+constexpr int kProducerRegisters=72,kConsumerRegisters=216;
+#else
+constexpr int kProducerRegisters=kPingPong?72:56;
+constexpr int kConsumerRegisters=kPingPong?216:224;
+#endif
+
 // tile_pages' global packing uses element addresses. CuTe's flagged shared
 // layout applies its swizzle through the pointer engine instead.
 constexpr int PackedIndex(int row,int col) {
@@ -86,9 +93,9 @@ __global__ __launch_bounds__(384,1) void Body(Sm90F3GemmOperands p,
   auto* arena=reinterpret_cast<E*>(shared+Sm90F3Budget::kArena0);
   auto* side=reinterpret_cast<char*>(arena)+G::kSideOffset;
   if(threadIdx.x>=256) {
-    Sm90F3Async::RegDealloc<kPingPong?72:56>();G::Produce(p,h->rings[0],arena,side,phase,0);
+    Sm90F3Async::RegDealloc<kProducerRegisters>();G::Produce(p,h->rings[0],arena,side,phase,0);
   }else {
-    Sm90F3Async::RegAlloc<kPingPong?216:224>();G::Consume(p,h->rings[0],arena,side,phase,h,int(threadIdx.x)/128);
+    Sm90F3Async::RegAlloc<kConsumerRegisters>();G::Consume(p,h->rings[0],arena,side,phase,h,int(threadIdx.x)/128);
   }
   __syncthreads();
   if(threadIdx.x==0) {h->rings[0].Invalidate();h->rings[1].Invalidate();}
@@ -136,7 +143,11 @@ void DenseCase() {
       std::conditional_t<Kind==1,Sm90F3Chain<Side,Bias,Residual>,
                          Sm90F3Chain<Side,Norm,Gelu>>>;
   using Chain=std::conditional_t<Kind==1,Sm90F3WriteRowStats<Plain>,Plain>;
+#ifdef DNN4_FFN2_STORE_TEST
+  constexpr int Slots=4;
+#else
   constexpr int Slots=kPingPong?(Kind==1?4:5):2;
+#endif
   using G=Sm90F3Gemm<TM,TN,Slots,SplitK,Sm90F3Mode::kNormal,M,N,K,N,Chain,Sm90F3NoConv,Sm90F3NoPool,64,true,false,kPingPong>;
   constexpr int tiles=((M+Rows-1)/Rows)*(N/TN);
   std::vector<E> input(M*K),weight(N*K),packed(N*K),residual(M*N);
@@ -246,7 +257,10 @@ template<int B> void SmallBertCase() {
 
 int main(int,char**) try {
   std::cout<<std::unitbuf;
-#ifdef DNN4_PP_STORE_TEST
+#ifdef DNN4_FFN2_STORE_TEST
+  // Two m64 fragments, NT12 statistics, four ring slots and an odd row tail.
+  DenseCase<2049,768,3072,256,64,1,1>();
+#elif defined(DNN4_PP_STORE_TEST)
   // More than two tasks per CTA exercises overlap and staging reuse; the
   // odd tail checks the independent side and ring phase streams.
   DenseCase<6145,768,768,256,128,1,2>();

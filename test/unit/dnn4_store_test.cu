@@ -203,7 +203,9 @@ template<int TM,int TN,bool Residual> void StoreCase() {
 }
 int main(int,char**) {
   try {
-#ifdef DNN4_PP_STORE_TEST
+#ifdef DNN4_FFN2_STORE_TEST
+    StoreCase<256,64,true>();
+#elif defined(DNN4_PP_STORE_TEST)
     StoreCase<256,128,false>();StoreCase<256,128,true>();
 #else
     StoreCase<128,64,false>();StoreCase<128,128,false>();
