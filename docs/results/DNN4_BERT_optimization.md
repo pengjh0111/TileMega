@@ -87,6 +87,8 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | side216 B2 | 3 | 0.611360 | 0.591104 | +3.313 | 8.710 | False |
 | matrix store B8 prototype | 3 | 1.019168 | 1.009264 | +0.972 | 3.997 | False |
 | matrix store B16 prototype | 3 | 1.365888 | 1.329440 | +2.668 | 1.197 | True |
+| matrix store B16 integrated | 3 | 1.375664 | 1.336912 | +2.817 | 1.460 | True |
+| warpgroup QK B4 | 3 | 0.713056 | 0.713488 | -0.061 | 7.818 | False |
 | phase72 B2 GPU2 diagnostic | 2 | 0.628096 | 0.599952 | +4.481 | 6.669 | False |
 | phase72 B4 GPU2 diagnostic | 2 | 0.736144 | 0.710800 | +3.443 | 2.339 | True |
 | phase72 B8 GPU2 diagnostic | 2 | 1.052320 | 1.009456 | +4.073 | 2.349 | True |
