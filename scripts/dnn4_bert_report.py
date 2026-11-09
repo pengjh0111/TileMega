@@ -103,6 +103,7 @@ def main():
               ('matrix store B16 prototype', base/'stmatrix_b16_v1/experiment.json'),
               ('matrix store B8 integrated', base/'matrix_integrated_b8_v1/experiment.json'),
               ('matrix store B16 integrated', base/'matrix_integrated_b16_v1/experiment.json'),
+              ('matrix existing in-situ B16', base/'matrix_existing_retune_b16_v1/experiment.json'),
               *[(f'phase72 B{batch} GPU2 diagnostic',
                  base/f'scalar_phase72_arithmetic_b{batch}_v1/gpu2_diagnostic_v1/experiment.json')
                 for batch in (2, 4, 8, 16)],
@@ -122,14 +123,16 @@ def main():
                     'producer cyclic B1', 'producer cyclic B16',
                     'present bindings B2', 'present bindings B16', 'side216 B2',
                     'matrix store B8 prototype', 'matrix store B16 prototype',
-                    'matrix store B8 integrated', 'matrix store B16 integrated'):
+                    'matrix store B8 integrated', 'matrix store B16 integrated',
+                    'matrix existing in-situ B16'):
             unit_paths = experiment.get('unit_gates', [experiment.get('unit_gate')])
             for unit_path in unit_paths:
                 unit = read(Path(unit_path))
                 if not unit['passed'] or len(unit['processes']) != 17 or any(
                         p['exit_code'] for p in unit['processes']):
                     raise ValueError('pipeline follow-up requires its complete component gates')
-        if name in ('cyclic in-situ B16', 'repaired in-situ B8'):
+        if name in ('cyclic in-situ B16', 'repaired in-situ B8',
+                    'matrix existing in-situ B16'):
             qualification = read(path.parent/'trace_qualification.json')
             selection = read(path.parent/'tune_selection.json')
             if (not qualification['passed'] or abs(qualification['relative_difference']) > .05
