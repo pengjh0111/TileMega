@@ -136,14 +136,19 @@ class AdmissionTest(unittest.TestCase):
     def test_ffn1_tma_keeps_current_profile_and_other_stages(self):
         for batch, columns, slots, name, count in [
                 (4, 128, 5, 'ffn1_tma128_phase72_b4_admitted_v1', 1),
+                (8, 128, 5, 'ffn1_tma128_matrix_b8_v1', 3),
                 (16, 256, 3, 'ffn1_tma256_matrix_b16_v2', 4)]:
             with self.subTest(batch=batch):
                 _, decision = self.candidate()
+                (self.base/'qk_wgmma_b8_v1/final_result.json').unlink()
                 decision['unit_gates'] = [self.save(f'tma_component_{i}/result.json',
                     dict(passed=True, processes=self.processes)) for i in range(count)]
                 flags = [f'-DDNN4_FFN1_TMA{columns}_TEST=1',
                     '-DTILEMEGA_F3_SIDE_NORM=1',
-                    f'-DTILEMEGA_F3_REGISTER_BUDGET={2 if batch == 4 else 3}']
+                    f'-DTILEMEGA_F3_REGISTER_BUDGET={2 if columns == 128 else 3}']
+                if batch == 8:
+                    flags += ['-DDNN4_FFN1_TMA128_B8_TEST=1',
+                              '-DTILEMEGA_F3_MATRIX_STORE=1']
                 if batch == 16:
                     flags += ['-DTILEMEGA_F3_MATRIX_STORE=1',
                               '-DTILEMEGA_F3_CYCLIC_SLOTS=1']
@@ -160,7 +165,9 @@ class AdmissionTest(unittest.TestCase):
                 self.save(name+'/experiment.json', decision)
                 self.save(name+'/final_result.json', decision)
                 profile = dict(self.spec[2], TILEMEGA_F3_SIDE_NORM='1',
-                    TILEMEGA_F3_REGISTER_BUDGET='2' if batch == 4 else '3')
+                    TILEMEGA_F3_REGISTER_BUDGET='2' if columns == 128 else '3')
+                if batch == 8:
+                    profile['TILEMEGA_F3_MATRIX_STORE'] = '1'
                 if batch == 16:
                     profile.update(TILEMEGA_F3_MATRIX_STORE='1',
                         TILEMEGA_F3_ATTENTION_VECTOR_STORE='1')
