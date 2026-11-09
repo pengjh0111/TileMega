@@ -21,6 +21,12 @@
 #if TILEMEGA_F3_COALESCED_PARTIALS != 0 && TILEMEGA_F3_COALESCED_PARTIALS != 1
 #error "F3 coalesced partials must be0 or1"
 #endif
+#ifndef TILEMEGA_F3_MATRIX_STORE
+#define TILEMEGA_F3_MATRIX_STORE 0
+#endif
+#if TILEMEGA_F3_MATRIX_STORE != 0 && TILEMEGA_F3_MATRIX_STORE != 1
+#error "F3 matrix store must be0 or1"
+#endif
 
 // The F3 forward GEMM/convolution body (DNN3 prompt §6). Two consumer
 // warpgroups share one CTA tile, a single producer warp feeds an eight-deep
@@ -445,6 +451,25 @@ struct Sm90F3Gemm {
   __device__ static __forceinline__ void StoreQuad(Tile const& tile,Owned const& owned,
       Element* output,int stride,int wg,int sub,int m_tile,int n_tile,
       int live_rows,int width,int group,char* staging=nullptr) {
+    if constexpr(TmaStore && TILEMEGA_F3_MATRIX_STORE) {
+      if(n_tile*TN+(group/2)*64+64<=NStore) {
+        // An accumulator's two packed row pairs match stmatrix.x2. Lanes
+        // 0..15 supply the sixteen row addresses; SW128 permutes 8-column
+        // segments without a quad register transpose.
+        int row=(int(threadIdx.x)&127)/32*16+(int(threadIdx.x)&15);
+        CUTE_UNROLL
+        for(int g=0;g<4;++g) {
+          int i=group*16+g*4,col=(group%2)*32+g*8;
+          unsigned a=unsigned(Element(tile(i)).raw())|
+              (unsigned(Element(tile(i+1)).raw())<<16);
+          unsigned b=unsigned(Element(tile(i+2)).raw())|
+              (unsigned(Element(tile(i+3)).raw())<<16);
+          auto* address=staging+row*128+(((col/8)^(row%8))*16);
+          Async::MatrixStore2(address,a,b);
+        }
+        return;
+      }
+    }
     int quad=int(threadIdx.x)&3;
     CUTE_UNROLL
     for(int row=0;row<2;++row) {

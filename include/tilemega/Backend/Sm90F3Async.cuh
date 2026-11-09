@@ -198,6 +198,11 @@ struct Sm90F3Async {
         "r"(a),"r"(b),"r"(c),"r"(d):"memory");
   }
 
+  __device__ static __forceinline__ void MatrixStore2(void* address,unsigned a,unsigned b) {
+    asm volatile("stmatrix.sync.aligned.x2.m8n8.shared.b16 [%0], {%1,%2};"
+        ::"r"(Base::Shared(address)),"r"(a),"r"(b):"memory");
+  }
+
   // A row-statistics or GAP side output is read by a later stage on another
   // SM, so it is published at GPU scope before the stage gate's release.
   __device__ static __forceinline__ void StoreRelaxed(float* address,float value) {
