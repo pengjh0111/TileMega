@@ -95,6 +95,7 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | warpgroup QK/PV B4 | 3 | 0.712048 | 0.707440 | +0.647 | 1.497 | False |
 | warpgroup QK/PV B8 | 3 | 1.019920 | 1.012320 | +0.745 | 2.605 | False |
 | warpgroup QK/PV B16 | 3 | 1.330352 | 1.319936 | +0.783 | 0.987 | False |
+| FFN1 PP matrix B16 | 3 | 1.332672 | 1.511520 | -13.420 | 1.364 | False |
 | phase72 B2 GPU2 diagnostic | 2 | 0.628096 | 0.599952 | +4.481 | 6.669 | False |
 | phase72 B4 GPU2 diagnostic | 2 | 0.736144 | 0.710800 | +3.443 | 2.339 | True |
 | phase72 B8 GPU2 diagnostic | 2 | 1.052320 | 1.009456 | +4.073 | 2.349 | True |
