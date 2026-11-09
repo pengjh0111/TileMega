@@ -128,6 +128,7 @@ def main():
     parser.add_argument('--register-budget', type=int, choices=(0, 1, 2, 3), default=0)
     parser.add_argument('--cyclic-slots', action='store_true')
     parser.add_argument('--coalesced-partials', action='store_true')
+    parser.add_argument('--matrix-store', action='store_true')
     parser.add_argument('--repeat-arithmetic', action='store_true')
     parser.add_argument('--case', choices=('all', 'gather', 'pool', 'split', 'conv', 'swap', 'small'), default='all')
     parser.add_argument('--execute', action='store_true')
@@ -172,6 +173,8 @@ def main():
         command.insert(-4, '-DTILEMEGA_F3_CYCLIC_SLOTS=1')
     if options.coalesced_partials:
         command.insert(-4, '-DTILEMEGA_F3_COALESCED_PARTIALS=1')
+    if options.matrix_store:
+        command.insert(-4, '-DTILEMEGA_F3_MATRIX_STORE=1')
     if options.suite == 'partial':
         command.insert(-4, '-DDNN4_PARTIAL_LAYOUT_TEST=1')
     if options.repeat_arithmetic:
