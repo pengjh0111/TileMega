@@ -93,6 +93,7 @@ def main():
               ('cyclic admitted B8', base/'cyclic_admitted_b8_v1/experiment.json'),
               ('cyclic in-situ B16', base/'cyclic216_retune_b16_v1/experiment.json'),
               ('repaired in-situ B8', base/'repair216_retune_b8_v1/experiment.json'),
+              ('current whole-program B4', base/'current_selection_b4_v1/experiment.json'),
               *[(f'phase72 B{batch} GPU2 diagnostic',
                  base/f'scalar_phase72_arithmetic_b{batch}_v1/gpu2_diagnostic_v1/experiment.json')
                 for batch in (2, 4, 8, 16)],
@@ -226,6 +227,8 @@ def main():
                 not o.get('output_sha256') for c in gate['cases'] for o in c['outputs']):
             raise ValueError('BERT comparison requires five fresh byte-hashed FP32 gates')
         pair_path = Path(experiment.get('pair_source', path.parent/'pair/result.json'))
+        if not pair_path.exists() and (path.parent/'winner_pair/result.json').exists():
+            pair_path = path.parent/'winner_pair/result.json'
         if not pair_path.exists():
             pair_path = path.parent/f'pair_gpu{experiment["gpu"]}/result.json'
         first = read(pair_path)
@@ -674,6 +677,35 @@ def main():
             lines += ['', 'Verified B2 P1 normalization plus the admitted arithmetic loop spills '
                       + '/'.join(spills)+'B stores/loads under64/216. The compilation gate rejects '
                       'it before execution;the admitted arithmetic-only B2 profile remains selected.']
+    for batch in (2, 4):
+        folder = base/f'current_selection_b{batch}_v1'
+        if not (folder/'selection/result.json').exists():
+            continue
+        qualification = read(base/f'current_retune_b{batch}_v1/trace_qualification.json')
+        selection = read(folder/'selection/result.json')
+        lines += ['', f'Verified B{batch} current-profile boundary overhead '
+                  f'{100*qualification["relative_difference"]:.3f}% exceeds5%;'
+                  'those windows do not select stage coordinates. Four distinct nontrace '
+                  'whole programs use only original Phase Z candidates and the admitted control. '
+                  'Every candidate passes strict model5/5;spilled builds are never executed. '
+                  f'G22 P-SEL winner={selection["winner"]},'
+                  f'tie threshold={100*selection["threshold"]:.3f}%. '
+                  'The admitted control remains selected unless a separate fresh P-PAIR '
+                  'passes its unchanged noise gate.']
+    equivalence = base/'partial_layout_equivalence_accepted_v1.json'
+    if equivalence.exists():
+        checked = read(equivalence)
+        assert checked['passed'] and checked['passes'] == '5/5'
+        assert len({r['pid'] for r in checked['processes']}) == 5
+        assert len({r['binary_sha256'] for r in checked['processes']}) == 1
+        assert len({r['output_hash'] for r in checked['processes']}) == 1
+        assert all(read(Path(r['guard']))['code'] == 0 for r in checked['processes'])
+        lines += ['', 'Verified original thread-major and opt-in vector-major split-K layouts '
+                  'produce identical output bytes on six frozen shapes:odd rows,S3/4/6/16 '
+                  'and TK64/128. The first five accepted fresh original-layout processes '
+                  'use one frozen binary (four on GPU2,one on GPU3),each with guard0;'
+                  'all match the accepted coalesced-suite output hash. This is a functional '
+                  'allocation deviation with no mixed-card performance comparison.']
     current = args.out/'DNN4_BERT_current.csv'
     integrated = base/'coalesced_cyclic_b1_integrated_v1/final_result.json'
     if integrated.exists():

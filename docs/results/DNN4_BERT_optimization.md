@@ -77,7 +77,9 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | coalesced cyclic B1 integrated | 3 | 0.499216 | 0.478000 | +4.250 | 0.904 | True |
 | coalesced cyclic B2 integrated | 3 | 0.610832 | 0.619792 | -1.467 | 6.386 | False |
 | cyclic admitted B8 | 3 | 1.019536 | 1.013904 | +0.552 | 2.014 | False |
+| cyclic in-situ B16 | 3 | 1.367568 | 1.374224 | -0.487 | 1.129 | False |
 | repaired in-situ B8 | 3 | 1.019488 | 1.023504 | -0.394 | 0.807 | False |
+| current whole-program B4 | 3 | 0.712720 | 0.707152 | +0.781 | 2.896 | False |
 | phase72 B2 GPU2 diagnostic | 2 | 0.628096 | 0.599952 | +4.481 | 6.669 | False |
 | phase72 B4 GPU2 diagnostic | 2 | 0.736144 | 0.710800 | +3.443 | 2.339 | True |
 | phase72 B8 GPU2 diagnostic | 2 | 1.052320 | 1.009456 | +4.073 | 2.349 | True |
@@ -99,6 +101,7 @@ in-situ P1 B16: group0→candidate5, group1→candidate1, group2→candidate0, g
 in-situ P1 B8: group0→candidate2, group1→candidate0, group2→candidate1, group3→candidate2, group4→candidate2, group5→candidate0.
 consumer216 in-situ B8: group0→candidate0, group1→candidate0, group2→candidate0, group3→candidate0, group4→candidate1, group5→candidate0.
 consumer216 in-situ B16: group0→candidate5, group1→candidate1, group2→candidate0, group3→candidate2, group4→candidate4, group5→candidate1.
+cyclic in-situ B16: group0→candidate5, group1→candidate1, group2→candidate0, group3→candidate2, group4→candidate1, group5→candidate1.
 repaired in-situ B8: group0→candidate0, group1→candidate4, group2→candidate0, group3→candidate0, group4→candidate1, group5→candidate4.
 
 Verified post-collection checks reject40/232: the89-case scan still spills28B on256x128 residual_ln_rowstats, and the full B16 program spills36B; it is never executed. B1 compiles without spill but has no significant gain. FFN1 128x256 uses one deterministic legal four-slot register-store variant; it regresses and is rejected. Distance1 has no significant gain.
@@ -174,6 +177,12 @@ Verified B4 arithmetic Repeat plus P1 normalization retains the accepted coordin
 Verified B4 admitted P-DNN median0.734352ms,p900.744128ms,process range0.007152ms. SASS and identities are retained with the default56/224 profile;no production header changes are needed. It remains above the fixed BF16 target and retains the original GPU3 anchor without re-anchoring.
 
 Verified B2 P1 normalization plus the admitted arithmetic loop spills 8/16B stores/loads under64/216. The compilation gate rejects it before execution;the admitted arithmetic-only B2 profile remains selected.
+
+Verified B2 current-profile boundary overhead 8.351% exceeds5%;those windows do not select stage coordinates. Four distinct nontrace whole programs use only original Phase Z candidates and the admitted control. Every candidate passes strict model5/5;spilled builds are never executed. G22 P-SEL winner=A,tie threshold=9.099%. The admitted control remains selected unless a separate fresh P-PAIR passes its unchanged noise gate.
+
+Verified B4 current-profile boundary overhead 7.059% exceeds5%;those windows do not select stage coordinates. Four distinct nontrace whole programs use only original Phase Z candidates and the admitted control. Every candidate passes strict model5/5;spilled builds are never executed. G22 P-SEL winner=B,tie threshold=0.559%. The admitted control remains selected unless a separate fresh P-PAIR passes its unchanged noise gate.
+
+Verified original thread-major and opt-in vector-major split-K layouts produce identical output bytes on six frozen shapes:odd rows,S3/4/6/16 and TK64/128. The first five accepted fresh original-layout processes use one frozen binary (four on GPU2,one on GPU3),each with guard0;all match the accepted coalesced-suite output hash. This is a functional allocation deviation with no mixed-card performance comparison.
 
 Verified opt-in cyclic slot indexing and vector-major normal split-K partials retain the admitted B1 coordinates,56/224 register roles and ascending slice addition order. Integrated component gates pass17/17 on GPU3;the extended S2/TK128/odd-row suite passes17/17 on GPU2. The full model passes strict FP32 and cross-process byte checks5/5. G22 P-PAIR0.499216→0.478000ms passes0.904% noise;P-DNN 0.464496ms,p900.477696ms,process range0.012608ms. The exact accepted binary has a P-TRACE1 ledger. The same B2 mechanism fails its paired noise gate and is not enabled there. Defaults,original anchors,CNN results and frozen20-cell Phase Z remain unchanged.
 
