@@ -8,6 +8,13 @@
 #include <cmath>
 #include <cuda.h>
 
+#ifndef TILEMEGA_F3_ATTENTION_VECTOR_STORE
+#define TILEMEGA_F3_ATTENTION_VECTOR_STORE 0
+#endif
+#if TILEMEGA_F3_ATTENTION_VECTOR_STORE != 0 && TILEMEGA_F3_ATTENTION_VECTOR_STORE != 1
+#error "TILEMEGA_F3_ATTENTION_VECTOR_STORE must be0 or1"
+#endif
+
 namespace tilemega::backend {
 
 struct Sm90F3AttentionOperands {
@@ -141,6 +148,33 @@ struct Sm90F3Attention {
       }
       TM_F3_TRACE_END(kAttentionPv);
       TM_F3_TRACE_BEGIN(kStore);
+#if TILEMEGA_F3_ATTENTION_VECTOR_STORE
+      #pragma unroll
+      for(int group=0;group<2;++group) {
+        #pragma unroll
+        for(int half=0;half<2;++half) {
+          unsigned words[4];
+          #pragma unroll
+          for(int b=0;b<4;++b) {
+            int block=group*4+b;
+            words[b]=Pack(Async::DivideNormalization(output[block][2*half],sum[half]),
+                Async::DivideNormalization(output[block][2*half+1],sum[half]));
+          }
+          // A quad owns one row. Transpose its four column pairs so each
+          // destination lane writes eight consecutive BF16 values.
+          int quad=lane&3;
+          unsigned x=__shfl_xor_sync(0xffffffffu,quad&1?words[0]:words[1],1);
+          unsigned y=__shfl_xor_sync(0xffffffffu,quad&1?words[2]:words[3],1);
+          if(quad&1) {words[0]=x;words[2]=y;} else {words[1]=x;words[3]=y;}
+          x=__shfl_xor_sync(0xffffffffu,quad&2?words[0]:words[2],2);
+          y=__shfl_xor_sync(0xffffffffu,quad&2?words[1]:words[3],2);
+          if(quad&2) {words[0]=x;words[1]=y;} else {words[2]=x;words[3]=y;}
+          int row=query_row+warp*16+lane/4+8*half,col=group*32+8*quad;
+          Async::Store128(p.output+(std::size_t(image)*Seq+row)*Heads*D+head*D+col,
+              words[0],words[1],words[2],words[3]);
+        }
+      }
+#else
       #pragma unroll
       for(int block=0;block<8;++block) {
         #pragma unroll
@@ -151,6 +185,7 @@ struct Sm90F3Attention {
           Async::Store32(p.output+(std::size_t(image)*Seq+row)*Heads*D+head*D+col,packed);
         }
       }
+#endif
       TM_F3_TRACE_END(kStore);
       __syncwarp();
       if((tilemega::backend::Sm90F3Async::ThreadIndex()&31)==0)Base::Arrive(ring.empty+slot);
