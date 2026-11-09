@@ -25,7 +25,7 @@ constexpr bool kPingPong=true;
 constexpr bool kPingPong=false;
 #endif
 
-#ifdef DNN4_FFN2_STORE_TEST
+#if defined(DNN4_FFN2_STORE_TEST) || defined(DNN4_FFN1_REG64_TEST)
 constexpr int kProducerRegisters=72,kConsumerRegisters=216;
 #else
 constexpr int kProducerRegisters=kPingPong?72:56;
@@ -143,12 +143,17 @@ void DenseCase() {
       std::conditional_t<Kind==1,Sm90F3Chain<Side,Bias,Residual>,
                          Sm90F3Chain<Side,Norm,Gelu>>>;
   using Chain=std::conditional_t<Kind==1,Sm90F3WriteRowStats<Plain>,Plain>;
-#ifdef DNN4_FFN2_STORE_TEST
+#ifdef DNN4_FFN1_REG64_TEST
+  constexpr int Slots=8;
+  constexpr bool kTmaStore=false;
+#elif defined(DNN4_FFN2_STORE_TEST)
   constexpr int Slots=4;
+  constexpr bool kTmaStore=true;
 #else
   constexpr int Slots=kPingPong?(Kind==1?4:5):2;
+  constexpr bool kTmaStore=true;
 #endif
-  using G=Sm90F3Gemm<TM,TN,Slots,SplitK,Sm90F3Mode::kNormal,M,N,K,N,Chain,Sm90F3NoConv,Sm90F3NoPool,64,true,false,kPingPong>;
+  using G=Sm90F3Gemm<TM,TN,Slots,SplitK,Sm90F3Mode::kNormal,M,N,K,N,Chain,Sm90F3NoConv,Sm90F3NoPool,64,kTmaStore,false,kPingPong>;
   constexpr int tiles=((M+Rows-1)/Rows)*(N/TN);
   std::vector<E> input(M*K),weight(N*K),packed(N*K),residual(M*N);
   for(int n=0;n<N;++n)for(int k=0;k<K;++k) {
@@ -257,7 +262,10 @@ template<int B> void SmallBertCase() {
 
 int main(int,char**) try {
   std::cout<<std::unitbuf;
-#ifdef DNN4_FFN2_STORE_TEST
+#ifdef DNN4_FFN1_REG64_TEST
+  // M257 exercises side and eight-slot wrap beyond the B2 M256 shape.
+  DenseCase<257,3072,768,128,64,1,2>();
+#elif defined(DNN4_FFN2_STORE_TEST)
   // Two m64 fragments, NT12 statistics, four ring slots and an odd row tail.
   DenseCase<2049,768,3072,256,64,1,1>();
 #elif defined(DNN4_PP_STORE_TEST)
