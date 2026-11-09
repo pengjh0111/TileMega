@@ -105,6 +105,9 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | FFN1 TMA192 matrix B8 | 3 | 1.019792 | 1.017264 | +0.248 | 1.258 | False |
 | FFN1 TMA192 matrix B16 | 3 | 1.310288 | 1.356144 | -3.500 | 0.538 | False |
 | FFN2 TMA256x64 matrix B16 | 3 | 1.310656 | 1.359696 | -3.742 | 0.752 | False |
+| cyclic phase72 B4 | 3 | 0.712832 | 0.719360 | -0.916 | 2.658 | False |
+| FFN1 reg64 side216 B2 | 3 | 0.610384 | 0.597888 | +2.047 | 0.500 | True |
+| FFN2 reg64 split4 B2 | 3 | 0.597776 | 0.723808 | -21.083 | 9.946 | False |
 | phase72 B2 GPU2 diagnostic | 2 | 0.628096 | 0.599952 | +4.481 | 6.669 | False |
 | phase72 B4 GPU2 diagnostic | 2 | 0.736144 | 0.710800 | +3.443 | 2.339 | True |
 | phase72 B8 GPU2 diagnostic | 2 | 1.052320 | 1.009456 | +4.073 | 2.349 | True |
@@ -217,7 +220,7 @@ Verified current accepted artifacts (GPU3;50/200;three-process P-DNN). B1/B2/B4/
 | Batch | Median ms | p90 ms | Process range ms | Fixed BF16 ms | Ratio |
 | --- | --- | --- | --- | --- | --- |
 | 1 | 0.464496 | 0.477696 | 0.012608 | 0.4858 | 0.9561 |
-| 2 | 0.608016 | 0.629664 | 0.020512 | 0.5171 | 1.1758 |
+| 2 | 0.597536 | 0.601472 | 0.032496 | 0.5171 | 1.1555 |
 | 4 | 0.706304 | 0.715328 | 0.007824 | 0.5905 | 1.1961 |
 | 8 | 1.016400 | 1.025344 | 0.004272 | 0.7457 | 1.3630 |
 | 16 | 1.311152 | 1.326240 | 0.005984 | 1.0869 | 1.2064 |
@@ -226,7 +229,7 @@ Verified largest three stages for each current unmet BERT cell (P-TRACE1 attribu
 
 | Batch | Largest stage | Second | Third |
 | --- | --- | --- | --- |
-| 2 | s5 gemm 18.82us (main_loop=11.10,slot_wait=3.74) | s30 gemm 18.66us (main_loop=10.05,epilogue=4.19) | s35 gemm 18.30us (main_loop=10.21,epilogue=4.29) |
+| 2 | s30 gemm 17.98us (main_loop=10.11,epilogue=3.74) | s5 gemm 17.70us (main_loop=10.37,epilogue=3.36) | s55 gemm 17.66us (main_loop=10.14,slot_wait=4.58) |
 | 4 | s24 gemm 19.33us (epilogue=10.37,main_loop=8.58) | s40 gemm 19.33us (main_loop=14.98,slot_wait=4.96) | s25 gemm 18.94us (main_loop=15.62,slot_wait=5.12) |
 | 8 | s14 gemm 30.53us (main_loop=15.74,epilogue=12.96) | s59 gemm 30.14us (main_loop=15.58,epilogue=13.18) | s49 gemm 30.05us (main_loop=15.33,epilogue=12.83) |
 | 16 | s4 gemm 43.07us (main_loop=23.49,epilogue=16.29) | s9 gemm 42.11us (main_loop=23.84,epilogue=15.33) | s49 gemm 42.02us (main_loop=23.62,epilogue=14.98) |
