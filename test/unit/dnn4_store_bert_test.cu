@@ -25,7 +25,7 @@ constexpr bool kPingPong=true;
 constexpr bool kPingPong=false;
 #endif
 
-#if defined(DNN4_FFN2_STORE_TEST) || defined(DNN4_FFN1_REG64_TEST)
+#if defined(DNN4_FFN2_STORE_TEST) || defined(DNN4_FFN1_REG64_TEST) || defined(DNN4_FFN2_REG64_TEST)
 constexpr int kProducerRegisters=72,kConsumerRegisters=216;
 #else
 constexpr int kProducerRegisters=kPingPong?72:56;
@@ -143,7 +143,7 @@ void DenseCase() {
       std::conditional_t<Kind==1,Sm90F3Chain<Side,Bias,Residual>,
                          Sm90F3Chain<Side,Norm,Gelu>>>;
   using Chain=std::conditional_t<Kind==1,Sm90F3WriteRowStats<Plain>,Plain>;
-#ifdef DNN4_FFN1_REG64_TEST
+#if defined(DNN4_FFN1_REG64_TEST) || defined(DNN4_FFN2_REG64_TEST)
   constexpr int Slots=8;
   constexpr bool kTmaStore=false;
 #elif defined(DNN4_FFN2_STORE_TEST)
@@ -262,7 +262,10 @@ template<int B> void SmallBertCase() {
 
 int main(int,char**) try {
   std::cout<<std::unitbuf;
-#ifdef DNN4_FFN1_REG64_TEST
+#ifdef DNN4_FFN2_REG64_TEST
+  // Four split slices, NT12 residual row statistics and eight-slot wrap.
+  DenseCase<257,768,3072,128,64,4,1>();
+#elif defined(DNN4_FFN1_REG64_TEST)
   // M257 exercises side and eight-slot wrap beyond the B2 M256 shape.
   DenseCase<257,3072,768,128,64,1,2>();
 #elif defined(DNN4_FFN2_STORE_TEST)
