@@ -121,6 +121,9 @@ def main():
               ('FFN1 TMA192 matrix B8', base/'ffn1_tma192_matrix_b8_v1/experiment.json'),
               ('FFN1 TMA192 matrix B16', base/'ffn1_tma192_matrix_b16_v1/experiment.json'),
               ('FFN2 TMA256x64 matrix B16', base/'ffn2_tma256x64_b16_v1/experiment.json'),
+              ('cyclic phase72 B4', base/'cyclic_phase72_b4_v1/experiment.json'),
+              ('FFN1 reg64 side216 B2', base/'ffn1_reg64_side216_b2_v1/experiment.json'),
+              ('FFN2 reg64 split4 B2', base/'ffn2_reg64_split4_b2_v1/experiment.json'),
               *[(f'phase72 B{batch} GPU2 diagnostic',
                  base/f'scalar_phase72_arithmetic_b{batch}_v1/gpu2_diagnostic_v1/experiment.json')
                 for batch in (2, 4, 8, 16)],
@@ -148,7 +151,8 @@ def main():
                     'attention vector stores B8', 'attention vector stores B16',
                     'combined attention B4', 'combined attention B8', 'combined attention B16',
                     'FFN1 TMA192 matrix B8', 'FFN1 TMA192 matrix B16',
-                    'FFN2 TMA256x64 matrix B16'):
+                    'FFN2 TMA256x64 matrix B16', 'cyclic phase72 B4',
+                    'FFN1 reg64 side216 B2', 'FFN2 reg64 split4 B2'):
             unit_paths = experiment.get('unit_gates', [experiment.get('unit_gate')])
             for unit_path in unit_paths:
                 unit = read(Path(unit_path))
