@@ -222,3 +222,5 @@ Verified largest three stages for each current unmet BERT cell (P-TRACE1 attribu
 | 4 | s24 gemm 19.33us (epilogue=10.37,main_loop=8.58) | s40 gemm 19.33us (main_loop=14.98,slot_wait=4.96) | s25 gemm 18.94us (main_loop=15.62,slot_wait=5.12) |
 | 8 | s14 gemm 30.53us (main_loop=15.74,epilogue=12.96) | s59 gemm 30.14us (main_loop=15.58,epilogue=13.18) | s49 gemm 30.05us (main_loop=15.33,epilogue=12.83) |
 | 16 | s4 gemm 42.05us (main_loop=23.46,epilogue=16.03) | s19 gemm 41.63us (main_loop=24.03,epilogue=14.75) | s29 gemm 41.18us (main_loop=24.61,epilogue=13.92) |
+
+Verified fixed WG64 PP/P1/TMA candidate compiles without spill and both normal unit cohorts pass5/5, but ordering synccheck reports1024 errors and residual-chain racecheck reports21 errors. Reject before model correctness or timing; partial sanitizer cohorts are not complete gates. Frozen failures remain raw; current profiles and targets are unchanged.
