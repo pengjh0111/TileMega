@@ -117,6 +117,8 @@ def main():
               ('attention vector stores B16', base/'attention_store_b16_v1/experiment.json'),
               ('combined attention B8', base/'attention_bundle_b8_v1/experiment.json'),
               ('combined attention B16', base/'attention_bundle_b16_v1/experiment.json'),
+              ('FFN1 TMA192 matrix B8', base/'ffn1_tma192_matrix_b8_v1/experiment.json'),
+              ('FFN1 TMA192 matrix B16', base/'ffn1_tma192_matrix_b16_v1/experiment.json'),
               *[(f'phase72 B{batch} GPU2 diagnostic',
                  base/f'scalar_phase72_arithmetic_b{batch}_v1/gpu2_diagnostic_v1/experiment.json')
                 for batch in (2, 4, 8, 16)],
@@ -142,7 +144,8 @@ def main():
                     'warpgroup QK/PV B16', 'attention existing in-situ B16',
                     'FFN1 PP matrix B16', 'FFN1 PP P1 matrix B16',
                     'attention vector stores B8', 'attention vector stores B16',
-                    'combined attention B8', 'combined attention B16'):
+                    'combined attention B8', 'combined attention B16',
+                    'FFN1 TMA192 matrix B8', 'FFN1 TMA192 matrix B16'):
             unit_paths = experiment.get('unit_gates', [experiment.get('unit_gate')])
             for unit_path in unit_paths:
                 unit = read(Path(unit_path))
