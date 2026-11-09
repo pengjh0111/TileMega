@@ -242,5 +242,7 @@ int main(int,char**) try {
   DenseCase<128,768,768,128,256,1,2>();
   DenseCase<128,768,768,128,256,1,1>();
   DenseCase<512,768,768,256,128,1,2>();
+  DenseCase<128,768,768,128,192,1,2>();
+  DenseCase<128,768,768,128,192,1,1>();
   std::cout<<"output_hash="<<std::hex<<hash<<'\n';return 0;
 }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}

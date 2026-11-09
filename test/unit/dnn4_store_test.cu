@@ -200,6 +200,7 @@ int main(int,char**) {
   try {
     StoreCase<128,64,false>();StoreCase<128,128,false>();
     StoreCase<128,64,true>();StoreCase<256,128,true>();
+    StoreCase<128,192,false>();StoreCase<128,192,true>();
     std::cout<<"output_hash="<<std::hex<<hash<<"\n";return 0;
   }catch(std::exception const& error) {std::cerr<<error.what()<<"\n";return 1;}
 }
