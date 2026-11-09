@@ -131,6 +131,7 @@ def main():
     parser.add_argument('--cyclic-slots', action='store_true')
     parser.add_argument('--coalesced-partials', action='store_true')
     parser.add_argument('--matrix-store', action='store_true')
+    parser.add_argument('--attention-vector-store', action='store_true')
     parser.add_argument('--repeat-arithmetic', action='store_true')
     parser.add_argument('--case', choices=('all', 'gather', 'pool', 'split', 'conv', 'swap', 'small'), default='all')
     parser.add_argument('--execute', action='store_true')
@@ -139,6 +140,8 @@ def main():
         parser.error('--register-budget requires a Repeat or BERT side-normalization suite')
     if options.repeat_arithmetic and options.suite not in ('repeat', 'repeat_odd', 'repeat_alias'):
         parser.error('--repeat-arithmetic requires a Repeat suite')
+    if options.attention_vector_store and options.suite != 'attention':
+        parser.error('--attention-vector-store requires the attention suite')
     if options.execute:
         return execute(options)
     out = options.out.resolve()
@@ -180,6 +183,8 @@ def main():
         command.insert(-4, '-DTILEMEGA_F3_COALESCED_PARTIALS=1')
     if options.matrix_store:
         command.insert(-4, '-DTILEMEGA_F3_MATRIX_STORE=1')
+    if options.attention_vector_store:
+        command.insert(-4, '-DTILEMEGA_F3_ATTENTION_VECTOR_STORE=1')
     if options.suite == 'partial':
         command.insert(-4, '-DDNN4_PARTIAL_LAYOUT_TEST=1')
     if options.repeat_arithmetic:

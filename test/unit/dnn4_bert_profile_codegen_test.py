@@ -58,6 +58,10 @@ def main():
     assert matrix == '#define TILEMEGA_F3_MATRIX_STORE 1\n'+flat
     disabled, _ = generate('matrix_store_disabled', {'TILEMEGA_F3_MATRIX_STORE': '0'})
     assert disabled == flat
+    vector, _ = generate('attention_vector_store', {'TILEMEGA_F3_ATTENTION_VECTOR_STORE': '1'})
+    assert vector == '#define TILEMEGA_F3_ATTENTION_VECTOR_STORE 1\n'+flat
+    disabled, _ = generate('attention_vector_store_disabled', {'TILEMEGA_F3_ATTENTION_VECTOR_STORE': '0'})
+    assert disabled == flat
     rows, manifest = generate('rows64', {'TILEMEGA_F3_SIDE_NORM': '1',
                                        'TILEMEGA_F3_ATTENTION_ROWS': '64'})
     query_maps = [int(x) for x in re.findall(r'kQueryMap=(\d+)', side)]
@@ -86,10 +90,12 @@ def main():
     generate('invalid_cyclic', {'TILEMEGA_F3_CYCLIC_SLOTS': '2'}, succeeds=False)
     generate('invalid_partials', {'TILEMEGA_F3_COALESCED_PARTIALS': '2'}, succeeds=False)
     generate('invalid_matrix', {'TILEMEGA_F3_MATRIX_STORE': '2'}, succeeds=False)
+    generate('invalid_attention_vector', {'TILEMEGA_F3_ATTENTION_VECTOR_STORE': '2'}, succeeds=False)
     for macro, value in (('TILEMEGA_F3_REGISTER_BUDGET', '4'),
                          ('TILEMEGA_F3_CYCLIC_SLOTS', '2'),
                          ('TILEMEGA_F3_COALESCED_PARTIALS', '2'),
-                         ('TILEMEGA_F3_MATRIX_STORE', '2')):
+                         ('TILEMEGA_F3_MATRIX_STORE', '2'),
+                         ('TILEMEGA_F3_ATTENTION_VECTOR_STORE', '2')):
         damaged = '#define '+macro+' '+value+'\n'+flat
         try:
             dispatch(json.loads(Path(str(args.out/'default.cu')+'.plan.json').read_text()),
@@ -98,8 +104,8 @@ def main():
             pass
         else:
             raise AssertionError('unidentified mechanism setting accepted')
-    print(json.dumps(dict(status='passed', evidence='verified', profiles=10,
-                          query_maps=12, invalid_settings_rejected=6)))
+    print(json.dumps(dict(status='passed', evidence='verified', profiles=12,
+                          query_maps=12, invalid_settings_rejected=7)))
 
 
 if __name__ == '__main__':
