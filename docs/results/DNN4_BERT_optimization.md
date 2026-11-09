@@ -197,7 +197,7 @@ Verified original thread-major and opt-in vector-major split-K layouts produce i
 
 Verified opt-in cyclic slot indexing and vector-major normal split-K partials retain the admitted B1 coordinates,56/224 register roles and ascending slice addition order. Integrated component gates pass17/17 on GPU3;the extended S2/TK128/odd-row suite passes17/17 on GPU2. The full model passes strict FP32 and cross-process byte checks5/5. G22 P-PAIR0.499216→0.478000ms passes0.904% noise;P-DNN 0.464496ms,p900.477696ms,process range0.012608ms. The exact accepted binary has a P-TRACE1 ledger. The same B2 mechanism fails its paired noise gate and is not enabled there. Defaults,original anchors,CNN results and frozen20-cell Phase Z remain unchanged.
 
-Verified current accepted artifacts (GPU3;50/200;three-process P-DNN). B1/B2/B4/B8/B16 are follow-ups that retain the original anchor without re-anchoring. Fixed BF16 targets reached for B1. DNN4_BERT_current.csv records complete identities,profiles and evidence paths.
+Verified current accepted artifacts (GPU3;50/200;three-process P-DNN). B1/B2/B4/B8/B16 are follow-ups that retain the original anchor without re-anchoring. Fixed BF16 targets reached for B1. DNN4_BERT_current.csv records complete identities,profiles and evidence paths;DNN4_BERT_current_ledger.csv preserves all315 current stage rows with exact accepted reference hashes and coordinates.
 
 | Batch | Median ms | p90 ms | Process range ms | Fixed BF16 ms | Ratio |
 | --- | --- | --- | --- | --- | --- |
@@ -205,7 +205,7 @@ Verified current accepted artifacts (GPU3;50/200;three-process P-DNN). B1/B2/B4/
 | 2 | 0.608016 | 0.629664 | 0.020512 | 0.5171 | 1.1758 |
 | 4 | 0.706304 | 0.715328 | 0.007824 | 0.5905 | 1.1961 |
 | 8 | 1.016400 | 1.025344 | 0.004272 | 0.7457 | 1.3630 |
-| 16 | 1.366352 | 1.382496 | 0.006320 | 1.0869 | 1.2572 |
+| 16 | 1.327520 | 1.345760 | 0.007824 | 1.0869 | 1.2214 |
 
 Verified largest three stages for each current unmet BERT cell (P-TRACE1 attribution only;segments can overlap and are not timing results). Each ledger checks the exact accepted reference binary SHA256.
 
@@ -214,4 +214,4 @@ Verified largest three stages for each current unmet BERT cell (P-TRACE1 attribu
 | 2 | s5 gemm 18.82us (main_loop=11.10,slot_wait=3.74) | s30 gemm 18.66us (main_loop=10.05,epilogue=4.19) | s35 gemm 18.30us (main_loop=10.21,epilogue=4.29) |
 | 4 | s24 gemm 19.33us (epilogue=10.37,main_loop=8.58) | s40 gemm 19.33us (main_loop=14.98,slot_wait=4.96) | s25 gemm 18.94us (main_loop=15.62,slot_wait=5.12) |
 | 8 | s14 gemm 30.53us (main_loop=15.74,epilogue=12.96) | s59 gemm 30.14us (main_loop=15.58,epilogue=13.18) | s49 gemm 30.05us (main_loop=15.33,epilogue=12.83) |
-| 16 | s4 gemm 43.84us (main_loop=23.78,epilogue=17.25) | s9 gemm 43.33us (main_loop=23.87,epilogue=16.83) | s19 gemm 43.10us (main_loop=23.65,epilogue=16.61) |
+| 16 | s4 gemm 42.05us (main_loop=23.46,epilogue=16.03) | s19 gemm 41.63us (main_loop=24.03,epilogue=14.75) | s29 gemm 41.18us (main_loop=24.61,epilogue=13.92) |
