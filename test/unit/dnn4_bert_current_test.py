@@ -133,6 +133,38 @@ class AdmissionTest(unittest.TestCase):
         self.assertEqual(profile['TILEMEGA_F3_MATRIX_STORE'], '1')
         self.assertNotIn('TILEMEGA_F3_WGMMA_PV', profile)
 
+    def test_ffn1_tma_keeps_current_profile_and_other_stages(self):
+        for batch, columns, slots, name, count in [
+                (4, 128, 5, 'ffn1_tma128_phase72_b4_admitted_v1', 1),
+                (16, 256, 3, 'ffn1_tma256_matrix_b16_v1', 4)]:
+            with self.subTest(batch=batch):
+                _, decision = self.candidate()
+                decision['unit_gates'] = [self.save(f'tma_component_{i}.json',
+                    dict(passed=True, processes=self.processes)) for i in range(count)]
+                current = dict(stages=[dict(body='gemm', slots=6) for _ in range(63)])
+                candidate = copy.deepcopy(current)
+                for index in range(4, 60, 5):
+                    candidate['stages'][index].update(tile_m=128, tile_n=columns,
+                        tk=64, slots=slots, split_k=1, store='tma', mc=0)
+                self.save('control.so.plan.json', dict(native_forward=current))
+                self.save('qk.so.plan.json', dict(native_forward=candidate))
+                self.save(name+'/experiment.json', decision)
+                self.save(name+'/final_result.json', decision)
+                profile = dict(self.spec[2], TILEMEGA_F3_SIDE_NORM='1',
+                    TILEMEGA_F3_REGISTER_BUDGET='2' if batch == 4 else '3')
+                if batch == 16:
+                    profile.update(TILEMEGA_F3_MATRIX_STORE='1',
+                        TILEMEGA_F3_ATTENTION_VECTOR_STORE='1')
+                spec = (self.spec[0], self.spec[1], profile, 0)
+                result = select_successors(self.base, batch, spec)
+                self.assertEqual(result[0], name+'/final_result.json')
+                self.assertEqual(result[2], profile)
+                candidate['stages'][5]['slots'] = 3
+                self.save('qk.so.plan.json', dict(native_forward=candidate))
+                with self.assertRaisesRegex(ValueError, 'outside its fixed group'):
+                    select_successors(self.base, batch, spec)
+                self.save(name+'/experiment.json', dict(decision, accepted=False))
+
     def test_pp_requires_fixed_coordinates_and_three_percent(self):
         _, decision = self.candidate()
         units = [self.save(f'pp_unit_{i}.json', dict(passed=True, processes=self.processes))

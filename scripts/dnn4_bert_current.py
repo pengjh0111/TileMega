@@ -52,8 +52,11 @@ def select_successors(base, batch, specification):
         names.append(('ffn2_tma256x64_b16_v1',
                       {'TILEMEGA_F3_MATRIX_STORE': '1',
                        'TILEMEGA_F3_REGISTER_BUDGET': '3'}))
+    if batch == 16:
+        names.append(('ffn1_tma256_matrix_b16_v1', {}))
     if batch == 4:
         names.append(('cyclic_phase72_b4_v1', {'TILEMEGA_F3_CYCLIC_SLOTS': '1'}))
+        names.append(('ffn1_tma128_phase72_b4_admitted_v1', {}))
     if batch == 2:
         names.append(('ffn1_reg64_side216_b2_admitted_v1',
                       {'TILEMEGA_F3_SIDE_NORM': '1',
@@ -86,6 +89,8 @@ def select_successors(base, batch, specification):
                  int(candidate_profile.get('TILEMEGA_F3_ATTENTION_VECTOR_STORE') == '1') +
                  int(name.startswith('attention_bundle_')) +
                  (2 if name == 'cyclic_phase72_b4_v1' else 0) +
+                 int(name == 'ffn1_tma128_phase72_b4_admitted_v1') +
+                 int(name == 'ffn1_tma256_matrix_b16_v1') +
                  (3 if name == 'ffn1_reg64_side216_b2_admitted_v1' else 0) +
                  (4 if name == 'ffn2_reg64_split4_b2_v1' else 0) +
                  (2 if name == 'ffn2_tma256x64_b16_v1' else 0) +
@@ -133,6 +138,10 @@ def select_successors(base, batch, specification):
             if (read(final['library']+'.plan.json')['native_forward'] !=
                     read(decision['reference']+'.plan.json')['native_forward']):
                 raise ValueError('follow-up changed the current coordinates')
+        if name == 'ffn1_tma128_phase72_b4_admitted_v1':
+            validate_ffn1_tma_coordinates(final['library'], decision['reference'], 128, 5)
+        if name == 'ffn1_tma256_matrix_b16_v1':
+            validate_ffn1_tma_coordinates(final['library'], decision['reference'], 256, 3)
         if name.startswith('ffn1_tma192_matrix_'):
             validate_ffn1_tma192_coordinates(final['library'], decision['reference'])
         if name == 'ffn2_tma256x64_b16_v1':
@@ -171,6 +180,19 @@ def validate_pp_coordinates(library, reference, allow_existing=False, wg_rows=12
         stage.update(tile_m=2*wg_rows, slots=7 if wg_rows == 64 else 5, sched='pp')
     if candidate != expected:
         raise ValueError('PP follow-up changed coordinates outside its fixed FFN1 combination')
+
+
+def validate_ffn1_tma_coordinates(library, reference, columns, slots):
+    current = read(str(reference)+'.plan.json')['native_forward']
+    candidate = read(str(library)+'.plan.json')['native_forward']
+    expected = json.loads(json.dumps(current))
+    if len(expected['stages']) != 63:
+        raise ValueError('FFN1 follow-up requires the complete BERT program')
+    for index in range(4, 60, 5):
+        expected['stages'][index].update(tile_m=128, tile_n=columns, tk=64,
+            slots=slots, split_k=1, store='tma', mc=0)
+    if candidate != expected:
+        raise ValueError('FFN1 TMA follow-up changed coordinates outside its fixed group')
 
 
 def validate_ffn1_tma192_coordinates(library, reference):
