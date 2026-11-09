@@ -346,6 +346,33 @@ class AdmissionTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'component receipts'):
             select_successors(self.base, 4, self.spec)
 
+    def test_b2_ffn1_requires_exact_group_and_three_strict_components(self):
+        _, decision = self.candidate()
+        decision['unit_gates'] = [self.save(f'ffn1_reg_component_{i}.json',
+            dict(passed=True, processes=self.processes)) for i in range(3)]
+        current = dict(stages=[dict(body='other') for _ in range(63)])
+        candidate = copy.deepcopy(current)
+        for index in range(4, 60, 5):
+            candidate['stages'][index].update(tile_m=128, tile_n=64, tk=64,
+                slots=8, split_k=1, store='reg', mc=0)
+        self.save('control.so.plan.json', dict(native_forward=current))
+        self.save('qk.so.plan.json', dict(native_forward=candidate))
+        name = 'ffn1_reg64_side216_b2_admitted_v1'
+        self.save(name+'/experiment.json', decision)
+        self.save(name+'/final_result.json', decision)
+        profile = select_successors(self.base, 2, self.spec)[2]
+        self.assertEqual(profile['TILEMEGA_F3_SIDE_NORM'], '1')
+        self.assertEqual(profile['TILEMEGA_F3_REGISTER_BUDGET'], '3')
+        candidate['stages'][5]['tile_n'] = 64
+        self.save('qk.so.plan.json', dict(native_forward=candidate))
+        with self.assertRaisesRegex(ValueError, 'outside its fixed group'):
+            select_successors(self.base, 2, self.spec)
+        decision['unit_gates'].pop()
+        self.save(name+'/experiment.json', decision)
+        self.save(name+'/final_result.json', decision)
+        with self.assertRaisesRegex(ValueError, 'component receipts'):
+            select_successors(self.base, 2, self.spec)
+
 
 if __name__ == '__main__':
     unittest.main()
