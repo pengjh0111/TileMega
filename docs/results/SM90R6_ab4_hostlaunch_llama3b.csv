@@ -1,0 +1,4 @@
+model,batch,ab4b_tpot_ms,hostlaunch_tpot_ms,hostlaunch_slowdown_pct,ab4b_latency_reduction_vs_hostlaunch_pct,processes_per_arm,correctness_runs,evidence
+llama3_2_3b,1,2.7174254751218916,3.37899169991137,24.345330933493337,19.578805855215066,3,0,verified performance only
+llama3_2_3b,4,2.795401451649929,3.4714024760901476,24.182609765807438,19.4734269246014,3,0,verified performance only
+llama3_2_3b,16,3.155544352875194,3.7371944212778048,18.432638028764735,15.563816136804986,3,0,verified performance only
