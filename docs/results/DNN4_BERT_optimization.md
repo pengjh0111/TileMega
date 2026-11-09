@@ -82,6 +82,7 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | current whole-program B4 | 3 | 0.712720 | 0.707152 | +0.781 | 2.896 | False |
 | producer cyclic B1 | 3 | 0.476240 | 0.469920 | +1.327 | 4.542 | False |
 | producer cyclic B16 | 3 | 1.368400 | 1.369504 | -0.081 | 2.383 | False |
+| side216 B2 | 3 | 0.611360 | 0.591104 | +3.313 | 8.710 | False |
 | phase72 B2 GPU2 diagnostic | 2 | 0.628096 | 0.599952 | +4.481 | 6.669 | False |
 | phase72 B4 GPU2 diagnostic | 2 | 0.736144 | 0.710800 | +3.443 | 2.339 | True |
 | phase72 B8 GPU2 diagnostic | 2 | 1.052320 | 1.009456 | +4.073 | 2.349 | True |
