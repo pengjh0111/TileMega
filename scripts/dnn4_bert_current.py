@@ -30,6 +30,8 @@ def select_successors(base, batch, specification):
         names += [(f'qk_wgmma_b{batch}_v1', dict(common, TILEMEGA_F3_WGMMA_QK='1')),
                   (f'pv_wgmma_b{batch}_v1', dict(common, TILEMEGA_F3_WGMMA_QK='1',
                                                TILEMEGA_F3_WGMMA_PV='1'))]
+    if batch == 16:
+        names.append(('attention_existing_retune_b16_v1', {}))
     for name, features in names:
         folder = base/name
         if not (folder/'experiment.json').exists():
@@ -45,8 +47,10 @@ def select_successors(base, batch, specification):
             raise ValueError('follow-up final differs from its paired artifact: '+name)
         expected = Counter(unit=5, memcheck=1, initcheck=1, racecheck=5, synccheck=5)
         units = decision.get('unit_gates', [])
-        count = (4 if name.startswith('pv_') else 3 if name.startswith('qk_') else 2
-                 ) if batch == 16 else (2 if name.startswith('pv_') else 1)
+        candidate_profile = dict(profile, **features)
+        count = ((2 if batch == 16 else 0) +
+                 int(candidate_profile.get('TILEMEGA_F3_WGMMA_QK') == '1') +
+                 int(candidate_profile.get('TILEMEGA_F3_WGMMA_PV') == '1'))
         if (len(units) != count or len(set(map(str, units))) != count or
                 set(map(str, final.get('unit_gates', []))) != set(map(str, units)) or
                 final['pair'] != decision['pair']):
@@ -61,7 +65,7 @@ def select_successors(base, batch, specification):
                     len({p['binary_sha256'] for p in processes}) != 1 or
                     len({p['output_hash'] for p in processes}) != 1):
                 raise ValueError('follow-up component protocol is incomplete: '+name)
-        if name == 'matrix_existing_retune_b16_v1':
+        if name in ('matrix_existing_retune_b16_v1', 'attention_existing_retune_b16_v1'):
             qualification = read(folder/'trace_qualification.json')
             selection = read(folder/'tune_selection.json')
             if (not qualification['passed'] or abs(qualification['relative_difference']) > .05
@@ -75,7 +79,7 @@ def select_successors(base, batch, specification):
         # Completed raw prototypes never appear in this ordered admission list.
         final_name = name+'/final_result.json'
         pair_name = name+'/experiment.json'
-        profile = dict(profile, **features)
+        profile = candidate_profile
         minimum_gain = 0
         library = Path(final['library'])
     return final_name, pair_name, profile, minimum_gain

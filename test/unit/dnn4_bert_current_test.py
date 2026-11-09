@@ -113,6 +113,26 @@ class AdmissionTest(unittest.TestCase):
         self.save(name+'/trace_qualification.json', dict(passed=True, relative_difference=.03))
         self.assertEqual(select_successors(self.base, 16, self.spec)[0], name+'/final_result.json')
 
+    def test_reselection_inherits_accepted_math_profile(self):
+        _, decision = self.candidate()
+        self.save('matrix_unit.json', dict(passed=True, processes=self.processes))
+        decision['unit_gates'] += [str(self.base/'pv_unit.json'), str(self.base/'matrix_unit.json')]
+        self.save('qk_wgmma_b16_v1/experiment.json', decision)
+        self.save('qk_wgmma_b16_v1/final_result.json', decision)
+        tuned = copy.deepcopy(decision)
+        tuned['reference'] = decision['library']
+        tuned['library'] = str(self.base/'tuned.so')
+        name = 'attention_existing_retune_b16_v1'
+        self.save(name+'/experiment.json', tuned)
+        self.save(name+'/final_result.json', tuned)
+        self.save(name+'/trace_qualification.json', dict(passed=True, relative_difference=.03))
+        self.save(name+'/tune_selection.json', dict(eligible_variants=[0, 1, 2, 4, 5]))
+        final, _, profile, _ = select_successors(self.base, 16, self.spec)
+        self.assertEqual(final, name+'/final_result.json')
+        self.assertEqual(profile['TILEMEGA_F3_WGMMA_QK'], '1')
+        self.assertEqual(profile['TILEMEGA_F3_MATRIX_STORE'], '1')
+        self.assertNotIn('TILEMEGA_F3_WGMMA_PV', profile)
+
 
 if __name__ == '__main__':
     unittest.main()

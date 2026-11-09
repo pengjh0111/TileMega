@@ -110,6 +110,7 @@ def main():
               ('warpgroup QK/PV B4', base/'pv_wgmma_b4_v1/experiment.json'),
               ('warpgroup QK/PV B8', base/'pv_wgmma_b8_v1/experiment.json'),
               ('warpgroup QK/PV B16', base/'pv_wgmma_b16_v1/experiment.json'),
+              ('attention existing in-situ B16', base/'attention_existing_retune_b16_v1/experiment.json'),
               *[(f'phase72 B{batch} GPU2 diagnostic',
                  base/f'scalar_phase72_arithmetic_b{batch}_v1/gpu2_diagnostic_v1/experiment.json')
                 for batch in (2, 4, 8, 16)],
@@ -132,7 +133,7 @@ def main():
                     'matrix store B8 integrated', 'matrix store B16 integrated',
                     'matrix existing in-situ B16', 'warpgroup QK B4', 'warpgroup QK B8',
                     'warpgroup QK B16', 'warpgroup QK/PV B4', 'warpgroup QK/PV B8',
-                    'warpgroup QK/PV B16'):
+                    'warpgroup QK/PV B16', 'attention existing in-situ B16'):
             unit_paths = experiment.get('unit_gates', [experiment.get('unit_gate')])
             for unit_path in unit_paths:
                 unit = read(Path(unit_path))
@@ -140,7 +141,7 @@ def main():
                         p['exit_code'] for p in unit['processes']):
                     raise ValueError('pipeline follow-up requires its complete component gates')
         if name in ('cyclic in-situ B16', 'repaired in-situ B8',
-                    'matrix existing in-situ B16'):
+                    'matrix existing in-situ B16', 'attention existing in-situ B16'):
             qualification = read(path.parent/'trace_qualification.json')
             selection = read(path.parent/'tune_selection.json')
             if (not qualification['passed'] or abs(qualification['relative_difference']) > .05
