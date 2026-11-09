@@ -22,9 +22,11 @@ def main():
     targets = {int(r['batch']): float(r['baseline_ms']) for r in csv.DictReader(
         (ROOT/'docs/results/DNN3_final.csv').open()) if r['model'] == 'bert'}
     followups = {
-        1: ('repeat_single_models_v1/b1/final_gpu3_v1/result.json',
-            'repeat_single_models_v1/b1/g22_v3/experiment.json',
-            {'TILEMEGA_F3_REPEAT': '1', 'TILEMEGA_F3_REPEAT_LAYERS': '1'}, .03),
+        1: ('coalesced_cyclic_b1_integrated_v1/final_result.json',
+            'coalesced_cyclic_b1_integrated_v1/experiment.json',
+            {'TILEMEGA_F3_REPEAT': '1', 'TILEMEGA_F3_REPEAT_LAYERS': '1',
+             'TILEMEGA_F3_CYCLIC_SLOTS': '1',
+             'TILEMEGA_F3_COALESCED_PARTIALS': '1'}, 0),
         2: ('repeat_arithmetic_models_v1/b2/g22_followup_final_v1/final_result.json',
             'repeat_arithmetic_models_v1/b2/experiment.json',
             {'TILEMEGA_F3_REPEAT': '1', 'TILEMEGA_F3_REPEAT_LAYERS': '1',
@@ -42,9 +44,13 @@ def main():
              'TILEMEGA_F3_REPEAT_LAYERS': '1',
              'TILEMEGA_F3_REPEAT_ARITHMETIC': '1',
              'TILEMEGA_F3_REGISTER_BUDGET': '2'}, .03),
-        16: ('side_norm_models_v2/b16/g22_v1/final_result.json',
-             'side_norm_models_v2/b16/g22_v1/experiment.json',
-             {'TILEMEGA_F3_SIDE_NORM': '1'}, 0)}
+        16: ('cyclic216_b16_integrated_v1/final_result.json',
+             'cyclic216_b16_integrated_v1/experiment.json',
+             {'TILEMEGA_F3_SIDE_NORM': '1', 'TILEMEGA_F3_REPEAT': '1',
+              'TILEMEGA_F3_REPEAT_LAYERS': '1',
+              'TILEMEGA_F3_REPEAT_ARITHMETIC': '1',
+              'TILEMEGA_F3_REGISTER_BUDGET': '3',
+              'TILEMEGA_F3_CYCLIC_SLOTS': '1'}, .03)}
     rows = []
     for batch in (1, 2, 4, 8, 16):
         if batch in followups:
@@ -88,7 +94,9 @@ def main():
             process = read(m['measurement'])
             assert Path(process['numerical_gate_path']).resolve() == gate.resolve()
         ms = measurement['candidate_ms']
-        if batch == 1:
+        if 'ledger' in final:
+            ledger = final['ledger']
+        elif batch == 1:
             ledger = read(base/'repeat_single_models_v1/b1/ledger_gpu3_v1/result.json')['ledger']
         elif batch == 16:
             ledger = read(base/'side_norm_models_v2/b16/ledger_gpu3_v1/result.json')['ledger']

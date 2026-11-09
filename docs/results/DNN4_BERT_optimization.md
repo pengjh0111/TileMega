@@ -67,6 +67,17 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | two-layer arithmetic B16 | 0 | 1.426400 | 1.438864 | -0.874 | 2.663 | False |
 | attention load pairs B1 | 0 | 0.483904 | 0.485600 | -0.350 | 1.157 | False |
 | consumer216 tuned B16 G22 | 3 | 1.424880 | 1.385024 | +2.797 | 1.938 | True |
+| phase72 B1 G22 | 3 | 0.497392 | 0.500160 | -0.556 | 6.028 | False |
+| attention Rows64 B1 | 3 | 0.484480 | 0.516128 | -6.532 | 7.738 | False |
+| coalesced partial B1 | 3 | 0.499696 | 0.478160 | +4.310 | 4.537 | False |
+| cyclic slots B1 | 3 | 0.497808 | 0.486592 | +2.253 | 5.287 | False |
+| cyclic slots tuned B16 prototype | 3 | 1.423984 | 1.366288 | +4.052 | 1.021 | True |
+| cyclic216 B16 integrated | 3 | 1.424304 | 1.364432 | +4.204 | 1.771 | True |
+| cyclic coalesced B1 prototype | 3 | 0.498032 | 0.467984 | +6.033 | 4.745 | True |
+| coalesced cyclic B1 integrated | 3 | 0.499216 | 0.478000 | +4.250 | 0.904 | True |
+| coalesced cyclic B2 integrated | 3 | 0.610832 | 0.619792 | -1.467 | 6.386 | False |
+| cyclic admitted B8 | 3 | 1.019536 | 1.013904 | +0.552 | 2.014 | False |
+| repaired in-situ B8 | 3 | 1.019488 | 1.023504 | -0.394 | 0.807 | False |
 | phase72 B2 GPU2 diagnostic | 2 | 0.628096 | 0.599952 | +4.481 | 6.669 | False |
 | phase72 B4 GPU2 diagnostic | 2 | 0.736144 | 0.710800 | +3.443 | 2.339 | True |
 | phase72 B8 GPU2 diagnostic | 2 | 1.052320 | 1.009456 | +4.073 | 2.349 | True |
@@ -88,6 +99,7 @@ in-situ P1 B16: group0→candidate5, group1→candidate1, group2→candidate0, g
 in-situ P1 B8: group0→candidate2, group1→candidate0, group2→candidate1, group3→candidate2, group4→candidate2, group5→candidate0.
 consumer216 in-situ B8: group0→candidate0, group1→candidate0, group2→candidate0, group3→candidate0, group4→candidate1, group5→candidate0.
 consumer216 in-situ B16: group0→candidate5, group1→candidate1, group2→candidate0, group3→candidate2, group4→candidate4, group5→candidate1.
+repaired in-situ B8: group0→candidate0, group1→candidate4, group2→candidate0, group3→candidate0, group4→candidate1, group5→candidate4.
 
 Verified post-collection checks reject40/232: the89-case scan still spills28B on256x128 residual_ln_rowstats, and the full B16 program spills36B; it is never executed. B1 compiles without spill but has no significant gain. FFN1 128x256 uses one deterministic legal four-slot register-store variant; it regresses and is rejected. Distance1 has no significant gain.
 
@@ -163,22 +175,23 @@ Verified B4 admitted P-DNN median0.734352ms,p900.744128ms,process range0.007152m
 
 Verified B2 P1 normalization plus the admitted arithmetic loop spills 8/16B stores/loads under64/216. The compilation gate rejects it before execution;the admitted arithmetic-only B2 profile remains selected.
 
-Verified current accepted artifacts (GPU3;50/200;three-process P-DNN). B1/B2/B4/B8/B16 are follow-ups that retain the original anchor without re-anchoring. All fixed BF16 targets remain unmet. DNN4_BERT_current.csv records complete identities,profiles and evidence paths.
+Verified opt-in cyclic slot indexing and vector-major normal split-K partials retain the admitted B1 coordinates,56/224 register roles and ascending slice addition order. Integrated component gates pass17/17 on GPU3;the extended S2/TK128/odd-row suite passes17/17 on GPU2. The full model passes strict FP32 and cross-process byte checks5/5. G22 P-PAIR0.499216→0.478000ms passes0.904% noise;P-DNN 0.464496ms,p900.477696ms,process range0.012608ms. The exact accepted binary has a P-TRACE1 ledger. The same B2 mechanism fails its paired noise gate and is not enabled there. Defaults,original anchors,CNN results and frozen20-cell Phase Z remain unchanged.
+
+Verified current accepted artifacts (GPU3;50/200;three-process P-DNN). B1/B2/B4/B8/B16 are follow-ups that retain the original anchor without re-anchoring. Fixed BF16 targets reached for B1. DNN4_BERT_current.csv records complete identities,profiles and evidence paths.
 
 | Batch | Median ms | p90 ms | Process range ms | Fixed BF16 ms | Ratio |
 | --- | --- | --- | --- | --- | --- |
-| 1 | 0.498176 | 0.500640 | 0.013232 | 0.4858 | 1.0254 |
+| 1 | 0.464496 | 0.477696 | 0.012608 | 0.4858 | 0.9561 |
 | 2 | 0.608016 | 0.629664 | 0.020512 | 0.5171 | 1.1758 |
 | 4 | 0.706304 | 0.715328 | 0.007824 | 0.5905 | 1.1961 |
 | 8 | 1.016400 | 1.025344 | 0.004272 | 0.7457 | 1.3630 |
-| 16 | 1.421744 | 1.446144 | 0.001824 | 1.0869 | 1.3081 |
+| 16 | 1.366352 | 1.382496 | 0.006320 | 1.0869 | 1.2572 |
 
 Verified largest three stages for each current unmet BERT cell (P-TRACE1 attribution only;segments can overlap and are not timing results). Each ledger checks the exact accepted reference binary SHA256.
 
 | Batch | Largest stage | Second | Third |
 | --- | --- | --- | --- |
-| 1 | s5 gemm 17.57us (main_loop=9.28,slot_wait=4.83) | s50 gemm 16.70us (main_loop=9.28,slot_wait=3.94) | s60 gemm 16.22us (main_loop=8.35,slot_wait=3.74) |
 | 2 | s5 gemm 18.82us (main_loop=11.10,slot_wait=3.74) | s30 gemm 18.66us (main_loop=10.05,epilogue=4.19) | s35 gemm 18.30us (main_loop=10.21,epilogue=4.29) |
 | 4 | s24 gemm 19.33us (epilogue=10.37,main_loop=8.58) | s40 gemm 19.33us (main_loop=14.98,slot_wait=4.96) | s25 gemm 18.94us (main_loop=15.62,slot_wait=5.12) |
 | 8 | s14 gemm 30.53us (main_loop=15.74,epilogue=12.96) | s59 gemm 30.14us (main_loop=15.58,epilogue=13.18) | s49 gemm 30.05us (main_loop=15.33,epilogue=12.83) |
-| 16 | s54 gemm 44.10us (main_loop=22.75,epilogue=17.66) | s4 gemm 44.06us (main_loop=23.07,epilogue=18.27) | s19 gemm 44.03us (main_loop=24.00,epilogue=17.02) |
+| 16 | s4 gemm 43.84us (main_loop=23.78,epilogue=17.25) | s9 gemm 43.33us (main_loop=23.87,epilogue=16.83) | s19 gemm 43.10us (main_loop=23.65,epilogue=16.61) |

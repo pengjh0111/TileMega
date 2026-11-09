@@ -82,6 +82,17 @@ def main():
               ('consumer216 tuned B16 G22', base/'consumer216_tuned_b16_g22_v1/experiment.json'),
               ('phase72 B1 G22', base/'phase72_b1_v1/experiment.json'),
               ('Repeat candidate selection B1 G22', base/'repeat_candidate_selection_b1_v2/experiment.json'),
+              ('attention Rows64 B1', base/'attention_rows64_b1_v1/experiment.json'),
+              ('coalesced partial B1', base/'coalesced_partial_b1_v1/experiment.json'),
+              ('cyclic slots B1', base/'cyclic_slot_b1_v1/experiment.json'),
+              ('cyclic slots tuned B16 prototype', base/'cyclic_slot_tuned_b16_v1/experiment.json'),
+              ('cyclic216 B16 integrated', base/'cyclic216_b16_integrated_v1/experiment.json'),
+              ('cyclic coalesced B1 prototype', base/'cyclic_coalesced_b1_v2/experiment.json'),
+              ('coalesced cyclic B1 integrated', base/'coalesced_cyclic_b1_integrated_v1/experiment.json'),
+              ('coalesced cyclic B2 integrated', base/'coalesced_cyclic_b2_integrated_v1/experiment.json'),
+              ('cyclic admitted B8', base/'cyclic_admitted_b8_v1/experiment.json'),
+              ('cyclic in-situ B16', base/'cyclic216_retune_b16_v1/experiment.json'),
+              ('repaired in-situ B8', base/'repair216_retune_b8_v1/experiment.json'),
               *[(f'phase72 B{batch} GPU2 diagnostic',
                  base/f'scalar_phase72_arithmetic_b{batch}_v1/gpu2_diagnostic_v1/experiment.json')
                 for batch in (2, 4, 8, 16)],
@@ -94,6 +105,22 @@ def main():
         if not path.exists():
             continue
         experiment = read(path)
+        if name in ('attention Rows64 B1', 'coalesced partial B1', 'cyclic slots B1',
+                    'cyclic slots tuned B16 prototype', 'cyclic216 B16 integrated',
+                    'cyclic coalesced B1 prototype', 'cyclic admitted B8',
+                    'coalesced cyclic B1 integrated', 'coalesced cyclic B2 integrated'):
+            unit_paths = experiment.get('unit_gates', [experiment.get('unit_gate')])
+            for unit_path in unit_paths:
+                unit = read(Path(unit_path))
+                if not unit['passed'] or len(unit['processes']) != 17 or any(
+                        p['exit_code'] for p in unit['processes']):
+                    raise ValueError('pipeline follow-up requires its complete component gates')
+        if name in ('cyclic in-situ B16', 'repaired in-situ B8'):
+            qualification = read(path.parent/'trace_qualification.json')
+            selection = read(path.parent/'tune_selection.json')
+            if (not qualification['passed'] or abs(qualification['relative_difference']) > .05
+                    or len(selection['eligible_variants']) < 4):
+                raise ValueError('in-situ follow-up requires qualified traces and four legal variants')
         if name.startswith('phase72'):
             for suite in ('scalar_phase72_arithmetic_alias_unit_v1', 'side_norm_reg72_unit_v1'):
                 state = read(base/suite/'scheduler/state.json')['dnn4-focused-f3-gates']
@@ -648,12 +675,31 @@ def main():
                       + '/'.join(spills)+'B stores/loads under64/216. The compilation gate rejects '
                       'it before execution;the admitted arithmetic-only B2 profile remains selected.']
     current = args.out/'DNN4_BERT_current.csv'
+    integrated = base/'coalesced_cyclic_b1_integrated_v1/final_result.json'
+    if integrated.exists():
+        final = read(integrated)
+        pair, measured = final['pair'], final['measurement']
+        lines += ['', 'Verified opt-in cyclic slot indexing and vector-major normal split-K '
+                  'partials retain the admitted B1 coordinates,56/224 register roles and '
+                  'ascending slice addition order. Integrated component gates pass17/17 '
+                  'on GPU3;the extended S2/TK128/odd-row suite passes17/17 on GPU2. '
+                  'The full model passes strict FP32 and cross-process byte checks5/5. '
+                  f'G22 P-PAIR{pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms '
+                  f'passes{100*pair["threshold"]:.3f}% noise;P-DNN '
+                  f'{measured["candidate_ms"]:.6f}ms,p90{measured["p90_ms"]:.6f}ms,'
+                  f'process range{measured["process_range_ms"]:.6f}ms. '
+                  'The exact accepted binary has a P-TRACE1 ledger. '
+                  'The same B2 mechanism fails its paired noise gate and is not enabled there. '
+                  'Defaults,original anchors,CNN results and frozen20-cell Phase Z remain unchanged.']
     if current.exists():
         with current.open() as stream:
             latest = list(csv.DictReader(stream))
+        wins = [r['batch'] for r in latest if float(r['median_ms']) < float(r['baseline_ms'])]
+        target_status = ('Fixed BF16 targets reached for B'+',B'.join(wins)+'. '
+                         if wins else 'All fixed BF16 targets remain unmet. ')
         lines += ['', 'Verified current accepted artifacts (GPU3;50/200;three-process P-DNN). '
                   'B1/B2/B4/B8/B16 are follow-ups that retain '
-                  'the original anchor without re-anchoring. All fixed BF16 targets remain unmet. '
+                  'the original anchor without re-anchoring. '+target_status+
                   'DNN4_BERT_current.csv records complete identities,profiles and evidence paths.', '',
                   '| Batch | Median ms | p90 ms | Process range ms | Fixed BF16 ms | Ratio |',
                   '| --- | --- | --- | --- | --- | --- |']
@@ -667,6 +713,8 @@ def main():
                   '| Batch | Largest stage | Second | Third |',
                   '| --- | --- | --- | --- |']
         for row in latest:
+            if float(row['median_ms']) < float(row['baseline_ms']):
+                continue
             with Path(row['ledger_source']).open() as stream:
                 stages = list(csv.DictReader(stream))
             descriptions = []
