@@ -195,6 +195,53 @@ class AdmissionTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'outside its fixed FFN1'):
             validate_pp_coordinates(self.base/'qk.so', self.base/'control.so', allow_existing=True)
 
+    def test_wg64_requires_all_components_and_fixed_slots(self):
+        _, decision = self.candidate()
+        decision['unit_gates'] = [self.save(f'wg64_component_{i}.json',
+            dict(passed=True, processes=self.processes)) for i in range(8)]
+        stages = [dict(body='other') for _ in range(63)]
+        for index in range(4, 60, 5):
+            stages[index] = dict(tile_m=128, tile_n=128, tk=64, slots=5,
+                                 split_k=1, store='tma', mc=0)
+        current = dict(stages=stages)
+        candidate = copy.deepcopy(current)
+        for index in range(4, 60, 5):
+            candidate['stages'][index].update(slots=7, sched='pp')
+        self.save('control.so.plan.json', dict(native_forward=current))
+        self.save('qk.so.plan.json', dict(native_forward=candidate))
+        name = 'pp64_ffn1_b16_v1'
+        decision['pair']['ratio'] = .96
+        self.save(name+'/experiment.json', decision)
+        self.save(name+'/final_result.json', decision)
+        result = select_successors(self.base, 16, self.spec)
+        self.assertEqual(result[3], .03)
+        candidate['stages'][4]['slots'] = 6
+        self.save('qk.so.plan.json', dict(native_forward=candidate))
+        with self.assertRaisesRegex(ValueError, 'outside its fixed FFN1'):
+            select_successors(self.base, 16, self.spec)
+        decision['unit_gates'].pop()
+        self.save(name+'/experiment.json', decision)
+        self.save(name+'/final_result.json', decision)
+        with self.assertRaisesRegex(ValueError, 'component receipts'):
+            select_successors(self.base, 16, self.spec)
+
+    def test_attention_store_preserves_all_coordinates(self):
+        _, decision = self.candidate()
+        (self.base/'qk_wgmma_b8_v1/final_result.json').unlink()
+        current = dict(stages=[dict(body='other') for _ in range(63)])
+        self.save('control.so.plan.json', dict(native_forward=current))
+        self.save('qk.so.plan.json', dict(native_forward=current))
+        name = 'attention_store_b8_v1'
+        self.save(name+'/experiment.json', decision)
+        self.save(name+'/final_result.json', decision)
+        result = select_successors(self.base, 8, self.spec)
+        self.assertEqual(result[2]['TILEMEGA_F3_ATTENTION_VECTOR_STORE'], '1')
+        self.assertEqual(result[3], 0)
+        current['stages'][4]['slots'] = 7
+        self.save('qk.so.plan.json', dict(native_forward=current))
+        with self.assertRaisesRegex(ValueError, 'changed the current coordinates'):
+            select_successors(self.base, 8, self.spec)
+
 
 if __name__ == '__main__':
     unittest.main()
