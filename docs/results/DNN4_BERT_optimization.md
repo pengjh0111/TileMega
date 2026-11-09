@@ -108,6 +108,7 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | cyclic phase72 B4 | 3 | 0.712832 | 0.719360 | -0.916 | 2.658 | False |
 | FFN1 reg64 side216 B2 | 3 | 0.610384 | 0.597888 | +2.047 | 0.500 | True |
 | FFN2 reg64 split4 B2 | 3 | 0.597776 | 0.723808 | -21.083 | 9.946 | False |
+| FFN1 TMA128 phase72 B4 | 3 | 0.712848 | 0.741712 | -4.049 | 2.415 | False |
 | phase72 B2 GPU2 diagnostic | 2 | 0.628096 | 0.599952 | +4.481 | 6.669 | False |
 | phase72 B4 GPU2 diagnostic | 2 | 0.736144 | 0.710800 | +3.443 | 2.339 | True |
 | phase72 B8 GPU2 diagnostic | 2 | 1.052320 | 1.009456 | +4.073 | 2.349 | True |
