@@ -99,6 +99,8 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | FFN1 PP P1 matrix B16 | 3 | 1.327824 | 1.489680 | -12.190 | 2.627 | False |
 | attention vector stores B8 | 3 | 1.009888 | 0.998048 | +1.172 | 2.598 | False |
 | attention vector stores B16 | 3 | 1.330752 | 1.311216 | +1.468 | 1.335 | True |
+| combined attention B8 | 3 | 1.017120 | 0.995744 | +2.102 | 2.640 | False |
+| combined attention B16 | 3 | 1.307184 | 1.297856 | +0.714 | 1.664 | False |
 | phase72 B2 GPU2 diagnostic | 2 | 0.628096 | 0.599952 | +4.481 | 6.669 | False |
 | phase72 B4 GPU2 diagnostic | 2 | 0.736144 | 0.710800 | +3.443 | 2.339 | True |
 | phase72 B8 GPU2 diagnostic | 2 | 1.052320 | 1.009456 | +4.073 | 2.349 | True |
