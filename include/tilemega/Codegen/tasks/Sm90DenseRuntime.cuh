@@ -26,6 +26,9 @@
 #ifndef TILEMEGA_NATIVE_KERNEL_SEQUENCE
 #define TILEMEGA_NATIVE_KERNEL_SEQUENCE 0
 #endif
+#ifndef TILEMEGA_NATIVE_SEQUENCE_HOST_LAUNCH
+#define TILEMEGA_NATIVE_SEQUENCE_HOST_LAUNCH 0
+#endif
 
 namespace tilemega::codegen::native_dense {
 
@@ -128,6 +131,7 @@ inline void PrepareSequence(Plan& p) {
   if(!p.sequence_bindings)p.sequence_bindings=Allocate<NativeProgram::Binding>(1);
   if(!p.sequence_state)p.sequence_state=Allocate<SequenceState>(1);
   Check(cudaMemcpy(p.sequence_bindings,&p.bindings,sizeof(p.bindings),cudaMemcpyHostToDevice));
+#if !TILEMEGA_NATIVE_SEQUENCE_HOST_LAUNCH
   cudaStream_t stream=nullptr;Check(cudaStreamCreateWithFlags(&stream,cudaStreamNonBlocking));
   bool capturing=false;
   try {
@@ -143,16 +147,33 @@ inline void PrepareSequence(Plan& p) {
       if(discarded)cudaGraphDestroy(discarded);}
     cudaStreamDestroy(stream);throw;
   }
+#endif
 }
 inline int LaunchSequence(Plan& p,unsigned first,unsigned count,unsigned mode,
     unsigned long long iteration,void* opaque_stream) {
+#if TILEMEGA_NATIVE_SEQUENCE_HOST_LAUNCH
+  bool ready=p.sequence_bindings && p.sequence_state;
+#else
+  bool ready=p.sequence_exec;
+#endif
   if(mode!=TM_SERVING_L1 || !count || first>=p.steps || count>p.steps-first ||
-      iteration!=p.iteration || !p.sequence_exec)return -1;
+      iteration!=p.iteration || !ready)return -1;
   DeviceScope scope(p.device);if(!scope.ok)return -1;
   auto stream=static_cast<cudaStream_t>(opaque_stream);
   sm90_dense_sequence_begin<<<1,1,0,stream>>>(p.sequence_state,first,iteration);
   auto status=cudaGetLastError();
+#if TILEMEGA_NATIVE_SEQUENCE_HOST_LAUNCH
+  // Enqueue the same stage kernels directly; only graph replay is removed.
+  try {
+    for(unsigned i=0;i<count && status==cudaSuccess;++i)
+      NativeSequence::Capture(p.sequence_bindings,p.sequence_state,p.pasts,kNativeEpsilon,
+          p.stamps,p.grid,stream);
+  }catch(std::exception const& e) {
+    std::fprintf(stderr,"host stage sequence: %s\n",e.what());return -2;
+  }
+#else
   for(unsigned i=0;i<count && status==cudaSuccess;++i)status=cudaGraphLaunch(p.sequence_exec,stream);
+#endif
   if(status==cudaSuccess)p.iteration+=count;
   return int(status);
 }
