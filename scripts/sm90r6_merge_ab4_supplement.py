@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Audit and summarize the four-model B4 AB4b/AB4c supplement."""
 import argparse
+import csv
 import json
 from pathlib import Path
 
@@ -11,6 +12,35 @@ from sm90r6_merge_ablation import compact
 from sm90r6_merge_analysis import write as write_csv
 
 MODELS = {'qwen3_1_7b', 'llama3_1_8b', 'qwen3_30b_a3b', 'olmoe_1b_7b'}
+
+
+def comparison_table(rows, previous):
+    old = [r for r in csv.DictReader(previous.open()) if r['arm'] in ARMS]
+    if len(old) != 16:
+        raise ValueError('original B1/B16 AB4 comparison is incomplete')
+    cells = {}
+    for row in old + rows:
+        cells.setdefault((row['model'], int(row['batch'])), {})[row['arm']] = row
+    if len(cells) != 12:
+        raise ValueError('expected four models at B1, B4 and B16')
+    result = []
+    for (model, batch), pair in sorted(cells.items()):
+        b, c = (pair[k] for k in ARMS)
+        bt, ct = float(b['tpot_ms']), float(c['tpot_ms'])
+        change = (ct / bt - 1) * 100
+        threshold = max(.5, 2 * max(float(b['range_pct']), float(c['range_pct'])))
+        result.append(dict(model=model, batch=batch, ab4b_tpot_ms=bt, ab4c_tpot_ms=ct,
+            ab4b_range_pct=float(b['range_pct']), ab4c_range_pct=float(c['range_pct']),
+            ab4b_processes=int(b['processes']), ab4c_processes=int(c['processes']),
+            ab4c_change_vs_ab4b_pct=change, ab4b_over_ab4c_speedup=bt / ct,
+            threshold_pct=threshold, decision='indistinguishable' if abs(change) <= threshold else
+            'faster' if change < 0 else 'slower',
+            measurement_protocol=b['measurement_protocol'],
+            ab4b_raw=b['raw'], ab4b_raw_sha256=b['raw_sha256'],
+            ab4c_raw=c['raw'], ab4c_raw_sha256=c['raw_sha256'],
+            original_csv=str(previous) if batch != 4 else '',
+            original_csv_sha256=sha(previous) if batch != 4 else '', evidence='verified'))
+    return result
 
 
 def audit_correctness(arm, cell):
@@ -188,6 +218,8 @@ if __name__ == '__main__':
     write_csv(args.out / 'SM90R6_ab4_b4.csv', rows)
     write_csv(args.out / 'SM90R6_ab4_b4_processes.csv', process_rows)
     write_csv(args.out / 'SM90R6_ab4_b4_correctness.csv', correctness_rows)
+    write_csv(args.out / 'SM90R6_ab4_comparison.csv',
+              comparison_table(rows, ROOT / 'docs/results/SM90R6_ablation.csv'))
     write_json(args.out / 'audit.json', dict(verified=True, cells=4, arms=8,
         timing_processes=len(process_rows), psel_processes=sum(v['psel']['processes'] for v in audits),
         c2_processes=sum(v['c2_processes'] for v in correctness_rows),
