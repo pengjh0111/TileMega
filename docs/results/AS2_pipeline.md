@@ -2,6 +2,10 @@
 
 Status: **in_progress; G-PIPELINE is not passed**. Current reconciliation starts at
 `f0177daa8bdd90a22f2b433c0eccf9f723266892`; new K256 evidence retains its own source/build identity.
+The [Nov9 reconciliation](AS2_dense_20261109.md) records the current pipeline,
+Prompt-stage accounting, compiled local Attention component, stale queue
+reconciliation and changed device enumeration. It supersedes earlier inventory
+and pending-queue statements while preserving their historical evidence.
 The [latest TaskBody checkpoint](AS2_dense_20261104.md) adds compiled batched
 residual and bounded Host diagnosis. Under the later
 [process-idle override](AS2_process_admission_20261104.md), new NPU work waits

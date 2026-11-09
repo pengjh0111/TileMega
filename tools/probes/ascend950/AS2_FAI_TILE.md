@@ -23,6 +23,9 @@ One G1 MIX launch processes two tasks over four reuse epochs. Each AIV owns
 initialized and checked. Mode4 credits7..10, score11, output12 and P13 use
 paired base/+16 channels, separate from the CATLASS local pipe event banks.
 Only AIC publishes external completion, after both MTE3 acknowledgements.
+Both QK and PV use physical32×128×128 MMAD banks, including D64; their shared
+L0 event rings require equal buffer strides. AIVs wait for owner release before
+seeding the next Task's credits. Logical D64 remains64 in data/cast/output.
 Internal hardware waits are not abortable; the Host timeout remains required.
 Five independent successful processes are required before a synchronization
 claim. A passing component does not admit a model, C3 or TPOT improvement.
