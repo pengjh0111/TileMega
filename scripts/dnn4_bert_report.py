@@ -115,6 +115,7 @@ def main():
               ('FFN1 PP P1 matrix B16', base/'ppnorm_ffn1_b16_v1/experiment.json'),
               ('attention vector stores B8', base/'attention_store_b8_v1/experiment.json'),
               ('attention vector stores B16', base/'attention_store_b16_v1/experiment.json'),
+              ('combined attention B4', base/'attention_bundle_b4_v1/experiment.json'),
               ('combined attention B8', base/'attention_bundle_b8_v1/experiment.json'),
               ('combined attention B16', base/'attention_bundle_b16_v1/experiment.json'),
               ('FFN1 TMA192 matrix B8', base/'ffn1_tma192_matrix_b8_v1/experiment.json'),
@@ -144,7 +145,7 @@ def main():
                     'warpgroup QK/PV B16', 'attention existing in-situ B16',
                     'FFN1 PP matrix B16', 'FFN1 PP P1 matrix B16',
                     'attention vector stores B8', 'attention vector stores B16',
-                    'combined attention B8', 'combined attention B16',
+                    'combined attention B4', 'combined attention B8', 'combined attention B16',
                     'FFN1 TMA192 matrix B8', 'FFN1 TMA192 matrix B16'):
             unit_paths = experiment.get('unit_gates', [experiment.get('unit_gate')])
             for unit_path in unit_paths:

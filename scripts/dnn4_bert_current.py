@@ -40,9 +40,11 @@ def select_successors(base, batch, specification):
     if batch in (8, 16):
         names.append((f'attention_store_b{batch}_v1',
                       {'TILEMEGA_F3_ATTENTION_VECTOR_STORE': '1'}))
+    if batch in (4, 8, 16):
         names.append((f'attention_bundle_b{batch}_v1',
                       {'TILEMEGA_F3_ATTENTION_VECTOR_STORE': '1',
                        'TILEMEGA_F3_WGMMA_QK': '1', 'TILEMEGA_F3_WGMMA_PV': '1'}))
+    if batch in (8, 16):
         names.append((f'ffn1_tma192_matrix_b{batch}_v1',
                       {'TILEMEGA_F3_MATRIX_STORE': '1',
                        'TILEMEGA_F3_REGISTER_BUDGET': '3'}))
