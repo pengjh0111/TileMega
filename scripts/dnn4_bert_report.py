@@ -104,6 +104,10 @@ def main():
               ('matrix store B8 integrated', base/'matrix_integrated_b8_v1/experiment.json'),
               ('matrix store B16 integrated', base/'matrix_integrated_b16_v1/experiment.json'),
               ('matrix existing in-situ B16', base/'matrix_existing_retune_b16_v1/experiment.json'),
+              ('warpgroup QK B8', base/'qk_wgmma_b8_v1/experiment.json'),
+              ('warpgroup QK B16', base/'qk_wgmma_b16_v1/experiment.json'),
+              ('warpgroup QK/PV B8', base/'pv_wgmma_b8_v1/experiment.json'),
+              ('warpgroup QK/PV B16', base/'pv_wgmma_b16_v1/experiment.json'),
               *[(f'phase72 B{batch} GPU2 diagnostic',
                  base/f'scalar_phase72_arithmetic_b{batch}_v1/gpu2_diagnostic_v1/experiment.json')
                 for batch in (2, 4, 8, 16)],
@@ -124,7 +128,8 @@ def main():
                     'present bindings B2', 'present bindings B16', 'side216 B2',
                     'matrix store B8 prototype', 'matrix store B16 prototype',
                     'matrix store B8 integrated', 'matrix store B16 integrated',
-                    'matrix existing in-situ B16'):
+                    'matrix existing in-situ B16', 'warpgroup QK B8', 'warpgroup QK B16',
+                    'warpgroup QK/PV B8', 'warpgroup QK/PV B16'):
             unit_paths = experiment.get('unit_gates', [experiment.get('unit_gate')])
             for unit_path in unit_paths:
                 unit = read(Path(unit_path))
