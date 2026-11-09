@@ -99,6 +99,10 @@ def main():
               ('present bindings B2', base/'present_binding_b2_v1/experiment.json'),
               ('present bindings B16', base/'present_binding_b16_v1/experiment.json'),
               ('side216 B2', base/'side216_b2_v1/experiment.json'),
+              ('matrix store B8 prototype', base/'stmatrix_b8_v1/experiment.json'),
+              ('matrix store B16 prototype', base/'stmatrix_b16_v1/experiment.json'),
+              ('matrix store B8 integrated', base/'matrix_integrated_b8_v1/experiment.json'),
+              ('matrix store B16 integrated', base/'matrix_integrated_b16_v1/experiment.json'),
               *[(f'phase72 B{batch} GPU2 diagnostic',
                  base/f'scalar_phase72_arithmetic_b{batch}_v1/gpu2_diagnostic_v1/experiment.json')
                 for batch in (2, 4, 8, 16)],
@@ -116,7 +120,9 @@ def main():
                     'cyclic coalesced B1 prototype', 'cyclic admitted B8',
                     'coalesced cyclic B1 integrated', 'coalesced cyclic B2 integrated',
                     'producer cyclic B1', 'producer cyclic B16',
-                    'present bindings B2', 'present bindings B16', 'side216 B2'):
+                    'present bindings B2', 'present bindings B16', 'side216 B2',
+                    'matrix store B8 prototype', 'matrix store B16 prototype',
+                    'matrix store B8 integrated', 'matrix store B16 integrated'):
             unit_paths = experiment.get('unit_gates', [experiment.get('unit_gate')])
             for unit_path in unit_paths:
                 unit = read(Path(unit_path))
