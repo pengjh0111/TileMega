@@ -111,6 +111,8 @@ def main():
               ('warpgroup QK/PV B8', base/'pv_wgmma_b8_v1/experiment.json'),
               ('warpgroup QK/PV B16', base/'pv_wgmma_b16_v1/experiment.json'),
               ('attention existing in-situ B16', base/'attention_existing_retune_b16_v1/experiment.json'),
+              ('FFN1 PP matrix B16', base/'ppstore_ffn1_b16_v1/experiment.json'),
+              ('FFN1 PP P1 matrix B16', base/'ppnorm_ffn1_b16_v1/experiment.json'),
               *[(f'phase72 B{batch} GPU2 diagnostic',
                  base/f'scalar_phase72_arithmetic_b{batch}_v1/gpu2_diagnostic_v1/experiment.json')
                 for batch in (2, 4, 8, 16)],
@@ -133,7 +135,8 @@ def main():
                     'matrix store B8 integrated', 'matrix store B16 integrated',
                     'matrix existing in-situ B16', 'warpgroup QK B4', 'warpgroup QK B8',
                     'warpgroup QK B16', 'warpgroup QK/PV B4', 'warpgroup QK/PV B8',
-                    'warpgroup QK/PV B16', 'attention existing in-situ B16'):
+                    'warpgroup QK/PV B16', 'attention existing in-situ B16',
+                    'FFN1 PP matrix B16', 'FFN1 PP P1 matrix B16'):
             unit_paths = experiment.get('unit_gates', [experiment.get('unit_gate')])
             for unit_path in unit_paths:
                 unit = read(Path(unit_path))
@@ -278,6 +281,7 @@ def main():
                 ratio=pair['ratio'], gain_pct=100*(1-pair['ratio']),
                 threshold_pct=100*pair['threshold'],
                 accepted=pair['gpu'] != 0 and pair['ratio']<1-max(pair['threshold'],
+                    experiment.get('minimum_gain', 0),
                     .03 if name.startswith('Repeat') or (name.startswith('phase72') and experiment['batch'] in (8, 16)) else 0), scope=scope,
                 correctness='P-CORR5/5 with cross-process output byte hashes',
                 artifact_id=identity['artifact_id'], binary_sha256=identity['binary_sha256'],

@@ -9,7 +9,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT/'scripts'))
-from dnn4_bert_current import select_successors
+from dnn4_bert_current import select_successors, validate_pp_coordinates
 
 
 class AdmissionTest(unittest.TestCase):
@@ -161,6 +161,39 @@ class AdmissionTest(unittest.TestCase):
         self.save('qk.so.plan.json', dict(native_forward=candidate))
         with self.assertRaisesRegex(ValueError, 'outside its fixed FFN1'):
             select_successors(self.base, 16, self.spec)
+
+    def test_pp_normalization_requires_both_inherited_components(self):
+        _, decision = self.candidate()
+        decision['unit_gates'] = [self.save(f'component_{i}.json',
+            dict(passed=True, processes=self.processes)) for i in range(6)]
+        stages = [dict(body='other') for _ in range(63)]
+        for index in range(4, 60, 5):
+            stages[index] = dict(tile_m=128, tile_n=128, tk=64, slots=5,
+                                 split_k=1, store='tma', mc=0)
+        current = dict(stages=stages)
+        candidate = copy.deepcopy(current)
+        for index in range(4, 60, 5):
+            candidate['stages'][index].update(tile_m=256, sched='pp')
+        self.save('control.so.plan.json', dict(native_forward=current))
+        self.save('qk.so.plan.json', dict(native_forward=candidate))
+        name = 'ppnorm_ffn1_b16_v1'
+        decision['pair']['ratio'] = .96
+        self.save(name+'/experiment.json', decision)
+        self.save(name+'/final_result.json', decision)
+        result = select_successors(self.base, 16, self.spec)
+        self.assertEqual(result[2]['TILEMEGA_F3_PP_SIDE_NORM'], '1')
+        self.assertEqual(result[3], .03)
+        decision['unit_gates'].pop()
+        self.save(name+'/experiment.json', decision)
+        self.save(name+'/final_result.json', decision)
+        with self.assertRaisesRegex(ValueError, 'component receipts'):
+            select_successors(self.base, 16, self.spec)
+        self.save('control.so.plan.json', dict(native_forward=candidate))
+        validate_pp_coordinates(self.base/'qk.so', self.base/'control.so', allow_existing=True)
+        candidate['stages'][6]['slots'] = 3
+        self.save('qk.so.plan.json', dict(native_forward=candidate))
+        with self.assertRaisesRegex(ValueError, 'outside its fixed FFN1'):
+            validate_pp_coordinates(self.base/'qk.so', self.base/'control.so', allow_existing=True)
 
 
 if __name__ == '__main__':

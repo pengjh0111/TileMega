@@ -33,6 +33,8 @@ def select_successors(base, batch, specification):
     if batch == 16:
         names.append(('attention_existing_retune_b16_v1', {}))
         names.append(('ppstore_ffn1_b16_v1', {'TILEMEGA_F3_MATRIX_STORE': '1'}))
+        names.append(('ppnorm_ffn1_b16_v1', {'TILEMEGA_F3_MATRIX_STORE': '1',
+                                            'TILEMEGA_F3_PP_SIDE_NORM': '1'}))
     for name, features in names:
         folder = base/name
         if not (folder/'experiment.json').exists():
@@ -52,7 +54,8 @@ def select_successors(base, batch, specification):
         count = ((2 if batch == 16 else 0) +
                  int(candidate_profile.get('TILEMEGA_F3_WGMMA_QK') == '1') +
                  int(candidate_profile.get('TILEMEGA_F3_WGMMA_PV') == '1') +
-                 (2 if name == 'ppstore_ffn1_b16_v1' else 0))
+                 (2 if name == 'ppstore_ffn1_b16_v1' else
+                  4 if name == 'ppnorm_ffn1_b16_v1' else 0))
         if (len(units) != count or len(set(map(str, units))) != count or
                 set(map(str, final.get('unit_gates', []))) != set(map(str, units)) or
                 final['pair'] != decision['pair']):
@@ -75,12 +78,16 @@ def select_successors(base, batch, specification):
                 raise ValueError('follow-up used unqualified in-situ windows')
         pair = decision['pair']
         required_gain = .03 if name == 'ppstore_ffn1_b16_v1' else 0
+        if name == 'ppnorm_ffn1_b16_v1':
+            reference_stages = read(decision['reference']+'.plan.json')['native_forward']['stages']
+            required_gain = 0 if reference_stages[4].get('sched') == 'pp' else .03
         if (pair['gpu'] != 3 or len(pair['measurements']) != 6 or
                 any(m['guard']['code'] for m in pair['measurements']) or
                 pair['ratio'] >= 1-max(required_gain, pair['threshold'])):
             raise ValueError('follow-up did not clear its complete same-card pair: '+name)
-        if name == 'ppstore_ffn1_b16_v1':
-            validate_pp_coordinates(final['library'], decision['reference'])
+        if name in ('ppstore_ffn1_b16_v1', 'ppnorm_ffn1_b16_v1'):
+            validate_pp_coordinates(final['library'], decision['reference'],
+                                    allow_existing=name == 'ppnorm_ffn1_b16_v1')
         # Completed raw prototypes never appear in this ordered admission list.
         final_name = name+'/final_result.json'
         pair_name = name+'/experiment.json'
@@ -90,16 +97,19 @@ def select_successors(base, batch, specification):
     return final_name, pair_name, profile, minimum_gain
 
 
-def validate_pp_coordinates(library, reference):
+def validate_pp_coordinates(library, reference, allow_existing=False):
     current = read(str(reference)+'.plan.json')['native_forward']
     candidate = read(str(library)+'.plan.json')['native_forward']
     expected = json.loads(json.dumps(current))
     if len(expected['stages']) != 63:
         raise ValueError('PP follow-up requires the complete BERT program')
+    existing = allow_existing and expected['stages'][4].get('sched') == 'pp'
     for index in range(4, 60, 5):
         stage = expected['stages'][index]
-        fixed = dict(tile_m=128, tile_n=128, tk=64, slots=5, split_k=1, store='tma', mc=0)
-        if any(stage.get(k) != v for k, v in fixed.items()) or stage.get('sched', 'coop') != 'coop':
+        fixed = dict(tile_m=256 if existing else 128, tile_n=128, tk=64,
+                     slots=5, split_k=1, store='tma', mc=0)
+        if (any(stage.get(k) != v for k, v in fixed.items()) or
+                stage.get('sched', 'coop') != ('pp' if existing else 'coop')):
             raise ValueError('PP follow-up changed its fixed FFN1 control')
         stage.update(tile_m=256, sched='pp')
     if candidate != expected:
@@ -177,7 +187,7 @@ def main():
             if key not in ('TILEMEGA_F3_REPEAT', 'TILEMEGA_F3_REPEAT_LAYERS'):
                 assert defines.get(key) == value
                 if key in ('TILEMEGA_F3_MATRIX_STORE', 'TILEMEGA_F3_WGMMA_QK',
-                           'TILEMEGA_F3_WGMMA_PV'):
+                           'TILEMEGA_F3_WGMMA_PV', 'TILEMEGA_F3_PP_SIDE_NORM'):
                     assert ('std::getenv("'+key+'")') in (
                         ROOT/'lib/Codegen/ForwardF3Codegen.cpp').read_text()
         if profile.get('TILEMEGA_F3_REPEAT') == '1':
