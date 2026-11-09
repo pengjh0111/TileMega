@@ -88,9 +88,13 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | matrix store B8 prototype | 3 | 1.019168 | 1.009264 | +0.972 | 3.997 | False |
 | matrix store B16 prototype | 3 | 1.365888 | 1.329440 | +2.668 | 1.197 | True |
 | matrix store B16 integrated | 3 | 1.375664 | 1.336912 | +2.817 | 1.460 | True |
+| matrix existing in-situ B16 | 3 | 1.330560 | 1.343088 | -0.942 | 2.441 | False |
 | warpgroup QK B4 | 3 | 0.713056 | 0.713488 | -0.061 | 7.818 | False |
 | warpgroup QK B8 | 3 | 1.009680 | 1.005200 | +0.444 | 2.336 | False |
+| warpgroup QK B16 | 3 | 1.327888 | 1.320416 | +0.563 | 2.079 | False |
 | warpgroup QK/PV B4 | 3 | 0.712048 | 0.707440 | +0.647 | 1.497 | False |
+| warpgroup QK/PV B8 | 3 | 1.019920 | 1.012320 | +0.745 | 2.605 | False |
+| warpgroup QK/PV B16 | 3 | 1.330352 | 1.319936 | +0.783 | 0.987 | False |
 | phase72 B2 GPU2 diagnostic | 2 | 0.628096 | 0.599952 | +4.481 | 6.669 | False |
 | phase72 B4 GPU2 diagnostic | 2 | 0.736144 | 0.710800 | +3.443 | 2.339 | True |
 | phase72 B8 GPU2 diagnostic | 2 | 1.052320 | 1.009456 | +4.073 | 2.349 | True |
@@ -114,6 +118,7 @@ consumer216 in-situ B8: group0→candidate0, group1→candidate0, group2→candi
 consumer216 in-situ B16: group0→candidate5, group1→candidate1, group2→candidate0, group3→candidate2, group4→candidate4, group5→candidate1.
 cyclic in-situ B16: group0→candidate5, group1→candidate1, group2→candidate0, group3→candidate2, group4→candidate1, group5→candidate1.
 repaired in-situ B8: group0→candidate0, group1→candidate4, group2→candidate0, group3→candidate0, group4→candidate1, group5→candidate4.
+matrix existing in-situ B16: group0→candidate5, group1→candidate1, group2→candidate0, group3→candidate2, group4→candidate1, group5→candidate1.
 
 Verified post-collection checks reject40/232: the89-case scan still spills28B on256x128 residual_ln_rowstats, and the full B16 program spills36B; it is never executed. B1 compiles without spill but has no significant gain. FFN1 128x256 uses one deterministic legal four-slot register-store variant; it regresses and is rejected. Distance1 has no significant gain.
 
