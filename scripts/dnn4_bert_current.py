@@ -58,6 +58,9 @@ def select_successors(base, batch, specification):
         names.append(('ffn1_reg64_side216_b2_admitted_v1',
                       {'TILEMEGA_F3_SIDE_NORM': '1',
                        'TILEMEGA_F3_REGISTER_BUDGET': '3'}))
+        names.append(('ffn2_reg64_split4_b2_v1',
+                      {'TILEMEGA_F3_SIDE_NORM': '1',
+                       'TILEMEGA_F3_REGISTER_BUDGET': '3'}))
     for name, features in names:
         folder = base/name
         if not (folder/'experiment.json').exists():
@@ -84,6 +87,7 @@ def select_successors(base, batch, specification):
                  int(name.startswith('attention_bundle_')) +
                  (2 if name == 'cyclic_phase72_b4_v1' else 0) +
                  (3 if name == 'ffn1_reg64_side216_b2_admitted_v1' else 0) +
+                 (4 if name == 'ffn2_reg64_split4_b2_v1' else 0) +
                  (2 if name == 'ffn2_tma256x64_b16_v1' else 0) +
                  (2 if batch == 8 and name.startswith('ffn1_tma192_matrix_') else 0) +
                  int(name.startswith('ffn1_tma192_matrix_') and all(
@@ -135,6 +139,10 @@ def select_successors(base, batch, specification):
             validate_ffn2_tma256x64_coordinates(final['library'], decision['reference'])
         if name == 'ffn1_reg64_side216_b2_admitted_v1':
             validate_ffn1_reg64_coordinates(final['library'], decision['reference'])
+        if name == 'ffn2_reg64_split4_b2_v1':
+            if final_name != 'ffn1_reg64_side216_b2_admitted_v1/final_result.json':
+                raise ValueError('FFN2 follow-up lacks its admitted FFN1 predecessor')
+            validate_ffn2_reg64_coordinates(final['library'], decision['reference'])
         # Completed raw prototypes never appear in this ordered admission list.
         final_name = name+'/final_result.json'
         pair_name = name+'/experiment.json'
@@ -202,6 +210,19 @@ def validate_ffn1_reg64_coordinates(library, reference):
                                          split_k=1, store='reg', mc=0)
     if candidate != expected:
         raise ValueError('FFN1 follow-up changed coordinates outside its fixed group')
+
+
+def validate_ffn2_reg64_coordinates(library, reference):
+    current = read(str(reference)+'.plan.json')['native_forward']
+    candidate = read(str(library)+'.plan.json')['native_forward']
+    expected = json.loads(json.dumps(current))
+    if len(expected['stages']) != 63:
+        raise ValueError('FFN2 follow-up requires the complete BERT program')
+    for index in range(5, 61, 5):
+        expected['stages'][index].update(tile_m=128, tile_n=64, tk=64, slots=8,
+                                         split_k=4, store='reg', mc=0)
+    if candidate != expected:
+        raise ValueError('FFN2 follow-up changed coordinates outside its fixed group')
 
 
 def main():

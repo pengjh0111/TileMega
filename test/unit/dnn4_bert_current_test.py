@@ -373,6 +373,44 @@ class AdmissionTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'component receipts'):
             select_successors(self.base, 2, self.spec)
 
+    def test_b2_ffn2_preserves_its_admitted_ffn1_predecessor(self):
+        _, decision = self.candidate()
+        units = [self.save(f'ffn_chain_component_{i}.json',
+            dict(passed=True, processes=self.processes)) for i in range(4)]
+        current = dict(stages=[dict(body='other') for _ in range(63)])
+        first = copy.deepcopy(current)
+        for index in range(4, 60, 5):
+            first['stages'][index].update(tile_m=128, tile_n=64, tk=64,
+                slots=8, split_k=1, store='reg', mc=0)
+        second = copy.deepcopy(first)
+        for index in range(5, 61, 5):
+            second['stages'][index].update(tile_m=128, tile_n=64, tk=64,
+                slots=8, split_k=4, store='reg', mc=0)
+        self.save('control.so.plan.json', dict(native_forward=current))
+        self.save('qk.so.plan.json', dict(native_forward=first))
+        self.save('split.so.plan.json', dict(native_forward=second))
+        prior = 'ffn1_reg64_side216_b2_admitted_v1'
+        decision['unit_gates'] = units[:3]
+        self.save(prior+'/experiment.json', decision)
+        self.save(prior+'/final_result.json', decision)
+        successor = copy.deepcopy(decision)
+        successor.update(reference=decision['library'], library=str(self.base/'split.so'),
+                         unit_gates=units)
+        name = 'ffn2_reg64_split4_b2_v1'
+        self.save(name+'/experiment.json', successor)
+        self.save(name+'/final_result.json', successor)
+        self.assertEqual(select_successors(self.base, 2, self.spec)[0],
+                         name+'/final_result.json')
+        second['stages'][4]['slots'] = 7
+        self.save('split.so.plan.json', dict(native_forward=second))
+        with self.assertRaisesRegex(ValueError, 'outside its fixed group'):
+            select_successors(self.base, 2, self.spec)
+        successor['unit_gates'].pop()
+        self.save(name+'/experiment.json', successor)
+        self.save(name+'/final_result.json', successor)
+        with self.assertRaisesRegex(ValueError, 'component receipts'):
+            select_successors(self.base, 2, self.spec)
+
 
 if __name__ == '__main__':
     unittest.main()
