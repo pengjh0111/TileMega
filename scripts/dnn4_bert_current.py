@@ -40,6 +40,9 @@ def select_successors(base, batch, specification):
     if batch in (8, 16):
         names.append((f'attention_store_b{batch}_v1',
                       {'TILEMEGA_F3_ATTENTION_VECTOR_STORE': '1'}))
+        names.append((f'attention_bundle_b{batch}_v1',
+                      {'TILEMEGA_F3_ATTENTION_VECTOR_STORE': '1',
+                       'TILEMEGA_F3_WGMMA_QK': '1', 'TILEMEGA_F3_WGMMA_PV': '1'}))
     for name, features in names:
         folder = base/name
         if not (folder/'experiment.json').exists():
@@ -62,7 +65,8 @@ def select_successors(base, batch, specification):
                  (2 if name == 'ppstore_ffn1_b16_v1' else
                   4 if name == 'ppnorm_ffn1_b16_v1' else
                   6 if name == 'pp64_ffn1_b16_v1' else 0) +
-                 int(candidate_profile.get('TILEMEGA_F3_ATTENTION_VECTOR_STORE') == '1'))
+                 int(candidate_profile.get('TILEMEGA_F3_ATTENTION_VECTOR_STORE') == '1') +
+                 int(name.startswith('attention_bundle_')))
         if (len(units) != count or len(set(map(str, units))) != count or
                 set(map(str, final.get('unit_gates', []))) != set(map(str, units)) or
                 final['pair'] != decision['pair']):
@@ -97,7 +101,7 @@ def select_successors(base, batch, specification):
                                     allow_existing=name == 'ppnorm_ffn1_b16_v1')
         if name == 'pp64_ffn1_b16_v1':
             validate_pp_coordinates(final['library'], decision['reference'], wg_rows=64)
-        if name.startswith('attention_store_'):
+        if name.startswith(('attention_store_', 'attention_bundle_')):
             if (read(final['library']+'.plan.json')['native_forward'] !=
                     read(decision['reference']+'.plan.json')['native_forward']):
                 raise ValueError('attention stores changed the current coordinates')

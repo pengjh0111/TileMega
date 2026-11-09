@@ -242,6 +242,34 @@ class AdmissionTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'changed the current coordinates'):
             select_successors(self.base, 8, self.spec)
 
+    def test_attention_bundle_needs_joint_component_and_same_coordinates(self):
+        _, decision = self.candidate()
+        (self.base/'qk_wgmma_b8_v1/final_result.json').unlink()
+        decision['unit_gates'] = [self.save(f'joint_component_{i}.json',
+            dict(passed=True, processes=self.processes)) for i in range(4)]
+        current = dict(stages=[dict(body='other') for _ in range(63)])
+        self.save('control.so.plan.json', dict(native_forward=current))
+        self.save('qk.so.plan.json', dict(native_forward=current))
+        name = 'attention_bundle_b8_v1'
+        self.save(name+'/experiment.json', decision)
+        self.save(name+'/final_result.json', decision)
+        profile = select_successors(self.base, 8, self.spec)[2]
+        for feature in ('TILEMEGA_F3_WGMMA_QK', 'TILEMEGA_F3_WGMMA_PV',
+                        'TILEMEGA_F3_ATTENTION_VECTOR_STORE'):
+            self.assertEqual(profile[feature], '1')
+        decision['unit_gates'].pop()
+        self.save(name+'/experiment.json', decision)
+        self.save(name+'/final_result.json', decision)
+        with self.assertRaisesRegex(ValueError, 'component receipts'):
+            select_successors(self.base, 8, self.spec)
+        decision['unit_gates'].append(str(self.base/'joint_component_3.json'))
+        self.save(name+'/experiment.json', decision)
+        self.save(name+'/final_result.json', decision)
+        current['stages'][4]['slots'] = 7
+        self.save('qk.so.plan.json', dict(native_forward=current))
+        with self.assertRaisesRegex(ValueError, 'changed the current coordinates'):
+            select_successors(self.base, 8, self.spec)
+
 
 if __name__ == '__main__':
     unittest.main()
