@@ -23,6 +23,13 @@ def publish(root, push=False):
         rows += read(extension)['rows']
     out = ROOT / 'docs/results'
     old = list(csv.DictReader((out / 'SM90R6_ab4_comparison.csv').open()))
+    extension_method = (
+        'The user subsequently requested Llama-3.2-3B unconditionally, overriding the '
+        'original batch-trend trigger. This extension retains the Llama-3.1-8B results. '
+        if condition.get('unconditional') else
+        'The extension rule was fixed before measurement: append Llama-3.2-3B when '
+        'Llama-3.1-8B has greater hostlaunch/AB4b relative overhead at B16 than B1. '
+        'The original Llama-3.1-8B rows remain in the dataset either way. ')
     report = ('# Stage-granular host-launch performance variant\n\n'
         'Verified implementation: opt-in `TILEMEGA_NATIVE_SEQUENCE_HOST_LAUNCH=1` '
         'bypasses CUDA Graph construction and replay. Each decode step enqueues the '
@@ -37,10 +44,7 @@ def publish(root, push=False):
         'and interference guard. Independent processes run on any idle GPU 0–3. '
         'The initial matrix contains 12 cells and 72 final timing processes. '
         'GPU assignments, all measured values and binary provenance are retained in CSV.\n\n'
-        'The extension rule was fixed before measurement: append Llama-3.2-3B when '
-        'Llama-3.1-8B has greater hostlaunch/AB4b relative overhead at B16 than B1. '
-        'The original Llama-3.1-8B rows remain in the dataset either way. '
-        'Triggered: `' + str(condition['triggered']).lower() + '`. '
+        + extension_method + 'Extension enabled: `' + str(condition['triggered']).lower() + '`. '
         'When triggered, Llama-3.2-3B uses independent 600-second aggregate searches '
         'at B1/B4/B16, four compiled finalists and eight P-SEL processes per batch, '
         'then the same three-process performance pair; correctness is not rerun.\n\n'

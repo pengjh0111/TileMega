@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Append Llama-3.2-3B only if the predeclared batch-trend condition holds."""
+"""Append Llama-3.2-3B conditionally or at the user's explicit request."""
 import argparse
 import concurrent.futures
 import json
@@ -114,13 +114,22 @@ def summarize(root, cells):
         final_processes=18, correctness_runs=0, compiler=str(COMPILER), compiler_sha256=sha(COMPILER)))
 
 
-def run(parent):
-    while not (parent / 'summary.json').exists():
-        time.sleep(10)
-    condition = read(parent / 'summary.json')
-    write(parent / 'llama3b-condition.json', dict(triggered=condition['llama3_2_3b_required'],
-        rule=condition['trigger_rule'], parent_summary_sha256=sha(parent / 'summary.json')))
-    if not condition['llama3_2_3b_required']:
+def run(parent, force=False):
+    if force:
+        request = parent / 'llama3b-request.json'
+        if read(request)['mode'] != 'unconditional':
+            raise ValueError('explicit unconditional request is required')
+        condition = dict(triggered=True, unconditional=True,
+            rule='User explicitly requested Llama-3.2-3B regardless of batch trend',
+            request=str(request), request_sha256=sha(request))
+    else:
+        while not (parent / 'summary.json').exists():
+            time.sleep(10)
+        result = read(parent / 'summary.json')
+        condition = dict(triggered=result['llama3_2_3b_required'], unconditional=False,
+            rule=result['trigger_rule'], parent_summary_sha256=sha(parent / 'summary.json'))
+    write(parent / 'llama3b-condition.json', condition)
+    if not condition['triggered']:
         print('Llama-3B condition not triggered', flush=True)
         return
     root = parent / 'llama3b'
@@ -147,5 +156,6 @@ def run(parent):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, required=True)
+    parser.add_argument('--force', action='store_true', help='apply the recorded explicit user request')
     args = parser.parse_args()
-    run(args.root.resolve())
+    run(args.root.resolve(), args.force)
