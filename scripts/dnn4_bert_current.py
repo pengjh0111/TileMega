@@ -52,6 +52,8 @@ def select_successors(base, batch, specification):
         names.append(('ffn2_tma256x64_b16_v1',
                       {'TILEMEGA_F3_MATRIX_STORE': '1',
                        'TILEMEGA_F3_REGISTER_BUDGET': '3'}))
+    if batch == 4:
+        names.append(('cyclic_phase72_b4_v1', {'TILEMEGA_F3_CYCLIC_SLOTS': '1'}))
     for name, features in names:
         folder = base/name
         if not (folder/'experiment.json').exists():
@@ -76,6 +78,7 @@ def select_successors(base, batch, specification):
                   6 if name == 'pp64_ffn1_b16_v1' else 0) +
                  int(candidate_profile.get('TILEMEGA_F3_ATTENTION_VECTOR_STORE') == '1') +
                  int(name.startswith('attention_bundle_')) +
+                 (2 if name == 'cyclic_phase72_b4_v1' else 0) +
                  (2 if name == 'ffn2_tma256x64_b16_v1' else 0) +
                  (2 if batch == 8 and name.startswith('ffn1_tma192_matrix_') else 0) +
                  int(name.startswith('ffn1_tma192_matrix_') and all(
@@ -116,10 +119,11 @@ def select_successors(base, batch, specification):
                                     allow_existing=name == 'ppnorm_ffn1_b16_v1')
         if name == 'pp64_ffn1_b16_v1':
             validate_pp_coordinates(final['library'], decision['reference'], wg_rows=64)
-        if name.startswith(('attention_store_', 'attention_bundle_')):
+        if (name.startswith(('attention_store_', 'attention_bundle_')) or
+                name == 'cyclic_phase72_b4_v1'):
             if (read(final['library']+'.plan.json')['native_forward'] !=
                     read(decision['reference']+'.plan.json')['native_forward']):
-                raise ValueError('attention stores changed the current coordinates')
+                raise ValueError('follow-up changed the current coordinates')
         if name.startswith('ffn1_tma192_matrix_'):
             validate_ffn1_tma192_coordinates(final['library'], decision['reference'])
         if name == 'ffn2_tma256x64_b16_v1':

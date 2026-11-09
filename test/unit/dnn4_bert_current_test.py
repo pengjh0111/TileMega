@@ -324,6 +324,28 @@ class AdmissionTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'component receipts'):
             select_successors(self.base, 16, self.spec)
 
+    def test_b4_cyclic_requires_both_components_and_identical_coordinates(self):
+        _, decision = self.candidate()
+        decision['unit_gates'] += [str(self.base/'pv_unit.json')]
+        current = dict(stages=[dict(body='other') for _ in range(63)])
+        self.save('control.so.plan.json', dict(native_forward=current))
+        self.save('qk.so.plan.json', dict(native_forward=current))
+        name = 'cyclic_phase72_b4_v1'
+        self.save(name+'/experiment.json', decision)
+        self.save(name+'/final_result.json', decision)
+        result = select_successors(self.base, 4, self.spec)
+        self.assertEqual(result[2]['TILEMEGA_F3_CYCLIC_SLOTS'], '1')
+        self.assertEqual(result[3], 0)
+        current['stages'][4]['slots'] = 3
+        self.save('qk.so.plan.json', dict(native_forward=current))
+        with self.assertRaisesRegex(ValueError, 'changed the current coordinates'):
+            select_successors(self.base, 4, self.spec)
+        decision['unit_gates'].pop()
+        self.save(name+'/experiment.json', decision)
+        self.save(name+'/final_result.json', decision)
+        with self.assertRaisesRegex(ValueError, 'component receipts'):
+            select_successors(self.base, 4, self.spec)
+
 
 if __name__ == '__main__':
     unittest.main()
