@@ -1590,6 +1590,8 @@ add_test(NAME dnn3_weights
     -s ${CMAKE_CURRENT_SOURCE_DIR}/test/python -p test_dnn3_weights.py)
 
 if(TILEMEGA_BUILD_TESTS AND Python3_EXECUTABLE)
+  add_test(NAME dnn4_bert_current COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/unit/dnn4_bert_current_test.py)
   add_test(NAME serving_workload_host COMMAND ${CMAKE_COMMAND} -E env
     PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python ${Python3_EXECUTABLE} -m unittest discover
     -s ${CMAKE_CURRENT_SOURCE_DIR}/test/python -p test_workload*.py)
