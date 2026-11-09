@@ -19,6 +19,11 @@
 using namespace tilemega::backend;
 using E=cutlass::bfloat16_t;
 namespace ex=tilemega::codegen::executor;
+#ifdef DNN4_PP_STORE_TEST
+constexpr bool kPingPong=true;
+#else
+constexpr bool kPingPong=false;
+#endif
 
 // tile_pages' global packing uses element addresses. CuTe's flagged shared
 // layout applies its swizzle through the pointer engine instead.
@@ -81,9 +86,9 @@ __global__ __launch_bounds__(384,1) void Body(Sm90F3GemmOperands p,
   auto* arena=reinterpret_cast<E*>(shared+Sm90F3Budget::kArena0);
   auto* side=reinterpret_cast<char*>(arena)+G::kSideOffset;
   if(threadIdx.x>=256) {
-    Sm90F3Async::RegDealloc<56>();G::Produce(p,h->rings[0],arena,side,phase,0);
+    Sm90F3Async::RegDealloc<kPingPong?72:56>();G::Produce(p,h->rings[0],arena,side,phase,0);
   }else {
-    Sm90F3Async::RegAlloc<224>();G::Consume(p,h->rings[0],arena,side,phase,h,int(threadIdx.x)/128);
+    Sm90F3Async::RegAlloc<kPingPong?216:224>();G::Consume(p,h->rings[0],arena,side,phase,h,int(threadIdx.x)/128);
   }
   __syncthreads();
   if(threadIdx.x==0) {h->rings[0].Invalidate();h->rings[1].Invalidate();}
@@ -118,7 +123,8 @@ void CompareStats(std::vector<float> const& actual,std::vector<float> const& exp
 template<int M,int N,int K,int TM,int TN,int SplitK,int Kind,int Parts=(Kind==1?N:K)/64>
 void DenseCase() {
   std::cout<<"START dense m="<<M<<" n="<<N<<" k="<<K<<" tm="<<TM<<"\n";
-  using Side=Sm90F3SideLayout<TM,TN,Kind==1,Kind==1?3:2,true,Parts>;
+  constexpr int Rows=kPingPong?TM/2:TM;
+  using Side=Sm90F3SideLayout<Rows,TN,Kind==1,Kind==1?3:2,true,Parts>;
   using Norm=Sm90F3Step<Sm90ForwardOp::kDeferredLayerNorm,0,
       tilemega::codegen::DmActivation::kRelu,1>;
   using Bias=Sm90F3Step<Sm90ForwardOp::kBias,2>;
@@ -130,8 +136,9 @@ void DenseCase() {
       std::conditional_t<Kind==1,Sm90F3Chain<Side,Bias,Residual>,
                          Sm90F3Chain<Side,Norm,Gelu>>>;
   using Chain=std::conditional_t<Kind==1,Sm90F3WriteRowStats<Plain>,Plain>;
-  using G=Sm90F3Gemm<TM,TN,2,SplitK,Sm90F3Mode::kNormal,M,N,K,N,Chain,Sm90F3NoConv,Sm90F3NoPool,64,true>;
-  constexpr int tiles=((M+TM-1)/TM)*(N/TN),mt=(M+TM-1)/TM;
+  constexpr int Slots=kPingPong?(Kind==1?4:5):2;
+  using G=Sm90F3Gemm<TM,TN,Slots,SplitK,Sm90F3Mode::kNormal,M,N,K,N,Chain,Sm90F3NoConv,Sm90F3NoPool,64,true,false,kPingPong>;
+  constexpr int tiles=((M+Rows-1)/Rows)*(N/TN);
   std::vector<E> input(M*K),weight(N*K),packed(N*K),residual(M*N);
   for(int n=0;n<N;++n)for(int k=0;k<K;++k) {
     E value(float((n*7+k*3)%13+1)/1024);
@@ -148,8 +155,8 @@ void DenseCase() {
   v0.Put(std::vector<float>(N,.25f));v1.Put(std::vector<float>(N,.75f));v2.Put(std::vector<float>(N,.25f));
   counters.Put(std::vector<unsigned long long>(tiles,0));
   CUtensorMap am{},rm{},om{};
-  ex::EncodeTiledMap<2>(am,a.data,{{K,M},{K*2},{64,TM}});
-  ex::EncodeTiledMap<2>(rm,r.data,{{N,M},{N*2},{64,TM}});
+  ex::EncodeTiledMap<2>(am,a.data,{{K,M},{K*2},{64,Rows}});
+  ex::EncodeTiledMap<2>(rm,r.data,{{N,M},{N*2},{64,Rows}});
   ex::EncodeTiledMap<2>(om,o.data,{{N,M},{N*2},{64,64}});
   Sm90F3GemmOperands p{};p.input=a.data;p.weight=w.data;
   auto& e=p.epilogue;e.output=o.data;e.output_stride=N;e.residual=r.data;e.residual_stride=N;
@@ -239,10 +246,17 @@ template<int B> void SmallBertCase() {
 
 int main(int,char**) try {
   std::cout<<std::unitbuf;
+#ifdef DNN4_PP_STORE_TEST
+  // More than two tasks per CTA exercises overlap and staging reuse; the
+  // odd tail checks the independent side and ring phase streams.
+  DenseCase<6145,768,768,256,128,1,2>();
+  DenseCase<6145,768,768,256,128,1,1>();
+#else
   DenseCase<128,768,768,128,256,1,2>();
   DenseCase<128,768,768,128,256,1,1>();
   DenseCase<512,768,768,256,128,1,2>();
   DenseCase<128,768,768,128,192,1,2>();
   DenseCase<128,768,768,128,192,1,1>();
+#endif
   std::cout<<"output_hash="<<std::hex<<hash<<'\n';return 0;
 }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}

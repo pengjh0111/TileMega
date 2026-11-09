@@ -19,6 +19,11 @@
 using namespace tilemega::backend;
 using E=cutlass::bfloat16_t;
 namespace ex=tilemega::codegen::executor;
+#ifdef DNN4_PP_STORE_TEST
+constexpr bool kPingPong=true;
+#else
+constexpr bool kPingPong=false;
+#endif
 
 // tile_pages' global packing uses element addresses. CuTe's flagged shared
 // layout applies its swizzle through the pointer engine instead.
@@ -128,8 +133,8 @@ template<int Count> struct CrossCtaCopy {
 template<int M,int N,int TM,int TN,bool Residual,bool Store>
 using G0=Sm90F3Gemm<TM,TN,2,1,Sm90F3Mode::kNormal,M,N,64,N-3,
     std::conditional_t<Residual,
-      Sm90F3Chain<Sm90F3SideLayout<TM,TN,true,0,false>,Sm90F3Step<Sm90ForwardOp::kResidual,~0u>>,
-      Sm90F3Chain<Sm90F3SideLayout<TM,TN,false,0,false>>>,Sm90F3NoConv,Sm90F3NoPool,64,Store>;
+      Sm90F3Chain<Sm90F3SideLayout<kPingPong?TM/2:TM,TN,true,0,false>,Sm90F3Step<Sm90ForwardOp::kResidual,~0u>>,
+      Sm90F3Chain<Sm90F3SideLayout<kPingPong?TM/2:TM,TN,false,0,false>>>,Sm90F3NoConv,Sm90F3NoPool,64,Store,false,kPingPong>;
 template<int M,int N,int TM,int TN,bool Residual,bool Store> struct Sequence {
   using First=f3::GemmStage<G0<M,N,TM,TN,Residual,Store>,Bind<0,1,2,0,2,Residual>,Shape<N>>;
   using LastBody=Sm90F3Gemm<128,64,2,1,Sm90F3Mode::kNormal,M,64,N,64,
@@ -160,8 +165,8 @@ template<int TM,int TN,bool Residual> void StoreCase() {
   using Reg=typename Sequence<M,N,TM,TN,Residual,false>::Program;
   using Tma=typename Sequence<M,N,TM,TN,Residual,true>::Program;
   typename Tma::Binding b{};b.buffers=buffers.data;
-  ex::EncodeTiledMap<2>(b.maps[0],a.data,{{K,M},{K*2},{64,TM}});
-  ex::EncodeTiledMap<2>(b.maps[1],r.data,{{N,M},{N*2},{64,TM}});
+  ex::EncodeTiledMap<2>(b.maps[0],a.data,{{K,M},{K*2},{64,kPingPong?TM/2:TM}});
+  ex::EncodeTiledMap<2>(b.maps[1],r.data,{{N,M},{N*2},{64,kPingPong?TM/2:TM}});
   ex::EncodeTiledMap<2>(b.maps[2],x.data,{{N-3,M},{N*2},{64,64}});
   ex::EncodeTiledMap<2>(b.maps[3],x.data,{{N-3,M},{N*2},{64,128}});
   ex::EncodeTiledMap<2>(b.maps[4],z.data,{{64,M},{128},{64,64}});
@@ -198,9 +203,13 @@ template<int TM,int TN,bool Residual> void StoreCase() {
 }
 int main(int,char**) {
   try {
+#ifdef DNN4_PP_STORE_TEST
+    StoreCase<256,128,false>();StoreCase<256,128,true>();
+#else
     StoreCase<128,64,false>();StoreCase<128,128,false>();
     StoreCase<128,64,true>();StoreCase<256,128,true>();
     StoreCase<128,192,false>();StoreCase<128,192,true>();
+#endif
     std::cout<<"output_hash="<<std::hex<<hash<<"\n";return 0;
   }catch(std::exception const& error) {std::cerr<<error.what()<<"\n";return 1;}
 }
