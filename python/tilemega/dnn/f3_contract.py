@@ -175,8 +175,10 @@ def dispatch(manifest, defines, source):
         raise ValueError('invalid explicit F3 attention row count')
     if defines.get('TILEMEGA_F3_SIDE_NORM', '0') not in ('0', '1'):
         raise ValueError('invalid explicit F3 side normalization mode')
-    if defines.get('TILEMEGA_F3_REGISTER_BUDGET', '0') not in ('0', '1', '2'):
+    if defines.get('TILEMEGA_F3_REGISTER_BUDGET', '0') not in ('0', '1', '2', '3'):
         raise ValueError('invalid explicit F3 register budget')
+    if defines.get('TILEMEGA_F3_CYCLIC_SLOTS', '0') not in ('0', '1'):
+        raise ValueError('invalid explicit F3 cyclic slot indexing')
     c = manifest['native_forward']
     match = re.search(r'kF3ForwardIdentity\[\]\s*=\s*("(?:\\.|[^"\\])*");', source)
     if match is None or json.loads(json.loads(match[1])) != c:

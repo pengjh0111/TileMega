@@ -9,6 +9,13 @@
 #include <cute/tensor.hpp>
 #include <type_traits>
 
+#ifndef TILEMEGA_F3_CYCLIC_SLOTS
+#define TILEMEGA_F3_CYCLIC_SLOTS 0
+#endif
+#if TILEMEGA_F3_CYCLIC_SLOTS != 0 && TILEMEGA_F3_CYCLIC_SLOTS != 1
+#error "F3 cyclic slots must be0 or1"
+#endif
+
 // The F3 forward GEMM/convolution body (DNN3 prompt §6). Two consumer
 // warpgroups share one CTA tile, a single producer warp feeds an eight-deep
 // ring, and the epilogue runs in registers over the producer's prefetched
@@ -263,8 +270,21 @@ struct Sm90F3Gemm {
     #pragma unroll
     for(int s=0;s<Split::kSubTiles;++s)cute::clear(accum[s]);
     int previous=-1;
+#if TILEMEGA_F3_CYCLIC_SLOTS
+    int cursor=first_slot;
+#endif
     for(int k=0;k<iterations;++k) {
+#if TILEMEGA_F3_CYCLIC_SLOTS
+      int slot;
+      if constexpr((Slots&(Slots-1))==0)slot=(first_slot+k)%Slots;
+      else {
+        // Preserve the slot sequence without a remainder in each iteration.
+        slot=cursor;
+        cursor=cursor+1==Slots?0:cursor+1;
+      }
+#else
       int slot=(first_slot+k)%Slots;
+#endif
       TM_F3_TRACE_BEGIN(kSlotWait);
       if constexpr(Mode==Sm90F3Mode::kGather) {
         Base::Wait(ring.gfull+slot,phase.Bit(phase.gather,slot));

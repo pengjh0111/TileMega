@@ -84,7 +84,7 @@ __global__ __launch_bounds__(384,1) void Body(Sm90F3GemmOperands p,
   auto* arena=reinterpret_cast<E*>(shared+Sm90F3Budget::kArena0);
   auto* side=reinterpret_cast<char*>(arena)+G::kSideOffset;
   if(threadIdx.x>=256) {
-    Sm90F3Async::RegDealloc<(TILEMEGA_F3_REGISTER_BUDGET==2?72:(TILEMEGA_F3_REGISTER_BUDGET?64:56))>();G::Produce(p,h->rings[0],arena,side,phase,0);
+    Sm90F3Async::RegDealloc<(TILEMEGA_F3_REGISTER_BUDGET>=2?72:(TILEMEGA_F3_REGISTER_BUDGET?64:56))>();G::Produce(p,h->rings[0],arena,side,phase,0);
   }else {
     Sm90F3Async::RegAlloc<(TILEMEGA_F3_REGISTER_BUDGET==2?208:(TILEMEGA_F3_REGISTER_BUDGET?216:224))>();G::Consume(p,h->rings[0],arena,side,phase,h,int(threadIdx.x)/128);
   }
@@ -239,7 +239,7 @@ template<int B> void SmallBertCase() {
 
 int main(int,char**) try {
   std::cout<<std::unitbuf;
-#if TILEMEGA_F3_REGISTER_BUDGET == 2
+#if TILEMEGA_F3_REGISTER_BUDGET >= 2
   DenseCase<1024,2304,768,256,96,1,0,1>();
   DenseCase<1024,2304,768,128,192,1,0,12>();
   DenseCase<1024,3072,768,128,96,1,2,12>();

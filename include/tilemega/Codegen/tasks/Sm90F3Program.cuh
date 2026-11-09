@@ -4,8 +4,8 @@
 #ifndef TILEMEGA_F3_REGISTER_BUDGET
 #define TILEMEGA_F3_REGISTER_BUDGET 0
 #endif
-#if TILEMEGA_F3_REGISTER_BUDGET < 0 || TILEMEGA_F3_REGISTER_BUDGET > 2
-#error "F3 register budget must be0 (56/224),1 (64/216) or2 (72/208)"
+#if TILEMEGA_F3_REGISTER_BUDGET < 0 || TILEMEGA_F3_REGISTER_BUDGET > 3
+#error "F3 register budget must be0 (56/224),1 (64/216),2 (72/208) or3 (72/216)"
 #endif
 
 #include <tilemega/Backend/Sm90F3Gemm.cuh>
@@ -433,7 +433,7 @@ struct RepeatBindings {
 // FFN's lack of a statistics output without duplicating the middle layers.
 template<class Normal,class First=Normal,class Last=Normal>
 struct RepeatStage {
-#if TILEMEGA_F3_REGISTER_BUDGET == 2
+#if TILEMEGA_F3_REGISTER_BUDGET >= 2
   // Explicit selection keeps the two arena histories in registers.
   __device__ static __forceinline__ backend::Sm90F3Phase LoadPhase(
       backend::Sm90F3Phase const (&phase)[2],unsigned stage) {
@@ -459,7 +459,7 @@ struct RepeatStage {
     if constexpr(S::kCanPreissue && !Span<S>()) {
       if(!previous_spanning) {
         unsigned arena=stage%2;
-#if TILEMEGA_F3_REGISTER_BUDGET == 2
+#if TILEMEGA_F3_REGISTER_BUDGET >= 2
         auto current=LoadPhase(phase,stage);
         S::Preissue(b,header->rings[arena],
             shared+backend::Sm90F3Budget::Offset(stage,S::kSharedBytes),current);
@@ -487,7 +487,7 @@ struct RepeatStage {
   __device__ static __forceinline__ void ProduceAs(B const& b,char* shared,
       backend::Sm90F3Header* header,backend::Sm90F3Phase (&phase)[2],unsigned stage,int prefix) {
     auto* arena=shared+backend::Sm90F3Budget::Offset(stage,S::kSharedBytes);
-#if TILEMEGA_F3_REGISTER_BUDGET == 2
+#if TILEMEGA_F3_REGISTER_BUDGET >= 2
     auto current=LoadPhase(phase,stage);
     S::Produce(b,header->rings[stage%2],arena,arena+S::Kind::kSideOffset,current,prefix);
     StorePhase(phase,stage,current);
@@ -509,7 +509,7 @@ struct RepeatStage {
   __device__ static __forceinline__ void ConsumeAs(B const& b,char* shared,
       backend::Sm90F3Header* header,backend::Sm90F3Phase (&phase)[2],unsigned stage,int wg) {
     auto* arena=shared+backend::Sm90F3Budget::Offset(stage,S::kSharedBytes);
-#if TILEMEGA_F3_REGISTER_BUDGET == 2
+#if TILEMEGA_F3_REGISTER_BUDGET >= 2
     auto current=LoadPhase(phase,stage);
     S::Consume(b,header->rings[stage%2],arena,arena+S::Kind::kSideOffset,current,header,wg);
     StorePhase(phase,stage,current);
@@ -711,9 +711,8 @@ void sm90_forward_f3_kernel(const __grid_constant__ typename P::Binding b,
   if constexpr(P::kCluster==2)backend::Sm90F3Async::Base::ClusterSync();
   auto sequence=std::make_integer_sequence<unsigned,P::kStages>{};
   if(threadIdx.x>=256) {
-    // Profile2 avoids B8 producer spills with72+208+208=488 registers per
-    // SMSP; its measured consumer uses at most R203.
-    backend::Sm90F3Async::template RegDealloc<(TILEMEGA_F3_REGISTER_BUDGET==2?72:
+    // Profile3 permits R211 in tuned B16 consumers:72+216+216=504 per SMSP.
+    backend::Sm90F3Async::template RegDealloc<(TILEMEGA_F3_REGISTER_BUDGET>=2?72:
         (TILEMEGA_F3_REGISTER_BUDGET?64:56))>();
     P::ProducerLoop(b,shared,events,epoch,sequence);
   }else {

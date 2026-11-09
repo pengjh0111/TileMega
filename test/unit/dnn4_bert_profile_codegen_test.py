@@ -48,6 +48,10 @@ def main():
     assert budget == '#define TILEMEGA_F3_REGISTER_BUDGET 1\n'+flat
     budget, _ = generate('register72', {'TILEMEGA_F3_REGISTER_BUDGET': '2'})
     assert budget == '#define TILEMEGA_F3_REGISTER_BUDGET 2\n'+flat
+    budget, _ = generate('register72_consumer216', {'TILEMEGA_F3_REGISTER_BUDGET': '3'})
+    assert budget == '#define TILEMEGA_F3_REGISTER_BUDGET 3\n'+flat
+    cyclic, _ = generate('cyclic_slots', {'TILEMEGA_F3_CYCLIC_SLOTS': '1'})
+    assert cyclic == '#define TILEMEGA_F3_CYCLIC_SLOTS 1\n'+flat
     rows, manifest = generate('rows64', {'TILEMEGA_F3_SIDE_NORM': '1',
                                        'TILEMEGA_F3_ATTENTION_ROWS': '64'})
     query_maps = [int(x) for x in re.findall(r'kQueryMap=(\d+)', side)]
@@ -72,9 +76,20 @@ def main():
             raise AssertionError('unidentified attention row change accepted')
     generate('invalid_rows', {'TILEMEGA_F3_ATTENTION_ROWS': '48'}, succeeds=False)
     generate('invalid_side', {'TILEMEGA_F3_SIDE_NORM': '2'}, succeeds=False)
-    generate('invalid_budget', {'TILEMEGA_F3_REGISTER_BUDGET': '3'}, succeeds=False)
-    print(json.dumps(dict(status='passed', evidence='verified', profiles=5,
-                          query_maps=12, invalid_settings_rejected=3)))
+    generate('invalid_budget', {'TILEMEGA_F3_REGISTER_BUDGET': '4'}, succeeds=False)
+    generate('invalid_cyclic', {'TILEMEGA_F3_CYCLIC_SLOTS': '2'}, succeeds=False)
+    for macro, value in (('TILEMEGA_F3_REGISTER_BUDGET', '4'),
+                         ('TILEMEGA_F3_CYCLIC_SLOTS', '2')):
+        damaged = '#define '+macro+' '+value+'\n'+flat
+        try:
+            dispatch(json.loads(Path(str(args.out/'default.cu')+'.plan.json').read_text()),
+                     build_defines(damaged, []), damaged)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError('unidentified mechanism setting accepted')
+    print(json.dumps(dict(status='passed', evidence='verified', profiles=7,
+                          query_maps=12, invalid_settings_rejected=4)))
 
 
 if __name__ == '__main__':

@@ -21,7 +21,7 @@ def main():
     parser.add_argument('--batch', type=int, required=True)
     parser.add_argument('--layers', choices=('1', '2'), required=True)
     parser.add_argument('--expect', choices=('repeat', 'flat'), required=True)
-    parser.add_argument('--register-budget', choices=('0', '1', '2'),
+    parser.add_argument('--register-budget', choices=('0', '1', '2', '3'),
                         default=os.environ.get('TILEMEGA_F3_REGISTER_BUDGET', '0'))
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=False)
@@ -51,9 +51,9 @@ def main():
     command[3] = str(invalid.resolve())
     with invalid.with_suffix('.log').open('w') as log:
         done = subprocess.run(command, env=dict(os.environ, CUDA_VISIBLE_DEVICES='',
-            TILEMEGA_F3_REGISTER_BUDGET='3', TILEMEGA_F3_REPEAT_ARITHMETIC='0'),
+            TILEMEGA_F3_REGISTER_BUDGET='4', TILEMEGA_F3_REPEAT_ARITHMETIC='0'),
             stdout=log, stderr=subprocess.STDOUT)
-    assert done.returncode and 'TILEMEGA_F3_REGISTER_BUDGET must be0,1 or2' in invalid.with_suffix('.log').read_text()
+    assert done.returncode and 'TILEMEGA_F3_REGISTER_BUDGET must be0,1,2 or3' in invalid.with_suffix('.log').read_text()
     repeated = ',Stage_0,Repeat<' in sources[1]
     assert sources[2] == '#define TILEMEGA_F3_REPEAT_ARITHMETIC 1\n'+sources[1]
     assert repeated == (args.expect == 'repeat')
