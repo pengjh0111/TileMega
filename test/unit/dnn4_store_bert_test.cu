@@ -281,8 +281,13 @@ int main(int,char**) try {
   // Wide N accumulator, three spanning slots and the B16 odd-tail P1 GELU.
   DenseCase<2049,3072,768,128,256,1,2>();
 #elif defined(DNN4_FFN1_TMA128_TEST)
+#ifdef DNN4_FFN1_TMA128_B8_TEST
+  // Two tasks per CTA reuse the side buffer across the B8 odd tail.
+  DenseCase<1025,3072,768,128,128,1,2>();
+#else
   // M513 includes the B4 tail with five spanning slots and NT12 P1 GELU.
   DenseCase<513,3072,768,128,128,1,2>();
+#endif
 #elif defined(DNN4_FFN2_REG64_TEST)
   // Four split slices, NT12 residual row statistics and eight-slot wrap.
   DenseCase<257,768,3072,128,64,4,1>();
