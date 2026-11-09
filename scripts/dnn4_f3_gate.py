@@ -19,6 +19,7 @@ import time
 
 ROOT = Path(os.environ.get('TILEMEGA_DNN4_REPO', Path(__file__).resolve().parents[1]))
 SOURCES = dict(repeat_odd=ROOT / 'test/unit/dnn4_repeat_test.cu',
+               partial=ROOT / 'test/unit/dnn4_bert_test.cu',
                repeat_alias=ROOT / 'test/unit/dnn4_repeat_test.cu',
                bert_side_norm=ROOT / 'test/unit/dnn4_bert_test.cu',
                pingpong128=ROOT / 'test/unit/dnn4_repeat_test.cu',
@@ -126,6 +127,7 @@ def main():
     parser.add_argument('--suite', choices=tuple(SOURCES), default='body')
     parser.add_argument('--register-budget', type=int, choices=(0, 1, 2, 3), default=0)
     parser.add_argument('--cyclic-slots', action='store_true')
+    parser.add_argument('--coalesced-partials', action='store_true')
     parser.add_argument('--repeat-arithmetic', action='store_true')
     parser.add_argument('--case', choices=('all', 'gather', 'pool', 'split', 'conv', 'swap', 'small'), default='all')
     parser.add_argument('--execute', action='store_true')
@@ -168,6 +170,10 @@ def main():
         command.insert(-4, '-DTILEMEGA_F3_REGISTER_BUDGET=' + str(options.register_budget))
     if options.cyclic_slots:
         command.insert(-4, '-DTILEMEGA_F3_CYCLIC_SLOTS=1')
+    if options.coalesced_partials:
+        command.insert(-4, '-DTILEMEGA_F3_COALESCED_PARTIALS=1')
+    if options.suite == 'partial':
+        command.insert(-4, '-DDNN4_PARTIAL_LAYOUT_TEST=1')
     if options.repeat_arithmetic:
         command.insert(-4, '-DTILEMEGA_F3_REPEAT_ARITHMETIC=1')
     if options.suite == 'bert_side_norm':

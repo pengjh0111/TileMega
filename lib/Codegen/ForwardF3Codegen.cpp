@@ -220,6 +220,7 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
   unsigned register_budget=0;
   bool repeat_arithmetic=false;
   bool cyclic_slots=false;
+  bool coalesced_partials=false;
   unsigned attention_rows=0;
   unsigned repeat_layers=2;
   if(auto* setting=std::getenv("TILEMEGA_F3_REPEAT_ARITHMETIC")) {
@@ -239,6 +240,12 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
     if(value!="0" && value!="1")
       throw std::invalid_argument("TILEMEGA_F3_CYCLIC_SLOTS must be0 or1");
     cyclic_slots=value=="1";
+  }
+  if(auto* setting=std::getenv("TILEMEGA_F3_COALESCED_PARTIALS")) {
+    std::string value=setting;
+    if(value!="0" && value!="1")
+      throw std::invalid_argument("TILEMEGA_F3_COALESCED_PARTIALS must be0 or1");
+    coalesced_partials=value=="1";
   }
   if(auto* setting=std::getenv("TILEMEGA_F3_SIDE_NORM")) {
     std::string value=setting;
@@ -319,6 +326,7 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
   if(enable_side_norm)out<<"#define TILEMEGA_F3_SIDE_NORM 1\n";
   if(register_budget)out<<"#define TILEMEGA_F3_REGISTER_BUDGET "<<register_budget<<"\n";
   if(cyclic_slots)out<<"#define TILEMEGA_F3_CYCLIC_SLOTS 1\n";
+  if(coalesced_partials)out<<"#define TILEMEGA_F3_COALESCED_PARTIALS 1\n";
   if(attention_rows)out<<"#define TILEMEGA_F3_ATTENTION_ROWS "<<attention_rows<<"\n";
   out<<"// SPDX-License-Identifier: BSD-3-Clause\n"
      <<"// Generated from a DnnModelPlan and F3 forward coordinates.\n"

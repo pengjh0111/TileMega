@@ -239,7 +239,14 @@ template<int B> void SmallBertCase() {
 
 int main(int,char**) try {
   std::cout<<std::unitbuf;
-#if TILEMEGA_F3_REGISTER_BUDGET >= 2
+#ifdef DNN4_PARTIAL_LAYOUT_TEST
+  DenseCase<131,128,3072,64,64,3,1,2,8>();
+  DenseCase<131,128,768,64,64,4,1,2,6>();
+  DenseCase<131,128,768,64,64,6,1,2,6>();
+  DenseCase<65,128,384,64,32,6,0,6,4>();
+  DenseCase<65,128,1024,64,128,16,1,2,4>();
+  DenseCase<259,128,3072,64,64,2,1,2,6,128>();
+#elif TILEMEGA_F3_REGISTER_BUDGET >= 2
   DenseCase<1024,2304,768,256,96,1,0,1>();
   DenseCase<1024,2304,768,128,192,1,0,12>();
   DenseCase<1024,3072,768,128,96,1,2,12>();

@@ -52,6 +52,8 @@ def main():
     assert budget == '#define TILEMEGA_F3_REGISTER_BUDGET 3\n'+flat
     cyclic, _ = generate('cyclic_slots', {'TILEMEGA_F3_CYCLIC_SLOTS': '1'})
     assert cyclic == '#define TILEMEGA_F3_CYCLIC_SLOTS 1\n'+flat
+    partials, _ = generate('coalesced_partials', {'TILEMEGA_F3_COALESCED_PARTIALS': '1'})
+    assert partials == '#define TILEMEGA_F3_COALESCED_PARTIALS 1\n'+flat
     rows, manifest = generate('rows64', {'TILEMEGA_F3_SIDE_NORM': '1',
                                        'TILEMEGA_F3_ATTENTION_ROWS': '64'})
     query_maps = [int(x) for x in re.findall(r'kQueryMap=(\d+)', side)]
@@ -78,8 +80,10 @@ def main():
     generate('invalid_side', {'TILEMEGA_F3_SIDE_NORM': '2'}, succeeds=False)
     generate('invalid_budget', {'TILEMEGA_F3_REGISTER_BUDGET': '4'}, succeeds=False)
     generate('invalid_cyclic', {'TILEMEGA_F3_CYCLIC_SLOTS': '2'}, succeeds=False)
+    generate('invalid_partials', {'TILEMEGA_F3_COALESCED_PARTIALS': '2'}, succeeds=False)
     for macro, value in (('TILEMEGA_F3_REGISTER_BUDGET', '4'),
-                         ('TILEMEGA_F3_CYCLIC_SLOTS', '2')):
+                         ('TILEMEGA_F3_CYCLIC_SLOTS', '2'),
+                         ('TILEMEGA_F3_COALESCED_PARTIALS', '2')):
         damaged = '#define '+macro+' '+value+'\n'+flat
         try:
             dispatch(json.loads(Path(str(args.out/'default.cu')+'.plan.json').read_text()),
@@ -88,8 +92,8 @@ def main():
             pass
         else:
             raise AssertionError('unidentified mechanism setting accepted')
-    print(json.dumps(dict(status='passed', evidence='verified', profiles=7,
-                          query_maps=12, invalid_settings_rejected=4)))
+    print(json.dumps(dict(status='passed', evidence='verified', profiles=8,
+                          query_maps=12, invalid_settings_rejected=5)))
 
 
 if __name__ == '__main__':

@@ -15,6 +15,12 @@
 #if TILEMEGA_F3_CYCLIC_SLOTS != 0 && TILEMEGA_F3_CYCLIC_SLOTS != 1
 #error "F3 cyclic slots must be0 or1"
 #endif
+#ifndef TILEMEGA_F3_COALESCED_PARTIALS
+#define TILEMEGA_F3_COALESCED_PARTIALS 0
+#endif
+#if TILEMEGA_F3_COALESCED_PARTIALS != 0 && TILEMEGA_F3_COALESCED_PARTIALS != 1
+#error "F3 coalesced partials must be0 or1"
+#endif
 
 // The F3 forward GEMM/convolution body (DNN3 prompt §6). Two consumer
 // warpgroups share one CTA tile, a single producer warp feeds an eight-deep
@@ -1039,11 +1045,21 @@ struct Sm90F3Gemm {
     constexpr int kElements=kFragment*Split::kSubTiles;
     static_assert(kElements%4==0 && kElements*256==TM*TN);
     int thread=int(threadIdx.x);
+#if TILEMEGA_F3_COALESCED_PARTIALS
+    // Adjacent lanes publish adjacent v4 groups; slice addition order is unchanged.
+    auto* base=p.epilogue.partial+
+        (std::size_t(tile)*SplitK+slice)*256*kElements+thread*4;
+#else
     auto* base=p.epilogue.partial+
         ((std::size_t(tile)*SplitK+slice)*256+thread)*kElements;
+#endif
     #pragma unroll
     for(int i=0;i<kElements;i+=4)
+#if TILEMEGA_F3_COALESCED_PARTIALS
+      Async::StorePartial4(base+(i/4)*256*4,
+#else
       Async::StorePartial4(base+i,
+#endif
           accumulators.tile[i/kFragment](i%kFragment),
           accumulators.tile[(i+1)/kFragment]((i+1)%kFragment),
           accumulators.tile[(i+2)/kFragment]((i+2)%kFragment),
@@ -1076,7 +1092,12 @@ struct Sm90F3Gemm {
         #pragma unroll
         for(int c=0;c<kChunk && begin+c<kElements;c+=4)
           Async::LoadPartial4(p.epilogue.partial+
+#if TILEMEGA_F3_COALESCED_PARTIALS
+              (std::size_t(tile)*SplitK+sl)*256*kElements+
+              ((begin+c)/4)*256*4+thread*4,
+#else
               ((std::size_t(tile)*SplitK+sl)*256+thread)*kElements+begin+c,
+#endif
               loaded[sl][c],loaded[sl][c+1],loaded[sl][c+2],loaded[sl][c+3]);
       }
       #pragma unroll
