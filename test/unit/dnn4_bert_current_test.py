@@ -133,6 +133,35 @@ class AdmissionTest(unittest.TestCase):
         self.assertEqual(profile['TILEMEGA_F3_MATRIX_STORE'], '1')
         self.assertNotIn('TILEMEGA_F3_WGMMA_PV', profile)
 
+    def test_pp_requires_fixed_coordinates_and_three_percent(self):
+        _, decision = self.candidate()
+        units = [self.save(f'pp_unit_{i}.json', dict(passed=True, processes=self.processes))
+                 for i in range(4)]
+        decision['unit_gates'] = units
+        name = 'ppstore_ffn1_b16_v1'
+        stages = [dict(body='other') for _ in range(63)]
+        for index in range(4, 60, 5):
+            stages[index] = dict(tile_m=128, tile_n=128, tk=64, slots=5,
+                                 split_k=1, store='tma', mc=0)
+        current = dict(stages=stages)
+        candidate = copy.deepcopy(current)
+        for index in range(4, 60, 5):
+            candidate['stages'][index].update(tile_m=256, sched='pp')
+        self.save('control.so.plan.json', dict(native_forward=current))
+        self.save('qk.so.plan.json', dict(native_forward=candidate))
+        self.save(name+'/experiment.json', decision)
+        self.save(name+'/final_result.json', decision)
+        with self.assertRaisesRegex(ValueError, 'same-card pair'):
+            select_successors(self.base, 16, self.spec)
+        decision['pair']['ratio'] = .96
+        self.save(name+'/experiment.json', decision)
+        self.save(name+'/final_result.json', decision)
+        self.assertEqual(select_successors(self.base, 16, self.spec)[3], .03)
+        candidate['stages'][5]['slots'] = 6
+        self.save('qk.so.plan.json', dict(native_forward=candidate))
+        with self.assertRaisesRegex(ValueError, 'outside its fixed FFN1'):
+            select_successors(self.base, 16, self.spec)
+
 
 if __name__ == '__main__':
     unittest.main()

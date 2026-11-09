@@ -32,6 +32,7 @@ def select_successors(base, batch, specification):
                                                TILEMEGA_F3_WGMMA_PV='1'))]
     if batch == 16:
         names.append(('attention_existing_retune_b16_v1', {}))
+        names.append(('ppstore_ffn1_b16_v1', {'TILEMEGA_F3_MATRIX_STORE': '1'}))
     for name, features in names:
         folder = base/name
         if not (folder/'experiment.json').exists():
@@ -50,7 +51,8 @@ def select_successors(base, batch, specification):
         candidate_profile = dict(profile, **features)
         count = ((2 if batch == 16 else 0) +
                  int(candidate_profile.get('TILEMEGA_F3_WGMMA_QK') == '1') +
-                 int(candidate_profile.get('TILEMEGA_F3_WGMMA_PV') == '1'))
+                 int(candidate_profile.get('TILEMEGA_F3_WGMMA_PV') == '1') +
+                 (2 if name == 'ppstore_ffn1_b16_v1' else 0))
         if (len(units) != count or len(set(map(str, units))) != count or
                 set(map(str, final.get('unit_gates', []))) != set(map(str, units)) or
                 final['pair'] != decision['pair']):
@@ -72,17 +74,36 @@ def select_successors(base, batch, specification):
                     or len(selection['eligible_variants']) < 4):
                 raise ValueError('follow-up used unqualified in-situ windows')
         pair = decision['pair']
+        required_gain = .03 if name == 'ppstore_ffn1_b16_v1' else 0
         if (pair['gpu'] != 3 or len(pair['measurements']) != 6 or
                 any(m['guard']['code'] for m in pair['measurements']) or
-                pair['ratio'] >= 1-pair['threshold']):
+                pair['ratio'] >= 1-max(required_gain, pair['threshold'])):
             raise ValueError('follow-up did not clear its complete same-card pair: '+name)
+        if name == 'ppstore_ffn1_b16_v1':
+            validate_pp_coordinates(final['library'], decision['reference'])
         # Completed raw prototypes never appear in this ordered admission list.
         final_name = name+'/final_result.json'
         pair_name = name+'/experiment.json'
         profile = candidate_profile
-        minimum_gain = 0
+        minimum_gain = required_gain
         library = Path(final['library'])
     return final_name, pair_name, profile, minimum_gain
+
+
+def validate_pp_coordinates(library, reference):
+    current = read(str(reference)+'.plan.json')['native_forward']
+    candidate = read(str(library)+'.plan.json')['native_forward']
+    expected = json.loads(json.dumps(current))
+    if len(expected['stages']) != 63:
+        raise ValueError('PP follow-up requires the complete BERT program')
+    for index in range(4, 60, 5):
+        stage = expected['stages'][index]
+        fixed = dict(tile_m=128, tile_n=128, tk=64, slots=5, split_k=1, store='tma', mc=0)
+        if any(stage.get(k) != v for k, v in fixed.items()) or stage.get('sched', 'coop') != 'coop':
+            raise ValueError('PP follow-up changed its fixed FFN1 control')
+        stage.update(tile_m=256, sched='pp')
+    if candidate != expected:
+        raise ValueError('PP follow-up changed coordinates outside its fixed FFN1 combination')
 
 
 def main():
