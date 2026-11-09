@@ -163,3 +163,8 @@ as1_asc_target(as2_batched_residual "${TILEMEGA_ROOT}/tools/probes/ascend950/as2
 target_compile_options(as2_batched_residual PRIVATE --cce-res-usage)
 add_executable(as2_host_submission_contracts "${TILEMEGA_ROOT}/test/unit/ascend_request_submission_test.cpp")
 target_include_directories(as2_host_submission_contracts PRIVATE "${TILEMEGA_ROOT}/include")
+
+as1_asc_target(as2_fai_tile "${TILEMEGA_ROOT}/tools/probes/ascend950/as2_fai_tile.cpp")
+target_compile_options(as2_fai_tile PRIVATE --cce-res-usage)
+add_executable(as2_host_fai_contracts "${TILEMEGA_ROOT}/test/unit/ascend_fai_tile_contract_test.cpp")
+target_include_directories(as2_host_fai_contracts PRIVATE "${TILEMEGA_ROOT}/include")

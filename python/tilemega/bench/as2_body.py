@@ -173,6 +173,73 @@ def prepare_attention(args):
     (out/'config.json').write_text(json.dumps(receipt,indent=2)+'\n');print(json.dumps(receipt))
 
 
+def prepare_fai_tile(args):
+    rows,d,keys=args.rows,args.head_dim,args.keys
+    if not 1<=rows<=32 or d not in (64,128) or not 1<=keys<=1088:
+        raise ValueError('Invalid bounded CATLASS49 TaskBody shape')
+    out=controlled(args.out);out.mkdir(parents=True,exist_ok=False)
+    g=torch.Generator().manual_seed(20261016)
+    q=torch.zeros((2,32,d),dtype=torch.bfloat16)
+    q[:,:rows]=torch.randn((2,rows,d),generator=g).bfloat16()
+    k=torch.full((2,1088,d),float('nan'),dtype=torch.bfloat16);v=torch.full_like(k,float('nan'))
+    k[:,:keys]=torch.randn((2,keys,d),generator=g).bfloat16()
+    v[:,:keys]=torch.randn((2,keys,d),generator=g).bfloat16()
+    scores=torch.bmm(q.float(),k[:,:keys].float().transpose(1,2))*d**-.5
+    result=torch.bmm(scores.softmax(-1),v[:,:keys].float())
+    for name,value in [('q.bin',q),('k.bin',k),('v.bin',v),('ref_fp32.bin',result),('ref_bf16.bin',result.bfloat16())]:save(out/name,value)
+    policy_path=REPO/'configs/ascend/as2_correctness_policy.json'
+    receipt=dict(schema='tilemega.as2.fai_tile_inputs.v1',family='attention',logical_rows=rows,physical_rows=32,
+        head_dim=d,keys=keys,capacity=1088,tasks=2,epochs=4,seed=20261016,dtype='bf16',
+        reference='Independent CPU FP32 attention on two distinct BF16 Q/KV domains; no causal/prefill claim',
+        unused_kv='NaN poison',padded_query_rows='zero input, physical output retained and checked',
+        precision_contract_id='catlass49_bf16_qkv_p_fp32_online_statistics_v1',
+        correctness_policy_sha256=hashlib.sha256(policy_path.read_bytes()).hexdigest(),
+        input_sha256={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in out.iterdir()})
+    (out/'config.json').write_text(json.dumps(receipt,indent=2)+'\n');print(json.dumps(receipt))
+
+
+def compare_fai_tile(args):
+    from tilemega.bench.as2_compare_native import metrics
+    source=controlled(args.input);output=controlled(args.output);job=controlled(args.job)
+    config=json.loads((source/'config.json').read_text());receipt=json.loads((job/'job.json').read_text())
+    if (config.get('schema')!='tilemega.as2.fai_tile_inputs.v1' or config.get('physical_rows')!=32 or
+            config.get('tasks')!=2 or config.get('epochs')!=4 or config.get('capacity')!=1088):
+        raise ValueError('Unrecognized physical FAI component contract')
+    if (receipt.get('project')!='as2' or receipt.get('status')!='passed' or receipt.get('exit_code')!=0 or
+            receipt.get('cpu_test_fixture') or
+            not receipt.get('pid') or Path(receipt['command'][0]).name!='as2_fai_tile' or
+            receipt['command'][1:]!=list(map(str,[config['logical_rows'],config['head_dim'],config['keys'],source,output]))):
+        raise ValueError('Require the completed matching single-card component job')
+    for name,sha in config['input_sha256'].items():
+        if hashlib.sha256((source/name).read_bytes()).hexdigest()!=sha:raise ValueError('FAI input/reference identity changed')
+    policy_path=REPO/'configs/ascend/as2_correctness_policy.json'
+    if hashlib.sha256(policy_path.read_bytes()).hexdigest()!=config['correctness_policy_sha256']:
+        raise ValueError('Frozen FAI numerical policy changed')
+    policy=json.loads(policy_path.read_text())['body']['attention'];d=config['head_dim'];rows=config['logical_rows']
+    raw=(output/'output.bin').read_bytes();size=4*2*32*d*2
+    if len(raw)!=size+512 or raw[size:]!=b'\xa5'*512:raise ValueError('FAI physical extent/guard mismatch')
+    control=(output/'control.bin').read_bytes()
+    if len(control)!=7*512:raise ValueError('FAI completion extent mismatch')
+    counts=[int.from_bytes(control[i*512:i*512+4],'little') for i in range(7)]
+    if counts!=[8,8,8,0,8,8,8]:raise ValueError('FAI owner/participant completion mismatch')
+    actual=torch.frombuffer(bytearray(raw[:size]),dtype=torch.bfloat16).reshape(4,2,32,d)
+    fp32=read(source/'ref_fp32.bin',torch.float32,[2,32,d]);bf16=read(source/'ref_bf16.bin',torch.bfloat16,[2,32,d])
+    checks=[]
+    for epoch in range(4):
+        for name,ref in [('fp32',fp32),('bf16',bf16)]:
+            checks.append(dict(epoch=epoch,reference=name,logical=metrics(actual[epoch,:,:rows],ref[:,:rows],policy),
+                physical=metrics(actual[epoch],ref,policy)))
+    repeated_bitwise=all(torch.equal(actual[0].view(torch.int16),v.view(torch.int16)) for v in actual[1:])
+    result=dict(status='pass_component_numeric' if repeated_bitwise and all(c[k]['passed'] for c in checks for k in ('logical','physical')) else 'fail',
+        scope='one component process; no C3/model/TPOT admission',job=str(job),pid=receipt['pid'],start_ticks=receipt['start_ticks'],
+        physical_device_id=receipt['physical_device_id'],binary_sha256=receipt['executable_sha256'],
+        precision_contract_id=config['precision_contract_id'],checks=checks,policy=policy,
+        repeated_epochs_bitwise=repeated_bitwise,completion_counts=counts,
+        correctness_policy_sha256=config['correctness_policy_sha256'])
+    (output/'numeric.json').write_text(json.dumps(result,indent=2)+'\n');print(json.dumps(result))
+    return 0 if result['status']=='pass_component_numeric' else 1
+
+
 def main():
     torch.set_num_threads(1)
     p=argparse.ArgumentParser(description=__doc__);sub=p.add_subparsers(dest='command',required=True)
@@ -192,11 +259,18 @@ def main():
     attn.add_argument('--capacity',type=int)
     attn.add_argument('--out',type=Path,required=True)
     acheck=sub.add_parser('compare-attention');acheck.add_argument('--input',type=Path,required=True);acheck.add_argument('--output',type=Path,required=True)
+    fai=sub.add_parser('prepare-fai-tile')
+    for name in ('rows','head-dim','keys'):fai.add_argument('--'+name,type=int,required=True)
+    fai.add_argument('--out',type=Path,required=True)
+    fcheck=sub.add_parser('compare-fai-tile')
+    for name in ('input','output','job'):fcheck.add_argument('--'+name,type=Path,required=True)
     args=p.parse_args()
     if args.command=='prepare-gemm':return prepare(args)
     if args.command=='prepare-vector':return prepare_vector(args)
     if args.command=='prepare-observed-norm':return prepare_observed_norm(args)
     if args.command=='prepare-attention':return prepare_attention(args)
+    if args.command=='prepare-fai-tile':return prepare_fai_tile(args)
+    if args.command=='compare-fai-tile':return compare_fai_tile(args)
     return compare(args)
 
 
