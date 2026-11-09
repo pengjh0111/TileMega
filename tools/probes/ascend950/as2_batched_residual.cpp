@@ -54,10 +54,12 @@ int main(int argc,char** argv) {
       if(p==root || relative.empty() || *relative.begin()=="..")throw std::invalid_argument("Use controlled residual paths");
     }
     if(fs::exists(output))throw std::invalid_argument("Require a new residual output");
+    std::cerr<<"phase: aclInit"<<std::endl;
     Check(aclInit(nullptr),"init");uint32_t count=0;Check(aclrtGetDeviceCount(&count),"count");
     if(count!=1)throw std::invalid_argument("Require one visible device");Check(aclrtSetDevice(0),"device");
     auto* soc=aclrtGetSocName();if(!soc || std::string(soc)!="Ascend950PR_9579")throw std::invalid_argument("Wrong SKU");
     aclrtStream stream;Check(aclrtCreateStream(&stream),"stream");fs::create_directory(output);
+    std::cerr<<"phase: streamReady"<<std::endl;
     std::cout<<"{\"status\":\"pass\",\"scope\":\"component only; no model or TPOT admission\",\"groups\":2,\"aiv_workers\":4,\"epochs\":4,\"cases\":[";
     for(unsigned i=0;i<kCases.size();++i) {
       auto c=kCases[i];auto prefix=std::to_string(i);
@@ -73,8 +75,11 @@ int main(int argc,char** argv) {
       auto x=allocate(lhs.data(),lhs.size()*2),y=allocate(rhs.data(),rhs.size()*2);
       auto da=allocate(a.data(),a.size()*2),db=allocate(b.data(),b.size()*2);
       auto dt=allocate(times.data(),times.size()*8);
+      std::cerr<<"phase: kernelLaunch case="<<i<<std::endl;
       residual_tile_probe<<<2,nullptr,stream>>>(x,y,da,db,dt,c.rows,c.columns,c.left_stride,c.right_stride,c.output_stride);
+      std::cerr<<"phase: kernelLaunchReturned case="<<i<<std::endl;
       Check(aclrtSynchronizeStream(stream),"residual synchronize");
+      std::cerr<<"phase: kernelComplete case="<<i<<std::endl;
       Check(aclrtMemcpy(a.data(),a.size()*2,da,a.size()*2,ACL_MEMCPY_DEVICE_TO_HOST),"control download");
       Check(aclrtMemcpy(b.data(),b.size()*2,db,b.size()*2,ACL_MEMCPY_DEVICE_TO_HOST),"candidate download");
       Check(aclrtMemcpy(times.data(),times.size()*8,dt,times.size()*8,ACL_MEMCPY_DEVICE_TO_HOST),"timers");
