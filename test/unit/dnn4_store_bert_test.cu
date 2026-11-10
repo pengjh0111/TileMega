@@ -27,7 +27,7 @@ constexpr bool kPingPong=false;
 
 #if defined(DNN4_FFN1_TMA128_TEST) || defined(DNN4_FFN2_TMA128_SPLIT2_B8_TEST) || defined(DNN4_FFN1_M64N128_B8_TEST)
 constexpr int kProducerRegisters=72,kConsumerRegisters=208;
-#elif defined(DNN4_QKV_TMA192_TEST) || defined(DNN4_FFN1_TMA256_TEST) || defined(DNN4_FFN2_STORE_TEST) || defined(DNN4_FFN1_REG64_TEST) || defined(DNN4_FFN2_REG64_TEST)
+#elif defined(DNN4_QKV_TMA192_TEST) || defined(DNN4_FFN1_TMA256_TEST) || defined(DNN4_FFN2_STORE_TEST) || defined(DNN4_FFN1_REG64_TEST) || defined(DNN4_FFN2_REG64_TEST) || defined(DNN4_FFN2_TK128_S2_B2_TEST)
 constexpr int kProducerRegisters=72,kConsumerRegisters=216;
 #else
 constexpr int kProducerRegisters=kPingPong?72:56;
@@ -129,7 +129,7 @@ void CompareStats(std::vector<float> const& actual,std::vector<float> const& exp
   Hash(actual);
 }
 
-template<int M,int N,int K,int TM,int TN,int SplitK,int Kind,int Parts=(Kind==1?N:K)/64>
+template<int M,int N,int K,int TM,int TN,int SplitK,int Kind,int Parts=(Kind==1?N:K)/64,int Tk=64>
 void DenseCase() {
   std::cout<<"START dense m="<<M<<" n="<<N<<" k="<<K<<" tm="<<TM<<"\n";
   constexpr int Rows=kPingPong?TM/2:TM;
@@ -145,7 +145,10 @@ void DenseCase() {
       std::conditional_t<Kind==1,Sm90F3Chain<Side,Bias,Residual>,
                          Sm90F3Chain<Side,Norm,Gelu>>>;
   using Chain=std::conditional_t<Kind==1,Sm90F3WriteRowStats<Plain>,Plain>;
-#if defined(DNN4_FFN1_M64N128_B8_TEST)
+#if defined(DNN4_FFN2_TK128_S2_B2_TEST)
+  constexpr int Slots=6;
+  constexpr bool kTmaStore=false;
+#elif defined(DNN4_FFN1_M64N128_B8_TEST)
   constexpr int Slots=4;
   constexpr bool kTmaStore=false;
 #elif defined(DNN4_QKV_TMA192_TEST)
@@ -167,7 +170,7 @@ void DenseCase() {
   constexpr int Slots=kPingPong?(Kind==1?4:5):2;
   constexpr bool kTmaStore=true;
 #endif
-  using G=Sm90F3Gemm<TM,TN,Slots,SplitK,Sm90F3Mode::kNormal,M,N,K,N,Chain,Sm90F3NoConv,Sm90F3NoPool,64,kTmaStore,false,kPingPong>;
+  using G=Sm90F3Gemm<TM,TN,Slots,SplitK,Sm90F3Mode::kNormal,M,N,K,N,Chain,Sm90F3NoConv,Sm90F3NoPool,Tk,kTmaStore,false,kPingPong>;
   constexpr int tiles=((M+Rows-1)/Rows)*(N/TN);
   std::vector<E> input(M*K),weight(N*K),packed(N*K),residual(M*N);
   for(int n=0;n<N;++n)for(int k=0;k<K;++k) {
@@ -276,7 +279,11 @@ template<int B> void SmallBertCase() {
 
 int main(int,char**) try {
   std::cout<<std::unitbuf;
-#ifdef DNN4_FFN1_M64N128_B8_TEST
+#ifdef DNN4_FFN2_TK128_S2_B2_TEST
+  // The accepted B2 FFN2 geometry combines two K slices, NT12 residual
+  // statistics and six TK128 spanning slots, including an odd final row.
+  DenseCase<257,768,3072,64,64,2,1,12,128>();
+#elif defined(DNN4_FFN1_M64N128_B8_TEST)
   // N-split WGs share the same64 normalized rows; several tasks per CTA
   // exercise the side lifetime with a short final row.
   DenseCase<1025,3072,768,64,128,1,2>();
