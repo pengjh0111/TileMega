@@ -25,7 +25,7 @@ constexpr bool kPingPong=true;
 constexpr bool kPingPong=false;
 #endif
 
-#if defined(DNN4_FFN1_TMA128_TEST)
+#if defined(DNN4_FFN1_TMA128_TEST) || defined(DNN4_FFN2_TMA128_SPLIT2_B8_TEST)
 constexpr int kProducerRegisters=72,kConsumerRegisters=208;
 #elif defined(DNN4_QKV_TMA192_TEST) || defined(DNN4_FFN1_TMA256_TEST) || defined(DNN4_FFN2_STORE_TEST) || defined(DNN4_FFN1_REG64_TEST) || defined(DNN4_FFN2_REG64_TEST)
 constexpr int kProducerRegisters=72,kConsumerRegisters=216;
@@ -151,7 +151,7 @@ void DenseCase() {
 #elif defined(DNN4_FFN1_TMA256_TEST)
   constexpr int Slots=3;
   constexpr bool kTmaStore=true;
-#elif defined(DNN4_FFN1_TMA128_TEST)
+#elif defined(DNN4_FFN1_TMA128_TEST) || defined(DNN4_FFN2_TMA128_SPLIT2_B8_TEST)
   constexpr int Slots=5;
   constexpr bool kTmaStore=true;
 #elif defined(DNN4_FFN1_REG64_TEST) || defined(DNN4_FFN2_REG64_TEST)
@@ -273,7 +273,11 @@ template<int B> void SmallBertCase() {
 
 int main(int,char**) try {
   std::cout<<std::unitbuf;
-#ifdef DNN4_QKV_TMA192_TEST
+#ifdef DNN4_FFN2_TMA128_SPLIT2_B8_TEST
+  // The odd B8 tail combines last-arriver reduction, residual staging and
+  // NT12 statistics; five slots wrap repeatedly within each split slice.
+  DenseCase<1025,768,3072,128,128,2,1>();
+#elif defined(DNN4_QKV_TMA192_TEST)
   // The first and repeated QKV stages consume NT1 and NT12, respectively.
   DenseCase<2049,2304,768,128,192,1,0,1>();
   DenseCase<2049,2304,768,128,192,1,0,12>();
