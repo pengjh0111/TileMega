@@ -132,6 +132,8 @@ def main():
               ('FFN2 TMA128 split2 B8', base/'ffn2_tma128_split2_b8_v1/experiment.json'),
               ('FFN2 TMA128 split2 coalesced B8', base/'ffn2_tma128_split2_b8_coalesced_v1/experiment.json'),
               ('FFN1 M64N128 B8', base/'ffn1_m64n128_b8_v1/experiment.json'),
+              ('FFN1 PP nonblocking side B16', base/'pp64_arrive_side_b16_v2/experiment.json'),
+              ('Current coalesced B2', base/'current_coalesced_b2_v1/experiment.json'),
               *[(f'phase72 B{batch} GPU2 diagnostic',
                  base/f'scalar_phase72_arithmetic_b{batch}_v1/gpu2_diagnostic_v1/experiment.json')
                 for batch in (2, 4, 8, 16)],
@@ -164,7 +166,8 @@ def main():
                     'FFN1 TMA128 phase72 B4', 'FFN1 TMA256 matrix B16',
                     'QKV TMA192 matrix B16', 'FFN1 TMA128 matrix B8',
                     'FFN1 PP full-wait repair B16', 'FFN2 TMA128 split2 B8',
-                    'FFN2 TMA128 split2 coalesced B8', 'FFN1 M64N128 B8'):
+                    'FFN2 TMA128 split2 coalesced B8', 'FFN1 M64N128 B8',
+                    'FFN1 PP nonblocking side B16', 'Current coalesced B2'):
             unit_paths = experiment.get('unit_gates', [experiment.get('unit_gate')])
             for unit_path in unit_paths:
                 unit = read(Path(unit_path))
@@ -794,6 +797,26 @@ def main():
                   'B16 instruction words match the accepted binary. The isolated '
                   'follow-up restores direct acquisition by all128 WG consumers;'
                   'its gates remain separate.']
+    allwait_rejection = base/'pp64_async_side_allwait_preparation_v1/component_rejection.json'
+    if allwait_rejection.exists():
+        failure = read(allwait_rejection)
+        assert not failure['accepted'] and not failure['timing_executed']
+        lines += ['', 'Verified direct acquisition by all128 consumers also fails: '
+                  'unit5/5,mem1/1,init1/1,race5/5 pass on GPU3; synccheck0/1 '
+                  'reports1024 Missing init errors. Reject before model/timing. '
+                  'The next private refinement retains the previously complete '
+                  'named160 handoff and makes only the producer arrival nonblocking;'
+                  'its full protocol and end-to-end gates are independent.']
+    nonblocking = base/'pp64_arrive_side_b16_v2/experiment.json'
+    if nonblocking.exists():
+        trial = read(nonblocking)
+        lines += ['', 'Verified nonblocking named160 PP side handoff passes two fresh '
+                  'GPU3 component cohorts17/17 each and strict model5/5. Default0 '
+                  'full B16 instruction words remain identical to the incumbent. '
+                  f'GPU3 full-model pair ratio{trial["pair"]["ratio"]:.6f};'
+                  f'noise{100*trial["pair"]["threshold"]:.3f}%,DT-PP minimum3%. '
+                  'The synchronization repair is functional evidence;performance '
+                  'and production admission follow the independent end-to-end gate.']
     current = args.out/'DNN4_BERT_current.csv'
     integrated = base/'coalesced_cyclic_b1_integrated_v1/final_result.json'
     if integrated.exists():

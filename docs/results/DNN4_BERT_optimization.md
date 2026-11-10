@@ -116,6 +116,8 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | FFN2 TMA128 split2 B8 | 3 | 1.017536 | 1.212080 | -19.119 | 2.409 | False |
 | FFN2 TMA128 split2 coalesced B8 | 3 | 1.019584 | 1.085408 | -6.456 | 1.427 | False |
 | FFN1 M64N128 B8 | 3 | 1.016048 | 1.042416 | -2.595 | 2.460 | False |
+| FFN1 PP nonblocking side B16 | 3 | 1.309920 | 1.408976 | -7.562 | 1.056 | False |
+| Current coalesced B2 | 3 | 0.597728 | 0.578048 | +3.292 | 13.663 | False |
 | phase72 B2 GPU2 diagnostic | 2 | 0.628096 | 0.599952 | +4.481 | 6.669 | False |
 | phase72 B4 GPU2 diagnostic | 2 | 0.736144 | 0.710800 | +3.443 | 2.339 | True |
 | phase72 B8 GPU2 diagnostic | 2 | 1.052320 | 1.009456 | +4.073 | 2.349 | True |
@@ -226,6 +228,10 @@ Verified resumption: all new GPU tests use physical GPU3 only. Previously comple
 Verified rejected B8 FFN2 split2/TMA attribution on GPU3: FFN2 windows sum311.968→479.712us;main-loop CTA maxima sum267.104→233.408us;split-K maxima sum130.944us and epilogue maxima sum32.928→100.672us. Segment maxima are nonadditive diagnostic attribution. The fixed coalesced-partial follow-up has separate component/model/pair gates;a main-loop improvement alone does not admit either combination.
 
 Verified private asynchronous PP side acquisition: normal unit5/5, memcheck1/1,initcheck1/1 and racecheck5/5 pass on GPU3, but synccheck0/1 reports8 Missing init errors. Reject before model or timing;the partial cohort is not a complete17 gate. Default0 full B16 instruction words match the accepted binary. The isolated follow-up restores direct acquisition by all128 WG consumers;its gates remain separate.
+
+Verified direct acquisition by all128 consumers also fails: unit5/5,mem1/1,init1/1,race5/5 pass on GPU3; synccheck0/1 reports1024 Missing init errors. Reject before model/timing. The next private refinement retains the previously complete named160 handoff and makes only the producer arrival nonblocking;its full protocol and end-to-end gates are independent.
+
+Verified nonblocking named160 PP side handoff passes two fresh GPU3 component cohorts17/17 each and strict model5/5. Default0 full B16 instruction words remain identical to the incumbent. GPU3 full-model pair ratio1.075620;noise1.056%,DT-PP minimum3%. The synchronization repair is functional evidence;performance and production admission follow the independent end-to-end gate.
 
 Verified opt-in cyclic slot indexing and vector-major normal split-K partials retain the admitted B1 coordinates,56/224 register roles and ascending slice addition order. Integrated component gates pass17/17 on GPU3;the extended S2/TK128/odd-row suite passes17/17 on GPU2. The full model passes strict FP32 and cross-process byte checks5/5. G22 P-PAIR0.499216→0.478000ms passes0.904% noise;P-DNN 0.464496ms,p900.477696ms,process range0.012608ms. The exact accepted binary has a P-TRACE1 ledger. The same B2 mechanism fails its paired noise gate and is not enabled there. Defaults,original anchors,CNN results and frozen20-cell Phase Z remain unchanged.
 
