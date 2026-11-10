@@ -25,7 +25,7 @@ constexpr bool kPingPong=true;
 constexpr bool kPingPong=false;
 #endif
 
-#if defined(DNN4_FFN1_TMA128_TEST) || defined(DNN4_FFN2_TMA128_SPLIT2_B8_TEST)
+#if defined(DNN4_FFN1_TMA128_TEST) || defined(DNN4_FFN2_TMA128_SPLIT2_B8_TEST) || defined(DNN4_FFN1_M64N128_B8_TEST)
 constexpr int kProducerRegisters=72,kConsumerRegisters=208;
 #elif defined(DNN4_QKV_TMA192_TEST) || defined(DNN4_FFN1_TMA256_TEST) || defined(DNN4_FFN2_STORE_TEST) || defined(DNN4_FFN1_REG64_TEST) || defined(DNN4_FFN2_REG64_TEST)
 constexpr int kProducerRegisters=72,kConsumerRegisters=216;
@@ -145,7 +145,10 @@ void DenseCase() {
       std::conditional_t<Kind==1,Sm90F3Chain<Side,Bias,Residual>,
                          Sm90F3Chain<Side,Norm,Gelu>>>;
   using Chain=std::conditional_t<Kind==1,Sm90F3WriteRowStats<Plain>,Plain>;
-#if defined(DNN4_QKV_TMA192_TEST)
+#if defined(DNN4_FFN1_M64N128_B8_TEST)
+  constexpr int Slots=4;
+  constexpr bool kTmaStore=false;
+#elif defined(DNN4_QKV_TMA192_TEST)
   constexpr int Slots=4;
   constexpr bool kTmaStore=true;
 #elif defined(DNN4_FFN1_TMA256_TEST)
@@ -273,7 +276,11 @@ template<int B> void SmallBertCase() {
 
 int main(int,char**) try {
   std::cout<<std::unitbuf;
-#ifdef DNN4_FFN2_TMA128_SPLIT2_B8_TEST
+#ifdef DNN4_FFN1_M64N128_B8_TEST
+  // N-split WGs share the same64 normalized rows; several tasks per CTA
+  // exercise the side lifetime with a short final row.
+  DenseCase<1025,3072,768,64,128,1,2>();
+#elif defined(DNN4_FFN2_TMA128_SPLIT2_B8_TEST)
   // The odd B8 tail combines last-arriver reduction, residual staging and
   // NT12 statistics; five slots wrap repeatedly within each split slice.
   DenseCase<1025,768,3072,128,128,2,1>();
