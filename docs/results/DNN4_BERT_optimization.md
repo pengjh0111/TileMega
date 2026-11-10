@@ -109,6 +109,13 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | FFN1 reg64 side216 B2 | 3 | 0.610384 | 0.597888 | +2.047 | 0.500 | True |
 | FFN2 reg64 split4 B2 | 3 | 0.597776 | 0.723808 | -21.083 | 9.946 | False |
 | FFN1 TMA128 phase72 B4 | 3 | 0.712848 | 0.741712 | -4.049 | 2.415 | False |
+| FFN1 TMA256 matrix B16 | 3 | 1.313136 | 1.457424 | -10.988 | 0.585 | False |
+| QKV TMA192 matrix B16 | 3 | 1.311696 | 1.341520 | -2.274 | 1.076 | False |
+| FFN1 TMA128 matrix B8 | 3 | 1.019552 | 1.011648 | +0.775 | 3.796 | False |
+| FFN1 PP full-wait repair B16 | 3 | 1.312176 | 1.409968 | -7.453 | 2.912 | False |
+| FFN2 TMA128 split2 B8 | 3 | 1.017536 | 1.212080 | -19.119 | 2.409 | False |
+| FFN2 TMA128 split2 coalesced B8 | 3 | 1.019584 | 1.085408 | -6.456 | 1.427 | False |
+| FFN1 M64N128 B8 | 3 | 1.016048 | 1.042416 | -2.595 | 2.460 | False |
 | phase72 B2 GPU2 diagnostic | 2 | 0.628096 | 0.599952 | +4.481 | 6.669 | False |
 | phase72 B4 GPU2 diagnostic | 2 | 0.736144 | 0.710800 | +3.443 | 2.339 | True |
 | phase72 B8 GPU2 diagnostic | 2 | 1.052320 | 1.009456 | +4.073 | 2.349 | True |
@@ -213,6 +220,12 @@ Verified B2 current-profile boundary overhead 8.351% exceeds5%;those windows do 
 Verified B4 current-profile boundary overhead 7.059% exceeds5%;those windows do not select stage coordinates. Four distinct nontrace whole programs use only original Phase Z candidates and the admitted control. Every candidate passes strict model5/5;spilled builds are never executed. G22 P-SEL winner=B,tie threshold=0.559%. The admitted control remains selected unless a separate fresh P-PAIR passes its unchanged noise gate.
 
 Verified original thread-major and opt-in vector-major split-K layouts produce identical output bytes on six frozen shapes:odd rows,S3/4/6/16 and TK64/128. The first five accepted fresh original-layout processes use one frozen binary (four on GPU2,one on GPU3),each with guard0;all match the accepted coalesced-suite output hash. This is a functional allocation deviation with no mixed-card performance comparison.
+
+Verified resumption: all new GPU tests use physical GPU3 only. Previously completed component/model receipts are reused;historical GPU0–2 queues remain inactive. The four pending candidates complete fresh same-card pairs;none clears its acceptance gate. Accepted profiles,original anchors and frozen Phase Z results are retained.
+
+Verified rejected B8 FFN2 split2/TMA attribution on GPU3: FFN2 windows sum311.968→479.712us;main-loop CTA maxima sum267.104→233.408us;split-K maxima sum130.944us and epilogue maxima sum32.928→100.672us. Segment maxima are nonadditive diagnostic attribution. The fixed coalesced-partial follow-up has separate component/model/pair gates;a main-loop improvement alone does not admit either combination.
+
+Verified private asynchronous PP side acquisition: normal unit5/5, memcheck1/1,initcheck1/1 and racecheck5/5 pass on GPU3, but synccheck0/1 reports8 Missing init errors. Reject before model or timing;the partial cohort is not a complete17 gate. Default0 full B16 instruction words match the accepted binary. The isolated follow-up restores direct acquisition by all128 WG consumers;its gates remain separate.
 
 Verified opt-in cyclic slot indexing and vector-major normal split-K partials retain the admitted B1 coordinates,56/224 register roles and ascending slice addition order. Integrated component gates pass17/17 on GPU3;the extended S2/TK128/odd-row suite passes17/17 on GPU2. The full model passes strict FP32 and cross-process byte checks5/5. G22 P-PAIR0.499216→0.478000ms passes0.904% noise;P-DNN 0.464496ms,p900.477696ms,process range0.012608ms. The exact accepted binary has a P-TRACE1 ledger. The same B2 mechanism fails its paired noise gate and is not enabled there. Defaults,original anchors,CNN results and frozen20-cell Phase Z remain unchanged.
 

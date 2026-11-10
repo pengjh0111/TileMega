@@ -126,6 +126,12 @@ def main():
               ('FFN2 reg64 split4 B2', base/'ffn2_reg64_split4_b2_v1/experiment.json'),
               ('FFN1 TMA128 phase72 B4', base/'ffn1_tma128_phase72_b4_v1/experiment.json'),
               ('FFN1 TMA256 matrix B16', base/'ffn1_tma256_matrix_b16_v2/experiment.json'),
+              ('QKV TMA192 matrix B16', base/'qkv_tma192_matrix_b16_v1/experiment.json'),
+              ('FFN1 TMA128 matrix B8', base/'ffn1_tma128_matrix_b8_v1/experiment.json'),
+              ('FFN1 PP full-wait repair B16', base/'pphandoff_full_wait_b16_v1/experiment.json'),
+              ('FFN2 TMA128 split2 B8', base/'ffn2_tma128_split2_b8_v1/experiment.json'),
+              ('FFN2 TMA128 split2 coalesced B8', base/'ffn2_tma128_split2_b8_coalesced_v1/experiment.json'),
+              ('FFN1 M64N128 B8', base/'ffn1_m64n128_b8_v1/experiment.json'),
               *[(f'phase72 B{batch} GPU2 diagnostic',
                  base/f'scalar_phase72_arithmetic_b{batch}_v1/gpu2_diagnostic_v1/experiment.json')
                 for batch in (2, 4, 8, 16)],
@@ -155,7 +161,10 @@ def main():
                     'FFN1 TMA192 matrix B8', 'FFN1 TMA192 matrix B16',
                     'FFN2 TMA256x64 matrix B16', 'cyclic phase72 B4',
                     'FFN1 reg64 side216 B2', 'FFN2 reg64 split4 B2',
-                    'FFN1 TMA128 phase72 B4', 'FFN1 TMA256 matrix B16'):
+                    'FFN1 TMA128 phase72 B4', 'FFN1 TMA256 matrix B16',
+                    'QKV TMA192 matrix B16', 'FFN1 TMA128 matrix B8',
+                    'FFN1 PP full-wait repair B16', 'FFN2 TMA128 split2 B8',
+                    'FFN2 TMA128 split2 coalesced B8', 'FFN1 M64N128 B8'):
             unit_paths = experiment.get('unit_gates', [experiment.get('unit_gate')])
             for unit_path in unit_paths:
                 unit = read(Path(unit_path))
@@ -754,6 +763,37 @@ def main():
                   'use one frozen binary (four on GPU2,one on GPU3),each with guard0;'
                   'all match the accepted coalesced-suite output hash. This is a functional '
                   'allocation deviation with no mixed-card performance comparison.']
+    resumed = base/'resume_gpu3_only_20261110_v1/result.json'
+    if resumed.exists():
+        lines += ['', 'Verified resumption: all new GPU tests use physical GPU3 only. '
+                  'Previously completed component/model receipts are reused;historical '
+                  'GPU0–2 queues remain inactive. The four pending candidates complete '
+                  'fresh same-card pairs;none clears its acceptance gate. Accepted '
+                  'profiles,original anchors and frozen Phase Z results are retained.']
+    diagnosis = base/'ffn2_split_attribution_gpu3_v1/diagnosis.json'
+    if diagnosis.exists():
+        groups = read(diagnosis)['groups']
+        a, b = groups['control'], groups['candidate']
+        lines += ['', 'Verified rejected B8 FFN2 split2/TMA attribution on GPU3: '
+                  f'FFN2 windows sum{a["stage_ns"]:.3f}→{b["stage_ns"]:.3f}us;'
+                  f'main-loop CTA maxima sum{a["main_loop_max_cta_ns"]:.3f}→'
+                  f'{b["main_loop_max_cta_ns"]:.3f}us;split-K maxima sum'
+                  f'{b["splitk_max_cta_ns"]:.3f}us and epilogue maxima sum'
+                  f'{a["epilogue_max_cta_ns"]:.3f}→{b["epilogue_max_cta_ns"]:.3f}us. '
+                  'Segment maxima are nonadditive diagnostic attribution. The fixed '
+                  'coalesced-partial follow-up has separate component/model/pair gates;'
+                  'a main-loop improvement alone does not admit either combination.']
+    async_rejection = base/'pp64_async_side_preparation_v1/component_rejection.json'
+    if async_rejection.exists():
+        failure = read(async_rejection)
+        assert not failure['accepted'] and not failure['timing_executed']
+        lines += ['', 'Verified private asynchronous PP side acquisition: normal unit5/5, '
+                  'memcheck1/1,initcheck1/1 and racecheck5/5 pass on GPU3, but '
+                  'synccheck0/1 reports8 Missing init errors. Reject before model or '
+                  'timing;the partial cohort is not a complete17 gate. Default0 full '
+                  'B16 instruction words match the accepted binary. The isolated '
+                  'follow-up restores direct acquisition by all128 WG consumers;'
+                  'its gates remain separate.']
     current = args.out/'DNN4_BERT_current.csv'
     integrated = base/'coalesced_cyclic_b1_integrated_v1/final_result.json'
     if integrated.exists():
