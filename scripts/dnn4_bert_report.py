@@ -134,6 +134,7 @@ def main():
               ('FFN1 M64N128 B8', base/'ffn1_m64n128_b8_v1/experiment.json'),
               ('FFN1 PP nonblocking side B16', base/'pp64_arrive_side_b16_v2/experiment.json'),
               ('Current coalesced B2', base/'current_coalesced_b2_v1/experiment.json'),
+              ('cached-boundary in-situ B4', base/'boundary_cache_retune_b4_v1/experiment.json'),
               *[(f'phase72 B{batch} GPU2 diagnostic',
                  base/f'scalar_phase72_arithmetic_b{batch}_v1/gpu2_diagnostic_v1/experiment.json')
                 for batch in (2, 4, 8, 16)],
@@ -181,6 +182,12 @@ def main():
             if (not qualification['passed'] or abs(qualification['relative_difference']) > .05
                     or len(selection['eligible_variants']) < 4):
                 raise ValueError('in-situ follow-up requires qualified traces and four legal variants')
+        if name == 'cached-boundary in-situ B4':
+            selection = read(path.parent/'tune_selection.json')
+            qualification = read(Path(selection['qualification']))
+            if (not qualification['passed'] or abs(qualification['relative_difference']) > .05
+                    or len(selection['eligible_variants']) < 4):
+                raise ValueError('cached-boundary selection requires qualified traces and four variants')
         if name.startswith('phase72'):
             for suite in ('scalar_phase72_arithmetic_alias_unit_v1', 'side_norm_reg72_unit_v1'):
                 state = read(base/suite/'scheduler/state.json')['dnn4-focused-f3-gates']
@@ -657,7 +664,7 @@ def main():
     if boundary.exists():
         qualification = read(boundary)
         assert not qualification['passed']
-        lines += ['', 'Verified boundary-trace cache is rejected:thread0 keeps the four '
+        lines += ['', 'Verified B1 boundary-trace cache is rejected:thread0 keeps the four '
                   'markers in unused header padding and flushes at leave;three fresh '
                   'GPU3 processes compare output bytes against the admitted control. '
                   f'Window sum differs by{100*qualification["relative_difference"]:.3f}% '
@@ -666,6 +673,25 @@ def main():
                   'allocation and is rejected before launch. Both patches remain raw '
                   'and the production header is restored. B1 instead tests existing '
                   'whole-program candidates using nontrace P-SEL and P-PAIR.']
+    cached = base/'boundary_cache_current_v1/result.json'
+    if cached.exists():
+        for trial in read(cached)['rows']:
+            preparation = read(Path(trial['default0_proof']))
+            proof = next(row for row in preparation['rows']
+                         if row['batch'] == trial['batch'] and row['trace'] == 0)
+            cohort = read(Path(trial['trace_receipt']))
+            if (not proof['default0_proof']['passed'] or cohort['status'] != 'passed'
+                    or len(cohort['processes']) != 3):
+                raise ValueError('cached instrumentation requires production equivalence and three traces')
+            disposition = ('qualifies for existing-candidate in-situ selection'
+                           if trial['passed'] else 'fails5%;these windows never select coordinates')
+            lines += ['', f'Verified current B{trial["batch"]} reuses the exact prior '
+                      'header-padding boundary cache;nontrace instruction words equal the '
+                      'accepted binary. Three fresh guarded GPU3 trace processes compare '
+                      'output bytes with that binary;this is diagnostic coverage,not '
+                      'five-process P-CORR. Boundary sum versus fresh nontrace P-SMOKE '
+                      f'differs by{100*trial["relative_difference"]:.3f}%;{disposition}. '
+                      'The production marker header and current artifacts remain unchanged.']
     retune = base/'phase72_retune_b8_gpu0_v1/incomplete_selection.json'
     if retune.exists():
         qualification = read(retune.parent/'trace_qualification.json')
