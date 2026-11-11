@@ -127,7 +127,7 @@ def collect(args, identity):
         writer.writeheader()
         writer.writerows(rows)
     save(args.out / 'result.json', dict(evidence='verified', diagnostic_only=True,
-        timing_valid=False, artifact_id=identity['artifact_id'], dimensions=dimensions,
+        timing_valid=False, pid=os.getpid(), artifact_id=identity['artifact_id'], dimensions=dimensions,
         trace_level=trace_level, input_sha256=sha(args.inputs), ledger=str(args.out / 'ledger.csv'),
         samples=args.samples, warmup=args.warmup, gpu=args.device,
         start_sm_clock_mhz=start_clock, end_sm_clock_mhz=end_clock,
