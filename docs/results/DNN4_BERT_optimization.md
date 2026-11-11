@@ -221,7 +221,13 @@ Verified B4 fixed-candidate72/216 prototype on historical GPU3: P-PAIR0.706016â†
 
 Verified B2 trace prototype checks first_ready only on the first local GEMM task;its clockpoint and four-marker layout are preserved. Production instruction words exactly match the accepted control;trace compilation has zero spill. Hardware qualification is pending;no performance gain or valid stage windows are inferred.
 
+Verified CPU-only B2 first-task trace preparation keeps all six existing coordinate variants and the accepted72/216 profile. Only0/1 have zero-spill production and boundary builds;2/3/4/5 spill. Coverage2/6 prohibits assembled selection;baseline trace qualification is independent.
+
+Verified explicit72/216 alias component on GPU0 passes unit5/5 and sanitizer mem1/1,init1/1,race5/5,sync5/5 in seventeen independent guarded reservations with released gaps. The resource.py generic entry was renamed worker.py after two model jobs failed before measurement because it shadowed the standard library;failed logs remain raw. No numerical or timing thresholds change,and completed component work is reused after the server restart.
+
 Verified private B8 producer operand lifetime trial keeps side bindings inside P1 and preserves the fixed coordinates. Candidates3/4 still spill 24/32B and28/52B stores/loads versus20/28B and24/48B before the change. Reject at the CPU gate;no trace builds,hardware execution or production change.
+
+Verified B2 fixed4 producer index lifetime drafts preserve coordinates and arithmetic. Recomputing task counts reduces spill8/8B to4/4B;also recomputing task addresses returns to8/8B. Both fail the zero-spill gate and never execute on GPU. The main header is unchanged.
 
 Verified profile2 B8 boundary overhead is3.419% on GPU0. Only2/6 existing variants are nonspilling;each completes three fresh20/50 traces. Four spilled variants are never executed. Required candidate coverage is incomplete;no assembled selection or admission is claimed. GPU2 partial traces remain separate and are not mixed with the GPU0 windows.
 

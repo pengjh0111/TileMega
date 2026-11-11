@@ -752,7 +752,7 @@ def main():
         result = read(preparation)
         if not result['production_proof']['passed']:
             raise ValueError('first-task trace prototype changes production instructions')
-        qualified = base/'first_ready_b2_gpu0_v1/trace_qualification.json'
+        qualified = base/'first_ready_b2_gpu0_v2/trace_qualification.json'
         status = ('Hardware qualification is pending;no performance gain or valid stage '
                   'windows are inferred.')
         if qualified.exists():
@@ -765,6 +765,27 @@ def main():
                   'first local GEMM task;its clockpoint and four-marker layout are preserved. '
                   'Production instruction words exactly match the accepted control;trace '
                   'compilation has zero spill. '+status]
+    fixed = base/'first_ready_retune_b2_preparation_v1/compiled.json'
+    if fixed.exists():
+        result = read(fixed)
+        if result['gpu_executed'] or result['eligible'] != [0, 1]:
+            raise ValueError('B2 fixed-candidate CPU coverage differs from its evidence')
+        lines += ['', 'Verified CPU-only B2 first-task trace preparation keeps all six '
+                  'existing coordinate variants and the accepted72/216 profile. Only0/1 '
+                  'have zero-spill production and boundary builds;2/3/4/5 spill. Coverage2/6 '
+                  'prohibits assembled selection;baseline trace qualification is independent.']
+    component = base/'resume_gpu0_intermittent_20261111_v1/alias_unit/result.json'
+    if component.exists():
+        result = read(component)
+        if not result['passed'] or len(result['processes']) != 17 or result['gpu'] != 0:
+            raise ValueError('GPU0 alias prerequisite lacks its complete17 processes')
+        lines += ['', 'Verified explicit72/216 alias component on GPU0 passes unit5/5 '
+                  'and sanitizer mem1/1,init1/1,race5/5,sync5/5 in seventeen independent '
+                  'guarded reservations with released gaps. The resource.py generic entry '
+                  'was renamed worker.py after two model jobs failed before measurement '
+                  'because it shadowed the standard library;failed logs remain raw. '
+                  'No numerical or timing thresholds change,and completed component work '
+                  'is reused after the server restart.']
     role = base/'role_operands_b8_preparation_v1/result.json'
     if role.exists():
         result = read(role)
@@ -774,6 +795,15 @@ def main():
                   'inside P1 and preserves the fixed coordinates. Candidates3/4 still spill '
                   '24/32B and28/52B stores/loads versus20/28B and24/48B before the change. '
                   'Reject at the CPU gate;no trace builds,hardware execution or production change.']
+    counts = base/'local_counts_b2_preparation_v1/result.json'
+    if counts.exists():
+        result = read(counts)
+        if result['accepted'] or result['gpu_executed'] or any(r['legal'] for r in result['rows']):
+            raise ValueError('stage index lifetime rejection differs from its evidence')
+        lines += ['', 'Verified B2 fixed4 producer index lifetime drafts preserve coordinates '
+                  'and arithmetic. Recomputing task counts reduces spill8/8B to4/4B;also '
+                  'recomputing task addresses returns to8/8B. Both fail the zero-spill '
+                  'gate and never execute on GPU. The main header is unchanged.']
     retune = base/'phase72_retune_b8_gpu0_v1/incomplete_selection.json'
     if retune.exists():
         qualification = read(retune.parent/'trace_qualification.json')
