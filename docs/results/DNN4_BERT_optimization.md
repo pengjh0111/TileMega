@@ -219,7 +219,9 @@ Verified CPU-only B8 register-profile3 follow-up preserves the six existing coor
 
 Verified B4 fixed-candidate72/216 prototype on historical GPU3: P-PAIR0.706016→0.678688ms;gain3.871% versus1.600% noise. P-DNN0.678704ms. This remains a prototype;complete four-program selection and fresh explicit-profile component gates are pending. It does not replace the current accepted B4 row.
 
-Verified CPU-only B2 trace prototype checks first_ready only on the first local GEMM task;its clockpoint and four-marker layout are preserved. Production instruction words exactly match the accepted control;trace compilation has zero spill. Hardware qualification is pending;no performance gain or valid stage windows are inferred.
+Verified B2 trace prototype checks first_ready only on the first local GEMM task;its clockpoint and four-marker layout are preserved. Production instruction words exactly match the accepted control;trace compilation has zero spill. Hardware qualification is pending;no performance gain or valid stage windows are inferred.
+
+Verified private B8 producer operand lifetime trial keeps side bindings inside P1 and preserves the fixed coordinates. Candidates3/4 still spill 24/32B and28/52B stores/loads versus20/28B and24/48B before the change. Reject at the CPU gate;no trace builds,hardware execution or production change.
 
 Verified profile2 B8 boundary overhead is3.419% on GPU0. Only2/6 existing variants are nonspilling;each completes three fresh20/50 traces. Four spilled variants are never executed. Required candidate coverage is incomplete;no assembled selection or admission is claimed. GPU2 partial traces remain separate and are not mixed with the GPU0 windows.
 

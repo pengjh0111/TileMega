@@ -738,11 +738,28 @@ def main():
         result = read(preparation)
         if not result['production_proof']['passed']:
             raise ValueError('first-task trace prototype changes production instructions')
-        lines += ['', 'Verified CPU-only B2 trace prototype checks first_ready only on the '
+        qualified = base/'first_ready_b2_gpu0_v1/trace_qualification.json'
+        status = ('Hardware qualification is pending;no performance gain or valid stage '
+                  'windows are inferred.')
+        if qualified.exists():
+            result = read(qualified)
+            status = (f'Three independent GPU0 boundary processes give '
+                      f'{100*result["relative_difference"]:.3f}% overhead against a fresh '
+                      'same-card reference;'+('passes5%;eligible for fixed-candidate selection.'
+                      if result['passed'] else 'fails5%;these windows never select coordinates.'))
+        lines += ['', 'Verified B2 trace prototype checks first_ready only on the '
                   'first local GEMM task;its clockpoint and four-marker layout are preserved. '
                   'Production instruction words exactly match the accepted control;trace '
-                  'compilation has zero spill. Hardware qualification is pending;no '
-                  'performance gain or valid stage windows are inferred.']
+                  'compilation has zero spill. '+status]
+    role = base/'role_operands_b8_preparation_v1/result.json'
+    if role.exists():
+        result = read(role)
+        if result['accepted'] or result['gpu_executed'] or any(r['legal'] for r in result['rows']):
+            raise ValueError('producer operand compile rejection differs from its evidence')
+        lines += ['', 'Verified private B8 producer operand lifetime trial keeps side bindings '
+                  'inside P1 and preserves the fixed coordinates. Candidates3/4 still spill '
+                  '24/32B and28/52B stores/loads versus20/28B and24/48B before the change. '
+                  'Reject at the CPU gate;no trace builds,hardware execution or production change.']
     retune = base/'phase72_retune_b8_gpu0_v1/incomplete_selection.json'
     if retune.exists():
         qualification = read(retune.parent/'trace_qualification.json')
