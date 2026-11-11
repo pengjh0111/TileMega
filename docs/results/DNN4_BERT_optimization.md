@@ -118,6 +118,9 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | FFN1 M64N128 B8 | 3 | 1.016048 | 1.042416 | -2.595 | 2.460 | False |
 | FFN1 PP nonblocking side B16 | 3 | 1.309920 | 1.408976 | -7.562 | 1.056 | False |
 | Current coalesced B2 | 3 | 0.597728 | 0.578048 | +3.292 | 13.663 | False |
+| cached-boundary216 in-situ B4 | 3 | 0.706016 | 0.678688 | +3.871 | 1.600 | True |
+| Current prefetch1 B16 | 3 | 1.310240 | 1.297216 | +0.994 | 2.341 | False |
+| FFN2 register store B8 | 3 | 1.016416 | 1.018768 | -0.231 | 1.363 | False |
 | phase72 B2 GPU2 diagnostic | 2 | 0.628096 | 0.599952 | +4.481 | 6.669 | False |
 | phase72 B4 GPU2 diagnostic | 2 | 0.736144 | 0.710800 | +3.443 | 2.339 | True |
 | phase72 B8 GPU2 diagnostic | 2 | 1.052320 | 1.009456 | +4.073 | 2.349 | True |
@@ -142,6 +145,7 @@ consumer216 in-situ B16: group0→candidate5, group1→candidate1, group2→cand
 cyclic in-situ B16: group0→candidate5, group1→candidate1, group2→candidate0, group3→candidate2, group4→candidate1, group5→candidate1.
 repaired in-situ B8: group0→candidate0, group1→candidate4, group2→candidate0, group3→candidate0, group4→candidate1, group5→candidate4.
 matrix existing in-situ B16: group0→candidate5, group1→candidate1, group2→candidate0, group3→candidate2, group4→candidate1, group5→candidate1.
+cached-boundary216 in-situ B4: group0→candidate0, group1→candidate0, group2→candidate5, group3→candidate0, group4→candidate0, group5→candidate0.
 
 Verified post-collection checks reject40/232: the89-case scan still spills28B on256x128 residual_ln_rowstats, and the full B16 program spills36B; it is never executed. B1 compiles without spill but has no significant gain. FFN1 128x256 uses one deterministic legal four-slot register-store variant; it regresses and is rejected. Distance1 has no significant gain.
 
@@ -209,6 +213,14 @@ Verified current B2 reuses the exact prior header-padding boundary cache;nontrac
 
 Verified current B4 reuses the exact prior header-padding boundary cache;nontrace instruction words equal the accepted binary. Three fresh guarded GPU3 trace processes compare output bytes with that binary;this is diagnostic coverage,not five-process P-CORR. Boundary sum versus fresh nontrace P-SMOKE differs by2.175%;qualifies for existing-candidate in-situ selection. The production marker header and current artifacts remain unchanged.
 
+Verified current72/208 B4 cached-boundary qualification passes, but only3/6 fixed candidates have both production and boundary builds without spill. Candidate5 trace is legal,but its nontrace build spills8/8B and never executes. The other two rejected trace variants spill52/104B and96/180B. Three legal variants each pass model5/5 and three matched-coordinate byte-checked trace processes. Coverage below four prohibits an assembled selection;the existing72/216 profile is qualified separately.
+
+Verified CPU-only B8 register-profile3 follow-up preserves the six existing coordinate variants. Only0/1/2 have zero-spill production and boundary builds;3/4/5 spill. Coverage remains3/6,below four,so no new B8 GPU work or assembled stage selection is performed.
+
+Verified B4 fixed-candidate72/216 prototype on historical GPU3: P-PAIR0.706016→0.678688ms;gain3.871% versus1.600% noise. P-DNN0.678704ms. This remains a prototype;complete four-program selection and fresh explicit-profile component gates are pending. It does not replace the current accepted B4 row.
+
+Verified CPU-only B2 trace prototype checks first_ready only on the first local GEMM task;its clockpoint and four-marker layout are preserved. Production instruction words exactly match the accepted control;trace compilation has zero spill. Hardware qualification is pending;no performance gain or valid stage windows are inferred.
+
 Verified profile2 B8 boundary overhead is3.419% on GPU0. Only2/6 existing variants are nonspilling;each completes three fresh20/50 traces. Four spilled variants are never executed. Required candidate coverage is incomplete;no assembled selection or admission is claimed. GPU2 partial traces remain separate and are not mixed with the GPU0 windows.
 
 Verified optional profile2 uses72/208 registers and explicit scalar phase selection only for that profile. Profiles0/1 retain their prior paths and the default remains0. Scalar/alias and P1 component cohorts each pass unit5/5 and sanitizer1/1/5/5;B2/B4/B8/B16 whole models each pass5/5 without spill. B8/B16 SASS is328576/395776B with zero local-memory instructions. The integrated B8 kernel has identical instruction bytes to its prototype. Seven related regression checks, real profile codegen and invalid-setting checks pass. GPU2 comparisons remain diagnostics. Complete GPU3 pairs subsequently admit B4/B8;exact-binary ledgers and three-process P-DNN results are in the current catalog. B2 fails its noise gate and B16 fails the firstRepeat3% gate. B8/B16 first-time Repeat admission still requires3% plus noise;B2/B4 already use accepted Repeat and require a gain beyond noise. Fixed BF16 goals and original anchors remain unchanged.
@@ -241,13 +253,13 @@ Verified opt-in cyclic slot indexing and vector-major normal split-K partials re
 
 Verified current accepted artifacts (GPU3;50/200;three-process P-DNN). B1/B2/B4/B8/B16 are follow-ups that retain the original anchor without re-anchoring. Fixed BF16 targets reached for B1. DNN4_BERT_current.csv records complete identities,profiles and evidence paths;DNN4_BERT_current_ledger.csv preserves all315 current stage rows with exact accepted reference hashes and coordinates.
 
-| Batch | Median ms | p90 ms | Process range ms | Fixed BF16 ms | Ratio |
-| --- | --- | --- | --- | --- | --- |
-| 1 | 0.464496 | 0.477696 | 0.012608 | 0.4858 | 0.9561 |
-| 2 | 0.597536 | 0.601472 | 0.032496 | 0.5171 | 1.1555 |
-| 4 | 0.706304 | 0.715328 | 0.007824 | 0.5905 | 1.1961 |
-| 8 | 1.016400 | 1.025344 | 0.004272 | 0.7457 | 1.3630 |
-| 16 | 1.311152 | 1.326240 | 0.005984 | 1.0869 | 1.2064 |
+| Batch | GPU | Median ms | p90 ms | Process range ms | Fixed BF16 ms | Ratio |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 3 | 0.464496 | 0.477696 | 0.012608 | 0.4858 | 0.9561 |
+| 2 | 3 | 0.597536 | 0.601472 | 0.032496 | 0.5171 | 1.1555 |
+| 4 | 3 | 0.706304 | 0.715328 | 0.007824 | 0.5905 | 1.1961 |
+| 8 | 3 | 1.016400 | 1.025344 | 0.004272 | 0.7457 | 1.3630 |
+| 16 | 3 | 1.311152 | 1.326240 | 0.005984 | 1.0869 | 1.2064 |
 
 Verified largest three stages for each current unmet BERT cell (P-TRACE1 attribution only;segments can overlap and are not timing results). Each ledger checks the exact accepted reference binary SHA256.
 

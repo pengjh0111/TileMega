@@ -135,6 +135,9 @@ def main():
               ('FFN1 PP nonblocking side B16', base/'pp64_arrive_side_b16_v2/experiment.json'),
               ('Current coalesced B2', base/'current_coalesced_b2_v1/experiment.json'),
               ('cached-boundary in-situ B4', base/'boundary_cache_retune_b4_v1/experiment.json'),
+              ('cached-boundary216 in-situ B4', base/'boundary_cache216_b4_v1/experiment.json'),
+              ('Current prefetch1 B16', base/'current_prefetch_b16_v1/experiment.json'),
+              ('FFN2 register store B8', base/'ffn2_reg_b8_v1/experiment.json'),
               *[(f'phase72 B{batch} GPU2 diagnostic',
                  base/f'scalar_phase72_arithmetic_b{batch}_v1/gpu2_diagnostic_v1/experiment.json')
                 for batch in (2, 4, 8, 16)],
@@ -182,12 +185,16 @@ def main():
             if (not qualification['passed'] or abs(qualification['relative_difference']) > .05
                     or len(selection['eligible_variants']) < 4):
                 raise ValueError('in-situ follow-up requires qualified traces and four legal variants')
-        if name == 'cached-boundary in-situ B4':
+        if name in ('cached-boundary in-situ B4', 'cached-boundary216 in-situ B4'):
             selection = read(path.parent/'tune_selection.json')
             qualification = read(Path(selection['qualification']))
             if (not qualification['passed'] or abs(qualification['relative_difference']) > .05
                     or len(selection['eligible_variants']) < 4):
                 raise ValueError('cached-boundary selection requires qualified traces and four variants')
+        if name == 'Current prefetch1 B16':
+            preparation = read(Path(experiment['preparation']))
+            if not preparation['source_differential']['passed']:
+                raise ValueError('prefetch comparison requires its one-define source proof')
         if name.startswith('phase72'):
             for suite in ('scalar_phase72_arithmetic_alias_unit_v1', 'side_norm_reg72_unit_v1'):
                 state = read(base/suite/'scheduler/state.json')['dnn4-focused-f3-gates']
@@ -692,6 +699,50 @@ def main():
                       'five-process P-CORR. Boundary sum versus fresh nontrace P-SMOKE '
                       f'differs by{100*trial["relative_difference"]:.3f}%;{disposition}. '
                       'The production marker header and current artifacts remain unchanged.']
+    incomplete = base/'boundary_cache_retune_b4_v1/incomplete_selection.json'
+    if incomplete.exists():
+        coverage = read(incomplete)
+        lines += ['', 'Verified current72/208 B4 cached-boundary qualification passes, '
+                  f'but only{len(coverage["eligible"])}/6 fixed candidates have both '
+                  'production and boundary builds without spill. Candidate5 trace '
+                  'is legal,but its nontrace build spills8/8B and never executes. '
+                  'The other two rejected trace variants spill52/104B and96/180B. '
+                  'Three legal variants each pass model5/5 and three matched-coordinate '
+                  'byte-checked trace processes. Coverage below four prohibits an '
+                  'assembled selection;the existing72/216 profile is qualified separately.']
+    incomplete = base/'boundary_cache216_b8_v1/incomplete_selection.json'
+    if incomplete.exists():
+        coverage = read(incomplete)
+        if coverage['gpu_executed'] or coverage['eligible'] != [0, 1, 2]:
+            raise ValueError('B8 compile-only rejection differs from its stated coverage')
+        lines += ['', 'Verified CPU-only B8 register-profile3 follow-up preserves the six '
+                  'existing coordinate variants. Only0/1/2 have zero-spill production and '
+                  'boundary builds;3/4/5 spill. Coverage remains3/6,below four,so no new '
+                  'B8 GPU work or assembled stage selection is performed.']
+    raw_tuned = base/'boundary_cache216_b4_v1/final_result.json'
+    if raw_tuned.exists():
+        result = read(raw_tuned)
+        pair = result['pair']
+        pending = not (base/'boundary_cache216_b4_admitted_v1/final_result.json').exists()
+        lines += ['', 'Verified B4 fixed-candidate72/216 prototype on historical GPU3: '
+                  f'P-PAIR{pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms;'
+                  f'gain{100*(1-pair["ratio"]):.3f}% versus{100*pair["threshold"]:.3f}% noise. '
+                  f'P-DNN{result["measurement"]["candidate_ms"]:.6f}ms. '
+                  + ('This remains a prototype;complete four-program selection and fresh '
+                     'explicit-profile component gates are pending. It does not replace '
+                     'the current accepted B4 row.' if pending else
+                     'Production admission and subsequent allocation are recorded separately '
+                     'in the current artifact catalog.')]
+    preparation = base/'first_ready_b2_preparation_v1/result.json'
+    if preparation.exists():
+        result = read(preparation)
+        if not result['production_proof']['passed']:
+            raise ValueError('first-task trace prototype changes production instructions')
+        lines += ['', 'Verified CPU-only B2 trace prototype checks first_ready only on the '
+                  'first local GEMM task;its clockpoint and four-marker layout are preserved. '
+                  'Production instruction words exactly match the accepted control;trace '
+                  'compilation has zero spill. Hardware qualification is pending;no '
+                  'performance gain or valid stage windows are inferred.']
     retune = base/'phase72_retune_b8_gpu0_v1/incomplete_selection.json'
     if retune.exists():
         qualification = read(retune.parent/'trace_qualification.json')
@@ -866,16 +917,17 @@ def main():
         wins = [r['batch'] for r in latest if float(r['median_ms']) < float(r['baseline_ms'])]
         target_status = ('Fixed BF16 targets reached for B'+',B'.join(wins)+'. '
                          if wins else 'All fixed BF16 targets remain unmet. ')
-        lines += ['', 'Verified current accepted artifacts (GPU3;50/200;three-process P-DNN). '
+        cards = ','.join('GPU'+gpu for gpu in sorted({r['gpu'] for r in latest}))
+        lines += ['', f'Verified current accepted artifacts ({cards};50/200;three-process P-DNN). '
                   'B1/B2/B4/B8/B16 are follow-ups that retain '
                   'the original anchor without re-anchoring. '+target_status+
                   'DNN4_BERT_current.csv records complete identities,profiles and evidence paths;'
                   'DNN4_BERT_current_ledger.csv preserves all315 current stage rows with exact '
                   'accepted reference hashes and coordinates.', '',
-                  '| Batch | Median ms | p90 ms | Process range ms | Fixed BF16 ms | Ratio |',
-                  '| --- | --- | --- | --- | --- | --- |']
+                  '| Batch | GPU | Median ms | p90 ms | Process range ms | Fixed BF16 ms | Ratio |',
+                  '| --- | --- | --- | --- | --- | --- | --- |']
         for row in latest:
-            lines.append(f'| {row["batch"]} | {float(row["median_ms"]):.6f} | '
+            lines.append(f'| {row["batch"]} | {row["gpu"]} | {float(row["median_ms"]):.6f} | '
                          f'{float(row["p90_ms"]):.6f} | {float(row["process_range_ms"]):.6f} | '
                          f'{float(row["baseline_ms"]):.4f} | {float(row["ratio"]):.4f} |')
         lines += ['', 'Verified largest three stages for each current unmet BERT cell '
