@@ -136,6 +136,8 @@ def main():
               ('Current coalesced B2', base/'current_coalesced_b2_v1/experiment.json'),
               ('cached-boundary in-situ B4', base/'boundary_cache_retune_b4_v1/experiment.json'),
               ('cached-boundary216 in-situ B4', base/'boundary_cache216_b4_v1/experiment.json'),
+              ('cached-boundary216 B4 GPU0 continuation',
+               base/'boundary_cache216_b4_admitted_v1/experiment.json'),
               ('Current prefetch1 B16', base/'current_prefetch_b16_v1/experiment.json'),
               ('FFN2 register store B8', base/'ffn2_reg_b8_v1/experiment.json'),
               *[(f'phase72 B{batch} GPU2 diagnostic',
@@ -150,6 +152,15 @@ def main():
         if not path.exists():
             continue
         experiment = read(path)
+        gpu0_continuation = name == 'cached-boundary216 B4 GPU0 continuation'
+        if gpu0_continuation:
+            sys.path.insert(0, str(ROOT/'scripts'))
+            from dnn4_bert_current import validate_boundary_selection, validate_followup_allocation
+            final = read(path.parent/'final_result.json')
+            validate_followup_allocation(path.parent, path.parent.name, experiment, final)
+            validate_boundary_selection(path.parent, experiment['library'], experiment['reference'])
+            if not experiment['accepted']:
+                raise ValueError('GPU0 admitted comparison lacks its completed acceptance')
         if name in ('attention Rows64 B1', 'coalesced partial B1', 'cyclic slots B1',
                     'cyclic slots tuned B16 prototype', 'cyclic216 B16 integrated',
                     'cyclic coalesced B1 prototype', 'cyclic admitted B8',
@@ -171,7 +182,8 @@ def main():
                     'QKV TMA192 matrix B16', 'FFN1 TMA128 matrix B8',
                     'FFN1 PP full-wait repair B16', 'FFN2 TMA128 split2 B8',
                     'FFN2 TMA128 split2 coalesced B8', 'FFN1 M64N128 B8',
-                    'FFN1 PP nonblocking side B16', 'Current coalesced B2'):
+                    'FFN1 PP nonblocking side B16', 'Current coalesced B2',
+                    'cached-boundary216 B4 GPU0 continuation'):
             unit_paths = experiment.get('unit_gates', [experiment.get('unit_gate')])
             for unit_path in unit_paths:
                 unit = read(Path(unit_path))
@@ -305,7 +317,9 @@ def main():
         if not pair_path.exists():
             pair_path = path.parent/f'pair_gpu{experiment["gpu"]}/result.json'
         first = read(pair_path)
-        comparisons = [(f'GPU{first["gpu"]} same-card diagnostic', pair_path)]
+        comparisons = [(('User-authorized GPU0 continuation;same-card pair;fixed GPU3 target '
+                         'retained;not re-anchored' if gpu0_continuation else
+                         f'GPU{first["gpu"]} same-card diagnostic'), pair_path)]
         if experiment.get('initial_pair_source'):
             comparisons.append(('initial complete pair;extreme variability;not admission',
                                 Path(experiment['initial_pair_source'])))
@@ -325,7 +339,7 @@ def main():
                 reference_ms=pair['reference_ms'], candidate_ms=pair['candidate_ms'],
                 ratio=pair['ratio'], gain_pct=100*(1-pair['ratio']),
                 threshold_pct=100*pair['threshold'],
-                accepted=pair['gpu'] != 0 and pair['ratio']<1-max(pair['threshold'],
+                accepted=(pair['gpu'] != 0 or gpu0_continuation) and pair['ratio']<1-max(pair['threshold'],
                     experiment.get('minimum_gain', 0),
                     .03 if name.startswith('Repeat') or (name.startswith('phase72') and experiment['batch'] in (8, 16)) else 0), scope=scope,
                 correctness='P-CORR5/5 with cross-process output byte hashes',
