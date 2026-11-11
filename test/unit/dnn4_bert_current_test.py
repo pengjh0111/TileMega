@@ -9,7 +9,9 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT/'scripts'))
-from dnn4_bert_current import select_successors, validate_pp_coordinates
+from dnn4_bert_current import (select_successors, validate_pp_coordinates,
+    validate_boundary_selection, validate_intermittent, validate_timing_gpu,
+    validate_followup_allocation)
 
 
 class AdmissionTest(unittest.TestCase):
@@ -498,6 +500,199 @@ class AdmissionTest(unittest.TestCase):
         self.save(name+'/final_result.json', successor)
         with self.assertRaisesRegex(ValueError, 'component receipts'):
             select_successors(self.base, 2, self.spec)
+
+
+class BoundaryAdmissionTest(unittest.TestCase):
+    setUp = AdmissionTest.setUp
+    save = AdmissionTest.save
+
+    def fixture(self):
+        folder = self.base/'boundary_cache216_b4_admitted_v1'
+        current = dict(schema=4, stages=[dict(body='embedding'),
+            dict(body='gemm', tile_n=64), dict(body='layer_norm')])
+        self.save('control.so.plan.json', dict(native_forward=current))
+        variants = []
+        for columns in [32, 64, 96, 128, 192, 256]:
+            candidate = copy.deepcopy(current)
+            candidate['stages'][1]['tile_n'] = columns
+            variants.append(candidate)
+        assembled = variants[3]
+        specifications = []
+        for index, (name, coordinate) in enumerate([
+                ('tuned', assembled), ('existing_variant_0', variants[0]),
+                ('existing_variant_1', variants[1]), ('existing_variant_5', variants[5])]):
+            library = self.base/(name+'.so')
+            self.save(library.name+'.plan.json', dict(native_forward=coordinate))
+            traces = []
+            for process in range(3):
+                trace = self.base/f'windows-{index}-{process}'
+                self.save(str(trace/'samples.json'),
+                          [[dict(stage_ns=100+10*index)] for _ in range(50)])
+                traces.append(str(trace))
+            receipt = self.save(f'windows-{index}.json', dict(status='passed', traces=traces,
+                processes=[dict(pid=200+i, exit_code=0) for i in range(3)]))
+            specifications.append(dict(name=name, library=str(library), tune_priority=index,
+                tune_window_ns=100+10*index, tune_window_source=receipt))
+        self.save(str(folder/'tune_inputs.json'),
+                  dict(groups=[dict(stages=[1])], variants=variants))
+        self.save(str(folder/'trace_qualification.json'),
+                  dict(passed=True, relative_difference=.018))
+        self.save(str(folder/'tune_selection.json'), dict(eligible_variants=[0, 1, 3, 5],
+            coordinates=assembled, groups=[dict(group=0, stages=[1], candidate=3,
+                windows_ns=[70, 80, None, 60, None, 90])]))
+        self.save(str(folder/'candidate_spec.json'), specifications)
+        self.save(str(folder/'selection.json'), dict(winner_library=specifications[0]['library'],
+            measurements=[dict(arm=arm, guard=dict(code=0)) for arm in 'ABCDDCBA']))
+        self.save(str(folder/'instruction_proof.json'), dict(passed=True, sass_words=123,
+            prototype_library=specifications[0]['library']))
+        return folder, specifications[0]['library'], str(self.base/'control.so')
+
+    def test_qualified_selection_and_main_proof(self):
+        validate_boundary_selection(*self.fixture())
+
+    def test_successor_requires_explicit_current_profile_units(self):
+        folder, library, reference = self.fixture()
+        units = []
+        for name, flags in [('alias', ['-DDNN4_ALIAS_REPEAT_TEST=1',
+                                       '-DTILEMEGA_F3_REPEAT_ARITHMETIC=1']),
+                            ('side', ['-DTILEMEGA_F3_SIDE_NORM=1'])]:
+            build = self.save(name+'/build.json', dict(binary_sha256='frozen',
+                command=flags+['-DTILEMEGA_F3_REGISTER_BUDGET=3']))
+            self.save(name+'/plan.json', dict(build=build))
+            units.append(self.save(name+'/result.json',
+                                   dict(passed=True, processes=self.processes)))
+        decision = dict(accepted=True, library=library, reference=reference,
+            gate=str(self.base/'gate.json'), unit_gates=units,
+            pair=dict(gpu=3, ratio=.96, threshold=.01,
+                      measurements=[dict(guard=dict(code=0)) for _ in range(6)]))
+        self.save(str(folder/'experiment.json'), decision)
+        self.save(str(folder/'final_result.json'), decision)
+        selected = select_successors(self.base, 4, self.spec)
+        self.assertEqual(selected[0], folder.name+'/final_result.json')
+        self.assertEqual(selected[2]['TILEMEGA_F3_REGISTER_BUDGET'], '3')
+        build = json.loads((self.base/'alias/build.json').read_text())
+        build['command'].remove('-DTILEMEGA_F3_REGISTER_BUDGET=3')
+        self.save('alias/build.json', build)
+        with self.assertRaisesRegex(ValueError, 'exact compiled profile'):
+            select_successors(self.base, 4, self.spec)
+
+    def test_missing_coverage_or_unqualified_windows(self):
+        folder, library, reference = self.fixture()
+        path = folder/'trace_qualification.json'
+        self.save(str(path), dict(passed=True, relative_difference=.051))
+        with self.assertRaisesRegex(ValueError, 'four-variant coverage'):
+            validate_boundary_selection(folder, library, reference)
+        self.save(str(path), dict(passed=True, relative_difference=.018))
+        path = folder/'tune_selection.json';selection = json.loads(path.read_text())
+        selection['eligible_variants'] = [0, 1, 3]
+        self.save(str(path), selection)
+        with self.assertRaisesRegex(ValueError, 'four-variant coverage'):
+            validate_boundary_selection(folder, library, reference)
+
+    def test_changed_unselected_stage_is_rejected(self):
+        folder, library, reference = self.fixture()
+        path = folder/'tune_selection.json';selection = json.loads(path.read_text())
+        selection['coordinates']['stages'][0]['tile_n'] = 64
+        self.save(str(path), selection)
+        with self.assertRaisesRegex(ValueError, 'unselected coordinates'):
+            validate_boundary_selection(folder, library, reference)
+
+    def test_unmeasured_tie_priority_or_missing_main_proof_is_rejected(self):
+        folder, library, reference = self.fixture()
+        path = folder/'candidate_spec.json';specs = json.loads(path.read_text())
+        specs[0]['tune_window_ns'] = 1
+        self.save(str(path), specs)
+        with self.assertRaisesRegex(ValueError, 'measured windows'):
+            validate_boundary_selection(folder, library, reference)
+        specs[0]['tune_window_ns'] = 100;specs[0]['tune_priority'] = 3
+        self.save(str(path), specs)
+        with self.assertRaisesRegex(ValueError, 'tie priority was not measured'):
+            validate_boundary_selection(folder, library, reference)
+        specs[0]['tune_priority'] = 0;self.save(str(path), specs)
+        self.save(str(folder/'instruction_proof.json'),
+                  dict(passed=False, sass_words=123, prototype_library=library))
+        with self.assertRaisesRegex(ValueError, 'instruction proof'):
+            validate_boundary_selection(folder, library, reference)
+
+
+class Gpu0ContinuationTest(unittest.TestCase):
+    setUp = AdmissionTest.setUp
+    save = AdmissionTest.save
+
+    def timing(self, order):
+        rows = []
+        for index, arm in enumerate(order):
+            guard = self.base/f'clocks-{index}.jsonl'
+            guard.write_text('\n'.join(json.dumps(dict(gpu_index=0, label=label))
+                for label in ('before-measurement', 'after-measurement')))
+            path = self.save(f'measure-{index}.json', dict(gpu_index=0, pid=1000+index,
+                median_ms=1, samples_ms=[1]*200, guard_log=str(guard),
+                measurement=dict(warmup=50, iterations=200)))
+            rows.append(dict(arm=arm, median_ms=1, measurement=path, guard=dict(code=0)))
+        return dict(gpu=0, measurements=rows)
+
+    def reservations(self, count):
+        out = self.base/'scheduler'
+        sources = []
+        for index in range(count):
+            job = out/'jobs'/str(index)
+            attempt = job/'raw/attempt1'
+            self.save(str(attempt/'guard_result.json'), dict(code=0))
+            self.save(str(job/'queue/queue_single.json'), [dict(
+                command=['/root/python/worker.py'],
+                env=dict(CUDA_VISIBLE_DEVICES='0', TILEMEGA_DEVICE_INDEX='0'))])
+            sources.append(self.save(str(job/'scheduler/state.json'), {str(index): dict(
+                status='done', exit_code=0, out=str(attempt), started=70*index,
+                ended=70*index+1)}))
+        self.save(str(out/'intermittent.json'), dict(gpu=0, jobs=count,
+            minimum_gap_s=30, source_states=sources))
+        return out, sources
+
+    def test_gpu0_individual_receipts_and_complete_pair(self):
+        validate_timing_gpu(self.timing('ABABAB'), 0, 'ABABAB')
+        folder, _ = self.reservations(17)
+        validate_intermittent(folder, 17)
+
+    def test_mixed_card_incomplete_process_and_reused_pid_are_rejected(self):
+        result = self.timing('ABABAB')
+        path = Path(result['measurements'][1]['measurement'])
+        measured = json.loads(path.read_text())
+        measured['gpu_index'] = 3;self.save(str(path), measured)
+        with self.assertRaisesRegex(ValueError, 'same-card timing'):
+            validate_timing_gpu(result, 0, 'ABABAB')
+        measured['gpu_index'] = 0;measured['samples_ms'].pop();self.save(str(path), measured)
+        with self.assertRaisesRegex(ValueError, 'complete same-card timing'):
+            validate_timing_gpu(result, 0, 'ABABAB')
+        measured['samples_ms'].append(1);measured['pid'] = 1000;self.save(str(path), measured)
+        with self.assertRaisesRegex(ValueError, 'reused a timing process'):
+            validate_timing_gpu(result, 0, 'ABABAB')
+
+    def test_missing_gap_grouped_job_and_original_entry_are_rejected(self):
+        folder, sources = self.reservations(2)
+        state = json.loads(Path(sources[1]).read_text());state['1']['started'] = 20
+        self.save(sources[1], state)
+        with self.assertRaisesRegex(ValueError, 'release the card'):
+            validate_intermittent(folder, 2)
+        state['1']['started'] = 70;state['extra'] = state['1'];self.save(sources[1], state)
+        with self.assertRaisesRegex(ValueError, 'grouped reservation'):
+            validate_intermittent(folder, 2)
+        del state['extra'];self.save(sources[1], state)
+        queue = Path(sources[1]).parent.parent/'queue/queue_single.json'
+        job = json.loads(queue.read_text());job[0]['command'] = ['/root/repo/test.py']
+        self.save(str(queue), job)
+        with self.assertRaisesRegex(ValueError, 'invalid per-process receipt'):
+            validate_intermittent(folder, 2)
+
+    def test_gpu0_exception_requires_b4_and_explicit_authorization(self):
+        decision = dict(pair=dict(gpu=0))
+        with self.assertRaisesRegex(ValueError, 'same-card pair'):
+            validate_followup_allocation(self.base, 'qk_wgmma_b8_v1', decision, {})
+        authorization = self.save('authorization.json', dict(allowed_gpu_indices=[3],
+            minimum_idle_gap_s=30, python_entry_root='/root/python'))
+        self.save('allocation.json', dict(gpu=0, original_anchor_gpu=3,
+            reanchored=False, authorization=authorization))
+        with self.assertRaisesRegex(ValueError, 'allocation provenance'):
+            validate_followup_allocation(self.base, 'boundary_cache216_b4_admitted_v1', decision, {})
 
 
 if __name__ == '__main__':

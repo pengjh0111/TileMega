@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Export current admitted BERT artifacts without replacing frozen Phase Z."""
 import argparse
+import copy
 from collections import Counter
 import csv
 import json
+import math
 from pathlib import Path
 import statistics
 import re
@@ -60,6 +62,8 @@ def select_successors(base, batch, specification):
     if batch == 4:
         names.append(('cyclic_phase72_b4_v1', {'TILEMEGA_F3_CYCLIC_SLOTS': '1'}))
         names.append(('ffn1_tma128_phase72_b4_admitted_v1', {}))
+        names.append(('boundary_cache216_b4_admitted_v1',
+                      {'TILEMEGA_F3_REGISTER_BUDGET': '3'}))
     if batch == 2:
         names.append(('ffn1_reg64_side216_b2_admitted_v1',
                       {'TILEMEGA_F3_SIDE_NORM': '1',
@@ -95,6 +99,7 @@ def select_successors(base, batch, specification):
                  int(name == 'ffn1_tma128_phase72_b4_admitted_v1') +
                  int(name == 'ffn1_tma256_matrix_b16_v2') +
                  int(name == 'qkv_tma192_matrix_b16_v1') +
+                 (2 if name == 'boundary_cache216_b4_admitted_v1' else 0) +
                  (3 if name == 'ffn1_tma128_matrix_b8_v1' else 0) +
                  (3 if name == 'ffn1_reg64_side216_b2_admitted_v1' else 0) +
                  (4 if name == 'ffn2_reg64_split4_b2_v1' else 0) +
@@ -129,7 +134,8 @@ def select_successors(base, batch, specification):
         if name == 'ppnorm_ffn1_b16_v1':
             reference_stages = read(decision['reference']+'.plan.json')['native_forward']['stages']
             required_gain = 0 if reference_stages[4].get('sched') == 'pp' else .03
-        if (pair['gpu'] != 3 or len(pair['measurements']) != 6 or
+        gpu = validate_followup_allocation(folder, name, decision, final)
+        if (pair['gpu'] != gpu or len(pair['measurements']) != 6 or
                 any(m['guard']['code'] for m in pair['measurements']) or
                 pair['ratio'] >= 1-max(required_gain, pair['threshold'])):
             raise ValueError('follow-up did not clear its complete same-card pair: '+name)
@@ -146,6 +152,13 @@ def select_successors(base, batch, specification):
         if name == 'ffn1_tma128_phase72_b4_admitted_v1':
             validate_ffn1_component_profile(units[0], 128)
             validate_ffn1_tma_coordinates(final['library'], decision['reference'], 128, 5)
+        if name == 'boundary_cache216_b4_admitted_v1':
+            validate_component_profile(units[0], {
+                '-DDNN4_ALIAS_REPEAT_TEST=1', '-DTILEMEGA_F3_REGISTER_BUDGET=3',
+                '-DTILEMEGA_F3_REPEAT_ARITHMETIC=1'})
+            validate_component_profile(units[1], {
+                '-DTILEMEGA_F3_SIDE_NORM=1', '-DTILEMEGA_F3_REGISTER_BUDGET=3'})
+            validate_boundary_selection(folder, final['library'], decision['reference'])
         if name == 'ffn1_tma256_matrix_b16_v2':
             validate_ffn1_component_profile(units[0], 256)
             validate_ffn1_tma_coordinates(final['library'], decision['reference'], 256, 3)
@@ -178,6 +191,146 @@ def select_successors(base, batch, specification):
         minimum_gain = required_gain
         library = Path(final['library'])
     return final_name, pair_name, profile, minimum_gain
+
+
+def validate_intermittent(path, count):
+    receipt = read(Path(path)/'intermittent.json')
+    if (receipt['gpu'] != 0 or receipt['jobs'] != count
+            or receipt['minimum_gap_s'] < 30 or len(receipt['source_states']) != count):
+        raise ValueError('GPU0 continuation lacks individual guarded reservations')
+    previous_end = None
+    for source in receipt['source_states']:
+        states = read(source)
+        if len(states) != 1:
+            raise ValueError('GPU0 continuation contains a grouped reservation')
+        state = next(iter(states.values()))
+        guard = read(Path(state['out'])/'guard_result.json')
+        queue = read(Path(source).parent.parent/'queue/queue_single.json')
+        if (state['status'] != 'done' or state['exit_code'] or guard['code']
+                or len(queue) != 1 or queue[0]['env']['CUDA_VISIBLE_DEVICES'] != '0'
+                or queue[0]['env']['TILEMEGA_DEVICE_INDEX'] != '0'
+                or any(not Path(arg).is_relative_to('/root/python')
+                       for arg in queue[0]['command'] if arg.endswith('.py'))):
+            raise ValueError('GPU0 continuation has an invalid per-process receipt')
+        if previous_end is not None and state['started']-previous_end < 30:
+            raise ValueError('GPU0 continuation did not release the card between jobs')
+        previous_end = state['ended']
+
+
+def validate_timing_gpu(result, gpu, order):
+    rows = result['measurements']
+    if result['gpu'] != gpu or [r['arm'] for r in rows] != list(order):
+        raise ValueError('GPU0 continuation mixed timing cards or protocol order')
+    pids = []
+    for row in rows:
+        measured = read(row['measurement'])
+        pids.append(measured['pid'])
+        if (measured['gpu_index'] != gpu or row['guard']['code']
+                or measured['measurement']['warmup'] != 50
+                or measured['measurement']['iterations'] != 200
+                or len(measured['samples_ms']) != 200
+                or row['median_ms'] != measured['median_ms']):
+            raise ValueError('GPU0 continuation lacks a complete same-card timing process')
+        samples = [json.loads(line) for line in Path(measured['guard_log']).read_text().splitlines()]
+        for label in ('before-measurement', 'after-measurement'):
+            boundary = [s for s in samples if s.get('label') == label]
+            if len(boundary) != 1 or boundary[0]['gpu_index'] != gpu:
+                raise ValueError('GPU0 continuation lacks same-card clock boundaries')
+    if len(set(pids)) != len(pids):
+        raise ValueError('GPU0 continuation reused a timing process')
+
+
+def validate_followup_allocation(folder, name, decision, final):
+    if decision['pair']['gpu'] == 3:
+        return 3
+    if name != 'boundary_cache216_b4_admitted_v1' or decision['pair']['gpu'] != 0:
+        raise ValueError('follow-up did not clear its complete same-card pair: '+name)
+    allocation = read(folder/'allocation.json')
+    authorization = read(allocation['authorization'])
+    if (allocation['gpu'] != 0 or allocation['original_anchor_gpu'] != 3
+            or allocation['reanchored'] or authorization['allowed_gpu_indices'] != [0]
+            or authorization['minimum_idle_gap_s'] < 30
+            or authorization['python_entry_root'] != '/root/python'):
+        raise ValueError('GPU0 continuation lacks its explicit allocation provenance')
+    protocols = [('pair', decision['pair'], 'ABABAB'),
+                 ('selection', read(folder/'selection.json'), 'ABCDDCBA'),
+                 ('final', final['measurement'], 'BBB')]
+    for name, result, order in protocols:
+        validate_timing_gpu(result, 0, order)
+        validate_intermittent(allocation['protocol_sources'][name], len(order))
+    for path in decision['unit_gates']:
+        if read(path)['gpu'] != 0:
+            raise ValueError('GPU0 continuation mixed component cards')
+        validate_intermittent(Path(path).parent/'scheduler', 17)
+    return 0
+
+
+def validate_boundary_selection(folder, library, reference):
+    qualification = read(folder/'trace_qualification.json')
+    selection = read(folder/'tune_selection.json')
+    prepared = read(folder/'tune_inputs.json')
+    eligible = selection['eligible_variants']
+    if (not qualification['passed'] or abs(qualification['relative_difference']) > .05
+            or len(set(eligible)) < 4 or len(prepared['variants']) != 6
+            or any(rank not in range(6) for rank in eligible)):
+        raise ValueError('boundary selection lacks qualified four-variant coverage')
+    assembled = copy.deepcopy(read(str(reference)+'.plan.json')['native_forward'])
+    if len(selection['groups']) != len(prepared['groups']):
+        raise ValueError('boundary selection group coverage differs')
+    seen = set()
+    for index, (chosen, group) in enumerate(zip(selection['groups'], prepared['groups'])):
+        windows = chosen['windows_ns']
+        if (chosen['group'] != index or chosen['stages'] != group['stages']
+                or len(windows) != 6
+                or any(windows[rank] is None or not math.isfinite(windows[rank])
+                       or windows[rank] <= 0 for rank in eligible)
+                or chosen['candidate'] != min(eligible, key=lambda r: (windows[r], r))):
+            raise ValueError('boundary selection differs from measured group minima')
+        for stage in group['stages']:
+            if stage in seen or assembled['stages'][stage]['body'] != 'gemm':
+                raise ValueError('boundary selection changed a non-GEMM or repeated group')
+            seen.add(stage)
+            assembled['stages'][stage] = prepared['variants'][chosen['candidate']]['stages'][stage]
+    if assembled != selection['coordinates']:
+        raise ValueError('boundary selection changed unselected coordinates')
+    specifications = read(folder/'candidate_spec.json')
+    result = read(folder/'selection.json')
+    if (len(specifications) != 4 or len(result['measurements']) != 8
+            or [m['arm'] for m in result['measurements']] != list('ABCDDCBA')
+            or any(m['guard']['code'] for m in result['measurements'])
+            or Path(result['winner_library']).resolve() != Path(library).resolve()):
+        raise ValueError('boundary selection lacks its complete nontrace P-SEL')
+    candidates = []
+    for spec in specifications:
+        expected = assembled if spec['name'] == 'tuned' else prepared['variants'][
+            int(spec['name'].removeprefix('existing_variant_'))]
+        actual = read(spec['library']+'.plan.json')['native_forward']
+        if actual != expected:
+            raise ValueError('boundary P-SEL candidate coordinates differ')
+        receipt = read(spec['tune_window_source'])
+        if (receipt['status'] != 'passed' or len(receipt['traces']) != 3
+                or len(receipt['processes']) != 3
+                or len({p['pid'] for p in receipt['processes']}) != 3
+                or any(p['exit_code'] for p in receipt['processes'])):
+            raise ValueError('boundary tie priority lacks three fresh trace processes')
+        processes = [read(Path(p)/'samples.json') for p in receipt['traces']]
+        if any(len(process) != 50 for process in processes):
+            raise ValueError('boundary tie priority lacks fifty windows per process')
+        total = statistics.median(statistics.median(
+            sum(stage['stage_ns'] for stage in sample) for sample in process)
+            for process in processes)
+        if spec['tune_window_ns'] != total:
+            raise ValueError('boundary tie priority differs from measured windows')
+        candidates.append(actual)
+    if len({json.dumps(c, sort_keys=True) for c in candidates}) != 4:
+        raise ValueError('boundary P-SEL candidates were not deduplicated')
+    order = sorted(range(4), key=lambda i: (specifications[i]['tune_window_ns'], i))
+    if any(specifications[i]['tune_priority'] != rank for rank, i in enumerate(order)):
+        raise ValueError('boundary P-SEL tie priority was not measured')
+    proof = read(folder/'instruction_proof.json')
+    if (not proof['passed'] or proof['sass_words'] <= 0
+            or Path(proof['prototype_library']).resolve() != Path(library).resolve()):
+        raise ValueError('boundary candidate lacks its main-source instruction proof')
 
 
 def validate_pp_coordinates(library, reference, allow_existing=False, wg_rows=128):
@@ -349,16 +502,19 @@ def main():
             pair = decision['pair']
             threshold = max(pair['threshold'], minimum_gain)
             assert decision['accepted'] and pair['ratio'] < 1-threshold
-            assert pair['gpu'] == 3 and len(pair['measurements']) == 6
+            gpu = validate_followup_allocation(source.parent, source.parent.name, decision, final)
+            assert pair['gpu'] == gpu and len(pair['measurements']) == 6
             assert all(m['guard']['code'] == 0 for m in pair['measurements'])
             pair_source = str(base/pair_name)
-            scope = 'BERT follow-up;original GPU3 anchor retained;not re-anchored'
+            scope = ('BERT follow-up;original GPU3 anchor retained;not re-anchored' if gpu == 3
+                     else 'BERT follow-up on user-authorized GPU0;same-card pair;fixed GPU3 target retained;not re-anchored')
         else:
             source = ROOT/f'runs/dnn4/phase_z/cells_v1/bert_b{batch}/result.json'
             final = read(source)
             library, gate = Path(final['winner']['library']), Path(final['winner']['gate'])
             measurement = read(final.get('final_measurement', source.parent/'final/result.json'))
             profile, pair, pair_source = {}, None, ''
+            gpu = 3
             scope = 'unchanged original anchored Phase Z'
         identity = verify(library)
         assert not identity['trace'] and identity['plan']['runtime_batch'] == batch
@@ -381,7 +537,7 @@ def main():
         assert all(p['exit_code'] == 0 for p in checked['processes'])
         assert all(o.get('output_sha256') for c in checked['cases'] for o in c['outputs'])
         measured = measurement['measurements']
-        assert measurement['protocol'] == 'P-DNN' and measurement['gpu'] == 3
+        assert measurement['protocol'] == 'P-DNN' and measurement['gpu'] == gpu
         assert len(measured) == 3 and all(m['arm'] == 'B' and m['guard']['code'] == 0 for m in measured)
         assert statistics.median(m['median_ms'] for m in measured) == measurement['candidate_ms']
         for m in measured:
@@ -400,9 +556,9 @@ def main():
         if ledger.is_dir():
             ledger = ledger/'ledger.csv'
         trace = read(ledger.parent/'result.json')
-        assert trace['trace_level'] == 1 and trace['gpu'] == 3
+        assert trace['trace_level'] == 1 and trace['gpu'] == gpu
         assert trace['reference_sha256'] == identity['binary_sha256']
-        rows.append(dict(model='bert', batch=batch, gpu=3, median_ms=ms,
+        rows.append(dict(model='bert', batch=batch, gpu=gpu, median_ms=ms,
             p90_ms=measurement['p90_ms'], process_range_ms=measurement['process_range_ms'],
             baseline_ms=targets[batch], ratio=ms/targets[batch],
             faster_than_baseline=ms < targets[batch],
@@ -433,7 +589,7 @@ def main():
             stages = list(csv.DictReader(stream))
         assert sorted(int(s['stage']) for s in stages) == list(range(len(coordinates)))
         for stage in stages:
-            ledger_rows.append(dict(model='bert', batch=row['batch'], gpu=3,
+            ledger_rows.append(dict(model='bert', batch=row['batch'], gpu=row['gpu'],
                 artifact_id=row['artifact_id'], binary_sha256=row['binary_sha256'],
                 profile=row['profile'], **stage,
                 coordinate=json.dumps(coordinates[int(stage['stage'])],
