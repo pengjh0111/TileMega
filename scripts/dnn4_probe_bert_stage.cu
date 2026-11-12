@@ -73,6 +73,17 @@ __global__ __launch_bounds__(256,1) void EvictBertCode(float* sink) {
   sink[blockIdx.x*256+threadIdx.x]=Work<1024>(float(threadIdx.x)*.001f);
 }
 #endif
+#ifdef DNN4_BERT_DATA_EVICT
+constexpr int kFlushVectors=128*1024*1024/sizeof(uint4);
+__global__ void EvictBertData(uint4* buffer) {
+  for(int i=blockIdx.x*blockDim.x+threadIdx.x;i<kFlushVectors;
+      i+=gridDim.x*blockDim.x) {
+    unsigned x=unsigned(i)*747796405u+2891336453u;
+    x=((x>>((x>>28)+4))^x)*277803737u;
+    buffer[i]=make_uint4(x,x^0xa5a5a5a5u,x*1664525u+1013904223u,~x);
+  }
+}
+#endif
 __global__ __launch_bounds__(384,1) void Probe(Sm90F3GemmOperands p,
     const __grid_constant__ CUtensorMap activation,
     const __grid_constant__ CUtensorMap residual,
@@ -111,6 +122,11 @@ int main(int argc,char** argv)try {
   int evict_resident=0;
   Check(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&evict_resident,EvictBertCode,256,Sm90F3Budget::kBudget));
   if(evict_resident!=1)throw std::runtime_error("code eviction needs one CTA per SM");
+#elif defined(DNN4_BERT_DATA_EVICT)
+  if(argc!=2 || (std::string(argv[1])!="hot" && std::string(argv[1])!="data-cold"))
+    throw std::runtime_error("usage: probe {hot|data-cold}");
+  bool evict=std::string(argv[1])=="data-cold";
+  Device<uint4> flush(kFlushVectors);
 #else
   if(argc!=1)throw std::runtime_error("stage probe takes no arguments");
 #endif
@@ -146,6 +162,11 @@ int main(int argc,char** argv)try {
 #ifdef DNN4_BERT_CODE_EVICT
     if(evict) {
       EvictBertCode<<<kGrid,256,Sm90F3Budget::kBudget>>>(sink.data);
+      Check(cudaGetLastError());
+    }
+#elif defined(DNN4_BERT_DATA_EVICT)
+    if(evict) {
+      EvictBertData<<<kGrid,256>>>(flush.data);
       Check(cudaGetLastError());
     }
 #endif
@@ -184,6 +205,8 @@ int main(int argc,char** argv)try {
     <<",\"output_elements_checked\":"<<values.size()
 #ifdef DNN4_BERT_CODE_EVICT
     <<",\"instruction_context\":\""<<(evict?"l1-cold":"hot")<<"\""
+#elif defined(DNN4_BERT_DATA_EVICT)
+    <<",\"data_context\":\""<<(evict?"data-cold":"hot")<<"\""
 #endif
     <<"}\n";
   return 0;
