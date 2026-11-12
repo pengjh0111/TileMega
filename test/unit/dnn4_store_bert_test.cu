@@ -27,7 +27,7 @@ constexpr bool kPingPong=false;
 
 #if defined(DNN4_FFN1_TMA128_TEST) || defined(DNN4_FFN2_TMA128_SPLIT2_B8_TEST) || defined(DNN4_FFN1_M64N128_B8_TEST)
 constexpr int kProducerRegisters=72,kConsumerRegisters=208;
-#elif defined(DNN4_QKV_TMA192_TEST) || defined(DNN4_FFN1_TMA256_TEST) || defined(DNN4_FFN2_STORE_TEST) || defined(DNN4_FFN1_REG64_TEST) || defined(DNN4_FFN2_REG64_TEST) || defined(DNN4_FFN2_TK128_S2_B2_TEST)
+#elif defined(DNN4_QKV_SLOTS4_B2_TEST) || defined(DNN4_QKV_TMA192_TEST) || defined(DNN4_FFN1_TMA256_TEST) || defined(DNN4_FFN2_STORE_TEST) || defined(DNN4_FFN1_REG64_TEST) || defined(DNN4_FFN2_REG64_TEST) || defined(DNN4_FFN2_TK128_S2_B2_TEST)
 constexpr int kProducerRegisters=72,kConsumerRegisters=216;
 #else
 constexpr int kProducerRegisters=kPingPong?72:56;
@@ -145,7 +145,10 @@ void DenseCase() {
       std::conditional_t<Kind==1,Sm90F3Chain<Side,Bias,Residual>,
                          Sm90F3Chain<Side,Norm,Gelu>>>;
   using Chain=std::conditional_t<Kind==1,Sm90F3WriteRowStats<Plain>,Plain>;
-#if defined(DNN4_FFN2_TK128_S2_B2_TEST)
+#if defined(DNN4_QKV_SLOTS4_B2_TEST)
+  constexpr int Slots=4;
+  constexpr bool kTmaStore=false;
+#elif defined(DNN4_FFN2_TK128_S2_B2_TEST)
   constexpr int Slots=6;
   constexpr bool kTmaStore=false;
 #elif defined(DNN4_FFN1_M64N128_B8_TEST)
@@ -279,7 +282,10 @@ template<int B> void SmallBertCase() {
 
 int main(int,char**) try {
   std::cout<<std::unitbuf;
-#ifdef DNN4_FFN2_TK128_S2_B2_TEST
+#ifdef DNN4_QKV_SLOTS4_B2_TEST
+  // The B2 NT12 QKV ring wraps three times; the final row is partial.
+  DenseCase<257,2304,768,128,64,1,0,12>();
+#elif defined(DNN4_FFN2_TK128_S2_B2_TEST)
   // The accepted B2 FFN2 geometry combines two K slices, NT12 residual
   // statistics and six TK128 spanning slots, including an odd final row.
   DenseCase<257,768,3072,64,64,2,1,12,128>();
