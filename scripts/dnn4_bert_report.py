@@ -171,6 +171,7 @@ def main():
                ('full-bounds prefetch1 B8', continuation/'full_tiles_prefetch1_b8_v1/experiment.json'),
                ('full-bounds pipeline prefetch1 B2', continuation/'pipeline_prefetch1_b2_v1/experiment.json'),
                ('full-tile stores B8', continuation/'full_store_bundle_b8_v1/experiment.json'),
+               ('full-tile stores B4', continuation/'full_store_bundle_b4_v1/experiment.json'),
                ('direct statistics B16', continuation/'direct_norm_b16_v3/experiment.json')]
     rows = []
     choices = []
@@ -178,7 +179,7 @@ def main():
         if not path.exists():
             continue
         experiment = read(path)
-        if name in ('full-tile stores B8', 'direct statistics B16'):
+        if name in ('full-tile stores B8', 'full-tile stores B4', 'direct statistics B16'):
             for unit_path in experiment['unit_gates']:
                 unit = read(Path(unit_path))
                 processes = unit['processes']
@@ -191,6 +192,14 @@ def main():
                     raise ValueError('current-profile follow-up lacks its complete component gate')
             if not read(path.parent/'model_bit_proof.json')['passed']:
                 raise ValueError('current-profile follow-up lacks incumbent output equivalence')
+            if name == 'full-tile stores B4':
+                reuse = read(Path(experiment['component_reuse']))
+                fixtures = read(Path(reuse['fixtures']))
+                if (not reuse['passed'] or not fixtures['passed'] or
+                        reuse['units'] != experiment['unit_gates'] or
+                        any(row['profile'] != reuse['profile'] for row in fixtures['rows']) or
+                        read(Path(reuse['admission']))['status'] != 'admitted'):
+                    raise ValueError('B4 store bundle lacks matching inherited component profiles')
             if name == 'direct statistics B16':
                 preparation = read(Path(experiment['preparation']))
                 if (not read(Path(preparation['default_proof']))['passed'] or

@@ -152,6 +152,7 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | full-bounds prefetch1 B8 | 3 | 0.948320 | 0.928992 | +2.038 | 2.433 | False |
 | full-bounds pipeline prefetch1 B2 | 3 | 0.569136 | 0.529936 | +6.888 | 11.262 | False |
 | full-tile stores B8 | 3 | 0.939984 | 0.914528 | +2.708 | 2.359 | True |
+| full-tile stores B4 | 3 | 0.644480 | 0.628480 | +2.483 | 3.111 | False |
 | direct statistics B16 | 3 | 1.270656 | 1.273568 | -0.229 | 3.496 | False |
 
 Verified attention experiment: QK/PV columns were distributed across eight consumer warps without changing any output accumulation order. Per-head unit5/5 and sanitizer memcheck1/1, initcheck1/1, racecheck5/5, synccheck5/5 passed; whole-model outputs also matched the control byte for byte. Neither timing gain exceeded process variability, so the original header was restored. The initial driver added an unnecessary3% cutoff, which does not affect either rejection because both measured noise thresholds exceed3%. Frozen sources and the patch remain under runs/dnn4/bert_priority.
