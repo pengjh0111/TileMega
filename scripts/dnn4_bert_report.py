@@ -172,6 +172,7 @@ def main():
                ('full-bounds pipeline prefetch1 B2', continuation/'pipeline_prefetch1_b2_v1/experiment.json'),
                ('full-tile stores B8', continuation/'full_store_bundle_b8_v1/experiment.json'),
                ('full-tile stores B4', continuation/'full_store_bundle_b4_v1/experiment.json'),
+               ('pipeline reductions B2', continuation/'pipeline_reduction_b2_v1/experiment.json'),
                ('direct statistics B16', continuation/'direct_norm_b16_v3/experiment.json')]
     rows = []
     choices = []
@@ -179,7 +180,8 @@ def main():
         if not path.exists():
             continue
         experiment = read(path)
-        if name in ('full-tile stores B8', 'full-tile stores B4', 'direct statistics B16'):
+        if name in ('full-tile stores B8', 'full-tile stores B4',
+                    'pipeline reductions B2', 'direct statistics B16'):
             for unit_path in experiment['unit_gates']:
                 unit = read(Path(unit_path))
                 processes = unit['processes']
@@ -192,6 +194,14 @@ def main():
                     raise ValueError('current-profile follow-up lacks its complete component gate')
             if not read(path.parent/'model_bit_proof.json')['passed']:
                 raise ValueError('current-profile follow-up lacks incumbent output equivalence')
+            if name == 'pipeline reductions B2':
+                bit = read(path.parent/'unit_bit_proof.json')
+                control = read(Path(bit['control']))
+                candidate = read(Path(bit['candidate']))
+                if (not bit['passed'] or not control['passed'] or
+                        len({p['pid'] for p in control['processes']}) != 5 or
+                        control['output_hash'] != candidate['output_hash']):
+                    raise ValueError('pipeline reductions lack control equivalence')
             if name == 'full-tile stores B4':
                 reuse = read(Path(experiment['component_reuse']))
                 fixtures = read(Path(reuse['fixtures']))
@@ -1877,6 +1887,18 @@ def main():
                   f'the measured binary. GPU3 P-DNN{admission["median_ms"]:.6f}ms,'
                   f'p90{admission["p90_ms"]:.6f}ms. Ten corrupted admission receipts are rejected. '
                   'Other cells,default flags and fixed anchors remain unchanged.']
+    reduction_admission = base/'pipeline_reduction_b2_admitted_v1/admission.json'
+    if reduction_admission.exists():
+        admission = read(reduction_admission)
+        lines += ['', 'Verified current B2 combines full-tile/grid/recompute with existing '
+                  'coalesced partials and cyclic slots at unchanged coordinates and72/216 registers. '
+                  'Eleven exact/odd-tail fixtures pass control5 and candidate17 with identical bytes;'
+                  'strict model5 preserves incumbent bytes. Main real codegen matches29984 encoded '
+                  'words;the exact measured binary has a63-stage GPU3 ledger. '
+                  f'P-DNN{admission["median_ms"]:.6f}ms,p90{admission["p90_ms"]:.6f}ms. '
+                  f'Pair gain{100*(1-admission["pair_ratio"]):.5f}% narrowly exceeds '
+                  f'noise{100*admission["noise"]:.5f}%;this variability remains in the receipt. '
+                  'Twelve corrupted admission receipts are rejected;fixed targets are unchanged.']
     direct = continuation/'direct_norm_b16_v3/experiment.json'
     if direct.exists():
         trial = read(direct)
