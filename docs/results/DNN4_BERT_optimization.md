@@ -253,7 +253,10 @@ Verified B4 fixed-candidate revalidation completes fresh GPU3 P-SEL8/8 and indep
 
 Verified CPU-only residual-pair follow-up on the existing fixed B8 candidate3 retains its coordinates and72/216 profile. It still spills 20/28B stores/loads,matching the original candidate,and never executes on GPU. The three legal whole-program alternatives remain unchanged.
 
-Verified B8 nontrace whole-program P-SEL8/8 on GPU3: A=1.017400ms,D=1.049176ms,B=1.050376ms,C=1.065768ms;tied=False,noise0.626%. Retain the incumbent because the winner is ambiguous or already current. Incomplete stage-window coverage supplies no tie priority or assembled selection.
+Verified B8 nontrace whole-program P-SEL8/8 on GPU3: A=1.017400ms,D=1.049176ms,B=1.050376ms,C=1.065768ms;tied=False,noise0.626%. The incumbent wins and remains selected. Incomplete stage-window coverage supplies no tie priority or assembled selection.
+
+Verified private partial TN96 store extends section6.2 under the user-authorized implementation discretion:only the first64 columns use TMA;the remaining32 use generic stores,with the full-box bound enforced inside each WG tile. The12 B8 FFN1 stages change Slots7 to6 to fit 218112B including staging;Slots7 would require246784B and is illegal. The current72/208 whole-model build spills4/20B and never executes. The existing72/216 profile compiles without spill,SASS331008B. Regeneration with unchanged coordinates/profile matches all41072 encoded instruction words of the incumbent. Solver enumeration is unchanged;exact-profile body/order gates,model5/5 and a same-GPU3 gain above3% and noise are required before enabling this extension.
+Verified store96_body:unit5/5,mem1/1,init1/1,race5/5,sync5/5 on GPU3;all seventeen fresh processes have identical output hashes. Functional evidence does not establish E2E benefit.
 
 Verified profile2 B8 boundary overhead is3.419% on GPU0. Only2/6 existing variants are nonspilling;each completes three fresh20/50 traces. Four spilled variants are never executed. Required candidate coverage is incomplete;no assembled selection or admission is claimed. GPU2 partial traces remain separate and are not mixed with the GPU0 windows.
 

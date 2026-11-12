@@ -151,6 +151,7 @@ def main():
     if not (base/'boundary_cache216_b4_admitted_v1/experiment.json').exists():
         probes.append(('fixed-candidate216 B4 revalidation', continuation/'b4_experiment.json'))
     probes += [('existing whole-program216 B8', continuation/'b8_experiment.json'),
+               ('partial TN96 store B8 prototype', continuation/'store96_experiment.json'),
                ('paired residual read B16 prototype', continuation/'residual_experiment.json'),
                ('paired residual read B16 GPU0 diagnostic', continuation/'residual_gpu0_experiment.json')]
     rows = []
@@ -192,7 +193,8 @@ def main():
                     'FFN2 TMA128 split2 coalesced B8', 'FFN1 M64N128 B8',
                     'FFN1 PP nonblocking side B16', 'Current coalesced B2',
                     'cached-boundary216 B4 admitted continuation',
-                    'existing whole-program216 B8', 'paired residual read B16 prototype',
+                    'existing whole-program216 B8', 'partial TN96 store B8 prototype',
+                    'paired residual read B16 prototype',
                     'paired residual read B16 GPU0 diagnostic'):
             unit_paths = experiment.get('unit_gates', [experiment.get('unit_gate')])
             for unit_path in unit_paths:
@@ -883,7 +885,7 @@ def main():
                      'All seventeen run under one original guarded reservation. ')
                   + 'These are functional prerequisites;whole-model correctness and '
                   'same-GPU3 timing decide performance admission.']
-    for suite in ('b8_corr1', 'b8_corr2', 'b8_corr3', 'residual_corr'):
+    for suite in ('b8_corr1', 'b8_corr2', 'b8_corr3', 'residual_corr', 'store96_corr'):
         receipt = continuation/suite/'result.json'
         if not receipt.exists():
             continue
@@ -928,9 +930,37 @@ def main():
             raise ValueError('B8 retention lacks its complete same-card selection')
         timings = ','.join(f'{r["arm"]}={r["median_ms"]:.6f}ms' for r in selected['ranking'])
         lines += ['', 'Verified B8 nontrace whole-program P-SEL8/8 on GPU3: '+timings+
-                  f';tied={selected["tied"]},noise{100*selected["threshold"]:.3f}%. '
-                  'Retain the incumbent because the winner is ambiguous or already current. '
+                  f';tied={selected["tied"]},noise{100*selected["threshold"]:.3f}%. '+
+                  ('Retain the incumbent because the winner is ambiguous. '
+                   if selected['tied'] else 'The incumbent wins and remains selected. ')+
                   'Incomplete stage-window coverage supplies no tie priority or assembled selection.']
+    partial_store = base/'store96_profile3_model_preparation_v1/result.json'
+    if partial_store.exists() and read(partial_store)['status'] == 'prepared':
+        result = read(partial_store)
+        proof = read(base/'store96_model_preparation_v1/control_proof.json')
+        if not proof['passed'] or result['changed_stages'] != list(range(4, 60, 5)):
+            raise ValueError('partial TN96 store must preserve its fixed12-stage scope')
+        lines += ['', 'Verified private partial TN96 store extends section6.2 under the '
+                  'user-authorized implementation discretion:only the first64 columns use '
+                  'TMA;the remaining32 use generic stores,with the full-box bound enforced '
+                  'inside each WG tile. The12 B8 FFN1 stages change Slots7 to6 to fit '
+                  '218112B including staging;Slots7 would require246784B and is illegal. '
+                  'The current72/208 whole-model build spills4/20B and never executes. '
+                  f'The existing72/216 profile compiles without spill,SASS{result["model"]["sass_bytes"]}B. '
+                  'Regeneration with unchanged coordinates/profile matches all41072 encoded '
+                  'instruction words of the incumbent. Solver enumeration is unchanged;'
+                  'exact-profile body/order gates,model5/5 and a same-GPU3 gain above3% '
+                  'and noise are required before enabling this extension.']
+        for suite in ('store96_body', 'store96_profile3_ordering', 'store96_profile3_body'):
+            source = continuation/suite/'result.json'
+            if not source.exists():
+                continue
+            unit = read(source)
+            if not unit['passed'] or len(unit['processes']) != 17:
+                raise ValueError('partial store component cohort is incomplete')
+            lines += [f'Verified {suite}:unit5/5,mem1/1,init1/1,race5/5,sync5/5 '
+                      f'on GPU{unit["gpu"]};all seventeen fresh processes have identical '
+                      'output hashes. Functional evidence does not establish E2E benefit.']
     retune = base/'phase72_retune_b8_gpu0_v1/incomplete_selection.json'
     if retune.exists():
         qualification = read(retune.parent/'trace_qualification.json')
