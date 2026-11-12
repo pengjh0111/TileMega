@@ -177,6 +177,8 @@ def main():
                ('full-profile cyclic B4', continuation/'cyclic_full_b4_v1/experiment.json'),
                ('GELU quartet B16', continuation/'gelu_quartet_b16_v1/experiment.json'),
                ('relative descriptors B16', continuation/'descriptor_base_b16_v2/experiment.json'),
+               ('two-row statistics plus recompute B16', continuation/'side_rows_b16_recompute_v3/experiment.json'),
+               ('repaired catalog candidate5 B16', continuation/'candidate5_recompute_b16_v2/experiment.json'),
                ('direct statistics B16', continuation/'direct_norm_b16_v3/experiment.json')]
     rows = []
     choices = []
@@ -187,7 +189,8 @@ def main():
         if name in ('full-tile stores B8', 'full-tile stores B4',
                     'pipeline reductions B2', 'direct statistics B16',
                     'full-store bounds B8', 'full-profile cyclic B4', 'GELU quartet B16',
-                    'relative descriptors B16'):
+                    'relative descriptors B16', 'two-row statistics plus recompute B16',
+                    'repaired catalog candidate5 B16'):
             for unit_path in experiment['unit_gates']:
                 unit = read(Path(unit_path))
                 processes = unit['processes']
@@ -201,7 +204,8 @@ def main():
             if not read(path.parent/'model_bit_proof.json')['passed']:
                 raise ValueError('current-profile follow-up lacks incumbent output equivalence')
             if name in ('pipeline reductions B2', 'full-store bounds B8',
-                        'full-profile cyclic B4', 'GELU quartet B16', 'relative descriptors B16'):
+                        'full-profile cyclic B4', 'GELU quartet B16', 'relative descriptors B16',
+                        'two-row statistics plus recompute B16', 'repaired catalog candidate5 B16'):
                 bit = read(path.parent/'unit_bit_proof.json')
                 control = read(Path(bit['control']))
                 candidate = read(Path(bit['candidate']))
@@ -218,7 +222,7 @@ def main():
                         read(Path(reuse['admission']))['status'] != 'admitted'):
                     raise ValueError('B4 store bundle lacks matching inherited component profiles')
             if name in ('direct statistics B16', 'full-store bounds B8', 'GELU quartet B16',
-                        'relative descriptors B16'):
+                        'relative descriptors B16', 'two-row statistics plus recompute B16'):
                 preparation = read(Path(experiment['preparation']))
                 if (not read(Path(preparation['default_proof']))['passed'] or
                         not read(path.parent/'unit_bit_proof.json')['passed']):
