@@ -169,13 +169,33 @@ def main():
                for b in (2, 4)]
     probes += [('full-tile pipeline B2', continuation/'pipeline_full_b2_v1/experiment.json'),
                ('full-bounds prefetch1 B8', continuation/'full_tiles_prefetch1_b8_v1/experiment.json'),
-               ('full-bounds pipeline prefetch1 B2', continuation/'pipeline_prefetch1_b2_v1/experiment.json')]
+               ('full-bounds pipeline prefetch1 B2', continuation/'pipeline_prefetch1_b2_v1/experiment.json'),
+               ('full-tile stores B8', continuation/'full_store_bundle_b8_v1/experiment.json'),
+               ('direct statistics B16', continuation/'direct_norm_b16_v3/experiment.json')]
     rows = []
     choices = []
     for name, path in probes:
         if not path.exists():
             continue
         experiment = read(path)
+        if name in ('full-tile stores B8', 'direct statistics B16'):
+            for unit_path in experiment['unit_gates']:
+                unit = read(Path(unit_path))
+                processes = unit['processes']
+                tools = Counter(p['name'].split('-')[0] for p in processes)
+                if (not unit['passed'] or len({p['pid'] for p in processes}) != 17 or
+                        tools != Counter(unit=5, memcheck=1, initcheck=1,
+                                         racecheck=5, synccheck=5) or
+                        any(p['exit_code'] or read(Path(p['guard']))['code']
+                            for p in processes)):
+                    raise ValueError('current-profile follow-up lacks its complete component gate')
+            if not read(path.parent/'model_bit_proof.json')['passed']:
+                raise ValueError('current-profile follow-up lacks incumbent output equivalence')
+            if name == 'direct statistics B16':
+                preparation = read(Path(experiment['preparation']))
+                if (not read(Path(preparation['default_proof']))['passed'] or
+                        not read(path.parent/'unit_bit_proof.json')['passed']):
+                    raise ValueError('direct statistics requires default and unit equivalence')
         if name.startswith('full-tile '):
             unit_paths = experiment.get('unit_gates')
             if unit_paths is None:
@@ -1838,6 +1858,27 @@ def main():
                     ','.join(f'{name}={ns/1000:.2f}' for name, ns in segments)+')')
             lines.append(f'| {row["batch"]} | '+' | '.join(descriptions)+' |')
     failed_pp = base/'pp64_ffn1_b16_v1/experiment.json'
+    store_admission = base/'full_store_bundle_b8_admitted_v1/admission.json'
+    if store_admission.exists():
+        admission = read(store_admission)
+        lines += ['', 'Verified current B8 combines existing matrix and attention vector stores '
+                  'with the admitted full-tile profile. Three exact-profile component cohorts '
+                  'each pass17/17;strict model5/5 preserves incumbent bytes. Main real codegen '
+                  'matches all35232 encoded instruction words and the63-stage ledger identifies '
+                  f'the measured binary. GPU3 P-DNN{admission["median_ms"]:.6f}ms,'
+                  f'p90{admission["p90_ms"]:.6f}ms. Ten corrupted admission receipts are rejected. '
+                  'Other cells,default flags and fixed anchors remain unchanged.']
+    direct = continuation/'direct_norm_b16_v3/experiment.json'
+    if direct.exists():
+        trial = read(direct)
+        lines += ['', 'Verified private P1 direct-statistics reads preserve ascending sums, '
+                  'normalization arithmetic,shared allocation and synchronization. Control5 and '
+                  'candidate17 cover ten exact/odd-tail fixtures;model5 preserves incumbent bytes. '
+                  f'GPU3 pair ratio{trial["pair"]["ratio"]:.6f},'
+                  f'noise{100*trial["pair"]["threshold"]:.3f}%. '
+                  'The candidate has no end-to-end gain and is rejected;private headers restored. '
+                  'The initial illegal synthetic shape failed compilation in both arms and was '
+                  'replaced before GPU execution with the actual legal QKV shapes.']
     if failed_pp.exists() and read(failed_pp).get('status') == 'component_rejected':
         lines.append('\nVerified fixed WG64 PP/P1/TMA candidate compiles without spill and both normal '
                      'unit cohorts pass5/5, but ordering synccheck reports1024 errors and residual-chain '
