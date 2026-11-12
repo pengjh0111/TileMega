@@ -846,6 +846,22 @@ def main():
                   'B4/B8 timing uses original GPU3;functional checks may use the other '
                   'cards. Previously paused queues stay retired and completed checks are reused.']
     relocation = continuation/'b8_corr2_relocation.json'
+    idle_change = continuation/'idle6_transition.json'
+    if idle_change.exists():
+        observed = read(continuation/'idle_observation_v1/result.json')
+        transition = read(idle_change)
+        if (not observed['cards']['3']['owners_free']
+                or observed['cards']['3']['used_mib'] != [6.0] * 6
+                or transition['old_state']['component']['exit_code'] != 75):
+            raise ValueError('GPU3 idle recalibration lacks six owner-free samples')
+        lines += ['', 'Verified GPU3 idle footprint changed from4MiB to6MiB: '
+                  'six owner-free samples5s apart record6MiB and idle SM345MHz. '
+                  'A separate guard entry updates only that measured floor;original '
+                  'workers remain frozen. Locks,six-sample preflight,foreign-process '
+                  'rejection,cooldowns and measurement thresholds remain in force. '
+                  'The pending body cohort has no accepted processes;its replacement '
+                  'inherits the cooldown. Completed component/model cohorts are reused. '
+                  'Timing continues to record actual start/end SM clocks.']
     if relocation.exists():
         moved = read(relocation)
         if (moved['completed_processes_discarded'] != 0

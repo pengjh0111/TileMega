@@ -132,6 +132,7 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | fixed-candidate216 B4 revalidation | 3 | 0.748320 | 0.678592 | +9.318 | 11.135 | False |
 | partial TN96 store B8 prototype | 3 | 1.016624 | 1.018784 | -0.212 | 2.276 | False |
 | paired residual read B16 prototype | 3 | 1.307504 | 1.310624 | -0.239 | 1.819 | False |
+| paired residual read B16 GPU0 diagnostic | 0 | 1.319680 | 1.313648 | +0.457 | 0.548 | False |
 
 Verified attention experiment: QK/PV columns were distributed across eight consumer warps without changing any output accumulation order. Per-head unit5/5 and sanitizer memcheck1/1, initcheck1/1, racecheck5/5, synccheck5/5 passed; whole-model outputs also matched the control byte for byte. Neither timing gain exceeded process variability, so the original header was restored. The initial driver added an unnecessary3% cutoff, which does not affect either rejection because both measured noise thresholds exceed3%. Frozen sources and the patch remain under runs/dnn4/bert_priority.
 
@@ -234,6 +235,8 @@ Verified B2 fixed4 producer index lifetime drafts preserve coordinates and arith
 
 Stated2026-11-12 allocation:all four H800 cards0–3 are authorized;intermittent gaps are no longer required. New schedules preserve the six-sample guard,300s occupancy cooldown and /root/python entry paths. B4/B8 timing uses original GPU3;functional checks may use the other cards. Previously paused queues stay retired and completed checks are reused.
 
+Verified GPU3 idle footprint changed from4MiB to6MiB: six owner-free samples5s apart record6MiB and idle SM345MHz. A separate guard entry updates only that measured floor;original workers remain frozen. Locks,six-sample preflight,foreign-process rejection,cooldowns and measurement thresholds remain in force. The pending body cohort has no accepted processes;its replacement inherits the cooldown. Completed component/model cohorts are reused. Timing continues to record actual start/end SM clocks.
+
 Verified foreign GPU1 occupancy prevents dispatch of one B8 functional cohort. All five jobs have zero attempts and no guarded children when its controllers retire. The cohort relocates to GPU0 under new original guards;the other two live cohorts and all completed checks are retained. Performance timing stays on GPU3.
 
 Verified private fixed-coordinate B16 residual-read prototype compiles without spill;SASS355968B. One aligned shared32 read supplies each adjacent BF16 pair while preserving per-element arithmetic. CPU compilation establishes feasibility only;complete unit/sanitizer,model5/5 and same-GPU3 whole-model gates decide admission.
@@ -252,6 +255,8 @@ Verified residual_corr on GPU0/2:strict FP32 model5/5,minimum cosine0.99995708,i
 
 Verified store96_corr on GPU3:strict FP32 model5/5,minimum cosine0.99995768,identical output bytes across all five fresh processes. These completed correctness checks do not establish whole-model performance or production admission.
 
+Verified store96_matrix_corr on GPU3:strict FP32 model5/5,minimum cosine0.99995768,identical output bytes across all five fresh processes. These completed correctness checks do not establish whole-model performance or production admission.
+
 Verified qkv_slots4_corr on GPU0:strict FP32 model5/5,minimum cosine0.99995983,identical output bytes across all five fresh processes. These completed correctness checks do not establish whole-model performance or production admission.
 
 Verified B4 fixed-candidate revalidation completes fresh GPU3 P-SEL8/8 and independent P-PAIR6/6. The selected candidate measures 0.678592ms against0.748320ms;gain9.318% is below11.135% process-noise threshold. Retain all six processes and the earlier prototype evidence;do not replace the admitted B4 result or rerun this pair to seek acceptance.
@@ -265,6 +270,7 @@ Verified store96_body:unit5/5,mem1/1,init1/1,race5/5,sync5/5 on GPU3;all sevente
 Verified store96_profile3_ordering:unit5/5,mem1/1,init1/1,race5/5,sync5/5 on GPU3;all seventeen fresh processes have identical output hashes. Functional evidence does not establish E2E benefit.
 Verified store96_profile3_body:unit5/5,mem1/1,init1/1,race5/5,sync5/5 on GPU3;all seventeen fresh processes have identical output hashes. Functional evidence does not establish E2E benefit.
 Verified store96_matrix_ordering:unit5/5,mem1/1,init1/1,race5/5,sync5/5 on GPU3;all seventeen fresh processes have identical output hashes. Functional evidence does not establish E2E benefit.
+Verified store96_matrix_body:unit5/5,mem1/1,init1/1,race5/5,sync5/5 on GPU3;all seventeen fresh processes have identical output hashes. Functional evidence does not establish E2E benefit.
 Verified rejected partial-store attribution:the12 FFN1 windows sum357.152→362.080us;main-loop CTA maxima sum184.704→185.248us;epilogue149.568→155.136us;store47.296→46.304us. The historical same-GPU3 reference and fresh candidate trace are diagnostic;segment maxima overlap. These data do not support a large main-loop penalty from losing one slot;the store reduction is small and total epilogue increases. Nontrace pair rejects the candidate.
 Verified CPU-only follow-up retains those coordinates and72/216 roles while enabling the existing matrix-store1 path;SASS321024B,zero spill. The flag affects both12 partial FFN1 stores and23 existing TMA stages. This tests the observed epilogue cost without a slot/tile scan;separate matrix-store1 component/model gates and the predeclared3%-plus-noise whole-model gate decide acceptance.
 Verified CPU-only B16 preparation applies the same partial store to11 repeated QKV stages,keeping the first NT1 QKV and the admitted profile unchanged. The control matches all44736 encoded words;the candidate has zero spill and360960B SASS. No GPU checks or performance are claimed;this follow-up is conditional on B8 mechanism qualification and needs separate matrix-store1 gates.
