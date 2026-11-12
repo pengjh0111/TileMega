@@ -91,6 +91,13 @@ def select_successors(base, batch, specification):
         names.append(('full_store_bundle_b8_admitted_v1',
                       {'TILEMEGA_F3_MATRIX_STORE': '1',
                        'TILEMEGA_F3_ATTENTION_VECTOR_STORE': '1'}))
+    if batch == 2:
+        names.append(('pipeline_reduction_b2_admitted_v1',
+                      {'TILEMEGA_F3_FULL_TILES': '1',
+                       'TILEMEGA_F3_H800_GRID': '1',
+                       'TILEMEGA_F3_RECOMPUTE_TASK': '1',
+                       'TILEMEGA_F3_COALESCED_PARTIALS': '1',
+                       'TILEMEGA_F3_CYCLIC_SLOTS': '1'}))
     for name, features in names:
         folder = base/name
         if not (folder/'experiment.json').exists():
@@ -137,6 +144,8 @@ def select_successors(base, batch, specification):
             count = 4 if batch == 16 else 2
         if name == 'full_store_bundle_b8_admitted_v1':
             count = 3
+        if name == 'pipeline_reduction_b2_admitted_v1':
+            count = 1
         if (len(units) != count or len(set(map(str, units))) != count or
                 set(map(str, final.get('unit_gates', []))) != set(map(str, units)) or
                 final['pair'] != decision['pair']):
@@ -251,6 +260,10 @@ def select_successors(base, batch, specification):
             if final_name != 'full_tiles_b8_admitted_v1/final_result.json':
                 raise ValueError('store bundle lacks its admitted full-tile predecessor')
             validate_store_bundle_integration(folder, decision, final)
+        if name == 'pipeline_reduction_b2_admitted_v1':
+            if final_name != 'ffn1_reg64_side216_b2_admitted_v1/final_result.json':
+                raise ValueError('pipeline reduction lacks its admitted B2 predecessor')
+            validate_pipeline_reduction_integration(folder, decision, final)
         # Completed raw prototypes never appear in this ordered admission list.
         final_name = name+'/final_result.json'
         pair_name = name+'/experiment.json'
@@ -261,6 +274,38 @@ def select_successors(base, batch, specification):
 
 
 def validate_store_bundle_integration(folder, decision, final):
+    validate_fixed_feature_integration(folder, decision, final,
+        ['body', 'order', 'attention'], '2',
+        ['TILEMEGA_F3_MATRIX_STORE', 'TILEMEGA_F3_ATTENTION_VECTOR_STORE',
+         'TILEMEGA_F3_SIDE_NORM', 'TILEMEGA_F3_FULL_TILES',
+         'TILEMEGA_F3_H800_GRID', 'TILEMEGA_F3_RECOMPUTE_TASK'])
+
+
+def validate_pipeline_reduction_integration(folder, decision, final):
+    validate_fixed_feature_integration(folder, decision, final, ['body'], '3',
+        ['TILEMEGA_F3_SIDE_NORM', 'TILEMEGA_F3_FULL_TILES',
+         'TILEMEGA_F3_H800_GRID', 'TILEMEGA_F3_RECOMPUTE_TASK',
+         'TILEMEGA_F3_COALESCED_PARTIALS', 'TILEMEGA_F3_CYCLIC_SLOTS'])
+    integration = read(folder/'integration.json')
+    bit = read(integration['unit_bit_proof'])
+    control = read(bit['control'])
+    candidate = read(decision['unit_gates'][0])
+    if (not bit['passed'] or not control['passed']
+            or len(control['processes']) != 5
+            or len({p['pid'] for p in control['processes']}) != 5
+            or any(p['exit_code'] or read(p['guard'])['code']
+                   for p in control['processes'])
+            or bit['output_hash'] != candidate['output_hash']
+            or candidate['output_hash'] != control['output_hash']
+            or read(bit['candidate'])['processes'] != candidate['processes']):
+        raise ValueError('pipeline reduction changed component output bytes')
+    profile = dict(read(integration['codegen_proof'])['profile'],
+                   TILEMEGA_F3_COALESCED_PARTIALS='0', TILEMEGA_F3_CYCLIC_SLOTS='0')
+    validate_component_profile(bit['control'], {f'-D{k}={v}' for k, v in profile.items()})
+
+
+def validate_fixed_feature_integration(folder, decision, final, suites,
+                                       register_profile, required_features):
     integration = read(folder/'integration.json')
     digest = lambda p: hashlib.sha256(Path(p).read_bytes()).hexdigest()
     proof = read(integration['codegen_proof'])
@@ -274,19 +319,16 @@ def validate_store_bundle_integration(folder, decision, final):
             or proof['encoded_words'] <= 0):
         raise ValueError('store bundle lacks its exact main codegen proof')
     profile = proof['profile']
-    if (profile.get('TILEMEGA_F3_REGISTER_BUDGET') != '2' or
-            any(profile.get(k) != '1' for k in (
-                'TILEMEGA_F3_MATRIX_STORE', 'TILEMEGA_F3_ATTENTION_VECTOR_STORE',
-                'TILEMEGA_F3_SIDE_NORM', 'TILEMEGA_F3_FULL_TILES',
-                'TILEMEGA_F3_H800_GRID', 'TILEMEGA_F3_RECOMPUTE_TASK'))):
+    if (profile.get('TILEMEGA_F3_REGISTER_BUDGET') != register_profile or
+            any(profile.get(k) != '1' for k in required_features)):
         raise ValueError('store bundle codegen has a different feature profile')
     if (read(final['library']+'.plan.json')['native_forward'] !=
             read(decision['reference']+'.plan.json')['native_forward']):
         raise ValueError('store bundle changed the accepted coordinates')
     rows = fixtures['rows']
     units = decision['unit_gates']
-    if ([r['suite'] for r in rows] != ['body', 'order', 'attention']
-            or len(units) != 3 or not fixtures['source_files']):
+    if ([r['suite'] for r in rows] != suites
+            or len(units) != len(suites) or not fixtures['source_files']):
         raise ValueError('store bundle lacks body, ordering and attention coverage')
     for row, unit in zip(rows, units):
         if (not row['passed'] or row['profile'] != profile
