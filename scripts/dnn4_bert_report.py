@@ -1537,12 +1537,14 @@ def main():
         lines += ['', 'Verified GPU3 isolated FFN diagnostics: '+values+'. '
                   'Each fixed production shape/profile uses132 CTAs, five fresh '
                   '20/50 processes, real TMA and unchanged epilogue arithmetic; '
-                  'generated-model shape constants are preserved and every output '
+                  'integer model shape/stride constants are preserved and every output '
                   'is checked against an independent constant-input FP32 reference. '
                   'The qualified pre-full-tile B8 FFN1 boundary mean is24.728us versus '
                   '12.096us isolated. The workloads differ in cache state, code '
                   'context, bindings and stage gates; this gap is not assigned '
-                  'to one cause. No F4 constant or end-to-end result is replaced.']
+                  'to one cause. These historical probes used synthetic '
+                  'epsilon1e-5; emitted BERT uses1e-12. No F4 constant or '
+                  'end-to-end result is replaced.']
     for folder, contrast in [('bert_data_context_gpu0_v1', '128MiB data-write'),
                              ('bert_code_context_v1', '1MiB straight-line-code')]:
         context = continuation/folder/'result.json'
@@ -1562,7 +1564,40 @@ def main():
                   'Probe words match the original diagnostic; eviction runs '
                   'outside its measured consumer window. This same-card '
                   'contrast does not establish the complete model gap or '
-                  'replace F4 coefficients or end-to-end admission.']
+                  'replace F4 coefficients or end-to-end admission. Both '
+                  'sides use the historical synthetic epsilon1e-5.']
+    correction = base/'bert_probe_epsilon_v1/literal_proof.json'
+    if correction.exists():
+        proof = read(correction)
+        assert proof['passed'] and proof['changed_words'] == 7
+        lines += ['', 'Verified probe audit corrects its default epsilon from '
+                  'synthetic1e-5 to the emitted BERT1e-12. The old setting '
+                  'reproduces all6304 original instruction words; the corrected '
+                  'build changes only seven FP32 FADD immediates, retaining '
+                  'the opcode/register/scheduling words. Prior within-binary '
+                  'contrasts remain synthetic diagnostics, not exact production '
+                  'constants. Accepted model builds and installed coefficients '
+                  'were never changed by these probes.']
+    for folder, epsilon in [('bert_pattern_gpu0_v2', '1e-5'),
+                            ('bert_pattern_epsilon_gpu0_v1', '1e-12')]:
+        pattern = continuation/folder/'result.json'
+        if not pattern.exists():
+            continue
+        uniform, varying = read(pattern)['rows']
+        assert uniform['passes'] == varying['passes'] == '5/5'
+        measurements = [p['measurement'] for r in (uniform, varying)
+                        for p in r['processes']]
+        assert all(m['reference_cosine'] >= .99999 and
+                   m['reference_relative'] <= .01 for m in measurements)
+        lines += ['', f'Verified GPU0 fixed FFN1 input-pattern contrast at '
+                  f'epsilon{epsilon}: uniform {uniform["window_ns"]/1000:.3f}us '
+                  f'and varying {varying["window_ns"]/1000:.3f}us. The same '
+                  'kernel uses32 deterministic BF16 row/column patterns; '
+                  'every output passes the independent FP32/GELU reference '
+                  'with cosine≥0.99999 and maximum relative error≤0.01. '
+                  'Each pattern has identical output bytes across five fresh '
+                  '20/50 processes. This synthetic-data diagnostic does not '
+                  'replace a whole-model measurement or coefficient.']
     lock_rejection = continuation/'full_tiles_default_lock_rejection.json'
     if lock_rejection.exists():
         lines += ['', 'Verified full-tile ordering dispatch correction: the first '
