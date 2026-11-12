@@ -130,6 +130,7 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | phase72 B8 G22 | 3 | 1.051376 | 1.019376 | +3.044 | 0.735 | True |
 | phase72 B16 G22 | 3 | 1.423520 | 1.399776 | +1.668 | 1.059 | False |
 | fixed-candidate216 B4 revalidation | 3 | 0.748320 | 0.678592 | +9.318 | 11.135 | False |
+| paired residual read B16 prototype | 3 | 1.307504 | 1.310624 | -0.239 | 1.819 | False |
 
 Verified attention experiment: QK/PV columns were distributed across eight consumer warps without changing any output accumulation order. Per-head unit5/5 and sanitizer memcheck1/1, initcheck1/1, racecheck5/5, synccheck5/5 passed; whole-model outputs also matched the control byte for byte. Neither timing gain exceeded process variability, so the original header was restored. The initial driver added an unnecessary3% cutoff, which does not affect either rejection because both measured noise thresholds exceed3%. Frozen sources and the patch remain under runs/dnn4/bert_priority.
 
@@ -246,9 +247,13 @@ Verified b8_corr2 on GPU0/3:strict FP32 model5/5,minimum cosine0.99995768,identi
 
 Verified b8_corr3 on GPU2:strict FP32 model5/5,minimum cosine0.99995768,identical output bytes across all five fresh processes. These completed correctness checks do not establish whole-model performance or production admission.
 
+Verified residual_corr on GPU0/2:strict FP32 model5/5,minimum cosine0.99995708,identical output bytes across all five fresh processes. These completed correctness checks do not establish whole-model performance or production admission.
+
 Verified B4 fixed-candidate revalidation completes fresh GPU3 P-SEL8/8 and independent P-PAIR6/6. The selected candidate measures 0.678592ms against0.748320ms;gain9.318% is below11.135% process-noise threshold. Retain all six processes and the earlier prototype evidence;do not replace the admitted B4 result or rerun this pair to seek acceptance.
 
 Verified CPU-only residual-pair follow-up on the existing fixed B8 candidate3 retains its coordinates and72/216 profile. It still spills 20/28B stores/loads,matching the original candidate,and never executes on GPU. The three legal whole-program alternatives remain unchanged.
+
+Verified B8 nontrace whole-program P-SEL8/8 on GPU3: A=1.017400ms,D=1.049176ms,B=1.050376ms,C=1.065768ms;tied=False,noise0.626%. Retain the incumbent because the winner is ambiguous or already current. Incomplete stage-window coverage supplies no tie priority or assembled selection.
 
 Verified profile2 B8 boundary overhead is3.419% on GPU0. Only2/6 existing variants are nonspilling;each completes three fresh20/50 traces. Four spilled variants are never executed. Required candidate coverage is incomplete;no assembled selection or admission is claimed. GPU2 partial traces remain separate and are not mixed with the GPU0 windows.
 

@@ -151,7 +151,8 @@ def main():
     if not (base/'boundary_cache216_b4_admitted_v1/experiment.json').exists():
         probes.append(('fixed-candidate216 B4 revalidation', continuation/'b4_experiment.json'))
     probes += [('existing whole-program216 B8', continuation/'b8_experiment.json'),
-               ('paired residual read B16 prototype', continuation/'residual_experiment.json')]
+               ('paired residual read B16 prototype', continuation/'residual_experiment.json'),
+               ('paired residual read B16 GPU0 diagnostic', continuation/'residual_gpu0_experiment.json')]
     rows = []
     choices = []
     for name, path in probes:
@@ -191,7 +192,8 @@ def main():
                     'FFN2 TMA128 split2 coalesced B8', 'FFN1 M64N128 B8',
                     'FFN1 PP nonblocking side B16', 'Current coalesced B2',
                     'cached-boundary216 B4 admitted continuation',
-                    'existing whole-program216 B8', 'paired residual read B16 prototype'):
+                    'existing whole-program216 B8', 'paired residual read B16 prototype',
+                    'paired residual read B16 GPU0 diagnostic'):
             unit_paths = experiment.get('unit_gates', [experiment.get('unit_gate')])
             for unit_path in unit_paths:
                 unit = read(Path(unit_path))
@@ -320,6 +322,10 @@ def main():
                 not o.get('output_sha256') for c in gate['cases'] for o in c['outputs']):
             raise ValueError('BERT comparison requires five fresh byte-hashed FP32 gates')
         pair_path = Path(experiment.get('pair_source', path.parent/'pair/result.json'))
+        if name == 'paired residual read B16 prototype':
+            pair_path = path.parent/'residual_pair/result.json'
+        elif name == 'paired residual read B16 GPU0 diagnostic':
+            pair_path = path.parent/'residual_pair_gpu0_diagnostic/result.json'
         if not pair_path.exists() and (path.parent/'winner_pair/result.json').exists():
             pair_path = path.parent/'winner_pair/result.json'
         if not pair_path.exists():
