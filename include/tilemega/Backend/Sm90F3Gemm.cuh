@@ -177,9 +177,9 @@ struct Sm90F3Gemm {
 
   __device__ static __forceinline__ void Preissue(Sm90F3GemmOperands const& p,
       Sm90F3Ring& ring,Element* arena,Sm90F3Phase& phase) {
-    if(int(threadIdx.x)==256 && int(tilemega::backend::Sm90F3Async::BlockIndex())<kTasks) {
+    if(int(threadIdx.x)==256 && int(TM_F3_BLOCK_INDEX())<kTasks) {
       constexpr int prefix=Slots<kIterations?Slots:kIterations;
-      int first=int(tilemega::backend::Sm90F3Async::BlockIndex()),n_tile=NTile(first),slice=Slice(first);
+      int first=int(TM_F3_BLOCK_INDEX()),n_tile=NTile(first),slice=Slice(first);
       #pragma unroll
       for(int slot=0;slot<prefix;++slot) {
         Base::Wait(ring.empty+slot,phase.Bit(phase.empty,slot));
@@ -841,10 +841,10 @@ struct Sm90F3Gemm {
       asm volatile("mov.u32 %0, %%nctaid.x;":"=r"(grid));
       asm volatile("mov.u32 %0, %%ctaid.x;":"=r"(block));
       return kTasks/int(grid)+(int(block)<kTasks%int(grid));
-    }else return kTasks/int(tilemega::backend::Sm90F3Async::GridSize())+(int(tilemega::backend::Sm90F3Async::BlockIndex())<kTasks%int(tilemega::backend::Sm90F3Async::GridSize()));
+    }else return kTasks/int(tilemega::backend::Sm90F3Async::GridSize())+(int(TM_F3_BLOCK_INDEX())<kTasks%int(tilemega::backend::Sm90F3Async::GridSize()));
   }
   __device__ static __forceinline__ int Task(int local) {
-    return int(tilemega::backend::Sm90F3Async::BlockIndex())+local*int(tilemega::backend::Sm90F3Async::GridSize());
+    return int(TM_F3_BLOCK_INDEX())+local*int(tilemega::backend::Sm90F3Async::GridSize());
   }
   __device__ static __forceinline__ int LiveRows(int m_tile) {
     int rows=M-m_tile*kTaskRows;
@@ -996,7 +996,7 @@ struct Sm90F3Gemm {
     Accumulators accum;
     int store_count=0;
     // Cached per-shape task counts otherwise stay live across BERT's layers.
-    for(int local=0,task=int(tilemega::backend::Sm90F3Async::BlockIndex());task<kTasks;++local,task+=int(tilemega::backend::Sm90F3Async::GridSize())) {
+    for(int local=0,task=int(TM_F3_BLOCK_INDEX());task<kTasks;++local,task+=int(tilemega::backend::Sm90F3Async::GridSize())) {
       int m_tile=MTile(task),n_tile=NTile(task);
       TM_F3_TRACE_BEGIN(kMainLoop);
       MainLoop(ring,arena,phase,accum,wg,(local*kIterations)%Slots,kIterations,Paired(task));

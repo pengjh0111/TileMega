@@ -119,7 +119,7 @@ struct GemmStage {
   __device__ static __forceinline__ void PrefetchWeights(B const& b,std::size_t limit) {
     constexpr std::size_t kChunk=64*1024;
     std::size_t part=((limit+tilemega::backend::Sm90F3Async::GridSize()-1)/tilemega::backend::Sm90F3Async::GridSize()+15)/16*16;
-    std::size_t begin=std::size_t(tilemega::backend::Sm90F3Async::BlockIndex())*part,end=begin+part;
+    std::size_t begin=std::size_t(TM_F3_BLOCK_INDEX())*part,end=begin+part;
     if(end>limit)end=limit;
     auto* weights=reinterpret_cast<char const*>(b.template Get<Bind::kWeight>());
     for(std::size_t offset=begin;offset<end;offset+=kChunk) {
@@ -580,7 +580,7 @@ struct Program<Batch,Buffers,Maps,Before,Repeat<R,Body...>,After,Final> {
       if(used+info.bytes>budget && used)break;
       unsigned bytes=info.bytes<budget?info.bytes:budget;
       unsigned part=((bytes+tilemega::backend::Sm90F3Async::GridSize()-1)/tilemega::backend::Sm90F3Async::GridSize()+15)/16*16;
-      unsigned begin=tilemega::backend::Sm90F3Async::BlockIndex()*part,end=begin+part;
+      unsigned begin=TM_F3_BLOCK_INDEX()*part,end=begin+part;
       if(end>bytes)end=bytes;
       auto* weight=reinterpret_cast<char const*>(b.buffers[info.buffer]);
       for(unsigned offset=begin;offset<end;offset+=64*1024)

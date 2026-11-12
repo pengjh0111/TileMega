@@ -23,6 +23,14 @@
 #error "TILEMEGA_F3_RECOMPUTE_TASK must be 0 or 1"
 #endif
 
+// Preserve the original expression when disabled: a force-inlined helper
+// still changes B2's register allocation even when it only returns ctaid.
+#if TILEMEGA_F3_RECOMPUTE_TASK
+#define TM_F3_BLOCK_INDEX() tilemega::backend::Sm90F3Async::BlockIndex()
+#else
+#define TM_F3_BLOCK_INDEX() blockIdx.x
+#endif
+
 namespace tilemega::backend {
 
 struct Sm90F3Async {
