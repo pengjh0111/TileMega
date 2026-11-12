@@ -152,6 +152,8 @@ def main():
         probes.append(('fixed-candidate216 B4 revalidation', continuation/'b4_experiment.json'))
     probes += [('existing whole-program216 B8', continuation/'b8_experiment.json'),
                ('partial TN96 store B8 prototype', continuation/'store96_experiment.json'),
+               ('partial TN96 matrix store B8 prototype', continuation/'store96_matrix_experiment.json'),
+               ('QKV four-slot B2', continuation/'qkv_slots4_experiment.json'),
                ('paired residual read B16 prototype', continuation/'residual_experiment.json'),
                ('paired residual read B16 GPU0 diagnostic', continuation/'residual_gpu0_experiment.json')]
     rows = []
@@ -194,6 +196,8 @@ def main():
                     'FFN1 PP nonblocking side B16', 'Current coalesced B2',
                     'cached-boundary216 B4 admitted continuation',
                     'existing whole-program216 B8', 'partial TN96 store B8 prototype',
+                    'partial TN96 matrix store B8 prototype',
+                    'QKV four-slot B2',
                     'paired residual read B16 prototype',
                     'paired residual read B16 GPU0 diagnostic'):
             unit_paths = experiment.get('unit_gates', [experiment.get('unit_gate')])
@@ -885,7 +889,7 @@ def main():
                      'All seventeen run under one original guarded reservation. ')
                   + 'These are functional prerequisites;whole-model correctness and '
                   'same-GPU3 timing decide performance admission.']
-    for suite in ('b8_corr1', 'b8_corr2', 'b8_corr3', 'residual_corr', 'store96_corr'):
+    for suite in ('b8_corr1', 'b8_corr2', 'b8_corr3', 'residual_corr', 'store96_corr', 'store96_matrix_corr', 'qkv_slots4_corr'):
         receipt = continuation/suite/'result.json'
         if not receipt.exists():
             continue
@@ -951,7 +955,8 @@ def main():
                   'instruction words of the incumbent. Solver enumeration is unchanged;'
                   'exact-profile body/order gates,model5/5 and a same-GPU3 gain above3% '
                   'and noise are required before enabling this extension.']
-        for suite in ('store96_body', 'store96_profile3_ordering', 'store96_profile3_body'):
+        for suite in ('store96_body', 'store96_profile3_ordering', 'store96_profile3_body',
+                      'store96_matrix_ordering', 'store96_matrix_body'):
             source = continuation/suite/'result.json'
             if not source.exists():
                 continue
@@ -975,6 +980,20 @@ def main():
                       'diagnostic;segment maxima overlap. These data do not support a '
                       'large main-loop penalty from losing one slot;the store reduction '
                       'is small and total epilogue increases. Nontrace pair rejects the candidate.']
+        matrix = base/'store96_matrix_model_preparation_v1/result.json'
+        if matrix.exists() and read(matrix)['status'] == 'prepared':
+            compiled = read(matrix)
+            scope = read(continuation/'store96_matrix_scope.json')
+            if (compiled['changed_stages'] != list(range(4, 60, 5))
+                    or len(scope['existing_tma_stages']) != 23):
+                raise ValueError('partial matrix-store follow-up changed its scope')
+            lines += ['Verified CPU-only follow-up retains those coordinates and72/216 '
+                      'roles while enabling the existing matrix-store1 path;SASS'
+                      f'{compiled["model"]["sass_bytes"]}B,zero spill. The flag affects '
+                      'both12 partial FFN1 stores and23 existing TMA stages. This tests '
+                      'the observed epilogue cost without a slot/tile scan;separate '
+                      'matrix-store1 component/model gates and the predeclared3%-plus-noise '
+                      'whole-model gate decide acceptance.']
         conditional = base/'store96_b16_model_preparation_v1/result.json'
         if conditional.exists() and read(conditional)['status'] == 'prepared':
             compiled = read(conditional)
@@ -986,6 +1005,24 @@ def main():
                       f'the candidate has zero spill and{compiled["model"]["sass_bytes"]}B SASS. '
                       'No GPU checks or performance are claimed;this follow-up is conditional '
                       'on B8 mechanism qualification and needs separate matrix-store1 gates.']
+    qkv = base/'qkv_slots4_b2_model_preparation_v1/result.json'
+    qkv_unit = base/'qkv_slots4_b2_units_v1/result.json'
+    if qkv.exists() and qkv_unit.exists() and read(qkv)['status'] == 'prepared':
+        compiled, resource = read(qkv), read(qkv_unit)
+        if compiled['changed_stages'] != list(range(6, 60, 5)) or not compiled['control_proof']['passed']:
+            raise ValueError('B2 four-slot candidate changes more than repeated QKV')
+        if resource['rows'][1]['payload_bytes'] != 111616 or resource['rows'][1]['spanning']:
+            raise ValueError('B2 four-slot resource boundary differs')
+        lines += ['', 'Verified CPU-only B2 pipeline follow-up applies the seed one-arena '
+                  'maximum to the admitted128x64 QKV tile:11 repeated stages change '
+                  'Slots3 to4;the first QKV and all other coordinates/profile remain fixed. '
+                  'The canonical resource function gives87040/111616/136192B for3/4/5 '
+                  'slots;four fits one arena and five spans. Current QKV attribution '
+                  'averages8.33us main loop with4.55us slot wait. The fixed candidate '
+                  f'has zero spill and{compiled["model"]["sass_bytes"]}B SASS;'
+                  'regenerated control matches all33120 encoded words. This is one '
+                  'seed-rule choice,not a parameter scan;component17/model5 and '
+                  'independent same-GPU3 E2E gain above noise decide acceptance.']
     retune = base/'phase72_retune_b8_gpu0_v1/incomplete_selection.json'
     if retune.exists():
         qualification = read(retune.parent/'trace_qualification.json')

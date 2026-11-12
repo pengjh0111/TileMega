@@ -252,6 +252,8 @@ Verified residual_corr on GPU0/2:strict FP32 model5/5,minimum cosine0.99995708,i
 
 Verified store96_corr on GPU3:strict FP32 model5/5,minimum cosine0.99995768,identical output bytes across all five fresh processes. These completed correctness checks do not establish whole-model performance or production admission.
 
+Verified qkv_slots4_corr on GPU0:strict FP32 model5/5,minimum cosine0.99995983,identical output bytes across all five fresh processes. These completed correctness checks do not establish whole-model performance or production admission.
+
 Verified B4 fixed-candidate revalidation completes fresh GPU3 P-SEL8/8 and independent P-PAIR6/6. The selected candidate measures 0.678592ms against0.748320ms;gain9.318% is below11.135% process-noise threshold. Retain all six processes and the earlier prototype evidence;do not replace the admitted B4 result or rerun this pair to seek acceptance.
 
 Verified CPU-only residual-pair follow-up on the existing fixed B8 candidate3 retains its coordinates and72/216 profile. It still spills 20/28B stores/loads,matching the original candidate,and never executes on GPU. The three legal whole-program alternatives remain unchanged.
@@ -263,7 +265,10 @@ Verified store96_body:unit5/5,mem1/1,init1/1,race5/5,sync5/5 on GPU3;all sevente
 Verified store96_profile3_ordering:unit5/5,mem1/1,init1/1,race5/5,sync5/5 on GPU3;all seventeen fresh processes have identical output hashes. Functional evidence does not establish E2E benefit.
 Verified store96_profile3_body:unit5/5,mem1/1,init1/1,race5/5,sync5/5 on GPU3;all seventeen fresh processes have identical output hashes. Functional evidence does not establish E2E benefit.
 Verified rejected partial-store attribution:the12 FFN1 windows sum357.152→362.080us;main-loop CTA maxima sum184.704→185.248us;epilogue149.568→155.136us;store47.296→46.304us. The historical same-GPU3 reference and fresh candidate trace are diagnostic;segment maxima overlap. These data do not support a large main-loop penalty from losing one slot;the store reduction is small and total epilogue increases. Nontrace pair rejects the candidate.
+Verified CPU-only follow-up retains those coordinates and72/216 roles while enabling the existing matrix-store1 path;SASS321024B,zero spill. The flag affects both12 partial FFN1 stores and23 existing TMA stages. This tests the observed epilogue cost without a slot/tile scan;separate matrix-store1 component/model gates and the predeclared3%-plus-noise whole-model gate decide acceptance.
 Verified CPU-only B16 preparation applies the same partial store to11 repeated QKV stages,keeping the first NT1 QKV and the admitted profile unchanged. The control matches all44736 encoded words;the candidate has zero spill and360960B SASS. No GPU checks or performance are claimed;this follow-up is conditional on B8 mechanism qualification and needs separate matrix-store1 gates.
+
+Verified CPU-only B2 pipeline follow-up applies the seed one-arena maximum to the admitted128x64 QKV tile:11 repeated stages change Slots3 to4;the first QKV and all other coordinates/profile remain fixed. The canonical resource function gives87040/111616/136192B for3/4/5 slots;four fits one arena and five spans. Current QKV attribution averages8.33us main loop with4.55us slot wait. The fixed candidate has zero spill and272128B SASS;regenerated control matches all33120 encoded words. This is one seed-rule choice,not a parameter scan;component17/model5 and independent same-GPU3 E2E gain above noise decide acceptance.
 
 Verified profile2 B8 boundary overhead is3.419% on GPU0. Only2/6 existing variants are nonspilling;each completes three fresh20/50 traces. Four spilled variants are never executed. Required candidate coverage is incomplete;no assembled selection or admission is claimed. GPU2 partial traces remain separate and are not mixed with the GPU0 windows.
 
