@@ -2195,6 +2195,20 @@ def main():
             lines.append(f'Verified control5/body17/order17 and strict model5 pass; '
                          f'GPU3 pair {pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms, '
                          f'noise{100*pair["threshold"]:.3f}%. {outcome}')
+    conditional = base/'late_store_b8_v1/result.json'
+    if conditional.exists() and read(conditional)['status'] == 'prepared':
+        preparation = read(conditional)
+        assert read(Path(preparation['control_proof']))['passed']
+        assert read(Path(preparation['prior_proof']))['passed']
+        assert preparation['profile'].get('TILEMEGA_F3_SINGLE_STORE', '0') == '0'
+        assert all(r['spill_bytes'] and not any(r['spill_bytes']) for r in preparation['rows'])
+        lines += ['', 'Verified conditional CPU preparation applies the same late-wait '
+                  'implementation to the existing B8 TN192/Slots4 TMA geometry and current '
+                  '72/208 profile, retaining two staging buffers per WG. Current and prior '
+                  'instruction words match; the candidate has zero spill, 294016B SASS '
+                  'versus 294784B and unchanged maxR205. No B8 hardware follows unless the '
+                  'B16 mechanism first passes all gates and the3%-plus-noise acceptance; '
+                  'separate exact B8 body, ordering, model and pair gates would still be required.']
     if failed_pp.exists() and read(failed_pp).get('status') == 'component_rejected':
         lines.append('\nVerified fixed WG64 PP/P1/TMA candidate compiles without spill and both normal '
                      'unit cohorts pass5/5, but ordering synccheck reports1024 errors and residual-chain '
