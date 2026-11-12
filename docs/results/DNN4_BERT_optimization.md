@@ -138,6 +138,7 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | first WGMMA initialization B16 | 3 | 1.319024 | 1.307904 | +0.843 | 2.120 | False |
 | fixed H800 grid B16 | 3 | 1.315328 | 1.295936 | +1.474 | 0.659 | True |
 | fixed grid producer recomputation B8 | 3 | 1.019888 | 0.989792 | +2.951 | 0.693 | True |
+| producer plus four-slot QKV B2 | 3 | 0.572096 | 0.575120 | -0.529 | 12.060 | False |
 | producer recomputation B2 | 3 | 0.603760 | 0.546592 | +9.469 | 10.478 | False |
 | producer recomputation B4 | 3 | 0.731296 | 0.703984 | +3.735 | 0.621 | True |
 | paired residual read B16 prototype | 3 | 1.307504 | 1.310624 | -0.239 | 1.819 | False |
@@ -282,6 +283,8 @@ Verified grid_recount_b2_corr on GPU0:strict FP32 model5/5,minimum cosine0.99995
 
 Verified grid_recount_b4_corr on GPU0:strict FP32 model5/5,minimum cosine0.99995583,identical output bytes across all five fresh processes. These completed correctness checks do not establish whole-model performance or production admission.
 
+Verified recount_qkv4_corr on GPU0:strict FP32 model5/5,minimum cosine0.99995983,identical output bytes across all five fresh processes. These completed correctness checks do not establish whole-model performance or production admission.
+
 Verified B4 fixed-candidate revalidation completes fresh GPU3 P-SEL8/8 and independent P-PAIR6/6. The selected candidate measures 0.678592ms against0.748320ms;gain9.318% is below11.135% process-noise threshold. Retain all six processes and the earlier prototype evidence;do not replace the admitted B4 result or rerun this pair to seek acceptance.
 
 Verified CPU-only residual-pair follow-up on the existing fixed B8 candidate3 retains its coordinates and72/216 profile. It still spills 20/28B stores/loads,matching the original candidate,and never executes on GPU. The three legal whole-program alternatives remain unchanged.
@@ -311,6 +314,8 @@ Verified seven-slot QKV B4 completes component/model gates and GPU3 P-PAIR6/6:re
 Verified QKV plus attention vector stores B2 completes component/model gates and GPU3 P-PAIR6/6:reference0.572432ms,candidate0.591184ms,gain-3.276%,noise8.385%,minimum gain0.0%. Reject;retain the incumbent and all measured processes. No final collection or production admission follows this pair.
 
 Verified first WGMMA initialization B16 completes component/model gates and GPU3 P-PAIR6/6:reference1.319024ms,candidate1.307904ms,gain0.843%,noise2.120%,minimum gain0.0%. Reject;retain the incumbent and all measured processes. No final collection or production admission follows this pair.
+
+Verified producer plus four-slot QKV B2 completes component/model gates and GPU3 P-PAIR6/6:reference0.572096ms,candidate0.575120ms,gain-0.529%,noise12.060%,minimum gain0.0%. Reject;retain the incumbent and all measured processes. No final collection or production admission follows this pair.
 
 Verified producer recomputation B2 completes component/model gates and GPU3 P-PAIR6/6:reference0.603760ms,candidate0.546592ms,gain9.469%,noise10.478%,minimum gain0.0%. Reject;retain the incumbent and all measured processes. No final collection or production admission follows this pair.
 
@@ -342,6 +347,8 @@ Verified the original disabled BlockIndex helper changes B2 instructions and is 
 Verified B8 producer recomputation is integrated and admitted: main on/off kernels match all38960/41072 tested instruction words;committed body/attention fixtures match the two17-process gates;the unchanged fixed-grid runtime retains its five-process host rejection proof. Real codegen16profiles/9invalid settings and 46admission tests pass. GPU3 independent pair gains2.951% versus0.693% noise;P-DNN0.977680ms,p900.997472ms,process range0.014976ms. The exact tested binary and63-stage ledger are retained. Other cells and original anchors remain unchanged.
 
 Verified CPU-only B2 uses the same producer repair with current72/216 coordinates/profile:zero spill,SASS264960→250752B.The repaired default path matches all33120 incumbent words. Separate functional and independent GPU3 timing gates decide acceptance;code size alone does not admit this candidate.
+
+Verified B4 reuses the exact profile2 body/attention17-process gates and completes fresh model5/5 with unchanged output bytes. Main on/off33072/35296 instruction words match the paired candidate/incumbent;the exact GPU3 trace has63 stages. Independent pair gains3.735% versus0.621% noise. Admitted P-DNN=0.704128ms,p900.708320ms,process range0.002160ms. Other cells and original anchors remain unchanged.
 
 Verified profile2 B8 boundary overhead is3.419% on GPU0. Only2/6 existing variants are nonspilling;each completes three fresh20/50 traces. Four spilled variants are never executed. Required candidate coverage is incomplete;no assembled selection or admission is claimed. GPU2 partial traces remain separate and are not mixed with the GPU0 windows.
 
@@ -379,7 +386,7 @@ Verified current accepted artifacts (GPU3;50/200;three-process P-DNN). B1/B2/B4/
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 3 | 0.464496 | 0.477696 | 0.012608 | 0.4858 | 0.9561 |
 | 2 | 3 | 0.597536 | 0.601472 | 0.032496 | 0.5171 | 1.1555 |
-| 4 | 3 | 0.706304 | 0.715328 | 0.007824 | 0.5905 | 1.1961 |
+| 4 | 3 | 0.704128 | 0.708320 | 0.002160 | 0.5905 | 1.1924 |
 | 8 | 3 | 0.977680 | 0.997472 | 0.014976 | 0.7457 | 1.3111 |
 | 16 | 3 | 1.295600 | 1.313632 | 0.011296 | 1.0869 | 1.1921 |
 
@@ -388,7 +395,7 @@ Verified largest three stages for each current unmet BERT cell (P-TRACE1 attribu
 | Batch | Largest stage | Second | Third |
 | --- | --- | --- | --- |
 | 2 | s30 gemm 17.98us (main_loop=10.11,epilogue=3.74) | s5 gemm 17.70us (main_loop=10.37,epilogue=3.36) | s55 gemm 17.66us (main_loop=10.14,slot_wait=4.58) |
-| 4 | s24 gemm 19.33us (epilogue=10.37,main_loop=8.58) | s40 gemm 19.33us (main_loop=14.98,slot_wait=4.96) | s25 gemm 18.94us (main_loop=15.62,slot_wait=5.12) |
+| 4 | s20 gemm 19.23us (main_loop=15.90,slot_wait=5.12) | s5 gemm 19.07us (main_loop=15.71,slot_wait=6.02) | s55 gemm 18.98us (main_loop=15.26,slot_wait=6.02) |
 | 8 | s9 gemm 30.30us (main_loop=16.13,epilogue=12.67) | s49 gemm 30.30us (main_loop=15.65,epilogue=12.96) | s29 gemm 30.21us (main_loop=15.55,epilogue=13.09) |
 | 16 | s4 gemm 43.01us (main_loop=23.52,epilogue=16.03) | s9 gemm 41.89us (main_loop=24.19,epilogue=14.43) | s49 gemm 41.86us (main_loop=23.87,epilogue=14.27) |
 

@@ -159,6 +159,7 @@ def main():
                ('first WGMMA initialization B16', continuation/'mma_zero_experiment.json'),
                ('fixed H800 grid B16', continuation/'fixed_grid_experiment.json'),
                ('fixed grid producer recomputation B8', continuation/'grid_recount_experiment.json'),
+               ('producer plus four-slot QKV B2', continuation/'recount_qkv4_experiment.json'),
                *[(f'producer recomputation B{b}', continuation/f'grid_recount_b{b}_experiment.json') for b in (2,4,16)],
                ('paired residual read B16 prototype', continuation/'residual_experiment.json'),
                ('paired residual read B16 GPU0 diagnostic', continuation/'residual_gpu0_experiment.json')]
@@ -914,7 +915,7 @@ def main():
                      'All seventeen run under one original guarded reservation. ')
                   + 'These are functional prerequisites;whole-model correctness and '
                   'same-GPU3 timing decide performance admission.']
-    for suite in ('b8_corr1', 'b8_corr2', 'b8_corr3', 'residual_corr', 'store96_corr', 'store96_matrix_corr', 'qkv_slots4_corr', 'qkv_slots7_corr', 'qkv_attention_corr', 'mma_zero_corr', 'fixed_grid_corr', 'grid_recount_corr', 'grid_recount_b2_corr', 'grid_recount_b4_corr', 'grid_recount_b16_corr'):
+    for suite in ('b8_corr1', 'b8_corr2', 'b8_corr3', 'residual_corr', 'store96_corr', 'store96_matrix_corr', 'qkv_slots4_corr', 'qkv_slots7_corr', 'qkv_attention_corr', 'mma_zero_corr', 'fixed_grid_corr', 'grid_recount_corr', 'grid_recount_b2_corr', 'grid_recount_b4_corr', 'grid_recount_b16_corr', 'recount_qkv4_corr'):
         receipt = continuation/suite/'result.json'
         if not receipt.exists():
             continue
@@ -1072,6 +1073,7 @@ def main():
                           ('mma_zero', 'first WGMMA initialization B16'),
                           ('fixed_grid', 'fixed H800 grid B16'),
                           ('grid_recount', 'fixed grid producer recomputation B8'),
+                          ('recount_qkv4','producer plus four-slot QKV B2'),
                           *[(f'grid_recount_b{b}',f'producer recomputation B{b}') for b in (2,4,16)]]:
         result = continuation/(prefix+'_experiment.json')
         if result.exists() and not read(result)['accepted']:
@@ -1249,6 +1251,20 @@ def main():
                   'The repaired default path matches all33120 incumbent words. '
                   'Separate functional and independent GPU3 timing gates decide '
                   'acceptance;code size alone does not admit this candidate.']
+    recount_b4 = base/'grid_recount_b4_admitted_v1/admission.json'
+    if recount_b4.exists():
+        admission = read(recount_b4)
+        if admission['status'] != 'admitted':
+            raise ValueError('B4 producer admission is incomplete')
+        lines += ['', 'Verified B4 reuses the exact profile2 body/attention17-process '
+                  'gates and completes fresh model5/5 with unchanged output bytes. '
+                  'Main on/off33072/35296 instruction words match the paired '
+                  'candidate/incumbent;the exact GPU3 trace has63 stages. '
+                  f'Independent pair gains{100*(1-admission["pair_ratio"]):.3f}% '
+                  f'versus{100*admission["noise"]:.3f}% noise. Admitted P-DNN='
+                  f'{admission["median_ms"]:.6f}ms,p90{admission["p90_ms"]:.6f}ms,'
+                  f'process range{admission["process_range_ms"]:.6f}ms. '
+                  'Other cells and original anchors remain unchanged.']
     retune = base/'phase72_retune_b8_gpu0_v1/incomplete_selection.json'
     if retune.exists():
         qualification = read(retune.parent/'trace_qualification.json')
