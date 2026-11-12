@@ -6,6 +6,12 @@
 #ifndef DNN4_BERT_FFN
 #define DNN4_BERT_FFN 1
 #endif
+#ifndef DNN4_BERT_EPSILON
+#define DNN4_BERT_EPSILON 1e-12f
+#endif
+#if defined(DNN4_BERT_CODE_EVICT) + defined(DNN4_BERT_DATA_EVICT) + defined(DNN4_BERT_DATA_PATTERN) > 1
+#error "select one probe context"
+#endif
 #define TILEMEGA_F3_SIDE_NORM 1
 #define TILEMEGA_F3_H800_GRID 1
 #if DNN4_BERT_BATCH == 8
@@ -31,6 +37,7 @@ using namespace tilemega::backend;
 using E=cutlass::bfloat16_t;
 using Tick=unsigned long long;
 constexpr int kBatch=DNN4_BERT_BATCH,kFfn=DNN4_BERT_FFN,kGrid=132;
+constexpr float kEpsilon=DNN4_BERT_EPSILON;
 static_assert((kBatch==8 || kBatch==16) && (kFfn==1 || kFfn==2));
 constexpr int kM=128*kBatch,kN=kFfn==1?3072:768,kK=kFfn==1?768:3072;
 constexpr int kTM=128,kTN=kBatch==16?128:(kFfn==1?96:64);
@@ -97,7 +104,7 @@ __global__ __launch_bounds__(384,1) void Probe(Sm90F3GemmOperands p,
   p.activation=&activation;p.residual=&residual;p.output_map=&output;
   // EpilogueOf supplies these shape constants in generated model kernels.
   p.epilogue.output_stride=kN;p.epilogue.residual_stride=kN;
-  p.epilogue.norm_width=768;p.epilogue.epsilon=1e-5f;
+  p.epilogue.norm_width=768;p.epilogue.epsilon=kEpsilon;
   auto* arena=reinterpret_cast<E*>(shared+Sm90F3Budget::kArena0);
   auto* side=reinterpret_cast<char*>(arena)+G::kSideOffset;Sm90F3Phase phase{};
   if(threadIdx.x>=256) {
@@ -127,6 +134,11 @@ int main(int argc,char** argv)try {
     throw std::runtime_error("usage: probe {hot|data-cold}");
   bool evict=std::string(argv[1])=="data-cold";
   Device<uint4> flush(kFlushVectors);
+#elif defined(DNN4_BERT_DATA_PATTERN)
+  static_assert(kFfn==1,"the varying-data reference covers FFN1");
+  if(argc!=2 || (std::string(argv[1])!="uniform" && std::string(argv[1])!="varying"))
+    throw std::runtime_error("usage: probe {uniform|varying}");
+  bool varying=std::string(argv[1])=="varying";
 #else
   if(argc!=1)throw std::runtime_error("stage probe takes no arguments");
 #endif
@@ -138,11 +150,43 @@ int main(int argc,char** argv)try {
   // Uniform values make both SW128 pages and every FP32 dot product exact.
   activation.Put(std::vector<E>(activation.count,E(.125f)));
   weight.Put(std::vector<E>(weight.count,E(.125f)));
+#ifdef DNN4_BERT_DATA_PATTERN
+  constexpr int kPatterns=32;
+  std::vector<float> reference(kPatterns*kPatterns,0.f);
+  if(varying) {
+    auto value=[](unsigned index) {
+      unsigned x=index*747796405u+2891336453u;
+      x=((x>>((x>>28)+4))^x)*277803737u;
+      return float(int((x^(x>>22))%9)-4)/16;
+    };
+    std::vector<E> a(activation.count),w(weight.count);
+    for(int m=0;m<kM;++m)for(int k=0;k<kK;++k)
+      a[std::size_t(m)*kK+k]=E(value((m%kPatterns)*kK+k));
+    for(int n=0;n<kN;++n)for(int k=0;k<kK;++k) {
+      int row=n%kTN,col=k%64;
+      std::size_t packed=((n/kTN)*(kK/64)+k/64)*kTN*64+
+          row*64+8*((col/8)^(row%8))+col%8;
+      w[packed]=E(value((n%kPatterns)*kK+k+1234567u));
+    }
+    activation.Put(a);weight.Put(w);
+    float squares=0;
+    for(int part=0;part<12;++part)squares+=768.f*(1.f-kEpsilon)/12;
+    float inverse=1.f/std::sqrt(squares/768.f+kEpsilon);
+    for(int m=0;m<kPatterns;++m)for(int n=0;n<kPatterns;++n) {
+      float dot=0;
+      for(int k=0;k<kK;++k)
+        dot+=float(a[m*kK+k])*float(E(value(n*kK+k+1234567u)));
+      float normalized=dot*inverse;
+      reference[m*kPatterns+n]=.5f*normalized*
+          (1.f+std::erf(normalized*.70710678118654752f));
+    }
+  }
+#endif
   residual.Put(std::vector<E>(residual.count,E(.125f)));
   output.Put(std::vector<E>(output.count,E(-123.f)));
   std::vector<float> v(vectors.count,0.f),s(stats.count,0.f);
   std::fill(v.begin()+(kFfn==1?0:kN),v.begin()+(kFfn==1?kN:2*kN),1.f);
-  for(std::size_t i=1;i<s.size();i+=2)s[i]=768.f*(1.f-1e-5f)/12;
+  for(std::size_t i=1;i<s.size();i+=2)s[i]=768.f*(1.f-kEpsilon)/12;
   vectors.Put(v);stats.Put(s);partials.Put(std::vector<float>(partials.count,-123.f));
   CUtensorMap a{},r{},o{};
   tilemega::codegen::executor::EncodeTiledMap<2>(a,activation.data,{{kK,kM},{2*kK},{64,kTM}});
@@ -152,7 +196,7 @@ int main(int argc,char** argv)try {
   p.epilogue.output=output.data;p.epilogue.output_stride=kN;
   p.epilogue.residual=residual.data;p.epilogue.residual_stride=kN;
   p.epilogue.stats=stats.data;p.epilogue.row_partials=partials.data;
-  p.epilogue.norm_width=768;p.epilogue.epsilon=1e-5f;
+  p.epilogue.norm_width=768;p.epilogue.epsilon=kEpsilon;
   for(int i=0;i<3;++i)p.epilogue.vectors[i]=vectors.data+i*kN;
   Check(cudaFuncSetAttribute(Probe,cudaFuncAttributeMaxDynamicSharedMemorySize,Sm90F3Budget::kBudget));
   int resident=0;
@@ -186,7 +230,27 @@ int main(int argc,char** argv)try {
   float expected=float(kK)/64+(kFfn==2?.125f:0.f);
   if constexpr(kFfn==1)expected=.5f*expected*(1.f+std::erf(expected*.70710678118654752f));
   auto values=output.Get();E rounded(expected);
+  double reference_cosine=1,reference_relative=0;
+  Tick output_hash=14695981039346656037ull;
+#ifdef DNN4_BERT_DATA_PATTERN
+  if(varying) {
+    double dot=0,aa=0,rr=0;
+    for(int m=0;m<kM;++m)for(int n=0;n<kN;++n) {
+      double a=float(values[std::size_t(m)*kN+n]),r=reference[(m%kPatterns)*kPatterns+n%kPatterns];
+      if(!std::isfinite(a))throw std::runtime_error("nonfinite varying-data output");
+      dot+=a*r;aa+=a*a;rr+=r*r;
+      reference_relative=std::max(reference_relative,std::abs(a-r)/std::max(std::abs(r),1e-12));
+    }
+    reference_cosine=dot/std::sqrt(aa*rr);
+    if(reference_cosine<.99999 || reference_relative>1e-2)
+      throw std::runtime_error("varying-data FP32 reference mismatch");
+  }else
+#endif
   for(E x:values)if(x.raw()!=rounded.raw())throw std::runtime_error("stage BF16 output mismatch");
+  for(E x:values) {
+    output_hash^=x.raw()&255;output_hash*=1099511628211ull;
+    output_hash^=x.raw()>>8;output_hash*=1099511628211ull;
+  }
   if constexpr(kFfn==2) {
     auto partial=partials.Get();
     for(std::size_t i=0;i<partial.size();++i) {
@@ -203,10 +267,15 @@ int main(int argc,char** argv)try {
     <<",\"tasks\":"<<G::kTasks<<",\"warmup\":20,\"samples\":50,\"window_ns\":"
     <<double(windows[24]+windows[25])/2<<",\"max_cta_ns\":"<<double(cta_max[24]+cta_max[25])/2
     <<",\"output_elements_checked\":"<<values.size()
+    <<",\"epsilon\":"<<kEpsilon
+    <<",\"output_hash\":"<<output_hash<<",\"reference_cosine\":"<<reference_cosine
+    <<",\"reference_relative\":"<<reference_relative
 #ifdef DNN4_BERT_CODE_EVICT
     <<",\"instruction_context\":\""<<(evict?"l1-cold":"hot")<<"\""
 #elif defined(DNN4_BERT_DATA_EVICT)
     <<",\"data_context\":\""<<(evict?"data-cold":"hot")<<"\""
+#elif defined(DNN4_BERT_DATA_PATTERN)
+    <<",\"input_pattern\":\""<<(varying?"varying":"uniform")<<"\""
 #endif
     <<"}\n";
   return 0;
