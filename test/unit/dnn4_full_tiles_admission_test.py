@@ -15,7 +15,7 @@ import dnn4_bert_current as current
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--folder', required=True, type=Path)
-    parser.add_argument('--batch', required=True, type=int, choices=[8, 16])
+    parser.add_argument('--batch', required=True, type=int, choices=[4, 8, 16])
     args = parser.parse_args()
     decision = current.read(args.folder/'experiment.json')
     final = current.read(args.folder/'final_result.json')
@@ -54,6 +54,12 @@ def main():
            lambda p: p.update(invalid_settings_rejected=0))
     reject('stale integration receipt', args.folder/'integration.json',
            lambda p: p.update(main_proof_sha256='0'*64))
+    if args.batch == 4:
+        def change_profile(value):
+            row = next(r for r in value['rows'] if r['batch'] == 4)
+            row['profile']['TILEMEGA_F3_REGISTER_BUDGET'] = '3'
+        reject('mismatched inherited fixture profile',
+               current.read(integration['main_proof'])['on_proofs'], change_profile)
     print(json.dumps(dict(evidence='verified CPU-only',positive_receipt=True,
                          corrupted_receipts_rejected=failures)))
 

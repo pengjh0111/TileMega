@@ -82,7 +82,7 @@ def select_successors(base, batch, specification):
         names.append(('ffn2_reg64_split4_b2_v1',
                       {'TILEMEGA_F3_SIDE_NORM': '1',
                        'TILEMEGA_F3_REGISTER_BUDGET': '3'}))
-    if batch in (8, 16):
+    if batch in (4, 8, 16):
         features = {'TILEMEGA_F3_FULL_TILES': '1'}
         if batch == 16:
             features['TILEMEGA_F3_REPEAT_SELECTOR'] = '1'
@@ -291,6 +291,9 @@ def validate_full_tiles_integration(folder, decision, final, batch):
                 '-DTILEMEGA_F3_REGISTER_BUDGET='+('3' if batch == 16 else '2')}
     if batch == 16:
         required.add('-DTILEMEGA_F3_REPEAT_SELECTOR=1')
+    if batch == 4:
+        required.update(('-DTILEMEGA_F3_H800_GRID=1',
+                         '-DTILEMEGA_F3_RECOMPUTE_TASK=1'))
     units = decision['unit_gates']
     for unit in units:
         validate_component_profile(unit, required)
@@ -311,7 +314,15 @@ def validate_full_tiles_integration(folder, decision, final, batch):
                 or alias['processes'] != candidate['processes']):
             raise ValueError('full tiles component output differs from its disabled control')
     fixtures = read(proof['fixtures'])
-    selected = [r for r in fixtures['rows'] if r['batch'] == batch]
+    # B4 reuses the same batch-independent full/partial fixtures as B8.
+    # Require their complete emitted feature profiles to match before reuse.
+    fixture_batch = 8 if batch == 4 else batch
+    if batch == 4:
+        inherited = [r for r in on['rows'] if r['batch'] == fixture_batch]
+        if (len(inherited) != 1 or not inherited[0]['passed']
+                or inherited[0]['profile'] != rows[0]['profile']):
+            raise ValueError('full tiles inherited fixtures have a different profile')
+    selected = [r for r in fixtures['rows'] if r['batch'] == fixture_batch]
     if not fixtures['passed'] or [r['suite'] for r in selected] != ['body', 'order']:
         raise ValueError('full tiles committed fixtures lack both instruction proofs')
     for row, unit in zip(selected, units[:2]):
