@@ -141,6 +141,7 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | producer plus four-slot QKV B2 | 3 | 0.572096 | 0.575120 | -0.529 | 12.060 | False |
 | producer recomputation B2 | 3 | 0.603760 | 0.546592 | +9.469 | 10.478 | False |
 | producer recomputation B4 | 3 | 0.731296 | 0.703984 | +3.735 | 0.621 | True |
+| producer recomputation B16 | 3 | 1.296816 | 1.293920 | +0.223 | 2.016 | False |
 | paired residual read B16 prototype | 3 | 1.307504 | 1.310624 | -0.239 | 1.819 | False |
 | paired residual read B16 GPU0 diagnostic | 0 | 1.319680 | 1.313648 | +0.457 | 0.548 | False |
 
@@ -283,6 +284,8 @@ Verified grid_recount_b2_corr on GPU0:strict FP32 model5/5,minimum cosine0.99995
 
 Verified grid_recount_b4_corr on GPU0:strict FP32 model5/5,minimum cosine0.99995583,identical output bytes across all five fresh processes. These completed correctness checks do not establish whole-model performance or production admission.
 
+Verified grid_recount_b16_corr on GPU0:strict FP32 model5/5,minimum cosine0.99995708,identical output bytes across all five fresh processes. These completed correctness checks do not establish whole-model performance or production admission.
+
 Verified recount_qkv4_corr on GPU0:strict FP32 model5/5,minimum cosine0.99995983,identical output bytes across all five fresh processes. These completed correctness checks do not establish whole-model performance or production admission.
 
 Verified B4 fixed-candidate revalidation completes fresh GPU3 P-SEL8/8 and independent P-PAIR6/6. The selected candidate measures 0.678592ms against0.748320ms;gain9.318% is below11.135% process-noise threshold. Retain all six processes and the earlier prototype evidence;do not replace the admitted B4 result or rerun this pair to seek acceptance.
@@ -319,6 +322,8 @@ Verified producer plus four-slot QKV B2 completes component/model gates and GPU3
 
 Verified producer recomputation B2 completes component/model gates and GPU3 P-PAIR6/6:reference0.603760ms,candidate0.546592ms,gain9.469%,noise10.478%,minimum gain0.0%. Reject;retain the incumbent and all measured processes. No final collection or production admission follows this pair.
 
+Verified producer recomputation B16 completes component/model gates and GPU3 P-PAIR6/6:reference1.296816ms,candidate1.293920ms,gain0.223%,noise2.016%,minimum gain0.0%. Reject;retain the incumbent and all measured processes. No final collection or production admission follows this pair.
+
 Verified B2 ring attribution across11 QKV stages:windows130.848→120.800us;main91.456→82.304us;slot wait50.048→38.848us;first ready25.888→21.920us. Historical accepted GPU3 trace and fresh exact-candidate trace are diagnostic;segment maxima overlap. They do not override the independent nontrace pair or qualify a new performance result.
 
 Verified B4 ring attribution across11 QKV stages:windows147.168→147.744us;main99.456→101.760us;slot wait47.424→46.080us;first ready20.192→24.896us. Historical accepted GPU3 trace and fresh exact-candidate trace are diagnostic;segment maxima overlap. They do not override the independent nontrace pair or qualify a new performance result.
@@ -349,6 +354,10 @@ Verified B8 producer recomputation is integrated and admitted: main on/off kerne
 Verified CPU-only B2 uses the same producer repair with current72/216 coordinates/profile:zero spill,SASS264960→250752B.The repaired default path matches all33120 incumbent words. Separate functional and independent GPU3 timing gates decide acceptance;code size alone does not admit this candidate.
 
 Verified B4 reuses the exact profile2 body/attention17-process gates and completes fresh model5/5 with unchanged output bytes. Main on/off33072/35296 instruction words match the paired candidate/incumbent;the exact GPU3 trace has63 stages. Independent pair gains3.735% versus0.621% noise. Admitted P-DNN=0.704128ms,p900.708320ms,process range0.002160ms. Other cells and original anchors remain unchanged.
+
+Verified CPU-only B8 check:all six exact existing repaired P-TUNE coordinate programs compile without spills under the currently admitted72/208 producer profile. No new coordinate or register sweep is introduced. Legal compilation alone does not select a program;boundary qualification,strict model checks and an independent current-incumbent pair remain required.
+
+Verified private boundary-only CTA recomputation passes GPU0 unit5/5 and sanitizer1/1/5/5. All38960 production and44288 full-trace instruction words are preserved. The uniform boundary source makes five of six existing candidates legal;candidate2 still spills8/8B. Reusing one CTA value also leaves8/8B and is rejected before GPU execution. No complete six-way P-TUNE result is claimed;missing windows are not synthesized.
 
 Verified profile2 B8 boundary overhead is3.419% on GPU0. Only2/6 existing variants are nonspilling;each completes three fresh20/50 traces. Four spilled variants are never executed. Required candidate coverage is incomplete;no assembled selection or admission is claimed. GPU2 partial traces remain separate and are not mixed with the GPU0 windows.
 

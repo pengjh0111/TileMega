@@ -1265,6 +1265,44 @@ def main():
                   f'{admission["median_ms"]:.6f}ms,p90{admission["p90_ms"]:.6f}ms,'
                   f'process range{admission["process_range_ms"]:.6f}ms. '
                   'Other cells and original anchors remain unchanged.']
+    recount_candidates = base/'recount_b8_existing_candidates_v1/result.json'
+    if recount_candidates.exists():
+        candidate_builds = read(recount_candidates)
+        if candidate_builds['legal'] != candidate_builds['total'] or candidate_builds['total'] != 6:
+            raise ValueError('recomputed B8 candidate legality differs')
+        lines += ['', 'Verified CPU-only B8 check:all six exact existing repaired '
+                  'P-TUNE coordinate programs compile without spills under the '
+                  'currently admitted72/208 producer profile. No new coordinate '
+                  'or register sweep is introduced. Legal compilation alone '
+                  'does not select a program;boundary qualification,strict model '
+                  'checks and an independent current-incumbent pair remain required.']
+    trace_cta = base/'trace_cta_b8_uniform_v2/result.json'
+    if trace_cta.exists():
+        builds = read(trace_cta)
+        legal = sorted(row['name'] for row in builds['rows']
+                       if row['name'].startswith('candidate') and row['status'] == 'prepared')
+        assert legal == ['candidate0', 'candidate1', 'candidate3', 'candidate4', 'candidate5']
+        for name, words in [('nontrace_proof', 38960), ('attribution_proof', 44288)]:
+            proof = read(trace_cta.parent/name/'result.json')['proof']
+            assert proof['passed'] and proof['words'] == words
+        unit = read(continuation/'trace_cta_unit/result.json')
+        assert unit['passed'] and len(unit['processes']) == 17
+        lines += ['', 'Verified private boundary-only CTA recomputation passes GPU0 '
+                  'unit5/5 and sanitizer1/1/5/5. All38960 production and44288 '
+                  'full-trace instruction words are preserved. The uniform boundary '
+                  'source makes five of six existing candidates legal;candidate2 '
+                  'still spills8/8B. Reusing one CTA value also leaves8/8B and is '
+                  'rejected before GPU execution. No complete six-way P-TUNE result '
+                  'is claimed;missing windows are not synthesized.']
+        qualification = continuation/'trace_cta_b8_qualification_v2/result.json'
+        if qualification.exists():
+            q = read(qualification)
+            lines += ['', f'Verified private B8 boundary qualification:GPU3 '
+                      f'overhead{100*q["relative_difference"]:.3f}%,passed={q["passed"]}. '
+                      'Three fresh20/50 trace processes compare exact output bytes '
+                      'with the nontrace reference;one fresh50/200 reference supplies '
+                      'the timing comparison. This is diagnostic qualification, '
+                      'not performance admission.']
     retune = base/'phase72_retune_b8_gpu0_v1/incomplete_selection.json'
     if retune.exists():
         qualification = read(retune.parent/'trace_qualification.json')
