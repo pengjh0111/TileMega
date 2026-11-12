@@ -87,6 +87,10 @@ def select_successors(base, batch, specification):
         if batch == 16:
             features['TILEMEGA_F3_REPEAT_SELECTOR'] = '1'
         names.append((f'full_tiles_b{batch}_admitted_v1', features))
+    if batch == 8:
+        names.append(('full_store_bundle_b8_admitted_v1',
+                      {'TILEMEGA_F3_MATRIX_STORE': '1',
+                       'TILEMEGA_F3_ATTENTION_VECTOR_STORE': '1'}))
     for name, features in names:
         folder = base/name
         if not (folder/'experiment.json').exists():
@@ -131,6 +135,8 @@ def select_successors(base, batch, specification):
                       'TILEMEGA_F3_ATTENTION_VECTOR_STORE'))))
         if name == f'full_tiles_b{batch}_admitted_v1':
             count = 4 if batch == 16 else 2
+        if name == 'full_store_bundle_b8_admitted_v1':
+            count = 3
         if (len(units) != count or len(set(map(str, units))) != count or
                 set(map(str, final.get('unit_gates', []))) != set(map(str, units)) or
                 final['pair'] != decision['pair']):
@@ -241,6 +247,10 @@ def select_successors(base, batch, specification):
             validate_ffn2_reg64_coordinates(final['library'], decision['reference'])
         if name == f'full_tiles_b{batch}_admitted_v1':
             validate_full_tiles_integration(folder, decision, final, batch)
+        if name == 'full_store_bundle_b8_admitted_v1':
+            if final_name != 'full_tiles_b8_admitted_v1/final_result.json':
+                raise ValueError('store bundle lacks its admitted full-tile predecessor')
+            validate_store_bundle_integration(folder, decision, final)
         # Completed raw prototypes never appear in this ordered admission list.
         final_name = name+'/final_result.json'
         pair_name = name+'/experiment.json'
@@ -248,6 +258,79 @@ def select_successors(base, batch, specification):
         minimum_gain = required_gain
         library = Path(final['library'])
     return final_name, pair_name, profile, minimum_gain
+
+
+def validate_store_bundle_integration(folder, decision, final):
+    integration = read(folder/'integration.json')
+    digest = lambda p: hashlib.sha256(Path(p).read_bytes()).hexdigest()
+    proof = read(integration['codegen_proof'])
+    fixtures = read(integration['fixture_proof'])
+    if (digest(integration['codegen_proof']) != integration['codegen_proof_sha256']
+            or digest(integration['fixture_proof']) != integration['fixture_proof_sha256']
+            or not proof['passed'] or not fixtures['passed']
+            or proof['reference'] != decision['library']
+            or proof['reference_sha256'] != digest(decision['library'])
+            or proof['generated_sha256'] != digest(proof['generated'])
+            or proof['encoded_words'] <= 0):
+        raise ValueError('store bundle lacks its exact main codegen proof')
+    profile = proof['profile']
+    if (profile.get('TILEMEGA_F3_REGISTER_BUDGET') != '2' or
+            any(profile.get(k) != '1' for k in (
+                'TILEMEGA_F3_MATRIX_STORE', 'TILEMEGA_F3_ATTENTION_VECTOR_STORE',
+                'TILEMEGA_F3_SIDE_NORM', 'TILEMEGA_F3_FULL_TILES',
+                'TILEMEGA_F3_H800_GRID', 'TILEMEGA_F3_RECOMPUTE_TASK'))):
+        raise ValueError('store bundle codegen has a different feature profile')
+    if (read(final['library']+'.plan.json')['native_forward'] !=
+            read(decision['reference']+'.plan.json')['native_forward']):
+        raise ValueError('store bundle changed the accepted coordinates')
+    rows = fixtures['rows']
+    units = decision['unit_gates']
+    if ([r['suite'] for r in rows] != ['body', 'order', 'attention']
+            or len(units) != 3 or not fixtures['source_files']):
+        raise ValueError('store bundle lacks body, ordering and attention coverage')
+    for row, unit in zip(rows, units):
+        if (not row['passed'] or row['profile'] != profile
+                or row['build_sha256'] != digest(row['build'])
+                or row['binary_sha256'] != digest(row['binary'])):
+            raise ValueError('store bundle fixture identity changed')
+        required = {f'-D{k}={v}' for k, v in profile.items()}
+        validate_component_profile(unit, required)
+        gate = read(unit)
+        processes = gate['processes']
+        if (not gate['passed'] or len(processes) != 17
+                or len({p['pid'] for p in processes}) != 17
+                or Counter(p['name'].split('-')[0] for p in processes) !=
+                Counter(unit=5, memcheck=1, initcheck=1, racecheck=5, synccheck=5)
+                or len({p['output_hash'] for p in processes}) != 1
+                or any(p['exit_code'] or read(p['guard'])['code'] for p in processes)):
+            raise ValueError('store bundle component cohort is incomplete')
+        build = read(row['build'])
+        if (build['binary'] != row['binary'] or
+                any(build['inputs'].get(r['snapshot']) != r['sha256']
+                    or digest(r['snapshot']) != r['sha256']
+                    for r in fixtures['source_files'])):
+            raise ValueError('store bundle fixture source differs from its main proof')
+        for process in processes:
+            gpu = process.get('gpu', gate['gpu'])
+            if (process['binary_sha256'] != row['binary_sha256'] or
+                    process.get('gpu_lock', f'/tmp/tilemega_gpu{gpu}.lock') !=
+                    f'/tmp/tilemega_gpu{gpu}.lock'):
+                raise ValueError('store bundle component used a different binary or lock')
+    model = read(integration['model_bit_proof'])
+    outputs = lambda p: [o['output_sha256'] for c in read(p)['cases'] for o in c['outputs']]
+    if (not model['passed'] or model['candidate'] != decision['gate']
+            or model['reference'] != decision['reference_gate']
+            or not model['hashes'] or model['hashes'] != outputs(decision['gate'])
+            or model['hashes'] != outputs(decision['reference_gate'])):
+        raise ValueError('store bundle changed the strict model output bytes')
+    ledger = read(integration['ledger_receipt'])
+    if (ledger['trace_level'] != 1 or ledger['gpu'] != 3
+            or ledger['reference_sha256'] != digest(decision['library'])
+            or ledger['ledger'] != final['ledger']
+            or len(list(csv.DictReader(Path(final['ledger']).open()))) != 63):
+        raise ValueError('store bundle lacks the exact measured binary ledger')
+    validate_timing_gpu(decision['pair'], 3, 'ABABAB')
+    validate_timing_gpu(final['measurement'], 3, 'BBB')
 
 
 def validate_full_tiles_integration(folder, decision, final, batch):
