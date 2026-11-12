@@ -163,6 +163,8 @@ def main():
                *[(f'producer recomputation B{b}', continuation/f'grid_recount_b{b}_experiment.json') for b in (2,4,16)],
                ('paired residual read B16 prototype', continuation/'residual_experiment.json'),
                ('paired residual read B16 GPU0 diagnostic', continuation/'residual_gpu0_experiment.json')]
+    probes += [('full-tile B8', continuation/'full_tiles_b8_v2/experiment.json'),
+               ('full-tile B16', continuation/'full_tiles_b16_selector_v1/experiment.json')]
     rows = []
     choices = []
     for name, path in probes:
@@ -1467,6 +1469,34 @@ def main():
                       f'passes the independent gain gate={experiment["accepted"]}. '
                       'Main integration, final measurement and an exact-binary '
                       'ledger remain separate admission requirements.']
+        admission_path = base/f'full_tiles_b{batch}_admitted_v1/admission.json'
+        if admission_path.exists():
+            admitted = read(admission_path)
+            assert admitted['status'] == 'admitted'
+            lines += ['', f'Verified full-tile B{batch} admission: GPU3 P-DNN '
+                      f'{admitted["median_ms"]:.6f}ms, p90 '
+                      f'{admitted["p90_ms"]:.6f}ms, process range '
+                      f'{admitted["process_range_ms"]:.6f}ms. Main emitted kernels '
+                      'and focused fixtures match the tested instruction words; '
+                      'disabled defaults are preserved. The exact measured binary, '
+                      'strict model gate and63-stage ledger are retained. Eight '
+                      'corrupted admission receipts are rejected in CPU checks. '
+                      'Other cells, fixed goals and original anchors are unchanged.']
+    isolated = continuation/'bert_stage_probe_constants_gpu3_v2/result.json'
+    if isolated.exists():
+        measured = read(isolated)['rows']
+        assert len(measured) == 4 and all(r['passes'] == '5/5' for r in measured)
+        values = ', '.join(f'B{r["batch"]} FFN{r["ffn"]} '
+                           f'{r["window_ns"]/1000:.3f}us' for r in measured)
+        lines += ['', 'Verified GPU3 isolated FFN diagnostics: '+values+'. '
+                  'Each fixed production shape/profile uses132 CTAs, five fresh '
+                  '20/50 processes, real TMA and unchanged epilogue arithmetic; '
+                  'generated-model shape constants are preserved and every output '
+                  'is checked against an independent constant-input FP32 reference. '
+                  'The qualified current B8 FFN1 boundary mean is24.728us versus '
+                  '12.096us isolated. The workloads differ in cache state, code '
+                  'context, bindings and stage gates; this gap is not assigned '
+                  'to one cause. No F4 constant or end-to-end result is replaced.']
     lock_rejection = continuation/'full_tiles_default_lock_rejection.json'
     if lock_rejection.exists():
         lines += ['', 'Verified full-tile ordering dispatch correction: the first '

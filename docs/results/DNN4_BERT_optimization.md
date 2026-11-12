@@ -144,6 +144,7 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | producer recomputation B16 | 3 | 1.296816 | 1.293920 | +0.223 | 2.016 | False |
 | paired residual read B16 prototype | 3 | 1.307504 | 1.310624 | -0.239 | 1.819 | False |
 | paired residual read B16 GPU0 diagnostic | 0 | 1.319680 | 1.313648 | +0.457 | 0.548 | False |
+| full-tile B16 | 3 | 1.295728 | 1.282784 | +0.999 | 0.878 | True |
 
 Verified attention experiment: QK/PV columns were distributed across eight consumer warps without changing any output accumulation order. Per-head unit5/5 and sanitizer memcheck1/1, initcheck1/1, racecheck5/5, synccheck5/5 passed; whole-model outputs also matched the control byte for byte. Neither timing gain exceeded process variability, so the original header was restored. The initial driver added an unnecessary3% cutoff, which does not affect either rejection because both measured noise thresholds exceed3%. Frozen sources and the patch remain under runs/dnn4/bert_priority.
 
@@ -395,6 +396,12 @@ Verified private full-tile B16 CPU preparation: SASS 343168→322560B, zero spil
 
 Verified full-tile B16 strict model5/5 on GPU0, with exact current-incumbent output bytes.
 
+Verified full-tile B16 GPU3 pair ratio 0.990010, noise 0.878%; passes the independent gain gate=True. Main integration, final measurement and an exact-binary ledger remain separate admission requirements.
+
+Verified full-tile B16 admission: GPU3 P-DNN 1.282384ms, p90 1.298976ms, process range 0.014208ms. Main emitted kernels and focused fixtures match the tested instruction words; disabled defaults are preserved. The exact measured binary, strict model gate and63-stage ledger are retained. Eight corrupted admission receipts are rejected in CPU checks. Other cells, fixed goals and original anchors are unchanged.
+
+Verified GPU3 isolated FFN diagnostics: B8 FFN1 12.096us, B8 FFN2 13.216us, B16 FFN1 21.376us, B16 FFN2 18.464us. Each fixed production shape/profile uses132 CTAs, five fresh 20/50 processes, real TMA and unchanged epilogue arithmetic; generated-model shape constants are preserved and every output is checked against an independent constant-input FP32 reference. The qualified current B8 FFN1 boundary mean is24.728us versus 12.096us isolated. The workloads differ in cache state, code context, bindings and stage gates; this gap is not assigned to one cause. No F4 constant or end-to-end result is replaced.
+
 Verified full-tile ordering dispatch correction: the first individual-process wrapper omitted the device environment on its scheduler subprocess, which replaced per-job lock paths with one shared default lock. All of those individual ordering results are excluded. The replacement passes the per-device environment and checks the actual lock before each CUDA child; all17 processes are recollected. Grouped body, Repeat and model gates already held the correct device locks. The earlier foreign GPU-lock and NUMA-setting diagnoses were not established.
 
 Verified full-tile B16 individual racecheck durations vary: two complete guarded processes took603s and825s with zero errors; a third reached the900s child timeout and has no valid result. Its subsequent ownership rejection does not establish foreign interference. The timed-out attempt is excluded; nine completed processes were retained and only the eight missing checks were scheduled with line-buffered output and a3600s child limit. The frozen binary, cases,200 iterations, guard and correctness thresholds are unchanged. The replacement ordering gate now completes all17 processes; performance admission remains a separate requirement.
@@ -437,7 +444,7 @@ Verified current accepted artifacts (GPU3;50/200;three-process P-DNN). B1/B2/B4/
 | 2 | 3 | 0.597536 | 0.601472 | 0.032496 | 0.5171 | 1.1555 |
 | 4 | 3 | 0.704128 | 0.708320 | 0.002160 | 0.5905 | 1.1924 |
 | 8 | 3 | 0.977680 | 0.997472 | 0.014976 | 0.7457 | 1.3111 |
-| 16 | 3 | 1.295600 | 1.313632 | 0.011296 | 1.0869 | 1.1921 |
+| 16 | 3 | 1.282384 | 1.298976 | 0.014208 | 1.0869 | 1.1799 |
 
 Verified largest three stages for each current unmet BERT cell (P-TRACE1 attribution only;segments can overlap and are not timing results). Each ledger checks the exact accepted reference binary SHA256.
 
@@ -446,6 +453,6 @@ Verified largest three stages for each current unmet BERT cell (P-TRACE1 attribu
 | 2 | s30 gemm 17.98us (main_loop=10.11,epilogue=3.74) | s5 gemm 17.70us (main_loop=10.37,epilogue=3.36) | s55 gemm 17.66us (main_loop=10.14,slot_wait=4.58) |
 | 4 | s20 gemm 19.23us (main_loop=15.90,slot_wait=5.12) | s5 gemm 19.07us (main_loop=15.71,slot_wait=6.02) | s55 gemm 18.98us (main_loop=15.26,slot_wait=6.02) |
 | 8 | s9 gemm 30.30us (main_loop=16.13,epilogue=12.67) | s49 gemm 30.30us (main_loop=15.65,epilogue=12.96) | s29 gemm 30.21us (main_loop=15.55,epilogue=13.09) |
-| 16 | s4 gemm 43.01us (main_loop=23.52,epilogue=16.03) | s9 gemm 41.89us (main_loop=24.19,epilogue=14.43) | s49 gemm 41.86us (main_loop=23.87,epilogue=14.27) |
+| 16 | s4 gemm 42.82us (main_loop=23.74,epilogue=15.81) | s44 gemm 40.35us (main_loop=22.98,epilogue=13.63) | s39 gemm 40.06us (main_loop=23.49,epilogue=13.09) |
 
 Verified fixed WG64 PP/P1/TMA candidate compiles without spill and both normal unit cohorts pass5/5, but ordering synccheck reports1024 errors and residual-chain racecheck reports21 errors. Reject before model correctness or timing; partial sanitizer cohorts are not complete gates. Frozen failures remain raw; current profiles and targets are unchanged.
