@@ -24,6 +24,7 @@
 #include <iomanip>
 #include <iostream>
 #include <stdexcept>
+#include <string>
 #include <vector>
 
 using namespace tilemega::backend;
@@ -64,6 +65,14 @@ template<class T> struct Device {
   }
 };
 __device__ __forceinline__ Tick Now(){return Sm90F3Async::GlobalTimer();}
+#ifdef DNN4_BERT_CODE_EVICT
+template<int KB> __device__ __noinline__ float Work(float);
+// Reuse the Phase P straight-line code, frozen with this probe's build.
+#include "dnn4_icache_ops.inc"
+__global__ __launch_bounds__(256,1) void EvictBertCode(float* sink) {
+  sink[blockIdx.x*256+threadIdx.x]=Work<1024>(float(threadIdx.x)*.001f);
+}
+#endif
 __global__ __launch_bounds__(384,1) void Probe(Sm90F3GemmOperands p,
     const __grid_constant__ CUtensorMap activation,
     const __grid_constant__ CUtensorMap residual,
@@ -90,9 +99,21 @@ __global__ __launch_bounds__(384,1) void Probe(Sm90F3GemmOperands p,
   }
   __syncthreads();if(threadIdx.x==0)ring.Invalidate();
 }
-int main()try {
+int main(int argc,char** argv)try {
   if(!std::getenv("TILEMEGA_RUN_NONCE") || !std::getenv("TILEMEGA_GPU_LOCK_HELD"))
     throw std::runtime_error("stage probe requires scheduler and guard");
+#ifdef DNN4_BERT_CODE_EVICT
+  if(argc!=2 || (std::string(argv[1])!="hot" && std::string(argv[1])!="l1-cold"))
+    throw std::runtime_error("usage: probe {hot|l1-cold}");
+  bool evict=std::string(argv[1])=="l1-cold";
+  Device<float> sink(kGrid*256);
+  Check(cudaFuncSetAttribute(EvictBertCode,cudaFuncAttributeMaxDynamicSharedMemorySize,Sm90F3Budget::kBudget));
+  int evict_resident=0;
+  Check(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&evict_resident,EvictBertCode,256,Sm90F3Budget::kBudget));
+  if(evict_resident!=1)throw std::runtime_error("code eviction needs one CTA per SM");
+#else
+  if(argc!=1)throw std::runtime_error("stage probe takes no arguments");
+#endif
   Device<E> activation(std::size_t(kM)*kK),weight(std::size_t(kN)*kK),
       residual(std::size_t(kM)*kN),output(std::size_t(kM)*kN);
   Device<float> vectors(3*kN),stats(std::size_t(12)*kM*2),
@@ -121,7 +142,14 @@ int main()try {
   int resident=0;
   Check(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&resident,Probe,384,Sm90F3Budget::kBudget));
   if(resident!=1)throw std::runtime_error("stage probe needs one CTA per SM");
-  auto launch=[&](){Probe<<<kGrid,384,Sm90F3Budget::kBudget>>>(p,a,r,o,stamps.data);
+  auto launch=[&](){
+#ifdef DNN4_BERT_CODE_EVICT
+    if(evict) {
+      EvictBertCode<<<kGrid,256,Sm90F3Budget::kBudget>>>(sink.data);
+      Check(cudaGetLastError());
+    }
+#endif
+    Probe<<<kGrid,384,Sm90F3Budget::kBudget>>>(p,a,r,o,stamps.data);
     Check(cudaGetLastError());Check(cudaDeviceSynchronize());};
   for(int i=0;i<20;++i)launch();
   std::vector<Tick> windows,cta_max;
@@ -153,6 +181,10 @@ int main()try {
     <<",\"tile_m\":"<<kTM<<",\"tile_n\":"<<kTN<<",\"slots\":"<<kSlots
     <<",\"tasks\":"<<G::kTasks<<",\"warmup\":20,\"samples\":50,\"window_ns\":"
     <<double(windows[24]+windows[25])/2<<",\"max_cta_ns\":"<<double(cta_max[24]+cta_max[25])/2
-    <<",\"output_elements_checked\":"<<values.size()<<"}\n";
+    <<",\"output_elements_checked\":"<<values.size()
+#ifdef DNN4_BERT_CODE_EVICT
+    <<",\"instruction_context\":\""<<(evict?"l1-cold":"hot")<<"\""
+#endif
+    <<"}\n";
   return 0;
 }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}
