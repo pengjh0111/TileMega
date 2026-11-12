@@ -1,0 +1,145 @@
+{
+  "status": "pass",
+  "evidence": "verified",
+  "audited_utc": "2026-11-12T14:38:18.963428+00:00",
+  "audit_source_sha256": "9bf8656f0e32ab700dd470eabc22546d8b9802cb7588dbf41e81896164486bdb",
+  "completed_jobs": 279,
+  "job_kinds": {
+    "ablation_qualify": 92,
+    "ablation_timing": 54,
+    "hardware": 120,
+    "graph_probe": 5,
+    "routing": 8
+  },
+  "hash_references_checked": 2428,
+  "accepted_receipts_digest": "844e7e11b6a87402b457f5a7c067bf9754cbf6650479fd166dffeae112092a6d",
+  "maximum_parallel_jobs": 4,
+  "gpu_job_wall_hours": {
+    "0": 0.17248400774266984,
+    "1": 0.1726560244957606,
+    "2": 0.16991996977064344,
+    "3": 0.44693793839878504,
+    "4": 1.5037809309694503,
+    "5": 1.5644572465949589,
+    "6": 1.4469080328941346,
+    "7": 1.3338011131683984
+  },
+  "ablation_arms": 18,
+  "correctness_fresh_processes": 90,
+  "correctness_passes": 90,
+  "hf_checks": 18,
+  "timing_fresh_processes": 54,
+  "max_timing_process_spread_fraction": 0.17500480361230172,
+  "timing_arms_with_spread_over_2pct": [
+    {
+      "model": "olmoe_1b_7b",
+      "batch": 1,
+      "variant": "hostlaunch",
+      "spread_pct": 11.024161276274558
+    },
+    {
+      "model": "olmoe_1b_7b",
+      "batch": 16,
+      "variant": "hostlaunch",
+      "spread_pct": 4.935194050562645
+    },
+    {
+      "model": "qwen3_1_7b",
+      "batch": 1,
+      "variant": "hostlaunch",
+      "spread_pct": 17.50048036123017
+    },
+    {
+      "model": "qwen3_1_7b",
+      "batch": 4,
+      "variant": "hostlaunch",
+      "spread_pct": 14.498924314914488
+    },
+    {
+      "model": "qwen3_30b_a3b_l24",
+      "batch": 1,
+      "variant": "hostlaunch",
+      "spread_pct": 16.197849072423402
+    },
+    {
+      "model": "qwen3_30b_a3b_l24",
+      "batch": 16,
+      "variant": "hostlaunch",
+      "spread_pct": 4.51936499142682
+    },
+    {
+      "model": "qwen3_30b_a3b_l24",
+      "batch": 4,
+      "variant": "hostlaunch",
+      "spread_pct": 7.878170133099329
+    }
+  ],
+  "hardware_jobs": 120,
+  "hardware_configuration_rows": 80,
+  "hardware_processes_per_configuration": 5,
+  "measured_hbm_peak_GBs": 1664.33023998,
+  "peak_gpu": 2,
+  "peak_config": "lds32KiB_x2_grid104",
+  "routing_captures": 8,
+  "routing_positions_each": 1024,
+  "resource_kernels": 138,
+  "max_MTreg": 241,
+  "max_stack_bytes": 0,
+  "max_static_shared_bytes": 0,
+  "data_files_sha256": {
+    "MX8_correctness_c550.csv": "9b0230549619411b25f72da4f463859462ce08523adbecfeb8f1eca6f3e280dd",
+    "MX8_resources_c550.csv": "643036206e1f19b32a032ab4d957d8913712e22bcf0d7c2f6f35564f4315802e",
+    "MX8_routing_reference_c550.csv": "1ada193524c49f7f6e47fa5f313d1c1b633a48e00c8db4a00d9c991bb6edc2a3",
+    "MX8_ab4c_c550.csv": "a5688f09c2c1b7fb0fde729af17cedf8e8b0fc217e4bbcd79585230ae969484a",
+    "MX8_bandwidth_efficiency_c550.csv": "b65be588151e4c9f451f827370b0b4744f71cc4d2eb7958ad53f1ecfb57eab5d",
+    "MX8_hardware_peaks_c550.csv": "c8889ec7b8aece6feae1e3218dd74c155d5102e5d0d6554989dc4bad9f600e9a"
+  },
+  "frozen_timing_sources_sha256": {
+    "docs/results/MX5_llm_performance_snapshot_c550.csv": "b5c7daf591d6353bab8eec719070f106efff9fb82692bda93ac58374ba8737ec",
+    "docs/results/MX6_final_moe_c550.csv": "f3d3bbe623b8245495e61933c3a2eb6d4d622bab1f3d0b9ad68aae8ce9613177",
+    "docs/results/MX4_baselines_llm_c550.csv": "162c984a034530b875222217afef9c3b8c937decf3b300560cdfab5c0b5f4a6e",
+    "docs/results/MX5_torchcompile_repair_c550.csv": "4f7e6636b56f81167290e16a6d294bd3720c44e7984a1b44e69fd0638f566271",
+    "docs/results/MX5_additional_llm_c550.csv": "990dc25c47aa5da22c29bdc85a92855105e359dfebae605bff3c61080c07bf8f",
+    "docs/results/MX7_tp_baselines_frozen_c550.csv": "356238b3891e42520d36ba7f8fc9fad760d497eb8bff7a4a6ca8e0e48c52c168",
+    "docs/results/MX7_tp_final_c550.csv": "124a816a21a7800cf176a230f22de5c9d5a54ec0d8b6c5ec5f0c87fa4049627c",
+    "docs/results/MX7_tp8_final_c550.csv": "9341158d333bf24d4b7a104007b4abd6ea29545224d63a6edd390a35749b7e90"
+  },
+  "artifact_ids": {
+    "/root/tilemega/runs/mx8/ablation_build/olmoe_1b_7b_B1/graph/plan.so": "8e739434d3edad6e37366f5bd9161460144278f67b71996b3ea7249b99101698",
+    "/root/tilemega/runs/mx8/ablation_build/olmoe_1b_7b_B1/hostlaunch/plan.so": "e7b5475a3807a7107c8c7726ad6daadb216bfa3a01200e11a5c3a5fd3bdc33fd",
+    "/root/tilemega/runs/mx8/ablation_build/olmoe_1b_7b_B16/hostlaunch/plan.so": "d80b2259484fb29430f4fe29cd11b0c97bc9673b9397e2aed4cb0b284c2ab7d6",
+    "/root/tilemega/runs/mx8/ablation_build/olmoe_1b_7b_B16/graph/plan.so": "a13288cf5345b4e2833a0f73aabeba2e833bd749f595ef013455877a450eda36",
+    "/root/tilemega/runs/mx8/ablation_build/olmoe_1b_7b_B4/graph/plan.so": "5fc32963855a74e620b8c2064c9d5f779f55fe7c22dd9a7d47bd066d058c4113",
+    "/root/tilemega/runs/mx8/ablation_build/olmoe_1b_7b_B4/hostlaunch/plan.so": "b0458d7f1976792f2a0daa66ef34fc478bc5844ef4a90c927ffbf30febfb652c",
+    "/root/tilemega/runs/mx8/ablation_build/qwen3_1_7b_B1/graph/plan.so": "a0f42494491962ebff42a74788d3b18c2cd2d7c1e9efcf63af4c62ef6e925d75",
+    "/root/tilemega/runs/mx8/ablation_build/qwen3_1_7b_B1/hostlaunch/plan.so": "865f5851157884ae59be8cbaccb02071ccbb54fca8795057c2e7775a0ddafb1e",
+    "/root/tilemega/runs/mx8/ablation_build/qwen3_1_7b_B16/graph/plan.so": "e4f9cb8a7f9999c2637e64c7eeae3c26d7e93d4fff01cc4139a5d1bd08d99267",
+    "/root/tilemega/runs/mx8/ablation_build/qwen3_1_7b_B16/hostlaunch/plan.so": "11de20ca470b0d2c44434a434b901d56430540b2ef7d006347e206d4c988269b",
+    "/root/tilemega/runs/mx8/ablation_build/qwen3_1_7b_B4/graph/plan.so": "68a9f02de684fb554bfd81f09b711871a56981dbe8c2efb42ff62d2e387c69bf",
+    "/root/tilemega/runs/mx8/ablation_build/qwen3_1_7b_B4/hostlaunch/plan.so": "1a9a4c1123ba55a4e1a2b166a41deec4a0478b980cc9a53e38c5f4f3118a9b89",
+    "/root/tilemega/runs/mx8/ablation_build/qwen3_30b_a3b_l24_B1/hostlaunch/plan.so": "0ba5258d9c6ffeb907f41b6cdd413c16d216fe3e616c92118da3e374f47ac470",
+    "/root/tilemega/runs/mx8/ablation_build/qwen3_30b_a3b_l24_B1/graph/plan.so": "63a5dd2fcccb19e4caf0da4351ea50da6f3882202f812fd51ed3e7cc502dfc44",
+    "/root/tilemega/runs/mx8/ablation_build/qwen3_30b_a3b_l24_B16/graph/plan.so": "b6763c37cea860270197f89c7e8d7ea7c4e24279858a409f734a9c84f09fb928",
+    "/root/tilemega/runs/mx8/ablation_build/qwen3_30b_a3b_l24_B16/hostlaunch/plan.so": "a895b2d14bea28f06d2aa681f3936f370485b2f8ca8d111ebb10d064c180b6a5",
+    "/root/tilemega/runs/mx8/ablation_build/qwen3_30b_a3b_l24_B4/graph/plan.so": "d0f83e90b1e40ddb92c7e331760c960bb30c514f88072589db0739d96a22aebf",
+    "/root/tilemega/runs/mx8/ablation_build/qwen3_30b_a3b_l24_B4/hostlaunch/plan.so": "169b1122ced6054ebfd2c76696d93342c78cd286ccbec1dfb2c704363245e6f8",
+    "/root/tilemega/runs/mx8/routing_build/olmoe_1b_7b_B16/decode/plan.so": "dedc05b4ed17b6026ddfca8410cc0709641834abfc57fe0bc5ea8cd63288c875",
+    "/root/tilemega/runs/mx8/routing_build/olmoe_1b_7b_B16/prefill/plan.so": "10d38556577fef8b0bd2ffd30cd29d8bbba1040b0cdce15578626f1eb85f0715",
+    "/root/tilemega/runs/mx8/routing_build/olmoe_1b_7b_B2/decode/plan.so": "5bc9222c79f8549ed4de530871619ccfc44b357a543c64efb9ef7a24f376cd36",
+    "/root/tilemega/runs/mx8/routing_build/olmoe_1b_7b_B2/prefill/plan.so": "c503d64ba3c18e801ff2b5a63c624e7d002e94dbb2392339dc67d89cfe3a1fd2",
+    "/root/tilemega/runs/mx8/routing_build/olmoe_1b_7b_B4/decode/plan.so": "4cc9154c657e6a0a86d1b524f385384803bb6a6e81702e4305d1f7e87c2d2d4f",
+    "/root/tilemega/runs/mx8/routing_build/olmoe_1b_7b_B4/prefill/plan.so": "560793e50ea85c43e8f01fcd90bc922646d9acde57ea03bacbe6f9eb6eebd016",
+    "/root/tilemega/runs/mx8/routing_build/olmoe_1b_7b_B8/decode/plan.so": "4e37d1d22b06b50f4e95346beac44055ff5c050428f77927ab462732729f9ccb",
+    "/root/tilemega/runs/mx8/routing_build/olmoe_1b_7b_B8/prefill/plan.so": "c04f70f5c2aa0b13f7bce046cbc70d67e6a8ef5dc602027978d64fac1e88cb7b",
+    "/root/tilemega/runs/mx8/routing_build/qwen3_30b_a3b_l24_B16/decode/plan.so": "bc5b334d3873cec7ba705d5b075e5e9ef8b1f34b60ee0f0499145c1bfbad8891",
+    "/root/tilemega/runs/mx8/routing_build/qwen3_30b_a3b_l24_B16/prefill/plan.so": "7d4e1397c597b99c20039961142ddb9df8e45053826f82372d232426dbecbc46",
+    "/root/tilemega/runs/mx8/routing_build/qwen3_30b_a3b_l24_B2/decode/plan.so": "27347e211ab1a8913a60f8f17c103210dc5aaf5fbb5ed042d312faa7fc0cd8db",
+    "/root/tilemega/runs/mx8/routing_build/qwen3_30b_a3b_l24_B2/prefill/plan.so": "0d23a589c34f9a27160dec4e503ed4501b5bafd9e9abad47d7bd17711d7f7067",
+    "/root/tilemega/runs/mx8/routing_build/qwen3_30b_a3b_l24_B4/decode/plan.so": "61c7b75b8c28d09e5c51b0c3af0384dce4329c0e48ead18a739ab05f38a06105",
+    "/root/tilemega/runs/mx8/routing_build/qwen3_30b_a3b_l24_B4/prefill/plan.so": "10f1b242a341958f944bb4df6b3e79d9ea6f9467561899530febc0a3dcb2e8ee",
+    "/root/tilemega/runs/mx8/routing_build/qwen3_30b_a3b_l24_B8/decode/plan.so": "6539fc35a401d13277dd788dc5fedb302ecea36171aca5cedfd9b2af5c268046",
+    "/root/tilemega/runs/mx8/routing_build/qwen3_30b_a3b_l24_B8/prefill/plan.so": "402d09c680906df9e9e3f43df9a142c4b480cfa32b9d268ba7321544ef94cdea"
+  },
+  "external_baselines_remeasured": false,
+  "AB4b_remeasured": false
+}
