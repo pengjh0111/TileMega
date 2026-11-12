@@ -162,7 +162,11 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | repaired catalog candidate5 B16 | 3 | 1.282736 | 1.478768 | -15.282 | 2.115 | False |
 | statistics read ahead B16 | 3 | 1.282160 | 1.286784 | -0.361 | 1.641 | False |
 | shared terminal FFN2 B16 | 3 | 1.279280 | 1.299168 | -1.555 | 2.749 | False |
+| M-first task traversal B16 | 3 | 1.285568 | 1.310208 | -1.917 | 4.374 | False |
+| FFN2 fixed split2 B4 | 3 | 0.647440 | 0.712272 | -10.014 | 2.619 | False |
 | main-loop pair B4 | 3 | 0.654688 | 0.693184 | -5.880 | 0.587 | False |
+| repaired profile3 catalog candidate2 B8 | 3 | 0.922640 | 0.933696 | -1.198 | 1.484 | False |
+| residual warp handoff B16 | 3 | 1.284976 | 1.284864 | +0.009 | 2.142 | False |
 | direct statistics B16 | 3 | 1.270656 | 1.273568 | -0.229 | 3.496 | False |
 
 Verified attention experiment: QK/PV columns were distributed across eight consumer warps without changing any output accumulation order. Per-head unit5/5 and sanitizer memcheck1/1, initcheck1/1, racecheck5/5, synccheck5/5 passed; whole-model outputs also matched the control byte for byte. Neither timing gain exceeded process variability, so the original header was restored. The initial driver added an unnecessary3% cutoff, which does not affect either rejection because both measured noise thresholds exceed3%. Frozen sources and the patch remain under runs/dnn4/bert_priority.
@@ -506,5 +510,11 @@ Verified B4 fixed two-iteration main-loop unrolling passes control5, candidate17
 Verified private terminal FFN2 sharing compiles without spill; SASS decreases 322560→298624 bytes. Default0 matches all40320 current B16 instruction words. The first attempt compiled but failed the old artifact contract; its raw failure is retained. The explicit optional-statistics contract checks identical geometry, arithmetic and the absent terminal output;13 corrupted sources are rejected. Production kernels and defaults remain unchanged.
 Verified ten cases form five normal/terminal pairs and cover exact/odd rows, TMA/reg stores, TM64 merging and split-K. Control5 and candidate17 have identical bytes; strict model5 matches the incumbent. The separate full-model pair requires at least3% gain and the measured noise threshold before admission.
 Verified GPU3 pair 1.279280→1.299168ms, noise2.749%. The code-size reduction provides no end-to-end gain; reject. Private headers and verifier are restored; raw evidence is retained.
+
+Verified residual warp handoff passes control5, body17, model5 and the complete three-stage ordering cohort17. The ordering cohort uses GPU0/3 and retains each process card and guard receipt. GPU3 pair ratio0.999913, noise2.142%; no significant gain. The private header is restored; the current artifact is retained.
+
+Verified fixed M-first task traversal passes the CPU mapping proof, control5/body17 and strict model5 with unchanged output bytes. GPU3 pair ratio1.019167, noise4.374%; reject. Private backend and codegen changes are restored; no P-DNN or admission follows.
+
+Verified fixed B4 FFN2 TM128/TN64/TK128/S2/Slots4 register-store candidate passes eight-case control5/body17 and strict model5 with unchanged FP32 thresholds and deterministic candidate bytes. Its S1-to-S2 reassociation permits differences from incumbent bytes. GPU3 pair ratio1.100136, noise2.619%; reject. P-TRACE1 FFN2 main-loop CTA-maxima sums decrease 171.840→123.968us, with 20.896us of split-K maxima. FFN2 epilogue maxima increase 20.704→37.408us. The three largest group-window increases are FFN1, QKV and projection; these trace maxima are nonadditive diagnostics. Current coordinates are retained.
 
 Verified fixed WG64 PP/P1/TMA candidate compiles without spill and both normal unit cohorts pass5/5, but ordering synccheck reports1024 errors and residual-chain racecheck reports21 errors. Reject before model correctness or timing; partial sanitizer cohorts are not complete gates. Frozen failures remain raw; current profiles and targets are unchanged.

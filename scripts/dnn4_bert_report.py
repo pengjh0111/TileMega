@@ -182,6 +182,7 @@ def main():
                ('statistics read ahead B16', continuation/'stats_ahead_b16_v1/experiment.json'),
                ('shared terminal FFN2 B16', continuation/'optional_stats_b16_v2/experiment.json'),
                ('M-first task traversal B16', continuation/'mfirst_b16_v1/experiment.json'),
+               ('FFN2 fixed split2 B4', continuation/'ffn2_split2_b4_v1/experiment.json'),
                ('main-loop pair B4', continuation/'loop_pair_b4_v1/experiment.json'),
                ('repaired profile3 catalog candidate2 B8', continuation/'candidate2_profile3_b8_v1/experiment.json'),
                ('residual warp handoff B16', continuation/'residual_warp_b16_v1/experiment.json'),
@@ -199,7 +200,7 @@ def main():
                     'repaired catalog candidate5 B16', 'statistics read ahead B16',
                     'main-loop pair B4', 'repaired profile3 catalog candidate2 B8',
                     'residual warp handoff B16', 'shared terminal FFN2 B16',
-                    'M-first task traversal B16'):
+                    'M-first task traversal B16', 'FFN2 fixed split2 B4'):
             for unit_path in experiment['unit_gates']:
                 unit = read(Path(unit_path))
                 processes = unit['processes']
@@ -210,14 +211,23 @@ def main():
                         any(p['exit_code'] or read(Path(p['guard']))['code']
                             for p in processes)):
                     raise ValueError('current-profile follow-up lacks its complete component gate')
-            if not read(path.parent/'model_bit_proof.json')['passed']:
+            if name == 'FFN2 fixed split2 B4':
+                # A split change reassociates FP32 additions; P-CORR still
+                # requires the same reference threshold and deterministic bytes.
+                model = read(path.parent/'model/result.json')
+                preparation = read(Path(experiment['preparation']))
+                if (not model['passed'] or model['passes'] != '5/5' or
+                        not read(Path(preparation['control_proof']))['passed']):
+                    raise ValueError('split-K follow-up lacks its model or control gate')
+            elif not read(path.parent/'model_bit_proof.json')['passed']:
                 raise ValueError('current-profile follow-up lacks incumbent output equivalence')
             if name in ('pipeline reductions B2', 'full-store bounds B8',
                         'full-profile cyclic B4', 'GELU quartet B16', 'relative descriptors B16',
                         'two-row statistics plus recompute B16', 'repaired catalog candidate5 B16',
                         'statistics read ahead B16', 'main-loop pair B4',
                         'repaired profile3 catalog candidate2 B8', 'residual warp handoff B16',
-                        'shared terminal FFN2 B16', 'M-first task traversal B16'):
+                        'shared terminal FFN2 B16', 'M-first task traversal B16',
+                        'FFN2 fixed split2 B4'):
                 bit = read(path.parent/'unit_bit_proof.json')
                 control = read(Path(bit['control']))
                 candidate = read(Path(bit['candidate']))
@@ -2011,6 +2021,45 @@ def main():
                          f'{pair["candidate_ms"]:.6f}ms, noise{100*pair["threshold"]:.3f}%. '
                          'The code-size reduction provides no end-to-end gain; reject. '
                          'Private headers and verifier are restored; raw evidence is retained.')
+    residual = continuation/'residual_warp_b16_v1/experiment.json'
+    if residual.exists():
+        trial = read(residual)
+        order = read(residual.parent/'order/result.json')
+        assert order['passed'] and len(order['processes']) == 17
+        lines += ['', 'Verified residual warp handoff passes control5, body17, model5 and '
+                  'the complete three-stage ordering cohort17. The ordering cohort uses GPU0/3 '
+                  'and retains each process card and guard receipt. '
+                  f'GPU3 pair ratio{trial["pair"]["ratio"]:.6f}, '
+                  f'noise{100*trial["pair"]["threshold"]:.3f}%; no significant gain. '
+                  'The private header is restored; the current artifact is retained.']
+    traversal = continuation/'mfirst_b16_v1/experiment.json'
+    if traversal.exists():
+        trial = read(traversal)
+        lines += ['', 'Verified fixed M-first task traversal passes the CPU mapping proof, '
+                  'control5/body17 and strict model5 with unchanged output bytes. '
+                  f'GPU3 pair ratio{trial["pair"]["ratio"]:.6f}, '
+                  f'noise{100*trial["pair"]["threshold"]:.3f}%; reject. '
+                  'Private backend and codegen changes are restored; no P-DNN or admission follows.']
+    split_attribution = continuation/'ffn2_split2_b4_v1/attribution.json'
+    if split_attribution.exists():
+        trial = read(split_attribution.parent/'experiment.json')
+        groups = {r['group']: r for r in read(split_attribution)['rows']}
+        ffn2 = groups['ffn2']
+        lines += ['', 'Verified fixed B4 FFN2 TM128/TN64/TK128/S2/Slots4 register-store '
+                  'candidate passes eight-case control5/body17 and strict model5 with unchanged '
+                  'FP32 thresholds and deterministic candidate bytes. Its S1-to-S2 reassociation '
+                  'permits differences from incumbent bytes. '
+                  f'GPU3 pair ratio{trial["pair"]["ratio"]:.6f}, '
+                  f'noise{100*trial["pair"]["threshold"]:.3f}%; reject. '
+                  'P-TRACE1 FFN2 main-loop CTA-maxima sums decrease '
+                  f'{ffn2["control"]["main_loop_max_cta_ns"]/1000:.3f}→'
+                  f'{ffn2["candidate"]["main_loop_max_cta_ns"]/1000:.3f}us, '
+                  f'with {ffn2["candidate"]["splitk_max_cta_ns"]/1000:.3f}us of split-K maxima. '
+                  'FFN2 epilogue maxima increase '
+                  f'{ffn2["control"]["epilogue_max_cta_ns"]/1000:.3f}→'
+                  f'{ffn2["candidate"]["epilogue_max_cta_ns"]/1000:.3f}us. '
+                  'The three largest group-window increases are FFN1, QKV and projection; '
+                  'these trace maxima are nonadditive diagnostics. Current coordinates are retained.']
     if failed_pp.exists() and read(failed_pp).get('status') == 'component_rejected':
         lines.append('\nVerified fixed WG64 PP/P1/TMA candidate compiles without spill and both normal '
                      'unit cohorts pass5/5, but ordering synccheck reports1024 errors and residual-chain '
