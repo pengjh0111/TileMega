@@ -398,7 +398,7 @@ def validate_whole_program_selection(folder, library, reference):
         median = statistics.median(values)
         if not math.isfinite(median) or median <= 0:
             raise ValueError('whole-program selection has invalid timings')
-        ranked.append(dict(arm=arm, median_ms=median, library=spec['library'],
+        ranked.append(dict(arm=arm, median_ms=median, library=str(Path(spec['library']).resolve()),
             process_range_ratio=(max(values)-min(values))/median,
             tune_priority=spec.get('tune_priority', index)))
     ranked.sort(key=lambda r: r['median_ms'])

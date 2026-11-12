@@ -743,6 +743,15 @@ class WholeProgramAdmissionTest(unittest.TestCase):
     def test_complete_whole_program_selection_without_trace_assembly(self):
         validate_whole_program_selection(*self.fixture())
 
+    def test_worktree_library_alias_matches_measured_canonical_path(self):
+        folder, library, reference = self.fixture()
+        alias = self.base/'worktree'
+        alias.symlink_to(self.base, target_is_directory=True)
+        path = folder/'candidate_spec.json';specs = json.loads(path.read_text())
+        specs[0]['library'] = str(alias/Path(reference).name)
+        self.save(str(path), specs)
+        validate_whole_program_selection(folder, library, reference)
+
     def test_assembled_or_changed_coordinates_are_rejected(self):
         folder, library, reference = self.fixture()
         path = folder/'candidate_spec.json';specs = json.loads(path.read_text())
