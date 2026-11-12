@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT/'scripts'))
 from dnn4_bert_current import (select_successors, validate_pp_coordinates,
     validate_boundary_selection, validate_intermittent, validate_timing_gpu,
     validate_followup_allocation, validate_whole_program_selection,
-    validate_fixed_grid_integration)
+    validate_fixed_grid_integration, validate_recompute_defaults)
 
 
 class AdmissionTest(unittest.TestCase):
@@ -866,6 +866,55 @@ class FixedGridIntegrationTest(unittest.TestCase):
         self.save('candidate_gate', dict(cases=[dict(outputs=[dict(output_sha256='different')])]))
         with self.assertRaisesRegex(ValueError, 'changed model output'):
             self.check()
+
+
+class RecomputeDefaultsTest(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.base = Path(temporary.name)
+        self.paths = []
+        for batch, flag in [(1, 0), (2, 0), (4, 0), (8, 0), (16, 0), (8, 1)]:
+            binary = self.base/f'b{batch}_{flag}'
+            binary.write_bytes(b'qualified instructions')
+            digest = hashlib.sha256(binary.read_bytes()).hexdigest()
+            path = binary.with_suffix('.json')
+            path.write_text(json.dumps(dict(batch=batch, flag=flag, passed=True, words=2,
+                reference=str(binary), reference_sha256=digest,
+                library=str(binary), library_sha256=digest)))
+            self.paths.append(str(path))
+        self.save()
+
+    def save(self):
+        (self.base/'integration.json').write_text(json.dumps(dict(default_proofs=self.paths)))
+
+    def test_all_defaults_and_enabled_path(self):
+        validate_recompute_defaults(self.base)
+
+    def test_missing_batch_is_rejected(self):
+        self.paths.pop(1)
+        self.save()
+        with self.assertRaisesRegex(ValueError, 'lacks all default'):
+            validate_recompute_defaults(self.base)
+
+    def test_duplicate_proof_is_rejected(self):
+        self.paths[1] = self.paths[0]
+        self.save()
+        with self.assertRaisesRegex(ValueError, 'lacks all default'):
+            validate_recompute_defaults(self.base)
+
+    def test_rebuilt_binary_is_rejected(self):
+        (self.base/'b2_0').write_bytes(b'changed allocation')
+        with self.assertRaisesRegex(ValueError, 'stale artifact'):
+            validate_recompute_defaults(self.base)
+
+    def test_failed_proof_is_rejected(self):
+        path = Path(self.paths[-1])
+        proof = json.loads(path.read_text())
+        proof['passed'] = False
+        path.write_text(json.dumps(proof))
+        with self.assertRaisesRegex(ValueError, 'stale artifact'):
+            validate_recompute_defaults(self.base)
 
 
 if __name__ == '__main__':
