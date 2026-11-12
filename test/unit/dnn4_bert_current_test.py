@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Reject incomplete or stale BERT follow-up admissions without GPU execution."""
 import copy
+import hashlib
 import json
 from pathlib import Path
 import sys
@@ -11,7 +12,8 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT/'scripts'))
 from dnn4_bert_current import (select_successors, validate_pp_coordinates,
     validate_boundary_selection, validate_intermittent, validate_timing_gpu,
-    validate_followup_allocation, validate_whole_program_selection)
+    validate_followup_allocation, validate_whole_program_selection,
+    validate_fixed_grid_integration)
 
 
 class AdmissionTest(unittest.TestCase):
@@ -790,6 +792,80 @@ class WholeProgramAdmissionTest(unittest.TestCase):
         measured['library_path'] = reference;self.save(str(path), measured)
         with self.assertRaisesRegex(ValueError, 'checked artifact'):
             validate_whole_program_selection(folder, library, reference)
+
+
+class FixedGridIntegrationTest(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.base = Path(temporary.name)
+        self.digest = lambda p: hashlib.sha256(Path(p).read_bytes()).hexdigest()
+        for name in ('control', 'candidate', 'main0', 'main1', 'body', 'body_main',
+                     'attention', 'attention_main', 'host'):
+            (self.base/name).write_bytes(name.encode())
+        self.decision = dict(reference=str(self.base/'control'), library=str(self.base/'candidate'),
+            gate=self.save('candidate_gate', dict(cases=[dict(outputs=[dict(output_sha256='same')])])),
+            reference_gate=self.save('reference_gate', dict(cases=[dict(outputs=[dict(output_sha256='same')])])))
+        proofs = []
+        for flag, name in enumerate(('control', 'candidate')):
+            proofs.append(dict(flag=flag, passed=True, words=2, reference=str(self.base/name),
+                reference_sha256=self.digest(self.base/name), library=str(self.base/f'main{flag}'),
+                library_sha256=self.digest(self.base/f'main{flag}')))
+        self.main = dict(passed=True, proofs=proofs)
+        self.units = []
+        rows = []
+        for suite in ('body', 'attention'):
+            digest = self.digest(self.base/suite)
+            self.units.append(self.save(suite+'_gate', dict(processes=[dict(binary_sha256=digest)])))
+            rows.append(dict(suite=suite, passed=True, words=2, reference_binary=str(self.base/suite),
+                reference_sha256=digest, main_binary=str(self.base/(suite+'_main')),
+                main_sha256=self.digest(self.base/(suite+'_main'))))
+        self.host = dict(passed=True, passes=[dict(returncode=0)]*5, gpu_executed=False,
+            binary=str(self.base/'host'), binary_sha256=self.digest(self.base/'host'))
+        self.save('integration', dict(main_proof=self.save('main', self.main),
+            unit_proof=self.save('units', dict(passed=True, rows=rows)),
+            host_guard=self.save('host_check', self.host),
+            runtime_header_sha256=self.digest(ROOT/'include/tilemega/Codegen/tasks/Sm90F3Runtime.cuh'),
+            model_bit_proof=self.save('model_bits', dict(passed=True,
+                candidate_gate=self.decision['gate'], reference_gate=self.decision['reference_gate'], hashes=['same']))))
+
+    def save(self, name, value):
+        path = self.base/(name+'.json')
+        path.write_text(json.dumps(value))
+        return str(path)
+
+    def check(self):
+        validate_fixed_grid_integration(self.base, self.decision, self.units)
+
+    def test_complete_integration(self):
+        self.check()
+
+    def test_substituted_candidate_is_rejected(self):
+        (self.base/'candidate').write_bytes(b'rebuilt without qualification')
+        with self.assertRaisesRegex(ValueError, 'stale artifact'):
+            self.check()
+
+    def test_missing_default_proof_is_rejected(self):
+        self.main['proofs'] = self.main['proofs'][1:]
+        self.save('main', self.main)
+        with self.assertRaisesRegex(ValueError, 'instruction proof is incomplete'):
+            self.check()
+
+    def test_incomplete_host_gate_is_rejected(self):
+        self.host['passes'].pop()
+        self.save('host_check', self.host)
+        with self.assertRaisesRegex(ValueError, 'host rejection gate'):
+            self.check()
+
+    def test_changed_unit_binary_is_rejected(self):
+        (self.base/'body_main').write_bytes(b'untested body')
+        with self.assertRaisesRegex(ValueError, 'fixture proof differs'):
+            self.check()
+
+    def test_changed_output_bits_are_rejected(self):
+        self.save('candidate_gate', dict(cases=[dict(outputs=[dict(output_sha256='different')])]))
+        with self.assertRaisesRegex(ValueError, 'changed model output'):
+            self.check()
 
 
 if __name__ == '__main__':

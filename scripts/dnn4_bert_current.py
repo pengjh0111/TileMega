@@ -4,6 +4,7 @@ import argparse
 import copy
 from collections import Counter
 import csv
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -42,6 +43,8 @@ def select_successors(base, batch, specification):
     if batch in (8, 16):
         names.append((f'attention_store_b{batch}_v1',
                       {'TILEMEGA_F3_ATTENTION_VECTOR_STORE': '1'}))
+    if batch == 16:
+        names.append(('fixed_grid_b16_admitted_v1', {'TILEMEGA_F3_H800_GRID': '1'}))
     if batch in (4, 8, 16):
         names.append((f'attention_bundle_b{batch}_v1',
                       {'TILEMEGA_F3_ATTENTION_VECTOR_STORE': '1',
@@ -96,6 +99,7 @@ def select_successors(base, batch, specification):
                   4 if name == 'ppnorm_ffn1_b16_v1' else
                   6 if name == 'pp64_ffn1_b16_v1' else 0) +
                  int(candidate_profile.get('TILEMEGA_F3_ATTENTION_VECTOR_STORE') == '1') +
+                 (2 if name == 'fixed_grid_b16_admitted_v1' else 0) +
                  int(name.startswith('attention_bundle_')) +
                  (2 if name == 'cyclic_phase72_b4_v1' else 0) +
                  int(name == 'ffn1_tma128_phase72_b4_admitted_v1') +
@@ -148,10 +152,24 @@ def select_successors(base, batch, specification):
         if name == 'pp64_ffn1_b16_v1':
             validate_pp_coordinates(final['library'], decision['reference'], wg_rows=64)
         if (name.startswith(('attention_store_', 'attention_bundle_')) or
-                name == 'cyclic_phase72_b4_v1'):
+                name in ('cyclic_phase72_b4_v1', 'fixed_grid_b16_admitted_v1')):
             if (read(final['library']+'.plan.json')['native_forward'] !=
                     read(decision['reference']+'.plan.json')['native_forward']):
                 raise ValueError('follow-up changed the current coordinates')
+        if name == 'fixed_grid_b16_admitted_v1':
+            if final_name != 'attention_store_b16_v1/final_result.json':
+                raise ValueError('fixed grid lacks its accepted predecessor')
+            predecessor = read(base/pair_name)
+            if units[:3] != predecessor['unit_gates']:
+                raise ValueError('fixed grid dropped inherited component gates')
+            for unit in units[3:]:
+                validate_component_profile(unit, {
+                    '-DTILEMEGA_F3_H800_GRID=1', '-DTILEMEGA_F3_REGISTER_BUDGET=3',
+                    '-DTILEMEGA_F3_SIDE_NORM=1', '-DTILEMEGA_F3_MATRIX_STORE=1',
+                    '-DTILEMEGA_F3_ATTENTION_VECTOR_STORE=1'})
+            validate_fixed_grid_integration(folder, decision, units[3:])
+            validate_timing_gpu(pair, 3, 'ABABAB')
+            validate_timing_gpu(final['measurement'], 3, 'BBB')
         if name == 'ffn1_tma128_phase72_b4_admitted_v1':
             validate_ffn1_component_profile(units[0], 128)
             validate_ffn1_tma_coordinates(final['library'], decision['reference'], 128, 5)
@@ -200,6 +218,46 @@ def select_successors(base, batch, specification):
         minimum_gain = required_gain
         library = Path(final['library'])
     return final_name, pair_name, profile, minimum_gain
+
+
+def validate_fixed_grid_integration(folder, decision, units):
+    integration = read(folder/'integration.json')
+    main = read(integration['main_proof'])
+    if not main['passed'] or [p['flag'] for p in main['proofs']] != [0, 1]:
+        raise ValueError('fixed grid main instruction proof is incomplete')
+    digest = lambda p: hashlib.sha256(Path(p).read_bytes()).hexdigest()
+    for proof, reference in zip(main['proofs'], [decision['reference'], decision['library']]):
+        if (not proof['passed'] or proof['words'] <= 0
+                or Path(proof['reference']).resolve() != Path(reference).resolve()
+                or proof['reference_sha256'] != digest(reference)
+                or proof['library_sha256'] != digest(proof['library'])):
+            raise ValueError('fixed grid instruction proof names a stale artifact')
+    fixture = read(integration['unit_proof'])
+    if not fixture['passed'] or [r['suite'] for r in fixture['rows']] != ['body', 'attention']:
+        raise ValueError('fixed grid repository fixture proof is incomplete')
+    for row, unit in zip(fixture['rows'], units):
+        gate = read(unit)
+        if (not row['passed'] or row['words'] <= 0
+                or row['reference_sha256'] != digest(row['reference_binary'])
+                or row['main_sha256'] != digest(row['main_binary'])
+                or any(p['binary_sha256'] != row['reference_sha256'] for p in gate['processes'])):
+            raise ValueError('fixed grid fixture proof differs from its CUDA gate')
+    host = read(integration['host_guard'])
+    if (not host['passed'] or len(host['passes']) != 5
+            or any(p['returncode'] for p in host['passes'])
+            or host['gpu_executed'] or host['binary_sha256'] != digest(host['binary'])):
+        raise ValueError('fixed grid host rejection gate is incomplete')
+    if integration['runtime_header_sha256'] != digest(
+            ROOT/'include/tilemega/Codegen/tasks/Sm90F3Runtime.cuh'):
+        raise ValueError('fixed grid runtime differs from the checked host guard')
+    model = read(integration['model_bit_proof'])
+    if (not model['passed'] or model['candidate_gate'] != decision['gate']
+            or model['reference_gate'] != decision['reference_gate']):
+        raise ValueError('fixed grid model byte proof names a stale gate')
+    outputs = lambda p: [o['output_sha256'] for c in read(p)['cases'] for o in c['outputs']]
+    if (not model['hashes'] or model['hashes'] != outputs(decision['gate'])
+            or outputs(decision['gate']) != outputs(decision['reference_gate'])):
+        raise ValueError('fixed grid changed model output bytes')
 
 
 def validate_intermittent(path, count):
@@ -606,7 +664,7 @@ def main():
                 assert defines.get(key) == value
                 if key in ('TILEMEGA_F3_MATRIX_STORE', 'TILEMEGA_F3_WGMMA_QK',
                            'TILEMEGA_F3_WGMMA_PV', 'TILEMEGA_F3_PP_SIDE_NORM',
-                           'TILEMEGA_F3_ATTENTION_VECTOR_STORE'):
+                           'TILEMEGA_F3_ATTENTION_VECTOR_STORE', 'TILEMEGA_F3_H800_GRID'):
                     assert ('std::getenv("'+key+'")') in (
                         ROOT/'lib/Codegen/ForwardF3Codegen.cpp').read_text()
         if profile.get('TILEMEGA_F3_REPEAT') == '1':
