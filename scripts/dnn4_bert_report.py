@@ -2003,6 +2003,14 @@ def main():
                          'TM64 merging and split-K. Control5 and candidate17 have identical bytes; '
                          'strict model5 matches the incumbent. The separate full-model pair requires '
                          'at least3% gain and the measured noise threshold before admission.')
+        comparison = continuation/'optional_stats_b16_v2/experiment.json'
+        if comparison.exists():
+            experiment = read(comparison)
+            pair = experiment['pair']
+            lines.append(f'Verified GPU3 pair {pair["reference_ms"]:.6f}→'
+                         f'{pair["candidate_ms"]:.6f}ms, noise{100*pair["threshold"]:.3f}%. '
+                         'The code-size reduction provides no end-to-end gain; reject. '
+                         'Private headers and verifier are restored; raw evidence is retained.')
     if failed_pp.exists() and read(failed_pp).get('status') == 'component_rejected':
         lines.append('\nVerified fixed WG64 PP/P1/TMA candidate compiles without spill and both normal '
                      'unit cohorts pass5/5, but ordering synccheck reports1024 errors and residual-chain '

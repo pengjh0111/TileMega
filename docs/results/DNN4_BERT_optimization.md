@@ -161,6 +161,7 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | two-row statistics plus recompute B16 | 3 | 1.281712 | 1.268032 | +1.067 | 1.592 | False |
 | repaired catalog candidate5 B16 | 3 | 1.282736 | 1.478768 | -15.282 | 2.115 | False |
 | statistics read ahead B16 | 3 | 1.282160 | 1.286784 | -0.361 | 1.641 | False |
+| shared terminal FFN2 B16 | 3 | 1.279280 | 1.299168 | -1.555 | 2.749 | False |
 | main-loop pair B4 | 3 | 0.654688 | 0.693184 | -5.880 | 0.587 | False |
 | direct statistics B16 | 3 | 1.270656 | 1.273568 | -0.229 | 3.496 | False |
 
@@ -504,5 +505,6 @@ Verified B4 fixed two-iteration main-loop unrolling passes control5, candidate17
 
 Verified private terminal FFN2 sharing compiles without spill; SASS decreases 322560→298624 bytes. Default0 matches all40320 current B16 instruction words. The first attempt compiled but failed the old artifact contract; its raw failure is retained. The explicit optional-statistics contract checks identical geometry, arithmetic and the absent terminal output;13 corrupted sources are rejected. Production kernels and defaults remain unchanged.
 Verified ten cases form five normal/terminal pairs and cover exact/odd rows, TMA/reg stores, TM64 merging and split-K. Control5 and candidate17 have identical bytes; strict model5 matches the incumbent. The separate full-model pair requires at least3% gain and the measured noise threshold before admission.
+Verified GPU3 pair 1.279280→1.299168ms, noise2.749%. The code-size reduction provides no end-to-end gain; reject. Private headers and verifier are restored; raw evidence is retained.
 
 Verified fixed WG64 PP/P1/TMA candidate compiles without spill and both normal unit cohorts pass5/5, but ordering synccheck reports1024 errors and residual-chain racecheck reports21 errors. Reject before model correctness or timing; partial sanitizer cohorts are not complete gates. Frozen failures remain raw; current profiles and targets are unchanged.
