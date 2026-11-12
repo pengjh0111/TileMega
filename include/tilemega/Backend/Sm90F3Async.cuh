@@ -16,6 +16,13 @@
 #error "TILEMEGA_F3_H800_GRID must be 0 or 1"
 #endif
 
+#ifndef TILEMEGA_F3_RECOMPUTE_TASK
+#define TILEMEGA_F3_RECOMPUTE_TASK 0
+#endif
+#if TILEMEGA_F3_RECOMPUTE_TASK != 0 && TILEMEGA_F3_RECOMPUTE_TASK != 1
+#error "TILEMEGA_F3_RECOMPUTE_TASK must be 0 or 1"
+#endif
+
 namespace tilemega::backend {
 
 struct Sm90F3Async {
@@ -28,6 +35,19 @@ struct Sm90F3Async {
     return 132;
 #else
     return gridDim.x;
+#endif
+  }
+
+  // B8's fixed-grid producer hoists shape-specific row/side offsets across
+  // the repeated body and spills20B at both72/208 and72/216. Recompute the
+  // CTA index at each use to bound those address lifetimes.
+  __device__ static __forceinline__ unsigned BlockIndex() {
+#if TILEMEGA_F3_RECOMPUTE_TASK
+    unsigned value;
+    asm volatile("mov.u32 %0, %%ctaid.x;":"=r"(value));
+    return value;
+#else
+    return blockIdx.x;
 #endif
   }
 
