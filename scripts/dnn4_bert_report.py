@@ -167,6 +167,8 @@ def main():
                ('full-tile B16', continuation/'full_tiles_b16_selector_v1/experiment.json')]
     probes += [(f'full-tile B{b}', continuation/f'full_tiles_b{b}_v1/experiment.json')
                for b in (2, 4)]
+    probes += [('full-tile pipeline B2', continuation/'pipeline_full_b2_v1/experiment.json'),
+               ('full-bounds prefetch1 B8', continuation/'full_tiles_prefetch1_b8_v1/experiment.json')]
     rows = []
     choices = []
     for name, path in probes:
@@ -243,7 +245,7 @@ def main():
             if (not qualification['passed'] or abs(qualification['relative_difference']) > .05
                     or len(selection['eligible_variants']) < 4):
                 raise ValueError('cached-boundary selection requires qualified traces and four variants')
-        if name == 'Current prefetch1 B16':
+        if name in ('Current prefetch1 B16', 'full-bounds prefetch1 B8'):
             preparation = read(Path(experiment['preparation']))
             if not preparation['source_differential']['passed']:
                 raise ValueError('prefetch comparison requires its one-define source proof')
