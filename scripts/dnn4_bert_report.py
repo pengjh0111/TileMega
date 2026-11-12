@@ -180,6 +180,8 @@ def main():
                ('two-row statistics plus recompute B16', continuation/'side_rows_b16_recompute_v3/experiment.json'),
                ('repaired catalog candidate5 B16', continuation/'candidate5_recompute_b16_v2/experiment.json'),
                ('statistics read ahead B16', continuation/'stats_ahead_b16_v1/experiment.json'),
+               ('shared terminal FFN2 B16', continuation/'optional_stats_b16_v2/experiment.json'),
+               ('M-first task traversal B16', continuation/'mfirst_b16_v1/experiment.json'),
                ('main-loop pair B4', continuation/'loop_pair_b4_v1/experiment.json'),
                ('repaired profile3 catalog candidate2 B8', continuation/'candidate2_profile3_b8_v1/experiment.json'),
                ('residual warp handoff B16', continuation/'residual_warp_b16_v1/experiment.json'),
@@ -196,7 +198,8 @@ def main():
                     'relative descriptors B16', 'two-row statistics plus recompute B16',
                     'repaired catalog candidate5 B16', 'statistics read ahead B16',
                     'main-loop pair B4', 'repaired profile3 catalog candidate2 B8',
-                    'residual warp handoff B16'):
+                    'residual warp handoff B16', 'shared terminal FFN2 B16',
+                    'M-first task traversal B16'):
             for unit_path in experiment['unit_gates']:
                 unit = read(Path(unit_path))
                 processes = unit['processes']
@@ -213,7 +216,8 @@ def main():
                         'full-profile cyclic B4', 'GELU quartet B16', 'relative descriptors B16',
                         'two-row statistics plus recompute B16', 'repaired catalog candidate5 B16',
                         'statistics read ahead B16', 'main-loop pair B4',
-                        'repaired profile3 catalog candidate2 B8', 'residual warp handoff B16'):
+                        'repaired profile3 catalog candidate2 B8', 'residual warp handoff B16',
+                        'shared terminal FFN2 B16', 'M-first task traversal B16'):
                 bit = read(path.parent/'unit_bit_proof.json')
                 control = read(Path(bit['control']))
                 candidate = read(Path(bit['candidate']))
@@ -232,7 +236,8 @@ def main():
             if name in ('direct statistics B16', 'full-store bounds B8', 'GELU quartet B16',
                         'relative descriptors B16', 'two-row statistics plus recompute B16',
                         'statistics read ahead B16', 'main-loop pair B4',
-                        'residual warp handoff B16'):
+                        'residual warp handoff B16', 'shared terminal FFN2 B16',
+                        'M-first task traversal B16'):
                 preparation = read(Path(experiment['preparation']))
                 if (not read(Path(preparation['default_proof']))['passed'] or
                         not read(path.parent/'unit_bit_proof.json')['passed']):
@@ -450,7 +455,8 @@ def main():
                 threshold_pct=100*pair['threshold'],
                 accepted=(pair['gpu'] != 0 or gpu0_continuation) and pair['ratio']<1-max(pair['threshold'],
                     experiment.get('minimum_gain', 0),
-                    .03 if name.startswith('Repeat') or (name.startswith('phase72') and experiment['batch'] in (8, 16)) else 0), scope=scope,
+                    .03 if name.startswith('Repeat') or name=='shared terminal FFN2 B16' or
+                        (name.startswith('phase72') and experiment['batch'] in (8, 16)) else 0), scope=scope,
                 correctness='P-CORR5/5 with cross-process output byte hashes',
                 artifact_id=identity['artifact_id'], binary_sha256=identity['binary_sha256'],
                 source_digest=identity['source']['source_digest'],
@@ -1976,6 +1982,27 @@ def main():
                   f'P-TRACE1 GEMM main-loop CTA-maxima sums increase {before:.3f}→{after:.3f}us; '
                   'the intended segment did not improve. These maxima are nonadditive diagnostic '
                   'attribution. The private header is restored.']
+    optional_prep = base/'optional_stats_b16_v2/result.json'
+    if optional_prep.exists() and read(optional_prep).get('status') == 'prepared':
+        preparation = read(optional_prep)
+        sizes = [r['model']['sass_bytes'] for r in preparation['rows']]
+        lines += ['', 'Verified private terminal FFN2 sharing compiles without spill; '
+                  f'SASS decreases {sizes[0]}→{sizes[1]} bytes. '
+                  'Default0 matches all40320 current B16 instruction words. The first attempt '
+                  'compiled but failed the old artifact contract; its raw failure is retained. '
+                  'The explicit optional-statistics contract checks identical geometry, arithmetic '
+                  'and the absent terminal output;13 corrupted sources are rejected. '
+                  'Production kernels and defaults remain unchanged.']
+        model = continuation/'optional_stats_b16_v2/model/result.json'
+        body = continuation/'optional_stats_b16_v2/body/result.json'
+        if model.exists() and body.exists():
+            assert read(model)['passed'] and read(model)['passes']=='5/5'
+            assert read(body)['passed'] and len(read(body)['processes'])==17
+            assert read(continuation/'optional_stats_b16_v2/model_bit_proof.json')['passed']
+            lines.append('Verified ten cases form five normal/terminal pairs and cover exact/odd rows, TMA/reg stores, '
+                         'TM64 merging and split-K. Control5 and candidate17 have identical bytes; '
+                         'strict model5 matches the incumbent. The separate full-model pair requires '
+                         'at least3% gain and the measured noise threshold before admission.')
     if failed_pp.exists() and read(failed_pp).get('status') == 'component_rejected':
         lines.append('\nVerified fixed WG64 PP/P1/TMA candidate compiles without spill and both normal '
                      'unit cohorts pass5/5, but ordering synccheck reports1024 errors and residual-chain '
