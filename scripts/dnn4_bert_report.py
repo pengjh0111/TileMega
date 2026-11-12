@@ -179,6 +179,10 @@ def main():
                ('relative descriptors B16', continuation/'descriptor_base_b16_v2/experiment.json'),
                ('two-row statistics plus recompute B16', continuation/'side_rows_b16_recompute_v3/experiment.json'),
                ('repaired catalog candidate5 B16', continuation/'candidate5_recompute_b16_v2/experiment.json'),
+               ('statistics read ahead B16', continuation/'stats_ahead_b16_v1/experiment.json'),
+               ('main-loop pair B4', continuation/'loop_pair_b4_v1/experiment.json'),
+               ('repaired profile3 catalog candidate2 B8', continuation/'candidate2_profile3_b8_v1/experiment.json'),
+               ('residual warp handoff B16', continuation/'residual_warp_b16_v1/experiment.json'),
                ('direct statistics B16', continuation/'direct_norm_b16_v3/experiment.json')]
     rows = []
     choices = []
@@ -190,7 +194,9 @@ def main():
                     'pipeline reductions B2', 'direct statistics B16',
                     'full-store bounds B8', 'full-profile cyclic B4', 'GELU quartet B16',
                     'relative descriptors B16', 'two-row statistics plus recompute B16',
-                    'repaired catalog candidate5 B16'):
+                    'repaired catalog candidate5 B16', 'statistics read ahead B16',
+                    'main-loop pair B4', 'repaired profile3 catalog candidate2 B8',
+                    'residual warp handoff B16'):
             for unit_path in experiment['unit_gates']:
                 unit = read(Path(unit_path))
                 processes = unit['processes']
@@ -205,7 +211,9 @@ def main():
                 raise ValueError('current-profile follow-up lacks incumbent output equivalence')
             if name in ('pipeline reductions B2', 'full-store bounds B8',
                         'full-profile cyclic B4', 'GELU quartet B16', 'relative descriptors B16',
-                        'two-row statistics plus recompute B16', 'repaired catalog candidate5 B16'):
+                        'two-row statistics plus recompute B16', 'repaired catalog candidate5 B16',
+                        'statistics read ahead B16', 'main-loop pair B4',
+                        'repaired profile3 catalog candidate2 B8', 'residual warp handoff B16'):
                 bit = read(path.parent/'unit_bit_proof.json')
                 control = read(Path(bit['control']))
                 candidate = read(Path(bit['candidate']))
@@ -222,7 +230,9 @@ def main():
                         read(Path(reuse['admission']))['status'] != 'admitted'):
                     raise ValueError('B4 store bundle lacks matching inherited component profiles')
             if name in ('direct statistics B16', 'full-store bounds B8', 'GELU quartet B16',
-                        'relative descriptors B16', 'two-row statistics plus recompute B16'):
+                        'relative descriptors B16', 'two-row statistics plus recompute B16',
+                        'statistics read ahead B16', 'main-loop pair B4',
+                        'residual warp handoff B16'):
                 preparation = read(Path(experiment['preparation']))
                 if (not read(Path(preparation['default_proof']))['passed'] or
                         not read(path.parent/'unit_bit_proof.json')['passed']):
@@ -1940,6 +1950,32 @@ def main():
                   'Projection/FFN2 epilogue CTA-maxima sums rise73.280→146.304us '
                   'and76.608→146.304us. These diagnostic maxima are nonadditive; '
                   'no P-DNN or current-artifact replacement follows the rejection.']
+    aggregation_repair = continuation/'stats_ahead_b16_v1/model_aggregation_repair.json'
+    if aggregation_repair.exists():
+        repair = read(aggregation_repair)
+        assert repair['passed']
+        metric = next(r for r in repair['metrics']
+                      if r['output'] == 'tanh' and r['metric'] == 'max_error')
+        lines += ['', 'Verified B16 statistics-read-ahead model checks produce identical bytes '
+                  'in all five processes and all six execution cases, with unchanged FP32 gates. '
+                  f'One reported tanh maximum error varies from {metric["min"]:.12f} to '
+                  f'{metric["max"]:.12f}. The original wrapper incorrectly required the entire '
+                  'metric dictionary to match. A CPU-only finalizer validates each process against '
+                  'the original threshold and requires identical output hashes; raw checks and the '
+                  'initial assertion are retained. Thirteen corrupted cohorts are rejected. '
+                  'No hardware result or accuracy threshold was changed.']
+    loop_attribution = continuation/'loop_pair_b4_v1/attribution.json'
+    if loop_attribution.exists():
+        groups = read(loop_attribution)['rows']
+        gemm = [r for r in groups if r['group'] not in ('attention', 'small')]
+        before = sum(r['control']['main_loop_max_cta_ns'] for r in gemm)/1000
+        after = sum(r['candidate']['main_loop_max_cta_ns'] for r in gemm)/1000
+        lines += ['', 'Verified B4 fixed two-iteration main-loop unrolling passes control5, '
+                  'candidate17 on12 exact/odd-K/odd-M fixtures and strict model5 with unchanged bytes. '
+                  'The GPU3 pair regresses5.880% and is rejected. '
+                  f'P-TRACE1 GEMM main-loop CTA-maxima sums increase {before:.3f}→{after:.3f}us; '
+                  'the intended segment did not improve. These maxima are nonadditive diagnostic '
+                  'attribution. The private header is restored.']
     if failed_pp.exists() and read(failed_pp).get('status') == 'component_rejected':
         lines.append('\nVerified fixed WG64 PP/P1/TMA candidate compiles without spill and both normal '
                      'unit cohorts pass5/5, but ordering synccheck reports1024 errors and residual-chain '
