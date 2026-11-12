@@ -166,6 +166,7 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | single-buffer six-slot FFN1 B16 | 3 | 1.282928 | 1.294336 | -0.889 | 1.836 | False |
 | single-buffer wide FFN1 B16 | 3 | 1.288816 | 1.403856 | -8.926 | 1.197 | False |
 | current-profile wide FFN1 B8 | 3 | 0.922416 | 0.947136 | -2.680 | 0.996 | False |
+| late staging reuse wait B16 | 3 | 1.272992 | 1.394656 | -9.557 | 3.675 | False |
 | FFN2 fixed split2 B4 | 3 | 0.647440 | 0.712272 | -10.014 | 2.619 | False |
 | main-loop pair B4 | 3 | 0.654688 | 0.693184 | -5.880 | 0.587 | False |
 | repaired profile3 catalog candidate2 B8 | 3 | 0.922640 | 0.933696 | -1.198 | 1.484 | False |
@@ -528,6 +529,8 @@ Verified control5, body17, ordering17 and model5 pass; GPU3 pair 1.288816→1.40
 Verified wide ordering fixturev1/v2 spill88/88B only in the generic GMMA reference and never execute. Fixturev3 replaces that reference with independent scalar FP32 dots on exactly representable dyadic inputs; all TMA target kernels, four full/odd200-launch sequences, CPU FP32 and byte comparisons remain unchanged. Fixturev3 compiles without spill; no numerical or zero-spill threshold is relaxed.
 Verified GPU3 P-TRACE1 shows wide FFN1 main-loop CTA-maxima sums 282.016→239.168us, but epilogue maxima grow 158.976→345.024us. The FFN1 group window grows 479.840→607.648us. These maxima are nonadditive diagnostics; the nontrace pair decides rejection. Frozen sources and binaries are retained.
 
+Verified source counts show the widest B16 FFN1 task-owning CTAs process two TN256 tiles versus three TN128 tiles, or one third more epilogue elements. Inferred: this workload distribution can contribute to the measured epilogue regression independently of staging waits. It is not a latency prediction or a new candidate trigger; the fixed late-wait experiment retains this distribution and isolates wait placement.
+
 Verified both rejected single-buffer prototypes have their private backend and codegen files restored after preserving the measured patch. No production defaults or current artifacts change.
 
 Verified reanalysis compares existing qualified B16 catalog windows against three current-control processes, rather than catalog candidate0. The selected FFN1 window is 2.589% slower than current; repeated QKV appears faster with identical coordinates. This supports the U6 neighboring-stage qualification and supplies no new isolated coordinate winner. No hardware rerun or admission follows.
@@ -536,7 +539,10 @@ Verified one fixed B8 FFN1 TM128/TN192/TK64/S1/Slots4 TMA candidate compiles wit
 Verified control5/body17/order17 and strict model5 pass; GPU3 pair 0.922416→0.947136ms, noise0.996%. Reject; retain the incumbent.
 
 Verified a private section6.1/6.2 extension keeps the fixed B16 TN256/Slots4 single-buffer geometry and current72/216 profile, computing both32-column halves before the reuse wait. The read0 wait and WG128 barrier still precede the first shared write; residual, statistics-writer, PP, MC and pool paths are excluded. Default0 and predecessor instruction words match; the candidate has zero spill,347264B SASS and maxR213, unchanged from its predecessor. Static SASS confirms arithmetic precedes reuse wait and shared writes follow it. Hardware correctness and performance are separate gates; no production default is enabled.
+Verified control5/body17/order17 and strict model5 pass; GPU3 pair 1.272992→1.394656ms, noise3.675%. Reject; retain the incumbent.
+Verified late-wait FFN1 trace windows sum 479.840→583.136us. The late path brackets both StoreQuad halves once, while control brackets each half; segment maxima are nonadditive and instrumentation differs. The nontrace pair decides rejection. Private backend and codegen files are restored after preserving the patch and artifacts.
 
 Verified conditional CPU preparation applies the same late-wait implementation to the existing B8 TN192/Slots4 TMA geometry and current 72/208 profile, retaining two staging buffers per WG. Current and prior instruction words match; the candidate has zero spill, 294016B SASS versus 294784B and unchanged maxR205. No B8 hardware follows unless the B16 mechanism first passes all gates and the3%-plus-noise acceptance; separate exact B8 body, ordering, model and pair gates would still be required.
+Verified B16 late-wait fails its predeclared gain gate; the conditional B8 trial is closed without hardware execution. CPU artifacts remain available as evidence; no current artifact changes.
 
 Verified fixed WG64 PP/P1/TMA candidate compiles without spill and both normal unit cohorts pass5/5, but ordering synccheck reports1024 errors and residual-chain racecheck reports21 errors. Reject before model correctness or timing; partial sanitizer cohorts are not complete gates. Frozen failures remain raw; current profiles and targets are unchanged.

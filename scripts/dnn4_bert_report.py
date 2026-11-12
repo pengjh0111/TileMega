@@ -2129,6 +2129,16 @@ def main():
                              'These maxima are nonadditive diagnostics; the nontrace pair '
                              'decides rejection. Frozen sources and binaries are retained.')
     closure = base/'single_store_close.json'
+    work_audit = base/'wide_ffn1_work_audit_v1/result.json'
+    if work_audit.exists():
+        audit = read(work_audit)
+        assert abs(audit['maximum_cta_epilogue_work_ratio'] - 4/3) < 1e-12
+        lines += ['', 'Verified source counts show the widest B16 FFN1 task-owning CTAs '
+                  'process two TN256 tiles versus three TN128 tiles, or one third more '
+                  'epilogue elements. Inferred: this workload distribution can contribute '
+                  'to the measured epilogue regression independently of staging waits. '
+                  'It is not a latency prediction or a new candidate trigger; the fixed '
+                  'late-wait experiment retains this distribution and isolates wait placement.']
     if closure.exists():
         assert read(closure)['status'] == 'closed_rejected'
         lines += ['', 'Verified both rejected single-buffer prototypes have their private '
@@ -2195,6 +2205,18 @@ def main():
             lines.append(f'Verified control5/body17/order17 and strict model5 pass; '
                          f'GPU3 pair {pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms, '
                          f'noise{100*pair["threshold"]:.3f}%. {outcome}')
+    closure = base/'late_store_close.json'
+    if closure.exists():
+        assert read(closure)['status'] == 'closed_rejected'
+        attribution = read(continuation/'late_store_b16_v1/attribution.json')
+        ffn = next(r for r in attribution['rows'] if r['group'] == 'ffn1')
+        lines.append(f'Verified late-wait FFN1 trace windows sum '
+                     f'{ffn["control"]["stage_ns"]/1000:.3f}→'
+                     f'{ffn["candidate"]["stage_ns"]/1000:.3f}us. '
+                     'The late path brackets both StoreQuad halves once, while control '
+                     'brackets each half; segment maxima are nonadditive and instrumentation '
+                     'differs. The nontrace pair decides rejection. Private backend and '
+                     'codegen files are restored after preserving the patch and artifacts.')
     conditional = base/'late_store_b8_v1/result.json'
     if conditional.exists() and read(conditional)['status'] == 'prepared':
         preparation = read(conditional)
@@ -2209,6 +2231,12 @@ def main():
                   'versus 294784B and unchanged maxR205. No B8 hardware follows unless the '
                   'B16 mechanism first passes all gates and the3%-plus-noise acceptance; '
                   'separate exact B8 body, ordering, model and pair gates would still be required.']
+    conditional_close = base/'late_store_b8_v1/conditional_close.json'
+    if conditional_close.exists():
+        assert read(conditional_close)['status'] == 'conditional_not_executed'
+        lines.append('Verified B16 late-wait fails its predeclared gain gate; the conditional '
+                     'B8 trial is closed without hardware execution. CPU artifacts remain '
+                     'available as evidence; no current artifact changes.')
     if failed_pp.exists() and read(failed_pp).get('status') == 'component_rejected':
         lines.append('\nVerified fixed WG64 PP/P1/TMA candidate compiles without spill and both normal '
                      'unit cohorts pass5/5, but ordering synccheck reports1024 errors and residual-chain '
