@@ -1366,6 +1366,50 @@ def main():
                           f'passes unit5/5 and sanitizer1/1/5/5 on GPU{unit["gpu"]}. '
                           'Whole-model byte equivalence and both code-size and '
                           'current-incumbent performance gates remain separate.']
+            pair_path = continuation/f'repeat_roles_followup_v2/b{batch}/code_experiment.json'
+            if pair_path.exists():
+                experiment = read(pair_path)
+                pair = experiment['pair']
+                proof = read(pair_path.parent/'model_bit_proof.json')
+                assert proof['passed'] and pair['gpu'] == 3
+                assert [row['arm'] for row in pair['measurements']] == list('ABABAB')
+                assert all(row['guard']['code'] == 0 for row in pair['measurements'])
+                lines += ['', f'Verified private optional Repeat B{batch} same-coordinate '
+                          f'P-PAIR: {pair["reference_ms"]:.6f} to '
+                          f'{pair["candidate_ms"]:.6f}ms, gain '
+                          f'{100*(1-pair["ratio"]):.3f}%, noise '
+                          f'{100*pair["threshold"]:.3f}%, DT-CODE minimum3%. '
+                          f'Passes this prerequisite={experiment["accepted"]}. '
+                          'The private optional-role validator supplies identity checks; '
+                          'the unchanged main contract does not support these artifacts. '
+                          'This remains outside the production catalog.']
+    epical = continuation/'bert_epical_current_v1/result.json'
+    if epical.exists():
+        recheck = read(epical)
+        assert len(recheck['rows']) == 3
+        values = ', '.join(f'{row["case"]["chain"]}='
+                           f'{row["median_ns"]["A"]:.1f}→{row["median_ns"]["B"]:.1f}ns'
+                           for row in recheck['rows'])
+        lines += ['', f'Verified matched GPU3 epilogue recheck: {values}. '
+                  'Original56/224 and current72/216 P1/matrix implementations each '
+                  'use five fresh processes,132 CTAs and three tasks. These are '
+                  'coefficient measurements, not new end-to-end gains; constants '
+                  'remain uninstalled.']
+    model_audit = base/'coordinate_prediction_current_v1/result.json'
+    if model_audit.exists():
+        audit = read(model_audit)
+        proof = read(model_audit.parent/'original_rank0_proof.json')
+        assert proof['passed'] and proof['stages'] == 63
+        ratios = ', '.join(f'B{row["batch"]}={row["actual_over_predicted"]:.3f}'
+                           for row in audit['rows'])
+        lines += ['', f'Verified current-coordinate model audit, actual/predicted: '
+                  f'{ratios}. The CPU utility reproduces all63 original rank0 '
+                  'stage predictions exactly and reuses current accepted P-DNN '
+                  'observations; it does not claim new P-MODEL traces. Every cell '
+                  'exceeds1.3. Lower epilogue coefficients alone would worsen '
+                  'underprediction, so no epilogue-only table is installed. '
+                  'Inferred next implementation check: eliminate runtime tail '
+                  'conditions for dimensions known to contain only full tiles.']
     retune = base/'phase72_retune_b8_gpu0_v1/incomplete_selection.json'
     if retune.exists():
         qualification = read(retune.parent/'trace_qualification.json')

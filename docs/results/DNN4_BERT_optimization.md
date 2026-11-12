@@ -365,13 +365,25 @@ Verified B8 diagnostic windows cover five of six existing programs, three fresh 
 
 Verified current-profile B16 existing candidates1/2/3 compile without spills;0/4/5 are rejected before hardware execution. The whole-program fallback compares those three with the incumbent and requires an untied selection followed by an independent pair. No boundary assembly or P-TUNE completion is claimed.
 
+Verified current-profile B8 nontrace selection: B=0.988760ms, A=1.000064ms, C=1.023392ms, D=1.045472ms; tied=False, noise=0.500%. Selection medians are diagnostic; the accepted catalog changes only after an independent pair, final measurement and ledger audit.
+
 Verified current-profile B16 nontrace selection: A=1.292264ms, B=1.431624ms, D=1.435920ms, C=1.450376ms; tied=False, noise=2.825%. Selection medians are diagnostic; the accepted catalog changes only after an independent pair, final measurement and ledger audit.
 
 Verified private Repeat codegen reserves operand roles used only by first or last repetitions. Existing optional-map candidates B8/B16 now use319488/359424B of SASS without spills. All five current generated sources remain identical; four real codegen cases reject optional-map and alias corruption. These are CPU results, not performance admission.
 
 Verified the first optional-map fixture fails initcheck on generic reads after TMA output, consistent with the documented 2025.2.1 TMA initialization-shadow limitation. The rejected cohort is preserved. The replacement poisons every output before every launch and checks all intermediate values against positive CPU references; its CUDA instruction words are unchanged. This workaround retains the tool coverage limitation.
 
+Verified optional Repeat B8 ordering fixture passes unit5/5 and sanitizer1/1/5/5 on GPU0. Whole-model byte equivalence and both code-size and current-incumbent performance gates remain separate.
+
+Verified private optional Repeat B8 same-coordinate P-PAIR: 1.080000 to 1.090816ms, gain -1.001%, noise 2.124%, DT-CODE minimum3%. Passes this prerequisite=False. The private optional-role validator supplies identity checks; the unchanged main contract does not support these artifacts. This remains outside the production catalog.
+
 Verified optional Repeat B16 ordering fixture passes unit5/5 and sanitizer1/1/5/5 on GPU3. Whole-model byte equivalence and both code-size and current-incumbent performance gates remain separate.
+
+Verified private optional Repeat B16 same-coordinate P-PAIR: 1.436288 to 1.427808ms, gain 0.590%, noise 1.188%, DT-CODE minimum3%. Passes this prerequisite=False. The private optional-role validator supplies identity checks; the unchanged main contract does not support these artifacts. This remains outside the production catalog.
+
+Verified matched GPU3 epilogue recheck: deferred_ln=859.3→764.0ns, deferred_ln_gelu=2618.0→2099.7ns, residual_ln_rowstats=1989.7→1478.9ns. Original56/224 and current72/216 P1/matrix implementations each use five fresh processes,132 CTAs and three tasks. These are coefficient measurements, not new end-to-end gains; constants remain uninstalled.
+
+Verified current-coordinate model audit, actual/predicted: B1=1.531, B2=1.751, B4=1.918, B8=1.886, B16=1.616. The CPU utility reproduces all63 original rank0 stage predictions exactly and reuses current accepted P-DNN observations; it does not claim new P-MODEL traces. Every cell exceeds1.3. Lower epilogue coefficients alone would worsen underprediction, so no epilogue-only table is installed. Inferred next implementation check: eliminate runtime tail conditions for dimensions known to contain only full tiles.
 
 Verified profile2 B8 boundary overhead is3.419% on GPU0. Only2/6 existing variants are nonspilling;each completes three fresh20/50 traces. Four spilled variants are never executed. Required candidate coverage is incomplete;no assembled selection or admission is claimed. GPU2 partial traces remain separate and are not mixed with the GPU0 windows.
 
