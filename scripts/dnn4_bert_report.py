@@ -157,6 +157,7 @@ def main():
                ('QKV seven-slot B4', continuation/'qkv_slots7_experiment.json'),
                ('QKV plus attention stores B2', continuation/'qkv_attention_experiment.json'),
                ('first WGMMA initialization B16', continuation/'mma_zero_experiment.json'),
+               ('fixed H800 grid B16', continuation/'fixed_grid_experiment.json'),
                ('paired residual read B16 prototype', continuation/'residual_experiment.json'),
                ('paired residual read B16 GPU0 diagnostic', continuation/'residual_gpu0_experiment.json')]
     rows = []
@@ -202,6 +203,7 @@ def main():
                     'partial TN96 matrix store B8 prototype',
                     'QKV four-slot B2', 'QKV seven-slot B4', 'QKV plus attention stores B2',
                     'first WGMMA initialization B16',
+                    'fixed H800 grid B16',
                     'paired residual read B16 prototype',
                     'paired residual read B16 GPU0 diagnostic'):
             unit_paths = experiment.get('unit_gates', [experiment.get('unit_gate')])
@@ -909,7 +911,7 @@ def main():
                      'All seventeen run under one original guarded reservation. ')
                   + 'These are functional prerequisites;whole-model correctness and '
                   'same-GPU3 timing decide performance admission.']
-    for suite in ('b8_corr1', 'b8_corr2', 'b8_corr3', 'residual_corr', 'store96_corr', 'store96_matrix_corr', 'qkv_slots4_corr', 'qkv_slots7_corr', 'qkv_attention_corr', 'mma_zero_corr'):
+    for suite in ('b8_corr1', 'b8_corr2', 'b8_corr3', 'residual_corr', 'store96_corr', 'store96_matrix_corr', 'qkv_slots4_corr', 'qkv_slots7_corr', 'qkv_attention_corr', 'mma_zero_corr', 'fixed_grid_corr'):
         receipt = continuation/suite/'result.json'
         if not receipt.exists():
             continue
@@ -1064,7 +1066,8 @@ def main():
                           ('qkv_slots4', 'four-slot QKV B2'),
                           ('qkv_slots7', 'seven-slot QKV B4'),
                           ('qkv_attention', 'QKV plus attention vector stores B2'),
-                          ('mma_zero', 'first WGMMA initialization B16')]:
+                          ('mma_zero', 'first WGMMA initialization B16'),
+                          ('fixed_grid', 'fixed H800 grid B16')]:
         result = continuation/(prefix+'_experiment.json')
         if result.exists() and not read(result)['accepted']:
             experiment = read(result); pair = experiment['pair']
@@ -1126,6 +1129,37 @@ def main():
             lines += ['Verified B16 strict model5/5 also matches the incumbent output '
                       'bytes. The independent GPU3 pair rejects this private candidate; '
                       'the production headers and accepted B16 result remain unchanged.']
+    fixed_grid = base/'fixed_grid_b16_preparation_v1/result.json'
+    if fixed_grid.exists() and read(fixed_grid)['status'] == 'prepared':
+        prepared = read(fixed_grid)
+        if not prepared['control_proof']['passed']:
+            raise ValueError('fixed H800 grid lacks its default0 instruction proof')
+        lines += ['', 'Verified private fixed132 H800 grid specialization retains '
+                  'the B16 coordinates,register profile,task ownership and arithmetic '
+                  'order. It folds runtime task division and prefetch partitioning; '
+                  'SASS357888→343168B,static RCP97→76,zero spill. Default0 matches '
+                  'all44736 incumbent instruction words. This extends the prompt\'s '
+                  'index specialization under the user-authorized implementation '
+                  'discretion;separate functional and E2E gates decide admission.']
+        host = fixed_grid.parent/'host_guard/result.json'
+        if host.exists() and read(host)['passed']:
+            lines += ['Verified five fresh CPU-only host processes reject grids '
+                      '0/1/131/133/264 in both serving modes before changing the '
+                      'epoch. GPUs are hidden and no valid-grid launch is attempted.']
+        for suite in ('body', 'attention'):
+            receipt = continuation/('fixed_grid_'+suite+'_unit')/'result.json'
+            if receipt.exists():
+                unit = read(receipt)
+                if not unit['passed'] or len(unit['processes']) != 17:
+                    raise ValueError('fixed grid unit gate incomplete')
+                lines += [f'Verified fixed-grid {suite} on GPU{unit["gpu"]}: '
+                          'unit5/5,mem1/1,init1/1,race5/5,sync5/5;output bytes '
+                          'match the frozen control. These are functional gates.']
+        b8 = base/'fixed_grid_b8_preparation_v1/result.json'
+        if b8.exists() and read(b8)['status'] == 'rejected_compile':
+            lines += ['Verified CPU-only B8 portability check spills20/20B under '
+                      'its current72/208 profile. It is rejected before GPU '
+                      'execution;no B8 hardware result is claimed.']
     retune = base/'phase72_retune_b8_gpu0_v1/incomplete_selection.json'
     if retune.exists():
         qualification = read(retune.parent/'trace_qualification.json')

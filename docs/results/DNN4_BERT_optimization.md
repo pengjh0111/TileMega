@@ -136,6 +136,7 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | QKV seven-slot B4 | 3 | 0.730912 | 0.738096 | -0.983 | 2.693 | False |
 | QKV plus attention stores B2 | 3 | 0.572432 | 0.591184 | -3.276 | 8.385 | False |
 | first WGMMA initialization B16 | 3 | 1.319024 | 1.307904 | +0.843 | 2.120 | False |
+| fixed H800 grid B16 | 3 | 1.315328 | 1.295936 | +1.474 | 0.659 | True |
 | paired residual read B16 prototype | 3 | 1.307504 | 1.310624 | -0.239 | 1.819 | False |
 | paired residual read B16 GPU0 diagnostic | 0 | 1.319680 | 1.313648 | +0.457 | 0.548 | False |
 
@@ -270,6 +271,8 @@ Verified qkv_attention_corr on GPU0:strict FP32 model5/5,minimum cosine0.9999598
 
 Verified mma_zero_corr on GPU0:strict FP32 model5/5,minimum cosine0.99995708,identical output bytes across all five fresh processes. These completed correctness checks do not establish whole-model performance or production admission.
 
+Verified fixed_grid_corr on GPU0:strict FP32 model5/5,minimum cosine0.99995708,identical output bytes across all five fresh processes. These completed correctness checks do not establish whole-model performance or production admission.
+
 Verified B4 fixed-candidate revalidation completes fresh GPU3 P-SEL8/8 and independent P-PAIR6/6. The selected candidate measures 0.678592ms against0.748320ms;gain9.318% is below11.135% process-noise threshold. Retain all six processes and the earlier prototype evidence;do not replace the admitted B4 result or rerun this pair to seek acceptance.
 
 Verified CPU-only residual-pair follow-up on the existing fixed B8 candidate3 retains its coordinates and72/216 profile. It still spills 20/28B stores/loads,matching the original candidate,and never executes on GPU. The three legal whole-program alternatives remain unchanged.
@@ -308,6 +311,12 @@ Verified conditional B16 partial-store work remains CPU-only because the B8 mech
 Verified private default-off first-WGMMA initialization uses the CUTLASS explicit first-slot prologue:each m64 fragment starts with ScaleOutZero,then retains the original k16 order,slot and release protocol. The dynamic-predicate prototype leaves clearing instructions and never executes on GPU. The explicit prologue reduces static CS2R zero instructions289→56;SASS357888→362880B,zero spill,maxR207. Default0 matches all44736 incumbent instruction words. Coordinates and the accepted B16 profile stay fixed;end-to-end benefit is unproven.
 Verified five fresh control processes and the candidate unit5/5 plus mem1/1,init1/1,race5/5,sync5/5 have identical output hashes on GPU0. The five shapes cover GELU,residual statistics,TM256 two-fragment ownership,TK128/split2,odd rows and ring wrap. These component checks do not establish an end-to-end gain.
 Verified B16 strict model5/5 also matches the incumbent output bytes. The independent GPU3 pair rejects this private candidate; the production headers and accepted B16 result remain unchanged.
+
+Verified private fixed132 H800 grid specialization retains the B16 coordinates,register profile,task ownership and arithmetic order. It folds runtime task division and prefetch partitioning; SASS357888→343168B,static RCP97→76,zero spill. Default0 matches all44736 incumbent instruction words. This extends the prompt's index specialization under the user-authorized implementation discretion;separate functional and E2E gates decide admission.
+Verified five fresh CPU-only host processes reject grids 0/1/131/133/264 in both serving modes before changing the epoch. GPUs are hidden and no valid-grid launch is attempted.
+Verified fixed-grid body on GPU0: unit5/5,mem1/1,init1/1,race5/5,sync5/5;output bytes match the frozen control. These are functional gates.
+Verified fixed-grid attention on GPU3: unit5/5,mem1/1,init1/1,race5/5,sync5/5;output bytes match the frozen control. These are functional gates.
+Verified CPU-only B8 portability check spills20/20B under its current72/208 profile. It is rejected before GPU execution;no B8 hardware result is claimed.
 
 Verified profile2 B8 boundary overhead is3.419% on GPU0. Only2/6 existing variants are nonspilling;each completes three fresh20/50 traces. Four spilled variants are never executed. Required candidate coverage is incomplete;no assembled selection or admission is claimed. GPU2 partial traces remain separate and are not mixed with the GPU0 windows.
 
