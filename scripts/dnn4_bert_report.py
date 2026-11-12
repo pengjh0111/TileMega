@@ -903,6 +903,15 @@ def main():
                   f'{100*pair["threshold"]:.3f}% process-noise threshold. Retain all six '
                   'processes and the earlier prototype evidence;do not replace the '
                   'admitted B4 result or rerun this pair to seek acceptance.']
+    fixed_residual = base/'residual_pair_b8_candidate3_preparation_v1/result.json'
+    if fixed_residual.exists():
+        result = read(fixed_residual)
+        if result['legal'] or result['gpu_executed'] or result['spill_bytes'] != [20, 28]:
+            raise ValueError('fixed B8 residual-read rejection differs from its compile evidence')
+        lines += ['', 'Verified CPU-only residual-pair follow-up on the existing fixed '
+                  'B8 candidate3 retains its coordinates and72/216 profile. It still spills '
+                  '20/28B stores/loads,matching the original candidate,and never executes '
+                  'on GPU. The three legal whole-program alternatives remain unchanged.']
     retune = base/'phase72_retune_b8_gpu0_v1/incomplete_selection.json'
     if retune.exists():
         qualification = read(retune.parent/'trace_qualification.json')
