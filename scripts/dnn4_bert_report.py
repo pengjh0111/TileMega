@@ -1223,6 +1223,30 @@ def main():
                   'BERT kernels match their original instruction words;enabled B8 '
                   'matches all38960 words of the independently qualified prototype. '
                   'No numerical or timing process is repeated for this source repair.']
+    recount_admission = base/'grid_recount_b8_admitted_v1/admission.json'
+    if recount_admission.exists():
+        admission = read(recount_admission)
+        if admission['status'] != 'admitted':
+            raise ValueError('producer recomputation admission is incomplete')
+        lines += ['', 'Verified B8 producer recomputation is integrated and admitted: '
+                  'main on/off kernels match all38960/41072 tested instruction words;'
+                  'committed body/attention fixtures match the two17-process gates;'
+                  'the unchanged fixed-grid runtime retains its five-process host '
+                  'rejection proof. Real codegen16profiles/9invalid settings and '
+                  '46admission tests pass. GPU3 independent pair gains'
+                  f'{100*(1-admission["pair_ratio"]):.3f}% versus'
+                  f'{100*admission["noise"]:.3f}% noise;P-DNN'
+                  f'{admission["median_ms"]:.6f}ms,p90{admission["p90_ms"]:.6f}ms,'
+                  f'process range{admission["process_range_ms"]:.6f}ms. '
+                  'The exact tested binary and63-stage ledger are retained. '
+                  'Other cells and original anchors remain unchanged.']
+    recount_b2 = base/'grid_recount_b2_preparation_v2/result.json'
+    if recount_b2.exists() and read(recount_b2)['status'] == 'prepared':
+        lines += ['', 'Verified CPU-only B2 uses the same producer repair with '
+                  'current72/216 coordinates/profile:zero spill,SASS264960→250752B.'
+                  'The repaired default path matches all33120 incumbent words. '
+                  'Separate functional and independent GPU3 timing gates decide '
+                  'acceptance;code size alone does not admit this candidate.']
     retune = base/'phase72_retune_b8_gpu0_v1/incomplete_selection.json'
     if retune.exists():
         qualification = read(retune.parent/'trace_qualification.json')

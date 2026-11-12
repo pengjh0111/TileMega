@@ -331,6 +331,10 @@ Verified fixed-grid-only B2 under its current72/216 profile spills144/188B. It i
 
 Verified the original disabled BlockIndex helper changes B2 instructions and is rejected before candidate compilation or GPU execution. The repaired compile-time macro restores the literal original expression when disabled. All five current BERT kernels match their original instruction words;enabled B8 matches all38960 words of the independently qualified prototype. No numerical or timing process is repeated for this source repair.
 
+Verified B8 producer recomputation is integrated and admitted: main on/off kernels match all38960/41072 tested instruction words;committed body/attention fixtures match the two17-process gates;the unchanged fixed-grid runtime retains its five-process host rejection proof. Real codegen16profiles/9invalid settings and 46admission tests pass. GPU3 independent pair gains2.951% versus0.693% noise;P-DNN0.977680ms,p900.997472ms,process range0.014976ms. The exact tested binary and63-stage ledger are retained. Other cells and original anchors remain unchanged.
+
+Verified CPU-only B2 uses the same producer repair with current72/216 coordinates/profile:zero spill,SASS264960→250752B.The repaired default path matches all33120 incumbent words. Separate functional and independent GPU3 timing gates decide acceptance;code size alone does not admit this candidate.
+
 Verified profile2 B8 boundary overhead is3.419% on GPU0. Only2/6 existing variants are nonspilling;each completes three fresh20/50 traces. Four spilled variants are never executed. Required candidate coverage is incomplete;no assembled selection or admission is claimed. GPU2 partial traces remain separate and are not mixed with the GPU0 windows.
 
 Verified optional profile2 uses72/208 registers and explicit scalar phase selection only for that profile. Profiles0/1 retain their prior paths and the default remains0. Scalar/alias and P1 component cohorts each pass unit5/5 and sanitizer1/1/5/5;B2/B4/B8/B16 whole models each pass5/5 without spill. B8/B16 SASS is328576/395776B with zero local-memory instructions. The integrated B8 kernel has identical instruction bytes to its prototype. Seven related regression checks, real profile codegen and invalid-setting checks pass. GPU2 comparisons remain diagnostics. Complete GPU3 pairs subsequently admit B4/B8;exact-binary ledgers and three-process P-DNN results are in the current catalog. B2 fails its noise gate and B16 fails the firstRepeat3% gate. B8/B16 first-time Repeat admission still requires3% plus noise;B2/B4 already use accepted Repeat and require a gain beyond noise. Fixed BF16 goals and original anchors remain unchanged.
@@ -368,7 +372,7 @@ Verified current accepted artifacts (GPU3;50/200;three-process P-DNN). B1/B2/B4/
 | 1 | 3 | 0.464496 | 0.477696 | 0.012608 | 0.4858 | 0.9561 |
 | 2 | 3 | 0.597536 | 0.601472 | 0.032496 | 0.5171 | 1.1555 |
 | 4 | 3 | 0.706304 | 0.715328 | 0.007824 | 0.5905 | 1.1961 |
-| 8 | 3 | 1.016400 | 1.025344 | 0.004272 | 0.7457 | 1.3630 |
+| 8 | 3 | 0.977680 | 0.997472 | 0.014976 | 0.7457 | 1.3111 |
 | 16 | 3 | 1.295600 | 1.313632 | 0.011296 | 1.0869 | 1.1921 |
 
 Verified largest three stages for each current unmet BERT cell (P-TRACE1 attribution only;segments can overlap and are not timing results). Each ledger checks the exact accepted reference binary SHA256.
@@ -377,7 +381,7 @@ Verified largest three stages for each current unmet BERT cell (P-TRACE1 attribu
 | --- | --- | --- | --- |
 | 2 | s30 gemm 17.98us (main_loop=10.11,epilogue=3.74) | s5 gemm 17.70us (main_loop=10.37,epilogue=3.36) | s55 gemm 17.66us (main_loop=10.14,slot_wait=4.58) |
 | 4 | s24 gemm 19.33us (epilogue=10.37,main_loop=8.58) | s40 gemm 19.33us (main_loop=14.98,slot_wait=4.96) | s25 gemm 18.94us (main_loop=15.62,slot_wait=5.12) |
-| 8 | s14 gemm 30.53us (main_loop=15.74,epilogue=12.96) | s59 gemm 30.14us (main_loop=15.58,epilogue=13.18) | s49 gemm 30.05us (main_loop=15.33,epilogue=12.83) |
+| 8 | s9 gemm 30.30us (main_loop=16.13,epilogue=12.67) | s49 gemm 30.30us (main_loop=15.65,epilogue=12.96) | s29 gemm 30.21us (main_loop=15.55,epilogue=13.09) |
 | 16 | s4 gemm 43.01us (main_loop=23.52,epilogue=16.03) | s9 gemm 41.89us (main_loop=24.19,epilogue=14.43) | s49 gemm 41.86us (main_loop=23.87,epilogue=14.27) |
 
 Verified fixed WG64 PP/P1/TMA candidate compiles without spill and both normal unit cohorts pass5/5, but ordering synccheck reports1024 errors and residual-chain racecheck reports21 errors. Reject before model correctness or timing; partial sanitizer cohorts are not complete gates. Frozen failures remain raw; current profiles and targets are unchanged.
