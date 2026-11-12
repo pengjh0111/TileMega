@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT/'scripts'))
 from dnn4_bert_current import (select_successors, validate_pp_coordinates,
     validate_boundary_selection, validate_intermittent, validate_timing_gpu,
-    validate_followup_allocation)
+    validate_followup_allocation, validate_whole_program_selection)
 
 
 class AdmissionTest(unittest.TestCase):
@@ -693,6 +693,94 @@ class Gpu0ContinuationTest(unittest.TestCase):
             reanchored=False, authorization=authorization))
         with self.assertRaisesRegex(ValueError, 'allocation provenance'):
             validate_followup_allocation(self.base, 'boundary_cache216_b4_admitted_v1', decision, {})
+
+
+class WholeProgramAdmissionTest(unittest.TestCase):
+    setUp = AdmissionTest.setUp
+    save = AdmissionTest.save
+
+    def fixture(self):
+        folder = self.base/'whole_program216_b8_admitted_v1'
+        variants = [dict(stages=[dict(body='gemm', tile_n=n)])
+                    for n in [32, 64, 96, 128, 192, 256]]
+        specifications = []
+        for index, name in enumerate(['current']+[f'existing_variant_{i}' for i in range(3)]):
+            library = self.base/('control.so' if index == 0 else name+'.so')
+            self.save(library.name+'.plan.json', dict(native_forward=variants[5 if index == 0 else index-1]))
+            self.save(library.name+'.identity.json', dict(artifact_id=f'id-{index}'))
+            Path(str(library)+'.cu').write_text('#define TILEMEGA_F3_REGISTER_BUDGET 3\n')
+            gate = self.base/f'correctness-{index}/corr-1/check.json'
+            self.save(str(gate.parent.parent/'result.json'), dict(status='passed', passes='5/5',
+                execution=dict(artifact_id=f'id-{index}'),
+                processes=[dict(pid=100*index+p, exit_code=0) for p in range(5)]))
+            proof = self.save(f'proof-{index}.json', dict(passed=True, sass_words=123,
+                prototype_library=str(library)))
+            specifications.append(dict(name=name, library=str(library), gate=str(gate),
+                instruction_proof=proof, tune_priority=index))
+        self.save(str(folder/'candidate_spec.json'), specifications)
+        self.save(str(folder/'tune_inputs.json'), dict(variants=variants))
+        rows, ranking = [], []
+        for index, arm in enumerate('ABCDDCBA'):
+            candidate = ord(arm)-ord('A'); spec = specifications[candidate]
+            median = [1.0, .8, .9, 1.1][candidate]
+            guard = self.base/f'clocks-{index}.jsonl'
+            guard.write_text('\n'.join(json.dumps(dict(gpu_index=3, label=label))
+                for label in ('before-measurement', 'after-measurement')))
+            measured = self.save(f'measure-{index}.json', dict(gpu_index=3, pid=1000+index,
+                median_ms=median, samples_ms=[median]*200, guard_log=str(guard),
+                measurement=dict(warmup=50, iterations=200), library_path=spec['library'],
+                numerical_gate_path=spec['gate'], artifact_id=f'id-{candidate}'))
+            rows.append(dict(arm=arm, median_ms=median, measurement=measured, guard=dict(code=0)))
+        for index in [1, 2, 0, 3]:
+            ranking.append(dict(arm='ABCD'[index], library=specifications[index]['library'],
+                median_ms=[1.0, .8, .9, 1.1][index], process_range_ratio=0.0,
+                tune_priority=index))
+        self.save(str(folder/'selection.json'), dict(protocol='P-SEL', batch=8, gpu=3,
+            measurements=rows, ranking=ranking, threshold=.005, tied=False,
+            candidate_ms=.8, winner='B', winner_library=specifications[1]['library']))
+        return folder, specifications[1]['library'], specifications[0]['library']
+
+    def test_complete_whole_program_selection_without_trace_assembly(self):
+        validate_whole_program_selection(*self.fixture())
+
+    def test_assembled_or_changed_coordinates_are_rejected(self):
+        folder, library, reference = self.fixture()
+        path = folder/'candidate_spec.json';specs = json.loads(path.read_text())
+        specs[1]['name'] = 'tuned';self.save(str(path), specs)
+        with self.assertRaisesRegex(ValueError, 'assembled candidate'):
+            validate_whole_program_selection(folder, library, reference)
+        specs[1]['name'] = 'existing_variant_0';self.save(str(path), specs)
+        self.save(library+'.plan.json', dict(native_forward=dict(stages=[])))
+        with self.assertRaisesRegex(ValueError, 'fixed candidate coordinates'):
+            validate_whole_program_selection(folder, library, reference)
+
+    def test_tie_claim_and_wrong_winner_are_rejected(self):
+        folder, library, reference = self.fixture()
+        path = folder/'selection.json';result = json.loads(path.read_text())
+        result['tied'] = True;self.save(str(path), result)
+        with self.assertRaisesRegex(ValueError, 'untied four-program'):
+            validate_whole_program_selection(folder, library, reference)
+        result['tied'] = False;result['winner'] = 'C';self.save(str(path), result)
+        with self.assertRaisesRegex(ValueError, 'measured noise threshold'):
+            validate_whole_program_selection(folder, library, reference)
+
+    def test_stale_model_gate_or_partial_cohort_is_rejected(self):
+        folder, library, reference = self.fixture()
+        path = self.base/'correctness-1/result.json';checked = json.loads(path.read_text())
+        checked['execution']['artifact_id'] = 'other';self.save(str(path), checked)
+        with self.assertRaisesRegex(ValueError, 'five fresh model processes'):
+            validate_whole_program_selection(folder, library, reference)
+        checked['execution']['artifact_id'] = 'id-1';checked['processes'].pop()
+        self.save(str(path), checked)
+        with self.assertRaisesRegex(ValueError, 'five fresh model processes'):
+            validate_whole_program_selection(folder, library, reference)
+
+    def test_substituted_measured_artifact_is_rejected(self):
+        folder, library, reference = self.fixture()
+        path = self.base/'measure-1.json';measured = json.loads(path.read_text())
+        measured['library_path'] = reference;self.save(str(path), measured)
+        with self.assertRaisesRegex(ValueError, 'checked artifact'):
+            validate_whole_program_selection(folder, library, reference)
 
 
 if __name__ == '__main__':

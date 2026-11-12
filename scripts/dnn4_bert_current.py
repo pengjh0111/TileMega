@@ -52,6 +52,8 @@ def select_successors(base, batch, specification):
                        'TILEMEGA_F3_REGISTER_BUDGET': '3'}))
     if batch == 8:
         names.append(('ffn1_tma128_matrix_b8_v1', {'TILEMEGA_F3_MATRIX_STORE': '1'}))
+        names.append(('whole_program216_b8_admitted_v1',
+                      {'TILEMEGA_F3_REGISTER_BUDGET': '3'}))
     if batch == 16:
         names.append(('ffn2_tma256x64_b16_v1',
                       {'TILEMEGA_F3_MATRIX_STORE': '1',
@@ -100,6 +102,7 @@ def select_successors(base, batch, specification):
                  int(name == 'ffn1_tma256_matrix_b16_v2') +
                  int(name == 'qkv_tma192_matrix_b16_v1') +
                  (2 if name == 'boundary_cache216_b4_admitted_v1' else 0) +
+                 (2 if name == 'whole_program216_b8_admitted_v1' else 0) +
                  (3 if name == 'ffn1_tma128_matrix_b8_v1' else 0) +
                  (3 if name == 'ffn1_reg64_side216_b2_admitted_v1' else 0) +
                  (4 if name == 'ffn2_reg64_split4_b2_v1' else 0) +
@@ -152,13 +155,19 @@ def select_successors(base, batch, specification):
         if name == 'ffn1_tma128_phase72_b4_admitted_v1':
             validate_ffn1_component_profile(units[0], 128)
             validate_ffn1_tma_coordinates(final['library'], decision['reference'], 128, 5)
-        if name == 'boundary_cache216_b4_admitted_v1':
+        if name in ('boundary_cache216_b4_admitted_v1',
+                    'whole_program216_b8_admitted_v1'):
             validate_component_profile(units[0], {
                 '-DDNN4_ALIAS_REPEAT_TEST=1', '-DTILEMEGA_F3_REGISTER_BUDGET=3',
                 '-DTILEMEGA_F3_REPEAT_ARITHMETIC=1'})
             validate_component_profile(units[1], {
                 '-DTILEMEGA_F3_SIDE_NORM=1', '-DTILEMEGA_F3_REGISTER_BUDGET=3'})
-            validate_boundary_selection(folder, final['library'], decision['reference'])
+            if name == 'boundary_cache216_b4_admitted_v1':
+                validate_boundary_selection(folder, final['library'], decision['reference'])
+            else:
+                validate_whole_program_selection(folder, final['library'], decision['reference'])
+                validate_timing_gpu(pair, gpu, 'ABABAB')
+                validate_timing_gpu(final['measurement'], gpu, 'BBB')
         if name == 'ffn1_tma256_matrix_b16_v2':
             validate_ffn1_component_profile(units[0], 256)
             validate_ffn1_tma_coordinates(final['library'], decision['reference'], 256, 3)
@@ -331,6 +340,77 @@ def validate_boundary_selection(folder, library, reference):
     if (not proof['passed'] or proof['sass_words'] <= 0
             or Path(proof['prototype_library']).resolve() != Path(library).resolve()):
         raise ValueError('boundary candidate lacks its main-source instruction proof')
+
+
+def validate_whole_program_selection(folder, library, reference):
+    """Partial trace coverage can select whole programs only by untied P-SEL."""
+    specifications = read(folder/'candidate_spec.json')
+    prepared = read(folder/'tune_inputs.json')
+    result = read(folder/'selection.json')
+    if (len(specifications) != 4 or specifications[0]['name'] != 'current'
+            or len(prepared['variants']) != 6 or result['protocol'] != 'P-SEL'
+            or result['batch'] != 8 or result['tied']
+            or Path(specifications[0]['library']).resolve() != Path(reference).resolve()):
+        raise ValueError('whole-program selection lacks an untied four-program comparison')
+    validate_timing_gpu(result, 3, 'ABCDDCBA')
+    current = read(str(reference)+'.plan.json')['native_forward']
+    candidates, ranks, identities = [], [], []
+    for index, spec in enumerate(specifications):
+        actual = read(spec['library']+'.plan.json')['native_forward']
+        if index == 0:
+            expected = current
+        else:
+            match = re.fullmatch(r'existing_variant_([0-5])', spec['name'])
+            if not match:
+                raise ValueError('whole-program selection contains an assembled candidate')
+            rank = int(match[1]); ranks.append(rank)
+            expected = prepared['variants'][rank]
+            proof = read(spec['instruction_proof'])
+            if (not proof['passed'] or proof['sass_words'] <= 0
+                    or Path(proof['prototype_library']).resolve() != Path(spec['library']).resolve()):
+                raise ValueError('whole-program candidate lacks its main-source instruction proof')
+        if actual != expected:
+            raise ValueError('whole-program selection changed fixed candidate coordinates')
+        identity = read(spec['library']+'.identity.json')
+        identities.append(identity['artifact_id'])
+        candidates.append((json.dumps(actual, sort_keys=True), json.dumps(
+            build_defines(Path(spec['library']+'.cu').read_text(), []), sort_keys=True)))
+        gate = Path(spec['gate'])
+        checked = read(gate.parent.parent/'result.json')
+        processes = checked['processes']
+        if (checked['status'] != 'passed' or checked['passes'] != '5/5'
+                or len(processes) != 5 or len({p['pid'] for p in processes}) != 5
+                or any(p['exit_code'] for p in processes)
+                or checked['execution']['artifact_id'] != identity['artifact_id']):
+            raise ValueError('whole-program candidate lacks five fresh model processes')
+    if len(set(ranks)) != 3 or len(set(candidates)) != 4:
+        raise ValueError('whole-program candidates were not deduplicated')
+    ranked = []
+    for index, (arm, spec) in enumerate(zip('ABCD', specifications)):
+        rows = [r for r in result['measurements'] if r['arm'] == arm]
+        for row in rows:
+            measured = read(row['measurement'])
+            if (Path(measured['library_path']).resolve() != Path(spec['library']).resolve()
+                    or Path(measured['numerical_gate_path']).resolve() != Path(spec['gate']).resolve()
+                    or measured['artifact_id'] != identities[index]):
+                raise ValueError('whole-program measurement differs from its checked artifact')
+        values = [r['median_ms'] for r in rows]
+        median = statistics.median(values)
+        if not math.isfinite(median) or median <= 0:
+            raise ValueError('whole-program selection has invalid timings')
+        ranked.append(dict(arm=arm, median_ms=median, library=spec['library'],
+            process_range_ratio=(max(values)-min(values))/median,
+            tune_priority=spec.get('tune_priority', index)))
+    ranked.sort(key=lambda r: r['median_ms'])
+    threshold = max(.005, 2*max(r['process_range_ratio'] for r in ranked[:2]))
+    winner = ranked[0]
+    if (result['ranking'] != ranked or result['threshold'] != threshold
+            or ranked[1]['median_ms']/winner['median_ms']-1 <= threshold
+            or result['winner'] != winner['arm'] or winner['arm'] == 'A'
+            or result['candidate_ms'] != winner['median_ms']
+            or Path(result['winner_library']).resolve() != Path(winner['library']).resolve()
+            or Path(library).resolve() != Path(winner['library']).resolve()):
+        raise ValueError('whole-program winner did not clear its measured noise threshold')
 
 
 def validate_pp_coordinates(library, reference, allow_existing=False, wg_rows=128):
