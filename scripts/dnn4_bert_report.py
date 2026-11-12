@@ -155,6 +155,7 @@ def main():
                ('partial TN96 matrix store B8 prototype', continuation/'store96_matrix_experiment.json'),
                ('QKV four-slot B2', continuation/'qkv_slots4_experiment.json'),
                ('QKV seven-slot B4', continuation/'qkv_slots7_experiment.json'),
+               ('QKV plus attention stores B2', continuation/'qkv_attention_experiment.json'),
                ('paired residual read B16 prototype', continuation/'residual_experiment.json'),
                ('paired residual read B16 GPU0 diagnostic', continuation/'residual_gpu0_experiment.json')]
     rows = []
@@ -198,7 +199,7 @@ def main():
                     'cached-boundary216 B4 admitted continuation',
                     'existing whole-program216 B8', 'partial TN96 store B8 prototype',
                     'partial TN96 matrix store B8 prototype',
-                    'QKV four-slot B2', 'QKV seven-slot B4',
+                    'QKV four-slot B2', 'QKV seven-slot B4', 'QKV plus attention stores B2',
                     'paired residual read B16 prototype',
                     'paired residual read B16 GPU0 diagnostic'):
             unit_paths = experiment.get('unit_gates', [experiment.get('unit_gate')])
@@ -906,7 +907,7 @@ def main():
                      'All seventeen run under one original guarded reservation. ')
                   + 'These are functional prerequisites;whole-model correctness and '
                   'same-GPU3 timing decide performance admission.']
-    for suite in ('b8_corr1', 'b8_corr2', 'b8_corr3', 'residual_corr', 'store96_corr', 'store96_matrix_corr', 'qkv_slots4_corr', 'qkv_slots7_corr'):
+    for suite in ('b8_corr1', 'b8_corr2', 'b8_corr3', 'residual_corr', 'store96_corr', 'store96_matrix_corr', 'qkv_slots4_corr', 'qkv_slots7_corr', 'qkv_attention_corr'):
         receipt = continuation/suite/'result.json'
         if not receipt.exists():
             continue
@@ -1059,7 +1060,8 @@ def main():
                   'checks and an independent same-GPU3 pair are required for acceptance.']
     for prefix, label in [('store96_matrix', 'partial TN96 matrix-store B8'),
                           ('qkv_slots4', 'four-slot QKV B2'),
-                          ('qkv_slots7', 'seven-slot QKV B4')]:
+                          ('qkv_slots7', 'seven-slot QKV B4'),
+                          ('qkv_attention', 'QKV plus attention vector stores B2')]:
         result = continuation/(prefix+'_experiment.json')
         if result.exists() and not read(result)['accepted']:
             experiment = read(result); pair = experiment['pair']

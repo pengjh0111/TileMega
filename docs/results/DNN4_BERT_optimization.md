@@ -134,6 +134,7 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | partial TN96 matrix store B8 prototype | 3 | 1.019632 | 0.998592 | +2.063 | 2.928 | False |
 | QKV four-slot B2 | 3 | 0.603536 | 0.596848 | +1.108 | 10.954 | False |
 | QKV seven-slot B4 | 3 | 0.730912 | 0.738096 | -0.983 | 2.693 | False |
+| QKV plus attention stores B2 | 3 | 0.572432 | 0.591184 | -3.276 | 8.385 | False |
 | paired residual read B16 prototype | 3 | 1.307504 | 1.310624 | -0.239 | 1.819 | False |
 | paired residual read B16 GPU0 diagnostic | 0 | 1.319680 | 1.313648 | +0.457 | 0.548 | False |
 
@@ -264,6 +265,8 @@ Verified qkv_slots4_corr on GPU0:strict FP32 model5/5,minimum cosine0.99995983,i
 
 Verified qkv_slots7_corr on GPU0:strict FP32 model5/5,minimum cosine0.99995583,identical output bytes across all five fresh processes. These completed correctness checks do not establish whole-model performance or production admission.
 
+Verified qkv_attention_corr on GPU0:strict FP32 model5/5,minimum cosine0.99995983,identical output bytes across all five fresh processes. These completed correctness checks do not establish whole-model performance or production admission.
+
 Verified B4 fixed-candidate revalidation completes fresh GPU3 P-SEL8/8 and independent P-PAIR6/6. The selected candidate measures 0.678592ms against0.748320ms;gain9.318% is below11.135% process-noise threshold. Retain all six processes and the earlier prototype evidence;do not replace the admitted B4 result or rerun this pair to seek acceptance.
 
 Verified CPU-only residual-pair follow-up on the existing fixed B8 candidate3 retains its coordinates and72/216 profile. It still spills 20/28B stores/loads,matching the original candidate,and never executes on GPU. The three legal whole-program alternatives remain unchanged.
@@ -289,6 +292,8 @@ Verified partial TN96 matrix-store B8 completes component/model gates and GPU3 P
 Verified four-slot QKV B2 completes component/model gates and GPU3 P-PAIR6/6:reference0.603536ms,candidate0.596848ms,gain1.108%,noise10.954%,minimum gain0.0%. Reject;retain the incumbent and all measured processes. No final collection or production admission follows this pair.
 
 Verified seven-slot QKV B4 completes component/model gates and GPU3 P-PAIR6/6:reference0.730912ms,candidate0.738096ms,gain-0.983%,noise2.693%,minimum gain0.0%. Reject;retain the incumbent and all measured processes. No final collection or production admission follows this pair.
+
+Verified QKV plus attention vector stores B2 completes component/model gates and GPU3 P-PAIR6/6:reference0.572432ms,candidate0.591184ms,gain-3.276%,noise8.385%,minimum gain0.0%. Reject;retain the incumbent and all measured processes. No final collection or production admission follows this pair.
 
 Verified B2 ring attribution across11 QKV stages:windows130.848→120.800us;main91.456→82.304us;slot wait50.048→38.848us;first ready25.888→21.920us. Historical accepted GPU3 trace and fresh exact-candidate trace are diagnostic;segment maxima overlap. They do not override the independent nontrace pair or qualify a new performance result.
 
