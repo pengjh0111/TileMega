@@ -185,6 +185,7 @@ def main():
                ('single-buffer six-slot FFN1 B16', continuation/'single_store6_b16_v1/experiment.json'),
                ('single-buffer wide FFN1 B16', continuation/'single_store4_tn256_b16_v1/experiment.json'),
                ('current-profile wide FFN1 B8', continuation/'ffn1_tma192_full_b8_v1/experiment.json'),
+               ('late staging reuse wait B16', continuation/'late_store_b16_v1/experiment.json'),
                ('FFN2 fixed split2 B4', continuation/'ffn2_split2_b4_v1/experiment.json'),
                ('main-loop pair B4', continuation/'loop_pair_b4_v1/experiment.json'),
                ('repaired profile3 catalog candidate2 B8', continuation/'candidate2_profile3_b8_v1/experiment.json'),
@@ -205,7 +206,7 @@ def main():
                     'residual warp handoff B16', 'shared terminal FFN2 B16',
                     'M-first task traversal B16', 'FFN2 fixed split2 B4',
                     'single-buffer six-slot FFN1 B16', 'single-buffer wide FFN1 B16',
-                    'current-profile wide FFN1 B8'):
+                    'current-profile wide FFN1 B8', 'late staging reuse wait B16'):
             for unit_path in experiment['unit_gates']:
                 unit = read(Path(unit_path))
                 processes = unit['processes']
@@ -233,7 +234,8 @@ def main():
                         'repaired profile3 catalog candidate2 B8', 'residual warp handoff B16',
                         'shared terminal FFN2 B16', 'M-first task traversal B16',
                         'FFN2 fixed split2 B4', 'single-buffer six-slot FFN1 B16',
-                        'single-buffer wide FFN1 B16', 'current-profile wide FFN1 B8'):
+                        'single-buffer wide FFN1 B16', 'current-profile wide FFN1 B8',
+                        'late staging reuse wait B16'):
                 bit = read(path.parent/'unit_bit_proof.json')
                 control = read(Path(bit['control']))
                 candidate = read(Path(bit['candidate']))
@@ -259,7 +261,7 @@ def main():
                         not read(path.parent/'unit_bit_proof.json')['passed']):
                     raise ValueError('private implementation requires default and unit equivalence')
             if name in ('single-buffer six-slot FFN1 B16', 'single-buffer wide FFN1 B16',
-                        'current-profile wide FFN1 B8'):
+                        'current-profile wide FFN1 B8', 'late staging reuse wait B16'):
                 preparation = read(Path(experiment['preparation']))
                 proof = preparation.get('default_proof', preparation.get('control_proof'))
                 pair = experiment['pair']
@@ -2164,6 +2166,31 @@ def main():
             trial = read(comparison)
             pair = trial['pair']
             outcome = ('Positive main-codegen candidate; ledger and admission remain separate.'
+                       if trial['accepted'] else 'Reject; retain the incumbent.')
+            lines.append(f'Verified control5/body17/order17 and strict model5 pass; '
+                         f'GPU3 pair {pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms, '
+                         f'noise{100*pair["threshold"]:.3f}%. {outcome}')
+    prepared = base/'late_store_b16_v1/result.json'
+    if prepared.exists() and read(prepared)['status'] == 'prepared':
+        preparation = read(prepared)
+        assert read(Path(preparation['control_proof']))['passed']
+        assert read(Path(preparation['prior_proof']))['passed']
+        assert read(prepared.parent/'sass_audit.json')['passed']
+        assert all(r['spill_bytes'] and not any(r['spill_bytes']) for r in preparation['rows'])
+        lines += ['', 'Verified a private section6.1/6.2 extension keeps the fixed B16 '
+                  'TN256/Slots4 single-buffer geometry and current72/216 profile, computing '
+                  'both32-column halves before the reuse wait. The read0 wait and WG128 barrier '
+                  'still precede the first shared write; residual, statistics-writer, PP, MC '
+                  'and pool paths are excluded. Default0 and predecessor instruction words '
+                  'match; the candidate has zero spill,347264B SASS and maxR213, unchanged '
+                  'from its predecessor. Static SASS confirms arithmetic precedes reuse wait '
+                  'and shared writes follow it. Hardware correctness and performance are '
+                  'separate gates; no production default is enabled.']
+        comparison = continuation/'late_store_b16_v1/experiment.json'
+        if comparison.exists():
+            trial = read(comparison)
+            pair = trial['pair']
+            outcome = ('Positive private pair; production admission remains separate.'
                        if trial['accepted'] else 'Reject; retain the incumbent.')
             lines.append(f'Verified control5/body17/order17 and strict model5 pass; '
                          f'GPU3 pair {pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms, '
