@@ -217,7 +217,7 @@ Verified current72/208 B4 cached-boundary qualification passes, but only3/6 fixe
 
 Verified CPU-only B8 register-profile3 follow-up preserves the six existing coordinate variants. Only0/1/2 have zero-spill production and boundary builds;3/4/5 spill. Coverage remains3/6,below four;these partial windows cannot assemble stage coordinates. A separate whole-program fallback may compare the three legal programs with the incumbent after strict model5/5;an ambiguous selection retains the incumbent.
 
-Verified B4 fixed-candidate72/216 prototype on historical GPU3: P-PAIR0.706016→0.678688ms;gain3.871% versus1.600% noise. P-DNN0.678704ms. This remains a prototype;complete four-program selection and fresh explicit-profile component gates are pending. It does not replace the current accepted B4 row.
+Verified B4 fixed-candidate72/216 prototype on historical GPU3: P-PAIR0.706016→0.678688ms;gain3.871% versus1.600% noise. P-DNN0.678704ms. This remains a prototype;the current continuation separately checks four-program selection,explicit-profile components,independent paired timing and final admission. It does not replace the current accepted B4 row.
 
 Verified B2 trace prototype checks first_ready only on the first local GEMM task;its clockpoint and four-marker layout are preserved. Production instruction words exactly match the accepted control;trace compilation has zero spill. Hardware qualification was skipped before all three trace processes: all48 normal GEMM stages have at most one task per CTA,so the first-task predicate removes no repeated baseline checks. The fresh GPU0 reference smoke0.572192ms is diagnostic only;no new performance is admitted.
 
@@ -231,7 +231,13 @@ Verified B2 fixed4 producer index lifetime drafts preserve coordinates and arith
 
 Stated2026-11-12 allocation:all four H800 cards0–3 are authorized;intermittent gaps are no longer required. New schedules preserve the six-sample guard,300s occupancy cooldown and /root/python entry paths. B4/B8 timing uses original GPU3;functional checks may use the other cards. Previously paused queues stay retired and completed checks are reused.
 
+Verified foreign GPU1 occupancy prevents dispatch of one B8 functional cohort. All five jobs have zero attempts and no guarded children when its controllers retire. The cohort relocates to GPU0 under new original guards;the other two live cohorts and all completed checks are retained. Performance timing stays on GPU3.
+
 Verified private fixed-coordinate B16 residual-read prototype compiles without spill;SASS355968B. One aligned shared32 read supplies each adjacent BF16 pair while preserving per-element arithmetic. CPU compilation establishes feasibility only;complete unit/sanitizer,model5/5 and same-GPU3 whole-model gates decide admission.
+
+Verified explicit72/216 P1 normalization component on GPU0:unit5/5,memcheck1/1,initcheck1/1,racecheck5/5,synccheck5/5;seventeen distinct native processes have identical output hashes and clean guard receipts. Four completed unit processes are reused;the remaining thirteen run under one original guarded reservation after the inherited cooldown. These are functional prerequisites;whole-model correctness and same-GPU3 timing decide performance admission.
+
+Verified private paired-residual-read component on GPU2:unit5/5,memcheck1/1,initcheck1/1,racecheck5/5,synccheck5/5;seventeen distinct native processes have identical output hashes and clean guard receipts. All seventeen run under one original guarded reservation. These are functional prerequisites;whole-model correctness and same-GPU3 timing decide performance admission.
 
 Verified profile2 B8 boundary overhead is3.419% on GPU0. Only2/6 existing variants are nonspilling;each completes three fresh20/50 traces. Four spilled variants are never executed. Required candidate coverage is incomplete;no assembled selection or admission is claimed. GPU2 partial traces remain separate and are not mixed with the GPU0 windows.
 

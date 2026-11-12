@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Publish guarded BERT optimization comparisons separately from final cells."""
 import argparse
+from collections import Counter
 import csv
 import json
 import re
@@ -751,9 +752,10 @@ def main():
                   f'P-PAIR{pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms;'
                   f'gain{100*(1-pair["ratio"]):.3f}% versus{100*pair["threshold"]:.3f}% noise. '
                   f'P-DNN{result["measurement"]["candidate_ms"]:.6f}ms. '
-                  + ('This remains a prototype;complete four-program selection and fresh '
-                     'explicit-profile component gates are pending. It does not replace '
-                     'the current accepted B4 row.' if pending else
+                  + ('This remains a prototype;the current continuation separately checks '
+                     'four-program selection,explicit-profile components,independent paired '
+                     'timing and final admission. It does not replace the current accepted '
+                     'B4 row.' if pending else
                      'Production admission and subsequent allocation are recorded separately '
                      'in the current artifact catalog.')]
     preparation = base/'first_ready_b2_preparation_v1/result.json'
@@ -831,6 +833,18 @@ def main():
                   'six-sample guard,300s occupancy cooldown and /root/python entry paths. '
                   'B4/B8 timing uses original GPU3;functional checks may use the other '
                   'cards. Previously paused queues stay retired and completed checks are reused.']
+    relocation = continuation/'b8_corr2_relocation.json'
+    if relocation.exists():
+        moved = read(relocation)
+        if (moved['completed_processes_discarded'] != 0
+                or any(s['attempts'] or s['status'] != 'pending'
+                       for s in moved['states'].values())):
+            raise ValueError('B8 relocation was not a wholly unstarted cohort')
+        lines += ['', 'Verified foreign GPU1 occupancy prevents dispatch of one B8 '
+                  'functional cohort. All five jobs have zero attempts and no guarded '
+                  'children when its controllers retire. The cohort relocates to GPU0 '
+                  'under new original guards;the other two live cohorts and all '
+                  'completed checks are retained. Performance timing stays on GPU3.']
     residual = base/'residual_pair_b16_preparation_v1/result.json'
     if residual.exists() and read(residual)['status'] == 'prepared':
         compiled = read(residual)
@@ -839,6 +853,30 @@ def main():
                   'read supplies each adjacent BF16 pair while preserving per-element '
                   'arithmetic. CPU compilation establishes feasibility only;complete '
                   'unit/sanitizer,model5/5 and same-GPU3 whole-model gates decide admission.']
+    for suite, label in [('side_finish', 'explicit72/216 P1 normalization'),
+                         ('residual_unit', 'private paired-residual-read')]:
+        receipt = continuation/suite/'result.json'
+        if not receipt.exists():
+            continue
+        result = read(receipt)
+        processes = result['processes']
+        expected = Counter(unit=5, memcheck=1, initcheck=1, racecheck=5, synccheck=5)
+        if (not result['passed'] or len(processes) != 17
+                or len({p['pid'] for p in processes}) != 17
+                or Counter(p['name'].split('-')[0] for p in processes) != expected
+                or len({p['binary_sha256'] for p in processes}) != 1
+                or len({p['output_hash'] for p in processes}) != 1
+                or any(p['exit_code'] or read(Path(p['guard']))['code'] for p in processes)):
+            raise ValueError('four-card functional receipt lacks its complete17 processes')
+        lines += ['', f'Verified {label} component on GPU{result["gpu"]}:unit5/5,'
+                  'memcheck1/1,initcheck1/1,racecheck5/5,synccheck5/5;seventeen distinct '
+                  'native processes have identical output hashes and clean guard receipts. '
+                  + ('Four completed unit processes are reused;the remaining thirteen '
+                     'run under one original guarded reservation after the inherited cooldown. '
+                     if suite == 'side_finish' else
+                     'All seventeen run under one original guarded reservation. ')
+                  + 'These are functional prerequisites;whole-model correctness and '
+                  'same-GPU3 timing decide performance admission.']
     retune = base/'phase72_retune_b8_gpu0_v1/incomplete_selection.json'
     if retune.exists():
         qualification = read(retune.parent/'trace_qualification.json')
