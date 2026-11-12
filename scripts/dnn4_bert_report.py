@@ -889,7 +889,9 @@ def main():
             raise ValueError('continuation model receipt lacks five accepted processes')
         minimum = min(output['cosine_min'] for case in result['cases']
                       for output in case['outputs'])
-        lines += ['', f'Verified {suite} on GPU{result["gpu"]}:strict FP32 model5/5,'
+        cards = result.get('gpu_indices', [result['gpu']])
+        gpu_label = '/'.join(map(str, cards))
+        lines += ['', f'Verified {suite} on GPU{gpu_label}:strict FP32 model5/5,'
                   f'minimum cosine{minimum:.8f},identical output bytes across all five '
                   'fresh processes. These completed correctness checks do not establish '
                   'whole-model performance or production admission.']
@@ -912,6 +914,17 @@ def main():
                   'B8 candidate3 retains its coordinates and72/216 profile. It still spills '
                   '20/28B stores/loads,matching the original candidate,and never executes '
                   'on GPU. The three legal whole-program alternatives remain unchanged.']
+    whole_b8 = continuation/'b8_result.json'
+    if whole_b8.exists() and read(whole_b8)['status'] == 'retain_current':
+        result = read(whole_b8); selected = result['selection']
+        if (selected['gpu'] != 3 or len(selected['measurements']) != 8
+                or any(r['guard']['code'] for r in selected['measurements'])):
+            raise ValueError('B8 retention lacks its complete same-card selection')
+        timings = ','.join(f'{r["arm"]}={r["median_ms"]:.6f}ms' for r in selected['ranking'])
+        lines += ['', 'Verified B8 nontrace whole-program P-SEL8/8 on GPU3: '+timings+
+                  f';tied={selected["tied"]},noise{100*selected["threshold"]:.3f}%. '
+                  'Retain the incumbent because the winner is ambiguous or already current. '
+                  'Incomplete stage-window coverage supplies no tie priority or assembled selection.']
     retune = base/'phase72_retune_b8_gpu0_v1/incomplete_selection.json'
     if retune.exists():
         qualification = read(retune.parent/'trace_qualification.json')

@@ -240,6 +240,10 @@ Verified explicit72/216 P1 normalization component on GPU0:unit5/5,memcheck1/1,i
 
 Verified private paired-residual-read component on GPU2:unit5/5,memcheck1/1,initcheck1/1,racecheck5/5,synccheck5/5;seventeen distinct native processes have identical output hashes and clean guard receipts. All seventeen run under one original guarded reservation. These are functional prerequisites;whole-model correctness and same-GPU3 timing decide performance admission.
 
+Verified b8_corr1 on GPU0/3:strict FP32 model5/5,minimum cosine0.99995768,identical output bytes across all five fresh processes. These completed correctness checks do not establish whole-model performance or production admission.
+
+Verified b8_corr2 on GPU0/3:strict FP32 model5/5,minimum cosine0.99995768,identical output bytes across all five fresh processes. These completed correctness checks do not establish whole-model performance or production admission.
+
 Verified b8_corr3 on GPU2:strict FP32 model5/5,minimum cosine0.99995768,identical output bytes across all five fresh processes. These completed correctness checks do not establish whole-model performance or production admission.
 
 Verified B4 fixed-candidate revalidation completes fresh GPU3 P-SEL8/8 and independent P-PAIR6/6. The selected candidate measures 0.678592ms against0.748320ms;gain9.318% is below11.135% process-noise threshold. Retain all six processes and the earlier prototype evidence;do not replace the admitted B4 result or rerun this pair to seek acceptance.
