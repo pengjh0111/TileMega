@@ -165,12 +165,24 @@ def main():
                ('paired residual read B16 GPU0 diagnostic', continuation/'residual_gpu0_experiment.json')]
     probes += [('full-tile B8', continuation/'full_tiles_b8_v2/experiment.json'),
                ('full-tile B16', continuation/'full_tiles_b16_selector_v1/experiment.json')]
+    probes += [(f'full-tile B{b}', continuation/f'full_tiles_b{b}_v1/experiment.json')
+               for b in (2, 4)]
     rows = []
     choices = []
     for name, path in probes:
         if not path.exists():
             continue
         experiment = read(path)
+        if name.startswith('full-tile '):
+            unit_paths = experiment.get('unit_gates')
+            if unit_paths is None:
+                unit_paths = [p['candidate'] for p in experiment['unit_bit_proofs']]
+            for unit_path in unit_paths:
+                unit = read(Path(unit_path))
+                if (not unit['passed'] or len(unit['processes']) != 17 or
+                        any(p['exit_code'] or read(Path(p['guard']))['code']
+                            for p in unit['processes'])):
+                    raise ValueError('full-tile comparison lacks complete component gates')
         admitted_continuation = name == 'cached-boundary216 B4 admitted continuation'
         gpu0_continuation = admitted_continuation and experiment['gpu'] == 0
         if admitted_continuation:
@@ -1482,6 +1494,24 @@ def main():
                       'strict model gate and63-stage ledger are retained. Eight '
                       'corrupted admission receipts are rejected in CPU checks. '
                       'Other cells, fixed goals and original anchors are unchanged.']
+    small_proof = base/'full_tiles_main_small_codegen_v1/result.json'
+    if small_proof.exists():
+        emitted = read(small_proof)
+        assert emitted['passed'] and all(r['passed'] for r in emitted['rows'])
+        for batch in (2, 4):
+            model_path = continuation/f'full_tiles_small_models_v1/b{batch}/result.json'
+            model = read(model_path)
+            bit = read(model_path.parent/'model_bit_proof.json')
+            assert model['passed'] and model['passes'] == '5/5' and bit['passed']
+        lines += ['', 'Verified fixed full-tile B2/B4 candidates each pass strict '
+                  'whole-model5/5 on GPU0 and preserve incumbent output bytes. '
+                  'Real main codegen matches31360/31424 encoded64-bit instruction '
+                  'words of the prepared binaries, with zero spill and unchanged '
+                  'coordinates/profiles. B2 has a separate72/216 body cohort '
+                  '(unit5,mem1,init1,race5,sync5); its model uses only register '
+                  'stores. B4 requires the matching72/208 B8 body and ordering '
+                  'cohorts. Independent GPU3 performance and exact-binary ledger '
+                  'checks remain separate admission requirements.']
     isolated = continuation/'bert_stage_probe_constants_gpu3_v2/result.json'
     if isolated.exists():
         measured = read(isolated)['rows']
