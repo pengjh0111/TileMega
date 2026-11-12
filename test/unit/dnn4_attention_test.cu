@@ -17,6 +17,11 @@ template<class T> struct Device {
  std::vector<T> Get(){std::vector<T> v(count);Check(cudaMemcpy(v.data(),data,count*sizeof(T),cudaMemcpyDeviceToHost));return v;}
 };
 std::uint64_t hash=14695981039346656037ull;
+#ifdef DNN4_ATTENTION_PROFILE3_TEST
+constexpr int kProducerRegisters=72,kConsumerRegisters=216;
+#else
+constexpr int kProducerRegisters=56,kConsumerRegisters=224;
+#endif
 template<int B,int Rows> __global__ __launch_bounds__(384,1) void AttentionKernel(
  const __grid_constant__ CUtensorMap q,const __grid_constant__ CUtensorMap k,
  const __grid_constant__ CUtensorMap v,E* output) {
@@ -27,8 +32,8 @@ template<int B,int Rows> __global__ __launch_bounds__(384,1) void AttentionKerne
  if(threadIdx.x<256 && (threadIdx.x&31)==0)h->rings[0].Prime();
  __syncthreads();
  Sm90F3AttentionOperands p{&q,&k,&v,output};Sm90F3Phase phase{};
- if(threadIdx.x>=256){Sm90F3Async::RegDealloc<56>();Sm90F3Attention<B,Rows>::Produce(p,h->rings[0],shared+2048,phase);}
- else {Sm90F3Async::RegAlloc<224>();Sm90F3Attention<B,Rows>::Consume(p,h->rings[0],shared+2048,phase);}
+ if(threadIdx.x>=256){Sm90F3Async::RegDealloc<kProducerRegisters>();Sm90F3Attention<B,Rows>::Produce(p,h->rings[0],shared+2048,phase);}
+ else {Sm90F3Async::RegAlloc<kConsumerRegisters>();Sm90F3Attention<B,Rows>::Consume(p,h->rings[0],shared+2048,phase);}
  __syncthreads();if(threadIdx.x==0)h->rings[0].Invalidate();
 }
 template<int B,int Rows=(16*B<128?16*B:128)> void Case() {
