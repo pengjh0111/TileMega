@@ -961,6 +961,20 @@ def main():
             lines += [f'Verified {suite}:unit5/5,mem1/1,init1/1,race5/5,sync5/5 '
                       f'on GPU{unit["gpu"]};all seventeen fresh processes have identical '
                       'output hashes. Functional evidence does not establish E2E benefit.']
+        attribution = continuation/'store96_attribution.json'
+        if attribution.exists():
+            summary = read(attribution)
+            ffn1 = next(r for r in summary['groups'] if r['group'] == 'ffn1')
+            old, new = ffn1['reference_us'], ffn1['candidate_us']
+            lines += ['Verified rejected partial-store attribution:the12 FFN1 windows sum'
+                      f'{old["stage_ns"]:.3f}→{new["stage_ns"]:.3f}us;main-loop CTA maxima sum'
+                      f'{old["main_loop_max_cta_ns"]:.3f}→{new["main_loop_max_cta_ns"]:.3f}us;'
+                      f'epilogue{old["epilogue_max_cta_ns"]:.3f}→{new["epilogue_max_cta_ns"]:.3f}us;'
+                      f'store{old["store_max_cta_ns"]:.3f}→{new["store_max_cta_ns"]:.3f}us. '
+                      'The historical same-GPU3 reference and fresh candidate trace are '
+                      'diagnostic;segment maxima overlap. These data do not support a '
+                      'large main-loop penalty from losing one slot;the store reduction '
+                      'is small and total epilogue increases. Nontrace pair rejects the candidate.']
         conditional = base/'store96_b16_model_preparation_v1/result.json'
         if conditional.exists() and read(conditional)['status'] == 'prepared':
             compiled = read(conditional)
