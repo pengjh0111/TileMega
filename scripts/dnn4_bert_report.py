@@ -158,6 +158,7 @@ def main():
                ('QKV plus attention stores B2', continuation/'qkv_attention_experiment.json'),
                ('first WGMMA initialization B16', continuation/'mma_zero_experiment.json'),
                ('fixed H800 grid B16', continuation/'fixed_grid_experiment.json'),
+               ('fixed grid producer recomputation B8', continuation/'grid_recount_experiment.json'),
                ('paired residual read B16 prototype', continuation/'residual_experiment.json'),
                ('paired residual read B16 GPU0 diagnostic', continuation/'residual_gpu0_experiment.json')]
     rows = []
@@ -204,6 +205,7 @@ def main():
                     'QKV four-slot B2', 'QKV seven-slot B4', 'QKV plus attention stores B2',
                     'first WGMMA initialization B16',
                     'fixed H800 grid B16',
+                    'fixed grid producer recomputation B8',
                     'paired residual read B16 prototype',
                     'paired residual read B16 GPU0 diagnostic'):
             unit_paths = experiment.get('unit_gates', [experiment.get('unit_gate')])
@@ -911,7 +913,7 @@ def main():
                      'All seventeen run under one original guarded reservation. ')
                   + 'These are functional prerequisites;whole-model correctness and '
                   'same-GPU3 timing decide performance admission.']
-    for suite in ('b8_corr1', 'b8_corr2', 'b8_corr3', 'residual_corr', 'store96_corr', 'store96_matrix_corr', 'qkv_slots4_corr', 'qkv_slots7_corr', 'qkv_attention_corr', 'mma_zero_corr', 'fixed_grid_corr'):
+    for suite in ('b8_corr1', 'b8_corr2', 'b8_corr3', 'residual_corr', 'store96_corr', 'store96_matrix_corr', 'qkv_slots4_corr', 'qkv_slots7_corr', 'qkv_attention_corr', 'mma_zero_corr', 'fixed_grid_corr', 'grid_recount_corr'):
         receipt = continuation/suite/'result.json'
         if not receipt.exists():
             continue
@@ -1067,7 +1069,8 @@ def main():
                           ('qkv_slots7', 'seven-slot QKV B4'),
                           ('qkv_attention', 'QKV plus attention vector stores B2'),
                           ('mma_zero', 'first WGMMA initialization B16'),
-                          ('fixed_grid', 'fixed H800 grid B16')]:
+                          ('fixed_grid', 'fixed H800 grid B16'),
+                          ('grid_recount', 'fixed grid producer recomputation B8')]:
         result = continuation/(prefix+'_experiment.json')
         if result.exists() and not read(result)['accepted']:
             experiment = read(result); pair = experiment['pair']
@@ -1181,6 +1184,45 @@ def main():
                       'and rebuilt codegen object pass real codegen14profiles/'
                       '8invalid-settings checks,41admission tests and two related '
                       'CTest checks. The full CMake build is not claimed.']
+    recount = base/'grid_recount_b8_preparation_v1/result.json'
+    if recount.exists() and read(recount)['status'] == 'prepared':
+        prepared = read(recount)
+        if not prepared['control_proof']['passed']:
+            raise ValueError('producer recomputation lacks its default0 proof')
+        lines += ['', 'Verified private B8 producer repair recomputes the CTA index '
+                  'at task/address uses. Earlier fixed-grid spills all occur after '
+                  'producer deallocation to72registers;the larger consumer budget '
+                  'does not resolve them. Current72/208 coordinates/profile now '
+                  'compile with zero spill,SASS328576→311680B,RCP77→56. Default0 '
+                  'matches all41072 current B8 words and all42896 admitted B16 '
+                  'words. This is a compiler register-lifetime repair;independent '
+                  'whole-model performance decides acceptance.']
+        for suite in ('body', 'attention'):
+            receipt = continuation/('grid_recount_'+suite+'_unit')/'result.json'
+            if receipt.exists():
+                unit = read(receipt)
+                if not unit['passed'] or len(unit['processes']) != 17:
+                    raise ValueError('producer recomputation unit gate incomplete')
+                lines += [f'Verified producer-recomputation {suite} on GPU{unit["gpu"]}: '
+                          'unit5/5,mem1/1,init1/1,race5/5,sync5/5;output bytes '
+                          'match the frozen shape controls. These are functional gates.']
+    fixed_b2 = base/'fixed_grid_b2_preparation_v1/result.json'
+    if fixed_b2.exists() and read(fixed_b2)['status'] == 'rejected_compile':
+        lines += ['', 'Verified fixed-grid-only B2 under its current72/216 '
+                  'profile spills144/188B. It is rejected at the CPU gate and '
+                  'does not execute on GPU.']
+    guards = base/'grid_recount_default_guard_v1'
+    guarded_names = ('b1_off', 'b2_off', 'b4_off', 'b8_off', 'b16_off', 'b8_on')
+    if all((guards/name/'result.json').exists() for name in guarded_names):
+        if not all(read(guards/name/'result.json')['passed'] for name in guarded_names):
+            raise ValueError('producer default guard changes accepted instructions')
+        lines += ['', 'Verified the original disabled BlockIndex helper changes '
+                  'B2 instructions and is rejected before candidate compilation or '
+                  'GPU execution. The repaired compile-time macro restores the '
+                  'literal original expression when disabled. All five current '
+                  'BERT kernels match their original instruction words;enabled B8 '
+                  'matches all38960 words of the independently qualified prototype. '
+                  'No numerical or timing process is repeated for this source repair.']
     retune = base/'phase72_retune_b8_gpu0_v1/incomplete_selection.json'
     if retune.exists():
         qualification = read(retune.parent/'trace_qualification.json')

@@ -137,6 +137,7 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | QKV plus attention stores B2 | 3 | 0.572432 | 0.591184 | -3.276 | 8.385 | False |
 | first WGMMA initialization B16 | 3 | 1.319024 | 1.307904 | +0.843 | 2.120 | False |
 | fixed H800 grid B16 | 3 | 1.315328 | 1.295936 | +1.474 | 0.659 | True |
+| fixed grid producer recomputation B8 | 3 | 1.019888 | 0.989792 | +2.951 | 0.693 | True |
 | paired residual read B16 prototype | 3 | 1.307504 | 1.310624 | -0.239 | 1.819 | False |
 | paired residual read B16 GPU0 diagnostic | 0 | 1.319680 | 1.313648 | +0.457 | 0.548 | False |
 
@@ -273,6 +274,8 @@ Verified mma_zero_corr on GPU0:strict FP32 model5/5,minimum cosine0.99995708,ide
 
 Verified fixed_grid_corr on GPU0:strict FP32 model5/5,minimum cosine0.99995708,identical output bytes across all five fresh processes. These completed correctness checks do not establish whole-model performance or production admission.
 
+Verified grid_recount_corr on GPU0:strict FP32 model5/5,minimum cosine0.99995768,identical output bytes across all five fresh processes. These completed correctness checks do not establish whole-model performance or production admission.
+
 Verified B4 fixed-candidate revalidation completes fresh GPU3 P-SEL8/8 and independent P-PAIR6/6. The selected candidate measures 0.678592ms against0.748320ms;gain9.318% is below11.135% process-noise threshold. Retain all six processes and the earlier prototype evidence;do not replace the admitted B4 result or rerun this pair to seek acceptance.
 
 Verified CPU-only residual-pair follow-up on the existing fixed B8 candidate3 retains its coordinates and72/216 profile. It still spills 20/28B stores/loads,matching the original candidate,and never executes on GPU. The three legal whole-program alternatives remain unchanged.
@@ -319,6 +322,14 @@ Verified fixed-grid attention on GPU3: unit5/5,mem1/1,init1/1,race5/5,sync5/5;ou
 Verified CPU-only B8 portability check spills20/20B under its current72/208 profile. It is rejected before GPU execution;no B8 hardware result is claimed.
 Verified existing72/216 also spills20/20B for fixed-grid B8; that CPU-only follow-up is rejected without a register sweep.
 Verified fixed-grid B16 is admitted after main on/off instruction equivalence,repository fixture equivalence, host rejection5/5,strict model5/5,independent GPU3 pair and an exact63-stage ledger. P-DNN median1.295600ms,p901.313632ms,process range0.011296ms. Other four cells and original anchors remain unchanged. CMake regeneration is blocked by a missing installed MLIRCAPIDebug object;the unchanged certified cached archive and rebuilt codegen object pass real codegen14profiles/8invalid-settings checks,41admission tests and two related CTest checks. The full CMake build is not claimed.
+
+Verified private B8 producer repair recomputes the CTA index at task/address uses. Earlier fixed-grid spills all occur after producer deallocation to72registers;the larger consumer budget does not resolve them. Current72/208 coordinates/profile now compile with zero spill,SASS328576→311680B,RCP77→56. Default0 matches all41072 current B8 words and all42896 admitted B16 words. This is a compiler register-lifetime repair;independent whole-model performance decides acceptance.
+Verified producer-recomputation body on GPU0: unit5/5,mem1/1,init1/1,race5/5,sync5/5;output bytes match the frozen shape controls. These are functional gates.
+Verified producer-recomputation attention on GPU3: unit5/5,mem1/1,init1/1,race5/5,sync5/5;output bytes match the frozen shape controls. These are functional gates.
+
+Verified fixed-grid-only B2 under its current72/216 profile spills144/188B. It is rejected at the CPU gate and does not execute on GPU.
+
+Verified the original disabled BlockIndex helper changes B2 instructions and is rejected before candidate compilation or GPU execution. The repaired compile-time macro restores the literal original expression when disabled. All five current BERT kernels match their original instruction words;enabled B8 matches all38960 words of the independently qualified prototype. No numerical or timing process is repeated for this source repair.
 
 Verified profile2 B8 boundary overhead is3.419% on GPU0. Only2/6 existing variants are nonspilling;each completes three fresh20/50 traces. Four spilled variants are never executed. Required candidate coverage is incomplete;no assembled selection or admission is claimed. GPU2 partial traces remain separate and are not mixed with the GPU0 windows.
 
