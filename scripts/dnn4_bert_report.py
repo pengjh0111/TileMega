@@ -1430,7 +1430,7 @@ def main():
         groups = ', '.join(f'{row["group"]} '
                            f'{row["predicted_us"]:.1f}→{row["measured_us"]:.1f}µs'
                            for row in audit['groups'])
-        lines += ['', f'Verified reuse of current B8 qualified boundary windows '
+        lines += ['', f'Verified reuse of pre-full-tile B8 qualified boundary windows '
                   f'(prediction→observation, group sums): {groups}. '
                   'The existing three20/50 processes passed4.0288% overhead '
                   'qualification on GPU3. FFN1 has the largest underprediction. '
@@ -1512,6 +1512,22 @@ def main():
                   'stores. B4 requires the matching72/208 B8 body and ordering '
                   'cohorts. Independent GPU3 performance and exact-binary ledger '
                   'checks remain separate admission requirements.']
+        admitted_path = base/'full_tiles_b4_admitted_v1/admission.json'
+        if admitted_path.exists():
+            admitted = read(admitted_path)
+            assert admitted['status'] == 'admitted'
+            lines += ['', f'Verified full-tile B4 admission: GPU3 P-DNN '
+                      f'{admitted["median_ms"]:.6f}ms, p90 '
+                      f'{admitted["p90_ms"]:.6f}ms, process range '
+                      f'{admitted["process_range_ms"]:.6f}ms. Its independent '
+                      f'pair gains {100*(1-admitted["pair_ratio"]):.3f}% against '
+                      f'{100*admitted["noise"]:.3f}% noise. The main emitted '
+                      'kernel matches the measured binary; complete B8 body '
+                      'and ordering cohorts are reused only after matching '
+                      'their full72/208 feature profiles. Nine corrupted '
+                      'receipts, including mismatched inherited profiles, '
+                      'are rejected. The exact63-stage GPU3 ledger, fixed '
+                      'target and original anchor are retained.']
     isolated = continuation/'bert_stage_probe_constants_gpu3_v2/result.json'
     if isolated.exists():
         measured = read(isolated)['rows']
@@ -1523,7 +1539,7 @@ def main():
                   '20/50 processes, real TMA and unchanged epilogue arithmetic; '
                   'generated-model shape constants are preserved and every output '
                   'is checked against an independent constant-input FP32 reference. '
-                  'The qualified current B8 FFN1 boundary mean is24.728us versus '
+                  'The qualified pre-full-tile B8 FFN1 boundary mean is24.728us versus '
                   '12.096us isolated. The workloads differ in cache state, code '
                   'context, bindings and stage gates; this gap is not assigned '
                   'to one cause. No F4 constant or end-to-end result is replaced.']
