@@ -385,6 +385,8 @@ Verified matched GPU3 epilogue recheck: deferred_ln=859.3→764.0ns, deferred_ln
 
 Verified current-coordinate model audit, actual/predicted: B1=1.531, B2=1.751, B4=1.918, B8=1.886, B16=1.616. The CPU utility reproduces all63 original rank0 stage predictions exactly and reuses current accepted P-DNN observations; it does not claim new P-MODEL traces. Every cell exceeds1.3. Lower epilogue coefficients alone would worsen underprediction, so no epilogue-only table is installed. Inferred next implementation check: eliminate runtime tail conditions for dimensions known to contain only full tiles.
 
+Verified reuse of current B8 qualified boundary windows (prediction→observation, group sums): small 9.7→15.8µs, qkv 97.9→198.8µs, attention 59.5→133.7µs, projection 64.6→146.4µs, ffn1 134.2→296.7µs, ffn2 152.6→235.1µs. The existing three20/50 processes passed4.0288% overhead qualification on GPU3. FFN1 has the largest underprediction. This is an incumbent-coordinate diagnostic, not a new rank0 P-MODEL gate; boundary terms alone do not assign the gap to mainloop or epilogue. No coefficient is changed.
+
 Verified private full-tile B8 CPU preparation: SASS 311680→292864B, zero spills; disabled kernels preserve current instruction words. Complete unit5/sanitizer1/1/5/5 suites: body. The initial B8 ordering cohort exceeded its aggregate1200s limit and is rejected; its replacement retains all200-launch cases with separately guarded processes. These are implementation and correctness results; no performance admission is implied.
 
 Verified full-tile B8 strict model5/5 on GPU0, with exact current-incumbent output bytes.

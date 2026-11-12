@@ -1410,6 +1410,19 @@ def main():
                   'underprediction, so no epilogue-only table is installed. '
                   'Inferred next implementation check: eliminate runtime tail '
                   'conditions for dimensions known to contain only full tiles.']
+    boundary_audit = base/'current_b8_boundary_model_audit_v1/result.json'
+    if boundary_audit.exists():
+        audit = read(boundary_audit)
+        groups = ', '.join(f'{row["group"]} '
+                           f'{row["predicted_us"]:.1f}→{row["measured_us"]:.1f}µs'
+                           for row in audit['groups'])
+        lines += ['', f'Verified reuse of current B8 qualified boundary windows '
+                  f'(prediction→observation, group sums): {groups}. '
+                  'The existing three20/50 processes passed4.0288% overhead '
+                  'qualification on GPU3. FFN1 has the largest underprediction. '
+                  'This is an incumbent-coordinate diagnostic, not a new rank0 '
+                  'P-MODEL gate; boundary terms alone do not assign the gap to '
+                  'mainloop or epilogue. No coefficient is changed.']
     for batch, preparation, folder in [
             (8, 'full_tiles_preparation_v2/b8', 'full_tiles_b8_v2'),
             (16, 'full_tiles_b16_selector_v1', 'full_tiles_b16_selector_v1')]:
