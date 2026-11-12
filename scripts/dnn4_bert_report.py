@@ -1527,6 +1527,26 @@ def main():
                   '12.096us isolated. The workloads differ in cache state, code '
                   'context, bindings and stage gates; this gap is not assigned '
                   'to one cause. No F4 constant or end-to-end result is replaced.']
+    for folder, contrast in [('bert_data_context_gpu0_v1', '128MiB data-write'),
+                             ('bert_code_context_v1', '1MiB straight-line-code')]:
+        context = continuation/folder/'result.json'
+        if not context.exists():
+            continue
+        values = read(context)['rows']
+        assert len(values) == 2 and all(r['passes'] == '5/5' for r in values)
+        hot, cold = values
+        assert hot['gpu'] == cold['gpu']
+        assert all(read(Path(r['guard']))['code'] == 0 for r in values)
+        lines += ['', f'Verified GPU{hot["gpu"]} {contrast} contrast for the same '
+                  f'isolated B8 FFN1 kernel: hot {hot["window_ns"]/1000:.3f}us '
+                  f'and cold {cold["window_ns"]/1000:.3f}us, ratio '
+                  f'{cold["window_ns"]/hot["window_ns"]:.6f}. Each context uses '
+                  'five fresh20/50 processes and checks every output against '
+                  'the constant-input FP32 reference. All6304 encoded64-bit '
+                  'Probe words match the original diagnostic; eviction runs '
+                  'outside its measured consumer window. This same-card '
+                  'contrast does not establish the complete model gap or '
+                  'replace F4 coefficients or end-to-end admission.']
     lock_rejection = continuation/'full_tiles_default_lock_rejection.json'
     if lock_rejection.exists():
         lines += ['', 'Verified full-tile ordering dispatch correction: the first '
