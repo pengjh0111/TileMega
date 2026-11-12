@@ -15,7 +15,19 @@ def body_of(stage):
     return BODIES[stage['body']]
 
 
-def repeat_program(manifest, source, program, buffers, maps, bodies):
+def without_statistics_wrapper(args):
+    starts=list(re.finditer(r'Sm90F3(?:Write|Optional)RowStats<',args))
+    if len(starts)!=1:
+        raise ValueError('shared FFN requires exactly one statistics wrapper')
+    start=starts[0];depth=1;end=start.end()
+    while end<len(args) and depth:
+        depth+=(args[end]=='<')-(args[end]=='>');end+=1
+    if depth:
+        raise ValueError('unbalanced shared FFN statistics wrapper')
+    return args[:start.start()]+args[start.end():end-1]+args[end:]
+
+
+def repeat_program(manifest, source, program, buffers, maps, bodies, optional_stats=False):
     if len(manifest['native_forward']['stages']) != 63:
         raise ValueError('F3 Repeat requires the complete twelve-layer BERT program')
     repeated = re.fullmatch(r',Stage_0,Repeat<(6|12)((?:,Loop_\d+)+)>,Stage_61,Stage_62', program[4])
@@ -37,13 +49,26 @@ def repeat_program(manifest, source, program, buffers, maps, bodies):
         normal = f'LoopWrap_{i}' if alias_bindings else f'Wrap_{canonical}'
         first = f'GemmStage<Body_{1+i},{bind},Shape_{1+i}>' if i in (0, 2) else normal
         last = f',GemmStage<Body_60,{bind},Shape_60>' if i+1 == body else ''
-        expected.append((str(i), f'RepeatStage<{normal},{first}{last}>'))
+        expected.append((str(i), f'RepeatStage<{normal}>' if optional_stats and i+1==body
+                         else f'RepeatStage<{normal},{first}{last}>'))
     if loops != expected:
         raise ValueError('F3 Repeat edge variants differ from their logical stages')
     shapes = dict(re.findall(r'struct Shape_(\d+) \{([^}]+)\};', source))
     bindings = {}
     for index, fields in re.findall(r'struct Bind_(\d+) \{([^}]+)\};', source):
         bindings[int(index)] = dict(re.findall(r'(k\w+)=(kAbsent|\d+)', fields))
+    if optional_stats:
+        canonical=str(2*body)
+        normal=bodies[canonical]
+        terminal=bodies['60']
+        if (normal[1]!='Sm90F3Gemm' or terminal[1]!=normal[1]
+                or normal[2].count('Sm90F3OptionalRowStats<')!=1
+                or without_statistics_wrapper(normal[2])!=terminal[2]
+                or shapes.get(canonical)!=shapes.get('60')
+                or bindings[60]['kRowPartials']!='kAbsent'
+                or any(bindings[1+body*r+body-1]['kRowPartials']=='kAbsent'
+                       for r in range(repetitions-1))):
+            raise ValueError('shared terminal FFN changes geometry, arithmetic or statistics binding')
     bf = ('kInput kWeight kOutput kPartial kCounters kVector0 kVector1 kVector2 kVector3 '
           'kResidual kStats kRowStats kRowPartials kRowCounters kChannelPartial kIndex0 kIndex1 kTable').split()
     mf = 'kMap kResidualMap kQueryMap kValueMap kOutputMap'.split()
@@ -90,7 +115,10 @@ def repeat_program(manifest, source, program, buffers, maps, bodies):
         for i in range(body):
             actual, canonical = 1+body*rep+i, 1+body+i
             edge = (rep == 0 and i in (0, 2)) or (rep+1 == repetitions and i+1 == body)
-            if not edge and (bodies[str(actual)][1:] != bodies[str(canonical)][1:]
+            normal_body = lambda index: tuple(
+                v.replace('Sm90F3OptionalRowStats<', 'Sm90F3WriteRowStats<')
+                for v in bodies[str(index)][1:])
+            if not edge and (normal_body(actual) != normal_body(canonical)
                              or shapes.get(str(actual)) != shapes.get(str(canonical))):
                 raise ValueError('F3 Repeat changes a nonperiodic stage body')
             if actual not in bindings or canonical not in bindings:
@@ -193,6 +221,16 @@ def dispatch(manifest, defines, source):
         raise ValueError('invalid explicit F3 full tile specialization')
     if defines.get('TILEMEGA_F3_REPEAT_SELECTOR', '0') not in ('0', '1'):
         raise ValueError('invalid explicit F3 Repeat selector recomputation')
+    if defines.get('TILEMEGA_F3_OPTIONAL_ROW_STATS','0') not in ('0','1'):
+        raise ValueError('invalid explicit optional statistics mode')
+    optional_stats=defines.get('TILEMEGA_F3_OPTIONAL_ROW_STATS','0')=='1'
+    optional_bodies=re.findall(r'using Body_(\d+)=[^;]*Sm90F3OptionalRowStats<[^;]*;',source)
+    if optional_stats:
+        repeated=re.search(r',Stage_0,Repeat<(6|12),',source)
+        if repeated is None or optional_bodies!=[str(120//int(repeated[1]))]:
+            raise ValueError('optional statistics must name only the canonical final FFN')
+    elif optional_bodies:
+        raise ValueError('optional statistics requires an explicit profile')
     c = manifest['native_forward']
     match = re.search(r'kF3ForwardIdentity\[\]\s*=\s*("(?:\\.|[^"\\])*");', source)
     if match is None or json.loads(json.loads(match[1])) != c:
@@ -272,7 +310,7 @@ def dispatch(manifest, defines, source):
             or maps is None or int(program[3]) != int(maps[1])):
         raise ValueError('F3 program structure differs from manifest')
     if 'Repeat<' in program[4]:
-        repeat_program(manifest, source, program, buffers, maps, bodies)
+        repeat_program(manifest, source, program, buffers, maps, bodies, optional_stats)
     elif (program[4] != ''.join(',Stage_' + str(i) for i in range(count))
           or re.search(r'\b(?:Repeat|RepeatTables|RepeatStage)<', source)):
         raise ValueError('F3 program stage coverage differs from manifest')
