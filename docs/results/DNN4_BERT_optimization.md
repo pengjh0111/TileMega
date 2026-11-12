@@ -165,6 +165,7 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | M-first task traversal B16 | 3 | 1.285568 | 1.310208 | -1.917 | 4.374 | False |
 | single-buffer six-slot FFN1 B16 | 3 | 1.282928 | 1.294336 | -0.889 | 1.836 | False |
 | single-buffer wide FFN1 B16 | 3 | 1.288816 | 1.403856 | -8.926 | 1.197 | False |
+| current-profile wide FFN1 B8 | 3 | 0.922416 | 0.947136 | -2.680 | 0.996 | False |
 | FFN2 fixed split2 B4 | 3 | 0.647440 | 0.712272 | -10.014 | 2.619 | False |
 | main-loop pair B4 | 3 | 0.654688 | 0.693184 | -5.880 | 0.587 | False |
 | repaired profile3 catalog candidate2 B8 | 3 | 0.922640 | 0.933696 | -1.198 | 1.484 | False |
@@ -532,6 +533,7 @@ Verified both rejected single-buffer prototypes have their private backend and c
 Verified reanalysis compares existing qualified B16 catalog windows against three current-control processes, rather than catalog candidate0. The selected FFN1 window is 2.589% slower than current; repeated QKV appears faster with identical coordinates. This supports the U6 neighboring-stage qualification and supplies no new isolated coordinate winner. No hardware rerun or admission follows.
 
 Verified one fixed B8 FFN1 TM128/TN192/TK64/S1/Slots4 TMA candidate compiles without spill under the accepted72/208 full-tile/grid/recompute/matrix profile. Only12 FFN1 coordinates change; real main codegen regenerates packing, and control instruction words match the incumbent. The historical fixed TN192 matrix trial used72/216 without full-tile/grid/recompute; later catalog windows lacked matrix stores and are not transferred. Exact eight-case body and four 200-launch ordering fixtures also compile without spill. Separate functional gates and a GPU3 end-to-end gain above3% and noise are required.
+Verified control5/body17/order17 and strict model5 pass; GPU3 pair 0.922416→0.947136ms, noise0.996%. Reject; retain the incumbent.
 
 Verified a private section6.1/6.2 extension keeps the fixed B16 TN256/Slots4 single-buffer geometry and current72/216 profile, computing both32-column halves before the reuse wait. The read0 wait and WG128 barrier still precede the first shared write; residual, statistics-writer, PP, MC and pool paths are excluded. Default0 and predecessor instruction words match; the candidate has zero spill,347264B SASS and maxR213, unchanged from its predecessor. Static SASS confirms arithmetic precedes reuse wait and shared writes follow it. Hardware correctness and performance are separate gates; no production default is enabled.
 
