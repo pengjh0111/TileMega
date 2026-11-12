@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT=Path(__file__).resolve().parents[2]
 
@@ -44,8 +45,52 @@ class PayloadTest(unittest.TestCase):
         row=next(r for r in rows if (r['model'],r['tp'],r['batch'],r['system'])==('qwen3_1_7b',8,16,'tilemega'))
         self.assertEqual(row['timing_source'],'docs/results/MX7_tp8_final_c550.csv')
 
+    def test_vector_probe_counts_only_complete_load_groups(self):
+        for vectors in (7,96,100,700,1024):
+            sample=dict(bytes=vectors*16,grid=3,threads=4)
+            actual=sum(8*16 for t in range(12) for start in range(t,vectors,96) if start+7*12<vectors)
+            self.assertEqual(self.bw.vector_read_bytes(sample),actual)
+            self.assertLessEqual(actual,sample['bytes'])
+
 
 class SequenceTest(unittest.TestCase):
+    def _cohort(self,missing_formal=False):
+        collect=module('collect')
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary);queue=root/'queue';out=root/'out';out.mkdir()
+            cell=root/'cell.json';cell.write_text(json.dumps(dict(model='test',batch=1,tpot_ms=1)))
+            manifest=[]
+            for mode in ('graph','hostlaunch'):
+                names=[f'{mode}_check{i}' for i in range(5)];manifest.append(dict(qualifications=names))
+                for name in names+[f'{mode}_timing{i}' for i in range(3)]+(['graph_smoke'] if mode=='graph' else []):
+                    if missing_formal and name=='graph_check4':continue
+                    job=queue/'jobs'/name;result_dir=job/'attempt/result';result_dir.mkdir(parents=True)
+                    check='timing' not in name
+                    definition=job/'definition.json';definition.write_text(json.dumps(dict(kind='ablation_qualify' if check else 'ablation_timing',command=['--cell',str(cell)])))
+                    result=dict(variant=mode,tokens_sha256='smoke-artifact' if name=='graph_smoke' else 'selected-artifact',
+                        single_loop_exact_1024=True,frozen_reference_exact=True,reference_tokens=1024,
+                        tpot_ms=2,event_tpot_ms=2,ttft_ms=3,e2e_ms=2049,output_tokens_per_second=500)
+                    if name.endswith('check0'):result['hf']=dict(pass_=True,**{'pass':True})
+                    (result_dir/'RESULT.json').write_text(json.dumps(result))
+                    (job/'ACCEPTED.json').write_text(json.dumps(dict(folder=str(result_dir.parent),definition=dict(path=str(definition)))))
+            (root/'ABLATION_QUEUE.json').write_text(json.dumps(dict(arms=manifest)))
+            tables={}
+            with mock.patch.object(collect,'ROOT',root),mock.patch.object(collect.bw,'collect'),mock.patch.object(
+                    collect.bw,'write_csv',side_effect=lambda path,rows:tables.update({path.name:rows})):
+                collect.consolidate(queue,out)
+            return tables['MX8_ab4c_c550.csv']
+
+    def test_smoke_artifact_does_not_join_selected_five_process_cohort(self):
+        rows=self._cohort()
+        self.assertEqual({r['qualification_processes'] for r in rows},{5})
+        self.assertEqual({r['status'] for r in rows},{'complete'})
+
+    def test_smoke_cannot_replace_a_missing_formal_process(self):
+        graph=next(r for r in self._cohort(missing_formal=True) if r['variant']=='AB4c_graph')
+        self.assertEqual(graph['qualification_processes'],4)
+        self.assertEqual(graph['status'],'pending')
+        self.assertEqual(graph['tpot_ms'],'')
+
     def test_overlay_preserves_production_runtime_and_ticket_allocation(self):
         transform=module('build_sequence').transform_runtime
         for runtime in ('DecodeRuntimeV2.cuh','MoeRuntimeV3.cuh'):

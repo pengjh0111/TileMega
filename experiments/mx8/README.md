@@ -70,3 +70,26 @@ Failed numerical checks are never retried as occupancy failures.
 Only results passing all gates are assigned a final AB4c TPOT. Source/binary
 hashes, compiler commands, failed attempts and raw arrays remain under `runs/`.
 Compact tables are consolidated there first, then reviewed for publication.
+
+## Offline acceptance
+
+After the queue reaches zero pending/active jobs, create
+`runs/mx8/queue/INPUTS_CLOSED`, stop the idle collection watcher, and run:
+
+```sh
+python experiments/mx8/collect.py
+PYTHONPATH=python python experiments/mx8/audit.py
+PYTHONPATH=python python -m unittest discover -s test/python -p test_mx8_experiments.py
+```
+
+The collector uses the five formal qualification job IDs registered for each
+selected binary in `ABLATION_QUEUE.json`. Additional smoke artifacts are kept
+as separate evidence and cannot substitute for a missing formal process.
+The audit checks the original receipts, input and artifact hashes, stored
+tokens, timing formulas, per-card concurrency, route arrays and resources.
+It records process ranges; a completed collection does not imply low variance.
+Graph/host comparisons with the historical main result are descriptive.
+
+Vector probes may skip a final incomplete eight-load group. The published
+rate uses their actual issued bytes, retaining nominal bytes and original raw
+rates. This correction does not change the chosen LDS bandwidth peak.

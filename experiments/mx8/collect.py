@@ -13,10 +13,15 @@ bw=importlib.util.module_from_spec(spec);spec.loader.exec_module(bw)
 
 def consolidate(queue,out):
     routes=ROOT/'runs/mx8/routes';routes.mkdir(parents=True,exist_ok=True)
+    manifest=queue.parent/'ABLATION_QUEUE.json'
+    formal_checks={name for arm in json.loads(manifest.read_text())['arms'] for name in arm['qualifications']} if manifest.exists() else set()
     groups={};failed=[]
     for path in sorted(queue.glob('jobs/*/ACCEPTED.json')):
         accepted=json.loads(path.read_text());definition=json.loads(Path(accepted['definition']['path']).read_text())
         if definition['kind'] not in ('routing','ablation_qualify','ablation_timing'):continue
+        # Smoke plans are separate artifacts, never members of the selected
+        # plan's five-process qualification cohort.
+        if definition['kind']=='ablation_qualify' and path.parent.name not in formal_checks:continue
         result_path=Path(accepted['folder'])/'result/RESULT.json'
         result=json.loads(result_path.read_text())
         if definition['kind']=='routing':
@@ -40,6 +45,7 @@ def consolidate(queue,out):
         cross_arm=bool(other_hashes) and hashes==other_hashes and len(hashes)==1
         complete=qualified and cross_arm and len(timing)==3
         tpot=statistics.median(r['tpot_ms'] for r in timing) if complete else ''
+        event_values=[r['event_tpot_ms'] for r in timing]
         rows.append(dict(evidence='verified',model=model,tp=1,batch=batch,variant='AB4c_'+variant,
             baseline='frozen main experiment; no AB4b retest',main_tpot_ms=group['cell']['tpot_ms'],
             qualification_processes=len(checks),qualification_passes=sum(r['single_loop_exact_1024'] and r['frozen_reference_exact'] for r in checks),
@@ -52,6 +58,10 @@ def consolidate(queue,out):
             e2e_ms=statistics.median(r['e2e_ms'] for r in timing) if complete else '',
             output_tokens_per_second=statistics.median(r['output_tokens_per_second'] for r in timing) if complete else '',
             event_tpot_ms=statistics.median(r['event_tpot_ms'] for r in timing) if complete else '',
+            event_tpot_processes_ms=json.dumps(event_values),
+            event_tpot_process_min_ms=min(event_values) if event_values else '',
+            event_tpot_process_max_ms=max(event_values) if event_values else '',
+            event_tpot_process_spread_pct=(100*(max(event_values)-min(event_values))/statistics.median(event_values) if len(event_values)>1 else ''),
             timing_formula='(median(E2E_N1024)-median(E2E_N1))/1023',
             comparison_limit='historical main reference; not a contemporaneous P-PAIR',
             status='complete' if complete else 'pending',

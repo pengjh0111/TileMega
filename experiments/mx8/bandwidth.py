@@ -75,6 +75,13 @@ def logical_payload(config, batch, tp=1, active_per_layer=None, isl=64, osl=1024
         payload_definition='BF16 logical weights + distinct active experts + KV; excludes activations, padding, redundant reads and communication')
 
 
+def vector_read_bytes(sample):
+    vectors=sample['bytes']//16
+    stride=sample['grid']*sample['threads']
+    full,remainder=divmod(vectors,8*stride)
+    return 8*(full*stride+max(0,remainder-7*stride))*16
+
+
 def hardware_summary(queue):
     groups = collections.defaultdict(list)
     for path in queue.glob('jobs/*/ACCEPTED.json'):
@@ -83,7 +90,11 @@ def hardware_summary(queue):
         if payload.get('item') not in ('hbm_vector', 'hbm_lds', 'bf16_mma'):
             continue
         definition = json.loads(Path(accepted['definition']['path']).read_text())
-        for sample in payload['samples']:
+        for original in payload['samples']:
+            sample=dict(original)
+            sample['actual_bytes']=vector_read_bytes(sample) if payload['item']=='hbm_vector' else sample['bytes']
+            if payload['item']=='hbm_vector':
+                sample['value']*=sample['actual_bytes']/sample['bytes']
             groups[(definition['card'], payload['item'], sample['config'])].append((sample, str(path)))
     rows = []
     for (gpu, item, config), samples in sorted(groups.items()):
@@ -92,7 +103,8 @@ def hardware_summary(queue):
             evidence='verified', median=statistics.median(values), minimum=min(values), maximum=max(values),
             unit='TFLOPS' if item == 'bf16_mma' else 'GB/s', qualified=len(values) == 5,
             grid=samples[0][0]['grid'], threads=samples[0][0]['threads'],
-            dynamic_shared_bytes=samples[0][0]['smem'], sources=json.dumps([p for _,p in samples]))
+            dynamic_shared_bytes=samples[0][0]['smem'],nominal_bytes=samples[0][0]['bytes'],
+            actual_bytes=samples[0][0]['actual_bytes'],sources=json.dumps([p for _,p in samples]))
         rows.append(row)
     complete = len([p for p in queue.glob('jobs/*/ACCEPTED.json') if p.parent.name.startswith(('hbm_', 'bf16_mma_'))]) == 120
     valid = [r for r in rows if r['qualified'] and r['item'].startswith('hbm_')]
