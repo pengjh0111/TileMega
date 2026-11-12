@@ -27,6 +27,12 @@
 #if TILEMEGA_F3_MATRIX_STORE != 0 && TILEMEGA_F3_MATRIX_STORE != 1
 #error "F3 matrix store must be0 or1"
 #endif
+#ifndef TILEMEGA_F3_FULL_TILES
+#define TILEMEGA_F3_FULL_TILES 0
+#endif
+#if TILEMEGA_F3_FULL_TILES != 0 && TILEMEGA_F3_FULL_TILES != 1
+#error "F3 full tiles must be0 or1"
+#endif
 
 // The F3 forward GEMM/convolution body (DNN3 prompt §6). Two consumer
 // warpgroups share one CTA tile, a single producer warp feeds an eight-deep
@@ -452,7 +458,11 @@ struct Sm90F3Gemm {
       Element* output,int stride,int wg,int sub,int m_tile,int n_tile,
       int live_rows,int width,int group,char* staging=nullptr) {
     if constexpr(TmaStore && TILEMEGA_F3_MATRIX_STORE) {
+#if TILEMEGA_F3_FULL_TILES
+      if(NStore==N || n_tile*TN+(group/2)*64+64<=NStore) {
+#else
       if(n_tile*TN+(group/2)*64+64<=NStore) {
+#endif
         // An accumulator's two packed row pairs match stmatrix.x2. Lanes
         // 0..15 supply the sixteen row addresses; SW128 permutes 8-column
         // segments without a quad register transpose.
@@ -496,7 +506,11 @@ struct Sm90F3Gemm {
         // TMA's horizontal store granule may cover a partial logical tail.
         // Only complete64-column boxes use it; the partial box keeps the
         // exact generic predicates. This also avoids staging fully OOB boxes.
+#if TILEMEGA_F3_FULL_TILES
+        if(NStore==N || n_tile*TN+(group/2)*64+64<=NStore) {
+#else
         if(n_tile*TN+(group/2)*64+64<=NStore) {
+#endif
         int row=tile_row-Split::ARows(wg)-sub*64,col=tile_col%64;
         auto* address=staging+row*128+(((col/8)^(row%8))*16);
         Async::StoreShared128(address,words[0],words[1],words[2],words[3]);
@@ -582,7 +596,11 @@ struct Sm90F3Gemm {
       for(int block=0;block<kBlocks;++block) {
         char* staging=nullptr;
         if constexpr(TmaStore) {
-          bool full_box=n_tile*TN+block*64+64<=NStore;
+          bool full_box=
+#if TILEMEGA_F3_FULL_TILES
+              NStore==N ||
+#endif
+              n_tile*TN+block*64+64<=NStore;
           int q=store_count?(full_box?(*store_count)++:*store_count):s*kBlocks+block;
           if constexpr(Chain::kNeedsResidual)
             staging=side+Side::kResidualBase+(block*kTaskRows+Split::ARows(wg)+s*64)*128;
@@ -668,7 +686,12 @@ struct Sm90F3Gemm {
         if constexpr(TmaStore) {
           Base::FenceProxyAsyncShared();
           WgBarrier(wg);
-          if((threadIdx.x&127)==0 && n_tile*TN+block*64+64<=NStore) {
+          if((threadIdx.x&127)==0 &&
+#if TILEMEGA_F3_FULL_TILES
+              (NStore==N || n_tile*TN+block*64+64<=NStore)) {
+#else
+              n_tile*TN+block*64+64<=NStore) {
+#endif
             Async::TensorStore2D(p.output_map,n_tile*TN+block*64,
                 m_tile*kTaskRows+Split::ARows(wg)+s*64,staging);
             Base::BulkCommit();
@@ -847,10 +870,17 @@ struct Sm90F3Gemm {
     return int(TM_F3_BLOCK_INDEX())+local*int(tilemega::backend::Sm90F3Async::GridSize());
   }
   __device__ static __forceinline__ int LiveRows(int m_tile) {
+#if TILEMEGA_F3_FULL_TILES
+    // Only valid tasks call this helper; an exact division has no tail tile.
+    if constexpr(M%kTaskRows==0)return kTaskRows;
+#endif
     int rows=M-m_tile*kTaskRows;
     return rows<kTaskRows?rows:kTaskRows;
   }
   __device__ static __forceinline__ int Width(int n_tile) {
+#if TILEMEGA_F3_FULL_TILES
+    if constexpr(NStore==N)return TN;
+#endif
     int width=NStore-n_tile*TN;
     if(width>TN)width=TN;
     return width<0?0:width;
