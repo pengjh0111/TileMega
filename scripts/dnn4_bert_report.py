@@ -154,6 +154,7 @@ def main():
                ('partial TN96 store B8 prototype', continuation/'store96_experiment.json'),
                ('partial TN96 matrix store B8 prototype', continuation/'store96_matrix_experiment.json'),
                ('QKV four-slot B2', continuation/'qkv_slots4_experiment.json'),
+               ('QKV seven-slot B4', continuation/'qkv_slots7_experiment.json'),
                ('paired residual read B16 prototype', continuation/'residual_experiment.json'),
                ('paired residual read B16 GPU0 diagnostic', continuation/'residual_gpu0_experiment.json')]
     rows = []
@@ -197,7 +198,7 @@ def main():
                     'cached-boundary216 B4 admitted continuation',
                     'existing whole-program216 B8', 'partial TN96 store B8 prototype',
                     'partial TN96 matrix store B8 prototype',
-                    'QKV four-slot B2',
+                    'QKV four-slot B2', 'QKV seven-slot B4',
                     'paired residual read B16 prototype',
                     'paired residual read B16 GPU0 diagnostic'):
             unit_paths = experiment.get('unit_gates', [experiment.get('unit_gate')])
@@ -905,7 +906,7 @@ def main():
                      'All seventeen run under one original guarded reservation. ')
                   + 'These are functional prerequisites;whole-model correctness and '
                   'same-GPU3 timing decide performance admission.']
-    for suite in ('b8_corr1', 'b8_corr2', 'b8_corr3', 'residual_corr', 'store96_corr', 'store96_matrix_corr', 'qkv_slots4_corr'):
+    for suite in ('b8_corr1', 'b8_corr2', 'b8_corr3', 'residual_corr', 'store96_corr', 'store96_matrix_corr', 'qkv_slots4_corr', 'qkv_slots7_corr'):
         receipt = continuation/suite/'result.json'
         if not receipt.exists():
             continue
@@ -1039,6 +1040,56 @@ def main():
                   'regenerated control matches all33120 encoded words. This is one '
                   'seed-rule choice,not a parameter scan;component17/model5 and '
                   'independent same-GPU3 E2E gain above noise decide acceptance.']
+    qkv4 = base/'qkv_slots7_b4_model_preparation_v1/result.json'
+    if qkv4.exists() and read(qkv4)['status'] == 'prepared':
+        compiled = read(qkv4)
+        resource = read(base/'qkv_slots7_b4_units_v1/result.json')
+        if (compiled['changed_stages'] != list(range(6, 60, 5))
+                or not compiled['control_proof']['passed']
+                or resource['rows'][2]['payload_bytes'] != 214016
+                or resource['rows'][3]['fits']):
+            raise ValueError('B4 seed-rule spanning candidate differs from its evidence')
+        lines += ['', 'Verified CPU-only B4 pipeline follow-up changes only11 repeated '
+                  '128x96 QKV stages from3 to7 slots. Prompt4.5 selects spanning because '
+                  'the one-arena maximum is3;seven slots fit214016B and eight do not fit. '
+                  'The previous FFN2 already spans and attention cannot preissue,so this '
+                  'change loses no existing adjacent B-page preissue. The72/208 profile '
+                  f'is unchanged;zero spill,SASS{compiled["model"]["sass_bytes"]}B,control '
+                  'regeneration matches all35296 encoded words. Complete component/model '
+                  'checks and an independent same-GPU3 pair are required for acceptance.']
+    for prefix, label in [('store96_matrix', 'partial TN96 matrix-store B8'),
+                          ('qkv_slots4', 'four-slot QKV B2'),
+                          ('qkv_slots7', 'seven-slot QKV B4')]:
+        result = continuation/(prefix+'_experiment.json')
+        if result.exists() and not read(result)['accepted']:
+            experiment = read(result); pair = experiment['pair']
+            lines += ['', f'Verified {label} completes component/model gates and GPU3 '
+                      f'P-PAIR6/6:reference{pair["reference_ms"]:.6f}ms,candidate'
+                      f'{pair["candidate_ms"]:.6f}ms,gain{100*(1-pair["ratio"]):.3f}%,noise'
+                      f'{100*pair["threshold"]:.3f}%,minimum gain'
+                      f'{100*experiment.get("minimum_gain", 0):.1f}%. Reject;retain the '
+                      'incumbent and all measured processes. No final collection or '
+                      'production admission follows this pair.']
+    for prefix in ('qkv_slots4', 'qkv_slots7'):
+        path = continuation/(prefix+'_attribution.json')
+        if not path.exists():
+            continue
+        attribution = read(path); metrics = attribution['metrics']
+        if attribution['group'] != '11 repeated QKV':
+            raise ValueError('ring attribution group differs from its coordinate scope')
+        values = ';'.join(f'{label}{metrics[key]["reference_us"]:.3f}'
+                          f'→{metrics[key]["candidate_us"]:.3f}us'
+                          for label, key in [('windows', 'stage_ns'),
+                                             ('main', 'main_loop_max_cta_ns'),
+                                             ('slot wait', 'slot_wait_max_cta_ns'),
+                                             ('first ready', 'first_ready_ns')])
+        lines += ['', f'Verified B{attribution["batch"]} ring attribution across11 QKV '
+                  f'stages:{values}. Historical accepted GPU3 trace and fresh exact-candidate '
+                  'trace are diagnostic;segment maxima overlap. They do not override '
+                  'the independent nontrace pair or qualify a new performance result.']
+    if (continuation/'store96_b16_conditional_result.json').exists():
+        lines += ['Verified conditional B16 partial-store work remains CPU-only because '
+                  'the B8 mechanism did not pass its end-to-end gate;no B16 GPU job is queued.']
     retune = base/'phase72_retune_b8_gpu0_v1/incomplete_selection.json'
     if retune.exists():
         qualification = read(retune.parent/'trace_qualification.json')
