@@ -176,6 +176,7 @@ def main():
                ('full-store bounds B8', continuation/'full_store_bounds_b8_v1/experiment.json'),
                ('full-profile cyclic B4', continuation/'cyclic_full_b4_v1/experiment.json'),
                ('GELU quartet B16', continuation/'gelu_quartet_b16_v1/experiment.json'),
+               ('relative descriptors B16', continuation/'descriptor_base_b16_v2/experiment.json'),
                ('direct statistics B16', continuation/'direct_norm_b16_v3/experiment.json')]
     rows = []
     choices = []
@@ -185,7 +186,8 @@ def main():
         experiment = read(path)
         if name in ('full-tile stores B8', 'full-tile stores B4',
                     'pipeline reductions B2', 'direct statistics B16',
-                    'full-store bounds B8', 'full-profile cyclic B4', 'GELU quartet B16'):
+                    'full-store bounds B8', 'full-profile cyclic B4', 'GELU quartet B16',
+                    'relative descriptors B16'):
             for unit_path in experiment['unit_gates']:
                 unit = read(Path(unit_path))
                 processes = unit['processes']
@@ -199,7 +201,7 @@ def main():
             if not read(path.parent/'model_bit_proof.json')['passed']:
                 raise ValueError('current-profile follow-up lacks incumbent output equivalence')
             if name in ('pipeline reductions B2', 'full-store bounds B8',
-                        'full-profile cyclic B4', 'GELU quartet B16'):
+                        'full-profile cyclic B4', 'GELU quartet B16', 'relative descriptors B16'):
                 bit = read(path.parent/'unit_bit_proof.json')
                 control = read(Path(bit['control']))
                 candidate = read(Path(bit['candidate']))
@@ -215,7 +217,8 @@ def main():
                         any(row['profile'] != reuse['profile'] for row in fixtures['rows']) or
                         read(Path(reuse['admission']))['status'] != 'admitted'):
                     raise ValueError('B4 store bundle lacks matching inherited component profiles')
-            if name in ('direct statistics B16', 'full-store bounds B8', 'GELU quartet B16'):
+            if name in ('direct statistics B16', 'full-store bounds B8', 'GELU quartet B16',
+                        'relative descriptors B16'):
                 preparation = read(Path(experiment['preparation']))
                 if (not read(Path(preparation['default_proof']))['passed'] or
                         not read(path.parent/'unit_bit_proof.json')['passed']):
@@ -1841,7 +1844,8 @@ def main():
                   f'{measured["candidate_ms"]:.6f}ms,p90{measured["p90_ms"]:.6f}ms,'
                   f'process range{measured["process_range_ms"]:.6f}ms. '
                   'The exact accepted binary has a P-TRACE1 ledger. '
-                  'The same B2 mechanism fails its paired noise gate and is not enabled there. '
+                  'The earlier B2 comparison fails its paired noise gate;the later full-pipeline '
+                  'combination has a separate admission below. '
                   'Defaults,original anchors,CNN results and frozen20-cell Phase Z remain unchanged.']
     if current.exists():
         with current.open() as stream:
