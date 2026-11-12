@@ -1303,6 +1303,69 @@ def main():
                       'with the nontrace reference;one fresh50/200 reference supplies '
                       'the timing comparison. This is diagnostic qualification, '
                       'not performance admission.']
+    proposal = base/'recount_b8_five_tune_v2/tune_selection.json'
+    if proposal.exists():
+        selected = read(proposal)
+        assert selected['coverage'] == 5 and selected['missing'] == 2
+        choices = [group['candidate'] for group in selected['groups']]
+        lines += ['', f'Verified B8 diagnostic windows cover five of six existing '
+                  f'programs, three fresh processes each; six groups choose {choices}. '
+                  'The missing candidate2 remains in the nontrace selection. '
+                  'An untied selection and an independent current-incumbent pair '
+                  'are required; this is not complete six-way P-TUNE coverage.']
+    catalog = base/'fixed_grid_b16_existing_candidates_v1/result.json'
+    if catalog.exists():
+        builds = read(catalog)
+        legal = [row['candidate'] for row in builds['rows'] if row['status'] == 'prepared']
+        assert legal == [1, 2, 3]
+        lines += ['', 'Verified current-profile B16 existing candidates1/2/3 compile '
+                  'without spills;0/4/5 are rejected before hardware execution. '
+                  'The whole-program fallback compares those three with the incumbent '
+                  'and requires an untied selection followed by an independent pair. '
+                  'No boundary assembly or P-TUNE completion is claimed.']
+    for batch, name in ((8, 'recount_b8_five_selection_v2'),
+                        (16, 'fixed_grid_b16_whole_selection')):
+        selected_path = continuation/name/'selection/result.json'
+        if selected_path.exists():
+            selected = read(selected_path)
+            assert (selected['gpu'] == 3 and len(selected['measurements']) == 8
+                    and [row['arm'] for row in selected['measurements']] == list('ABCDDCBA')
+                    and all(row['guard']['code'] == 0 for row in selected['measurements']))
+            ranking = ', '.join(f'{row["arm"]}={row["median_ms"]:.6f}ms'
+                                for row in selected['ranking'])
+            lines += ['', f'Verified current-profile B{batch} nontrace selection: '
+                      f'{ranking}; tied={selected["tied"]}, '
+                      f'noise={100*selected["threshold"]:.3f}%. '
+                      'Selection medians are diagnostic; the accepted catalog changes '
+                      'only after an independent pair, final measurement and ledger audit.']
+    optional = base/'repeat_roles_preparation_v1/result.json'
+    if optional.exists():
+        regression = read(base/'repeat_roles_cpu_regression_v1/result.json')
+        assert regression['passed'] and len(regression['rows']) == 4
+        lines += ['', 'Verified private Repeat codegen reserves operand roles used '
+                  'only by first or last repetitions. Existing optional-map candidates '
+                  'B8/B16 now use319488/359424B of SASS without spills. All five current '
+                  'generated sources remain identical; four real codegen cases reject '
+                  'optional-map and alias corruption. These are CPU results, not '
+                  'performance admission.']
+        rejection = continuation/'repeat_roles_v1_rejection.json'
+        if rejection.exists():
+            lines += ['', 'Verified the first optional-map fixture fails initcheck '
+                      'on generic reads after TMA output, consistent with the documented '
+                      '2025.2.1 TMA initialization-shadow limitation. The rejected cohort '
+                      'is preserved. The replacement poisons every output before every '
+                      'launch and checks all intermediate values against positive CPU '
+                      'references; its CUDA instruction words are unchanged. This '
+                      'workaround retains the tool coverage limitation.']
+        for batch in (8, 16):
+            unit_path = continuation/f'repeat_roles_units_v2/b{batch}/result.json'
+            if unit_path.exists():
+                unit = read(unit_path)
+                assert unit['passed'] and len(unit['processes']) == 17
+                lines += ['', f'Verified optional Repeat B{batch} ordering fixture '
+                          f'passes unit5/5 and sanitizer1/1/5/5 on GPU{unit["gpu"]}. '
+                          'Whole-model byte equivalence and both code-size and '
+                          'current-incumbent performance gates remain separate.']
     retune = base/'phase72_retune_b8_gpu0_v1/incomplete_selection.json'
     if retune.exists():
         qualification = read(retune.parent/'trace_qualification.json')

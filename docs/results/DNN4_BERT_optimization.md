@@ -359,6 +359,20 @@ Verified CPU-only B8 check:all six exact existing repaired P-TUNE coordinate pro
 
 Verified private boundary-only CTA recomputation passes GPU0 unit5/5 and sanitizer1/1/5/5. All38960 production and44288 full-trace instruction words are preserved. The uniform boundary source makes five of six existing candidates legal;candidate2 still spills8/8B. Reusing one CTA value also leaves8/8B and is rejected before GPU execution. No complete six-way P-TUNE result is claimed;missing windows are not synthesized.
 
+Verified private B8 boundary qualification:GPU3 overhead4.029%,passed=True. Three fresh20/50 trace processes compare exact output bytes with the nontrace reference;one fresh50/200 reference supplies the timing comparison. This is diagnostic qualification, not performance admission.
+
+Verified B8 diagnostic windows cover five of six existing programs, three fresh processes each; six groups choose [0, 4, 3, 4, 0, 4]. The missing candidate2 remains in the nontrace selection. An untied selection and an independent current-incumbent pair are required; this is not complete six-way P-TUNE coverage.
+
+Verified current-profile B16 existing candidates1/2/3 compile without spills;0/4/5 are rejected before hardware execution. The whole-program fallback compares those three with the incumbent and requires an untied selection followed by an independent pair. No boundary assembly or P-TUNE completion is claimed.
+
+Verified current-profile B16 nontrace selection: A=1.292264ms, B=1.431624ms, D=1.435920ms, C=1.450376ms; tied=False, noise=2.825%. Selection medians are diagnostic; the accepted catalog changes only after an independent pair, final measurement and ledger audit.
+
+Verified private Repeat codegen reserves operand roles used only by first or last repetitions. Existing optional-map candidates B8/B16 now use319488/359424B of SASS without spills. All five current generated sources remain identical; four real codegen cases reject optional-map and alias corruption. These are CPU results, not performance admission.
+
+Verified the first optional-map fixture fails initcheck on generic reads after TMA output, consistent with the documented 2025.2.1 TMA initialization-shadow limitation. The rejected cohort is preserved. The replacement poisons every output before every launch and checks all intermediate values against positive CPU references; its CUDA instruction words are unchanged. This workaround retains the tool coverage limitation.
+
+Verified optional Repeat B16 ordering fixture passes unit5/5 and sanitizer1/1/5/5 on GPU3. Whole-model byte equivalence and both code-size and current-incumbent performance gates remain separate.
+
 Verified profile2 B8 boundary overhead is3.419% on GPU0. Only2/6 existing variants are nonspilling;each completes three fresh20/50 traces. Four spilled variants are never executed. Required candidate coverage is incomplete;no assembled selection or admission is claimed. GPU2 partial traces remain separate and are not mixed with the GPU0 windows.
 
 Verified optional profile2 uses72/208 registers and explicit scalar phase selection only for that profile. Profiles0/1 retain their prior paths and the default remains0. Scalar/alias and P1 component cohorts each pass unit5/5 and sanitizer1/1/5/5;B2/B4/B8/B16 whole models each pass5/5 without spill. B8/B16 SASS is328576/395776B with zero local-memory instructions. The integrated B8 kernel has identical instruction bytes to its prototype. Seven related regression checks, real profile codegen and invalid-setting checks pass. GPU2 comparisons remain diagnostics. Complete GPU3 pairs subsequently admit B4/B8;exact-binary ledgers and three-process P-DNN results are in the current catalog. B2 fails its noise gate and B16 fails the firstRepeat3% gate. B8/B16 first-time Repeat admission still requires3% plus noise;B2/B4 already use accepted Repeat and require a gain beyond noise. Fixed BF16 goals and original anchors remain unchanged.
