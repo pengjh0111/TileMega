@@ -182,6 +182,8 @@ def main():
                ('statistics read ahead B16', continuation/'stats_ahead_b16_v1/experiment.json'),
                ('shared terminal FFN2 B16', continuation/'optional_stats_b16_v2/experiment.json'),
                ('M-first task traversal B16', continuation/'mfirst_b16_v1/experiment.json'),
+               ('single-buffer six-slot FFN1 B16', continuation/'single_store6_b16_v1/experiment.json'),
+               ('single-buffer wide FFN1 B16', continuation/'single_store4_tn256_b16_v1/experiment.json'),
                ('FFN2 fixed split2 B4', continuation/'ffn2_split2_b4_v1/experiment.json'),
                ('main-loop pair B4', continuation/'loop_pair_b4_v1/experiment.json'),
                ('repaired profile3 catalog candidate2 B8', continuation/'candidate2_profile3_b8_v1/experiment.json'),
@@ -200,7 +202,8 @@ def main():
                     'repaired catalog candidate5 B16', 'statistics read ahead B16',
                     'main-loop pair B4', 'repaired profile3 catalog candidate2 B8',
                     'residual warp handoff B16', 'shared terminal FFN2 B16',
-                    'M-first task traversal B16', 'FFN2 fixed split2 B4'):
+                    'M-first task traversal B16', 'FFN2 fixed split2 B4',
+                    'single-buffer six-slot FFN1 B16', 'single-buffer wide FFN1 B16'):
             for unit_path in experiment['unit_gates']:
                 unit = read(Path(unit_path))
                 processes = unit['processes']
@@ -227,7 +230,8 @@ def main():
                         'statistics read ahead B16', 'main-loop pair B4',
                         'repaired profile3 catalog candidate2 B8', 'residual warp handoff B16',
                         'shared terminal FFN2 B16', 'M-first task traversal B16',
-                        'FFN2 fixed split2 B4'):
+                        'FFN2 fixed split2 B4', 'single-buffer six-slot FFN1 B16',
+                        'single-buffer wide FFN1 B16'):
                 bit = read(path.parent/'unit_bit_proof.json')
                 control = read(Path(bit['control']))
                 candidate = read(Path(bit['candidate']))
@@ -252,6 +256,14 @@ def main():
                 if (not read(Path(preparation['default_proof']))['passed'] or
                         not read(path.parent/'unit_bit_proof.json')['passed']):
                     raise ValueError('private implementation requires default and unit equivalence')
+            if name in ('single-buffer six-slot FFN1 B16', 'single-buffer wide FFN1 B16'):
+                preparation = read(Path(experiment['preparation']))
+                proof = preparation.get('default_proof', preparation.get('control_proof'))
+                pair = experiment['pair']
+                expected = pair['ratio'] < min(.97, 1-pair['threshold'])
+                if (not read(Path(proof))['passed'] or experiment['accepted'] != expected or
+                        len(experiment['unit_gates']) != 2):
+                    raise ValueError('single-buffer comparison lacks its control, ordering or gain gate')
         if name.startswith('full-tile '):
             unit_paths = experiment.get('unit_gates')
             if unit_paths is None:
@@ -2060,6 +2072,43 @@ def main():
                   f'{ffn2["candidate"]["epilogue_max_cta_ns"]/1000:.3f}us. '
                   'The three largest group-window increases are FFN1, QKV and projection; '
                   'these trace maxima are nonadditive diagnostics. Current coordinates are retained.']
+    for trial_name, description in (
+            ('single_store6_b16_v1', 'TM128/TN128/TK64/Slots6'),
+            ('single_store4_tn256_b16_v1', 'TM128/TN256/TK64/Slots4')):
+        prepared = base/trial_name/'result.json'
+        if not prepared.exists():
+            continue
+        preparation = read(prepared)
+        assert preparation['status'] == 'prepared'
+        assert {r['flag'] for r in preparation['rows']} == {0, 1}
+        assert all(r['returncode'] == 0 and r['spill_bytes'] and not any(r['spill_bytes'])
+                   for r in preparation['rows'])
+        assert read(Path(preparation.get('default_proof', preparation.get('control_proof'))))['passed']
+        lines += ['', f'Verified private current-profile FFN1 {description} candidate compiles '
+                  'without spill. One independent8KiB staging buffer per consumer WG frees16KiB '
+                  'per CTA; every reuse waits read0 and the WG128 barrier. Residual reuse, '
+                  'publication fences, store drains and stage gates are unchanged. '
+                  'Default0 instruction words match the incumbent. This section4.2/6.2/9 '
+                  'extension requires exact body and ordering gates, strict model5 and a '
+                  'GPU3 full-model gain above3% and the measured noise before admission.']
+        comparison = continuation/trial_name/'experiment.json'
+        if comparison.exists():
+            trial = read(comparison)
+            pair = trial['pair']
+            outcome = ('Positive private pair; separate production admission remains required.'
+                       if trial['accepted'] else 'Reject; retain the incumbent.')
+            lines.append(f'Verified control5, body17, ordering17 and model5 pass; '
+                         f'GPU3 pair {pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms, '
+                         f'noise{100*pair["threshold"]:.3f}%. {outcome}')
+        if trial_name == 'single_store4_tn256_b16_v1':
+            ordering = read(base/'single_store4_tn256_b16_order_units_v3/order/build.json')
+            assert ordering['spill_bytes'] == 0
+            lines.append('Verified wide ordering fixturev1/v2 spill88/88B only in the generic '
+                         'GMMA reference and never execute. Fixturev3 replaces that reference '
+                         'with independent scalar FP32 dots on exactly representable dyadic inputs; '
+                         'all TMA target kernels, four full/odd200-launch sequences, CPU FP32 '
+                         'and byte comparisons remain unchanged. Fixturev3 compiles without spill; '
+                         'no numerical or zero-spill threshold is relaxed.')
     if failed_pp.exists() and read(failed_pp).get('status') == 'component_rejected':
         lines.append('\nVerified fixed WG64 PP/P1/TMA candidate compiles without spill and both normal '
                      'unit cohorts pass5/5, but ordering synccheck reports1024 errors and residual-chain '

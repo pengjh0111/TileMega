@@ -163,6 +163,7 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | statistics read ahead B16 | 3 | 1.282160 | 1.286784 | -0.361 | 1.641 | False |
 | shared terminal FFN2 B16 | 3 | 1.279280 | 1.299168 | -1.555 | 2.749 | False |
 | M-first task traversal B16 | 3 | 1.285568 | 1.310208 | -1.917 | 4.374 | False |
+| single-buffer six-slot FFN1 B16 | 3 | 1.282928 | 1.294336 | -0.889 | 1.836 | False |
 | FFN2 fixed split2 B4 | 3 | 0.647440 | 0.712272 | -10.014 | 2.619 | False |
 | main-loop pair B4 | 3 | 0.654688 | 0.693184 | -5.880 | 0.587 | False |
 | repaired profile3 catalog candidate2 B8 | 3 | 0.922640 | 0.933696 | -1.198 | 1.484 | False |
@@ -516,5 +517,11 @@ Verified residual warp handoff passes control5, body17, model5 and the complete 
 Verified fixed M-first task traversal passes the CPU mapping proof, control5/body17 and strict model5 with unchanged output bytes. GPU3 pair ratio1.019167, noise4.374%; reject. Private backend and codegen changes are restored; no P-DNN or admission follows.
 
 Verified fixed B4 FFN2 TM128/TN64/TK128/S2/Slots4 register-store candidate passes eight-case control5/body17 and strict model5 with unchanged FP32 thresholds and deterministic candidate bytes. Its S1-to-S2 reassociation permits differences from incumbent bytes. GPU3 pair ratio1.100136, noise2.619%; reject. P-TRACE1 FFN2 main-loop CTA-maxima sums decrease 171.840→123.968us, with 20.896us of split-K maxima. FFN2 epilogue maxima increase 20.704→37.408us. The three largest group-window increases are FFN1, QKV and projection; these trace maxima are nonadditive diagnostics. Current coordinates are retained.
+
+Verified private current-profile FFN1 TM128/TN128/TK64/Slots6 candidate compiles without spill. One independent8KiB staging buffer per consumer WG frees16KiB per CTA; every reuse waits read0 and the WG128 barrier. Residual reuse, publication fences, store drains and stage gates are unchanged. Default0 instruction words match the incumbent. This section4.2/6.2/9 extension requires exact body and ordering gates, strict model5 and a GPU3 full-model gain above3% and the measured noise before admission.
+Verified control5, body17, ordering17 and model5 pass; GPU3 pair 1.282928→1.294336ms, noise1.836%. Reject; retain the incumbent.
+
+Verified private current-profile FFN1 TM128/TN256/TK64/Slots4 candidate compiles without spill. One independent8KiB staging buffer per consumer WG frees16KiB per CTA; every reuse waits read0 and the WG128 barrier. Residual reuse, publication fences, store drains and stage gates are unchanged. Default0 instruction words match the incumbent. This section4.2/6.2/9 extension requires exact body and ordering gates, strict model5 and a GPU3 full-model gain above3% and the measured noise before admission.
+Verified wide ordering fixturev1/v2 spill88/88B only in the generic GMMA reference and never execute. Fixturev3 replaces that reference with independent scalar FP32 dots on exactly representable dyadic inputs; all TMA target kernels, four full/odd200-launch sequences, CPU FP32 and byte comparisons remain unchanged. Fixturev3 compiles without spill; no numerical or zero-spill threshold is relaxed.
 
 Verified fixed WG64 PP/P1/TMA candidate compiles without spill and both normal unit cohorts pass5/5, but ordering synccheck reports1024 errors and residual-chain racecheck reports21 errors. Reject before model correctness or timing; partial sanitizer cohorts are not complete gates. Frozen failures remain raw; current profiles and targets are unchanged.
