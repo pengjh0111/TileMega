@@ -156,6 +156,7 @@ def main():
                ('QKV four-slot B2', continuation/'qkv_slots4_experiment.json'),
                ('QKV seven-slot B4', continuation/'qkv_slots7_experiment.json'),
                ('QKV plus attention stores B2', continuation/'qkv_attention_experiment.json'),
+               ('first WGMMA initialization B16', continuation/'mma_zero_experiment.json'),
                ('paired residual read B16 prototype', continuation/'residual_experiment.json'),
                ('paired residual read B16 GPU0 diagnostic', continuation/'residual_gpu0_experiment.json')]
     rows = []
@@ -200,6 +201,7 @@ def main():
                     'existing whole-program216 B8', 'partial TN96 store B8 prototype',
                     'partial TN96 matrix store B8 prototype',
                     'QKV four-slot B2', 'QKV seven-slot B4', 'QKV plus attention stores B2',
+                    'first WGMMA initialization B16',
                     'paired residual read B16 prototype',
                     'paired residual read B16 GPU0 diagnostic'):
             unit_paths = experiment.get('unit_gates', [experiment.get('unit_gate')])
@@ -907,7 +909,7 @@ def main():
                      'All seventeen run under one original guarded reservation. ')
                   + 'These are functional prerequisites;whole-model correctness and '
                   'same-GPU3 timing decide performance admission.']
-    for suite in ('b8_corr1', 'b8_corr2', 'b8_corr3', 'residual_corr', 'store96_corr', 'store96_matrix_corr', 'qkv_slots4_corr', 'qkv_slots7_corr', 'qkv_attention_corr'):
+    for suite in ('b8_corr1', 'b8_corr2', 'b8_corr3', 'residual_corr', 'store96_corr', 'store96_matrix_corr', 'qkv_slots4_corr', 'qkv_slots7_corr', 'qkv_attention_corr', 'mma_zero_corr'):
         receipt = continuation/suite/'result.json'
         if not receipt.exists():
             continue
@@ -1061,7 +1063,8 @@ def main():
     for prefix, label in [('store96_matrix', 'partial TN96 matrix-store B8'),
                           ('qkv_slots4', 'four-slot QKV B2'),
                           ('qkv_slots7', 'seven-slot QKV B4'),
-                          ('qkv_attention', 'QKV plus attention vector stores B2')]:
+                          ('qkv_attention', 'QKV plus attention vector stores B2'),
+                          ('mma_zero', 'first WGMMA initialization B16')]:
         result = continuation/(prefix+'_experiment.json')
         if result.exists() and not read(result)['accepted']:
             experiment = read(result); pair = experiment['pair']
@@ -1092,6 +1095,37 @@ def main():
     if (continuation/'store96_b16_conditional_result.json').exists():
         lines += ['Verified conditional B16 partial-store work remains CPU-only because '
                   'the B8 mechanism did not pass its end-to-end gate;no B16 GPU job is queued.']
+    zero = base/'mma_zero_b16_preparation_v2/result.json'
+    if zero.exists() and read(zero)['status'] == 'prepared':
+        prepared = read(zero)
+        if not prepared['control_proof']['passed'] or prepared['control_proof']['words'] != 44736:
+            raise ValueError('first-MMA prototype lacks its default0 instruction proof')
+        lines += ['', 'Verified private default-off first-WGMMA initialization uses the '
+                  'CUTLASS explicit first-slot prologue:each m64 fragment starts with '
+                  'ScaleOutZero,then retains the original k16 order,slot and release '
+                  'protocol. The dynamic-predicate prototype leaves clearing instructions '
+                  'and never executes on GPU. The explicit prologue reduces static CS2R '
+                  'zero instructions289→56;SASS357888→362880B,zero spill,maxR207. Default0 '
+                  'matches all44736 incumbent instruction words. Coordinates and the '
+                  'accepted B16 profile stay fixed;end-to-end benefit is unproven.']
+        bit_proof = continuation/'mma_zero_unit_bit_proof.json'
+        if bit_proof.exists():
+            proof = read(bit_proof)
+            if not proof['passed'] or proof['reference_passes'] != '5/5' or proof['candidate_passes'] != '17/17':
+                raise ValueError('first-MMA component byte comparison is incomplete')
+            lines += ['Verified five fresh control processes and the candidate unit5/5 '
+                      'plus mem1/1,init1/1,race5/5,sync5/5 have identical output hashes '
+                      'on GPU0. The five shapes cover GELU,residual statistics,TM256 '
+                      'two-fragment ownership,TK128/split2,odd rows and ring wrap. '
+                      'These component checks do not establish an end-to-end gain.']
+        model_proof = continuation/'mma_zero_model_bit_proof.json'
+        if model_proof.exists():
+            proof = read(model_proof)
+            if not proof['passed']:
+                raise ValueError('first-MMA whole-model byte comparison failed')
+            lines += ['Verified B16 strict model5/5 also matches the incumbent output '
+                      'bytes. The independent GPU3 pair rejects this private candidate; '
+                      'the production headers and accepted B16 result remain unchanged.']
     retune = base/'phase72_retune_b8_gpu0_v1/incomplete_selection.json'
     if retune.exists():
         qualification = read(retune.parent/'trace_qualification.json')
