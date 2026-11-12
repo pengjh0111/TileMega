@@ -23,6 +23,13 @@
 #error "TILEMEGA_F3_RECOMPUTE_TASK must be 0 or 1"
 #endif
 
+#ifndef TILEMEGA_F3_REPEAT_SELECTOR
+#define TILEMEGA_F3_REPEAT_SELECTOR 0
+#endif
+#if TILEMEGA_F3_REPEAT_SELECTOR != 0 && TILEMEGA_F3_REPEAT_SELECTOR != 1
+#error "TILEMEGA_F3_REPEAT_SELECTOR must be 0 or 1"
+#endif
+
 // Preserve the original expression when disabled: a force-inlined helper
 // still changes B2's register allocation even when it only returns ctaid.
 #if TILEMEGA_F3_RECOMPUTE_TASK
@@ -62,6 +69,15 @@ struct Sm90F3Async {
   __device__ static __forceinline__ void ArriveCount(std::uint64_t* barrier,unsigned count) {
     asm volatile("mbarrier.arrive.shared.b64 _, [%0], %1;"
         ::"r"(Base::Shared(barrier)),"r"(count):"memory");
+  }
+
+  // Keep first/last selection local to a repeated stage. The full-tile B16
+  // prototype otherwise spills its first-repetition predicate across QKV
+  // and attention while the integer repetition index remains live.
+  __device__ static __forceinline__ unsigned RepeatIndex(unsigned rep) {
+    unsigned value;
+    asm volatile("mov.u32 %0, %1;":"=r"(value):"r"(rep));
+    return value;
   }
 
   __device__ static __forceinline__ void BulkMulticast(void* destination,

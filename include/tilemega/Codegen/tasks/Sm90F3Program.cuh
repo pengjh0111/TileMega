@@ -521,6 +521,10 @@ struct RepeatStage {
   __device__ static __forceinline__ void Consume(B const& b,char* shared,
       backend::Sm90F3Header* header,backend::Sm90F3Phase (&phase)[2],
       unsigned stage,unsigned rep,unsigned repeats,int wg) {
+#if TILEMEGA_F3_REPEAT_SELECTOR
+    if constexpr(!std::is_same_v<First,Normal> || !std::is_same_v<Last,Normal>)
+      rep=backend::Sm90F3Async::RepeatIndex(rep);
+#endif
     if constexpr(!std::is_same_v<First,Normal>)
       if(rep==0) {ConsumeAs<First>(b,shared,header,phase,stage,wg);return;}
     if constexpr(!std::is_same_v<Last,Normal>)
