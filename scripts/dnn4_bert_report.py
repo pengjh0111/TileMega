@@ -1410,6 +1410,50 @@ def main():
                   'underprediction, so no epilogue-only table is installed. '
                   'Inferred next implementation check: eliminate runtime tail '
                   'conditions for dimensions known to contain only full tiles.']
+    for batch, preparation, folder in [
+            (8, 'full_tiles_preparation_v2/b8', 'full_tiles_b8_v2'),
+            (16, 'full_tiles_b16_selector_v1', 'full_tiles_b16_selector_v1')]:
+        prepared = base/preparation
+        if not (prepared/'result.json').exists():
+            continue
+        if read(prepared/'result.json')['status'] != 'prepared':
+            continue
+        before = read(prepared/'flag0/result.json')
+        after = read(prepared/'flag1/result.json')
+        dest = continuation/folder
+        completed = []
+        for suite in ['body', 'order', 'repeat_even', 'repeat_odd']:
+            gate = dest/suite/('individual' if suite == 'order' else 'flag1')/'result.json'
+            if gate.exists():
+                result = read(gate)
+                assert result['passed'] and len(result['processes']) == 17
+                assert all(read(Path(row['guard']))['code'] == 0 for row in result['processes'])
+                completed.append(suite)
+        lines += ['', f'Verified private full-tile B{batch} CPU preparation: '
+                  f'SASS {before["sass_bytes"]}→{after["sass_bytes"]}B, zero spills; '
+                  'disabled kernels preserve current instruction words. '
+                  + ('B16 also rematerializes the first/last Repeat selector to '
+                     'remove a measured4B consumer predicate spill. ' if batch == 16 else '')
+                  + f'Complete unit5/sanitizer1/1/5/5 suites: {", ".join(completed) or "none"}. '
+                  'The initial B8 ordering cohort exceeded its aggregate1200s limit '
+                  'and is rejected; its replacement retains all200-launch cases '
+                  'with separately guarded processes. These are implementation '
+                  'and correctness results; no performance admission is implied.']
+        if (dest/'model_bit_proof.json').exists():
+            proof = read(dest/'model_bit_proof.json')
+            model = read(dest/'model/result.json')
+            assert proof['passed'] and model['passed'] and model['passes'] == '5/5'
+            lines += ['', f'Verified full-tile B{batch} strict model5/5 on '
+                      f'GPU{model["gpu"]}, with exact current-incumbent output bytes.']
+        if (dest/'experiment.json').exists():
+            experiment = read(dest/'experiment.json')
+            pair = experiment['pair']
+            assert all(row['guard']['code'] == 0 for row in pair['measurements'])
+            lines += ['', f'Verified full-tile B{batch} GPU3 pair ratio '
+                      f'{pair["ratio"]:.6f}, noise {100*pair["threshold"]:.3f}%; '
+                      f'passes the independent gain gate={experiment["accepted"]}. '
+                      'Main integration, final measurement and an exact-binary '
+                      'ledger remain separate admission requirements.']
     retune = base/'phase72_retune_b8_gpu0_v1/incomplete_selection.json'
     if retune.exists():
         qualification = read(retune.parent/'trace_qualification.json')
