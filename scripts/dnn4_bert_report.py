@@ -1478,6 +1478,18 @@ def main():
                   'all17 processes are recollected. Grouped body, Repeat and model '
                   'gates already held the correct device locks. The earlier foreign '
                   'GPU-lock and NUMA-setting diagnoses were not established.']
+    timeout = continuation/'full_tiles_b16_selector_v1/order/device_locked_v1/timeout_hold.json'
+    if timeout.exists():
+        lines += ['', 'Verified full-tile B16 individual racecheck durations vary: '
+                  'two complete guarded processes took603s and825s with zero errors; '
+                  'a third reached the900s child timeout and has no valid result. '
+                  'Its subsequent ownership rejection does not establish foreign '
+                  'interference. The timed-out attempt is excluded; nine completed '
+                  'processes are retained and only eight missing checks continue '
+                  'with line-buffered output and a3600s child limit. The frozen '
+                  'binary, cases,200 iterations, guard and correctness thresholds '
+                  'are unchanged. No complete ordering gate or performance gain '
+                  'is claimed while this remains unfinished.']
     retune = base/'phase72_retune_b8_gpu0_v1/incomplete_selection.json'
     if retune.exists():
         qualification = read(retune.parent/'trace_qualification.json')
