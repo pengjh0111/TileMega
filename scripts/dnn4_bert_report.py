@@ -1454,6 +1454,17 @@ def main():
                       f'passes the independent gain gate={experiment["accepted"]}. '
                       'Main integration, final measurement and an exact-binary '
                       'ledger remain separate admission requirements.']
+    lock_rejection = continuation/'full_tiles_default_lock_rejection.json'
+    if lock_rejection.exists():
+        lines += ['', 'Verified full-tile ordering dispatch correction: the first '
+                  'individual-process wrapper omitted the device environment on '
+                  'its scheduler subprocess, which replaced per-job lock paths '
+                  'with one shared default lock. All of those individual ordering '
+                  'results are excluded. The replacement passes the per-device '
+                  'environment and checks the actual lock before each CUDA child; '
+                  'all17 processes are recollected. Grouped body, Repeat and model '
+                  'gates already held the correct device locks. The earlier foreign '
+                  'GPU-lock and NUMA-setting diagnoses were not established.']
     retune = base/'phase72_retune_b8_gpu0_v1/incomplete_selection.json'
     if retune.exists():
         qualification = read(retune.parent/'trace_qualification.json')
