@@ -75,6 +75,9 @@ __global__ __launch_bounds__(384,1) void Probe(Sm90F3GemmOperands p,
   if(threadIdx.x<256 && (threadIdx.x&31)==0)ring.Prime();
   __syncthreads();
   p.activation=&activation;p.residual=&residual;p.output_map=&output;
+  // EpilogueOf supplies these shape constants in generated model kernels.
+  p.epilogue.output_stride=kN;p.epilogue.residual_stride=kN;
+  p.epilogue.norm_width=768;p.epilogue.epsilon=1e-5f;
   auto* arena=reinterpret_cast<E*>(shared+Sm90F3Budget::kArena0);
   auto* side=reinterpret_cast<char*>(arena)+G::kSideOffset;Sm90F3Phase phase{};
   if(threadIdx.x>=256) {
