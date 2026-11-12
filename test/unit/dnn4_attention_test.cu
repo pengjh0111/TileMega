@@ -17,7 +17,9 @@ template<class T> struct Device {
  std::vector<T> Get(){std::vector<T> v(count);Check(cudaMemcpy(v.data(),data,count*sizeof(T),cudaMemcpyDeviceToHost));return v;}
 };
 std::uint64_t hash=14695981039346656037ull;
-#ifdef DNN4_ATTENTION_PROFILE3_TEST
+#if defined(DNN4_ATTENTION_PROFILE2_TEST)
+constexpr int kProducerRegisters=72,kConsumerRegisters=208;
+#elif defined(DNN4_ATTENTION_PROFILE3_TEST)
 constexpr int kProducerRegisters=72,kConsumerRegisters=216;
 #else
 constexpr int kProducerRegisters=56,kConsumerRegisters=224;

@@ -25,7 +25,7 @@ constexpr bool kPingPong=true;
 constexpr bool kPingPong=false;
 #endif
 
-#if defined(DNN4_QKV_SLOTS7_B4_TEST) || defined(DNN4_FFN1_TMA128_TEST) || defined(DNN4_FFN2_TMA128_SPLIT2_B8_TEST) || defined(DNN4_FFN1_M64N128_B8_TEST)
+#if defined(DNN4_FIXED_GRID_PROFILE2_TEST) || defined(DNN4_QKV_SLOTS7_B4_TEST) || defined(DNN4_FFN1_TMA128_TEST) || defined(DNN4_FFN2_TMA128_SPLIT2_B8_TEST) || defined(DNN4_FFN1_M64N128_B8_TEST)
 constexpr int kProducerRegisters=72,kConsumerRegisters=208;
 #elif defined(DNN4_FIXED_GRID_TEST) || defined(DNN4_QKV_SLOTS4_B2_TEST) || defined(DNN4_QKV_TMA192_TEST) || defined(DNN4_FFN1_TMA256_TEST) || defined(DNN4_FFN2_STORE_TEST) || defined(DNN4_FFN1_REG64_TEST) || defined(DNN4_FFN2_REG64_TEST) || defined(DNN4_FFN2_TK128_S2_B2_TEST)
 constexpr int kProducerRegisters=72,kConsumerRegisters=216;
