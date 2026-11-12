@@ -1480,16 +1480,22 @@ def main():
                   'GPU-lock and NUMA-setting diagnoses were not established.']
     timeout = continuation/'full_tiles_b16_selector_v1/order/device_locked_v1/timeout_hold.json'
     if timeout.exists():
+        ordering_complete = (continuation/
+            'full_tiles_b16_selector_v1/order/individual/result.json').exists()
         lines += ['', 'Verified full-tile B16 individual racecheck durations vary: '
                   'two complete guarded processes took603s and825s with zero errors; '
                   'a third reached the900s child timeout and has no valid result. '
                   'Its subsequent ownership rejection does not establish foreign '
                   'interference. The timed-out attempt is excluded; nine completed '
-                  'processes are retained and only eight missing checks continue '
-                  'with line-buffered output and a3600s child limit. The frozen '
+                  'processes were retained and only the eight missing checks '
+                  'were scheduled with line-buffered output and a3600s child limit. The frozen '
                   'binary, cases,200 iterations, guard and correctness thresholds '
-                  'are unchanged. No complete ordering gate or performance gain '
-                  'is claimed while this remains unfinished.']
+                  'are unchanged. ' +
+                  ('The replacement ordering gate now completes all17 processes; '
+                   'performance admission remains a separate requirement.'
+                   if ordering_complete else
+                   'No complete ordering gate or performance gain is claimed '
+                   'while this remains unfinished.')]
     retune = base/'phase72_retune_b8_gpu0_v1/incomplete_selection.json'
     if retune.exists():
         qualification = read(retune.parent/'trace_qualification.json')
