@@ -877,6 +877,32 @@ def main():
                      'All seventeen run under one original guarded reservation. ')
                   + 'These are functional prerequisites;whole-model correctness and '
                   'same-GPU3 timing decide performance admission.']
+    for suite in ('b8_corr1', 'b8_corr2', 'b8_corr3', 'residual_corr'):
+        receipt = continuation/suite/'result.json'
+        if not receipt.exists():
+            continue
+        result = read(receipt)
+        processes = result['processes']
+        if (not result['passed'] or result['passes'] != '5/5'
+                or len(processes) != 5 or len({p['pid'] for p in processes}) != 5
+                or any(p['exit_code'] or read(Path(p['guard']))['code'] for p in processes)):
+            raise ValueError('continuation model receipt lacks five accepted processes')
+        minimum = min(output['cosine_min'] for case in result['cases']
+                      for output in case['outputs'])
+        lines += ['', f'Verified {suite} on GPU{result["gpu"]}:strict FP32 model5/5,'
+                  f'minimum cosine{minimum:.8f},identical output bytes across all five '
+                  'fresh processes. These completed correctness checks do not establish '
+                  'whole-model performance or production admission.']
+    paired = continuation/'b4_experiment.json'
+    if paired.exists() and not read(paired)['accepted']:
+        decision = read(paired); pair = decision['pair']
+        lines += ['', 'Verified B4 fixed-candidate revalidation completes fresh GPU3 '
+                  'P-SEL8/8 and independent P-PAIR6/6. The selected candidate measures '
+                  f'{pair["candidate_ms"]:.6f}ms against{pair["reference_ms"]:.6f}ms;'
+                  f'gain{100*(1-pair["ratio"]):.3f}% is below'
+                  f'{100*pair["threshold"]:.3f}% process-noise threshold. Retain all six '
+                  'processes and the earlier prototype evidence;do not replace the '
+                  'admitted B4 result or rerun this pair to seek acceptance.']
     retune = base/'phase72_retune_b8_gpu0_v1/incomplete_selection.json'
     if retune.exists():
         qualification = read(retune.parent/'trace_qualification.json')
