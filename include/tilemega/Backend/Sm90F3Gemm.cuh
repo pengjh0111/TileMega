@@ -841,10 +841,10 @@ struct Sm90F3Gemm {
       asm volatile("mov.u32 %0, %%nctaid.x;":"=r"(grid));
       asm volatile("mov.u32 %0, %%ctaid.x;":"=r"(block));
       return kTasks/int(grid)+(int(block)<kTasks%int(grid));
-    }else return kTasks/int(gridDim.x)+(int(blockIdx.x)<kTasks%int(gridDim.x));
+    }else return kTasks/int(tilemega::backend::Sm90F3Async::GridSize())+(int(blockIdx.x)<kTasks%int(tilemega::backend::Sm90F3Async::GridSize()));
   }
   __device__ static __forceinline__ int Task(int local) {
-    return int(blockIdx.x)+local*int(gridDim.x);
+    return int(blockIdx.x)+local*int(tilemega::backend::Sm90F3Async::GridSize());
   }
   __device__ static __forceinline__ int LiveRows(int m_tile) {
     int rows=M-m_tile*kTaskRows;
@@ -996,7 +996,7 @@ struct Sm90F3Gemm {
     Accumulators accum;
     int store_count=0;
     // Cached per-shape task counts otherwise stay live across BERT's layers.
-    for(int local=0,task=int(blockIdx.x);task<kTasks;++local,task+=int(gridDim.x)) {
+    for(int local=0,task=int(blockIdx.x);task<kTasks;++local,task+=int(tilemega::backend::Sm90F3Async::GridSize())) {
       int m_tile=MTile(task),n_tile=NTile(task);
       TM_F3_TRACE_BEGIN(kMainLoop);
       MainLoop(ring,arena,phase,accum,wg,(local*kIterations)%Slots,kIterations,Paired(task));

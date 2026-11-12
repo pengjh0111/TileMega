@@ -38,7 +38,7 @@ struct Sm90F3Attention {
   static constexpr bool kCanPreissue=false;
 
   __device__ static __forceinline__ int LocalTasks() {
-    return kTasks/int(gridDim.x)+(int(blockIdx.x)<kTasks%int(gridDim.x));
+    return kTasks/int(tilemega::backend::Sm90F3Async::GridSize())+(int(blockIdx.x)<kTasks%int(tilemega::backend::Sm90F3Async::GridSize()));
   }
   __device__ static __forceinline__ unsigned Swizzled(int row,int col) {
     return row*128+((((col/8)^(row%8))*16))+(col%8)*2;
@@ -52,7 +52,7 @@ struct Sm90F3Attention {
     if(tilemega::backend::Sm90F3Async::ThreadIndex()==256) {
       Base::ProxyAsyncGlobalFence();
       for(int local=0;local<LocalTasks();++local) {
-        int task=int(blockIdx.x)+local*int(gridDim.x),slot=local%kSlots;
+        int task=int(blockIdx.x)+local*int(tilemega::backend::Sm90F3Async::GridSize()),slot=local%kSlots;
         int image=task/(Heads*kBlocks),head=(task/kBlocks)%Heads;
         int query_row=(task%kBlocks)*Rows;
         Base::Wait(ring.empty+slot,phase.Bit(phase.empty,slot));
@@ -72,7 +72,7 @@ struct Sm90F3Attention {
   __device__ static __forceinline__ void Consume(Sm90F3AttentionOperands const& p,
       Sm90F3Ring& ring,char* arena,Sm90F3Phase& phase) {
     int warp=int(threadIdx.x)/32,lane=int(threadIdx.x)%32;
-    for(int local=0,task=int(blockIdx.x);task<kTasks;++local,task+=int(gridDim.x)) {
+    for(int local=0,task=int(blockIdx.x);task<kTasks;++local,task+=int(tilemega::backend::Sm90F3Async::GridSize())) {
       int slot=local%kSlots;
       int image=task/(Heads*kBlocks),head=(task/kBlocks)%Heads;
       int query_row=(task%kBlocks)*Rows;

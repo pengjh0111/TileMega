@@ -118,7 +118,7 @@ struct GemmStage {
   template<class B>
   __device__ static __forceinline__ void PrefetchWeights(B const& b,std::size_t limit) {
     constexpr std::size_t kChunk=64*1024;
-    std::size_t part=((limit+gridDim.x-1)/gridDim.x+15)/16*16;
+    std::size_t part=((limit+tilemega::backend::Sm90F3Async::GridSize()-1)/tilemega::backend::Sm90F3Async::GridSize()+15)/16*16;
     std::size_t begin=std::size_t(blockIdx.x)*part,end=begin+part;
     if(end>limit)end=limit;
     auto* weights=reinterpret_cast<char const*>(b.template Get<Bind::kWeight>());
@@ -269,7 +269,7 @@ struct Program {
         Async::template NamedBarrier<Async::kBarConsumers,256>();
         if(tilemega::backend::Sm90F3Async::ThreadIndex()==0) {
           Async::GateArrive(&events[I].arrivals);
-          Async::GateWait(&events[I].arrivals,epoch*gridDim.x);
+          Async::GateWait(&events[I].arrivals,epoch*tilemega::backend::Sm90F3Async::GridSize());
         }
         Async::template NamedBarrier<Async::kBarGate,384>();
       }else {
@@ -560,7 +560,7 @@ struct Program<Batch,Buffers,Maps,Before,Repeat<R,Body...>,After,Final> {
         A::template NamedBarrier<A::kBarConsumers,256>();
         if(A::ThreadIndex()==0) {
           A::GateArrive(&events[stage].arrivals);
-          A::GateWait(&events[stage].arrivals,epoch*gridDim.x);
+          A::GateWait(&events[stage].arrivals,epoch*tilemega::backend::Sm90F3Async::GridSize());
         }
         A::template NamedBarrier<A::kBarGate,384>();
       }else {
@@ -579,7 +579,7 @@ struct Program<Batch,Buffers,Maps,Before,Repeat<R,Body...>,After,Final> {
       if(++found<TILEMEGA_F3_PREFETCH_DISTANCE)continue;
       if(used+info.bytes>budget && used)break;
       unsigned bytes=info.bytes<budget?info.bytes:budget;
-      unsigned part=((bytes+gridDim.x-1)/gridDim.x+15)/16*16;
+      unsigned part=((bytes+tilemega::backend::Sm90F3Async::GridSize()-1)/tilemega::backend::Sm90F3Async::GridSize()+15)/16*16;
       unsigned begin=blockIdx.x*part,end=begin+part;
       if(end>bytes)end=bytes;
       auto* weight=reinterpret_cast<char const*>(b.buffers[info.buffer]);

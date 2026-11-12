@@ -205,6 +205,9 @@ extern "C" int tm_plan_launch(void* opaque,unsigned,unsigned mode,
   using namespace tilemega::codegen::forward_f3;
   if(!opaque || (mode!=TM_SERVING_L1 && mode!=TM_SERVING_L2))return -1;
   auto& plan=*static_cast<Plan*>(opaque);
+#if TILEMEGA_F3_H800_GRID
+  if(plan.grid!=132)return -1;
+#endif
   // The whole of §5.7 item 1: one launch, no memset of any kind.
   ++plan.epoch;
   if constexpr(F3ForwardProgram::kCluster==2) {

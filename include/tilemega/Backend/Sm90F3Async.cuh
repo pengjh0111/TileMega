@@ -9,10 +9,27 @@
 // (DNN3 prompt §1.6): named barriers with an explicit thread count, the
 // epoch-counted stage gate, and the wide global accesses the register
 // epilogue and split-K use. Everything here is a thin wrapper: no policy.
+#ifndef TILEMEGA_F3_H800_GRID
+#define TILEMEGA_F3_H800_GRID 0
+#endif
+#if TILEMEGA_F3_H800_GRID != 0 && TILEMEGA_F3_H800_GRID != 1
+#error "TILEMEGA_F3_H800_GRID must be 0 or 1"
+#endif
+
 namespace tilemega::backend {
 
 struct Sm90F3Async {
   using Base=codegen::executor::Async<arch::Sm90>;
+
+  // The opt-in runtime rejects a non-132 grid before changing the epoch.
+  // Keeping the count static folds task division and prefetch partitioning.
+  __device__ static __forceinline__ unsigned GridSize() {
+#if TILEMEGA_F3_H800_GRID
+    return 132;
+#else
+    return gridDim.x;
+#endif
+  }
 
   __device__ static __forceinline__ void ArriveCount(std::uint64_t* barrier,unsigned count) {
     asm volatile("mbarrier.arrive.shared.b64 _, [%0], %1;"
