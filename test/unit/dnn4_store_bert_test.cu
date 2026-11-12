@@ -27,7 +27,7 @@ constexpr bool kPingPong=false;
 
 #if defined(DNN4_QKV_SLOTS7_B4_TEST) || defined(DNN4_FFN1_TMA128_TEST) || defined(DNN4_FFN2_TMA128_SPLIT2_B8_TEST) || defined(DNN4_FFN1_M64N128_B8_TEST)
 constexpr int kProducerRegisters=72,kConsumerRegisters=208;
-#elif defined(DNN4_QKV_SLOTS4_B2_TEST) || defined(DNN4_QKV_TMA192_TEST) || defined(DNN4_FFN1_TMA256_TEST) || defined(DNN4_FFN2_STORE_TEST) || defined(DNN4_FFN1_REG64_TEST) || defined(DNN4_FFN2_REG64_TEST) || defined(DNN4_FFN2_TK128_S2_B2_TEST)
+#elif defined(DNN4_FIXED_GRID_TEST) || defined(DNN4_QKV_SLOTS4_B2_TEST) || defined(DNN4_QKV_TMA192_TEST) || defined(DNN4_FFN1_TMA256_TEST) || defined(DNN4_FFN2_STORE_TEST) || defined(DNN4_FFN1_REG64_TEST) || defined(DNN4_FFN2_REG64_TEST) || defined(DNN4_FFN2_TK128_S2_B2_TEST)
 constexpr int kProducerRegisters=72,kConsumerRegisters=216;
 #else
 constexpr int kProducerRegisters=kPingPong?72:56;
@@ -129,7 +129,8 @@ void CompareStats(std::vector<float> const& actual,std::vector<float> const& exp
   Hash(actual);
 }
 
-template<int M,int N,int K,int TM,int TN,int SplitK,int Kind,int Parts=(Kind==1?N:K)/64,int Tk=64>
+template<int M,int N,int K,int TM,int TN,int SplitK,int Kind,int Parts=(Kind==1?N:K)/64,int Tk=64,
+         int RequestedSlots=0,int RequestedStore=-1>
 void DenseCase() {
   std::cout<<"START dense m="<<M<<" n="<<N<<" k="<<K<<" tm="<<TM<<"\n";
   constexpr int Rows=kPingPong?TM/2:TM;
@@ -176,7 +177,9 @@ void DenseCase() {
   constexpr int Slots=kPingPong?(Kind==1?4:5):2;
   constexpr bool kTmaStore=true;
 #endif
-  using G=Sm90F3Gemm<TM,TN,Slots,SplitK,Sm90F3Mode::kNormal,M,N,K,N,Chain,Sm90F3NoConv,Sm90F3NoPool,Tk,kTmaStore,false,kPingPong>;
+  using G=Sm90F3Gemm<TM,TN,RequestedSlots?RequestedSlots:Slots,SplitK,Sm90F3Mode::kNormal,
+      M,N,K,N,Chain,Sm90F3NoConv,Sm90F3NoPool,Tk,
+      RequestedStore<0?kTmaStore:bool(RequestedStore),false,kPingPong>;
   constexpr int tiles=((M+Rows-1)/Rows)*(N/TN);
   std::vector<E> input(M*K),weight(N*K),packed(N*K),residual(M*N);
   for(int n=0;n<N;++n)for(int k=0;k<K;++k) {
@@ -285,7 +288,14 @@ template<int B> void SmallBertCase() {
 
 int main(int,char**) try {
   std::cout<<std::unitbuf;
-#ifdef DNN4_QKV_SLOTS7_B4_TEST
+#ifdef DNN4_FIXED_GRID_TEST
+  // Odd tails and multiple tasks cover the fixed-grid ownership boundaries.
+  DenseCase<1025,3072,768,128,128,1,2,12,64,5,1>();
+  DenseCase<513,768,3072,128,128,1,1,12,64,5,1>();
+  DenseCase<513,2304,768,256,96,1,0,1,64,5,0>();
+  DenseCase<513,2304,768,128,96,1,0,12,64,7,0>();
+  DenseCase<257,768,3072,64,64,2,1,12,128,6,0>();
+#elif defined(DNN4_QKV_SLOTS7_B4_TEST)
   // Seven spanning slots wrap across the twelve K panels and an odd row tail.
   DenseCase<513,2304,768,128,96,1,0,12>();
 #elif defined(DNN4_QKV_SLOTS4_B2_TEST)
