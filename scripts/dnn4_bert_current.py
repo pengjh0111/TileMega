@@ -82,6 +82,11 @@ def select_successors(base, batch, specification):
         names.append(('ffn2_reg64_split4_b2_v1',
                       {'TILEMEGA_F3_SIDE_NORM': '1',
                        'TILEMEGA_F3_REGISTER_BUDGET': '3'}))
+    if batch in (8, 16):
+        features = {'TILEMEGA_F3_FULL_TILES': '1'}
+        if batch == 16:
+            features['TILEMEGA_F3_REPEAT_SELECTOR'] = '1'
+        names.append((f'full_tiles_b{batch}_admitted_v1', features))
     for name, features in names:
         folder = base/name
         if not (folder/'experiment.json').exists():
@@ -124,6 +129,8 @@ def select_successors(base, batch, specification):
                      candidate_profile.get(k) == '1' for k in
                      ('TILEMEGA_F3_WGMMA_QK', 'TILEMEGA_F3_WGMMA_PV',
                       'TILEMEGA_F3_ATTENTION_VECTOR_STORE'))))
+        if name == f'full_tiles_b{batch}_admitted_v1':
+            count = 4 if batch == 16 else 2
         if (len(units) != count or len(set(map(str, units))) != count or
                 set(map(str, final.get('unit_gates', []))) != set(map(str, units)) or
                 final['pair'] != decision['pair']):
@@ -232,6 +239,8 @@ def select_successors(base, batch, specification):
             if final_name != 'ffn1_reg64_side216_b2_admitted_v1/final_result.json':
                 raise ValueError('FFN2 follow-up lacks its admitted FFN1 predecessor')
             validate_ffn2_reg64_coordinates(final['library'], decision['reference'])
+        if name == f'full_tiles_b{batch}_admitted_v1':
+            validate_full_tiles_integration(folder, decision, final, batch)
         # Completed raw prototypes never appear in this ordered admission list.
         final_name = name+'/final_result.json'
         pair_name = name+'/experiment.json'
@@ -239,6 +248,93 @@ def select_successors(base, batch, specification):
         minimum_gain = required_gain
         library = Path(final['library'])
     return final_name, pair_name, profile, minimum_gain
+
+
+def validate_full_tiles_integration(folder, decision, final, batch):
+    integration = read(folder/'integration.json')
+    proof = read(integration['main_proof'])
+    identity = read(proof['source_identity'])
+    digest = lambda p: hashlib.sha256(Path(p).read_bytes()).hexdigest()
+    # Freeze the integration receipt: later source changes must not invalidate
+    # an already measured, independently identified binary.
+    if (digest(integration['main_proof']) != integration['main_proof_sha256']
+            or digest(proof['source_identity']) != integration['source_identity_sha256']
+            or not proof['passed'] or not identity['passed'] or not identity['files']):
+        raise ValueError('full tiles integration differs from its checked sources')
+    emitted = read(proof['codegen'])
+    if (emitted['status'] != 'passed' or emitted['profiles'] != 20
+            or emitted['query_maps'] != 12 or emitted['invalid_settings_rejected'] != 11):
+        raise ValueError('full tiles profile emission checks are incomplete')
+    on = read(proof['on_proofs'])
+    rows = [r for r in on['rows'] if r['batch'] == batch]
+    if (not on['passed'] or len(rows) != 1 or not rows[0]['passed']
+            or rows[0]['words'] <= 0
+            or Path(rows[0]['reference']).resolve() != Path(decision['library']).resolve()
+            or verify(rows[0]['model']['library'])['artifact_id'] != rows[0]['model']['artifact_id']):
+        raise ValueError('full tiles main codegen does not identify the measured kernel')
+    defaults = read(proof['prototype_defaults'])
+    b16 = read(proof['prototype_b16_off'])
+    b16_off = read(Path(proof['prototype_b16_off']).parent/'default_proof.json')
+    off = read(proof['main_b8_off'])
+    if (not defaults['passed'] or not off['passed'] or off['words'] <= 0
+            or b16['status'] != 'prepared' or not b16_off['passed']
+            or b16_off['words'] <= 0 or b16_off['reference'] != b16['reference']['library']
+            or sorted((r['batch'], r['full_tiles'], r['repeat_selector'])
+                      for r in defaults['rows']) != [(1, 0, 0), (2, 0, 0), (4, 0, 0), (8, 1, 0)]
+            or any(not r['passed'] or r['words'] <= 0 for r in defaults['rows'])
+            or digest(off['reference']) != off['reference_sha256']):
+        raise ValueError('full tiles default preservation proofs are incomplete')
+    if (read(final['library']+'.plan.json')['native_forward'] !=
+            read(decision['reference']+'.plan.json')['native_forward']):
+        raise ValueError('full tiles changed the accepted coordinates')
+    required = {'-DTILEMEGA_F3_FULL_TILES=1', '-DTILEMEGA_F3_SIDE_NORM=1',
+                '-DTILEMEGA_F3_REGISTER_BUDGET='+('3' if batch == 16 else '2')}
+    if batch == 16:
+        required.add('-DTILEMEGA_F3_REPEAT_SELECTOR=1')
+    units = decision['unit_gates']
+    for unit in units:
+        validate_component_profile(unit, required)
+        gate = read(unit)
+        for process in gate['processes']:
+            if ('gpu_lock' in process and
+                    process['gpu_lock'] != f'/tmp/tilemega_gpu{process["gpu"]}.lock'):
+                raise ValueError('full tiles component used a different device lock')
+    suites = ['body', 'order'] + (['repeat_even', 'repeat_odd'] if batch == 16 else [])
+    records = integration['unit_bit_proofs']
+    if list(records) != suites or len(units) != len(suites):
+        raise ValueError('full tiles lacks complete body, ordering and Repeat coverage')
+    for suite, unit in zip(suites, units):
+        bit = read(records[suite]);candidate = read(unit);control = read(bit['control'])
+        alias = read(bit['candidate'])
+        if (not bit['passed'] or not control['passed'] or len(control['processes']) != 5
+                or candidate['output_hash'] != control['output_hash']
+                or alias['processes'] != candidate['processes']):
+            raise ValueError('full tiles component output differs from its disabled control')
+    fixtures = read(proof['fixtures'])
+    selected = [r for r in fixtures['rows'] if r['batch'] == batch]
+    if not fixtures['passed'] or [r['suite'] for r in selected] != ['body', 'order']:
+        raise ValueError('full tiles committed fixtures lack both instruction proofs')
+    for row, unit in zip(selected, units[:2]):
+        if (not row['passed'] or row['words'] <= 0
+                or digest(row['binary']) != row['binary_sha256']
+                or digest(row['reference']) != row['reference_sha256']
+                or any(p['binary_sha256'] != row['reference_sha256'] for p in read(unit)['processes'])):
+            raise ValueError('full tiles fixture differs from its checked CUDA binary')
+    model = read(integration['model_bit_proof'])
+    outputs = lambda p: [o['output_sha256'] for c in read(p)['cases'] for o in c['outputs']]
+    if (not model['passed'] or model['candidate'] != decision['gate']
+            or model['reference'] != decision['reference_gate']
+            or not model['hashes'] or model['hashes'] != outputs(decision['gate'])
+            or model['hashes'] != outputs(decision['reference_gate'])):
+        raise ValueError('full tiles changed the strict model output bytes')
+    ledger = read(integration['ledger_receipt'])
+    if (ledger['trace_level'] != 1 or ledger['gpu'] != 3
+            or ledger['reference_sha256'] != digest(decision['library'])
+            or ledger['ledger'] != final['ledger']
+            or len(list(csv.DictReader(Path(final['ledger']).open()))) != 63):
+        raise ValueError('full tiles lacks the exact measured binary ledger')
+    validate_timing_gpu(decision['pair'], 3, 'ABABAB')
+    validate_timing_gpu(final['measurement'], 3, 'BBB')
 
 
 def validate_fixed_grid_integration(folder, decision, units):
