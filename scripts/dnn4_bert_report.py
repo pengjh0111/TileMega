@@ -184,6 +184,7 @@ def main():
                ('M-first task traversal B16', continuation/'mfirst_b16_v1/experiment.json'),
                ('single-buffer six-slot FFN1 B16', continuation/'single_store6_b16_v1/experiment.json'),
                ('single-buffer wide FFN1 B16', continuation/'single_store4_tn256_b16_v1/experiment.json'),
+               ('current-profile wide FFN1 B8', continuation/'ffn1_tma192_full_b8_v1/experiment.json'),
                ('FFN2 fixed split2 B4', continuation/'ffn2_split2_b4_v1/experiment.json'),
                ('main-loop pair B4', continuation/'loop_pair_b4_v1/experiment.json'),
                ('repaired profile3 catalog candidate2 B8', continuation/'candidate2_profile3_b8_v1/experiment.json'),
@@ -203,7 +204,8 @@ def main():
                     'main-loop pair B4', 'repaired profile3 catalog candidate2 B8',
                     'residual warp handoff B16', 'shared terminal FFN2 B16',
                     'M-first task traversal B16', 'FFN2 fixed split2 B4',
-                    'single-buffer six-slot FFN1 B16', 'single-buffer wide FFN1 B16'):
+                    'single-buffer six-slot FFN1 B16', 'single-buffer wide FFN1 B16',
+                    'current-profile wide FFN1 B8'):
             for unit_path in experiment['unit_gates']:
                 unit = read(Path(unit_path))
                 processes = unit['processes']
@@ -231,7 +233,7 @@ def main():
                         'repaired profile3 catalog candidate2 B8', 'residual warp handoff B16',
                         'shared terminal FFN2 B16', 'M-first task traversal B16',
                         'FFN2 fixed split2 B4', 'single-buffer six-slot FFN1 B16',
-                        'single-buffer wide FFN1 B16'):
+                        'single-buffer wide FFN1 B16', 'current-profile wide FFN1 B8'):
                 bit = read(path.parent/'unit_bit_proof.json')
                 control = read(Path(bit['control']))
                 candidate = read(Path(bit['candidate']))
@@ -256,14 +258,15 @@ def main():
                 if (not read(Path(preparation['default_proof']))['passed'] or
                         not read(path.parent/'unit_bit_proof.json')['passed']):
                     raise ValueError('private implementation requires default and unit equivalence')
-            if name in ('single-buffer six-slot FFN1 B16', 'single-buffer wide FFN1 B16'):
+            if name in ('single-buffer six-slot FFN1 B16', 'single-buffer wide FFN1 B16',
+                        'current-profile wide FFN1 B8'):
                 preparation = read(Path(experiment['preparation']))
                 proof = preparation.get('default_proof', preparation.get('control_proof'))
                 pair = experiment['pair']
                 expected = pair['ratio'] < min(.97, 1-pair['threshold'])
                 if (not read(Path(proof))['passed'] or experiment['accepted'] != expected or
                         len(experiment['unit_gates']) != 2):
-                    raise ValueError('single-buffer comparison lacks its control, ordering or gain gate')
+                    raise ValueError('FFN1 comparison lacks its control, ordering or gain gate')
         if name.startswith('full-tile '):
             unit_paths = experiment.get('unit_gates')
             if unit_paths is None:
@@ -2109,6 +2112,62 @@ def main():
                          'all TMA target kernels, four full/odd200-launch sequences, CPU FP32 '
                          'and byte comparisons remain unchanged. Fixturev3 compiles without spill; '
                          'no numerical or zero-spill threshold is relaxed.')
+            attribution = continuation/trial_name/'attribution.json'
+            if attribution.exists():
+                ffn1 = next(r for r in read(attribution)['rows'] if r['group'] == 'ffn1')
+                lines.append('Verified GPU3 P-TRACE1 shows wide FFN1 main-loop CTA-maxima sums '
+                             f'{ffn1["control"]["main_loop_max_cta_ns"]/1000:.3f}→'
+                             f'{ffn1["candidate"]["main_loop_max_cta_ns"]/1000:.3f}us, '
+                             'but epilogue maxima grow '
+                             f'{ffn1["control"]["epilogue_max_cta_ns"]/1000:.3f}→'
+                             f'{ffn1["candidate"]["epilogue_max_cta_ns"]/1000:.3f}us. '
+                             'The FFN1 group window grows '
+                             f'{ffn1["control"]["stage_ns"]/1000:.3f}→'
+                             f'{ffn1["candidate"]["stage_ns"]/1000:.3f}us. '
+                             'These maxima are nonadditive diagnostics; the nontrace pair '
+                             'decides rejection. Frozen sources and binaries are retained.')
+    closure = base/'single_store_close.json'
+    if closure.exists():
+        assert read(closure)['status'] == 'closed_rejected'
+        lines += ['', 'Verified both rejected single-buffer prototypes have their private '
+                  'backend and codegen files restored after preserving the measured patch. '
+                  'No production defaults or current artifacts change.']
+    audit = base/'current_b16_tune_audit_20261113_v1/result.json'
+    if audit.exists():
+        audited = {r['group']: r for r in read(audit)['rows']}
+        assert audited[2]['current_coordinate'] == audited[2]['candidate_coordinate']
+        lines += ['', 'Verified reanalysis compares existing qualified B16 catalog windows '
+                  'against three current-control processes, rather than catalog candidate0. '
+                  f'The selected FFN1 window is {100*(audited[0]["ratio"]-1):.3f}% slower '
+                  'than current; repeated QKV appears faster with identical coordinates. '
+                  'This supports the U6 neighboring-stage qualification and supplies no new '
+                  'isolated coordinate winner. No hardware rerun or admission follows.']
+    prepared = base/'ffn1_tma192_full_b8_v1/result.json'
+    if prepared.exists():
+        preparation = read(prepared)
+        assert preparation['status'] == 'prepared'
+        assert read(Path(preparation['control_proof']))['passed']
+        assert all(r['returncode'] == 0 and r['spill_bytes'] and not any(r['spill_bytes'])
+                   for r in preparation['rows'])
+        fixtures = read(base/'ffn1_tma192_full_b8_units_v1/result.json')
+        assert fixtures['status'] == 'prepared'
+        lines += ['', 'Verified one fixed B8 FFN1 TM128/TN192/TK64/S1/Slots4 TMA candidate '
+                  'compiles without spill under the accepted72/208 full-tile/grid/recompute/matrix '
+                  'profile. Only12 FFN1 coordinates change; real main codegen regenerates packing, '
+                  'and control instruction words match the incumbent. The historical fixed TN192 '
+                  'matrix trial used72/216 without full-tile/grid/recompute; later catalog windows '
+                  'lacked matrix stores and are not transferred. Exact eight-case body and four '
+                  '200-launch ordering fixtures also compile without spill. Separate functional '
+                  'gates and a GPU3 end-to-end gain above3% and noise are required.']
+        comparison = continuation/'ffn1_tma192_full_b8_v1/experiment.json'
+        if comparison.exists():
+            trial = read(comparison)
+            pair = trial['pair']
+            outcome = ('Positive main-codegen candidate; ledger and admission remain separate.'
+                       if trial['accepted'] else 'Reject; retain the incumbent.')
+            lines.append(f'Verified control5/body17/order17 and strict model5 pass; '
+                         f'GPU3 pair {pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms, '
+                         f'noise{100*pair["threshold"]:.3f}%. {outcome}')
     if failed_pp.exists() and read(failed_pp).get('status') == 'component_rejected':
         lines.append('\nVerified fixed WG64 PP/P1/TMA candidate compiles without spill and both normal '
                      'unit cohorts pass5/5, but ordering synccheck reports1024 errors and residual-chain '

@@ -164,6 +164,7 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | shared terminal FFN2 B16 | 3 | 1.279280 | 1.299168 | -1.555 | 2.749 | False |
 | M-first task traversal B16 | 3 | 1.285568 | 1.310208 | -1.917 | 4.374 | False |
 | single-buffer six-slot FFN1 B16 | 3 | 1.282928 | 1.294336 | -0.889 | 1.836 | False |
+| single-buffer wide FFN1 B16 | 3 | 1.288816 | 1.403856 | -8.926 | 1.197 | False |
 | FFN2 fixed split2 B4 | 3 | 0.647440 | 0.712272 | -10.014 | 2.619 | False |
 | main-loop pair B4 | 3 | 0.654688 | 0.693184 | -5.880 | 0.587 | False |
 | repaired profile3 catalog candidate2 B8 | 3 | 0.922640 | 0.933696 | -1.198 | 1.484 | False |
@@ -522,6 +523,14 @@ Verified private current-profile FFN1 TM128/TN128/TK64/Slots6 candidate compiles
 Verified control5, body17, ordering17 and model5 pass; GPU3 pair 1.282928→1.294336ms, noise1.836%. Reject; retain the incumbent.
 
 Verified private current-profile FFN1 TM128/TN256/TK64/Slots4 candidate compiles without spill. One independent8KiB staging buffer per consumer WG frees16KiB per CTA; every reuse waits read0 and the WG128 barrier. Residual reuse, publication fences, store drains and stage gates are unchanged. Default0 instruction words match the incumbent. This section4.2/6.2/9 extension requires exact body and ordering gates, strict model5 and a GPU3 full-model gain above3% and the measured noise before admission.
+Verified control5, body17, ordering17 and model5 pass; GPU3 pair 1.288816→1.403856ms, noise1.197%. Reject; retain the incumbent.
 Verified wide ordering fixturev1/v2 spill88/88B only in the generic GMMA reference and never execute. Fixturev3 replaces that reference with independent scalar FP32 dots on exactly representable dyadic inputs; all TMA target kernels, four full/odd200-launch sequences, CPU FP32 and byte comparisons remain unchanged. Fixturev3 compiles without spill; no numerical or zero-spill threshold is relaxed.
+Verified GPU3 P-TRACE1 shows wide FFN1 main-loop CTA-maxima sums 282.016→239.168us, but epilogue maxima grow 158.976→345.024us. The FFN1 group window grows 479.840→607.648us. These maxima are nonadditive diagnostics; the nontrace pair decides rejection. Frozen sources and binaries are retained.
+
+Verified both rejected single-buffer prototypes have their private backend and codegen files restored after preserving the measured patch. No production defaults or current artifacts change.
+
+Verified reanalysis compares existing qualified B16 catalog windows against three current-control processes, rather than catalog candidate0. The selected FFN1 window is 2.589% slower than current; repeated QKV appears faster with identical coordinates. This supports the U6 neighboring-stage qualification and supplies no new isolated coordinate winner. No hardware rerun or admission follows.
+
+Verified one fixed B8 FFN1 TM128/TN192/TK64/S1/Slots4 TMA candidate compiles without spill under the accepted72/208 full-tile/grid/recompute/matrix profile. Only12 FFN1 coordinates change; real main codegen regenerates packing, and control instruction words match the incumbent. The historical fixed TN192 matrix trial used72/216 without full-tile/grid/recompute; later catalog windows lacked matrix stores and are not transferred. Exact eight-case body and four 200-launch ordering fixtures also compile without spill. Separate functional gates and a GPU3 end-to-end gain above3% and noise are required.
 
 Verified fixed WG64 PP/P1/TMA candidate compiles without spill and both normal unit cohorts pass5/5, but ordering synccheck reports1024 errors and residual-chain racecheck reports21 errors. Reject before model correctness or timing; partial sanitizer cohorts are not complete gates. Frozen failures remain raw; current profiles and targets are unchanged.
