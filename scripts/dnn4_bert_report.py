@@ -159,6 +159,7 @@ def main():
                ('first WGMMA initialization B16', continuation/'mma_zero_experiment.json'),
                ('fixed H800 grid B16', continuation/'fixed_grid_experiment.json'),
                ('fixed grid producer recomputation B8', continuation/'grid_recount_experiment.json'),
+               *[(f'producer recomputation B{b}', continuation/f'grid_recount_b{b}_experiment.json') for b in (2,4,16)],
                ('paired residual read B16 prototype', continuation/'residual_experiment.json'),
                ('paired residual read B16 GPU0 diagnostic', continuation/'residual_gpu0_experiment.json')]
     rows = []
@@ -913,7 +914,7 @@ def main():
                      'All seventeen run under one original guarded reservation. ')
                   + 'These are functional prerequisites;whole-model correctness and '
                   'same-GPU3 timing decide performance admission.']
-    for suite in ('b8_corr1', 'b8_corr2', 'b8_corr3', 'residual_corr', 'store96_corr', 'store96_matrix_corr', 'qkv_slots4_corr', 'qkv_slots7_corr', 'qkv_attention_corr', 'mma_zero_corr', 'fixed_grid_corr', 'grid_recount_corr'):
+    for suite in ('b8_corr1', 'b8_corr2', 'b8_corr3', 'residual_corr', 'store96_corr', 'store96_matrix_corr', 'qkv_slots4_corr', 'qkv_slots7_corr', 'qkv_attention_corr', 'mma_zero_corr', 'fixed_grid_corr', 'grid_recount_corr', 'grid_recount_b2_corr', 'grid_recount_b4_corr', 'grid_recount_b16_corr'):
         receipt = continuation/suite/'result.json'
         if not receipt.exists():
             continue
@@ -1070,7 +1071,8 @@ def main():
                           ('qkv_attention', 'QKV plus attention vector stores B2'),
                           ('mma_zero', 'first WGMMA initialization B16'),
                           ('fixed_grid', 'fixed H800 grid B16'),
-                          ('grid_recount', 'fixed grid producer recomputation B8')]:
+                          ('grid_recount', 'fixed grid producer recomputation B8'),
+                          *[(f'grid_recount_b{b}',f'producer recomputation B{b}') for b in (2,4,16)]]:
         result = continuation/(prefix+'_experiment.json')
         if result.exists() and not read(result)['accepted']:
             experiment = read(result); pair = experiment['pair']
