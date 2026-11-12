@@ -72,6 +72,9 @@ def select_successors(base, batch, specification):
         names.append(('ffn1_tma128_phase72_b4_admitted_v1', {}))
         names.append(('boundary_cache216_b4_admitted_v1',
                       {'TILEMEGA_F3_REGISTER_BUDGET': '3'}))
+        names.append(('grid_recount_b4_admitted_v1',
+                      {'TILEMEGA_F3_H800_GRID': '1',
+                       'TILEMEGA_F3_RECOMPUTE_TASK': '1'}))
     if batch == 2:
         names.append(('ffn1_reg64_side216_b2_admitted_v1',
                       {'TILEMEGA_F3_SIDE_NORM': '1',
@@ -103,7 +106,8 @@ def select_successors(base, batch, specification):
                   6 if name == 'pp64_ffn1_b16_v1' else 0) +
                  int(candidate_profile.get('TILEMEGA_F3_ATTENTION_VECTOR_STORE') == '1') +
                  (2 if name == 'fixed_grid_b16_admitted_v1' else 0) +
-                 (2 if name == 'grid_recount_b8_admitted_v1' else 0) +
+                 (2 if name in ('grid_recount_b4_admitted_v1',
+                                'grid_recount_b8_admitted_v1') else 0) +
                  int(name.startswith('attention_bundle_')) +
                  (2 if name == 'cyclic_phase72_b4_v1' else 0) +
                  int(name == 'ffn1_tma128_phase72_b4_admitted_v1') +
@@ -157,7 +161,7 @@ def select_successors(base, batch, specification):
             validate_pp_coordinates(final['library'], decision['reference'], wg_rows=64)
         if (name.startswith(('attention_store_', 'attention_bundle_')) or
                 name in ('cyclic_phase72_b4_v1', 'fixed_grid_b16_admitted_v1',
-                         'grid_recount_b8_admitted_v1')):
+                         'grid_recount_b4_admitted_v1', 'grid_recount_b8_admitted_v1')):
             if (read(final['library']+'.plan.json')['native_forward'] !=
                     read(decision['reference']+'.plan.json')['native_forward']):
                 raise ValueError('follow-up changed the current coordinates')
@@ -175,8 +179,8 @@ def select_successors(base, batch, specification):
             validate_fixed_grid_integration(folder, decision, units[3:])
             validate_timing_gpu(pair, 3, 'ABABAB')
             validate_timing_gpu(final['measurement'], 3, 'BBB')
-        if name == 'grid_recount_b8_admitted_v1':
-            if final_name != 'scalar_phase72_arithmetic_b8_v1/final_result.json':
+        if name in ('grid_recount_b4_admitted_v1', 'grid_recount_b8_admitted_v1'):
+            if final_name != f'scalar_phase72_arithmetic_b{batch}_v1/final_result.json':
                 raise ValueError('producer recomputation lacks its accepted predecessor')
             for unit in units:
                 validate_component_profile(unit, {
