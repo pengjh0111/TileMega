@@ -130,13 +130,13 @@ template<int Count> struct CrossCtaCopy {
       b.template Get<3>()[i]=b.template Get<2>()[i];
   }
 };
-template<int M,int N,int TM,int TN,bool Residual,bool Store>
-using G0=Sm90F3Gemm<TM,TN,2,1,Sm90F3Mode::kNormal,M,N,64,N-3,
+template<int M,int N,int TM,int TN,bool Residual,bool Store,int Tail=3>
+using G0=Sm90F3Gemm<TM,TN,2,1,Sm90F3Mode::kNormal,M,N,64,N-Tail,
     std::conditional_t<Residual,
       Sm90F3Chain<Sm90F3SideLayout<kPingPong?TM/2:TM,TN,true,0,false>,Sm90F3Step<Sm90ForwardOp::kResidual,~0u>>,
       Sm90F3Chain<Sm90F3SideLayout<kPingPong?TM/2:TM,TN,false,0,false>>>,Sm90F3NoConv,Sm90F3NoPool,64,Store,false,kPingPong>;
-template<int M,int N,int TM,int TN,bool Residual,bool Store> struct Sequence {
-  using First=f3::GemmStage<G0<M,N,TM,TN,Residual,Store>,Bind<0,1,2,0,2,Residual>,Shape<N>>;
+template<int M,int N,int TM,int TN,bool Residual,bool Store,int Tail=3> struct Sequence {
+  using First=f3::GemmStage<G0<M,N,TM,TN,Residual,Store,Tail>,Bind<0,1,2,0,2,Residual>,Shape<N>>;
   using LastBody=Sm90F3Gemm<128,64,2,1,Sm90F3Mode::kNormal,M,64,N,64,
       Sm90F3Chain<Sm90F3SideLayout<128,64,false,0,false>>>;
   using Last=f3::GemmStage<LastBody,Bind<2,6,4,3,f3::kAbsent>,Shape<64>>;
@@ -145,8 +145,8 @@ template<int M,int N,int TM,int TN,bool Residual,bool Store> struct Sequence {
       f3::Placement<CrossCtaCopy<M*N>,Sm90F3Budget::kArena1>,
       f3::Placement<Last,Sm90F3Budget::Offset(2,Last::kSharedBytes)>>;
 };
-template<int TM,int TN,bool Residual> void StoreCase() {
-  constexpr int M=TM*9+13,N=TN*2,K=64;
+template<int TM,int TN,bool Residual,int Tail=3,int RowTail=13> void StoreCase() {
+  constexpr int M=TM*9+RowTail,N=TN*2,K=64;
   std::vector<E> input(M*K),weight(N*K),packed(N*K),weight2(64*N),packed2(64*N),residual(M*N);
   for(int i=0;i<M*K;++i)input[i]=E(float(i%19+1)/64);
   for(int n=0;n<N;++n)for(int k=0;k<K;++k) {
@@ -162,26 +162,27 @@ template<int TM,int TN,bool Residual> void StoreCase() {
   a.Put(input);w.Put(packed);r.Put(residual);w2.Put(packed2);
   std::vector<E*> pointers={a.data,w.data,x.data,y.data,z.data,r.data,w2.data};
   Device<E*> buffers(pointers.size());buffers.Put(pointers);
-  using Reg=typename Sequence<M,N,TM,TN,Residual,false>::Program;
-  using Tma=typename Sequence<M,N,TM,TN,Residual,true>::Program;
+  using Reg=typename Sequence<M,N,TM,TN,Residual,false,Tail>::Program;
+  using Tma=typename Sequence<M,N,TM,TN,Residual,true,Tail>::Program;
   typename Tma::Binding b{};b.buffers=buffers.data;
   ex::EncodeTiledMap<2>(b.maps[0],a.data,{{K,M},{K*2},{64,kPingPong?TM/2:TM}});
   ex::EncodeTiledMap<2>(b.maps[1],r.data,{{N,M},{N*2},{64,kPingPong?TM/2:TM}});
-  ex::EncodeTiledMap<2>(b.maps[2],x.data,{{N-3,M},{N*2},{64,64}});
-  ex::EncodeTiledMap<2>(b.maps[3],x.data,{{N-3,M},{N*2},{64,128}});
+  ex::EncodeTiledMap<2>(b.maps[2],x.data,{{N-Tail,M},{N*2},{64,64}});
+  ex::EncodeTiledMap<2>(b.maps[3],x.data,{{N-Tail,M},{N*2},{64,128}});
   ex::EncodeTiledMap<2>(b.maps[4],z.data,{{64,M},{128},{64,64}});
   Device<f3::ForwardCounter> events(3);
   auto clear=[&]() {events.Put(std::vector<f3::ForwardCounter>(3));x.Put(std::vector<E>(x.size,E(-7)));z.Put(std::vector<E>(z.size,E(-9)));};
   auto run=[&](auto program,int epoch) {
     using P=decltype(program);
     Check(cudaFuncSetAttribute(f3::sm90_forward_f3_kernel<P>,cudaFuncAttributeMaxDynamicSharedMemorySize,Sm90F3Budget::kBudget));
-    f3::sm90_forward_f3_kernel<P><<<4,384,Sm90F3Budget::kBudget>>>(b,events.data,epoch);
+    constexpr int blocks=TILEMEGA_F3_H800_GRID?132:4;
+    f3::sm90_forward_f3_kernel<P><<<blocks,384,Sm90F3Budget::kBudget>>>(b,events.data,epoch);
     Check(cudaGetLastError());Check(cudaDeviceSynchronize());
   };
   clear();for(int epoch=1;epoch<=200;++epoch)run(Reg{},epoch);
   auto xr=x.Get(),yr=y.Get(),zr=z.Get();
   std::vector<E> actual;std::vector<float> expected;
-  for(int m=0;m<M;++m)for(int n=0;n<N-3;++n) {
+  for(int m=0;m<M;++m)for(int n=0;n<N-Tail;++n) {
     float dot=0;for(int k=0;k<K;++k)dot+=float(input[m*K+k])*float(weight[n*K+k]);
     expected.push_back(dot+(Residual?float(residual[m*N+n]):0.f));actual.push_back(xr[m*N+n]);
   }
@@ -203,7 +204,10 @@ template<int TM,int TN,bool Residual> void StoreCase() {
 }
 int main(int,char**) {
   try {
-#ifdef DNN4_FFN2_STORE_TEST
+#ifdef DNN4_FULL_TILES_TEST
+    StoreCase<128,128,false,0,0>();StoreCase<128,128,true,0,0>();
+    StoreCase<128,128,false,3,13>();StoreCase<128,128,true,3,13>();
+#elif defined(DNN4_FFN2_STORE_TEST)
     StoreCase<256,64,true>();
 #elif defined(DNN4_PP_STORE_TEST)
     StoreCase<256,128,false>();StoreCase<256,128,true>();

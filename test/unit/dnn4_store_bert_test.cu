@@ -288,7 +288,16 @@ template<int B> void SmallBertCase() {
 
 int main(int,char**) try {
   std::cout<<std::unitbuf;
-#ifdef DNN4_FIXED_GRID_TEST
+#ifdef DNN4_FULL_TILES_TEST
+  // Exact dimensions and tails exercise both sides of bounds specialization.
+  DenseCase<1024,3072,768,128,128,1,2,12,64,5,1>();
+  DenseCase<513,3072,768,128,128,1,2,12,64,5,1>();
+  DenseCase<1024,768,3072,128,128,1,1,12,64,5,1>();
+  DenseCase<513,768,3072,128,128,1,1,12,64,5,1>();
+  DenseCase<512,2304,768,128,96,1,0,12,64,7,0>();
+  DenseCase<512,768,3072,64,64,2,1,12,128,6,0>();
+  DenseCase<257,768,3072,64,64,2,1,12,128,6,0>();
+#elif defined(DNN4_FIXED_GRID_TEST)
   // Odd tails and multiple tasks cover the fixed-grid ownership boundaries.
   DenseCase<1025,3072,768,128,128,1,2,12,64,5,1>();
   DenseCase<513,768,3072,128,128,1,1,12,64,5,1>();
