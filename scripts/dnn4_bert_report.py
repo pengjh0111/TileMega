@@ -1923,6 +1923,23 @@ def main():
                   'The candidate has no end-to-end gain and is rejected;private headers restored. '
                   'The initial illegal synthetic shape failed compilation in both arms and was '
                   'replaced before GPU execution with the actual legal QKV shapes.']
+    repaired_attribution = continuation/'candidate5_recompute_b16_v2/attribution.json'
+    if repaired_attribution.exists():
+        audit = read(repaired_attribution.with_name('attribution_audit.json'))
+        assert audit['passed']
+        attribution = read(repaired_attribution)
+        groups = {r['group']: r for r in attribution['rows']}
+        changes = ', '.join(f'{name}+'
+                            f'{groups[name]["stage_delta_ns"]/1000:.3f}us'
+                            for name in ('projection', 'ffn2', 'qkv'))
+        lines += ['', 'Verified formerly spilled B16 catalog candidate5 compiles without spill '
+                  'after the existing task-index repair;14 exact/odd-tail fixtures pass control5 '
+                  'and candidate17, and strict model5 preserves incumbent bytes. '
+                  'Its independent GPU3 pair regresses15.282% and is rejected. '
+                  f'Exact-binary P-TRACE1 group-window increases are {changes}. '
+                  'Projection/FFN2 epilogue CTA-maxima sums rise73.280→146.304us '
+                  'and76.608→146.304us. These diagnostic maxima are nonadditive; '
+                  'no P-DNN or current-artifact replacement follows the rejection.']
     if failed_pp.exists() and read(failed_pp).get('status') == 'component_rejected':
         lines.append('\nVerified fixed WG64 PP/P1/TMA candidate compiles without spill and both normal '
                      'unit cohorts pass5/5, but ordering synccheck reports1024 errors and residual-chain '

@@ -159,6 +159,7 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | GELU quartet B16 | 3 | 1.273744 | 1.284864 | -0.873 | 3.377 | False |
 | relative descriptors B16 | 3 | 1.283648 | 1.281904 | +0.136 | 1.246 | False |
 | two-row statistics plus recompute B16 | 3 | 1.281712 | 1.268032 | +1.067 | 1.592 | False |
+| repaired catalog candidate5 B16 | 3 | 1.282736 | 1.478768 | -15.282 | 2.115 | False |
 | direct statistics B16 | 3 | 1.270656 | 1.273568 | -0.229 | 3.496 | False |
 
 Verified attention experiment: QK/PV columns were distributed across eight consumer warps without changing any output accumulation order. Per-head unit5/5 and sanitizer memcheck1/1, initcheck1/1, racecheck5/5, synccheck5/5 passed; whole-model outputs also matched the control byte for byte. Neither timing gain exceeded process variability, so the original header was restored. The initial driver added an unnecessary3% cutoff, which does not affect either rejection because both measured noise thresholds exceed3%. Frozen sources and the patch remain under runs/dnn4/bert_priority.
@@ -492,5 +493,7 @@ Verified current B8 combines existing matrix and attention vector stores with th
 Verified current B2 combines full-tile/grid/recompute with existing coalesced partials and cyclic slots at unchanged coordinates and72/216 registers. Eleven exact/odd-tail fixtures pass control5 and candidate17 with identical bytes;strict model5 preserves incumbent bytes. Main real codegen matches29984 encoded words;the exact measured binary has a63-stage GPU3 ledger. P-DNN0.508096ms,p900.511104ms. Pair gain10.64656% narrowly exceeds noise10.60716%;this variability remains in the receipt. Twelve corrupted admission receipts are rejected;fixed targets are unchanged.
 
 Verified private P1 direct-statistics reads preserve ascending sums, normalization arithmetic,shared allocation and synchronization. Control5 and candidate17 cover ten exact/odd-tail fixtures;model5 preserves incumbent bytes. GPU3 pair ratio1.002292,noise3.496%. The candidate has no end-to-end gain and is rejected;private headers restored. The initial illegal synthetic shape failed compilation in both arms and was replaced before GPU execution with the actual legal QKV shapes.
+
+Verified formerly spilled B16 catalog candidate5 compiles without spill after the existing task-index repair;14 exact/odd-tail fixtures pass control5 and candidate17, and strict model5 preserves incumbent bytes. Its independent GPU3 pair regresses15.282% and is rejected. Exact-binary P-TRACE1 group-window increases are projection+65.376us, ffn2+60.224us, qkv+42.528us. Projection/FFN2 epilogue CTA-maxima sums rise73.280→146.304us and76.608→146.304us. These diagnostic maxima are nonadditive; no P-DNN or current-artifact replacement follows the rejection.
 
 Verified fixed WG64 PP/P1/TMA candidate compiles without spill and both normal unit cohorts pass5/5, but ordering synccheck reports1024 errors and residual-chain racecheck reports21 errors. Reject before model correctness or timing; partial sanitizer cohorts are not complete gates. Frozen failures remain raw; current profiles and targets are unchanged.
