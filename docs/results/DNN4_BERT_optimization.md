@@ -157,6 +157,7 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | full-store bounds B8 | 3 | 0.922384 | 0.920976 | +0.153 | 2.151 | False |
 | full-profile cyclic B4 | 3 | 0.641984 | 0.640176 | +0.282 | 2.164 | False |
 | GELU quartet B16 | 3 | 1.273744 | 1.284864 | -0.873 | 3.377 | False |
+| relative descriptors B16 | 3 | 1.283648 | 1.281904 | +0.136 | 1.246 | False |
 | direct statistics B16 | 3 | 1.270656 | 1.273568 | -0.229 | 3.496 | False |
 
 Verified attention experiment: QK/PV columns were distributed across eight consumer warps without changing any output accumulation order. Per-head unit5/5 and sanitizer memcheck1/1, initcheck1/1, racecheck5/5, synccheck5/5 passed; whole-model outputs also matched the control byte for byte. Neither timing gain exceeded process variability, so the original header was restored. The initial driver added an unnecessary3% cutoff, which does not affect either rejection because both measured noise thresholds exceed3%. Frozen sources and the patch remain under runs/dnn4/bert_priority.
@@ -465,7 +466,7 @@ Verified direct acquisition by all128 consumers also fails: unit5/5,mem1/1,init1
 
 Verified nonblocking named160 PP side handoff passes two fresh GPU3 component cohorts17/17 each and strict model5/5. Default0 full B16 instruction words remain identical to the incumbent. GPU3 full-model pair ratio1.075620;noise1.056%,DT-PP minimum3%. The synchronization repair is functional evidence;performance and production admission follow the independent end-to-end gate.
 
-Verified opt-in cyclic slot indexing and vector-major normal split-K partials retain the admitted B1 coordinates,56/224 register roles and ascending slice addition order. Integrated component gates pass17/17 on GPU3;the extended S2/TK128/odd-row suite passes17/17 on GPU2. The full model passes strict FP32 and cross-process byte checks5/5. G22 P-PAIR0.499216→0.478000ms passes0.904% noise;P-DNN 0.464496ms,p900.477696ms,process range0.012608ms. The exact accepted binary has a P-TRACE1 ledger. The same B2 mechanism fails its paired noise gate and is not enabled there. Defaults,original anchors,CNN results and frozen20-cell Phase Z remain unchanged.
+Verified opt-in cyclic slot indexing and vector-major normal split-K partials retain the admitted B1 coordinates,56/224 register roles and ascending slice addition order. Integrated component gates pass17/17 on GPU3;the extended S2/TK128/odd-row suite passes17/17 on GPU2. The full model passes strict FP32 and cross-process byte checks5/5. G22 P-PAIR0.499216→0.478000ms passes0.904% noise;P-DNN 0.464496ms,p900.477696ms,process range0.012608ms. The exact accepted binary has a P-TRACE1 ledger. The earlier B2 comparison fails its paired noise gate;the later full-pipeline combination has a separate admission below. Defaults,original anchors,CNN results and frozen20-cell Phase Z remain unchanged.
 
 Verified current accepted artifacts (GPU3;50/200;three-process P-DNN). B1/B2/B4/B8/B16 are follow-ups that retain the original anchor without re-anchoring. Fixed BF16 targets reached for B1,B2. DNN4_BERT_current.csv records complete identities,profiles and evidence paths;DNN4_BERT_current_ledger.csv preserves all315 current stage rows with exact accepted reference hashes and coordinates.
 
