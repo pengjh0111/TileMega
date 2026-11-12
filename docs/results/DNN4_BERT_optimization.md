@@ -156,6 +156,7 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | pipeline reductions B2 | 3 | 0.568672 | 0.508128 | +10.647 | 10.607 | True |
 | full-store bounds B8 | 3 | 0.922384 | 0.920976 | +0.153 | 2.151 | False |
 | full-profile cyclic B4 | 3 | 0.641984 | 0.640176 | +0.282 | 2.164 | False |
+| GELU quartet B16 | 3 | 1.273744 | 1.284864 | -0.873 | 3.377 | False |
 | direct statistics B16 | 3 | 1.270656 | 1.273568 | -0.229 | 3.496 | False |
 
 Verified attention experiment: QK/PV columns were distributed across eight consumer warps without changing any output accumulation order. Per-head unit5/5 and sanitizer memcheck1/1, initcheck1/1, racecheck5/5, synccheck5/5 passed; whole-model outputs also matched the control byte for byte. Neither timing gain exceeded process variability, so the original header was restored. The initial driver added an unnecessary3% cutoff, which does not affect either rejection because both measured noise thresholds exceed3%. Frozen sources and the patch remain under runs/dnn4/bert_priority.
