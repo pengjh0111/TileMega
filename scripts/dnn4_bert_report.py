@@ -136,7 +136,7 @@ def main():
               ('Current coalesced B2', base/'current_coalesced_b2_v1/experiment.json'),
               ('cached-boundary in-situ B4', base/'boundary_cache_retune_b4_v1/experiment.json'),
               ('cached-boundary216 in-situ B4', base/'boundary_cache216_b4_v1/experiment.json'),
-              ('cached-boundary216 B4 GPU0 continuation',
+              ('cached-boundary216 B4 admitted continuation',
                base/'boundary_cache216_b4_admitted_v1/experiment.json'),
               ('Current prefetch1 B16', base/'current_prefetch_b16_v1/experiment.json'),
               ('FFN2 register store B8', base/'ffn2_reg_b8_v1/experiment.json'),
@@ -146,21 +146,27 @@ def main():
               *[(f'phase72 B{batch} G22',
                  base/f'scalar_phase72_arithmetic_b{batch}_v1/experiment.json')
                 for batch in (2, 4, 8, 16)]]
+    continuation = base/'resume_allcards_20261112_v1'
+    if not (base/'boundary_cache216_b4_admitted_v1/experiment.json').exists():
+        probes.append(('fixed-candidate216 B4 revalidation', continuation/'b4_experiment.json'))
+    probes += [('existing whole-program216 B8', continuation/'b8_experiment.json'),
+               ('paired residual read B16 prototype', continuation/'residual_experiment.json')]
     rows = []
     choices = []
     for name, path in probes:
         if not path.exists():
             continue
         experiment = read(path)
-        gpu0_continuation = name == 'cached-boundary216 B4 GPU0 continuation'
-        if gpu0_continuation:
+        admitted_continuation = name == 'cached-boundary216 B4 admitted continuation'
+        gpu0_continuation = admitted_continuation and experiment['gpu'] == 0
+        if admitted_continuation:
             sys.path.insert(0, str(ROOT/'scripts'))
             from dnn4_bert_current import validate_boundary_selection, validate_followup_allocation
             final = read(path.parent/'final_result.json')
             validate_followup_allocation(path.parent, path.parent.name, experiment, final)
             validate_boundary_selection(path.parent, experiment['library'], experiment['reference'])
             if not experiment['accepted']:
-                raise ValueError('GPU0 admitted comparison lacks its completed acceptance')
+                raise ValueError('admitted comparison lacks its completed acceptance')
         if name in ('attention Rows64 B1', 'coalesced partial B1', 'cyclic slots B1',
                     'cyclic slots tuned B16 prototype', 'cyclic216 B16 integrated',
                     'cyclic coalesced B1 prototype', 'cyclic admitted B8',
@@ -183,7 +189,8 @@ def main():
                     'FFN1 PP full-wait repair B16', 'FFN2 TMA128 split2 B8',
                     'FFN2 TMA128 split2 coalesced B8', 'FFN1 M64N128 B8',
                     'FFN1 PP nonblocking side B16', 'Current coalesced B2',
-                    'cached-boundary216 B4 GPU0 continuation'):
+                    'cached-boundary216 B4 admitted continuation',
+                    'existing whole-program216 B8', 'paired residual read B16 prototype'):
             unit_paths = experiment.get('unit_gates', [experiment.get('unit_gate')])
             for unit_path in unit_paths:
                 unit = read(Path(unit_path))
@@ -731,8 +738,10 @@ def main():
             raise ValueError('B8 compile-only rejection differs from its stated coverage')
         lines += ['', 'Verified CPU-only B8 register-profile3 follow-up preserves the six '
                   'existing coordinate variants. Only0/1/2 have zero-spill production and '
-                  'boundary builds;3/4/5 spill. Coverage remains3/6,below four,so no new '
-                  'B8 GPU work or assembled stage selection is performed.']
+                  'boundary builds;3/4/5 spill. Coverage remains3/6,below four;these '
+                  'partial windows cannot assemble stage coordinates. A separate whole-program '
+                  'fallback may compare the three legal programs with the incumbent after '
+                  'strict model5/5;an ambiguous selection retains the incumbent.']
     raw_tuned = base/'boundary_cache216_b4_v1/final_result.json'
     if raw_tuned.exists():
         result = read(raw_tuned)
@@ -755,6 +764,14 @@ def main():
         qualified = base/'first_ready_b2_gpu0_v2/trace_qualification.json'
         status = ('Hardware qualification is pending;no performance gain or valid stage '
                   'windows are inferred.')
+        skipped = base/'first_ready_b2_gpu0_v2/result.json'
+        if skipped.exists() and read(skipped).get('status') == 'skipped_no_selection_coverage':
+            if read(skipped)['trace_processes_executed'] != 0:
+                raise ValueError('skipped B2 trace unexpectedly executed on hardware')
+            status = ('Hardware qualification was skipped before all three trace processes: '
+                      'all48 normal GEMM stages have at most one task per CTA,so the first-task '
+                      'predicate removes no repeated baseline checks. The fresh GPU0 reference '
+                      'smoke0.572192ms is diagnostic only;no new performance is admitted.')
         if qualified.exists():
             result = read(qualified)
             status = (f'Three independent GPU0 boundary processes give '
@@ -804,6 +821,24 @@ def main():
                   'and arithmetic. Recomputing task counts reduces spill8/8B to4/4B;also '
                   'recomputing task addresses returns to8/8B. Both fail the zero-spill '
                   'gate and never execute on GPU. The main header is unchanged.']
+    authorization = continuation/'authorization.json'
+    if authorization.exists():
+        allocation = read(authorization)
+        if allocation['allowed_gpu_indices'] != [0, 1, 2, 3]:
+            raise ValueError('four-card continuation differs from explicit user allocation')
+        lines += ['', 'Stated2026-11-12 allocation:all four H800 cards0–3 are authorized;'
+                  'intermittent gaps are no longer required. New schedules preserve the '
+                  'six-sample guard,300s occupancy cooldown and /root/python entry paths. '
+                  'B4/B8 timing uses original GPU3;functional checks may use the other '
+                  'cards. Previously paused queues stay retired and completed checks are reused.']
+    residual = base/'residual_pair_b16_preparation_v1/result.json'
+    if residual.exists() and read(residual)['status'] == 'prepared':
+        compiled = read(residual)
+        lines += ['', 'Verified private fixed-coordinate B16 residual-read prototype compiles '
+                  f'without spill;SASS{compiled["model"]["sass_bytes"]}B. One aligned shared32 '
+                  'read supplies each adjacent BF16 pair while preserving per-element '
+                  'arithmetic. CPU compilation establishes feasibility only;complete '
+                  'unit/sanitizer,model5/5 and same-GPU3 whole-model gates decide admission.']
     retune = base/'phase72_retune_b8_gpu0_v1/incomplete_selection.json'
     if retune.exists():
         qualification = read(retune.parent/'trace_qualification.json')
