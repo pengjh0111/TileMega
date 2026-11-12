@@ -317,6 +317,8 @@ Verified five fresh CPU-only host processes reject grids 0/1/131/133/264 in both
 Verified fixed-grid body on GPU0: unit5/5,mem1/1,init1/1,race5/5,sync5/5;output bytes match the frozen control. These are functional gates.
 Verified fixed-grid attention on GPU3: unit5/5,mem1/1,init1/1,race5/5,sync5/5;output bytes match the frozen control. These are functional gates.
 Verified CPU-only B8 portability check spills20/20B under its current72/208 profile. It is rejected before GPU execution;no B8 hardware result is claimed.
+Verified existing72/216 also spills20/20B for fixed-grid B8; that CPU-only follow-up is rejected without a register sweep.
+Verified fixed-grid B16 is admitted after main on/off instruction equivalence,repository fixture equivalence, host rejection5/5,strict model5/5,independent GPU3 pair and an exact63-stage ledger. P-DNN median1.295600ms,p901.313632ms,process range0.011296ms. Other four cells and original anchors remain unchanged. CMake regeneration is blocked by a missing installed MLIRCAPIDebug object;the unchanged certified cached archive and rebuilt codegen object pass real codegen14profiles/8invalid-settings checks,41admission tests and two related CTest checks. The full CMake build is not claimed.
 
 Verified profile2 B8 boundary overhead is3.419% on GPU0. Only2/6 existing variants are nonspilling;each completes three fresh20/50 traces. Four spilled variants are never executed. Required candidate coverage is incomplete;no assembled selection or admission is claimed. GPU2 partial traces remain separate and are not mixed with the GPU0 windows.
 
@@ -356,7 +358,7 @@ Verified current accepted artifacts (GPU3;50/200;three-process P-DNN). B1/B2/B4/
 | 2 | 3 | 0.597536 | 0.601472 | 0.032496 | 0.5171 | 1.1555 |
 | 4 | 3 | 0.706304 | 0.715328 | 0.007824 | 0.5905 | 1.1961 |
 | 8 | 3 | 1.016400 | 1.025344 | 0.004272 | 0.7457 | 1.3630 |
-| 16 | 3 | 1.311152 | 1.326240 | 0.005984 | 1.0869 | 1.2064 |
+| 16 | 3 | 1.295600 | 1.313632 | 0.011296 | 1.0869 | 1.1921 |
 
 Verified largest three stages for each current unmet BERT cell (P-TRACE1 attribution only;segments can overlap and are not timing results). Each ledger checks the exact accepted reference binary SHA256.
 
@@ -365,6 +367,6 @@ Verified largest three stages for each current unmet BERT cell (P-TRACE1 attribu
 | 2 | s30 gemm 17.98us (main_loop=10.11,epilogue=3.74) | s5 gemm 17.70us (main_loop=10.37,epilogue=3.36) | s55 gemm 17.66us (main_loop=10.14,slot_wait=4.58) |
 | 4 | s24 gemm 19.33us (epilogue=10.37,main_loop=8.58) | s40 gemm 19.33us (main_loop=14.98,slot_wait=4.96) | s25 gemm 18.94us (main_loop=15.62,slot_wait=5.12) |
 | 8 | s14 gemm 30.53us (main_loop=15.74,epilogue=12.96) | s59 gemm 30.14us (main_loop=15.58,epilogue=13.18) | s49 gemm 30.05us (main_loop=15.33,epilogue=12.83) |
-| 16 | s4 gemm 43.07us (main_loop=23.49,epilogue=16.29) | s9 gemm 42.11us (main_loop=23.84,epilogue=15.33) | s49 gemm 42.02us (main_loop=23.62,epilogue=14.98) |
+| 16 | s4 gemm 43.01us (main_loop=23.52,epilogue=16.03) | s9 gemm 41.89us (main_loop=24.19,epilogue=14.43) | s49 gemm 41.86us (main_loop=23.87,epilogue=14.27) |
 
 Verified fixed WG64 PP/P1/TMA candidate compiles without spill and both normal unit cohorts pass5/5, but ordering synccheck reports1024 errors and residual-chain racecheck reports21 errors. Reject before model correctness or timing; partial sanitizer cohorts are not complete gates. Frozen failures remain raw; current profiles and targets are unchanged.

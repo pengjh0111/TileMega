@@ -1160,6 +1160,27 @@ def main():
             lines += ['Verified CPU-only B8 portability check spills20/20B under '
                       'its current72/208 profile. It is rejected before GPU '
                       'execution;no B8 hardware result is claimed.']
+        b8_profile3 = base/'fixed_grid_b8_profile3_preparation_v1/result.json'
+        if b8_profile3.exists() and read(b8_profile3)['status'] == 'rejected_compile':
+            lines += ['Verified existing72/216 also spills20/20B for fixed-grid B8; '
+                      'that CPU-only follow-up is rejected without a register sweep.']
+        admitted = base/'fixed_grid_b16_admitted_v1/admission.json'
+        if admitted.exists():
+            receipt = read(admitted)
+            if receipt['status'] != 'admitted':
+                raise ValueError('fixed grid admission is incomplete')
+            lines += ['Verified fixed-grid B16 is admitted after main on/off '
+                      'instruction equivalence,repository fixture equivalence, '
+                      'host rejection5/5,strict model5/5,independent GPU3 pair and '
+                      'an exact63-stage ledger. P-DNN median'
+                      f'{receipt["median_ms"]:.6f}ms,p90{receipt["p90_ms"]:.6f}ms,'
+                      f'process range{receipt["process_range_ms"]:.6f}ms. '
+                      'Other four cells and original anchors remain unchanged. '
+                      'CMake regeneration is blocked by a missing installed '
+                      'MLIRCAPIDebug object;the unchanged certified cached archive '
+                      'and rebuilt codegen object pass real codegen14profiles/'
+                      '8invalid-settings checks,41admission tests and two related '
+                      'CTest checks. The full CMake build is not claimed.']
     retune = base/'phase72_retune_b8_gpu0_v1/incomplete_selection.json'
     if retune.exists():
         qualification = read(retune.parent/'trace_qualification.json')
