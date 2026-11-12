@@ -80,6 +80,10 @@ def main():
     assert fixed_grid == '#define TILEMEGA_F3_H800_GRID 1\n'+flat
     disabled, _ = generate('h800_grid_disabled', {'TILEMEGA_F3_H800_GRID': '0'})
     assert disabled == flat
+    recompute, _ = generate('recompute_task', {'TILEMEGA_F3_RECOMPUTE_TASK': '1'})
+    assert recompute == '#define TILEMEGA_F3_RECOMPUTE_TASK 1\n'+flat
+    disabled, _ = generate('recompute_task_disabled', {'TILEMEGA_F3_RECOMPUTE_TASK': '0'})
+    assert disabled == flat
     for bad in (rows.replace('Sm90F3Attention<16,64>', 'Sm90F3Attention<16,128>'),
                 rows.replace('#define TILEMEGA_F3_ATTENTION_ROWS 64\n', '')):
         try:
@@ -96,12 +100,14 @@ def main():
     generate('invalid_matrix', {'TILEMEGA_F3_MATRIX_STORE': '2'}, succeeds=False)
     generate('invalid_attention_vector', {'TILEMEGA_F3_ATTENTION_VECTOR_STORE': '2'}, succeeds=False)
     generate('invalid_h800_grid', {'TILEMEGA_F3_H800_GRID': '132'}, succeeds=False)
+    generate('invalid_recompute_task', {'TILEMEGA_F3_RECOMPUTE_TASK': '2'}, succeeds=False)
     for macro, value in (('TILEMEGA_F3_REGISTER_BUDGET', '4'),
                          ('TILEMEGA_F3_CYCLIC_SLOTS', '2'),
                          ('TILEMEGA_F3_COALESCED_PARTIALS', '2'),
                          ('TILEMEGA_F3_MATRIX_STORE', '2'),
                          ('TILEMEGA_F3_ATTENTION_VECTOR_STORE', '2'),
-                         ('TILEMEGA_F3_H800_GRID', '132')):
+                         ('TILEMEGA_F3_H800_GRID', '132'),
+                         ('TILEMEGA_F3_RECOMPUTE_TASK', '2')):
         damaged = '#define '+macro+' '+value+'\n'+flat
         try:
             dispatch(json.loads(Path(str(args.out/'default.cu')+'.plan.json').read_text()),
@@ -110,8 +116,8 @@ def main():
             pass
         else:
             raise AssertionError('unidentified mechanism setting accepted')
-    print(json.dumps(dict(status='passed', evidence='verified', profiles=14,
-                          query_maps=12, invalid_settings_rejected=8)))
+    print(json.dumps(dict(status='passed', evidence='verified', profiles=16,
+                          query_maps=12, invalid_settings_rejected=9)))
 
 
 if __name__ == '__main__':

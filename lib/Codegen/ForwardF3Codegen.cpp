@@ -224,6 +224,7 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
   bool matrix_store=false;
   bool attention_vector_store=false;
   bool h800_grid=false;
+  bool recompute_task=false;
   unsigned attention_rows=0;
   unsigned repeat_layers=2;
   if(auto* setting=std::getenv("TILEMEGA_F3_REPEAT_ARITHMETIC")) {
@@ -267,6 +268,12 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
     if(value!="0" && value!="1")
       throw std::invalid_argument("TILEMEGA_F3_H800_GRID must be0 or1");
     h800_grid=value=="1";
+  }
+  if(auto* setting=std::getenv("TILEMEGA_F3_RECOMPUTE_TASK")) {
+    std::string value=setting;
+    if(value!="0" && value!="1")
+      throw std::invalid_argument("TILEMEGA_F3_RECOMPUTE_TASK must be0 or1");
+    recompute_task=value=="1";
   }
   if(auto* setting=std::getenv("TILEMEGA_F3_SIDE_NORM")) {
     std::string value=setting;
@@ -351,6 +358,7 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
   if(matrix_store)out<<"#define TILEMEGA_F3_MATRIX_STORE 1\n";
   if(attention_vector_store)out<<"#define TILEMEGA_F3_ATTENTION_VECTOR_STORE 1\n";
   if(h800_grid)out<<"#define TILEMEGA_F3_H800_GRID 1\n";
+  if(recompute_task)out<<"#define TILEMEGA_F3_RECOMPUTE_TASK 1\n";
   if(attention_rows)out<<"#define TILEMEGA_F3_ATTENTION_ROWS "<<attention_rows<<"\n";
   out<<"// SPDX-License-Identifier: BSD-3-Clause\n"
      <<"// Generated from a DnnModelPlan and F3 forward coordinates.\n"

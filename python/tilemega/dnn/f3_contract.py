@@ -187,6 +187,8 @@ def dispatch(manifest, defines, source):
         raise ValueError('invalid explicit F3 attention vector store')
     if defines.get('TILEMEGA_F3_H800_GRID', '0') not in ('0', '1'):
         raise ValueError('invalid explicit F3 H800 grid specialization')
+    if defines.get('TILEMEGA_F3_RECOMPUTE_TASK', '0') not in ('0', '1'):
+        raise ValueError('invalid explicit F3 task index recomputation')
     c = manifest['native_forward']
     match = re.search(r'kF3ForwardIdentity\[\]\s*=\s*("(?:\\.|[^"\\])*");', source)
     if match is None or json.loads(json.loads(match[1])) != c:
