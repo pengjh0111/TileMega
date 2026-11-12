@@ -961,6 +961,17 @@ def main():
             lines += [f'Verified {suite}:unit5/5,mem1/1,init1/1,race5/5,sync5/5 '
                       f'on GPU{unit["gpu"]};all seventeen fresh processes have identical '
                       'output hashes. Functional evidence does not establish E2E benefit.']
+        conditional = base/'store96_b16_model_preparation_v1/result.json'
+        if conditional.exists() and read(conditional)['status'] == 'prepared':
+            compiled = read(conditional)
+            if compiled['changed_stages'] != list(range(6, 60, 5)) or not compiled['control_proof']['passed']:
+                raise ValueError('conditional B16 partial store scope differs')
+            lines += ['Verified CPU-only B16 preparation applies the same partial store '
+                      'to11 repeated QKV stages,keeping the first NT1 QKV and the admitted '
+                      'profile unchanged. The control matches all44736 encoded words;'
+                      f'the candidate has zero spill and{compiled["model"]["sass_bytes"]}B SASS. '
+                      'No GPU checks or performance are claimed;this follow-up is conditional '
+                      'on B8 mechanism qualification and needs separate matrix-store1 gates.']
     retune = base/'phase72_retune_b8_gpu0_v1/incomplete_selection.json'
     if retune.exists():
         qualification = read(retune.parent/'trace_qualification.json')
