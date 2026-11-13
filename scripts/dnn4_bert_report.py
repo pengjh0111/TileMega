@@ -2764,10 +2764,27 @@ def main():
                   'failure is preserved. An explicit-flag certificate now '
                   'retains exact remap checks and rejects 25 corruptions; '
                   '46 existing admission tests and all five current artifacts '
-                  'pass. Only this certificate and its test are integrated; '
-                  'C++ codegen remains private. GPU0 layout/model checks and '
+                  'pass. These are structural and code-size results. '
+                  'GPU0 layout/model checks and '
                   'independent whole-model performance gates are pending. '
                   'Code size alone establishes no speedup or admission.']
+        main_map = base/'repeat_output_map_main_regression_v1/result.json'
+        if main_map.exists():
+            assert read(main_map)['passed']
+            lines += ['', 'Verified the optional output-map codegen path is '
+                      'integrated with default0. Actual main codegen reproduces '
+                      'all 257296 disabled-arm and 36608 enabled-arm encoded '
+                      'GPU words; both builds have zero spill. All five current '
+                      'profiles emit identical code with the setting absent or '
+                      'explicit0, and each rebuilt program matches its incumbent '
+                      'instructions. A reusable fixture builder renders real '
+                      'binding tables under ignored runs and reproduces all '
+                      '1056 prototype GPU words. Generated model tables are not '
+                      'committed. This remains an opt-in mechanism awaiting '
+                      'GPU0 correctness and performance gates; no current '
+                      'artifact or target changes. Host validation uses the '
+                      'qualified single-object rebuild; full CMake is still '
+                      'blocked by external MLIR Debug.cpp.o.']
     (args.out/'DNN4_BERT_optimization.md').write_text('\n'.join(lines)+'\n')
     print(json.dumps(dict(comparisons=len(rows), report=str(args.out/'DNN4_BERT_optimization.md'))))
 
