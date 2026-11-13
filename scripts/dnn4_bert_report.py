@@ -196,6 +196,8 @@ def main():
                ('FFN2-only row32 TN96 B16', continuation/'ffn2_stats32_b16_v1/experiment.json'),
                ('whole-WG row96 TN96 B16', continuation/'ffn2_stats96_b16_v1/experiment.json'),
                ('failed-poll gate backoff B4', continuation/'gate_backoff_b4_v1/experiment.json'),
+               ('failed-poll gate backoff B8', continuation/'gate_backoff_b8_v1/experiment.json'),
+               ('failed-poll gate backoff B16', continuation/'gate_backoff_b16_v1/experiment.json'),
                ('outlined GELU plus stores B4', continuation/'gelu_store_bundle_b4_v1/experiment.json'),
                ('outlined GELU B4', continuation/'gelu_outline_b4_v1/experiment.json'),
                ('outlined GELU B8', continuation/'gelu_outline_b8_v1/experiment.json'),
@@ -247,7 +249,8 @@ def main():
                     (experiment['pair']['ratio'] < 1-experiment['pair']['threshold'])):
                 raise ValueError('GELU store interaction lacks qualified component reuse')
         if name in ('outlined GELU B4', 'outlined GELU B8',
-                    'outlined GELU B16', 'WGMMA depth2 prologue B4'):
+                    'outlined GELU B16', 'WGMMA depth2 prologue B4',
+                    'failed-poll gate backoff B8', 'failed-poll gate backoff B16'):
             bit = read(path.parent/'unit_bit_proof.json')
             control = read(Path(bit['control']))
             body = read(Path(bit['candidate']))
@@ -266,8 +269,18 @@ def main():
                     not model['passed'] or model['passes'] != '5/5' or
                     hashes(model) != hashes(read(Path(experiment['reference']['gate']))) or
                     not read(Path(preparation['default_proof']))['passed'] or
-                    experiment['accepted'] != (pair['ratio'] < min(.97, 1-pair['threshold']))):
+                    experiment['accepted'] != (pair['ratio'] < 1-max(
+                        .005 if name.startswith('failed-poll gate backoff') else .03,
+                        pair['threshold']))):
                 raise ValueError('implementation trial lacks its complete unchanged gates')
+            if name.startswith('failed-poll gate backoff'):
+                allocation = read(base/f'gate_backoff_b{experiment["batch"]}_setup_v1/allocation.json')
+                authorization = read(Path(allocation['authorization']))
+                if (allocation['gpu'] != pair['gpu'] or allocation['reanchored']
+                        or allocation['original_anchor_gpu'] != 3
+                        or authorization['allowed_gpu_indices'] != [0, 1, 2, 3]
+                        or not read(base/f'gate_backoff_b{experiment["batch"]}_body_proof_v1/result.json')['passed']):
+                    raise ValueError('gate backoff lacks its allocation or body identity proof')
             if name == 'outlined GELU B16':
                 repair = read(base/'gelu_outline_b16_v1/oracle_repair.json')
                 reuse = read(path.parent/'model_reuse.json')
@@ -356,7 +369,8 @@ def main():
                             for p in unit['processes'])):
                     raise ValueError('full-tile comparison lacks complete component gates')
         admitted_continuation = name == 'cached-boundary216 B4 admitted continuation'
-        gpu0_continuation = admitted_continuation and experiment['gpu'] == 0
+        gpu0_continuation = (admitted_continuation or name in (
+            'failed-poll gate backoff B8', 'failed-poll gate backoff B16')) and experiment['gpu'] == 0
         if admitted_continuation:
             sys.path.insert(0, str(ROOT/'scripts'))
             from dnn4_bert_current import validate_boundary_selection, validate_followup_allocation
@@ -2530,6 +2544,19 @@ def main():
                          'archive and restore the private source. No extra trace, '
                          'P-DNN or unchanged retiming; current B16 stays unchanged.')
     backoff = base/'gate_backoff_b4_admitted_v1/admission.json'
+    backoff16 = continuation/'gate_backoff_b16_v1/closure.json'
+    if backoff16.exists():
+        closed = read(backoff16)
+        assert closed['status'] == 'pair_rejected'
+        lines += ['', 'Verified B16 failed-poll backoff completes ordering17, '
+                  'control5 and model5 with incumbent output bytes; completed '
+                  'pre-pause processes are reused and missing checks are resumed. '
+                  'The unchanged GEMM/GELU body cohort is reused only after '
+                  '55024 encoded GPU words match. GPU0 same-card P-PAIR '
+                  '1.236272→1.232896 ms gains 0.273%, below 1.758% noise. '
+                  'Reject without P-DNN, extra trace or unchanged retiming. '
+                  'The original GPU3 target is retained without reanchoring; '
+                  'current B16 stays unchanged.']
     wide_b4 = base/'ffn2_stats96_b4_v2/closure.json'
     compact_b4 = base/'ffn2_compact_b4_v1/closure.json'
     if compact_b4.exists():

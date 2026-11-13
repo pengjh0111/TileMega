@@ -177,6 +177,7 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | FFN2-only row32 TN96 B16 | 3 | 1.233856 | 1.215232 | +1.509 | 0.843 | True |
 | whole-WG row96 TN96 B16 | 3 | 1.235328 | 1.198704 | +2.965 | 3.593 | False |
 | failed-poll gate backoff B4 | 3 | 0.605504 | 0.596512 | +1.485 | 0.955 | True |
+| failed-poll gate backoff B16 | 0 | 1.236272 | 1.232896 | +0.273 | 1.758 | False |
 | outlined GELU plus stores B4 | 3 | 0.605472 | 0.595968 | +1.570 | 2.056 | False |
 | outlined GELU B4 | 3 | 0.643440 | 0.605616 | +5.878 | 0.724 | True |
 | outlined GELU B8 | 3 | 0.921376 | 0.853296 | +7.389 | 2.070 | True |
@@ -585,6 +586,8 @@ Verified control5, body17 and model5 pass; GPU3 pair 1.233856→1.215232ms gains
 
 Verified private whole-WG statistics preparation keeps the fixed TN96 FFN2 geometry and accumulates its three 32-column register-store regions before publishing one 96-column partial. Eleven FFN2 buffers now contain 8 parts per row; projection outputs retain 12. All 49 generated reader contracts pass. This is an explicit extension of the prompt’s 64-column rule; 96 derives from the selected WG width. No synchronization or store protocol changes. Real-codegen SASS is 304768 B with zero spill and unchanged default words. Eighteen fixtures cover crossing 64-column loops, two 96-column groups, TM64 ownership and residual TMA reuse. The original FP32 gates and predeclared gain above both 3% and noise remain required.
 Verified 18-case control5, body17 and model5 pass. GPU3 pair 1.235328→1.198704 ms gains 2.965%, below the 3.593% noise threshold and predeclared 3% minimum. Reject; archive and restore the private source. No extra trace, P-DNN or unchanged retiming; current B16 stays unchanged.
+
+Verified B16 failed-poll backoff completes ordering17, control5 and model5 with incumbent output bytes; completed pre-pause processes are reused and missing checks are resumed. The unchanged GEMM/GELU body cohort is reused only after 55024 encoded GPU words match. GPU0 same-card P-PAIR 1.236272→1.232896 ms gains 0.273%, below 1.758% noise. Reject without P-DNN, extra trace or unchanged retiming. The original GPU3 target is retained without reanchoring; current B16 stays unchanged.
 
 Verified a separate source repair halves simultaneous normal split-K reads from 64 values to 32 at the same B4 64×192/S4 geometry and 72/208 register budget. Each element still reads all slices before ascending addition; synchronization is unchanged. This explicit extension of the prompt tests register liveness. Independent fixtures compile without spill, but full BERT still spills 52 B stores/140 B loads versus 56 B/144 B. Reject before GPU execution, retain the failure and patch, and restore the private sources. No correctness or performance result is claimed.
 
