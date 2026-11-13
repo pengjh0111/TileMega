@@ -172,6 +172,7 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | repaired profile3 catalog candidate2 B8 | 3 | 0.922640 | 0.933696 | -1.198 | 1.484 | False |
 | residual warp handoff B16 | 3 | 1.284976 | 1.284864 | +0.009 | 2.142 | False |
 | direct statistics B16 | 3 | 1.270656 | 1.273568 | -0.229 | 3.496 | False |
+| outlined GELU B4 | 3 | 0.643440 | 0.605616 | +5.878 | 0.724 | True |
 | outlined GELU B8 | 3 | 0.921376 | 0.853296 | +7.389 | 2.070 | True |
 | outlined GELU B16 | 3 | 1.283520 | 1.230048 | +4.166 | 2.149 | True |
 | WGMMA depth2 prologue B4 | 3 | 0.640976 | 0.736736 | -14.940 | 3.588 | False |
@@ -490,7 +491,7 @@ Verified current accepted artifacts (GPU3;50/200;three-process P-DNN). B1/B2/B4/
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 3 | 0.464496 | 0.477696 | 0.012608 | 0.4858 | 0.9561 |
 | 2 | 3 | 0.508096 | 0.511104 | 0.012352 | 0.5171 | 0.9826 |
-| 4 | 3 | 0.634688 | 0.638592 | 0.003456 | 0.5905 | 1.0748 |
+| 4 | 3 | 0.604784 | 0.607776 | 0.001056 | 0.5905 | 1.0242 |
 | 8 | 3 | 0.852384 | 0.861728 | 0.000480 | 0.7457 | 1.1430 |
 | 16 | 3 | 1.234592 | 1.250784 | 0.027552 | 1.0869 | 1.1359 |
 
@@ -498,7 +499,7 @@ Verified largest three stages for each current unmet BERT cell (P-TRACE1 attribu
 
 | Batch | Largest stage | Second | Third |
 | --- | --- | --- | --- |
-| 4 | s45 gemm 18.24us (main_loop=15.07,slot_wait=4.19) | s40 gemm 17.89us (main_loop=14.53,slot_wait=3.97) | s30 gemm 17.86us (main_loop=14.72,slot_wait=4.45) |
+| 4 | s5 gemm 19.17us (main_loop=15.39,slot_wait=4.80) | s15 gemm 18.24us (main_loop=15.14,slot_wait=4.67) | s45 gemm 18.24us (main_loop=15.49,slot_wait=4.83) |
 | 8 | s10 gemm 25.18us (main_loop=21.15,slot_wait=7.94) | s19 gemm 25.15us (main_loop=15.30,epilogue=8.10) | s49 gemm 25.12us (main_loop=15.33,epilogue=7.87) |
 | 16 | s29 gemm 38.94us (main_loop=24.13,epilogue=11.01) | s34 gemm 38.40us (main_loop=23.78,epilogue=11.04) | s39 gemm 38.24us (main_loop=23.74,epilogue=10.78) |
 
@@ -562,6 +563,9 @@ Verified outlined GELU B16 is admitted after main-codegen and committed-fixture 
 
 Verified outlined GELU B8 uses the unchanged current coordinates and72/208 profile. Fresh control5/body17/model5 pass, including the full2^24-point and finite-BF16 precision domain and identical incumbent model bytes. GPU3 pair 0.921376→0.853296ms, noise2.070%.
 Verified main-codegen and committed-fixture instruction identity,17 corrupted-receipt rejections and the exact 63-stage ledger complete admission. P-DNN 0.852384ms; p900.861728ms; range0.000480ms. The fixed BF16 target is retained and the feature remains opt-in.
+
+Verified outlined GELU B4 uses the unchanged current coordinates and72/208 profile. Fresh control5/body17/model5 pass, including the full2^24-point and finite-BF16 precision domain and identical incumbent model bytes. GPU3 pair 0.643440→0.605616ms, noise0.724%.
+Verified main-codegen and committed-fixture instruction identity,17 corrupted-receipt rejections and the exact 63-stage ledger complete admission. P-DNN 0.604784ms; p900.607776ms; range0.001056ms. The fixed BF16 target is retained and the feature remains opt-in.
 
 Verified rejected depth2 B4 attribution: QKV stage 150.528→190.496µs; slot-wait maxima 50.752→92.576µs. Trace segments are nonadditive and diagnostic; the non-trace pair decides rejection. Private files are restored after trace completion.
 
