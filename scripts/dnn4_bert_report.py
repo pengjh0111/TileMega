@@ -2756,6 +2756,29 @@ def main():
                   'dependency assertion failed before compilation; its '
                   'snapshot is retained and the completed v2 cohort is fresh. '
                   'Current B8 and its fixed target remain unchanged.']
+    output_map = base/'repeat_output_map_b16_v2/result.json'
+    if output_map.exists():
+        cpu = read(output_map)
+        integrated = read(base/'repeat_output_map_contract_integration_v1/result.json')
+        assert cpu['status'] == 'prepared_CPU_only' and integrated['passed']
+        lines += ['', 'Verified CPU-only Repeat binding repair: first-layer '
+                  'QKV uses a TMA output map while its normal layer uses '
+                  'register stores. The missing virtual output-map role '
+                  'forces the current coordinate assembly into a flat program. '
+                  'A private, disabled-by-default codegen option unions that '
+                  'map presence before allocating virtual IDs. All 1380 '
+                  'operand fields reconstruct the physical bindings, including '
+                  'null maps in later repetitions; physical buffers, maps, '
+                  'bodies, geometry and arithmetic remain identical. SASS '
+                  'shrinks from 2058368 to 292864 B with zero spill. The initial '
+                  'main structural certificate rejects the new role; its '
+                  'failure is preserved. An explicit-flag certificate now '
+                  'retains exact remap checks and rejects 25 corruptions; '
+                  '46 existing admission tests and all five current artifacts '
+                  'pass. Only this certificate and its test are integrated; '
+                  'C++ codegen remains private. GPU0 layout/model checks and '
+                  'independent whole-model performance gates are pending. '
+                  'Code size alone establishes no speedup or admission.']
     (args.out/'DNN4_BERT_optimization.md').write_text('\n'.join(lines)+'\n')
     print(json.dumps(dict(comparisons=len(rows), report=str(args.out/'DNN4_BERT_optimization.md'))))
 
