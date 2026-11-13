@@ -27,7 +27,7 @@ def without_statistics_wrapper(args):
     return args[:start.start()]+args[start.end():end-1]+args[end:]
 
 
-def repeat_program(manifest, source, program, buffers, maps, bodies, optional_stats=False):
+def repeat_program(manifest, source, program, buffers, maps, bodies, optional_stats=False, optional_output_map=False):
     if len(manifest['native_forward']['stages']) != 63:
         raise ValueError('F3 Repeat requires the complete twelve-layer BERT program')
     repeated = re.fullmatch(r',Stage_0,Repeat<(6|12)((?:,Loop_\d+)+)>,Stage_61,Stage_62', program[4])
@@ -86,7 +86,11 @@ def repeat_program(manifest, source, program, buffers, maps, bodies, optional_st
                 raise ValueError('F3 Repeat virtual operand bindings are incomplete')
             for fields, start in ((bf, next_buffer), (mf, next_map)):
                 for field in fields:
-                    want = 'kAbsent' if physical[field] == 'kAbsent' else str(start)
+                    present = physical[field] != 'kAbsent'
+                    if optional_output_map and field == 'kOutputMap':
+                        present = any(bindings[1+body*r+i][field] != 'kAbsent'
+                                      for r in range(repetitions))
+                    want = str(start) if present else 'kAbsent'
                     if virtual[field] != want:
                         raise ValueError('F3 Repeat virtual binding changes an operand role')
                     if want != 'kAbsent':
@@ -198,6 +202,8 @@ def validate(manifest, defines):
 
 def dispatch(manifest, defines, source):
     validate(manifest, defines)
+    if defines.get('TILEMEGA_F3_REPEAT_OUTPUT_MAP', '0') not in ('0', '1'):
+        raise ValueError('invalid explicit F3 Repeat optional output map')
     rows_override = defines.get('TILEMEGA_F3_ATTENTION_ROWS')
     if rows_override is not None and rows_override not in ('16', '32', '64', '128'):
         raise ValueError('invalid explicit F3 attention row count')
@@ -310,7 +316,8 @@ def dispatch(manifest, defines, source):
             or maps is None or int(program[3]) != int(maps[1])):
         raise ValueError('F3 program structure differs from manifest')
     if 'Repeat<' in program[4]:
-        repeat_program(manifest, source, program, buffers, maps, bodies, optional_stats)
+        repeat_program(manifest, source, program, buffers, maps, bodies, optional_stats,
+                       defines.get('TILEMEGA_F3_REPEAT_OUTPUT_MAP', '0') == '1')
     elif (program[4] != ''.join(',Stage_' + str(i) for i in range(count))
           or re.search(r'\b(?:Repeat|RepeatTables|RepeatStage)<', source)):
         raise ValueError('F3 program stage coverage differs from manifest')
