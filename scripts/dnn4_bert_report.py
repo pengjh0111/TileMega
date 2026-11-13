@@ -193,6 +193,7 @@ def main():
                ('direct statistics B16', continuation/'direct_norm_b16_v3/experiment.json'),
                ('consumer row partials32 B4', continuation/'rowstats32_b4_v1/experiment.json'),
                ('row partials32 TN96 FFN2 B16', continuation/'rowstats32_tn96_b16_v1/experiment.json'),
+               ('FFN2-only row32 TN96 B16', continuation/'ffn2_stats32_b16_v1/experiment.json'),
                ('outlined GELU plus stores B4', continuation/'gelu_store_bundle_b4_v1/experiment.json'),
                ('outlined GELU B4', continuation/'gelu_outline_b4_v1/experiment.json'),
                ('outlined GELU B8', continuation/'gelu_outline_b8_v1/experiment.json'),
@@ -204,7 +205,8 @@ def main():
         if not path.exists():
             continue
         experiment = read(path)
-        if name in ('consumer row partials32 B4', 'row partials32 TN96 FFN2 B16'):
+        if name in ('consumer row partials32 B4', 'row partials32 TN96 FFN2 B16',
+                    'FFN2-only row32 TN96 B16'):
             functional = read(path.parent/'functional_gate.json')
             body = read(Path(functional['body']))
             model = read(Path(functional['model']))
@@ -2466,6 +2468,22 @@ def main():
                          f'{100*closure["noise"]:.3f}%. Reject; restore the five private '
                          'files. No regression above3%, so no additional trace, '
                          'P-DNN or unchanged retiming. Current B16 remains unchanged.')
+    scoped32 = base/'ffn2_stats32_b16_v1/reader_proof.json'
+    if scoped32.exists():
+        proof = read(scoped32)
+        assert proof['passed'] and len(proof['rows']) == 49
+        lines += ['', 'Verified private scope repair retains the fixed B16 FFN2 '
+                  'TN96/reg geometry while restricting32-column output statistics '
+                  'to K=4N FFN2 contractions. Only11 FFN2 buffers double;12 projection '
+                  'buffers retain64-column granularity. All49 generated GEMM readers '
+                  'match their producers: later QKV/projection use24 parts, FFN1/FFN2 '
+                  'use12, first QKV/projection use1. Reader and writer granularity '
+                  'are independent metadata. This targets the inferred overhead '
+                  'of finer partials in unrelated layers; no new trace is claimed. '
+                  'Real-codegen SASS316416B, zero spill, unchanged default words; '
+                  'all five affected host objects and two CPU tests rebuild/pass. '
+                  'Twelve mixed-grain fixtures compile. Independent body17/model5 '
+                  'and a gain above3% and noise remain mandatory.']
     gelu_store = continuation/'gelu_store_bundle_b4_v1/experiment.json'
     if gelu_store.exists():
         trial = read(gelu_store)
