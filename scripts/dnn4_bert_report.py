@@ -190,13 +190,41 @@ def main():
                ('main-loop pair B4', continuation/'loop_pair_b4_v1/experiment.json'),
                ('repaired profile3 catalog candidate2 B8', continuation/'candidate2_profile3_b8_v1/experiment.json'),
                ('residual warp handoff B16', continuation/'residual_warp_b16_v1/experiment.json'),
-               ('direct statistics B16', continuation/'direct_norm_b16_v3/experiment.json')]
+               ('direct statistics B16', continuation/'direct_norm_b16_v3/experiment.json'),
+               ('outlined GELU B16', continuation/'gelu_outline_b16_v2/experiment.json'),
+               ('WGMMA depth2 prologue B4', continuation/'mma_depth2_b4_v3/experiment.json')]
     rows = []
     choices = []
     for name, path in probes:
         if not path.exists():
             continue
         experiment = read(path)
+        if name in ('outlined GELU B16', 'WGMMA depth2 prologue B4'):
+            bit = read(path.parent/'unit_bit_proof.json')
+            control = read(Path(bit['control']))
+            body = read(Path(bit['candidate']))
+            processes = body['processes']
+            model = read(Path(experiment.get('model_source', str(path.parent/'model/result.json'))))
+            hashes = lambda v: [o['output_sha256'] for c in v['cases'] for o in c['outputs']]
+            pair = experiment['pair']
+            preparation = read(Path(experiment['preparation']))
+            if (not bit['passed'] or not control['passed'] or not body['passed'] or
+                    len({p['pid'] for p in control['processes']}) != 5 or
+                    len({p['pid'] for p in processes}) != 17 or
+                    Counter(p['name'].split('-')[0] for p in processes) !=
+                    Counter(unit=5, memcheck=1, initcheck=1, racecheck=5, synccheck=5) or
+                    any(p['exit_code'] or read(Path(p['guard']))['code'] for p in processes) or
+                    control['output_hash'] != body['output_hash'] or
+                    not model['passed'] or model['passes'] != '5/5' or
+                    hashes(model) != hashes(read(Path(experiment['reference']['gate']))) or
+                    not read(Path(preparation['default_proof']))['passed'] or
+                    experiment['accepted'] != (pair['ratio'] < min(.97, 1-pair['threshold']))):
+                raise ValueError('implementation trial lacks its complete unchanged gates')
+            if name == 'outlined GELU B16':
+                repair = read(base/'gelu_outline_b16_v1/oracle_repair.json')
+                reuse = read(path.parent/'model_reuse.json')
+                if repair['original_scalar_mismatches'] or reuse['source'] != experiment['model_source']:
+                    raise ValueError('outlined GELU lacks its reference repair or exact model reuse')
         if name in ('full-tile stores B8', 'full-tile stores B4',
                     'pipeline reductions B2', 'direct statistics B16',
                     'full-store bounds B8', 'full-profile cyclic B4', 'GELU quartet B16',
@@ -2276,6 +2304,28 @@ def main():
             lines.append('Verified rematerializing the retired slot index also leaves60 '
                          'complete waits for60 HGMMA instructions. This bookkeeping repair '
                          'is rejected on CPU, without hardware execution; private files are restored.')
+    depth_prepared = base/'mma_depth2_b4_v3/cpu_gate.json'
+    if depth_prepared.exists():
+        assert read(depth_prepared)['passed']
+        lines += ['', 'Verified the explicit prologue/steady/tail form restores depth2 '
+                  'WGMMA waits at unchanged B4 coordinates and72/208 registers. SASS grows '
+                  '251392→270208B, with zero spill or local-memory instructions. Default '
+                  'and actual-codegen instruction proofs pass;18 exact and edge-case '
+                  'fixtures compile. CPU retirement coverage does not establish GPU '
+                  'synchronization or speed; complete functional gates and a gain above3% '
+                  'and measured noise are required.']
+    for trial_name, label in [('gelu_outline_b16_v2', 'Outlined GELU B16'),
+                              ('mma_depth2_b4_v3', 'WGMMA depth2 prologue B4')]:
+        comparison = continuation/trial_name/'experiment.json'
+        if comparison.exists():
+            trial = read(comparison)
+            pair = trial['pair']
+            outcome = ('Positive private pair; production admission remains separate.'
+                       if trial['accepted'] else 'Reject; retain the incumbent.')
+            lines.append(f'Verified {label} completes control5/body17 and strict model5 '
+                         f'(GELU reuses its unchanged binary cohort). GPU3 pair '
+                         f'{pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms, '
+                         f'noise{100*pair["threshold"]:.3f}%. {outcome}')
     if failed_pp.exists() and read(failed_pp).get('status') == 'component_rejected':
         lines.append('\nVerified fixed WG64 PP/P1/TMA candidate compiles without spill and both normal '
                      'unit cohorts pass5/5, but ordering synccheck reports1024 errors and residual-chain '
