@@ -2531,6 +2531,19 @@ def main():
                          'P-DNN or unchanged retiming; current B16 stays unchanged.')
     backoff = base/'gate_backoff_b4_admitted_v1/admission.json'
     wide_b4 = base/'ffn2_stats96_b4_v2/closure.json'
+    compact_b4 = base/'ffn2_compact_b4_v1/closure.json'
+    if compact_b4.exists():
+        failure = read(compact_b4)
+        assert failure['status'] == 'compile_rejected' and not failure['hardware_executed']
+        lines += ['', 'Verified a separate source repair halves simultaneous normal '
+                  'split-K reads from 64 values to 32 at the same B4 64×192/S4 '
+                  'geometry and 72/208 register budget. Each element still reads all '
+                  'slices before ascending addition; synchronization is unchanged. '
+                  'This explicit extension of the prompt tests register liveness. '
+                  'Independent fixtures compile without spill, but full BERT still '
+                  'spills 52 B stores/140 B loads versus 56 B/144 B. Reject before '
+                  'GPU execution, retain the failure and patch, and restore the '
+                  'private sources. No correctness or performance result is claimed.']
     if wide_b4.exists():
         failure = read(wide_b4)
         assert failure['status'] == 'compile_rejected' and not failure['hardware_executed']
