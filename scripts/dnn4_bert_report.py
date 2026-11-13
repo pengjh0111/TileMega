@@ -194,6 +194,7 @@ def main():
                ('consumer row partials32 B4', continuation/'rowstats32_b4_v1/experiment.json'),
                ('row partials32 TN96 FFN2 B16', continuation/'rowstats32_tn96_b16_v1/experiment.json'),
                ('FFN2-only row32 TN96 B16', continuation/'ffn2_stats32_b16_v1/experiment.json'),
+               ('whole-WG row96 TN96 B16', continuation/'ffn2_stats96_b16_v1/experiment.json'),
                ('outlined GELU plus stores B4', continuation/'gelu_store_bundle_b4_v1/experiment.json'),
                ('outlined GELU B4', continuation/'gelu_outline_b4_v1/experiment.json'),
                ('outlined GELU B8', continuation/'gelu_outline_b8_v1/experiment.json'),
@@ -206,7 +207,7 @@ def main():
             continue
         experiment = read(path)
         if name in ('consumer row partials32 B4', 'row partials32 TN96 FFN2 B16',
-                    'FFN2-only row32 TN96 B16'):
+                    'FFN2-only row32 TN96 B16', 'whole-WG row96 TN96 B16'):
             functional = read(path.parent/'functional_gate.json')
             body = read(Path(functional['body']))
             model = read(Path(functional['model']))
@@ -2493,6 +2494,31 @@ def main():
                          'fails the predeclared3% minimum. The minimum is retained: '
                          'no admission, P-DNN or unchanged retiming. Private sources '
                          'are archived and restored; the current B16 artifact stays unchanged.')
+    whole96 = base/'ffn2_stats96_b16_v1/reader_proof.json'
+    if whole96.exists():
+        proof = read(whole96)
+        assert proof['passed'] and len(proof['rows']) == 49
+        lines += ['', 'Verified private whole-WG statistics preparation keeps the '
+                  'fixed TN96 FFN2 geometry and accumulates its three 32-column '
+                  'register-store regions before publishing one 96-column partial. '
+                  'Eleven FFN2 buffers now contain 8 parts per row; projection '
+                  'outputs retain 12. All 49 generated reader contracts pass. '
+                  'This is an explicit extension of the prompt’s 64-column rule; '
+                  '96 derives from the selected WG width. No synchronization or '
+                  'store protocol changes. Real-codegen SASS is 304768 B with zero '
+                  'spill and unchanged default words. Eighteen fixtures cover '
+                  'crossing 64-column loops, two 96-column groups, TM64 ownership '
+                  'and residual TMA reuse. The original FP32 gates and predeclared '
+                  'gain above both 3% and noise remain required.']
+        whole_closed = base/'ffn2_stats96_b16_v1/closure.json'
+        if whole_closed.exists():
+            closure = read(whole_closed)
+            assert closure['status'] == 'pair_rejected'
+            lines.append('Verified 18-case control5, body17 and model5 pass. GPU3 '
+                         'pair 1.235328→1.198704 ms gains 2.965%, below the 3.593% '
+                         'noise threshold and predeclared 3% minimum. Reject; '
+                         'archive and restore the private source. No extra trace, '
+                         'P-DNN or unchanged retiming; current B16 stays unchanged.')
     gelu_store = continuation/'gelu_store_bundle_b4_v1/experiment.json'
     if gelu_store.exists():
         trial = read(gelu_store)

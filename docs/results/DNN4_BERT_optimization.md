@@ -175,6 +175,7 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | consumer row partials32 B4 | 3 | 0.604976 | 0.650368 | -7.503 | 3.508 | False |
 | row partials32 TN96 FFN2 B16 | 3 | 1.243808 | 1.253344 | -0.767 | 2.367 | False |
 | FFN2-only row32 TN96 B16 | 3 | 1.233856 | 1.215232 | +1.509 | 0.843 | True |
+| whole-WG row96 TN96 B16 | 3 | 1.235328 | 1.198704 | +2.965 | 3.593 | False |
 | outlined GELU plus stores B4 | 3 | 0.605472 | 0.595968 | +1.570 | 2.056 | False |
 | outlined GELU B4 | 3 | 0.643440 | 0.605616 | +5.878 | 0.724 | True |
 | outlined GELU B8 | 3 | 0.921376 | 0.853296 | +7.389 | 2.070 | True |
@@ -580,6 +581,9 @@ Verified control5,body17 and strict model5 pass. GPU3 pair 1.243808→1.253344ms
 
 Verified private scope repair retains the fixed B16 FFN2 TN96/reg geometry while restricting32-column output statistics to K=4N FFN2 contractions. Only11 FFN2 buffers double;12 projection buffers retain64-column granularity. All49 generated GEMM readers match their producers: later QKV/projection use24 parts, FFN1/FFN2 use12, first QKV/projection use1. Reader and writer granularity are independent metadata. This targets the inferred overhead of finer partials in unrelated layers; no new trace is claimed. Real-codegen SASS316416B, zero spill, unchanged default words; all five affected host objects and two CPU tests rebuild/pass. Twelve mixed-grain fixtures compile. Independent body17/model5 and a gain above3% and noise remain mandatory.
 Verified control5, body17 and model5 pass; GPU3 pair 1.233856→1.215232ms gains1.509% above0.843% noise, but fails the predeclared3% minimum. The minimum is retained: no admission, P-DNN or unchanged retiming. Private sources are archived and restored; the current B16 artifact stays unchanged.
+
+Verified private whole-WG statistics preparation keeps the fixed TN96 FFN2 geometry and accumulates its three 32-column register-store regions before publishing one 96-column partial. Eleven FFN2 buffers now contain 8 parts per row; projection outputs retain 12. All 49 generated reader contracts pass. This is an explicit extension of the prompt’s 64-column rule; 96 derives from the selected WG width. No synchronization or store protocol changes. Real-codegen SASS is 304768 B with zero spill and unchanged default words. Eighteen fixtures cover crossing 64-column loops, two 96-column groups, TM64 ownership and residual TMA reuse. The original FP32 gates and predeclared gain above both 3% and noise remain required.
+Verified 18-case control5, body17 and model5 pass. GPU3 pair 1.235328→1.198704 ms gains 2.965%, below the 3.593% noise threshold and predeclared 3% minimum. Reject; archive and restore the private source. No extra trace, P-DNN or unchanged retiming; current B16 stays unchanged.
 
 Verified the fixed matrix/attention-store combination on the new B4 GELU artifact reuses the exact-profile B8 body cohort and the order/attention cohorts only after full GPU-word identity under GELU1. No component processes are claimed fresh. Fresh B4 model5 matches incumbent bytes. GPU3 pair 0.605472→0.595968ms; gain1.570% is below noise2.056%. Reject without P-DNN or unchanged retiming; current B4 remains the admitted GELU-only artifact.
 
