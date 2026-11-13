@@ -4,6 +4,7 @@
 #include <tilemega/Backend/Sm90F3Async.cuh>
 #include <tilemega/Backend/Sm90F3Ring.cuh>
 #include <tilemega/Backend/Sm90F3Mark.cuh>
+#include <tilemega/Backend/Sm90Gmma.h>
 #include <cutlass/bfloat16.h>
 #include <cmath>
 #include <cuda.h>
@@ -13,6 +14,19 @@
 #endif
 #if TILEMEGA_F3_ATTENTION_VECTOR_STORE != 0 && TILEMEGA_F3_ATTENTION_VECTOR_STORE != 1
 #error "TILEMEGA_F3_ATTENTION_VECTOR_STORE must be0 or1"
+#endif
+
+#ifndef TILEMEGA_F3_WGMMA_QK
+#define TILEMEGA_F3_WGMMA_QK 0
+#endif
+#if TILEMEGA_F3_WGMMA_QK != 0 && TILEMEGA_F3_WGMMA_QK != 1
+#error "F3 warpgroup QK must be0 or1"
+#endif
+#ifndef TILEMEGA_F3_WGMMA_PV
+#define TILEMEGA_F3_WGMMA_PV 0
+#endif
+#if TILEMEGA_F3_WGMMA_PV != 0 && TILEMEGA_F3_WGMMA_PV != 1
+#error "F3 warpgroup PV must be0 or1"
 #endif
 
 namespace tilemega::backend {
@@ -45,6 +59,65 @@ struct Sm90F3Attention {
   }
   __device__ static __forceinline__ unsigned Pack(float a,float b) {
     return unsigned(Element(a).raw())|(unsigned(Element(b).raw())<<16);
+  }
+
+  __device__ static __forceinline__ void WarpgroupQk(float (&scores)[16][4],
+      Element* query,Element* key) {
+    using namespace cute;
+    using Gmma=Sm90Gmma<arch::Sm90>;
+    using Mma=decltype(make_tiled_mma(typename Gmma::template SS<128>{}));
+    Mma mma;
+    auto thread=mma.get_slice(int(threadIdx.x)%128);
+    auto accum=partition_fragment_C(mma,Shape<_64,_128>{});
+    clear(accum);
+    auto a=make_tensor(make_smem_ptr(query),Sm90KLayout<64,64>{});
+    auto b=make_tensor(make_smem_ptr(key),Sm90KLayout<128,64>{});
+    auto ra=thread.partition_fragment_A(a);
+    auto rb=thread.partition_fragment_B(b);
+    warpgroup_fence_operand(accum);
+    warpgroup_arrive();
+    CUTE_UNROLL
+    for(int k=0;k<size<2>(ra);++k)
+      gemm(mma,ra(_,_,k),rb(_,_,k),accum);
+    warpgroup_commit_batch();
+    warpgroup_wait<0>();
+    warpgroup_fence_operand(accum);
+    CUTE_UNROLL
+    for(int block=0;block<16;++block) {
+      CUTE_UNROLL
+      for(int e=0;e<4;++e)scores[block][e]=accum(4*block+e);
+    }
+  }
+
+  __device__ static __forceinline__ void WarpgroupPv(float (&output)[8][4],
+      unsigned (&probability)[8][4],Element* value) {
+    using namespace cute;
+    using Gmma=Sm90Gmma<arch::Sm90>;
+    using Mma=decltype(make_tiled_mma(typename Gmma::template RS<64,gmma::Major::MN>{}));
+    using BLayout=decltype(tile_to_shape(gmma::Layout_MN_SW128_Atom<Element>{},
+        Shape<_64,_128>{}));
+    Mma mma;
+    auto thread=mma.get_slice(int(threadIdx.x)%128);
+    auto accum=partition_fragment_C(mma,Shape<_64,_64>{});
+    clear(accum);
+    // The existing four packed registers per k16 already have the RS layout.
+    auto ra=make_tensor(make_rmem_ptr(reinterpret_cast<Element*>(probability)),
+        make_layout(Shape<_8,_1,_8>{}));
+    auto b=make_tensor(make_smem_ptr(value),BLayout{});
+    auto rb=thread.partition_fragment_B(b);
+    warpgroup_fence_operand(ra);
+    warpgroup_fence_operand(accum);
+    warpgroup_arrive();
+    CUTE_UNROLL
+    for(int k=0;k<8;++k)gemm(mma,ra(_,_,k),rb(_,_,k),accum);
+    warpgroup_commit_batch();
+    warpgroup_wait<0>();
+    warpgroup_fence_operand(accum);
+    CUTE_UNROLL
+    for(int block=0;block<8;++block) {
+      CUTE_UNROLL
+      for(int e=0;e<4;++e)output[block][e]=accum(4*block+e);
+    }
   }
 
   __device__ static __forceinline__ void Produce(Sm90F3AttentionOperands const& p,
@@ -90,6 +163,10 @@ struct Sm90F3Attention {
       unsigned key=q+2*Rows*D,value=key+2*Seq*D;
       TM_F3_TRACE_BEGIN(kAttentionQk);
       float scores[16][4]{};
+      if constexpr(TILEMEGA_F3_WGMMA_QK && Rows>=64) {
+        WarpgroupQk(scores,reinterpret_cast<Element*>(arena+slot*kSlotBytes)+
+            (warp/4)*64*D,reinterpret_cast<Element*>(arena+slot*kSlotBytes)+Rows*D);
+      } else {
       #pragma unroll 1
       for(int k=0;k<4;++k) {
         unsigned query[4];
@@ -101,6 +178,7 @@ struct Sm90F3Attention {
           Async::Mma16x8x16(scores[2*pair],query,b[0],b[1]);
           Async::Mma16x8x16(scores[2*pair+1],query,b[2],b[3]);
         }
+      }
       }
       TM_F3_TRACE_END(kAttentionQk);
       TM_F3_TRACE_BEGIN(kAttentionSoftmax);
@@ -135,6 +213,10 @@ struct Sm90F3Attention {
       TM_F3_TRACE_END(kAttentionSoftmax);
       TM_F3_TRACE_BEGIN(kAttentionPv);
       float output[8][4]{};
+      if constexpr(TILEMEGA_F3_WGMMA_PV && Rows>=64) {
+        WarpgroupPv(output,probability,reinterpret_cast<Element*>(
+            arena+slot*kSlotBytes)+(Rows+Seq)*D);
+      } else {
       #pragma unroll
       for(int pair=0;pair<4;++pair) {
         #pragma unroll
@@ -145,6 +227,7 @@ struct Sm90F3Attention {
           Async::Mma16x8x16(output[2*pair],probability[k],b[0],b[1]);
           Async::Mma16x8x16(output[2*pair+1],probability[k],b[2],b[3]);
         }
+      }
       }
       TM_F3_TRACE_END(kAttentionPv);
       TM_F3_TRACE_BEGIN(kStore);
