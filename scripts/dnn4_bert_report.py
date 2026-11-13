@@ -198,6 +198,7 @@ def main():
                ('failed-poll gate backoff B4', continuation/'gate_backoff_b4_v1/experiment.json'),
                ('failed-poll gate backoff B8', continuation/'gate_backoff_b8_v1/experiment.json'),
                ('failed-poll gate backoff B16', continuation/'gate_backoff_b16_v1/experiment.json'),
+               ('Rows64 warpgroup attention B16', continuation/'attention64_b16_v1/experiment.json'),
                ('outlined GELU plus stores B4', continuation/'gelu_store_bundle_b4_v1/experiment.json'),
                ('outlined GELU B4', continuation/'gelu_outline_b4_v1/experiment.json'),
                ('outlined GELU B8', continuation/'gelu_outline_b8_v1/experiment.json'),
@@ -209,6 +210,15 @@ def main():
         if not path.exists():
             continue
         experiment = read(path)
+        if name == 'Rows64 warpgroup attention B16':
+            sys.path.insert(0, str(ROOT/'scripts'))
+            from dnn4_bert_current import validate_attention64_integration
+            admitted = base/'attention64_b16_admitted_v1'
+            decision = read(admitted/'experiment.json')
+            final = read(admitted/'final_result.json')
+            validate_attention64_integration(admitted, decision, final)
+            if experiment['pair'] != decision['pair'] or experiment['library'] != final['library']:
+                raise ValueError('attention report differs from the admitted comparison')
         if name == 'failed-poll gate backoff B4':
             sys.path.insert(0, str(ROOT/'scripts'))
             from dnn4_bert_current import validate_gate_backoff_integration
@@ -370,7 +380,8 @@ def main():
                     raise ValueError('full-tile comparison lacks complete component gates')
         admitted_continuation = name == 'cached-boundary216 B4 admitted continuation'
         gpu0_continuation = (admitted_continuation or name in (
-            'failed-poll gate backoff B8', 'failed-poll gate backoff B16')) and experiment['gpu'] == 0
+            'failed-poll gate backoff B8', 'failed-poll gate backoff B16',
+            'Rows64 warpgroup attention B16')) and experiment['gpu'] == 0
         if admitted_continuation:
             sys.path.insert(0, str(ROOT/'scripts'))
             from dnn4_bert_current import validate_boundary_selection, validate_followup_allocation
@@ -2545,6 +2556,43 @@ def main():
                          'P-DNN or unchanged retiming; current B16 stays unchanged.')
     backoff = base/'gate_backoff_b4_admitted_v1/admission.json'
     backoff16 = continuation/'gate_backoff_b16_v1/closure.json'
+    attention64 = base/'attention64_b16_admitted_v1/admission.json'
+    if attention64.exists():
+        admitted = read(attention64)
+        lines += ['', 'Verified the fixed B16 Rows64 plus SS-QK/RS-PV warpgroup '
+                  'combination is admitted on the current GELU/vector-store profile '
+                  'with 72/216 registers. Earlier single-component trials remain '
+                  'rejected; this combination has its own complete gates. Only 12 '
+                  'query boxes and attention row templates change; other generated '
+                  'code is identical. An initial manifest assertion compared output '
+                  'paths; only that path is normalized after checking identical MLIR '
+                  'bytes. Fresh per-head control5, attention17 (unit5, mem1, init1, '
+                  'race5, sync5) and model5 on GPU3 pass unchanged FP32 thresholds '
+                  'and incumbent output bytes. Each cohort uses fresh processes in '
+                  'the existing guarded reservation. Main codegen and both committed '
+                  'fixture arms reproduce exact words; all five disabled profiles '
+                  'retain exact words. The restored CPU layout test checks 28672 '
+                  'coordinates; 23 corrupted receipts are rejected. Two inherited '
+                  'receipt descriptions are qualified: defaults actually disable '
+                  'QK/PV, and the fixture is attention. No worker or oracle changes. '
+                  'GPU0 P-PAIR 1.238464→1.192400 ms gains 3.719% above 2.227% noise. '
+                  f'P-DNN {admitted["median_ms"]:.6f} ms, p90 {admitted["p90_ms"]:.6f} ms, '
+                  f'process range {admitted["process_range_ms"]:.6f} ms. '
+                  'The fixed GPU3 target is retained without reanchoring; the new '
+                  'median remains 9.91% above 1.086864 ms. Its exact 63-stage GPU0 '
+                  'ledger is retained. Prior GPU3 trace differences are diagnostic '
+                  'and do not establish same-card segment gains. Full CMake remains '
+                  'blocked by external MLIR Debug.cpp.o; host validation is the '
+                  'qualified one-object rebuild, not a full build/ctest.']
+    backoff8 = continuation/'gate_backoff_b8_v1/closure.json'
+    if backoff8.exists():
+        assert read(backoff8)['status'] == 'pair_rejected'
+        lines += ['', 'Verified B8 failed-poll backoff completes ordering17, control5 '
+                  'and model5 with incumbent output bytes. Interrupted or unstarted '
+                  'processes alone are resumed or relocated under the original '
+                  'guards. GPU0 pair 0.851056→0.850064 ms gains 0.117%, below 2.740% '
+                  'noise. Reject without P-DNN, extra trace or unchanged retiming; '
+                  'current B8 and the fixed GPU3 target remain unchanged.']
     if backoff16.exists():
         closed = read(backoff16)
         assert closed['status'] == 'pair_rejected'

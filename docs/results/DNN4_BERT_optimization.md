@@ -177,7 +177,9 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | FFN2-only row32 TN96 B16 | 3 | 1.233856 | 1.215232 | +1.509 | 0.843 | True |
 | whole-WG row96 TN96 B16 | 3 | 1.235328 | 1.198704 | +2.965 | 3.593 | False |
 | failed-poll gate backoff B4 | 3 | 0.605504 | 0.596512 | +1.485 | 0.955 | True |
+| failed-poll gate backoff B8 | 0 | 0.851056 | 0.850064 | +0.117 | 2.740 | False |
 | failed-poll gate backoff B16 | 0 | 1.236272 | 1.232896 | +0.273 | 1.758 | False |
+| Rows64 warpgroup attention B16 | 0 | 1.238464 | 1.192400 | +3.719 | 2.227 | True |
 | outlined GELU plus stores B4 | 3 | 0.605472 | 0.595968 | +1.570 | 2.056 | False |
 | outlined GELU B4 | 3 | 0.643440 | 0.605616 | +5.878 | 0.724 | True |
 | outlined GELU B8 | 3 | 0.921376 | 0.853296 | +7.389 | 2.070 | True |
@@ -492,7 +494,7 @@ Verified nonblocking named160 PP side handoff passes two fresh GPU3 component co
 
 Verified opt-in cyclic slot indexing and vector-major normal split-K partials retain the admitted B1 coordinates,56/224 register roles and ascending slice addition order. Integrated component gates pass17/17 on GPU3;the extended S2/TK128/odd-row suite passes17/17 on GPU2. The full model passes strict FP32 and cross-process byte checks5/5. G22 P-PAIR0.499216→0.478000ms passes0.904% noise;P-DNN 0.464496ms,p900.477696ms,process range0.012608ms. The exact accepted binary has a P-TRACE1 ledger. The earlier B2 comparison fails its paired noise gate;the later full-pipeline combination has a separate admission below. Defaults,original anchors,CNN results and frozen20-cell Phase Z remain unchanged.
 
-Verified current accepted artifacts (GPU3;50/200;three-process P-DNN). B1/B2/B4/B8/B16 are follow-ups that retain the original anchor without re-anchoring. Fixed BF16 targets reached for B1,B2. DNN4_BERT_current.csv records complete identities,profiles and evidence paths;DNN4_BERT_current_ledger.csv preserves all315 current stage rows with exact accepted reference hashes and coordinates.
+Verified current accepted artifacts (GPU0,GPU3;50/200;three-process P-DNN). B1/B2/B4/B8/B16 are follow-ups that retain the original anchor without re-anchoring. Fixed BF16 targets reached for B1,B2. DNN4_BERT_current.csv records complete identities,profiles and evidence paths;DNN4_BERT_current_ledger.csv preserves all315 current stage rows with exact accepted reference hashes and coordinates.
 
 | Batch | GPU | Median ms | p90 ms | Process range ms | Fixed BF16 ms | Ratio |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -500,7 +502,7 @@ Verified current accepted artifacts (GPU3;50/200;three-process P-DNN). B1/B2/B4/
 | 2 | 3 | 0.508096 | 0.511104 | 0.012352 | 0.5171 | 0.9826 |
 | 4 | 3 | 0.595504 | 0.599104 | 0.001552 | 0.5905 | 1.0085 |
 | 8 | 3 | 0.852384 | 0.861728 | 0.000480 | 0.7457 | 1.1430 |
-| 16 | 3 | 1.234592 | 1.250784 | 0.027552 | 1.0869 | 1.1359 |
+| 16 | 0 | 1.194608 | 1.205408 | 0.013024 | 1.0869 | 1.0991 |
 
 Verified largest three stages for each current unmet BERT cell (P-TRACE1 attribution only;segments can overlap and are not timing results). Each ledger checks the exact accepted reference binary SHA256.
 
@@ -508,7 +510,7 @@ Verified largest three stages for each current unmet BERT cell (P-TRACE1 attribu
 | --- | --- | --- | --- |
 | 4 | s5 gemm 19.14us (main_loop=15.55,slot_wait=4.26) | s15 gemm 18.88us (main_loop=15.17,slot_wait=4.99) | s45 gemm 18.85us (main_loop=15.84,slot_wait=5.09) |
 | 8 | s10 gemm 25.18us (main_loop=21.15,slot_wait=7.94) | s19 gemm 25.15us (main_loop=15.30,epilogue=8.10) | s49 gemm 25.12us (main_loop=15.33,epilogue=7.87) |
-| 16 | s29 gemm 38.94us (main_loop=24.13,epilogue=11.01) | s34 gemm 38.40us (main_loop=23.78,epilogue=11.04) | s39 gemm 38.24us (main_loop=23.74,epilogue=10.78) |
+| 16 | s29 gemm 38.75us (main_loop=23.90,epilogue=11.30) | s49 gemm 38.59us (main_loop=22.94,epilogue=10.88) | s4 gemm 38.56us (main_loop=23.33,epilogue=11.07) |
 
 Verified current B8 combines existing matrix and attention vector stores with the admitted full-tile profile. Three exact-profile component cohorts each pass17/17;strict model5/5 preserves incumbent bytes. Main real codegen matches all35232 encoded instruction words and the63-stage ledger identifies the measured binary. GPU3 P-DNN0.923120ms,p900.929184ms. Ten corrupted admission receipts are rejected. Other cells,default flags and fixed anchors remain unchanged.
 
@@ -586,6 +588,10 @@ Verified control5, body17 and model5 pass; GPU3 pair 1.233856→1.215232ms gains
 
 Verified private whole-WG statistics preparation keeps the fixed TN96 FFN2 geometry and accumulates its three 32-column register-store regions before publishing one 96-column partial. Eleven FFN2 buffers now contain 8 parts per row; projection outputs retain 12. All 49 generated reader contracts pass. This is an explicit extension of the prompt’s 64-column rule; 96 derives from the selected WG width. No synchronization or store protocol changes. Real-codegen SASS is 304768 B with zero spill and unchanged default words. Eighteen fixtures cover crossing 64-column loops, two 96-column groups, TM64 ownership and residual TMA reuse. The original FP32 gates and predeclared gain above both 3% and noise remain required.
 Verified 18-case control5, body17 and model5 pass. GPU3 pair 1.235328→1.198704 ms gains 2.965%, below the 3.593% noise threshold and predeclared 3% minimum. Reject; archive and restore the private source. No extra trace, P-DNN or unchanged retiming; current B16 stays unchanged.
+
+Verified the fixed B16 Rows64 plus SS-QK/RS-PV warpgroup combination is admitted on the current GELU/vector-store profile with 72/216 registers. Earlier single-component trials remain rejected; this combination has its own complete gates. Only 12 query boxes and attention row templates change; other generated code is identical. An initial manifest assertion compared output paths; only that path is normalized after checking identical MLIR bytes. Fresh per-head control5, attention17 (unit5, mem1, init1, race5, sync5) and model5 on GPU3 pass unchanged FP32 thresholds and incumbent output bytes. Each cohort uses fresh processes in the existing guarded reservation. Main codegen and both committed fixture arms reproduce exact words; all five disabled profiles retain exact words. The restored CPU layout test checks 28672 coordinates; 23 corrupted receipts are rejected. Two inherited receipt descriptions are qualified: defaults actually disable QK/PV, and the fixture is attention. No worker or oracle changes. GPU0 P-PAIR 1.238464→1.192400 ms gains 3.719% above 2.227% noise. P-DNN 1.194608 ms, p90 1.205408 ms, process range 0.013024 ms. The fixed GPU3 target is retained without reanchoring; the new median remains 9.91% above 1.086864 ms. Its exact 63-stage GPU0 ledger is retained. Prior GPU3 trace differences are diagnostic and do not establish same-card segment gains. Full CMake remains blocked by external MLIR Debug.cpp.o; host validation is the qualified one-object rebuild, not a full build/ctest.
+
+Verified B8 failed-poll backoff completes ordering17, control5 and model5 with incumbent output bytes. Interrupted or unstarted processes alone are resumed or relocated under the original guards. GPU0 pair 0.851056→0.850064 ms gains 0.117%, below 2.740% noise. Reject without P-DNN, extra trace or unchanged retiming; current B8 and the fixed GPU3 target remain unchanged.
 
 Verified B16 failed-poll backoff completes ordering17, control5 and model5 with incumbent output bytes; completed pre-pause processes are reused and missing checks are resumed. The unchanged GEMM/GELU body cohort is reused only after 55024 encoded GPU words match. GPU0 same-card P-PAIR 1.236272→1.232896 ms gains 0.273%, below 1.758% noise. Reject without P-DNN, extra trace or unchanged retiming. The original GPU3 target is retained without reanchoring; current B16 stays unchanged.
 
