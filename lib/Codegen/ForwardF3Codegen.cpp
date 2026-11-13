@@ -225,6 +225,7 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
   bool coalesced_partials=false;
   bool matrix_store=false;
   bool attention_vector_store=false;
+  bool wgmma_qk=false,wgmma_pv=false;
   bool h800_grid=false;
   bool recompute_task=false;
   bool full_tiles=false,repeat_selector=false;
@@ -295,6 +296,18 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
     if(value!="0" && value!="1")
       throw std::invalid_argument("TILEMEGA_F3_REPEAT_SELECTOR must be0 or1");
     repeat_selector=value=="1";
+  }
+  if(auto* setting=std::getenv("TILEMEGA_F3_WGMMA_QK")) {
+    std::string value=setting;
+    if(value!="0" && value!="1")
+      throw std::invalid_argument("TILEMEGA_F3_WGMMA_QK must be0 or1");
+    wgmma_qk=value=="1";
+  }
+  if(auto* setting=std::getenv("TILEMEGA_F3_WGMMA_PV")) {
+    std::string value=setting;
+    if(value!="0" && value!="1")
+      throw std::invalid_argument("TILEMEGA_F3_WGMMA_PV must be0 or1");
+    wgmma_pv=value=="1";
   }
   if(auto* setting=std::getenv("TILEMEGA_F3_ATTENTION_ROWS")) {
     std::string value=setting;
@@ -390,6 +403,8 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
   if(recompute_task)out<<"#define TILEMEGA_F3_RECOMPUTE_TASK 1\n";
   if(full_tiles)out<<"#define TILEMEGA_F3_FULL_TILES 1\n";
   if(repeat_selector)out<<"#define TILEMEGA_F3_REPEAT_SELECTOR 1\n";
+  if(wgmma_qk)out<<"#define TILEMEGA_F3_WGMMA_QK 1\n";
+  if(wgmma_pv)out<<"#define TILEMEGA_F3_WGMMA_PV 1\n";
   if(attention_rows)out<<"#define TILEMEGA_F3_ATTENTION_ROWS "<<attention_rows<<"\n";
   out<<"// SPDX-License-Identifier: BSD-3-Clause\n"
      <<"// Generated from a DnnModelPlan and F3 forward coordinates.\n"
