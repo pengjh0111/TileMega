@@ -180,6 +180,7 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | failed-poll gate backoff B8 | 0 | 0.851056 | 0.850064 | +0.117 | 2.740 | False |
 | failed-poll gate backoff B16 | 0 | 1.236272 | 1.232896 | +0.273 | 1.758 | False |
 | Rows64 warpgroup attention B16 | 0 | 1.238464 | 1.192400 | +3.719 | 2.227 | True |
+| outlined split-K wide FFN2 B4 | 3 | 0.595136 | 0.734400 | -23.400 | 0.715 | False |
 | outlined GELU plus stores B4 | 3 | 0.605472 | 0.595968 | +1.570 | 2.056 | False |
 | outlined GELU B4 | 3 | 0.643440 | 0.605616 | +5.878 | 0.724 | True |
 | outlined GELU B8 | 3 | 0.921376 | 0.853296 | +7.389 | 2.070 | True |
@@ -606,3 +607,5 @@ Verified the fixed matrix/attention-store combination on the new B4 GELU artifac
 Verified rejected depth2 B4 attribution: QKV stage 150.528→190.496µs; slot-wait maxima 50.752→92.576µs. Trace segments are nonadditive and diagnostic; the non-trace pair decides rejection. Private files are restored after trace completion.
 
 Verified fixed WG64 PP/P1/TMA candidate compiles without spill and both normal unit cohorts pass5/5, but ordering synccheck reports1024 errors and residual-chain racecheck reports21 errors. Reject before model correctness or timing; partial sanitizer cohorts are not complete gates. Frozen failures remain raw; current profiles and targets are unchanged.
+
+Verified fixed B4 outlined split-K bounds compiler load liveness with a noinline four-float reducer: four vector loads precede arithmetic, and ascending slice addition is retained. The 64×192/TK64/S4/Slots6/reg whole-96-statistics model compiles with zero spill at the unchanged 72/208 budget. Twelve-case control5 and body17 plus strict model5 pass; inline/outlined same-geometry unit bytes match. GPU3 P-PAIR 0.595136→0.734400 ms regresses 23.400% versus 0.715% noise. Required exact-binary trace shows FFN2 windows 215.328→267.072 µs, main-loop CTA maxima 177.408→109.152 µs, epilogue 18.496→83.648 µs and split-K 0→59.040 µs. Segment maxima are nonadditive and diagnostic. Reject the coupled geometry/reduction program, archive its patch and restore five private files; no P-DNN, unchanged retiming or chunk/register scan. Current B4 remains unchanged. Qualified host validation rebuilt five dependent objects and two CPU tests; full CMake remains externally blocked.

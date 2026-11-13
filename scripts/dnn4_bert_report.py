@@ -199,6 +199,7 @@ def main():
                ('failed-poll gate backoff B8', continuation/'gate_backoff_b8_v1/experiment.json'),
                ('failed-poll gate backoff B16', continuation/'gate_backoff_b16_v1/experiment.json'),
                ('Rows64 warpgroup attention B16', continuation/'attention64_b16_v1/experiment.json'),
+               ('outlined split-K wide FFN2 B4', continuation/'ffn2_outline_b4_v1/experiment.json'),
                ('outlined GELU plus stores B4', continuation/'gelu_store_bundle_b4_v1/experiment.json'),
                ('outlined GELU B4', continuation/'gelu_outline_b4_v1/experiment.json'),
                ('outlined GELU B8', continuation/'gelu_outline_b8_v1/experiment.json'),
@@ -229,7 +230,8 @@ def main():
             if experiment['pair'] != decision['pair'] or experiment['library'] != final['library']:
                 raise ValueError('gate backoff report differs from the admitted comparison')
         if name in ('consumer row partials32 B4', 'row partials32 TN96 FFN2 B16',
-                    'FFN2-only row32 TN96 B16', 'whole-WG row96 TN96 B16'):
+                    'FFN2-only row32 TN96 B16', 'whole-WG row96 TN96 B16',
+                    'outlined split-K wide FFN2 B4'):
             functional = read(path.parent/'functional_gate.json')
             body = read(Path(functional['body']))
             model = read(Path(functional['model']))
@@ -243,7 +245,8 @@ def main():
                     or not model['passed'] or model['passes'] != '5/5'
                     or experiment['accepted'] !=
                     (experiment['pair']['ratio'] < 1-max(
-                        .03 if name.endswith('B16') else 0,
+                        .03 if name.endswith('B16') or
+                        name == 'outlined split-K wide FFN2 B4' else 0,
                         experiment['pair']['threshold']))):
                 raise ValueError('row partials32 lacks its complete strict gates')
         if name == 'outlined GELU plus stores B4':
@@ -2687,6 +2690,27 @@ def main():
                      'racecheck reports21 errors. Reject before model correctness or timing; '
                      'partial sanitizer cohorts are not complete gates. Frozen failures remain raw; '
                      'current profiles and targets are unchanged.')
+    outlined = base/'ffn2_outline_b4_v1/closure.json'
+    if outlined.exists():
+        closed = read(outlined)
+        assert closed['status'] == 'pair_rejected'
+        lines += ['', 'Verified fixed B4 outlined split-K bounds compiler load '
+                  'liveness with a noinline four-float reducer: four vector loads '
+                  'precede arithmetic, and ascending slice addition is retained. '
+                  'The 64×192/TK64/S4/Slots6/reg whole-96-statistics model compiles '
+                  'with zero spill at the unchanged 72/208 budget. Twelve-case '
+                  'control5 and body17 plus strict model5 pass; inline/outlined '
+                  'same-geometry unit bytes match. GPU3 P-PAIR '
+                  '0.595136→0.734400 ms regresses 23.400% versus 0.715% noise. '
+                  'Required exact-binary trace shows FFN2 windows '
+                  '215.328→267.072 µs, main-loop CTA maxima 177.408→109.152 µs, '
+                  'epilogue 18.496→83.648 µs and split-K 0→59.040 µs. Segment '
+                  'maxima are nonadditive and diagnostic. Reject the coupled '
+                  'geometry/reduction program, archive its patch and restore '
+                  'five private files; no P-DNN, unchanged retiming or '
+                  'chunk/register scan. Current B4 remains unchanged. Qualified '
+                  'host validation rebuilt five dependent objects and two CPU '
+                  'tests; full CMake remains externally blocked.']
     (args.out/'DNN4_BERT_optimization.md').write_text('\n'.join(lines)+'\n')
     print(json.dumps(dict(comparisons=len(rows), report=str(args.out/'DNN4_BERT_optimization.md'))))
 
