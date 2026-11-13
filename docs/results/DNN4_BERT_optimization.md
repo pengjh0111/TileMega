@@ -172,6 +172,8 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | repaired profile3 catalog candidate2 B8 | 3 | 0.922640 | 0.933696 | -1.198 | 1.484 | False |
 | residual warp handoff B16 | 3 | 1.284976 | 1.284864 | +0.009 | 2.142 | False |
 | direct statistics B16 | 3 | 1.270656 | 1.273568 | -0.229 | 3.496 | False |
+| outlined GELU B16 | 3 | 1.283520 | 1.230048 | +4.166 | 2.149 | True |
+| WGMMA depth2 prologue B4 | 3 | 0.640976 | 0.736736 | -14.940 | 3.588 | False |
 
 Verified attention experiment: QK/PV columns were distributed across eight consumer warps without changing any output accumulation order. Per-head unit5/5 and sanitizer memcheck1/1, initcheck1/1, racecheck5/5, synccheck5/5 passed; whole-model outputs also matched the control byte for byte. Neither timing gain exceeded process variability, so the original header was restored. The initial driver added an unnecessary3% cutoff, which does not affect either rejection because both measured noise thresholds exceed3%. Frozen sources and the patch remain under runs/dnn4/bert_priority.
 
@@ -489,7 +491,7 @@ Verified current accepted artifacts (GPU3;50/200;three-process P-DNN). B1/B2/B4/
 | 2 | 3 | 0.508096 | 0.511104 | 0.012352 | 0.5171 | 0.9826 |
 | 4 | 3 | 0.634688 | 0.638592 | 0.003456 | 0.5905 | 1.0748 |
 | 8 | 3 | 0.923120 | 0.929184 | 0.012176 | 0.7457 | 1.2379 |
-| 16 | 3 | 1.282384 | 1.298976 | 0.014208 | 1.0869 | 1.1799 |
+| 16 | 3 | 1.234592 | 1.250784 | 0.027552 | 1.0869 | 1.1359 |
 
 Verified largest three stages for each current unmet BERT cell (P-TRACE1 attribution only;segments can overlap and are not timing results). Each ledger checks the exact accepted reference binary SHA256.
 
@@ -497,7 +499,7 @@ Verified largest three stages for each current unmet BERT cell (P-TRACE1 attribu
 | --- | --- | --- | --- |
 | 4 | s45 gemm 18.24us (main_loop=15.07,slot_wait=4.19) | s40 gemm 17.89us (main_loop=14.53,slot_wait=3.97) | s30 gemm 17.86us (main_loop=14.72,slot_wait=4.45) |
 | 8 | s34 gemm 29.38us (main_loop=15.58,epilogue=11.65) | s24 gemm 29.28us (main_loop=15.74,epilogue=11.17) | s49 gemm 29.12us (main_loop=15.84,epilogue=10.62) |
-| 16 | s4 gemm 42.82us (main_loop=23.74,epilogue=15.81) | s44 gemm 40.35us (main_loop=22.98,epilogue=13.63) | s39 gemm 40.06us (main_loop=23.49,epilogue=13.09) |
+| 16 | s29 gemm 38.94us (main_loop=24.13,epilogue=11.01) | s34 gemm 38.40us (main_loop=23.78,epilogue=11.04) | s39 gemm 38.24us (main_loop=23.74,epilogue=10.78) |
 
 Verified current B8 combines existing matrix and attention vector stores with the admitted full-tile profile. Three exact-profile component cohorts each pass17/17;strict model5/5 preserves incumbent bytes. Main real codegen matches all35232 encoded instruction words and the63-stage ledger identifies the measured binary. GPU3 P-DNN0.923120ms,p900.929184ms. Ten corrupted admission receipts are rejected. Other cells,default flags and fixed anchors remain unchanged.
 
@@ -552,5 +554,11 @@ Verified a fixed B4 WGMMA-depth2 extension passes4550 abstract retirement cases,
 Verified rematerializing the retired slot index also leaves60 complete waits for60 HGMMA instructions. This bookkeeping repair is rejected on CPU, without hardware execution; private files are restored.
 
 Verified the explicit prologue/steady/tail form restores depth2 WGMMA waits at unchanged B4 coordinates and72/208 registers. SASS grows 251392→270208B, with zero spill or local-memory instructions. Default and actual-codegen instruction proofs pass;18 exact and edge-case fixtures compile. CPU retirement coverage does not establish GPU synchronization or speed; complete functional gates and a gain above3% and measured noise are required.
+Verified Outlined GELU B16 completes control5/body17 and strict model5 (GELU reuses its unchanged binary cohort). GPU3 pair 1.283520→1.230048ms, noise2.149%. Admitted after the separate main-source and ledger checks below.
+Verified WGMMA depth2 prologue B4 completes control5/body17 and strict model5 (GELU reuses its unchanged binary cohort). GPU3 pair 0.640976→0.736736ms, noise3.588%. Reject; retain the incumbent.
+
+Verified outlined GELU B16 is admitted after main-codegen and committed-fixture GPU instruction identity, all five disabled-profile instruction proofs,17 corrupted-receipt rejections, and the exact 63-stage ledger. The oracle correction and reused unchanged model cohort remain explicit. Its P-DNN median is 1.234592ms; p901.250784ms and process range0.027552ms. Other four artifacts, fixed targets and frozen Phase Z remain unchanged. The feature stays off by default; only this admitted profile enables it.
+
+Verified rejected depth2 B4 attribution: QKV stage 150.528→190.496µs; slot-wait maxima 50.752→92.576µs. Trace segments are nonadditive and diagnostic; the non-trace pair decides rejection. Private files are restored after trace completion.
 
 Verified fixed WG64 PP/P1/TMA candidate compiles without spill and both normal unit cohorts pass5/5, but ordering synccheck reports1024 errors and residual-chain racecheck reports21 errors. Reject before model correctness or timing; partial sanitizer cohorts are not complete gates. Frozen failures remain raw; current profiles and targets are unchanged.

@@ -2322,10 +2322,35 @@ def main():
             pair = trial['pair']
             outcome = ('Positive private pair; production admission remains separate.'
                        if trial['accepted'] else 'Reject; retain the incumbent.')
+            if trial_name == 'gelu_outline_b16_v2' and (base/'gelu_outline_b16_admitted_v1/admission.json').exists():
+                outcome = 'Admitted after the separate main-source and ledger checks below.'
             lines.append(f'Verified {label} completes control5/body17 and strict model5 '
                          f'(GELU reuses its unchanged binary cohort). GPU3 pair '
                          f'{pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms, '
                          f'noise{100*pair["threshold"]:.3f}%. {outcome}')
+    admitted_gelu = base/'gelu_outline_b16_admitted_v1/admission.json'
+    if admitted_gelu.exists():
+        admission = read(admitted_gelu)
+        lines += ['', 'Verified outlined GELU B16 is admitted after main-codegen and '
+                  'committed-fixture GPU instruction identity, all five disabled-profile '
+                  'instruction proofs,17 corrupted-receipt rejections, and the exact '
+                  '63-stage ledger. The oracle correction and reused unchanged model '
+                  'cohort remain explicit. Its P-DNN median is '
+                  f'{admission["median_ms"]:.6f}ms; p90{admission["p90_ms"]:.6f}ms and '
+                  f'process range{admission["process_range_ms"]:.6f}ms. Other four '
+                  'artifacts, fixed targets and frozen Phase Z remain unchanged. '
+                  'The feature stays off by default; only this admitted profile enables it.']
+    depth_trace = continuation/'mma_depth2_b4_v3/attribution.json'
+    if depth_trace.exists():
+        trace = read(depth_trace)
+        qkv = next(r for r in trace['rows'] if r['group'] == 'qkv')
+        lines += ['', 'Verified rejected depth2 B4 attribution: QKV stage '
+                  f'{qkv["control"]["stage_ns"]/1000:.3f}→'
+                  f'{qkv["candidate"]["stage_ns"]/1000:.3f}µs; slot-wait maxima '
+                  f'{qkv["control"]["slot_wait_max_cta_ns"]/1000:.3f}→'
+                  f'{qkv["candidate"]["slot_wait_max_cta_ns"]/1000:.3f}µs. '
+                  'Trace segments are nonadditive and diagnostic; the non-trace pair '
+                  'decides rejection. Private files are restored after trace completion.']
     if failed_pp.exists() and read(failed_pp).get('status') == 'component_rejected':
         lines.append('\nVerified fixed WG64 PP/P1/TMA candidate compiles without spill and both normal '
                      'unit cohorts pass5/5, but ordering synccheck reports1024 errors and residual-chain '
