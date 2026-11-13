@@ -172,6 +172,7 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | repaired profile3 catalog candidate2 B8 | 3 | 0.922640 | 0.933696 | -1.198 | 1.484 | False |
 | residual warp handoff B16 | 3 | 1.284976 | 1.284864 | +0.009 | 2.142 | False |
 | direct statistics B16 | 3 | 1.270656 | 1.273568 | -0.229 | 3.496 | False |
+| outlined GELU B8 | 3 | 0.921376 | 0.853296 | +7.389 | 2.070 | True |
 | outlined GELU B16 | 3 | 1.283520 | 1.230048 | +4.166 | 2.149 | True |
 | WGMMA depth2 prologue B4 | 3 | 0.640976 | 0.736736 | -14.940 | 3.588 | False |
 
@@ -490,7 +491,7 @@ Verified current accepted artifacts (GPU3;50/200;three-process P-DNN). B1/B2/B4/
 | 1 | 3 | 0.464496 | 0.477696 | 0.012608 | 0.4858 | 0.9561 |
 | 2 | 3 | 0.508096 | 0.511104 | 0.012352 | 0.5171 | 0.9826 |
 | 4 | 3 | 0.634688 | 0.638592 | 0.003456 | 0.5905 | 1.0748 |
-| 8 | 3 | 0.923120 | 0.929184 | 0.012176 | 0.7457 | 1.2379 |
+| 8 | 3 | 0.852384 | 0.861728 | 0.000480 | 0.7457 | 1.1430 |
 | 16 | 3 | 1.234592 | 1.250784 | 0.027552 | 1.0869 | 1.1359 |
 
 Verified largest three stages for each current unmet BERT cell (P-TRACE1 attribution only;segments can overlap and are not timing results). Each ledger checks the exact accepted reference binary SHA256.
@@ -498,7 +499,7 @@ Verified largest three stages for each current unmet BERT cell (P-TRACE1 attribu
 | Batch | Largest stage | Second | Third |
 | --- | --- | --- | --- |
 | 4 | s45 gemm 18.24us (main_loop=15.07,slot_wait=4.19) | s40 gemm 17.89us (main_loop=14.53,slot_wait=3.97) | s30 gemm 17.86us (main_loop=14.72,slot_wait=4.45) |
-| 8 | s34 gemm 29.38us (main_loop=15.58,epilogue=11.65) | s24 gemm 29.28us (main_loop=15.74,epilogue=11.17) | s49 gemm 29.12us (main_loop=15.84,epilogue=10.62) |
+| 8 | s10 gemm 25.18us (main_loop=21.15,slot_wait=7.94) | s19 gemm 25.15us (main_loop=15.30,epilogue=8.10) | s49 gemm 25.12us (main_loop=15.33,epilogue=7.87) |
 | 16 | s29 gemm 38.94us (main_loop=24.13,epilogue=11.01) | s34 gemm 38.40us (main_loop=23.78,epilogue=11.04) | s39 gemm 38.24us (main_loop=23.74,epilogue=10.78) |
 
 Verified current B8 combines existing matrix and attention vector stores with the admitted full-tile profile. Three exact-profile component cohorts each pass17/17;strict model5/5 preserves incumbent bytes. Main real codegen matches all35232 encoded instruction words and the63-stage ledger identifies the measured binary. GPU3 P-DNN0.923120ms,p900.929184ms. Ten corrupted admission receipts are rejected. Other cells,default flags and fixed anchors remain unchanged.
@@ -558,6 +559,9 @@ Verified Outlined GELU B16 completes control5/body17 and strict model5 (GELU reu
 Verified WGMMA depth2 prologue B4 completes control5/body17 and strict model5 (GELU reuses its unchanged binary cohort). GPU3 pair 0.640976→0.736736ms, noise3.588%. Reject; retain the incumbent.
 
 Verified outlined GELU B16 is admitted after main-codegen and committed-fixture GPU instruction identity, all five disabled-profile instruction proofs,17 corrupted-receipt rejections, and the exact 63-stage ledger. The oracle correction and reused unchanged model cohort remain explicit. Its P-DNN median is 1.234592ms; p901.250784ms and process range0.027552ms. Other four artifacts, fixed targets and frozen Phase Z remain unchanged. The feature stays off by default; only this admitted profile enables it.
+
+Verified outlined GELU B8 uses the unchanged current coordinates and72/208 profile. Fresh control5/body17/model5 pass, including the full2^24-point and finite-BF16 precision domain and identical incumbent model bytes. GPU3 pair 0.921376→0.853296ms, noise2.070%.
+Verified main-codegen and committed-fixture instruction identity,17 corrupted-receipt rejections and the exact 63-stage ledger complete admission. P-DNN 0.852384ms; p900.861728ms; range0.000480ms. The fixed BF16 target is retained and the feature remains opt-in.
 
 Verified rejected depth2 B4 attribution: QKV stage 150.528→190.496µs; slot-wait maxima 50.752→92.576µs. Trace segments are nonadditive and diagnostic; the non-trace pair decides rejection. Private files are restored after trace completion.
 

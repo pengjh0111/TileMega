@@ -191,6 +191,8 @@ def main():
                ('repaired profile3 catalog candidate2 B8', continuation/'candidate2_profile3_b8_v1/experiment.json'),
                ('residual warp handoff B16', continuation/'residual_warp_b16_v1/experiment.json'),
                ('direct statistics B16', continuation/'direct_norm_b16_v3/experiment.json'),
+               ('outlined GELU B4', continuation/'gelu_outline_b4_v1/experiment.json'),
+               ('outlined GELU B8', continuation/'gelu_outline_b8_v1/experiment.json'),
                ('outlined GELU B16', continuation/'gelu_outline_b16_v2/experiment.json'),
                ('WGMMA depth2 prologue B4', continuation/'mma_depth2_b4_v3/experiment.json')]
     rows = []
@@ -199,7 +201,8 @@ def main():
         if not path.exists():
             continue
         experiment = read(path)
-        if name in ('outlined GELU B16', 'WGMMA depth2 prologue B4'):
+        if name in ('outlined GELU B4', 'outlined GELU B8',
+                    'outlined GELU B16', 'WGMMA depth2 prologue B4'):
             bit = read(path.parent/'unit_bit_proof.json')
             control = read(Path(bit['control']))
             body = read(Path(bit['candidate']))
@@ -2340,6 +2343,31 @@ def main():
                   f'process range{admission["process_range_ms"]:.6f}ms. Other four '
                   'artifacts, fixed targets and frozen Phase Z remain unchanged. '
                   'The feature stays off by default; only this admitted profile enables it.']
+    for batch in (8, 4):
+        trial_path = continuation/f'gelu_outline_b{batch}_v1/experiment.json'
+        if not trial_path.exists():
+            continue
+        trial = read(trial_path)
+        pair = trial['pair']
+        lines += ['', f'Verified outlined GELU B{batch} uses the unchanged current '
+                  'coordinates and72/208 profile. Fresh control5/body17/model5 pass, '
+                  'including the full2^24-point and finite-BF16 precision domain and '
+                  'identical incumbent model bytes. GPU3 pair '
+                  f'{pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms, '
+                  f'noise{100*pair["threshold"]:.3f}%.']
+        admission_path = base/f'gelu_outline_b{batch}_admitted_v1/admission.json'
+        if admission_path.exists():
+            admitted = read(admission_path)
+            lines.append('Verified main-codegen and committed-fixture instruction '
+                         'identity,17 corrupted-receipt rejections and the exact '
+                         '63-stage ledger complete admission. P-DNN '
+                         f'{admitted["median_ms"]:.6f}ms; p90'
+                         f'{admitted["p90_ms"]:.6f}ms; range'
+                         f'{admitted["process_range_ms"]:.6f}ms. The fixed BF16 target '
+                         'is retained and the feature remains opt-in.')
+        else:
+            lines.append('Positive pair awaiting separate production admission.'
+                         if trial['accepted'] else 'Rejected; retain the incumbent.')
     depth_trace = continuation/'mma_depth2_b4_v3/attribution.json'
     if depth_trace.exists():
         trace = read(depth_trace)
