@@ -176,6 +176,7 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | row partials32 TN96 FFN2 B16 | 3 | 1.243808 | 1.253344 | -0.767 | 2.367 | False |
 | FFN2-only row32 TN96 B16 | 3 | 1.233856 | 1.215232 | +1.509 | 0.843 | True |
 | whole-WG row96 TN96 B16 | 3 | 1.235328 | 1.198704 | +2.965 | 3.593 | False |
+| failed-poll gate backoff B4 | 3 | 0.605504 | 0.596512 | +1.485 | 0.955 | True |
 | outlined GELU plus stores B4 | 3 | 0.605472 | 0.595968 | +1.570 | 2.056 | False |
 | outlined GELU B4 | 3 | 0.643440 | 0.605616 | +5.878 | 0.724 | True |
 | outlined GELU B8 | 3 | 0.921376 | 0.853296 | +7.389 | 2.070 | True |
@@ -496,7 +497,7 @@ Verified current accepted artifacts (GPU3;50/200;three-process P-DNN). B1/B2/B4/
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 3 | 0.464496 | 0.477696 | 0.012608 | 0.4858 | 0.9561 |
 | 2 | 3 | 0.508096 | 0.511104 | 0.012352 | 0.5171 | 0.9826 |
-| 4 | 3 | 0.604784 | 0.607776 | 0.001056 | 0.5905 | 1.0242 |
+| 4 | 3 | 0.595504 | 0.599104 | 0.001552 | 0.5905 | 1.0085 |
 | 8 | 3 | 0.852384 | 0.861728 | 0.000480 | 0.7457 | 1.1430 |
 | 16 | 3 | 1.234592 | 1.250784 | 0.027552 | 1.0869 | 1.1359 |
 
@@ -504,7 +505,7 @@ Verified largest three stages for each current unmet BERT cell (P-TRACE1 attribu
 
 | Batch | Largest stage | Second | Third |
 | --- | --- | --- | --- |
-| 4 | s5 gemm 19.17us (main_loop=15.39,slot_wait=4.80) | s15 gemm 18.24us (main_loop=15.14,slot_wait=4.67) | s45 gemm 18.24us (main_loop=15.49,slot_wait=4.83) |
+| 4 | s5 gemm 19.14us (main_loop=15.55,slot_wait=4.26) | s15 gemm 18.88us (main_loop=15.17,slot_wait=4.99) | s45 gemm 18.85us (main_loop=15.84,slot_wait=5.09) |
 | 8 | s10 gemm 25.18us (main_loop=21.15,slot_wait=7.94) | s19 gemm 25.15us (main_loop=15.30,epilogue=8.10) | s49 gemm 25.12us (main_loop=15.33,epilogue=7.87) |
 | 16 | s29 gemm 38.94us (main_loop=24.13,epilogue=11.01) | s34 gemm 38.40us (main_loop=23.78,epilogue=11.04) | s39 gemm 38.24us (main_loop=23.74,epilogue=10.78) |
 
@@ -585,7 +586,9 @@ Verified control5, body17 and model5 pass; GPU3 pair 1.233856→1.215232ms gains
 Verified private whole-WG statistics preparation keeps the fixed TN96 FFN2 geometry and accumulates its three 32-column register-store regions before publishing one 96-column partial. Eleven FFN2 buffers now contain 8 parts per row; projection outputs retain 12. All 49 generated reader contracts pass. This is an explicit extension of the prompt’s 64-column rule; 96 derives from the selected WG width. No synchronization or store protocol changes. Real-codegen SASS is 304768 B with zero spill and unchanged default words. Eighteen fixtures cover crossing 64-column loops, two 96-column groups, TM64 ownership and residual TMA reuse. The original FP32 gates and predeclared gain above both 3% and noise remain required.
 Verified 18-case control5, body17 and model5 pass. GPU3 pair 1.235328→1.198704 ms gains 2.965%, below the 3.593% noise threshold and predeclared 3% minimum. Reject; archive and restore the private source. No extra trace, P-DNN or unchanged retiming; current B16 stays unchanged.
 
-Verified the fixed matrix/attention-store combination on the new B4 GELU artifact reuses the exact-profile B8 body cohort and the order/attention cohorts only after full GPU-word identity under GELU1. No component processes are claimed fresh. Fresh B4 model5 matches incumbent bytes. GPU3 pair 0.605472→0.595968ms; gain1.570% is below noise2.056%. Reject without P-DNN or unchanged retiming; current B4 remains the admitted GELU-only artifact.
+Verified fixed failed-poll gate backoff is admitted for B4. The optional 40 ns sleep follows the local CUTLASS full-barrier reference; successful acquire, release arrival, all-CTA target and local barriers are unchanged. This is an explicit scheduling extension under the user’s implementation discretion, with no parameter sweep. Fresh four-case three-stage ordering control5 and candidate17 (unit5, mem1, init1, race5, sync5) and model5 match incumbent bytes. The prior GEMM/GELU body17 is reused only after all 53488 encoded words match; no fresh body/domain processes are claimed. Main codegen reproduces both arms, committed ordering fixtures reproduce both arms, and all five default profiles retain exact words. GPU3 pair 0.605504→0.596512 ms gains 1.485%, exceeding the prospectively declared max(0.5%, 0.955% noise). P-DNN is 0.595504 ms, p90 0.599104 ms, process range 0.001552 ms. The fixed target remains 0.590496 ms. The exact 63-stage P-TRACE1 ledger is retained; trace perturbs scheduling and does not independently establish the source of the gain. Reduced polling traffic is inferred. Other batches remain unchanged. Full CMake remains blocked by the missing external MLIR Debug.cpp.o; the actual host proof uses a qualified one-object incremental rebuild.
+
+Verified the fixed matrix/attention-store combination on the new B4 GELU artifact reuses the exact-profile B8 body cohort and the order/attention cohorts only after full GPU-word identity under GELU1. No component processes are claimed fresh. Fresh B4 model5 matches incumbent bytes. GPU3 pair 0.605472→0.595968ms; gain1.570% is below noise2.056%. Reject without P-DNN or unchanged retiming; that trial retains its admitted GELU-only predecessor.
 
 Verified rejected depth2 B4 attribution: QKV stage 150.528→190.496µs; slot-wait maxima 50.752→92.576µs. Trace segments are nonadditive and diagnostic; the non-trace pair decides rejection. Private files are restored after trace completion.
 

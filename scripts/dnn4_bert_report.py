@@ -195,6 +195,7 @@ def main():
                ('row partials32 TN96 FFN2 B16', continuation/'rowstats32_tn96_b16_v1/experiment.json'),
                ('FFN2-only row32 TN96 B16', continuation/'ffn2_stats32_b16_v1/experiment.json'),
                ('whole-WG row96 TN96 B16', continuation/'ffn2_stats96_b16_v1/experiment.json'),
+               ('failed-poll gate backoff B4', continuation/'gate_backoff_b4_v1/experiment.json'),
                ('outlined GELU plus stores B4', continuation/'gelu_store_bundle_b4_v1/experiment.json'),
                ('outlined GELU B4', continuation/'gelu_outline_b4_v1/experiment.json'),
                ('outlined GELU B8', continuation/'gelu_outline_b8_v1/experiment.json'),
@@ -206,6 +207,15 @@ def main():
         if not path.exists():
             continue
         experiment = read(path)
+        if name == 'failed-poll gate backoff B4':
+            sys.path.insert(0, str(ROOT/'scripts'))
+            from dnn4_bert_current import validate_gate_backoff_integration
+            admitted = base/'gate_backoff_b4_admitted_v1'
+            decision = read(admitted/'experiment.json')
+            final = read(admitted/'final_result.json')
+            validate_gate_backoff_integration(admitted, decision, final)
+            if experiment['pair'] != decision['pair'] or experiment['library'] != final['library']:
+                raise ValueError('gate backoff report differs from the admitted comparison')
         if name in ('consumer row partials32 B4', 'row partials32 TN96 FFN2 B16',
                     'FFN2-only row32 TN96 B16', 'whole-WG row96 TN96 B16'):
             functional = read(path.parent/'functional_gate.json')
@@ -2519,6 +2529,31 @@ def main():
                          'noise threshold and predeclared 3% minimum. Reject; '
                          'archive and restore the private source. No extra trace, '
                          'P-DNN or unchanged retiming; current B16 stays unchanged.')
+    backoff = base/'gate_backoff_b4_admitted_v1/admission.json'
+    if backoff.exists():
+        admitted = read(backoff)
+        lines += ['', 'Verified fixed failed-poll gate backoff is admitted for B4. '
+                  'The optional 40 ns sleep follows the local CUTLASS full-barrier '
+                  'reference; successful acquire, release arrival, all-CTA target '
+                  'and local barriers are unchanged. This is an explicit scheduling '
+                  'extension under the user’s implementation discretion, with no '
+                  'parameter sweep. Fresh four-case three-stage ordering control5 '
+                  'and candidate17 (unit5, mem1, init1, race5, sync5) and model5 '
+                  'match incumbent bytes. The prior GEMM/GELU body17 is reused '
+                  'only after all 53488 encoded words match; no fresh body/domain '
+                  'processes are claimed. Main codegen reproduces both arms, '
+                  'committed ordering fixtures reproduce both arms, and all five '
+                  'default profiles retain exact words. GPU3 pair '
+                  '0.605504→0.596512 ms gains 1.485%, exceeding the prospectively '
+                  'declared max(0.5%, 0.955% noise). P-DNN is '
+                  f'{admitted["median_ms"]:.6f} ms, p90 {admitted["p90_ms"]:.6f} ms, '
+                  f'process range {admitted["process_range_ms"]:.6f} ms. '
+                  'The fixed target remains 0.590496 ms. The exact 63-stage '
+                  'P-TRACE1 ledger is retained; trace perturbs scheduling and '
+                  'does not independently establish the source of the gain. '
+                  'Reduced polling traffic is inferred. Other batches remain unchanged. '
+                  'Full CMake remains blocked by the missing external MLIR Debug.cpp.o; '
+                  'the actual host proof uses a qualified one-object incremental rebuild.']
     gelu_store = continuation/'gelu_store_bundle_b4_v1/experiment.json'
     if gelu_store.exists():
         trial = read(gelu_store)
@@ -2531,7 +2566,7 @@ def main():
                   f'{pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms; gain'
                   f'{100*(1-pair["ratio"]):.3f}% is below noise'
                   f'{100*pair["threshold"]:.3f}%. Reject without P-DNN or unchanged '
-                  'retiming; current B4 remains the admitted GELU-only artifact.']
+                  'retiming; that trial retains its admitted GELU-only predecessor.']
     depth_trace = continuation/'mma_depth2_b4_v3/attribution.json'
     if depth_trace.exists():
         trace = read(depth_trace)
