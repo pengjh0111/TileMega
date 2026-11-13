@@ -191,6 +191,7 @@ def main():
                ('repaired profile3 catalog candidate2 B8', continuation/'candidate2_profile3_b8_v1/experiment.json'),
                ('residual warp handoff B16', continuation/'residual_warp_b16_v1/experiment.json'),
                ('direct statistics B16', continuation/'direct_norm_b16_v3/experiment.json'),
+               ('outlined GELU plus stores B4', continuation/'gelu_store_bundle_b4_v1/experiment.json'),
                ('outlined GELU B4', continuation/'gelu_outline_b4_v1/experiment.json'),
                ('outlined GELU B8', continuation/'gelu_outline_b8_v1/experiment.json'),
                ('outlined GELU B16', continuation/'gelu_outline_b16_v2/experiment.json'),
@@ -201,6 +202,18 @@ def main():
         if not path.exists():
             continue
         experiment = read(path)
+        if name == 'outlined GELU plus stores B4':
+            reuse = read(path.parent/'component_reuse.json')
+            proof = read(Path(reuse['source']))
+            model = read(path.parent/'model/result.json')
+            if (not reuse['passed'] or not proof['passed']
+                    or len(reuse['units']) != 3 or not model['passed']
+                    or model['passes'] != '5/5'
+                    or any(not read(Path(u))['passed'] or
+                           len(read(Path(u))['processes']) != 17 for u in reuse['units'])
+                    or experiment['accepted'] !=
+                    (experiment['pair']['ratio'] < 1-experiment['pair']['threshold'])):
+                raise ValueError('GELU store interaction lacks qualified component reuse')
         if name in ('outlined GELU B4', 'outlined GELU B8',
                     'outlined GELU B16', 'WGMMA depth2 prologue B4'):
             bit = read(path.parent/'unit_bit_proof.json')
@@ -2368,6 +2381,19 @@ def main():
         else:
             lines.append('Positive pair awaiting separate production admission.'
                          if trial['accepted'] else 'Rejected; retain the incumbent.')
+    gelu_store = continuation/'gelu_store_bundle_b4_v1/experiment.json'
+    if gelu_store.exists():
+        trial = read(gelu_store)
+        pair = trial['pair']
+        lines += ['', 'Verified the fixed matrix/attention-store combination on the '
+                  'new B4 GELU artifact reuses the exact-profile B8 body cohort and '
+                  'the order/attention cohorts only after full GPU-word identity '
+                  'under GELU1. No component processes are claimed fresh. Fresh B4 '
+                  'model5 matches incumbent bytes. GPU3 pair '
+                  f'{pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms; gain'
+                  f'{100*(1-pair["ratio"]):.3f}% is below noise'
+                  f'{100*pair["threshold"]:.3f}%. Reject without P-DNN or unchanged '
+                  'retiming; current B4 remains the admitted GELU-only artifact.']
     depth_trace = continuation/'mma_depth2_b4_v3/attribution.json'
     if depth_trace.exists():
         trace = read(depth_trace)

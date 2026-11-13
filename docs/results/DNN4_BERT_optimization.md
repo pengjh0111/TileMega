@@ -172,6 +172,7 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | repaired profile3 catalog candidate2 B8 | 3 | 0.922640 | 0.933696 | -1.198 | 1.484 | False |
 | residual warp handoff B16 | 3 | 1.284976 | 1.284864 | +0.009 | 2.142 | False |
 | direct statistics B16 | 3 | 1.270656 | 1.273568 | -0.229 | 3.496 | False |
+| outlined GELU plus stores B4 | 3 | 0.605472 | 0.595968 | +1.570 | 2.056 | False |
 | outlined GELU B4 | 3 | 0.643440 | 0.605616 | +5.878 | 0.724 | True |
 | outlined GELU B8 | 3 | 0.921376 | 0.853296 | +7.389 | 2.070 | True |
 | outlined GELU B16 | 3 | 1.283520 | 1.230048 | +4.166 | 2.149 | True |
@@ -566,6 +567,8 @@ Verified main-codegen and committed-fixture instruction identity,17 corrupted-re
 
 Verified outlined GELU B4 uses the unchanged current coordinates and72/208 profile. Fresh control5/body17/model5 pass, including the full2^24-point and finite-BF16 precision domain and identical incumbent model bytes. GPU3 pair 0.643440→0.605616ms, noise0.724%.
 Verified main-codegen and committed-fixture instruction identity,17 corrupted-receipt rejections and the exact 63-stage ledger complete admission. P-DNN 0.604784ms; p900.607776ms; range0.001056ms. The fixed BF16 target is retained and the feature remains opt-in.
+
+Verified the fixed matrix/attention-store combination on the new B4 GELU artifact reuses the exact-profile B8 body cohort and the order/attention cohorts only after full GPU-word identity under GELU1. No component processes are claimed fresh. Fresh B4 model5 matches incumbent bytes. GPU3 pair 0.605472→0.595968ms; gain1.570% is below noise2.056%. Reject without P-DNN or unchanged retiming; current B4 remains the admitted GELU-only artifact.
 
 Verified rejected depth2 B4 attribution: QKV stage 150.528→190.496µs; slot-wait maxima 50.752→92.576µs. Trace segments are nonadditive and diagnostic; the non-trace pair decides rejection. Private files are restored after trace completion.
 
