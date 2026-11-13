@@ -289,6 +289,8 @@ Verified B2 fixed4 producer index lifetime drafts preserve coordinates and arith
 
 Stated2026-11-12 allocation:all four H800 cards0–3 are authorized;intermittent gaps are no longer required. New schedules preserve the six-sample guard,300s occupancy cooldown and /root/python entry paths. B4/B8 timing uses original GPU3;functional checks may use the other cards. Previously paused queues stay retired and completed checks are reused.
 
+Stated latest allocation supersedes the earlier four-card permission: all new and resumed tests use physical GPU0 only. The prior authorization snapshot and stopped-process audit remain under the recorded transition. Earlier completed checks retain their actual cards; GPU3 windows stay separate from new GPU0 windows. Guards and fixed targets are unchanged.
+
 Verified GPU3 idle footprint changed from4MiB to6MiB: six owner-free samples5s apart record6MiB and idle SM345MHz. A separate guard entry updates only that measured floor;original workers remain frozen. Locks,six-sample preflight,foreign-process rejection,cooldowns and measurement thresholds remain in force. The pending body cohort has no accepted processes;its replacement inherits the cooldown. Completed component/model cohorts are reused. Timing continues to record actual start/end SM clocks.
 
 Verified foreign GPU1 occupancy prevents dispatch of one B8 functional cohort. All five jobs have zero attempts and no guarded children when its controllers retire. The cohort relocates to GPU0 under new original guards;the other two live cohorts and all completed checks are retained. Performance timing stays on GPU3.

@@ -22,6 +22,23 @@ def read(path):
     return json.loads(Path(path).read_text())
 
 
+def historical_allcards_authorization(session):
+    current = read(session/'authorization.json')
+    if current['allowed_gpu_indices'] == [0, 1, 2, 3]:
+        return current
+    transition = session/'gpu0_transition_1794589079598058614'
+    before = read(transition/'authorization_before.json')
+    result = read(transition/'result.json')
+    if (current['allowed_gpu_indices'] != [0]
+            or before['allowed_gpu_indices'] != [0, 1, 2, 3]
+            or result['allowed_gpu_indices'] != [0]
+            or current.get('request') != before.get('request')
+            or current.get('resumed_at') != before.get('resumed_at')
+            or current.get('gpu_restriction_request') != '将测试进程限定在使用0号卡上'):
+        raise ValueError('historical allocation lacks its preserved transition evidence')
+    return before
+
+
 def select_successors(base, batch, specification):
     final_name, pair_name, profile, minimum_gain = specification
     library = Path(read(base/final_name)['library'])
@@ -841,7 +858,11 @@ def validate_followup_allocation(folder, name, decision, final):
         return 3
     if name == 'attention64_b16_admitted_v1':
         allocation = read(folder/'allocation.json')
-        authorization = read(allocation['authorization'])
+        authorization_path = Path(allocation['authorization'])
+        if authorization_path.name != 'authorization.json':
+            raise ValueError('attention allocation changes its authorization source')
+        current_authorization = read(authorization_path)
+        authorization = historical_allcards_authorization(authorization_path.parent)
         plan = read(allocation['premeasurement_plan'])
         if (decision['pair']['gpu'] != 0 or allocation['gpu'] != 0
                 or allocation['original_anchor_gpu'] != 3 or allocation['reanchored']
@@ -849,6 +870,15 @@ def validate_followup_allocation(folder, name, decision, final):
                 or allocation['pair_order'] != 'ABABAB' or plan['timing_gpu'] != 0
                 or allocation['python_entry_root'] != '/root/python'):
             raise ValueError('attention combination lacks its all-card allocation provenance')
+        if current_authorization['allowed_gpu_indices'] == [0]:
+            cutoff = current_authorization['gpu_restriction_at']
+            for result in (decision['pair'], final['measurement']):
+                for row in result['measurements']:
+                    measured = read(row['measurement'])
+                    boundaries = [json.loads(line) for line in
+                                  Path(measured['guard_log']).read_text().splitlines()]
+                    if any(r['time'] >= cutoff for r in boundaries):
+                        raise ValueError('historical timing postdates its allocation change')
         validate_timing_gpu(decision['pair'], 0, 'ABABAB')
         validate_timing_gpu(final['measurement'], 0, 'BBB')
         return 0

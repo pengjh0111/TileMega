@@ -58,6 +58,16 @@ def main():
     reject('wrong allocation card', allocation, lambda v: v.update(gpu=3))
     reject('unreported reanchor', allocation, lambda v: v.update(reanchored=True))
     reject('missing authorization', original(allocation)['authorization'], lambda v: v.update(allowed_gpu_indices=[3]))
+    authorization = Path(original(allocation)['authorization'])
+    active = original(authorization)
+    if active['allowed_gpu_indices'] == [0]:
+        transition = authorization.parent/'gpu0_transition_1794589079598058614'
+        reject('wrong historical permission', transition/'authorization_before.json', lambda v: v.update(allowed_gpu_indices=[0]))
+        reject('wrong historical request', transition/'authorization_before.json', lambda v: v.update(request='different request'))
+        reject('wrong historical resumption', transition/'authorization_before.json', lambda v: v.update(resumed_at=0))
+        reject('wrong transition card', transition/'result.json', lambda v: v.update(allowed_gpu_indices=[3]))
+        reject('unknown new allocation', authorization, lambda v: v.update(gpu_restriction_request='unknown'))
+        reject('timing after allocation change', authorization, lambda v: v.update(gpu_restriction_at=0))
     print(json.dumps(dict(evidence='verified CPU-only', positive_receipt=True, corrupted_receipts_rejected=failures)))
 
 if __name__ == '__main__':

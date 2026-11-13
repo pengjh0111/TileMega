@@ -18,20 +18,9 @@ def read(path):
 
 
 def historical_allcards_authorization(session):
-    current = read(session/'authorization.json')
-    if current['allowed_gpu_indices'] == [0, 1, 2, 3]:
-        return current
-    transition = session/'gpu0_transition_1794589079598058614'
-    before = read(transition/'authorization_before.json')
-    result = read(transition/'result.json')
-    if (current['allowed_gpu_indices'] != [0]
-            or before['allowed_gpu_indices'] != [0, 1, 2, 3]
-            or result['allowed_gpu_indices'] != [0]
-            or current.get('request') != before.get('request')
-            or current.get('resumed_at') != before.get('resumed_at')
-            or current.get('gpu_restriction_request') != '将测试进程限定在使用0号卡上'):
-        raise ValueError('historical allocation lacks its preserved transition evidence')
-    return before
+    sys.path.insert(0, str(ROOT/'scripts'))
+    from dnn4_bert_current import historical_allcards_authorization as historical
+    return historical(session)
 
 
 def main():
