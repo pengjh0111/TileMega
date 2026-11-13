@@ -17,6 +17,23 @@ def read(path):
     return json.loads(path.read_text())
 
 
+def historical_allcards_authorization(session):
+    current = read(session/'authorization.json')
+    if current['allowed_gpu_indices'] == [0, 1, 2, 3]:
+        return current
+    transition = session/'gpu0_transition_1794589079598058614'
+    before = read(transition/'authorization_before.json')
+    result = read(transition/'result.json')
+    if (current['allowed_gpu_indices'] != [0]
+            or before['allowed_gpu_indices'] != [0, 1, 2, 3]
+            or result['allowed_gpu_indices'] != [0]
+            or current.get('request') != before.get('request')
+            or current.get('resumed_at') != before.get('resumed_at')
+            or current.get('gpu_restriction_request') != '将测试进程限定在使用0号卡上'):
+        raise ValueError('historical allocation lacks its preserved transition evidence')
+    return before
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', type=Path, default=ROOT/'docs/results')
@@ -291,7 +308,8 @@ def main():
                 raise ValueError('implementation trial lacks its complete unchanged gates')
             if name.startswith('failed-poll gate backoff'):
                 allocation = read(base/f'gate_backoff_b{experiment["batch"]}_setup_v1/allocation.json')
-                authorization = read(Path(allocation['authorization']))
+                authorization = historical_allcards_authorization(
+                    Path(allocation['authorization']).parent)
                 if (allocation['gpu'] != pair['gpu'] or allocation['reanchored']
                         or allocation['original_anchor_gpu'] != 3
                         or authorization['allowed_gpu_indices'] != [0, 1, 2, 3]
@@ -1067,13 +1085,19 @@ def main():
     authorization = continuation/'authorization.json'
     if authorization.exists():
         allocation = read(authorization)
-        if allocation['allowed_gpu_indices'] != [0, 1, 2, 3]:
-            raise ValueError('four-card continuation differs from explicit user allocation')
+        historical_allcards_authorization(continuation)
         lines += ['', 'Stated2026-11-12 allocation:all four H800 cards0–3 are authorized;'
                   'intermittent gaps are no longer required. New schedules preserve the '
                   'six-sample guard,300s occupancy cooldown and /root/python entry paths. '
                   'B4/B8 timing uses original GPU3;functional checks may use the other '
                   'cards. Previously paused queues stay retired and completed checks are reused.']
+        if allocation['allowed_gpu_indices'] == [0]:
+            lines += ['', 'Stated latest allocation supersedes the earlier four-card '
+                      'permission: all new and resumed tests use physical GPU0 only. '
+                      'The prior authorization snapshot and stopped-process audit '
+                      'remain under the recorded transition. Earlier completed '
+                      'checks retain their actual cards; GPU3 windows stay separate '
+                      'from new GPU0 windows. Guards and fixed targets are unchanged.']
     relocation = continuation/'b8_corr2_relocation.json'
     idle_change = continuation/'idle6_transition.json'
     if idle_change.exists():
