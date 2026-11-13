@@ -98,6 +98,8 @@ def select_successors(base, batch, specification):
                        'TILEMEGA_F3_RECOMPUTE_TASK': '1',
                        'TILEMEGA_F3_COALESCED_PARTIALS': '1',
                        'TILEMEGA_F3_CYCLIC_SLOTS': '1'}))
+    if batch == 16:
+        names.append(('gelu_outline_b16_admitted_v1', {'TILEMEGA_F3_GELU_OUTLINE': '1'}))
     for name, features in names:
         folder = base/name
         if not (folder/'experiment.json').exists():
@@ -144,7 +146,7 @@ def select_successors(base, batch, specification):
             count = 4 if batch == 16 else 2
         if name == 'full_store_bundle_b8_admitted_v1':
             count = 3
-        if name == 'pipeline_reduction_b2_admitted_v1':
+        if name in ('pipeline_reduction_b2_admitted_v1', 'gelu_outline_b16_admitted_v1'):
             count = 1
         if (len(units) != count or len(set(map(str, units))) != count or
                 set(map(str, final.get('unit_gates', []))) != set(map(str, units)) or
@@ -167,7 +169,8 @@ def select_successors(base, batch, specification):
                     or len(selection['eligible_variants']) < 4):
                 raise ValueError('follow-up used unqualified in-situ windows')
         pair = decision['pair']
-        required_gain = .03 if name in ('ppstore_ffn1_b16_v1', 'pp64_ffn1_b16_v1') else 0
+        required_gain = .03 if name in ('ppstore_ffn1_b16_v1', 'pp64_ffn1_b16_v1',
+                                      'gelu_outline_b16_admitted_v1') else 0
         if name == 'ppnorm_ffn1_b16_v1':
             reference_stages = read(decision['reference']+'.plan.json')['native_forward']['stages']
             required_gain = 0 if reference_stages[4].get('sched') == 'pp' else .03
@@ -264,6 +267,10 @@ def select_successors(base, batch, specification):
             if final_name != 'ffn1_reg64_side216_b2_admitted_v1/final_result.json':
                 raise ValueError('pipeline reduction lacks its admitted B2 predecessor')
             validate_pipeline_reduction_integration(folder, decision, final)
+        if name == 'gelu_outline_b16_admitted_v1':
+            if final_name != 'full_tiles_b16_admitted_v1/final_result.json':
+                raise ValueError('outlined GELU lacks its admitted B16 predecessor')
+            validate_gelu_outline_integration(folder, decision, final)
         # Completed raw prototypes never appear in this ordered admission list.
         final_name = name+'/final_result.json'
         pair_name = name+'/experiment.json'
@@ -302,6 +309,73 @@ def validate_pipeline_reduction_integration(folder, decision, final):
     profile = dict(read(integration['codegen_proof'])['profile'],
                    TILEMEGA_F3_COALESCED_PARTIALS='0', TILEMEGA_F3_CYCLIC_SLOTS='0')
     validate_component_profile(bit['control'], {f'-D{k}={v}' for k, v in profile.items()})
+
+
+def validate_gelu_outline_integration(folder, decision, final):
+    validate_fixed_feature_integration(folder, decision, final, ['body'], '3',
+        ['TILEMEGA_F3_SIDE_NORM', 'TILEMEGA_F3_FULL_TILES',
+         'TILEMEGA_F3_H800_GRID', 'TILEMEGA_F3_CYCLIC_SLOTS',
+         'TILEMEGA_F3_MATRIX_STORE', 'TILEMEGA_F3_ATTENTION_VECTOR_STORE',
+         'TILEMEGA_F3_REPEAT_SELECTOR', 'TILEMEGA_F3_GELU_OUTLINE'])
+    integration = read(folder/'integration.json')
+    digest = lambda p: hashlib.sha256(Path(p).read_bytes()).hexdigest()
+    bit = read(integration['unit_bit_proof'])
+    control, candidate = read(bit['control']), read(decision['unit_gates'][0])
+    if (not bit['passed'] or not control['passed']
+            or len(control['processes']) != 5
+            or len({p['pid'] for p in control['processes']}) != 5
+            or any(p['exit_code'] or read(p['guard'])['code'] for p in control['processes'])
+            or bit['output_hash'] != candidate['output_hash']
+            or candidate['output_hash'] != control['output_hash']
+            or read(bit['candidate'])['processes'] != candidate['processes']):
+        raise ValueError('outlined GELU changed component output bytes')
+    profile = dict(read(integration['codegen_proof'])['profile'], TILEMEGA_F3_GELU_OUTLINE='0')
+    validate_component_profile(bit['control'], {f'-D{k}={v}' for k, v in profile.items()})
+    # The first fixture accidentally suppressed contraction in its scalar oracle.
+    # Retain its failure and the independent full-domain diagnosis explicitly.
+    for name in ('oracle_repair', 'main_fixture', 'defaults', 'emission', 'model_reuse'):
+        if digest(integration[name]) != integration[name+'_sha256']:
+            raise ValueError('outlined GELU integration receipt changed: '+name)
+    oracle = read(integration['oracle_repair'])
+    diagnostic = read(oracle['diagnostic'])
+    if (oracle['original_scalar_mismatches'] or oracle['precision_errors']
+            or oracle['max_normalized_error'] > 1e-6
+            or not diagnostic['passed'] or len(diagnostic['processes']) != 5
+            or len({p['pid'] for p in diagnostic['processes']}) != 5):
+        raise ValueError('outlined GELU lacks its full-domain oracle diagnosis')
+    for process in diagnostic['processes']:
+        if (process['exit_code'] or read(process['guard'])['code']
+                or process['binary_sha256'] != oracle['diagnostic_binary_sha256']
+                or digest(process['log']) != process['sha256']
+                or 'outlined_vs_original=0 outlined_vs_uncontracted=525595 precision_errors=0'
+                   not in Path(process['log']).read_text()):
+            raise ValueError('outlined GELU diagnostic process is incomplete')
+    fixture = read(integration['main_fixture'])
+    if not fixture['passed'] or [r['flag'] for r in fixture['rows']] != [0, 1]:
+        raise ValueError('outlined GELU lacks both committed fixture proofs')
+    for row in fixture['rows']:
+        build = read(row['prototype_build'])
+        expected_profile = dict(profile, TILEMEGA_F3_GELU_OUTLINE=str(row['flag']))
+        if (not row['passed'] or row['encoded_words'] <= 0
+                or row['profile'] != expected_profile or build['profile'] != expected_profile
+                or digest(row['binary']) != row['binary_sha256']
+                or digest(build['binary']) != build['binary_sha256']):
+            raise ValueError('outlined GELU committed fixture has changed')
+    defaults, emission = read(integration['defaults']), read(integration['emission'])
+    if (not defaults['passed'] or sorted(r['batch'] for r in defaults['rows']) != [1, 2, 4, 8, 16]
+            or any(not r['passed'] or r['words'] <= 0 or r['gelu_outline'] != 0
+                   for r in defaults['rows'])
+            or not emission['passed'] or not emission['invalid_setting_rejected']
+            or [r['flag'] for r in emission['rows']] != [0, 1]
+            or any(not r['matched'] or r['encoded_words'] <= 0 for r in emission['rows'])
+            or emission['rows'][1]['prototype'] != decision['library']):
+        raise ValueError('outlined GELU default or codegen checks are incomplete')
+    reuse = read(integration['model_reuse'])
+    model = read(reuse['source'])
+    if (reuse['proof'] != integration['model_bit_proof'] or not model['passed']
+            or model['passes'] != '5/5' or model['gate'] != decision['gate']
+            or model['execution']['artifact_id'] != verify(decision['library'])['artifact_id']):
+        raise ValueError('outlined GELU reused a different model cohort')
 
 
 def validate_fixed_feature_integration(folder, decision, final, suites,
@@ -932,7 +1006,7 @@ def main():
                 if key in ('TILEMEGA_F3_MATRIX_STORE', 'TILEMEGA_F3_WGMMA_QK',
                            'TILEMEGA_F3_WGMMA_PV', 'TILEMEGA_F3_PP_SIDE_NORM',
                            'TILEMEGA_F3_ATTENTION_VECTOR_STORE', 'TILEMEGA_F3_H800_GRID',
-                           'TILEMEGA_F3_RECOMPUTE_TASK'):
+                           'TILEMEGA_F3_RECOMPUTE_TASK', 'TILEMEGA_F3_GELU_OUTLINE'):
                     assert ('std::getenv("'+key+'")') in (
                         ROOT/'lib/Codegen/ForwardF3Codegen.cpp').read_text()
         if profile.get('TILEMEGA_F3_REPEAT') == '1':
