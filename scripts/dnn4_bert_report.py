@@ -2530,6 +2530,21 @@ def main():
                          'archive and restore the private source. No extra trace, '
                          'P-DNN or unchanged retiming; current B16 stays unchanged.')
     backoff = base/'gate_backoff_b4_admitted_v1/admission.json'
+    wide_b4 = base/'ffn2_stats96_b4_v2/closure.json'
+    if wide_b4.exists():
+        failure = read(wide_b4)
+        assert failure['status'] == 'compile_rejected' and not failure['hardware_executed']
+        lines += ['', 'Verified CPU-only B4 FFN2 64×192/TK64/S4/Slots6/reg trial '
+                  'starts from admitted gate backoff and uses whole-96 statistics '
+                  'plus the existing coalesced split layout. Independent twelve-case '
+                  'fixtures compile without spill, but the complete BERT consumer '
+                  'spills 56 B stores/144 B loads at 72/208. One documented repair '
+                  'uses the existing legal 72/216 profile and still spills 8 B/8 B. '
+                  'Reject before any GPU correctness or timing run. Both failures '
+                  'and the private patch are retained; private sources are restored. '
+                  'All five dependent host objects and two dependent CPU tests were '
+                  'rebuilt, but this is not a full build/ctest. No performance result '
+                  'is inferred from isolated body compilation. Current B4 stays unchanged.']
     if backoff.exists():
         admitted = read(backoff)
         lines += ['', 'Verified fixed failed-poll gate backoff is admitted for B4. '
