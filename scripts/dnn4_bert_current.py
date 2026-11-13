@@ -100,6 +100,8 @@ def select_successors(base, batch, specification):
                        'TILEMEGA_F3_CYCLIC_SLOTS': '1'}))
     if batch in (4, 8, 16):
         names.append((f'gelu_outline_b{batch}_admitted_v1', {'TILEMEGA_F3_GELU_OUTLINE': '1'}))
+    if batch == 4:
+        names.append(('gate_backoff_b4_admitted_v1', {'TILEMEGA_F3_GATE_BACKOFF': '1'}))
     for name, features in names:
         folder = base/name
         if not (folder/'experiment.json').exists():
@@ -146,6 +148,8 @@ def select_successors(base, batch, specification):
             count = 4 if batch == 16 else 2
         if name == 'full_store_bundle_b8_admitted_v1':
             count = 3
+        if name == 'gate_backoff_b4_admitted_v1':
+            count = 1
         if name in ('pipeline_reduction_b2_admitted_v1',
                     'gelu_outline_b4_admitted_v1', 'gelu_outline_b8_admitted_v1',
                     'gelu_outline_b16_admitted_v1'):
@@ -276,6 +280,10 @@ def select_successors(base, batch, specification):
             if final_name != predecessor+'/final_result.json':
                 raise ValueError('outlined GELU lacks its admitted predecessor')
             validate_gelu_outline_integration(folder, decision, final)
+        if name == 'gate_backoff_b4_admitted_v1':
+            if final_name != 'gelu_outline_b4_admitted_v1/final_result.json':
+                raise ValueError('gate backoff lacks its admitted predecessor')
+            validate_gate_backoff_integration(folder, decision, final)
         # Completed raw prototypes never appear in this ordered admission list.
         final_name = name+'/final_result.json'
         pair_name = name+'/experiment.json'
@@ -393,6 +401,79 @@ def validate_gelu_outline_integration(folder, decision, final):
             or len(model['processes']) != 5 or model['gate'] != decision['gate']
             or model['execution']['artifact_id'] != verify(decision['library'])['artifact_id']):
         raise ValueError('outlined GELU has a different model cohort')
+
+
+def validate_gate_backoff_integration(folder, decision, final):
+    if decision['batch'] != 4:
+        raise ValueError('gate backoff batch is not admitted')
+    validate_fixed_feature_integration(folder, decision, final, ['order'], '2',
+        ['TILEMEGA_F3_SIDE_NORM', 'TILEMEGA_F3_FULL_TILES',
+         'TILEMEGA_F3_H800_GRID', 'TILEMEGA_F3_RECOMPUTE_TASK',
+         'TILEMEGA_F3_GELU_OUTLINE', 'TILEMEGA_F3_GATE_BACKOFF'])
+    pair = decision['pair']
+    if not decision['accepted'] or pair['ratio'] >= 1-max(.005, pair['threshold']):
+        raise ValueError('gate backoff did not clear its predeclared pair threshold')
+    integration = read(folder/'integration.json')
+    digest = lambda p: hashlib.sha256(Path(p).read_bytes()).hexdigest()
+    for name in ('main_fixture', 'defaults', 'emission', 'model_cohort', 'body_reuse'):
+        if digest(integration[name]) != integration[name+'_sha256']:
+            raise ValueError('gate backoff integration receipt changed: '+name)
+    bit = read(integration['unit_bit_proof'])
+    control, candidate = read(bit['control']), read(decision['unit_gates'][0])
+    if (not bit['passed'] or not control['passed']
+            or len(control['processes']) != 5
+            or len({p['pid'] for p in control['processes']}) != 5
+            or any(p['exit_code'] or read(p['guard'])['code'] for p in control['processes'])
+            or bit['output_hash'] != candidate['output_hash']
+            or candidate['output_hash'] != control['output_hash']
+            or read(bit['candidate'])['processes'] != candidate['processes']):
+        raise ValueError('gate backoff changed ordering fixture output bytes')
+    profile = read(integration['codegen_proof'])['profile']
+    off = dict(profile, TILEMEGA_F3_GATE_BACKOFF='0')
+    validate_component_profile(bit['control'], {f'-D{k}={v}' for k, v in off.items()})
+    fixture = read(integration['main_fixture'])
+    if not fixture['passed'] or [r['flag'] for r in fixture['rows']] != [0, 1]:
+        raise ValueError('gate backoff lacks both committed ordering fixture proofs')
+    for row in fixture['rows']:
+        build = read(row['prototype_build'])
+        expected = dict(profile, TILEMEGA_F3_GATE_BACKOFF=str(row['flag']))
+        if (not row['passed'] or row['encoded_words'] <= 0
+                or row['profile'] != expected or build['profile'] != expected
+                or digest(row['binary']) != row['binary_sha256']
+                or digest(build['binary']) != build['binary_sha256']):
+            raise ValueError('gate backoff committed fixture has changed')
+    defaults, emission = read(integration['defaults']), read(integration['emission'])
+    if (not defaults['passed'] or sorted(r['batch'] for r in defaults['rows']) != [1, 2, 4, 8, 16]
+            or any(not r['passed'] or r['words'] <= 0 or r['gate_backoff'] != 0
+                   for r in defaults['rows'])
+            or not emission['passed'] or not emission['invalid_setting_rejected']
+            or [r['flag'] for r in emission['rows']] != [0, 1]
+            or any(not r['matched'] or r['encoded_words'] <= 0 for r in emission['rows'])
+            or emission['rows'][-1]['prototype'] != decision['library']):
+        raise ValueError('gate backoff default or codegen checks are incomplete')
+    # Standalone GEMM bodies have no stage gate. Reuse only the exact encoded
+    # program; the changed cross-CTA gate has its own fresh ordering cohort.
+    reuse = read(integration['body_reuse'])
+    gate = read(reuse['reused_gate'])
+    if (not reuse['passed'] or reuse['encoded_words'] <= 0
+            or reuse['gate_sha256'] != digest(reuse['reused_gate'])
+            or reuse['binary_sha256'] != digest(reuse['binary'])
+            or reuse['reference_sha256'] != digest(reuse['reference'])
+            or '-DTILEMEGA_F3_GATE_BACKOFF=1' not in reuse['command']
+            or not gate['passed'] or len(gate['processes']) != 17
+            or len({p['pid'] for p in gate['processes']}) != 17
+            or Counter(p['name'].split('-')[0] for p in gate['processes']) !=
+               Counter(unit=5, memcheck=1, initcheck=1, racecheck=5, synccheck=5)
+            or len({p['output_hash'] for p in gate['processes']}) != 1
+            or any(p['exit_code'] or read(p['guard'])['code']
+                   or p['binary_sha256'] != reuse['reference_sha256']
+                   or digest(p['log']) != p['sha256'] for p in gate['processes'])):
+        raise ValueError('gate backoff lacks its exact reused body cohort')
+    model = read(integration['model_cohort'])
+    if (not model['passed'] or model['passes'] != '5/5'
+            or len(model['processes']) != 5 or model['gate'] != decision['gate']
+            or model['execution']['artifact_id'] != verify(decision['library'])['artifact_id']):
+        raise ValueError('gate backoff has a different model cohort')
 
 
 def validate_fixed_feature_integration(folder, decision, final, suites,
@@ -1023,7 +1104,8 @@ def main():
                 if key in ('TILEMEGA_F3_MATRIX_STORE', 'TILEMEGA_F3_WGMMA_QK',
                            'TILEMEGA_F3_WGMMA_PV', 'TILEMEGA_F3_PP_SIDE_NORM',
                            'TILEMEGA_F3_ATTENTION_VECTOR_STORE', 'TILEMEGA_F3_H800_GRID',
-                           'TILEMEGA_F3_RECOMPUTE_TASK', 'TILEMEGA_F3_GELU_OUTLINE'):
+                           'TILEMEGA_F3_RECOMPUTE_TASK', 'TILEMEGA_F3_GELU_OUTLINE',
+                           'TILEMEGA_F3_GATE_BACKOFF'):
                     assert ('std::getenv("'+key+'")') in (
                         ROOT/'lib/Codegen/ForwardF3Codegen.cpp').read_text()
         if profile.get('TILEMEGA_F3_REPEAT') == '1':
