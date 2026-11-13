@@ -98,7 +98,7 @@ def select_successors(base, batch, specification):
                        'TILEMEGA_F3_RECOMPUTE_TASK': '1',
                        'TILEMEGA_F3_COALESCED_PARTIALS': '1',
                        'TILEMEGA_F3_CYCLIC_SLOTS': '1'}))
-    if batch in (8, 16):
+    if batch in (4, 8, 16):
         names.append((f'gelu_outline_b{batch}_admitted_v1', {'TILEMEGA_F3_GELU_OUTLINE': '1'}))
     for name, features in names:
         folder = base/name
@@ -147,7 +147,8 @@ def select_successors(base, batch, specification):
         if name == 'full_store_bundle_b8_admitted_v1':
             count = 3
         if name in ('pipeline_reduction_b2_admitted_v1',
-                    'gelu_outline_b8_admitted_v1', 'gelu_outline_b16_admitted_v1'):
+                    'gelu_outline_b4_admitted_v1', 'gelu_outline_b8_admitted_v1',
+                    'gelu_outline_b16_admitted_v1'):
             count = 1
         if (len(units) != count or len(set(map(str, units))) != count or
                 set(map(str, final.get('unit_gates', []))) != set(map(str, units)) or
@@ -171,7 +172,8 @@ def select_successors(base, batch, specification):
                 raise ValueError('follow-up used unqualified in-situ windows')
         pair = decision['pair']
         required_gain = .03 if name in ('ppstore_ffn1_b16_v1', 'pp64_ffn1_b16_v1',
-                                      'gelu_outline_b8_admitted_v1', 'gelu_outline_b16_admitted_v1') else 0
+                                      'gelu_outline_b4_admitted_v1', 'gelu_outline_b8_admitted_v1',
+                    'gelu_outline_b16_admitted_v1') else 0
         if name == 'ppnorm_ffn1_b16_v1':
             reference_stages = read(decision['reference']+'.plan.json')['native_forward']['stages']
             required_gain = 0 if reference_stages[4].get('sched') == 'pp' else .03
@@ -269,8 +271,8 @@ def select_successors(base, batch, specification):
                 raise ValueError('pipeline reduction lacks its admitted B2 predecessor')
             validate_pipeline_reduction_integration(folder, decision, final)
         if name == f'gelu_outline_b{batch}_admitted_v1':
-            predecessor = ('full_tiles_b16_admitted_v1' if batch == 16 else
-                           'full_store_bundle_b8_admitted_v1')
+            predecessor = ('full_store_bundle_b8_admitted_v1' if batch == 8 else
+                           f'full_tiles_b{batch}_admitted_v1')
             if final_name != predecessor+'/final_result.json':
                 raise ValueError('outlined GELU lacks its admitted predecessor')
             validate_gelu_outline_integration(folder, decision, final)
@@ -316,11 +318,12 @@ def validate_pipeline_reduction_integration(folder, decision, final):
 
 def validate_gelu_outline_integration(folder, decision, final):
     batch = decision['batch']
-    if batch not in (8, 16):
+    if batch not in (4, 8, 16):
         raise ValueError('outlined GELU batch is not admitted')
     features = ['TILEMEGA_F3_SIDE_NORM', 'TILEMEGA_F3_FULL_TILES',
-                'TILEMEGA_F3_H800_GRID', 'TILEMEGA_F3_MATRIX_STORE',
-                'TILEMEGA_F3_ATTENTION_VECTOR_STORE', 'TILEMEGA_F3_GELU_OUTLINE']
+                'TILEMEGA_F3_H800_GRID', 'TILEMEGA_F3_GELU_OUTLINE']
+    if batch in (8, 16):
+        features += ['TILEMEGA_F3_MATRIX_STORE', 'TILEMEGA_F3_ATTENTION_VECTOR_STORE']
     features += (['TILEMEGA_F3_CYCLIC_SLOTS', 'TILEMEGA_F3_REPEAT_SELECTOR']
                  if batch == 16 else ['TILEMEGA_F3_RECOMPUTE_TASK'])
     validate_fixed_feature_integration(folder, decision, final, ['body'],
