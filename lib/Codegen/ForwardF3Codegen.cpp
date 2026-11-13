@@ -231,6 +231,7 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
   bool full_tiles=false,repeat_selector=false;
   unsigned attention_rows=0;
   unsigned repeat_layers=2;
+  bool repeat_output_map=false;
   if(auto* setting=std::getenv("TILEMEGA_F3_REPEAT_ARITHMETIC")) {
     std::string value=setting;
     if(value!="0" && value!="1")
@@ -332,6 +333,12 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
     if(value!="0" && value!="1")throw std::invalid_argument("TILEMEGA_F3_REPEAT must be0 or1");
     enable_repeat=value=="1";
   }
+  if(auto* setting=std::getenv("TILEMEGA_F3_REPEAT_OUTPUT_MAP")) {
+    std::string value(setting);
+    if(value!="0" && value!="1")
+      throw std::invalid_argument("TILEMEGA_F3_REPEAT_OUTPUT_MAP must be0 or1");
+    repeat_output_map=value=="1";
+  }
   if(auto* setting=std::getenv("TILEMEGA_F3_REPEAT_LAYERS")) {
     std::string value=setting;
     if(value!="1" && value!="2")
@@ -391,6 +398,7 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
 
   std::ostringstream out,types;
   if(repeat_arithmetic)out<<"#define TILEMEGA_F3_REPEAT_ARITHMETIC 1\n";
+  if(repeat_output_map)out<<"#define TILEMEGA_F3_REPEAT_OUTPUT_MAP 1\n";
   if(gelu_outline)out<<"#define TILEMEGA_F3_GELU_OUTLINE 1\n";
   if(gate_backoff)out<<"#define TILEMEGA_F3_GATE_BACKOFF 1\n";
   if(enable_side_norm)out<<"#define TILEMEGA_F3_SIDE_NORM 1\n";
@@ -828,6 +836,15 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
       // A virtual index per operand preserves aliases that differ by layer.
       // Only the Repeat view uses these IDs; physical bindings and prefetch
       // tables retain their original IDs and allocation sizes.
+      if(repeat_output_map)for(unsigned i=0;i<repeat_body;++i) {
+        // A first-layer TMA output needs a virtual map even when the normal
+        // layer uses register stores. Other repetitions map this ID to null.
+        if(loop_bindings[i].output_map==kAbsent)
+          for(unsigned rep=0;rep<repetitions;++rep) {
+            auto id=repeat_bindings[1+repeat_body*rep+i].output_map;
+            if(id!=kAbsent) {loop_bindings[i].output_map=id;break;}
+          }
+      }
       unsigned next_buffer=0,next_map=0;
       for(auto& binding:loop_bindings)binding=binding.Unaliased(next_buffer,next_map);
       repeated=next_buffer<=count && next_map<=map_count && remap();
