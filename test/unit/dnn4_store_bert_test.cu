@@ -335,6 +335,17 @@ void CheckGeluQuartet() {
 int main(int,char**) try {
   std::cout<<std::unitbuf;
 #ifdef DNN4_GELU_OUTLINE_TEST
+#ifdef DNN4_GELU_OUTLINE_B8_TEST
+  CheckGeluQuartet();
+  DenseCase<1024,3072,768,128,96,1,2,12,64,7,0>();
+  DenseCase<1025,3072,768,128,96,1,2,12,64,7,0>();
+  DenseCase<1024,3072,768,128,128,1,2,12,64,5,1>();
+  DenseCase<1025,3072,768,128,128,1,2,12,64,5,1>();
+  DenseCase<256,3072,768,64,128,1,2,12,128,4,0>();
+  DenseCase<257,3072,768,64,128,1,2,12,128,4,0>();
+  DenseCase<1024,768,3072,128,64,1,1,12,64,8,1>();
+  DenseCase<1025,2304,768,128,64,1,0,12,64,8,0>();
+#else
   CheckGeluQuartet();
   DenseCase<2048,3072,768,128,128,1,2,12,64,5,1>();
   DenseCase<2049,3072,768,128,128,1,2,12,64,5,1>();
@@ -344,6 +355,7 @@ int main(int,char**) try {
   DenseCase<257,3072,768,64,128,1,2,12,128,4,0>();
   DenseCase<2048,768,3072,128,128,1,1,12,64,5,1>();
   DenseCase<2049,2304,768,128,96,1,0,12,64,7,0>();
+#endif
 #elif defined(DNN4_PIPELINE_REDUCTION_TEST)
   DenseCase<256,2304,768,64,128,1,0,1,64,4,0>();
   DenseCase<257,2304,768,64,128,1,0,1,64,4,0>();
