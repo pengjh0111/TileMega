@@ -2484,6 +2484,15 @@ def main():
                   'all five affected host objects and two CPU tests rebuild/pass. '
                   'Twelve mixed-grain fixtures compile. Independent body17/model5 '
                   'and a gain above3% and noise remain mandatory.']
+        scoped_closed = base/'ffn2_stats32_b16_v1/closure.json'
+        if scoped_closed.exists():
+            closure = read(scoped_closed)
+            assert closure['status'] == 'pair_rejected'
+            lines.append('Verified control5, body17 and model5 pass; GPU3 pair '
+                         '1.233856→1.215232ms gains1.509% above0.843% noise, but '
+                         'fails the predeclared3% minimum. The minimum is retained: '
+                         'no admission, P-DNN or unchanged retiming. Private sources '
+                         'are archived and restored; the current B16 artifact stays unchanged.')
     gelu_store = continuation/'gelu_store_bundle_b4_v1/experiment.json'
     if gelu_store.exists():
         trial = read(gelu_store)
