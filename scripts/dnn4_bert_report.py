@@ -192,6 +192,7 @@ def main():
                ('residual warp handoff B16', continuation/'residual_warp_b16_v1/experiment.json'),
                ('direct statistics B16', continuation/'direct_norm_b16_v3/experiment.json'),
                ('consumer row partials32 B4', continuation/'rowstats32_b4_v1/experiment.json'),
+               ('row partials32 TN96 FFN2 B16', continuation/'rowstats32_tn96_b16_v1/experiment.json'),
                ('outlined GELU plus stores B4', continuation/'gelu_store_bundle_b4_v1/experiment.json'),
                ('outlined GELU B4', continuation/'gelu_outline_b4_v1/experiment.json'),
                ('outlined GELU B8', continuation/'gelu_outline_b8_v1/experiment.json'),
@@ -203,7 +204,7 @@ def main():
         if not path.exists():
             continue
         experiment = read(path)
-        if name == 'consumer row partials32 B4':
+        if name in ('consumer row partials32 B4', 'row partials32 TN96 FFN2 B16'):
             functional = read(path.parent/'functional_gate.json')
             body = read(Path(functional['body']))
             model = read(Path(functional['model']))
@@ -216,7 +217,9 @@ def main():
                     or len({p['output_hash'] for p in processes}) != 1
                     or not model['passed'] or model['passes'] != '5/5'
                     or experiment['accepted'] !=
-                    (experiment['pair']['ratio'] < 1-experiment['pair']['threshold'])):
+                    (experiment['pair']['ratio'] < 1-max(
+                        .03 if name.endswith('B16') else 0,
+                        experiment['pair']['threshold']))):
                 raise ValueError('row partials32 lacks its complete strict gates')
         if name == 'outlined GELU plus stores B4':
             reuse = read(path.parent/'component_reuse.json')
@@ -2435,6 +2438,23 @@ def main():
                          'nonadditive. Reject the fixed32-grain change alone, retain '
                          'the admitted64-column implementation and restore the private '
                          'source after archiving its patch. No unchanged retiming.')
+    row96_cpu = base/'rowstats32_tn96_b16_v1/layout_proof.json'
+    if row96_cpu.exists():
+        contract = read(row96_cpu)
+        assert contract['passed'] and len(contract['changed_buffers']) == 23
+        lines += ['', 'Verified private B16 CPU preparation changes only12 FFN2 '
+                  'coordinates from128×128/TK64/S1/Slots5/TMA to128×96/TK64/S1/Slots5/reg, '
+                  'with the32-column statistics contract enabling TN96 writers. '
+                  'Current FFN2 main-loop trace327.360µs motivates this separate '
+                  'section9 experiment; the failed B4 grain-only trial stays rejected. '
+                  'Real-codegen default0 preserves all instruction words; candidate '
+                  'SASS306560→328448B with zero spill/local-memory instructions. '
+                  'All five affected host objects and two affected CPU tests are '
+                  'rebuilt; full CMake remains externally blocked. Old-grain TN96 and '
+                  'TM64/TN96 with partial WG blocks are rejected. Twelve exact/edge '
+                  'fixtures compile. Unchanged FP32 thresholds, independent process '
+                  'determinism and a same-card gain exceeding both3% and noise are '
+                  'required before separate production admission.']
     gelu_store = continuation/'gelu_store_bundle_b4_v1/experiment.json'
     if gelu_store.exists():
         trial = read(gelu_store)
