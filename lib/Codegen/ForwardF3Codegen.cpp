@@ -219,6 +219,7 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
   bool enable_side_norm=false;
   unsigned register_budget=0;
   bool repeat_arithmetic=false;
+  bool gelu_outline=false;
   bool cyclic_slots=false;
   bool coalesced_partials=false;
   bool matrix_store=false;
@@ -300,6 +301,12 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
       throw std::invalid_argument("TILEMEGA_F3_ATTENTION_ROWS must be16,32,64 or128");
     attention_rows=unsigned(std::stoul(value));
   }
+  if(auto* setting=std::getenv("TILEMEGA_F3_GELU_OUTLINE")) {
+    std::string value=setting;
+    if(value!="0" && value!="1")
+      throw std::invalid_argument("TILEMEGA_F3_GELU_OUTLINE must be0 or1");
+    gelu_outline=value=="1";
+  }
   if(auto* setting=std::getenv("TILEMEGA_F3_REPEAT")) {
     std::string value=setting;
     if(value!="0" && value!="1")throw std::invalid_argument("TILEMEGA_F3_REPEAT must be0 or1");
@@ -364,6 +371,7 @@ std::string EmitF3ForwardProgram(mlir::ModuleOp module) {
 
   std::ostringstream out,types;
   if(repeat_arithmetic)out<<"#define TILEMEGA_F3_REPEAT_ARITHMETIC 1\n";
+  if(gelu_outline)out<<"#define TILEMEGA_F3_GELU_OUTLINE 1\n";
   if(enable_side_norm)out<<"#define TILEMEGA_F3_SIDE_NORM 1\n";
   if(register_budget)out<<"#define TILEMEGA_F3_REGISTER_BUDGET "<<register_budget<<"\n";
   if(cyclic_slots)out<<"#define TILEMEGA_F3_CYCLIC_SLOTS 1\n";

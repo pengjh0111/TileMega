@@ -631,12 +631,26 @@ struct Sm90F3Gemm {
             auto pair=*reinterpret_cast<float2 const*>(Side::Vector(side,v)+tile_col);
             columns[0][v]=pair.x;columns[1][v]=pair.y;
           }
+#if TILEMEGA_F3_GELU_OUTLINE
+          if constexpr(Chain::kQuartetGelu) {
+            float values[4]={tile(i),tile(i+1),tile(i+2),tile(i+3)};
+            Chain::ApplyFour(values,tile_row,tile_col,side,means[s],inverses[s],e,columns);
+            #pragma unroll
+            for(int value=0;value<4;++value)tile(i+value)=values[value];
+          }
+#endif
           #pragma unroll
           for(int row=0;row<2;++row) {
             int j=i+2*row,live_row=tile_row+8*row;
             float mean=means[s][row],inverse=inverses[s][row];
+#if TILEMEGA_F3_GELU_OUTLINE
+            if constexpr(!Chain::kQuartetGelu) {
+#endif
             tile(j)=Chain::Apply(tile(j),live_row,tile_col,side,mean,inverse,e,columns[0]);
             tile(j+1)=Chain::Apply(tile(j+1),live_row,tile_col+1,side,mean,inverse,e,columns[1]);
+#if TILEMEGA_F3_GELU_OUTLINE
+            }
+#endif
             if constexpr(Chain::kWritesStats) {
               if(tile_col<width) {
                 row_accum.sum[s][row]+=tile(j);

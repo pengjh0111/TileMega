@@ -286,9 +286,65 @@ template<int B> void SmallBertCase() {
   Compare(ln.Get(),normalized);std::cout<<"embedding_ln_b"<<B<<" PASS\n";
 }
 
+
+#ifdef DNN4_GELU_OUTLINE_TEST
+__device__ __noinline__ float OriginalScalarGelu(float x) {
+  return Sm90F3GeluErf(x);
+}
+__global__ void GeluQuartetAccuracy(unsigned* errors) {
+  constexpr unsigned count=1u<<24,total=count+65536u;
+  for(unsigned base=4*(blockIdx.x*blockDim.x+threadIdx.x);base<total;
+      base+=4*gridDim.x*blockDim.x) {
+    float input[4],values[4];bool finite[4];
+    #pragma unroll
+    for(unsigned j=0;j<4;++j) {
+      unsigned i=base+j,bits=i-count;
+      finite[j]=i<count || (bits&0x7f80u)!=0x7f80u;
+      input[j]=i<count?-8.f+16.f*(float(i)/float(count-1)):
+          (finite[j]?__uint_as_float(bits<<16):0.f);
+      values[j]=input[j];
+    }
+#if TILEMEGA_F3_GELU_OUTLINE
+    auto result=Sm90F3GeluErfFour(make_float4(values[0],values[1],values[2],values[3]));
+    values[0]=result.x;values[1]=result.y;values[2]=result.z;values[3]=result.w;
+#else
+    #pragma unroll
+    for(int j=0;j<4;++j)values[j]=OriginalScalarGelu(values[j]);
+#endif
+    #pragma unroll
+    for(int j=0;j<4;++j)if(finite[j]) {
+      float old=OriginalScalarGelu(input[j]);
+      float reference=.5f*input[j]*(1.f+erff(input[j]*.70710678118654752f));
+      float error=fabsf(values[j]-reference)/fmaxf(1.f,fabsf(input[j]));
+      if(__float_as_uint(values[j])!=__float_as_uint(old))atomicAdd(errors,1u);
+      if(!isfinite(values[j]) || !(error<=1e-6f))atomicAdd(errors+1,1u);
+    }
+  }
+}
+void CheckGeluQuartet() {
+  Device<unsigned> counters(2);counters.Put(std::vector<unsigned>(2,0));
+  GeluQuartetAccuracy<<<132,256>>>(counters.data);
+  Check(cudaGetLastError());Check(cudaDeviceSynchronize());
+  auto result=counters.Get();
+  if(result[0] || result[1])throw std::runtime_error("GELU quartet exact/domain mismatch "+
+      std::to_string(result[0])+"/"+std::to_string(result[1]));
+  Hash(result);
+}
+
+#endif
 int main(int,char**) try {
   std::cout<<std::unitbuf;
-#ifdef DNN4_PIPELINE_REDUCTION_TEST
+#ifdef DNN4_GELU_OUTLINE_TEST
+  CheckGeluQuartet();
+  DenseCase<2048,3072,768,128,128,1,2,12,64,5,1>();
+  DenseCase<2049,3072,768,128,128,1,2,12,64,5,1>();
+  DenseCase<2048,3072,768,128,96,1,2,12,64,7,0>();
+  DenseCase<2049,3072,768,128,96,1,2,12,64,7,0>();
+  DenseCase<256,3072,768,64,128,1,2,12,128,4,0>();
+  DenseCase<257,3072,768,64,128,1,2,12,128,4,0>();
+  DenseCase<2048,768,3072,128,128,1,1,12,64,5,1>();
+  DenseCase<2049,2304,768,128,96,1,0,12,64,7,0>();
+#elif defined(DNN4_PIPELINE_REDUCTION_TEST)
   DenseCase<256,2304,768,64,128,1,0,1,64,4,0>();
   DenseCase<257,2304,768,64,128,1,0,1,64,4,0>();
   DenseCase<256,2304,768,128,64,1,0,12,64,3,0>();

@@ -7,6 +7,13 @@
 #include <cutlass/bfloat16.h>
 #include <cstddef>
 
+#ifndef TILEMEGA_F3_GELU_OUTLINE
+#define TILEMEGA_F3_GELU_OUTLINE 0
+#endif
+#if TILEMEGA_F3_GELU_OUTLINE != 0 && TILEMEGA_F3_GELU_OUTLINE != 1
+#error "F3 GELU quartet must be0 or1"
+#endif
+
 // The F3 epilogue chain (DNN3 prompt §6.4 step 3). The accumulator never
 // leaves the registers: the producer has already prefetched this tile's
 // residual, per-column vectors and row statistics into the stage's side area,
@@ -34,6 +41,38 @@ __device__ __forceinline__ float Sm90F3GeluErf(float x) {
   float erf=1.f-poly*Sm90F3Async::Exp2(-z*z*1.4426950408889634f);
   return .5f*x*(1.f+copysignf(erf,x));
 }
+
+#if TILEMEGA_F3_GELU_OUTLINE
+// Four independent columns/rows expose the same scalar recurrence's ILP;
+// each value retains the original operation order and rounding points.
+__device__ __noinline__ float4 Sm90F3GeluErfFour(float4 input) {
+  float x[4]={input.x,input.y,input.z,input.w};
+  float z[4],denominator[4],t[4],poly[4];
+  #pragma unroll
+  for(int j=0;j<4;++j) {
+    z[j]=fabsf(x[j]*.70710678118654752f);
+    denominator[j]=__fmaf_rn(.3275911f,z[j],1.f);
+    asm("rcp.approx.ftz.f32 %0, %1;":"=f"(t[j]):"f"(denominator[j]));
+  }
+  #pragma unroll
+  for(int j=0;j<4;++j)
+    t[j]=__fmaf_rn(__fmaf_rn(-denominator[j],t[j],1.f),t[j],t[j]);
+  #pragma unroll
+  for(int j=0;j<4;++j)poly[j]=__fmaf_rn(t[j],1.061405429f,-1.453152027f);
+  #pragma unroll
+  for(int j=0;j<4;++j)poly[j]=__fmaf_rn(t[j],poly[j],1.421413741f);
+  #pragma unroll
+  for(int j=0;j<4;++j)poly[j]=__fmaf_rn(t[j],poly[j],-.284496736f);
+  #pragma unroll
+  for(int j=0;j<4;++j)poly[j]=t[j]*__fmaf_rn(t[j],poly[j],.254829592f);
+  #pragma unroll
+  for(int j=0;j<4;++j) {
+    float erf=1.f-poly[j]*Sm90F3Async::Exp2(-z[j]*z[j]*1.4426950408889634f);
+    x[j]=.5f*x[j]*(1.f+copysignf(erf,x[j]));
+  }
+  return make_float4(x[0],x[1],x[2],x[3]);
+}
+#endif
 
 template<Sm90ForwardOp Kind,unsigned Vector=0,
          codegen::DmActivation Activation=codegen::DmActivation::kRelu,
@@ -118,6 +157,35 @@ struct Sm90F3Chain {
   static constexpr bool kNeedsStats=
       ((Step::kKind==Sm90ForwardOp::kDeferredLayerNorm ||
         Step::kKind==Sm90ForwardOp::kResidualLN) || ...);
+#if TILEMEGA_F3_GELU_OUTLINE
+  static constexpr bool kQuartetGelu=
+      ((Step::kKind==Sm90ForwardOp::kActivation &&
+        Step::kActivation==codegen::DmActivation::kGeluErf) || ...);
+
+  template<class S>
+  __device__ static __forceinline__ void ApplyFourOne(float (&values)[4],int row,int col,
+      char const* side,float const (&means)[2],float const (&inverses)[2],
+      Sm90F3EpilogueOperands const& p,float const (&columns)[2][4]) {
+    if constexpr(S::kKind==Sm90ForwardOp::kActivation &&
+        S::kActivation==codegen::DmActivation::kGeluErf) {
+      auto result=Sm90F3GeluErfFour(make_float4(values[0],values[1],values[2],values[3]));
+      values[0]=result.x;values[1]=result.y;values[2]=result.z;values[3]=result.w;
+    }
+    else {
+      #pragma unroll
+      for(int half=0;half<2;++half) {
+        ApplyOne<S>(values[half*2],row+half*8,col,side,means[half],inverses[half],p,columns[0]);
+        ApplyOne<S>(values[half*2+1],row+half*8,col+1,side,means[half],inverses[half],p,columns[1]);
+      }
+    }
+  }
+
+  __device__ static __forceinline__ void ApplyFour(float (&values)[4],int row,int col,
+      char const* side,float const (&means)[2],float const (&inverses)[2],
+      Sm90F3EpilogueOperands const& p,float const (&columns)[2][4]) {
+    (ApplyFourOne<Step>(values,row,col,side,means,inverses,p,columns),...);
+  }
+#endif
   // A gate pair halves the width and only NAFNet uses it; F3 rejects it, and
   // a residual only ever takes the dense mapping (§6.4 step 3, kGatePair).
   static_assert(((Step::kKind!=Sm90ForwardOp::kGatePair) && ...),
