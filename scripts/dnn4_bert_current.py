@@ -102,6 +102,10 @@ def select_successors(base, batch, specification):
         names.append((f'gelu_outline_b{batch}_admitted_v1', {'TILEMEGA_F3_GELU_OUTLINE': '1'}))
     if batch == 4:
         names.append(('gate_backoff_b4_admitted_v1', {'TILEMEGA_F3_GATE_BACKOFF': '1'}))
+    if batch == 16:
+        names.append(('attention64_b16_admitted_v1', {
+            'TILEMEGA_F3_WGMMA_QK': '1', 'TILEMEGA_F3_WGMMA_PV': '1',
+            'TILEMEGA_F3_ATTENTION_ROWS': '64'}))
     for name, features in names:
         folder = base/name
         if not (folder/'experiment.json').exists():
@@ -149,6 +153,8 @@ def select_successors(base, batch, specification):
         if name == 'full_store_bundle_b8_admitted_v1':
             count = 3
         if name == 'gate_backoff_b4_admitted_v1':
+            count = 1
+        if name == 'attention64_b16_admitted_v1':
             count = 1
         if name in ('pipeline_reduction_b2_admitted_v1',
                     'gelu_outline_b4_admitted_v1', 'gelu_outline_b8_admitted_v1',
@@ -284,6 +290,10 @@ def select_successors(base, batch, specification):
             if final_name != 'gelu_outline_b4_admitted_v1/final_result.json':
                 raise ValueError('gate backoff lacks its admitted predecessor')
             validate_gate_backoff_integration(folder, decision, final)
+        if name == 'attention64_b16_admitted_v1':
+            if final_name != 'gelu_outline_b16_admitted_v1/final_result.json':
+                raise ValueError('attention combination lacks its admitted predecessor')
+            validate_attention64_integration(folder, decision, final)
         # Completed raw prototypes never appear in this ordered admission list.
         final_name = name+'/final_result.json'
         pair_name = name+'/experiment.json'
@@ -476,8 +486,88 @@ def validate_gate_backoff_integration(folder, decision, final):
         raise ValueError('gate backoff has a different model cohort')
 
 
+def validate_attention64_integration(folder, decision, final):
+    if decision['batch'] != 16:
+        raise ValueError('attention combination batch is not admitted')
+    gpu = validate_followup_allocation(folder, folder.name, decision, final)
+    validate_fixed_feature_integration(folder, decision, final, ['attention'], '3',
+        ['TILEMEGA_F3_SIDE_NORM', 'TILEMEGA_F3_FULL_TILES',
+         'TILEMEGA_F3_H800_GRID', 'TILEMEGA_F3_GELU_OUTLINE',
+         'TILEMEGA_F3_MATRIX_STORE', 'TILEMEGA_F3_ATTENTION_VECTOR_STORE',
+         'TILEMEGA_F3_CYCLIC_SLOTS', 'TILEMEGA_F3_REPEAT_SELECTOR',
+         'TILEMEGA_F3_WGMMA_QK', 'TILEMEGA_F3_WGMMA_PV'], gpu=gpu)
+    pair = decision['pair']
+    if not decision['accepted'] or pair['ratio'] >= 1-max(.005, pair['threshold']):
+        raise ValueError('attention combination did not clear its predeclared pair')
+    integration = read(folder/'integration.json')
+    digest = lambda p: hashlib.sha256(Path(p).read_bytes()).hexdigest()
+    for name in ('main_fixture', 'defaults', 'emission', 'model_cohort',
+                 'contract', 'layout', 'scope_qualification'):
+        if digest(integration[name]) != integration[name+'_sha256']:
+            raise ValueError('attention integration receipt changed: '+name)
+    profile = read(integration['codegen_proof'])['profile']
+    if profile.get('TILEMEGA_F3_ATTENTION_ROWS') != '64':
+        raise ValueError('attention combination has a different query block')
+    off = dict(profile, TILEMEGA_F3_WGMMA_QK='0', TILEMEGA_F3_WGMMA_PV='0',
+               TILEMEGA_F3_ATTENTION_ROWS='128')
+    bit = read(integration['unit_bit_proof'])
+    control, candidate = read(bit['control']), read(decision['unit_gates'][0])
+    if (not bit['passed'] or not control['passed']
+            or len(control['processes']) != 5
+            or len({p['pid'] for p in control['processes']}) != 5
+            or any(p['exit_code'] or read(p['guard'])['code'] for p in control['processes'])
+            or bit['output_hash'] != candidate['output_hash']
+            or candidate['output_hash'] != control['output_hash']
+            or read(bit['candidate'])['processes'] != candidate['processes']):
+        raise ValueError('attention combination changed per-head output bytes')
+    validate_component_profile(bit['control'], {f'-D{k}={v}' for k, v in off.items()})
+    fixture = read(integration['main_fixture'])
+    if not fixture['passed'] or [r['flag'] for r in fixture['rows']] != [0, 1]:
+        raise ValueError('attention combination lacks both committed fixture proofs')
+    for row in fixture['rows']:
+        build = read(row['prototype_build'])
+        expected = profile if row['flag'] else off
+        if (not row['passed'] or row['encoded_words'] <= 0
+                or row['profile'] != expected or build['profile'] != expected
+                or digest(row['binary']) != row['binary_sha256']
+                or digest(build['binary']) != build['binary_sha256']):
+            raise ValueError('attention combination committed fixture has changed')
+    defaults, emission = read(integration['defaults']), read(integration['emission'])
+    if (not defaults['passed'] or sorted(r['batch'] for r in defaults['rows']) != [1, 2, 4, 8, 16]
+            or any(not r['passed'] or r['words'] <= 0 or r['wgmma_qk'] or r['wgmma_pv']
+                   for r in defaults['rows'])
+            or not emission['passed'] or emission['invalid_settings_rejected'] !=
+               ['TILEMEGA_F3_WGMMA_QK', 'TILEMEGA_F3_WGMMA_PV']
+            or [r['flag'] for r in emission['rows']] != [0, 1]
+            or any(not r['matched'] or r['encoded_words'] <= 0 for r in emission['rows'])
+            or emission['rows'][-1]['prototype'] != decision['library']):
+        raise ValueError('attention default or real-codegen checks are incomplete')
+    contract = read(integration['contract'])
+    layout = read(integration['layout'])
+    scope = read(integration['scope_qualification'])
+    if (not contract['passed'] or not contract['normalized_generated_source_identical']
+            or not contract['manifest_identical_except_verified_module_path']
+            or len(contract['rows']) != 2
+            or any(len(r['query_map_indices']) != 12 for r in contract['rows'])
+            or contract['rows'][0]['query_map_indices'] != contract['rows'][1]['query_map_indices']
+            or not layout['passed'] or layout['coordinates'] != 28672
+            or digest(layout['snapshot']) != layout['snapshot_sha256']
+            or layout['main_source_sha256'] != layout['snapshot_sha256']
+            or digest(layout['log']) != layout['log_sha256']
+            or not scope['passed'] or scope['cohort_suite'] != 'attention'
+            or not scope['numerical_oracle_unchanged']
+            or scope['actual_disabled_features'] !=
+               ['TILEMEGA_F3_WGMMA_QK', 'TILEMEGA_F3_WGMMA_PV']):
+        raise ValueError('attention map, layout or receipt scope is incomplete')
+    model = read(integration['model_cohort'])
+    if (not model['passed'] or model['passes'] != '5/5'
+            or len(model['processes']) != 5 or model['gate'] != decision['gate']
+            or model['execution']['artifact_id'] != verify(decision['library'])['artifact_id']):
+        raise ValueError('attention combination has a different model cohort')
+
+
 def validate_fixed_feature_integration(folder, decision, final, suites,
-                                       register_profile, required_features):
+                                       register_profile, required_features, gpu=3):
     integration = read(folder/'integration.json')
     digest = lambda p: hashlib.sha256(Path(p).read_bytes()).hexdigest()
     proof = read(integration['codegen_proof'])
@@ -525,10 +615,10 @@ def validate_fixed_feature_integration(folder, decision, final, suites,
                     for r in fixtures['source_files'])):
             raise ValueError('store bundle fixture source differs from its main proof')
         for process in processes:
-            gpu = process.get('gpu', gate['gpu'])
+            component_gpu = process.get('gpu', gate['gpu'])
             if (process['binary_sha256'] != row['binary_sha256'] or
-                    process.get('gpu_lock', f'/tmp/tilemega_gpu{gpu}.lock') !=
-                    f'/tmp/tilemega_gpu{gpu}.lock'):
+                    process.get('gpu_lock', f'/tmp/tilemega_gpu{component_gpu}.lock') !=
+                    f'/tmp/tilemega_gpu{component_gpu}.lock'):
                 raise ValueError('store bundle component used a different binary or lock')
     model = read(integration['model_bit_proof'])
     outputs = lambda p: [o['output_sha256'] for c in read(p)['cases'] for o in c['outputs']]
@@ -538,13 +628,13 @@ def validate_fixed_feature_integration(folder, decision, final, suites,
             or model['hashes'] != outputs(decision['reference_gate'])):
         raise ValueError('store bundle changed the strict model output bytes')
     ledger = read(integration['ledger_receipt'])
-    if (ledger['trace_level'] != 1 or ledger['gpu'] != 3
+    if (ledger['trace_level'] != 1 or ledger['gpu'] != gpu
             or ledger['reference_sha256'] != digest(decision['library'])
             or ledger['ledger'] != final['ledger']
             or len(list(csv.DictReader(Path(final['ledger']).open()))) != 63):
         raise ValueError('store bundle lacks the exact measured binary ledger')
-    validate_timing_gpu(decision['pair'], 3, 'ABABAB')
-    validate_timing_gpu(final['measurement'], 3, 'BBB')
+    validate_timing_gpu(decision['pair'], gpu, 'ABABAB')
+    validate_timing_gpu(final['measurement'], gpu, 'BBB')
 
 
 def validate_full_tiles_integration(folder, decision, final, batch):
@@ -749,6 +839,19 @@ def validate_timing_gpu(result, gpu, order):
 def validate_followup_allocation(folder, name, decision, final):
     if decision['pair']['gpu'] == 3:
         return 3
+    if name == 'attention64_b16_admitted_v1':
+        allocation = read(folder/'allocation.json')
+        authorization = read(allocation['authorization'])
+        plan = read(allocation['premeasurement_plan'])
+        if (decision['pair']['gpu'] != 0 or allocation['gpu'] != 0
+                or allocation['original_anchor_gpu'] != 3 or allocation['reanchored']
+                or authorization['allowed_gpu_indices'] != [0, 1, 2, 3]
+                or allocation['pair_order'] != 'ABABAB' or plan['timing_gpu'] != 0
+                or allocation['python_entry_root'] != '/root/python'):
+            raise ValueError('attention combination lacks its all-card allocation provenance')
+        validate_timing_gpu(decision['pair'], 0, 'ABABAB')
+        validate_timing_gpu(final['measurement'], 0, 'BBB')
+        return 0
     if name != 'boundary_cache216_b4_admitted_v1' or decision['pair']['gpu'] != 0:
         raise ValueError('follow-up did not clear its complete same-card pair: '+name)
     allocation = read(folder/'allocation.json')
