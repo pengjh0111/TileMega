@@ -191,6 +191,7 @@ def main():
                ('repaired profile3 catalog candidate2 B8', continuation/'candidate2_profile3_b8_v1/experiment.json'),
                ('residual warp handoff B16', continuation/'residual_warp_b16_v1/experiment.json'),
                ('direct statistics B16', continuation/'direct_norm_b16_v3/experiment.json'),
+               ('consumer row partials32 B4', continuation/'rowstats32_b4_v1/experiment.json'),
                ('outlined GELU plus stores B4', continuation/'gelu_store_bundle_b4_v1/experiment.json'),
                ('outlined GELU B4', continuation/'gelu_outline_b4_v1/experiment.json'),
                ('outlined GELU B8', continuation/'gelu_outline_b8_v1/experiment.json'),
@@ -202,6 +203,21 @@ def main():
         if not path.exists():
             continue
         experiment = read(path)
+        if name == 'consumer row partials32 B4':
+            functional = read(path.parent/'functional_gate.json')
+            body = read(Path(functional['body']))
+            model = read(Path(functional['model']))
+            processes = body['processes']
+            if (not functional['passed'] or not body['passed']
+                    or len({p['pid'] for p in processes}) != 17
+                    or Counter(p['name'].split('-')[0] for p in processes) !=
+                    Counter(unit=5, memcheck=1, initcheck=1, racecheck=5, synccheck=5)
+                    or any(p['exit_code'] or read(Path(p['guard']))['code'] for p in processes)
+                    or len({p['output_hash'] for p in processes}) != 1
+                    or not model['passed'] or model['passes'] != '5/5'
+                    or experiment['accepted'] !=
+                    (experiment['pair']['ratio'] < 1-experiment['pair']['threshold'])):
+                raise ValueError('row partials32 lacks its complete strict gates')
         if name == 'outlined GELU plus stores B4':
             reuse = read(path.parent/'component_reuse.json')
             proof = read(Path(reuse['source']))
@@ -2381,6 +2397,44 @@ def main():
         else:
             lines.append('Positive pair awaiting separate production admission.'
                          if trial['accepted'] else 'Rejected; retain the incumbent.')
+    row32_cpu = base/'rowstats32_b4_v1/layout_proof.json'
+    if row32_cpu.exists():
+        layout = read(row32_cpu)
+        if not layout['passed'] or len(layout['changed_buffers']) != 23:
+            raise ValueError('row partials32 lacks its buffer-layout proof')
+        lines += ['', 'Verified private section5.2 extension tests fixed32-column '
+                  'partials, removing the TM64/TN64 producer header merge and leaving '
+                  'ascending reduction to readers. It changes23 GEMM statistics '
+                  'buffers12→24; all other buffers, embeddingNT1, coordinates, register '
+                  'profile and store protocol remain unchanged. This explicitly '
+                  'deviates from the prescribed64-column granularity under user '
+                  'implementation discretion. Statistics reassociate: original FP32 '
+                  'thresholds and five-process determinism apply, without an incumbent '
+                  'byte-equality requirement. Real host0/1 builds have zero spill; '
+                  'default0 preserves instruction words and SASS239232→254720B. '
+                  'Two TN192/Slots4 edge fixtures exceeded the shared budget before '
+                  'GPU execution; the separate v2 fixture uses Slots3 in both arms '
+                  'and compiles16 cases. The actual B4 model coordinates never changed.']
+        row32_model = continuation/'rowstats32_b4_v1/model/result.json'
+        if row32_model.exists():
+            model = read(row32_model)
+            assert model['passed'] and model['passes'] == '5/5'
+            lines.append('Verified private row partials32 model5 passes on GPU3; '
+                         'minimum FP32 cosine0.99995744 with identical output bytes '
+                         'across its five processes. Functional correctness alone '
+                         'does not establish performance admission.')
+        row32_close = base/'rowstats32_b4_v1/closure.json'
+        if row32_close.exists():
+            closure = read(row32_close)
+            assert closure['status'] == 'pair_rejected'
+            lines.append('Verified complete body17 and model5 gates pass, but the '
+                         'same-card pair is0.604976→0.650368ms,7.503% slower with '
+                         '3.508% noise. Required trace shows projection106.304→114.400µs '
+                         'and its epilogue22.624→26.400µs; FFN2 stage211.264→209.792µs '
+                         'while its epilogue16.928→17.568µs. Trace maxima are '
+                         'nonadditive. Reject the fixed32-grain change alone, retain '
+                         'the admitted64-column implementation and restore the private '
+                         'source after archiving its patch. No unchanged retiming.')
     gelu_store = continuation/'gelu_store_bundle_b4_v1/experiment.json'
     if gelu_store.exists():
         trial = read(gelu_store)

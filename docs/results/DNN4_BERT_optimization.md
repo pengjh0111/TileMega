@@ -172,6 +172,7 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | repaired profile3 catalog candidate2 B8 | 3 | 0.922640 | 0.933696 | -1.198 | 1.484 | False |
 | residual warp handoff B16 | 3 | 1.284976 | 1.284864 | +0.009 | 2.142 | False |
 | direct statistics B16 | 3 | 1.270656 | 1.273568 | -0.229 | 3.496 | False |
+| consumer row partials32 B4 | 3 | 0.604976 | 0.650368 | -7.503 | 3.508 | False |
 | outlined GELU plus stores B4 | 3 | 0.605472 | 0.595968 | +1.570 | 2.056 | False |
 | outlined GELU B4 | 3 | 0.643440 | 0.605616 | +5.878 | 0.724 | True |
 | outlined GELU B8 | 3 | 0.921376 | 0.853296 | +7.389 | 2.070 | True |
@@ -567,6 +568,10 @@ Verified main-codegen and committed-fixture instruction identity,17 corrupted-re
 
 Verified outlined GELU B4 uses the unchanged current coordinates and72/208 profile. Fresh control5/body17/model5 pass, including the full2^24-point and finite-BF16 precision domain and identical incumbent model bytes. GPU3 pair 0.643440→0.605616ms, noise0.724%.
 Verified main-codegen and committed-fixture instruction identity,17 corrupted-receipt rejections and the exact 63-stage ledger complete admission. P-DNN 0.604784ms; p900.607776ms; range0.001056ms. The fixed BF16 target is retained and the feature remains opt-in.
+
+Verified private section5.2 extension tests fixed32-column partials, removing the TM64/TN64 producer header merge and leaving ascending reduction to readers. It changes23 GEMM statistics buffers12→24; all other buffers, embeddingNT1, coordinates, register profile and store protocol remain unchanged. This explicitly deviates from the prescribed64-column granularity under user implementation discretion. Statistics reassociate: original FP32 thresholds and five-process determinism apply, without an incumbent byte-equality requirement. Real host0/1 builds have zero spill; default0 preserves instruction words and SASS239232→254720B. Two TN192/Slots4 edge fixtures exceeded the shared budget before GPU execution; the separate v2 fixture uses Slots3 in both arms and compiles16 cases. The actual B4 model coordinates never changed.
+Verified private row partials32 model5 passes on GPU3; minimum FP32 cosine0.99995744 with identical output bytes across its five processes. Functional correctness alone does not establish performance admission.
+Verified complete body17 and model5 gates pass, but the same-card pair is0.604976→0.650368ms,7.503% slower with 3.508% noise. Required trace shows projection106.304→114.400µs and its epilogue22.624→26.400µs; FFN2 stage211.264→209.792µs while its epilogue16.928→17.568µs. Trace maxima are nonadditive. Reject the fixed32-grain change alone, retain the admitted64-column implementation and restore the private source after archiving its patch. No unchanged retiming.
 
 Verified the fixed matrix/attention-store combination on the new B4 GELU artifact reuses the exact-profile B8 body cohort and the order/attention cohorts only after full GPU-word identity under GELU1. No component processes are claimed fresh. Fresh B4 model5 matches incumbent bytes. GPU3 pair 0.605472→0.595968ms; gain1.570% is below noise2.056%. Reject without P-DNN or unchanged retiming; current B4 remains the admitted GELU-only artifact.
 
