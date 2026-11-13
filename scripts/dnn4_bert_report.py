@@ -199,6 +199,7 @@ def main():
                ('failed-poll gate backoff B8', continuation/'gate_backoff_b8_v1/experiment.json'),
                ('failed-poll gate backoff B16', continuation/'gate_backoff_b16_v1/experiment.json'),
                ('Rows64 warpgroup attention B16', continuation/'attention64_b16_v1/experiment.json'),
+               ('Rows64 warpgroup attention B8', continuation/'attention64_b8_v1/experiment.json'),
                ('outlined split-K wide FFN2 B4', continuation/'ffn2_outline_b4_v1/experiment.json'),
                ('outlined GELU plus stores B4', continuation/'gelu_store_bundle_b4_v1/experiment.json'),
                ('outlined GELU B4', continuation/'gelu_outline_b4_v1/experiment.json'),
@@ -263,6 +264,7 @@ def main():
                 raise ValueError('GELU store interaction lacks qualified component reuse')
         if name in ('outlined GELU B4', 'outlined GELU B8',
                     'outlined GELU B16', 'WGMMA depth2 prologue B4',
+                    'Rows64 warpgroup attention B8',
                     'failed-poll gate backoff B8', 'failed-poll gate backoff B16'):
             bit = read(path.parent/'unit_bit_proof.json')
             control = read(Path(bit['control']))
@@ -283,7 +285,8 @@ def main():
                     hashes(model) != hashes(read(Path(experiment['reference']['gate']))) or
                     not read(Path(preparation['default_proof']))['passed'] or
                     experiment['accepted'] != (pair['ratio'] < 1-max(
-                        .005 if name.startswith('failed-poll gate backoff') else .03,
+                        .005 if name.startswith('failed-poll gate backoff') or
+                        name == 'Rows64 warpgroup attention B8' else .03,
                         pair['threshold']))):
                 raise ValueError('implementation trial lacks its complete unchanged gates')
             if name.startswith('failed-poll gate backoff'):
@@ -2711,6 +2714,24 @@ def main():
                   'chunk/register scan. Current B4 remains unchanged. Qualified '
                   'host validation rebuilt five dependent objects and two CPU '
                   'tests; full CMake remains externally blocked.']
+    attention8 = base/'attention64_b8_v1/closure.json'
+    if attention8.exists():
+        closed = read(attention8)
+        assert closed['status'] == 'pair_rejected'
+        lines += ['', 'Verified the fixed Rows64 plus SS-QK/RS-PV combination '
+                  'is independently tested on B8 at its unchanged 72/208, GELU, '
+                  'vector-store and task-recomputation profile. Actual main '
+                  'codegen preserves the disabled instruction words; only '
+                  '12 query boxes and attention row templates change. Both '
+                  'arms compile without spill. Fresh five-case attention '
+                  'control5, body17 and strict model5 pass on GPU3 and match '
+                  'incumbent output bytes. GPU3 P-PAIR 0.845344→0.846800 ms '
+                  'gives ratio1.001722 versus1.753% noise; reject without '
+                  'P-DNN, extra trace or unchanged retiming. The B16 gain '
+                  'does not transfer to B8. An initial unit-preparation '
+                  'dependency assertion failed before compilation; its '
+                  'snapshot is retained and the completed v2 cohort is fresh. '
+                  'Current B8 and its fixed target remain unchanged.']
     (args.out/'DNN4_BERT_optimization.md').write_text('\n'.join(lines)+'\n')
     print(json.dumps(dict(comparisons=len(rows), report=str(args.out/'DNN4_BERT_optimization.md'))))
 
