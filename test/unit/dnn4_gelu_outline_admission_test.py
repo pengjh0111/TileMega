@@ -69,9 +69,13 @@ def main():
     reject('missing committed fixture arm', integration['main_fixture'],
            lambda p: p['rows'].pop())
     reject('wrong emitted binary', integration['emission'],
-           lambda p: p['rows'][1].update(prototype=decision['reference']))
-    reject('wrong model reuse', integration['model_reuse'],
-           lambda p: p.update(proof=integration['unit_bit_proof']))
+           lambda p: p['rows'][-1].update(prototype=decision['reference']))
+    if 'model_reuse' in integration:
+        reject('wrong model reuse', integration['model_reuse'],
+               lambda p: p.update(proof=integration['unit_bit_proof']))
+    else:
+        reject('wrong model cohort', integration['model_cohort'],
+               lambda p: p.update(gate=decision['reference_gate']))
     print(json.dumps(dict(evidence='verified CPU-only', positive_receipt=True,
                          corrupted_receipts_rejected=failures)))
 
