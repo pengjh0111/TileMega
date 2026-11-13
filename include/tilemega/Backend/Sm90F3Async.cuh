@@ -38,6 +38,13 @@
 #define TM_F3_BLOCK_INDEX() blockIdx.x
 #endif
 
+#ifndef TILEMEGA_F3_GATE_BACKOFF
+#define TILEMEGA_F3_GATE_BACKOFF 0
+#endif
+#if TILEMEGA_F3_GATE_BACKOFF != 0 && TILEMEGA_F3_GATE_BACKOFF != 1
+#error "F3 gate backoff must be0 or1"
+#endif
+
 namespace tilemega::backend {
 
 struct Sm90F3Async {
@@ -207,7 +214,12 @@ struct Sm90F3Async {
   }
   __device__ static __forceinline__ void GateWait(unsigned long long* counter,
       unsigned long long target) {
-    while(GateLoad(counter)<target) {}
+    while(GateLoad(counter)<target) {
+#if TILEMEGA_F3_GATE_BACKOFF
+      // Match CUTLASS's failed-poll delay; every successful exit still acquires.
+      __nanosleep(40);
+#endif
+    }
   }
 
   // Split-K partials cross SMs, whose L1 caches are not coherent, so both
