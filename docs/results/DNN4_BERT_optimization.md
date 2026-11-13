@@ -173,6 +173,7 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | residual warp handoff B16 | 3 | 1.284976 | 1.284864 | +0.009 | 2.142 | False |
 | direct statistics B16 | 3 | 1.270656 | 1.273568 | -0.229 | 3.496 | False |
 | consumer row partials32 B4 | 3 | 0.604976 | 0.650368 | -7.503 | 3.508 | False |
+| row partials32 TN96 FFN2 B16 | 3 | 1.243808 | 1.253344 | -0.767 | 2.367 | False |
 | outlined GELU plus stores B4 | 3 | 0.605472 | 0.595968 | +1.570 | 2.056 | False |
 | outlined GELU B4 | 3 | 0.643440 | 0.605616 | +5.878 | 0.724 | True |
 | outlined GELU B8 | 3 | 0.921376 | 0.853296 | +7.389 | 2.070 | True |
@@ -574,6 +575,7 @@ Verified private row partials32 model5 passes on GPU3; minimum FP32 cosine0.9999
 Verified complete body17 and model5 gates pass, but the same-card pair is0.604976→0.650368ms,7.503% slower with 3.508% noise. Required trace shows projection106.304→114.400µs and its epilogue22.624→26.400µs; FFN2 stage211.264→209.792µs while its epilogue16.928→17.568µs. Trace maxima are nonadditive. Reject the fixed32-grain change alone, retain the admitted64-column implementation and restore the private source after archiving its patch. No unchanged retiming.
 
 Verified private B16 CPU preparation changes only12 FFN2 coordinates from128×128/TK64/S1/Slots5/TMA to128×96/TK64/S1/Slots5/reg, with the32-column statistics contract enabling TN96 writers. Current FFN2 main-loop trace327.360µs motivates this separate section9 experiment; the failed B4 grain-only trial stays rejected. Real-codegen default0 preserves all instruction words; candidate SASS306560→328448B with zero spill/local-memory instructions. All five affected host objects and two affected CPU tests are rebuilt; full CMake remains externally blocked. Old-grain TN96 and TM64/TN96 with partial WG blocks are rejected. Twelve exact/edge fixtures compile. Unchanged FP32 thresholds, independent process determinism and a same-card gain exceeding both3% and noise are required before separate production admission.
+Verified control5,body17 and strict model5 pass. GPU3 pair 1.243808→1.253344ms, ratio1.007667, noise2.367%. Reject; restore the five private files. No regression above3%, so no additional trace, P-DNN or unchanged retiming. Current B16 remains unchanged.
 
 Verified the fixed matrix/attention-store combination on the new B4 GELU artifact reuses the exact-profile B8 body cohort and the order/attention cohorts only after full GPU-word identity under GELU1. No component processes are claimed fresh. Fresh B4 model5 matches incumbent bytes. GPU3 pair 0.605472→0.595968ms; gain1.570% is below noise2.056%. Reject without P-DNN or unchanged retiming; current B4 remains the admitted GELU-only artifact.
 

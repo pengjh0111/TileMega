@@ -2455,6 +2455,17 @@ def main():
                   'fixtures compile. Unchanged FP32 thresholds, independent process '
                   'determinism and a same-card gain exceeding both3% and noise are '
                   'required before separate production admission.']
+        row96_closed = base/'rowstats32_tn96_b16_v1/closure.json'
+        if row96_closed.exists():
+            closure = read(row96_closed)
+            assert closure['status'] == 'pair_rejected'
+            lines.append('Verified control5,body17 and strict model5 pass. GPU3 '
+                         f'pair {closure["reference_ms"]:.6f}→'
+                         f'{closure["candidate_ms"]:.6f}ms, ratio'
+                         f'{closure["ratio"]:.6f}, noise'
+                         f'{100*closure["noise"]:.3f}%. Reject; restore the five private '
+                         'files. No regression above3%, so no additional trace, '
+                         'P-DNN or unchanged retiming. Current B16 remains unchanged.')
     gelu_store = continuation/'gelu_store_bundle_b4_v1/experiment.json'
     if gelu_store.exists():
         trial = read(gelu_store)
