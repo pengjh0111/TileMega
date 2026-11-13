@@ -2237,6 +2237,45 @@ def main():
         lines.append('Verified B16 late-wait fails its predeclared gain gate; the conditional '
                      'B8 trial is closed without hardware execution. CPU artifacts remain '
                      'available as evidence; no current artifact changes.')
+    outlined_failure = continuation/'gelu_outline_b16_v1/functional_failure.json'
+    if outlined_failure.exists():
+        failure = read(outlined_failure)
+        assert len(failure['processes']) == 5
+        lines += ['', 'Verified private outlined GELU reduces total B16 SASS '
+                  '322560→306560B, with zero spill and zero local-memory instructions. '
+                  'Default and real-codegen instruction proofs pass. Control5 and strict '
+                  'model5 pass, with model bytes matching the incumbent. The candidate '
+                  'full-domain bit gate fails0/5: each process has525595 differences from '
+                  'the inlined scalar oracle and zero violations of the original1e-6 '
+                  'erff bound. It fails before the eight body cases; no sanitizer or '
+                  'performance qualification follows. Frozen SASS shows separate multiply '
+                  'and subtract in that oracle, versus FMA in the outlined function and '
+                  'current production epilogue. This first fixture remains failed; '
+                  'no performance measurement follows it.']
+        repair = base/'gelu_outline_b16_v1/oracle_repair.json'
+        if repair.exists():
+            assert read(repair)['original_scalar_mismatches'] == 0
+            lines.append('Verified diagnostic5/5 calls the untouched original scalar body '
+                         'through a separate wrapper: zero bit differences from the candidate, '
+                         '525595 from the explicitly uncontracted expression, and maximum '
+                         'normalized error1.972e-7. Fixturev2 fixes the original reference call '
+                         'context to match production FMA; it retains the formula, full domain, '
+                         '1e-6 threshold and byte comparison. Fresh control5/body17 are required; '
+                         'the unchanged model5 receipt is reused explicitly. All v1 failures remain.')
+    depth_closure = base/'mma_depth2_b4_v1/closure.json'
+    if depth_closure.exists():
+        assert read(depth_closure)['status'] == 'cpu_lowering_rejected'
+        lines += ['', 'Verified a fixed B4 WGMMA-depth2 extension passes4550 abstract '
+                  'retirement cases, zero-spill compilation, default instruction identity '
+                  'and actual codegen checks. However, the emitted program contains60 '
+                  'complete waits for60 HGMMA instructions and no depth2 wait; control '
+                  'has10 depth1 and8 complete waits. The intended pipeline is absent. '
+                  'Reject before hardware execution and restore the private files; the '
+                  'compiler cause and any latency effect remain unestablished.']
+        if (base/'mma_depth2_b4_v2/closure.json').exists():
+            lines.append('Verified rematerializing the retired slot index also leaves60 '
+                         'complete waits for60 HGMMA instructions. This bookkeeping repair '
+                         'is rejected on CPU, without hardware execution; private files are restored.')
     if failed_pp.exists() and read(failed_pp).get('status') == 'component_rejected':
         lines.append('\nVerified fixed WG64 PP/P1/TMA candidate compiles without spill and both normal '
                      'unit cohorts pass5/5, but ordering synccheck reports1024 errors and residual-chain '
