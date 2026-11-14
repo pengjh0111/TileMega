@@ -60,7 +60,7 @@ def main():
     reject('missing authorization', original(allocation)['authorization'], lambda v: v.update(allowed_gpu_indices=[3]))
     authorization = Path(original(allocation)['authorization'])
     active = original(authorization)
-    if active['allowed_gpu_indices'] in ([0], [0, 2], [1]):
+    if active['allowed_gpu_indices'] in ([0], [0, 2], [1], [1, 2]):
         transition = authorization.parent/'gpu0_transition_1794589079598058614'
         reject('wrong historical permission', transition/'authorization_before.json', lambda v: v.update(allowed_gpu_indices=[0]))
         reject('wrong historical request', transition/'authorization_before.json', lambda v: v.update(request='different request'))
@@ -68,7 +68,7 @@ def main():
         reject('wrong transition card', transition/'result.json', lambda v: v.update(allowed_gpu_indices=[3]))
         reject('unknown new allocation', authorization, lambda v: v.update(gpu_restriction_request='unknown'))
         reject('timing after allocation change', authorization, lambda v: v.update(gpu_restriction_at=0))
-    if active['allowed_gpu_indices'] in ([0, 2], [1]):
+    if active['allowed_gpu_indices'] in ([0, 2], [1], [1, 2]):
         transition = authorization.parent/'gpu02_transition_1794626179576967972'
         reject('wrong fallback card', authorization, lambda v: v.update(fallback_gpu=1))
         reject('changed pair allocation policy', authorization, lambda v: v.update(same_card_pair_required=True))
@@ -77,7 +77,7 @@ def main():
         reject('wrong fallback before digest', transition/'result.json', lambda v: v.update(before_sha256='0'*64))
         reject('wrong fallback after digest', transition/'result.json', lambda v: v.update(after_sha256='0'*64))
         reject('wrong fallback effective time', transition/'result.json', lambda v: v.update(effective_at=0))
-    if active['allowed_gpu_indices'] == [1]:
+    if active['allowed_gpu_indices'] in ([1], [1, 2]):
         transition = authorization.parent/'gpu1_transition_1794646156165304477'
         reject('wrong GPU1 primary card', authorization, lambda v: v.update(primary_gpu=0))
         reject('wrong GPU1 current time', authorization, lambda v: v.update(current_gpu_restriction_at=0))
@@ -86,6 +86,15 @@ def main():
         reject('wrong GPU1 before digest', transition/'result.json', lambda v: v.update(before_sha256='0'*64))
         reject('wrong GPU1 after digest', transition/'result.json', lambda v: v.update(after_sha256='0'*64))
         reject('wrong GPU1 effective time', transition/'result.json', lambda v: v.update(effective_at=0))
+    if active['allowed_gpu_indices'] == [1, 2]:
+        transition = Path(active['authorization_history_transition'])
+        reject('wrong GPU1/2 primary', authorization, lambda v: v.update(primary_gpu=2))
+        reject('wrong GPU1/2 fallback', authorization, lambda v: v.update(fallback_gpu=3))
+        reject('wrong GPU1/2 historical cards', transition/'authorization_before.json', lambda v: v.update(allowed_gpu_indices=[2]))
+        reject('wrong GPU1/2 snapshot', transition/'authorization_after.json', lambda v: v.update(allowed_gpu_indices=[0, 2]))
+        reject('wrong GPU1/2 before digest', transition/'result.json', lambda v: v.update(before_sha256='0'*64))
+        reject('wrong GPU1/2 after digest', transition/'result.json', lambda v: v.update(after_sha256='0'*64))
+        reject('wrong GPU1/2 effective time', transition/'result.json', lambda v: v.update(effective_at=0))
     print(json.dumps(dict(evidence='verified CPU-only', positive_receipt=True, corrupted_receipts_rejected=failures)))
 
 if __name__ == '__main__':

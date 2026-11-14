@@ -24,6 +24,40 @@ def read(path):
 
 def historical_allcards_authorization(session):
     current = read(session/'authorization.json')
+    if current['allowed_gpu_indices'] == [1, 2]:
+        transition = Path(current.get('authorization_history_transition', ''))
+        if (transition.parent.resolve() != session.resolve()
+                or not transition.name.startswith('gpu12_transition_')
+                or not all((transition/name).exists() for name in
+                           ('authorization_before.json', 'authorization_after.json', 'result.json'))):
+            raise ValueError('GPU1/2 allocation lacks its preserved transition evidence')
+        before_path = transition/'authorization_before.json'
+        after_path = transition/'authorization_after.json'
+        before, after, result = (read(before_path), read(after_path),
+                                 read(transition/'result.json'))
+        fields = ('allowed_gpu_indices', 'request', 'resumed_at', 'gpu_fallback_at',
+                  'gpu_restriction_at', 'gpu_restriction_request',
+                  'current_gpu_restriction_at', 'current_gpu_restriction_request',
+                  'primary_gpu', 'fallback_gpu', 'same_card_pair_required',
+                  'latest_request', 'authorization_history_transition',
+                  'gpu1_fallback_at', 'gpu1_fallback_request')
+        if (before['allowed_gpu_indices'] != [1]
+                or after['allowed_gpu_indices'] != [1, 2]
+                or result['allowed_gpu_indices'] != [1, 2]
+                or after.get('primary_gpu') != 1 or after.get('fallback_gpu') != 2
+                or after.get('gpu1_fallback_at') != result.get('effective_at')
+                or after.get('latest_request') != after.get('gpu1_fallback_request')
+                or after.get('gpu1_fallback_request') != '如果1号卡长期被占用，你可以使用2号卡'
+                or result.get('before_sha256') != hashlib.sha256(before_path.read_bytes()).hexdigest()
+                or result.get('after_sha256') != hashlib.sha256(after_path.read_bytes()).hexdigest()
+                or any(current.get(key) != after.get(key) for key in fields)
+                or any(before.get(key) != after.get(key) for key in
+                       ('request', 'resumed_at', 'gpu_fallback_at',
+                        'gpu_restriction_at', 'gpu_restriction_request',
+                        'current_gpu_restriction_at', 'current_gpu_restriction_request',
+                        'same_card_pair_required'))):
+            raise ValueError('GPU1/2 allocation lacks its preserved transition evidence')
+        current = before
     if current['allowed_gpu_indices'] == [1]:
         transition = session/'gpu1_transition_1794646156165304477'
         if not (transition/'result.json').exists():
@@ -183,11 +217,14 @@ def select_successors(base, batch, specification):
     if batch in (4, 8):
         names.append((f'prefetch_b{batch}_gpu1_admitted_v1',
                       {'TILEMEGA_F3_PREFETCH_DISTANCE': '1'}))
+    if batch == 8:
+        names.append(('ffn1_tma192_gelu_b8_admitted_v1',
+                      {'TILEMEGA_F3_REGISTER_BUDGET': '3'}))
     for name, features in names:
         folder = base/name
         if not (folder/'experiment.json').exists():
             continue
-        if name.startswith('prefetch_b'):
+        if name.startswith('prefetch_b') or name == 'ffn1_tma192_gelu_b8_admitted_v1':
             if not (folder/'publication_gate.json').exists():
                 continue
             publication = read(folder/'publication_gate.json')
@@ -248,6 +285,8 @@ def select_successors(base, batch, specification):
             count = 6
         if name.startswith('prefetch_b'):
             count = 5
+        if name == 'ffn1_tma192_gelu_b8_admitted_v1':
+            count = 5
         if name in ('pipeline_reduction_b2_admitted_v1',
                     'gelu_outline_b4_admitted_v1', 'gelu_outline_b8_admitted_v1',
                     'gelu_outline_b16_admitted_v1'):
@@ -281,6 +320,8 @@ def select_successors(base, batch, specification):
             required_gain = 0 if reference_stages[4].get('sched') == 'pp' else .03
         if name.startswith('prefetch_b'):
             required_gain = .01
+        if name == 'ffn1_tma192_gelu_b8_admitted_v1':
+            required_gain = .03
         gpu = validate_followup_allocation(folder, name, decision, final)
         if (pair['gpu'] != gpu or len(pair['measurements']) != 6 or
                 any(m['guard']['code'] for m in pair['measurements']) or
@@ -934,6 +975,9 @@ def validate_timing_gpu(result, gpu, order):
 
 
 def validate_followup_allocation(folder, name, decision, final):
+    if name == 'ffn1_tma192_gelu_b8_admitted_v1':
+        from dnn4_bert_ffn1_isolation import validate
+        return validate(folder, decision, final)
     if name.startswith('prefetch_b'):
         from dnn4_bert_prefetch import validate
         return validate(folder, decision, final)

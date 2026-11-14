@@ -14,7 +14,7 @@ spec.loader.exec_module(report)
 
 
 class AllocationTest(unittest.TestCase):
-    def test_gpu1_preserves_all_three_transitions(self):
+    def test_gpu1_fallback_preserves_all_four_transitions(self):
         before = dict(allowed_gpu_indices=[0, 1, 2, 3], request='original request', resumed_at=100)
         restricted = dict(before, allowed_gpu_indices=[0], gpu_restriction_at=200,
                           gpu_restriction_request='将测试进程限定在使用0号卡上')
@@ -35,6 +35,13 @@ class AllocationTest(unittest.TestCase):
                         current_gpu_restriction_request='现在限定使用一号卡吧，然后你持续推进',
                         latest_request='现在限定使用一号卡吧，然后你持续推进',
                         authorization_history_transition=str(latest))
+            fallback = session/'gpu12_transition_test'
+            fallback.mkdir()
+            gpu12 = dict(gpu1, allowed_gpu_indices=[1, 2], fallback_gpu=2,
+                         gpu1_fallback_at=500,
+                         gpu1_fallback_request='如果1号卡长期被占用，你可以使用2号卡',
+                         latest_request='如果1号卡长期被占用，你可以使用2号卡',
+                         authorization_history_transition=str(fallback))
             def write(path, value):
                 path.write_text(json.dumps(value))
             def setup():
@@ -56,8 +63,17 @@ class AllocationTest(unittest.TestCase):
                     result[label+'_sha256'] = hashlib.sha256(
                         (latest/f'authorization_{label}.json').read_bytes()).hexdigest()
                 write(latest/'result.json', result)
-                write(session/'authorization.json', gpu1)
+                write(fallback/'authorization_before.json', gpu1)
+                write(fallback/'authorization_after.json', gpu12)
+                result = dict(allowed_gpu_indices=[1, 2], effective_at=500)
+                for label in ('before', 'after'):
+                    result[label+'_sha256'] = hashlib.sha256(
+                        (fallback/f'authorization_{label}.json').read_bytes()).hexdigest()
+                write(fallback/'result.json', result)
+                write(session/'authorization.json', gpu12)
             setup()
+            self.assertEqual(report.historical_allcards_authorization(session), before)
+            write(session/'authorization.json', gpu1)
             self.assertEqual(report.historical_allcards_authorization(session), before)
             write(session/'authorization.json', expanded)
             self.assertEqual(report.historical_allcards_authorization(session), before)
@@ -86,6 +102,14 @@ class AllocationTest(unittest.TestCase):
                 (latest/'result.json', 'effective_at', 0),
                 (latest/'result.json', 'before_sha256', '0'*64),
                 (latest/'result.json', 'after_sha256', '0'*64),
+                (session/'authorization.json', 'fallback_gpu', 3),
+                (session/'authorization.json', 'gpu1_fallback_at', 0),
+                (fallback/'authorization_before.json', 'allowed_gpu_indices', [0, 2]),
+                (fallback/'authorization_after.json', 'gpu1_fallback_request', 'unknown'),
+                (fallback/'result.json', 'allowed_gpu_indices', [0, 2]),
+                (fallback/'result.json', 'effective_at', 0),
+                (fallback/'result.json', 'before_sha256', '0'*64),
+                (fallback/'result.json', 'after_sha256', '0'*64),
             ]
             for path, key, value in mutations:
                 with self.subTest(path=path.name, key=key):
