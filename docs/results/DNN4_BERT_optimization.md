@@ -192,6 +192,9 @@ Verified guarded comparisons use the same BF16 model inputs and the coordinates 
 | FFN1 register256 on Repeat prefetch1 B16 | 2 | 1.143840 | 1.244704 | -8.818 | 1.229 | False |
 | whole96 balanced FFN B8 | 2 | 0.854320 | 0.834192 | +2.356 | 1.423 | False |
 | whole96 FFN2 on Repeat prefetch1 B16 | 1 | 1.144880 | 1.123920 | +1.831 | 3.301 | False |
+| fixed prefetch1 on current B4 | 1 | 0.596752 | 0.570192 | +4.451 | 1.003 | True |
+| fixed prefetch1 current B8 prescreen | 1 | 0.856480 | 0.835936 | +2.399 | 3.138 | False |
+| FFN1-only TMA192 current GELU B8 | 1 | 0.841568 | 0.795008 | +5.533 | 2.981 | True |
 | WGMMA depth2 prologue B4 | 3 | 0.640976 | 0.736736 | -14.940 | 3.588 | False |
 
 Verified attention experiment: QK/PV columns were distributed across eight consumer warps without changing any output accumulation order. Per-head unit5/5 and sanitizer memcheck1/1, initcheck1/1, racecheck5/5, synccheck5/5 passed; whole-model outputs also matched the control byte for byte. Neither timing gain exceeded process variability, so the original header was restored. The initial driver added an unnecessary3% cutoff, which does not affect either rejection because both measured noise thresholds exceed3%. Frozen sources and the patch remain under runs/dnn4/bert_priority.
@@ -295,7 +298,7 @@ Verified B2 fixed4 producer index lifetime drafts preserve coordinates and arith
 
 Stated2026-11-12 allocation:all four H800 cards0–3 are authorized;intermittent gaps are no longer required. New schedules preserve the six-sample guard,300s occupancy cooldown and /root/python entry paths. B4/B8 timing uses original GPU3;functional checks may use the other cards. Previously paused queues stay retired and completed checks are reused.
 
-Stated latest allocation supersedes prior permissions: all new and resumed hardware tests use physical GPU1 only. The three preserved authorization transitions keep historical receipts on their actual cards. Python entries stay under /root/python; six-sample guards, exclusive locks, numerical gates and fixed targets are unchanged. CNN remains paused.
+Stated latest allocation: prefer physical GPU1 and use GPU2 if GPU1 remains occupied. The four preserved transitions keep historical receipts on their actual cards; new jobs exclude GPU0/3. Python entries stay under /root/python; six-sample guards, exclusive locks, numerical gates and fixed targets are unchanged. CNN remains paused.
 
 Verified GPU3 idle footprint changed from4MiB to6MiB: six owner-free samples5s apart record6MiB and idle SM345MHz. A separate guard entry updates only that measured floor;original workers remain frozen. Locks,six-sample preflight,foreign-process rejection,cooldowns and measurement thresholds remain in force. The pending body cohort has no accepted processes;its replacement inherits the cooldown. Completed component/model cohorts are reused. Timing continues to record actual start/end SM clocks.
 
@@ -504,22 +507,21 @@ Verified nonblocking named160 PP side handoff passes two fresh GPU3 component co
 
 Verified opt-in cyclic slot indexing and vector-major normal split-K partials retain the admitted B1 coordinates,56/224 register roles and ascending slice addition order. Integrated component gates pass17/17 on GPU3;the extended S2/TK128/odd-row suite passes17/17 on GPU2. The full model passes strict FP32 and cross-process byte checks5/5. G22 P-PAIR0.499216→0.478000ms passes0.904% noise;P-DNN 0.464496ms,p900.477696ms,process range0.012608ms. The exact accepted binary has a P-TRACE1 ledger. The earlier B2 comparison fails its paired noise gate;the later full-pipeline combination has a separate admission below. Defaults,original anchors,CNN results and frozen20-cell Phase Z remain unchanged.
 
-Verified current accepted artifacts (GPU2,GPU3;50/200;three-process P-DNN). B1/B2/B4/B8/B16 are follow-ups that retain the original anchor without re-anchoring. Fixed BF16 targets reached for B1,B2. DNN4_BERT_current.csv records complete identities,profiles and evidence paths;DNN4_BERT_current_ledger.csv preserves all315 current stage rows with exact accepted reference hashes and coordinates.
+Verified current accepted artifacts (GPU1,GPU2,GPU3;50/200;three-process P-DNN). B1/B2/B4/B8/B16 are follow-ups that retain the original anchor without re-anchoring. Fixed BF16 targets reached for B1,B2,B4. DNN4_BERT_current.csv records complete identities,profiles and evidence paths;DNN4_BERT_current_ledger.csv preserves all315 current stage rows with exact accepted reference hashes and coordinates.
 
 | Batch | GPU | Median ms | p90 ms | Process range ms | Fixed BF16 ms | Ratio |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 3 | 0.464496 | 0.477696 | 0.012608 | 0.4858 | 0.9561 |
 | 2 | 3 | 0.508096 | 0.511104 | 0.012352 | 0.5171 | 0.9826 |
-| 4 | 3 | 0.595504 | 0.599104 | 0.001552 | 0.5905 | 1.0085 |
-| 8 | 3 | 0.852384 | 0.861728 | 0.000480 | 0.7457 | 1.1430 |
+| 4 | 1 | 0.572032 | 0.575680 | 0.002368 | 0.5905 | 0.9687 |
+| 8 | 1 | 0.801408 | 0.805152 | 0.007984 | 0.7457 | 1.0747 |
 | 16 | 2 | 1.145920 | 1.152448 | 0.006512 | 1.0869 | 1.0543 |
 
 Verified largest three stages for each current unmet BERT cell (P-TRACE1 attribution only;segments can overlap and are not timing results). Each ledger checks the exact accepted reference binary SHA256.
 
 | Batch | Largest stage | Second | Third |
 | --- | --- | --- | --- |
-| 4 | s5 gemm 19.14us (main_loop=15.55,slot_wait=4.26) | s15 gemm 18.88us (main_loop=15.17,slot_wait=4.99) | s45 gemm 18.85us (main_loop=15.84,slot_wait=5.09) |
-| 8 | s10 gemm 25.18us (main_loop=21.15,slot_wait=7.94) | s19 gemm 25.15us (main_loop=15.30,epilogue=8.10) | s49 gemm 25.12us (main_loop=15.33,epilogue=7.87) |
+| 8 | s15 gemm 26.30us (main_loop=23.01,slot_wait=8.22) | s40 gemm 26.11us (main_loop=22.46,slot_wait=7.90) | s35 gemm 25.92us (main_loop=22.46,slot_wait=7.81) |
 | 16 | s6 gemm 33.02us (main_loop=22.24,slot_wait=7.65) | s9 gemm 32.86us (main_loop=19.68,epilogue=11.68) | s44 gemm 32.83us (main_loop=19.46,epilogue=11.07) |
 
 Verified current B8 combines existing matrix and attention vector stores with the admitted full-tile profile. Three exact-profile component cohorts each pass17/17;strict model5/5 preserves incumbent bytes. Main real codegen matches all35232 encoded instruction words and the63-stage ledger identifies the measured binary. GPU3 P-DNN0.923120ms,p900.929184ms. Ten corrupted admission receipts are rejected. Other cells,default flags and fixed anchors remain unchanged.
@@ -642,4 +644,12 @@ Verified a separate fixed B16 FFN2 candidate uses 128x96/TK64/S1/Slots6/register
 Verified three fresh control5/body17 groups and strict model5 pass on GPU1; four historical GPU2 ordering17 cohorts are explicitly reused after instruction identity. GPU1 smoke1.119632ms; independent pair1.144880→1.123920ms gains1.831%, below 3.301% noise and the predeclared3% minimum. Reject without P-DNN or unchanged retiming; current B16 stays1.145920ms on GPU2. No greater-than3% regression trace is triggered. Historical fixed GPU3 target remains unchanged.
 
 Verified the existing DT-PF distance2→1 choice on current B4 changes only one generated define, preserving coordinates, maps, arithmetic, registers and failed-poll backoff. The actual main host emits a zero-spill242304B program; all53488 body/GELU instruction words match the completed17 cohort. Prospective acceptance requires gain above max(1%, noise), consistent with the DT-PF1% tie rule. B16 benefit motivates this single B4 check; B4 benefit remains inferred.
-Verified the initial combined four-case reservation is rejected by guard75 for running interference; no partial child results qualify. Only its waiting controllers are retired. Four separately compiled one-case binaries keep the original prefix,200 register+200 TMA launches, bit checks,600s child and1200s cohort budgets. Each requires fresh unit5/mem1/init1/race5/sync5 on GPU1 and inherits the complete recorded retry delay. Guards are unchanged. This remains private with no current-result change.
+Verified the initial combined four-case reservation is rejected by guard75 for running interference; no partial child results qualify. Only its waiting controllers are retired. Four separately compiled one-case binaries keep the original prefix,200 register+200 TMA launches, bit checks,600s child and1200s cohort budgets. Each requires fresh unit5/mem1/init1/race5/sync5 on GPU1 and inherits the complete recorded retry delay. Guards are unchanged. CPU preparation alone does not update a current result.
+Verified GPU1 independent pair0.596752→0.570192ms, gain4.451%, noise1.003%; status=positive_private_pending_admission. Strict model5 and four fresh ordering17 cohorts precede timing. Current admission requires a separate complete audit; the fixed GPU3 target is unchanged.
+Verified63 corrupted receipts are rejected and the five-batch exporter preserves the other four admitted artifacts and numerical results. Current B4 is now 0.572032ms on GPU1, below its fixed0.590496ms target. B1/B2/B4 are below target; B8/B16 remain above. This accepts one existing hint setting, with production defaults and frozen Phase Z unchanged.
+
+Verified a separate B8 distance2→1 check on the current outlined-GELU/store profile passes strict model5 and preserves both named outputs. Canonicalizing nine independent numeric prefix definitions resolves an initial CPU literal-source comparison failure; all33712 default-control GPU words match the incumbent. Body17 is reused only after53280 GPU words match. GPU1 P-PAIR 0.856480→0.835936ms gains2.399% below 3.138% noise. Reject without P-DNN, unchanged retiming or current update. This existing-parameter prescreen uses P-CORR/P-SMOKE; it claims no new ordering sanitizer cohort.
+
+Verified one bounded P-TRACE1 of the previously rejected B8 combination isolates the remaining tradeoff. FFN1 stage windows297.568→212.896us, main183.520→126.720us and epilogue91.040→67.328us; FFN2 windows290.016→282.080us, main244.992→182.528us, epilogue22.496→63.904us and split-K0→24.704us. Historical reference GPU3 and new GPU1 windows are a cross-card diagnostic; nested maxima are nonadditive and trace1 scheduling overhead differs. No nontrace measurement is repeated and the combined rejection is retained. A single prospective FFN1-only isolation keeps the current FFN2 coordinates and64-column statistics; its benefit remains inferred until an independent whole-model pair. The exact private source patch was restored after this diagnostic completed.
+
+Verified the single FFN1-only isolation changes twelve 128x96/Slots7/reg stages to128x192/Slots4/TMA and uses the existing72/216 profile. FFN2,64-column statistics and PF2 remain unchanged. Main emission compiles without spill, SASS268928B. Five complete historical GPU2 component cohorts (body and four ordering cases) are reused only after their entire GPU instruction words match actual-main-header builds; no fresh GPU1 sanitizer cohort is claimed. Fresh strict model5 passes and is deterministic; cross-incumbent bytes also match as a diagnostic, without replacing the FP32 gate. GPU1 P-PAIR 0.841568→0.795008ms gains5.533% above the prospective3% and 2.981% noise. P-DNN 0.801408ms, p900.805152ms and range0.007984ms; exact63-stage ledger and48 corrupted-receipt rejections pass. The five-cell export preserves the other four cells. B8 remains above its fixed0.745712ms target; original GPU3 anchor is retained without reanchoring. Earlier combined candidates remain rejected.

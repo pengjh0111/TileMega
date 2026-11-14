@@ -218,6 +218,8 @@ def main():
                ('whole96 balanced FFN B8', continuation/'b8_stats96_balance_v2/experiment.json'),
                ('whole96 FFN2 on Repeat prefetch1 B16', continuation/'b16_stats96_pf1_gpu1_v1/experiment.json'),
                ('fixed prefetch1 on current B4', continuation/'prefetch_b4_gpu1_split_v2/experiment.json'),
+               ('fixed prefetch1 current B8 prescreen', continuation/'prefetch_b8_gpu1_v1/experiment.json'),
+               ('FFN1-only TMA192 current GELU B8', continuation/'ffn1_tma192_gelu_b8_v1/experiment.json'),
                ('WGMMA depth2 prologue B4', continuation/'mma_depth2_b4_v3/experiment.json')]
     rows = []
     choices = []
@@ -228,7 +230,8 @@ def main():
         if name in ('current catalog assembly B16', 'Repeat optional output map B16',
                     'Repeat prefetch1 B16', 'FFN1 register256 on Repeat prefetch1 B16',
                     'whole96 balanced FFN B8', 'whole96 FFN2 on Repeat prefetch1 B16',
-                    'fixed prefetch1 on current B4'):
+                    'fixed prefetch1 on current B4', 'fixed prefetch1 current B8 prescreen',
+                    'FFN1-only TMA192 current GELU B8'):
             model = read(path.parent/'model/result.json')
             pair = experiment['pair']
             if (not model['passed'] or model['passes'] != '5/5'
@@ -255,6 +258,15 @@ def main():
                                                         *functional['order_gates']]
                         or not read(path.parent/'model_bit_proof.json')['passed']):
                     raise ValueError('fixed B4 prefetch lacks its original split functional gate')
+            if name == 'fixed prefetch1 current B8 prescreen':
+                result = read(path.parent/'result.json')
+                proof = read(base/'prefetch_b8_gpu1_v2/default_proof.json')
+                if (experiment['accepted'] or result['status'] != 'prescreen_rejected'
+                        or result['ordering_completed'] != 0 or not proof['passed']
+                        or proof['encoded_words'] != 33712
+                        or len(experiment['unit_gates']) != 1
+                        or not read(path.parent/'model_bit_proof.json')['passed']):
+                    raise ValueError('B8 hint prescreen changes its negative protocol scope')
             for unit_path in experiment.get('unit_gates', []):
                 unit = read(Path(unit_path))
                 processes = unit['processes']
@@ -1156,6 +1168,13 @@ def main():
                       'receipts on their actual cards. Python entries stay under '
                       '/root/python; six-sample guards, exclusive locks, numerical '
                       'gates and fixed targets are unchanged. CNN remains paused.']
+        elif allocation['allowed_gpu_indices'] == [1, 2]:
+            lines += ['', 'Stated latest allocation: prefer physical GPU1 and use GPU2 '
+                      'if GPU1 remains occupied. The four preserved transitions keep '
+                      'historical receipts on their actual cards; new jobs exclude '
+                      'GPU0/3. Python entries stay under /root/python; six-sample '
+                      'guards, exclusive locks, numerical gates and fixed targets '
+                      'are unchanged. CNN remains paused.']
     relocation = continuation/'b8_corr2_relocation.json'
     idle_change = continuation/'idle6_transition.json'
     if idle_change.exists():
@@ -3075,7 +3094,7 @@ def main():
                       'checks,600s child and1200s cohort budgets. Each requires '
                       'fresh unit5/mem1/init1/race5/sync5 on GPU1 and inherits '
                       'the complete recorded retry delay. Guards are unchanged. '
-                      'This remains private with no current-result change.']
+                      'CPU preparation alone does not update a current result.']
         completed = continuation/'prefetch_b4_gpu1_split_v2/result.json'
         if completed.exists():
             result = read(completed)
@@ -3088,6 +3107,88 @@ def main():
                       'Strict model5 and four fresh ordering17 cohorts precede '
                       'timing. Current admission requires a separate complete '
                       'audit; the fixed GPU3 target is unchanged.']
+        published = base/'prefetch_b4_publication_v1/result.json'
+        if published.exists():
+            publication = read(published)
+            folder = base/'prefetch_b4_gpu1_admitted_v1'
+            from dnn4_bert_prefetch import validate
+            validate(folder, read(folder/'experiment.json'), read(folder/'final_result.json'))
+            if not publication['passed'] or publication['negative_cases'] != 63:
+                raise ValueError('B4 prefetch publication lacks its negative gate')
+            lines += ['Verified63 corrupted receipts are rejected and the '
+                      'five-batch exporter preserves the other four admitted '
+                      'artifacts and numerical results. Current B4 is now '
+                      f'{publication["admitted_B4_ms"]:.6f}ms on GPU1, below its '
+                      'fixed0.590496ms target. B1/B2/B4 are below target; B8/B16 '
+                      'remain above. This accepts one existing hint setting, '
+                      'with production defaults and frozen Phase Z unchanged.']
+    b8_hint = continuation/'prefetch_b8_gpu1_v1/result.json'
+    if b8_hint.exists():
+        result = read(b8_hint)
+        measured = read(b8_hint.parent/'experiment.json')
+        pair = measured['pair']
+        lines += ['', 'Verified a separate B8 distance2→1 check on the current '
+                  'outlined-GELU/store profile passes strict model5 and preserves '
+                  'both named outputs. Canonicalizing nine independent numeric '
+                  'prefix definitions resolves an initial CPU literal-source '
+                  'comparison failure; all33712 default-control GPU words match '
+                  'the incumbent. Body17 is reused only after53280 GPU words '
+                  'match. GPU1 P-PAIR '
+                  f'{pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms gains'
+                  f'{100*(1-pair["ratio"]):.3f}% below '
+                  f'{100*pair["threshold"]:.3f}% noise. Reject without P-DNN, '
+                  'unchanged retiming or current update. This existing-parameter '
+                  'prescreen uses P-CORR/P-SMOKE; it claims no new ordering '
+                  'sanitizer cohort.']
+    attribution = base/'b8_balance_attribution_gpu1_v1/result.json'
+    if attribution.exists():
+        result = read(attribution)
+        if result['status'] != 'diagnostic_complete':
+            raise ValueError('B8 diagnostic attribution is incomplete')
+        lines += ['', 'Verified one bounded P-TRACE1 of the previously rejected '
+                  'B8 combination isolates the remaining tradeoff. FFN1 stage '
+                  'windows297.568→212.896us, main183.520→126.720us and '
+                  'epilogue91.040→67.328us; FFN2 windows290.016→282.080us, '
+                  'main244.992→182.528us, epilogue22.496→63.904us and '
+                  'split-K0→24.704us. Historical reference GPU3 and new GPU1 '
+                  'windows are a cross-card diagnostic; nested maxima are '
+                  'nonadditive and trace1 scheduling overhead differs. No '
+                  'nontrace measurement is repeated and the combined rejection '
+                  'is retained. A single prospective FFN1-only isolation keeps '
+                  'the current FFN2 coordinates and64-column statistics; its '
+                  'benefit remains inferred until an independent whole-model '
+                  'pair. The exact private source patch was restored after '
+                  'this diagnostic completed.']
+    published = base/'ffn1_tma192_gelu_b8_publication_v1/result.json'
+    if published.exists():
+        folder = base/'ffn1_tma192_gelu_b8_admitted_v1'
+        from dnn4_bert_ffn1_isolation import validate
+        decision, final = read(folder/'experiment.json'), read(folder/'final_result.json')
+        validate(folder, decision, final)
+        publication = read(published)
+        if not publication['passed'] or publication['negative_cases'] != 48:
+            raise ValueError('FFN1-only B8 lacks its complete publication gate')
+        pair = decision['pair']
+        lines += ['', 'Verified the single FFN1-only isolation changes twelve '
+                  '128x96/Slots7/reg stages to128x192/Slots4/TMA and uses the '
+                  'existing72/216 profile. FFN2,64-column statistics and PF2 '
+                  'remain unchanged. Main emission compiles without spill, '
+                  'SASS268928B. Five complete historical GPU2 component cohorts '
+                  '(body and four ordering cases) are reused only after their '
+                  'entire GPU instruction words match actual-main-header builds; '
+                  'no fresh GPU1 sanitizer cohort is claimed. Fresh strict model5 '
+                  'passes and is deterministic; cross-incumbent bytes also match '
+                  'as a diagnostic, without replacing the FP32 gate. GPU1 P-PAIR '
+                  f'{pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms gains'
+                  f'{100*(1-pair["ratio"]):.3f}% above the prospective3% and '
+                  f'{100*pair["threshold"]:.3f}% noise. P-DNN '
+                  f'{final["measurement"]["candidate_ms"]:.6f}ms, p90'
+                  f'{final["measurement"]["p90_ms"]:.6f}ms and range'
+                  f'{final["measurement"]["process_range_ms"]:.6f}ms; exact63-stage '
+                  'ledger and48 corrupted-receipt rejections pass. The five-cell '
+                  'export preserves the other four cells. B8 remains above its '
+                  'fixed0.745712ms target; original GPU3 anchor is retained without '
+                  'reanchoring. Earlier combined candidates remain rejected.']
     (args.out/'DNN4_BERT_optimization.md').write_text('\n'.join(lines)+'\n')
     print(json.dumps(dict(comparisons=len(rows), report=str(args.out/'DNN4_BERT_optimization.md'))))
 
