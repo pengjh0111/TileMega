@@ -79,6 +79,8 @@ DNN4 的目标尚未完成：BERT 五个 batch 中，B1/B2/B4 已快于固定目
 
 17. Rows64 attention双consumer WG独立任务版本已否决：新132 CTA九stage/五epoch/五batch测试控制5及候选17通过，验证跨CTA拷贝和Slots8→attention→Slots4→Slots8的高位phase继承；模型5及旧版命名输出逐位一致。GPU1对照1.144368→1.143360ms，仅快0.088%，低于2.883%噪声和预设3%。未补P-DNN或额外trace，三个私有文件已归档恢复，正式版本不变。
 
+18. projection 256×64/Slots4固定坐标已否决：保持首层reg、其余11层TMA，八形状控制5/body17、首组跨CTA可见性17、模型5及旧版命名输出一致通过。GPU1对照1.146176→1.183664ms，慢3.271%；零spill trace1的projection窗口194.720→225.312µs、主循环99.456→121.952µs。未补其余三组可见性或P-DNN，生产实现未改。初始“全reg”假设在CPU断言处被挡住，未上卡。
+
 ## 依据与身份
 
 - [DNN4_h800.md](DNN4_h800.md)：原Phase Z、各设计门、偏离及限制。

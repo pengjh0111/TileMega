@@ -231,6 +231,7 @@ def main():
                ('relaxed failed gate poll B16', continuation/'gate_poll_b16_v1/experiment.json'),
                ('parameter buffer pointers B16', continuation/'param_buffers_b16_v1/experiment.json'),
                ('independent consumer attention B16', continuation/'attention_pp_b16_v1/experiment.json'),
+               ('projection M256 N64 current B16', continuation/'projection_m256n64_b16_v1/experiment.json'),
                ('WGMMA depth2 prologue B4', continuation/'mma_depth2_b4_v3/experiment.json')]
     rows = []
     choices = []
@@ -253,7 +254,8 @@ def main():
                     'three output buffers B16',
                     'relaxed failed gate poll B16',
                     'parameter buffer pointers B16',
-                    'independent consumer attention B16'):
+                    'independent consumer attention B16',
+                    'projection M256 N64 current B16'):
             model = read(path.parent/'model/result.json')
             pair = experiment['pair']
             if (not model['passed'] or model['passes'] != '5/5'
@@ -3550,6 +3552,36 @@ def main():
                   'noise and the prospective3% minimum. Reject without '
                   'P-DNN, extra trace or unchanged retiming. Three private '
                   'inputs are archived/restored; formal current stays fixed.']
+    projection = continuation/'projection_m256n64_b16_v1/result.json'
+    if projection.exists():
+        value = read(projection)
+        experiment = read(projection.parent/'experiment.json')
+        if (value['status'] != 'pair_rejected' or experiment['accepted']
+                or not read(base/'projection_m256n64_b16_contract_v1/result.json')['passed']
+                or not read(projection.parent/'model_byte_comparison.json')['passed']):
+            raise ValueError('closed projection coordinate negative changed')
+        pair = experiment['pair']
+        lines += ['', 'Verified one existing-coordinate projection trial '
+                  'changes twelve128x128/Slots5 stages to256x64/Slots4, '
+                  'preserving first reg and repeated11 TMA stores, NT1/12, '
+                  'statistics64 and the216/PF1 profile. An initial all-reg '
+                  'assumption fails a CPU assertion before emission or GPU; '
+                  'the corrected source preserves actual stores. Audit of '
+                  'all projection stages in87 paired programs finds earlier '
+                  '64x256, but no256x64 trial. Native298496B has zero spill; '
+                  'all51 other body templates and profile defines match. '
+                  'Fresh GPU1 eight-shape control5/body17, first three-stage '
+                  'visibility17 and strict model5 pass; incumbent named bytes '
+                  'match. The remaining three visibility cases are not run. '
+                  f'GPU1 pair{pair["reference_ms"]:.6f}→'
+                  f'{pair["candidate_ms"]:.6f}ms,ratio{pair["ratio"]:.6f},'
+                  f'noise{100*pair["threshold"]:.3f}%. Reject. Exact candidate '
+                  'trace1 has zero spill and projection194.720→225.312us, '
+                  'main99.456→121.952us versus the unchanged earlier GPU1 '
+                  'reference. These nested maxima are nonadditive diagnostic '
+                  'values, never nontrace latency or P-TUNE windows. No '
+                  'P-DNN, unchanged retiming or current update. Production '
+                  'implementation was unchanged throughout.']
     (args.out/'DNN4_BERT_optimization.md').write_text('\n'.join(lines)+'\n')
     print(json.dumps(dict(comparisons=len(rows), report=str(args.out/'DNN4_BERT_optimization.md'))))
 
