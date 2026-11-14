@@ -3384,6 +3384,24 @@ def main():
                   'diagnostics; they do not override the nontrace regression. '
                   'Seven source files are archived and private changes restored; '
                   'main production and current results remain unchanged.']
+    cached_boundary = base/'boundary_cache_current_b16_v1/result.json'
+    if cached_boundary.exists():
+        value = read(cached_boundary)
+        restore = read(cached_boundary.parent/'restoration.json')
+        if not value['passed'] or value['qualified'] or not restore['passed']:
+            raise ValueError('current B16 boundary qualification changed')
+        lines += ['', 'Verified exact historical header-padding boundary cache '
+                  'on current PF1/Rows64/GELU/profile216 B16: all five nontrace '
+                  'instruction streams match, zero-spill trace3 and three fresh '
+                  '20/50 processes compare output bytes with the admitted '
+                  'nontrace program. This is diagnostic trace coverage, not '
+                  'fresh P-CORR or P-SAN. Window sums1.198528/1.197808/1.198528ms '
+                  'versus three recent same-GPU1 nontrace reference processes '
+                  '(median1.137680ms) differ5.348%, exceeding5%. Never use '
+                  'these windows for P-TUNE/P-MODEL. No unchanged nontrace '
+                  'retiming, record-layout change or new cache variant follows. '
+                  'Only the owned private marker header is restored; the '
+                  'historical prototype and raw source remain available.']
     (args.out/'DNN4_BERT_optimization.md').write_text('\n'.join(lines)+'\n')
     print(json.dumps(dict(comparisons=len(rows), report=str(args.out/'DNN4_BERT_optimization.md'))))
 
