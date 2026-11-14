@@ -234,6 +234,7 @@ def main():
                ('projection M256 N64 current B16', continuation/'projection_m256n64_b16_v1/experiment.json'),
                ('FFN1 TMA256 outlined context B16', continuation/'ffn1_tma256_gelu_b16_v1/experiment.json'),
                ('producer warp2 prefetch B8', continuation/'prefetch_warp2_b8_v1/experiment.json'),
+               ('FFN2 whole96 writer prefix TMA B16', continuation/'ffn2_prefix96_store_b16_v1/experiment.json'),
                ('WGMMA depth2 prologue B4', continuation/'mma_depth2_b4_v3/experiment.json')]
     rows = []
     choices = []
@@ -259,7 +260,8 @@ def main():
                     'independent consumer attention B16',
                     'projection M256 N64 current B16',
                     'FFN1 TMA256 outlined context B16',
-                    'producer warp2 prefetch B8'):
+                    'producer warp2 prefetch B8',
+                    'FFN2 whole96 writer prefix TMA B16'):
             model = read(path.parent/'model/result.json')
             pair = experiment['pair']
             if (not model['passed'] or model['passes'] != '5/5'
@@ -3768,6 +3770,41 @@ def main():
                   'the prospective0.5%/noise gate. Reject without P-DNN, '
                   'extra trace or unchanged retiming. Three private inputs '
                   'are archived/restored and formal current stays fixed.']
+    prefix_writer = continuation/'ffn2_prefix96_store_b16_v1/result.json'
+    if prefix_writer.exists():
+        value = read(prefix_writer)
+        experiment = read(prefix_writer.parent/'experiment.json')
+        if (value['status'] != 'pair_rejected' or experiment['accepted']
+                or experiment['minimum_gain'] != .005
+                or not read(base/'ffn2_prefix96_store_order_units_v1/restoration.json')['passed']
+                or not read(prefix_writer.parent/'model_byte_comparison.json')['passed']):
+            raise ValueError('closed whole96 writer prefix negative changed')
+        lines += ['', 'Verified one B16 FFN2-only whole96 writer trial '
+                  'uses128x96/Slots6, first64 columns by TMA and tail32 by '
+                  'generic stores, with existing96-column row partials. '
+                  'QKV/projection/FFN1,216/PF1 and other coordinates stay '
+                  'fixed. Five defaults match; native291584B/maxR160 has '
+                  'zero spill. The shared layout confirms219136B and no '
+                  'extra residual staging. All49 readers and11 changed '
+                  'partial buffers are checked. Five CPU tests pass; '
+                  'the new test LLVM link dependency is repaired without '
+                  'rerunning four completed tests. Manual emission accepts '
+                  'Slots7 source; the actual shared CUDA static resource '
+                  'gate rejects it before GPU, rather than an early host '
+                  'gate. Fresh GPU1 actual full/odd writer+terminal body '
+                  'control5/candidate17 and a new real-writer crossCTA '
+                  'BF16/F32-partial-copy/TMA-read control5/visibility17 pass. '
+                  'The latter retains200REG+200TMA launches, with4CTA '
+                  'test-only geometry forcing local ring wrap. Two reader17 '
+                  'cohorts are explicit whole-word historical GPU1 reuse. '
+                  'Strict model5 matches the same whole96 REG-only named '
+                  'outputs; official64-grain bytes differ diagnostically '
+                  'under unchanged U9 criteria. Pair1.137952→1.126320ms, '
+                  'ratio0.989778 gains1.022%, below3.313% noise and the '
+                  'prospective0.5%/noise gate. Reject without remaining '
+                  'three visibility cases, P-DNN or unchanged retiming. '
+                  'Thirteen inputs are archived and six core/seven test '
+                  'files restored; formal current stays fixed.']
     (args.out/'DNN4_BERT_optimization.md').write_text('\n'.join(lines)+'\n')
     print(json.dumps(dict(comparisons=len(rows), report=str(args.out/'DNN4_BERT_optimization.md'))))
 
