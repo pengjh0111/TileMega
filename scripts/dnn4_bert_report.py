@@ -232,6 +232,7 @@ def main():
                ('parameter buffer pointers B16', continuation/'param_buffers_b16_v1/experiment.json'),
                ('independent consumer attention B16', continuation/'attention_pp_b16_v1/experiment.json'),
                ('projection M256 N64 current B16', continuation/'projection_m256n64_b16_v1/experiment.json'),
+               ('FFN1 TMA256 outlined context B16', continuation/'ffn1_tma256_gelu_b16_v1/experiment.json'),
                ('WGMMA depth2 prologue B4', continuation/'mma_depth2_b4_v3/experiment.json')]
     rows = []
     choices = []
@@ -255,7 +256,8 @@ def main():
                     'relaxed failed gate poll B16',
                     'parameter buffer pointers B16',
                     'independent consumer attention B16',
-                    'projection M256 N64 current B16'):
+                    'projection M256 N64 current B16',
+                    'FFN1 TMA256 outlined context B16'):
             model = read(path.parent/'model/result.json')
             pair = experiment['pair']
             if (not model['passed'] or model['passes'] != '5/5'
@@ -3582,6 +3584,69 @@ def main():
                   'values, never nontrace latency or P-TUNE windows. No '
                   'P-DNN, unchanged retiming or current update. Production '
                   'implementation was unchanged throughout.']
+    wide_ffn1 = continuation/'ffn1_tma256_gelu_b16_v1/result.json'
+    if wide_ffn1.exists():
+        value = read(wide_ffn1)
+        experiment = read(wide_ffn1.parent/'experiment.json')
+        if (value['status'] != 'pair_rejected' or experiment['accepted']
+                or experiment['minimum_gain'] != .005
+                or not read(base/'ffn1_tma256_gelu_b16_contract_v1/result.json')['passed']
+                or not read(wide_ffn1.parent/'model_byte_comparison.json')['passed']
+                or not read(base/'ffn1_tma256_gelu_b16_order_v2/tma_kernel_word_proof.json')['passed']):
+            raise ValueError('closed wide FFN1 context negative changed')
+        pair = experiment['pair']
+        lines += ['', 'Verified one fixed FFN1 wide TMA trial changes only '
+                  'twelve128x192/Slots4 stages to128x256/Slots3 in the current '
+                  'outlined GELU,216/PF1,fulltile and Repeat/output-map context. '
+                  'Earlier unoutlined TMA256 and outlined REG256 negatives '
+                  'retain their original decisions. Native301696B/maxR195 '
+                  'has zero spill. Fresh GPU1 actual full/odd NT12 GELU '
+                  'control5/body17 and strict model5 pass with incumbent '
+                  'named bytes. One full nonresidual fixture counterfactual '
+                  'REG256 entry spills88B and is never executed. Only that '
+                  'reference is replaced by zero-spill REG128 with the same '
+                  'weights repacked; the actual TMA256 kernel preserves '
+                  'all5296 instruction words. Original FP32 oracle, all '
+                  'output comparisons and200REG+200TMA launches stay fixed. '
+                  'This reference uses a different tile; it is not a same-tile '
+                  'REG/TMA protocol claim. Its fresh first visibility17 passes; '
+                  'remaining three cases are not executed. '
+                  f'GPU1 pair{pair["reference_ms"]:.6f}→'
+                  f'{pair["candidate_ms"]:.6f}ms,ratio{pair["ratio"]:.6f},'
+                  f'noise{100*pair["threshold"]:.3f}%. Reject against the '
+                  'new prospectively recorded P-PAIR0.5%/noise coordinate '
+                  'gate; no earlier3% threshold is changed. Zero-spill '
+                  'trace1 FFN1390.496→459.584us, main228.512→251.104us '
+                  'and epilogue133.280→176.032us are diagnostic nested '
+                  'maxima; trace1 write paths differ from production. No '
+                  'P-DNN, unchanged retiming, production change or formal '
+                  'current update.']
+    compact = base/'compact_boundary_current_b16_v1/result.json'
+    if compact.exists():
+        value = read(compact)
+        if (not value['passed'] or value['qualified']
+                or not read(compact.parent/'restoration.json')['passed']):
+            raise ValueError('closed compact boundary qualification changed')
+        lines += ['', 'Verified the historical compact32B boundary recorder '
+                  'is reused exactly on current B16; its old B2 failure '
+                  'remains unchanged. Header caching, two packed stores and '
+                  'clock points are preserved. Only trace3 segment count0 '
+                  'is added to the current Runtime; the existing parser '
+                  'already accepts32B records with zero segment spans. Five '
+                  'disabled instruction streams match; trace301952B has zero '
+                  'spill. Three fresh GPU1 processes compare exact current '
+                  'outputs and collect20 warmup/50 samples. '
+                  f'Windows{value["trace_windows_ms"]}ms,median'
+                  f'{value["median_window_ms"]:.6f}ms versus latest completed '
+                  f'current three-position control{value["reference_ms"]:.6f}ms;'
+                  f'difference{100*value["difference"]:.3f}% exceeds5%. '
+                  'Before any new trace GPU run, the initial older1.146176ms '
+                  'reference is corrected to the latest completed1.132448ms '
+                  'control, enforcing the stated latest-reference rule; both '
+                  'plans are preserved. No unchanged nontrace retiming. '
+                  'Reject P-TUNE/P-MODEL eligibility and restore only the '
+                  'two archived private inputs. This is diagnostic3/3, '
+                  'not fresh P-CORR5/5, P-SAN or performance admission.']
     (args.out/'DNN4_BERT_optimization.md').write_text('\n'.join(lines)+'\n')
     print(json.dumps(dict(comparisons=len(rows), report=str(args.out/'DNN4_BERT_optimization.md'))))
 
