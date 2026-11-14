@@ -24,6 +24,38 @@ def read(path):
 
 def historical_allcards_authorization(session):
     current = read(session/'authorization.json')
+    transition = Path(current.get('authorization_history_transition', ''))
+    if (current.get('allcards_resume_request')
+            or current.get('latest_request') == '可以使用任意卡'
+            or transition.name.startswith('allcards_resume_')):
+        if (transition.parent.resolve() != session.resolve()
+                or not transition.name.startswith('allcards_resume_')
+                or not all((transition/name).exists() for name in
+                           ('authorization_before.json', 'authorization_after.json', 'result.json'))):
+            raise ValueError('four-card resumption lacks its preserved transition evidence')
+        before_path, after_path = (transition/'authorization_before.json',
+                                   transition/'authorization_after.json')
+        before, after, result = read(before_path), read(after_path), read(transition/'result.json')
+        changed = {'allowed_gpu_indices', 'primary_gpu', 'fallback_gpu', 'latest_request',
+                   'allcards_resume_at', 'allcards_resume_request',
+                   'authorization_history_transition', 'scope'}
+        if (before['allowed_gpu_indices'] != [1, 2]
+                or after['allowed_gpu_indices'] != [0, 1, 2, 3]
+                or result['allowed_gpu_indices'] != [0, 1, 2, 3]
+                or result.get('passed') is not True
+                or after.get('primary_gpu') is not None or after.get('fallback_gpu') is not None
+                or after.get('allcards_resume_at') != result.get('effective_at')
+                or after.get('latest_request') != '可以使用任意卡'
+                or after.get('allcards_resume_request') != after.get('latest_request')
+                or after.get('authorization_history_transition') != str(transition)
+                or result.get('before_sha256') != hashlib.sha256(before_path.read_bytes()).hexdigest()
+                or result.get('after_sha256') != hashlib.sha256(after_path.read_bytes()).hexdigest()
+                or any(current.get(key) != value for key, value in after.items() if key != 'status')
+                or any(before.get(key) != after.get(key) for key in before if key not in changed)):
+            raise ValueError('four-card resumption lacks its preserved transition evidence')
+        # Current allocation may expand while earlier admission receipts still
+        # need the original four-card authorization reached through the chain.
+        current = before
     if current['allowed_gpu_indices'] == [1, 2]:
         transition = Path(current.get('authorization_history_transition', ''))
         if (transition.parent.resolve() != session.resolve()

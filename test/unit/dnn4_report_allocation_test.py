@@ -44,7 +44,13 @@ class AllocationTest(unittest.TestCase):
                          authorization_history_transition=str(fallback))
             def write(path, value):
                 path.write_text(json.dumps(value))
-            def setup():
+            resumption = session/'allcards_resume_test'
+            resumption.mkdir()
+            allcards = dict(gpu12, allowed_gpu_indices=[0, 1, 2, 3], primary_gpu=None,
+                            fallback_gpu=None, latest_request='可以使用任意卡',
+                            allcards_resume_request='可以使用任意卡', allcards_resume_at=600,
+                            authorization_history_transition=str(resumption), scope='all four cards')
+            def setup(all_cards=False):
                 write(old/'authorization_before.json', before)
                 write(old/'result.json', dict(allowed_gpu_indices=[0]))
                 write(transition/'authorization_before.json', restricted)
@@ -71,6 +77,15 @@ class AllocationTest(unittest.TestCase):
                         (fallback/f'authorization_{label}.json').read_bytes()).hexdigest()
                 write(fallback/'result.json', result)
                 write(session/'authorization.json', gpu12)
+                if all_cards:
+                    write(resumption/'authorization_before.json', gpu12)
+                    write(resumption/'authorization_after.json', allcards)
+                    result = dict(passed=True, allowed_gpu_indices=[0, 1, 2, 3], effective_at=600)
+                    for label in ('before', 'after'):
+                        result[label+'_sha256'] = hashlib.sha256(
+                            (resumption/f'authorization_{label}.json').read_bytes()).hexdigest()
+                    write(resumption/'result.json', result)
+                    write(session/'authorization.json', allcards)
             setup()
             self.assertEqual(report.historical_allcards_authorization(session), before)
             write(session/'authorization.json', gpu1)
@@ -114,6 +129,35 @@ class AllocationTest(unittest.TestCase):
             for path, key, value in mutations:
                 with self.subTest(path=path.name, key=key):
                     setup()
+                    changed = json.loads(path.read_text())
+                    changed[key] = value
+                    write(path, changed)
+                    with self.assertRaises(ValueError):
+                        report.historical_allcards_authorization(session)
+            setup(all_cards=True)
+            self.assertEqual(report.historical_allcards_authorization(session), before)
+            mutations = [
+                (session/'authorization.json', 'allowed_gpu_indices', [1, 2]),
+                (session/'authorization.json', 'primary_gpu', 1),
+                (session/'authorization.json', 'allcards_resume_at', 0),
+                (session/'authorization.json', 'allcards_resume_request', 'unknown'),
+                (session/'authorization.json', 'latest_request', 'unknown'),
+                (session/'authorization.json', 'authorization_history_transition', '/other'),
+                (session/'authorization.json', 'gpu1_fallback_at', 0),
+                (resumption/'authorization_before.json', 'allowed_gpu_indices', [0]),
+                (resumption/'authorization_before.json', 'request', 'changed'),
+                (resumption/'authorization_after.json', 'fallback_gpu', 2),
+                (resumption/'authorization_after.json', 'allcards_resume_request', 'unknown'),
+                (resumption/'result.json', 'passed', False),
+                (resumption/'result.json', 'effective_at', 0),
+                (resumption/'result.json', 'allowed_gpu_indices', [0, 2]),
+                (resumption/'result.json', 'before_sha256', '0'*64),
+                (resumption/'result.json', 'after_sha256', '0'*64),
+                (fallback/'result.json', 'before_sha256', '0'*64),
+            ]
+            for path, key, value in mutations:
+                with self.subTest(resumption=path.name, key=key):
+                    setup(all_cards=True)
                     changed = json.loads(path.read_text())
                     changed[key] = value
                     write(path, changed)
