@@ -1211,7 +1211,16 @@ def main():
                   'six-sample guard,300s occupancy cooldown and /root/python entry paths. '
                   'B4/B8 timing uses original GPU3;functional checks may use the other '
                   'cards. Previously paused queues stay retired and completed checks are reused.']
-        if allocation['allowed_gpu_indices'] == [0]:
+        if (allocation['allowed_gpu_indices'] == [0, 1, 2, 3]
+                and allocation.get('allcards_resume_request') == '可以使用任意卡'):
+            lines += ['', 'Stated latest allocation permits all four physical cards0–3 '
+                      'again. The preserved fifth transition keeps prior allocations '
+                      'and actual-card receipts intact. Only idle controller queues '
+                      'whose attempts all failed preflight75 were retired; no active '
+                      'GPU or foreign process was signaled. New cohorts retain the '
+                      'original retry_at, six idle samples, exclusive locks and '
+                      '/root/python entries. CNN remains paused.']
+        elif allocation['allowed_gpu_indices'] == [0]:
             lines += ['', 'Stated latest allocation supersedes the earlier four-card '
                       'permission: all new and resumed tests use physical GPU0 only. '
                       'The prior authorization snapshot and stopped-process audit '
@@ -3805,6 +3814,60 @@ def main():
                   'three visibility cases, P-DNN or unchanged retiming. '
                   'Thirteen inputs are archived and six core/seven test '
                   'files restored; formal current stays fixed.']
+    asynchronous = base/'boundary_async_current_b16_allcards_v2/result.json'
+    if asynchronous.exists():
+        value = read(asynchronous)
+        restored = read(asynchronous.parent/'restoration.json')
+        if (not value['passed'] or value['qualified'] or value['threshold'] != .05
+                or len(value['functional']) != 5 or not restored['passed']
+                or restored['all_finite_BF16_patterns'] != 65280):
+            raise ValueError('closed asynchronous boundary evidence changed')
+        lines += ['', 'Verified the exact old compact32B trace GPU instructions '
+                  'are retained while acquisition queues same-stream pinned-host '
+                  'D2H snapshots, then checks all50 named-output pairs and compresses '
+                  'records after collection. Five fresh GPU0 processes pass every '
+                  'output and ordered63x132 record check; all250 raw frames are '
+                  'reread and ledger medians reproduced on CPU. The predeclared '
+                  f'first3 windows{value["trace_windows_ms"]}ms have median'
+                  f'{value["median_window_ms"]:.6f}ms versus the unchanged latest '
+                  f'GPU1 three-position reference{value["reference_ms"]:.6f}ms; '
+                  f'difference{100*value["difference"]:.3f}% exceeds5%. Last2 '
+                  'children are functional-only and never alter the gate. '
+                  'The original postprocessor incorrectly compared rawBF16 with '
+                  'FP32-promoted hashes; its failure remains, and exact CPU '
+                  'promotion matches the unchanged expected hashes. Three CPU '
+                  'tests cover all65280 finite BF16 patterns, signed zero, all256 '
+                  'nonfinite patterns and invalid byte lengths. No GPU rerun or '
+                  'anchor/threshold change. Reject P-TUNE/P-MODEL eligibility; '
+                  'two private headers are archived/restored. This is5/5 trace '
+                  'functional evidence, not new P-CORR/P-SAN or performance admission; '
+                  'old serial failures and cross-card qualification remain explicit.']
+    fallback = base/'async_followup_current_b16_selection_v1/result.json'
+    if fallback.exists():
+        value = read(fallback)
+        selected = value['selection']
+        models = read(base/'async_followup_current_b16_models_allcards_v2/result.json')
+        if (not value['passed'] or not value['selected_current'] or value['production_admitted']
+                or not models['passed'] or models['coverage'] != 5 or models['excluded'] != [5]
+                or len(selected['measurements']) != 8
+                or [r['arm'] for r in selected['measurements']] != list('ABCDDCBA')
+                or any(r['guard']['code'] for r in selected['measurements'])):
+            raise ValueError('current-profile whole-program fallback changed')
+        ranking = ', '.join(f'{row["arm"]}={row["median_ms"]:.6f}ms'
+                            for row in selected['ranking'])
+        lines += ['', 'Verified the six frozen original B16 coordinate programs '
+                  'are re-emitted through the repaired host with current PF1, '
+                  'Rows64/GELU and72/216. Five nontrace/compact-trace pairs have '
+                  'zero spill; candidate5 retains24/24B and never executes. Each '
+                  'legal program passes strict FP32 model5 on actual GPUs0/3. '
+                  'Current-coordinate group aliases are identified and cannot '
+                  'claim a new gain. With boundary qualification rejected, '
+                  'nontrace P-SEL compares currentA and original candidates0/1/2 '
+                  f'asB/C/D onGPU{selected["gpu"]}: {ranking}; '
+                  f'noise{100*selected["threshold"]:.3f}%,tied={selected["tied"]}. '
+                  'Current wins. No assembled coordinates, extra pair, P-DNN '
+                  'or current-results update. These selection medians remain '
+                  'separate from the formal three-process P-DNN numbers.']
     (args.out/'DNN4_BERT_optimization.md').write_text('\n'.join(lines)+'\n')
     print(json.dumps(dict(comparisons=len(rows), report=str(args.out/'DNN4_BERT_optimization.md'))))
 
