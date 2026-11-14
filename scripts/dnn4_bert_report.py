@@ -3724,6 +3724,22 @@ def main():
                   'changes are restored. The report uses frozen verified '
                   'closure receipts for this unsupported experimental ABI. '
                   'Formal current and all targets stay fixed.']
+    split3_closed = base/'ffn2_n192_s3_b8_cpu_closed_v1/result.json'
+    if split3_closed.exists():
+        value = read(split3_closed)
+        if (not value['passed'] or value['status'] != 'CPU_spill_rejected'
+                or value['gpu_executed'] or value['spill_store_bytes'] != 20
+                or value['spill_load_bytes'] != 68
+                or value['control_word_proof']['encoded_words'] != 33616):
+            raise ValueError('fixed split3 CPU resource rejection changed')
+        lines += ['', 'Verified CPU-only B8 FFN2 TN192/S3/Slots4/TMA plus '
+                  'existing coalesced partials fails the full native resource '
+                  'gate:20B spill stores and68B loads. Its coalesced1 control '
+                  'at current coordinates matches all33616 GPU instruction '
+                  'words. No register/slot repair, GPU execution, correctness '
+                  'or performance claim; the exact rejected binary and '
+                  'diagnostic SASS remain archived. Earlier S2 negatives '
+                  'and all formal results retain their original decisions.']
     (args.out/'DNN4_BERT_optimization.md').write_text('\n'.join(lines)+'\n')
     print(json.dumps(dict(comparisons=len(rows), report=str(args.out/'DNN4_BERT_optimization.md'))))
 
