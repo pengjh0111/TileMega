@@ -225,6 +225,7 @@ def main():
                ('TN96 prefix store B16 prescreen', continuation/'tma_prefix96_b16_v1/experiment.json'),
                ('prefix store plus whole96 B16 prescreen', continuation/'prefix96_stats96_b16_v1/experiment.json'),
                ('FFN2 TN192 split2 current B16', continuation/'ffn2_n192_s2_b16_v1/experiment.json'),
+               ('FFN2 TMA128 split2 current B8', continuation/'ffn2_n128_s2_current_b8_v1/experiment.json'),
                ('retired slot staging B16', continuation/'ring_store_b16_v1/experiment.json'),
                ('FFN2 TMA64 eight-slot B16', continuation/'ffn2_tma64_b16_v1/experiment.json'),
                ('three output buffers B16', continuation/'store3_b16_v1/experiment.json'),
@@ -252,6 +253,7 @@ def main():
                     'TN96 prefix store B16 prescreen',
                     'prefix store plus whole96 B16 prescreen',
                     'FFN2 TN192 split2 current B16',
+                    'FFN2 TMA128 split2 current B8',
                     'retired slot staging B16',
                     'FFN2 TMA64 eight-slot B16',
                     'three output buffers B16',
@@ -3868,6 +3870,35 @@ def main():
                   'Current wins. No assembled coordinates, extra pair, P-DNN '
                   'or current-results update. These selection medians remain '
                   'separate from the formal three-process P-DNN numbers.']
+    split2_current = continuation/'ffn2_n128_s2_current_b8_v1/closure.json'
+    if split2_current.exists():
+        value = read(split2_current)
+        attribution = read(base/'ffn2_n128_s2_current_b8_attribution_v1/result.json')
+        if (not value['passed'] or value['production_admitted']
+                or value['status'] != 'pair_rejected' or attribution['passed']
+                or attribution['reference_spill_bytes'] != [8, 8, 0, 0]
+                or attribution['qualification_eligible']):
+            raise ValueError('closed current-profile split2 evidence changed')
+        lines += ['', 'Verified one B8 FFN2-only geometry changes128x64/S1/Slots8 '
+                  'to128x128/S2/Slots5/TMA, retaining TK64,64-column statistics, '
+                  'all other stages and current72/216/fulltile/matrix/GELU/recompute '
+                  'profile, with existing coalesced partials. Earlier profile208 '
+                  'negative stays rejected; current code has294400B SASS/maxR213 '
+                  'and zero spill. Fresh actualM1024/1025 writer+terminal control5 '
+                  'and candidate17 pass original FP32/row-stat oracles; four '
+                  'Program200REG+200TMA ordering17 cohorts are historical reuse '
+                  'only after current-header whole-word equality. Strict model5 '
+                  'passes, while cross-S1/S2 named bytes differ diagnostically. '
+                  'Smoke0.876784ms triggers attribution before pair. Candidate '
+                  'trace1 spills36/84B and never executes; legal trace3 is only '
+                  'diagnostic. A proposed matched current trace3 also spills8/8B '
+                  'and never executes, without repair. The old current level1 '
+                  'write path is not substituted to claim a causal segment delta. '
+                  f'GPU0 pair{value["reference_ms"]:.6f}→{value["candidate_ms"]:.6f}ms, '
+                  f'ratio{value["ratio"]:.6f},noise{100*value["threshold"]:.3f}% '
+                  'rejects9.486% regression. No P-DNN, trace retry, production '
+                  'source change or current-results update; exact resource '
+                  'failures and limited attribution remain recorded.']
     (args.out/'DNN4_BERT_optimization.md').write_text('\n'.join(lines)+'\n')
     print(json.dumps(dict(comparisons=len(rows), report=str(args.out/'DNN4_BERT_optimization.md'))))
 
