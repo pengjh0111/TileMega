@@ -24,6 +24,37 @@ def read(path):
 
 def historical_allcards_authorization(session):
     current = read(session/'authorization.json')
+    if current['allowed_gpu_indices'] == [1]:
+        transition = session/'gpu1_transition_1794646156165304477'
+        if not (transition/'result.json').exists():
+            raise ValueError('GPU1 allocation lacks its preserved transition evidence')
+        before_path = transition/'authorization_before.json'
+        after_path = transition/'authorization_after.json'
+        before, after, result = (read(before_path), read(after_path),
+                                 read(transition/'result.json'))
+        fields = ('allowed_gpu_indices', 'request', 'resumed_at',
+                  'gpu_restriction_at', 'gpu_restriction_request', 'gpu_fallback_at',
+                  'primary_gpu', 'fallback_gpu', 'same_card_pair_required',
+                  'latest_request', 'authorization_history_transition',
+                  'current_gpu_restriction_at', 'current_gpu_restriction_request')
+        if (before['allowed_gpu_indices'] != [0, 2]
+                or after['allowed_gpu_indices'] != [1]
+                or result['allowed_gpu_indices'] != [1]
+                or after.get('primary_gpu') != 1 or after.get('fallback_gpu') is not None
+                or after.get('same_card_pair_required') is not False
+                or result.get('same_card_pair_required') is not False
+                or after.get('current_gpu_restriction_at') != result.get('effective_at')
+                or after.get('current_gpu_restriction_request') != '现在限定使用一号卡吧，然后你持续推进'
+                or after.get('latest_request') != after.get('current_gpu_restriction_request')
+                or after.get('authorization_history_transition') != str(transition)
+                or result.get('before_sha256') != hashlib.sha256(before_path.read_bytes()).hexdigest()
+                or result.get('after_sha256') != hashlib.sha256(after_path.read_bytes()).hexdigest()
+                or any(current.get(key) != after.get(key) for key in fields)
+                or any(before.get(key) != after.get(key) for key in
+                       ('request', 'resumed_at', 'gpu_restriction_at',
+                        'gpu_restriction_request', 'gpu_fallback_at', 'same_card_pair_required'))):
+            raise ValueError('GPU1 allocation lacks its preserved transition evidence')
+        current = before
     if current['allowed_gpu_indices'] == [0, 2]:
         transition = session/'gpu02_transition_1794626179576967972'
         before_path = transition/'authorization_before.json'
