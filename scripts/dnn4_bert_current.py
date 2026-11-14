@@ -180,10 +180,24 @@ def select_successors(base, batch, specification):
             'TILEMEGA_F3_ATTENTION_ROWS': '64'}))
         names.append(('repeat_prefetch_b16_admitted_v1', {
             'TILEMEGA_F3_REPEAT_OUTPUT_MAP': '1', 'TILEMEGA_F3_PREFETCH_DISTANCE': '1'}))
+    if batch in (4, 8):
+        names.append((f'prefetch_b{batch}_gpu1_admitted_v1',
+                      {'TILEMEGA_F3_PREFETCH_DISTANCE': '1'}))
     for name, features in names:
         folder = base/name
         if not (folder/'experiment.json').exists():
             continue
+        if name.startswith('prefetch_b'):
+            if not (folder/'publication_gate.json').exists():
+                continue
+            publication = read(folder/'publication_gate.json')
+            negative = read(publication['negative_result'])
+            if (not publication['passed'] or publication['negative_cases'] < 40
+                    or not negative['positive_receipt']
+                    or publication['negative_cases'] != len(negative['corrupted_receipts_rejected'])
+                    or publication['negative_sha256'] != hashlib.sha256(
+                        Path(publication['negative_result']).read_bytes()).hexdigest()):
+                raise ValueError('prefetch publication lacks its negative receipt gate')
         decision = read(folder/'experiment.json')
         if not decision['accepted'] or not (folder/'final_result.json').exists():
             continue
@@ -232,6 +246,8 @@ def select_successors(base, batch, specification):
             count = 1
         if name == 'repeat_prefetch_b16_admitted_v1':
             count = 6
+        if name.startswith('prefetch_b'):
+            count = 5
         if name in ('pipeline_reduction_b2_admitted_v1',
                     'gelu_outline_b4_admitted_v1', 'gelu_outline_b8_admitted_v1',
                     'gelu_outline_b16_admitted_v1'):
@@ -263,6 +279,8 @@ def select_successors(base, batch, specification):
         if name == 'ppnorm_ffn1_b16_v1':
             reference_stages = read(decision['reference']+'.plan.json')['native_forward']['stages']
             required_gain = 0 if reference_stages[4].get('sched') == 'pp' else .03
+        if name.startswith('prefetch_b'):
+            required_gain = .01
         gpu = validate_followup_allocation(folder, name, decision, final)
         if (pair['gpu'] != gpu or len(pair['measurements']) != 6 or
                 any(m['guard']['code'] for m in pair['measurements']) or
@@ -916,6 +934,9 @@ def validate_timing_gpu(result, gpu, order):
 
 
 def validate_followup_allocation(folder, name, decision, final):
+    if name.startswith('prefetch_b'):
+        from dnn4_bert_prefetch import validate
+        return validate(folder, decision, final)
     if name == 'repeat_prefetch_b16_admitted_v1':
         from dnn4_bert_repeat_prefetch import validate
         return validate(folder, decision, final)
