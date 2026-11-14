@@ -227,6 +227,7 @@ def main():
                ('FFN2 TN192 split2 current B16', continuation/'ffn2_n192_s2_b16_v1/experiment.json'),
                ('retired slot staging B16', continuation/'ring_store_b16_v1/experiment.json'),
                ('FFN2 TMA64 eight-slot B16', continuation/'ffn2_tma64_b16_v1/experiment.json'),
+               ('three output buffers B16', continuation/'store3_b16_v1/experiment.json'),
                ('WGMMA depth2 prologue B4', continuation/'mma_depth2_b4_v3/experiment.json')]
     rows = []
     choices = []
@@ -245,7 +246,8 @@ def main():
                     'prefix store plus whole96 B16 prescreen',
                     'FFN2 TN192 split2 current B16',
                     'retired slot staging B16',
-                    'FFN2 TMA64 eight-slot B16'):
+                    'FFN2 TMA64 eight-slot B16',
+                    'three output buffers B16'):
             model = read(path.parent/'model/result.json')
             pair = experiment['pair']
             if (not model['passed'] or model['passes'] != '5/5'
@@ -3428,6 +3430,53 @@ def main():
                   'without P-DNN, remaining three visibility cohorts or '
                   'current update. No production implementation changes '
                   'or unchanged candidate remeasurement.']
+    store3 = continuation/'store3_b16_v1/result.json'
+    if store3.exists():
+        value = read(store3)
+        experiment = read(store3.parent/'experiment.json')
+        if value['status'] != 'pair_rejected' or experiment['accepted'] or not read(base/'store3_contract_v1/restoration.json')['passed']:
+            raise ValueError('three-buffer closed negative changed')
+        pair = experiment['pair']
+        lines += ['', 'Verified one private three-output-buffer extension '
+                  'keeps all coordinates, input rings, statistics and math '
+                  'fixed. TM128/TN192 normal nonresidual TMA stages use three '
+                  '8KiB boxes per WG with read2 before reuse; residual and '
+                  'other geometry retain the original path. Payload227328B '
+                  'fits. An initial factored address expression perturbs '
+                  'default B8/B16 words and is rejected before any hardware; '
+                  'restoring the literal old expression for buffer2 preserves '
+                  'all five defaults. Candidate295808B SASS has zero spill. '
+                  'Fresh control5/body17/first-visibility17 and strict model5 '
+                  'with incumbent named bytes pass. '
+                  f'GPU1 pair{pair["reference_ms"]:.6f}→'
+                  f'{pair["candidate_ms"]:.6f}ms,ratio{pair["ratio"]:.6f},'
+                  f'noise{100*pair["threshold"]:.3f}%. Gain0.289% does not '
+                  'clear noise or the prospective3% minimum. Reject without '
+                  'extra trace, P-DNN or remaining three visibility cohorts. '
+                  'Six private files are archived; five core changes and one '
+                  'owned test are restored/removed. Current results stay fixed.']
+    signal = continuation/'gate_signal_b16_v1/result.json'
+    if signal.exists():
+        value = read(signal)
+        if value['status'] != 'retired_before_model_performance' or value['timing_executed'] or not read(base/'gate_signal_contract_v1/restoration.json')['passed']:
+            raise ValueError('unmeasured gate-signal retirement changed')
+        lines += ['', 'Verified private separate-line gate signal compiles '
+                  'without spill (298368B), preserves five default instruction '
+                  'streams and22656 direct-body words, and passes fresh GPU1 '
+                  '132-CTA control5/candidate17. The independent integer '
+                  'visibility stress rotates a late CTA for200 epochs and '
+                  'checks all arrival and release-epoch counters. Four400-launch '
+                  'visibility binaries are compiled but never executed; no '
+                  'model or timing result exists. CPU disassembly of the '
+                  'original acquire poll finds CCTL.IVALL inside every failed '
+                  'poll; the signal design retains that work. The coordinator '
+                  'alone is held while its full guarded17 completes, then '
+                  'retired before expensive cases. No child, guard, scheduler '
+                  'or foreign process is signaled. Prefer a direct relaxed '
+                  'poll followed by mandatory original acquire; its benefit '
+                  'remains inferred. Five private files are archived/restored. '
+                  'This is an unmeasured retirement, never a performance '
+                  'rejection or acceptance. User authorization stays active.']
     (args.out/'DNN4_BERT_optimization.md').write_text('\n'.join(lines)+'\n')
     print(json.dumps(dict(comparisons=len(rows), report=str(args.out/'DNN4_BERT_optimization.md'))))
 
