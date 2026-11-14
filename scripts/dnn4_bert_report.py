@@ -230,6 +230,7 @@ def main():
                ('three output buffers B16', continuation/'store3_b16_v1/experiment.json'),
                ('relaxed failed gate poll B16', continuation/'gate_poll_b16_v1/experiment.json'),
                ('parameter buffer pointers B16', continuation/'param_buffers_b16_v1/experiment.json'),
+               ('independent consumer attention B16', continuation/'attention_pp_b16_v1/experiment.json'),
                ('WGMMA depth2 prologue B4', continuation/'mma_depth2_b4_v3/experiment.json')]
     rows = []
     choices = []
@@ -251,7 +252,8 @@ def main():
                     'FFN2 TMA64 eight-slot B16',
                     'three output buffers B16',
                     'relaxed failed gate poll B16',
-                    'parameter buffer pointers B16'):
+                    'parameter buffer pointers B16',
+                    'independent consumer attention B16'):
             model = read(path.parent/'model/result.json')
             pair = experiment['pair']
             if (not model['passed'] or model['passes'] != '5/5'
@@ -3519,6 +3521,35 @@ def main():
                   'No remaining visibility cohorts, P-DNN, unchanged binary '
                   'remeasurement or formal-current update. Exact private '
                   'sources are archived and restored.']
+    attention_pp = continuation/'attention_pp_b16_v1/result.json'
+    if attention_pp.exists():
+        value = read(attention_pp)
+        experiment = read(attention_pp.parent/'experiment.json')
+        if (value['status'] != 'pair_rejected' or experiment['accepted']
+                or not read(base/'attention_pp_contract_v1/restoration.json')['passed']
+                or not read(attention_pp.parent/'model_byte_comparison.json')['passed']):
+            raise ValueError('closed independent attention negative changed')
+        pair = experiment['pair']
+        lines += ['', 'Verified private Rows64 independent-consumer attention '
+                  'uses WGw for local task w+2j in its existing slot; four '
+                  'warp leaders each release count2 against original empty8. '
+                  'Producer, math, maps and coordinates stay fixed. All '
+                  'consumer threads restore the complete logical slot0/1 '
+                  'phase and retain high bits for later cooperative GEMMs. '
+                  'Five defaults match; native295552B has zero spill. Fresh '
+                  'GPU1 control5/candidate17 execute five batches, nine real '
+                  'Program stages and five epochs: attention, crossCTA copy, '
+                  'identity GEMM Slots8, attention, copy, GEMM Slots4/8. '
+                  'FP32 per-head cosine, output bytes, high-slot phase carry '
+                  'and all gate counters pass. Direct GEMM17 is historical '
+                  'instruction reuse; no fresh old four-case TMA claim. '
+                  'Strict model5 and incumbent named bytes pass. '
+                  f'GPU1 pair{pair["reference_ms"]:.6f}→'
+                  f'{pair["candidate_ms"]:.6f}ms,ratio{pair["ratio"]:.6f},'
+                  f'noise{100*pair["threshold"]:.3f}%. Gain0.088% is below '
+                  'noise and the prospective3% minimum. Reject without '
+                  'P-DNN, extra trace or unchanged retiming. Three private '
+                  'inputs are archived/restored; formal current stays fixed.']
     (args.out/'DNN4_BERT_optimization.md').write_text('\n'.join(lines)+'\n')
     print(json.dumps(dict(comparisons=len(rows), report=str(args.out/'DNN4_BERT_optimization.md'))))
 
