@@ -2814,7 +2814,7 @@ def main():
             lines += ['', 'Verified the optional output-map codegen path is '
                       'integrated with default0. Actual main codegen reproduces '
                       'all 257296 disabled-arm and 36608 enabled-arm encoded '
-                      'GPU words; both builds have zero spill. All five current '
+                      'GPU words; both builds have zero spill. All five pre-admission '
                       'profiles emit identical code with the setting absent or '
                       'explicit0, and each rebuilt program matches its incumbent '
                       'instructions. A reusable fixture builder renders real '
@@ -2884,12 +2884,41 @@ def main():
                   f'P-DNN median{result["final"]["candidate_ms"]:.6f}ms; '
                   f'p90{result["final"]["p90_ms"]:.6f}ms; '
                   f'range{result["final"]["process_range_ms"]:.6f}ms. '
-                  'This is a positive private candidate. GEMM body words match '
+                  'GEMM body words match '
                   'the prior fixture, while four Program ordering binaries '
                   'change with prefetch hints and cannot reuse whole-word '
-                  'certificates. Fresh ordering gates, candidate selection, '
-                  'exact ledger and final admission remain pending. Current '
-                  'CSV and fixed GPU3 target remain unchanged.']
+                  'certificates.']
+        admitted = base/'repeat_prefetch_b16_admitted_v1/admission.json'
+        if admitted.exists():
+            from dnn4_bert_repeat_prefetch import validate
+            folder = admitted.parent
+            validate(folder, read(folder/'experiment.json'), read(folder/'final_result.json'))
+            lines += ['Verified four fresh ordering17 cohorts, strict model5, '
+                      'four-program P-SEL and the exact63-stage GPU2 ledger '
+                      'complete the fixed combination admission. Body17 and '
+                      'map-layout17 are explicitly reused after instruction '
+                      'identity; other source/default proofs also pass. '
+                      'Only this B16 profile enables the optional output map '
+                      'and distance1; production defaults remain unchanged. '
+                      'The original GPU3 target is retained without reanchoring. '
+                      'Current CSV publication follows the separate negative '
+                      'receipt tests and five-batch exporter regression.']
+            publication = base/'repeat_prefetch_publication_v1/result.json'
+            if publication.exists():
+                published = read(publication)
+                if not published['passed'] or published['negative_cases'] != 44:
+                    raise ValueError('Repeat prefetch publication lacks its negative receipt gate')
+                lines += ['Verified44 corrupted receipts are rejected and the '
+                          'five-batch exporter preserves the other four artifacts '
+                          'and numerical results. Current B16 is published at '
+                          f'{published["admitted_B16_ms"]:.6f}ms, still5.434% above '
+                          'the fixed1.086864ms target. B1/B2 remain below target; '
+                          'B4/B8/B16 still require further improvement.']
+        else:
+            lines += ['This is a positive private candidate. Fresh ordering '
+                      'gates, candidate selection, exact ledger and final '
+                      'admission remain pending. Current CSV and fixed GPU3 '
+                      'target remain unchanged.']
     (args.out/'DNN4_BERT_optimization.md').write_text('\n'.join(lines)+'\n')
     print(json.dumps(dict(comparisons=len(rows), report=str(args.out/'DNN4_BERT_optimization.md'))))
 
