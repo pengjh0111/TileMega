@@ -222,6 +222,8 @@ def main():
                ('FFN1-only TMA192 current GELU B8', continuation/'ffn1_tma192_gelu_b8_v1/experiment.json'),
                ('FFN2 TK128 on FFN1-isolated B8', continuation/'ffn2_tk128_ffn1_b8_v1/experiment.json'),
                ('QKV TMA192 repaired RepeatPF1 B16', continuation/'qkv_tma192_pf1_b16_v1/experiment.json'),
+               ('TN96 prefix store B16 prescreen', continuation/'tma_prefix96_b16_v1/experiment.json'),
+               ('prefix store plus whole96 B16 prescreen', continuation/'prefix96_stats96_b16_v1/experiment.json'),
                ('WGMMA depth2 prologue B4', continuation/'mma_depth2_b4_v3/experiment.json')]
     rows = []
     choices = []
@@ -235,7 +237,9 @@ def main():
                     'fixed prefetch1 on current B4', 'fixed prefetch1 current B8 prescreen',
                     'FFN1-only TMA192 current GELU B8',
                     'FFN2 TK128 on FFN1-isolated B8',
-                    'QKV TMA192 repaired RepeatPF1 B16'):
+                    'QKV TMA192 repaired RepeatPF1 B16',
+                    'TN96 prefix store B16 prescreen',
+                    'prefix store plus whole96 B16 prescreen'):
             model = read(path.parent/'model/result.json')
             pair = experiment['pair']
             if (not model['passed'] or model['passes'] != '5/5'
@@ -3240,6 +3244,79 @@ def main():
                      if experiment['accepted'] else
                      'Reject under the prospective3%/noise gate without P-DNN '
                      'or unchanged retiming; current B16 is retained.')]
+    prefix = continuation/'tma_prefix96_b16_v1/result.json'
+    if prefix.exists():
+        result = read(prefix)
+        experiment = read(prefix.parent/'experiment.json')
+        functional = read(prefix.parent/'functional_components.json')
+        precision = read(prefix.parent/'store_only_precision_result.json')
+        pair = experiment['pair']
+        if (result['status'] != 'pair_rejected' or experiment['accepted']
+                or functional['complete_ordering'] or not precision['passed']):
+            raise ValueError('TN96 store prescreen changes its closed protocol scope')
+        lines += ['', 'Verified private TN96 store extension sends its complete64 '
+                  'columns through TMA and its final32 through existing generic '
+                  'predicates; the local box bound prevents adjacent-tile overwrite. '
+                  'B16 changes eleven QKV store coordinates and Slots7→6 to fit '
+                  'existing32KiB staging; arithmetic,stats64 and other coordinates '
+                  'stay fixed. All five disabled programs retain complete GPU '
+                  'instruction words. The initial uniform box check perturbed '
+                  'B8/B16 defaults; preserved CPU-only failures lead to a constexpr '
+                  'bound only for non64 widths. Six dependent host objects and '
+                  'four CPU tests rebuild/pass; full CMake/ctest remains externally '
+                  'blocked. Full candidate has zero spill,293504B SASS. Fresh '
+                  'control5,body17,first visibility17 and strict model5 pass on '
+                  'GPU1, preserving both incumbent named outputs. The first '
+                  'visibility case retains200reg+200TMA launches per process and '
+                  'takes707.326s for its complete guarded cohort. GPU1 pair'
+                  f'{pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms gains'
+                  f'{100*(1-pair["ratio"]):.3f}% below'
+                  f'{100*pair["threshold"]:.3f}% noise and the predeclared3% gate. '
+                  'Reject without P-DNN or the remaining three visibility '
+                  'sanitizer cohorts; no full four-case P-SAN completion or '
+                  'production admission is claimed. The prototype stays isolated '
+                  'and official BERT results are unchanged.']
+    combined = continuation/'prefix96_stats96_b16_v1/result.json'
+    if combined.exists():
+        result = read(combined)
+        experiment = read(combined.parent/'experiment.json')
+        functional = read(combined.parent/'functional_components.json')
+        pair = experiment['pair']
+        if (result['status'] != 'pair_rejected' or experiment['accepted']
+                or functional['complete_ordering'] or len(functional['body_gates']) != 3
+                or len(functional['order_gates']) != 1):
+            raise ValueError('combined prefix/statistics prescreen changed its negative scope')
+        lines += ['', 'Verified one fixed combination keeps QKV TN96 prefix '
+                  'stores and adds FFN2 TN96/reg/Slots6 with whole96-column '
+                  'statistics. Both earlier component failures remain rejected. '
+                  'The candidate has zero spill,291968B SASS; all five disabled '
+                  'programs retain complete GPU words. All49 reader contracts, '
+                  'eleven12→8-part buffer changes and two invalid geometries '
+                  'pass CPU checks. Three control5, two body17 and the first '
+                  'visibility17 are reused only after whole instruction-word '
+                  'identity; the changed mixed body gets fresh17. Strict model5 '
+                  'passes with deterministic candidate bytes; differences from '
+                  'the incumbent follow statistics reassociation under U9, '
+                  'without relaxing the FP32 criterion. GPU1 pair'
+                  f'{pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms gains'
+                  f'{100*(1-pair["ratio"]):.3f}% below'
+                  f'{100*pair["threshold"]:.3f}% noise. Reject without P-DNN '
+                  'or the remaining three visibility cohorts. Six private core '
+                  'files and two owned tests are archived and restored; main '
+                  'production files never change.']
+        attribution = base/'prefix96_stats96_attribution_v1/result.json'
+        if attribution.exists():
+            measured = read(attribution)
+            if not measured['passed']:
+                raise ValueError('combined attribution is incomplete')
+            lines += ['Verified two same-GPU1 bounded P-TRACE1 runs retain '
+                      'the exact current/candidate binary references. FFN2 '
+                      'stage380.320→351.072us, main299.648→279.968us, '
+                      'epilogue74.304→64.256us, store13.696→28.800us; '
+                      'projection194.720→209.344us offsets part of the gain. '
+                      'Nested maxima are nonadditive diagnostics, with trace '
+                      'overhead and code/cache differences. No nontrace '
+                      'remeasurement or revised threshold follows.']
     (args.out/'DNN4_BERT_optimization.md').write_text('\n'.join(lines)+'\n')
     print(json.dumps(dict(comparisons=len(rows), report=str(args.out/'DNN4_BERT_optimization.md'))))
 
