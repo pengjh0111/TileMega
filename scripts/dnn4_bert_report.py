@@ -217,6 +217,7 @@ def main():
                ('FFN1 register256 on Repeat prefetch1 B16', continuation/'repeat_prefetch_ffn256_b16_v1/experiment.json'),
                ('whole96 balanced FFN B8', continuation/'b8_stats96_balance_v2/experiment.json'),
                ('whole96 FFN2 on Repeat prefetch1 B16', continuation/'b16_stats96_pf1_gpu1_v1/experiment.json'),
+               ('fixed prefetch1 on current B4', continuation/'prefetch_b4_gpu1_split_v2/experiment.json'),
                ('WGMMA depth2 prologue B4', continuation/'mma_depth2_b4_v3/experiment.json')]
     rows = []
     choices = []
@@ -226,7 +227,8 @@ def main():
         experiment = read(path)
         if name in ('current catalog assembly B16', 'Repeat optional output map B16',
                     'Repeat prefetch1 B16', 'FFN1 register256 on Repeat prefetch1 B16',
-                    'whole96 balanced FFN B8', 'whole96 FFN2 on Repeat prefetch1 B16'):
+                    'whole96 balanced FFN B8', 'whole96 FFN2 on Repeat prefetch1 B16',
+                    'fixed prefetch1 on current B4'):
             model = read(path.parent/'model/result.json')
             pair = experiment['pair']
             if (not model['passed'] or model['passes'] != '5/5'
@@ -245,6 +247,14 @@ def main():
                         or set(experiment['unit_gates']) != set(
                             functional['body_gates']+functional['order_gates'])):
                     raise ValueError('mixed-grain follow-up lacks its complete component gates')
+            if name == 'fixed prefetch1 on current B4':
+                functional = read(path.parent/'functional_components.json')
+                if (not functional['passed'] or experiment['minimum_gain'] != .01
+                        or len(functional['order_gates']) != 4
+                        or experiment['unit_gates'] != [functional['body_gate'],
+                                                        *functional['order_gates']]
+                        or not read(path.parent/'model_bit_proof.json')['passed']):
+                    raise ValueError('fixed B4 prefetch lacks its original split functional gate')
             for unit_path in experiment.get('unit_gates', []):
                 unit = read(Path(unit_path))
                 processes = unit['processes']
@@ -3040,6 +3050,44 @@ def main():
                       'current B16 stays1.145920ms on GPU2. No greater-than3% '
                       'regression trace is triggered. Historical fixed GPU3 '
                       'target remains unchanged.']
+    b4_prefetch = base/'prefetch_b4_gpu1_v1/result.json'
+    if b4_prefetch.exists():
+        prepared = read(b4_prefetch)
+        if (prepared['status'] != 'prepared_CPU_only'
+                or not read(Path(prepared['source_differential']))['passed']
+                or not read(Path(prepared['body_proof']))['passed']):
+            raise ValueError('fixed B4 prefetch lacks its CPU preparation')
+        lines += ['', 'Verified the existing DT-PF distance2→1 choice on current '
+                  'B4 changes only one generated define, preserving coordinates, '
+                  'maps, arithmetic, registers and failed-poll backoff. The '
+                  'actual main host emits a zero-spill242304B program; all53488 '
+                  'body/GELU instruction words match the completed17 cohort. '
+                  'Prospective acceptance requires gain above max(1%, noise), '
+                  'consistent with the DT-PF1% tie rule. B16 benefit motivates '
+                  'this single B4 check; B4 benefit remains inferred.']
+        retired = continuation/'prefetch_b4_gpu1_v1/ordering_retired.json'
+        if retired.exists():
+            lines += ['Verified the initial combined four-case reservation is '
+                      'rejected by guard75 for running interference; no partial '
+                      'child results qualify. Only its waiting controllers are '
+                      'retired. Four separately compiled one-case binaries keep '
+                      'the original prefix,200 register+200 TMA launches, bit '
+                      'checks,600s child and1200s cohort budgets. Each requires '
+                      'fresh unit5/mem1/init1/race5/sync5 on GPU1 and inherits '
+                      'the complete recorded retry delay. Guards are unchanged. '
+                      'This remains private with no current-result change.']
+        completed = continuation/'prefetch_b4_gpu1_split_v2/result.json'
+        if completed.exists():
+            result = read(completed)
+            measured = read(completed.parent/'experiment.json')
+            pair = measured['pair']
+            lines += [f'Verified GPU1 independent pair{pair["reference_ms"]:.6f}→'
+                      f'{pair["candidate_ms"]:.6f}ms, gain'
+                      f'{100*(1-pair["ratio"]):.3f}%, noise'
+                      f'{100*pair["threshold"]:.3f}%; status={result["status"]}. '
+                      'Strict model5 and four fresh ordering17 cohorts precede '
+                      'timing. Current admission requires a separate complete '
+                      'audit; the fixed GPU3 target is unchanged.']
     (args.out/'DNN4_BERT_optimization.md').write_text('\n'.join(lines)+'\n')
     print(json.dumps(dict(comparisons=len(rows), report=str(args.out/'DNN4_BERT_optimization.md'))))
 
