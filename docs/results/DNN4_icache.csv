@@ -751,3 +751,4 @@ BERT-followup,bert,8,16920,270720,,,c183f7e53df93a333d08a2a02fceda4226f9952644a6
 BERT-followup,bert,16,18368,293888,,,,af4addcda6d13c3b87e5fa284c8ab9812ae45c5490f57e1150701b99ee057abe,/root/TileMega-dnn3/runs/dnn4/bert_priority/qkv_tma192_pf1_b16_v1/model/result.json,verified,,,,,,,
 BERT-followup,bert,16,18344,293504,,,,542c60e5e0f1e755bd907a667f25089300276e5acd67184b9976b1595e200039,/root/TileMega-dnn3/runs/dnn4/bert_priority/tma_prefix96_models_v2/result.json,verified;private rejected store-only prescreen,,,,,,,
 BERT-followup,bert,16,18248,291968,,,,3434128ad34b331096cc8a7b2d4540de7465b1cf37c2a1137e3a8a1c050948d8,/root/TileMega-dnn3/runs/dnn4/bert_priority/prefix96_stats96_models_v1/result.json,verified;privatecombinednegative,,,,,,,
+BERT-followup,bert,16,20264,324224,,,,eba65de7c80cf5b9435eaf2b712f4817183da55a70562a684df9d1fda7b6518f,/root/TileMega-dnn3/runs/dnn4/bert_priority/ffn2_n192_s2_b16_v1/result.json,verified;rejectedcoordinatecandidate,,,,,,,

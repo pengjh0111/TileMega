@@ -224,6 +224,7 @@ def main():
                ('QKV TMA192 repaired RepeatPF1 B16', continuation/'qkv_tma192_pf1_b16_v1/experiment.json'),
                ('TN96 prefix store B16 prescreen', continuation/'tma_prefix96_b16_v1/experiment.json'),
                ('prefix store plus whole96 B16 prescreen', continuation/'prefix96_stats96_b16_v1/experiment.json'),
+               ('FFN2 TN192 split2 current B16', continuation/'ffn2_n192_s2_b16_v1/experiment.json'),
                ('WGMMA depth2 prologue B4', continuation/'mma_depth2_b4_v3/experiment.json')]
     rows = []
     choices = []
@@ -239,7 +240,8 @@ def main():
                     'FFN2 TK128 on FFN1-isolated B8',
                     'QKV TMA192 repaired RepeatPF1 B16',
                     'TN96 prefix store B16 prescreen',
-                    'prefix store plus whole96 B16 prescreen'):
+                    'prefix store plus whole96 B16 prescreen',
+                    'FFN2 TN192 split2 current B16'):
             model = read(path.parent/'model/result.json')
             pair = experiment['pair']
             if (not model['passed'] or model['passes'] != '5/5'
@@ -3317,6 +3319,38 @@ def main():
                       'Nested maxima are nonadditive diagnostics, with trace '
                       'overhead and code/cache differences. No nontrace '
                       'remeasurement or revised threshold follows.']
+    split192 = continuation/'ffn2_n192_s2_b16_v1/result.json'
+    if split192.exists():
+        result = read(split192)
+        experiment = read(split192.parent/'experiment.json')
+        failure = read(split192.parent/'trace1_build_failure.json')
+        diagnostic = read(base/'ffn2_n192_s2_boundary_diagnosis_v1/result.json')
+        pair = experiment['pair']
+        if result['status'] != 'pair_rejected' or experiment['accepted'] or failure['trace1_executed']:
+            raise ValueError('split2 B16 report changes its closed negative result')
+        base_total = sum(diagnostic['groups']['reference'].values())/1e6
+        candidate_total = sum(diagnostic['groups']['candidate'].values())/1e6
+        lines += ['', 'Verified one original-grain FFN2 TN192/S2/Slots4/TMA '
+                  'candidate uses existing coalesced partials on the current '
+                  'PF1/Rows64/GELU/profile216 program. Other coordinates and '
+                  'stats64 stay fixed. Nontrace324224B SASS has zero spill; '
+                  'fresh control5/body17/model5 pass, and four unchanged '
+                  'Program ordering17 cohorts are reused after whole-word '
+                  'identity. Smoke1.274864ms triggers attribution before pairing. '
+                  'Fulltrace1 instrumentation spills68B stores/176B loads and '
+                  'is never executed. A zero-spill trace3 fallback provides '
+                  'only stage windows: FFN2 296.288→373.728us. Trace-window '
+                  f'sums{base_total:.6f}/{candidate_total:.6f}ms differ from '
+                  'nontrace pair medians by'
+                  f'{100*(base_total/pair["reference_ms"]-1):.3f}%/'
+                  f'{100*(candidate_total/pair["candidate_ms"]-1):.3f}%; '
+                  'the reference exceeds5%, so these windows are ineligible '
+                  'for P-TUNE/P-MODEL and support qualitative attribution only. '
+                  f'GPU1 independent pair{pair["reference_ms"]:.6f}→'
+                  f'{pair["candidate_ms"]:.6f}ms,ratio{pair["ratio"]:.6f},'
+                  f'noise{100*pair["threshold"]:.3f}%. Reject without P-DNN '
+                  'or current update; failed trace build and pending-pair '
+                  'controller repair are retained.']
     (args.out/'DNN4_BERT_optimization.md').write_text('\n'.join(lines)+'\n')
     print(json.dumps(dict(comparisons=len(rows), report=str(args.out/'DNN4_BERT_optimization.md'))))
 
