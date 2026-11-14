@@ -704,6 +704,40 @@ def main():
             d = read(selection)
             choices.append(name+': '+', '.join(f"group{g['group']}→candidate{g['candidate']}"
                                               for g in d['groups'])+'.')
+    norm_cache_path = base/'row_norm_cache_closed_v1/result.json'
+    if norm_cache_path.exists():
+        import hashlib
+        closed = read(norm_cache_path)
+        for source, expected in closed['receipts'].items():
+            if hashlib.sha256(Path(source).read_bytes()).hexdigest() != expected:
+                raise ValueError('archived normalization cache receipt changed')
+        folder = continuation/'row_norm_cache_model_v1'
+        experiment = read(folder/'experiment.json')
+        value = read(folder/'result.json')
+        pair = experiment['pair']
+        identity = read(Path(experiment['library']+'.identity.json'))
+        if (not closed['passed'] or closed['status'] != 'rejected_archived_restored'
+                or value['status'] != 'pair_rejected' or experiment['accepted']
+                or experiment['minimum_gain'] != .005 or value['final'] is not None
+                or not closed['main_python_restored']
+                or closed['artifact_id'] != identity['artifact_id']
+                or pair['ratio'] < 1-max(.005, pair['threshold'])):
+            raise ValueError('archived normalization cache negative changed')
+        # Its experimental19th binding was validated before the owned parser
+        # was removed; frozen receipts preserve that fact without enabling it.
+        rows.append(dict(experiment='reader-owned normalization cache B16', batch=16,
+            gpu=pair['gpu'], reference_ms=pair['reference_ms'],
+            candidate_ms=pair['candidate_ms'], ratio=pair['ratio'],
+            gain_pct=100*(1-pair['ratio']), threshold_pct=100*pair['threshold'],
+            accepted=False, scope='Archived negative;verified experimental identity '
+                'and two fresh protocol17 cohorts;current backend restored',
+            correctness='P-CORR5/5 with incumbent named bytes',
+            artifact_id=closed['artifact_id'], binary_sha256=closed['binary_sha256'],
+            source_digest=closed['source_digest'], clocks=json.dumps([
+                {k:r[k] for k in ('start_sm_clock_mhz','end_sm_clock_mhz')}
+                for r in pair['measurements']], separators=(',', ':')),
+            evidence='verified', qualification=pair['qualification'],
+            gate=experiment['gate'], source=str(folder/'pair/result.json'), repeat_layers=1))
     if not rows:
         raise ValueError('no completed BERT comparisons')
     args.out.mkdir(parents=True, exist_ok=True)
@@ -3667,6 +3701,29 @@ def main():
                   'either binary or changing the reference/threshold. '
                   'Two exact private inputs are archived/restored; no '
                   'production performance or new P-CORR5/P-SAN claim.']
+    if norm_cache_path.exists():
+        lines += ['', 'Verified one reader-owned normalization-cache trial '
+                  'keeps current B16 coordinates,216/PF1,64-column statistics '
+                  'and arithmetic. P1 proactively computes each128-row tile '
+                  'once for23 NT12 sources;46 readers copy one cached part. '
+                  'An existing launch epoch plus GPU release/acquire readiness '
+                  'protects publication; the later reader reuses it after '
+                  'the existing gate. Extra414KiB scratch, no perlaunch '
+                  'memset or shared-layout change. Five defaults have '
+                  'identical instructions; native289920B/maxR160 has zero '
+                  'spill. Both odd257/1025 REG96 and actual even2048 '
+                  'GELU/TMA192 five-stage/five-changing-epoch protocols '
+                  'pass fresh control5/candidate17 on GPU1, including '
+                  'crossCTA bytes, ready epochs and later raw-phase '
+                  'continuation. Model5 passes strict FP32 and incumbent '
+                  'named bytes. GPU1 pair1.141568→1.146928ms; ratio1.004695 '
+                  'fails the prospective0.5% and2.924% noise gate. Reject '
+                  'without P-DNN, extra trace or unchanged retiming. '
+                  'Ten private inputs and the experimental binding parser '
+                  'are archived; all owned core and temporary main parser '
+                  'changes are restored. The report uses frozen verified '
+                  'closure receipts for this unsupported experimental ABI. '
+                  'Formal current and all targets stay fixed.']
     (args.out/'DNN4_BERT_optimization.md').write_text('\n'.join(lines)+'\n')
     print(json.dumps(dict(comparisons=len(rows), report=str(args.out/'DNN4_BERT_optimization.md'))))
 
