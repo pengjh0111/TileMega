@@ -5,7 +5,7 @@ import sys
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]/'scripts'))
-from dnn4_bert_model_cohort import validate_bert_checks
+from dnn4_bert_model_cohort import validate_bert_checks, validate_bert_output_identity
 
 
 def cohort():
@@ -22,6 +22,47 @@ def cohort():
 
 
 class BertCohortTest(unittest.TestCase):
+    def test_two_distinct_outputs_match_reference(self):
+        checks = cohort()
+        reference = copy.deepcopy(checks[0])
+        reference['artifact_id'] = 'incumbent'
+        reference['cases'][0]['outputs'][0]['max_error'] += .000001
+        result = validate_bert_output_identity(checks, reference, 'artifact')
+        self.assertEqual(result['named_output_sha256'], {
+            'layer_norm_24': 'a'*64, 'tanh': 'b'*64})
+
+    def test_identity_preserves_output_names_cases_and_inputs(self):
+        changes = [
+            lambda r: r.update(passed=False),
+            lambda r: r.update(input_tensors_sha256='other'),
+            lambda r: r.update(source_checkpoint_sha256='other'),
+            lambda r: r.update(checker_sha256='other'),
+            lambda r: r['cases'].pop(),
+            lambda r: r['cases'][0]['outputs'].reverse(),
+            lambda r: r['cases'][0]['outputs'][0].update(output_sha256='b'*64),
+            lambda r: r['cases'][0]['outputs'][1].update(output_sha256='a'*64),
+            lambda r: r['cases'][5]['outputs'][1].update(output_sha256='c'*64),
+        ]
+        for change in changes:
+            with self.subTest(change=change):
+                checks = cohort()
+                reference = copy.deepcopy(checks[0])
+                change(reference)
+                with self.assertRaises(ValueError):
+                    validate_bert_output_identity(checks, reference, 'artifact')
+
+    def test_identity_retains_five_process_precision_and_determinism(self):
+        for change in (lambda c: c.pop(),
+                       lambda c: c[4]['cases'][0]['outputs'][1].update(
+                           output_sha256='c'*64),
+                       lambda c: c[4]['cases'][0]['outputs'][1].update(
+                           cosine_min=.99899)):
+            checks = cohort()
+            reference = copy.deepcopy(checks[0])
+            change(checks)
+            with self.assertRaises(ValueError):
+                validate_bert_output_identity(checks, reference, 'artifact')
+
     def test_metric_variation_preserves_output_gate(self):
         checks = cohort()
         checks[3]['cases'][0]['outputs'][1]['max_error'] = .016677532

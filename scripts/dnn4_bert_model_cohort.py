@@ -55,3 +55,26 @@ def validate_bert_checks(checks, artifact_id):
     return {'cases': first['cases'], 'metric_ranges': [
         {'output': name, 'metric': field, 'min': min(values), 'max': max(values)}
         for (name, field), values in sorted(metrics.items())]}
+
+
+def validate_bert_output_identity(checks, reference, artifact_id):
+    result = validate_bert_checks(checks, artifact_id)
+    fields = ('reference', 'synthetic_weights', 'batch', 'checker_sha256',
+              'bridge_sha256', 'archive_sha256', 'source_checkpoint_sha256',
+              'input_tensors_sha256')
+    if reference.get('passed') is not True or any(
+            checks[0].get(field) != reference.get(field) for field in fields):
+        raise ValueError('BERT byte comparison changed its reference inputs or checker')
+
+    def signature(cases):
+        return [(case.get('epoch'), case.get('mode'),
+                 [(output.get('name'), output.get('output_sha256'))
+                  for output in case.get('outputs', [])]) for case in cases]
+
+    # Hidden states and the pooler are different tensors. Match each named
+    # output in every execution case, rather than collapsing their hash sets.
+    if signature(result['cases']) != signature(reference.get('cases', [])):
+        raise ValueError('BERT named output bytes differ from the reference')
+    return {'passed': True, 'named_output_sha256': {
+        output['name']: output['output_sha256']
+        for output in result['cases'][0]['outputs']}}
