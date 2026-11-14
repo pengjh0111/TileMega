@@ -147,6 +147,8 @@ def select_successors(base, batch, specification):
         names.append(('attention64_b16_admitted_v1', {
             'TILEMEGA_F3_WGMMA_QK': '1', 'TILEMEGA_F3_WGMMA_PV': '1',
             'TILEMEGA_F3_ATTENTION_ROWS': '64'}))
+        names.append(('repeat_prefetch_b16_admitted_v1', {
+            'TILEMEGA_F3_REPEAT_OUTPUT_MAP': '1', 'TILEMEGA_F3_PREFETCH_DISTANCE': '1'}))
     for name, features in names:
         folder = base/name
         if not (folder/'experiment.json').exists():
@@ -197,6 +199,8 @@ def select_successors(base, batch, specification):
             count = 1
         if name == 'attention64_b16_admitted_v1':
             count = 1
+        if name == 'repeat_prefetch_b16_admitted_v1':
+            count = 6
         if name in ('pipeline_reduction_b2_admitted_v1',
                     'gelu_outline_b4_admitted_v1', 'gelu_outline_b8_admitted_v1',
                     'gelu_outline_b16_admitted_v1'):
@@ -224,7 +228,7 @@ def select_successors(base, batch, specification):
         pair = decision['pair']
         required_gain = .03 if name in ('ppstore_ffn1_b16_v1', 'pp64_ffn1_b16_v1',
                                       'gelu_outline_b4_admitted_v1', 'gelu_outline_b8_admitted_v1',
-                    'gelu_outline_b16_admitted_v1') else 0
+                    'gelu_outline_b16_admitted_v1', 'repeat_prefetch_b16_admitted_v1') else 0
         if name == 'ppnorm_ffn1_b16_v1':
             reference_stages = read(decision['reference']+'.plan.json')['native_forward']['stages']
             required_gain = 0 if reference_stages[4].get('sched') == 'pp' else .03
@@ -335,6 +339,9 @@ def select_successors(base, batch, specification):
             if final_name != 'gelu_outline_b16_admitted_v1/final_result.json':
                 raise ValueError('attention combination lacks its admitted predecessor')
             validate_attention64_integration(folder, decision, final)
+        if name == 'repeat_prefetch_b16_admitted_v1':
+            if final_name != 'attention64_b16_admitted_v1/final_result.json':
+                raise ValueError('Repeat prefetch lacks its admitted predecessor')
         # Completed raw prototypes never appear in this ordered admission list.
         final_name = name+'/final_result.json'
         pair_name = name+'/experiment.json'
@@ -878,6 +885,9 @@ def validate_timing_gpu(result, gpu, order):
 
 
 def validate_followup_allocation(folder, name, decision, final):
+    if name == 'repeat_prefetch_b16_admitted_v1':
+        from dnn4_bert_repeat_prefetch import validate
+        return validate(folder, decision, final)
     if decision['pair']['gpu'] == 3:
         return 3
     if name == 'attention64_b16_admitted_v1':
@@ -1241,7 +1251,7 @@ def main():
             assert all(m['guard']['code'] == 0 for m in pair['measurements'])
             pair_source = str(base/pair_name)
             scope = ('BERT follow-up;original GPU3 anchor retained;not re-anchored' if gpu == 3
-                     else 'BERT follow-up on user-authorized GPU0;same-card pair;fixed GPU3 target retained;not re-anchored')
+                     else f'BERT follow-up on user-authorized GPU{gpu};actual-card pair;fixed GPU3 target retained;not re-anchored')
         else:
             source = ROOT/f'runs/dnn4/phase_z/cells_v1/bert_b{batch}/result.json'
             final = read(source)
