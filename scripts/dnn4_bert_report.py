@@ -215,6 +215,8 @@ def main():
                ('Repeat optional output map B16', continuation/'repeat_output_map_b16_v1/experiment.json'),
                ('Repeat prefetch1 B16', continuation/'repeat_prefetch_b16_v1/experiment.json'),
                ('FFN1 register256 on Repeat prefetch1 B16', continuation/'repeat_prefetch_ffn256_b16_v1/experiment.json'),
+               ('whole96 balanced FFN B8', continuation/'b8_stats96_balance_v2/experiment.json'),
+               ('whole96 FFN2 on Repeat prefetch1 B16', continuation/'b16_stats96_pf1_gpu1_v1/experiment.json'),
                ('WGMMA depth2 prologue B4', continuation/'mma_depth2_b4_v3/experiment.json')]
     rows = []
     choices = []
@@ -223,7 +225,8 @@ def main():
             continue
         experiment = read(path)
         if name in ('current catalog assembly B16', 'Repeat optional output map B16',
-                    'Repeat prefetch1 B16', 'FFN1 register256 on Repeat prefetch1 B16'):
+                    'Repeat prefetch1 B16', 'FFN1 register256 on Repeat prefetch1 B16',
+                    'whole96 balanced FFN B8', 'whole96 FFN2 on Repeat prefetch1 B16'):
             model = read(path.parent/'model/result.json')
             pair = experiment['pair']
             if (not model['passed'] or model['passes'] != '5/5'
@@ -233,8 +236,15 @@ def main():
             if name == 'current catalog assembly B16':
                 if not read(path.parent/'functional_gate.json')['passed']:
                     raise ValueError('catalog assembly lacks its component gate')
-            elif name != 'FFN1 register256 on Repeat prefetch1 B16' and not read(path.parent/'model_bit_proof.json')['passed']:
+            elif name in ('Repeat optional output map B16', 'Repeat prefetch1 B16') and not read(path.parent/'model_bit_proof.json')['passed']:
                 raise ValueError('Repeat follow-up lacks output byte equivalence')
+            if name.startswith('whole96 '):
+                functional = read(path.parent/'functional_components.json')
+                if (not functional['passed'] or len(functional['body_gates']) != 3
+                        or len(functional['order_gates']) != 4
+                        or set(experiment['unit_gates']) != set(
+                            functional['body_gates']+functional['order_gates'])):
+                    raise ValueError('mixed-grain follow-up lacks its complete component gates')
             for unit_path in experiment.get('unit_gates', []):
                 unit = read(Path(unit_path))
                 processes = unit['processes']
@@ -1129,6 +1139,13 @@ def main():
                       'qualify cross-card comparisons. Earlier completed checks retain '
                       'their actual cards. Guards, numerical gates and fixed targets '
                       'are unchanged; GPU1/3 receive no new test jobs.']
+        elif allocation['allowed_gpu_indices'] == [1]:
+            lines += ['', 'Stated latest allocation supersedes prior permissions: '
+                      'all new and resumed hardware tests use physical GPU1 only. '
+                      'The three preserved authorization transitions keep historical '
+                      'receipts on their actual cards. Python entries stay under '
+                      '/root/python; six-sample guards, exclusive locks, numerical '
+                      'gates and fixed targets are unchanged. CNN remains paused.']
     relocation = continuation/'b8_corr2_relocation.json'
     idle_change = continuation/'idle6_transition.json'
     if idle_change.exists():
@@ -2965,10 +2982,45 @@ def main():
                   'all49 reader contracts pass and two incompatible producer '
                   'geometries are rejected. Six short four-case body binaries '
                   'compile without spill. Ordering instruction reuse fails for '
-                  'all four cases, so fresh ordering gates are required. '
-                  'Hardware gates are pending; no B8 latency or admission is '
-                  'claimed. The source stays private and default0; full CMake '
+                  'all four cases, requiring fresh ordering gates. '
+                  'The source stays private and default0; full CMake '
                   'remains blocked by external MLIR Debug.cpp.o.']
+        completed = continuation/'b8_stats96_balance_v2/result.json'
+        if completed.exists():
+            result = read(completed)
+            measured = read(completed.parent/'experiment.json')
+            if result['status'] != 'pair_rejected' or measured['accepted']:
+                raise ValueError('B8 mixed-grain closure differs from its rejection')
+            pair = measured['pair']
+            lines += ['Verified three control5, three candidate17, four fresh '
+                      'ordering17 cohorts and strict model5 pass on GPU2 before '
+                      'the latest allocation change. GPU2 P-PAIR '
+                      f'{pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms '
+                      f'gains{100*(1-pair["ratio"]):.3f}% with '
+                      f'{100*pair["threshold"]:.3f}% noise, below the predeclared3% '
+                      'minimum. Reject this fixed combination; no P-DNN or '
+                      'unchanged retiming. Current B8 stays0.852384ms.']
+        else:
+            lines += ['Hardware gates remain pending; no B8 timing admission is claimed.']
+    b16_stats = base/'b16_stats96_pf1_v1/result.json'
+    if b16_stats.exists():
+        candidate = read(b16_stats)
+        contract = read(b16_stats.parent/'layout_proof.json')
+        if candidate['status'] != 'prepared_CPU_only' or not contract['passed']:
+            raise ValueError('B16 mixed-grain CPU preparation is incomplete')
+        lines += ['', 'Verified a separate fixed B16 FFN2 candidate uses '
+                  '128x96/TK64/S1/Slots6/register stores and whole96-column output '
+                  'statistics on the admitted Rows64/GELU/Repeat-map/PF1/72-216 '
+                  'profile. All other coordinates stay unchanged. The default '
+                  'kernel preserves incumbent instruction words; both models '
+                  'compile without spill, candidate SASS294272B. All49 reader '
+                  'contracts and11 changed-buffer checks pass; two incompatible '
+                  'producer geometries are rejected. Six exact2048/odd2049 '
+                  'four-case body binaries compile without spill. All four '
+                  'ordering binaries match the completed PF1 instruction words, '
+                  'permitting explicit historical gate reuse. New functional '
+                  'and model/timing jobs use only GPU1; this is a private '
+                  'candidate, with no current-result change.']
     (args.out/'DNN4_BERT_optimization.md').write_text('\n'.join(lines)+'\n')
     print(json.dumps(dict(comparisons=len(rows), report=str(args.out/'DNN4_BERT_optimization.md'))))
 
