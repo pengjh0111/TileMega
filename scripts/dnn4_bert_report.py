@@ -233,6 +233,7 @@ def main():
                ('independent consumer attention B16', continuation/'attention_pp_b16_v1/experiment.json'),
                ('projection M256 N64 current B16', continuation/'projection_m256n64_b16_v1/experiment.json'),
                ('FFN1 TMA256 outlined context B16', continuation/'ffn1_tma256_gelu_b16_v1/experiment.json'),
+               ('producer warp2 prefetch B8', continuation/'prefetch_warp2_b8_v1/experiment.json'),
                ('WGMMA depth2 prologue B4', continuation/'mma_depth2_b4_v3/experiment.json')]
     rows = []
     choices = []
@@ -257,7 +258,8 @@ def main():
                     'parameter buffer pointers B16',
                     'independent consumer attention B16',
                     'projection M256 N64 current B16',
-                    'FFN1 TMA256 outlined context B16'):
+                    'FFN1 TMA256 outlined context B16',
+                    'producer warp2 prefetch B8'):
             model = read(path.parent/'model/result.json')
             pair = experiment['pair']
             if (not model['passed'] or model['passes'] != '5/5'
@@ -3740,6 +3742,32 @@ def main():
                   'or performance claim; the exact rejected binary and '
                   'diagnostic SASS remain archived. Earlier S2 negatives '
                   'and all formal results retain their original decisions.']
+    warp2_closed = continuation/'prefetch_warp2_b8_v1/result.json'
+    if warp2_closed.exists():
+        value = read(warp2_closed)
+        experiment = read(warp2_closed.parent/'experiment.json')
+        if (value['status'] != 'pair_rejected' or experiment['accepted']
+                or experiment['minimum_gain'] != .005
+                or not read(base/'prefetch_warp2_units_v2/restoration.json')['passed']
+                or not read(warp2_closed.parent/'model_byte_comparison.json')['passed']):
+            raise ValueError('closed prefetch-warp negative changed')
+        lines += ['', 'Verified one B8 producer-role trial moves exactly '
+                  'the next-stage L2 weight prefetch from P1/thread288 to '
+                  'P2/thread320. Addresses, bytes, distance2, current '
+                  'coordinates,216 profile, arithmetic, gates and fences '
+                  'stay fixed. Five defaults match all instruction words; '
+                  'native268928B/maxR213 has zero spill. Initial fixture '
+                  'control mismatched after an incorrect grid0 override; '
+                  'the failure is retained without GPU execution. V2 uses '
+                  'the original actual132CTA profile and200REG+200TMA '
+                  'launches. Fresh first visibility control5/candidate17 '
+                  'and strict model5 pass on GPU1 with incumbent named '
+                  'bytes. Direct-body17 is explicit26880-word historical '
+                  'GPU2 reuse; remaining three visibility cases are unrun. '
+                  'Pair0.800480→0.802176ms,ratio1.002119,noise2.230% fails '
+                  'the prospective0.5%/noise gate. Reject without P-DNN, '
+                  'extra trace or unchanged retiming. Three private inputs '
+                  'are archived/restored and formal current stays fixed.']
     (args.out/'DNN4_BERT_optimization.md').write_text('\n'.join(lines)+'\n')
     print(json.dumps(dict(comparisons=len(rows), report=str(args.out/'DNN4_BERT_optimization.md'))))
 
