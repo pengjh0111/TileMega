@@ -225,6 +225,7 @@ def main():
                ('TN96 prefix store B16 prescreen', continuation/'tma_prefix96_b16_v1/experiment.json'),
                ('prefix store plus whole96 B16 prescreen', continuation/'prefix96_stats96_b16_v1/experiment.json'),
                ('FFN2 TN192 split2 current B16', continuation/'ffn2_n192_s2_b16_v1/experiment.json'),
+               ('retired slot staging B16', continuation/'ring_store_b16_v1/experiment.json'),
                ('WGMMA depth2 prologue B4', continuation/'mma_depth2_b4_v3/experiment.json')]
     rows = []
     choices = []
@@ -241,7 +242,8 @@ def main():
                     'QKV TMA192 repaired RepeatPF1 B16',
                     'TN96 prefix store B16 prescreen',
                     'prefix store plus whole96 B16 prescreen',
-                    'FFN2 TN192 split2 current B16'):
+                    'FFN2 TN192 split2 current B16',
+                    'retired slot staging B16'):
             model = read(path.parent/'model/result.json')
             pair = experiment['pair']
             if (not model['passed'] or model['passes'] != '5/5'
@@ -3351,6 +3353,37 @@ def main():
                   f'noise{100*pair["threshold"]:.3f}%. Reject without P-DNN '
                   'or current update; failed trace build and pending-pair '
                   'controller repair are retained.']
+    ring = continuation/'ring_store_b16_v1/result.json'
+    if ring.exists():
+        result = read(ring)
+        experiment = read(ring.parent/'experiment.json')
+        restore = read(base/'ring_store_contract_v1/restoration.json')
+        if result['status'] != 'pair_rejected' or experiment['accepted'] or not restore['passed']:
+            raise ValueError('retired-slot negative/restoration changed')
+        pair = experiment['pair']
+        lines += ['', 'Verified one private staging extension retains the final '
+                  'input slot after WGMMA wait0, synchronizes both consumer WGs, '
+                  'uses its32KiB for four TMA output boxes, then waits for both '
+                  'WG shared reads before the eight empty arrivals. No statistics '
+                  'or math change. First/repeated QKV and FFN1 use192-wide tiles '
+                  'and five slots; shared payload220160B versus252928B with '
+                  'separate staging. All five default instruction streams match; '
+                  'native301568B SASS has zero spill. Actual CPU resource query '
+                  'rejects the separate-staging layout; coordinate emission alone '
+                  'defers that check. Fresh control5/body17/first-visibility17 '
+                  '(200 reg plus200 TMA launches,4 CTAs with multiple local tasks) '
+                  'and strict model5 with incumbent named bytes pass. The '
+                  'visibility identity-normalization fixture uses epsilon0 only; '
+                  'real body/model references keep original parameters. '
+                  f'GPU1 P-PAIR{pair["reference_ms"]:.6f}→'
+                  f'{pair["candidate_ms"]:.6f}ms,ratio{pair["ratio"]:.6f},'
+                  f'noise{100*pair["threshold"]:.3f}%. Reject, without P-DNN '
+                  'or remaining three visibility cohorts. Exact trace1 QKV '
+                  'windows375.232→329.984us, FFN1390.496→394.912us versus an '
+                  'earlier unchanged-current GPU1 trace are nonadditive '
+                  'diagnostics; they do not override the nontrace regression. '
+                  'Seven source files are archived and private changes restored; '
+                  'main production and current results remain unchanged.']
     (args.out/'DNN4_BERT_optimization.md').write_text('\n'.join(lines)+'\n')
     print(json.dumps(dict(comparisons=len(rows), report=str(args.out/'DNN4_BERT_optimization.md'))))
 
