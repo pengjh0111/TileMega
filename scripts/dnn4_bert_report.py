@@ -211,6 +211,9 @@ def main():
                ('outlined GELU B4', continuation/'gelu_outline_b4_v1/experiment.json'),
                ('outlined GELU B8', continuation/'gelu_outline_b8_v1/experiment.json'),
                ('outlined GELU B16', continuation/'gelu_outline_b16_v2/experiment.json'),
+               ('current catalog assembly B16', continuation/'attention_catalog_b16_gpu0_assembly_v1/experiment.json'),
+               ('Repeat optional output map B16', continuation/'repeat_output_map_b16_v1/experiment.json'),
+               ('Repeat prefetch1 B16', continuation/'repeat_prefetch_b16_v1/experiment.json'),
                ('WGMMA depth2 prologue B4', continuation/'mma_depth2_b4_v3/experiment.json')]
     rows = []
     choices = []
@@ -218,6 +221,35 @@ def main():
         if not path.exists():
             continue
         experiment = read(path)
+        if name in ('current catalog assembly B16', 'Repeat optional output map B16',
+                    'Repeat prefetch1 B16'):
+            model = read(path.parent/'model/result.json')
+            pair = experiment['pair']
+            if (not model['passed'] or model['passes'] != '5/5'
+                    or experiment['accepted'] != (pair['ratio'] < 1-max(
+                        experiment['minimum_gain'], pair['threshold']))):
+                raise ValueError('B16 follow-up differs from its original model or gain gate')
+            if name == 'current catalog assembly B16':
+                if not read(path.parent/'functional_gate.json')['passed']:
+                    raise ValueError('catalog assembly lacks its component gate')
+            elif not read(path.parent/'model_bit_proof.json')['passed']:
+                raise ValueError('Repeat follow-up lacks output byte equivalence')
+            for unit_path in experiment.get('unit_gates', []):
+                unit = read(Path(unit_path))
+                processes = unit['processes']
+                if (not unit['passed'] or len({p['pid'] for p in processes}) != 17
+                        or Counter(p['name'].split('-')[0] for p in processes) !=
+                        Counter(unit=5, memcheck=1, initcheck=1, racecheck=5, synccheck=5)
+                        or any(p['exit_code'] or read(Path(p['guard']))['code'] for p in processes)):
+                    raise ValueError('B16 follow-up lacks its complete stated component gate')
+            if name == 'Repeat optional output map B16':
+                reuse = read(Path(experiment['reuse_proof']))
+                if (not reuse['passed'] or not read(Path(reuse['proof']))['passed']
+                        or len(reuse['unit_gates']) != 5):
+                    raise ValueError('Repeat output map lacks its explicit component reuse')
+            if name == 'Repeat prefetch1 B16':
+                if not read(Path(experiment['source_differential']))['passed']:
+                    raise ValueError('prefetch follow-up lacks its one-define source proof')
         if name == 'Rows64 warpgroup attention B16':
             sys.path.insert(0, str(ROOT/'scripts'))
             from dnn4_bert_current import validate_attention64_integration
@@ -394,7 +426,9 @@ def main():
         admitted_continuation = name == 'cached-boundary216 B4 admitted continuation'
         gpu0_continuation = (admitted_continuation or name in (
             'failed-poll gate backoff B8', 'failed-poll gate backoff B16',
-            'Rows64 warpgroup attention B16')) and experiment['gpu'] == 0
+            'Rows64 warpgroup attention B16', 'current catalog assembly B16',
+            'Repeat optional output map B16', 'Repeat prefetch1 B16')) and experiment.get(
+                'gpu', experiment['pair']['gpu']) == 0
         if admitted_continuation:
             sys.path.insert(0, str(ROOT/'scripts'))
             from dnn4_bert_current import validate_boundary_selection, validate_followup_allocation
@@ -2757,7 +2791,7 @@ def main():
         cpu = read(output_map)
         integrated = read(base/'repeat_output_map_contract_integration_v1/result.json')
         assert cpu['status'] == 'prepared_CPU_only' and integrated['passed']
-        lines += ['', 'Verified CPU-only Repeat binding repair: first-layer '
+        lines += ['', 'Verified CPU preparation of the Repeat binding repair: first-layer '
                   'QKV uses a TMA output map while its normal layer uses '
                   'register stores. The missing virtual output-map role '
                   'forces the current coordinate assembly into a flat program. '
@@ -2772,8 +2806,7 @@ def main():
                   'retains exact remap checks and rejects 25 corruptions; '
                   '46 existing admission tests and all five current artifacts '
                   'pass. These are structural and code-size results. '
-                  'GPU0 layout/model checks and '
-                  'independent whole-model performance gates are pending. '
+                  'Hardware outcomes are recorded separately below. '
                   'Code size alone establishes no speedup or admission.']
         main_map = base/'repeat_output_map_main_regression_v1/result.json'
         if main_map.exists():
@@ -2787,11 +2820,76 @@ def main():
                       'instructions. A reusable fixture builder renders real '
                       'binding tables under ignored runs and reproduces all '
                       '1056 prototype GPU words. Generated model tables are not '
-                      'committed. This remains an opt-in mechanism awaiting '
-                      'GPU0 correctness and performance gates; no current '
+                      'committed. This remains an opt-in mechanism; no current '
                       'artifact or target changes. Host validation uses the '
                       'qualified single-object rebuild; full CMake is still '
                       'blocked by external MLIR Debug.cpp.o.']
+    assembly = continuation/'attention_catalog_b16_gpu0_assembly_v1/result.json'
+    if assembly.exists():
+        result = read(assembly)
+        measured = read(assembly.parent/'experiment.json')
+        pair = measured['pair']
+        lines += ['', 'Verified current-profile B16 catalog diagnostics cover five legal '
+                  'variants; candidate5 still spills and is excluded. The qualified '
+                  'GPU0 boundary trace overhead is4.770%. Comparing each group with '
+                  'the actual current control selects FFN1 and first-QKV '
+                  '128x192/TK64/S1/Slots4/TMA; identical-coordinate aliases retain '
+                  'current. Fresh body17, four separate ordering17 cohorts and '
+                  'model5 pass. Each ordering case retains200 register-store plus '
+                  '200 TMA-store launches, including odd boundaries and residual '
+                  'reuse. The stopped long combined ordering attempt remains '
+                  'incomplete. GPU0 P-PAIR '
+                  f'{pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms, '
+                  f'ratio{pair["ratio"]:.6f}, noise{100*pair["threshold"]:.3f}%. '
+                  'Reject the assembly; no current artifact or target changes.']
+        if result['status'] != 'pair_rejected':
+            raise ValueError('catalog closure differs from its measured rejection')
+    output_gate = continuation/'repeat_output_map_b16_v1/result.json'
+    if output_gate.exists():
+        result = read(output_gate)
+        measured = read(output_gate.parent/'experiment.json')
+        pair, mechanism = measured['pair'], measured['mechanism']
+        lines += ['', 'Verified optional output-map repair completes fresh GPU0 '
+                  'layout17 and strict model5, matching the raw flat-program '
+                  'output bytes. Existing body17 and four ordering17 cohorts are '
+                  'reused explicitly after whole GPU-word identity; they are '
+                  'not fresh runs. The marker fixture checks1380 binding fields '
+                  'and dynamic null lookup; it alone does not prove TMA or '
+                  'attention arithmetic. Same-coordinate GPU0 mechanism pair '
+                  f'{mechanism["reference_ms"]:.6f}→{mechanism["candidate_ms"]:.6f}ms '
+                  f'gains{100*(1-mechanism["ratio"]):.3f}% above '
+                  f'{100*mechanism["threshold"]:.3f}% noise. Independent actual-current '
+                  f'pair {pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms '
+                  f'gains{100*(1-pair["ratio"]):.3f}% with '
+                  f'{100*pair["threshold"]:.3f}% noise, below the predeclared3% '
+                  'minimum. Mechanism passes; production admission fails. Keep '
+                  'the feature default0 and current B16 unchanged; no P-DNN or '
+                  'unchanged retiming follows this rejected artifact.']
+        if result['status'] != 'current_pair_rejected':
+            raise ValueError('Repeat output-map closure differs from its gain gate')
+    prefetch_gate = continuation/'repeat_prefetch_b16_v1/result.json'
+    if prefetch_gate.exists():
+        result = read(prefetch_gate)
+        measured = read(prefetch_gate.parent/'experiment.json')
+        pair = measured['pair']
+        lines += ['', 'Verified a distinct fixed DT-PF distance1 combination on '
+                  'the repaired B16 program keeps coordinates, maps, arithmetic '
+                  'and registers unchanged. Actual main emission differs only '
+                  'by the prefetch-distance definition; SASS295808B with zero '
+                  'spill. Fresh GPU2 model5 passes and matches the repaired '
+                  'program bytes. GPU2 P-PAIR '
+                  f'{pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms '
+                  f'gains{100*(1-pair["ratio"]):.3f}% above '
+                  f'{100*pair["threshold"]:.3f}% noise and the predeclared3% minimum. '
+                  f'P-DNN median{result["final"]["candidate_ms"]:.6f}ms; '
+                  f'p90{result["final"]["p90_ms"]:.6f}ms; '
+                  f'range{result["final"]["process_range_ms"]:.6f}ms. '
+                  'This is a positive private candidate. GEMM body words match '
+                  'the prior fixture, while four Program ordering binaries '
+                  'change with prefetch hints and cannot reuse whole-word '
+                  'certificates. Fresh ordering gates, candidate selection, '
+                  'exact ledger and final admission remain pending. Current '
+                  'CSV and fixed GPU3 target remain unchanged.']
     (args.out/'DNN4_BERT_optimization.md').write_text('\n'.join(lines)+'\n')
     print(json.dumps(dict(comparisons=len(rows), report=str(args.out/'DNN4_BERT_optimization.md'))))
 
