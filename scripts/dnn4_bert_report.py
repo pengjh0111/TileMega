@@ -2939,6 +2939,36 @@ def main():
                   'store18.880→91.264us. Segment maxima are nonadditive; the '
                   'nontrace pair decides rejection. Retain1.145920ms B16; '
                   'no P-DNN, unchanged retiming or production header change.']
+    b8_balance = base/'b8_stats96_balance_b8_v2/result.json'
+    if b8_balance.exists():
+        candidate = read(b8_balance)
+        audit = read(base/'b8_stats96_balance_b8_v1/spill_audit.json')
+        contract = read(b8_balance.parent/'layout_proof.json')
+        if (candidate['status'] != 'prepared_CPU_only' or not contract['passed']
+                or audit['spill_stores_bytes'] != 8 or audit['spill_loads_bytes'] != 8
+                or len(contract['readers']) != 49):
+            raise ValueError('B8 balance CPU evidence differs from its fixed choice')
+        lines += ['', 'Verified private B8 CPU preparation combines fixed '
+                  'FFN1 128x192/TK64/S1/Slots4/TMA with FFN2 '
+                  '128x96/TK64/S2/Slots6/register stores, coalesced partials '
+                  'and whole96-column FFN2 statistics. This explicitly extends '
+                  'the prescribed64-column grain under user discretion. '
+                  'Measured current FFN1/FFN2 stage shares27.303/26.610% '
+                  'motivate the choice; wave balance and traffic benefits are '
+                  'inferred. The72/208 build spills8/8B and is rejected before '
+                  'GPU execution. Both local instructions lie after consumer '
+                  'inc208 and before producer dec72. A separately declared '
+                  'single existing72/216 repair has zero spill and290176B '
+                  'SASS; it preserves the geometry, math and source. All five '
+                  'affected host objects and two CPU tests rebuild; default '
+                  'B8 GPU words match. Only11 buffers change12→8 partials; '
+                  'all49 reader contracts pass and two incompatible producer '
+                  'geometries are rejected. Six short four-case body binaries '
+                  'compile without spill. Ordering instruction reuse fails for '
+                  'all four cases, so fresh ordering gates are required. '
+                  'Hardware gates are pending; no B8 latency or admission is '
+                  'claimed. The source stays private and default0; full CMake '
+                  'remains blocked by external MLIR Debug.cpp.o.']
     (args.out/'DNN4_BERT_optimization.md').write_text('\n'.join(lines)+'\n')
     print(json.dumps(dict(comparisons=len(rows), report=str(args.out/'DNN4_BERT_optimization.md'))))
 
