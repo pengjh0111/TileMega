@@ -221,6 +221,7 @@ def main():
                ('fixed prefetch1 current B8 prescreen', continuation/'prefetch_b8_gpu1_v1/experiment.json'),
                ('FFN1-only TMA192 current GELU B8', continuation/'ffn1_tma192_gelu_b8_v1/experiment.json'),
                ('FFN2 TK128 on FFN1-isolated B8', continuation/'ffn2_tk128_ffn1_b8_v1/experiment.json'),
+               ('QKV TMA192 repaired RepeatPF1 B16', continuation/'qkv_tma192_pf1_b16_v1/experiment.json'),
                ('WGMMA depth2 prologue B4', continuation/'mma_depth2_b4_v3/experiment.json')]
     rows = []
     choices = []
@@ -233,7 +234,8 @@ def main():
                     'whole96 balanced FFN B8', 'whole96 FFN2 on Repeat prefetch1 B16',
                     'fixed prefetch1 on current B4', 'fixed prefetch1 current B8 prescreen',
                     'FFN1-only TMA192 current GELU B8',
-                    'FFN2 TK128 on FFN1-isolated B8'):
+                    'FFN2 TK128 on FFN1-isolated B8',
+                    'QKV TMA192 repaired RepeatPF1 B16'):
             model = read(path.parent/'model/result.json')
             pair = experiment['pair']
             if (not model['passed'] or model['passes'] != '5/5'
@@ -3213,6 +3215,31 @@ def main():
                   f'ratio{pair["ratio"]:.6f}, noise{100*pair["threshold"]:.3f}%. '
                   'Reject without P-DNN or unchanged retiming. Current B8 '
                   'remains0.801408ms; no baseline or threshold changes.']
+    qkv192 = continuation/'qkv_tma192_pf1_b16_v1/result.json'
+    if qkv192.exists():
+        result = read(qkv192)
+        experiment = read(qkv192.parent/'experiment.json')
+        pair = experiment['pair']
+        proof = read(base/'qkv_tma192_pf1_b16_v1/ordering_main_proof.json')
+        if (not proof['passed'] or len(proof['rows']) != 4
+                or any(not r['passed'] or r['encoded_words'] <= 0 for r in proof['rows'])):
+            raise ValueError('QKV B16 drops its exact ordering reuse proof')
+        lines += ['', 'Verified a fixed QKV candidate on repaired Repeat-map/'
+                  'PF1/Rows64/GELU B16 changes eleven repeated128x96/Slots7/reg '
+                  'stages to128x192/Slots4/TMA. First QKV already uses192/TMA; '
+                  'all other coordinates,stats64,arithmetic and profile216 stay '
+                  'fixed. Main compilation has zero spill and293888B SASS. '
+                  'Four exact2048/odd2049 NT12/NT1 fixtures pass control5 and '
+                  'candidate17; four PF1 ordering17 cohorts are reused only '
+                  'after actual-main-header builds match all instruction words. '
+                  'Strict model5 passes. GPU1 pair'
+                  f'{pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms, '
+                  f'ratio{pair["ratio"]:.6f},noise{100*pair["threshold"]:.3f}%. '
+                  + ('The private pair clears the prospective3%/noise gate; '
+                     'complete publication admission remains separate.'
+                     if experiment['accepted'] else
+                     'Reject under the prospective3%/noise gate without P-DNN '
+                     'or unchanged retiming; current B16 is retained.')]
     (args.out/'DNN4_BERT_optimization.md').write_text('\n'.join(lines)+'\n')
     print(json.dumps(dict(comparisons=len(rows), report=str(args.out/'DNN4_BERT_optimization.md'))))
 
