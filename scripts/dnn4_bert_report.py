@@ -220,6 +220,7 @@ def main():
                ('fixed prefetch1 on current B4', continuation/'prefetch_b4_gpu1_split_v2/experiment.json'),
                ('fixed prefetch1 current B8 prescreen', continuation/'prefetch_b8_gpu1_v1/experiment.json'),
                ('FFN1-only TMA192 current GELU B8', continuation/'ffn1_tma192_gelu_b8_v1/experiment.json'),
+               ('FFN2 TK128 on FFN1-isolated B8', continuation/'ffn2_tk128_ffn1_b8_v1/experiment.json'),
                ('WGMMA depth2 prologue B4', continuation/'mma_depth2_b4_v3/experiment.json')]
     rows = []
     choices = []
@@ -231,7 +232,8 @@ def main():
                     'Repeat prefetch1 B16', 'FFN1 register256 on Repeat prefetch1 B16',
                     'whole96 balanced FFN B8', 'whole96 FFN2 on Repeat prefetch1 B16',
                     'fixed prefetch1 on current B4', 'fixed prefetch1 current B8 prescreen',
-                    'FFN1-only TMA192 current GELU B8'):
+                    'FFN1-only TMA192 current GELU B8',
+                    'FFN2 TK128 on FFN1-isolated B8'):
             model = read(path.parent/'model/result.json')
             pair = experiment['pair']
             if (not model['passed'] or model['passes'] != '5/5'
@@ -3189,6 +3191,28 @@ def main():
                   'export preserves the other four cells. B8 remains above its '
                   'fixed0.745712ms target; original GPU3 anchor is retained without '
                   'reanchoring. Earlier combined candidates remain rejected.']
+    tk128 = continuation/'ffn2_tk128_ffn1_b8_v1/result.json'
+    if tk128.exists():
+        result = read(tk128)
+        experiment = read(tk128.parent/'experiment.json')
+        pair = experiment['pair']
+        if result['status'] != 'pair_rejected' or experiment['accepted']:
+            raise ValueError('TK128 B8 report changes the closed rejection')
+        lines += ['', 'Verified current B8 FFN2 already uses128x64/TK64/S1/'
+                  'Slots8/TMA. A same-coordinate TN64 proposal is stopped on CPU '
+                  'before generation or GPU execution. The distinct TK128/Slots4 '
+                  'candidate keeps ring bytes,64-column statistics,profile216/'
+                  'PF2 and all other coordinates fixed. Main compilation has '
+                  'zero spill and270720B SASS. A private fixture initially refers '
+                  'to a removed stats96 macro; preserve that CPU failure and '
+                  'spell its original fixedN/64 allocation/checker bounds in v2. '
+                  'Control5 and candidate17 pass on GPU1 with identical unit '
+                  'bytes; four unchanged ordering17 cohorts are explicitly '
+                  'reused after whole-word proofs. Strict model5 passes. GPU1 '
+                  f'pair{pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms '
+                  f'ratio{pair["ratio"]:.6f}, noise{100*pair["threshold"]:.3f}%. '
+                  'Reject without P-DNN or unchanged retiming. Current B8 '
+                  'remains0.801408ms; no baseline or threshold changes.']
     (args.out/'DNN4_BERT_optimization.md').write_text('\n'.join(lines)+'\n')
     print(json.dumps(dict(comparisons=len(rows), report=str(args.out/'DNN4_BERT_optimization.md'))))
 
