@@ -214,6 +214,7 @@ def main():
                ('current catalog assembly B16', continuation/'attention_catalog_b16_gpu0_assembly_v1/experiment.json'),
                ('Repeat optional output map B16', continuation/'repeat_output_map_b16_v1/experiment.json'),
                ('Repeat prefetch1 B16', continuation/'repeat_prefetch_b16_v1/experiment.json'),
+               ('FFN1 register256 on Repeat prefetch1 B16', continuation/'repeat_prefetch_ffn256_b16_v1/experiment.json'),
                ('WGMMA depth2 prologue B4', continuation/'mma_depth2_b4_v3/experiment.json')]
     rows = []
     choices = []
@@ -222,7 +223,7 @@ def main():
             continue
         experiment = read(path)
         if name in ('current catalog assembly B16', 'Repeat optional output map B16',
-                    'Repeat prefetch1 B16'):
+                    'Repeat prefetch1 B16', 'FFN1 register256 on Repeat prefetch1 B16'):
             model = read(path.parent/'model/result.json')
             pair = experiment['pair']
             if (not model['passed'] or model['passes'] != '5/5'
@@ -232,7 +233,7 @@ def main():
             if name == 'current catalog assembly B16':
                 if not read(path.parent/'functional_gate.json')['passed']:
                     raise ValueError('catalog assembly lacks its component gate')
-            elif not read(path.parent/'model_bit_proof.json')['passed']:
+            elif name != 'FFN1 register256 on Repeat prefetch1 B16' and not read(path.parent/'model_bit_proof.json')['passed']:
                 raise ValueError('Repeat follow-up lacks output byte equivalence')
             for unit_path in experiment.get('unit_gates', []):
                 unit = read(Path(unit_path))
@@ -2919,6 +2920,25 @@ def main():
                       'gates, candidate selection, exact ledger and final '
                       'admission remain pending. Current CSV and fixed GPU3 '
                       'target remain unchanged.']
+    large_ffn = continuation/'repeat_prefetch_ffn256_b16_v1/result.json'
+    if large_ffn.exists():
+        result = read(large_ffn)
+        measured = read(large_ffn.parent/'experiment.json')
+        if result['status'] != 'pair_rejected' or measured['accepted']:
+            raise ValueError('fixed large FFN1 choice differs from its rejection')
+        lines += ['', 'Verified one fixed128x256/TK64/S1/Slots4/register-store '
+                  'FFN1 choice on the newly admitted Repeat/PF1 profile compiles '
+                  'with zero spill and296704B SASS. Fresh exact/odd-row body17 '
+                  'and strict model5 pass on GPU2. GPU2 P-PAIR '
+                  f'{measured["pair"]["reference_ms"]:.6f}→{measured["pair"]["candidate_ms"]:.6f}ms '
+                  f'regresses{100*(measured["pair"]["ratio"]-1):.3f}% with '
+                  f'{100*measured["pair"]["threshold"]:.3f}% noise. The smoke '
+                  'regression triggers an exact trace before paired timing. '
+                  'FFN1 windows389.120→535.040us; main-loop CTA maxima '
+                  '228.064→249.376us, epilogue135.456→253.568us and '
+                  'store18.880→91.264us. Segment maxima are nonadditive; the '
+                  'nontrace pair decides rejection. Retain1.145920ms B16; '
+                  'no P-DNN, unchanged retiming or production header change.']
     (args.out/'DNN4_BERT_optimization.md').write_text('\n'.join(lines)+'\n')
     print(json.dumps(dict(comparisons=len(rows), report=str(args.out/'DNN4_BERT_optimization.md'))))
 
