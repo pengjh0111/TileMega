@@ -1087,6 +1087,13 @@ def main():
                       'remain under the recorded transition. Earlier completed '
                       'checks retain their actual cards; GPU3 windows stay separate '
                       'from new GPU0 windows. Guards and fixed targets are unchanged.']
+        elif allocation['allowed_gpu_indices'] == [0, 2]:
+            lines += ['', 'Stated latest allocation: prefer physical GPU0 and use GPU2 '
+                      'when GPU0 remains occupied. A performance group may span the two '
+                      'cards; preserve each process card and SM clock boundaries and '
+                      'qualify cross-card comparisons. Earlier completed checks retain '
+                      'their actual cards. Guards, numerical gates and fixed targets '
+                      'are unchanged; GPU1/3 receive no new test jobs.']
     relocation = continuation/'b8_corr2_relocation.json'
     idle_change = continuation/'idle6_transition.json'
     if idle_change.exists():

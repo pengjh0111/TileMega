@@ -24,6 +24,30 @@ def read(path):
 
 def historical_allcards_authorization(session):
     current = read(session/'authorization.json')
+    if current['allowed_gpu_indices'] == [0, 2]:
+        transition = session/'gpu02_transition_1794626179576967972'
+        before_path = transition/'authorization_before.json'
+        after_path = transition/'authorization_after.json'
+        before, after, result = (read(before_path), read(after_path),
+                                 read(transition/'result.json'))
+        fields = ('allowed_gpu_indices', 'request', 'resumed_at',
+                  'gpu_restriction_at', 'gpu_restriction_request',
+                  'primary_gpu', 'fallback_gpu', 'same_card_pair_required',
+                  'gpu_fallback_at', 'latest_request', 'authorization_history_transition')
+        if (before['allowed_gpu_indices'] != [0]
+                or after['allowed_gpu_indices'] != [0, 2]
+                or result['allowed_gpu_indices'] != [0, 2]
+                or result['same_card_pair_required'] is not False
+                or after.get('primary_gpu') != 0 or after.get('fallback_gpu') != 2
+                or after.get('same_card_pair_required') is not False
+                or after.get('gpu_fallback_at') != result.get('effective_at')
+                or result.get('before_sha256') != hashlib.sha256(before_path.read_bytes()).hexdigest()
+                or result.get('after_sha256') != hashlib.sha256(after_path.read_bytes()).hexdigest()
+                or any(current.get(key) != after.get(key) for key in fields)
+                or any(before.get(key) != after.get(key) for key in
+                       ('request', 'resumed_at', 'gpu_restriction_at', 'gpu_restriction_request'))):
+            raise ValueError('fallback allocation lacks its preserved transition evidence')
+        current = before
     if current['allowed_gpu_indices'] == [0, 1, 2, 3]:
         return current
     transition = session/'gpu0_transition_1794589079598058614'
@@ -870,7 +894,7 @@ def validate_followup_allocation(folder, name, decision, final):
                 or allocation['pair_order'] != 'ABABAB' or plan['timing_gpu'] != 0
                 or allocation['python_entry_root'] != '/root/python'):
             raise ValueError('attention combination lacks its all-card allocation provenance')
-        if current_authorization['allowed_gpu_indices'] == [0]:
+        if 'gpu_restriction_at' in current_authorization:
             cutoff = current_authorization['gpu_restriction_at']
             for result in (decision['pair'], final['measurement']):
                 for row in result['measurements']:
