@@ -228,6 +228,8 @@ def main():
                ('retired slot staging B16', continuation/'ring_store_b16_v1/experiment.json'),
                ('FFN2 TMA64 eight-slot B16', continuation/'ffn2_tma64_b16_v1/experiment.json'),
                ('three output buffers B16', continuation/'store3_b16_v1/experiment.json'),
+               ('relaxed failed gate poll B16', continuation/'gate_poll_b16_v1/experiment.json'),
+               ('parameter buffer pointers B16', continuation/'param_buffers_b16_v1/experiment.json'),
                ('WGMMA depth2 prologue B4', continuation/'mma_depth2_b4_v3/experiment.json')]
     rows = []
     choices = []
@@ -247,7 +249,9 @@ def main():
                     'FFN2 TN192 split2 current B16',
                     'retired slot staging B16',
                     'FFN2 TMA64 eight-slot B16',
-                    'three output buffers B16'):
+                    'three output buffers B16',
+                    'relaxed failed gate poll B16',
+                    'parameter buffer pointers B16'):
             model = read(path.parent/'model/result.json')
             pair = experiment['pair']
             if (not model['passed'] or model['passes'] != '5/5'
@@ -3477,6 +3481,44 @@ def main():
                   'remains inferred. Five private files are archived/restored. '
                   'This is an unmeasured retirement, never a performance '
                   'rejection or acceptance. User authorization stays active.']
+    for stem, label, detail in (
+        ('gate_poll', 'relaxed failed gate polling',
+         'Only failed polls use relaxed loads; the successful path still '
+         'performs the original acquire and threshold recheck. Original64B '
+         'counter, release arrivals, all132 CTA target, barriers, fences and '
+         'math stay fixed. CPU disassembly moves CCTL.IVALL after the failed '
+         'backedge; this alone provides no latency evidence. Fresh132CTA '
+         '200epoch stress17 and model5 pass. '),
+        ('param_buffers', 'immutable parameter buffer pointers',
+         'Append384 immutable addresses to the grid-constant binding; '
+         '121 tensor maps retain their offsets and all input data remain '
+         'mutable. Five default instruction streams match. Native295296B '
+         'has zero spill; static LDG.E.64 count66→7 is not a timing result. '
+         'Fresh1885-field lookup control5/candidate17 independently checks '
+         'physical/static/Repeat bindings with a deliberately poisoned old '
+         'pointer table. First crossCTA visibility17 and model5 pass. ')):
+        result = continuation/f'{stem}_b16_v1/result.json'
+        if not result.exists():
+            continue
+        value = read(result)
+        experiment = read(result.parent/'experiment.json')
+        if (value['status'] != 'pair_rejected' or experiment['accepted']
+                or experiment['minimum_gain'] != .005
+                or not read(base/f'{stem}_contract_v1/restoration.json')['passed']
+                or not read(result.parent/'model_byte_comparison.json')['passed']):
+            raise ValueError('closed gate/metadata negative changed')
+        pair = experiment['pair']
+        lines += ['', f'Verified private {label}: '+detail+
+                  'Both require strict FP32 correctness, five-process '
+                  'determinism and incumbent named-output bytes. '
+                  f'GPU1 pair{pair["reference_ms"]:.6f}→'
+                  f'{pair["candidate_ms"]:.6f}ms,ratio{pair["ratio"]:.6f},'
+                  f'noise{100*pair["threshold"]:.3f}%. Reject against the '
+                  'prospectively recorded0.5% minimum and process noise. '
+                  'This does not lower any earlier3% trial threshold. '
+                  'No remaining visibility cohorts, P-DNN, unchanged binary '
+                  'remeasurement or formal-current update. Exact private '
+                  'sources are archived and restored.']
     (args.out/'DNN4_BERT_optimization.md').write_text('\n'.join(lines)+'\n')
     print(json.dumps(dict(comparisons=len(rows), report=str(args.out/'DNN4_BERT_optimization.md'))))
 
