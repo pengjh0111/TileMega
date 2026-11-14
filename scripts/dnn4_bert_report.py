@@ -3021,6 +3021,25 @@ def main():
                   'permitting explicit historical gate reuse. New functional '
                   'and model/timing jobs use only GPU1; this is a private '
                   'candidate, with no current-result change.']
+        completed = continuation/'b16_stats96_pf1_gpu1_v1/result.json'
+        if completed.exists():
+            result = read(completed)
+            measured = read(completed.parent/'experiment.json')
+            if result['status'] != 'pair_rejected' or measured['accepted']:
+                raise ValueError('B16 mixed-grain closure differs from its rejection')
+            pair = measured['pair']
+            lines += ['Verified three fresh control5/body17 groups and strict '
+                      'model5 pass on GPU1; four historical GPU2 ordering17 '
+                      'cohorts are explicitly reused after instruction identity. '
+                      f'GPU1 smoke{measured["smoke"]["candidate_ms"]:.6f}ms; '
+                      f'independent pair{pair["reference_ms"]:.6f}→'
+                      f'{pair["candidate_ms"]:.6f}ms gains'
+                      f'{100*(1-pair["ratio"]):.3f}%, below '
+                      f'{100*pair["threshold"]:.3f}% noise and the predeclared3% '
+                      'minimum. Reject without P-DNN or unchanged retiming; '
+                      'current B16 stays1.145920ms on GPU2. No greater-than3% '
+                      'regression trace is triggered. Historical fixed GPU3 '
+                      'target remains unchanged.']
     (args.out/'DNN4_BERT_optimization.md').write_text('\n'.join(lines)+'\n')
     print(json.dumps(dict(comparisons=len(rows), report=str(args.out/'DNN4_BERT_optimization.md'))))
 
