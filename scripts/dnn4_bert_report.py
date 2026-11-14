@@ -3647,6 +3647,26 @@ def main():
                   'Reject P-TUNE/P-MODEL eligibility and restore only the '
                   'two archived private inputs. This is diagnostic3/3, '
                   'not fresh P-CORR5/5, P-SAN or performance admission.']
+    outlined_boundary = base/'outline_boundary_current_b16_v1/result.json'
+    if outlined_boundary.exists():
+        value = read(outlined_boundary)
+        if (not value['passed'] or value['qualified']
+                or not read(outlined_boundary.parent/'restoration.json')['passed']):
+            raise ValueError('closed outlined boundary qualification changed')
+        lines += ['', 'Verified one trace-only call-placement trial outlines '
+                  'Enter/Arrive/Leave with thread0 caller guards, retaining '
+                  'inline FIRST_READY, compact32B records, shared header '
+                  'cache and all four clock sites. Five defaults match; '
+                  'trace301184B/maxR160 has zero spill. Three fresh GPU1 '
+                  '20/50 processes preserve exact current output bytes. '
+                  f'Windows{value["trace_windows_ms"]}ms,median'
+                  f'{value["median_window_ms"]:.6f}ms versus the predeclared '
+                  f'latest current control{value["reference_ms"]:.6f}ms;'
+                  f'difference{100*value["difference"]:.3f}% still exceeds5%. '
+                  'Reject P-TUNE/P-MODEL eligibility without repeating '
+                  'either binary or changing the reference/threshold. '
+                  'Two exact private inputs are archived/restored; no '
+                  'production performance or new P-CORR5/P-SAN claim.']
     (args.out/'DNN4_BERT_optimization.md').write_text('\n'.join(lines)+'\n')
     print(json.dumps(dict(comparisons=len(rows), report=str(args.out/'DNN4_BERT_optimization.md'))))
 
