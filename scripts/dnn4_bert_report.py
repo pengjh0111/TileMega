@@ -226,6 +226,7 @@ def main():
                ('prefix store plus whole96 B16 prescreen', continuation/'prefix96_stats96_b16_v1/experiment.json'),
                ('FFN2 TN192 split2 current B16', continuation/'ffn2_n192_s2_b16_v1/experiment.json'),
                ('retired slot staging B16', continuation/'ring_store_b16_v1/experiment.json'),
+               ('FFN2 TMA64 eight-slot B16', continuation/'ffn2_tma64_b16_v1/experiment.json'),
                ('WGMMA depth2 prologue B4', continuation/'mma_depth2_b4_v3/experiment.json')]
     rows = []
     choices = []
@@ -243,7 +244,8 @@ def main():
                     'TN96 prefix store B16 prescreen',
                     'prefix store plus whole96 B16 prescreen',
                     'FFN2 TN192 split2 current B16',
-                    'retired slot staging B16'):
+                    'retired slot staging B16',
+                    'FFN2 TMA64 eight-slot B16'):
             model = read(path.parent/'model/result.json')
             pair = experiment['pair']
             if (not model['passed'] or model['passes'] != '5/5'
@@ -3402,6 +3404,30 @@ def main():
                   'retiming, record-layout change or new cache variant follows. '
                   'Only the owned private marker header is restored; the '
                   'historical prototype and raw source remain available.']
+    ffn2_64 = continuation/'ffn2_tma64_b16_v1/result.json'
+    if ffn2_64.exists():
+        result = read(ffn2_64)
+        experiment = read(ffn2_64.parent/'experiment.json')
+        if result['status'] != 'pair_rejected' or experiment['accepted']:
+            raise ValueError('FFN2 TMA64 negative changed')
+        pair = experiment['pair']
+        lines += ['', 'Verified one existing FFN2 TN64/Slots8/TMA coordinate '
+                  'follow-up on current B16, keeping S1/TK64/stats64 and all '
+                  'other coordinates/profile fixed. Native279936B SASS has '
+                  'zero spill. Fresh control5, exact/odd writer/terminal '
+                  'body17, first TN64 eight-slot visibility17 and strict '
+                  'model5 pass; incumbent named bytes match diagnostically. '
+                  'Visibility keeps200 reg plus200 TMA launches,4 CTAs and '
+                  '17 row tiles to exercise repeated slot reuse. '
+                  f'GPU1 pair{pair["reference_ms"]:.6f}→'
+                  f'{pair["candidate_ms"]:.6f}ms,ratio{pair["ratio"]:.6f},'
+                  f'noise{100*pair["threshold"]:.3f}%. Exact trace1 FFN2 '
+                  'windows380.320→542.592us, main299.648→467.840us and '
+                  'epilogue74.304→33.760us versus earlier unchanged-current '
+                  'GPU1 attribution are nonadditive diagnostics. Reject '
+                  'without P-DNN, remaining three visibility cohorts or '
+                  'current update. No production implementation changes '
+                  'or unchanged candidate remeasurement.']
     (args.out/'DNN4_BERT_optimization.md').write_text('\n'.join(lines)+'\n')
     print(json.dumps(dict(comparisons=len(rows), report=str(args.out/'DNN4_BERT_optimization.md'))))
 
