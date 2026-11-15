@@ -71,15 +71,15 @@ def model_gate(path, library):
     return identity
 
 
-def rejected_pair(folder, experiment, model_source, name, pair_name='pair'):
+def rejected_pair(folder, experiment, model_source, name, pair_name='pair', minimum_gain=.005):
     from dnn4_bert_current import validate_timing_gpu
     identity = model_gate(model_source, experiment['library'])
     closed, pair = read(folder / 'result.json'), experiment['pair']
     require(pair == read(folder / pair_name / 'result.json')
             and read(model_source)['gate'] == experiment['gate']
             and not experiment['accepted'] and not closed['production_admitted']
-            and closed.get('final') is None and experiment['minimum_gain'] == .005
-            and pair['ratio'] >= 1 - max(.005, pair['threshold']),
+            and closed.get('final') is None and experiment['minimum_gain'] == minimum_gain
+            and pair['ratio'] >= 1 - max(minimum_gain, pair['threshold']),
             'negative pair changed its independent gain gate')
     validate_timing_gpu(pair, pair['gpu'], 'ABABAB')
     reference = statistics.median(r['median_ms'] for r in pair['measurements'] if r['arm'] == 'A')
@@ -312,4 +312,63 @@ def collect(base):
             'Reject above5%; no P-TUNE/P-MODEL eligibility, native retiming or reference adjustment. '
             'The reused production binary previously had only one50/1 attribution process; '
             'private32B/cache/outline/async failures remain distinct and failed.')
+    for name, gain, title in [('pp128_side_norm_current_b16_v1', .03, 'P1 normalization on WG128 PP current B16'),
+                              ('ffn2_tk128_current_b8_v1', .005, 'FFN2 TK128 on Repeat PF1 current B8')]:
+        folder = session / name
+        if not (folder / 'result.json').exists():
+            continue
+        experiment, body = read(folder / 'experiment.json'), read(folder / 'body/result.json')
+        require(body['passed'] and len({p['pid'] for p in body['processes']}) == 17
+                and len({p['output_hash'] for p in body['processes']}) == 1
+                and Counter(p['name'].split('-')[0] for p in body['processes']) ==
+                    Counter(unit=5, memcheck=1, initcheck=1, racecheck=5, synccheck=5)
+                and all(not p['exit_code'] and not read(p['guard'])['code'] for p in body['processes']),
+                'pipeline follow-up lacks its exact accepted body17')
+        row = rejected_pair(folder, experiment, folder / 'model/result.json', title, minimum_gain=gain)
+        rows.append(row)
+        if gain == .03:
+            units = read(base / 'pp128_side_norm_current_b16_units_v1/result.json')
+            preparation = read(base / name / 'result.json')
+            retirement = read(base / name / 'retirement.json')
+            require(units['rows'][0]['default_words_equal'] and units['rows'][0]['encoded_words'] == 14944
+                    and retirement['passed']
+                    and preparation['rows'][0]['default_words_equal']
+                    and preparation['rows'][0]['encoded_words'] == 38848
+                    and read(experiment['library'] + '.plan.json')['native_forward'] ==
+                        read(base / name / 'plan.json')['coordinates'],
+                    'P1 PP follow-up changes its fixed geometry or default word proof')
+            paragraphs.append('Verified an isolated current-header adaptation of per-WG P1 normalization '
+                'on the same WG128 FFN1 PP geometry. Original ascending row-stat arithmetic and '
+                'empty4 protocol retained; two per-WG data/done barriers use1/32 arrivals. '
+                'Native310016B/R197,zero spill. Default0 preserves all38848 old PP words; '
+                'original coop control5 explicitly reused after14944 words match. Fresh actual '
+                'full2048/odd2049 NT12 body17 and strict model5 passGPU0. '
+                f'GPU{row["gpu"]} pair {row["reference_ms"]:.9f}→{row["candidate_ms"]:.9f}ms regresses '
+                f'{100*(row["ratio"]-1):.6f}%, noise{row["threshold_pct"]:.6f}%, required gain3%: reject. '
+                'No mixed Program/Repeat ordering SAN or P-DNN. ExactGPU0 trace1 FFN1 '
+                'stage/main/epilogue/store427.552/195.360/183.296/27.808us; old no-P1 WG128PP '
+                'GPU0 442.080/193.696/197.088/24.992us, formal coopGPU2 '
+                '389.120/228.064/135.456/18.880us. Epilogue drops13.792us from rejectedPP, '
+                'remaining above coop47.840us; nested maxima are diagnostic/nonadditive. '
+                'Trace guard75/cooldown then acceptedattempt2 retained; old WG64 P1PP and '
+                'WG128 no-P1 losses remain closed. Prototype archived/restored; main defaults unchanged.')
+        else:
+            expected = copy.deepcopy(read(experiment['reference']['library'] + '.plan.json')['native_forward'])
+            for stage in range(5, 61, 5):
+                expected['stages'][stage].update(tk=128, slots=4)
+            require(read(experiment['library'] + '.plan.json')['native_forward'] == expected
+                    and len(experiment['unit_gates']) == 5,
+                    'B8 TK128 changes its fixed geometry or order-gate scope')
+            paragraphs.append('Verified current PF1/Map1/Rows128-WGMMA B8 FFN2 changes onlyTK64/Slots8 '
+                'toTK128/Slots4, retaining128x64/TMA/S1 and original64-column/NT12 statistics. '
+                'Equal common-layout226304B footprints span both arenas; no changed preissue. '
+                'Native262016B/R168,zero spill. Original full1024/odd1025 writer/terminal '
+                'control5/body17 and strict model5 pass; four currentPF1 ordering17 cohorts '
+                'explicitly reused after full6864/9296/8608/11104-word identity. '
+                f'GPU{row["gpu"]} pair {row["reference_ms"]:.9f}→{row["candidate_ms"]:.9f}ms gains '
+                f'{row["gain_pct"]:.6f}%, below{row["threshold_pct"]:.6f}% noise and0.5% floor: '
+                'reject, no extra trace/P-DNN/current update. First control preflight75 and '
+                'original300s cooldown beforeacceptedattempt2 retained. Two earlier geometry '
+                'instances have different whole contexts; their negatives remain closed. '
+                'This legal B8 trial does not repair the separate B16 resource rejection.')
     return rows, paragraphs, tune_rows
