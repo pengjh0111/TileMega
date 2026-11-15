@@ -17,7 +17,16 @@ assert profile.get('TILEMEGA_F3_REPEAT_OUTPUT_MAP')=='1'
 model=dict(library=str(library))
 count,nmap=map(int,re.search(r'using F3ForwardProgram=Program<(?:8|16),(\d+),(\d+),',s).groups());stride=count+nmap
 raw=re.search(r'inline static constexpr std::array<unsigned,(\d+)> indices=\{\{(.*?)\n  \}\};',s,re.S);tokens=re.findall(r'kAbsent|\d+u',raw[2]);assert len(tokens)==12*stride
-virtual={int(i):body for i,body in re.findall(r'struct LoopBind_(\d+) \{(.*?)\n\};',s,re.S)};assert len(virtual)==5
+virtual={int(i):body for i,body in re.findall(r'struct LoopBind_(\d+) \{(.*?)\n\};',s,re.S)}
+if not virtual:
+ # Uniform optional fields use the existing representative Bind directly.
+ representatives=re.findall(r'using Loop_(\d+)=RepeatStage<Wrap_(\d+),',s)
+ wrappers={int(i):int(j) for i,j in re.findall(
+     r'using Wrap_(\d+)=(?:Gemm|Attention|Small)Stage<Body_\d+,Bind_(\d+),Shape_\d+>;',s)}
+ physical_text={int(i):body for i,body in re.findall(r'struct Bind_(\d+) \{(.*?)\n\};',s,re.S)}
+ assert len(representatives)==5 and {int(i) for i,_ in representatives}==set(range(5))
+ virtual={int(i):physical_text[wrappers[int(j)]] for i,j in representatives}
+assert len(virtual)==5
 physical={int(i):{k:(None if v=='kAbsent' else int(v[:-1])) for k,v in re.findall(r'(k\w+)=(kAbsent|\d+u)',body)} for i,body in re.findall(r'struct Bind_(\d+) \{(.*?)\n\};',s,re.S)}
 mapfields={'kMap','kResidualMap','kQueryMap','kValueMap','kOutputMap'};fields=list(physical[1]);assert len(fields)==23
 calls=[];expected=[]
