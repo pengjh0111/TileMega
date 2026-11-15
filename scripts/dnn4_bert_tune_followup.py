@@ -371,4 +371,38 @@ def collect(base):
                 'original300s cooldown beforeacceptedattempt2 retained. Two earlier geometry '
                 'instances have different whole contexts; their negatives remain closed. '
                 'This legal B8 trial does not repair the separate B16 resource rejection.')
+    repeat = session / 'repeat2_current_b16_v1'
+    if (repeat / 'result.json').exists():
+        setup = base / 'repeat2_current_b16_v1'
+        experiment, prepared = read(repeat / 'experiment.json'), read(setup / 'result.json')
+        before = Path(experiment['reference']['library'] + '.cu').read_text()
+        after = Path(experiment['library'] + '.cu').read_text()
+        contract = read(setup / 'binding_contract.json')
+        differential = read(setup / 'source_differential.json')
+        require(prepared['sass_ratio'] == prepared['model']['sass_bytes'] / 2688256
+                and prepared['sass_ratio'] < .25 and contract['passed']
+                and contract['checks'] == 1380 and differential['passed']
+                and differential['default_source_identical']
+                and differential['physical_bodies'] == differential['physical_bindings'] ==
+                    differential['physical_shapes'] == 63 and differential['maps_identical']
+                and 'Repeat<12,' in before and 'Repeat<6,' in after
+                and read(experiment['library'] + '.plan.json')['native_forward'] ==
+                    read(experiment['reference']['library'] + '.plan.json')['native_forward']
+                and not experiment['unit_gates'],
+                'two-layer Repeat changes its fixed bodies, grouping or CPU contract')
+        row = rejected_pair(repeat, experiment, repeat / 'model_resume_v2/result.json',
+                            'Two-layer Repeat on PF1 current B16', minimum_gain=.03)
+        rows.append(row)
+        paragraphs.append('Verified prescribed two-layer grouping on the exact current B16 profile: '
+            'Repeat12x5→Repeat6x10, all63 physical body/binding/shape classes, buffers, maps and '
+            'coordinates retained. Native449792B/R188,zero spill,16.731740% of verified DNN3 '
+            '2688256B, below the quarter-code-size gate. All1380 binding fields pass a CPU '
+            'contract; this is not GPU layout/order SAN. Fresh strict model5 on GPU1 passes '
+            'with bytes equal to the one-layer model. '
+            f'GPU{row["gpu"]} pair {row["reference_ms"]:.9f}→{row["candidate_ms"]:.9f}ms regresses '
+            f'{100*(row["ratio"]-1):.6f}%,noise{row["threshold_pct"]:.6f}%,required gain3%: reject. '
+            'The two earlier model namespaces contain rejected preflights only; accepted five '
+            'children are explicitly model_resume_v2 after inherited cooldown and original guard. '
+            'Smoke>3% receives exact trace1 attribution. No actual Repeat6/10 GPU layout/order '
+            'SAN, P-DNN or formal update; older two-layer-profile negatives remain closed.')
     return rows, paragraphs, tune_rows
