@@ -231,6 +231,7 @@ def main():
                ('QKV TMA in repeated B8 layers', continuation/'qkv_repeat_tma_current_b8_v1/experiment.json'),
                ('Prefetch1 on repeated QKV current B8', continuation/'prefetch_qkv_current_b8_v1/experiment.json'),
                ('WG128 ping-pong current B16 prescreen', continuation/'pp128_ffn1_current_b16_v1/experiment.json'),
+               ('First QKV TMA on PF1 current B8', continuation/'qkv_first_tma_pf1_b8_v1/experiment.json'),
                ('retired slot staging B16', continuation/'ring_store_b16_v1/experiment.json'),
                ('FFN2 TMA64 eight-slot B16', continuation/'ffn2_tma64_b16_v1/experiment.json'),
                ('three output buffers B16', continuation/'store3_b16_v1/experiment.json'),
@@ -264,6 +265,7 @@ def main():
                     'QKV TMA in repeated B8 layers',
                     'Prefetch1 on repeated QKV current B8',
                     'WG128 ping-pong current B16 prescreen',
+                    'First QKV TMA on PF1 current B8',
                     'retired slot staging B16',
                     'FFN2 TMA64 eight-slot B16',
                     'three output buffers B16',
@@ -274,7 +276,8 @@ def main():
                     'FFN1 TMA256 outlined context B16',
                     'producer warp2 prefetch B8',
                     'FFN2 whole96 writer prefix TMA B16'):
-            model = read(path.parent/'model/result.json')
+            model = read(path.parent/('model_resume_v1/result.json'
+                if name == 'First QKV TMA on PF1 current B8' else 'model/result.json'))
             pair = experiment['pair']
             if (not model['passed'] or model['passes'] != '5/5'
                     or experiment['accepted'] != (pair['ratio'] < 1-max(
@@ -382,6 +385,31 @@ def main():
                     or not control['passed'] or len(control['processes']) != 5
                     or len({p['pid'] for p in control['processes']}) != 5):
                 raise ValueError('PP prescreen lacks its original trigger, fixed geometry or negative gates')
+        if name == 'First QKV TMA on PF1 current B8':
+            prepared = read(base/'qkv_first_tma_pf1_b8_v1/result.json')
+            plan = read(base/'qkv_first_tma_pf1_b8_v1/plan.json')
+            bindings = read(base/'qkv_first_tma_pf1_b8_v1/binding_contract.json')
+            units = read(base/'qkv_first_tma_pf1_b8_units_v1/result.json')
+            body = read(Path(units['body_gate']))
+            control = read(path.parent/'control/result.json')
+            closed = read(path.parent/'result.json')
+            expected = json.loads(json.dumps(read(Path(experiment['reference']['library']+'.plan.json'))['native_forward']))
+            expected['stages'][1].update(tile_m=128, tile_n=192, slots=4, store='tma')
+            if (prepared['status'] != 'prepared_CPU_only' or plan['minimum_gain'] != .005
+                    or experiment['minimum_gain'] != .005 or experiment['accepted']
+                    or prepared['reference']['library'] != experiment['reference']['library']
+                    or prepared['reference']['gate'] != experiment['reference']['gate']
+                    or read(Path(experiment['library']+'.plan.json'))['native_forward'] != expected
+                    or not bindings['passed'] or bindings['checks'] != 1380
+                    or len(bindings['optional_output_maps']) != 12
+                    or any(v is None for v in bindings['optional_output_maps'])
+                    or units['body_proof']['encoded_words'] != 21664
+                    or experiment['unit_gates'] != [units['body_gate']]
+                    or not body['passed'] or len(body['processes']) != 17
+                    or any(p['exit_code'] or read(Path(p['guard']))['code'] for p in body['processes'])
+                    or not control['passed'] or len(control['processes']) != 5
+                    or closed['status'] != 'pair_rejected' or closed['final'] is not None):
+                raise ValueError('first-QKV prescreen changes its fixed geometry, binding or negative gates')
         if name == 'failed-poll gate backoff B4':
             sys.path.insert(0, str(ROOT/'scripts'))
             from dnn4_bert_current import validate_gate_backoff_integration
