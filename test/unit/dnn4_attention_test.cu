@@ -72,5 +72,11 @@ template<int B,int Rows=(16*B<128?16*B:128)> void Case() {
  for(E e:actual){auto bits=e.raw();for(int byte=0;byte<2;++byte){hash^=(bits>>(byte*8))&255;hash*=1099511628211ull;}}
  std::cout<<"attention_b"<<B<<"_rows"<<Rows<<" PASS\n";
 }
-int main(int,char**)try{Case<1>();Case<2>();Case<4>();Case<16>();Case<16,64>();std::cout<<"output_hash="<<std::hex<<hash<<'\n';return 0;}
+int main(int,char**)try{Case<1>();Case<2>();Case<4>();
+#if defined(DNN4_ATTENTION_CURRENT_B8_TEST)
+Case<8>();Case<16>();
+#else
+Case<16>();Case<16,64>();
+#endif
+std::cout<<"output_hash="<<std::hex<<hash<<'\n';return 0;}
 catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}

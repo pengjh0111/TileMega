@@ -252,11 +252,14 @@ def select_successors(base, batch, specification):
     if batch == 8:
         names.append(('ffn1_tma192_gelu_b8_admitted_v1',
                       {'TILEMEGA_F3_REGISTER_BUDGET': '3'}))
+        names.append(('attention128_current_b8_admitted_v1',
+                      {'TILEMEGA_F3_WGMMA_QK': '1', 'TILEMEGA_F3_WGMMA_PV': '1'}))
     for name, features in names:
         folder = base/name
         if not (folder/'experiment.json').exists():
             continue
-        if name.startswith('prefetch_b') or name == 'ffn1_tma192_gelu_b8_admitted_v1':
+        if name.startswith('prefetch_b') or name in (
+                'ffn1_tma192_gelu_b8_admitted_v1', 'attention128_current_b8_admitted_v1'):
             if not (folder/'publication_gate.json').exists():
                 continue
             publication = read(folder/'publication_gate.json')
@@ -319,6 +322,8 @@ def select_successors(base, batch, specification):
             count = 5
         if name == 'ffn1_tma192_gelu_b8_admitted_v1':
             count = 5
+        if name == 'attention128_current_b8_admitted_v1':
+            count = 5
         if name in ('pipeline_reduction_b2_admitted_v1',
                     'gelu_outline_b4_admitted_v1', 'gelu_outline_b8_admitted_v1',
                     'gelu_outline_b16_admitted_v1'):
@@ -354,6 +359,8 @@ def select_successors(base, batch, specification):
             required_gain = .01
         if name == 'ffn1_tma192_gelu_b8_admitted_v1':
             required_gain = .03
+        if name == 'attention128_current_b8_admitted_v1':
+            required_gain = .005
         gpu = validate_followup_allocation(folder, name, decision, final)
         if (pair['gpu'] != gpu or len(pair['measurements']) != 6 or
                 any(m['guard']['code'] for m in pair['measurements']) or
@@ -464,6 +471,9 @@ def select_successors(base, batch, specification):
         if name == 'repeat_prefetch_b16_admitted_v1':
             if final_name != 'attention64_b16_admitted_v1/final_result.json':
                 raise ValueError('Repeat prefetch lacks its admitted predecessor')
+        if name == 'attention128_current_b8_admitted_v1':
+            if final_name != 'ffn1_tma192_gelu_b8_admitted_v1/final_result.json':
+                raise ValueError('Rows128 attention lacks its current B8 predecessor')
         # Completed raw prototypes never appear in this ordered admission list.
         final_name = name+'/final_result.json'
         pair_name = name+'/experiment.json'
@@ -1007,6 +1017,9 @@ def validate_timing_gpu(result, gpu, order):
 
 
 def validate_followup_allocation(folder, name, decision, final):
+    if name == 'attention128_current_b8_admitted_v1':
+        from dnn4_bert_attention128 import validate
+        return validate(folder, decision, final)
     if name == 'ffn1_tma192_gelu_b8_admitted_v1':
         from dnn4_bert_ffn1_isolation import validate
         return validate(folder, decision, final)
