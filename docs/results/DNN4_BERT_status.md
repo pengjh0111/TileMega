@@ -1,6 +1,6 @@
 # DNN4 BERT：要求、现状与后续工作
 
-复核时间（UTC）：2026-11-14T23:07:13.123979+00:00。本文为该时刻的状态快照，正式数值以 [DNN4_BERT_current.csv](DNN4_BERT_current.csv) 为准。
+复核时间（UTC）：2026-11-15T00:16:03.785398+00:00。本文为该时刻的状态快照，正式数值以 [DNN4_BERT_current.csv](DNN4_BERT_current.csv) 为准。
 
 DNN4 的目标尚未完成：BERT 五个 batch 中，B1/B2/B4 已快于固定目标，B8/B16 尚未胜出。生产 F3 已包含多数结构改造；实现存在、正确性通过、端到端收益接受和整阶段验收是不同的状态。
 
@@ -100,6 +100,8 @@ DNN4 的目标尚未完成：BERT 五个 batch 中，B1/B2/B4 已快于固定目
 27. 当前PF1/Repeat映射修复/Rows64/GELU/72-216配置重新编译原六组B16坐标：五组主核和trace零spill，第六组仍24/24B spill，未上卡。五个合法模型各通过五进程FP32和逐位一致性门。因trace未合格，改用整程序非trace P-SEL：GPU0当前A=1.142032ms、原候选0/1/2分别1.227768/1.235248/1.320768ms，噪声门1.978%，当前版胜出。未拼装坐标或追加P-PAIR/P-DNN；这些选择值不替代上表正式终测值。
 
 28. 当前B8的FFN2固定改为128×128/S2/Slots5/TMA并采用已有合并partial，保留64列统计量和其他stage：主核294400B/maxR213零spill，实际M1024/1025写统计量及末层四case控制5/候选17、模型5通过；四组Program可见性17按整段GPU指令一致明确复用。GPU0独立对照0.801024→0.877008ms，慢9.486%，超过0.722%噪声，否决且未补P-DNN。候选trace1 spill36/84B、拟补的当前版匹配trace3 spill8/8B，均未上卡或修补；仅有候选trace3诊断，未拿不同写出路径的旧trace1作因果段差，也未用于P-TUNE/P-MODEL。生产代码和正式结果保持。
+
+29. 用户要求的B8原最快BF16基线已复测：GPU0上原torch.compile max-autotune/fullgraph/freezing，三个新进程各50热身/200事件，中位0.746400ms、p90 0.750848ms、进程极差0.008384ms；相对固定0.745712ms仅慢0.092%。另两个正确性进程合计FP32门5/5通过，最小cosine 0.999945223。原模型、权重、seed及两份实际输入逐位核对；baseline跨进程输出哈希存在差异，按原baseline协议仅记录，不宣称确定性。随机导出权重不作预训练准确率认证。只重采这一臂，固定目标、TileMega正式数值和315行账本均未修改；原守卫及1980MHz起止时钟记录保留。结果见[DNN4_BERT_baseline_recheck.csv](DNN4_BERT_baseline_recheck.csv)。基线完成后已恢复当前B8 Rows128 attention的验证；该候选尚未接受。
 
 ## 依据与身份
 
