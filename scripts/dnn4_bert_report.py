@@ -834,6 +834,10 @@ def main():
                 for r in pair['measurements']], separators=(',', ':')),
             evidence='verified', qualification=pair['qualification'],
             gate=experiment['gate'], source=str(folder/'pair/result.json'), repeat_layers=1))
+    sys.path.insert(0, str(ROOT/'scripts'))
+    from dnn4_bert_tune_followup import collect
+    recent_rows, recent_paragraphs, _ = collect(base)
+    rows.extend(recent_rows)
     if not rows:
         raise ValueError('no completed BERT comparisons')
     args.out.mkdir(parents=True, exist_ok=True)
@@ -3989,6 +3993,8 @@ def main():
                   'rejects9.486% regression. No P-DNN, trace retry, production '
                   'source change or current-results update; exact resource '
                   'failures and limited attribution remain recorded.']
+    for paragraph in recent_paragraphs:
+        lines += ['', paragraph]
     (args.out/'DNN4_BERT_optimization.md').write_text('\n'.join(lines)+'\n')
     print(json.dumps(dict(comparisons=len(rows), report=str(args.out/'DNN4_BERT_optimization.md'))))
 
