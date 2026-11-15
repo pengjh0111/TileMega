@@ -254,4 +254,62 @@ def collect(base):
             'No selected body/order SAN, P-DNN or formal change. The generic trace after smoke>3% '
             'retains rejected preflight75 then accepted attempt2; this negative does not '
             'retroactively change original six-way window data or replay that pair.')
+    attention = session / 'attention128_current_b16_v1'
+    if (attention / 'result.json').exists():
+        experiment = read(attention / 'experiment.json')
+        setup = base / 'attention128_current_b16_v2'
+        units = read(base / 'attention128_current_b16_units_v1/result.json')
+        reused = read(units['reference_gate'])
+        before = Path(experiment['reference']['library'] + '.cu').read_text()
+        after = Path(experiment['library'] + '.cu').read_text()
+        for old, new, count in [('#define TILEMEGA_F3_ATTENTION_ROWS 64',
+                '#define TILEMEGA_F3_ATTENTION_ROWS 128', 1),
+                ('Sm90F3Attention<16,64>', 'Sm90F3Attention<16,128>', 12),
+                ('{64u,1u,64u,0u}', '{64u,1u,128u,0u}', 12)]:
+            require(before.count(old) == count, 'attention source substitution count changed')
+            before = before.replace(old, new)
+        require(before == after and units['whole_words_equal'] and units['encoded_words'] == 10384
+                and experiment['unit_gates'] == [units['reference_gate']]
+                and read(setup / 'source_differential.json')['passed']
+                and reused['passed'] and len({p['pid'] for p in reused['processes']}) == 17
+                and Counter(p['name'].split('-')[0] for p in reused['processes']) ==
+                    Counter(unit=5, memcheck=1, initcheck=1, racecheck=5, synccheck=5)
+                and len({p['output_hash'] for p in reused['processes']}) == 1
+                and all(not p['exit_code'] and not read(p['guard'])['code'] for p in reused['processes']),
+                'attention changes more than its current row shapes or reuse gate')
+        row = rejected_pair(attention, experiment, attention / 'model/result.json',
+                            'Rows128 attention on Repeat PF1 current B16')
+        rows.append(row)
+        paragraphs.append('Verified current B16 Rows64→128 changes one setting,12 attention templates '
+            'and12 query boxes only; all63 coordinates/buffers/other flags remain identical. '
+            'Native295808B/R162,zero spill. Original per-head five-case reference including '
+            'both B16Rows64/128 is explicit historical17 reuse after all10384 GPU words match '
+            'new current-profile, committed and actual executed binaries; not fresh SAN. '
+            'Fresh strict model5 passes. '
+            f'GPU{row["gpu"]} pair {row["reference_ms"]:.9f}→{row["candidate_ms"]:.9f}ms gains '
+            f'{row["gain_pct"]:.6f}%, below{row["threshold_pct"]:.6f}% noise and0.5% floor: '
+            'reject without extra trace, ordering SAN, P-DNN or current update. Initial CPU '
+            'generation omitted codegen-only Repeat flags; exact source differential rejected '
+            'the accidental flat program before compile/GPU. Original failure retained; '
+            'v2 regenerates the full frozen profile with only the intended row change.')
+    boundary16 = base / 'current_b16_boundary352_v1'
+    if (boundary16 / 'result.json').exists():
+        plan, result = read(boundary16 / 'plan.json'), read(boundary16 / 'result.json')
+        frames, gpu, _ = trace_samples(boundary16 / 'traces/result.json', plan['library'], plan['reference']['library'])
+        native = read(plan['reference']['source'])
+        validate_timing_gpu(native['measurement'], native['measurement']['gpu'], 'BBB')
+        windows = [statistics.median(sum(s['stage_ns'] for s in frame) for frame in child) for child in frames]
+        difference = statistics.median(windows) / (float(plan['reference']['median_ms']) * 1e6) - 1
+        require(result['process_windows_ns'] == windows and result['relative_difference'] == difference
+                and result['passed'] == (abs(difference) <= .05)
+                and plan['max_relative_difference'] == .05
+                and native['library'] == plan['reference']['library']
+                and native['measurement']['candidate_ms'] == float(plan['reference']['median_ms']),
+                'B16 production boundary qualification changed')
+        paragraphs.append(f'Verified first complete production352B B16 boundary qualification on GPU{gpu}: '
+            f'three fresh20/50 windows{windows}ns; relative to predeclared formal P-DNN3 '
+            f'{float(plan["reference"]["median_ms"]):.9f}ms, difference{100*difference:.6f}%. '
+            'Reject above5%; no P-TUNE/P-MODEL eligibility, native retiming or reference adjustment. '
+            'The reused production binary previously had only one50/1 attribution process; '
+            'private32B/cache/outline/async failures remain distinct and failed.')
     return rows, paragraphs, tune_rows
