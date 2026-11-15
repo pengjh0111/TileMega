@@ -1,7 +1,6 @@
 """Reconstruct the trace-only P3 writer's unchanged boundary qualification."""
 from collections import Counter
 import gzip
-import hashlib
 import json
 import math
 from pathlib import Path
@@ -60,6 +59,12 @@ def qualify(preparation, runtime, unit_build):
     from tilemega.build.identity import sha, verify
     plan, prepared = read(preparation / 'plan.json'), read(preparation / 'result.json')
     request, result = read(runtime / 'plan.json'), read(runtime / 'result.json')
+    # Closed prototypes restore their private checkout; the compiled source
+    # copies retain the exact pre-run hashes without requiring that checkout.
+    def frozen_sha(path):
+        target = (preparation / ('prototype_' + Path(path).name)
+                  if str(path) in plan['files'] else Path(path))
+        return sha(target)
     require(request['qualification_processes'] == [0, 1, 2]
             and request['total_processes'] == 5
             and request['max_relative_difference'] == plan['max_relative_difference'] == .05
@@ -67,8 +72,8 @@ def qualify(preparation, runtime, unit_build):
                 float(plan['reference']['median_ms']) == 1.1459199786186218,
             'predeclared process subset, native reference or threshold changed')
     require(prepared['status'] == 'prepared_CPU_only'
-            and all(sha(Path(path)) == digest for path, digest in plan['files'].items())
-            and all(sha(Path(path)) == digest for path, digest in
+            and all(frozen_sha(path) == digest for path, digest in plan['files'].items())
+            and all(frozen_sha(path) == digest for path, digest in
                     read(runtime / 'frozen_source.json').items()), 'prototype source changed')
     tracer = verify(Path(prepared['trace']['library']))
     native = verify(Path(plan['reference']['library']))
@@ -101,6 +106,7 @@ def qualify(preparation, runtime, unit_build):
                 Counter(unit=5, memcheck=1, initcheck=1, racecheck=5, synccheck=5)
             and len({p['output_hash'] for p in children}) == 1
             and sha(Path(build['binary'])) == build['binary_sha256']
+            and all(frozen_sha(path) == digest for path, digest in build['inputs'].items())
             and all(not p['exit_code'] and not read(p['guard'])['code']
                     and p['binary_sha256'] == build['binary_sha256'] for p in children),
             'publication/parity unit needs accepted 5/1/1/5/5')
