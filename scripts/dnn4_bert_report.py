@@ -229,6 +229,8 @@ def main():
                ('Rows128 warpgroup attention current B8', continuation/'attention128_current_b8_v2/experiment.json'),
                ('FFN2 TN192 S1 current B16', continuation/'ffn2_n192_s1_current_b16_v1/experiment.json'),
                ('QKV TMA in repeated B8 layers', continuation/'qkv_repeat_tma_current_b8_v1/experiment.json'),
+               ('Prefetch1 on repeated QKV current B8', continuation/'prefetch_qkv_current_b8_v1/experiment.json'),
+               ('WG128 ping-pong current B16 prescreen', continuation/'pp128_ffn1_current_b16_v1/experiment.json'),
                ('retired slot staging B16', continuation/'ring_store_b16_v1/experiment.json'),
                ('FFN2 TMA64 eight-slot B16', continuation/'ffn2_tma64_b16_v1/experiment.json'),
                ('three output buffers B16', continuation/'store3_b16_v1/experiment.json'),
@@ -260,6 +262,8 @@ def main():
                     'Rows128 warpgroup attention current B8',
                     'FFN2 TN192 S1 current B16',
                     'QKV TMA in repeated B8 layers',
+                    'Prefetch1 on repeated QKV current B8',
+                    'WG128 ping-pong current B16 prescreen',
                     'retired slot staging B16',
                     'FFN2 TMA64 eight-slot B16',
                     'three output buffers B16',
@@ -346,6 +350,38 @@ def main():
             validate(admitted, decision, final)
             if experiment['pair'] != decision['pair'] or experiment['library'] != final['library']:
                 raise ValueError('repeated QKV report differs from the admitted comparison')
+        if name == 'Prefetch1 on repeated QKV current B8':
+            from dnn4_bert_prefetch_current import validate
+            admitted = base/'prefetch_qkv_current_b8_admitted_v1'
+            decision = read(admitted/'experiment.json')
+            final = read(admitted/'final_result.json')
+            validate(admitted, decision, final)
+            if experiment['pair'] != decision['pair'] or experiment['library'] != final['library']:
+                raise ValueError('PF1 report differs from the admitted comparison')
+        if name == 'WG128 ping-pong current B16 prescreen':
+            preparation = base/'pp128_ffn1_current_b16_v1'
+            plan = read(preparation/'plan.json')
+            prepared = read(preparation/'result.json')
+            closed = read(path.parent/'result.json')
+            body = read(path.parent/'body/result.json')
+            control = read(path.parent/'control/result.json')
+            expected = json.loads(json.dumps(read(Path(experiment['reference']['library']+'.plan.json'))['native_forward']))
+            for index in range(4, 60, 5):
+                expected['stages'][index].update(tile_m=256, tile_n=128, slots=5, sched='pp')
+            if (prepared['status'] != 'prepared_CPU_only' or prepared['model']['sass_register_max'] >= 216
+                    or plan['minimum_gain'] != .03 or experiment['minimum_gain'] != .03
+                    or plan['trigger_share'] < .15 or experiment['accepted']
+                    or closed['status'] != 'pair_rejected' or closed['final'] is not None
+                    or read(Path(experiment['library']+'.plan.json'))['native_forward'] != expected
+                    or not body['passed'] or len(body['processes']) != 17
+                    or len({p['pid'] for p in body['processes']}) != 17
+                    or Counter(p['name'].split('-')[0] for p in body['processes']) !=
+                       Counter(unit=5, memcheck=1, initcheck=1, racecheck=5, synccheck=5)
+                    or any(p['exit_code'] or read(Path(p['guard']))['code'] for p in body['processes'])
+                    or len({p['output_hash'] for p in body['processes']}) != 1
+                    or not control['passed'] or len(control['processes']) != 5
+                    or len({p['pid'] for p in control['processes']}) != 5):
+                raise ValueError('PP prescreen lacks its original trigger, fixed geometry or negative gates')
         if name == 'failed-poll gate backoff B4':
             sys.path.insert(0, str(ROOT/'scripts'))
             from dnn4_bert_current import validate_gate_backoff_integration
@@ -516,6 +552,8 @@ def main():
             'Rows64 warpgroup attention B16', 'current catalog assembly B16',
             'Rows128 warpgroup attention current B8',
             'QKV TMA in repeated B8 layers',
+            'Prefetch1 on repeated QKV current B8',
+            'WG128 ping-pong current B16 prescreen',
             'Repeat optional output map B16', 'Repeat prefetch1 B16')) and experiment.get(
                 'gpu', experiment['pair']['gpu']) == 0
         if admitted_continuation:

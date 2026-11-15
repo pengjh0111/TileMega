@@ -256,13 +256,16 @@ def select_successors(base, batch, specification):
                       {'TILEMEGA_F3_WGMMA_QK': '1', 'TILEMEGA_F3_WGMMA_PV': '1'}))
         names.append(('qkv_repeat_tma_current_b8_admitted_v1',
                       {'TILEMEGA_F3_REPEAT_OUTPUT_MAP': '1'}))
+        names.append(('prefetch_qkv_current_b8_admitted_v1',
+                      {'TILEMEGA_F3_PREFETCH_DISTANCE': '1'}))
     for name, features in names:
         folder = base/name
         if not (folder/'experiment.json').exists():
             continue
         if name.startswith('prefetch_b') or name in (
                 'ffn1_tma192_gelu_b8_admitted_v1', 'attention128_current_b8_admitted_v1',
-                'qkv_repeat_tma_current_b8_admitted_v1'):
+                'qkv_repeat_tma_current_b8_admitted_v1',
+                'prefetch_qkv_current_b8_admitted_v1'):
             if not (folder/'publication_gate.json').exists():
                 continue
             publication = read(folder/'publication_gate.json')
@@ -329,6 +332,8 @@ def select_successors(base, batch, specification):
             count = 5
         if name == 'qkv_repeat_tma_current_b8_admitted_v1':
             count = 6
+        if name == 'prefetch_qkv_current_b8_admitted_v1':
+            count = 6
         if name in ('pipeline_reduction_b2_admitted_v1',
                     'gelu_outline_b4_admitted_v1', 'gelu_outline_b8_admitted_v1',
                     'gelu_outline_b16_admitted_v1'):
@@ -368,8 +373,11 @@ def select_successors(base, batch, specification):
             required_gain = .005
         if name == 'qkv_repeat_tma_current_b8_admitted_v1':
             required_gain = .005
+        if name == 'prefetch_qkv_current_b8_admitted_v1':
+            required_gain = .01
         gpu = validate_followup_allocation(folder, name, decision, final)
-        if (pair['gpu'] != gpu or len(pair['measurements']) != 6 or
+        if ((pair['gpu'] != gpu and name != 'prefetch_qkv_current_b8_admitted_v1')
+                or len(pair['measurements']) != 6 or
                 any(m['guard']['code'] for m in pair['measurements']) or
                 pair['ratio'] >= 1-max(required_gain, pair['threshold'])):
             raise ValueError('follow-up did not clear its complete same-card pair: '+name)
@@ -484,6 +492,9 @@ def select_successors(base, batch, specification):
         if name == 'qkv_repeat_tma_current_b8_admitted_v1':
             if final_name != 'attention128_current_b8_admitted_v1/final_result.json':
                 raise ValueError('repeated QKV TMA lacks its current B8 predecessor')
+        if name == 'prefetch_qkv_current_b8_admitted_v1':
+            if final_name != 'qkv_repeat_tma_current_b8_admitted_v1/final_result.json':
+                raise ValueError('PF1 lacks its repeated-QKV B8 predecessor')
         # Completed raw prototypes never appear in this ordered admission list.
         final_name = name+'/final_result.json'
         pair_name = name+'/experiment.json'
@@ -1027,6 +1038,9 @@ def validate_timing_gpu(result, gpu, order):
 
 
 def validate_followup_allocation(folder, name, decision, final):
+    if name == 'prefetch_qkv_current_b8_admitted_v1':
+        from dnn4_bert_prefetch_current import validate
+        return validate(folder, decision, final)
     if name == 'qkv_repeat_tma_current_b8_admitted_v1':
         from dnn4_bert_qkv_repeat import validate
         return validate(folder, decision, final)
@@ -1401,11 +1415,15 @@ def main():
             threshold = max(pair['threshold'], minimum_gain)
             assert decision['accepted'] and pair['ratio'] < 1-threshold
             gpu = validate_followup_allocation(source.parent, source.parent.name, decision, final)
-            assert pair['gpu'] == gpu and len(pair['measurements']) == 6
+            separate_cohorts = source.parent.name == 'prefetch_qkv_current_b8_admitted_v1'
+            assert (pair['gpu'] == gpu or separate_cohorts) and len(pair['measurements']) == 6
             assert all(m['guard']['code'] == 0 for m in pair['measurements'])
             pair_source = str(base/pair_name)
             scope = ('BERT follow-up;original GPU3 anchor retained;not re-anchored' if gpu == 3
                      else f'BERT follow-up on user-authorized GPU{gpu};actual-card pair;fixed GPU3 target retained;not re-anchored')
+            if separate_cohorts:
+                scope = (f'BERT follow-up;GPU{pair["gpu"]} pair/GPU{gpu} final;'
+                         'user permits separate cohort cards;fixed GPU3 target retained;not re-anchored')
         else:
             source = ROOT/f'runs/dnn4/phase_z/cells_v1/bert_b{batch}/result.json'
             final = read(source)
