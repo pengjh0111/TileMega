@@ -405,4 +405,38 @@ def collect(base):
             'children are explicitly model_resume_v2 after inherited cooldown and original guard. '
             'Smoke>3% receives exact trace1 attribution. No actual Repeat6/10 GPU layout/order '
             'SAN, P-DNN or formal update; older two-layer-profile negatives remain closed.')
+    qkv = session / 'qkv_m256n96_current_b16_v1'
+    if (qkv / 'result.json').exists():
+        experiment = read(qkv / 'experiment.json')
+        units = read(base / 'qkv_m256n96_current_b16_units_v1/result.json')
+        body = read(qkv / 'body/result.json')
+        expected = copy.deepcopy(read(experiment['reference']['library'] + '.plan.json')['native_forward'])
+        for stage in range(6, 57, 5):
+            expected['stages'][stage].update(tile_m=256, slots=4)
+        require(units['passed'] and len(units['rows']) == 6
+                and units['rows'][0]['encoded_words'] == 20688
+                and [r['encoded_words'] for r in units['rows'][2:]] == [6864, 9296, 8608, 11104]
+                and body['passed'] and len({p['pid'] for p in body['processes']}) == 17
+                and Counter(p['name'].split('-')[0] for p in body['processes']) ==
+                    Counter(unit=5, memcheck=1, initcheck=1, racecheck=5, synccheck=5)
+                and len({p['output_hash'] for p in body['processes']}) == 1
+                and all(not p['exit_code'] and not read(p['guard'])['code'] for p in body['processes'])
+                and experiment['unit_gates'] == [str(qkv / 'body/result.json'), *units['unit_gates']]
+                and read(experiment['library'] + '.plan.json')['native_forward'] == expected,
+                'isolated QKV changes its fixed geometry or exact body/order gates')
+        row = rejected_pair(qkv, experiment, qkv / 'model/result.json',
+                            'Repeated QKV M256N96 on PF1 current B16')
+        rows.append(row)
+        paragraphs.append('Verified one original DT-MODEL group2/rank2 choice changes only11 repeated '
+            'QKV128x96REG7→256x96REG4; other52 coordinates and current PF1/Map1/Rows64 profile fixed. '
+            'Native304128B/R163,zero spill. Original2048/2049 NT12/NT1 FP32 body17 passesGPU0; '
+            'control5/four ordering17 are explicit20688/6864/9296/8608/11104-word reuse. Strict '
+            'model5 passes with bytes equal to the incumbent. '
+            f'GPU{row["gpu"]} pair {row["reference_ms"]:.9f}→{row["candidate_ms"]:.9f}ms regresses '
+            f'{100*(row["ratio"]-1):.6f}%,noise{row["threshold_pct"]:.6f}%: reject,no P-DNN/current '
+            'update. ExactGPU0 trace1 repeated-QKV stage/main/epilogue/store '
+            '333.664/209.024/95.840/56.928us versus historical currentGPU2 '
+            '348.224/241.760/72.352/39.392us; main drops32.736us,epilogue rises23.488us. '
+            'Nested maxima are cross-card diagnostics and do not establish end-to-end gain. '
+            'Twenty older geometry instances have different whole-current contexts; negatives remain closed.')
     return rows, paragraphs, tune_rows
