@@ -2,7 +2,7 @@
 
 采集与复核（verified，UTC）：2026-11-15T00:54:16.778780+00:00。
 
-| Batch | TensorRT ms | p90 ms | 进程极差 ms | 原 TensorRT ms | TileMega 当前 ms | TileMega / 本次 TRT |
+| Batch | TensorRT ms | p90 ms | 进程极差 ms | 原 TensorRT ms | TileMega 发布时快照 ms | TileMega / 本次 TRT |
 |---:|---:|---:|---:|---:|---:|---:|
 | 1 | 0.458128 | 0.460608 | 0.002128 | 0.488096 | 0.464496 | 1.0139 |
 | 2 | 0.518080 | 0.519584 | 0.004384 | 0.523856 | 0.508096 | 0.9807 |
@@ -17,3 +17,5 @@
 本次五档均使用GPU0；BERT优化验证使用GPU1。起止SM时钟、引擎/ONNX/输入/权重哈希及版本详见[CSV](DNN4_BERT_tensorrt_recheck.csv)。原守卫、独占锁、六次空闲采样和冷却保持；每次只执行一档，项间释放卡30秒。容器PID命名空间限制仍适用。
 
 TileMega列取[DNN4_BERT_current.csv](DNN4_BERT_current.csv)的历史正式终测，包含GPU3/1/0/2测量，不是本次重新计时或配对接受证据；比值仅描述这两份数据。随机导出权重的benchmark不作预训练模型准确率认证。原DNN4固定目标、TileMega五格/315行账本及CNN数据未修改。
+
+后续TileMega优化仍在推进，最新已接受版本见[DNN4_BERT_current.csv](DNN4_BERT_current.csv)；上表TileMega列保留复测发布时快照。
