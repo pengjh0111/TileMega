@@ -15,7 +15,7 @@ s=Path(str(library)+'.cu').read_text()
 profile={k:v for k,v in build_defines(s,[]).items() if k.startswith('TILEMEGA_F3_')}
 assert profile.get('TILEMEGA_F3_REPEAT_OUTPUT_MAP')=='1'
 model=dict(library=str(library))
-count,nmap=map(int,re.search(r'using F3ForwardProgram=Program<16,(\d+),(\d+),',s).groups());stride=count+nmap
+count,nmap=map(int,re.search(r'using F3ForwardProgram=Program<(?:8|16),(\d+),(\d+),',s).groups());stride=count+nmap
 raw=re.search(r'inline static constexpr std::array<unsigned,(\d+)> indices=\{\{(.*?)\n  \}\};',s,re.S);tokens=re.findall(r'kAbsent|\d+u',raw[2]);assert len(tokens)==12*stride
 virtual={int(i):body for i,body in re.findall(r'struct LoopBind_(\d+) \{(.*?)\n\};',s,re.S)};assert len(virtual)==5
 physical={int(i):{k:(None if v=='kAbsent' else int(v[:-1])) for k,v in re.findall(r'(k\w+)=(kAbsent|\d+u)',body)} for i,body in re.findall(r'struct Bind_(\d+) \{(.*?)\n\};',s,re.S)}

@@ -254,12 +254,15 @@ def select_successors(base, batch, specification):
                       {'TILEMEGA_F3_REGISTER_BUDGET': '3'}))
         names.append(('attention128_current_b8_admitted_v1',
                       {'TILEMEGA_F3_WGMMA_QK': '1', 'TILEMEGA_F3_WGMMA_PV': '1'}))
+        names.append(('qkv_repeat_tma_current_b8_admitted_v1',
+                      {'TILEMEGA_F3_REPEAT_OUTPUT_MAP': '1'}))
     for name, features in names:
         folder = base/name
         if not (folder/'experiment.json').exists():
             continue
         if name.startswith('prefetch_b') or name in (
-                'ffn1_tma192_gelu_b8_admitted_v1', 'attention128_current_b8_admitted_v1'):
+                'ffn1_tma192_gelu_b8_admitted_v1', 'attention128_current_b8_admitted_v1',
+                'qkv_repeat_tma_current_b8_admitted_v1'):
             if not (folder/'publication_gate.json').exists():
                 continue
             publication = read(folder/'publication_gate.json')
@@ -324,6 +327,8 @@ def select_successors(base, batch, specification):
             count = 5
         if name == 'attention128_current_b8_admitted_v1':
             count = 5
+        if name == 'qkv_repeat_tma_current_b8_admitted_v1':
+            count = 6
         if name in ('pipeline_reduction_b2_admitted_v1',
                     'gelu_outline_b4_admitted_v1', 'gelu_outline_b8_admitted_v1',
                     'gelu_outline_b16_admitted_v1'):
@@ -360,6 +365,8 @@ def select_successors(base, batch, specification):
         if name == 'ffn1_tma192_gelu_b8_admitted_v1':
             required_gain = .03
         if name == 'attention128_current_b8_admitted_v1':
+            required_gain = .005
+        if name == 'qkv_repeat_tma_current_b8_admitted_v1':
             required_gain = .005
         gpu = validate_followup_allocation(folder, name, decision, final)
         if (pair['gpu'] != gpu or len(pair['measurements']) != 6 or
@@ -474,6 +481,9 @@ def select_successors(base, batch, specification):
         if name == 'attention128_current_b8_admitted_v1':
             if final_name != 'ffn1_tma192_gelu_b8_admitted_v1/final_result.json':
                 raise ValueError('Rows128 attention lacks its current B8 predecessor')
+        if name == 'qkv_repeat_tma_current_b8_admitted_v1':
+            if final_name != 'attention128_current_b8_admitted_v1/final_result.json':
+                raise ValueError('repeated QKV TMA lacks its current B8 predecessor')
         # Completed raw prototypes never appear in this ordered admission list.
         final_name = name+'/final_result.json'
         pair_name = name+'/experiment.json'
@@ -1017,6 +1027,9 @@ def validate_timing_gpu(result, gpu, order):
 
 
 def validate_followup_allocation(folder, name, decision, final):
+    if name == 'qkv_repeat_tma_current_b8_admitted_v1':
+        from dnn4_bert_qkv_repeat import validate
+        return validate(folder, decision, final)
     if name == 'attention128_current_b8_admitted_v1':
         from dnn4_bert_attention128 import validate
         return validate(folder, decision, final)

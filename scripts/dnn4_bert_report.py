@@ -228,6 +228,7 @@ def main():
                ('FFN2 TMA128 split2 current B8', continuation/'ffn2_n128_s2_current_b8_v1/experiment.json'),
                ('Rows128 warpgroup attention current B8', continuation/'attention128_current_b8_v2/experiment.json'),
                ('FFN2 TN192 S1 current B16', continuation/'ffn2_n192_s1_current_b16_v1/experiment.json'),
+               ('QKV TMA in repeated B8 layers', continuation/'qkv_repeat_tma_current_b8_v1/experiment.json'),
                ('retired slot staging B16', continuation/'ring_store_b16_v1/experiment.json'),
                ('FFN2 TMA64 eight-slot B16', continuation/'ffn2_tma64_b16_v1/experiment.json'),
                ('three output buffers B16', continuation/'store3_b16_v1/experiment.json'),
@@ -258,6 +259,7 @@ def main():
                     'FFN2 TMA128 split2 current B8',
                     'Rows128 warpgroup attention current B8',
                     'FFN2 TN192 S1 current B16',
+                    'QKV TMA in repeated B8 layers',
                     'retired slot staging B16',
                     'FFN2 TMA64 eight-slot B16',
                     'three output buffers B16',
@@ -336,6 +338,14 @@ def main():
             validate(admitted, decision, final)
             if experiment['pair'] != decision['pair'] or experiment['library'] != final['library']:
                 raise ValueError('Rows128 report differs from the admitted comparison')
+        if name == 'QKV TMA in repeated B8 layers':
+            from dnn4_bert_qkv_repeat import validate
+            admitted = base/'qkv_repeat_tma_current_b8_admitted_v1'
+            decision = read(admitted/'experiment.json')
+            final = read(admitted/'final_result.json')
+            validate(admitted, decision, final)
+            if experiment['pair'] != decision['pair'] or experiment['library'] != final['library']:
+                raise ValueError('repeated QKV report differs from the admitted comparison')
         if name == 'failed-poll gate backoff B4':
             sys.path.insert(0, str(ROOT/'scripts'))
             from dnn4_bert_current import validate_gate_backoff_integration
@@ -505,6 +515,7 @@ def main():
             'failed-poll gate backoff B8', 'failed-poll gate backoff B16',
             'Rows64 warpgroup attention B16', 'current catalog assembly B16',
             'Rows128 warpgroup attention current B8',
+            'QKV TMA in repeated B8 layers',
             'Repeat optional output map B16', 'Repeat prefetch1 B16')) and experiment.get(
                 'gpu', experiment['pair']['gpu']) == 0
         if admitted_continuation:
