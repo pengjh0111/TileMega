@@ -1,0 +1,15 @@
+{
+  "allowed_gpu_indices": [
+    0,
+    1,
+    2
+  ],
+  "samples": 6,
+  "interval_s": 1,
+  "max_idle_used_mib": 4,
+  "max_hidden_mib": 1024,
+  "hidden_violations": 3,
+  "max_idle_wait_s": 600,
+  "scope": "Same shared physical GPU/NUMA locks and original guard lifecycle. Owner-free,zero-memory preflight;power/temp/clocks recorded,not modified. Container PID visibility qualification retained.",
+  "idle_memory_provenance": "Six new owner-free inventory samples plus original rejected GPU1 reservation show0/4MiB rounding;never allow an owner or memory above4MiB. Both zero-floor failures retained."
+}

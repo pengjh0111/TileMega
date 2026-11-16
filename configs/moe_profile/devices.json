@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "devices": {
+    "0": {
+      "uuid": "GPU-73c1a37e-d3c0-dc24-b81d-6a5563ebe677",
+      "pci": "0000:0f:00.0",
+      "name": "NVIDIA H800",
+      "memory_mib": 81559.0,
+      "numa_node": 0
+    },
+    "1": {
+      "uuid": "GPU-344fa712-6ca8-3673-b04b-33b9c3cbffac",
+      "pci": "0000:10:00.0",
+      "name": "NVIDIA H800",
+      "memory_mib": 81559.0,
+      "numa_node": 0
+    },
+    "2": {
+      "uuid": "GPU-5b5e235a-09a2-fe8b-7754-916b7eb85976",
+      "pci": "0000:44:00.0",
+      "name": "NVIDIA H800",
+      "memory_mib": 81559.0,
+      "numa_node": 0
+    }
+  },
+  "preferred_indices": [
+    0,
+    1
+  ],
+  "captured_utc": "2026-11-16T09:24:31.624488+00:00",
+  "scope": "Actual current3-card ordinal/UUID/PCI mapping;never reuse the historical4/7/8-card ordinal map."
+}

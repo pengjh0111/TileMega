@@ -1,0 +1,153 @@
+{
+  "schema": 1,
+  "model": {
+    "repo": "Qwen/Qwen3-30B-A3B",
+    "revision": "ad44e777bcd18fa416d9da3bd8f70d33ebb85d39",
+    "weights": "pretrained_bf16",
+    "thinking": false
+  },
+  "frameworks": {
+    "vllm": {
+      "python": "/workspace/llm-stack/envs/vllm/bin/python"
+    },
+    "sglang": {
+      "python": "/workspace/llm-stack/envs/sglang/bin/python"
+    },
+    "trtllm": {
+      "python": "/workspace/llm-stack/envs/trtllm/bin/python"
+    }
+  },
+  "batches": [
+    1,
+    4,
+    16,
+    64
+  ],
+  "lengths": [
+    [
+      128,
+      128
+    ],
+    [
+      2048,
+      256
+    ],
+    [
+      8192,
+      256
+    ]
+  ],
+  "tensor_parallel_size": 1,
+  "supplemental_tp2": [
+    [
+      1,
+      128,
+      128
+    ],
+    [
+      64,
+      8192,
+      256
+    ]
+  ],
+  "precision": {
+    "weights": "bf16",
+    "activations": "bf16",
+    "kv_cache": "bf16",
+    "quantization": null,
+    "weight_offload": false,
+    "speculative_decoding": false
+  },
+  "sampling": {
+    "temperature": 0,
+    "seed": 20261116,
+    "ignore_eos": true,
+    "min_output_equals_max_output": true
+  },
+  "cache": {
+    "prefix_cache": false,
+    "cross_round_reuse": false,
+    "swap_space_gib": 0
+  },
+  "engine": {
+    "max_model_len": 8448,
+    "max_num_seqs": 64,
+    "prefill_token_budget": 8192,
+    "chunked_prefill": true,
+    "cuda_graph": true,
+    "vllm_gpu_memory_fraction": 0.93,
+    "sglang_static_memory_fraction": 0.93,
+    "trtllm_free_after_weights_fraction": 0.85
+  },
+  "measurement": {
+    "warmup_rounds": 3,
+    "measured_rounds": 3,
+    "profiler": false,
+    "timing": "host perf_counter_ns; per-request first/last streamed token and closed-cohort wall time",
+    "prefill_and_decode_metrics": "Engine timestamps when available; GPU stage/iteration timings only from separate Nsight capture,never derived as utilization from host events."
+  },
+  "cohort": {
+    "primary": "A: fixed closed cohort;all requests submitted once;no new arrivals",
+    "actual_active_batch": "Record in diagnostics;nominal cohort B is not silently equated with every actual kernel M;preemption/mixed prefill reported.",
+    "supplement": "B:at mostone engine-level two-wave admission point per framework after A;no HTTP/QPS serving study;separate results"
+  },
+  "profiles": {
+    "points": [
+      [
+        1,
+        128,
+        128
+      ],
+      [
+        64,
+        128,
+        128
+      ],
+      [
+        4,
+        8192,
+        256
+      ]
+    ],
+    "phases": [
+      "prefill",
+      "decode"
+    ],
+    "decode_positions": [
+      32,
+      48
+    ],
+    "ncu": "Target only measuredhotspots;permissionfailure means unavailable,no estimated counters."
+  },
+  "routing": {
+    "layers": [
+      0,
+      15,
+      31,
+      47
+    ],
+    "iterations": [
+      32,
+      48
+    ],
+    "storage": "Device-resident samples;one bulk host copy after diagnostic ROI",
+    "separate_from_timing": true,
+    "synthetic_routes": "microbench controls only,not pretrained distribution evidence"
+  },
+  "evidence": {
+    "raw": "runs/moe_profile",
+    "published": "docs/results/moe_profile",
+    "labels": [
+      "\u5df2\u6d4b\u4e8b\u5b9e",
+      "\u8bc1\u636e\u652f\u6301\u7684\u63a8\u65ad",
+      "\u5f85\u9a8c\u8bc1"
+    ],
+    "no_preselected_bottleneck": true
+  },
+  "decisions": [
+    "Fixed closed-cohort Decode is the primary paper experiment;small B supplement only bounds scheduler effects.",
+    "Random weights are not an acceptable replacement for pretrained routing data;real checkpoint is downloaded once to tmpfs and shared.",
+    "TP1 is the primary36cell matrix. TP2 supplements are separately labeled and never replace a failed TP1 cell.",
+    "No system-wide driver/clock/power/profiling changes;shared GPU/NUMA locks andowner checks;observed telemetry retained."
+  ]
+}
