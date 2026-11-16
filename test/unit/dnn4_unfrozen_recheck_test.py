@@ -21,6 +21,14 @@ class UnfrozenTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.base = Path(self.temp.name)
+        self.worker_root = self.base / 'worker-root'
+        self.authorization = (self.worker_root /
+            'runs/dnn4/bert_priority/resume_allcards_20261112_v1/authorization.json')
+        self.authorization.parent.mkdir(parents=True)
+        self.authorization.write_text(json.dumps(dict(status='active', allowed_gpu_indices=[1])))
+        root = patch.object(module, 'ROOT', self.worker_root)
+        root.start()
+        self.addCleanup(root.stop)
         self.value = dict(model='bert', batch=1, gpu=1,
             roles=['correctness', 'measurement', 'measurement', 'measurement', 'correctness'],
             arm=dict(arm='torchcompile-max-autotune', system='torchcompile', precision='bf16',
@@ -66,6 +74,20 @@ class UnfrozenTest(unittest.TestCase):
             self.assertNotIn('--freezing', command)
             self.assertIn('--correctness-only', command)
             self.assertEqual(child.call_args.kwargs['env']['TORCHINDUCTOR_FREEZING'], '0')
+
+    def test_paused_authorization_prevents_a_child(self):
+        self.authorization.write_text(json.dumps(dict(status='paused', allowed_gpu_indices=[1])))
+        with patch.object(module.subprocess, 'Popen') as child:
+            with self.assertRaisesRegex(RuntimeError, 'authorization disallows'):
+                self.execute(self.value)
+            child.assert_not_called()
+
+    def test_unauthorized_device_prevents_a_child(self):
+        self.authorization.write_text(json.dumps(dict(status='active', allowed_gpu_indices=[0])))
+        with patch.object(module.subprocess, 'Popen') as child:
+            with self.assertRaisesRegex(RuntimeError, 'authorization disallows'):
+                self.execute(self.value)
+            child.assert_not_called()
 
 
 if __name__ == '__main__':
