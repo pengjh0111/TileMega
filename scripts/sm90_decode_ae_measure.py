@@ -22,7 +22,7 @@ def run():
     parser.add_argument('--fresh', type=int, required=True)
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
-    require_guard(tp=1)
+    require_guard()
     spec = json.loads(args.spec.read_text())
     arm = spec['arms'][args.arm]
     digest = lambda p: hashlib.sha256(Path(p).read_bytes()).hexdigest()
