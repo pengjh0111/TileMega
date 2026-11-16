@@ -1,0 +1,123 @@
+{
+  "evidence": "verified",
+  "base_commit": "ebe2fb0ed9d56b9b1e1abdd57c8fa8fd6a835f4c",
+  "devices": {
+    "schema": 1,
+    "devices": {
+      "0": {
+        "uuid": "GPU-73c1a37e-d3c0-dc24-b81d-6a5563ebe677",
+        "pci": "0000:0f:00.0",
+        "name": "NVIDIA H800",
+        "memory_mib": 81559.0,
+        "numa_node": 0
+      },
+      "1": {
+        "uuid": "GPU-344fa712-6ca8-3673-b04b-33b9c3cbffac",
+        "pci": "0000:10:00.0",
+        "name": "NVIDIA H800",
+        "memory_mib": 81559.0,
+        "numa_node": 0
+      },
+      "2": {
+        "uuid": "GPU-5b5e235a-09a2-fe8b-7754-916b7eb85976",
+        "pci": "0000:44:00.0",
+        "name": "NVIDIA H800",
+        "memory_mib": 81559.0,
+        "numa_node": 0
+      }
+    },
+    "preferred_indices": [
+      0,
+      1
+    ],
+    "captured_utc": "2026-11-16T09:24:31.624488+00:00",
+    "scope": "Actual current3-card ordinal/UUID/PCI mapping;never reuse the historical4/7/8-card ordinal map."
+  },
+  "frameworks": {
+    "vllm": {
+      "python": "/workspace/llm-stack/envs/vllm/bin/python",
+      "packages": {
+        "triton": "3.4.0",
+        "vllm": "0.11.0",
+        "transformers": "4.57.1",
+        "torch": "2.8.0"
+      },
+      "sources": {
+        "vllm": {
+          "version": "0.11.0",
+          "python_files": 945,
+          "python_source_tree_sha256": "8794382872e5aa14f5b0935f2f3a42a402a113dcacdc0c09d4c521e4f8b984b2"
+        },
+        "torch": {
+          "version": "2.8.0",
+          "python_files": 2036,
+          "python_source_tree_sha256": "ed762593c1bf26b58b59fcc44457ded213fe0e89972511e4b24158d1dede00a9"
+        }
+      },
+      "installed_version_commit": "gf71952c1c"
+    },
+    "sglang": {
+      "python": "/workspace/llm-stack/envs/sglang/bin/python",
+      "packages": {
+        "triton": "3.4.0",
+        "sgl-kernel": "0.3.16.post5",
+        "sglang": "0.5.5",
+        "flashinfer-python": "0.5.0",
+        "transformers": "4.57.1",
+        "torch": "2.8.0"
+      },
+      "sources": {
+        "sglang": {
+          "version": "0.5.5",
+          "python_files": 959,
+          "python_source_tree_sha256": "f5b6d3ece4670d4582f099c015d9501b3b4e0669237207ff591f9394a64d83c7"
+        },
+        "torch": {
+          "version": "2.8.0",
+          "python_files": 2036,
+          "python_source_tree_sha256": "ed762593c1bf26b58b59fcc44457ded213fe0e89972511e4b24158d1dede00a9"
+        }
+      }
+    },
+    "trtllm": {
+      "python": "/workspace/llm-stack/envs/trtllm/bin/python",
+      "packages": {
+        "triton": "3.3.1",
+        "torch": "2.7.1+cu128",
+        "tensorrt": "10.11.0.33",
+        "flashinfer-python": "0.2.5",
+        "transformers": "4.51.3"
+      },
+      "sources": {
+        "tensorrt-llm": {
+          "version": "0.21.0",
+          "python_files": 549,
+          "python_source_tree_sha256": "24f76eed6e43e016e51442562d6110637265c6cfde800a0189644dc7a6ee009a",
+          "commit": null
+        },
+        "torch": {
+          "version": "2.7.1+cu128",
+          "python_files": 2067,
+          "python_source_tree_sha256": "e081e0c3dd51da2aad30e95ba5b0ae9c85dfeaf74138a5f51c8103b43dd9b30a"
+        }
+      }
+    }
+  },
+  "driver": "580.167.08",
+  "nvcc": "12.8.93",
+  "nsys": "2024.6.2.225",
+  "ncu": "2025.1.1",
+  "nsys_gpu_canary_passed": true,
+  "ncu_gpu_canary": {
+    "passed": false,
+    "error": "ERR_NVGPUCTRPERM",
+    "driver_restrict_admin": true,
+    "raw": "runs/moe_profile/setup/ncu_canary_metrics.csv"
+  },
+  "nsys_cpu_sampling": "unavailable: perf_event_paranoid4/perf_event_open",
+  "owner_visibility": "container PID namespace limited;do not claim host-wide ownership verification",
+  "runtime_backends": "Not yet selected;record actual model initialization metadata/logs,not defaults as measurements.",
+  "raw_setup": "runs/moe_profile/setup",
+  "model_revision": "ad44e777bcd18fa416d9da3bd8f70d33ebb85d39",
+  "weight_bytes": 61066575648
+}
