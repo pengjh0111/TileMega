@@ -41,7 +41,7 @@ void sm90_dense_sequence_stage(typename P::Binding const* binding,SequenceState 
   if(threadIdx.x==0) {
     if constexpr(First)if(blockIdx.x==0)stamps[state->step]=Now();
     if constexpr(Stage::kUsesOperandRecord)
-      Stage::PublishOperands(b,layer,past,epsilon,record,state->iteration);
+      Stage::PublishOperands(b,layer,past,epsilon,record);
   }
   __syncthreads();
   // Every kernel starts with empty rings; no predecessor issued its prefix.
