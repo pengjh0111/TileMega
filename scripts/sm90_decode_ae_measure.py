@@ -38,7 +38,8 @@ def run():
     from tilemega.serving.engine import ServingEngine
     frozen = torch.tensor(prompts[:1], dtype=torch.int32)
     options = argparse.Namespace(model=checkpoint, batch='1', max_tokens=1024, warmup=1,
-        repeats=3, round_index=args.fresh, load_format='auto', policy=None, tp=1, out=args.out)
+        repeats=3, round_index=args.fresh, load_format='auto', policy=None, tp=1,
+        prompt_ids=prompt_path, out=args.out)
     metadata = dict(arm=args.arm, protocol='SM90R3 P-FINAL statistics; performance only',
         spec=str(args.spec.resolve()), spec_sha256=digest(args.spec),
         decode=arm['decode'], decode_sha256=arm['decode_sha256'],
