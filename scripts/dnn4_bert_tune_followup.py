@@ -519,4 +519,8 @@ def collect(base):
             '348.224/241.760/72.352/39.392us;main rises13.376us,epilogue rises13.952us. '
             'Cross-card nested maxima are diagnostic only. No additional mapping SAN claimed '
             'for this rejected program;prior geometry negatives stay closed.')
+    from dnn4_bert_stats_tma import collect as collect_stats_tma
+    stats_rows, stats_paragraphs = collect_stats_tma(base)
+    rows.extend(stats_rows)
+    paragraphs.extend(stats_paragraphs)
     return rows, paragraphs, tune_rows
