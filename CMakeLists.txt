@@ -208,6 +208,7 @@ add_library(tilemega_core STATIC
   lib/Solver/Sm90ForwardSearch.cpp
   lib/Solver/Sm90ForwardPlan.cpp
   lib/Codegen/ForwardCodegen.cpp
+  lib/Codegen/ForwardF3Codegen.cpp
   lib/Solver/DnnStructureSearch.cpp
   lib/Solver/SkeletonFinalize.cpp
   lib/Solver/SkeletonPlacement.cpp
@@ -364,6 +365,32 @@ if(TILEMEGA_BUILD_TESTS)
   target_include_directories(cluster_placement_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
   target_compile_options(cluster_placement_test PRIVATE -UNDEBUG)
   add_test(NAME cluster_placement COMMAND cluster_placement_test)
+  add_executable(dnn4_coordinates_test test/unit/dnn4_coordinates_test.cpp lib/Support/Json.cpp)
+  target_include_directories(dnn4_coordinates_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+  target_compile_options(dnn4_coordinates_test PRIVATE -UNDEBUG)
+  add_test(NAME dnn4_coordinates COMMAND dnn4_coordinates_test)
+  add_executable(dnn4_matrix_store_layout_test test/unit/dnn4_matrix_store_layout_test.cu)
+  target_include_directories(dnn4_matrix_store_layout_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/third_party/cutlass/include)
+  set_target_properties(dnn4_matrix_store_layout_test PROPERTIES CUDA_STANDARD 17)
+  target_compile_options(dnn4_matrix_store_layout_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+  tilemega_configure_cuda_target(dnn4_matrix_store_layout_test)
+  add_test(NAME dnn4_matrix_store_layout COMMAND dnn4_matrix_store_layout_test)
+  add_executable(dnn4_attention_wgmma_layout_test test/unit/dnn4_attention_wgmma_layout_test.cu)
+  target_include_directories(dnn4_attention_wgmma_layout_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/third_party/cutlass/include)
+  set_target_properties(dnn4_attention_wgmma_layout_test PROPERTIES CUDA_STANDARD 17)
+  target_compile_options(dnn4_attention_wgmma_layout_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+  tilemega_configure_cuda_target(dnn4_attention_wgmma_layout_test)
+  add_test(NAME dnn4_attention_wgmma_layout COMMAND dnn4_attention_wgmma_layout_test)
+  add_executable(dnn4_cost_test test/unit/dnn4_cost_test.cpp)
+  target_link_libraries(dnn4_cost_test PRIVATE TileMega::tilemega)
+  target_compile_options(dnn4_cost_test PRIVATE -UNDEBUG)
+  add_test(NAME dnn4_cost COMMAND dnn4_cost_test
+    ${CMAKE_CURRENT_SOURCE_DIR}/configs/targets/sm_90_h800.json
+    ${CMAKE_CURRENT_BINARY_DIR}/dnn4_cost_fixture.json)
   add_executable(serving_implementation_test test/unit/serving_implementation_test.cpp)
   target_link_libraries(serving_implementation_test PRIVATE TileMega::tilemega)
   target_compile_options(serving_implementation_test PRIVATE -UNDEBUG)
@@ -1652,8 +1679,14 @@ add_test(NAME dnn_bf16_gates
   COMMAND ${CMAKE_COMMAND} -E env "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python"
     ${Python3_EXECUTABLE} -m unittest discover
     -s ${CMAKE_CURRENT_SOURCE_DIR}/test/python -p test_dnn_gates.py)
+add_test(NAME dnn3_weights
+  COMMAND ${CMAKE_COMMAND} -E env "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python"
+    ${Python3_EXECUTABLE} -m unittest discover
+    -s ${CMAKE_CURRENT_SOURCE_DIR}/test/python -p test_dnn3_weights.py)
 
 if(TILEMEGA_BUILD_TESTS AND Python3_EXECUTABLE)
+  add_test(NAME dnn4_bert_current COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/unit/dnn4_bert_current_test.py)
   add_test(NAME serving_workload_host COMMAND ${CMAKE_COMMAND} -E env
     PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python ${Python3_EXECUTABLE} -m unittest discover
     -s ${CMAKE_CURRENT_SOURCE_DIR}/test/python -p test_workload*.py)

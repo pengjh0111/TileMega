@@ -1,0 +1,25 @@
+--- a/aitemplate/compiler/transform/toposort.py
++++ b/aitemplate/compiler/transform/toposort.py
+@@ -130,18 +130,21 @@
+ 
+     queue = []
+     sorted_graph = []
++    sorted_seen = set()
+     for node in nodes:
+         if in_degree[node] == 0:
+             # input nodes need to be in the original order,
+             # hence add them to the sorted graph here
+             # instead of going through the pri heap
+             sorted_graph.append(node)
++            sorted_seen.add(node)
+             heapq.heappush(queue, pri_tensor_helper.get_heap_input(node))
+ 
+     while queue:
+         node = pri_tensor_helper.get_tensor_from_heap_output(heapq.heappop(queue))
+-        if node not in sorted_graph:
++        if node not in sorted_seen:
+             sorted_graph.append(node)
++            sorted_seen.add(node)
+ 
+         for dst_op in node.dst_ops():
+             for next_node in set(dst_op._attrs["outputs"]):

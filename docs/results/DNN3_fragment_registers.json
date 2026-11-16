@@ -1,0 +1,480 @@
+{
+  "evidence": "verified",
+  "diagnostic": true,
+  "experiments": [
+    {
+      "scope": "f3_fresh_thread_v8",
+      "source": "runs/dnn3/f3_fresh_thread_v8/result.json",
+      "sha256": "b2bf6c3dd233c5a246ab9ff738885253e9f49f2637d911446af2345f71db9f23",
+      "variant": "fresh thread index in GEMM producer/fragment mapping; original288 launch bound; gather slice fix",
+      "rows": [
+        {
+          "name": "resnet18_b8",
+          "exit_code": 0,
+          "evidence": "verified",
+          "compile_exit": 0,
+          "spill_max": 0,
+          "register_max": 103,
+          "C7509": false,
+          "gpu_executed": false,
+          "artifact_id": "bfa2f5edfe43e967b6db73fad5cb51809320f0e6371ce6fc6f8e894a0d2aba8f"
+        },
+        {
+          "name": "resnet18_b16",
+          "exit_code": 0,
+          "evidence": "verified",
+          "compile_exit": 0,
+          "spill_max": 0,
+          "register_max": 105,
+          "C7509": false,
+          "gpu_executed": false,
+          "artifact_id": "e225d9e1486765d796d4d6f146b4abbfa65e361de5eb855aa3d70c67ff4b6a3c"
+        },
+        {
+          "name": "resnet50_b4",
+          "exit_code": 0,
+          "evidence": "verified",
+          "compile_exit": 0,
+          "spill_max": 0,
+          "register_max": 120,
+          "C7509": false,
+          "gpu_executed": false,
+          "artifact_id": "a0eb3973c51ccb72114485087dec6a590c8c5ce0dbb26501fbd2baef6eef192c"
+        },
+        {
+          "name": "vgg16_b2",
+          "exit_code": 0,
+          "evidence": "verified",
+          "compile_exit": 0,
+          "spill_max": 0,
+          "register_max": 161,
+          "C7509": false,
+          "gpu_executed": false,
+          "artifact_id": "15c6c4363efdbb8ddc4c912f693209f49ec40a9aa1e8f394841b3a553d6a68a9"
+        },
+        {
+          "name": "bert_b16",
+          "exit_code": 0,
+          "evidence": "verified",
+          "compile_exit": 0,
+          "spill_max": 0,
+          "register_max": 168,
+          "C7509": false,
+          "gpu_executed": false,
+          "artifact_id": "5714f598fcf69c99f0411ccc2bc7f6eac8512f6037ff3b1104c4c0ed9998eaca"
+        }
+      ]
+    },
+    {
+      "scope": "f3_fragment_v8",
+      "source": "runs/dnn3/f3_fragment_v8/result.json",
+      "sha256": "e3394cc4cdbbbf55ed0288c8a8b5b1e8d70f8ff2b27a25a31bd1d223e6d67aa2",
+      "variant": "fresh epilogue fragment mapping only; original288 launch bound; gather slice fix",
+      "rows": [
+        {
+          "name": "resnet18_b8",
+          "exit_code": 0,
+          "evidence": "verified",
+          "compile_exit": 0,
+          "spill_max": 0,
+          "register_max": 103,
+          "C7509": false,
+          "gpu_executed": false,
+          "artifact_id": "70b7b3d954e715248a04dd11270908118588640743c4aa549dcd985ed7dded54"
+        },
+        {
+          "name": "resnet50_b4",
+          "exit_code": 0,
+          "evidence": "verified",
+          "compile_exit": 0,
+          "spill_max": 0,
+          "register_max": 120,
+          "C7509": false,
+          "gpu_executed": false,
+          "artifact_id": "911376d742e62702451d548dae6a36dea2014eaf2c2fcb763eea3a4e9abf1a4b"
+        },
+        {
+          "name": "bert_b16",
+          "exit_code": 0,
+          "evidence": "verified",
+          "compile_exit": 0,
+          "spill_max": 0,
+          "register_max": 168,
+          "C7509": false,
+          "gpu_executed": false,
+          "artifact_id": "4d81ef1f0ee3b984f17224e5e4daf38c88194d43906f553e74996c016f8d67c5"
+        },
+        {
+          "name": "resnet18_b1",
+          "evidence": "verified",
+          "compile_exit": 0,
+          "spill_max": 0,
+          "register_max": 64,
+          "C7509": false,
+          "gpu_executed": false,
+          "artifact_id": "fb328741bbcf0cf6dcb8268e1b2678ec2eef1dc0f7da4a78fda410826789cef1",
+          "source": "runs/dnn3/f3_fragment_v8/resnet18_b1/result.json",
+          "sha256": "fd0ed9b4b61964f24d07b04ecb4f5b213bf0851bb7452b801a4bd73d4d381ddd"
+        },
+        {
+          "name": "vgg16_b16",
+          "evidence": "verified",
+          "compile_exit": 0,
+          "spill_max": 0,
+          "register_max": 168,
+          "C7509": false,
+          "gpu_executed": false,
+          "artifact_id": "ed543b00fb26e1a3ffa23d98800fb8e0702eadb98642953ad8593fe200373606",
+          "source": "runs/dnn3/f3_fragment_v8/vgg16_b16/result.json",
+          "sha256": "3f867121f1aec7edac4d0f9df9886e6a8ee2d34a56806fdd2511adf58c7c8647"
+        }
+      ],
+      "full_gates": [
+        {
+          "model": "resnet18",
+          "batch": 1,
+          "status": "passed",
+          "processes": 17,
+          "passes": "corr5/5;mem1/1;init1/1;race5/5;sync5/5",
+          "source": "runs/dnn3/f3_fragment_v8/resnet18_b1/full_gate/raw/dnn3-f3-model-gates/attempt1/cohort/result.json",
+          "sha256": "1b808b760658fad968e901dd3695fb7604bc5061b19ebd1d2f30d7868bb83346"
+        },
+        {
+          "model": "bert",
+          "batch": 16,
+          "status": "passed",
+          "processes": 17,
+          "passes": "corr5/5;mem1/1;init1/1;race5/5;sync5/5",
+          "source": "runs/dnn3/f3_fragment_v8/bert_b16/full_gate/raw/dnn3-f3-model-gates/attempt1/cohort/result.json",
+          "sha256": "aa412a0c305b76b5ceebed8a05dd93f8a69b921876d4f5b5de3deaa38e62e644"
+        }
+      ]
+    }
+  ],
+  "runtime_checks": [
+    {
+      "model": "resnet18",
+      "batch": 8,
+      "status": "passed",
+      "passes": "5/5",
+      "source": "runs/dnn3/f3_fragment_v8/resnet18_b8/corr_gate/raw/dnn3-f3-model-gates/attempt1/cohort/result.json",
+      "sha256": "601537e520837a2c45d2ee859fd0dac980986c50e55dad0e42bb05966714ae0a"
+    },
+    {
+      "model": "resnet50",
+      "batch": 4,
+      "status": "passed",
+      "passes": "5/5",
+      "source": "runs/dnn3/f3_fragment_v8/resnet50_b4/corr_gate/raw/dnn3-f3-model-gates/attempt1/cohort/result.json",
+      "sha256": "0d282bd8196360406cdd00b9dd50cca9003a351da1b6a5a73be0013626d67c6a"
+    }
+  ],
+  "production_promotion": "Signed unrestricted mapping remains rejected by standalone128x256 spills. Later unsigned mapping plus register-bounded quad stores passed body/unit/model/E2E gates and was promoted baecaa9a0; see DNN3_store16_trigger.json.",
+  "smoke": [
+    {
+      "model": "resnet18",
+      "batch": 1,
+      "gpu": 1,
+      "median_ms": 0.22761599719524384,
+      "reference_ms": 0.2236800044775,
+      "relative_change": 0.01759653361478608,
+      "source": "runs/dnn3/f3_fragment_v8/resnet18_b1/smoke_gpu1/result.json",
+      "sha256": "b039f583347f0449f15221277040b0b1a03acb5a249617f0e14bf24e2fc77bcb"
+    }
+  ],
+  "wide_probe": {
+    "source": "runs/dnn3/f3_wide_fragment_probe/result.json",
+    "sha256": "5237378a6f3a761a9e6019a35dfa905d4e3794d1cab19ae8e089659190996a2e",
+    "decision": "do not broaden legality; original288-thread entry still spills in11of12 isolated wide-chain probes; full models remain acceptance criterion",
+    "rows": [
+      {
+        "tm": 128,
+        "tn": 256,
+        "chain": "plain",
+        "exit_code": 0,
+        "spills": 100,
+        "registers": 168,
+        "source_sha256": "369b86efef58b30243d794317b8f83acc6fe35151b71da3ce7dc401356500ebd",
+        "log_sha256": "09c5f632e655da46f5374766d8c0fb3b4d659c0e819488c0a6a4f15f4b483176",
+        "gpu_executed": false
+      },
+      {
+        "tm": 128,
+        "tn": 256,
+        "chain": "bias_act",
+        "exit_code": 0,
+        "spills": 32,
+        "registers": 168,
+        "source_sha256": "659b8b89b815553b26edddb37e0bd6a160947c7d6b6cdd7ee99705367681db0f",
+        "log_sha256": "0ed87773f8010c614094387de0d8d7110c5926a72c647e793dbc3589828b8e7e",
+        "gpu_executed": false
+      },
+      {
+        "tm": 128,
+        "tn": 256,
+        "chain": "bias_res_act",
+        "exit_code": 0,
+        "spills": 1256,
+        "registers": 168,
+        "source_sha256": "b8b8f792b617932bcb0e753f08eb23942a76487262d8d696f9dcaac8d6d65dd1",
+        "log_sha256": "73b0982baa4840e5b757562e49427961ed23d76b9d8d49526df5034276a669d6",
+        "gpu_executed": false
+      },
+      {
+        "tm": 128,
+        "tn": 256,
+        "chain": "deferred_ln",
+        "exit_code": 0,
+        "spills": 84,
+        "registers": 168,
+        "source_sha256": "d3bb5fab915ceaed7d60cbeb21606dd6a83198a2314dfd065f10f929a0fd3726",
+        "log_sha256": "104f04c5e496ed4af7abc98b27ef0590384a563feb0c6414c2c329c29ea2c669",
+        "gpu_executed": false
+      },
+      {
+        "tm": 128,
+        "tn": 256,
+        "chain": "deferred_ln_gelu",
+        "exit_code": 0,
+        "spills": 40,
+        "registers": 168,
+        "source_sha256": "442d4234085c0265a20930855317c183a638bf3509c48a2a22df04e8990b3826",
+        "log_sha256": "3d360accfea334b17a513db111801d53aff85882e09b436904edd63caa172585",
+        "gpu_executed": false
+      },
+      {
+        "tm": 128,
+        "tn": 256,
+        "chain": "residual_ln_rowstats",
+        "exit_code": 0,
+        "spills": 252,
+        "registers": 168,
+        "source_sha256": "30c21cd478d256f46690e8e9ea9e5281d805e7c58129cd28a72fbe644f2dc1b6",
+        "log_sha256": "a16247166609c85948e19135870c577dec6b6ba40df8a36b1439c4b5fb186933",
+        "gpu_executed": false
+      },
+      {
+        "tm": 256,
+        "tn": 128,
+        "chain": "plain",
+        "exit_code": 0,
+        "spills": 0,
+        "registers": 168,
+        "source_sha256": "1616ec724c85a7ace565fcc3d4187f17296c760e1c4c36c0a3885ec9734d72c1",
+        "log_sha256": "712f6e00ef2a0ca82e173101d63dcf2b56585db70ed86dfbd570c21a93a54a50",
+        "gpu_executed": false
+      },
+      {
+        "tm": 256,
+        "tn": 128,
+        "chain": "bias_act",
+        "exit_code": 0,
+        "spills": 24,
+        "registers": 168,
+        "source_sha256": "4fec9daead5371adc551be5720cb794691dff1257a69eb88167bbb60bf3db149",
+        "log_sha256": "4ef2057c85e88b5398f058e69a7886630251fcc1a686633a31d7656a136caa45",
+        "gpu_executed": false
+      },
+      {
+        "tm": 256,
+        "tn": 128,
+        "chain": "bias_res_act",
+        "exit_code": 0,
+        "spills": 20,
+        "registers": 168,
+        "source_sha256": "e54a15c533422a75a83dc7aa8eef4c5dcd69436365a05e3d1411944f34441d01",
+        "log_sha256": "2b1ead0de55f43757339a83967ec8ec2e93066e6773eb184f5bb3ef735900452",
+        "gpu_executed": false
+      },
+      {
+        "tm": 256,
+        "tn": 128,
+        "chain": "deferred_ln",
+        "exit_code": 0,
+        "spills": 12,
+        "registers": 168,
+        "source_sha256": "31a112243feca0b6e2c5d5cf5ba2c225d55dcd9429f03b023d1cec87caffe1ba",
+        "log_sha256": "54a64c3cfe0221c6b500e03ddeddec08684f41b58ff77f9336245bd79dfe4bdb",
+        "gpu_executed": false
+      },
+      {
+        "tm": 256,
+        "tn": 128,
+        "chain": "deferred_ln_gelu",
+        "exit_code": 0,
+        "spills": 148,
+        "registers": 168,
+        "source_sha256": "a51d2b9fd93d707c9fdf2d9914f636f551a455db259f0d0285c1d9c63a4a4396",
+        "log_sha256": "616ff902e41c0bc3cd1fb83e0a087aa4764ed23d0547e2fff34c42f9715647cc",
+        "gpu_executed": false
+      },
+      {
+        "tm": 256,
+        "tn": 128,
+        "chain": "residual_ln_rowstats",
+        "exit_code": 0,
+        "spills": 92,
+        "registers": 168,
+        "source_sha256": "087c4dfa4b04d970254a430c2bb72151c58f67f83b3e1cd7957e3d94a2806045",
+        "log_sha256": "6cc71cdbdd3fb133b54e00ed46ff7196f8efba2d0ff52d0869a94e067e2aec8a",
+        "gpu_executed": false
+      }
+    ]
+  },
+  "unit_regression": {
+    "source": "runs/dnn3/f3_fragment_units_v8/body/ptxas.log",
+    "sha256": "8654292bca042ff7e221cf6c944e640af7887364f1dfebdc3c375c8085ed222e",
+    "stores": 740,
+    "loads": 1012,
+    "registers": 168,
+    "gpu_executed": false,
+    "shape": "M50176N256K64,128x256,plain"
+  },
+  "bounded_followup": {
+    "source": "runs/dnn3/f3_fragment_bounded_v8/result.json",
+    "state": "VGG B16 still spills320B; no promotion; body SAN cohort may still be running"
+  },
+  "full_thread_followup": {
+    "source": "runs/dnn3/f3_thread_units_v8/body/ptxas.log",
+    "sha256": "7b534a59471248a0f958d5f7928f5b45d94fee4f33d9a656a65a176a01a1c30a",
+    "state": "same standalone128x256 test spills740stores/1012loads; no promotion"
+  },
+  "f3_fragment_bounded_v8": {
+    "source": "runs/dnn3/f3_fragment_bounded_v8/result.json",
+    "sha256": "69cfe6f07aa0483ddf524397911ff06b6aa087f499a68c1595039502c4db1245",
+    "rows": [
+      {
+        "name": "resnet18_b8",
+        "exit_code": 0,
+        "evidence": "verified",
+        "compile_exit": 0,
+        "spill_max": 0,
+        "register_max": 103,
+        "C7509": false,
+        "gpu_executed": false,
+        "artifact_id": "dc8ddf508401efd59717fc4e3b549f54ab8489c7c70d7b2dd3dde8a616575d1e"
+      },
+      {
+        "name": "resnet50_b4",
+        "exit_code": 0,
+        "evidence": "verified",
+        "compile_exit": 0,
+        "spill_max": 0,
+        "register_max": 120,
+        "C7509": false,
+        "gpu_executed": false,
+        "artifact_id": "d2b4412c5c7b9809adf63187c5a575fbb19cbfe91b4c87dea99537e9fd0f3887"
+      },
+      {
+        "name": "vgg16_b16",
+        "exit_code": 1,
+        "evidence": "verified",
+        "compile_exit": 0,
+        "spill_max": 320,
+        "register_max": 168,
+        "C7509": false,
+        "gpu_executed": false
+      },
+      {
+        "name": "bert_b16",
+        "exit_code": 0,
+        "evidence": "verified",
+        "compile_exit": 0,
+        "spill_max": 0,
+        "register_max": 168,
+        "C7509": false,
+        "gpu_executed": false,
+        "artifact_id": "58fdbedc89bec6dfe38baee5e8b555177f44dd433225cfcb5b9683884280f529"
+      },
+      {
+        "name": "resnet18_b1",
+        "exit_code": 0,
+        "evidence": "verified",
+        "compile_exit": 0,
+        "spill_max": 0,
+        "register_max": 64,
+        "C7509": false,
+        "gpu_executed": false,
+        "artifact_id": "49a6fb70e21bf9625c058042d75b3cc18c7afa7c3fb7445f89c599e2ac840a85"
+      }
+    ],
+    "production_promotion": "pending complete body/model gates and E2E preservation"
+  },
+  "f3_fragment_unsigned2_v10": {
+    "source": "runs/dnn3/f3_fragment_unsigned2_v10/result.json",
+    "sha256": "5fe03dd64c2a19cc896672b1220900e5880d9144453250f85cb1b8d11d6ad113",
+    "rows": [
+      {
+        "name": "resnet18_b8",
+        "exit_code": 0,
+        "evidence": "verified",
+        "compile_exit": 0,
+        "spill_max": 0,
+        "register_max": 144,
+        "C7509": false,
+        "gpu_executed": false,
+        "artifact_id": "dfcde88c58f38c21d493ca7fec60350919036490d7473fd7f06c47940105ab21"
+      },
+      {
+        "name": "resnet50_b16",
+        "exit_code": 0,
+        "evidence": "verified",
+        "compile_exit": 0,
+        "spill_max": 0,
+        "register_max": 168,
+        "C7509": false,
+        "gpu_executed": false,
+        "artifact_id": "4f7a69ada3f56ff82f4ddb179094db4c9302d1e384b7889a5dff69b6665d16d4"
+      },
+      {
+        "name": "vgg16_b16",
+        "exit_code": 0,
+        "evidence": "verified",
+        "compile_exit": 0,
+        "spill_max": 0,
+        "register_max": 166,
+        "C7509": false,
+        "gpu_executed": false,
+        "artifact_id": "3222eeb2eb08c5483ef58d4e54908011b30a80cf13516d88924d2d840dea6ec8"
+      },
+      {
+        "name": "bert_b16",
+        "exit_code": 0,
+        "evidence": "verified",
+        "compile_exit": 0,
+        "spill_max": 0,
+        "register_max": 168,
+        "C7509": false,
+        "gpu_executed": false,
+        "artifact_id": "3a5041f4d7c462cc58bccfcf7af84fd19e8562ea1b8da795a85d53dcb8917ee4"
+      },
+      {
+        "name": "resnet18_b1",
+        "exit_code": 0,
+        "evidence": "verified",
+        "compile_exit": 0,
+        "spill_max": 0,
+        "register_max": 90,
+        "C7509": false,
+        "gpu_executed": false,
+        "artifact_id": "faacf28828ed0465d833e684c9edfaaf30b67745fb723782fa898e4c144ce7f3"
+      }
+    ],
+    "production_promotion": "pending complete body/model gates and E2E preservation"
+  },
+  "unconditional_bert_smoke": {
+    "source": "runs/dnn3/f3_fragment_v8/bert_b16/smoke_gpu3/result.json",
+    "sha256": "4f4c363fb3a89db9e4ba3d3d0ca62a63c7aa55646e7b464b404fd873867e7367",
+    "median_ms": 3.013535976409912,
+    "previous_accepted_ms": 2.6066399812698364,
+    "relative_difference": 0.1560998059048624,
+    "decision": "not accepted: >3% slower; solved coordinates also differ, so this does not isolate the header change"
+  },
+  "accepted_followup": {
+    "evidence": "verified",
+    "source": "docs/results/DNN3_store16_trigger.json",
+    "commit": "baecaa9a0",
+    "header_sha256": "6f1e6e2e9ad8919af4dc792e4f24b6efedde47ce278d1eb565b087bdff3d46a3",
+    "wide_shape_policy": "256x128 residual/normalization restrictions retained after production probe spills;128x256 unban still requires full-program evidence"
+  }
+}

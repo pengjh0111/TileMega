@@ -45,8 +45,9 @@ struct Sm90ForwardFusedOperands {
 // channels per task. The pointwise contracts the depthwise result, so the
 // GEMM's M is the tile's pixel count padded to 64.
 template<int TW,int TH,int CB,int TN,int Stride,int Slots,class Chain,int Pack=8,
-         class DwChain=Sm90ForwardElementChain<>>
+         class DwChain=Sm90ForwardElementChain<>,int Batch=1>
 struct Sm90ForwardDwPw {
+  static_assert(Batch>=1);
   using Element=cutlass::bfloat16_t;
   using Async=codegen::executor::Async<arch::Sm90>;
   static_assert(TW*TH<=64 && CB%64==0 && (Stride==1 || Stride==2));
@@ -67,7 +68,7 @@ struct Sm90ForwardDwPw {
   static_assert(Pack>=1 && Pack<=8);
   static constexpr int kFilterElements=CB*9*Pack;
   static constexpr int kWeightBytes=2*kFilterElements;
-  static constexpr int kScratchBytes=4*kRows*TN;
+  static constexpr int kScratchBytes=4*kRows*TN+Chain::kScratchBytes;
   // Every WGMMA operand tile must start at a multiple of the 128-byte
   // swizzle's 1 KB period: a merely 128-byte-aligned base shifts the XOR
   // pattern and the MMA reads the wrong k columns for some rows.
@@ -95,29 +96,35 @@ struct Sm90ForwardDwPw {
       Element* panel,int rows,int tile_w,int channels,int block,
       float const* const (&dw_vectors)[4]) {
     auto* base=reinterpret_cast<char*>(panel);
-    for(int i=int(threadIdx.x);i<kRows*CB;i+=128) {
-      int channel=i%CB,pixel=i/CB,x=tile_w>0?pixel%tile_w:0,y=tile_w>0?pixel/tile_w:0;
-      float sum=0;
-      // Channels past the image's own are the plan's zero padding, and their
-      // weights are outside the packed KRSC extent.
-      if(pixel<rows && block*CB+channel<channels) {
-        auto const* filter=weights+std::size_t(channel)*9*Pack;
+    // Keep channel-invariant filter and affine values in registers while
+    // preserving the original tap order and each pixel's FP32 operations.
+    constexpr int channel_lanes=CB<128?CB:128,pixel_groups=128/channel_lanes;
+    for(int channel=int(threadIdx.x)%channel_lanes;channel<CB;channel+=channel_lanes) {
+      bool live=block*CB+channel<channels;
+      float filter[9]{};
+      typename DwChain::ChannelValues affine{};
+      if(live) {
         #pragma unroll
-        for(int r=0;r<3;++r)
-          #pragma unroll
-          for(int s=0;s<3;++s) {
-            int hx=x*Stride+s,hy=y*Stride+r;
-            sum+=float(halo[(hy*kHaloW+hx)*CB+channel])*float(filter[(r*3+s)*Pack]);
-          }
+        for(int tap=0;tap<9;++tap)
+          filter[tap]=float(weights[(std::size_t(channel)*9+tap)*Pack]);
+        affine=DwChain::Load(block*CB+channel,dw_vectors);
       }
-      // The plan's depthwise epilogue (its folded BN and activation) applies
-      // here, before the result becomes the pointwise's A. The A panel of k
-      // block (channel / 64) is swizzled like any WGMMA operand; the rows
-      // past this tile's pixels contribute zero.
-      if(pixel<rows && block*CB+channel<channels)
-        sum=DwChain::Apply(sum,block*CB+channel,dw_vectors);
-      auto* target=base+(channel/64)*kRows*128+Swizzled(pixel,channel);
-      *reinterpret_cast<Element*>(target)=Element(sum);
+      for(int pixel=int(threadIdx.x)/channel_lanes;pixel<kRows;pixel+=pixel_groups) {
+        int x=tile_w>0?pixel%tile_w:0,y=tile_w>0?pixel/tile_w:0;
+        float sum=0;
+        if(pixel<rows && live) {
+          #pragma unroll
+          for(int r=0;r<3;++r)
+            #pragma unroll
+            for(int s=0;s<3;++s) {
+              int hx=x*Stride+s,hy=y*Stride+r;
+              sum+=float(halo[(hy*kHaloW+hx)*CB+channel])*filter[r*3+s];
+            }
+          sum=DwChain::ApplyCached(sum,affine);
+        }
+        auto* target=base+(channel/64)*kRows*128+Swizzled(pixel,channel);
+        *reinterpret_cast<Element*>(target)=Element(sum);
+      }
     }
     codegen::executor::ComputeSync();
   }
@@ -134,19 +141,26 @@ struct Sm90ForwardDwPw {
     // The weight is packed into whole TN-wide tiles, so a projection narrower
     // than TN still has one tile and the epilogue stores only its own columns.
     int splits=(p.out_channels+TN-1)/TN;
-    int total=tiles_w*tiles_h*splits;
+    int image_tasks=tiles_w*tiles_h*splits,total=Batch*image_tasks;
     int tasks=total/int(gridDim.x)+(int(blockIdx.x)<total%int(gridDim.x));
     unsigned phase=0;
-    #pragma unroll
-    for(int i=0;i<Slots;++i)phase|=(threadIdx.x<128?
-        state.consumer_generations[i]:state.producer_generations[i])<<i;
+    // Only the issuing producer reads its phase. Other producer lanes do not
+    // use it and could otherwise read while lane 0 publishes its next phase.
+    if(threadIdx.x<128) {
+      #pragma unroll
+      for(int i=0;i<Slots;++i)phase|=state.consumer_generations[i]<<i;
+    }else if(threadIdx.x==128) {
+      #pragma unroll
+      for(int i=0;i<Slots;++i)phase|=state.producer_generations[i]<<i;
+    }
     int blocks=(p.padded_channels+CB-1)/CB;
     if(threadIdx.x>=128) {
       Sm90DenseRoles::Producer();
       if(threadIdx.x==128) {
         Async::ProxyAsyncGlobalFence();
         for(int local=0;local<tasks;++local) {
-          int task=int(blockIdx.x)+local*int(gridDim.x);
+          int task=int(blockIdx.x)+local*int(gridDim.x),image=task/image_tasks;
+          task%=image_tasks;
           int tile=task/splits,tile_x=(tile%tiles_w)*TW,tile_y=(tile/tiles_w)*TH;
           for(int block=0;block<blocks;++block) {
             int slot=(local*blocks+block)%Slots;
@@ -160,7 +174,7 @@ struct Sm90ForwardDwPw {
             Async::Wait(state.empty+slot,(phase>>slot)&1);
             Async::ExpectTx(state.full+slot,2*(kHaloElements+kPageElements)+filter_bytes);
             Async::Tensor4D(halo+slot*kHaloElements,p.activation,block*CB,
-                tile_x*Stride-1,tile_y*Stride-1,0,state.full+slot);
+                tile_x*Stride-1,tile_y*Stride-1,image,state.full+slot);
             // This block's pointwise pages: TN x 64 pages of the K panels the
             // block covers, contiguous per (output tile, k panel).
             Async::Bulk(pages+slot*kPageElements,
@@ -178,8 +192,11 @@ struct Sm90ForwardDwPw {
       __syncwarp();
     }else {
       Sm90DenseRoles::Consumer();
+      TM_FWD_TRACE_ACC(wait_trace);TM_FWD_TRACE_ACC(dw_trace);
+      TM_FWD_TRACE_ACC(pw_trace);TM_FWD_TRACE_ACC(epilogue_trace);TM_FWD_TRACE_ACC(main_trace);
       for(int local=0;local<tasks;++local) {
-        int task=int(blockIdx.x)+local*int(gridDim.x);
+        int task=int(blockIdx.x)+local*int(gridDim.x),image=task/image_tasks;
+          task%=image_tasks;
         int tile=task/splits,split=task%splits;
         int tile_x=(tile%tiles_w)*TW,tile_y=(tile/tiles_w)*TH;
         int tile_w=min(TW,max(0,p.output_width-tile_x));
@@ -191,11 +208,18 @@ struct Sm90ForwardDwPw {
         // accumulator is fenced around that register work; without the fence
         // the compiler may reuse the accumulator's registers.
         Gmma::Gmma::Fence(accum);
+        TM_FWD_TRACE_BEGIN(main_trace);
         for(int block=0;block<blocks;++block) {
           int slot=(local*blocks+block)%Slots;
+          TM_FWD_TRACE_BEGIN(wait_trace);
           Async::Wait(state.full+slot,(phase>>slot)&1);phase^=1u<<slot;
+          TM_FWD_TRACE_END(wait_trace);
+          if(local==0 && block==0) {TM_FWD_TRACE_FIRST_READY();}
+          TM_FWD_TRACE_BEGIN(dw_trace);
           Depthwise(halo+slot*kHaloElements,filters+slot*kFilterElements,panel,rows,
               tile_w,p.channels,block,p.dw_vectors);
+          TM_FWD_TRACE_END(dw_trace);
+          TM_FWD_TRACE_BEGIN(pw_trace);
           // The panel is a generic-store producer for WGMMA's shared reads.
           Async::FenceProxyAsyncShared();
           codegen::executor::ComputeSync();
@@ -205,22 +229,31 @@ struct Sm90ForwardDwPw {
           Sm90Gmma<arch::Sm90>::template Wait<0>();
           Gmma::Gmma::Fence(accum);
           codegen::executor::ComputeSync();
+          TM_FWD_TRACE_END(pw_trace);
           Async::Arrive(state.empty+slot);
         }
         float* values=Gmma::Materialize(accum,scratch);
+        TM_FWD_TRACE_END(main_trace);
         // The task's rows are the pixels of its TW x TH tile, so the store
         // walks the tile inside the image.
         auto epilogue=p.epilogue;
         epilogue.tile_width=tile_w;epilogue.image_width=p.output_width;
+        epilogue.row_base=(image*p.output_height+tile_y)*p.output_width+tile_x;
         // The residual is this tile's own pixels, like the output.
         if(epilogue.residual)
-          epilogue.residual+=(std::size_t(tile_y)*p.output_width+tile_x)*epilogue.residual_stride;
-        int width=p.out_channels-split*Chain::kWidth;
+          epilogue.residual+=((std::size_t(image)*p.output_height+tile_y)*p.output_width+tile_x)*epilogue.residual_stride;
+        int stored_channels=Chain::kGated?p.out_channels/2:p.out_channels;
+        int width=stored_channels-split*Chain::kWidth;
         if(width>Chain::kWidth)width=Chain::kWidth;
+        TM_FWD_TRACE_BEGIN(epilogue_trace);
         Chain::Finish(values,rows,split*TN,width>0?width:0,epilogue,
-            p.output+(std::size_t(tile_y)*p.output_width+tile_x)*p.output_stride,
+            p.output+((std::size_t(image)*p.output_height+tile_y)*p.output_width+tile_x)*p.output_stride,
             p.output_stride);
+        TM_FWD_TRACE_END(epilogue_trace);
       }
+      TM_FWD_TRACE_FLUSH(main_trace,kMainLoop);
+      TM_FWD_TRACE_FLUSH(wait_trace,kHaloWait);TM_FWD_TRACE_FLUSH(dw_trace,kFusedDepthwise);
+      TM_FWD_TRACE_FLUSH(pw_trace,kFusedPointwise);TM_FWD_TRACE_FLUSH(epilogue_trace,kEpilogue);
       if(threadIdx.x==0 && tasks)
         for(int slot=0;slot<Slots;++slot)state.consumer_generations[slot]=(phase>>slot)&1;
     }

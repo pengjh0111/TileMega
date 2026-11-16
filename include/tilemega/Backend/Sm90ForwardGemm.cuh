@@ -2,7 +2,9 @@
 #pragma once
 
 #include <tilemega/Backend/Sm90ForwardEpilogue.cuh>
-#include <tilemega/Backend/Sm90Gmma.h>
+#include <tilemega/Backend/Sm90ForwardMark.cuh>
+#include <tilemega/Backend/Sm90ForwardMma32.cuh>
+#include <tilemega/Backend/Sm90ForwardResources.h>
 #include <tilemega/Backend/Sm90DenseLayout.h>
 #include <tilemega/Backend/Sm90DenseRing.cuh>
 #include <tilemega/Backend/Sm90DenseRoles.cuh>
@@ -26,6 +28,8 @@ struct Sm90ForwardGemmOperands {
   std::uint64_t* counters;         // split-K: one per output tile
   Sm90ForwardEpilogueOperands epilogue;
   int output_stride;               // channels of one output row
+  cutlass::bfloat16_t const* input_scale; // optional [batch,scale_stride] SCA vector
+  int scale_rows,scale_channels,scale_stride;
 };
 
 // A dense stage's A has no convolution geometry; a conv stage's comes from the
@@ -37,13 +41,24 @@ struct Sm90ForwardNoConv {
 
 // N is the weight's padded extent (a whole number of TN tiles); NStore is how
 // many of the chain's output columns the model actually keeps.
+// A value-keyed geometry type lets repeated model stages share one math body.
+template<int Rows,int Channels,int Stride>
+struct Sm90ForwardInputScale {
+  static constexpr int kScaleRows=Rows,kScaleChannels=Channels,kScaleStride=Stride;
+};
+
+struct Sm90ForwardNoInputScale {
+  static constexpr int kScaleRows=1,kScaleChannels=0,kScaleStride=0;
+};
+
 template<int TM,int TN,int TK,int Slots,int SplitK,Sm90ForwardAMode AMode,int M,int N,int K,
-         int NStore,class Chain,class Conv=Sm90ForwardNoConv>
+         int NStore,class Chain,class Conv=Sm90ForwardNoConv,bool ScaleInput=false,
+         class ScaleShape=Sm90ForwardNoInputScale>
 struct Sm90ForwardGemm {
   using Element=cutlass::bfloat16_t;
   using Async=codegen::executor::Async<arch::Sm90>;
-  using Gmma=Sm90ForwardGmma<arch::Sm90,TM,TN,TK>;
-  static_assert(TM==64 || TM==128);
+  using Gmma=Sm90ForwardMath<TM,TN>;
+  static_assert(TM==32 || TM==64 || TM==128);
   static_assert(TN==32 || TN==64 || TN==128 || TN==256);
   static_assert(TK==64 && Slots>=2 && Slots<=8);
   static_assert(SplitK>=1 && K%(SplitK*TK)==0,"split-K divides the contraction into whole k tiles");
@@ -52,18 +67,25 @@ struct Sm90ForwardGemm {
   static_assert(M>=1,"a stage has at least one row");
   static_assert(AMode==Sm90ForwardAMode::kDense || Conv::kC%TK==0,
       "an im2col stage reads whole 64-channel blocks");
+  static constexpr bool kScaleInput=ScaleInput;
+  static_assert(!ScaleInput || (ScaleShape::kScaleRows>0 && M%ScaleShape::kScaleRows==0 &&
+      ScaleShape::kScaleChannels>0 && ScaleShape::kScaleChannels<=K &&
+      ScaleShape::kScaleStride>=ScaleShape::kScaleChannels), "invalid typed input-scale geometry");
+  static_assert(!ScaleInput || AMode==Sm90ForwardAMode::kDense,
+      "per-image input scaling requires the dense pointwise A view");
   static constexpr int kThreads=160,kIterations=K/(SplitK*TK);
   // One task per (M tile, N tile, k slice); the M tiles of a conv stage walk
   // the flattened NPQ pixel space, as the im2col map's traversal does.
   static constexpr int kTiles=N/TN,kMTiles=(M+TM-1)/TM;
   static constexpr int kOutputTiles=kMTiles*kTiles,kTasks=kOutputTiles*SplitK;
-  static constexpr int kSlotBytes=2*TK*(TM+TN);
+  static constexpr int kActivationRows=Sm90ForwardActivationRows(TM,AMode==Sm90ForwardAMode::kIm2col);
+  static constexpr int kSlotBytes=2*TK*(kActivationRows+TN);
   // The accumulator tile the chain rewrites, then the per-row (mu, 1/sigma)
   // a deferred normalization needs and the split-K last-arriver flag.
-  static constexpr int kScratchBytes=4*TM*TN+16;
+  static constexpr int kScratchBytes=4*TM*TN+Chain::kScratchBytes+16;
   // 1 KB header, the ring, then that scratch.
-  static constexpr Sm90DenseLayout kLayout{1024,1024+2*Slots*TK*TM,
-      1024+Slots*kSlotBytes,(1024+Slots*kSlotBytes+kScratchBytes+1023)/1024*1024};
+  static constexpr Sm90DenseLayout kLayout=Sm90ForwardGemmLayout(TM,TN,TK,Slots,
+      Chain::kScratchBytes,AMode==Sm90ForwardAMode::kIm2col);
   static constexpr int kSharedBytes=kLayout.end;
 
   // Byte offset of element (row, column) of a 64-column SW128 A panel.
@@ -84,12 +106,17 @@ struct Sm90ForwardGemm {
       // pixel is the tile's first output pixel, in NPQ raster order.
       constexpr int kBlocks=Conv::kC/TK;
       int panel=k/TK,tap=panel/kBlocks,c=(panel%kBlocks)*TK;
-      int row=m_tile*TM,image=row/(Conv::kP*Conv::kQ),pixel=row%(Conv::kP*Conv::kQ);
-      int w=(pixel%Conv::kQ)*Conv::kStrideW+Conv::kHaloW-Conv::kPadW;
-      int h=(pixel/Conv::kQ)*Conv::kStrideH+Conv::kHaloH-Conv::kPadH;
-      Async::TensorIm2col4D(a,p.activation,c,w,h,image,
-          std::uint16_t((tap%Conv::kS)*Conv::kDilationW),
-          std::uint16_t((tap/Conv::kS)*Conv::kDilationH),barrier);
+      // Each shared descriptor produces 64 pixels. A TM128 tile issues
+      // two disjoint requests, whose bytes jointly satisfy the same mbarrier.
+      #pragma unroll
+      for(int base=0;base<TM;base+=64) {
+        int row=m_tile*TM+base,image=row/(Conv::kP*Conv::kQ),pixel=row%(Conv::kP*Conv::kQ);
+        int w=(pixel%Conv::kQ)*Conv::kStrideW+Conv::kHaloW-Conv::kPadW;
+        int h=(pixel/Conv::kQ)*Conv::kStrideH+Conv::kHaloH-Conv::kPadH;
+        Async::TensorIm2col4D(a+base*TK,p.activation,c,w,h,image,
+            std::uint16_t((tap%Conv::kS)*Conv::kDilationW),
+            std::uint16_t((tap/Conv::kS)*Conv::kDilationH),barrier);
+      }
     }
   }
 
@@ -108,17 +135,51 @@ struct Sm90ForwardGemm {
       // Weights: the tile's K-major pages are contiguous per (tile, k).
       Async::Bulk(b+slot*TN*TK,p.weight+(std::size_t(n_tile)*(K/TK)+k/TK)*TN*TK,2*TN*TK,
           state.full+slot);
-      IssueA(a+slot*TM*TK,p,m_tile,k,state.full+slot);
+      IssueA(a+slot*kActivationRows*TK,p,m_tile,k,state.full+slot);
       phase^=1u<<slot;
     }
     if(tasks)for(int slot=0;slot<Slots;++slot)state.producer_generations[slot]=(phase>>slot)&1;
     __syncwarp();
   }
 
+  // Called only after the TMA full-slot acquire; the graph rounds the scaled
+  // input to BF16 before the tensor-core contraction. Probes call this body too.
+  __device__ static __forceinline__ void ScalePanel(
+      Sm90ForwardGemmOperands const& p,Element* panel,int m_tile,int k_panel) {
+    if constexpr(ScaleInput) {
+      // A lane's channel is invariant across this panel's element loop.
+      // NAF image rows divide TM, so its one scale load serves all rows.
+      // A general cross-image tile caches each covered image once instead.
+      constexpr int scale_rows=ScaleShape::kScaleRows;
+      constexpr int images=scale_rows%TM==0?1:(TM+2*scale_rows-2)/scale_rows;
+      int first_image=(m_tile*TM)/scale_rows;
+      int channel=k_panel*TK+int(threadIdx.x)%TK;
+      float scales[images];
+      #pragma unroll
+      for(int image=0;image<images;++image)
+        scales[image]=channel<ScaleShape::kScaleChannels && first_image+image<M/scale_rows?
+            float(p.input_scale[std::size_t(first_image+image)*ScaleShape::kScaleStride+channel]):0.f;
+      for(int i=int(threadIdx.x);i<TM*TK;i+=128) {
+        int row=m_tile*TM+i/TK;
+        auto* value=reinterpret_cast<Element*>(reinterpret_cast<char*>(panel)+Swizzled(i/TK,i%TK));
+        // Keep the graph's BF16 multiply rounding before the tensor-core dot.
+        int image=images==1?0:row/scale_rows-first_image;
+        *value=row<M && channel<ScaleShape::kScaleChannels?
+            Element(float(*value)*scales[image]):Element(0);
+      }
+      codegen::executor::ComputeSync();
+      Async::FenceProxyAsyncShared();
+      codegen::executor::ComputeSync();
+    }
+  }
+
   __device__ static __noinline__ void Consume(Sm90ForwardGemmOperands const& p,
       Sm90DenseRingState& state,Element* a,Element* b,char* scratch,int tasks,unsigned phase) {
     Sm90DenseRoles::Consumer();
     using namespace cute;
+    TM_FWD_TRACE_ACC(wait_trace);TM_FWD_TRACE_ACC(main_trace);
+    TM_FWD_TRACE_ACC(partial_trace);TM_FWD_TRACE_ACC(reduce_trace);
+    TM_FWD_TRACE_ACC(epilogue_trace);
     for(int local=0;local<tasks;++local) {
       int task=int(blockIdx.x)+local*int(gridDim.x);
       int n_tile=NTile(task),m_tile=MTile(task),slice=Slice(task);
@@ -127,29 +188,35 @@ struct Sm90ForwardGemm {
       // The padded tail of N has weights but no output columns.
       int width=NStore-n_tile*Chain::kWidth;
       if(width>Chain::kWidth)width=Chain::kWidth;
-      auto accum=partition_fragment_C(typename Gmma::Mma{},Shape<Int<TM>,Int<TN>>{});
-      clear(accum);
+      auto accum=Gmma::Make();
+      TM_FWD_TRACE_BEGIN(main_trace);
       for(int iteration=0;iteration<kIterations;++iteration) {
         int slot=(local*kIterations+iteration)%Slots;
+        TM_FWD_TRACE_BEGIN(wait_trace);
         Async::Wait(state.full+slot,(phase>>slot)&1);phase^=1u<<slot;
-        Gmma::Accumulate(b+slot*TN*TK,a+slot*TM*TK,accum);
+        TM_FWD_TRACE_END(wait_trace);
+        if(local==0 && iteration==0) {TM_FWD_TRACE_FIRST_READY();}
+        ScalePanel(p,a+slot*kActivationRows*TK,m_tile,slice*kIterations+iteration);
+        Gmma::Accumulate(b+slot*TN*TK,a+slot*kActivationRows*TK,accum);
         // WGMMA reads the slot asynchronously: its commit must land before the
         // slot is released for the producer's next async write.
-        Sm90Gmma<arch::Sm90>::template Wait<0>();
+        Gmma::Wait();
         Async::FenceProxyAsyncShared();
         Async::Arrive(state.empty+slot);
       }
       float* tile_values=Gmma::Materialize(accum,scratch);
+      TM_FWD_TRACE_END(main_trace);
       // The chain addresses this tile's rows: its residual, row statistics and
       // output all start at the tile's first row.
       auto epilogue=p.epilogue;
-      if(epilogue.residual)epilogue.residual+=std::size_t(m_tile)*TM*epilogue.residual_stride;
+      if(epilogue.residual && !Chain::kShuffledResidual)
+        epilogue.residual+=std::size_t(m_tile)*TM*epilogue.residual_stride;
       if(epilogue.row_stats) {
         epilogue.row_stats+=std::size_t(m_tile)*TM*2;
         epilogue.row_tiles=kTiles;epilogue.row_tile=n_tile;
         if(epilogue.row_partials)
           epilogue.row_partials+=std::size_t(m_tile)*TM*kTiles*2;
-        if(epilogue.row_counters)epilogue.row_counters+=std::size_t(m_tile)*TM;
+        if(epilogue.row_counters)epilogue.row_counters+=std::size_t(m_tile);
       }
       // The producer of this stage's normalized input wrote its row sums.
       if(epilogue.stats)epilogue.stats+=std::size_t(m_tile)*TM*2;
@@ -159,16 +226,22 @@ struct Sm90ForwardGemm {
       auto* output=p.output+(Chain::kWrite==kDenseWrite?
           std::size_t(m_tile)*TM*p.output_stride:0);
       if constexpr(SplitK==1) {
+        TM_FWD_TRACE_BEGIN(epilogue_trace);
         Chain::Finish(tile_values,rows,n_tile*TN,width>0?width:0,epilogue,output,p.output_stride);
+        TM_FWD_TRACE_END(epilogue_trace);
       }else {
         // Each slice stores its partial; the last arriver of the tile sums the
         // slices in fixed order and runs the chain once.
         // The partials cross SMs, whose L1 caches are not coherent: both sides
         // use GPU-scope relaxed accesses, published by the counter's release.
-        for(int i=int(threadIdx.x);i<TM*TN;i+=128) {
+        TM_FWD_TRACE_BEGIN(partial_trace);
+        // Every legal output tile and CUDA allocation is 16-byte aligned.
+        // Group independent elements; publication and slice order are unchanged.
+        static_assert((TM*TN)%512==0);
+        for(int i=int(threadIdx.x)*4;i<TM*TN;i+=512) {
           auto* address=p.partial+(std::size_t(tile)*SplitK+slice)*TM*TN+i;
-          asm volatile("st.relaxed.gpu.global.f32 [%0], %1;"::"l"(address),
-              "f"(tile_values[i]):"memory");
+          asm volatile("st.relaxed.gpu.global.v4.f32 [%0], {%1,%2,%3,%4};"::"l"(address),
+              "f"(tile_values[i]),"f"(tile_values[i+1]),"f"(tile_values[i+2]),"f"(tile_values[i+3]):"memory");
         }
         codegen::executor::ComputeSync();
         auto* flag=reinterpret_cast<int*>(scratch+kScratchBytes-16);
@@ -180,25 +253,34 @@ struct Sm90ForwardGemm {
           if(*flag)p.counters[tile]=0;
         }
         codegen::executor::ComputeSync();
+        TM_FWD_TRACE_END(partial_trace);
         if(*flag) {
-          for(int i=int(threadIdx.x);i<TM*TN;i+=128) {
-            float value=0;
+          TM_FWD_TRACE_BEGIN(reduce_trace);
+          for(int i=int(threadIdx.x)*4;i<TM*TN;i+=512) {
+            float value0=0,value1=0,value2=0,value3=0;
             #pragma unroll
             for(int s=0;s<SplitK;++s) {
               auto const* address=p.partial+(std::size_t(tile)*SplitK+s)*TM*TN+i;
-              float part;
-              asm volatile("ld.relaxed.gpu.global.f32 %0, [%1];":"=f"(part)
-                  :"l"(address):"memory");
-              value+=part;
+              float part0,part1,part2,part3;
+              asm volatile("ld.relaxed.gpu.global.v4.f32 {%0,%1,%2,%3}, [%4];"
+                  :"=f"(part0),"=f"(part1),"=f"(part2),"=f"(part3):"l"(address):"memory");
+              value0+=part0;value1+=part1;value2+=part2;value3+=part3;
             }
-            tile_values[i]=value;
+            tile_values[i]=value0;tile_values[i+1]=value1;
+            tile_values[i+2]=value2;tile_values[i+3]=value3;
           }
           codegen::executor::ComputeSync();
+          TM_FWD_TRACE_END(reduce_trace);
+          TM_FWD_TRACE_BEGIN(epilogue_trace);
           Chain::Finish(tile_values,rows,n_tile*TN,width>0?width:0,epilogue,output,
               p.output_stride);
+          TM_FWD_TRACE_END(epilogue_trace);
         }
       }
     }
+    TM_FWD_TRACE_FLUSH(wait_trace,kSlotWait);TM_FWD_TRACE_FLUSH(main_trace,kMainLoop);
+    TM_FWD_TRACE_FLUSH(partial_trace,kPartialWrite);TM_FWD_TRACE_FLUSH(reduce_trace,kSplitKReduce);
+    TM_FWD_TRACE_FLUSH(epilogue_trace,kEpilogue);
     if(threadIdx.x==0 && tasks)
       for(int slot=0;slot<Slots;++slot)state.consumer_generations[slot]=(phase>>slot)&1;
   }
@@ -206,12 +288,18 @@ struct Sm90ForwardGemm {
   __device__ static __forceinline__ void Run(Sm90ForwardGemmOperands const& p,char* shared,
       Sm90DenseRingState& state) {
     auto* a=reinterpret_cast<Element*>(shared+1024);
-    auto* b=a+Slots*TM*TK;
+    auto* b=a+Slots*kActivationRows*TK;
     auto* scratch=shared+kLayout.scratch;
     unsigned phase=0;
-    #pragma unroll
-    for(int i=0;i<Slots;++i)phase|=(threadIdx.x<128?
-        state.consumer_generations[i]:state.producer_generations[i])<<i;
+    // Only the issuing producer reads its phase. Other producer lanes do not
+    // use it and could otherwise read while lane 0 publishes its next phase.
+    if(threadIdx.x<128) {
+      #pragma unroll
+      for(int i=0;i<Slots;++i)phase|=state.consumer_generations[i]<<i;
+    }else if(threadIdx.x==128) {
+      #pragma unroll
+      for(int i=0;i<Slots;++i)phase|=state.producer_generations[i]<<i;
+    }
     int tasks=kTasks/int(gridDim.x)+(int(blockIdx.x)<kTasks%int(gridDim.x));
     if(threadIdx.x<128)Consume(p,state,a,b,scratch,tasks,phase);
     else Produce(p,state,a,b,tasks,phase);

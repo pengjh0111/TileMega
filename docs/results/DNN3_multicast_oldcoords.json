@@ -1,0 +1,33 @@
+{
+  "evidence": "verified",
+  "status": "passed",
+  "scope": "old accepted v11 coordinates; current v12 solver-coordinate multicast remains pending",
+  "model": "bert",
+  "batch": 16,
+  "rows": [
+    {
+      "variant": "control",
+      "gpu": 3,
+      "ms": 2.0929280519485474,
+      "result": "runs/dnn3/f3_multicast_v13/bert_b16/v11_control_smoke_gpu3/result.json",
+      "sha256": "4e67f04fcc4be0109ea2cf12b07b3858987e6d045978d08a94bc904b48daa2fa"
+    },
+    {
+      "variant": "multicast",
+      "gpu": 3,
+      "ms": 2.9159040451049805,
+      "result": "runs/dnn3/f3_multicast_v13/bert_b16/smoke_gpu3_valid_pcorr5/result.json",
+      "sha256": "5c820b386005de8be22709fd7957fc6ab09db9cdecb0c49042b0822c1bf703a6"
+    }
+  ],
+  "relative_difference": 0.393217527181706,
+  "decision": "reject_this_coordinate_variant_for_performance",
+  "correctness": {
+    "result": "runs/dnn3/f3_multicast_v13/bert_b16/corr_retry_gpu3/raw/dnn3-f3-model-gates/attempt1/cohort/result.json",
+    "sha256": "7ba62c9ab028427798b6732d66bdfacddc6f1b5748cb745f8428fff04bdf286a",
+    "passes": "5/5 fresh processes",
+    "guard_sha256": "db193a91994b20d7cd87e4418441c2b8ecca1a78e7dd8208d4b32f0e0eeb0f02"
+  },
+  "invalid_early_attempt": "2.9145278930664062 ms is diagnostic only; invalidated outer correctness guard",
+  "qualification": "provisional_container_pid_namespace; full sanitizer activation gate remains separate"
+}

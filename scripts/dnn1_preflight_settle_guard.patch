@@ -1,0 +1,38 @@
+--- a/python/tilemega/bench/gpu_guard.py
++++ b/python/tilemega/bench/gpu_guard.py
+@@ -224,18 +224,23 @@
+         for lock in locks:
+             handle=stack.enter_context(lock.open('a'))
+             fcntl.flock(handle,fcntl.LOCK_EX)
+-        previous=set();rows=[]
+-        for i in range(policy['samples']):
+-            try:current=sample('preflight',sample=i)
+-            except Exception as error:return finish(75,'preflight telemetry unavailable: '+str(error))
+-            foreign=set()
+-            for row in current:foreign|=external(row,descendants(os.getpid()),nonce=nonce)
+-            # Do not start with a newly observed owner either; the two-sample
+-            # rule identifies interference during execution, not permission to start.
+-            if any(not idle(row,policy,a.needs_free_mib,nonce=nonce) for row in current):
+-                return finish(75,'preflight occupied')
+-            previous=foreign;rows.extend(current)
+-            if i+1<policy['samples']:time.sleep(policy['interval_s'])
++        from dnn1_preflight_settle import settle
++        from dnn1_background_cards import main_reservations
++        preflight_index = [0]
++        def observe_preflight():
++            current = sample('preflight', sample=preflight_index[0])
++            preflight_index[0] += 1
++            return current
++        settled = settle(observe_preflight, required_samples=policy['samples'],
++            interval_s=policy['interval_s'], timeout_s=120,
++            needs_free_mib=a.needs_free_mib,
++            admission_ok=lambda: not any(main_reservations(int(one)) for one in indices),
++            clock=time.monotonic, sleep=time.sleep)
++        (a.out/'preflight_settle.json').write_text(json.dumps(settled, indent=2)+'\n')
++        if settled['status'] != 'idle_observed':
++            return finish(75, 'preflight wait: '+settled['status'])
++        rows = [row for event in settled['samples'][-policy['samples']:] for row in event['rows']]
++        previous = set()
+         baseline=max(r['hidden_mib'] for r in rows)
+         process=subprocess.Popen(cmd,env=dict(os.environ,TILEMEGA_GPU_LOCK_HELD='1',
+             TILEMEGA_RUN_NONCE=nonce),start_new_session=True)

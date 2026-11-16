@@ -92,9 +92,15 @@ def _diagnose(library, plan, module, arguments, bridge, destination,
     from .diagnose import reference_aliases
     parameters = {row['name'] for row in bridge['signature']['inputs'] if row['kind'] == 'PARAMETER'}
     terminal = reference_aliases(bridge['nodes'], set(materialized), captured, parameters)
-    accessor = library.lib.tm_dm_debug_buffer
-    accessor.argtypes = [C.c_void_p,C.c_uint32,C.POINTER(C.c_uint64)]
-    accessor.restype = C.c_void_p
+    native = bool(manifest.get('native_forward'))
+    if native:
+        accessor = library.lib.tm_plan_read_buffer
+        accessor.argtypes = [C.c_void_p,C.c_uint32,C.c_void_p,C.c_uint64]
+        accessor.restype = C.c_int
+    else:
+        accessor = library.lib.tm_dm_debug_buffer
+        accessor.argtypes = [C.c_void_p,C.c_uint32,C.POINTER(C.c_uint64)]
+        accessor.restype = C.c_void_p
     runtime = C.CDLL('/usr/local/cuda/lib64/libcudart.so')
     runtime.cudaMemcpy.argtypes = [C.c_void_p,C.c_void_p,C.c_size_t,C.c_int]
     runtime.cudaMemcpy.restype = C.c_int
@@ -105,22 +111,35 @@ def _diagnose(library, plan, module, arguments, bridge, destination,
         reference_name = terminal.get(buffer.name)
         if reference_name is None or buffer.dtype != 0 or buffer.name not in materialized:
             continue
-        meta = (C.c_uint64*18)(); pointer = accessor(plan.handle,index,meta)
-        kind,rank = meta[:2]; logical,physical = list(meta[2:6]),list(meta[6:10])
-        count = buffer.elements_constant+int(logical[0])*buffer.elements_per_batch
-        if not pointer or not rank or rank>4:
-            continue
-        # Layout metadata gives the physical allocation. External buffers may
-        # be described independently of the internal tensor's per-batch size.
-        count = 1
-        for extent in physical[:rank]: count *= extent
-        value = torch.empty(count,device='cuda',dtype=torch.bfloat16)
-        status = runtime.cudaMemcpy(value.data_ptr(),pointer,value.numel()*2,3)
+        if native:
+            layout = manifest['buffers'][index]
+            rank, logical, physical = layout['rank'], layout['logical'], layout['physical']
+            if not rank:
+                continue
+            kind = 1 if layout['layout'] == 'nhwc' else 0
+            top, left = layout.get('halo_top', 0), layout.get('halo_left', 0)
+            count = 1
+            for extent in physical[:rank]: count *= extent
+            available = buffer.elements_constant + manifest['runtime_batch'] * buffer.elements_per_batch
+            if count > available:
+                raise ValueError('native diagnostic layout exceeds bound storage: ' + buffer.name)
+            value = torch.empty(count, device='cpu', dtype=torch.bfloat16)
+            status = accessor(plan.handle, index, value.data_ptr(), count * 2)
+            value = value.cuda()
+        else:
+            meta = (C.c_uint64*18)(); pointer = accessor(plan.handle,index,meta)
+            kind,rank = meta[:2]; logical,physical = list(meta[2:6]),list(meta[6:10])
+            if not pointer or not rank or rank>4:
+                continue
+            top,_,left,_ = meta[14:18]
+            count = 1
+            for extent in physical[:rank]: count *= extent
+            value = torch.empty(count,device='cuda',dtype=torch.bfloat16)
+            status = runtime.cudaMemcpy(value.data_ptr(),pointer,value.numel()*2,3)
         if status:
             raise RuntimeError(f'diagnostic buffer copy failed: {status}')
         value=value.reshape(physical[:rank])
         if kind == 1:
-            top,_,left,_ = meta[14:18]
             value=value[:,top:top+logical[1],left:left+logical[2],:logical[3]].permute(0,3,1,2)
         reference=captured[reference_name].float().to('cuda')
         bf16_reference=captured_bf16[reference_name].float().to('cuda')
@@ -161,7 +180,7 @@ def _diagnose(library, plan, module, arguments, bridge, destination,
         buffers=rows),indent=2)+'\n')
 
 
-def output_metrics(actual,fp32,bf16,*,restoration=False,elementwise=False):
+def output_metrics(actual,fp32,bf16,*,restoration=False,elementwise=False,thresholds=None):
     cosine=torch.nn.functional.cosine_similarity(
         actual.reshape(-1,actual.shape[-1]),fp32.reshape(-1,fp32.shape[-1]),dim=1)
     metrics=dict(cosine_min=cosine.min().item(),max_error=(actual-fp32).abs().max().item(),
@@ -173,15 +192,17 @@ def output_metrics(actual,fp32,bf16,*,restoration=False,elementwise=False):
         from .check import psnr
         tm_psnr=psnr(actual,fp32);bf16_psnr=psnr(bf16,fp32)
         metrics.update(psnr_fp32=tm_psnr.tolist(),bf16_psnr_fp32=bf16_psnr.tolist())
-        if not torch.all(tm_psnr>=bf16_psnr-1):
-            raise AssertionError(f'NAFNet PSNR with FP32 {tm_psnr.tolist()} is below BF16 - 1 dB {bf16_psnr.tolist()}')
-    elif cosine.min()<.999:
+        minimum = thresholds['psnr'] if thresholds is not None else bf16_psnr-1
+        if not torch.all(tm_psnr>=minimum):
+            raise AssertionError(f'NAFNet PSNR with FP32 {tm_psnr.tolist()} is below {minimum}')
+    elif cosine.min()<(thresholds['cosine'] if thresholds is not None else .999):
         raise AssertionError(f'cosine with FP32 oracle is {cosine.min().item()}')
     return metrics
 
 
 def check(library_path, export_dir, bridge_path, batch, *, epochs=1, diagnostics=None,
-          input_tensors=None,elementwise=False,synthetic_weights=False,local_through=None):
+          input_tensors=None,elementwise=False,synthetic_weights=False,local_through=None,
+          thresholds=None,reference_cache=None):
     if local_through is not None and diagnostics is None:
         raise ValueError('local replay requires a diagnostic output path')
     torch.set_num_threads(4); torch.manual_seed(20261009)
@@ -193,6 +214,9 @@ def check(library_path, export_dir, bridge_path, batch, *, epochs=1, diagnostics
     if not synthetic_weights and manifest['checkpoint']['sha256'] != _sha(export_dir/'checkpoint/model.safetensors'):
         raise ValueError('source checkpoint differs from its manifest')
     restoration=manifest['model']=='nafnet'
+    if reference_cache is not None and (not restoration or diagnostics is not None or synthetic_weights or local_through is not None):
+        raise ValueError('immutable reference cache requires an unmodified NAFNet final-output check')
+    if restoration:torch.set_num_threads(1)
     library = PlanLibrary(library_path)
     if library.info.phase != FORWARD or library.info.capacity != 0:
         raise ValueError('DNN correctness requires a stateless forward plan')
@@ -261,11 +285,29 @@ def check(library_path, export_dir, bridge_path, batch, *, epochs=1, diagnostics
     # Export preserves the original positional/keyword pytree contract.
     # HF BERT's supplied keyword inputs must not become positional inputs.
     cpu_arguments=[value.cpu() for value in arguments]
-    positional,keywords=torch.utils._pytree.tree_unflatten(cpu_arguments,program.call_spec.in_spec)
-    expected_bf16 = module(*positional,**keywords)
-    fp32_arguments=[value.float() if value.is_floating_point() else value for value in cpu_arguments]
-    positional,keywords=torch.utils._pytree.tree_unflatten(fp32_arguments,program.call_spec.in_spec)
-    expected_fp32 = oracle(*positional,**keywords)
+    reference_metadata = None
+    if reference_cache is not None:
+        from .reference_cache import load_reference_cache
+        expected_bf16, expected_fp32 = load_reference_cache(
+            reference_cache,export_dir,bridge_path,batch,input_tensors)
+        reference_metadata = dict(path=str(reference_cache),manifest_sha256=_sha(Path(reference_cache)/'manifest.json'))
+    else:
+        saved_deterministic = torch.are_deterministic_algorithms_enabled()
+        saved_mkldnn = torch.backends.mkldnn.deterministic
+        try:
+            if restoration:
+                torch.use_deterministic_algorithms(True)
+                torch.backends.mkldnn.deterministic = True
+            positional,keywords=torch.utils._pytree.tree_unflatten(cpu_arguments,program.call_spec.in_spec)
+            expected_bf16 = module(*positional,**keywords)
+            fp32_arguments=[value.float() if value.is_floating_point() else value for value in cpu_arguments]
+            positional,keywords=torch.utils._pytree.tree_unflatten(fp32_arguments,program.call_spec.in_spec)
+            expected_fp32 = oracle(*positional,**keywords)
+        finally:
+            # Scope deterministic settings to the CPU oracle; GPU weight
+            # packing and native execution retain their original recipe.
+            torch.use_deterministic_algorithms(saved_deterministic)
+            torch.backends.mkldnn.deterministic = saved_mkldnn
     def leaves(value):
         return [item for item in torch.utils._pytree.tree_flatten(value)[0] if isinstance(item, torch.Tensor)]
     expected_bf16, expected_fp32 = [[item.to('cuda') for item in leaves(value)]
@@ -300,7 +342,8 @@ def check(library_path, export_dir, bridge_path, batch, *, epochs=1, diagnostics
                     actual = tensors[name].float()
                     if not torch.isfinite(actual).all():
                         raise AssertionError('generated DNN produced a nonfinite output')
-                    metrics=dict(name=name,**output_metrics(actual,fp32,bf16,restoration=restoration,elementwise=elementwise))
+                    metrics=dict(name=name,**output_metrics(actual,fp32,bf16,restoration=restoration,
+                                 elementwise=elementwise,thresholds=thresholds))
                     if image_input and actual.ndim == 2:
                         metrics['top1_agreement'] = (actual.argmax(-1)==fp32.argmax(-1)).float().mean().item()
                     row['outputs'].append(metrics)
@@ -313,7 +356,7 @@ def check(library_path, export_dir, bridge_path, batch, *, epochs=1, diagnostics
     identity = json.loads(identity_path.read_text())
     if identity['binary_sha256'] != _sha(library.path):
         raise ValueError('generated library no longer matches its build identity')
-    return dict(evidence='verified', passed=True, scope='upstream DNN graph execution smoke; not G-DNN',
+    return dict(reference_cache=reference_metadata,evidence='verified', passed=True, scope='upstream DNN graph execution smoke; not G-DNN',
         reference='fixed synthetic state promoted to FP32' if synthetic_weights else 'exported BF16 checkpoint promoted to FP32',
         synthetic_weights=synthetic_weights, synthetic_seed=20261010 if synthetic_weights else None, batch=batch,
         criterion='elementwise BF16 tolerance' if elementwise else 'model output metric',

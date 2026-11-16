@@ -9,6 +9,7 @@ from pathlib import Path
 import statistics
 
 from .baselines import sha, timed
+from .execution import execution_identity
 from baseline_common import guarded_main, observe, require_guard, versions
 
 
@@ -69,7 +70,7 @@ def main():
                for name, value in zip(native.outputs, reference)):
             raise AssertionError('timed forward output differs from the checked execution')
         observe(guard_path, 'after-measurement')
-        execution = native.plan.execution_identity(mode)
+        execution = execution_identity(native.plan, identity, mode)
     manifest = json.loads((args.export / 'manifest.json').read_text())
     ordered = sorted(values)
     result = dict(schema_version=1, evidence='verified', system='tilemega', model=manifest['model'],

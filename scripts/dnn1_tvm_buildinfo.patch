@@ -1,0 +1,107 @@
+diff --git a/python/tvm/support/libinfo.py b/python/tvm/support/libinfo.py
+index 5d461236b3..da09903177 100644
+--- a/python/tvm/support/libinfo.py
++++ b/python/tvm/support/libinfo.py
+@@ -19,7 +19,7 @@
+ import os
+ 
+ 
+-def libinfo():
++def original_stub_libinfo():
+     """Returns a dictionary of compile-time info — minimal Python fallback.
+ 
+     The native ``support.GetLibInfo`` global function is no longer registered
+@@ -43,3 +43,93 @@ def libinfo():
+         "USE_NNAPI_RUNTIME": "OFF",
+         "USE_NNAPI_CODEGEN": "OFF",
+     }
++
++
++# The source build can report its actual configuration without probing a GPU.
++from functools import lru_cache
++import hashlib
++from pathlib import Path
++import re
++import subprocess
++
++
++@lru_cache(maxsize=32)
++def _file_digest(path, modified, size):
++    return hashlib.sha256(path.read_bytes()).hexdigest()
++
++
++def _sha(path):
++    path = Path(path)
++    stat = path.stat()
++    return _file_digest(path, stat.st_mtime_ns, stat.st_size)
++
++
++def _enabled(value):
++    return str(value).upper() not in ("", "0", "OFF", "FALSE", "NONE", "NOTFOUND")
++
++
++def buildinfo_evidence():
++    """Verify configured features against loaded source-build runtime modules.
++
++    Registry lookup is passive: none of the registered device/library functions
++    are called here. CUDA device existence remains a separate guarded check.
++    """
++    from tvm.base import _LOADED_LIBS
++    from tvm_ffi import get_global_func
++
++    runtime = Path(_LOADED_LIBS["tvm_runtime"]._name).resolve()
++    cache_path = runtime.parent.parent / "CMakeCache.txt"
++    configured = {}
++    for line in cache_path.read_text().splitlines():
++        if line.startswith(("#", "//")) or "=" not in line or ":" not in line.split("=", 1)[0]:
++            continue
++        name, value = line.split("=", 1)
++        configured[name.split(":", 1)[0]] = value
++    source = Path(__file__).resolve().parents[3]
++    if Path(configured["CMAKE_HOME_DIRECTORY"]).resolve() != source:
++        raise RuntimeError("loaded TVM library and CMake source tree disagree")
++
++    library_rows = {}
++    for name in ("tvm_runtime", "tvm_compiler", "tvm_runtime_cuda", "tvm_runtime_extra"):
++        handle = _LOADED_LIBS.get(name)
++        if handle is None:
++            library_rows[name] = {"loaded": False}
++            continue
++        path = Path(handle._name).resolve()
++        if path.parent != runtime.parent:
++            raise RuntimeError(f"loaded TVM runtime sidecar is outside this build: {path}")
++        dynamic = subprocess.check_output(["readelf", "-d", str(path)], text=True)
++        library_rows[name] = {"loaded": True, "path": str(path), "sha256": _sha(path),
++                              "needed": re.findall(r"\(NEEDED\).*?\[([^]]+)\]", dynamic)}
++
++    checks = {
++        "USE_CUDA": ("tvm_runtime_cuda", "device_api.cuda", ("libcuda.so", "libcudart.so")),
++        "USE_CUBLAS": ("tvm_runtime_extra", "runtime.CublasJSONRuntimeCreate",
++                       ("libcublas.so", "libcublasLt.so")),
++        "USE_CUDNN": ("tvm_runtime_extra", "runtime.cuDNNJSONRuntimeCreate", ("libcudnn.so",)),
++    }
++    effective = {key: value for key, value in configured.items() if key.startswith("USE_")}
++    feature_checks = {}
++    for feature, (library, function, needed_prefixes) in checks.items():
++        row = library_rows[library]
++        registered = get_global_func(function, allow_missing=True) is not None
++        linked = all(any(name.startswith(prefix) for name in row.get("needed", []))
++                     for prefix in needed_prefixes)
++        passed = _enabled(configured.get(feature, "OFF")) and row["loaded"] and registered and linked
++        effective[feature] = "ON" if passed else "OFF"
++        feature_checks[feature] = {"configured": configured.get(feature, "OFF"),
++                                   "runtime_library": library, "runtime_loaded": row["loaded"],
++                                   "registry_function": function, "registered": registered,
++                                   "linked_expected_libraries": linked, "enabled": passed}
++    effective["USE_LLVM"] = ("ON" if _enabled(configured.get("USE_LLVM", "OFF"))
++                             and library_rows["tvm_compiler"]["loaded"] else "OFF")
++    return {"effective_flags": effective, "feature_checks": feature_checks,
++            "cmake_cache": {"path": str(cache_path), "sha256": _sha(cache_path)},
++            "implementation": {"path": str(Path(__file__).resolve()), "sha256": _sha(__file__)},
++            "source_directory": str(source), "libraries": library_rows,
++            "original_stub_output": original_stub_libinfo()}
++
++
++def libinfo():
++    """Return actual CMake feature flags verified against loaded runtime modules."""
++    return buildinfo_evidence()["effective_flags"]

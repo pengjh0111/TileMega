@@ -324,6 +324,7 @@ int RunCompile(int argc, char** argv) {
     std::string variants_path,solve_target,dump_cg,hop_path,domain_path,rejections_path,evaluation_cases_path;
     std::string diagnostic_class_map;
     std::string seed_geometry,forward_geometry,native_tmexec,native_probe,native_probe_limit;
+    std::string native_abi="legacy",native_dump_plan;
     std::string serving_phase, emit_mode,measure_command,serving_warm_start,paged_seed_from,artifact_cache;
     std::string frontend_mode="decoder";
     std::string shared_weight_layout;
@@ -433,6 +434,10 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--tmexec-config") native_tmexec=value;
       else if (flag=="--native-probe") native_probe=value;
       else if (flag=="--native-probe-limit") native_probe_limit=value;
+      // F3 (DNN3 prompt §1.6): which forward skeleton the plan is built for,
+      // and the CPU-only plan dump its stage gate reads.
+      else if (flag=="--abi") native_abi=value;
+      else if (flag=="--dump-plan") native_dump_plan=value;
       else if (flag=="--forward-geometry") forward_geometry=value;
       else if (flag=="--frontend") frontend_mode=value;
       else if (flag=="--moe-dynamic") moe_dynamic=std::stoi(value);
@@ -602,11 +607,20 @@ int RunCompile(int argc, char** argv) {
     }
     if((!native_probe.empty() || !native_probe_limit.empty()) && native_tmexec.empty())
       throw std::invalid_argument("native probe options require --tmexec-config");
+    if(!native_dump_plan.empty()) {
+      // CPU only: no coordinates, no target and no GPU, so a plan gate can run
+      // for every model and batch before any kernel exists.
+      if(serving_phase!="forward" || frontend_mode!="dnn")
+        throw std::invalid_argument("a native forward plan dump needs a DNN forward export");
+      return tilemega::commands::DumpNativeForwardPlan(input.string(),native_dump_plan,
+          serving_batch,dnn_dwpw_fuse!="0",native_abi);
+    }
     if(!native_tmexec.empty() && serving_phase=="forward") {
       // Native DNN forward (prompt §10 N-1): fixed coordinates over a DNN
       // export, with no legacy execution option accepted.
       std::set<std::string> allowed={"--tmexec-config","--serving","--emit","--batch",
-          "--runtime-target","--frontend","--dwpw-fuse","--dump-cg","--nvcc-split-compile"};
+          "--runtime-target","--frontend","--dwpw-fuse","--dump-cg","--nvcc-split-compile",
+          "--abi"};
       for(int i=3;i<argc;i+=2)if(!allowed.count(argv[i]))
         throw std::invalid_argument("native forward build does not accept legacy option "+
             std::string(argv[i]));
@@ -620,7 +634,7 @@ int RunCompile(int argc, char** argv) {
        tilemega::TargetSpec::FromJson(solve_target).arch_tag=="sm_90") {
       std::set<std::string> allowed={"--solve","--serving","--emit","--batch","--frontend",
           "--dwpw-fuse","--selection","--measure-cmd","--measure-top","--dump-cg",
-          "--runtime-target","--nvcc-split-compile"};
+          "--runtime-target","--nvcc-split-compile","--abi"};
       for(int i=3;i<argc;i+=2)if(!allowed.count(argv[i]))
         throw std::invalid_argument("native forward solve does not accept legacy option "+
             std::string(argv[i]));
@@ -633,6 +647,7 @@ int RunCompile(int argc, char** argv) {
       native.dump_cg=dump_cg;native.measure_command=measure_command;native.batch=serving_batch;
       native.split_compile=nvcc_split_compile;native.measure_top=measure_top;
       native.measured=search_selection=="measure";native.fuse=dnn_dwpw_fuse!="0";
+      native.abi=native_abi;
       native.solve_command=quote(std::filesystem::read_symlink("/proc/self/exe").string())+" compile";
       for(int i=1;i<argc;++i)native.solve_command+=' '+quote(argv[i]);
       return tilemega::commands::SolveNativeForward(native);

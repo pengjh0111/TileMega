@@ -1,0 +1,100 @@
+{
+  "evidence": "verified",
+  "status": "cpu_preparation_passed",
+  "gpu_executed": false,
+  "source": "runs/dnn3/f3_multicast_source_baecaa9a0",
+  "default": "private compile flag only; production remains cluster1 v11",
+  "headers": {
+    "include/tilemega/Backend/Sm90F3Async.cuh": "27f36d1642e9dea654b1e627f6ea11f8c331f28f5dfb551d68dc9f88902178e6",
+    "include/tilemega/Backend/Sm90F3Ring.cuh": "b335bd768b139adc64909f8aa0f3790fdd8aeec6f74d3e4980ff4b77f9631673",
+    "include/tilemega/Backend/Sm90F3Gemm.cuh": "a8b12926d3bdf2cbe42919091c64d0baf479cb146eff2947d7085b1342b93072",
+    "include/tilemega/Codegen/tasks/Sm90F3Program.cuh": "dd11ca77e1469dc6f2ff3ba75ef6c1b6d6a5321c1a12e6c78bc8c7e01c2c598d",
+    "include/tilemega/Codegen/tasks/Sm90F3Runtime.cuh": "2479a62cd83fe86ef235ecdc6bea7b1a5a2ceb86871cae6cbc9affcf27eba173"
+  },
+  "unit_build": {
+    "receipt": "runs/dnn3/f3_multicast_v13/build.json",
+    "sha256": "e9e8cd06e601a5fda9ce964ea598860593f6962e4f9b0a5268ac3cd9a7c2e63f",
+    "source_sha256": "6318fa63e2851ca1774dc07652fa11a36866b53731dde23a7c1984f53ac98895",
+    "binary_sha256": "5f6ae60c85dfc0c4d5a0e9d5535b98f80b790448cf0ce82423bd47502ba8c476",
+    "cases": "paired full and live-row tail, slots3/7, splitK3, odd-M fallback; three changed-input launches each (compiled only)"
+  },
+  "model_builds": {
+    "receipt": "runs/dnn3/f3_multicast_v13/model_builds.json",
+    "sha256": "190ec8b860f0cd8a6032097cdd9e6912da4523a89d1324e506b6c3d8c3696e96",
+    "rows": [
+      {
+        "name": "resnet18_b1",
+        "exit_code": 0,
+        "evidence": "verified",
+        "compile_exit": 0,
+        "spill_max": 0,
+        "register_max": 72,
+        "C7509": false,
+        "gpu_executed": false,
+        "artifact_id": "98308b70c2553dae06de7897448d8d6bc8cd52b8023b9c965f3e8c6b2e3dc552",
+        "entry_registers": 72,
+        "status": "passed"
+      },
+      {
+        "name": "bert_b16",
+        "exit_code": 0,
+        "evidence": "verified",
+        "compile_exit": 0,
+        "spill_max": 0,
+        "register_max": 168,
+        "C7509": false,
+        "gpu_executed": false,
+        "artifact_id": "5153724d68ab1490f494300c4bd8ba90befd1a6415fba8d0332fbee9594f5223",
+        "entry_registers": 168,
+        "status": "passed"
+      },
+      {
+        "name": "vgg16_b16",
+        "exit_code": 0,
+        "evidence": "verified",
+        "compile_exit": 0,
+        "spill_max": 0,
+        "register_max": 106,
+        "C7509": false,
+        "gpu_executed": false,
+        "artifact_id": "882cf41be9762d1c92a509feb8fc17a3e02668f2ad1cb251cfe18fa84dfd58bc",
+        "entry_registers": 106,
+        "status": "passed"
+      },
+      {
+        "name": "resnet50_b16",
+        "exit_code": 0,
+        "evidence": "verified",
+        "compile_exit": 0,
+        "spill_max": 0,
+        "register_max": 96,
+        "C7509": false,
+        "gpu_executed": false,
+        "artifact_id": "556a083b10c349d8a169c99ffe64611e1fabcc8ec5f718beea2825cc37b2d985",
+        "entry_registers": 96,
+        "status": "passed"
+      }
+    ]
+  },
+  "host_abi": {
+    "receipt": "runs/dnn3/f3_multicast_v13/abi_cpu.json",
+    "sha256": "e55ea80b839695fa5c4d6f8fc7532b83dc74778dfc3315280251cd5a882a4407",
+    "cluster": 2,
+    "shared_bytes": 232448
+  },
+  "protocol": {
+    "pairable": "normal, tasks>132, even M tile count",
+    "mapping": "adjacent M, same N and K slice",
+    "transfer": "bulk multicast B, slot owner=slot%2, both local and remote8-warp releases",
+    "preissue": "disabled for multicast bodies; ordinary preissue retained",
+    "runtime": "require grid132 and >=66 active clusters before allocating plan",
+    "fallback": "ordinary schedule on odd M tiles or unpairable stages"
+  },
+  "remaining": [
+    "postCP3 fresh BERTB16 P-SMOKE trigger (waiting idle guard)",
+    "5fresh unit/correctness/race/sync processes plus mem/init",
+    "four complete model17 gates",
+    "four same-card P-SMOKE comparisons",
+    "explicit E2E acceptance before promotion; recalibrate/rebuild if accepted"
+  ]
+}

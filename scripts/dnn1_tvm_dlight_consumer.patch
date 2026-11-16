@@ -1,0 +1,18 @@
+--- a/python/tvm/s_tir/dlight/gpu/matmul.py
++++ b/python/tvm/s_tir/dlight/gpu/matmul.py
+@@ -1119,7 +1119,14 @@
+         else:
+             auto_inline_producers(sch, main_block)
+ 
+-        auto_inline_consumer_chain(sch, l2g)
++        try:
++            auto_inline_consumer_chain(sch, l2g)
++        except AssertionError as error:
++            if str(error) == (
++                "There are some consumers of the cache-write stage that are not properly inlined."
++            ):
++                return None
++            raise
+ 
+         sch.decompose_reduction(main_block, ko)
+         return sch

@@ -1,0 +1,15 @@
+{
+  "evidence": "verified",
+  "status": "passed",
+  "scope": "production target installation; CPU-only 20 solves and80 emissions; all80 semantic coordinates and20 predictions equal frozen v12 gate",
+  "target": "configs/targets/sm_90_h800.json",
+  "target_sha256": "3d66d9233623c1ceacd70de6b38994bf93c9d50793625b54cdba14ecfb8fecfa",
+  "raw_target": "runs/dnn3/f3_constants_v12/complete_target.json",
+  "raw_target_sha256": "38905bf5e4f0f1871e184032f4df7b988fb8d9287bbd0bb08d37f583e6d51577",
+  "result": "runs/dnn3/f3_installed_target_v16/result.json",
+  "result_sha256": "1ec3fb8fcef67c5b808bf1e9ac898baafb0ea250311d7627ed41b11ad5eb45c7",
+  "matching_coordinates": 80,
+  "legacy_fields": "all pre-existing fields semantically unchanged",
+  "compaction": "omit per-process medians from production configuration; retain every measured median/process count/unit/flag/source and raw receipts",
+  "gpu_executed": false
+}

@@ -5,6 +5,8 @@
 // anything else stops the build rather than falling back to the legacy body.
 #include <tilemega/Codegen/ForwardCodegen.h>
 
+#include "ForwardEmitShared.h"
+
 #include <tilemega/Backend/ConvIteration.h>
 #include <tilemega/Frontend/DmDescriptorCodec.h>
 #include <tilemega/Solver/Sm90ForwardCoordinates.h>
@@ -13,6 +15,7 @@
 #include <mlir/IR/BuiltinAttributes.h>
 
 #include <cmath>
+#include <cstdlib>
 #include <functional>
 #include <iomanip>
 #include <map>
@@ -24,293 +27,17 @@
 namespace tilemega::codegen {
 namespace {
 
-using solver::Sm90ForwardBody;
-constexpr unsigned kAbsent=~0u;
-
-mlir::DictionaryAttr Entry(mlir::Attribute value,char const* what) {
-  auto dictionary=llvm::dyn_cast<mlir::DictionaryAttr>(value);
-  if(!dictionary)throw std::invalid_argument(std::string("native forward ")+what+" is malformed");
-  return dictionary;
-}
-std::int64_t Integer(mlir::DictionaryAttr value,char const* field,std::int64_t fallback=-1) {
-  auto attribute=value.getAs<mlir::IntegerAttr>(field);
-  if(!attribute) {
-    if(fallback>=0)return fallback;
-    throw std::invalid_argument(std::string("native forward stage lacks ")+field);
-  }
-  return attribute.getInt();
-}
-std::string String(mlir::DictionaryAttr value,char const* field) {
-  auto attribute=value.getAs<mlir::StringAttr>(field);
-  if(!attribute)throw std::invalid_argument(std::string("native forward stage lacks ")+field);
-  return attribute.getValue().str();
-}
-std::string Quoted(std::string const& text) {
-  // A C string literal, escaped as JSON and with the dump's own line break
-  // removed so the initializer stays on one line.
-  auto value=json::Value(text).Dump(0);
-  while(!value.empty() && (value.back()=='\n' || value.back()=='\r'))value.pop_back();
-  return value;
-}
-std::string Float(double value) {
-  std::ostringstream out;
-  out<<std::scientific<<std::setprecision(9)<<value<<'f';
-  return out.str();
-}
-std::string Identifier(unsigned value) {
-  return value==codegen::kDmNoIndex?"kAbsent":std::to_string(value)+"u";
-}
-
-// One stage's buffer and map identifiers. Every wrapper reads the same names,
-// so an unused one is simply absent.
-struct Binding {
-  unsigned map=kAbsent,value_map=kAbsent,query_map=kAbsent;
-  unsigned input=kAbsent,weight=kAbsent,depthwise=kAbsent,expand=kAbsent,output=kAbsent;
-  unsigned partial=kAbsent,counters=kAbsent;
-  unsigned vector[4]={kAbsent,kAbsent,kAbsent,kAbsent};
-  unsigned residual=kAbsent,stats=kAbsent,row_stats=kAbsent,channel_partial=kAbsent;
-  unsigned dw_vector[4]={kAbsent,kAbsent,kAbsent,kAbsent};
-  unsigned index0=kAbsent,index1=kAbsent,table=kAbsent;
-  unsigned row_partials=kAbsent,row_counters=kAbsent;
-  std::string Emit(unsigned index) const {
-    std::ostringstream out;
-    out<<"struct Bind_"<<index<<" {\n  static constexpr unsigned kMap="<<Identifier(map)
-       <<",kValueMap="<<Identifier(value_map)<<",kQueryMap="<<Identifier(query_map)
-       <<",\n      kInput="<<Identifier(input)<<",kWeight="<<Identifier(weight)
-       <<",kDepthwise="<<Identifier(depthwise)<<",kExpand="<<Identifier(expand)
-       <<",\n      kOutput="<<Identifier(output)<<",kPartial="<<Identifier(partial)
-       <<",kCounters="<<Identifier(counters)
-       <<",\n      kVector0="<<Identifier(vector[0])<<",kVector1="<<Identifier(vector[1])
-       <<",kVector2="<<Identifier(vector[2])<<",kVector3="<<Identifier(vector[3])
-       <<",\n      kResidual="<<Identifier(residual)<<",kStats="<<Identifier(stats)
-       <<",kRowStats="<<Identifier(row_stats)
-       <<",kChannelPartial="<<Identifier(channel_partial)
-       <<",\n      kIndex0="<<Identifier(index0)<<",kIndex1="<<Identifier(index1)
-       <<",kTable="<<Identifier(table)
-       <<",\n      kRowPartials="<<Identifier(row_partials)
-       <<",kRowCounters="<<Identifier(row_counters)
-       <<",\n      kDwVector0="<<Identifier(dw_vector[0])
-       <<",kDwVector1="<<Identifier(dw_vector[1])
-       <<",kDwVector2="<<Identifier(dw_vector[2])
-       <<",kDwVector3="<<Identifier(dw_vector[3])<<";\n};\n";
-    return out.str();
-  }
-};
-
-// One stage's scalar geometry. C++17 has no floating-point template
-// parameter, so the epsilon and the attention scale travel as a trait class.
-struct Geometry {
-  int width=0,height=0,channels=0,out_channels=0,output_width=0,output_height=0;
-  int stride=1,output_stride=0,residual_stride=0,heads=0,sequence=0,norm_width=0;
-  int depthwise_pack=1,padded_channels=0;
-  int write_kind=0,shuffle_factor=1,write_width=0,write_height=0,write_channels=0;
-  double epsilon=0,scale=0;
-  std::string Emit(unsigned index) const {
-    std::ostringstream out;
-    out<<"struct Shape_"<<index<<" {\n  static constexpr int kWidth="<<width
-       <<",kHeight="<<height<<",kChannels="<<channels<<",kOutChannels="<<out_channels
-       <<",\n      kOutputWidth="<<output_width<<",kOutputHeight="<<output_height
-       <<",kStrideW="<<stride<<",kStrideH="<<stride
-       <<",\n      kOutputStride="<<output_stride<<",kResidualStride="<<residual_stride
-       <<",kHeads="<<heads<<",kSequence="<<sequence
-       <<",kNormWidth="<<norm_width<<",kDepthwisePack="<<depthwise_pack
-       <<",kPaddedChannels="<<padded_channels
-       <<";\n"
-       <<"  static constexpr float kEpsilon="<<Float(epsilon)<<",kScale="<<Float(scale)
-       <<";\n};\n";
-    return out.str();
-  }
-};
-
-std::string EmitConv(unsigned index,codegen::ConvDesc const& conv,
-                     codegen::DmBufferLayout const& layout) {
-  std::ostringstream out;
-  // kC is the input's padded channel block: the im2col panels walk it.
-  out<<"struct Conv_"<<index<<" {\n  static constexpr int kQ="<<conv.q<<",kP="<<conv.p
-     <<",kC="<<layout.physical[3]<<",kS="<<conv.s<<",kR="<<conv.r
-     <<",\n      kStrideW="<<conv.stride_w<<",kStrideH="<<conv.stride_h
-     <<",kPadW="<<conv.pad_w<<",kPadH="<<conv.pad_h
-     <<",\n      kHaloW="<<layout.halo_left<<",kHaloH="<<layout.halo_top
-     <<",kDilationW="<<conv.dilation_w<<",kDilationH="<<conv.dilation_h<<";\n};\n";
-  return out.str();
-}
-
-// The map table: tiled views carry their own extents, an im2col view carries
-// the plan's ConvDesc and input layout for the driver to build from.
-struct MapSpec {
-  unsigned buffer=0,kind=0,rank=2,swizzle=128;
-  std::uint64_t offset=0;
-  std::uint64_t dims[4]{},strides[3]{};
-  unsigned box[4]{};
-  codegen::ConvDesc conv{};
-  codegen::DmBufferLayout layout{};
-  std::string Emit() const {
-    std::ostringstream out;
-    out<<"  {"<<buffer<<"u,"<<kind<<"u,"<<rank<<"u,"<<swizzle<<"u,"<<offset<<"ull,{";
-    for(unsigned i=0;i<4;++i)out<<(i?",":"")<<dims[i]<<"ull";
-    out<<"},{";
-    for(unsigned i=0;i<3;++i)out<<(i?",":"")<<strides[i]<<"ull";
-    out<<"},{";
-    for(unsigned i=0;i<4;++i)out<<(i?",":"")<<box[i]<<'u';
-    out<<"},"<<frontend::EmitDm(conv)<<','<<frontend::EmitDm(layout)<<"},\n";
-    return out.str();
-  }
-};
-
-struct MapTable {
-  std::vector<MapSpec> specs;
-  std::map<std::string,unsigned> seen;
-  unsigned Add(MapSpec const& spec) {
-    auto text=spec.Emit();
-    auto found=seen.find(text);
-    if(found!=seen.end())return found->second;
-    seen.emplace(text,unsigned(specs.size()));
-    specs.push_back(spec);
-    return unsigned(specs.size()-1);
-  }
-};
-
-// The epilogue chain of one stage as the compile-time step list of
-// Sm90ForwardEpilogueChain. Only the operations the chain body implements are
-// accepted; an unknown one stops the build. Chain vectors fill the binding's
-// four vector slots in the order the operations name them.
-std::string Chain(codegen::DmEpilogueChain const& chain,int rows,int width,Binding& bind,
-                  std::function<void(unsigned)> const& fp32,Geometry* shape=nullptr,
-                  bool* gated=nullptr) {
-  std::ostringstream out;
-  out<<"Sm90ForwardEpilogueChain<"<<rows<<','<<width;
-  if(shape)
-    out<<','<<shape->write_kind<<','<<shape->shuffle_factor<<','<<shape->write_width
-       <<','<<shape->write_height<<','<<shape->write_channels;
-  else out<<",0,1,0,0,0";
-  unsigned slots=0;
-  auto slot=[&](unsigned buffer) {
-    for(unsigned i=0;i<slots;++i)if(bind.vector[i]==buffer)return i;
-    if(slots==4)throw std::invalid_argument("native forward epilogue needs over four vectors");
-    fp32(buffer);
-    bind.vector[slots]=buffer;
-    return slots++;
-  };
-  // A deferred or reconstructed LayerNorm reads the row sums its producer
-  // wrote, over the plan's own normalization width.
-  auto statistics=[&](unsigned buffer,unsigned norm_width,float epsilon) {
-    if(bind.stats!=kAbsent && bind.stats!=buffer)
-      throw std::invalid_argument("native forward epilogue has two statistics sources");
-    bind.stats=buffer;
-    if(!norm_width)throw std::invalid_argument("a deferred normalization needs its width");
-    if(shape) {
-      if(shape->norm_width && shape->norm_width!=int(norm_width))
-        throw std::invalid_argument("native forward normalization widths differ in one stage");
-      shape->norm_width=int(norm_width);
-      // The epsilon of a deferred normalization is the operation's own, which
-      // the fold recorded; the stage attribute carries an explicit norm's.
-      if(!(epsilon>0))throw std::invalid_argument("a deferred normalization needs its epsilon");
-      shape->epsilon=epsilon;
-    }
-  };
-  auto residual=[&](unsigned buffer) {
-    if(bind.residual!=kAbsent && bind.residual!=buffer)
-      throw std::invalid_argument("native forward epilogue has two residual sources");
-    bind.residual=buffer;
-  };
-  for(unsigned i=0;i<chain.count;++i) {
-    auto const& op=chain.operations[i];
-    using Kind=codegen::DmEpilogueKind;
-    out<<",Sm90ForwardEpilogueStep<Sm90ForwardOp::";
-    unsigned first=0,second=0;
-    switch(op.kind) {
-      case Kind::kBias:out<<"kBias";first=slot(op.parameter[0]);break;
-      case Kind::kScale:out<<"kScale";first=slot(op.parameter[0]);break;
-      case Kind::kActivation:out<<"kActivation";break;
-      case Kind::kGatePair:out<<"kGatePair";if(gated)*gated=true;break;
-      case Kind::kResidual:
-        out<<"kResidual";residual(op.parameter[0]);first=slot(op.parameter[1]);break;
-      case Kind::kDeferredLayerNorm:
-        out<<"kDeferredLayerNorm";statistics(op.parameter[0],op.norm_width,op.norm_epsilon);
-        first=slot(op.parameter[1]);second=slot(op.parameter[2]);break;
-      case Kind::kResidualLN:
-        out<<"kResidualLN";residual(op.parameter[0]);
-        statistics(op.parameter[1],op.norm_width,op.norm_epsilon);
-        first=slot(op.parameter[2]);second=slot(op.parameter[3]);break;
-      default:
-        throw std::invalid_argument("native forward epilogue does not implement operation "+
-            std::to_string(unsigned(op.kind)));
-    }
-    out<<','<<first<<",codegen::DmActivation::";
-    switch(op.activation) {
-      case codegen::DmActivation::kRelu:out<<"kRelu";break;
-      case codegen::DmActivation::kRelu6:out<<"kRelu6";break;
-      case codegen::DmActivation::kGeluErf:out<<"kGeluErf";break;
-      case codegen::DmActivation::kGeluTanh:out<<"kGeluTanh";break;
-      case codegen::DmActivation::kTanh:out<<"kTanh";break;
-      case codegen::DmActivation::kSilu:out<<"kSilu";break;
-    }
-    out<<",codegen::DmGatePair::"
-       <<(op.gate==codegen::DmGatePair::kSwiGLU?"kSwiGLU":"kSimpleGate")
-       <<','<<(op.unit?op.unit:16u)<<','<<second<<'>';
-  }
-  for(unsigned i=0;i<chain.side_count;++i) {
-    auto const& side=chain.side[i];
-    if(side.kind==codegen::DmSideOutputKind::kRowStats)bind.row_stats=side.buffer;
-    else if(side.kind==codegen::DmSideOutputKind::kChannelPartialSums)
-      bind.channel_partial=side.buffer;
-    else throw std::invalid_argument("native forward epilogue does not implement a side output");
-  }
-  out<<'>';
-  return out.str();
-}
-
-
-// The fused depthwise's own epilogue, applied while its result is still in
-// registers: only the channel-wise operations such a chain carries are
-// implemented, and its vectors fill the binding's depthwise vector slots.
-std::string ElementChain(codegen::DmEpilogueChain const& chain,Binding& bind,
-                         std::function<void(unsigned)> const& fp32) {
-  std::ostringstream out;
-  out<<"Sm90ForwardElementChain<";
-  unsigned slots=0;
-  auto slot=[&](unsigned buffer) {
-    for(unsigned i=0;i<slots;++i)if(bind.dw_vector[i]==buffer)return i;
-    if(slots==4)
-      throw std::invalid_argument("a native forward depthwise chain needs over four vectors");
-    fp32(buffer);
-    bind.dw_vector[slots]=buffer;
-    return slots++;
-  };
-  for(unsigned i=0;i<chain.count;++i) {
-    auto const& op=chain.operations[i];
-    using Kind=codegen::DmEpilogueKind;
-    if(i)out<<',';
-    out<<"Sm90ForwardEpilogueStep<Sm90ForwardOp::";
-    unsigned vector=0;
-    switch(op.kind) {
-      case Kind::kScale:out<<"kScale";vector=slot(op.parameter[0]);break;
-      case Kind::kBias:out<<"kBias";vector=slot(op.parameter[0]);break;
-      case Kind::kActivation:out<<"kActivation";break;
-      default:
-        throw std::invalid_argument("a native forward depthwise chain implements scale, "
-            "bias and activation only");
-    }
-    out<<','<<vector<<",codegen::DmActivation::";
-    switch(op.activation) {
-      case codegen::DmActivation::kRelu:out<<"kRelu";break;
-      case codegen::DmActivation::kRelu6:out<<"kRelu6";break;
-      case codegen::DmActivation::kGeluErf:out<<"kGeluErf";break;
-      case codegen::DmActivation::kGeluTanh:out<<"kGeluTanh";break;
-      case codegen::DmActivation::kTanh:out<<"kTanh";break;
-      case codegen::DmActivation::kSilu:out<<"kSilu";break;
-    }
-    out<<'>';
-  }
-  if(chain.side_count)
-    throw std::invalid_argument("a native forward depthwise chain has no side output");
-  out<<'>';
-  return out.str();
-}
-
+using namespace tilemega::codegen::forward_emit;
 }  // namespace
 
 std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
+  int trace_level=0;
+  if(auto* setting=std::getenv("TILEMEGA_TRACE_STAGE")) {
+    std::string value(setting);
+    if(value!="0" && value!="1" && value!="2")
+      throw std::invalid_argument("TILEMEGA_TRACE_STAGE must be 0, 1 or 2");
+    trace_level=value[0]-'0';
+  }
   auto plan=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
   auto text=module->getAttrOfType<mlir::StringAttr>("tmexec.sm90_forward");
   if(!plan || !text)
@@ -358,6 +85,14 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
      // The DNN plans bind 64-bit token identifiers; the serving ABI spells
      // that dtype as the DM buffer table's fourth code.
      <<"#define TM_DTYPE_I64 3\n"
+     // Native compile argv is fixed: bind the build environment into the
+     // source so artifact identity sees the same trace macro nvcc compiles.
+     <<"#define TILEMEGA_TRACE_STAGE "<<trace_level<<"\n"
+     <<"#if defined(TILEMEGA_TRACE_STAGE) && TILEMEGA_TRACE_STAGE\n"
+     <<"#define TILEMEGA_FORWARD_TRACE_STAGES "<<stages.size()<<"\n"
+     <<"#define TILEMEGA_FORWARD_TRACE_GRID "
+     <<module->getAttrOfType<mlir::IntegerAttr>("tmexec.sm90_forward_grid").getInt()<<"\n"
+     <<"#endif\n"
      <<"#include <tilemega/Codegen/tasks/Sm90ForwardProgram.cuh>\n\n"
      <<"namespace tilemega::codegen::native_forward {\n"
      <<"using namespace tilemega::backend;\n"
@@ -365,9 +100,32 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
      <<Quoted(coordinates.ToJson().Dump(0))<<";\n"
      <<"constexpr int kNativeForwardArena="<<arena<<";\n";
 
+  // Depthwise SimpleGate has natural half-channel inputs. Its producer
+  // gathers the two halves; pack filters and pre-gate affine vectors into
+  // the same 16-pair order used by the shared epilogue.
+  std::map<unsigned,unsigned> depthwise_gate_pack;
+  for(auto value:stages) {
+    auto stage=Entry(value,"stage");
+    if(String(stage,"kind")!="kDepthwiseConv")continue;
+    auto chain=frontend::DecodeDmChain(stage.get("dm_chain"));
+    unsigned unit=0;
+    for(unsigned i=0;i<chain.count;++i)
+      if(chain.operations[i].kind==codegen::DmEpilogueKind::kGatePair)unit=chain.operations[i].unit;
+    if(!unit)continue;
+    auto operands=stage.getAs<mlir::DenseI64ArrayAttr>("operands");
+    if(!operands || operands.size()<2)throw std::invalid_argument("depthwise gate lacks its filter operand");
+    depthwise_gate_pack[unsigned(operands[1])]=unit;
+    for(unsigned i=0;i<chain.count;++i) {
+      auto const& op=chain.operations[i];
+      if(op.kind==codegen::DmEpilogueKind::kGatePair)break;
+      if(op.kind==codegen::DmEpilogueKind::kBias || op.kind==codegen::DmEpilogueKind::kScale)
+        depthwise_gate_pack[op.parameter[0]]=unit;
+    }
+  }
   // Buffers keep their plan order: the harness binds external tensors by
   // index. The table is written once the stages have named their scratch.
   std::ostringstream table;
+  unsigned packed_index=0;
   for(auto value:buffers) {
     auto buffer=Entry(value,"buffer");
     auto dtype=buffer.getAs<mlir::StringAttr>("dtype");
@@ -377,12 +135,19 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
     auto external=buffer.getAs<mlir::StringAttr>("external_name");
     auto bound=external && !external.getValue().empty()?external.getValue().str():
         String(buffer,"name");
+    std::string recipe=pack?pack.getValue().str():std::string();
+    if(auto gate=depthwise_gate_pack.find(packed_index);gate!=depthwise_gate_pack.end()) {
+      if(recipe.empty())throw std::invalid_argument("depthwise gate parameter lacks a packing recipe");
+      recipe=json::Value(json::Object{{"kind","gate_pair_interleave"},{"u",int(gate->second)},
+          {"source",json::Parse(recipe)}}).Dump(0);
+    }
+    ++packed_index;
     table<<"  {"<<Quoted(bound)<<','
          <<(role && role.getValue()=="external"?"TM_BUFFER_EXTERNAL":"TM_BUFFER_INTERNAL")<<','
          <<(name=="f32"?"TM_DTYPE_F32":name=="i32"?"TM_DTYPE_I32":
             name=="i64"?"TM_DTYPE_I64":"TM_DTYPE_BF16")<<','
          <<Integer(buffer,"constant",0)<<"ull,"<<Integer(buffer,"per_batch",0)<<"ull,"
-         <<Quoted(pack?pack.getValue().str():std::string())<<"},\n";
+         <<Quoted(recipe)<<"},\n";
   }
 
   MapTable maps;
@@ -403,6 +168,7 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
     return unsigned(buffers.size()+scratch.size()-1);
   };
   std::vector<std::string> placements;
+  std::vector<unsigned> aligned_outputs;
   for(unsigned index=0;index<stages.size();++index) {
     auto stage=Entry(stages[index],"stage");
     auto const& c=coordinates.stages[index];
@@ -420,10 +186,30 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
             String(Entry(buffers[id],"buffer"),"name"));
     };
     Geometry shape;
+    auto pool_chain=[&](std::string chain) {
+      if(bind.channel_partial==kAbsent)return chain;
+      auto const& partial=layouts.at(bind.channel_partial);
+      auto const& output=layouts.at(bind.output);
+      if(partial.rank!=3 || output.rank!=4 || output.kind!=codegen::DmLayout::kNHWC ||
+          shape.write_kind!=0 || partial.physical[0]!=unsigned(batch.getInt()) ||
+          !partial.physical[1] || !partial.physical[2] ||
+          partial.physical[2]!=output.logical[3])
+        throw std::invalid_argument("native forward channel partials require [B,parts,C] and a dense NHWC producer");
+      shape.pool_rows=int(output.logical[1])*int(output.logical[2]);
+      shape.pool_parts=int(partial.physical[1]);shape.pool_channels=int(partial.physical[2]);
+      if(shape.pool_rows<=0)throw std::invalid_argument("native forward pooling has no pixels");
+      bool spatial=c.body==Sm90ForwardBody::kDepthwise || c.body==Sm90ForwardBody::kDwPw ||
+          c.body==Sm90ForwardBody::kInvertedResidual;
+      return "Sm90ForwardPoolEpilogueChain<"+std::to_string(shape.pool_rows)+','+
+          std::to_string(shape.pool_parts)+','+std::to_string(shape.pool_channels)+','+chain+','+
+          std::to_string(spatial?c.tile_w:0)+','+std::to_string(spatial?c.tile_h:0)+','+
+          std::to_string(spatial?int(output.logical[2]):0)+'>';
+    };
     shape.epsilon=0;
     if(auto epsilon=stage.getAs<mlir::FloatAttr>("dm_norm_epsilon"))
       shape.epsilon=epsilon.getValueAsDouble();
     std::string body,wrapper;
+    int stored_width=0;
 
     auto conv_index=unsigned(Integer(stage,"dm_conv",codegen::kDmNoIndex));
     bool has_conv=conv_index!=codegen::kDmNoIndex && conv_index<convs.size();
@@ -473,7 +259,9 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
         }else {
           // The stage computes one output row per A row of its own mapping:
           // the plan may start at another row (BERT's pooler reads row zero).
-          rows=rows_of(unsigned(Integer(gemm,"d")));
+          if(!access.rows_per_batch)
+            throw std::invalid_argument("native DNN dense A mapping requires rows_per_batch");
+          rows=int(access.rows_per_batch)*int(batch.getInt());
           MapSpec spec;
           auto l=layouts.at(a);
           if(l.rank==4 && l.kind==codegen::DmLayout::kNHWC) {
@@ -496,8 +284,21 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
           spec.dims[0]=l.physical[1];
           spec.dims[1]=(l.physical[0]-access.a_row_offset+stride-1)/stride;
           spec.strides[0]=l.strides[0]*2*stride;
-          spec.box[0]=64;spec.box[1]=64;
+          spec.box[0]=64;spec.box[1]=unsigned(c.tile_m);
           bind.map=maps.Add(spec);
+        }
+        if(access.a_scale!=codegen::kDmNoIndex) {
+          if(im2col || access.a_scale>=layouts.size())
+            throw std::invalid_argument("native SCA input scaling requires a dense pointwise view");
+          auto const& scale=layouts.at(access.a_scale);
+          auto dtype=Entry(buffers[access.a_scale],"buffer").getAs<mlir::StringAttr>("dtype");
+          if(scale.rank!=2 || scale.logical[0]!=unsigned(batch.getInt()) ||
+              !scale.logical[1] || scale.logical[1]!=unsigned(k) ||
+              scale.physical[1]<scale.logical[1] || scale.strides[1]!=1 ||
+              !dtype || dtype.getValue()!="bf16" || !access.rows_per_batch)
+            throw std::invalid_argument("native SCA scale must be BF16 [batch,logical K] with a contiguous channel axis");
+          bind.input_scale=access.a_scale;shape.scale_rows=int(access.rows_per_batch);
+          shape.scale_channels=int(scale.logical[1]);shape.scale_stride=int(scale.strides[0]);
         }
         // The weight is packed into whole TN x 64 pages, so the body contracts
         // the padded extents and stores only the model's own columns.
@@ -507,9 +308,9 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
         if(padded_k%(c.split_k*64))
           throw std::invalid_argument("native forward split-K does not divide the contraction");
         if(c.split_k>1) {
-          auto tiles=std::uint64_t((rows+63)/64)*((padded_n)/c.tile_n);
+          auto tiles=std::uint64_t((rows+c.tile_m-1)/c.tile_m)*((padded_n)/c.tile_n);
           bind.partial=add_scratch("native_forward.partial."+std::to_string(index),"f32",
-              tiles*unsigned(c.split_k)*64*unsigned(c.tile_n));
+              tiles*unsigned(c.split_k)*unsigned(c.tile_m)*unsigned(c.tile_n));
           // One 64-bit arrival counter per output tile, held as two i32 slots.
           bind.counters=add_scratch("native_forward.counter."+std::to_string(index),"i32",
               2*tiles);
@@ -521,7 +322,7 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
           if(!access.write.factor || out.rank!=4)
             throw std::invalid_argument("a shuffled writeback needs its factor and NHWC output");
           shape.write_kind=2;shape.shuffle_factor=int(access.write.factor);
-          shape.write_channels=int(out.physical[3]);
+          shape.write_channels=int(out.logical[3]);
           shape.write_width=int(out.logical[2])/shape.shuffle_factor;
           shape.write_height=int(out.logical[1])/shape.shuffle_factor;
           if(shape.write_width*shape.shuffle_factor!=int(out.logical[2]) ||
@@ -542,7 +343,7 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
               std::uint64_t(Integer(buffer,"per_batch",0))*std::uint64_t(batch.getInt());
           auto written=shape.write_kind==2?
               std::uint64_t(rows)*std::uint64_t(shape.shuffle_factor)*shape.shuffle_factor*
-                  std::uint64_t(shape.write_channels):
+                  std::uint64_t(shape.output_stride):
               shape.write_kind==1?std::uint64_t(rows)*std::uint64_t(shape.write_channels):
               std::uint64_t(rows)*std::uint64_t(shape.output_stride);
           if(written>elements)
@@ -550,19 +351,19 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
                 String(buffer,"name"));
         }
         bool gated=false;
-        auto chain_text=Chain(chain,64,c.tile_n,bind,require_fp32,&shape,&gated);
+        auto chain_text=pool_chain(Chain(chain,c.tile_m,c.tile_n,bind,require_fp32,&shape,&gated));
         // A row-statistics side output of a tiled stage reduces its tiles in a
-        // fixed order: the shares and the per-row arrival counters are the
+        // fixed order: the shares and one arrival counter per M tile are the
         // program's own state (the chain has just named the side outputs).
         if(bind.row_stats!=kAbsent && padded_n/c.tile_n>1) {
           auto tiles=std::uint64_t(padded_n/c.tile_n);
           bind.row_partials=add_scratch("native_forward.row_partial."+std::to_string(index),
               "f32",std::uint64_t(rows)*tiles*2);
           bind.row_counters=add_scratch("native_forward.row_counter."+std::to_string(index),
-              "i32",2*std::uint64_t(rows));
+              "i32",2*((std::uint64_t(rows)+c.tile_m-1)/c.tile_m));
         }
         if(bind.residual!=kAbsent)shape.residual_stride=width_of(bind.residual);
-        int store=gated?n/2:n;
+        int store=gated?n/2:n;stored_width=store;
         bool whole_row=false;
         for(unsigned i=0;i<chain.count;++i) {
           auto operation=chain.operations[i].kind;
@@ -573,11 +374,13 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
           throw std::invalid_argument("a deferred normalization stage cannot split its K");
         if(gated && (n%2 || c.tile_n%2))
           throw std::invalid_argument("a gated native forward GEMM needs an even N and TN");
-        body="Sm90ForwardGemm<64,"+std::to_string(c.tile_n)+",64,"+std::to_string(c.slots)+','+
+        body="Sm90ForwardGemm<"+std::to_string(c.tile_m)+','+std::to_string(c.tile_n)+",64,"+std::to_string(c.slots)+','+
             std::to_string(c.split_k)+",Sm90ForwardAMode::"+(im2col?"kIm2col":"kDense")+','+
             std::to_string(rows)+','+std::to_string(padded_n)+','+std::to_string(padded_k)+','+
             std::to_string(store)+','+chain_text+','+
-            (im2col?"Conv_"+std::to_string(index):"Sm90ForwardNoConv")+'>';
+            (im2col?"Conv_"+std::to_string(index):"Sm90ForwardNoConv")+
+            (bind.input_scale!=kAbsent?",true,Sm90ForwardInputScale<"+std::to_string(shape.scale_rows)+
+                ","+std::to_string(shape.scale_channels)+","+std::to_string(shape.scale_stride)+">":"")+'>';
         wrapper="ForwardGemmStage";
         break;
       }
@@ -586,7 +389,7 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
           throw std::invalid_argument("native forward depthwise coordinates need a conv stage");
         auto chain=frontend::DecodeDmChain(stage.get("dm_chain"));
         auto const& conv=convs[conv_index];
-        bind.weight=operand(1);bind.output=operand(2);
+        bind.weight=operand(1);bind.output=operand(2);bind.channel_partial=operand(3);
         shape.output_stride=width_of(bind.output);
         {
           auto filter=Entry(buffers[bind.weight],"buffer");
@@ -605,16 +408,21 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
         spec.strides[0]=l.strides[2]*2;spec.strides[1]=l.strides[1]*2;
         spec.strides[2]=l.strides[0]*2;
         spec.swizzle=0;
-        spec.box[0]=64;spec.box[1]=unsigned((c.tile_w-1)*conv.stride_w+conv.s);
+        bool input_gated=false;
+        for(unsigned i=0;i<chain.count;++i)
+          input_gated|=chain.operations[i].kind==codegen::DmEpilogueKind::kGatePair;
+        spec.box[0]=input_gated?32:64;spec.box[1]=unsigned((c.tile_w-1)*conv.stride_w+conv.s);
         spec.box[2]=unsigned((c.tile_h-1)*conv.stride_h+conv.r);spec.box[3]=1;
         if(c.channel_block!=64)
           throw std::invalid_argument("a depthwise tiled map reads one 64-channel block");
         bind.map=maps.Add(spec);
-        auto chain_text=Chain(chain,c.tile_w*c.tile_h,c.channel_block,bind,require_fp32,&shape);
+        bool gated=false;
+        auto chain_text=pool_chain(Chain(chain,c.tile_w*c.tile_h,c.channel_block,bind,require_fp32,&shape,&gated));
+        stored_width=gated?int(conv.c)/2:int(conv.c);
         if(bind.residual!=kAbsent)shape.residual_stride=width_of(bind.residual);
         body="Sm90ForwardDepthwise<"+std::to_string(c.tile_w)+','+std::to_string(c.tile_h)+','+
             std::to_string(c.channel_block)+','+std::to_string(conv.stride_h)+','+
-            std::to_string(c.slots)+','+chain_text+','+std::to_string(shape.depthwise_pack)+'>';
+            std::to_string(c.slots)+','+chain_text+','+std::to_string(shape.depthwise_pack)+','+std::to_string(batch.getInt())+'>';
         wrapper="ForwardDepthwiseStage";
         break;
       }
@@ -653,7 +461,9 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
         spec.box[2]=unsigned((c.tile_h-1)*conv.stride_h+conv.r);spec.box[3]=1;
         bind.map=maps.Add(spec);
         shape.output_stride=width_of(bind.output);
-        auto chain_text=Chain(chain,64,c.tile_n,bind,require_fp32,&shape);
+        bool gated=false;
+        auto chain_text=pool_chain(Chain(chain,64,c.tile_n,bind,require_fp32,&shape,&gated));
+        stored_width=gated?shape.out_channels/2:shape.out_channels;
         if(bind.residual!=kAbsent)shape.residual_stride=width_of(bind.residual);
         // The stage's own chain is the depthwise's epilogue; the GEMM's is the
         // pointwise's.
@@ -662,7 +472,7 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
         body="Sm90ForwardDwPw<"+std::to_string(c.tile_w)+','+std::to_string(c.tile_h)+','+
             std::to_string(c.channel_block)+','+std::to_string(c.tile_n)+','+
             std::to_string(conv.stride_h)+','+std::to_string(c.slots)+','+chain_text+','+
-            std::to_string(shape.depthwise_pack)+','+depthwise_chain+'>';
+            std::to_string(shape.depthwise_pack)+','+depthwise_chain+','+std::to_string(batch.getInt())+'>';
         wrapper="ForwardFusedStage";
         break;
       }
@@ -674,8 +484,9 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
         if(operand(2)!=kAbsent)
           throw std::invalid_argument("native forward attention does not implement a mask");
         int sequence=int(Integer(stage,"width")),heads=int(Integer(stage,"extent"));
+        int query_rows=c.tile_m,model_batch=int(batch.getInt());
         int head_dim=int(Integer(stage,"group"));
-        if(head_dim!=64 || sequence%64)
+        if(head_dim!=64 || sequence%64 || sequence%query_rows)
           throw std::invalid_argument("native forward attention requires D64 and a 64-row sequence");
         auto const& l=layouts.at(packed);
         if(l.rank!=2 || int(l.physical[1])!=3*heads*head_dim)
@@ -688,9 +499,9 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
           spec.buffer=packed;spec.rank=3;
           spec.offset=std::uint64_t(part)*head_dim;
           spec.dims[0]=unsigned(head_dim);spec.dims[1]=unsigned(heads);
-          spec.dims[2]=unsigned(sequence);
+          spec.dims[2]=unsigned(model_batch*sequence);
           spec.strides[0]=std::uint64_t(head_dim)*3*2;spec.strides[1]=l.strides[0]*2;
-          spec.box[0]=64;spec.box[1]=1;spec.box[2]=part?64:16;
+          spec.box[0]=64;spec.box[1]=1;spec.box[2]=part?64:unsigned(query_rows);
           auto id=maps.Add(spec);
           if(part==0)bind.query_map=id;
           else if(part==1)bind.map=id;
@@ -698,8 +509,9 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
         }
         shape.heads=heads;shape.sequence=sequence;
         shape.scale=1.0/std::sqrt(double(head_dim));
-        body="Sm90ForwardEncoderAttention<"+std::to_string(sequence)+",64,"+
-            std::to_string(heads)+",16,"+std::to_string(c.slots)+'>';
+        body="Sm90ForwardEncoderAttention<"+std::to_string(model_batch)+','+
+            std::to_string(sequence)+",64,"+std::to_string(heads)+','+
+            std::to_string(query_rows)+','+std::to_string(c.slots)+'>';
         wrapper="ForwardAttentionStage";
         break;
       }
@@ -740,7 +552,7 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
           }
           shape.channels=int(Integer(gemm,"k"));shape.out_channels=int(Integer(gemm,"n"));
           shape.width=rows_of(bind.output);shape.height=1;
-          body="Sm90ForwardGemv<8>";
+          body="Sm90ForwardGemv<"+std::to_string(c.tile_n)+','+std::to_string(shape.channels)+'>';
           break;
         }
         bind.input=operand(0);bind.output=operand(1);
@@ -753,13 +565,13 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
           shape.width=int(l.logical[2]);shape.height=int(l.logical[1]);
           if(l.halo_top || l.halo_left)
             throw std::invalid_argument("a native forward image carries no halo region");
-          body="Sm90ForwardLayout<"+std::to_string(shape.channels)+",64>";
+          body="Sm90ForwardLayout<"+std::to_string(shape.channels)+",128,"+std::to_string(batch.getInt())+'>';
         }else if(c.body==Sm90ForwardBody::kPool) {
           if(kind!="kPool")throw std::invalid_argument("native forward pool coordinates need its stage");
           auto const& l=layouts.at(bind.input);
           shape.channels=int(l.physical[3]);
           shape.width=int(l.logical[2]);shape.height=int(l.logical[1]);
-          body="Sm90ForwardMaxPool<3,2>";
+          body="Sm90ForwardMaxPool<3,2,"+std::to_string(batch.getInt())+",128>";
         }else if(c.body==Sm90ForwardBody::kGlobalPool) {
           if(kind!="kGlobalPoolReduce")
             throw std::invalid_argument("native forward pooling coordinates need its stage");
@@ -769,20 +581,26 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
           auto const& l=layouts.at(bind.partial);
           if(l.rank!=3)throw std::invalid_argument("native forward pooling needs its partial sums");
           shape.channels=int(Integer(stage,"extent"));
+          shape.out_channels=width_of(bind.output);
           shape.width=int(l.physical[1]);
           shape.height=int(Integer(stage,"dm_rows_per_batch",0));
           if(shape.height<=0)
             throw std::invalid_argument("native forward pooling needs its pixel count");
-          body="Sm90ForwardGlobalPool";
+          body="Sm90ForwardGlobalPool<"+std::to_string(batch.getInt())+'>';
         }else {
           if(kind!="kLayerNorm")
             throw std::invalid_argument("native forward LayerNorm coordinates need its stage");
           // The stage's operands are {input, gamma, beta, output}, and the
           // affine pair are the exported tables in model precision.
           bind.weight=operand(1);bind.table=operand(2);bind.output=operand(3);
-          shape.channels=width_of(bind.input);
+          shape.channels=int(Integer(stage,"width"));
+          shape.output_stride=width_of(bind.output);
+          if(shape.channels<=0 || shape.channels>width_of(bind.input) ||
+              shape.output_stride!=width_of(bind.input))
+            throw std::invalid_argument("native forward LayerNorm width/pitch is inconsistent");
           shape.width=rows_of(bind.input);shape.height=1;
-          body="Sm90ForwardLayerNorm<"+std::to_string(shape.channels)+'>';
+          body="Sm90ForwardLayerNorm<"+std::to_string(shape.channels)+','+
+              std::to_string(shape.output_stride)+'>';
         }
         break;
       }
@@ -791,6 +609,13 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
             std::string(solver::kSm90ForwardBodies[unsigned(c.body)]));
     }
 
+    if(shape.write_kind==0 && stored_width>=8) {
+      if(shape.output_stride%8)
+        throw std::invalid_argument("native forward dense vector stores require an eight-element row pitch");
+      auto output=Entry(buffers[bind.output],"buffer");
+      auto role=output.getAs<mlir::StringAttr>("role");
+      if(role && role.getValue()=="external")aligned_outputs.push_back(bind.output);
+    }
     if(kind!="kEmbeddingSum")accumulated(bind.row_stats);
     accumulated(bind.channel_partial);
     types<<bind.Emit(index)<<shape.Emit(index)
@@ -822,7 +647,56 @@ std::string EmitNativeForwardProgram(mlir::ModuleOp module) {
   for(auto const& spec:maps.specs)out<<spec.Emit();
   out<<"}};\n"
      <<"}  // namespace tilemega::codegen::native_forward\n"
-     <<"#include <tilemega/Codegen/tasks/Sm90ForwardRuntime.cuh>\n";
+     <<"#define tm_plan_create tm_forward_create_aligned_storage\n"
+     <<"#include <tilemega/Codegen/tasks/Sm90ForwardRuntime.cuh>\n"
+     <<"#undef tm_plan_create\n";
+  out<<"extern \"C\" void* tm_plan_create(int batch,void* const* external,int device) {\n"
+     <<"  if(!external)return nullptr;\n";
+  for(unsigned id:aligned_outputs)
+    out<<"  if(reinterpret_cast<std::uintptr_t>(external["<<id<<"])%16) {\n"
+       <<"    std::fprintf(stderr,\"native forward output binding "<<id
+       <<" requires 16-byte alignment\\n\");return nullptr;\n  }\n";
+  out<<"  return tm_forward_create_aligned_storage(batch,external,device);\n}\n";
+  // The trace ABI belongs to generated forward artifacts; the shared host
+  // runtime stays independent of the attribution-only record layout.
+  out<<R"FWDTRACE(
+#if TILEMEGA_TRACE_STAGE
+extern "C" unsigned tm_forward_trace_schema() {return 1;}
+extern "C" unsigned tm_forward_trace_stages() {return TILEMEGA_FORWARD_TRACE_STAGES;}
+extern "C" unsigned tm_forward_trace_grid() {return TILEMEGA_FORWARD_TRACE_GRID;}
+extern "C" unsigned tm_forward_trace_segments() {
+  return tilemega::backend::kSm90ForwardTraceSegments;
+}
+extern "C" unsigned tm_forward_trace_record_bytes() {
+  return sizeof(tilemega::backend::Sm90ForwardTraceRecord);
+}
+extern "C" unsigned long long tm_forward_trace_bytes() {
+  return sizeof(tilemega::backend::sm90_forward_trace_records);
+}
+extern "C" char const* tm_forward_trace_segment_name(unsigned index) {
+  using namespace tilemega::backend;
+  return index<kSm90ForwardTraceSegments?kSm90ForwardTraceNames[index]:nullptr;
+}
+extern "C" int tm_forward_trace_reset() {
+  using namespace tilemega::backend;
+  auto status=cudaDeviceSynchronize();
+  if(status!=cudaSuccess)return int(status);
+  void* pointer=nullptr;
+  status=cudaGetSymbolAddress(&pointer,sm90_forward_trace_records);
+  if(status==cudaSuccess)status=cudaMemset(pointer,0,sizeof(sm90_forward_trace_records));
+  if(status==cudaSuccess)status=cudaDeviceSynchronize();
+  return int(status);
+}
+extern "C" int tm_forward_trace_copy(void* output,unsigned long long bytes) {
+  using namespace tilemega::backend;
+  if(!output || bytes!=sizeof(sm90_forward_trace_records))return -1;
+  auto status=cudaDeviceSynchronize();
+  if(status==cudaSuccess)
+    status=cudaMemcpyFromSymbol(output,sm90_forward_trace_records,sizeof(sm90_forward_trace_records));
+  return int(status);
+}
+#endif
+)FWDTRACE";
   return out.str();
 }
 

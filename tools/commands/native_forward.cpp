@@ -53,11 +53,17 @@ static int CompileNativeForwardArtifact(std::string const& input,std::string con
   auto input_hash=Hash(input),coordinates_hash=Hash(coordinates),target_hash=Hash(target_path);
   auto c=solver::Sm90ForwardCoordinates::FromJson(json::ParseFile(coordinates));
   auto target=TargetSpec::FromJson(target_path);
-  // The launch's register ceiling follows the requested residency, exactly as
-  // the native dense build's does.
   auto registers=solver::NativeDenseRegisterContract(target,c.residency);
+  bool f3=c.abi==solver::Sm90ForwardAbi::kF3;
+  if(f3) {
+    if(c.residency!=1)throw std::invalid_argument("F3 requires one resident CTA per SM");
+    // F3 fixes its role ABI and device-function ceiling independently of dense.
+    registers.threads=384;registers.callee_limit=224;
+  }
   mlir::MLIRContext context;
-  auto plan=solver::BuildSm90ForwardPlan(input,batch,fuse);
+  // The coordinates name their own skeleton, so the plan is built for the
+  // same one the program will be generated for.
+  auto plan=solver::BuildSm90ForwardPlan(input,batch,fuse,c.abi);
   auto module=solver::MaterializeSm90Forward(plan,c,batch,target,context,origin);
   auto source=codegen::CouplingGraphToCUDA{}.Lower(*module);
   fs::create_directories(requested.parent_path());
@@ -68,12 +74,12 @@ static int CompileNativeForwardArtifact(std::string const& input,std::string con
   if(error)throw std::runtime_error("cannot write the native forward plan module");
   module->print(ir);ir<<'\n';ir.close();
   json::Array stage_rows;
-  auto shapes=solver::Sm90ForwardShapesFromPlan(plan);
+  auto shapes=solver::Sm90ForwardShapesFromPlan(plan,c.abi);
   for(std::size_t i=0;i<plan.stages.size();++i)
     stage_rows.emplace_back(json::Object{{"index",int(i)},
         {"body",solver::kSm90ForwardBodies[unsigned(shapes[i].body)]},
         {"representative",plan.stages[i].representative},
-        {"coordinate",c.stages[i].ToJson()}});
+        {"coordinate",c.stages[i].ToJson(c.abi)}});
   // Activation layouts, so a stage-level comparison can read each buffer back
   // and map it onto the exported graph's own tensors.
   json::Array buffer_rows;
@@ -124,11 +130,12 @@ static int CompileNativeForwardArtifact(std::string const& input,std::string con
     if(std::system(command.c_str()))throw std::runtime_error("native forward artifact identity failed");
   };
   identity(true);
-  std::vector<std::string> command_args={NvccPath(),"-rdc=true","-std=c++17","-O3",
+  std::vector<std::string> command_args={NvccPath(),"-std=c++17","-O3",
       "-gencode","arch=compute_90a,code=sm_90a","--expt-relaxed-constexpr","-shared",
       "-Xcompiler","-fPIC","-cudart","shared","-Xptxas","-v","--split-compile",
       std::to_string(split_compile),"-I"+root+"/include","-I"+root+"/third_party/cutlass/include",
       cu.string(),"-o",requested.string()};
+  if(!f3)command_args.insert(command_args.begin()+1,"-rdc=true");
   if(registers.Constrained()) {
     command_args.push_back("-Xptxas");
     command_args.push_back("--device-function-maxrregcount="+std::to_string(registers.callee_limit));
@@ -172,7 +179,8 @@ static int CompileNativeForwardArtifact(std::string const& input,std::string con
   bool stable=unchanged();
   bool normal_failure=status!=-1 && WIFEXITED(status) && WEXITSTATUS(status)==1;
   auto diagnostics=stable?NativeResourceDiagnostics(limits,command_args,registers.callee_limit,
-      normal_failure,log_text,kNativeForwardEntryPrefix):std::vector<NativeRegisterCallLimit>{};
+      normal_failure,log_text,f3?"sm90_forward_f3_kernel":kNativeForwardEntryPrefix):
+      std::vector<NativeRegisterCallLimit>{};
   bool succeeded=status==0 && limits.At("status").AsString("bounded status")=="completed" &&
       limits.At("exit_code").AsNumber("bounded exit")==0 &&
       limits.At("classification").AsString("bounded classification")=="compilation; not a numerical test" &&
@@ -220,6 +228,57 @@ int CompileNativeForwardFixed(std::string const& input,std::string const& output
       split_compile,"fixed");
 }
 
+int DumpNativeForwardPlan(std::string const& input,std::string const& output,
+    int batch,bool fuse,std::string const& abi_name) {
+  namespace fs=std::filesystem;
+  solver::Sm90ForwardAbi abi;
+  if(abi_name=="legacy")abi=solver::Sm90ForwardAbi::kLegacy;
+  else if(abi_name=="f3")abi=solver::Sm90ForwardAbi::kF3;
+  else throw std::invalid_argument("native forward abi must be legacy or f3");
+  auto plan=solver::BuildSm90ForwardPlan(input,batch,fuse,abi);
+  auto shapes=solver::Sm90ForwardShapesFromPlan(plan,abi);
+  json::Array rows;
+  for(std::size_t i=0;i<plan.stages.size();++i) {
+    auto const& s=shapes[i];
+    json::Object row={{"index",int(i)},
+        {"body",solver::kSm90ForwardBodies[unsigned(s.body)]},
+        {"mode",solver::kSm90ForwardModes[unsigned(s.mode)]},
+        {"representative",plan.stages[i].representative},
+        {"m",double(s.m)},{"n",double(s.n)},{"k",double(s.k)},
+        {"pixels",double(s.pixels)},{"channels",double(s.channels)},
+        {"out_channels",double(s.out_channels)},
+        {"kernel",s.kernel},{"stride",s.stride},{"whole_row",s.whole_row},
+        {"epilogue_ops",s.epilogue_ops},
+        {"weight_bytes",double(s.weight_bytes)},
+        {"activation_bytes",double(s.activation_bytes)},
+        {"output_bytes",double(s.output_bytes)}};
+    if(abi==solver::Sm90ForwardAbi::kF3) {
+      row.emplace_back("has_row_stats",s.dnn1_geometry.At("has_row_stats"));
+      row.emplace_back("f3_chain_class",s.dnn1_geometry.At("f3_chain_class"));
+    }
+    rows.emplace_back(std::move(row));
+  }
+  // U6: the plan prints its own activation total so a build that would not fit
+  // is caught before any GPU work.
+  double activation=0,weights=0;
+  for(auto const& b:plan.buffers) {
+    double elements=double(b.constant)+double(b.per_batch)*batch;
+    double width=b.dtype=="f32" || b.dtype=="i32"?4:b.dtype=="i64"?8:2;
+    (b.source==frontend::PlanBuffer::Source::kWeight?weights:activation)+=elements*width;
+  }
+  json::Object manifest={{"schema",1},{"model",fs::path(input).stem().string()},
+      {"batch",batch},{"abi",abi_name},{"dwpw_fuse",fuse},
+      {"stages",int(plan.stages.size())},{"gemms",int(plan.gemms.size())},
+      {"buffers",int(plan.buffers.size())},
+      {"activation_bytes",activation},{"weight_bytes",weights},
+      {"stage_rows",rows}};
+  fs::create_directories(fs::absolute(output).parent_path());
+  std::ofstream(output)<<json::Value(manifest).Dump(2)<<'\n';
+  std::cerr<<"NATIVE_FORWARD_PLAN abi="<<abi_name<<" model="<<fs::path(input).stem().string()
+      <<" batch="<<batch<<" stages="<<plan.stages.size()<<'\n';
+  return 0;
+}
+
 int SolveNativeForward(NativeForwardSolveOptions const& o) {
   namespace fs=std::filesystem;
   if(o.measure_top<1 || o.measure_top>6 ||
@@ -235,9 +294,12 @@ int SolveNativeForward(NativeForwardSolveOptions const& o) {
   auto constants=solver::Sm90NativeConstants::FromTarget(json::ParseFile(o.target),TILEMEGA_SOURCE_DIR);
   json::Array stale;
   for(auto const& header:constants.StaleHeaders(TILEMEGA_SOURCE_DIR))stale.emplace_back(header);
-  auto plan=solver::BuildSm90ForwardPlan(o.input,o.batch,o.fuse);
-  solver::Sm90ForwardCostModel cost(target,constants);
-  solver::Sm90ForwardSearchSpace space{solver::Sm90ForwardShapesFromPlan(plan),target};
+  auto abi=o.abi=="f3"?solver::Sm90ForwardAbi::kF3:solver::Sm90ForwardAbi::kLegacy;
+  if(o.abi!="f3" && o.abi!="legacy")
+    throw std::invalid_argument("native forward abi must be legacy or f3");
+  auto plan=solver::BuildSm90ForwardPlan(o.input,o.batch,o.fuse,abi);
+  solver::Sm90ForwardCostModel cost(target,constants,abi);
+  solver::Sm90ForwardSearchSpace space{solver::Sm90ForwardShapesFromPlan(plan,abi),target,abi};
   auto result=solver::SearchSm90Forward(space,cost,o.measure_top);
   json::Array ranked,candidates;
   std::vector<fs::path> configs;

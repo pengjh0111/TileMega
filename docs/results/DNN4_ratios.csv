@@ -1,0 +1,11 @@
+kind,group,cells,geometric_ratio,geometric_speedup,wins,evidence,scope
+model,resnet18,5,0.874903024912747,1.1429838182348597,5,verified,complete anchored Phase Z
+model,resnet50,5,1.0528137468018934,0.9498356219584666,0,verified,complete anchored Phase Z
+model,vgg16,5,1.0057500647913538,0.9942828094248777,2,verified,complete anchored Phase Z
+model,bert,5,1.337728253175806,0.747535979468155,0,verified,complete anchored Phase Z
+batch,1,4,1.0079769928721953,0.992086135964805,2,verified,complete anchored Phase Z
+batch,2,4,1.0588380045561379,0.9444315331495846,1,verified,complete anchored Phase Z
+batch,4,4,1.0537658299255586,0.9489774403395138,1,verified,complete anchored Phase Z
+batch,8,4,1.0924914023757706,0.9153390112044493,1,verified,complete anchored Phase Z
+batch,16,4,1.064190830013158,0.9396810908318348,2,verified,complete anchored Phase Z
+overall,all,20,1.0550969277779065,0.9477802215821595,7,verified,complete anchored Phase Z

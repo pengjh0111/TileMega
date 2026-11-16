@@ -136,7 +136,7 @@ struct Builder {
       // A 1x1 "image" is a per-channel vector (SCA's channel scale): it stays
       // densely packed, while a buffer with spatial extent takes the block the
       // native bodies read.
-      if(options.nhwc_channel_block>8 && (h>1 || w>1))
+      if(options.nhwc_channel_block>8 && (h>1 || w>1) && !(options.f3 && c<=8))
         padded=(padded+options.nhwc_channel_block-1)/options.nhwc_channel_block*
             options.nhwc_channel_block;
       l.physical[3]=padded;
@@ -912,6 +912,13 @@ struct Builder {
   void GlobalPool(FxNodeRecord const& node) {
     auto input=Value(Ref(node,0));auto const layout=p.buffers[input].layout;
     if(layout.kind!=DmLayout::kNHWC || !owner.count(input))throw std::invalid_argument("global pool requires an image producer");
+    if(options.f3 && Op(node)=="adaptive_avg_pool2d") {
+      // VGG16's (7,7) pool over a 7x7 image averages one pixel per output.
+      auto size=Pair(Arg(node,1),1);
+      if(size==std::make_pair(layout.logical[1],layout.logical[2])) {Alias(node,Ref(node,0));return;}
+      if(size!=std::make_pair(1u,1u))
+        throw std::invalid_argument("F3 adaptive pool must be the identity or reduce to one pixel");
+    }
     if(Op(node)=="mean") {
       auto const& dims=Arg(node,1);
       if(dims.kind!=FxArgument::Kind::kList || dims.items.size()!=2)
@@ -950,7 +957,17 @@ struct Builder {
     if(p.buffers[input].per_batch%k)throw std::invalid_argument("linear input rows do not divide K");
     unsigned rows=row_views.count(Ref(node,addmm?1:0))?row_views.at(Ref(node,addmm?1:0)).rows:p.buffers[input].per_batch/k;
     auto output=RowsBuffer(node.name,rows,n);
-    auto b=Weight(Fqn(weight)+".linear",llvm::json::Object{{"kind","alias"},{"source",Fqn(weight)}},Checked(std::uint64_t(n)*k));
+    llvm::json::Object recipe{{"kind","alias"},{"source",Fqn(weight)}};
+    auto const& in=p.buffers[input].layout;
+    if(options.f3 && in.kind==DmLayout::kNHWC && in.rank==4 && in.logical[1]*in.logical[2]>1) {
+      // PyTorch flattens NCHW as (c, h, w); the activation stays NHWC and the
+      // weight's columns are reordered to (h, w, c) when it is packed.
+      if(in.physical[3]!=in.logical[3] || std::uint64_t(in.logical[1])*in.logical[2]*in.logical[3]!=k)
+        throw std::invalid_argument("F3 NHWC flatten needs an unpadded image whose size is the Linear K");
+      recipe=llvm::json::Object{{"kind","linear_nhwc_flatten"},{"source",Fqn(weight)},
+          {"c",in.logical[3]},{"h",in.logical[1]},{"w",in.logical[2]}};
+    }
+    auto b=Weight(Fqn(weight)+".linear",std::move(recipe),Checked(std::uint64_t(n)*k));
     PlanGemm g;g.a=input;g.b=b;g.c=g.d=output;g.n=n;g.k=k;g.access.rows_per_batch=rows;g.access.write.layout=output;
     if(row_views.count(Ref(node,addmm?1:0))) {
       auto const& view=row_views.at(Ref(node,addmm?1:0));g.access.a_row_stride=view.stride;g.access.a_row_offset=view.offset;

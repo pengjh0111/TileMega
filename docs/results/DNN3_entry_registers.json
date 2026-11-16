@@ -1,0 +1,124 @@
+{
+  "evidence": "verified",
+  "diagnostic_only": true,
+  "variant": "entry maxnreg224 replaces launch_bounds288,1; all other source unchanged",
+  "overlay_sha256": "a40f874febf201d8b052a40ece62c7770d412225c8c4d78385e65bf0f55dbe91",
+  "rows": [
+    {
+      "model": "resnet18_b8",
+      "exit_code": 0,
+      "spill_max": 0,
+      "register_max": 182,
+      "gpu_executed": false,
+      "source_sha256": "600771e72d5afdcb854248e95e4dea07c7438fa2471735ecc509c37d4ad390c4",
+      "previous_spill_max": 40,
+      "previous_register_max": 168
+    },
+    {
+      "model": "resnet18_b16",
+      "exit_code": 0,
+      "spill_max": 0,
+      "register_max": 202,
+      "gpu_executed": false,
+      "source_sha256": "acaddc66ffbb5605cd568188b519d1b5454df28bb32c7f997c0c7bb48a9e71d8",
+      "previous_spill_max": 84,
+      "previous_register_max": 168
+    },
+    {
+      "model": "resnet50_b4",
+      "exit_code": 0,
+      "spill_max": 0,
+      "register_max": 201,
+      "gpu_executed": false,
+      "source_sha256": "153074203ee0f0c4232f4b0179547b68512119d990fef7903b83672d42d04387",
+      "previous_spill_max": 760,
+      "previous_register_max": 168
+    },
+    {
+      "model": "vgg16_b2",
+      "exit_code": 0,
+      "spill_max": 0,
+      "register_max": 186,
+      "gpu_executed": false,
+      "source_sha256": "b092ad6cc25bdc639f5fbabbfb1550ba082690ba1ccd8c85b6c0eb5f921d3382",
+      "previous_spill_max": 236,
+      "previous_register_max": 168
+    }
+  ],
+  "source": "runs/dnn3/f3_entry_register_probe/result.json",
+  "sha256": "a150d867b58ff1333e79e7aceae52c23a862b20b614ddc3e6d6b31aa46b5103d",
+  "promotion": "REJECTED and root entry reverted: zero-spill static224 cap can have zero residency for288 threads",
+  "rn18_b1_smoke": {
+    "evidence": "verified",
+    "gpu": 1,
+    "before_ms": 0.22368000447750092,
+    "after_ms": 0.22111999988555908,
+    "ratio": 0.9885550583838649,
+    "protocol": "P-SMOKE, one fresh process",
+    "source": "runs/dnn3/f3_compile80_v7/resnet18_b1/candidate-0/smoke_gpu1/result.json",
+    "sha256": "4c68c4c5eb485f43be403eaef85f79743cf18a281f7ba2572493849d001f8fd3",
+    "qualification": "provisional_container_pid_namespace; inspect guard receipts"
+  },
+  "reference": "https://docs.nvidia.com/cuda/archive/12.8.1/cuda-c-programming-guide/index.html#maximum-number-of-registers-per-thread",
+  "calibration_reuse": {
+    "dependency_proof": "runs/dnn3/f3_constants_v6/dependencies/result.json",
+    "dependency_sha256": "994be8c4adc005d503aeb64f5100a435c7d424a81d3ef3f3d3968fe26bfcffe3",
+    "probes": 110,
+    "affected_headers": {
+      "tilemega/Codegen/tasks/Sm90F3Program.cuh": {
+        "measured_sha256": "80584ae29a357180a683e0fafd55a1f7a72f181df82203308e71c9a013a4c0c7",
+        "current_sha256": "6a25f0c7f8159a22a6982b0e649edb789196efb633438ebeae77c04cfdce6e19"
+      }
+    },
+    "cost_values_unchanged": true,
+    "isolated_target": "runs/dnn3/f3_constants_v6/entry_target.json",
+    "target_sha256": "9699c458135eb01bdfe89bac37131dfd7e902d31939b59ee69a8806f5b755059"
+  },
+  "runtime_acceptance": "RN18 B1 launch/corr/SAN/smoke verified; does not establish launchability of high-register cells",
+  "runtime_rejection": {
+    "evidence": "verified",
+    "model": "vgg16",
+    "batch": 16,
+    "trace": true,
+    "ptxas_registers": 179,
+    "spill_bytes": 0,
+    "reason": "tm_plan_create rejects zero active blocks per SM for288 threads",
+    "source": "runs/dnn3/f3_dtst_trace_v1/vgg16/marks/scheduler/dnn3-marks.log",
+    "sha256": "6e9a3b5a8d1e7c67bc041297ef2f1271a7b3909c3276913b2d045e0d43695363",
+    "cancelled_cohort": "runs/dnn3/f3_compile80_v7/result.json"
+  },
+  "occupancy_model_regression": {
+    "evidence": "verified",
+    "source": "test/unit/dnn3_f3_occupancy_test.cpp",
+    "sha256": "7568f4a9556e23c2845ca59581f32ea73505be0a5cbf712329f9d3fb22f4c67d",
+    "vendor_header": "/usr/local/cuda/include/cuda_occupancy.h",
+    "vendor_sha256": "d076afacc2165c6c48ba36aaef6897df5fbbdd9a6bc7458161d8a59f764d3f6c",
+    "tests": [
+      {
+        "threads": 288,
+        "registers": 168,
+        "resident_blocks": 1
+      },
+      {
+        "threads": 288,
+        "registers": 169,
+        "resident_blocks": 0
+      },
+      {
+        "threads": 288,
+        "registers": 179,
+        "resident_blocks": 0
+      },
+      {
+        "threads": 288,
+        "registers": 224,
+        "resident_blocks": 0
+      },
+      {
+        "threads": 256,
+        "registers": 224,
+        "resident_blocks": 1
+      }
+    ]
+  }
+}

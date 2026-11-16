@@ -1,0 +1,31 @@
+{
+  "evidence": "verified",
+  "checkpoint": "CP-Z",
+  "status": "passed",
+  "all20_goal_met": false,
+  "wins": 0,
+  "cells": 20,
+  "native_candidates": 80,
+  "report_snapshot_head": "cf8ef43a6a28a6bc266f84e6dc2eb31c144b1884",
+  "commits_since_takeover": 108,
+  "inputs": {
+    "/root/TileMega-dnn3/runs/dnn3/phase_z_v17/result.json": "97eaa99e398eab9ad91d72b441c94e516a822610a6c73d31bc447558649d9a2b",
+    "/root/TileMega-dnn3/runs/dnn3/phase_z_v17/tables/result.json": "ff98880d6e757cc67b1f746cb840a9dbccd518313d524f4230aa61b4370f1001",
+    "/root/TileMega-dnn3/runs/dnn3/phase_z_ledgers_v20/bert/result.json": "785b8a310a91fca9316f3c049bb24feee05ccf2f6afcb8aa7c3799df9f879972",
+    "/root/TileMega-dnn3/runs/dnn3/phase_z_ledgers_v21/resnet18/result.json": "86dd56f6a9219de376dbf08f101ec53a806dcc2f0aad549e016f562109df926c",
+    "/root/TileMega-dnn3/runs/dnn3/phase_z_ledgers_v21/resnet50/result.json": "93b08c467558a711d7b5f4156a4e0015ef5ad1d01f7e051805dd06060dfee046",
+    "/root/TileMega-dnn3/runs/dnn3/phase_z_ledgers_v21/vgg16/result.json": "af2b616b09185a37223680cd75e0c9822a8b8e5b740f01126c98048ed1838906"
+  },
+  "outputs": {
+    "DNN3_ledger.csv": "5c3acf0cb14d59f9d1f7036d66ca852408f943b76764452126d75bbc9beebbed",
+    "DNN3_final.csv": "327be77d634dd4b0f4d976358f0f4f81d5bb7ede14269a58f4f0b7e963209801",
+    "DNN3_ratios.csv": "2dc0ece5a50a510f2053262dc4f6b3665d3f7bb4ff28ef7ce40f208791595b96",
+    "DNN3_solver.csv": "d4b8edc6247747941f720fa822bde463c69f1f9ba97416a163fce33032f89913",
+    "DNN3_baselines_phase_z.csv": "4e2e3c7e4abe9e816dd5624c19b6163f500ebbecccdffd8843be6986f6f991ea",
+    "DNN3_u8_v16.json": "1d98d7f80db389b35467c2442139cc48cfa5e15c404f559d005225be2bfcf237",
+    "DNN3_trace_resources_v16.csv": "4d83a6e22b32ac3abf9d840fdc8db294b18e9e42e71304f08788abed76ee1853",
+    "DNN3_h800.md": "13288509b757ee251229b487240a94d6d4d80bdcd2108b0e716c217f12938104"
+  },
+  "ledger_cells": 20,
+  "qualification": "provisional_container_pid_namespace"
+}

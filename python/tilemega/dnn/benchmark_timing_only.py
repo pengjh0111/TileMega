@@ -13,21 +13,26 @@ import time
 from .baselines import sha, timed
 from baseline_common import guarded_main, observe, require_guard, versions
 from tilemega.build.identity import verify
+from .execution import execution_identity
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ('library', 'export', 'bridge', 'inputs', 'selection-config', 'out'):
         parser.add_argument('--' + name, type=Path, required=True)
-    parser.add_argument('--batch', type=int, choices=(1,), default=1)
+    parser.add_argument('--batch', type=int, choices=(1, 2, 4, 8, 16), default=1)
     parser.add_argument('--executor', choices=('L1',), default='L1')
     parser.add_argument('--warmup', type=int, choices=(50,), default=50)
     parser.add_argument('--iterations', type=int, choices=(200,), default=200)
+    parser.add_argument('--protocol', choices=('P-DNN', 'P-SEL', 'P-PAIR'), default='P-DNN')
     parser.add_argument('--round-index', type=int, choices=(0, 1, 2), required=True)
     args = parser.parse_args()
+    processes = 2 if args.protocol == 'P-SEL' else 3
+    if args.round_index >= processes:
+        parser.error('round-index exceeds the fresh process count for ' + args.protocol)
     gpu_index = int(require_guard()[0])
-    if gpu_index not in (0, 1, 2, 3, 4, 7):
-        raise ValueError('GPU6 excluded; GPU5 functional-only')
+    if gpu_index not in (0, 1, 2, 3, 4, 5, 7):
+        raise ValueError('DNN1 timing uses the user-authorized healthy cards; GPU6 is excluded')
     selection = json.loads(args.selection_config.read_text())
     identity_path = Path(str(args.library) + '.identity.json')
     identity = verify(args.library)
@@ -55,11 +60,11 @@ def main():
         model=manifest['model'], batch=args.batch, fresh_process=args.round_index,
         stage='measure', e3_validated=False, selection=selection['selection'],
         artifact_id=identity['artifact_id'], source_head=selection['source_head'],
-        protocol=dict(warmup=50, iterations=200, fresh_processes=3),
+        protocol=dict(name=args.protocol, warmup=50, iterations=200, fresh_processes=processes),
         command=[sys.executable, *sys.argv], started=time.time(),
-        user_amendment=dict(scope='TileMega dense25, MoE5 and five DNN E2E; frozen external baselines',
-            solver_gate='not_met', c1='not_performed', c2='not_performed', hf='not_performed',
-            full_ctest='not_performed', external_baselines='not_remeasured'))
+        user_amendment=dict(scope='DNN1 five models and five batches',
+            inputs='fixed random inputs and existing random weights',
+            validation='separate correctness processes; this process only measures'))
     receipt.write_text(json.dumps(record, indent=2) + '\n')
     measurement_out = args.out / 'measurements'
     measurement_out.mkdir()
@@ -83,17 +88,18 @@ def main():
         values = timed(run, args.warmup, args.iterations)
         torch.cuda.synchronize()
         observe(guard_path, 'after-measurement')
-        execution = native.plan.execution_identity(mode)
+        execution = execution_identity(native.plan, identity, mode)
     ordered = sorted(values)
     result = dict(schema_version=1, evidence='verified', system='tilemega', model=manifest['model'],
         batch=args.batch, precision='bf16', executor=args.executor, round_index=args.round_index,
+        protocol=args.protocol,
         pid=os.getpid(), gpu_index=gpu_index, versions=versions(),
         artifact_id=identity['artifact_id'], execution_identity=execution,
         input_sha256=sha(args.inputs), numerical_gate_sha256=None,
         numerical_validation='not requested or run in this closeout timing process',
         numeric_validation='not_performed',
         selection_config=str(args.selection_config.resolve()), selection_config_sha256=sha(args.selection_config),
-        selected_source_head=selection['source_head'], scope_expansion='frozen SM90R1 DNN selection reused for SM90R2 closeout',
+        selected_source_head=selection['source_head'], scope_expansion='DNN1 selected native forward artifact',
         source_checkpoint_sha256=sha(args.export / 'checkpoint/model.safetensors'),
         library_path=str(args.library.resolve()), identity_path=str(identity_path.resolve()),
         identity=identity, input_path=str(args.inputs.resolve()), export_path=str(args.export.resolve()),

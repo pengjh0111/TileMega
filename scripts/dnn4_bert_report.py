@@ -1,0 +1,4003 @@
+#!/usr/bin/env python3
+"""Publish guarded BERT optimization comparisons separately from final cells."""
+import argparse
+from collections import Counter
+import csv
+import json
+import re
+from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT/'python'))
+from tilemega.build.identity import verify
+
+
+def read(path):
+    return json.loads(path.read_text())
+
+
+def historical_allcards_authorization(session):
+    sys.path.insert(0, str(ROOT/'scripts'))
+    from dnn4_bert_current import historical_allcards_authorization as historical
+    return historical(session)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--out', type=Path, default=ROOT/'docs/results')
+    args = parser.parse_args()
+    base = ROOT/'runs/dnn4/bert_priority'
+    probes = [('attention B1', base/'attention_models_v1/bert_b1/experiment.json'),
+              ('attention B2', base/'attention_models_v1/bert_b2/experiment.json'),
+              ('TK128 B16', base/'tk128_b16_v1/experiment.json'),
+              ('residual TMA B16', base/'tma_residual_b16_v1/experiment.json'),
+              ('in-situ B16', base/'in_situ_b16_gpu1_v1/experiment.json'),
+              ('in-situ B1', base/'in_situ_b1_gpu1_v1/experiment.json'),
+              ('register40/232 B1', base/'register_budget_v1/b1/experiment.json'),
+              ('FFN1 128x256 B16', base/'large_ffn_b16_v1/experiment.json'),
+              ('prefetch1 B16', base/'prefetch_b16_v1/comparison/experiment.json'),
+              ('Repeat inline B1', base/'repeat_inline_models_v1/b1/comparison/experiment.json'),
+              ('Repeat inline B16', base/'repeat_inline_models_v1/b16/comparison/experiment.json'),
+              ('GELU four B16', base/'gelu_four_b16_v1/comparison/experiment.json'),
+              ('Repeat single B1', base/'repeat_single_models_v1/b1/comparison/experiment.json'),
+              ('Repeat single B1 G22', base/'repeat_single_models_v1/b1/g22_v3/experiment.json'),
+              ('Repeat single B16', base/'repeat_single_models_v1/b16/comparison/experiment.json'),
+              ('Repeat declined B2', base/'repeat_single_middle_models_v1/b2/comparison/experiment.json'),
+              ('Repeat single B4', base/'repeat_single_middle_models_v1/b4/comparison/experiment.json'),
+              ('Repeat inline16 B1', base/'repeat_single_inline16_b1_v1/experiment.json'),
+              ('FFN1 TMA192 B16', base/'ffn1_tma192_b16_v1/comparison/experiment.json'),
+              ('P1 normalization B16', base/'side_norm_models_v2/b16/experiment.json'),
+              ('P1 normalization B16 G22', base/'side_norm_models_v2/b16/g22_v1/experiment.json'),
+              ('scalar phase B1', base/'scalar_phase_b1_v1/experiment.json'),
+              ('FFN2 arena B1', base/'ffn2_arena_b1_v1/experiment.json'),
+              ('FFN2 split4 B1', base/'ffn2_split4_b1_v1/experiment.json'),
+              ('attention Rows64 B16', base/'attention_rows64_b16_v1/experiment.json'),
+              ('96-lane normalization B1', base/'side_norm96_models_v1/b1/experiment.json'),
+              ('96-lane normalization B16', base/'side_norm96_models_v1/b16/experiment.json'),
+              ('Repeat reg64 B2 GPU2', base/'register64_216_b2_v1/comparison/experiment.json'),
+              ('Repeat reg64 B2 G22', base/'register64_216_b2_v1/g22_v1/experiment.json'),
+              ('Repeat alias B8 G22', base/'alias_repeat_b8_v1/g22_v1/experiment.json'),
+              ('prefetch table B1', base/'prefetch_table_models_v1/b1/experiment.json'),
+              ('prefetch table B2', base/'prefetch_table_models_v1/b2/experiment.json'),
+              ('P1 normalization B2', base/'side_norm_middle_v1/b2/experiment.json'),
+              ('P1 normalization B4', base/'side_norm_middle_v1/b4/experiment.json'),
+              ('P1 normalization B8', base/'side_norm_middle_v1/b8/experiment.json'),
+              ('FFN2 TK128 B1', base/'ffn2_tk128_b1_v1/experiment.json'),
+              ('GELU reciprocal B1', base/'gelu_rcp_models_v1/b1/experiment.json'),
+              ('GELU reciprocal B16', base/'gelu_rcp_models_v1/b16/experiment.json'),
+              ('attention unroll B1', base/'attention_unroll_models_v2/b1/experiment.json'),
+              ('FFN1 TM256 B16', base/'ffn1_tm256_b16_v1/experiment.json'),
+              ('Repeat P1 B8', base/'side_norm_alias_b8_v1/experiment.json'),
+              ('binding arithmetic B1', base/'repeat_arithmetic_models_v1/b1/experiment.json'),
+              ('binding arithmetic B2', base/'repeat_arithmetic_models_v1/b2/experiment.json'),
+              ('Repeat P1 normalization B16', base/'repeat_side_norm_b16_v1/experiment.json'),
+              ('statistics TMA B16', base/'stats_tma_b16_v1/experiment.json'),
+              ('Repeat arithmetic P1 reg64 B4', base/'repeat_arithmetic_middle_v1/b4/experiment.json'),
+              ('Repeat arithmetic P1 reg56 B4', base/'repeat_arithmetic_b4_reg56_v1/experiment.json'),
+              ('P1 normalization arithmetic B2', base/'arithmetic_side_norm_b2_v1/experiment.json'),
+              ('in-situ P1 B16', base/'side_norm_retune_b16_v1/experiment.json'),
+              ('in-situ P1 B8', base/'side_norm_retune_b8_v1/experiment.json'),
+              ('FFN1 TK128 B16', base/'ffn1_tk128_b16_v1/experiment.json'),
+              ('FFN1 TK128 single-store B16', base/'single_store_tk128_b16_v1/experiment.json'),
+              ('FFN1 TN256 single-store B16', base/'single_store_tn256_b16_v1/v2/experiment_gpu0.json'),
+              ('consumer216 B8 diagnostic', base/'phase72_consumer216_b8_v1/experiment.json'),
+              ('consumer216 in-situ B8', base/'phase72_consumer216_retune_b8_gpu0_v1/experiment.json'),
+              ('consumer216 in-situ B16', base/'phase72_consumer216_retune_b16_gpu0_v1/experiment.json'),
+              ('two-layer arithmetic B16', base/'two_layer_arithmetic_b16_v1/experiment.json'),
+              ('attention load pairs B1', base/'attention_load_pair_b1_v1/experiment.json'),
+              ('consumer216 tuned B16 G22', base/'consumer216_tuned_b16_g22_v1/experiment.json'),
+              ('phase72 B1 G22', base/'phase72_b1_v1/experiment.json'),
+              ('Repeat candidate selection B1 G22', base/'repeat_candidate_selection_b1_v2/experiment.json'),
+              ('attention Rows64 B1', base/'attention_rows64_b1_v1/experiment.json'),
+              ('coalesced partial B1', base/'coalesced_partial_b1_v1/experiment.json'),
+              ('cyclic slots B1', base/'cyclic_slot_b1_v1/experiment.json'),
+              ('cyclic slots tuned B16 prototype', base/'cyclic_slot_tuned_b16_v1/experiment.json'),
+              ('cyclic216 B16 integrated', base/'cyclic216_b16_integrated_v1/experiment.json'),
+              ('cyclic coalesced B1 prototype', base/'cyclic_coalesced_b1_v2/experiment.json'),
+              ('coalesced cyclic B1 integrated', base/'coalesced_cyclic_b1_integrated_v1/experiment.json'),
+              ('coalesced cyclic B2 integrated', base/'coalesced_cyclic_b2_integrated_v1/experiment.json'),
+              ('cyclic admitted B8', base/'cyclic_admitted_b8_v1/experiment.json'),
+              ('cyclic in-situ B16', base/'cyclic216_retune_b16_v1/experiment.json'),
+              ('repaired in-situ B8', base/'repair216_retune_b8_v1/experiment.json'),
+              ('current whole-program B4', base/'current_selection_b4_v1/experiment.json'),
+              ('producer cyclic B1', base/'producer_cyclic_b1_v1/experiment.json'),
+              ('producer cyclic B16', base/'producer_cyclic_b16_v1/experiment.json'),
+              ('present bindings B2', base/'present_binding_b2_v1/experiment.json'),
+              ('present bindings B16', base/'present_binding_b16_v1/experiment.json'),
+              ('side216 B2', base/'side216_b2_v1/experiment.json'),
+              ('matrix store B8 prototype', base/'stmatrix_b8_v1/experiment.json'),
+              ('matrix store B16 prototype', base/'stmatrix_b16_v1/experiment.json'),
+              ('matrix store B8 integrated', base/'matrix_integrated_b8_v1/experiment.json'),
+              ('matrix store B16 integrated', base/'matrix_integrated_b16_v1/experiment.json'),
+              ('matrix existing in-situ B16', base/'matrix_existing_retune_b16_v1/experiment.json'),
+              ('warpgroup QK B4', base/'qk_wgmma_b4_v1/experiment.json'),
+              ('warpgroup QK B8', base/'qk_wgmma_b8_v1/experiment.json'),
+              ('warpgroup QK B16', base/'qk_wgmma_b16_v1/experiment.json'),
+              ('warpgroup QK/PV B4', base/'pv_wgmma_b4_v1/experiment.json'),
+              ('warpgroup QK/PV B8', base/'pv_wgmma_b8_v1/experiment.json'),
+              ('warpgroup QK/PV B16', base/'pv_wgmma_b16_v1/experiment.json'),
+              ('attention existing in-situ B16', base/'attention_existing_retune_b16_v1/experiment.json'),
+              ('FFN1 PP matrix B16', base/'ppstore_ffn1_b16_v1/experiment.json'),
+              ('FFN1 PP P1 matrix B16', base/'ppnorm_ffn1_b16_v1/experiment.json'),
+              ('attention vector stores B8', base/'attention_store_b8_v1/experiment.json'),
+              ('attention vector stores B16', base/'attention_store_b16_v1/experiment.json'),
+              ('combined attention B4', base/'attention_bundle_b4_v1/experiment.json'),
+              ('combined attention B8', base/'attention_bundle_b8_v1/experiment.json'),
+              ('combined attention B16', base/'attention_bundle_b16_v1/experiment.json'),
+              ('FFN1 TMA192 matrix B8', base/'ffn1_tma192_matrix_b8_v1/experiment.json'),
+              ('FFN1 TMA192 matrix B16', base/'ffn1_tma192_matrix_b16_v1/experiment.json'),
+              ('FFN2 TMA256x64 matrix B16', base/'ffn2_tma256x64_b16_v1/experiment.json'),
+              ('cyclic phase72 B4', base/'cyclic_phase72_b4_v1/experiment.json'),
+              ('FFN1 reg64 side216 B2', base/'ffn1_reg64_side216_b2_v1/experiment.json'),
+              ('FFN2 reg64 split4 B2', base/'ffn2_reg64_split4_b2_v1/experiment.json'),
+              ('FFN1 TMA128 phase72 B4', base/'ffn1_tma128_phase72_b4_v1/experiment.json'),
+              ('FFN1 TMA256 matrix B16', base/'ffn1_tma256_matrix_b16_v2/experiment.json'),
+              ('QKV TMA192 matrix B16', base/'qkv_tma192_matrix_b16_v1/experiment.json'),
+              ('FFN1 TMA128 matrix B8', base/'ffn1_tma128_matrix_b8_v1/experiment.json'),
+              ('FFN1 PP full-wait repair B16', base/'pphandoff_full_wait_b16_v1/experiment.json'),
+              ('FFN2 TMA128 split2 B8', base/'ffn2_tma128_split2_b8_v1/experiment.json'),
+              ('FFN2 TMA128 split2 coalesced B8', base/'ffn2_tma128_split2_b8_coalesced_v1/experiment.json'),
+              ('FFN1 M64N128 B8', base/'ffn1_m64n128_b8_v1/experiment.json'),
+              ('FFN1 PP nonblocking side B16', base/'pp64_arrive_side_b16_v2/experiment.json'),
+              ('Current coalesced B2', base/'current_coalesced_b2_v1/experiment.json'),
+              ('cached-boundary in-situ B4', base/'boundary_cache_retune_b4_v1/experiment.json'),
+              ('cached-boundary216 in-situ B4', base/'boundary_cache216_b4_v1/experiment.json'),
+              ('cached-boundary216 B4 admitted continuation',
+               base/'boundary_cache216_b4_admitted_v1/experiment.json'),
+              ('Current prefetch1 B16', base/'current_prefetch_b16_v1/experiment.json'),
+              ('FFN2 register store B8', base/'ffn2_reg_b8_v1/experiment.json'),
+              *[(f'phase72 B{batch} GPU2 diagnostic',
+                 base/f'scalar_phase72_arithmetic_b{batch}_v1/gpu2_diagnostic_v1/experiment.json')
+                for batch in (2, 4, 8, 16)],
+              *[(f'phase72 B{batch} G22',
+                 base/f'scalar_phase72_arithmetic_b{batch}_v1/experiment.json')
+                for batch in (2, 4, 8, 16)]]
+    continuation = base/'resume_allcards_20261112_v1'
+    if not (base/'boundary_cache216_b4_admitted_v1/experiment.json').exists():
+        probes.append(('fixed-candidate216 B4 revalidation', continuation/'b4_experiment.json'))
+    probes += [('existing whole-program216 B8', continuation/'b8_experiment.json'),
+               ('partial TN96 store B8 prototype', continuation/'store96_experiment.json'),
+               ('partial TN96 matrix store B8 prototype', continuation/'store96_matrix_experiment.json'),
+               ('QKV four-slot B2', continuation/'qkv_slots4_experiment.json'),
+               ('QKV seven-slot B4', continuation/'qkv_slots7_experiment.json'),
+               ('QKV plus attention stores B2', continuation/'qkv_attention_experiment.json'),
+               ('first WGMMA initialization B16', continuation/'mma_zero_experiment.json'),
+               ('fixed H800 grid B16', continuation/'fixed_grid_experiment.json'),
+               ('fixed grid producer recomputation B8', continuation/'grid_recount_experiment.json'),
+               ('producer plus four-slot QKV B2', continuation/'recount_qkv4_experiment.json'),
+               *[(f'producer recomputation B{b}', continuation/f'grid_recount_b{b}_experiment.json') for b in (2,4,16)],
+               ('paired residual read B16 prototype', continuation/'residual_experiment.json'),
+               ('paired residual read B16 GPU0 diagnostic', continuation/'residual_gpu0_experiment.json')]
+    probes += [('full-tile B8', continuation/'full_tiles_b8_v2/experiment.json'),
+               ('full-tile B16', continuation/'full_tiles_b16_selector_v1/experiment.json')]
+    probes += [(f'full-tile B{b}', continuation/f'full_tiles_b{b}_v1/experiment.json')
+               for b in (2, 4)]
+    probes += [('full-tile pipeline B2', continuation/'pipeline_full_b2_v1/experiment.json'),
+               ('full-bounds prefetch1 B8', continuation/'full_tiles_prefetch1_b8_v1/experiment.json'),
+               ('full-bounds pipeline prefetch1 B2', continuation/'pipeline_prefetch1_b2_v1/experiment.json'),
+               ('full-tile stores B8', continuation/'full_store_bundle_b8_v1/experiment.json'),
+               ('full-tile stores B4', continuation/'full_store_bundle_b4_v1/experiment.json'),
+               ('pipeline reductions B2', continuation/'pipeline_reduction_b2_v1/experiment.json'),
+               ('full-store bounds B8', continuation/'full_store_bounds_b8_v1/experiment.json'),
+               ('full-profile cyclic B4', continuation/'cyclic_full_b4_v1/experiment.json'),
+               ('GELU quartet B16', continuation/'gelu_quartet_b16_v1/experiment.json'),
+               ('relative descriptors B16', continuation/'descriptor_base_b16_v2/experiment.json'),
+               ('two-row statistics plus recompute B16', continuation/'side_rows_b16_recompute_v3/experiment.json'),
+               ('repaired catalog candidate5 B16', continuation/'candidate5_recompute_b16_v2/experiment.json'),
+               ('statistics read ahead B16', continuation/'stats_ahead_b16_v1/experiment.json'),
+               ('shared terminal FFN2 B16', continuation/'optional_stats_b16_v2/experiment.json'),
+               ('M-first task traversal B16', continuation/'mfirst_b16_v1/experiment.json'),
+               ('single-buffer six-slot FFN1 B16', continuation/'single_store6_b16_v1/experiment.json'),
+               ('single-buffer wide FFN1 B16', continuation/'single_store4_tn256_b16_v1/experiment.json'),
+               ('current-profile wide FFN1 B8', continuation/'ffn1_tma192_full_b8_v1/experiment.json'),
+               ('late staging reuse wait B16', continuation/'late_store_b16_v1/experiment.json'),
+               ('FFN2 fixed split2 B4', continuation/'ffn2_split2_b4_v1/experiment.json'),
+               ('main-loop pair B4', continuation/'loop_pair_b4_v1/experiment.json'),
+               ('repaired profile3 catalog candidate2 B8', continuation/'candidate2_profile3_b8_v1/experiment.json'),
+               ('residual warp handoff B16', continuation/'residual_warp_b16_v1/experiment.json'),
+               ('direct statistics B16', continuation/'direct_norm_b16_v3/experiment.json'),
+               ('consumer row partials32 B4', continuation/'rowstats32_b4_v1/experiment.json'),
+               ('row partials32 TN96 FFN2 B16', continuation/'rowstats32_tn96_b16_v1/experiment.json'),
+               ('FFN2-only row32 TN96 B16', continuation/'ffn2_stats32_b16_v1/experiment.json'),
+               ('whole-WG row96 TN96 B16', continuation/'ffn2_stats96_b16_v1/experiment.json'),
+               ('failed-poll gate backoff B4', continuation/'gate_backoff_b4_v1/experiment.json'),
+               ('failed-poll gate backoff B8', continuation/'gate_backoff_b8_v1/experiment.json'),
+               ('failed-poll gate backoff B16', continuation/'gate_backoff_b16_v1/experiment.json'),
+               ('Rows64 warpgroup attention B16', continuation/'attention64_b16_v1/experiment.json'),
+               ('Rows64 warpgroup attention B8', continuation/'attention64_b8_v1/experiment.json'),
+               ('outlined split-K wide FFN2 B4', continuation/'ffn2_outline_b4_v1/experiment.json'),
+               ('outlined GELU plus stores B4', continuation/'gelu_store_bundle_b4_v1/experiment.json'),
+               ('outlined GELU B4', continuation/'gelu_outline_b4_v1/experiment.json'),
+               ('outlined GELU B8', continuation/'gelu_outline_b8_v1/experiment.json'),
+               ('outlined GELU B16', continuation/'gelu_outline_b16_v2/experiment.json'),
+               ('current catalog assembly B16', continuation/'attention_catalog_b16_gpu0_assembly_v1/experiment.json'),
+               ('Repeat optional output map B16', continuation/'repeat_output_map_b16_v1/experiment.json'),
+               ('Repeat prefetch1 B16', continuation/'repeat_prefetch_b16_v1/experiment.json'),
+               ('FFN1 register256 on Repeat prefetch1 B16', continuation/'repeat_prefetch_ffn256_b16_v1/experiment.json'),
+               ('whole96 balanced FFN B8', continuation/'b8_stats96_balance_v2/experiment.json'),
+               ('whole96 FFN2 on Repeat prefetch1 B16', continuation/'b16_stats96_pf1_gpu1_v1/experiment.json'),
+               ('fixed prefetch1 on current B4', continuation/'prefetch_b4_gpu1_split_v2/experiment.json'),
+               ('fixed prefetch1 current B8 prescreen', continuation/'prefetch_b8_gpu1_v1/experiment.json'),
+               ('FFN1-only TMA192 current GELU B8', continuation/'ffn1_tma192_gelu_b8_v1/experiment.json'),
+               ('FFN2 TK128 on FFN1-isolated B8', continuation/'ffn2_tk128_ffn1_b8_v1/experiment.json'),
+               ('QKV TMA192 repaired RepeatPF1 B16', continuation/'qkv_tma192_pf1_b16_v1/experiment.json'),
+               ('TN96 prefix store B16 prescreen', continuation/'tma_prefix96_b16_v1/experiment.json'),
+               ('prefix store plus whole96 B16 prescreen', continuation/'prefix96_stats96_b16_v1/experiment.json'),
+               ('FFN2 TN192 split2 current B16', continuation/'ffn2_n192_s2_b16_v1/experiment.json'),
+               ('FFN2 TMA128 split2 current B8', continuation/'ffn2_n128_s2_current_b8_v1/experiment.json'),
+               ('Rows128 warpgroup attention current B8', continuation/'attention128_current_b8_v2/experiment.json'),
+               ('FFN2 TN192 S1 current B16', continuation/'ffn2_n192_s1_current_b16_v1/experiment.json'),
+               ('QKV TMA in repeated B8 layers', continuation/'qkv_repeat_tma_current_b8_v1/experiment.json'),
+               ('Prefetch1 on repeated QKV current B8', continuation/'prefetch_qkv_current_b8_v1/experiment.json'),
+               ('WG128 ping-pong current B16 prescreen', continuation/'pp128_ffn1_current_b16_v1/experiment.json'),
+               ('First QKV TMA on PF1 current B8', continuation/'qkv_first_tma_pf1_b8_v1/experiment.json'),
+               ('retired slot staging B16', continuation/'ring_store_b16_v1/experiment.json'),
+               ('FFN2 TMA64 eight-slot B16', continuation/'ffn2_tma64_b16_v1/experiment.json'),
+               ('three output buffers B16', continuation/'store3_b16_v1/experiment.json'),
+               ('relaxed failed gate poll B16', continuation/'gate_poll_b16_v1/experiment.json'),
+               ('parameter buffer pointers B16', continuation/'param_buffers_b16_v1/experiment.json'),
+               ('independent consumer attention B16', continuation/'attention_pp_b16_v1/experiment.json'),
+               ('projection M256 N64 current B16', continuation/'projection_m256n64_b16_v1/experiment.json'),
+               ('FFN1 TMA256 outlined context B16', continuation/'ffn1_tma256_gelu_b16_v1/experiment.json'),
+               ('producer warp2 prefetch B8', continuation/'prefetch_warp2_b8_v1/experiment.json'),
+               ('FFN2 whole96 writer prefix TMA B16', continuation/'ffn2_prefix96_store_b16_v1/experiment.json'),
+               ('WGMMA depth2 prologue B4', continuation/'mma_depth2_b4_v3/experiment.json')]
+    rows = []
+    choices = []
+    for name, path in probes:
+        if not path.exists():
+            continue
+        experiment = read(path)
+        if name in ('current catalog assembly B16', 'Repeat optional output map B16',
+                    'Repeat prefetch1 B16', 'FFN1 register256 on Repeat prefetch1 B16',
+                    'whole96 balanced FFN B8', 'whole96 FFN2 on Repeat prefetch1 B16',
+                    'fixed prefetch1 on current B4', 'fixed prefetch1 current B8 prescreen',
+                    'FFN1-only TMA192 current GELU B8',
+                    'FFN2 TK128 on FFN1-isolated B8',
+                    'QKV TMA192 repaired RepeatPF1 B16',
+                    'TN96 prefix store B16 prescreen',
+                    'prefix store plus whole96 B16 prescreen',
+                    'FFN2 TN192 split2 current B16',
+                    'FFN2 TMA128 split2 current B8',
+                    'Rows128 warpgroup attention current B8',
+                    'FFN2 TN192 S1 current B16',
+                    'QKV TMA in repeated B8 layers',
+                    'Prefetch1 on repeated QKV current B8',
+                    'WG128 ping-pong current B16 prescreen',
+                    'First QKV TMA on PF1 current B8',
+                    'retired slot staging B16',
+                    'FFN2 TMA64 eight-slot B16',
+                    'three output buffers B16',
+                    'relaxed failed gate poll B16',
+                    'parameter buffer pointers B16',
+                    'independent consumer attention B16',
+                    'projection M256 N64 current B16',
+                    'FFN1 TMA256 outlined context B16',
+                    'producer warp2 prefetch B8',
+                    'FFN2 whole96 writer prefix TMA B16'):
+            model = read(path.parent/('model_resume_v1/result.json'
+                if name == 'First QKV TMA on PF1 current B8' else 'model/result.json'))
+            pair = experiment['pair']
+            if (not model['passed'] or model['passes'] != '5/5'
+                    or experiment['accepted'] != (pair['ratio'] < 1-max(
+                        experiment['minimum_gain'], pair['threshold']))):
+                raise ValueError('B16 follow-up differs from its original model or gain gate')
+            if name == 'current catalog assembly B16':
+                if not read(path.parent/'functional_gate.json')['passed']:
+                    raise ValueError('catalog assembly lacks its component gate')
+            elif name in ('Repeat optional output map B16', 'Repeat prefetch1 B16') and not read(path.parent/'model_bit_proof.json')['passed']:
+                raise ValueError('Repeat follow-up lacks output byte equivalence')
+            if name.startswith('whole96 '):
+                functional = read(path.parent/'functional_components.json')
+                if (not functional['passed'] or len(functional['body_gates']) != 3
+                        or len(functional['order_gates']) != 4
+                        or set(experiment['unit_gates']) != set(
+                            functional['body_gates']+functional['order_gates'])):
+                    raise ValueError('mixed-grain follow-up lacks its complete component gates')
+            if name == 'fixed prefetch1 on current B4':
+                functional = read(path.parent/'functional_components.json')
+                if (not functional['passed'] or experiment['minimum_gain'] != .01
+                        or len(functional['order_gates']) != 4
+                        or experiment['unit_gates'] != [functional['body_gate'],
+                                                        *functional['order_gates']]
+                        or not read(path.parent/'model_bit_proof.json')['passed']):
+                    raise ValueError('fixed B4 prefetch lacks its original split functional gate')
+            if name == 'fixed prefetch1 current B8 prescreen':
+                result = read(path.parent/'result.json')
+                proof = read(base/'prefetch_b8_gpu1_v2/default_proof.json')
+                if (experiment['accepted'] or result['status'] != 'prescreen_rejected'
+                        or result['ordering_completed'] != 0 or not proof['passed']
+                        or proof['encoded_words'] != 33712
+                        or len(experiment['unit_gates']) != 1
+                        or not read(path.parent/'model_bit_proof.json')['passed']):
+                    raise ValueError('B8 hint prescreen changes its negative protocol scope')
+            for unit_path in experiment.get('unit_gates', []):
+                unit = read(Path(unit_path))
+                processes = unit['processes']
+                if (not unit['passed'] or len({p['pid'] for p in processes}) != 17
+                        or Counter(p['name'].split('-')[0] for p in processes) !=
+                        Counter(unit=5, memcheck=1, initcheck=1, racecheck=5, synccheck=5)
+                        or any(p['exit_code'] or read(Path(p['guard']))['code'] for p in processes)):
+                    raise ValueError('B16 follow-up lacks its complete stated component gate')
+            if name == 'Repeat optional output map B16':
+                reuse = read(Path(experiment['reuse_proof']))
+                if (not reuse['passed'] or not read(Path(reuse['proof']))['passed']
+                        or len(reuse['unit_gates']) != 5):
+                    raise ValueError('Repeat output map lacks its explicit component reuse')
+            if name == 'Repeat prefetch1 B16':
+                if not read(Path(experiment['source_differential']))['passed']:
+                    raise ValueError('prefetch follow-up lacks its one-define source proof')
+        if name == 'Rows64 warpgroup attention B16':
+            sys.path.insert(0, str(ROOT/'scripts'))
+            from dnn4_bert_current import validate_attention64_integration
+            admitted = base/'attention64_b16_admitted_v1'
+            decision = read(admitted/'experiment.json')
+            final = read(admitted/'final_result.json')
+            validate_attention64_integration(admitted, decision, final)
+            if experiment['pair'] != decision['pair'] or experiment['library'] != final['library']:
+                raise ValueError('attention report differs from the admitted comparison')
+        if name == 'Rows128 warpgroup attention current B8':
+            from dnn4_bert_attention128 import validate
+            admitted = base/'attention128_current_b8_admitted_v1'
+            decision = read(admitted/'experiment.json')
+            final = read(admitted/'final_result.json')
+            validate(admitted, decision, final)
+            if experiment['pair'] != decision['pair'] or experiment['library'] != final['library']:
+                raise ValueError('Rows128 report differs from the admitted comparison')
+        if name == 'QKV TMA in repeated B8 layers':
+            from dnn4_bert_qkv_repeat import validate
+            admitted = base/'qkv_repeat_tma_current_b8_admitted_v1'
+            decision = read(admitted/'experiment.json')
+            final = read(admitted/'final_result.json')
+            validate(admitted, decision, final)
+            if experiment['pair'] != decision['pair'] or experiment['library'] != final['library']:
+                raise ValueError('repeated QKV report differs from the admitted comparison')
+        if name == 'Prefetch1 on repeated QKV current B8':
+            from dnn4_bert_prefetch_current import validate
+            admitted = base/'prefetch_qkv_current_b8_admitted_v1'
+            decision = read(admitted/'experiment.json')
+            final = read(admitted/'final_result.json')
+            validate(admitted, decision, final)
+            if experiment['pair'] != decision['pair'] or experiment['library'] != final['library']:
+                raise ValueError('PF1 report differs from the admitted comparison')
+        if name == 'WG128 ping-pong current B16 prescreen':
+            preparation = base/'pp128_ffn1_current_b16_v1'
+            plan = read(preparation/'plan.json')
+            prepared = read(preparation/'result.json')
+            closed = read(path.parent/'result.json')
+            body = read(path.parent/'body/result.json')
+            control = read(path.parent/'control/result.json')
+            expected = json.loads(json.dumps(read(Path(experiment['reference']['library']+'.plan.json'))['native_forward']))
+            for index in range(4, 60, 5):
+                expected['stages'][index].update(tile_m=256, tile_n=128, slots=5, sched='pp')
+            if (prepared['status'] != 'prepared_CPU_only' or prepared['model']['sass_register_max'] >= 216
+                    or plan['minimum_gain'] != .03 or experiment['minimum_gain'] != .03
+                    or plan['trigger_share'] < .15 or experiment['accepted']
+                    or closed['status'] != 'pair_rejected' or closed['final'] is not None
+                    or read(Path(experiment['library']+'.plan.json'))['native_forward'] != expected
+                    or not body['passed'] or len(body['processes']) != 17
+                    or len({p['pid'] for p in body['processes']}) != 17
+                    or Counter(p['name'].split('-')[0] for p in body['processes']) !=
+                       Counter(unit=5, memcheck=1, initcheck=1, racecheck=5, synccheck=5)
+                    or any(p['exit_code'] or read(Path(p['guard']))['code'] for p in body['processes'])
+                    or len({p['output_hash'] for p in body['processes']}) != 1
+                    or not control['passed'] or len(control['processes']) != 5
+                    or len({p['pid'] for p in control['processes']}) != 5):
+                raise ValueError('PP prescreen lacks its original trigger, fixed geometry or negative gates')
+        if name == 'First QKV TMA on PF1 current B8':
+            prepared = read(base/'qkv_first_tma_pf1_b8_v1/result.json')
+            plan = read(base/'qkv_first_tma_pf1_b8_v1/plan.json')
+            bindings = read(base/'qkv_first_tma_pf1_b8_v1/binding_contract.json')
+            units = read(base/'qkv_first_tma_pf1_b8_units_v1/result.json')
+            body = read(Path(units['body_gate']))
+            control = read(path.parent/'control/result.json')
+            closed = read(path.parent/'result.json')
+            expected = json.loads(json.dumps(read(Path(experiment['reference']['library']+'.plan.json'))['native_forward']))
+            expected['stages'][1].update(tile_m=128, tile_n=192, slots=4, store='tma')
+            if (prepared['status'] != 'prepared_CPU_only' or plan['minimum_gain'] != .005
+                    or experiment['minimum_gain'] != .005 or experiment['accepted']
+                    or prepared['reference']['library'] != experiment['reference']['library']
+                    or prepared['reference']['gate'] != experiment['reference']['gate']
+                    or read(Path(experiment['library']+'.plan.json'))['native_forward'] != expected
+                    or not bindings['passed'] or bindings['checks'] != 1380
+                    or len(bindings['optional_output_maps']) != 12
+                    or any(v is None for v in bindings['optional_output_maps'])
+                    or units['body_proof']['encoded_words'] != 21664
+                    or experiment['unit_gates'] != [units['body_gate']]
+                    or not body['passed'] or len(body['processes']) != 17
+                    or any(p['exit_code'] or read(Path(p['guard']))['code'] for p in body['processes'])
+                    or not control['passed'] or len(control['processes']) != 5
+                    or closed['status'] != 'pair_rejected' or closed['final'] is not None):
+                raise ValueError('first-QKV prescreen changes its fixed geometry, binding or negative gates')
+        if name == 'failed-poll gate backoff B4':
+            sys.path.insert(0, str(ROOT/'scripts'))
+            from dnn4_bert_current import validate_gate_backoff_integration
+            admitted = base/'gate_backoff_b4_admitted_v1'
+            decision = read(admitted/'experiment.json')
+            final = read(admitted/'final_result.json')
+            validate_gate_backoff_integration(admitted, decision, final)
+            if experiment['pair'] != decision['pair'] or experiment['library'] != final['library']:
+                raise ValueError('gate backoff report differs from the admitted comparison')
+        if name in ('consumer row partials32 B4', 'row partials32 TN96 FFN2 B16',
+                    'FFN2-only row32 TN96 B16', 'whole-WG row96 TN96 B16',
+                    'outlined split-K wide FFN2 B4'):
+            functional = read(path.parent/'functional_gate.json')
+            body = read(Path(functional['body']))
+            model = read(Path(functional['model']))
+            processes = body['processes']
+            if (not functional['passed'] or not body['passed']
+                    or len({p['pid'] for p in processes}) != 17
+                    or Counter(p['name'].split('-')[0] for p in processes) !=
+                    Counter(unit=5, memcheck=1, initcheck=1, racecheck=5, synccheck=5)
+                    or any(p['exit_code'] or read(Path(p['guard']))['code'] for p in processes)
+                    or len({p['output_hash'] for p in processes}) != 1
+                    or not model['passed'] or model['passes'] != '5/5'
+                    or experiment['accepted'] !=
+                    (experiment['pair']['ratio'] < 1-max(
+                        .03 if name.endswith('B16') or
+                        name == 'outlined split-K wide FFN2 B4' else 0,
+                        experiment['pair']['threshold']))):
+                raise ValueError('row partials32 lacks its complete strict gates')
+        if name == 'outlined GELU plus stores B4':
+            reuse = read(path.parent/'component_reuse.json')
+            proof = read(Path(reuse['source']))
+            model = read(path.parent/'model/result.json')
+            if (not reuse['passed'] or not proof['passed']
+                    or len(reuse['units']) != 3 or not model['passed']
+                    or model['passes'] != '5/5'
+                    or any(not read(Path(u))['passed'] or
+                           len(read(Path(u))['processes']) != 17 for u in reuse['units'])
+                    or experiment['accepted'] !=
+                    (experiment['pair']['ratio'] < 1-experiment['pair']['threshold'])):
+                raise ValueError('GELU store interaction lacks qualified component reuse')
+        if name in ('outlined GELU B4', 'outlined GELU B8',
+                    'outlined GELU B16', 'WGMMA depth2 prologue B4',
+                    'Rows64 warpgroup attention B8',
+                    'failed-poll gate backoff B8', 'failed-poll gate backoff B16'):
+            bit = read(path.parent/'unit_bit_proof.json')
+            control = read(Path(bit['control']))
+            body = read(Path(bit['candidate']))
+            processes = body['processes']
+            model = read(Path(experiment.get('model_source', str(path.parent/'model/result.json'))))
+            hashes = lambda v: [o['output_sha256'] for c in v['cases'] for o in c['outputs']]
+            pair = experiment['pair']
+            preparation = read(Path(experiment['preparation']))
+            if (not bit['passed'] or not control['passed'] or not body['passed'] or
+                    len({p['pid'] for p in control['processes']}) != 5 or
+                    len({p['pid'] for p in processes}) != 17 or
+                    Counter(p['name'].split('-')[0] for p in processes) !=
+                    Counter(unit=5, memcheck=1, initcheck=1, racecheck=5, synccheck=5) or
+                    any(p['exit_code'] or read(Path(p['guard']))['code'] for p in processes) or
+                    control['output_hash'] != body['output_hash'] or
+                    not model['passed'] or model['passes'] != '5/5' or
+                    hashes(model) != hashes(read(Path(experiment['reference']['gate']))) or
+                    not read(Path(preparation['default_proof']))['passed'] or
+                    experiment['accepted'] != (pair['ratio'] < 1-max(
+                        .005 if name.startswith('failed-poll gate backoff') or
+                        name == 'Rows64 warpgroup attention B8' else .03,
+                        pair['threshold']))):
+                raise ValueError('implementation trial lacks its complete unchanged gates')
+            if name.startswith('failed-poll gate backoff'):
+                allocation = read(base/f'gate_backoff_b{experiment["batch"]}_setup_v1/allocation.json')
+                authorization = historical_allcards_authorization(
+                    Path(allocation['authorization']).parent)
+                if (allocation['gpu'] != pair['gpu'] or allocation['reanchored']
+                        or allocation['original_anchor_gpu'] != 3
+                        or authorization['allowed_gpu_indices'] != [0, 1, 2, 3]
+                        or not read(base/f'gate_backoff_b{experiment["batch"]}_body_proof_v1/result.json')['passed']):
+                    raise ValueError('gate backoff lacks its allocation or body identity proof')
+            if name == 'outlined GELU B16':
+                repair = read(base/'gelu_outline_b16_v1/oracle_repair.json')
+                reuse = read(path.parent/'model_reuse.json')
+                if repair['original_scalar_mismatches'] or reuse['source'] != experiment['model_source']:
+                    raise ValueError('outlined GELU lacks its reference repair or exact model reuse')
+        if name in ('full-tile stores B8', 'full-tile stores B4',
+                    'pipeline reductions B2', 'direct statistics B16',
+                    'full-store bounds B8', 'full-profile cyclic B4', 'GELU quartet B16',
+                    'relative descriptors B16', 'two-row statistics plus recompute B16',
+                    'repaired catalog candidate5 B16', 'statistics read ahead B16',
+                    'main-loop pair B4', 'repaired profile3 catalog candidate2 B8',
+                    'residual warp handoff B16', 'shared terminal FFN2 B16',
+                    'M-first task traversal B16', 'FFN2 fixed split2 B4',
+                    'single-buffer six-slot FFN1 B16', 'single-buffer wide FFN1 B16',
+                    'current-profile wide FFN1 B8', 'late staging reuse wait B16'):
+            for unit_path in experiment['unit_gates']:
+                unit = read(Path(unit_path))
+                processes = unit['processes']
+                tools = Counter(p['name'].split('-')[0] for p in processes)
+                if (not unit['passed'] or len({p['pid'] for p in processes}) != 17 or
+                        tools != Counter(unit=5, memcheck=1, initcheck=1,
+                                         racecheck=5, synccheck=5) or
+                        any(p['exit_code'] or read(Path(p['guard']))['code']
+                            for p in processes)):
+                    raise ValueError('current-profile follow-up lacks its complete component gate')
+            if name == 'FFN2 fixed split2 B4':
+                # A split change reassociates FP32 additions; P-CORR still
+                # requires the same reference threshold and deterministic bytes.
+                model = read(path.parent/'model/result.json')
+                preparation = read(Path(experiment['preparation']))
+                if (not model['passed'] or model['passes'] != '5/5' or
+                        not read(Path(preparation['control_proof']))['passed']):
+                    raise ValueError('split-K follow-up lacks its model or control gate')
+            elif not read(path.parent/'model_bit_proof.json')['passed']:
+                raise ValueError('current-profile follow-up lacks incumbent output equivalence')
+            if name in ('pipeline reductions B2', 'full-store bounds B8',
+                        'full-profile cyclic B4', 'GELU quartet B16', 'relative descriptors B16',
+                        'two-row statistics plus recompute B16', 'repaired catalog candidate5 B16',
+                        'statistics read ahead B16', 'main-loop pair B4',
+                        'repaired profile3 catalog candidate2 B8', 'residual warp handoff B16',
+                        'shared terminal FFN2 B16', 'M-first task traversal B16',
+                        'FFN2 fixed split2 B4', 'single-buffer six-slot FFN1 B16',
+                        'single-buffer wide FFN1 B16', 'current-profile wide FFN1 B8',
+                        'late staging reuse wait B16'):
+                bit = read(path.parent/'unit_bit_proof.json')
+                control = read(Path(bit['control']))
+                candidate = read(Path(bit['candidate']))
+                if (not bit['passed'] or not control['passed'] or
+                        len({p['pid'] for p in control['processes']}) != 5 or
+                        control['output_hash'] != candidate['output_hash']):
+                    raise ValueError('pipeline reductions lack control equivalence')
+            if name == 'full-tile stores B4':
+                reuse = read(Path(experiment['component_reuse']))
+                fixtures = read(Path(reuse['fixtures']))
+                if (not reuse['passed'] or not fixtures['passed'] or
+                        reuse['units'] != experiment['unit_gates'] or
+                        any(row['profile'] != reuse['profile'] for row in fixtures['rows']) or
+                        read(Path(reuse['admission']))['status'] != 'admitted'):
+                    raise ValueError('B4 store bundle lacks matching inherited component profiles')
+            if name in ('direct statistics B16', 'full-store bounds B8', 'GELU quartet B16',
+                        'relative descriptors B16', 'two-row statistics plus recompute B16',
+                        'statistics read ahead B16', 'main-loop pair B4',
+                        'residual warp handoff B16', 'shared terminal FFN2 B16',
+                        'M-first task traversal B16'):
+                preparation = read(Path(experiment['preparation']))
+                if (not read(Path(preparation['default_proof']))['passed'] or
+                        not read(path.parent/'unit_bit_proof.json')['passed']):
+                    raise ValueError('private implementation requires default and unit equivalence')
+            if name in ('single-buffer six-slot FFN1 B16', 'single-buffer wide FFN1 B16',
+                        'current-profile wide FFN1 B8', 'late staging reuse wait B16'):
+                preparation = read(Path(experiment['preparation']))
+                proof = preparation.get('default_proof', preparation.get('control_proof'))
+                pair = experiment['pair']
+                expected = pair['ratio'] < min(.97, 1-pair['threshold'])
+                if (not read(Path(proof))['passed'] or experiment['accepted'] != expected or
+                        len(experiment['unit_gates']) != 2):
+                    raise ValueError('FFN1 comparison lacks its control, ordering or gain gate')
+        if name.startswith('full-tile '):
+            unit_paths = experiment.get('unit_gates')
+            if unit_paths is None:
+                unit_paths = [p['candidate'] for p in experiment['unit_bit_proofs']]
+            for unit_path in unit_paths:
+                unit = read(Path(unit_path))
+                if (not unit['passed'] or len(unit['processes']) != 17 or
+                        any(p['exit_code'] or read(Path(p['guard']))['code']
+                            for p in unit['processes'])):
+                    raise ValueError('full-tile comparison lacks complete component gates')
+        admitted_continuation = name == 'cached-boundary216 B4 admitted continuation'
+        gpu0_continuation = (admitted_continuation or name in (
+            'failed-poll gate backoff B8', 'failed-poll gate backoff B16',
+            'Rows64 warpgroup attention B16', 'current catalog assembly B16',
+            'Rows128 warpgroup attention current B8',
+            'QKV TMA in repeated B8 layers',
+            'Prefetch1 on repeated QKV current B8',
+            'WG128 ping-pong current B16 prescreen',
+            'Repeat optional output map B16', 'Repeat prefetch1 B16')) and experiment.get(
+                'gpu', experiment['pair']['gpu']) == 0
+        if admitted_continuation:
+            sys.path.insert(0, str(ROOT/'scripts'))
+            from dnn4_bert_current import validate_boundary_selection, validate_followup_allocation
+            final = read(path.parent/'final_result.json')
+            validate_followup_allocation(path.parent, path.parent.name, experiment, final)
+            validate_boundary_selection(path.parent, experiment['library'], experiment['reference'])
+            if not experiment['accepted']:
+                raise ValueError('admitted comparison lacks its completed acceptance')
+        if name in ('attention Rows64 B1', 'coalesced partial B1', 'cyclic slots B1',
+                    'cyclic slots tuned B16 prototype', 'cyclic216 B16 integrated',
+                    'cyclic coalesced B1 prototype', 'cyclic admitted B8',
+                    'coalesced cyclic B1 integrated', 'coalesced cyclic B2 integrated',
+                    'producer cyclic B1', 'producer cyclic B16',
+                    'present bindings B2', 'present bindings B16', 'side216 B2',
+                    'matrix store B8 prototype', 'matrix store B16 prototype',
+                    'matrix store B8 integrated', 'matrix store B16 integrated',
+                    'matrix existing in-situ B16', 'warpgroup QK B4', 'warpgroup QK B8',
+                    'warpgroup QK B16', 'warpgroup QK/PV B4', 'warpgroup QK/PV B8',
+                    'warpgroup QK/PV B16', 'attention existing in-situ B16',
+                    'FFN1 PP matrix B16', 'FFN1 PP P1 matrix B16',
+                    'attention vector stores B8', 'attention vector stores B16',
+                    'combined attention B4', 'combined attention B8', 'combined attention B16',
+                    'FFN1 TMA192 matrix B8', 'FFN1 TMA192 matrix B16',
+                    'FFN2 TMA256x64 matrix B16', 'cyclic phase72 B4',
+                    'FFN1 reg64 side216 B2', 'FFN2 reg64 split4 B2',
+                    'FFN1 TMA128 phase72 B4', 'FFN1 TMA256 matrix B16',
+                    'QKV TMA192 matrix B16', 'FFN1 TMA128 matrix B8',
+                    'FFN1 PP full-wait repair B16', 'FFN2 TMA128 split2 B8',
+                    'FFN2 TMA128 split2 coalesced B8', 'FFN1 M64N128 B8',
+                    'FFN1 PP nonblocking side B16', 'Current coalesced B2',
+                    'cached-boundary216 B4 admitted continuation',
+                    'existing whole-program216 B8', 'partial TN96 store B8 prototype',
+                    'partial TN96 matrix store B8 prototype',
+                    'QKV four-slot B2', 'QKV seven-slot B4', 'QKV plus attention stores B2',
+                    'first WGMMA initialization B16',
+                    'fixed H800 grid B16',
+                    'fixed grid producer recomputation B8',
+                    'paired residual read B16 prototype',
+                    'paired residual read B16 GPU0 diagnostic'):
+            unit_paths = experiment.get('unit_gates', [experiment.get('unit_gate')])
+            for unit_path in unit_paths:
+                unit = read(Path(unit_path))
+                if not unit['passed'] or len(unit['processes']) != 17 or any(
+                        p['exit_code'] for p in unit['processes']):
+                    raise ValueError('pipeline follow-up requires its complete component gates')
+        if name in ('cyclic in-situ B16', 'repaired in-situ B8',
+                    'matrix existing in-situ B16', 'attention existing in-situ B16'):
+            qualification = read(path.parent/'trace_qualification.json')
+            selection = read(path.parent/'tune_selection.json')
+            if (not qualification['passed'] or abs(qualification['relative_difference']) > .05
+                    or len(selection['eligible_variants']) < 4):
+                raise ValueError('in-situ follow-up requires qualified traces and four legal variants')
+        if name in ('cached-boundary in-situ B4', 'cached-boundary216 in-situ B4'):
+            selection = read(path.parent/'tune_selection.json')
+            qualification = read(Path(selection['qualification']))
+            if (not qualification['passed'] or abs(qualification['relative_difference']) > .05
+                    or len(selection['eligible_variants']) < 4):
+                raise ValueError('cached-boundary selection requires qualified traces and four variants')
+        if name in ('Current prefetch1 B16', 'full-bounds prefetch1 B8',
+                    'full-bounds pipeline prefetch1 B2'):
+            preparation = read(Path(experiment['preparation']))
+            if not preparation['source_differential']['passed']:
+                raise ValueError('prefetch comparison requires its one-define source proof')
+        if name.startswith('phase72'):
+            for suite in ('scalar_phase72_arithmetic_alias_unit_v1', 'side_norm_reg72_unit_v1'):
+                state = read(base/suite/'scheduler/state.json')['dnn4-focused-f3-gates']
+                unit = read(Path(state['out'])/'cohort/result.json')
+                if state['status'] != 'done' or not unit['passed'] or len(unit['processes']) != 17:
+                    raise ValueError('phase72 requires scalar phase and P1 component gates')
+        if name in ('FFN1 TK128 single-store B16', 'FFN1 TN256 single-store B16',
+                    'consumer216 B8 diagnostic', 'two-layer arithmetic B16'):
+            for unit_path in experiment['unit_gates']:
+                unit = read(Path(unit_path))
+                if not unit['passed'] or len(unit['processes']) != 17 or any(p['exit_code'] for p in unit['processes']):
+                    raise ValueError('prototype requires its complete stated component gates')
+        if name.startswith('consumer216 in-situ'):
+            qualification = read(path.parent/'trace_qualification.json')
+            selection = read(path.parent/'tune_selection.json')
+            required = 3 if experiment['batch'] == 8 else 4
+            if (not qualification['passed'] or abs(qualification['relative_difference']) > .05
+                    or len(selection['eligible_variants']) < required):
+                raise ValueError('consumer216 diagnostic lacks its stated trace coverage')
+        if name == 'attention load pairs B1':
+            unit = read(Path(experiment['unit_gate']))
+            if not unit['passed'] or len(unit['processes']) != 17 or not experiment['same_output_bytes']:
+                raise ValueError('attention scheduling requires component and unchanged-byte gates')
+        if name == 'statistics TMA B16':
+            state = read(base/'stats_tma_unit_v1/scheduler/state.json')['dnn4-focused-f3-gates']
+            unit = read(Path(state['out'])/'cohort/result.json')
+            if state['status'] != 'done' or state['exit_code'] or not unit['passed'] or len(unit['processes']) != 17:
+                raise ValueError('statistics TMA requires an accepted complete unit/sanitizer cohort')
+        if name.startswith('Repeat arithmetic P1') or name == 'P1 normalization arithmetic B2':
+            suites = (('repeat_arithmetic_odd_unit_v1', 'side_norm_unit_v2') if 'reg56' in name else
+                      ('repeat_arithmetic_alias_unit_v1', 'side_norm_reg64_unit_v1'))
+            for suite in suites:
+                unit = read(base/suite/'raw/dnn4-focused-f3-gates/attempt1/cohort/result.json')
+                if not unit['passed'] or len(unit['processes']) != 17 or any(p['exit_code'] for p in unit['processes']):
+                    raise ValueError('arithmetic/P1 combination requires both component gates')
+        if name.startswith('in-situ P1'):
+            qualification = read(path.parent/'trace_qualification.json')
+            if not qualification['passed'] or abs(qualification['relative_difference']) > .05:
+                raise ValueError('in-situ P1 requires qualified boundary traces')
+        if name == 'FFN1 TK128 B16':
+            unit = read(Path(experiment['unit_gate']))
+            if not unit['passed'] or len(unit['processes']) != 17 or any(p['exit_code'] for p in unit['processes']):
+                raise ValueError('wide-K FFN1 requires its exact focused unit and sanitizer gates')
+        if name.startswith('binding arithmetic'):
+            suite = ('repeat_arithmetic_odd_unit_v1' if experiment['batch'] == 1
+                     else 'repeat_arithmetic_alias_unit_v1')
+            unit = read(base/suite/'raw/dnn4-focused-f3-gates/attempt1/cohort/result.json')
+            if not unit['passed'] or len(unit['processes']) != 17 or any(p['exit_code'] for p in unit['processes']):
+                raise ValueError('arithmetic binding requires pattern reconstruction and unit/sanitizer gates')
+        if name == 'Repeat P1 normalization B16':
+            unit = read(base/'repeat_single_unit_v3/raw/dnn4-focused-f3-gates/attempt1/cohort/result.json')
+            if not unit['passed'] or len(unit['processes']) != 17 or any(p['exit_code'] for p in unit['processes']):
+                raise ValueError('B16 loop combination requires the separately qualified Repeat component gate')
+        if name == 'FFN1 TM256 B16' or name == 'Repeat P1 B8':
+            suites = (('ffn1_tm256_unit_v1',) if name.startswith('FFN1') else
+                      ('side_norm_reg64_unit_v1', 'alias_repeat_reg64_unit_v1'))
+            for suite in suites:
+                unit = read(base/suite/'raw/dnn4-focused-f3-gates/attempt1/cohort/result.json')
+                if not unit['passed'] or len(unit['processes']) != 17 or any(p['exit_code'] for p in unit['processes']):
+                    raise ValueError('FFN1/Repeat combination requires its focused unit/sanitizer gates')
+        if name.startswith('attention unroll'):
+            unit = read(base/'attention_unroll_unit_v2/raw/dnn4-focused-f3-gates/attempt1/cohort/result.json')
+            if not unit['passed'] or len(unit['processes']) != 17 or any(p['exit_code'] for p in unit['processes']):
+                raise ValueError('attention unroll requires unit5 and sanitizer1/1/5/5')
+        if name.startswith('GELU reciprocal'):
+            precision = read(base/'gelu_rcp_accuracy_v1/gpu3_v2/raw/dnn4-gelu-rcp-accuracy-gpu3/attempt1/probe/result.json')
+            unit = read(base/'gelu_rcp_unit_v1/raw/dnn4-focused-f3-gates/attempt1/cohort/result.json')
+            if (precision['passes'] != '5/5' or precision['median']['bad'] or
+                    precision['median']['max_relative'] > 1e-6 or not unit['passed'] or
+                    len(unit['processes']) != 17 or any(p['exit_code'] for p in unit['processes'])):
+                raise ValueError('GELU reciprocal requires precision5 plus unit5/sanitizer1/1/5/5')
+        if name.startswith('prefetch table'):
+            unit = read(base/'prefetch_table_unit_v1/raw/dnn4-focused-f3-gates/attempt1/cohort/result.json')
+            if not unit['passed'] or len(unit['processes']) != 17 or any(p['exit_code'] for p in unit['processes']):
+                raise ValueError('prefetch table requires unit5 and sanitizer1/1/5/5')
+        if 'alias B8' in name:
+            for suite in ('alias_repeat_unit_v1', 'alias_repeat_reg64_unit_v1'):
+                unit = read(base/suite/'raw/dnn4-focused-f3-gates/attempt1/cohort/result.json')
+                if not unit['passed'] or len(unit['processes']) != 17 or any(
+                        p['exit_code'] for p in unit['processes']):
+                    raise ValueError('virtual aliases require both register-profile unit/sanitizer gates')
+        if 'reg64' in name:
+            unit = read(base/'register64_216_unit_v1/raw/dnn4-focused-f3-gates/attempt1/cohort/result.json')
+            if not unit['passed'] or len(unit['processes']) != 17 or any(
+                    p['exit_code'] for p in unit['processes']):
+                raise ValueError('64/216 requires unit5 and sanitizer1/1/5/5')
+        if name == 'P1 normalization B2':
+            unit = read(base/'side_norm_reg64_unit_v1/raw/dnn4-focused-f3-gates/attempt1/cohort/result.json')
+            if not unit['passed'] or len(unit['processes']) != 17 or any(p['exit_code'] for p in unit['processes']):
+                raise ValueError('B2 normalization requires the combined64/216 unit/sanitizer gate')
+        if 'normalization' in name:
+            suite = 'side_norm96_unit_v1' if name.startswith('96-lane') else 'side_norm_unit_v2'
+            unit = read(base/suite/'raw/dnn4-focused-f3-gates/attempt1/cohort/result.json')
+            if not unit['passed'] or len(unit['processes']) != 17 or any(
+                    p['exit_code'] for p in unit['processes']):
+                raise ValueError('P1 normalization requires unit5 and sanitizer1/1/5/5')
+        identity = verify(Path(experiment['library']))
+        source_text = Path(experiment['library']+'.cu').read_text()
+        repeat = re.search(r',Stage_0,Repeat<(6|12),', source_text)
+        gate_path = Path(experiment['gate']).parent.parent/'result.json'
+        gate = read(gate_path)
+        if gate['status'] != 'passed' or gate['passes'] != '5/5' or any(
+                not o.get('output_sha256') for c in gate['cases'] for o in c['outputs']):
+            raise ValueError('BERT comparison requires five fresh byte-hashed FP32 gates')
+        pair_path = Path(experiment.get('pair_source', path.parent/'pair/result.json'))
+        if name == 'paired residual read B16 prototype':
+            pair_path = path.parent/'residual_pair/result.json'
+        elif name == 'paired residual read B16 GPU0 diagnostic':
+            pair_path = path.parent/'residual_pair_gpu0_diagnostic/result.json'
+        if not pair_path.exists() and (path.parent/'winner_pair/result.json').exists():
+            pair_path = path.parent/'winner_pair/result.json'
+        if not pair_path.exists():
+            pair_path = path.parent/f'pair_gpu{experiment["gpu"]}/result.json'
+        first = read(pair_path)
+        comparisons = [(('User-authorized GPU0 continuation;same-card pair;fixed GPU3 target '
+                         'retained;not re-anchored' if gpu0_continuation else
+                         f'GPU{first["gpu"]} same-card diagnostic'), pair_path)]
+        if experiment.get('initial_pair_source'):
+            comparisons.append(('initial complete pair;extreme variability;not admission',
+                                Path(experiment['initial_pair_source'])))
+        diagnostic = path.parent/'gpu0_diagnostic_v1/pair/result.json'
+        if diagnostic.exists():
+            comparisons.append(('GPU0 allocation deviation;diagnostic only;not admission', diagnostic))
+        g22 = path.parent/'g22_pair/result.json'
+        if g22.exists():
+            comparisons.append(('G22 diagnostic versus rank0', g22))
+        for scope, source in comparisons:
+            pair = read(source)
+            if pair['protocol'] != 'P-PAIR' or len(pair['measurements']) != 6:
+                raise ValueError('BERT comparison requires a complete paired protocol')
+            if any(m['guard']['code'] for m in pair['measurements']):
+                raise ValueError('BERT timing guard did not pass')
+            rows.append(dict(experiment=name, batch=experiment['batch'], gpu=pair['gpu'],
+                reference_ms=pair['reference_ms'], candidate_ms=pair['candidate_ms'],
+                ratio=pair['ratio'], gain_pct=100*(1-pair['ratio']),
+                threshold_pct=100*pair['threshold'],
+                accepted=(pair['gpu'] != 0 or gpu0_continuation) and pair['ratio']<1-max(pair['threshold'],
+                    experiment.get('minimum_gain', 0),
+                    .03 if name.startswith('Repeat') or name=='shared terminal FFN2 B16' or
+                        (name.startswith('phase72') and experiment['batch'] in (8, 16)) else 0), scope=scope,
+                correctness='P-CORR5/5 with cross-process output byte hashes',
+                artifact_id=identity['artifact_id'], binary_sha256=identity['binary_sha256'],
+                source_digest=identity['source']['source_digest'],
+                clocks=json.dumps([{k:m[k] for k in ('start_sm_clock_mhz','end_sm_clock_mhz')}
+                                   for m in pair['measurements']], separators=(',', ':')),
+                evidence='verified', qualification=pair['qualification'],
+                gate=str(gate_path), source=str(source),
+                repeat_layers=12//int(repeat[1]) if repeat else 0))
+        selection = path.parent/'tune_selection.json'
+        if selection.exists():
+            d = read(selection)
+            choices.append(name+': '+', '.join(f"group{g['group']}→candidate{g['candidate']}"
+                                              for g in d['groups'])+'.')
+    norm_cache_path = base/'row_norm_cache_closed_v1/result.json'
+    if norm_cache_path.exists():
+        import hashlib
+        closed = read(norm_cache_path)
+        for source, expected in closed['receipts'].items():
+            if hashlib.sha256(Path(source).read_bytes()).hexdigest() != expected:
+                raise ValueError('archived normalization cache receipt changed')
+        folder = continuation/'row_norm_cache_model_v1'
+        experiment = read(folder/'experiment.json')
+        value = read(folder/'result.json')
+        pair = experiment['pair']
+        identity = read(Path(experiment['library']+'.identity.json'))
+        if (not closed['passed'] or closed['status'] != 'rejected_archived_restored'
+                or value['status'] != 'pair_rejected' or experiment['accepted']
+                or experiment['minimum_gain'] != .005 or value['final'] is not None
+                or not closed['main_python_restored']
+                or closed['artifact_id'] != identity['artifact_id']
+                or pair['ratio'] < 1-max(.005, pair['threshold'])):
+            raise ValueError('archived normalization cache negative changed')
+        # Its experimental19th binding was validated before the owned parser
+        # was removed; frozen receipts preserve that fact without enabling it.
+        rows.append(dict(experiment='reader-owned normalization cache B16', batch=16,
+            gpu=pair['gpu'], reference_ms=pair['reference_ms'],
+            candidate_ms=pair['candidate_ms'], ratio=pair['ratio'],
+            gain_pct=100*(1-pair['ratio']), threshold_pct=100*pair['threshold'],
+            accepted=False, scope='Archived negative;verified experimental identity '
+                'and two fresh protocol17 cohorts;current backend restored',
+            correctness='P-CORR5/5 with incumbent named bytes',
+            artifact_id=closed['artifact_id'], binary_sha256=closed['binary_sha256'],
+            source_digest=closed['source_digest'], clocks=json.dumps([
+                {k:r[k] for k in ('start_sm_clock_mhz','end_sm_clock_mhz')}
+                for r in pair['measurements']], separators=(',', ':')),
+            evidence='verified', qualification=pair['qualification'],
+            gate=experiment['gate'], source=str(folder/'pair/result.json'), repeat_layers=1))
+    sys.path.insert(0, str(ROOT/'scripts'))
+    from dnn4_bert_tune_followup import collect
+    recent_rows, recent_paragraphs, _ = collect(base)
+    rows.extend(recent_rows)
+    if not rows:
+        raise ValueError('no completed BERT comparisons')
+    args.out.mkdir(parents=True, exist_ok=True)
+    with (args.out/'DNN4_BERT_optimization.csv').open('w', newline='') as stream:
+        writer = csv.DictWriter(stream, list(rows[0]), lineterminator='\n')
+        writer.writeheader()
+        writer.writerows(rows)
+    lines = ['# DNN4 BERT optimization progress', '',
+             'Verified guarded comparisons use the same BF16 model inputs and the coordinates identified by each artifact. '
+             'All candidates passed five fresh FP32-reference processes with identical cross-process output hashes. '
+             'P-PAIR uses A/B/A/B/A/B, three fresh processes per side, 50 warmups and 200 events per process. '
+             'Acceptance requires a gain larger than max(0.5%, twice the larger process range). '
+             'GPU1 diagnostics guide optimization; G22 diagnostics compare on GPU3 against the explicitly identified control and do not '
+             'replace selection against the eventual final winner or three-process P-DNN.', '',
+             '| Experiment | GPU | Reference ms | Candidate ms | Gain % | Noise threshold % | Significant gain |',
+             '| --- | --- | --- | --- | --- | --- | --- |']
+    for row in rows:
+        lines.append(f'| {row["experiment"]} | {row["gpu"]} | {row["reference_ms"]:.6f} | '
+                     f'{row["candidate_ms"]:.6f} | {row["gain_pct"]:+.3f} | '
+                     f'{row["threshold_pct"]:.3f} | {row["accepted"]} |')
+    lines += ['', 'Verified attention experiment: QK/PV columns were distributed across eight consumer warps '
+              'without changing any output accumulation order. Per-head unit5/5 and sanitizer memcheck1/1, '
+              'initcheck1/1, racecheck5/5, synccheck5/5 passed; whole-model outputs also matched the control '
+              'byte for byte. Neither timing gain exceeded process variability, so the original header was restored. '
+              'The initial driver added an unnecessary3% cutoff, which does not affect either rejection '
+              'because both measured noise thresholds exceed3%. Frozen sources and the patch remain under runs/dnn4/bert_priority.', '',
+              'Verified TK128 experiment: one deterministic max-legal-slot configuration on12 QKV stages; '
+              'other stages and tile/split/store coordinates unchanged. No significant gain. '
+              'Verified residual TMA experiment: only24 residual-reuse stages change store mode, with no '
+              'additional shared allocation or changes to tiles/splits/TK/Slots.', '',
+              'Verified in-situ experiments use the six already authorized candidate programs, three fresh '
+              'processes per variant and20 warmups/50 trace windows. Group sums select a coordinate, then '
+              'the assembled nontrace program faces a whole-model P-PAIR gate. These experiments add no parameter scan.', '',
+              *choices, '',
+              'Verified post-collection checks reject40/232: the89-case scan still spills28B on256x128 '
+              'residual_ln_rowstats, and the full B16 program spills36B; it is never executed. B1 compiles '
+              'without spill but has no significant gain. FFN1 128x256 uses one deterministic legal '
+              'four-slot register-store variant; it regresses and is rejected. Distance1 has no significant gain.', '',
+              'Verified Repeat inline tables use grid-constant parameter storage instead of dependent '
+              'global index reads. Unit5/5 and sanitizer memcheck1/1,initcheck1/1,racecheck5/5,synccheck5/5 '
+              'pass; both whole-model comparisons fail DT-CODE. The implementation patch is archived '
+              'and the production headers are restored. Four-element GELU scheduling also has no '
+              'end-to-end gain: five full precision probes report0 bad values and preserve scalar bits; '
+              'the132-CTA resident epilogue ratio is1.0072, and its full B16 comparison is rejected.', '',
+              'Verified single-layer Repeat12x5 is an explicit deviation from the prescribed two-layer '
+              'Repeat6x10. Logical stage numbers preserve arena parity for odd loop bodies. Odd and even '
+              'body unit cohorts pass5/5; each passes isolated memcheck1/1,initcheck1/1,racecheck5/5, '
+              'synccheck5/5. B1 and B16 strict whole-model checks pass5/5 with identical cross-process '
+              'output hashes. GPU2 B1 improves19.08%;GPU3 complete P-PAIR confirms19.09%. B16 and B4 '
+              'have no significant gain. The B2 published rank1 coordinates decline Repeat and remain '
+              'flat; a separate periodic B2 candidate spills4B and is never executed. The mode remains '
+              'explicitly selected rather than enabled for unmeasured coordinates.', '',
+              'Verified B1 boundary trace sum535456ns exceeds fresh nontrace smoke498320ns by7.45%, '
+              'so these windows are excluded from P-TUNE. Four of the six original complete variants '
+              'spill and are never executed. Nontrace P-SEL uses the two legal loop variants, the accepted '
+              'loop control and an existing distinct model-rank candidate; it retains the loop control. '
+              'GPU3 P-DNN has median0.498176ms,p900.500640ms,process range0.013232ms. This is still '
+              'above the unchanged0.4858ms BF16 goal. Failed or killed partial paired cohorts are discarded '
+              'in full; occupancy exit75 retries the complete cohort.', '',
+              'Verified follow-up rejects16-bit inline parameter tables: odd-loop unit5/5 and '
+              'sanitizer1/1/5/5 pass;full B1 FP32/byte checks5/5 pass, but the complete P-PAIR '
+              'against the accepted loop is0.498656→0.507488ms,ratio1.017712,noise0.9369%. '
+              'The prototype headers are restored. Earlier B8 canonical buffer aliases required '
+              'retaining its exact flat program instead of failing. Four real '
+              'CPU codegen cases cover B1 one/two-layer loops,B2 nonperiodic fallback and B8 alias '
+              'fallback;all retain63 logical stages. No new B8 performance is claimed.', '',
+              'Verified P1 row normalization is explicitly selected only for B16: the side warp '
+              'reduces the existing statistics in their original order and publishes cached '
+              '(mean,inv) through32 individual release arrivals before consumer side_full. '
+              'This deviates from consumer-side normalization in section5.2. The first prototype '
+              'failed racecheck with89 errors and is rejected regardless of timing. The repaired '
+              'implementation passes unit5/5 and isolated memcheck1/1,initcheck1/1,racecheck5/5, '
+              'synccheck5/5. B1 loop and B16 whole-model FP32/byte checks each pass5/5. '
+              'B16 GPU2/GPU3 complete paired gains are3.03%/2.71%;GPU3 P-DNN median1.421744ms, '
+              'p901.446144ms,process range0.001824ms. This still exceeds the unchanged1.0869ms '
+              'BF16 goal. Combining P1 normalization with the periodic B2 loop spills8B stores/32B '
+              'loads and is never executed;the standalone periodic B2 loop also remains rejected.', '',
+              'Verified explicit scalar phase selection eliminates B1 local-memory instructions '
+              'and passes odd-body unit5/5 and sanitizer1/1/5/5, but has no significant E2E gain; '
+              'the prototype is archived and restored. B2 still spills28B and is never executed. '
+              'Combining scalar phase with FFN2 Slots6 restores one-arena preissue and measures '
+              '2.03% faster, below its6.36% noise threshold;it is not admitted. A separate FFN2 '
+              'split4/Slots6 variant regresses5.82% and is also rejected. Fixed BF16 targets and '
+              'the50/200 measurement protocol remain unchanged.', '',
+              'Verified attention Rows64 B16 passes per-head unit5/5,sanitizer1/1/5/5 and '
+              'whole-model FP32/byte checks5/5, but its0.60% gain over the accepted Rows128 '
+              'P1-normalization control is below1.70% noise. Three-warp row normalization '
+              'also passes unit5/5,sanitizer1/1/5/5 and B1/B16 model checks5/5;B1 regresses3.05%, '
+              'and B16 improves0.43% below0.66% noise. Both mechanisms are rejected for '
+              'performance admission;the three-warp implementation is archived and restored. '
+              'Codegen exposes explicit SIDE_NORM and ATTENTION_ROWS settings while preserving '
+              'the default source. A real three-profile CPU test checks all12 query-map boxes, '
+              'all63 stage bindings and invalid setting rejection.', '',
+              'Verified opt-in register profile64/216 keeps the per-SMSP sum496 below the '
+              'entry pool504. It deviates from the prescribed56/224 fallback. The periodic B2 '
+              'single-layer loop now compiles without spill;focused odd-body unit5/5 and '
+              'memcheck1/1,initcheck1/1,racecheck5/5,synccheck5/5 pass. Whole-model FP32/byte '
+              'checks5/5 pass. GPU2 gain7.49% is below7.99% noise and is not admitted;the '
+              'required GPU3 comparison confirms5.14% gain with0.50% noise and passes DT-CODE. '
+              'B2 SASS falls from1868800B to275584B. Three existing B1 variants become '
+              'nonspilling;their strict model checks5/5 pass,but G22 four-candidate P-SEL '
+              'retains the previously accepted loop. One remaining B1 variant spills12B and '
+              'is never executed. No new coordinate scan is added;the profile stays explicit. '
+              'A real four-profile CPU test also verifies invalid register-budget rejection.', '',
+              'Verified B8 alias handling now gives each repeated operand role a virtual index '
+              'when physical aliases vary across layers. Physical allocations and prefetch IDs '
+              'stay unchanged. Six real CPU codegen cases certify63-stage coverage;B1 one/two-layer '
+              'and accepted periodic B2 sources remain byte-identical. B8 one/two-layer contract '
+              'tests each reject six remap corruptions and preserve the flat source. Virtual-ID '
+              'units under56/224 and64/216 each pass5/5 and sanitizer1/1/5/5. The B8 model spills '
+              '4B stores/28B loads under56/224 and is never executed;64/216 compiles without spill '
+              'and passes strict model checks5/5. GPU2 was cancelled before measurement because '
+              'a separate baseline controller held its lock;that controller was left running. '
+              'GPU3 P-PAIR is1.051232→1.070064ms,ratio1.017914,noise2.9649%;DT-CODE fails, '
+              'so B8 keeps the published flat winner. The newly valid Repeat path remains opt-in.', '',
+              'Verified host-selected Repeat prefetch tables preserve prefetch distance and byte budgets, '
+              'pass odd-body unit5/5,sanitizer1/1/5/5 and B1/B2 model checks5/5. '
+              'Complete GPU3 P-PAIR gives B1 ratio1.039358,noise6.8132% and B2 ratio0.959454,noise5.6363%. '
+              'Neither gain exceeds noise;the prototype header is archived and restored.', '',
+              'Verified middle-batch P1 normalization preserves accepted coordinates and passes strict '
+              'model checks5/5. B2 GPU3 ratio0.950017 is below5.61% noise,so its old loop stays selected. '
+              'B4 GPU3 ratio0.963260 beats1.94% noise;P-DNN median0.760672ms,p900.764224ms,range0.006784ms. '
+              'The64/216 side-normalization unit also passes5/5 and sanitizer1/1/5/5. '
+              'B8 ratio0.970675 gives2.9325% gain below2.9386% noise and is rejected. '
+              'B4 remains above its fixed BF16 goal and retains the original anchor without re-anchoring.', '',
+              'Verified FFN2 TK128 retains split3 and the tile,using the largest legal six-slot ring. '
+              'B1 model checks5/5 pass;GPU3 ratio1.033929,noise4.85% gives no gain,and accepted coordinates stay unchanged. '
+              'Verified GELU reciprocal without Newton refinement passes the2^24-point grid and all finite BF16 '
+              'values5/5 with max normalized error1.972e-7. The explicitly reserved GPU3 precision cohort is used; '
+              'earlier scheduler-environment attempts are excluded. Unit5/5,sanitizer1/1/5/5 and B1/B16 model checks5/5 pass. '
+              'The132-CTA three-task epilogue ratio is0.923058 over the current approximation on GPU3, '
+              'but B1 E2E ratio1.031251 and B16 ratio0.991282 fail noise6.58%/1.60%. '
+              'The prototype is archived and both production header and temporary gate option are restored.', '',
+              'Verified attention QK contraction-loop unrolling preserves MMA order and passes per-head unit5/5 '
+              'plus sanitizer1/1/5/5. The B1 program compiles without spill and passes model checks5/5, '
+              'but its0.63% gain is below7.25% noise. The B16 program spills16B stores/244B loads and is '
+              'never executed. Initial pragma-macro compilation failures are retained separately. '
+              'The prototype header and temporary gate option are restored.', '',
+              'Verified cooperative FFN1 TM256/TN128 uses two m64 fragments per WG,maximum legal four slots '
+              'and register stores. Its exact NT12/spanning body passes unit5/5 and sanitizer1/1/5/5; '
+              'the full B16 program is nonspilling and passes model checks5/5. GPU3 P-PAIR ratio1.145325 '
+              'exceeds3.03% noise;reject and retain the accepted B16 coordinates. The B8 alias-safe loop '
+              'combined with P1 normalization and64/216 also passes model checks5/5, but its0.73% gain '
+              'fails2.44% noise and DT-CODE3%;retain the flat B8 winner.', '',
+              'GPU3 foreign occupancy delayed additional same-card G22 probes; only our pending '
+              'schedulers were cancelled, and fresh candidate/control pairs moved to authorized GPU2. '
+              'The separately identified B1/B2/B16 follow-ups do not silently replace the earlier frozen20-cell collection. '
+              'That BERT batch collection '
+              'completed on GPU3: B1/B2/B4/B8/B16 =0.614016/0.695504/0.790144/1.043264/1.463168ms. '
+              'None beats its frozen BF16 target. CNN collection is complete and paused; '
+              'existing CNN results and all60 baseline arms are reused. GPU ownership remains '
+              'qualified by the container PID namespace. See DNN4_BERT_optimization.csv for identities, '
+              'clocks, correctness receipts and raw timing sources.']
+    pending = []
+    for path in (base/'repeat_arithmetic_models_v1/b1', base/'repeat_arithmetic_models_v1/b2',
+                 base/'repeat_side_norm_b16_v1'):
+        if (path/'native/result.json').exists() and not (path/'experiment.json').exists():
+            identity = verify(path/'native/model.so')
+            state = read(path/f'correctness/{identity["artifact_id"][:20]}/scheduler/state.json')
+            reservation = state['dnn4-f3-model-gates']
+            gate = read(Path(reservation['out'])/'cohort/result.json')
+            if reservation['status'] != 'done' or gate['status'] != 'passed' or gate['passes'] != '5/5':
+                raise ValueError('pending candidate lacks complete strict correctness')
+            pending.append(path.name if path.name.startswith('repeat_') else 'binding arithmetic '+path.name)
+    if pending:
+        cpu = read(base/'host_build_v1/main_codegen_result.json')['cases']
+        if (len(cpu) != 4 or any(c['status'] != 'passed' or c['logical_stages'] != 63 or
+                                not c['invalid_arithmetic_rejected'] for c in cpu) or
+                '100% tests passed, 0 tests failed out of 7' not in
+                (base/'checkpoint_ctest_v7.log').read_text()):
+            raise ValueError('pending implementation lacks host codegen/ctest receipts')
+        lines += ['', 'Verified pending candidates: '+', '.join(pending)+'. '
+                  'All compile without spill and pass five fresh strict FP32/byte checks. '
+                  'Arithmetic remaps use only exactly verified constant, affine or period-two columns; '
+                  'irregular columns keep the original load. Odd56/224 and alias64/216 component cohorts '
+                  'each pass unit5/5 and sanitizer1/1/5/5, including absent and irregular index cases. '
+                  'Four real codegen cases preserve63 logical stages and reject invalid settings; '
+                  'the incremental host build and seven related ctest cases pass. '
+                  'The arithmetic feature stays explicitly selected and default0 pending complete GPU3 pairs. '
+                  'An additional GPU0 diagnostic is a recorded card-allocation deviation caused by '
+                  'prolonged foreign occupancy; it cannot replace G22 admission or the current accepted artifacts.']
+    arithmetic = base/'repeat_arithmetic_models_v1/b2/experiment.json'
+    if arithmetic.exists():
+        decision = read(arithmetic)
+        pair = decision['pair']
+        assert decision['accepted'] and pair['gpu'] == 3
+        final = read(arithmetic.parent/'g22_followup_final_v1/final_result.json')
+        assert not final['smoke_regression'] and final['measurement']['protocol'] == 'P-DNN'
+        lines += ['', 'Verified arithmetic remaps use compile-time checked constant, affine or '
+                  'period-two index columns; irregular columns retain lookup. Odd56/224 and '
+                  'alias64/216 units each pass5/5 and sanitizer1/1/5/5;both models pass strict5/5 '
+                  'without spill. Four real codegen cases and seven related ctests pass. '
+                  f'B2 GPU3 P-PAIR {pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms '
+                  f'beats{100*pair["threshold"]:.2f}% noise;P-DNN '
+                  f'{final["measurement"]["candidate_ms"]:.6f}ms passes B2 admission. '
+                  'B1 has no significant gain;B16 Repeat plus P1 normalization also fails '
+                  'DT-CODE and keeps the flat control. GPU0 allocation-deviation diagnostics '
+                  'are separately identified and cannot replace G22 admission. '
+                  'The arithmetic feature remains default0 and is explicitly selected by admitted profiles.']
+    diagnostic = base/'ncu_b16_v1/result.json'
+    if diagnostic.exists():
+        ncu = read(diagnostic)
+        if ncu['error'] != 'ERR_NVGPUCTRPERM' or ncu['settings_changed']:
+            raise ValueError('unexpected hardware-counter diagnostic state')
+        lines += ['', 'Verified hardware-counter diagnostic: ncu2025.1.1 exits1 with ERR_NVGPUCTRPERM; '
+                  'no counter samples are available and no device/driver settings were changed. '
+                  'Fresh host CMake configuration also fails because the external MLIR installation '
+                  'lacks obj.MLIRCAPIDebug/Debug.cpp.o. The existing configured incremental build succeeds.']
+    statistics_tma = base/'stats_tma_b16_v1/experiment.json'
+    if statistics_tma.exists():
+        decision = read(statistics_tma)
+        assert not decision['accepted']
+        lines += ['', 'Verified statistics-TMA prototype maps even-M statistics as a BF16 byte view '
+                  'and loads all NT parts with one unswizzled3D TMA;odd M and NT1 keep Bulk. '
+                  'This explicitly deviates from per-part Bulk in section5.2. Focused units '
+                  'pass5/5,memcheck1/1,initcheck1/1,racecheck5/5,synccheck5/5;the complete '
+                  'second guarded cohort is used and the interrupted first is excluded. '
+                  'B16 compiles without spill and passes model5/5. GPU3 P-PAIR '
+                  f'ratio{decision["pair"]["ratio"]:.6f} exceeds '
+                  f'{100*decision["pair"]["threshold"]:.2f}% noise. Reject;the prototype '
+                  'patch is archived and all production files are restored.']
+    for batch in (8, 16):
+        folder = base/f'side_norm_retune_b{batch}_v1'
+        if not (folder/'tune_selection.json').exists():
+            continue
+        selection = read(folder/'tune_selection.json')
+        qualification = read(folder/'trace_qualification.json')
+        eligible = selection.get('eligible_variants', list(range(6)))
+        lines += ['', f'Verified P1 B{batch} in-situ follow-up: boundary overhead '
+                  f'{100*qualification["relative_difference"]:.3f}% passes5%;'
+                  f'{len(eligible)}/6 existing variants complete three fresh20/50 traces each. '
+                  'Spilled variants, if any, are excluded before execution and remain recorded. '
+                  'Group-window winners describe local selection;only the assembled nontrace '
+                  'program can qualify through the complete GPU3 end-to-end pair.']
+        if (folder/'experiment.json').exists():
+            decision = read(folder/'experiment.json')
+            lines += [f'Verified assembled B{batch} P-PAIR ratio{decision["pair"]["ratio"]:.6f};'
+                      f'noise{100*decision["pair"]["threshold"]:.3f}%;'
+                      f'accepted={decision["accepted"]}.']
+    wide_k = base/'ffn1_tk128_b16_v1/experiment.json'
+    if wide_k.exists():
+        decision = read(wide_k)
+        lines += ['', 'Verified FFN1 TK128 uses three slots and register stores on the12 FFN1 '
+                  'stages;all other accepted B16 coordinates remain unchanged. The exact '
+                  '2048x3072x768,NT12 unit passes5/5,memcheck1/1,initcheck1/1,racecheck5/5,'
+                  'synccheck5/5;the whole model passes5/5 without spill. '
+                  f'GPU3 P-PAIR ratio{decision["pair"]["ratio"]:.6f} regresses and is rejected. '
+                  'The regression unit remains as coverage for wide-K spanning slots.']
+    scalar = base/'scalar_arithmetic_b8_v1/native/model.so.ptxas.log'
+    if scalar.exists():
+        unit = read(base/'scalar_arithmetic_alias_unit_v1/raw/dnn4-focused-f3-gates/attempt1/cohort/result.json')
+        spills = list(map(int, re.findall(r'(\d+) bytes spill (?:stores|loads)', scalar.read_text())))
+        if not unit['passed'] or len(unit['processes']) != 17 or not any(spills):
+            raise ValueError('scalar arithmetic rejection lacks its unit or compilation evidence')
+        lines += ['', 'Verified scalar phase plus arithmetic alias component passes unit5/5 and '
+                  'sanitizer1/1/5/5. The B8 Repeat/P1 whole-model build still spills '
+                  +'/'.join(map(str, spills))+'B stores/loads under64/216;it is never executed. '
+                  'The prototype patch is archived and its production header is restored.']
+    single_store = base/'single_store_tk128_b16_v1/experiment.json'
+    if single_store.exists():
+        decision = read(single_store)
+        assert not decision['accepted']
+        lines += ['', 'Verified TK128 single-store prototype explicitly deviates from section6.2: '
+                  'one8KiB staging box per WG replaces two and uses wait_group.read0 before '
+                  'each reuse. This fits three TK128 slots while retaining TMA writes. '
+                  'Exact FFN1 and cross-stage ordering cohorts each pass unit5/5 and '
+                  'sanitizer1/1/5/5;the whole model passes5/5 without spill. '
+                  'The first pair has351.287% noise and is inconclusive;all six processes '
+                  'remain recorded. A complete second pair measures '
+                  f'ratio{decision["pair"]["ratio"]:.6f} against '
+                  f'{100*decision["pair"]["threshold"]:.3f}% noise. Reject and restore the '
+                  'production files;the archived patch retains the prototype.']
+    wide_store = base/'single_store_tn256_b16_v1/v2/experiment_gpu0.json'
+    if wide_store.exists():
+        decision = read(wide_store)
+        assert not decision['accepted']
+        lines += ['', 'Verified TN256 single-buffer follow-up retains TK64 and four slots on '
+                  'the12 FFN1 stages. The first model fails correctness because its serialized '
+                  'weight-packing recipes still use TN128;that artifact is never timed. '
+                  'A separate corrected artifact updates all12 recipes,compiles without spill '
+                  'and passes model5/5. The exact TN256 component passes unit5/5 and '
+                  'sanitizer1/1/5/5;cross-stage ordering reuses the prior17/17 single-buffer '
+                  'protocol gate. GPU2 never launches under foreign occupancy;GPU0 '
+                  'allocation-deviation P-PAIR gives '
+                  f'ratio{decision["pair"]["ratio"]:.6f},noise'
+                  f'{100*decision["pair"]["threshold"]:.3f}%. '
+                  'Reject and restore the prototype headers;no G22 admission.']
+    attention_loads = base/'attention_load_pair_b1_v1/experiment.json'
+    if attention_loads.exists():
+        decision = read(attention_loads)
+        lines += ['', 'Verified attention operand scheduling issues two independent shared '
+                  'matrix loads before their dependent MMAs,without changing any output '
+                  'accumulation order or Rows16 geometry. Per-head unit5/5 and '
+                  'sanitizer1/1/5/5 pass;the B1 model passes5/5 and its output bytes '
+                  'match the admitted control. SASS is259456B,maxR195,zero spill. '
+                  'GPU0 diagnostic P-PAIR gives '
+                  f'ratio{decision["pair"]["ratio"]:.6f},noise'
+                  f'{100*decision["pair"]["threshold"]:.3f}%. '
+                  'No significant end-to-end gain;archive and restore the isolated header.']
+    for batch in (8, 16):
+        experiment = base/f'phase72_consumer216_retune_b{batch}_gpu0_v1/experiment.json'
+        if experiment.exists():
+            decision = read(experiment)
+            selection = read(experiment.parent/'tune_selection.json')
+            qualification = read(experiment.parent/'trace_qualification.json')
+            lines += ['', f'Verified72/216 B{batch} re-selection qualifies'
+                      f'{100*qualification["relative_difference"]:.3f}% boundary overhead;'
+                      f'{len(selection["eligible_variants"])}/6 existing variants complete'
+                      '3/3 fresh traces. '
+                      + ('B8 deliberately uses reduced three-member coverage;this is a '
+                         'diagnostic deviation,not complete P-TUNE coverage. ' if batch == 8 else '')
+                      +
+                      'The assembled nontrace model passes5/5;GPU0 P-PAIR gives'
+                      f'ratio{decision["pair"]["ratio"]:.6f} versus'
+                      f'{100*decision["pair"]["threshold"]:.3f}% noise. '
+                      'Admission and current artifacts remain unchanged.']
+    two_layer = base/'two_layer_arithmetic_b16_v1/experiment.json'
+    if two_layer.exists():
+        decision = read(two_layer)
+        lines += ['', 'Verified prescribed two-layer Repeat6x10 combined with arithmetic '
+                  'bindings and P1 retains the B16 coordinates and56/224 roles. Alias '
+                  'and P1 component gates each pass17/17;the model passes5/5 without '
+                  'spill. GPU0 diagnostic P-PAIR gives '
+                  f'ratio{decision["pair"]["ratio"]:.6f} versus'
+                  f'{100*decision["pair"]["threshold"]:.3f}% noise and is rejected. '
+                  'The B8 counterpart spills52/192B stores/loads and is never executed.']
+    boundary = base/'trace3_local_boundary_b1_v2/trace_qualification.json'
+    if boundary.exists():
+        qualification = read(boundary)
+        assert not qualification['passed']
+        lines += ['', 'Verified B1 boundary-trace cache is rejected:thread0 keeps the four '
+                  'markers in unused header padding and flushes at leave;three fresh '
+                  'GPU3 processes compare output bytes against the admitted control. '
+                  f'Window sum differs by{100*qualification["relative_difference"]:.3f}% '
+                  'from nontrace,above5%,so these windows never select coordinates. '
+                  'The first static-shared variant exceeds the full dynamic-memory '
+                  'allocation and is rejected before launch. Both patches remain raw '
+                  'and the production header is restored. B1 instead tests existing '
+                  'whole-program candidates using nontrace P-SEL and P-PAIR.']
+    cached = base/'boundary_cache_current_v1/result.json'
+    if cached.exists():
+        for trial in read(cached)['rows']:
+            preparation = read(Path(trial['default0_proof']))
+            proof = next(row for row in preparation['rows']
+                         if row['batch'] == trial['batch'] and row['trace'] == 0)
+            cohort = read(Path(trial['trace_receipt']))
+            if (not proof['default0_proof']['passed'] or cohort['status'] != 'passed'
+                    or len(cohort['processes']) != 3):
+                raise ValueError('cached instrumentation requires production equivalence and three traces')
+            disposition = ('qualifies for existing-candidate in-situ selection'
+                           if trial['passed'] else 'fails5%;these windows never select coordinates')
+            lines += ['', f'Verified current B{trial["batch"]} reuses the exact prior '
+                      'header-padding boundary cache;nontrace instruction words equal the '
+                      'accepted binary. Three fresh guarded GPU3 trace processes compare '
+                      'output bytes with that binary;this is diagnostic coverage,not '
+                      'five-process P-CORR. Boundary sum versus fresh nontrace P-SMOKE '
+                      f'differs by{100*trial["relative_difference"]:.3f}%;{disposition}. '
+                      'The production marker header and current artifacts remain unchanged.']
+    incomplete = base/'boundary_cache_retune_b4_v1/incomplete_selection.json'
+    if incomplete.exists():
+        coverage = read(incomplete)
+        lines += ['', 'Verified current72/208 B4 cached-boundary qualification passes, '
+                  f'but only{len(coverage["eligible"])}/6 fixed candidates have both '
+                  'production and boundary builds without spill. Candidate5 trace '
+                  'is legal,but its nontrace build spills8/8B and never executes. '
+                  'The other two rejected trace variants spill52/104B and96/180B. '
+                  'Three legal variants each pass model5/5 and three matched-coordinate '
+                  'byte-checked trace processes. Coverage below four prohibits an '
+                  'assembled selection;the existing72/216 profile is qualified separately.']
+    incomplete = base/'boundary_cache216_b8_v1/incomplete_selection.json'
+    if incomplete.exists():
+        coverage = read(incomplete)
+        if coverage['gpu_executed'] or coverage['eligible'] != [0, 1, 2]:
+            raise ValueError('B8 compile-only rejection differs from its stated coverage')
+        lines += ['', 'Verified CPU-only B8 register-profile3 follow-up preserves the six '
+                  'existing coordinate variants. Only0/1/2 have zero-spill production and '
+                  'boundary builds;3/4/5 spill. Coverage remains3/6,below four;these '
+                  'partial windows cannot assemble stage coordinates. A separate whole-program '
+                  'fallback may compare the three legal programs with the incumbent after '
+                  'strict model5/5;an ambiguous selection retains the incumbent.']
+    raw_tuned = base/'boundary_cache216_b4_v1/final_result.json'
+    if raw_tuned.exists():
+        result = read(raw_tuned)
+        pair = result['pair']
+        pending = not (base/'boundary_cache216_b4_admitted_v1/final_result.json').exists()
+        lines += ['', 'Verified B4 fixed-candidate72/216 prototype on historical GPU3: '
+                  f'P-PAIR{pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms;'
+                  f'gain{100*(1-pair["ratio"]):.3f}% versus{100*pair["threshold"]:.3f}% noise. '
+                  f'P-DNN{result["measurement"]["candidate_ms"]:.6f}ms. '
+                  + ('This remains a prototype;the current continuation separately checks '
+                     'four-program selection,explicit-profile components,independent paired '
+                     'timing and final admission. It does not replace the current accepted '
+                     'B4 row.' if pending else
+                     'Production admission and subsequent allocation are recorded separately '
+                     'in the current artifact catalog.')]
+    preparation = base/'first_ready_b2_preparation_v1/result.json'
+    if preparation.exists():
+        result = read(preparation)
+        if not result['production_proof']['passed']:
+            raise ValueError('first-task trace prototype changes production instructions')
+        qualified = base/'first_ready_b2_gpu0_v2/trace_qualification.json'
+        status = ('Hardware qualification is pending;no performance gain or valid stage '
+                  'windows are inferred.')
+        skipped = base/'first_ready_b2_gpu0_v2/result.json'
+        if skipped.exists() and read(skipped).get('status') == 'skipped_no_selection_coverage':
+            if read(skipped)['trace_processes_executed'] != 0:
+                raise ValueError('skipped B2 trace unexpectedly executed on hardware')
+            status = ('Hardware qualification was skipped before all three trace processes: '
+                      'all48 normal GEMM stages have at most one task per CTA,so the first-task '
+                      'predicate removes no repeated baseline checks. The fresh GPU0 reference '
+                      'smoke0.572192ms is diagnostic only;no new performance is admitted.')
+        if qualified.exists():
+            result = read(qualified)
+            status = (f'Three independent GPU0 boundary processes give '
+                      f'{100*result["relative_difference"]:.3f}% overhead against a fresh '
+                      'same-card reference;'+('passes5%;eligible for fixed-candidate selection.'
+                      if result['passed'] else 'fails5%;these windows never select coordinates.'))
+        lines += ['', 'Verified B2 trace prototype checks first_ready only on the '
+                  'first local GEMM task;its clockpoint and four-marker layout are preserved. '
+                  'Production instruction words exactly match the accepted control;trace '
+                  'compilation has zero spill. '+status]
+    fixed = base/'first_ready_retune_b2_preparation_v1/compiled.json'
+    if fixed.exists():
+        result = read(fixed)
+        if result['gpu_executed'] or result['eligible'] != [0, 1]:
+            raise ValueError('B2 fixed-candidate CPU coverage differs from its evidence')
+        lines += ['', 'Verified CPU-only B2 first-task trace preparation keeps all six '
+                  'existing coordinate variants and the accepted72/216 profile. Only0/1 '
+                  'have zero-spill production and boundary builds;2/3/4/5 spill. Coverage2/6 '
+                  'prohibits assembled selection;baseline trace qualification is independent.']
+    component = base/'resume_gpu0_intermittent_20261111_v1/alias_unit/result.json'
+    if component.exists():
+        result = read(component)
+        if not result['passed'] or len(result['processes']) != 17 or result['gpu'] != 0:
+            raise ValueError('GPU0 alias prerequisite lacks its complete17 processes')
+        lines += ['', 'Verified explicit72/216 alias component on GPU0 passes unit5/5 '
+                  'and sanitizer mem1/1,init1/1,race5/5,sync5/5 in seventeen independent '
+                  'guarded reservations with released gaps. The resource.py generic entry '
+                  'was renamed worker.py after two model jobs failed before measurement '
+                  'because it shadowed the standard library;failed logs remain raw. '
+                  'No numerical or timing thresholds change,and completed component work '
+                  'is reused after the server restart.']
+    role = base/'role_operands_b8_preparation_v1/result.json'
+    if role.exists():
+        result = read(role)
+        if result['accepted'] or result['gpu_executed'] or any(r['legal'] for r in result['rows']):
+            raise ValueError('producer operand compile rejection differs from its evidence')
+        lines += ['', 'Verified private B8 producer operand lifetime trial keeps side bindings '
+                  'inside P1 and preserves the fixed coordinates. Candidates3/4 still spill '
+                  '24/32B and28/52B stores/loads versus20/28B and24/48B before the change. '
+                  'Reject at the CPU gate;no trace builds,hardware execution or production change.']
+    counts = base/'local_counts_b2_preparation_v1/result.json'
+    if counts.exists():
+        result = read(counts)
+        if result['accepted'] or result['gpu_executed'] or any(r['legal'] for r in result['rows']):
+            raise ValueError('stage index lifetime rejection differs from its evidence')
+        lines += ['', 'Verified B2 fixed4 producer index lifetime drafts preserve coordinates '
+                  'and arithmetic. Recomputing task counts reduces spill8/8B to4/4B;also '
+                  'recomputing task addresses returns to8/8B. Both fail the zero-spill '
+                  'gate and never execute on GPU. The main header is unchanged.']
+    authorization = continuation/'authorization.json'
+    if authorization.exists():
+        allocation = read(authorization)
+        historical_allcards_authorization(continuation)
+        lines += ['', 'Stated2026-11-12 allocation:all four H800 cards0–3 are authorized;'
+                  'intermittent gaps are no longer required. New schedules preserve the '
+                  'six-sample guard,300s occupancy cooldown and /root/python entry paths. '
+                  'B4/B8 timing uses original GPU3;functional checks may use the other '
+                  'cards. Previously paused queues stay retired and completed checks are reused.']
+        if (allocation['allowed_gpu_indices'] == [0, 1, 2, 3]
+                and allocation.get('allcards_resume_request') == '可以使用任意卡'):
+            lines += ['', 'Stated latest allocation permits all four physical cards0–3 '
+                      'again. The preserved fifth transition keeps prior allocations '
+                      'and actual-card receipts intact. Only idle controller queues '
+                      'whose attempts all failed preflight75 were retired; no active '
+                      'GPU or foreign process was signaled. New cohorts retain the '
+                      'original retry_at, six idle samples, exclusive locks and '
+                      '/root/python entries. CNN remains paused.']
+        elif allocation['allowed_gpu_indices'] == [0]:
+            lines += ['', 'Stated latest allocation supersedes the earlier four-card '
+                      'permission: all new and resumed tests use physical GPU0 only. '
+                      'The prior authorization snapshot and stopped-process audit '
+                      'remain under the recorded transition. Earlier completed '
+                      'checks retain their actual cards; GPU3 windows stay separate '
+                      'from new GPU0 windows. Guards and fixed targets are unchanged.']
+        elif allocation['allowed_gpu_indices'] == [0, 2]:
+            lines += ['', 'Stated latest allocation: prefer physical GPU0 and use GPU2 '
+                      'when GPU0 remains occupied. A performance group may span the two '
+                      'cards; preserve each process card and SM clock boundaries and '
+                      'qualify cross-card comparisons. Earlier completed checks retain '
+                      'their actual cards. Guards, numerical gates and fixed targets '
+                      'are unchanged; GPU1/3 receive no new test jobs.']
+        elif allocation['allowed_gpu_indices'] == [1]:
+            lines += ['', 'Stated latest allocation supersedes prior permissions: '
+                      'all new and resumed hardware tests use physical GPU1 only. '
+                      'The three preserved authorization transitions keep historical '
+                      'receipts on their actual cards. Python entries stay under '
+                      '/root/python; six-sample guards, exclusive locks, numerical '
+                      'gates and fixed targets are unchanged. CNN remains paused.']
+        elif allocation['allowed_gpu_indices'] == [1, 2]:
+            lines += ['', 'Stated latest allocation: prefer physical GPU1 and use GPU2 '
+                      'if GPU1 remains occupied. The four preserved transitions keep '
+                      'historical receipts on their actual cards; new jobs exclude '
+                      'GPU0/3. Python entries stay under /root/python; six-sample '
+                      'guards, exclusive locks, numerical gates and fixed targets '
+                      'are unchanged. CNN remains paused.']
+    relocation = continuation/'b8_corr2_relocation.json'
+    idle_change = continuation/'idle6_transition.json'
+    if idle_change.exists():
+        observed = read(continuation/'idle_observation_v1/result.json')
+        transition = read(idle_change)
+        if (not observed['cards']['3']['owners_free']
+                or observed['cards']['3']['used_mib'] != [6.0] * 6
+                or transition['old_state']['component']['exit_code'] != 75):
+            raise ValueError('GPU3 idle recalibration lacks six owner-free samples')
+        lines += ['', 'Verified GPU3 idle footprint changed from4MiB to6MiB: '
+                  'six owner-free samples5s apart record6MiB and idle SM345MHz. '
+                  'A separate guard entry updates only that measured floor;original '
+                  'workers remain frozen. Locks,six-sample preflight,foreign-process '
+                  'rejection,cooldowns and measurement thresholds remain in force. '
+                  'The pending body cohort has no accepted processes;its replacement '
+                  'inherits the cooldown. Completed component/model cohorts are reused. '
+                  'Timing continues to record actual start/end SM clocks.']
+    if relocation.exists():
+        moved = read(relocation)
+        if (moved['completed_processes_discarded'] != 0
+                or any(s['attempts'] or s['status'] != 'pending'
+                       for s in moved['states'].values())):
+            raise ValueError('B8 relocation was not a wholly unstarted cohort')
+        lines += ['', 'Verified foreign GPU1 occupancy prevents dispatch of one B8 '
+                  'functional cohort. All five jobs have zero attempts and no guarded '
+                  'children when its controllers retire. The cohort relocates to GPU0 '
+                  'under new original guards;the other two live cohorts and all '
+                  'completed checks are retained. Performance timing stays on GPU3.']
+    residual = base/'residual_pair_b16_preparation_v1/result.json'
+    if residual.exists() and read(residual)['status'] == 'prepared':
+        compiled = read(residual)
+        lines += ['', 'Verified private fixed-coordinate B16 residual-read prototype compiles '
+                  f'without spill;SASS{compiled["model"]["sass_bytes"]}B. One aligned shared32 '
+                  'read supplies each adjacent BF16 pair while preserving per-element '
+                  'arithmetic. CPU compilation establishes feasibility only;complete '
+                  'unit/sanitizer,model5/5 and same-GPU3 whole-model gates decide admission.']
+    for suite, label in [('side_finish', 'explicit72/216 P1 normalization'),
+                         ('residual_unit', 'private paired-residual-read')]:
+        receipt = continuation/suite/'result.json'
+        if not receipt.exists():
+            continue
+        result = read(receipt)
+        processes = result['processes']
+        expected = Counter(unit=5, memcheck=1, initcheck=1, racecheck=5, synccheck=5)
+        if (not result['passed'] or len(processes) != 17
+                or len({p['pid'] for p in processes}) != 17
+                or Counter(p['name'].split('-')[0] for p in processes) != expected
+                or len({p['binary_sha256'] for p in processes}) != 1
+                or len({p['output_hash'] for p in processes}) != 1
+                or any(p['exit_code'] or read(Path(p['guard']))['code'] for p in processes)):
+            raise ValueError('four-card functional receipt lacks its complete17 processes')
+        lines += ['', f'Verified {label} component on GPU{result["gpu"]}:unit5/5,'
+                  'memcheck1/1,initcheck1/1,racecheck5/5,synccheck5/5;seventeen distinct '
+                  'native processes have identical output hashes and clean guard receipts. '
+                  + ('Four completed unit processes are reused;the remaining thirteen '
+                     'run under one original guarded reservation after the inherited cooldown. '
+                     if suite == 'side_finish' else
+                     'All seventeen run under one original guarded reservation. ')
+                  + 'These are functional prerequisites;whole-model correctness and '
+                  'same-GPU3 timing decide performance admission.']
+    for suite in ('b8_corr1', 'b8_corr2', 'b8_corr3', 'residual_corr', 'store96_corr', 'store96_matrix_corr', 'qkv_slots4_corr', 'qkv_slots7_corr', 'qkv_attention_corr', 'mma_zero_corr', 'fixed_grid_corr', 'grid_recount_corr', 'grid_recount_b2_corr', 'grid_recount_b4_corr', 'grid_recount_b16_corr', 'recount_qkv4_corr'):
+        receipt = continuation/suite/'result.json'
+        if not receipt.exists():
+            continue
+        result = read(receipt)
+        processes = result['processes']
+        if (not result['passed'] or result['passes'] != '5/5'
+                or len(processes) != 5 or len({p['pid'] for p in processes}) != 5
+                or any(p['exit_code'] or read(Path(p['guard']))['code'] for p in processes)):
+            raise ValueError('continuation model receipt lacks five accepted processes')
+        minimum = min(output['cosine_min'] for case in result['cases']
+                      for output in case['outputs'])
+        cards = result.get('gpu_indices', [result['gpu']])
+        gpu_label = '/'.join(map(str, cards))
+        lines += ['', f'Verified {suite} on GPU{gpu_label}:strict FP32 model5/5,'
+                  f'minimum cosine{minimum:.8f},identical output bytes across all five '
+                  'fresh processes. These completed correctness checks do not establish '
+                  'whole-model performance or production admission.']
+    paired = continuation/'b4_experiment.json'
+    if paired.exists() and not read(paired)['accepted']:
+        decision = read(paired); pair = decision['pair']
+        lines += ['', 'Verified B4 fixed-candidate revalidation completes fresh GPU3 '
+                  'P-SEL8/8 and independent P-PAIR6/6. The selected candidate measures '
+                  f'{pair["candidate_ms"]:.6f}ms against{pair["reference_ms"]:.6f}ms;'
+                  f'gain{100*(1-pair["ratio"]):.3f}% is below'
+                  f'{100*pair["threshold"]:.3f}% process-noise threshold. Retain all six '
+                  'processes and the earlier prototype evidence;do not replace the '
+                  'admitted B4 result or rerun this pair to seek acceptance.']
+    fixed_residual = base/'residual_pair_b8_candidate3_preparation_v1/result.json'
+    if fixed_residual.exists():
+        result = read(fixed_residual)
+        if result['legal'] or result['gpu_executed'] or result['spill_bytes'] != [20, 28]:
+            raise ValueError('fixed B8 residual-read rejection differs from its compile evidence')
+        lines += ['', 'Verified CPU-only residual-pair follow-up on the existing fixed '
+                  'B8 candidate3 retains its coordinates and72/216 profile. It still spills '
+                  '20/28B stores/loads,matching the original candidate,and never executes '
+                  'on GPU. The three legal whole-program alternatives remain unchanged.']
+    whole_b8 = continuation/'b8_result.json'
+    if whole_b8.exists() and read(whole_b8)['status'] == 'retain_current':
+        result = read(whole_b8); selected = result['selection']
+        if (selected['gpu'] != 3 or len(selected['measurements']) != 8
+                or any(r['guard']['code'] for r in selected['measurements'])):
+            raise ValueError('B8 retention lacks its complete same-card selection')
+        timings = ','.join(f'{r["arm"]}={r["median_ms"]:.6f}ms' for r in selected['ranking'])
+        lines += ['', 'Verified B8 nontrace whole-program P-SEL8/8 on GPU3: '+timings+
+                  f';tied={selected["tied"]},noise{100*selected["threshold"]:.3f}%. '+
+                  ('Retain the incumbent because the winner is ambiguous. '
+                   if selected['tied'] else 'The incumbent wins and remains selected. ')+
+                  'Incomplete stage-window coverage supplies no tie priority or assembled selection.']
+    partial_store = base/'store96_profile3_model_preparation_v1/result.json'
+    if partial_store.exists() and read(partial_store)['status'] == 'prepared':
+        result = read(partial_store)
+        proof = read(base/'store96_model_preparation_v1/control_proof.json')
+        if not proof['passed'] or result['changed_stages'] != list(range(4, 60, 5)):
+            raise ValueError('partial TN96 store must preserve its fixed12-stage scope')
+        lines += ['', 'Verified private partial TN96 store extends section6.2 under the '
+                  'user-authorized implementation discretion:only the first64 columns use '
+                  'TMA;the remaining32 use generic stores,with the full-box bound enforced '
+                  'inside each WG tile. The12 B8 FFN1 stages change Slots7 to6 to fit '
+                  '218112B including staging;Slots7 would require246784B and is illegal. '
+                  'The current72/208 whole-model build spills4/20B and never executes. '
+                  f'The existing72/216 profile compiles without spill,SASS{result["model"]["sass_bytes"]}B. '
+                  'Regeneration with unchanged coordinates/profile matches all41072 encoded '
+                  'instruction words of the incumbent. Solver enumeration is unchanged;'
+                  'exact-profile body/order gates,model5/5 and a same-GPU3 gain above3% '
+                  'and noise are required before enabling this extension.']
+        for suite in ('store96_body', 'store96_profile3_ordering', 'store96_profile3_body',
+                      'store96_matrix_ordering', 'store96_matrix_body'):
+            source = continuation/suite/'result.json'
+            if not source.exists():
+                continue
+            unit = read(source)
+            if not unit['passed'] or len(unit['processes']) != 17:
+                raise ValueError('partial store component cohort is incomplete')
+            lines += [f'Verified {suite}:unit5/5,mem1/1,init1/1,race5/5,sync5/5 '
+                      f'on GPU{unit["gpu"]};all seventeen fresh processes have identical '
+                      'output hashes. Functional evidence does not establish E2E benefit.']
+        attribution = continuation/'store96_attribution.json'
+        if attribution.exists():
+            summary = read(attribution)
+            ffn1 = next(r for r in summary['groups'] if r['group'] == 'ffn1')
+            old, new = ffn1['reference_us'], ffn1['candidate_us']
+            lines += ['Verified rejected partial-store attribution:the12 FFN1 windows sum'
+                      f'{old["stage_ns"]:.3f}→{new["stage_ns"]:.3f}us;main-loop CTA maxima sum'
+                      f'{old["main_loop_max_cta_ns"]:.3f}→{new["main_loop_max_cta_ns"]:.3f}us;'
+                      f'epilogue{old["epilogue_max_cta_ns"]:.3f}→{new["epilogue_max_cta_ns"]:.3f}us;'
+                      f'store{old["store_max_cta_ns"]:.3f}→{new["store_max_cta_ns"]:.3f}us. '
+                      'The historical same-GPU3 reference and fresh candidate trace are '
+                      'diagnostic;segment maxima overlap. These data do not support a '
+                      'large main-loop penalty from losing one slot;the store reduction '
+                      'is small and total epilogue increases. Nontrace pair rejects the candidate.']
+        matrix = base/'store96_matrix_model_preparation_v1/result.json'
+        if matrix.exists() and read(matrix)['status'] == 'prepared':
+            compiled = read(matrix)
+            scope = read(continuation/'store96_matrix_scope.json')
+            if (compiled['changed_stages'] != list(range(4, 60, 5))
+                    or len(scope['existing_tma_stages']) != 23):
+                raise ValueError('partial matrix-store follow-up changed its scope')
+            lines += ['Verified CPU-only follow-up retains those coordinates and72/216 '
+                      'roles while enabling the existing matrix-store1 path;SASS'
+                      f'{compiled["model"]["sass_bytes"]}B,zero spill. The flag affects '
+                      'both12 partial FFN1 stores and23 existing TMA stages. This tests '
+                      'the observed epilogue cost without a slot/tile scan;separate '
+                      'matrix-store1 component/model gates and the predeclared3%-plus-noise '
+                      'whole-model gate decide acceptance.']
+        conditional = base/'store96_b16_model_preparation_v1/result.json'
+        if conditional.exists() and read(conditional)['status'] == 'prepared':
+            compiled = read(conditional)
+            if compiled['changed_stages'] != list(range(6, 60, 5)) or not compiled['control_proof']['passed']:
+                raise ValueError('conditional B16 partial store scope differs')
+            lines += ['Verified CPU-only B16 preparation applies the same partial store '
+                      'to11 repeated QKV stages,keeping the first NT1 QKV and the admitted '
+                      'profile unchanged. The control matches all44736 encoded words;'
+                      f'the candidate has zero spill and{compiled["model"]["sass_bytes"]}B SASS. '
+                      'No GPU checks or performance are claimed;this follow-up is conditional '
+                      'on B8 mechanism qualification and needs separate matrix-store1 gates.']
+    qkv = base/'qkv_slots4_b2_model_preparation_v1/result.json'
+    qkv_unit = base/'qkv_slots4_b2_units_v1/result.json'
+    if qkv.exists() and qkv_unit.exists() and read(qkv)['status'] == 'prepared':
+        compiled, resource = read(qkv), read(qkv_unit)
+        if compiled['changed_stages'] != list(range(6, 60, 5)) or not compiled['control_proof']['passed']:
+            raise ValueError('B2 four-slot candidate changes more than repeated QKV')
+        if resource['rows'][1]['payload_bytes'] != 111616 or resource['rows'][1]['spanning']:
+            raise ValueError('B2 four-slot resource boundary differs')
+        lines += ['', 'Verified CPU-only B2 pipeline follow-up applies the seed one-arena '
+                  'maximum to the admitted128x64 QKV tile:11 repeated stages change '
+                  'Slots3 to4;the first QKV and all other coordinates/profile remain fixed. '
+                  'The canonical resource function gives87040/111616/136192B for3/4/5 '
+                  'slots;four fits one arena and five spans. Current QKV attribution '
+                  'averages8.33us main loop with4.55us slot wait. The fixed candidate '
+                  f'has zero spill and{compiled["model"]["sass_bytes"]}B SASS;'
+                  'regenerated control matches all33120 encoded words. This is one '
+                  'seed-rule choice,not a parameter scan;component17/model5 and '
+                  'independent same-GPU3 E2E gain above noise decide acceptance.']
+    qkv4 = base/'qkv_slots7_b4_model_preparation_v1/result.json'
+    if qkv4.exists() and read(qkv4)['status'] == 'prepared':
+        compiled = read(qkv4)
+        resource = read(base/'qkv_slots7_b4_units_v1/result.json')
+        if (compiled['changed_stages'] != list(range(6, 60, 5))
+                or not compiled['control_proof']['passed']
+                or resource['rows'][2]['payload_bytes'] != 214016
+                or resource['rows'][3]['fits']):
+            raise ValueError('B4 seed-rule spanning candidate differs from its evidence')
+        lines += ['', 'Verified CPU-only B4 pipeline follow-up changes only11 repeated '
+                  '128x96 QKV stages from3 to7 slots. Prompt4.5 selects spanning because '
+                  'the one-arena maximum is3;seven slots fit214016B and eight do not fit. '
+                  'The previous FFN2 already spans and attention cannot preissue,so this '
+                  'change loses no existing adjacent B-page preissue. The72/208 profile '
+                  f'is unchanged;zero spill,SASS{compiled["model"]["sass_bytes"]}B,control '
+                  'regeneration matches all35296 encoded words. Complete component/model '
+                  'checks and an independent same-GPU3 pair are required for acceptance.']
+    for prefix, label in [('store96_matrix', 'partial TN96 matrix-store B8'),
+                          ('qkv_slots4', 'four-slot QKV B2'),
+                          ('qkv_slots7', 'seven-slot QKV B4'),
+                          ('qkv_attention', 'QKV plus attention vector stores B2'),
+                          ('mma_zero', 'first WGMMA initialization B16'),
+                          ('fixed_grid', 'fixed H800 grid B16'),
+                          ('grid_recount', 'fixed grid producer recomputation B8'),
+                          ('recount_qkv4','producer plus four-slot QKV B2'),
+                          *[(f'grid_recount_b{b}',f'producer recomputation B{b}') for b in (2,4,16)]]:
+        result = continuation/(prefix+'_experiment.json')
+        if result.exists() and not read(result)['accepted']:
+            experiment = read(result); pair = experiment['pair']
+            lines += ['', f'Verified {label} completes component/model gates and GPU3 '
+                      f'P-PAIR6/6:reference{pair["reference_ms"]:.6f}ms,candidate'
+                      f'{pair["candidate_ms"]:.6f}ms,gain{100*(1-pair["ratio"]):.3f}%,noise'
+                      f'{100*pair["threshold"]:.3f}%,minimum gain'
+                      f'{100*experiment.get("minimum_gain", 0):.1f}%. Reject;retain the '
+                      'incumbent and all measured processes. No final collection or '
+                      'production admission follows this pair.']
+    for prefix in ('qkv_slots4', 'qkv_slots7'):
+        path = continuation/(prefix+'_attribution.json')
+        if not path.exists():
+            continue
+        attribution = read(path); metrics = attribution['metrics']
+        if attribution['group'] != '11 repeated QKV':
+            raise ValueError('ring attribution group differs from its coordinate scope')
+        values = ';'.join(f'{label}{metrics[key]["reference_us"]:.3f}'
+                          f'→{metrics[key]["candidate_us"]:.3f}us'
+                          for label, key in [('windows', 'stage_ns'),
+                                             ('main', 'main_loop_max_cta_ns'),
+                                             ('slot wait', 'slot_wait_max_cta_ns'),
+                                             ('first ready', 'first_ready_ns')])
+        lines += ['', f'Verified B{attribution["batch"]} ring attribution across11 QKV '
+                  f'stages:{values}. Historical accepted GPU3 trace and fresh exact-candidate '
+                  'trace are diagnostic;segment maxima overlap. They do not override '
+                  'the independent nontrace pair or qualify a new performance result.']
+    if (continuation/'store96_b16_conditional_result.json').exists():
+        lines += ['Verified conditional B16 partial-store work remains CPU-only because '
+                  'the B8 mechanism did not pass its end-to-end gate;no B16 GPU job is queued.']
+    zero = base/'mma_zero_b16_preparation_v2/result.json'
+    if zero.exists() and read(zero)['status'] == 'prepared':
+        prepared = read(zero)
+        if not prepared['control_proof']['passed'] or prepared['control_proof']['words'] != 44736:
+            raise ValueError('first-MMA prototype lacks its default0 instruction proof')
+        lines += ['', 'Verified private default-off first-WGMMA initialization uses the '
+                  'CUTLASS explicit first-slot prologue:each m64 fragment starts with '
+                  'ScaleOutZero,then retains the original k16 order,slot and release '
+                  'protocol. The dynamic-predicate prototype leaves clearing instructions '
+                  'and never executes on GPU. The explicit prologue reduces static CS2R '
+                  'zero instructions289→56;SASS357888→362880B,zero spill,maxR207. Default0 '
+                  'matches all44736 incumbent instruction words. Coordinates and the '
+                  'accepted B16 profile stay fixed;end-to-end benefit is unproven.']
+        bit_proof = continuation/'mma_zero_unit_bit_proof.json'
+        if bit_proof.exists():
+            proof = read(bit_proof)
+            if not proof['passed'] or proof['reference_passes'] != '5/5' or proof['candidate_passes'] != '17/17':
+                raise ValueError('first-MMA component byte comparison is incomplete')
+            lines += ['Verified five fresh control processes and the candidate unit5/5 '
+                      'plus mem1/1,init1/1,race5/5,sync5/5 have identical output hashes '
+                      'on GPU0. The five shapes cover GELU,residual statistics,TM256 '
+                      'two-fragment ownership,TK128/split2,odd rows and ring wrap. '
+                      'These component checks do not establish an end-to-end gain.']
+        model_proof = continuation/'mma_zero_model_bit_proof.json'
+        if model_proof.exists():
+            proof = read(model_proof)
+            if not proof['passed']:
+                raise ValueError('first-MMA whole-model byte comparison failed')
+            lines += ['Verified B16 strict model5/5 also matches the incumbent output '
+                      'bytes. The independent GPU3 pair rejects this private candidate; '
+                      'the production headers and accepted B16 result remain unchanged.']
+    fixed_grid = base/'fixed_grid_b16_preparation_v1/result.json'
+    if fixed_grid.exists() and read(fixed_grid)['status'] == 'prepared':
+        prepared = read(fixed_grid)
+        if not prepared['control_proof']['passed']:
+            raise ValueError('fixed H800 grid lacks its default0 instruction proof')
+        lines += ['', 'Verified private fixed132 H800 grid specialization retains '
+                  'the B16 coordinates,register profile,task ownership and arithmetic '
+                  'order. It folds runtime task division and prefetch partitioning; '
+                  'SASS357888→343168B,static RCP97→76,zero spill. Default0 matches '
+                  'all44736 incumbent instruction words. This extends the prompt\'s '
+                  'index specialization under the user-authorized implementation '
+                  'discretion;separate functional and E2E gates decide admission.']
+        host = fixed_grid.parent/'host_guard/result.json'
+        if host.exists() and read(host)['passed']:
+            lines += ['Verified five fresh CPU-only host processes reject grids '
+                      '0/1/131/133/264 in both serving modes before changing the '
+                      'epoch. GPUs are hidden and no valid-grid launch is attempted.']
+        for suite in ('body', 'attention'):
+            receipt = continuation/('fixed_grid_'+suite+'_unit')/'result.json'
+            if receipt.exists():
+                unit = read(receipt)
+                if not unit['passed'] or len(unit['processes']) != 17:
+                    raise ValueError('fixed grid unit gate incomplete')
+                lines += [f'Verified fixed-grid {suite} on GPU{unit["gpu"]}: '
+                          'unit5/5,mem1/1,init1/1,race5/5,sync5/5;output bytes '
+                          'match the frozen control. These are functional gates.']
+        b8 = base/'fixed_grid_b8_preparation_v1/result.json'
+        if b8.exists() and read(b8)['status'] == 'rejected_compile':
+            lines += ['Verified CPU-only B8 portability check spills20/20B under '
+                      'its current72/208 profile. It is rejected before GPU '
+                      'execution;no B8 hardware result is claimed.']
+        b8_profile3 = base/'fixed_grid_b8_profile3_preparation_v1/result.json'
+        if b8_profile3.exists() and read(b8_profile3)['status'] == 'rejected_compile':
+            lines += ['Verified existing72/216 also spills20/20B for fixed-grid B8; '
+                      'that CPU-only follow-up is rejected without a register sweep.']
+        admitted = base/'fixed_grid_b16_admitted_v1/admission.json'
+        if admitted.exists():
+            receipt = read(admitted)
+            if receipt['status'] != 'admitted':
+                raise ValueError('fixed grid admission is incomplete')
+            lines += ['Verified fixed-grid B16 is admitted after main on/off '
+                      'instruction equivalence,repository fixture equivalence, '
+                      'host rejection5/5,strict model5/5,independent GPU3 pair and '
+                      'an exact63-stage ledger. P-DNN median'
+                      f'{receipt["median_ms"]:.6f}ms,p90{receipt["p90_ms"]:.6f}ms,'
+                      f'process range{receipt["process_range_ms"]:.6f}ms. '
+                      'Other four cells and original anchors remain unchanged. '
+                      'CMake regeneration is blocked by a missing installed '
+                      'MLIRCAPIDebug object;the unchanged certified cached archive '
+                      'and rebuilt codegen object pass real codegen14profiles/'
+                      '8invalid-settings checks,41admission tests and two related '
+                      'CTest checks. The full CMake build is not claimed.']
+    recount = base/'grid_recount_b8_preparation_v1/result.json'
+    if recount.exists() and read(recount)['status'] == 'prepared':
+        prepared = read(recount)
+        if not prepared['control_proof']['passed']:
+            raise ValueError('producer recomputation lacks its default0 proof')
+        lines += ['', 'Verified private B8 producer repair recomputes the CTA index '
+                  'at task/address uses. Earlier fixed-grid spills all occur after '
+                  'producer deallocation to72registers;the larger consumer budget '
+                  'does not resolve them. Current72/208 coordinates/profile now '
+                  'compile with zero spill,SASS328576→311680B,RCP77→56. Default0 '
+                  'matches all41072 current B8 words and all42896 admitted B16 '
+                  'words. This is a compiler register-lifetime repair;independent '
+                  'whole-model performance decides acceptance.']
+        for suite in ('body', 'attention'):
+            receipt = continuation/('grid_recount_'+suite+'_unit')/'result.json'
+            if receipt.exists():
+                unit = read(receipt)
+                if not unit['passed'] or len(unit['processes']) != 17:
+                    raise ValueError('producer recomputation unit gate incomplete')
+                lines += [f'Verified producer-recomputation {suite} on GPU{unit["gpu"]}: '
+                          'unit5/5,mem1/1,init1/1,race5/5,sync5/5;output bytes '
+                          'match the frozen shape controls. These are functional gates.']
+    fixed_b2 = base/'fixed_grid_b2_preparation_v1/result.json'
+    if fixed_b2.exists() and read(fixed_b2)['status'] == 'rejected_compile':
+        lines += ['', 'Verified fixed-grid-only B2 under its current72/216 '
+                  'profile spills144/188B. It is rejected at the CPU gate and '
+                  'does not execute on GPU.']
+    guards = base/'grid_recount_default_guard_v1'
+    guarded_names = ('b1_off', 'b2_off', 'b4_off', 'b8_off', 'b16_off', 'b8_on')
+    if all((guards/name/'result.json').exists() for name in guarded_names):
+        if not all(read(guards/name/'result.json')['passed'] for name in guarded_names):
+            raise ValueError('producer default guard changes accepted instructions')
+        lines += ['', 'Verified the original disabled BlockIndex helper changes '
+                  'B2 instructions and is rejected before candidate compilation or '
+                  'GPU execution. The repaired compile-time macro restores the '
+                  'literal original expression when disabled. All five current '
+                  'BERT kernels match their original instruction words;enabled B8 '
+                  'matches all38960 words of the independently qualified prototype. '
+                  'No numerical or timing process is repeated for this source repair.']
+    recount_admission = base/'grid_recount_b8_admitted_v1/admission.json'
+    if recount_admission.exists():
+        admission = read(recount_admission)
+        if admission['status'] != 'admitted':
+            raise ValueError('producer recomputation admission is incomplete')
+        lines += ['', 'Verified B8 producer recomputation is integrated and admitted: '
+                  'main on/off kernels match all38960/41072 tested instruction words;'
+                  'committed body/attention fixtures match the two17-process gates;'
+                  'the unchanged fixed-grid runtime retains its five-process host '
+                  'rejection proof. Real codegen16profiles/9invalid settings and '
+                  '46admission tests pass. GPU3 independent pair gains'
+                  f'{100*(1-admission["pair_ratio"]):.3f}% versus'
+                  f'{100*admission["noise"]:.3f}% noise;P-DNN'
+                  f'{admission["median_ms"]:.6f}ms,p90{admission["p90_ms"]:.6f}ms,'
+                  f'process range{admission["process_range_ms"]:.6f}ms. '
+                  'The exact tested binary and63-stage ledger are retained. '
+                  'Other cells and original anchors remain unchanged.']
+    recount_b2 = base/'grid_recount_b2_preparation_v2/result.json'
+    if recount_b2.exists() and read(recount_b2)['status'] == 'prepared':
+        lines += ['', 'Verified CPU-only B2 uses the same producer repair with '
+                  'current72/216 coordinates/profile:zero spill,SASS264960→250752B.'
+                  'The repaired default path matches all33120 incumbent words. '
+                  'Separate functional and independent GPU3 timing gates decide '
+                  'acceptance;code size alone does not admit this candidate.']
+    recount_b4 = base/'grid_recount_b4_admitted_v1/admission.json'
+    if recount_b4.exists():
+        admission = read(recount_b4)
+        if admission['status'] != 'admitted':
+            raise ValueError('B4 producer admission is incomplete')
+        lines += ['', 'Verified B4 reuses the exact profile2 body/attention17-process '
+                  'gates and completes fresh model5/5 with unchanged output bytes. '
+                  'Main on/off33072/35296 instruction words match the paired '
+                  'candidate/incumbent;the exact GPU3 trace has63 stages. '
+                  f'Independent pair gains{100*(1-admission["pair_ratio"]):.3f}% '
+                  f'versus{100*admission["noise"]:.3f}% noise. Admitted P-DNN='
+                  f'{admission["median_ms"]:.6f}ms,p90{admission["p90_ms"]:.6f}ms,'
+                  f'process range{admission["process_range_ms"]:.6f}ms. '
+                  'Other cells and original anchors remain unchanged.']
+    recount_candidates = base/'recount_b8_existing_candidates_v1/result.json'
+    if recount_candidates.exists():
+        candidate_builds = read(recount_candidates)
+        if candidate_builds['legal'] != candidate_builds['total'] or candidate_builds['total'] != 6:
+            raise ValueError('recomputed B8 candidate legality differs')
+        lines += ['', 'Verified CPU-only B8 check:all six exact existing repaired '
+                  'P-TUNE coordinate programs compile without spills under the '
+                  'currently admitted72/208 producer profile. No new coordinate '
+                  'or register sweep is introduced. Legal compilation alone '
+                  'does not select a program;boundary qualification,strict model '
+                  'checks and an independent current-incumbent pair remain required.']
+    trace_cta = base/'trace_cta_b8_uniform_v2/result.json'
+    if trace_cta.exists():
+        builds = read(trace_cta)
+        legal = sorted(row['name'] for row in builds['rows']
+                       if row['name'].startswith('candidate') and row['status'] == 'prepared')
+        assert legal == ['candidate0', 'candidate1', 'candidate3', 'candidate4', 'candidate5']
+        for name, words in [('nontrace_proof', 38960), ('attribution_proof', 44288)]:
+            proof = read(trace_cta.parent/name/'result.json')['proof']
+            assert proof['passed'] and proof['words'] == words
+        unit = read(continuation/'trace_cta_unit/result.json')
+        assert unit['passed'] and len(unit['processes']) == 17
+        lines += ['', 'Verified private boundary-only CTA recomputation passes GPU0 '
+                  'unit5/5 and sanitizer1/1/5/5. All38960 production and44288 '
+                  'full-trace instruction words are preserved. The uniform boundary '
+                  'source makes five of six existing candidates legal;candidate2 '
+                  'still spills8/8B. Reusing one CTA value also leaves8/8B and is '
+                  'rejected before GPU execution. No complete six-way P-TUNE result '
+                  'is claimed;missing windows are not synthesized.']
+        qualification = continuation/'trace_cta_b8_qualification_v2/result.json'
+        if qualification.exists():
+            q = read(qualification)
+            lines += ['', f'Verified private B8 boundary qualification:GPU3 '
+                      f'overhead{100*q["relative_difference"]:.3f}%,passed={q["passed"]}. '
+                      'Three fresh20/50 trace processes compare exact output bytes '
+                      'with the nontrace reference;one fresh50/200 reference supplies '
+                      'the timing comparison. This is diagnostic qualification, '
+                      'not performance admission.']
+    proposal = base/'recount_b8_five_tune_v2/tune_selection.json'
+    if proposal.exists():
+        selected = read(proposal)
+        assert selected['coverage'] == 5 and selected['missing'] == 2
+        choices = [group['candidate'] for group in selected['groups']]
+        lines += ['', f'Verified B8 diagnostic windows cover five of six existing '
+                  f'programs, three fresh processes each; six groups choose {choices}. '
+                  'The missing candidate2 remains in the nontrace selection. '
+                  'An untied selection and an independent current-incumbent pair '
+                  'are required; this is not complete six-way P-TUNE coverage.']
+    catalog = base/'fixed_grid_b16_existing_candidates_v1/result.json'
+    if catalog.exists():
+        builds = read(catalog)
+        legal = [row['candidate'] for row in builds['rows'] if row['status'] == 'prepared']
+        assert legal == [1, 2, 3]
+        lines += ['', 'Verified current-profile B16 existing candidates1/2/3 compile '
+                  'without spills;0/4/5 are rejected before hardware execution. '
+                  'The whole-program fallback compares those three with the incumbent '
+                  'and requires an untied selection followed by an independent pair. '
+                  'No boundary assembly or P-TUNE completion is claimed.']
+    for batch, name in ((8, 'recount_b8_five_selection_v2'),
+                        (16, 'fixed_grid_b16_whole_selection')):
+        selected_path = continuation/name/'selection/result.json'
+        if selected_path.exists():
+            selected = read(selected_path)
+            assert (selected['gpu'] == 3 and len(selected['measurements']) == 8
+                    and [row['arm'] for row in selected['measurements']] == list('ABCDDCBA')
+                    and all(row['guard']['code'] == 0 for row in selected['measurements']))
+            ranking = ', '.join(f'{row["arm"]}={row["median_ms"]:.6f}ms'
+                                for row in selected['ranking'])
+            lines += ['', f'Verified current-profile B{batch} nontrace selection: '
+                      f'{ranking}; tied={selected["tied"]}, '
+                      f'noise={100*selected["threshold"]:.3f}%. '
+                      'Selection medians are diagnostic; the accepted catalog changes '
+                      'only after an independent pair, final measurement and ledger audit.']
+    optional = base/'repeat_roles_preparation_v1/result.json'
+    if optional.exists():
+        regression = read(base/'repeat_roles_cpu_regression_v1/result.json')
+        assert regression['passed'] and len(regression['rows']) == 4
+        lines += ['', 'Verified private Repeat codegen reserves operand roles used '
+                  'only by first or last repetitions. Existing optional-map candidates '
+                  'B8/B16 now use319488/359424B of SASS without spills. All five current '
+                  'generated sources remain identical; four real codegen cases reject '
+                  'optional-map and alias corruption. These are CPU results, not '
+                  'performance admission.']
+        rejection = continuation/'repeat_roles_v1_rejection.json'
+        if rejection.exists():
+            lines += ['', 'Verified the first optional-map fixture fails initcheck '
+                      'on generic reads after TMA output, consistent with the documented '
+                      '2025.2.1 TMA initialization-shadow limitation. The rejected cohort '
+                      'is preserved. The replacement poisons every output before every '
+                      'launch and checks all intermediate values against positive CPU '
+                      'references; its CUDA instruction words are unchanged. This '
+                      'workaround retains the tool coverage limitation.']
+        for batch in (8, 16):
+            unit_path = continuation/f'repeat_roles_units_v2/b{batch}/result.json'
+            if unit_path.exists():
+                unit = read(unit_path)
+                assert unit['passed'] and len(unit['processes']) == 17
+                lines += ['', f'Verified optional Repeat B{batch} ordering fixture '
+                          f'passes unit5/5 and sanitizer1/1/5/5 on GPU{unit["gpu"]}. '
+                          'Whole-model byte equivalence and both code-size and '
+                          'current-incumbent performance gates remain separate.']
+            pair_path = continuation/f'repeat_roles_followup_v2/b{batch}/code_experiment.json'
+            if pair_path.exists():
+                experiment = read(pair_path)
+                pair = experiment['pair']
+                proof = read(pair_path.parent/'model_bit_proof.json')
+                assert proof['passed'] and pair['gpu'] == 3
+                assert [row['arm'] for row in pair['measurements']] == list('ABABAB')
+                assert all(row['guard']['code'] == 0 for row in pair['measurements'])
+                lines += ['', f'Verified private optional Repeat B{batch} same-coordinate '
+                          f'P-PAIR: {pair["reference_ms"]:.6f} to '
+                          f'{pair["candidate_ms"]:.6f}ms, gain '
+                          f'{100*(1-pair["ratio"]):.3f}%, noise '
+                          f'{100*pair["threshold"]:.3f}%, DT-CODE minimum3%. '
+                          f'Passes this prerequisite={experiment["accepted"]}. '
+                          'The private optional-role validator supplies identity checks; '
+                          'the unchanged main contract does not support these artifacts. '
+                          'This remains outside the production catalog.']
+    epical = continuation/'bert_epical_current_v1/result.json'
+    if epical.exists():
+        recheck = read(epical)
+        assert len(recheck['rows']) == 3
+        values = ', '.join(f'{row["case"]["chain"]}='
+                           f'{row["median_ns"]["A"]:.1f}→{row["median_ns"]["B"]:.1f}ns'
+                           for row in recheck['rows'])
+        lines += ['', f'Verified matched GPU3 epilogue recheck: {values}. '
+                  'Original56/224 and current72/216 P1/matrix implementations each '
+                  'use five fresh processes,132 CTAs and three tasks. These are '
+                  'coefficient measurements, not new end-to-end gains; constants '
+                  'remain uninstalled.']
+    model_audit = base/'coordinate_prediction_current_v1/result.json'
+    if model_audit.exists():
+        audit = read(model_audit)
+        proof = read(model_audit.parent/'original_rank0_proof.json')
+        assert proof['passed'] and proof['stages'] == 63
+        ratios = ', '.join(f'B{row["batch"]}={row["actual_over_predicted"]:.3f}'
+                           for row in audit['rows'])
+        lines += ['', f'Verified current-coordinate model audit, actual/predicted: '
+                  f'{ratios}. The CPU utility reproduces all63 original rank0 '
+                  'stage predictions exactly and reuses current accepted P-DNN '
+                  'observations; it does not claim new P-MODEL traces. Every cell '
+                  'exceeds1.3. Lower epilogue coefficients alone would worsen '
+                  'underprediction, so no epilogue-only table is installed. '
+                  'Inferred next implementation check: eliminate runtime tail '
+                  'conditions for dimensions known to contain only full tiles.']
+    boundary_audit = base/'current_b8_boundary_model_audit_v1/result.json'
+    if boundary_audit.exists():
+        audit = read(boundary_audit)
+        groups = ', '.join(f'{row["group"]} '
+                           f'{row["predicted_us"]:.1f}→{row["measured_us"]:.1f}µs'
+                           for row in audit['groups'])
+        lines += ['', f'Verified reuse of pre-full-tile B8 qualified boundary windows '
+                  f'(prediction→observation, group sums): {groups}. '
+                  'The existing three20/50 processes passed4.0288% overhead '
+                  'qualification on GPU3. FFN1 has the largest underprediction. '
+                  'This is an incumbent-coordinate diagnostic, not a new rank0 '
+                  'P-MODEL gate; boundary terms alone do not assign the gap to '
+                  'mainloop or epilogue. No coefficient is changed.']
+    for batch, preparation, folder in [
+            (8, 'full_tiles_preparation_v2/b8', 'full_tiles_b8_v2'),
+            (16, 'full_tiles_b16_selector_v1', 'full_tiles_b16_selector_v1')]:
+        prepared = base/preparation
+        if not (prepared/'result.json').exists():
+            continue
+        if read(prepared/'result.json')['status'] != 'prepared':
+            continue
+        before = read(prepared/'flag0/result.json')
+        after = read(prepared/'flag1/result.json')
+        dest = continuation/folder
+        completed = []
+        for suite in ['body', 'order', 'repeat_even', 'repeat_odd']:
+            gate = dest/suite/('individual' if suite == 'order' else 'flag1')/'result.json'
+            if gate.exists():
+                result = read(gate)
+                assert result['passed'] and len(result['processes']) == 17
+                assert all(read(Path(row['guard']))['code'] == 0 for row in result['processes'])
+                completed.append(suite)
+        lines += ['', f'Verified private full-tile B{batch} CPU preparation: '
+                  f'SASS {before["sass_bytes"]}→{after["sass_bytes"]}B, zero spills; '
+                  'disabled kernels preserve current instruction words. '
+                  + ('B16 also rematerializes the first/last Repeat selector to '
+                     'remove a measured4B consumer predicate spill. ' if batch == 16 else '')
+                  + f'Complete unit5/sanitizer1/1/5/5 suites: {", ".join(completed) or "none"}. '
+                  'The initial B8 ordering cohort exceeded its aggregate1200s limit '
+                  'and is rejected; its replacement retains all200-launch cases '
+                  'with separately guarded processes. These are implementation '
+                  'and correctness results; no performance admission is implied.']
+        if (dest/'model_bit_proof.json').exists():
+            proof = read(dest/'model_bit_proof.json')
+            model = read(dest/'model/result.json')
+            assert proof['passed'] and model['passed'] and model['passes'] == '5/5'
+            lines += ['', f'Verified full-tile B{batch} strict model5/5 on '
+                      f'GPU{model["gpu"]}, with exact current-incumbent output bytes.']
+        if (dest/'experiment.json').exists():
+            experiment = read(dest/'experiment.json')
+            pair = experiment['pair']
+            assert all(row['guard']['code'] == 0 for row in pair['measurements'])
+            lines += ['', f'Verified full-tile B{batch} GPU3 pair ratio '
+                      f'{pair["ratio"]:.6f}, noise {100*pair["threshold"]:.3f}%; '
+                      f'passes the independent gain gate={experiment["accepted"]}. '
+                      'Main integration, final measurement and an exact-binary '
+                      'ledger remain separate admission requirements.']
+        admission_path = base/f'full_tiles_b{batch}_admitted_v1/admission.json'
+        if admission_path.exists():
+            admitted = read(admission_path)
+            assert admitted['status'] == 'admitted'
+            lines += ['', f'Verified full-tile B{batch} admission: GPU3 P-DNN '
+                      f'{admitted["median_ms"]:.6f}ms, p90 '
+                      f'{admitted["p90_ms"]:.6f}ms, process range '
+                      f'{admitted["process_range_ms"]:.6f}ms. Main emitted kernels '
+                      'and focused fixtures match the tested instruction words; '
+                      'disabled defaults are preserved. The exact measured binary, '
+                      'strict model gate and63-stage ledger are retained. Eight '
+                      'corrupted admission receipts are rejected in CPU checks. '
+                      'Other cells, fixed goals and original anchors are unchanged.']
+    small_proof = base/'full_tiles_main_small_codegen_v1/result.json'
+    if small_proof.exists():
+        emitted = read(small_proof)
+        assert emitted['passed'] and all(r['passed'] for r in emitted['rows'])
+        for batch in (2, 4):
+            model_path = continuation/f'full_tiles_small_models_v1/b{batch}/result.json'
+            model = read(model_path)
+            bit = read(model_path.parent/'model_bit_proof.json')
+            assert model['passed'] and model['passes'] == '5/5' and bit['passed']
+        lines += ['', 'Verified fixed full-tile B2/B4 candidates each pass strict '
+                  'whole-model5/5 on GPU0 and preserve incumbent output bytes. '
+                  'Real main codegen matches31360/31424 encoded64-bit instruction '
+                  'words of the prepared binaries, with zero spill and unchanged '
+                  'coordinates/profiles. B2 has a separate72/216 body cohort '
+                  '(unit5,mem1,init1,race5,sync5); its model uses only register '
+                  'stores. B4 requires the matching72/208 B8 body and ordering '
+                  'cohorts. Independent GPU3 performance and exact-binary ledger '
+                  'checks remain separate admission requirements.']
+        admitted_path = base/'full_tiles_b4_admitted_v1/admission.json'
+        if admitted_path.exists():
+            admitted = read(admitted_path)
+            assert admitted['status'] == 'admitted'
+            lines += ['', f'Verified full-tile B4 admission: GPU3 P-DNN '
+                      f'{admitted["median_ms"]:.6f}ms, p90 '
+                      f'{admitted["p90_ms"]:.6f}ms, process range '
+                      f'{admitted["process_range_ms"]:.6f}ms. Its independent '
+                      f'pair gains {100*(1-admitted["pair_ratio"]):.3f}% against '
+                      f'{100*admitted["noise"]:.3f}% noise. The main emitted '
+                      'kernel matches the measured binary; complete B8 body '
+                      'and ordering cohorts are reused only after matching '
+                      'their full72/208 feature profiles. Nine corrupted '
+                      'receipts, including mismatched inherited profiles, '
+                      'are rejected. The exact63-stage GPU3 ledger, fixed '
+                      'target and original anchor are retained.']
+    isolated = continuation/'bert_stage_probe_constants_gpu3_v2/result.json'
+    if isolated.exists():
+        measured = read(isolated)['rows']
+        assert len(measured) == 4 and all(r['passes'] == '5/5' for r in measured)
+        values = ', '.join(f'B{r["batch"]} FFN{r["ffn"]} '
+                           f'{r["window_ns"]/1000:.3f}us' for r in measured)
+        lines += ['', 'Verified GPU3 isolated FFN diagnostics: '+values+'. '
+                  'Each fixed production shape/profile uses132 CTAs, five fresh '
+                  '20/50 processes, real TMA and unchanged epilogue arithmetic; '
+                  'integer model shape/stride constants are preserved and every output '
+                  'is checked against an independent constant-input FP32 reference. '
+                  'The qualified pre-full-tile B8 FFN1 boundary mean is24.728us versus '
+                  '12.096us isolated. The workloads differ in cache state, code '
+                  'context, bindings and stage gates; this gap is not assigned '
+                  'to one cause. These historical probes used synthetic '
+                  'epsilon1e-5; emitted BERT uses1e-12. No F4 constant or '
+                  'end-to-end result is replaced.']
+    for folder, contrast in [('bert_data_context_gpu0_v1', '128MiB data-write'),
+                             ('bert_code_context_v1', '1MiB straight-line-code')]:
+        context = continuation/folder/'result.json'
+        if not context.exists():
+            continue
+        values = read(context)['rows']
+        assert len(values) == 2 and all(r['passes'] == '5/5' for r in values)
+        hot, cold = values
+        assert hot['gpu'] == cold['gpu']
+        assert all(read(Path(r['guard']))['code'] == 0 for r in values)
+        lines += ['', f'Verified GPU{hot["gpu"]} {contrast} contrast for the same '
+                  f'isolated B8 FFN1 kernel: hot {hot["window_ns"]/1000:.3f}us '
+                  f'and cold {cold["window_ns"]/1000:.3f}us, ratio '
+                  f'{cold["window_ns"]/hot["window_ns"]:.6f}. Each context uses '
+                  'five fresh20/50 processes and checks every output against '
+                  'the constant-input FP32 reference. All6304 encoded64-bit '
+                  'Probe words match the original diagnostic; eviction runs '
+                  'outside its measured consumer window. This same-card '
+                  'contrast does not establish the complete model gap or '
+                  'replace F4 coefficients or end-to-end admission. Both '
+                  'sides use the historical synthetic epsilon1e-5.']
+    correction = base/'bert_probe_epsilon_v1/literal_proof.json'
+    if correction.exists():
+        proof = read(correction)
+        assert proof['passed'] and proof['changed_words'] == 7
+        lines += ['', 'Verified probe audit corrects its default epsilon from '
+                  'synthetic1e-5 to the emitted BERT1e-12. The old setting '
+                  'reproduces all6304 original instruction words; the corrected '
+                  'build changes only seven FP32 FADD immediates, retaining '
+                  'the opcode/register/scheduling words. Prior within-binary '
+                  'contrasts remain synthetic diagnostics, not exact production '
+                  'constants. Accepted model builds and installed coefficients '
+                  'were never changed by these probes.']
+    for folder, epsilon in [('bert_pattern_gpu0_v2', '1e-5'),
+                            ('bert_pattern_epsilon_gpu0_v1', '1e-12')]:
+        pattern = continuation/folder/'result.json'
+        if not pattern.exists():
+            continue
+        uniform, varying = read(pattern)['rows']
+        assert uniform['passes'] == varying['passes'] == '5/5'
+        measurements = [p['measurement'] for r in (uniform, varying)
+                        for p in r['processes']]
+        assert all(m['reference_cosine'] >= .99999 and
+                   m['reference_relative'] <= .01 for m in measurements)
+        lines += ['', f'Verified GPU0 fixed FFN1 input-pattern contrast at '
+                  f'epsilon{epsilon}: uniform {uniform["window_ns"]/1000:.3f}us '
+                  f'and varying {varying["window_ns"]/1000:.3f}us. The same '
+                  'kernel uses32 deterministic BF16 row/column patterns; '
+                  'every output passes the independent FP32/GELU reference '
+                  'with cosine≥0.99999 and maximum relative error≤0.01. '
+                  'Each pattern has identical output bytes across five fresh '
+                  '20/50 processes. This synthetic-data diagnostic does not '
+                  'replace a whole-model measurement or coefficient.']
+    lock_rejection = continuation/'full_tiles_default_lock_rejection.json'
+    if lock_rejection.exists():
+        lines += ['', 'Verified full-tile ordering dispatch correction: the first '
+                  'individual-process wrapper omitted the device environment on '
+                  'its scheduler subprocess, which replaced per-job lock paths '
+                  'with one shared default lock. All of those individual ordering '
+                  'results are excluded. The replacement passes the per-device '
+                  'environment and checks the actual lock before each CUDA child; '
+                  'all17 processes are recollected. Grouped body, Repeat and model '
+                  'gates already held the correct device locks. The earlier foreign '
+                  'GPU-lock and NUMA-setting diagnoses were not established.']
+    timeout = continuation/'full_tiles_b16_selector_v1/order/device_locked_v1/timeout_hold.json'
+    if timeout.exists():
+        ordering_complete = (continuation/
+            'full_tiles_b16_selector_v1/order/individual/result.json').exists()
+        lines += ['', 'Verified full-tile B16 individual racecheck durations vary: '
+                  'two complete guarded processes took603s and825s with zero errors; '
+                  'a third reached the900s child timeout and has no valid result. '
+                  'Its subsequent ownership rejection does not establish foreign '
+                  'interference. The timed-out attempt is excluded; nine completed '
+                  'processes were retained and only the eight missing checks '
+                  'were scheduled with line-buffered output and a3600s child limit. The frozen '
+                  'binary, cases,200 iterations, guard and correctness thresholds '
+                  'are unchanged. ' +
+                  ('The replacement ordering gate now completes all17 processes; '
+                   'performance admission remains a separate requirement.'
+                   if ordering_complete else
+                   'No complete ordering gate or performance gain is claimed '
+                   'while this remains unfinished.')]
+    retune = base/'phase72_retune_b8_gpu0_v1/incomplete_selection.json'
+    if retune.exists():
+        qualification = read(retune.parent/'trace_qualification.json')
+        rejection = read(retune)
+        assert qualification['passed']
+        lines += ['', 'Verified profile2 B8 boundary overhead is'
+                  f'{100*qualification["relative_difference"]:.3f}% on GPU0. '
+                  f'Only{len(rejection["eligible"])}/6 existing variants are nonspilling;'
+                  'each completes three fresh20/50 traces. Four spilled variants are '
+                  'never executed. Required candidate coverage is incomplete;no assembled '
+                  'selection or admission is claimed. GPU2 partial traces remain separate '
+                  'and are not mixed with the GPU0 windows.']
+    phase72 = base/'scalar_phase72_arithmetic_b8_v1/gpu2_diagnostic_v1/experiment.json'
+    if phase72.exists():
+        regression = read(base/'register72_host_v1/regression.json')
+        equivalent = read(base/'register72_integrated_b8_v1/equivalence.json')
+        assert regression['passed'] == 7 and equivalent['same_instruction_lines']
+        lines += ['', 'Verified optional profile2 uses72/208 registers and explicit scalar phase '
+                  'selection only for that profile. Profiles0/1 retain their prior paths and '
+                  'the default remains0. Scalar/alias and P1 component cohorts each pass '
+                  'unit5/5 and sanitizer1/1/5/5;B2/B4/B8/B16 whole models each pass5/5 '
+                  'without spill. B8/B16 SASS is328576/395776B with zero local-memory '
+                  'instructions. The integrated B8 kernel has identical instruction bytes '
+                  'to its prototype. Seven related regression checks, real profile codegen '
+                  'and invalid-setting checks pass. GPU2 comparisons remain diagnostics. '
+                  'Complete GPU3 pairs subsequently admit B4/B8;exact-binary ledgers and '
+                  'three-process P-DNN results are in the current catalog. B2 fails its '
+                  'noise gate and B16 fails the firstRepeat3% gate. B8/B16 first-time '
+                  'Repeat admission still requires3% plus noise;'
+                  'B2/B4 already use accepted Repeat and require a gain beyond noise. '
+                  'Fixed BF16 goals and original anchors remain unchanged.']
+    spill_lines = []
+    for name in ('repeat_arithmetic_middle_v1/b8', 'repeat_arithmetic_b8_reg56_v1'):
+        log = base/name/'native/model.so.ptxas.log'
+        if log.exists():
+            spills = list(map(int, re.findall(r'(\d+) bytes spill (?:stores|loads)', log.read_text())))
+            if any(spills):
+                spill_lines.append(name+':'+','.join(str(n) for n in spills)+'B stores/loads')
+    if spill_lines:
+        lines += ['', 'Verified B8 arithmetic Repeat plus P1 normalization fails the compilation '
+                  'gate under64/216 and prescribed56/224 ('+';'.join(spill_lines)+'). '
+                  'Neither spilled binary is executed;profile2 later resolves this spill gate.']
+    middle = base/'repeat_arithmetic_b4_reg56_v1/experiment.json'
+    if middle.exists():
+        decision = read(middle)
+        pair = decision['pair']
+        lines += ['', 'Verified B4 arithmetic Repeat plus P1 normalization retains the accepted '
+                  'coordinates. The64/216 profile gains2.89%,above2.63% noise but below '
+                  'DT-CODE3%,so it is rejected. Prescribed56/224 compiles without spill '
+                  'and passes strict model5/5. Its GPU3 P-PAIR '
+                  f'{pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms gives '
+                  f'{100*(1-pair["ratio"]):.2f}% gain against '
+                  f'{100*pair["threshold"]:.2f}% noise;the final P-DNN is recorded separately. '
+                  'Arithmetic and P1 component units pass5/5 and sanitizer1/1/5/5 separately.']
+        final = middle.parent/'g22_followup_final_v1/final_result.json'
+        if final.exists():
+            final = read(final)
+            assert decision['accepted'] and not final['smoke_regression']
+            measured = final['measurement']
+            lines += ['', f'Verified B4 admitted P-DNN median{measured["candidate_ms"]:.6f}ms,'
+                      f'p90{measured["p90_ms"]:.6f}ms,process range{measured["process_range_ms"]:.6f}ms. '
+                      'SASS and identities are retained with the default56/224 profile;no production '
+                      'header changes are needed. It remains above the fixed BF16 target and retains '
+                      'the original GPU3 anchor without re-anchoring.']
+    rejected_combination = base/'arithmetic_side_norm_b2_v1/native/model.so.ptxas.log'
+    if rejected_combination.exists():
+        spills = re.findall(r'(\d+) bytes spill (?:stores|loads)', rejected_combination.read_text())
+        if any(map(int, spills)):
+            lines += ['', 'Verified B2 P1 normalization plus the admitted arithmetic loop spills '
+                      + '/'.join(spills)+'B stores/loads under64/216. The compilation gate rejects '
+                      'it before execution;the admitted arithmetic-only B2 profile remains selected.']
+    for batch in (2, 4):
+        folder = base/f'current_selection_b{batch}_v1'
+        if not (folder/'selection/result.json').exists():
+            continue
+        qualification = read(base/f'current_retune_b{batch}_v1/trace_qualification.json')
+        selection = read(folder/'selection/result.json')
+        lines += ['', f'Verified B{batch} current-profile boundary overhead '
+                  f'{100*qualification["relative_difference"]:.3f}% exceeds5%;'
+                  'those windows do not select stage coordinates. Four distinct nontrace '
+                  'whole programs use only original Phase Z candidates and the admitted control. '
+                  'Every candidate passes strict model5/5;spilled builds are never executed. '
+                  f'G22 P-SEL winner={selection["winner"]},'
+                  f'tie threshold={100*selection["threshold"]:.3f}%. '
+                  'The admitted control remains selected unless a separate fresh P-PAIR '
+                  'passes its unchanged noise gate.']
+    equivalence = base/'partial_layout_equivalence_accepted_v1.json'
+    if equivalence.exists():
+        checked = read(equivalence)
+        assert checked['passed'] and checked['passes'] == '5/5'
+        assert len({r['pid'] for r in checked['processes']}) == 5
+        assert len({r['binary_sha256'] for r in checked['processes']}) == 1
+        assert len({r['output_hash'] for r in checked['processes']}) == 1
+        assert all(read(Path(r['guard']))['code'] == 0 for r in checked['processes'])
+        lines += ['', 'Verified original thread-major and opt-in vector-major split-K layouts '
+                  'produce identical output bytes on six frozen shapes:odd rows,S3/4/6/16 '
+                  'and TK64/128. The first five accepted fresh original-layout processes '
+                  'use one frozen binary (four on GPU2,one on GPU3),each with guard0;'
+                  'all match the accepted coalesced-suite output hash. This is a functional '
+                  'allocation deviation with no mixed-card performance comparison.']
+    resumed = base/'resume_gpu3_only_20261110_v1/result.json'
+    if resumed.exists():
+        lines += ['', 'Verified resumption: all new GPU tests use physical GPU3 only. '
+                  'Previously completed component/model receipts are reused;historical '
+                  'GPU0–2 queues remain inactive. The four pending candidates complete '
+                  'fresh same-card pairs;none clears its acceptance gate. Accepted '
+                  'profiles,original anchors and frozen Phase Z results are retained.']
+    diagnosis = base/'ffn2_split_attribution_gpu3_v1/diagnosis.json'
+    if diagnosis.exists():
+        groups = read(diagnosis)['groups']
+        a, b = groups['control'], groups['candidate']
+        lines += ['', 'Verified rejected B8 FFN2 split2/TMA attribution on GPU3: '
+                  f'FFN2 windows sum{a["stage_ns"]:.3f}→{b["stage_ns"]:.3f}us;'
+                  f'main-loop CTA maxima sum{a["main_loop_max_cta_ns"]:.3f}→'
+                  f'{b["main_loop_max_cta_ns"]:.3f}us;split-K maxima sum'
+                  f'{b["splitk_max_cta_ns"]:.3f}us and epilogue maxima sum'
+                  f'{a["epilogue_max_cta_ns"]:.3f}→{b["epilogue_max_cta_ns"]:.3f}us. '
+                  'Segment maxima are nonadditive diagnostic attribution. The fixed '
+                  'coalesced-partial follow-up has separate component/model/pair gates;'
+                  'a main-loop improvement alone does not admit either combination.']
+    async_rejection = base/'pp64_async_side_preparation_v1/component_rejection.json'
+    if async_rejection.exists():
+        failure = read(async_rejection)
+        assert not failure['accepted'] and not failure['timing_executed']
+        lines += ['', 'Verified private asynchronous PP side acquisition: normal unit5/5, '
+                  'memcheck1/1,initcheck1/1 and racecheck5/5 pass on GPU3, but '
+                  'synccheck0/1 reports8 Missing init errors. Reject before model or '
+                  'timing;the partial cohort is not a complete17 gate. Default0 full '
+                  'B16 instruction words match the accepted binary. The isolated '
+                  'follow-up restores direct acquisition by all128 WG consumers;'
+                  'its gates remain separate.']
+    allwait_rejection = base/'pp64_async_side_allwait_preparation_v1/component_rejection.json'
+    if allwait_rejection.exists():
+        failure = read(allwait_rejection)
+        assert not failure['accepted'] and not failure['timing_executed']
+        lines += ['', 'Verified direct acquisition by all128 consumers also fails: '
+                  'unit5/5,mem1/1,init1/1,race5/5 pass on GPU3; synccheck0/1 '
+                  'reports1024 Missing init errors. Reject before model/timing. '
+                  'The next private refinement retains the previously complete '
+                  'named160 handoff and makes only the producer arrival nonblocking;'
+                  'its full protocol and end-to-end gates are independent.']
+    nonblocking = base/'pp64_arrive_side_b16_v2/experiment.json'
+    if nonblocking.exists():
+        trial = read(nonblocking)
+        lines += ['', 'Verified nonblocking named160 PP side handoff passes two fresh '
+                  'GPU3 component cohorts17/17 each and strict model5/5. Default0 '
+                  'full B16 instruction words remain identical to the incumbent. '
+                  f'GPU3 full-model pair ratio{trial["pair"]["ratio"]:.6f};'
+                  f'noise{100*trial["pair"]["threshold"]:.3f}%,DT-PP minimum3%. '
+                  'The synchronization repair is functional evidence;performance '
+                  'and production admission follow the independent end-to-end gate.']
+    current = args.out/'DNN4_BERT_current.csv'
+    integrated = base/'coalesced_cyclic_b1_integrated_v1/final_result.json'
+    if integrated.exists():
+        final = read(integrated)
+        pair, measured = final['pair'], final['measurement']
+        lines += ['', 'Verified opt-in cyclic slot indexing and vector-major normal split-K '
+                  'partials retain the admitted B1 coordinates,56/224 register roles and '
+                  'ascending slice addition order. Integrated component gates pass17/17 '
+                  'on GPU3;the extended S2/TK128/odd-row suite passes17/17 on GPU2. '
+                  'The full model passes strict FP32 and cross-process byte checks5/5. '
+                  f'G22 P-PAIR{pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms '
+                  f'passes{100*pair["threshold"]:.3f}% noise;P-DNN '
+                  f'{measured["candidate_ms"]:.6f}ms,p90{measured["p90_ms"]:.6f}ms,'
+                  f'process range{measured["process_range_ms"]:.6f}ms. '
+                  'The exact accepted binary has a P-TRACE1 ledger. '
+                  'The earlier B2 comparison fails its paired noise gate;the later full-pipeline '
+                  'combination has a separate admission below. '
+                  'Defaults,original anchors,CNN results and frozen20-cell Phase Z remain unchanged.']
+    if current.exists():
+        with current.open() as stream:
+            latest = list(csv.DictReader(stream))
+        wins = [r['batch'] for r in latest if float(r['median_ms']) < float(r['baseline_ms'])]
+        target_status = ('Fixed BF16 targets reached for B'+',B'.join(wins)+'. '
+                         if wins else 'All fixed BF16 targets remain unmet. ')
+        cards = ','.join('GPU'+gpu for gpu in sorted({r['gpu'] for r in latest}))
+        lines += ['', f'Verified current accepted artifacts ({cards};50/200;three-process P-DNN). '
+                  'B1/B2/B4/B8/B16 are follow-ups that retain '
+                  'the original anchor without re-anchoring. '+target_status+
+                  'DNN4_BERT_current.csv records complete identities,profiles and evidence paths;'
+                  'DNN4_BERT_current_ledger.csv preserves all315 current stage rows with exact '
+                  'accepted reference hashes and coordinates.', '',
+                  '| Batch | GPU | Median ms | p90 ms | Process range ms | Fixed BF16 ms | Ratio |',
+                  '| --- | --- | --- | --- | --- | --- | --- |']
+        for row in latest:
+            lines.append(f'| {row["batch"]} | {row["gpu"]} | {float(row["median_ms"]):.6f} | '
+                         f'{float(row["p90_ms"]):.6f} | {float(row["process_range_ms"]):.6f} | '
+                         f'{float(row["baseline_ms"]):.4f} | {float(row["ratio"]):.4f} |')
+        lines += ['', 'Verified largest three stages for each current unmet BERT cell '
+                  '(P-TRACE1 attribution only;segments can overlap and are not timing results). '
+                  'Each ledger checks the exact accepted reference binary SHA256.', '',
+                  '| Batch | Largest stage | Second | Third |',
+                  '| --- | --- | --- | --- |']
+        for row in latest:
+            if float(row['median_ms']) < float(row['baseline_ms']):
+                continue
+            with Path(row['ledger_source']).open() as stream:
+                stages = list(csv.DictReader(stream))
+            descriptions = []
+            for stage in sorted(stages, key=lambda s: float(s['stage_ns']), reverse=True)[:3]:
+                segments = sorted(((key.removesuffix('_max_cta_ns'), float(value))
+                                   for key, value in stage.items() if key.endswith('_max_cta_ns')),
+                                  key=lambda item: item[1], reverse=True)[:2]
+                descriptions.append(f's{stage["stage"]} {stage["body"]} '
+                    f'{float(stage["stage_ns"])/1000:.2f}us ('+
+                    ','.join(f'{name}={ns/1000:.2f}' for name, ns in segments)+')')
+            lines.append(f'| {row["batch"]} | '+' | '.join(descriptions)+' |')
+    failed_pp = base/'pp64_ffn1_b16_v1/experiment.json'
+    store_admission = base/'full_store_bundle_b8_admitted_v1/admission.json'
+    if store_admission.exists():
+        admission = read(store_admission)
+        lines += ['', 'Verified current B8 combines existing matrix and attention vector stores '
+                  'with the admitted full-tile profile. Three exact-profile component cohorts '
+                  'each pass17/17;strict model5/5 preserves incumbent bytes. Main real codegen '
+                  'matches all35232 encoded instruction words and the63-stage ledger identifies '
+                  f'the measured binary. GPU3 P-DNN{admission["median_ms"]:.6f}ms,'
+                  f'p90{admission["p90_ms"]:.6f}ms. Ten corrupted admission receipts are rejected. '
+                  'Other cells,default flags and fixed anchors remain unchanged.']
+    reduction_admission = base/'pipeline_reduction_b2_admitted_v1/admission.json'
+    if reduction_admission.exists():
+        admission = read(reduction_admission)
+        lines += ['', 'Verified current B2 combines full-tile/grid/recompute with existing '
+                  'coalesced partials and cyclic slots at unchanged coordinates and72/216 registers. '
+                  'Eleven exact/odd-tail fixtures pass control5 and candidate17 with identical bytes;'
+                  'strict model5 preserves incumbent bytes. Main real codegen matches29984 encoded '
+                  'words;the exact measured binary has a63-stage GPU3 ledger. '
+                  f'P-DNN{admission["median_ms"]:.6f}ms,p90{admission["p90_ms"]:.6f}ms. '
+                  f'Pair gain{100*(1-admission["pair_ratio"]):.5f}% narrowly exceeds '
+                  f'noise{100*admission["noise"]:.5f}%;this variability remains in the receipt. '
+                  'Twelve corrupted admission receipts are rejected;fixed targets are unchanged.']
+    direct = continuation/'direct_norm_b16_v3/experiment.json'
+    if direct.exists():
+        trial = read(direct)
+        lines += ['', 'Verified private P1 direct-statistics reads preserve ascending sums, '
+                  'normalization arithmetic,shared allocation and synchronization. Control5 and '
+                  'candidate17 cover ten exact/odd-tail fixtures;model5 preserves incumbent bytes. '
+                  f'GPU3 pair ratio{trial["pair"]["ratio"]:.6f},'
+                  f'noise{100*trial["pair"]["threshold"]:.3f}%. '
+                  'The candidate has no end-to-end gain and is rejected;private headers restored. '
+                  'The initial illegal synthetic shape failed compilation in both arms and was '
+                  'replaced before GPU execution with the actual legal QKV shapes.']
+    repaired_attribution = continuation/'candidate5_recompute_b16_v2/attribution.json'
+    if repaired_attribution.exists():
+        audit = read(repaired_attribution.with_name('attribution_audit.json'))
+        assert audit['passed']
+        attribution = read(repaired_attribution)
+        groups = {r['group']: r for r in attribution['rows']}
+        changes = ', '.join(f'{name}+'
+                            f'{groups[name]["stage_delta_ns"]/1000:.3f}us'
+                            for name in ('projection', 'ffn2', 'qkv'))
+        lines += ['', 'Verified formerly spilled B16 catalog candidate5 compiles without spill '
+                  'after the existing task-index repair;14 exact/odd-tail fixtures pass control5 '
+                  'and candidate17, and strict model5 preserves incumbent bytes. '
+                  'Its independent GPU3 pair regresses15.282% and is rejected. '
+                  f'Exact-binary P-TRACE1 group-window increases are {changes}. '
+                  'Projection/FFN2 epilogue CTA-maxima sums rise73.280→146.304us '
+                  'and76.608→146.304us. These diagnostic maxima are nonadditive; '
+                  'no P-DNN or current-artifact replacement follows the rejection.']
+    aggregation_repair = continuation/'stats_ahead_b16_v1/model_aggregation_repair.json'
+    if aggregation_repair.exists():
+        repair = read(aggregation_repair)
+        assert repair['passed']
+        metric = next(r for r in repair['metrics']
+                      if r['output'] == 'tanh' and r['metric'] == 'max_error')
+        lines += ['', 'Verified B16 statistics-read-ahead model checks produce identical bytes '
+                  'in all five processes and all six execution cases, with unchanged FP32 gates. '
+                  f'One reported tanh maximum error varies from {metric["min"]:.12f} to '
+                  f'{metric["max"]:.12f}. The original wrapper incorrectly required the entire '
+                  'metric dictionary to match. A CPU-only finalizer validates each process against '
+                  'the original threshold and requires identical output hashes; raw checks and the '
+                  'initial assertion are retained. Thirteen corrupted cohorts are rejected. '
+                  'No hardware result or accuracy threshold was changed.']
+    loop_attribution = continuation/'loop_pair_b4_v1/attribution.json'
+    if loop_attribution.exists():
+        groups = read(loop_attribution)['rows']
+        gemm = [r for r in groups if r['group'] not in ('attention', 'small')]
+        before = sum(r['control']['main_loop_max_cta_ns'] for r in gemm)/1000
+        after = sum(r['candidate']['main_loop_max_cta_ns'] for r in gemm)/1000
+        lines += ['', 'Verified B4 fixed two-iteration main-loop unrolling passes control5, '
+                  'candidate17 on12 exact/odd-K/odd-M fixtures and strict model5 with unchanged bytes. '
+                  'The GPU3 pair regresses5.880% and is rejected. '
+                  f'P-TRACE1 GEMM main-loop CTA-maxima sums increase {before:.3f}→{after:.3f}us; '
+                  'the intended segment did not improve. These maxima are nonadditive diagnostic '
+                  'attribution. The private header is restored.']
+    optional_prep = base/'optional_stats_b16_v2/result.json'
+    if optional_prep.exists() and read(optional_prep).get('status') == 'prepared':
+        preparation = read(optional_prep)
+        sizes = [r['model']['sass_bytes'] for r in preparation['rows']]
+        lines += ['', 'Verified private terminal FFN2 sharing compiles without spill; '
+                  f'SASS decreases {sizes[0]}→{sizes[1]} bytes. '
+                  'Default0 matches all40320 current B16 instruction words. The first attempt '
+                  'compiled but failed the old artifact contract; its raw failure is retained. '
+                  'The explicit optional-statistics contract checks identical geometry, arithmetic '
+                  'and the absent terminal output;13 corrupted sources are rejected. '
+                  'Production kernels and defaults remain unchanged.']
+        model = continuation/'optional_stats_b16_v2/model/result.json'
+        body = continuation/'optional_stats_b16_v2/body/result.json'
+        if model.exists() and body.exists():
+            assert read(model)['passed'] and read(model)['passes']=='5/5'
+            assert read(body)['passed'] and len(read(body)['processes'])==17
+            assert read(continuation/'optional_stats_b16_v2/model_bit_proof.json')['passed']
+            lines.append('Verified ten cases form five normal/terminal pairs and cover exact/odd rows, TMA/reg stores, '
+                         'TM64 merging and split-K. Control5 and candidate17 have identical bytes; '
+                         'strict model5 matches the incumbent. The separate full-model pair requires '
+                         'at least3% gain and the measured noise threshold before admission.')
+        comparison = continuation/'optional_stats_b16_v2/experiment.json'
+        if comparison.exists():
+            experiment = read(comparison)
+            pair = experiment['pair']
+            lines.append(f'Verified GPU3 pair {pair["reference_ms"]:.6f}→'
+                         f'{pair["candidate_ms"]:.6f}ms, noise{100*pair["threshold"]:.3f}%. '
+                         'The code-size reduction provides no end-to-end gain; reject. '
+                         'Private headers and verifier are restored; raw evidence is retained.')
+    residual = continuation/'residual_warp_b16_v1/experiment.json'
+    if residual.exists():
+        trial = read(residual)
+        order = read(residual.parent/'order/result.json')
+        assert order['passed'] and len(order['processes']) == 17
+        lines += ['', 'Verified residual warp handoff passes control5, body17, model5 and '
+                  'the complete three-stage ordering cohort17. The ordering cohort uses GPU0/3 '
+                  'and retains each process card and guard receipt. '
+                  f'GPU3 pair ratio{trial["pair"]["ratio"]:.6f}, '
+                  f'noise{100*trial["pair"]["threshold"]:.3f}%; no significant gain. '
+                  'The private header is restored; the current artifact is retained.']
+    traversal = continuation/'mfirst_b16_v1/experiment.json'
+    if traversal.exists():
+        trial = read(traversal)
+        lines += ['', 'Verified fixed M-first task traversal passes the CPU mapping proof, '
+                  'control5/body17 and strict model5 with unchanged output bytes. '
+                  f'GPU3 pair ratio{trial["pair"]["ratio"]:.6f}, '
+                  f'noise{100*trial["pair"]["threshold"]:.3f}%; reject. '
+                  'Private backend and codegen changes are restored; no P-DNN or admission follows.']
+    split_attribution = continuation/'ffn2_split2_b4_v1/attribution.json'
+    if split_attribution.exists():
+        trial = read(split_attribution.parent/'experiment.json')
+        groups = {r['group']: r for r in read(split_attribution)['rows']}
+        ffn2 = groups['ffn2']
+        lines += ['', 'Verified fixed B4 FFN2 TM128/TN64/TK128/S2/Slots4 register-store '
+                  'candidate passes eight-case control5/body17 and strict model5 with unchanged '
+                  'FP32 thresholds and deterministic candidate bytes. Its S1-to-S2 reassociation '
+                  'permits differences from incumbent bytes. '
+                  f'GPU3 pair ratio{trial["pair"]["ratio"]:.6f}, '
+                  f'noise{100*trial["pair"]["threshold"]:.3f}%; reject. '
+                  'P-TRACE1 FFN2 main-loop CTA-maxima sums decrease '
+                  f'{ffn2["control"]["main_loop_max_cta_ns"]/1000:.3f}→'
+                  f'{ffn2["candidate"]["main_loop_max_cta_ns"]/1000:.3f}us, '
+                  f'with {ffn2["candidate"]["splitk_max_cta_ns"]/1000:.3f}us of split-K maxima. '
+                  'FFN2 epilogue maxima increase '
+                  f'{ffn2["control"]["epilogue_max_cta_ns"]/1000:.3f}→'
+                  f'{ffn2["candidate"]["epilogue_max_cta_ns"]/1000:.3f}us. '
+                  'The three largest group-window increases are FFN1, QKV and projection; '
+                  'these trace maxima are nonadditive diagnostics. Current coordinates are retained.']
+    for trial_name, description in (
+            ('single_store6_b16_v1', 'TM128/TN128/TK64/Slots6'),
+            ('single_store4_tn256_b16_v1', 'TM128/TN256/TK64/Slots4')):
+        prepared = base/trial_name/'result.json'
+        if not prepared.exists():
+            continue
+        preparation = read(prepared)
+        assert preparation['status'] == 'prepared'
+        assert {r['flag'] for r in preparation['rows']} == {0, 1}
+        assert all(r['returncode'] == 0 and r['spill_bytes'] and not any(r['spill_bytes'])
+                   for r in preparation['rows'])
+        assert read(Path(preparation.get('default_proof', preparation.get('control_proof'))))['passed']
+        lines += ['', f'Verified private current-profile FFN1 {description} candidate compiles '
+                  'without spill. One independent8KiB staging buffer per consumer WG frees16KiB '
+                  'per CTA; every reuse waits read0 and the WG128 barrier. Residual reuse, '
+                  'publication fences, store drains and stage gates are unchanged. '
+                  'Default0 instruction words match the incumbent. This section4.2/6.2/9 '
+                  'extension requires exact body and ordering gates, strict model5 and a '
+                  'GPU3 full-model gain above3% and the measured noise before admission.']
+        comparison = continuation/trial_name/'experiment.json'
+        if comparison.exists():
+            trial = read(comparison)
+            pair = trial['pair']
+            outcome = ('Positive private pair; separate production admission remains required.'
+                       if trial['accepted'] else 'Reject; retain the incumbent.')
+            lines.append(f'Verified control5, body17, ordering17 and model5 pass; '
+                         f'GPU3 pair {pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms, '
+                         f'noise{100*pair["threshold"]:.3f}%. {outcome}')
+        if trial_name == 'single_store4_tn256_b16_v1':
+            ordering = read(base/'single_store4_tn256_b16_order_units_v3/order/build.json')
+            assert ordering['spill_bytes'] == 0
+            lines.append('Verified wide ordering fixturev1/v2 spill88/88B only in the generic '
+                         'GMMA reference and never execute. Fixturev3 replaces that reference '
+                         'with independent scalar FP32 dots on exactly representable dyadic inputs; '
+                         'all TMA target kernels, four full/odd200-launch sequences, CPU FP32 '
+                         'and byte comparisons remain unchanged. Fixturev3 compiles without spill; '
+                         'no numerical or zero-spill threshold is relaxed.')
+            attribution = continuation/trial_name/'attribution.json'
+            if attribution.exists():
+                ffn1 = next(r for r in read(attribution)['rows'] if r['group'] == 'ffn1')
+                lines.append('Verified GPU3 P-TRACE1 shows wide FFN1 main-loop CTA-maxima sums '
+                             f'{ffn1["control"]["main_loop_max_cta_ns"]/1000:.3f}→'
+                             f'{ffn1["candidate"]["main_loop_max_cta_ns"]/1000:.3f}us, '
+                             'but epilogue maxima grow '
+                             f'{ffn1["control"]["epilogue_max_cta_ns"]/1000:.3f}→'
+                             f'{ffn1["candidate"]["epilogue_max_cta_ns"]/1000:.3f}us. '
+                             'The FFN1 group window grows '
+                             f'{ffn1["control"]["stage_ns"]/1000:.3f}→'
+                             f'{ffn1["candidate"]["stage_ns"]/1000:.3f}us. '
+                             'These maxima are nonadditive diagnostics; the nontrace pair '
+                             'decides rejection. Frozen sources and binaries are retained.')
+    closure = base/'single_store_close.json'
+    work_audit = base/'wide_ffn1_work_audit_v1/result.json'
+    if work_audit.exists():
+        audit = read(work_audit)
+        assert abs(audit['maximum_cta_epilogue_work_ratio'] - 4/3) < 1e-12
+        lines += ['', 'Verified source counts show the widest B16 FFN1 task-owning CTAs '
+                  'process two TN256 tiles versus three TN128 tiles, or one third more '
+                  'epilogue elements. Inferred: this workload distribution can contribute '
+                  'to the measured epilogue regression independently of staging waits. '
+                  'It is not a latency prediction or a new candidate trigger; the fixed '
+                  'late-wait experiment retains this distribution and isolates wait placement.']
+    if closure.exists():
+        assert read(closure)['status'] == 'closed_rejected'
+        lines += ['', 'Verified both rejected single-buffer prototypes have their private '
+                  'backend and codegen files restored after preserving the measured patch. '
+                  'No production defaults or current artifacts change.']
+    audit = base/'current_b16_tune_audit_20261113_v1/result.json'
+    if audit.exists():
+        audited = {r['group']: r for r in read(audit)['rows']}
+        assert audited[2]['current_coordinate'] == audited[2]['candidate_coordinate']
+        lines += ['', 'Verified reanalysis compares existing qualified B16 catalog windows '
+                  'against three current-control processes, rather than catalog candidate0. '
+                  f'The selected FFN1 window is {100*(audited[0]["ratio"]-1):.3f}% slower '
+                  'than current; repeated QKV appears faster with identical coordinates. '
+                  'This supports the U6 neighboring-stage qualification and supplies no new '
+                  'isolated coordinate winner. No hardware rerun or admission follows.']
+    prepared = base/'ffn1_tma192_full_b8_v1/result.json'
+    if prepared.exists():
+        preparation = read(prepared)
+        assert preparation['status'] == 'prepared'
+        assert read(Path(preparation['control_proof']))['passed']
+        assert all(r['returncode'] == 0 and r['spill_bytes'] and not any(r['spill_bytes'])
+                   for r in preparation['rows'])
+        fixtures = read(base/'ffn1_tma192_full_b8_units_v1/result.json')
+        assert fixtures['status'] == 'prepared'
+        lines += ['', 'Verified one fixed B8 FFN1 TM128/TN192/TK64/S1/Slots4 TMA candidate '
+                  'compiles without spill under the accepted72/208 full-tile/grid/recompute/matrix '
+                  'profile. Only12 FFN1 coordinates change; real main codegen regenerates packing, '
+                  'and control instruction words match the incumbent. The historical fixed TN192 '
+                  'matrix trial used72/216 without full-tile/grid/recompute; later catalog windows '
+                  'lacked matrix stores and are not transferred. Exact eight-case body and four '
+                  '200-launch ordering fixtures also compile without spill. Separate functional '
+                  'gates and a GPU3 end-to-end gain above3% and noise are required.']
+        comparison = continuation/'ffn1_tma192_full_b8_v1/experiment.json'
+        if comparison.exists():
+            trial = read(comparison)
+            pair = trial['pair']
+            outcome = ('Positive main-codegen candidate; ledger and admission remain separate.'
+                       if trial['accepted'] else 'Reject; retain the incumbent.')
+            lines.append(f'Verified control5/body17/order17 and strict model5 pass; '
+                         f'GPU3 pair {pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms, '
+                         f'noise{100*pair["threshold"]:.3f}%. {outcome}')
+    prepared = base/'late_store_b16_v1/result.json'
+    if prepared.exists() and read(prepared)['status'] == 'prepared':
+        preparation = read(prepared)
+        assert read(Path(preparation['control_proof']))['passed']
+        assert read(Path(preparation['prior_proof']))['passed']
+        assert read(prepared.parent/'sass_audit.json')['passed']
+        assert all(r['spill_bytes'] and not any(r['spill_bytes']) for r in preparation['rows'])
+        lines += ['', 'Verified a private section6.1/6.2 extension keeps the fixed B16 '
+                  'TN256/Slots4 single-buffer geometry and current72/216 profile, computing '
+                  'both32-column halves before the reuse wait. The read0 wait and WG128 barrier '
+                  'still precede the first shared write; residual, statistics-writer, PP, MC '
+                  'and pool paths are excluded. Default0 and predecessor instruction words '
+                  'match; the candidate has zero spill,347264B SASS and maxR213, unchanged '
+                  'from its predecessor. Static SASS confirms arithmetic precedes reuse wait '
+                  'and shared writes follow it. Hardware correctness and performance are '
+                  'separate gates; no production default is enabled.']
+        comparison = continuation/'late_store_b16_v1/experiment.json'
+        if comparison.exists():
+            trial = read(comparison)
+            pair = trial['pair']
+            outcome = ('Positive private pair; production admission remains separate.'
+                       if trial['accepted'] else 'Reject; retain the incumbent.')
+            lines.append(f'Verified control5/body17/order17 and strict model5 pass; '
+                         f'GPU3 pair {pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms, '
+                         f'noise{100*pair["threshold"]:.3f}%. {outcome}')
+    closure = base/'late_store_close.json'
+    if closure.exists():
+        assert read(closure)['status'] == 'closed_rejected'
+        attribution = read(continuation/'late_store_b16_v1/attribution.json')
+        ffn = next(r for r in attribution['rows'] if r['group'] == 'ffn1')
+        lines.append(f'Verified late-wait FFN1 trace windows sum '
+                     f'{ffn["control"]["stage_ns"]/1000:.3f}→'
+                     f'{ffn["candidate"]["stage_ns"]/1000:.3f}us. '
+                     'The late path brackets both StoreQuad halves once, while control '
+                     'brackets each half; segment maxima are nonadditive and instrumentation '
+                     'differs. The nontrace pair decides rejection. Private backend and '
+                     'codegen files are restored after preserving the patch and artifacts.')
+    conditional = base/'late_store_b8_v1/result.json'
+    if conditional.exists() and read(conditional)['status'] == 'prepared':
+        preparation = read(conditional)
+        assert read(Path(preparation['control_proof']))['passed']
+        assert read(Path(preparation['prior_proof']))['passed']
+        assert preparation['profile'].get('TILEMEGA_F3_SINGLE_STORE', '0') == '0'
+        assert all(r['spill_bytes'] and not any(r['spill_bytes']) for r in preparation['rows'])
+        lines += ['', 'Verified conditional CPU preparation applies the same late-wait '
+                  'implementation to the existing B8 TN192/Slots4 TMA geometry and current '
+                  '72/208 profile, retaining two staging buffers per WG. Current and prior '
+                  'instruction words match; the candidate has zero spill, 294016B SASS '
+                  'versus 294784B and unchanged maxR205. No B8 hardware follows unless the '
+                  'B16 mechanism first passes all gates and the3%-plus-noise acceptance; '
+                  'separate exact B8 body, ordering, model and pair gates would still be required.']
+    conditional_close = base/'late_store_b8_v1/conditional_close.json'
+    if conditional_close.exists():
+        assert read(conditional_close)['status'] == 'conditional_not_executed'
+        lines.append('Verified B16 late-wait fails its predeclared gain gate; the conditional '
+                     'B8 trial is closed without hardware execution. CPU artifacts remain '
+                     'available as evidence; no current artifact changes.')
+    outlined_failure = continuation/'gelu_outline_b16_v1/functional_failure.json'
+    if outlined_failure.exists():
+        failure = read(outlined_failure)
+        assert len(failure['processes']) == 5
+        lines += ['', 'Verified private outlined GELU reduces total B16 SASS '
+                  '322560→306560B, with zero spill and zero local-memory instructions. '
+                  'Default and real-codegen instruction proofs pass. Control5 and strict '
+                  'model5 pass, with model bytes matching the incumbent. The candidate '
+                  'full-domain bit gate fails0/5: each process has525595 differences from '
+                  'the inlined scalar oracle and zero violations of the original1e-6 '
+                  'erff bound. It fails before the eight body cases; no sanitizer or '
+                  'performance qualification follows. Frozen SASS shows separate multiply '
+                  'and subtract in that oracle, versus FMA in the outlined function and '
+                  'current production epilogue. This first fixture remains failed; '
+                  'no performance measurement follows it.']
+        repair = base/'gelu_outline_b16_v1/oracle_repair.json'
+        if repair.exists():
+            assert read(repair)['original_scalar_mismatches'] == 0
+            lines.append('Verified diagnostic5/5 calls the untouched original scalar body '
+                         'through a separate wrapper: zero bit differences from the candidate, '
+                         '525595 from the explicitly uncontracted expression, and maximum '
+                         'normalized error1.972e-7. Fixturev2 fixes the original reference call '
+                         'context to match production FMA; it retains the formula, full domain, '
+                         '1e-6 threshold and byte comparison. Fresh control5/body17 are required; '
+                         'the unchanged model5 receipt is reused explicitly. All v1 failures remain.')
+    depth_closure = base/'mma_depth2_b4_v1/closure.json'
+    if depth_closure.exists():
+        assert read(depth_closure)['status'] == 'cpu_lowering_rejected'
+        lines += ['', 'Verified a fixed B4 WGMMA-depth2 extension passes4550 abstract '
+                  'retirement cases, zero-spill compilation, default instruction identity '
+                  'and actual codegen checks. However, the emitted program contains60 '
+                  'complete waits for60 HGMMA instructions and no depth2 wait; control '
+                  'has10 depth1 and8 complete waits. The intended pipeline is absent. '
+                  'Reject before hardware execution and restore the private files; the '
+                  'compiler cause and any latency effect remain unestablished.']
+        if (base/'mma_depth2_b4_v2/closure.json').exists():
+            lines.append('Verified rematerializing the retired slot index also leaves60 '
+                         'complete waits for60 HGMMA instructions. This bookkeeping repair '
+                         'is rejected on CPU, without hardware execution; private files are restored.')
+    depth_prepared = base/'mma_depth2_b4_v3/cpu_gate.json'
+    if depth_prepared.exists():
+        assert read(depth_prepared)['passed']
+        lines += ['', 'Verified the explicit prologue/steady/tail form restores depth2 '
+                  'WGMMA waits at unchanged B4 coordinates and72/208 registers. SASS grows '
+                  '251392→270208B, with zero spill or local-memory instructions. Default '
+                  'and actual-codegen instruction proofs pass;18 exact and edge-case '
+                  'fixtures compile. CPU retirement coverage does not establish GPU '
+                  'synchronization or speed; complete functional gates and a gain above3% '
+                  'and measured noise are required.']
+    for trial_name, label in [('gelu_outline_b16_v2', 'Outlined GELU B16'),
+                              ('mma_depth2_b4_v3', 'WGMMA depth2 prologue B4')]:
+        comparison = continuation/trial_name/'experiment.json'
+        if comparison.exists():
+            trial = read(comparison)
+            pair = trial['pair']
+            outcome = ('Positive private pair; production admission remains separate.'
+                       if trial['accepted'] else 'Reject; retain the incumbent.')
+            if trial_name == 'gelu_outline_b16_v2' and (base/'gelu_outline_b16_admitted_v1/admission.json').exists():
+                outcome = 'Admitted after the separate main-source and ledger checks below.'
+            lines.append(f'Verified {label} completes control5/body17 and strict model5 '
+                         f'(GELU reuses its unchanged binary cohort). GPU3 pair '
+                         f'{pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms, '
+                         f'noise{100*pair["threshold"]:.3f}%. {outcome}')
+    admitted_gelu = base/'gelu_outline_b16_admitted_v1/admission.json'
+    if admitted_gelu.exists():
+        admission = read(admitted_gelu)
+        lines += ['', 'Verified outlined GELU B16 is admitted after main-codegen and '
+                  'committed-fixture GPU instruction identity, all five disabled-profile '
+                  'instruction proofs,17 corrupted-receipt rejections, and the exact '
+                  '63-stage ledger. The oracle correction and reused unchanged model '
+                  'cohort remain explicit. Its P-DNN median is '
+                  f'{admission["median_ms"]:.6f}ms; p90{admission["p90_ms"]:.6f}ms and '
+                  f'process range{admission["process_range_ms"]:.6f}ms. Other four '
+                  'artifacts, fixed targets and frozen Phase Z remain unchanged. '
+                  'The feature stays off by default; only this admitted profile enables it.']
+    for batch in (8, 4):
+        trial_path = continuation/f'gelu_outline_b{batch}_v1/experiment.json'
+        if not trial_path.exists():
+            continue
+        trial = read(trial_path)
+        pair = trial['pair']
+        lines += ['', f'Verified outlined GELU B{batch} uses the unchanged current '
+                  'coordinates and72/208 profile. Fresh control5/body17/model5 pass, '
+                  'including the full2^24-point and finite-BF16 precision domain and '
+                  'identical incumbent model bytes. GPU3 pair '
+                  f'{pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms, '
+                  f'noise{100*pair["threshold"]:.3f}%.']
+        admission_path = base/f'gelu_outline_b{batch}_admitted_v1/admission.json'
+        if admission_path.exists():
+            admitted = read(admission_path)
+            lines.append('Verified main-codegen and committed-fixture instruction '
+                         'identity,17 corrupted-receipt rejections and the exact '
+                         '63-stage ledger complete admission. P-DNN '
+                         f'{admitted["median_ms"]:.6f}ms; p90'
+                         f'{admitted["p90_ms"]:.6f}ms; range'
+                         f'{admitted["process_range_ms"]:.6f}ms. The fixed BF16 target '
+                         'is retained and the feature remains opt-in.')
+        else:
+            lines.append('Positive pair awaiting separate production admission.'
+                         if trial['accepted'] else 'Rejected; retain the incumbent.')
+    row32_cpu = base/'rowstats32_b4_v1/layout_proof.json'
+    if row32_cpu.exists():
+        layout = read(row32_cpu)
+        if not layout['passed'] or len(layout['changed_buffers']) != 23:
+            raise ValueError('row partials32 lacks its buffer-layout proof')
+        lines += ['', 'Verified private section5.2 extension tests fixed32-column '
+                  'partials, removing the TM64/TN64 producer header merge and leaving '
+                  'ascending reduction to readers. It changes23 GEMM statistics '
+                  'buffers12→24; all other buffers, embeddingNT1, coordinates, register '
+                  'profile and store protocol remain unchanged. This explicitly '
+                  'deviates from the prescribed64-column granularity under user '
+                  'implementation discretion. Statistics reassociate: original FP32 '
+                  'thresholds and five-process determinism apply, without an incumbent '
+                  'byte-equality requirement. Real host0/1 builds have zero spill; '
+                  'default0 preserves instruction words and SASS239232→254720B. '
+                  'Two TN192/Slots4 edge fixtures exceeded the shared budget before '
+                  'GPU execution; the separate v2 fixture uses Slots3 in both arms '
+                  'and compiles16 cases. The actual B4 model coordinates never changed.']
+        row32_model = continuation/'rowstats32_b4_v1/model/result.json'
+        if row32_model.exists():
+            model = read(row32_model)
+            assert model['passed'] and model['passes'] == '5/5'
+            lines.append('Verified private row partials32 model5 passes on GPU3; '
+                         'minimum FP32 cosine0.99995744 with identical output bytes '
+                         'across its five processes. Functional correctness alone '
+                         'does not establish performance admission.')
+        row32_close = base/'rowstats32_b4_v1/closure.json'
+        if row32_close.exists():
+            closure = read(row32_close)
+            assert closure['status'] == 'pair_rejected'
+            lines.append('Verified complete body17 and model5 gates pass, but the '
+                         'same-card pair is0.604976→0.650368ms,7.503% slower with '
+                         '3.508% noise. Required trace shows projection106.304→114.400µs '
+                         'and its epilogue22.624→26.400µs; FFN2 stage211.264→209.792µs '
+                         'while its epilogue16.928→17.568µs. Trace maxima are '
+                         'nonadditive. Reject the fixed32-grain change alone, retain '
+                         'the admitted64-column implementation and restore the private '
+                         'source after archiving its patch. No unchanged retiming.')
+    row96_cpu = base/'rowstats32_tn96_b16_v1/layout_proof.json'
+    if row96_cpu.exists():
+        contract = read(row96_cpu)
+        assert contract['passed'] and len(contract['changed_buffers']) == 23
+        lines += ['', 'Verified private B16 CPU preparation changes only12 FFN2 '
+                  'coordinates from128×128/TK64/S1/Slots5/TMA to128×96/TK64/S1/Slots5/reg, '
+                  'with the32-column statistics contract enabling TN96 writers. '
+                  'Current FFN2 main-loop trace327.360µs motivates this separate '
+                  'section9 experiment; the failed B4 grain-only trial stays rejected. '
+                  'Real-codegen default0 preserves all instruction words; candidate '
+                  'SASS306560→328448B with zero spill/local-memory instructions. '
+                  'All five affected host objects and two affected CPU tests are '
+                  'rebuilt; full CMake remains externally blocked. Old-grain TN96 and '
+                  'TM64/TN96 with partial WG blocks are rejected. Twelve exact/edge '
+                  'fixtures compile. Unchanged FP32 thresholds, independent process '
+                  'determinism and a same-card gain exceeding both3% and noise are '
+                  'required before separate production admission.']
+        row96_closed = base/'rowstats32_tn96_b16_v1/closure.json'
+        if row96_closed.exists():
+            closure = read(row96_closed)
+            assert closure['status'] == 'pair_rejected'
+            lines.append('Verified control5,body17 and strict model5 pass. GPU3 '
+                         f'pair {closure["reference_ms"]:.6f}→'
+                         f'{closure["candidate_ms"]:.6f}ms, ratio'
+                         f'{closure["ratio"]:.6f}, noise'
+                         f'{100*closure["noise"]:.3f}%. Reject; restore the five private '
+                         'files. No regression above3%, so no additional trace, '
+                         'P-DNN or unchanged retiming. Current B16 remains unchanged.')
+    scoped32 = base/'ffn2_stats32_b16_v1/reader_proof.json'
+    if scoped32.exists():
+        proof = read(scoped32)
+        assert proof['passed'] and len(proof['rows']) == 49
+        lines += ['', 'Verified private scope repair retains the fixed B16 FFN2 '
+                  'TN96/reg geometry while restricting32-column output statistics '
+                  'to K=4N FFN2 contractions. Only11 FFN2 buffers double;12 projection '
+                  'buffers retain64-column granularity. All49 generated GEMM readers '
+                  'match their producers: later QKV/projection use24 parts, FFN1/FFN2 '
+                  'use12, first QKV/projection use1. Reader and writer granularity '
+                  'are independent metadata. This targets the inferred overhead '
+                  'of finer partials in unrelated layers; no new trace is claimed. '
+                  'Real-codegen SASS316416B, zero spill, unchanged default words; '
+                  'all five affected host objects and two CPU tests rebuild/pass. '
+                  'Twelve mixed-grain fixtures compile. Independent body17/model5 '
+                  'and a gain above3% and noise remain mandatory.']
+        scoped_closed = base/'ffn2_stats32_b16_v1/closure.json'
+        if scoped_closed.exists():
+            closure = read(scoped_closed)
+            assert closure['status'] == 'pair_rejected'
+            lines.append('Verified control5, body17 and model5 pass; GPU3 pair '
+                         '1.233856→1.215232ms gains1.509% above0.843% noise, but '
+                         'fails the predeclared3% minimum. The minimum is retained: '
+                         'no admission, P-DNN or unchanged retiming. Private sources '
+                         'are archived and restored; the current B16 artifact stays unchanged.')
+    whole96 = base/'ffn2_stats96_b16_v1/reader_proof.json'
+    if whole96.exists():
+        proof = read(whole96)
+        assert proof['passed'] and len(proof['rows']) == 49
+        lines += ['', 'Verified private whole-WG statistics preparation keeps the '
+                  'fixed TN96 FFN2 geometry and accumulates its three 32-column '
+                  'register-store regions before publishing one 96-column partial. '
+                  'Eleven FFN2 buffers now contain 8 parts per row; projection '
+                  'outputs retain 12. All 49 generated reader contracts pass. '
+                  'This is an explicit extension of the prompt’s 64-column rule; '
+                  '96 derives from the selected WG width. No synchronization or '
+                  'store protocol changes. Real-codegen SASS is 304768 B with zero '
+                  'spill and unchanged default words. Eighteen fixtures cover '
+                  'crossing 64-column loops, two 96-column groups, TM64 ownership '
+                  'and residual TMA reuse. The original FP32 gates and predeclared '
+                  'gain above both 3% and noise remain required.']
+        whole_closed = base/'ffn2_stats96_b16_v1/closure.json'
+        if whole_closed.exists():
+            closure = read(whole_closed)
+            assert closure['status'] == 'pair_rejected'
+            lines.append('Verified 18-case control5, body17 and model5 pass. GPU3 '
+                         'pair 1.235328→1.198704 ms gains 2.965%, below the 3.593% '
+                         'noise threshold and predeclared 3% minimum. Reject; '
+                         'archive and restore the private source. No extra trace, '
+                         'P-DNN or unchanged retiming; current B16 stays unchanged.')
+    backoff = base/'gate_backoff_b4_admitted_v1/admission.json'
+    backoff16 = continuation/'gate_backoff_b16_v1/closure.json'
+    attention64 = base/'attention64_b16_admitted_v1/admission.json'
+    if attention64.exists():
+        admitted = read(attention64)
+        lines += ['', 'Verified the fixed B16 Rows64 plus SS-QK/RS-PV warpgroup '
+                  'combination is admitted on the current GELU/vector-store profile '
+                  'with 72/216 registers. Earlier single-component trials remain '
+                  'rejected; this combination has its own complete gates. Only 12 '
+                  'query boxes and attention row templates change; other generated '
+                  'code is identical. An initial manifest assertion compared output '
+                  'paths; only that path is normalized after checking identical MLIR '
+                  'bytes. Fresh per-head control5, attention17 (unit5, mem1, init1, '
+                  'race5, sync5) and model5 on GPU3 pass unchanged FP32 thresholds '
+                  'and incumbent output bytes. Each cohort uses fresh processes in '
+                  'the existing guarded reservation. Main codegen and both committed '
+                  'fixture arms reproduce exact words; all five disabled profiles '
+                  'retain exact words. The restored CPU layout test checks 28672 '
+                  'coordinates; 23 corrupted receipts are rejected. Two inherited '
+                  'receipt descriptions are qualified: defaults actually disable '
+                  'QK/PV, and the fixture is attention. No worker or oracle changes. '
+                  'GPU0 P-PAIR 1.238464→1.192400 ms gains 3.719% above 2.227% noise. '
+                  f'P-DNN {admitted["median_ms"]:.6f} ms, p90 {admitted["p90_ms"]:.6f} ms, '
+                  f'process range {admitted["process_range_ms"]:.6f} ms. '
+                  'The fixed GPU3 target is retained without reanchoring; the new '
+                  'median remains 9.91% above 1.086864 ms. Its exact 63-stage GPU0 '
+                  'ledger is retained. Prior GPU3 trace differences are diagnostic '
+                  'and do not establish same-card segment gains. Full CMake remains '
+                  'blocked by external MLIR Debug.cpp.o; host validation is the '
+                  'qualified one-object rebuild, not a full build/ctest.']
+    backoff8 = continuation/'gate_backoff_b8_v1/closure.json'
+    if backoff8.exists():
+        assert read(backoff8)['status'] == 'pair_rejected'
+        lines += ['', 'Verified B8 failed-poll backoff completes ordering17, control5 '
+                  'and model5 with incumbent output bytes. Interrupted or unstarted '
+                  'processes alone are resumed or relocated under the original '
+                  'guards. GPU0 pair 0.851056→0.850064 ms gains 0.117%, below 2.740% '
+                  'noise. Reject without P-DNN, extra trace or unchanged retiming; '
+                  'current B8 and the fixed GPU3 target remain unchanged.']
+    if backoff16.exists():
+        closed = read(backoff16)
+        assert closed['status'] == 'pair_rejected'
+        lines += ['', 'Verified B16 failed-poll backoff completes ordering17, '
+                  'control5 and model5 with incumbent output bytes; completed '
+                  'pre-pause processes are reused and missing checks are resumed. '
+                  'The unchanged GEMM/GELU body cohort is reused only after '
+                  '55024 encoded GPU words match. GPU0 same-card P-PAIR '
+                  '1.236272→1.232896 ms gains 0.273%, below 1.758% noise. '
+                  'Reject without P-DNN, extra trace or unchanged retiming. '
+                  'The original GPU3 target is retained without reanchoring; '
+                  'current B16 stays unchanged.']
+    wide_b4 = base/'ffn2_stats96_b4_v2/closure.json'
+    compact_b4 = base/'ffn2_compact_b4_v1/closure.json'
+    if compact_b4.exists():
+        failure = read(compact_b4)
+        assert failure['status'] == 'compile_rejected' and not failure['hardware_executed']
+        lines += ['', 'Verified a separate source repair halves simultaneous normal '
+                  'split-K reads from 64 values to 32 at the same B4 64×192/S4 '
+                  'geometry and 72/208 register budget. Each element still reads all '
+                  'slices before ascending addition; synchronization is unchanged. '
+                  'This explicit extension of the prompt tests register liveness. '
+                  'Independent fixtures compile without spill, but full BERT still '
+                  'spills 52 B stores/140 B loads versus 56 B/144 B. Reject before '
+                  'GPU execution, retain the failure and patch, and restore the '
+                  'private sources. No correctness or performance result is claimed.']
+    if wide_b4.exists():
+        failure = read(wide_b4)
+        assert failure['status'] == 'compile_rejected' and not failure['hardware_executed']
+        lines += ['', 'Verified CPU-only B4 FFN2 64×192/TK64/S4/Slots6/reg trial '
+                  'starts from admitted gate backoff and uses whole-96 statistics '
+                  'plus the existing coalesced split layout. Independent twelve-case '
+                  'fixtures compile without spill, but the complete BERT consumer '
+                  'spills 56 B stores/144 B loads at 72/208. One documented repair '
+                  'uses the existing legal 72/216 profile and still spills 8 B/8 B. '
+                  'Reject before any GPU correctness or timing run. Both failures '
+                  'and the private patch are retained; private sources are restored. '
+                  'All five dependent host objects and two dependent CPU tests were '
+                  'rebuilt, but this is not a full build/ctest. No performance result '
+                  'is inferred from isolated body compilation. Current B4 stays unchanged.']
+    if backoff.exists():
+        admitted = read(backoff)
+        lines += ['', 'Verified fixed failed-poll gate backoff is admitted for B4. '
+                  'The optional 40 ns sleep follows the local CUTLASS full-barrier '
+                  'reference; successful acquire, release arrival, all-CTA target '
+                  'and local barriers are unchanged. This is an explicit scheduling '
+                  'extension under the user’s implementation discretion, with no '
+                  'parameter sweep. Fresh four-case three-stage ordering control5 '
+                  'and candidate17 (unit5, mem1, init1, race5, sync5) and model5 '
+                  'match incumbent bytes. The prior GEMM/GELU body17 is reused '
+                  'only after all 53488 encoded words match; no fresh body/domain '
+                  'processes are claimed. Main codegen reproduces both arms, '
+                  'committed ordering fixtures reproduce both arms, and all five '
+                  'default profiles retain exact words. GPU3 pair '
+                  '0.605504→0.596512 ms gains 1.485%, exceeding the prospectively '
+                  'declared max(0.5%, 0.955% noise). P-DNN is '
+                  f'{admitted["median_ms"]:.6f} ms, p90 {admitted["p90_ms"]:.6f} ms, '
+                  f'process range {admitted["process_range_ms"]:.6f} ms. '
+                  'The fixed target remains 0.590496 ms. The exact 63-stage '
+                  'P-TRACE1 ledger is retained; trace perturbs scheduling and '
+                  'does not independently establish the source of the gain. '
+                  'Reduced polling traffic is inferred. Other batches remain unchanged. '
+                  'Full CMake remains blocked by the missing external MLIR Debug.cpp.o; '
+                  'the actual host proof uses a qualified one-object incremental rebuild.']
+    gelu_store = continuation/'gelu_store_bundle_b4_v1/experiment.json'
+    if gelu_store.exists():
+        trial = read(gelu_store)
+        pair = trial['pair']
+        lines += ['', 'Verified the fixed matrix/attention-store combination on the '
+                  'new B4 GELU artifact reuses the exact-profile B8 body cohort and '
+                  'the order/attention cohorts only after full GPU-word identity '
+                  'under GELU1. No component processes are claimed fresh. Fresh B4 '
+                  'model5 matches incumbent bytes. GPU3 pair '
+                  f'{pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms; gain'
+                  f'{100*(1-pair["ratio"]):.3f}% is below noise'
+                  f'{100*pair["threshold"]:.3f}%. Reject without P-DNN or unchanged '
+                  'retiming; that trial retains its admitted GELU-only predecessor.']
+    depth_trace = continuation/'mma_depth2_b4_v3/attribution.json'
+    if depth_trace.exists():
+        trace = read(depth_trace)
+        qkv = next(r for r in trace['rows'] if r['group'] == 'qkv')
+        lines += ['', 'Verified rejected depth2 B4 attribution: QKV stage '
+                  f'{qkv["control"]["stage_ns"]/1000:.3f}→'
+                  f'{qkv["candidate"]["stage_ns"]/1000:.3f}µs; slot-wait maxima '
+                  f'{qkv["control"]["slot_wait_max_cta_ns"]/1000:.3f}→'
+                  f'{qkv["candidate"]["slot_wait_max_cta_ns"]/1000:.3f}µs. '
+                  'Trace segments are nonadditive and diagnostic; the non-trace pair '
+                  'decides rejection. Private files are restored after trace completion.']
+    if failed_pp.exists() and read(failed_pp).get('status') == 'component_rejected':
+        lines.append('\nVerified fixed WG64 PP/P1/TMA candidate compiles without spill and both normal '
+                     'unit cohorts pass5/5, but ordering synccheck reports1024 errors and residual-chain '
+                     'racecheck reports21 errors. Reject before model correctness or timing; '
+                     'partial sanitizer cohorts are not complete gates. Frozen failures remain raw; '
+                     'current profiles and targets are unchanged.')
+    outlined = base/'ffn2_outline_b4_v1/closure.json'
+    if outlined.exists():
+        closed = read(outlined)
+        assert closed['status'] == 'pair_rejected'
+        lines += ['', 'Verified fixed B4 outlined split-K bounds compiler load '
+                  'liveness with a noinline four-float reducer: four vector loads '
+                  'precede arithmetic, and ascending slice addition is retained. '
+                  'The 64×192/TK64/S4/Slots6/reg whole-96-statistics model compiles '
+                  'with zero spill at the unchanged 72/208 budget. Twelve-case '
+                  'control5 and body17 plus strict model5 pass; inline/outlined '
+                  'same-geometry unit bytes match. GPU3 P-PAIR '
+                  '0.595136→0.734400 ms regresses 23.400% versus 0.715% noise. '
+                  'Required exact-binary trace shows FFN2 windows '
+                  '215.328→267.072 µs, main-loop CTA maxima 177.408→109.152 µs, '
+                  'epilogue 18.496→83.648 µs and split-K 0→59.040 µs. Segment '
+                  'maxima are nonadditive and diagnostic. Reject the coupled '
+                  'geometry/reduction program, archive its patch and restore '
+                  'five private files; no P-DNN, unchanged retiming or '
+                  'chunk/register scan. Current B4 remains unchanged. Qualified '
+                  'host validation rebuilt five dependent objects and two CPU '
+                  'tests; full CMake remains externally blocked.']
+    attention8 = base/'attention64_b8_v1/closure.json'
+    if attention8.exists():
+        closed = read(attention8)
+        assert closed['status'] == 'pair_rejected'
+        lines += ['', 'Verified the fixed Rows64 plus SS-QK/RS-PV combination '
+                  'is independently tested on B8 at its unchanged 72/208, GELU, '
+                  'vector-store and task-recomputation profile. Actual main '
+                  'codegen preserves the disabled instruction words; only '
+                  '12 query boxes and attention row templates change. Both '
+                  'arms compile without spill. Fresh five-case attention '
+                  'control5, body17 and strict model5 pass on GPU3 and match '
+                  'incumbent output bytes. GPU3 P-PAIR 0.845344→0.846800 ms '
+                  'gives ratio1.001722 versus1.753% noise; reject without '
+                  'P-DNN, extra trace or unchanged retiming. The B16 gain '
+                  'does not transfer to B8. An initial unit-preparation '
+                  'dependency assertion failed before compilation; its '
+                  'snapshot is retained and the completed v2 cohort is fresh. '
+                  'Current B8 and its fixed target remain unchanged.']
+    output_map = base/'repeat_output_map_b16_v2/result.json'
+    if output_map.exists():
+        cpu = read(output_map)
+        integrated = read(base/'repeat_output_map_contract_integration_v1/result.json')
+        assert cpu['status'] == 'prepared_CPU_only' and integrated['passed']
+        lines += ['', 'Verified CPU preparation of the Repeat binding repair: first-layer '
+                  'QKV uses a TMA output map while its normal layer uses '
+                  'register stores. The missing virtual output-map role '
+                  'forces the current coordinate assembly into a flat program. '
+                  'A private, disabled-by-default codegen option unions that '
+                  'map presence before allocating virtual IDs. All 1380 '
+                  'operand fields reconstruct the physical bindings, including '
+                  'null maps in later repetitions; physical buffers, maps, '
+                  'bodies, geometry and arithmetic remain identical. SASS '
+                  'shrinks from 2058368 to 292864 B with zero spill. The initial '
+                  'main structural certificate rejects the new role; its '
+                  'failure is preserved. An explicit-flag certificate now '
+                  'retains exact remap checks and rejects 25 corruptions; '
+                  '46 existing admission tests and all five current artifacts '
+                  'pass. These are structural and code-size results. '
+                  'Hardware outcomes are recorded separately below. '
+                  'Code size alone establishes no speedup or admission.']
+        main_map = base/'repeat_output_map_main_regression_v1/result.json'
+        if main_map.exists():
+            assert read(main_map)['passed']
+            lines += ['', 'Verified the optional output-map codegen path is '
+                      'integrated with default0. Actual main codegen reproduces '
+                      'all 257296 disabled-arm and 36608 enabled-arm encoded '
+                      'GPU words; both builds have zero spill. All five pre-admission '
+                      'profiles emit identical code with the setting absent or '
+                      'explicit0, and each rebuilt program matches its incumbent '
+                      'instructions. A reusable fixture builder renders real '
+                      'binding tables under ignored runs and reproduces all '
+                      '1056 prototype GPU words. Generated model tables are not '
+                      'committed. This remains an opt-in mechanism; no current '
+                      'artifact or target changes. Host validation uses the '
+                      'qualified single-object rebuild; full CMake is still '
+                      'blocked by external MLIR Debug.cpp.o.']
+    assembly = continuation/'attention_catalog_b16_gpu0_assembly_v1/result.json'
+    if assembly.exists():
+        result = read(assembly)
+        measured = read(assembly.parent/'experiment.json')
+        pair = measured['pair']
+        lines += ['', 'Verified current-profile B16 catalog diagnostics cover five legal '
+                  'variants; candidate5 still spills and is excluded. The qualified '
+                  'GPU0 boundary trace overhead is4.770%. Comparing each group with '
+                  'the actual current control selects FFN1 and first-QKV '
+                  '128x192/TK64/S1/Slots4/TMA; identical-coordinate aliases retain '
+                  'current. Fresh body17, four separate ordering17 cohorts and '
+                  'model5 pass. Each ordering case retains200 register-store plus '
+                  '200 TMA-store launches, including odd boundaries and residual '
+                  'reuse. The stopped long combined ordering attempt remains '
+                  'incomplete. GPU0 P-PAIR '
+                  f'{pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms, '
+                  f'ratio{pair["ratio"]:.6f}, noise{100*pair["threshold"]:.3f}%. '
+                  'Reject the assembly; no current artifact or target changes.']
+        if result['status'] != 'pair_rejected':
+            raise ValueError('catalog closure differs from its measured rejection')
+    output_gate = continuation/'repeat_output_map_b16_v1/result.json'
+    if output_gate.exists():
+        result = read(output_gate)
+        measured = read(output_gate.parent/'experiment.json')
+        pair, mechanism = measured['pair'], measured['mechanism']
+        lines += ['', 'Verified optional output-map repair completes fresh GPU0 '
+                  'layout17 and strict model5, matching the raw flat-program '
+                  'output bytes. Existing body17 and four ordering17 cohorts are '
+                  'reused explicitly after whole GPU-word identity; they are '
+                  'not fresh runs. The marker fixture checks1380 binding fields '
+                  'and dynamic null lookup; it alone does not prove TMA or '
+                  'attention arithmetic. Same-coordinate GPU0 mechanism pair '
+                  f'{mechanism["reference_ms"]:.6f}→{mechanism["candidate_ms"]:.6f}ms '
+                  f'gains{100*(1-mechanism["ratio"]):.3f}% above '
+                  f'{100*mechanism["threshold"]:.3f}% noise. Independent actual-current '
+                  f'pair {pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms '
+                  f'gains{100*(1-pair["ratio"]):.3f}% with '
+                  f'{100*pair["threshold"]:.3f}% noise, below the predeclared3% '
+                  'minimum. Mechanism passes; production admission fails. Keep '
+                  'the feature default0 and current B16 unchanged; no P-DNN or '
+                  'unchanged retiming follows this rejected artifact.']
+        if result['status'] != 'current_pair_rejected':
+            raise ValueError('Repeat output-map closure differs from its gain gate')
+    prefetch_gate = continuation/'repeat_prefetch_b16_v1/result.json'
+    if prefetch_gate.exists():
+        result = read(prefetch_gate)
+        measured = read(prefetch_gate.parent/'experiment.json')
+        pair = measured['pair']
+        lines += ['', 'Verified a distinct fixed DT-PF distance1 combination on '
+                  'the repaired B16 program keeps coordinates, maps, arithmetic '
+                  'and registers unchanged. Actual main emission differs only '
+                  'by the prefetch-distance definition; SASS295808B with zero '
+                  'spill. Fresh GPU2 model5 passes and matches the repaired '
+                  'program bytes. GPU2 P-PAIR '
+                  f'{pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms '
+                  f'gains{100*(1-pair["ratio"]):.3f}% above '
+                  f'{100*pair["threshold"]:.3f}% noise and the predeclared3% minimum. '
+                  f'P-DNN median{result["final"]["candidate_ms"]:.6f}ms; '
+                  f'p90{result["final"]["p90_ms"]:.6f}ms; '
+                  f'range{result["final"]["process_range_ms"]:.6f}ms. '
+                  'GEMM body words match '
+                  'the prior fixture, while four Program ordering binaries '
+                  'change with prefetch hints and cannot reuse whole-word '
+                  'certificates.']
+        admitted = base/'repeat_prefetch_b16_admitted_v1/admission.json'
+        if admitted.exists():
+            from dnn4_bert_repeat_prefetch import validate
+            folder = admitted.parent
+            validate(folder, read(folder/'experiment.json'), read(folder/'final_result.json'))
+            lines += ['Verified four fresh ordering17 cohorts, strict model5, '
+                      'four-program P-SEL and the exact63-stage GPU2 ledger '
+                      'complete the fixed combination admission. Body17 and '
+                      'map-layout17 are explicitly reused after instruction '
+                      'identity; other source/default proofs also pass. '
+                      'Only this B16 profile enables the optional output map '
+                      'and distance1; production defaults remain unchanged. '
+                      'The original GPU3 target is retained without reanchoring. '
+                      'Current CSV publication follows the separate negative '
+                      'receipt tests and five-batch exporter regression.']
+            publication = base/'repeat_prefetch_publication_v1/result.json'
+            if publication.exists():
+                published = read(publication)
+                if not published['passed'] or published['negative_cases'] != 44:
+                    raise ValueError('Repeat prefetch publication lacks its negative receipt gate')
+                lines += ['Verified44 corrupted receipts are rejected and the '
+                          'five-batch exporter preserves the other four artifacts '
+                          'and numerical results. Current B16 is published at '
+                          f'{published["admitted_B16_ms"]:.6f}ms, still5.434% above '
+                          'the fixed1.086864ms target. B1/B2 remain below target; '
+                          'B4/B8/B16 still require further improvement.']
+        else:
+            lines += ['This is a positive private candidate. Fresh ordering '
+                      'gates, candidate selection, exact ledger and final '
+                      'admission remain pending. Current CSV and fixed GPU3 '
+                      'target remain unchanged.']
+    large_ffn = continuation/'repeat_prefetch_ffn256_b16_v1/result.json'
+    if large_ffn.exists():
+        result = read(large_ffn)
+        measured = read(large_ffn.parent/'experiment.json')
+        if result['status'] != 'pair_rejected' or measured['accepted']:
+            raise ValueError('fixed large FFN1 choice differs from its rejection')
+        lines += ['', 'Verified one fixed128x256/TK64/S1/Slots4/register-store '
+                  'FFN1 choice on the newly admitted Repeat/PF1 profile compiles '
+                  'with zero spill and296704B SASS. Fresh exact/odd-row body17 '
+                  'and strict model5 pass on GPU2. GPU2 P-PAIR '
+                  f'{measured["pair"]["reference_ms"]:.6f}→{measured["pair"]["candidate_ms"]:.6f}ms '
+                  f'regresses{100*(measured["pair"]["ratio"]-1):.3f}% with '
+                  f'{100*measured["pair"]["threshold"]:.3f}% noise. The smoke '
+                  'regression triggers an exact trace before paired timing. '
+                  'FFN1 windows389.120→535.040us; main-loop CTA maxima '
+                  '228.064→249.376us, epilogue135.456→253.568us and '
+                  'store18.880→91.264us. Segment maxima are nonadditive; the '
+                  'nontrace pair decides rejection. Retain1.145920ms B16; '
+                  'no P-DNN, unchanged retiming or production header change.']
+    b8_balance = base/'b8_stats96_balance_b8_v2/result.json'
+    if b8_balance.exists():
+        candidate = read(b8_balance)
+        audit = read(base/'b8_stats96_balance_b8_v1/spill_audit.json')
+        contract = read(b8_balance.parent/'layout_proof.json')
+        if (candidate['status'] != 'prepared_CPU_only' or not contract['passed']
+                or audit['spill_stores_bytes'] != 8 or audit['spill_loads_bytes'] != 8
+                or len(contract['readers']) != 49):
+            raise ValueError('B8 balance CPU evidence differs from its fixed choice')
+        lines += ['', 'Verified private B8 CPU preparation combines fixed '
+                  'FFN1 128x192/TK64/S1/Slots4/TMA with FFN2 '
+                  '128x96/TK64/S2/Slots6/register stores, coalesced partials '
+                  'and whole96-column FFN2 statistics. This explicitly extends '
+                  'the prescribed64-column grain under user discretion. '
+                  'Measured current FFN1/FFN2 stage shares27.303/26.610% '
+                  'motivate the choice; wave balance and traffic benefits are '
+                  'inferred. The72/208 build spills8/8B and is rejected before '
+                  'GPU execution. Both local instructions lie after consumer '
+                  'inc208 and before producer dec72. A separately declared '
+                  'single existing72/216 repair has zero spill and290176B '
+                  'SASS; it preserves the geometry, math and source. All five '
+                  'affected host objects and two CPU tests rebuild; default '
+                  'B8 GPU words match. Only11 buffers change12→8 partials; '
+                  'all49 reader contracts pass and two incompatible producer '
+                  'geometries are rejected. Six short four-case body binaries '
+                  'compile without spill. Ordering instruction reuse fails for '
+                  'all four cases, requiring fresh ordering gates. '
+                  'The source stays private and default0; full CMake '
+                  'remains blocked by external MLIR Debug.cpp.o.']
+        completed = continuation/'b8_stats96_balance_v2/result.json'
+        if completed.exists():
+            result = read(completed)
+            measured = read(completed.parent/'experiment.json')
+            if result['status'] != 'pair_rejected' or measured['accepted']:
+                raise ValueError('B8 mixed-grain closure differs from its rejection')
+            pair = measured['pair']
+            lines += ['Verified three control5, three candidate17, four fresh '
+                      'ordering17 cohorts and strict model5 pass on GPU2 before '
+                      'the latest allocation change. GPU2 P-PAIR '
+                      f'{pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms '
+                      f'gains{100*(1-pair["ratio"]):.3f}% with '
+                      f'{100*pair["threshold"]:.3f}% noise, below the predeclared3% '
+                      'minimum. Reject this fixed combination; no P-DNN or '
+                      'unchanged retiming. Current B8 stays0.852384ms.']
+        else:
+            lines += ['Hardware gates remain pending; no B8 timing admission is claimed.']
+    b16_stats = base/'b16_stats96_pf1_v1/result.json'
+    if b16_stats.exists():
+        candidate = read(b16_stats)
+        contract = read(b16_stats.parent/'layout_proof.json')
+        if candidate['status'] != 'prepared_CPU_only' or not contract['passed']:
+            raise ValueError('B16 mixed-grain CPU preparation is incomplete')
+        lines += ['', 'Verified a separate fixed B16 FFN2 candidate uses '
+                  '128x96/TK64/S1/Slots6/register stores and whole96-column output '
+                  'statistics on the admitted Rows64/GELU/Repeat-map/PF1/72-216 '
+                  'profile. All other coordinates stay unchanged. The default '
+                  'kernel preserves incumbent instruction words; both models '
+                  'compile without spill, candidate SASS294272B. All49 reader '
+                  'contracts and11 changed-buffer checks pass; two incompatible '
+                  'producer geometries are rejected. Six exact2048/odd2049 '
+                  'four-case body binaries compile without spill. All four '
+                  'ordering binaries match the completed PF1 instruction words, '
+                  'permitting explicit historical gate reuse. New functional '
+                  'and model/timing jobs use only GPU1; this is a private '
+                  'candidate, with no current-result change.']
+        completed = continuation/'b16_stats96_pf1_gpu1_v1/result.json'
+        if completed.exists():
+            result = read(completed)
+            measured = read(completed.parent/'experiment.json')
+            if result['status'] != 'pair_rejected' or measured['accepted']:
+                raise ValueError('B16 mixed-grain closure differs from its rejection')
+            pair = measured['pair']
+            lines += ['Verified three fresh control5/body17 groups and strict '
+                      'model5 pass on GPU1; four historical GPU2 ordering17 '
+                      'cohorts are explicitly reused after instruction identity. '
+                      f'GPU1 smoke{measured["smoke"]["candidate_ms"]:.6f}ms; '
+                      f'independent pair{pair["reference_ms"]:.6f}→'
+                      f'{pair["candidate_ms"]:.6f}ms gains'
+                      f'{100*(1-pair["ratio"]):.3f}%, below '
+                      f'{100*pair["threshold"]:.3f}% noise and the predeclared3% '
+                      'minimum. Reject without P-DNN or unchanged retiming; '
+                      'current B16 stays1.145920ms on GPU2. No greater-than3% '
+                      'regression trace is triggered. Historical fixed GPU3 '
+                      'target remains unchanged.']
+    b4_prefetch = base/'prefetch_b4_gpu1_v1/result.json'
+    if b4_prefetch.exists():
+        prepared = read(b4_prefetch)
+        if (prepared['status'] != 'prepared_CPU_only'
+                or not read(Path(prepared['source_differential']))['passed']
+                or not read(Path(prepared['body_proof']))['passed']):
+            raise ValueError('fixed B4 prefetch lacks its CPU preparation')
+        lines += ['', 'Verified the existing DT-PF distance2→1 choice on current '
+                  'B4 changes only one generated define, preserving coordinates, '
+                  'maps, arithmetic, registers and failed-poll backoff. The '
+                  'actual main host emits a zero-spill242304B program; all53488 '
+                  'body/GELU instruction words match the completed17 cohort. '
+                  'Prospective acceptance requires gain above max(1%, noise), '
+                  'consistent with the DT-PF1% tie rule. B16 benefit motivates '
+                  'this single B4 check; B4 benefit remains inferred.']
+        retired = continuation/'prefetch_b4_gpu1_v1/ordering_retired.json'
+        if retired.exists():
+            lines += ['Verified the initial combined four-case reservation is '
+                      'rejected by guard75 for running interference; no partial '
+                      'child results qualify. Only its waiting controllers are '
+                      'retired. Four separately compiled one-case binaries keep '
+                      'the original prefix,200 register+200 TMA launches, bit '
+                      'checks,600s child and1200s cohort budgets. Each requires '
+                      'fresh unit5/mem1/init1/race5/sync5 on GPU1 and inherits '
+                      'the complete recorded retry delay. Guards are unchanged. '
+                      'CPU preparation alone does not update a current result.']
+        completed = continuation/'prefetch_b4_gpu1_split_v2/result.json'
+        if completed.exists():
+            result = read(completed)
+            measured = read(completed.parent/'experiment.json')
+            pair = measured['pair']
+            lines += [f'Verified GPU1 independent pair{pair["reference_ms"]:.6f}→'
+                      f'{pair["candidate_ms"]:.6f}ms, gain'
+                      f'{100*(1-pair["ratio"]):.3f}%, noise'
+                      f'{100*pair["threshold"]:.3f}%; status={result["status"]}. '
+                      'Strict model5 and four fresh ordering17 cohorts precede '
+                      'timing. Current admission requires a separate complete '
+                      'audit; the fixed GPU3 target is unchanged.']
+        published = base/'prefetch_b4_publication_v1/result.json'
+        if published.exists():
+            publication = read(published)
+            folder = base/'prefetch_b4_gpu1_admitted_v1'
+            from dnn4_bert_prefetch import validate
+            validate(folder, read(folder/'experiment.json'), read(folder/'final_result.json'))
+            if not publication['passed'] or publication['negative_cases'] != 63:
+                raise ValueError('B4 prefetch publication lacks its negative gate')
+            lines += ['Verified63 corrupted receipts are rejected and the '
+                      'five-batch exporter preserves the other four admitted '
+                      'artifacts and numerical results. Current B4 is now '
+                      f'{publication["admitted_B4_ms"]:.6f}ms on GPU1, below its '
+                      'fixed0.590496ms target. B1/B2/B4 are below target; B8/B16 '
+                      'remain above. This accepts one existing hint setting, '
+                      'with production defaults and frozen Phase Z unchanged.']
+    b8_hint = continuation/'prefetch_b8_gpu1_v1/result.json'
+    if b8_hint.exists():
+        result = read(b8_hint)
+        measured = read(b8_hint.parent/'experiment.json')
+        pair = measured['pair']
+        lines += ['', 'Verified a separate B8 distance2→1 check on the current '
+                  'outlined-GELU/store profile passes strict model5 and preserves '
+                  'both named outputs. Canonicalizing nine independent numeric '
+                  'prefix definitions resolves an initial CPU literal-source '
+                  'comparison failure; all33712 default-control GPU words match '
+                  'the incumbent. Body17 is reused only after53280 GPU words '
+                  'match. GPU1 P-PAIR '
+                  f'{pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms gains'
+                  f'{100*(1-pair["ratio"]):.3f}% below '
+                  f'{100*pair["threshold"]:.3f}% noise. Reject without P-DNN, '
+                  'unchanged retiming or current update. This existing-parameter '
+                  'prescreen uses P-CORR/P-SMOKE; it claims no new ordering '
+                  'sanitizer cohort.']
+    attribution = base/'b8_balance_attribution_gpu1_v1/result.json'
+    if attribution.exists():
+        result = read(attribution)
+        if result['status'] != 'diagnostic_complete':
+            raise ValueError('B8 diagnostic attribution is incomplete')
+        lines += ['', 'Verified one bounded P-TRACE1 of the previously rejected '
+                  'B8 combination isolates the remaining tradeoff. FFN1 stage '
+                  'windows297.568→212.896us, main183.520→126.720us and '
+                  'epilogue91.040→67.328us; FFN2 windows290.016→282.080us, '
+                  'main244.992→182.528us, epilogue22.496→63.904us and '
+                  'split-K0→24.704us. Historical reference GPU3 and new GPU1 '
+                  'windows are a cross-card diagnostic; nested maxima are '
+                  'nonadditive and trace1 scheduling overhead differs. No '
+                  'nontrace measurement is repeated and the combined rejection '
+                  'is retained. A single prospective FFN1-only isolation keeps '
+                  'the current FFN2 coordinates and64-column statistics; its '
+                  'benefit remains inferred until an independent whole-model '
+                  'pair. The exact private source patch was restored after '
+                  'this diagnostic completed.']
+    published = base/'ffn1_tma192_gelu_b8_publication_v1/result.json'
+    if published.exists():
+        folder = base/'ffn1_tma192_gelu_b8_admitted_v1'
+        from dnn4_bert_ffn1_isolation import validate
+        decision, final = read(folder/'experiment.json'), read(folder/'final_result.json')
+        validate(folder, decision, final)
+        publication = read(published)
+        if not publication['passed'] or publication['negative_cases'] != 48:
+            raise ValueError('FFN1-only B8 lacks its complete publication gate')
+        pair = decision['pair']
+        lines += ['', 'Verified the single FFN1-only isolation changes twelve '
+                  '128x96/Slots7/reg stages to128x192/Slots4/TMA and uses the '
+                  'existing72/216 profile. FFN2,64-column statistics and PF2 '
+                  'remain unchanged. Main emission compiles without spill, '
+                  'SASS268928B. Five complete historical GPU2 component cohorts '
+                  '(body and four ordering cases) are reused only after their '
+                  'entire GPU instruction words match actual-main-header builds; '
+                  'no fresh GPU1 sanitizer cohort is claimed. Fresh strict model5 '
+                  'passes and is deterministic; cross-incumbent bytes also match '
+                  'as a diagnostic, without replacing the FP32 gate. GPU1 P-PAIR '
+                  f'{pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms gains'
+                  f'{100*(1-pair["ratio"]):.3f}% above the prospective3% and '
+                  f'{100*pair["threshold"]:.3f}% noise. P-DNN '
+                  f'{final["measurement"]["candidate_ms"]:.6f}ms, p90'
+                  f'{final["measurement"]["p90_ms"]:.6f}ms and range'
+                  f'{final["measurement"]["process_range_ms"]:.6f}ms; exact63-stage '
+                  'ledger and48 corrupted-receipt rejections pass. The five-cell '
+                  'export preserves the other four cells. B8 remains above its '
+                  'fixed0.745712ms target; original GPU3 anchor is retained without '
+                  'reanchoring. Earlier combined candidates remain rejected.']
+    tk128 = continuation/'ffn2_tk128_ffn1_b8_v1/result.json'
+    if tk128.exists():
+        result = read(tk128)
+        experiment = read(tk128.parent/'experiment.json')
+        pair = experiment['pair']
+        if result['status'] != 'pair_rejected' or experiment['accepted']:
+            raise ValueError('TK128 B8 report changes the closed rejection')
+        lines += ['', 'Verified current B8 FFN2 already uses128x64/TK64/S1/'
+                  'Slots8/TMA. A same-coordinate TN64 proposal is stopped on CPU '
+                  'before generation or GPU execution. The distinct TK128/Slots4 '
+                  'candidate keeps ring bytes,64-column statistics,profile216/'
+                  'PF2 and all other coordinates fixed. Main compilation has '
+                  'zero spill and270720B SASS. A private fixture initially refers '
+                  'to a removed stats96 macro; preserve that CPU failure and '
+                  'spell its original fixedN/64 allocation/checker bounds in v2. '
+                  'Control5 and candidate17 pass on GPU1 with identical unit '
+                  'bytes; four unchanged ordering17 cohorts are explicitly '
+                  'reused after whole-word proofs. Strict model5 passes. GPU1 '
+                  f'pair{pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms '
+                  f'ratio{pair["ratio"]:.6f}, noise{100*pair["threshold"]:.3f}%. '
+                  'Reject without P-DNN or unchanged retiming. Current B8 '
+                  'remains0.801408ms; no baseline or threshold changes.']
+    qkv192 = continuation/'qkv_tma192_pf1_b16_v1/result.json'
+    if qkv192.exists():
+        result = read(qkv192)
+        experiment = read(qkv192.parent/'experiment.json')
+        pair = experiment['pair']
+        proof = read(base/'qkv_tma192_pf1_b16_v1/ordering_main_proof.json')
+        if (not proof['passed'] or len(proof['rows']) != 4
+                or any(not r['passed'] or r['encoded_words'] <= 0 for r in proof['rows'])):
+            raise ValueError('QKV B16 drops its exact ordering reuse proof')
+        lines += ['', 'Verified a fixed QKV candidate on repaired Repeat-map/'
+                  'PF1/Rows64/GELU B16 changes eleven repeated128x96/Slots7/reg '
+                  'stages to128x192/Slots4/TMA. First QKV already uses192/TMA; '
+                  'all other coordinates,stats64,arithmetic and profile216 stay '
+                  'fixed. Main compilation has zero spill and293888B SASS. '
+                  'Four exact2048/odd2049 NT12/NT1 fixtures pass control5 and '
+                  'candidate17; four PF1 ordering17 cohorts are reused only '
+                  'after actual-main-header builds match all instruction words. '
+                  'Strict model5 passes. GPU1 pair'
+                  f'{pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms, '
+                  f'ratio{pair["ratio"]:.6f},noise{100*pair["threshold"]:.3f}%. '
+                  + ('The private pair clears the prospective3%/noise gate; '
+                     'complete publication admission remains separate.'
+                     if experiment['accepted'] else
+                     'Reject under the prospective3%/noise gate without P-DNN '
+                     'or unchanged retiming; current B16 is retained.')]
+    prefix = continuation/'tma_prefix96_b16_v1/result.json'
+    if prefix.exists():
+        result = read(prefix)
+        experiment = read(prefix.parent/'experiment.json')
+        functional = read(prefix.parent/'functional_components.json')
+        precision = read(prefix.parent/'store_only_precision_result.json')
+        pair = experiment['pair']
+        if (result['status'] != 'pair_rejected' or experiment['accepted']
+                or functional['complete_ordering'] or not precision['passed']):
+            raise ValueError('TN96 store prescreen changes its closed protocol scope')
+        lines += ['', 'Verified private TN96 store extension sends its complete64 '
+                  'columns through TMA and its final32 through existing generic '
+                  'predicates; the local box bound prevents adjacent-tile overwrite. '
+                  'B16 changes eleven QKV store coordinates and Slots7→6 to fit '
+                  'existing32KiB staging; arithmetic,stats64 and other coordinates '
+                  'stay fixed. All five disabled programs retain complete GPU '
+                  'instruction words. The initial uniform box check perturbed '
+                  'B8/B16 defaults; preserved CPU-only failures lead to a constexpr '
+                  'bound only for non64 widths. Six dependent host objects and '
+                  'four CPU tests rebuild/pass; full CMake/ctest remains externally '
+                  'blocked. Full candidate has zero spill,293504B SASS. Fresh '
+                  'control5,body17,first visibility17 and strict model5 pass on '
+                  'GPU1, preserving both incumbent named outputs. The first '
+                  'visibility case retains200reg+200TMA launches per process and '
+                  'takes707.326s for its complete guarded cohort. GPU1 pair'
+                  f'{pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms gains'
+                  f'{100*(1-pair["ratio"]):.3f}% below'
+                  f'{100*pair["threshold"]:.3f}% noise and the predeclared3% gate. '
+                  'Reject without P-DNN or the remaining three visibility '
+                  'sanitizer cohorts; no full four-case P-SAN completion or '
+                  'production admission is claimed. The prototype stays isolated '
+                  'and official BERT results are unchanged.']
+    combined = continuation/'prefix96_stats96_b16_v1/result.json'
+    if combined.exists():
+        result = read(combined)
+        experiment = read(combined.parent/'experiment.json')
+        functional = read(combined.parent/'functional_components.json')
+        pair = experiment['pair']
+        if (result['status'] != 'pair_rejected' or experiment['accepted']
+                or functional['complete_ordering'] or len(functional['body_gates']) != 3
+                or len(functional['order_gates']) != 1):
+            raise ValueError('combined prefix/statistics prescreen changed its negative scope')
+        lines += ['', 'Verified one fixed combination keeps QKV TN96 prefix '
+                  'stores and adds FFN2 TN96/reg/Slots6 with whole96-column '
+                  'statistics. Both earlier component failures remain rejected. '
+                  'The candidate has zero spill,291968B SASS; all five disabled '
+                  'programs retain complete GPU words. All49 reader contracts, '
+                  'eleven12→8-part buffer changes and two invalid geometries '
+                  'pass CPU checks. Three control5, two body17 and the first '
+                  'visibility17 are reused only after whole instruction-word '
+                  'identity; the changed mixed body gets fresh17. Strict model5 '
+                  'passes with deterministic candidate bytes; differences from '
+                  'the incumbent follow statistics reassociation under U9, '
+                  'without relaxing the FP32 criterion. GPU1 pair'
+                  f'{pair["reference_ms"]:.6f}→{pair["candidate_ms"]:.6f}ms gains'
+                  f'{100*(1-pair["ratio"]):.3f}% below'
+                  f'{100*pair["threshold"]:.3f}% noise. Reject without P-DNN '
+                  'or the remaining three visibility cohorts. Six private core '
+                  'files and two owned tests are archived and restored; main '
+                  'production files never change.']
+        attribution = base/'prefix96_stats96_attribution_v1/result.json'
+        if attribution.exists():
+            measured = read(attribution)
+            if not measured['passed']:
+                raise ValueError('combined attribution is incomplete')
+            lines += ['Verified two same-GPU1 bounded P-TRACE1 runs retain '
+                      'the exact current/candidate binary references. FFN2 '
+                      'stage380.320→351.072us, main299.648→279.968us, '
+                      'epilogue74.304→64.256us, store13.696→28.800us; '
+                      'projection194.720→209.344us offsets part of the gain. '
+                      'Nested maxima are nonadditive diagnostics, with trace '
+                      'overhead and code/cache differences. No nontrace '
+                      'remeasurement or revised threshold follows.']
+    split192 = continuation/'ffn2_n192_s2_b16_v1/result.json'
+    if split192.exists():
+        result = read(split192)
+        experiment = read(split192.parent/'experiment.json')
+        failure = read(split192.parent/'trace1_build_failure.json')
+        diagnostic = read(base/'ffn2_n192_s2_boundary_diagnosis_v1/result.json')
+        pair = experiment['pair']
+        if result['status'] != 'pair_rejected' or experiment['accepted'] or failure['trace1_executed']:
+            raise ValueError('split2 B16 report changes its closed negative result')
+        base_total = sum(diagnostic['groups']['reference'].values())/1e6
+        candidate_total = sum(diagnostic['groups']['candidate'].values())/1e6
+        lines += ['', 'Verified one original-grain FFN2 TN192/S2/Slots4/TMA '
+                  'candidate uses existing coalesced partials on the current '
+                  'PF1/Rows64/GELU/profile216 program. Other coordinates and '
+                  'stats64 stay fixed. Nontrace324224B SASS has zero spill; '
+                  'fresh control5/body17/model5 pass, and four unchanged '
+                  'Program ordering17 cohorts are reused after whole-word '
+                  'identity. Smoke1.274864ms triggers attribution before pairing. '
+                  'Fulltrace1 instrumentation spills68B stores/176B loads and '
+                  'is never executed. A zero-spill trace3 fallback provides '
+                  'only stage windows: FFN2 296.288→373.728us. Trace-window '
+                  f'sums{base_total:.6f}/{candidate_total:.6f}ms differ from '
+                  'nontrace pair medians by'
+                  f'{100*(base_total/pair["reference_ms"]-1):.3f}%/'
+                  f'{100*(candidate_total/pair["candidate_ms"]-1):.3f}%; '
+                  'the reference exceeds5%, so these windows are ineligible '
+                  'for P-TUNE/P-MODEL and support qualitative attribution only. '
+                  f'GPU1 independent pair{pair["reference_ms"]:.6f}→'
+                  f'{pair["candidate_ms"]:.6f}ms,ratio{pair["ratio"]:.6f},'
+                  f'noise{100*pair["threshold"]:.3f}%. Reject without P-DNN '
+                  'or current update; failed trace build and pending-pair '
+                  'controller repair are retained.']
+    ring = continuation/'ring_store_b16_v1/result.json'
+    if ring.exists():
+        result = read(ring)
+        experiment = read(ring.parent/'experiment.json')
+        restore = read(base/'ring_store_contract_v1/restoration.json')
+        if result['status'] != 'pair_rejected' or experiment['accepted'] or not restore['passed']:
+            raise ValueError('retired-slot negative/restoration changed')
+        pair = experiment['pair']
+        lines += ['', 'Verified one private staging extension retains the final '
+                  'input slot after WGMMA wait0, synchronizes both consumer WGs, '
+                  'uses its32KiB for four TMA output boxes, then waits for both '
+                  'WG shared reads before the eight empty arrivals. No statistics '
+                  'or math change. First/repeated QKV and FFN1 use192-wide tiles '
+                  'and five slots; shared payload220160B versus252928B with '
+                  'separate staging. All five default instruction streams match; '
+                  'native301568B SASS has zero spill. Actual CPU resource query '
+                  'rejects the separate-staging layout; coordinate emission alone '
+                  'defers that check. Fresh control5/body17/first-visibility17 '
+                  '(200 reg plus200 TMA launches,4 CTAs with multiple local tasks) '
+                  'and strict model5 with incumbent named bytes pass. The '
+                  'visibility identity-normalization fixture uses epsilon0 only; '
+                  'real body/model references keep original parameters. '
+                  f'GPU1 P-PAIR{pair["reference_ms"]:.6f}→'
+                  f'{pair["candidate_ms"]:.6f}ms,ratio{pair["ratio"]:.6f},'
+                  f'noise{100*pair["threshold"]:.3f}%. Reject, without P-DNN '
+                  'or remaining three visibility cohorts. Exact trace1 QKV '
+                  'windows375.232→329.984us, FFN1390.496→394.912us versus an '
+                  'earlier unchanged-current GPU1 trace are nonadditive '
+                  'diagnostics; they do not override the nontrace regression. '
+                  'Seven source files are archived and private changes restored; '
+                  'main production and current results remain unchanged.']
+    cached_boundary = base/'boundary_cache_current_b16_v1/result.json'
+    if cached_boundary.exists():
+        value = read(cached_boundary)
+        restore = read(cached_boundary.parent/'restoration.json')
+        if not value['passed'] or value['qualified'] or not restore['passed']:
+            raise ValueError('current B16 boundary qualification changed')
+        lines += ['', 'Verified exact historical header-padding boundary cache '
+                  'on current PF1/Rows64/GELU/profile216 B16: all five nontrace '
+                  'instruction streams match, zero-spill trace3 and three fresh '
+                  '20/50 processes compare output bytes with the admitted '
+                  'nontrace program. This is diagnostic trace coverage, not '
+                  'fresh P-CORR or P-SAN. Window sums1.198528/1.197808/1.198528ms '
+                  'versus three recent same-GPU1 nontrace reference processes '
+                  '(median1.137680ms) differ5.348%, exceeding5%. Never use '
+                  'these windows for P-TUNE/P-MODEL. No unchanged nontrace '
+                  'retiming, record-layout change or new cache variant follows. '
+                  'Only the owned private marker header is restored; the '
+                  'historical prototype and raw source remain available.']
+    ffn2_64 = continuation/'ffn2_tma64_b16_v1/result.json'
+    if ffn2_64.exists():
+        result = read(ffn2_64)
+        experiment = read(ffn2_64.parent/'experiment.json')
+        if result['status'] != 'pair_rejected' or experiment['accepted']:
+            raise ValueError('FFN2 TMA64 negative changed')
+        pair = experiment['pair']
+        lines += ['', 'Verified one existing FFN2 TN64/Slots8/TMA coordinate '
+                  'follow-up on current B16, keeping S1/TK64/stats64 and all '
+                  'other coordinates/profile fixed. Native279936B SASS has '
+                  'zero spill. Fresh control5, exact/odd writer/terminal '
+                  'body17, first TN64 eight-slot visibility17 and strict '
+                  'model5 pass; incumbent named bytes match diagnostically. '
+                  'Visibility keeps200 reg plus200 TMA launches,4 CTAs and '
+                  '17 row tiles to exercise repeated slot reuse. '
+                  f'GPU1 pair{pair["reference_ms"]:.6f}→'
+                  f'{pair["candidate_ms"]:.6f}ms,ratio{pair["ratio"]:.6f},'
+                  f'noise{100*pair["threshold"]:.3f}%. Exact trace1 FFN2 '
+                  'windows380.320→542.592us, main299.648→467.840us and '
+                  'epilogue74.304→33.760us versus earlier unchanged-current '
+                  'GPU1 attribution are nonadditive diagnostics. Reject '
+                  'without P-DNN, remaining three visibility cohorts or '
+                  'current update. No production implementation changes '
+                  'or unchanged candidate remeasurement.']
+    store3 = continuation/'store3_b16_v1/result.json'
+    if store3.exists():
+        value = read(store3)
+        experiment = read(store3.parent/'experiment.json')
+        if value['status'] != 'pair_rejected' or experiment['accepted'] or not read(base/'store3_contract_v1/restoration.json')['passed']:
+            raise ValueError('three-buffer closed negative changed')
+        pair = experiment['pair']
+        lines += ['', 'Verified one private three-output-buffer extension '
+                  'keeps all coordinates, input rings, statistics and math '
+                  'fixed. TM128/TN192 normal nonresidual TMA stages use three '
+                  '8KiB boxes per WG with read2 before reuse; residual and '
+                  'other geometry retain the original path. Payload227328B '
+                  'fits. An initial factored address expression perturbs '
+                  'default B8/B16 words and is rejected before any hardware; '
+                  'restoring the literal old expression for buffer2 preserves '
+                  'all five defaults. Candidate295808B SASS has zero spill. '
+                  'Fresh control5/body17/first-visibility17 and strict model5 '
+                  'with incumbent named bytes pass. '
+                  f'GPU1 pair{pair["reference_ms"]:.6f}→'
+                  f'{pair["candidate_ms"]:.6f}ms,ratio{pair["ratio"]:.6f},'
+                  f'noise{100*pair["threshold"]:.3f}%. Gain0.289% does not '
+                  'clear noise or the prospective3% minimum. Reject without '
+                  'extra trace, P-DNN or remaining three visibility cohorts. '
+                  'Six private files are archived; five core changes and one '
+                  'owned test are restored/removed. Current results stay fixed.']
+    signal = continuation/'gate_signal_b16_v1/result.json'
+    if signal.exists():
+        value = read(signal)
+        if value['status'] != 'retired_before_model_performance' or value['timing_executed'] or not read(base/'gate_signal_contract_v1/restoration.json')['passed']:
+            raise ValueError('unmeasured gate-signal retirement changed')
+        lines += ['', 'Verified private separate-line gate signal compiles '
+                  'without spill (298368B), preserves five default instruction '
+                  'streams and22656 direct-body words, and passes fresh GPU1 '
+                  '132-CTA control5/candidate17. The independent integer '
+                  'visibility stress rotates a late CTA for200 epochs and '
+                  'checks all arrival and release-epoch counters. Four400-launch '
+                  'visibility binaries are compiled but never executed; no '
+                  'model or timing result exists. CPU disassembly of the '
+                  'original acquire poll finds CCTL.IVALL inside every failed '
+                  'poll; the signal design retains that work. The coordinator '
+                  'alone is held while its full guarded17 completes, then '
+                  'retired before expensive cases. No child, guard, scheduler '
+                  'or foreign process is signaled. Prefer a direct relaxed '
+                  'poll followed by mandatory original acquire; its benefit '
+                  'remains inferred. Five private files are archived/restored. '
+                  'This is an unmeasured retirement, never a performance '
+                  'rejection or acceptance. User authorization stays active.']
+    for stem, label, detail in (
+        ('gate_poll', 'relaxed failed gate polling',
+         'Only failed polls use relaxed loads; the successful path still '
+         'performs the original acquire and threshold recheck. Original64B '
+         'counter, release arrivals, all132 CTA target, barriers, fences and '
+         'math stay fixed. CPU disassembly moves CCTL.IVALL after the failed '
+         'backedge; this alone provides no latency evidence. Fresh132CTA '
+         '200epoch stress17 and model5 pass. '),
+        ('param_buffers', 'immutable parameter buffer pointers',
+         'Append384 immutable addresses to the grid-constant binding; '
+         '121 tensor maps retain their offsets and all input data remain '
+         'mutable. Five default instruction streams match. Native295296B '
+         'has zero spill; static LDG.E.64 count66→7 is not a timing result. '
+         'Fresh1885-field lookup control5/candidate17 independently checks '
+         'physical/static/Repeat bindings with a deliberately poisoned old '
+         'pointer table. First crossCTA visibility17 and model5 pass. ')):
+        result = continuation/f'{stem}_b16_v1/result.json'
+        if not result.exists():
+            continue
+        value = read(result)
+        experiment = read(result.parent/'experiment.json')
+        if (value['status'] != 'pair_rejected' or experiment['accepted']
+                or experiment['minimum_gain'] != .005
+                or not read(base/f'{stem}_contract_v1/restoration.json')['passed']
+                or not read(result.parent/'model_byte_comparison.json')['passed']):
+            raise ValueError('closed gate/metadata negative changed')
+        pair = experiment['pair']
+        lines += ['', f'Verified private {label}: '+detail+
+                  'Both require strict FP32 correctness, five-process '
+                  'determinism and incumbent named-output bytes. '
+                  f'GPU1 pair{pair["reference_ms"]:.6f}→'
+                  f'{pair["candidate_ms"]:.6f}ms,ratio{pair["ratio"]:.6f},'
+                  f'noise{100*pair["threshold"]:.3f}%. Reject against the '
+                  'prospectively recorded0.5% minimum and process noise. '
+                  'This does not lower any earlier3% trial threshold. '
+                  'No remaining visibility cohorts, P-DNN, unchanged binary '
+                  'remeasurement or formal-current update. Exact private '
+                  'sources are archived and restored.']
+    attention_pp = continuation/'attention_pp_b16_v1/result.json'
+    if attention_pp.exists():
+        value = read(attention_pp)
+        experiment = read(attention_pp.parent/'experiment.json')
+        if (value['status'] != 'pair_rejected' or experiment['accepted']
+                or not read(base/'attention_pp_contract_v1/restoration.json')['passed']
+                or not read(attention_pp.parent/'model_byte_comparison.json')['passed']):
+            raise ValueError('closed independent attention negative changed')
+        pair = experiment['pair']
+        lines += ['', 'Verified private Rows64 independent-consumer attention '
+                  'uses WGw for local task w+2j in its existing slot; four '
+                  'warp leaders each release count2 against original empty8. '
+                  'Producer, math, maps and coordinates stay fixed. All '
+                  'consumer threads restore the complete logical slot0/1 '
+                  'phase and retain high bits for later cooperative GEMMs. '
+                  'Five defaults match; native295552B has zero spill. Fresh '
+                  'GPU1 control5/candidate17 execute five batches, nine real '
+                  'Program stages and five epochs: attention, crossCTA copy, '
+                  'identity GEMM Slots8, attention, copy, GEMM Slots4/8. '
+                  'FP32 per-head cosine, output bytes, high-slot phase carry '
+                  'and all gate counters pass. Direct GEMM17 is historical '
+                  'instruction reuse; no fresh old four-case TMA claim. '
+                  'Strict model5 and incumbent named bytes pass. '
+                  f'GPU1 pair{pair["reference_ms"]:.6f}→'
+                  f'{pair["candidate_ms"]:.6f}ms,ratio{pair["ratio"]:.6f},'
+                  f'noise{100*pair["threshold"]:.3f}%. Gain0.088% is below '
+                  'noise and the prospective3% minimum. Reject without '
+                  'P-DNN, extra trace or unchanged retiming. Three private '
+                  'inputs are archived/restored; formal current stays fixed.']
+    projection = continuation/'projection_m256n64_b16_v1/result.json'
+    if projection.exists():
+        value = read(projection)
+        experiment = read(projection.parent/'experiment.json')
+        if (value['status'] != 'pair_rejected' or experiment['accepted']
+                or not read(base/'projection_m256n64_b16_contract_v1/result.json')['passed']
+                or not read(projection.parent/'model_byte_comparison.json')['passed']):
+            raise ValueError('closed projection coordinate negative changed')
+        pair = experiment['pair']
+        lines += ['', 'Verified one existing-coordinate projection trial '
+                  'changes twelve128x128/Slots5 stages to256x64/Slots4, '
+                  'preserving first reg and repeated11 TMA stores, NT1/12, '
+                  'statistics64 and the216/PF1 profile. An initial all-reg '
+                  'assumption fails a CPU assertion before emission or GPU; '
+                  'the corrected source preserves actual stores. Audit of '
+                  'all projection stages in87 paired programs finds earlier '
+                  '64x256, but no256x64 trial. Native298496B has zero spill; '
+                  'all51 other body templates and profile defines match. '
+                  'Fresh GPU1 eight-shape control5/body17, first three-stage '
+                  'visibility17 and strict model5 pass; incumbent named bytes '
+                  'match. The remaining three visibility cases are not run. '
+                  f'GPU1 pair{pair["reference_ms"]:.6f}→'
+                  f'{pair["candidate_ms"]:.6f}ms,ratio{pair["ratio"]:.6f},'
+                  f'noise{100*pair["threshold"]:.3f}%. Reject. Exact candidate '
+                  'trace1 has zero spill and projection194.720→225.312us, '
+                  'main99.456→121.952us versus the unchanged earlier GPU1 '
+                  'reference. These nested maxima are nonadditive diagnostic '
+                  'values, never nontrace latency or P-TUNE windows. No '
+                  'P-DNN, unchanged retiming or current update. Production '
+                  'implementation was unchanged throughout.']
+    wide_ffn1 = continuation/'ffn1_tma256_gelu_b16_v1/result.json'
+    if wide_ffn1.exists():
+        value = read(wide_ffn1)
+        experiment = read(wide_ffn1.parent/'experiment.json')
+        if (value['status'] != 'pair_rejected' or experiment['accepted']
+                or experiment['minimum_gain'] != .005
+                or not read(base/'ffn1_tma256_gelu_b16_contract_v1/result.json')['passed']
+                or not read(wide_ffn1.parent/'model_byte_comparison.json')['passed']
+                or not read(base/'ffn1_tma256_gelu_b16_order_v2/tma_kernel_word_proof.json')['passed']):
+            raise ValueError('closed wide FFN1 context negative changed')
+        pair = experiment['pair']
+        lines += ['', 'Verified one fixed FFN1 wide TMA trial changes only '
+                  'twelve128x192/Slots4 stages to128x256/Slots3 in the current '
+                  'outlined GELU,216/PF1,fulltile and Repeat/output-map context. '
+                  'Earlier unoutlined TMA256 and outlined REG256 negatives '
+                  'retain their original decisions. Native301696B/maxR195 '
+                  'has zero spill. Fresh GPU1 actual full/odd NT12 GELU '
+                  'control5/body17 and strict model5 pass with incumbent '
+                  'named bytes. One full nonresidual fixture counterfactual '
+                  'REG256 entry spills88B and is never executed. Only that '
+                  'reference is replaced by zero-spill REG128 with the same '
+                  'weights repacked; the actual TMA256 kernel preserves '
+                  'all5296 instruction words. Original FP32 oracle, all '
+                  'output comparisons and200REG+200TMA launches stay fixed. '
+                  'This reference uses a different tile; it is not a same-tile '
+                  'REG/TMA protocol claim. Its fresh first visibility17 passes; '
+                  'remaining three cases are not executed. '
+                  f'GPU1 pair{pair["reference_ms"]:.6f}→'
+                  f'{pair["candidate_ms"]:.6f}ms,ratio{pair["ratio"]:.6f},'
+                  f'noise{100*pair["threshold"]:.3f}%. Reject against the '
+                  'new prospectively recorded P-PAIR0.5%/noise coordinate '
+                  'gate; no earlier3% threshold is changed. Zero-spill '
+                  'trace1 FFN1390.496→459.584us, main228.512→251.104us '
+                  'and epilogue133.280→176.032us are diagnostic nested '
+                  'maxima; trace1 write paths differ from production. No '
+                  'P-DNN, unchanged retiming, production change or formal '
+                  'current update.']
+    compact = base/'compact_boundary_current_b16_v1/result.json'
+    if compact.exists():
+        value = read(compact)
+        if (not value['passed'] or value['qualified']
+                or not read(compact.parent/'restoration.json')['passed']):
+            raise ValueError('closed compact boundary qualification changed')
+        lines += ['', 'Verified the historical compact32B boundary recorder '
+                  'is reused exactly on current B16; its old B2 failure '
+                  'remains unchanged. Header caching, two packed stores and '
+                  'clock points are preserved. Only trace3 segment count0 '
+                  'is added to the current Runtime; the existing parser '
+                  'already accepts32B records with zero segment spans. Five '
+                  'disabled instruction streams match; trace301952B has zero '
+                  'spill. Three fresh GPU1 processes compare exact current '
+                  'outputs and collect20 warmup/50 samples. '
+                  f'Windows{value["trace_windows_ms"]}ms,median'
+                  f'{value["median_window_ms"]:.6f}ms versus latest completed '
+                  f'current three-position control{value["reference_ms"]:.6f}ms;'
+                  f'difference{100*value["difference"]:.3f}% exceeds5%. '
+                  'Before any new trace GPU run, the initial older1.146176ms '
+                  'reference is corrected to the latest completed1.132448ms '
+                  'control, enforcing the stated latest-reference rule; both '
+                  'plans are preserved. No unchanged nontrace retiming. '
+                  'Reject P-TUNE/P-MODEL eligibility and restore only the '
+                  'two archived private inputs. This is diagnostic3/3, '
+                  'not fresh P-CORR5/5, P-SAN or performance admission.']
+    outlined_boundary = base/'outline_boundary_current_b16_v1/result.json'
+    if outlined_boundary.exists():
+        value = read(outlined_boundary)
+        if (not value['passed'] or value['qualified']
+                or not read(outlined_boundary.parent/'restoration.json')['passed']):
+            raise ValueError('closed outlined boundary qualification changed')
+        lines += ['', 'Verified one trace-only call-placement trial outlines '
+                  'Enter/Arrive/Leave with thread0 caller guards, retaining '
+                  'inline FIRST_READY, compact32B records, shared header '
+                  'cache and all four clock sites. Five defaults match; '
+                  'trace301184B/maxR160 has zero spill. Three fresh GPU1 '
+                  '20/50 processes preserve exact current output bytes. '
+                  f'Windows{value["trace_windows_ms"]}ms,median'
+                  f'{value["median_window_ms"]:.6f}ms versus the predeclared '
+                  f'latest current control{value["reference_ms"]:.6f}ms;'
+                  f'difference{100*value["difference"]:.3f}% still exceeds5%. '
+                  'Reject P-TUNE/P-MODEL eligibility without repeating '
+                  'either binary or changing the reference/threshold. '
+                  'Two exact private inputs are archived/restored; no '
+                  'production performance or new P-CORR5/P-SAN claim.']
+    if norm_cache_path.exists():
+        lines += ['', 'Verified one reader-owned normalization-cache trial '
+                  'keeps current B16 coordinates,216/PF1,64-column statistics '
+                  'and arithmetic. P1 proactively computes each128-row tile '
+                  'once for23 NT12 sources;46 readers copy one cached part. '
+                  'An existing launch epoch plus GPU release/acquire readiness '
+                  'protects publication; the later reader reuses it after '
+                  'the existing gate. Extra414KiB scratch, no perlaunch '
+                  'memset or shared-layout change. Five defaults have '
+                  'identical instructions; native289920B/maxR160 has zero '
+                  'spill. Both odd257/1025 REG96 and actual even2048 '
+                  'GELU/TMA192 five-stage/five-changing-epoch protocols '
+                  'pass fresh control5/candidate17 on GPU1, including '
+                  'crossCTA bytes, ready epochs and later raw-phase '
+                  'continuation. Model5 passes strict FP32 and incumbent '
+                  'named bytes. GPU1 pair1.141568→1.146928ms; ratio1.004695 '
+                  'fails the prospective0.5% and2.924% noise gate. Reject '
+                  'without P-DNN, extra trace or unchanged retiming. '
+                  'Ten private inputs and the experimental binding parser '
+                  'are archived; all owned core and temporary main parser '
+                  'changes are restored. The report uses frozen verified '
+                  'closure receipts for this unsupported experimental ABI. '
+                  'Formal current and all targets stay fixed.']
+    split3_closed = base/'ffn2_n192_s3_b8_cpu_closed_v1/result.json'
+    if split3_closed.exists():
+        value = read(split3_closed)
+        if (not value['passed'] or value['status'] != 'CPU_spill_rejected'
+                or value['gpu_executed'] or value['spill_store_bytes'] != 20
+                or value['spill_load_bytes'] != 68
+                or value['control_word_proof']['encoded_words'] != 33616):
+            raise ValueError('fixed split3 CPU resource rejection changed')
+        lines += ['', 'Verified CPU-only B8 FFN2 TN192/S3/Slots4/TMA plus '
+                  'existing coalesced partials fails the full native resource '
+                  'gate:20B spill stores and68B loads. Its coalesced1 control '
+                  'at current coordinates matches all33616 GPU instruction '
+                  'words. No register/slot repair, GPU execution, correctness '
+                  'or performance claim; the exact rejected binary and '
+                  'diagnostic SASS remain archived. Earlier S2 negatives '
+                  'and all formal results retain their original decisions.']
+    warp2_closed = continuation/'prefetch_warp2_b8_v1/result.json'
+    if warp2_closed.exists():
+        value = read(warp2_closed)
+        experiment = read(warp2_closed.parent/'experiment.json')
+        if (value['status'] != 'pair_rejected' or experiment['accepted']
+                or experiment['minimum_gain'] != .005
+                or not read(base/'prefetch_warp2_units_v2/restoration.json')['passed']
+                or not read(warp2_closed.parent/'model_byte_comparison.json')['passed']):
+            raise ValueError('closed prefetch-warp negative changed')
+        lines += ['', 'Verified one B8 producer-role trial moves exactly '
+                  'the next-stage L2 weight prefetch from P1/thread288 to '
+                  'P2/thread320. Addresses, bytes, distance2, current '
+                  'coordinates,216 profile, arithmetic, gates and fences '
+                  'stay fixed. Five defaults match all instruction words; '
+                  'native268928B/maxR213 has zero spill. Initial fixture '
+                  'control mismatched after an incorrect grid0 override; '
+                  'the failure is retained without GPU execution. V2 uses '
+                  'the original actual132CTA profile and200REG+200TMA '
+                  'launches. Fresh first visibility control5/candidate17 '
+                  'and strict model5 pass on GPU1 with incumbent named '
+                  'bytes. Direct-body17 is explicit26880-word historical '
+                  'GPU2 reuse; remaining three visibility cases are unrun. '
+                  'Pair0.800480→0.802176ms,ratio1.002119,noise2.230% fails '
+                  'the prospective0.5%/noise gate. Reject without P-DNN, '
+                  'extra trace or unchanged retiming. Three private inputs '
+                  'are archived/restored and formal current stays fixed.']
+    prefix_writer = continuation/'ffn2_prefix96_store_b16_v1/result.json'
+    if prefix_writer.exists():
+        value = read(prefix_writer)
+        experiment = read(prefix_writer.parent/'experiment.json')
+        if (value['status'] != 'pair_rejected' or experiment['accepted']
+                or experiment['minimum_gain'] != .005
+                or not read(base/'ffn2_prefix96_store_order_units_v1/restoration.json')['passed']
+                or not read(prefix_writer.parent/'model_byte_comparison.json')['passed']):
+            raise ValueError('closed whole96 writer prefix negative changed')
+        lines += ['', 'Verified one B16 FFN2-only whole96 writer trial '
+                  'uses128x96/Slots6, first64 columns by TMA and tail32 by '
+                  'generic stores, with existing96-column row partials. '
+                  'QKV/projection/FFN1,216/PF1 and other coordinates stay '
+                  'fixed. Five defaults match; native291584B/maxR160 has '
+                  'zero spill. The shared layout confirms219136B and no '
+                  'extra residual staging. All49 readers and11 changed '
+                  'partial buffers are checked. Five CPU tests pass; '
+                  'the new test LLVM link dependency is repaired without '
+                  'rerunning four completed tests. Manual emission accepts '
+                  'Slots7 source; the actual shared CUDA static resource '
+                  'gate rejects it before GPU, rather than an early host '
+                  'gate. Fresh GPU1 actual full/odd writer+terminal body '
+                  'control5/candidate17 and a new real-writer crossCTA '
+                  'BF16/F32-partial-copy/TMA-read control5/visibility17 pass. '
+                  'The latter retains200REG+200TMA launches, with4CTA '
+                  'test-only geometry forcing local ring wrap. Two reader17 '
+                  'cohorts are explicit whole-word historical GPU1 reuse. '
+                  'Strict model5 matches the same whole96 REG-only named '
+                  'outputs; official64-grain bytes differ diagnostically '
+                  'under unchanged U9 criteria. Pair1.137952→1.126320ms, '
+                  'ratio0.989778 gains1.022%, below3.313% noise and the '
+                  'prospective0.5%/noise gate. Reject without remaining '
+                  'three visibility cases, P-DNN or unchanged retiming. '
+                  'Thirteen inputs are archived and six core/seven test '
+                  'files restored; formal current stays fixed.']
+    asynchronous = base/'boundary_async_current_b16_allcards_v2/result.json'
+    if asynchronous.exists():
+        value = read(asynchronous)
+        restored = read(asynchronous.parent/'restoration.json')
+        if (not value['passed'] or value['qualified'] or value['threshold'] != .05
+                or len(value['functional']) != 5 or not restored['passed']
+                or restored['all_finite_BF16_patterns'] != 65280):
+            raise ValueError('closed asynchronous boundary evidence changed')
+        lines += ['', 'Verified the exact old compact32B trace GPU instructions '
+                  'are retained while acquisition queues same-stream pinned-host '
+                  'D2H snapshots, then checks all50 named-output pairs and compresses '
+                  'records after collection. Five fresh GPU0 processes pass every '
+                  'output and ordered63x132 record check; all250 raw frames are '
+                  'reread and ledger medians reproduced on CPU. The predeclared '
+                  f'first3 windows{value["trace_windows_ms"]}ms have median'
+                  f'{value["median_window_ms"]:.6f}ms versus the unchanged latest '
+                  f'GPU1 three-position reference{value["reference_ms"]:.6f}ms; '
+                  f'difference{100*value["difference"]:.3f}% exceeds5%. Last2 '
+                  'children are functional-only and never alter the gate. '
+                  'The original postprocessor incorrectly compared rawBF16 with '
+                  'FP32-promoted hashes; its failure remains, and exact CPU '
+                  'promotion matches the unchanged expected hashes. Three CPU '
+                  'tests cover all65280 finite BF16 patterns, signed zero, all256 '
+                  'nonfinite patterns and invalid byte lengths. No GPU rerun or '
+                  'anchor/threshold change. Reject P-TUNE/P-MODEL eligibility; '
+                  'two private headers are archived/restored. This is5/5 trace '
+                  'functional evidence, not new P-CORR/P-SAN or performance admission; '
+                  'old serial failures and cross-card qualification remain explicit.']
+    fallback = base/'async_followup_current_b16_selection_v1/result.json'
+    if fallback.exists():
+        value = read(fallback)
+        selected = value['selection']
+        models = read(base/'async_followup_current_b16_models_allcards_v2/result.json')
+        if (not value['passed'] or not value['selected_current'] or value['production_admitted']
+                or not models['passed'] or models['coverage'] != 5 or models['excluded'] != [5]
+                or len(selected['measurements']) != 8
+                or [r['arm'] for r in selected['measurements']] != list('ABCDDCBA')
+                or any(r['guard']['code'] for r in selected['measurements'])):
+            raise ValueError('current-profile whole-program fallback changed')
+        ranking = ', '.join(f'{row["arm"]}={row["median_ms"]:.6f}ms'
+                            for row in selected['ranking'])
+        lines += ['', 'Verified the six frozen original B16 coordinate programs '
+                  'are re-emitted through the repaired host with current PF1, '
+                  'Rows64/GELU and72/216. Five nontrace/compact-trace pairs have '
+                  'zero spill; candidate5 retains24/24B and never executes. Each '
+                  'legal program passes strict FP32 model5 on actual GPUs0/3. '
+                  'Current-coordinate group aliases are identified and cannot '
+                  'claim a new gain. With boundary qualification rejected, '
+                  'nontrace P-SEL compares currentA and original candidates0/1/2 '
+                  f'asB/C/D onGPU{selected["gpu"]}: {ranking}; '
+                  f'noise{100*selected["threshold"]:.3f}%,tied={selected["tied"]}. '
+                  'Current wins. No assembled coordinates, extra pair, P-DNN '
+                  'or current-results update. These selection medians remain '
+                  'separate from the formal three-process P-DNN numbers.']
+    split2_current = continuation/'ffn2_n128_s2_current_b8_v1/closure.json'
+    if split2_current.exists():
+        value = read(split2_current)
+        attribution = read(base/'ffn2_n128_s2_current_b8_attribution_v1/result.json')
+        if (not value['passed'] or value['production_admitted']
+                or value['status'] != 'pair_rejected' or attribution['passed']
+                or attribution['reference_spill_bytes'] != [8, 8, 0, 0]
+                or attribution['qualification_eligible']):
+            raise ValueError('closed current-profile split2 evidence changed')
+        lines += ['', 'Verified one B8 FFN2-only geometry changes128x64/S1/Slots8 '
+                  'to128x128/S2/Slots5/TMA, retaining TK64,64-column statistics, '
+                  'all other stages and current72/216/fulltile/matrix/GELU/recompute '
+                  'profile, with existing coalesced partials. Earlier profile208 '
+                  'negative stays rejected; current code has294400B SASS/maxR213 '
+                  'and zero spill. Fresh actualM1024/1025 writer+terminal control5 '
+                  'and candidate17 pass original FP32/row-stat oracles; four '
+                  'Program200REG+200TMA ordering17 cohorts are historical reuse '
+                  'only after current-header whole-word equality. Strict model5 '
+                  'passes, while cross-S1/S2 named bytes differ diagnostically. '
+                  'Smoke0.876784ms triggers attribution before pair. Candidate '
+                  'trace1 spills36/84B and never executes; legal trace3 is only '
+                  'diagnostic. A proposed matched current trace3 also spills8/8B '
+                  'and never executes, without repair. The old current level1 '
+                  'write path is not substituted to claim a causal segment delta. '
+                  f'GPU0 pair{value["reference_ms"]:.6f}→{value["candidate_ms"]:.6f}ms, '
+                  f'ratio{value["ratio"]:.6f},noise{100*value["threshold"]:.3f}% '
+                  'rejects9.486% regression. No P-DNN, trace retry, production '
+                  'source change or current-results update; exact resource '
+                  'failures and limited attribution remain recorded.']
+    for paragraph in recent_paragraphs:
+        lines += ['', paragraph]
+    (args.out/'DNN4_BERT_optimization.md').write_text('\n'.join(lines)+'\n')
+    print(json.dumps(dict(comparisons=len(rows), report=str(args.out/'DNN4_BERT_optimization.md'))))
+
+
+if __name__ == '__main__':
+    main()

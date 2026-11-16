@@ -1,0 +1,37 @@
+--- a/python/tilemega/dnn/tvm_baseline.py
++++ b/python/tilemega/dnn/tvm_baseline.py
+@@ -28,7 +28,7 @@
+ TARGET = "cuda -arch=sm_90a"
+ # v0.27 requires structured Target construction; this is the same fixed target.
+ TARGET_CONFIG = {"kind": "cuda", "arch": "sm_90a"}
+-RECIPE = dict(schema=6, builder_device_visibility="none", builder_target_scope="explicit", completed_measurements="commit-before-next-build", builder_workers="min(8, CPU affinity)", ffi="pinned-submodule-python-build", importer_output_dtype="aten-with-fp32-accumulation", target=TARGET, import_exported_program=True,
++RECIPE = dict(schema="recipe7-bound-weights-diagnostic-v1", weight_binding="BindParams-before-BYOC-zero-tuning", builder_device_visibility="none", builder_target_scope="explicit", completed_measurements="commit-before-next-build", builder_workers="min(8, CPU affinity)", ffi="pinned-submodule-python-build", importer_output_dtype="aten-with-fp32-accumulation", target=TARGET, import_exported_program=True,
+               keep_params_as_input=True, partition=["cublas", "cudnn"],
+               run_codegen=True, pipeline="zero", tune_before_default_schedule=True,
+               schedules=["Matmul", "GEMV", "Reduction", "GeneralReduction", "Fallback"],
+@@ -385,11 +385,24 @@
+     mod, binding = _static_batch(mod, batch, input_count)
+     input_names = [value.name for value in list(mod["main"].params)[:input_count]]
+     parameter_dtypes = Counter(str(value.dtype) for value in params)
++    parameter_vars = list(mod["main"].params)[input_count:]
++    if len(parameter_vars) != len(params):
++        raise ValueError("detached parameter count and Relax signature disagree")
++    parameter_names = [value.name for value in parameter_vars]
++    if len(set(parameter_names)) != len(parameter_names):
++        raise ValueError("detached parameter names must be unique")
++    parameter_binding = dict(stage="before-BYOC-zero-tuning", count=len(params),
++                             names=parameter_names, runtime_count=0)
++    mod = relax.transform.BindParams("main", dict(zip(parameter_names, params)))(mod)
++    if len(mod["main"].params) != input_count:
++        raise ValueError("BindParams did not leave exactly the model inputs")
++    params = []
+     mod = partition_for_cublas(mod)
+     mod = partition_for_cudnn(mod)
+     diagnostics = _partition_diagnostics(mod)
+     diagnostics.update(precision_conversion=dtype, static_binding=binding,
+-                       input_names=input_names, parameter_dtypes=dict(parameter_dtypes))
++                       input_names=input_names, parameter_dtypes=dict(parameter_dtypes),
++                       parameter_binding=parameter_binding)
+     evidence_dir = Path(evidence_dir)
+     evidence_dir.mkdir(parents=True, exist_ok=True)
+     (evidence_dir / "partitioned.py").write_text(mod.script())

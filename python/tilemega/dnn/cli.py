@@ -63,7 +63,8 @@ def read_config(path):
     config['features'] = dict(dict(pg='l2', forward_executor='L2', reuse='auto',deferred_ln='auto',dwpw_fuse='auto',global_la='auto',forward_gemm_impl='mma16',encoder_attention_impl='mma16'),
                               **config.get('features', {}))
     unknown=set(config['features'])-{'pg','forward_executor','reuse','deferred_ln','dwpw_fuse',
-        'global_la','nonpaged_la','paged_la','paged_la_splitk','forward_gemm_impl','conv_impl','depthwise_impl','dwpw_impl','encoder_attention_impl','gemv_load'}
+        'global_la','nonpaged_la','paged_la','paged_la_splitk','forward_gemm_impl','conv_impl','depthwise_impl','dwpw_impl','encoder_attention_impl','gemv_load',
+        'native','measure_cmd','measure_top'}
     if unknown:
         raise ValueError('unsupported DNN features: '+', '.join(sorted(unknown)))
     for key, values in dict(pg=('off', 'l2', 'pages', 'auto'),
@@ -73,6 +74,14 @@ def read_config(path):
             paged_la_splitk=(0,1),forward_gemm_impl=('mma16','wgmma'),conv_impl=('cpasync','tma_im2col'),depthwise_impl=('cpasync','tma'),dwpw_impl=('mma16','wgmma'),encoder_attention_impl=('mma16','wgmma'),gemv_load=('ldg','nc')).items():
         if key in config['features'] and config['features'][key] not in values:
             raise ValueError('invalid features.' + key)
+    if 'native' in config['features'] and type(config['features']['native']) is not bool:
+        raise ValueError('features.native must be boolean')
+    if 'measure_cmd' in config['features'] and (not isinstance(config['features']['measure_cmd'], str)
+            or not config['features']['measure_cmd'].strip()):
+        raise ValueError('features.measure_cmd must be a nonempty command template')
+    if 'measure_top' in config['features'] and (type(config['features']['measure_top']) is not int
+            or config['features']['measure_top'] < 1):
+        raise ValueError('features.measure_top must be a positive integer')
     config['solver'] = dict(dict(passes=2, time_budget_s=1800, jobs=1),
                             **config.get('solver', {}))
     if config['solver']['passes'] not in (1, 2, 3) or config['solver']['jobs'] < 1 or \

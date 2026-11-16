@@ -1,0 +1,54 @@
+--- a/aitemplate/backend/cuda/pool2d/max_pool2d.py
++++ b/aitemplate/backend/cuda/pool2d/max_pool2d.py
+@@ -44,7 +44,9 @@
+ SRC_TEMPLATE = jinja2.Template(
+     """
+ #include <cuda_fp16.h>
+-#include <cuda_runtime.h>
++{% if dtype == "__nv_bfloat16" %}#include <cuda_bf16.h>
++#include <math_constants.h>
++{% endif %}#include <cuda_runtime.h>
+ #include "cutlass/util/host_tensor.h"
+ 
+ namespace {
+@@ -64,7 +66,7 @@
+                                      const int C,
+                                      const int HO,
+                                      const int WO) {
+-{% set vec_dtype = {"half": "half2", "float": "float2"}[dtype] %}
++{% set vec_dtype = {"half": "half2", "float": "float2", "__nv_bfloat16": "__nv_bfloat162"}[dtype] %}
+   const {{vec_dtype}}* input = (const {{vec_dtype}}*)input_raw;
+   {{vec_dtype}}* output = ({{vec_dtype}}*)output_raw;
+   {{vec_dtype}}* shm = ({{vec_dtype}}*)shared_mem;
+@@ -92,6 +94,9 @@
+ {% elif dtype == "float" %}
+   const float2 min = {-(std::numeric_limits<float>::max() - 1),
+                       -(std::numeric_limits<float>::max() - 1)};
++{% elif dtype == "__nv_bfloat16" %}
++  const __nv_bfloat162 min = {__float2bfloat16(-CUDART_INF_F),
++                              __float2bfloat16(-CUDART_INF_F)};
+ {% endif %}
+ 
+   for (int i = hw_start_idx_of_thread; i < ldg_hw_num; i += block_ch) {
+@@ -133,8 +138,11 @@
+           const int shm_idx =
+               (shm_h_idx * ldg_w + shm_w_idx) * C + ch_thread_idx;
+           const auto tmp = shm[shm_idx];
+-          max.x = (tmp.x > max.x) ? tmp.x : max.x;
++{% if dtype == "__nv_bfloat16" %}          max.x = (__hisnan(tmp.x) || __hgt(tmp.x, max.x)) ? tmp.x : max.x;
++          max.y = (__hisnan(tmp.y) || __hgt(tmp.y, max.y)) ? tmp.y : max.y;
++{% else %}          max.x = (tmp.x > max.x) ? tmp.x : max.x;
+           max.y = (tmp.y > max.y) ? tmp.y : max.y;
++{% endif %}
+         }
+       }
+       output[((n_idx * HO + out_h_idx) * WO + out_w_idx) * C +
+@@ -204,6 +212,8 @@
+     exec_path = func_attrs["exec_path"]
+     backend_spec = CUDASpec()
+     dtype = backend_spec.dtype_to_backend_type(func_attrs["inputs"][0]._attrs["dtype"])
++    if dtype == "bfloat16":
++        dtype = "__nv_bfloat16"
+     shape_eval_func = shape_eval_template.render(
+         indent="  ",
+         dtype="int64_t ",
