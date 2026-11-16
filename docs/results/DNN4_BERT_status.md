@@ -4,6 +4,12 @@
 
 DNN4 的目标尚未完成：BERT 五个 batch 中，B1/B2/B4 已快于固定目标，B8/B16 尚未胜出。生产 F3 已包含多数结构改造；实现存在、正确性通过、端到端收益接受和整阶段验收是不同的状态。
 
+## 最新补充（verified，2026-11-16）
+
+TensorRT 与未启用 freezing 的 torch.compile 五个 batch 复测已收齐并发布，详见 [复测表](DNN4_BERT_baselines_unfrozen_recheck.csv)；不重复采样或替换固定目标。当前 BERT 正式五格保持下表。
+
+BS16 的128×256/S2大 tile 在 CPU 编译阶段出现80B spill stores、208B spill loads，已拒绝且未上卡。新的片上 DSM split-K 私有原型通过零 spill 编译、五格默认指令对照和1380项绑定核对；仍未取得数值、同步或性能验收。首个旧路径对照进程出现unknown error，另四个独立初始化探针确认0/1号卡cuInit=999；NVML缺少原GPU2并重排后续索引。已保留原失败，准备恢复后逐项执行验证；不重置驱动或终止他人进程。
+
 ## 当前正式结果（verified）
 
 | Batch | TileMega ms | 固定目标 ms | 比目标快/慢 | 历史测量卡 |
