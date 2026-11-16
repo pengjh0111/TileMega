@@ -16,9 +16,16 @@ def main():
     parser.add_argument('--gpus', default='1,0')
     parser.add_argument('--wait-main', action='store_true')
     parser.add_argument('--batch', type=int)
+    parser.add_argument('--untimed', action='store_true', help='Source/route evidence only;no timing attribution from this run')
+    parser.add_argument('--cpus')
+    parser.add_argument('--phase', choices=['prefill', 'decode'])
+    parser.add_argument('--graph-trace', choices=['node', 'graph'], default='node')
+    parser.add_argument('--refresh', action='store_true', help='Retain old attempts and replace incomplete diagnostic evidence')
     args = parser.parse_args()
+    if args.untimed and args.kind not in ('routing', 'attribution'):
+        raise ValueError('ordinary/control/native timeline measurements require the timing guard')
     plan = json.loads((ROOT / 'configs/moe_profile/workload.json').read_text())
-    output = ROOT / 'runs/moe_profile' / args.kind
+    output = ROOT / 'runs/moe_profile' / (args.kind + ('_graph' if args.graph_trace == 'graph' else ''))
     output.mkdir(exist_ok=True)
     frameworks = list(plan['frameworks']) if args.framework == 'all' else [args.framework]
     points = plan['profiles']['points']
@@ -31,7 +38,8 @@ def main():
                     for framework in plan['frameworks'] for length, count in plan['lengths']
                     for batch in plan['batches']]
         deadline = time.monotonic() + 7200
-        while not all(list(folder.glob('attempt*/guard/guard_result.json')) for folder in expected):
+        while (not (ROOT / 'runs/moe_profile/main_matrix_done.json').exists()
+               or not all(list(folder.glob('attempt*/guard/guard_result.json')) for folder in expected)):
             if time.monotonic() > deadline:
                 raise TimeoutError('ordinary matrix did not complete before diagnostics')
             time.sleep(10)
@@ -46,10 +54,16 @@ def main():
                     baseline=str(baseline)), indent=2) + '\n')
                 continue
             phases = ['prefill', 'decode'] if args.kind == 'timeline' else ['decode']
+            if args.phase:
+                phases = [args.phase]
             for phase in phases:
                 folder = output / f'{framework}_b{batch}_i{length}_{phase}'
                 folder.mkdir(exist_ok=True)
-                if any(json.loads(path.read_text()).get('code') == 0 for path in folder.glob('attempt*/guard/guard_result.json')):
+                if not args.refresh and any(json.loads(path.read_text()).get('code') == 0
+                       and not (path.parents[1] / 'superseded_for_missing_kv_metadata.json').exists()
+                       and ((path.parents[1] / 'export/gpu_activity.json').exists()
+                            if args.kind in ('timeline', 'attribution') else True)
+                       for path in folder.glob('attempt*/guard/guard_result.json')):
                     continue
                 base_attempt = len(list(folder.glob('attempt*')))
                 for retry, gpu in enumerate(args.gpus.split(',')):
@@ -58,11 +72,11 @@ def main():
                     env = dict(os.environ, CUDA_VISIBLE_DEVICES=gpu, TILEMEGA_DEVICE_INDEX=gpu,
                                TILEMEGA_GPU_LOCK=f'/tmp/tilemega_gpu{gpu}.lock',
                                TILEMEGA_GPU_PID_MODE='namespace_limited', TILEMEGA_NUMA_NODE='0',
-                               TILEMEGA_TIMING='1', OMP_NUM_THREADS='8', TOKENIZERS_PARALLELISM='false',
+                               TILEMEGA_TIMING='0' if args.untimed else '1', OMP_NUM_THREADS='8', TOKENIZERS_PARALLELISM='false',
                                HF_HUB_OFFLINE='1', TRANSFORMERS_OFFLINE='1')
-                    if args.kind == 'attribution' and framework == 'sglang':
+                    if args.kind in ('attribution', 'routing') and framework == 'sglang':
                         env['PYTHONPATH'] = str(ROOT / 'scripts/moe_profile_site') + ':' + str(ROOT / 'scripts') + ':' + env.get('PYTHONPATH', '')
-                        env['MOE_PROFILE_NVTX_OUT'] = str(attempt / 'worker/nvtx_sources')
+                        env['MOE_PROFILE_NVTX_OUT' if args.kind == 'attribution' else 'MOE_PROFILE_ROUTE_META_OUT'] = str(attempt / 'worker/nvtx_sources')
                     mode = 'routing' if args.kind == 'routing' else 'benchmark' if args.kind == 'control' else 'profile'
                     worker = [plan['frameworks'][framework]['python'], '-u', LAUNCHER, '--entry',
                               str(ROOT / 'scripts/moe_profile_benchmark.py'), '--framework', framework,
@@ -77,10 +91,11 @@ def main():
                         worker.append('--no-cuda-graph')
                     if mode == 'profile':
                         worker = ['nsys', 'profile', '--trace=cuda,nvtx', '--sample=none', '--cpuctxsw=none',
-                                  '--cuda-graph-trace=node', '--trace-fork-before-exec=true',
+                                  '--cuda-graph-trace=' + args.graph_trace, '--trace-fork-before-exec=true',
+                                  '--flush-on-cudaprofilerstop=true',
                                   '--capture-range=cudaProfilerApi', '--capture-range-end=stop',
                                   '--force-overwrite=true', '-o', str(attempt / 'trace'), *worker]
-                    command = ['taskset', '-c', '16-31', CONTROL_PYTHON, LAUNCHER, '--entry',
+                    command = ['taskset', '-c', args.cpus or ('32-47' if args.untimed else '16-31'), CONTROL_PYTHON, LAUNCHER, '--entry',
                                str(ROOT / 'scripts/moe_profile_guard.py'), '--policy',
                                str(ROOT / 'configs/moe_profile/guard_policy.json'), '--out',
                                str(attempt / 'guard'), '--needs-free-mib', '75000', '--timeout-s', '900', '--', *worker]

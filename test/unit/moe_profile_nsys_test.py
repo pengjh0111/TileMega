@@ -21,8 +21,9 @@ class NsysTest(unittest.TestCase):
             connection.executescript('''
                 CREATE TABLE StringIds(id INTEGER,value TEXT);
                 INSERT INTO StringIds VALUES(1,'same_generic_gemm');
+                INSERT INTO StringIds VALUES(2,'cudaLaunchKernel');
                 CREATE TABLE NVTX_EVENTS(start INTEGER,end INTEGER,globalTid INTEGER,text TEXT);
-                CREATE TABLE CUPTI_ACTIVITY_KIND_RUNTIME(start INTEGER,end INTEGER,globalTid INTEGER,correlationId INTEGER);
+                CREATE TABLE CUPTI_ACTIVITY_KIND_RUNTIME(start INTEGER,end INTEGER,globalTid INTEGER,correlationId INTEGER,nameId INTEGER);
                 CREATE TABLE CUPTI_ACTIVITY_KIND_KERNEL(start INTEGER,end INTEGER,deviceId INTEGER,globalPid INTEGER,
                     correlationId INTEGER,demangledName INTEGER,gridX INTEGER,gridY INTEGER,gridZ INTEGER,
                     blockX INTEGER,blockY INTEGER,blockZ INTEGER,registersPerThread INTEGER,
@@ -35,8 +36,8 @@ class NsysTest(unittest.TestCase):
                 modules.append(dict(label=label, stage=stage, source_evidence='CPU fixture only'))
                 connection.execute('INSERT INTO NVTX_EVENTS VALUES(?,?,?,?)',
                                    (i*100, i*100+50, tid, label+'|inputs=[{"shape":[1,2048]}]'))
-                connection.execute('INSERT INTO CUPTI_ACTIVITY_KIND_RUNTIME VALUES(?,?,?,?)',
-                                   (i*100+10, i*100+20, tid, i+1))
+                connection.execute('INSERT INTO CUPTI_ACTIVITY_KIND_RUNTIME VALUES(?,?,?,?,?)',
+                                   (i*100+10, i*100+20, tid, i+1, 2))
                 connection.execute('INSERT INTO CUPTI_ACTIVITY_KIND_KERNEL VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
                                    (i*5+60, i*5+70, 0, pid, i+1, 1, 1, 1, 1, 128, 1, 1, 32, 0, 0))
             connection.commit()
@@ -52,6 +53,18 @@ class NsysTest(unittest.TestCase):
             activity = json.loads((output / 'gpu_activity.json').read_text())['devices']['0']
             self.assertEqual(activity['kernel_sum_ns'], 20)
             self.assertEqual(activity['kernel_busy_union_ns'], 15)
+            connection = sqlite3.connect(database)
+            connection.executescript('''
+                CREATE TABLE CUPTI_ACTIVITY_KIND_GRAPH_TRACE(start INTEGER,end INTEGER,deviceId INTEGER);
+                INSERT INTO CUPTI_ACTIVITY_KIND_GRAPH_TRACE VALUES(50,100,0);
+            ''')
+            connection.close()
+            with patch.object(sys, 'argv', ['parser', '--sqlite', str(database), '--out', str(output)]):
+                moe_profile_nsys.main()
+            activity = json.loads((output / 'gpu_activity.json').read_text())['devices']['0']
+            self.assertEqual(activity['kernel_busy_union_ns'], 15)
+            self.assertEqual(activity['activity_coverage_including_graph_spans_ns'], 50)
+            self.assertEqual(activity['graph_span_median_ns'], 50)
 
 
 if __name__ == '__main__':

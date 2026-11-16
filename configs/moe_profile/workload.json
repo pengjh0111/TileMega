@@ -77,7 +77,9 @@
     "cuda_graph": true,
     "vllm_gpu_memory_fraction": 0.93,
     "sglang_static_memory_fraction": 0.93,
-    "trtllm_free_after_weights_fraction": 0.85
+    "trtllm_free_after_weights_fraction": 0.85,
+    "sglang_long_context_limit": 8450,
+    "sglang_long_context_reason": "Source reserves2positions:tp_worker context_len-1,then scheduler max_new_tokens=max_req_len-input_len-1. Actual8192+256unchanged;failed8448and8449attempts preserved."
   },
   "measurement": {
     "warmup_rounds": 3,
@@ -122,8 +124,52 @@
   "routing": {
     "layers": [
       0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
       15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
       31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
       47
     ],
     "iterations": [
@@ -149,5 +195,11 @@
     "Random weights are not an acceptable replacement for pretrained routing data;real checkpoint is downloaded once to tmpfs and shared.",
     "TP1 is the primary36cell matrix. TP2 supplements are separately labeled and never replace a failed TP1 cell.",
     "No system-wide driver/clock/power/profiling changes;shared GPU/NUMA locks andowner checks;observed telemetry retained."
-  ]
+  ],
+  "execution_scope": {
+    "primary": "completed36TP1closed-cohort cells",
+    "supplemental_tp2": "not run;no distributed bottleneck claim",
+    "online_continuous_batching": "not run;execution-focused scope chosen instead of online arrival/queue study",
+    "resident_B64_long": "infeasible full-resident BF16 on80GB;completedcohort scheduling data separately labeled"
+  }
 }

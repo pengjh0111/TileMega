@@ -80,6 +80,10 @@ def main():
                     time.sleep(args.gap_seconds)
                 completed += 1
                 time.sleep(args.gap_seconds)
+    if args.framework == 'all' and args.limit is None:
+        (ROOT / 'runs/moe_profile/main_matrix_done.json').write_text(json.dumps(dict(
+            time=time.time(), scope='All configured ordinary cells attempted;inspect per-cell guard/result for failures.'),
+            indent=2) + '\n')
 
 
 if __name__ == '__main__':

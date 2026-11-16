@@ -118,10 +118,36 @@ def main():
                 copies.extend(dict(row) for row in connection.execute(
                     f'SELECT * FROM {table} WHERE deviceId=?', (device,)))
         all_intervals = intervals + [(row['start'], row['end']) for row in copies]
+        graph_intervals = []
+        graph_scope = 'none'
+        if 'CUPTI_ACTIVITY_KIND_GRAPH_TRACE' in tables:
+            graph_intervals = [(row['start'], row['end']) for row in connection.execute(
+                'SELECT * FROM CUPTI_ACTIVITY_KIND_GRAPH_TRACE WHERE deviceId=? ORDER BY start', (device,))]
+            graph_scope = 'Whole graph execution spans,not per-node SM busy'
+        else:
+            launch_ids = {(row['globalTid'] & ~0xffffff, row['correlationId'])
+                          for row in connection.execute('SELECT * FROM CUPTI_ACTIVITY_KIND_RUNTIME')
+                          if 'GraphLaunch' in strings[row['nameId']]}
+            graph_groups = collections.defaultdict(list)
+            for row in group:
+                identity = (row['globalPid'], row['correlationId'])
+                if identity in launch_ids:
+                    graph_groups[identity].append((row['start'], row['end']))
+            graph_intervals = sorted((min(start for start, end in values), max(end for start, end in values))
+                                     for values in graph_groups.values())
+            if graph_intervals:
+                graph_scope = 'Per-launch span of correlated graph-node kernels;includes internal gaps/overlap'
         devices[device] = dict(kernel_sum_ns=sum(row['end']-row['start'] for row in group),
                                kernel_busy_union_ns=interval_union(intervals),
                                captured_kernel_copy_busy_union_ns=interval_union(all_intervals),
                                captured_copy_memset_sum_ns=sum(row['end']-row['start'] for row in copies),
+                               graph_launches=len(graph_intervals), graph_scope=graph_scope,
+                               graph_span_median_ns=statistics.median(end-start for start, end in graph_intervals)
+                               if graph_intervals else None,
+                               graph_launch_cadence_median_ns=statistics.median(graph_intervals[i+1][0]-graph_intervals[i][0]
+                                   for i in range(len(graph_intervals)-1)) if len(graph_intervals)>1 else None,
+                               graph_span_sum_ns=sum(end-start for start, end in graph_intervals),
+                               activity_coverage_including_graph_spans_ns=interval_union(all_intervals+graph_intervals),
                                first_to_last_kernel_span_ns=max(row['end'] for row in group)-min(row['start'] for row in group),
                                calls=len(group))
     (args.out / 'gpu_activity.json').write_text(json.dumps(dict(

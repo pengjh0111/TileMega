@@ -7,6 +7,7 @@ import functools
 import hashlib
 import json
 import os
+import resource
 from pathlib import Path
 import sys
 import time
@@ -67,6 +68,43 @@ def allocator_peak(model=None):
                 scope='Torch CUDA allocator since post-warmup reset;excludes external CUDA allocations')
 
 
+def worker_profile_start(model=None):
+    import torch
+    from moe_profile_instrumentation import set_nvtx_active
+    set_nvtx_active(True)
+    torch.cuda.synchronize()
+    torch.cuda.profiler.start()
+
+
+def worker_profile_stop(model=None):
+    import torch
+    from moe_profile_instrumentation import set_nvtx_active
+    torch.cuda.synchronize()
+    torch.cuda.profiler.stop()
+    set_nvtx_active(False)
+
+
+def worker_profile_boundary(worker, begin):
+    import torch
+    torch.cuda.synchronize()
+    snapshot = dict(event='begin' if begin else 'end', observed_ns=time.perf_counter_ns(),
+                    scope='CPU mirror of the last prepared GPU forward at synchronized worker boundary;'
+                          'first following steady Decode uses the next sequence position.')
+    try:
+        runner = worker.model_runner
+        count = runner.input_batch.num_reqs
+        snapshot.update(request_ids=list(runner.input_batch.req_ids[:count]),
+                        last_prepared_seq_lens=runner.seq_lens.np[:count].tolist(),
+                        sm_count=torch.cuda.get_device_properties(0).multi_processor_count)
+    except AttributeError as error:
+        snapshot['unavailable'] = str(error)
+    if begin:
+        worker_profile_start()
+    else:
+        worker_profile_stop()
+    return snapshot
+
+
 def telemetry():
     index = os.environ['CUDA_VISIBLE_DEVICES'].split(',')[0]
     uuid = json.loads((ROOT / 'configs/moe_profile/devices.json').read_text())['devices'][index]['uuid']
@@ -118,8 +156,9 @@ class Vllm:
             from moe_profile_instrumentation import install_vllm
             self.metadata['instrumentation'] = self.engine.apply_model(install_vllm)
         if args.attribution:
-            from moe_profile_instrumentation import install_nvtx_vllm
+            from moe_profile_instrumentation import install_nvtx_vllm, set_nvtx_active
             self.metadata['nvtx_attribution'] = self.engine.apply_model(install_nvtx_vllm)
+            self.engine.apply_model(functools.partial(set_nvtx_active, False))
 
     def arm_routes(self):
         from moe_profile_instrumentation import arm
@@ -135,8 +174,17 @@ class Vllm:
     def peak(self):
         return self.engine.apply_model(allocator_peak)
 
+    def profile_start(self):
+        if not hasattr(self, 'worker_capture_boundaries'):
+            self.worker_capture_boundaries = []
+        self.worker_capture_boundaries.extend(self.engine.collective_rpc(worker_profile_boundary, args=(True,)))
+
+    def profile_stop(self):
+        self.worker_capture_boundaries.extend(self.engine.collective_rpc(worker_profile_boundary, args=(False,)))
+
     def run(self, rows, count, observe):
         self.round_id += 1
+        prompts = {}
         start = time.perf_counter_ns()
         for i, ids in enumerate(rows):
             self.engine.add_request(str(i), {'prompt_token_ids': ids}, self.sampling)
@@ -144,9 +192,13 @@ class Vllm:
             outputs = self.engine.step()
             now = time.perf_counter_ns()
             for output in outputs:
+                prompts.setdefault(int(output.request_id), output.prompt_token_ids)
                 observe(int(output.request_id), now, list(output.outputs[0].token_ids),
                         getattr(output, 'metrics', None))
-        return start, time.perf_counter_ns()
+        end = time.perf_counter_ns()
+        if any(prompts.get(index) != row for index, row in enumerate(rows)):
+            raise ValueError('vLLM actual prompt IDs differ from the frozen input')
+        return start, end
 
     def close(self):
         self.engine.engine_core.shutdown()
@@ -159,7 +211,7 @@ class Sglang:
                        tp_size=args.tp, load_format='auto', disable_radix_cache=True,
                        skip_tokenizer_init=True, max_running_requests=64,
                        cuda_graph_max_bs=64, cuda_graph_bs=[1, 4, 16, 64],
-                       context_length=8448, mem_fraction_static=.93,
+                       context_length=8450 if args.input_tokens == 8192 else 8448, mem_fraction_static=.93,
                        random_seed=plan['sampling']['seed'], chunked_prefill_size=8192,
                        stream_interval=1, disable_cuda_graph=args.eager or args.no_cuda_graph)
         if args.mode == 'routing':
@@ -169,11 +221,16 @@ class Sglang:
         if args.attribution:
             options['disable_cuda_graph'] = True
         self.engine = sgl.Engine(**options)
+        self.profile_output = args.out / 'native_profile'
         # get_server_info() awaits scheduler IPC;its response loop starts lazily.
         self.engine.tokenizer_manager.auto_create_handle_loop()
         self.sampling = dict(temperature=0, max_new_tokens=args.output_tokens,
                              ignore_eos=True)
         self.metadata = dict(options=options, sampling=self.sampling,
+                             context_semantics='For8192+256,SGLang0.5.5 reserves one position in tp_worker '
+                                               'and another in scheduler.init_req_max_new_tokens;'
+                                               'use8450 so actual workload remains8192+256,never255.'
+                                               if args.input_tokens == 8192 else 'inclusive workload below8448',
                              forced_length='ignore_eos=True;no stop strings/token IDs;actual O checked. '
                                            'SGLang0.5.5 min_new_tokens with skip_tokenizer_init '
                                            'dereferences a None tokenizer;failed diagnostic retained.',
@@ -185,17 +242,29 @@ class Sglang:
                 raise ValueError('SGLang attribution startup hook produced no source evidence')
 
     def arm_routes(self):
+        if os.environ.get('MOE_PROFILE_ROUTE_META_OUT'):
+            self.engine.collective_rpc('moe_profile_arm_route_metadata')
         self.engine.start_expert_distribution_record()
 
     def export_routes(self, path):
         self.engine.stop_expert_distribution_record()
         self.engine.dump_expert_distribution_record()
+        if os.environ.get('MOE_PROFILE_ROUTE_META_OUT'):
+            self.engine.collective_rpc('moe_profile_export_route_metadata', path=str(path))
         return dict(path=str(path), format='SGLang native stat recorder;GPU-resident per-step counts',
                     position_scope='Whole diagnostic cohort;select stable full-cohort Decode samples '
                                    'using per-step assignment counts and retain phase uncertainty.')
 
+    def profile_start(self):
+        self.engine.start_profile(output_dir=str(self.profile_output), activities=['CUDA_PROFILER'],
+                                  with_stack=False, record_shapes=False)
+
+    def profile_stop(self):
+        self.engine.stop_profile()
+
     def run(self, rows, count, observe):
         cumulative = [[] for _ in rows]
+        prompts = {}
         start = time.perf_counter_ns()
         for chunk in self.engine.generate(input_ids=rows, sampling_params=self.sampling, stream=True):
             now = time.perf_counter_ns()
@@ -203,6 +272,7 @@ class Sglang:
                 index = int(item.get('index', 0))
                 ids = list(item['output_ids'])
                 completed = item['meta_info']['completion_tokens']
+                prompts[index] = item['meta_info']['prompt_tokens']
                 if len(ids) == completed:
                     cumulative[index] = ids
                 elif len(cumulative[index]) + len(ids) == completed:
@@ -210,7 +280,10 @@ class Sglang:
                 else:
                     raise ValueError('SGLang stream skipped token IDs;cannot invent cumulative output')
                 observe(index, now, cumulative[index], item.get('meta_info'))
-        return start, time.perf_counter_ns()
+        end = time.perf_counter_ns()
+        if any(prompts.get(index) != len(row) for index, row in enumerate(rows)):
+            raise ValueError('SGLang actual prompt token count differs from frozen input')
+        return start, end
 
     def close(self):
         self.engine.shutdown()
@@ -260,8 +333,9 @@ class Trtllm:
         if args.mode == 'routing':
             self.metadata['instrumentation'] = instrumentation
         if args.attribution:
-            from moe_profile_instrumentation import install_nvtx_vllm
+            from moe_profile_instrumentation import install_nvtx_vllm, set_nvtx_active
             self.metadata['nvtx_attribution'] = [install_nvtx_vllm(self.model)]
+            set_nvtx_active(False)
 
     def arm_routes(self):
         from moe_profile_instrumentation import arm
@@ -270,6 +344,12 @@ class Trtllm:
     def export_routes(self, path):
         from moe_profile_instrumentation import export
         return export(path)
+
+    def profile_start(self):
+        worker_profile_start()
+
+    def profile_stop(self):
+        worker_profile_stop()
 
     async def generate(self, rows, observe):
         async def consume(index, future):
@@ -280,7 +360,10 @@ class Trtllm:
         futures = [self.engine.generate_async({'prompt_token_ids': ids}, self.sampling,
                                               streaming=True) for ids in rows]
         await asyncio.gather(*(consume(i, future) for i, future in enumerate(futures)))
-        return start, time.perf_counter_ns()
+        end = time.perf_counter_ns()
+        if any(future.prompt_token_ids != row for future, row in zip(futures, rows)):
+            raise ValueError('TensorRT-LLM actual prompt IDs differ from frozen input')
+        return start, end
 
     def run(self, rows, count, observe):
         return asyncio.run(self.generate(rows, observe))
@@ -308,6 +391,9 @@ def main():
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
     require_guard(args.tp)
+    if args.framework == 'trtllm':
+        _, maximum = resource.getrlimit(resource.RLIMIT_CORE)
+        resource.setrlimit(resource.RLIMIT_CORE, (1 if maximum == resource.RLIM_INFINITY else min(1, maximum), maximum))
     args.out.mkdir(parents=True, exist_ok=False)
     engine = None
     result = dict(status='started', arguments=vars(args), pid=os.getpid(),
@@ -335,10 +421,15 @@ def main():
                       scope='A: closed cohort;no new arrivals;no profiler;host-observed stream metrics')
         if args.mode != 'benchmark':
             result.update(diagnostic_only=True, scope='Separate diagnostic run;never formal timing evidence')
+        if args.framework == 'trtllm' and args.mode in ('profile', 'routing'):
+            result['teardown_policy'] = ('After successful inference,flushed artifacts and LLM.shutdown, '
+                'use process-local os._exit to avoid the observed diagnostic CublasMMWrapper global-destructor '
+                'SIGSEGV. Inference/shutdown failures still propagate;no shared system setting changed.')
         write(args.out / 'result.json', result)
         engine = {'vllm': Vllm, 'sglang': Sglang, 'trtllm': Trtllm}[args.framework](args, plan)
         write(args.out / 'engine.json', engine.metadata)
         measured = []
+        result['capture_boundaries'] = []
         for iteration in range(args.warmup + args.rounds):
             events, final_meta = [], {}
             capturing = False
@@ -356,8 +447,13 @@ def main():
                 import torch
                 cudart = torch.cuda.cudart()
                 if args.phase == 'prefill':
-                    cudart.cudaProfilerStart()
+                    engine.profile_start()
                     capturing = True
+                    boundary = dict(event='begin', phase=args.phase, observed_ns=time.perf_counter_ns(),
+                                    host_output_counts=list(lengths), input_tokens=args.input_tokens,
+                                    scope='Host-observed boundary;actual GPU KV lengths sampled in separate routing diagnostics')
+                    result['capture_boundaries'].append(boundary)
+                    torch.cuda.nvtx.mark('moe_profile/capture|' + json.dumps(boundary, separators=(',', ':')))
 
             def observe(index, now, ids, meta):
                 nonlocal capturing, profile_done
@@ -366,23 +462,40 @@ def main():
                 lengths[index] = len(ids)
                 if diagnostic and args.mode == 'profile' and not profile_done:
                     if args.phase == 'decode' and not capturing and min(lengths) >= 32:
-                        cudart.cudaProfilerStart()
+                        engine.profile_start()
                         capturing = True
+                        boundary = dict(event='begin', phase=args.phase, observed_ns=time.perf_counter_ns(),
+                                        host_output_counts=list(lengths), input_tokens=args.input_tokens,
+                                        scope='Host-observed boundary;actual GPU KV lengths sampled in separate routing diagnostics')
+                        result['capture_boundaries'].append(boundary)
+                        torch.cuda.nvtx.mark('moe_profile/capture|' + json.dumps(boundary, separators=(',', ':')))
                     if capturing and min(lengths) >= (1 if args.phase == 'prefill' else 48):
-                        cudart.cudaProfilerStop()
+                        boundary = dict(event='end', phase=args.phase, observed_ns=time.perf_counter_ns(),
+                                        host_output_counts=list(lengths), input_tokens=args.input_tokens)
+                        result['capture_boundaries'].append(boundary)
+                        torch.cuda.nvtx.mark('moe_profile/capture|' + json.dumps(boundary, separators=(',', ':')))
+                        engine.profile_stop()
                         capturing, profile_done = False, True
 
             before_telemetry = telemetry()
             start, end = engine.run(rows, args.output_tokens, observe)
             after_telemetry = telemetry()
             if capturing:
-                cudart.cudaProfilerStop()
+                engine.profile_stop()
             if diagnostic and args.mode == 'profile' and not profile_done:
                 raise ValueError('requested profiler ROI was not fully observed')
             if diagnostic and args.mode == 'routing':
                 result['routing_export'] = engine.export_routes(args.out / 'routing_stats')
-            metrics = summarize_round(args.batch, args.input_tokens, args.output_tokens,
-                                      start, end, events)
+            try:
+                metrics = summarize_round(args.batch, args.input_tokens, args.output_tokens,
+                                          start, end, events)
+            except ValueError:
+                result['observed_output_counts'] = {index: len(next((event['ids'] for event in reversed(events)
+                    if event['index'] == index), [])) for index in range(args.batch)}
+                result['failure_engine_metrics'] = final_meta
+                with gzip.open(args.out / 'failed_round_events.json.gz', 'wt') as stream:
+                    json.dump(dict(start_ns=start, end_ns=end, events=events), stream)
+                raise
             warmup = iteration < args.warmup
             name = ('warmup' if warmup else 'round') + str(iteration if warmup else iteration-args.warmup)
             write(args.out / (name + '.json'), dict(metrics=metrics, engine_metrics=final_meta,
@@ -396,6 +509,7 @@ def main():
                                   tpot_ms=metrics['tpot_request_median_ms'])), flush=True)
         result.update(status='ok', summary=summarize_repeats(measured)
                       if args.mode == 'benchmark' else dict(diagnostic_rounds=len(measured)))
+        result['worker_capture_boundaries'] = getattr(engine, 'worker_capture_boundaries', None)
         if args.framework == 'vllm':
             result['allocator_peak'] = engine.peak()
         elif args.framework == 'trtllm':
@@ -415,6 +529,10 @@ def main():
         write(args.out / 'result.json', result)
         if engine is not None:
             engine.close()
+    if args.framework == 'trtllm' and args.mode in ('profile', 'routing'):
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(0)
 
 
 if __name__ == '__main__':
