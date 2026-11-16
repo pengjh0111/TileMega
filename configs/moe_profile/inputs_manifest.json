@@ -1,0 +1,4287 @@
+{
+  "model": "Qwen/Qwen3-30B-A3B",
+  "model_revision": "ad44e777bcd18fa416d9da3bd8f70d33ebb85d39",
+  "tokenizer_files": {
+    "tokenizer_config.json": "d5d09f07b48c3086c508b30d1c9114bd1189145b74e982a265350c923acd8101",
+    "merges.txt": "8831e4f1a044471340f7c0a83d7bd71306a5b867e95fd870f74d0c5308a904d5",
+    "vocab.json": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910",
+    "tokenizer.json": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4"
+  },
+  "source_revision": "ebe2fb0ed9d56b9b1e1abdd57c8fa8fd6a835f4c",
+  "sources": [
+    {
+      "path": "docs/BUILD_MLIR.md",
+      "bytes": 3054,
+      "sha256": "3dc227e5674cf9312bf7b129ac7f0737f2a9ef3767005b41b2405be394b82c2c",
+      "token_count": 821
+    },
+    {
+      "path": "docs/DEPENDENCIES.md",
+      "bytes": 2763,
+      "sha256": "7526efe806478cdfc5dcbe3cc8e8979d82f76b14fe67b3d896067489f9bed749",
+      "token_count": 885
+    },
+    {
+      "path": "docs/TOOLS.md",
+      "bytes": 17206,
+      "sha256": "1e59a3b93789dd6d66d48f40308362867d74e126bc6a5708fbe4323b19f825c4",
+      "token_count": 4102
+    },
+    {
+      "path": "include/tilemega/Analysis/AccessRelation.h",
+      "bytes": 1572,
+      "sha256": "4fa74e15bcc29f7741b92c772349b38e197321872617b0fce1bc0defa8f0b6f2",
+      "token_count": 361
+    },
+    {
+      "path": "include/tilemega/Analysis/AffineRelation.h",
+      "bytes": 3942,
+      "sha256": "cf904d44576fe0454ae27dfcbade706d645f5159f0a8460e012940fbbb879786",
+      "token_count": 967
+    },
+    {
+      "path": "include/tilemega/Analysis/BoundDependencyForm.h",
+      "bytes": 721,
+      "sha256": "395c3851ff7cc2838053aa4d4dcd183b6e169e5fd740071cd142a2fe3525b423",
+      "token_count": 164
+    },
+    {
+      "path": "include/tilemega/Analysis/ClosedForm.h",
+      "bytes": 4131,
+      "sha256": "1789307395543d09ca45c3f285a2de76ed2d74b90fa679983d65b50fa08439a4",
+      "token_count": 974
+    },
+    {
+      "path": "include/tilemega/Analysis/CountedDependencyForm.h",
+      "bytes": 1324,
+      "sha256": "a74bd43d2f56220f067470afb92238c593af33d80c39f63bad5147ad196b77ea",
+      "token_count": 275
+    },
+    {
+      "path": "include/tilemega/Analysis/CouplingCache.h",
+      "bytes": 1045,
+      "sha256": "f928a402570b624bbb53be64dc623a818e9bf3b1f9bebd2e70563bcf6bc391bc",
+      "token_count": 259
+    },
+    {
+      "path": "include/tilemega/Analysis/CouplingDerivation.h",
+      "bytes": 9575,
+      "sha256": "0949b4174ff1094044395845117e33f1693dd79954634d918367220b8a3f847e",
+      "token_count": 2216
+    },
+    {
+      "path": "include/tilemega/Analysis/CouplingRelation.h",
+      "bytes": 9180,
+      "sha256": "adc4216c377601bcc97f5f0335b54fb7b36e2a936c7fdb5111271b87ef8de7e1",
+      "token_count": 2280
+    },
+    {
+      "path": "include/tilemega/Analysis/CuteLayoutBridge.h",
+      "bytes": 2979,
+      "sha256": "20880e478e1952bc3fc5836686837cf12edface33dae4fb6b9ca10dae4dc8c91",
+      "token_count": 745
+    },
+    {
+      "path": "include/tilemega/Analysis/DependencyForm.h",
+      "bytes": 3505,
+      "sha256": "8994e7eb7bb80ef2ce323731e594d1ab5b23eb0497bbadd517c207d19ec03d0a",
+      "token_count": 908
+    },
+    {
+      "path": "include/tilemega/Analysis/DependencyTable.h",
+      "bytes": 1553,
+      "sha256": "f83415788e77c68f3d72657b7c9655bf554dc4832e7abba1a93ea4da229f1aca",
+      "token_count": 348
+    },
+    {
+      "path": "include/tilemega/Analysis/DerivedMetrics.h",
+      "bytes": 778,
+      "sha256": "408e235b0d2a0c679081d33ccc575a494e3157b5e332087659e4802002bc0320",
+      "token_count": 185
+    },
+    {
+      "path": "include/tilemega/Analysis/DramFloor.h",
+      "bytes": 2435,
+      "sha256": "ad575aa8540cb23ce6bfcc8e8c14fe4f4fde5550ad30632f57ecaa6eb288634e",
+      "token_count": 577
+    },
+    {
+      "path": "include/tilemega/Analysis/EventSynthesis.h",
+      "bytes": 849,
+      "sha256": "8456eb6bfcb279c55e5eea9ddd54f3c838977b438227c9e0bdc87ede5887ff62",
+      "token_count": 218
+    },
+    {
+      "path": "include/tilemega/Analysis/ExactMemo.h",
+      "bytes": 1835,
+      "sha256": "3fc8950a4fa4a2be1d50b2ab6ad38f1308a446f34690d9704ff20f0b9648de2c",
+      "token_count": 474
+    },
+    {
+      "path": "include/tilemega/Analysis/FusionAccess.h",
+      "bytes": 1631,
+      "sha256": "12636963502ce612a39efab36a61dcb09b14f2005b01864b515a83cd1f963b80",
+      "token_count": 373
+    },
+    {
+      "path": "include/tilemega/Analysis/HandoffAccess.h",
+      "bytes": 1154,
+      "sha256": "9e449492be629d963d023f091cb2d597d72bd25ce98b3bbce5b53bfd600e9e8f",
+      "token_count": 256
+    },
+    {
+      "path": "include/tilemega/Analysis/ISLContext.h",
+      "bytes": 1512,
+      "sha256": "4d84df3fed389857a1c882a64876212762b1b1094d81b7c5b52bbe3343bec1e3",
+      "token_count": 364
+    },
+    {
+      "path": "include/tilemega/Analysis/OpArithmetic.h",
+      "bytes": 2520,
+      "sha256": "25be423389814961ec1bbab562b3941c30f60f28da7f841ce5a79fa033210b43",
+      "token_count": 568
+    },
+    {
+      "path": "include/tilemega/Analysis/QuasiPolynomial.h",
+      "bytes": 6382,
+      "sha256": "10c438528c4e7c9ccd81adf4e007ebfc3c4e6f0cf149a928e88b752e70390d57",
+      "token_count": 1495
+    },
+    {
+      "path": "include/tilemega/Analysis/ReferenceModels.h",
+      "bytes": 5139,
+      "sha256": "b67fef0e8d6c1c73333a658559cf561a4068b5f6cbff714205b32ef5dfd03e8e",
+      "token_count": 1195
+    },
+    {
+      "path": "include/tilemega/Analysis/SemanticCodec.h",
+      "bytes": 542,
+      "sha256": "dbb2fef14ce09110e82c6f2a45ce940f7be0857d214700ab97a0f7a73caf91e7",
+      "token_count": 126
+    },
+    {
+      "path": "include/tilemega/Analysis/Semantics.h",
+      "bytes": 10684,
+      "sha256": "ade475b079eb8dba658f6a4e2675b8d6b4b7c2b3915e368775cb306765877937",
+      "token_count": 2413
+    },
+    {
+      "path": "include/tilemega/Analysis/StorageHazards.h",
+      "bytes": 802,
+      "sha256": "3a2db7667035c96e5930e0189106d9c37dd534fd6e6ac68d03fc00f6f570fa3d",
+      "token_count": 183
+    },
+    {
+      "path": "include/tilemega/Analysis/SymbolicOracle.h",
+      "bytes": 2162,
+      "sha256": "15386c514bc9262d85c09fc5918ae00e7c98f3f5fdccfd23cdd1ba0b67740d42",
+      "token_count": 492
+    },
+    {
+      "path": "include/tilemega/Analysis/TaskElementRelation.h",
+      "bytes": 3076,
+      "sha256": "026d3ac7eeb3050b81e1d7d5a33a8037654f032d998a7bfc20751a975776f80a",
+      "token_count": 666
+    },
+    {
+      "path": "include/tilemega/Analysis/TaskInstantiation.h",
+      "bytes": 1809,
+      "sha256": "dee2eae56be2e64a011bacc91a9125478ee9d5aea524b16bf1947b046dc457c6",
+      "token_count": 441
+    },
+    {
+      "path": "include/tilemega/Analysis/TaskOwnershipGeometry.h",
+      "bytes": 1017,
+      "sha256": "36766dac38f49ca38cd998a4baf523ea6393013525a341556b3b67fe623847a1",
+      "token_count": 275
+    },
+    {
+      "path": "include/tilemega/Analysis/TaskReductionIndex.h",
+      "bytes": 647,
+      "sha256": "2c005adc05926047ae1e6a14709f6c1e305dfaa2d34bde8a6009deb592ad85e5",
+      "token_count": 143
+    },
+    {
+      "path": "include/tilemega/Analysis/TaskWork.h",
+      "bytes": 2143,
+      "sha256": "0b34925ef2b189a5ef90b8ab736b99a52b25aab0a3c795ccc884512951cae074",
+      "token_count": 470
+    },
+    {
+      "path": "include/tilemega/Analysis/TensorSpace.h",
+      "bytes": 5265,
+      "sha256": "882a07bd24a468b66ed5c15b4e75c1094be89f9379bc259a22b146a129af0359",
+      "token_count": 1298
+    },
+    {
+      "path": "include/tilemega/Analysis/TierClassifier.h",
+      "bytes": 2592,
+      "sha256": "081528a079b84c53eabd76d21b030053c242494d73ee63a4e89abe4c2fa60b6f",
+      "token_count": 617
+    },
+    {
+      "path": "include/tilemega/Analysis/VirtualTaskBinding.h",
+      "bytes": 522,
+      "sha256": "72a24de86f0865282e4f0636d8ab15d3db0126db1547fd58bdcc1c6a758fa5a0",
+      "token_count": 117
+    },
+    {
+      "path": "include/tilemega/Analysis/VisitFiniteRelation.h",
+      "bytes": 8497,
+      "sha256": "af01283e2fdd35cc139aba7a3d5a592bd0a0c9d084710ba1151a7edb19987088",
+      "token_count": 2251
+    },
+    {
+      "path": "include/tilemega/Backend/ConvIteration.h",
+      "bytes": 5677,
+      "sha256": "8f825437a77c3e69705dc796a067553bbe04b631909d3e443aa9091926d9ea23",
+      "token_count": 1672
+    },
+    {
+      "path": "include/tilemega/Backend/CutlassGemmCandidate.h",
+      "bytes": 17976,
+      "sha256": "7e762ec885926d5c92b00c06ea8b7b406e57dfb0af72265722494c9d174e6cae",
+      "token_count": 4948
+    },
+    {
+      "path": "include/tilemega/Backend/DmActivationScale.h",
+      "bytes": 2858,
+      "sha256": "eeda5351923458cca88f648c907f26027e1a9ddcde88aa70096bb33086884d67",
+      "token_count": 739
+    },
+    {
+      "path": "include/tilemega/Backend/DmEpilogueValue.h",
+      "bytes": 4330,
+      "sha256": "4b90a8e845ad3a129fa651ba5363d109396392e5ca3112ae7ee8e5efe2876dad",
+      "token_count": 1310
+    },
+    {
+      "path": "include/tilemega/Backend/DmMoeOperands.h",
+      "bytes": 2969,
+      "sha256": "bc90c3670ee912cc791ff254b4108a8c596e884d1d163a97a96f8724f4d7cbff",
+      "token_count": 864
+    },
+    {
+      "path": "include/tilemega/Backend/DmTensorAddress.h",
+      "bytes": 4065,
+      "sha256": "59b79addfb9638504cfeed67404e0b364312e4f11d99a8e43b540ef2a592a1f4",
+      "token_count": 1110
+    },
+    {
+      "path": "include/tilemega/Backend/ServingAttentionImpl.h",
+      "bytes": 782,
+      "sha256": "32151475ddd2a39124659096776e8c177e92add0b3716870d3cf060bfe9b721d",
+      "token_count": 219
+    },
+    {
+      "path": "include/tilemega/Backend/ServingAttentionMma.h",
+      "bytes": 3583,
+      "sha256": "d8c15431226fb2b350a0c8c50b2b01add261f09f07cd06113561074dee687afb",
+      "token_count": 1091
+    },
+    {
+      "path": "include/tilemega/Backend/ServingAttentionPVSwap.h",
+      "bytes": 2703,
+      "sha256": "1bca4f2757b3216b75e0b70b90fd29029cab6a945677c676c3a864b8a9550fd8",
+      "token_count": 813
+    },
+    {
+      "path": "include/tilemega/Backend/ServingAttentionSimt.h",
+      "bytes": 3673,
+      "sha256": "4d672929269c9ba37e0d001e5176fedc19a5ac29f72417edf42b26c8b4b0c80e",
+      "token_count": 1106
+    },
+    {
+      "path": "include/tilemega/Backend/ServingAttentionWarp.h",
+      "bytes": 4454,
+      "sha256": "7ebfac73efe9924896362cdeeb21f052010850460835290e3f75011c443b7b86",
+      "token_count": 1381
+    },
+    {
+      "path": "include/tilemega/Backend/ServingCircularLayout.h",
+      "bytes": 1912,
+      "sha256": "cd9289e8510fe14f39adac15ccd3dd86a47b08542df1b5682a4da169049102e6",
+      "token_count": 428
+    },
+    {
+      "path": "include/tilemega/Backend/ServingConv.h",
+      "bytes": 6411,
+      "sha256": "a760531e32483623719bfec9a064b98c98825ca58eee35c73443aeba46aaef75",
+      "token_count": 1902
+    },
+    {
+      "path": "include/tilemega/Backend/ServingDeferredNorm.h",
+      "bytes": 537,
+      "sha256": "8d74cab488e7a1ea6ce7dcfe364dcb96d0704b729452499d77a237d32d0979b3",
+      "token_count": 171
+    },
+    {
+      "path": "include/tilemega/Backend/ServingDmEpilogue.h",
+      "bytes": 28772,
+      "sha256": "413ed40504a2e63875905227ddff0e3fb14a7e6c48fd06855c2e804aec4ca376",
+      "token_count": 7694
+    },
+    {
+      "path": "include/tilemega/Backend/ServingDmGemm.h",
+      "bytes": 8807,
+      "sha256": "a07eb21eccd23e6333b8050b51f30635f131b615d665db2cbf9439f7ff1bddb6",
+      "token_count": 2795
+    },
+    {
+      "path": "include/tilemega/Backend/ServingEpilogue.h",
+      "bytes": 20361,
+      "sha256": "9c62c59bf08523e7af5c5facab50a92f7a031da3cf24400b115e245c2d52320d",
+      "token_count": 5717
+    },
+    {
+      "path": "include/tilemega/Backend/ServingGemm.h",
+      "bytes": 6642,
+      "sha256": "1ca5e118d407e2be7f1c1ada24c0ac66b2928d15c7cd0ee8a68ec44077a9b3b4",
+      "token_count": 1962
+    },
+    {
+      "path": "include/tilemega/Backend/ServingGemv.h",
+      "bytes": 10168,
+      "sha256": "89cd523b01ed979f2b3dcea41e69cbc629b7300c1e902a5555b1b6c8653926e3",
+      "token_count": 3037
+    },
+    {
+      "path": "include/tilemega/Backend/ServingMmaPipeline.h",
+      "bytes": 1484,
+      "sha256": "905bd2a73a69edba5c29355645c9cc59ea544b7ee24580c85fc4ab071f48c731",
+      "token_count": 442
+    },
+    {
+      "path": "include/tilemega/Backend/ServingProfiledMainloop.h",
+      "bytes": 16432,
+      "sha256": "b9694d9dcd6b36af21b11fa1c08ed030d644a2a1b603b5a6eca4b3eeba4fa8de",
+      "token_count": 4781
+    },
+    {
+      "path": "include/tilemega/Backend/ServingTiledMainloop.h",
+      "bytes": 4063,
+      "sha256": "ed78474df65b8b25bcd54741b4ab847ca8d3d17f930d8ae89d4fe2a5e403fd7d",
+      "token_count": 1198
+    },
+    {
+      "path": "include/tilemega/Backend/ServingVectorIO.h",
+      "bytes": 731,
+      "sha256": "0c93787073a2835ef1217975b4dc97a6299f7f9cd2efa55b3354c0222a6fa117",
+      "token_count": 226
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90BulkGather.h",
+      "bytes": 3259,
+      "sha256": "2801aa1faebaaed29eb9ebb9960401a0c5891da3955fbad885fa90d6d56bbfed",
+      "token_count": 908
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90Conv.h",
+      "bytes": 3347,
+      "sha256": "d30d6dedf647d1cb6bf0fef4c703bdd9eef50a6584396be60790c04a6043973b",
+      "token_count": 1047
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90DecodePipeline.h",
+      "bytes": 3971,
+      "sha256": "c592069dca32323551604619f54d954b61820460b263493510c8c99700399a95",
+      "token_count": 1224
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90DenseAttentionBody.cuh",
+      "bytes": 23945,
+      "sha256": "90aa989d60b3d98f13da30fa163d44fb176d27b8c57f825f7135490d40e82f19",
+      "token_count": 7750
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90DenseAttentionMath.cuh",
+      "bytes": 3018,
+      "sha256": "518e12571707780f6c1e8c1b8af4d8c4077b1bd1d9df892ca33111edc91645e2",
+      "token_count": 893
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90DenseAttentionPartition.h",
+      "bytes": 1310,
+      "sha256": "94e1d3c647a3cb11328f065110da63408ac284197f7f6844830e6c9137b0f1a2",
+      "token_count": 342
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90DenseDiagnostic.cuh",
+      "bytes": 5771,
+      "sha256": "982c8ba2fcd53703b2f20465ef07c27f0c0176980c0d03ee786a14bbbc6fc5ff",
+      "token_count": 1513
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90DenseEpilogue.h",
+      "bytes": 9900,
+      "sha256": "90f9f68f908aa6d21b077b1f2822c1e43b128635e7f82d861d052d9ec738099b",
+      "token_count": 2963
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90DenseGemm.h",
+      "bytes": 17798,
+      "sha256": "391c62cdd0c1c27531de402cd241432341f05faf7cfea4e626891b1f63cbfe41",
+      "token_count": 5323
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90DenseHead.cuh",
+      "bytes": 9475,
+      "sha256": "c8d5e360b5fb09f02df82468c02f2cb8348a19c0cf33ef8989609626ccb8a94c",
+      "token_count": 2807
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90DenseLastArriver.cuh",
+      "bytes": 1132,
+      "sha256": "0bb66dd11c578468fd3aff2b3639d5822085a9fce984ff270303f83575bf62e2",
+      "token_count": 312
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90DenseLayout.h",
+      "bytes": 5071,
+      "sha256": "eed4588be6b5a6b9af35febdc9595ff423292b7881a36ff2705cb0bda130a9c0",
+      "token_count": 1637
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90DenseMark.cuh",
+      "bytes": 1874,
+      "sha256": "d7cbf31b930a795d8f058a466756839d524dcbfc46c3884322e6422feba5b129",
+      "token_count": 498
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90DenseMoe.cuh",
+      "bytes": 54164,
+      "sha256": "db29ae49fdebcdc52100fdaa12091fd424023f15b8db93aef54a2d9ab20fa0ab",
+      "token_count": 16276
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90DenseOperands.cuh",
+      "bytes": 9480,
+      "sha256": "51580748c8f76dbecfefde8d64e0492e09955e65d53c3311772fe76d8efa3825",
+      "token_count": 2923
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90DenseRing.cuh",
+      "bytes": 1692,
+      "sha256": "e1dae178c0b830635ceffe8d811e560c8328e9c88cc97b829394567505ea312e",
+      "token_count": 519
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90DenseRoles.cuh",
+      "bytes": 820,
+      "sha256": "052aa59a51b371a20d08e70a409b9965c0ae927edb7ca515e26c135f9113a524",
+      "token_count": 232
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90DenseStream.cuh",
+      "bytes": 1984,
+      "sha256": "be6276114ee4a868dbeb03f298a993f47d32eccb5dddf0098c91ad5221f2df43",
+      "token_count": 559
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90DenseToken.cuh",
+      "bytes": 815,
+      "sha256": "de9f2849dc71c3ecc1178f07081aa71c8f01dc319e6bbb0520230ec93d11b212",
+      "token_count": 227
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90F3Async.cuh",
+      "bytes": 13577,
+      "sha256": "b719d76f060725af133f607c768ca9160c81c9c5f2271b7547b8898029c39c1a",
+      "token_count": 4121
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90F3Attention.cuh",
+      "bytes": 11208,
+      "sha256": "317af1aaa30606df55498f55f580620ecf6ced76101d2b5e149816ed27921212",
+      "token_count": 3646
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90F3Epilogue.cuh",
+      "bytes": 11181,
+      "sha256": "f2d76a5fb5d7200297dcd8f76fb4dcb40dc96735588ecd9217b2f8533977f236",
+      "token_count": 3607
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90F3Gemm.cuh",
+      "bytes": 53349,
+      "sha256": "f8b0a4124a76d2ac791371f00cb9ce2c2a63a25f6860511def9850f27820f014",
+      "token_count": 16155
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90F3Mark.cuh",
+      "bytes": 4287,
+      "sha256": "336e9b4864d3146a3ade2534221e1d539e9a21b47ad3e55646d1a2ad856b35ee",
+      "token_count": 1280
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90F3Ring.cuh",
+      "bytes": 7940,
+      "sha256": "0a169478b264f3a0e97c7762feb0bea4d1323c8b51d7df37bd5ab1b276ac342b",
+      "token_count": 2446
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90F3Small.cuh",
+      "bytes": 12730,
+      "sha256": "afaf2954057c807e1b049618fff1137e5c82a09df88b4c3dff2ee097b1a0ada0",
+      "token_count": 3900
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90F3SwapAB.cuh",
+      "bytes": 13594,
+      "sha256": "81177f4eae112ca7e04e257dcaaa61a59f94cd133c34868470b58fa83c01fb68",
+      "token_count": 4142
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90ForwardDepthwise.cuh",
+      "bytes": 8918,
+      "sha256": "111fc286266b47cf31a8b19108fa96b4cc9a6c8f4f52577777b83cd870f532f2",
+      "token_count": 2578
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90ForwardEncoderAttention.cuh",
+      "bytes": 10956,
+      "sha256": "c02cabe877af144c9d14155a6eec917ca812a00f4b6886711cb425f17b085a6a",
+      "token_count": 3454
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90ForwardEpilogue.cuh",
+      "bytes": 22689,
+      "sha256": "91d0425cc4356ec04f34f04ea7044f3ccc607790213d9ef0cfcc6e566c971a1b",
+      "token_count": 6359
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90ForwardFused.cuh",
+      "bytes": 13393,
+      "sha256": "57d62aecc5246b63b0cf26628c380448bb60c2f522f5d4ec89252a11a435d2e0",
+      "token_count": 3659
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90ForwardGemm.cuh",
+      "bytes": 15861,
+      "sha256": "4ed194ac95b8ae98119c317c568bfdf67e61a2d55d2c33c83e5444633af0c340",
+      "token_count": 4537
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90ForwardGemv.cuh",
+      "bytes": 4626,
+      "sha256": "0fe936506e45cf44ee6d52399d0f916fb451f7ad49ace0864ff9221cd3efaead",
+      "token_count": 1290
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90ForwardMark.cuh",
+      "bytes": 5729,
+      "sha256": "16fa6c6745c59f476f6d8bdefcf5486bfa8ceb36a7a495016e611a4bdf0d98db",
+      "token_count": 1515
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90ForwardMma32.cuh",
+      "bytes": 3337,
+      "sha256": "98ca57717eb4b67529fd113e8c778d9d2bcb3fe52292ce0398eb6bc728852328",
+      "token_count": 1211
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90ForwardResources.h",
+      "bytes": 2904,
+      "sha256": "73d48a3895580cf9f217dae8e6595d1bb33375f0cdf6f74a5ec01e09bc88f61e",
+      "token_count": 977
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90ForwardSmall.cuh",
+      "bytes": 14723,
+      "sha256": "5cb9564d563756a75d5796c68640f453b4f3f589e329b34cebe1d5bf930ef5d2",
+      "token_count": 4068
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90GemvBulk.h",
+      "bytes": 4404,
+      "sha256": "5a7e8a06e98b0fc337f85cdefc8b52b252fc224cd8e0402b955228568a83bd48",
+      "token_count": 1267
+    },
+    {
+      "path": "include/tilemega/Backend/Sm90Gmma.h",
+      "bytes": 6170,
+      "sha256": "1e755872c83b9af2127fa289d28b2436163faeff1ec8ef1d6e65195601ffef6b",
+      "token_count": 1835
+    },
+    {
+      "path": "include/tilemega/Codegen/AttentionPartition.h",
+      "bytes": 829,
+      "sha256": "ff1099239b0bcd7946ccc069202f5b58bff9170f2ece536b793281919db3d829",
+      "token_count": 211
+    },
+    {
+      "path": "include/tilemega/Codegen/AttentionPlan.h",
+      "bytes": 1523,
+      "sha256": "1ef49093fa795b352713bf693add37dce665d18846b599660403fd1e1769ac8e",
+      "token_count": 404
+    },
+    {
+      "path": "include/tilemega/Codegen/CouplingGraphToCUDA.h",
+      "bytes": 902,
+      "sha256": "d0f2d79321566e3914d98ae0db7065ea99bb0d60cd0b011560c8511326580e95",
+      "token_count": 232
+    },
+    {
+      "path": "include/tilemega/Codegen/DependencyTablePacking.h",
+      "bytes": 2476,
+      "sha256": "f3775dc21dce1cd07beec57138049d0f10e65157091917be91d9bc442c5c4153",
+      "token_count": 615
+    },
+    {
+      "path": "include/tilemega/Codegen/DmConvRuntime.h",
+      "bytes": 2367,
+      "sha256": "eaca074f9e8ab41977c30f653bd13636e6259fc45dc52cdce048cfde8ba30219",
+      "token_count": 677
+    },
+    {
+      "path": "include/tilemega/Codegen/DmDescriptors.h",
+      "bytes": 7654,
+      "sha256": "5f55f4dde7e078d0f17a7d3afe7835e157c5b8c9e896f427941ec7ed2041354f",
+      "token_count": 2395
+    },
+    {
+      "path": "include/tilemega/Codegen/DmReduction.h",
+      "bytes": 661,
+      "sha256": "154d402b73d5845f850bae8a4132d1bc8b1067e375c36b89ed3e81279c19f4b2",
+      "token_count": 199
+    },
+    {
+      "path": "include/tilemega/Codegen/DmReductionDepth.h",
+      "bytes": 1328,
+      "sha256": "ec84a7b0202e29ca64ea43684abf8b35190508a4c3314ab1fea31d80b04fbfd3",
+      "token_count": 358
+    },
+    {
+      "path": "include/tilemega/Codegen/DmReductionPlan.h",
+      "bytes": 749,
+      "sha256": "ca46d0e89a75b79f478946710aaae52065efcb026c4eef777f9daa983fc87c75",
+      "token_count": 187
+    },
+    {
+      "path": "include/tilemega/Codegen/DmReductionProof.h",
+      "bytes": 7942,
+      "sha256": "c714a932f810f3accc58f539a8807ffe09bab260b8392b892a4415e14e240a9d",
+      "token_count": 2048
+    },
+    {
+      "path": "include/tilemega/Codegen/DynamicTaskCursor.h",
+      "bytes": 1209,
+      "sha256": "b69b0e7bdee03df0cc56573b6d0e3e83350344bf50ad6229d0029131f34679dd",
+      "token_count": 321
+    },
+    {
+      "path": "include/tilemega/Codegen/ForwardCodegen.h",
+      "bytes": 658,
+      "sha256": "210edd53d1bce57858599511f69c824c7393c6169de80544659c4e39cf33deb8",
+      "token_count": 170
+    },
+    {
+      "path": "include/tilemega/Codegen/MoeBinding.h",
+      "bytes": 2943,
+      "sha256": "8315fb8e57800007441ed9618df71ac74d420e81fce70b0c070fac7f162b3e9e",
+      "token_count": 858
+    },
+    {
+      "path": "include/tilemega/Codegen/MoeOpaqueControl.h",
+      "bytes": 1822,
+      "sha256": "2c972e379fe67ef5035f5df0c8092e712e011e08c3dd5949163b847c4b64852e",
+      "token_count": 498
+    },
+    {
+      "path": "include/tilemega/Codegen/MoeRuntimeOperands.h",
+      "bytes": 1386,
+      "sha256": "c12ac28bfd0a843c9960099f249e482149bb45214e53d17734b1e4118480cbfd",
+      "token_count": 341
+    },
+    {
+      "path": "include/tilemega/Codegen/RuntimeCountedThresholds.h",
+      "bytes": 1556,
+      "sha256": "e2a92983c4d3c3e2adf0c30c9d51cb6f62807555518a79c2ab3ec1919050c06f",
+      "token_count": 413
+    },
+    {
+      "path": "include/tilemega/Codegen/RuntimeDependencies.h",
+      "bytes": 2244,
+      "sha256": "20f194a3eb97e45dbefc795eab6793b65157e83ec0c7e58b1ea3cc6ab01225c1",
+      "token_count": 595
+    },
+    {
+      "path": "include/tilemega/Codegen/RuntimeDependencyCodec.h",
+      "bytes": 556,
+      "sha256": "55334a42a53b833e30d6302058271031c7a719bb5c35a186e5596ba8d7e4efe8",
+      "token_count": 109
+    },
+    {
+      "path": "include/tilemega/Codegen/RuntimeOwnership.h",
+      "bytes": 1429,
+      "sha256": "2ffacfb910c1095a9ad2a26bf552aaf790cddb213b00e11005d9192d4a329f92",
+      "token_count": 411
+    },
+    {
+      "path": "include/tilemega/Codegen/RuntimePlan.h",
+      "bytes": 2530,
+      "sha256": "f3501b2e16c4fdb02b885d5e293332e91d335572d6dd2901da97f29278e3ab21",
+      "token_count": 637
+    },
+    {
+      "path": "include/tilemega/Codegen/RuntimeTaskGraph.h",
+      "bytes": 1453,
+      "sha256": "d9686cf6d6144e1151aed8daf22357192a465831f6d0fa38cff5c221e891411c",
+      "token_count": 327
+    },
+    {
+      "path": "include/tilemega/Codegen/RuntimeWindow.h",
+      "bytes": 1291,
+      "sha256": "989fe5e641a678655622e72e053501f134c89932b478e779e9459ee723d18c73",
+      "token_count": 356
+    },
+    {
+      "path": "include/tilemega/Codegen/ScheduleTableEmitter.h",
+      "bytes": 520,
+      "sha256": "60c10ad2c846262f6803926f66c9f671af58416eb152862ffe41ef34615e3eb9",
+      "token_count": 136
+    },
+    {
+      "path": "include/tilemega/Codegen/ServingPages.h",
+      "bytes": 584,
+      "sha256": "0350d05829d952de7856c199eb596e9ba8e12f055079677265811b362157bae9",
+      "token_count": 138
+    },
+    {
+      "path": "include/tilemega/Codegen/Sm90DenseEpilogueContract.h",
+      "bytes": 5407,
+      "sha256": "fa192997a92789006b8db779ac7c4079fda3c2c46c4664f4c6bc1463ed6180dc",
+      "token_count": 1452
+    },
+    {
+      "path": "include/tilemega/Codegen/executor/Async.cuh",
+      "bytes": 13955,
+      "sha256": "a2a26c533cebdd3585d9fd77ad3e5ea1fb4e23dad25413828e0bae8e756b64b3",
+      "token_count": 4049
+    },
+    {
+      "path": "include/tilemega/Codegen/executor/BindingGate.cuh",
+      "bytes": 1323,
+      "sha256": "b7ba5e5fd76e2f23226756c2252924b8d7b292415db5639350bd38731b9498b2",
+      "token_count": 349
+    },
+    {
+      "path": "include/tilemega/Codegen/executor/ClusterMailbox.cuh",
+      "bytes": 4324,
+      "sha256": "f8c417308170bdf58b6995d740c0f57694d697b8aca0cd1a2624151608885d2f",
+      "token_count": 1237
+    },
+    {
+      "path": "include/tilemega/Codegen/executor/ClusterPlacement.h",
+      "bytes": 5162,
+      "sha256": "fca07832d37206d7476edd25056d499d58e6c775f6256e66521a809fab6e8dcb",
+      "token_count": 1238
+    },
+    {
+      "path": "include/tilemega/Codegen/executor/ComputeGroup.cuh",
+      "bytes": 738,
+      "sha256": "60e3da614f830d30eff3c12fd7500bf9cef3b2c72f81564a8cbf7baaeb57a8bc",
+      "token_count": 187
+    },
+    {
+      "path": "include/tilemega/Codegen/executor/CountedDependency.cuh",
+      "bytes": 1106,
+      "sha256": "817fb32ceeff1b6989ee95f30e50e1a4ec6b83c556efed88ab1d98c006f434dc",
+      "token_count": 259
+    },
+    {
+      "path": "include/tilemega/Codegen/executor/DirectHandoff.cuh",
+      "bytes": 783,
+      "sha256": "b0a87b4ca4ee2c965f6eeba48a8ec95ddbaaed9300fc607ee714653f21fbf3ad",
+      "token_count": 180
+    },
+    {
+      "path": "include/tilemega/Codegen/executor/DmReduction.cuh",
+      "bytes": 6298,
+      "sha256": "fc8e683291bb86fb7094fad406b683de57671ad2ac1fdef2257e122b22dce22c",
+      "token_count": 1572
+    },
+    {
+      "path": "include/tilemega/Codegen/executor/DynamicTaskClaim.cuh",
+      "bytes": 1013,
+      "sha256": "c67b46f8b3a35b8fef3f154133064dedb274c39dbb590898cf7288fb708983ca",
+      "token_count": 246
+    },
+    {
+      "path": "include/tilemega/Codegen/executor/EpochLastArriver.cuh",
+      "bytes": 1979,
+      "sha256": "39f968fbe27b68d9d593bd5cd7b5d90d7800fed85d3efa2b1f0ae5d09f1a5658",
+      "token_count": 454
+    },
+    {
+      "path": "include/tilemega/Codegen/executor/LastArriver.cuh",
+      "bytes": 2449,
+      "sha256": "3d125be03331e3ead41367888351ba99ab21883d3825d75f64fd621167e1c3e4",
+      "token_count": 558
+    },
+    {
+      "path": "include/tilemega/Codegen/executor/PageRing.cuh",
+      "bytes": 5094,
+      "sha256": "d5c2245ffc5d19d73123d704d91ffc78b8ffe4d7c58eb668cced546c89587db6",
+      "token_count": 1349
+    },
+    {
+      "path": "include/tilemega/Codegen/executor/PageTrace.cuh",
+      "bytes": 1357,
+      "sha256": "e2da83a7ffb77df7156f6bdcc1b028d5a11a15be81e313c415e358268b29b74b",
+      "token_count": 375
+    },
+    {
+      "path": "include/tilemega/Codegen/executor/Prefetch.cuh",
+      "bytes": 1365,
+      "sha256": "220b0651b61e864e77ea1add41fe7f3ee46cae4e5f6eb337e25b772b818715fc",
+      "token_count": 361
+    },
+    {
+      "path": "include/tilemega/Codegen/executor/ServingLaunch.cuh",
+      "bytes": 2528,
+      "sha256": "34555a8375d8bf81e10550a84ae38aab94f64a4fa07d1b85cae541a6be13b559",
+      "token_count": 647
+    },
+    {
+      "path": "include/tilemega/Codegen/executor/ServingNonpagedHandoffHost.cuh",
+      "bytes": 4034,
+      "sha256": "d67a47cd24339b115de19381b4f149f68de3c464af3de64f047c0a75a48b3dd9",
+      "token_count": 965
+    },
+    {
+      "path": "include/tilemega/Codegen/executor/ServingPages.cuh",
+      "bytes": 53751,
+      "sha256": "44c362b22d814536d8ac1a5e3dd31ac337ec75e86b9ac9b0e20c37363a0ef78c",
+      "token_count": 14272
+    },
+    {
+      "path": "include/tilemega/Codegen/executor/ServingPrefetch.cuh",
+      "bytes": 5488,
+      "sha256": "03bc747cc6a76243e568e77cf16ea57252f4b678209cd6ecc003155d2f49b54d",
+      "token_count": 1532
+    },
+    {
+      "path": "include/tilemega/Codegen/executor/ServingTrace.cuh",
+      "bytes": 6252,
+      "sha256": "269880cfd07dbc45fddab34b0ac721457df5d70f6e58bd33d1bfffacb761ac6e",
+      "token_count": 1720
+    },
+    {
+      "path": "include/tilemega/Codegen/executor/SharedMemoryBudget.h",
+      "bytes": 637,
+      "sha256": "071297000ae86ae0a1b3b64a14842ce9f187135f719d474287210e1594174ed2",
+      "token_count": 119
+    },
+    {
+      "path": "include/tilemega/Codegen/executor/TensorIm2col.h",
+      "bytes": 4128,
+      "sha256": "28c9569882f61a1077b28ba24f9be3f1e5a61d4a5a09936da769cb4d9aef6e67",
+      "token_count": 1168
+    },
+    {
+      "path": "include/tilemega/Codegen/executor/TensorMap.h",
+      "bytes": 1713,
+      "sha256": "e4fbe68bbf158d2c5045098c43eff8101205b270f03381ec18d32274c23a19f9",
+      "token_count": 462
+    },
+    {
+      "path": "include/tilemega/Codegen/executor/TensorMap3D.h",
+      "bytes": 2806,
+      "sha256": "8677f1d47560b274603d670660ff83b59046abe13002869ddff8d57cd8335263",
+      "token_count": 795
+    },
+    {
+      "path": "include/tilemega/Codegen/executor/TensorMapTiled.h",
+      "bytes": 2671,
+      "sha256": "9262f56429af358cb7ca6ae0d6efc5a1ee9b052c64e475b0d750c7b7a1d67493",
+      "token_count": 805
+    },
+    {
+      "path": "include/tilemega/Codegen/executor/Watchdog.cuh",
+      "bytes": 1828,
+      "sha256": "594aaf6119d780fe5c6f96b49a14368d0d116af9c3634641cf898498d4b8d515",
+      "token_count": 499
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/AddTaskBody.h",
+      "bytes": 1836,
+      "sha256": "867fd0d3d6e9c3d230c381b02a467d1b0e1064bedcb2d1ab7b8098ee489c8f98",
+      "token_count": 515
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/AttentionChunkTaskBody.h",
+      "bytes": 5908,
+      "sha256": "89fb730fa976bcb5b558def95e34bdb4e94e4dd190228530e588c8aab959e483",
+      "token_count": 1535
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/AttentionCombineTaskBody.h",
+      "bytes": 1716,
+      "sha256": "a699013ad6ae19a9e83a201feaf5a8e958d7e9ca472a27ebda040efcbc0f1b0c",
+      "token_count": 430
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/AttentionMergeTaskBody.h",
+      "bytes": 3121,
+      "sha256": "c1488e55e37fd98c3fc7b2421152205e9531696b5bea270f49a3ba3ce057ad2c",
+      "token_count": 855
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/AttentionPageLayout.h",
+      "bytes": 4320,
+      "sha256": "31f8e605a9edfd3847c4d107742ffb31dc9fde56995e8189728f0fc6395737e4",
+      "token_count": 1191
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/AttentionPhasedTaskBody.h",
+      "bytes": 4254,
+      "sha256": "d7493caba13c27dbc161b0dd1caf31d738e5f694dc7646d97fe7b090445dc824",
+      "token_count": 1120
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/Benchmark.cuh",
+      "bytes": 2534,
+      "sha256": "eae0f18db6ec3eb281746c49aef533f6858f9204addbca88d79ca903ad2a8d23",
+      "token_count": 692
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/ClusterAttentionMergeTaskBody.h",
+      "bytes": 2259,
+      "sha256": "7e44e3e5de7232c394250aae6a660547eee5439ec23204e5516491c1cd8dcb32",
+      "token_count": 637
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/ClusterSync.cuh",
+      "bytes": 7445,
+      "sha256": "e227bfc907c8e8ecd24d448793132690f1fb1cc3714ca100c763366d78b06d11",
+      "token_count": 1763
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/DepthwiseConvTaskBody.h",
+      "bytes": 14657,
+      "sha256": "7c88bc9a85e3eab2a675aef09f3d271703241a526857e2ac8e05fda6ab1b9da7",
+      "token_count": 4114
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/DmEpilogueDispatch.cuh",
+      "bytes": 905,
+      "sha256": "373145a6e0540e75b52c4ae7181a78c549c91367a54f83e1ae77c8b17307e12b",
+      "token_count": 217
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/DmMoeScalarDataflow.h",
+      "bytes": 3017,
+      "sha256": "28280f453d5838a336979c79b39969ec9c33b29b42203835047ce6d8c338ce6d",
+      "token_count": 879
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/DmStageTaskBody.h",
+      "bytes": 11350,
+      "sha256": "ec6c86152d3064810d15b568df7e246ac7e63f1dd1b60bbd4326ca5001fd6e09",
+      "token_count": 2986
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/DwPwFusedTaskBody.h",
+      "bytes": 8915,
+      "sha256": "2004681137059f68c7cfd060ddda9ed56d4db2dda897e02a52b4e1c542ba9fdf",
+      "token_count": 2514
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/DwPwWgmmaTaskBody.h",
+      "bytes": 6185,
+      "sha256": "67cd59deb0f03d2814eba10504e4ab034d165e411571356cde8bc06ebb71780d",
+      "token_count": 1884
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/ElementwiseTaskBody.h",
+      "bytes": 3129,
+      "sha256": "ec51e28399683fe69ea5dd21c794e39da1278abb869385226ad9f0b28b380e4c",
+      "token_count": 812
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/EmbeddingSumTaskBody.h",
+      "bytes": 2685,
+      "sha256": "b47275b1942afe0eb1d004fd2538a3290a3210bf0469f76cc79684210e65e6f4",
+      "token_count": 761
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/EmbeddingTaskBody.h",
+      "bytes": 2812,
+      "sha256": "cbaf0cc4a32fc01fed76eede4285c210d6b30a77cf90949ec88a43c325a1f100",
+      "token_count": 700
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/EncoderAttentionTaskBody.h",
+      "bytes": 7811,
+      "sha256": "9b71d702caa8cfa98aee2af087ada166df4080ac4d6097b80b9501ae6006013c",
+      "token_count": 2292
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/EventSync.cuh",
+      "bytes": 4748,
+      "sha256": "4dfc80c756e49b02e988a43542732de18801929c3d59df4cfcc53076b104c7a1",
+      "token_count": 1303
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/FusedAttentionTaskBody.h",
+      "bytes": 14810,
+      "sha256": "6740a8eca87c643ba265c7b5f59ac622692ab803b259235223341b5c112d4a56",
+      "token_count": 4390
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/FusedGemmTaskBody.h",
+      "bytes": 4942,
+      "sha256": "0902688d3ee928091cf82aed6efb807030cae2dd24e5d55c693e023437838351",
+      "token_count": 1338
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/FusedRoPEKVTaskBody.h",
+      "bytes": 3235,
+      "sha256": "aa144647caf462aafd4ea40ea64ff4289ee0c72fd2037347b38bd82eda196081",
+      "token_count": 915
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/GemmCombineTaskBody.h",
+      "bytes": 10263,
+      "sha256": "052ef8a679aeb190c2534583537c151f5ee849819f18e9fa12c989b74df5c1bb",
+      "token_count": 2621
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/GemmStageTaskBody.h",
+      "bytes": 52983,
+      "sha256": "5136ef3d1e5ad2bdf40a6f96d97df332f26fcd6bc7b7885e3ff7c9988aa0d124",
+      "token_count": 15350
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/GemmTaskBody.h",
+      "bytes": 2040,
+      "sha256": "8b5f1af8b28260c3152877967a21c8d46a40d87d9c17402ab1aa9f7968f3d365",
+      "token_count": 527
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/GlobalPoolReduceTaskBody.h",
+      "bytes": 3401,
+      "sha256": "8f64f2d4e3294a28b0147bd02d31b907dfc80b88775f7b19da8688f538f2eb7d",
+      "token_count": 886
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/IndependentAttentionTaskBody.h",
+      "bytes": 9161,
+      "sha256": "5bc158edd60a4f4728858420acb4026631e1f8e9e782649f58f6ad28a25a6443",
+      "token_count": 2453
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/KVAppendTaskBody.h",
+      "bytes": 3981,
+      "sha256": "cea2036d822a59ff977b9f2dbfda61971d5fd19b30f69687a3b2b03eaa990ab1",
+      "token_count": 1026
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/LastArriverTaskBody.h",
+      "bytes": 2019,
+      "sha256": "5925d88d0e1d18caf13e3c3d6bbcb6afb55102810d5510bee1dd39f047ddce11",
+      "token_count": 516
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/LayerNormTaskBody.h",
+      "bytes": 3057,
+      "sha256": "776bfebf2c88880c9a9174d1a30ab687bdde4f2d31f9c4362970d00e704facf4",
+      "token_count": 899
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/LayoutConvertTaskBody.h",
+      "bytes": 1874,
+      "sha256": "731a00414390cc4fe1be729d507c96a0434cc4ec6dd6702ccb7335afc4b3cf24",
+      "token_count": 567
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/MoECombineTaskBody.h",
+      "bytes": 4620,
+      "sha256": "8ec4df7a328ff0e80af58b4c8cf904600401cf6a6def55ad92dd3863eafa48e5",
+      "token_count": 1251
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/MoEDispatchTaskBody.h",
+      "bytes": 7490,
+      "sha256": "485cc1c34b9b6e1e5016d936e88ba4826273d239a83b1e3efe131ff8660ea4cc",
+      "token_count": 2041
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/MoERouterTaskBody.h",
+      "bytes": 550,
+      "sha256": "d0495303ff1251d586ea7642e8c38d950627c0e12b03caa6e7e2c6f8a4b0b6c0",
+      "token_count": 154
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/MoETopKTaskBody.h",
+      "bytes": 6287,
+      "sha256": "a3ee97714baef2a49c86ed3d5790d753b580b954f5fc1f73d3bb619d8224e2db",
+      "token_count": 1750
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/ModelHarness.cuh",
+      "bytes": 271572,
+      "sha256": "46eaac7db76bd4a42e9c618711fa1bbc0daf3dbf18092da45cad1facab51351d",
+      "token_count": 70886
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/ModelRuntime.h",
+      "bytes": 38250,
+      "sha256": "9d7e21dc7e33ed19cbb6e1db3ad651eb7ab5c90138b1d2b65a5b20fa9f441554",
+      "token_count": 10084
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/MoeCountedPublication.cuh",
+      "bytes": 3433,
+      "sha256": "0363fda34abafd1b3cc6f8ec08eb3961db01b1e2ed2f9b8b0bea9571be0e4594",
+      "token_count": 832
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/PagedAttentionTaskBody.h",
+      "bytes": 18054,
+      "sha256": "a367c2402f4fb13db01b55c39054ac3d78bfc76a311d1e942badadc90d32107f",
+      "token_count": 5260
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/PagedGemmTaskBody.h",
+      "bytes": 44832,
+      "sha256": "9c071b74c192462318e2384f9fb2941ae296f106e731c0d921d38c6fe3b5d729",
+      "token_count": 12426
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/PhaseGemmMainloop.cuh",
+      "bytes": 14740,
+      "sha256": "cd0a1f2c7e8f57dd17e4728cfeebd31b2f920f2ab325ad42ee3af55744fc0f88",
+      "token_count": 4226
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/PhaseTrace.cuh",
+      "bytes": 2726,
+      "sha256": "1f5f52aa65cc8a44474b88e4a44581b1db3f988a3a15351d58ad8372940a88b2",
+      "token_count": 700
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/Placement.cuh",
+      "bytes": 3730,
+      "sha256": "5cc885defcc77e1f6a3f6c104afa59580a9d317024b8f71169543f8960bdf2d0",
+      "token_count": 1061
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/PoolTaskBody.h",
+      "bytes": 2753,
+      "sha256": "c875500b6db51d0b7d96571a36656f53436cf921daa26150cb5736ce01724dc3",
+      "token_count": 804
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/QKNormTaskBody.h",
+      "bytes": 3077,
+      "sha256": "527e026528491f40fe423d990606df5bc493535224ffbae3263a15115377c458",
+      "token_count": 765
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/RMSNormTaskBody.h",
+      "bytes": 3531,
+      "sha256": "6e4b33bf835f03f9c9d90901bf7d32fadfa61aa213e3f7a3cd1c1515d000e262",
+      "token_count": 898
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/RoPETaskBody.h",
+      "bytes": 5930,
+      "sha256": "4b6333ed802433058120cdc40a44ac219b3102ff96fbe7c964bd3793c3807fae",
+      "token_count": 1510
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/ScalarDataflow.h",
+      "bytes": 6389,
+      "sha256": "255b8afe65d66f473d26242f711a71764b292266661573964aa84bf392dbd758",
+      "token_count": 1700
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/SchedulerTaskBody.h",
+      "bytes": 552,
+      "sha256": "152887167bb4b325bfef24802b5d6ad0ab99fa3e4a8b7fefb3151640cbf16c81",
+      "token_count": 150
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/ServingAbi.h",
+      "bytes": 2305,
+      "sha256": "547a79f0edf98cb3f119aad24f2212c25aa2b66ed33d84f4a078c1f25a18f0fa",
+      "token_count": 644
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/ServingArgmaxReduceTaskBody.h",
+      "bytes": 3359,
+      "sha256": "a40f8e076416f22364fa7ca97a482cab04c5dd0d8caa31ed6eb296d70371f6ef",
+      "token_count": 870
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/ServingDmGemmCombineTaskBody.h",
+      "bytes": 1836,
+      "sha256": "05d88e04d5d5196796df1c45ef1cde0fdd6e3da1f8c81a4eae90b2c3dd9a8ae5",
+      "token_count": 501
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/ServingEmbeddingTaskBody.h",
+      "bytes": 2575,
+      "sha256": "7669d381ecf37bba8a16a3fb849080bd1c7d90e743fc63af2ebe7fc1159674f1",
+      "token_count": 677
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/ServingGemmCombineTaskBody.h",
+      "bytes": 3289,
+      "sha256": "1d0444bc0ae35201774d163007451577dedf382dd15bf602fcceebe3829d4911",
+      "token_count": 876
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/ServingGemmTaskBody.h",
+      "bytes": 35922,
+      "sha256": "edef305ec5485b063bf13add6d6a5239cffcfd9b399abfb97af4c5eb7a30dff3",
+      "token_count": 10765
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/ServingGemvTaskBody.h",
+      "bytes": 2737,
+      "sha256": "8de285b2d3ff73f00086e5fdcf49e1460c923a49486bdfc5db14032e0ca70e6f",
+      "token_count": 835
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/ServingLag.h",
+      "bytes": 2878,
+      "sha256": "a12232b465e8101ac3b7f0f95557d05607d888ab69a4bacf6ab0b52533a203d2",
+      "token_count": 759
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/ServingQkvEpilogue.h",
+      "bytes": 4448,
+      "sha256": "6f375976f7d72300b7d25fe9ea35e607c59a92c387a2cb1a795bfdd56a4e547a",
+      "token_count": 1296
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/ServingRMSNormTaskBody.h",
+      "bytes": 3992,
+      "sha256": "b015ab1f48495902f2aa488258e6056c59ade5d7c114e4932a187efd0c438057",
+      "token_count": 1123
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/ServingRuntime.cuh",
+      "bytes": 58845,
+      "sha256": "d925c00f7b9b2fec92f44fff97a96951e26dc093d6c4883d4ba0c83b7ab26e37",
+      "token_count": 16061
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/ServingTaskIndex.h",
+      "bytes": 2270,
+      "sha256": "f46345c1e63e2dfed7a31b444f3ec2c1431ac0ac19d3a4e2f4ca4c1e76779552",
+      "token_count": 550
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/ServingTaskProfile.h",
+      "bytes": 1561,
+      "sha256": "5bc845ff843890be29a6b7f724fce6cb5a77b896b3b11f1be89b8d1a136d5b87",
+      "token_count": 460
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/Sm90AttentionTaskBody.h",
+      "bytes": 6988,
+      "sha256": "920f7fff06b6a150f913d7c5535781dfa9cf76870452f3195a84bcec2eab7351",
+      "token_count": 2044
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/Sm90DenseBoundaryDiagnostic.h",
+      "bytes": 2270,
+      "sha256": "0d0ebecadaa45b05c99656221ee5968e6292bd5d9d7304d16ef04e1d989a50b2",
+      "token_count": 594
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/Sm90DenseProbe.cuh",
+      "bytes": 2192,
+      "sha256": "66304997f34c3073d93ce6bfd002983f633b894d1d4e740af6f52481c37b5230",
+      "token_count": 609
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/Sm90DenseProgram.cuh",
+      "bytes": 51556,
+      "sha256": "ea8e40adf65cd9fbc8a45603f471091a312012a69344cf1511ce1fdfb9536996",
+      "token_count": 13893
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/Sm90DenseReleaseTrace.cuh",
+      "bytes": 683,
+      "sha256": "2042cb3496506544d38e462ed9a1381d68af2aa4b5c07bc707b8312cfd9daa57",
+      "token_count": 197
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/Sm90DenseRuntime.cuh",
+      "bytes": 35901,
+      "sha256": "8710da92a9b62a184fb0621e7af25ac510f7657da6ec61c0159b14d43f4bc6a4",
+      "token_count": 9658
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/Sm90DenseSequence.cuh",
+      "bytes": 4685,
+      "sha256": "504315e2638a88f2efd21c9c0c44d056cb3aca58b385235c95065b25dd9fad48",
+      "token_count": 1192
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/Sm90DenseStage.cuh",
+      "bytes": 3496,
+      "sha256": "7980dded2a3c1bfd3db8f38c18c19e9cd9d1f5944f27b006253bd80b300abe47",
+      "token_count": 955
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/Sm90EncoderAttentionTaskBody.h",
+      "bytes": 6239,
+      "sha256": "b39f539a3fd8aea3b3931de3c3945ae870267ee1263f21e47a12ddcf512fd87f",
+      "token_count": 2080
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/Sm90F3Program.cuh",
+      "bytes": 33335,
+      "sha256": "ef48f13627f5b17fd0d3975f4c7fd72821f194f660ad9f9390cf0001e44b1421",
+      "token_count": 9510
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/Sm90F3Runtime.cuh",
+      "bytes": 11890,
+      "sha256": "2850686873c6e137aadc9cb50a10c3a71b6103867bd94262c25625399bfaea3a",
+      "token_count": 3137
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/Sm90ForwardProgram.cuh",
+      "bytes": 16506,
+      "sha256": "9618416189eade2d945e61ab897f7c55c628c321dd97749c62293958f22fd6f6",
+      "token_count": 4367
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/Sm90ForwardRuntime.cuh",
+      "bytes": 9429,
+      "sha256": "fd0d217ed85180ad3f70fd387e10f84ce70831f115cc5bac708f4664c70d86fc",
+      "token_count": 2463
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/Sm90PrefillAttentionTaskBody.h",
+      "bytes": 14400,
+      "sha256": "7e5e12c73c69a0ba5826764ed255232d67ae87d0514617baadb52fb9b6bc9738",
+      "token_count": 4471
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/Sm90StaticProgram.cuh",
+      "bytes": 13279,
+      "sha256": "a49b45eb01aafeb9c1c438d00f196de0355b4cd76552df3f1257c4092f22f39c",
+      "token_count": 3830
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/TaskBase.h",
+      "bytes": 9702,
+      "sha256": "a64b06ee4bed984ec0dd5bd5c96c9e149948d45e312aa7c44fd5220542e49efd",
+      "token_count": 2629
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/TaskResources.h",
+      "bytes": 5975,
+      "sha256": "1e4056cc23ba4ff1ec88ddb87c4373a449620e91b3dff41ffaa93ccd2201d8e0",
+      "token_count": 1624
+    },
+    {
+      "path": "include/tilemega/Codegen/tasks/WarpReduce.cuh",
+      "bytes": 2571,
+      "sha256": "ec7c171b0fe995741514c7355168788829173dcce62b4a75d4d17632ada66868",
+      "token_count": 704
+    },
+    {
+      "path": "include/tilemega/Dialect/CouplingGraph/BoundDependency.h",
+      "bytes": 1134,
+      "sha256": "d7be9bd614a92d3b2f23c67ab6bd1fe4f48bc6f634f03441baf0ba65f2e7d6e2",
+      "token_count": 252
+    },
+    {
+      "path": "include/tilemega/Dialect/CouplingGraph/CGAttrs.h",
+      "bytes": 900,
+      "sha256": "1a5be845f257f37aa43fd353cc263376ac3a2af3e77397ffc1f95e1717e45f87",
+      "token_count": 237
+    },
+    {
+      "path": "include/tilemega/Dialect/CouplingGraph/CGContract.h",
+      "bytes": 1969,
+      "sha256": "21c6155c5be0c746b74c413741c3015472513ddc0a81d74c79591ebff6489519",
+      "token_count": 418
+    },
+    {
+      "path": "include/tilemega/Dialect/CouplingGraph/CGOps.h",
+      "bytes": 1126,
+      "sha256": "d62bfb738fd7f96220646deba2678e6fa5f0317cb636f0099fefd4091387d8b0",
+      "token_count": 294
+    },
+    {
+      "path": "include/tilemega/Dialect/CouplingGraph/CountedDependency.h",
+      "bytes": 906,
+      "sha256": "2d2994b0bf350eba0f676382618bed3d1cab5b178110d06c956047061334ca30",
+      "token_count": 219
+    },
+    {
+      "path": "include/tilemega/Dialect/CouplingGraph/FusionPass.h",
+      "bytes": 559,
+      "sha256": "5a45e16a83cda110a96adc3c193027a1f6bf8f7831e642382c5ecd0179a56182",
+      "token_count": 130
+    },
+    {
+      "path": "include/tilemega/Dialect/CouplingGraph/HandoffPass.h",
+      "bytes": 1349,
+      "sha256": "fbb35d6678414aa384d35b31491d069879f36f9aeb41aecaece2c5fef51d00d2",
+      "token_count": 319
+    },
+    {
+      "path": "include/tilemega/Dialect/CouplingGraph/ParametricPlacementIO.h",
+      "bytes": 1594,
+      "sha256": "8b3f58168826cb88b758302c7c3efaaa1ab34124dbeae2606c6d2ebab79a9fe7",
+      "token_count": 394
+    },
+    {
+      "path": "include/tilemega/Dialect/CouplingGraph/PlacementPlan.h",
+      "bytes": 4454,
+      "sha256": "b6c73a38a64fc3ca2569ddfd10c1ef3f6122187c7fb548ef03baf4eb5971ef9c",
+      "token_count": 1134
+    },
+    {
+      "path": "include/tilemega/Dialect/CouplingGraph/PlacementSolvePass.h",
+      "bytes": 23935,
+      "sha256": "d92229dab3b002f58590e389c9cf81ad2f82bb9dd164c7dc0fbf2e8aa0bea324",
+      "token_count": 5987
+    },
+    {
+      "path": "include/tilemega/Dialect/CouplingGraph/TaskReductionGeometry.h",
+      "bytes": 1941,
+      "sha256": "6080e3de62564c2885eaa92f81f799d22f4d38545c813f351c31ef5e5c15ffb1",
+      "token_count": 469
+    },
+    {
+      "path": "include/tilemega/Frontend/DmDescriptorCodec.h",
+      "bytes": 1520,
+      "sha256": "cd734ca6330ead75abea8271c4c3be0d54de3c1ce3d01cb9759fccfef5e7f06f",
+      "token_count": 421
+    },
+    {
+      "path": "include/tilemega/Frontend/DnnDeferredNorm.h",
+      "bytes": 623,
+      "sha256": "7a3073bcc68a2ce6314e0606458c62c58a52eb6cc07cb2a4a67804c6fda8a33f",
+      "token_count": 133
+    },
+    {
+      "path": "include/tilemega/Frontend/DnnModelPlan.h",
+      "bytes": 1827,
+      "sha256": "4a60f163800cd39713d5e2cf404099a05d5602ffe3ccf9a2e2c4977d802bd518",
+      "token_count": 490
+    },
+    {
+      "path": "include/tilemega/Frontend/ExportBridge.h",
+      "bytes": 976,
+      "sha256": "0a8433b2ab30cd1ddaf5f1346f557ef3e8a68c84d47a7a14cfd5550a70d6c6f1",
+      "token_count": 232
+    },
+    {
+      "path": "include/tilemega/Frontend/GraphPattern.h",
+      "bytes": 7279,
+      "sha256": "46b762ad57e145e7329a85bc722ecc061036147063838b1fbfc474a2b17752d4",
+      "token_count": 1711
+    },
+    {
+      "path": "include/tilemega/Frontend/ModelPlan.h",
+      "bytes": 9879,
+      "sha256": "6e9d4e86eae9ac85418ea0b5e95f5baa5c55a66aa6f45f2eff849d95ba19ccfd",
+      "token_count": 2745
+    },
+    {
+      "path": "include/tilemega/Frontend/MoeRegionPattern.h",
+      "bytes": 1103,
+      "sha256": "37a530f04623acfdc69224504369747217479cd3dbcd654ad938ae1cd14b805e",
+      "token_count": 286
+    },
+    {
+      "path": "include/tilemega/Frontend/MoeRegionPlan.h",
+      "bytes": 1043,
+      "sha256": "4f111bdcef554494e52dc7f9b998fd8f63e895c724e615a23ad50ce09460fca9",
+      "token_count": 259
+    },
+    {
+      "path": "include/tilemega/Frontend/SemanticLifting.h",
+      "bytes": 5870,
+      "sha256": "6ecb22c7594fd85eb180356db1dbddeb7bf55e87f1d728fce513267488275093",
+      "token_count": 1479
+    },
+    {
+      "path": "include/tilemega/Frontend/SymbolicShapeBridge.h",
+      "bytes": 1102,
+      "sha256": "6953dbc6fa55a3807eb7afd164e8225b4b1b53d1b1c629a992d47b4be5dd98da",
+      "token_count": 269
+    },
+    {
+      "path": "include/tilemega/Frontend/TorchExportImporter.h",
+      "bytes": 2776,
+      "sha256": "d1fb1eda59bfa23f75b5203c81488d516220ca1da71adf9fba0325741c36266b",
+      "token_count": 704
+    },
+    {
+      "path": "include/tilemega/Runtime/EventBuffer.h",
+      "bytes": 770,
+      "sha256": "5b3ec96930e4a6e3e54720040c9b2e2b463012eae44a3dfd5bd9bd168b01bdf5",
+      "token_count": 212
+    },
+    {
+      "path": "include/tilemega/Runtime/MegakernelRuntime.h",
+      "bytes": 1204,
+      "sha256": "02aea7750ba62d2153ffd9a0d4fbb5006bbed8a4d28cfd4e29e092733fcc0f69",
+      "token_count": 300
+    },
+    {
+      "path": "include/tilemega/Solver/AlignmentPropagation.h",
+      "bytes": 3873,
+      "sha256": "ed1468e546bbd68bf9d37999fd5b01344e9ea6651a679e3e1a3a89c3309b5d7e",
+      "token_count": 956
+    },
+    {
+      "path": "include/tilemega/Solver/AttentionWork.h",
+      "bytes": 1278,
+      "sha256": "db906323c66654f5121f8c98b690b57a3ac9fa39137b7e87711ab14052abaa38",
+      "token_count": 302
+    },
+    {
+      "path": "include/tilemega/Solver/BackendCostQuery.h",
+      "bytes": 9148,
+      "sha256": "110a29aea752ff5fca2d1447ba2669eabb83c37f5c998dfb9af8012bfe3a51ff",
+      "token_count": 2836
+    },
+    {
+      "path": "include/tilemega/Solver/BalancedPlacement.h",
+      "bytes": 629,
+      "sha256": "5ab3ea24a035c47ab59d67215638c84683153e61d12c0e3cedf435db810c27df",
+      "token_count": 151
+    },
+    {
+      "path": "include/tilemega/Solver/BindingRequestTraffic.h",
+      "bytes": 800,
+      "sha256": "0b7e8c7c370690440181cbb7ae4c754baab2763d05fefa2fb55c225935ddcbb1",
+      "token_count": 182
+    },
+    {
+      "path": "include/tilemega/Solver/CacheServiceCurve.h",
+      "bytes": 1104,
+      "sha256": "45b468fc3b67c5a61a7aea22b73a0558e9ee82df859fedeb2b5ccc26a560c572",
+      "token_count": 266
+    },
+    {
+      "path": "include/tilemega/Solver/CandidateGenerator.h",
+      "bytes": 3359,
+      "sha256": "d143f2e179866e00aea3ac28072dfcb99314cc3232d2c827ac3ac928734cd9b3",
+      "token_count": 849
+    },
+    {
+      "path": "include/tilemega/Solver/ChainDP.h",
+      "bytes": 9076,
+      "sha256": "edc22cc0298a04fd379d5749b9f77ccba24eadf5206be5a634cef1c7a4fbed86",
+      "token_count": 2212
+    },
+    {
+      "path": "include/tilemega/Solver/ChainPlacement.h",
+      "bytes": 7935,
+      "sha256": "966799267e521c2c1cd49cad849162abbf98fd9b41ee8932738b1045df137e83",
+      "token_count": 2097
+    },
+    {
+      "path": "include/tilemega/Solver/ClusterLabeling.h",
+      "bytes": 4967,
+      "sha256": "14a6d37dc43ae9d8b7e8703f6ee76dada25137511ed808c52a9221f27a3fe588",
+      "token_count": 1185
+    },
+    {
+      "path": "include/tilemega/Solver/CoResidency.h",
+      "bytes": 1356,
+      "sha256": "cf737ccca4c4eb3afda051b5c5b7d946b893da8df78ae01bfbba5368816a63f8",
+      "token_count": 366
+    },
+    {
+      "path": "include/tilemega/Solver/CompilerSearch.h",
+      "bytes": 17581,
+      "sha256": "2589571bbb816fac7c50979dccba7ce2961dd8994becc05735b6ba12057a04db",
+      "token_count": 4304
+    },
+    {
+      "path": "include/tilemega/Solver/CostModel.h",
+      "bytes": 15694,
+      "sha256": "b5beefd4f4ed8287d55cecad4ddfed836097f05b95d1d8b33e164b310d16e685",
+      "token_count": 3970
+    },
+    {
+      "path": "include/tilemega/Solver/DmConvReductionPartition.h",
+      "bytes": 2891,
+      "sha256": "c39453f8895d4d7636bf5d353708e2bd39d01ff6560032e49741601ced6e11f7",
+      "token_count": 759
+    },
+    {
+      "path": "include/tilemega/Solver/DmGemmCandidates.h",
+      "bytes": 5263,
+      "sha256": "b7e2b0a6679fc984ee4b80d8680e87834a141814c8c82c495e64a0cfe5229ff5",
+      "token_count": 1568
+    },
+    {
+      "path": "include/tilemega/Solver/DmGemmClassDomain.h",
+      "bytes": 3201,
+      "sha256": "6391e0d02e80ab6eb94bbbd919b08f4227ebbdec40b217c11521bc5206a5d877",
+      "token_count": 918
+    },
+    {
+      "path": "include/tilemega/Solver/DmGemmTraits.h",
+      "bytes": 1509,
+      "sha256": "6a600186523250897119113c235b4bc480acc986eb3225587af04c8194e10eaa",
+      "token_count": 514
+    },
+    {
+      "path": "include/tilemega/Solver/DmGemvPricing.h",
+      "bytes": 1459,
+      "sha256": "32bd276d29b3b8313b9df7b2a228bcc356ceb5782d11e2ff102b31ef53beff64",
+      "token_count": 364
+    },
+    {
+      "path": "include/tilemega/Solver/DmOperatorClasses.h",
+      "bytes": 4352,
+      "sha256": "e2169924f5e0e17f289cf3784217ce772324ab1059e352241e38dbb90a92057d",
+      "token_count": 1277
+    },
+    {
+      "path": "include/tilemega/Solver/DmSemanticSignature.h",
+      "bytes": 2341,
+      "sha256": "9e827acb7f63bdbd40de092bedf13df08ebb2a3c5c612760a1f28273b1c56987",
+      "token_count": 578
+    },
+    {
+      "path": "include/tilemega/Solver/DmSharedWeights.h",
+      "bytes": 3719,
+      "sha256": "6f5fd5782d3cd9c9fe33f42436625195e0c0de0ff376cd6eac537a2788bdc491",
+      "token_count": 928
+    },
+    {
+      "path": "include/tilemega/Solver/DmVirtualGemmPartition.h",
+      "bytes": 2489,
+      "sha256": "11047193dc16497243b58de8c98ad651bed08b42da1c058fa71c2d32e1dedf83",
+      "token_count": 615
+    },
+    {
+      "path": "include/tilemega/Solver/DnnStructureSearch.h",
+      "bytes": 1562,
+      "sha256": "814f0f6bce90df8c7422b8950681812f3a0f2147a239695471c5957abc65a714",
+      "token_count": 385
+    },
+    {
+      "path": "include/tilemega/Solver/DramFluid.h",
+      "bytes": 2385,
+      "sha256": "4558302252e5ecf63ef59ecb31c96aa7aa3fe3bdad46703b111505a30a1e165c",
+      "token_count": 599
+    },
+    {
+      "path": "include/tilemega/Solver/EftPlacement.h",
+      "bytes": 2716,
+      "sha256": "60deaf17fa6546cc03d3fff7b0812a912e0a55870e5a6422a110ca0eae73ae91",
+      "token_count": 714
+    },
+    {
+      "path": "include/tilemega/Solver/ExecutionSimulator.h",
+      "bytes": 12037,
+      "sha256": "858220c8b0b530fcbb1c0ee7987b2b09350dd606945e2bb091a33417c4f5f9a2",
+      "token_count": 3044
+    },
+    {
+      "path": "include/tilemega/Solver/FlowPreparation.h",
+      "bytes": 3391,
+      "sha256": "ecb5dc2f6a42e0cdda090a7a94aa78258892e3aedffb22595b55c8669e618b63",
+      "token_count": 850
+    },
+    {
+      "path": "include/tilemega/Solver/ForwardGeometry.h",
+      "bytes": 16867,
+      "sha256": "eb1d35a6fc84416e983f5be2795f03bcd19d7605c6c6d546a8c0763c882b41b2",
+      "token_count": 4912
+    },
+    {
+      "path": "include/tilemega/Solver/FusionResources.h",
+      "bytes": 2055,
+      "sha256": "eee8eeedd3296788cc7430df4d25e7d276b2b8087627dba7e937b2dbd5ff0850",
+      "token_count": 486
+    },
+    {
+      "path": "include/tilemega/Solver/HandoffRuntimeProjection.h",
+      "bytes": 975,
+      "sha256": "a30934d9b6c1f2a2495dd4a0387c5fbf42f3482d55b3abcb7e5e313efacca256",
+      "token_count": 214
+    },
+    {
+      "path": "include/tilemega/Solver/HopCurve.h",
+      "bytes": 1127,
+      "sha256": "fd668e37c2e8366a565825adc7b99cf75eb9f3b3acd4a6fc9c7f965dbfcdccfe",
+      "token_count": 321
+    },
+    {
+      "path": "include/tilemega/Solver/ImplementationContract.h",
+      "bytes": 4706,
+      "sha256": "5e92d4ff6aba69399dd4e5d4b34c2d830c407a25f0c8a1ca4f6f2fc450e62d9a",
+      "token_count": 1021
+    },
+    {
+      "path": "include/tilemega/Solver/IntervalSegments.h",
+      "bytes": 10423,
+      "sha256": "55d138dfc222428e839ba0a0f021603007667130b08692c6a85daca239900f79",
+      "token_count": 2755
+    },
+    {
+      "path": "include/tilemega/Solver/JointPlacement.h",
+      "bytes": 4815,
+      "sha256": "c0f0aa8a7cdba17324a97f6f102835b506c191e3ed3a8766fc8080b8be2df85a",
+      "token_count": 1146
+    },
+    {
+      "path": "include/tilemega/Solver/JointSearch.h",
+      "bytes": 3170,
+      "sha256": "b4a29890e25b9a12821d71b7cd39dbb377fdc72c3191809cdc56c63b4fdbc9a6",
+      "token_count": 835
+    },
+    {
+      "path": "include/tilemega/Solver/LaneIntersections.h",
+      "bytes": 1129,
+      "sha256": "63f442c8090e14bc608b7a219567d5e3adc54513c13547b27b7c6acd7a1456f5",
+      "token_count": 271
+    },
+    {
+      "path": "include/tilemega/Solver/ListScheduler.h",
+      "bytes": 2304,
+      "sha256": "2ab7fca04fe1c6c9c8a3facf8a817d11656e4df74d0349b3139e32c3764781c7",
+      "token_count": 535
+    },
+    {
+      "path": "include/tilemega/Solver/MemoryPlan.h",
+      "bytes": 729,
+      "sha256": "46227382334cb91ffecba172db4ff8cf43eeff21adc9ff953b9f17718efabd5e",
+      "token_count": 198
+    },
+    {
+      "path": "include/tilemega/Solver/ModelDescription.h",
+      "bytes": 8403,
+      "sha256": "a0974b82c5e3447ec5c2315747b25a785d5f341470d6d8e40b48e4a0ebffeaaf",
+      "token_count": 2173
+    },
+    {
+      "path": "include/tilemega/Solver/MoeDramBindings.h",
+      "bytes": 627,
+      "sha256": "fbc6da542a559b6ed6f5195c825157a4a07334beaf4f13c47ff6da5bf7e686ee",
+      "token_count": 145
+    },
+    {
+      "path": "include/tilemega/Solver/MoeRoutingProfile.h",
+      "bytes": 15362,
+      "sha256": "f17a04b86e55fcd51cb1b0cc4c59ba163b6f52319379869f1d9bd88e82b7274c",
+      "token_count": 3683
+    },
+    {
+      "path": "include/tilemega/Solver/MoeStructureSearch.h",
+      "bytes": 1111,
+      "sha256": "32509e2ee854bf2cedbb09d0606e7b4e1803ed0fd7171f2c411a5e421b85e9ca",
+      "token_count": 278
+    },
+    {
+      "path": "include/tilemega/Solver/MoeTaskPricing.h",
+      "bytes": 1413,
+      "sha256": "f3ecfe57986647ef05e9b460abf7c46b81bb8220809aab41e74cdb60a9023807",
+      "token_count": 333
+    },
+    {
+      "path": "include/tilemega/Solver/OperatorClasses.h",
+      "bytes": 6421,
+      "sha256": "b6ef3bb8445e662ec014a680d4473cd4672b0b141428482cc3e14ab210af3aa9",
+      "token_count": 1822
+    },
+    {
+      "path": "include/tilemega/Solver/PageLayout.h",
+      "bytes": 3990,
+      "sha256": "6e99c3da5643ae474b6f02dae2749c9d3c6d6384066c3123b9b04a87ac848ed4",
+      "token_count": 1048
+    },
+    {
+      "path": "include/tilemega/Solver/ParametricPlacement.h",
+      "bytes": 6171,
+      "sha256": "dda1182ffd288ebad56243bbd4fa50668cc7f3f5446ad91ed656e5973a51d168",
+      "token_count": 1608
+    },
+    {
+      "path": "include/tilemega/Solver/ParametricTemplates.h",
+      "bytes": 6047,
+      "sha256": "41ff8d4428f14c17c41e59510dbe3f62d27ff9ffae90ca046297bd94295f2b9e",
+      "token_count": 1557
+    },
+    {
+      "path": "include/tilemega/Solver/PiecePricing.h",
+      "bytes": 875,
+      "sha256": "a490fd5a3b6997c4c39c215db02f389b7472e1a3336b146aaf9a8921de7dae6c",
+      "token_count": 213
+    },
+    {
+      "path": "include/tilemega/Solver/PlanMaterialize.h",
+      "bytes": 4205,
+      "sha256": "9a0e7bb3fa45723ef96ab39d2ed7620446a834f32baf0ce940dcc49f3d73ff15",
+      "token_count": 1100
+    },
+    {
+      "path": "include/tilemega/Solver/PlanSkeleton.h",
+      "bytes": 2678,
+      "sha256": "add6e82cb4c22ca1528931646cdb74f284779d3995ba15a98babb9e250af61de",
+      "token_count": 679
+    },
+    {
+      "path": "include/tilemega/Solver/RelationBounds.h",
+      "bytes": 4957,
+      "sha256": "0223b2fa54b32f023f3cca2da1f1984abe9ece2553a33707fc26544434c360e7",
+      "token_count": 1270
+    },
+    {
+      "path": "include/tilemega/Solver/RuntimeProjection.h",
+      "bytes": 5416,
+      "sha256": "3c086deeb076be2950716cbc558220d52f4bc9464a949fb3318f3cecfad71ade",
+      "token_count": 1176
+    },
+    {
+      "path": "include/tilemega/Solver/ServingAttentionLegality.h",
+      "bytes": 977,
+      "sha256": "144dddf27da7257a2401829e4f0784d086988f2be98617f78274faf659c73b12",
+      "token_count": 233
+    },
+    {
+      "path": "include/tilemega/Solver/ServingImplementation.h",
+      "bytes": 1958,
+      "sha256": "d1d768288d607fd8dbfb3ccac02870a775686f0c1950ed9140448c3c19c0f801",
+      "token_count": 548
+    },
+    {
+      "path": "include/tilemega/Solver/ServingPruning.h",
+      "bytes": 4642,
+      "sha256": "49173ba94fe14ba6d494fa525d72817e73b531dba5814301723c5d5253ba1c43",
+      "token_count": 1313
+    },
+    {
+      "path": "include/tilemega/Solver/ServingSeedGeometry.h",
+      "bytes": 6348,
+      "sha256": "466c207f3cf63be2b3672a49c9135c5ac7ee03ea9d310ff08437914a0bc7b5cf",
+      "token_count": 1712
+    },
+    {
+      "path": "include/tilemega/Solver/SkeletonPlacement.h",
+      "bytes": 875,
+      "sha256": "665580838e7a8639b0d0a603d02000f7f0257f7ff8113b2532dd2bb4db522d5c",
+      "token_count": 232
+    },
+    {
+      "path": "include/tilemega/Solver/SkeletonSearch.h",
+      "bytes": 5547,
+      "sha256": "5b38fb57bd6e8bc08f864ec6fc90ad37739afacaae35fde02eff2b5524921263",
+      "token_count": 1416
+    },
+    {
+      "path": "include/tilemega/Solver/Sm90DenseCoordinates.h",
+      "bytes": 18233,
+      "sha256": "4c6d3ccdf6d8944ac76251cb7dae9cdd23560fcc3d9027e36fdfedd967727bb7",
+      "token_count": 5205
+    },
+    {
+      "path": "include/tilemega/Solver/Sm90DenseCostModel.h",
+      "bytes": 1706,
+      "sha256": "3e53360c394f3b3a2de6b1724d674928683c826f088066c7ea45cb7e60529f6b",
+      "token_count": 460
+    },
+    {
+      "path": "include/tilemega/Solver/Sm90DensePlan.h",
+      "bytes": 1136,
+      "sha256": "83c35954f7ae4210fbe0c8fa3292a2fee81d958f2fc53e9bbace0441de80e70c",
+      "token_count": 320
+    },
+    {
+      "path": "include/tilemega/Solver/Sm90DenseRegisterContract.h",
+      "bytes": 607,
+      "sha256": "256f478b64d6890276fc991da59ea913530a77a4c73587ca78543c5c323e800b",
+      "token_count": 144
+    },
+    {
+      "path": "include/tilemega/Solver/Sm90DenseResources.h",
+      "bytes": 972,
+      "sha256": "d775e3496a93bb12c8a388d3cf5aeb5c8ddaaec95aa39f8267ab9fe5c2a05d4d",
+      "token_count": 268
+    },
+    {
+      "path": "include/tilemega/Solver/Sm90DenseSearch.h",
+      "bytes": 813,
+      "sha256": "8baecbf6cb02402b11150fa802b83121a3510d1a4794bdf7a0de8f3fdd2cd372",
+      "token_count": 236
+    },
+    {
+      "path": "include/tilemega/Solver/Sm90DenseSearchSpace.h",
+      "bytes": 1725,
+      "sha256": "2adf4bc9ecb45709be7a96fd5f298dbd26e2f4ed2c0955459718a034327b9a9c",
+      "token_count": 478
+    },
+    {
+      "path": "include/tilemega/Solver/Sm90DenseWorkload.h",
+      "bytes": 3756,
+      "sha256": "c538e805bc4f7fbdb7bd83c8a847e795addce810a9e145b9be7dbd2dc813641c",
+      "token_count": 1067
+    },
+    {
+      "path": "include/tilemega/Solver/Sm90ForwardCoordinates.h",
+      "bytes": 12406,
+      "sha256": "9d6aa1d1c783e6c153f1730f44e1f304ad9a4aeaef89c001ff38844ef4861112",
+      "token_count": 3669
+    },
+    {
+      "path": "include/tilemega/Solver/Sm90ForwardPlan.h",
+      "bytes": 2085,
+      "sha256": "a3f1d8ee6e043f6a4f64a4a166241687b788f4e6cb924c9b99b964df0989985f",
+      "token_count": 566
+    },
+    {
+      "path": "include/tilemega/Solver/Sm90ForwardSearch.h",
+      "bytes": 26123,
+      "sha256": "8fbe5a31f51093078ec3b52e3ac94141cb4284a5476dc8876ebf17d20c2923c7",
+      "token_count": 6813
+    },
+    {
+      "path": "include/tilemega/Solver/Sm90NativeConstants.h",
+      "bytes": 3718,
+      "sha256": "31910bf107a9818eabc0e612550a6d7902a2e206c28f123fc7a61cb5abf87121",
+      "token_count": 1056
+    },
+    {
+      "path": "include/tilemega/Solver/Sm90NativeCtg.h",
+      "bytes": 1904,
+      "sha256": "00a6bef12765e41b52bff7db5be3c70597db3a9d3c05c03307536ca30f5ea71d",
+      "token_count": 534
+    },
+    {
+      "path": "include/tilemega/Solver/Sm90NativeFlow.h",
+      "bytes": 3285,
+      "sha256": "8094f8ab37392f5396c9075933096811e9bfee49d1dc643f47289d1eb5acb3d3",
+      "token_count": 856
+    },
+    {
+      "path": "include/tilemega/Solver/Sm90NativeMoeDomain.h",
+      "bytes": 1147,
+      "sha256": "e43eba5ae4eb9db87ac554c7b61c2936fd970bfe74dcf4621d17996f13306939",
+      "token_count": 286
+    },
+    {
+      "path": "include/tilemega/Solver/Sm90NativePipeline.h",
+      "bytes": 3602,
+      "sha256": "4612623b3cc2562a8b8197ba59b1fbad97b153e73878ae462fd4ad8a21b2fa9e",
+      "token_count": 948
+    },
+    {
+      "path": "include/tilemega/Solver/Sm90NativePrices.h",
+      "bytes": 2468,
+      "sha256": "07e1945b0675139af434a3b26665f8e7797e5dae36d93a94b046fcec88ea3377",
+      "token_count": 604
+    },
+    {
+      "path": "include/tilemega/Solver/SolverTiming.h",
+      "bytes": 1485,
+      "sha256": "813c3e8bee42131c3bc16e5835c643d58a947a2f07a6de4580f1f5c845bc395f",
+      "token_count": 431
+    },
+    {
+      "path": "include/tilemega/Solver/StageFlowModel.h",
+      "bytes": 3723,
+      "sha256": "632c190d752032460f613b80ae910d1f0ecdd5d70b0edad55a64664cce1fca0a",
+      "token_count": 995
+    },
+    {
+      "path": "include/tilemega/Solver/TaskModel.h",
+      "bytes": 7375,
+      "sha256": "1e2c97319013c9719cae3f28111159379ece419ae5971b7400a54a5227d6437f",
+      "token_count": 1671
+    },
+    {
+      "path": "include/tilemega/Solver/VariantResourceCache.h",
+      "bytes": 2937,
+      "sha256": "ae4034bdb542d028fd40848b0057a7f7467069d39738668f82a0f8abb65b71ef",
+      "token_count": 761
+    },
+    {
+      "path": "include/tilemega/Solver/VariantSchedule.h",
+      "bytes": 1388,
+      "sha256": "68a1bbfc2621afa7f77c19d52d739acc675cae77e58bcccc471af3121c2606a1",
+      "token_count": 336
+    },
+    {
+      "path": "include/tilemega/Support/Json.h",
+      "bytes": 2910,
+      "sha256": "38d4ee720201a19045ef7d6437e9163beaa0c7d3efac12c776d8c27e6837dc62",
+      "token_count": 741
+    },
+    {
+      "path": "include/tilemega/Target/ArchDispatch.h",
+      "bytes": 12871,
+      "sha256": "2cdfae7c6b22cd989089d7c06c9d325a3801bf3b1a24f106ae33cc7a2ff29ce0",
+      "token_count": 3654
+    },
+    {
+      "path": "include/tilemega/Target/Calibration.h",
+      "bytes": 4401,
+      "sha256": "118c89b885267f2cf7709e9351a647618da043f218bbd086ff2f9bca345a3d34",
+      "token_count": 1075
+    },
+    {
+      "path": "include/tilemega/Target/TargetSpec.h",
+      "bytes": 16037,
+      "sha256": "85dfed2546e44fd7e620c75e8a467bbf3a3c284e1e56dedb11bfbd6db38349f9",
+      "token_count": 4278
+    },
+    {
+      "path": "lib/Analysis/AccessRelation.cpp",
+      "bytes": 7164,
+      "sha256": "14010069303b114fc221886990ad6d52263ffc67e35501c27fd37334cab5262f",
+      "token_count": 1748
+    },
+    {
+      "path": "lib/Analysis/AffineRelation.cpp",
+      "bytes": 4274,
+      "sha256": "6cf2f1f3635749ef7e26fe8b71d40795fdf935bc334ef6c1e3be2df121a7583a",
+      "token_count": 1111
+    },
+    {
+      "path": "lib/Analysis/Analysis.cpp",
+      "bytes": 8720,
+      "sha256": "86e1e1d0311992b32fa112230900a4fba45973409ceb487813b788f580954564",
+      "token_count": 2164
+    },
+    {
+      "path": "lib/Analysis/BoundDependencyForm.cpp",
+      "bytes": 7456,
+      "sha256": "a55bd01e79fdd04db2e6a89f541008cb3a82bde41d8d71fa6859eaa9d7a9bb07",
+      "token_count": 1946
+    },
+    {
+      "path": "lib/Analysis/ClosedForm.cpp",
+      "bytes": 19829,
+      "sha256": "05b87c07ecbfc2d001f88a3859660bb7a07a58a47c0f7fd8253392768b12935d",
+      "token_count": 5140
+    },
+    {
+      "path": "lib/Analysis/CountedDependencyForm.cpp",
+      "bytes": 5913,
+      "sha256": "43c074fa56efd66d38022698b2b1d06821a66b4f857b2c2b614951dc2b88f0b0",
+      "token_count": 1364
+    },
+    {
+      "path": "lib/Analysis/CouplingCache.cpp",
+      "bytes": 4405,
+      "sha256": "718b1549ef6f69d3dbda90cf52d01d14f1c06497bf03c322218893ada08faf03",
+      "token_count": 1172
+    },
+    {
+      "path": "lib/Analysis/CouplingDerivation.cpp",
+      "bytes": 32981,
+      "sha256": "a740a61c890720a8fdd736729fba2ef5e3f9c5688e36185519d36295db25c889",
+      "token_count": 7794
+    },
+    {
+      "path": "lib/Analysis/CouplingRelation.cpp",
+      "bytes": 36201,
+      "sha256": "694d23718834e1cd3226898d23c4f102a9b944505d593ebc01e1189130568f91",
+      "token_count": 9061
+    },
+    {
+      "path": "lib/Analysis/DependencyForm.cpp",
+      "bytes": 16169,
+      "sha256": "84b3d1f84b3e6d7bfaa5d1328a9125f21cf8f18f97272667e37394d24198fda6",
+      "token_count": 4110
+    },
+    {
+      "path": "lib/Analysis/DependencyTable.cpp",
+      "bytes": 21989,
+      "sha256": "d3d09efb9348cd80d463492b0b32ae60167207655268c9f163b7ed8054a15cf0",
+      "token_count": 5575
+    },
+    {
+      "path": "lib/Analysis/DramFloor.cpp",
+      "bytes": 15032,
+      "sha256": "39ec27c085fa1e494bb48561411b9924faaa2bf93d79c0b6a4e355037cbbb6ee",
+      "token_count": 3527
+    },
+    {
+      "path": "lib/Analysis/ExactTaskWork.cpp",
+      "bytes": 8676,
+      "sha256": "d46ce7708aa5826fe2715b238c630d5e501a1c743113706cf29c93edb9f88944",
+      "token_count": 2062
+    },
+    {
+      "path": "lib/Analysis/FusionAccess.cpp",
+      "bytes": 3965,
+      "sha256": "d591e0e6bbd6b778aa0c459a132ea7731f638359e6a76b6091e49eba7cb86b48",
+      "token_count": 921
+    },
+    {
+      "path": "lib/Analysis/HandoffAccess.cpp",
+      "bytes": 4487,
+      "sha256": "ed002808eb5fa8948656c6ae52057e3d95e06760eaec61bc084717d9389481de",
+      "token_count": 1128
+    },
+    {
+      "path": "lib/Analysis/ISLContext.cpp",
+      "bytes": 1565,
+      "sha256": "fcb306a36bb12f3f114ba441e31737b1e2de268ede1c7aaf8c4c7f7893db0bd9",
+      "token_count": 379
+    },
+    {
+      "path": "lib/Analysis/IslUtil.h",
+      "bytes": 5626,
+      "sha256": "62e1c9fe2ccb299fb6edd350db38147618a3ba6c29ac4b30ac0b97a1a62a8439",
+      "token_count": 1530
+    },
+    {
+      "path": "lib/Analysis/OpArithmetic.cpp",
+      "bytes": 12288,
+      "sha256": "727cb81fb756d7739ddd055420d07830363ddbceb75f4e8d55d6cea38dc3e93c",
+      "token_count": 3619
+    },
+    {
+      "path": "lib/Analysis/OracleExpression.h",
+      "bytes": 5342,
+      "sha256": "6af21aab2a0c73f521321ac0006e2673225fe57ce3aaa9a1a74e7fbb80151f92",
+      "token_count": 1452
+    },
+    {
+      "path": "lib/Analysis/QuasiPolynomial.cpp",
+      "bytes": 32391,
+      "sha256": "feae7a7b5f9b54f4af05d105d4731d10c08f1f64a7c3142d0228ba4314eb0cd9",
+      "token_count": 8208
+    },
+    {
+      "path": "lib/Analysis/ReferenceModels.cpp",
+      "bytes": 20361,
+      "sha256": "21177d1821340d7710602c503f1211f37406b43f9723476a508ef1e3f1ecc0dd",
+      "token_count": 6095
+    },
+    {
+      "path": "lib/Analysis/SemanticCodec.cpp",
+      "bytes": 19804,
+      "sha256": "1e15b0681b71ab2c99ea3268a7d8a3517bee1bf0b4e7f369d281392471da3da6",
+      "token_count": 4643
+    },
+    {
+      "path": "lib/Analysis/Semantics.cpp",
+      "bytes": 11613,
+      "sha256": "8020f8177bfe57821f7f937c6cb475d68566d1e2d154d2aa60964a4f1959f605",
+      "token_count": 3015
+    },
+    {
+      "path": "lib/Analysis/StorageHazards.cpp",
+      "bytes": 6080,
+      "sha256": "b31ae4491e1b1dc82f67fb9a50c8dfa2cba5f45ea7da7ac9ca9ca57bbfdd03ba",
+      "token_count": 1390
+    },
+    {
+      "path": "lib/Analysis/SymbolicOracle.cpp",
+      "bytes": 22194,
+      "sha256": "bec21d885ac35e59fc8bfc4325a9a9bf91443afa8f4609382e4aa6afe49ba99e",
+      "token_count": 5705
+    },
+    {
+      "path": "lib/Analysis/TaskElementRelation.cpp",
+      "bytes": 16665,
+      "sha256": "148a19e1327b72198e115de9e52c3118125c8c05649bf2efd7d266cf00993b45",
+      "token_count": 3927
+    },
+    {
+      "path": "lib/Analysis/TaskInstantiation.cpp",
+      "bytes": 19979,
+      "sha256": "35404633fa3d1449edb0315a8b679672ed1914fde8d707c37c13e0c70252888e",
+      "token_count": 4692
+    },
+    {
+      "path": "lib/Analysis/TaskStorage.cpp",
+      "bytes": 6998,
+      "sha256": "55c55d55eed918bd33110ef0a6cd571678c28bf1021e0eb119bc522eed3b1885",
+      "token_count": 1657
+    },
+    {
+      "path": "lib/Analysis/TaskWork.cpp",
+      "bytes": 18060,
+      "sha256": "30cb0bb127daaf59b37ce4fee67faea7f7f93104b384cb799abe2b3c87737e42",
+      "token_count": 4265
+    },
+    {
+      "path": "lib/Analysis/VirtualTaskBinding.cpp",
+      "bytes": 2908,
+      "sha256": "347f4bf9f9b2845534fbf788f72f196e4e15fb12ef456ac8c774517f9d0092cb",
+      "token_count": 665
+    },
+    {
+      "path": "lib/Codegen/Codegen.cpp",
+      "bytes": 157690,
+      "sha256": "0b029bbc888f9740aee5b9f8e392805726d1eb30a8175efc67043aafa38b4875",
+      "token_count": 42056
+    },
+    {
+      "path": "lib/Codegen/ExactRuntimeTaskGraph.cpp",
+      "bytes": 2537,
+      "sha256": "2e9ff443616e25b8d7e9de250c39322409a3ba3966b5cbfbcbd66a550cdf667e",
+      "token_count": 580
+    },
+    {
+      "path": "lib/Codegen/ForwardCodegen.cpp",
+      "bytes": 38931,
+      "sha256": "e88d4e57def6d92217069ce4226ab5d395726374e0a24b667ae07422662915bf",
+      "token_count": 10002
+    },
+    {
+      "path": "lib/Codegen/ForwardEmitShared.h",
+      "bytes": 14820,
+      "sha256": "10c3012287ddb19c43619912429240175ca9a178077463a2f4e44d06951f9ed8",
+      "token_count": 3977
+    },
+    {
+      "path": "lib/Codegen/ForwardF3Codegen.cpp",
+      "bytes": 44607,
+      "sha256": "c1db4085d0e1b209f64c04b5b9755c3330677dad98d1b2d478f8ad149c266b84",
+      "token_count": 12360
+    },
+    {
+      "path": "lib/Codegen/RuntimeDependencyCodec.cpp",
+      "bytes": 8820,
+      "sha256": "fb6f76d392292ef083f0677846af95045e18cbd5df68763aff1a7b3312b07789",
+      "token_count": 2113
+    },
+    {
+      "path": "lib/Codegen/RuntimeTaskGraph.cpp",
+      "bytes": 3092,
+      "sha256": "a3f41bb2f73bb85e1a41dbe4f05ebe9d7eb6bb20c7400098a365ac47d5f419b7",
+      "token_count": 735
+    },
+    {
+      "path": "lib/Codegen/ServingPages.cpp",
+      "bytes": 21794,
+      "sha256": "5f13820f128c4723b514e65fc87dab9fc0efc016f4ed2dded2c9a1b2daaf1c65",
+      "token_count": 5741
+    },
+    {
+      "path": "lib/Dialect/CouplingGraph/BoundDependency.cpp",
+      "bytes": 6904,
+      "sha256": "aec209580ba490dbcc7eeb4a07b0853738f3249b5044de30b4caf185334bf375",
+      "token_count": 1641
+    },
+    {
+      "path": "lib/Dialect/CouplingGraph/CGContract.cpp",
+      "bytes": 6175,
+      "sha256": "1a6609b34b3cd98387184c0aecc6831c73b0097bf3c39103167c6fb42051d19b",
+      "token_count": 1392
+    },
+    {
+      "path": "lib/Dialect/CouplingGraph/CGDialect.cpp",
+      "bytes": 30767,
+      "sha256": "80b1870b92038c3d18f86b572b6dd4132e336ebf91a512f620443057ec8fcae2",
+      "token_count": 7396
+    },
+    {
+      "path": "lib/Dialect/CouplingGraph/CountedDependency.cpp",
+      "bytes": 14702,
+      "sha256": "4d09a0e7fe17a9b73a74051a8f0f9ff8c89b2f0dbc6979ef9f728e97b6cf7816",
+      "token_count": 3470
+    },
+    {
+      "path": "lib/Dialect/CouplingGraph/FusionPass.cpp",
+      "bytes": 15208,
+      "sha256": "dc1a6ab0687b7bee9f381b3c77abb4583e822654b822f529614ffd0b04dc7f28",
+      "token_count": 3660
+    },
+    {
+      "path": "lib/Dialect/CouplingGraph/HandoffAccess.cpp",
+      "bytes": 10021,
+      "sha256": "b261af312dfecaa6177788c2c85db764349c4ac114c98b1728a7ddcea12e1b98",
+      "token_count": 2502
+    },
+    {
+      "path": "lib/Dialect/CouplingGraph/HandoffPass.cpp",
+      "bytes": 29957,
+      "sha256": "b00df6bbfd4ce687e2924c65edfc814ba8780fee315fc83cc15c5b5a4a34a5eb",
+      "token_count": 7665
+    },
+    {
+      "path": "lib/Dialect/CouplingGraph/PlacementPlan.cpp",
+      "bytes": 4510,
+      "sha256": "87a182e409551648ce7c1d17e50ff0634d6c9880aaa003436bea0ae287be17d4",
+      "token_count": 1163
+    },
+    {
+      "path": "lib/Frontend/DmDescriptorCodec.cpp",
+      "bytes": 31009,
+      "sha256": "00ba046f4e234003feed736193da22572211e20b8b596bd7e7fe205348af5c49",
+      "token_count": 9041
+    },
+    {
+      "path": "lib/Frontend/DnnDeferredNorm.cpp",
+      "bytes": 9791,
+      "sha256": "b1098834e0934bb6e9603623976de2de04063aa0797cad487d1098e60198595e",
+      "token_count": 2683
+    },
+    {
+      "path": "lib/Frontend/DnnDwPwFusion.cpp",
+      "bytes": 3407,
+      "sha256": "0474dd549e438d66af0c5445b63ca8766fd7aa0a5b5f4a33b13502016bf4182e",
+      "token_count": 942
+    },
+    {
+      "path": "lib/Frontend/DnnModelPlan.cpp",
+      "bytes": 70027,
+      "sha256": "95e00405fe31ce517d06d82ba604c16a65ab3f26069674d2dd4f7cbf179d2aa0",
+      "token_count": 19138
+    },
+    {
+      "path": "lib/Frontend/DnnResourceProbe.cpp",
+      "bytes": 5875,
+      "sha256": "4e22420cfd0b4653794791faff54db2730c22a4c8a44eee19f4d2861bfd7de63",
+      "token_count": 1641
+    },
+    {
+      "path": "lib/Frontend/DnnSemanticLifting.cpp",
+      "bytes": 32280,
+      "sha256": "0e0620f66d22dfe1d31dd020b3699c0c0e2634d29ab9e03d0a10a25197873738",
+      "token_count": 8970
+    },
+    {
+      "path": "lib/Frontend/DnnStorage.cpp",
+      "bytes": 2645,
+      "sha256": "0c5621cc54d3b29a5152537073f032b599ae486732be2b7c4f6be94137c24c68",
+      "token_count": 702
+    },
+    {
+      "path": "lib/Frontend/Frontend.cpp",
+      "bytes": 86273,
+      "sha256": "4453e78786cefb9e82468cd28912df00835b047eabb9746e3c8e5b5bcf951e7c",
+      "token_count": 20771
+    },
+    {
+      "path": "lib/Frontend/GraphPattern.cpp",
+      "bytes": 12743,
+      "sha256": "d326f28bc2c1c6587cc1747a5d1291e64b1c37c637868d3c35dcaa8d1e1d7e89",
+      "token_count": 3075
+    },
+    {
+      "path": "lib/Frontend/ModelPlan.cpp",
+      "bytes": 75823,
+      "sha256": "2b38aa871145436527cdb5c147f2b7b89f5be7c86e7621b17e9cc3df8436d78a",
+      "token_count": 19723
+    },
+    {
+      "path": "lib/Frontend/MoeRegionPattern.cpp",
+      "bytes": 15168,
+      "sha256": "c9619563c0e5c77f9691d503679a083465291b3311fad037f7402596ec96f624",
+      "token_count": 4046
+    },
+    {
+      "path": "lib/Frontend/MoeRegionPlan.cpp",
+      "bytes": 17050,
+      "sha256": "4e4789a6136ca8c027fd2fc481fe50ed1f985771fe5a7baa6b9e6df7219fa077",
+      "token_count": 4617
+    },
+    {
+      "path": "lib/Frontend/MoeSemanticLifting.cpp",
+      "bytes": 14904,
+      "sha256": "1525e270952b8deb8f2d92c37eaed00537a6f8d9d8d2621f1cffec6d6b0bc3b7",
+      "token_count": 4392
+    },
+    {
+      "path": "lib/Frontend/SemanticLifting.cpp",
+      "bytes": 41466,
+      "sha256": "d3d0ed609f10fedab4ff6ca4b440cba937beae0d3ce8c693bdd4a62c10547c73",
+      "token_count": 10803
+    },
+    {
+      "path": "lib/Frontend/ServingSemanticLifting.cpp",
+      "bytes": 25136,
+      "sha256": "bb60ef8e2957bf700e8b75d98652eefbd0eefb44f65902d169aa3b692c6bedff",
+      "token_count": 6774
+    },
+    {
+      "path": "lib/Runtime/EventBuffer.cpp",
+      "bytes": 901,
+      "sha256": "634eca2c9619d7943ac7a8b52105bf11f24b2b89fcf54c41aefcd9b8762c2f45",
+      "token_count": 229
+    },
+    {
+      "path": "lib/Runtime/MegakernelRuntime.cpp",
+      "bytes": 855,
+      "sha256": "a57e2817c6c43d202de2a5292bc482e9d502a9480d000e5ab35229c0a0c50ef1",
+      "token_count": 214
+    },
+    {
+      "path": "lib/Solver/AlignmentPropagation.cpp",
+      "bytes": 6793,
+      "sha256": "778541e1dc97ce017a9c15bfeb4235c24281cc52370caff31f16e90695cfd7bd",
+      "token_count": 1826
+    },
+    {
+      "path": "lib/Solver/AttentionWork.cpp",
+      "bytes": 10810,
+      "sha256": "0f6e80dd8a54a1ec68d4072beb9ba0668373896476f1d52ad9e31312b1a1ed26",
+      "token_count": 2689
+    },
+    {
+      "path": "lib/Solver/BackendCostQuery.cpp",
+      "bytes": 5154,
+      "sha256": "0fca07dea581eed3b85ba13ad801e1c6490425589d82fcef57f5f0cb92abc530",
+      "token_count": 1438
+    },
+    {
+      "path": "lib/Solver/BalancedPlacement.cpp",
+      "bytes": 2520,
+      "sha256": "b57d98f4ff9263c230b236c356cc8eee79236e7c72c33075cec2950676bf711e",
+      "token_count": 652
+    },
+    {
+      "path": "lib/Solver/BindingRequestTraffic.cpp",
+      "bytes": 5537,
+      "sha256": "1bdae07d13368f24d034d3344927e703b86e75eb419628a92e4002467320c2e3",
+      "token_count": 1287
+    },
+    {
+      "path": "lib/Solver/CacheServiceCurve.cpp",
+      "bytes": 5263,
+      "sha256": "21b2223ed3f6f8dac52a664292b264b9eef23a4753b53a9b3ae5db35cd13c145",
+      "token_count": 1473
+    },
+    {
+      "path": "lib/Solver/CandidateGenerator.cpp",
+      "bytes": 6757,
+      "sha256": "acea625b7b8d03141806b23e185e564e049c1a4c7095143a2359732d6e9efc52",
+      "token_count": 1681
+    },
+    {
+      "path": "lib/Solver/ChainDP.cpp",
+      "bytes": 22418,
+      "sha256": "5ed704d0ca598318d3444aed0bfc2731e8aadb816db927b4340e93d6f7aad283",
+      "token_count": 6018
+    },
+    {
+      "path": "lib/Solver/ChainPlacement.cpp",
+      "bytes": 22836,
+      "sha256": "6c60c86ab3efdd3ac8da9d0cb9539cb01581bab83ad5ad209d6b7f97914308f7",
+      "token_count": 6225
+    },
+    {
+      "path": "lib/Solver/ClusterLabeling.cpp",
+      "bytes": 5302,
+      "sha256": "a004f9a6b6d30fb932d47af77965d75ba2f4859ae178d1eda8fb290288729d17",
+      "token_count": 1451
+    },
+    {
+      "path": "lib/Solver/CostModel.cpp",
+      "bytes": 50714,
+      "sha256": "6d07074e7e7868081894fc61ecc270e8983d44de5c927a02410dda872dec1310",
+      "token_count": 13387
+    },
+    {
+      "path": "lib/Solver/CouplingInterfaceDP.cpp",
+      "bytes": 8459,
+      "sha256": "02dc6fd2a4b43982eef6c28caa3dd49f9b4c45501ddf6c830d87ec9a86258faa",
+      "token_count": 2246
+    },
+    {
+      "path": "lib/Solver/DmReductionFlow.cpp",
+      "bytes": 8600,
+      "sha256": "ab5bd2fbccf0f6419572d2201099f95b9fd38d8d3070e04633a47a088d08b672",
+      "token_count": 2182
+    },
+    {
+      "path": "lib/Solver/DnnStructureSearch.cpp",
+      "bytes": 9884,
+      "sha256": "e76c10669b57065aef684f40c270cd1995a8c4255e5a38fac76cd49eca5cf094",
+      "token_count": 2430
+    },
+    {
+      "path": "lib/Solver/DramFluid.cpp",
+      "bytes": 7542,
+      "sha256": "f9275c172080becf1f688c24d9aecf5a5ab99726dadf24d108e12dda9b3a536a",
+      "token_count": 2076
+    },
+    {
+      "path": "lib/Solver/EftPlacement.cpp",
+      "bytes": 9418,
+      "sha256": "f0d78e62457be48ecdfbf82cebad35403684ce7098627acdc3bffcca1457c2e4",
+      "token_count": 2519
+    },
+    {
+      "path": "lib/Solver/ExecutionSimulator.cpp",
+      "bytes": 31174,
+      "sha256": "0b6a188d0c62cf5e41765a2b50fbae342dd6b9ebd39dd5fdb7b22a0dbe7c514e",
+      "token_count": 8287
+    },
+    {
+      "path": "lib/Solver/FlowPreparation.cpp",
+      "bytes": 45594,
+      "sha256": "c5871cd9f2d1c4b350684ae515b7bcd1546b2455345c7a021a54ef810245558e",
+      "token_count": 11305
+    },
+    {
+      "path": "lib/Solver/FluidExecutionSimulator.cpp",
+      "bytes": 10566,
+      "sha256": "fef2b930dd7960d33ef249d761e74a720eb1e828107536a1b71cfe02d73ca432",
+      "token_count": 2796
+    },
+    {
+      "path": "lib/Solver/FusedRuntimeProjection.cpp",
+      "bytes": 20340,
+      "sha256": "6b19b921ee0aa72c3ec96f18b76d235300d850d286796b9124b48ed40f5ede97",
+      "token_count": 5091
+    },
+    {
+      "path": "lib/Solver/FusedTaskInput.cpp",
+      "bytes": 12604,
+      "sha256": "27781148efcdf50d9bd6b656401e43db5d71e0fa7257be8876bfdbf61248f812",
+      "token_count": 2968
+    },
+    {
+      "path": "lib/Solver/FusionIntervalDP.cpp",
+      "bytes": 9617,
+      "sha256": "677b93754499c65c0bab43baa22a92fcb99187ca1db0913799b50ad52fdd176d",
+      "token_count": 2353
+    },
+    {
+      "path": "lib/Solver/FusionResources.cpp",
+      "bytes": 11891,
+      "sha256": "42001613ac27ce8558f13f0d7eb968debb2f38210725a3e1ffefae292979d6c0",
+      "token_count": 2919
+    },
+    {
+      "path": "lib/Solver/HandoffRuntimeProjection.cpp",
+      "bytes": 4383,
+      "sha256": "d17bcb1b7cd81a47ba4165f8b151518a04ddacc03b1d8f7bb071465b02b7d5f5",
+      "token_count": 1059
+    },
+    {
+      "path": "lib/Solver/ImplementationContract.cpp",
+      "bytes": 10078,
+      "sha256": "8b702bc741f303e05cdca0720eff3bbc5343bec325562e2e368490d5ce69cf0c",
+      "token_count": 2202
+    },
+    {
+      "path": "lib/Solver/IsolatedEvaluation.h",
+      "bytes": 2401,
+      "sha256": "a7f6de4fc4bbe465c8bedcb69d83b870e2dbf0c084d6c518085d9fec6e5a0d8d",
+      "token_count": 644
+    },
+    {
+      "path": "lib/Solver/LaneIntersections.cpp",
+      "bytes": 5165,
+      "sha256": "bfa2895604140b4ab4b4c75ab0e7125265e8b0209447263ac4cd15157a912fdd",
+      "token_count": 1424
+    },
+    {
+      "path": "lib/Solver/ListScheduler.cpp",
+      "bytes": 4414,
+      "sha256": "fed262636e1a7e2047173beae410d1e0e3b87359e4872694aab77926982017c5",
+      "token_count": 1113
+    },
+    {
+      "path": "lib/Solver/MemoryPlan.cpp",
+      "bytes": 11195,
+      "sha256": "1efa65ba3ab5aa0d7ccaeb5ab628367d02821617954322de3787e272eab2c123",
+      "token_count": 2897
+    },
+    {
+      "path": "lib/Solver/ModelDescription.cpp",
+      "bytes": 30668,
+      "sha256": "61225f431deb506f6537eb674e49ae47c92b31a3568fee50ba09cd950db987ba",
+      "token_count": 7862
+    },
+    {
+      "path": "lib/Solver/ModelDramFloor.cpp",
+      "bytes": 8296,
+      "sha256": "647bead0fbb329f95096d302c9ddc6bf5786a8fe5f09f74c5af0e0c4868864a3",
+      "token_count": 2076
+    },
+    {
+      "path": "lib/Solver/MoeDramBindings.cpp",
+      "bytes": 7682,
+      "sha256": "8a6545097ca318ab3d35bbc9b318882e71002709ce3985162c0d201a723b5205",
+      "token_count": 1870
+    },
+    {
+      "path": "lib/Solver/MoeStructureSearch.cpp",
+      "bytes": 8216,
+      "sha256": "4c94cc8978433c1ee9162ddc76828bf702031bf305fc32c4888d939103eb9100",
+      "token_count": 2020
+    },
+    {
+      "path": "lib/Solver/MoeTaskPricing.cpp",
+      "bytes": 9418,
+      "sha256": "5a927079bf5c8390616673ea2610ca05d4c2f51442138caebe9a38c817bae244",
+      "token_count": 2387
+    },
+    {
+      "path": "lib/Solver/PiecePricing.cpp",
+      "bytes": 10542,
+      "sha256": "6ab204b0d8a3c69ee848d7ae41bbd09f4a1e51f11354a034fff549142477dc33",
+      "token_count": 2662
+    },
+    {
+      "path": "lib/Solver/PlanMaterialize.cpp",
+      "bytes": 16151,
+      "sha256": "5aafefef558057c9a5451edf4fbc9fec5a18db3b5161b97a8c139dd04f55ee6d",
+      "token_count": 4025
+    },
+    {
+      "path": "lib/Solver/PlanSkeleton.cpp",
+      "bytes": 21173,
+      "sha256": "2ea2c483ffadcc35bcd3b68480e456f2f37b68e7e312c7669a3b75ed06024870",
+      "token_count": 5420
+    },
+    {
+      "path": "lib/Solver/RuntimeProjection.cpp",
+      "bytes": 32185,
+      "sha256": "da9dff8dfe7329063b7b0f3757a7289d6d95c262f91f0095ee776215c8f62560",
+      "token_count": 7961
+    },
+    {
+      "path": "lib/Solver/ScalarTaskWork.cpp",
+      "bytes": 4908,
+      "sha256": "d11d346d624a8368a91b4ebffe7cb537d11ab59ba1949e8d931565309a0cca0a",
+      "token_count": 1213
+    },
+    {
+      "path": "lib/Solver/SkeletonFinalize.cpp",
+      "bytes": 14287,
+      "sha256": "817af17e649fb0693d0514d13ac78f4085c6cfeae588ca7f0da2debd62976b58",
+      "token_count": 3989
+    },
+    {
+      "path": "lib/Solver/SkeletonPlacement.cpp",
+      "bytes": 9718,
+      "sha256": "de63425c149d72d2b6ae500d36f302757d22a292a0dc430eb58fa7f012a8236a",
+      "token_count": 2598
+    },
+    {
+      "path": "lib/Solver/SkeletonSearch.cpp",
+      "bytes": 87619,
+      "sha256": "1de4cc30f3763ea56bc7fcb4e6f2ae5f5cb8942ae23d384b5ed79b494f913b2d",
+      "token_count": 22327
+    },
+    {
+      "path": "lib/Solver/Sm90DenseCostModel.cpp",
+      "bytes": 9390,
+      "sha256": "6a8e5f31ceb988a71b1d31c84eb2b0a43db10ebade10e9cc05216c466d8c20b9",
+      "token_count": 2881
+    },
+    {
+      "path": "lib/Solver/Sm90DensePlan.cpp",
+      "bytes": 19508,
+      "sha256": "b9f5ab1cb2d52af10e4c682bc637cd7e0265bc6047d0d986bf50477a581ede6e",
+      "token_count": 5452
+    },
+    {
+      "path": "lib/Solver/Sm90DenseRegisterContract.cpp",
+      "bytes": 1948,
+      "sha256": "d58e157db3d79b363060eadcd965e18ce699ebb0b65a7f2a6870cea40158d279",
+      "token_count": 480
+    },
+    {
+      "path": "lib/Solver/Sm90DenseSearch.cpp",
+      "bytes": 6800,
+      "sha256": "9ef35d2f8775d461b3d7738f6caf4f1c8a4df0ddd1ad3a5d9b79b4363c56a124",
+      "token_count": 1830
+    },
+    {
+      "path": "lib/Solver/Sm90DenseSearchSpace.cpp",
+      "bytes": 7047,
+      "sha256": "5707f52fef5909f876afe0b4bb2538cf6c6c2bfc906f93f43aef2c4322a34a2b",
+      "token_count": 2378
+    },
+    {
+      "path": "lib/Solver/Sm90ForwardPlan.cpp",
+      "bytes": 31646,
+      "sha256": "7437a9a060fc943eab4867518c905484662d1d25196316303d9cee170e8a2eec",
+      "token_count": 8884
+    },
+    {
+      "path": "lib/Solver/Sm90ForwardSearch.cpp",
+      "bytes": 48943,
+      "sha256": "202dc4bd04c574fb7eee499636540fbc2d2dd015aa524666cb1ab0e4926679dd",
+      "token_count": 13885
+    },
+    {
+      "path": "lib/Solver/Sm90NativeConstants.cpp",
+      "bytes": 8820,
+      "sha256": "8d8cb78a45bf5bb956a2d51fd664476fe31195106cc70efd5728d03c72056f55",
+      "token_count": 2455
+    },
+    {
+      "path": "lib/Solver/Sm90NativeCtg.cpp",
+      "bytes": 18926,
+      "sha256": "c300ef8e07e0f604e274ca42ce7c75b27f850a3680bbde2bc3550e10f9113958",
+      "token_count": 4956
+    },
+    {
+      "path": "lib/Solver/Sm90NativeFlow.cpp",
+      "bytes": 21194,
+      "sha256": "792c23202fa497adbec847d2ca38744d028ab39e894256be8e638b6a9c613a6b",
+      "token_count": 5760
+    },
+    {
+      "path": "lib/Solver/Sm90NativeMoeDomain.cpp",
+      "bytes": 2447,
+      "sha256": "4dd26a46cb1bcaccf53b43ac38033ad7328c73999f663c5f169c81b5e597ee32",
+      "token_count": 645
+    },
+    {
+      "path": "lib/Solver/Sm90NativePipeline.cpp",
+      "bytes": 19385,
+      "sha256": "b950001a27f876656827bff077160ebb10c456409e992fc4e4744aa4aaf96677",
+      "token_count": 5061
+    },
+    {
+      "path": "lib/Solver/Sm90NativePrices.cpp",
+      "bytes": 9763,
+      "sha256": "18559b9c9e021fcf4099a09cbfd22e58c0a672146b27946ee1bd5c0fce6ff101",
+      "token_count": 2724
+    },
+    {
+      "path": "lib/Solver/Sm90NativeWriteback.cpp",
+      "bytes": 13401,
+      "sha256": "8ad8c56899ee1c563f42b7fbbb756118e63ab4923e201e28b360601c13c4772f",
+      "token_count": 3546
+    },
+    {
+      "path": "lib/Solver/StageFlowModel.cpp",
+      "bytes": 26668,
+      "sha256": "35d6e79d30193d3bcfce6980167bea0f17e576594a264656948bec21f99c6263",
+      "token_count": 7214
+    },
+    {
+      "path": "lib/Solver/SymbolicChainDP.cpp",
+      "bytes": 9467,
+      "sha256": "c7b7e6014fcece63224f20512f0ba8fa51157606cd8f0b5e13b90e326c0e6fe5",
+      "token_count": 2551
+    },
+    {
+      "path": "lib/Solver/SymbolicTaskCost.cpp",
+      "bytes": 23493,
+      "sha256": "04934bf36d45d2f0751c89f422d042b36ef86b5d3a468ede933f08f6af2de9b6",
+      "token_count": 6119
+    },
+    {
+      "path": "lib/Solver/TaskModel.cpp",
+      "bytes": 50659,
+      "sha256": "4667bf96d709450b9ccf384531ae17b3c4d4fa4bb21b1fb757cc3c45a3cfee51",
+      "token_count": 11899
+    },
+    {
+      "path": "lib/Solver/TaskPriceParts.cpp",
+      "bytes": 14736,
+      "sha256": "bd3d31659a99147858f6af7fc53f338465f568854b96a579db19676b7b78bf71",
+      "token_count": 3890
+    },
+    {
+      "path": "lib/Solver/VariantSchedule.cpp",
+      "bytes": 1760,
+      "sha256": "c3de951ad36162e4961190edd9aec49b27f65d417134342502fc5c9ce0cf7cc0",
+      "token_count": 391
+    },
+    {
+      "path": "lib/Support/Json.cpp",
+      "bytes": 10577,
+      "sha256": "2498762e0c3f2939e501d85625847af8acbb86171232c25ff0ec64622b76ecd2",
+      "token_count": 2974
+    },
+    {
+      "path": "lib/Target/TargetSpec.cpp",
+      "bytes": 34326,
+      "sha256": "91b48c5ce077621490624883601befa79d0d2d284b33c648ceb3b5dfa54e5273",
+      "token_count": 9078
+    },
+    {
+      "path": "python/tilemega/bench/anchor.py",
+      "bytes": 4658,
+      "sha256": "e3f60ff7db17e85c50d5c9a7040dea695d1f518d3b7969aec8473d608e854ea3",
+      "token_count": 1185
+    },
+    {
+      "path": "python/tilemega/bench/arms.py",
+      "bytes": 1796,
+      "sha256": "8a7261aa6e1b2b8acc115989df2e7b522d71cf552f18038cf91f63f68d171158",
+      "token_count": 450
+    },
+    {
+      "path": "python/tilemega/bench/attention_diagnostic.py",
+      "bytes": 2676,
+      "sha256": "9fa099e1a7588e78314ea3e53a24e02685bdfd3d1dadce3ea25d41b96232ecd1",
+      "token_count": 618
+    },
+    {
+      "path": "python/tilemega/bench/audit.py",
+      "bytes": 7555,
+      "sha256": "a372bedecfad83145a40c8ef1a902a7d5b14df595fc7442f8fee32b5b73a49ad",
+      "token_count": 1691
+    },
+    {
+      "path": "python/tilemega/bench/compare_artifacts.py",
+      "bytes": 4082,
+      "sha256": "0817c03f19c6664bb6b0a0cc7e73e60b1ae9e6635a8b391b4b81e3c88a1d22da",
+      "token_count": 882
+    },
+    {
+      "path": "python/tilemega/bench/driver.py",
+      "bytes": 2180,
+      "sha256": "0f0891b14233a78f977d1e44ef277b76828888dbc64d220a2a0475617bd9d16f",
+      "token_count": 512
+    },
+    {
+      "path": "python/tilemega/bench/gpu_guard.py",
+      "bytes": 14737,
+      "sha256": "d3dd77988770010a585ecbfdc02f1ecac904e14ffba030852c165ed98f56a84b",
+      "token_count": 3493
+    },
+    {
+      "path": "python/tilemega/bench/identity_join.py",
+      "bytes": 786,
+      "sha256": "6aa82f685dfe4d2e77412bffc9a14e4b729cb876e4cc7ca30ed7cd4e8ce1e584",
+      "token_count": 158
+    },
+    {
+      "path": "python/tilemega/bench/locking.py",
+      "bytes": 973,
+      "sha256": "4e4b4de6bf1d98bc6f68f4ef07dec82589c50134fef95d906d6a2dcad15b5c33",
+      "token_count": 225
+    },
+    {
+      "path": "python/tilemega/bench/make_queue.py",
+      "bytes": 3082,
+      "sha256": "b516ae58d5b37d3c79dd4ba7654168a654fde5c36da6299a0873a14bc7dded24",
+      "token_count": 760
+    },
+    {
+      "path": "python/tilemega/bench/measure_stub.py",
+      "bytes": 642,
+      "sha256": "9620eb6659a3c0bf84c55ca25d203a1bbba15d24b63655dcfabbbe1b3928fbde",
+      "token_count": 152
+    },
+    {
+      "path": "python/tilemega/bench/monitor.py",
+      "bytes": 9854,
+      "sha256": "7eed76415398992df5ab880ee1569e4a018f28e63421c7d3eb77176351696464",
+      "token_count": 2133
+    },
+    {
+      "path": "python/tilemega/bench/page_chain.py",
+      "bytes": 9111,
+      "sha256": "4ebc9aa4dcee43accacf1fc94217523acb0276fd986fd81120938ff5c84eb6d7",
+      "token_count": 2211
+    },
+    {
+      "path": "python/tilemega/bench/pin_case.py",
+      "bytes": 3221,
+      "sha256": "4525adb554930cb7552926b97e534b92a08d233ec2c6e19d1fe165e35d771207",
+      "token_count": 804
+    },
+    {
+      "path": "python/tilemega/bench/process_audit.py",
+      "bytes": 2686,
+      "sha256": "2950bca5aeb12d8ec242eaa887a86b92560b2d7f516862d34d242290c1da5c70",
+      "token_count": 682
+    },
+    {
+      "path": "python/tilemega/bench/queue_check.py",
+      "bytes": 4541,
+      "sha256": "acee29e1929d9a844f1f4e66f77ac18862ef783da70ea5c738ae9e741ea3f5e7",
+      "token_count": 991
+    },
+    {
+      "path": "python/tilemega/bench/report.py",
+      "bytes": 1503,
+      "sha256": "c277d4ccd650162e4bf7c944b99061a55b14324fbf731565551f0a657b200606",
+      "token_count": 401
+    },
+    {
+      "path": "python/tilemega/bench/scheduler.py",
+      "bytes": 13128,
+      "sha256": "370c66796f4a6d848b5a58d191bfda9f4e9a3e09c0a114394010ee17c1446ff5",
+      "token_count": 3107
+    },
+    {
+      "path": "python/tilemega/bench/status.py",
+      "bytes": 2837,
+      "sha256": "fee40dd6f74dd571acd827a4a2d6a3cdefc2a3df87f74941ea2c08830d05f11c",
+      "token_count": 696
+    },
+    {
+      "path": "python/tilemega/bench/trace_analysis.py",
+      "bytes": 42205,
+      "sha256": "be2cbffd6e49a190a0713ce0695de2acc316ec31f41203bf7471a5cb9ce3373d",
+      "token_count": 10894
+    },
+    {
+      "path": "python/tilemega/build/arch.py",
+      "bytes": 1562,
+      "sha256": "46beb4be33430a9432c97a2f07f26b73a215c71657f268b3c39ff03dd6968163",
+      "token_count": 399
+    },
+    {
+      "path": "python/tilemega/build/artifacts.py",
+      "bytes": 6250,
+      "sha256": "ac5996f39711a5d2e8c4ea37c06dbfb30643a007544ed21e3833ff8fa0e1702d",
+      "token_count": 1425
+    },
+    {
+      "path": "python/tilemega/build/budget.py",
+      "bytes": 1028,
+      "sha256": "70f1becb5bcbb96552131901463ff360804170a30517803e5ac0db28079eee48",
+      "token_count": 213
+    },
+    {
+      "path": "python/tilemega/build/compiler_macros.py",
+      "bytes": 5301,
+      "sha256": "ff2c3a8d0de69a893b165275ac9b2ba27091acc90e6fa72d612f5754f2970c84",
+      "token_count": 1196
+    },
+    {
+      "path": "python/tilemega/build/feature_contract.py",
+      "bytes": 14091,
+      "sha256": "1da3099ccf0fe206e5a740a3da1ab6be64a5c2c18bd1ed864f38e407a9ca5c5d",
+      "token_count": 3663
+    },
+    {
+      "path": "python/tilemega/build/forward_contract.py",
+      "bytes": 9454,
+      "sha256": "2ef7a80387c3aa2ce4ad72ff61468b31d13f04f9f9df55a228aa9d5e16e571d9",
+      "token_count": 2411
+    },
+    {
+      "path": "python/tilemega/build/identity.py",
+      "bytes": 12705,
+      "sha256": "ec46bfb80eeaa0e2befc00a2410ca3d3d6b6902fc592c0a369a060c4e50d4ffb",
+      "token_count": 2996
+    },
+    {
+      "path": "python/tilemega/build/linked_resources.py",
+      "bytes": 4159,
+      "sha256": "829d6e4712ab612ae3acd7e983cb593a7357f7d7162f955e9c8dd7a5b55780d1",
+      "token_count": 942
+    },
+    {
+      "path": "python/tilemega/build/native_contract.py",
+      "bytes": 24448,
+      "sha256": "09c6b6c57700638d3ab38524344af6b8427efb81b326bdd9adfcf2f87ccf2a80",
+      "token_count": 6688
+    },
+    {
+      "path": "python/tilemega/build/variants/prewarm.py",
+      "bytes": 4332,
+      "sha256": "5e49af4d24cbb2462a687458f3577acd8ffdcf309e935e44619e0b76938ad7ea",
+      "token_count": 1058
+    },
+    {
+      "path": "python/tilemega/build/variants/probe.py",
+      "bytes": 10328,
+      "sha256": "b3a4d03cbed246067ca6c72b73547016359edc0944276f7d74fdb496fe20d941",
+      "token_count": 2852
+    },
+    {
+      "path": "python/tilemega/cache.py",
+      "bytes": 2463,
+      "sha256": "0178d015dbd3225ff20c9ed5598c204b4a0e1e7f02074e54b73a2332bc750a92",
+      "token_count": 588
+    },
+    {
+      "path": "python/tilemega/cli.py",
+      "bytes": 71013,
+      "sha256": "05d0085dac2e33fd100293359b9473b63210aeecea43f3e95129aec9c337baeb",
+      "token_count": 15486
+    },
+    {
+      "path": "python/tilemega/dnn/aitemplate_aten.py",
+      "bytes": 5686,
+      "sha256": "89bb0fc803bb2fde1dab6c5693d7aa1768f43c3a058a3cd467cab737a7fbbb36",
+      "token_count": 1462
+    },
+    {
+      "path": "python/tilemega/dnn/aitemplate_batchnorm.py",
+      "bytes": 1482,
+      "sha256": "da693e43a8ab09152bece98cb5d633d46aaeb872fe0f63b15bb1e3ce5dbe2099",
+      "token_count": 406
+    },
+    {
+      "path": "python/tilemega/dnn/aitemplate_frontend.py",
+      "bytes": 4224,
+      "sha256": "5ea8034eb9f39049c83c3d8112bb4a56d9ea99cf863eda2922a2727b041fa854",
+      "token_count": 1024
+    },
+    {
+      "path": "python/tilemega/dnn/aitemplate_layout.py",
+      "bytes": 4224,
+      "sha256": "0f73bac1a50ed64db7ebcb9694637e74795295b94e7d1be52f56eba1385cecf0",
+      "token_count": 1138
+    },
+    {
+      "path": "python/tilemega/dnn/baselines.py",
+      "bytes": 30438,
+      "sha256": "b0109f5a4d391317d5ca2819b5d7d4f2bdf5df36e99ad81e13f296b525234876",
+      "token_count": 6811
+    },
+    {
+      "path": "python/tilemega/dnn/benchmark.py",
+      "bytes": 5699,
+      "sha256": "75d71c877b7beddf90fb366c6effad0e41f6b609d7c824f8c1da3eb402b02e99",
+      "token_count": 1257
+    },
+    {
+      "path": "python/tilemega/dnn/benchmark_timing_only.py",
+      "bytes": 7385,
+      "sha256": "42df0ae17d530c2d33356bb8542c809636f85e682fcd0e7bb3036e2617bc8fcb",
+      "token_count": 1679
+    },
+    {
+      "path": "python/tilemega/dnn/check.py",
+      "bytes": 19411,
+      "sha256": "a069b221dce138965aa1098ce0e57b695962fec94ff1be426fd8269a4f4e5589",
+      "token_count": 4489
+    },
+    {
+      "path": "python/tilemega/dnn/check_generated.py",
+      "bytes": 22226,
+      "sha256": "fcb79fdd63a879b7c7c756f68425db229b7179073f2641070193164b378ee3da",
+      "token_count": 5058
+    },
+    {
+      "path": "python/tilemega/dnn/cli.py",
+      "bytes": 17161,
+      "sha256": "0f1a7d686d545f6b351fa014f352cac159033fed645b768dd68fb1bf7ea56c54",
+      "token_count": 3873
+    },
+    {
+      "path": "python/tilemega/dnn/debug_buffers.py",
+      "bytes": 4971,
+      "sha256": "e3e324223a551257228457b6fda749cadaf0f9d45996e6ba03120d4a3496765b",
+      "token_count": 1149
+    },
+    {
+      "path": "python/tilemega/dnn/diagnose.py",
+      "bytes": 7996,
+      "sha256": "a7e22000af87176cddd70fad5b20b993169f9bf4e5cf28f09d91f55e8c130e64",
+      "token_count": 1873
+    },
+    {
+      "path": "python/tilemega/dnn/execution.py",
+      "bytes": 1176,
+      "sha256": "e003e8242edcfd65ade1d25cada32ffeab7e088f64e6ac055e411a00c339e7cf",
+      "token_count": 279
+    },
+    {
+      "path": "python/tilemega/dnn/export.py",
+      "bytes": 10922,
+      "sha256": "ef70e2810c40826896e719395f371c2435e62b09119393e0f85b9a07d470277e",
+      "token_count": 2563
+    },
+    {
+      "path": "python/tilemega/dnn/f3_contract.py",
+      "bytes": 20452,
+      "sha256": "f4117c47a970d494652fe02cc9c41ab543cd171ea14b8950c2e895a23f9b0126",
+      "token_count": 5376
+    },
+    {
+      "path": "python/tilemega/dnn/gates.py",
+      "bytes": 3758,
+      "sha256": "835697060fb15ffb6eb305fd130a59dd081082c317470d930b9376164c5ccd5f",
+      "token_count": 1066
+    },
+    {
+      "path": "python/tilemega/dnn/local_pool_probe.py",
+      "bytes": 2380,
+      "sha256": "7d2fdb6ccdeea0a924b4e24ea473236a97509f51df60d712e618709aab8c0873",
+      "token_count": 493
+    },
+    {
+      "path": "python/tilemega/dnn/local_replay.py",
+      "bytes": 2235,
+      "sha256": "01df3f97eb6e1bb5082f4a5cb4b4aa3bf66da9b9c6e7eb969d4b85fee195b1e2",
+      "token_count": 508
+    },
+    {
+      "path": "python/tilemega/dnn/models/README.md",
+      "bytes": 680,
+      "sha256": "1be17884ac15d129c1ef70223d25739e203f27a315e701e2032598035e74e8a5",
+      "token_count": 160
+    },
+    {
+      "path": "python/tilemega/dnn/models/_upstream/basicsr/models/archs/arch_util.py",
+      "bytes": 12046,
+      "sha256": "5a11af2e7c2d7a7b57c1fbd7e19cf0a50b4b4e8c7ae7dd203a915d7a707e7005",
+      "token_count": 3106
+    },
+    {
+      "path": "python/tilemega/dnn/models/_upstream/basicsr/models/archs/local_arch.py",
+      "bytes": 4399,
+      "sha256": "c4df2ba4d896442a0f6ec984accd6e68f31edce3afdf066add202c25a0d1af26",
+      "token_count": 1261
+    },
+    {
+      "path": "python/tilemega/dnn/models/_upstream/basicsr/utils/dist_util.py",
+      "bytes": 2998,
+      "sha256": "4ab2a9f6f379fe6271573ab841cda0aeca1bbb25e10b3fad3cc57eb6a3100a5b",
+      "token_count": 723
+    },
+    {
+      "path": "python/tilemega/dnn/models/_upstream/basicsr/utils/logger.py",
+      "bytes": 6836,
+      "sha256": "898f97841aa7a6ff56fd2c860c9884d6db7f54ab58531ab0b0e8dbaf6f7f6cc8",
+      "token_count": 1639
+    },
+    {
+      "path": "python/tilemega/dnn/models/nafnet_arch.py",
+      "bytes": 6396,
+      "sha256": "01b22270cc93f1bb90c0e3e4490e98b023fcf73f8552860b4a9ee880ce5c6967",
+      "token_count": 1760
+    },
+    {
+      "path": "python/tilemega/dnn/reference_cache.py",
+      "bytes": 2590,
+      "sha256": "e54c99853d024fef941502ac564d5709d1bdba962df5d927b8e4ea7f7b48a7e5",
+      "token_count": 705
+    },
+    {
+      "path": "python/tilemega/dnn/target.py",
+      "bytes": 3031,
+      "sha256": "ef5ab0fdf666000399e7265ec14d8768c2db6cfca9fe26bd0e2350d2746b9e45",
+      "token_count": 643
+    },
+    {
+      "path": "python/tilemega/dnn/trace.py",
+      "bytes": 2733,
+      "sha256": "9706268f5c3f8d7f2727e73c52f9d1df162cdb82d8403b4f2994d5a95300ebf8",
+      "token_count": 643
+    },
+    {
+      "path": "python/tilemega/dnn/tvm_baseline.py",
+      "bytes": 38665,
+      "sha256": "cc126e0c9857ac6067b0b2a559fc31a8ef821fc368550c06f0b6aa9753ebc10b",
+      "token_count": 8364
+    },
+    {
+      "path": "python/tilemega/dnn/weights.py",
+      "bytes": 8527,
+      "sha256": "488b46f50cd98996d66fcd7c050fb44397ba7efa87c26f171a867c68ae791995",
+      "token_count": 2036
+    },
+    {
+      "path": "python/tilemega/export_bridge.py",
+      "bytes": 9815,
+      "sha256": "50686c320d8b4acecbc63e246faac39a7f022dffccbd1286d73291b2363945e5",
+      "token_count": 2065
+    },
+    {
+      "path": "python/tilemega/export_constants.py",
+      "bytes": 10187,
+      "sha256": "bff22c61dcf191012e02db6d6c727960db96c29e64613ee347b32ef53961c919",
+      "token_count": 2158
+    },
+    {
+      "path": "python/tilemega/fingerprint.py",
+      "bytes": 4798,
+      "sha256": "d904694f70d784b9b5313dc6c72a9fdf4c18812bc28d1989874970a625b32c4d",
+      "token_count": 1152
+    },
+    {
+      "path": "python/tilemega/moe/check_decoder.py",
+      "bytes": 14485,
+      "sha256": "9760f519022adec286ac6ba9350f7496deda65345edb4731f08b793efb842cd4",
+      "token_count": 3280
+    },
+    {
+      "path": "python/tilemega/moe/check_generated.py",
+      "bytes": 11453,
+      "sha256": "075126011c6f9e1094a573fc51fafdde28428e2a3e48702464539011fef4f818",
+      "token_count": 2757
+    },
+    {
+      "path": "python/tilemega/moe/check_weights.py",
+      "bytes": 5405,
+      "sha256": "d535b24b95ddd1b8465eaa99bdd6e4c1680991c39b37868b386fc351200b9555",
+      "token_count": 1331
+    },
+    {
+      "path": "python/tilemega/moe/checkpoints.py",
+      "bytes": 12946,
+      "sha256": "fe497f7eec1626f0ce9769cf7a523f62f857785a71187115e6054b545cad85da",
+      "token_count": 2968
+    },
+    {
+      "path": "python/tilemega/moe/deployment.py",
+      "bytes": 2906,
+      "sha256": "dac1f52d8acae84b88a2653ed67af04ab431e8f04bf4cb3692624924b703d05d",
+      "token_count": 640
+    },
+    {
+      "path": "python/tilemega/moe/export.py",
+      "bytes": 6352,
+      "sha256": "cf11727b4c31ce87c65bb66b6500ec2b08f225d1f52b86cb88de5bccbe08d0e0",
+      "token_count": 1567
+    },
+    {
+      "path": "python/tilemega/moe/full.py",
+      "bytes": 16640,
+      "sha256": "f766d5803b67e603ff2b43f757ec9de01e57bf476616cd0a04d2cdc9154f5df2",
+      "token_count": 3622
+    },
+    {
+      "path": "python/tilemega/moe/profile_identity.py",
+      "bytes": 11485,
+      "sha256": "f74d150d9bfac088fe47b7b19506b01ed924aae654a1a954e91362b67764c72b",
+      "token_count": 2418
+    },
+    {
+      "path": "python/tilemega/moe/recipe_metadata.py",
+      "bytes": 5138,
+      "sha256": "e81e281ec1c370f61eb36d36c4acff0ded007a02c09945f0006f36d7c85f91cf",
+      "token_count": 1201
+    },
+    {
+      "path": "python/tilemega/moe/routing_check.py",
+      "bytes": 4325,
+      "sha256": "d8a2ad3c82486a6bbe15f0e5f24096e3fbf1313df2dbd0bb36a41cdd06294bc0",
+      "token_count": 1017
+    },
+    {
+      "path": "python/tilemega/moe/routing_profile.py",
+      "bytes": 22956,
+      "sha256": "5cc3908723b43b6f0792d0fa65585d009c74d12a8a495ac8cee6e3a3911dc123",
+      "token_count": 5166
+    },
+    {
+      "path": "python/tilemega/moe/weights.py",
+      "bytes": 4364,
+      "sha256": "7a41fc06cb80d68fdef63b014ef8a579d67cd0df50619026a0e1e397af73b13b",
+      "token_count": 1054
+    },
+    {
+      "path": "python/tilemega/serving/attention_selection.py",
+      "bytes": 6920,
+      "sha256": "a7985e018de91aa7d74d70a966c4ae8d2e7dab0ca9030e2771f6d5657b210a3d",
+      "token_count": 1789
+    },
+    {
+      "path": "python/tilemega/serving/baseline_common.py",
+      "bytes": 20030,
+      "sha256": "259f28f86551a5e81e755b3047377d3eddc27c4674665c05ab29278971ab52bc",
+      "token_count": 4646
+    },
+    {
+      "path": "python/tilemega/serving/buffers.py",
+      "bytes": 953,
+      "sha256": "9a94f8e7a4d1606477b9de774b890494fdb6901cd547cf655363075831f38e23",
+      "token_count": 228
+    },
+    {
+      "path": "python/tilemega/serving/check_modes.py",
+      "bytes": 3577,
+      "sha256": "ad6f1b8037aeee516ef32614f1cd1dcf40a3a9c6c484f9aa85a0e9b6a67884c5",
+      "token_count": 864
+    },
+    {
+      "path": "python/tilemega/serving/compare_pdl.py",
+      "bytes": 1452,
+      "sha256": "f38f7d2558b9553616e3a9d2b98e22c76174e7a200106644bd953f42db3d2b23",
+      "token_count": 349
+    },
+    {
+      "path": "python/tilemega/serving/download_models.py",
+      "bytes": 4834,
+      "sha256": "469c38ec3e11ae5086c4bf099bf5bfca2cb9587d16c6ee6b521b9c9c9c35242b",
+      "token_count": 1036
+    },
+    {
+      "path": "python/tilemega/serving/engine.py",
+      "bytes": 9496,
+      "sha256": "164df6358f4aa61cff4fa21d56a4b2f779c49a841ed94be5a430a9e852063b14",
+      "token_count": 2053
+    },
+    {
+      "path": "python/tilemega/serving/execution.py",
+      "bytes": 5126,
+      "sha256": "72494b6e2925b68857ae3c354218d41bf95d029592000a51a8c455ad48860d01",
+      "token_count": 1306
+    },
+    {
+      "path": "python/tilemega/serving/export.py",
+      "bytes": 14722,
+      "sha256": "cac53a3009f2da6eab0f34c927ce43f70ff5953ff9449ecf73d3e4e2fc09559f",
+      "token_count": 3680
+    },
+    {
+      "path": "python/tilemega/serving/hf_check.py",
+      "bytes": 6431,
+      "sha256": "f3f110a617011064970574f7ad6177da717c4975d2c12052a3c764bd1a58d203",
+      "token_count": 1600
+    },
+    {
+      "path": "python/tilemega/serving/integrated_selection.py",
+      "bytes": 7226,
+      "sha256": "7e2969dc14dfe6c7306e009b613594dc8dd91e7f2717da7954f1745040738ea6",
+      "token_count": 1674
+    },
+    {
+      "path": "python/tilemega/serving/measure.py",
+      "bytes": 10061,
+      "sha256": "ab3b234bd7ad80902e405605ff4be6d3fd4b4d971940790ab06d7e5739da519b",
+      "token_count": 2433
+    },
+    {
+      "path": "python/tilemega/serving/measure_candidate.py",
+      "bytes": 8713,
+      "sha256": "eaf802ee72eb856a4134acd414b8b8fcedb12dba3aa60437b8c52b169f95f9ea",
+      "token_count": 2000
+    },
+    {
+      "path": "python/tilemega/serving/measurement_policy.py",
+      "bytes": 1905,
+      "sha256": "3adf8af81bb9ae1e0e00174797f79447ac810eafffd948daadd8c07f8703537d",
+      "token_count": 403
+    },
+    {
+      "path": "python/tilemega/serving/memory.py",
+      "bytes": 3819,
+      "sha256": "30dfeea4aedeae214243b4e6592eec770c600d7b92776ef165a7d3408fd2e129",
+      "token_count": 836
+    },
+    {
+      "path": "python/tilemega/serving/model_registry.py",
+      "bytes": 3511,
+      "sha256": "89ecea5ddbb12835f556b6d06115d5f976853509b00bd234ff9e27fa38908a43",
+      "token_count": 891
+    },
+    {
+      "path": "python/tilemega/serving/mpk_baseline.py",
+      "bytes": 38627,
+      "sha256": "d4cad5f48a93dc54955f55e2f2126de8cdad3a667aa1988985acd63d75068226",
+      "token_count": 9501
+    },
+    {
+      "path": "python/tilemega/serving/plan.py",
+      "bytes": 12863,
+      "sha256": "477ac01d85f637e67f4872af997d9e941670e46d08e0bdc45c5a8661e741a8c5",
+      "token_count": 3066
+    },
+    {
+      "path": "python/tilemega/serving/prepare_prompts.py",
+      "bytes": 4530,
+      "sha256": "40c3054daf99913fc900be69591fdf8db6729e91a8a798483b9675d8e0f69201",
+      "token_count": 1180
+    },
+    {
+      "path": "python/tilemega/serving/r16_run.py",
+      "bytes": 9686,
+      "sha256": "bfae45fea82e4f2b903ae4f1a40be609cc2e15f8167d231a148f187bde30b9ee",
+      "token_count": 2178
+    },
+    {
+      "path": "python/tilemega/serving/random_checkpoint.py",
+      "bytes": 10920,
+      "sha256": "69a7f463fb81e1ab45fdfde8a2831ff3e3995689b8b34c448f185699a4a49c8d",
+      "token_count": 2480
+    },
+    {
+      "path": "python/tilemega/serving/sglang_baseline.py",
+      "bytes": 1579,
+      "sha256": "c7271b52d1b8c8f2148be6e52e3ec502242aa4d694a1c728db7b475a82890a69",
+      "token_count": 365
+    },
+    {
+      "path": "python/tilemega/serving/smoke.py",
+      "bytes": 4340,
+      "sha256": "fe2636426534fd737d6b0dcde067c0ac9b6efc33067ca1d1fd6938ae036f7ff4",
+      "token_count": 990
+    },
+    {
+      "path": "python/tilemega/serving/state.py",
+      "bytes": 5375,
+      "sha256": "03f7bc84efc3babf3f63d607de078dce661031fa3f0a4f00b3383fd0aca3abb2",
+      "token_count": 1253
+    },
+    {
+      "path": "python/tilemega/serving/structure_check.py",
+      "bytes": 7480,
+      "sha256": "a2d74fbcaf0058d686b46b751a319ed903954a345d4b51b9d529541125e0a798",
+      "token_count": 1691
+    },
+    {
+      "path": "python/tilemega/serving/torchcompile_baseline.py",
+      "bytes": 7879,
+      "sha256": "7b9b762e3044171572ed11f18fcda892cd2e9795bf17b795ffc855337ec46aea",
+      "token_count": 1709
+    },
+    {
+      "path": "python/tilemega/serving/torchcompile_moe_baseline.py",
+      "bytes": 6065,
+      "sha256": "cd191590ed88f307fbdf41d8482d1196a5fdaf3e14f99e7ac711a21e3b6dfafa",
+      "token_count": 1293
+    },
+    {
+      "path": "python/tilemega/serving/torchcompile_tp_baseline.py",
+      "bytes": 11871,
+      "sha256": "fcd112750975adc8ba0c1a31baa77d8a6be6f88aedd4259348294ee1a78ed1c3",
+      "token_count": 2645
+    },
+    {
+      "path": "python/tilemega/serving/tp_engine.py",
+      "bytes": 9633,
+      "sha256": "74f0f45038dafde1ebc3c559da925429b056f654d641f1e8e0e646b9123448cf",
+      "token_count": 2178
+    },
+    {
+      "path": "python/tilemega/serving/trace.py",
+      "bytes": 6948,
+      "sha256": "847d57071d2217767bfe1b9e74215792463fb4b4c30ff79f8841c8232c3f95d2",
+      "token_count": 1502
+    },
+    {
+      "path": "python/tilemega/serving/trtllm_baseline.py",
+      "bytes": 5755,
+      "sha256": "2ce41097e054b7e47441d32e9b4092abc2c392fc7727f73623b3371862c3dbb5",
+      "token_count": 1465
+    },
+    {
+      "path": "python/tilemega/serving/validation_guard.py",
+      "bytes": 717,
+      "sha256": "16ed257e78b9d842bfc45a3d6dde8ca60cbd5b1987c62f9a0240197e469d9c7e",
+      "token_count": 169
+    },
+    {
+      "path": "python/tilemega/serving/vllm_baseline.py",
+      "bytes": 1844,
+      "sha256": "cc2601fec14475f8e54bfbddec0e711123c302dbc222460b4b790782f58180e0",
+      "token_count": 450
+    },
+    {
+      "path": "python/tilemega/serving/weights.py",
+      "bytes": 15750,
+      "sha256": "4a88675d3f46b7f9590b40818bc85caf4449010d83472f979b194817aa7201cc",
+      "token_count": 3915
+    },
+    {
+      "path": "python/tilemega/serving/workload.py",
+      "bytes": 3142,
+      "sha256": "ae8ad70ac9e55bccdada7f45b0fa23de7e2f79d650c30c84165809c9ba852388",
+      "token_count": 805
+    }
+  ],
+  "corpus_tokens": 1465627,
+  "windows": {
+    "128": [
+      {
+        "start": 0,
+        "tokens": 100
+      },
+      {
+        "start": 22898,
+        "tokens": 100
+      },
+      {
+        "start": 45796,
+        "tokens": 100
+      },
+      {
+        "start": 68694,
+        "tokens": 100
+      },
+      {
+        "start": 91592,
+        "tokens": 100
+      },
+      {
+        "start": 114490,
+        "tokens": 100
+      },
+      {
+        "start": 137388,
+        "tokens": 100
+      },
+      {
+        "start": 160286,
+        "tokens": 100
+      },
+      {
+        "start": 183184,
+        "tokens": 100
+      },
+      {
+        "start": 206082,
+        "tokens": 100
+      },
+      {
+        "start": 228980,
+        "tokens": 100
+      },
+      {
+        "start": 251878,
+        "tokens": 100
+      },
+      {
+        "start": 274776,
+        "tokens": 100
+      },
+      {
+        "start": 297674,
+        "tokens": 100
+      },
+      {
+        "start": 320572,
+        "tokens": 100
+      },
+      {
+        "start": 343470,
+        "tokens": 100
+      },
+      {
+        "start": 366368,
+        "tokens": 100
+      },
+      {
+        "start": 389266,
+        "tokens": 100
+      },
+      {
+        "start": 412164,
+        "tokens": 100
+      },
+      {
+        "start": 435062,
+        "tokens": 100
+      },
+      {
+        "start": 457960,
+        "tokens": 100
+      },
+      {
+        "start": 480858,
+        "tokens": 100
+      },
+      {
+        "start": 503756,
+        "tokens": 100
+      },
+      {
+        "start": 526654,
+        "tokens": 100
+      },
+      {
+        "start": 549552,
+        "tokens": 100
+      },
+      {
+        "start": 572450,
+        "tokens": 100
+      },
+      {
+        "start": 595348,
+        "tokens": 100
+      },
+      {
+        "start": 618246,
+        "tokens": 100
+      },
+      {
+        "start": 641144,
+        "tokens": 100
+      },
+      {
+        "start": 664042,
+        "tokens": 100
+      },
+      {
+        "start": 686940,
+        "tokens": 100
+      },
+      {
+        "start": 709838,
+        "tokens": 100
+      },
+      {
+        "start": 732736,
+        "tokens": 100
+      },
+      {
+        "start": 755634,
+        "tokens": 100
+      },
+      {
+        "start": 778532,
+        "tokens": 100
+      },
+      {
+        "start": 801430,
+        "tokens": 100
+      },
+      {
+        "start": 824328,
+        "tokens": 100
+      },
+      {
+        "start": 847226,
+        "tokens": 100
+      },
+      {
+        "start": 870124,
+        "tokens": 100
+      },
+      {
+        "start": 893022,
+        "tokens": 100
+      },
+      {
+        "start": 915920,
+        "tokens": 100
+      },
+      {
+        "start": 938818,
+        "tokens": 100
+      },
+      {
+        "start": 961716,
+        "tokens": 100
+      },
+      {
+        "start": 984614,
+        "tokens": 100
+      },
+      {
+        "start": 1007512,
+        "tokens": 100
+      },
+      {
+        "start": 1030410,
+        "tokens": 100
+      },
+      {
+        "start": 1053308,
+        "tokens": 100
+      },
+      {
+        "start": 1076206,
+        "tokens": 100
+      },
+      {
+        "start": 1099104,
+        "tokens": 100
+      },
+      {
+        "start": 1122002,
+        "tokens": 100
+      },
+      {
+        "start": 1144900,
+        "tokens": 100
+      },
+      {
+        "start": 1167798,
+        "tokens": 100
+      },
+      {
+        "start": 1190696,
+        "tokens": 100
+      },
+      {
+        "start": 1213594,
+        "tokens": 100
+      },
+      {
+        "start": 1236492,
+        "tokens": 100
+      },
+      {
+        "start": 1259390,
+        "tokens": 100
+      },
+      {
+        "start": 1282288,
+        "tokens": 100
+      },
+      {
+        "start": 1305186,
+        "tokens": 100
+      },
+      {
+        "start": 1328084,
+        "tokens": 100
+      },
+      {
+        "start": 1350982,
+        "tokens": 100
+      },
+      {
+        "start": 1373880,
+        "tokens": 100
+      },
+      {
+        "start": 1396778,
+        "tokens": 100
+      },
+      {
+        "start": 1419676,
+        "tokens": 100
+      },
+      {
+        "start": 1442574,
+        "tokens": 100
+      }
+    ],
+    "2048": [
+      {
+        "start": 0,
+        "tokens": 2020
+      },
+      {
+        "start": 22868,
+        "tokens": 2020
+      },
+      {
+        "start": 45736,
+        "tokens": 2020
+      },
+      {
+        "start": 68604,
+        "tokens": 2020
+      },
+      {
+        "start": 91472,
+        "tokens": 2020
+      },
+      {
+        "start": 114340,
+        "tokens": 2020
+      },
+      {
+        "start": 137208,
+        "tokens": 2020
+      },
+      {
+        "start": 160076,
+        "tokens": 2020
+      },
+      {
+        "start": 182944,
+        "tokens": 2020
+      },
+      {
+        "start": 205812,
+        "tokens": 2020
+      },
+      {
+        "start": 228680,
+        "tokens": 2020
+      },
+      {
+        "start": 251548,
+        "tokens": 2020
+      },
+      {
+        "start": 274416,
+        "tokens": 2020
+      },
+      {
+        "start": 297284,
+        "tokens": 2020
+      },
+      {
+        "start": 320152,
+        "tokens": 2020
+      },
+      {
+        "start": 343020,
+        "tokens": 2020
+      },
+      {
+        "start": 365888,
+        "tokens": 2020
+      },
+      {
+        "start": 388756,
+        "tokens": 2020
+      },
+      {
+        "start": 411624,
+        "tokens": 2020
+      },
+      {
+        "start": 434492,
+        "tokens": 2020
+      },
+      {
+        "start": 457360,
+        "tokens": 2020
+      },
+      {
+        "start": 480228,
+        "tokens": 2020
+      },
+      {
+        "start": 503096,
+        "tokens": 2020
+      },
+      {
+        "start": 525964,
+        "tokens": 2020
+      },
+      {
+        "start": 548832,
+        "tokens": 2020
+      },
+      {
+        "start": 571700,
+        "tokens": 2020
+      },
+      {
+        "start": 594568,
+        "tokens": 2020
+      },
+      {
+        "start": 617436,
+        "tokens": 2020
+      },
+      {
+        "start": 640304,
+        "tokens": 2020
+      },
+      {
+        "start": 663172,
+        "tokens": 2020
+      },
+      {
+        "start": 686040,
+        "tokens": 2020
+      },
+      {
+        "start": 708908,
+        "tokens": 2020
+      },
+      {
+        "start": 731776,
+        "tokens": 2020
+      },
+      {
+        "start": 754644,
+        "tokens": 2020
+      },
+      {
+        "start": 777512,
+        "tokens": 2020
+      },
+      {
+        "start": 800380,
+        "tokens": 2020
+      },
+      {
+        "start": 823248,
+        "tokens": 2020
+      },
+      {
+        "start": 846116,
+        "tokens": 2020
+      },
+      {
+        "start": 868984,
+        "tokens": 2020
+      },
+      {
+        "start": 891852,
+        "tokens": 2020
+      },
+      {
+        "start": 914720,
+        "tokens": 2020
+      },
+      {
+        "start": 937588,
+        "tokens": 2020
+      },
+      {
+        "start": 960456,
+        "tokens": 2020
+      },
+      {
+        "start": 983324,
+        "tokens": 2020
+      },
+      {
+        "start": 1006192,
+        "tokens": 2020
+      },
+      {
+        "start": 1029060,
+        "tokens": 2020
+      },
+      {
+        "start": 1051928,
+        "tokens": 2020
+      },
+      {
+        "start": 1074796,
+        "tokens": 2020
+      },
+      {
+        "start": 1097664,
+        "tokens": 2020
+      },
+      {
+        "start": 1120532,
+        "tokens": 2020
+      },
+      {
+        "start": 1143400,
+        "tokens": 2020
+      },
+      {
+        "start": 1166268,
+        "tokens": 2020
+      },
+      {
+        "start": 1189136,
+        "tokens": 2020
+      },
+      {
+        "start": 1212004,
+        "tokens": 2020
+      },
+      {
+        "start": 1234872,
+        "tokens": 2020
+      },
+      {
+        "start": 1257740,
+        "tokens": 2020
+      },
+      {
+        "start": 1280608,
+        "tokens": 2020
+      },
+      {
+        "start": 1303476,
+        "tokens": 2020
+      },
+      {
+        "start": 1326344,
+        "tokens": 2020
+      },
+      {
+        "start": 1349212,
+        "tokens": 2020
+      },
+      {
+        "start": 1372080,
+        "tokens": 2020
+      },
+      {
+        "start": 1394948,
+        "tokens": 2020
+      },
+      {
+        "start": 1417816,
+        "tokens": 2020
+      },
+      {
+        "start": 1440684,
+        "tokens": 2020
+      }
+    ],
+    "8192": [
+      {
+        "start": 0,
+        "tokens": 8164
+      },
+      {
+        "start": 22772,
+        "tokens": 8164
+      },
+      {
+        "start": 45544,
+        "tokens": 8164
+      },
+      {
+        "start": 68316,
+        "tokens": 8164
+      },
+      {
+        "start": 91088,
+        "tokens": 8164
+      },
+      {
+        "start": 113860,
+        "tokens": 8164
+      },
+      {
+        "start": 136632,
+        "tokens": 8164
+      },
+      {
+        "start": 159404,
+        "tokens": 8164
+      },
+      {
+        "start": 182176,
+        "tokens": 8164
+      },
+      {
+        "start": 204948,
+        "tokens": 8164
+      },
+      {
+        "start": 227720,
+        "tokens": 8164
+      },
+      {
+        "start": 250492,
+        "tokens": 8164
+      },
+      {
+        "start": 273264,
+        "tokens": 8164
+      },
+      {
+        "start": 296036,
+        "tokens": 8164
+      },
+      {
+        "start": 318808,
+        "tokens": 8164
+      },
+      {
+        "start": 341580,
+        "tokens": 8164
+      },
+      {
+        "start": 364352,
+        "tokens": 8164
+      },
+      {
+        "start": 387124,
+        "tokens": 8164
+      },
+      {
+        "start": 409896,
+        "tokens": 8164
+      },
+      {
+        "start": 432668,
+        "tokens": 8164
+      },
+      {
+        "start": 455440,
+        "tokens": 8164
+      },
+      {
+        "start": 478212,
+        "tokens": 8164
+      },
+      {
+        "start": 500984,
+        "tokens": 8164
+      },
+      {
+        "start": 523756,
+        "tokens": 8164
+      },
+      {
+        "start": 546528,
+        "tokens": 8164
+      },
+      {
+        "start": 569300,
+        "tokens": 8164
+      },
+      {
+        "start": 592072,
+        "tokens": 8164
+      },
+      {
+        "start": 614844,
+        "tokens": 8164
+      },
+      {
+        "start": 637616,
+        "tokens": 8164
+      },
+      {
+        "start": 660388,
+        "tokens": 8164
+      },
+      {
+        "start": 683160,
+        "tokens": 8164
+      },
+      {
+        "start": 705932,
+        "tokens": 8164
+      },
+      {
+        "start": 728704,
+        "tokens": 8164
+      },
+      {
+        "start": 751476,
+        "tokens": 8164
+      },
+      {
+        "start": 774248,
+        "tokens": 8164
+      },
+      {
+        "start": 797020,
+        "tokens": 8164
+      },
+      {
+        "start": 819792,
+        "tokens": 8164
+      },
+      {
+        "start": 842564,
+        "tokens": 8164
+      },
+      {
+        "start": 865336,
+        "tokens": 8164
+      },
+      {
+        "start": 888108,
+        "tokens": 8164
+      },
+      {
+        "start": 910880,
+        "tokens": 8164
+      },
+      {
+        "start": 933652,
+        "tokens": 8164
+      },
+      {
+        "start": 956424,
+        "tokens": 8164
+      },
+      {
+        "start": 979196,
+        "tokens": 8164
+      },
+      {
+        "start": 1001968,
+        "tokens": 8164
+      },
+      {
+        "start": 1024740,
+        "tokens": 8164
+      },
+      {
+        "start": 1047512,
+        "tokens": 8164
+      },
+      {
+        "start": 1070284,
+        "tokens": 8164
+      },
+      {
+        "start": 1093056,
+        "tokens": 8164
+      },
+      {
+        "start": 1115828,
+        "tokens": 8164
+      },
+      {
+        "start": 1138600,
+        "tokens": 8164
+      },
+      {
+        "start": 1161372,
+        "tokens": 8164
+      },
+      {
+        "start": 1184144,
+        "tokens": 8164
+      },
+      {
+        "start": 1206916,
+        "tokens": 8164
+      },
+      {
+        "start": 1229688,
+        "tokens": 8164
+      },
+      {
+        "start": 1252460,
+        "tokens": 8164
+      },
+      {
+        "start": 1275232,
+        "tokens": 8164
+      },
+      {
+        "start": 1298004,
+        "tokens": 8164
+      },
+      {
+        "start": 1320776,
+        "tokens": 8164
+      },
+      {
+        "start": 1343548,
+        "tokens": 8164
+      },
+      {
+        "start": 1366320,
+        "tokens": 8164
+      },
+      {
+        "start": 1389092,
+        "tokens": 8164
+      },
+      {
+        "start": 1411864,
+        "tokens": 8164
+      },
+      {
+        "start": 1434636,
+        "tokens": 8164
+      }
+    ]
+  },
+  "input_file_sha256": "81b43d7c6a501b1aea6ec9a32a4c63941f4b9e01bce4a446ea951f66947c2edf",
+  "thinking": false,
+  "chat_prefix_ids": [
+    151644,
+    872,
+    198,
+    4418,
+    279,
+    2701,
+    10916,
+    9705,
+    476,
+    2530,
+    2038,
+    323,
+    10339,
+    1181,
+    7709,
+    323,
+    5068,
+    24154,
+    382
+  ],
+  "chat_suffix_ids": [
+    151645,
+    198,
+    151644,
+    77091,
+    198,
+    151667,
+    271,
+    151668,
+    271
+  ],
+  "scope": "Real public technical prose/source code from pinned repository files. Distinct contiguous corpus windows;no random/repeated filler. May cross file boundaries;technical workload only,not a representative general-user routing/quality corpus."
+}
