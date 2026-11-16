@@ -57,7 +57,7 @@ struct Sm90DenseAttention {
   int chunks=1,block_keys=64,slots=3;
   int new_row_work=0;
   // D10b: the S chunks merge through the chunk-0 CTA's DSMEM inbox.
-  bool dsmem=false;
+  bool dsmem=false,merge_stage=false;
   std::int64_t SharedBytes(int dim,int queries) const {
     return backend::Sm90DenseLayout::Attention(dim,queries,chunks,block_keys,slots,dsmem).end;
   }
@@ -70,7 +70,7 @@ struct Sm90DenseAttention {
   int StreamBytes(int dim) const {return slots*4*block_keys*dim;}
   void Validate() const {
     if(chunks<1 || chunks>64 || (block_keys!=64 && block_keys!=128) || slots<2 || slots>4 ||
-       new_row_work<0 || (dsmem && chunks<2))
+       new_row_work<0 || (dsmem && (chunks<2 || merge_stage)))
       throw std::invalid_argument("illegal sm90 dense attention coordinate");
   }
 };
@@ -92,6 +92,7 @@ struct Sm90DenseCoordinates {
   // D9 ②: the head's last arriver writes the next step's embedding ("la")
   // or a separate embedding stage runs each step ("stage"); P-SEL decides.
   bool embed_la=false;
+  bool argmax_stage=false;
   // D8 (prompt §7): attention waits only for its KV group's qkv tiles
   // (group counters) instead of the grid barrier after qkv; P-SEL decides.
   bool group_wait=false;
@@ -103,6 +104,11 @@ struct Sm90DenseCoordinates {
   // MoE only, and one ring serves both task types, so the two expert
   // families share its depth.
   bool expert_fuse=false;
+  enum class Route {kLocal,kLastArriver,kStage};
+  Route route=Route::kLocal;
+  bool combine_stage=false;
+  bool GlobalRoute() const {return route!=Route::kLocal;}
+  char const* RouteName() const {return route==Route::kLocal?"local":route==Route::kLastArriver?"la":"stage";}
   // Megatron tensor parallel degree (schema 7). The shapes are already one
   // rank's; tp only prices the cross-rank reduction.
   int tp=1;
@@ -152,7 +158,10 @@ struct Sm90DenseCoordinates {
     if(tp!=1 && tp!=2 && tp!=4 && tp!=8)
       throw std::invalid_argument("sm90 dense tp must be 1, 2, 4 or 8");
     // A sharded MoE would have to route across ranks; out of scope this round.
+    if((GlobalRoute() || combine_stage) && !moe)throw std::invalid_argument("global MoE routing requires MoE");
     if(tp>1 && moe)throw std::invalid_argument("sm90 dense tensor parallel MoE is unsupported");
+    if(tp>1 && argmax_stage)
+      throw std::invalid_argument("independent argmax requires an explicit TP exchange stage");
     // D10b chunks share one cluster; D10c multicast pairs exist only in
     // clusters and only for the static dense-shaped GEMM families.
     if((attention.dsmem && cluster%attention.chunks) ||
@@ -166,6 +175,11 @@ struct Sm90DenseCoordinates {
     // MR7: the fused stage is MoE only and runs one ring for both task types.
     if(expert_fuse && (!moe || gemms[6].slots!=gemms[7].slots))
       throw std::invalid_argument("illegal sm90 dense expert fusion coordinate");
+    // Separate expert stages require a globally published schedule. Local E2
+    // routing remains available only inside the fused expert stage.
+    if(moe && !expert_fuse && !GlobalRoute())
+      throw std::invalid_argument(
+          "unfused MoE requires the router's schedule publication (R6 P5)");
     attention.Validate();
   }
 
@@ -177,6 +191,12 @@ struct Sm90DenseCoordinates {
     for(unsigned i:Active())
       if(gemms[i].SharedBytes(batch,ResidualFamily(i))-1024>Sm90DenseArena(budget))
         throw std::invalid_argument("native GEMM storage exceeds its arena");
+    if(moe && !expert_fuse)for(unsigned i:{6u,7u}) {
+      auto const& g=gemms[i];
+      if(backend::Sm90DenseLayout::MoeUnfused(g.tile_n,g.TileK(),g.slots,g.warps_k,batch,nk[5][0]).end-
+          1024>Sm90DenseArena(budget))
+        throw std::invalid_argument("native unfused expert storage exceeds its arena");
+    }
     // Attention may take the whole budget when two slots exceed one arena.
     if(attention.SharedBytes(dim,queries)>budget)
       throw std::invalid_argument("native attention exceeds the shared-memory budget");
@@ -198,14 +218,19 @@ struct Sm90DenseCoordinates {
     }
     // Schema 7 adds tp; a TP1 coordinate still serializes as schema 6, so every
     // R3/R4 coordinate file and its hash are unchanged.
-    json::Object result{{"schema",tp>1?7:6},{"model",moe?"moe":"dense"},{"gemms",families},
+    json::Object result{{"schema",(GlobalRoute() || combine_stage)?9:(argmax_stage || attention.merge_stage)?8:tp>1?7:6},{"model",moe?"moe":"dense"},{"gemms",families},
         {"attention",json::Object{{"chunks",attention.chunks},{"block_keys",attention.block_keys},
             {"slots",attention.slots},{"new_row_work",attention.new_row_work},
-            {"merge",attention.dsmem?"dsmem":"la"}}},
+            {"merge",attention.dsmem?"dsmem":attention.merge_stage?"stage":"la"}}},
         {"residency",residency},{"swiglu_u",swiglu_u},{"weight_stream",weight_stream},
         {"layer_loop",layer_loop},{"emb",embed_la?"la":"stage"},{"group_wait",group_wait},
         {"cluster",cluster},{"expert_fuse",expert_fuse}};
-    if(tp>1)result.emplace_back("tp",tp);
+    if(tp>1 || argmax_stage || attention.merge_stage || GlobalRoute() || combine_stage)result.emplace_back("tp",tp);
+    if(argmax_stage || attention.merge_stage || GlobalRoute() || combine_stage)result.emplace_back("argmax",argmax_stage?"stage":"la");
+    if(GlobalRoute() || combine_stage) {
+      result.emplace_back("route",RouteName());
+      result.emplace_back("combine",combine_stage?"stage":"la");
+    }
     return result;
   }
 
@@ -231,9 +256,15 @@ struct Sm90DenseCoordinates {
     // `expert_fuse`. Schema 5 still loads: REF-R3's 30 cells are written in
     // it and predate the fusion, which is exactly `expert_fuse` false.
     int schema=integer(value,"schema");
-    if(schema!=5 && schema!=6 && schema!=7)
+    if(schema!=5 && schema!=6 && schema!=7 && schema!=8 && schema!=9)
       throw std::invalid_argument("unknown sm90 dense coordinate schema");
-    if(schema>=7)
+    if(schema==9)
+      keys(value,{"schema","model","gemms","attention","residency","swiglu_u","weight_stream",
+          "layer_loop","emb","group_wait","cluster","expert_fuse","tp","argmax","route","combine"});
+    else if(schema==8)
+      keys(value,{"schema","model","gemms","attention","residency","swiglu_u","weight_stream",
+          "layer_loop","emb","group_wait","cluster","expert_fuse","tp","argmax"});
+    else if(schema>=7)
       keys(value,{"schema","model","gemms","attention","residency","swiglu_u","weight_stream",
           "layer_loop","emb","group_wait","cluster","expert_fuse","tp"});
     else
@@ -244,6 +275,21 @@ struct Sm90DenseCoordinates {
     if(model!="dense" && model!="moe")throw std::invalid_argument("unknown sm90 dense model");
     result.moe=model=="moe";
     if(schema>=7)result.tp=integer(value,"tp");
+    if(schema>=8) {
+      auto mode=value.At("argmax").AsString("argmax");
+      if(mode!="la" && mode!="stage")throw std::invalid_argument("unknown native argmax implementation");
+      result.argmax_stage=mode=="stage";
+    }
+    if(schema==9) {
+      auto mode=value.At("route").AsString("route");
+      if(mode!="local" && mode!="la" && mode!="stage")throw std::invalid_argument("unknown MoE routing implementation");
+      result.route=mode=="la"?Route::kLastArriver:mode=="stage"?Route::kStage:Route::kLocal;
+      if(auto const* combine=value.Find("combine")) {
+        auto text=combine->AsString("combine");
+        if(text!="la" && text!="stage")throw std::invalid_argument("unknown MoE combine implementation");
+        result.combine_stage=text=="stage";
+      }
+    }
     std::vector<std::string> names;
     for(unsigned i:result.Active())names.push_back(kSm90DenseFamilies[i]);
     for(auto const& item:value.At("gemms").AsObject("sm90 dense coordinate"))
@@ -266,8 +312,9 @@ struct Sm90DenseCoordinates {
     result.attention={integer(a,"chunks"),integer(a,"block_keys"),integer(a,"slots"),
         integer(a,"new_row_work")};
     auto merge=a.At("merge").AsString("merge");
-    if(merge!="la" && merge!="dsmem")throw std::invalid_argument("unknown sm90 dense attention merge");
+    if(merge!="la" && merge!="dsmem" && !(merge=="stage" && schema>=8))throw std::invalid_argument("unknown sm90 dense attention merge");
     result.attention.dsmem=merge=="dsmem";
+    result.attention.merge_stage=merge=="stage";
     result.residency=integer(value,"residency");result.swiglu_u=integer(value,"swiglu_u");
     result.weight_stream=value.At("weight_stream").AsBool("weight_stream");
     result.layer_loop=value.At("layer_loop").AsBool("layer_loop");

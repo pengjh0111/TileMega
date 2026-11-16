@@ -25,6 +25,7 @@
 #include <tilemega/Dialect/CouplingGraph/BoundDependency.h>
 #include <tilemega/Dialect/CouplingGraph/CountedDependency.h>
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
+#include <tilemega/Solver/Sm90DensePlan.h>
 #include <tilemega/Dialect/CouplingGraph/PlacementPlan.h>
 #include <tilemega/Solver/VariantSchedule.h>
 #include <tilemega/Solver/Sm90DenseCoordinates.h>
@@ -2010,11 +2011,36 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   if(!coordinate || !batch_attr || stringField(plan,"dtype")!="bf16")
     throw std::invalid_argument("native dense plan lacks its typed coordinates or batch");
   auto c=solver::Sm90DenseCoordinates::FromJson(json::Parse(coordinate.getValue().str()));
+  solver::ValidateSm90NativeBoundaryContracts(module);
+  bool kernel_sequence=module->hasAttr("tmexec.native_kernel_sequence");
+  if(kernel_sequence && (c.tp!=1 || c.group_wait || c.embed_la || !c.argmax_stage ||
+      c.attention.dsmem || !c.attention.merge_stage || c.expert_fuse ||
+      (c.moe && (c.route!=solver::Sm90DenseCoordinates::Route::kStage || !c.combine_stage))))
+    throw std::invalid_argument("kernel-sequence requires aggregate realization coordinates");
   int batch=batch_attr.getInt(),capacity=integerField(serving,"capacity");
   // Megatron tensor parallel: the module records the degree its shapes were
   // sharded for (absent: 1) and the coordinate must agree.
   int tp=serving.get("tp")?int(integerField(serving,"tp")):1;
   if(tp!=c.tp)throw std::invalid_argument("native dense coordinate tp differs from the plan's");
+  // P4 lowering: when the decision layer recorded how each boundary is
+  // realized, that record governs, and a disagreement with what this
+  // coordinate implies is a defect in one of the two rather than something to
+  // paper over. A module without the attribute is a pre-P4 artifact and is
+  // generated exactly as before.
+  if(auto kinds=module->getAttrOfType<mlir::DictionaryAttr>("tmexec.sync_kind")) {
+    auto expect=[&](char const* stage,char const* value) {
+      auto recorded=kinds.getAs<mlir::StringAttr>(stage);
+      if(recorded && recorded.getValue()!=value)
+        throw std::invalid_argument(std::string("tmexec.sync_kind for ")+stage+" is "+
+            recorded.getValue().str()+" but the coordinate implies "+value);
+    };
+    expect("qkv",c.group_wait?"group":"aggregate");
+    expect("attention",c.group_wait?"group":"aggregate");
+    expect("o",c.tp>1?"data":"aggregate");
+    if(c.moe)expect("expert_down",c.expert_fuse?"counted":"aggregate");
+    else expect("down",c.tp>1?"data":"aggregate");
+    expect("lm_head",c.embed_la?"handoff":"aggregate");
+  }
   if(capacity!=1088)throw std::invalid_argument("native dense decode binds capacity 1088");
   auto buffers=arrayField(plan,"buffers"),gemms=arrayField(plan,"gemms"),stages=arrayField(plan,"stages");
   unsigned argmax_index=~0u;
@@ -2186,7 +2212,9 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   unsigned plan_per_layer=unsigned(stages.size()-3)/layers;
   if(plan_per_layer!=(c.moe?6u:5u))
     throw std::invalid_argument("native layer groups need whole groups of supported layers");
-  unsigned per_layer=plan_per_layer-(c.expert_fuse?1u:0u),per_group=per_layer%2?2:1;
+  bool merge_stage=c.attention.merge_stage && c.attention.chunks>1;
+  bool route_stage=c.route==solver::Sm90DenseCoordinates::Route::kStage;
+  unsigned per_layer=plan_per_layer-(c.expert_fuse?1u:0u)+unsigned(merge_stage)+unsigned(route_stage)+unsigned(c.combine_stage),per_group=per_layer%2?2:1;
   unsigned group_size=per_layer*per_group;
   if(layers%per_group)
     throw std::invalid_argument("native layer groups need whole groups of supported layers");
@@ -2216,7 +2244,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   } gate_up_held;
   std::string gate_up_done="kAbsent";
   // E2: the router's logits buffer id, consumed by the fused expert stage.
-  std::string router_logits,router_index;
+  std::string router_logits,router_index,router_routes;
   std::vector<std::int64_t> keys,values;
   std::array<int,2> kv_maps{-1,-1};
   std::int64_t kv_bytes=0;  // one layer's K (or V): B*Hkv*Cap*D BF16
@@ -2252,7 +2280,11 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
           throw std::invalid_argument("native expert gate_up pages interleave U = 16");
         if(e.family==6)e.stream=0;
         int experts=nk[5][0];
-        auto routes=e.family==6?std::string("kAbsent"):operand(1);
+        auto routes=e.family==6?(c.GlobalRoute()?router_routes:std::string("kAbsent")):operand(1);
+        if(c.moe && !c.expert_fuse && e.family>=6 &&
+            backend::Sm90DenseLayout::MoeUnfused(cfg.tile_n,cfg.TileK(),cfg.slots,cfg.warps_k,batch,experts).end-
+            1024>arena)
+          throw std::invalid_argument("native unfused expert storage exceeds its arena");
         bool float_routes=routes!="kAbsent" &&
             stringField(dictionaryEntry(buffers[std::stoll(routes)],"buffers"),"dtype")=="f32";
         weight=name(integerField(g,"b"));bytes=2ull*n*k*(e.family==5?1:experts);
@@ -2269,12 +2301,12 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
           gate_up_done=c.expert_fuse && operands && operands.size()>4?operand(4):"kAbsent";
           // E2: the last CTA clears the fused stage's counters, so it must own
           // no router task of its own.
-          if(c.expert_fuse && n/cfg.tile_n>=grid)
+          if(c.expert_fuse && !c.GlobalRoute() && n/cfg.tile_n>=grid)
             throw std::invalid_argument("native router must leave the last CTA free (R5 E2)");
           // E2: the fused stage routes from these logits and republishes the
           // routes, so hold both the router's output and its index buffer.
-          router_logits=id(g,"d");
-          router_index=operands && operands.size()>3?operand(3):"kAbsent";
+          router_logits=id(g,"d");router_routes=routes;
+          router_index=operands && operands.size()>2?operand(2):"kAbsent";
         }
         if(c.expert_fuse && e.family==6) {
           // M56 is emitted at the down stage; hold this one's geometry for it.
@@ -2308,7 +2340,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
             throw std::invalid_argument("native fused experts republish the routes (R5 E2)");
           e.tail=","+std::to_string(map_index({integerField(g,"a"),4,64,16,k/64,experts,2*k,128,
               2*16*k,64,activation_rows,cfg.TileK()/64,1}))+","+std::to_string(cfg.register_stages)+
-              ","+router_logits+(moe_softmax_all?",true":",false");
+              ","+router_logits+(moe_softmax_all?",true":",false")+(c.GlobalRoute()?",false":c.combine_stage?",true":"")+(c.combine_stage?",true":"");
           e.stream=0;
           weight=gu.weight_name;bytes+=gu.bytes;tasks+=gu.tasks;
           gate_up_held.held=false;
@@ -2317,7 +2349,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
             <<cfg.warps_n<<','<<cfg.warps_k<<",backend::Sm90DenseMoeMode::"<<mode<<",16,"<<experts<<",8,"
             <<(float_routes?"true":"false")<<','<<page;
         e.ids={id(g,"b"),id(g,e.family==7?"c":"a"),id(g,"d"),operand(0),routes,
-            e.family==5?operand(2):"kAbsent",e.family==5?operand(3):e.family==7?operand(2):"kAbsent",
+            e.family==5?operand(2):c.GlobalRoute()?router_index:"kAbsent",e.family==5?operand(3):e.family==7?operand(2):"kAbsent",
             gate_up_done};
         std::string map="kAbsent";
         if(e.family==5)
@@ -2329,6 +2361,9 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
               64,activation_rows,cfg.TileK()/64,1}));
         e.tail=","+map+","+std::to_string(cfg.register_stages)+
             (moe_softmax_all?",true":",false");
+        if(e.family==5 && c.route==solver::Sm90DenseCoordinates::Route::kLastArriver)e.tail+=",true";
+        if(e.family>=6 && c.GlobalRoute())e.tail+=",false,true";
+        if(e.family==7 && c.combine_stage)e.tail+=",true";
         }
       }else {
       if(op=="residual_ar" && tp==1)
@@ -2409,7 +2444,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
         if(chunks<2 || c.cluster%int(chunks) || batch*int(extent)*int(chunks)>grid)
           throw std::invalid_argument("native DSMEM merge needs S | cluster and one task wave");
         e.tail+=",true";
-      }
+      }else if(merge_stage)e.tail+=",false,true";
     }else if(kind=="kEmbedding") {
       tasks=batch;head<<"Embedding<"<<batch<<','<<width<<','<<extent<<','<<capacity;
       if(operand(3)!="kAbsent")throw std::invalid_argument("native embedding writes no norm sums");
@@ -2423,12 +2458,43 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     row<<"  {"<<quoteCString(kind)<<','<<quoteCString(weight)<<','<<bytes<<"ull,"
        <<tasks<<','<<extent<<','<<group<<','<<width<<','<<chunks<<"},\n";
     info.push_back(row.str());
+    if(e.family==7 && c.combine_stage) {
+      Emitted combine;combine.kind="kMoeCombine";combine.family=-4;
+      combine.head="MoeCombine<"+std::to_string(batch)+','+std::to_string(nk[7][0])+','+
+          std::to_string(c.gemms[7].tile_n)+",8";
+      combine.ids=c.expert_fuse?std::vector<std::string>{e.ids[4],e.ids[2]}:
+          std::vector<std::string>{e.ids[2],e.ids[1]};
+      emitted.push_back(std::move(combine));
+      info.push_back("  {\"kMoeCombine\",\"\",0ull,"+std::to_string(nk[7][0]/c.gemms[7].tile_n)+
+          ",0,0,0,0},\n");
+    }
+    if(e.family==5 && route_stage) {
+      Emitted route;route.kind="kMoeRoute";route.family=-3;
+      auto routes=dictionaryEntry(buffers[std::stoll(e.ids[4])],"buffers");
+      route.head="MoeRoute<"+std::to_string(batch)+','+std::to_string(nk[5][0])+",8,"+
+          (stringField(routes,"dtype")=="f32"?"true":"false")+','+(moe_softmax_all?"true":"false");
+      route.ids={e.ids[2],e.ids[3],e.ids[4],e.ids[5],e.ids[7]};
+      emitted.push_back(std::move(route));
+      info.push_back("  {\"kMoeRoute\",\"\",0ull,1,0,0,0,0},\n");
+    }
+    if(kind=="kFusedAttention" && merge_stage) {
+      Emitted merge;merge.kind="kAttentionMerge";merge.family=-2;
+      merge.head="AttentionMerge<"+std::to_string(batch)+','+std::to_string(extent)+','+
+          std::to_string(width)+','+std::to_string(group)+','+std::to_string(chunks);
+      merge.ids={e.ids[8],e.ids[9],e.ids[3]};emitted.push_back(std::move(merge));
+      std::ostringstream merge_info;
+      merge_info<<"  {\"kAttentionMerge\",\"\",0ull,"<<batch*extent<<','<<extent<<','<<group<<','
+          <<width<<','<<chunks<<"},\n";
+      info.push_back(merge_info.str());
+    }
   }
   // qkv, attention, o, then gate_up, down (dense) or router, expert gate_up,
   // expert down (MoE); MR7 fuses the two expert stages into the down slot.
-  static constexpr int kDenseFamilies[5]={0,-1,1,2,3},kMoeFamilies[6]={0,-1,1,5,6,7},
-      kMoeFusedFamilies[5]={0,-1,1,5,7};
-  auto const* layer_families=c.moe?(c.expert_fuse?kMoeFusedFamilies:kMoeFamilies):kDenseFamilies;
+  std::vector<int> layer_families=c.moe?(c.expert_fuse?std::vector<int>{0,-1,1,5,7}:
+      std::vector<int>{0,-1,1,5,6,7}):std::vector<int>{0,-1,1,2,3};
+  if(merge_stage)layer_families.insert(layer_families.begin()+2,-2);
+  if(route_stage)layer_families.insert(std::find(layer_families.begin(),layer_families.end(),5)+1,-3);
+  if(c.combine_stage)layer_families.push_back(-4);
   if(emitted.front().kind!="kEmbedding" || emitted.back().kind!="kArgmaxReduce" ||
      emitted[emitted.size()-2].family!=4)
     throw std::invalid_argument("native program lacks its embedding, lm_head or argmax");
@@ -2437,7 +2503,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   auto const& embedding=emitted.front();
   if(emitted.back().ids[2]!=embedding.ids[0])
     throw std::invalid_argument("native argmax and embedding disagree on the token buffer");
-  info.pop_back();
+  if(!c.argmax_stage)info.pop_back();
   int hidden=int(integerField(dictionaryEntry(stages[0],"stages"),"width"));
   // Per-layer columns: an operand position of a layer stage whose buffer
   // differs between layers. Everything else must be identical in all layers.
@@ -2503,7 +2569,8 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     if(n==head)types<<"using Body_"<<head<<"=Head<HeadGemm_"<<head<<','<<embedding.ids[0]<<','<<embedding.ids[1]<<','
                    <<embedding.ids[2]<<','<<hidden<<','<<capacity<<','
                    <<(c.embed_la?"true":"false")
-                   <<(tp>1?","+std::to_string(tp)+","+std::to_string(nk[4][0]):std::string())<<">;\n";
+                   <<(tp>1?","+std::to_string(tp)+","+std::to_string(nk[4][0]):
+                       c.argmax_stage?",1,0,true":std::string())<<">;\n";
     // D6: a ring stage streams into the next ring stage unless either is full
     // width; the prologue has no ring and nothing crosses the step boundary.
     // Layer 0's qkv follows the prologue and is told so at run time.
@@ -2526,17 +2593,32 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     if(group_tiles)types<<','<<group_tiles;
     types<<">;\n";
   }
+  if(c.argmax_stage) {
+    auto const& a=emitted.back();
+    types<<"using ArgmaxStage=Placement<Argmax<"<<batch<<','<<hidden<<','<<capacity;
+    for(auto const& id:a.ids)types<<','<<id;
+    types<<','<<embedding.ids[1]<<','<<embedding.ids[2]<<','<<(c.embed_la?"true":"false")<<">,0>;\n";
+  }
   out<<types.str()<<"using NativeProgram=Program<"<<batch<<','<<capacity<<','<<c.residency<<','
      <<buffers.size()<<','<<map_order.size()<<','<<arena<<','<<layers<<','<<slots<<','
      <<(c.layer_loop?"true":"false")<<','<<(c.embed_la?"true":"false")<<",Stage_0,LayerGroup<"
      <<per_group;
   for(unsigned j=1;j<=group_size;++j)out<<",Stage_"<<j;
-  out<<">,Stage_"<<head<<','<<c.cluster<<(tp>1?","+std::to_string(tp):std::string())
+  out<<">,Stage_"<<head<<','<<c.cluster<<(tp>1?","+std::to_string(tp):
+      c.argmax_stage?",1,ArgmaxStage":std::string())
      <<">;\nconstexpr std::array<StageInfo,"<<info.size()<<"> kNativeStages={{\n";
   for(auto const& row:info)out<<row;
   out<<"}};\n"
-     <<"}  // namespace tilemega::codegen::native_dense\n"
-     <<"#include <tilemega/Codegen/tasks/Sm90DenseRuntime.cuh>\n";
+     <<"}  // namespace tilemega::codegen::native_dense\n";
+  if(kernel_sequence) {
+    out<<"#define TILEMEGA_NATIVE_KERNEL_SEQUENCE 1\n"
+       <<"#include <tilemega/Codegen/tasks/Sm90DenseSequence.cuh>\n"
+       <<"namespace tilemega::codegen::native_dense {\n"
+       <<"using NativeSequence=KernelSequence<NativeProgram,Stage_0,Stage_"<<head<<",ArgmaxStage";
+    for(unsigned i=1;i<=per_layer;++i)out<<",Stage_"<<i;
+    out<<">;\n}\n";
+  }
+  out<<"#include <tilemega/Codegen/tasks/Sm90DenseRuntime.cuh>\n";
   return out.str();
 }
 }  // namespace

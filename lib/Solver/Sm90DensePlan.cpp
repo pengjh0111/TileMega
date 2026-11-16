@@ -2,6 +2,7 @@
 #include <tilemega/Solver/Sm90DensePlan.h>
 #include <tilemega/Solver/Sm90DenseResources.h>
 #include <tilemega/Codegen/ServingPages.h>
+#include <tilemega/Dialect/CouplingGraph/CGOps.h>
 #include <mlir/IR/Builders.h>
 #include <mlir/IR/Verifier.h>
 #include <algorithm>
@@ -9,6 +10,108 @@
 #include <set>
 
 namespace tilemega::solver {
+namespace {
+void NativeBoundaryContracts(mlir::ModuleOp module,bool write) {
+  mlir::OpBuilder b(module.getContext());
+  auto integer=[](mlir::DictionaryAttr attr,llvm::StringRef key) {
+    auto value=attr.getAs<mlir::IntegerAttr>(key);
+    if(!value)throw std::invalid_argument("native boundary lacks integer "+key.str());
+    return int(value.getInt());
+  };
+  auto string=[](mlir::DictionaryAttr attr,llvm::StringRef key) {
+    auto value=attr.getAs<mlir::StringAttr>(key);
+    if(!value)throw std::invalid_argument("native boundary lacks string "+key.str());
+    return value.getValue().str();
+  };
+  auto c=Sm90DenseCoordinates::FromJson(json::Parse(
+      module->getAttrOfType<mlir::StringAttr>("tmexec.sm90_dense").getValue().str()));
+  int grid=module->getAttrOfType<mlir::IntegerAttr>("tmexec.sm90_dense_grid").getInt();
+  int batch=module->getAttrOfType<mlir::IntegerAttr>("tmexec.sm90_dense_batch").getInt();
+  auto plan=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+  auto stages=plan.getAs<mlir::ArrayAttr>("stages"),gemms=plan.getAs<mlir::ArrayAttr>("gemms");
+  struct Stage {std::string kind,epilogue,implementation;int n=0,groups=0;};
+  std::vector<Stage> descriptions;
+  int experts=0,gu_tiles=0;
+  for(auto value:stages) {
+    auto s=mlir::cast<mlir::DictionaryAttr>(value);Stage d;d.kind=string(s,"kind");
+    if(d.kind=="kGemm") {
+      auto g=mlir::cast<mlir::DictionaryAttr>(gemms[integer(s,"gemm")]);
+      d.epilogue=g.get("epilogue")?string(g,"epilogue"):"store";
+      d.n=integer(g,"n");d.implementation="mma_sync/"+d.epilogue;
+      if(d.epilogue=="moe_router") {
+        experts=d.n;
+        if(c.GlobalRoute())d.implementation+=std::string("/route-")+c.RouteName();
+      }
+      if(d.epilogue=="moe_gate_up")gu_tiles=d.n/c.gemms[6].tile_n;
+      if(d.epilogue=="moe_down" && c.combine_stage)d.implementation+="/combine-stage";
+    }else if(d.kind=="kFusedAttention") {
+      d.groups=integer(s,"extent");
+      d.implementation="attention/chunks="+std::to_string(c.attention.chunks)+
+          (c.attention.dsmem?"/dsmem":c.attention.merge_stage?"/stage":"/global");
+    }else if(d.kind=="kArgmaxReduce")d.implementation=c.argmax_stage?"argmax/stage":"argmax/handoff";
+    else if(d.kind=="kEmbedding")d.implementation=c.embed_la?"embedding/handoff":"embedding/stage";
+    else throw std::invalid_argument("native boundary has an unsupported stage kind");
+    descriptions.push_back(std::move(d));
+  }
+  auto attribute=[&](mlir::Operation* op,llvm::StringRef key,mlir::Attribute expected) {
+    if(write)op->setAttr(key,expected);
+    else if(op->getAttr(key)!=expected)
+      throw std::invalid_argument("native boundary contract mismatch: "+key.str());
+  };
+  std::map<std::string,int> task_stage;
+  module.walk([&](dialect::TileSpaceOp task) {
+    if(task->getParentOfType<dialect::GraphOp>())return;
+    int stage=task.getStage();
+    auto const& d=descriptions.at(stage);task_stage.emplace(task.getSymName().str(),stage);
+    attribute(task,"tmexec.implementation",b.getStringAttr(d.implementation));
+    attribute(task,"tmexec.placement",b.getStringAttr("template"));
+    if(d.kind=="kFusedAttention" && c.attention.chunks>1) {
+      attribute(task,c.attention.merge_stage?"tmexec.merge_event_extent":"tmexec.handoff_event_extent",
+          b.getI64IntegerAttr(c.attention.merge_stage?1:batch*d.groups));
+      attribute(task,c.attention.merge_stage?"tmexec.merge_required_count":"tmexec.handoff_required_count",
+          b.getI64IntegerAttr(c.attention.merge_stage?grid:c.attention.chunks));
+    }
+    if(d.epilogue=="moe_router" && c.GlobalRoute()) {
+      attribute(task,"tmexec.route_implementation",b.getStringAttr(c.RouteName()));
+      attribute(task,"tmexec.route_event_extent",b.getI64IntegerAttr(1));
+      attribute(task,"tmexec.route_required_count",b.getI64IntegerAttr(
+          c.route==Sm90DenseCoordinates::Route::kStage?grid:experts/c.gemms[5].tile_n));
+    }
+    if(d.epilogue=="moe_down" && c.combine_stage) {
+      attribute(task,"tmexec.combine_implementation",b.getStringAttr("stage"));
+      attribute(task,"tmexec.combine_event_extent",b.getI64IntegerAttr(1));
+      attribute(task,"tmexec.combine_required_count",b.getI64IntegerAttr(grid));
+    }
+    if(d.epilogue=="residual_ar")
+      attribute(task,"tmexec.data_world",b.getI64IntegerAttr(c.tp));
+  });
+  module.walk([&](dialect::CouplingOp edge) {
+    if(edge->getParentOfType<dialect::GraphOp>())return;
+    auto const& p=descriptions.at(task_stage.at(edge.getSrc().str()));
+    auto const& q=descriptions.at(task_stage.at(edge.getDst().str()));
+    std::string kind="aggregate";int extent=1,required=grid;
+    if(q.kind=="kFusedAttention" && p.epilogue=="store" && c.group_wait) {
+      kind="group";extent=q.groups;required=p.n/c.gemms[0].tile_n/q.groups;
+    }else if(q.kind=="kArgmaxReduce" && !c.argmax_stage)kind="handoff";
+    else if(p.epilogue=="moe_gate_up" && q.epilogue=="moe_down" && c.expert_fuse) {
+      kind="counted";extent=experts;required=gu_tiles;
+    }
+    // V3 joins CTAs, group/count joins completed producer tiles. TP's data
+    // exchange is inside the producer task and leaves this V3 join intact.
+    attribute(edge,"tmexec.sync_kind",b.getStringAttr(kind));
+    attribute(edge,"tmexec.event_extent",b.getI64IntegerAttr(extent));
+    attribute(edge,"tmexec.required_count",b.getI64IntegerAttr(required));
+  });
+}
+}
+
+void ValidateSm90NativeBoundaryContracts(mlir::ModuleOp module) {
+  auto version=module->getAttrOfType<mlir::IntegerAttr>("tmexec.native_contract_version");
+  if(!version)return; // Artifacts preceding per-edge WriteBack remain readable.
+  if(version.getInt()!=1 && version.getInt()!=2)throw std::invalid_argument("unsupported native boundary contract version");
+  NativeBoundaryContracts(module,false);
+  if(version.getInt()==2)ValidateSm90NativeExecutionGraph(module);
+}
 
 unsigned Sm90DenseFamily(frontend::ModelPlan const& plan,frontend::PlanGemm const& g) {
   using Op=frontend::PlanGemm::Epilogue;
@@ -197,7 +300,39 @@ mlir::OwningOpRef<mlir::ModuleOp> MaterializeSm90Dense(
   theta.set(role.getValue(),b.getI64IntegerAttr(batch));
   (*module)->setAttr("tilemega.theta",theta.getDictionary(&context));
   (*module)->setAttr("tmexec.nonpaged_weight_layout_tiled",b.getBoolAttr(true));
+  // P4 WriteBack: the decision layer records how each boundary is realized, so
+  // codegen reads the synchronization from the IR instead of re-deriving it
+  // from the stage structure. The placement is the skeleton's closed-form
+  // template this round (prompt §4.0 item 3).
+  {
+    // Each boundary's kind follows from the coordinate alone (appendix A): the
+    // group wait coarsens qkv -> attention, tp realizes o and down as in-
+    // epilogue reductions, fusion makes the expert boundary a count, and the
+    // head's last arriver is a handoff. The event extents are derived at
+    // lowering from the same coordinate, where the shapes are in scope.
+    mlir::NamedAttrList kinds;
+    auto kind=[&](char const* stage,char const* value) {
+      kinds.set(stage,b.getStringAttr(value));
+    };
+    kind("qkv",c.group_wait?"group":"aggregate");
+    kind("attention",c.group_wait?"group":"aggregate");
+    kind("o",c.tp>1?"data":"aggregate");
+    if(c.moe) {
+      kind("router","aggregate");
+      kind("expert_gate_up","aggregate");
+      kind("expert_down",c.expert_fuse?"counted":"aggregate");
+    } else {
+      kind("gate_up","aggregate");
+      kind("down",c.tp>1?"data":"aggregate");
+    }
+    kind("lm_head",c.embed_la?"handoff":"aggregate");
+    (*module)->setAttr("tmexec.sync_kind",kinds.getDictionary(&context));
+    (*module)->setAttr("tmexec.placement",b.getStringAttr("template"));
+  }
   codegen::ResolveServingWeightPacking(*module);
+  (*module)->setAttr("tmexec.native_contract_version",b.getI64IntegerAttr(2));
+  NativeBoundaryContracts(*module,true);
+  WriteSm90NativeExecutionGraph(*module,imported,c,batch,target.res.num_sms*c.residency,context);
   if(mlir::failed(mlir::verify(*module)))throw std::invalid_argument("native dense CTG verification failed");
   return module;
 }

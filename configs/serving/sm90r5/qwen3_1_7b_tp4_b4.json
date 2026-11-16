@@ -106,6 +106,7 @@
   "tie_broken_by_prediction": false
  },
  "measured": {
+  "gpus": [0, 1, 2, 3],
   "tpot_ms": 1.3494447869055688,
   "per_launch_ms": [
    1.3490047232764077,

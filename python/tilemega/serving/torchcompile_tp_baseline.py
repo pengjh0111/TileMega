@@ -61,6 +61,16 @@ def main():
     # reduce-overhead (a CUDA graph per decode step) unless the model is MoE.
     # Nothing is chosen for TP's sake; a setting that TP cannot run has to fail
     # and be reported, not be quietly swapped for a slower one.
+    # transformers' tp_plan wraps every sharded linear's forward in its own
+    # closure, and dynamo guards the closure cell, so one frame recompiles once
+    # per module instance. The default ceiling of 8 is far below the number of
+    # sharded modules, and once a frame hits it dynamo stops compiling that
+    # frame for good and the step runs eager - which is a ceiling in the
+    # harness, not a property of the engine's TP support. Raised above the
+    # closure count so the engine is measured compiling, as it does at TP1.
+    if world > 1:
+        torch._dynamo.config.recompile_limit = 64
+        torch._dynamo.config.accumulated_recompile_limit = 1024
     moe = any(key in model.config.to_dict() for key in ("num_experts", "num_local_experts"))
     mode = "max-autotune-no-cudagraphs" if moe else "reduce-overhead"
 
@@ -83,6 +93,12 @@ def main():
     model.forward = compile_forward(fullgraph)
     config = {"dtype": "bfloat16", "kv_cache_dtype": "bfloat16", "mode": mode, "fullgraph": fullgraph,
               "mode_source": "torchcompile_baseline.py's rule for this model (dense: reduce-overhead)",
+              "recompile_limit": getattr(torch._dynamo.config, "recompile_limit", None),
+              "accumulated_recompile_limit": getattr(
+                  torch._dynamo.config, "accumulated_recompile_limit", None),
+              "recompile_limit_reason": ("raised above tp_plan's per-module forward closure count; "
+                                         "the default 8 made four frames fall back to eager"
+                                         if world > 1 else "default"),
               "fullgraph_reason": ("sharded: transformers tp_plan registers module-level backward hooks, "
                                    "which dynamo rejects under fullgraph") if world > 1 else "unsharded",
               "cache_implementation": "static", "seed": 0, "tp": world,

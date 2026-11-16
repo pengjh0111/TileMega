@@ -196,6 +196,12 @@ add_library(tilemega_core STATIC
   lib/Solver/Sm90DensePlan.cpp
   lib/Solver/Sm90DenseSearchSpace.cpp
   lib/Solver/Sm90DenseCostModel.cpp
+  lib/Solver/Sm90NativePrices.cpp
+  lib/Solver/Sm90NativeFlow.cpp
+  lib/Solver/Sm90NativeCtg.cpp
+  lib/Solver/Sm90NativeWriteback.cpp
+  lib/Solver/Sm90NativeMoeDomain.cpp
+  lib/Solver/Sm90NativePipeline.cpp
   lib/Solver/Sm90NativeConstants.cpp
   lib/Solver/Sm90DenseRegisterContract.cpp
   lib/Solver/Sm90DenseSearch.cpp
@@ -917,6 +923,40 @@ if(TILEMEGA_BUILD_TESTS)
     add_test(NAME sm90_dense_role_contract COMMAND ${Python3_EXECUTABLE}
       -m unittest discover -s ${CMAKE_CURRENT_SOURCE_DIR}/test/python
       -p test_sm90_dense_role_contract.py)
+    # P3: Algorithm 1's descent, shortlist and finalists.
+    add_executable(sm90_native_pipeline_test test/unit/sm90_native_pipeline_test.cpp)
+    target_link_libraries(sm90_native_pipeline_test PRIVATE TileMega::tilemega)
+    target_compile_options(sm90_native_pipeline_test PRIVATE -UNDEBUG)
+    add_test(NAME sm90_native_pipeline COMMAND sm90_native_pipeline_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/configs/targets/sm_90_h800.json
+      ${CMAKE_CURRENT_SOURCE_DIR})
+    # P2: the whole-program flow built from the coordinates.
+    add_executable(sm90_native_flow_test test/unit/sm90_native_flow_test.cpp)
+    target_link_libraries(sm90_native_flow_test PRIVATE TileMega::tilemega)
+    target_compile_options(sm90_native_flow_test PRIVATE -UNDEBUG)
+    add_test(NAME sm90_native_flow COMMAND sm90_native_flow_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/configs/targets/sm_90_h800.json
+      ${CMAKE_CURRENT_SOURCE_DIR})
+    add_test(NAME sm90_native_ctg COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/python/run_sm90_native_ctg_test.py
+      $<TARGET_FILE:sm90_native_flow_test> ${CMAKE_CURRENT_SOURCE_DIR})
+    # P1: the per-task prices must reproduce the stage model they come from.
+    add_executable(sm90_native_moe_ctg_test test/unit/sm90_native_moe_ctg_test.cpp)
+    target_link_libraries(sm90_native_moe_ctg_test PRIVATE TileMega::tilemega)
+    target_compile_options(sm90_native_moe_ctg_test PRIVATE -UNDEBUG)
+    add_test(NAME sm90_native_moe_ctg COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/python/run_sm90_native_moe_ctg_test.py
+      $<TARGET_FILE:sm90_native_moe_ctg_test> ${CMAKE_CURRENT_SOURCE_DIR})
+    add_executable(sm90_native_moe_domain_test test/unit/sm90_native_moe_domain_test.cpp)
+    target_link_libraries(sm90_native_moe_domain_test PRIVATE TileMega::tilemega)
+    target_compile_options(sm90_native_moe_domain_test PRIVATE -UNDEBUG)
+    add_test(NAME sm90_native_moe_domain COMMAND sm90_native_moe_domain_test)
+    add_executable(sm90_native_prices_test test/unit/sm90_native_prices_test.cpp)
+    target_link_libraries(sm90_native_prices_test PRIVATE TileMega::tilemega)
+    target_compile_options(sm90_native_prices_test PRIVATE -UNDEBUG)
+    add_test(NAME sm90_native_prices COMMAND sm90_native_prices_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/configs/targets/sm_90_h800.json
+      ${CMAKE_CURRENT_SOURCE_DIR})
     add_executable(sm90_dense_coordinates_test test/unit/sm90_dense_coordinates_test.cpp)
     target_link_libraries(sm90_dense_coordinates_test PRIVATE TileMega::tilemega)
     target_compile_options(sm90_dense_coordinates_test PRIVATE -UNDEBUG)
@@ -924,6 +964,7 @@ if(TILEMEGA_BUILD_TESTS)
     # E2: the local routing must reproduce R4's last arriver bit for bit.
     add_executable(sm90_dense_local_route_test test/unit/sm90_dense_local_route_test.cu)
     target_include_directories(sm90_dense_local_route_test PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/include
       ${CMAKE_CURRENT_SOURCE_DIR}/third_party/cutlass/include)
     set_target_properties(sm90_dense_local_route_test PROPERTIES CUDA_ARCHITECTURES "90a")
     target_compile_options(sm90_dense_local_route_test PRIVATE
@@ -973,7 +1014,7 @@ if(TILEMEGA_BUILD_TESTS)
     add_executable(sm90_dense_plan_test test/unit/sm90_dense_plan_test.cpp)
     target_link_libraries(sm90_dense_plan_test PRIVATE TileMega::tilemega)
     target_compile_options(sm90_dense_plan_test PRIVATE -UNDEBUG)
-    foreach(test IN ITEMS sm90_dense_gemm sm90_dense_last_arriver sm90_dense_attention sm90_dense_token sm90_dense_epilogue sm90_dense_moe sm90_dense_router)
+    foreach(test IN ITEMS sm90_dense_gemm sm90_dense_last_arriver sm90_dense_attention sm90_dense_token sm90_dense_epilogue sm90_dense_moe sm90_dense_router sm90_dense_argmax_stage sm90_dense_attention_merge_stage sm90_dense_moe_combine_stage)
       add_executable(${test}_test test/unit/${test}_test.cu)
       target_link_libraries(${test}_test PRIVATE TileMega::tilemega)
       target_compile_options(${test}_test PRIVATE -UNDEBUG
@@ -981,6 +1022,13 @@ if(TILEMEGA_BUILD_TESTS)
       tilemega_configure_cuda_target(${test}_test)
       add_test(NAME ${test} COMMAND ${test}_test)
     endforeach()
+    add_executable(sm90_dense_moe_b16_test test/unit/sm90_dense_moe_test.cu)
+    target_link_libraries(sm90_dense_moe_b16_test PRIVATE TileMega::tilemega)
+    target_compile_definitions(sm90_dense_moe_b16_test PRIVATE TEST_BATCH=16)
+    target_compile_options(sm90_dense_moe_b16_test PRIVATE -UNDEBUG
+      $<$<COMPILE_LANGUAGE:CUDA>:-O3;--expt-relaxed-constexpr>)
+    tilemega_configure_cuda_target(sm90_dense_moe_b16_test)
+    add_test(NAME sm90_dense_moe_b16 COMMAND sm90_dense_moe_b16_test)
     add_executable(dm_epilogue_chain_view_test test/unit/dm_epilogue_tile_test.cu)
     target_link_libraries(dm_epilogue_chain_view_test PRIVATE TileMega::tilemega)
     target_compile_definitions(dm_epilogue_chain_view_test PRIVATE TILEMEGA_DM_CHAIN_REFERENCE=1)
@@ -1437,6 +1485,22 @@ if(TARGET tilemega-unit)
   add_dependencies(check-tilemega tilemega-unit)
 endif()
 
+add_executable(tilemega-native-evaluate EXCLUDE_FROM_ALL tools/experimental/tilemega-native-evaluate.cpp)
+target_link_libraries(tilemega-native-evaluate PRIVATE TileMega::tilemega)
+set_target_properties(tilemega-native-evaluate PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+
+add_executable(tilemega-native-search EXCLUDE_FROM_ALL tools/experimental/tilemega-native-search.cpp)
+target_link_libraries(tilemega-native-search PRIVATE TileMega::tilemega)
+set_target_properties(tilemega-native-search PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+
+add_executable(tilemega-native-analysis EXCLUDE_FROM_ALL tools/experimental/tilemega-native-analysis.cpp)
+target_link_libraries(tilemega-native-analysis PRIVATE TileMega::tilemega)
+set_target_properties(tilemega-native-analysis PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+
+add_executable(tilemega-native-domains EXCLUDE_FROM_ALL tools/experimental/tilemega-native-domains.cpp)
+target_link_libraries(tilemega-native-domains PRIVATE TileMega::tilemega)
+set_target_properties(tilemega-native-domains PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+
 option(TILEMEGA_BUILD_EXPERIMENTAL "Build historical experiment tools" OFF)
 if(TILEMEGA_BUILD_EXPERIMENTAL)
   add_executable(tilemega-flow-validation tools/experimental/tilemega-flow-validation.cpp)
@@ -1568,6 +1632,10 @@ add_test(NAME build_feature_contract
   COMMAND ${CMAKE_COMMAND} -E env "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python"
     ${Python3_EXECUTABLE} -m unittest discover
     -s ${CMAKE_CURRENT_SOURCE_DIR}/test/python -p test_feature_contract.py)
+add_test(NAME native_sequence_abi
+  COMMAND ${CMAKE_COMMAND} -E env "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python"
+    ${Python3_EXECUTABLE} -m unittest discover
+    -s ${CMAKE_CURRENT_SOURCE_DIR}/test/python -p test_native_sequence_abi.py)
 add_test(NAME native_argument_contract
   COMMAND ${Python3_EXECUTABLE} -m unittest discover
     -s ${CMAKE_CURRENT_SOURCE_DIR}/test/python -p test_r16_argument_contract.py)
@@ -1579,7 +1647,7 @@ add_test(NAME generated_feature_contract
   COMMAND ${CMAKE_COMMAND} -E env "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python"
     "TILEMEGA_BIN=$<TARGET_FILE:tilemega>"
     ${Python3_EXECUTABLE} -m unittest discover
-    -s ${CMAKE_CURRENT_SOURCE_DIR}/test/python -p test_generated_features.py)
+    -s ${CMAKE_CURRENT_SOURCE_DIR}/test/python -p test_native_generated_features.py)
 add_test(NAME dnn_bf16_gates
   COMMAND ${CMAKE_COMMAND} -E env "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python"
     ${Python3_EXECUTABLE} -m unittest discover

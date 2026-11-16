@@ -1,0 +1,3 @@
+item,config,status,required_shared_bytes,limit_bytes,evidence,decision,note
+hbm_read_bulk,cp.async.bulk x8; grid 132 or 264,unsupported,262208,232448,verified CUDA properties and allocation arithmetic,user 2026-11-04: record unsupported and continue,8 x 32768 bytes plus 8 x 8-byte barriers exceeds the per-CTA opt-in limit
+hbm_read_bulk,cp.async.bulk x4; grid 264,grid_supported; two_resident_CTAs_unsupported,262208,233472,inferred from verified shared-memory limit,retain measured grid configuration with explicit residency qualification,The cta/sm label is launched grid divided by SM count; two 131104-byte CTAs cannot reside on one SM simultaneously

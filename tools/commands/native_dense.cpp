@@ -5,7 +5,9 @@
 #include <tilemega/Codegen/CouplingGraphToCUDA.h>
 #include <tilemega/Solver/Sm90DensePlan.h>
 #include <tilemega/Solver/Sm90DenseSearch.h>
+#include <tilemega/Solver/Sm90NativePipeline.h>
 #include <tilemega/Solver/Sm90NativeConstants.h>
+#include <tilemega/Solver/Sm90NativeMoeDomain.h>
 #include <tilemega/Solver/Sm90DenseRegisterContract.h>
 #include <tilemega/Frontend/ExportBridge.h>
 #include <tilemega/Support/Json.h>
@@ -58,7 +60,7 @@ void CheckManifestTp(std::string const& input,int tp) {
 static int CompileNativeDenseArtifact(std::string const& input,std::string const& output,
     std::string const& coordinates,std::string const& target_path,int batch,
     std::string const& dump_cg,int split_compile,std::string const& origin,
-    json::Value const& selection={}) {
+    json::Value const& selection={},bool kernel_sequence=false) {
   namespace fs=std::filesystem;
   if(split_compile<1 || split_compile>8)
     throw std::invalid_argument("native split compilation must use 1 through 8 workers");
@@ -78,6 +80,7 @@ static int CompileNativeDenseArtifact(std::string const& input,std::string const
   mlir::MLIRContext context;
   auto imported=solver::ImportSm90Dense(input,c,context);
   auto module=solver::MaterializeSm90Dense(imported,c,batch,target,context,origin);
+  if(kernel_sequence)(*module)->setAttr("tmexec.native_kernel_sequence",mlir::UnitAttr::get(&context));
   auto source=codegen::CouplingGraphToCUDA{}.Lower(*module);
   fs::create_directories(requested.parent_path());
   auto cu=shared?fs::path(requested.string()+".cu"):requested;
@@ -109,6 +112,7 @@ static int CompileNativeDenseArtifact(std::string const& input,std::string const
       {"native_dense",c.ToJson()},{"native_origin",origin},{"native_selection",selection},{"gemms",gemms},
       {"export_sha256",input_hash},{"coordinates_sha256",coordinates_hash},
       {"ctg_sha256",Hash(cg.string())},{"ctg",cg.string()}};
+  if(kernel_sequence)manifest.emplace_back("execution","kernel_sequence");
   std::ofstream(requested.string()+".plan.json")<<json::Value(manifest).Dump(2)<<'\n';
   if(!shared)return 0;
   std::string root=TILEMEGA_SOURCE_DIR;
@@ -198,7 +202,7 @@ static int CompileNativeDenseArtifact(std::string const& input,std::string const
   }
   identity(false);
   json::Value execution=json::Object{{"decode_mode","L1"},{"decode_loop",1},
-      {"prefill_mode","L1"},{"source","native static program"}};
+      {"prefill_mode","L1"},{"source",kernel_sequence?"native kernel sequence":"native static program"}};
   std::ofstream(requested.string()+".serving.json")<<execution.Dump(2)<<'\n';
   std::cerr<<"NATIVE_DENSE origin="<<origin<<" grid="<<target.res.num_sms*c.residency
       <<" stages="<<imported.plan.stages.size()<<" ctg="<<cg.string()<<'\n';
@@ -207,9 +211,24 @@ static int CompileNativeDenseArtifact(std::string const& input,std::string const
 
 int CompileNativeDenseFixed(std::string const& input,std::string const& output,
     std::string const& coordinates,std::string const& target_path,int batch,
-    std::string const& dump_cg,int split_compile) {
+    std::string const& dump_cg,int split_compile,bool kernel_sequence) {
   return CompileNativeDenseArtifact(input,output,coordinates,target_path,batch,dump_cg,
-      split_compile,"fixed");
+      split_compile,"fixed",{},kernel_sequence);
+}
+
+int CompileNativeDenseProbe(std::string const& input,std::string const& output,
+    std::string const& coordinates,std::string const& target,int batch,
+    std::string const& family,std::string const& entry_limit,int split_compile) {
+  if(entry_limit.empty())throw std::invalid_argument("--native-probe requires --native-probe-limit with the R5 entry-size audit");
+  std::string root=TILEMEGA_SOURCE_DIR;
+  std::string command="python3 "+Quote(root+"/scripts/sm90r6_native_probe.py")+
+      " --input "+Quote(input)+" --out "+Quote(output)+" --coordinates "+Quote(coordinates)+
+      " --target "+Quote(target)+" --batch "+std::to_string(batch)+" --native-probe "+Quote(family)+
+      " --entry-limit "+Quote(entry_limit)+" --split-compile "+std::to_string(split_compile)+
+      " --compiler "+Quote(std::filesystem::read_symlink("/proc/self/exe").string());
+  int result=std::system(command.c_str());
+  if(result<0 || !WIFEXITED(result))throw std::runtime_error("native probe builder did not exit normally");
+  return WEXITSTATUS(result);
 }
 
 bool IsNativeDenseInput(std::string const& input) {
@@ -255,8 +274,117 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   if(!decisions)throw std::invalid_argument("target lacks sm90_native_decisions (prompt §11 decision tables)");
   space.weight_stream=decisions->At("weight_stream").AsBool("weight_stream");
   space.layer_loop=decisions->At("layer_loop").AsBool("layer_loop");
+  if(o.search!="pipeline" && o.search!="additive")
+    throw std::invalid_argument("--search takes pipeline or additive");
+  if(o.search!="pipeline" && o.analysis!="reuse")
+    throw std::invalid_argument("non-reuse analysis requires pipeline search");
   solver::Sm90DenseSearchOptions search;search.top=o.measure_top;
   auto result=solver::SearchSm90Dense(space,work,cost,search);
+  json::Value pipeline_record;
+  // P3: Algorithm 1 replaces the additive ranking for every selection this
+  // round. `--search additive` is kept only to reproduce the R3-R5 choices
+  // (continuation 1 section 1.3), so it never decides a final coordinate here.
+  if(o.search=="pipeline") {
+    solver::Sm90NativePipelineOptions pipeline;
+    pipeline.finalists=o.measure_top;
+    pipeline.operator_sum=o.operator_sum;
+    pipeline.retile_only=o.retile_only;
+    pipeline.realize_aggregate=o.realize_aggregate;
+    pipeline.budget_ms=o.search_budget_ms;
+    std::vector<solver::Sm90DenseCoordinates> seeds;
+    if(!o.seed_coordinates.empty())
+      seeds.push_back(solver::Sm90DenseCoordinates::FromJson(json::ParseFile(o.seed_coordinates)));
+    if(!o.pin_theta.empty()) {
+      // AB-1: each family's geometry is fixed by a local criterion and the
+      // rest of the decisions are still Algorithm 1's.
+      auto pinned=solver::Sm90DenseCoordinates::FromJson(json::ParseFile(o.pin_theta));
+      pipeline.pinned_theta=pinned;
+      seeds.push_back(pinned);
+    }
+    mlir::MLIRContext context;
+    auto imported=solver::ImportSm90Dense(o.input,result.ranked.front().coordinates,context);
+    solver::Sm90NativeCtgCache cache;
+    std::map<std::string,std::string> flow_identities;
+    json::Array analysis_calls;
+    auto evaluate=[&](solver::Sm90DenseCoordinates const& c,bool isolated) {
+      auto flow=solver::Sm90NativeAnalyze(imported,work,c,cost,context,cache,o.analysis,isolated);
+      if(o.analysis!="reuse")flow_identities[c.ToJson().Dump(0)]=solver::Sm90NativeFlowIdentity(flow.problem);
+      analysis_calls.emplace_back(json::Object{{"coordinates",c.ToJson()},
+          {"analysis_ms",flow.analysis_ms},{"release_ms",flow.release_ms},
+          {"pricing_ms",flow.pricing_ms},{"evaluation_ms",flow.evaluation_ms},
+          {"derivations",double(flow.derivations)},
+          {"enumerated_tasks",double(flow.enumerated_tasks)},
+          {"enumerated_edges",double(flow.enumerated_edges)}});
+      return flow;
+    };
+    auto pipelined=solver::SolveSm90NativePipeline(space,work,cost,pipeline,evaluate,seeds);
+    auto verification_start=std::chrono::steady_clock::now();
+    if(o.analysis!="reuse") {
+      solver::Sm90NativeCtgCache reference;
+      for(auto const& candidate:pipelined.evaluated) {
+        auto const& c=candidate.coordinates;
+        auto flow=solver::Sm90NativeCtgScore(imported,work,c,cost,context,reference,o.operator_sum);
+        if(solver::Sm90NativeFlowIdentity(flow.problem)!=flow_identities.at(c.ToJson().Dump(0)))
+          throw std::runtime_error("analysis mode changed the exact searched FlowProblem");
+      }
+    }
+    double analysis_verification_ms=std::chrono::duration<double,std::milli>(
+        std::chrono::steady_clock::now()-verification_start).count();
+    auto rows=[&](std::vector<solver::Sm90NativePipelineCandidate> const& input) {
+      json::Array output;
+      for(auto const& candidate:input) {
+        json::Value row=json::Object{
+          {"coordinates",candidate.coordinates.ToJson()},{"structure",candidate.structural_class},
+          {"pool_score_ns",candidate.pool_score_ns},{"replay_ns",candidate.replay_ns},
+          {"evaluation_ms",candidate.evaluation_ms},{"discovered_ms",candidate.discovered_ms},
+          {"origin",candidate.origin}};
+        if(work.moe) {
+          auto const& c=candidate.coordinates;
+          row.Set("task_domain_approximation",json::Object{
+              {"kind",solver::kSm90NativeMoeDomainApproximation},
+              {"gate_up",solver::Sm90NativeMoeDomain(work.experts,work.top_k,work.batch,
+                  work.shapes[6][0]/c.gemms[6].tile_n).ToJson()},
+              {"down",solver::Sm90NativeMoeDomain(work.experts,work.top_k,work.batch,
+                  work.shapes[7][0]/c.gemms[7].tile_n).ToJson()},
+              {"route_price","older-body RouteLa proxy for per-CTA local routing"}});
+        }
+        output.push_back(std::move(row));
+      }
+      return json::Value(output);
+    };
+    json::Array trajectories;
+    for(std::size_t seed=0;seed<pipelined.descent.size();++seed) {
+      json::Array values;
+      for(std::size_t move=0;move<pipelined.descent[seed].size();++move)
+        values.emplace_back(json::Object{{"score_ns",pipelined.descent[seed][move]},
+            {"coordinates",pipelined.descent_coordinates[seed][move].ToJson()}});
+      trajectories.emplace_back(values);
+    }
+    pipeline_record=json::Object{{"objective",o.operator_sum?"operator-sum":"completion"},
+        {"analysis",o.analysis},{"analysis_calls",analysis_calls},
+        {"analysis_verification_ms",analysis_verification_ms},
+        {"bitwise_flow_verified_against_reuse",o.analysis!="reuse"},
+        {"evaluated",rows(pipelined.evaluated)},{"shortlist",rows(pipelined.shortlist)},
+        {"finalists",rows(pipelined.finalists)},{"descent",trajectories},
+        {"memo_hits",double(pipelined.memo_hits)},{"coupling_hits",double(cache.coupling.hits)},
+        {"coupling_misses",double(cache.coupling.misses)},
+        {"release_hits",double(cache.release_hits)},{"release_misses",double(cache.release_misses)},
+        {"space_hits",double(cache.space_hits)},{"space_misses",double(cache.space_misses)},
+        {"edge_hits",double(cache.edge_hits)},{"edge_misses",double(cache.edge_misses)}};
+    if(!o.seed_coordinates.empty())pipeline_record.Set("frozen_seed_sha256",Hash(o.seed_coordinates));
+    {std::ofstream timing(directory/"ctg-timing.json");cache.timing.Write(timing,"native",o.input,o.batch);}
+    result.ranked.clear();
+    for(auto const& candidate:pipelined.finalists) {
+      solver::Sm90DenseCandidate entry;
+      entry.coordinates=candidate.coordinates;
+      entry.prediction=cost.Predict(work,candidate.coordinates);
+      entry.prediction.step_ns=candidate.replay_ns;
+      entry.origin=candidate.structural_class;
+      result.ranked.push_back(std::move(entry));
+    }
+    result.evaluated=pipelined.evaluations;
+    result.elapsed_ms=pipelined.seconds*1000;
+  }
   json::Array ranked,candidates;
   std::vector<fs::path> configs;
   for(unsigned i=0;i<result.ranked.size();++i) {
@@ -268,15 +396,17 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   }
   json::Value measurement;int winner=0;
   auto save=[&] {
-    json::Value receipt=json::Object{{"schema",2},{"selection",o.measured?"measure":"predicted"},
+    json::Value receipt=json::Object{{"schema",o.search=="pipeline"?3:2},{"selection",o.measured?"measure":"predicted"},
         {"target_sha256",target_sha},{"export_sha256",input_sha},{"solve_command",o.solve_command},
         {"constants",constants.section},{"constants_from_older_body",stale},
         {"search_ms",result.elapsed_ms},{"evaluated",double(result.evaluated)},
-        {"ranked",ranked},{"candidates",candidates},{"measurement",measurement},{"winner",winner}};
+        {"ranked",ranked},{"candidates",candidates},{"measurement",measurement},{"winner",winner},
+        {"pipeline",pipeline_record}};
     std::ofstream(directory/"receipt.json")<<receipt.Dump(2)<<'\n';return receipt;
   };
   save();
-  if(o.measured) {
+  bool compiled_finalists=o.measured || o.search=="pipeline";
+  if(compiled_finalists) {
     for(unsigned i=0;i<configs.size();++i) {
       auto binary=directory/("candidate-"+std::to_string(i)+".so");
       NativeCandidateCounts counts;
@@ -290,6 +420,83 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
       else {row.Set("status","compiled");row.Set("binary",binary.string());row.Set("binary_sha256",Hash(binary.string()));}
       candidates.push_back(row);save();
     }
+    if(o.search=="pipeline") {
+      // A requested launch bound is not a measurement of the linked kernel.
+      // Query the cubin before either predicted or measured final selection.
+      for(int pass=0;pass<3;++pass) {
+        auto list=directory/("occupancy-input-"+std::to_string(pass)+".json");
+        std::ofstream(list)<<json::Value(candidates).Dump(2)<<'\n';
+        auto probe=directory/("occupancy-"+std::to_string(pass));
+        auto command="python3 "+Quote(std::string(TILEMEGA_SOURCE_DIR)+
+            "/scripts/sm90r6_probe_native.py")+" --candidates "+Quote(list.string())+
+            " --out "+Quote(probe.string());
+        if(std::system(command.c_str()))
+          throw std::runtime_error("native finalist occupancy query failed; evidence: "+probe.string());
+        auto evidence=json::ParseFile((probe/"result.json").string());
+        pipeline_record.Set("occupancy_pass_"+std::to_string(pass),evidence);
+        bool changed=false;
+        for(auto const& resource:evidence.At("candidates").AsArray("occupancy candidates")) {
+          int i=int(resource.At("rank").AsNumber("occupancy rank"));
+          if(i<0 || i>=int(candidates.size()) ||
+             resource.At("binary_sha256").AsString("binary hash")!=
+                 candidates[i].At("binary_sha256").AsString("candidate binary hash"))
+            throw std::runtime_error("occupancy result does not bind a compiled finalist");
+          int actual=int(resource.At("effective_residency").AsNumber("measured residency"));
+          candidates[i].Set("occupancy",resource);
+          if(actual<1) {candidates[i].Set("status","occupancy_rejected");continue;}
+          auto c=result.ranked[i].coordinates;
+          if(actual==c.residency)continue;
+          if(pass==2)throw std::runtime_error("native occupancy correction did not converge");
+          mlir::MLIRContext context;
+          auto imported=solver::ImportSm90Dense(o.input,c,context);
+          solver::Sm90NativeCtgCache cache;
+          auto corrected=solver::RepriceSm90NativeResidency(space,c,actual,o.operator_sum,
+              [&](solver::Sm90DenseCoordinates const& coordinate,bool isolated) {
+                return solver::Sm90NativeCtgScore(imported,work,coordinate,cost,context,cache,isolated);
+              });
+          if(!corrected) {
+            candidates[i].Set("status","occupancy_coordinate_rejected");continue;
+          }
+          c=corrected->coordinates;double score=corrected->replay_ns;
+          candidates[i].Set("occupancy_pool_score_ns",corrected->pool_score_ns);
+          candidates[i].Set("occupancy_rescore_ms",corrected->evaluation_ms);
+          auto base=directory/("candidate-"+std::to_string(i)+"-occupancy-"+std::to_string(pass));
+          configs[i]=base.string()+".tmexec.json";
+          std::ofstream(configs[i])<<c.ToJson().Dump(2)<<'\n';
+          result.ranked[i].coordinates=c;result.ranked[i].prediction=cost.Predict(work,c);
+          result.ranked[i].prediction.step_ns=score;
+          result.ranked[i].origin=corrected->structural_class;
+          ranked[i].Set("origin",corrected->structural_class);
+          ranked[i].Set("coordinates",c.ToJson());ranked[i].Set("prediction",result.ranked[i].prediction.ToJson());
+          auto binary=base.string()+".so";
+          NativeCandidateCounts counts;
+          auto rejected=TryMeasuredNativeCompile(counts,[&] {
+            CompileNativeDenseArtifact(o.input,binary,configs[i].string(),o.target,o.batch,
+                "",o.split_compile,"solver",json::Object{{"selection","occupancy-corrected"},{"rank",i}});
+          });
+          candidates[i].Set("coordinates",configs[i].string());candidates[i].Set("predicted_ns",score);
+          if(rejected) {
+            candidates[i].Set("status","resource_rejected");candidates[i].Set("compile_result",*rejected);
+          }else {
+            candidates[i].Set("status","compiled");candidates[i].Set("binary",binary);
+            candidates[i].Set("binary_sha256",Hash(binary));changed=true;
+          }
+          save();
+        }
+        save();
+        if(!changed)break;
+      }
+    }
+    if(!o.measured) {
+      winner=-1;
+      for(unsigned i=0;i<candidates.size();++i)
+        if(candidates[i].At("status").AsString("status")=="compiled" &&
+           (winner<0 || result.ranked[i].prediction.step_ns<result.ranked[winner].prediction.step_ns))
+          winner=i;
+      if(winner<0)throw std::runtime_error("no resource-verified native finalist remains");
+    }
+  }
+  if(o.measured) {
     auto list=directory/"candidates.json";
     std::ofstream(list)<<json::Value(candidates).Dump(2)<<'\n';
     // One P-SEL session measures every compiled candidate in interleaved order.
@@ -312,13 +519,16 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   auto receipt=save();
   CompileNativeDenseArtifact(o.input,o.output,selected.string(),o.target,o.batch,o.dump_cg,
       o.split_compile,"solver",receipt);
-  if(o.measured) {
-    auto reference=directory/("candidate-"+std::to_string(winner)+".so");
+  if(compiled_finalists && requested.extension()==".so") {
+    auto reference=fs::path(candidates[winner].At("binary").AsString("winner binary"));
     auto command="python3 "+Quote(std::string(TILEMEGA_SOURCE_DIR)+
         "/scripts/check_sm90r2_rebuild.py")+" --reference "+Quote(reference.string())+
         " --candidate "+Quote(requested.string())+" --out "+Quote(requested.string()+".rebuild");
     if(std::system(command.c_str()))
       throw std::runtime_error("selected native artifact changed during final rebuild");
+  }else if(compiled_finalists && Hash(requested.string())!=
+      Hash(candidates[winner].At("binary").AsString("winner binary")+".cu")) {
+    throw std::runtime_error("selected native source changed after resource verification");
   }
   return 0;
 }

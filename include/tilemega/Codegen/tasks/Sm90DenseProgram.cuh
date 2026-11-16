@@ -188,13 +188,14 @@ struct Gemm {
 template<int Batch,int Hkv,int D,int Q,int Norm,int Chunks,int Keys,int Slots,int RowWork,
          int Capacity,unsigned Qkv,unsigned Key,unsigned Value,unsigned Output,
          unsigned Cosine,unsigned Sine,unsigned QNorm,unsigned KNorm,
-         unsigned Partial,unsigned Lse,unsigned Arrivals,unsigned KeyMap,unsigned ValueMap,bool Dsmem=false>
+         unsigned Partial,unsigned Lse,unsigned Arrivals,unsigned KeyMap,unsigned ValueMap,
+         bool Dsmem=false,bool StageMerge=false>
 struct Attention {
   static constexpr bool kUsesOperandRecord=true;
   // A1 (RC1): mode 2 normalizes the whole projected row, so Prepare reads
   // every KV group of its token rather than only this task's group.
   static constexpr bool kRowNorm=Norm==2;
-  using Body=backend::Sm90DenseAttentionBody<Batch,Hkv,D,Q,Norm,Chunks,Keys,Slots,RowWork,Capacity,Dsmem>;
+  using Body=backend::Sm90DenseAttentionBody<Batch,Hkv,D,Q,Norm,Chunks,Keys,Slots,RowWork,Capacity,Dsmem,StageMerge>;
   // D10b: the leader's inbox barrier counts its S - 1 peer chunks.
   static constexpr int kInboxWriters=Dsmem?Chunks-1:0;
   static constexpr int kTasks=Body::kTasks,kSharedBytes=Body::kSharedBytes;
@@ -233,6 +234,41 @@ struct Attention {
   }
 };
 
+template<int Batch,int Hkv,int D,int Q,int Chunks,unsigned Partial,unsigned Lse,unsigned Output>
+struct AttentionMerge {
+  static_assert(Chunks>1);
+  static constexpr bool kUsesOperandRecord=true;
+  static constexpr int kTasks=Batch*Hkv,kSharedBytes=1024+4*Chunks*Q;
+  static constexpr int kRingSlots=0,kMaxPreissue=0;
+  static constexpr backend::Sm90DenseLayout kLayout{0,0,1024,kSharedBytes};
+  using Body=backend::Sm90DenseAttentionBody<Batch,Hkv,D,Q,0,Chunks,64,2,0,1088>;
+  template<int Bytes> static constexpr backend::Sm90DensePayload Payload() {return {};}
+  template<class B>
+  __device__ static __forceinline__ void PublishOperands(B const& b,int layer,int,float,
+      backend::Sm90DenseOperandBank& record,unsigned long long) {
+    record.attention.partial=reinterpret_cast<float*>(b.template Get<Partial>(layer));
+    record.attention.lse=reinterpret_cast<float*>(b.template Get<Lse>(layer));
+    record.attention.output=b.template Get<Output>(layer);
+  }
+  template<int Prefix,class B,class Tail>
+  __device__ static __forceinline__ void Run(B const&,int,char* shared,float,
+      backend::Sm90DenseRingState&,Tail tail,backend::Sm90DenseOperandBank const& record,bool) {
+    auto const& p=record.attention;auto* weight=reinterpret_cast<float*>(shared+1024);
+    if(threadIdx.x<128)for(int task=blockIdx.x;task<kTasks;task+=gridDim.x) {
+      // Runtime tasks are group-major; partial storage is batch-major.
+      int bg=(task%Batch)*Hkv+task/Batch;
+      for(int i=threadIdx.x;i<Chunks*Q;i+=128)weight[i]=p.lse[std::size_t(bg)*Chunks*Q+i];
+      executor::ComputeSync();
+      Body::Combine(p,weight,bg,[&](int c,int i) {
+        return *reinterpret_cast<float4 const*>(p.partial+(std::size_t(bg)*Chunks+c)*Q*D+i);
+      });
+      executor::ComputeSync();
+    }
+    if(threadIdx.x==128)tail();
+    __syncthreads();
+  }
+};
+
 template<int Batch,int Width,int Vocab,int Capacity,unsigned Tokens,unsigned Table,
          unsigned Output>
 struct Embedding {
@@ -265,10 +301,10 @@ struct Embedding {
 template<int Batch,int N,int K,int TN,int TK,int Slots,int WN,int WK,backend::Sm90DenseMoeMode Mode,
          int U,int Experts,int TopK,bool FloatWeights,int Page,unsigned W,unsigned X,unsigned Out,
          unsigned Schedule,unsigned Routes,unsigned Index,unsigned Counter,unsigned GateUpDone,
-         unsigned Map,int RegisterStages,bool SoftmaxAll=false>
+         unsigned Map,int RegisterStages,bool SoftmaxAll=false,bool FinishRouting=false,bool GlobalSchedule=false,bool StageCombine=false>
 struct Moe {
   using Body=backend::Sm90DenseMoeGemm<Batch,N,K,TN,TK,Slots,WN,WK,Mode,U,Experts,TopK,FloatWeights,
-      Page,RegisterStages,SoftmaxAll>;
+      Page,RegisterStages,SoftmaxAll,FinishRouting,GlobalSchedule,StageCombine>;
   static_assert(GateUpDone==kAbsent || Mode==backend::Sm90DenseMoeMode::kRouter,
       "only the router clears the fused stage's counters");
   static constexpr bool kUsesOperandRecord=true;
@@ -307,6 +343,41 @@ struct Moe {
   }
 };
 
+template<int Batch,int Experts,int TopK,bool FloatWeights,bool SoftmaxAll,
+         unsigned Logits,unsigned Schedule,unsigned Routes,unsigned Index,unsigned Done>
+struct MoeRoute {
+  using Route=backend::Sm90DenseLocalRoute<Batch,Experts,TopK,FloatWeights,SoftmaxAll>;
+  using Local=backend::Sm90DenseLocalSchedule<Batch,Experts,TopK>;
+  static constexpr bool kUsesOperandRecord=true;
+  static constexpr int kTasks=1,kSharedBytes=1024+sizeof(Local),kRingSlots=0,kMaxPreissue=0;
+  static constexpr backend::Sm90DenseLayout kLayout{0,0,1024,kSharedBytes};
+  template<int Bytes> static constexpr backend::Sm90DensePayload Payload() {return {};}
+  template<class B>
+  __device__ static __forceinline__ void PublishOperands(B const& b,int layer,int,float,
+      backend::Sm90DenseOperandBank& record,unsigned long long) {
+    auto& p=record.moe;
+    p.output=b.template Get<Logits>(layer);
+    p.schedule=reinterpret_cast<int*>(b.template Get<Schedule>(layer));
+    p.route_weights=b.template Get<Routes>(layer);
+    p.route_index=reinterpret_cast<int*>(b.template Get<Index>(layer));
+    if constexpr(Done!=kAbsent)p.gate_up_done=reinterpret_cast<unsigned*>(b.template Get<Done>(layer));
+    else p.gate_up_done=nullptr;
+  }
+  template<int Prefix,class B,class Tail>
+  __device__ static __forceinline__ void Run(B const&,int,char* shared,float,
+      backend::Sm90DenseRingState&,Tail tail,backend::Sm90DenseOperandBank const& record,bool) {
+    if(blockIdx.x==0 && threadIdx.x<128) {
+      auto const& p=record.moe;auto& local=*reinterpret_cast<Local*>(shared+1024);
+      Route::Build(static_cast<float const*>(p.output),local);
+      Route::Publish(local,p.schedule,p.route_weights,p.route_index);
+      if(p.gate_up_done && threadIdx.x<Experts)p.gate_up_done[threadIdx.x]=0;
+      executor::ComputeSync();
+    }
+    if(threadIdx.x==128)tail();
+    __syncthreads();
+  }
+};
+
 // MR7: M5 and M6 as one stage. WGu/WDn are the two weight bases, Hid is h
 // (the gate_up output and the down tasks' activation) and Out the per-route
 // partials P. GateUpDone holds the per-slot counters the router cleared.
@@ -314,10 +385,10 @@ template<int Batch,int NGateUp,int NDown,int Hidden,int TNGu,int TKGu,int TNDn,i
          int WNGu,int WKGu,int WNDn,int WKDn,int U,int Experts,int TopK,bool FloatWeights,int Page,
          unsigned WGu,unsigned WDn,unsigned X,unsigned Hid,unsigned Out,unsigned Schedule,
          unsigned Routes,unsigned Index,unsigned Counter,unsigned GateUpDone,unsigned Map,
-         int RegisterStages,unsigned Logits=kAbsent,bool SoftmaxAll=false>
+         int RegisterStages,unsigned Logits=kAbsent,bool SoftmaxAll=false,bool LocalRouting=true,bool StageCombine=false>
 struct MoeFused {
   using Body=backend::Sm90DenseMoeFusedGemm<Batch,NGateUp,NDown,Hidden,TNGu,TKGu,TNDn,TKDn,Slots,
-      WNGu,WKGu,WNDn,WKDn,U,Experts,TopK,FloatWeights,Page,RegisterStages,SoftmaxAll>;
+      WNGu,WKGu,WNDn,WKDn,U,Experts,TopK,FloatWeights,Page,RegisterStages,SoftmaxAll,LocalRouting,StageCombine>;
   // E2: the stage routes locally, so it needs the router's logits buffer.
   static_assert(Logits!=kAbsent,"the fused expert stage routes from the logits");
   static_assert(GateUpDone!=kAbsent && Map!=kAbsent,
@@ -357,12 +428,35 @@ struct MoeFused {
   }
 };
 
+template<int Batch,int N,int TN,int TopK,unsigned Partial,unsigned Residual>
+struct MoeCombine {
+  static constexpr bool kUsesOperandRecord=true;
+  static constexpr int kTasks=N/TN,kSharedBytes=1024,kRingSlots=0,kMaxPreissue=0;
+  static constexpr backend::Sm90DenseLayout kLayout{};
+  template<int Bytes> static constexpr backend::Sm90DensePayload Payload() {return {};}
+  template<class B>
+  __device__ static __forceinline__ void PublishOperands(B const& b,int layer,int,float,
+      backend::Sm90DenseOperandBank& record,unsigned long long) {
+    record.moe.output=b.template Get<Partial>(layer);
+    record.moe.x=b.template Get<Residual>(layer);
+  }
+  template<int Prefix,class B,class Tail>
+  __device__ static __forceinline__ void Run(B const&,int,char*,float,
+      backend::Sm90DenseRingState&,Tail tail,backend::Sm90DenseOperandBank const& record,bool) {
+    if(threadIdx.x<128)for(int task=blockIdx.x;task<kTasks;task+=gridDim.x)
+      backend::Sm90DenseMoeCombine<Batch,N,TN,TopK>::Run(
+          static_cast<float const*>(record.moe.output),record.moe.x,task);
+    if(threadIdx.x==128)tail();
+    __syncthreads();
+  }
+};
+
 // lm_head with the folded argmax and, with Embed, the next step's embedding
 // (D9). Its value/index outputs hold the per-CTA [B][G] partials.
 // Tp > 1: this rank holds VocabLocal rows of the vocabulary, and the last
 // arriver exchanges its per-row winner with every rank (prompt appendix C.3).
 template<class G,unsigned Tokens,unsigned Table,unsigned X,int Width,int Capacity,bool Embed,
-         int Tp=1,int VocabLocal=0>
+         int Tp=1,int VocabLocal=0,bool PartialOnly=false>
 struct Head:G {
   static_assert(G::kUsesOperandRecord);
   static_assert((Tp==1)==(VocabLocal==0),"a sharded head names its rank's vocabulary");
@@ -389,11 +483,55 @@ struct Head:G {
   __device__ static __forceinline__ void Run(B const&,int,char* shared,float,
       backend::Sm90DenseRingState& ring,Tail tail,backend::Sm90DenseOperandBank const& record,
       bool streamed) {
-    if constexpr(Tp>1)
+    if constexpr(PartialOnly) {
+      static_assert(Tp==1,"independent argmax requires an explicit TP exchange stage");
+      StageEntry<typename G::Body>::template Head<Prefix>(record.gemm,shared,&ring,tail,streamed,
+          backend::Sm90DenseHeadPartialFinish<G::kBatch>{});
+    }else if constexpr(Tp>1)
       StageEntry<typename G::Body>::template Head<Prefix>(record.gemm,shared,&ring,tail,streamed,
           Finish{&record.head,&record.tp_head});
     else StageEntry<typename G::Body>::template Head<Prefix>(record.gemm,shared,&ring,tail,streamed,
         Finish{&record.head});
+  }
+};
+
+template<int Batch,int Width,int Capacity,unsigned Values,unsigned Indices,unsigned Tokens,
+         unsigned Table,unsigned X,bool Embed>
+struct Argmax {
+  static constexpr bool kUsesOperandRecord=false;
+  static constexpr int kTasks=Batch,kSharedBytes=1024,kRingSlots=0,kMaxPreissue=0;
+  static constexpr backend::Sm90DenseLayout kLayout{};
+  template<int Bytes> static constexpr backend::Sm90DensePayload Payload() {return {};}
+  template<int Prefix,class B,class Tail>
+  __device__ static __forceinline__ void Run(B const& b,int past,char*,float,
+      backend::Sm90DenseRingState&,Tail tail) {
+    auto* values=reinterpret_cast<float const*>(b.template Get<Values>());
+    auto* indices=reinterpret_cast<int const*>(b.template Get<Indices>());
+    auto* tokens=reinterpret_cast<int*>(b.template Get<Tokens>());
+    for(int row=blockIdx.x;row<Batch;row+=gridDim.x) {
+      if(threadIdx.x<32) {
+        int lane=threadIdx.x,grid=gridDim.x;
+        float value=-INFINITY;int index=INT_MAX;
+        // Keep the LA implementation's lane traversal and XOR reduction order.
+        for(int part=lane;part<grid;part+=32) {
+          float v=values[row*grid+part];int id=indices[row*grid+part];
+          if(v>value || (v==value && id<index)) {value=v;index=id;}
+        }
+        #pragma unroll
+        for(int d=16;d;d>>=1) {
+          float v=__shfl_xor_sync(0xffffffff,value,d);
+          int id=__shfl_xor_sync(0xffffffff,index,d);
+          if(v>value || (v==value && id<index)) {value=v;index=id;}
+        }
+        if(lane==0 && past+1>=b.prompt_len)tokens[row*Capacity+past+1]=index;
+      }
+      __syncthreads();
+      if constexpr(Embed)if(threadIdx.x<128)
+        backend::Sm90DenseEmbedding<Width,1,Capacity>::Run(tokens,b.template Get<Table>(),
+            b.template Get<X>(),row,past+1);
+    }
+    if(threadIdx.x==128)tail();
+    __syncthreads();
   }
 };
 
@@ -463,8 +601,10 @@ struct LayerGroup {
 // ranks; DSMEM merges and activation multicast stay within one cluster.
 template<int Batch,int Capacity,int Residency,unsigned Buffers,unsigned Maps,int Arena,
          int Layers,unsigned LayerSlots,bool Loop,bool Embed,class Prologue,class Group,class LmHead,
-         int Cluster=1,int Tp=1>
+         int Cluster=1,int Tp=1,class PostHead=void>
 struct Program {
+  static constexpr bool kPostHead=!std::is_void_v<PostHead>;
+  using Final=std::conditional_t<kPostHead,PostHead,Prologue>;
   using Binding=Bindings<Buffers,Maps,Layers,LayerSlots,Tp>;
   static constexpr int kTp=Tp;
   static_assert(Tp==1 || Tp==2 || Tp==4 || Tp==8,"tensor parallel degree must be 1, 2, 4 or 8");
@@ -473,7 +613,7 @@ struct Program {
   static constexpr int kBatch=Batch,kCapacity=Capacity,kResidency=Residency,kThreads=160;
   static constexpr unsigned kBuffers=Buffers,kMaps=Maps,kLayers=Layers;
   static constexpr unsigned kGroup=Group::kSize,kPerGroup=Group::kLayers,kPerLayer=kGroup/kPerGroup;
-  static constexpr unsigned kStages=2+kPerLayer*Layers,kHead=1+kPerLayer*Layers;
+  static constexpr unsigned kStages=2+kPerLayer*Layers+unsigned(kPostHead),kHead=1+kPerLayer*Layers;
   // D8: one monotonic counter per KV group follows the boundary counters.
   static constexpr unsigned kGroupCounters=GroupStage<0>::kGroupTiles?
       unsigned(GroupStage<0>::kTasks/GroupStage<0>::kGroupTiles):0u;
@@ -543,6 +683,7 @@ struct Program {
   }
   static_assert(Placed<Prologue,0>() && Placed<LmHead,kHead%2>() &&
       GroupPlaced(std::make_integer_sequence<unsigned,kGroup>{}));
+  static_assert(!kPostHead || Placed<Final,(kHead+1)%2>());
   template<unsigned... J>
   static constexpr int GroupBytes(std::integer_sequence<unsigned,J...>) {
     int value=1024;((value=value<GroupStage<J>::kSharedBytes?GroupStage<J>::kSharedBytes:value),...);
@@ -550,7 +691,7 @@ struct Program {
   }
   static constexpr int kArenaSharedBytes=[] {
     int value=GroupBytes(std::make_integer_sequence<unsigned,kGroup>{});
-    for(int bytes:{Prologue::kSharedBytes,LmHead::kSharedBytes})
+    for(int bytes:{Prologue::kSharedBytes,LmHead::kSharedBytes,Final::kSharedBytes})
       value=value<bytes?bytes:value;
     return value;
   }();
@@ -562,6 +703,7 @@ struct Program {
   static constexpr unsigned long long Tasks(unsigned g) {
     if(g==0)return Prologue::kTasks;
     if(g==kHead)return LmHead::kTasks;
+    if constexpr(kPostHead)if(g==kHead+1)return Final::kTasks;
     return GroupTasks((g-1)%kGroup,std::make_integer_sequence<unsigned,kGroup>{});
   }
 
@@ -784,7 +926,12 @@ struct Program {
         std::make_integer_sequence<unsigned,kGroup>{});
     // No stream crosses the step boundary; with Embed the head publishes the
     // next step's layer-0 qkv bank in place of the skipped prologue.
-    Boundary<LmHead,std::conditional_t<Embed,GroupStage<0>,Prologue>,kHead%2,true,
+    if constexpr(kPostHead) {
+      Boundary<LmHead,Final,kHead%2,true>(
+          b,past,shared,epsilon,events,iteration,trace,kHead,0,0,true);
+      Boundary<Final,std::conditional_t<Embed,GroupStage<0>,Prologue>,(kHead+1)%2,true,
+          Embed?1u:0u>(b,past,shared,epsilon,events,iteration,trace,kHead+1,0,0,false);
+    }else Boundary<LmHead,std::conditional_t<Embed,GroupStage<0>,Prologue>,kHead%2,true,
         Embed?1u:(kHead%2)^1u>(b,past,shared,epsilon,events,iteration,trace,kHead,0,0,true);
 #if TILEMEGA_TRACE_STEP
     if(threadIdx.x==0 && record)record->end=Now();

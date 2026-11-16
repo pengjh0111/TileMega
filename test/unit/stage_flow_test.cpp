@@ -13,6 +13,52 @@ namespace tilemega::tests::stage_flow_test {
 using namespace tilemega::solver;
 static void Near(double a,double b,char const* why){if(std::abs(a-b)>1e-7)throw std::runtime_error(std::string(why)+": "+std::to_string(a)+" != "+std::to_string(b));}
 static FlowSpace Space(int n,TaskPriceParts parts){FlowSpace s;s.count=n;s.pieces={{n,parts}};s.piece_of_task.assign(n,0);return s;}
+static void CheckPlacement() {
+  FlowProblem p;p.workers=2;p.dram_gbps=10;
+  p.spaces={Space(1,{0,10,0,0}),Space(1,{0,20,0,0})};
+  Near(EvaluateFlow(p).makespan_ns,20,"pool may use either worker");
+  FlowOptions o;o.placement.worker_of_task={{0},{0}};
+  o.placement.order={{{1,0},{0,0}}, {}};
+  auto r=EvaluateFlow(p,o);
+  Near(r.makespan_ns,30,"bound tasks cannot borrow the idle worker");
+  Near(r.spaces[0].first_start,20,"bound order overrides space priority");
+  if(r.critical_chain!=std::vector<int>{1,0})
+    throw std::runtime_error("replay loses the worker-order critical predecessor");
+  o.placement.worker_of_task={{1},{0}};
+  o.placement.order={{{1,0}},{{0,0}}};
+  Near(EvaluateFlow(p,o).makespan_ns,20,"independent owners overlap");
+  auto edge=std::make_shared<std::vector<std::pair<int,int>> const>(
+      std::vector<std::pair<int,int>>{{0,0}});
+  p.edges={{0,1,1,false,false,edge}};p.edges[0].hop_ns=7;
+  Near(EvaluateFlow(p,o).makespan_ns,37,"bound release keeps the per-edge hop");
+  o.placement.worker_of_task={{0},{0}};o.placement.order={{{1,0},{0,0}}, {}};
+  bool rejected=false;
+  try{EvaluateFlow(p,o);}catch(std::runtime_error const&){rejected=true;}
+  if(!rejected)throw std::runtime_error("cyclic worker order was accepted");
+  o.placement.order={{{0,0},{1,0}}, {}};
+  auto valid=o;
+  for(int kind=0;kind<4;++kind) {
+    o=valid;
+    if(kind==0)o.placement.order[0].pop_back();
+    if(kind==1)o.placement.order[0].push_back({0,0});
+    if(kind==2)o.placement.worker_of_task[0][0]=1;
+    if(kind==3)o.placement.order[0][0].second=2;
+    rejected=false;
+    try{EvaluateFlow(p,o);}catch(std::invalid_argument const&){rejected=true;}
+    if(!rejected)throw std::runtime_error("invalid worker assignment was accepted");
+  }
+  // Identical task indices on distinct owners have independent rings; indices
+  // on the same owner must retain pages until their consumers finish.
+  p.edges.clear();p.spaces={Space(1,{0,20,100,10,100}),Space(1,{0,20,100,10,100})};
+  p.page_bytes=16;p.pages_per_worker=8;
+  o=valid;
+  Near(EvaluateFlow(p,o).makespan_ns,60,"bound same-worker ring serialization");
+  o.placement.worker_of_task={{1},{0}};o.placement.order={{{1,0}},{{0,0}}};
+  Near(EvaluateFlow(p,o).makespan_ns,40,"bound distinct-worker page ownership");
+  // Prefetch must follow sigma even when it reverses the space order.
+  o.placement.worker_of_task={{0},{0}};o.placement.order={{{1,0},{0,0}}, {}};
+  Near(EvaluateFlow(p,o).makespan_ns,60,"bound prefetch follows worker order");
+}
 static void CheckFluidClock() {
   struct Item {double left,cap,rate;int count;};std::vector<Item> dense;
   DramFluidServer shared(100);std::mt19937 random(90109);double delivered=0;
@@ -98,6 +144,7 @@ int TestStageFlow(int argc, char** argv) try {
   }
   CheckFluidClock();
   CheckInflightClock();
+  CheckPlacement();
   InflightDramServer in_flight(10,{10,20},{4,8},{10,20},{10,10});
   in_flight.Add(100,10,10);Near(in_flight.DeviceRate(),4,"one CTA in-flight rate");
   in_flight.Add(100,10,10);Near(in_flight.DeviceRate(),8,"two CTA in-flight rate");
@@ -176,6 +223,17 @@ int TestStageFlow(int argc, char** argv) try {
   paged.pages_per_worker=1;
   if(EvaluateFlow(paged).makespan_ns<=paged_result.makespan_ns)
     throw std::runtime_error("one-page ring illegally prefetched a seven-page operand");
+  // A stage's own ring overrides the program default. The producer has no
+  // ring; the consumer can fetch either 16 or all 100 bytes during its wait.
+  paged.page_bytes=0;paged.pages_per_worker=0;
+  paged.spaces[0].pages_per_worker=0;
+  paged.spaces[1].page_bytes=16;paged.spaces[1].pages_per_worker=1;
+  Near(EvaluateFlow(paged).makespan_ns,28.4,"consumer's one-slot ring");
+  paged.spaces[1].pages_per_worker=8;
+  Near(EvaluateFlow(paged).makespan_ns,21,"consumer's eight-slot ring");
+  FlowOptions ring_order;ring_order.placement.worker_of_task={{0},{0}};
+  ring_order.placement.order={{{0,0},{1,0}}};
+  Near(EvaluateFlow(paged,ring_order).makespan_ns,21,"bound consumer ring");
   tilemega::codegen::RuntimeTaskGraph paged_graph;
   paged_graph.stage_offsets={0,1,2};paged_graph.successors={{1},{}};
   MaterializedPlan paged_plan;paged_plan.queue={{{0,0},{1,0}}};

@@ -31,12 +31,35 @@ def validate(manifest, defines):
             defines.get('TILEMEGA_ARCH_ID') != '900' or
             manifest.get('runtime_batch') not in (1, 2, 4, 8, 16) or
             manifest.get('native_origin') not in ('fixed', 'solver') or
-            c.get('schema') not in (5, 6, 7) or
+            c.get('schema') not in (5, 6, 7, 8, 9) or
             c.get('model') not in LAYER):
         raise ValueError('native dense architecture or coordinate schema is invalid')
+    if (c['attention'].get('merge') not in ('la', 'dsmem', 'stage') or
+            (c['attention'].get('merge') == 'stage' and c['schema'] < 8)):
+        raise ValueError('native independent attention merge coordinate is invalid')
+    route = c.get('route', 'local')
+    if route not in ('local', 'la', 'stage') or (route != 'local' and
+            (c['schema'] != 9 or c['model'] != 'moe')):
+        raise ValueError('native global routing coordinate is invalid')
+    combine = c.get('combine', 'la')
+    if combine not in ('la', 'stage') or (combine == 'stage' and
+            (c['schema'] != 9 or c['model'] != 'moe')):
+        raise ValueError('native combine coordinate is invalid')
     # Schema 7 exists only to carry tp > 1; a TP1 program names no degree.
     tp = c.get('tp', 1)
-    if ((c['schema'] == 7) != (tp > 1) or tp not in (1, 2, 4, 8) or
+    argmax_stage = c.get('argmax', 'la') == 'stage'
+    if (c.get('argmax', 'la') not in ('la', 'stage') or
+            (argmax_stage and (c['schema'] < 8 or tp != 1))):
+        raise ValueError('native independent argmax coordinate is invalid')
+    sequence = manifest.get('execution') == 'kernel_sequence'
+    if sequence != (defines.get('TILEMEGA_NATIVE_KERNEL_SEQUENCE') == '1'):
+        raise ValueError('native kernel sequence execution differs from generated macros')
+    if sequence and (tp != 1 or c.get('group_wait') or c.get('emb') != 'stage' or
+                     not argmax_stage or c['attention'].get('merge') != 'stage' or
+                     c.get('expert_fuse') or (c['model'] == 'moe' and
+                                             (route != 'stage' or combine != 'stage'))):
+        raise ValueError('native kernel sequence requires aggregate realization')
+    if ((c['schema'] < 8 and (c['schema'] == 7) != (tp > 1)) or tp not in (1, 2, 4, 8) or
             (tp > 1 and c['model'] != 'dense') or
             defines.get('TILEMEGA_NATIVE_TP') != (str(tp) if tp > 1 else None) or
             (tp > 1) != ('TILEMEGA_NATIVE_TP_HIDDEN' in defines)):
@@ -50,6 +73,7 @@ def dispatch(manifest, defines, source):
     validate(manifest, defines)
     c = manifest['native_dense']
     tp = c.get('tp', 1)
+    argmax_stage = c.get('argmax', 'la') == 'stage'
     match = re.search(r'kNativeCoordinateIdentity\[\]\s*=\s*("(?:\\.|[^"\\])*");', source)
     if match is None or json.loads(json.loads(match[1])) != c:
         raise ValueError('native dense coordinate identity differs from generated source')
@@ -60,6 +84,16 @@ def dispatch(manifest, defines, source):
     if fused and c['model'] != 'moe':
         raise ValueError('native expert fusion needs a MoE coordinate')
     layer = FUSED_LAYER if fused else LAYER[c['model']]
+    merge_stage = c['attention'].get('merge') == 'stage' and c['attention']['chunks'] > 1
+    if merge_stage:
+        layer = (*layer[:2], 'attention_merge', *layer[2:])
+    route_mode = c.get('route', 'local')
+    if route_mode == 'stage':
+        at = layer.index('router') + 1
+        layer = (*layer[:at], 'moe_route', *layer[at:])
+    combine_stage = c.get('combine', 'la') == 'stage'
+    if combine_stage:
+        layer = (*layer, 'moe_combine')
     per_group = 2 if len(layer) % 2 else 1
     size = per_group*len(layer)
     head = size + 1
@@ -84,18 +118,20 @@ def dispatch(manifest, defines, source):
     # ... Stage_{S+1}, cluster> (D10).
     # ... cluster[, tp]> and Head<..., embed[, tp, vocab per rank]> (tp > 1 only).
     program = re.search(r'using NativeProgram\s*=\s*Program<(?:\d+,){5}(\d+),(\d+),\d+,(true|false),'
-                        rf'(true|false),Stage_0,LayerGroup<{per_group}{group}>,Stage_{head},(\d+)(?:,(\d+))?>;',
+                        rf'(true|false),Stage_0,LayerGroup<{per_group}{group}>,Stage_{head},(\d+)(?:,(\d+))?(,ArgmaxStage)?>;',
                         source)
     lm = re.search(rf'using Body_{head}\s*=\s*Head<HeadGemm_{head},\d+,\d+,\d+,\d+,\d+,(true|false)'
-                   r'(?:,(\d+),(\d+))?>;', source)
-    if (program is not None and lm is not None) and (program[6] != (str(tp) if tp > 1 else None) or
-            lm[2] != (str(tp) if tp > 1 else None) or
+                   r'(?:,(\d+),(\d+))?(,true)?>;', source)
+    degree = str(tp) if tp > 1 or argmax_stage else None
+    if (program is not None and lm is not None) and (program[6] != degree or
+            lm[2] != degree or
             (tp > 1 and int(lm[3]) != manifest['gemms'][-1]['n'])):
         raise ValueError('native dense tensor parallel program differs from its coordinate identity')
     embed = c['emb'] == 'la'
     if (program is None or lm is None or (program[3] == 'true') != (c['layer_loop'] is True) or
             (program[4] == 'true') != embed or (lm[1] == 'true') != embed or
-            int(program[5]) != c['cluster']):
+            int(program[5]) != c['cluster'] or bool(program[7]) != argmax_stage or
+            bool(lm[4]) != argmax_stage or (argmax_stage and lm[3] != '0')):
         raise ValueError('native dense program structure differs from its coordinate identity')
     arena, layers = int(program[1]), int(program[2])
     streaming = c['weight_stream'] is True
@@ -116,7 +152,7 @@ def dispatch(manifest, defines, source):
     # Manifest GEMM i is certified against the typed stage that runs it: the
     # GEMM positions of its layer within the group, or the head. A fused stage
     # runs two manifest GEMMs (expert gate_up, then down).
-    positions = [k for k, name in enumerate(layer) if name != 'attention'
+    positions = [k for k, name in enumerate(layer) if name not in ('attention', 'attention_merge', 'moe_route', 'moe_combine')
                  for _ in range(2 if name == 'expert_fused' else 1)]
     gemms = manifest['gemms']
     if len(gemms) != len(positions)*layers + 1:
@@ -126,6 +162,68 @@ def dispatch(manifest, defines, source):
     expected_calls = {str(1 + (l % per_group)*len(layer) + k) for l in range(per_group) for k in positions}
     if set(calls) != expected_calls | {str(head)}:
         raise ValueError('native dense GEMM call count differs from manifest')
+    post = re.findall(r'using ArgmaxStage\s*=\s*Placement<Argmax<([^;]+)>,0>;', source)
+    if bool(post) != argmax_stage or len(post) > 1:
+        raise ValueError('native argmax stage differs from its coordinate identity')
+    if argmax_stage:
+        head_args = re.search(rf'using Body_{head}=Head<([^;]+)>;', source)[1].split(',')
+        gemm_args = calls[str(head)][2].split(',')
+        expected = [str(manifest['runtime_batch']), head_args[4], head_args[5],
+                    gemm_args[13], gemm_args[14], *head_args[1:4], head_args[6]]
+        if post[0].split(',') != expected:
+            raise ValueError('native argmax stage operands differ from its producer')
+    def operand_column(value):
+        slot = re.fullmatch(r'kLayerSlot\|(\d+)u', value)
+        if slot is None:
+            return (value,) * layers
+        table = re.search(r'kNativeLayerSlots=\{\{(.*?)\}\};', source, re.S)
+        if table is None:
+            raise ValueError('native routing operand table is absent')
+        rows = re.findall(r'\{([^{}]+)\}', table[1])
+        index = int(slot[1])
+        parsed = [row.split(',') for row in rows]
+        if len(parsed) != layers or any(index >= len(row) for row in parsed):
+            raise ValueError('native routing operand column is invalid')
+        return tuple(row[index].strip().removesuffix('u') for row in parsed)
+
+    if route_mode != 'local' and not fused:
+        for l in range(per_group):
+            base = 1 + l * len(layer)
+            router = calls[str(base + layer.index('router'))][2].split(',')
+            for family in ('expert_gate_up', 'expert_down'):
+                expert = calls[str(base + layer.index(family))][2].split(',')
+                if any(operand_column(expert[i]) != operand_column(router[i]) for i in (17,18,19)):
+                    raise ValueError('native unfused expert schedule differs from its router')
+    routes = re.findall(r'using (Body)_(\d+)\s*=\s*MoeRoute<([^;]+)>;', source)
+    if len(routes) != (per_group if route_mode == 'stage' else 0):
+        raise ValueError('native routing stage differs from its coordinate identity')
+    for typed, number, raw in routes:
+        preceding = calls.get(str(int(number) - 1))
+        if preceding is None or preceding[1] != 'Moe':
+            raise ValueError('native routing stage lacks its router')
+        args = preceding[2].split(',')
+        expected = [args[0], args[10], args[11], args[12], args[24],
+                    args[16], args[17], args[18], args[19], args[21]]
+        actual = raw.split(',')
+        if (len(actual) != 10 or actual[:5] != expected[:5] or
+                any(operand_column(a) != operand_column(b) for a, b in zip(actual[5:], expected[5:]))):
+            raise ValueError('native routing stage operands differ from its router')
+        placement(number, typed, 0)
+    combines = re.findall(r'using (Body)_(\d+)\s*=\s*MoeCombine<([^;]+)>;', source)
+    if len(combines) != (per_group if combine_stage else 0):
+        raise ValueError('native combine stage differs from its coordinate identity')
+    for typed, number, raw in combines:
+        preceding = calls.get(str(int(number) - 1))
+        if preceding is None or preceding[1] not in ('MoeFused', 'Moe'):
+            raise ValueError('native combine stage lacks its expert producer')
+        args = preceding[2].split(',')
+        expected = ([args[0], args[2], args[6], args[15], args[22], args[20]] if fused else
+                    [args[0], args[1], args[3], args[11], args[16], args[15]])
+        actual = raw.split(',')
+        if (len(actual) != 6 or actual[:4] != expected[:4] or
+                any(operand_column(a) != operand_column(b) for a,b in zip(actual[4:],expected[4:]))):
+            raise ValueError('native combine stage operands differ from its producer')
+        placement(number, typed, 0)
     result = []
     for index, gemm in enumerate(gemms):
         if index == len(positions)*layers:
@@ -145,13 +243,16 @@ def dispatch(manifest, defines, source):
             # operands (the 10th gu_done), map, register stages. E2 appends the
             # logits buffer and the softmax convention; 30 args is a program
             # emitted before E2, and such binaries are still loadable.
-            if len(args) not in (30, 32) or args[13] != '16' or \
+            if len(args) not in (30, 32, 33, 34) or args[13] != '16' or \
                     args[14] not in ('64', '128') or args[15] != '8' or \
                     args[17] not in ('0', '64') or args[27] == 'kAbsent':
                 raise ValueError('native fused MoE call signature is invalid')
-            if len(args) == 32 and (args[30] == 'kAbsent' or
+            if len(args) >= 32 and (args[30] == 'kAbsent' or
                                     args[31] not in ('true', 'false')):
                 raise ValueError('native fused MoE local route operands are invalid')
+            if args[32:] != ((['false'] if route_mode != 'local' else ['true'] if combine_stage else []) +
+                             (['true'] if combine_stage else [])):
+                raise ValueError('native fused MoE routing differs from its coordinate identity')
             down = family == 'expert_down'
             values = list(map(int, args[:13]))
             batch, slots = values[0], values[8]
@@ -168,13 +269,17 @@ def dispatch(manifest, defines, source):
             # 25 arguments: 8 buffers (the last is MR7's gu_done, which only a
             # fused plan's router carries) and the router's softmax convention.
             legacy = len(args) == 23
-            if len(args) not in (23, 25) or args[8] != 'backend::Sm90DenseMoeMode::' + MOE_MODES[family] or \
+            if len(args) not in (23, 25, 26, 27, 28) or args[8] != 'backend::Sm90DenseMoeMode::' + MOE_MODES[family] or \
                     args[9] != '16' or args[10] not in ('64', '128') or args[11] != '8' or \
                     args[13] not in (('0', '64') if family != 'router' else ('0',)) or \
                     (legacy and (args[10] != '128' or fused)) or \
                     (not legacy and (args[24] not in ('true', 'false') or
                                      (args[21] != 'kAbsent') != (family == 'router' and fused))):
                 raise ValueError('native MoE call signature is invalid')
+            if args[25:] != ((['true'] if family == 'router' and route_mode == 'la' else
+                              ['false', 'true'] if family != 'router' and route_mode != 'local' else []) +
+                             (['true'] if family == 'expert_down' and combine_stage else [])):
+                raise ValueError('native router last-arriver mode differs from its coordinate identity')
             register_stages = int(args[22 if legacy else 23])
             stream = 0 if family == 'expert_gate_up' else None
         else:
@@ -206,6 +311,8 @@ def dispatch(manifest, defines, source):
         actual = dict(tile_m=16, tile_n=tn, tile_k=tk, stages=slots,
                       warps_n=wn, warps_k=wk, split_k=1)
         f = c['gemms'][family]
+        if (merge_stage and family == 'o') or (combine_stage and family in ('qkv', 'lm_head')):
+            stream = 0
         placement(number, typed, min(slots, k // tk) * tk * tn * 2 if stream is None else stream)
         if (gemm['index'] != index or gemm.get('impl') != 'native_mma_sync' or
                 batch != manifest['runtime_batch'] or gemm['n'] != n or gemm['k'] != k or
@@ -226,15 +333,26 @@ def dispatch(manifest, defines, source):
         raise ValueError('native dense attention call differs from manifest')
     a = c['attention']
     expected = [a[k] for k in ('chunks', 'block_keys', 'slots', 'new_row_work')]
+    merges = re.findall(r'using (Stage|Body)_(\d+)\s*=\s*AttentionMerge<([^;]+)>;', source)
+    if len(merges) != (per_group if merge_stage else 0):
+        raise ValueError('native attention merge stage differs from its coordinate identity')
+    merge_calls = {number: (typed, raw) for typed, number, raw in merges}
     shape = None
     for typed, number, raw in attention:
         args = raw.split(',')
         # batch, Hkv, D, Q, norm, chunks, keys, slots, row work, capacity, 11 buffers, K/V maps
         # [, DSMEM merge (D10b)].
-        dsmem = len(args) == 24
-        if len(args) not in (23, 24) or (dsmem and args[23] != 'true') or \
-                dsmem != (a.get('merge') == 'dsmem'):
+        flags = (['false', 'true'] if merge_stage else
+                 ['true'] if a.get('merge') == 'dsmem' else [])
+        dsmem = a.get('merge') == 'dsmem'
+        if args[23:] != flags or len(args) != 23 + len(flags):
             raise ValueError('native dense attention call signature is invalid')
+        if merge_stage:
+            merge_typed, merge_raw = merge_calls.get(str(int(number) + 1), ('', ''))
+            expected_merge = [*args[:4], args[5], args[18], args[19], args[13]]
+            if merge_raw.split(',') != expected_merge:
+                raise ValueError('native attention merge operands differ from its producer')
+            placement(str(int(number) + 1), merge_typed, 0)
         batch, hkv, dim, queries, norm, chunks, keys, slots, row, capacity = map(int, args[:10])
         current = (dim, queries, norm)
         # A tensor parallel rank holds 8 / tp of a dense model's KV heads.
@@ -263,6 +381,6 @@ def implementations(manifest):
                        for g in manifest['gemms']],
                 attention=dict(impl='native_tma_mma_sync', task_body='Sm90DenseAttentionBody',
                                chunks=c['attention']['chunks'],
-                               merge=('dsmem' if c['attention'].get('merge') == 'dsmem' else 'last_arriver')
+                               merge=(c['attention']['merge'] if c['attention'].get('merge') in ('dsmem', 'stage') else 'last_arriver')
                                if c['attention']['chunks'] > 1 else 'none',
                                buffers=c['attention']['slots'], partition='actual_past'))

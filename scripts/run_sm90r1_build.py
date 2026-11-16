@@ -2,6 +2,7 @@
 """Run one CPU-only build with a shared lock and explicit resource limits."""
 import argparse
 import fcntl
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -11,6 +12,24 @@ import subprocess
 import time
 
 
+def acquire_lock(paths):
+    if len(paths)==1:
+        handle=paths[0].open('a')
+        try:fcntl.flock(handle,fcntl.LOCK_EX)
+        except BaseException:
+            handle.close();raise
+        return handle
+    while True:
+        for path in paths:
+            handle=path.open('a')
+            try:fcntl.flock(handle,fcntl.LOCK_EX|fcntl.LOCK_NB)
+            except BlockingIOError:handle.close()
+            except BaseException:
+                handle.close();raise
+            else:return handle
+        time.sleep(.1)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--receipt', required=True, type=Path)
@@ -18,6 +37,8 @@ def main():
     parser.add_argument('--timeout', type=int, default=7200)
     parser.add_argument('--lock', type=Path, default=Path('/tmp/tilemega_sm90r1_build.lock'),
                         help='build lock; TILEMEGA_NVCC_LOCK overrides this path')
+    parser.add_argument('--lock-pools',type=Path,
+        default=Path(__file__).resolve().parents[1]/'configs/bench/sm90r6_build_lock_pools.json')
     parser.add_argument('command', nargs=argparse.REMAINDER)
     args = parser.parse_args()
     requested_lock = str(args.lock)
@@ -32,6 +53,17 @@ def main():
                   lock_override_env='TILEMEGA_NVCC_LOCK' if os.environ.get('TILEMEGA_NVCC_LOCK') else None,
                   queued=time.time(),
                   status='queued', classification='compilation; not a numerical test')
+    locks=[args.lock]
+    if args.lock_pools.exists():
+        pools=json.loads(args.lock_pools.read_text())
+        if str(args.lock) in pools:
+            locks=[Path(value) for value in pools[str(args.lock)]]
+            if (not locks or args.lock not in locks or len(set(locks))!=len(locks)
+                    or any(not value.is_absolute() for value in locks)):
+                parser.error('a build lock pool requires distinct absolute paths including the requested lock')
+            record.update(pool_requested_lock=str(args.lock),lock_pool=list(map(str,locks)),
+                lock_pool_config_sha256=hashlib.sha256(args.lock_pools.read_bytes()).hexdigest())
+    record['wrapper_sha256']=hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     process = None
 
     def save():
@@ -56,8 +88,8 @@ def main():
 
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
-    with args.lock.open('a') as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
+    with acquire_lock(locks) as lock:
+        record['lock']=str(lock.name)
         record['started'] = time.time()
 
         def limits():

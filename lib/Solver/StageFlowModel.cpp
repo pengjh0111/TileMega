@@ -40,12 +40,51 @@ void SetFlowCalibration(FlowProblem& p,TargetSpec const& target,ScalarType dtype
 }
 FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
   if(p.workers<=0 || !(p.dram_gbps>0))throw std::invalid_argument("invalid flow resources");
-  bool const paged=p.page_bytes>0 || p.pages_per_worker>0;
-  if(paged && (p.page_bytes<=0 || p.pages_per_worker<=0))
+  bool const global_ring=p.page_bytes>0 || p.pages_per_worker>0;
+  bool const paged=global_ring || std::any_of(p.spaces.begin(),p.spaces.end(),
+      [](auto const& s){return s.pages_per_worker>0;});
+  if(global_ring && (p.page_bytes<=0 || p.pages_per_worker<=0))
     throw std::invalid_argument("paged flow needs a positive page size and ring capacity");
+  std::vector<int> page_size;
+  std::vector<double> ring_capacity;
+  for(auto const& s:p.spaces) {
+    if(s.pages_per_worker < -1 || (s.pages_per_worker>0 && s.page_bytes<=0))
+      throw std::invalid_argument("invalid per-space page ring");
+    bool inherit=s.pages_per_worker<0;
+    page_size.push_back(inherit?p.page_bytes:s.page_bytes);
+    ring_capacity.push_back(inherit?double(p.page_bytes)*p.pages_per_worker+p.lookahead_bytes:
+        double(s.page_bytes)*s.pages_per_worker);
+  }
   bool audit=std::getenv("TILEMEGA_FLOW_AUDIT") && std::string(std::getenv("TILEMEGA_FLOW_AUDIT"))!="0";
   int n=p.spaces.size();long total=0;for(auto const& s:p.spaces){if(s.count<0 || s.piece_of_task.size()!=std::size_t(s.count))throw std::invalid_argument("flow piece coverage");total+=s.count;}
   long workers=options.infinite_workers?total:p.workers,free=workers,finished=0;
+  bool const bound=!options.placement.empty();
+  auto const& placement=options.placement;
+  if(bound) {
+    if(options.infinite_workers || placement.worker_of_task.size()!=p.spaces.size() ||
+        placement.order.size()!=std::size_t(workers))
+      throw std::invalid_argument("flow placement resource dimensions");
+    std::vector<std::vector<bool>> seen(n);
+    for(int s=0;s<n;++s) {
+      if(placement.worker_of_task[s].size()!=std::size_t(p.spaces[s].count))
+        throw std::invalid_argument("flow placement task dimensions");
+      seen[s].assign(p.spaces[s].count,false);
+    }
+    for(int w=0;w<workers;++w)for(auto [s,t]:placement.order[w]) {
+      if(s<0 || s>=n || t<0 || t>=p.spaces[s].count || seen[s][t] ||
+          placement.worker_of_task[s][t]!=w)
+        throw std::invalid_argument("flow placement duplicate, owner or coordinate");
+      seen[s][t]=true;
+    }
+    for(auto const& space:seen)for(bool found:space)
+      if(!found)throw std::invalid_argument("flow placement omits a task");
+  } else if(!placement.order.empty()) {
+    throw std::invalid_argument("flow placement order without owners");
+  }
+  auto owner=[&](int s,int t){return bound?placement.worker_of_task[s][t]:int(t%workers);};
+  std::vector<std::size_t> worker_cursor(workers),worker_prefetch_cursor(workers);
+  std::vector<bool> worker_busy(workers);
+  std::vector<int> worker_tail(workers,-1);
   std::vector<std::vector<int>> incoming(n),outgoing(n);
   struct Scratch {std::vector<std::vector<int>> pending,gate_pending,active_cohort,last_edge,last_cause;
     std::vector<std::vector<double>> gate_tail;std::vector<std::vector<unsigned char>> completed;};
@@ -87,12 +126,13 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
     page_hold[s].assign(p.spaces[s].count,0);
     prefetch_bytes[s].assign(p.spaces[s].count,0);
     for(int j=0;j<p.spaces[s].count;++j)
-      if(pending[s][j]==0 && !paged)ready[s].push_back({j,0});
+      if(pending[s][j]==0 && !paged && !bound)ready[s].push_back({j,0});
   }
   using SpaceKey=std::tuple<double,double,int,int>;
   std::priority_queue<SpaceKey,std::vector<SpaceKey>,std::greater<SpaceKey>> ready_spaces;
   std::priority_queue<SpaceKey,std::vector<SpaceKey>,std::greater<SpaceKey>> fused_spaces;
   auto queue_space=[&](int s){
+    if(bound)return;
     auto& queue=p.spaces[s].fused_reducer && !p.spaces[s].handoff_reducer?fused_spaces:ready_spaces;
     queue.emplace(ready[s].front().time,-p.spaces[s].rank_ns,p.spaces[s].order,s);
   };
@@ -102,7 +142,7 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
   struct Later {bool operator()(Event const& a,Event const& b) const{return std::tie(a.time,a.serial)>std::tie(b.time,b.serial);}};
   std::priority_queue<Event,std::vector<Event>,Later> events;std::uint64_t serial=0;
   auto push=[&](double time,Kind kind,int id,std::size_t begin=0,std::size_t end=0,int cause=-1){events.push({time,kind,id,begin,end,serial++,cause});};
-  struct Cohort {int space,piece,cause=-1,edge=-1;std::size_t begin=0,count=0;double start=0,main=0,wait=0,fixed=0,end=0,publication=0;bool compute=false,bytes=false,closing=false,fused=false;};
+  struct Cohort {int space,piece,cause=-1,edge=-1;std::size_t begin=0,count=0;double start=0,main=0,wait=0,fixed=0,end=0,publication=0;double compute_end=-1,bytes_end=-1;bool compute=false,bytes=false,closing=false,fused=false;};
   static thread_local std::vector<Cohort> cohorts;cohorts.clear();
   static thread_local std::vector<int> cohort_tasks;cohort_tasks.clear();cohort_tasks.reserve(total);
   std::vector<int> fluid_owner;DramFluidServer fluid(p.dram_gbps);
@@ -117,8 +157,6 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
   // than the executor.  The Level-1 home is the L1 grid-stride owner; Level-2
   // materialization is checked separately by the FIFO fluid simulator.
   std::vector<double> held_pages(workers,0);
-  double const per_worker_capacity=double(p.page_bytes)*p.pages_per_worker+
-      p.lookahead_bytes;
   std::optional<InflightDramServer> inflight;
   if(p.inflight_dram)inflight.emplace(p.dram_gbps,p.inflight_curve_bytes,
       p.inflight_curve_gbps,p.cta_stream_curve_bytes,p.cta_stream_curve_gbps);
@@ -128,7 +166,7 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
   FlowResult result;result.spaces.resize(n);int last_completed=-1;
   auto mark_prefetched=[&](int s,int j,double at){
     prefetched[s][j]=1;
-    if(pending[s][j]==0) {
+    if(pending[s][j]==0 && !bound) {
       bool empty=ready[s].empty();
       ready[s].push_back({j,std::max(at,dependency_ready[s][j])});
       if(empty)queue_space(s);
@@ -136,14 +174,41 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
   };
   auto launch_prefetch=[&](){
     if(!paged)return;
+    if(bound) {
+      // Follow each worker's own sequence; a full ring must not block the
+      // other workers, or reserve space for a later task before its predecessor.
+      for(int w=0;w<workers;++w)while(worker_prefetch_cursor[w]<placement.order[w].size()) {
+        auto [s,j]=placement.order[w][worker_prefetch_cursor[w]];
+        double per_worker_capacity=ring_capacity[s];
+        auto const& parts=p.spaces[s].pieces[p.spaces[s].piece_of_task[j]].parts;
+        double bytes=options.no_external?0:std::min(parts.no_producer_dram_bytes,per_worker_capacity);
+        double reserve=bytes>0?std::ceil(bytes/page_size[s])*page_size[s]:0;
+        if(bytes<0 || reserve>per_worker_capacity)
+          throw std::runtime_error("invalid bound prefetch reservation");
+        if(held_pages[w]+reserve>per_worker_capacity+1e-6)break;
+        ++worker_prefetch_cursor[w];
+        page_hold[s][j]=reserve;prefetch_bytes[s][j]=bytes;held_pages[w]+=reserve;
+        if(bytes==0)mark_prefetched(s,j,now);
+        else {
+          int id=inflight?inflight->Add(bytes,parts.dram_rate_cap,
+              std::max(16.,std::min(parts.inflight_bytes,per_worker_capacity)),1)
+              :fluid.Add(bytes,parts.dram_rate_cap,1);
+          if(id!=int(fluid_owner.size()))throw std::runtime_error("prefetch fluid id discontinuity");
+          int index=prefetch_cohorts.size();prefetch_cohorts.push_back({s,j,1,bytes,reserve});
+          fluid_owner.push_back(-index-1);
+        }
+      }
+      return;
+    }
     while(prefetch_space<prefetch_spaces.size()) {
       int s=prefetch_spaces[prefetch_space];
+      double per_worker_capacity=ring_capacity[s];
       if(prefetch_task>=p.spaces[s].count){++prefetch_space;prefetch_task=0;continue;}
       int j=prefetch_task,pi=p.spaces[s].piece_of_task[j];
       auto const& parts=p.spaces[s].pieces[pi].parts;
       double bytes=options.no_external?0:std::min(parts.no_producer_dram_bytes,per_worker_capacity);
       if(bytes<0)throw std::runtime_error("negative no-producer prefetch bytes");
-      double reserve=bytes>0?std::ceil(bytes/p.page_bytes)*p.page_bytes:0;
+      double reserve=bytes>0?std::ceil(bytes/page_size[s])*page_size[s]:0;
       if(reserve>per_worker_capacity)throw std::runtime_error("prefetch exceeds a worker page ring");
       int count=0;
       if(reserve>0) {
@@ -185,10 +250,21 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
     // Releasing the entire task at MainStart allowed arbitrarily many future
     // tasks to refill a ring whose current task had not read a single page.
     if(paged)for(std::size_t i=c.begin;i<c.begin+c.count;++i){
-      int task=cohort_tasks[i];held_pages[task%workers]-=page_hold[c.space][task];
+      int task=cohort_tasks[i];held_pages[owner(c.space,task)]-=page_hold[c.space][task];
       page_hold[c.space][task]=0;
     }
     auto& s=result.spaces[c.space];s.mainloop_ns+=(now-c.main)*c.count;
+    // Continuation 1 section 2.3: an n-step operand pipeline runs in
+    // max{c, m} + min{c, m}/n, and only the task at the head of a track pays
+    // the second term. min{c, m} is read off the two completion stamps
+    // rather than re-derived, so it is the realized transfer, not an estimate.
+    auto const& parts=p.spaces[c.space].pieces[c.piece].parts;
+    double steps=parts.pipeline_steps;
+    if(steps>0 && c.compute_end>=0 && c.bytes_end>=0) {
+      double compute=parts.pipeline_compute_ns<0?c.compute_end-c.main:
+          std::min(c.compute_end-c.main,parts.pipeline_compute_ns);
+      gated+=std::min(compute,c.bytes_end-c.main)/steps;
+    }
     push(gated+(!options.no_sync && publishes[c.space]?p.publication_ns:0),PublishEnd,id);
   }};
   while(finished<total) {
@@ -209,7 +285,7 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
           }
           last_edge[edge.consumer][j]=event.id;last_cause[edge.consumer][j]=event.cause;if(--pending[edge.consumer][j]==0){
             dependency_ready[edge.consumer][j]=now;
-            if(prefetched[edge.consumer][j]){bool empty=ready[edge.consumer].empty();ready[edge.consumer].push_back({j,now});if(empty)queue_space(edge.consumer);}}}
+            if(prefetched[edge.consumer][j] && !bound){bool empty=ready[edge.consumer].empty();ready[edge.consumer].push_back({j,now});if(empty)queue_space(edge.consumer);}}}
       } else {
         auto& c=cohorts[event.id];auto const& parts=p.spaces[c.space].pieces[c.piece].parts;
         if(event.kind==MainStart) {
@@ -234,15 +310,20 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
           result.main_bytes+=main_total;
           if(bytes>0){int id=inflight?inflight->Add(bytes,parts.dram_rate_cap,
               parts.inflight_bytes,c.count):fluid.Add(bytes,parts.dram_rate_cap,c.count);
-            if(id!=int(fluid_owner.size()))throw std::runtime_error("fluid id discontinuity");fluid_owner.push_back(event.id);}else c.bytes=true;
+            if(id!=int(fluid_owner.size()))throw std::runtime_error("fluid id discontinuity");fluid_owner.push_back(event.id);}else {c.bytes=true;c.bytes_end=now;}
           push(now+parts.compute_ns,ComputeEnd,event.id);
-        }else if(event.kind==ComputeEnd){c.compute=true;close(event.id);}
+        }else if(event.kind==ComputeEnd){c.compute=true;c.compute_end=now;close(event.id);}
         else {
-          int s=c.space;c.end=now;c.publication=!options.no_sync && publishes[s]?p.publication_ns:0;last_completed=event.id;if(!c.fused)free+=c.count;finished+=c.count;for(std::size_t i=c.begin;i<c.begin+c.count;++i)completed[s][cohort_tasks[i]]=1;
+          int s=c.space;c.end=now;c.publication=!options.no_sync && publishes[s]?p.publication_ns:0;last_completed=event.id;if(bound || !c.fused)free+=c.count;finished+=c.count;for(std::size_t i=c.begin;i<c.begin+c.count;++i) {
+            int task=cohort_tasks[i];completed[s][task]=1;
+            if(bound) {
+              int w=owner(s,task);worker_busy[w]=false;++worker_cursor[w];worker_tail[w]=event.id;
+            }
+          }
           auto& stats=result.spaces[s];stats.last_end=now;stats.last_edge=last_edge[s][cohort_tasks[c.begin+c.count-1]];stats.publication_ns+=(!options.no_sync && publishes[s]?p.publication_ns:0)*c.count;
           int before=prefix[s];while(prefix[s]+1<p.spaces[s].count && completed[s][prefix[s]+1])++prefix[s];
           if(prefix[s]!=before)for(int e:outgoing[s]){auto const& edge=p.edges[e];auto begin=edge_cursor[e];while(edge_cursor[e]<edge.sorted->size() && edge.sorted->at(edge_cursor[e]).first<=prefix[s])++edge_cursor[e];
-            double hop=options.no_sync || (p.spaces[edge.consumer].fused_reducer || p.spaces[edge.consumer].handoff_reducer) || (edge.colocated && edge.kappa==1)?0:p.hop_ns;
+            double hop=options.no_sync || (p.spaces[edge.consumer].fused_reducer || p.spaces[edge.consumer].handoff_reducer) || (edge.colocated && edge.kappa==1)?0:(edge.hop_ns>=0?edge.hop_ns:p.hop_ns);
             if(begin!=edge_cursor[e])push(now+hop,edge.phase?GateArrival:Arrival,e,begin,edge_cursor[e],event.id);
             if(edge.phase) {
               begin=first_cursor[e];
@@ -254,10 +335,24 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
     }
     launch_prefetch();
     while(free>0 || !fused_spaces.empty()) {
-      if(fused_spaces.empty() && ready_spaces.empty())break;
       int s;
-      if(!fused_spaces.empty()) {s=std::get<3>(fused_spaces.top());fused_spaces.pop();}
-      else {s=std::get<3>(ready_spaces.top());ready_spaces.pop();}
+      if(bound) {
+        std::optional<std::tuple<double,double,int,int,int>> best;
+        for(int w=0;w<workers;++w) {
+          if(worker_busy[w] || worker_cursor[w]==placement.order[w].size())continue;
+          auto [space,task]=placement.order[w][worker_cursor[w]];
+          if(pending[space][task] || !prefetched[space][task])continue;
+          auto key=std::make_tuple(dependency_ready[space][task],-p.spaces[space].rank_ns,
+                                  p.spaces[space].order,space,task);
+          if(!best || key<*best)best=key;
+        }
+        if(!best)break;
+        s=std::get<3>(*best);ready[s].push_back({std::get<4>(*best),std::get<0>(*best)});
+      } else {
+        if(fused_spaces.empty() && ready_spaces.empty())break;
+        if(!fused_spaces.empty()) {s=std::get<3>(fused_spaces.top());fused_spaces.pop();}
+        else {s=std::get<3>(ready_spaces.top());ready_spaces.pop();}
+      }
       int pi=p.spaces[s].piece_of_task.at(ready[s].front().task);auto const& parts=p.spaces[s].pieces.at(pi).parts;
       bool fused=p.spaces[s].fused_reducer && !p.spaces[s].handoff_reducer;
       bool wait=!fused && !p.spaces[s].handoff_reducer && !options.no_sync && (waits[s] || (all_waits[s] && launched[s]<std::min<long>(p.spaces[s].count,workers)));
@@ -265,7 +360,18 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
       while((fused || free>0) && !ready[s].empty() && p.spaces[s].piece_of_task[ready[s].front().task]==pi) {
         bool next_wait=!fused && !p.spaces[s].handoff_reducer && !options.no_sync &&
             (waits[s] || (all_waits[s] && launched[s]<std::min<long>(p.spaces[s].count,workers)));
-        if(next_wait!=wait)break;cohort.cause=last_cause[s][ready[s].front().task];cohort.edge=last_edge[s][ready[s].front().task];cohort_tasks.push_back(ready[s].front().task);++cohort.count;ready[s].pop_front();if(!fused)--free;++launched[s];
+        if(next_wait!=wait)break;
+        int task=ready[s].front().task;
+        cohort.cause=last_cause[s][task];cohort.edge=last_edge[s][task];
+        if(bound) {
+          int w=owner(s,task),previous=worker_tail[w];worker_busy[w]=true;
+          if(previous>=0 && cohorts[previous].end>=dependency_ready[s][task]) {
+            cohort.cause=previous;cohort.edge=-1;
+          }
+        }
+        cohort_tasks.push_back(task);++cohort.count;ready[s].pop_front();
+        if(bound || !fused)--free;++launched[s];
+        if(bound)break;
       }
       if(!ready[s].empty())queue_space(s);
       auto& stats=result.spaces[s];if(stats.first_start<0)stats.first_start=now;stats.wait_ns+=cohort.wait*cohort.count;stats.fixed_ns+=cohort.fixed*cohort.count;
@@ -282,7 +388,7 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
       if(owner<0){auto const& prefetch=prefetch_cohorts[-owner-1];
         for(int j=prefetch.first;j<prefetch.first+prefetch.count;++j)
           mark_prefetched(prefetch.space,j,now);
-      }else {cohorts[owner].bytes=true;close(owner);}}
+      }else {cohorts[owner].bytes=true;cohorts[owner].bytes_end=now;close(owner);}}
   }
   result.makespan_ns=now;result.delivered_bytes=inflight?inflight->Delivered():fluid.Delivered();
   double tolerance=std::max(1e-6,result.expected_bytes*1e-10);
@@ -297,7 +403,7 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
   while(last_completed>=0) {
     if(seen[last_completed])throw std::runtime_error("cyclic flow critical chain");seen[last_completed]=true;
     auto const& c=cohorts[last_completed];double hop=0;
-    if(c.edge>=0){auto const& e=p.edges[c.edge];if(!options.no_sync && !(e.colocated && e.kappa==1))hop=p.hop_ns;}
+    if(c.edge>=0){auto const& e=p.edges[c.edge];if(!options.no_sync && !(e.colocated && e.kappa==1))hop=e.hop_ns>=0?e.hop_ns:p.hop_ns;}
     result.critical_chain.push_back(c.space);
     result.critical_links.push_back({c.space,cohort_tasks[c.begin+c.count-1],c.edge,c.start,c.end,c.wait,c.fixed,std::max(0.,c.end-c.publication-c.main),c.publication,hop});
     last_completed=c.cause;

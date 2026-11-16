@@ -27,7 +27,7 @@ namespace tilemega::backend {
 // the context. No global partials, lse or arrival counters are used.
 // Norm: 0 none, 1 per head (Qwen3), 2 per projected row (OLMoE).
 template<int Batch,int Hkv,int D,int Q,int Norm,int Chunks,int BlockKeys,int Slots,
-         int NewRowWork,int Capacity,bool Dsmem=false>
+         int NewRowWork,int Capacity,bool Dsmem=false,bool StageMerge=false>
 struct Sm90DenseAttentionBody {
   using Element=cutlass::bfloat16_t;
   using Async=codegen::executor::Async<arch::Sm90>;
@@ -39,6 +39,7 @@ struct Sm90DenseAttentionBody {
   static constexpr bool kNormalized=Norm!=0,kRowNorm=Norm==2;
   static_assert(BlockKeys==64 || BlockKeys==128);
   static_assert(Slots>=2 && Slots<=4 && Capacity>=1087);
+  static_assert(!(Dsmem && StageMerge),"merge realizations are exclusive");
   static_assert(!Dsmem || Chunks>1,"a DSMEM merge needs at least two chunks");
   static constexpr int kThreads=160,kTasks=Batch*Hkv*Chunks,kPanels=D/64;
   static constexpr float kLog2E=1.4426950408889634f;
@@ -355,7 +356,7 @@ struct Sm90DenseAttentionBody {
       Finish(p,s,bg,chunk);
       if(threadIdx.x==0)Sm90DenseMark(3);
       if constexpr(Dsmem)DsmemMerge(p,state,s,bg,chunk);
-      else if constexpr(Chunks>1) {
+      else if constexpr(Chunks>1 && !StageMerge) {
         bool last=Sm90DenseLastArriver::Publish<Chunks>(p.arrivals+bg,&s.last);
         if(threadIdx.x==0)Sm90DenseMark(4);
         if(last)Merge(p,s,bg);

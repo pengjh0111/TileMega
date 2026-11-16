@@ -28,9 +28,8 @@ bool Sm90DenseSearchSpace::Legal(Sm90DenseCoordinates const& c) const {
   // releases only the groups this CTA's own qkv tiles wrote, so the attention
   // would read groups another CTA has not finished writing.
   if(c.group_wait && qk_norm_row)return false;
-  // E2: routing is computed per CTA inside the fused stage, so the split M5/M6
-  // form has no way to carry it and is no longer emitted.
-  if(c.moe && !c.expert_fuse)return false;
+  // Unfused experts read a schedule published by global routing.
+  if(c.moe && !c.expert_fuse && !c.GlobalRoute())return false;
   // The declared degree and the coordinate's must agree, and a whole-row norm
   // needs every head of the token, which no single rank holds.
   if(c.tp!=tp)return false;

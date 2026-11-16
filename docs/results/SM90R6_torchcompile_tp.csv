@@ -1,0 +1,16 @@
+model,system,tp,batch,tpot_ms,processes,range_pct,ttft_ms,mode,fullgraph,recompile_limit,tp1_same_env_ms,scaling_efficiency,tpot_at_limit_8_ms,change_vs_limit_8_pct
+qwen3_1_7b,torch.compile,1,1,4.2311,3,0.32,5.89,reduce-overhead,True,8,4.2311,,4.4307,-4.5
+qwen3_1_7b,torch.compile,1,2,4.6638,3,0.81,6.12,reduce-overhead,True,8,4.6638,,4.5074,+3.5
+qwen3_1_7b,torch.compile,1,4,5.1071,3,0.60,6.87,reduce-overhead,True,8,5.1071,,4.9395,+3.4
+qwen3_1_7b,torch.compile,1,8,5.4897,3,0.58,7.32,reduce-overhead,True,8,5.4897,,5.7072,-3.8
+qwen3_1_7b,torch.compile,1,16,7.1783,3,2.76,9.25,reduce-overhead,False,8,7.1783,,7.3015,-1.7
+qwen3_1_7b,torch.compile,2,1,29.6168,3,7.71,39.09,reduce-overhead,False,64,4.2311,0.0714,36.6481,-19.2
+qwen3_1_7b,torch.compile,2,2,54.6279,3,1.62,73.82,reduce-overhead,False,64,4.6638,0.0427,39.8902,+36.9
+qwen3_1_7b,torch.compile,2,4,53.5591,3,1.88,59.68,reduce-overhead,False,64,5.1071,0.0477,37.3955,+43.2
+qwen3_1_7b,torch.compile,2,8,53.5335,3,5.41,59.29,reduce-overhead,False,64,5.4897,0.0513,36.7754,+45.6
+qwen3_1_7b,torch.compile,2,16,52.4533,3,2.12,83.05,reduce-overhead,False,64,7.1783,0.0684,36.9130,+42.1
+qwen3_1_7b,torch.compile,4,1,29.5880,3,5.85,54.26,reduce-overhead,False,64,4.2311,0.0358,35.5528,-16.8
+qwen3_1_7b,torch.compile,4,2,51.4079,3,13.55,75.03,reduce-overhead,False,64,4.6638,0.0227,36.8069,+39.7
+qwen3_1_7b,torch.compile,4,4,52.7712,3,2.37,62.67,reduce-overhead,False,64,5.1071,0.0242,36.8019,+43.4
+qwen3_1_7b,torch.compile,4,8,54.2656,3,3.23,59.40,reduce-overhead,False,64,5.4897,0.0253,36.9454,+46.9
+qwen3_1_7b,torch.compile,4,16,53.4994,3,4.96,83.25,reduce-overhead,False,64,7.1783,0.0335,36.6954,+45.8

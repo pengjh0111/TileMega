@@ -16,6 +16,7 @@ struct Sm90DenseCandidate {
 };
 struct Sm90DenseSearchResult {
   std::vector<Sm90DenseCandidate> ranked;
+  std::vector<Sm90DenseCandidate> per_structure_optima;
   std::size_t evaluated=0;
   double elapsed_ms=0;
 };

@@ -323,7 +323,7 @@ int RunCompile(int argc, char** argv) {
     std::filesystem::path input(argv[1]);
     std::string variants_path,solve_target,dump_cg,hop_path,domain_path,rejections_path,evaluation_cases_path;
     std::string diagnostic_class_map;
-    std::string seed_geometry,forward_geometry,native_tmexec;
+    std::string seed_geometry,forward_geometry,native_tmexec,native_probe,native_probe_limit;
     std::string serving_phase, emit_mode,measure_command,serving_warm_start,paged_seed_from,artifact_cache;
     std::string frontend_mode="decoder";
     std::string shared_weight_layout;
@@ -367,6 +367,9 @@ int RunCompile(int argc, char** argv) {
     std::string solver_mode="skeleton",legacy_seed,variant_cache,flow_fixture;
     int skeleton_k=8,search_passes=3,search_jobs=1,search_top_m=8,
         search_budget_ms=0,measure_top=6;
+  // Continuation 1 sections 3 and 5: the search path and the ablation arms.
+  std::string native_search="pipeline",native_analysis="reuse",pin_theta,seed_coordinates;
+  bool operator_sum=false,retile_only=false,realize_aggregate=false;
     // Megatron tensor parallel degree for a native dense solve.
     int serving_tp=1;
     bool all_workers=false,flow_search_only=false,incremental_prepare=true,
@@ -396,6 +399,29 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--serving-pruning") serving_pruning=std::stoi(value)!=0;
       else if (flag=="--search-passes") search_passes=std::stoi(value);
       else if (flag=="--measure-top") measure_top=std::stoi(value);
+      else if (flag=="--search") native_search=value;
+      else if (flag=="--analysis") {
+        if(value!="reuse" && value!="rederive" && value!="materialize")
+          throw std::runtime_error("--analysis takes reuse, rederive, or materialize");
+        native_analysis=value;
+      }
+      else if (flag=="--objective") {
+        if(value!="operator-sum" && value!="completion")
+          throw std::runtime_error("--objective takes operator-sum or completion");
+        operator_sum=value=="operator-sum";
+      }
+      else if (flag=="--space") {
+        if(value!="retile-only" && value!="full")
+          throw std::runtime_error("--space takes retile-only or full");
+        retile_only=value=="retile-only";
+      }
+      else if (flag=="--realize") {
+        if(value!="aggregate" && value!="selected")
+          throw std::runtime_error("--realize takes aggregate or selected");
+        realize_aggregate=value=="aggregate";
+      }
+      else if (flag=="--pin-theta") pin_theta=value;
+      else if (flag=="--seed-coordinates") seed_coordinates=value;
       else if (flag=="--tp") serving_tp=std::stoi(value);
       else if (flag=="--top-m") search_top_m=std::stoi(value);
       else if (flag=="--search-jobs") search_jobs=std::stoi(value);
@@ -405,6 +431,8 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--shared-weight-layout") shared_weight_layout=value;
       else if (flag=="--seed-geometry") seed_geometry=value;
       else if (flag=="--tmexec-config") native_tmexec=value;
+      else if (flag=="--native-probe") native_probe=value;
+      else if (flag=="--native-probe-limit") native_probe_limit=value;
       else if (flag=="--forward-geometry") forward_geometry=value;
       else if (flag=="--frontend") frontend_mode=value;
       else if (flag=="--moe-dynamic") moe_dynamic=std::stoi(value);
@@ -572,6 +600,8 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--numerical-rejections") rejections_path=value;
       else throw std::runtime_error("unknown option: "+flag);
     }
+    if((!native_probe.empty() || !native_probe_limit.empty()) && native_tmexec.empty())
+      throw std::invalid_argument("native probe options require --tmexec-config");
     if(!native_tmexec.empty() && serving_phase=="forward") {
       // Native DNN forward (prompt §10 N-1): fixed coordinates over a DNN
       // export, with no legacy execution option accepted.
@@ -609,14 +639,22 @@ int RunCompile(int argc, char** argv) {
     }
     if(!native_tmexec.empty()) {
       std::set<std::string> allowed={"--tmexec-config","--serving","--emit","--batch", "--runtime-target",
-          "--capacity","--prompt-len","--past-range","--dump-cg","--nvcc-split-compile"};
+          "--capacity","--prompt-len","--past-range","--dump-cg","--nvcc-split-compile",
+          "--native-probe","--native-probe-limit"};
       for(int i=3;i<argc;i+=2)if(!allowed.count(argv[i]))
         throw std::invalid_argument("native dense build does not accept legacy option "+std::string(argv[i]));
-      if(serving_phase!="decode" || emit_mode!="serving" || runtime_target.empty() ||
+      if(serving_phase!="decode" || (emit_mode!="serving" && emit_mode!="kernel-sequence") || runtime_target.empty() ||
          serving_capacity!=1088 || serving_prompt_len!=64 || serving_past_lo!=64 || serving_past_hi!=1086)
         throw std::invalid_argument("native dense build requires decode/serving, H800 target and 64:1086 positions");
+      if(!native_probe.empty()) {
+        if(emit_mode!="serving" || !dump_cg.empty())
+          throw std::invalid_argument("native probes use serving emission and retain per-geometry IR");
+        return tilemega::commands::CompileNativeDenseProbe(input.string(),argv[2],native_tmexec,
+            runtime_target,serving_batch,native_probe,native_probe_limit,nvcc_split_compile);
+      }
+      if(!native_probe_limit.empty())throw std::invalid_argument("--native-probe-limit requires --native-probe");
       return tilemega::commands::CompileNativeDenseFixed(input.string(),argv[2],native_tmexec,
-          runtime_target,serving_batch,dump_cg,nvcc_split_compile);
+          runtime_target,serving_batch,dump_cg,nvcc_split_compile,emit_mode=="kernel-sequence");
     }
     if(resource_probe_min_free_mib<1024)
       throw std::invalid_argument("--resource-probe-min-free-mib must be at least 1024; smaller reservations serialize probes");
@@ -637,7 +675,8 @@ int RunCompile(int argc, char** argv) {
       std::set<std::string> allowed={"--solve","--serving","--emit","--batch","--seed-arch",
           "--selection","--measure-cmd","--measure-top",
           "--dump-cg","--runtime-target","--capacity","--prompt-len","--past-range",
-          "--nvcc-split-compile","--tp"};
+          "--nvcc-split-compile","--tp","--search","--analysis","--objective","--space",
+          "--realize","--pin-theta","--seed-coordinates","--search-budget-ms"};
       for(int i=3;i<argc;i+=2)if(!allowed.count(argv[i]))
         throw std::invalid_argument("native solve does not accept legacy option "+std::string(argv[i]));
       if(emit_mode!="serving" || serving_capacity!=1088 || serving_prompt_len!=64 ||
@@ -651,6 +690,11 @@ int RunCompile(int argc, char** argv) {
       native.dump_cg=dump_cg;native.measure_command=measure_command;native.batch=serving_batch;
       native.split_compile=nvcc_split_compile;native.measure_top=measure_top;
       native.measured=search_selection=="measure";native.tp=serving_tp;
+      native.search=native_search;native.analysis=native_analysis;native.operator_sum=operator_sum;
+      native.retile_only=retile_only;native.realize_aggregate=realize_aggregate;
+      native.pin_theta=pin_theta;
+      native.seed_coordinates=seed_coordinates;
+      if(search_budget_ms>0)native.search_budget_ms=search_budget_ms;
       native.solve_command=quote(std::filesystem::read_symlink("/proc/self/exe").string())+" compile";
       for(int i=1;i<argc;++i)native.solve_command+=' '+quote(argv[i]);
       return tilemega::commands::SolveNativeDense(native);

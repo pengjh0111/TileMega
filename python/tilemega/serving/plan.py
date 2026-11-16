@@ -46,6 +46,9 @@ class PlanLibrary:
         self.path = Path(path).resolve(strict=True)
         self.identity = optional_identity(self.path)
         self.lib = C.CDLL(str(self.path), mode=C.RTLD_LOCAL)
+        manifest_path = Path(str(self.path) + '.plan.json')
+        manifest = json.loads(manifest_path.read_text()) if manifest_path.exists() else {}
+        self.execution = manifest.get('execution', 'megakernel')
         self.lib.tm_plan_query.argtypes = [C.POINTER(PlanInfo)]
         self.lib.tm_plan_query.restype = C.c_int
         self.lib.tm_plan_buffer.argtypes = [C.c_uint32, C.POINTER(BufferInfo)]
@@ -58,6 +61,13 @@ class PlanLibrary:
                                             C.c_uint64, C.c_void_p]
         self.lib.tm_plan_launch.restype = C.c_int
         launch_steps = getattr(self.lib, "tm_plan_launch_steps", None)
+        launch_sequence = getattr(self.lib, 'tm_plan_launch_sequence', None)
+        if self.execution == 'kernel_sequence' and launch_sequence is None:
+            raise ValueError('kernel_sequence manifest lacks its launch ABI')
+        if launch_sequence is not None:
+            launch_sequence.argtypes = [C.c_void_p, C.c_uint32, C.c_uint32,
+                                       C.c_uint32, C.c_uint64, C.c_void_p]
+            launch_sequence.restype = C.c_int
         read_step_ns = getattr(self.lib, "tm_plan_read_step_ns", None)
         watchdog = getattr(self.lib, "tm_plan_watchdog", None)
         loop_modes = getattr(self.lib, "tm_plan_loop_modes", None)
@@ -161,6 +171,8 @@ class Plan:
         execution=bind_execution(self.library.identity, {1:'L1',2:'L2'}[mode], loop, pdl,
                                  static_dense=static_dense)
         execution['shared_memory_bytes']=int(self.library.lib.tm_plan_execution_smem(self.handle,mode))
+        if getattr(self.library, 'execution', None) == 'kernel_sequence':
+            execution['execution'] = 'kernel_sequence'
         execution['execution_id']=digest({k:v for k,v in execution.items() if k!='execution_id'})
         return execution
 
@@ -182,8 +194,13 @@ class Plan:
             raise ValueError("forward plans accept only step zero")
         if not self.library.info.modes & mode:
             raise ValueError("mode not present in this plan")
-        if self.library.lib.tm_plan_launch(
-                self.handle, step, mode, self.iteration[mode], stream) != 0:
+        if getattr(self.library, 'execution', None) == 'kernel_sequence':
+            status = self.library.lib.tm_plan_launch_sequence(
+                self.handle, step, 1, mode, self.iteration[mode], stream)
+        else:
+            status = self.library.lib.tm_plan_launch(
+                self.handle, step, mode, self.iteration[mode], stream)
+        if status != 0:
             raise RuntimeError("tm_plan_launch failed")
         self.iteration[mode] += 1
 
@@ -211,7 +228,10 @@ class Plan:
     def launch_steps(self, first: int, count: int, mode: int, stream: int) -> None:
         if not self.library.info.modes & mode:
             raise ValueError("mode not present in this plan")
-        if self.library.lib.tm_plan_launch_steps(self.handle, first, count, mode,
+        launch = (self.library.lib.tm_plan_launch_sequence
+                  if getattr(self.library, 'execution', None) == 'kernel_sequence'
+                  else self.library.lib.tm_plan_launch_steps)
+        if launch(self.handle, first, count, mode,
                 self.iteration[mode], stream) != 0:
             raise RuntimeError("tm_plan_launch_steps failed")
         self.iteration[mode] += count

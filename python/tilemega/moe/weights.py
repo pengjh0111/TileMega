@@ -35,7 +35,9 @@ def _parts(recipe):
     n,k = (2*intermediate,hidden) if part == 'gate_up' else (hidden,intermediate)
     if tile is not None:
         tn,tk = tile
-        if tn <= 0 or tk not in (16,32,64,128) or n % tn or \
+        # Native expert candidates also use TK >= 256. The shared tile-page
+        # packer accepts 16/32 or complete 64-column swizzle blocks.
+        if tn <= 0 or tn % 8 or tk <= 0 or (tk not in (16,32) and tk % 64) or n % tn or \
                 (part == 'gate_up' and tn % (2*unit)):
             raise ValueError('expert page tiles must divide output rows and own complete gate pairs')
         # tile_pack zero-pads the K tail; codegen uses that padded expert stride.

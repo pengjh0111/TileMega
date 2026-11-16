@@ -76,7 +76,7 @@ int run() {
   check(cudaMalloc(&table,vocabulary.size()*2));check(cudaMalloc(&x,B*K*2));check(cudaMemset(x,0,B*K*2));
   check(cudaMemcpy(table,vocabulary.data(),vocabulary.size()*2,cudaMemcpyHostToDevice));
   check(cudaMalloc(&head,sizeof(Sm90DenseHeadOperands)));
-  Sm90DenseHeadOperands host_head{tokens,counter,table,x,kPast};
+  Sm90DenseHeadOperands host_head{tokens,counter,table,x,kPast,0};
   check(cudaMemcpy(head,&host_head,sizeof host_head,cudaMemcpyHostToDevice));
   using Finish=std::conditional_t<O==Op::kArgmaxPartial,Sm90DenseHeadFinish<B,K,1088,Embed>,
       Sm90DenseNoFinish>;
