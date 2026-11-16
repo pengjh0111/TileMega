@@ -2009,6 +2009,10 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   if(!coordinate || !batch_attr || stringField(plan,"dtype")!="bf16")
     throw std::invalid_argument("native dense plan lacks its typed coordinates or batch");
   auto c=solver::Sm90DenseCoordinates::FromJson(json::Parse(coordinate.getValue().str()));
+  bool kernel_sequence=module->hasAttr("tmexec.native_kernel_sequence");
+  if(kernel_sequence && (c.moe || c.cluster!=1 || c.residency!=1 || c.weight_stream ||
+      batch_attr.getInt()!=1))
+    throw std::invalid_argument("preserve-body sequence requires dense B1 cluster1 residency1 without streaming");
   int batch=batch_attr.getInt(),capacity=integerField(serving,"capacity");
   if(capacity!=1088)throw std::invalid_argument("native dense decode binds capacity 1088");
   auto buffers=arrayField(plan,"buffers"),gemms=arrayField(plan,"gemms"),stages=arrayField(plan,"stages");
@@ -2406,7 +2410,20 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   for(auto const& row:info)out<<row;
   out<<"}};\n"
      <<"}  // namespace tilemega::codegen::native_dense\n"
-     <<"#include <tilemega/Codegen/tasks/Sm90DenseRuntime.cuh>\n";
+     ;
+  if(kernel_sequence) {
+    out<<"#define TILEMEGA_NATIVE_KERNEL_SEQUENCE 1\n"
+       <<"#define TILEMEGA_NATIVE_SEQUENCE_PRESERVE_BODY 1\n"
+       <<"#include <tilemega/Codegen/tasks/Sm90DenseSequence.cuh>\n"
+       <<"namespace tilemega::codegen::native_dense {\n"
+       <<"struct NativeSequenceProgram:NativeProgram {\n"
+       <<"static constexpr int kTp=1;static constexpr bool kPostHead=false;\n"
+       <<"using Final=Stage_0;};\n"
+       <<"using NativeSequence=KernelSequence<NativeSequenceProgram,Stage_0,Stage_"<<head<<",NativeSequenceProgram::Final";
+    for(unsigned i=1;i<=per_layer;++i)out<<",Stage_"<<i;
+    out<<">;\n}\n";
+  }
+  out<<"#include <tilemega/Codegen/tasks/Sm90DenseRuntime.cuh>\n";
   return out.str();
 }
 }  // namespace

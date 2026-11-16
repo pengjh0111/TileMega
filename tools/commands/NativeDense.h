@@ -5,7 +5,7 @@
 namespace tilemega::commands {
 int CompileNativeDenseFixed(std::string const& input,std::string const& output,
     std::string const& coordinates,std::string const& target,int batch,
-    std::string const& dump_cg,int split_compile);
+    std::string const& dump_cg,int split_compile,bool kernel_sequence=false);
 bool IsNativeDenseInput(std::string const& input);
 struct NativeDenseSolveOptions {
   std::string input,output,target,dump_cg,measure_command,solve_command;

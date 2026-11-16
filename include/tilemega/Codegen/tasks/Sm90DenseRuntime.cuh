@@ -15,6 +15,10 @@
 // Included after codegen defines NativeProgram, kNativeBuffers, kNativeStages
 // and kNativeEpsilon in native_dense. These are host recipes and constexpr
 // types; no device-side descriptor table or kind/variant dispatch is emitted.
+#ifndef TILEMEGA_NATIVE_KERNEL_SEQUENCE
+#define TILEMEGA_NATIVE_KERNEL_SEQUENCE 0
+#endif
+
 namespace tilemega::codegen::native_dense {
 
 static_assert(kNativeBuffers.size()==NativeProgram::kBuffers);
@@ -48,6 +52,13 @@ struct Plan {
   GridCounter* events=nullptr;
   std::uint64_t* lm_counter=nullptr;
   TraceState trace{};
+#if TILEMEGA_NATIVE_KERNEL_SEQUENCE
+  NativeProgram::Binding* sequence_bindings=nullptr;
+  SequenceState* sequence_state=nullptr;
+  cudaGraph_t sequence_graph=nullptr,sequence_steady_graph=nullptr;
+  cudaGraphExec_t sequence_exec=nullptr,sequence_steady_exec=nullptr;
+#endif
+
 #if TILEMEGA_NATIVE_RELEASE_ENABLED
   release_trace::Binding release_trace{};
 #endif
@@ -58,6 +69,14 @@ struct Plan {
   std::vector<int> boundary_slot_pasts;
 #endif
   ~Plan() {
+#if TILEMEGA_NATIVE_KERNEL_SEQUENCE
+    if(sequence_exec)cudaGraphExecDestroy(sequence_exec);
+    if(sequence_graph)cudaGraphDestroy(sequence_graph);
+    if(sequence_steady_exec)cudaGraphExecDestroy(sequence_steady_exec);
+    if(sequence_steady_graph)cudaGraphDestroy(sequence_steady_graph);
+    cudaFree(sequence_state);cudaFree(sequence_bindings);
+#endif
+
     for(auto* p:owned)cudaFree(p);
     cudaFree(pasts);cudaFree(stamps);cudaFree(events);cudaFree(lm_counter);
     cudaFree(trace.stages);cudaFree(trace.steps);
@@ -80,6 +99,55 @@ inline T* Allocate(std::size_t count) {
   if(status!=cudaSuccess) {cudaFree(result);Check(status);}
   return result;
 }
+#if TILEMEGA_NATIVE_KERNEL_SEQUENCE
+inline void PrepareSequence(Plan& p) {
+  if(p.sequence_exec)Check(cudaGraphExecDestroy(p.sequence_exec));p.sequence_exec=nullptr;
+  if(p.sequence_graph)Check(cudaGraphDestroy(p.sequence_graph));p.sequence_graph=nullptr;
+  if(p.sequence_steady_exec)Check(cudaGraphExecDestroy(p.sequence_steady_exec));p.sequence_steady_exec=nullptr;
+  if(p.sequence_steady_graph)Check(cudaGraphDestroy(p.sequence_steady_graph));p.sequence_steady_graph=nullptr;
+  if(!p.sequence_bindings)p.sequence_bindings=Allocate<NativeProgram::Binding>(1);
+  if(!p.sequence_state)p.sequence_state=Allocate<SequenceState>(1);
+  Check(cudaMemcpy(p.sequence_bindings,&p.bindings,sizeof(p.bindings),cudaMemcpyHostToDevice));
+  cudaStream_t stream=nullptr;Check(cudaStreamCreateWithFlags(&stream,cudaStreamNonBlocking));
+  bool capturing=false;
+  try {
+    Check(cudaStreamBeginCapture(stream,cudaStreamCaptureModeThreadLocal));capturing=true;
+    NativeSequence::Capture(p.sequence_bindings,p.sequence_state,p.pasts,kNativeEpsilon,
+        p.stamps,p.grid,stream);
+    Check(cudaStreamEndCapture(stream,&p.sequence_graph));capturing=false;
+    Check(cudaGraphInstantiate(&p.sequence_exec,p.sequence_graph,0));
+    Check(cudaGraphUpload(p.sequence_exec,stream));Check(cudaStreamSynchronize(stream));
+    if constexpr(NativeProgram::kEmbed) {
+      Check(cudaStreamBeginCapture(stream,cudaStreamCaptureModeThreadLocal));capturing=true;
+      NativeSequence::Capture(p.sequence_bindings,p.sequence_state,p.pasts,kNativeEpsilon,
+          p.stamps,p.grid,stream,false);
+      Check(cudaStreamEndCapture(stream,&p.sequence_steady_graph));capturing=false;
+      Check(cudaGraphInstantiate(&p.sequence_steady_exec,p.sequence_steady_graph,0));
+      Check(cudaGraphUpload(p.sequence_steady_exec,stream));Check(cudaStreamSynchronize(stream));
+    }
+    Check(cudaStreamDestroy(stream));
+  }catch(...) {
+    if(capturing) {cudaGraph_t discarded=nullptr;cudaStreamEndCapture(stream,&discarded);
+      if(discarded)cudaGraphDestroy(discarded);}
+    cudaStreamDestroy(stream);throw;
+  }
+}
+inline int LaunchSequence(Plan& p,unsigned first,unsigned count,unsigned mode,
+    unsigned long long iteration,void* opaque_stream) {
+  if(mode!=TM_SERVING_L1 || !count || first>=p.steps || count>p.steps-first ||
+      iteration!=p.iteration || !p.sequence_exec)return -1;
+  auto stream=static_cast<cudaStream_t>(opaque_stream);
+  sm90_dense_sequence_begin<<<1,1,0,stream>>>(p.sequence_state,first,iteration);
+  auto status=cudaGetLastError();
+  for(unsigned i=0;i<count && status==cudaSuccess;++i) {
+    auto graph=p.sequence_exec;
+    if constexpr(NativeProgram::kEmbed)if(first+i!=0)graph=p.sequence_steady_exec;
+    status=cudaGraphLaunch(graph,stream);
+  }
+  if(status==cudaSuccess)p.iteration+=count;
+  return int(status);
+}
+#endif
 #if TILEMEGA_TRACE_NATIVE_BOUNDARY
 inline void ConfigureBoundary(Plan& p,boundary_diagnostic::Config config) {
   Check(cudaDeviceSynchronize());
@@ -94,6 +162,9 @@ inline void ConfigureBoundary(Plan& p,boundary_diagnostic::Config config) {
 #endif
 inline int Launch(Plan& p,unsigned first,unsigned count,unsigned mode,
                   unsigned long long iteration,void* stream) {
+#if TILEMEGA_NATIVE_KERNEL_SEQUENCE
+  return LaunchSequence(p,first,count,mode,iteration,stream);
+#else
   using RoleLaunch=typename NativeProgram::RoleLaunch;
   static_assert(RoleLaunch::kThreads==160 && RoleLaunch::kY==1 && RoleLaunch::kZ==1);
   if(mode!=TM_SERVING_L1 || !count || first>=p.steps || count>p.steps-first ||
@@ -135,6 +206,7 @@ inline int Launch(Plan& p,unsigned first,unsigned count,unsigned mode,
     p.iteration+=count;
   }
   return int(status);
+#endif
 }
 
 }  // namespace tilemega::codegen::native_dense
@@ -193,6 +265,9 @@ extern "C" void* tm_plan_create(int batch,void* const* external,int device) {
     if(NativeProgram::kSharedBytes>budget)
       throw std::invalid_argument("native release trace exceeds the physical shared-memory budget");
 #endif
+#if TILEMEGA_NATIVE_KERNEL_SEQUENCE
+    NativeSequence::Configure();
+#else
     auto kernel=sm90_dense_native_kernel<NativeProgram>;
     Check(cudaFuncSetAttribute(kernel,cudaFuncAttributeMaxDynamicSharedMemorySize,NativeProgram::kSharedBytes));
     int resident=0;
@@ -214,6 +289,7 @@ extern "C" void* tm_plan_create(int batch,void* const* external,int device) {
       if(plan->grid%NativeProgram::kCluster || clusters*NativeProgram::kCluster<plan->grid)
         throw std::invalid_argument("native cluster grid exceeds the co-resident clusters");
     }
+#endif
     for(unsigned i=0;i<kNativeBuffers.size();++i) {
       auto const& desc=kNativeBuffers[i];
       auto* pointer=epilogue_contract::BindBuffer(metadata[i],batch,required[i],
@@ -304,6 +380,9 @@ extern "C" int tm_plan_set_steps(void* opaque,int const* past,unsigned count) {
     try {stamps=Allocate<unsigned long long>(std::size_t(count)+1);}
     catch(...) {cudaFree(next);throw;}
     cudaFree(p->pasts);cudaFree(p->stamps);p->pasts=next;p->stamps=stamps;p->steps=count;
+#if TILEMEGA_NATIVE_KERNEL_SEQUENCE
+    PrepareSequence(*p);
+#endif
 #if TILEMEGA_TRACE_NATIVE_BOUNDARY
     p->boundary_pasts.assign(past,past+count);
 #endif
