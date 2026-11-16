@@ -1,0 +1,296 @@
+{
+  "evidence": "verified CPU cost-model enumeration",
+  "objective": "independent calibrated operator-local Gemm(pre=false) and complete Attention",
+  "tie_break": "exact score ties prefer D; remaining ties prefer the smaller value",
+  "source_root": "/root/TileMega-ae-r3",
+  "target": "configs/targets/sm_90_h800.json",
+  "D": "/root/TileMega-x1/runs/sm90_decode_ae/D.json",
+  "export": "/root/TileMega-x1/runs/sm90_decode_ae/decode.export.json",
+  "choices": [
+    {
+      "family": "qkv",
+      "D_value": 32,
+      "selected": 32,
+      "predicted_ns": 7540.092082,
+      "candidates": [
+        {
+          "value": 16,
+          "is_D": false,
+          "legal_both_policies": false,
+          "reason": "illegal with all other D parameters fixed"
+        },
+        {
+          "value": 32,
+          "is_D": true,
+          "legal_both_policies": true,
+          "cost_available": true,
+          "predicted_ns": 7540.092082,
+          "terms": {
+            "barrier": 768,
+            "first_byte": 1481.82,
+            "pre": false,
+            "dram": 5176.172082,
+            "l2": 2263.374201,
+            "cta": 2070.90547,
+            "ring": 3951.52,
+            "epilogue": 114.1,
+            "tasks": 128,
+            "multicast": false
+          }
+        },
+        {
+          "value": 64,
+          "is_D": false,
+          "legal_both_policies": true,
+          "cost_available": true,
+          "predicted_ns": 7565.892082,
+          "terms": {
+            "barrier": 768,
+            "first_byte": 1481.82,
+            "pre": false,
+            "dram": 5176.172082,
+            "l2": 2229.080653,
+            "cta": 4079.056228,
+            "ring": 3951.52,
+            "epilogue": 139.9,
+            "tasks": 64,
+            "multicast": false
+          }
+        }
+      ]
+    },
+    {
+      "family": "o",
+      "D_value": 16,
+      "selected": 16,
+      "predicted_ns": 5020.706041,
+      "candidates": [
+        {
+          "value": 8,
+          "is_D": false,
+          "legal_both_policies": false,
+          "reason": "illegal with all other D parameters fixed"
+        },
+        {
+          "value": 16,
+          "is_D": true,
+          "legal_both_policies": true,
+          "cost_available": true,
+          "predicted_ns": 5020.706041,
+          "terms": {
+            "barrier": 768,
+            "first_byte": 1481.82,
+            "pre": false,
+            "dram": 2588.086041,
+            "l2": 1165.980649,
+            "cta": 1066.83009,
+            "ring": 1481.82,
+            "epilogue": 182.8,
+            "tasks": 128,
+            "multicast": false
+          }
+        },
+        {
+          "value": 32,
+          "is_D": false,
+          "legal_both_policies": false,
+          "reason": "illegal with all other D parameters fixed"
+        }
+      ]
+    },
+    {
+      "family": "gate_up",
+      "D_value": 48,
+      "selected": 48,
+      "predicted_ns": 18170.73625,
+      "candidates": [
+        {
+          "value": 48,
+          "is_D": true,
+          "legal_both_policies": true,
+          "cost_available": true,
+          "predicted_ns": 18170.73625,
+          "terms": {
+            "barrier": 768,
+            "first_byte": 1481.82,
+            "pre": false,
+            "dram": 15528.51625,
+            "l2": 6721.535507,
+            "cta": 6149.961698,
+            "ring": 11854.56,
+            "epilogue": 392.4,
+            "tasks": 256,
+            "multicast": false
+          }
+        },
+        {
+          "value": 64,
+          "is_D": false,
+          "legal_both_policies": true,
+          "cost_available": true,
+          "predicted_ns": 18174.83625,
+          "terms": {
+            "barrier": 768,
+            "first_byte": 1481.82,
+            "pre": false,
+            "dram": 15528.51625,
+            "l2": 6687.241959,
+            "cta": 8158.112456,
+            "ring": 11854.56,
+            "epilogue": 396.5,
+            "tasks": 192,
+            "multicast": false
+          }
+        },
+        {
+          "value": 96,
+          "is_D": false,
+          "legal_both_policies": false,
+          "reason": "illegal with all other D parameters fixed"
+        },
+        {
+          "value": 128,
+          "is_D": false,
+          "legal_both_policies": false,
+          "reason": "illegal with all other D parameters fixed"
+        },
+        {
+          "value": 192,
+          "is_D": false,
+          "legal_both_policies": false,
+          "reason": "illegal with all other D parameters fixed"
+        },
+        {
+          "value": 256,
+          "is_D": false,
+          "legal_both_policies": false,
+          "reason": "illegal with all other D parameters fixed"
+        }
+      ]
+    },
+    {
+      "family": "down",
+      "D_value": 16,
+      "selected": 16,
+      "predicted_ns": 10196.87812,
+      "candidates": [
+        {
+          "value": 8,
+          "is_D": false,
+          "legal_both_policies": false,
+          "reason": "illegal with all other D parameters fixed"
+        },
+        {
+          "value": 16,
+          "is_D": true,
+          "legal_both_policies": true,
+          "cost_available": true,
+          "predicted_ns": 10196.87812,
+          "terms": {
+            "barrier": 768,
+            "first_byte": 1481.82,
+            "pre": false,
+            "dram": 7764.258123,
+            "l2": 3497.941948,
+            "cta": 3200.490271,
+            "ring": 5927.28,
+            "epilogue": 182.8,
+            "tasks": 128,
+            "multicast": false
+          }
+        },
+        {
+          "value": 32,
+          "is_D": false,
+          "legal_both_policies": false,
+          "reason": "illegal with all other D parameters fixed"
+        }
+      ]
+    },
+    {
+      "family": "lm_head",
+      "D_value": 128,
+      "selected": 128,
+      "predicted_ns": 194687.2532,
+      "candidates": [
+        {
+          "value": 128,
+          "is_D": true,
+          "legal_both_policies": true,
+          "cost_available": true,
+          "predicted_ns": 194687.2532,
+          "terms": {
+            "barrier": 768,
+            "first_byte": 1481.82,
+            "pre": false,
+            "dram": 192003.6332,
+            "l2": 82048.92231,
+            "cta": 72858.2197,
+            "ring": 142254.72,
+            "epilogue": 433.8,
+            "tasks": 1187,
+            "multicast": false
+          }
+        }
+      ]
+    },
+    {
+      "family": "attention",
+      "D_value": 16,
+      "selected": 16,
+      "predicted_ns": 5458.556049,
+      "candidates": [
+        {
+          "value": 4,
+          "is_D": false,
+          "legal_both_policies": true,
+          "cost_available": true,
+          "predicted_ns": 7879.294196,
+          "terms": {
+            "barrier": 768,
+            "prepare": 618.7,
+            "dram": 726.6354852,
+            "compute": 4099.684196,
+            "merge": 1971.7,
+            "dsmem": false
+          }
+        },
+        {
+          "value": 8,
+          "is_D": false,
+          "legal_both_policies": true,
+          "cost_available": true,
+          "predicted_ns": 6299.702098,
+          "terms": {
+            "barrier": 768,
+            "prepare": 618.7,
+            "dram": 726.6354852,
+            "compute": 2232.692098,
+            "merge": 2259.1,
+            "dsmem": false
+          }
+        },
+        {
+          "value": 16,
+          "is_D": true,
+          "legal_both_policies": true,
+          "cost_available": true,
+          "predicted_ns": 5458.556049,
+          "terms": {
+            "barrier": 768,
+            "prepare": 618.7,
+            "dram": 726.6354852,
+            "compute": 1116.346049,
+            "merge": 2534.3,
+            "dsmem": false
+          }
+        }
+      ]
+    }
+  ],
+  "legal_both_policies": true,
+  "gpu_candidate_sweeps": 0,
+  "structure_or_derive_calls": 0,
+  "stale_constant_headers": []
+}
+

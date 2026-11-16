@@ -1,0 +1,8 @@
+ratio,value,interpretation
+TA/TB,1.0004586444958141,"decomposition; L=D, so no decomposition treatment difference"
+TC/TD,0.9992260137520929,"decomposition; L=D, with historical D denominator"
+TA/TC,1.014905050286867,policy: QKV-to-attention release only
+TB/TD,1.0136546206226085,policy with historical D denominator
+TA/TD,1.0141195277350135,joint comparison with historical D denominator
+TE/TD,1.25117162128633,overall execution organization with historical D denominator
+TE/TB,1.2343174843102216,same stage computations and aggregate inter-stage boundaries

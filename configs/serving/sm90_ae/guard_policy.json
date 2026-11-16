@@ -1,0 +1,81 @@
+{
+  "idle_power_w": 21.81,
+  "power_margin_w": 30.0,
+  "samples": 6,
+  "interval_s": 5,
+  "max_util_pct": 5,
+  "max_hidden_mib": 1024,
+  "hidden_violations": 3,
+  "max_idle_wait_s": 21600,
+  "idle_power_w_by_gpu": {
+    "0": 142.23,
+    "1": 135.82,
+    "2": 149.18,
+    "3": 139.0,
+    "4": 142.8,
+    "5": 132.29,
+    "6": 203.93,
+    "7": 136.3
+  },
+  "idle_power_mapping_provenance": {
+    "evidence": "inferred transfer of original measured idle power by GPU UUID; no new power calibration",
+    "inventory_identity_mapping_sha256": "d5857d7b53a433b8ea90a11502a24beed348a91df8c7049caf25ff8937384888",
+    "uuid_by_gpu": {
+      "0": "GPU-73c1a37e-d3c0-dc24-b81d-6a5563ebe677",
+      "1": "GPU-344fa712-6ca8-3673-b04b-33b9c3cbffac",
+      "2": "GPU-701b606f-5e57-e434-5e2b-d5cc774c3c9e",
+      "3": "GPU-5b5e235a-09a2-fe8b-7754-916b7eb85976",
+      "4": "GPU-1f2fad96-e938-be19-e775-94e8ae7501a4",
+      "5": "GPU-676e5df2-ee6c-11b3-6faa-e1ab1911e0c3",
+      "6": "GPU-e7663e49-e611-cb17-4991-afa1b0cfe2e2",
+      "7": "GPU-ac78f16f-955d-c08b-e6fe-4e4554c8954d"
+    }
+  },
+  "allowed_gpu_indices": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "gpu_allowlist_file": "/root/TileMega/runs/sm90r2/active_constraints.json",
+  "allowed_timing_gpu_indices": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    7
+  ],
+  "idle_power_recalibration": {
+    "date": "2026-11-01",
+    "evidence": "verified",
+    "method": "6 samples 5 s apart, 0 MiB, 0% util, no compute apps",
+    "cards": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "reason": "SM clocks held at 1980 MHz while idle on 0-4 (and 6), set outside this harness; idle draw rose to 129.5-142.9 W from 81.5-87.8 W, above the old idle + 30 W bound, so the guard could never start a group on them. Cards 5 and 7 idle at 345 MHz and keep their values."
+  },
+  "idle_power_recalibration_r6": {
+    "date": "2026-11-03",
+    "evidence": "verified",
+    "method": "6 samples 5 s apart, skipping any card with memory in use or non-zero utilisation",
+    "cards": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      7
+    ],
+    "reason": "SM clocks on the timing cards are being changed outside this harness during the round (U13): 0-4 sit at 1980 MHz, card 5 moved 345 -> 1830 MHz and card 7 345 -> 1980 MHz within twenty minutes, so idle draw rose well past the values R5 recorded and the guard refused every job with \"preflight occupied\". Only the recorded idle power is refreshed, from measurement, on cards that were verifiably free (0 MiB, 0% util, no owners). No clock, power limit or persistence setting was changed, and the guard keeps its memory, foreign-process and lock checks."
+  }
+}
