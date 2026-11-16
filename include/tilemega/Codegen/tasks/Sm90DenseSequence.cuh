@@ -3,6 +3,10 @@
 #include <tilemega/Codegen/tasks/Sm90DenseProgram.cuh>
 #include <stdexcept>
 
+#ifndef TILEMEGA_NATIVE_SEQUENCE_PRESERVE_BODY
+#define TILEMEGA_NATIVE_SEQUENCE_PRESERVE_BODY 0
+#endif
+
 #if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP || TILEMEGA_TRACE_NATIVE_PHASES || TILEMEGA_TRACE_NATIVE_BOUNDARY || TILEMEGA_NATIVE_RELEASE_ENABLED
 #error "kernel sequence does not implement megakernel trace ledgers"
 #endif
@@ -22,7 +26,11 @@ template<class P,class Stage,bool First=false>
 __global__ __launch_bounds__(P::kThreads,P::kResidency)
 void sm90_dense_sequence_stage(typename P::Binding const* binding,SequenceState const* state,
     int const* pasts,int layer,float epsilon,unsigned long long* stamps) {
-  static_assert(Stage::kGroupTiles==0,"kernel sequence requires aggregate boundaries");
+  static_assert(TILEMEGA_NATIVE_SEQUENCE_PRESERVE_BODY || Stage::kGroupTiles==0,
+      "aggregate kernel sequence requires aggregate boundaries");
+  static_assert(!TILEMEGA_NATIVE_SEQUENCE_PRESERVE_BODY || (P::kTp==1 && P::kCluster==1));
+  static_assert(!TILEMEGA_NATIVE_SEQUENCE_PRESERVE_BODY || Stage::kPrefix==0,
+      "preserve-body sequence does not stream across kernels");
   extern __shared__ __align__(1024) char shared[];
   auto* rings=reinterpret_cast<backend::Sm90DenseRingState*>(shared);
   rings[0].Initialize();rings[1].Initialize();
@@ -44,7 +52,7 @@ void sm90_dense_sequence_stage(typename P::Binding const* binding,SequenceState 
 
 template<class P,class Prologue,class Head,class Final,class... LayerStages>
 struct KernelSequence {
-  static_assert(P::kTp==1 && !P::kEmbed && P::kPostHead);
+  static_assert(P::kTp==1 && (TILEMEGA_NATIVE_SEQUENCE_PRESERVE_BODY || (!P::kEmbed && P::kPostHead)));
   static_assert(sizeof...(LayerStages)==P::kPerLayer);
   static void Check(cudaError_t result) {
     if(result!=cudaSuccess)throw std::runtime_error(cudaGetErrorString(result));
@@ -60,7 +68,9 @@ struct KernelSequence {
   }
   static void Configure() {
     ConfigureStage<Prologue,true>();(ConfigureStage<LayerStages>(),...);
-    ConfigureStage<Head>();ConfigureStage<Final>();
+    ConfigureStage<Head>();
+    if constexpr(P::kPostHead)ConfigureStage<Final>();
+    if constexpr(P::kEmbed)ConfigureStage<typename P::template GroupStage<0>,true>();
   }
   template<class Stage,bool First=false>
   static void LaunchStage(typename P::Binding const* binding,SequenceState const* state,
@@ -80,13 +90,30 @@ struct KernelSequence {
     }
   }
   static void Capture(typename P::Binding const* binding,SequenceState* state,int const* pasts,
-      float epsilon,unsigned long long* stamps,int grid,cudaStream_t stream) {
-    LaunchStage<Prologue,true>(binding,state,pasts,0,epsilon,stamps,grid,stream);
-    for(unsigned layer=0;layer<P::kLayers;++layer)
+      float epsilon,unsigned long long* stamps,int grid,cudaStream_t stream,bool initial=true) {
+    if(!P::kEmbed || initial)
+      LaunchStage<Prologue,true>(binding,state,pasts,0,epsilon,stamps,grid,stream);
+    for(unsigned layer=0;layer<P::kLayers;++layer) {
+      if constexpr(P::kEmbed) {
+        if(!initial && layer==0) {
+          CaptureSteadyLayer(binding,state,pasts,epsilon,stamps,grid,stream,
+              std::make_index_sequence<sizeof...(LayerStages)>{});
+          continue;
+        }
+      }
       (LaunchStage<LayerStages>(binding,state,pasts,layer,epsilon,stamps,grid,stream),...);
+    }
     LaunchStage<Head>(binding,state,pasts,0,epsilon,stamps,grid,stream);
-    LaunchStage<Final>(binding,state,pasts,0,epsilon,stamps,grid,stream);
+    if constexpr(P::kPostHead)LaunchStage<Final>(binding,state,pasts,0,epsilon,stamps,grid,stream);
     sm90_dense_sequence_advance<<<1,1,0,stream>>>(state,stamps);Check(cudaGetLastError());
+  }
+  template<std::size_t... I>
+  static void CaptureSteadyLayer(typename P::Binding const* binding,SequenceState* state,
+      int const* pasts,float epsilon,unsigned long long* stamps,int grid,cudaStream_t stream,
+      std::index_sequence<I...>) {
+    // The head already produced x; the steady step starts at its first QKV.
+    (LaunchStage<std::tuple_element_t<I,std::tuple<LayerStages...>>,I==0>(
+        binding,state,pasts,0,epsilon,stamps,grid,stream),...);
   }
 };
 } // namespace tilemega::codegen::native_dense

@@ -2013,7 +2013,10 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   auto c=solver::Sm90DenseCoordinates::FromJson(json::Parse(coordinate.getValue().str()));
   solver::ValidateSm90NativeBoundaryContracts(module);
   bool kernel_sequence=module->hasAttr("tmexec.native_kernel_sequence");
-  if(kernel_sequence && (c.tp!=1 || c.group_wait || c.embed_la || !c.argmax_stage ||
+  bool preserve_sequence=kernel_sequence && !c.moe && c.tp==1 && c.cluster==1 &&
+      !c.weight_stream && !c.attention.dsmem &&
+      (c.group_wait || c.embed_la || !c.argmax_stage || !c.attention.merge_stage);
+  if(kernel_sequence && !preserve_sequence && (c.tp!=1 || c.group_wait || c.embed_la || !c.argmax_stage ||
       c.attention.dsmem || !c.attention.merge_stage || c.expert_fuse ||
       (c.moe && (c.route!=solver::Sm90DenseCoordinates::Route::kStage || !c.combine_stage))))
     throw std::invalid_argument("kernel-sequence requires aggregate realization coordinates");
@@ -2612,9 +2615,11 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
      <<"}  // namespace tilemega::codegen::native_dense\n";
   if(kernel_sequence) {
     out<<"#define TILEMEGA_NATIVE_KERNEL_SEQUENCE 1\n"
+       <<(preserve_sequence?"#define TILEMEGA_NATIVE_SEQUENCE_PRESERVE_BODY 1\n":"")
        <<"#include <tilemega/Codegen/tasks/Sm90DenseSequence.cuh>\n"
        <<"namespace tilemega::codegen::native_dense {\n"
-       <<"using NativeSequence=KernelSequence<NativeProgram,Stage_0,Stage_"<<head<<",ArgmaxStage";
+       <<"using NativeSequence=KernelSequence<NativeProgram,Stage_0,Stage_"<<head
+       <<",NativeProgram::Final";
     for(unsigned i=1;i<=per_layer;++i)out<<",Stage_"<<i;
     out<<">;\n}\n";
   }

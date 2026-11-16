@@ -74,6 +74,8 @@ struct Plan {
   SequenceState* sequence_state=nullptr;
   cudaGraph_t sequence_graph=nullptr;
   cudaGraphExec_t sequence_exec=nullptr;
+  cudaGraph_t sequence_steady_graph=nullptr;
+  cudaGraphExec_t sequence_steady_exec=nullptr;
 #endif
 #if TILEMEGA_NATIVE_RELEASE_ENABLED
   release_trace::Binding release_trace{};
@@ -88,6 +90,8 @@ struct Plan {
 #if TILEMEGA_NATIVE_KERNEL_SEQUENCE
     if(sequence_exec)cudaGraphExecDestroy(sequence_exec);
     if(sequence_graph)cudaGraphDestroy(sequence_graph);
+    if(sequence_steady_exec)cudaGraphExecDestroy(sequence_steady_exec);
+    if(sequence_steady_graph)cudaGraphDestroy(sequence_steady_graph);
     cudaFree(sequence_state);cudaFree(sequence_bindings);
 #endif
     for(auto* p:owned)cudaFree(p);
@@ -125,6 +129,8 @@ inline T* Allocate(std::size_t count) {
 inline void PrepareSequence(Plan& p) {
   if(p.sequence_exec)Check(cudaGraphExecDestroy(p.sequence_exec));p.sequence_exec=nullptr;
   if(p.sequence_graph)Check(cudaGraphDestroy(p.sequence_graph));p.sequence_graph=nullptr;
+  if(p.sequence_steady_exec)Check(cudaGraphExecDestroy(p.sequence_steady_exec));p.sequence_steady_exec=nullptr;
+  if(p.sequence_steady_graph)Check(cudaGraphDestroy(p.sequence_steady_graph));p.sequence_steady_graph=nullptr;
   if(!p.sequence_bindings)p.sequence_bindings=Allocate<NativeProgram::Binding>(1);
   if(!p.sequence_state)p.sequence_state=Allocate<SequenceState>(1);
   Check(cudaMemcpy(p.sequence_bindings,&p.bindings,sizeof(p.bindings),cudaMemcpyHostToDevice));
@@ -137,6 +143,14 @@ inline void PrepareSequence(Plan& p) {
     Check(cudaStreamEndCapture(stream,&p.sequence_graph));capturing=false;
     Check(cudaGraphInstantiate(&p.sequence_exec,p.sequence_graph,0));
     Check(cudaGraphUpload(p.sequence_exec,stream));Check(cudaStreamSynchronize(stream));
+    if constexpr(NativeProgram::kEmbed) {
+      Check(cudaStreamBeginCapture(stream,cudaStreamCaptureModeThreadLocal));capturing=true;
+      NativeSequence::Capture(p.sequence_bindings,p.sequence_state,p.pasts,kNativeEpsilon,
+          p.stamps,p.grid,stream,false);
+      Check(cudaStreamEndCapture(stream,&p.sequence_steady_graph));capturing=false;
+      Check(cudaGraphInstantiate(&p.sequence_steady_exec,p.sequence_steady_graph,0));
+      Check(cudaGraphUpload(p.sequence_steady_exec,stream));Check(cudaStreamSynchronize(stream));
+    }
     Check(cudaStreamDestroy(stream));
   }catch(...) {
     if(capturing) {cudaGraph_t discarded=nullptr;cudaStreamEndCapture(stream,&discarded);
@@ -152,7 +166,11 @@ inline int LaunchSequence(Plan& p,unsigned first,unsigned count,unsigned mode,
   auto stream=static_cast<cudaStream_t>(opaque_stream);
   sm90_dense_sequence_begin<<<1,1,0,stream>>>(p.sequence_state,first,iteration);
   auto status=cudaGetLastError();
-  for(unsigned i=0;i<count && status==cudaSuccess;++i)status=cudaGraphLaunch(p.sequence_exec,stream);
+  for(unsigned i=0;i<count && status==cudaSuccess;++i) {
+    auto graph=p.sequence_exec;
+    if constexpr(NativeProgram::kEmbed)if(first+i!=0)graph=p.sequence_steady_exec;
+    status=cudaGraphLaunch(graph,stream);
+  }
   if(status==cudaSuccess)p.iteration+=count;
   return int(status);
 }

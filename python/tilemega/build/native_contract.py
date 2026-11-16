@@ -54,7 +54,12 @@ def validate(manifest, defines):
     sequence = manifest.get('execution') == 'kernel_sequence'
     if sequence != (defines.get('TILEMEGA_NATIVE_KERNEL_SEQUENCE') == '1'):
         raise ValueError('native kernel sequence execution differs from generated macros')
-    if sequence and (tp != 1 or c.get('group_wait') or c.get('emb') != 'stage' or
+    preserve = defines.get('TILEMEGA_NATIVE_SEQUENCE_PRESERVE_BODY') == '1'
+    if preserve and (not sequence or c['model'] != 'dense' or tp != 1 or
+                     c.get('cluster') != 1 or c.get('weight_stream') or
+                     c['attention'].get('merge') == 'dsmem'):
+        raise ValueError('preserve-body sequence requires dense TP1 cluster1 without streaming or DSMEM')
+    if sequence and not preserve and (tp != 1 or c.get('group_wait') or c.get('emb') != 'stage' or
                      not argmax_stage or c['attention'].get('merge') != 'stage' or
                      c.get('expert_fuse') or (c['model'] == 'moe' and
                                              (route != 'stage' or combine != 'stage'))):
