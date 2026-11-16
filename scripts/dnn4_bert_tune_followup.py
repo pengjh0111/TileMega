@@ -439,4 +439,84 @@ def collect(base):
             '348.224/241.760/72.352/39.392us; main drops32.736us,epilogue rises23.488us. '
             'Nested maxima are cross-card diagnostics and do not establish end-to-end gain. '
             'Twenty older geometry instances have different whole-current contexts; negatives remain closed.')
+    qkv = session / 'qkv_m128n192_reg_current_b16_v1'
+    if (qkv / 'result.json').exists():
+        experiment = read(qkv / 'experiment.json')
+        units = read(base / 'qkv_m128n192_reg_current_b16_units_v1/result.json')
+        setup = base / 'qkv_m128n192_reg_current_b16_v1'
+        binding, marker = read(setup / 'binding_contract.json'), read(setup / 'binding_map_proof.json')
+        marker_gate = read(marker['reference_gate'])
+        functional = read(qkv / 'functional_components.json')
+        body = read(functional['body'])
+        expected = copy.deepcopy(read(experiment['reference']['library'] + '.plan.json')['native_forward'])
+        for stage in range(6, 57, 5):
+            expected['stages'][stage].update(tile_n=192, slots=5)
+        require(binding['passed'] and binding['checks'] == 1380
+                and marker['passed'] and marker['encoded_words'] == 1056 and marker['source_identical']
+                and marker_gate['passed'] and len(marker_gate['processes']) == 17
+                and all(not p['exit_code'] and not read(p['guard'])['code']
+                        and p['binary_sha256'] == marker['reference_sha256'] for p in marker_gate['processes'])
+                and units['passed'] and len(units['rows']) == 6
+                and units['rows'][0]['encoded_words'] == 20688
+                and [r['encoded_words'] for r in units['rows'][2:]] == [6864, 9296, 8608, 11104]
+                and body['passed'] and len({p['pid'] for p in body['processes']}) == 17
+                and Counter(p['name'].split('-')[0] for p in body['processes']) ==
+                    Counter(unit=5, memcheck=1, initcheck=1, racecheck=5, synccheck=5)
+                and len({p['output_hash'] for p in body['processes']}) == 1
+                and all(not p['exit_code'] and not read(p['guard'])['code'] for p in body['processes'])
+                and experiment['unit_gates'] == [functional['body'], *units['unit_gates']]
+                and read(experiment['library'] + '.plan.json')['native_forward'] == expected,
+                'isolated QKV changes its fixed geometry or exact body/order gates')
+        row = rejected_pair(qkv, experiment, qkv / 'model/result.json',
+                            'Repeated QKV M128N192 REG on PF1 current B16')
+        rows.append(row)
+        paragraphs.append('Verified original DT-MODEL group2/rank1 changes only11 repeated QKV '
+            '128x96REG7→128x192REG5; firstQKV/other52 coordinates/current profile remain fixed. '
+            'Native303744B/R160,zero spill. Fresh body17 and strict model5 passGPU1; outputs equal '
+            'incumbent. Control5/fourorder17 explicitly reused with exact compile inputs/words. '
+            'All1380 operand lookups passCPU; actual marker CU including table/expected inputs '
+            'is byte-identical to the certified fixture and all1056 words match actual historical '
+            'map17, so map gate is explicit reuse, not fresh SAN. '
+            f'GPU{row["gpu"]} pair {row["reference_ms"]:.9f}→{row["candidate_ms"]:.9f}ms regresses '
+            f'{100*(row["ratio"]-1):.6f}%,noise{row["threshold_pct"]:.6f}%: reject,no P-DNN/current '
+            'update. OriginalGPU0 preflight75/queue preserved; only three owned idle processes '
+            'retired, original cooldown honored before fresh GPU1 body_resume_v1. No active GPU '
+            'or foreign process termination. ExactGPU1 trace1 repeatQKV stage/main/epilogue/store '
+            '308.992/203.488/80.224/46.144us; historical currentGPU2 '
+            '348.224/241.760/72.352/39.392us. Main drops38.272us,epilogue rises7.872us; '
+            'cross-card nested maxima remain diagnostics, not end-to-end gain.')
+    qkv = session / 'qkv_m128n128_reg_current_b16_v1'
+    if (qkv / 'result.json').exists():
+        experiment = read(qkv / 'experiment.json')
+        units = read(base / 'qkv_m128n128_reg_current_b16_units_v1/result.json')
+        body = read(qkv / 'body/result.json')
+        expected = copy.deepcopy(read(experiment['reference']['library'] + '.plan.json')['native_forward'])
+        for stage in range(6, 57, 5):
+            expected['stages'][stage].update(tile_n=128, slots=6)
+        require(units['passed'] and len(units['rows']) == 6
+                and units['rows'][0]['encoded_words'] == 20688
+                and [r['encoded_words'] for r in units['rows'][2:]] == [6864, 9296, 8608, 11104]
+                and body['passed'] and len({p['pid'] for p in body['processes']}) == 17
+                and Counter(p['name'].split('-')[0] for p in body['processes']) ==
+                    Counter(unit=5, memcheck=1, initcheck=1, racecheck=5, synccheck=5)
+                and len({p['output_hash'] for p in body['processes']}) == 1
+                and all(not p['exit_code'] and not read(p['guard'])['code'] for p in body['processes'])
+                and experiment['unit_gates'] == [str(qkv / 'body/result.json'), *units['unit_gates']]
+                and read(experiment['library'] + '.plan.json')['native_forward'] == expected,
+                'isolated N128 QKV changes its fixed geometry or body/order gates')
+        row = rejected_pair(qkv, experiment, qkv / 'model/result.json',
+                            'Repeated QKV M128N128 REG on PF1 current B16')
+        rows.append(row)
+        paragraphs.append('Verified original DT-MODEL group2/rank5 changes only11 repeated QKV '
+            '128x96REG7→128x128REG6;other52 coordinates/current profile fixed. Native297472B/R160, '
+            'zero spill. Original2048/2049 NT12/NT1 body17 and strict model5 passGPU1; '
+            'control5/fourorder17 explicitly reuse unchanged20688/6864/9296/8608/11104 '
+            'instruction streams and compile inputs. '
+            f'GPU{row["gpu"]} pair {row["reference_ms"]:.9f}→{row["candidate_ms"]:.9f}ms regresses '
+            f'{100*(row["ratio"]-1):.6f}%,noise{row["threshold_pct"]:.6f}%: reject,no P-DNN/current '
+            'update. ExactGPU1 trace1 repeatQKV stage/main/epilogue/store '
+            '380.640/255.136/86.304/47.328us versus historical currentGPU2 '
+            '348.224/241.760/72.352/39.392us;main rises13.376us,epilogue rises13.952us. '
+            'Cross-card nested maxima are diagnostic only. No additional mapping SAN claimed '
+            'for this rejected program;prior geometry negatives stay closed.')
     return rows, paragraphs, tune_rows
