@@ -254,6 +254,8 @@ add_library(tilemega_core STATIC
   lib/Runtime/EventBuffer.cpp
   lib/Runtime/MegakernelRuntime.cpp)
 add_library(TileMega::tilemega ALIAS tilemega_core)
+add_executable(sm90-decode-ae-local EXCLUDE_FROM_ALL scripts/sm90_decode_ae_local.cpp)
+target_link_libraries(sm90-decode-ae-local PRIVATE TileMega::tilemega)
 set_target_properties(tilemega_core PROPERTIES OUTPUT_NAME tilemega)
 target_compile_features(tilemega_core PUBLIC cxx_std_17)
 target_include_directories(tilemega_core PUBLIC
