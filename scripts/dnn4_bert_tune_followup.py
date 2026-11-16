@@ -523,4 +523,8 @@ def collect(base):
     stats_rows, stats_paragraphs = collect_stats_tma(base)
     rows.extend(stats_rows)
     paragraphs.extend(stats_paragraphs)
+    from dnn4_bert_reader_tile import collect as collect_reader_tile
+    reader_rows, reader_paragraphs = collect_reader_tile(base)
+    rows.extend(reader_rows)
+    paragraphs.extend(reader_paragraphs)
     return rows, paragraphs, tune_rows
