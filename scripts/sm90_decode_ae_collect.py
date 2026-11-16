@@ -16,6 +16,7 @@ ORDER = ('A', 'B', 'C', 'E', 'B', 'C', 'E', 'A', 'C', 'E', 'A', 'B')
 
 def collect(args):
     spec = read(args.spec)
+    policy = Path(spec.get('guard_policy', ROOT / 'configs/bench/sm90r2_guard_policy.json'))
     if set(spec['arms']) != {'A', 'B', 'C', 'E'}:
         raise ValueError('only A/B/C/E may be measured; D must remain historical')
     if not spec.get('body_version_resolution'):
@@ -29,7 +30,8 @@ def collect(args):
     out = args.out.resolve();out.mkdir(parents=True, exist_ok=True)
     state_path = out / 'state.json'
     state = read(state_path) if state_path.exists() else dict(spec=str(args.spec.resolve()),
-        spec_sha256=sha(args.spec), gpu=args.gpu, inventory=inventory, order=list(ORDER), items=[])
+        spec_sha256=sha(args.spec), gpu=args.gpu, inventory=inventory, order=list(ORDER), items=[],
+        guard_policy=str(policy), guard_policy_sha256=sha(policy))
     if state['spec_sha256'] != sha(args.spec) or state['gpu'] != args.gpu or state['inventory'] != inventory:
         raise ValueError('resume must retain the same spec and physical GPU')
     if any(item['status'] == 'running' for item in state['items']):
@@ -57,7 +59,7 @@ def collect(args):
                 attempt = out / f'{slot:02d}-{arm}' / f'attempt-{len(item["attempts"])}'
                 attempt.mkdir(parents=True)
                 command = [PYTHON, ROOT / 'scripts/sm90r6_guard.py', '--policy',
-                    ROOT / 'configs/bench/sm90r2_guard_policy.json', '--out', attempt,
+                    policy, '--out', attempt,
                     '--needs-free-mib', '32768', '--timeout-s', '1800', '--',
                     'numactl', f'--cpunodebind={numa}', PYTHON, '-m',
                     'tilemega.serving.random_checkpoint', '--config',
