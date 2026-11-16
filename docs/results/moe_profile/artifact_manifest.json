@@ -1,0 +1,95 @@
+{
+  "evidence": "verified final artifact hashes after payload cleanup",
+  "artifacts": [
+    {
+      "path": "docs/results/moe_profile/README.md",
+      "bytes": 10208,
+      "sha256": "5d4ac46b3584724f84248ae96aeaec5ee3976dff8885f91331c4c9b6e483cca2"
+    },
+    {
+      "path": "docs/results/moe_profile/benchmark.csv",
+      "bytes": 45166,
+      "sha256": "7112aa5b0b065c998e2d09b1aba1209e33f0b2a862fdee5670841f26490ba69d"
+    },
+    {
+      "path": "docs/results/moe_profile/cleanup.json",
+      "bytes": 2034,
+      "sha256": "183cd6d6946bb3f0852b711c6f6378f98b5a4f4bb68c277df7c1a4c89cfe9b17"
+    },
+    {
+      "path": "docs/results/moe_profile/controls.json",
+      "bytes": 9370,
+      "sha256": "e6be6287adcd3f7eb3d8fbe9019d38dc221d6e856a8bc941138609429f3bfe5b"
+    },
+    {
+      "path": "docs/results/moe_profile/coverage.json",
+      "bytes": 526,
+      "sha256": "cbeff1bfbb3981a3cd824033e96ef49a035d561e8c8d414ea42ff70548fa6992"
+    },
+    {
+      "path": "docs/results/moe_profile/data_identity.json",
+      "bytes": 3635,
+      "sha256": "bc6ded84e57ea2d65d0d7ab91a876d693b31cb9576a11cfd1ca503d7d7644f53"
+    },
+    {
+      "path": "docs/results/moe_profile/environment.json",
+      "bytes": 4616,
+      "sha256": "0510ff07b55c22daf07145a5fc55c7e188cdeedd903b8486d6668be7ca624b74"
+    },
+    {
+      "path": "docs/results/moe_profile/excluded_attempts.csv",
+      "bytes": 3258,
+      "sha256": "65df7699d9ba0597ed4e5a25ac1f2e36e5979c6d8531ee05c58dacb8af4845a1"
+    },
+    {
+      "path": "docs/results/moe_profile/gpu_windows.csv",
+      "bytes": 5812,
+      "sha256": "09abee87c44e020eb14ae205b135e07092040df0b4142a2d05b0a02e28b1f11b"
+    },
+    {
+      "path": "docs/results/moe_profile/kernel_metrics.csv",
+      "bytes": 1115486,
+      "sha256": "c7779e4d03ed5834aae61f6b083eb89f72b6dfb3b2c4d5963edfe1af139ea016"
+    },
+    {
+      "path": "docs/results/moe_profile/launch_parameters.json",
+      "bytes": 18015,
+      "sha256": "ea929f788a32d2a0e28d929dea02588313ee6f403d33607d3716bd8340f7290d"
+    },
+    {
+      "path": "docs/results/moe_profile/report.md",
+      "bytes": 25935,
+      "sha256": "e85fcb05beaf5ff51e81ea5607b76568a3dc406bd7099ca7357feac6edde2268"
+    },
+    {
+      "path": "docs/results/moe_profile/routing_stats/gemm_shapes.csv",
+      "bytes": 5962,
+      "sha256": "f3d0bb162b0e4935a56b5682d40099fb075e7991899b469d0d566994eb3552fe"
+    },
+    {
+      "path": "docs/results/moe_profile/routing_stats/per_layer.csv",
+      "bytes": 1001239,
+      "sha256": "9ed30422ae8fff820f1540ca6c56bbd57f324f96a13cdf1e7df781706444738d"
+    },
+    {
+      "path": "docs/results/moe_profile/routing_stats/summary.csv",
+      "bytes": 1437,
+      "sha256": "ae7f899f3cb7e7d40d84c4cfd8c5ef59f4d938acb4d697f8adcb72e96b522c2c"
+    },
+    {
+      "path": "docs/results/moe_profile/routing_stats/validation.json",
+      "bytes": 2880,
+      "sha256": "2b6c3bb5f674e8555792e16e7f9714b8124f0670fbbce312d33ba9e4c7e878c3"
+    },
+    {
+      "path": "docs/results/moe_profile/stage_breakdown.csv",
+      "bytes": 68059,
+      "sha256": "24b9b7a0b3c243ed47bae5ffc6f34e799ca7b479c09485dc7e525bf80da246e6"
+    },
+    {
+      "path": "docs/results/moe_profile/validation.json",
+      "bytes": 282,
+      "sha256": "e590057d34566ec2859cbcc2c3d2d5fb2343a34966f1f3b2a4803c261c1784f2"
+    }
+  ]
+}

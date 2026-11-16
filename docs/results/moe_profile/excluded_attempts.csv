@@ -1,0 +1,16 @@
+attempt,code,reason,scope
+/root/TileMega-moe-profile/runs/moe_profile/attribution/trtllm_b1_i128_decode/attempt00,139,child exit 139,Excluded attempt;not an accepted baseline or final diagnostic
+/root/TileMega-moe-profile/runs/moe_profile/attribution/trtllm_b4_i8192_prefill/attempt00,75,exit unresolved GPU owner,Excluded attempt;not an accepted baseline or final diagnostic
+/root/TileMega-moe-profile/runs/moe_profile/benchmark/sglang_tp1_b16_i8192_o256/attempt00,1,actual output counts do not match the declared fixed cohort,Excluded attempt;not an accepted baseline or final diagnostic
+/root/TileMega-moe-profile/runs/moe_profile/benchmark/sglang_tp1_b1_i128_o128/attempt00,75,exit interference,Excluded attempt;not an accepted baseline or final diagnostic
+/root/TileMega-moe-profile/runs/moe_profile/benchmark/sglang_tp1_b1_i128_o128/attempt01,-9,child exit -9,Excluded attempt;not an accepted baseline or final diagnostic
+/root/TileMega-moe-profile/runs/moe_profile/benchmark/sglang_tp1_b1_i8192_o256/attempt00,1,Requested token count exceeds the model's maximum context length of 8448 tokens. You requested a total of 8448 tokens: 8192 tokens from the input messages and 256 tokens for the completion. Please reduce the number of tokens in the input messages or the completion to fit within the limit.,Excluded attempt;not an accepted baseline or final diagnostic
+/root/TileMega-moe-profile/runs/moe_profile/benchmark/sglang_tp1_b4_i8192_o256/attempt00,1,Requested token count exceeds the model's maximum context length of 8448 tokens. You requested a total of 8448 tokens: 8192 tokens from the input messages and 256 tokens for the completion. Please reduce the number of tokens in the input messages or the completion to fit within the limit.,Excluded attempt;not an accepted baseline or final diagnostic
+/root/TileMega-moe-profile/runs/moe_profile/benchmark/vllm_tp1_b1_i128_o128/attempt00,1,Object of type <class 'function'> is not serializableSet VLLM_ALLOW_INSECURE_SERIALIZATION=1 to allow fallback to pickle-based serialization.,Excluded attempt;not an accepted baseline or final diagnostic
+/root/TileMega-moe-profile/runs/moe_profile/routing/trtllm_b1_i128_decode/attempt01,-11,child exit -11,Excluded attempt;not an accepted baseline or final diagnostic
+/root/TileMega-moe-profile/runs/moe_profile/routing/trtllm_b1_i128_decode/attempt02,75,preflight occupied,Excluded attempt;not an accepted baseline or final diagnostic
+/root/TileMega-moe-profile/runs/moe_profile/routing/trtllm_b64_i128_decode/attempt01,-11,child exit -11,Excluded attempt;not an accepted baseline or final diagnostic
+/root/TileMega-moe-profile/runs/moe_profile/routing/trtllm_b64_i128_decode/attempt02,75,preflight occupied,Excluded attempt;not an accepted baseline or final diagnostic
+/root/TileMega-moe-profile/runs/moe_profile/setup/sglang_canary,75,preflight occupied,Excluded attempt;not an accepted baseline or final diagnostic
+/root/TileMega-moe-profile/runs/moe_profile/setup/sglang_canary_gpu1,75,preflight occupied,Excluded attempt;not an accepted baseline or final diagnostic
+/root/TileMega-moe-profile/runs/moe_profile/timeline/trtllm_b1_i128_prefill/attempt00,137,child exit 137,Excluded attempt;not an accepted baseline or final diagnostic

@@ -1,0 +1,49 @@
+{
+  "evidence": "verified deletion of this task-owned payloads after final data validation",
+  "completed_utc": "2026-11-16T18:17:44.584456+00:00",
+  "model_revision": "ad44e777bcd18fa416d9da3bd8f70d33ebb85d39",
+  "shards_removed": 16,
+  "model_weight_bytes": 61066575648,
+  "removed": [
+    {
+      "path": "/dev/shm/tilemega-moe-profile-qwen3-ad44e777",
+      "regular_files": 47,
+      "logical_file_bytes": 64887017745,
+      "allocated_file_bytes": 64887095296,
+      "absence_verified": true
+    },
+    {
+      "path": "/root/TileMega-moe-profile/runs/moe_profile/model_metadata/tokenizer",
+      "regular_files": 6,
+      "logical_file_bytes": 15882274,
+      "allocated_file_bytes": 15896576,
+      "absence_verified": true
+    },
+    {
+      "path": "/root/TileMega-moe-profile/runs/moe_profile/model_metadata/tokenizer_config.json",
+      "regular_files": 1,
+      "logical_file_bytes": 9732,
+      "allocated_file_bytes": 12288,
+      "absence_verified": true
+    },
+    {
+      "path": "/root/TileMega-moe-profile/configs/moe_profile/inputs.json.gz",
+      "logical_file_bytes": 766210,
+      "absence_verified": true,
+      "scope": "Full frozen input-token payload removed from local working tree and next branch HEAD"
+    }
+  ],
+  "total_removed_logical_bytes": 64903675961,
+  "tmpfs_free_bytes_before": 746609197056,
+  "tmpfs_free_bytes_after": 811496292352,
+  "tmpfs_scope": "Model cache was in RAM-backed /dev/shm;free-space delta may include unrelated activity.",
+  "preserved": [
+    "Compact final tables,report and source/tooling",
+    "Raw logs,traces,route count statistics,output hashes in ignored runs/moe_profile",
+    "Model/input identity manifests,SHA256 and deterministic regeneration recipe",
+    "Framework environments,repository source corpus and other owners data/processes"
+  ],
+  "history_scope": "Current local payloads and branch HEAD cleaned;shared git history not rewritten and historical input blob may remain.",
+  "active_task_gpu_workers": [],
+  "read_only_sampler_stop_requested": true
+}

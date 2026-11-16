@@ -18,3 +18,4 @@ compile_commands.json
 *.egg-info/
 .ninja_deps
 .ninja_log
+configs/moe_profile/inputs.json.gz

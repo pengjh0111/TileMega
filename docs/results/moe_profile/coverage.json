@@ -1,0 +1,15 @@
+{
+  "evidence": "verified consolidated accepted artifacts",
+  "benchmark_cells": 36,
+  "benchmark_rounds": 108,
+  "capacity_limited_cohort_cells": 3,
+  "native_timeline_windows": 18,
+  "source_attribution_cases": 11,
+  "route_cases": 9,
+  "route_layers_per_case": 48,
+  "route_iterations_per_layer": 17,
+  "route_samples": 7344,
+  "hardware_counters": "unavailable:ERR_NVGPUCTRPERM",
+  "online_serving_and_tp2": "not run;closed-cohort TP1 execution study,not arrival/EP/communication conclusions",
+  "excluded_attempts": 15
+}

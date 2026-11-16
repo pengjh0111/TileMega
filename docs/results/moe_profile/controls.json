@@ -1,0 +1,275 @@
+{
+  "evidence": "verified diagnostic observations;not accepted production optimizations",
+  "profiler_granularity": [
+    {
+      "mode": "node",
+      "graph_launches": 16,
+      "cadence_median_ms": 7.646547,
+      "graph_span_median_ms": 4.748208,
+      "baseline_host_tpot_ms": 5.833350645669292,
+      "cadence_to_baseline_ratio": 1.3108327382439857,
+      "scope": "Per-launch span of correlated graph-node kernels;includes internal gaps/overlap",
+      "source": "/root/TileMega-moe-profile/runs/moe_profile/timeline/vllm_b1_i128_decode/attempt02"
+    },
+    {
+      "mode": "graph",
+      "graph_launches": 16,
+      "cadence_median_ms": 5.853734,
+      "graph_span_median_ms": 4.618658,
+      "baseline_host_tpot_ms": 5.833350645669292,
+      "cadence_to_baseline_ratio": 1.0034942789434134,
+      "scope": "Whole graph execution spans,not per-node SM busy",
+      "source": "/root/TileMega-moe-profile/runs/moe_profile/timeline_graph/vllm_b1_i128_decode/attempt00"
+    }
+  ],
+  "static_bound_replay": [
+    {
+      "batch": 1,
+      "order": [
+        0,
+        1,
+        1,
+        0
+      ],
+      "changed_factor": "sorted-token launch upper bound only;same original kernels/weights/input/route/tile/reduction",
+      "input_identity": {
+        "hidden_states": {
+          "shape": [
+            1,
+            2048
+          ],
+          "dtype": "torch.bfloat16",
+          "sha256": "babf9723f87a80d4bcb341f0027e1d9a84d9b32573f8be4d3510b85474a8e5ea"
+        },
+        "topk_weights": {
+          "shape": [
+            1,
+            8
+          ],
+          "dtype": "torch.float32",
+          "sha256": "d1b775fa916b523d3ff30099cb401872096557fce0f3ce8d35f3827da1f77f02"
+        },
+        "topk_ids": {
+          "shape": [
+            1,
+            8
+          ],
+          "dtype": "torch.int32",
+          "sha256": "16caea70ba0807d8a0d19816faf3aaa4cf84cfe60412316c7e2b0d21b9dd4cbe"
+        },
+        "w1": {
+          "shape": [
+            128,
+            1536,
+            2048
+          ],
+          "dtype": "torch.bfloat16",
+          "sha256": "f0a5f47ee115d1416d3dab039bad3800012f73ae2e909838ae60dfbe6ec17a26"
+        },
+        "w2": {
+          "shape": [
+            128,
+            2048,
+            768
+          ],
+          "dtype": "torch.bfloat16",
+          "sha256": "969a0ec7b44247b939ae467a196ad8ffd7dc5e359bf29bf1414629640db623c5"
+        }
+      },
+      "actual_padded_rows": 128,
+      "static_safe_bound": 128,
+      "results": [
+        {
+          "variant": 0,
+          "config": {
+            "BLOCK_SIZE_M": 16,
+            "BLOCK_SIZE_N": 32,
+            "BLOCK_SIZE_K": 64,
+            "GROUP_SIZE_M": 1
+          },
+          "median_ms": 0.04676799848675728,
+          "min_ms": 0.04585599899291992,
+          "max_ms": 0.06473600119352341,
+          "max_abs_error": 0.0,
+          "cosine": 1.000000238418579,
+          "bitwise_equal": true
+        },
+        {
+          "variant": 1,
+          "config": {
+            "BLOCK_SIZE_M": 16,
+            "BLOCK_SIZE_N": 32,
+            "BLOCK_SIZE_K": 64,
+            "GROUP_SIZE_M": 1
+          },
+          "median_ms": 0.04684799909591675,
+          "min_ms": 0.04575999826192856,
+          "max_ms": 0.06022400036454201,
+          "max_abs_error": 0.0,
+          "cosine": 1.000000238418579,
+          "bitwise_equal": true
+        },
+        {
+          "variant": 1,
+          "config": {
+            "BLOCK_SIZE_M": 16,
+            "BLOCK_SIZE_N": 32,
+            "BLOCK_SIZE_K": 64,
+            "GROUP_SIZE_M": 1
+          },
+          "median_ms": 0.046959999948740005,
+          "min_ms": 0.046112000942230225,
+          "max_ms": 0.06371200084686279,
+          "max_abs_error": 0.0,
+          "cosine": 1.000000238418579,
+          "bitwise_equal": true
+        },
+        {
+          "variant": 0,
+          "config": {
+            "BLOCK_SIZE_M": 16,
+            "BLOCK_SIZE_N": 32,
+            "BLOCK_SIZE_K": 64,
+            "GROUP_SIZE_M": 1
+          },
+          "median_ms": 0.04899200052022934,
+          "min_ms": 0.04819199815392494,
+          "max_ms": 0.06230400130152702,
+          "max_abs_error": 0.0,
+          "cosine": 1.000000238418579,
+          "bitwise_equal": true
+        }
+      ],
+      "nominal_reduction_fraction": 0.0203842938865052,
+      "largest_within_variant_order_spread_ms": 0.002224002033472061,
+      "all_bitwise_equal": true,
+      "conclusion": "No reliable benefit established;nominal difference below observed order drift.",
+      "scope": "One actual pretrained layer/input/top-k route,50warmup+100CUDA-Graph replay event samples per position. Repeated layer cache/scheduling differs from full model;not end-to-end performance or utilization. Cropped view uses the safe static bound assignments*BLOCK_SIZE_M;every routed assignment contributes at most one padded block. Both controls create the same view operation before capture;Python dispatch is outside replay. Original kernel source/tile/reduction retained;EM specialization/launch bound differs. Probe only;no new kernel or production default changed.",
+      "source": "/root/TileMega-moe-profile/runs/moe_profile/replay_graph/b1/worker/replay.json"
+    },
+    {
+      "batch": 4,
+      "order": [
+        0,
+        1,
+        1,
+        0
+      ],
+      "changed_factor": "sorted-token launch upper bound only;same original kernels/weights/input/route/tile/reduction",
+      "input_identity": {
+        "hidden_states": {
+          "shape": [
+            4,
+            2048
+          ],
+          "dtype": "torch.bfloat16",
+          "sha256": "e0aea1a00074e6e71978e21cc81bbb21e71a988185347471b9ec254c16af7b5c"
+        },
+        "topk_weights": {
+          "shape": [
+            4,
+            8
+          ],
+          "dtype": "torch.float32",
+          "sha256": "1915252147678781405dd08659e543f02fa5d9e0d9958e032559658765fe6702"
+        },
+        "topk_ids": {
+          "shape": [
+            4,
+            8
+          ],
+          "dtype": "torch.int32",
+          "sha256": "dc2371c20998773f5e808cdb0fd2ffa35cc641cac658de26cd570ea3772864ec"
+        },
+        "w1": {
+          "shape": [
+            128,
+            1536,
+            2048
+          ],
+          "dtype": "torch.bfloat16",
+          "sha256": "f0a5f47ee115d1416d3dab039bad3800012f73ae2e909838ae60dfbe6ec17a26"
+        },
+        "w2": {
+          "shape": [
+            128,
+            2048,
+            768
+          ],
+          "dtype": "torch.bfloat16",
+          "sha256": "969a0ec7b44247b939ae467a196ad8ffd7dc5e359bf29bf1414629640db623c5"
+        }
+      },
+      "actual_padded_rows": 480,
+      "static_safe_bound": 512,
+      "results": [
+        {
+          "variant": 0,
+          "config": {
+            "BLOCK_SIZE_M": 16,
+            "BLOCK_SIZE_N": 32,
+            "BLOCK_SIZE_K": 64,
+            "GROUP_SIZE_M": 1
+          },
+          "median_ms": 0.11801599711179733,
+          "min_ms": 0.11577600240707397,
+          "max_ms": 0.1348479986190796,
+          "max_abs_error": 0.0,
+          "cosine": 1.0000014305114746,
+          "bitwise_equal": true
+        },
+        {
+          "variant": 1,
+          "config": {
+            "BLOCK_SIZE_M": 16,
+            "BLOCK_SIZE_N": 32,
+            "BLOCK_SIZE_K": 64,
+            "GROUP_SIZE_M": 1
+          },
+          "median_ms": 0.11799999698996544,
+          "min_ms": 0.11692799627780914,
+          "max_ms": 0.13196800649166107,
+          "max_abs_error": 0.0,
+          "cosine": 1.0000014305114746,
+          "bitwise_equal": true
+        },
+        {
+          "variant": 1,
+          "config": {
+            "BLOCK_SIZE_M": 16,
+            "BLOCK_SIZE_N": 32,
+            "BLOCK_SIZE_K": 64,
+            "GROUP_SIZE_M": 1
+          },
+          "median_ms": 0.11830399930477142,
+          "min_ms": 0.11680000275373459,
+          "max_ms": 0.13174399733543396,
+          "max_abs_error": 0.0,
+          "cosine": 1.0000014305114746,
+          "bitwise_equal": true
+        },
+        {
+          "variant": 0,
+          "config": {
+            "BLOCK_SIZE_M": 16,
+            "BLOCK_SIZE_N": 32,
+            "BLOCK_SIZE_K": 64,
+            "GROUP_SIZE_M": 1
+          },
+          "median_ms": 0.11993599683046341,
+          "min_ms": 0.11804799735546112,
+          "max_ms": 0.1340479999780655,
+          "max_abs_error": 0.0,
+          "cosine": 1.0000014305114746,
+          "bitwise_equal": true
+        }
+      ],
+      "nominal_reduction_fraction": 0.0069257568311185125,
+      "largest_within_variant_order_spread_ms": 0.0019199997186660767,
+      "all_bitwise_equal": true,
+      "conclusion": "No reliable benefit established;nominal difference below observed order drift.",
+      "scope": "One actual pretrained layer/input/top-k route,50warmup+100CUDA-Graph replay event samples per position. Repeated layer cache/scheduling differs from full model;not end-to-end performance or utilization. Cropped view uses the safe static bound assignments*BLOCK_SIZE_M;every routed assignment contributes at most one padded block. Both controls create the same view operation before capture;Python dispatch is outside replay. Original kernel source/tile/reduction retained;EM specialization/launch bound differs. Probe only;no new kernel or production default changed.",
+      "source": "/root/TileMega-moe-profile/runs/moe_profile/replay_graph/b4/worker/replay.json"
+    }
+  ]
+}

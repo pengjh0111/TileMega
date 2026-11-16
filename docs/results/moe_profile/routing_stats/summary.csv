@@ -1,0 +1,10 @@
+framework,batch,input_tokens,active_experts_mean,empty_experts_mean,max_n_e,actual_padded_rows_mean,kv_len_min,kv_len_max,source
+sglang,1,128,8,120,1,128,160,176,/root/TileMega-moe-profile/runs/moe_profile/routing/sglang_b1_i128_decode/attempt00
+sglang,4,8192,22.887254901960784,105.11274509803921,4,366.19607843137254,8224,8240,/root/TileMega-moe-profile/runs/moe_profile/routing/sglang_b4_i8192_decode/attempt00
+sglang,64,128,78.6703431372549,49.3296568627451,57,1373.3529411764705,160,176,/root/TileMega-moe-profile/runs/moe_profile/routing/sglang_b64_i128_decode/attempt00
+trtllm,1,128,8,120,1,,160,176,/root/TileMega-moe-profile/runs/moe_profile/routing/trtllm_b1_i128_decode/attempt03
+trtllm,4,8192,21.676470588235293,106.32352941176471,4,,8224,8244,/root/TileMega-moe-profile/runs/moe_profile/routing/trtllm_b4_i8192_decode/attempt01
+trtllm,64,128,78.29166666666667,49.708333333333336,58,,160,177,/root/TileMega-moe-profile/runs/moe_profile/routing/trtllm_b64_i128_decode/attempt03
+vllm,1,128,8,120,1,128,160,176,/root/TileMega-moe-profile/runs/moe_profile/routing/vllm_b1_i128_decode/attempt00
+vllm,4,8192,22.170343137254903,105.8296568627451,4,354.72549019607845,8224,8244,/root/TileMega-moe-profile/runs/moe_profile/routing/vllm_b4_i8192_decode/attempt00
+vllm,64,128,77.47916666666667,50.520833333333336,59,1358.8823529411766,160,177,/root/TileMega-moe-profile/runs/moe_profile/routing/vllm_b64_i128_decode/attempt00

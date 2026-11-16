@@ -116,8 +116,28 @@
   },
   "nsys_cpu_sampling": "unavailable: perf_event_paranoid4/perf_event_open",
   "owner_visibility": "container PID namespace limited;do not claim host-wide ownership verification",
-  "runtime_backends": "Not yet selected;record actual model initialization metadata/logs,not defaults as measurements.",
+  "runtime_backends": {
+    "vllm": {
+      "attention": "FlashAttention SM90 FA3",
+      "moe": "Unquantized Triton fused MoE;missing H800 tuned configuration uses default config",
+      "sampling": "native Torch fallback"
+    },
+    "sglang": {
+      "attention": "fa3",
+      "moe": "server option auto;actual consumed Triton helper/source verified",
+      "sampling": "flashinfer"
+    },
+    "trtllm": {
+      "engine": "TensorRT-LLM PyTorch backend,not a TensorRT compiled engine",
+      "attention": "TRTLLM",
+      "moe": "CutlassFusedMoE"
+    }
+  },
   "raw_setup": "runs/moe_profile/setup",
   "model_revision": "ad44e777bcd18fa416d9da3bd8f70d33ebb85d39",
-  "weight_bytes": 61066575648
+  "weight_bytes": 61066575648,
+  "profiling_limits": {
+    "nsys_driver_warning": "Installed driver supports CUDA13;Nsight Systems2024.6 warns and uses CUPTI12.8 fallback.GPU captures pass but node tracing overhead is separately measured.",
+    "ncu": "ERR_NVGPUCTRPERM;no SM/TC/DRAM/L2/stall counters or roofline measured"
+  }
 }

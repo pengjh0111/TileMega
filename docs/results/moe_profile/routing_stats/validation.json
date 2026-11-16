@@ -1,0 +1,101 @@
+[
+  {
+    "framework": "sglang",
+    "batch": 1,
+    "input_tokens": 128,
+    "layers": 48,
+    "iterations_per_layer": 17,
+    "samples": 816,
+    "actual_cohort_verified": true,
+    "native_stat_crosscheck": true,
+    "source": "/root/TileMega-moe-profile/runs/moe_profile/routing/sglang_b1_i128_decode/attempt00"
+  },
+  {
+    "framework": "sglang",
+    "batch": 4,
+    "input_tokens": 8192,
+    "layers": 48,
+    "iterations_per_layer": 17,
+    "samples": 816,
+    "actual_cohort_verified": true,
+    "native_stat_crosscheck": true,
+    "source": "/root/TileMega-moe-profile/runs/moe_profile/routing/sglang_b4_i8192_decode/attempt00"
+  },
+  {
+    "framework": "sglang",
+    "batch": 64,
+    "input_tokens": 128,
+    "layers": 48,
+    "iterations_per_layer": 17,
+    "samples": 816,
+    "actual_cohort_verified": true,
+    "native_stat_crosscheck": true,
+    "source": "/root/TileMega-moe-profile/runs/moe_profile/routing/sglang_b64_i128_decode/attempt00"
+  },
+  {
+    "framework": "trtllm",
+    "batch": 1,
+    "input_tokens": 128,
+    "layers": 48,
+    "iterations_per_layer": 17,
+    "samples": 816,
+    "actual_cohort_verified": true,
+    "native_stat_crosscheck": false,
+    "source": "/root/TileMega-moe-profile/runs/moe_profile/routing/trtllm_b1_i128_decode/attempt03"
+  },
+  {
+    "framework": "trtllm",
+    "batch": 4,
+    "input_tokens": 8192,
+    "layers": 48,
+    "iterations_per_layer": 17,
+    "samples": 816,
+    "actual_cohort_verified": true,
+    "native_stat_crosscheck": false,
+    "source": "/root/TileMega-moe-profile/runs/moe_profile/routing/trtllm_b4_i8192_decode/attempt01"
+  },
+  {
+    "framework": "trtllm",
+    "batch": 64,
+    "input_tokens": 128,
+    "layers": 48,
+    "iterations_per_layer": 17,
+    "samples": 816,
+    "actual_cohort_verified": true,
+    "native_stat_crosscheck": false,
+    "source": "/root/TileMega-moe-profile/runs/moe_profile/routing/trtllm_b64_i128_decode/attempt03"
+  },
+  {
+    "framework": "vllm",
+    "batch": 1,
+    "input_tokens": 128,
+    "layers": 48,
+    "iterations_per_layer": 17,
+    "samples": 816,
+    "actual_cohort_verified": true,
+    "native_stat_crosscheck": false,
+    "source": "/root/TileMega-moe-profile/runs/moe_profile/routing/vllm_b1_i128_decode/attempt00"
+  },
+  {
+    "framework": "vllm",
+    "batch": 4,
+    "input_tokens": 8192,
+    "layers": 48,
+    "iterations_per_layer": 17,
+    "samples": 816,
+    "actual_cohort_verified": true,
+    "native_stat_crosscheck": false,
+    "source": "/root/TileMega-moe-profile/runs/moe_profile/routing/vllm_b4_i8192_decode/attempt00"
+  },
+  {
+    "framework": "vllm",
+    "batch": 64,
+    "input_tokens": 128,
+    "layers": 48,
+    "iterations_per_layer": 17,
+    "samples": 816,
+    "actual_cohort_verified": true,
+    "native_stat_crosscheck": false,
+    "source": "/root/TileMega-moe-profile/runs/moe_profile/routing/vllm_b64_i128_decode/attempt00"
+  }
+]
