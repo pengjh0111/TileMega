@@ -7,6 +7,15 @@ source files, the target JSON and CUTLASS/barvinok commits against D's artifact.
 The current merged `tilemega` branch is a different task-body version and is
 not used for these measurements.
 
+The fixed native pipeline is export bridge -> BuildModelPlan -> imported
+semantics -> MaterializeSm90Dense with pinned coordinates/task ranges ->
+typed native Program codegen -> nvcc and artifact identity -> ServingEngine
+L1 decode-loop -> request-wall TPOT statistics. `--tmexec-config` takes this
+fixed path and bypasses solve. The operator-local selector stops at the model
+plan and existing calibrated costs; it does not derive CTG couplings or invoke
+the program search. The current merged pipeline was inspected first, but its
+newer task bodies were excluded after the historical D version was identified.
+
 `qwen3_1_7b_b1/D.manifest.json` preserves the main experiment's original
 timing and artifact provenance. `D.json` is its bare `.coordinates`.
 `A.json` and `C.json` share one operator-local L, and differ only in group_wait.

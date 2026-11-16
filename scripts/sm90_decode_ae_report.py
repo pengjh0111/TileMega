@@ -39,21 +39,31 @@ def report(run, publish):
             raise ValueError('this collection is performance only')
         if config['decode_sha256'] != spec['arms'][arm]['decode_sha256']:
             raise ValueError('the collected binary differs from the frozen arm')
-        row = dict(arm=arm, slot=value['slot'], new_reused='new',
+        row = dict(arm=arm, slot=value['slot'], pid=measurement['pid'], new_reused='new',
             tpot_ms=measurement['tpot_seconds'] * 1000,
             ttft_ms=measurement['ttft_seconds'] * 1000,
             e2e_ms=measurement['e2e_seconds'] * 1000,
             gpu=state['gpu'], gpu_inventory=state['inventory'],
             sm_clocks=json.dumps(sorted({s['telemetry']['clocks.sm'] for s in telemetry})),
             mem_clocks=json.dumps(sorted({s['telemetry']['clocks.mem'] for s in telemetry})),
+            model_config_sha256=measurement['model_config_sha256'],
+            prompt_ids_sha256=measurement['prompt_ids_sha256'],
+            checkpoint_sha256=measurement['checkpoint']['checkpoint_sha256'],
+            versions=json.dumps(measurement['versions'], sort_keys=True),
             decode_sha256=config['decode_sha256'], source=str(path), source_sha256=sha(path))
         processes.append(row);groups.setdefault(arm, []).append(row)
     for value in historical['rows']:
-        processes.append(dict(arm='D', slot=value['job'], new_reused='reused',
+        original = Path(value['tokens']).parent / 'B1/measurements.json'
+        original_measurement = read(original)
+        processes.append(dict(arm='D', slot=value['job'], pid=original_measurement['pid'], new_reused='reused',
             tpot_ms=value['tpot_ms'], ttft_ms=value['ttft_ms'], e2e_ms=value['e2e_ms'],
             gpu=value['gpu'], gpu_inventory='historical H800 GPU0', sm_clocks='["1980"]',
-            mem_clocks='["2619"]', decode_sha256=manifest['binary_sha256'],
-            source=str(run / 'D.result.json'), source_sha256=sha(run / 'D.result.json')))
+            mem_clocks='["2619"]', model_config_sha256=original_measurement['model_config_sha256'],
+            prompt_ids_sha256=original_measurement['prompt_ids_sha256'],
+            checkpoint_sha256=original_measurement['checkpoint']['checkpoint_sha256'],
+            versions=json.dumps(original_measurement['versions'], sort_keys=True),
+            decode_sha256=manifest['binary_sha256'],
+            source=str(original), source_sha256=sha(original)))
     for arm in 'ABCDE':
         if arm == 'D':
             values = [r['tpot_ms'] for r in historical['rows']]
@@ -83,9 +93,19 @@ def report(run, publish):
             ('A', 'D', 'joint comparison with historical D denominator'),
             ('E', 'D', 'overall execution organization with historical D denominator'),
             ('E', 'B', 'same stage computations and aggregate inter-stage boundaries')]]
+    rejected_driver_attempts = [dict(arm=v['arm'], directory=a['directory'],
+        code=a['code'], classification=a.get('failure_classification'))
+        for v in state['items'] for a in v['attempts'] if a.get('code') not in (0, 75)]
+    matching_environment = {field: len({r[field] for r in processes}) == 1
+        for field in ('versions', 'model_config_sha256', 'prompt_ids_sha256',
+                      'checkpoint_sha256', 'sm_clocks', 'mem_clocks')}
     receipt = dict(evidence='verified configuration, compilation and performance only',
         rows=rows, ratios=ratios, accepted_new_processes=12, reused_processes=3,
         correctness_processes=0, D_remeasured=False, body_source_head=spec['body_source_head'],
+        D_job_submitted=False, C_equals_D_configuration=True,
+        D_remeasured_flag_meaning='No separate D-arm job; C uses the same configuration because L=D',
+        rejected_driver_attempts=rejected_driver_attempts,
+        new_and_historical_environment_match=matching_environment,
         body_source_resolution=spec['body_version_resolution'],
         historical_source_recovery=str(run / 'historical-source-recovery.json'),
         source_consistency=str(run / 'historical-consistency.json'),
@@ -103,12 +123,17 @@ def report(run, publish):
     markdown = ('# Qwen3-1.7B SM90 native decode A-E ablation\n\n'
         'Verified scope: BS=1, BF16, ISL/OSL=64/1024. D reuses the SM90R3 main '
         '`measured.tpot_ms=1.6754311115689438`; the four other arms each have three '
-        'new timing processes on one physical H800. D was neither searched nor retimed.\n\n'
+        'accepted fresh timing processes on one physical H800. The D reference is '
+        'held fixed; no solve or separate D-arm job was submitted.\n\n'
         'The frozen D artifact was built from `4b9d1362e648e2ee2cc7f96da9422f97a6d36c45`. '
         'All 606 recorded source files and the target JSON matched when recovered. '
         'The experiment uses branch `sm90-decode-ae-r3`, retaining D task-body headers '
         'and adding only a sequence execution adapter. The preliminary merged-version '
         'builds were not timed and are excluded.\n\n'
+        'The fixed pipeline is export bridge -> BuildModelPlan -> imported '
+        'semantics -> MaterializeSm90Dense with pinned coordinates and task '
+        'ranges -> typed native Program -> nvcc/identity -> ServingEngine L1 '
+        'decode-loop -> request-wall TPOT. --tmexec-config bypasses solve.\n\n'
         'Verified CPU selection: independently minimize existing Gemm(pre=false) and '
         'complete Attention costs over deduplicated FamilyCandidates TN and '
         'AttentionCandidates chunks plus D values, filtering with both policies\' '
@@ -153,7 +178,11 @@ def report(run, publish):
         'task bodies do not remove cross-session variability; per-process values, '
         'clock observations and full precision ratios are retained in the companion CSVs. '
         'Results are performance measurements, with correctness explicitly outside '
-        'this collection. Raw provenance: `' + str(run) + '`.\n\n'
+        'this collection. Two A driver failures were excluded: one guard API '
+        'mismatch before timing and one missing metadata field after timing. '
+        'Both attempts and their raw records are retained; exclusion was independent '
+        'of observed performance. No separate D-arm job was submitted; the prescribed '
+        'C arm has the same configuration as D because L=D. Raw provenance: `' + str(run) + '`.\n\n'
         'Reproduction commands are in `configs/serving/sm90_ae/README.md` on '
         '`sm90-decode-ae-r3`. Source recovery and build/identity receipts retain the '
         'complete original and failed-attempt evidence under runs/.\n')
