@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import re
 import sqlite3
+import statistics
 
 from moe_profile_metrics import interval_union
 
@@ -21,6 +22,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--sqlite', type=Path, required=True)
     parser.add_argument('--mapping', type=Path)
+    parser.add_argument('--nvtx-proof', type=Path, help='Worker engine.json with audited module ranges')
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
@@ -30,6 +32,31 @@ def main():
     connection = sqlite3.connect(f'file:{args.sqlite}?mode=ro', uri=True)
     connection.row_factory = sqlite3.Row
     strings = dict(connection.execute('SELECT id,value FROM StringIds'))
+    proofs = {}
+    if args.nvtx_proof:
+        engine = json.loads(args.nvtx_proof.read_text())
+        for rank in engine['nvtx_attribution']:
+            for row in rank['modules']:
+                proofs[row['label']] = row
+    ranges = collections.defaultdict(list)
+    tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    if proofs and 'NVTX_EVENTS' in tables:
+        for source in connection.execute('SELECT * FROM NVTX_EVENTS WHERE end IS NOT NULL'):
+            row = dict(source)
+            text = row.get('text') or strings.get(row.get('textId')) or ''
+            label = text.split('|inputs=', 1)[0]
+            if label in proofs:
+                row['proof'] = dict(proofs[label], observed_nvtx_text=text)
+                ranges[row['globalTid']].append(row)
+    runtime_stage = {}
+    if ranges:
+        for source in connection.execute('SELECT * FROM CUPTI_ACTIVITY_KIND_RUNTIME'):
+            row = dict(source)
+            containing = [item for item in ranges[row['globalTid']]
+                          if item['start'] <= row['start'] and row['end'] <= item['end']]
+            if containing:
+                inner = min(containing, key=lambda item: item['end']-item['start'])
+                runtime_stage[(row['globalTid'] & ~0xffffff, row['correlationId'])] = inner['proof']
     kernels = []
     for source in connection.execute('SELECT * FROM CUPTI_ACTIVITY_KIND_KERNEL ORDER BY start'):
         row = dict(source)
@@ -39,6 +66,12 @@ def main():
             raise ValueError('ambiguous stage mapping;fusion must remain one measured region')
         row['stage'] = matches[0]['stage'] if matches else 'unresolved'
         row['source_evidence'] = matches[0]['source_evidence'] if matches else ''
+        proof = runtime_stage.get((row.get('globalPid'), row['correlationId']))
+        if proof:
+            row['stage'] = proof['stage']
+            row['source_evidence'] = json.dumps(dict(
+                confirmation='Same-process CUDA runtime correlation inside source-audited NVTX module call',
+                **proof), separators=(',', ':'))
         kernels.append(row)
     if not kernels:
         raise ValueError('no captured GPU kernels;not a zero-time model result')
@@ -47,16 +80,17 @@ def main():
     for row in kernels:
         resource = tuple(row[key] for key in ('gridX', 'gridY', 'gridZ', 'blockX', 'blockY', 'blockZ',
                                              'registersPerThread', 'staticSharedMemory', 'dynamicSharedMemory'))
-        groups[(row['deviceId'], row['name'], resource)].append(row)
+        groups[(row['deviceId'], row['name'], resource, row['stage'])].append(row)
         stages[(row['deviceId'], row['stage'])].append(row)
     rows = []
-    for (device, name, resource), group in groups.items():
+    for (device, name, resource, stage), group in groups.items():
         rows.append(dict(device=device, kernel=name, calls=len(group),
                          kernel_sum_ns=sum(row['end']-row['start'] for row in group),
+                         duration_median_ns=statistics.median(row['end']-row['start'] for row in group),
                          kernel_busy_union_ns=interval_union([(row['start'], row['end']) for row in group]),
                          grid=str(resource[:3]), block=str(resource[3:6]),
                          registers_per_thread=resource[6], static_shared_bytes=resource[7],
-                         dynamic_shared_bytes=resource[8], stage=group[0]['stage'],
+                         dynamic_shared_bytes=resource[8], stage=stage,
                          source_evidence=group[0]['source_evidence'],
                          source_tool='Nsight Systems CUPTI kernel activity',
                          counter_status='unavailable:NCU ERR_NVGPUCTRPERM',
@@ -77,14 +111,25 @@ def main():
     devices = {}
     for device in sorted({row['deviceId'] for row in kernels}):
         group = [row for row in kernels if row['deviceId'] == device]
+        intervals = [(row['start'], row['end']) for row in group]
+        copies = []
+        for table in ('CUPTI_ACTIVITY_KIND_MEMCPY', 'CUPTI_ACTIVITY_KIND_MEMSET'):
+            if table in tables:
+                copies.extend(dict(row) for row in connection.execute(
+                    f'SELECT * FROM {table} WHERE deviceId=?', (device,)))
+        all_intervals = intervals + [(row['start'], row['end']) for row in copies]
         devices[device] = dict(kernel_sum_ns=sum(row['end']-row['start'] for row in group),
-                               kernel_busy_union_ns=interval_union([(row['start'], row['end']) for row in group]),
+                               kernel_busy_union_ns=interval_union(intervals),
+                               captured_kernel_copy_busy_union_ns=interval_union(all_intervals),
+                               captured_copy_memset_sum_ns=sum(row['end']-row['start'] for row in copies),
                                first_to_last_kernel_span_ns=max(row['end'] for row in group)-min(row['start'] for row in group),
                                calls=len(group))
     (args.out / 'gpu_activity.json').write_text(json.dumps(dict(
         sqlite=str(args.sqlite), devices=devices,
         wall_clock_scope='First-to-last-kernel span excludes host work outside this span;not request E2E. '
-                         'Busy union excludes copies;capture all streams before attributing idle gaps.'), indent=2) + '\n')
+                         'Kernel busy union excludes copies;separate all-activity union includes captured '
+                         'copies/memsets. Capture all streams before attributing idle gaps.'), indent=2) + '\n')
+    connection.close()
 
 
 if __name__ == '__main__':
