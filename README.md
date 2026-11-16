@@ -13,6 +13,12 @@ search to explore execution configurations, and uses CuTe/CUTLASS to realize
 high-performance task implementations, ultimately lowering the scheduled CG
 to a CUDA persistent megakernel.
 
+Verified SM90 integration scope, validation results and remaining gaps are
+recorded in [the DNN/R6 integration report](docs/results/TileMega_DNN_R6_integration.md).
+The admitted BERT batch-specific rebuild recipes are in
+[configs/dnn/dnn4](configs/dnn/dnn4/README.md); historical performance remains in
+[DNN4_BERT_current.csv](docs/results/DNN4_BERT_current.csv).
+
 ## Build
 
 Dependency versions and optional environments are listed in
