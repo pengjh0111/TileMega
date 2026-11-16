@@ -1,7 +1,9 @@
 """Closed-cohort, pretrained BF16 benchmark with host-observed token events."""
 import argparse
 import asyncio
+import ctypes
 import gzip
+import functools
 import hashlib
 import json
 import os
@@ -32,6 +34,19 @@ def describe_model(model):
                     obj = getattr(module, attr, None)
                     if obj is not None:
                         row[attr] = type(obj).__module__ + '.' + type(obj).__qualname__
+                if 'experts' in name:
+                    row['parameter_shapes'] = {key: list(value.shape)
+                                               for key, value in module.named_parameters(recurse=False)}
+                if 'FusedMoEMethod' in cls:
+                    for attr in ('flashinfer_cutlass_moe_enabled', 'rocm_aiter_moe_enabled', 'fused_experts'):
+                        value = getattr(module, attr, None)
+                        row[attr] = (value if value is None or isinstance(value, bool)
+                                     else str(type(value)))
+                cache = getattr(module, 'kv_cache', None)
+                if isinstance(cache, (list, tuple)):
+                    row['kv_cache_tensors'] = [dict(shape=list(value.shape), dtype=str(value.dtype),
+                                                    device=str(value.device)) for value in cache
+                                               if hasattr(value, 'dtype')]
                 types[cls] = row
     parameters = {}
     for parameter in model.parameters():
@@ -40,8 +55,42 @@ def describe_model(model):
     return dict(module_types=list(types.values()), parameter_elements=parameters)
 
 
+def reset_allocator_peak(model=None):
+    import torch
+    torch.cuda.reset_peak_memory_stats()
+
+
+def allocator_peak(model=None):
+    import torch
+    return dict(max_allocated_bytes=torch.cuda.max_memory_allocated(),
+                max_reserved_bytes=torch.cuda.max_memory_reserved(),
+                scope='Torch CUDA allocator since post-warmup reset;excludes external CUDA allocations')
+
+
+def telemetry():
+    index = os.environ['CUDA_VISIBLE_DEVICES'].split(',')[0]
+    uuid = json.loads((ROOT / 'configs/moe_profile/devices.json').read_text())['devices'][index]['uuid']
+    library = ctypes.CDLL('libnvidia-ml.so.1')
+    handle = ctypes.c_void_p()
+    calls = [library.nvmlInit_v2(), library.nvmlDeviceGetHandleByUUID(uuid.encode(), ctypes.byref(handle))]
+    result = dict(time_unix=time.time(), gpu_uuid=uuid, nvml_errors=calls)
+    for name, function, arguments in [('sm_mhz', 'nvmlDeviceGetClockInfo', [1]),
+                                       ('memory_mhz', 'nvmlDeviceGetClockInfo', [2]),
+                                       ('temperature_c', 'nvmlDeviceGetTemperature', [0]),
+                                       ('power_mw', 'nvmlDeviceGetPowerUsage', [])]:
+        value = ctypes.c_uint()
+        error = getattr(library, function)(handle, *arguments, ctypes.byref(value))
+        result[name] = value.value if error == 0 else None
+        if error:
+            result['nvml_errors'].append(error)
+    library.nvmlShutdown()
+    return result
+
+
 class Vllm:
     def __init__(self, args, plan):
+        # Only this local engine's trusted metadata/diagnostic callables cross RPC.
+        os.environ['VLLM_ALLOW_INSECURE_SERIALIZATION'] = '1'
         from vllm import LLM, SamplingParams
         self.sampling = SamplingParams(temperature=0, seed=plan['sampling']['seed'],
                                        max_tokens=args.output_tokens, min_tokens=args.output_tokens,
@@ -52,12 +101,39 @@ class Vllm:
                        gpu_memory_utilization=.93, enable_prefix_caching=False,
                        enable_chunked_prefill=True, swap_space=0,
                        enforce_eager=args.eager, seed=plan['sampling']['seed'])
+        if args.mode == 'routing':
+            options.update(enforce_eager=True, compilation_config=0)
+        if args.attribution:
+            options.update(enforce_eager=True, compilation_config=0)
+        if args.no_cuda_graph:
+            options['compilation_config'] = dict(level=3, cudagraph_mode=0)
         self.llm = LLM(**options)
         self.engine = self.llm.llm_engine
         self.metadata = dict(options=options, sampling=str(self.sampling),
+                             trusted_local_callable_rpc=True,
                              worker_model=self.engine.apply_model(describe_model),
                              engine_config=str(self.engine.get_vllm_config()))
         self.round_id = 0
+        if args.mode == 'routing':
+            from moe_profile_instrumentation import install_vllm
+            self.metadata['instrumentation'] = self.engine.apply_model(install_vllm)
+        if args.attribution:
+            from moe_profile_instrumentation import install_nvtx_vllm
+            self.metadata['nvtx_attribution'] = self.engine.apply_model(install_nvtx_vllm)
+
+    def arm_routes(self):
+        from moe_profile_instrumentation import arm
+        self.engine.apply_model(arm)
+
+    def export_routes(self, path):
+        from moe_profile_instrumentation import export
+        return self.engine.apply_model(functools.partial(export, str(path)))
+
+    def reset_peak(self):
+        self.engine.apply_model(reset_allocator_peak)
+
+    def peak(self):
+        return self.engine.apply_model(allocator_peak)
 
     def run(self, rows, count, observe):
         self.round_id += 1
@@ -85,12 +161,38 @@ class Sglang:
                        cuda_graph_max_bs=64, cuda_graph_bs=[1, 4, 16, 64],
                        context_length=8448, mem_fraction_static=.93,
                        random_seed=plan['sampling']['seed'], chunked_prefill_size=8192,
-                       stream_interval=1, disable_cuda_graph=args.eager)
+                       stream_interval=1, disable_cuda_graph=args.eager or args.no_cuda_graph)
+        if args.mode == 'routing':
+            os.environ['SGLANG_EXPERT_DISTRIBUTION_RECORDER_DIR'] = str(args.out / 'routing_stats')
+            options.update(disable_cuda_graph=True, expert_distribution_recorder_mode='stat',
+                           expert_distribution_recorder_buffer_size=512)
+        if args.attribution:
+            options['disable_cuda_graph'] = True
         self.engine = sgl.Engine(**options)
+        # get_server_info() awaits scheduler IPC;its response loop starts lazily.
+        self.engine.tokenizer_manager.auto_create_handle_loop()
         self.sampling = dict(temperature=0, max_new_tokens=args.output_tokens,
-                             min_new_tokens=args.output_tokens, ignore_eos=True)
+                             ignore_eos=True)
         self.metadata = dict(options=options, sampling=self.sampling,
+                             forced_length='ignore_eos=True;no stop strings/token IDs;actual O checked. '
+                                           'SGLang0.5.5 min_new_tokens with skip_tokenizer_init '
+                                           'dereferences a None tokenizer;failed diagnostic retained.',
                              server_info=self.engine.get_server_info())
+        if args.attribution:
+            proof_files = sorted((args.out / 'nvtx_sources').glob('*.json'))
+            self.metadata['nvtx_attribution'] = [json.loads(path.read_text()) for path in proof_files]
+            if not proof_files:
+                raise ValueError('SGLang attribution startup hook produced no source evidence')
+
+    def arm_routes(self):
+        self.engine.start_expert_distribution_record()
+
+    def export_routes(self, path):
+        self.engine.stop_expert_distribution_record()
+        self.engine.dump_expert_distribution_record()
+        return dict(path=str(path), format='SGLang native stat recorder;GPU-resident per-step counts',
+                    position_scope='Whole diagnostic cohort;select stable full-cohort Decode samples '
+                                   'using per-step assignment counts and retain phase uncertainty.')
 
     def run(self, rows, count, observe):
         cumulative = [[] for _ in rows]
@@ -122,12 +224,19 @@ class Trtllm:
         os.environ['TLLM_WORKER_USE_SINGLE_PROCESS'] = '1'
         from tensorrt_llm import LLM, SamplingParams
         from tensorrt_llm.llmapi import KvCacheConfig
+        if args.mode == 'routing':
+            from moe_profile_instrumentation import install_trtllm
+            instrumentation = install_trtllm()
         options = dict(model=str(args.model), backend='pytorch', dtype='bfloat16',
                        load_format='auto', tensor_parallel_size=args.tp,
                        skip_tokenizer_init=True, max_batch_size=64, max_seq_len=8448,
                        max_num_tokens=8192, enable_chunked_prefill=True,
-                       use_cuda_graph=not args.eager,
+                       use_cuda_graph=not (args.eager or args.no_cuda_graph),
                        cuda_graph_batch_sizes=[1, 4, 16, 64])
+        if args.mode == 'routing':
+            options['use_cuda_graph'] = False
+        if args.attribution:
+            options['use_cuda_graph'] = False
         self.engine = LLM(**options, kv_cache_config=KvCacheConfig(
             enable_block_reuse=False, free_gpu_memory_fraction=.85))
         eos = json.loads((args.model / 'config.json').read_text())['eos_token_id']
@@ -143,6 +252,24 @@ class Trtllm:
                                            dtype='unquantized BF16 model dtype'),
                              actual_engine_args=str(self.engine.args),
                              worker_use_single_process=True)
+        try:
+            self.model = self.engine._executor.engine.model_engine.model
+            self.metadata['worker_model'] = describe_model(self.model)
+        except AttributeError as error:
+            self.metadata['worker_model_unavailable'] = str(error)
+        if args.mode == 'routing':
+            self.metadata['instrumentation'] = instrumentation
+        if args.attribution:
+            from moe_profile_instrumentation import install_nvtx_vllm
+            self.metadata['nvtx_attribution'] = [install_nvtx_vllm(self.model)]
+
+    def arm_routes(self):
+        from moe_profile_instrumentation import arm
+        arm()
+
+    def export_routes(self, path):
+        from moe_profile_instrumentation import export
+        return export(path)
 
     async def generate(self, rows, observe):
         async def consume(index, future):
@@ -174,6 +301,10 @@ def main():
     parser.add_argument('--warmup', type=int, default=3)
     parser.add_argument('--rounds', type=int, default=3)
     parser.add_argument('--eager', action='store_true')
+    parser.add_argument('--mode', choices=['benchmark', 'profile', 'routing'], default='benchmark')
+    parser.add_argument('--phase', choices=['prefill', 'decode'], default='decode')
+    parser.add_argument('--attribution', action='store_true')
+    parser.add_argument('--no-cuda-graph', action='store_true')
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
     require_guard(args.tp)
@@ -181,10 +312,14 @@ def main():
     engine = None
     result = dict(status='started', arguments=vars(args), pid=os.getpid(),
                   cuda_visible_devices=os.environ.get('CUDA_VISIBLE_DEVICES'),
-                  python=sys.executable, started_unix=time.time())
+                  python=sys.executable, started_unix=time.time(),
+                  script_sha256={path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+                                 for path in Path(__file__).parent.glob('moe_profile_*.py')})
     try:
-        if args.rounds < 3 or args.warmup < 3:
+        if (args.mode == 'benchmark' and args.rounds < 3) or args.warmup < 3:
             raise ValueError('formal protocol requires >=3 warmup and measured rounds')
+        if args.attribution and (args.mode != 'profile' or args.no_cuda_graph):
+            raise ValueError('source NVTX attribution requires a separate profile run')
         plan = json.loads((ROOT / 'configs/moe_profile/workload.json').read_text())
         verified = json.loads((ROOT / 'runs/moe_profile/model_metadata/download_result.json').read_text())
         if not verified['passed'] or Path(verified['model_path']).resolve() != args.model.resolve():
@@ -198,30 +333,79 @@ def main():
                       input_file_sha256=hashlib.sha256(args.inputs.read_bytes()).hexdigest(),
                       input_hashes=[token_hash(row) for row in rows],
                       scope='A: closed cohort;no new arrivals;no profiler;host-observed stream metrics')
+        if args.mode != 'benchmark':
+            result.update(diagnostic_only=True, scope='Separate diagnostic run;never formal timing evidence')
         write(args.out / 'result.json', result)
         engine = {'vllm': Vllm, 'sglang': Sglang, 'trtllm': Trtllm}[args.framework](args, plan)
         write(args.out / 'engine.json', engine.metadata)
         measured = []
         for iteration in range(args.warmup + args.rounds):
             events, final_meta = [], {}
+            capturing = False
+            profile_done = False
+            lengths = [0] * args.batch
+            diagnostic = iteration >= args.warmup and args.mode != 'benchmark'
+            if iteration == args.warmup:
+                if args.framework == 'vllm':
+                    engine.reset_peak()
+                elif args.framework == 'trtllm':
+                    reset_allocator_peak()
+            if diagnostic and args.mode == 'routing':
+                engine.arm_routes()
+            if diagnostic and args.mode == 'profile':
+                import torch
+                cudart = torch.cuda.cudart()
+                if args.phase == 'prefill':
+                    cudart.cudaProfilerStart()
+                    capturing = True
 
             def observe(index, now, ids, meta):
+                nonlocal capturing, profile_done
                 events.append(dict(index=index, observed_ns=now, ids=ids))
                 final_meta[index] = meta
+                lengths[index] = len(ids)
+                if diagnostic and args.mode == 'profile' and not profile_done:
+                    if args.phase == 'decode' and not capturing and min(lengths) >= 32:
+                        cudart.cudaProfilerStart()
+                        capturing = True
+                    if capturing and min(lengths) >= (1 if args.phase == 'prefill' else 48):
+                        cudart.cudaProfilerStop()
+                        capturing, profile_done = False, True
 
+            before_telemetry = telemetry()
             start, end = engine.run(rows, args.output_tokens, observe)
+            after_telemetry = telemetry()
+            if capturing:
+                cudart.cudaProfilerStop()
+            if diagnostic and args.mode == 'profile' and not profile_done:
+                raise ValueError('requested profiler ROI was not fully observed')
+            if diagnostic and args.mode == 'routing':
+                result['routing_export'] = engine.export_routes(args.out / 'routing_stats')
             metrics = summarize_round(args.batch, args.input_tokens, args.output_tokens,
                                       start, end, events)
             warmup = iteration < args.warmup
             name = ('warmup' if warmup else 'round') + str(iteration if warmup else iteration-args.warmup)
-            write(args.out / (name + '.json'), dict(metrics=metrics, engine_metrics=final_meta))
+            write(args.out / (name + '.json'), dict(metrics=metrics, engine_metrics=final_meta,
+                                                   before_telemetry=before_telemetry,
+                                                   after_telemetry=after_telemetry))
             with gzip.open(args.out / (name + '_events.json.gz'), 'wt') as stream:
                 json.dump(dict(start_ns=start, end_ns=end, events=events), stream)
             if not warmup:
                 measured.append(metrics)
             print(json.dumps(dict(iteration=iteration, warmup=warmup, e2e_ms=metrics['e2e_ms'],
                                   tpot_ms=metrics['tpot_request_median_ms'])), flush=True)
-        result.update(status='ok', summary=summarize_repeats(measured))
+        result.update(status='ok', summary=summarize_repeats(measured)
+                      if args.mode == 'benchmark' else dict(diagnostic_rounds=len(measured)))
+        if args.framework == 'vllm':
+            result['allocator_peak'] = engine.peak()
+        elif args.framework == 'trtllm':
+            result['allocator_peak'] = allocator_peak()
+            try:
+                result['engine_iteration_stats'] = engine.engine.get_stats(timeout=.1)
+            except Exception as error:
+                result['engine_iteration_stats_unavailable'] = repr(error)
+        elif args.framework == 'sglang':
+            result['final_server_info'] = engine.engine.get_server_info()
     except BaseException as error:
         result.update(status='failed', error_type=type(error).__name__, error=str(error),
                       traceback=traceback.format_exc())
