@@ -1,0 +1,9 @@
+ratio,value,interpretation,uses_historical_D
+A/B,1.0537739686626646,decomposition gain under basic planner,False
+C/D,1.055623541168157,decomposition gain under TileMega planner,True
+A/C,1.0136808801680526,planner gain under operator-local decomposition,False
+B/D,1.0154600817246078,planner gain under TileMega decomposition,True
+A/D,1.0700654003374537,combined decomposition and planner gain,True
+E/A,1.1989565924592172,megakernel execution gain,False
+E/D,1.2829619660971017,total baseline to full TileMega gain,True
+I,1.0017551890258207,multiplicative interaction: (B*C)/(A*D),True

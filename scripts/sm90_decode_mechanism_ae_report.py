@@ -203,6 +203,15 @@ def report(run, historical):
             f'{r["new_or_reused"]} |\n')
     text += '\n| Ratio | Value | Interpretation |\n|---|---:|---|\n'
     for r in ratios:text += f'| {r["ratio"]} | {r["value"]:.9f} | {r["interpretation"]} |\n'
+    text += ('\nInferred from these measured medians: S16/S1 decomposition contributes '
+        f'{times["A"]/times["B"]:.4f}x under basic and {times["C"]/times["D"]:.4f}x '
+        'under TileMega. Restoring the two planner mechanisms together contributes '
+        f'{times["A"]/times["C"]:.4f}x under S1 and {times["B"]/times["D"]:.4f}x '
+        f'under S16. With identical S1/basic work, megakernel versus graph is {times["E"]/times["A"]:.4f}x. '
+        f'The interaction I={ratios[-1]["value"]:.9f} is near 1; this small departure '
+        'does not establish a significant interaction from three processes and '
+        'a historical D reference. The two planner mechanisms are bundled, so '
+        'their individual contributions are not separated.\n')
     text += ('\nVerified observed ordering, fastest first: `' + ' < '.join(receipt['measured_order']) +
         '`. No process was selected or excluded for its measured speed. '
         f'There were {len(attempts)} guard/driver-rejected attempts, retained with reason and logs. '

@@ -1,0 +1,302 @@
+{
+  "evidence": "verified performance, compilation and static path audit only",
+  "accepted_new_processes": 12,
+  "reused_processes": 3,
+  "D_remeasured": false,
+  "rows": [
+    {
+      "arm": "A",
+      "decomposition": "Operator-local S1",
+      "plan": "Basic: aggregate QKV release; embedding stage",
+      "execution": "Megakernel",
+      "tpot_ms": 1.792820863138847,
+      "three_process_tpot": "[1.7931128572894512, 1.7927618338139262, 1.792820863138847]",
+      "process_range_pct": 0.01957939483761375,
+      "new_or_reused": "new",
+      "binary_sha256": "1463828378eff4e4c20b9ca1fc0c43a8378579aba421158789ab85f3d633da29"
+    },
+    {
+      "arm": "B",
+      "decomposition": "TileMega-selected S16",
+      "plan": "Basic: aggregate QKV release; embedding stage",
+      "execution": "Megakernel",
+      "tpot_ms": 1.7013334134777502,
+      "three_process_tpot": "[1.7027887673476139, 1.7013334134777502, 1.6962223695125658]",
+      "process_range_pct": 0.3859559674211948,
+      "new_or_reused": "new",
+      "binary_sha256": "7cfd2915570adfd903a82c52e5f3fb40c6b12fe3b4ddbb324af7b1a96df7ce86"
+    },
+    {
+      "arm": "C",
+      "decomposition": "Operator-local S1",
+      "plan": "TileMega: KV-group release; fused Head-to-embedding",
+      "execution": "Megakernel",
+      "tpot_ms": 1.7686245229777098,
+      "three_process_tpot": "[1.7686245229777098, 1.768253532738219, 1.7687533831884785]",
+      "process_range_pct": 0.028262101071515867,
+      "new_or_reused": "new",
+      "binary_sha256": "30d6899d9d9786d42b3b96e9daa13b1a0dd5e6b236582ac1ed52b45b3585a411"
+    },
+    {
+      "arm": "D",
+      "decomposition": "TileMega-selected S16",
+      "plan": "TileMega: KV-group release; fused Head-to-embedding",
+      "execution": "Megakernel",
+      "tpot_ms": 1.6754311115689438,
+      "three_process_tpot": "[1.6761825522152982, 1.6701529110906572, 1.6754311115689438]",
+      "process_range_pct": 0.3598859471455431,
+      "new_or_reused": "reused",
+      "binary_sha256": "0f8989856fc251ab335ffac54e110efa788800c31bd8429a112bc3a2baba299c"
+    },
+    {
+      "arm": "E",
+      "decomposition": "Operator-local S1",
+      "plan": "Basic: aggregate QKV release; embedding stage",
+      "execution": "Typed-stage kernels + CUDA Graph",
+      "tpot_ms": 2.1495143929587446,
+      "three_process_tpot": "[2.152524155428959, 2.1369170928615184, 2.1495143929587446]",
+      "process_range_pct": 0.7260738806199868,
+      "new_or_reused": "new",
+      "binary_sha256": "cc5d17d3cb14b64ac218c166065add8263f75458fc94b0f3b5b2380c7a495b88"
+    }
+  ],
+  "ratios": [
+    {
+      "ratio": "A/B",
+      "value": 1.0537739686626646,
+      "interpretation": "decomposition gain under basic planner",
+      "uses_historical_D": false
+    },
+    {
+      "ratio": "C/D",
+      "value": 1.055623541168157,
+      "interpretation": "decomposition gain under TileMega planner",
+      "uses_historical_D": true
+    },
+    {
+      "ratio": "A/C",
+      "value": 1.0136808801680526,
+      "interpretation": "planner gain under operator-local decomposition",
+      "uses_historical_D": false
+    },
+    {
+      "ratio": "B/D",
+      "value": 1.0154600817246078,
+      "interpretation": "planner gain under TileMega decomposition",
+      "uses_historical_D": true
+    },
+    {
+      "ratio": "A/D",
+      "value": 1.0700654003374537,
+      "interpretation": "combined decomposition and planner gain",
+      "uses_historical_D": true
+    },
+    {
+      "ratio": "E/A",
+      "value": 1.1989565924592172,
+      "interpretation": "megakernel execution gain",
+      "uses_historical_D": false
+    },
+    {
+      "ratio": "E/D",
+      "value": 1.2829619660971017,
+      "interpretation": "total baseline to full TileMega gain",
+      "uses_historical_D": true
+    },
+    {
+      "ratio": "I",
+      "value": 1.0017551890258207,
+      "interpretation": "multiplicative interaction: (B*C)/(A*D)",
+      "uses_historical_D": true
+    }
+  ],
+  "all_attempts": "/root/TileMega-mechanism-ae/runs/sm90_mechanism_ae/timing/state.json",
+  "state_sha256": "aaed79a22872664a4426952a5b9bb7622f423a5bbe518f38d20e9132c20558dd",
+  "rejected_attempts": [],
+  "spec": {
+    "schema": 1,
+    "model": "qwen3_1_7b",
+    "batch": 1,
+    "dtype": "BF16",
+    "input_tokens": 64,
+    "output_tokens": 1024,
+    "body_source_head": "4b9d1362e648e2ee2cc7f96da9422f97a6d36c45",
+    "body_version_resolution": "Exact historical D task bodies, inherited from 4a84be399; audited per arm",
+    "guard_policy": "/root/TileMega-mechanism-ae/configs/serving/sm90_ae/guard_policy.json",
+    "arms": {
+      "A": {
+        "decode": "/root/TileMega-mechanism-ae/runs/sm90_mechanism_ae/compiled/A.so",
+        "decode_sha256": "1463828378eff4e4c20b9ca1fc0c43a8378579aba421158789ab85f3d633da29",
+        "prefill": "/root/TileMega/runs/sm90r2/build/sm90r3-final-prefill/qwen3_1_7b-B1/prefill.so",
+        "prefill_sha256": "6f6740f70e5e89f439b6eb8466df0372aaa7f100c8583953eb4c1055e95079f8"
+      },
+      "B": {
+        "decode": "/root/TileMega-mechanism-ae/runs/sm90_mechanism_ae/compiled/B.so",
+        "decode_sha256": "7cfd2915570adfd903a82c52e5f3fb40c6b12fe3b4ddbb324af7b1a96df7ce86",
+        "prefill": "/root/TileMega/runs/sm90r2/build/sm90r3-final-prefill/qwen3_1_7b-B1/prefill.so",
+        "prefill_sha256": "6f6740f70e5e89f439b6eb8466df0372aaa7f100c8583953eb4c1055e95079f8"
+      },
+      "C": {
+        "decode": "/root/TileMega-mechanism-ae/runs/sm90_mechanism_ae/compiled/C.so",
+        "decode_sha256": "30d6899d9d9786d42b3b96e9daa13b1a0dd5e6b236582ac1ed52b45b3585a411",
+        "prefill": "/root/TileMega/runs/sm90r2/build/sm90r3-final-prefill/qwen3_1_7b-B1/prefill.so",
+        "prefill_sha256": "6f6740f70e5e89f439b6eb8466df0372aaa7f100c8583953eb4c1055e95079f8"
+      },
+      "E": {
+        "decode": "/root/TileMega-mechanism-ae/runs/sm90_mechanism_ae/compiled/E.so",
+        "decode_sha256": "cc5d17d3cb14b64ac218c166065add8263f75458fc94b0f3b5b2380c7a495b88",
+        "prefill": "/root/TileMega/runs/sm90r2/build/sm90r3-final-prefill/qwen3_1_7b-B1/prefill.so",
+        "prefill_sha256": "6f6740f70e5e89f439b6eb8466df0372aaa7f100c8583953eb4c1055e95079f8"
+      }
+    },
+    "consistency_sha256": "b846fd1e9d9e6e30f463ff69b633784c1b63013c1453fa9cee2da179c873d6d8"
+  },
+  "consistency": {
+    "evidence": "verified configuration and emitted-source checks; not numerical validation",
+    "base_head": "4a84be39988967cb0a3c8f30c532bd25a6587960",
+    "task_body_headers_exact_D": {
+      "include/tilemega/Backend/Sm90DenseAttentionBody.cuh": "dc3a1ec7a5afea65e13cb88cea4b0e621e0f4d1e279be0947a423d1c0ea297f4",
+      "include/tilemega/Backend/Sm90DenseAttentionMath.cuh": "f869351cd5a6d6f495c7714bed4a0c5c6c8e07448f01f04f45d81d0954a23427",
+      "include/tilemega/Backend/Sm90DenseAttentionPartition.h": "94e1d3c647a3cb11328f065110da63408ac284197f7f6844830e6c9137b0f1a2",
+      "include/tilemega/Backend/Sm90DenseDiagnostic.cuh": "982c8ba2fcd53703b2f20465ef07c27f0c0176980c0d03ee786a14bbbc6fc5ff",
+      "include/tilemega/Backend/Sm90DenseEpilogue.h": "b89a5e74f82cf3e26d7de76a9dd90956485f583524b727842d7be5613899a6a2",
+      "include/tilemega/Backend/Sm90DenseGemm.h": "b3bf5b123dd5164ff5bd89141b636be855dc580927fba108692afe58e0bc5ecb",
+      "include/tilemega/Backend/Sm90DenseHead.cuh": "c926cbd4cdf8a7edefb2882b424f5b0d92802daa75a5e98d9e60d74025c46d8c",
+      "include/tilemega/Backend/Sm90DenseLastArriver.cuh": "0bb66dd11c578468fd3aff2b3639d5822085a9fce984ff270303f83575bf62e2",
+      "include/tilemega/Backend/Sm90DenseLayout.h": "189a9400f9ad332c98bcb12c1fb0dfe2a65d7825eecbe3899696dade5fcc4444",
+      "include/tilemega/Backend/Sm90DenseMoe.cuh": "1ff4af1226a104ecf51038f77dceb36f31b83b861c1657b62173258a73b0574f",
+      "include/tilemega/Backend/Sm90DenseOperands.cuh": "5afa1e09e0b3453d11cd6493f00aa74a68946fd996bee0fef7cc7540a39f6499",
+      "include/tilemega/Backend/Sm90DenseRing.cuh": "e1dae178c0b830635ceffe8d811e560c8328e9c88cc97b829394567505ea312e",
+      "include/tilemega/Backend/Sm90DenseRoleContract.h": "48d72ba69d251ddbdcfa0a87b4fe70742d73998283167f0e797816ce4193251d",
+      "include/tilemega/Backend/Sm90DenseRoles.cuh": "052aa59a51b371a20d08e70a409b9965c0ae927edb7ca515e26c135f9113a524",
+      "include/tilemega/Backend/Sm90DenseToken.cuh": "de9f2849dc71c3ecc1178f07081aa71c8f01dc319e6bbb0520230ec93d11b212",
+      "include/tilemega/Codegen/tasks/Sm90DenseProgram.cuh": "eb41b461164db3f3c06d46d3ff7cb77762d303bc9039b83d14ba861ed2de4fda",
+      "include/tilemega/Codegen/tasks/Sm90DenseStage.cuh": "ec1f406c3379d87017f1b78a2171d4446f54c490314da11aae3be6cdd46a9569"
+    },
+    "arms": {
+      "A": {
+        "chunks": 1,
+        "attention_tasks_per_layer": 8,
+        "group_tiles": 0,
+        "embedding": "stage",
+        "folded_argmax": true,
+        "execution": "persistent megakernel",
+        "source_sha256": "4847dcb9d0b0da24d29fd549f5652200b18c4e38e380728cefb2acb54bd1c2f4",
+        "binary_sha256": "1463828378eff4e4c20b9ca1fc0c43a8378579aba421158789ab85f3d633da29",
+        "identity_sha256": "3e70a731090d189dac23c6fe8e4b2c65477b4007cb07e1723bab864a9ea57794",
+        "compile_result_sha256": "65417ed4f898d5e67a6b5570c634930d22f82f94252006ede9d7f04de1dc996a"
+      },
+      "B": {
+        "chunks": 16,
+        "attention_tasks_per_layer": 128,
+        "group_tiles": 0,
+        "embedding": "stage",
+        "folded_argmax": true,
+        "execution": "persistent megakernel",
+        "source_sha256": "d60cc8261d48f3ea9b0a0528f8c4510aef1228747e87b03c26ffb08252ccc56f",
+        "binary_sha256": "7cfd2915570adfd903a82c52e5f3fb40c6b12fe3b4ddbb324af7b1a96df7ce86",
+        "identity_sha256": "39c46711485c814a2c26497d2418f8ffe730a3c5e0a76c3f5367de2d7ea5a663",
+        "compile_result_sha256": "a452abbf5ccff253666a6adceee5d820ea20cbc3aec3a6a77c045969ae0b2be4"
+      },
+      "C": {
+        "chunks": 1,
+        "attention_tasks_per_layer": 8,
+        "group_tiles": 16,
+        "embedding": "la",
+        "folded_argmax": true,
+        "execution": "persistent megakernel",
+        "source_sha256": "b21baf1df539eb66a5827934c24f789e1603ce1c6c21559776db46b18c8995e1",
+        "binary_sha256": "30d6899d9d9786d42b3b96e9daa13b1a0dd5e6b236582ac1ed52b45b3585a411",
+        "identity_sha256": "7863a58a4069d26a52b1939d0228773aca59239d0765c338f89b3adaf0aced8c",
+        "compile_result_sha256": "87074d9bdf6c46327ba946190ece94f131d4713540a9712eaadf0e84f9421967"
+      },
+      "E": {
+        "chunks": 1,
+        "attention_tasks_per_layer": 8,
+        "group_tiles": 0,
+        "embedding": "stage",
+        "folded_argmax": true,
+        "execution": "CUDA Graph typed stages",
+        "source_sha256": "b46644eb80f85b520793670dd288169d8b515453edb84d46604a166b9f598773",
+        "binary_sha256": "cc5d17d3cb14b64ac218c166065add8263f75458fc94b0f3b5b2380c7a495b88",
+        "identity_sha256": "d1888ac242ac6ba218b06b14dcaed2c3ef193bc79734ca5df71ffa11ea5cdb52",
+        "compile_result_sha256": "89c4a796f4b34f377cacec547d0d4b6c503ef8be5e789b0272ade6610fa414ea"
+      }
+    },
+    "A_E_coordinates_byte_identical": true,
+    "implementation_unchanged_from_base": {
+      "lib/Solver/Sm90DensePlan.cpp": "55ede61c9b3e9b1ad24f94159682463d5700d49a3bf003176840d65d41806e94",
+      "lib/Solver/Sm90DenseSearch.cpp": "6a7097ea47c8c1aa29f1ded987f4566b101e880ee265775404c5f723499a43d5",
+      "include/tilemega/Codegen/tasks/Sm90DenseSequence.cuh": "f3bceea8ff260d6b451450ae008ee34da65b59982c72a47bef2c882c6a02c6b2",
+      "include/tilemega/Codegen/tasks/Sm90DenseRuntime.cuh": "bee9214666387a69b4cfcd51ada865ad1820a63a437f84feb27f1b2766fdc0ce",
+      "lib/Codegen/Codegen.cpp": "c0578893970456bf2233f4b9d81d930df6baa85236e5076e623a796d66d0136f"
+    },
+    "A_E_generated_program_body_prefix_byte_identical": true,
+    "D_unchanged": true,
+    "D_remeasured": false,
+    "runtime_paths": {
+      "embedding_stage": "Prologue on every step when kEmbed=false",
+      "folded_argmax": "Head finish in all arms; kPostHead=false in sequence",
+      "attention_S1": "direct output; no partial-result merge",
+      "attention_S16": "partial results and last-arriver merge",
+      "sequence": "Capture typed stages, replay graph per decode step; no host stage launches",
+      "ownership": "unchanged cyclic/grid-stride",
+      "planner": "QKV group release and fused Head-to-embedding handoff only"
+    }
+  },
+  "binary_paths": {
+    "A": {
+      "binary_sha256": "1463828378eff4e4c20b9ca1fc0c43a8378579aba421158789ab85f3d633da29",
+      "symbols_sha256": "1a4e51de41ac27d5b52305f6c4191fc8f1586466e2f94c7871ac68bb6d2aab59",
+      "sm90_dense_native_kernel": true,
+      "sm90_dense_sequence_stage": false,
+      "cudaGraphLaunch": false,
+      "sm90_dense_sequence_advance": false
+    },
+    "B": {
+      "binary_sha256": "7cfd2915570adfd903a82c52e5f3fb40c6b12fe3b4ddbb324af7b1a96df7ce86",
+      "symbols_sha256": "f171deb7be7eda5b078a61db0d572ab7cf5290768476d2448b66ca765a2ef603",
+      "sm90_dense_native_kernel": true,
+      "sm90_dense_sequence_stage": false,
+      "cudaGraphLaunch": false,
+      "sm90_dense_sequence_advance": false
+    },
+    "C": {
+      "binary_sha256": "30d6899d9d9786d42b3b96e9daa13b1a0dd5e6b236582ac1ed52b45b3585a411",
+      "symbols_sha256": "619e5ff98ac4447eab7f90827165b3c4e306fa5b9f942bf1555d7911da75aaa2",
+      "sm90_dense_native_kernel": true,
+      "sm90_dense_sequence_stage": false,
+      "cudaGraphLaunch": false,
+      "sm90_dense_sequence_advance": false
+    },
+    "E": {
+      "binary_sha256": "cc5d17d3cb14b64ac218c166065add8263f75458fc94b0f3b5b2380c7a495b88",
+      "symbols_sha256": "0a4fdd7e7851e8ae327bb88d2abc474228dbb14e9f9a5c66bf32511387561283",
+      "sm90_dense_native_kernel": false,
+      "sm90_dense_sequence_stage": true,
+      "cudaGraphLaunch": true,
+      "sm90_dense_sequence_advance": true
+    }
+  },
+  "binary_paths_sha256": "d162457cab8d499695988bd6aa2e30f76a3bfac39b1164b3b08b3e4ac604ea13",
+  "new_and_historical_environment_match": {
+    "versions": true,
+    "model_config_sha256": true,
+    "prompt_ids_sha256": true,
+    "checkpoint_sha256": true,
+    "sm_clocks": true,
+    "mem_clocks": true
+  },
+  "measured_order": [
+    "D",
+    "B",
+    "C",
+    "A",
+    "E"
+  ],
+  "acceptance": [
+    "provisional_container_pid_namespace"
+  ],
+  "historical_result": "/root/TileMega-x1/runs/sm90_decode_ae/D.result.json",
+  "historical_result_sha256": "25441db4169713676cc9eb9625e1c4b2ca81a0bcb113f97572fc95af3317c512"
+}
