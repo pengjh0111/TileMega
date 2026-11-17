@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Backend/Sm90DenseOperands.cuh>
+#include <tilemega/Backend/Sm90DenseTaskCoordinate.cuh>
 #include <tilemega/Backend/Sm90DenseRoles.cuh>
 #include <tilemega/Backend/Sm90DenseRing.cuh>
 #include <tilemega/Backend/Sm90DenseAttentionMath.cuh>
@@ -24,7 +25,8 @@ namespace tilemega::backend {
 // DSMEM, then arrives on its inbox barrier; that leader merges and writes
 // the context. No global partials, lse or arrival counters are used.
 template<int Batch,int Hkv,int D,int Q,bool Norm,int Chunks,int BlockKeys,int Slots,
-         int NewRowWork,int Capacity,bool Dsmem=false,bool ExplicitStages=false,bool PreparedInput=false>
+         int NewRowWork,int Capacity,bool Dsmem=false,bool ExplicitStages=false,bool PreparedInput=false,
+         class TaskCoordinates=Sm90DenseCyclicTasks>
 struct Sm90DenseAttentionBody {
   using Element=cutlass::bfloat16_t;
   using Async=codegen::executor::Async<arch::Sm90>;
@@ -84,7 +86,7 @@ struct Sm90DenseAttentionBody {
   __device__ static __forceinline__ int Preissued(int past) {
     if constexpr(Prefix==0)return 0;
     else {
-      int bg,chunk;Decompose(int(blockIdx.x),bg,chunk);
+      int bg,chunk;Decompose(TaskCoordinates::Index(0),bg,chunk);
       auto range=Partition::Range(past,chunk,NewRowWork);
       int blocks=(max(0,min(range.end,past)-range.begin)+BlockKeys-1)/BlockKeys;
       return min(blocks,Prefix/(4*BlockKeys*D));
@@ -96,7 +98,7 @@ struct Sm90DenseAttentionBody {
       int layer,int past,char* shared,Sm90DenseRingState& state) {
     static_assert(Bytes>0 && Bytes%(4*BlockKeys*D)==0 && Bytes<=kMaxPreissue);
     auto& s=*reinterpret_cast<Storage*>(shared+1024);
-    int bg,chunk;Decompose(int(blockIdx.x),bg,chunk);
+    int bg,chunk;Decompose(TaskCoordinates::Index(0),bg,chunk);
     int begin=Partition::Range(past,chunk,NewRowWork).begin,count=Preissued<Bytes>(past);
     // The alternate arena and ring retired before the preceding boundary.
     Async::ProxyAsyncGlobalFence();
@@ -119,7 +121,7 @@ struct Sm90DenseAttentionBody {
     if(threadIdx.x==128) {
       int const past=p.past;int sequence=0,preissued=streamed?Preissued<Prefix>(past):0;
       for(int local=0;local<tasks;++local) {
-        int bg,chunk;Decompose(int(blockIdx.x)+local*int(gridDim.x),bg,chunk);
+        int bg,chunk;Decompose(TaskCoordinates::Index(local),bg,chunk);
         auto range=Partition::Range(past,chunk,NewRowWork);
         // Earlier steps wrote the history with generic stores (appendix C.1).
         Async::ProxyAsyncGlobalFence();
@@ -262,7 +264,7 @@ struct Sm90DenseAttentionBody {
       }
     }
     for(int local=0;local<tasks;++local) {
-      int task=int(blockIdx.x)+local*int(gridDim.x),bg,chunk;Decompose(task,bg,chunk);
+      int task=TaskCoordinates::Index(local),bg,chunk;Decompose(task,bg,chunk);
       auto range=Partition::Range(past,chunk,NewRowWork);
       Prepare(p,s,bg,range);
       codegen::executor::ComputeSync();
@@ -407,7 +409,7 @@ struct Sm90DenseAttentionBody {
       Sm90DenseRingState* persistent=nullptr,Tail tail={},bool streamed=true) {
     auto& state=persistent?*persistent:*reinterpret_cast<Sm90DenseRingState*>(shared);
     auto& s=*reinterpret_cast<Storage*>(shared+1024);
-    int tasks=kTasks/int(gridDim.x)+(int(blockIdx.x)<kTasks%int(gridDim.x));
+    int tasks=TaskCoordinates::Count(kTasks);
     unsigned phase=0;
     #pragma unroll
     for(int i=0;i<Slots;++i)phase|=(threadIdx.x<128?

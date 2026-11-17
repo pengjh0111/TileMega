@@ -17,7 +17,7 @@ struct ExplicitSmallStage {
 // Follow the original m16n8k16 A-fragment accumulation and WK reduction order.
 // Only statistics move; gamma remains folded into W and output scaling stays
 // before the original BF16 materialization, avoiding an extra rounded A tensor.
-template<int K,int WK,unsigned Input,unsigned Inverse>
+template<int K,int WK,unsigned Input,unsigned Inverse,class TaskCoordinates=backend::Sm90DenseCyclicTasks>
 struct ExplicitRms:ExplicitSmallStage {
   static constexpr int kTasks=1;
   template<class B>
@@ -29,7 +29,7 @@ struct ExplicitRms:ExplicitSmallStage {
   template<int Prefix,class B,class Tail>
   __device__ static void Run(B const&,int,char* shared,float,
       backend::Sm90DenseRingState&,Tail,backend::Sm90DenseOperandBank const& r,bool) {
-    if(blockIdx.x==0 && threadIdx.x<128) {
+    if(TaskCoordinates::Count(kTasks)>0 && threadIdx.x<128) {
       auto* partial=reinterpret_cast<float*>(shared+1024);
       if(threadIdx.x<32) {
         int lane=threadIdx.x,split=lane/4,col=2*(lane%4);float sum=0;
@@ -49,7 +49,8 @@ struct ExplicitRms:ExplicitSmallStage {
   }
 };
 
-template<bool Swiglu,int N,int U,unsigned Input,unsigned Residual,unsigned Output>
+template<bool Swiglu,int N,int U,unsigned Input,unsigned Residual,unsigned Output,
+    class TaskCoordinates=backend::Sm90DenseCyclicTasks>
 struct ExplicitOutput:ExplicitSmallStage {
   static constexpr int kTasks=(N+255)/256;
   template<class B>
@@ -61,7 +62,8 @@ struct ExplicitOutput:ExplicitSmallStage {
   template<int Prefix,class B,class Tail>
   __device__ static void Run(B const&,int,char*,float,
       backend::Sm90DenseRingState&,Tail,backend::Sm90DenseOperandBank const& r,bool) {
-    if(threadIdx.x<128)for(int task=blockIdx.x;task<kTasks;task+=gridDim.x)
+    if(threadIdx.x<128)for(int local=0;local<TaskCoordinates::Count(kTasks);++local) {
+      int task=TaskCoordinates::Index(local);
       for(int i=task*256+threadIdx.x;i<(task+1)*256 && i<N;i+=128) {
         if constexpr(Swiglu) {
           int gate=2*U*(i/U)+i%U;
@@ -69,11 +71,12 @@ struct ExplicitOutput:ExplicitSmallStage {
               float(r.gemm.weight[gate]),float(r.gemm.weight[gate+U]));
         }else r.gemm.output[i]=Element(float(r.gemm.weight[i])+float(r.gemm.residual[i]));
       }
+    }
     __syncthreads();
   }
 };
 
-template<class Original,int Q,int D>
+template<class Original,int Q,int D,class TaskCoordinates=backend::Sm90DenseCyclicTasks>
 struct ExplicitAttentionPrepare:Original {
   static constexpr int kTasks=Original::kGroups;
   template<int Prefix,class B,class Tail>
@@ -81,7 +84,8 @@ struct ExplicitAttentionPrepare:Original {
       backend::Sm90DenseRingState&,Tail,backend::Sm90DenseOperandBank const& r,bool) {
     using Body=typename Original::Body;
     auto& s=*reinterpret_cast<typename Body::Storage*>(shared+1024);
-    if(threadIdx.x<128)for(int bg=blockIdx.x;bg<kTasks;bg+=gridDim.x) {
+    if(threadIdx.x<128)for(int local=0;local<TaskCoordinates::Count(kTasks);++local) {
+      int bg=TaskCoordinates::Index(local);
       Body::Prepare(r.attention,s,bg,{r.attention.past,r.attention.past+1});
       codegen::executor::ComputeSync();
       for(int i=threadIdx.x*8;i<Q*D;i+=128*8) {
@@ -95,7 +99,7 @@ struct ExplicitAttentionPrepare:Original {
   }
 };
 
-template<class Original>
+template<class Original,class TaskCoordinates=backend::Sm90DenseCyclicTasks>
 struct ExplicitAttentionMerge:Original {
   static constexpr int kTasks=Original::kGroups;
   template<int Prefix,class B,class Tail>
@@ -103,7 +107,8 @@ struct ExplicitAttentionMerge:Original {
       backend::Sm90DenseRingState&,Tail,backend::Sm90DenseOperandBank const& r,bool) {
     using Body=typename Original::Body;
     auto& s=*reinterpret_cast<typename Body::Storage*>(shared+1024);
-    if(threadIdx.x<128)for(int bg=blockIdx.x;bg<kTasks;bg+=gridDim.x) {
+    if(threadIdx.x<128)for(int local=0;local<TaskCoordinates::Count(kTasks);++local) {
+      int bg=TaskCoordinates::Index(local);
       Body::Merge(r.attention,s,bg);
       codegen::executor::ComputeSync();
     }

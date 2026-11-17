@@ -118,9 +118,10 @@ __device__ inline unsigned long long Now() {
 // is folded into the packed weight (qkv, gate_up, lm_head).
 template<int Batch,int N,int K,int TN,int TK,int Slots,int WN,int WK,
          backend::ServingEpilogueOp Op,int U,bool InputNorm,unsigned W,unsigned C,
-         unsigned D,unsigned Index,int RegisterStages,unsigned Map,bool Multicast=false,bool ExternalNorm=false>
+         unsigned D,unsigned Index,int RegisterStages,unsigned Map,bool Multicast=false,bool ExternalNorm=false,
+         class TaskCoordinates=backend::Sm90DenseCyclicTasks>
 struct Gemm {
-  using Body=backend::Sm90DenseGemm<Batch,N,K,TN,TK,Slots,WN,WK,Op,U,InputNorm,RegisterStages,Multicast,ExternalNorm>;
+  using Body=backend::Sm90DenseGemm<Batch,N,K,TN,TK,Slots,WN,WK,Op,U,InputNorm,RegisterStages,Multicast,ExternalNorm,TaskCoordinates>;
   static constexpr bool kMulticast=Multicast;
   static constexpr int kBatch=Batch,kTasks=N/TN,kSharedBytes=Body::kSharedBytes;
   static constexpr bool kUsesOperandRecord=true;
@@ -155,10 +156,11 @@ struct Gemm {
 template<int Batch,int Hkv,int D,int Q,bool Norm,int Chunks,int Keys,int Slots,int RowWork,
          int Capacity,unsigned Qkv,unsigned Key,unsigned Value,unsigned Output,
          unsigned Cosine,unsigned Sine,unsigned QNorm,unsigned KNorm,
-         unsigned Partial,unsigned Lse,unsigned Arrivals,unsigned KeyMap,unsigned ValueMap,bool Dsmem=false,bool ExplicitStages=false>
+         unsigned Partial,unsigned Lse,unsigned Arrivals,unsigned KeyMap,unsigned ValueMap,bool Dsmem=false,bool ExplicitStages=false,
+         bool PreparedInput=false,class TaskCoordinates=backend::Sm90DenseCyclicTasks>
 struct Attention {
   static constexpr bool kUsesOperandRecord=true;
-  using Body=backend::Sm90DenseAttentionBody<Batch,Hkv,D,Q,Norm,Chunks,Keys,Slots,RowWork,Capacity,Dsmem,ExplicitStages>;
+  using Body=backend::Sm90DenseAttentionBody<Batch,Hkv,D,Q,Norm,Chunks,Keys,Slots,RowWork,Capacity,Dsmem,ExplicitStages,PreparedInput,TaskCoordinates>;
   // D10b: the leader's inbox barrier counts its S - 1 peer chunks.
   static constexpr int kInboxWriters=Dsmem?Chunks-1:0;
   static constexpr int kTasks=Body::kTasks,kSharedBytes=Body::kSharedBytes;
@@ -198,7 +200,7 @@ struct Attention {
 };
 
 template<int Batch,int Width,int Vocab,int Capacity,unsigned Tokens,unsigned Table,
-         unsigned Output>
+         unsigned Output,class TaskCoordinates=backend::Sm90DenseCyclicTasks>
 struct Embedding {
   static constexpr bool kUsesOperandRecord=false;
   static constexpr int kTasks=Batch,kSharedBytes=1024;
@@ -209,7 +211,8 @@ struct Embedding {
   template<int Prefix,class B,class Tail>
   __device__ static __forceinline__ void Run(B const& b,int past,char*,float,
       backend::Sm90DenseRingState&,Tail tail) {
-    if(threadIdx.x<128)for(int row=blockIdx.x;row<Batch;row+=gridDim.x) {
+    if(threadIdx.x<128)for(int local=0;local<TaskCoordinates::Count(Batch);++local) {
+      int row=TaskCoordinates::Index(local);
       auto* tokens=reinterpret_cast<int const*>(b.template Get<Tokens>());
       backend::Sm90DenseEmbedding<Width,Vocab,Capacity>::Run(tokens,b.template Get<Table>(),
           b.template Get<Output>(),row,past);

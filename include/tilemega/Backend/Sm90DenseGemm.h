@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Backend/Sm90DenseOperands.cuh>
+#include <tilemega/Backend/Sm90DenseTaskCoordinate.cuh>
 #include <tilemega/Backend/Sm90DenseRoles.cuh>
 
 #include <tilemega/Backend/Sm90DenseEpilogue.h>
@@ -15,7 +16,8 @@ namespace tilemega::backend {
 // Rank r issues the activation TMA of the slots s with s % 2 == r into both
 // CTAs; it first waits for the peer's consumer releases on peer[s / 2].
 template<int Batch,int N,int K,int TN,int TK,int Slots,int WarpsN,int WarpsK,
-         ServingEpilogueOp Op,int U,bool InputNorm,int RegisterStages=1,bool Multicast=false,bool ExternalNorm=false>
+         ServingEpilogueOp Op,int U,bool InputNorm,int RegisterStages=1,bool Multicast=false,bool ExternalNorm=false,
+         class TaskCoordinates=Sm90DenseCyclicTasks>
 struct Sm90DenseGemm {
   using Element=cutlass::bfloat16_t;
   static_assert(!ExternalNorm || (InputNorm && Batch==1), "explicit RMS is the B1 experiment path");
@@ -81,7 +83,7 @@ struct Sm90DenseGemm {
         // The activation depends on the current stage; its bytes are expected
         // here and its TMA is issued by the consuming stage after its fence.
         Async::ExpectTx(state.full+slot,kSlotBytes);
-        Async::Bulk(b+slot*TN*TK,weight+(std::size_t(blockIdx.x)*kIterations+slot)*TN*TK,
+        Async::Bulk(b+slot*TN*TK,weight+(std::size_t(TaskCoordinates::Index(0))*kIterations+slot)*TN*TK,
             part,state.full+slot);
       }
     }
@@ -102,7 +104,7 @@ struct Sm90DenseGemm {
       Async::ProxyAsyncGlobalFence();
       if constexpr(kResidual)
         for(int local=0;local<tasks;++local) {
-          int task=int(blockIdx.x)+local*int(gridDim.x);
+          int task=TaskCoordinates::Index(local);
           Async::ExpectTx(state.side+local,2*Batch*TN);
           #pragma unroll
           for(int row=0;row<Batch;++row)
@@ -112,7 +114,7 @@ struct Sm90DenseGemm {
       unsigned rank=0,peer=0;
       if constexpr(Multicast) {rank=Async::ClusterRank();peer=PeerGenerations(state);}
       for(int sequence=0;sequence<tasks*kIterations;++sequence) {
-        int slot=sequence%Slots,task=int(blockIdx.x)+(sequence/kIterations)*int(gridDim.x);
+        int slot=sequence%Slots,task=TaskCoordinates::Index(sequence/kIterations);
         int tile=sequence%kIterations;
         Async::Wait(state.empty+slot,(phase>>slot)&1);
         bool issue=!Multicast || unsigned(slot&1)==(rank&1);
@@ -246,7 +248,7 @@ struct Sm90DenseGemm {
           squares[r]+=__shfl_xor_sync(0xffffffff,squares[r],1);
           squares[r]+=__shfl_xor_sync(0xffffffff,squares[r],2);
         }
-      int task=int(blockIdx.x)+local*int(gridDim.x);
+      int task=TaskCoordinates::Index(local);
       Element const* tile_residual=nullptr;
       if constexpr(kResidual) {
         Async::Wait(state.side+local,(side>>local)&1);side^=1u<<local;
@@ -311,7 +313,7 @@ struct Sm90DenseGemm {
         state.consumer_generations[i]:state.producer_generations[i])<<i;
     // Each role publishes only its own phases, after its readers have joined.
     // The previous stage's final CTA join makes the two snapshots consistent.
-    int tasks=(N/TN)/int(gridDim.x)+(int(blockIdx.x)<(N/TN)%int(gridDim.x));
+    int tasks=TaskCoordinates::Count(N/TN);
     if(threadIdx.x<128)Consume(p,state,a,b,scratch,residual,tasks,phase,finish);
     else {
       Produce<Prefix>(p,state,a,b,residual,tasks,phase,streamed);
