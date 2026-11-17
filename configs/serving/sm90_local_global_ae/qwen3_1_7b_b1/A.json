@@ -76,5 +76,7 @@
     "group_wait": false
   },
   "body_contract": "S_local",
-  "executor": "Sm90DenseStaticPlan.cuh"
+  "executor": "Sm90DenseStaticPlan.cuh",
+  "plan_archive": "plans/A.json",
+  "plan_archive_sha256": "e08f9bf0763e492fd58408d6a4b0fdfb2c46e8a116f6b21513d403882171b1d9"
 }

@@ -76,5 +76,7 @@
     "cluster": 1
   },
   "body_contract": "S_TM",
-  "executor": "Sm90DenseStaticPlan.cuh"
+  "executor": "Sm90DenseStaticPlan.cuh",
+  "plan_archive": "plans/D.json",
+  "plan_archive_sha256": "412b3fd3360a2cf835bfd963e5e8196e8e90e0f7f926268ca2bd292b3e44d038"
 }
