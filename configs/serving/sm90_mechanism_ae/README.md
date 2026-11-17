@@ -56,6 +56,7 @@ python3 scripts/sm90_decode_mechanism_ae.py build --run runs/sm90_mechanism_ae \
   --compiler runs/sm90_mechanism_ae/build/tools/tilemega
 python3 scripts/sm90_decode_mechanism_ae.py audit --run runs/sm90_mechanism_ae \
   --prefill /root/TileMega/runs/sm90r2/build/sm90r3-final-prefill/qwen3_1_7b-B1/prefill.so
+python3 scripts/sm90_decode_mechanism_ae.py binary-audit --run runs/sm90_mechanism_ae
 python3 scripts/sm90_decode_ae_collect.py \
   --spec runs/sm90_mechanism_ae/spec.json \
   --out runs/sm90_mechanism_ae/timing --gpu 0

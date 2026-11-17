@@ -135,9 +135,27 @@ def audit(run, prefill):
     print(json.dumps(receipt, indent=2))
 
 
+def audit_binaries(run):
+    spec = read(run / 'spec.json')
+    records = {}
+    for arm in 'ABCE':
+        binary = Path(spec['arms'][arm]['decode'])
+        assert sha(binary) == spec['arms'][arm]['decode_sha256']
+        symbols = subprocess.check_output(['nm', '-C', str(binary)], text=True)
+        path = binary.parent / f'{arm}.symbols.txt';path.write_text(symbols)
+        checks = {name: name in symbols for name in ('sm90_dense_native_kernel',
+            'sm90_dense_sequence_stage', 'cudaGraphLaunch', 'sm90_dense_sequence_advance')}
+        assert checks == dict(sm90_dense_native_kernel=arm!='E',
+            sm90_dense_sequence_stage=arm=='E', cudaGraphLaunch=arm=='E',
+            sm90_dense_sequence_advance=arm=='E'), arm
+        records[arm] = dict(binary_sha256=sha(binary), symbols_sha256=sha(path), **checks)
+    write(run / 'binary-paths.json', records)
+    print(json.dumps(records, indent=2))
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=('prepare', 'build', 'audit'))
+    parser.add_argument('action', choices=('prepare', 'build', 'audit', 'binary-audit'))
     parser.add_argument('--run', type=Path, required=True)
     parser.add_argument('--compiler', type=Path)
     parser.add_argument('--prefill', type=Path)
@@ -146,3 +164,4 @@ if __name__ == '__main__':
     if args.action == 'prepare':prepare(run)
     if args.action == 'build':build(run, args.compiler.resolve())
     if args.action == 'audit':audit(run, args.prefill.resolve())
+    if args.action == 'binary-audit':audit_binaries(run)

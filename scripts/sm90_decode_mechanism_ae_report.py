@@ -89,6 +89,8 @@ def report(run, historical):
     assert tuple(v['arm'] for v in state['items']) == ORDER
     assert state['spec_sha256'] == sha(run / 'spec.json')
     assert spec['consistency_sha256'] == sha(run / 'consistency.json')
+    binary_paths = read(run / 'binary-paths.json')
+    assert all(binary_paths[a]['binary_sha256'] == spec['arms'][a]['decode_sha256'] for a in 'ABCE')
     manifest = read(ROOT / 'configs/serving/sm90_ae/qwen3_1_7b_b1/D.manifest.json')
     processes = []
     for item in state['items']:
@@ -143,6 +145,7 @@ def report(run, historical):
         rows=rows, ratios=ratios, all_attempts=str(run / 'timing/state.json'),
         state_sha256=sha(run / 'timing/state.json'), rejected_attempts=attempts,
         spec=spec, consistency=read(run / 'consistency.json'),
+        binary_paths=binary_paths, binary_paths_sha256=sha(run / 'binary-paths.json'),
         new_and_historical_environment_match=environment,
         measured_order=sorted(times, key=times.get),
         acceptance=sorted({r['acceptance'] for r in processes}),
@@ -177,7 +180,10 @@ def report(run, historical):
         'kernel completion carrying cross-stage order. The captured graph is '
         'replayed for each decode step; capture is outside timed generation. '
         'kEmbed=false keeps the embedding stage every step; kPostHead=false '
-        'avoids a separate argmax kernel. No task body or persistent path '
+        'avoids a separate argmax kernel. Binary symbol inspection verifies '
+        'that A/B/C contain the persistent kernel without graph replay, whereas '
+        'E contains stage kernels and cudaGraphLaunch without the persistent '
+        'kernel. No task body or persistent path '
         'needed changes for this matrix, and no artificial work was added.\n\n'
         'Verified protocol: A B C E / B C E A / C E A B on one physical H800, '
         'three independent processes per new arm. Each process has one warmup '
