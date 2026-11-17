@@ -40,6 +40,9 @@ S16: 340 actual native stages per decode step. S1: 312. The original semantic
 CTG contains 143 stages and is deliberately not rebuilt into a generic
 explicit-stage IR. Its count printed by the compiler is not the executed
 stage count. The generated NativeProgram and the audit receipt are authoritative.
+The graph also retains the existing one-per-step state-advance kernel and
+one-per-request sequence-begin kernel; these update step/iteration state and
+are part of execution organization, not additional model computation.
 
 All stages launch the original 132-CTA grid with 160 threads, residency1,
 cluster1 and 217664 shared bytes. GEMM task sizes/slots/MMA/register stages
@@ -104,8 +107,8 @@ The arm statistic is the median of three independent processes. All accepted
 values are retained regardless of ordering. Existing PID-namespace guard
 limitations are disclosed in results. No clocks or power settings are changed.
 
-Only static implementation checks, compilation/occupancy checks and the nine
-performance processes are performed. No C1/C2, HF, token/logit comparison,
+Only static implementation checks, compilation/occupancy checks and nine
+accepted performance processes (with retained guard retries) are performed. No C1/C2, HF, token/logit comparison,
 sanitizer, sync stress, profiling, other workload, calibration or sweep is run.
 All C/D comparisons are explicitly cross-session. E2/A2 is execution
 organization with matched computation, not a pure launch-latency measurement.

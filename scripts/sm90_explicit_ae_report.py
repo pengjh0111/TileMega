@@ -91,7 +91,8 @@ def report(run):
         ('E2','D','total baseline-to-selected gain')]
     ratios=[dict(ratio=a+'/'+b,value=t[a]/t[b],interpretation=label,
         cross_session=a in ('C','D') or b in ('C','D')) for a,b,label in comparisons]
-    attempts=[dict(arm=i['arm'],**a) for i in state['items'] for a in i['attempts'] if a['code']]
+    attempts=[dict(arm=i['arm'],guard=read(Path(a['directory'])/'guard_result.json'),**a)
+        for i in state['items'] for a in i['attempts'] if a['code']]
     environment={k:len({r[k] for r in processes})==1 for k in
         ('versions','model_config_sha256','prompt_ids_sha256','checkpoint_sha256','sm_clocks','mem_clocks')}
     receipt=dict(evidence='static implementation audit and measured performance only',
@@ -133,7 +134,9 @@ def report(run):
         'expands it explicitly. The authoritative execution list is the generated NativeProgram, '
         'not the old five-stage CTG count. E2 uses that same expanded list, including every '
         'independent semantic operation; graph capture/initialization occurs during engine construction '
-        'before timed requests. A2/E2 coordinates and generated Program prefix are byte-identical.\n\n'
+        'before timed requests. The existing per-step state-advance and per-request sequence-begin '
+        'kernels are retained as execution-state bookkeeping. A2/E2 coordinates and generated '
+        'Program prefix are byte-identical.\n\n'
         'The specialized emit modes are `explicit-serving` and `explicit-kernel-sequence`, both '
         'with --tmexec-config and no solve. Coordinates retain geometry; the artifact manifest '
         '`realization=explicit_stages_qwen_b1_v1` and compiled type parameters describe the '
@@ -151,6 +154,13 @@ def report(run):
         f'{r["process_range_pct"]:.6f} | {r["new_or_reused"]} |\n')
     text+='\n| Ratio | Value | Interpretation |\n|---|---:|---|\n'
     for r in ratios:text+=f'| {r["ratio"]} | {r["value"]:.9f} | {r["interpretation"]} |\n'
+    text+=('\nInferred from the measured medians: attention decomposition contributes '
+        f'{t["A2"]/t["B2"]:.4f}x under P0 and {t["C"]/t["D"]:.4f}x under P1. '
+        f'The bundled execution-realization change contributes {t["A2"]/t["C"]:.4f}x under S1 '
+        f'and {t["B2"]/t["D"]:.4f}x under S16. These comparisons do not identify '
+        'individual normalization, epilogue or completion contributions. '
+        f'Matched P0 megakernel organization contributes {t["E2"]/t["A2"]:.4f}x; '
+        f'the E2-to-D total is {t["E2"]/t["D"]:.4f}x.\n')
     text+=('\nVerified observed ordering, fastest first: `'+ ' < '.join(sorted(t,key=t.get))+
         '`. Every prescribed valid measurement is included; no speed-based filtering was used. '
         f'Guard/driver rejected attempts: {len(attempts)} (all records retained). '

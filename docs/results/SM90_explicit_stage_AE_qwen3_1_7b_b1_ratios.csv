@@ -1,0 +1,8 @@
+ratio,value,interpretation,cross_session
+A2/B2,1.0326193820504626,S1/S16 attention decomposition under P0,False
+C/D,1.055623541168157,S1/S16 attention decomposition under P1,True
+A2/C,1.2837331536233185,execution realization under S1,True
+B2/D,1.3123314951264293,execution realization under S16,True
+A2/D,1.3551389375428131,attention decomposition and realization combined,True
+E2/A2,1.3061577703030633,"matched explicit computation: execution organization, not pure launch latency",False
+E2/D,1.7700252531117828,total baseline-to-selected gain,True
