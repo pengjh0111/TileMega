@@ -2,6 +2,7 @@
 """Freeze, compile and audit the Qwen3 B1 mechanism-removal experiment."""
 import argparse
 import copy
+import hashlib
 import json
 import lzma
 import os
@@ -58,6 +59,14 @@ def audit(run, prefill):
     headers = original['consistency']['task_body_headers_exact_D']
     for path, digest in headers.items():
         assert sha(ROOT / path) == digest, path
+    implementation = {}
+    for path in ('lib/Solver/Sm90DensePlan.cpp', 'lib/Solver/Sm90DenseSearch.cpp',
+            'include/tilemega/Codegen/tasks/Sm90DenseSequence.cuh',
+            'include/tilemega/Codegen/tasks/Sm90DenseRuntime.cuh', 'lib/Codegen/Codegen.cpp'):
+        inherited = subprocess.check_output(['git', 'show',
+            '4a84be39988967cb0a3c8f30c532bd25a6587960:' + path], cwd=ROOT)
+        assert hashlib.sha256(inherited).hexdigest() == sha(ROOT / path), path
+        implementation[path] = sha(ROOT / path)
     records, sources, arms = {}, {}, {}
     for arm, (chunks, group, emb) in MATRIX.items():
         config = read(CONFIG / f'{arm}.json')
@@ -106,6 +115,7 @@ def audit(run, prefill):
     receipt = dict(evidence='verified configuration and emitted-source checks; not numerical validation',
         base_head='4a84be39988967cb0a3c8f30c532bd25a6587960',
         task_body_headers_exact_D=headers, arms=records, A_E_coordinates_byte_identical=True,
+        implementation_unchanged_from_base=implementation,
         A_E_generated_program_body_prefix_byte_identical=True,
         D_unchanged=True, D_remeasured=False,
         runtime_paths=dict(embedding_stage='Prologue on every step when kEmbed=false',
