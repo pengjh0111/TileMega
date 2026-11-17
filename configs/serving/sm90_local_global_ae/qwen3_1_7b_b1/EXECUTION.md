@@ -25,6 +25,14 @@ writeback is used. There is no claim that the old generic native solver already
 implemented this planner. Historical D used an additive local model and fixed
 native policy templates. The new executor therefore requires D_test.
 
+The complete source coordinates are retained for provenance. Their legacy
+`group_wait` and `layer_loop` flags do not drive this executor: the actual
+publication/wait groups and full 28-layer order come from the exported plan.
+Arm manifests state this explicitly. In particular D_test retains the Basic
+candidate, so it actually uses aggregate boundaries despite historical D's
+source coordinate `group_wait=true`. Fusion, including `emb=la` in B/D, remains
+part of the frozen structure. NoTail/weight_stream=false is enforced in all arms.
+
 The planner uses measured S_local complete-operator time divided by task waves,
 the existing calibrated native operator model for S_TM, fixed untuned auxiliary
 operator estimates, and calibrated publication/handoff costs. These are planning

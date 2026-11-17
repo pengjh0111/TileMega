@@ -78,5 +78,10 @@
   "body_contract": "S_local",
   "executor": "Sm90DenseStaticPlan.cuh",
   "plan_archive": "plans/A.json",
-  "plan_archive_sha256": "e08f9bf0763e492fd58408d6a4b0fdfb2c46e8a116f6b21513d403882171b1d9"
+  "plan_archive_sha256": "e08f9bf0763e492fd58408d6a4b0fdfb2c46e8a116f6b21513d403882171b1d9",
+  "coordinate_role": "frozen body/source provenance; group_wait and layer_loop do not drive this executor",
+  "actual_policy_source": "GPU task program: ownership, order, waits and publications in plan_source",
+  "actual_group_release": false,
+  "actual_weight_stream": false,
+  "actual_iteration": "full static per-track program over all 28 layers"
 }

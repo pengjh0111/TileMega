@@ -135,6 +135,8 @@ def arrays(plan):
 
 def emit(arm,plans,out):
     local=arm in 'ACE';structure=CONFIG/('S_local.json' if local else 'S_TM.json');s=json.loads(structure.read_text())
+    assert s['coordinates']['emb']==('stage' if local else 'la')
+    assert s['coordinates']['residency']==s['coordinates']['cluster']==1 and not s['coordinates']['weight_stream']
     plan_path=plans/(('A' if arm=='E' else arm)+'.plan.json');plan=json.loads(plan_path.read_text())
     assert plan['structure_sha256']==sha(structure)
     prefix,template=metadata(s);body=aliases(s);program,receipt=arrays(plan)
@@ -158,7 +160,11 @@ def emit(arm,plans,out):
     write(out/(arm+'.emit.json'),receipt)
     write(CONFIG/(arm+'.json'),dict(arm=arm,structure=structure.name,structure_sha256=sha(structure),
         plan_source=str(plan_path),plan_sha256=sha(plan_path),execution=receipt['execution'],
-        coordinates=s['coordinates'],body_contract=s['structure'],executor='Sm90DenseStaticPlan.cuh'))
+        coordinates=s['coordinates'],body_contract=s['structure'],executor='Sm90DenseStaticPlan.cuh',
+        coordinate_role='frozen body/source provenance; group_wait and layer_loop do not drive this executor',
+        actual_policy_source='GPU task program: ownership, order, waits and publications in plan_source',
+        actual_group_release=not plan['planner']['aggregate'],actual_weight_stream=False,
+        actual_iteration='full static per-track program over all 28 layers'))
     print(arm,receipt['compute_tasks'],receipt['entries'],flush=True)
 
 def build(arm,out):

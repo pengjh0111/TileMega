@@ -77,6 +77,15 @@ def main(run):
         ('versions','model_config_sha256','prompt_ids_sha256','checkpoint_sha256','sm_clocks','mem_clocks')}
     assert all(environment.values()),environment
     local=json.loads((CONFIG/'S_local.json').read_text());tm=json.loads((CONFIG/'S_TM.json').read_text())
+    paired_sources={a+'_'+b:audit['arms'][a]['source_sha256']==audit['arms'][b]['source_sha256']
+                    for a,b in [('A','C'),('B','D')]}
+    assert all(paired_sources.values())
+    archives={}
+    for arm in 'ABCD':
+        raw=run/'plans-v1'/(arm+'.plan.json');archive=CONFIG/'plans'/(arm+'.json')
+        r=json.loads(raw.read_text());a=json.loads(archive.read_text())
+        for key in ('tasks','events','units','per_track_sequence','planner','structure_sha256'):assert r[key]==a[key]
+        archives[arm]=dict(path=str(archive.relative_to(ROOT)),sha256=sha(archive),raw_plan_sha256=sha(raw),all_plan_data_preserved=True)
     attempts=[dict(arm=i['arm'],**a) for i in state['items'] for a in i['attempts'] if a['code']]
     receipt=dict(evidence='verified H800 performance and static program audit; numerical correctness not tested',
         accepted_new_processes=15,reused_matrix_processes=0,environment_matches=environment,
@@ -86,6 +95,8 @@ def main(run):
         raw_root=str(run),state_sha256=sha(run/'timing-v1/state.json'),rejected_attempts=attempts,
         local_structure_sha256=sha(CONFIG/'S_local.json'),tm_structure_sha256=sha(CONFIG/'S_TM.json'),
         local_selection_source=local['source_state'],spec=spec,audit=audit,rows=rows,ratios=ratios,
+        paired_generated_sources_identical=paired_sources,plan_archives=archives,
+        cutlass_revision='dc45f979ae336a235da1676b311f35efeb30149a',
         frontier_candidates={name:{k:v for k,v in json.loads((run/'audit-v1'/(name+'.frontier-candidate.json')).read_text()).items()
             if k not in ('owner','queues','critical_priority')} for name in ('S_local','S_TM')})
     out=ROOT/'docs/results';csv_write(out/f'{STEM}.csv',rows);csv_write(out/f'{STEM}_processes.csv',processes)
