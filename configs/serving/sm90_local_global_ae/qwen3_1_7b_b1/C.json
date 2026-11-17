@@ -1,0 +1,80 @@
+{
+  "arm": "C",
+  "structure": "S_local.json",
+  "structure_sha256": "abdf1a47190baa5d79267e5dcf843fcf2fc762fad232bbc1492c4f3fea7b14fb",
+  "plan_source": "/root/TileMega-local-global-ae/runs/sm90_local_global_ae/plans-v1/C.plan.json",
+  "plan_sha256": "5a8660629102fb404c9de3dfe77219ea893195eb66c197c415493b17569b7f62",
+  "execution": "static task megakernel",
+  "coordinates": {
+    "schema": 5,
+    "model": "dense",
+    "gemms": {
+      "qkv": {
+        "tile_n": 32,
+        "warps_n": 4,
+        "warps_k": 1,
+        "slot_bytes": 16384,
+        "slots": 8,
+        "mma": "mma_sync",
+        "register_stages": 2,
+        "multicast": false
+      },
+      "o": {
+        "tile_n": 16,
+        "warps_n": 2,
+        "warps_k": 2,
+        "slot_bytes": 32768,
+        "slots": 2,
+        "mma": "mma_sync",
+        "register_stages": 1,
+        "multicast": false
+      },
+      "gate_up": {
+        "tile_n": 32,
+        "warps_n": 2,
+        "warps_k": 2,
+        "slot_bytes": 65536,
+        "slots": 2,
+        "mma": "mma_sync",
+        "register_stages": 4,
+        "multicast": false
+      },
+      "down": {
+        "tile_n": 16,
+        "warps_n": 2,
+        "warps_k": 2,
+        "slot_bytes": 32768,
+        "slots": 2,
+        "mma": "mma_sync",
+        "register_stages": 4,
+        "multicast": false
+      },
+      "lm_head": {
+        "tile_n": 128,
+        "warps_n": 4,
+        "warps_k": 1,
+        "slot_bytes": 16384,
+        "slots": 7,
+        "mma": "mma_sync",
+        "register_stages": 4,
+        "multicast": false
+      }
+    },
+    "attention": {
+      "chunks": 16,
+      "block_keys": 64,
+      "slots": 2,
+      "new_row_work": 0,
+      "merge": "la"
+    },
+    "residency": 1,
+    "cluster": 1,
+    "swiglu_u": 8,
+    "weight_stream": false,
+    "layer_loop": true,
+    "emb": "stage",
+    "group_wait": false
+  },
+  "body_contract": "S_local",
+  "executor": "Sm90DenseStaticPlan.cuh"
+}

@@ -1,0 +1,24 @@
+{
+  "S_local_sha256": "abdf1a47190baa5d79267e5dcf843fcf2fc762fad232bbc1492c4f3fea7b14fb",
+  "winners": {
+    "qkv": "044f947c28868b5f",
+    "o": "146b84fa88e1a654",
+    "gate_up": "f75cbb16c8002bda",
+    "down": "68495b2dbe8ce6a8",
+    "lm_head": "0834b1866bb0cadd",
+    "attention": "abd210b1e8e11a09"
+  },
+  "isolated_us": {
+    "qkv": 15.168,
+    "o": 11.7760003,
+    "gate_up": 29.6,
+    "down": 19.4879994,
+    "lm_head": 212.671995,
+    "attention": 12.909419294721408
+  },
+  "valid_samples": 6060,
+  "rejected_guard_attempts": 42,
+  "input_protocol": "deterministic finite BF16 hash-generated data; inverse=1; prepared Q/K/V; same protocol for every candidate",
+  "cache_protocol": "256 MiB cg-store eviction before every warmup/sample; eviction excluded from timing",
+  "inventory": "NVIDIA H800, GPU-5b5e235a-09a2-fe8b-7754-916b7eb85976, 00000000:44:00.0"
+}
