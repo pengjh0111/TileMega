@@ -41,7 +41,7 @@ std::string Hash(std::string const& path) {
 static int CompileNativeDenseArtifact(std::string const& input,std::string const& output,
     std::string const& coordinates,std::string const& target_path,int batch,
     std::string const& dump_cg,int split_compile,std::string const& origin,
-    json::Value const& selection={},bool kernel_sequence=false) {
+    json::Value const& selection={},bool kernel_sequence=false,bool explicit_stages=false) {
   namespace fs=std::filesystem;
   if(split_compile<1 || split_compile>8)
     throw std::invalid_argument("native split compilation must use 1 through 8 workers");
@@ -61,6 +61,7 @@ static int CompileNativeDenseArtifact(std::string const& input,std::string const
   auto imported=solver::ImportSm90Dense(input,c,context);
   auto module=solver::MaterializeSm90Dense(imported,c,batch,target,context,origin);
   if(kernel_sequence)(*module)->setAttr("tmexec.native_kernel_sequence",mlir::UnitAttr::get(&context));
+  if(explicit_stages)(*module)->setAttr("tmexec.native_explicit_stages",mlir::UnitAttr::get(&context));
   auto source=codegen::CouplingGraphToCUDA{}.Lower(*module);
   fs::create_directories(requested.parent_path());
   auto cu=shared?fs::path(requested.string()+".cu"):requested;
@@ -93,6 +94,7 @@ static int CompileNativeDenseArtifact(std::string const& input,std::string const
       {"export_sha256",input_hash},{"coordinates_sha256",coordinates_hash},
       {"ctg_sha256",Hash(cg.string())},{"ctg",cg.string()}};
   if(kernel_sequence)manifest.emplace_back("execution","kernel_sequence");
+  if(explicit_stages)manifest.emplace_back("realization","explicit_stages_qwen_b1_v1");
   std::ofstream(requested.string()+".plan.json")<<json::Value(manifest).Dump(2)<<'\n';
   if(!shared)return 0;
   std::string root=TILEMEGA_SOURCE_DIR;
@@ -191,9 +193,9 @@ static int CompileNativeDenseArtifact(std::string const& input,std::string const
 
 int CompileNativeDenseFixed(std::string const& input,std::string const& output,
     std::string const& coordinates,std::string const& target_path,int batch,
-    std::string const& dump_cg,int split_compile,bool kernel_sequence) {
+    std::string const& dump_cg,int split_compile,bool kernel_sequence,bool explicit_stages) {
   return CompileNativeDenseArtifact(input,output,coordinates,target_path,batch,dump_cg,
-      split_compile,"fixed",{},kernel_sequence);
+      split_compile,"fixed",{},kernel_sequence,explicit_stages);
 }
 
 bool IsNativeDenseInput(std::string const& input) {

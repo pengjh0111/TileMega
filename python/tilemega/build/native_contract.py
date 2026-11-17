@@ -38,6 +38,8 @@ def dispatch(manifest, defines, source):
     if re.search(r'\b(?:GemmInvocation|StageDesc|ServingGemmTaskBody|ServingGemvTaskBody|'
                  r'tilemega_l1_kernel|tilemega_l1_loop_kernel|tilemega_l2_kernel)\b', source):
         raise ValueError('native dense generated source contains a legacy execution path')
+    if manifest.get('realization') == 'explicit_stages_qwen_b1_v1':
+        return explicit_dispatch(manifest, source)
     layer = LAYER[c['model']]
     per_group = 2 if len(layer) % 2 else 1
     size = per_group*len(layer)
@@ -187,7 +189,8 @@ def dispatch(manifest, defines, source):
 
 def implementations(manifest):
     c = manifest['native_dense']
-    return dict(execution_arch_id=900, program='sm90_dense_native',
+    explicit = manifest.get('realization') == 'explicit_stages_qwen_b1_v1'
+    result = dict(execution_arch_id=900, program='sm90_dense_native',
                 input_norm='consumer_rms', swiglu_interleave_u=c['swiglu_u'],
                 gemms=[dict(index=g['index'], impl=g['impl'],
                             task_body='Sm90DenseMoeGemm' if g['family'] in MOE_MODES else 'Sm90DenseGemm')
@@ -197,3 +200,59 @@ def implementations(manifest):
                                merge=('dsmem' if c['attention'].get('merge') == 'dsmem' else 'last_arriver')
                                if c['attention']['chunks'] > 1 else 'none',
                                buffers=c['attention']['slots'], partition='actual_past'))
+
+    if explicit:
+        result.update(program='sm90_explicit_stages_qwen_b1', input_norm='explicit_rms_statistics',
+            residual='explicit_output', swiglu='explicit_output', argmax='explicit_final_reduction',
+            embedding='explicit_stage', attention_prepare='explicit_qk_norm_rope_kv_append')
+        result['attention']['merge'] = 'explicit_stage' if c['attention']['chunks'] > 1 else 'none'
+    return result
+
+
+def explicit_dispatch(manifest, source):
+    c = manifest['native_dense']
+    if (manifest['runtime_batch'] != 1 or c['model'] != 'dense' or c['emb'] != 'stage' or
+            c['group_wait'] or c['weight_stream'] or c['cluster'] != 1 or c['residency'] != 1):
+        raise ValueError('explicit stage realization requires its fixed basic domain')
+    chunks = c['attention']['chunks']
+    if chunks not in (1,16):raise ValueError('explicit realization supports S1/S16 only')
+    names = ['RmsQkv','Qkv','PrepareQkv','AttentionCompute']
+    if chunks == 16:names.append('MergeAttention')
+    names += ['OutputGemm','OutputResidual','RmsGate','GateUp','SwiGLU','Down','DownResidual']
+    if f"using ExplicitLayer=std::tuple<{','.join(names)}>;" not in source:
+        raise ValueError('explicit semantic stage list differs')
+    if 'using ExplicitEnd=std::tuple<RmsHead,HeadPartial,ArgmaxFinal>;' not in source:
+        raise ValueError('explicit head completion is missing')
+    if re.search(r'=Head<|=Program<',source):raise ValueError('fused P1 program in P0')
+    if not re.search(r'using NativeProgram=ExplicitStageProgram<\d+,\d+,28,\d+,217664,', source):
+        raise ValueError('explicit program shape or shared budget differs')
+    sequence = manifest.get('execution') == 'kernel_sequence'
+    if ('using NativeSequence=ExplicitSequence<NativeProgram>' in source) != sequence:
+        raise ValueError('explicit graph uses a different stage list')
+    aliases = dict(re.findall(r'using (\w+)Body=Gemm<([^;]+)>;',source))
+    families = dict(qkv='Qkv',o='OutputGemm',gate_up='GateUp',down='Down',lm_head='HeadPartial')
+    if set(aliases) != set(families.values()):raise ValueError('explicit GEMM family count differs')
+    result=[]
+    for index,g in enumerate(manifest['gemms']):
+        f=g['family'];a=aliases[families[f]].split(',');cfg=c['gemms'][f]
+        normalized=f in ('qkv','gate_up','lm_head')
+        if len(a)!=19 or a[17]!='false' or a[18]!=str(normalized).lower():
+            raise ValueError('explicit GEMM must consume external statistics where required')
+        batch,n,k,tn,tk,slots,wn,wk=map(int,a[:8]);rs=int(a[15])
+        actual=dict(tile_m=16,tile_n=tn,tile_k=tk,stages=slots,warps_n=wn,warps_k=wk,split_k=1)
+        if (batch!=1 or (n,k)!=(g['n'],g['k']) or a[10]!=str(normalized).lower() or
+                a[8]!='backend::ServingEpilogueOp::'+('kArgmaxPartial' if f=='lm_head' else 'kStore') or
+                int(a[9])!=c['swiglu_u'] or any(g[key]!=v for key,v in actual.items()) or
+                (tn,2*tn*tk,slots,wn,wk,rs)!=(cfg['tile_n'],cfg['slot_bytes'],cfg['slots'],
+                    cfg['warps_n'],cfg['warps_k'],cfg['register_stages'])):
+            raise ValueError('explicit GEMM geometry/realization differs from manifest')
+        result.append(dict(index=index,compiled_variant=index,impl='native_mma_sync',register_stages=rs,**actual))
+    attention = re.search(r'using AttentionPrepared=Attention<([^;]+)>;',source)
+    original = re.search(r'using AttentionOriginal=Attention<([^;]+)>;',source)
+    if not attention or not original or attention[1]!=original[1]+',false,true':
+        raise ValueError('explicit attention must retain original geometry and disable fused preparation/merge')
+    a=attention[1].split(',')
+    if list(map(int,a[:10]))!=[1,8,128,2,1,chunks,c['attention']['block_keys'],
+            c['attention']['slots'],c['attention']['new_row_work'],1088]:
+        raise ValueError('explicit attention shape differs')
+    return result

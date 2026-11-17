@@ -2010,9 +2010,14 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     throw std::invalid_argument("native dense plan lacks its typed coordinates or batch");
   auto c=solver::Sm90DenseCoordinates::FromJson(json::Parse(coordinate.getValue().str()));
   bool kernel_sequence=module->hasAttr("tmexec.native_kernel_sequence");
+  bool explicit_stages=module->hasAttr("tmexec.native_explicit_stages");
   if(kernel_sequence && (c.moe || c.cluster!=1 || c.residency!=1 || c.weight_stream ||
       batch_attr.getInt()!=1))
     throw std::invalid_argument("preserve-body sequence requires dense B1 cluster1 residency1 without streaming");
+  if(explicit_stages && (c.moe || c.cluster!=1 || c.residency!=1 || c.weight_stream ||
+      c.group_wait || c.embed_la || batch_attr.getInt()!=1 ||
+      (c.attention.chunks!=1 && c.attention.chunks!=16)))
+    throw std::invalid_argument("explicit stages require the dense B1 S1/S16 basic experiment");
   int batch=batch_attr.getInt(),capacity=integerField(serving,"capacity");
   if(capacity!=1088)throw std::invalid_argument("native dense decode binds capacity 1088");
   auto buffers=arrayField(plan,"buffers"),gemms=arrayField(plan,"gemms"),stages=arrayField(plan,"stages");
@@ -2110,7 +2115,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
      <<"namespace tilemega::codegen::native_dense {\n"
      <<"constexpr char kNativeCoordinateIdentity[]="<<quoteCString(c.ToJson().Dump(0))<<";\n"
      <<"constexpr float kNativeEpsilon="<<formatFloat(optionalFloatField(plan,"norm_epsilon"))<<"f;\n"
-     <<"constexpr std::array<tm_buffer_info,"<<buffers.size()<<"> kNativeBuffers={{\n";
+     <<"constexpr std::array<tm_buffer_info,"<<buffers.size()+(explicit_stages?2:0)<<"> kNativeBuffers={{\n";
   unsigned buffer_index=0;
   for(auto value:buffers) {
     auto b=dictionaryEntry(value,"buffers");
@@ -2131,6 +2136,8 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
        <<(role=="external")<<','<<code<<','<<(integerField(b,"constant")+integerField(b,"per_seq"))
        <<"ull,"<<integerField(b,"per_batch")<<"ull,"<<quoteCString(stringField(b,"pack_json"))<<"},\n";
   }
+  if(explicit_stages)out<<"  {\"__explicit_rms_inverse\",0,1,1ull,0ull,\"\"},\n"
+      <<"  {\"__explicit_gemm_output\",0,0,"<<nk[2][0]<<"ull,0ull,\"\"},\n";
   out<<"}};\n";
   // Tensor-map descriptors {buffer, rank, dims[4], strides[3], box[4]}; equal
   // descriptors (layers reading one shared activation) are one map.
@@ -2361,6 +2368,94 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   out<<"},{";
   for(unsigned l=0;l<layers;++l)out<<(l?",":"")<<values[l]<<'u';
   out<<"},"<<2*kv_bytes<<"ull,"<<kv_bytes<<"ull};\n";
+  if(explicit_stages) {
+    if(layers!=28 || hidden!=2048 || nk[2][0]!=12288 || nk[4][0]!=151936 || c.swiglu_u!=8)
+      throw std::invalid_argument("explicit realization is specialized to Qwen3-1.7B");
+    unsigned inv=buffers.size(),temp=inv+1;
+    out<<"} // namespace tilemega::codegen::native_dense\n"
+       <<"#include <tilemega/Codegen/tasks/Sm90DenseExplicit.cuh>\n"
+       <<"namespace tilemega::codegen::native_dense {\n";
+    auto ids=[&](unsigned k) {
+      auto result=emitted[1+k].ids;
+      for(unsigned i=0;i<result.size();++i) {
+        auto found=column.find({k,i});
+        if(found!=column.end())result[i]="kLayerSlot|"+std::to_string(found->second)+"u";
+      }
+      return result;
+    };
+    auto alias=[&](std::string const& name,std::string const& head,
+                   std::vector<std::string> const& operands,std::string const& tail) {
+      out<<"using "<<name<<'='<<head;
+      for(auto const& operand:operands)out<<','<<operand;
+      out<<tail<<">;\n";
+    };
+    alias("ExplicitEmbeddingBody",embedding.head,embedding.ids,embedding.tail);
+    out<<"using ExplicitEmbedding=Placement<ExplicitEmbeddingBody>;\n";
+    std::array<mlir::DictionaryAttr,5> first_gemm;
+    for(auto g:gemms) {
+      auto value=dictionaryEntry(g,"gemms");unsigned f=family(value);
+      if(!first_gemm[f])first_gemm[f]=value;
+    }
+    std::vector<std::pair<std::string,unsigned>> sequence;
+    auto stage=[&](std::string const& name,std::string const& type,unsigned tasks) {
+      out<<"using "<<name<<"=Placement<"<<type<<">;\n";sequence.push_back({name,tasks});
+    };
+    auto norm=[&](unsigned f,std::string const& name) {
+      auto const& cfg=c.gemms[f];
+      stage(name,"ExplicitRms<"+std::to_string(nk[f][1])+","+std::to_string(cfg.warps_k)+","+
+          id(first_gemm[f],"a")+","+std::to_string(inv)+">",1);
+    };
+    auto gemm=[&](unsigned f,unsigned original,std::string const& name) {
+      auto const& e=emitted[original];auto const& cfg=c.gemms[f];
+      auto operands=f==4?e.ids:ids(original-1);
+      bool normalized=f==0 || f==2 || f==4;
+      operands[1]=normalized?std::to_string(inv):"kAbsent";
+      if(f==1 || f==2 || f==3)operands[2]=std::to_string(temp);
+      std::ostringstream head;
+      head<<"Gemm<1,"<<nk[f][0]<<','<<nk[f][1]<<','<<cfg.tile_n<<','<<cfg.TileK()<<','
+          <<cfg.slots<<','<<cfg.warps_n<<','<<cfg.warps_k<<",backend::ServingEpilogueOp::"
+          <<(f==4?"kArgmaxPartial":"kStore")<<",8,"<<(normalized?"true":"false");
+      alias(name+"Body",head.str(),operands,e.tail+",false,"+(normalized?"true":"false"));
+      stage(name,f==4?"ExplicitHeadPartial<"+name+"Body>":name+"Body",nk[f][0]/cfg.tile_n);
+    };
+    norm(0,"RmsQkv");gemm(0,1,"Qkv");
+    auto attention=ids(1);
+    alias("AttentionOriginal",emitted[2].head,attention,emitted[2].tail);
+    alias("AttentionPrepared",emitted[2].head,attention,emitted[2].tail+",false,true");
+    stage("PrepareQkv","ExplicitAttentionPrepare<AttentionOriginal,2,128>",8);
+    stage("AttentionCompute","AttentionPrepared",8*c.attention.chunks);
+    if(c.attention.chunks>1)stage("MergeAttention","ExplicitAttentionMerge<AttentionOriginal>",8);
+    gemm(1,3,"OutputGemm");
+    stage("OutputResidual","ExplicitOutput<false,2048,8,"+std::to_string(temp)+","+
+        id(first_gemm[1],"c")+","+id(first_gemm[1],"d")+">",8);
+    norm(2,"RmsGate");gemm(2,4,"GateUp");
+    stage("SwiGLU","ExplicitOutput<true,6144,8,"+std::to_string(temp)+",kAbsent,"+
+        id(first_gemm[2],"d")+">",24);
+    gemm(3,5,"Down");
+    stage("DownResidual","ExplicitOutput<false,2048,8,"+std::to_string(temp)+","+
+        id(first_gemm[3],"c")+","+id(first_gemm[3],"d")+">",8);
+    auto layer_sequence=sequence;sequence.clear();
+    norm(4,"RmsHead");gemm(4,unsigned(emitted.size()-2),"HeadPartial");
+    stage("ArgmaxFinal","ExplicitArgmax<"+id(first_gemm[4],"d")+","+
+        std::to_string(argmax_index)+","+embedding.ids[0]+">",1);
+    out<<"using ExplicitLayer=std::tuple<";
+    for(unsigned i=0;i<layer_sequence.size();++i)out<<(i?",":"")<<layer_sequence[i].first;
+    out<<">;\nusing ExplicitEnd=std::tuple<RmsHead,HeadPartial,ArgmaxFinal>;\n"
+       <<"using NativeProgram=ExplicitStageProgram<"<<buffers.size()+2<<','<<map_order.size()<<','
+       <<layers<<','<<slots<<",217664,ExplicitEmbedding,ExplicitLayer,ExplicitEnd,HeadPartial>;\n"
+       <<"constexpr std::array<StageInfo,"<<1+layers*layer_sequence.size()+sequence.size()<<"> kNativeStages={{\n"
+       <<"  {\"explicit\",\"Embedding\",0,1,0,0,0,0},\n";
+    for(unsigned l=0;l<layers;++l)for(auto const& row:layer_sequence)
+      out<<"  {\"explicit\",\""<<row.first<<"\",0,"<<row.second<<",0,0,0,0},\n";
+    for(auto const& row:sequence)out<<"  {\"explicit\",\""<<row.first<<"\",0,"<<row.second<<",0,0,0,0},\n";
+    out<<"}};\n} // namespace tilemega::codegen::native_dense\n";
+    if(kernel_sequence)out<<"#define TILEMEGA_NATIVE_KERNEL_SEQUENCE 1\n"
+        <<"#define TILEMEGA_NATIVE_SEQUENCE_PRESERVE_BODY 1\n"
+        <<"#include <tilemega/Codegen/tasks/Sm90DenseExplicitSequence.cuh>\n"
+        <<"namespace tilemega::codegen::native_dense {using NativeSequence=ExplicitSequence<NativeProgram>;}\n";
+    out<<"#include <tilemega/Codegen/tasks/Sm90DenseRuntime.cuh>\n";
+    return out.str();
+  }
   // Typed stages: 0 prologue, 1..10 the layer pair (layers of parity 0 then
   // 1), 11 head, 12 final. Typed stage N has the parity of its executed
   // boundaries, so its arena is N % 2 unless it is full width.
