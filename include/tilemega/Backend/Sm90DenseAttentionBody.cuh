@@ -24,7 +24,7 @@ namespace tilemega::backend {
 // DSMEM, then arrives on its inbox barrier; that leader merges and writes
 // the context. No global partials, lse or arrival counters are used.
 template<int Batch,int Hkv,int D,int Q,bool Norm,int Chunks,int BlockKeys,int Slots,
-         int NewRowWork,int Capacity,bool Dsmem=false>
+         int NewRowWork,int Capacity,bool Dsmem=false,bool ExplicitStages=false>
 struct Sm90DenseAttentionBody {
   using Element=cutlass::bfloat16_t;
   using Async=codegen::executor::Async<arch::Sm90>;
@@ -149,6 +149,19 @@ struct Sm90DenseAttentionBody {
   __device__ static __forceinline__ void Prepare(Sm90DenseAttentionOperands const& p,Storage& s,
       int bg,Sm90DenseKeyRange range) {
     int warp=threadIdx.x>>5,lane=threadIdx.x&31,d=lane*8;
+    if constexpr(ExplicitStages) {
+      // The preceding prepare stage already rounded Q/K, rotated and appended KV.
+      for(int q=warp;q<Q;q+=4)if(d<D)
+        *reinterpret_cast<uint4*>(reinterpret_cast<char*>(s.query)+Swizzled<16>(q,d))=
+            *reinterpret_cast<uint4 const*>(p.qkv+std::size_t(bg)*(Q+2)*D+q*D+d);
+      if(range.Contains(p.past) && warp==Q%4 && d<D) {
+        std::size_t cache=(std::size_t(bg)*Capacity+p.past)*D+d;
+        *reinterpret_cast<uint4*>(reinterpret_cast<char*>(s.new_key)+Swizzled<16>(0,d))=
+            *reinterpret_cast<uint4 const*>(p.key+cache);
+        *reinterpret_cast<uint4*>(reinterpret_cast<char*>(s.new_value)+Swizzled<16>(0,d))=
+            *reinterpret_cast<uint4 const*>(p.value+cache);
+      }
+    }else {
     auto* group=p.qkv+std::size_t(bg)*(Q+2)*D;
     auto* cosine=p.cosine+p.past*D;auto* sine=p.sine+p.past*D;
     for(int q=warp;q<Q;q+=4) {
@@ -164,6 +177,7 @@ struct Sm90DenseAttentionBody {
         *reinterpret_cast<uint4*>(reinterpret_cast<char*>(s.new_key)+Swizzled<16>(0,d))=k;
         *reinterpret_cast<uint4*>(reinterpret_cast<char*>(s.new_value)+Swizzled<16>(0,d))=v;
       }
+    }
     }
   }
 
@@ -283,7 +297,7 @@ struct Sm90DenseAttentionBody {
       codegen::executor::ComputeSync();
       Finish(p,s,bg,chunk);
       if constexpr(Dsmem)DsmemMerge(p,state,s,bg,chunk);
-      else if constexpr(Chunks>1)
+      else if constexpr(Chunks>1 && !ExplicitStages)
         if(Sm90DenseLastArriver::Publish<Chunks>(p.arrivals+bg,&s.last))Merge(p,s,bg);
       codegen::executor::ComputeSync();
     }

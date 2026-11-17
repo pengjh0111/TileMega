@@ -15,9 +15,10 @@ namespace tilemega::backend {
 // Rank r issues the activation TMA of the slots s with s % 2 == r into both
 // CTAs; it first waits for the peer's consumer releases on peer[s / 2].
 template<int Batch,int N,int K,int TN,int TK,int Slots,int WarpsN,int WarpsK,
-         ServingEpilogueOp Op,int U,bool InputNorm,int RegisterStages=1,bool Multicast=false>
+         ServingEpilogueOp Op,int U,bool InputNorm,int RegisterStages=1,bool Multicast=false,bool ExternalNorm=false>
 struct Sm90DenseGemm {
   using Element=cutlass::bfloat16_t;
+  static_assert(!ExternalNorm || (InputNorm && Batch==1), "explicit RMS is the B1 experiment path");
   using Async=codegen::executor::Async<arch::Sm90>;
   static_assert(Batch>0 && Batch<=16 && N%TN==0 && TN%8==0 && TK%64==0 && K%TK==0);
   static_assert(WarpsN*WarpsK==4 && TN%(8*WarpsN)==0 && Slots>=2 && Slots<=8);
@@ -43,7 +44,7 @@ struct Sm90DenseGemm {
   // Store and residual write from registers when one warp holds all of K.
   static constexpr bool kRegisterEpilogue=WarpsK==1 &&
       (Op==ServingEpilogueOp::kStore || Op==ServingEpilogueOp::kResidual);
-  using Epilogue=Sm90DenseEpilogue<Op,Batch,N,K,TN,U,InputNorm>;
+  using Epilogue=Sm90DenseEpilogue<Op,Batch,N,K,TN,U,InputNorm,ExternalNorm>;
   static_assert(kThreads==Sm90DenseRoleAbi::kThreads);
   using Atom=decltype(cute::composition(cute::Swizzle<3,3,3>{},
       cute::Layout<cute::Shape<cute::_8,cute::_64>,cute::Stride<cute::_64,cute::_1>>{}));
@@ -174,7 +175,7 @@ struct Sm90DenseGemm {
       AS const& as,BS const& bs,AD& ad,BD& bd,Acc& accum,float (&squares)[2]) {
     using namespace cute;
     constexpr int k=Split+I*WarpsK,next=k+RegisterStages*WarpsK,slot=I%RegisterStages;
-    if constexpr(InputNorm) {
+    if constexpr(InputNorm && !ExternalNorm) {
       // m16n8k16 A fragment: values 2..3 and 6..7 belong to row lane/4+8,
       // the others to row lane/4 (PTX ISA "mma.m16n8k16" fragment layout).
       auto fragment=ra(_,_,Int<slot>{});
@@ -239,7 +240,7 @@ struct Sm90DenseGemm {
         if constexpr(Multicast)
           if(unsigned(slot&1)!=(rank&1))Async::RemoteArrive(Async::Mapa(state.peer+slot/2,rank^1u));
       }
-      if constexpr(InputNorm)
+      if constexpr(InputNorm && !ExternalNorm)
         #pragma unroll
         for(int r=0;r<2;++r) {
           squares[r]+=__shfl_xor_sync(0xffffffff,squares[r],1);
@@ -253,18 +254,22 @@ struct Sm90DenseGemm {
       }
       if constexpr(kRegisterEpilogue) {
         float inv[2]={1,1};
-        if constexpr(InputNorm)
+        if constexpr(InputNorm && !ExternalNorm)
           for(int r=0;r<2;++r)inv[r]=Epilogue::Inverse(squares[r],p.epsilon);
+        if constexpr(ExternalNorm)
+          for(int r=0;r<2;++r)inv[r]=reinterpret_cast<float const*>(p.residual)[0];
         Epilogue::Registers(accum,owned,inv,tile_residual,p.output,task);
       }else {
         for(int i=0;i<size(accum);++i)
           scratch[split*16*TN+get<0>(owned(i))*TN+get<1>(owned(i))]=accum(i);
         // One warp per split publishes its rows' partial squares.
-        if constexpr(InputNorm)
+        if constexpr(InputNorm && !ExternalNorm)
           if((tid/32)%WarpsN==0 && (tid&3)==0) {
             int row=(tid&31)/4;
             norms[split*16+row]=squares[0];norms[split*16+row+8]=squares[1];
           }
+        if constexpr(ExternalNorm)
+          if(tid<Batch)norms[tid]=reinterpret_cast<float const*>(p.residual)[tid];
         codegen::executor::ComputeSync();
         if constexpr(Op==ServingEpilogueOp::kArgmaxPartial)
           Epilogue::template Shared<WarpsK>(scratch,norms,tile_residual,

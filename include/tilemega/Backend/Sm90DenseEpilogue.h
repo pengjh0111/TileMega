@@ -13,7 +13,7 @@ namespace tilemega::backend {
 // inverse RMS the consumers accumulated from their A fragments; residual
 // tiles were prefetched into shared memory by the producer. Only the
 // compile-time Batch rows are touched. Rounding matches ServingEpilogueValue.
-template<ServingEpilogueOp Op,int Batch,int N,int K,int TN,int U,bool InputNorm>
+template<ServingEpilogueOp Op,int Batch,int N,int K,int TN,int U,bool InputNorm,bool ExternalNorm=false>
 struct Sm90DenseEpilogue {
   using Element=cutlass::bfloat16_t;
   static_assert(Op==ServingEpilogueOp::kStore || Op==ServingEpilogueOp::kResidual ||
@@ -69,7 +69,8 @@ struct Sm90DenseEpilogue {
       return sum;
     };
     auto inverse=[&](int row) {
-      if constexpr(!InputNorm)return 1.0f;
+      if constexpr(ExternalNorm)return norms[row];
+      else if constexpr(!InputNorm)return 1.0f;
       else {
         float squares=0;
         #pragma unroll
