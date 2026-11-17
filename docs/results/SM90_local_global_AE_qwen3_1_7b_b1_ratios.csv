@@ -1,0 +1,8 @@
+ratio,value,interpretation,cross_session
+A/B,1.351477852339795,decomposition and compatible implementation selection under Basic,False
+C/D,1.3510185748130834,decomposition and compatible implementation selection under TileMega planner,False
+A/C,1.0002578188128028,fixed S_local planning; selected task programs identical,False
+B/D,0.9999178976396198,fixed S_TM planning; selected task programs identical,False
+A/D,1.3513668928181162,combined structure and planning selection,False
+E/A,1.2125253173293242,"matched task program: megakernel execution organization, not pure launch latency",False
+E/D,1.6385665705426293,full system versus stage-granular reference,False
