@@ -24,7 +24,7 @@ namespace tilemega::backend {
 // DSMEM, then arrives on its inbox barrier; that leader merges and writes
 // the context. No global partials, lse or arrival counters are used.
 template<int Batch,int Hkv,int D,int Q,bool Norm,int Chunks,int BlockKeys,int Slots,
-         int NewRowWork,int Capacity,bool Dsmem=false,bool ExplicitStages=false>
+         int NewRowWork,int Capacity,bool Dsmem=false,bool ExplicitStages=false,bool PreparedInput=false>
 struct Sm90DenseAttentionBody {
   using Element=cutlass::bfloat16_t;
   using Async=codegen::executor::Async<arch::Sm90>;
@@ -149,7 +149,7 @@ struct Sm90DenseAttentionBody {
   __device__ static __forceinline__ void Prepare(Sm90DenseAttentionOperands const& p,Storage& s,
       int bg,Sm90DenseKeyRange range) {
     int warp=threadIdx.x>>5,lane=threadIdx.x&31,d=lane*8;
-    if constexpr(ExplicitStages) {
+    if constexpr(ExplicitStages || PreparedInput) {
       // The preceding prepare stage already rounded Q/K, rotated and appended KV.
       for(int q=warp;q<Q;q+=4)if(d<D)
         *reinterpret_cast<uint4*>(reinterpret_cast<char*>(s.query)+Swizzled<16>(q,d))=
