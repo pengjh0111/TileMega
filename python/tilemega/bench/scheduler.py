@@ -303,6 +303,10 @@ def dispatch(args, policy):
         if code == 75 and args.release_on_blocked:
             print('releasing allocation after a rejected GPU attempt', flush=True)
             return
+        if (code == 0 and args.release_on_blocked and chosen.get('gpu')
+                and any(state[step]['status'] == 'pending' for step in steps)):
+            # A utilization sample can still include the completed GPU child.
+            time.sleep(policy.get('own_child_settle_s', 0))
     if args.release_on_blocked:
         return
     for name, rec in state.items():
