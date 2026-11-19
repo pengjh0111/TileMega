@@ -231,6 +231,16 @@ def span(values):
     return (max(values) - min(values)) / statistics.median(values) * 100
 
 
+def selection_result(arms, predicted):
+    ranked = sorted(arms, key=lambda label: arms[label]['tpot_ms'])
+    best, second = ranked[:2]
+    threshold = max(0.5, 2 * max(arms[best]['range_pct'], arms[second]['range_pct']))
+    gap = (arms[second]['tpot_ms'] / arms[best]['tpot_ms'] - 1) * 100
+    winner = min((best, second), key=predicted.__getitem__) if gap <= threshold and predicted else best
+    return dict(measured_order=ranked, top_gap_pct=gap, threshold_pct=threshold,
+                winner=winner, tie_broken_by_prediction=winner != best)
+
+
 def job_result(state, name):
     row = state[name]
     if row['status'] != 'done':
@@ -291,16 +301,7 @@ def collect(a):
                       tokens_compared=sum(len(v) for v in by_arm.values()),
                       per_arm_token_equal={k: sum(t == v[0] for t in v) for k, v in by_arm.items()})
     elif kind == 'sel':
-        ranked = sorted(summary, key=lambda k: summary[k]['tpot_ms'])
-        best, second = ranked[0], ranked[1]
-        threshold = max(0.5, 2 * max(summary[best]['range_pct'], summary[second]['range_pct']))
-        gap = (summary[second]['tpot_ms'] / summary[best]['tpot_ms'] - 1) * 100
-        winner = best
-        predicted = spec.get('predicted_ns', {})
-        if gap <= threshold and predicted:
-            winner = min((best, second), key=lambda k: predicted[k])
-        result.update(measured_order=ranked, top_gap_pct=gap, threshold_pct=threshold, winner=winner,
-                      tie_broken_by_prediction=winner != best)
+        result.update(selection_result(summary, spec.get('predicted_ns', {})))
     elif kind == 'corr':
         tokens = [read(r['tokens']) for r in rows]
         checked = rows[:spec.get('correctness', {}).get('reference_processes', len(rows))]
