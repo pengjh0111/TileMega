@@ -10,7 +10,8 @@ import sys
 import time
 from pathlib import Path
 
-from .gpu_guard import gpu, idle, needs_numa_lock, require_allowed_gpu, gpu_step_allowed, stop
+from .gpu_guard import (gpu, host_proc, idle, needs_numa_lock, process_start,
+                        require_allowed_gpu, gpu_step_allowed, stop, verify_device)
 from .locking import acquire_command_lock
 
 TERMINAL = {'done', 'failed', 'skipped', 'not_run', 'cancelled'}
@@ -84,7 +85,7 @@ def timing_pause(control, waiting, available, now, limit):
         control.pop('idle_wait_since', None)
     else:
         since = control.setdefault('idle_wait_since', now)
-        if now - since >= limit:
+        if limit is not None and now - since >= limit:
             control.update(timing_paused=True, paused_at=now,
                            reason='no idle timing window for six hours')
 
@@ -171,10 +172,13 @@ def main(argv=None):
         available, row = False, {}
         if gpu_steps:
             try:
-                row = gpu()
+                strict = policy.get('strict_host_owners', False)
+                row = verify_device(policy, gpu(strict=True) if strict else gpu())
+                if strict:
+                    host_proc()
                 available = any(idle(row, policy, s.get('needs_free_mib', 12288)) for s in timing_steps)
             except Exception as error:
-                row = dict(error=str(error))
+                row['error'] = str(error)
             signature = (available, tuple(row.get('owners', {})),
                          row.get('hidden_mib', 0) > policy['max_hidden_mib'], row.get('error'))
             if signature != observed:
@@ -247,7 +251,9 @@ def main(argv=None):
                 if chosen.get('gpu') and (folder / 'pgid').exists():
                     child_pid = int((folder / 'pgid').read_text())
                     # The recorded guard child remains in its own session.
-                    subprocess.run(['pkill', '-KILL', '-s', str(child_pid)], check=False)
+                    start_path = folder / 'pgid_start'
+                    if start_path.exists() and process_start(child_pid) == start_path.read_text().strip():
+                        subprocess.run(['pkill', '-KILL', '-s', str(child_pid)], check=False)
                 stop(proc)
                 code = 124
         rec.update(run_s=time.monotonic() - begin, exit_code=code, ended=time.time())

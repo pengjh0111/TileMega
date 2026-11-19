@@ -1,0 +1,12 @@
+{
+  "allowed_gpu_indices": [0],
+  "gpu_uuid": "GPU-5f9e7f53-b146-b1a6-7d48-f5b703cd2c74",
+  "gpu_lock_path": "/work/tilemega-gpu.lock",
+  "strict_host_owners": true,
+  "samples": 31,
+  "interval_s": 1,
+  "max_util_pct": 2,
+  "max_hidden_mib": 1024,
+  "hidden_violations": 1,
+  "max_idle_wait_s": null
+}

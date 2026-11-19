@@ -24,8 +24,8 @@ def allowed_by_policy(policy, index):
             raise ValueError('device is excluded by the active user GPU restriction')
 
 
-def outer_guard_holds(index):
-    with open(f'/tmp/tilemega_gpu{index}.lock', 'a') as handle:
+def outer_guard_holds(index, path=None):
+    with open(path or f'/tmp/tilemega_gpu{index}.lock', 'a') as handle:
         try:
             fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
@@ -36,13 +36,13 @@ def outer_guard_holds(index):
 
 def require_guard(policy, index):
     allowed_by_policy(policy, index)
-    expected = f'/tmp/tilemega_gpu{index}.lock'
+    expected = policy.get('gpu_lock_path', f'/tmp/tilemega_gpu{index}.lock')
     if (os.environ.get('CUDA_VISIBLE_DEVICES') != str(index) or
             os.environ.get('TILEMEGA_DEVICE_INDEX') != str(index) or
             os.environ.get('TILEMEGA_GPU_LOCK_HELD') != '1' or
             os.environ.get('TILEMEGA_GPU_LOCK') != expected):
         raise ValueError('matching explicit device variables and the per-card outer guard are required')
-    outer_guard_holds(index)
+    outer_guard_holds(index, expected)
 
 
 def require_group_guard(policy, group):
@@ -77,12 +77,17 @@ def probe_cuda(ordinal=0):
     check(lib.cuDeviceGetPCIBusId(bus, 32, device))
     memory = ctypes.c_size_t()
     check(lib.cuDeviceTotalMem_v2(ctypes.byref(memory), device))
-    sms = ctypes.c_int()
-    check(lib.cuDeviceGetAttribute(ctypes.byref(sms), 16, device))
+    def attribute(number):
+        value = ctypes.c_int()
+        check(lib.cuDeviceGetAttribute(ctypes.byref(value), number, device))
+        return value.value
     pci = bus.value.decode()
     node_path = Path('/sys/bus/pci/devices') / pci.lower() / 'numa_node'
     return dict(cuda_uuid=str(uuid.UUID(bytes=bytes(raw_uuid))), cuda_pci_bus_id=pci,
-                numa_node=int(node_path.read_text()), sm_count=sms.value,
+                numa_node=int(node_path.read_text()), sm_count=attribute(16),
+                compute_capability=[attribute(75), attribute(76)],
+                shared_memory_per_sm=attribute(81), registers_per_sm=attribute(82),
+                shared_memory_per_block_optin=attribute(97), blocks_per_sm=attribute(106),
                 total_memory=memory.value, probe_pid=os.getpid(),
                 cuda_driver_queries_without_context=True)
 

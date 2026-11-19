@@ -175,9 +175,15 @@ def _observe_one(path, label, index):
         pids.append(int(pid))
         visible_mib += int(memory)
     hidden_mib = max(0, int(float(telemetry["memory.used"])) - visible_mib)
-    not_own = set(pids) - _own_pids()
-    unresolved = sorted(pid for pid in not_own if not Path(f"/proc/{pid}").exists())
+    strict_guard = os.environ.get("TILEMEGA_STRICT_HOST_GUARD_PID")
     limited = os.environ.get("TILEMEGA_GPU_PID_MODE") == "namespace_limited"
+    if strict_guard:
+        from tilemega.bench.gpu_guard import strict_foreign
+        not_own = strict_foreign({"owners": pids}, int(strict_guard), {})
+        unresolved = sorted(not_own)
+    else:
+        not_own = set(pids) - _own_pids()
+        unresolved = sorted(pid for pid in not_own if not Path(f"/proc/{pid}").exists())
     foreign = sorted(not_own - set(unresolved)) if limited else sorted(not_own)
     # Initialization already consumes GPU power. Only the outer guard compares
     # idle power; applying its idle threshold here would reject our own engine.

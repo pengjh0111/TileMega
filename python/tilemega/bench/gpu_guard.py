@@ -29,7 +29,7 @@ def gpu_step_allowed(policy, index, step):
         return False
     return True
 
-def gpu(index=None):
+def gpu(index=None, *, strict=False):
     index=str(os.getenv('TILEMEGA_DEVICE_INDEX','0') if index is None else index)
     raw=subprocess.check_output(['nvidia-smi','-i',index,'--query-gpu=memory.used,memory.free,memory.total,power.draw,utilization.gpu','--format=csv,noheader,nounits'],text=True).splitlines()[0]
     used,free,total,power,util=map(float,raw.split(','))
@@ -37,15 +37,30 @@ def gpu(index=None):
     owners={}
     for line in apps.splitlines():
         try:pid,size=map(int,line.split(','));owners[pid]=size
-        except ValueError:continue
+        except ValueError:
+            if strict and line.strip():raise
     detail=subprocess.check_output(['nvidia-smi','-i',index,
-        '--query-gpu=clocks.current.sm,clocks.current.memory,temperature.gpu,clocks_event_reasons.active',
+        '--query-gpu=clocks.current.sm,clocks.current.memory,temperature.gpu,clocks_event_reasons.active'
+        + (',clocks_event_reasons_counters.hw_thermal_slowdown,clocks_event_reasons_counters.sw_thermal_slowdown'
+           if strict else ''),
         '--format=csv,noheader,nounits'],text=True).splitlines()[0].split(',')
     sm,memory,temp=map(float,detail[:3])
-    return dict(time=time.time(),gpu_index=int(index),used_mib=used,free_mib=free,total_mib=total,
+    row = dict(time=time.time(),gpu_index=int(index),used_mib=used,free_mib=free,total_mib=total,
                 power_w=power,utilization_pct=util,owners=owners,hidden_mib=max(0,used-sum(owners.values())),
                 sm_clock_mhz=sm,memory_clock_mhz=memory,temperature_c=temp,
                 throttle_mask=int(detail[3].strip(),0))
+    if strict:row['thermal_counters_us'] = [int(value) for value in detail[4:6]]
+    return row
+
+def verify_device(policy, row):
+    if policy.get('gpu_uuid'):
+        index = str(row['gpu_index'])
+        observed = subprocess.check_output(['nvidia-smi','-i',index,
+            '--query-gpu=uuid','--format=csv,noheader'],text=True).strip()
+        if observed != policy['gpu_uuid']:
+            raise ValueError(f'NVML index {index} maps to {observed}, expected {policy["gpu_uuid"]}')
+        row['gpu_uuid'] = observed
+    return row
 
 def throttle_invalid(row):
     # Idle/application clocks are permitted; hardware, thermal and power-brake
@@ -65,15 +80,20 @@ def proc_files(root,name):
     # Glob checks each leaf before yielding it, outside the callers' race guard.
     return (path/name for path in Path(root).iterdir() if path.name.isdecimal())
 
-def descendants(pid):
-    own={pid};parents={}
-    for path in proc_files('/proc','stat'):
-        try:parents[int(path.parent.name)]=int(path.read_text().rsplit(')',1)[1].split()[1])
+def descendant_starts(pid, root='/proc'):
+    own={pid};records={}
+    for path in proc_files(root,'stat'):
+        try:
+            fields = path.read_text().rsplit(')',1)[1].split()
+            records[int(path.parent.name)] = (int(fields[1]), fields[19])
         except (OSError,ValueError,IndexError):pass
     while True:
-        added={c for c,p in parents.items() if p in own}-own
-        if not added:return own
+        added={child for child,(parent,_) in records.items() if parent in own}-own
+        if not added:return {child:records[child][1] for child in own if child in records}
         own.update(added)
+
+def descendants(pid):
+    return {pid} | set(descendant_starts(pid))
 
 def nvml_owners(own):
     host=os.environ.get('TILEMEGA_HOST_PROC')
@@ -129,8 +149,11 @@ def external(row,own,*,allow_unresolved=False,nonce=None):
     return foreign
 
 def idle(row,policy,needs=0,nonce=None):
-    return (not external(row,descendants(os.getpid()),nonce=nonce) and row['utilization_pct']<=policy['max_util_pct']
-            and row['power_w']<=idle_power(policy,row.get('gpu_index'))+policy['power_margin_w']
+    occupied = (bool(row['owners']) if policy.get('strict_host_owners') else
+                bool(external(row,descendants(os.getpid()),nonce=nonce)))
+    return (not occupied and row['utilization_pct']<=policy['max_util_pct']
+            and ('idle_power_w' not in policy or
+                 row['power_w']<=idle_power(policy,row.get('gpu_index'))+policy['power_margin_w'])
             and row['hidden_mib']<=policy['max_hidden_mib'] and row['free_mib']>=needs
             and not throttle_invalid(row))
 
@@ -143,9 +166,34 @@ def session_members(sid):
         except (OSError,ValueError,IndexError):pass
     return members
 
-def process_start(pid):
-    try:return Path('/proc',str(pid),'stat').read_text().rsplit(')',1)[1].split()[19]
+def process_start(pid, root='/proc'):
+    try:return Path(root,str(pid),'stat').read_text().rsplit(')',1)[1].split()[19]
     except (OSError,IndexError):return None
+
+def host_proc():
+    default = '/host/proc' if Path('/host/proc/self/status').is_file() else '/proc'
+    root = Path(os.environ.get('TILEMEGA_HOST_PROC', default)).resolve()
+    # Linux reserves this inode for the initial PID namespace.
+    initial_pid_ns = os.readlink('/proc/self/ns/pid') == 'pid:[4026531836]'
+    try:
+        pids = next(line.split()[1:] for line in (root/'self/status').read_text().splitlines()
+                    if line.startswith('NSpid:'))
+        local_start = process_start(os.getpid())
+        if (int(pids[-1]) == os.getpid() and local_start is not None
+                and (initial_pid_ns or len(pids) > 1)
+                and process_start(int(pids[0]), root) == local_start):
+            return root, int(pids[0])
+    except (OSError, ValueError, IndexError, StopIteration):
+        pass
+    raise RuntimeError('strict GPU ownership requires readable host /proc with host-to-container PIDs')
+
+def strict_foreign(row, guard_pid, known):
+    root, _ = host_proc()
+    known.update(descendant_starts(guard_pid, root))
+    # Use host PIDs throughout. A coincidentally equal local PID does not
+    # establish ownership and all vanished or reused PIDs fail closed.
+    return {pid for pid in row['owners']
+            if pid not in known or process_start(pid, root) != known[pid]}
 
 def stop(process,known=None):
     own=descendants(process.pid)|session_members(process.pid)
@@ -192,10 +240,17 @@ def main():
     nonce=str(uuid.uuid4())
     a.out.mkdir(parents=True,exist_ok=True)
     limited=os.environ.get('TILEMEGA_GPU_PID_MODE')=='namespace_limited'
+    strict=policy.get('strict_host_owners',False)
+    if strict and (limited or group is not None):p.error('strict host ownership requires single-card strict mode')
+    host_known={}
     def sample(phase,**extra):
-        rows=[gpu(one) for one in indices]
+        rows=[verify_device(policy,gpu(one,strict=True) if strict else gpu(one)) for one in indices]
         for row in rows:
-            row['unresolved_host_pids']=[int(pid) for pid in row['owners'] if not Path('/proc',str(pid)).exists()]
+            if strict:
+                row['foreign_or_unresolved_pids']=sorted(
+                    strict_foreign(row,guard_host_pid,host_known) if phase!='preflight' else row['owners'])
+            else:
+                row['unresolved_host_pids']=[int(pid) for pid in row['owners'] if not Path('/proc',str(pid)).exists()]
             row['ownership_verified']=not limited
             with (a.out/'guard.jsonl').open('a') as f:f.write(json.dumps(dict(row,phase=phase,**extra))+'\n')
         return rows
@@ -209,6 +264,9 @@ def main():
         Path(f'/tmp/tilemega_gpu{one}.lock') for one in sorted(indices,key=int)]
     for lock in locks:lock.parent.mkdir(parents=True,exist_ok=True)
     with contextlib.ExitStack() as stack:
+        if strict:
+            try:_,guard_host_pid=host_proc()
+            except Exception as error:return finish(75,'preflight ownership unavailable: '+str(error))
         if needs_numa_lock(os.environ):
             if group is None:
                 node=os.environ.get('TILEMEGA_NUMA_NODE')
@@ -220,26 +278,34 @@ def main():
             # from taking them in opposite orders.
             for node in nodes:
                 numa=stack.enter_context(Path(f'/tmp/tilemega_numa{node}.lock').open('a'))
-                fcntl.flock(numa,fcntl.LOCK_EX)
+                try:fcntl.flock(numa,fcntl.LOCK_EX|(fcntl.LOCK_NB if strict else 0))
+                except BlockingIOError:return finish(75,'preflight NUMA lock occupied')
         for lock in locks:
             handle=stack.enter_context(lock.open('a'))
-            fcntl.flock(handle,fcntl.LOCK_EX)
+            try:fcntl.flock(handle,fcntl.LOCK_EX|(fcntl.LOCK_NB if strict else 0))
+            except BlockingIOError:return finish(75,'preflight GPU lock occupied')
         previous=set();rows=[]
         for i in range(policy['samples']):
             try:current=sample('preflight',sample=i)
             except Exception as error:return finish(75,'preflight telemetry unavailable: '+str(error))
-            foreign=set()
-            for row in current:foreign|=external(row,descendants(os.getpid()),nonce=nonce)
             # Do not start with a newly observed owner either; the two-sample
             # rule identifies interference during execution, not permission to start.
             if any(not idle(row,policy,a.needs_free_mib,nonce=nonce) for row in current):
                 return finish(75,'preflight occupied')
-            previous=foreign;rows.extend(current)
+            rows.extend(current)
             if i+1<policy['samples']:time.sleep(policy['interval_s'])
         baseline=max(r['hidden_mib'] for r in rows)
-        process=subprocess.Popen(cmd,env=dict(os.environ,TILEMEGA_GPU_LOCK_HELD='1',
-            TILEMEGA_RUN_NONCE=nonce),start_new_session=True)
-        (a.out/'pgid').write_text(str(process.pid)+'\n');begin=time.monotonic();hidden=0;known={process.pid:process_start(process.pid)};own={process.pid}
+        thermal=rows[0].get('thermal_counters_us')
+        def throttled(current):
+            return any(throttle_invalid(row) or (strict and row['thermal_counters_us']!=thermal)
+                       for row in current)
+        if throttled(rows):return finish(75,'preflight thermal throttle')
+        env=dict(os.environ,TILEMEGA_GPU_LOCK_HELD='1',TILEMEGA_RUN_NONCE=nonce)
+        if strict:env['TILEMEGA_STRICT_HOST_GUARD_PID']=str(guard_host_pid)
+        process=subprocess.Popen(cmd,env=env,start_new_session=True)
+        begin=time.monotonic();hidden=0;known={process.pid:process_start(process.pid)};own={process.pid}
+        (a.out/'pgid').write_text(str(process.pid)+'\n')
+        (a.out/'pgid_start').write_text(str(known[process.pid])+'\n')
         while True:
             try:code=process.wait(timeout=policy['interval_s']);break
             except subprocess.TimeoutExpired:pass
@@ -248,14 +314,15 @@ def main():
             try:current=sample('running')
             except Exception as error:
                 stop(process,known);return finish(75,'running telemetry unavailable: '+str(error))
-            if any(throttle_invalid(row) for row in current):
+            if throttled(current):
                 stop(process,known);return finish(75,'running throttle')
             foreign=set()
             for row in current:
-                foreign|=external(row,own|{os.getpid()},allow_unresolved=limited,nonce=nonce)
+                if strict:foreign.update(row['foreign_or_unresolved_pids'])
+                else:foreign|=external(row,own|{os.getpid()},allow_unresolved=limited,nonce=nonce)
             hidden=hidden+1 if any(row['hidden_mib']>baseline+policy['max_hidden_mib']
                                    for row in current) else 0
-            if foreign & previous or hidden>=policy['hidden_violations']:
+            if (foreign if strict else foreign & previous) or hidden>=policy['hidden_violations']:
                 stop(process,known);return finish(75,'running interference')
             previous=foreign
             if time.monotonic()-begin>a.timeout_s:
@@ -264,11 +331,13 @@ def main():
         stop(process,known)
         try:current=sample('after',exit_code=code)
         except Exception as error:return finish(75,'exit telemetry unavailable: '+str(error))
-        if any(throttle_invalid(row) for row in current):return finish(75,'exit throttle')
+        if throttled(current):return finish(75,'exit throttle')
         foreign=set()
-        for row in current:foreign|=external(row,own|{os.getpid()},nonce=nonce)
+        for row in current:
+            if strict:foreign.update(row['foreign_or_unresolved_pids'])
+            else:foreign|=external(row,own|{os.getpid()},nonce=nonce)
         if limited and foreign:return finish(75,'exit unresolved GPU owner')
-        if foreign & previous or any(row['hidden_mib']>baseline+policy['max_hidden_mib']
+        if (foreign if strict else foreign & previous) or any(row['hidden_mib']>baseline+policy['max_hidden_mib']
                                      for row in current) or (code and foreign):
             return finish(75,'exit interference')
         return finish(code,'child exit '+str(code))
