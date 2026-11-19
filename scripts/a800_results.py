@@ -57,7 +57,10 @@ def baseline_cell(run, inputs, state, scope, model, engine, batch):
 def native_cell(inputs, model, batch):
     uuid = inputs['device']['uuid']
     run = RUN/'native'/uuid/model/f'B{batch}'
-    receipts = [read(path) for path in sorted(run.glob('measure-*.json'))]
+    receipts = [read(path) for path in sorted(run.glob('*/measure-*.json'))]
+    checks = [read(path) for pattern in ('correctness-*.json', '*/correctness-*.json')
+              for path in run.glob(pattern)]
+    accepted_checks = sum(bool(row.get('pass')) for row in checks)
     rows, artifact_ids = [], set()
     for receipt in receipts:
         if not receipt.get('pass') or receipt['device_uuid'] != uuid:
@@ -75,7 +78,8 @@ def native_cell(inputs, model, batch):
     status = 'measured' if len(rows) == needed else 'incomplete' if rows else 'pending_correctness'
     artifacts = next(iter(artifact_ids), ('', '', ''))
     return rows, dict(model=model, batch=batch, status=status, processes=len(rows), required_processes=needed,
-        correctness='five fresh checks passed' if rows else 'pending',
+        correctness='five fresh checks passed' if rows else 'pilot passed' if accepted_checks else 'pending',
+        accepted_correctness_processes=accepted_checks,
         **metrics(rows, needed), backend='SM80 native' if rows else '', fastest_baseline='',
         fastest_baseline_tpot_ms='', speedup='', config_sha256=inputs['models'][model]['config_sha256'],
         prompt_sha256=inputs['models'][model]['prompt_sha256'], checkpoint_sha256='',

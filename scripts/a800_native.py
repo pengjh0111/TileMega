@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Run one immutable SM80 prefill/decode pair through guarded correctness or timing."""
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -66,7 +67,10 @@ def main():
                     target_sha256=sha(args.target), device_uuid=expected,
                     decode_sha256=decode_id['binary_sha256'],
                     prefill_sha256=prefill_id.get('binary_sha256', 'prompt'))
-    scope = RUN/'native'/expected/args.model/f'B{args.batch}'
+    artifact_key = hashlib.sha256(json.dumps(
+        [identity[key] for key in ('target_sha256', 'decode_sha256', 'prefill_sha256')],
+        separators=(',', ':')).encode()).hexdigest()[:20]
+    scope = RUN/'native'/expected/args.model/f'B{args.batch}'/artifact_key
     if args.stage == 'measure':
         if (plan['native_origin'] != 'solver' or not target.get('sm80_native_constants')
                 or decode_id['target_sha256'] != identity['target_sha256']
@@ -101,7 +105,7 @@ def main():
     py = str(ENVS/'tilemega/bin/python')
     seed_py = str(ENVS/args.seed_suite/'bin/python')
     seed_hash = ['--expected-sha256', args.expected_checkpoint_sha256] if args.expected_checkpoint_sha256 else []
-    run = scope/'allocations'/os.environ['SLURM_JOB_ID']
+    run = scope/'allocations'/os.environ['SLURM_JOB_ID']/name
     run.mkdir(parents=True, exist_ok=False)
     policy_path = run/'guard-policy.json'
     write_json(policy_path, policy)
@@ -151,7 +155,7 @@ def main():
             hf_pass = json.loads((evidence/'c1.json').read_text())['pass']
             if not hf_pass:
                 return 1
-    write_json(receipt, dict(identity, **{'pass': True}, job=run.name, hf_pass=hf_pass,
+    write_json(receipt, dict(identity, **{'pass': True}, job=os.environ['SLURM_JOB_ID'], hf_pass=hf_pass,
                evidence=str(evidence), tokens_sha256=sha(evidence/'reference_tokens.json')))
     return 0
 
