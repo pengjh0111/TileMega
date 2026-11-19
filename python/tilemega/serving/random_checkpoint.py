@@ -216,6 +216,7 @@ def main():
     parser.add_argument("--shard-mib", type=int, default=512)
     parser.add_argument("--chunk-mib", type=int, default=1)
     parser.add_argument("--max-gib", type=float)
+    parser.add_argument("--expected-sha256")
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     if args.describe:
@@ -229,6 +230,8 @@ def main():
     with RandomCheckpoint(args.config, args.out, seed=args.seed,
             shard_bytes=args.shard_mib << 20, chunk_bytes=args.chunk_mib << 20,
             max_bytes=int(args.max_gib*(1 << 30)) if args.max_gib is not None else None) as checkpoint:
+        if args.expected_sha256 and checkpoint.manifest['checkpoint_sha256'] != args.expected_sha256:
+            raise ValueError("checkpoint differs from the previously verified shared identity")
         env = dict(os.environ, TILEMEGA_RANDOM_CHECKPOINT=str(checkpoint.directory.resolve()))
         print(json.dumps({key: checkpoint.manifest[key] for key in
             ("state", "checkpoint_sha256", "tensor_count", "total_bytes", "supervisor_pid")}), flush=True)

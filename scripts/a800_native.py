@@ -36,10 +36,14 @@ def main():
     parser.add_argument('--round', type=int, required=True)
     parser.add_argument('--budget-s', type=int, default=840)
     parser.add_argument('--timeout-s', type=int, default=600)
+    parser.add_argument('--seed-suite', choices=('vllm', 'tilemega'), default='vllm')
+    parser.add_argument('--expected-checkpoint-sha256')
     args = parser.parse_args()
 
     if not 0 < args.timeout_s + 111 < args.budget_s or args.round < 0:
         parser.error('reserve time for strict admission and child cleanup, and use a nonnegative round')
+    if args.seed_suite != 'vllm' and not args.expected_checkpoint_sha256:
+        parser.error('an alternate generator must reproduce the verified checkpoint identity')
     decode, decode_id, plan = artifact(args.decode)
     with args.target.open() as stream:
         target = json.load(stream)
@@ -95,7 +99,8 @@ def main():
     if dev['uuid'] != expected:
         raise RuntimeError('native run requires the A800 UUID recorded in the target')
     py = str(ENVS/'tilemega/bin/python')
-    seed_py = str(ENVS/'vllm/bin/python')
+    seed_py = str(ENVS/args.seed_suite/'bin/python')
+    seed_hash = ['--expected-sha256', args.expected_checkpoint_sha256] if args.expected_checkpoint_sha256 else []
     run = scope/'allocations'/os.environ['SLURM_JOB_ID']
     run.mkdir(parents=True, exist_ok=False)
     policy_path = run/'guard-policy.json'
@@ -117,7 +122,7 @@ def main():
                '--numa-node', dev['numa_node'], '--', seed_py,
                '-m', 'tilemega.serving.random_checkpoint', '--config', str(config),
                '--out', '{attempt_dir}/checkpoint', '--seed', '0',
-               '--max-gib', str(math.ceil(description['checkpoint_bytes']/2**30)), '--', *child]
+               '--max-gib', str(math.ceil(description['checkpoint_bytes']/2**30)), *seed_hash, '--', *child]
     env = dict(TILEMEGA_DEVICE_INDEX=str(dev['index']), TILEMEGA_NUMA_NODE=dev['numa_node'],
                TILEMEGA_GPU_PID_MODE='strict', OMP_NUM_THREADS='2', MKL_NUM_THREADS='2')
     os.environ.update(TILEMEGA_DEVICE_INDEX=env['TILEMEGA_DEVICE_INDEX'],

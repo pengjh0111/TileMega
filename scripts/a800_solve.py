@@ -34,7 +34,7 @@ def main():
     spec = json.loads(target.read_text())
     fingerprint = spec['device_provenance']
     if (spec['arch_tag'] != 'sm_80' or 'A800' not in fingerprint['name']
-            or spec['sm80_native_constants']['gpu_uuid'] != fingerprint['uuid']
+            or spec.get('sm80_native_constants', {}).get('gpu_uuid') != fingerprint['uuid']
             or not os.access(cli, os.X_OK)):
         parser.error('provide an executable compiler and a calibrated A800 target')
     if args.prefill != 'prompt':
