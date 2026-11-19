@@ -30,7 +30,12 @@ def write_target(output, device, identity, receipt):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--plan', action='store_true')
+    parser.add_argument('--linked-candidates', type=Path)
     args = parser.parse_args()
+    if args.linked_candidates:
+        candidates = json.loads(args.linked_candidates.read_text())
+        if not candidates or any(sha(row['binary']) != row['binary_sha256'] for row in candidates):
+            raise ValueError('linked candidates do not match the planned binary identities')
     if args.plan:
         template = json.loads((ROOT/'configs/targets/sm_80.json').read_text())
         assert template['arch_tag'] == 'sm_80' and not template['calibration']['calibrated']
@@ -48,11 +53,15 @@ def main():
                TILEMEGA_NUMA_NODE=device['numa_node'])
     env.pop('TILEMEGA_DEVICE_GROUP', None)
     wrapper = ROOT/'scripts/run_r16_with_device_identity.py'
+    child = ['/usr/bin/true']
+    if args.linked_candidates:
+        child = [sys.executable, str(ROOT/'scripts/sm90r6_probe_native.py'),
+                 '--candidates', str(args.linked_candidates.resolve()), '--out', str(out/'occupancy')]
     command = [sys.executable, '-m', 'tilemega.bench.gpu_guard', '--policy', str(policy_path),
                '--out', str(out), '--needs-free-mib', '1024', '--timeout-s', '45', '--',
                sys.executable, str(wrapper), '--out', str(out), '--guard-policy', str(policy_path),
                '--expected-uuid', device['uuid'], '--expected-pci', device['pci'],
-               '--numa-node', device['numa_node'], '--allow-no-measurements', '--', '/usr/bin/true']
+               '--numa-node', device['numa_node'], '--allow-no-measurements', '--', *child]
     result = subprocess.run(command, env=env)
     if result.returncode:
         return result.returncode
