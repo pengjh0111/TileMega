@@ -312,6 +312,16 @@ def main():
             return any(throttle_invalid(row) or (strict and row['thermal_counters_us']!=thermal)
                        for row in current)
         if throttled(rows):return finish(75,'preflight thermal throttle')
+        def checked_sample(phase, **extra):
+            current = sample(phase, **extra)
+            if (strict and policy.get('confirm_hidden_memory', False)
+                    and not throttled(current)
+                    and not any(row['foreign_or_unresolved_pids'] for row in current)
+                    and any(row['hidden_mib'] > baseline + policy['max_hidden_mib'] for row in current)):
+                # NVML fetches memory and owners separately; an owned worker's
+                # exit between those calls can leave a one-snapshot mismatch.
+                return sample(phase + '_confirm', **extra)
+            return current
         env=dict(os.environ,TILEMEGA_GPU_LOCK_HELD='1',TILEMEGA_RUN_NONCE=nonce)
         if group is None:
             env['TILEMEGA_CUDA_VISIBLE_DEVICES'] = single_card_mask(policy, index)
@@ -331,7 +341,7 @@ def main():
             except subprocess.TimeoutExpired:pass
             for pid in descendants(process.pid):known[pid]=process_start(pid)
             own={pid for pid,started in known.items() if started is not None and process_start(pid)==started}
-            try:current=sample('running')
+            try:current=checked_sample('running')
             except Exception as error:
                 stop(process,known);return finish(75,'running telemetry unavailable: '+str(error))
             if throttled(current):
@@ -357,7 +367,7 @@ def main():
                 stop(process,known);return finish(124,'guard timeout')
         # Clean retained workers after normal/error parent exit as well.
         stop(process,known)
-        try:current=sample('after',exit_code=code)
+        try:current=checked_sample('after',exit_code=code)
         except Exception as error:return finish(75,'exit telemetry unavailable: '+str(error))
         if throttled(current):return finish(75,'exit throttle')
         foreign=set()

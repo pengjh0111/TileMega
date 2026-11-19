@@ -43,7 +43,7 @@ def device_policy():
     return dict(allowed_gpu_indices=[int(index)], gpu_uuid=physical, cuda_visible_devices=mask,
                 gpu_lock_path=str(RUN/'locks'/f'{physical}.lock'), strict_host_owners=True, samples=31,
                 interval_s=1, max_util_pct=2, max_hidden_mib=1024, hidden_violations=1,
-                max_idle_wait_s=180, own_child_settle_s=2, keep_host_pid_visible=True)
+                max_idle_wait_s=180, own_child_settle_s=2, keep_host_pid_visible=True, confirm_hidden_memory=True)
 
 
 def capacity_receipts(run, selected, jobs, inputs, policy):
