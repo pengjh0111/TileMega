@@ -49,9 +49,11 @@ inline void Check(cudaError_t status) {
 inline int Grid() {
   int device=0;cudaDeviceProp properties{};
   Check(cudaGetDevice(&device));Check(cudaGetDeviceProperties(&properties,device));
-  if(properties.major!=9 || properties.minor!=0)
-    throw std::invalid_argument("native dense plans require Hopper");
-  return properties.multiProcessorCount*NativeProgram::kResidency;
+  if(properties.major!=(NativeProgram::kCpAsync?8:9) || properties.minor!=0)
+    throw std::invalid_argument("native dense plan does not match device compute capability");
+  if(properties.multiProcessorCount*NativeProgram::kResidency!=kNativeGrid)
+    throw std::invalid_argument("native dense plan grid does not match the physical SM count");
+  return kNativeGrid;
 }
 struct Plan {
   NativeProgram::Binding bindings{};

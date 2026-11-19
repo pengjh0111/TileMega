@@ -351,7 +351,8 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
             trial.route=static_cast<Sm90DenseCoordinates::Route>(setting);
             if(!trial.expert_fuse && !trial.GlobalRoute())continue;
           }
-          if(trial.cluster>1 && trial.cluster>cost.Constants().ClusterStar(trial.residency))continue;
+          if(trial.cluster>1 && (space.target.arch_tag=="sm_80" ||
+              trial.cluster>cost.Constants().ClusterStar(trial.residency)))continue;
           changed|=consider(trial,"structure:"+std::to_string(dimension));
         }
       }

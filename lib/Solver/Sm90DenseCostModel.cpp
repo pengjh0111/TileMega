@@ -15,8 +15,8 @@ json::Value Sm90DensePrediction::ToJson() const {
 
 Sm90DenseCostModel::Sm90DenseCostModel(TargetSpec target,Sm90NativeConstants constants)
     :target_(std::move(target)),constants_(std::move(constants)) {
-  if(target_.arch_tag!="sm_90" || target_.res.num_sms<=0)
-    throw std::invalid_argument("native dense cost model requires the H800 target");
+  if((target_.arch_tag!="sm_90" && target_.arch_tag!="sm_80") || target_.res.num_sms<=0)
+    throw std::invalid_argument("native dense cost model requires an SM80 or SM90 target");
 }
 
 // MR6: a CTA with n = ceil(t / G) tasks streams its first n - 1 at the shared

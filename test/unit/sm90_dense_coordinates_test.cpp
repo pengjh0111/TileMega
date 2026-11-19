@@ -41,6 +41,18 @@ int main() {
  assert(d.gemms[0].FullyResident(1024)==(d.gemms[0].slots==16) && d.gemms[0].StreamBytes(1024)==3*2*32*64);
  assert(d.attention.FullyResident(575) && d.attention.StreamBytes(128)==3*4*64*128);
  assert(!d.attention.FullWidth(128,2,Sm90DenseArena(227*1024)) && d.attention.FullWidth(128,2,Sm90DenseArena(113*1024-1024)));
+ auto residual_nk=nk;residual_nk[1][0]=256*d.gemms[1].tile_n;
+ auto const& residual=d.gemms[1];
+ assert(residual.ResidualTiles(true,residual_nk[1][0],108)==3);
+ assert(residual.SharedBytes(16,true,residual_nk[1][0],108)-
+     residual.SharedBytes(16,true,residual_nk[1][0],132)==2*16*residual.tile_n);
+ auto residual_coordinate=d;
+ residual_coordinate.gemms[4].warps_n=4;residual_coordinate.gemms[4].warps_k=1;
+ residual_coordinate.ValidateSchedule(residual_nk,16,128,2,1088,163*1024,108);
+ bool residual_overflow=false;
+ try {residual_coordinate.ValidateSchedule(residual_nk,16,128,2,1088,163*1024,64);}
+ catch(std::invalid_argument const&) {residual_overflow=true;}
+ assert(residual_overflow);
  for(auto key:{"weight_stream","layer_loop","emb","residency"}) {
   bool refused=false;
   tilemega::json::Object pruned;for(auto const& item:json.AsObject("coordinates"))if(item.first!=key)pruned.push_back(item);

@@ -27,7 +27,7 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
   auto const& constants=cost.Constants();
   for(int residency:{1,2})for(int cluster:{1,2}) {
     // DT-2: clusters only up to C* (measured occupancy, prompt §7).
-    if(cluster>1 && constants.ClusterStar(residency)<cluster)continue;
+    if(cluster>1 && (space.target.arch_tag=="sm_80" || constants.ClusterStar(residency)<cluster))continue;
     // Index 5 of `families` stays the attention list; GEMM families are
     // stored at their family number (MoE: 0, 1, 4, 5, 6, 7).
     std::array<std::vector<Option>,8> families;
@@ -64,8 +64,10 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
         if(a.ns!=b.ns)return a.ns<b.ns;
         if(family<0)return false;
         bool residual=Sm90DenseCoordinates::ResidualFamily(unsigned(family));
-        if(a.gemm.SharedBytes(work.batch,residual)!=b.gemm.SharedBytes(work.batch,residual))
-          return a.gemm.SharedBytes(work.batch,residual)<b.gemm.SharedBytes(work.batch,residual);
+        int n=work.shapes[family][0],grid=space.Grid(residency);
+        auto a_bytes=a.gemm.SharedBytes(work.batch,residual,n,grid);
+        auto b_bytes=b.gemm.SharedBytes(work.batch,residual,n,grid);
+        if(a_bytes!=b_bytes)return a_bytes<b_bytes;
         return a.gemm.TileK()>b.gemm.TileK();
       });
       list.erase(std::unique(list.begin(),list.end(),[](Option const& a,Option const& b) {

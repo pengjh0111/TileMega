@@ -276,11 +276,12 @@ mlir::ArrayAttr arrayField(mlir::DictionaryAttr dictionary,
 mlir::DictionaryAttr dictionaryEntry(mlir::Attribute value,
                                      llvm::StringRef collection);
 
-bool isStaticDenseDecode(mlir::ModuleOp module) {
+bool isStaticDenseDecode(mlir::ModuleOp module,bool allow_ampere=false) {
   auto plan=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
   auto serving=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.serving");
   auto arch=module->getAttrOfType<mlir::StringAttr>("tmexec.solved_arch");
-  return plan && serving && arch && arch.getValue()=="sm_90" &&
+  return plan && serving && arch && (arch.getValue()=="sm_90" ||
+      (allow_ampere && arch.getValue()=="sm_80")) &&
       !optionalBoolField(plan,"dm") && !optionalBoolField(plan,"forward") &&
       integerField(serving,"seq")==1;
 }
@@ -2002,8 +2003,8 @@ std::string emitSolvedLaunch(mlir::ModuleOp module) {
 
 namespace {
 std::string emitNativeDenseProgram(mlir::ModuleOp module) {
-  if(!isStaticDenseDecode(module))
-    throw std::invalid_argument("native dense coordinates require sm_90 BF16 decode");
+  if(!isStaticDenseDecode(module,true))
+    throw std::invalid_argument("native dense coordinates require SM80 or SM90 BF16 decode");
   auto plan=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
   auto serving=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.serving");
   auto coordinate=module->getAttrOfType<mlir::StringAttr>("tmexec.sm90_dense");
@@ -2012,7 +2013,12 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     throw std::invalid_argument("native dense plan lacks its typed coordinates or batch");
   auto c=solver::Sm90DenseCoordinates::FromJson(json::Parse(coordinate.getValue().str()));
   solver::ValidateSm90NativeBoundaryContracts(module);
+  auto arch=module->getAttrOfType<mlir::StringAttr>("tmexec.solved_arch");
+  bool cp_async=arch && arch.getValue()=="sm_80";
   bool kernel_sequence=module->hasAttr("tmexec.native_kernel_sequence");
+  if(cp_async && (kernel_sequence || c.cluster!=1 || c.attention.dsmem || c.tp!=1 ||
+      std::any_of(c.gemms.begin(),c.gemms.end(),[](auto const& g){return g.multicast;})))
+    throw std::invalid_argument("SM80 native dense lowering requires a TP1 non-clustered decode plan");
   bool preserve_sequence=kernel_sequence && !c.moe && c.tp==1 && c.cluster==1 &&
       !c.weight_stream && !c.attention.dsmem &&
       (c.group_wait || c.embed_la || !c.argmax_stage || !c.attention.merge_stage);
@@ -2146,7 +2152,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   std::ostringstream out,types;
   out<<"// SPDX-License-Identifier: BSD-3-Clause\n"
      <<"// Generated from native CTG/tmexec coordinates.\n"
-     <<"#define TILEMEGA_STATIC_DENSE_NATIVE 1\n#define TILEMEGA_ARCH_ID 900\n"
+     <<"#define TILEMEGA_STATIC_DENSE_NATIVE 1\n#define TILEMEGA_ARCH_ID "<<(cp_async?800:900)<<"\n"
      <<"#define TILEMEGA_SWIGLU_U "<<c.swiglu_u<<"\n"
      <<"#define TILEMEGA_EP_PARALLEL_ARGMAX 1\n"
      // E1 (RC6): only a MoE program streams enough weight to evict the data its
@@ -2202,6 +2208,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   auto grid_attr=module->getAttrOfType<mlir::IntegerAttr>("tmexec.sm90_dense_grid");
   if(!grid_attr)throw std::invalid_argument("native dense plan lacks its grid");
   int grid=int(grid_attr.getInt());
+  if(grid<1)throw std::invalid_argument("native dense grid must be positive");
   // D7 (prompt §6): embedding, L layers of (qkv, attention, o, gate_up, down),
   // lm_head and argmax.
   unsigned layers=0;
@@ -2270,11 +2277,15 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
       unsigned index=integerField(s,"gemm");auto g=dictionaryEntry(gemms[index],"gemms");
       e.family=int(family(g));
       auto const& cfg=c.gemms[e.family];
-      if(cfg.SharedBytes(batch,solver::Sm90DenseCoordinates::ResidualFamily(e.family))-1024>arena)
-        throw std::invalid_argument("native GEMM storage exceeds its arena");
       e.stream=cfg.StreamBytes(integerField(g,"k"));e.ring=true;
       auto op=g.get("epilogue")?stringField(g,"epilogue"):"store";
       std::int64_t k=integerField(g,"k"),n=integerField(g,"n");
+      bool residual=solver::Sm90DenseCoordinates::ResidualFamily(e.family);
+      int residual_tiles=cfg.ResidualTiles(residual,n,grid);
+      if(residual_tiles>backend::kSm90DenseResidualTiles)
+        throw std::invalid_argument("native GEMM exceeds residual tasks per CTA");
+      if(cfg.SharedBytes(batch,residual,n,grid)-1024>arena)
+        throw std::invalid_argument("native GEMM storage exceeds its arena");
       if(e.family>=5) {
         // Native MoE stages (prompt §8): operands W, x', output, then the
         // stage's schedule/routes/indices/counter; maps x' (router), h (down).
@@ -2341,7 +2352,11 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
             throw std::invalid_argument("native fused experts need the router's logits (R5 E2)");
           if(router_index.empty() || router_index=="kAbsent")
             throw std::invalid_argument("native fused experts republish the routes (R5 E2)");
-          e.tail=","+std::to_string(map_index({integerField(g,"a"),4,64,16,k/64,experts,2*k,128,
+          if(cp_async)
+            e.tail=",kAbsent,"+std::to_string(cfg.register_stages)+","+router_logits+
+                (moe_softmax_all?",true":",false")+(c.GlobalRoute()?",false":",true")+
+                (c.combine_stage?",true":",false")+",true";
+          else e.tail=","+std::to_string(map_index({integerField(g,"a"),4,64,16,k/64,experts,2*k,128,
               2*16*k,64,activation_rows,cfg.TileK()/64,1}))+","+std::to_string(cfg.register_stages)+
               ","+router_logits+(moe_softmax_all?",true":",false")+(c.GlobalRoute()?",false":c.combine_stage?",true":"")+(c.combine_stage?",true":"");
           e.stream=0;
@@ -2354,6 +2369,13 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
         e.ids={id(g,"b"),id(g,e.family==7?"c":"a"),id(g,"d"),operand(0),routes,
             e.family==5?operand(2):c.GlobalRoute()?router_index:"kAbsent",e.family==5?operand(3):e.family==7?operand(2):"kAbsent",
             gate_up_done};
+        if(cp_async) {
+          e.ids.push_back(e.family==6?"kAbsent":id(g,"a"));
+          e.tail=","+std::to_string(cfg.register_stages)+(moe_softmax_all?",true":",false")+
+              (e.family==5 && c.route==solver::Sm90DenseCoordinates::Route::kLastArriver?",true":",false")+
+              (e.family>=6 && c.GlobalRoute()?",true":",false")+
+              (e.family==7 && c.combine_stage?",true":",false")+",true";
+        }else {
         std::string map="kAbsent";
         if(e.family==5)
           map=std::to_string(map_index({integerField(g,"a"),3,64,batch,k/64,0,2*k,128,0,64,activation_rows,
@@ -2368,6 +2390,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
         if(e.family>=6 && c.GlobalRoute())e.tail+=",false,true";
         if(e.family==7 && c.combine_stage)e.tail+=",true";
         }
+        }
       }else {
       if(op=="residual_ar" && tp==1)
         throw std::invalid_argument("native all-reduce epilogue in an unsharded plan");
@@ -2376,12 +2399,16 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
       weight=name(integerField(g,"b"));bytes=2ull*integerField(g,"n")*integerField(g,"k");
       tasks=integerField(g,"n")/cfg.tile_n;
       bool input_norm=op=="store" || op=="swiglu" || op=="argmax_partial";
-      head<<"Gemm<"<<batch<<','<<integerField(g,"n")<<','<<integerField(g,"k")<<','
+      head<<(cp_async?"AmpereGemm<":"Gemm<")<<batch<<','<<integerField(g,"n")<<','<<integerField(g,"k")<<','
           <<cfg.tile_n<<','<<cfg.TileK()<<','<<cfg.slots<<','<<cfg.warps_n<<','<<cfg.warps_k
           <<",backend::ServingEpilogueOp::"<<enum_op<<','<<c.swiglu_u<<','<<(input_norm?"true":"false");
       for(auto field:{"b","c","d"})e.ids.push_back(id(g,field));
       e.ids.push_back(op=="argmax_partial"?std::to_string(argmax_index):"kAbsent");
-      // A [B][K] as {64, B, K/64}: one box is a [TK/64][rows][64] slot (prompt §5 D3).
+      if(cp_async) {
+        e.ids.push_back(id(g,"a"));
+        e.tail=","+std::to_string(cfg.register_stages)+","+std::to_string(residual_tiles);
+      }else {
+      // A [B][K] as {64, B, K/64}: one box is a [TK/64][rows][64] slot.
       auto map=map_index({integerField(g,"a"),3,64,batch,k/64,0,2*k,128,0,64,activation_rows,
           cfg.TileK()/64,0});
       e.tail=","+std::to_string(cfg.register_stages)+","+std::to_string(map);
@@ -2395,6 +2422,10 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
       // A TP1 GEMM writes neither trailing parameter.
       if(op=="residual_ar")
         e.tail+=std::string(cfg.multicast?"":",false")+','+(e.family==1?"0":"1")+','+std::to_string(tp);
+      else if(residual_tiles>2)
+        e.tail+=std::string(cfg.multicast?"":",false")+",-1,1";
+      if(residual_tiles>2)e.tail+=","+std::to_string(residual_tiles);
+      }
       }
     }else if(kind=="kFusedAttention") {
       // Hkv 8 dense, 4 Qwen3-30B-A3B, 16 OLMoE (MHA, Q = 1): the body takes Q in [1, 8].
@@ -2438,16 +2469,20 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
       // boxes (prompt §5 D2, §6 D7).
       std::int64_t rows=std::int64_t(batch)*extent;
       kv_bytes=2*rows*capacity*width;
-      if(kv_maps[0]<0)for(unsigned i:{0u,1u})
-        kv_maps[i]=int(map_index({operands[1+i],4,width,capacity,rows,layers,2*width,
-            2ll*capacity*width,2*kv_bytes,64,c.attention.block_keys,1,1}));
-      e.tail=","+std::to_string(kv_maps[0])+","+std::to_string(kv_maps[1]);
-      // D10b: S chunks of one cluster merge through the leader's DSMEM inbox.
-      if(c.attention.dsmem) {
-        if(chunks<2 || c.cluster%int(chunks) || batch*int(extent)*int(chunks)>grid)
-          throw std::invalid_argument("native DSMEM merge needs S | cluster and one task wave");
-        e.tail+=",true";
-      }else if(merge_stage)e.tail+=",false,true";
+      if(cp_async) {
+        e.tail=std::string(",kAbsent,kAbsent,false,")+(merge_stage?"true":"false")+",true";
+      }else {
+        if(kv_maps[0]<0)for(unsigned i:{0u,1u})
+          kv_maps[i]=int(map_index({operands[1+i],4,width,capacity,rows,layers,2*width,
+              2ll*capacity*width,2*kv_bytes,64,c.attention.block_keys,1,1}));
+        e.tail=","+std::to_string(kv_maps[0])+","+std::to_string(kv_maps[1]);
+        // D10b: S chunks of one cluster merge through the leader's DSMEM inbox.
+        if(c.attention.dsmem) {
+          if(chunks<2 || c.cluster%int(chunks) || batch*int(extent)*int(chunks)>grid)
+            throw std::invalid_argument("native DSMEM merge needs S | cluster and one task wave");
+          e.tail+=",true";
+        }else if(merge_stage)e.tail+=",false,true";
+      }
     }else if(kind=="kEmbedding") {
       tasks=batch;head<<"Embedding<"<<batch<<','<<width<<','<<extent<<','<<capacity;
       if(operand(3)!="kAbsent")throw std::invalid_argument("native embedding writes no norm sums");
@@ -2608,8 +2643,10 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
      <<per_group;
   for(unsigned j=1;j<=group_size;++j)out<<",Stage_"<<j;
   out<<">,Stage_"<<head<<','<<c.cluster<<(tp>1?","+std::to_string(tp):
-      c.argmax_stage?",1,ArgmaxStage":std::string())
-     <<">;\nconstexpr std::array<StageInfo,"<<info.size()<<"> kNativeStages={{\n";
+      c.argmax_stage?",1,ArgmaxStage":cp_async?",1,void":std::string())
+     <<(cp_async?",true":"")
+     <<">;\nconstexpr int kNativeGrid="<<grid<<";\n"
+     <<"constexpr std::array<StageInfo,"<<info.size()<<"> kNativeStages={{\n";
   for(auto const& row:info)out<<row;
   out<<"}};\n"
      <<"}  // namespace tilemega::codegen::native_dense\n";

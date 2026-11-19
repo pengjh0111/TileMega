@@ -18,8 +18,11 @@ double Positive(json::Value const& v,char const* what) {
 }  // namespace
 
 Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,std::string const& root) {
-  auto const* found=target.Find("sm90_native_constants");
-  if(!found)throw std::invalid_argument("target lacks sm90_native_constants; run the SM90R3 constants collector");
+  auto const* tag=target.Find("arch_tag");
+  bool ampere=tag && tag->AsString("target architecture")=="sm_80";
+  auto key=ampere?"sm80_native_constants":"sm90_native_constants";
+  auto const* found=target.Find(key);
+  if(!found)throw std::invalid_argument(std::string("target lacks measured ")+key);
   Sm90NativeConstants c;c.section=*found;auto const& s=*found;
   if(s.At("schema").AsNumber("constants schema")!=1)
     throw std::invalid_argument("unknown sm90_native_constants schema");
@@ -32,8 +35,8 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
   c.sm_gbps=Positive(s.At("sm_gbps"),"sm bandwidth");
   c.cp_async_gbps=Positive(s.At("activation_cp_async_gbps"),"cp.async activation bandwidth");
   c.epilogue_=s.At("epilogue_ns");c.embedding_=s.At("embedding_ns");c.argmax_la_=s.At("argmax_la_ns");
-  c.route_la_=s.At("route_la_ns");c.round_=s.At("round_ns");c.clusters_=s.At("clusters");
-  c.dsmem_=s.At("dsmem_merge_ns");
+  c.route_la_=s.At("route_la_ns");c.round_=s.At("round_ns");
+  if(!ampere) {c.clusters_=s.At("clusters");c.dsmem_=s.At("dsmem_merge_ns");}
   if(auto const* forward=s.Find("forward"))c.forward_=*forward;
   if(auto const* cta=s.Find("cta_dram_gbps"))c.cta_dram_gbps_=Positive(*cta,"per-CTA DRAM bandwidth");
   if(auto const* task=s.Find("task_expert_ns"))c.task_expert_=*task;

@@ -17,16 +17,17 @@ namespace tilemega::backend {
 // Rank r issues the activation TMA of the slots s with s % 2 == r into both
 // CTAs; it first waits for the peer's consumer releases on peer[s / 2].
 template<int Batch,int N,int K,int TN,int TK,int Slots,int WarpsN,int WarpsK,
-         ServingEpilogueOp Op,int U,bool InputNorm,int RegisterStages=1,bool Multicast=false>
+         ServingEpilogueOp Op,int U,bool InputNorm,int RegisterStages=1,bool Multicast=false,
+         int ResidualTiles=2,bool CpAsync=false>
 struct Sm90DenseGemm {
   using Element=cutlass::bfloat16_t;
-  using Async=codegen::executor::Async<arch::Sm90>;
+  using Async=codegen::executor::Async<std::conditional_t<CpAsync,arch::Sm80,arch::Sm90>>;
   static_assert(Batch>0 && Batch<=16 && N%TN==0 && TN%8==0 && TK%64==0 && K%TK==0);
   static_assert(WarpsN*WarpsK==4 && TN%(8*WarpsN)==0 && Slots>=2 && Slots<=8);
   static_assert((RegisterStages==1 || RegisterStages==2 || RegisterStages==4) &&
                 RegisterStages<=TK/(16*WarpsK));
   static_assert(Op!=ServingEpilogueOp::kPartial,"dense decode never splits K across tasks");
-  static_assert(!Multicast || Slots%2==0,"a multicast slot keeps one issuing rank");
+  static_assert(!Multicast || (!CpAsync && Slots%2==0),"a multicast slot keeps one issuing rank");
   __device__ static __forceinline__ unsigned& PeerGenerations(Sm90DenseRingState& state) {
     return Sm90DenseClusterState::OfRing(state).peer_generations[Sm90DenseClusterState::RingIndex(state)];
   }
@@ -35,17 +36,16 @@ struct Sm90DenseGemm {
   static constexpr bool kResidual=Op==ServingEpilogueOp::kResidual ||
       Op==ServingEpilogueOp::kResidualAllReduce;
   static constexpr bool kAllReduce=Op==ServingEpilogueOp::kResidualAllReduce;
-  // A residual task's tile is prefetched per local task; a grid of at least
-  // 132 CTAs gives each CTA at most two of them.
-  static_assert(!kResidual || N/TN<=264,"residual stages prefetch at most two local tasks");
+  static_assert(!kResidual || (ResidualTiles>0 && ResidualTiles<=kSm90DenseResidualTiles));
   static constexpr int kThreads=160,kIterations=K/TK;
   static constexpr int kRows=Sm90DenseLayout::ActivationRows(Batch);
   static constexpr int kOperandBytes=2*Slots*TK*(kRows+TN);
   static constexpr int kSlotBytes=2*TK*(kRows+TN);
   static constexpr int kScratchBytes=4*WarpsK*16*TN;
-  static constexpr auto kLayout=Sm90DenseLayout::Gemm(TN,TK,Slots,WarpsK,Batch,kResidual);
+  static constexpr int kSideTiles=kResidual?ResidualTiles:0;
+  static constexpr auto kLayout=Sm90DenseLayout::Gemm(TN,TK,Slots,WarpsK,Batch,kSideTiles);
   static constexpr int kSharedBytes=kLayout.end;
-  static_assert(kSharedBytes==1024+kOperandBytes+kScratchBytes+512+(kResidual?4*Batch*TN:0));
+  static_assert(kSharedBytes==1024+kOperandBytes+kScratchBytes+512+2*kSideTiles*Batch*TN);
   // Store and residual write from registers when one warp holds all of K.
   static constexpr bool kRegisterEpilogue=WarpsK==1 &&
       (Op==ServingEpilogueOp::kStore || Op==ServingEpilogueOp::kResidual ||
@@ -70,6 +70,11 @@ struct Sm90DenseGemm {
       cute::Copy_Atom<cute::SM75_U32x2_LDSM_N,Element>,CopyA>;
   static_assert(cute::cosize_v<LayoutB> ==TN*TK);
 
+  __device__ static __forceinline__ void CopySpan(Element* destination,Element const* source,int count) {
+    for(int i=(threadIdx.x&31)*8;i<count;i+=32*8)
+      Async::Copy16(destination+i,source+i);
+  }
+
   template<int Bytes>
   // Raw operand pointers share the transfer loop across layer-specific bindings.
   __device__ static __forceinline__ void Preissue(Element const* weight,char* shared,
@@ -86,11 +91,55 @@ struct Sm90DenseGemm {
         // the preceding V3 boundary. Current arena overlap is checked by Tail.
         // The activation depends on the current stage; its bytes are expected
         // here and its TMA is issued by the consuming stage after its fence.
-        Async::ExpectTx(state.full+slot,kSlotBytes);
-        Async::Bulk(b+slot*TN*TK,weight+(std::size_t(blockIdx.x)*kIterations+slot)*TN*TK,
-            part,state.full+slot);
+        auto* source=weight+(std::size_t(blockIdx.x)*kIterations+slot)*TN*TK;
+        if constexpr(CpAsync) {
+          // Every lane publishes its pending prefix together with A and the
+          // remaining B bytes when it reaches this slot in the next stage.
+          CopySpan(b+slot*TN*TK,source,part/2);
+        }else {
+          Async::ExpectTx(state.full+slot,kSlotBytes);
+          Async::Bulk(b+slot*TN*TK,source,part,state.full+slot);
+        }
       }
     }
+  }
+
+  template<int Prefix>
+  __device__ static __noinline__ void ProduceCpAsync(Sm90DenseOperands const& p,
+      Sm90DenseRingState& state,Element* a,Element* b,Element* residual,int tasks,unsigned phase,
+      bool streamed) {
+    Sm90DenseRoles::Producer();
+    int lane=threadIdx.x&31;
+    if constexpr(kResidual)
+      for(int local=0;local<tasks;++local) {
+        int task=int(blockIdx.x)+local*int(gridDim.x);
+        for(int i=lane*8;i<Batch*TN;i+=32*8)
+          Async::Copy16(residual+local*Batch*TN+i,p.residual+std::size_t(i/TN)*N+task*TN+i%TN);
+        Async::CompleteCopies(state.side+local);
+      }
+    for(int sequence=0;sequence<tasks*kIterations;++sequence) {
+      int slot=sequence%Slots,task=int(blockIdx.x)+(sequence/kIterations)*int(gridDim.x);
+      int tile=sequence%kIterations;
+      Async::Wait(state.empty+slot,(phase>>slot)&1);
+      int prefix=0;
+      if constexpr(Prefix>0)
+        if(streamed && sequence<(Prefix+2*TN*TK-1)/(2*TN*TK))
+          prefix=min(Prefix/2-sequence*TN*TK,TN*TK);
+      CopySpan(b+slot*TN*TK+prefix,p.weight+(std::size_t(task)*kIterations+tile)*TN*TK+prefix,
+          TN*TK-prefix);
+      for(int i=lane*8;i<kRows*TK;i+=32*8) {
+        int row=i/TK,col=i%TK;
+        auto* source=row<Batch?p.activation_address+std::size_t(row)*K+tile*TK+col:p.activation_address;
+        auto swizzled=LayoutA{}(row,col);
+        Async::Copy16(a+slot*kRows*TK+swizzled,source,row<Batch);
+      }
+      // The barrier has 32 arrivals, including lanes with no copies in a tile.
+      Async::CompleteCopies(state.full+slot);
+      phase^=1u<<slot;
+    }
+    if(lane==0 && tasks)
+      for(int slot=0;slot<Slots;++slot)state.producer_generations[slot]=(phase>>slot)&1;
+    __syncwarp();
   }
 
   // streamed: the previous stage issued the Prefix bytes (false only after
@@ -214,7 +263,7 @@ struct Sm90DenseGemm {
     float* best=norms+64;int* arg=reinterpret_cast<int*>(norms+80);
     if constexpr(Op==ServingEpilogueOp::kArgmaxPartial)
       if(tid<16) {best[tid]=-INFINITY;arg[tid]=INT_MAX;}
-    unsigned side=state.side_generations[0]|state.side_generations[1]<<1;
+    unsigned side=state.side_phase;
     unsigned rank=0;
     if constexpr(Multicast)rank=Async::ClusterRank();
     Mma mma;auto thread=mma.get_slice(lane);
@@ -294,7 +343,7 @@ struct Sm90DenseGemm {
     }
     if(tid==0 && tasks) {
       for(int slot=0;slot<Slots;++slot)state.consumer_generations[slot]=(phase>>slot)&1;
-      if constexpr(kResidual)for(int i=0;i<2;++i)state.side_generations[i]=(side>>i)&1;
+      if constexpr(kResidual)state.side_phase=side;
     }
   }
 
@@ -307,8 +356,8 @@ struct Sm90DenseGemm {
     static_assert(Prefix>=0 && Prefix%16==0 &&
         Prefix<=(Slots<kIterations?Slots:kIterations)*2*TN*TK);
     static_assert(!Multicast || Prefix==0,"multicast stages receive no preissued slots");
-    static_assert(!arch::kDevicePass || arch::kSm90AllAvailable,
-                  "native dense GEMM requires Hopper sm_90a");
+    static_assert(!arch::kDevicePass || CpAsync || arch::kSm90AllAvailable,
+                  "the TMA native dense GEMM requires Hopper sm_90a");
     auto& state=persistent?*persistent:*reinterpret_cast<Sm90DenseRingState*>(shared);
     auto* a=reinterpret_cast<Element*>(shared+1024);
     auto* b=a+Slots*kRows*TK;
@@ -321,10 +370,16 @@ struct Sm90DenseGemm {
     // Each role publishes only its own phases, after its readers have joined.
     // The previous stage's final CTA join makes the two snapshots consistent.
     int tasks=(N/TN)/int(gridDim.x)+(int(blockIdx.x)<(N/TN)%int(gridDim.x));
+    if constexpr(kResidual)if(tasks>kSideTiles)asm volatile("trap;");
     if(threadIdx.x<128)Consume(p,state,a,b,scratch,residual,tasks,phase,finish,tp);
     else {
-      Produce<Prefix>(p,state,a,b,residual,tasks,phase,streamed);
-      if(threadIdx.x==128)tail();
+      if constexpr(CpAsync) {
+        ProduceCpAsync<Prefix>(p,state,a,b,residual,tasks,phase,streamed);
+        tail();
+      }else {
+        Produce<Prefix>(p,state,a,b,residual,tasks,phase,streamed);
+        if(threadIdx.x==128)tail();
+      }
     }
     __syncthreads();
   }

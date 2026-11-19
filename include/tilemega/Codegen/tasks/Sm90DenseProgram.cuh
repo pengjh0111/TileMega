@@ -64,7 +64,7 @@ static_assert(sizeof(Sm90DenseTpFields<1>)==1 && std::is_empty_v<Sm90DenseTpFiel
 
 template<unsigned Count,unsigned Maps,unsigned Layers,unsigned Slots,int Tp=1>
 struct alignas(64) Bindings:Sm90DenseTpFields<Tp> {
-  CUtensorMap maps[Maps];
+  std::array<CUtensorMap,Maps> maps;
   Element* buffers[Count];
   Element* layers[Layers][Slots];
   // lm_ctr of the folded argmax (D9); runtime-owned and only ever increased.
@@ -140,10 +140,12 @@ __device__ inline unsigned long long Now() {
 template<int Batch,int N,int K,int TN,int TK,int Slots,int WN,int WK,
          backend::ServingEpilogueOp Op,int U,bool InputNorm,unsigned W,unsigned C,
          unsigned D,unsigned Index,int RegisterStages,unsigned Map,bool Multicast=false,
-         int ArSlot=-1,int Tp=1>
+         int ArSlot=-1,int Tp=1,int ResidualTiles=2,bool CpAsync=false>
 struct Gemm {
-  using Body=backend::Sm90DenseGemm<Batch,N,K,TN,TK,Slots,WN,WK,Op,U,InputNorm,RegisterStages,Multicast>;
+  using Body=backend::Sm90DenseGemm<Batch,N,K,TN,TK,Slots,WN,WK,Op,U,InputNorm,
+      RegisterStages,Multicast,ResidualTiles,CpAsync>;
   static constexpr bool kMulticast=Multicast;
+  static constexpr bool kCpAsync=CpAsync;
   static constexpr int kBatch=Batch,kTasks=N/TN,kSharedBytes=Body::kSharedBytes;
   static constexpr bool kUsesOperandRecord=true;
   static constexpr int kRingSlots=Slots;
@@ -161,7 +163,9 @@ struct Gemm {
   template<class B>
   __device__ static __forceinline__ void PublishOperands(B const& b,int layer,int,float epsilon,
       backend::Sm90DenseOperandBank& record,unsigned long long iteration) {
-    record.gemm.activation=b.template Map<Map>();record.gemm.weight=b.template Get<W>(layer);
+    if constexpr(CpAsync)record.gemm.activation_address=b.template Get<Map>(layer);
+    else record.gemm.activation=b.template Map<Map>();
+    record.gemm.weight=b.template Get<W>(layer);
     record.gemm.residual=b.template Get<C>(layer);record.gemm.output=b.template Get<D>(layer);
     record.gemm.argmax_index=reinterpret_cast<int*>(b.template Get<Index>(layer));
     record.gemm.epsilon=epsilon;
@@ -185,17 +189,24 @@ struct Gemm {
   }
 };
 
+template<int Batch,int N,int K,int TN,int TK,int Slots,int WN,int WK,
+         backend::ServingEpilogueOp Op,int U,bool InputNorm,unsigned W,unsigned C,
+         unsigned D,unsigned Index,unsigned A,int RegisterStages,int ResidualTiles>
+using AmpereGemm=Gemm<Batch,N,K,TN,TK,Slots,WN,WK,Op,U,InputNorm,
+    W,C,D,Index,RegisterStages,A,false,-1,1,ResidualTiles,true>;
+
 template<int Batch,int Hkv,int D,int Q,int Norm,int Chunks,int Keys,int Slots,int RowWork,
          int Capacity,unsigned Qkv,unsigned Key,unsigned Value,unsigned Output,
          unsigned Cosine,unsigned Sine,unsigned QNorm,unsigned KNorm,
          unsigned Partial,unsigned Lse,unsigned Arrivals,unsigned KeyMap,unsigned ValueMap,
-         bool Dsmem=false,bool StageMerge=false>
+         bool Dsmem=false,bool StageMerge=false,bool CpAsync=false>
 struct Attention {
   static constexpr bool kUsesOperandRecord=true;
   // A1 (RC1): mode 2 normalizes the whole projected row, so Prepare reads
   // every KV group of its token rather than only this task's group.
   static constexpr bool kRowNorm=Norm==2;
-  using Body=backend::Sm90DenseAttentionBody<Batch,Hkv,D,Q,Norm,Chunks,Keys,Slots,RowWork,Capacity,Dsmem,StageMerge>;
+  using Body=backend::Sm90DenseAttentionBody<Batch,Hkv,D,Q,Norm,Chunks,Keys,Slots,RowWork,
+      Capacity,Dsmem,StageMerge,CpAsync>;
   // D10b: the leader's inbox barrier counts its S - 1 peer chunks.
   static constexpr int kInboxWriters=Dsmem?Chunks-1:0;
   static constexpr int kTasks=Body::kTasks,kSharedBytes=Body::kSharedBytes;
@@ -211,12 +222,17 @@ struct Attention {
   }
   template<class B>
   __device__ static __forceinline__ ReadSources Sources(B const& b,int layer) {
-    return {nullptr,b.template Map<KeyMap>(),b.template Map<ValueMap>(),layer};
+    if constexpr(CpAsync)
+      return {nullptr,nullptr,nullptr,layer,nullptr,b.template Get<Key>(layer),b.template Get<Value>(layer)};
+    else return {nullptr,b.template Map<KeyMap>(),b.template Map<ValueMap>(),layer};
   }
   template<class B>
   __device__ static __forceinline__ void PublishOperands(B const& b,int layer,int past,float epsilon,
       backend::Sm90DenseOperandBank& record,unsigned long long) {
-    record.attention.key_map=b.template Map<KeyMap>();record.attention.value_map=b.template Map<ValueMap>();
+    if constexpr(!CpAsync) {
+      record.attention.key_map=b.template Map<KeyMap>();
+      record.attention.value_map=b.template Map<ValueMap>();
+    }
     record.attention.qkv=b.template Get<Qkv>(layer);record.attention.key=b.template Get<Key>(layer);
     record.attention.value=b.template Get<Value>(layer);record.attention.output=b.template Get<Output>(layer);
     record.attention.cosine=b.template Get<Cosine>(layer);record.attention.sine=b.template Get<Sine>(layer);
@@ -301,10 +317,11 @@ struct Embedding {
 template<int Batch,int N,int K,int TN,int TK,int Slots,int WN,int WK,backend::Sm90DenseMoeMode Mode,
          int U,int Experts,int TopK,bool FloatWeights,int Page,unsigned W,unsigned X,unsigned Out,
          unsigned Schedule,unsigned Routes,unsigned Index,unsigned Counter,unsigned GateUpDone,
-         unsigned Map,int RegisterStages,bool SoftmaxAll=false,bool FinishRouting=false,bool GlobalSchedule=false,bool StageCombine=false>
+         unsigned Map,int RegisterStages,bool SoftmaxAll=false,bool FinishRouting=false,
+         bool GlobalSchedule=false,bool StageCombine=false,bool CpAsync=false>
 struct Moe {
   using Body=backend::Sm90DenseMoeGemm<Batch,N,K,TN,TK,Slots,WN,WK,Mode,U,Experts,TopK,FloatWeights,
-      Page,RegisterStages,SoftmaxAll,FinishRouting,GlobalSchedule,StageCombine>;
+      Page,RegisterStages,SoftmaxAll,FinishRouting,GlobalSchedule,StageCombine,CpAsync>;
   static_assert(GateUpDone==kAbsent || Mode==backend::Sm90DenseMoeMode::kRouter,
       "only the router clears the fused stage's counters");
   static constexpr bool kUsesOperandRecord=true;
@@ -327,13 +344,14 @@ struct Moe {
   __device__ static __forceinline__ void PublishOperands(B const& b,int layer,int,float epsilon,
       backend::Sm90DenseOperandBank& record,unsigned long long) {
     CUtensorMap const* map=nullptr;
-    if constexpr(Map!=kAbsent)map=b.template Map<Map>();
+    if constexpr(!CpAsync && Map!=kAbsent)map=b.template Map<Map>();
     unsigned* done=nullptr;
     if constexpr(GateUpDone!=kAbsent)done=reinterpret_cast<unsigned*>(b.template Get<GateUpDone>(layer));
     record.moe={map,b.template Get<W>(layer),b.template Get<X>(layer),b.template Get<Out>(layer),
         reinterpret_cast<int*>(b.template Get<Schedule>(layer)),b.template Get<Routes>(layer),
         reinterpret_cast<int*>(b.template Get<Index>(layer)),b.template Get<X>(layer),
         reinterpret_cast<std::uint64_t*>(b.template Get<Counter>(layer)),epsilon,done};
+    if constexpr(CpAsync)record.moe.activation_address=b.template Get<Map>(layer);
   }
   template<int Prefix,class B,class Tail>
   __device__ static __forceinline__ void Run(B const&,int,char* shared,float,
@@ -385,14 +403,16 @@ template<int Batch,int NGateUp,int NDown,int Hidden,int TNGu,int TKGu,int TNDn,i
          int WNGu,int WKGu,int WNDn,int WKDn,int U,int Experts,int TopK,bool FloatWeights,int Page,
          unsigned WGu,unsigned WDn,unsigned X,unsigned Hid,unsigned Out,unsigned Schedule,
          unsigned Routes,unsigned Index,unsigned Counter,unsigned GateUpDone,unsigned Map,
-         int RegisterStages,unsigned Logits=kAbsent,bool SoftmaxAll=false,bool LocalRouting=true,bool StageCombine=false>
+         int RegisterStages,unsigned Logits=kAbsent,bool SoftmaxAll=false,bool LocalRouting=true,
+         bool StageCombine=false,bool CpAsync=false>
 struct MoeFused {
   using Body=backend::Sm90DenseMoeFusedGemm<Batch,NGateUp,NDown,Hidden,TNGu,TKGu,TNDn,TKDn,Slots,
-      WNGu,WKGu,WNDn,WKDn,U,Experts,TopK,FloatWeights,Page,RegisterStages,SoftmaxAll,LocalRouting,StageCombine>;
+      WNGu,WKGu,WNDn,WKDn,U,Experts,TopK,FloatWeights,Page,RegisterStages,SoftmaxAll,
+      LocalRouting,StageCombine,CpAsync>;
   // E2: the stage routes locally, so it needs the router's logits buffer.
   static_assert(Logits!=kAbsent,"the fused expert stage routes from the logits");
-  static_assert(GateUpDone!=kAbsent && Map!=kAbsent,
-      "the fused stage waits on counters and reads h by TMA");
+  static_assert(GateUpDone!=kAbsent && (CpAsync || Map!=kAbsent),
+      "the fused stage waits on counters and reads the hidden rows");
   static constexpr bool kUsesOperandRecord=true;
   static constexpr int kTasks=Body::kMaxTasks,kSharedBytes=Body::kSharedBytes,kRingSlots=Slots;
   // M4 does not know the routes, so the fused stage receives no D6 stream.
@@ -412,7 +432,9 @@ struct MoeFused {
   template<class B>
   __device__ static __forceinline__ void PublishOperands(B const& b,int layer,int,float epsilon,
       backend::Sm90DenseOperandBank& record,unsigned long long) {
-    record.moe_fused={b.template Map<Map>(),b.template Get<WGu>(layer),b.template Get<WDn>(layer),
+    CUtensorMap const* map=nullptr;
+    if constexpr(!CpAsync)map=b.template Map<Map>();
+    record.moe_fused={map,b.template Get<WGu>(layer),b.template Get<WDn>(layer),
         b.template Get<X>(layer),b.template Get<Hid>(layer),b.template Get<Out>(layer),
         reinterpret_cast<int*>(b.template Get<Schedule>(layer)),b.template Get<Routes>(layer),
         reinterpret_cast<int*>(b.template Get<Index>(layer)),b.template Get<X>(layer),
@@ -460,7 +482,7 @@ template<class G,unsigned Tokens,unsigned Table,unsigned X,int Width,int Capacit
 struct Head:G {
   static_assert(G::kUsesOperandRecord);
   static_assert((Tp==1)==(VocabLocal==0),"a sharded head names its rank's vocabulary");
-  using Finish=backend::Sm90DenseHeadFinish<G::kBatch,Width,Capacity,Embed,Tp,VocabLocal>;
+  using Finish=backend::Sm90DenseHeadFinish<G::kBatch,Width,Capacity,Embed,Tp,VocabLocal,G::kCpAsync>;
   // The [B][G] partials reuse the [B][tasks] argmax outputs.
   static constexpr int kMaxGrid=G::kTasks;
   template<class B>
@@ -601,9 +623,11 @@ struct LayerGroup {
 // ranks; DSMEM merges and activation multicast stay within one cluster.
 template<int Batch,int Capacity,int Residency,unsigned Buffers,unsigned Maps,int Arena,
          int Layers,unsigned LayerSlots,bool Loop,bool Embed,class Prologue,class Group,class LmHead,
-         int Cluster=1,int Tp=1,class PostHead=void>
+         int Cluster=1,int Tp=1,class PostHead=void,bool CpAsync=false>
 struct Program {
   static constexpr bool kPostHead=!std::is_void_v<PostHead>;
+  static constexpr bool kCpAsync=CpAsync;
+  static_assert(!CpAsync || (Cluster==1 && Tp==1 && Maps==0));
   using Final=std::conditional_t<kPostHead,PostHead,Prologue>;
   using Binding=Bindings<Buffers,Maps,Layers,LayerSlots,Tp>;
   static constexpr int kTp=Tp;
@@ -950,11 +974,11 @@ void sm90_dense_native_kernel(const __grid_constant__ typename P::Binding b,
     ) {
   using RoleLaunch=backend::Sm90DenseRoleLaunch<P::kThreads>;
   static_assert(RoleLaunch::kThreads==P::kThreads);
-  static_assert(!arch::kDevicePass || arch::kSm90AllAvailable,
-                "native dense programs require sm_90a");
+  static_assert(!arch::kDevicePass || P::kCpAsync || arch::kSm90AllAvailable,
+                "TMA native dense programs require sm_90a");
   extern __shared__ __align__(1024) char shared[];
   auto* rings=reinterpret_cast<backend::Sm90DenseRingState*>(shared);
-  rings[0].Initialize();
+  rings[0].template Initialize<P::kCpAsync>();
 #if TILEMEGA_TRACE_NATIVE_PHASES
   if(threadIdx.x==0) {
     auto& context=backend::Sm90DenseDiagnostic::Context(shared);
@@ -963,7 +987,7 @@ void sm90_dense_native_kernel(const __grid_constant__ typename P::Binding b,
         static_cast<unsigned long long>(pasts[first]),0,Now(),{}};
   }
 #endif
-  rings[1].Initialize();
+  rings[1].template Initialize<P::kCpAsync>();
   if constexpr(P::kCluster>1)P::ClusterInitialize(shared);
 #if TILEMEGA_TRACE_NATIVE_PHASES
   if(threadIdx.x<128 && (threadIdx.x&31)==0)
@@ -992,7 +1016,7 @@ void sm90_dense_native_kernel(const __grid_constant__ typename P::Binding b,
   }
   // No peer may still address this CTA's shared memory when it exits.
   if constexpr(P::kCluster>1)codegen::executor::Async<arch::Sm90>::ClusterSync();
-  rings[0].Invalidate();rings[1].Invalidate();
+  rings[0].template Invalidate<P::kCpAsync>();rings[1].template Invalidate<P::kCpAsync>();
 }
 
 }  // namespace tilemega::codegen::native_dense

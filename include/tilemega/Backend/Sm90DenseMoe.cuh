@@ -371,13 +371,13 @@ struct Sm90DenseMoeCombine {
 // slot is then assembled from runs of whole or half pages per 64-column panel.
 template<int Batch,int N,int K,int TN,int TK,int Slots,int WN,int WK,Sm90DenseMoeMode Mode,int U,
          int Experts,int TopK,bool FloatWeights,int Page=0,int RegisterStages=1,bool SoftmaxAll=false,
-         bool FinishRouting=false,bool GlobalSchedule=false,bool StageCombine=false>
+         bool FinishRouting=false,bool GlobalSchedule=false,bool StageCombine=false,bool CpAsync=false>
 struct Sm90DenseMoeGemm {
   static constexpr bool kInputNorm=Mode!=Sm90DenseMoeMode::kDown;
   using Core=Sm90DenseGemm<Batch,N,K,TN,TK,Slots,WN,WK,ServingEpilogueOp::kStore,U,kInputNorm,
-      RegisterStages>;
+      RegisterStages,false,2,CpAsync>;
   using Element=cutlass::bfloat16_t;
-  using Async=codegen::executor::Async<arch::Sm90>;
+  using Async=codegen::executor::Async<std::conditional_t<CpAsync,arch::Sm80,arch::Sm90>>;
   using Schedule=Sm90DenseMoeSchedule<Experts>;
   static constexpr int kTiles=N/TN,kIterations=K/TK,kRows=Core::kRows,kThreads=Core::kThreads;
   static constexpr bool kDynamic=Mode!=Sm90DenseMoeMode::kRouter;
@@ -413,8 +413,11 @@ struct Sm90DenseMoeGemm {
       int tile,std::uint64_t* barrier) {
     // E1: the expert stack is the layer's largest read-once stream.
     std::uint64_t const policy=Sm90DenseStream::WeightPolicy();
-    if constexpr(!Page)
-      Sm90DenseStream::WeightBulk(destination,tiles+std::size_t(tile)*TN*TK,2*TN*TK,barrier,policy);
+    if constexpr(!Page) {
+      auto* source=tiles+std::size_t(tile)*TN*TK;
+      if constexpr(CpAsync)Core::CopySpan(destination,source,TN*TK);
+      else Sm90DenseStream::WeightBulk(destination,source,2*TN*TK,barrier,policy);
+    }
     else {
       // Rows of a 64-row page are contiguous in 8-row groups, and the slot's
       // [TK/64][TN] panel layout uses the same atom (TN is a multiple of 32).
@@ -424,9 +427,10 @@ struct Sm90DenseMoeGemm {
         int column=tile*TK/64+panel;
         for(int row=first;row<first+TN;) {
           int end=min(first+TN,(row/64+1)*64);
-          Sm90DenseStream::WeightBulk(destination+512*((row-first)/8+(TN/8)*panel),
-              tiles+(std::size_t(row/64)*(K/64)+column)*4096+512*((row%64)/8),2*(end-row)*64,
-              barrier,policy);
+          auto* target=destination+512*((row-first)/8+(TN/8)*panel);
+          auto* source=tiles+(std::size_t(row/64)*(K/64)+column)*4096+512*((row%64)/8);
+          if constexpr(CpAsync)Core::CopySpan(target,source,(end-row)*64);
+          else Sm90DenseStream::WeightBulk(target,source,2*(end-row)*64,barrier,policy);
           row=end;
         }
       }
@@ -450,8 +454,9 @@ struct Sm90DenseMoeGemm {
     for(int slot=0;slot<Slots && slot<kIterations;++slot) {
       int part=min(remaining,2*TN*TK);remaining-=part;
       if(part) {
-        Async::ExpectTx(state.full+slot,kSlotBytes);
+        if constexpr(!CpAsync)Async::ExpectTx(state.full+slot,kSlotBytes);
         if constexpr(Page)CopyWeights(b+slot*TN*TK,tiles,t,slot,state.full+slot);
+        else if constexpr(CpAsync)Core::CopySpan(b+slot*TN*TK,tiles+std::size_t(slot)*TN*TK,part/2);
         else Async::Bulk(b+slot*TN*TK,tiles+std::size_t(slot)*TN*TK,part,state.full+slot);
       }
     }
@@ -466,12 +471,26 @@ struct Sm90DenseMoeGemm {
   // and count; lane r < 16 holds row r's token (rows past count are unused).
   // Rows are loaded without waiting for count, so no load depends on another.
   struct Record {int expert,count,route;};
+  __device__ static __forceinline__ void CopyActivation(Element* destination,Element const* source,
+      int tile,int rows,int token) {
+    static_assert(CpAsync);
+    auto* dst=reinterpret_cast<char*>(destination);
+    for(int i=(threadIdx.x&31)*8;i<kRows*TK;i+=32*8) {
+      int row=i/TK,col=i%TK,input_row=row;
+      if constexpr(Mode==Sm90DenseMoeMode::kGateUp)
+        input_row=__shfl_sync(0xffffffff,token,row);
+      bool valid=row<rows;
+      Async::Copy16(dst+Swizzled(row,col),
+          valid?source+std::size_t(input_row)*K+tile*TK+col:source,valid);
+    }
+  }
   __device__ static __forceinline__ Record Load(int const* schedule,int t) {
     if constexpr(!kDynamic)return {};
     else {
       // A speculative first record may lie past n_active; keep it in the table.
       int a=min(t/kTiles,Experts-1),lane=threadIdx.x&31;
-      return {schedule[Schedule::Expert(a)],Mode==Sm90DenseMoeMode::kGateUp?schedule[Schedule::Count(a)]:0,
+      return {schedule[Schedule::Expert(a)],
+          Mode==Sm90DenseMoeMode::kGateUp || CpAsync?schedule[Schedule::Count(a)]:0,
           Mode==Sm90DenseMoeMode::kGateUp && lane<Schedule::kMaxRows?schedule[Schedule::Row(a,lane)]:0};
     }
   }
@@ -502,7 +521,20 @@ struct Sm90DenseMoeGemm {
       for(int tile=0;tile<kIterations;++tile) {
         int sequence=local*kIterations+tile,slot=sequence%Slots;
         Async::Wait(state.empty+slot,(phase>>slot)&1);
-        if constexpr(Mode==Sm90DenseMoeMode::kGateUp) {
+        if constexpr(CpAsync) {
+          int prefix=0;
+          if constexpr(Prefix>0)
+            if(streamed && sequence<(Prefix+2*TN*TK-1)/(2*TN*TK))
+              prefix=min(Prefix/2-sequence*TN*TK,TN*TK);
+          auto* destination=b+slot*TN*TK;
+          if constexpr(Page) {
+            if(!prefix)CopyWeights(destination,tiles,t,tile,state.full+slot);
+          }else Core::CopySpan(destination+prefix,tiles+std::size_t(tile)*TN*TK+prefix,TN*TK-prefix);
+          auto* source=Mode==Sm90DenseMoeMode::kGateUp?p.input:p.activation_address;
+          if constexpr(Mode==Sm90DenseMoeMode::kDown)source+=std::size_t(t/kTiles)*16*K;
+          CopyActivation(a+slot*kRows*TK,source,tile,kDynamic?current.count:Batch,token);
+          Async::CompleteCopies(state.full+slot);
+        }else if constexpr(Mode==Sm90DenseMoeMode::kGateUp) {
           // The producer lanes gather the slot's rows of x' (one TK segment
           // each) into the swizzled slot. A non-.noinc cp.async arrive adds a
           // pending arrival that its copies retire, so lane 0's single
@@ -762,7 +794,7 @@ struct Sm90DenseMoeGemm {
     if(threadIdx.x<128)Consume(p,state,a,b,scratch,tasks,phase,routing);
     else {
       Produce<Prefix>(p,state,a,b,tasks,phase,streamed,first);
-      if(threadIdx.x==128)tail();
+      if(CpAsync || threadIdx.x==128)tail();
     }
     __syncthreads();
   }
@@ -785,17 +817,18 @@ struct Sm90DenseMoeGemm {
 // x''.
 template<int Batch,int NGateUp,int NDown,int Hidden,int TNGu,int TKGu,int TNDn,int TKDn,int Slots,
          int WNGu,int WKGu,int WNDn,int WKDn,int U,int Experts,int TopK,bool FloatWeights,
-         int Page=0,int RegisterStages=1,bool SoftmaxAll=false,bool LocalRouting=true,bool StageCombine=false>
+         int Page=0,int RegisterStages=1,bool SoftmaxAll=false,bool LocalRouting=true,bool StageCombine=false,
+         bool CpAsync=false>
 struct Sm90DenseMoeFusedGemm {
   using Element=cutlass::bfloat16_t;
-  using Async=codegen::executor::Async<arch::Sm90>;
+  using Async=codegen::executor::Async<std::conditional_t<CpAsync,arch::Sm80,arch::Sm90>>;
   using Schedule=Sm90DenseMoeSchedule<Experts>;
   // The experts' intermediate width: gate_up emits the two interleaved halves.
   static constexpr int kIntermediate=NGateUp/2;
   using Gu=Sm90DenseMoeGemm<Batch,NGateUp,Hidden,TNGu,TKGu,Slots,WNGu,WKGu,
-      Sm90DenseMoeMode::kGateUp,U,Experts,TopK,FloatWeights,Page,RegisterStages>;
+      Sm90DenseMoeMode::kGateUp,U,Experts,TopK,FloatWeights,Page,RegisterStages,false,false,false,false,CpAsync>;
   using Dn=Sm90DenseMoeGemm<Batch,NDown,kIntermediate,TNDn,TKDn,Slots,WNDn,WKDn,
-      Sm90DenseMoeMode::kDown,U,Experts,TopK,FloatWeights,Page,RegisterStages,false,false,false,StageCombine>;
+      Sm90DenseMoeMode::kDown,U,Experts,TopK,FloatWeights,Page,RegisterStages,false,false,false,StageCombine,CpAsync>;
   static constexpr int kTilesGu=NGateUp/TNGu,kTilesDn=NDown/TNDn;
   static constexpr int kIterGu=Hidden/TKGu,kIterDn=kIntermediate/TKDn;
   static constexpr int kRows=Sm90DenseLayout::ActivationRows(Batch);
@@ -871,6 +904,11 @@ struct Sm90DenseMoeFusedGemm {
     for(int tile=0;tile<kIterGu;++tile) {
       int slot=(sequence++)%Slots;
       Async::Wait(state.empty+slot,(phase>>slot)&1);
+      if constexpr(CpAsync) {
+        Gu::CopyWeights(b+slot*kWeightSlot,tiles,task.slot*kTilesGu+task.tile,tile,state.full+slot);
+        Gu::CopyActivation(a+slot*kRows*kMaxTK,p.input,tile,record.count,token);
+        Async::CompleteCopies(state.full+slot);
+      }else {
       // The producer lanes gather the slot's rows of x' (one TK segment each)
       // into the swizzled slot; a non-.noinc cp.async arrive adds a pending
       // arrival its copies retire, so lane 0's expect_tx must follow them.
@@ -890,6 +928,7 @@ struct Sm90DenseMoeFusedGemm {
         Async::ExpectTx(state.full+slot,2*TNGu*TKGu);
         Gu::CopyWeights(b+slot*kWeightSlot,tiles,task.slot*kTilesGu+task.tile,tile,state.full+slot);
       }
+      }
       phase^=1u<<slot;
     }
   }
@@ -905,8 +944,8 @@ struct Sm90DenseMoeFusedGemm {
     for(int tile=0;tile<kAhead;++tile) {
       int slot=(sequence++)%Slots;
       Async::Wait(state.empty+slot,(phase>>slot)&1);
-      if(lane==0) {
-        Async::ExpectTx(state.full+slot,kSlotBytesDn);
+      if(CpAsync || lane==0) {
+        if constexpr(!CpAsync)Async::ExpectTx(state.full+slot,kSlotBytesDn);
         Dn::CopyWeights(b+slot*kWeightSlot,tiles,task.slot*kTilesDn+task.tile,tile,state.full+slot);
       }
       phase^=1u<<slot;
@@ -919,7 +958,14 @@ struct Sm90DenseMoeFusedGemm {
     WaitGateUp(p.gate_up_done,task.slot);
     // Producer side: thread 128 owns the mark (appendix D).
     if(threadIdx.x==128)Sm90DenseMarkFirst(3);
-    if(lane==0) {
+    if constexpr(CpAsync) {
+      auto* source=static_cast<Element const*>(p.hidden)+std::size_t(task.slot)*16*kIntermediate;
+      for(int tile=0;tile<kAhead;++tile) {
+        int slot=(first+tile)%Slots;
+        Dn::CopyActivation(a+slot*kRows*kMaxTK,source,tile,record.count,0);
+        Async::CompleteCopies(state.full+slot);
+      }
+    }else if(lane==0) {
       // h of the slots whose weights are already in flight, then the rest.
       for(int tile=0;tile<kAhead;++tile)
         Async::Tensor4D(a+((first+tile)%Slots)*kRows*kMaxTK,p.activation,0,0,tile*(TKDn/64),
@@ -929,7 +975,12 @@ struct Sm90DenseMoeFusedGemm {
     for(int tile=kAhead;tile<kIterDn;++tile) {
       int slot=(sequence++)%Slots;
       Async::Wait(state.empty+slot,(phase>>slot)&1);
-      if(lane==0) {
+      if constexpr(CpAsync) {
+        auto* source=static_cast<Element const*>(p.hidden)+std::size_t(task.slot)*16*kIntermediate;
+        Dn::CopyWeights(b+slot*kWeightSlot,tiles,task.slot*kTilesDn+task.tile,tile,state.full+slot);
+        Dn::CopyActivation(a+slot*kRows*kMaxTK,source,tile,record.count,0);
+        Async::CompleteCopies(state.full+slot);
+      }else if(lane==0) {
         Async::ExpectTx(state.full+slot,kSlotBytesDn);
         Dn::CopyWeights(b+slot*kWeightSlot,tiles,task.slot*kTilesDn+task.tile,tile,state.full+slot);
         Async::Tensor4D(a+slot*kRows*kMaxTK,p.activation,0,0,tile*(TKDn/64),task.slot,
@@ -1084,7 +1135,7 @@ struct Sm90DenseMoeFusedGemm {
       Consume(p,state,a,b,scratch,tasks,phase,active,routing);
     }else {
       Produce(p,state,a,b,tasks,phase,active,routing);
-      if(threadIdx.x==128)tail();
+      if(CpAsync || threadIdx.x==128)tail();
     }
     __syncthreads();
   }

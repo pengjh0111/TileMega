@@ -12,14 +12,20 @@ void Sm90DenseSearchSpace::Structure(Sm90DenseCoordinates& c) {
 
 bool Sm90DenseSearchSpace::Legal(Sm90DenseCoordinates const& c) const {
   // Q = 1 is OLMoE's MHA (A3); the attention body's constraint is Q in [1, 8].
-  if(target.arch_tag!="sm_90" || target.NvccArch()!="sm_90a" || target.res.num_sms<=0 ||
+  bool ampere=target.arch_tag=="sm_80" && target.NvccArch()=="sm_80" &&
+      target.caps.cp_async && target.caps.mbarrier && !target.caps.tma && !target.caps.cluster;
+  if((!ampere && (target.arch_tag!="sm_90" || target.NvccArch()!="sm_90a")) || target.res.num_sms<=0 ||
      (head_dim!=64 && head_dim!=128) ||
      (queries!=1 && queries!=2 && queries!=3 && queries!=4 && queries!=8))
+    return false;
+  if(ampere && (c.cluster!=1 || c.attention.dsmem || c.tp!=1 ||
+      std::any_of(c.gemms.begin(),c.gemms.end(),[](auto const& g){return g.multicast;})))
     return false;
   try {c.Validate(shapes,batch);}catch(std::invalid_argument const&) {return false;}
   auto budget=Sm90DenseSharedBudget(target,c.residency);
   if(budget<=0)return false;
-  try {c.ValidateSchedule(shapes,batch,head_dim,queries,1088,budget);}
+  int grid=Grid(c.residency);
+  try {c.ValidateSchedule(shapes,batch,head_dim,queries,1088,budget,grid);}
   catch(std::invalid_argument const&) {return false;}
   for(auto const& g:c.gemms)if(g.mma!=Sm90DenseMma::kMmaSync)return false;
   // D8: every qkv tile lies in one KV group of (Q + 2) D columns.
@@ -34,7 +40,6 @@ bool Sm90DenseSearchSpace::Legal(Sm90DenseCoordinates const& c) const {
   // needs every head of the token, which no single rank holds.
   if(c.tp!=tp)return false;
   if(tp>1 && qk_norm_row)return false;
-  int grid=Grid(c.residency);
   if(c.cluster>1 && grid%c.cluster)return false;
   // D9: every CTA publishes one argmax partial into the head's [B][tasks]
   // outputs, so the head needs at least one task per CTA.
@@ -78,14 +83,19 @@ std::vector<Sm90DenseGemm> Sm90DenseSearchSpace::FamilyCandidates(unsigned famil
     // {96, 192} / {128, 256} to Qwen3's 128 experts of width 768, and A3 gives
     // OLMoE's 64 experts of width 1024 TN in {64, 128, 256}. Validate below
     // drops any tile the shape does not divide.
-    if(family==5)tiles={8};
+    if(target.arch_tag=="sm_80")
+      for(int tn:{8,16,32,64,96,128,192,256}) {
+        if(n%tn==0 && (family!=5 || n/tn<grid))tiles.push_back(tn);
+      }
+    else if(family==5)tiles={8};
     else if(experts==64)tiles={64,128,256};
     else if(family==6)tiles=batch==1?std::vector<int>{96}:std::vector<int>{96,192};
     else tiles={128,256};
     for(int tk=64;tk<=2048;tk*=2)depths.push_back(tk);
   }else {
     for(int tn=8;tn<=n;tn+=8)
-      if(n%tn==0 && n/tn*4>=grid && n/tn<=2*grid)tiles.push_back(tn);
+      if(n%tn==0 && n/tn*4>=grid && n/tn<=(target.arch_tag=="sm_80" && residual?3:2)*grid)
+        tiles.push_back(tn);
     for(int tk=64;tk<=2048;tk*=2)depths.push_back(tk);
   }
   for(int tn:tiles)for(int wn:{1,2,4}) {
@@ -97,7 +107,16 @@ std::vector<Sm90DenseGemm> Sm90DenseSearchSpace::FamilyCandidates(unsigned famil
       if(k%tk)continue;
       Sm90DenseGemm g;g.tile_n=tn;g.warps_n=wn;g.warps_k=4/wn;g.slot_bytes=2*tn*tk;
       double w_cta=tasks(tn)*tn*k*2;
-      auto fits=[&] {return g.SharedBytes(batch,residual)-1024<=arena;};
+      auto fits=[&] {return g.SharedBytes(batch,residual,n,grid)-1024<=arena;};
+      if(target.arch_tag=="sm_80") {
+        for(int slots=2;slots<=8;++slots) {
+          g.slots=slots;
+          if(!fits())break;
+          try {g.Validate(n,k);}catch(std::invalid_argument const&) {continue;}
+          result.push_back(g);
+        }
+        continue;
+      }
       // D5 ring rule: the whole task in flight when it fits the arena in at
       // most eight slots; otherwise the fewest slots covering min(W_cta, 48 KB).
       // MR2: an expert stream (384 KB per task at Qwen3) keeps the most slots

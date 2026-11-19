@@ -45,7 +45,7 @@ struct Sm90DenseHeadPartialFinish {
 // the same token. The exchange runs every step, prompt positions included, so
 // the epoch chain that also orders the next step's all-reduce writes after
 // this step's reads (plan §3.5 C2) never breaks.
-template<int Batch,int Width,int Capacity,bool Embed,int Tp=1,int VocabLocal=0>
+template<int Batch,int Width,int Capacity,bool Embed,int Tp=1,int VocabLocal=0,bool CpAsync=false>
 struct Sm90DenseHeadFinish {
   using Element=cutlass::bfloat16_t;
   using Async=codegen::executor::Async<arch::Sm90>;
@@ -111,10 +111,14 @@ struct Sm90DenseHeadFinish {
     }
     codegen::executor::ComputeSync();
     if(tid==0)Sm90DenseMark(3);
-    if constexpr(Embed) {
+    if constexpr(Embed && CpAsync) {
+      for(int i=tid*8;i<Batch*Width;i+=128*8)
+        *reinterpret_cast<uint4*>(head->x+i)=
+            *reinterpret_cast<uint4 const*>(head->table+std::size_t(tokens[i/Width])*Width+i%Width);
+    }else if constexpr(Embed) {
       int rows=(bytes-kStage)/kRowBytes;rows=rows<Batch?rows:Batch;
       auto* staged=reinterpret_cast<Element*>(free+kStage);
-      unsigned phase=state.side_generations[0];
+      unsigned phase=state.side_phase&1;
       for(int first=0;first<Batch;first+=rows) {
         int count=Batch-first<rows?Batch-first:rows;
         if(tid==0) {
@@ -130,7 +134,7 @@ struct Sm90DenseHeadFinish {
         Async::FenceProxyAsyncShared();
         codegen::executor::ComputeSync();
       }
-      if(tid==0)state.side_generations[0]=phase;
+      if(tid==0)state.side_phase=(state.side_phase&~1u)|phase;
     }
     if(tid==0)Sm90DenseMark(4);
   }

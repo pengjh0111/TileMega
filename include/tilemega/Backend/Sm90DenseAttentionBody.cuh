@@ -27,12 +27,13 @@ namespace tilemega::backend {
 // the context. No global partials, lse or arrival counters are used.
 // Norm: 0 none, 1 per head (Qwen3), 2 per projected row (OLMoE).
 template<int Batch,int Hkv,int D,int Q,int Norm,int Chunks,int BlockKeys,int Slots,
-         int NewRowWork,int Capacity,bool Dsmem=false,bool StageMerge=false>
+         int NewRowWork,int Capacity,bool Dsmem=false,bool StageMerge=false,bool CpAsync=false>
 struct Sm90DenseAttentionBody {
   using Element=cutlass::bfloat16_t;
-  using Async=codegen::executor::Async<arch::Sm90>;
+  using Async=codegen::executor::Async<std::conditional_t<CpAsync,arch::Sm80,arch::Sm90>>;
   using Math=Sm90DenseAttentionMath;
   using Partition=Sm90DenseAttentionPartition<Chunks>;
+  static constexpr bool kCpAsync=CpAsync;
   // A3: OLMoE is MHA (Q = 1) and normalizes the projected row, not the head.
   static_assert(Batch>=1 && Batch<=16 && (D==64 || D==128) && Q>=1 && Q<=8);
   static_assert(Norm>=0 && Norm<=2,"norm mode is none, head or row");
@@ -40,7 +41,8 @@ struct Sm90DenseAttentionBody {
   static_assert(BlockKeys==64 || BlockKeys==128);
   static_assert(Slots>=2 && Slots<=4 && Capacity>=1087);
   static_assert(!(Dsmem && StageMerge),"merge realizations are exclusive");
-  static_assert(!Dsmem || Chunks>1,"a DSMEM merge needs at least two chunks");
+  static_assert(!Dsmem || (Chunks>1 && !CpAsync),
+      "a DSMEM merge needs a cluster and at least two chunks");
   static constexpr int kThreads=160,kTasks=Batch*Hkv*Chunks,kPanels=D/64;
   static constexpr float kLog2E=1.4426950408889634f;
   static_assert(kThreads==Sm90DenseRoleAbi::kThreads);
@@ -98,10 +100,33 @@ struct Sm90DenseAttentionBody {
     }
   }
   static constexpr int kMaxPreissue=Slots*4*BlockKeys*D;
+  __device__ static __forceinline__ void CopyHistory(Storage& s,int slot,int bg,int begin,int end,
+      Element const* key,Element const* value,std::uint64_t* full) {
+    for(int i=(threadIdx.x&31)*8;i<BlockKeys*D;i+=32*8) {
+      int row=i/D,col=i%D;
+      bool valid=begin+row<end;
+      auto offset=std::size_t(bg)*Capacity*D+(begin+row)*D+col;
+      auto swizzled=Swizzled<BlockKeys>(row,col)/2;
+      Async::Copy16(s.kv[slot][0]+swizzled,valid?key+offset:key,valid);
+      Async::Copy16(s.kv[slot][1]+swizzled,valid?value+offset:value,valid);
+    }
+    Async::CompleteCopies(full);
+  }
+  template<int Bytes>
+  __device__ static __forceinline__ void Preissue(Element const* key,Element const* value,
+      int past,char* shared,Sm90DenseRingState& state) {
+    static_assert(CpAsync && Bytes>0 && Bytes%(4*BlockKeys*D)==0 && Bytes<=kMaxPreissue);
+    auto& s=*reinterpret_cast<Storage*>(shared+1024);
+    int bg,chunk;Decompose(int(blockIdx.x),bg,chunk);
+    auto range=Partition::Range(past,chunk,NewRowWork);
+    int count=Preissued<Bytes>(past);
+    for(int slot=0;slot<count;++slot)
+      CopyHistory(s,slot,bg,range.begin+slot*BlockKeys,min(range.end,past),key,value,state.full+slot);
+  }
   template<int Bytes>
   __device__ static __forceinline__ void Preissue(CUtensorMap const* key,CUtensorMap const* value,
       int layer,int past,char* shared,Sm90DenseRingState& state) {
-    static_assert(Bytes>0 && Bytes%(4*BlockKeys*D)==0 && Bytes<=kMaxPreissue);
+    static_assert(!CpAsync && Bytes>0 && Bytes%(4*BlockKeys*D)==0 && Bytes<=kMaxPreissue);
     auto& s=*reinterpret_cast<Storage*>(shared+1024);
     int bg,chunk;Decompose(int(blockIdx.x),bg,chunk);
     int begin=Partition::Range(past,chunk,NewRowWork).begin,count=Preissued<Bytes>(past);
@@ -126,7 +151,7 @@ struct Sm90DenseAttentionBody {
   __device__ static __forceinline__ void Produce(Sm90DenseAttentionOperands const& p,
       Sm90DenseRingState& state,Storage& s,int tasks,unsigned phase,bool streamed) {
     Sm90DenseRoles::Producer();
-    if(threadIdx.x==128) {
+    if(CpAsync || threadIdx.x==128) {
       int const past=p.past;int sequence=0,preissued=streamed?Preissued<Prefix>(past):0;
       for(int local=0;local<tasks;++local) {
         int bg,chunk;Decompose(int(blockIdx.x)+local*int(gridDim.x),bg,chunk);
@@ -137,22 +162,24 @@ struct Sm90DenseAttentionBody {
           int slot=sequence%Slots;
           Async::Wait(state.empty+slot,(phase>>slot)&1);phase^=1u<<slot;
           if(sequence<preissued)continue;
-          // A whole box is read: rows past the history bound are masked and
-          // rows past Capacity arrive as zeros.
-          Async::ExpectTx(state.full+slot,2*BlockKeys*D*2);
-          // E1: the history is read once per step, so it takes the same
-          // evict_first policy as the weight streams.
-          std::uint64_t const policy=Sm90DenseStream::WeightPolicy();
-          #pragma unroll
-          for(int panel=0;panel<kPanels;++panel) {
-            Sm90DenseStream::HistoryTensor4D(&s.kv[slot][0][panel*BlockKeys*64],p.key_map,
-                panel*64,begin,bg,p.layer,state.full+slot,policy);
-            Sm90DenseStream::HistoryTensor4D(&s.kv[slot][1][panel*BlockKeys*64],p.value_map,
-                panel*64,begin,bg,p.layer,state.full+slot,policy);
+          if constexpr(CpAsync) {
+            CopyHistory(s,slot,bg,begin,min(range.end,past),p.key,p.value,state.full+slot);
+          }else {
+            // Rows past the history bound are masked and rows past Capacity arrive as zeros.
+            Async::ExpectTx(state.full+slot,2*BlockKeys*D*2);
+            std::uint64_t const policy=Sm90DenseStream::WeightPolicy();
+            #pragma unroll
+            for(int panel=0;panel<kPanels;++panel) {
+              Sm90DenseStream::HistoryTensor4D(&s.kv[slot][0][panel*BlockKeys*64],p.key_map,
+                  panel*64,begin,bg,p.layer,state.full+slot,policy);
+              Sm90DenseStream::HistoryTensor4D(&s.kv[slot][1][panel*BlockKeys*64],p.value_map,
+                  panel*64,begin,bg,p.layer,state.full+slot,policy);
+            }
           }
         }
       }
-      if(tasks)for(int i=0;i<Slots;++i)state.producer_generations[i]=(phase>>i)&1;
+      if(threadIdx.x==128 && tasks)
+        for(int i=0;i<Slots;++i)state.producer_generations[i]=(phase>>i)&1;
     }
     __syncwarp();
   }
@@ -481,6 +508,8 @@ struct Sm90DenseAttentionBody {
   template<int Prefix=0,class Tail=Sm90DenseNoTail>
   __device__ static __noinline__ void Run(Sm90DenseAttentionOperands const& p,char* shared,
       Sm90DenseRingState* persistent=nullptr,Tail tail={},bool streamed=true) {
+    static_assert(!arch::kDevicePass || CpAsync || arch::kSm90AllAvailable,
+                  "the TMA native attention body requires Hopper sm_90a");
     auto& state=persistent?*persistent:*reinterpret_cast<Sm90DenseRingState*>(shared);
     auto& s=*reinterpret_cast<Storage*>(shared+1024);
     int tasks=kTasks/int(gridDim.x)+(int(blockIdx.x)<kTasks%int(gridDim.x));
@@ -491,7 +520,7 @@ struct Sm90DenseAttentionBody {
     if(threadIdx.x<128)Consume(p,state,s,tasks,phase);
     else {
       Produce<Prefix>(p,state,s,tasks,phase,streamed);
-      if(threadIdx.x==128)tail();
+      if(CpAsync || threadIdx.x==128)tail();
     }
     __syncthreads();
   }

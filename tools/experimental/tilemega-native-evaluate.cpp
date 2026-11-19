@@ -42,7 +42,7 @@ int main(int argc,char** argv) {try {
     int batch=cell.At("batch").AsNumber("batch");
     auto work=Sm90DenseWorkloadFromPlan(state.imported.plan,batch);
     c.ValidateSchedule(work.shapes,batch,work.head_dim,work.queries,1088,
-        Sm90DenseSharedBudget(target,c.residency));
+        Sm90DenseSharedBudget(target,c.residency),target.res.num_sms*c.residency);
     auto evaluate_start=std::chrono::steady_clock::now();
     auto flow=Sm90NativeCtgScore(state.imported,work,c,cost,state.context,state.cache);
     auto flow_end=std::chrono::steady_clock::now();

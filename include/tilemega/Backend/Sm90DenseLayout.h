@@ -3,6 +3,8 @@
 #include <array>
 
 namespace tilemega::backend {
+inline constexpr int kSm90DenseResidualTiles=3;
+
 struct Sm90DenseInterval {
   int begin=0,end=0;
   constexpr bool Overlaps(Sm90DenseInterval other) const {
@@ -36,11 +38,14 @@ struct Sm90DenseLayout {
   }
   // TMA activation rows per slot: eight rows alias the upper MMA rows for B<=8.
   static constexpr int ActivationRows(int batch) {return batch<=8?8:16;}
-  // Scratch: WK fp32 partial tiles, 512 B of per-row squares, then (residual
-  // stages) two prefetched BF16 residual tiles of Batch x TN.
-  static constexpr Sm90DenseLayout Gemm(int tn,int tk,int slots,int wk,int batch,bool residual=false) {
+  // Scratch ends with one prefetched BF16 residual per task on the busiest CTA.
+  static constexpr int ResidualTiles(int tasks,int grid) {
+    int local=(tasks+grid-1)/grid;
+    return local<2?2:local;
+  }
+  static constexpr Sm90DenseLayout Gemm(int tn,int tk,int slots,int wk,int batch,int residual_tiles=0) {
     int weight=1024+2*ActivationRows(batch)*slots*tk,partial=weight+2*slots*tn*tk;
-    return {weight,0,partial,partial+64*wk*tn+512+(residual?4*batch*tn:0)};
+    return {weight,0,partial,partial+64*wk*tn+512+2*residual_tiles*batch*tn};
   }
   static constexpr Sm90DensePayload GemmPayload(int tn,int tk,int slots,int k,int batch,int bytes) {
     Sm90DensePayload result;auto layout=Gemm(tn,tk,slots,1,batch);

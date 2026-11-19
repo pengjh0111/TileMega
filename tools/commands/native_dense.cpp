@@ -76,6 +76,8 @@ static int CompileNativeDenseArtifact(std::string const& input,std::string const
   auto c=solver::Sm90DenseCoordinates::FromJson(json::ParseFile(coordinates));
   CheckManifestTp(input,c.tp);
   auto target=TargetSpec::FromJson(target_path);
+  if(target.arch_tag=="sm_80" && kernel_sequence)
+    throw std::invalid_argument("SM80 native dense build requires persistent serving emission");
   auto registers=solver::NativeDenseRegisterContract(target,c.residency);
   mlir::MLIRContext context;
   auto imported=solver::ImportSm90Dense(input,c,context);
@@ -126,8 +128,9 @@ static int CompileNativeDenseArtifact(std::string const& input,std::string const
     if(std::system(command.c_str()))throw std::runtime_error("native serving artifact identity failed");
   };
   identity(true);
+  auto nvcc_arch=target.NvccArch();
   std::vector<std::string> command_args={NvccPath(),"-rdc=true","-std=c++17","-O3",
-      "-gencode","arch=compute_90a,code=sm_90a","--expt-relaxed-constexpr","-shared",
+      "-gencode","arch=compute_"+nvcc_arch.substr(3)+",code="+nvcc_arch,"--expt-relaxed-constexpr","-shared",
       "-Xcompiler","-fPIC","-cudart","shared","-Xptxas","-v","--split-compile",
       std::to_string(split_compile),"-I"+root+"/include","-I"+root+"/third_party/cutlass/include",
       cu.string(),"-o",requested.string()};
@@ -266,12 +269,15 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   options.tp=o.tp;
   auto plan=frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,options);
   auto work=solver::Sm90DenseWorkloadFromPlan(plan,o.batch);
+  if(target.arch_tag=="sm_80" && work.tp!=1)
+    throw std::invalid_argument("SM80 native search requires TP1");
   solver::Sm90DenseSearchSpace space{work.shapes,work.batch,work.head_dim,work.queries,target,work.hkv};
   space.moe=work.moe;space.experts=work.experts;space.top_k=work.top_k;
   space.qk_norm_row=work.qk_norm_row;space.tp=work.tp;
   auto target_json=json::ParseFile(o.target);
-  auto const* decisions=target_json.Find("sm90_native_decisions");
-  if(!decisions)throw std::invalid_argument("target lacks sm90_native_decisions (prompt §11 decision tables)");
+  auto decision_key=target.arch_tag=="sm_80"?"sm80_native_decisions":"sm90_native_decisions";
+  auto const* decisions=target_json.Find(decision_key);
+  if(!decisions)throw std::invalid_argument(std::string("target lacks ")+decision_key);
   space.weight_stream=decisions->At("weight_stream").AsBool("weight_stream");
   space.layer_loop=decisions->At("layer_loop").AsBool("layer_loop");
   if(o.search!="pipeline" && o.search!="additive")

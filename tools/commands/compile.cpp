@@ -660,7 +660,7 @@ int RunCompile(int argc, char** argv) {
         throw std::invalid_argument("native dense build does not accept legacy option "+std::string(argv[i]));
       if(serving_phase!="decode" || (emit_mode!="serving" && emit_mode!="kernel-sequence") || runtime_target.empty() ||
          serving_capacity!=1088 || serving_prompt_len!=64 || serving_past_lo!=64 || serving_past_hi!=1086)
-        throw std::invalid_argument("native dense build requires decode/serving, H800 target and 64:1086 positions");
+        throw std::invalid_argument("native dense build requires a native decode target and 64:1086 positions");
       if(!native_probe.empty()) {
         if(emit_mode!="serving" || !dump_cg.empty())
           throw std::invalid_argument("native probes use serving emission and retain per-geometry IR");
@@ -683,9 +683,10 @@ int RunCompile(int argc, char** argv) {
       input=bridge;
       std::cerr<<"EXPORT_BRIDGE source="<<std::quoted(argv[1])<<" output="<<std::quoted(input.string())<<'\n';
     }
-    if(serving_phase=="decode" && !solve_target.empty() && frontend_mode=="decoder" &&
-       input.extension()!=".mlir" &&
-       tilemega::TargetSpec::FromJson(solve_target).arch_tag=="sm_90" &&
+    std::string dense_arch;
+    if(serving_phase=="decode" && !solve_target.empty() && frontend_mode=="decoder" && input.extension()!=".mlir")
+      dense_arch=tilemega::TargetSpec::FromJson(solve_target).arch_tag;
+    if((dense_arch=="sm_90" || dense_arch=="sm_80") &&
        tilemega::commands::IsNativeDenseInput(input.string())) {
       std::set<std::string> allowed={"--solve","--serving","--emit","--batch","--seed-arch",
           "--selection","--measure-cmd","--measure-top",
@@ -699,7 +700,7 @@ int RunCompile(int argc, char** argv) {
          (seed_arch!="native" && seed_arch!="legacy") ||
          (search_selection!="measure" && search_selection!="predicted") ||
          (!runtime_target.empty() && modelFingerprint(runtime_target)!=modelFingerprint(solve_target)))
-        throw std::invalid_argument("native solve requires serving decode with matching H800 target and 64:1086 positions");
+        throw std::invalid_argument("native solve requires serving decode with matching target and 64:1086 positions");
       tilemega::commands::NativeDenseSolveOptions native;
       native.input=input.string();native.output=argv[2];native.target=solve_target;
       native.dump_cg=dump_cg;native.measure_command=measure_command;native.batch=serving_batch;

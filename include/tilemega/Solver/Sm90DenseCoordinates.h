@@ -33,8 +33,12 @@ struct Sm90DenseGemm {
   // D10c: the CTA pair of a cluster shares each A slot by TMA multicast.
   bool multicast=false;
   int TileK() const { return int(slot_bytes/(2ll*tile_n)); }
-  std::int64_t SharedBytes(int batch,bool residual) const {
-    return backend::Sm90DenseLayout::Gemm(tile_n,TileK(),slots,warps_k,batch,residual).end;
+  int ResidualTiles(bool residual,int n,int grid) const {
+    return !residual?0:grid>0?backend::Sm90DenseLayout::ResidualTiles(n/tile_n,grid):2;
+  }
+  std::int64_t SharedBytes(int batch,bool residual,int n=0,int grid=0) const {
+    return backend::Sm90DenseLayout::Gemm(tile_n,TileK(),slots,warps_k,batch,
+        ResidualTiles(residual,n,grid)).end;
   }
   // D5 full residency: one task's whole K is in flight at once.
   bool FullyResident(int k) const {return slots==k/TileK();}
@@ -184,13 +188,17 @@ struct Sm90DenseCoordinates {
   }
 
   void ValidateSchedule(Sm90DenseShapeTable const& nk,int batch,
-      int dim,int queries,int capacity,std::int64_t budget) const {
+      int dim,int queries,int capacity,std::int64_t budget,int grid=0) const {
     Validate(nk,batch);
     // Arena i % 2 holds stage i (D5); D6 payloads live in the next stage's
     // arena, so the program's static_asserts are the only overlap check.
-    for(unsigned i:Active())
-      if(gemms[i].SharedBytes(batch,ResidualFamily(i))-1024>Sm90DenseArena(budget))
+    for(unsigned i:Active()) {
+      auto const& gemm=gemms[i];
+      if(gemm.ResidualTiles(ResidualFamily(i),nk[i][0],grid)>backend::kSm90DenseResidualTiles)
+        throw std::invalid_argument("native GEMM exceeds residual tasks per CTA");
+      if(gemm.SharedBytes(batch,ResidualFamily(i),nk[i][0],grid)-1024>Sm90DenseArena(budget))
         throw std::invalid_argument("native GEMM storage exceeds its arena");
+    }
     if(moe && !expert_fuse)for(unsigned i:{6u,7u}) {
       auto const& g=gemms[i];
       if(backend::Sm90DenseLayout::MoeUnfused(g.tile_n,g.TileK(),g.slots,g.warps_k,batch,nk[5][0]).end-

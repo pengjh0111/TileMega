@@ -11,8 +11,10 @@
 #endif
 namespace tilemega::backend {
 struct Sm90DenseOperands {
-  // A is read only through its tensor map (prompt §5 D3).
-  CUtensorMap const* activation;
+  union {
+    CUtensorMap const* activation;
+    cutlass::bfloat16_t const* activation_address;
+  };
   cutlass::bfloat16_t const *weight,*residual;
   cutlass::bfloat16_t* output;
   int* argmax_index;
@@ -48,7 +50,10 @@ struct Sm90DenseHeadOperands {
 // Native MoE stages (prompt §8): M4 router + top-k, M5 grouped gate_up,
 // M6 down + combine; see Sm90DenseMoe.cuh for each field's use.
 struct Sm90DenseMoeOperands {
-  CUtensorMap const* activation;
+  union {
+    CUtensorMap const* activation;
+    cutlass::bfloat16_t const* activation_address;
+  };
   cutlass::bfloat16_t const* weight;
   cutlass::bfloat16_t const* input;
   void* output;

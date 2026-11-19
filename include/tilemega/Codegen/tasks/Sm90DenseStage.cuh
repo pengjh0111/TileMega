@@ -9,6 +9,7 @@ struct ReadSources {
   CUtensorMap const *key=nullptr,*value=nullptr;
   int layer=0;
   int const* schedule=nullptr;  // MoE routes (prompt §8)
+  cutlass::bfloat16_t const *key_address=nullptr,*value_address=nullptr;
 };
 
 template<class Body,int Tasks>
@@ -24,8 +25,12 @@ struct KvRead {
   template<int Bytes>
   __device__ static __forceinline__ void Prepare(ReadSources source,int past,char* shared,
       backend::Sm90DenseRingState& ring) {
-    if constexpr(Bytes>0)if(blockIdx.x<Tasks)
-      Body::template Preissue<Bytes>(source.key,source.value,source.layer,past,shared,ring);
+    if constexpr(Bytes>0)if(blockIdx.x<Tasks) {
+      if constexpr(Body::kCpAsync)
+        Body::template Preissue<Bytes>(source.key_address,source.value_address,past,shared,ring);
+      else
+        Body::template Preissue<Bytes>(source.key,source.value,source.layer,past,shared,ring);
+    }
   }
 };
 

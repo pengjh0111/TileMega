@@ -22,13 +22,18 @@ ATTENTION = ((128, 2, 1), (64, 4, 0), (128, 3, 0), (128, 4, 0))
 MOE_ATTENTION = ((4, 128, 8, 1), (16, 128, 1, 2))
 
 
+def ampere_target(manifest):
+    return manifest.get('target_spec', {}).get('arch_tag') == 'sm_80'
+
+
 def validate(manifest, defines):
     c = manifest['native_dense']
+    ampere = ampere_target(manifest)
     required = dict(phase='decode', pg='native', mode='L1', loop=1, capacity=1088)
     if any(manifest.get(k) != v for k, v in required.items()):
         raise ValueError('native dense execution domain differs from its manifest')
     if (defines.get('TILEMEGA_STATIC_DENSE_NATIVE') != '1' or
-            defines.get('TILEMEGA_ARCH_ID') != '900' or
+            defines.get('TILEMEGA_ARCH_ID') != ('800' if ampere else '900') or
             manifest.get('runtime_batch') not in (1, 2, 4, 8, 16) or
             manifest.get('native_origin') not in ('fixed', 'solver') or
             c.get('schema') not in (5, 6, 7, 8, 9) or
@@ -52,6 +57,10 @@ def validate(manifest, defines):
             (argmax_stage and (c['schema'] < 8 or tp != 1))):
         raise ValueError('native independent argmax coordinate is invalid')
     sequence = manifest.get('execution') == 'kernel_sequence'
+    if ampere and (tp != 1 or sequence or c['cluster'] != 1 or
+                   c['attention']['merge'] == 'dsmem' or
+                   any(g.get('multicast') for g in c['gemms'].values())):
+        raise ValueError('SM80 native execution requires TP1 without clusters or TMA')
     if sequence != (defines.get('TILEMEGA_NATIVE_KERNEL_SEQUENCE') == '1'):
         raise ValueError('native kernel sequence execution differs from generated macros')
     preserve = defines.get('TILEMEGA_NATIVE_SEQUENCE_PRESERVE_BODY') == '1'
@@ -77,6 +86,12 @@ def validate(manifest, defines):
 def dispatch(manifest, defines, source):
     validate(manifest, defines)
     c = manifest['native_dense']
+    ampere = ampere_target(manifest)
+    if ampere and (
+            'std::array<NativeTensorMap,0> kNativeTensorMaps' not in source or
+            not re.search(r'NativeProgram=Program<\d+,\d+,\d+,\d+,0,', source) or
+            f'constexpr int kNativeGrid={manifest["grid"]};' not in source):
+        raise ValueError('SM80 native program has tensor maps or an inconsistent grid')
     tp = c.get('tp', 1)
     argmax_stage = c.get('argmax', 'la') == 'stage'
     match = re.search(r'kNativeCoordinateIdentity\[\]\s*=\s*("(?:\\.|[^"\\])*");', source)
@@ -122,20 +137,21 @@ def dispatch(manifest, defines, source):
     group = ''.join(f',Stage_{i}' for i in range(1, size + 1))
     # ... Stage_{S+1}, cluster> (D10).
     # ... cluster[, tp]> and Head<..., embed[, tp, vocab per rank]> (tp > 1 only).
+    program_suffix = r',(\d+),(ArgmaxStage|void),true' if ampere else r'(?:,(\d+))?(,ArgmaxStage)?'
     program = re.search(r'using NativeProgram\s*=\s*Program<(?:\d+,){5}(\d+),(\d+),\d+,(true|false),'
-                        rf'(true|false),Stage_0,LayerGroup<{per_group}{group}>,Stage_{head},(\d+)(?:,(\d+))?(,ArgmaxStage)?>;',
-                        source)
+                        rf'(true|false),Stage_0,LayerGroup<{per_group}{group}>,Stage_{head},(\d+)'
+                        + program_suffix + r'>;', source)
     lm = re.search(rf'using Body_{head}\s*=\s*Head<HeadGemm_{head},\d+,\d+,\d+,\d+,\d+,(true|false)'
                    r'(?:,(\d+),(\d+))?(,true)?>;', source)
     degree = str(tp) if tp > 1 or argmax_stage else None
-    if (program is not None and lm is not None) and (program[6] != degree or
+    if (program is not None and lm is not None) and (program[6] != ('1' if ampere else degree) or
             lm[2] != degree or
             (tp > 1 and int(lm[3]) != manifest['gemms'][-1]['n'])):
         raise ValueError('native dense tensor parallel program differs from its coordinate identity')
     embed = c['emb'] == 'la'
     if (program is None or lm is None or (program[3] == 'true') != (c['layer_loop'] is True) or
             (program[4] == 'true') != embed or (lm[1] == 'true') != embed or
-            int(program[5]) != c['cluster'] or bool(program[7]) != argmax_stage or
+            int(program[5]) != c['cluster'] or ('ArgmaxStage' in (program[7] or '')) != argmax_stage or
             bool(lm[4]) != argmax_stage or (argmax_stage and lm[3] != '0')):
         raise ValueError('native dense program structure differs from its coordinate identity')
     arena, layers = int(program[1]), int(program[2])
@@ -163,7 +179,8 @@ def dispatch(manifest, defines, source):
     if len(gemms) != len(positions)*layers + 1:
         raise ValueError('native dense GEMM call count differs from manifest')
     calls = {number: ('Body' if typed == 'HeadGemm' else typed, kind, raw) for typed, number, kind, raw in
-             re.findall(r'using (Stage|Body|HeadGemm)_(\d+)\s*=\s*(Gemm|MoeFused|Moe)<([^;]+)>;', source)}
+             re.findall(r'using (Stage|Body|HeadGemm)_(\d+)\s*=\s*(Gemm|AmpereGemm|MoeFused|Moe)<([^;]+)>;',
+                        source)}
     expected_calls = {str(1 + (l % per_group)*len(layer) + k) for l in range(per_group) for k in positions}
     if set(calls) != expected_calls | {str(head)}:
         raise ValueError('native dense GEMM call count differs from manifest')
@@ -240,7 +257,9 @@ def dispatch(manifest, defines, source):
         args = raw.split(',')
         family = gemm['family']
         moe = family in MOE_MODES
-        if kind != ('MoeFused' if fused and family in FUSED else 'Moe' if moe else 'Gemm'):
+        expected_kind = ('MoeFused' if fused and family in FUSED else 'Moe' if moe else
+                         'AmpereGemm' if ampere else 'Gemm')
+        if kind != expected_kind:
             raise ValueError(f'native dense GEMM call differs from manifest at GEMM {index}')
         if kind == 'MoeFused':
             # batch, N_gu, N_dn, K_gu, TN/TK gate_up, TN/TK down, slots, WN/WK
@@ -248,15 +267,18 @@ def dispatch(manifest, defines, source):
             # operands (the 10th gu_done), map, register stages. E2 appends the
             # logits buffer and the softmax convention; 30 args is a program
             # emitted before E2, and such binaries are still loadable.
-            if len(args) not in (30, 32, 33, 34) or args[13] != '16' or \
+            if len(args) not in ((35,) if ampere else (30, 32, 33, 34)) or args[13] != '16' or \
                     args[14] not in ('64', '128') or args[15] != '8' or \
                     args[17] not in ('0', '64') or args[27] == 'kAbsent':
                 raise ValueError('native fused MoE call signature is invalid')
             if len(args) >= 32 and (args[30] == 'kAbsent' or
                                     args[31] not in ('true', 'false')):
                 raise ValueError('native fused MoE local route operands are invalid')
-            if args[32:] != ((['false'] if route_mode != 'local' else ['true'] if combine_stage else []) +
-                             (['true'] if combine_stage else [])):
+            route_args = ((['false'] if route_mode != 'local' else ['true'] if combine_stage else []) +
+                          (['true'] if combine_stage else []))
+            if ampere:
+                route_args = [str(route_mode == 'local').lower(), str(combine_stage).lower(), 'true']
+            if args[32:] != route_args or (ampere and args[28] != 'kAbsent'):
                 raise ValueError('native fused MoE routing differs from its coordinate identity')
             down = family == 'expert_down'
             values = list(map(int, args[:13]))
@@ -274,16 +296,22 @@ def dispatch(manifest, defines, source):
             # 25 arguments: 8 buffers (the last is MR7's gu_done, which only a
             # fused plan's router carries) and the router's softmax convention.
             legacy = len(args) == 23
-            if len(args) not in (23, 25, 26, 27, 28) or args[8] != 'backend::Sm90DenseMoeMode::' + MOE_MODES[family] or \
+            if len(args) not in ((29,) if ampere else (23, 25, 26, 27, 28)) or args[8] != 'backend::Sm90DenseMoeMode::' + MOE_MODES[family] or \
                     args[9] != '16' or args[10] not in ('64', '128') or args[11] != '8' or \
                     args[13] not in (('0', '64') if family != 'router' else ('0',)) or \
                     (legacy and (args[10] != '128' or fused)) or \
                     (not legacy and (args[24] not in ('true', 'false') or
                                      (args[21] != 'kAbsent') != (family == 'router' and fused))):
                 raise ValueError('native MoE call signature is invalid')
-            if args[25:] != ((['true'] if family == 'router' and route_mode == 'la' else
-                              ['false', 'true'] if family != 'router' and route_mode != 'local' else []) +
-                             (['true'] if family == 'expert_down' and combine_stage else [])):
+            route_args = ((['true'] if family == 'router' and route_mode == 'la' else
+                           ['false', 'true'] if family != 'router' and route_mode != 'local' else []) +
+                          (['true'] if family == 'expert_down' and combine_stage else []))
+            if ampere:
+                route_args = [str(flag).lower() for flag in (
+                    family == 'router' and route_mode == 'la',
+                    family != 'router' and route_mode != 'local',
+                    family == 'expert_down' and combine_stage, True)]
+            if args[25:] != route_args or (ampere and (args[22] == 'kAbsent') != (family == 'expert_gate_up')):
                 raise ValueError('native router last-arriver mode differs from its coordinate identity')
             register_stages = int(args[22 if legacy else 23])
             stream = 0 if family == 'expert_gate_up' else None
@@ -292,18 +320,30 @@ def dispatch(manifest, defines, source):
             # [, multicast (D10c)]; a tensor parallel o/down always writes the
             # multicast flag, then its reduction slot and the degree.
             reduces = tp > 1 and family in TP_OPS
-            if reduces:
-                if len(args) != 20 or args[17] not in ('true', 'false') or \
+            if ampere:
+                grid = manifest['grid']
+                tasks = gemm['n'] // gemm['tile_n']
+                residual = max(2, (tasks + grid - 1) // grid) if family in TP_OPS else 0
+                if len(args) != 18 or args[15] == 'kAbsent' or int(args[17]) != residual:
+                    raise ValueError('SM80 native GEMM copy operands or residual capacity are invalid')
+                multicast = False
+            elif reduces:
+                if len(args) not in (20, 21) or args[17] not in ('true', 'false') or \
                         args[18] != AR_SLOT[family] or args[19] != str(tp):
                     raise ValueError('native tensor parallel GEMM call signature is invalid')
                 multicast = args[17] == 'true'
             else:
-                multicast = len(args) == 18
-                if len(args) not in (17, 18) or (multicast and args[17] != 'true'):
+                multicast = len(args) >= 18 and args[17] == 'true'
+                if len(args) not in (17, 18, 21) or (len(args) == 18 and not multicast):
                     raise ValueError('native dense GEMM call signature is invalid')
+            if not ampere and len(args) == 21:
+                grid = manifest['grid']
+                tasks = gemm['n'] // gemm['tile_n']
+                if family not in TP_OPS or args[20] != str((tasks + grid - 1) // grid):
+                    raise ValueError('native residual capacity differs from the manifest grid')
             if multicast != (c['gemms'][family].get('multicast') is True):
                 raise ValueError('native dense GEMM call signature is invalid')
-            register_stages = int(args[15])
+            register_stages = int(args[16 if ampere else 15])
             if args[10] != ('true' if family in ('qkv', 'gate_up', 'lm_head') else 'false'):
                 raise ValueError('native dense GEMM InputNorm differs from its family')
             if args[8] != 'backend::ServingEpilogueOp::' + (TP_OPS if reduces else DENSE_OPS)[family]:
@@ -349,6 +389,10 @@ def dispatch(manifest, defines, source):
         # [, DSMEM merge (D10b)].
         flags = (['false', 'true'] if merge_stage else
                  ['true'] if a.get('merge') == 'dsmem' else [])
+        if ampere:
+            flags = ['false', str(merge_stage).lower(), 'true']
+            if args[21:23] != ['kAbsent', 'kAbsent']:
+                raise ValueError('SM80 attention must use explicit K/V addresses')
         dsmem = a.get('merge') == 'dsmem'
         if args[23:] != flags or len(args) != 23 + len(flags):
             raise ValueError('native dense attention call signature is invalid')
@@ -379,12 +423,15 @@ def dispatch(manifest, defines, source):
 
 def implementations(manifest):
     c = manifest['native_dense']
-    return dict(execution_arch_id=900, program='sm90_dense_native',
+    ampere = ampere_target(manifest)
+    return dict(execution_arch_id=800 if ampere else 900,
+                program='sm80_dense_native' if ampere else 'sm90_dense_native',
                 input_norm='consumer_rms', swiglu_interleave_u=c['swiglu_u'],
                 gemms=[dict(index=g['index'], impl=g['impl'],
                             task_body='Sm90DenseMoeGemm' if g['family'] in MOE_MODES else 'Sm90DenseGemm')
                        for g in manifest['gemms']],
-                attention=dict(impl='native_tma_mma_sync', task_body='Sm90DenseAttentionBody',
+                attention=dict(impl='native_cp_async_mma_sync' if ampere else 'native_tma_mma_sync',
+                               task_body='Sm90DenseAttentionBody',
                                chunks=c['attention']['chunks'],
                                merge=(c['attention']['merge'] if c['attention'].get('merge') in ('dsmem', 'stage') else 'last_arriver')
                                if c['attention']['chunks'] > 1 else 'none',

@@ -7,9 +7,11 @@
 
 namespace tilemega::solver {
 Sm90DenseRegisterContract NativeDenseRegisterContract(TargetSpec const& target,int residency) {
-  if(target.NvccArch()!="sm_90a" || target.sm_major!=9 || target.sm_minor!=0 ||
+  auto arch=target.NvccArch();
+  if(!((arch=="sm_90a" && target.sm_major==9) || (arch=="sm_80" && target.sm_major==8)) ||
+      target.sm_minor!=0 ||
       target.res.warp_size!=32 || (residency!=1 && residency!=2) || target.res.regs_per_sm<=0)
-    throw std::invalid_argument("native register contract requires an SM90a resource target");
+    throw std::invalid_argument("native register contract requires an SM80 or SM90a resource target");
   cudaOccDeviceProp properties{};
   properties.computeMajor=target.sm_major;properties.computeMinor=target.sm_minor;
   Sm90DenseRegisterContract result;

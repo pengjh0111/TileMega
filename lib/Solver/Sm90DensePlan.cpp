@@ -259,17 +259,24 @@ frontend::ImportedSemantics ImportSm90Dense(std::string const& path,
 mlir::OwningOpRef<mlir::ModuleOp> MaterializeSm90Dense(
     frontend::ImportedSemantics const& imported,Sm90DenseCoordinates const& c,int batch,
     TargetSpec const& target,mlir::MLIRContext& context,std::string const& origin) {
-  if(target.arch_tag!="sm_90" || target.NvccArch()!="sm_90a" ||
+  bool cp_async=target.arch_tag=="sm_80" && target.NvccArch()=="sm_80" &&
+      target.caps.cp_async && target.caps.mbarrier && !target.caps.tma && !target.caps.cluster;
+  if((!cp_async && (target.arch_tag!="sm_90" || target.NvccArch()!="sm_90a")) ||
      target.res.num_sms<=0 || target.res.max_smem_per_sm<=0 ||
      target.res.max_dynamic_smem_per_cta<=0 || (origin!="fixed" && origin!="solver"))
-    throw std::invalid_argument("native dense materialization requires a complete sm_90a target");
+    throw std::invalid_argument("native dense materialization requires a complete SM80 or SM90a target");
+  if(cp_async && (c.cluster!=1 || c.attention.dsmem || c.tp!=1 ||
+      std::any_of(c.gemms.begin(),c.gemms.end(),[](auto const& g){return g.multicast;})))
+    throw std::invalid_argument("SM80 native dense materialization requires a TP1 non-clustered decode plan");
   auto const& plan=imported.plan;
-  c.Validate(Sm90DenseShapes(plan),batch);
+  auto shapes=Sm90DenseShapes(plan);
+  c.Validate(shapes,batch);
+  int grid=target.res.num_sms*c.residency;
   auto budget=Sm90DenseSharedBudget(target,c.residency);
   frontend::ImportOptions options;
   for(auto const& g:plan.gemms) {
     auto const& cfg=c.gemms[Sm90DenseFamily(plan,g)];
-    if(cfg.SharedBytes(batch,Sm90DenseCoordinates::ResidualFamily(Sm90DenseFamily(plan,g)))>budget)
+    if(cfg.SharedBytes(batch,Sm90DenseCoordinates::ResidualFamily(Sm90DenseFamily(plan,g)),g.n,grid)>budget)
       throw std::invalid_argument("native GEMM exceeds target shared-memory budget");
     if(cfg.mma!=Sm90DenseMma::kMmaSync)
       throw std::invalid_argument("requested native mechanism is not implemented yet");
@@ -279,8 +286,7 @@ mlir::OwningOpRef<mlir::ModuleOp> MaterializeSm90Dense(
     if(stage.dense_attention_chunks!=c.attention.chunks ||
        c.attention.SharedBytes(stage.width,stage.group)>budget)
       throw std::invalid_argument("native attention structure or shared-memory budget is invalid");
-    c.ValidateSchedule(Sm90DenseShapes(plan),batch,stage.width,stage.group,
-        plan.serving_capacity,budget);
+    c.ValidateSchedule(shapes,batch,stage.width,stage.group,plan.serving_capacity,budget,grid);
   }
   auto module=frontend::TorchExportImporter{}.InstantiateForGranularity(imported,context,options);
   mlir::OpBuilder b(&context);
@@ -289,9 +295,9 @@ mlir::OwningOpRef<mlir::ModuleOp> MaterializeSm90Dense(
   set_int("tmexec.sm90_dense_budget",budget);
   (*module)->setAttr("tmexec.sm90_dense_origin",b.getStringAttr(origin));
   (*module)->setAttr("tmexec.sm90_dense_target",b.getStringAttr(target.ToJson()));
-  (*module)->setAttr("tmexec.solved_arch",b.getStringAttr("sm_90"));
+  (*module)->setAttr("tmexec.solved_arch",b.getStringAttr(target.arch_tag));
   set_int("tmexec.sm90_dense_batch",batch);
-  set_int("tmexec.sm90_dense_grid",target.res.num_sms*c.residency);
+  set_int("tmexec.sm90_dense_grid",grid);
   set_int("tmexec.solved_residency",c.residency);
   auto roles=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.dimension_roles");
   auto role=roles?roles.getAs<mlir::StringAttr>("batch"):mlir::StringAttr{};

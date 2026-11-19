@@ -30,7 +30,7 @@ inline std::string Reason(Sm90DenseSearchSpace const& space,Sm90DenseCoordinates
   try {c.Validate(space.shapes,space.batch);}
   catch(std::invalid_argument const& e) {return std::string("coordinate_validation: ")+e.what();}
   try {c.ValidateSchedule(space.shapes,space.batch,space.head_dim,space.queries,1088,
-      Sm90DenseSharedBudget(space.target,c.residency));}
+      Sm90DenseSharedBudget(space.target,c.residency),space.Grid(c.residency));}
   catch(std::invalid_argument const& e) {return std::string("schedule_validation: ")+e.what();}
   return "other_legal_rule";
 }
@@ -112,8 +112,9 @@ inline std::vector<Variant> Sweep(Sm90DenseSearchSpace const& space,Sm90DenseWor
           std::make_pair(y.gemms[6].TileK(),y.gemms[7].TileK());
     }
     auto const& gx=x.gemms[f];auto const& gy=y.gemms[f];
-    auto sx=gx.SharedBytes(work.batch,Sm90DenseCoordinates::ResidualFamily(f));
-    auto sy=gy.SharedBytes(work.batch,Sm90DenseCoordinates::ResidualFamily(f));
+    bool residual=Sm90DenseCoordinates::ResidualFamily(f);
+    auto sx=gx.SharedBytes(work.batch,residual,work.shapes[f][0],space.Grid(x.residency));
+    auto sy=gy.SharedBytes(work.batch,residual,work.shapes[f][0],space.Grid(y.residency));
     return sx!=sy?sx<sy:gx.TileK()>gy.TileK();
   };
   std::map<std::string,Variant> groups;
