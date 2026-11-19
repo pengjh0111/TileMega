@@ -74,7 +74,7 @@ def main():
     write_json(queue/'queue_calibration.json', jobs)
     results = out/'results'
     schedule(['--queue-dir', str(queue), '--out', str(results), '--policy', str(policy_path),
-              '--deadline-hours', str(args.budget_s/3600), '--release-on-blocked'])
+              '--deadline-hours', str(args.budget_s/3600), '--release-on-blocked', '--stop-on-failure'])
     state = json.loads((results/'state.json').read_text())
     counts = {job['name']: state[job['name']]['status'] for job in jobs}
     print(json.dumps(dict(jobs=counts, after_sha256=sha(artifact))), flush=True)

@@ -98,6 +98,7 @@ def main(argv=None):
     parser.add_argument('--deadline-hours', type=float, default=96)
     parser.add_argument('--stay-open', action='store_true')
     parser.add_argument('--release-on-blocked', action='store_true')
+    parser.add_argument('--stop-on-failure', action='store_true')
     parser.add_argument('--only', action='append', default=[])
     parser.add_argument('--resume-timing', action='store_true')
     args = parser.parse_args(argv)
@@ -300,8 +301,8 @@ def dispatch(args, policy):
             stream.seek(max(0, log.stat().st_size - 2048))
             lines = stream.read().decode(errors='replace').strip().splitlines()
         record(name, lines[-1] if lines else '')
-        if code == 75 and args.release_on_blocked:
-            print('releasing allocation after a rejected GPU attempt', flush=True)
+        if (code == 75 and args.release_on_blocked) or (code != 0 and args.stop_on_failure):
+            print('releasing allocation after a rejected attempt', flush=True)
             return
         if (code == 0 and args.release_on_blocked and chosen.get('gpu')
                 and any(state[step]['status'] == 'pending' for step in steps)):
