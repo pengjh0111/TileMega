@@ -14,7 +14,13 @@
 
 **Verified.** Bounded job `343865` ran the first SM80 native transport calibration process and completed in 76 seconds, including both guarded admission windows. Diagnostic medians include 1,658.28 GB/s for the tested HBM transfer, 2,218.77 GB/s for the tested L2-resident transfer, and 12.8805 GB/s for the tested per-CTA swizzled activation copy. These are single-process component measurements. The command, binary hash, and receipts are in `runs/a800/calibration/343865/`.
 
-**Verified.** The first full calibration attempt `343873` reached the MoE epilogue and caught an illegal memory access. The older calibration fixture omitted the current shared routing state. The fixture now supplies the routing layout consumed by the production epilogue and MoE body.
+**Verified.** The first full calibration attempt `343873` reached the MoE epilogue and caught an illegal memory access. The older calibration fixture omitted the current shared routing state. The fixture now supplies the routing layout consumed by the production epilogue and MoE body. It derives the maximum feasible ring depth from actual shared-memory limits.
+
+**Verified.** Job `343908` completed all five fresh calibration processes on one A800 in 238 seconds. The strict guard accepted every process. The calibrated profile contains 719 component rows and is saved as `configs/targets/sm_80_a800_sxm4_80gb.json`. Its HBM, L2 and swizzled per-CTA activation-copy medians are 1,673.50, 2,215.99 and 12.88 GB/s. The report and raw results are in `runs/a800/calibration/343908/`.
+
+**Verified.** The A800 driver reported one resident CTA per SM for both inherited Llama decode binaries in job `343889`. The B1/B16 binaries each launch 108 CTAs and request 128,000/129,536 bytes of shared memory. CPU compilation and disassembly accepted all 66 MMA slice probes after updating the probe to call the current RMS-accumulating body. A CPU-only additive price check materialized the Llama B1 CTG using the measured A800 target.
+
+**Verified.** The staged TileMega Python environment loaded PyTorch 2.13.0+cu126 on the login node and reproduced the Llama-3.2-1B shared checkpoint digest `5a53ddca4daa1421acb73fc07e8d328fb7d43f4258d1b6b1bdc0d18be2748c9d`. Native pilot `343916` was rejected during initialization when the non-dumpable worker became invisible under the cluster's `hidepid` mount. The A800 guard retains visible worker identity and disables piped dumps with the Linux one-byte core limit. The original ownership threshold remains in force.
 
 ## Measurement protocol
 
