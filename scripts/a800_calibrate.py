@@ -14,7 +14,7 @@ SECTIONS = {
     'all': [], 'base': ['--base-only'], 'gates': ['--gates-only'],
     'epilogue': ['--epilogue-only'], 'attention': ['--attention-only'],
     'moe': ['--moe-task-only'], 'olmoe': ['--e64-only'],
-    'q1': ['--q1-only'], 'moe-merge': ['--moe-merge-only'],
+    'q1': ['--q1-only'], 'moe-merge': ['--moe-merge-only'], 'mainloop': [],
 }
 
 
@@ -23,6 +23,7 @@ def main():
     p.add_argument('mode', choices=('plan', 'run'))
     p.add_argument('--target', type=Path, required=True)
     p.add_argument('--artifact', type=Path, default=RUN/'build/native-constants-sm80')
+    p.add_argument('--resource-audit', type=Path)
     p.add_argument('--section', choices=SECTIONS, default='base')
     p.add_argument('--repetitions', type=int, choices=(1, 5), default=5)
     p.add_argument('--budget-s', type=int, default=720)
@@ -40,6 +41,13 @@ def main():
         p.error('compile the SM80 native constants probe on the login node first')
     artifact_hash = sha(artifact)
     command_tail = [str(artifact), *SECTIONS[args.section]]
+    if args.section == 'mainloop':
+        if not args.resource_audit:
+            p.error('supply the linked mainloop resource audit')
+        audit = json.loads(args.resource_audit.read_text())
+        if audit['binary_sha256'] != artifact_hash or not audit.get('compatible_cases'):
+            p.error('resource audit does not name compatible linked mainloop entries')
+        command_tail += ['--cases', audit['compatible_cases']]
     if args.mode == 'plan':
         print(json.dumps(dict(target=str(target), device=wanted['uuid'], command=command_tail,
                              artifact_sha256=artifact_hash, count=args.repetitions,
