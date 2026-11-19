@@ -97,6 +97,8 @@ def main(argv=None):
     parser.add_argument('--policy', type=Path, required=True)
     parser.add_argument('--deadline-hours', type=float, default=96)
     parser.add_argument('--stay-open', action='store_true')
+    parser.add_argument('--release-on-blocked', action='store_true')
+    parser.add_argument('--only', action='append', default=[])
     parser.add_argument('--resume-timing', action='store_true')
     args = parser.parse_args(argv)
     args.policy = args.policy.resolve()
@@ -146,6 +148,7 @@ def main(argv=None):
         require_allowed_gpu(policy, os.environ.get('TILEMEGA_DEVICE_INDEX', '0'))
         if shutil.disk_usage(args.out).free < 256 * (1 << 20):
             print('dispatch paused: less than 256 MiB for receipts and logs', flush=True)
+            if args.release_on_blocked:return
             time.sleep(60)
             continue
         steps = {}
@@ -162,7 +165,20 @@ def main(argv=None):
                     raise ValueError('timing steps must use the GPU guard')
                 steps[name] = step
                 state.setdefault(name, dict(status='pending', attempts=0, enqueued=time.time(), retry_at=0))
+        if args.only:
+            unknown = set(args.only) - steps.keys()
+            if unknown:
+                raise ValueError(f'unknown selected steps: {sorted(unknown)}')
+            steps = {name: step for name, step in steps.items() if name in args.only}
         ready, skipped = ready_steps(steps, state, time.time())
+        if args.release_on_blocked:
+            remaining = deadline - time.time()
+            for step in ready[:]:
+                required = step['timeout_s'] + 20
+                if step.get('gpu'):
+                    required += policy['samples'] * policy['interval_s'] + 60
+                if remaining < required:
+                    ready.remove(step)
         for name in skipped:
             state[name]['status'] = 'skipped'
             record(name, 'required dependency failed')
@@ -201,6 +217,9 @@ def main(argv=None):
         chosen = prefer_ready_cpu(ready, chosen)
         if chosen is None:
             persist()
+            if args.release_on_blocked:
+                print('releasing allocation: no selected step can start safely', flush=True)
+                return
             if steps and all(state[name]['status'] in TERMINAL for name in steps) and not args.stay_open:
                 return
             if control.get('timing_paused') and not any(not s.get('timing', s.get('gpu', False)) for s in ready) and not args.stay_open:
@@ -213,6 +232,7 @@ def main(argv=None):
         folder = prepare_attempt(args.out, name, rec)
         if folder is None:
             print('dispatch paused: attempt directory allocation hit ENOSPC', flush=True)
+            if args.release_on_blocked:return
             time.sleep(60)
             continue
         cmd = [str(value).replace('{attempt_dir}', str(folder)) for value in chosen['command']]
@@ -224,9 +244,12 @@ def main(argv=None):
         # A stale inherited marker must never let a CPU step bypass the lock.
         env.pop('TILEMEGA_GPU_LOCK_HELD', None)
         if chosen.get('gpu'):
+            watchdog = []
+            if 'heartbeat_timeout_s' in chosen:
+                watchdog = ['--heartbeat-timeout-s', str(chosen['heartbeat_timeout_s'])]
             cmd = [sys.executable, '-m', 'tilemega.bench.gpu_guard', '--policy', str(args.policy),
                    '--out', str(folder), '--needs-free-mib', str(chosen.get('needs_free_mib', 12288)),
-                   '--timeout-s', str(chosen['timeout_s']), '--', *cmd]
+                   '--timeout-s', str(chosen['timeout_s']), *watchdog, '--', *cmd]
         lock_descriptor=None
         if not chosen.get('gpu'):
             cmd,lock_descriptor=acquire_command_lock(cmd,env['TILEMEGA_GPU_LOCK'])
@@ -246,7 +269,10 @@ def main(argv=None):
             rec['pid'] = proc.pid
             persist()
             try:
-                code = proc.wait(timeout=chosen['timeout_s'] + (600 if chosen.get('gpu') else 0))
+                guard_budget = 600
+                if args.release_on_blocked and chosen.get('gpu'):
+                    guard_budget = policy['samples'] * policy['interval_s'] + 60
+                code = proc.wait(timeout=chosen['timeout_s'] + (guard_budget if chosen.get('gpu') else 0))
             except subprocess.TimeoutExpired:
                 if chosen.get('gpu') and (folder / 'pgid').exists():
                     child_pid = int((folder / 'pgid').read_text())
@@ -270,6 +296,11 @@ def main(argv=None):
             stream.seek(max(0, log.stat().st_size - 2048))
             lines = stream.read().decode(errors='replace').strip().splitlines()
         record(name, lines[-1] if lines else '')
+        if code == 75 and args.release_on_blocked:
+            print('releasing allocation after a rejected GPU attempt', flush=True)
+            return
+    if args.release_on_blocked:
+        return
     for name, rec in state.items():
         if rec['status'] == 'pending':
             rec['status'] = 'not_run'

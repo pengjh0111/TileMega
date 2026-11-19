@@ -29,21 +29,29 @@ def gpu_step_allowed(policy, index, step):
         return False
     return True
 
+def single_card_mask(policy, index):
+    return str(policy.get('cuda_visible_devices', index))
+
+
+def smi(*args):
+    return subprocess.check_output(['nvidia-smi', *args], text=True, timeout=5)
+
+
 def gpu(index=None, *, strict=False):
     index=str(os.getenv('TILEMEGA_DEVICE_INDEX','0') if index is None else index)
-    raw=subprocess.check_output(['nvidia-smi','-i',index,'--query-gpu=memory.used,memory.free,memory.total,power.draw,utilization.gpu','--format=csv,noheader,nounits'],text=True).splitlines()[0]
+    raw=smi('-i',index,'--query-gpu=memory.used,memory.free,memory.total,power.draw,utilization.gpu','--format=csv,noheader,nounits').splitlines()[0]
     used,free,total,power,util=map(float,raw.split(','))
-    apps=subprocess.check_output(['nvidia-smi','-i',index,'--query-compute-apps=pid,used_memory','--format=csv,noheader,nounits'],text=True)
+    apps=smi('-i',index,'--query-compute-apps=pid,used_memory','--format=csv,noheader,nounits')
     owners={}
     for line in apps.splitlines():
         try:pid,size=map(int,line.split(','));owners[pid]=size
         except ValueError:
             if strict and line.strip():raise
-    detail=subprocess.check_output(['nvidia-smi','-i',index,
+    detail=smi('-i',index,
         '--query-gpu=clocks.current.sm,clocks.current.memory,temperature.gpu,clocks_event_reasons.active'
         + (',clocks_event_reasons_counters.hw_thermal_slowdown,clocks_event_reasons_counters.sw_thermal_slowdown'
            if strict else ''),
-        '--format=csv,noheader,nounits'],text=True).splitlines()[0].split(',')
+        '--format=csv,noheader,nounits').splitlines()[0].split(',')
     sm,memory,temp=map(float,detail[:3])
     row = dict(time=time.time(),gpu_index=int(index),used_mib=used,free_mib=free,total_mib=total,
                 power_w=power,utilization_pct=util,owners=owners,hidden_mib=max(0,used-sum(owners.values())),
@@ -55,8 +63,8 @@ def gpu(index=None, *, strict=False):
 def verify_device(policy, row):
     if policy.get('gpu_uuid'):
         index = str(row['gpu_index'])
-        observed = subprocess.check_output(['nvidia-smi','-i',index,
-            '--query-gpu=uuid','--format=csv,noheader'],text=True).strip()
+        observed = smi('-i',index,
+            '--query-gpu=uuid','--format=csv,noheader').strip()
         if observed != policy['gpu_uuid']:
             raise ValueError(f'NVML index {index} maps to {observed}, expected {policy["gpu_uuid"]}')
         row['gpu_uuid'] = observed
@@ -122,8 +130,8 @@ def nonce_owners(nonce):
     return result
 
 def numa_node_of(index):
-    bus=subprocess.check_output(['nvidia-smi','-i',str(index),'--query-gpu=pci.bus_id',
-        '--format=csv,noheader'],text=True).strip().lower()
+    bus=smi('-i',str(index),'--query-gpu=pci.bus_id',
+        '--format=csv,noheader').strip().lower()
     domain,rest=bus.split(':',1)
     node=Path('/sys/bus/pci/devices',f'{domain[-4:]}:{rest}','numa_node').read_text().strip()
     if not node.lstrip('-').isdigit() or int(node)<0:
@@ -217,11 +225,16 @@ def stop(process,known=None):
 
 def main():
     p=argparse.ArgumentParser();p.add_argument('--policy',type=Path,required=True);p.add_argument('--out',type=Path,required=True)
-    p.add_argument('--needs-free-mib',type=int,default=12288);p.add_argument('--timeout-s',type=float,required=True);p.add_argument('command',nargs=argparse.REMAINDER);a=p.parse_args()
+    p.add_argument('--needs-free-mib',type=int,default=12288);p.add_argument('--timeout-s',type=float,required=True);p.add_argument('command',nargs=argparse.REMAINDER)
+    p.add_argument('--heartbeat-timeout-s', type=float)
+    a=p.parse_args()
     cmd=a.command[1:] if a.command[:1]==['--'] else a.command
     if not cmd:p.error('a child command is required')
+    if a.heartbeat_timeout_s is not None and not 0 < a.heartbeat_timeout_s <= a.timeout_s:
+        p.error('heartbeat timeout must be positive and no greater than the child timeout')
     index=os.environ.get('TILEMEGA_DEVICE_INDEX')
     group=os.environ.get('TILEMEGA_DEVICE_GROUP')
+    policy=json.loads(a.policy.read_text())
     if group is not None:
         # Group mode (R5 B0): one unit owns every card it spans, so the whole
         # group is locked at once and any foreign process on any of them voids
@@ -230,11 +243,10 @@ def main():
         if (not all(i.isdigit() for i in indices) or len(set(indices))!=len(indices) or
                 os.environ.get('CUDA_VISIBLE_DEVICES')!=group):
             p.error('explicit matching TILEMEGA_DEVICE_GROUP and CUDA_VISIBLE_DEVICES are required')
-    elif index is None or not index.isdigit() or os.environ.get('CUDA_VISIBLE_DEVICES')!=index:
+    elif index is None or not index.isdigit() or os.environ.get('CUDA_VISIBLE_DEVICES')!=single_card_mask(policy,index):
         p.error('explicit matching TILEMEGA_DEVICE_INDEX and CUDA_VISIBLE_DEVICES are required')
     else:
         indices=[index]
-    policy=json.loads(a.policy.read_text())
     timing=os.environ.get('TILEMEGA_TIMING','1') != '0'
     for one in indices:require_allowed_gpu(policy,one,timing)
     nonce=str(uuid.uuid4())
@@ -301,11 +313,17 @@ def main():
                        for row in current)
         if throttled(rows):return finish(75,'preflight thermal throttle')
         env=dict(os.environ,TILEMEGA_GPU_LOCK_HELD='1',TILEMEGA_RUN_NONCE=nonce)
+        if group is None:
+            env['TILEMEGA_CUDA_VISIBLE_DEVICES'] = single_card_mask(policy, index)
+        heartbeat = a.out.resolve()/'heartbeat.jsonl'
+        if a.heartbeat_timeout_s is not None:
+            env['TILEMEGA_HEARTBEAT'] = str(heartbeat)
         if strict:env['TILEMEGA_STRICT_HOST_GUARD_PID']=str(guard_host_pid)
         process=subprocess.Popen(cmd,env=env,start_new_session=True)
         begin=time.monotonic();hidden=0;known={process.pid:process_start(process.pid)};own={process.pid}
         (a.out/'pgid').write_text(str(process.pid)+'\n')
         (a.out/'pgid_start').write_text(str(known[process.pid])+'\n')
+        last_progress, heartbeat_size = begin, 0
         while True:
             try:code=process.wait(timeout=policy['interval_s']);break
             except subprocess.TimeoutExpired:pass
@@ -325,7 +343,15 @@ def main():
             if (foreign if strict else foreign & previous) or hidden>=policy['hidden_violations']:
                 stop(process,known);return finish(75,'running interference')
             previous=foreign
-            if time.monotonic()-begin>a.timeout_s:
+            now = time.monotonic()
+            if a.heartbeat_timeout_s is not None:
+                try:size = heartbeat.stat().st_size
+                except FileNotFoundError:size = 0
+                if size > heartbeat_size:
+                    heartbeat_size, last_progress = size, now
+                if now-last_progress > a.heartbeat_timeout_s:
+                    stop(process,known);return finish(124,'benchmark heartbeat timed out')
+            if now-begin>a.timeout_s:
                 stop(process,known);return finish(124,'guard timeout')
         # Clean retained workers after normal/error parent exit as well.
         stop(process,known)

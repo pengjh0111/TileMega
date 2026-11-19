@@ -120,6 +120,11 @@ class RandomCheckpoint:
         self.manifest = describe(self.source)
         if self.max_bytes is not None and self.manifest["total_bytes"] > self.max_bytes:
             raise ValueError("checkpoint exceeds declared max_bytes")
+        if __package__:
+            from .baseline_common import heartbeat
+        else:
+            from baseline_common import heartbeat
+        heartbeat('checkpoint_generation')
         shards = partition(self.manifest["tensors"], self.shard_bytes)
         self.directory.mkdir(parents=True, exist_ok=False)
         self.manifest.update(seed=self.seed, supervisor_pid=os.getpid(), state="building",
@@ -131,6 +136,7 @@ class RandomCheckpoint:
                     shutil.copyfile(self.source/filename, self.directory/filename)
             mapping = {}
             for number, tensors in enumerate(shards, 1):
+                heartbeat('checkpoint_shard', shard=number, total_shards=len(shards))
                 filename = f"model-{number:05d}-of-{len(shards):05d}.safetensors"
                 fd = os.memfd_create(filename, flags=os.MFD_CLOEXEC)
                 self.fds.append(fd)

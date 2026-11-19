@@ -26,6 +26,13 @@ class InvalidTiming(InvalidMeasurement):
         super().__init__(f"{message}: {json.dumps(diagnostics, sort_keys=True)}")
 
 
+def heartbeat(stage, **details):
+    path = os.environ.get("TILEMEGA_HEARTBEAT")
+    if path:
+        with Path(path).open("a") as stream:
+            stream.write(json.dumps(dict(stage=stage, time=time.time(), **details)) + "\n")
+
+
 def arguments(system, extend=None):
     parser = argparse.ArgumentParser(description=f"Independent {system} baseline")
     parser.add_argument("--model", type=Path, required=True)
@@ -51,6 +58,7 @@ def arguments(system, extend=None):
         parser.error("model must be a local directory containing config.json")
     shared_checkpoint_identity(args.model, args.load_format)
     args.out.mkdir(parents=True, exist_ok=True)
+    heartbeat('engine_initialization', framework=system, batch=args.batch)
     return args, ids
 
 
@@ -78,8 +86,8 @@ def require_guard(tp=None):
                              "to the same distinct list")
     else:
         index = os.environ.get("TILEMEGA_DEVICE_INDEX")
-        if index is None or not index.isdigit() or os.environ.get("CUDA_VISIBLE_DEVICES") != index:
-            raise ValueError("set TILEMEGA_DEVICE_INDEX=i and CUDA_VISIBLE_DEVICES=i explicitly")
+        if index is None or not index.isdigit() or os.environ.get("CUDA_VISIBLE_DEVICES") != os.environ.get("TILEMEGA_CUDA_VISIBLE_DEVICES", index):
+            raise ValueError("set an explicit NVML index and its guarded CUDA selector")
         indices = [index]
     if os.environ.get("TILEMEGA_GPU_LOCK_HELD") != "1":
         raise ValueError("launch through the guarded scheduler holding /tmp/tilemega_gpu<i>.lock")
@@ -160,13 +168,13 @@ def _observe_one(path, label, index):
               "clocks_throttle_reasons.hw_power_brake_slowdown",
               "clocks_throttle_reasons.sw_thermal_slowdown", "clocks_throttle_reasons.active")
     raw = subprocess.check_output(["nvidia-smi", "-i", index, "--query-gpu=" + ",".join(fields),
-                                   "--format=csv,noheader,nounits"], text=True)
+                                   "--format=csv,noheader,nounits"], text=True, timeout=5)
     values = [value.strip() for value in raw.splitlines()[0].split(",")]
     if len(values) != len(fields):
         raise InvalidMeasurement("incomplete GPU telemetry")
     telemetry = dict(zip(fields, values))
     apps = subprocess.check_output(["nvidia-smi", "-i", index,
-        "--query-compute-apps=pid,used_memory", "--format=csv,noheader,nounits"], text=True)
+        "--query-compute-apps=pid,used_memory", "--format=csv,noheader,nounits"], text=True, timeout=5)
     pids, visible_mib = [], 0
     for line in apps.splitlines():
         if not line.strip():
@@ -303,6 +311,7 @@ def measure(args, ids, system, generate, metadata, synchronize=lambda: None, pre
         unresolved = set()
         # N=1 first exposes initialization/compile failures before a long run.
         for count in dict.fromkeys((1, args.max_tokens)):
+            heartbeat("shape_preparation", framework=system, batch=batch, tokens=count)
             # Untimed per-shape setup, for engines whose output length is compiled in.
             if prepare is not None:
                 prepare(batch, count)
@@ -316,12 +325,14 @@ def measure(args, ids, system, generate, metadata, synchronize=lambda: None, pre
                     raise
                 for sample in observe(guard_path, f"N{count}-run{run}-before"):
                     unresolved.update(sample.get("unresolved_host_pids", []))
+                heartbeat("request_start", framework=system, batch=batch, tokens=count, attempt=run)
                 synchronize()
                 compiled_before = compile_graphs() if compile_graphs is not None else None
                 start = time.perf_counter()
                 tokens = generate(ids[:batch], count)
                 synchronize()
                 elapsed = time.perf_counter() - start
+                heartbeat("request_returned", framework=system, batch=batch, tokens=count, attempt=run)
                 with (out/"raw_timings.jsonl").open("a") as stream:
                     stream.write(json.dumps({"N": count, "run": run, "warmup": run < args.warmup,
                         "wall_seconds": elapsed, "validation": "pending_post_guard_and_tokens"}) + "\n")

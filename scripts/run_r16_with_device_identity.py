@@ -37,7 +37,7 @@ def outer_guard_holds(index, path=None):
 def require_guard(policy, index):
     allowed_by_policy(policy, index)
     expected = policy.get('gpu_lock_path', f'/tmp/tilemega_gpu{index}.lock')
-    if (os.environ.get('CUDA_VISIBLE_DEVICES') != str(index) or
+    if (os.environ.get('CUDA_VISIBLE_DEVICES') != str(policy.get('cuda_visible_devices', index)) or
             os.environ.get('TILEMEGA_DEVICE_INDEX') != str(index) or
             os.environ.get('TILEMEGA_GPU_LOCK_HELD') != '1' or
             os.environ.get('TILEMEGA_GPU_LOCK') != expected):
@@ -70,6 +70,8 @@ def probe_cuda(ordinal=0):
             raise RuntimeError(f'CUDA driver identity query failed: {code}')
     check(lib.cuInit(0))
     device = ctypes.c_int()
+    count = ctypes.c_int()
+    check(lib.cuDeviceGetCount(ctypes.byref(count)))
     check(lib.cuDeviceGet(ctypes.byref(device), ordinal))
     raw_uuid = (ctypes.c_ubyte * 16)()
     check(lib.cuDeviceGetUuid_v2(ctypes.byref(raw_uuid), device))
@@ -83,7 +85,7 @@ def probe_cuda(ordinal=0):
         return value.value
     pci = bus.value.decode()
     node_path = Path('/sys/bus/pci/devices') / pci.lower() / 'numa_node'
-    return dict(cuda_uuid=str(uuid.UUID(bytes=bytes(raw_uuid))), cuda_pci_bus_id=pci,
+    return dict(cuda_visible_count=count.value, cuda_uuid=str(uuid.UUID(bytes=bytes(raw_uuid))), cuda_pci_bus_id=pci,
                 numa_node=int(node_path.read_text()), sm_count=attribute(16),
                 compute_capability=[attribute(75), attribute(76)],
                 shared_memory_per_sm=attribute(81), registers_per_sm=attribute(82),
@@ -144,6 +146,8 @@ def main():
         index = int(os.environ['TILEMEGA_DEVICE_INDEX'])
         require_guard(policy, index)
         identity = run_probe(args)
+        if identity['cuda_visible_count'] != 1:
+            raise ValueError('single-card workloads require exactly one visible CUDA device')
         verify(identity, index, uuids[0], pcis[0], int(nodes[0]))
         identity.update(created=time.time(), gpu_index=index, nvml_uuid=nvml_uuid(index),
             boot_id=Path('/proc/sys/kernel/random/boot_id').read_text().strip(),
