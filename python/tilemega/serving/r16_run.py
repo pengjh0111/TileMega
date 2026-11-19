@@ -7,7 +7,7 @@ import json
 import os
 from pathlib import Path
 
-from .baseline_common import guarded_main, measure, require_guard, validate_prompts
+from .baseline_common import guarded_main, heartbeat, measure, require_guard, validate_prompts
 
 
 def main():
@@ -103,6 +103,7 @@ def main():
             prompt_len=prompt_len, max_new_tokens=args.max_tokens, mode=mode,
             decode_loop=bool(loop), step_events=False, prefill_mode=args.prefill_mode)
     frozen = torch.tensor(ids[:int(args.batch)], dtype=torch.int32)
+    heartbeat('native_engine_initialization', batch=args.batch)
     with engine(args.mode, args.decode_loop) as current:
         executions=[]
         metadata['actual_execution']=executions
@@ -129,6 +130,7 @@ def main():
         checks = []
         combinations = [('L1', 0), ('L1', 1)] if args.check_step_loop else execution_combinations(manifests[1].get('pg', 'off'))
         for mode, loop in combinations:
+            heartbeat('native_executor_check', mode=mode, loop=loop)
             with engine(mode, loop) as other:
                 generated = other.generate(frozen, args.max_tokens)
                 if args.max_tokens>1 and generated.decode_loop_used!=bool(loop):
@@ -154,6 +156,7 @@ def main():
         if positions<args.max_tokens:
             hf_tokens=args.out/f'teacher_forced_prefix_{positions}.json'
             hf_tokens.write_text(json.dumps(reference[:,:positions].tolist())+'\n')
+        heartbeat('native_teacher_forced_check', positions=positions)
         subprocess.run([sys.executable, '-m', 'tilemega.serving.hf_check',
             '--model', str(args.model), '--prompt-ids', str(args.prompt_ids),
             '--generated', str(hf_tokens), '--out', str(args.out/'c1.json'),

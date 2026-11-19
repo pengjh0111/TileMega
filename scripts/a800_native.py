@@ -133,7 +133,8 @@ def main():
     needs = min(dev['memory_mib'] - policy['max_hidden_mib'],
                 math.ceil(description['checkpoint_bytes']/2**20) + 8192)
     write_json(queue/'queue_native.json', [dict(name=name, gpu=True, timing=args.stage == 'measure',
-               env=env, command=command, timeout_s=args.timeout_s, needs_free_mib=needs, cwd=str(ROOT))])
+               env=env, command=command, timeout_s=args.timeout_s, heartbeat_timeout_s=min(300, args.timeout_s),
+               needs_free_mib=needs, cwd=str(ROOT))])
     schedule(['--queue-dir', str(queue), '--out', str(state), '--policy', str(policy_path),
               '--deadline-hours', str(args.budget_s/3600), '--release-on-blocked'])
     result = json.loads((state/'state.json').read_text())[name]
