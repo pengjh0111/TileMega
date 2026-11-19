@@ -32,4 +32,11 @@ Pipeline selection uses the guarded linked-cubin occupancy probe and mirrored en
 
 ## Status
 
-Framework migration and the first baseline pilot are pending. The raw per-attempt output, Slurm receipts and thermal telemetry are under `runs/a800/` and the workspace `logs/`. The two result CSVs are generated from accepted attempts. At this point speedups have no end-to-end evidence.
+The workspace archive and the inherited experiment archive passed SHA-256 verification. All four Python environments passed dependency checks and imported the pinned Torch CUDA runtime on the login node. The raw per-attempt output, Slurm receipts and thermal telemetry are under `runs/a800/` and the workspace `logs/`. The two result CSVs are generated from accepted attempts. At this point speedups have no end-to-end evidence.
+
+
+**Verified.** Native Llama B1 completed the 1,024-token step/loop and Hugging Face teacher-forced checks on the A800 in job `343927`. All positions were within the accepted gap threshold and the maximum logit gap was 0.015625. The initial B16 attempt completed both model checks with maximum logit gap 0.03125. The strict guard rejected a split NVML memory/owner snapshot while the HF child exited. The B16 retry uses the bounded memory re-sample, which still rejects persistent hidden memory and unknown owners.
+
+**Verified.** TorchCompile Llama B1/B16 has three accepted processes per cell on the same UUID. The B1 median TPOT is 4.595 ms and the B16 median TPOT is 8.905 ms. The table includes T1, T1024, throughput, configuration and both input and measurement hashes. The compiler used StaticCache, SDPA, reduce-overhead and two recorded graphs.
+
+Slurm jobs `343941`, `343956`, `343958` and `343960` cover the expanded shape calibration and the vLLM, SGLang and TensorRT-LLM pilots. Jobs `343964` and `343965` cover the B16 retry and measured Llama B1 pipeline selection. The submitted chain allows one active GPU allocation at a time.
