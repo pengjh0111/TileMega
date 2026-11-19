@@ -3,7 +3,7 @@
 
 Each metric is the median over processes of the per-process median; p99 is the
 median of per-process p99. Writes the T5 CSV and the compact
-`sm90_native_constants` section of the H800 target. No fitting is performed.
+native constants section of the selected target. No fitting is performed.
 """
 import argparse
 import csv
@@ -44,7 +44,7 @@ def attempt_rows(log):
     return list(csv.DictReader(io.StringIO('\n'.join(body))))
 
 
-def process_rows(state, name, processes, logs):
+def process_rows(state, name, processes, logs, expected_uuid=None):
     result = []
     for fresh in range(processes):
         job = f'{name}-f{fresh}'
@@ -52,8 +52,14 @@ def process_rows(state, name, processes, logs):
         if row['status'] != 'done':
             raise ValueError(f'{job} is {row["status"]}')
         folder = Path(row['out'])
-        if read(folder / 'guard_result.json')['code']:
+        guard = read(folder / 'guard_result.json')
+        if guard['code']:
             raise ValueError(f'{job} guard rejected')
+        if expected_uuid:
+            identity = read(folder/'job/physical-device-identity.json')
+            if (guard.get('acceptance') != 'strict' or not guard.get('ownership_verified')
+                    or identity.get('nvml_uuid') != expected_uuid):
+                raise ValueError(f'{job} lacks strict evidence for the requested A800 UUID')
         result.append(attempt_rows(logs / f'{job}.log'))
     return result
 
@@ -78,9 +84,20 @@ def main():
     a = p.parse_args()
     a.csv = a.csv.resolve()
     state = read(a.state)
+    target = read(a.target)
+    ampere = target['arch_tag'] == 'sm_80'
+    expected_uuid = None
+    grids = (128, 132, 264)
+    if ampere:
+        dev = target.get('device_provenance', {})
+        expected_uuid = dev.get('uuid')
+        sms = int(target['resources']['num_sms'])
+        if 'A800' not in dev.get('name', '') or not expected_uuid or sms <= 0 or a.processes < 5:
+            raise ValueError('SM80 collection requires a guarded A800 target and five fresh processes')
+        grids = (sms, 2*sms)
     table = []
     for name in a.constants:
-        groups = merge(process_rows(state, name, a.processes, a.state.parent), lambda r: (r['name'], r['key']))
+        groups = merge(process_rows(state, name, a.processes, a.state.parent, expected_uuid), lambda r: (r['name'], r['key']))
         for (metric, key), rows in groups.items():
             if len(rows) != a.processes:
                 raise ValueError(f'{metric} {key}: {len(rows)} processes')
@@ -94,7 +111,7 @@ def main():
                               p99=statistics.median(float(r['p99']) for r in rows), unit=rows[0]['unit'],
                               processes=len(rows), method=name))
     for name in a.attention:
-        processes = process_rows(state, name, a.processes, a.state.parent)
+        processes = process_rows(state, name, a.processes, a.state.parent, expected_uuid)
         processes = [[r for r in rows if r['metric'] == 'attention_critical_before_barrier' and r['past'] == '575']
                      for rows in processes]
         groups = merge(processes, lambda r: tuple(r[f] for f in ATTENTION_FIELDS))
@@ -177,7 +194,7 @@ def main():
                'median of five fresh guarded processes; no fitting',
         csv=str(a.csv.relative_to(ROOT)),
         source_commit=head, header_sha256={h: sha(ROOT / h) for h in HEADERS},
-        c_bar_ns={g: single('c_bar', f'g={g}') for g in ('128', '132', '264')},
+        c_bar_ns={str(g): value['c_bar', f'g={g}'] for g in grids},
         l2_latency_ns=single('L_l2_loaded'), dram_latency_ns=single('L_dram_loaded'),
         l2_latency_single_ns=single('L_l2_single'), dram_latency_single_ns=single('L_dram_single'),
         dram_gbps=single('BW_dram'), l2_gbps=single('BW_l2'), sm_gbps=single('BW_sm'),
@@ -187,11 +204,16 @@ def main():
         epilogue_ns=epilogue, embedding_ns=embedding, argmax_la_ns=argmax, route_la_ns=route, attention_ns=attention,
         round_ns=rounds, clusters=clusters, dsmem_merge_ns=dsmem,
         forward=forward_section(forward))
+    if ampere:
+        section.update(method='SM80 cp.async and native task probes; median of five fresh guarded processes',
+                       gpu_uuid=expected_uuid, activation_cp_async_gbps=single('BW_activation_cp_async'),
+                       activation_cp_async_source='measured two-slot swizzled SM80 activation ring')
+        for hopper_only in ('clusters', 'dsmem_merge_ns', 'forward'):
+            section.pop(hopper_only)
     if a.section_only:
         a.section_only.write_text(json.dumps(section, indent=1) + '\n')
     else:
-        target = read(a.target)
-        target['sm90_native_constants'] = section
+        target['sm80_native_constants' if ampere else 'sm90_native_constants'] = section
         a.target.write_text(json.dumps(target, indent=2) + '\n')
     print(json.dumps(dict(rows=len(table), section_bytes=len(json.dumps(section, separators=(',', ':'))))))
 
