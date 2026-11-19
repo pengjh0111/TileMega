@@ -94,11 +94,11 @@ __global__ void Stream(uint4 const* input,void const* map,std::size_t pages,
   }
   output[blockIdx.x*kThreads+threadIdx.x]=sum;
 }
-#if defined(_CG_HAS_CLUSTER_GROUP)
 // DSMEM is a ticket round trip between rank zero and a selected peer, not
 // bulk-payload bandwidth. All other ranks remain alive through the final sync.
 __global__ void ClusterTrial(unsigned long long* elapsed,unsigned* errors,
                              int rounds,int kind,unsigned peer_rank) {
+#if defined(_CG_HAS_CLUSTER_GROUP)
   __shared__ unsigned ticket;
   auto cluster=cooperative_groups::this_cluster();
   unsigned rank=cluster.block_rank();
@@ -128,8 +128,10 @@ __global__ void ClusterTrial(unsigned long long* elapsed,unsigned* errors,
   }
   if(threadIdx.x==0)elapsed[blockIdx.x]=Now()-begin;
   cluster.sync();
-}
+#elif defined(__CUDA_ARCH__)
+  asm volatile("trap;");
 #endif
+}
 struct Summary {
   double median=0,p90=0,relative_stddev=0;
 };
@@ -179,6 +181,9 @@ void MeasureHopperDiagnostics(TargetSpec const& target,Options const& options,
   if(!target.caps.tma || !target.caps.bulk_copy || !target.caps.cluster)
     throw std::runtime_error("Hopper transport/cluster capabilities required");
   Check(cudaSetDevice(options.device));
+  int clusters=0;
+  Check(cudaDeviceGetAttribute(&clusters,cudaDevAttrClusterLaunch,options.device));
+  if(!clusters)throw std::runtime_error("physical device does not support cluster launch");
   std::size_t bytes=std::max<std::size_t>(256ull<<20,16ull*target.res.l2_bytes);
   std::size_t pages=(bytes+kPageBytes-1)/kPageBytes;bytes=pages*kPageBytes;
   Buffer<uint4> input(bytes/16);Buffer<unsigned long long> expected(1);Check(cudaMemset(expected.data,0,8));
