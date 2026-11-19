@@ -315,6 +315,8 @@ def main():
         env=dict(os.environ,TILEMEGA_GPU_LOCK_HELD='1',TILEMEGA_RUN_NONCE=nonce)
         if group is None:
             env['TILEMEGA_CUDA_VISIBLE_DEVICES'] = single_card_mask(policy, index)
+        if policy.get('keep_host_pid_visible', False):
+            env['TILEMEGA_KEEP_HOST_PID_VISIBLE'] = '1'
         heartbeat = a.out.resolve()/'heartbeat.jsonl'
         if a.heartbeat_timeout_s is not None:
             env['TILEMEGA_HEARTBEAT'] = str(heartbeat)

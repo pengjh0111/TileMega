@@ -392,13 +392,16 @@ def guarded_main(main):
     # a host crash collector that cannot inspect this container's namespace.
     import resource
     _, maximum = resource.getrlimit(resource.RLIMIT_CORE)
-    resource.setrlimit(resource.RLIMIT_CORE, (0, maximum))
-    # Linux ignores RLIMIT_CORE for a piped core_pattern. Disable dumping on
-    # this worker as well, so a native destructor crash cannot retain its GPU.
-    import ctypes
-    libc = ctypes.CDLL(None, use_errno=True)
-    if libc.prctl(4, 0, 0, 0, 0) != 0:  # PR_SET_DUMPABLE
-        raise OSError(ctypes.get_errno(), 'cannot disable worker core dumps')
+    if os.environ.get('TILEMEGA_KEEP_HOST_PID_VISIBLE') == '1':
+        # The kernel's piped core handler treats an exact limit of one byte
+        # as disabled, while a non-dumpable child disappears under hidepid.
+        resource.setrlimit(resource.RLIMIT_CORE, (1, maximum))
+    else:
+        resource.setrlimit(resource.RLIMIT_CORE, (0, maximum))
+        import ctypes
+        libc = ctypes.CDLL(None, use_errno=True)
+        if libc.prctl(4, 0, 0, 0, 0) != 0:  # PR_SET_DUMPABLE
+            raise OSError(ctypes.get_errno(), 'cannot disable worker core dumps')
     try:
         main()
     except InvalidMeasurement as error:
