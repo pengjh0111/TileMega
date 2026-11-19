@@ -57,5 +57,33 @@ class WatchdogTests(unittest.TestCase):
             self.assertEqual((record['status'], record['attempts']), ('pending', 0))
 
 
+    def test_memory_snapshot_is_confirmed_without_allowing_persistent_use(self):
+        for remains_hidden in (False, True):
+            with self.subTest(remains_hidden=remains_hidden), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                policy = dict(strict_host_owners=True, confirm_hidden_memory=True,
+                              max_util_pct=2, max_hidden_mib=1024, samples=1,
+                              interval_s=0.02, hidden_violations=1)
+                (root/'policy.json').write_text(json.dumps(policy))
+                argv = ['gpu_guard', '--policy', str(root/'policy.json'), '--out', str(root/'raw'),
+                        '--timeout-s', '2', '--', '/bin/true']
+                env = dict(CUDA_VISIBLE_DEVICES='0', TILEMEGA_DEVICE_INDEX='0',
+                           TILEMEGA_GPU_LOCK=str(root/'gpu.lock'), TILEMEGA_TIMING='0')
+                idle = dict(owners={}, utilization_pct=0, hidden_mib=4, free_mib=32768,
+                            thermal_counters_us=[0, 0])
+                mismatch = dict(idle, hidden_mib=4300)
+                readings = [dict(idle), dict(mismatch), dict(mismatch if remains_hidden else idle), dict(idle)]
+                with patch.dict(os.environ, env, clear=True), patch.object(sys, 'argv', argv), \
+                        patch.object(gpu_guard, 'host_proc', return_value=(Path('/proc'), 200)), \
+                        patch.object(gpu_guard, 'gpu', side_effect=readings), \
+                        patch.object(gpu_guard, 'strict_foreign', return_value=set()), \
+                        patch.object(gpu_guard, 'stop'), patch.object(subprocess, 'Popen') as launch:
+                    launch.return_value.pid = 12345678
+                    launch.return_value.wait.side_effect = [subprocess.TimeoutExpired('child', 0.02), 0]
+                    self.assertEqual(gpu_guard.main(), 75 if remains_hidden else 0)
+                evidence = (root/'raw/guard.jsonl').read_text()
+                self.assertIn('running_confirm', evidence)
+
+
 if __name__ == '__main__':
     unittest.main()
