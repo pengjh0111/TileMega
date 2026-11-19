@@ -240,13 +240,19 @@ __global__ void MoeEpilogueKernel(backend::Sm90DenseMoeOperands p,int samples,U6
   using G=backend::Sm90DenseMoeGemm<Batch,N,K,TN,64,2,WN,WK,Mode,16,Experts,8,false>;
   extern __shared__ __align__(16) float tile[];
   float* norms=tile+WK*16*TN;int* flag=reinterpret_cast<int*>(norms+64);
+  __shared__ typename G::LocalSchedule routing;
   int tid=threadIdx.x;
   for(int i=tid;i<WK*16*TN;i+=128)tile[i]=0.125f*float(i%11);
   for(int i=tid;i<4*16;i+=128)norms[i]=float(K);
+  if constexpr(Mode!=backend::Sm90DenseMoeMode::kRouter) {
+    G::LocalRoute::Load(p.schedule,p.route_weights,p.route_index,routing);
+    // The measured epilogue writes its partials without triggering combine.
+    if(tid==0)routing.active=1<<30;
+  }
   for(int s=0;s<samples;++s) {
     codegen::executor::ComputeSync();
     U64 begin=clock64();
-    G::Epilogue(p,tile,norms,s%G::kTiles,flag);
+    G::Epilogue(p,tile,norms,s%G::kTiles,flag,&routing);
     codegen::executor::ComputeSync();
     if(tid==0)out[s]=clock64()-begin;
   }
@@ -259,13 +265,13 @@ void MoeEpilogueCase(char const* family) {
   int rows=Mode==backend::Sm90DenseMoeMode::kRouter?Batch:
       std::max(1,int(std::lround(8.0*Batch/(E*(1-std::pow(1-8.0/E,Batch))))));
   std::vector<int> schedule(Schedule::kInts,0);
-  schedule[Schedule::Active()]=1<<30;schedule[Schedule::Count(0)]=rows;
+  schedule[Schedule::Active()]=1;schedule[Schedule::Count(0)]=rows;
   for(int r=0;r<rows;++r)schedule[Schedule::Row(0,r)]=r*8;
   auto* device_schedule=Device<int>(schedule.size());
   Check(cudaMemcpy(device_schedule,schedule.data(),schedule.size()*4,cudaMemcpyHostToDevice));
   auto* output=Device<float>(16*8*2048);auto* weights=Device<BF>(16*8);auto* x=Device<BF>(16*2048);
-  auto* counter=Device<std::uint64_t>(16);
-  backend::Sm90DenseMoeOperands p{nullptr,nullptr,nullptr,output,device_schedule,weights,nullptr,x,counter,1e-6f,nullptr};
+  auto* counter=Device<std::uint64_t>(16);auto* routes=Device<int>(16*8);
+  backend::Sm90DenseMoeOperands p{nullptr,nullptr,nullptr,output,device_schedule,weights,routes,x,counter,1e-6f,nullptr};
   auto kernel=MoeEpilogueKernel<Mode,TN,WN,Batch,Experts>;
   int shared=4*WK*16*TN+512;
   Check(cudaFuncSetAttribute(kernel,cudaFuncAttributeMaxDynamicSharedMemorySize,shared));
@@ -276,7 +282,7 @@ void MoeEpilogueCase(char const* family) {
   std::vector<double> v;for(int i=8;i<samples;++i)v.push_back(host[i]/cycles_per_ns);
   Print("t_ep",std::string(family)+":tn="+std::to_string(TN)+":b="+std::to_string(Batch)+
       ":wk="+std::to_string(WK),v,"ns");
-  for(void* q:{(void*)device_schedule,(void*)output,(void*)weights,(void*)x,(void*)counter,(void*)out})
+  for(void* q:{(void*)device_schedule,(void*)output,(void*)weights,(void*)x,(void*)counter,(void*)out,(void*)routes})
     Check(cudaFree(q));
 }
 template<backend::Sm90DenseMoeMode Mode,int TN,int Experts=128>
@@ -321,14 +327,14 @@ __global__ void MoeTaskKernel(backend::Sm90DenseMoeOperands p,U64* stamps) {
 template<backend::Sm90DenseMoeMode Mode,int Batch,int N,int K,int TN,int TK,int Slots,int WN,int Experts=128>
 void MoeTaskCase(char const* family) {
   using G=backend::Sm90DenseMoeGemm<Batch,N,K,TN,TK,Slots,WN,4/WN,Mode,16,Experts,8,
-      false,0,1,false,false,false,false,kAmpere>;
+      false,0,1,false,false,true,false,kAmpere>;
   using Schedule=backend::Sm90DenseMoeSchedule<Experts>;
   constexpr bool down=Mode==backend::Sm90DenseMoeMode::kDown;
   constexpr double E=Experts;
   int rows=std::max(1,int(std::lround(8.0*Batch/(E*(1-std::pow(1-8.0/E,Batch))))));
   auto* weight=Device<BF>(std::size_t(N)*K);auto* x=Device<BF>(16*std::max(N,K));
   auto* h=Device<BF>(std::size_t(Experts)*16*K);auto* output=Device<float>(std::size_t(16)*8*std::max(N,K)*8);
-  auto* routes=Device<BF>(16*8);auto* counter=Device<std::uint64_t>(N/TN);auto* stamps=Device<U64>(1);
+  auto* routes=Device<BF>(16*8);auto* route_ids=Device<int>(16*8);auto* counter=Device<std::uint64_t>(N/TN);auto* stamps=Device<U64>(1);
   CUtensorMap map{};CUtensorMap* device_map=Device<CUtensorMap>(1);
   if(down && !kAmpere) {
     codegen::executor::EncodeTiledMap<4>(map,h,{{64,16,std::uint64_t(K/64),std::uint64_t(Experts)},
@@ -352,7 +358,7 @@ void MoeTaskCase(char const* family) {
       Check(cudaMemcpy(device_schedule,schedule.data(),schedule.size()*4,cudaMemcpyHostToDevice));
       Check(cudaMemset(counter,0,8*(N/TN)));
       backend::Sm90DenseMoeOperands p{down?device_map:nullptr,weight,x,down?(void*)output:(void*)h,
-          device_schedule,routes,nullptr,x,counter,1e-6f,nullptr};
+          device_schedule,routes,route_ids,x,counter,1e-6f,nullptr};
       if constexpr(kAmpere)p.activation_address=h;
       MoeTaskKernel<G><<<1,160,G::kSharedBytes>>>(p,stamps);Check(cudaDeviceSynchronize());
       U64 host;Check(cudaMemcpy(&host,stamps,8,cudaMemcpyDeviceToHost));
@@ -363,7 +369,7 @@ void MoeTaskCase(char const* family) {
   Print("t_task_slope",std::string(family)+":tn="+std::to_string(TN)+":tk="+std::to_string(TK)+
       ":b="+std::to_string(Batch)+":wk="+std::to_string(4/WN)+":bytes="+std::to_string(2*TN*K),per_task,"ns");
   for(void* q:{(void*)weight,(void*)x,(void*)h,(void*)output,(void*)routes,(void*)counter,(void*)stamps,
-      (void*)device_map})Check(cudaFree(q));
+      (void*)device_map,(void*)route_ids})Check(cudaFree(q));
 }
 
 // Attention pieces of the D2 body (prompt §4 L0-1): one 64-key block with data
