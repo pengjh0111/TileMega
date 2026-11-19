@@ -16,7 +16,7 @@ def worker(prepared, out):
         raise ValueError('occupancy queries require the physical-card guard')
     rows = []
     for candidate in json.loads(prepared.read_text()):
-        run = subprocess.run(candidate['command'], capture_output=True, text=True)
+        run = subprocess.run(candidate['command'], capture_output=True, text=True, timeout=30)
         folder = Path(candidate['directory'])
         (folder / 'stdout.txt').write_text(run.stdout)
         (folder / 'stderr.txt').write_text(run.stderr)
@@ -77,9 +77,14 @@ def main():
         with (directory / 'extract.log').open('w') as log:
             subprocess.run(['/usr/local/cuda/bin/cuobjdump', '--extract-elf', 'all', str(binary)],
                 cwd=directory, check=True, stdout=log, stderr=subprocess.STDOUT)
-        cubins = list(directory.glob('*.sm_90a.cubin'))
+        arch = identity['nvcc_arch']
+        if arch not in ('sm_80', 'sm_90a'):
+            raise ValueError(f'unsupported native linked architecture: {arch}')
+        if arch == 'sm_80' and not os.environ.get('TILEMEGA_STRICT_HOST_GUARD_PID'):
+            raise ValueError('SM80 probing requires the allocated card and strict host GPU guard')
+        cubins = list(directory.glob(f'*.{arch}.cubin'))
         if len(cubins) != 1:
-            raise ValueError('expected one linked sm_90a cubin')
+            raise ValueError(f'expected one linked {arch} cubin')
         coordinate = manifest['native_dense']
         prepared.append(dict(rank=row['rank'], directory=str(directory),
             binary_sha256=sha(binary), identity_sha256=sha(identity_path), cubin_sha256=sha(cubins[0]),

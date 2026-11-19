@@ -110,12 +110,16 @@ def main(argv=None):
     require_allowed_gpu(policy, os.environ.get('TILEMEGA_DEVICE_INDEX', '0'))
     args.out.mkdir(parents=True, exist_ok=True)
     args.queue_dir.mkdir(parents=True, exist_ok=True)
-    singleton = (args.out / 'scheduler.pid').open('a+')
-    fcntl.flock(singleton, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    singleton.seek(0)
-    singleton.truncate()
-    singleton.write(str(os.getpid()) + '\n')
-    singleton.flush()
+    with (args.out / 'scheduler.pid').open('a+') as singleton:
+        fcntl.flock(singleton, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        singleton.seek(0)
+        singleton.truncate()
+        singleton.write(str(os.getpid()) + '\n')
+        singleton.flush()
+        return dispatch(args, policy)
+
+
+def dispatch(args, policy):
     state_path, control_path = args.out / 'state.json', args.out / 'control.json'
     state = json.loads(state_path.read_text()) if state_path.exists() else {}
     control = json.loads(control_path.read_text()) if control_path.exists() else {}
