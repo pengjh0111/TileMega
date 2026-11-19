@@ -65,7 +65,8 @@ def main():
     scope = RUN/'native'/expected/args.model/f'B{args.batch}'
     if args.stage == 'measure':
         if (plan['native_origin'] != 'solver' or not target.get('sm80_native_constants')
-                or decode_id['target_sha256'] != identity['target_sha256']):
+                or decode_id['target_sha256'] != identity['target_sha256']
+                or plan['native_selection'].get('selection') != 'measure'):
             parser.error('formal measurement requires the solver-selected artifact and its calibrated target')
         receipts = [json.loads(path.read_text()) for path in scope.glob('correctness-*.json')]
         fixed = ('device_uuid', 'decode_sha256', 'prefill_sha256', 'target_sha256')

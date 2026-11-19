@@ -214,6 +214,9 @@ def main():
         a.section_only.write_text(json.dumps(section, indent=1) + '\n')
     else:
         target['sm80_native_constants' if ampere else 'sm90_native_constants'] = section
+        if ampere:
+            target['sm80_native_decisions'] = dict(weight_stream=False, layer_loop=False)
+            target['device_provenance']['native_calibration_status'] = 'measured'
         a.target.write_text(json.dumps(target, indent=2) + '\n')
     print(json.dumps(dict(rows=len(table), section_bytes=len(json.dumps(section, separators=(',', ':'))))))
 
