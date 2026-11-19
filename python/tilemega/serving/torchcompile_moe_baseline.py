@@ -57,7 +57,7 @@ def main():
             inputs = options.get("input_ids", values[0] if values else None)
             stage = "prefill" if inputs is not None and inputs.shape[1] > 1 else "decode"
             if stage not in config["experts_observed"]:
-                config["experts_observed"][stage] = model.get_experts_implementation()
+                config["experts_observed"][stage] = model.config._experts_implementation
             return compiled(*values, **options)
         return forward
 

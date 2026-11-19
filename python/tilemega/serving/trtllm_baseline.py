@@ -80,7 +80,12 @@ def main():
               "worker_use_single_process": os.environ.get("TLLM_WORKER_USE_SINGLE_PROCESS", "0") == "1",
               "free_gpu_memory_fraction": 0.85,
               "launcher": os.environ.get("TILEMEGA_TRTLLM_LAUNCHER", "in-process"),
-              "attention_backend": str(getattr(llm.args, "attn_backend", "TRTLLM"))}
+              "backend": llm.args.backend,
+              "use_cuda_graph": llm.args.use_cuda_graph,
+              "cuda_graph_batch_sizes": llm.args.cuda_graph_batch_sizes,
+              "cuda_graph_padding_enabled": llm.args.cuda_graph_padding_enabled,
+              "attention_backend": llm.args.attn_backend,
+              "moe_backend": llm.args.moe_backend}
 
     eos = json.loads((args.model/"config.json").read_text()).get("eos_token_id", 0)
     eos = eos[0] if isinstance(eos, list) else eos
