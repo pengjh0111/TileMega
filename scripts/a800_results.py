@@ -27,31 +27,64 @@ def summarize(rows, key):
     return json.dumps([json.loads(value) for value in values])
 
 
-def baseline_cell(run, inputs, state, scope, model, engine, batch):
-    cell = model, engine, batch
-    jobs = scope.get(cell, [])
-    rows = [row for job in jobs if (row := measurement(job, state.get(job['name'], {}), inputs))]
-    names = [f'{model}_{engine}_b{batch:02d}_r{i}' for i in range(3)]
-    def confirmed_oom(name):
-        receipt = read(run/f'{name}.oom.json')
-        if receipt:
-            return receipt['status'] == 'OOM' and receipt['device_uuid'] == inputs['device']['uuid']
-        if state.get(name, {}).get('status') != 'failed':
-            return False
-        log = run/'baseline'/f'{name}.log'
-        latest = log.read_text(errors='replace').rsplit('\nATTEMPT ', 1)[-1] if log.is_file() else ''
-        return any(mark in latest for mark in OOM_MARKERS)
+def baseline_scope(cohorts, inputs):
+    scope = {}
+    for run in cohorts:
+        recorded = read(run/'baseline_inputs.json')
+        if not recorded:
+            continue
+        if recorded['device']['uuid'] != inputs['device']['uuid'] or recorded['models'] != inputs['models']:
+            raise ValueError(f'baseline and native inputs differ for {run.name}')
+        state = read(run/'baseline/state.json')
+        for job in read(run/'queue/queue_baselines.json'):
+            if 'model' not in job:
+                continue
+            name = job['name']
+            step = state.get(name, {})
+            capacity = run/f'{name}.oom.json'
+            if step.get('out') or capacity.is_file():
+                key = job['model'], job['engine'], job['batch']
+                scope.setdefault(key, []).append((run, job, step, capacity))
+    return scope
 
-    oom = all(confirmed_oom(name) for name in names)
+
+def confirmed_oom(run, job, step, capacity, inputs):
+    receipt = read(capacity)
+    if receipt:
+        return receipt['status'] == 'OOM' and receipt['device_uuid'] == inputs['device']['uuid']
+    if step.get('status') != 'failed':
+        return False
+    log = run/'baseline'/f'{job["name"]}.log'
+    latest = log.read_text(errors='replace').rsplit('\nATTEMPT ', 1)[-1] if log.is_file() else ''
+    return any(mark in latest for mark in OOM_MARKERS)
+
+
+def baseline_cell(inputs, jobs, model, engine, batch):
+    accepted, oom_rounds, evidence, harnesses = {}, set(), set(), set()
+    for run, job, step, capacity in jobs:
+        repeat = job['round']
+        harnesses.add(job['harness_sha256'])
+        if step.get('out'):
+            evidence.add(str(Path(step['out']).relative_to(RUN)))
+        if row := measurement(job, step, inputs):
+            if repeat in accepted and accepted[repeat] != row:
+                raise ValueError(f'duplicate accepted round for {job["name"]}; select one cohort')
+            accepted[repeat] = row
+        elif confirmed_oom(run, job, step, capacity, inputs):
+            oom_rounds.add(repeat)
+            if capacity.is_file():
+                evidence.add(str(capacity.relative_to(RUN)))
+    rows = [accepted[key] for key in sorted(accepted)]
     needed = 3
-    status = 'measured' if len(rows) == needed else 'OOM' if oom else 'incomplete' if rows else 'pending'
+    status = ('measured' if len(rows) == needed else 'incomplete' if rows else
+              'OOM' if len(oom_rounds) == needed else 'attempted' if evidence else 'pending')
     return rows, dict(model=model, framework=engine, batch=batch, status=status, processes=len(rows),
         required_processes=needed, correctness='exact token counts' if rows else 'pending',
         **metrics(rows, needed), backend=summarize(rows, 'backend'), versions=summarize(rows, 'versions'),
         gpu_uuid=inputs['device']['uuid'], config_sha256=inputs['models'][model]['config_sha256'],
         prompt_sha256=inputs['models'][model]['prompt_sha256'], checkpoint_sha256='',
-        harness_sha256=' '.join(sorted({job['harness_sha256'] for job in jobs})),
-        receipt_sha256=' '.join(row['receipt'] for row in rows), evidence=' '.join(names))
+        harness_sha256=' '.join(sorted(harnesses)),
+        receipt_sha256=' '.join(row['receipt'] for row in rows), evidence=' '.join(sorted(evidence)))
 
 
 def native_cell(inputs, model, batch):
@@ -73,7 +106,7 @@ def native_cell(inputs, model, batch):
     if len(artifact_ids) > 1:
         raise ValueError(f'{model} B{batch} contains more than one native plan pair')
     needed = 3 if model in tuple(MODELS)[:4] else 5
-    if len(rows) > needed:
+    if len(rows) > needed or len({r['round'] for r in receipts}) != len(rows):
         raise ValueError('choose an explicit cohort without extra formal rounds')
     status = 'measured' if len(rows) == needed else 'incomplete' if rows else 'pending_correctness'
     artifacts = next(iter(artifact_ids), ('', '', ''))
@@ -90,32 +123,25 @@ def native_cell(inputs, model, batch):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--cohort', required=True)
+    p.add_argument('--cohort', action='append', required=True)
     p.add_argument('--target', type=Path, required=True)
     p.add_argument('--out', type=Path, default=ROOT/'docs/results')
     args = p.parse_args()
-    if not args.cohort or not all(c.isascii() and (c.isalnum() or c in '-_') for c in args.cohort):
+    if any(not name or not all(c.isascii() and (c.isalnum() or c in '-_') for c in name)
+           for name in args.cohort):
         p.error('invalid cohort name')
     dev = read(args.target)['device_provenance']
     if 'A800' not in dev['name']:
         p.error('supply the guarded A800 target')
-    run = RUN/'cohorts'/args.cohort
-    recorded = read(run/'baseline_inputs.json')
     inputs = dict(device=dev, models=inspect_inputs(INVENTORY))
-    if recorded and (recorded['device']['uuid'] != dev['uuid'] or recorded['models'] != inputs['models']):
-        raise ValueError('baseline and native inputs differ')
-    jobs = read(run/'queue/queue_baselines.json')
-    state, scope = read(run/'baseline/state.json'), {}
-    for job in jobs:
-        if 'model' in job:
-            scope.setdefault((job['model'], job['engine'], job['batch']), []).append(job)
+    scope = baseline_scope((RUN/'cohorts'/name for name in args.cohort), inputs)
     baseline, native = [], []
     for model in MODELS:
         all_rows, checkpoint_hashes = [], set()
         for batch in BATCHES:
             measured = []
             for engine in ENGINES:
-                rows, cell = baseline_cell(run, inputs, state, scope, model, engine, batch)
+                rows, cell = baseline_cell(inputs, scope.get((model, engine, batch), []), model, engine, batch)
                 checkpoint_hashes.update(row['checkpoint_sha256'] for row in rows)
                 measured.append(cell)
                 baseline.append(cell)
