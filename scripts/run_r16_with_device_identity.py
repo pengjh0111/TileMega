@@ -89,6 +89,7 @@ def probe_cuda(ordinal=0):
                 numa_node=int(node_path.read_text()), sm_count=attribute(16),
                 compute_capability=[attribute(75), attribute(76)],
                 shared_memory_per_sm=attribute(81), registers_per_sm=attribute(82),
+                l2_bytes=attribute(38), max_threads_per_sm=attribute(39), warp_size=attribute(10),
                 shared_memory_per_block_optin=attribute(97), blocks_per_sm=attribute(106),
                 total_memory=memory.value, probe_pid=os.getpid(),
                 cuda_driver_queries_without_context=True)
