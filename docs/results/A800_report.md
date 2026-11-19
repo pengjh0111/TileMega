@@ -28,7 +28,7 @@
 
 The baseline matrix contains 160 cells, each requiring three independently accepted processes. Each process uses one of the frozen prompt batches, TP1, BF16 weights and KV, and a shared seed-zero checkpoint. N=1 and N=1024 each use one warmup and three formal request-wall repetitions. Process TPOT is `(median(T1024) - median(T1)) / 1023`. The final cell uses the median of process TPOTs.
 
-The native pilot retains separate Llama-3.2-1B prefill and decode artifacts at B1 and B16. Both pairs passed A800 login-node artifact identity, architecture and batch checks. Their full 1,024-token teacher-forced and step-versus-loop execution checks require GPU runs. Formal timing requires a measured solver selection and five fresh correctness receipts for the exact artifact pair. The final native matrix has 40 cells with three or five independent timing processes per cell.
+The native pilot retains separate Llama-3.2-1B prefill and decode artifacts at B1 and B16. Formal timing requires a measured solver selection and five fresh correctness receipts for the exact artifact pair. The final native matrix has 40 cells with three or five independent timing processes per cell.
 
 Pipeline selection uses the guarded linked-cubin occupancy probe and mirrored end-to-end shortlist measurements. Formal timing uses fresh processes. The A800 target requires its own measured constants, and CPU build evidence from A100 is retained under its original run directory.
 
@@ -45,6 +45,10 @@ The workspace archive and the inherited experiment archive passed SHA-256 verifi
 
 **Verified.** Qwen3-30B-A3B prefill was exported on the login node from the existing configuration with metadata-only weights, TP1, prompt length 64 and capacity 1,088. The bridge preserves the custom MoE operation and contains 4,957 tasks and 6,060 couplings. The export and its hashes are under `runs/a800/build/qwen30b-prefill-export/`. The A800 prefill artifact and paired runtime still need correctness evidence.
 
+**Verified.** Frozen-input checking and SM80 additive ranking emitted decode code for all eight models at B1 and B16 on the login node. The 16 codegen receipts are under `runs/a800/build/cost-shape-coverage/`. The independent Qwen3-0.6B prefill and native decode pair links for SM80 and passed the correctness-run planner. Its GPU pilot is `344029`.
+
+**Inferred.** The Qwen3-30B-A3B B1 pair uses compatible expert packing recipes across the two phases. The linked decode buffer ABI and prefill plan estimate 58.9 GiB before CUDA context, event and queue storage. The recipes deduplicate approximately 55.4 GiB across phases. The CPU estimate and artifacts are in `runs/a800/build/prefill/qwen30b-packed-b1/`. The paired deployment still needs a guarded on-device measurement.
+
 ## Queue
 
 The ordinary `gpu_a800` Slurm dependency chain allows one active allocation at a time. Each allocation and child process has a finite deadline. The single-card tail and stage IDs are in the workspace `logs/`.
@@ -57,5 +61,8 @@ The ordinary `gpu_a800` Slurm dependency chain allows one active allocation at a
 | `343998` | Five guarded A800 MMA mainloop calibration processes |
 | `344000` | Official grouped-mm TorchCompile OLMoE B1 pilot |
 | `344007` | SM80 OLMoE B1 prompt prefill and full correctness pilot |
+| `344029` | Qwen3-0.6B B1 separate prefill and native decode correctness |
+| `344037`, `344039`, `344041` | vLLM, SGLang and TensorRT-LLM B1 first round on five additional dense models |
+| `344049`, `344051`, `344053`, `344055` | Initial B1 rounds for remaining Qwen3-30B-A3B and OLMoE baselines |
 
-After successful pipeline selection, the login-node watcher verifies the selected artifact and submits five fresh Llama B1 correctness processes followed by three independent formal timing processes. It exits and records an unsuccessful selection without submitting the dependent timing work.
+After successful pipeline selection, the login-node watcher verifies the selected artifact and submits five fresh Llama B1 correctness processes followed by three independent formal timing processes. Once B1 and the linked MMA calibration pass, it collects the MMA profile and uses it for B16 selection and validation. It records unsuccessful stages and stops the dependent chain. At the last status check the ordinary queue reported `Priority` for `343965` on the main calibration node.
