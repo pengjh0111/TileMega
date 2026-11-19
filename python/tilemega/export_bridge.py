@@ -197,6 +197,9 @@ def main() -> None:
     args = parser.parse_args()
     for module in args.pytree_module:
         importlib.import_module(module)
+    # The archive may contain TileMega's expert operation. PyTorch resolves
+    # custom operators during deserialization, before the graph is available.
+    import tilemega.moe.export  # noqa: F401
     program = torch.export.load(args.input)
     before = _op_kinds(program)
     if args.decompose:
