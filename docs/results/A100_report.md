@@ -11,8 +11,9 @@ untracked Barvinok build inputs.
 `GPU-5f9e7f53-b146-b1a6-7d48-f5b703cd2c74`, PCI `0000:3b:00.0`, NUMA node 0,
 MIG disabled, compute capability 8.0, and 81,920 MiB of physical memory.
 Driver 580.178.04 reports CUDA 13.0 support. Local NVCC is 12.8.93.
-The guarded driver probe is queued to confirm the runtime-visible SM count,
-shared-memory limits, register limits, and CUDA ordinal-to-UUID mapping.
+The guarded driver probe was cancelled before launch. Runtime-visible SM count,
+shared-memory limits, register limits, and CUDA ordinal-to-UUID mapping remain
+pending.
 
 **Verified.** The initial occupancy record contains 31 samples over 34.76 s.
 Every sample showed 18 external or unresolved compute PIDs, 100% utilization,
@@ -22,8 +23,9 @@ scheduler could not resolve NVML's host PIDs in it. The occupancy record and
 dispatch decision are in `runs/a100/initial-occupancy.jsonl` and
 `runs/a100/baseline/occupancy.jsonl`.
 
-**Verified.** All 160 baseline cells have three pending fresh-process jobs
-with the host PID evidence above. All 40 TileMega cells await GPU validation.
+**Verified.** The scheduler was stopped on request and all 480 baseline jobs
+and the device probe were cancelled. All 481 jobs had zero attempts at
+cancellation. All 40 TileMega cells await GPU validation.
 TPOT, throughput and speedup remain pending. Blank fields in the CSVs denote
 missing evidence.
 The actual measured suite versions, checkpoint identities and artifact hashes
@@ -53,24 +55,12 @@ warmup and three formal request-wall samples. The per-process TPOT is
 median across three independently accepted baseline processes. It checks
 token counts, guard receipts and the shared checkpoint identity.
 
-The scheduler is waiting on the same UUID. Jobs require readable host PID
+The queue was bound to the same UUID. Jobs require readable host PID
 mapping, the workspace's `/work/tilemega-gpu.lock`, 31 idle samples one
 second apart, enough free memory, and verified ownership during execution.
 The preflight uses utilization, process ownership, and memory, with power
-recorded as telemetry. The CUDA probe is the next job, followed by the
-baseline matrix. Queue, state, attempt logs and receipts live under
-`runs/a100/`. The next action and admission blocker are recorded in
-`runs/a100/next.json`.
-
-For a restarted container, use its read-only host `/proc` mapping at
-`/host/proc` or set `TILEMEGA_HOST_PROC` to the supplied path.
-
-```sh
-cd /work/TileMega-a100
-export PYTHONPATH="$PWD/python" PYTHONDONTWRITEBYTECODE=1
-runs/a100/envs/tilemega/bin/python -u scripts/a100_baselines.py run
-runs/a100/envs/tilemega/bin/python scripts/a100_results.py
-```
+recorded as telemetry. The queue specification, admission blocker and
+cancellation receipt are retained under `runs/a100/`.
 
 ## Offline native decode verification
 

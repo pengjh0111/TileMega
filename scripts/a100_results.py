@@ -94,6 +94,8 @@ def main():
                 results = [result for _, _, result in records if result]
                 states = [step.get('status', 'pending') for _, step, _ in records]
                 status = 'measured' if len(results) == 3 else pending if 'pending' in states else 'incomplete'
+                if all(status == 'cancelled' for status in states):
+                    status = 'cancelled'
                 if not results and all(status == 'failed' for status in states):
                     logs = [RUN/'baseline'/f'{job["name"]}.log' for job, _, _ in records]
                     signatures = ('CUDA out of memory', 'torch.OutOfMemoryError', 'CUDA_ERROR_OUT_OF_MEMORY')
