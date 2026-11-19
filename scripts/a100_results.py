@@ -56,7 +56,7 @@ def measurement(job, state, inputs):
 def write_csv(path, rows):
     temporary = path.with_suffix('.tmp')
     with temporary.open('w', newline='') as stream:
-        writer = csv.DictWriter(stream, fieldnames=rows[0])
+        writer = csv.DictWriter(stream, fieldnames=rows[0], lineterminator='\n')
         writer.writeheader()
         writer.writerows(rows)
     temporary.replace(path)
@@ -66,6 +66,7 @@ def main():
     inputs = read(RUN/'baseline_inputs.json')
     jobs = read(RUN/'queue/queue_baselines.json')
     state = read(RUN/'baseline/state.json')
+    compiled = read(RUN/'build/verified_artifacts.json')
     occupancy = RUN/'baseline/occupancy.jsonl'
     last = json.loads(occupancy.read_text().splitlines()[-1]) if occupancy.is_file() else {}
     blocked = 'strict GPU ownership requires readable host /proc' in last.get('error', '')
@@ -96,7 +97,8 @@ def main():
                 if not results and all(status == 'failed' for status in states):
                     logs = [RUN/'baseline'/f'{job["name"]}.log' for job, _, _ in records]
                     signatures = ('CUDA out of memory', 'torch.OutOfMemoryError', 'CUDA_ERROR_OUT_OF_MEMORY')
-                    if all(path.is_file() and any(sig in path.read_text(errors='replace') for sig in signatures)
+                    if all(path.is_file() and any(sig in path.read_text(errors='replace').rsplit('\nATTEMPT ', 1)[-1]
+                                                  for sig in signatures)
                            for path in logs):
                         status = 'OOM'
                 row = dict(model=model, framework=engine, batch=batch, status=status, processes=len(results),
@@ -116,13 +118,21 @@ def main():
                     if fastest is None or row['tpot_ms'] < fastest['tpot_ms']:
                         fastest = row
                 baseline.append(row)
-            tilemega.append(dict(model=model, batch=batch, status='pending_sm80',
+            artifact = compiled.get(f'{model}_b{batch}', {})
+            status = ('pending_sm80' if not artifact else
+                      'compiled_pending_gpu' if artifact.get('prefill') else
+                      'decode_compiled_pending_prefill')
+            tilemega.append(dict(model=model, batch=batch,
+                                 status=status,
                                  processes=0, required_processes=3 if model in list(MODELS)[:4] else 5,
-                                 correctness='pending', backend='', tpot_ms='', t1_s='', t1024_s='', tok_s='',
+                                 correctness='pending', backend=artifact.get('backend', ''),
+                                 tpot_ms='', t1_s='', t1024_s='', tok_s='',
                                  fastest_baseline=fastest['framework'] if fastest else '',
                                  fastest_baseline_tpot_ms=fastest['tpot_ms'] if fastest else '', speedup='',
                                  config_sha256=shared['config_sha256'], prompt_sha256=shared['prompt_sha256'],
-                                 checkpoint_sha256=next(iter(identities[model]), ''), artifact_sha256='',
+                                 checkpoint_sha256=next(iter(identities[model]), ''),
+                                 artifact_sha256=' '.join(
+                                     artifact.get(f'{phase}_sha256', '') for phase in ('prefill', 'decode')).strip(),
                                  gpu_uuid=inputs['device']['uuid'], versions=''))
     out = ROOT/'docs/results'
     write_csv(out/'A100_baselines.csv', baseline)
