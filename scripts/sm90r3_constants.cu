@@ -690,7 +690,8 @@ __global__ void ActivationRate(BF const* input,U64* times,unsigned* errors) {
   using G=backend::Sm90DenseGemm<Batch,128,2048,128,TK,2,4,1,
       ServingEpilogueOp::kStore,16,true,1,false,2,true>;
   constexpr int slots=2,iterations=2048;
-  extern __shared__ __align__(128) BF shared[];
+  extern __shared__ __align__(128) char activation_storage[];
+  auto* shared=reinterpret_cast<BF*>(activation_storage);
   __shared__ std::uint64_t full[slots];
   int lane=threadIdx.x&31;
   if(!lane)for(int slot=0;slot<slots;++slot)Async::Init(full+slot,32);
