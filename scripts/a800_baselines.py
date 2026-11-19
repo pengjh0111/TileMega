@@ -70,6 +70,10 @@ def run_cohort(args, wanted):
     with (run/'allocation.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         policy = device_policy()
+        if args.expected_target:
+            expected = json.loads(args.expected_target.read_text())['device_provenance']['uuid']
+            if policy['gpu_uuid'] != expected:
+                raise RuntimeError('Slurm assigned a different UUID from the guarded target')
         allocation = run/'allocations'/os.environ['SLURM_JOB_ID']
         allocation.mkdir(parents=True, exist_ok=True)
         policy_path = allocation/'guard-policy.json'
@@ -105,6 +109,7 @@ def main():
     parser.add_argument('mode', choices=('plan', 'run'))
     parser.add_argument('--cohort', required=True)
     parser.add_argument('--probe-only', action='store_true')
+    parser.add_argument('--expected-target', type=Path)
     parser.add_argument('--model', choices=MODELS, action='append')
     parser.add_argument('--engine', choices=ENGINES, action='append')
     parser.add_argument('--batch', type=int, choices=BATCHES, action='append')

@@ -54,7 +54,8 @@ def main():
         prefill, prefill_id = 'prompt', {}
     else:
         prefill, prefill_id, prefill_plan = artifact(Path(args.prefill))
-        if prefill_plan.get('runtime_batch') != args.batch:
+        if not (prefill_plan.get('phase') == 'prefill' and
+                prefill_plan['batch_lo'] <= args.batch <= prefill_plan['batch_hi']):
             parser.error('prefill plan must match the batch')
 
     identity = dict(model=args.model, batch=args.batch, round=args.round, stage=args.stage,
@@ -80,6 +81,9 @@ def main():
                               timeout_s=args.timeout_s, max_tokens=1024, step=name), indent=2))
         return 0
 
+    receipt = scope/f'{args.stage}-{args.round}.json'
+    if receipt.exists():
+        raise FileExistsError('this artifact pair already has a receipt for the selected round')
     policy = device_policy()
     dev = device_environment(policy, 'A800')
     if dev['uuid'] != expected:
@@ -128,7 +132,7 @@ def main():
         if not (c1['pass'] and c2['pass'] and c2['same_binary']
                 and {trial['decode_loop_used'] for trial in c2['checks']} == {False, True}):
             return 1
-    write_json(scope/f'{args.stage}-{args.round}.json', dict(identity, **{'pass': True},
+    write_json(receipt, dict(identity, **{'pass': True},
                job=run.name, evidence=str(evidence)))
     return 0
 
