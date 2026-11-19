@@ -47,7 +47,9 @@ double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
   double cta=(w_cta+a_cta)/c.sm_gbps;
   double ring=w_cta*c.dram_latency/(double(g.slots)*g.slot_bytes);
   double waves=Waves(tasks,grid,2.0*g.tile_n*k);
-  double stream=std::max({w_tot/c.dram_gbps,waves,(w_tot+a_tot)/c.l2_gbps,cta,ring});
+  auto mma=c.AmpereMmaK16(grid,g.tile_n,g.TileK(),g.warps_n,g.register_stages);
+  double arithmetic=mma.value_or(0)*per_cta*k/(16*g.warps_k);
+  double stream=std::max({w_tot/c.dram_gbps,waves,(w_tot+a_tot)/c.l2_gbps,cta,ring,arithmetic});
   // A3: OLMoE's 64-expert stages key their own measurements; rows per slot
   // follow n_active(E), so Qwen3's E = 128 entries do not stand in for them.
   std::string geometry=family>=5 && work.experts==64?"_e64":"";
@@ -64,7 +66,7 @@ double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
     json::Object fields{{"barrier",c.Barrier(grid)},{"first_byte",first},{"pre",pre},
         {"dram",w_tot/c.dram_gbps},{"waves",waves},{"l2",(w_tot+a_tot)/c.l2_gbps},{"cta",cta},{"ring",ring},
         {"epilogue",epilogue},{"task_fixed",task_fixed},{"tasks",tasks},{"multicast",g.multicast}};
-    // Only a sharded plan's receipt names the term, so TP1 receipts are unchanged.
+    if(mma)fields.emplace_back("mma",arithmetic);
     if(work.tp>1 && (family==1 || family==3))fields.emplace_back("all_reduce",all_reduce);
     *terms=std::move(fields);
   }

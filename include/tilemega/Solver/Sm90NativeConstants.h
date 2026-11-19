@@ -44,6 +44,8 @@ class Sm90NativeConstants {
   // rate of a 256-wide one, so a stage is priced with its own N.
   double WgmmaEfficiency(int tile_n) const;
   double SmFlops() const;
+  // SM80 resident MMA and ldmatrix time per K16 step and split-K warp group.
+  std::optional<double> AmpereMmaK16(int grid,int tn,int tk,int wn,int stages) const;
   // D2 body: one 64-key block (data resident), q preparation, S-chunk merge.
   double AttentionBlock(int dim,int queries,int norm) const;
   double AttentionPrepare(int dim,int queries,int norm) const;
@@ -65,7 +67,7 @@ class Sm90NativeConstants {
   json::Value section;
  private:
   std::map<int,double> barrier_;
-  json::Value epilogue_,embedding_,argmax_la_,route_la_,attention_,round_,clusters_,dsmem_,forward_,task_expert_,tp_;
+  json::Value epilogue_,embedding_,argmax_la_,route_la_,attention_,round_,clusters_,dsmem_,forward_,task_expert_,tp_,ampere_mma_;
   double cta_dram_gbps_=0;
   json::Value const& AttentionShape(int dim,int queries,int norm) const;
 };

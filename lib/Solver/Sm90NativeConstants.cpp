@@ -37,6 +37,7 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
   c.epilogue_=s.At("epilogue_ns");c.embedding_=s.At("embedding_ns");c.argmax_la_=s.At("argmax_la_ns");
   c.route_la_=s.At("route_la_ns");c.round_=s.At("round_ns");
   if(!ampere) {c.clusters_=s.At("clusters");c.dsmem_=s.At("dsmem_merge_ns");}
+  else if(auto const* mma=s.Find("mma_mainloop"))c.ampere_mma_=mma->At("median_ns");
   if(auto const* forward=s.Find("forward"))c.forward_=*forward;
   if(auto const* cta=s.Find("cta_dram_gbps"))c.cta_dram_gbps_=Positive(*cta,"per-CTA DRAM bandwidth");
   if(auto const* task=s.Find("task_expert_ns"))c.task_expert_=*task;
@@ -124,6 +125,14 @@ double Sm90NativeConstants::SmFlops() const {
   auto const* found=forward_.Find("sm_flops_per_ns");
   if(!found)throw Sm90NativeMissing("no measured SM throughput; run the forward constants probe");
   return Positive(*found,"sm throughput");
+}
+std::optional<double> Sm90NativeConstants::AmpereMmaK16(int grid,int tn,int tk,int wn,int stages) const {
+  if(ampere_mma_.IsNull())return std::nullopt;
+  auto key=std::to_string(grid)+":"+std::to_string(tn)+":"+std::to_string(tk)+":"+
+      std::to_string(wn)+":"+std::to_string(stages);
+  auto const* value=ampere_mma_.Find(key);
+  if(!value)return std::nullopt;
+  return Positive(*value,"Ampere MMA K16 slice");
 }
 int Sm90NativeConstants::ClusterStar(int residency) const {
   auto const* r=clusters_.Find("r"+std::to_string(residency));
