@@ -75,6 +75,8 @@ def main():
         rounds = {result['round'] for result in accepted}
         if len({result['tokens_sha256'] for result in accepted}) > 1:
             parser.error('fresh correctness processes disagreed on generated tokens')
+        if not any(result.get('hf_pass') for result in accepted):
+            parser.error('formal timing requires an accepted teacher-forced reference')
         if len(rounds) < 5:
             parser.error('formal timing requires five fresh accepted correctness processes for this pair')
     config, prompt = inputs(args.model)
@@ -105,7 +107,9 @@ def main():
              '--round-index', str(args.round), '--out', '{attempt_dir}/job/measurements',
              '--system-label', 'TM-sm80', '--policy', str(policy_path)]
     if args.stage == 'correctness':
-        child += ['--check-step-loop', '--hf-check']
+        child.append('--check-step-loop')
+        if args.round == 0:
+            child.append('--hf-check')
     command = ['taskset', '--cpu-list', dev['cpus'], py,
                str(ROOT/'scripts/run_r16_with_device_identity.py'),
                '--out', '{attempt_dir}/job', '--guard-policy', str(policy_path),
@@ -131,12 +135,17 @@ def main():
     if result['status'] != 'done':
         return 1
     evidence = Path(result['out'])/'job/measurements'
+    hf_pass = False
     if args.stage == 'correctness':
-        c1, c2 = [json.loads((evidence/f'{label}.json').read_text()) for label in ('c1', 'c2')]
-        if not (c1['pass'] and c2['pass'] and c2['same_binary']
+        c2 = json.loads((evidence/'c2.json').read_text())
+        if not (c2['pass'] and c2['same_binary']
                 and {trial['decode_loop_used'] for trial in c2['checks']} == {False, True}):
             return 1
-    write_json(receipt, dict(identity, **{'pass': True}, job=run.name,
+        if args.round == 0:
+            hf_pass = json.loads((evidence/'c1.json').read_text())['pass']
+            if not hf_pass:
+                return 1
+    write_json(receipt, dict(identity, **{'pass': True}, job=run.name, hf_pass=hf_pass,
                evidence=str(evidence), tokens_sha256=sha(evidence/'reference_tokens.json')))
     return 0
 
