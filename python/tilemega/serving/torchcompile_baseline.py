@@ -51,7 +51,9 @@ def main():
     args, ids = arguments("torch.compile")
     require_guard()
     import torch
+    from torch._dynamo.utils import counters
     from transformers import AutoConfig, AutoModelForCausalLM, StaticCache
+    torch._dynamo.config.suppress_errors = False
     torch.manual_seed(0)
     if args.load_format == "dummy":
         hf_config = AutoConfig.from_pretrained(str(args.model), local_files_only=True)
@@ -147,7 +149,8 @@ def main():
         if not torch.equal(output[:, :inputs.shape[1]], inputs):
             raise AssertionError("HF generation changed the input prompt")
         return output[:, inputs.shape[1]:].tolist()
-    measure(args, ids, "torch.compile", generate, config, synchronize=torch.cuda.synchronize)
+    measure(args, ids, "torch.compile", generate, config, synchronize=torch.cuda.synchronize,
+            compile_graphs=lambda: counters["stats"]["unique_graphs"])
 
 
 if __name__ == "__main__":

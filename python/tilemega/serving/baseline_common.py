@@ -292,7 +292,8 @@ def summarize(rows, batch, count):
             "output_tokens_per_second": batch*count/e2e}
 
 
-def measure(args, ids, system, generate, metadata, synchronize=lambda: None, prepare=None):
+def measure(args, ids, system, generate, metadata, synchronize=lambda: None, prepare=None,
+            compile_graphs=None):
     checkpoint = shared_checkpoint_identity(args.model, args.load_format)
     batches = (1, 2, 4, 8, 16) if args.batch == "all" else (int(args.batch),)
     for batch in batches:
@@ -316,6 +317,7 @@ def measure(args, ids, system, generate, metadata, synchronize=lambda: None, pre
                 for sample in observe(guard_path, f"N{count}-run{run}-before"):
                     unresolved.update(sample.get("unresolved_host_pids", []))
                 synchronize()
+                compiled_before = compile_graphs() if compile_graphs is not None else None
                 start = time.perf_counter()
                 tokens = generate(ids[:batch], count)
                 synchronize()
@@ -325,6 +327,12 @@ def measure(args, ids, system, generate, metadata, synchronize=lambda: None, pre
                         "wall_seconds": elapsed, "validation": "pending_post_guard_and_tokens"}) + "\n")
                 for sample in observe(guard_path, f"N{count}-run{run}-after"):
                     unresolved.update(sample.get("unresolved_host_pids", []))
+                if compile_graphs is not None and run >= args.warmup:
+                    compiled_after = compile_graphs()
+                    if not compiled_before or compiled_after != compiled_before:
+                        raise InvalidTiming("compiled graphs must exist before formal timing",
+                                            before=compiled_before, after=compiled_after, N=count, run=run)
+                    metadata["compiled_graphs"] = compiled_after
                 check_tokens(tokens, batch, count)
                 token_file = f"tokens_N{count}_run{run}.json"
                 (out/token_file).write_text(json.dumps(tokens, separators=(",", ":")) + "\n")

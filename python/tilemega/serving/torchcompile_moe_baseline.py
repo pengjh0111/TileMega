@@ -15,7 +15,9 @@ def main():
     if args.load_format != "auto":
         raise ValueError("MoE comparison requires the shared checkpoint, not dummy weights")
     import torch
+    from torch._dynamo.utils import counters
     from transformers import AutoModelForCausalLM, StaticCache
+    torch._dynamo.config.suppress_errors = False
     torch.manual_seed(0)
     model, loading = AutoModelForCausalLM.from_pretrained(
         str(args.model), dtype=torch.bfloat16, local_files_only=True,
@@ -108,7 +110,8 @@ def main():
             raise AssertionError("HF generation changed the frozen input prompt")
         return output[:, inputs.shape[1]:].tolist()
 
-    measure(args, ids, "torch.compile", generate, config, synchronize=torch.cuda.synchronize)
+    measure(args, ids, "torch.compile", generate, config, synchronize=torch.cuda.synchronize,
+            compile_graphs=lambda: counters["stats"]["unique_graphs"])
 
 
 if __name__ == "__main__":
