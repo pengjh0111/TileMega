@@ -32,10 +32,17 @@ def baseline_cell(run, inputs, state, scope, model, engine, batch):
     jobs = scope.get(cell, [])
     rows = [row for job in jobs if (row := measurement(job, state.get(job['name'], {}), inputs))]
     names = [f'{model}_{engine}_b{batch:02d}_r{i}' for i in range(3)]
-    oom = all((run/f'{name}.oom.json').is_file() or
-              (state.get(name, {}).get('status') == 'failed' and
-               any(mark in (run/'baseline'/f'{name}.log').read_text(errors='replace').rsplit('\nATTEMPT ', 1)[-1]
-                   for mark in OOM_MARKERS)) for name in names)
+    def confirmed_oom(name):
+        receipt = read(run/f'{name}.oom.json')
+        if receipt:
+            return receipt['status'] == 'OOM' and receipt['device_uuid'] == inputs['device']['uuid']
+        if state.get(name, {}).get('status') != 'failed':
+            return False
+        log = run/'baseline'/f'{name}.log'
+        latest = log.read_text(errors='replace').rsplit('\nATTEMPT ', 1)[-1] if log.is_file() else ''
+        return any(mark in latest for mark in OOM_MARKERS)
+
+    oom = all(confirmed_oom(name) for name in names)
     needed = 3
     status = 'measured' if len(rows) == needed else 'OOM' if oom else 'incomplete' if rows else 'pending'
     return rows, dict(model=model, framework=engine, batch=batch, status=status, processes=len(rows),
@@ -83,6 +90,8 @@ def main():
     p.add_argument('--target', type=Path, required=True)
     p.add_argument('--out', type=Path, default=ROOT/'docs/results')
     args = p.parse_args()
+    if not args.cohort or not all(c.isascii() and (c.isalnum() or c in '-_') for c in args.cohort):
+        p.error('invalid cohort name')
     dev = read(args.target)['device_provenance']
     if 'A800' not in dev['name']:
         p.error('supply the guarded A800 target')
