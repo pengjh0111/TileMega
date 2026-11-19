@@ -92,7 +92,8 @@ def inspect_inputs(inventory):
 
 
 def prepare(policy_path=POLICY, run=RUN, inventory=RUN/'inventory', envs=RUN/'envs',
-            gpu_model='A100', timeout_s=14400, heartbeat_timeout_s=None):
+            gpu_model='A100', timeout_s=14400, heartbeat_timeout_s=None,
+            seed_suite='vllm', expected_checkpoint=None):
     policy = json.loads(policy_path.read_text())
     dev = device_environment(policy, gpu_model)
     env = dict(TILEMEGA_DEVICE_INDEX=str(dev['index']),
@@ -111,15 +112,20 @@ def prepare(policy_path=POLICY, run=RUN, inventory=RUN/'inventory', envs=RUN/'en
         '--guard-policy', policy_path, '--expected-uuid', dev['uuid'], '--expected-pci', dev['pci'],
         '--numa-node', dev['numa_node'],
     ]
+    checkpoint_hash_args = ['--expected-sha256', expected_checkpoint[1]] if expected_checkpoint else []
     jobs = [dict(name=device_job, gpu=True, timing=False, priority=0,
                  needs_free_mib=1024, timeout_s=120, cwd=str(ROOT), env=env,
                  command=[*identity, '--allow-no-measurements', '--', '/usr/bin/true'])]
     manifest = inspect_inputs(inventory)
     for model, description in manifest.items():
+        if expected_checkpoint and model != expected_checkpoint[0]:
+            continue
         config, prompt = inputs(model)
         settings = json.loads((config/'config.json').read_text())
         checkpoint_bytes = description['checkpoint_bytes']
         for engine, suite in ENGINES.items():
+            if seed_suite != 'vllm' and suite != seed_suite:
+                continue
             harness = f'{engine}_baseline.py'
             if engine == 'torchcompile' and model in MOE:
                 harness = 'torchcompile_moe_baseline.py'
@@ -149,9 +155,9 @@ def prepare(policy_path=POLICY, run=RUN, inventory=RUN/'inventory', envs=RUN/'en
                 for round_index in range(3):
                     command = [
                         *identity, '--',
-                        suite_python('vllm', envs), '-u', SERVING/'random_checkpoint.py',
+                        suite_python(seed_suite, envs), '-u', SERVING/'random_checkpoint.py',
                         '--config', config, '--out', '{attempt_dir}/checkpoint', '--seed', '0',
-                        '--max-gib', math.ceil(checkpoint_bytes/2**30), '--',
+                        '--max-gib', math.ceil(checkpoint_bytes/2**30), *checkpoint_hash_args, '--',
                         suite_python(suite, envs), '-u', SERVING/harness,
                         '--model', '{attempt_dir}/checkpoint', '--prompt-ids', prompt,
                         '--batch', batch, '--max-tokens', 1024, '--warmup', 1, '--repeats', 3,

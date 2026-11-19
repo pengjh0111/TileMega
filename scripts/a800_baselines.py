@@ -81,8 +81,9 @@ def run_cohort(args, wanted):
         pinned = run/'device.json'
         if pinned.exists() and json.loads(pinned.read_text())['uuid'] != policy['gpu_uuid']:
             raise RuntimeError('allocation received a different UUID from the saved cohort')
+        expected_checkpoint = (args.model[0], args.expected_checkpoint_sha256) if args.expected_checkpoint_sha256 else None
         jobs = prepare(policy_path, run, INVENTORY, ENVS, 'A800',
-                       args.process_timeout_s, args.heartbeat_timeout_s)
+                       args.process_timeout_s, args.heartbeat_timeout_s, args.seed_suite, expected_checkpoint)
         inputs = json.loads((run/'baseline_inputs.json').read_text())
         if not pinned.exists():
             write_json(pinned, inputs['device'])
@@ -110,6 +111,8 @@ def main():
     parser.add_argument('--cohort', required=True)
     parser.add_argument('--probe-only', action='store_true')
     parser.add_argument('--expected-target', type=Path)
+    parser.add_argument('--seed-suite', choices=('vllm', 'tilemega'), default='vllm')
+    parser.add_argument('--expected-checkpoint-sha256')
     parser.add_argument('--model', choices=MODELS, action='append')
     parser.add_argument('--engine', choices=ENGINES, action='append')
     parser.add_argument('--batch', type=int, choices=BATCHES, action='append')
@@ -122,6 +125,10 @@ def main():
         parser.error('cohort must contain only ASCII letters, digits, hyphens and underscores')
     if not 0 < args.heartbeat_timeout_s <= args.process_timeout_s < args.budget_s:
         parser.error('expected 0 < heartbeat timeout <= process timeout < budget')
+    if args.expected_checkpoint_sha256 and len(args.model or []) != 1:
+        parser.error('an explicit checkpoint hash requires one selected model')
+    if args.seed_suite != 'vllm' and (args.engine != ['torchcompile'] or not args.expected_checkpoint_sha256):
+        parser.error('use the alternate seed suite only for a TorchCompile cell with a verified hash')
     wanted = [] if args.probe_only else selection(args)
     models = inspect_inputs(INVENTORY)
     if args.mode == 'plan':
@@ -129,7 +136,8 @@ def main():
                               budget_s=args.budget_s, maximum_single_process_s=args.process_timeout_s),
                          indent=2))
         return 0
-    for suite in ENGINES.values():
+    required_suites = ENGINES.values() if args.seed_suite == 'vllm' else (args.seed_suite,)
+    for suite in required_suites:
         if not os.access(ENVS/suite/'bin/python', os.X_OK):
             raise RuntimeError(f'workspace is missing the {suite} Python interpreter')
     return run_cohort(args, wanted)
