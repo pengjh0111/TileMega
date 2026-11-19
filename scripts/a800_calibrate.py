@@ -22,6 +22,7 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('mode', choices=('plan', 'run'))
     p.add_argument('--target', type=Path, required=True)
+    p.add_argument('--artifact', type=Path, default=RUN/'build/native-constants-sm80')
     p.add_argument('--section', choices=SECTIONS, default='base')
     p.add_argument('--repetitions', type=int, choices=(1, 5), default=5)
     p.add_argument('--budget-s', type=int, default=720)
@@ -32,7 +33,7 @@ def main():
     target = args.target.resolve()
     spec = json.loads(target.read_text())
     wanted = spec['device_provenance']
-    artifact = RUN/'build/native-constants-sm80'
+    artifact = args.artifact.resolve()
     if spec['arch_tag'] != 'sm_80' or 'A800' not in wanted.get('name', '') or not wanted.get('probe_sha256'):
         p.error('the target must come from a guarded A800 resource probe')
     if not os.access(artifact, os.X_OK):
