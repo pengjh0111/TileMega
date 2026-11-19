@@ -330,6 +330,17 @@ void MoeTaskCase(char const* family) {
       false,0,1,false,false,true,false,kAmpere>;
   using Schedule=backend::Sm90DenseMoeSchedule<Experts>;
   constexpr bool down=Mode==backend::Sm90DenseMoeMode::kDown;
+  int limit=0;
+  Check(cudaDeviceGetAttribute(&limit,cudaDevAttrMaxSharedMemoryPerBlockOptin,0));
+  cudaFuncAttributes attrs{};
+  Check(cudaFuncGetAttributes(&attrs,MoeTaskKernel<G>));
+  if(G::kSharedBytes+int(attrs.sharedSizeBytes)>limit) {
+    if constexpr(Slots>2) {
+      MoeTaskCase<Mode,Batch,N,K,TN,TK,Slots-1,WN,Experts>(family);
+      return;
+    }
+    throw std::runtime_error("MoE calibration tile exceeds available shared memory");
+  }
   constexpr double E=Experts;
   int rows=std::max(1,int(std::lround(8.0*Batch/(E*(1-std::pow(1-8.0/E,Batch))))));
   auto* weight=Device<BF>(std::size_t(N)*K);auto* x=Device<BF>(16*std::max(N,K));
