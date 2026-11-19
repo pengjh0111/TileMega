@@ -70,8 +70,11 @@ def main():
             parser.error('formal measurement requires the solver-selected artifact and its calibrated target')
         receipts = [json.loads(path.read_text()) for path in scope.glob('correctness-*.json')]
         fixed = ('device_uuid', 'decode_sha256', 'prefill_sha256', 'target_sha256')
-        rounds = {result['round'] for result in receipts if result['pass']
-                  and all(result[key] == identity[key] for key in fixed)}
+        accepted = [result for result in receipts if result['pass']
+                    and all(result[key] == identity[key] for key in fixed)]
+        rounds = {result['round'] for result in accepted}
+        if len({result['tokens_sha256'] for result in accepted}) > 1:
+            parser.error('fresh correctness processes disagreed on generated tokens')
         if len(rounds) < 5:
             parser.error('formal timing requires five fresh accepted correctness processes for this pair')
     config, prompt = inputs(args.model)
@@ -133,8 +136,8 @@ def main():
         if not (c1['pass'] and c2['pass'] and c2['same_binary']
                 and {trial['decode_loop_used'] for trial in c2['checks']} == {False, True}):
             return 1
-    write_json(receipt, dict(identity, **{'pass': True},
-               job=run.name, evidence=str(evidence)))
+    write_json(receipt, dict(identity, **{'pass': True}, job=run.name,
+               evidence=str(evidence), tokens_sha256=sha(evidence/'reference_tokens.json')))
     return 0
 
 

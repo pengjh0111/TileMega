@@ -33,7 +33,7 @@ SERVING = ROOT / 'python/tilemega/serving'
 
 
 def sha(path):
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
 def suite_python(suite, envs=RUN/'envs'):
