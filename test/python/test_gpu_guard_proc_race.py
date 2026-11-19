@@ -17,9 +17,10 @@ class ProcRaceTest(unittest.TestCase):
             entries = [root/str(pid) for pid in (10, 11, 12, 99)]
             for entry in entries:
                 entry.mkdir()
-            (root/'10/stat').write_text('10 (parent) S 1 10 10')
-            (root/'11/stat').write_text('11 (child) S 10 10 10')
-            (root/'12/stat').write_text('12 (grandchild) S 11 10 10')
+            for pid, parent in ((10, 1), (11, 10), (12, 11)):
+                # Field 22 is the process start time used to detect PID reuse.
+                fields = ['S', str(parent), '10', '10', *(['0'] * 15), str(1000 + pid)]
+                (root/str(pid)/'stat').write_text(f'{pid} (worker) ' + ' '.join(fields))
             original = Path.read_text
 
             def read(path, *args, **kwargs):
