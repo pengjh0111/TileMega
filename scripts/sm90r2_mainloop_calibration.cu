@@ -21,7 +21,7 @@ __global__ __launch_bounds__(160,1)
 void Mainloop(U64* times,unsigned* errors,int repeats) {
   using namespace cute;using namespace tilemega::backend;
   constexpr int WK=4/WN;
-  using G=Sm90DenseGemm<16,TN,2048,TN,TK,2,WN,WK,ServingEpilogueOp::kStore,4,R>;
+  using G=Sm90DenseGemm<16,TN,2048,TN,TK,2,WN,WK,ServingEpilogueOp::kStore,4,true,R>;
   extern __shared__ __align__(1024) char shared[];
   auto* a=reinterpret_cast<cutlass::bfloat16_t*>(shared);auto* b=a+16*TK;
   for(int i=threadIdx.x;i<(16+TN)*TK;i+=160)a[i]=cutlass::bfloat16_t(1);
@@ -29,23 +29,26 @@ void Mainloop(U64* times,unsigned* errors,int repeats) {
   int lane=threadIdx.x%(32*WN),split=threadIdx.x/(32*WN);
   typename G::Mma mma;auto thread=mma.get_slice(lane);
   auto accum=partition_fragment_C(mma,Shape<_16,Int<TN>>{});clear(accum);
+  float squares[2]={0,0};
   U64 begin=clock64();
   for(int repeat=0;repeat<repeats;++repeat) {
     // Consume waits on an async producer each iteration. Its memory clobber
     // prevents hoisting shared loads into a loop-invariant fragment table.
     asm volatile("" ::: "memory");
-    if constexpr(WK==1)G::template MmaSlice<0>(a,b,accum);
+    if constexpr(WK==1)G::template MmaSlice<0>(a,b,accum,squares);
     else if constexpr(WK==2) {
-      if(split==0)G::template MmaSlice<0>(a,b,accum);
-      else G::template MmaSlice<1>(a,b,accum);
+      if(split==0)G::template MmaSlice<0>(a,b,accum,squares);
+      else G::template MmaSlice<1>(a,b,accum,squares);
     }else {
-      if(split==0)G::template MmaSlice<0>(a,b,accum);
-      else if(split==1)G::template MmaSlice<1>(a,b,accum);
-      else if(split==2)G::template MmaSlice<2>(a,b,accum);
-      else G::template MmaSlice<3>(a,b,accum);
+      if(split==0)G::template MmaSlice<0>(a,b,accum,squares);
+      else if(split==1)G::template MmaSlice<1>(a,b,accum,squares);
+      else if(split==2)G::template MmaSlice<2>(a,b,accum,squares);
+      else G::template MmaSlice<3>(a,b,accum,squares);
     }
   }
   times[blockIdx.x*128+threadIdx.x]=clock64()-begin;
+  float expected=float(repeats*TK/(4*WK));
+  if(squares[0]!=expected || squares[1]!=expected)atomicAdd(errors,1);
   for_each(make_int_sequence<size(accum)>{},[&](auto i) {
     if(accum(i)!=float(repeats*TK/WK))atomicAdd(errors,1);
   });
