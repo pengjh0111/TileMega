@@ -958,6 +958,22 @@ int main(int argc,char** argv) {try {
     MoeEpilogueTile<backend::Sm90DenseMoeMode::kGateUp,192>("expert_gate_up");
     MoeEpilogueTile<backend::Sm90DenseMoeMode::kDown,128>("expert_down");
     MoeEpilogueTile<backend::Sm90DenseMoeMode::kDown,256>("expert_down");
+#ifdef TILEMEGA_NATIVE_CALIBRATE_SM80
+    using backend::Sm90DenseMoeMode;
+    EpilogueTiles<ServingEpilogueOp::kStore>("qkv",std::integer_sequence<int,160,192>{});
+    EpilogueTiles<ServingEpilogueOp::kResidual>("residual",std::integer_sequence<int,96,128>{});
+    MoeEpilogueTile<Sm90DenseMoeMode::kRouter,16>("router");
+    MoeEpilogueTile<Sm90DenseMoeMode::kRouter,32>("router");
+    MoeEpilogueTile<Sm90DenseMoeMode::kRouter,64>("router");
+    MoeEpilogueTile<Sm90DenseMoeMode::kRouter,128>("router");
+    MoeEpilogueTile<Sm90DenseMoeMode::kGateUp,32>("expert_gate_up");
+    MoeEpilogueTile<Sm90DenseMoeMode::kGateUp,64>("expert_gate_up");
+    MoeEpilogueTile<Sm90DenseMoeMode::kGateUp,128>("expert_gate_up");
+    MoeEpilogueTile<Sm90DenseMoeMode::kDown,8>("expert_down");
+    MoeEpilogueTile<Sm90DenseMoeMode::kDown,16>("expert_down");
+    MoeEpilogueTile<Sm90DenseMoeMode::kDown,32>("expert_down");
+    MoeEpilogueTile<Sm90DenseMoeMode::kDown,64>("expert_down");
+#endif
   }
   // SM90R5 B3.2: a sharded vocabulary (75968, 37984) admits only lm_head TN
   // 16/32/64, so the folded-argmax epilogue is priced at those widths too.
@@ -988,6 +1004,15 @@ int main(int argc,char** argv) {try {
     MoeEpilogueTile<Sm90DenseMoeMode::kDown,64,64>("expert_down_e64");
     MoeEpilogueTile<Sm90DenseMoeMode::kDown,128,64>("expert_down_e64");
     MoeEpilogueTile<Sm90DenseMoeMode::kDown,256,64>("expert_down_e64");
+#ifdef TILEMEGA_NATIVE_CALIBRATE_SM80
+    MoeEpilogueTile<Sm90DenseMoeMode::kRouter,16,64>("router_e64");
+    MoeEpilogueTile<Sm90DenseMoeMode::kRouter,32,64>("router_e64");
+    MoeEpilogueTile<Sm90DenseMoeMode::kRouter,64,64>("router_e64");
+    MoeEpilogueTile<Sm90DenseMoeMode::kGateUp,32,64>("expert_gate_up_e64");
+    MoeEpilogueTile<Sm90DenseMoeMode::kDown,8,64>("expert_down_e64");
+    MoeEpilogueTile<Sm90DenseMoeMode::kDown,16,64>("expert_down_e64");
+    MoeEpilogueTile<Sm90DenseMoeMode::kDown,32,64>("expert_down_e64");
+#endif
     [&]<int... B>(std::integer_sequence<int,B...>) {
       (MoeTaskCase<Sm90DenseMoeMode::kGateUp,B,2048,2048,128,128,4,2,64>("expert_gate_up_e64"),...);
       (MoeTaskCase<Sm90DenseMoeMode::kDown,B,2048,1024,128,64,6,2,64>("expert_down_e64"),...);
