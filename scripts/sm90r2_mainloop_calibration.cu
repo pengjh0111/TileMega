@@ -85,7 +85,8 @@ int main(int argc,char** argv) {try {
     throw std::runtime_error("supply --cases from the matching calibration resource audit");
   selected_cases=std::string(",")+argv[2]+",";
   Check(cudaSetDevice(0));cudaDeviceProp p{};Check(cudaGetDeviceProperties(&p,0));
-  if(p.major!=9 || p.minor!=0)throw std::runtime_error("native mainloop calibration requires Hopper");
+  if((p.major!=8 && p.major!=9) || p.minor!=0)
+    throw std::runtime_error("native mainloop calibration requires SM80 or SM90");
   U64* times;unsigned* errors;Check(cudaMalloc(&times,p.multiProcessorCount*128*8));
   Check(cudaMalloc(&errors,4));Check(cudaMemset(errors,0,4));
   Frequency<<<1,1>>>(times);U64 ticks[2];Check(cudaMemcpy(ticks,times,16,cudaMemcpyDeviceToHost));

@@ -24,7 +24,13 @@
 using namespace tilemega;
 using BF=cutlass::bfloat16_t;
 using U64=unsigned long long;
-using Async=codegen::executor::Async<arch::Sm90>;
+#ifdef TILEMEGA_NATIVE_CALIBRATE_SM80
+constexpr bool kAmpere=true;
+#else
+constexpr bool kAmpere=false;
+#endif
+using Async=codegen::executor::Async<std::conditional_t<kAmpere,arch::Sm80,arch::Sm90>>;
+constexpr int kTransferArrivals=kAmpere?32:1;
 using backend::ServingEpilogueOp;
 
 void Check(cudaError_t e) {if(e!=cudaSuccess)throw std::runtime_error(cudaGetErrorString(e));}
@@ -69,51 +75,73 @@ __global__ void V3(U64* counter,U64* out,int samples) {
   }
 }
 
-// One 16 KB bulk from issue to completion. Cold samples walk distinct regions.
+template<class Kernel>
+void RequireResident(Kernel kernel,int grid,int threads,int shared=0) {
+  int sms=0,residency=0;
+  Check(cudaDeviceGetAttribute(&sms,cudaDevAttrMultiProcessorCount,0));
+  Check(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&residency,kernel,threads,shared));
+  if(grid>residency*sms)throw std::runtime_error("calibration grid exceeds compiled residency");
+}
+
+__device__ void CopySlot(char* destination,char const* source,int bytes,std::uint64_t* barrier) {
+  if constexpr(kAmpere) {
+    for(int offset=int(threadIdx.x&31)*16;offset<bytes;offset+=32*16)
+      Async::Copy16(destination+offset,source+offset);
+    Async::CompleteCopies(barrier);
+  }else {
+    Async::ExpectTx(barrier,bytes);
+    Async::Bulk(destination,source,bytes,barrier);
+  }
+}
+
+// Time one full slot transfer using the native producer role.
 __global__ void Latency(char const* base,std::size_t stride,int samples,U64* out,U64* counter,bool loaded) {
   __shared__ alignas(128) char buffer[16384];
   __shared__ std::uint64_t barrier;
-  if(threadIdx.x==0) {Async::Init(&barrier,1);Async::InitFence();}
+  if(threadIdx.x==0) {Async::Init(&barrier,kTransferArrivals);Async::InitFence();}
   __syncthreads();
   unsigned phase=0;
   for(int i=0;i<samples;++i) {
     if(loaded)GridBarrier(counter,i);
-    if(threadIdx.x==0) {
-      // stride 0: a distinct L2-resident region per CTA; otherwise a fresh region per sample.
+    if(kAmpere || threadIdx.x==0) {
       auto* source=stride?base+(std::size_t(i)*gridDim.x+blockIdx.x)*stride:base+blockIdx.x*16384;
       U64 begin=clock64();
-      Async::ExpectTx(&barrier,16384);Async::Bulk(buffer,source,16384,&barrier);
+      CopySlot(buffer,source,16384,&barrier);
       Async::Wait(&barrier,phase);phase^=1;
-      out[i*gridDim.x+blockIdx.x]=clock64()-begin;
+      if(threadIdx.x==0)out[i*gridDim.x+blockIdx.x]=clock64()-begin;
     }
   }
 }
-
 // Streaming bandwidth with Slots bulk/TMA requests of Bytes each in flight.
 template<int Slots,int Bytes,bool Tensor>
 __global__ void Stream(const __grid_constant__ CUtensorMap map,char const* base,std::size_t per_cta,
     int requests,int rows,U64* counter,U64* stamps,int round) {
   extern __shared__ __align__(1024) char shared[];
   auto* full=reinterpret_cast<std::uint64_t*>(shared+Slots*Bytes);
-  if(threadIdx.x==0) {for(int i=0;i<Slots;++i)Async::Init(full+i,1);Async::InitFence();}
+  if(threadIdx.x==0) {for(int i=0;i<Slots;++i)Async::Init(full+i,kTransferArrivals);Async::InitFence();}
   GridBarrier(counter,round*2);
-  if(threadIdx.x==0) {
-    stamps[blockIdx.x*2]=Now();
+  if(kAmpere?threadIdx.x<32:threadIdx.x==0) {
+    if(threadIdx.x==0)stamps[blockIdx.x*2]=Now();
     unsigned phase=0;
     for(int i=0;i<requests;++i) {
       int slot=i%Slots;
       if(i>=Slots) {Async::Wait(full+slot,(phase>>slot)&1);phase^=1u<<slot;}
-      Async::ExpectTx(full+slot,Bytes);
       if constexpr(Tensor) {
-        // Staggered start rows keep all CTAs on different lines of one buffer.
+        // Staggered starts keep CTAs on different cache lines of one buffer.
         int row=int((std::size_t(blockIdx.x)*997*128+std::size_t(i)*128)%rows);
-        Async::Tensor2D(shared+slot*Bytes,&map,0,row,full+slot);
-      }else Async::Bulk(shared+slot*Bytes,base+blockIdx.x*per_cta+std::size_t(i)*Bytes,Bytes,full+slot);
+        if constexpr(kAmpere)CopySlot(shared+slot*Bytes,base+std::size_t(row)*128,Bytes,full+slot);
+        else {
+          Async::ExpectTx(full+slot,Bytes);
+          Async::Tensor2D(shared+slot*Bytes,&map,0,row,full+slot);
+        }
+      }else CopySlot(shared+slot*Bytes,
+          base+blockIdx.x*per_cta+std::size_t(i)*Bytes,Bytes,full+slot);
     }
     for(int i=std::max(0,requests-Slots);i<requests;++i) {
       int slot=i%Slots;Async::Wait(full+slot,(phase>>slot)&1);phase^=1u<<slot;
     }
-    stamps[blockIdx.x*2+1]=Now();
+    if constexpr(kAmpere)__syncwarp();
+    if(threadIdx.x==0)stamps[blockIdx.x*2+1]=Now();
   }
   GridBarrier(counter,round*2+1);
 }
@@ -123,6 +151,7 @@ double StreamRun(CUtensorMap const& map,char const* base,std::size_t per_cta,int
   auto kernel=Stream<Slots,Bytes,Tensor>;
   int shared=Slots*Bytes+1024;
   Check(cudaFuncSetAttribute(kernel,cudaFuncAttributeMaxDynamicSharedMemorySize,shared));
+  RequireResident(kernel,grid,128,shared);
   auto* counter=Device<U64>(1);auto* stamps=Device<U64>(2*grid);
   std::vector<double> rates;
   std::vector<U64> host(2*grid);
@@ -282,16 +311,17 @@ template<class G>
 __global__ void MoeTaskKernel(backend::Sm90DenseMoeOperands p,U64* stamps) {
   extern __shared__ __align__(1024) char shared[];
   auto* rings=reinterpret_cast<backend::Sm90DenseRingState*>(shared);
-  rings[0].Initialize();
+  rings[0].Initialize<kAmpere>();
   __syncthreads();
   U64 begin=Now();
   G::Run(p,shared,&rings[0]);
   if(threadIdx.x==0)stamps[0]=Now()-begin;
-  rings[0].Invalidate();
+  rings[0].Invalidate<kAmpere>();
 }
 template<backend::Sm90DenseMoeMode Mode,int Batch,int N,int K,int TN,int TK,int Slots,int WN,int Experts=128>
 void MoeTaskCase(char const* family) {
-  using G=backend::Sm90DenseMoeGemm<Batch,N,K,TN,TK,Slots,WN,4/WN,Mode,16,Experts,8,false,0>;
+  using G=backend::Sm90DenseMoeGemm<Batch,N,K,TN,TK,Slots,WN,4/WN,Mode,16,Experts,8,
+      false,0,1,false,false,false,false,kAmpere>;
   using Schedule=backend::Sm90DenseMoeSchedule<Experts>;
   constexpr bool down=Mode==backend::Sm90DenseMoeMode::kDown;
   constexpr double E=Experts;
@@ -300,7 +330,7 @@ void MoeTaskCase(char const* family) {
   auto* h=Device<BF>(std::size_t(Experts)*16*K);auto* output=Device<float>(std::size_t(16)*8*std::max(N,K)*8);
   auto* routes=Device<BF>(16*8);auto* counter=Device<std::uint64_t>(N/TN);auto* stamps=Device<U64>(1);
   CUtensorMap map{};CUtensorMap* device_map=Device<CUtensorMap>(1);
-  if(down) {
+  if(down && !kAmpere) {
     codegen::executor::EncodeTiledMap<4>(map,h,{{64,16,std::uint64_t(K/64),std::uint64_t(Experts)},
         {2ull*K,128,2ull*16*K},
         {64,std::uint32_t(backend::Sm90DenseLayout::ActivationRows(Batch)),TK/64,1}});
@@ -323,6 +353,7 @@ void MoeTaskCase(char const* family) {
       Check(cudaMemset(counter,0,8*(N/TN)));
       backend::Sm90DenseMoeOperands p{down?device_map:nullptr,weight,x,down?(void*)output:(void*)h,
           device_schedule,routes,nullptr,x,counter,1e-6f,nullptr};
+      if constexpr(kAmpere)p.activation_address=h;
       MoeTaskKernel<G><<<1,160,G::kSharedBytes>>>(p,stamps);Check(cudaDeviceSynchronize());
       U64 host;Check(cudaMemcpy(&host,stamps,8,cudaMemcpyDeviceToHost));
       time[i]=double(host);Check(cudaFree(device_schedule));
@@ -341,7 +372,7 @@ void MoeTaskCase(char const* family) {
 // whole q and k rows across every KV group: OLMoE measures it at its own 16.
 template<int D,int Q,int Norm,int S,int Hkv=8>
 __global__ void AttentionKernel(backend::Sm90DenseAttentionOperands p,int samples,U64* out) {
-  using A=backend::Sm90DenseAttentionBody<1,Hkv,D,Q,Norm,S,64,2,0,1088>;
+  using A=backend::Sm90DenseAttentionBody<1,Hkv,D,Q,Norm,S,64,2,0,1088,false,false,kAmpere>;
   extern __shared__ __align__(1024) char shared[];
   auto& s=*reinterpret_cast<typename A::Storage*>(shared);
   int tid=threadIdx.x;
@@ -373,7 +404,7 @@ __global__ void AttentionKernel(backend::Sm90DenseAttentionOperands p,int sample
 template<int D,int Q,int Norm,int S,int Hkv=8>
 void AttentionCase() {
   constexpr int samples=256;
-  using A=backend::Sm90DenseAttentionBody<1,Hkv,D,Q,Norm,S,64,2,0,1088>;
+  using A=backend::Sm90DenseAttentionBody<1,Hkv,D,Q,Norm,S,64,2,0,1088,false,false,kAmpere>;
   auto kernel=AttentionKernel<D,Q,Norm,S,Hkv>;
   Check(cudaFuncSetAttribute(kernel,cudaFuncAttributeMaxDynamicSharedMemorySize,int(sizeof(typename A::Storage))));
   auto* qkv=Device<BF>(Hkv*(Q+2)*D);auto* cache=Device<BF>(Hkv*1088*D);auto* table=Device<BF>(1088*D);
@@ -396,6 +427,7 @@ void AttentionCase() {
     Check(cudaFree(ptr));
 }
 
+#ifndef TILEMEGA_NATIVE_CALIBRATE_SM80
 // t_merge_dsmem (D10b): a cluster of S CTAs, one per chunk, in the program's
 // shared-memory layout (rings, cluster state, storage at 1024). Each round
 // starts at a cluster barrier; the leader's time runs from its partial to
@@ -504,6 +536,8 @@ void WgmmaCase(int sms) {
   Print("t_wgmma","n="+std::to_string(N),rates,"flop_per_ns");
 }
 
+#endif
+
 // Whole embedding/argmax stages, each followed by the program's V3 barrier.
 template<int Width>
 __global__ void EmbeddingStage(int const* tokens,BF const* table,BF* output,float* sums,int batch,
@@ -543,6 +577,7 @@ __global__ void ArgmaxLaStage(float* values,int* indices,int* tokens,U64* lm,
 template<class Kernel,class... Args>
 void StageCase(char const* name,std::string const& key,Kernel kernel,int grid,Args... args) {
   constexpr int iterations=512;
+  RequireResident(kernel,grid,160);
   auto* counter=Device<U64>(1);auto* stamps=Device<U64>(iterations);
   kernel<<<grid,160>>>(args...,counter,stamps,iterations);
   Check(cudaDeviceSynchronize());
@@ -580,6 +615,7 @@ __global__ void BarrierRounds(U64* counters,U64* out) {
     Stamp(out,i);
   }
 }
+#ifndef TILEMEGA_NATIVE_CALIBRATE_SM80
 // D10a: cluster barrier, cluster rank 0 joins the global counter (G/C
 // arrivals), cluster barrier again.
 __global__ void ClusterRounds(U64* counter,U64* out) {
@@ -638,6 +674,8 @@ __global__ void HandoffLL(U64* data,U64* out) {
     Stamp(out,i);
   }
 }
+#endif
+
 void Rounds(char const* name,std::string const& key,U64 const* stamps) {
   std::vector<U64> host(kGateRounds);
   Check(cudaMemcpy(host.data(),stamps,kGateRounds*8,cudaMemcpyDeviceToHost));
@@ -646,15 +684,81 @@ void Rounds(char const* name,std::string const& key,U64 const* stamps) {
     x.push_back(double(host[i+kGateWindow]-host[i])/kGateWindow);
   Print(name,key,x,"ns");
 }
+#ifdef TILEMEGA_NATIVE_CALIBRATE_SM80
+template<int Batch,int TK>
+__global__ void ActivationRate(BF const* input,U64* times,unsigned* errors) {
+  using G=backend::Sm90DenseGemm<Batch,128,2048,128,TK,2,4,1,
+      ServingEpilogueOp::kStore,16,true,1,false,2,true>;
+  constexpr int slots=2,iterations=2048;
+  extern __shared__ __align__(128) BF shared[];
+  __shared__ std::uint64_t full[slots];
+  int lane=threadIdx.x&31;
+  if(!lane)for(int slot=0;slot<slots;++slot)Async::Init(full+slot,32);
+  __syncwarp();
+  auto start=Now();
+  unsigned phase=0;
+  for(int i=0;i<iterations;++i) {
+    int slot=i%slots;
+    if(i>=slots) {
+      Async::Wait(full+slot,(phase>>slot)&1);
+      phase^=1u<<slot;
+    }
+    int tile=i%(2048/TK);
+    for(int element=lane*8;element<G::kRows*TK;element+=32*8) {
+      int row=element/TK,col=element%TK;
+      auto* source=row<Batch?input+row*2048+tile*TK+col:input;
+      Async::Copy16(shared+slot*G::kRows*TK+typename G::LayoutA{}(row,col),source,row<Batch);
+    }
+    Async::CompleteCopies(full+slot);
+  }
+  for(int slot=0;slot<slots;++slot)Async::Wait(full+slot,(phase>>slot)&1);
+  __syncwarp();
+  if(!lane)times[blockIdx.x]=Now()-start;
+  // The input is 1 throughout; every lane checks arrived data or zero fill.
+  for(int element=lane*8;element<G::kRows*TK;element+=32*8) {
+    int row=element/TK,col=element%TK;
+    if(float(shared[typename G::LayoutA{}(row,col)])!=(row<Batch?1.f:0.f))
+      atomicAdd(errors,1);
+  }
+}
+
+__global__ void FillActivation(BF* input,int elements) {
+  for(int i=threadIdx.x;i<elements;i+=blockDim.x)input[i]=BF(1.f);
+}
+
+void ActivationCase() {
+  constexpr int batch=16, tk=128, samples=8;
+  auto* input=Device<BF>(batch*2048);
+  auto* device_time=Device<U64>(1);
+  auto* errors=Device<unsigned>(1);
+  FillActivation<<<1,256>>>(input,batch*2048);
+  std::vector<double> rates;
+  for(int i=0;i<=samples;++i) {
+    ActivationRate<batch,tk><<<1,32,2*batch*tk*sizeof(BF)>>>(input,device_time,errors);
+    U64 elapsed;
+    Check(cudaMemcpy(&elapsed,device_time,8,cudaMemcpyDeviceToHost));
+    if(i)rates.push_back(double(2048*batch*tk*sizeof(BF))/double(elapsed));
+  }
+  unsigned mismatches;
+  Check(cudaMemcpy(&mismatches,errors,4,cudaMemcpyDeviceToHost));
+  Check(cudaFree(errors));Check(cudaFree(device_time));Check(cudaFree(input));
+  if(mismatches)throw std::runtime_error("cp.async produced invalid swizzled activation");
+  Print("BW_activation_cp_async","slots=2:b=16:tk=128",rates,"GB/s");
+}
+#endif
+
 void Gates(int sms) {
   auto* counter=Device<U64>(64*8);auto* stamps=Device<U64>(kGateRounds);
   for(int grid:{sms,2*sms}) {
     auto key="g="+std::to_string(grid);
+    RequireResident(BarrierRounds<false>,grid,160);
+    RequireResident(BarrierRounds<true>,grid,160);
     Check(cudaMemset(counter,0,64*64));BarrierRounds<false><<<grid,160>>>(counter,stamps);
     Check(cudaDeviceSynchronize());Rounds("round_v3",key,stamps);
     Check(cudaMemset(counter,0,64*64));BarrierRounds<true><<<grid,160>>>(counter,stamps);
     Check(cudaDeviceSynchronize());Rounds("round_group16",key,stamps);
   }
+#ifndef TILEMEGA_NATIVE_CALIBRATE_SM80
   // C*: the largest C whose maximum active clusters cover 128 CTAs, at the
   // native kernel's dynamic shared memory for each residency.
   cudaDeviceProp prop{};Check(cudaGetDeviceProperties(&prop,0));
@@ -699,13 +803,15 @@ void Gates(int sms) {
   };
   handoff(std::integral_constant<int,2048>{});handoff(std::integral_constant<int,8192>{});
   handoff(std::integral_constant<int,32768>{});
-  Check(cudaFree(data));Check(cudaFree(counter));Check(cudaFree(stamps));
+  Check(cudaFree(data));
+#endif
+  Check(cudaFree(counter));Check(cudaFree(stamps));
 }
 
 int main(int argc,char** argv) {try {
   bool full=argc<2;
   Check(cudaSetDevice(0));cudaDeviceProp prop{};Check(cudaGetDeviceProperties(&prop,0));
-  if(prop.major!=9 || prop.minor!=0)throw std::runtime_error("SM90R3 constants require sm90");
+  if(prop.major!=(kAmpere?8:9) || prop.minor!=0)throw std::runtime_error("unexpected CUDA capability for calibration");
   int sms=prop.multiProcessorCount;
   {
     auto* clock=Device<U64>(2);Clock<<<1,1>>>(clock);Check(cudaDeviceSynchronize());
@@ -714,10 +820,16 @@ int main(int argc,char** argv) {try {
   }
   std::printf("name,key,samples,median,p99,unit\n");
   Print("clock","",{cycles_per_ns*1e3},"MHz");
+#ifdef TILEMEGA_NATIVE_CALIBRATE_SM80
+  if(full || !std::strcmp(argv[1],"--base-only"))ActivationCase();
+#endif
   if(full || !std::strcmp(argv[1],"--base-only")) {
-    auto* counter=Device<U64>(1);auto* stamps=Device<U64>(264*256*2);
-    std::vector<U64> host(264*256*2);
-    for(int grid:{128,sms,2*sms}) {
+    std::vector<int> grids=kAmpere?std::vector<int>{sms,2*sms}:std::vector<int>{128,sms,2*sms};
+    auto capacity=std::size_t(*std::max_element(grids.begin(),grids.end()))*256*2;
+    auto* counter=Device<U64>(1);auto* stamps=Device<U64>(capacity);
+    std::vector<U64> host(capacity);
+    for(int grid:grids) {
+      RequireResident(V3,grid,160);
       Check(cudaMemset(counter,0,8));V3<<<grid,160>>>(counter,stamps,256);Check(cudaDeviceSynchronize());
       Check(cudaMemcpy(host.data(),stamps,grid*256*16,cudaMemcpyDeviceToHost));
       std::vector<double> tails;
@@ -733,6 +845,7 @@ int main(int argc,char** argv) {try {
     auto* latency=Device<U64>(sms*64);std::vector<U64> lat(sms*64);
     auto latency_case=[&](char const* name,std::size_t stride,int grid,int samples,bool loaded,int skip) {
       Check(cudaMemset(counter,0,8));
+      RequireResident(Latency,grid,32);
       Latency<<<grid,32>>>(data,stride,samples,latency,counter,loaded);Check(cudaDeviceSynchronize());
       Check(cudaMemcpy(lat.data(),latency,std::size_t(grid)*samples*8,cudaMemcpyDeviceToHost));
       std::vector<double> x;
@@ -742,14 +855,14 @@ int main(int argc,char** argv) {try {
     latency_case("L_l2_single",0,1,64,false,4);
     latency_case("L_dram_single",std::size_t(1)<<20,1,64,false,0);
     latency_case("L_l2_loaded",16384*0,sms,64,true,4);
-    latency_case("L_dram_loaded",std::size_t(1)<<20,sms,24,true,0);
+    latency_case("L_dram_loaded",std::size_t(1)<<20,sms,std::min(24,int((big>>20)/sms)),true,0);
     CUtensorMap none{};
     double dram=StreamRun<4,32768,false>(none,data,big/sms/32768*32768,int(big/sms/32768),0,sms);
     Print("BW_dram","slots=4:bytes=32768:g="+std::to_string(sms),{dram},"GB/s");
     // 8 MiB of 64-column BF16 rows, read as 128-row 16 KB SWIZZLE_128B boxes.
     codegen::executor::TensorMap resident{};
     int rows=8*1024*1024/128;
-    if(codegen::executor::EncodeTensorMap(resident,data,{64,std::uint64_t(rows),128,64,128})!=CUDA_SUCCESS)
+    if(!kAmpere && codegen::executor::EncodeTensorMap(resident,data,{64,std::uint64_t(rows),128,64,128})!=CUDA_SUCCESS)
       throw std::runtime_error("tensor map encode failed");
     StreamRun<4,16384,true>(resident.descriptor,data,0,512,rows,sms);
     double l2=StreamRun<4,16384,true>(resident.descriptor,data,0,2048,rows,sms);
@@ -867,7 +980,9 @@ int main(int argc,char** argv) {try {
   if(full || !std::strcmp(argv[1],"--q1-only")) {
     [&]<int... S>(std::integer_sequence<int,S...>) {(AttentionCase<128,1,2,S,16>(),...);}
         (std::integer_sequence<int,2,4,8,16>{});
+#ifndef TILEMEGA_NATIVE_CALIBRATE_SM80
     DsmemMergeCase<128,1,2,2>();
+#endif
   }
   // MoE (Hkv = 4) at G = 264 reaches S0 = 64 chunks (prompt §8 M2).
   if(full || !std::strcmp(argv[1],"--moe-merge-only"))AttentionCase<128,8,1,64>();
@@ -875,6 +990,7 @@ int main(int argc,char** argv) {try {
   // heads, so at residency 2 its search offers 64 chunks, as Qwen3-30B-A3B's did.
   if(full || !std::strcmp(argv[1],"--tp-merge-only"))AttentionCase<128,2,1,64>();
   // D10b: clusters of C = 2 (DT-2's grids) merge S = 2 chunks through DSMEM.
+#ifndef TILEMEGA_NATIVE_CALIBRATE_SM80
   if(full || !std::strcmp(argv[1],"--forward-only")) {
     WgmmaCase<32>(sms);WgmmaCase<64>(sms);WgmmaCase<128>(sms);WgmmaCase<256>(sms);
   }
@@ -882,5 +998,6 @@ int main(int argc,char** argv) {try {
     DsmemMergeCase<128,2,1,2>();DsmemMergeCase<64,4,0,2>();DsmemMergeCase<128,3,0,2>();
     DsmemMergeCase<128,4,0,2>();DsmemMergeCase<128,8,1,2>();
   }
+#endif
   return 0;
 }catch(std::exception const& e) {std::fprintf(stderr,"%s\n",e.what());return 2;}}
