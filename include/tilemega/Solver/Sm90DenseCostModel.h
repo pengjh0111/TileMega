@@ -9,6 +9,10 @@
 #include <vector>
 
 namespace tilemega::solver {
+struct Sm90DenseHistoryWork {
+  double keys=0,mma_blocks=0,ring_slots=0;
+};
+
 struct Sm90DensePrediction {
   struct Stage {
     std::string kind;
@@ -30,6 +34,7 @@ class Sm90DenseCostModel {
   // bytes were streamed by a fully resident predecessor (D6), hiding L_dram.
   double Gemm(Sm90DenseWorkload const&,unsigned family,Sm90DenseGemm const&,int residency,
               json::Value* terms=nullptr,bool pre=false,int u=0,bool alternate_path=false) const;
+  Sm90DenseHistoryWork AttentionHistory(Sm90DenseAttention const&) const;
   double Attention(Sm90DenseWorkload const&,Sm90DenseAttention const& attention,
                    int residency,json::Value* terms=nullptr) const;
   Sm90DensePrediction Predict(Sm90DenseWorkload const&,Sm90DenseCoordinates const&) const;

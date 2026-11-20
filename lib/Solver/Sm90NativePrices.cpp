@@ -121,9 +121,8 @@ Sm90NativeStagePrice Sm90NativeAttentionPrice(Sm90DenseWorkload const& work,
   auto const& c = cost.Constants();
   int grid = cost.Grid(residency), d = work.head_dim, q = work.queries;
   int norm = work.qk_norm ? (work.qk_norm_row ? 2 : 1) : 0;
-  // :80-83, the same past and chunking the stage model uses.
-  double past = 575, tasks = double(work.batch) * work.hkv * a.chunks;
-  double keys = std::ceil((past + 1) / a.chunks), blocks = std::ceil(keys / 64);
+  double tasks=double(work.batch)*work.hkv*a.chunks;
+  auto history=cost.AttentionHistory(a);
 
   Sm90NativeStagePrice price;
   price.name = "attention";
@@ -136,9 +135,9 @@ Sm90NativeStagePrice Sm90NativeAttentionPrice(Sm90DenseWorkload const& work,
   // :84's per-CTA block term, per task. Appendix B puts the q preparation in
   // the task's compute rather than in its fixed cost, because every task
   // prepares its own queries.
-  parts.compute_ns = c.AttentionPrepare(d, q, norm) + blocks * c.AttentionBlock(d, q, norm);
-  parts.dram_bytes = keys * d * 4.0;              // :83 kv_task
-  parts.no_producer_dram_bytes = keys * d * 4.0;  // history has no producer in this CTG
+  parts.compute_ns=c.AttentionPrepare(d,q,norm)+history.mma_blocks*c.AttentionBlock(d,q,norm);
+  parts.dram_bytes=history.keys*d*4.0;
+  parts.no_producer_dram_bytes=parts.dram_bytes;  // history has no producer in this CTG
   // Attention streams the history in block_keys-sized slots (D10a), so its
   // ring capacity is slots x one block of keys for this head.
   parts.dram_rate_cap = RateCap(c, double(a.slots) * a.block_keys * d * 4.0);
@@ -146,7 +145,7 @@ Sm90NativeStagePrice Sm90NativeAttentionPrice(Sm90DenseWorkload const& work,
   // belongs to the reducer space rather than to these tasks.
   parts.fixed_ns = 0;
   // n_x for attention is its KV block count (section 2.3 item 3).
-  double steps = std::max(1.0, blocks);
+  double steps=std::max(1.0,history.ring_slots);
   price.ends = std::min(price.tasks, grid);
   // :88 uses L_l2, not L_dram: last step's KV history is still in L2.
   Finish(price, parts, /*epilogue=*/0.0, steps, c.l2_latency);

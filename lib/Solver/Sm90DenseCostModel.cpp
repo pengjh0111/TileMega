@@ -3,6 +3,9 @@
 #include <tilemega/Solver/Sm90DenseResources.h>
 #include <tilemega/Solver/Sm90DenseSearchSpace.h>
 #include <algorithm>
+#include <map>
+#include <tuple>
+#include <tilemega/Backend/Sm90DenseAttentionPartition.h>
 #include <cmath>
 
 namespace tilemega::solver {
@@ -109,24 +112,50 @@ double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
   return total;
 }
 
-// Prompt §4 L0-2 attention formula for the D2 body at the midpoint past 575.
+Sm90DenseHistoryWork Sm90DenseCostModel::AttentionHistory(Sm90DenseAttention const& a) const {
+  if(target_.arch_tag!="sm_80") {
+    double keys=std::ceil(576./a.chunks),blocks=std::ceil(keys/64);
+    return {keys,blocks,blocks};
+  }
+  a.Validate();
+  auto key=std::make_tuple(a.chunks,a.block_keys,a.new_row_work);
+  static thread_local std::map<decltype(key),Sm90DenseHistoryWork> cache;
+  auto found=cache.find(key);
+  if(found!=cache.end())return found->second;
+  constexpr int first=64,last=1086;  // 1023 decode calls after the prefill's first token.
+  std::int64_t slots=0,keys=0;
+  for(int past=first;past<=last;++past)for(int chunk=0;chunk<a.chunks;++chunk) {
+    auto range=backend::Sm90DensePartitionRange(past,chunk,a.chunks,a.new_row_work);
+    int history=std::min(range.end,past)-range.begin;
+    keys+=history;
+    slots+=(history+a.block_keys-1)/a.block_keys;
+  }
+  double count=(last-first+1)*a.chunks;
+  // The consumer issues every 64-key subdivision of a loaded slot, even
+  // when that subdivision contains only masked keys.
+  return cache.emplace(key,Sm90DenseHistoryWork{keys/count,slots/count*(a.block_keys/64),slots/count}).first->second;
+}
+
+// The SM80 range follows the production history partition and tile padding.
 double Sm90DenseCostModel::Attention(Sm90DenseWorkload const& work,
     Sm90DenseAttention const& a,int residency,json::Value* terms) const {
   auto const& c=constants_;
   int grid=Grid(residency),d=work.head_dim,q=work.queries;
   // Attention constants are keyed by the norm mode: 0 none, 1 per head, 2 per row.
   int norm=work.qk_norm?(work.qk_norm_row?2:1):0;
-  double past=575,tasks=double(work.batch)*work.hkv*a.chunks,per_cta=std::ceil(tasks/grid);
-  double keys=std::ceil((past+1)/a.chunks),blocks=std::ceil(keys/64);
-  double kv_task=keys*d*4,kv_tot=double(work.batch)*work.hkv*past*d*4;
-  double compute=Waves(tasks,grid,kv_task)+per_cta*blocks*c.AttentionBlock(d,q,norm);
+
+  double tasks=double(work.batch)*work.hkv*a.chunks,per_cta=std::ceil(tasks/grid);
+  auto history=AttentionHistory(a);
+  double kv_task=history.keys*d*4,kv_tot=double(work.batch)*work.hkv*575*d*4;
+  double compute=Waves(tasks,grid,kv_task)+per_cta*history.mma_blocks*c.AttentionBlock(d,q,norm);
   double stream=std::max(kv_tot/c.dram_gbps,compute);
   // D10b: the DSMEM merge replaces the global partials and last arriver.
   double merge=a.chunks==1?0:a.dsmem?c.AttentionMergeDsmem(d,q,norm,a.chunks):
       c.AttentionMerge(d,q,norm,a.chunks);
   double total=c.Barrier(grid)+c.l2_latency+c.AttentionPrepare(d,q,norm)+stream+merge;
   if(terms)*terms=json::Object{{"barrier",c.Barrier(grid)},{"prepare",c.AttentionPrepare(d,q,norm)},
-      {"dram",kv_tot/c.dram_gbps},{"compute",compute},{"merge",merge},{"dsmem",a.dsmem}};
+      {"dram",kv_tot/c.dram_gbps},{"compute",compute},{"merge",merge},{"dsmem",a.dsmem},
+      {"history_keys",history.keys},{"history_mma_blocks",history.mma_blocks},{"history_ring_slots",history.ring_slots}};
   return total;
 }
 
