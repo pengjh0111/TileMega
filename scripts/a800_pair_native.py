@@ -28,15 +28,21 @@ def main():
     shared.add_argument('--prefill', type=Path)
     parser.add_argument('--target', type=Path, required=True)
     parser.add_argument('--budget-s', type=int, default=810)
+    parser.add_argument('--process-timeout-s', type=int, default=125)
     args = parser.parse_args()
+    if not 0 < args.process_timeout_s < args.budget_s - 111:
+        parser.error('leave time for admission and cleanup within the pair budget')
 
     phase = 'prefill' if args.decode is not None else 'decode'
     shared_phase = 'decode' if phase == 'prefill' else 'prefill'
     shared_library = getattr(args, shared_phase)
+    prompt_mode = shared_phase == 'prefill' and str(shared_library) == 'prompt'
+    if prompt_mode and args.model != 'olmoe_1b_7b':
+        parser.error('only OLMoE uses the decode library for prompt processing')
     stage = f'tune-{phase}'
     options = ['--model', args.model, '--batch', str(args.batch),
                '--target', str(args.target), f'--{shared_phase}', str(shared_library),
-               '--stage', stage, '--timeout-s', '125']
+               '--stage', stage, '--timeout-s', str(args.process_timeout_s)]
     libraries = {'control': artifact(args.control)[1]['binary_sha256'],
                  'trial': artifact(args.trial)[1]['binary_sha256']}
     if libraries['control'] == libraries['trial']:
@@ -56,7 +62,7 @@ def main():
     out.mkdir(parents=True, exist_ok=False)
     order = ('control', 'trial', 'trial', 'control', 'control', 'trial')
     write_json(out/'planned.json', dict(model=args.model, batch=args.batch, order=order,
-        phase=phase, variant_sha256=libraries, shared_sha256=sha(shared_library), target_sha256=sha(args.target)))
+        phase=phase, variant_sha256=libraries, shared_sha256='prompt' if prompt_mode else sha(shared_library), target_sha256=sha(args.target)))
     rounds = []
     for position, label in enumerate(order):
         round_index = job * len(order) + position
@@ -69,7 +75,9 @@ def main():
         result_path = Path(receipt['evidence'])/f'B{args.batch}'/'measurements.json'
         result = json.loads(result_path.read_text())
         if (not receipt['pass'] or receipt['job'] != str(job) or result['acceptance'] != 'strict'
-                or result['configuration'][f'{phase}_sha256'] != libraries[label]):
+                or result['configuration'][f'{phase}_sha256'] != libraries[label]
+                or result['configuration'][f'{shared_phase}_sha256'] != (
+                    'prompt mode' if prompt_mode else sha(shared_library))):
             raise ValueError('paired comparison lacks an accepted artifact-bound process')
         metric = {name: float(result[name]) for name in
                   ('ttft_seconds', 'e2e_seconds', 'tpot_seconds', 'output_tokens_per_second')}

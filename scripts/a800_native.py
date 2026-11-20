@@ -70,7 +70,7 @@ def main():
     if plan.get('runtime_batch') != args.batch or plan.get('native_origin') not in ('fixed', 'solver'):
         parser.error('decode plan must be native and match the specified batch')
     if args.prefill == 'prompt':
-        if tuning:
+        if args.stage == 'tune-prefill':
             parser.error('prefill tuning requires an independent library')
         if args.model != 'olmoe_1b_7b':
             parser.error('the frozen model protocol uses an independent prefill library')
