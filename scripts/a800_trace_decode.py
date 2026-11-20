@@ -24,6 +24,7 @@ def main():
     parser.add_argument('--reference', required=True, type=Path)
     parser.add_argument('--target', required=True, type=Path)
     parser.add_argument('--independent-arms', action='store_true')
+    parser.add_argument('--submission-plan', type=Path)
     parser.add_argument('--timeout-s', type=int, default=330)
     args = parser.parse_args()
     if args.timeout_s <= 0:
@@ -48,6 +49,8 @@ def main():
     if args.mode == 'plan':
         print(json.dumps(planned, indent=2))
         return 0
+    if args.submission_plan and json.loads(args.submission_plan.read_text()) != planned:
+        parser.error('trace inputs differ from the submission plan')
     policy = device_policy()
     device = calibrated_device(policy, json.loads(args.target.read_text()))
     folder = RUN/'optimization'/'decode-traces'/os.environ['SLURM_JOB_ID']
