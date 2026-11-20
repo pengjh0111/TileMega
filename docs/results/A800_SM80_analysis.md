@@ -99,3 +99,14 @@ Llama-3.1-8B 的 FFN down 在 trace 中耗时 3327 µs/步，独立试验加深 
 作业 `346604` 在同一张 A800 上完成了这组配对。三个原版进程的 TPOT 为 12.184、12.182、12.181 ms/token，三个候选进程为 11.457、11.459、11.458 ms/token。六份权重哈希及 1024-token 输出哈希一致，候选进入 pipeline 搜索与 replay 作业 `346701`。同一改动将用 Mistral-7B 的独立 checkpoint 和 decode 产物验证。
 
 Qwen3-30B-A3B B1 的专家分块搜索 `346435` 已完成，两项 shortlist 候选的实际 gate/up 列宽均为 128，共用 ring 均为四级。组合实验 `346622` 以通过三对测试的专家版本作为对照，再加入 QKV 的单变量改动，用于检查两项收益能否在同一个模型中同时实现。
+
+## A800 B1 的组合实验与第二个 dense 模型
+
+| 模型与调优作业 | 对照 TPOT（ms/token） | 候选 TPOT（ms/token） | 搜索回放 |
+|---|---:|---:|---|
+| Qwen3-30B-A3B，346622 | 8.644 | 7.947 | 346772 |
+| Mistral-7B-v0.3，346709 | 11.763 | 11.039 | 346798 |
+
+Qwen 的对照已使用 gate/up 列宽 128 和四级 ring。候选在同一份 prefill 上将 QKV 列宽改为 64。六个进程的 1024-token 输出、checkpoint 和 GPU UUID 均相同。Mistral 在自己的 checkpoint 和 prefill 上复验了共享内存激活行清零的改动。三对进程均复现下降，同样通过六份输出和权重哈希核对。数值取每组三个独立进程的中位数。正式表使用另行验收的计时。原始进程记录位于服务器的 `runs/a800/optimization/decode-pairs/{346622,346709}/rounds.json`。[完整执行时间](A800_execution_times.md)
+
+Llama-3.1-8B 和 Mistral-7B 的 B2 分别使用作业 346805 和 346807，沿用各自 B2 的坐标和 prefill。另一个 B1 候选 `a51199b` 以已经减少重复清零的 Llama-8B 为对照，仅在 SM80 小 batch 的 GEMM 共享 epilogue 中省去无效累加行的写入。读取该 scratch 的归约和 SwiGLU 只访问有效 batch 行。用固定版本 CuTe 的实际 MMA 输出坐标在 CPU 检查了 9 种 tile 和 16 个 batch，144 组中的每个有效 split 元素均与原实现一致。端到端收益仍待 GPU 配对实验。
