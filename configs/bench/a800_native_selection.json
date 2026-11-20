@@ -1,4 +1,9 @@
 {
+  "llama3_1_8b/B1": {
+    "prefill_sha256": "7ef589858d56a50735f4119abb37fe0b7fbec47e02361bff1f2198c212a09521",
+    "decode_sha256": "667d3ccdce047191279b087d7cdf83ba1a42cb9668c69b7797e6490b9d4df3f6",
+    "target_sha256": "318cc5e6d4d314f32bacf03f20d5c674267f26f3c4269296db1ce20ad77fc5ff"
+  },
   "llama3_2_1b/B1": {
     "prefill_sha256": "9c05ee9f6721cd5394eb9a3e05c4c9fd7472a83a99b49d4c59d0f3e6eed0fbf7",
     "decode_sha256": "bb7e5c9a119b462893ee9bc0946a1d6b0953962fb3442332e0761a424ac96858",
