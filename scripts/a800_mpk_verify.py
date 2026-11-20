@@ -35,9 +35,29 @@ def reference(model, checkpoint, prompt, batch):
     raise ValueError(f'no guarded independent reference for {model}')
 
 
+def check_teacher_forced(proof, batch, checkpoint, prompt, generated):
+    proof = proof.resolve(strict=True)
+    proof.relative_to(RUN/'mpk')
+    binding = read(proof/'binding.json')
+    validation = read(proof/'full-c1.json')
+    guard = read(proof/'guard/guard_result.json')
+    if (binding.get('checkpoint_sha256') != checkpoint
+            or binding.get('prompt_sha256') != prompt
+            or binding.get('mpk_tokens_sha256') != sha(generated)
+            or guard.get('acceptance') != 'strict' or guard.get('code') != 0
+            or not validation.get('pass')
+            or validation['batch'] != batch or validation['positions'] != batch * 1024
+            or validation['prompt_len'] != 64 or validation['max_new_tokens'] != 1024
+            or validation['gap_le_0_5_ratio'] < 0.99 or validation['max_gap'] > 3.0):
+        raise ValueError('teacher-forced proof differs from this guarded full MPK trajectory')
+    return dict(evidence=str(proof.relative_to(RUN)), binding_sha256=sha(proof/'binding.json'),
+                full_c1_sha256=sha(proof/'full-c1.json'), max_gap=validation['max_gap'])
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('cohort')
+    parser.add_argument('--teacher-forced', type=Path)
     args = parser.parse_args()
     if not args.cohort.startswith('mpk-v') or Path(args.cohort).name != args.cohort:
         parser.error('expected an MPK cohort')
@@ -111,8 +131,14 @@ def main():
     path, samples = reference(job['model'], result['checkpoint_sha256'], raw['prompt_ids_sha256'], job['batch'])
     expected = read(samples[1])
     count = min(len(first), len(expected))
-    if not count or first[:count] != expected[:count]:
-        raise ValueError(f'MPK first tokens differ from {path} over {count} shared prompt rows')
+    matching = sum(a == b for a, b in zip(first[:count], expected[:count]))
+    proof = None
+    if not count or matching != count:
+        if not args.teacher_forced or count != job['batch']:
+            raise ValueError(f'MPK first tokens differ from {path} over {count} shared prompt rows')
+        formal = next(r for r in raw['generation_runs'] if r['N'] == 1024 and not r['warmup'])
+        proof = check_teacher_forced(args.teacher_forced, job['batch'], result['checkpoint_sha256'],
+                                     raw['prompt_ids_sha256'], folder/formal['tokens_file'])
     expected_full = read(samples[1024])[:count]
     if len(expected_full) != count or any(len(row) != 1024 for row in expected_full):
         raise ValueError('independent 1024-token reference has unexpected dimensions')
@@ -125,7 +151,7 @@ def main():
                    independent_reference=str(path.relative_to(RUN)), reference_sha256=sha(path),
                    reference_n1024_tokens_sha256=sha(samples[1024]),
                    common_prefix_tokens_by_row=prefix, equal_positions_by_row=equal,
-                   matching_first_tokens=count, sm80_binary_sha256=artifacts,
+                   matching_first_tokens=matching, teacher_forced=proof, sm80_binary_sha256=artifacts,
                    linear_output_widths=projection_widths,
                    deterministic_repeats=True, environment=environment, tpot_ms=result['tpot_ms'])
     write_json(cohort/'mpk-accepted.json', receipt)
