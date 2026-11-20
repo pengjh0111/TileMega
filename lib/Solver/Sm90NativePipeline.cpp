@@ -210,8 +210,10 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     constrain(c);
     Sm90DenseSearchSpace::Structure(c);
     // The pinned dense gate tile also fixes the gate/up weight permutation.
-    if(options.pinned_theta && !c.moe && space.target.arch_tag=="sm_80")
+    if(options.pinned_theta && !c.moe && space.target.arch_tag=="sm_80") {
       c.swiglu_u=options.pinned_theta->swiglu_u;
+      c.live_epilogue_rows=options.pinned_theta->live_epilogue_rows;
+    }
     for(unsigned family:c.Active()) {
       auto& geometry=c.gemms[family];
       auto const& domain=geometries(family,c.residency);

@@ -2015,6 +2015,8 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   solver::ValidateSm90NativeBoundaryContracts(module);
   auto arch=module->getAttrOfType<mlir::StringAttr>("tmexec.solved_arch");
   bool cp_async=arch && arch.getValue()=="sm_80";
+  if(c.live_epilogue_rows && !cp_async)
+    throw std::invalid_argument("live epilogue rows require the SM80 native backend");
   bool kernel_sequence=module->hasAttr("tmexec.native_kernel_sequence");
   if(cp_async && (kernel_sequence || c.cluster!=1 || c.attention.dsmem || c.tp!=1 ||
       std::any_of(c.gemms.begin(),c.gemms.end(),[](auto const& g){return g.multicast;})))
@@ -2161,6 +2163,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
      // serial tails re-read, so only it takes the evict_first policy. A dense
      // program's generated source stays byte identical.
      <<(c.moe?"#define TILEMEGA_NATIVE_WEIGHT_EVICT_FIRST 1\n":"")
+     <<(c.live_epilogue_rows?"#define TILEMEGA_SM80_ACTIVE_EPILOGUE 1\n":"")
      // Only a sharded program names its degree and the all-reduce width, so a
      // TP1 generated source stays byte identical (prompt appendix C.6).
      <<(tp>1?"#define TILEMEGA_NATIVE_TP "+std::to_string(tp)+"\n#define TILEMEGA_NATIVE_TP_HIDDEN "+

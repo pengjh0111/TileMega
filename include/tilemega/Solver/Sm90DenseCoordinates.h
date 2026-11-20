@@ -97,6 +97,7 @@ struct Sm90DenseCoordinates {
   // or a separate embedding stage runs each step ("stage"); P-SEL decides.
   bool embed_la=false;
   bool argmax_stage=false;
+  bool live_epilogue_rows=false;
   // D8 (prompt §7): attention waits only for its KV group's qkv tiles
   // (group counters) instead of the grid barrier after qkv; P-SEL decides.
   bool group_wait=false;
@@ -163,6 +164,8 @@ struct Sm90DenseCoordinates {
       throw std::invalid_argument("sm90 dense tp must be 1, 2, 4 or 8");
     // A sharded MoE would have to route across ranks; out of scope this round.
     if((GlobalRoute() || combine_stage) && !moe)throw std::invalid_argument("global MoE routing requires MoE");
+    if(live_epilogue_rows && (moe || tp!=1 || batch>=8))
+      throw std::invalid_argument("live epilogue rows require single-GPU small-batch dense decode");
     if(tp>1 && moe)throw std::invalid_argument("sm90 dense tensor parallel MoE is unsupported");
     if(tp>1 && argmax_stage)
       throw std::invalid_argument("independent argmax requires an explicit TP exchange stage");
@@ -226,15 +229,16 @@ struct Sm90DenseCoordinates {
     }
     // Schema 7 adds tp; a TP1 coordinate still serializes as schema 6, so every
     // R3/R4 coordinate file and its hash are unchanged.
-    json::Object result{{"schema",(GlobalRoute() || combine_stage)?9:(argmax_stage || attention.merge_stage)?8:tp>1?7:6},{"model",moe?"moe":"dense"},{"gemms",families},
+    json::Object result{{"schema",live_epilogue_rows?10:(GlobalRoute() || combine_stage)?9:(argmax_stage || attention.merge_stage)?8:tp>1?7:6},{"model",moe?"moe":"dense"},{"gemms",families},
         {"attention",json::Object{{"chunks",attention.chunks},{"block_keys",attention.block_keys},
             {"slots",attention.slots},{"new_row_work",attention.new_row_work},
             {"merge",attention.dsmem?"dsmem":attention.merge_stage?"stage":"la"}}},
         {"residency",residency},{"swiglu_u",swiglu_u},{"weight_stream",weight_stream},
         {"layer_loop",layer_loop},{"emb",embed_la?"la":"stage"},{"group_wait",group_wait},
         {"cluster",cluster},{"expert_fuse",expert_fuse}};
-    if(tp>1 || argmax_stage || attention.merge_stage || GlobalRoute() || combine_stage)result.emplace_back("tp",tp);
-    if(argmax_stage || attention.merge_stage || GlobalRoute() || combine_stage)result.emplace_back("argmax",argmax_stage?"stage":"la");
+    if(live_epilogue_rows || tp>1 || argmax_stage || attention.merge_stage || GlobalRoute() || combine_stage)result.emplace_back("tp",tp);
+    if(live_epilogue_rows)result.emplace_back("epilogue_rows","live");
+    if(live_epilogue_rows || argmax_stage || attention.merge_stage || GlobalRoute() || combine_stage)result.emplace_back("argmax",argmax_stage?"stage":"la");
     if(GlobalRoute() || combine_stage) {
       result.emplace_back("route",RouteName());
       result.emplace_back("combine",combine_stage?"stage":"la");
@@ -264,9 +268,12 @@ struct Sm90DenseCoordinates {
     // `expert_fuse`. Schema 5 still loads: REF-R3's 30 cells are written in
     // it and predate the fusion, which is exactly `expert_fuse` false.
     int schema=integer(value,"schema");
-    if(schema!=5 && schema!=6 && schema!=7 && schema!=8 && schema!=9)
+    if(schema<5 || schema>10)
       throw std::invalid_argument("unknown sm90 dense coordinate schema");
-    if(schema==9)
+    if(schema==10)
+      keys(value,{"schema","model","gemms","attention","residency","swiglu_u","weight_stream",
+          "layer_loop","emb","group_wait","cluster","expert_fuse","tp","argmax","epilogue_rows"});
+    else if(schema==9)
       keys(value,{"schema","model","gemms","attention","residency","swiglu_u","weight_stream",
           "layer_loop","emb","group_wait","cluster","expert_fuse","tp","argmax","route","combine"});
     else if(schema==8)
@@ -282,6 +289,11 @@ struct Sm90DenseCoordinates {
     auto model=value.At("model").AsString("model");
     if(model!="dense" && model!="moe")throw std::invalid_argument("unknown sm90 dense model");
     result.moe=model=="moe";
+    if(schema==10) {
+      if(result.moe || value.At("epilogue_rows").AsString("epilogue_rows")!="live")
+        throw std::invalid_argument("invalid dense live-row epilogue coordinate");
+      result.live_epilogue_rows=true;
+    }
     if(schema>=7)result.tp=integer(value,"tp");
     if(schema>=8) {
       auto mode=value.At("argmax").AsString("argmax");

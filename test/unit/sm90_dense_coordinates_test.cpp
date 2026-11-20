@@ -28,6 +28,14 @@ int main() {
  c.swiglu_u=8;c.attention.chunks=16;c.weight_stream=true;c.layer_loop=true;c.embed_la=true;
  c.Validate(nk,1);auto json=c.ToJson();auto d=Sm90DenseCoordinates::FromJson(json);d.Validate(nk,1);
  assert(d.gemms[2].tile_n==48 && d.gemms[1].tile_n==8 && d.weight_stream && d.layer_loop && d.embed_la);
+ auto live=c;live.live_epilogue_rows=true;
+ auto recovered=Sm90DenseCoordinates::FromJson(live.ToJson());
+ assert(recovered.live_epilogue_rows && recovered.ToJson().Dump()==live.ToJson().Dump());
+ assert(!Sm90DenseCoordinates::FromJson(c.ToJson()).live_epilogue_rows);
+ recovered.Validate(nk,1);
+ bool rejected_large_batch=false;
+ try {recovered.Validate(nk,8);}catch(std::invalid_argument const&) {rejected_large_batch=true;}
+ assert(rejected_large_batch);
  auto independent=c;independent.argmax_stage=true;
  auto restored=Sm90DenseCoordinates::FromJson(independent.ToJson());
  restored.Validate(nk,1);assert(restored.argmax_stage && restored.tp==1);
