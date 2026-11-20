@@ -110,3 +110,16 @@ Qwen3-30B-A3B B1 的专家分块搜索 `346435` 已完成，两项 shortlist 候
 Qwen 的对照已使用 gate/up 列宽 128 和四级 ring。候选在同一份 prefill 上将 QKV 列宽改为 64。六个进程的 1024-token 输出、checkpoint 和 GPU UUID 均相同。Mistral 在自己的 checkpoint 和 prefill 上复验了共享内存激活行清零的改动。三对进程均复现下降，同样通过六份输出和权重哈希核对。数值取每组三个独立进程的中位数。正式表使用另行验收的计时。原始进程记录位于服务器的 `runs/a800/optimization/decode-pairs/{346622,346709}/rounds.json`。[完整执行时间](A800_execution_times.md)
 
 Llama-3.1-8B 和 Mistral-7B 的 B2 分别使用作业 346805 和 346807，沿用各自 B2 的坐标和 prefill。另一个 B1 候选 `a51199b` 以已经减少重复清零的 Llama-8B 为对照，仅在 SM80 小 batch 的 GEMM 共享 epilogue 中省去无效累加行的写入。读取该 scratch 的归约和 SwiGLU 只访问有效 batch 行。用固定版本 CuTe 的实际 MMA 输出坐标在 CPU 检查了 9 种 tile 和 16 个 batch，144 组中的每个有效 split 元素均与原实现一致。端到端收益仍待 GPU 配对实验。
+
+## B2 同卡复测与小 batch 的后续实验
+
+| 模型，B2 | 同卡作业 | 原版 TPOT（ms/token） | 槽首次填零 TPOT（ms/token） |
+|---|---:|---:|---:|
+| Llama-3.1-8B | 346805 | 12.000 | 11.372 |
+| Mistral-7B-v0.3 | 346807 | 11.528 | 10.908 |
+
+两个模型都使用各自 B2 的既有 prefill、权重和 decode 坐标。每个模型有三对交错的独立进程，每一对的 T1024 与 TPOT 都下降。每组的六个进程在同一个物理 UUID 上运行，两行完整的 1024-token 输出哈希一致。B4 还有四行 padding，因此已为这两个模型安排同样的 B4 对照。B8 和 B16 的激活行数已填满对应面板。以上数值来自调优作业，正式表采用搜索回放和独立复测后的产物。[正式 TPOT](A800_TPOT.md)
+
+Llama-3.1-8B B1 的 gate/up epilogue 还有一组单独的测试。对照使用已减少重复清零的代码和原来的 U16 权重排列；试验将 gate/up 交错的列数改为 4，以 warp shuffle 取得另一半累加值并直接计算 SwiGLU。两组使用同一份原始 BF16 checkpoint 和 prefill。CPU 在固定 CUTLASS 上逐元素验证了 11 种列宽、16 种 batch 共 176 个组合，并读取两个二进制的实际权重描述核对 packing。每个计划识别出 32 个 gate 层，运行时的内存估计均为 46,391,096,288 字节。三对 GPU 请求由作业 346854 执行。产物和布局检查位于服务器的 `runs/a800/optimization/llama8-warp-swiglu-b1/`。
+
+Qwen3-30B-A3B B1 的 QKV 和融合专家组合已完成搜索回放 346772。B2 的原搜索本身已经选择了 QKV 列宽 64 和专家 gate/up 列宽 128。B2 用两个 warp 沿 K 划分工作，ring 为三级；B1 组合候选只用一个 warp 沿 K 划分，ring 为四级。后续各 batch 独立复测这些坐标。
