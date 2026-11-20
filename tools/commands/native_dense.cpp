@@ -294,6 +294,11 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   if(!decisions)throw std::invalid_argument(std::string("target lacks ")+decision_key);
   space.weight_stream=decisions->At("weight_stream").AsBool("weight_stream");
   space.layer_loop=decisions->At("layer_loop").AsBool("layer_loop");
+  if(auto const* reuse=decisions->Find("reuse_payload")) {
+    space.search_payload_reuse=reuse->AsBool("reuse_payload");
+    if(space.search_payload_reuse && (target.arch_tag!="sm_80" || space.weight_stream))
+      throw std::invalid_argument("payload reuse search requires SM80 with no weight preissue");
+  }
   if(o.search!="pipeline" && o.search!="additive")
     throw std::invalid_argument("--search takes pipeline or additive");
   if(o.search!="pipeline" && o.analysis!="reuse")
@@ -302,7 +307,7 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   if(target.arch_tag=="sm_80" && !resume) {
     json::Array coverage;
     for(int residency:{1,2})for(bool reuse:{false,true})for(unsigned f:solver::Sm90DenseActiveFamilies(space.moe)) {
-      if(reuse && space.weight_stream)continue;
+      if(reuse && !space.search_payload_reuse)continue;
       std::set<std::pair<std::string,bool>> keys;
       for(auto const& g:space.FamilyCandidates(f,residency,reuse))
         keys.emplace(solver::Sm90NativeConstants::AmpereMmaKey(space.Grid(residency),

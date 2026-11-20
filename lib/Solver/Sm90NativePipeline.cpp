@@ -402,7 +402,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
           }
         }
       }
-      if(ampere && !current.weight_stream && !options.pinned_theta) {
+      if(ampere && space.search_payload_reuse && !current.weight_stream && !options.pinned_theta) {
         auto trial=current;trial.reuse_payload=!trial.reuse_payload;
         changed|=consider(trial,"shared payload");
       }

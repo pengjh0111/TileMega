@@ -29,7 +29,7 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
   bool ampere=space.target.arch_tag=="sm_80";
   int norm=work.qk_norm?(work.qk_norm_row?2:1):0;
   for(int residency:{1,2})for(int cluster:{1,2})for(bool reuse:{false,true}) {
-    if(reuse && (!ampere || space.weight_stream))continue;
+    if(reuse && (!ampere || space.weight_stream || !space.search_payload_reuse))continue;
     // DT-2: clusters only up to C* (measured occupancy, prompt §7).
     if(cluster>1 && (space.target.arch_tag=="sm_80" || constants.ClusterStar(residency)<cluster))continue;
     // Index 5 of `families` stays the attention list; GEMM families are
