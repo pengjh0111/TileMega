@@ -15,6 +15,8 @@ import json
 import os
 from pathlib import Path
 import statistics as st
+import subprocess
+import sys
 
 from sm90d1_common import read, sha, write
 
@@ -33,7 +35,7 @@ def run(a):
     reference_tokens = None
     prefill = None if str(a.prefill) == 'prompt' else a.prefill
     for label, decode in (('trace', a.decode), ('reference', a.reference)):
-        if decode is None:
+        if decode is None or (a.arm and a.arm != label):
             continue
         with ServingEngine(checkpoint, prefill, decode, a.batch, prompt_len=64,
                            max_new_tokens=a.tokens, mode='L1', decode_loop=True,
@@ -62,12 +64,38 @@ def run(a):
     if 'reference' in result:
         result['overhead_pct'] = (result['trace']['window_mean_ms'] /
                                   result['reference']['window_mean_ms'] - 1) * 100
-    write(a.out / 'run.json', dict(result, decode_sha256=sha(a.decode), batch=a.batch,
+    receipt = f'run-{a.arm}.json' if a.arm else 'run.json'
+    write(a.out / receipt, dict(result, decode_sha256=sha(a.decode), batch=a.batch,
+                                   pid=os.getpid(),
                                    tokens=a.tokens, slots=SLOTS, driver_sha256=sha(__file__),
                                    reference_sha256=sha(a.reference) if a.reference else None,
                                    checkpoint=read(Path(checkpoint)/'random_checkpoint.json')['checkpoint_sha256'],
-                                   full_token_equivalence=a.reference is not None,
+                                   full_token_equivalence=not a.arm and a.reference is not None,
                                    diagnostic_only=True, performance_eligible=False))
+
+
+def isolated(a):
+    if not a.reference or a.arm:
+        raise ValueError('independent trace requires both arms')
+    command = [sys.executable, __file__, 'run', '--decode', str(a.decode),
+               '--reference', str(a.reference), '--prefill', str(a.prefill),
+               '--batch', str(a.batch), '--tokens', str(a.tokens),
+               '--prompt-ids', str(a.prompt_ids), '--out', str(a.out)]
+    for arm in ('reference', 'trace'):
+        subprocess.run([*command, '--arm', arm], check=True)
+    reference = read(a.out / 'run-reference.json')
+    trace = read(a.out / 'run-trace.json')
+    identity = ('checkpoint', 'decode_sha256', 'reference_sha256',
+                'batch', 'tokens', 'driver_sha256')
+    if any(reference[k] != trace[k] for k in identity) or reference['pid'] == trace['pid']:
+        raise ValueError('trace arms must share inputs and run in separate processes')
+    if read(a.out / 'reference-tokens.json') != read(a.out / 'trace-tokens.json'):
+        raise AssertionError('instrumented and reference generation tokens differ')
+    trace.update(reference=reference['reference'], reference_pid=reference['pid'],
+                 full_token_equivalence=True,
+                 overhead_pct=100 * (trace['trace']['window_mean_ms'] /
+                                     reference['reference']['window_mean_ms'] - 1))
+    write(a.out / 'run.json', trace)
 
 
 def tsv(path):
@@ -187,6 +215,8 @@ def main():
     r.add_argument('--prefill', type=Path, required=True)
     r.add_argument('--decode', type=Path, required=True)
     r.add_argument('--reference', type=Path)
+    r.add_argument('--arm', choices=('trace', 'reference'), help=argparse.SUPPRESS)
+    r.add_argument('--independent-arms', action='store_true')
     r.add_argument('--prompt-ids', type=Path, required=True)
     r.add_argument('--batch', type=int, required=True)
     r.add_argument('--tokens', type=int, default=520)
@@ -199,7 +229,9 @@ def main():
     z.add_argument('--dram-gbps', type=float, default=3241.24)
     z.add_argument('--out', type=Path, required=True)
     a = p.parse_args()
-    return run(a) if a.action == 'run' else analyze(a)
+    if a.action == 'run':
+        return isolated(a) if a.independent_arms else run(a)
+    return analyze(a)
 
 
 if __name__ == '__main__':

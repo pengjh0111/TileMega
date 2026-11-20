@@ -23,6 +23,7 @@ def main():
     parser.add_argument('--trace', required=True, type=Path)
     parser.add_argument('--reference', required=True, type=Path)
     parser.add_argument('--target', required=True, type=Path)
+    parser.add_argument('--independent-arms', action='store_true')
     parser.add_argument('--timeout-s', type=int, default=330)
     args = parser.parse_args()
     if args.timeout_s <= 0:
@@ -42,7 +43,8 @@ def main():
             or manifest['runtime_batch'] != args.batch):
         parser.error('the trace and reference must share one SM80 native plan and target')
     planned = dict(model=args.model, batch=args.batch, reference=sha(reference), trace=sha(trace),
-                   prefill=sha(prefill), target=sha(args.target), timeout_s=args.timeout_s)
+                   prefill=sha(prefill), target=sha(args.target), timeout_s=args.timeout_s,
+                   independent_arms=args.independent_arms)
     if args.mode == 'plan':
         print(json.dumps(planned, indent=2))
         return 0
@@ -61,6 +63,8 @@ def main():
              sys.executable, str(ROOT/'scripts/sm90r4_ledger.py'), 'run',
              '--batch', str(args.batch), '--prefill', str(prefill), '--decode', str(trace),
              '--reference', str(reference), '--prompt-ids', str(prompt), '--out', str(folder/'ledger')]
+    if args.independent_arms:
+        child.append('--independent-arms')
     wrapper = [sys.executable, str(ROOT/'scripts/run_r16_with_device_identity.py'),
                '--out', str(folder/'job'), '--guard-policy', str(policy_path),
                '--expected-uuid', device['uuid'], '--expected-pci', device['pci'],
