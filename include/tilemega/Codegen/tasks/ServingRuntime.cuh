@@ -567,7 +567,10 @@ inline int ResidentServingGrid(tilemega::TargetSpec const& target) {
           kServingThreads,kServingSharedBytes,grid));
       resident=std::min(resident,clusters);
     };
-    check(tilemega_l1_kernel);check(tilemega_l2_kernel);
+    check(tilemega_l1_kernel);
+#if !TILEMEGA_PREFILL_L1_ONLY
+    check(tilemega_l2_kernel);
+#endif
 #if TILEMEGA_PAGED
     check(tilemega_loop_kernel);
 #elif TILEMEGA_SERVING_SEQ==1
@@ -609,7 +612,7 @@ extern "C" int tm_plan_query(tm_plan_info* output) {
              TILEMEGA_SERVING_SEQ, TILEMEGA_SERVING_PAST_LO,
              TILEMEGA_SERVING_PAST_HI, kModel.dims.capacity,
              grid, (grid+target.res.num_sms-1)/target.res.num_sms,
-#if defined(TILEMEGA_STATIC_DENSE)
+#if defined(TILEMEGA_STATIC_DENSE) || TILEMEGA_PREFILL_L1_ONLY
              TM_SERVING_L1,
 #else
              TM_SERVING_L1 | TM_SERVING_L2,
@@ -671,7 +674,7 @@ extern "C" void* tm_plan_create(int batch, void* const* external,
     {
       if (serving::ConfigureServingDynamicShared(
             reinterpret_cast<void const*>(TILEMEGA_STEP_KERNEL),smem) != cudaSuccess
-#if !defined(TILEMEGA_STATIC_DENSE)
+#if !defined(TILEMEGA_STATIC_DENSE) && !TILEMEGA_PREFILL_L1_ONLY
           ||
           serving::ConfigureServingDynamicShared(
             reinterpret_cast<void const*>(tilemega_l2_kernel),smem) != cudaSuccess
@@ -691,7 +694,7 @@ extern "C" void* tm_plan_create(int batch, void* const* external,
     int l1 = target.ActiveBlocksPerSM(
         reinterpret_cast<void const*>(TILEMEGA_STEP_KERNEL),
         kServingThreads, smem);
-#if defined(TILEMEGA_STATIC_DENSE)
+#if defined(TILEMEGA_STATIC_DENSE) || TILEMEGA_PREFILL_L1_ONLY
     int l2=l1;
 #else
     int l2 = target.ActiveBlocksPerSM(
@@ -948,7 +951,7 @@ extern "C" int tm_plan_launch(void* opaque, std::uint32_t step,
   auto* plan = static_cast<serving::Plan*>(opaque);
   if (!plan || !plan->ring || step >= plan->steps ||
       (mode != TM_SERVING_L1 && mode != TM_SERVING_L2)) return -1;
-#if defined(TILEMEGA_STATIC_DENSE)
+#if defined(TILEMEGA_STATIC_DENSE) || TILEMEGA_PREFILL_L1_ONLY
   if(mode!=TM_SERVING_L1)return -1;
 #endif
   std::uint32_t mode_index = mode == TM_SERVING_L1 ? 0 : 1;
@@ -964,12 +967,16 @@ extern "C" int tm_plan_launch(void* opaque, std::uint32_t step,
       kServingSharedBytes,cuda_stream,plan->pdl,plan->bindings,
       static_cast<Params const*>(params),plan->model.events,iteration);
 #else
+#if !TILEMEGA_PREFILL_L1_ONLY
   if (mode == TM_SERVING_L1)
+#endif
     status=executor::LaunchServing(tilemega_l1_kernel,plan->grid,kServingThreads,
         kServingSharedBytes,cuda_stream,plan->pdl,params,plan->model.events,iteration);
+#if !TILEMEGA_PREFILL_L1_ONLY
   else
     status=executor::LaunchServing(tilemega_l2_kernel,plan->grid,kServingThreads,
         plan->model.l2_smem_bytes,cuda_stream,plan->pdl,params,plan->model.events,iteration);
+#endif
 #endif
   if (status != cudaSuccess) return int(status);
   ++plan->next_iteration[mode_index];
@@ -998,6 +1005,9 @@ extern "C" unsigned tm_plan_pdl_enabled(void* opaque) {
 extern "C" std::uint64_t tm_plan_execution_smem(void* opaque,unsigned mode) {
   auto* plan=static_cast<tilemega::codegen::serving::Plan*>(opaque);
   if(!plan)return 0;
+#if TILEMEGA_PREFILL_L1_ONLY
+  if(mode!=TM_SERVING_L1)return 0;
+#endif
   return mode==TM_SERVING_L1?tilemega::codegen::kServingSharedBytes:plan->model.l2_smem_bytes;
 }
 

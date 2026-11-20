@@ -225,6 +225,12 @@ inline constexpr int kHarnessThreads = kGemmThreads;
 #ifndef TILEMEGA_SERVING_RUNTIME
 #define TILEMEGA_SERVING_RUNTIME 0
 #endif
+#ifndef TILEMEGA_PREFILL_L1_ONLY
+#define TILEMEGA_PREFILL_L1_ONLY 0
+#endif
+#if TILEMEGA_PREFILL_L1_ONLY && (!TILEMEGA_SERVING_RUNTIME || TILEMEGA_SERVING_SEQ<=1 || TILEMEGA_PAGED)
+#error "L1-only compilation requires a nonpaged prefill serving plan"
+#endif
 // Forward plans use their own attention family and carry no decoder KV state.
 #if TILEMEGA_SERVING_RUNTIME && defined(TILEMEGA_SERVING_PHASE) && TILEMEGA_SERVING_PHASE == 2
 #define TILEMEGA_SERVING_DECODER_ATTENTION 0
@@ -1954,6 +1960,7 @@ __device__ inline void GridBarrier(EventCounter* events, std::uint32_t stage,
 #endif
 }
 
+#if !TILEMEGA_PREFILL_L1_ONLY
 __global__ __launch_bounds__(kHarnessThreads, TILEMEGA_MIN_BLOCKS_PER_SM)
 void tilemega_stage_kernel(Params const* params, std::uint32_t stage) {
 #if TILEMEGA_OPERAND_SMEM_ALIGNMENT==1024
@@ -1963,6 +1970,7 @@ void tilemega_stage_kernel(Params const* params, std::uint32_t stage) {
 #endif
   RunStage(*params, stage, *reinterpret_cast<TaskSmem*>(bytes));
 }
+#endif
 
 // Only immutable descriptors and producer-free weights are touched before Wait.
 __device__ inline void ServingPdlEnter(Params const& p) {
@@ -2124,6 +2132,7 @@ void tilemega_l1_loop_kernel(Params const* params,unsigned steps,
 }
 #endif
 
+#if !TILEMEGA_PREFILL_L1_ONLY
 /// L2 is worker-queue driven. Adjacent rows may name different stages; only
 #if TILEMEGA_PREFETCH_RUNTIME
 /// One 16-byte `cp.async` per thread per line. Below sm_80 the copy is an
@@ -2444,6 +2453,7 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
 #endif
   ServingPdlExit();
 }
+#endif
 
 #else
 #include <tilemega/Codegen/executor/ServingPages.cuh>
@@ -5255,6 +5265,7 @@ inline unsigned long long BitHash(
   return hash;
 }
 
+#if !TILEMEGA_PREFILL_L1_ONLY
 inline float LaunchL05(DeviceModel& model, int grid, bool timed = true) {
   return benchmark::Time([&] {
   for (std::uint32_t stage = 0; stage < model.params.stage_count; ++stage)
@@ -5342,9 +5353,11 @@ inline float LaunchL2(DeviceModel& model, int grid,
                    model.events, iteration);
   }, timed);
 }
+#endif
 
 }  // namespace harness
 
+#if !TILEMEGA_PREFILL_L1_ONLY
 /// The whole generated `main` is this call: everything model specific is in
 /// `spec`, which the code generator emitted from the CG.
 inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
@@ -5720,5 +5733,6 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
   std::printf("RESULT status=%s\n", pass ? "PASS" : "MISMATCH");
   return pass ? 0 : 1;
 }
+#endif
 
 }  // namespace tilemega::codegen
