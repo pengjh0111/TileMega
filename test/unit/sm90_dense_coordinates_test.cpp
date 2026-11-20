@@ -104,6 +104,15 @@ int main() {
  for(unsigned i:m.Active()) {auto& g=m.gemms[i];g.tile_n=32;g.slot_bytes=2*g.tile_n*64;}
  m.gemms[4].tile_n=128;m.gemms[4].slot_bytes=2*128*64;
  m.swiglu_u=8;m.attention.chunks=16;m.weight_stream=true;m.layer_loop=true;m.embed_la=true;
+ auto live_experts=m;live_experts.expert_fuse=true;live_experts.live_epilogue_rows=true;
+ live_experts=Sm90DenseCoordinates::FromJson(live_experts.ToJson());
+ live_experts.Validate(moe_nk,16);
+ assert(live_experts.live_epilogue_rows);
+ live_experts.expert_fuse=false;
+ bool rejected_unfused_live=false;
+ try {live_experts.Validate(moe_nk,16);}
+ catch(std::invalid_argument const&) {rejected_unfused_live=true;}
+ assert(rejected_unfused_live);
  for(auto route:{Sm90DenseCoordinates::Route::kLastArriver,Sm90DenseCoordinates::Route::kStage}) {
   auto global=m;global.expert_fuse=true;global.route=route;
   global.Validate(moe_nk,1);

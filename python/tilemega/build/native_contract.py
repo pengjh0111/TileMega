@@ -47,8 +47,9 @@ def validate(manifest, defines):
         raise ValueError('explicit native payload and epilogue modes require SM80 schema 10')
     if reuse and c.get('weight_stream'):
         raise ValueError('reused native payload cannot carry a preissued stage')
-    if live_rows and (c['model'] != 'dense' or manifest['runtime_batch'] >= 8):
-        raise ValueError('native live epilogue rows require small-batch dense decode')
+    if live_rows and ((c['model'] == 'dense' and manifest['runtime_batch'] >= 8)
+                      or (c['model'] == 'moe' and not c.get('expert_fuse'))):
+        raise ValueError('native live epilogue rows require small dense batches or fused experts')
     if c['schema'] == 10 and live_rows != (defines.get('TILEMEGA_SM80_ACTIVE_EPILOGUE') == '1'):
         raise ValueError('native epilogue rows differ from generated macros')
     if (c['attention'].get('merge') not in ('la', 'dsmem', 'stage') or

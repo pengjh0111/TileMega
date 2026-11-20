@@ -176,8 +176,8 @@ struct Sm90DenseCoordinates {
     if((GlobalRoute() || combine_stage) && !moe)throw std::invalid_argument("global MoE routing requires MoE");
     if(reuse_payload && (weight_stream || cluster!=1 || attention.dsmem))
       throw std::invalid_argument("payload reuse requires retired storage and no cross-stage preissue");
-    if(live_epilogue_rows && (moe || tp!=1 || batch>=8))
-      throw std::invalid_argument("live epilogue rows require single-GPU small-batch dense decode");
+    if(live_epilogue_rows && (tp!=1 || (moe?!expert_fuse:batch>=8)))
+      throw std::invalid_argument("live epilogue rows require TP1 small dense batches or fused experts");
     if(tp>1 && moe)throw std::invalid_argument("sm90 dense tensor parallel MoE is unsupported");
     if(tp>1 && argmax_stage)
       throw std::invalid_argument("independent argmax requires an explicit TP exchange stage");
@@ -306,8 +306,8 @@ struct Sm90DenseCoordinates {
     result.moe=model=="moe";
     if(schema==10) {
       if(auto const* rows=value.Find("epilogue_rows")) {
-        if(result.moe || rows->AsString("epilogue_rows")!="live")
-          throw std::invalid_argument("invalid dense live-row epilogue coordinate");
+        if(rows->AsString("epilogue_rows")!="live")
+          throw std::invalid_argument("invalid native live-row epilogue coordinate");
         result.live_epilogue_rows=true;
       }
       if(auto const* payload=value.Find("payload")) {
