@@ -69,7 +69,19 @@ def confirmed_oom(run, job, step, capacity, inputs):
     return any(mark in latest for mark in OOM_MARKERS)
 
 
-def baseline_cell(inputs, jobs, model, engine, batch):
+def trtllm_olmoe_rejection(jobs):
+    for run, job, step, _, _ in jobs:
+        if step.get('status') != 'failed':
+            continue
+        log = run/'baseline'/f'{job["name"]}.log'
+        latest = log.read_text(errors='replace').rsplit('\nATTEMPT ', 1)[-1] if log.is_file() else ''
+        if ('TensorRT-LLM version: 0.21.0' in latest and
+                'Unknown architecture for AutoModelForCausalLM: OlmoeForCausalLM' in latest):
+            return str(log.relative_to(RUN))
+    return ''
+
+
+def baseline_cell(inputs, jobs, model, engine, batch, unsupported=''):
     accepted, oom_rounds, evidence, harnesses = {}, set(), set(), set()
     for run, job, step, capacity, device in jobs:
         repeat = job['round']
@@ -88,7 +100,10 @@ def baseline_cell(inputs, jobs, model, engine, batch):
     rows = [accepted[key] for key in sorted(accepted)]
     needed = 3
     status = ('measured' if len(rows) == needed else 'incomplete' if rows else
-              'OOM' if len(oom_rounds) == needed else 'attempted' if evidence else 'pending')
+              'N/A' if unsupported else 'OOM' if len(oom_rounds) == needed else
+              'attempted' if evidence else 'pending')
+    if status == 'N/A':
+        evidence.add(unsupported)
     return rows, dict(model=model, framework=engine, batch=batch, status=status, processes=len(rows),
         required_processes=needed, correctness='exact token counts' if rows else 'pending',
         **metrics(rows, needed), backend=summarize(rows, 'backend'), versions=summarize(rows, 'versions'),
@@ -157,13 +172,16 @@ def main():
         p.error('supply the guarded A800 target')
     inputs = dict(device=dev, models=inspect_inputs(INVENTORY))
     scope = baseline_scope((RUN/'cohorts'/name for name in args.cohort), inputs)
+    trt_olmoe = trtllm_olmoe_rejection(scope.get(('olmoe_1b_7b', 'trtllm', 1), []))
     baseline, native = [], []
     for model in MODELS:
         all_rows, checkpoint_hashes = [], set()
         for batch in BATCHES:
             measured = []
             for engine in ENGINES:
-                rows, cell = baseline_cell(inputs, scope.get((model, engine, batch), []), model, engine, batch)
+                unsupported = trt_olmoe if (model, engine) == ('olmoe_1b_7b', 'trtllm') else ''
+                rows, cell = baseline_cell(inputs, scope.get((model, engine, batch), []),
+                                           model, engine, batch, unsupported)
                 checkpoint_hashes.update(row['checkpoint_sha256'] for row in rows)
                 measured.append(cell)
                 baseline.append(cell)
