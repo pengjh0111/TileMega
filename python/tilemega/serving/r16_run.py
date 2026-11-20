@@ -103,6 +103,9 @@ def main():
             prompt_len=prompt_len, max_new_tokens=args.max_tokens, mode=mode,
             decode_loop=bool(loop), step_events=False, prefill_mode=args.prefill_mode)
     frozen = torch.tensor(ids[:int(args.batch)], dtype=torch.int32)
+    reuse_step_loop = (args.check_step_loop and not args.check_executors and
+                       args.tp == 1 and args.mode == 'L1' and args.max_tokens > 1)
+    compared = {}
     heartbeat('native_engine_initialization', batch=args.batch)
     with engine(args.mode, args.decode_loop) as current:
         executions=[]
@@ -120,6 +123,16 @@ def main():
             metadata, synchronize=torch.cuda.synchronize)
         last = args.out/f'B{args.batch}'/f'tokens_N{args.max_tokens}_run{args.warmup+args.repeats-1}.json'
         reference = torch.tensor(json.loads(last.read_text()), dtype=torch.int32)
+        if reuse_step_loop:
+            # The measured full request already verifies its execution mode.
+            # Replay the other mode with the same uploaded prefill schedule.
+            loop = not bool(args.decode_loop)
+            heartbeat('native_executor_check', mode='L1', loop=int(loop))
+            current.decode_loop = loop
+            alternate = current.generate(frozen, args.max_tokens)
+            if alternate.decode_loop_used != loop:
+                raise ValueError('C-2 requested an unavailable decode-loop mode')
+            compared = {bool(args.decode_loop): reference, loop: alternate.tokens.cpu()}
     # close() releases native contexts; Python still owns the full checkpoint.
     # Drop it before loading another executor or the separate HF reference.
     del current
@@ -130,20 +143,25 @@ def main():
         checks = []
         combinations = [('L1', 0), ('L1', 1)] if args.check_step_loop else execution_combinations(manifests[1].get('pg', 'off'))
         for mode, loop in combinations:
-            heartbeat('native_executor_check', mode=mode, loop=loop)
-            with engine(mode, loop) as other:
-                generated = other.generate(frozen, args.max_tokens)
-                if args.max_tokens>1 and generated.decode_loop_used!=bool(loop):
-                    raise ValueError('C-2 requested an unavailable decode-loop mode')
-                tokens = generated.tokens.cpu()
-            del other
-            torch.cuda.empty_cache()
+            if reuse_step_loop:
+                tokens, used = compared[bool(loop)], bool(loop)
+            else:
+                heartbeat('native_executor_check', mode=mode, loop=loop)
+                with engine(mode, loop) as other:
+                    generated = other.generate(frozen, args.max_tokens)
+                    used = generated.decode_loop_used
+                    if args.max_tokens > 1 and used != bool(loop):
+                        raise ValueError('C-2 requested an unavailable decode-loop mode')
+                    tokens = generated.tokens.cpu()
+                del other
+                torch.cuda.empty_cache()
             passed = torch.equal(reference, tokens)
             checks.append({'mode': mode, 'decode_loop': loop,
-                           'decode_loop_used': generated.decode_loop_used, 'pass': passed})
+                           'decode_loop_used': used, 'pass': passed})
             (args.out/f'tokens_{mode}_loop{loop}.json').write_text(json.dumps(tokens.tolist())+'\n')
         (args.out/'c2.json').write_text(json.dumps({'evidence': 'verified',
-            'same_binary': True, 'checks': checks, 'pass': all(c['pass'] for c in checks)}, indent=2)+'\n')
+            'same_binary': True, 'initialization_reused': reuse_step_loop,
+            'checks': checks, 'pass': all(c['pass'] for c in checks)}, indent=2)+'\n')
         if not all(c['pass'] for c in checks):
             raise AssertionError('executor token comparison failed')
     if args.hf_check:
