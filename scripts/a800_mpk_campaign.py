@@ -144,6 +144,8 @@ def main():
         raise ValueError('unsupported model in MPK campaign')
     end = time.monotonic()+48*3600
     before = {}
+    refresh = None
+    refresh_pending = False
     with (LOG/'mpk-campaign.lock').open('w') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX|fcntl.LOCK_NB)
         while time.monotonic() < end:
@@ -152,13 +154,26 @@ def main():
             active = set(queue.stdout.split())
             state = {key: outcome(key,active) for key in cells}
             if state != before:
-                refresh = run(['./refresh-results-a800.sh'], 120)
-                refresh.check_returncode()
+                refresh_pending = True
                 before = state.copy()
+            if refresh is not None and refresh.poll() is not None:
+                if refresh.returncode:
+                    refresh_pending = True
+                    if refresh.returncode != 75:
+                        print('collector exit', refresh.returncode, flush=True)
+                refresh = None
+            if refresh_pending and refresh is None:
+                # Collection can spend minutes validating unrelated native
+                # receipts on the shared filesystem. It holds no GPU.
+                with (LOG/'mpk-refresh.log').open('a') as report:
+                    refresh = subprocess.Popen(['timeout','--kill-after=10s','900s',
+                        './refresh-results-a800.sh','--if-idle'], cwd=WORK,
+                        stdout=report, stderr=subprocess.STDOUT, start_new_session=True)
+                refresh_pending = False
             inflight = sum(v == 'active' for v in state.values())
             ready = [k for k in cells if state[k]=='new' and
                      all(state[dep]=='accepted' for dep in dependencies(k))]
-            if not ready and not inflight:
+            if not ready and not inflight and not refresh_pending and refresh is None:
                 print('finished runnable work', {v:list(state.values()).count(v) for v in set(state.values())}, flush=True)
                 return
             ready = [k for k in ready if not (LOG/f'{cohort(k)}.guard-retry.json').exists() or
