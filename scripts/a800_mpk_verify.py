@@ -12,12 +12,12 @@ from a800_mpk_preflight import REVISION
 from tilemega.bench.scheduler import write_json
 
 
-def reference(model, checkpoint, prompt):
+def reference(model, checkpoint, prompt, batch):
     with (RUN/'collected/A800_baselines.csv').open() as source:
         rows = [r for r in csv.DictReader(source) if r['model'] == model and r['status'] == 'measured'
                 and r['framework'] in ('vllm', 'sglang', 'torchcompile') and
                 r['prompt_sha256'] == prompt and r['checkpoint_sha256'] == checkpoint]
-    for r in sorted(rows, key=lambda r: -int(r['batch'])):
+    for r in sorted(rows, key=lambda r: (int(r['batch']) != batch, -int(r['batch']))):
         for attempt in r['evidence'].split():
             path = RUN/attempt/f"job/measurements/B{r['batch']}/measurements.json"
             data = read(path)
@@ -85,7 +85,7 @@ def main():
         if '.sm_80.' not in listing:
             raise ValueError(f'{lib} lacks native SM80 code')
         artifacts[str(length)] = sha(lib)
-    path, samples = reference(job['model'], result['checkpoint_sha256'], raw['prompt_ids_sha256'])
+    path, samples = reference(job['model'], result['checkpoint_sha256'], raw['prompt_ids_sha256'], job['batch'])
     expected = read(samples[1])
     count = min(len(first), len(expected))
     if not count or first[:count] != expected[:count]:
