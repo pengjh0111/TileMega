@@ -44,6 +44,18 @@ def selection(args):
             for repeat in filters[3]]
 
 
+def mpk_process_budget(budget, requested, policy):
+    # The scheduler admits each GPU step only if its full guard allowance and
+    # 20s of scheduling margin fit. A new cohort runs two guarded steps.
+    guard_allowance = policy['samples'] * policy['interval_s'] + 60 + 20
+    probe_timeout = 120
+    reserve = probe_timeout + 2 * (guard_allowance + policy['own_child_settle_s']) + 10
+    available = min(requested, int(budget - reserve))
+    if available <= 0:
+        raise ValueError('MPK allocation cannot fit the device probe and both GPU guards')
+    return available
+
+
 def device_policy():
     job, mask = os.getenv('SLURM_JOB_ID', ''), os.getenv('CUDA_VISIBLE_DEVICES', '')
     if (not job.isdecimal() or os.getenv('SLURM_JOB_PARTITION') != 'gpu_a800'
@@ -102,6 +114,10 @@ def run_cohort(args, wanted):
         policy_path = allocation/'guard-policy.json'
         write_json(policy_path, policy)
         expected_checkpoint = (args.model[0], args.expected_checkpoint_sha256) if args.expected_checkpoint_sha256 else None
+        if args.engine == ['mpk']:
+            args.process_timeout_s = mpk_process_budget(args.budget_s, args.process_timeout_s, policy)
+            args.heartbeat_timeout_s = min(args.heartbeat_timeout_s, args.process_timeout_s)
+            print(f'MPK process budget {args.process_timeout_s}s after both guard allowances', flush=True)
         jobs = prepare(policy_path, run, INVENTORY, ENVS, 'A800',
                        args.process_timeout_s, args.heartbeat_timeout_s, args.seed_suite, expected_checkpoint,
                        engines={'mpk': 'mpk'} if args.engine == ['mpk'] else None)
@@ -163,13 +179,10 @@ def main():
     args = parser.parse_args()
     if not args.cohort or not all(c.isascii() and (c.isalnum() or c in '-_') for c in args.cohort):
         parser.error('cohort must contain only ASCII letters, digits, hyphens and underscores')
-    if args.mode == 'run' and args.engine == ['mpk'] and args.budget_s > 240:
-        # Backfill can award a shorter allocation. Leave room for the separate
-        # identity probe, the monitored guard intervals and teardown.
-        args.process_timeout_s = min(args.process_timeout_s, args.budget_s - 150)
-        args.heartbeat_timeout_s = min(args.heartbeat_timeout_s, args.process_timeout_s)
-    if not 0 < args.heartbeat_timeout_s <= args.process_timeout_s < args.budget_s:
-        parser.error('expected 0 < heartbeat timeout <= process timeout < budget')
+    if not 0 < args.heartbeat_timeout_s <= args.process_timeout_s or args.budget_s <= 0:
+        parser.error('expected positive budget and 0 < heartbeat timeout <= process timeout')
+    if args.process_timeout_s >= args.budget_s and not (args.mode == 'run' and args.engine == ['mpk']):
+        parser.error('process timeout must fit the allocation')
     if args.expected_checkpoint_sha256 and len(args.model or []) != 1:
         parser.error('an explicit checkpoint hash requires one selected model')
     if args.seed_suite != 'vllm' and (args.engine != ['torchcompile'] or not args.expected_checkpoint_sha256):

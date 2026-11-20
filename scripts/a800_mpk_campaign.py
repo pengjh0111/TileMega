@@ -27,7 +27,7 @@ def run(args, timeout=30):
 
 def cohort(key):
     model, batch, repeat = key
-    return f"mpk-v2-{model.replace('_', '-')}-b{batch}-r{repeat}"
+    return f"mpk-v3-{model.replace('_', '-')}-b{batch}-r{repeat}"
 
 
 def submit(key):
