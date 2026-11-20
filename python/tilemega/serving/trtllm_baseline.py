@@ -105,6 +105,7 @@ def main():
         measure(args, ids, "tensorrt-llm", generate, config)
     finally:
         llm.shutdown()
+    return args.tp
 
 
 def report(code):
@@ -115,8 +116,17 @@ def report(code):
 
 
 if __name__ == "__main__":
+    def run():
+        tp = main()
+        if tp == 1 and os.environ.get("TLLM_WORKER_USE_SINGLE_PROCESS") == "1":
+            # 0.21's global AttentionOp cache can fault in CublasMMWrapper
+            # at interpreter exit. Measurements and shutdown have completed.
+            sys.stdout.flush()
+            sys.stderr.flush()
+            os._exit(0)
+
     try:
-        guarded_main(main)
+        guarded_main(run)
     except SystemExit as exit:
         report(exit.code if isinstance(exit.code, int) else 1)
         raise
