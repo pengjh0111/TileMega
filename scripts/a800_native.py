@@ -28,7 +28,7 @@ def artifact(path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('mode', choices=('plan', 'run'))
-    parser.add_argument('--stage', choices=('correctness', 'measure', 'diagnose', 'tune-prefill', 'candidate-timing'), required=True)
+    parser.add_argument('--stage', choices=('correctness', 'measure', 'diagnose', 'tune-prefill', 'tune-decode', 'candidate-timing'), required=True)
     parser.add_argument('--model', choices=MODELS, required=True)
     parser.add_argument('--batch', type=int, choices=BATCHES, required=True)
     parser.add_argument('--prefill', required=True)
@@ -38,7 +38,9 @@ def main():
     parser.add_argument('--budget-s', type=int, default=840)
     parser.add_argument('--timeout-s', type=int, default=600)
     parser.add_argument('--prefill-mode', choices=('L1', 'L2'), default='L1')
-    parser.add_argument('--sanitizer', type=Path)
+    tools = parser.add_mutually_exclusive_group()
+    tools.add_argument('--sanitizer', type=Path)
+    tools.add_argument('--cuda-gdb', type=Path)
     parser.add_argument('--diagnostic-config', type=Path)
     parser.add_argument('--seed-suite', choices=('vllm', 'tilemega'), default='vllm')
     parser.add_argument('--expected-checkpoint-sha256')
@@ -49,14 +51,15 @@ def main():
     if args.seed_suite != 'vllm' and not args.expected_checkpoint_sha256:
         parser.error('an alternate generator must reproduce the verified checkpoint identity')
     diagnostic = args.stage == 'diagnose'
-    tuning = args.stage == 'tune-prefill'
+    tuning = args.stage in ('tune-prefill', 'tune-decode')
     independent = args.stage in ('measure', 'candidate-timing')
     timing = independent or tuning
-    if (not diagnostic and (args.prefill_mode != 'L1' or args.sanitizer)
+    if (not diagnostic and (args.prefill_mode != 'L1' or args.sanitizer or args.cuda_gdb)
             or diagnostic and args.prefill == 'prompt'):
         parser.error('prefill executor and sanitizer diagnostics require an independent prefill artifact')
-    if args.sanitizer and not os.access(args.sanitizer, os.X_OK):
-        parser.error('the diagnostic sanitizer executable is unavailable')
+    for tool in (args.sanitizer, args.cuda_gdb):
+        if tool and not os.access(tool, os.X_OK):
+            parser.error(f'diagnostic executable is unavailable: {tool}')
     if args.diagnostic_config and (not diagnostic or args.model != 'qwen3_30b_a3b'):
         parser.error('the diagnostic config is reserved for a reduced Qwen3-30B prefill probe')
     decode, decode_id, plan = artifact(args.decode)
@@ -90,9 +93,10 @@ def main():
     stage = f'diagnose-{args.prefill_mode.lower()}' if diagnostic else args.stage
     receipt_name = f'{stage}-{args.round}.json'
     if timing:
-        if (plan['native_origin'] != 'solver' or not target.get('sm80_native_constants')
-                or decode_id['target_sha256'] != identity['target_sha256']
-                or plan['native_selection'].get('selection') != 'measure'):
+        selected = (plan['native_origin'] == 'solver' and
+                    plan['native_selection'].get('selection') == 'measure')
+        if (not (selected or args.stage == 'tune-decode') or not target.get('sm80_native_constants')
+                or decode_id['target_sha256'] != identity['target_sha256']):
             parser.error('timing requires the solver-selected decode and its calibrated target')
     if independent:
         receipts = [json.loads(path.read_text()) for path in
@@ -124,7 +128,8 @@ def main():
         print(json.dumps(dict(identity, **description, prefill=str(prefill), decode=str(decode),
                               calibration_uuid=target['device_provenance']['uuid'],
                               timeout_s=args.timeout_s, max_tokens=tokens, step=name,
-                              sanitizer=str(args.sanitizer) if args.sanitizer else None), indent=2))
+                              sanitizer=str(args.sanitizer) if args.sanitizer else None,
+                              cuda_gdb=str(args.cuda_gdb) if args.cuda_gdb else None), indent=2))
         return 0
 
     if any(native_root.glob(f'*/{relative_scope}/{receipt_name}')):
@@ -155,6 +160,12 @@ def main():
         child = [str(args.sanitizer), '--tool', 'memcheck', '--kernel-name',
                  f'kns=tilemega_{args.prefill_mode.lower()}_kernel', '--launch-count', '1',
                  '--error-exitcode', '86', '--log-file', '{attempt_dir}/prefill-memcheck.log', *child]
+    if args.cuda_gdb:
+        child = [str(args.cuda_gdb), '-nx', '-batch', '-ex', 'set confirm off',
+                 '-ex', 'set disable-randomization off', '-ex', 'set debuginfod enabled off',
+                 '-ex', 'set cuda api_failures stop', '-ex', 'run', '-ex', 'info cuda kernels',
+                 '-ex', 'info cuda threads', '-ex', 'bt', '-ex', 'p/x $errorpc',
+                 '-ex', 'x/i $errorpc', '--args', *child]
     command = ['taskset', '--cpu-list', dev['cpus'], py,
                str(ROOT/'scripts/run_r16_with_device_identity.py'),
                '--out', '{attempt_dir}/job', '--guard-policy', str(policy_path),
