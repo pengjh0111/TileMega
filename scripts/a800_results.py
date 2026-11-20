@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Collect guarded requests from one A800 hardware class, with per-round UUIDs."""
 import argparse
+from collections import defaultdict
 import json
 from pathlib import Path
 import statistics
@@ -126,8 +127,17 @@ def native_cell(inputs, model, batch):
     receipts = [row for row in receipts if compatible(row)]
     checks = [read(path) for pattern in ('correctness-*.json', '*/correctness-*.json')
               for path in root.glob(f'{cell}/{pattern}')]
-    checks = [row for row in checks if compatible(row)]
-    accepted_checks = sum(bool(row.get('pass')) for row in checks)
+    checks = [row for row in checks if compatible(row) and row.get('pass')]
+    def pair(receipt):
+        return receipt['prefill_sha256'], receipt['decode_sha256'], receipt['target_sha256']
+
+    checks_by_pair = defaultdict(list)
+    for check in checks:
+        checks_by_pair[pair(check)].append(check)
+    ready = {key for key, checks in checks_by_pair.items()
+             if len({r['round'] for r in checks}) >= 5
+             and len({r['tokens_sha256'] for r in checks}) == 1
+             and any(r.get('hf_pass') for r in checks)}
     rows, artifact_ids = [], set()
     for receipt in receipts:
         if not receipt.get('pass'):
@@ -138,19 +148,22 @@ def native_cell(inputs, model, batch):
         device = receipt.get('device', inputs['device'])
         row = measurement(job, dict(status='done', out=str(attempt)), dict(inputs, device=device))
         rows.append(dict(row, gpu_uuid=device['uuid']))
-        artifact_ids.add((receipt['prefill_sha256'], receipt['decode_sha256'], receipt['target_sha256']))
+        artifact_ids.add(pair(receipt))
     if len(artifact_ids) > 1:
         raise ValueError(f'{model} B{batch} contains more than one native plan pair')
     needed = 3 if model in tuple(MODELS)[:4] else 5
     if len(rows) > needed or len({r['round'] for r in receipts}) != len(rows):
         raise ValueError('choose an explicit cohort without extra formal rounds')
-    status = 'measured' if len(rows) == needed else 'incomplete' if rows else 'pending_correctness'
-    artifacts = next(iter(artifact_ids), ('', '', ''))
-    uuids = {row['gpu_uuid'] for row in rows} or {row['device_uuid'] for row in checks}
+    chosen = artifact_ids or ready
+    artifacts = next(iter(chosen)) if len(chosen) == 1 else ('', '', '')
+    accepted = checks_by_pair.get(artifacts, checks)
+    status = ('measured' if len(rows) == needed else 'incomplete' if rows else
+              'pending_timing' if ready else 'pending_correctness')
+    uuids = {row['gpu_uuid'] for row in rows} or {row['device_uuid'] for row in accepted}
     return rows, dict(model=model, batch=batch, status=status, processes=len(rows), required_processes=needed,
-        correctness='five fresh checks passed' if rows else 'pilot passed' if accepted_checks else 'pending',
-        accepted_correctness_processes=accepted_checks,
-        **metrics(rows, needed), backend='SM80 native' if rows else '', fastest_baseline='',
+        correctness='five fresh checks passed' if rows or ready else 'pilot passed' if checks else 'pending',
+        accepted_correctness_processes=len(accepted),
+        **metrics(rows, needed), backend='SM80 native' if rows or ready else '', fastest_baseline='',
         fastest_baseline_tpot_ms='', speedup='', config_sha256=inputs['models'][model]['config_sha256'],
         prompt_sha256=inputs['models'][model]['prompt_sha256'], checkpoint_sha256='',
         prefill_sha256=artifacts[0], decode_sha256=artifacts[1], target_sha256=artifacts[2],
