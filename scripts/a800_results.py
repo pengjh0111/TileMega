@@ -14,11 +14,19 @@ from a100_baselines import BATCHES, ENGINES, MODELS, ROOT, inspect_inputs, sha
 from a100_results import measurement, read, write_csv
 from a800_baselines import INVENTORY, RUN, hardware_class
 from a800_mpk_preflight import REVISION as MPK_REVISION
+from tilemega.build.identity import digest
 
 
 REPORT_ENGINES = (*ENGINES, 'mpk')
 METRICS = ('tpot_ms', 't1_s', 't1024_s', 'tok_s')
 OOM_MARKERS = ('CUDA out of memory', 'torch.OutOfMemoryError', 'CUDA_ERROR_OUT_OF_MEMORY')
+NATIVE_PROVENANCE = ('decode_source_commit', 'decode_source_sha256', 'decode_body_sha256',
+                     'decode_coordinates_sha256', 'decode_generated_sha256', 'decode_artifact_id',
+                     'prefill_source_commit', 'prefill_artifact_id', 'runner_sha256')
+NATIVE_BODY_PREFIXES = ('include/tilemega/Backend/Sm90Dense', 'include/tilemega/Backend/Sm80Dense',
+                        'include/tilemega/Codegen/tasks/Sm90Dense',
+                        'include/tilemega/Codegen/executor/Async')
+
 
 
 def metrics(rows, count):
@@ -132,6 +140,34 @@ def baseline_cell(inputs, jobs, model, engine, batch, unsupported=''):
         receipt_sha256=' '.join(row['receipt'] for row in rows), evidence=' '.join(sorted(evidence)))
 
 
+def native_provenance(row, receipt):
+    configuration = json.loads(row['backend'])
+    artifacts = configuration['identities']
+    decode = artifacts['decode']
+    prefill = artifacts.get('prefill')
+    if (decode['binary_sha256'] != receipt['decode_sha256']
+            or decode['target_sha256'] != receipt['target_sha256']
+            or decode['nvcc_arch'] != 'sm_80'
+            or (prefill['binary_sha256'] if prefill else 'prompt') != receipt['prefill_sha256']):
+        raise ValueError('timed native artifacts differ from their acceptance receipt')
+    for artifact in artifacts.values():
+        if artifact['artifact_id'] != digest({k: v for k, v in artifact.items() if k != 'artifact_id'}):
+            raise ValueError('native artifact identity changed in the timing record')
+    src = decode['source']
+    body = {name: sha for name, sha in src['source_files'].items()
+            if name.startswith(NATIVE_BODY_PREFIXES)}
+    if not body:
+        raise ValueError('timed native artifact lacks backend header identities')
+    return dict(decode_source_commit=src['head'], decode_source_sha256=src['source_digest'],
+                decode_body_sha256=digest(body),
+                decode_coordinates_sha256=digest(decode['plan']['native_dense']),
+                decode_generated_sha256=decode['generated_source_sha256'],
+                decode_artifact_id=decode['artifact_id'],
+                prefill_source_commit=prefill['source']['head'] if prefill else '',
+                prefill_artifact_id=prefill['artifact_id'] if prefill else 'prompt',
+                runner_sha256=configuration['runner_sha256'])
+
+
 def native_cell(inputs, model, batch, selection=None):
     def compatible(receipt):
         if 'device' in receipt:
@@ -164,6 +200,7 @@ def native_cell(inputs, model, batch, selection=None):
         if not receipts:
             raise ValueError(f'{model} B{batch} selected artifacts lack independent timing rounds')
     rows, artifact_ids = [], set()
+    provenance = dict.fromkeys(NATIVE_PROVENANCE, '')
     for receipt in receipts:
         if not receipt.get('pass'):
             raise ValueError('native measurement receipt did not pass')
@@ -172,6 +209,10 @@ def native_cell(inputs, model, batch, selection=None):
                    round=receipt['round'])
         device = receipt.get('device', inputs['device'])
         row = measurement(job, dict(status='done', out=str(attempt)), dict(inputs, device=device))
+        details = native_provenance(row, receipt)
+        if rows and details != provenance:
+            raise ValueError('timing processes disagree on native provenance')
+        provenance = details
         rows.append(dict(row, gpu_uuid=device['uuid']))
         artifact_ids.add(pair(receipt))
     if len(artifact_ids) > 1:
@@ -195,7 +236,7 @@ def native_cell(inputs, model, batch, selection=None):
         prompt_sha256=inputs['models'][model]['prompt_sha256'], checkpoint_sha256='',
         prefill_sha256=artifacts[0], decode_sha256=artifacts[1], target_sha256=artifacts[2],
         gpu_uuid=' '.join(sorted(uuids)), versions=summarize(rows, 'versions'),
-        receipt_sha256=' '.join(row['receipt'] for row in rows))
+        receipt_sha256=' '.join(row['receipt'] for row in rows), **provenance)
 
 
 def frozen_baseline_cells(directory, inputs):
