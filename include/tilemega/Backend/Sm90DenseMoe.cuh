@@ -1025,6 +1025,7 @@ struct Sm90DenseMoeFusedGemm {
       int a_index=min(task.slot,Experts-1);
       Record record{routing.expert[a_index],routing.count[a_index],
           lane<LocalSchedule::kRows?routing.rows[a_index][lane]:0};
+      Sm80MoeStageMarks<CpAsync,true>::RecordTask(task.down,record.count);
       if(task.down)ProduceDown(p,state,a,b,task,lane,phase,sequence,record);
       else ProduceGateUp(p,state,a,b,task,lane,phase,sequence,record);
     }

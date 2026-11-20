@@ -651,6 +651,7 @@ extern "C" int tm_plan_dump_serving_trace(void* opaque,char const* directory) {
       "\tdn_gate_wait_cycles\tdn_activation_cycles\tdn_empty_cycles\tdn_issue_cycles"
       "\tgu_full_cycles\tgu_mma_cycles\tgu_epilogue_cycles"
       "\tdn_full_cycles\tdn_mma_cycles\tdn_epilogue_cycles"
+      "\tgu_tasks\tdn_tasks\tgu_rows\tdn_rows"
 #else
       "worker\titeration\tpast\tt_begin\tt_tasks_end\tt_release\ttasks\tsmid\tstage"
 #endif

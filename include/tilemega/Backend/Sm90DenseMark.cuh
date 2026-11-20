@@ -20,7 +20,7 @@ namespace tilemega::backend {
 struct Sm90DenseMarks {
   enum MoeCounter {
     kGuEmpty=6,kGuIssue,kDnPreissueEmpty,kDnPreissueIssue,kDnGateWait,kDnActivation,
-    kDnEmpty,kDnIssue,kGuFull,kGuMma,kGuEpilogue,kDnFull,kDnMma,kDnEpilogue,kCount
+    kDnEmpty,kDnIssue,kGuFull,kGuMma,kGuEpilogue,kDnFull,kDnMma,kDnEpilogue,kGuTasks,kDnTasks,kGuRows,kDnRows,kCount
   };
   __device__ static __forceinline__ unsigned long long* Base() {
     extern __shared__ __align__(1024) char shared[];
@@ -59,6 +59,15 @@ struct Sm80MoeStageMarks {
     if constexpr(kEnabled)
       if(threadIdx.x==(Producer?128:0))return clock64();
     return 0;
+  }
+  __device__ static __forceinline__ void RecordTask(bool down,int rows) {
+    static_assert(Producer);
+    if constexpr(kEnabled)
+      if(threadIdx.x==128)
+        if(auto* marks=Sm90DenseMarks::Base()) {
+          ++marks[down?Sm90DenseMarks::kDnTasks:Sm90DenseMarks::kGuTasks];
+          marks[down?Sm90DenseMarks::kDnRows:Sm90DenseMarks::kGuRows]+=rows;
+        }
   }
   __device__ static __forceinline__ void Add(Sm90DenseMarks::MoeCounter phase,
                                              unsigned long long begin) {
