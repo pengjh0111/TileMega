@@ -79,6 +79,11 @@ def main():
         lib, = (folder/f'kernel_N{length}').glob('mpk_launcher_rank0*.so')
         generated = (lib.parent/'test_rank0.cu').read_text()
         groups = set(re.findall(r'runtime_config\.paged_kv_indptr_buffer\[([^\]]+)\]', generated))
+        if job['model'] == 'llama3_1_8b':
+            linear = re.findall(r'linear_kernel<bfloat16,\s*\d+,\s*(\d+),\s*(\d+),\s*(\d+)>', generated)
+            gates = {(int(n),int(k)) for n,k,stride in linear if int(stride)==28672}
+            if gates != {(256,4096)}:
+                raise ValueError(f'MPK Llama 8B gate/up launch geometry mismatch: {gates}')
         if groups != {'0'}:
             raise ValueError(f'expected only KV group zero, got {sorted(groups)}')
         listing = subprocess.check_output(['cuobjdump', '--list-elf', str(lib)], text=True, timeout=30)

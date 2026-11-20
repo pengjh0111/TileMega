@@ -77,6 +77,7 @@ def main():
     result = dict(revision=revision, diff_sha256=hashlib.sha256(diff).hexdigest(),
                   extension_sha256=sha(extension), harness_sha256=sha(harness.__file__),
                   serving_sha256=sha(ROOT/'scripts/a800_mpk_serving.py'),
+                  model_serving_sha256={'llama3_1_8b':sha(ROOT/'scripts/a800_mpk_llama8.py')},
                   attention_sha256=sha(header), target_sha256=sha(target), cells=cells)
     OUT.parent.mkdir(parents=True, exist_ok=True)
     write_json(OUT, result)

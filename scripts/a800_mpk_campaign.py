@@ -28,7 +28,8 @@ def run(args, timeout=30):
 
 def cohort(key):
     model, batch, repeat = key
-    return f"mpk-v3-{model.replace('_', '-')}-b{batch}-r{repeat}"
+    version = 4 if model == 'llama3_1_8b' else 3
+    return f"mpk-v{version}-{model.replace('_', '-')}-b{batch}-r{repeat}"
 
 
 def submit(key):

@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 import subprocess
 
-from a100_baselines import BATCHES, ENGINES, MODELS, ROOT, device_environment, inspect_inputs, prepare, sha
+from a100_baselines import BATCHES, ENGINES, MODELS, ROOT, device_environment, inspect_inputs, mpk_serving_path, prepare, sha
 from run_r16_with_device_identity import probe_cuda
 from tilemega.bench.gpu_guard import host_proc, smi
 from tilemega.bench.scheduler import main as schedule, write_json
@@ -130,12 +130,15 @@ def run_cohort(args, wanted):
         write_json(allocation/'baseline_inputs.json', inputs)
         if args.engine == ['mpk']:
             preflight = json.loads((RUN/'mpk/preflight.json').read_text())
-            serving = ROOT/'scripts/a800_mpk_serving.py'
-            if (sha(serving) != preflight['serving_sha256'] or
+            serving = mpk_serving_path(args.model[0]) if args.model else ROOT/'scripts/a800_mpk_serving.py'
+            expected_serving = preflight.get('model_serving_sha256', {}).get(
+                args.model[0] if args.model else None, preflight['serving_sha256'])
+            if (sha(serving) != expected_serving or
                     sha(ROOT/'python/tilemega/serving/mpk_baseline.py') != preflight['harness_sha256']):
                 raise RuntimeError('MPK harness changed since source preflight')
             fingerprint = {k: preflight[k] for k in ('revision', 'diff_sha256', 'extension_sha256',
                            'harness_sha256', 'serving_sha256', 'attention_sha256', 'target_sha256')}
+            fingerprint['serving_sha256'] = expected_serving
             write_json(allocation/'mpk-inputs.json', dict(fingerprint, guard_policy_sha256=sha(policy_path)))
         wanted = capacity_receipts(run, wanted, jobs, inputs, policy)
         options = ['--queue-dir', str(run/'queue'), '--out', str(run/'baseline'),

@@ -91,6 +91,11 @@ def inspect_inputs(inventory):
     return manifest
 
 
+def mpk_serving_path(model):
+    name = 'a800_mpk_llama8.py' if model == 'llama3_1_8b' else 'a800_mpk_serving.py'
+    return ROOT/'scripts'/name
+
+
 def prepare(policy_path=POLICY, run=RUN, inventory=RUN/'inventory', envs=RUN/'envs',
             gpu_model='A100', timeout_s=14400, heartbeat_timeout_s=None,
             seed_suite='vllm', expected_checkpoint=None, engines=None):
@@ -129,7 +134,7 @@ def prepare(policy_path=POLICY, run=RUN, inventory=RUN/'inventory', envs=RUN/'en
             harness = f'{engine}_baseline.py'
             if engine == 'torchcompile' and model in MOE:
                 harness = 'torchcompile_moe_baseline.py'
-            harness_path = ROOT/'scripts/a800_mpk_serving.py' if engine == 'mpk' else SERVING/harness
+            harness_path = mpk_serving_path(model) if engine == 'mpk' else SERVING/harness
             cache = run/'cache'/suite
             tmp = run/'tmp'/suite
             for folder in (cache, tmp):
