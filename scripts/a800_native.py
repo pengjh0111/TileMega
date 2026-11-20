@@ -39,6 +39,7 @@ def main():
     parser.add_argument('--timeout-s', type=int, default=600)
     parser.add_argument('--prefill-mode', choices=('L1', 'L2'), default='L1')
     parser.add_argument('--sanitizer', type=Path)
+    parser.add_argument('--diagnostic-config', type=Path)
     parser.add_argument('--seed-suite', choices=('vllm', 'tilemega'), default='vllm')
     parser.add_argument('--expected-checkpoint-sha256')
     args = parser.parse_args()
@@ -55,6 +56,8 @@ def main():
         parser.error('prefill executor and sanitizer diagnostics require an independent prefill artifact')
     if args.sanitizer and not os.access(args.sanitizer, os.X_OK):
         parser.error('the diagnostic sanitizer executable is unavailable')
+    if args.diagnostic_config and (not diagnostic or args.model != 'qwen3_30b_a3b'):
+        parser.error('the diagnostic config is reserved for a reduced Qwen3-30B prefill probe')
     decode, decode_id, plan = artifact(args.decode)
     with args.target.open() as stream:
         target = json.load(stream)
@@ -105,6 +108,15 @@ def main():
             parser.error('formal timing requires five fresh accepted correctness processes for this pair')
     config, prompt = inputs(args.model)
     description = inspect_inputs(INVENTORY)[args.model]
+    if args.diagnostic_config:
+        source = json.loads((config/'config.json').read_text())
+        config = args.diagnostic_config.resolve(strict=True)
+        reduced = json.loads((config/'config.json').read_text())
+        layers = reduced.get('num_hidden_layers')
+        if type(layers) is not int or not 0 < layers < source['num_hidden_layers'] or (
+                reduced != dict(source, num_hidden_layers=layers)):
+            parser.error('the diagnostic model may only reduce the number of layers')
+        description = dict(description, config_sha256=sha(config/'config.json'))
     name = f'native-{stage}-r{args.round}'
     tokens = 1 if diagnostic else 1024
     if args.mode == 'plan':
