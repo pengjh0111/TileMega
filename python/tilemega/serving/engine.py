@@ -88,8 +88,9 @@ class ServingEngine:
         self.loop_modes = self.decode.loop_modes()
         if self.prefill is not None:
             self.prefill.set_steps([0])
-            self.decode.set_steps(list(range(prompt_len,
-                                             prompt_len + max_new_tokens - 1)))
+            if max_new_tokens > 1:
+                self.decode.set_steps(list(range(prompt_len,
+                                                 prompt_len + max_new_tokens - 1)))
         else:
             # Step s runs position s: the prompt's positions, then the decode steps.
             self.decode.set_prompt_len(prompt_len)
