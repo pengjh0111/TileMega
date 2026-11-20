@@ -109,6 +109,7 @@ def analyze(a):
     iterations = sorted({i for i, _ in by})
     count = len(stages)
     per_step = []
+    cta_timing = {}
     for it in iterations:
         # With emb = LA the prologue (stage 0) runs only before step 0.
         present = [g for g in range(count) if (it, g) in by]
@@ -121,7 +122,16 @@ def analyze(a):
         totals = {}
         for g in present:
             start = release[g - 1] if g != present[0] else begin
-            totals[kinds[g]] = totals.get(kinds[g], 0) + (release[g] - start) / 1e3
+            label = kinds[g]
+            totals[label] = totals.get(label, 0) + (release[g] - start) / 1e3
+            # Group waits permit a successor to start on one CTA before another
+            # CTA finishes its predecessor. Retain the boundary skew explicitly.
+            local = [(int(r['t_begin']), int(r['t_tasks_end'])) for r in by[it, g]]
+            starts, ends = zip(*local)
+            cta_timing.setdefault(label, []).append({
+                'entry_spread_us': (max(starts)-min(starts))/1000,
+                'longest_local_body_us': max(end-begin for begin,end in local)/1000,
+                'last_body_after_first_release_us': (max(ends)-release[g])/1000})
         totals['step'] = (release[present[-1]] - begin) / 1e3
         per_step.append(totals)
     measured = {k: st.median(s[k] for s in per_step) for k in per_step[0]}
@@ -141,7 +151,10 @@ def analyze(a):
         out.append(dict(stage=k, measured_us=round(measured[k], 1), predicted_us=round(predicted.get(k, 0), 1),
                         bound_us=round(bound.get(k, 0), 1),
                         over_prediction_us=round(measured[k] - predicted.get(k, 0), 1)))
-    write(a.out, dict(steps=len(per_step), rows=out, trace=str(a.trace)))
+    cta = {label: dict(instances=len(samples),
+                **{metric: st.median(s[metric] for s in samples) for metric in samples[0]})
+           for label, samples in cta_timing.items()}
+    write(a.out, dict(steps=len(per_step), rows=out, trace=str(a.trace), per_stage_instance=cta))
     for r in out:
         print(r)
 
