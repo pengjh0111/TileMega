@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Backend/Sm90DenseAttentionPartition.h>
 #include <tilemega/Solver/Sm90DenseCostModel.h>
 #include <tilemega/Solver/Sm90DenseResources.h>
 #include <tilemega/Solver/Sm90DenseSearchSpace.h>
 #include <algorithm>
+#include <cmath>
 #include <map>
 #include <tuple>
-#include <tilemega/Backend/Sm90DenseAttentionPartition.h>
-#include <cmath>
 
 namespace tilemega::solver {
 

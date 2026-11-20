@@ -56,6 +56,28 @@ int main(int argc, char** argv) {
   assert(expert_price.tasks==1319);
   assert(expert_price.approximation==kSm90NativeMoeDomainApproximation);
   }
+  // All history keys are copied once. The 128-key body still consumes two
+  // 64-key blocks for each physical slot, including its padded tail.
+  {
+    auto ampere=target;
+    ampere.arch_tag="sm_80";
+    Sm90DenseCostModel ampere_cost(ampere,constants);
+    Sm90DenseAttention a;
+    a.chunks=8;
+    auto narrow=ampere_cost.AttentionHistory(a);
+    assert(narrow.keys==575.0/8 && narrow.ring_slots==13216.0/(1023*8));
+    assert(narrow.mma_blocks==narrow.ring_slots);
+    a.block_keys=128;
+    auto wide=ampere_cost.AttentionHistory(a);
+    assert(wide.keys==narrow.keys && wide.ring_slots==8652.0/(1023*8));
+    assert(wide.mma_blocks==2*wide.ring_slots);
+    a.new_row_work=8;
+    auto shifted=ampere_cost.AttentionHistory(a);
+    assert(shifted.keys==narrow.keys && shifted.ring_slots==8653.0/(1023*8));
+    auto price=Sm90NativeAttentionPrice(work,a,1,ampere_cost);
+    assert(price.head_and_tail.dram_bytes*price.tasks==575.0*work.batch*work.hkv*work.head_dim*4);
+    assert(price.head_and_tail.pipeline_steps==shifted.ring_slots);
+  }
   int failures = 0;
   for (int batch : {1, 16}) {
     work.batch = batch;
