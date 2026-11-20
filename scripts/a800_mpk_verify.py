@@ -47,9 +47,14 @@ def main():
     folder = Path(step['out'])/f"job/measurements/B{job['batch']}"
     raw = read(folder/'measurements.json')
     identity = read(Path(step['out'])/'job/physical-device-identity.json')
-    environment, = [r for f in cohort.glob('allocations/*/mpk-inputs.json')
-                    if (r := read(f))['guard_policy_sha256'] == identity['guard_policy_sha256']]
-    if environment['serving_sha256'] != job['harness_sha256'] or environment['revision'] != REVISION:
+    command = job['command']
+    policy = Path(command[command.index('--guard-policy') + 1])
+    environment = read(policy.parent/'mpk-inputs.json')
+    if (policy.parent.parent != cohort/'allocations' or
+            sha(policy) != identity['guard_policy_sha256'] or
+            environment.get('guard_policy_sha256') != identity['guard_policy_sha256'] or
+            environment.get('serving_sha256') != job['harness_sha256'] or
+            environment.get('revision') != REVISION):
         raise ValueError('measurement and allocation MPK sources differ')
     cfg = raw['configuration']
     if raw['system'] != 'mpk' or cfg['mirage_revision'] != REVISION or cfg['world_size'] != 1:
