@@ -16,7 +16,7 @@ from tilemega.bench.scheduler import write_json
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('mode', choices=('plan', 'run'))
+    parser.add_argument('mode', choices=('plan', 'prepare', 'run'))
     parser.add_argument('--model', required=True, choices=MODELS)
     parser.add_argument('--batch', required=True, type=int, choices=BATCHES)
     parser.add_argument('--export', required=True, type=Path)
@@ -27,12 +27,15 @@ def main():
     parser.add_argument('--pin-theta', type=Path)
     parser.add_argument('--seed-coordinates', type=Path)
     parser.add_argument('--submission-plan', type=Path)
+    parser.add_argument('--prepared-shortlist', type=Path)
+    parser.add_argument('--search-budget-ms', type=int, default=600000)
+    parser.add_argument('--compile-jobs', type=int, choices=(1, 2), default=2)
     parser.add_argument('--top', type=int, choices=range(2, 7), default=2)
     parser.add_argument('--timeout-s', type=int, default=720)
     args = parser.parse_args()
     source, target, cli = (path.resolve(strict=True) for path in (args.export, args.target, args.cli))
     output = args.out.resolve()
-    if args.timeout_s <= 0 or output.suffix != '.so' or output.exists():
+    if args.timeout_s <= 0 or args.search_budget_ms <= 0 or output.suffix != '.so' or output.exists():
         parser.error('provide a positive process budget and a new .so output')
     spec = json.loads(target.read_text())
     fingerprint = spec['device_provenance']
@@ -56,13 +59,22 @@ def main():
                '--tp', '1', '--runtime-target', str(target), '--capacity', '1088',
                '--prompt-len', '64', '--past-range', '64:1086', '--search', 'pipeline',
                '--selection', 'measure', '--measure-top', str(args.top), '--measure-cmd', select,
-               '--nvcc-split-compile', '2']
+               '--nvcc-split-compile', str(args.compile_jobs), '--search-budget-ms', str(args.search_budget_ms)]
     if args.pin_theta:
         pinned = args.pin_theta.resolve(strict=True)
         command.extend(('--pin-theta', str(pinned)))
     if args.seed_coordinates:
         seed = args.seed_coordinates.resolve(strict=True)
         command.extend(('--seed-coordinates', str(seed)))
+    if args.mode == 'prepare':
+        if os.environ.get('SLURM_JOB_ID') or args.prepared_shortlist or args.submission_plan:
+            parser.error('prepare a fresh shortlist on the login node')
+        command.extend(('--prepare-shortlist', '1'))
+        return subprocess.run(['timeout', '--kill-after=15s', str(args.timeout_s), *command],
+                              cwd=ROOT).returncode
+    if args.prepared_shortlist:
+        prepared = args.prepared_shortlist.resolve(strict=True)
+        command.extend(('--prepared-shortlist', str(prepared)))
     heartbeat_timeout_s = min(540, args.timeout_s)
     selector = ROOT/'scripts/a800_select.py'
     receipt = dict(protocol_version='a800-single-v2', kind='selection', model=args.model,
@@ -75,6 +87,8 @@ def main():
         receipt['pin_theta_sha256'] = sha(pinned)
     if args.seed_coordinates:
         receipt['seed_coordinates_sha256'] = sha(seed)
+    if args.prepared_shortlist:
+        receipt['prepared_shortlist_sha256'] = sha(prepared)
     if args.mode == 'plan':
         print(json.dumps(receipt, indent=2))
         return 0
