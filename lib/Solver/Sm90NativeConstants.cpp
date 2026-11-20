@@ -38,6 +38,18 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
   c.route_la_=s.At("route_la_ns");c.round_=s.At("round_ns");
   if(!ampere) {c.clusters_=s.At("clusters");c.dsmem_=s.At("dsmem_merge_ns");}
   else if(auto const* mma=s.Find("mma_mainloop"))c.ampere_mma_=mma->At("median_ns");
+  if(auto const* service=s.Find("dense_gate_service")) {
+    if(!ampere || service->At("schema").AsNumber("dense gate service schema")!=1)
+      throw std::invalid_argument("invalid SM80 dense gate service profile");
+    auto const& hashes=service->At("body_headers");
+    for(auto name:{"Sm90DenseGemm.h","Sm80DenseService.cuh","Sm90DenseLayout.h",
+                  "Sm90DenseRing.cuh","Sm90DenseEpilogue.h"}) {
+      auto path=root+"/include/tilemega/Backend/"+name;
+      if(FileHash(path)!=hashes.At(name).AsString("body header hash"))
+        throw Sm90NativeMissing(std::string("SM80 dense service profile no longer matches ")+name);
+    }
+    c.ampere_gate_service_=service->At("measurements");
+  }
   if(auto const* forward=s.Find("forward"))c.forward_=*forward;
   if(auto const* cta=s.Find("cta_dram_gbps"))c.cta_dram_gbps_=Positive(*cta,"per-CTA DRAM bandwidth");
   if(auto const* task=s.Find("task_expert_ns"))c.task_expert_=*task;
@@ -137,6 +149,19 @@ std::optional<double> Sm90NativeConstants::AmpereMmaK16(int grid,int tn,int tk,i
   if(!value)return std::nullopt;
   return Positive(*value,"Ampere MMA K16 slice");
 }
+std::optional<Sm80DenseGateService> Sm90NativeConstants::AmpereGateService(
+    int grid,int n,int k,int batch,int tn,int tk,int slots,int wn,int stages,int u) const {
+  if(ampere_gate_service_.IsNull())return std::nullopt;
+  std::string key=std::to_string(grid);
+  for(int v:{n,k,batch,tn,tk,slots,wn,stages,u})key+=":"+std::to_string(v);
+  auto const* row=ampere_gate_service_.Find(key);
+  if(!row)return std::nullopt;
+  return Sm80DenseGateService{
+      Positive(row->At("producer_issue_ns_per_tile"),"dense gate producer issue"),
+      Positive(row->At("consumer_mma_ns_per_tile"),"dense gate consumer MMA"),
+      Positive(row->At("consumer_epilogue_ns_per_task"),"dense gate epilogue")};
+}
+
 int Sm90NativeConstants::ClusterStar(int residency) const {
   auto const* r=clusters_.Find("r"+std::to_string(residency));
   auto const* star=r?r->Find("c_star"):nullptr;

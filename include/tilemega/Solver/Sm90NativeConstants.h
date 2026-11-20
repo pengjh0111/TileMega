@@ -14,6 +14,10 @@ struct Sm90NativeMissing : std::invalid_argument {
   using std::invalid_argument::invalid_argument;
 };
 
+struct Sm80DenseGateService {
+  double producer_issue_ns=0,consumer_mma_ns=0,epilogue_ns=0;
+};
+
 // `sm90_native_constants` of the H800 target (prompt §4 L0-1). Every lookup is
 // an exact measured key; absence is a coverage error, never an extrapolation.
 class Sm90NativeConstants {
@@ -47,6 +51,8 @@ class Sm90NativeConstants {
   // SM80 resident MMA and ldmatrix time per K16 step and split-K warp group.
   static std::string AmpereMmaKey(int grid,int tn,int tk,int wn,int stages);
   std::optional<double> AmpereMmaK16(int grid,int tn,int tk,int wn,int stages) const;
+  std::optional<Sm80DenseGateService> AmpereGateService(
+      int grid,int n,int k,int batch,int tn,int tk,int slots,int wn,int stages,int u) const;
   // D2 body: one 64-key block (data resident), q preparation, S-chunk merge.
   double AttentionBlock(int dim,int queries,int norm) const;
   double AttentionPrepare(int dim,int queries,int norm) const;
@@ -70,6 +76,7 @@ class Sm90NativeConstants {
  private:
   std::map<int,double> barrier_;
   json::Value epilogue_,embedding_,argmax_la_,route_la_,attention_,round_,clusters_,dsmem_,forward_,task_expert_,tp_,ampere_mma_;
+  json::Value ampere_gate_service_;
   double cta_dram_gbps_=0;
   json::Value const& AttentionShape(int dim,int queries,int norm) const;
 };

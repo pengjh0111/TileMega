@@ -37,6 +37,18 @@ double Sm90DenseCostModel::MmaK16Ns(Sm90DenseGemm const& g,int residency) const 
   return *measured;
 }
 
+std::optional<Sm80DenseGateService> Sm90DenseCostModel::GateService(
+    Sm90DenseWorkload const& work,unsigned family,Sm90DenseGemm const& g,int residency,
+    int u,bool alternate_path) const {
+  if(target_.arch_tag!="sm_80" || family!=2 || work.moe || alternate_path || g.multicast)return std::nullopt;
+  if(u==0) {
+    u=16;
+    while(u>4 && g.tile_n%(2*u))u/=2;
+  }
+  return constants_.AmpereGateService(Grid(residency),work.shapes[2][0],work.shapes[2][1],
+      work.batch,g.tile_n,g.TileK(),g.slots,g.warps_n,g.register_stages,u);
+}
+
 // MR6: a CTA with n = ceil(t / G) tasks streams its first n - 1 at the shared
 // rate BW_dram / G; in the last wave only r = t - (n - 1) G CTAs are active,
 // each at min(BW_cta_dram, BW_dram / r).
@@ -47,7 +59,7 @@ double Sm90DenseCostModel::Waves(double tasks,int grid,double task_bytes) const 
 }
 
 double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
-    Sm90DenseGemm const& g,int residency,json::Value* terms,bool pre) const {
+    Sm90DenseGemm const& g,int residency,json::Value* terms,bool pre,int u,bool alternate_path) const {
   auto const& c=constants_;
   int grid=Grid(residency),n=work.shapes[family][0],k=work.shapes[family][1],b=work.batch;
   // MoE experts (prompt §8): n_active x N/TN tasks over n_active expert
@@ -66,7 +78,14 @@ double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
   double ring=w_cta*c.dram_latency/(double(g.slots)*g.slot_bytes);
   double waves=Waves(tasks,grid,2.0*g.tile_n*k);
   double arithmetic=MmaK16Ns(g,residency)*per_cta*k/(16*g.warps_k);
-  double stream=std::max({w_tot/c.dram_gbps,waves,(w_tot+a_tot)/c.l2_gbps,cta,ring,arithmetic});
+  auto service=GateService(work,family,g,residency,u,alternate_path);
+  double producer=0;
+  if(service) {
+    double tiles=per_cta*k/g.TileK();
+    producer=service->producer_issue_ns*tiles;
+    arithmetic=service->consumer_mma_ns*tiles;
+  }
+  double stream=std::max({w_tot/c.dram_gbps,waves,(w_tot+a_tot)/c.l2_gbps,cta,ring,arithmetic,producer});
   // A3: OLMoE's 64-expert stages key their own measurements; rows per slot
   // follow n_active(E), so Qwen3's E = 128 entries do not stand in for them.
   std::string geometry=family>=5 && work.experts==64?"_e64":"";
@@ -74,7 +93,8 @@ double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
       per_cta*c.TaskExpert((family==6?"expert_gate_up":"expert_down")+geometry,b):0;
   static constexpr char const* kEpilogue[]={"qkv","residual","gate_up","residual","lm_head",
       "router","expert_gate_up","expert_down"};
-  double epilogue=c.Epilogue(kEpilogue[family]+geometry,g.tile_n,b,g.warps_k);
+  double epilogue=service?service->epilogue_ns*per_cta:
+      c.Epilogue(kEpilogue[family]+geometry,g.tile_n,b,g.warps_k);
   double first=pre?c.l2_latency:c.dram_latency;
   // Tensor parallel o/down sum their tile across ranks inside the epilogue.
   double all_reduce=work.tp>1 && (family==1 || family==3)?c.AllReduce(b,g.tile_n,work.tp):0;
@@ -84,6 +104,7 @@ double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
         {"dram",w_tot/c.dram_gbps},{"waves",waves},{"l2",(w_tot+a_tot)/c.l2_gbps},{"cta",cta},{"ring",ring},
         {"epilogue",epilogue},{"task_fixed",task_fixed},{"tasks",tasks},{"multicast",g.multicast}};
     if(target_.arch_tag=="sm_80")fields.emplace_back("mma",arithmetic);
+    if(service)fields.emplace_back("producer_issue",producer);
     if(work.tp>1 && (family==1 || family==3))fields.emplace_back("all_reduce",all_reduce);
     *terms=std::move(fields);
   }
@@ -131,7 +152,8 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& work,
     // Layer 0's qkv follows the ring-less embedding.
     int instances=f==4?1:f==0 && pre[0]?work.layers-1:work.layers;
     Sm90DensePrediction::Stage s{kSm90DenseFamilies[f],instances};
-    s.ns=Gemm(work,f,c.gemms[f],c.residency,&s.terms,pre[f]);
+    s.ns=Gemm(work,f,c.gemms[f],c.residency,&s.terms,pre[f],c.swiglu_u,
+              c.live_epilogue_rows || c.weight_stream);
     p.stages.push_back(std::move(s));
     if(f==0 && pre[0]) {
       Sm90DensePrediction::Stage first{kSm90DenseFamilies[0],1};

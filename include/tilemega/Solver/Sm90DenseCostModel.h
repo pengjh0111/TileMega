@@ -29,13 +29,15 @@ class Sm90DenseCostModel {
   // family: 0 qkv, 1 o, 2 gate_up, 3 down, 4 lm_head. pre: the stage's first
   // bytes were streamed by a fully resident predecessor (D6), hiding L_dram.
   double Gemm(Sm90DenseWorkload const&,unsigned family,Sm90DenseGemm const&,int residency,
-              json::Value* terms=nullptr,bool pre=false) const;
+              json::Value* terms=nullptr,bool pre=false,int u=0,bool alternate_path=false) const;
   double Attention(Sm90DenseWorkload const&,Sm90DenseAttention const& attention,
                    int residency,json::Value* terms=nullptr) const;
   Sm90DensePrediction Predict(Sm90DenseWorkload const&,Sm90DenseCoordinates const&) const;
   bool HasCalibratedMma(Sm90DenseGemm const&,int residency) const;
   bool HasCalibratedMma(Sm90DenseCoordinates const&) const;
   double MmaK16Ns(Sm90DenseGemm const&,int residency) const;
+  std::optional<Sm80DenseGateService> GateService(Sm90DenseWorkload const&,unsigned family,
+      Sm90DenseGemm const&,int residency,int u,bool alternate_path) const;
   int Grid(int residency) const {return target_.res.num_sms*residency;}
   Sm90NativeConstants const& Constants() const {return constants_;}
   TargetSpec const& Target() const {return target_;}
