@@ -24,6 +24,7 @@ def main():
     parser.add_argument('--prefill', required=True)
     parser.add_argument('--cli', required=True, type=Path)
     parser.add_argument('--out', required=True, type=Path)
+    parser.add_argument('--pin-theta', type=Path)
     parser.add_argument('--top', type=int, choices=range(2, 7), default=2)
     parser.add_argument('--timeout-s', type=int, default=720)
     args = parser.parse_args()
@@ -53,8 +54,13 @@ def main():
                '--prompt-len', '64', '--past-range', '64:1086', '--search', 'pipeline',
                '--selection', 'measure', '--measure-top', str(args.top), '--measure-cmd', select,
                '--nvcc-split-compile', '2']
+    if args.pin_theta:
+        pinned = args.pin_theta.resolve(strict=True)
+        command.extend(('--pin-theta', str(pinned)))
     receipt = dict(command=command, target=str(target), target_sha256=sha(target),
                    export_sha256=sha(source), cli_sha256=sha(cli), calibration_uuid=fingerprint['uuid'])
+    if args.pin_theta:
+        receipt['pin_theta_sha256'] = sha(pinned)
     if args.mode == 'plan':
         print(json.dumps(receipt, indent=2))
         return 0
