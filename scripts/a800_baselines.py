@@ -93,7 +93,10 @@ def capacity_receipts(run, selected, jobs, inputs, policy):
 
 
 def run_cohort(args, wanted):
-    if subprocess.check_output(['git', 'status', '--porcelain', '--untracked-files=no'],
+    # The native selector publishes its independent timing choices while
+    # baselines run. That report is never an input to a baseline process.
+    if subprocess.check_output(['git', 'status', '--porcelain', '--untracked-files=no',
+                                '--', '.', ':(exclude)configs/bench/a800_native_selection.json'],
                                cwd=ROOT, text=True, timeout=10).strip():
         raise RuntimeError('commit tracked changes before launching a measured cohort')
     run = RUN / 'cohorts' / args.cohort
