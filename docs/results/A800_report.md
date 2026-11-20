@@ -112,7 +112,7 @@ CPU-only decode emission succeeded for all 40 model and batch cells.
 | Model and batch | TileMega TPOT | Fastest baseline TPOT | Baseline / TileMega |
 |---|---:|---:|---:|
 | Llama-3.2-1B B1 | 2.603 ms | TensorRT-LLM, 2.503 ms | 0.962× |
-| Llama-3.2-1B B16 | 2.929 ms | SGLang, 2.978 ms | 1.017× |
+| Llama-3.2-1B B16 | 2.864 ms | SGLang, 2.978 ms | 1.040× |
 | Qwen3-0.6B B1 | 1.658 ms | TensorRT-LLM, 2.066 ms | 1.246× |
 
 Each TileMega row passed five fresh correctness processes and three separate
@@ -276,12 +276,12 @@ medians remain separate from the independent timings.
 
 
 **Verified.** The three independent Llama B16 timings in `345450` passed on
-two A800s. The final artifact has 2.929 ms median TPOT, 69.799 ms T1 and
+two A800s. The down-only artifact has 2.929 ms median TPOT, 69.799 ms T1 and
 3.0661 s T1024, with median request throughput of 5,343.6 tokens/s.
 The earlier independent cohort recorded 3.025 ms TPOT and 3.1642 s T1024.
 The same-card experiment measured a 2.4% TPOT reduction. The independent
 cohort measured a 3.2% reduction and a 1.017× ratio against SGLang at
-2.978 ms. The collector now selects the tested artifact explicitly using
+2.978 ms. The collector accepts an explicit artifact identity in
 `configs/bench/a800_native_selection.json`. The earlier formal process
 receipts remain available. This selection keeps five fresh correctness
 receipts and three complete independent request timings for the exact
@@ -292,7 +292,8 @@ prefill, decode and target hashes.
 time. This exercises the original expert geometry and the repaired
 32-column prefill output packing. The launcher started the original
 full-shape CPU build under `runs/a800/build/prefill/qwen30b-o32-b1/`.
-The full model requires its own isolated correctness and timing evidence.
+The full-shape artifact linked and was submitted as first-token diagnostic
+`345624`. It requires its own isolated correctness and timing evidence.
 
 **Verified.** Llama-3.1-8B B1 bounded retry `345389` completed in 16 minutes
 26 seconds after the original selection timeout. Its chosen tuning TPOT
@@ -309,8 +310,14 @@ baselines. B4 and B16 have independent prefill artifacts and selection jobs.
 slots in FFN gate/up with FFN down held at three slots. The three paired
 requests used the same A800, checkpoint, prefill and generated tokens.
 Median TPOT decreased from 2.942 to 2.861 ms. Bounded pipeline search
-`345503` uses the candidate's explicit geometry and starts five correctness
-rounds and three independent timings only after successful selection.
+`345503` selected this gate/up geometry at 2.868 ms tuning TPOT. Array
+`345543` passed five correctness processes on four A800s, including the
+16,384-position teacher-forced check at 0.03125 maximum logit gap.
+The three independent timings in `345601` passed at 2.864 ms median TPOT,
+69.922 ms T1 and 2.9991 s T1024 with 5,463.0 output tokens/s. The final
+TPOT is 5.3% lower than the initial 3.025 ms and 1.040× against SGLang
+at 2.978 ms. `configs/bench/a800_native_selection.json` pins this exact
+artifact pair. The earlier timing and tuning cohorts remain reproducible.
 
 **Verified.** OLMoE B2 search `345449` reached code generation and rejected
 both candidates for inconsistent expert-stage packing. The selected gate/up
@@ -318,11 +325,12 @@ tile uses a per-task 128-by-64 slice. Its down tile is also a per-task slice
 with 64-by-64 dimensions, which the original code mistook for Qwen3's shared
 fixed-page recipe. CPU code generation reproduced the rejection. A
 three-slot 64-by-128 down slice fits the fused arena and emitted SM80 CUDA.
-Job `345505` resumes B2 with this legal geometry. The layout fix in
+Job `345505` resumed B2 with this legal geometry and selected 3.370 ms
+in four tuning processes. The independent correctness array is `345608`. The layout fix in
 `b79f9a8` is staged in `TileMega-a800-moe-pack-build` for isolated compiler
 and code-generation verification. The repair preserves the shared 64-by-64
 Qwen3 expert packing.
 
 ## Current result snapshot
 
-The CSVs record 56 measured baseline cells and 5 baseline cells with documented N/A status, out of 160 baseline cells. TileMega has 12 measured cells out of 40. Live tables are refreshed under `runs/a800/collected/`. Each single-GPU array task has a finite wall time and an independent process guard. The baseline and native feeders persist exact stage identifiers in the workspace `logs/`.
+The CSVs record 59 measured baseline cells and 5 baseline cells with documented N/A status, out of 160 baseline cells. TileMega has 16 measured cells out of 40. Live tables are refreshed under `runs/a800/collected/`. Each single-GPU array task has a finite wall time and an independent process guard. The baseline and native feeders persist exact stage identifiers in the workspace `logs/`.
