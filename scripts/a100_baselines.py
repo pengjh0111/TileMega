@@ -140,7 +140,9 @@ def prepare(policy_path=POLICY, run=RUN, inventory=RUN/'inventory', envs=RUN/'en
                            TRITON_CACHE_DIR=str(cache/'triton'), CUDA_CACHE_PATH=str(cache/'cuda'),
                            TMPDIR=str(tmp))
             if engine == 'vllm':
-                job_env.update(VLLM_USE_V1='1', VLLM_CACHE_ROOT=str(cache/'vllm'))
+                # ZMQ appends a UUID, so a cohort's long TMPDIR may exceed sun_path.
+                job_env.update(VLLM_USE_V1='1', VLLM_CACHE_ROOT=str(cache/'vllm'),
+                               VLLM_RPC_BASE_PATH='/tmp')
             if engine == 'trtllm':
                 job_env['TLLM_WORKER_USE_SINGLE_PROCESS'] = '1'
             for batch in BATCHES:
