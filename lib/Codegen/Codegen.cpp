@@ -1311,7 +1311,8 @@ std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
       }
     }
     if(dm_shared)out<<"#define TILEMEGA_DM_STAGE_SHARED_BYTES "<<dm_shared<<"\n";
-    auto arch=module->getAttrOfType<mlir::StringAttr>("tmexec.solved_arch");
+    auto arch=module->getAttrOfType<mlir::StringAttr>("tilemega.prefill_target_arch");
+    if(!arch)arch=module->getAttrOfType<mlir::StringAttr>("tmexec.solved_arch");
     auto serving=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.serving");
     bool coalesce_moe=moe_stages && arch && arch.getValue()=="sm_80" && serving &&
         integerField(serving,"seq")>1 && !optionalBoolField(plan,"forward");

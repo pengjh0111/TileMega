@@ -1215,6 +1215,11 @@ int RunCompile(int argc, char** argv) {
         encoder_attention_impl=="wgmma" || conv_impl=="tma_im2col" || moe_activation_bulk ||
         dependency_intern || cluster_dim>1 || activation_tma || depthwise_impl=="tma" || dwpw_impl=="wgmma";
     auto bind_requested_arch=[&](mlir::ModuleOp candidate) {
+      if(serving && serving_phase=="prefill" && !runtime_target.empty()) {
+        auto const target=tilemega::TargetSpec::FromJson(runtime_target);
+        candidate->setAttr("tilemega.prefill_target_arch",
+            mlir::StringAttr::get(&context,target.arch_tag));
+      }
       if(serving && serving_phase=="decode" && !runtime_target.empty()) {
         auto target=tilemega::TargetSpec::FromJson(runtime_target);
         auto plan=candidate->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
