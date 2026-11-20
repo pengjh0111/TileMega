@@ -50,8 +50,8 @@
     "target_sha256": "03a33c6a8d297abd433fbbd985e1505982fa35d1697c36d04fca33a36a26a5e8"
   },
   "qwen3_30b_a3b/B1": {
+    "decode_sha256": "c4b31ab45b6e857e0b6d8fc744ffb71623b4ef5cfd57bb4c316d8c0d4ee78f9c",
     "prefill_sha256": "fa7ca0af282a79d0aa03c34e6c52192212902a6cf0413c7e78be03321d73cba8",
-    "decode_sha256": "9e6d8475fe113579b41829921c343aeb42e52f56a613717a03d22fd892be63eb",
     "target_sha256": "03a33c6a8d297abd433fbbd985e1505982fa35d1697c36d04fca33a36a26a5e8"
   }
 }
