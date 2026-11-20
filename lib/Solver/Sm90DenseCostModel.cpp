@@ -83,7 +83,7 @@ double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
     json::Object fields{{"barrier",c.Barrier(grid)},{"first_byte",first},{"pre",pre},
         {"dram",w_tot/c.dram_gbps},{"waves",waves},{"l2",(w_tot+a_tot)/c.l2_gbps},{"cta",cta},{"ring",ring},
         {"epilogue",epilogue},{"task_fixed",task_fixed},{"tasks",tasks},{"multicast",g.multicast}};
-    if(mma)fields.emplace_back("mma",arithmetic);
+    if(target_.arch_tag=="sm_80")fields.emplace_back("mma",arithmetic);
     if(work.tp>1 && (family==1 || family==3))fields.emplace_back("all_reduce",all_reduce);
     *terms=std::move(fields);
   }
