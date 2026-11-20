@@ -1,8 +1,8 @@
 {
   "llama3_1_8b/B1": {
     "prefill_sha256": "7ef589858d56a50735f4119abb37fe0b7fbec47e02361bff1f2198c212a09521",
-    "decode_sha256": "667d3ccdce047191279b087d7cdf83ba1a42cb9668c69b7797e6490b9d4df3f6",
-    "target_sha256": "318cc5e6d4d314f32bacf03f20d5c674267f26f3c4269296db1ce20ad77fc5ff"
+    "decode_sha256": "3a82d01aea785875d55a3e15cbb6acd544c1aa2b11af83afc95339a430011f56",
+    "target_sha256": "03a33c6a8d297abd433fbbd985e1505982fa35d1697c36d04fca33a36a26a5e8"
   },
   "llama3_2_1b/B1": {
     "prefill_sha256": "9c05ee9f6721cd5394eb9a3e05c4c9fd7472a83a99b49d4c59d0f3e6eed0fbf7",
@@ -16,7 +16,12 @@
   },
   "mistral_7b_v0_3/B1": {
     "prefill_sha256": "a75d70ea82116a55e3eeee297c158c77cda8ca40ea6418bd98b6a521afa13014",
-    "decode_sha256": "a82e421a5794978d9076417f089d25e984e4c92fa3d449e4ebfd9dff9c591b08",
-    "target_sha256": "318cc5e6d4d314f32bacf03f20d5c674267f26f3c4269296db1ce20ad77fc5ff"
+    "decode_sha256": "4bb276b0b415ced1cb507e7e6db5d7a58dcc365ac9d1e34e635dad91001535cf",
+    "target_sha256": "03a33c6a8d297abd433fbbd985e1505982fa35d1697c36d04fca33a36a26a5e8"
+  },
+  "qwen3_30b_a3b/B1": {
+    "prefill_sha256": "fa7ca0af282a79d0aa03c34e6c52192212902a6cf0413c7e78be03321d73cba8",
+    "decode_sha256": "bb9a275629e6ce32119a44cb1a3db52a6e436da5a9be1e9fdb78f51e21fbd770",
+    "target_sha256": "03a33c6a8d297abd433fbbd985e1505982fa35d1697c36d04fca33a36a26a5e8"
   }
 }
