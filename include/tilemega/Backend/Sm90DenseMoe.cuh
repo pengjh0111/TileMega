@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#if defined(TILEMEGA_SM80_MOE_ALIGNED_GATE_PAGES)
+#include <tilemega/Backend/Sm80MoePageOffsets.h>
+#endif
 #include <tilemega/Backend/Sm90DenseGemm.h>
 #include <tilemega/Backend/Sm90DenseMark.cuh>
 #include <tilemega/Backend/Sm90DenseStream.cuh>
@@ -901,6 +904,11 @@ struct Sm90DenseMoeFusedGemm {
       int& sequence,Record record) {
     auto const* tiles=Gu::TaskTiles(p.weight_gate_up,record.expert,task.slot*kTilesGu+task.tile);
     using Profile=Sm80MoeStageMarks<CpAsync,true>;
+#if defined(TILEMEGA_SM80_MOE_ALIGNED_GATE_PAGES)
+    constexpr bool kAlignedPages=CpAsync && Page==64 && TNGu%64==0;
+    using Pages=Sm80MoePageOffsets<TNGu,Hidden,TKGu>;
+    if constexpr(kAlignedPages)tiles+=Pages::Task(task.tile);
+#endif
     int token=record.route/TopK;
     for(int tile=0;tile<kIterGu;++tile) {
       int slot=(sequence++)%Slots;
@@ -909,6 +917,20 @@ struct Sm90DenseMoeFusedGemm {
       Profile::Add(Sm90DenseMarks::kGuEmpty,stamp);
       stamp=Profile::Now();
       if constexpr(CpAsync) {
+#if defined(TILEMEGA_SM80_MOE_ALIGNED_GATE_PAGES)
+        if constexpr(kAlignedPages) {
+          // Task and K-tile offsets select whole aligned pages. Their
+          // panel order is the same as the generic partial-page traversal.
+          auto* dst=b+slot*kWeightSlot;
+          #pragma unroll
+          for(int panel=0;panel<Pages::kPanels;++panel) {
+            #pragma unroll
+            for(int page=0;page<Pages::kPages;++page)
+              Gu::Core::CopySpan(dst+Pages::Destination(panel,page),
+                  tiles+Pages::Source(tile,panel,page),Pages::kElements);
+          }
+        }else
+#endif
         Gu::CopyWeights(b+slot*kWeightSlot,tiles,task.slot*kTilesGu+task.tile,tile,state.full+slot);
         Gu::CopyActivation(a+slot*kRows*kMaxTK,p.input,tile,record.count,token);
         Async::CompleteCopies(state.full+slot);
