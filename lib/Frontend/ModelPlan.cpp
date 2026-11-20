@@ -1208,8 +1208,10 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
             "\",\"prefix\":\""+expert_prefix+"\",\"u\":16}";
       };
       auto pages=[&](std::string const& source)->std::string {
-        if(experts!=128)return source;
-        return "{\"kind\":\"tile_pages\",\"tile_n\":64,\"tile_k\":64,\"source\":"+source+'}';
+        int page=NativeMoeSharedExpertPageSide(experts);
+        if(!page)return source;
+        return "{\"kind\":\"tile_pages\",\"tile_n\":"+std::to_string(page)+
+            ",\"tile_k\":"+std::to_string(page)+",\"source\":"+source+'}';
       };
       auto router_weight=packed(prefix+"moe.router.weight.dn",experts*hidden,
           fold("{\"kind\":\"alias\",\"source\":\""+parameter(m.router_weight).target+"\"}"));

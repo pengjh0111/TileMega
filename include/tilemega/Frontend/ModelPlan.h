@@ -93,6 +93,11 @@ struct PlanBuffer {
   bool typed = false;
 };
 
+// The large native MoE reuses the prefill's fixed expert pages to fit one GPU.
+constexpr int NativeMoeSharedExpertPageSide(int experts) {
+  return experts == 128 ? 64 : 0;
+}
+
 struct PlanGemm {
   // kMoe*: native MoE decode's router + top-k, grouped gate_up and down +
   // combine (prompt §8); their schedule/route operands are the stage's.

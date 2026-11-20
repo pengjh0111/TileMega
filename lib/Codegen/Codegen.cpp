@@ -2098,9 +2098,11 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     }
   }
   c.Validate(nk,batch);
+  int const shared_expert_page=frontend::NativeMoeSharedExpertPageSide(nk[5][0]);
   for(unsigned i=0;i<gemms.size();++i) {
     auto g=dictionaryEntry(gemms[i],"gemms"),r=dictionaryEntry(runtime[i],"gemm_runtime");
-    auto const& cfg=c.gemms[family(g)];
+    unsigned gemm_family=family(g);
+    auto const& cfg=c.gemms[gemm_family];
     if(cfg.mma!=solver::Sm90DenseMma::kMmaSync)
       throw std::invalid_argument("this native lowering does not implement the optional WGMMA coordinate");
     if(integerField(r,"split_k")!=1 || integerField(r,"tile_n")!=cfg.tile_n ||
@@ -2116,12 +2118,12 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
       if(auto id=g.getAs<mlir::IntegerAttr>(field);id && id.getInt()>=0 && id.getInt()!=0xffffffffll)
         throw std::invalid_argument("native dense plan still binds deferred-norm sums");
     auto recipe=json::Parse(stringField(dictionaryEntry(buffers[integerField(g,"b")],"buffers"),"pack_json"));
-    // Experts keep the legacy prefill's 64 x 64 pages (one shared copy).
-    bool paged=family(g)>=6 && recipe.At("tile_n").AsNumber("weight TN")==64 &&
-        recipe.At("tile_k").AsNumber("weight TK")==64;
+    // A per-task slice can also measure 64 x 64. Only the shared recipe
+    // uses fixed-size pages independently of the chosen compute geometry.
+    int page=gemm_family>=6?shared_expert_page:0;
     if(recipe.At("kind").AsString("weight layout")!="tile_pages" ||
-       (!paged && (recipe.At("tile_n").AsNumber("weight TN")!=cfg.tile_n ||
-                   recipe.At("tile_k").AsNumber("weight TK")!=cfg.TileK())))
+       recipe.At("tile_n").AsNumber("weight TN")!=(page?page:cfg.tile_n) ||
+       recipe.At("tile_k").AsNumber("weight TK")!=(page?page:cfg.TileK()))
       throw std::invalid_argument("native weights do not use their selected contiguous task slices");
   }
   std::vector<bool> live(buffers.size(),false);
@@ -2303,10 +2305,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
             stringField(dictionaryEntry(buffers[std::stoll(routes)],"buffers"),"dtype")=="f32";
         weight=name(integerField(g,"b"));bytes=2ull*n*k*(e.family==5?1:experts);
         tasks=n/cfg.tile_n*(e.family==5?1:experts);
-        auto recipe=json::Parse(stringField(dictionaryEntry(buffers[integerField(g,"b")],"buffers"),
-            "pack_json"));
-        int page=e.family>=6 && recipe.At("tile_n").AsNumber("weight TN")==64 &&
-            recipe.At("tile_k").AsNumber("weight TK")==64?64:0;
+        int page=e.family>=6?shared_expert_page:0;
         // Paged experts stream whole slots only.
         if(page)e.stream=std::min(cfg.slots,int(k/cfg.TileK()))*cfg.slot_bytes*(e.family==6?0:1);
         // MR7's per-slot counters: the router clears them, and only a fused
