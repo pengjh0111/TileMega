@@ -13,6 +13,7 @@ from tilemega.bench.scheduler import main as schedule, write_json
 SECTIONS = {
     'all': [], 'base': ['--base-only'], 'gates': ['--gates-only'],
     'epilogue': ['--epilogue-only'], 'attention': ['--attention-only'],
+    'attention-fill': ['--attention-fill-only'],
     'moe': ['--moe-task-only'], 'olmoe': ['--e64-only'],
     'q1': ['--q1-only'], 'moe-merge': ['--moe-merge-only'], 'mainloop': [],
 }

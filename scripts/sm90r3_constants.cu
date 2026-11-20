@@ -838,6 +838,14 @@ int main(int argc,char** argv) {try {
   }
   std::printf("name,key,samples,median,p99,unit\n");
   Print("clock","",{cycles_per_ns*1e3},"MHz");
+#ifdef TILEMEGA_SM80_ATTENTION_FILL_ONLY
+  static_assert(kAmpere);
+  if(argc!=2 || std::strcmp(argv[1],"--attention-fill-only"))
+    throw std::runtime_error("this probe requires --attention-fill-only");
+  // Llama-3.1-8B and Mistral-7B have eight KV groups and four queries per group.
+  AttentionCase<128,4,0,8>();
+  AttentionCase<128,4,0,13>();
+#else
 #ifdef TILEMEGA_NATIVE_CALIBRATE_SM80
   if(full || !std::strcmp(argv[1],"--base-only"))ActivationCase();
 #endif
@@ -1041,6 +1049,7 @@ int main(int argc,char** argv) {try {
     DsmemMergeCase<128,2,1,2>();DsmemMergeCase<64,4,0,2>();DsmemMergeCase<128,3,0,2>();
     DsmemMergeCase<128,4,0,2>();DsmemMergeCase<128,8,1,2>();
   }
+#endif
 #endif
   return 0;
 }catch(std::exception const& e) {std::fprintf(stderr,"%s\n",e.what());return 2;}}
