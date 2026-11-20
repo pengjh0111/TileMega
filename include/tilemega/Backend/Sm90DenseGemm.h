@@ -49,7 +49,8 @@ struct Sm90DenseGemm {
   // Store and residual write from registers when one warp holds all of K.
   static constexpr bool kRegisterEpilogue=WarpsK==1 &&
       (Op==ServingEpilogueOp::kStore || Op==ServingEpilogueOp::kResidual ||
-       Op==ServingEpilogueOp::kResidualAllReduce);
+       Op==ServingEpilogueOp::kResidualAllReduce ||
+       (CpAsync && Batch<8 && U==4 && Op==ServingEpilogueOp::kSwiGLU));
   using Epilogue=Sm90DenseEpilogue<Op,Batch,N,K,TN,U,InputNorm>;
   static_assert(kThreads==Sm90DenseRoleAbi::kThreads);
   using Atom=decltype(cute::composition(cute::Swizzle<3,3,3>{},

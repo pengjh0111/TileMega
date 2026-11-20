@@ -107,9 +107,24 @@ struct Sm90DenseEpilogue {
       float const (&inv)[2],Element const* residual,Element* output,int task,
       Sm90DenseTpOperands const* tp=nullptr) {
     static_assert(Op==ServingEpilogueOp::kStore || Op==ServingEpilogueOp::kResidual ||
-                  Op==ServingEpilogueOp::kResidualAllReduce);
-    Element* base=output+task*TN;
-    if constexpr(kAllReduce) {
+                  Op==ServingEpilogueOp::kResidualAllReduce || (Op==ServingEpilogueOp::kSwiGLU && U==4));
+    Element* base=output+task*kOutput;
+    if constexpr(Op==ServingEpilogueOp::kSwiGLU) {
+      // In an m16n8 accumulator, lane xor 2 owns the same row four columns
+      // away. All lanes exchange their pairs before the gate lanes store.
+      #pragma unroll
+      for(int i=0;i<int(cute::size(accum));i+=2) {
+        int row=cute::get<0>(owned(i)),col=cute::get<1>(owned(i));
+        float up0=__shfl_xor_sync(0xffffffff,accum(i),2);
+        float up1=__shfl_xor_sync(0xffffffff,accum(i+1),2);
+        if(row<Batch && col%8<4) {
+          float scale=InputNorm?inv[row>=8]:1.0f;
+          float x=float(ServingEpilogueValue<Op>::Apply(accum(i)*scale,up0*scale));
+          float y=float(ServingEpilogueValue<Op>::Apply(accum(i+1)*scale,up1*scale));
+          Store2(base,row,(col/8)*4+col%4,x,y,residual);
+        }
+      }
+    }else if constexpr(kAllReduce) {
       // The packet is recomputed in the second pass rather than held, so the
       // accumulators are the only live per-pair state across the two passes.
       #pragma unroll
