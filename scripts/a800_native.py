@@ -28,7 +28,7 @@ def artifact(path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('mode', choices=('plan', 'run'))
-    parser.add_argument('--stage', choices=('correctness', 'measure'), required=True)
+    parser.add_argument('--stage', choices=('correctness', 'measure', 'diagnose'), required=True)
     parser.add_argument('--model', choices=MODELS, required=True)
     parser.add_argument('--batch', type=int, choices=BATCHES, required=True)
     parser.add_argument('--prefill', required=True)
@@ -37,6 +37,8 @@ def main():
     parser.add_argument('--round', type=int, required=True)
     parser.add_argument('--budget-s', type=int, default=840)
     parser.add_argument('--timeout-s', type=int, default=600)
+    parser.add_argument('--prefill-mode', choices=('L1', 'L2'), default='L1')
+    parser.add_argument('--sanitizer', type=Path)
     parser.add_argument('--seed-suite', choices=('vllm', 'tilemega'), default='vllm')
     parser.add_argument('--expected-checkpoint-sha256')
     args = parser.parse_args()
@@ -45,6 +47,12 @@ def main():
         parser.error('reserve time for strict admission and child cleanup, and use a nonnegative round')
     if args.seed_suite != 'vllm' and not args.expected_checkpoint_sha256:
         parser.error('an alternate generator must reproduce the verified checkpoint identity')
+    diagnostic = args.stage == 'diagnose'
+    if (not diagnostic and (args.prefill_mode != 'L1' or args.sanitizer)
+            or diagnostic and args.prefill == 'prompt'):
+        parser.error('prefill executor and sanitizer diagnostics require an independent prefill artifact')
+    if args.sanitizer and not os.access(args.sanitizer, os.X_OK):
+        parser.error('the diagnostic sanitizer executable is unavailable')
     decode, decode_id, plan = artifact(args.decode)
     with args.target.open() as stream:
         target = json.load(stream)
@@ -71,7 +79,8 @@ def main():
         separators=(',', ':')).encode()).hexdigest()[:20]
     native_root = RUN/'native'
     relative_scope = Path(args.model)/f'B{args.batch}'/artifact_key
-    receipt_name = f'{args.stage}-{args.round}.json'
+    stage = f'diagnose-{args.prefill_mode.lower()}' if diagnostic else args.stage
+    receipt_name = f'{stage}-{args.round}.json'
     if args.stage == 'measure':
         if (plan['native_origin'] != 'solver' or not target.get('sm80_native_constants')
                 or decode_id['target_sha256'] != identity['target_sha256']
@@ -91,11 +100,13 @@ def main():
             parser.error('formal timing requires five fresh accepted correctness processes for this pair')
     config, prompt = inputs(args.model)
     description = inspect_inputs(INVENTORY)[args.model]
-    name = f'native-{args.stage}-r{args.round}'
+    name = f'native-{stage}-r{args.round}'
+    tokens = 1 if diagnostic else 1024
     if args.mode == 'plan':
         print(json.dumps(dict(identity, **description, prefill=str(prefill), decode=str(decode),
                               calibration_uuid=target['device_provenance']['uuid'],
-                              timeout_s=args.timeout_s, max_tokens=1024, step=name), indent=2))
+                              timeout_s=args.timeout_s, max_tokens=tokens, step=name,
+                              sanitizer=str(args.sanitizer) if args.sanitizer else None), indent=2))
         return 0
 
     if any(native_root.glob(f'*/{relative_scope}/{receipt_name}')):
@@ -113,15 +124,19 @@ def main():
     policy_path = run/'guard-policy.json'
     write_json(policy_path, policy)
     child = [py, '-m', 'tilemega.serving.r16_run', '--prefill', str(prefill), '--decode', str(decode),
-             '--prompt-ids', str(prompt), '--batch', str(args.batch), '--max-tokens', '1024',
-             '--mode', 'L1', '--prefill-mode', 'L1', '--decode-loop', '1',
+             '--prompt-ids', str(prompt), '--batch', str(args.batch), '--max-tokens', str(tokens),
+             '--mode', 'L1', '--prefill-mode', args.prefill_mode, '--decode-loop', '1',
              '--warmup', '1', '--repeats', '3' if args.stage == 'measure' else '1',
              '--round-index', str(args.round), '--out', '{attempt_dir}/job/measurements',
              '--system-label', 'TM-sm80', '--policy', str(policy_path)]
     if args.stage == 'correctness':
         child.append('--check-step-loop')
         if args.round == 0:
-            child.append('--hf-check')
+            child.extend(('--hf-check', '--hf-positions', str(tokens)))
+    if args.sanitizer:
+        child = [str(args.sanitizer), '--tool', 'memcheck', '--kernel-name',
+                 f'kns=tilemega_{args.prefill_mode.lower()}_kernel', '--launch-count', '1',
+                 '--error-exitcode', '86', '--log-file', '{attempt_dir}/prefill-memcheck.log', *child]
     command = ['taskset', '--cpu-list', dev['cpus'], py,
                str(ROOT/'scripts/run_r16_with_device_identity.py'),
                '--out', '{attempt_dir}/job', '--guard-policy', str(policy_path),
@@ -132,6 +147,8 @@ def main():
                '--max-gib', str(math.ceil(description['checkpoint_bytes']/2**30)), *seed_hash, '--', *child]
     env = dict(TILEMEGA_DEVICE_INDEX=str(dev['index']), TILEMEGA_NUMA_NODE=dev['numa_node'],
                TILEMEGA_GPU_PID_MODE='strict', OMP_NUM_THREADS='2', MKL_NUM_THREADS='2')
+    if diagnostic:
+        env['CUDA_LAUNCH_BLOCKING'] = '1'
     os.environ.update(TILEMEGA_DEVICE_INDEX=env['TILEMEGA_DEVICE_INDEX'],
                       TILEMEGA_GPU_LOCK=policy['gpu_lock_path'])
     queue = run/'queue'
