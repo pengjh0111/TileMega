@@ -97,6 +97,7 @@ def baseline_cell(inputs, jobs, model, engine, batch, unsupported=''):
             if engine == 'mpk' and read(run/'mpk-accepted.json').get('measurement_sha256') != row['receipt']:
                 continue
             row['gpu_uuid'] = device['uuid']
+            row['harness_sha256'] = job['harness_sha256']
             if repeat in accepted and accepted[repeat] != row:
                 raise ValueError(f'duplicate accepted round for {job["name"]}; select one cohort')
             accepted[repeat] = row
@@ -111,13 +112,16 @@ def baseline_cell(inputs, jobs, model, engine, batch, unsupported=''):
               'attempted' if evidence else 'pending')
     if status == 'N/A':
         evidence.add(unsupported)
+    correctness = 'exact token counts' if rows else 'pending'
+    if engine == 'mpk' and rows:
+        correctness = 'stable greedy repeats and independent first-token agreement'
     return rows, dict(model=model, framework=engine, batch=batch, status=status, processes=len(rows),
-        required_processes=needed, correctness='exact token counts' if rows else 'pending',
+        required_processes=needed, correctness=correctness,
         **metrics(rows, needed), backend=summarize(rows, 'backend'), versions=summarize(rows, 'versions'),
         gpu_uuid=' '.join(sorted({row['gpu_uuid'] for row in rows})),
         config_sha256=inputs['models'][model]['config_sha256'],
         prompt_sha256=inputs['models'][model]['prompt_sha256'], checkpoint_sha256='',
-        harness_sha256=' '.join(sorted(harnesses)),
+        harness_sha256=' '.join(sorted({row['harness_sha256'] for row in rows} or harnesses)),
         receipt_sha256=' '.join(row['receipt'] for row in rows), evidence=' '.join(sorted(evidence)))
 
 
