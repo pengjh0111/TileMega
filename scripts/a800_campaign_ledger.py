@@ -57,9 +57,13 @@ def collect(entries, workspace):
                record.get('batch', entry['batch']) != entry['batch'] for record in records):
             raise ValueError(f'mismatched model/batch at {plan_path}')
         sources = {r.get('source_sha') for r in records} - {None}
-        artifacts = {r.get(field) for r in records
-                     for field in ('decode_sha256', 'binary_sha256', 'prepared_shortlist_sha256')}
-        artifacts.discard(None)
+        if entry.get('source_commit'):
+            if sources and sources != {entry['source_commit']}:
+                raise ValueError(f'source differs from the frozen ledger entry at {plan_path}')
+            sources.add(entry['source_commit'])
+        artifacts = {r[field] for r in records for field in (
+            'decode_sha256', 'binary_sha256', 'prepared_shortlist_sha256', 'trace', 'reference')
+            if isinstance(r.get(field), str) and re.fullmatch('[0-9a-f]{64}', r[field])}
         if not sources and entry.get('repo') and (workspace/entry['repo']/'.git').exists():
             sources.add(subprocess.check_output(
                 ['git', '-C', str(workspace/entry['repo']), 'rev-parse', 'HEAD'],
