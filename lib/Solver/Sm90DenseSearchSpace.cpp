@@ -114,8 +114,12 @@ std::vector<Sm90DenseGemm> Sm90DenseSearchSpace::FamilyCandidates(unsigned famil
         for(int slots=2;slots<=8;++slots) {
           g.slots=slots;
           if(!fits())break;
-          try {g.Validate(n,k);}catch(std::invalid_argument const&) {continue;}
-          result.push_back(g);
+          for(int stages:{1,2,4}) {
+            if(stages>tk/(16*g.warps_k))break;
+            g.register_stages=stages;
+            try {g.Validate(n,k);}catch(std::invalid_argument const&) {continue;}
+            result.push_back(g);
+          }
         }
         continue;
       }

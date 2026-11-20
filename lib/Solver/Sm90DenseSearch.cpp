@@ -50,6 +50,7 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
         }
       }
     }
+    if(std::any_of(active.begin(),active.end(),[&](unsigned f){return families[f].empty();}))continue;
     for(auto a:space.AttentionCandidates(residency,&constants,norm)) {
       attention.push_back({cost.Attention(work,a,residency),{},a});
       // D10b: chunk groups that fit one cluster may merge through DSMEM;
@@ -101,12 +102,20 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
         if(space.moe && !fuse)continue;
         Sm90DenseCoordinates d=c;
         d.group_wait=group_wait;d.embed_la=embed_la;d.expert_fuse=fuse;d.tp=space.tp;
-        for(int slots=8;slots>=(fuse?2:8);--slots) {
-          if(fuse)d.SetCommonExpertSlots(slots);
-          if(!space.Legal(d))continue;
-          if(seen.insert(d.ToJson().Dump(0)).second)pool.push_back({d,cost.Predict(work,d),origin+(group_wait?"_group":"")+
-              (embed_la?"_emb_la":"_emb_stage")+(fuse?"_fused":"")});
-          if(!ampere)break;  // Preserve the SM90 MR7 policy.
+        auto append=[&] {
+          if(!space.Legal(d) || !cost.HasCalibratedMma(d))return false;
+          if(seen.insert(d.ToJson().Dump(0)).second)pool.push_back({d,cost.Predict(work,d),origin+
+              (group_wait?"_group":"")+(embed_la?"_emb_la":"_emb_stage")+(fuse?"_fused":"")});
+          return true;
+        };
+        if(!fuse) {append();continue;}
+        for(int registers:{1,2,4}) {
+          d.SetCommonExpertRegisterStages(registers);
+          for(int slots=8;slots>=2;--slots) {
+            d.SetCommonExpertSlots(slots);
+            if(append() && !ampere)break;  // Preserve the SM90 MR7 policy.
+          }
+          if(!ampere)break;
         }
       }
     };
@@ -122,11 +131,12 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
     return a.prediction.step_ns<b.prediction.step_ns;
   });
   if(pool.empty())throw std::invalid_argument("native search found no legal coordinate");
-  std::set<std::tuple<int,int,int>> optimum_structures;
+  std::set<std::tuple<int,int,int,int>> optimum_structures;
   for(auto const& candidate:pool)
     if(candidate.origin.find("_optimum")!=std::string::npos &&
        optimum_structures.emplace(candidate.coordinates.residency,candidate.coordinates.cluster,
-           ampere && candidate.coordinates.expert_fuse?candidate.coordinates.CommonExpertSlots():0).second)
+           ampere && candidate.coordinates.expert_fuse?candidate.coordinates.CommonExpertSlots():0,
+           ampere && candidate.coordinates.expert_fuse?candidate.coordinates.CommonExpertRegisterStages():0).second)
       result.per_structure_optima.push_back(candidate);
   if(int(pool.size())>o.top)pool.resize(o.top);
   result.ranked=std::move(pool);

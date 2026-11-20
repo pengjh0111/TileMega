@@ -134,7 +134,7 @@ Sm90NativeReplayResult RefineAndReplaySm90Native(FlowProblem const& p,
   return out;
 }
 
-std::string Sm90NativeStructuralClass(Sm90DenseCoordinates const& c) {
+std::string Sm90NativeStructuralClass(Sm90DenseCoordinates const& c,bool ampere) {
   // Program level, attention structure and the handoff choices: everything
   // except each family's (TN, TK, wn, wk, multicast, slots).
   std::string key;
@@ -145,8 +145,11 @@ std::string Sm90NativeStructuralClass(Sm90DenseCoordinates const& c) {
   key += c.argmax_stage ? "/argstage" : "/argla";
   if(c.moe)key+=std::string("/route-")+c.RouteName();
   if(c.moe)key+=c.combine_stage?"/combinestage":"/combinela";
-  key += c.expert_fuse ? "/ef"+std::to_string(c.CommonExpertSlots()) : "/ef0";
-  if(!c.moe)key += "/u"+std::to_string(c.swiglu_u);
+  key += c.expert_fuse ? "/ef1" : "/ef0";
+  if(ampere && c.expert_fuse)
+    key += "/slots"+std::to_string(c.CommonExpertSlots())+
+           "/register"+std::to_string(c.CommonExpertRegisterStages());
+  if(ampere && !c.moe)key += "/u"+std::to_string(c.swiglu_u);
   if(c.live_epilogue_rows)key += "/live_rows";
   key += "/ch" + std::to_string(c.attention.chunks);
   key += c.attention.dsmem ? "/ds1" : "/ds0";
@@ -171,7 +174,7 @@ std::optional<Sm90NativePipelineCandidate> RepriceSm90NativeResidency(
   result.replay_ns=isolated?flow.step_ns:Replay(flow,result.coordinates);
   result.evaluation_ms=std::chrono::duration<double,std::milli>(
       std::chrono::steady_clock::now()-start).count();
-  result.structural_class=Sm90NativeStructuralClass(result.coordinates);result.origin="compiled occupancy";
+  result.structural_class=Sm90NativeStructuralClass(result.coordinates,space.target.arch_tag=="sm_80");result.origin="compiled occupancy";
   return result;
 }
 
@@ -225,6 +228,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
       auto matches=[&](auto const& g) {
         return g.tile_n==geometry.tile_n && g.TileK()==geometry.TileK() &&
                g.warps_n==geometry.warps_n && g.warps_k==geometry.warps_k &&
+               (!ampere || g.register_stages==geometry.register_stages) &&
                (!ampere || !c.expert_fuse || family<6 || g.slots==geometry.slots);
       };
       auto same=std::find_if(domain.begin(),domain.end(),matches);
@@ -272,7 +276,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     candidate.pool_score_ns = value;
     candidate.evaluation_ms=std::chrono::duration<double,std::milli>(Clock::now()-before).count();
     candidate.discovered_ms=spent_ms();
-    candidate.structural_class = Sm90NativeStructuralClass(c);
+    candidate.structural_class = Sm90NativeStructuralClass(c,ampere);
     candidate.origin=origin;
     result.evaluated.push_back(std::move(candidate));
     return value;
@@ -335,7 +339,10 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
                 double(work.batch)/geometry.tile_n<=cost.Constants().MulticastKappa()))continue;
             auto trial=current;trial.gemms[family]=geometry;
             trial.gemms[family].multicast=multicast;
-            if(ampere && trial.expert_fuse && family>=6)trial.SetCommonExpertSlots(geometry.slots);
+            if(ampere && trial.expert_fuse && family>=6) {
+              trial.SetCommonExpertSlots(geometry.slots);
+              trial.SetCommonExpertRegisterStages(geometry.register_stages);
+            }
             changed|=consider(trial,"family:"+std::to_string(family));
           }
         }
@@ -371,8 +378,11 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
           if(dimension==3)trial.embed_la=bool(setting);
           if(dimension==4) {
             trial.expert_fuse=!options.retile_only && bool(setting);
-            if(ampere && trial.expert_fuse && !current.expert_fuse)
+            if(ampere && trial.expert_fuse && !current.expert_fuse) {
               trial.SetCommonExpertSlots(std::min(trial.gemms[6].slots,trial.gemms[7].slots));
+              trial.SetCommonExpertRegisterStages(
+                  std::min(trial.gemms[6].register_stages,trial.gemms[7].register_stages));
+            }
           }
           if(dimension==5)trial.argmax_stage=bool(setting);
           if(dimension==6)trial.combine_stage=bool(setting);

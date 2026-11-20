@@ -65,7 +65,7 @@ struct Sm90NativePipelineResult {
 
 // Everything but the per-family geometry: the coordinates that change which
 // tasks exist or how they synchronize (continuation 1 section 3).
-std::string Sm90NativeStructuralClass(Sm90DenseCoordinates const&);
+std::string Sm90NativeStructuralClass(Sm90DenseCoordinates const&,bool ampere=false);
 
 std::optional<Sm90NativePipelineCandidate> RepriceSm90NativeResidency(
     Sm90DenseSearchSpace const&,Sm90DenseCoordinates const&,int actual_residency,bool operator_sum,

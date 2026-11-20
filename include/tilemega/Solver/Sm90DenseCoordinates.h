@@ -125,6 +125,10 @@ struct Sm90DenseCoordinates {
   // budget; leaving them out let a geometry pass the check and then overflow.
   int CommonExpertSlots() const {return gemms[6].slots;}
   void SetCommonExpertSlots(int slots) {gemms[6].slots=gemms[7].slots=slots;}
+  int CommonExpertRegisterStages() const {return gemms[6].register_stages;}
+  void SetCommonExpertRegisterStages(int stages) {
+    gemms[6].register_stages=gemms[7].register_stages=stages;
+  }
 
   std::int64_t FusedExpertBytes(int batch,int experts) const {
     return backend::Sm90DenseLayout::MoeFused(gemms[6].tile_n,gemms[6].TileK(),gemms[7].tile_n,
@@ -183,7 +187,8 @@ struct Sm90DenseCoordinates {
     if((!moe && gemms[2].tile_n%(2*swiglu_u)) || (moe && gemms[6].tile_n%32))
       throw std::invalid_argument("sm90 dense gate tile splits a gate/up pair");
     // MR7: the fused stage is MoE only and runs one ring for both task types.
-    if(expert_fuse && (!moe || gemms[6].slots!=gemms[7].slots))
+    if(expert_fuse && (!moe || gemms[7].slots!=CommonExpertSlots() ||
+                       gemms[7].register_stages!=CommonExpertRegisterStages()))
       throw std::invalid_argument("illegal sm90 dense expert fusion coordinate");
     // Separate expert stages require a globally published schedule. Local E2
     // routing remains available only inside the fused expert stage.
