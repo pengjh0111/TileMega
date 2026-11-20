@@ -94,8 +94,11 @@ def baseline_cell(inputs, jobs, model, engine, batch, unsupported=''):
         if step.get('out'):
             evidence.add(str(Path(step['out']).relative_to(RUN)))
         if row := measurement(job, step, dict(inputs, device=device)):
-            if engine == 'mpk' and read(run/'mpk-accepted.json').get('measurement_sha256') != row['receipt']:
-                continue
+            if engine == 'mpk':
+                proof = read(run/'mpk-accepted.json')
+                if proof.get('measurement_sha256') != row['receipt']:
+                    continue
+                row['reference_rows'] = proof.get('matching_first_tokens', 0)
             row['gpu_uuid'] = device['uuid']
             row['harness_sha256'] = job['harness_sha256']
             if repeat in accepted and accepted[repeat] != row:
@@ -114,7 +117,8 @@ def baseline_cell(inputs, jobs, model, engine, batch, unsupported=''):
         evidence.add(unsupported)
     correctness = 'exact token counts' if rows else 'pending'
     if engine == 'mpk' and rows:
-        correctness = 'stable greedy repeats and independent first-token agreement'
+        checked = min(row['reference_rows'] for row in rows)
+        correctness = f'stable greedy repeats, independent first-token agreement on {checked}/{batch} rows'
     return rows, dict(model=model, framework=engine, batch=batch, status=status, processes=len(rows),
         required_processes=needed, correctness=correctness,
         **metrics(rows, needed), backend=summarize(rows, 'backend'), versions=summarize(rows, 'versions'),
