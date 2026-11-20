@@ -20,9 +20,9 @@
     "target_sha256": "03a33c6a8d297abd433fbbd985e1505982fa35d1697c36d04fca33a36a26a5e8"
   },
   "llama3_2_1b/B16": {
+    "decode_sha256": "229db8f16e1d13cff8fed45ec8670be5879fecb1c7a5d98e2256344e57db8c77",
     "prefill_sha256": "4b99c0cf82590b3eed72fec5d1d4ab2d681e24dfd131eca964b6fe9281f0e4a3",
-    "decode_sha256": "a3d987fd0c1cb5ef90466964a5bf9e9012f6046c4ee3874a60b79ee677931609",
-    "target_sha256": "03a33c6a8d297abd433fbbd985e1505982fa35d1697c36d04fca33a36a26a5e8"
+    "target_sha256": "b5b439807b341a545ef31ee8f1a6f38080d8b51d6fbbf2d7ac2e024e8786f076"
   },
   "mistral_7b_v0_3/B1": {
     "prefill_sha256": "a75d70ea82116a55e3eeee297c158c77cda8ca40ea6418bd98b6a521afa13014",
