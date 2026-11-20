@@ -120,6 +120,7 @@ static_assert(!TILEMEGA_PAGED && TILEMEGA_SLOT_WINDOW == 1 && !TILEMEGA_PREFETCH
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
 #include <fstream>
 #include <iterator>
 #include <limits>
@@ -143,6 +144,21 @@ static_assert(!TILEMEGA_PAGED && TILEMEGA_SLOT_WINDOW == 1 && !TILEMEGA_PREFETCH
 #endif
 
 namespace tilemega::codegen {
+
+inline void ServingPlanProgress(char const* phase,std::size_t completed,std::size_t total) {
+#if TILEMEGA_SERVING_RUNTIME
+  auto const* path=std::getenv("TILEMEGA_HEARTBEAT");
+  if(path && *path) {
+    if(auto* stream=std::fopen(path,"a")) {
+      std::fprintf(stream,"{\"stage\":\"%s\",\"time\":%lld,\"completed\":%zu,\"total\":%zu}\n",
+          phase,static_cast<long long>(std::time(nullptr)),completed,total);
+      std::fclose(stream);
+    }
+  }
+#else
+  (void)phase;(void)completed;(void)total;
+#endif
+}
 
 #ifndef TILEMEGA_GENERATED_WAIT_global
 #define TILEMEGA_GENERATED_WAIT_global(ev, need) do { \
@@ -4078,16 +4094,17 @@ inline DeviceModel Create(ModelSpec const& spec,
     std::exit(2);
   }
   {
-    auto owner_of=[&](int node){
-      int const stage=static_cast<int>(std::upper_bound(runtime_graph.stage_offsets.begin(),
-          runtime_graph.stage_offsets.end(),node)-runtime_graph.stage_offsets.begin()-1);
-      return task_owner[stage][node-runtime_graph.stage_offsets[stage]];
-    };
+    std::vector<int> owner_of(runtime_graph.successors.size());
+    for(std::size_t stage=0;stage<task_owner.size();++stage)
+      std::copy(task_owner[stage].begin(),task_owner[stage].end(),
+          owner_of.begin()+runtime_graph.stage_offsets[stage]);
     long same_worker_edges=0,cross_worker_edges=0;
-    for (std::size_t producer=0;producer<runtime_graph.successors.size();++producer)
-      for (int consumer:runtime_graph.successors[producer])
-        (owner_of(static_cast<int>(producer))==owner_of(consumer) ? same_worker_edges
-                                                                 : cross_worker_edges)++;
+    for(std::size_t producer=0;producer<runtime_graph.successors.size();++producer) {
+      if((producer&0xfff)==0)
+        ServingPlanProgress("serving_plan_placement_edges",producer,runtime_graph.successors.size());
+      for(int consumer:runtime_graph.successors[producer])
+        (owner_of[producer]==owner_of[consumer]?same_worker_edges:cross_worker_edges)++;
+    }
     std::vector<int> queue_length(grid,0);
     for (auto const& stage:task_owner)
       for (int owner:stage) ++queue_length[owner];
@@ -4123,6 +4140,7 @@ inline DeviceModel Create(ModelSpec const& spec,
   auto stage_kappa = [&](std::uint32_t stage) {
     return static_cast<int>(model.stage_kappa[stage]);
   };
+  ServingPlanProgress("serving_plan_event_layout",0,model.stages.size());
   model.event_offsets.resize(model.stages.size() + 1, 0);
   model.event_flags.resize(model.stages.size(), 0);
   for(std::uint32_t consumer=0;consumer<model.stages.size();++consumer)
@@ -4456,6 +4474,9 @@ inline DeviceModel Create(ModelSpec const& spec,
         model.slot_local_deps.push_back(local_mask);
 #endif
         model.schedule.push_back(task);
+        if((model.schedule.size()&0xfff)==0)
+          ServingPlanProgress("serving_plan_task_waits",model.schedule.size(),
+              runtime_graph.successors.size());
       }
     }
     model.schedule_offsets[worker + 1] =
@@ -4742,6 +4763,7 @@ inline DeviceModel Create(ModelSpec const& spec,
 #endif
   PrepareEpochHandoffs(model,gemms,reduction_tasks);
 #endif
+  ServingPlanProgress("serving_plan_upload",model.schedule.size(),model.schedule.size());
   TILEMEGA_CUDA_CHECK(cudaMalloc(&model.device_params, sizeof(Params)));
   TILEMEGA_CUDA_CHECK(cudaMemcpy(model.device_params, &model.params,
                                  sizeof(Params), cudaMemcpyHostToDevice));
