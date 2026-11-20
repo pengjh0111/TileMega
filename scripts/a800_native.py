@@ -25,6 +25,29 @@ def artifact(path):
     return path, identity, json.loads(manifest.read_text())
 
 
+def verify_request_tokens(measurement, batch, repeats):
+    import collections
+
+    result = json.loads(measurement.read_text())
+    groups = collections.defaultdict(list)
+    for request in result['generation_runs']:
+        length = request['N']
+        if length not in (1, 1024):
+            raise ValueError('unexpected native request length')
+        tokens = json.loads((measurement.parent/request['tokens_file']).read_text())
+        if len(tokens) != batch or any(len(row) != length for row in tokens):
+            raise ValueError('native request returned an incomplete token sequence')
+        groups[length].append((bool(request['warmup']), tokens))
+    for length in (1, 1024):
+        runs = groups[length]
+        if len(runs) != 1 + repeats or [warmup for warmup, _ in runs] != [True] + [False] * repeats:
+            raise ValueError('native process did not complete the frozen timing protocol')
+        if any(tokens != runs[0][1] for _, tokens in runs[1:]):
+            raise ValueError(f'native greedy outputs differ between requests at N={length}')
+    if groups[1][0][1] != [row[:1] for row in groups[1024][0][1]]:
+        raise ValueError('native short and full requests disagree on first tokens')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('mode', choices=('plan', 'run'))
@@ -197,6 +220,9 @@ def main():
     if result['status'] != 'done':
         return 1
     evidence = Path(result['out'])/'job/measurements'
+    measurement = evidence/f'B{args.batch}'/'measurements.json'
+    if not diagnostic:
+        verify_request_tokens(measurement, args.batch, 3 if timing else 1)
     hf_pass = False
     if args.stage == 'correctness':
         c2 = json.loads((evidence/'c2.json').read_text())
@@ -207,7 +233,6 @@ def main():
             hf_pass = json.loads((evidence/'c1.json').read_text())['pass']
             if not hf_pass:
                 return 1
-    measurement = evidence/f'B{args.batch}'/'measurements.json'
     write_json(receipt, dict(identity, **{'pass': True}, job=os.environ['SLURM_JOB_ID'], hf_pass=hf_pass,
                process_receipt_sha256=sha(measurement) if measurement.is_file() else sha(evidence/'reference_tokens.json'),
                device=dev, device_uuid=dev['uuid'],

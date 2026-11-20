@@ -10,7 +10,7 @@ import subprocess
 
 from a100_baselines import BATCHES, MODELS, inputs, inspect_inputs, sha
 from a800_baselines import ENVS, INVENTORY, calibrated_device, device_policy
-from a800_native import artifact
+from a800_native import artifact, verify_request_tokens
 from sm90r3_llm import order, selection_result, span
 from tilemega.bench.scheduler import write_json
 from tilemega.serving.baseline_common import require_guard
@@ -76,6 +76,7 @@ def main():
         with (folder/'process.log').open('w') as log:
             subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, check=True)
         receipt = measure/f'B{args.batch}'/'measurements.json'
+        verify_request_tokens(receipt, args.batch, 3)
         result = json.loads(receipt.read_text())
         if (not result.get('shared_checkpoint_identity') or result.get('acceptance') != 'strict'
                 or result['configuration']['decode_sha256'] != row['binary_sha256']
