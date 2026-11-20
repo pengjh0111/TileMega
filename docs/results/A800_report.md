@@ -109,10 +109,11 @@ MMA calibration processes with the expanded component calibration. Its SHA-256
 is `03a33c6a8d297abd433fbbd985e1505982fa35d1697c36d04fca33a36a26a5e8`.
 CPU-only decode emission succeeded for all 40 model and batch cells.
 
-| Llama-3.2-1B | TileMega TPOT | Fastest baseline TPOT | Baseline / TileMega |
+| Model and batch | TileMega TPOT | Fastest baseline TPOT | Baseline / TileMega |
 |---|---:|---:|---:|
-| B1 | 2.603 ms | TensorRT-LLM, 2.503 ms | 0.962× |
-| B16 | 3.025 ms | SGLang, 2.978 ms | 0.985× |
+| Llama-3.2-1B B1 | 2.603 ms | TensorRT-LLM, 2.503 ms | 0.962× |
+| Llama-3.2-1B B16 | 3.025 ms | SGLang, 2.978 ms | 0.985× |
+| Qwen3-0.6B B1 | 1.658 ms | TensorRT-LLM, 2.066 ms | 1.246× |
 
 Each TileMega row passed five fresh correctness processes and three separate
 formal timing processes. B16 finished in `344725`. The Llama B16
@@ -126,7 +127,8 @@ Qwen3-0.6B B1 selected a winner in `344987` after the guard rejected
 `344958`. Their search TPOTs were 1.656 and 2.538 ms respectively.
 Correctness arrays `345022` and `345005` both passed in five fresh
 processes with matching token receipts and a 1,024-position teacher-forced
-check. The formal timing arrays are `345057` and `345073`. Llama B4 search
+check. Qwen3-0.6B formal timing array `345057` completed. OLMoE formal
+timing array `345073` is in progress. Llama B4 search
 `344997` advanced to correctness array `345051`. Independent prefill
 libraries for Llama B2 and B8 also linked. Their initial searches `345040`
 and `345041` rejected compiled candidates because compiler inputs changed
@@ -152,7 +154,8 @@ rejected before code generation. The guarded first-token probe for the new
 prefill is `345083`. Prefill GPU validation and end-to-end selection across
 the model matrix are still in progress.
 
-The committed snapshot has 24 baseline cells with three accepted replicates,
-five TensorRT-LLM OLMoE N/A cells and 131 baseline cells in progress. Two native
-cells have final timing, and two more passed the exact-artifact correctness
-gate. The live tables are under `runs/a800/collected/`.
+The committed snapshot has 25 baseline cells with three accepted replicates,
+5 TensorRT-LLM OLMoE N/A cells and 130 remaining baseline cells. Three native
+cells have final timing. OLMoE B1 passed the exact-artifact correctness gate
+and is collecting independent timings. The live tables are under
+`runs/a800/collected/`.
