@@ -88,3 +88,9 @@ QKV 分组放行后，最晚结束的 QKV 工作比最早的 release 晚 17.408 
 | Llama-3.1-8B attention chunks 8→13，346142 | — | — | 两组输出 token 哈希不同，配对比较作废 |
 
 作业 `346266` 将 Qwen 融合专家的 gate/up 列块从 96 改为 128，两个专家 GEMM 共用的 ring 从五级改为四级。B1 的八个活动专家对应的 gate/up 分块数从 128 降到 96。另一独立作业 `346310` 将 QKV 列块从 32 改为 64，分块数从 160 降到 80，ring 深度保持两级。两组分别与原版作三对未插桩的独立进程比较，均复用相同的 prefill。通过 token、硬件身份与权重检查且三对 TPOT 均改善的候选，才进入 solver replay 和独立正确性、正式计时流程。
+
+## Llama-3.1-8B B1 的共享内存填零
+
+Llama-3.1-8B 的 FFN down 在 trace 中耗时 3327 µs/步，独立试验加深 ring 后 TPOT 上升。检查 SM80 对应的 `ProduceCpAsync` 发现，B1 读入一行激活，向每个槽补零七行。MMA 只读激活区，累加与 epilogue 使用另外的 scratch。当前实现每次复用槽都会再次向这些位置发出清零请求。试验分支 `a800-decode-padding` 的提交 `439f811` 在一次 GEMM 调用中仅在每个槽首次使用时清零，后续 K tile 复制有效行。每个阶段重新执行初始化，32 个 producer lanes 保持原有 barrier 参与范围。[NVIDIA PTX 的 cp.async 语义](https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#data-movement-and-conversion-instructions-cp-async)
+
+使用固定 CUTLASS 版本的实际 CuTe swizzle 在 CPU 验证了 batch 1–16、槽数 2–8、五种 TK 共 560 组组合。每次复用前后的整个激活区内容均与原实现相同。按当前 B1 的 32 层、108 个 CTA 与 down 坐标统计，每步激活复制循环的 warp 迭代次数从 3,670,016 降为 555,520。这是根据生成计划计算的指令发射机会，实际 TPOT 取决于共享内存、权重加载与消费者计算的重叠。A800 同卡验证使用原来的 prefill、模型、prompt 与 decode 坐标，依次核对六个独立进程的输出和三对 TPOT。原始布局测试及逐阶段计数位于 `runs/a800/optimization/llama8-padrows-b1/`。
