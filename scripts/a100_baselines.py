@@ -129,6 +129,7 @@ def prepare(policy_path=POLICY, run=RUN, inventory=RUN/'inventory', envs=RUN/'en
             harness = f'{engine}_baseline.py'
             if engine == 'torchcompile' and model in MOE:
                 harness = 'torchcompile_moe_baseline.py'
+            harness_path = ROOT/'scripts/a800_mpk_serving.py' if engine == 'mpk' else SERVING/harness
             cache = run/'cache'/suite
             tmp = run/'tmp'/suite
             for folder in (cache, tmp):
@@ -162,7 +163,7 @@ def prepare(policy_path=POLICY, run=RUN, inventory=RUN/'inventory', envs=RUN/'en
                         suite_python(seed_suite, envs), '-u', SERVING/'random_checkpoint.py',
                         '--config', config, '--out', '{attempt_dir}/checkpoint', '--seed', '0',
                         '--max-gib', math.ceil(checkpoint_bytes/2**30), *checkpoint_hash_args, '--',
-                        suite_python(suite, envs), '-u', SERVING/harness,
+                        suite_python(suite, envs), '-u', harness_path,
                         '--model', '{attempt_dir}/checkpoint', '--prompt-ids', prompt,
                         '--batch', batch, '--max-tokens', 1024, '--warmup', 1, '--repeats', 3,
                         '--round-index', round_index, '--tp', 1, '--load-format', 'auto',
@@ -173,7 +174,7 @@ def prepare(policy_path=POLICY, run=RUN, inventory=RUN/'inventory', envs=RUN/'en
                                      gpu=True, timing=True, after=[device_job],
                                      priority=round_index + 10, timeout_s=timeout_s, needs_free_mib=needs,
                                      cwd=str(ROOT), env=job_env, command=command,
-                                     harness_sha256=sha(SERVING/harness)))
+                                     harness_sha256=sha(harness_path)))
                     if heartbeat_timeout_s is not None:
                         jobs[-1]['heartbeat_timeout_s'] = heartbeat_timeout_s
     for item in jobs:

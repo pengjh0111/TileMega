@@ -62,9 +62,21 @@ def main():
                 refusal = f'Ampere paged attention has no implementation for {batch} token slots × {group} queries per KV head'
             cells.append(dict(model=model, batch=batch, config_sha256=sha(config/'config.json'),
                               status='N/A' if refusal else 'requires_gpu', reason=refusal))
+    from a800_mpk_serving import gate_grid, linear_grid
+    for cell in cells:
+        if cell['status'] != 'requires_gpu':
+            continue
+        model = cell['model']
+        cfg = json.loads((inputs(model)[0]/'config.json').read_text())
+        if cfg['architectures'][0] == 'Qwen3ForCausalLM':
+            qkv = (cfg['num_attention_heads'] + 2*cfg['num_key_value_heads'])*cfg['head_dim']
+            gu = 2*cfg['intermediate_size']
+            if qkv % linear_grid(qkv) or (qkv//linear_grid(qkv))%64 or gate_grid(gu) != linear_grid(gu):
+                raise ValueError(f'invalid Ampere graph dimensions for {model}')
     extension = Path(mirage.core.__file__)
     result = dict(revision=revision, diff_sha256=hashlib.sha256(diff).hexdigest(),
                   extension_sha256=sha(extension), harness_sha256=sha(harness.__file__),
+                  serving_sha256=sha(ROOT/'scripts/a800_mpk_serving.py'),
                   attention_sha256=sha(header), target_sha256=sha(target), cells=cells)
     OUT.parent.mkdir(parents=True, exist_ok=True)
     write_json(OUT, result)

@@ -1,0 +1,20 @@
+diff --git a/python/mirage/mpk/persistent_kernel.py b/python/mirage/mpk/persistent_kernel.py
+index 3fad5e7..d016b30 100644
+--- a/python/mirage/mpk/persistent_kernel.py
++++ b/python/mirage/mpk/persistent_kernel.py
+@@ -1396,6 +1396,15 @@ class PersistentKernel:
+                 break
+         params = [num_q_heads, num_kv_heads, qk_norm, rotary_embed,
+                   self.max_seq_length, block_size] + tail[:n]
++        if self.target_cc == 80:
++            # register_paged_attention_task reads a fixed ten-field record.
++            # The variable-length Hopper record places KV metadata elsewhere.
++            if (q_len_override or tail_offset or window_size or has_sink
++                    or effective_rotary_dim != head_dim
++                    or (qk_norm and eps_bits != default_eps_bits)):
++                raise ValueError("unsupported Ampere paged attention options")
++            params = [num_q_heads, num_kv_heads, qk_norm, rotary_embed,
++                      self.max_seq_length, block_size, 0, 0, group_id, stride_field]
+         if self.target_cc == 100:
+             # params[14]: max_tokens_per_request (rows the CTA buffers hold).
+             params = [num_q_heads, num_kv_heads, qk_norm, rotary_embed,
