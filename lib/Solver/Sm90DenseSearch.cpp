@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cmath>
 #include <set>
+#include <tuple>
 
 namespace tilemega::solver {
 namespace {
@@ -25,6 +26,7 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
   std::vector<Sm90DenseCandidate> pool;
   std::set<std::string> seen;
   auto const& constants=cost.Constants();
+  bool ampere=space.target.arch_tag=="sm_80";
   int norm=work.qk_norm?(work.qk_norm_row?2:1):0;
   for(int residency:{1,2})for(int cluster:{1,2}) {
     // DT-2: clusters only up to C* (measured occupancy, prompt §7).
@@ -98,19 +100,13 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
         if(space.moe && !fuse)continue;
         Sm90DenseCoordinates d=c;
         d.group_wait=group_wait;d.embed_la=embed_la;d.expert_fuse=fuse;d.tp=space.tp;
-        // MR7: one ring serves both expert task types, so a fused candidate
-        // takes the deepest common slot count whose fused storage fits.
-        if(fuse) {
-          bool fits=false;
-          for(int slots=8;slots>=2 && !fits;--slots) {
-            d.gemms[6].slots=d.gemms[7].slots=slots;
-            fits=space.Legal(d);
-          }
-          if(!fits)continue;
+        for(int slots=8;slots>=(fuse?2:8);--slots) {
+          if(fuse)d.SetCommonExpertSlots(slots);
+          if(!space.Legal(d) || !seen.insert(d.ToJson().Dump(0)).second)continue;
+          pool.push_back({d,cost.Predict(work,d),origin+(group_wait?"_group":"")+
+              (embed_la?"_emb_la":"_emb_stage")+(fuse?"_fused":"")});
+          if(!ampere)break;  // Preserve the SM90 MR7 policy.
         }
-        if(!space.Legal(d) || !seen.insert(d.ToJson().Dump(0)).second)continue;
-        pool.push_back({d,cost.Predict(work,d),origin+(group_wait?"_group":"")+
-            (embed_la?"_emb_la":"_emb_stage")+(fuse?"_fused":"")});
       }
     };
     std::string prefix="r"+std::to_string(residency)+(cluster>1?"_c"+std::to_string(cluster):"");
@@ -125,10 +121,11 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
     return a.prediction.step_ns<b.prediction.step_ns;
   });
   if(pool.empty())throw std::invalid_argument("native search found no legal coordinate");
-  std::set<std::pair<int,int>> optimum_structures;
+  std::set<std::tuple<int,int,int>> optimum_structures;
   for(auto const& candidate:pool)
     if(candidate.origin.find("_optimum")!=std::string::npos &&
-       optimum_structures.emplace(candidate.coordinates.residency,candidate.coordinates.cluster).second)
+       optimum_structures.emplace(candidate.coordinates.residency,candidate.coordinates.cluster,
+           ampere && candidate.coordinates.expert_fuse?candidate.coordinates.CommonExpertSlots():0).second)
       result.per_structure_optima.push_back(candidate);
   if(int(pool.size())>o.top)pool.resize(o.top);
   result.ranked=std::move(pool);

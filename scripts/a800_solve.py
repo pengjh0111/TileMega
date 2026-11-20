@@ -25,6 +25,7 @@ def main():
     parser.add_argument('--cli', required=True, type=Path)
     parser.add_argument('--out', required=True, type=Path)
     parser.add_argument('--pin-theta', type=Path)
+    parser.add_argument('--seed-coordinates', type=Path)
     parser.add_argument('--top', type=int, choices=range(2, 7), default=2)
     parser.add_argument('--timeout-s', type=int, default=720)
     args = parser.parse_args()
@@ -57,12 +58,17 @@ def main():
     if args.pin_theta:
         pinned = args.pin_theta.resolve(strict=True)
         command.extend(('--pin-theta', str(pinned)))
+    if args.seed_coordinates:
+        seed = args.seed_coordinates.resolve(strict=True)
+        command.extend(('--seed-coordinates', str(seed)))
     heartbeat_timeout_s = min(540, args.timeout_s)
     receipt = dict(command=command, target=str(target), target_sha256=sha(target),
                    export_sha256=sha(source), cli_sha256=sha(cli), calibration_uuid=fingerprint['uuid'],
                    timeout_s=args.timeout_s, heartbeat_timeout_s=heartbeat_timeout_s)
     if args.pin_theta:
         receipt['pin_theta_sha256'] = sha(pinned)
+    if args.seed_coordinates:
+        receipt['seed_coordinates_sha256'] = sha(seed)
     if args.mode == 'plan':
         print(json.dumps(receipt, indent=2))
         return 0

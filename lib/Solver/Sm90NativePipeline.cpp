@@ -145,7 +145,9 @@ std::string Sm90NativeStructuralClass(Sm90DenseCoordinates const& c) {
   key += c.argmax_stage ? "/argstage" : "/argla";
   if(c.moe)key+=std::string("/route-")+c.RouteName();
   if(c.moe)key+=c.combine_stage?"/combinestage":"/combinela";
-  key += c.expert_fuse ? "/ef1" : "/ef0";
+  key += c.expert_fuse ? "/ef"+std::to_string(c.CommonExpertSlots()) : "/ef0";
+  if(!c.moe)key += "/u"+std::to_string(c.swiglu_u);
+  if(c.live_epilogue_rows)key += "/live_rows";
   key += "/ch" + std::to_string(c.attention.chunks);
   key += c.attention.dsmem ? "/ds1" : "/ds0";
   key += c.attention.merge_stage ? "/attstage" : "/attla";
@@ -184,6 +186,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
   };
 
   Sm90NativePipelineResult result;
+  bool ampere=space.target.arch_tag=="sm_80";
   int norm=work.qk_norm?(work.qk_norm_row?2:1):0;
   std::map<std::string, double> memo;  // Algorithm 1 line 11's E
   std::string origin;
@@ -210,7 +213,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     constrain(c);
     Sm90DenseSearchSpace::Structure(c);
     // The pinned dense gate tile also fixes the gate/up weight permutation.
-    if(options.pinned_theta && !c.moe && space.target.arch_tag=="sm_80") {
+    if(options.pinned_theta && !c.moe && ampere) {
       c.swiglu_u=options.pinned_theta->swiglu_u;
       c.live_epilogue_rows=options.pinned_theta->live_epilogue_rows;
     }
@@ -219,13 +222,14 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
       auto const& domain=geometries(family,c.residency);
       auto matches=[&](auto const& g) {
         return g.tile_n==geometry.tile_n && g.TileK()==geometry.TileK() &&
-               g.warps_n==geometry.warps_n && g.warps_k==geometry.warps_k;
+               g.warps_n==geometry.warps_n && g.warps_k==geometry.warps_k &&
+               (!ampere || !c.expert_fuse || family<6 || g.slots==geometry.slots);
       };
       auto same=std::find_if(domain.begin(),domain.end(),matches);
       if(same==domain.end())return false;
       // SM80 calibrates several depths per geometry. Keep the chosen depth
       // until a smaller arena makes it infeasible.
-      if(space.target.arch_tag=="sm_80")
+      if(ampere)
         for(auto candidate=std::next(same);candidate!=domain.end();++candidate)
           if(candidate->slots<=geometry.slots && candidate->slots>same->slots &&
              matches(*candidate))same=candidate;
@@ -240,9 +244,9 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     if(std::none_of(same,attention.end(),[&](auto const& a) {
          return partition(a) && a.slots==c.attention.slots;
        }))c.attention.slots=same->slots;
-    if(c.expert_fuse) {
+    if(c.expert_fuse && !ampere) {
       for(int slots=8;slots>=2;--slots) {
-        c.gemms[6].slots=c.gemms[7].slots=slots;
+        c.SetCommonExpertSlots(slots);
         if(space.Legal(c))return true;
       }
       return false;
@@ -328,6 +332,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
                 double(work.batch)/geometry.tile_n<=cost.Constants().MulticastKappa()))continue;
             auto trial=current;trial.gemms[family]=geometry;
             trial.gemms[family].multicast=multicast;
+            if(ampere && trial.expert_fuse && family>=6)trial.SetCommonExpertSlots(geometry.slots);
             changed|=consider(trial,"family:"+std::to_string(family));
           }
         }
@@ -361,7 +366,11 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
           if(dimension==1)trial.cluster=setting+1;
           if(dimension==2)trial.group_wait=options.realize_aggregate?false:bool(setting);
           if(dimension==3)trial.embed_la=bool(setting);
-          if(dimension==4)trial.expert_fuse=options.retile_only?false:bool(setting);
+          if(dimension==4) {
+            trial.expert_fuse=!options.retile_only && bool(setting);
+            if(ampere && trial.expert_fuse && !current.expert_fuse)
+              trial.SetCommonExpertSlots(std::min(trial.gemms[6].slots,trial.gemms[7].slots));
+          }
           if(dimension==5)trial.argmax_stage=bool(setting);
           if(dimension==6)trial.combine_stage=bool(setting);
           if(dimension==7) {

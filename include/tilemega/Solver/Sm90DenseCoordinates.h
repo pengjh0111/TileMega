@@ -123,9 +123,12 @@ struct Sm90DenseCoordinates {
   // geometry takes the larger of the two (Sm90DenseLayout::MoeFused).
   // E2's routing schedule lives in the same arena, so its bytes belong to this
   // budget; leaving them out let a geometry pass the check and then overflow.
+  int CommonExpertSlots() const {return gemms[6].slots;}
+  void SetCommonExpertSlots(int slots) {gemms[6].slots=gemms[7].slots=slots;}
+
   std::int64_t FusedExpertBytes(int batch,int experts) const {
     return backend::Sm90DenseLayout::MoeFused(gemms[6].tile_n,gemms[6].TileK(),gemms[7].tile_n,
-        gemms[7].TileK(),gemms[6].slots,gemms[6].warps_k,gemms[7].warps_k,batch,
+        gemms[7].TileK(),CommonExpertSlots(),gemms[6].warps_k,gemms[7].warps_k,batch,
         backend::Sm90DenseLayout::MoeRouteBytes(experts)).end;
   }
 
