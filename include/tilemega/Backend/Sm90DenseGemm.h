@@ -322,8 +322,16 @@ struct Sm90DenseGemm {
         Epilogue::Registers(accum,owned,inv,tile_residual,p.output,task,tp);
         if(tid==0)Sm90DenseMark(2);
       }else {
-        for(int i=0;i<size(accum);++i)
-          scratch[split*16*TN+get<0>(owned(i))*TN+get<1>(owned(i))]=accum(i);
+        // The shared epilogue reads only live batch rows from each K split.
+        for(int i=0;i<size(accum);++i) {
+          int row=get<0>(owned(i));
+#if defined(TILEMEGA_SM80_ACTIVE_EPILOGUE) && TILEMEGA_SM80_ACTIVE_EPILOGUE
+          if constexpr(CpAsync && Batch<8) {
+            if(row>=Batch)continue;
+          }
+#endif
+          scratch[split*16*TN+row*TN+get<1>(owned(i))]=accum(i);
+        }
         // One warp per split publishes its rows' partial squares.
         if constexpr(InputNorm)
           if((tid/32)%WarpsN==0 && (tid&3)==0) {
