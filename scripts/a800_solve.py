@@ -57,8 +57,10 @@ def main():
     if args.pin_theta:
         pinned = args.pin_theta.resolve(strict=True)
         command.extend(('--pin-theta', str(pinned)))
+    heartbeat_timeout_s = min(540, args.timeout_s)
     receipt = dict(command=command, target=str(target), target_sha256=sha(target),
-                   export_sha256=sha(source), cli_sha256=sha(cli), calibration_uuid=fingerprint['uuid'])
+                   export_sha256=sha(source), cli_sha256=sha(cli), calibration_uuid=fingerprint['uuid'],
+                   timeout_s=args.timeout_s, heartbeat_timeout_s=heartbeat_timeout_s)
     if args.pin_theta:
         receipt['pin_theta_sha256'] = sha(pinned)
     if args.mode == 'plan':
@@ -82,7 +84,8 @@ def main():
                '--numa-node', dev['numa_node'], '--allow-no-measurements', '--']
     guarded = [sys.executable, '-m', 'tilemega.bench.gpu_guard', '--policy', str(policy_path),
                '--out', str(out), '--needs-free-mib', '16384',
-               '--timeout-s', str(args.timeout_s), '--', 'taskset', '--cpu-list', dev['cpus'],
+               '--timeout-s', str(args.timeout_s), '--heartbeat-timeout-s', str(heartbeat_timeout_s),
+               '--', 'taskset', '--cpu-list', dev['cpus'],
                *wrapper, *command]
     return subprocess.run(guarded, cwd=ROOT, env=env).returncode
 
