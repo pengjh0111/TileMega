@@ -7,11 +7,13 @@ import json
 from pathlib import Path
 import statistics
 
-from a100_baselines import BATCHES, ENGINES, MODELS, ROOT, inspect_inputs
+from a100_baselines import BATCHES, ENGINES, MODELS, ROOT, inspect_inputs, sha
 from a100_results import measurement, read, write_csv
 from a800_baselines import INVENTORY, RUN, hardware_class
+from a800_mpk_preflight import REVISION as MPK_REVISION
 
 
+REPORT_ENGINES = (*ENGINES, 'mpk')
 METRICS = ('tpot_ms', 't1_s', 't1024_s', 'tok_s')
 OOM_MARKERS = ('CUDA out of memory', 'torch.OutOfMemoryError', 'CUDA_ERROR_OUT_OF_MEMORY')
 
@@ -191,21 +193,27 @@ def request_times(cell, rows):
     return times
 
 
-def write_time_table(path, cells):
+def write_time_table(path, cells, tpot_only=False):
     now = datetime.now(timezone(timedelta(hours=8))).isoformat(timespec='seconds')
     lines = ['# A800 单卡执行时间', '', f'采集时间 {now}。每格依次为 **T1（ms） / T1024（s） / TPOT（ms/token）**。',
              'T1 和 T1024 是完整请求的墙钟时间，包含处理同一份 64-token 输入。每个长度先热身一次，再取三次请求的中位数。',
              '每个独立进程用 (T1024 − T1) / 1023 计算 TPOT，三列分别取进程间中位数。',
              '括号给出部分结果的已完成进程数和计划进程数。— 表示尚无有效计时，N/A 表示已确认不支持，OOM 表示容量不足。',
-             '', '| 模型 | Batch | TileMega | vLLM | SGLang | TRT-LLM | torch.compile |',
-             '|---|---:|---:|---:|---:|---:|---:|']
+             '', '| 模型 | Batch | TileMega | vLLM | SGLang | TRT-LLM | torch.compile | MPK |',
+             '|---|---:|---:|---:|---:|---:|---:|---:|']
+    if tpot_only:
+        lines[:4] = ['# A800 单卡 decode TPOT', '', f'采集时间 {now}。单位为 ms/token。',
+                     '输入 64 tokens，输出 1024 tokens，TP1，BF16。']
+        lines[4] = '每个进程取 (median(T1024) − median(T1)) / 1023，再取进程间中位数。'
     names = {'qwen3_0_6b': 'Qwen3-0.6B', 'qwen3_1_7b': 'Qwen3-1.7B',
              'llama3_2_1b': 'Llama-3.2-1B', 'llama3_2_3b': 'Llama-3.2-3B',
              'llama3_1_8b': 'Llama-3.1-8B', 'qwen3_30b_a3b': 'Qwen3-30B-A3B',
              'mistral_7b_v0_3': 'Mistral-7B-v0.3', 'olmoe_1b_7b': 'OLMoE-1B-7B'}
     for model in MODELS:
         for batch in BATCHES:
-            values = [cells[model, batch, engine] for engine in ('native', *ENGINES)]
+            values = [cells[model, batch, engine] for engine in ('native', *REPORT_ENGINES)]
+            if tpot_only:
+                values = [value.rsplit(' / ', 1)[-1] for value in values]
             lines.append('| ' + ' | '.join([names[model], str(batch), *values]) + ' |')
     temporary = path.with_suffix('.tmp')
     temporary.write_text('\n'.join(lines) + '\n')
@@ -241,6 +249,19 @@ def main():
         p.error('supply the guarded A800 target')
     inputs = dict(device=dev, models=inspect_inputs(INVENTORY))
     scope = baseline_scope((RUN/'cohorts'/name for name in args.cohort), inputs)
+    mpk_path = RUN/'mpk/preflight.json'
+    mpk = read(mpk_path)
+    unavailable = {}
+    if mpk:
+        if (mpk.get('revision') != MPK_REVISION or
+                mpk.get('target_sha256') != sha(args.target)):
+            raise ValueError('MPK capability receipt has a different source or target')
+        for entry in mpk['cells']:
+            model, batch = entry['model'], entry['batch']
+            if entry['config_sha256'] != inputs['models'][model]['config_sha256']:
+                raise ValueError(f'MPK capability receipt has a different config for {model}')
+            if entry['status'] == 'N/A' and entry['reason']:
+                unavailable[model, batch] = str(mpk_path.relative_to(RUN))
     trt_olmoe = trtllm_olmoe_rejection(scope.get(('olmoe_1b_7b', 'trtllm', 1), []))
     baseline, native = [], []
     time_cells = {}
@@ -248,8 +269,10 @@ def main():
         all_rows, checkpoint_hashes = [], set()
         for batch in BATCHES:
             measured = []
-            for engine in ENGINES:
+            for engine in REPORT_ENGINES:
                 unsupported = trt_olmoe if (model, engine) == ('olmoe_1b_7b', 'trtllm') else ''
+                if engine == 'mpk':
+                    unsupported = unavailable.get((model, batch), '')
                 rows, cell = baseline_cell(inputs, scope.get((model, engine, batch), []),
                                            model, engine, batch, unsupported)
                 checkpoint_hashes.update(row['checkpoint_sha256'] for row in rows)
@@ -278,6 +301,7 @@ def main():
     write_csv(args.out/'A800_baselines.csv', baseline)
     write_csv(args.out/'A800_llm.csv', native)
     write_time_table(args.out/'A800_execution_times.md', time_cells)
+    write_time_table(args.out/'A800_TPOT.md', time_cells, tpot_only=True)
 
 
 if __name__ == '__main__':

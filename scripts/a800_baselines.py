@@ -103,7 +103,8 @@ def run_cohort(args, wanted):
         write_json(policy_path, policy)
         expected_checkpoint = (args.model[0], args.expected_checkpoint_sha256) if args.expected_checkpoint_sha256 else None
         jobs = prepare(policy_path, run, INVENTORY, ENVS, 'A800',
-                       args.process_timeout_s, args.heartbeat_timeout_s, args.seed_suite, expected_checkpoint)
+                       args.process_timeout_s, args.heartbeat_timeout_s, args.seed_suite, expected_checkpoint,
+                       engines={'mpk': 'mpk'} if args.engine == ['mpk'] else None)
         inputs = json.loads((run/'baseline_inputs.json').read_text())
         if not first_device.exists():
             write_json(first_device, inputs['device'])
@@ -144,7 +145,7 @@ def main():
     parser.add_argument('--seed-suite', choices=('vllm', 'tilemega'), default='vllm')
     parser.add_argument('--expected-checkpoint-sha256')
     parser.add_argument('--model', choices=MODELS, action='append')
-    parser.add_argument('--engine', choices=ENGINES, action='append')
+    parser.add_argument('--engine', choices=(*ENGINES, 'mpk'), action='append')
     parser.add_argument('--batch', type=int, choices=BATCHES, action='append')
     parser.add_argument('--round', dest='round_index', type=int, choices=range(3), action='append')
     parser.add_argument('--budget-s', type=int, default=840)
@@ -159,6 +160,8 @@ def main():
         parser.error('an explicit checkpoint hash requires one selected model')
     if args.seed_suite != 'vllm' and (args.engine != ['torchcompile'] or not args.expected_checkpoint_sha256):
         parser.error('use the alternate seed suite only for a TorchCompile cell with a verified hash')
+    if 'mpk' in (args.engine or []) and args.engine != ['mpk']:
+        parser.error('use a dedicated cohort for MPK')
     wanted = [] if args.probe_only else selection(args)
     models = inspect_inputs(INVENTORY)
     if args.mode == 'plan':
@@ -167,6 +170,8 @@ def main():
                          indent=2))
         return 0
     required_suites = ENGINES.values() if args.seed_suite == 'vllm' else (args.seed_suite,)
+    if args.engine == ['mpk']:
+        required_suites = ('tilemega', args.seed_suite, 'mpk')
     for suite in required_suites:
         if not os.access(ENVS/suite/'bin/python', os.X_OK):
             raise RuntimeError(f'workspace is missing the {suite} Python interpreter')

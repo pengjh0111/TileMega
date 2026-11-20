@@ -93,7 +93,7 @@ def inspect_inputs(inventory):
 
 def prepare(policy_path=POLICY, run=RUN, inventory=RUN/'inventory', envs=RUN/'envs',
             gpu_model='A100', timeout_s=14400, heartbeat_timeout_s=None,
-            seed_suite='vllm', expected_checkpoint=None):
+            seed_suite='vllm', expected_checkpoint=None, engines=None):
     policy = json.loads(policy_path.read_text())
     dev = device_environment(policy, gpu_model)
     env = dict(TILEMEGA_DEVICE_INDEX=str(dev['index']),
@@ -123,7 +123,7 @@ def prepare(policy_path=POLICY, run=RUN, inventory=RUN/'inventory', envs=RUN/'en
         config, prompt = inputs(model)
         settings = json.loads((config/'config.json').read_text())
         checkpoint_bytes = description['checkpoint_bytes']
-        for engine, suite in ENGINES.items():
+        for engine, suite in (ENGINES if engines is None else engines).items():
             if seed_suite != 'vllm' and suite != seed_suite:
                 continue
             harness = f'{engine}_baseline.py'
@@ -143,6 +143,8 @@ def prepare(policy_path=POLICY, run=RUN, inventory=RUN/'inventory', envs=RUN/'en
                 # ZMQ appends a UUID, so a cohort's long TMPDIR may exceed sun_path.
                 job_env.update(VLLM_USE_V1='1', VLLM_CACHE_ROOT=str(cache/'vllm'),
                                VLLM_RPC_BASE_PATH='/tmp')
+            if engine == 'mpk':
+                job_env['MIRAGE_HOME'] = str(ROOT.parent/'software/mpk-63af900')
             if engine == 'trtllm':
                 job_env['TLLM_WORKER_USE_SINGLE_PROCESS'] = '1'
             for batch in BATCHES:
