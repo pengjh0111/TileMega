@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <cuda.h>
 #include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <stdexcept>
 #include <string>
+#include <thread>
 
 void check(CUresult status) {
   if(status==CUDA_SUCCESS)return;
@@ -19,6 +21,9 @@ int main(int argc,char** argv) {try {
   int shared=std::stoi(argv[3]),threads=std::stoi(argv[4]),grid=std::stoi(argv[5]),cluster=std::stoi(argv[6]);
   if(shared<0 || threads<1 || grid<1 || cluster<1 || grid%cluster)
     throw std::invalid_argument("invalid occupancy launch dimensions");
+  bool strict=std::getenv("TILEMEGA_STRICT_HOST_GUARD_PID")!=nullptr;
+  // Let the host guard record this descendant before a short-lived CUDA context appears.
+  if(strict)std::this_thread::sleep_for(std::chrono::seconds(3));
   check(cuInit(0));CUdevice device;check(cuDeviceGet(&device,0));
   CUcontext context;check(cuDevicePrimaryCtxRetain(&context,device));check(cuCtxSetCurrent(context));
   CUmodule module;check(cuModuleLoad(&module,argv[1]));
@@ -41,5 +46,7 @@ int main(int argc,char** argv) {try {
       "\"supported_residency\":%d,\"registers\":%d,\"static_shared_bytes\":%d,"
       "\"dynamic_shared_bytes\":%d,\"sms\":%d,\"grid\":%d,\"cluster\":%d}\n",
       resident,clusters,supported,registers,static_shared,shared,sms,grid,cluster);
-  check(cuModuleUnload(module));check(cuDevicePrimaryCtxRelease(device));return 0;
+  check(cuModuleUnload(module));check(cuDevicePrimaryCtxRelease(device));
+  if(strict)std::this_thread::sleep_for(std::chrono::seconds(2));
+  return 0;
 }catch(std::exception const& e) {std::fprintf(stderr,"%s\n",e.what());return 1;}}
