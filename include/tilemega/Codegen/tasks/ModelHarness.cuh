@@ -3824,12 +3824,6 @@ inline DeviceModel Create(ModelSpec const& spec,
     std::exit(2);
   }
 #endif
-  // Wait -> the sigma slot of the queue entry that first observed it.  A set
-  // sufficed while W = 1 lifted a wait out of every later task in the queue;
-  // with W > 1 that lift is only sound when the first observer is at least W
-  // slots back, so the slot has to be remembered and not just the fact of
-  // having been seen (§5.7.3 L-d, H4).
-  std::vector<std::map<std::pair<std::uint32_t, std::uint32_t>, int>> seen(grid);
   // W exactly as the Plan states it (§8.11), 1 in every default build.  The
   // two L-d rules below are the pair H4 requires to move with it: a wait may
   // only be lifted, and a same-worker poll may only be elided, across a
@@ -4334,7 +4328,14 @@ inline DeviceModel Create(ModelSpec const& spec,
   (void)target;
   model.params.event_shard_count = 1;
 #endif
+  // Wait hoisting only looks back within the current worker's queue. Reuse
+  // one array indexed by the published event rows, rather than retaining a
+  // map of all events seen by every worker.
+  std::vector<int> last_observer;
+  if (!TILEMEGA_MOE_DYNAMIC) last_observer.resize(model.event_offsets.back());
+  std::vector<std::pair<std::uint32_t, std::uint32_t>> desired;
   for (int worker = 0; worker < grid; ++worker) {
+    std::fill(last_observer.begin(), last_observer.end(), -1);
     // sigma, not stage-major: the queue is whatever order the Plan asked for,
     // and `plan.queue[worker]` is already sorted by it (§5.7.2).
     for (auto const& item : plan.queue[worker]) {
@@ -4348,7 +4349,7 @@ inline DeviceModel Create(ModelSpec const& spec,
         task.dependency_begin = offsets[stage];
         task.dependency_count = offsets[stage + 1] - offsets[stage];
         task.wait_begin = static_cast<std::uint32_t>(model.task_waits.size());
-        std::set<std::pair<std::uint32_t, std::uint32_t>> desired;
+        desired.clear();
 #if TILEMEGA_SLOT_WINDOW > 1
         std::uint32_t local_mask = 0u;
 #endif
@@ -4376,7 +4377,7 @@ inline DeviceModel Create(ModelSpec const& spec,
           if (force_all_dependencies || dep.map == StageDependency::Map::kAll ||
               dep.map == StageDependency::Map::kPhase) {
             model.schedule_has_global_fanin = true;
-            desired.emplace(dep.producer, kWholeStageEventGroup);
+            desired.emplace_back(dep.producer, kWholeStageEventGroup);
             int const latest = stage_max_producer_worker[dep.producer];
             if (latest > worker)
               model.schedule_max_worker_span = std::max(
@@ -4419,8 +4420,7 @@ inline DeviceModel Create(ModelSpec const& spec,
                 return;
 #endif
               }
-              desired.emplace(dep.producer,
-                              static_cast<std::uint32_t>(group));
+              desired.emplace_back(dep.producer, static_cast<std::uint32_t>(group));
             };
 #if TILEMEGA_FUSION_RUNTIME
             if (runtime_variant.exact_dependencies) {
@@ -4448,10 +4448,13 @@ inline DeviceModel Create(ModelSpec const& spec,
             model.schedule_max_worker_span = std::max(
                 model.schedule_max_worker_span,
                 static_cast<std::uint32_t>(latest - worker));
-          desired.emplace(dep.producer, kWholeStageEventGroup);
+          desired.emplace_back(dep.producer, kWholeStageEventGroup);
 #endif
         }
+        std::sort(desired.begin(), desired.end());
+        desired.erase(std::unique(desired.begin(), desired.end()), desired.end());
         model.schedule_raw_polls += desired.size();
+        int const slot_index = plan.slot[stage][logical];
         for (auto const& wait : desired) {
           // L-e: a consumer may only wait on a row its producer publishes.
           std::uint32_t const needed = wait.second == kWholeStageEventGroup
@@ -4468,10 +4471,21 @@ inline DeviceModel Create(ModelSpec const& spec,
           // since the window may otherwise run this task first.  When it is
           // not, the wait is emitted again and becomes the new anchor, so the
           // next task measures its distance from the nearest observer.
-          int const slot_index = plan.slot[stage][logical];
-          auto const at = seen[worker].emplace(wait, slot_index);
-          if (TILEMEGA_MOE_DYNAMIC || at.second || at.first->second + window > slot_index) {
-            at.first->second = slot_index;
+          if (TILEMEGA_MOE_DYNAMIC) {
+            model.task_waits.push_back({wait.first, wait.second});
+            continue;
+          }
+          // Match EventIndex's event row layout without the separate L1 rows.
+          std::size_t row = model.event_offsets[wait.first];
+          if (needed == kNeedsFineEvents) {
+            row += (model.event_flags[wait.first] & kNeedsAggregateEvent) != 0;
+            row += wait.second;
+          }
+          if (row >= model.event_offsets[wait.first + 1])
+            throw std::invalid_argument("task wait exceeds its producer's event rows");
+          int& last = last_observer[row];
+          if (last < 0 || slot_index - last < window) {
+            last = slot_index;
             model.task_waits.push_back({wait.first, wait.second});
           }
         }
