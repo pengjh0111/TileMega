@@ -6,6 +6,8 @@
 
 namespace tilemega::solver {
 
+class Sm90NativeConstants;
+
 // Rule-pruned native space of prompt §4 L0-2. Legal() is the buildability
 // check for any coordinate (including fixed controls); the candidate
 // generators enumerate only the rule-conformant subset searched by the solver.
@@ -33,7 +35,8 @@ struct Sm90DenseSearchSpace {
   bool Legal(Sm90DenseCoordinates const&) const;
   int Grid(int residency) const {return target.res.num_sms*residency;}
   std::vector<Sm90DenseGemm> FamilyCandidates(unsigned family,int residency) const;
-  std::vector<Sm90DenseAttention> AttentionCandidates(int residency) const;
+  std::vector<Sm90DenseAttention> AttentionCandidates(int residency,
+      Sm90NativeConstants const* constants=nullptr,int norm=0) const;
   // The structural coordinates derived from the per-family choices.
   static void Structure(Sm90DenseCoordinates&);
 };

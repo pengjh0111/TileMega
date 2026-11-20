@@ -49,6 +49,7 @@ class Sm90NativeConstants {
   // D2 body: one 64-key block (data resident), q preparation, S-chunk merge.
   double AttentionBlock(int dim,int queries,int norm) const;
   double AttentionPrepare(int dim,int queries,int norm) const;
+  bool HasAttentionMerge(int dim,int queries,int norm,int chunks) const;
   double AttentionMerge(int dim,int queries,int norm,int chunks) const;
   // MR6: one CTA streaming cold data with 8 x 16 KB in flight bounds the
   // rate of each CTA in a stage's last, partly occupied wave.

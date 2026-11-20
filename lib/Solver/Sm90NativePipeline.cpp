@@ -184,6 +184,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
   };
 
   Sm90NativePipelineResult result;
+  int norm=work.qk_norm?(work.qk_norm_row?2:1):0;
   std::map<std::string, double> memo;  // Algorithm 1 line 11's E
   std::string origin;
   std::map<std::pair<unsigned,int>,std::vector<Sm90DenseGemm>> family_domain;
@@ -225,7 +226,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
              matches(*candidate))same=candidate;
       geometry.slots=same->slots;
     }
-    auto attention=space.AttentionCandidates(c.residency);
+    auto attention=space.AttentionCandidates(c.residency,&cost.Constants(),norm);
     auto same=std::find_if(attention.begin(),attention.end(),[&](auto const& a) {
       return a.chunks==c.attention.chunks && a.block_keys==c.attention.block_keys;
     });
@@ -325,7 +326,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
       }
       // The attention structure, unless AB-4a forbids changing it.
       if (!options.retile_only) {
-        for (auto const& attention : space.AttentionCandidates(current.residency)) {
+        for (auto const& attention : space.AttentionCandidates(current.residency,&cost.Constants(),norm)) {
           for(int realization:{0,1,2}) {
             bool dsmem=realization==1,independent=realization==2;
             if(options.realize_aggregate && !independent)continue;

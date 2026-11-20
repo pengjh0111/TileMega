@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/Sm90DenseSearchSpace.h>
 #include <tilemega/Solver/Sm90DenseResources.h>
+#include <tilemega/Solver/Sm90NativeConstants.h>
 
 namespace tilemega::solver {
 
@@ -140,15 +141,20 @@ std::vector<Sm90DenseGemm> Sm90DenseSearchSpace::FamilyCandidates(unsigned famil
   return result;
 }
 
-std::vector<Sm90DenseAttention> Sm90DenseSearchSpace::AttentionCandidates(int residency) const {
+std::vector<Sm90DenseAttention> Sm90DenseSearchSpace::AttentionCandidates(
+    int residency,Sm90NativeConstants const* constants,int norm) const {
   std::vector<Sm90DenseAttention> result;
   int s0=1;
-  while(2*s0*batch*hkv<=Grid(residency))s0*=2;
+  int fill=std::min(64,Grid(residency)/(batch*hkv));
+  while(2*s0<=fill)s0*=2;
+  std::vector<int> chunks;
+  // On Ampere, also price the chunk count that fills the last KV group in one wave.
+  if(target.arch_tag=="sm_80" && constants && fill>s0 &&
+      constants->HasAttentionMerge(head_dim,queries,norm,fill))chunks.push_back(fill);
+  for(int s=s0;s>=1;s/=2)chunks.push_back(s);
   auto budget=Sm90DenseSharedBudget(target,residency);
   std::vector<int> keys=head_dim==128?std::vector<int>{64}:std::vector<int>{64,128};
-  // MR5: every power-of-two chunk count down to one (no merge).
-  for(int s=s0;s>=1;s/=2) {
-    if(s>64)continue;
+  for(int s:chunks) {
     for(int bk:keys) {
       // D2 slot rule: the most slots (2..4) that fit, capped by the blocks of
       // the longest chunk.

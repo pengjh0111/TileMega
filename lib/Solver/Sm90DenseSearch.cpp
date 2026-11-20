@@ -25,6 +25,7 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
   std::vector<Sm90DenseCandidate> pool;
   std::set<std::string> seen;
   auto const& constants=cost.Constants();
+  int norm=work.qk_norm?(work.qk_norm_row?2:1):0;
   for(int residency:{1,2})for(int cluster:{1,2}) {
     // DT-2: clusters only up to C* (measured occupancy, prompt §7).
     if(cluster>1 && (space.target.arch_tag=="sm_80" || constants.ClusterStar(residency)<cluster))continue;
@@ -46,7 +47,7 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
         }
       }
     }
-    for(auto a:space.AttentionCandidates(residency)) {
+    for(auto a:space.AttentionCandidates(residency,&constants,norm)) {
       attention.push_back({cost.Attention(work,a,residency),{},a});
       // D10b: chunk groups that fit one cluster may merge through DSMEM;
       // without a measured merge constant the variant is not priced.

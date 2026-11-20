@@ -159,6 +159,9 @@ double Sm90NativeConstants::AttentionBlock(int dim,int queries,int norm) const {
 double Sm90NativeConstants::AttentionPrepare(int dim,int queries,int norm) const {
   return Positive(AttentionShape(dim,queries,norm).At("prepare"),"attention preparation");
 }
+bool Sm90NativeConstants::HasAttentionMerge(int dim,int queries,int norm,int chunks) const {
+  return AttentionShape(dim,queries,norm).At("merge").Find(std::to_string(chunks))!=nullptr;
+}
 double Sm90NativeConstants::AttentionMerge(int dim,int queries,int norm,int chunks) const {
   auto const* found=AttentionShape(dim,queries,norm).At("merge").Find(std::to_string(chunks));
   if(!found)throw Sm90NativeMissing("no measured attention merge for "+std::to_string(chunks)+" chunks");
