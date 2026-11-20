@@ -367,6 +367,8 @@ tile's `cp.async` ring.
 limit. The strict GPU guard bounds silent searches to at most nine
 minutes within the Slurm time limit. The ten CPU guard tests passed.
 
-## Current result snapshot
+## Result snapshot
 
-The CSVs record 64 measured baseline cells and 5 baseline cells with documented N/A status, out of 160 baseline cells. TileMega has 20 measured cells out of 40. Live tables are refreshed under `runs/a800/collected/`. Each single-GPU array task has a finite wall time and an independent process guard. The baseline and native feeders persist exact stage identifiers in the workspace `logs/`.
+At 2026-11-20T15:43:14+08:00, 23 of 40 TileMega cells and 66 of 160 baseline cells had complete independent timings. TensorRT-LLM rejected the OLMoE architecture for all five batch sizes. The timestamped table includes partial process counts when available. The server publishes subsequent accepted results in `runs/a800/collected/`. [Request times](A800_execution_times.md)
+
+For Llama-3.2-1B B1 the selected solver artifact took 2.467 seconds for 1024 tokens and 2.404 ms per output interval. All five independent correctness checks passed, including the full HF check. The earlier paired trial had 23 token differences across implementations. Its failure stays in the experimental record. [SM80 decode analysis](A800_SM80_analysis.md)
