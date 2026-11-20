@@ -21,6 +21,7 @@ def prior_measurements(arms, model, batch, prefill, target, manifest, device):
     if not path:
         return {}
     prefill_hash = 'prompt mode' if prefill == 'prompt' else sha(Path(prefill))
+    target_hash = sha(target)
     by_binary = {r['binary_sha256']: label for label, r in arms.items()}
     reused = {}
     for entry in json.loads(Path(path).read_text()):
@@ -37,6 +38,23 @@ def prior_measurements(arms, model, batch, prefill, target, manifest, device):
                 or not guard['ownership_verified']):
             raise ValueError('previous selection does not certify the same native candidate')
         cfg = result['configuration']
+        old_target_hash = cfg['identities']['decode']['target_sha256']
+        if old_target_hash != target_hash:
+            previous = Path(entry['reference_target'])
+            if sha(previous) != old_target_hash:
+                raise ValueError('previous selection target hash does not match its process')
+            before, after = (json.loads(p.read_text()) for p in (previous, target))
+            old_prices, new_prices = (d.pop('sm80_native_constants') for d in (before, after))
+            old_decisions, new_decisions = (d.pop('sm80_native_decisions') for d in (before, after))
+            old_mma = old_prices.pop('mma_mainloop')
+            new_mma = new_prices.pop('mma_mainloop')
+            supplement = new_mma.get('supplements', [])[-1:]
+            if (before != after or new_decisions != dict(old_decisions, reuse_payload=True)
+                    or old_prices != new_prices
+                    or not supplement or supplement[0]['parent_profile_sha256'] != old_target_hash
+                    or any(new_mma[stat].get(key) != value
+                           for stat in ('median_ns', 'p99_ns') for key, value in old_mma[stat].items())):
+                raise ValueError('previous selection has different runtime hardware or target options')
         if (plan['model'] != model or hardware_class(plan['device']) != hardware_class(device)
                 or result['batch'] != batch or result['tp'] != 1
                 or result['prompt_length'] != 64 or result['max_tokens'] != 1024
@@ -44,7 +62,6 @@ def prior_measurements(arms, model, batch, prefill, target, manifest, device):
                 or not result['shared_checkpoint_identity'] or result['checkpoint']['seed'] != 0
                 or cfg['prefill_sha256'] != prefill_hash
                 or cfg['decode_sha256'] != proof['reference_sha256']
-                or cfg['identities']['decode']['target_sha256'] != sha(target)
                 or result['prompt_ids_sha256'] != manifest['prompt_sha256']
                 or result['model_config_sha256'] != manifest['config_sha256']):
             raise ValueError('previous selection has different request inputs or execution')
