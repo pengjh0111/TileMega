@@ -351,7 +351,17 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
               trial.SetCommonExpertSlots(geometry.slots);
               trial.SetCommonExpertRegisterStages(geometry.register_stages);
             }
-            changed|=consider(trial,"family:"+std::to_string(family));
+            auto label="family:"+std::to_string(family);
+            changed|=consider(trial,label);
+            if(ampere && !trial.moe && family==2) {
+              for(int u:{4,8,16}) {
+                if(u==trial.swiglu_u || geometry.tile_n%(2*u) ||
+                   !cost.GateService(work,2,geometry,trial.residency,u,
+                       trial.live_epilogue_rows || trial.weight_stream))continue;
+                auto interleave=trial;interleave.swiglu_u=u;
+                changed|=consider(interleave,label+"/gate interleave");
+              }
+            }
           }
         }
       }
