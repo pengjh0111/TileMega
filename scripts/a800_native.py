@@ -28,7 +28,7 @@ def artifact(path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('mode', choices=('plan', 'run'))
-    parser.add_argument('--stage', choices=('correctness', 'measure', 'diagnose'), required=True)
+    parser.add_argument('--stage', choices=('correctness', 'measure', 'diagnose', 'tune-prefill'), required=True)
     parser.add_argument('--model', choices=MODELS, required=True)
     parser.add_argument('--batch', type=int, choices=BATCHES, required=True)
     parser.add_argument('--prefill', required=True)
@@ -48,6 +48,8 @@ def main():
     if args.seed_suite != 'vllm' and not args.expected_checkpoint_sha256:
         parser.error('an alternate generator must reproduce the verified checkpoint identity')
     diagnostic = args.stage == 'diagnose'
+    tuning = args.stage == 'tune-prefill'
+    timing = args.stage == 'measure' or tuning
     if (not diagnostic and (args.prefill_mode != 'L1' or args.sanitizer)
             or diagnostic and args.prefill == 'prompt'):
         parser.error('prefill executor and sanitizer diagnostics require an independent prefill artifact')
@@ -61,6 +63,8 @@ def main():
     if plan.get('runtime_batch') != args.batch or plan.get('native_origin') not in ('fixed', 'solver'):
         parser.error('decode plan must be native and match the specified batch')
     if args.prefill == 'prompt':
+        if tuning:
+            parser.error('prefill tuning requires an independent library')
         if args.model != 'olmoe_1b_7b':
             parser.error('the frozen model protocol uses an independent prefill library')
         prefill, prefill_id = 'prompt', {}
@@ -81,11 +85,12 @@ def main():
     relative_scope = Path(args.model)/f'B{args.batch}'/artifact_key
     stage = f'diagnose-{args.prefill_mode.lower()}' if diagnostic else args.stage
     receipt_name = f'{stage}-{args.round}.json'
-    if args.stage == 'measure':
+    if timing:
         if (plan['native_origin'] != 'solver' or not target.get('sm80_native_constants')
                 or decode_id['target_sha256'] != identity['target_sha256']
                 or plan['native_selection'].get('selection') != 'measure'):
-            parser.error('formal measurement requires the solver-selected artifact and its calibrated target')
+            parser.error('timing requires the solver-selected decode and its calibrated target')
+    if args.stage == 'measure':
         receipts = [json.loads(path.read_text()) for path in
                     native_root.glob(f'*/{relative_scope}/correctness-*.json')]
         fixed = ('decode_sha256', 'prefill_sha256', 'target_sha256')
@@ -126,7 +131,7 @@ def main():
     child = [py, '-m', 'tilemega.serving.r16_run', '--prefill', str(prefill), '--decode', str(decode),
              '--prompt-ids', str(prompt), '--batch', str(args.batch), '--max-tokens', str(tokens),
              '--mode', 'L1', '--prefill-mode', args.prefill_mode, '--decode-loop', '1',
-             '--warmup', '1', '--repeats', '3' if args.stage == 'measure' else '1',
+             '--warmup', '1', '--repeats', '3' if timing else '1',
              '--round-index', str(args.round), '--out', '{attempt_dir}/job/measurements',
              '--system-label', 'TM-sm80', '--policy', str(policy_path)]
     if args.stage == 'correctness':
@@ -156,7 +161,7 @@ def main():
     state = run/'results'
     needs = min(dev['memory_mib'] - policy['max_hidden_mib'],
                 math.ceil(description['checkpoint_bytes']/2**20) + 8192)
-    write_json(queue/'queue_native.json', [dict(name=name, gpu=True, timing=args.stage == 'measure',
+    write_json(queue/'queue_native.json', [dict(name=name, gpu=True, timing=timing,
                env=env, command=command, timeout_s=args.timeout_s, heartbeat_timeout_s=min(300, args.timeout_s),
                needs_free_mib=needs, cwd=str(ROOT))])
     schedule(['--queue-dir', str(queue), '--out', str(state), '--policy', str(policy_path),
