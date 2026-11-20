@@ -369,6 +369,8 @@ minutes within the Slurm time limit. The ten CPU guard tests passed.
 
 ## Result snapshot
 
-At 2026-11-20T15:43:14+08:00, 23 of 40 TileMega cells and 66 of 160 baseline cells had complete independent timings. TensorRT-LLM rejected the OLMoE architecture for all five batch sizes. The timestamped table includes partial process counts when available. The server publishes subsequent accepted results in `runs/a800/collected/`. [Request times](A800_execution_times.md)
+At 2026-11-20T16:17:13+08:00, 27 of 40 TileMega cells and 68 of 160 baseline cells had complete independent timings. TensorRT-LLM rejected the OLMoE architecture for all five batch sizes. The timestamped table includes partial process counts when available. The server publishes subsequent accepted results in `runs/a800/collected/`. [Request times](A800_execution_times.md)
 
 For Llama-3.2-1B B1 the selected solver artifact took 2.467 seconds for 1024 tokens and 2.404 ms per output interval. All five independent correctness checks passed, including the full HF check. The earlier paired trial had 23 token differences across implementations. Its failure stays in the experimental record. [SM80 decode analysis](A800_SM80_analysis.md)
+
+Qwen3-30B-A3B B1 completed five correctness and five separate timing processes. Median T1 was 282.8 ms, median T1024 was 10.078 s, and median process TPOT was 9.574 ms/token. The five timing elements of allocation 346060 all completed successfully. Llama-3.1-8B B2, Llama-3.2-3B B8, and Qwen3-1.7B B8 also have their full independent cohorts in the table.
