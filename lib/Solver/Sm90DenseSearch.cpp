@@ -40,7 +40,11 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
     for(unsigned f:active) {
       for(auto g:space.FamilyCandidates(f,residency,reuse)) {
         if(!cost.HasCalibratedMma(g,residency))continue;
-        families[f].push_back({cost.Gemm(work,f,g,residency),g,{}});
+        try {families[f].push_back({cost.Gemm(work,f,g,residency),g,{}});}
+        catch(Sm90NativeMissing const&) {
+          if(!ampere)throw;
+          continue;
+        }
         ++result.evaluated;
         // D10c: activation-bound stages (B / TN > kappa) of a cluster may
         // multicast their A slots (even slot counts keep one issuer per slot).

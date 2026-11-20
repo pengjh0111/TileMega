@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <chrono>
 #include <iterator>
+#include <limits>
 #include <map>
 #include <queue>
 #include <set>
@@ -277,7 +278,12 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
       return found->second;
     }
     auto before=Clock::now();
-    double value=evaluate(c,options.operator_sum).step_ns;
+    double value;
+    try {value=evaluate(c,options.operator_sum).step_ns;}
+    catch(Sm90NativeMissing const&) {
+      if(!ampere)throw;
+      return memo.emplace(key,std::numeric_limits<double>::infinity()).first->second;
+    }
     memo.emplace(key, value);
     ++result.evaluations;
     Sm90NativePipelineCandidate candidate;
@@ -319,6 +325,8 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
   for(std::size_t i=0;i<starts.size();++i) {
     origin="seed:"+std::to_string(i);score(starts[i]);
   }
+  if(result.evaluated.empty())
+    throw std::invalid_argument("native pipeline search found no priced seed");
 
   // Lines 5-13: coordinate descent. A move is accepted only when it improves
   // the whole-program score, and derived coordinates are re-derived after each
