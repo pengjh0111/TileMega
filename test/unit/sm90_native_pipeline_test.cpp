@@ -182,7 +182,7 @@ int main(int argc, char** argv) {
     Sm90DenseWorkload qwen;
     qwen.shapes={{{5120,2048},{2048,4096},{},{},{151936,2048},{128,2048},
                   {1536,2048},{2048,768}}};
-    qwen.batch=1;qwen.layers=48;qwen.head_dim=128;qwen.queries=4;qwen.hkv=4;
+    qwen.batch=1;qwen.layers=48;qwen.head_dim=128;qwen.queries=8;qwen.hkv=4;
     qwen.moe=true;qwen.experts=128;qwen.top_k=8;qwen.qk_norm=true;
     Sm90DenseSearchSpace experts{qwen.shapes,qwen.batch,qwen.head_dim,qwen.queries,
                                 ampere,qwen.hkv};
