@@ -18,10 +18,13 @@ def reference(model, checkpoint, prompt, batch):
                 and r['framework'] in ('vllm', 'sglang', 'torchcompile') and
                 r['prompt_sha256'] == prompt and r['checkpoint_sha256'] == checkpoint]
     for r in sorted(rows, key=lambda r: (int(r['batch']) != batch, -int(r['batch']))):
+        accepted_receipts = set(r['receipt_sha256'].split())
         for attempt in r['evidence'].split():
             path = RUN/attempt/f"job/measurements/B{r['batch']}/measurements.json"
             data = read(path)
-            if (not data or read(RUN/attempt/'guard_result.json').get('acceptance') != 'strict'
+            if (not data or sha(path) not in accepted_receipts
+                    or data.get('prompt_ids_sha256') != prompt
+                    or read(RUN/attempt/'guard_result.json').get('acceptance') != 'strict'
                     or data['checkpoint']['checkpoint_sha256'] != checkpoint):
                 continue
             samples = {}
@@ -46,7 +49,6 @@ def main():
         raise ValueError('expected one completed measurement')
     job = jobs[0]
     step = state[job['name']]
-    result = measurement(job, step, read(cohort/'baseline_inputs.json'))
     folder = Path(step['out'])/f"job/measurements/B{job['batch']}"
     raw = read(folder/'measurements.json')
     identity = read(Path(step['out'])/'job/physical-device-identity.json')
@@ -59,6 +61,7 @@ def main():
             environment.get('serving_sha256') != job['harness_sha256'] or
             environment.get('revision') != REVISION):
         raise ValueError('measurement and allocation MPK sources differ')
+    result = measurement(job, step, read(policy.parent/'baseline_inputs.json'))
     cfg = raw['configuration']
     if raw['system'] != 'mpk' or cfg['mirage_revision'] != REVISION or cfg['world_size'] != 1:
         raise ValueError('MPK backend, version or TP mismatch')
