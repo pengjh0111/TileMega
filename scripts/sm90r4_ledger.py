@@ -93,7 +93,15 @@ def kind(row, moe):
 def analyze(a):
     stages = tsv(a.trace / 'runtime_stages.tsv')
     moe = any('router' in s['name'] for s in stages)
+    prediction = read(a.receipt)
+    ranked = prediction['ranked'][prediction['winner']]['prediction']['stages']
+    fused = any(s['kind'] == 'expert_fused' for s in ranked)
     kinds = {int(s['stage']): kind(s, moe) for s in stages}
+    if fused:
+        if 'expert_down' in kinds.values() or 'expert_gate_up' not in kinds.values():
+            raise ValueError('the recorded expert stage boundaries differ from the fused search plan')
+        kinds = {index: 'expert_fused' if label == 'expert_gate_up' else label
+                 for index, label in kinds.items()}
     rows = tsv(a.trace / 'stage_trace.tsv')
     by = {}
     for r in rows:
@@ -117,9 +125,7 @@ def analyze(a):
         totals['step'] = (release[present[-1]] - begin) / 1e3
         per_step.append(totals)
     measured = {k: st.median(s[k] for s in per_step) for k in per_step[0]}
-    prediction = read(a.receipt)
-    ranked = prediction['ranked'][prediction['winner']]['prediction']['stages']
-    folding = {'route_la': 'router', 'combine_la': 'expert_down', 'argmax_la': 'lm_head',
+    folding = {'route_la': 'router', 'combine_la': 'expert_fused' if fused else 'expert_down', 'argmax_la': 'lm_head',
                'embedding_la': 'lm_head', 'embedding': 'embedding'}
     predicted = {}
     for s in ranked:
@@ -127,6 +133,9 @@ def analyze(a):
         predicted[k] = predicted.get(k, 0) + s['instances'] * s['stage_ns'] / 1e3
     config = read(a.config)
     bound = bounds(config, a.batch, moe, a.dram_gbps)
+    if fused:
+        bound['expert_fused'] = bound.pop('expert_gate_up') + bound.pop('expert_down')
+    predicted['step'] = sum(predicted.values())
     out = []
     for k in sorted(measured, key=lambda k: -measured[k]):
         out.append(dict(stage=k, measured_us=round(measured[k], 1), predicted_us=round(predicted.get(k, 0), 1),
