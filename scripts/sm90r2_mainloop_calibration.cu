@@ -2,12 +2,21 @@
 #include <tilemega/Backend/Sm90DenseGemm.h>
 #include <cuda_runtime.h>
 #include <algorithm>
+#include <chrono>
+#include <thread>
 #include <cstdio>
 #include <cstring>
 #include <stdexcept>
 #include <string>
 #include <vector>
 using U64=unsigned long long;
+#ifdef TILEMEGA_A800_DUAL_MMA_SHARED
+constexpr int kResidency=2;
+#else
+constexpr int kResidency=1;
+#endif
+struct RunSpan {U64 begin,end;unsigned sm;};
+
 std::string selected_cases;
 unsigned sampled_cases=0;
 void Check(cudaError_t e) {if(e!=cudaSuccess)throw std::runtime_error(cudaGetErrorString(e));}
@@ -17,8 +26,8 @@ __global__ void Frequency(U64* out) {
   out[0]=clock64()-c;out[1]=Now()-t;
 }
 template<int TN,int TK,int WN,int R=1>
-__global__ __launch_bounds__(160,1)
-void Mainloop(U64* times,unsigned* errors,int repeats) {
+__global__ __launch_bounds__(160,kResidency)
+void Mainloop(U64* times,unsigned* errors,int repeats,RunSpan* spans) {
   using namespace cute;using namespace tilemega::backend;
   constexpr int WK=4/WN;
   using G=Sm90DenseGemm<16,TN,2048,TN,TK,2,WN,WK,ServingEpilogueOp::kStore,4,true,R>;
@@ -30,6 +39,8 @@ void Mainloop(U64* times,unsigned* errors,int repeats) {
   typename G::Mma mma;auto thread=mma.get_slice(lane);
   auto accum=partition_fragment_C(mma,Shape<_16,Int<TN>>{});clear(accum);
   float squares[2]={0,0};
+  U64 first=0;
+  if constexpr(kResidency==2)if(threadIdx.x==0)first=Now();
   U64 begin=clock64();
   for(int repeat=0;repeat<repeats;++repeat) {
     // Consume waits on an async producer each iteration. Its memory clobber
@@ -47,31 +58,77 @@ void Mainloop(U64* times,unsigned* errors,int repeats) {
     }
   }
   times[blockIdx.x*128+threadIdx.x]=clock64()-begin;
+  if constexpr(kResidency==2)if(threadIdx.x==0) {
+    unsigned sm;asm volatile("mov.u32 %0, %%smid;":"=r"(sm));
+    spans[blockIdx.x]={first,Now(),sm};
+  }
   float expected=float(repeats*TK/(4*WK));
   if(squares[0]!=expected || squares[1]!=expected)atomicAdd(errors,1);
   for_each(make_int_sequence<size(accum)>{},[&](auto i) {
     if(accum(i)!=float(repeats*TK/WK))atomicAdd(errors,1);
   });
 }
+static int DualSms(std::vector<RunSpan>& samples) {
+  std::sort(samples.begin(),samples.end(),[](auto const& a,auto const& b){return a.sm<b.sm;});
+  int total=0;
+  for(std::size_t i=0,j=0;i<samples.size();i=j) {
+    j=i+1;
+    while(j<samples.size() && samples[j].sm==samples[i].sm)++j;
+    if(j-i==2)
+      total+=std::max(samples[i].begin,samples[i+1].begin)<
+          std::min(samples[i].end,samples[i+1].end);
+  }
+  return total;
+}
+
 template<int TN,int TK,int WN,int R=1>
 void Case(cudaDeviceProp const& prop,double frequency,U64* times,unsigned* errors) {
   auto id=","+std::to_string(TN)+"x"+std::to_string(TK)+"x"+std::to_string(WN)+"x"+std::to_string(R)+",";
   if(selected_cases.find(id)==std::string::npos)return;
   constexpr int payload=2*(16+TN)*TK;
-  int shared=int(prop.sharedMemPerBlockOptin/256)*256,grid=prop.multiProcessorCount;
+  int grid=prop.multiProcessorCount*kResidency;
+#ifdef TILEMEGA_A800_DUAL_MMA_SHARED
+  int shared=TILEMEGA_A800_DUAL_MMA_SHARED;
+  if(shared>prop.sharedMemPerBlockOptin || shared<=prop.sharedMemPerMultiprocessor/3 ||
+     shared>prop.sharedMemPerMultiprocessor/2)
+    throw std::runtime_error("a dual-CTA probe requires the linked model's shared footprint");
+#else
+  int shared=int(prop.sharedMemPerBlockOptin/256)*256;
+#endif
   if(payload>shared)return;
   ++sampled_cases;
   Check(cudaFuncSetAttribute(Mainloop<TN,TK,WN,R>,cudaFuncAttributeMaxDynamicSharedMemorySize,shared));
   int resident;Check(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&resident,Mainloop<TN,TK,WN,R>,160,shared));
-  if(resident!=1)throw std::runtime_error("mainloop calibration occupancy mismatch");
-  Mainloop<TN,TK,WN,R><<<grid,160,shared>>>(times,errors,16);Check(cudaDeviceSynchronize());
+  if(resident!=kResidency)throw std::runtime_error("mainloop calibration occupancy mismatch");
+  RunSpan* spans=nullptr;
+  if constexpr(kResidency==2)Check(cudaMalloc(&spans,grid*sizeof(RunSpan)));
+  int dual_sms=prop.multiProcessorCount;
+  Mainloop<TN,TK,WN,R><<<grid,160,shared>>>(times,errors,16,spans);Check(cudaDeviceSynchronize());
   std::vector<double> values;
   for(int trial=0;trial<8;++trial) {
-    Mainloop<TN,TK,WN,R><<<grid,160,shared>>>(times,errors,128);
+    Mainloop<TN,TK,WN,R><<<grid,160,shared>>>(times,errors,128,spans);
     std::vector<U64> host(grid*128);Check(cudaMemcpy(host.data(),times,host.size()*8,cudaMemcpyDeviceToHost));
+    if constexpr(kResidency==2) {
+      std::vector<RunSpan> timings(grid);
+      Check(cudaMemcpy(timings.data(),spans,timings.size()*sizeof(RunSpan),cudaMemcpyDeviceToHost));
+      dual_sms=std::min(dual_sms,DualSms(timings));
+    }
     for(auto t:host)values.push_back(t/frequency/128/(TK/(16*(4/WN))));
   }
   std::sort(values.begin(),values.end());
+  if constexpr(kResidency==2) {
+    Check(cudaFree(spans));
+    if(dual_sms!=prop.multiProcessorCount)throw std::runtime_error("CTA overlap was not observed on every SM");
+    cudaFuncAttributes attr;
+    Check(cudaFuncGetAttributes(&attr,Mainloop<TN,TK,WN,R>));
+    std::printf("{\"status\":\"measured\",\"grid\":%d,\"tile_n\":%d,\"tile_k\":%d,"
+                "\"warps_n\":%d,\"warps_k\":%d,\"register_stages\":%d,\"samples\":%zu,"
+                "\"median_ns\":%.12g,\"p99_ns\":%.12g,\"dynamic_shared\":%d,"
+                "\"registers\":%d,\"local_bytes\":%zu,\"overlap_sms\":%d,\"input_norm\":true}\n",
+        grid,TN,TK,WN,4/WN,R,values.size(),values[values.size()/2],values[values.size()*99/100],
+        shared,attr.numRegs,attr.localSizeBytes,dual_sms);
+    return;
+  }
   std::printf("native_ldmatrix_mma_k16,%d,%d,%d,%d,%d,%d,%zu,%.12g,%.12g,ns\n",grid,TN,TK,WN,4/WN,R,
       values.size(),values[values.size()/2],values[values.size()*99/100]);
 }
@@ -84,18 +141,30 @@ void Shapes(cudaDeviceProp const& p,double f,U64* times,unsigned* errors) {
 #undef C
 }
 int main(int argc,char** argv) {try {
+#ifdef TILEMEGA_A800_DUAL_MMA_SHARED
+  if(argc!=2 || !*argv[1])throw std::runtime_error("supply one linked SM80 geometry");
+  selected_cases=std::string(",")+argv[1]+",";
+#else
   if(argc!=3 || std::strcmp(argv[1],"--cases") || !*argv[2])
     throw std::runtime_error("supply --cases from the matching calibration resource audit");
   selected_cases=std::string(",")+argv[2]+",";
+#endif
   Check(cudaSetDevice(0));cudaDeviceProp p{};Check(cudaGetDeviceProperties(&p,0));
   if((p.major!=8 && p.major!=9) || p.minor!=0)
     throw std::runtime_error("native mainloop calibration requires SM80 or SM90");
-  U64* times;unsigned* errors;Check(cudaMalloc(&times,p.multiProcessorCount*128*8));
+  if(kResidency==2 && (p.major!=8 || p.multiProcessorCount!=108))
+    throw std::runtime_error("dual-residency calibration requires the checked A800 target");
+  U64* times;unsigned* errors;Check(cudaMalloc(&times,p.multiProcessorCount*kResidency*128*8));
   Check(cudaMalloc(&errors,4));Check(cudaMemset(errors,0,4));
   Frequency<<<1,1>>>(times);U64 ticks[2];Check(cudaMemcpy(ticks,times,16,cudaMemcpyDeviceToHost));
   double frequency=double(ticks[0])/ticks[1];
-  std::printf("metric,grid,tile_n,tile_k,warps_n,warps_k,register_stages,samples,median,p99,unit\n");
-#ifdef TILEMEGA_CALIBRATION_LARGE_ONLY
+  if constexpr(kResidency==1)
+    std::printf("metric,grid,tile_n,tile_k,warps_n,warps_k,register_stages,samples,median,p99,unit\n");
+#ifdef TILEMEGA_A800_DUAL_MMA_SHARED
+  Case<32,128,4>(p,frequency,times,errors);
+  Case<128,64,2>(p,frequency,times,errors);Case<128,64,4>(p,frequency,times,errors);
+  Case<32,256,4>(p,frequency,times,errors);
+#elif defined(TILEMEGA_CALIBRATION_LARGE_ONLY)
   Case<8,512,1>(p,frequency,times,errors);
   Case<16,512,1>(p,frequency,times,errors);Case<16,512,2>(p,frequency,times,errors);
   Case<24,512,1>(p,frequency,times,errors);
@@ -117,5 +186,10 @@ int main(int argc,char** argv) {try {
 #endif
   unsigned count;Check(cudaMemcpy(&count,errors,4,cudaMemcpyDeviceToHost));
   if(!sampled_cases)throw std::runtime_error("no audited calibration case was selected");
-  Check(cudaFree(errors));Check(cudaFree(times));return count?1:0;
+  Check(cudaFree(errors));Check(cudaFree(times));
+  if constexpr(kResidency==2) {
+    Check(cudaDeviceReset());
+    std::this_thread::sleep_for(std::chrono::seconds(2));
+  }
+  return count?1:0;
 } catch(std::exception const& e) {std::fprintf(stderr,"%s\n",e.what());return 2;}}
