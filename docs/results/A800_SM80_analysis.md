@@ -83,6 +83,7 @@ QKV 分组放行后，最晚结束的 QKV 工作比最早的 release 晚 17.408 
 | 单卡、B1 配对实验 | 原版 TPOT（ms/token） | 候选 TPOT（ms/token） | 处理 |
 |---|---:|---:|---|
 | Qwen3-30B-A3B 融合专家 gate/up 列块 96→128、共用 ring 五级→四级，346266 | 9.576 | 8.630 | 三对均改善，六个进程的权重及输出 token 哈希一致，已进入 solver replay 作业 346435 |
+| Qwen3-30B-A3B QKV 列块 32→64、ring 两级，346310 | 9.572 | 8.894 | 三对均改善，六个进程的权重及 1024-token 输出一致，solver replay 作业 346549 |
 | Qwen3-30B-A3B 专家权重缓存提示，346025 | 9.558 | 10.867 | 六个进程输出相同，保留原版 |
 | Llama-3.1-8B FFN down 的 ring 深度 2→3，346134 | 12.185 | 12.356 | 六个进程输出相同，保留原版 |
 | Llama-3.1-8B attention chunks 8→13，346142 | — | — | 两组输出 token 哈希不同，配对比较作废 |
@@ -94,3 +95,7 @@ QKV 分组放行后，最晚结束的 QKV 工作比最早的 release 晚 17.408 
 Llama-3.1-8B 的 FFN down 在 trace 中耗时 3327 µs/步，独立试验加深 ring 后 TPOT 上升。检查 SM80 对应的 `ProduceCpAsync` 发现，B1 读入一行激活，向每个槽补零七行。MMA 只读激活区，累加与 epilogue 使用另外的 scratch。当前实现每次复用槽都会再次向这些位置发出清零请求。试验分支 `a800-decode-padding` 的提交 `439f811` 在一次 GEMM 调用中仅在每个槽首次使用时清零，后续 K tile 复制有效行。每个阶段重新执行初始化，32 个 producer lanes 保持原有 barrier 参与范围。[NVIDIA PTX 的 cp.async 语义](https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#data-movement-and-conversion-instructions-cp-async)
 
 使用固定 CUTLASS 版本的实际 CuTe swizzle 在 CPU 验证了 batch 1–16、槽数 2–8、五种 TK 共 560 组组合。每次复用前后的整个激活区内容均与原实现相同。按当前 B1 的 32 层、108 个 CTA 与 down 坐标统计，每步激活复制循环的 warp 迭代次数从 3,670,016 降为 555,520。这是根据生成计划计算的指令发射机会，实际 TPOT 取决于共享内存、权重加载与消费者计算的重叠。A800 同卡验证使用原来的 prefill、模型、prompt 与 decode 坐标，依次核对六个独立进程的输出和三对 TPOT。原始布局测试及逐阶段计数位于 `runs/a800/optimization/llama8-padrows-b1/`。
+
+作业 `346604` 在同一张 A800 上完成了这组配对。三个原版进程的 TPOT 为 12.184、12.182、12.181 ms/token，三个候选进程为 11.457、11.459、11.458 ms/token。六份权重哈希及 1024-token 输出哈希一致，候选进入 pipeline 搜索与 replay 作业 `346701`。同一改动将用 Mistral-7B 的独立 checkpoint 和 decode 产物验证。
+
+Qwen3-30B-A3B B1 的专家分块搜索 `346435` 已完成，两项 shortlist 候选的实际 gate/up 列宽均为 128，共用 ring 均为四级。组合实验 `346622` 以通过三对测试的专家版本作为对照，再加入 QKV 的单变量改动，用于检查两项收益能否在同一个模型中同时实现。
