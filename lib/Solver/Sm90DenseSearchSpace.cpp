@@ -13,9 +13,9 @@ int Sm90DenseSearchSpace::DefaultGateInterleave(int tile_n) {
 
 void Sm90DenseSearchSpace::Structure(Sm90DenseCoordinates& c,bool preserve_gate_interleave) {
   if(c.attention.chunks==1)c.attention.new_row_work=0;
+  bool valid=c.swiglu_u==4 || c.swiglu_u==8 || c.swiglu_u==16;
   if(c.moe)c.swiglu_u=16;
-  else if(!preserve_gate_interleave || (c.swiglu_u==4 || c.swiglu_u==8 || c.swiglu_u==16) &&
-          c.gemms[2].tile_n%(2*c.swiglu_u))
+  else if(!preserve_gate_interleave || (valid && c.gemms[2].tile_n%(2*c.swiglu_u)))
     c.swiglu_u=DefaultGateInterleave(c.gemms[2].tile_n);
 }
 
@@ -103,8 +103,11 @@ std::vector<Sm90DenseGemm> Sm90DenseSearchSpace::FamilyCandidates(unsigned famil
     else tiles={128,256};
     for(int tk=64;tk<=2048;tk*=2)depths.push_back(tk);
   }else {
+    // Dense gates can issue a third task with the same ring. Unlike the
+    // residual families, there is no per-task side buffer to enlarge.
+    int waves=target.arch_tag=="sm_80" && (residual || family==2)?3:2;
     for(int tn=8;tn<=n;tn+=8)
-      if(n%tn==0 && n/tn*4>=grid && n/tn<=(target.arch_tag=="sm_80" && residual?3:2)*grid)
+      if(n%tn==0 && n/tn*4>=grid && n/tn<=waves*grid)
         tiles.push_back(tn);
     for(int tk=64;tk<=2048;tk*=2)depths.push_back(tk);
   }
