@@ -261,6 +261,9 @@ def main():
             if strict:
                 row['foreign_or_unresolved_pids']=sorted(
                     strict_foreign(row,guard_host_pid,host_known) if phase!='preflight' else row['owners'])
+                if policy.get('confirm_retired_owners', False):
+                    row['retired_owned_pids'] = [pid for pid in row['foreign_or_unresolved_pids']
+                        if pid in host_known and process_start(pid, guard_proc_root) is None]
             else:
                 row['unresolved_host_pids']=[int(pid) for pid in row['owners'] if not Path('/proc',str(pid)).exists()]
             row['ownership_verified']=not limited
@@ -277,7 +280,7 @@ def main():
     for lock in locks:lock.parent.mkdir(parents=True,exist_ok=True)
     with contextlib.ExitStack() as stack:
         if strict:
-            try:_,guard_host_pid=host_proc()
+            try:guard_proc_root,guard_host_pid=host_proc()
             except Exception as error:return finish(75,'preflight ownership unavailable: '+str(error))
         if needs_numa_lock(os.environ):
             if group is None:
@@ -314,12 +317,15 @@ def main():
         if throttled(rows):return finish(75,'preflight thermal throttle')
         def checked_sample(phase, **extra):
             current = sample(phase, **extra)
-            if (strict and policy.get('confirm_hidden_memory', False)
-                    and not throttled(current)
-                    and not any(row['foreign_or_unresolved_pids'] for row in current)
-                    and any(row['hidden_mib'] > baseline + policy['max_hidden_mib'] for row in current)):
-                # NVML fetches memory and owners separately; an owned worker's
-                # exit between those calls can leave a one-snapshot mismatch.
+            if not strict or throttled(current):
+                return current
+            unresolved = set().union(*(row['foreign_or_unresolved_pids'] for row in current))
+            retired = set().union(*(row.get('retired_owned_pids', ()) for row in current))
+            hidden_spike = policy.get('confirm_hidden_memory', False) and any(
+                row['hidden_mib'] > baseline + policy['max_hidden_mib'] for row in current)
+            if not (unresolved - retired) and (retired or hidden_spike):
+                # NVML can retain a previously verified worker after its /proc
+                # entry vanishes. It must disappear from the immediate requery.
                 return sample(phase + '_confirm', **extra)
             return current
         env=dict(os.environ,TILEMEGA_GPU_LOCK_HELD='1',TILEMEGA_RUN_NONCE=nonce)
