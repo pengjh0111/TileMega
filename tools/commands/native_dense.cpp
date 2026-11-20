@@ -256,7 +256,19 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   if(fs::exists(directory))throw std::invalid_argument("retain prior native search evidence");
   fs::create_directories(directory);
   auto target=TargetSpec::FromJson(o.target);
+  bool resume=!o.prepared_shortlist.empty();
+  if((resume || o.prepare_shortlist) &&
+     (target.arch_tag!="sm_80" || o.search!="pipeline" || !o.measured || requested.extension()!=".so" ||
+      (resume && o.prepare_shortlist)))
+    throw std::invalid_argument("split shortlist requires SM80 pipeline measurement");
   auto target_sha=Hash(o.target),input_sha=Hash(o.input);
+  auto input_hash=[](std::string const& path) {return path.empty()?std::string():Hash(path);};
+  json::Value scope=json::Object{{"target_sha256",target_sha},{"export_sha256",input_sha},
+      {"compiler_sha256",Hash(fs::read_symlink("/proc/self/exe").string())},{"batch",o.batch},{"tp",o.tp},
+      {"measure_top",o.measure_top},{"analysis",o.analysis},{"operator_sum",o.operator_sum},
+      {"retile_only",o.retile_only},{"realize_aggregate",o.realize_aggregate},{"split_compile",o.split_compile},
+      {"search_budget_ms",o.search_budget_ms},{"seed_sha256",input_hash(o.seed_coordinates)},
+      {"pin_sha256",input_hash(o.pin_theta)},{"measure_command",o.measure_command}};
   auto constants=solver::Sm90NativeConstants::FromTarget(json::ParseFile(o.target),TILEMEGA_SOURCE_DIR);
   // Constants are re-measured at the body milestones of prompt §5/§6; between
   // them a changed header is reported, never a reason to refuse the solve.
@@ -286,7 +298,7 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   if(o.search!="pipeline" && o.analysis!="reuse")
     throw std::invalid_argument("non-reuse analysis requires pipeline search");
   solver::Sm90DenseSearchOptions search;search.top=o.measure_top;
-  if(target.arch_tag=="sm_80") {
+  if(target.arch_tag=="sm_80" && !resume) {
     json::Array coverage;
     for(int residency:{1,2})for(unsigned f:solver::Sm90DenseActiveFamilies(space.moe)) {
       std::set<std::pair<std::string,bool>> keys;
@@ -299,8 +311,51 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
     std::ofstream(directory/"ampere-mma-coverage.json")<<json::Value(json::Object{
         {"target_sha256",target_sha},{"export_sha256",input_sha},{"keys",coverage}}).Dump(2)<<'\n';
   }
-  auto result=solver::SearchSm90Dense(space,work,cost,search);
+  solver::Sm90DenseSearchResult result;
   json::Value pipeline_record;
+  json::Array ranked,candidates;
+  std::vector<fs::path> configs;
+  if(resume) {
+    auto prepared=json::ParseFile(o.prepared_shortlist);
+    if(prepared.At("schema").AsNumber("prepared schema")!=1 ||
+       prepared.At("scope").Dump(0)!=scope.Dump(0))
+      throw std::invalid_argument("prepared shortlist execution inputs changed");
+    auto const& receipt=prepared.At("receipt");
+    ranked=receipt.At("ranked").AsArray("prepared ranking");
+    candidates=receipt.At("candidates").AsArray("prepared candidates");
+    if(ranked.empty() || ranked.size()!=candidates.size() || ranked.size()>unsigned(o.measure_top))
+      throw std::invalid_argument("prepared shortlist has an invalid candidate count");
+    for(unsigned i=0;i<candidates.size();++i) {
+      auto const& row=candidates[i];
+      if(row.At("rank").AsNumber("candidate rank")!=i || ranked[i].At("rank").AsNumber("rank")!=i)
+        throw std::invalid_argument("prepared shortlist changed candidate order");
+      fs::path config=row.At("coordinates").AsString("prepared coordinate");
+      if(Hash(config.string())!=row.At("coordinates_sha256").AsString("coordinate SHA"))
+        throw std::invalid_argument("prepared coordinate changed");
+      auto c=solver::Sm90DenseCoordinates::FromJson(json::ParseFile(config.string()));
+      if(!space.Legal(c) || !cost.HasCalibratedMma(c) ||
+         c.ToJson().Dump(0)!=ranked[i].At("coordinates").Dump(0))
+        throw std::invalid_argument("prepared coordinate is no longer the calibrated candidate");
+      auto status=row.At("status").AsString("prepared status");
+      if(status=="compiled") {
+        auto binary=row.At("binary").AsString("prepared binary");
+        if(Hash(binary)!=row.At("binary_sha256").AsString("binary SHA") ||
+           Hash(binary+".identity.json")!=row.At("identity_sha256").AsString("identity SHA") ||
+           Hash(binary+".plan.json")!=row.At("manifest_sha256").AsString("manifest SHA"))
+          throw std::invalid_argument("prepared candidate binary or identity changed");
+      }else if(status!="resource_rejected")
+        throw std::invalid_argument("prepared candidate has an invalid compile status");
+      auto prediction=cost.Predict(work,c);
+      prediction.step_ns=row.At("predicted_ns").AsNumber("prepared replay time");
+      result.ranked.push_back({c,prediction,ranked[i].At("origin").AsString("candidate origin")});
+      configs.push_back(config);
+    }
+    pipeline_record=receipt.At("pipeline");
+    pipeline_record.Set("prepared_shortlist_sha256",Hash(o.prepared_shortlist));
+    result.elapsed_ms=receipt.At("search_ms").AsNumber("prepared search time");
+    result.evaluated=std::size_t(receipt.At("evaluated").AsNumber("prepared evaluation count"));
+  }else {
+    result=solver::SearchSm90Dense(space,work,cost,search);
   // P3: Algorithm 1 replaces the additive ranking for every selection this
   // round. `--search additive` is kept only to reproduce the R3-R5 choices
   // (continuation 1 section 1.3), so it never decides a final coordinate here.
@@ -405,8 +460,6 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
     result.evaluated=pipelined.evaluations;
     result.elapsed_ms=pipelined.seconds*1000;
   }
-  json::Array ranked,candidates;
-  std::vector<fs::path> configs;
   for(unsigned i=0;i<result.ranked.size();++i) {
     auto path=directory/("candidate-"+std::to_string(i)+".tmexec.json");
     std::ofstream(path)<<result.ranked[i].coordinates.ToJson().Dump(2)<<'\n';configs.push_back(path);
@@ -414,6 +467,7 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
         {"coordinates",result.ranked[i].coordinates.ToJson()},
         {"prediction",result.ranked[i].prediction.ToJson()}});
   }
+  }  // Prepare the ranking when there is no frozen shortlist.
   json::Value measurement;int winner=0;
   auto save=[&] {
     json::Value receipt=json::Object{{"schema",o.search=="pipeline"?3:2},{"selection",o.measured?"measure":"predicted"},
@@ -427,7 +481,7 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   save();
   bool compiled_finalists=o.measured || o.search=="pipeline";
   if(compiled_finalists) {
-    for(unsigned i=0;i<configs.size();++i) {
+    if(!resume)for(unsigned i=0;i<configs.size();++i) {
       auto binary=directory/("candidate-"+std::to_string(i)+".so");
       NativeCandidateCounts counts;
       auto rejected=TryMeasuredNativeCompile(counts,[&] {
@@ -438,7 +492,28 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
           {"predicted_ns",result.ranked[i].prediction.step_ns}};
       if(rejected) {row.Set("status","resource_rejected");row.Set("compile_result",*rejected);}
       else {row.Set("status","compiled");row.Set("binary",binary.string());row.Set("binary_sha256",Hash(binary.string()));}
+      if(o.prepare_shortlist) {
+        row.Set("coordinates_sha256",Hash(configs[i].string()));
+        if(!rejected) {
+          row.Set("identity_sha256",Hash(binary.string()+".identity.json"));
+          row.Set("manifest_sha256",Hash(binary.string()+".plan.json"));
+        }
+      }
       candidates.push_back(row);save();
+    }
+    if(o.prepare_shortlist) {
+      if(std::none_of(candidates.begin(),candidates.end(),[](auto const& row) {
+           return row.At("status").AsString("status")=="compiled";}))
+        throw std::runtime_error("no buildable native candidate for deferred occupancy");
+      if(Hash(o.target)!=target_sha || Hash(o.input)!=input_sha ||
+         input_hash(o.seed_coordinates)!=scope.At("seed_sha256").AsString("seed SHA") ||
+         input_hash(o.pin_theta)!=scope.At("pin_sha256").AsString("pin SHA"))
+        throw std::runtime_error("native search inputs changed during preparation");
+      auto receipt=json::Value(json::Object{{"schema",1},{"scope",scope},{"receipt",save()}});
+      auto temporary=directory/"prepared.json.incoming";
+      std::ofstream(temporary)<<receipt.Dump(2)<<'\n';
+      fs::rename(temporary,directory/"prepared.json");
+      return 0;
     }
     if(o.search=="pipeline") {
       // A requested launch bound is not a measurement of the linked kernel.
