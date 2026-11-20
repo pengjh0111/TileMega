@@ -164,6 +164,8 @@ int main(int argc,char** argv) {try {
   Case<32,128,4>(p,frequency,times,errors);
   Case<128,64,2>(p,frequency,times,errors);Case<128,64,4>(p,frequency,times,errors);
   Case<32,256,4>(p,frequency,times,errors);
+#elif defined(TILEMEGA_CALIBRATION_EXPERT_192_ONLY)
+  Case<192,64,2>(p,frequency,times,errors);
 #elif defined(TILEMEGA_CALIBRATION_LARGE_ONLY)
   Case<8,512,1>(p,frequency,times,errors);
   Case<16,512,1>(p,frequency,times,errors);Case<16,512,2>(p,frequency,times,errors);

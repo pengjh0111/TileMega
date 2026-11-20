@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Attach five strict SM80 MMA measurements to a new calibrated target."""
+"""Attach guarded SM80 MMA measurements to a new calibrated target."""
 import argparse
 import math
 from pathlib import Path
@@ -10,15 +10,12 @@ from sm90d1_common import ROOT, read, sha, write
 
 
 SHAPE = ('tile_n', 'tile_k', 'warps_n', 'register_stages')
-PROCESSES = 5
-
-
-def collect(run, target, audit, base_hash):
+def collect(run, target, audit, base_hash, processes=5):
     device = target['device_provenance']
     if target['arch_tag'] != 'sm_80' or 'A800' not in device['name']:
         raise ValueError('require an A800 calibration target')
     jobs = read(run/'queue/queue_calibration.json')
-    expected_names = {f'sm80-mainloop-f{i}' for i in range(PROCESSES)}
+    expected_names = {f'sm80-mainloop-f{i}' for i in range(processes)}
     if {job['name'] for job in jobs} != expected_names or any(
             job['artifact_sha256'] != audit['binary_sha256'] or job['target_sha256'] != base_hash
             or job['expected_uuid'] != device['uuid'] for job in jobs):
@@ -29,7 +26,7 @@ def collect(run, target, audit, base_hash):
                 if row['production_compatible'] and 2 * (16 + row['tile_n']) * row['tile_k'] <= shared}
     records = {}
     for rows in process_rows(read(run/'results/state.json'), 'sm80-mainloop',
-                             PROCESSES, run/'results', device['uuid']):
+                             processes, run/'results', device['uuid']):
         fresh = {}
         for row in rows:
             shape = tuple(int(row[k]) for k in SHAPE)
@@ -48,7 +45,7 @@ def collect(run, target, audit, base_hash):
                           for shape, values in sorted(records.items())},
             'p99_ns': {':'.join(map(str, (grid, *shape))): statistics.median(x[1] for x in values)
                        for shape, values in sorted(records.items())},
-            'processes': PROCESSES, 'gpu_uuid': device['uuid'], 'base_target_sha256': base_hash,
+            'processes': processes, 'gpu_uuid': device['uuid'], 'base_target_sha256': base_hash,
             'binary_sha256': audit['binary_sha256'], 'evidence': str(run.relative_to(ROOT)),
             'method': 'fresh process median, per K16 and split-K warp group, one CTA per SM'}
 
@@ -61,6 +58,7 @@ def main():
     p.add_argument('--allocation-target', type=Path,
                    help='supplement disjoint shapes measured on this guarded A800')
     p.add_argument('--out', type=Path, required=True)
+    p.add_argument('--repetitions', type=int, choices=(1, 5), default=5)
     a = p.parse_args()
     if a.out.exists():
         p.error('use a new output profile path')
@@ -71,7 +69,7 @@ def main():
     if a.allocation_target is None:
         if 'mma_mainloop' in profile:
             raise ValueError('the base target already contains a mainloop table')
-        profile['mma_mainloop'] = collect(a.run.resolve(), target, read(a.audit), sha(a.target))
+        profile['mma_mainloop'] = collect(a.run.resolve(), target, read(a.audit), sha(a.target), a.repetitions)
     else:
         probe = read(a.allocation_target)
         keys = ('name', 'memory_mib', 'capability', 'mig', 'driver')
@@ -79,7 +77,7 @@ def main():
                 any(target['device_provenance'][k] != probe['device_provenance'][k] for k in keys)):
             raise ValueError('mainloop supplement requires equivalent A800 resources and driver')
         table = profile['mma_mainloop']
-        extra = collect(a.run.resolve(), probe, read(a.audit), sha(a.allocation_target))
+        extra = collect(a.run.resolve(), probe, read(a.audit), sha(a.allocation_target), a.repetitions)
         if table['median_ns'].keys() & extra['median_ns'].keys():
             raise ValueError('supplement overlaps an existing measured shape')
         record = {k: v for k, v in extra.items() if k not in ('median_ns', 'p99_ns')}
