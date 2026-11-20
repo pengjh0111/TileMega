@@ -14,11 +14,9 @@ PROCESSES = 5
 
 
 def collect(run, target, audit, base_hash):
-    profile = target['sm80_native_constants']
     device = target['device_provenance']
-    if (target['arch_tag'] != 'sm_80' or 'A800' not in device['name']
-            or profile['gpu_uuid'] != device['uuid'] or 'mma_mainloop' in profile):
-        raise ValueError('provide an A800 base calibration without an MMA table')
+    if target['arch_tag'] != 'sm_80' or 'A800' not in device['name']:
+        raise ValueError('require an A800 calibration target')
     jobs = read(run/'queue/queue_calibration.json')
     expected_names = {f'sm80-mainloop-f{i}' for i in range(PROCESSES)}
     if {job['name'] for job in jobs} != expected_names or any(
@@ -60,13 +58,36 @@ def main():
     p.add_argument('--run', type=Path, required=True)
     p.add_argument('--target', type=Path, required=True)
     p.add_argument('--audit', type=Path, required=True)
+    p.add_argument('--allocation-target', type=Path,
+                   help='supplement disjoint shapes measured on this guarded A800')
     p.add_argument('--out', type=Path, required=True)
     a = p.parse_args()
     if a.out.exists():
         p.error('use a new output profile path')
     target = read(a.target)
-    target['sm80_native_constants']['mma_mainloop'] = collect(
-        a.run.resolve(), target, read(a.audit), sha(a.target))
+    profile = target['sm80_native_constants']
+    if profile['gpu_uuid'] != target['device_provenance']['uuid']:
+        raise ValueError('base target lost its original device provenance')
+    if a.allocation_target is None:
+        if 'mma_mainloop' in profile:
+            raise ValueError('the base target already contains a mainloop table')
+        profile['mma_mainloop'] = collect(a.run.resolve(), target, read(a.audit), sha(a.target))
+    else:
+        probe = read(a.allocation_target)
+        keys = ('name', 'memory_mib', 'capability', 'mig', 'driver')
+        if (target['resources'] != probe['resources'] or
+                any(target['device_provenance'][k] != probe['device_provenance'][k] for k in keys)):
+            raise ValueError('mainloop supplement requires equivalent A800 resources and driver')
+        table = profile['mma_mainloop']
+        extra = collect(a.run.resolve(), probe, read(a.audit), sha(a.allocation_target))
+        if table['median_ns'].keys() & extra['median_ns'].keys():
+            raise ValueError('supplement overlaps an existing measured shape')
+        record = {k: v for k, v in extra.items() if k not in ('median_ns', 'p99_ns')}
+        record['shape_keys'] = sorted(extra['median_ns'])
+        record['parent_profile_sha256'] = sha(a.target)
+        table.setdefault('supplements', []).append(record)
+        for name in ('median_ns', 'p99_ns'):
+            table[name].update(extra[name])
     write(a.out, target)
 
 
