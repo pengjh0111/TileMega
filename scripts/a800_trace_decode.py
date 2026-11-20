@@ -23,7 +23,10 @@ def main():
     parser.add_argument('--trace', required=True, type=Path)
     parser.add_argument('--reference', required=True, type=Path)
     parser.add_argument('--target', required=True, type=Path)
+    parser.add_argument('--timeout-s', type=int, default=330)
     args = parser.parse_args()
+    if args.timeout_s <= 0:
+        parser.error('trace deadline must be positive')
 
     prefill = artifact(args.prefill)[0]
     reference, original, manifest = artifact(args.reference)
@@ -39,7 +42,7 @@ def main():
             or manifest['runtime_batch'] != args.batch):
         parser.error('the trace and reference must share one SM80 native plan and target')
     planned = dict(model=args.model, batch=args.batch, reference=sha(reference), trace=sha(trace),
-                   prefill=sha(prefill), target=sha(args.target))
+                   prefill=sha(prefill), target=sha(args.target), timeout_s=args.timeout_s)
     if args.mode == 'plan':
         print(json.dumps(planned, indent=2))
         return 0
@@ -67,7 +70,7 @@ def main():
                TILEMEGA_GPU_LOCK=policy['gpu_lock_path'], OMP_NUM_THREADS='2', MKL_NUM_THREADS='2')
     command = [sys.executable, '-m', 'tilemega.bench.gpu_guard', '--policy', str(policy_path),
                '--out', str(folder/'guard'), '--needs-free-mib', str(math.ceil(checkpoint/2**20) + 8192),
-               '--timeout-s', '330', '--', 'taskset', '--cpu-list', device['cpus'], *wrapper]
+               '--timeout-s', str(args.timeout_s), '--', 'taskset', '--cpu-list', device['cpus'], *wrapper]
     return subprocess.run(command, cwd=ROOT, env=env).returncode
 
 
