@@ -164,8 +164,8 @@ def main():
         child = [str(args.cuda_gdb), '-nx', '-batch', '-ex', 'set confirm off',
                  '-ex', 'set disable-randomization off', '-ex', 'set debuginfod enabled off',
                  '-ex', 'set cuda api_failures stop', '-ex', 'run', '-ex', 'info cuda kernels',
-                 '-ex', 'info cuda threads', '-ex', 'bt', '-ex', 'p/x $errorpc',
-                 '-ex', 'x/i $errorpc', '--args', *child]
+                 '-ex', 'info cuda threads', '-ex', 'bt', '-ex', 'p/x $pc',
+                 '-ex', 'info symbol $pc', '-ex', 'x/10i $pc-0x60', '--args', *child]
     command = ['taskset', '--cpu-list', dev['cpus'], py,
                str(ROOT/'scripts/run_r16_with_device_identity.py'),
                '--out', '{attempt_dir}/job', '--guard-policy', str(policy_path),
