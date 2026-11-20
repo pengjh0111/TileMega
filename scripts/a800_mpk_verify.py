@@ -69,6 +69,7 @@ def main():
     vocab_size = read(config/'config.json')['vocab_size']
     first = None
     artifacts = {}
+    projection_widths = {}
     for length in (1, 1024):
         runs = [r for r in raw['generation_runs'] if r['N'] == length]
         tokens = read(folder/runs[0]['tokens_file'])
@@ -82,8 +83,14 @@ def main():
         lib, = (folder/f'kernel_N{length}').glob('mpk_launcher_rank0*.so')
         generated = (lib.parent/'test_rank0.cu').read_text()
         groups = set(re.findall(r'runtime_config\.paged_kv_indptr_buffer\[([^\]]+)\]', generated))
+        linear = re.findall(r'linear_kernel<bfloat16,\s*\d+,\s*(\d+),\s*(\d+),\s*(\d+)>', generated)
+        widths = sorted({int(n) for n, _, _ in linear})
+        # The pinned Ampere epilogue reuses its first 64-column predicate
+        # for the second half of each 128-column tile.
+        if not widths or any(n != 64 and (n <= 0 or n % 128) for n in widths):
+            raise ValueError(f'MPK Ampere output tile lacks a full store partition: {widths}')
+        projection_widths[str(length)] = widths
         if job['model'] == 'llama3_1_8b':
-            linear = re.findall(r'linear_kernel<bfloat16,\s*\d+,\s*(\d+),\s*(\d+),\s*(\d+)>', generated)
             gates = {(int(n),int(k)) for n,k,stride in linear if int(stride)==28672}
             if gates != {(256,4096)}:
                 raise ValueError(f'MPK Llama 8B gate/up launch geometry mismatch: {gates}')
@@ -111,6 +118,7 @@ def main():
                    reference_n1024_tokens_sha256=sha(samples[1024]),
                    common_prefix_tokens_by_row=prefix, equal_positions_by_row=equal,
                    matching_first_tokens=count, sm80_binary_sha256=artifacts,
+                   linear_output_widths=projection_widths,
                    deterministic_repeats=True, environment=environment, tpot_ms=result['tpot_ms'])
     write_json(cohort/'mpk-accepted.json', receipt)
     print(receipt)
