@@ -1321,21 +1321,42 @@ std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
       for(auto const& [kind,width,rows]:scalar_shapes)
         out<<"  if(kind==unsigned(TaskKind::"<<kind<<") && width=="<<width<<"u && rows=="<<rows
            <<"u) {runner.template Run<TaskKind::"<<kind<<", "<<width<<", "<<rows<<">(); return;}\n";
+      auto arch=module->getAttrOfType<mlir::StringAttr>("tmexec.solved_arch");
+      auto serving=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.serving");
+      bool coalesce_moe=arch && arch.getValue()=="sm_80" && serving &&
+          integerField(serving,"seq")>1 && !optionalBoolField(plan,"forward");
+      using MoeDispatch=std::tuple<std::string,unsigned,int,int,bool,std::int64_t,std::int64_t>;
+      std::map<MoeDispatch,std::vector<std::size_t>> moe_dispatch;
+      auto emit_moe=[&](MoeDispatch const& dispatch,std::vector<std::size_t> const& ids) {
+        auto const& [kind,step,top_k,block_rows,grouped,rows,width]=dispatch;
+        out<<"  if(kind==unsigned(TaskKind::"<<kind<<") && ";
+        if(ids.size()>1)out<<'(';
+        for(std::size_t i=0;i<ids.size();++i) {
+          if(i)out<<" || ";
+          out<<"runner.stage.dm_program=="<<ids[i]<<"u";
+        }
+        if(ids.size()>1)out<<')';
+        out<<") {runner.template RunMoe<static_cast<DmMoeStep>("<<step<<"u), "
+           <<top_k<<", "<<block_rows<<", "<<(grouped?"true":"false")<<", "
+           <<rows<<", "<<width<<">(); return;}\n";
+      };
       for(std::size_t i=0;i<stages.size();++i) {
         auto stage=dictionaryEntry(stages[i],"stages");
         if(stage.get("dm_moe")) {
           auto config=frontend::DecodeDmMoeStage(stage.get("dm_moe"));
-          out<<"  if(kind==unsigned(TaskKind::"<<stringField(stage,"kind")
-             <<") && runner.stage.dm_program=="<<i<<"u) {runner.template RunMoe<static_cast<DmMoeStep>("
-             <<unsigned(config.step)<<"u), "<<config.top_k<<", "<<config.block_rows<<", "
-             <<(config.grouped?"true":"false")<<", "<<integerField(stage,"group")<<", "
-             <<integerField(stage,"width")<<">(); return;}\n";
+          MoeDispatch dispatch{stringField(stage,"kind"),unsigned(config.step),config.top_k,
+              config.block_rows,config.grouped,integerField(stage,"group"),integerField(stage,"width")};
+          if(coalesce_moe)moe_dispatch[dispatch].push_back(i);
+          else emit_moe(dispatch,{i});
         }
         if(stringField(stage,"kind")=="kDepthwiseConv")
           out<<"  if(kind==unsigned(TaskKind::kDepthwiseConv) && runner.stage.dm_program=="<<i
              <<"u) {runner.template RunDepthwise<"<<integerField(stage,"group")<<", "
              <<integerField(stage,"width")<<", DmPrimitiveChain"<<i<<">(); return;}\n";
       }
+      // The runner still reads the selected stage's operands, task, and
+      // routing. Share only the generated template call for identical shapes.
+      for(auto const& [dispatch,ids]:moe_dispatch)emit_moe(dispatch,ids);
       out<<"  asm volatile(\"trap;\");\n}\n";
     }
     out << "template<int Variant = -1, bool Combine = false, class Runner>\n";
