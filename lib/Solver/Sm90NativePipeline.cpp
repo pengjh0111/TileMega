@@ -458,6 +458,21 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
       ++extra;
     }
   }
+  // A calibrated SM80 incumbent can have the same structural class as
+  // several newly tried slot depths. Keep its exact legal coordinate in
+  // replay so prediction error cannot eliminate the comparison arm.
+  std::string incumbent;
+  if(ampere && options.finalists>0 && !seeds.empty() && !options.pinned_theta && !options.operator_sum &&
+      !options.retile_only && !options.realize_aggregate) {
+    incumbent=CoordinateKey(seeds.front());
+    auto was_scored=[&](auto const& candidate) {
+      return CoordinateKey(candidate.coordinates)==incumbent;
+    };
+    auto measured_seed=std::find_if(ranked.begin(),ranked.end(),was_scored);
+    if(measured_seed==ranked.end())incumbent.clear();
+    else if(std::none_of(result.shortlist.begin(),result.shortlist.end(),was_scored))
+      result.shortlist.push_back(*measured_seed);
+  }
 
   // Lines 15-19: materialize, replay, and keep at most `per_class` finalists
   // from any one structural class so the measured set stays varied.
@@ -481,6 +496,16 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
         [&](auto const& f) {return CoordinateKey(f.coordinates) ==
                                    CoordinateKey(candidate.coordinates);});
     if (!present) result.finalists.push_back(candidate);
+  }
+  if(!incumbent.empty()) {
+    auto is_incumbent=[&](auto const& candidate) {
+      return CoordinateKey(candidate.coordinates)==incumbent;
+    };
+    if(std::none_of(result.finalists.begin(),result.finalists.end(),is_incumbent)) {
+      auto replayed=std::find_if(by_replay.begin(),by_replay.end(),is_incumbent);
+      if(int(result.finalists.size())==options.finalists)result.finalists.back()=*replayed;
+      else result.finalists.push_back(*replayed);
+    }
   }
   result.seconds = spent_ms() / 1000.0;
   return result;

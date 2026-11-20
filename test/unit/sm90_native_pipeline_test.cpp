@@ -173,6 +173,19 @@ int main(int argc, char** argv) {
                                                ampere_options,ampere_score,{seed});
     assert(!ampere_result.evaluated.empty());
     assert(ampere_result.evaluated.front().coordinates.gemms[2].slots==3);
+    auto comparison=ampere_options;
+    comparison.pinned_theta.reset();
+    comparison.finalists=2;comparison.shortlist=1;comparison.structural_extra=0;
+    auto comparison_score=[&](Sm90DenseCoordinates const& c,bool) {
+      Sm90NativeFlowResult flow;flow.problem=binding;
+      flow.step_ns=c.ToJson().Dump(0)==seed.ToJson().Dump(0)?9999:99;
+      return flow;
+    };
+    auto matched=SolveSm90NativePipeline(ampere_space,llama,ampere_cost,
+                                        comparison,comparison_score,{seed});
+    assert(matched.finalists.size()==2);
+    assert(matched.finalists.back().coordinates.ToJson().Dump(0)==seed.ToJson().Dump(0));
+    assert(matched.finalists.front().coordinates.ToJson().Dump(0)!=seed.ToJson().Dump(0));
     assert(!ampere_cost.HasCalibratedMma(seed.gemms[2],2));
     bool missing_grid=false;
     try {ampere_cost.MmaK16Ns(seed.gemms[2],2);}
