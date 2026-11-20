@@ -738,8 +738,16 @@ int RunCompile(int argc, char** argv) {
             (forward_seed_tile.tile_m!=64 && forward_seed_tile.tile_m!=128) ||
             moe_bm%forward_seed_tile.tile_m)))
       throw std::invalid_argument("prefill expert WGMMA requires explicit prefill tiles that divide the expert row block");
-    if(forward_seed_explicit && prefill_seed && forward_gemm_impl!="wgmma")
-      throw std::invalid_argument("explicit prefill tiles currently require forward WGMMA");
+    std::optional<tilemega::TargetSpec> sm80_prefill_target;
+    if(forward_seed_explicit && prefill_seed && forward_gemm_impl!="wgmma") {
+      if(forward_gemm_impl!="mma16" || runtime_target.empty() ||
+         nonpaged_weight_layout!="tiled" || forward_seed_tile.stages>8)
+        throw std::invalid_argument("SM80 explicit prefill tiles require an MMA16 runtime target, tiled weights and at most eight stages");
+      auto target=tilemega::TargetSpec::FromJson(runtime_target);
+      if(target.arch_tag!="sm_80" || !target.caps.cp_async)
+        throw std::invalid_argument("explicit MMA16 prefill tiles require SM80 cp.async");
+      sm80_prefill_target=std::move(target);
+    }
     if(forward_seed_explicit && (!tilemega::solver::DmServingBF16ShapeLegal(
         forward_seed_tile.tile_m,forward_seed_tile.tile_n,forward_seed_tile.tile_k,
         forward_seed_tile.stages) ||
@@ -1350,10 +1358,16 @@ int RunCompile(int argc, char** argv) {
           forward_seed_tile:
           tilemega::frontend::GemmGranularity{16,128,128,2,1});
       if(prefill_seed && forward_seed_explicit)
-        for(auto& geometry:import.gemms) {
+        for(std::size_t i=0;i<import.gemms.size();++i) {
+          auto& geometry=import.gemms[i];
           // The last-token head stays narrow but shares the wide GEMMs' packing.
           geometry.tile_n=forward_seed_tile.tile_n;
           geometry.tile_k=forward_seed_tile.tile_k;
+          if(sm80_prefill_target) {
+            geometry.stages=forward_seed_tile.stages;
+            if(plan.gemms[i].epilogue!=tilemega::frontend::PlanGemm::Epilogue::kArgmaxPartial)
+              geometry.tile_m=forward_seed_tile.tile_m;
+          }
         }
       if(forward_seed_explicit && (forward_gemm_impl=="wgmma" || conv_impl=="tma_im2col")) {
         tilemega::frontend::ImportedSemantics eligibility;eligibility.plan=plan;
@@ -1392,6 +1406,20 @@ int RunCompile(int argc, char** argv) {
             tilemega::json::ParseFile(shared_weight_layout))) {
           import.gemms.at(id).tile_n=layout.tile_n;
           import.gemms.at(id).tile_k=layout.tile_k;
+        }
+      if(sm80_prefill_target)
+        for(std::size_t i=0;i<import.gemms.size();++i) {
+          auto const& tile=import.gemms[i];
+          auto const& access=plan.gemms[i].access;
+          if(!tilemega::solver::DmServingBF16ShapeLegal(
+                  tile.tile_m,tile.tile_n,tile.tile_k,tile.stages) ||
+              tilemega::solver::DmServingBF16SmemBytes(
+                  tile.tile_m,tile.tile_n,tile.tile_k,tile.stages)>
+                  sm80_prefill_target->res.max_dynamic_smem_per_cta)
+            throw std::invalid_argument("SM80 prefill geometry exceeds the target limits after weight-layout binding");
+          if(access.b==tilemega::codegen::DmBAccess::kExpertIndirect &&
+              access.block_rows%unsigned(tile.tile_m))
+            throw std::invalid_argument("SM80 prefill tile M must divide the expert row block");
         }
       if(prefill_expert_wgmma) {
         bool found=false;
