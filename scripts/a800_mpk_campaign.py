@@ -2,6 +2,7 @@
 import csv
 import fcntl
 import json
+import math
 import os
 from pathlib import Path
 import subprocess
@@ -54,10 +55,22 @@ def submit(key):
     if json.loads(plan.stdout)['steps'] != [f'{model}_mpk_b{batch:02d}_r{repeat}']:
         raise RuntimeError('invalid MPK job scope')
     put(LOG/f'{tag}.plan.json', plan.stdout)
+    duration = 35 if large else 24
+    placement = [f'--time=00:{duration:02}:00']
+    if repeat:
+        pilot = RUN/'cohorts'/cohort((model, batch, 0))
+        if not (pilot/'mpk-accepted.json').is_file():
+            raise RuntimeError(f'missing validated timing pilot for {tag}')
+        step = json.loads((pilot/'baseline/state.json').read_text())[f'{model}_mpk_b{batch:02d}_r0']
+        # Keep twice the observed guarded runtime plus the wrapper and fresh
+        # device-probe allowances. Slurm may choose the full requested limit.
+        minutes = math.ceil((2*step['run_s'] + 356 + 75)/60)
+        if minutes < duration:
+            placement.append(f'--time-min=00:{minutes:02}:00')
     intent = LOG/f'{tag}.intent'
     with intent.open('x') as f:
         f.write(str(time.time()))
-    reply = run(['sbatch', '--parsable', f'--job-name={tag}', '--time='+('00:35:00' if large else '00:24:00'),
+    reply = run(['sbatch', '--parsable', f'--job-name={tag}', *placement,
                  f'--output=logs/{tag}-%j.out', 'baseline-a800.sbatch', *options])
     if reply.returncode:
         if 'AssocMaxSubmitJobLimit' in reply.stderr or 'QOSMaxSubmitJobPerUserLimit' in reply.stderr:
