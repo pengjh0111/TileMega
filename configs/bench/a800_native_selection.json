@@ -1,7 +1,7 @@
 {
   "llama3_2_1b/B16": {
     "prefill_sha256": "4b99c0cf82590b3eed72fec5d1d4ab2d681e24dfd131eca964b6fe9281f0e4a3",
-    "decode_sha256": "1c13e875388321b04ba1c698c13c6af0ad72524cfa19fe7b283e428b81033b57",
+    "decode_sha256": "a3d987fd0c1cb5ef90466964a5bf9e9012f6046c4ee3874a60b79ee677931609",
     "target_sha256": "03a33c6a8d297abd433fbbd985e1505982fa35d1697c36d04fca33a36a26a5e8"
   }
 }
