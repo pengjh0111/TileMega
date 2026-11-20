@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Backend/Sm80DenseService.cuh>
 #include <tilemega/Backend/Sm90DenseOperands.cuh>
 #include <tilemega/Backend/Sm90DenseRoles.cuh>
 
@@ -18,7 +19,7 @@ namespace tilemega::backend {
 // CTAs; it first waits for the peer's consumer releases on peer[s / 2].
 template<int Batch,int N,int K,int TN,int TK,int Slots,int WarpsN,int WarpsK,
          ServingEpilogueOp Op,int U,bool InputNorm,int RegisterStages=1,bool Multicast=false,
-         int ResidualTiles=2,bool CpAsync=false>
+         int ResidualTiles=2,bool CpAsync=false,bool ServiceProbe=false>
 struct Sm90DenseGemm {
   using Element=cutlass::bfloat16_t;
   using Async=codegen::executor::Async<std::conditional_t<CpAsync,arch::Sm80,arch::Sm90>>;
@@ -52,6 +53,7 @@ struct Sm90DenseGemm {
        Op==ServingEpilogueOp::kResidualAllReduce);
   using Epilogue=Sm90DenseEpilogue<Op,Batch,N,K,TN,U,InputNorm>;
   static_assert(kThreads==Sm90DenseRoleAbi::kThreads);
+  static_assert(!ServiceProbe || (CpAsync && !TILEMEGA_TRACE_STAGE));
   using Atom=decltype(cute::composition(cute::Swizzle<3,3,3>{},
       cute::Layout<cute::Shape<cute::_8,cute::_64>,cute::Stride<cute::_64,cute::_1>>{}));
   // The TMA box writes [TK/64][kRows][64] panels with SWIZZLE_128B, the same
@@ -110,6 +112,7 @@ struct Sm90DenseGemm {
       bool streamed) {
     Sm90DenseRoles::Producer();
     int lane=threadIdx.x&31;
+    Sm80DenseService service;
     if constexpr(kResidual)
       for(int local=0;local<tasks;++local) {
         int task=int(blockIdx.x)+local*int(gridDim.x);
@@ -120,7 +123,12 @@ struct Sm90DenseGemm {
     for(int sequence=0;sequence<tasks*kIterations;++sequence) {
       int slot=sequence%Slots,task=int(blockIdx.x)+(sequence/kIterations)*int(gridDim.x);
       int tile=sequence%kIterations;
+      Sm80DenseService::Tick stamp=0;
+      if constexpr(ServiceProbe)if(lane==0)stamp=Sm80DenseService::Now();
       Async::Wait(state.empty+slot,(phase>>slot)&1);
+      if constexpr(ServiceProbe)if(lane==0) {
+        auto ready=Sm80DenseService::Now();service.producer_wait+=ready-stamp;stamp=ready;
+      }
       int prefix=0;
       if constexpr(Prefix>0)
         if(streamed && sequence<(Prefix+2*TN*TK-1)/(2*TN*TK))
@@ -139,7 +147,12 @@ struct Sm90DenseGemm {
       }
       // The barrier has 32 arrivals, including lanes with no copies in a tile.
       Async::CompleteCopies(state.full+slot);
+      if constexpr(ServiceProbe)if(lane==0)service.producer_issue+=Sm80DenseService::Now()-stamp;
       phase^=1u<<slot;
+    }
+    if constexpr(ServiceProbe)if(lane==0) {
+      auto* out=Sm80DenseService::Output();
+      out->producer_wait=service.producer_wait;out->producer_issue=service.producer_issue;
     }
     if(lane==0 && tasks)
       for(int slot=0;slot<Slots;++slot)state.producer_generations[slot]=(phase>>slot)&1;
@@ -272,12 +285,18 @@ struct Sm90DenseGemm {
     if constexpr(Multicast)rank=Async::ClusterRank();
     Mma mma;auto thread=mma.get_slice(lane);
     auto owned=thread.partition_C(make_identity_tensor(Shape<_16,Int<TN>>{}));
+    Sm80DenseService service;
     for(int local=0;local<tasks;++local) {
       auto accum=partition_fragment_C(mma,Shape<_16,Int<TN>>{});clear(accum);
       float squares[2]={0,0};
       for(int iteration=0;iteration<kIterations;++iteration) {
         int sequence=local*kIterations+iteration,slot=sequence%Slots;
+        Sm80DenseService::Tick stamp=0;
+        if constexpr(ServiceProbe)if(tid==0)stamp=Sm80DenseService::Now();
         Async::Wait(state.full+slot,(phase>>slot)&1);phase^=1u<<slot;
+        if constexpr(ServiceProbe)if(tid==0) {
+          auto ready=Sm80DenseService::Now();service.consumer_wait+=ready-stamp;stamp=ready;
+        }
         if(tid==0)Sm90DenseMarkFirst(0);
         auto* sa=a+slot*kRows*TK;auto* sb=b+slot*TN*TK;
         // A warp takes one uniform specialization. All 128-thread barriers
@@ -298,10 +317,13 @@ struct Sm90DenseGemm {
         // (PTX ISA 8.7 sec. 8.6 proxies; without it TN448 B1 lost 132/200 runs).
         Async::FenceProxyAsyncShared();
         Async::Arrive(state.empty+slot);
+        if constexpr(ServiceProbe)if(tid==0)service.consumer_mma+=Sm80DenseService::Now()-stamp;
         // The peer issued this slot's A into this CTA too: release it there.
         if constexpr(Multicast)
           if(unsigned(slot&1)!=(rank&1))Async::RemoteArrive(Async::Mapa(state.peer+slot/2,rank^1u));
       }
+      Sm80DenseService::Tick epilogue_start=0;
+      if constexpr(ServiceProbe)if(tid==0)epilogue_start=Sm80DenseService::Now();
       if(tid==0)Sm90DenseMark(1);
       if constexpr(InputNorm)
         #pragma unroll
@@ -347,6 +369,13 @@ struct Sm90DenseGemm {
         codegen::executor::ComputeSync();
         if(tid==0)Sm90DenseMark(2);
       }
+      if constexpr(ServiceProbe)if(tid==0)
+        service.consumer_epilogue+=Sm80DenseService::Now()-epilogue_start;
+    }
+    if constexpr(ServiceProbe)if(tid==0) {
+      auto* out=Sm80DenseService::Output();
+      out->consumer_wait=service.consumer_wait;out->consumer_mma=service.consumer_mma;
+      out->consumer_epilogue=service.consumer_epilogue;
     }
     // Every task has been consumed: the operand slots are free.
     if constexpr(Op==ServingEpilogueOp::kArgmaxPartial) {
