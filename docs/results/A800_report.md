@@ -1,5 +1,13 @@
 # TileMega single-GPU A800 experiment
 
+## Current A800 measurement protocol
+
+**Verified, November 20 at 21:37 CST.** One accepted timing process completes each framework, model and batch. A new TileMega artifact first passes one full teacher-forced and step-versus-loop correctness run. Its timing uses a fresh process with tracing disabled. Each process warms up N1 and N1024 once apiece and times three requests at each length. The result is the difference of the two median request times divided by 1023. Earlier valid processes are retained. The tables show the actual sample count and use the median over all accepted processes. A same-card comparison measures the control and the candidate once each. The historical sections below record the protocol in force at their stated time.
+
+The published snapshot contains 87 timed baseline cells, 20 documented unsupported cells, and 33 timed TileMega cells. Raw output, checkpoints, compiled binaries and guard logs are on the A800 server under `runs/a800/`. Single-process measurements establish a timing observation. Historical five-process checks retain their own reported scope. [TPOT with sample counts](A800_TPOT.md) · [Full request times](A800_execution_times.md)
+
+**Verified.** Llama-3.1-8B B1 MPK allocation 346892 passed the BF16 HF teacher-forced comparison on all 1024 token positions of the generated trajectory. The largest logit gap was 0.15625. At the first difference with vLLM, token 6, HF assigned 3.109375 to the vLLM choice and 3.015625 to the MPK choice on the same prefix. Both independently completed MPK timing processes are retained. Llama-3.2-1B B2 and both small Qwen B2 pilots verified the first generated token for both prompt rows. [A800 baseline receipts and timings](A800_baselines.csv)
+
 ## Revisions and environment
 
 **Verified.** The paper audit base is `7425a5242580af16a7ea43be742e313a6eedb351`. The inherited experimental parent is `cc62bb703de5e8f4f0b03b21c4e58f04ef4ce0b3`. The A800 branch is independent. CUTLASS in the inherited worktree matches the recorded gitlink `dc45f979ae336a235da1676b311f35efeb30149a`.
