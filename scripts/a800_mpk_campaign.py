@@ -29,7 +29,13 @@ def run(args, timeout=30):
 def cohort(key):
     model, batch, repeat = key
     version = 4 if model == 'llama3_1_8b' else 3
-    return f"mpk-v{version}-{model.replace('_', '-')}-b{batch}-r{repeat}"
+    suffix = f"{model.replace('_', '-')}-b{batch}-r{repeat}"
+    old = f'mpk-v{version}-{suffix}'
+    if model == 'llama3_1_8b' and batch > 1:
+        # Finish any submitted legacy job and retain its accepted receipt.
+        if (LOG/f'{old}.rejected').exists() or not (LOG/f'{old}.id').exists():
+            return f'mpk-v5-{suffix}'
+    return old
 
 
 def submit(key):
@@ -50,6 +56,8 @@ def submit(key):
     options = ['--cohort', tag, '--engine', 'mpk', '--model', model, '--batch', str(batch),
                '--round', str(repeat), '--expected-target', TARGET, '--expected-checkpoint-sha256', hashes.pop(),
                '--process-timeout-s', str(seconds), '--heartbeat-timeout-s', '420']
+    if tag.startswith('mpk-v5-'):
+        options.append('--mpk-row-overlay')
     plan = run(['./run-env.sh', 'tilemega', 'python', 'scripts/a800_baselines.py', 'plan',
                 *options, '--budget-s', str(seconds+200)])
     plan.check_returncode()
