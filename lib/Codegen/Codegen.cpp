@@ -1311,6 +1311,10 @@ std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
       }
     }
     if(dm_shared)out<<"#define TILEMEGA_DM_STAGE_SHARED_BYTES "<<dm_shared<<"\n";
+    auto arch=module->getAttrOfType<mlir::StringAttr>("tmexec.solved_arch");
+    auto serving=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.serving");
+    bool coalesce_moe=moe_stages && arch && arch.getValue()=="sm_80" && serving &&
+        integerField(serving,"seq")>1 && !optionalBoolField(plan,"forward");
     if(!scalar_shapes.empty() || depthwise || moe_stages) {
       out<<"} // namespace tilemega::codegen\n"
          <<"#include <tilemega/Codegen/tasks/TaskBase.h>\n"
@@ -1321,10 +1325,6 @@ std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
       for(auto const& [kind,width,rows]:scalar_shapes)
         out<<"  if(kind==unsigned(TaskKind::"<<kind<<") && width=="<<width<<"u && rows=="<<rows
            <<"u) {runner.template Run<TaskKind::"<<kind<<", "<<width<<", "<<rows<<">(); return;}\n";
-      auto arch=module->getAttrOfType<mlir::StringAttr>("tmexec.solved_arch");
-      auto serving=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.serving");
-      bool coalesce_moe=arch && arch.getValue()=="sm_80" && serving &&
-          integerField(serving,"seq")>1 && !optionalBoolField(plan,"forward");
       using MoeDispatch=std::tuple<std::string,unsigned,int,int,bool,std::int64_t,std::int64_t>;
       std::map<MoeDispatch,std::vector<std::size_t>> moe_dispatch;
       auto emit_moe=[&](MoeDispatch const& dispatch,std::vector<std::size_t> const& ids) {
@@ -1370,7 +1370,7 @@ std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
           << ", Variant>::roles & (Combine ? 2u : 1u))) runner.template Run<DmSpec" << i << ">();\n"
           << "      else asm volatile(\"trap;\");\n      break;\n";
     };
-    if (!h10_wgmma) {
+    if (!h10_wgmma && !coalesce_moe) {
       for (std::size_t i = 0; i < gemms.size(); ++i) emit_case(i);
     } else {
       // The host key proposes groups; device constexpr checks prove identical
