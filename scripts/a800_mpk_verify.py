@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 import subprocess
 
-from a100_baselines import sha
+from a100_baselines import inputs, sha
 from a100_results import measurement, read
 from a800_baselines import RUN
 from a800_mpk_preflight import REVISION
@@ -24,8 +24,11 @@ def reference(model, checkpoint, prompt):
             if (not data or read(RUN/attempt/'guard_result.json').get('acceptance') != 'strict'
                     or data['checkpoint']['checkpoint_sha256'] != checkpoint):
                 continue
-            run = next(r for r in data['generation_runs'] if r['N'] == 1 and not r['warmup'])
-            return path, read(path.parent/run['tokens_file'])
+            samples = {}
+            for length in (1, 1024):
+                run = next(r for r in data['generation_runs'] if r['N'] == length and not r['warmup'])
+                samples[length] = path.parent/run['tokens_file']
+            return path, samples
     raise ValueError(f'no guarded independent reference for {model}')
 
 
@@ -59,11 +62,15 @@ def main():
     cfg = raw['configuration']
     if raw['system'] != 'mpk' or cfg['mirage_revision'] != REVISION or cfg['world_size'] != 1:
         raise ValueError('MPK backend, version or TP mismatch')
+    config, _ = inputs(job['model'])
+    vocab_size = read(config/'config.json')['vocab_size']
     first = None
     artifacts = {}
     for length in (1, 1024):
         runs = [r for r in raw['generation_runs'] if r['N'] == length]
         tokens = read(folder/runs[0]['tokens_file'])
+        if any(type(token) is not int or not 0 <= token < vocab_size for row in tokens for token in row):
+            raise ValueError(f'MPK generated a token outside the configured vocabulary at N={length}')
         if any(read(folder/r['tokens_file']) != tokens for r in runs[1:]):
             raise ValueError(f'MPK greedy output diverged between repetitions at N={length}')
         if first is not None and first != [row[:1] for row in tokens]:
@@ -78,12 +85,23 @@ def main():
         if '.sm_80.' not in listing:
             raise ValueError(f'{lib} lacks native SM80 code')
         artifacts[str(length)] = sha(lib)
-    path, expected = reference(job['model'], result['checkpoint_sha256'], raw['prompt_ids_sha256'])
+    path, samples = reference(job['model'], result['checkpoint_sha256'], raw['prompt_ids_sha256'])
+    expected = read(samples[1])
     count = min(len(first), len(expected))
     if not count or first[:count] != expected[:count]:
         raise ValueError(f'MPK first tokens differ from {path} over {count} shared prompt rows')
+    expected_full = read(samples[1024])[:count]
+    if len(expected_full) != count or any(len(row) != 1024 for row in expected_full):
+        raise ValueError('independent 1024-token reference has unexpected dimensions')
+    # After the first differing greedy choice the models condition on different
+    # prefixes. Keep those later positional matches as descriptive evidence.
+    prefix = [next((i for i, (x,y) in enumerate(zip(a,b)) if x!=y), len(a))
+              for a,b in zip(tokens[:count], expected_full)]
+    equal = [sum(x==y for x,y in zip(a,b)) for a,b in zip(tokens[:count], expected_full)]
     receipt = dict(measurement_sha256=result['receipt'], checkpoint_sha256=result['checkpoint_sha256'],
                    independent_reference=str(path.relative_to(RUN)), reference_sha256=sha(path),
+                   reference_n1024_tokens_sha256=sha(samples[1024]),
+                   common_prefix_tokens_by_row=prefix, equal_positions_by_row=equal,
                    matching_first_tokens=count, sm80_binary_sha256=artifacts,
                    deterministic_repeats=True, environment=environment, tpot_ms=result['tpot_ms'])
     write_json(cohort/'mpk-accepted.json', receipt)
