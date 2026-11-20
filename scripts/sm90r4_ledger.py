@@ -61,7 +61,7 @@ def run(a):
         del engine
         gc.collect()
         torch.cuda.empty_cache()
-    if 'reference' in result:
+    if 'reference' in result and 'trace' in result:
         result['overhead_pct'] = (result['trace']['window_mean_ms'] /
                                   result['reference']['window_mean_ms'] - 1) * 100
     receipt = f'run-{a.arm}.json' if a.arm else 'run.json'
