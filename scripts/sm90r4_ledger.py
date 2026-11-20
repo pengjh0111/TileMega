@@ -138,6 +138,7 @@ def analyze(a):
     count = len(stages)
     per_step = []
     cta_timing = {}
+    joint = []
     for it in iterations:
         # With emb = LA the prologue (stage 0) runs only before step 0.
         present = [g for g in range(count) if (it, g) in by]
@@ -160,6 +161,27 @@ def analyze(a):
                 'entry_spread_us': (max(starts)-min(starts))/1000,
                 'longest_local_body_us': max(end-begin for begin,end in local)/1000,
                 'last_body_after_first_release_us': (max(ends)-release[g])/1000})
+            if label == 'attention' and kinds.get(g-1) == 'qkv' and (it, g-1) in by:
+                active = [r for r in by[it, g] if int(r['tasks'])]
+                qkv = [r for r in by[it, g-1] if int(r['tasks'])]
+                if active and qkv:
+                    first_attention = min(int(r['t_begin']) for r in active)
+                    last_attention = max(int(r['t_tasks_end']) for r in active)
+                    first_qkv = min(int(r['t_begin']) for r in qkv)
+                    last_qkv = max(int(r['t_tasks_end']) for r in qkv)
+                    overlap = min(last_qkv, last_attention) - max(first_qkv, first_attention)
+                    joint.append({
+                        'span_overlap_us': max(0, overlap)/1000,
+                        'attention_active_ctas': len(active),
+                        'attention_tasks': sum(int(r['tasks']) for r in active),
+                        'attention_max_tasks_per_cta': max(int(r['tasks']) for r in active),
+                        'attention_active_entry_spread_us':
+                            (max(int(r['t_begin']) for r in active)-first_attention)/1000,
+                        'attention_active_longest_body_us':
+                            max(int(r['t_tasks_end'])-int(r['t_begin']) for r in active)/1000,
+                        'attention_longest_cta_boundary_wait_us':
+                            max(int(r['t_release'])-int(r['t_tasks_end']) for r in active)/1000,
+                    })
         totals['step'] = (release[present[-1]] - begin) / 1e3
         per_step.append(totals)
     measured = {k: st.median(s[k] for s in per_step) for k in per_step[0]}
@@ -182,7 +204,13 @@ def analyze(a):
     cta = {label: dict(instances=len(samples),
                 **{metric: st.median(s[metric] for s in samples) for metric in samples[0]})
            for label, samples in cta_timing.items()}
-    write(a.out, dict(steps=len(per_step), rows=out, trace=str(a.trace), per_stage_instance=cta))
+    report = dict(steps=len(per_step), rows=out, trace=str(a.trace), per_stage_instance=cta)
+    if joint:
+        report['qkv_attention'] = dict(
+            instances=len(joint),
+            instances_with_span_overlap=sum(r['span_overlap_us'] > 0 for r in joint),
+            **{metric: st.median(r[metric] for r in joint) for metric in joint[0]})
+    write(a.out, report)
     for r in out:
         print(r)
 
