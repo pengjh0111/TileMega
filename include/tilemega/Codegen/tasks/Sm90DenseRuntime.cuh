@@ -647,6 +647,10 @@ extern "C" int tm_plan_dump_serving_trace(void* opaque,char const* directory) {
 #if TILEMEGA_TRACE_STAGE == 2
       "worker\titeration\tpast\tt_begin\tt_tasks_end\tt_release\ttasks\tsmid\tstage"
       "\tm0\tm1\tm2\tm3\tm4\tm5"
+      "\tgu_empty_cycles\tgu_issue_cycles\tdn_preissue_empty_cycles\tdn_preissue_issue_cycles"
+      "\tdn_gate_wait_cycles\tdn_activation_cycles\tdn_empty_cycles\tdn_issue_cycles"
+      "\tgu_full_cycles\tgu_mma_cycles\tgu_epilogue_cycles"
+      "\tdn_full_cycles\tdn_mma_cycles\tdn_epilogue_cycles"
 #else
       "worker\titeration\tpast\tt_begin\tt_tasks_end\tt_release\ttasks\tsmid\tstage"
 #endif

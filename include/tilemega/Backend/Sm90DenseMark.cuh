@@ -18,7 +18,10 @@ namespace tilemega::backend {
 // knowledge of StageTrace's layout and stays independent of the program header
 // that defines it.
 struct Sm90DenseMarks {
-  static constexpr int kCount=6;
+  enum MoeCounter {
+    kGuEmpty=6,kGuIssue,kDnPreissueEmpty,kDnPreissueIssue,kDnGateWait,kDnActivation,
+    kDnEmpty,kDnIssue,kGuFull,kGuMma,kGuEpilogue,kDnFull,kDnMma,kDnEpilogue,kCount
+  };
   __device__ static __forceinline__ unsigned long long* Base() {
     extern __shared__ __align__(1024) char shared[];
     return *reinterpret_cast<unsigned long long**>(shared+Sm90DenseOperandHeader::kTraceSlot);
@@ -48,5 +51,21 @@ __device__ __forceinline__ void Sm90DenseMarkFirst(int index) {
   (void)index;
 #endif
 }
+
+template<bool CpAsync,bool Producer>
+struct Sm80MoeStageMarks {
+  static constexpr bool kEnabled=CpAsync && TILEMEGA_TRACE_STAGE==2;
+  __device__ static __forceinline__ unsigned long long Now() {
+    if constexpr(kEnabled)
+      if(threadIdx.x==(Producer?128:0))return clock64();
+    return 0;
+  }
+  __device__ static __forceinline__ void Add(Sm90DenseMarks::MoeCounter phase,
+                                             unsigned long long begin) {
+    if constexpr(kEnabled)
+      if(threadIdx.x==(Producer?128:0))
+        if(auto* marks=Sm90DenseMarks::Base())marks[phase]+=clock64()-begin;
+  }
+};
 
 }  // namespace tilemega::backend

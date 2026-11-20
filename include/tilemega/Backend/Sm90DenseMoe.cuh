@@ -900,10 +900,14 @@ struct Sm90DenseMoeFusedGemm {
       Sm90DenseRingState& state,Element* a,Element* b,Task task,int lane,unsigned& phase,
       int& sequence,Record record) {
     auto const* tiles=Gu::TaskTiles(p.weight_gate_up,record.expert,task.slot*kTilesGu+task.tile);
+    using Profile=Sm80MoeStageMarks<CpAsync,true>;
     int token=record.route/TopK;
     for(int tile=0;tile<kIterGu;++tile) {
       int slot=(sequence++)%Slots;
+      auto stamp=Profile::Now();
       Async::Wait(state.empty+slot,(phase>>slot)&1);
+      Profile::Add(Sm90DenseMarks::kGuEmpty,stamp);
+      stamp=Profile::Now();
       if constexpr(CpAsync) {
         Gu::CopyWeights(b+slot*kWeightSlot,tiles,task.slot*kTilesGu+task.tile,tile,state.full+slot);
         Gu::CopyActivation(a+slot*kRows*kMaxTK,p.input,tile,record.count,token);
@@ -929,6 +933,7 @@ struct Sm90DenseMoeFusedGemm {
         Gu::CopyWeights(b+slot*kWeightSlot,tiles,task.slot*kTilesGu+task.tile,tile,state.full+slot);
       }
       }
+      Profile::Add(Sm90DenseMarks::kGuIssue,stamp);
       phase^=1u<<slot;
     }
   }
@@ -939,15 +944,20 @@ struct Sm90DenseMoeFusedGemm {
       Sm90DenseRingState& state,Element* a,Element* b,Task task,int lane,unsigned& phase,
       int& sequence,Record record) {
     auto const* tiles=Dn::TaskTiles(p.weight_down,record.expert,task.slot*kTilesDn+task.tile);
+    using Profile=Sm80MoeStageMarks<CpAsync,true>;
     constexpr int kAhead=Slots<kIterDn?Slots:kIterDn;
     int first=sequence;
     for(int tile=0;tile<kAhead;++tile) {
       int slot=(sequence++)%Slots;
+      auto stamp=Profile::Now();
       Async::Wait(state.empty+slot,(phase>>slot)&1);
+      Profile::Add(Sm90DenseMarks::kDnPreissueEmpty,stamp);
+      stamp=Profile::Now();
       if(CpAsync || lane==0) {
         if constexpr(!CpAsync)Async::ExpectTx(state.full+slot,kSlotBytesDn);
         Dn::CopyWeights(b+slot*kWeightSlot,tiles,task.slot*kTilesDn+task.tile,tile,state.full+slot);
       }
+      Profile::Add(Sm90DenseMarks::kDnPreissueIssue,stamp);
       phase^=1u<<slot;
     }
     // The whole warp waits. A lane-0-only spin let lanes 1-31 run ahead, and the
@@ -955,9 +965,12 @@ struct Sm90DenseMoeFusedGemm {
     // counted per warp execution) split into groups that completed the CTA
     // barrier without the consumers: the MR7 hang, about one stall in 25k
     // fused stages, verified by per-thread barrier markers.
+    auto gate_wait=Profile::Now();
     WaitGateUp(p.gate_up_done,task.slot);
+    Profile::Add(Sm90DenseMarks::kDnGateWait,gate_wait);
     // Producer side: thread 128 owns the mark (appendix D).
     if(threadIdx.x==128)Sm90DenseMarkFirst(3);
+    auto activation=Profile::Now();
     if constexpr(CpAsync) {
       auto* source=static_cast<Element const*>(p.hidden)+std::size_t(task.slot)*16*kIntermediate;
       for(int tile=0;tile<kAhead;++tile) {
@@ -972,9 +985,13 @@ struct Sm90DenseMoeFusedGemm {
             task.slot,state.full+(first+tile)%Slots);
     }
     __syncwarp();
+    Profile::Add(Sm90DenseMarks::kDnActivation,activation);
     for(int tile=kAhead;tile<kIterDn;++tile) {
       int slot=(sequence++)%Slots;
+      auto stamp=Profile::Now();
       Async::Wait(state.empty+slot,(phase>>slot)&1);
+      Profile::Add(Sm90DenseMarks::kDnEmpty,stamp);
+      stamp=Profile::Now();
       if constexpr(CpAsync) {
         auto* source=static_cast<Element const*>(p.hidden)+std::size_t(task.slot)*16*kIntermediate;
         Dn::CopyWeights(b+slot*kWeightSlot,tiles,task.slot*kTilesDn+task.tile,tile,state.full+slot);
@@ -986,6 +1003,7 @@ struct Sm90DenseMoeFusedGemm {
         Async::Tensor4D(a+slot*kRows*kMaxTK,p.activation,0,0,tile*(TKDn/64),task.slot,
             state.full+slot);
       }
+      Profile::Add(Sm90DenseMarks::kDnIssue,stamp);
       phase^=1u<<slot;
     }
   }
@@ -1017,11 +1035,12 @@ struct Sm90DenseMoeFusedGemm {
 
   // U7's preset: the two MMA configurations are never live together, so each
   // task type runs in its own __noinline__ consumer.
-  template<class Body,int Iterations,int TN,int TK,int WN,int WK>
+  template<class Body,int Iterations,int TN,int TK,int WN,int WK,bool Down>
   __device__ static __forceinline__ void ConsumeTask(Sm90DenseMoeOperands const& q,
       Sm90DenseRingState& state,Element* a,Element* b,float* scratch,int t,unsigned& phase,
       int& sequence,int* flag,LocalSchedule const& routing) {
     using namespace cute;
+    using Profile=Sm80MoeStageMarks<CpAsync,false>;
     int tid=threadIdx.x,lane=tid%(32*WN),split=tid/(32*WN);
     float* norms=scratch+WK*16*TN;
     typename Body::Core::Mma mma;auto thread=mma.get_slice(lane);
@@ -1030,8 +1049,11 @@ struct Sm90DenseMoeFusedGemm {
     float squares[2]={0,0};
     for(int iteration=0;iteration<Iterations;++iteration) {
       int slot=(sequence++)%Slots;
+      auto stamp=Profile::Now();
       Async::Wait(state.full+slot,(phase>>slot)&1);phase^=1u<<slot;
+      Profile::Add(Down?Sm90DenseMarks::kDnFull:Sm90DenseMarks::kGuFull,stamp);
       if(tid==0)Sm90DenseMarkFirst(1);
+      stamp=Profile::Now();
       auto* sa=a+slot*kRows*kMaxTK;auto* sb=b+slot*kWeightSlot;
       if constexpr(WK==1)Body::Core::template MmaSlice<0>(sa,sb,accum,squares);
       else if constexpr(WK==2) {
@@ -1045,7 +1067,9 @@ struct Sm90DenseMoeFusedGemm {
       }
       Async::FenceProxyAsyncShared();
       Async::Arrive(state.empty+slot);
+      Profile::Add(Down?Sm90DenseMarks::kDnMma:Sm90DenseMarks::kGuMma,stamp);
     }
+    auto epilogue=Profile::Now();
     if constexpr(Body::kInputNorm)
       #pragma unroll
       for(int r=0;r<2;++r) {
@@ -1062,12 +1086,13 @@ struct Sm90DenseMoeFusedGemm {
     codegen::executor::ComputeSync();
     Body::Epilogue(q,scratch,norms,t,flag,&routing);
     codegen::executor::ComputeSync();
+    Profile::Add(Down?Sm90DenseMarks::kDnEpilogue:Sm90DenseMarks::kGuEpilogue,epilogue);
   }
   __device__ static __noinline__ void ConsumeGateUp(Sm90DenseMoeFusedOperands const& p,
       Sm90DenseRingState& state,Element* a,Element* b,float* scratch,Task task,unsigned& phase,
       int& sequence,int* flag,LocalSchedule const& routing) {
     auto q=GateUpOperands(p);
-    ConsumeTask<Gu,kIterGu,TNGu,TKGu,WNGu,WKGu>(q,state,a,b,scratch,
+    ConsumeTask<Gu,kIterGu,TNGu,TKGu,WNGu,WKGu,false>(q,state,a,b,scratch,
         task.slot*kTilesGu+task.tile,phase,sequence,flag,routing);
     // MR7 item 3: h's rows are published; release them to the down tasks.
     if(threadIdx.x==0) {
@@ -1080,7 +1105,7 @@ struct Sm90DenseMoeFusedGemm {
       Sm90DenseRingState& state,Element* a,Element* b,float* scratch,Task task,unsigned& phase,
       int& sequence,int* flag,LocalSchedule const& routing) {
     auto q=DownOperands(p);
-    ConsumeTask<Dn,kIterDn,TNDn,TKDn,WNDn,WKDn>(q,state,a,b,scratch,
+    ConsumeTask<Dn,kIterDn,TNDn,TKDn,WNDn,WKDn,true>(q,state,a,b,scratch,
         task.slot*kTilesDn+task.tile,phase,sequence,flag,routing);
   }
 
