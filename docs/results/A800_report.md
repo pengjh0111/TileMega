@@ -300,6 +300,29 @@ was 12.189 ms. The extended Mistral and Llama searches both used one A800
 and retained the original protocol. The two model lanes resume larger
 batches after B1 independent timing completes.
 
+**Verified.** Qwen3-0.6B B2 and B8 each passed three fresh formal timing
+processes. Median TPOT was 1.621 ms at B2 and 1.883 ms at B8. B2 measured
+1.699× against the fastest baseline. The B8 comparison awaits the remaining
+baselines. B4 and B16 have independent prefill artifacts and selection jobs.
+
+**Verified.** The B16 follow-up `345466` compared two and three `cp.async`
+slots in FFN gate/up with FFN down held at three slots. The three paired
+requests used the same A800, checkpoint, prefill and generated tokens.
+Median TPOT decreased from 2.942 to 2.861 ms. Bounded pipeline search
+`345503` uses the candidate's explicit geometry and starts five correctness
+rounds and three independent timings only after successful selection.
+
+**Verified.** OLMoE B2 search `345449` reached code generation and rejected
+both candidates for inconsistent expert-stage packing. The selected gate/up
+tile uses a per-task 128-by-64 slice. Its down tile is also a per-task slice
+with 64-by-64 dimensions, which the original code mistook for Qwen3's shared
+fixed-page recipe. CPU code generation reproduced the rejection. A
+three-slot 64-by-128 down slice fits the fused arena and emitted SM80 CUDA.
+Job `345505` resumes B2 with this legal geometry. The layout fix in
+`b79f9a8` is staged in `TileMega-a800-moe-pack-build` for isolated compiler
+and code-generation verification. The repair preserves the shared 64-by-64
+Qwen3 expert packing.
+
 ## Current result snapshot
 
-The CSVs record 55 measured baseline cells and 5 baseline cells with documented N/A status, out of 160 baseline cells. TileMega has 11 measured cells out of 40. Live tables are refreshed under `runs/a800/collected/`. Each single-GPU array task has a finite wall time and an independent process guard. The baseline and native feeders persist exact stage identifiers in the workspace `logs/`.
+The CSVs record 56 measured baseline cells and 5 baseline cells with documented N/A status, out of 160 baseline cells. TileMega has 12 measured cells out of 40. Live tables are refreshed under `runs/a800/collected/`. Each single-GPU array task has a finite wall time and an independent process guard. The baseline and native feeders persist exact stage identifiers in the workspace `logs/`.
