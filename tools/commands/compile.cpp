@@ -303,6 +303,7 @@ int RunCompile(int argc, char** argv) {
                  " --search-passes 1..3 --search-jobs 1 --variant-cache DIR --flow-fixture DIR --flow-search-only 0|1\n"
                  " --serving-pruning 0|1 --incremental-prepare 0|1 --serving-warm-start PREVIOUS.plan.json\n"
                  " --prompt-len N --capacity N --past-range LO:HI\n"
+                 " --prefill-l1-only 0|1 (nonpaged prefill)\n"
                  " --seed-arch legacy|native\n"
                  " --forward-seed-tile M64N128K64S2 (native DNN/prefill seed)\n"
                  " --forward-geometry FILE.json (complete indexed native DNN seed)\n"
@@ -333,6 +334,7 @@ int RunCompile(int argc, char** argv) {
     std::string seed_arch="legacy",seed_target_arch,cuda_fast_compile="0";
     tilemega::frontend::GemmGranularity forward_seed_tile{128,64,16,3,1};
     bool forward_seed_explicit=false;
+    bool prefill_l1_only=false;
     std::string forward_gemm_impl="mma16",prefill_attention_impl="mma16",encoder_attention_impl="mma16",conv_impl="cpasync",gemv_load="ldg",depthwise_impl="cpasync",dwpw_impl="mma16";
     int qkv_epilogue=0,attention_tma=0,dm_epilogue_fused=0,prefill_expert_wgmma=0;
     int depthwise_vectors=0,depthwise_rows=1,depthwise_channels=64,dm_linear_address=0;
@@ -507,6 +509,11 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--ptxas-opt-level") ptxas_opt_level=std::stoi(value);
       else if (flag=="--ptxas-expensive") ptxas_expensive=std::stoi(value);
       else if (flag=="--prefill-n-major") prefill_n_major=std::stoi(value);
+      else if (flag=="--prefill-l1-only") {
+        if(value!="0" && value!="1")
+          throw std::invalid_argument("--prefill-l1-only expects 0 or 1");
+        prefill_l1_only=value=="1";
+      }
       else if (flag=="--depthwise-rows") depthwise_rows=std::stoi(value);
       else if (flag=="--depthwise-channels") depthwise_channels=std::stoi(value);
       else if (flag=="--qkv-epilogue") qkv_epilogue=std::stoi(value);
@@ -1006,6 +1013,9 @@ int RunCompile(int argc, char** argv) {
     if(handoff_mode!="off" && handoff_mode!="auto")
       throw std::runtime_error("--handoff must be off or auto");
     bool use_pages=serving && (pg_mode=="pages" || (serving_phase=="decode" && pg_mode=="auto"));
+    if(prefill_l1_only && (!serving || serving_phase!="prefill" || use_pages))
+      throw std::invalid_argument("--prefill-l1-only requires nonpaged prefill");
+    if(prefill_l1_only)runtime_flags+=" -DTILEMEGA_PREFILL_L1_ONLY=1";
     if(moe_dynamic!=0 && moe_dynamic!=1)
       throw std::invalid_argument("--moe-dynamic must be 0 or 1");
     if(moe_dynamic && (!serving || use_pages || pg_mode!="l2" || frontend_mode!="decoder"))
@@ -1973,6 +1983,7 @@ int RunCompile(int argc, char** argv) {
               " --decode-tile-m "+std::to_string(decode_tile_m)+" --activation-tma "+std::to_string(activation_tma)+" --dependency-intern "+std::to_string(dependency_intern)+" --cluster-dim "+std::to_string(cluster_dim)+" --combine "+quote(combine_impl)+" --merge "+quote(merge_impl)+
               (serving_residency?" --residency "+std::to_string(serving_residency):std::string())+" --gemv-load "+quote(gemv_load)+" --qkv-epilogue "+std::to_string(qkv_epilogue)+" --attention-tma "+std::to_string(attention_tma)+" --pdl "+quote(pdl)+
               " --pg "+quote(pg_mode)+" --page-bytes "+std::to_string(candidate_page_bytes)+
+              (prefill_l1_only?" --prefill-l1-only 1":"")+
               " --weight-layout "+quote(weight_layout)+
               " --nonpaged-weight-layout "+quote(nonpaged_weight_layout)+
               " --kphase-mask "+std::to_string(kphase_mask)+
@@ -2424,6 +2435,8 @@ int RunCompile(int argc, char** argv) {
       }
     }
     if (serving) {
+      if(prefill_l1_only && serving_prompt_len<=1)
+        throw std::invalid_argument("--prefill-l1-only requires more than one prompt token");
       if (serving_phase == "prefill" || forward)
         serving_past_lo = serving_past_hi = 0;
       source = "#define TILEMEGA_PDL " +std::to_string(pdl=="auto")+"\n"+
@@ -2980,6 +2993,7 @@ int RunCompile(int argc, char** argv) {
           }
         }
       }
+      if(prefill_l1_only)manifest<<",\n  \"prefill_executors\": [\"L1\"]";
       manifest<<",\n  \"target_spec\": "<<tilemega::TargetSpec::FromJson(runtime_target).ToJson();
       manifest<<",\n  \"gemms\": [\n";
       for(std::size_t i=0;i<runtime_gemms.size();++i) {
