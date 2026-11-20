@@ -147,7 +147,11 @@ def outcome(key, active):
 def dependencies(key):
     model, batch, repeat = key
     family = 'qwen3_0_6b' if model.startswith('qwen') else 'llama3_2_1b'
-    return {(family, 1, 0), (model, 1, 0), (model, batch, 0)} - {key}
+    required = {(family, 1, 0), (model, 1, 0), (model, batch, 0)}
+    if model == 'llama3_1_8b' and batch > 2:
+        # Larger batches share the multi-row Ampere reduction with the B2 pilot.
+        required.add((model, 2, 0))
+    return required - {key}
 
 
 def main():
