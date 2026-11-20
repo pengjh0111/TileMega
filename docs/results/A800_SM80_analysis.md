@@ -63,3 +63,5 @@
 目标文件 SHA-256 为 `318cc5e6d4d314f32bacf03f20d5c674267f26f3c4269296db1ce20ad77fc5ff`。新 target 已交给独立的 pipeline 搜索与后续正确性、正式计时流程。
 
 OLMoE B1 作业 345972 在同一张卡上交错运行了六个进程。标准权重读取的 T1024 为 2.733 s、TPOT 为 2.518 ms/token。使用 evict-first 提示后分别为 2.919 s 和 2.690 ms/token，三组请求均变慢，正式配置继续使用标准读取。Qwen3-30B-A3B 的独立对照保留在作业 346025。
+
+截至 16:08，已写入搜索回执的历史 shortlist 中有 78 个编译成功的候选，共 65 份不同的坐标文件。78 个候选都是每 SM 一个 CTA。逐一检查所存 GEMM 坐标时，原 target 仅对其中 42 个候选覆盖了全部 MMA 成本，新 target 对 78 个都覆盖。这个检查说明已修补哪些搜索输入，实际请求时间仍由重新搜索后的独立测试给出。逐候选明细位于服务器 `runs/a800/optimization/large-k-shortlist-coverage-20261120T1608.json`。
