@@ -23,6 +23,8 @@ def main():
     p.add_argument('--native-phases', action='store_true')
     p.add_argument('--stage-level', type=int, choices=(1, 2), default=1,
                    help='2 adds the D0 in-stage marks (R5 A0)')
+    p.add_argument('--sm80-moe-service', action='store_true',
+                   help='bind an explicitly instrumented SM80 MoE source tree')
     p.add_argument('--source-root', type=Path,
                    help='checkout of the recorded head when the original tree has moved on')
     a = p.parse_args()
@@ -32,25 +34,40 @@ def main():
     if not any(output.is_relative_to(runs / r) for r in allowed) or output == original:
         p.error('diagnostic outputs belong under runs/' + ', runs/'.join(allowed))
     sys.path.insert(0, str(ROOT / 'python'))
-    from tilemega.build.identity import generate, verify, validate_snapshot_inputs, digest
+    from tilemega.build.identity import generate, verify, validate_snapshot_inputs, digest, snapshot
     identity = verify(original)
     source = dict(identity['source'])
     recorded = source['root']
-    if a.source_root:
+    if a.sm80_moe_service and (not a.source_root or a.stage_level != 2
+                             or identity['arch'] != 'sm_80' or not identity['plan'].get('native_dense', {}).get('expert_fuse')):
+        p.error('SM80 MoE service requires a level-2 trace and a fused SM80 reference')
+    if a.source_root and not a.sm80_moe_service:
         # Same bytes, other path: every recorded source hash must match there.
         source.update(root=str(a.source_root.resolve()))
         source.pop('compiler', None)
-    validate_snapshot_inputs(source['root'], source)
+    if not a.sm80_moe_service:
+        validate_snapshot_inputs(source['root'], source)
     if identity['trace'] or output.exists():
         raise ValueError('a new trace output and an uninstrumented input are required')
     output.parent.mkdir(parents=True, exist_ok=True)
     for suffix in ('.cu', '.plan.json', '.source.json'):
         shutil.copy2(str(original) + suffix, str(output) + suffix)
-    if a.source_root:
-        snapshot = json.loads(Path(str(output) + '.source.json').read_text())
-        snapshot.update(root=source['root'])
-        snapshot.pop('compiler', None)
-        Path(str(output) + '.source.json').write_text(json.dumps(snapshot, indent=2) + '\n')
+    if a.sm80_moe_service:
+        source = snapshot(a.source_root, Path(str(output) + '.source.json'))
+        expected = identity['source']['source_files']
+        current = source['source_files']
+        changed = {p for p in expected.keys() | current.keys() if expected.get(p) != current.get(p)}
+        if changed != {
+            'include/tilemega/Backend/Sm90DenseMark.cuh',
+            'include/tilemega/Backend/Sm90DenseMoe.cuh',
+            'include/tilemega/Codegen/tasks/Sm90DenseRuntime.cuh',
+        }:
+            raise ValueError(f'expected only SM80 fused expert instrumentation, got {sorted(changed)}')
+    elif a.source_root:
+        source_manifest = json.loads(Path(str(output) + '.source.json').read_text())
+        source_manifest.update(root=source['root'])
+        source_manifest.pop('compiler', None)
+        Path(str(output) + '.source.json').write_text(json.dumps(source_manifest, indent=2) + '\n')
     # Worktree paths reach runs/ through a symlink; compare resolved paths.
     command = [str(Path(x).resolve()) if x.endswith(('.so', '.cu')) else x
                for x in shlex.split(Path(str(original) + '.build_command.txt').read_text())]
@@ -84,6 +101,7 @@ def main():
     Path(str(output) + '.identity.json').write_text(json.dumps(result, indent=2) + '\n')
     record = dict(reference_artifact_id=identity['artifact_id'], trace_artifact_id=result['artifact_id'],
                   performance_eligible=False, native_phases=a.native_phases,
+                  sm80_moe_service=a.sm80_moe_service,
                   method='same generated program; boundary timestamps and optional native phase probes')
     Path(str(output) + '.diagnostic.json').write_text(json.dumps(record, indent=2) + '\n')
     print(json.dumps(record))
