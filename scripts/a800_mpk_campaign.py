@@ -1,0 +1,140 @@
+"""Drive finite single-A800 jobs from the login node, gating expansion on verified outputs."""
+import csv
+import fcntl
+import json
+import os
+from pathlib import Path
+import subprocess
+import time
+
+WORK = Path(__file__).resolve().parents[2]
+RUN = WORK/'TileMega-a800/runs/a800'
+LOG = WORK/'logs'
+TARGET = 'configs/targets/sm_80_a800_sxm4_80gb.json'
+ORDER = ('llama3_2_1b', 'qwen3_0_6b', 'qwen3_1_7b', 'llama3_2_3b', 'llama3_1_8b')
+CAP = 3
+
+
+def put(path, value):
+    tmp = path.with_suffix('.incoming')
+    tmp.write_text(value)
+    tmp.replace(path)
+
+
+def run(args, timeout=30):
+    return subprocess.run(args, cwd=WORK, text=True, capture_output=True, timeout=timeout)
+
+
+def cohort(key):
+    model, batch, repeat = key
+    return f"mpk-v1-{model.replace('_', '-')}-b{batch}-r{repeat}"
+
+
+def submit(key):
+    model, batch, repeat = key
+    tag = cohort(key)
+    with (RUN/'collected/A800_baselines.csv').open() as f:
+        hashes = {r['checkpoint_sha256'] for r in csv.DictReader(f)
+                  if r['model'] == model and r['status'] == 'measured' and r['framework'] != 'mpk'}
+    if len(hashes) != 1 or not next(iter(hashes)):
+        raise RuntimeError(f'expected a shared baseline checkpoint for {model}')
+    large = model == 'llama3_1_8b'
+    seconds = 1800 if large else 1140
+    options = ['--cohort', tag, '--engine', 'mpk', '--model', model, '--batch', str(batch),
+               '--round', str(repeat), '--expected-target', TARGET, '--expected-checkpoint-sha256', hashes.pop(),
+               '--process-timeout-s', str(seconds), '--heartbeat-timeout-s', '420']
+    plan = run(['./run-env.sh', 'tilemega', 'python', 'scripts/a800_baselines.py', 'plan',
+                *options, '--budget-s', str(seconds+200)])
+    plan.check_returncode()
+    if json.loads(plan.stdout)['steps'] != [f'{model}_mpk_b{batch:02d}_r{repeat}']:
+        raise RuntimeError('invalid MPK job scope')
+    put(LOG/f'{tag}.plan.json', plan.stdout)
+    intent = LOG/f'{tag}.intent'
+    with intent.open('x') as f:
+        f.write(str(time.time()))
+    reply = run(['sbatch', '--parsable', f'--job-name={tag}', '--time='+('00:35:00' if large else '00:24:00'),
+                 f'--output=logs/{tag}-%j.out', 'baseline-a800.sbatch', *options])
+    if reply.returncode:
+        if 'AssocMaxSubmitJobLimit' in reply.stderr or 'QOSMaxSubmitJobPerUserLimit' in reply.stderr:
+            intent.unlink()
+            return False
+        raise RuntimeError(reply.stderr.strip())
+    job = reply.stdout.strip().split(';')[0]
+    if not job.isdecimal():
+        raise RuntimeError(f'check Slurm accounting for submission {tag}')
+    put(LOG/f'{tag}.id', job+'\n')
+    intent.unlink()
+    print('submitted', job, tag, flush=True)
+    return True
+
+
+def outcome(key, active):
+    tag = cohort(key)
+    folder = RUN/'cohorts'/tag
+    if (folder/'mpk-accepted.json').is_file():
+        return 'accepted'
+    if (LOG/f'{tag}.rejected').is_file():
+        return 'rejected'
+    path = LOG/f'{tag}.id'
+    if not path.is_file() or not path.read_text().strip():
+        if (LOG/f'{tag}.intent').exists():
+            raise RuntimeError(f'reconcile interrupted submission {tag} with Slurm before restarting')
+        return 'new'
+    job = path.read_text().strip()
+    if job in active:
+        return 'active'
+    result = run(['sacct', '-XnP', '-j', job, '-o', 'State,ExitCode'])
+    result.check_returncode()
+    state = result.stdout.strip()
+    if not state or state.split('|')[0] in ('PENDING','RUNNING','COMPLETING','CONFIGURING'):
+        return 'active'
+    if state == 'COMPLETED|0:0':
+        check = run(['./run-env.sh', 'tilemega', 'python', 'scripts/a800_mpk_verify.py', tag], 120)
+        if not check.returncode:
+            print('verified', job, tag, check.stdout.strip(), flush=True)
+            return 'accepted'
+        state += '\n' + check.stderr
+    put(LOG/f'{tag}.rejected', f'{job} {state}\n')
+    print('requires review', job, tag, state.splitlines()[-1], flush=True)
+    return 'rejected'
+
+
+def dependencies(key):
+    model, batch, repeat = key
+    family = 'qwen3_0_6b' if model.startswith('qwen') else 'llama3_2_1b'
+    return {(family, 1, 0), (model, 1, 0), (model, batch, 0)} - {key}
+
+
+def main():
+    preflight = json.loads((RUN/'mpk/preflight.json').read_text())
+    supported = {(r['model'], r['batch']) for r in preflight['cells'] if r['status']=='requires_gpu'}
+    cells = [(m,b,r) for b in (1,2,4,8,16) for r in range(3) for m in ORDER if (m,b) in supported]
+    if len(cells) != 3*len(supported):
+        raise ValueError('unsupported model in MPK campaign')
+    end = time.monotonic()+48*3600
+    before = {}
+    with (LOG/'mpk-campaign.lock').open('w') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX|fcntl.LOCK_NB)
+        while time.monotonic() < end:
+            queue = run(['squeue', '-h', '-u', os.environ['USER'], '-o', '%A'])
+            queue.check_returncode()
+            active = set(queue.stdout.split())
+            state = {key: outcome(key,active) for key in cells}
+            if state != before:
+                refresh = run(['./refresh-results-a800.sh'], 120)
+                refresh.check_returncode()
+                before = state.copy()
+            inflight = sum(v == 'active' for v in state.values())
+            ready = [k for k in cells if state[k]=='new' and
+                     all(state[dep]=='accepted' for dep in dependencies(k))]
+            if not ready and not inflight:
+                print('finished runnable work', {v:list(state.values()).count(v) for v in set(state.values())}, flush=True)
+                return
+            for key in ready[:max(0,CAP-inflight)]:
+                if not submit(key):
+                    break
+            time.sleep(45)
+
+
+if __name__ == '__main__':
+    main()

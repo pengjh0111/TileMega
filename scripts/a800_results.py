@@ -94,6 +94,8 @@ def baseline_cell(inputs, jobs, model, engine, batch, unsupported=''):
         if step.get('out'):
             evidence.add(str(Path(step['out']).relative_to(RUN)))
         if row := measurement(job, step, dict(inputs, device=device)):
+            if engine == 'mpk' and read(run/'mpk-accepted.json').get('measurement_sha256') != row['receipt']:
+                continue
             row['gpu_uuid'] = device['uuid']
             if repeat in accepted and accepted[repeat] != row:
                 raise ValueError(f'duplicate accepted round for {job["name"]}; select one cohort')
