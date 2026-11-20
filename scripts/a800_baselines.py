@@ -163,6 +163,11 @@ def main():
     args = parser.parse_args()
     if not args.cohort or not all(c.isascii() and (c.isalnum() or c in '-_') for c in args.cohort):
         parser.error('cohort must contain only ASCII letters, digits, hyphens and underscores')
+    if args.mode == 'run' and args.engine == ['mpk'] and args.budget_s > 240:
+        # Backfill can award a shorter allocation. Leave room for the separate
+        # identity probe, the monitored guard intervals and teardown.
+        args.process_timeout_s = min(args.process_timeout_s, args.budget_s - 150)
+        args.heartbeat_timeout_s = min(args.heartbeat_timeout_s, args.process_timeout_s)
     if not 0 < args.heartbeat_timeout_s <= args.process_timeout_s < args.budget_s:
         parser.error('expected 0 < heartbeat timeout <= process timeout < budget')
     if args.expected_checkpoint_sha256 and len(args.model or []) != 1:
