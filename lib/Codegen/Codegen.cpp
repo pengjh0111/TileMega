@@ -2015,6 +2015,8 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   solver::ValidateSm90NativeBoundaryContracts(module);
   auto arch=module->getAttrOfType<mlir::StringAttr>("tmexec.solved_arch");
   bool cp_async=arch && arch.getValue()=="sm_80";
+  if(c.reuse_payload && (!cp_async || c.weight_stream))
+    throw std::invalid_argument("shared payload reuse needs SM80 and no cross-stage weight preissue");
   if(c.live_epilogue_rows && !cp_async)
     throw std::invalid_argument("live epilogue rows require the SM80 native backend");
   bool kernel_sequence=module->hasAttr("tmexec.native_kernel_sequence");
@@ -2209,7 +2211,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   // slots exceed one arena takes the whole budget (offset 0).
   auto budget_attr=module->getAttrOfType<mlir::IntegerAttr>("tmexec.sm90_dense_budget");
   if(!budget_attr)throw std::invalid_argument("native dense plan lacks its shared-memory budget");
-  int budget=int(budget_attr.getInt()),arena=solver::Sm90DenseArena(budget);
+  int budget=int(budget_attr.getInt()),arena=solver::Sm90DenseArena(budget,c.reuse_payload);
   auto grid_attr=module->getAttrOfType<mlir::IntegerAttr>("tmexec.sm90_dense_grid");
   if(!grid_attr)throw std::invalid_argument("native dense plan lacks its grid");
   int grid=int(grid_attr.getInt());
@@ -2629,7 +2631,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
         throw std::invalid_argument("native whole-row QK norm cannot follow a group-waiting qkv");
       group_tiles=int(group_columns)/tn;
     }
-    types<<"using Stage_"<<n<<"=Placement<Body_"<<n<<','<<(e.full?0:(n%2)*arena)<<','<<prefix;
+    types<<"using Stage_"<<n<<"=Placement<Body_"<<n<<','<<(e.full || c.reuse_payload?0:(n%2)*arena)<<','<<prefix;
     if(group_tiles)types<<','<<group_tiles;
     types<<">;\n";
   }
@@ -2646,7 +2648,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   for(unsigned j=1;j<=group_size;++j)out<<",Stage_"<<j;
   out<<">,Stage_"<<head<<','<<c.cluster<<(tp>1?","+std::to_string(tp):
       c.argmax_stage?",1,ArgmaxStage":cp_async?",1,void":std::string())
-     <<(cp_async?",true":"")
+     <<(cp_async?",true":"")<<(c.reuse_payload?",true":"")
      <<">;\nconstexpr int kNativeGrid="<<grid<<";\n"
      <<"constexpr std::array<StageInfo,"<<info.size()<<"> kNativeStages={{\n";
   for(auto const& row:info)out<<row;

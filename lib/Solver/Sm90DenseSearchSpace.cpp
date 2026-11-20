@@ -27,7 +27,7 @@ bool Sm90DenseSearchSpace::Legal(Sm90DenseCoordinates const& c) const {
      (head_dim!=64 && head_dim!=128) ||
      (queries!=1 && queries!=2 && queries!=3 && queries!=4 && queries!=8))
     return false;
-  if(c.live_epilogue_rows && !ampere)return false;
+  if((c.live_epilogue_rows || c.reuse_payload) && !ampere)return false;
   if(ampere && (c.cluster!=1 || c.attention.dsmem || c.tp!=1 ||
       std::any_of(c.gemms.begin(),c.gemms.end(),[](auto const& g){return g.multicast;})))
     return false;
@@ -68,11 +68,11 @@ bool Sm90DenseSearchSpace::Legal(Sm90DenseCoordinates const& c) const {
   return true;
 }
 
-std::vector<Sm90DenseGemm> Sm90DenseSearchSpace::FamilyCandidates(unsigned family,int residency) const {
+std::vector<Sm90DenseGemm> Sm90DenseSearchSpace::FamilyCandidates(unsigned family,int residency,bool reuse_payload) const {
   std::vector<Sm90DenseGemm> result;
   int grid=Grid(residency),n=shapes[family][0],k=shapes[family][1];
   auto budget=Sm90DenseSharedBudget(target,residency);
-  int arena=Sm90DenseArenaBytes(budget);
+  int arena=Sm90DenseArena(budget,reuse_payload);
   bool residual=Sm90DenseCoordinates::ResidualFamily(family);
   std::vector<int> tiles,depths;
   // Tasks of the busiest CTA: experts run n_active x N/TN tasks (§8).
@@ -158,7 +158,7 @@ std::vector<Sm90DenseGemm> Sm90DenseSearchSpace::FamilyCandidates(unsigned famil
 }
 
 std::vector<Sm90DenseAttention> Sm90DenseSearchSpace::AttentionCandidates(
-    int residency,Sm90NativeConstants const* constants,int norm) const {
+    int residency,Sm90NativeConstants const* constants,int norm,bool reuse_payload) const {
   std::vector<Sm90DenseAttention> result;
   int s0=1;
   int fill=std::min(64,Grid(residency)/(batch*hkv));
@@ -179,8 +179,8 @@ std::vector<Sm90DenseAttention> Sm90DenseSearchSpace::AttentionCandidates(
       Sm90DenseAttention a;a.chunks=s;a.block_keys=bk;
       int blocks=((1088+s-1)/s+bk-1)/bk;
       a.slots=2;
-      int limit=a.SharedBytes(head_dim,queries)-1024<=Sm90DenseArenaBytes(budget)?
-          Sm90DenseArenaBytes(budget)+1024:budget;
+      int arena=Sm90DenseArena(budget,reuse_payload);
+      int limit=a.SharedBytes(head_dim,queries)-1024<=arena?arena+1024:budget;
       for(a.slots=std::max(2,std::min(4,blocks));a.slots>2 && a.SharedBytes(head_dim,queries)>limit;)
         --a.slots;
       if(a.SharedBytes(head_dim,queries)>limit)continue;

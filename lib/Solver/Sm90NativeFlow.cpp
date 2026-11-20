@@ -244,7 +244,7 @@ Sm90NativeFlowResult Sm90NativeCtgScore(frontend::ImportedSemantics const& impor
   problem.hop_ns=constants.Barrier(problem.workers);
   bool stream=c.weight_stream && !isolated;
   auto resident=[&](unsigned f){return c.gemms[f].FullyResident(work.shapes[f][1]);};
-  int arena=Sm90DenseArenaBytes(Sm90DenseSharedBudget(cost.Target(),c.residency));
+  int arena=Sm90DenseArena(Sm90DenseSharedBudget(cost.Target(),c.residency),c.reuse_payload);
   for(auto const& task:ctg.spaces) {
     Sm90NativeStageNode node;auto& price=node.price;
     auto const& stage=imported.plan.stages.at(task.stage);

@@ -151,6 +151,7 @@ std::string Sm90NativeStructuralClass(Sm90DenseCoordinates const& c,bool ampere)
            "/register"+std::to_string(c.CommonExpertRegisterStages());
   if(ampere && !c.moe)key += "/u"+std::to_string(c.swiglu_u);
   if(c.live_epilogue_rows)key += "/live_rows";
+  if(c.reuse_payload)key += "/payload_reuse";
   key += "/ch" + std::to_string(c.attention.chunks);
   key += c.attention.dsmem ? "/ds1" : "/ds0";
   key += c.attention.merge_stage ? "/attstage" : "/attla";
@@ -195,12 +196,12 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
   int norm=work.qk_norm?(work.qk_norm_row?2:1):0;
   std::map<std::string, double> memo;  // Algorithm 1 line 11's E
   std::string origin;
-  std::map<std::pair<unsigned,int>,std::vector<Sm90DenseGemm>> family_domain;
-  auto geometries=[&](unsigned family,int residency)->std::vector<Sm90DenseGemm> const& {
-    auto key=std::make_pair(family,residency);
+  std::map<std::tuple<unsigned,int,bool>,std::vector<Sm90DenseGemm>> family_domain;
+  auto geometries=[&](unsigned family,Sm90DenseCoordinates const& c)->std::vector<Sm90DenseGemm> const& {
+    auto key=std::make_tuple(family,c.residency,c.reuse_payload);
     auto found=family_domain.find(key);
     if(found==family_domain.end())found=family_domain.emplace(key,
-        space.FamilyCandidates(family,residency)).first;
+        space.FamilyCandidates(family,c.residency,c.reuse_payload)).first;
     return found->second;
   };
   auto constrain=[&](Sm90DenseCoordinates& c) {
@@ -224,7 +225,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     }
     for(unsigned family:c.Active()) {
       auto& geometry=c.gemms[family];
-      auto const& domain=geometries(family,c.residency);
+      auto const& domain=geometries(family,c);
       auto matches=[&](auto const& g) {
         return g.tile_n==geometry.tile_n && g.TileK()==geometry.TileK() &&
                g.warps_n==geometry.warps_n && g.warps_k==geometry.warps_k &&
@@ -241,7 +242,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
              matches(*candidate))same=candidate;
       geometry.slots=same->slots;
     }
-    auto attention=space.AttentionCandidates(c.residency,&cost.Constants(),norm);
+    auto attention=space.AttentionCandidates(c.residency,&cost.Constants(),norm,c.reuse_payload);
     auto partition=[&](auto const& a) {
       return a.chunks==c.attention.chunks && a.block_keys==c.attention.block_keys;
     };
@@ -296,7 +297,10 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
   std::vector<Sm90DenseCoordinates> starts;
   std::set<std::string> start_keys;
   auto project=[&](Sm90DenseCoordinates seed) {
-    if(options.pinned_theta)seed.gemms=options.pinned_theta->gemms;
+    if(options.pinned_theta) {
+      seed.gemms=options.pinned_theta->gemms;
+      seed.reuse_payload=options.pinned_theta->reuse_payload;
+    }
     constrain(seed);
     bool projected=options.pinned_theta || options.retile_only || options.realize_aggregate;
     if((projected?derive(seed):space.Legal(seed)) && priced(seed) &&
@@ -341,7 +345,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
       // The per-family geometry.
       for (unsigned family : current.Active()) {
         if(options.pinned_theta)continue;
-        for (auto const& geometry : geometries(family, current.residency)) {
+        for (auto const& geometry : geometries(family,current)) {
           for(bool multicast:{false,true}) {
             if(multicast && (current.cluster<2 || family>4 || geometry.slots%2 ||
                 double(work.batch)/geometry.tile_n<=cost.Constants().MulticastKappa()))continue;
@@ -374,7 +378,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
       }
       // The attention structure, unless AB-4a forbids changing it.
       if (!options.retile_only) {
-        for (auto const& attention : space.AttentionCandidates(current.residency,&cost.Constants(),norm)) {
+        for (auto const& attention : space.AttentionCandidates(current.residency,&cost.Constants(),norm,current.reuse_payload)) {
           for(int realization:{0,1,2}) {
             bool dsmem=realization==1,independent=realization==2;
             if(options.realize_aggregate && !independent)continue;
@@ -389,6 +393,10 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
             changed|=consider(trial,"attention");
           }
         }
+      }
+      if(ampere && !current.weight_stream && !options.pinned_theta) {
+        auto trial=current;trial.reuse_payload=!trial.reuse_payload;
+        changed|=consider(trial,"shared payload");
       }
       // The program-level coordinates, which are the structural class.
       for(int dimension=0;dimension<8;++dimension) {

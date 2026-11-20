@@ -36,6 +36,22 @@ int main() {
  bool rejected_large_batch=false;
  try {recovered.Validate(nk,8);}catch(std::invalid_argument const&) {rejected_large_batch=true;}
  assert(rejected_large_batch);
+ auto reuse=live;reuse.reuse_payload=true;reuse.weight_stream=false;
+ assert(Sm90DenseCoordinates::FromJson(reuse.ToJson()).reuse_payload);
+ assert(Sm90DenseArena(166912,true)==165888 && Sm90DenseArena(166912)==82944);
+ auto wider=reuse;wider.gemms[2].tile_n=256;wider.gemms[2].slot_bytes=32768;
+ wider.gemms[2].warps_n=4;wider.gemms[2].warps_k=1;wider.gemms[2].slots=2;
+ assert(wider.gemms[2].SharedBytes(1,false)-1024>Sm90DenseArena(166912));
+ wider.ValidateSchedule(nk,1,128,2,1088,166912,108);
+ wider.reuse_payload=false;
+ bool rejected_split=false;
+ try {wider.ValidateSchedule(nk,1,128,2,1088,166912,108);}
+ catch(std::invalid_argument const&) {rejected_split=true;}
+ assert(rejected_split);
+ reuse.weight_stream=true;
+ bool rejected_prefix=false;
+ try {reuse.Validate(nk,1);}catch(std::invalid_argument const&) {rejected_prefix=true;}
+ assert(rejected_prefix);
  auto independent=c;independent.argmax_stage=true;
  auto restored=Sm90DenseCoordinates::FromJson(independent.ToJson());
  restored.Validate(nk,1);assert(restored.argmax_stage && restored.tp==1);

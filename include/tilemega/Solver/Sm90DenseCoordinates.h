@@ -79,7 +79,9 @@ struct Sm90DenseAttention {
   }
 };
 
-inline constexpr int Sm90DenseArena(std::int64_t budget) {return int((budget-1024)/2/1024*1024);}
+inline constexpr int Sm90DenseArena(std::int64_t budget,bool reuse_payload=false) {
+  return int((budget-1024)/(reuse_payload?1:2)/1024*1024);
+}
 
 struct Sm90DenseCoordinates {
   std::array<Sm90DenseGemm,8> gemms;
@@ -98,6 +100,7 @@ struct Sm90DenseCoordinates {
   bool embed_la=false;
   bool argmax_stage=false;
   bool live_epilogue_rows=false;
+  bool reuse_payload=false;
   // D8 (prompt §7): attention waits only for its KV group's qkv tiles
   // (group counters) instead of the grid barrier after qkv; P-SEL decides.
   bool group_wait=false;
@@ -171,6 +174,8 @@ struct Sm90DenseCoordinates {
       throw std::invalid_argument("sm90 dense tp must be 1, 2, 4 or 8");
     // A sharded MoE would have to route across ranks; out of scope this round.
     if((GlobalRoute() || combine_stage) && !moe)throw std::invalid_argument("global MoE routing requires MoE");
+    if(reuse_payload && (weight_stream || cluster!=1 || attention.dsmem))
+      throw std::invalid_argument("payload reuse requires retired storage and no cross-stage preissue");
     if(live_epilogue_rows && (moe || tp!=1 || batch>=8))
       throw std::invalid_argument("live epilogue rows require single-GPU small-batch dense decode");
     if(tp>1 && moe)throw std::invalid_argument("sm90 dense tensor parallel MoE is unsupported");
@@ -201,19 +206,20 @@ struct Sm90DenseCoordinates {
   void ValidateSchedule(Sm90DenseShapeTable const& nk,int batch,
       int dim,int queries,int capacity,std::int64_t budget,int grid=0) const {
     Validate(nk,batch);
-    // Arena i % 2 holds stage i (D5); D6 payloads live in the next stage's
-    // arena, so the program's static_asserts are the only overlap check.
+    // Overlapping stages require disjoint preissue storage. A plan without
+    // preissue can reuse the entire payload after each CTA-local stage join.
+    int arena=Sm90DenseArena(budget,reuse_payload);
     for(unsigned i:Active()) {
       auto const& gemm=gemms[i];
       if(gemm.ResidualTiles(ResidualFamily(i),nk[i][0],grid)>backend::kSm90DenseResidualTiles)
         throw std::invalid_argument("native GEMM exceeds residual tasks per CTA");
-      if(gemm.SharedBytes(batch,ResidualFamily(i),nk[i][0],grid)-1024>Sm90DenseArena(budget))
+      if(gemm.SharedBytes(batch,ResidualFamily(i),nk[i][0],grid)-1024>arena)
         throw std::invalid_argument("native GEMM storage exceeds its arena");
     }
     if(moe && !expert_fuse)for(unsigned i:{6u,7u}) {
       auto const& g=gemms[i];
       if(backend::Sm90DenseLayout::MoeUnfused(g.tile_n,g.TileK(),g.slots,g.warps_k,batch,nk[5][0]).end-
-          1024>Sm90DenseArena(budget))
+          1024>arena)
         throw std::invalid_argument("native unfused expert storage exceeds its arena");
     }
     // Attention may take the whole budget when two slots exceed one arena.
@@ -221,7 +227,7 @@ struct Sm90DenseCoordinates {
       throw std::invalid_argument("native attention exceeds the shared-memory budget");
     // MR7: the fused stage replaces both expert stages, so its own ring and
     // scratch have to fit the arena the surviving stage occupies.
-    if(expert_fuse && FusedExpertBytes(batch,nk[5][0])-1024>Sm90DenseArena(budget))
+    if(expert_fuse && FusedExpertBytes(batch,nk[5][0])-1024>arena)
       throw std::invalid_argument("native fused expert storage exceeds its arena");
   }
 
@@ -237,16 +243,17 @@ struct Sm90DenseCoordinates {
     }
     // Schema 7 adds tp; a TP1 coordinate still serializes as schema 6, so every
     // R3/R4 coordinate file and its hash are unchanged.
-    json::Object result{{"schema",live_epilogue_rows?10:(GlobalRoute() || combine_stage)?9:(argmax_stage || attention.merge_stage)?8:tp>1?7:6},{"model",moe?"moe":"dense"},{"gemms",families},
+    json::Object result{{"schema",(live_epilogue_rows || reuse_payload)?10:(GlobalRoute() || combine_stage)?9:(argmax_stage || attention.merge_stage)?8:tp>1?7:6},{"model",moe?"moe":"dense"},{"gemms",families},
         {"attention",json::Object{{"chunks",attention.chunks},{"block_keys",attention.block_keys},
             {"slots",attention.slots},{"new_row_work",attention.new_row_work},
             {"merge",attention.dsmem?"dsmem":attention.merge_stage?"stage":"la"}}},
         {"residency",residency},{"swiglu_u",swiglu_u},{"weight_stream",weight_stream},
         {"layer_loop",layer_loop},{"emb",embed_la?"la":"stage"},{"group_wait",group_wait},
         {"cluster",cluster},{"expert_fuse",expert_fuse}};
-    if(live_epilogue_rows || tp>1 || argmax_stage || attention.merge_stage || GlobalRoute() || combine_stage)result.emplace_back("tp",tp);
+    if(live_epilogue_rows || reuse_payload || tp>1 || argmax_stage || attention.merge_stage || GlobalRoute() || combine_stage)result.emplace_back("tp",tp);
     if(live_epilogue_rows)result.emplace_back("epilogue_rows","live");
-    if(live_epilogue_rows || argmax_stage || attention.merge_stage || GlobalRoute() || combine_stage)result.emplace_back("argmax",argmax_stage?"stage":"la");
+    if(reuse_payload)result.emplace_back("payload","reuse");
+    if(live_epilogue_rows || reuse_payload || argmax_stage || attention.merge_stage || GlobalRoute() || combine_stage)result.emplace_back("argmax",argmax_stage?"stage":"la");
     if(GlobalRoute() || combine_stage) {
       result.emplace_back("route",RouteName());
       result.emplace_back("combine",combine_stage?"stage":"la");
@@ -280,7 +287,7 @@ struct Sm90DenseCoordinates {
       throw std::invalid_argument("unknown sm90 dense coordinate schema");
     if(schema==10)
       keys(value,{"schema","model","gemms","attention","residency","swiglu_u","weight_stream",
-          "layer_loop","emb","group_wait","cluster","expert_fuse","tp","argmax","epilogue_rows"});
+          "layer_loop","emb","group_wait","cluster","expert_fuse","tp","argmax","epilogue_rows","payload","route","combine"});
     else if(schema==9)
       keys(value,{"schema","model","gemms","attention","residency","swiglu_u","weight_stream",
           "layer_loop","emb","group_wait","cluster","expert_fuse","tp","argmax","route","combine"});
@@ -298,9 +305,18 @@ struct Sm90DenseCoordinates {
     if(model!="dense" && model!="moe")throw std::invalid_argument("unknown sm90 dense model");
     result.moe=model=="moe";
     if(schema==10) {
-      if(result.moe || value.At("epilogue_rows").AsString("epilogue_rows")!="live")
-        throw std::invalid_argument("invalid dense live-row epilogue coordinate");
-      result.live_epilogue_rows=true;
+      if(auto const* rows=value.Find("epilogue_rows")) {
+        if(result.moe || rows->AsString("epilogue_rows")!="live")
+          throw std::invalid_argument("invalid dense live-row epilogue coordinate");
+        result.live_epilogue_rows=true;
+      }
+      if(auto const* payload=value.Find("payload")) {
+        if(payload->AsString("payload")!="reuse")
+          throw std::invalid_argument("invalid native payload placement");
+        result.reuse_payload=true;
+      }
+      if(!result.live_epilogue_rows && !result.reuse_payload)
+        throw std::invalid_argument("schema 10 requires an explicit SM80 implementation choice");
     }
     if(schema>=7)result.tp=integer(value,"tp");
     if(schema>=8) {
@@ -308,7 +324,7 @@ struct Sm90DenseCoordinates {
       if(mode!="la" && mode!="stage")throw std::invalid_argument("unknown native argmax implementation");
       result.argmax_stage=mode=="stage";
     }
-    if(schema==9) {
+    if(schema==9 || value.Find("route")) {
       auto mode=value.At("route").AsString("route");
       if(mode!="local" && mode!="la" && mode!="stage")throw std::invalid_argument("unknown MoE routing implementation");
       result.route=mode=="la"?Route::kLastArriver:mode=="stage"?Route::kStage:Route::kLocal;

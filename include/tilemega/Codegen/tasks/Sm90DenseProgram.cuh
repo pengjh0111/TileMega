@@ -623,11 +623,12 @@ struct LayerGroup {
 // ranks; DSMEM merges and activation multicast stay within one cluster.
 template<int Batch,int Capacity,int Residency,unsigned Buffers,unsigned Maps,int Arena,
          int Layers,unsigned LayerSlots,bool Loop,bool Embed,class Prologue,class Group,class LmHead,
-         int Cluster=1,int Tp=1,class PostHead=void,bool CpAsync=false>
+         int Cluster=1,int Tp=1,class PostHead=void,bool CpAsync=false,bool ReusePayload=false>
 struct Program {
   static constexpr bool kPostHead=!std::is_void_v<PostHead>;
   static constexpr bool kCpAsync=CpAsync;
   static_assert(!CpAsync || (Cluster==1 && Tp==1 && Maps==0));
+  static_assert(!ReusePayload || CpAsync);
   using Final=std::conditional_t<kPostHead,PostHead,Prologue>;
   using Binding=Bindings<Buffers,Maps,Layers,LayerSlots,Tp>;
   static constexpr int kTp=Tp;
@@ -697,6 +698,10 @@ struct Program {
   static_assert(Arena>0 && Arena%1024==0);
   template<class S,unsigned Parity>
   static constexpr bool Placed() {
+    // Stage::Run and the boundary CTA join retire every local reader and
+    // writer. A zero prefix also makes reuse safe across program iterations.
+    if constexpr(ReusePayload)
+      return S::kOffset==0 && S::kPrefix==0 && S::kLive.begin>=1024 && S::kSharedBytes<=1024+Arena;
     return S::kOffset>=0 && S::kLayout.Live(S::kOffset).begin>=1024 &&
         S::kSharedBytes<=1024+2*Arena &&
         (S::kOffset==int(Parity)*Arena || (S::kOffset==0 && S::kSharedBytes>1024+Arena));

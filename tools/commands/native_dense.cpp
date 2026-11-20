@@ -301,13 +301,15 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   solver::Sm90DenseSearchOptions search;search.top=o.measure_top;
   if(target.arch_tag=="sm_80" && !resume) {
     json::Array coverage;
-    for(int residency:{1,2})for(unsigned f:solver::Sm90DenseActiveFamilies(space.moe)) {
+    for(int residency:{1,2})for(bool reuse:{false,true})for(unsigned f:solver::Sm90DenseActiveFamilies(space.moe)) {
+      if(reuse && space.weight_stream)continue;
       std::set<std::pair<std::string,bool>> keys;
-      for(auto const& g:space.FamilyCandidates(f,residency))
+      for(auto const& g:space.FamilyCandidates(f,residency,reuse))
         keys.emplace(solver::Sm90NativeConstants::AmpereMmaKey(space.Grid(residency),
             g.tile_n,g.TileK(),g.warps_n,g.register_stages),cost.HasCalibratedMma(g,residency));
       for(auto const& [key,measured]:keys)coverage.emplace_back(json::Object{
-          {"family",solver::kSm90DenseFamilies[f]},{"mma_key",key},{"measured",measured}});
+          {"family",solver::kSm90DenseFamilies[f]},{"mma_key",key},
+          {"reuse_payload",reuse},{"measured",measured}});
     }
     std::ofstream(directory/"ampere-mma-coverage.json")<<json::Value(json::Object{
         {"target_sha256",target_sha},{"export_sha256",input_sha},{"keys",coverage}}).Dump(2)<<'\n';

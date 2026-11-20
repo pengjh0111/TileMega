@@ -28,7 +28,8 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
   auto const& constants=cost.Constants();
   bool ampere=space.target.arch_tag=="sm_80";
   int norm=work.qk_norm?(work.qk_norm_row?2:1):0;
-  for(int residency:{1,2})for(int cluster:{1,2}) {
+  for(int residency:{1,2})for(int cluster:{1,2})for(bool reuse:{false,true}) {
+    if(reuse && (!ampere || space.weight_stream))continue;
     // DT-2: clusters only up to C* (measured occupancy, prompt §7).
     if(cluster>1 && (space.target.arch_tag=="sm_80" || constants.ClusterStar(residency)<cluster))continue;
     // Index 5 of `families` stays the attention list; GEMM families are
@@ -37,7 +38,7 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
     std::vector<Option> attention;
     auto active=Sm90DenseActiveFamilies(space.moe);
     for(unsigned f:active) {
-      for(auto g:space.FamilyCandidates(f,residency)) {
+      for(auto g:space.FamilyCandidates(f,residency,reuse)) {
         if(!cost.HasCalibratedMma(g,residency))continue;
         families[f].push_back({cost.Gemm(work,f,g,residency),g,{}});
         ++result.evaluated;
@@ -51,7 +52,7 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
       }
     }
     if(std::any_of(active.begin(),active.end(),[&](unsigned f){return families[f].empty();}))continue;
-    for(auto a:space.AttentionCandidates(residency,&constants,norm)) {
+    for(auto a:space.AttentionCandidates(residency,&constants,norm,reuse)) {
       attention.push_back({cost.Attention(work,a,residency),{},a});
       // D10b: chunk groups that fit one cluster may merge through DSMEM;
       // without a measured merge constant the variant is not priced.
@@ -89,7 +90,7 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
     constexpr unsigned kAttention=~0u;
     auto build=[&](unsigned family,unsigned alternative,std::string const& origin) {
       Sm90DenseCoordinates c;c.residency=residency;c.cluster=cluster;c.weight_stream=space.weight_stream;
-      c.layer_loop=space.layer_loop;c.moe=space.moe;
+      c.layer_loop=space.layer_loop;c.moe=space.moe;c.reuse_payload=reuse;
       for(unsigned f:active)c.gemms[f]=families[f][f==family?alternative:0].gemm;
       c.attention=attention[family==kAttention?alternative:0].attention;
       Sm90DenseSearchSpace::Structure(c);
@@ -131,12 +132,13 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
     return a.prediction.step_ns<b.prediction.step_ns;
   });
   if(pool.empty())throw std::invalid_argument("native search found no legal coordinate");
-  std::set<std::tuple<int,int,int,int>> optimum_structures;
+  std::set<std::tuple<int,int,int,int,bool>> optimum_structures;
   for(auto const& candidate:pool)
     if(candidate.origin.find("_optimum")!=std::string::npos &&
        optimum_structures.emplace(candidate.coordinates.residency,candidate.coordinates.cluster,
            ampere && candidate.coordinates.expert_fuse?candidate.coordinates.CommonExpertSlots():0,
-           ampere && candidate.coordinates.expert_fuse?candidate.coordinates.CommonExpertRegisterStages():0).second)
+           ampere && candidate.coordinates.expert_fuse?candidate.coordinates.CommonExpertRegisterStages():0,
+           candidate.coordinates.reuse_payload).second)
       result.per_structure_optima.push_back(candidate);
   if(int(pool.size())>o.top)pool.resize(o.top);
   result.ranked=std::move(pool);

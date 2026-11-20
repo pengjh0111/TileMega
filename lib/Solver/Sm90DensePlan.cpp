@@ -286,6 +286,8 @@ mlir::OwningOpRef<mlir::ModuleOp> MaterializeSm90Dense(
     if(stage.dense_attention_chunks!=c.attention.chunks ||
        c.attention.SharedBytes(stage.width,stage.group)>budget)
       throw std::invalid_argument("native attention structure or shared-memory budget is invalid");
+    if(c.reuse_payload && target.arch_tag!="sm_80")
+      throw std::invalid_argument("payload reuse requires the SM80 native backend");
     c.ValidateSchedule(shapes,batch,stage.width,stage.group,plan.serving_capacity,budget,grid);
   }
   auto module=frontend::TorchExportImporter{}.InstantiateForGranularity(imported,context,options);

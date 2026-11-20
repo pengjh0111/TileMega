@@ -136,7 +136,7 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& work,
   // DT-1 model rule (prompt §6 D6): a GEMM stage whose predecessor is fully
   // resident takes pre; full-width attention breaks both of its boundaries.
   // MoE (§8): M5 never takes pre (M4's routes are unknown to its producer).
-  int arena=Sm90DenseArena(Sm90DenseSharedBudget(target_,c.residency));
+  int arena=Sm90DenseArena(Sm90DenseSharedBudget(target_,c.residency),c.reuse_payload);
   bool wide=c.attention.FullWidth(work.head_dim,work.queries,arena);
   auto resident=[&](unsigned f) {return c.gemms[f].FullyResident(work.shapes[f][1]);};
   unsigned last=c.moe?7:3;  // the layer's final GEMM, before the next qkv
