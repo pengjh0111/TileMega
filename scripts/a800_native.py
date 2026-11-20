@@ -28,7 +28,7 @@ def artifact(path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('mode', choices=('plan', 'run'))
-    parser.add_argument('--stage', choices=('correctness', 'measure', 'diagnose', 'tune-prefill'), required=True)
+    parser.add_argument('--stage', choices=('correctness', 'measure', 'diagnose', 'tune-prefill', 'candidate-timing'), required=True)
     parser.add_argument('--model', choices=MODELS, required=True)
     parser.add_argument('--batch', type=int, choices=BATCHES, required=True)
     parser.add_argument('--prefill', required=True)
@@ -50,7 +50,8 @@ def main():
         parser.error('an alternate generator must reproduce the verified checkpoint identity')
     diagnostic = args.stage == 'diagnose'
     tuning = args.stage == 'tune-prefill'
-    timing = args.stage == 'measure' or tuning
+    independent = args.stage in ('measure', 'candidate-timing')
+    timing = independent or tuning
     if (not diagnostic and (args.prefill_mode != 'L1' or args.sanitizer)
             or diagnostic and args.prefill == 'prompt'):
         parser.error('prefill executor and sanitizer diagnostics require an independent prefill artifact')
@@ -93,7 +94,7 @@ def main():
                 or decode_id['target_sha256'] != identity['target_sha256']
                 or plan['native_selection'].get('selection') != 'measure'):
             parser.error('timing requires the solver-selected decode and its calibrated target')
-    if args.stage == 'measure':
+    if independent:
         receipts = [json.loads(path.read_text()) for path in
                     native_root.glob(f'*/{relative_scope}/correctness-*.json')]
         fixed = ('decode_sha256', 'prefill_sha256', 'target_sha256')
