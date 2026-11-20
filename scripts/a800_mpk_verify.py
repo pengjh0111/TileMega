@@ -1,6 +1,7 @@
 """Validate a completed single-process MPK cohort before admitting its TPOT."""
 import argparse
 import csv
+import re
 from pathlib import Path
 import subprocess
 
@@ -45,6 +46,11 @@ def main():
     result = measurement(job, step, read(cohort/'baseline_inputs.json'))
     folder = Path(step['out'])/f"job/measurements/B{job['batch']}"
     raw = read(folder/'measurements.json')
+    identity = read(Path(step['out'])/'job/physical-device-identity.json')
+    environment, = [r for f in cohort.glob('allocations/*/mpk-inputs.json')
+                    if (r := read(f))['guard_policy_sha256'] == identity['guard_policy_sha256']]
+    if environment['serving_sha256'] != job['harness_sha256'] or environment['revision'] != REVISION:
+        raise ValueError('measurement and allocation MPK sources differ')
     cfg = raw['configuration']
     if raw['system'] != 'mpk' or cfg['mirage_revision'] != REVISION or cfg['world_size'] != 1:
         raise ValueError('MPK backend, version or TP mismatch')
@@ -59,6 +65,10 @@ def main():
             raise ValueError('MPK first token differs between the two compiled lengths')
         first = [row[:1] for row in tokens]
         lib, = (folder/f'kernel_N{length}').glob('mpk_launcher_rank0*.so')
+        generated = (lib.parent/'test_rank0.cu').read_text()
+        groups = set(re.findall(r'runtime_config\.paged_kv_indptr_buffer\[([^\]]+)\]', generated))
+        if groups != {'0'}:
+            raise ValueError(f'expected only KV group zero, got {sorted(groups)}')
         listing = subprocess.check_output(['cuobjdump', '--list-elf', str(lib)], text=True, timeout=30)
         if '.sm_80.' not in listing:
             raise ValueError(f'{lib} lacks native SM80 code')
@@ -70,7 +80,7 @@ def main():
     receipt = dict(measurement_sha256=result['receipt'], checkpoint_sha256=result['checkpoint_sha256'],
                    independent_reference=str(path.relative_to(RUN)), reference_sha256=sha(path),
                    matching_first_tokens=count, sm80_binary_sha256=artifacts,
-                   deterministic_repeats=True, tpot_ms=result['tpot_ms'])
+                   deterministic_repeats=True, environment=environment, tpot_ms=result['tpot_ms'])
     write_json(cohort/'mpk-accepted.json', receipt)
     print(receipt)
 
