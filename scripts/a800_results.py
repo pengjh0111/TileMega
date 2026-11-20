@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Collect accepted independent requests from one A800 UUID."""
+"""Collect guarded requests from one A800 hardware class, with per-round UUIDs."""
 import argparse
 import json
 from pathlib import Path
@@ -7,7 +7,7 @@ import statistics
 
 from a100_baselines import BATCHES, ENGINES, MODELS, ROOT, inspect_inputs
 from a100_results import measurement, read, write_csv
-from a800_baselines import INVENTORY, RUN
+from a800_baselines import INVENTORY, RUN, hardware_class
 
 
 METRICS = ('tpot_ms', 't1_s', 't1024_s', 'tok_s')
@@ -33,8 +33,12 @@ def baseline_scope(cohorts, inputs):
         recorded = read(run/'baseline_inputs.json')
         if not recorded:
             continue
-        if recorded['device']['uuid'] != inputs['device']['uuid'] or recorded['models'] != inputs['models']:
+        if recorded['models'] != inputs['models']:
             raise ValueError(f'baseline and native inputs differ for {run.name}')
+        if hardware_class(recorded['device']) != hardware_class(inputs['device']):
+            continue
+        devices = {row['guard_policy_sha256']: row['device']
+                   for row in (read(path) for path in run.glob('allocations/*/baseline_inputs.json'))}
         state = read(run/'baseline/state.json')
         for job in read(run/'queue/queue_baselines.json'):
             if 'model' not in job:
@@ -44,14 +48,20 @@ def baseline_scope(cohorts, inputs):
             capacity = run/f'{name}.oom.json'
             if step.get('out') or capacity.is_file():
                 key = job['model'], job['engine'], job['batch']
-                scope.setdefault(key, []).append((run, job, step, capacity))
+                identity = read(Path(step['out'])/'job/physical-device-identity.json') if step.get('out') else {}
+                device = devices.get(identity.get('guard_policy_sha256'))
+                if step.get('status') == 'done' and (not device or
+                        hardware_class(device) != hardware_class(inputs['device'])):
+                    raise ValueError(f'no matching allocation receipt for {name}')
+                scope.setdefault(key, []).append((run, job, step, capacity, device or recorded['device']))
     return scope
 
 
 def confirmed_oom(run, job, step, capacity, inputs):
     receipt = read(capacity)
     if receipt:
-        return receipt['status'] == 'OOM' and receipt['device_uuid'] == inputs['device']['uuid']
+        return (receipt['status'] == 'OOM' and
+                receipt['device_bytes'] == inputs['device']['memory_mib'] * 2**20)
     if step.get('status') != 'failed':
         return False
     log = run/'baseline'/f'{job["name"]}.log'
@@ -61,12 +71,13 @@ def confirmed_oom(run, job, step, capacity, inputs):
 
 def baseline_cell(inputs, jobs, model, engine, batch):
     accepted, oom_rounds, evidence, harnesses = {}, set(), set(), set()
-    for run, job, step, capacity in jobs:
+    for run, job, step, capacity, device in jobs:
         repeat = job['round']
         harnesses.add(job['harness_sha256'])
         if step.get('out'):
             evidence.add(str(Path(step['out']).relative_to(RUN)))
-        if row := measurement(job, step, inputs):
+        if row := measurement(job, step, dict(inputs, device=device)):
+            row['gpu_uuid'] = device['uuid']
             if repeat in accepted and accepted[repeat] != row:
                 raise ValueError(f'duplicate accepted round for {job["name"]}; select one cohort')
             accepted[repeat] = row
@@ -81,27 +92,37 @@ def baseline_cell(inputs, jobs, model, engine, batch):
     return rows, dict(model=model, framework=engine, batch=batch, status=status, processes=len(rows),
         required_processes=needed, correctness='exact token counts' if rows else 'pending',
         **metrics(rows, needed), backend=summarize(rows, 'backend'), versions=summarize(rows, 'versions'),
-        gpu_uuid=inputs['device']['uuid'], config_sha256=inputs['models'][model]['config_sha256'],
+        gpu_uuid=' '.join(sorted({row['gpu_uuid'] for row in rows})),
+        config_sha256=inputs['models'][model]['config_sha256'],
         prompt_sha256=inputs['models'][model]['prompt_sha256'], checkpoint_sha256='',
         harness_sha256=' '.join(sorted(harnesses)),
         receipt_sha256=' '.join(row['receipt'] for row in rows), evidence=' '.join(sorted(evidence)))
 
 
 def native_cell(inputs, model, batch):
-    uuid = inputs['device']['uuid']
-    run = RUN/'native'/uuid/model/f'B{batch}'
-    receipts = [read(path) for path in sorted(run.glob('*/measure-*.json'))]
+    def compatible(receipt):
+        if 'device' in receipt:
+            return hardware_class(receipt['device']) == hardware_class(inputs['device'])
+        return receipt['device_uuid'] == inputs['device']['uuid']
+
+    root = RUN/'native'
+    cell = f'*/{model}/B{batch}'
+    receipts = [read(path) for path in sorted(root.glob(f'{cell}/*/measure-*.json'))]
+    receipts = [row for row in receipts if compatible(row)]
     checks = [read(path) for pattern in ('correctness-*.json', '*/correctness-*.json')
-              for path in run.glob(pattern)]
+              for path in root.glob(f'{cell}/{pattern}')]
+    checks = [row for row in checks if compatible(row)]
     accepted_checks = sum(bool(row.get('pass')) for row in checks)
     rows, artifact_ids = [], set()
     for receipt in receipts:
-        if not receipt.get('pass') or receipt['device_uuid'] != uuid:
-            raise ValueError('native measurement receipt did not pass on the cohort UUID')
+        if not receipt.get('pass'):
+            raise ValueError('native measurement receipt did not pass')
         attempt = Path(receipt['evidence']).parent.parent
         job = dict(name=f'{model}-native-r{receipt["round"]}', model=model, batch=batch,
                    round=receipt['round'])
-        rows.append(measurement(job, dict(status='done', out=str(attempt)), inputs))
+        device = receipt.get('device', inputs['device'])
+        row = measurement(job, dict(status='done', out=str(attempt)), dict(inputs, device=device))
+        rows.append(dict(row, gpu_uuid=device['uuid']))
         artifact_ids.add((receipt['prefill_sha256'], receipt['decode_sha256'], receipt['target_sha256']))
     if len(artifact_ids) > 1:
         raise ValueError(f'{model} B{batch} contains more than one native plan pair')
@@ -110,6 +131,7 @@ def native_cell(inputs, model, batch):
         raise ValueError('choose an explicit cohort without extra formal rounds')
     status = 'measured' if len(rows) == needed else 'incomplete' if rows else 'pending_correctness'
     artifacts = next(iter(artifact_ids), ('', '', ''))
+    uuids = {row['gpu_uuid'] for row in rows} or {row['device_uuid'] for row in checks}
     return rows, dict(model=model, batch=batch, status=status, processes=len(rows), required_processes=needed,
         correctness='five fresh checks passed' if rows else 'pilot passed' if accepted_checks else 'pending',
         accepted_correctness_processes=accepted_checks,
@@ -117,7 +139,7 @@ def native_cell(inputs, model, batch):
         fastest_baseline_tpot_ms='', speedup='', config_sha256=inputs['models'][model]['config_sha256'],
         prompt_sha256=inputs['models'][model]['prompt_sha256'], checkpoint_sha256='',
         prefill_sha256=artifacts[0], decode_sha256=artifacts[1], target_sha256=artifacts[2],
-        gpu_uuid=uuid, versions=summarize(rows, 'versions'),
+        gpu_uuid=' '.join(sorted(uuids)), versions=summarize(rows, 'versions'),
         receipt_sha256=' '.join(row['receipt'] for row in rows))
 
 

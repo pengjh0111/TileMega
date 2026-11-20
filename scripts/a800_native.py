@@ -8,8 +8,8 @@ import os
 from pathlib import Path
 import sys
 
-from a100_baselines import BATCHES, MODELS, ROOT, device_environment, inputs, inspect_inputs, sha
-from a800_baselines import ENVS, INVENTORY, RUN, device_policy
+from a100_baselines import BATCHES, MODELS, ROOT, inputs, inspect_inputs, sha
+from a800_baselines import ENVS, INVENTORY, RUN, calibrated_device, device_policy
 from tilemega.bench.scheduler import main as schedule, write_json
 
 
@@ -48,7 +48,6 @@ def main():
     decode, decode_id, plan = artifact(args.decode)
     with args.target.open() as stream:
         target = json.load(stream)
-    expected = target['device_provenance']['uuid']
     if target['arch_tag'] != 'sm_80' or 'A800' not in target['device_provenance']['name']:
         parser.error('require a separate A800 target from the guarded device probe')
     if plan.get('runtime_batch') != args.batch or plan.get('native_origin') not in ('fixed', 'solver'):
@@ -64,20 +63,23 @@ def main():
             parser.error('prefill plan must match the batch')
 
     identity = dict(model=args.model, batch=args.batch, round=args.round, stage=args.stage,
-                    target_sha256=sha(args.target), device_uuid=expected,
+                    target_sha256=sha(args.target),
                     decode_sha256=decode_id['binary_sha256'],
                     prefill_sha256=prefill_id.get('binary_sha256', 'prompt'))
     artifact_key = hashlib.sha256(json.dumps(
         [identity[key] for key in ('target_sha256', 'decode_sha256', 'prefill_sha256')],
         separators=(',', ':')).encode()).hexdigest()[:20]
-    scope = RUN/'native'/expected/args.model/f'B{args.batch}'/artifact_key
+    native_root = RUN/'native'
+    relative_scope = Path(args.model)/f'B{args.batch}'/artifact_key
+    receipt_name = f'{args.stage}-{args.round}.json'
     if args.stage == 'measure':
         if (plan['native_origin'] != 'solver' or not target.get('sm80_native_constants')
                 or decode_id['target_sha256'] != identity['target_sha256']
                 or plan['native_selection'].get('selection') != 'measure'):
             parser.error('formal measurement requires the solver-selected artifact and its calibrated target')
-        receipts = [json.loads(path.read_text()) for path in scope.glob('correctness-*.json')]
-        fixed = ('device_uuid', 'decode_sha256', 'prefill_sha256', 'target_sha256')
+        receipts = [json.loads(path.read_text()) for path in
+                    native_root.glob(f'*/{relative_scope}/correctness-*.json')]
+        fixed = ('decode_sha256', 'prefill_sha256', 'target_sha256')
         accepted = [result for result in receipts if result['pass']
                     and all(result[key] == identity[key] for key in fixed)]
         rounds = {result['round'] for result in accepted}
@@ -92,16 +94,17 @@ def main():
     name = f'native-{args.stage}-r{args.round}'
     if args.mode == 'plan':
         print(json.dumps(dict(identity, **description, prefill=str(prefill), decode=str(decode),
+                              calibration_uuid=target['device_provenance']['uuid'],
                               timeout_s=args.timeout_s, max_tokens=1024, step=name), indent=2))
         return 0
 
-    receipt = scope/f'{args.stage}-{args.round}.json'
-    if receipt.exists():
-        raise FileExistsError('this artifact pair already has a receipt for the selected round')
+    if any(native_root.glob(f'*/{relative_scope}/{receipt_name}')):
+        print('this artifact pair already has an accepted receipt for this round')
+        return 0
     policy = device_policy()
-    dev = device_environment(policy, 'A800')
-    if dev['uuid'] != expected:
-        raise RuntimeError('native run requires the A800 UUID recorded in the target')
+    dev = calibrated_device(policy, target)
+    scope = native_root/dev['uuid']/relative_scope
+    receipt = scope/receipt_name
     py = str(ENVS/'tilemega/bin/python')
     seed_py = str(ENVS/args.seed_suite/'bin/python')
     seed_hash = ['--expected-sha256', args.expected_checkpoint_sha256] if args.expected_checkpoint_sha256 else []
@@ -122,7 +125,7 @@ def main():
     command = ['taskset', '--cpu-list', dev['cpus'], py,
                str(ROOT/'scripts/run_r16_with_device_identity.py'),
                '--out', '{attempt_dir}/job', '--guard-policy', str(policy_path),
-               '--expected-uuid', expected, '--expected-pci', dev['pci'],
+               '--expected-uuid', dev['uuid'], '--expected-pci', dev['pci'],
                '--numa-node', dev['numa_node'], '--', seed_py,
                '-m', 'tilemega.serving.random_checkpoint', '--config', str(config),
                '--out', '{attempt_dir}/checkpoint', '--seed', '0',
@@ -156,6 +159,7 @@ def main():
             if not hf_pass:
                 return 1
     write_json(receipt, dict(identity, **{'pass': True}, job=os.environ['SLURM_JOB_ID'], hf_pass=hf_pass,
+               device=dev, device_uuid=dev['uuid'],
                evidence=str(evidence), tokens_sha256=sha(evidence/'reference_tokens.json')))
     return 0
 

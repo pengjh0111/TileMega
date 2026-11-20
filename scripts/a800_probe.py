@@ -9,17 +9,13 @@ import subprocess
 import sys
 
 from a100_baselines import ROOT, device_environment, sha
-from a800_baselines import RUN, device_policy
+from a800_baselines import CUDA_RESOURCES, RUN, device_policy
 from tilemega.bench.scheduler import write_json
 
 
 def write_target(output, device, identity, receipt):
     target = json.loads((ROOT/'configs/targets/sm_80.json').read_text())
-    target['resources'].update(num_sms=identity['sm_count'], l2_bytes=identity['l2_bytes'],
-        max_smem_per_sm=identity['shared_memory_per_sm'],
-        max_dynamic_smem_per_cta=identity['shared_memory_per_block_optin'],
-        regs_per_sm=identity['registers_per_sm'], max_threads_per_sm=identity['max_threads_per_sm'],
-        warp_size=identity['warp_size'])
+    target['resources'].update({field: identity[attribute] for field, attribute in CUDA_RESOURCES.items()})
     target['device_provenance'] = dict(**device, cluster=os.environ.get('SLURM_CLUSTER_NAME', ''),
         node=socket.gethostname(), slurm_job_id=os.environ['SLURM_JOB_ID'],
         probe_sha256=sha(receipt), resources_source='guarded CUDA driver and NVML query',

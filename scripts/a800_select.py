@@ -9,9 +9,8 @@ import statistics
 import subprocess
 
 from a100_baselines import BATCHES, MODELS, inputs, inspect_inputs, sha
-from a800_baselines import ENVS, INVENTORY
+from a800_baselines import ENVS, INVENTORY, calibrated_device, device_policy
 from a800_native import artifact
-from run_r16_with_device_identity import probe_cuda
 from sm90r3_llm import order, selection_result, span
 from tilemega.bench.scheduler import write_json
 from tilemega.serving.baseline_common import require_guard
@@ -31,10 +30,9 @@ def main():
         parser.error('P-SEL requires the strict guard inside a gpu_a800 allocation')
     require_guard(tp=1)
     spec = json.loads(args.target.read_text())
-    gpu = probe_cuda()
-    expected = spec['device_provenance']['uuid']
-    if not spec.get('sm80_native_constants') or f"GPU-{gpu['cuda_uuid']}" != expected:
-        raise ValueError('P-SEL device and measured calibration target differ')
+    if not spec.get('sm80_native_constants'):
+        raise ValueError('P-SEL requires a measured calibration target')
+    device = calibrated_device(device_policy(), spec)
     if args.prefill == 'prompt':
         if args.model != 'olmoe_1b_7b':
             raise ValueError('this model needs its independent prefill artifact')
@@ -93,7 +91,7 @@ def main():
     result = selection_result(summary, predicted)
     winner = arms[result['winner']]
     write_json(args.out/'result.json', dict(result, schema=1, protocol='P-SEL',
-        winner_rank=winner['rank'], winner_binary_sha256=sha(winner['binary']), gpu_uuid=expected,
+        winner_rank=winner['rank'], winner_binary_sha256=sha(winner['binary']), gpu_uuid=device['uuid'],
         checkpoint_sha256=next(iter(checkpoint_hashes)), arms=summary, predicted_ns=predicted,
         launch_order=sequence, formal_timing=False))
     return 0

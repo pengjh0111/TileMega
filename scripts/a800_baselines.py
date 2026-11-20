@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 import subprocess
 
-from a100_baselines import BATCHES, ENGINES, MODELS, ROOT, inspect_inputs, prepare
+from a100_baselines import BATCHES, ENGINES, MODELS, ROOT, device_environment, inspect_inputs, prepare
 from run_r16_with_device_identity import probe_cuda
 from tilemega.bench.gpu_guard import host_proc, smi
 from tilemega.bench.scheduler import main as schedule, write_json
@@ -16,6 +16,24 @@ RUN = ROOT / 'runs/a800'
 INVENTORY = ROOT.parent / 'TileMega-a100/runs/a100/inventory'
 ENVS = ROOT.parent / 'envs'
 PROBE = 'a800_device_identity'
+CUDA_RESOURCES = dict(num_sms='sm_count', l2_bytes='l2_bytes',
+    max_smem_per_sm='shared_memory_per_sm', max_dynamic_smem_per_cta='shared_memory_per_block_optin',
+    regs_per_sm='registers_per_sm', max_threads_per_sm='max_threads_per_sm', warp_size='warp_size')
+
+
+def hardware_class(device):
+    return tuple(device[key] for key in ('name', 'memory_mib', 'capability', 'mig'))
+
+
+def calibrated_device(policy, target):
+    device = device_environment(policy, 'A800')
+    cuda = probe_cuda()
+    provenance = target['device_provenance']
+    if (hardware_class(device) != hardware_class(provenance)
+            or any(cuda[attribute] != target['resources'][field]
+                   for field, attribute in CUDA_RESOURCES.items())):
+        raise RuntimeError(f"A800 hardware differs from the calibration profile: {device['name']}")
+    return device
 
 
 def selection(args):
@@ -43,7 +61,8 @@ def device_policy():
     return dict(allowed_gpu_indices=[int(index)], gpu_uuid=physical, cuda_visible_devices=mask,
                 gpu_lock_path=str(RUN/'locks'/f'{physical}.lock'), strict_host_owners=True, samples=31,
                 interval_s=1, max_util_pct=2, max_hidden_mib=1024, hidden_violations=1,
-                max_idle_wait_s=180, own_child_settle_s=2, keep_host_pid_visible=True, confirm_hidden_memory=True)
+                max_idle_wait_s=180, own_child_settle_s=2, keep_host_pid_visible=True,
+                confirm_hidden_memory=True, confirm_retired_owners=True)
 
 
 def capacity_receipts(run, selected, jobs, inputs, policy):
@@ -70,23 +89,24 @@ def run_cohort(args, wanted):
     with (run/'allocation.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         policy = device_policy()
+        device = device_environment(policy, 'A800')
         if args.expected_target:
-            expected = json.loads(args.expected_target.read_text())['device_provenance']['uuid']
-            if policy['gpu_uuid'] != expected:
-                raise RuntimeError('Slurm assigned a different UUID from the guarded target')
+            expected = json.loads(args.expected_target.read_text())['device_provenance']
+            if hardware_class(device) != hardware_class(expected):
+                raise RuntimeError('Slurm assigned a different A800 hardware class')
+        first_device = run/'device.json'
+        if first_device.exists() and hardware_class(json.loads(first_device.read_text())) != hardware_class(device):
+            raise RuntimeError('choose a separate cohort for a different A800 hardware class')
         allocation = run/'allocations'/os.environ['SLURM_JOB_ID']
         allocation.mkdir(parents=True, exist_ok=True)
         policy_path = allocation/'guard-policy.json'
         write_json(policy_path, policy)
-        pinned = run/'device.json'
-        if pinned.exists() and json.loads(pinned.read_text())['uuid'] != policy['gpu_uuid']:
-            raise RuntimeError('allocation received a different UUID from the saved cohort')
         expected_checkpoint = (args.model[0], args.expected_checkpoint_sha256) if args.expected_checkpoint_sha256 else None
         jobs = prepare(policy_path, run, INVENTORY, ENVS, 'A800',
                        args.process_timeout_s, args.heartbeat_timeout_s, args.seed_suite, expected_checkpoint)
         inputs = json.loads((run/'baseline_inputs.json').read_text())
-        if not pinned.exists():
-            write_json(pinned, inputs['device'])
+        if not first_device.exists():
+            write_json(first_device, inputs['device'])
         write_json(allocation/'baseline_inputs.json', inputs)
         wanted = capacity_receipts(run, wanted, jobs, inputs, policy)
         options = ['--queue-dir', str(run/'queue'), '--out', str(run/'baseline'),
@@ -98,8 +118,17 @@ def run_cohort(args, wanted):
         os.environ.update(TILEMEGA_DEVICE_INDEX=str(policy['allowed_gpu_indices'][0]),
                           TILEMEGA_GPU_LOCK=policy['gpu_lock_path'])
         os.environ.pop('TILEMEGA_DEVICE_GROUP', None)
+        state_path = run/'baseline/state.json'
+        if args.retry_failed and state_path.is_file():
+            state = json.loads(state_path.read_text())
+            if any(row['status'] == 'running' for row in state.values()):
+                raise RuntimeError('reconcile the interrupted process before retrying')
+            for name in [PROBE, *wanted]:
+                if state.get(name, {}).get('status') in ('failed', 'skipped'):
+                    state[name].update(status='pending', retry_at=0)
+            write_json(state_path, state)
         schedule(options)
-        state = json.loads((run/'baseline/state.json').read_text())
+        state = json.loads(state_path.read_text())
         selected = {name: state[name]['status'] for name in [PROBE, *wanted]}
         print(json.dumps(dict(cohort=args.cohort, device=policy['gpu_uuid'], status=selected)), flush=True)
         return 0 if all(status == 'done' for status in selected.values()) else 1
@@ -111,6 +140,7 @@ def main():
     parser.add_argument('--cohort', required=True)
     parser.add_argument('--probe-only', action='store_true')
     parser.add_argument('--expected-target', type=Path)
+    parser.add_argument('--retry-failed', action='store_true')
     parser.add_argument('--seed-suite', choices=('vllm', 'tilemega'), default='vllm')
     parser.add_argument('--expected-checkpoint-sha256')
     parser.add_argument('--model', choices=MODELS, action='append')

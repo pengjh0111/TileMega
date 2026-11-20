@@ -8,8 +8,8 @@ import shlex
 import subprocess
 import sys
 
-from a100_baselines import BATCHES, MODELS, ROOT, device_environment, sha
-from a800_baselines import ENVS, RUN, device_policy
+from a100_baselines import BATCHES, MODELS, ROOT, sha
+from a800_baselines import ENVS, RUN, calibrated_device, device_policy
 from a800_native import artifact
 from tilemega.bench.scheduler import write_json
 
@@ -54,20 +54,18 @@ def main():
                '--selection', 'measure', '--measure-top', str(args.top), '--measure-cmd', select,
                '--nvcc-split-compile', '2']
     receipt = dict(command=command, target=str(target), target_sha256=sha(target),
-                   export_sha256=sha(source), cli_sha256=sha(cli), uuid=fingerprint['uuid'])
+                   export_sha256=sha(source), cli_sha256=sha(cli), calibration_uuid=fingerprint['uuid'])
     if args.mode == 'plan':
         print(json.dumps(receipt, indent=2))
         return 0
 
     policy = device_policy()
-    dev = device_environment(policy, 'A800')
-    if any(dev[key] != fingerprint[key] for key in ('uuid', 'driver', 'memory_mib', 'pci')):
-        raise RuntimeError('allocate the card which produced the calibrated target')
+    dev = calibrated_device(policy, spec)
     out = RUN/'search'/os.environ['SLURM_JOB_ID']
     out.mkdir(parents=True, exist_ok=False)
     policy_path = out/'guard-policy.json'
     write_json(policy_path, policy)
-    write_json(out/'planned.json', receipt)
+    write_json(out/'planned.json', dict(receipt, device=dev))
     env = dict(os.environ, TILEMEGA_DEVICE_INDEX=str(dev['index']),
                TILEMEGA_GPU_LOCK=policy['gpu_lock_path'], TILEMEGA_NUMA_NODE=dev['numa_node'],
                TILEMEGA_TIMING='1', TILEMEGA_GPU_PID_MODE='strict', OMP_NUM_THREADS='2',
