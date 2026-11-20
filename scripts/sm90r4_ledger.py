@@ -172,6 +172,10 @@ def analyze(a):
                     overlap = min(last_qkv, last_attention) - max(first_qkv, first_attention)
                     joint.append({
                         'span_overlap_us': max(0, overlap)/1000,
+                        'qkv_tail_after_first_release_us': (last_qkv-release[g-1])/1000,
+                        'attention_first_active_after_qkv_release_us':
+                            (first_attention-release[g-1])/1000,
+                        'attention_active_body_span_us': (last_attention-first_attention)/1000,
                         'attention_active_ctas': len(active),
                         'attention_tasks': sum(int(r['tasks']) for r in active),
                         'attention_max_tasks_per_cta': max(int(r['tasks']) for r in active),
