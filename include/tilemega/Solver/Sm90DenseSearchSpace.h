@@ -38,7 +38,8 @@ struct Sm90DenseSearchSpace {
   std::vector<Sm90DenseAttention> AttentionCandidates(int residency,
       Sm90NativeConstants const* constants=nullptr,int norm=0) const;
   // The structural coordinates derived from the per-family choices.
-  static void Structure(Sm90DenseCoordinates&);
+  static int DefaultGateInterleave(int tile_n);
+  static void Structure(Sm90DenseCoordinates&,bool preserve_gate_interleave=false);
 };
 
 }  // namespace tilemega::solver

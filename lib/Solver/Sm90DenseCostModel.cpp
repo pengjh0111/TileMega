@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/Sm90DenseCostModel.h>
 #include <tilemega/Solver/Sm90DenseResources.h>
+#include <tilemega/Solver/Sm90DenseSearchSpace.h>
 #include <algorithm>
 #include <cmath>
 
@@ -41,10 +42,7 @@ std::optional<Sm80DenseGateService> Sm90DenseCostModel::GateService(
     Sm90DenseWorkload const& work,unsigned family,Sm90DenseGemm const& g,int residency,
     int u,bool alternate_path) const {
   if(target_.arch_tag!="sm_80" || family!=2 || work.moe || alternate_path || g.multicast)return std::nullopt;
-  if(u==0) {
-    u=16;
-    while(u>4 && g.tile_n%(2*u))u/=2;
-  }
+  if(u==0)u=Sm90DenseSearchSpace::DefaultGateInterleave(g.tile_n);
   return constants_.AmpereGateService(Grid(residency),work.shapes[2][0],work.shapes[2][1],
       work.batch,g.tile_n,g.TileK(),g.slots,g.warps_n,g.register_stages,u);
 }

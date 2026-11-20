@@ -5,10 +5,18 @@
 
 namespace tilemega::solver {
 
-void Sm90DenseSearchSpace::Structure(Sm90DenseCoordinates& c) {
+int Sm90DenseSearchSpace::DefaultGateInterleave(int tile_n) {
+  int u=16;
+  while(u>4 && tile_n%(2*u))u/=2;
+  return u;
+}
+
+void Sm90DenseSearchSpace::Structure(Sm90DenseCoordinates& c,bool preserve_gate_interleave) {
   if(c.attention.chunks==1)c.attention.new_row_work=0;
-  c.swiglu_u=16;
-  if(!c.moe)while(c.gemms[2].tile_n%(2*c.swiglu_u) && c.swiglu_u>4)c.swiglu_u/=2;
+  if(c.moe)c.swiglu_u=16;
+  else if(!preserve_gate_interleave || (c.swiglu_u==4 || c.swiglu_u==8 || c.swiglu_u==16) &&
+          c.gemms[2].tile_n%(2*c.swiglu_u))
+    c.swiglu_u=DefaultGateInterleave(c.gemms[2].tile_n);
 }
 
 bool Sm90DenseSearchSpace::Legal(Sm90DenseCoordinates const& c) const {

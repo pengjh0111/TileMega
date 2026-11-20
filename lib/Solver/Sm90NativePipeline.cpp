@@ -216,7 +216,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
   };
   auto derive=[&](Sm90DenseCoordinates& c) {
     constrain(c);
-    Sm90DenseSearchSpace::Structure(c);
+    Sm90DenseSearchSpace::Structure(c,ampere);
     // The pinned dense gate tile also fixes the gate/up weight permutation.
     if(options.pinned_theta && !c.moe && ampere) {
       c.swiglu_u=options.pinned_theta->swiglu_u;
@@ -260,6 +260,14 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     return space.Legal(c);
   };
 
+  auto priced=[&](Sm90DenseCoordinates const& c) {
+    if(!cost.HasCalibratedMma(c))return false;
+    if(!ampere || c.moe)return true;
+    auto const& gate=c.gemms[2];
+    return c.swiglu_u==Sm90DenseSearchSpace::DefaultGateInterleave(gate.tile_n) ||
+        cost.GateService(work,2,gate,c.residency,c.swiglu_u,c.live_epilogue_rows || c.weight_stream);
+  };
+
   auto score = [&](Sm90DenseCoordinates const& c) -> double {
     auto key = CoordinateKey(c);
     auto found = memo.find(key);
@@ -291,7 +299,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     if(options.pinned_theta)seed.gemms=options.pinned_theta->gemms;
     constrain(seed);
     bool projected=options.pinned_theta || options.retile_only || options.realize_aggregate;
-    if((projected?derive(seed):space.Legal(seed)) && cost.HasCalibratedMma(seed) &&
+    if((projected?derive(seed):space.Legal(seed)) && priced(seed) &&
        start_keys.insert(CoordinateKey(seed)).second)
       starts.push_back(seed);
   };
@@ -319,7 +327,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     result.descent.back().push_back(best);
     result.descent_coordinates.push_back({current});
     auto consider=[&](Sm90DenseCoordinates trial,std::string coordinate) {
-      if(spent_ms()>options.budget_ms || !derive(trial) || !cost.HasCalibratedMma(trial))return false;
+      if(spent_ms()>options.budget_ms || !derive(trial) || !priced(trial))return false;
       origin="seed:"+std::to_string(seed)+"/"+coordinate;
       double value=score(trial);
       if(value>=best)return false;
@@ -345,6 +353,13 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
             }
             changed|=consider(trial,"family:"+std::to_string(family));
           }
+        }
+      }
+      if(ampere && !current.moe && !options.pinned_theta) {
+        for(int u:{4,8,16}) {
+          if(current.gemms[2].tile_n%(2*u))continue;
+          auto trial=current;trial.swiglu_u=u;
+          changed|=consider(trial,"gate interleave");
         }
       }
       // The attention structure, unless AB-4a forbids changing it.
