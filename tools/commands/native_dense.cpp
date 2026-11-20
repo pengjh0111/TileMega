@@ -287,6 +287,7 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   solver::Sm90DenseSearchSpace space{work.shapes,work.batch,work.head_dim,work.queries,target,work.hkv};
   space.moe=work.moe;space.experts=work.experts;space.top_k=work.top_k;
   space.qk_norm_row=work.qk_norm_row;space.tp=work.tp;
+  space.third_gate_wave=constants.HasDenseGateService();
   auto target_json=json::ParseFile(o.target);
   auto decision_key=target.arch_tag=="sm_80"?"sm80_native_decisions":"sm90_native_decisions";
   auto const* decisions=target_json.Find(decision_key);

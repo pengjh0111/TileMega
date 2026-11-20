@@ -105,7 +105,7 @@ std::vector<Sm90DenseGemm> Sm90DenseSearchSpace::FamilyCandidates(unsigned famil
   }else {
     // Dense gates can issue a third task with the same ring. Unlike the
     // residual families, there is no per-task side buffer to enlarge.
-    int waves=target.arch_tag=="sm_80" && (residual || family==2)?3:2;
+    int waves=target.arch_tag=="sm_80" && (residual || (family==2 && third_gate_wave))?3:2;
     for(int tn=8;tn<=n;tn+=8)
       if(n%tn==0 && n/tn*4>=grid && n/tn<=waves*grid)
         tiles.push_back(tn);

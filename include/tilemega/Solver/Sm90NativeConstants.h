@@ -53,6 +53,7 @@ class Sm90NativeConstants {
   std::optional<double> AmpereMmaK16(int grid,int tn,int tk,int wn,int stages) const;
   std::optional<Sm80DenseGateService> AmpereGateService(
       int grid,int n,int k,int batch,int tn,int tk,int slots,int wn,int stages,int u) const;
+  bool HasDenseGateService() const {return !ampere_gate_service_.IsNull();}
   // D2 body: one 64-key block (data resident), q preparation, S-chunk merge.
   double AttentionBlock(int dim,int queries,int norm) const;
   double AttentionPrepare(int dim,int queries,int norm) const;
