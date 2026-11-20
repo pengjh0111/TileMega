@@ -70,8 +70,16 @@ def main():
         if os.environ.get('SLURM_JOB_ID') or args.prepared_shortlist or args.submission_plan:
             parser.error('prepare a fresh shortlist on the login node')
         command.extend(('--prepare-shortlist', '1'))
-        return subprocess.run(['timeout', '--kill-after=15s', str(args.timeout_s), *command],
-                              cwd=ROOT).returncode
+        result = subprocess.run(['timeout', '--kill-after=15s', str(args.timeout_s), *command], cwd=ROOT)
+        if result.returncode:
+            return result.returncode
+        from a100_baselines import inputs
+        from a800_shortlist_abi import check_shortlist
+        path = Path(f'{output}.search')
+        config = json.loads((inputs(args.model)[0]/'config.json').read_text())
+        report = check_shortlist(prefill, path/'prepared.json', config, args.batch)
+        write_json(path/'weight-abi.json', dict(prefill_sha256=prefill_sha, candidates=report))
+        return 0
     if args.prepared_shortlist:
         prepared = args.prepared_shortlist.resolve(strict=True)
         command.extend(('--prepared-shortlist', str(prepared)))
