@@ -2,6 +2,7 @@
 #include <tilemega/Solver/Sm90NativePipeline.h>
 #include <algorithm>
 #include <chrono>
+#include <iterator>
 #include <map>
 #include <queue>
 #include <set>
@@ -210,11 +211,18 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     for(unsigned family:c.Active()) {
       auto& geometry=c.gemms[family];
       auto const& domain=geometries(family,c.residency);
-      auto same=std::find_if(domain.begin(),domain.end(),[&](auto const& g) {
+      auto matches=[&](auto const& g) {
         return g.tile_n==geometry.tile_n && g.TileK()==geometry.TileK() &&
                g.warps_n==geometry.warps_n && g.warps_k==geometry.warps_k;
-      });
+      };
+      auto same=std::find_if(domain.begin(),domain.end(),matches);
       if(same==domain.end())return false;
+      // SM80 calibrates several depths per geometry. Keep the chosen depth
+      // until a smaller arena makes it infeasible.
+      if(space.target.arch_tag=="sm_80")
+        for(auto candidate=std::next(same);candidate!=domain.end();++candidate)
+          if(candidate->slots<=geometry.slots && candidate->slots>same->slots &&
+             matches(*candidate))same=candidate;
       geometry.slots=same->slots;
     }
     auto attention=space.AttentionCandidates(c.residency);

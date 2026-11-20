@@ -146,5 +146,33 @@ int main(int argc, char** argv) {
     assert(!c.group_wait && !c.embed_la && c.argmax_stage && c.attention.merge_stage);
     assert(!c.attention.dsmem && !c.expert_fuse);
   }
+  if(argc>=4) {
+    auto ampere=TargetSpec::FromJson(argv[3]);
+    auto ampere_constants=Sm90NativeConstants::FromTarget(json::ParseFile(argv[3]),argv[2]);
+    Sm90DenseCostModel ampere_cost(ampere,ampere_constants);
+    Sm90DenseWorkload llama;
+    llama.shapes={{{3072,2048},{2048,2048},{16384,2048},{2048,8192},{128256,2048}}};
+    llama.layers=16;llama.head_dim=64;llama.queries=4;llama.hkv=8;llama.batch=16;
+    Sm90DenseSearchSpace ampere_space{llama.shapes,llama.batch,llama.head_dim,
+                                     llama.queries,ampere,llama.hkv};
+    Sm90DenseCoordinates seed;
+    for(unsigned f:seed.Active()) {
+      auto& gemm=seed.gemms[f];
+      gemm.tile_n=f==2 || f==4?128:32;
+      gemm.warps_n=4;gemm.warps_k=1;gemm.slot_bytes=2*gemm.tile_n*64;
+      gemm.slots=f==2?3:2;
+    }
+    seed.attention.slots=2;
+    assert(ampere_space.Legal(seed));
+    auto ampere_options=options;ampere_options.budget_ms=1000;
+    ampere_options.pinned_theta=seed;
+    auto ampere_score=[&](Sm90DenseCoordinates const&,bool) {
+      Sm90NativeFlowResult flow;flow.problem=binding;flow.step_ns=99;return flow;
+    };
+    auto ampere_result=SolveSm90NativePipeline(ampere_space,llama,ampere_cost,
+                                               ampere_options,ampere_score,{seed});
+    assert(!ampere_result.evaluated.empty());
+    assert(ampere_result.evaluated.front().coordinates.gemms[2].slots==3);
+  }
   return 0;
 }

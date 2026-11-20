@@ -956,7 +956,8 @@ if(TILEMEGA_BUILD_TESTS)
     target_compile_options(sm90_native_pipeline_test PRIVATE -UNDEBUG)
     add_test(NAME sm90_native_pipeline COMMAND sm90_native_pipeline_test
       ${CMAKE_CURRENT_SOURCE_DIR}/configs/targets/sm_90_h800.json
-      ${CMAKE_CURRENT_SOURCE_DIR})
+      ${CMAKE_CURRENT_SOURCE_DIR}
+      ${CMAKE_CURRENT_SOURCE_DIR}/configs/targets/sm_80_a800_sxm4_80gb.json)
     # P2: the whole-program flow built from the coordinates.
     add_executable(sm90_native_flow_test test/unit/sm90_native_flow_test.cpp)
     target_link_libraries(sm90_native_flow_test PRIVATE TileMega::tilemega)
