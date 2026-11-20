@@ -148,10 +148,10 @@ std::vector<Sm90DenseAttention> Sm90DenseSearchSpace::AttentionCandidates(
   int fill=std::min(64,Grid(residency)/(batch*hkv));
   while(2*s0<=fill)s0*=2;
   std::vector<int> chunks;
+  for(int s=s0;s>=1;s/=2)chunks.push_back(s);
   // On Ampere, also price the chunk count that fills the last KV group in one wave.
   if(target.arch_tag=="sm_80" && constants && fill>s0 &&
       constants->HasAttentionMerge(head_dim,queries,norm,fill))chunks.push_back(fill);
-  for(int s=s0;s>=1;s/=2)chunks.push_back(s);
   auto budget=Sm90DenseSharedBudget(target,residency);
   std::vector<int> keys=head_dim==128?std::vector<int>{64}:std::vector<int>{64,128};
   for(int s:chunks) {
@@ -167,7 +167,18 @@ std::vector<Sm90DenseAttention> Sm90DenseSearchSpace::AttentionCandidates(
           Sm90DenseArenaBytes(budget)+1024:budget;
       for(a.slots=std::max(2,std::min(4,blocks));a.slots>2 && a.SharedBytes(head_dim,queries)>limit;)
         --a.slots;
-      if(a.SharedBytes(head_dim,queries)<=limit)result.push_back(a);
+      if(a.SharedBytes(head_dim,queries)>limit)continue;
+      result.push_back(a);
+      // Preserve the control ring depth for a matched comparison at the new grid fill.
+      if(s>s0) {
+        auto control=std::find_if(result.begin(),result.end(),[&](auto const& other) {
+          return other.chunks==s0 && other.block_keys==bk;
+        });
+        if(control!=result.end() && control->slots!=a.slots) {
+          a.slots=control->slots;
+          if(a.SharedBytes(head_dim,queries)<=limit)result.push_back(a);
+        }
+      }
     }
   }
   return result;

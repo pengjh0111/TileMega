@@ -227,11 +227,14 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
       geometry.slots=same->slots;
     }
     auto attention=space.AttentionCandidates(c.residency,&cost.Constants(),norm);
-    auto same=std::find_if(attention.begin(),attention.end(),[&](auto const& a) {
+    auto partition=[&](auto const& a) {
       return a.chunks==c.attention.chunks && a.block_keys==c.attention.block_keys;
-    });
+    };
+    auto same=std::find_if(attention.begin(),attention.end(),partition);
     if(same==attention.end())return false;
-    c.attention.slots=same->slots;
+    if(std::none_of(same,attention.end(),[&](auto const& a) {
+         return partition(a) && a.slots==c.attention.slots;
+       }))c.attention.slots=same->slots;
     if(c.expert_fuse) {
       for(int slots=8;slots>=2;--slots) {
         c.gemms[6].slots=c.gemms[7].slots=slots;
