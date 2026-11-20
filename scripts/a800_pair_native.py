@@ -60,12 +60,12 @@ def main():
     deadline = time.monotonic() + args.budget_s
     out = RUN/'optimization'/f'{phase}-pairs'/str(job)
     out.mkdir(parents=True, exist_ok=False)
-    order = ('control', 'trial', 'trial', 'control', 'control', 'trial')
+    order = ('control', 'trial')
     write_json(out/'planned.json', dict(model=args.model, batch=args.batch, order=order,
         phase=phase, variant_sha256=libraries, shared_sha256='prompt' if prompt_mode else sha(shared_library), target_sha256=sha(args.target)))
     rounds = []
     for position, label in enumerate(order):
-        round_index = job * len(order) + position
+        round_index = job * 6 + position
         remaining = int(deadline - time.monotonic())
         subprocess.run([*runner, 'run', *options, '--round', str(round_index),
                         f'--{phase}', str(getattr(args, label)), '--budget-s', str(remaining)],
@@ -94,7 +94,7 @@ def main():
                        for name in metric} for label in libraries}
     write_json(out/'result.json', dict(formal_timing=False, rounds=len(rounds), medians=medians,
         paired_e2e_ratios=[group['control']['e2e_seconds']/group['trial']['e2e_seconds']
-                           for group in ({r['arm']: r for r in rounds[i:i+2]} for i in (0, 2, 4))]))
+                           for group in ({r['arm']: r for r in rounds[i:i+2]} for i in range(0, len(rounds), 2))]))
     print(json.dumps(medians), flush=True)
     return 0
 

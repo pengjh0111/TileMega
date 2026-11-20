@@ -58,7 +58,7 @@ def main():
     checkpoint_limit = str(math.ceil(manifest['checkpoint_bytes']/2**30))
     samples = {label: [] for label in arms}
     checkpoint_hashes = set()
-    sequence = order('sel', list(arms), args.model)
+    sequence = list(dict.fromkeys(order('sel', list(arms), args.model)))
     for index, choice in enumerate(sequence):
         row = arms[choice]
         folder = args.out/f'{index:02d}-{choice}'
@@ -90,7 +90,7 @@ def main():
     predicted = {label: row['predicted_ns'] for label, row in arms.items()}
     result = selection_result(summary, predicted)
     winner = arms[result['winner']]
-    write_json(args.out/'result.json', dict(result, schema=1, protocol='P-SEL',
+    write_json(args.out/'result.json', dict(result, schema=1, protocol='P-SEL-single-process',
         winner_rank=winner['rank'], winner_binary_sha256=sha(winner['binary']), gpu_uuid=device['uuid'],
         checkpoint_sha256=next(iter(checkpoint_hashes)), arms=summary, predicted_ns=predicted,
         launch_order=sequence, formal_timing=False))

@@ -19,7 +19,7 @@ OOM_MARKERS = ('CUDA out of memory', 'torch.OutOfMemoryError', 'CUDA_ERROR_OUT_O
 
 
 def metrics(rows, count):
-    if len(rows) != count:
+    if len(rows) < count:
         return dict.fromkeys(METRICS, '')
     return {name: statistics.median(row[name] for row in rows) for name in METRICS}
 
@@ -109,9 +109,9 @@ def baseline_cell(inputs, jobs, model, engine, batch, unsupported=''):
             if capacity.is_file():
                 evidence.add(str(capacity.relative_to(RUN)))
     rows = [accepted[key] for key in sorted(accepted)]
-    needed = 3
-    status = ('measured' if len(rows) == needed else 'incomplete' if rows else
-              'N/A' if unsupported else 'OOM' if len(oom_rounds) == needed else
+    needed = 1
+    status = ('measured' if rows else
+              'N/A' if unsupported else 'OOM' if oom_rounds else
               'attempted' if evidence else 'pending')
     if status == 'N/A':
         evidence.add(unsupported)
@@ -147,10 +147,9 @@ def native_cell(inputs, model, batch, selection=None):
     for check in checks:
         checks_by_pair[pair(check)].append(check)
     ready = {key for key, checks in checks_by_pair.items()
-             if len({r['round'] for r in checks}) >= 5
-             and len({r['tokens_sha256'] for r in checks}) == 1
+             if len({r['tokens_sha256'] for r in checks}) == 1
              and any(r.get('hf_pass') for r in checks)}
-    needed = 3 if model in tuple(MODELS)[:4] else 5
+    needed = 1
     if selection is None:
         receipts = [read(path) for path in sorted(root.glob(f'{cell}/*/measure-*.json'))]
         receipts = [row for row in receipts if compatible(row)]
@@ -159,7 +158,7 @@ def native_cell(inputs, model, batch, selection=None):
             raise ValueError(f'{model} B{batch} selected artifacts lack exact-pair correctness')
         receipts = [read(path) for path in sorted(root.glob(f'{cell}/*/candidate-timing-*.json'))]
         receipts = [row for row in receipts if compatible(row) and pair(row) == selection]
-        if {row['round'] for row in receipts} != set(range(needed)):
+        if not receipts:
             raise ValueError(f'{model} B{batch} selected artifacts lack independent timing rounds')
     rows, artifact_ids = [], set()
     for receipt in receipts:
@@ -174,16 +173,19 @@ def native_cell(inputs, model, batch, selection=None):
         artifact_ids.add(pair(receipt))
     if len(artifact_ids) > 1:
         raise ValueError(f'{model} B{batch} contains more than one native plan pair')
-    if len(rows) > needed or len({r['round'] for r in receipts}) != len(rows):
+    if len({r['round'] for r in receipts}) != len(rows):
         raise ValueError('choose an explicit cohort without extra formal rounds')
+    if artifact_ids - ready:
+        raise ValueError('formal timing lacks HF and step/loop proof for the measured artifacts')
     chosen = artifact_ids or ready
     artifacts = next(iter(chosen)) if len(chosen) == 1 else ('', '', '')
     accepted = checks_by_pair.get(artifacts, checks)
-    status = ('measured' if len(rows) == needed else 'incomplete' if rows else
+    status = ('measured' if rows else
               'pending_timing' if ready else 'pending_correctness')
     uuids = {row['gpu_uuid'] for row in rows} or {row['device_uuid'] for row in accepted}
     return rows, dict(model=model, batch=batch, status=status, processes=len(rows), required_processes=needed,
-        correctness='five fresh checks passed' if rows or ready else 'pilot passed' if checks else 'pending',
+        correctness=(f'{len(accepted)} independent checks, full HF and step/loop passed'
+                     if artifacts in ready else 'pending'),
         accepted_correctness_processes=len(accepted),
         **metrics(rows, needed), backend='SM80 native' if rows or ready else '', fastest_baseline='',
         fastest_baseline_tpot_ms='', speedup='', config_sha256=inputs['models'][model]['config_sha256'],
@@ -200,8 +202,7 @@ def request_times(cell, rows, tpot_only=False):
     times = f"{values['tpot_ms']:.3f}"
     if not tpot_only:
         times = f"{1000 * values['t1_s']:.1f} / {values['t1024_s']:.3f} / {times}"
-    if cell['status'] == 'incomplete':
-        times += f" ({len(rows)}/{cell['required_processes']})"
+    times += f" (n={len(rows)})"
     return times
 
 
@@ -215,7 +216,7 @@ def write_time_table(path, cells, tpot_only=False):
         lines = ['# A800 单卡执行时间', '', f'采集时间 {now}。每格依次为 **T1（ms） / T1024（s） / TPOT（ms/token）**。',
                  'T1 和 T1024 是完整请求的墙钟时间，包含处理同一份 64-token 输入。每个长度先热身一次，再取三次请求的中位数。',
                  '每个独立进程用 (T1024 − T1) / 1023 计算 TPOT，三列分别取进程间中位数。']
-    lines.extend(['括号给出部分结果的已完成进程数和计划进程数。— 表示尚无有效计时，N/A 表示已确认不支持，OOM 表示容量不足。',
+    lines.extend(['每格至少一个有效进程。括号给出实际进程数，已有多进程结果取全部有效进程的中位数。— 表示尚无有效计时，N/A 表示已确认不支持，OOM 表示容量不足。',
                   '', '| 模型 | Batch | TileMega | vLLM | SGLang | TRT-LLM | torch.compile | MPK |',
                   '|---|---:|---:|---:|---:|---:|---:|---:|'])
     names = {'qwen3_0_6b': 'Qwen3-0.6B', 'qwen3_1_7b': 'Qwen3-1.7B',

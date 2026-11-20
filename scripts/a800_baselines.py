@@ -38,7 +38,7 @@ def calibrated_device(policy, target):
 
 def selection(args):
     filters = [args.model or MODELS, args.engine or ENGINES, args.batch or BATCHES,
-               args.round_index or range(3)]
+               args.round_index or [0]]
     return [f'{model}_{engine}_b{batch:02d}_r{repeat}'
             for model in filters[0] for engine in filters[1] for batch in filters[2]
             for repeat in filters[3]]

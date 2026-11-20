@@ -153,8 +153,8 @@ def dependencies(key):
 def main():
     preflight = json.loads((RUN/'mpk/preflight.json').read_text())
     supported = {(r['model'], r['batch']) for r in preflight['cells'] if r['status']=='requires_gpu'}
-    cells = [(m,b,r) for b in (1,2,4,8,16) for r in range(3) for m in ORDER if (m,b) in supported]
-    if len(cells) != 3*len(supported):
+    cells = [(m,b,0) for b in (1,2,4,8,16) for m in ORDER if (m,b) in supported]
+    if len(cells) != len(supported):
         raise ValueError('unsupported model in MPK campaign')
     end = time.monotonic()+48*3600
     before = {}

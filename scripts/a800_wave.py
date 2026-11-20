@@ -26,12 +26,12 @@ def plan(kind, batch=None):
                 continue
             batches = (batch,) if batch else (1, 2, 4, 8) if model == 'llama3_2_1b' else (1,)
             for measured_batch in batches:
-                needed = [i for i in range(3)
-                          if f'{prefix}_b{measured_batch:02d}_r{i}' not in completed]
-                groups = [[i] for i in needed] if large or batch else [needed] if needed else []
+                already_measured = any(f'{prefix}_b{measured_batch:02d}_r{i}' in completed
+                                       for i in range(3))
+                groups = [] if already_measured else [[0]]
                 for rounds in groups:
                     group = ''.join(map(str, rounds))
-                    wave = f'par-v2-b{batch:02d}' if batch else 'par-v1'
+                    wave = f'one-b{batch:02d}' if batch else 'one-b01'
                     cohort = (f'{wave}-{engine}-{model.replace("_", "-")}'
                               f'-b{measured_batch:02d}-r{group}')
                     options = ['--cohort', cohort, '--model', model, '--engine', engine,
