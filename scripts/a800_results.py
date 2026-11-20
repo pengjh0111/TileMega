@@ -42,13 +42,14 @@ def baseline_scope(cohorts, inputs):
         devices = {row['guard_policy_sha256']: row['device']
                    for row in (read(path) for path in run.glob('allocations/*/baseline_inputs.json'))}
         state = read(run/'baseline/state.json')
+        capacity_files = {path for path in run.glob('*.oom.json') if path.is_file()}
         for job in read(run/'queue/queue_baselines.json'):
             if 'model' not in job:
                 continue
             name = job['name']
             step = state.get(name, {})
             capacity = run/f'{name}.oom.json'
-            if step.get('out') or capacity.is_file():
+            if step.get('out') or capacity in capacity_files:
                 key = job['model'], job['engine'], job['batch']
                 identity = read(Path(step['out'])/'job/physical-device-identity.json') if step.get('out') else {}
                 device = devices.get(identity.get('guard_policy_sha256'))
