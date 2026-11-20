@@ -1406,6 +1406,14 @@ int RunCompile(int argc, char** argv) {
       if(!shared_weight_layout.empty())
         for(auto const& [id,layout]:tilemega::solver::SharedDmWeightLayouts(plan,
             tilemega::json::ParseFile(shared_weight_layout))) {
+          auto const& gemm=plan.gemms.at(id);
+          // A deferred-norm producer owns one complete 32-column sum block.
+          if(prefill_seed && plan.dm && !plan.dn_vector_sums &&
+              gemm.ss_out!=tilemega::codegen::kDmNoIndex && layout.tile_n%32 &&
+              !runtime_target.empty() &&
+              tilemega::TargetSpec::FromJson(runtime_target).arch_tag=="sm_80")
+            throw std::invalid_argument(
+                "SM80 shared prefill weights need a tile N divisible by 32 for deferred norm statistics");
           import.gemms.at(id).tile_n=layout.tile_n;
           import.gemms.at(id).tile_k=layout.tile_k;
         }
