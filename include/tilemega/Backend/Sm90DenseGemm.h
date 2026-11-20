@@ -127,7 +127,11 @@ struct Sm90DenseGemm {
           prefix=min(Prefix/2-sequence*TN*TK,TN*TK);
       CopySpan(b+slot*TN*TK+prefix,p.weight+(std::size_t(task)*kIterations+tile)*TN*TK+prefix,
           TN*TK-prefix);
-      for(int i=lane*8;i<kRows*TK;i+=32*8) {
+      // MMA reads a padded activation panel. Clear its inactive rows on the
+      // first use of each slot. Consumers only read this panel, so subsequent
+      // tiles of this invocation can reuse the zeros until the stage tail.
+      int copy_rows=sequence<Slots?kRows:Batch;
+      for(int i=lane*8;i<copy_rows*TK;i+=32*8) {
         int row=i/TK,col=i%TK;
         auto* source=row<Batch?p.activation_address+std::size_t(row)*K+tile*TK+col:p.activation_address;
         auto swizzled=LayoutA{}(row,col);
