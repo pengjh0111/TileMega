@@ -2166,6 +2166,9 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
      // program's generated source stays byte identical.
      <<(c.moe?"#define TILEMEGA_NATIVE_WEIGHT_EVICT_FIRST 1\n":"")
      <<(c.live_epilogue_rows?"#define TILEMEGA_SM80_ACTIVE_EPILOGUE 1\n":"")
+     <<(cp_async && c.expert_fuse && shared_expert_page==64 &&
+         c.gemms[6].tile_n==128 && c.gemms[6].TileK()==64?
+         "#define TILEMEGA_SM80_MOE_ALIGNED_GATE_PAGES 1\n":"")
      // Only a sharded program names its degree and the all-reduce width, so a
      // TP1 generated source stays byte identical (prompt appendix C.6).
      <<(tp>1?"#define TILEMEGA_NATIVE_TP "+std::to_string(tp)+"\n#define TILEMEGA_NATIVE_TP_HIDDEN "+
