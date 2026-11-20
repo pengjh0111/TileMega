@@ -173,6 +173,54 @@ int main(int argc, char** argv) {
                                                ampere_options,ampere_score,{seed});
     assert(!ampere_result.evaluated.empty());
     assert(ampere_result.evaluated.front().coordinates.gemms[2].slots==3);
+    assert(!ampere_cost.HasCalibratedMma(seed.gemms[2],2));
+    bool missing_grid=false;
+    try {ampere_cost.MmaK16Ns(seed.gemms[2],2);}
+    catch(Sm90NativeMissing const&) {missing_grid=true;}
+    assert(missing_grid);
+
+    Sm90DenseWorkload qwen;
+    qwen.shapes={{{5120,2048},{2048,4096},{},{},{151936,2048},{128,2048},
+                  {1536,2048},{2048,768}}};
+    qwen.batch=1;qwen.layers=48;qwen.head_dim=128;qwen.queries=4;qwen.hkv=4;
+    qwen.moe=true;qwen.experts=128;qwen.top_k=8;qwen.qk_norm=true;
+    Sm90DenseSearchSpace experts{qwen.shapes,qwen.batch,qwen.head_dim,qwen.queries,
+                                ampere,qwen.hkv};
+    experts.moe=true;experts.experts=qwen.experts;experts.top_k=qwen.top_k;
+    Sm90DenseCoordinates shallow;shallow.moe=true;shallow.expert_fuse=true;
+    int widths[]={64,32,0,0,128,16,128,64};
+    int wn[]={4,1,0,0,4,1,4,4};
+    for(unsigned f:shallow.Active()) {
+      auto& g=shallow.gemms[f];
+      g.tile_n=widths[f];g.slot_bytes=2*g.tile_n*64;g.slots=2;
+      g.warps_n=wn[f];g.warps_k=4/wn[f];
+    }
+    shallow.attention.chunks=8;shallow.attention.slots=3;
+    auto deeper=shallow;deeper.SetCommonExpertSlots(4);
+    auto overflow=deeper;overflow.SetCommonExpertSlots(8);
+    auto incompatible=deeper;incompatible.gemms[7].register_stages=2;
+    assert(experts.Legal(shallow) && experts.Legal(deeper));
+    assert(!experts.Legal(overflow) && !experts.Legal(incompatible));
+    assert(shallow.ToJson().Dump()!=deeper.ToJson().Dump());
+    assert(Sm90NativeStructuralClass(shallow,true)!=Sm90NativeStructuralClass(deeper,true));
+    assert(ampere_cost.HasCalibratedMma(shallow));
+    auto ring_options=options;ring_options.budget_ms=1000;ring_options.operator_sum=true;
+    auto ring_score=[&](Sm90DenseCoordinates const& c,bool isolated) {
+      assert(isolated && ampere_cost.HasCalibratedMma(c));
+      Sm90NativeFlowResult flow;flow.step_ns=c.CommonExpertSlots();return flow;
+    };
+    auto common=SolveSm90NativePipeline(experts,qwen,ampere_cost,ring_options,
+                                        ring_score,{shallow,deeper});
+    assert(common.evaluated.size()>=2);
+    assert(common.evaluated[0].coordinates.CommonExpertSlots()==2);
+    assert(common.evaluated[1].coordinates.CommonExpertSlots()==4);
+    ring_options.pinned_theta=deeper;
+    auto pinned_ring=SolveSm90NativePipeline(experts,qwen,ampere_cost,ring_options,
+                                            ring_score,{deeper});
+    assert(!pinned_ring.evaluated.empty());
+    for(auto const& candidate:pinned_ring.evaluated)
+      if(candidate.coordinates.expert_fuse)assert(candidate.coordinates.CommonExpertSlots()==4);
+
   }
   return 0;
 }
