@@ -49,9 +49,9 @@ The workspace archive and the inherited experiment archive passed SHA-256 verifi
 
 **Inferred.** The Qwen3-30B-A3B B1 pair uses compatible expert packing recipes across the two phases. The linked decode buffer ABI and prefill plan estimate 58.9 GiB before CUDA context, event and queue storage. The recipes deduplicate approximately 55.4 GiB across phases. The CPU estimate and artifacts are in `runs/a800/build/prefill/qwen30b-packed-b1/`. The paired deployment still needs a guarded on-device measurement.
 
-## Queue
+## Initial queue pilot
 
-The ordinary `gpu_a800` Slurm dependency chain allows one active allocation at a time. Each allocation and child process has a finite deadline. The single-card tail and stage IDs are in the workspace `logs/`.
+The initial `gpu_a800` pilot used a serial Slurm dependency chain. Each allocation and child process had a finite deadline. The initial tail and stage IDs are in the workspace `logs/`.
 
 | Slurm job | Scope |
 |---|---|
@@ -112,7 +112,7 @@ CPU-only decode emission succeeded for all 40 model and batch cells.
 | Model and batch | TileMega TPOT | Fastest baseline TPOT | Baseline / TileMega |
 |---|---:|---:|---:|
 | Llama-3.2-1B B1 | 2.603 ms | TensorRT-LLM, 2.503 ms | 0.962× |
-| Llama-3.2-1B B16 | 3.025 ms | SGLang, 2.978 ms | 0.985× |
+| Llama-3.2-1B B16 | 2.929 ms | SGLang, 2.978 ms | 1.017× |
 | Qwen3-0.6B B1 | 1.658 ms | TensorRT-LLM, 2.066 ms | 1.246× |
 
 Each TileMega row passed five fresh correctness processes and three separate
@@ -159,3 +159,147 @@ The committed snapshot has 25 baseline cells with three accepted replicates,
 cells have final timing. OLMoE B1 passed the exact-artifact correctness gate
 and is collecting independent timings. The live tables are under
 `runs/a800/collected/`.
+
+## Follow-up tuning and validation
+
+**Verified.** OLMoE B1 and Llama-3.2-1B B4/B8 completed all independent
+formal timing rounds. Llama B4 and B8 recorded 2.246 ms and 2.345 ms TPOT,
+respectively, with fastest-baseline ratios of 1.175× and 1.195×. OLMoE B1
+recorded 2.523 ms over five fresh processes. The comparison column requires
+all available baseline families to finish their independent repetitions.
+
+**Verified.** Slurm job `345176` paired the original and
+`M32N64K64S3` Llama B4 prefill libraries on one A800 with the same
+solver-selected decode. The order was control–trial, trial–control,
+control–trial. Both arms used BF16 TP1, the frozen input, one warmup and
+three N=1 and N=1024 timed requests per process. All six generated-token
+tables and checkpoint hashes matched. Median request-wall first-token
+latency decreased from 21.591 to 19.502 ms. TPOT moved from 2.228 to
+2.226 ms and N=1024 wall time from 2.301 to 2.297 s. The three paired
+N=1024 ratios were 1.00157×, 1.00175× and 1.00156×. The new prefill
+passed all five fresh validation processes in `345213` on four A800s.
+Three independent candidate timings in `345290` confirmed 19.522 ms first
+token latency versus 21.618 ms for the original pair. TPOT was 2.253 ms
+versus the original 2.246 ms. The formal table retains the original
+prefill because it has the lower independent TPOT. Raw paired evidence is in
+`runs/a800/optimization/prefill-pairs/345176/`.
+
+**Verified.** Llama B16 `layer_loop=on` completed measured selection in
+`345185` with 3.017 ms tuning TPOT. The reference tuning TPOT was 3.013 ms
+on a separate allocation. The reference configuration remains selected.
+
+**Verified.** Llama B2 search `345080` was rejected for a GPU process
+without verified ownership after both cubins had linked. The strict
+occupancy helper now remains visible to the guard before initializing CUDA
+and briefly after context teardown. Search retry `345167` passed the full
+guard, linked-occupancy correction and measured selection at 2.423 ms
+tuning TPOT. Five independent correctness processes passed in `345205`.
+Three formal processes in `345240` gave 2.431 ms TPOT against
+TensorRT-LLM at 2.509 ms (1.032×). The earlier rejection remains
+recorded with unresolved process ownership.
+
+**Verified.** The full Qwen3-30B-A3B L2 retry `345058` reached the first
+prefill launch and returned the same CUDA launch failure class as L1.
+The reduced diagnostic keeps the original hidden width, expert count,
+routing top-k and frozen prompt. It reduces the layer count to two to
+fit Compute Sanitizer and the native executor's layer grouping. The
+reduced diagnostic is outside the formal benchmark matrix.
+
+
+**Verified.** Qwen3-1.7B B1 and Llama-3.2-3B B1 completed measured
+selection in `345191` and `345204`, respectively. OLMoE B16 completed
+selection in `345194`. Their independent validation jobs are `345248`,
+`345257` and `345300`. Llama B1 recalibration in `345193` screened at
+2.603 ms TPOT, matching the original selection at the reported precision.
+
+**Verified.** The guarded B16 decode trace `345279` used the same selected
+geometry, matched reference tokens, and retained 16 decode steps near
+the midpoint. FFN gate/up and down accounted for 1,030 µs and 783 µs per
+step. Down had the largest stage-level gap to the 655 µs prediction.
+The follow-up compared two versus three `cp.async` slots in the down
+projection on the same GPU. The raw attribution and trace are in
+`runs/a800/optimization/decode-traces/345279/`.
+
+**Verified.** The two-layer Qwen3-30B diagnostic `345265` reproduced CUDA
+error 719 at its first L1 prefill without exhausting device memory.
+Compute Sanitizer reported a hardware exception that it could not
+classify. Its subsequent CUDA free errors followed the first launch
+failure. A CUDA-GDB probe of the same pair is `345324`.
+
+
+**Verified.** The same-card Llama B16 paired trial `345345` changed only the
+FFN down projection from two to three `cp.async` slots. All six runs used
+the same packed weights, prefill library and prompt, and emitted the same
+output tokens. Median TPOT decreased from 3.011 to 2.939 ms (2.40%) and
+1,024-token request-wall latency from 3.150 to 3.076 s. All three pairs
+favored the three-slot configuration. The raw request and guard evidence
+is in `runs/a800/optimization/decode-pairs/345345/`. Job `345393` pins this
+measured GEMM geometry in pipeline search, including shortlist replay and
+linked occupancy checks. The pinned search selected rank 0 at 2.943 ms tuning TPOT. The fresh
+correctness array `345417` passed all five processes on three A800s. Its
+teacher-forced check covered 16,384 positions at a maximum logit gap of
+0.03125. Independent timing allocation `345450` uses the same artifact
+pair and separate candidate receipts.
+
+**Verified.** The SM80 pipeline derivation previously reset the requested
+ring depth to the first feasible depth for a tile. The regression in
+`e61cbac` exercises a legal three-slot coordinate and fails with the old
+implementation, which returned two slots. The corrected implementation
+passes. The isolated worktree `TileMega-a800-ring-depth` retains the tested
+compiler and source. Unconstrained search `345343` increased the number
+of scored B16 placements from 101 to 1,204 and selected multiple eight-slot
+rings. Its measured winner at 3.284 ms lost to the original 3.013 ms
+selection. The experiment provides evidence for processing measured depths
+as search coordinates while retaining empirical selection.
+
+**Verified.** Qwen3-30B's reduced prefill failed at a deliberate device trap.
+CUDA-GDB job `345346` identified the `BPT.TRAP` following a non-null deferred
+normalization statistics output in the 16-column attention output GEMM.
+The packed prefill epilogue requires 32 columns to write one statistics
+block. The reduced repair widens attention output packing to 32 columns,
+keeps the router at 16 columns and regenerates the decode and prefill ABI
+from the same packed recipe. Full-shape results require the original Qwen
+configuration and shared checkpoint.
+
+**Verified.** OLMoE B16 passed all five new correctness processes in
+`345300` and all five formal timing processes in `345363`. Its median TPOT
+was 9.213 ms and N=1,024 request time was 9.968 s. The speedup is pending
+completion of the relevant baselines.
+
+
+**Verified.** Qwen3-0.6B B2 and B8 selected 1.620 and 1.880 ms tuning
+TPOT in `345395` and `345394`. The independent correctness arrays
+`345424` and `345423` each passed five processes. Mistral-7B B1 exceeded
+the initial stage deadline during selection. Bounded retry `345388`
+completed all four tuning trials and selected 11.731 ms. These tuning
+medians remain separate from the independent timings.
+
+
+**Verified.** The three independent Llama B16 timings in `345450` passed on
+two A800s. The final artifact has 2.929 ms median TPOT, 69.799 ms T1 and
+3.0661 s T1024, with median request throughput of 5,343.6 tokens/s.
+The earlier independent cohort recorded 3.025 ms TPOT and 3.1642 s T1024.
+The same-card experiment measured a 2.4% TPOT reduction. The independent
+cohort measured a 3.2% reduction and a 1.017× ratio against SGLang at
+2.978 ms. The collector now selects the tested artifact explicitly using
+`configs/bench/a800_native_selection.json`. The earlier formal process
+receipts remain available. This selection keeps five fresh correctness
+receipts and three complete independent request timings for the exact
+prefill, decode and target hashes.
+
+**Verified.** The corrected two-layer Qwen3-30B-A3B first-token probe
+`345437` completed under the strict GPU guard in 69 seconds of allocation
+time. This exercises the original expert geometry and the repaired
+32-column prefill output packing. The launcher started the original
+full-shape CPU build under `runs/a800/build/prefill/qwen30b-o32-b1/`.
+The full model requires its own isolated correctness and timing evidence.
+
+**Verified.** Llama-3.1-8B B1 bounded retry `345389` completed in 16 minutes
+26 seconds after the original selection timeout. Its chosen tuning TPOT
+was 12.189 ms. The extended Mistral and Llama searches both used one A800
+and retained the original protocol. The two model lanes resume larger
+batches after B1 independent timing completes.
+
+## Current result snapshot
+
+The CSVs record 55 measured baseline cells and 5 baseline cells with documented N/A status, out of 160 baseline cells. TileMega has 11 measured cells out of 40. Live tables are refreshed under `runs/a800/collected/`. Each single-GPU array task has a finite wall time and an independent process guard. The baseline and native feeders persist exact stage identifiers in the workspace `logs/`.
