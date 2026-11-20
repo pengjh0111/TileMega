@@ -40,6 +40,11 @@ def submit(key):
         raise RuntimeError(f'expected a shared baseline checkpoint for {model}')
     large = model == 'llama3_1_8b'
     seconds = 1800 if large else 1140
+    prior = LOG/f'{tag}.guard-retry.json'
+    if prior.exists():
+        last = json.loads(prior.read_text())
+        if time.time() < last['retry_after']:
+            return False
     options = ['--cohort', tag, '--engine', 'mpk', '--model', model, '--batch', str(batch),
                '--round', str(repeat), '--expected-target', TARGET, '--expected-checkpoint-sha256', hashes.pop(),
                '--process-timeout-s', str(seconds), '--heartbeat-timeout-s', '420']
@@ -88,6 +93,32 @@ def outcome(key, active):
     state = result.stdout.strip()
     if not state or state.split('|')[0] in ('PENDING','RUNNING','COMPLETING','CONFIGURING'):
         return 'active'
+    if state != 'COMPLETED|0:0':
+        scheduler = folder/'baseline/state.json'
+        info = json.loads(scheduler.read_text()) if scheduler.exists() else {}
+        model, batch, repeat = key
+        names = ('a800_device_identity', f'{model}_mpk_b{batch:02d}_r{repeat}')
+        records = [info.get(name, {}) for name in names]
+        guards = []
+        for row in records:
+            if row.get('out'):
+                where = Path(row['out']).relative_to('/work')
+                proof = WORK/where/'guard_result.json'
+                if proof.is_file():
+                    guards.append(json.loads(proof.read_text()))
+        retry = LOG/f'{tag}.guard-retry.json'
+        history = json.loads(retry.read_text())['jobs'] if retry.exists() else []
+        # Parent scheduler records 75 for a guard refusal. Backend timeouts or
+        # application exceptions require review and cannot trigger a retry here.
+        temporary = [g for g in guards if g.get('code') == 75]
+        if temporary and not any(r.get('status')=='failed' for r in records) and len(history)<2:
+            if job not in history:
+                history.append(job)
+            after = max([time.time()+45] + [r.get('retry_at',0) for r in records])
+            put(retry, json.dumps(dict(jobs=history, retry_after=after, guard=temporary[-1]))+'\n')
+            path.rename(LOG/f'{tag}.guard-{job}.id')
+            print('allocation released; retry scheduled', job, tag, flush=True)
+            return 'new'
     if state == 'COMPLETED|0:0':
         check = run(['./run-env.sh', 'tilemega', 'python', 'scripts/a800_mpk_verify.py', tag], 120)
         if not check.returncode:
@@ -130,6 +161,8 @@ def main():
             if not ready and not inflight:
                 print('finished runnable work', {v:list(state.values()).count(v) for v in set(state.values())}, flush=True)
                 return
+            ready = [k for k in ready if not (LOG/f'{cohort(k)}.guard-retry.json').exists() or
+                     time.time() >= json.loads((LOG/f'{cohort(k)}.guard-retry.json').read_text())['retry_after']]
             for key in ready[:max(0,CAP-inflight)]:
                 if not submit(key):
                     break
