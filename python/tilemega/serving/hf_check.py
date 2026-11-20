@@ -59,6 +59,9 @@ def main():
     config = json.loads((args.model / 'config.json').read_text())
     expert_options = {}
     if config.get('model_type') == 'qwen3_moe':
+        # Dispatch each converted expert shard onto the reference GPU during
+        # loading so the host need not hold the entire converted MoE model.
+        expert_options['device_map'] = {'': 'cuda:0'}
         if args.experts_implementation != 'default':
             expert_options['experts_implementation'] = args.experts_implementation
     elif args.experts_implementation != 'default':
