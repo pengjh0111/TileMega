@@ -185,11 +185,13 @@ def native_cell(inputs, model, batch, selection=None):
         receipt_sha256=' '.join(row['receipt'] for row in rows))
 
 
-def request_times(cell, rows):
+def request_times(cell, rows, tpot_only=False):
     if not rows:
         return cell['status'] if cell['status'] in {'N/A', 'OOM'} else '—'
     values = metrics(rows, len(rows))
-    times = f"{1000 * values['t1_s']:.1f} / {values['t1024_s']:.3f} / {values['tpot_ms']:.3f}"
+    times = f"{values['tpot_ms']:.3f}"
+    if not tpot_only:
+        times = f"{1000 * values['t1_s']:.1f} / {values['t1024_s']:.3f} / {times}"
     if cell['status'] == 'incomplete':
         times += f" ({len(rows)}/{cell['required_processes']})"
     return times
@@ -197,25 +199,25 @@ def request_times(cell, rows):
 
 def write_time_table(path, cells, tpot_only=False):
     now = datetime.now(timezone(timedelta(hours=8))).isoformat(timespec='seconds')
-    lines = ['# A800 单卡执行时间', '', f'采集时间 {now}。每格依次为 **T1（ms） / T1024（s） / TPOT（ms/token）**。',
-             'T1 和 T1024 是完整请求的墙钟时间，包含处理同一份 64-token 输入。每个长度先热身一次，再取三次请求的中位数。',
-             '每个独立进程用 (T1024 − T1) / 1023 计算 TPOT，三列分别取进程间中位数。',
-             '括号给出部分结果的已完成进程数和计划进程数。— 表示尚无有效计时，N/A 表示已确认不支持，OOM 表示容量不足。',
-             '', '| 模型 | Batch | TileMega | vLLM | SGLang | TRT-LLM | torch.compile | MPK |',
-             '|---|---:|---:|---:|---:|---:|---:|---:|']
     if tpot_only:
-        lines[:4] = ['# A800 单卡 decode TPOT', '', f'采集时间 {now}。单位为 ms/token。',
-                     '输入 64 tokens，输出 1024 tokens，TP1，BF16。']
-        lines[4] = '每个进程取 (median(T1024) − median(T1)) / 1023，再取进程间中位数。'
+        lines = ['# A800 单卡 decode TPOT', '', f'采集时间 {now}。单位为 ms/token。',
+                 '输入 64 tokens，输出 1024 tokens，TP1，BF16。',
+                 '每个进程取 (median(T1024) − median(T1)) / 1023，再取进程间中位数。']
+    else:
+        lines = ['# A800 单卡执行时间', '', f'采集时间 {now}。每格依次为 **T1（ms） / T1024（s） / TPOT（ms/token）**。',
+                 'T1 和 T1024 是完整请求的墙钟时间，包含处理同一份 64-token 输入。每个长度先热身一次，再取三次请求的中位数。',
+                 '每个独立进程用 (T1024 − T1) / 1023 计算 TPOT，三列分别取进程间中位数。']
+    lines.extend(['括号给出部分结果的已完成进程数和计划进程数。— 表示尚无有效计时，N/A 表示已确认不支持，OOM 表示容量不足。',
+                  '', '| 模型 | Batch | TileMega | vLLM | SGLang | TRT-LLM | torch.compile | MPK |',
+                  '|---|---:|---:|---:|---:|---:|---:|---:|'])
     names = {'qwen3_0_6b': 'Qwen3-0.6B', 'qwen3_1_7b': 'Qwen3-1.7B',
              'llama3_2_1b': 'Llama-3.2-1B', 'llama3_2_3b': 'Llama-3.2-3B',
              'llama3_1_8b': 'Llama-3.1-8B', 'qwen3_30b_a3b': 'Qwen3-30B-A3B',
              'mistral_7b_v0_3': 'Mistral-7B-v0.3', 'olmoe_1b_7b': 'OLMoE-1B-7B'}
     for model in MODELS:
         for batch in BATCHES:
-            values = [cells[model, batch, engine] for engine in ('native', *REPORT_ENGINES)]
-            if tpot_only:
-                values = [value.rsplit(' / ', 1)[-1] for value in values]
+            values = [request_times(*cells[model, batch, engine], tpot_only=tpot_only)
+                      for engine in ('native', *REPORT_ENGINES)]
             lines.append('| ' + ' | '.join([names[model], str(batch), *values]) + ' |')
     temporary = path.with_suffix('.tmp')
     temporary.write_text('\n'.join(lines) + '\n')
@@ -278,7 +280,7 @@ def main():
                 rows, cell = baseline_cell(inputs, scope.get((model, engine, batch), []),
                                            model, engine, batch, unsupported)
                 checkpoint_hashes.update(row['checkpoint_sha256'] for row in rows)
-                time_cells[model, batch, engine] = request_times(cell, rows)
+                time_cells[model, batch, engine] = (cell, rows)
                 measured.append(cell)
                 baseline.append(cell)
                 all_rows.append(cell)
@@ -292,7 +294,7 @@ def main():
                                 fastest_baseline_tpot_ms=fastest['tpot_ms'])
                     if cell['status'] == 'measured':
                         cell['speedup'] = fastest['tpot_ms']/cell['tpot_ms']
-            time_cells[model, batch, 'native'] = request_times(cell, rows)
+            time_cells[model, batch, 'native'] = (cell, rows)
             native.append(cell)
             all_rows.append(cell)
         if len(checkpoint_hashes) > 1:
