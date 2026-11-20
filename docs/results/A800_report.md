@@ -292,8 +292,13 @@ prefill, decode and target hashes.
 time. This exercises the original expert geometry and the repaired
 32-column prefill output packing. The launcher started the original
 full-shape CPU build under `runs/a800/build/prefill/qwen30b-o32-b1/`.
-The full-shape artifact linked and was submitted as first-token diagnostic
-`345624`. It requires its own isolated correctness and timing evidence.
+The full-shape artifact linked, and `345624` passed the first-token
+request using the original config, the exact checkpoint shared by the
+baselines and a strict guard. Peak observed use was 63,753 MiB. This
+first-token diagnostic returned 283.4 ms T1. Pipeline search `345665`
+uses the original shape and corrected shared weight layout. Full
+1,024-token decode correctness and independent timing follow successful
+selection.
 
 **Verified.** Llama-3.1-8B B1 bounded retry `345389` completed in 16 minutes
 26 seconds after the original selection timeout. Its chosen tuning TPOT
@@ -326,11 +331,23 @@ with 64-by-64 dimensions, which the original code mistook for Qwen3's shared
 fixed-page recipe. CPU code generation reproduced the rejection. A
 three-slot 64-by-128 down slice fits the fused arena and emitted SM80 CUDA.
 Job `345505` resumed B2 with this legal geometry and selected 3.370 ms
-in four tuning processes. The independent correctness array is `345608`. The layout fix in
+in four tuning processes. All five independent correctness rounds passed in `345615`. Formal timing is `345668`. The layout fix in
 `b79f9a8` is staged in `TileMega-a800-moe-pack-build` for isolated compiler
 and code-generation verification. The repair preserves the shared 64-by-64
 Qwen3 expert packing.
 
+**Verified.** Llama-3.2-1B B1 trace `345633` completed with equivalent
+reference tokens. The FFN down stage accounted for 849.9 µs per step
+against a 391.0 µs prediction. The current tile uses N8 K1024 and has up to
+three residual tasks per CTA. The follow-up tests N16 K512 and three slots
+with the original checkpoint and prefill in a single-card paired run.
+
+**Verified.** Mistral-7B B1 and Llama-3.1-8B B1 finished five
+fresh correctness processes and five independent timing processes each.
+Mistral measured 11.764 ms TPOT in `345568`. Llama
+measured 12.233 ms TPOT in `345608`. Their B2 lane builds
+separate packed prefill libraries from the same export and checkpoint.
+
 ## Current result snapshot
 
-The CSVs record 59 measured baseline cells and 5 baseline cells with documented N/A status, out of 160 baseline cells. TileMega has 16 measured cells out of 40. Live tables are refreshed under `runs/a800/collected/`. Each single-GPU array task has a finite wall time and an independent process guard. The baseline and native feeders persist exact stage identifiers in the workspace `logs/`.
+The CSVs record 59 measured baseline cells and 5 baseline cells with documented N/A status, out of 160 baseline cells. TileMega has 18 measured cells out of 40. Live tables are refreshed under `runs/a800/collected/`. Each single-GPU array task has a finite wall time and an independent process guard. The baseline and native feeders persist exact stage identifiers in the workspace `logs/`.
