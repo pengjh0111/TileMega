@@ -98,7 +98,7 @@ def mpk_serving_path(model):
 
 def prepare(policy_path=POLICY, run=RUN, inventory=RUN/'inventory', envs=RUN/'envs',
             gpu_model='A100', timeout_s=14400, heartbeat_timeout_s=None,
-            seed_suite='vllm', expected_checkpoint=None, engines=None):
+            seed_suite='vllm', expected_checkpoint=None, engines=None, mpk_include_root=None):
     policy = json.loads(policy_path.read_text())
     dev = device_environment(policy, gpu_model)
     env = dict(TILEMEGA_DEVICE_INDEX=str(dev['index']),
@@ -151,6 +151,8 @@ def prepare(policy_path=POLICY, run=RUN, inventory=RUN/'inventory', envs=RUN/'en
                                VLLM_RPC_BASE_PATH='/tmp')
             if engine == 'mpk':
                 job_env['MIRAGE_HOME'] = str(ROOT.parent/'software/mpk-63af900')
+                if mpk_include_root is not None:
+                    job_env['MIRAGE_ROOT'] = str(mpk_include_root)
             if engine == 'trtllm':
                 job_env['TLLM_WORKER_USE_SINGLE_PROCESS'] = '1'
             for batch in BATCHES:

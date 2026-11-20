@@ -121,9 +121,14 @@ def run_cohort(args, wanted):
             args.process_timeout_s = mpk_process_budget(args.budget_s, args.process_timeout_s, policy)
             args.heartbeat_timeout_s = min(args.heartbeat_timeout_s, args.process_timeout_s)
             print(f'MPK process budget {args.process_timeout_s}s after both guard allowances', flush=True)
+        row_overlay = None
+        if args.mpk_row_overlay:
+            from a800_mpk_row_overlay import prepare_row_overlay
+            row_overlay = prepare_row_overlay(ROOT.parent/'software/mpk-63af900', run/'mpk-headers')
         jobs = prepare(policy_path, run, INVENTORY, ENVS, 'A800',
                        args.process_timeout_s, args.heartbeat_timeout_s, args.seed_suite, expected_checkpoint,
-                       engines={'mpk': 'mpk'} if args.engine == ['mpk'] else None)
+                       engines={'mpk': 'mpk'} if args.engine == ['mpk'] else None,
+                       mpk_include_root=row_overlay['root'] if row_overlay else None)
         inputs = json.loads((run/'baseline_inputs.json').read_text())
         if not first_device.exists():
             write_json(first_device, inputs['device'])
@@ -139,6 +144,8 @@ def run_cohort(args, wanted):
             fingerprint = {k: preflight[k] for k in ('revision', 'diff_sha256', 'extension_sha256',
                            'harness_sha256', 'serving_sha256', 'attention_sha256', 'target_sha256')}
             fingerprint['serving_sha256'] = expected_serving
+            if row_overlay:
+                fingerprint['argmax_overlay'] = row_overlay
             write_json(allocation/'mpk-inputs.json', dict(fingerprint, guard_policy_sha256=sha(policy_path)))
         wanted = capacity_receipts(run, wanted, jobs, inputs, policy)
         options = ['--queue-dir', str(run/'queue'), '--out', str(run/'baseline'),
@@ -170,6 +177,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('mode', choices=('plan', 'run'))
     parser.add_argument('--cohort', required=True)
+    parser.add_argument('--mpk-row-overlay', action='store_true')
     parser.add_argument('--probe-only', action='store_true')
     parser.add_argument('--expected-target', type=Path)
     parser.add_argument('--retry-failed', action='store_true')
@@ -195,6 +203,9 @@ def main():
         parser.error('use the alternate seed suite only for a TorchCompile cell with a verified hash')
     if 'mpk' in (args.engine or []) and args.engine != ['mpk']:
         parser.error('use a dedicated cohort for MPK')
+    if args.mpk_row_overlay and (args.engine != ['mpk'] or args.model != ['llama3_1_8b']
+                                 or len(args.batch or []) != 1 or args.batch[0] <= 1):
+        parser.error('the MPK reduction experiment requires one multirow Llama-3.1-8B cell')
     wanted = [] if args.probe_only else selection(args)
     models = inspect_inputs(INVENTORY)
     if args.mode == 'plan':

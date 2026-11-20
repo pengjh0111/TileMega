@@ -61,6 +61,14 @@ def main():
             environment.get('serving_sha256') != job['harness_sha256'] or
             environment.get('revision') != REVISION):
         raise ValueError('measurement and allocation MPK sources differ')
+    if 'MIRAGE_ROOT' in job['env']:
+        from a800_mpk_row_overlay import HEADER, ORIGINAL, PATCHED
+        overlay = environment.get('argmax_overlay', {})
+        include_root = cohort/'mpk-headers'
+        if (Path(job['env']['MIRAGE_ROOT']) != include_root or
+                overlay != dict(original_sha256=ORIGINAL, compiled_sha256=PATCHED, root=str(include_root)) or
+                sha(include_root/HEADER) != PATCHED):
+            raise ValueError('MPK argmax compile root or fingerprint differs')
     result = measurement(job, step, read(policy.parent/'baseline_inputs.json'))
     cfg = raw['configuration']
     if raw['system'] != 'mpk' or cfg['mirage_revision'] != REVISION or cfg['world_size'] != 1:
