@@ -2,9 +2,11 @@
 #include <tilemega/Backend/Sm90DenseGemm.h>
 #include <cuda_runtime.h>
 #include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <cstring>
 #include <stdexcept>
+#include <thread>
 #include <vector>
 
 using namespace tilemega::backend;
@@ -136,6 +138,13 @@ int Profile(cudaDeviceProp const& p) {
   return 0;
 }
 
+// NVML may report a CUDA PID for one sample after the context retires.
+static int RetireContext(int status) {
+  Check(cudaDeviceReset());
+  std::this_thread::sleep_for(std::chrono::seconds(2));
+  return status;
+}
+
 int main(int argc,char** argv) {
   try {
     if(argc!=2)throw std::invalid_argument("specify one compiled service case");
@@ -143,7 +152,7 @@ int main(int argc,char** argv) {
     Check(cudaGetDeviceProperties(&device,0));
     if(device.major!=8 || device.minor || device.multiProcessorCount!=108)
       throw std::invalid_argument("requires the calibrated A800 hardware class");
-#define CASE(label,M,N,K,TN,TK,S,R,O) if(!std::strcmp(argv[1],label))return Profile<M,N,K,TN,TK,S,R,O>(device)
+#define CASE(label,M,N,K,TN,TK,S,R,O) if(!std::strcmp(argv[1],label))return RetireContext(Profile<M,N,K,TN,TK,S,R,O>(device))
     CASE("llama8-gate-224s2",1,28672,4096,224,64,2,1,1);
     CASE("llama1-b16-64s2",16,16384,2048,64,64,2,1,1);
     CASE("llama1-b16-64s3",16,16384,2048,64,64,3,1,1);
