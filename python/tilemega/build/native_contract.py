@@ -36,19 +36,31 @@ def validate(manifest, defines):
             defines.get('TILEMEGA_ARCH_ID') != ('800' if ampere else '900') or
             manifest.get('runtime_batch') not in (1, 2, 4, 8, 16) or
             manifest.get('native_origin') not in ('fixed', 'solver') or
-            c.get('schema') not in (5, 6, 7, 8, 9) or
+            c.get('schema') not in (5, 6, 7, 8, 9, 10) or
             c.get('model') not in LAYER):
         raise ValueError('native dense architecture or coordinate schema is invalid')
+    reuse = c.get('payload') == 'reuse'
+    live_rows = c.get('epilogue_rows') == 'live'
+    if ('payload' in c and not reuse) or ('epilogue_rows' in c and not live_rows):
+        raise ValueError('unknown native payload or epilogue coordinate')
+    if (c['schema'] == 10) != (reuse or live_rows) or (c['schema'] == 10 and not ampere):
+        raise ValueError('explicit native payload and epilogue modes require SM80 schema 10')
+    if reuse and c.get('weight_stream'):
+        raise ValueError('reused native payload cannot carry a preissued stage')
+    if live_rows and (c['model'] != 'dense' or manifest['runtime_batch'] >= 8):
+        raise ValueError('native live epilogue rows require small-batch dense decode')
+    if c['schema'] == 10 and live_rows != (defines.get('TILEMEGA_SM80_ACTIVE_EPILOGUE') == '1'):
+        raise ValueError('native epilogue rows differ from generated macros')
     if (c['attention'].get('merge') not in ('la', 'dsmem', 'stage') or
             (c['attention'].get('merge') == 'stage' and c['schema'] < 8)):
         raise ValueError('native independent attention merge coordinate is invalid')
     route = c.get('route', 'local')
     if route not in ('local', 'la', 'stage') or (route != 'local' and
-            (c['schema'] != 9 or c['model'] != 'moe')):
+            (c['schema'] not in (9, 10) or c['model'] != 'moe')):
         raise ValueError('native global routing coordinate is invalid')
     combine = c.get('combine', 'la')
     if combine not in ('la', 'stage') or (combine == 'stage' and
-            (c['schema'] != 9 or c['model'] != 'moe')):
+            (c['schema'] not in (9, 10) or c['model'] != 'moe')):
         raise ValueError('native combine coordinate is invalid')
     # Schema 7 exists only to carry tp > 1; a TP1 program names no degree.
     tp = c.get('tp', 1)
@@ -138,6 +150,9 @@ def dispatch(manifest, defines, source):
     # ... Stage_{S+1}, cluster> (D10).
     # ... cluster[, tp]> and Head<..., embed[, tp, vocab per rank]> (tp > 1 only).
     program_suffix = r',(\d+),(ArgmaxStage|void),true' if ampere else r'(?:,(\d+))?(,ArgmaxStage)?'
+    reuse = c.get('payload') == 'reuse'
+    if reuse:
+        program_suffix += ',true'
     program = re.search(r'using NativeProgram\s*=\s*Program<(?:\d+,){5}(\d+),(\d+),\d+,(true|false),'
                         rf'(true|false),Stage_0,LayerGroup<{per_group}{group}>,Stage_{head},(\d+)'
                         + program_suffix + r'>;', source)
@@ -165,7 +180,7 @@ def dispatch(manifest, defines, source):
         # D5 arena i % 2 (attention may take the whole budget); D6 streams
         # either the rule's first slots or nothing (prompt §6, §8).
         found = placements.get(number)
-        offsets = {0} if full_width else {(int(number) % 2) * arena}
+        offsets = {0} if full_width or reuse else {(int(number) % 2) * arena}
         if (typed != 'Body' or found is None or found[0] not in offsets or
                 found[1] not in ((0, stream) if streaming and stream else (0,))):
             raise ValueError('native stage placement differs from coordinate identity')
