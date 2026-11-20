@@ -26,6 +26,7 @@ def main():
     parser.add_argument('--out', required=True, type=Path)
     parser.add_argument('--pin-theta', type=Path)
     parser.add_argument('--seed-coordinates', type=Path)
+    parser.add_argument('--submission-plan', type=Path)
     parser.add_argument('--top', type=int, choices=range(2, 7), default=2)
     parser.add_argument('--timeout-s', type=int, default=720)
     args = parser.parse_args()
@@ -40,9 +41,10 @@ def main():
             or not os.access(cli, os.X_OK)):
         parser.error('provide an executable compiler and a calibrated A800 target')
     if args.prefill != 'prompt':
-        prefill = str(artifact(Path(args.prefill))[0])
+        library, identity, _ = artifact(Path(args.prefill))
+        prefill, prefill_sha = str(library), identity['binary_sha256']
     elif args.model == 'olmoe_1b_7b':
-        prefill = 'prompt'
+        prefill = prefill_sha = 'prompt'
     else:
         parser.error('this model requires an independent prefill library')
 
@@ -62,7 +64,11 @@ def main():
         seed = args.seed_coordinates.resolve(strict=True)
         command.extend(('--seed-coordinates', str(seed)))
     heartbeat_timeout_s = min(540, args.timeout_s)
-    receipt = dict(command=command, target=str(target), target_sha256=sha(target),
+    selector = ROOT/'scripts/a800_select.py'
+    receipt = dict(protocol_version='a800-single-v2', kind='selection', model=args.model,
+                   batch=args.batch, prefill_sha256=prefill_sha, select_sha256=sha(selector),
+                   source_sha=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
+                   command=command, target=str(target), target_sha256=sha(target),
                    export_sha256=sha(source), cli_sha256=sha(cli), calibration_uuid=fingerprint['uuid'],
                    timeout_s=args.timeout_s, heartbeat_timeout_s=heartbeat_timeout_s)
     if args.pin_theta:
@@ -73,6 +79,8 @@ def main():
         print(json.dumps(receipt, indent=2))
         return 0
 
+    if args.submission_plan and json.loads(args.submission_plan.read_text()) != receipt:
+        raise ValueError('queued search artifacts, source, or configuration changed')
     policy = device_policy()
     dev = calibrated_device(policy, spec)
     out = RUN/'search'/os.environ['SLURM_JOB_ID']

@@ -61,7 +61,8 @@ def main():
     out = RUN/'optimization'/f'{phase}-pairs'/str(job)
     out.mkdir(parents=True, exist_ok=False)
     order = ('control', 'trial')
-    write_json(out/'planned.json', dict(model=args.model, batch=args.batch, order=order,
+    write_json(out/'planned.json', dict(protocol_version='a800-single-v2', kind='paired_tuning',
+        model=args.model, batch=args.batch, order=order,
         phase=phase, variant_sha256=libraries, shared_sha256='prompt' if prompt_mode else sha(shared_library), target_sha256=sha(args.target)))
     rounds = []
     for position, label in enumerate(order):
@@ -92,7 +93,8 @@ def main():
         raise ValueError('paired comparison changed GPU, output tokens, or weights')
     medians = {label: {name: statistics.median(r[name] for r in rounds if r['arm'] == label)
                        for name in metric} for label in libraries}
-    write_json(out/'result.json', dict(formal_timing=False, rounds=len(rounds), medians=medians,
+    write_json(out/'result.json', dict(protocol_version='a800-single-v2',kind='paired_tuning',
+        formal_timing=False, rounds=len(rounds), medians=medians,
         paired_e2e_ratios=[group['control']['e2e_seconds']/group['trial']['e2e_seconds']
                            for group in ({r['arm']: r for r in rounds[i:i+2]} for i in range(0, len(rounds), 2))]))
     print(json.dumps(medians), flush=True)

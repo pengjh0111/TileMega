@@ -57,6 +57,7 @@ def main():
     manifest = inspect_inputs(INVENTORY)[args.model]
     checkpoint_limit = str(math.ceil(manifest['checkpoint_bytes']/2**30))
     samples = {label: [] for label in arms}
+    process_receipts = {}
     checkpoint_hashes = set()
     sequence = list(dict.fromkeys(order('sel', list(arms), args.model)))
     for index, choice in enumerate(sequence):
@@ -82,6 +83,7 @@ def main():
                 or result['model_config_sha256'] != manifest['config_sha256']):
             raise ValueError('P-SEL candidate lacks comparable measurement evidence')
         checkpoint_hashes.add(result['checkpoint']['checkpoint_sha256'])
+        process_receipts[choice] = sha(receipt)
         samples[choice].append(float(result['tpot_seconds'])*1e3)
     if len(checkpoint_hashes) != 1:
         raise ValueError('P-SEL checkpoint identity changed between candidates')
@@ -91,6 +93,7 @@ def main():
     result = selection_result(summary, predicted)
     winner = arms[result['winner']]
     write_json(args.out/'result.json', dict(result, schema=1, protocol='P-SEL-single-process',
+        protocol_version='a800-single-v2', kind='selection', process_receipts=process_receipts,
         winner_rank=winner['rank'], winner_binary_sha256=sha(winner['binary']), gpu_uuid=device['uuid'],
         checkpoint_sha256=next(iter(checkpoint_hashes)), arms=summary, predicted_ns=predicted,
         launch_order=sequence, formal_timing=False))

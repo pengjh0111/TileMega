@@ -81,7 +81,13 @@ def main():
                 prefill_plan['batch_lo'] <= args.batch <= prefill_plan['batch_hi']):
             parser.error('prefill plan must match the batch')
 
-    identity = dict(model=args.model, batch=args.batch, round=args.round, stage=args.stage,
+    kind = ('diagnostic' if diagnostic else 'paired_tuning' if tuning else
+            'formal_timing' if independent else 'correctness')
+    identity = dict(protocol_version='a800-single-v2', kind=kind, model=args.model,
+                    batch=args.batch, round=args.round, stage=args.stage,
+                    decode_source_sha=decode_id.get('source', {}).get('head'),
+                    decode_source_digest=decode_id.get('source', {}).get('source_digest'),
+                    decode_coordinate_sha256=decode_id.get('plan', {}).get('coordinates_sha256'),
                     target_sha256=sha(args.target),
                     decode_sha256=decode_id['binary_sha256'],
                     prefill_sha256=prefill_id.get('binary_sha256', 'prompt'))
@@ -201,7 +207,9 @@ def main():
             hf_pass = json.loads((evidence/'c1.json').read_text())['pass']
             if not hf_pass:
                 return 1
+    measurement = evidence/f'B{args.batch}'/'measurements.json'
     write_json(receipt, dict(identity, **{'pass': True}, job=os.environ['SLURM_JOB_ID'], hf_pass=hf_pass,
+               process_receipt_sha256=sha(measurement) if measurement.is_file() else sha(evidence/'reference_tokens.json'),
                device=dev, device_uuid=dev['uuid'],
                evidence=str(evidence), tokens_sha256=sha(evidence/'reference_tokens.json')))
     return 0
