@@ -2,6 +2,9 @@
 """Collect guarded requests from one A800 hardware class, with per-round UUIDs."""
 import argparse
 from collections import defaultdict
+import csv
+import hashlib
+import io
 from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
@@ -195,15 +198,41 @@ def native_cell(inputs, model, batch, selection=None):
         receipt_sha256=' '.join(row['receipt'] for row in rows))
 
 
-def request_times(cell, rows, tpot_only=False):
-    if not rows:
+def frozen_baseline_cells(directory, inputs):
+    payload = (directory/'A800_baselines.csv').read_bytes()
+    manifest = read(directory/'manifest.json')
+    if hashlib.sha256(payload).hexdigest() != manifest.get('table_sha256'):
+        raise ValueError('frozen A800 baseline table hash changed')
+    expected = {(model, engine, batch) for model in MODELS
+                for engine in REPORT_ENGINES for batch in BATCHES}
+    cells = {}
+    for row in csv.DictReader(io.StringIO(payload.decode())):
+        key = row['model'], row['framework'], int(row['batch'])
+        if key not in expected or key in cells:
+            raise ValueError(f'unexpected frozen baseline cell {key}')
+        model = inputs['models'][row['model']]
+        if (row['config_sha256'] != model['config_sha256']
+                or row['prompt_sha256'] != model['prompt_sha256']
+                or row['status'] not in {'measured', 'N/A', 'OOM'}):
+            raise ValueError(f'invalid frozen baseline inputs for {key}')
+        row['batch'] = key[2]
+        row['processes'] = int(row['processes'])
+        for name in METRICS:
+            if row[name]:
+                row[name] = float(row[name])
+        cells[key] = row
+    if cells.keys() != expected:
+        raise ValueError('frozen A800 baseline matrix is incomplete')
+    return cells, payload
+
+
+def request_times(cell, tpot_only=False):
+    if cell['status'] != 'measured':
         return cell['status'] if cell['status'] in {'N/A', 'OOM'} else '—'
-    values = metrics(rows, len(rows))
-    times = f"{values['tpot_ms']:.3f}"
+    times = f"{cell['tpot_ms']:.3f}"
     if not tpot_only:
-        times = f"{1000 * values['t1_s']:.1f} / {values['t1024_s']:.3f} / {times}"
-    times += f" (n={len(rows)})"
-    return times
+        times = f"{1000 * cell['t1_s']:.1f} / {cell['t1024_s']:.3f} / {times}"
+    return f"{times} (n={cell['processes']})"
 
 
 def write_time_table(path, cells, tpot_only=False):
@@ -225,7 +254,7 @@ def write_time_table(path, cells, tpot_only=False):
              'mistral_7b_v0_3': 'Mistral-7B-v0.3', 'olmoe_1b_7b': 'OLMoE-1B-7B'}
     for model in MODELS:
         for batch in BATCHES:
-            values = [request_times(*cells[model, batch, engine], tpot_only=tpot_only)
+            values = [request_times(cells[model, batch, engine], tpot_only=tpot_only)
                       for engine in ('native', *REPORT_ENGINES)]
             lines.append('| ' + ' | '.join([names[model], str(batch), *values]) + ' |')
     temporary = path.with_suffix('.tmp')
@@ -235,12 +264,15 @@ def write_time_table(path, cells, tpot_only=False):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--cohort', action='append', required=True)
+    p.add_argument('--cohort', action='append', default=[])
+    p.add_argument('--frozen-baselines', type=Path)
     p.add_argument('--target', type=Path, required=True)
     p.add_argument('--native-selection', type=Path,
                    help='JSON artifact triples keyed by model/B<batch> for promoted timing cohorts')
     p.add_argument('--out', type=Path, default=ROOT/'docs/results')
     args = p.parse_args()
+    if not args.cohort and not args.frozen_baselines:
+        p.error('supply baseline cohorts or a frozen baseline directory')
     if any(not name or not all(c.isascii() and (c.isalnum() or c in '-_') for c in name)
            for name in args.cohort):
         p.error('invalid cohort name')
@@ -261,21 +293,25 @@ def main():
     if 'A800' not in dev['name']:
         p.error('supply the guarded A800 target')
     inputs = dict(device=dev, models=inspect_inputs(INVENTORY))
-    scope = baseline_scope((RUN/'cohorts'/name for name in args.cohort), inputs)
-    mpk_path = RUN/'mpk/preflight.json'
-    mpk = read(mpk_path)
-    unavailable = {}
-    if mpk:
-        if (mpk.get('revision') != MPK_REVISION or
-                mpk.get('target_sha256') != sha(args.target)):
-            raise ValueError('MPK capability receipt has a different source or target')
-        for entry in mpk['cells']:
-            model, batch = entry['model'], entry['batch']
-            if entry['config_sha256'] != inputs['models'][model]['config_sha256']:
-                raise ValueError(f'MPK capability receipt has a different config for {model}')
-            if entry['status'] == 'N/A' and entry['reason']:
-                unavailable[model, batch] = str(mpk_path.relative_to(RUN))
-    trt_olmoe = trtllm_olmoe_rejection(scope.get(('olmoe_1b_7b', 'trtllm', 1), []))
+    frozen, frozen_payload = {}, None
+    if args.frozen_baselines:
+        frozen, frozen_payload = frozen_baseline_cells(args.frozen_baselines, inputs)
+    else:
+        scope = baseline_scope((RUN/'cohorts'/name for name in args.cohort), inputs)
+        mpk_path = RUN/'mpk/preflight.json'
+        mpk = read(mpk_path)
+        unavailable = {}
+        if mpk:
+            if (mpk.get('revision') != MPK_REVISION or
+                    mpk.get('target_sha256') != sha(args.target)):
+                raise ValueError('MPK capability receipt has a different source or target')
+            for entry in mpk['cells']:
+                model, batch = entry['model'], entry['batch']
+                if entry['config_sha256'] != inputs['models'][model]['config_sha256']:
+                    raise ValueError(f'MPK capability receipt has a different config for {model}')
+                if entry['status'] == 'N/A' and entry['reason']:
+                    unavailable[model, batch] = str(mpk_path.relative_to(RUN))
+        trt_olmoe = trtllm_olmoe_rejection(scope.get(('olmoe_1b_7b', 'trtllm', 1), []))
     baseline, native = [], []
     time_cells = {}
     for model in MODELS:
@@ -283,13 +319,18 @@ def main():
         for batch in BATCHES:
             measured = []
             for engine in REPORT_ENGINES:
-                unsupported = trt_olmoe if (model, engine) == ('olmoe_1b_7b', 'trtllm') else ''
-                if engine == 'mpk':
-                    unsupported = unavailable.get((model, batch), '')
-                rows, cell = baseline_cell(inputs, scope.get((model, engine, batch), []),
-                                           model, engine, batch, unsupported)
-                checkpoint_hashes.update(row['checkpoint_sha256'] for row in rows)
-                time_cells[model, batch, engine] = (cell, rows)
+                if frozen:
+                    cell = frozen[model, engine, batch]
+                    if cell['checkpoint_sha256']:
+                        checkpoint_hashes.add(cell['checkpoint_sha256'])
+                else:
+                    unsupported = trt_olmoe if (model, engine) == ('olmoe_1b_7b', 'trtllm') else ''
+                    if engine == 'mpk':
+                        unsupported = unavailable.get((model, batch), '')
+                    rows, cell = baseline_cell(inputs, scope.get((model, engine, batch), []),
+                                               model, engine, batch, unsupported)
+                    checkpoint_hashes.update(row['checkpoint_sha256'] for row in rows)
+                time_cells[model, batch, engine] = cell
                 measured.append(cell)
                 baseline.append(cell)
                 all_rows.append(cell)
@@ -303,7 +344,7 @@ def main():
                                 fastest_baseline_tpot_ms=fastest['tpot_ms'])
                     if cell['status'] == 'measured':
                         cell['speedup'] = fastest['tpot_ms']/cell['tpot_ms']
-            time_cells[model, batch, 'native'] = (cell, rows)
+            time_cells[model, batch, 'native'] = cell
             native.append(cell)
             all_rows.append(cell)
         if len(checkpoint_hashes) > 1:
@@ -311,7 +352,12 @@ def main():
         for row in all_rows:
             row['checkpoint_sha256'] = next(iter(checkpoint_hashes), '')
     args.out.mkdir(parents=True, exist_ok=True)
-    write_csv(args.out/'A800_baselines.csv', baseline)
+    if frozen_payload is None:
+        write_csv(args.out/'A800_baselines.csv', baseline)
+    else:
+        temporary = args.out/'A800_baselines.csv.tmp'
+        temporary.write_bytes(frozen_payload)
+        temporary.replace(args.out/'A800_baselines.csv')
     write_csv(args.out/'A800_llm.csv', native)
     write_time_table(args.out/'A800_execution_times.md', time_cells)
     write_time_table(args.out/'A800_TPOT.md', time_cells, tpot_only=True)
