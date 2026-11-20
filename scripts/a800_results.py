@@ -115,7 +115,7 @@ def baseline_cell(inputs, jobs, model, engine, batch, unsupported=''):
         receipt_sha256=' '.join(row['receipt'] for row in rows), evidence=' '.join(sorted(evidence)))
 
 
-def native_cell(inputs, model, batch):
+def native_cell(inputs, model, batch, selection=None):
     def compatible(receipt):
         if 'device' in receipt:
             return hardware_class(receipt['device']) == hardware_class(inputs['device'])
@@ -123,8 +123,6 @@ def native_cell(inputs, model, batch):
 
     root = RUN/'native'
     cell = f'*/{model}/B{batch}'
-    receipts = [read(path) for path in sorted(root.glob(f'{cell}/*/measure-*.json'))]
-    receipts = [row for row in receipts if compatible(row)]
     checks = [read(path) for pattern in ('correctness-*.json', '*/correctness-*.json')
               for path in root.glob(f'{cell}/{pattern}')]
     checks = [row for row in checks if compatible(row) and row.get('pass')]
@@ -138,6 +136,17 @@ def native_cell(inputs, model, batch):
              if len({r['round'] for r in checks}) >= 5
              and len({r['tokens_sha256'] for r in checks}) == 1
              and any(r.get('hf_pass') for r in checks)}
+    needed = 3 if model in tuple(MODELS)[:4] else 5
+    if selection is None:
+        receipts = [read(path) for path in sorted(root.glob(f'{cell}/*/measure-*.json'))]
+        receipts = [row for row in receipts if compatible(row)]
+    else:
+        if selection not in ready:
+            raise ValueError(f'{model} B{batch} selected artifacts lack exact-pair correctness')
+        receipts = [read(path) for path in sorted(root.glob(f'{cell}/*/candidate-timing-*.json'))]
+        receipts = [row for row in receipts if compatible(row) and pair(row) == selection]
+        if {row['round'] for row in receipts} != set(range(needed)):
+            raise ValueError(f'{model} B{batch} selected artifacts lack independent timing rounds')
     rows, artifact_ids = [], set()
     for receipt in receipts:
         if not receipt.get('pass'):
@@ -151,7 +160,6 @@ def native_cell(inputs, model, batch):
         artifact_ids.add(pair(receipt))
     if len(artifact_ids) > 1:
         raise ValueError(f'{model} B{batch} contains more than one native plan pair')
-    needed = 3 if model in tuple(MODELS)[:4] else 5
     if len(rows) > needed or len({r['round'] for r in receipts}) != len(rows):
         raise ValueError('choose an explicit cohort without extra formal rounds')
     chosen = artifact_ids or ready
@@ -175,11 +183,26 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--cohort', action='append', required=True)
     p.add_argument('--target', type=Path, required=True)
+    p.add_argument('--native-selection', type=Path,
+                   help='JSON artifact triples keyed by model/B<batch> for promoted timing cohorts')
     p.add_argument('--out', type=Path, default=ROOT/'docs/results')
     args = p.parse_args()
     if any(not name or not all(c.isascii() and (c.isalnum() or c in '-_') for c in name)
            for name in args.cohort):
         p.error('invalid cohort name')
+    selected = {}
+    if args.native_selection:
+        selections = json.loads(args.native_selection.read_text())
+        if not isinstance(selections, dict):
+            p.error('native selection must be a JSON object')
+        valid_cells = {f'{model}/B{batch}' for model in MODELS for batch in BATCHES}
+        for cell, artifact in selections.items():
+            if cell not in valid_cells:
+                p.error(f'unknown native cell {cell}')
+            if not isinstance(artifact, dict) or not all(isinstance(artifact.get(key), str) for key in
+                    ('prefill_sha256', 'decode_sha256', 'target_sha256')):
+                p.error(f'incomplete native artifact identity for {cell}')
+            selected[cell] = (artifact['prefill_sha256'], artifact['decode_sha256'], artifact['target_sha256'])
     dev = read(args.target)['device_provenance']
     if 'A800' not in dev['name']:
         p.error('supply the guarded A800 target')
@@ -199,7 +222,7 @@ def main():
                 measured.append(cell)
                 baseline.append(cell)
                 all_rows.append(cell)
-            rows, cell = native_cell(inputs, model, batch)
+            rows, cell = native_cell(inputs, model, batch, selected.get(f'{model}/B{batch}'))
             checkpoint_hashes.update(row['checkpoint_sha256'] for row in rows)
             if all(row['status'] in {'measured', 'OOM', 'N/A'} for row in measured):
                 valid = [r for r in measured if r['status'] == 'measured']
