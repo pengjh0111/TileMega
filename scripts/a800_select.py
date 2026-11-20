@@ -9,11 +9,48 @@ import statistics
 import subprocess
 
 from a100_baselines import BATCHES, MODELS, inputs, inspect_inputs, sha
-from a800_baselines import ENVS, INVENTORY, calibrated_device, device_policy
+from a800_baselines import ENVS, INVENTORY, calibrated_device, device_policy, hardware_class
 from a800_native import artifact, verify_request_tokens
 from sm90r3_llm import order, selection_result, span
 from tilemega.bench.scheduler import write_json
 from tilemega.serving.baseline_common import require_guard
+
+
+def prior_measurements(arms, model, batch, prefill, target, manifest, device):
+    path = os.environ.get('TILEMEGA_PSEL_PRIOR')
+    if not path:
+        return {}
+    prefill_hash = 'prompt mode' if prefill == 'prompt' else sha(Path(prefill))
+    by_binary = {r['binary_sha256']: label for label, r in arms.items()}
+    reused = {}
+    for entry in json.loads(Path(path).read_text()):
+        files = {key: Path(entry[key]) for key in ('comparison', 'measurement', 'guard', 'planned')}
+        if any(sha(file) != entry[f'{key}_sha256'] for key, file in files.items()):
+            raise ValueError('previous selection evidence changed')
+        proof, result, guard, plan = (json.loads(files[key].read_text()) for key in
+                                ('comparison', 'measurement', 'guard', 'planned'))
+        label = by_binary.get(proof['candidate_sha256'])
+        if (label is None or label in reused or not proof['pass'] or proof['diagnostic']
+                or not all(proof[k] for k in ('same_coordinates', 'same_workload',
+                                             'same_source', 'same_instruction_encoding'))
+                or guard['code'] != 0 or guard['acceptance'] != 'strict'
+                or not guard['ownership_verified']):
+            raise ValueError('previous selection does not certify the same native candidate')
+        cfg = result['configuration']
+        if (plan['model'] != model or hardware_class(plan['device']) != hardware_class(device)
+                or result['batch'] != batch or result['tp'] != 1
+                or result['prompt_length'] != 64 or result['max_tokens'] != 1024
+                or result['acceptance'] != 'strict' or not result['ownership_verified']
+                or not result['shared_checkpoint_identity'] or result['checkpoint']['seed'] != 0
+                or cfg['prefill_sha256'] != prefill_hash
+                or cfg['decode_sha256'] != proof['reference_sha256']
+                or cfg['identities']['decode']['target_sha256'] != sha(target)
+                or result['prompt_ids_sha256'] != manifest['prompt_sha256']
+                or result['model_config_sha256'] != manifest['config_sha256']):
+            raise ValueError('previous selection has different request inputs or execution')
+        verify_request_tokens(files['measurement'], batch, 3)
+        reused[label] = (dict(entry, gpu_uuid=plan['device']['uuid']), result)
+    return reused
 
 
 def main():
@@ -59,7 +96,13 @@ def main():
     samples = {label: [] for label in arms}
     process_receipts = {}
     checkpoint_hashes = set()
-    sequence = list(dict.fromkeys(order('sel', list(arms), args.model)))
+    reused = prior_measurements(arms, args.model, args.batch, prefill, args.target, manifest, device)
+    for choice, (entry, result) in reused.items():
+        samples[choice].append(float(result['tpot_seconds'])*1e3)
+        process_receipts[choice] = entry['measurement_sha256']
+        checkpoint_hashes.add(result['checkpoint']['checkpoint_sha256'])
+    sequence = [choice for choice in dict.fromkeys(order('sel', list(arms), args.model))
+                if choice not in reused]
     for index, choice in enumerate(sequence):
         row = arms[choice]
         folder = args.out/f'{index:02d}-{choice}'
@@ -97,7 +140,8 @@ def main():
         protocol_version='a800-single-v2', kind='selection', process_receipts=process_receipts,
         winner_rank=winner['rank'], winner_binary_sha256=sha(winner['binary']), gpu_uuid=device['uuid'],
         checkpoint_sha256=next(iter(checkpoint_hashes)), arms=summary, predicted_ns=predicted,
-        launch_order=sequence, formal_timing=False))
+        launch_order=sequence, prior_measurements={k:v[0] for k,v in reused.items()},
+        formal_timing=False))
     return 0
 
 

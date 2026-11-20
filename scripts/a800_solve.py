@@ -91,6 +91,11 @@ def main():
                    command=command, target=str(target), target_sha256=sha(target),
                    export_sha256=sha(source), cli_sha256=sha(cli), calibration_uuid=fingerprint['uuid'],
                    timeout_s=args.timeout_s, heartbeat_timeout_s=heartbeat_timeout_s)
+    prior = os.environ.get('TILEMEGA_PSEL_PRIOR')
+    if prior:
+        previous = Path(prior).resolve(strict=True)
+        receipt['prior_selection'] = str(previous)
+        receipt['prior_selection_sha256'] = sha(previous)
     if args.pin_theta:
         receipt['pin_theta_sha256'] = sha(pinned)
     if args.seed_coordinates:
