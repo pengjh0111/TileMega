@@ -598,6 +598,24 @@ struct Sm90DenseMoeGemm {
       return rsqrtf(squares/float(K)+epsilon);
     }
   }
+  template<class Accumulator,class Owners>
+  __device__ static __forceinline__ void StoreAccumulators(float* scratch,
+      Accumulator const& accum,Owners const& owned,int split,
+      [[maybe_unused]] int task,[[maybe_unused]] LocalSchedule const* routing) {
+#if defined(TILEMEGA_SM80_ACTIVE_EPILOGUE) && TILEMEGA_SM80_ACTIVE_EPILOGUE
+    int rows=Batch;
+    if constexpr(CpAsync && kDynamic)
+      rows=routing?routing->count[task/kTiles]:16;
+#endif
+    for(int i=0;i<cute::size(accum);++i) {
+      int row=cute::get<0>(owned(i));
+#if defined(TILEMEGA_SM80_ACTIVE_EPILOGUE) && TILEMEGA_SM80_ACTIVE_EPILOGUE
+      if constexpr(CpAsync)if(row>=rows)continue;
+#endif
+      scratch[split*16*TN+row*TN+cute::get<1>(owned(i))]=accum(i);
+    }
+  }
+
   // E2: `routing` replaces every global record read in the expert epilogues.
   // The router mode never uses it and passes null.
   __device__ static __forceinline__ void Epilogue(Sm90DenseMoeOperands const& p,float const* tile,
@@ -738,8 +756,7 @@ struct Sm90DenseMoeGemm {
           squares[r]+=__shfl_xor_sync(0xffffffff,squares[r],1);
           squares[r]+=__shfl_xor_sync(0xffffffff,squares[r],2);
         }
-      for(int i=0;i<size(accum);++i)
-        scratch[split*16*TN+get<0>(owned(i))*TN+get<1>(owned(i))]=accum(i);
+      StoreAccumulators(scratch,accum,owned,split,t,routing);
       if constexpr(kInputNorm)
         if((tid/32)%WN==0 && (tid&3)==0) {
           int row=(tid&31)/4;
@@ -1099,8 +1116,7 @@ struct Sm90DenseMoeFusedGemm {
         squares[r]+=__shfl_xor_sync(0xffffffff,squares[r],1);
         squares[r]+=__shfl_xor_sync(0xffffffff,squares[r],2);
       }
-    for(int i=0;i<size(accum);++i)
-      scratch[split*16*TN+get<0>(owned(i))*TN+get<1>(owned(i))]=accum(i);
+    Body::StoreAccumulators(scratch,accum,owned,split,t,&routing);
     if constexpr(Body::kInputNorm)
       if((tid/32)%WN==0 && (tid&3)==0) {
         int row=(tid&31)/4;
