@@ -82,9 +82,8 @@ Sm90NativeStagePrice Sm90NativeGemmPrice(Sm90DenseWorkload const& work, unsigned
 
   TaskPriceParts parts;
   // Eq. (7) c_x: the body's arithmetic and on-chip accesses.
-  auto mma = c.AmpereMmaK16(grid, g.tile_n, g.TileK(), g.warps_n, g.register_stages);
   parts.compute_ns = std::max((weights + activation) / c.sm_gbps,
-                              mma.value_or(0) * k / (16 * g.warps_k));
+                              cost.MmaK16Ns(g,residency) * k / (16 * g.warps_k));
   parts.dram_bytes = weights;  // the stage's w_tot is tasks x this (:41)
   // :50 feeds w_tot through BW_dram only when the weights are not already in
   // flight from the previous stage; weight_stream is exactly that case (D6).

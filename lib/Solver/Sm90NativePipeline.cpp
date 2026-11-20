@@ -164,7 +164,9 @@ std::optional<Sm90NativePipelineCandidate> RepriceSm90NativeResidency(
   // residency correction into an unmeasured new search move.
   if(!space.Legal(result.coordinates))return std::nullopt;
   auto start=std::chrono::steady_clock::now();
-  auto flow=evaluate(result.coordinates,isolated);
+  Sm90NativeFlowResult flow;
+  try {flow=evaluate(result.coordinates,isolated);}
+  catch(Sm90NativeMissing const&) {return std::nullopt;}
   result.pool_score_ns=flow.step_ns;
   result.replay_ns=isolated?flow.step_ns:Replay(flow,result.coordinates);
   result.evaluation_ms=std::chrono::duration<double,std::milli>(
@@ -285,7 +287,8 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     if(options.pinned_theta)seed.gemms=options.pinned_theta->gemms;
     constrain(seed);
     bool projected=options.pinned_theta || options.retile_only || options.realize_aggregate;
-    if((projected?derive(seed):space.Legal(seed)) && start_keys.insert(CoordinateKey(seed)).second)
+    if((projected?derive(seed):space.Legal(seed)) && cost.HasCalibratedMma(seed) &&
+       start_keys.insert(CoordinateKey(seed)).second)
       starts.push_back(seed);
   };
   for (auto const& seed : seeds)project(seed);
@@ -312,7 +315,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     result.descent.back().push_back(best);
     result.descent_coordinates.push_back({current});
     auto consider=[&](Sm90DenseCoordinates trial,std::string coordinate) {
-      if(spent_ms()>options.budget_ms || !derive(trial))return false;
+      if(spent_ms()>options.budget_ms || !derive(trial) || !cost.HasCalibratedMma(trial))return false;
       origin="seed:"+std::to_string(seed)+"/"+coordinate;
       double value=score(trial);
       if(value>=best)return false;

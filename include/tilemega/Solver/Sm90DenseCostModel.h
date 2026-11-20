@@ -33,6 +33,9 @@ class Sm90DenseCostModel {
   double Attention(Sm90DenseWorkload const&,Sm90DenseAttention const& attention,
                    int residency,json::Value* terms=nullptr) const;
   Sm90DensePrediction Predict(Sm90DenseWorkload const&,Sm90DenseCoordinates const&) const;
+  bool HasCalibratedMma(Sm90DenseGemm const&,int residency) const;
+  bool HasCalibratedMma(Sm90DenseCoordinates const&) const;
+  double MmaK16Ns(Sm90DenseGemm const&,int residency) const;
   int Grid(int residency) const {return target_.res.num_sms*residency;}
   Sm90NativeConstants const& Constants() const {return constants_;}
   TargetSpec const& Target() const {return target_;}

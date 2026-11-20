@@ -22,6 +22,7 @@
 #include <chrono>
 #include <limits>
 #include <map>
+#include <set>
 #include <iterator>
 #include <sys/wait.h>
 
@@ -285,6 +286,19 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   if(o.search!="pipeline" && o.analysis!="reuse")
     throw std::invalid_argument("non-reuse analysis requires pipeline search");
   solver::Sm90DenseSearchOptions search;search.top=o.measure_top;
+  if(target.arch_tag=="sm_80") {
+    json::Array coverage;
+    for(int residency:{1,2})for(unsigned f:solver::Sm90DenseActiveFamilies(space.moe)) {
+      std::set<std::pair<std::string,bool>> keys;
+      for(auto const& g:space.FamilyCandidates(f,residency))
+        keys.emplace(solver::Sm90NativeConstants::AmpereMmaKey(space.Grid(residency),
+            g.tile_n,g.TileK(),g.warps_n,g.register_stages),cost.HasCalibratedMma(g,residency));
+      for(auto const& [key,measured]:keys)coverage.emplace_back(json::Object{
+          {"family",solver::kSm90DenseFamilies[f]},{"mma_key",key},{"measured",measured}});
+    }
+    std::ofstream(directory/"ampere-mma-coverage.json")<<json::Value(json::Object{
+        {"target_sha256",target_sha},{"export_sha256",input_sha},{"keys",coverage}}).Dump(2)<<'\n';
+  }
   auto result=solver::SearchSm90Dense(space,work,cost,search);
   json::Value pipeline_record;
   // P3: Algorithm 1 replaces the additive ranking for every selection this
@@ -451,6 +465,8 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
           candidates[i].Set("occupancy",resource);
           if(actual<1) {candidates[i].Set("status","occupancy_rejected");continue;}
           auto c=result.ranked[i].coordinates;
+          // A legal SM80 grid can intentionally use less than the measured capacity.
+          if(target.arch_tag=="sm_80")actual=std::min(actual,c.residency);
           if(actual==c.residency)continue;
           if(pass==2)throw std::runtime_error("native occupancy correction did not converge");
           mlir::MLIRContext context;

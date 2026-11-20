@@ -38,6 +38,7 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
     auto active=Sm90DenseActiveFamilies(space.moe);
     for(unsigned f:active) {
       for(auto g:space.FamilyCandidates(f,residency)) {
+        if(!cost.HasCalibratedMma(g,residency))continue;
         families[f].push_back({cost.Gemm(work,f,g,residency),g,{}});
         ++result.evaluated;
         // D10c: activation-bound stages (B / TN > kappa) of a cluster may
@@ -102,8 +103,8 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
         d.group_wait=group_wait;d.embed_la=embed_la;d.expert_fuse=fuse;d.tp=space.tp;
         for(int slots=8;slots>=(fuse?2:8);--slots) {
           if(fuse)d.SetCommonExpertSlots(slots);
-          if(!space.Legal(d) || !seen.insert(d.ToJson().Dump(0)).second)continue;
-          pool.push_back({d,cost.Predict(work,d),origin+(group_wait?"_group":"")+
+          if(!space.Legal(d))continue;
+          if(seen.insert(d.ToJson().Dump(0)).second)pool.push_back({d,cost.Predict(work,d),origin+(group_wait?"_group":"")+
               (embed_la?"_emb_la":"_emb_stage")+(fuse?"_fused":"")});
           if(!ampere)break;  // Preserve the SM90 MR7 policy.
         }

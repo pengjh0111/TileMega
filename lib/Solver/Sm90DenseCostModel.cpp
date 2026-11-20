@@ -19,6 +19,24 @@ Sm90DenseCostModel::Sm90DenseCostModel(TargetSpec target,Sm90NativeConstants con
     throw std::invalid_argument("native dense cost model requires an SM80 or SM90 target");
 }
 
+bool Sm90DenseCostModel::HasCalibratedMma(Sm90DenseGemm const& g,int residency) const {
+  return target_.arch_tag!="sm_80" ||
+      constants_.AmpereMmaK16(Grid(residency),g.tile_n,g.TileK(),g.warps_n,g.register_stages).has_value();
+}
+
+bool Sm90DenseCostModel::HasCalibratedMma(Sm90DenseCoordinates const& c) const {
+  for(unsigned f:c.Active())if(!HasCalibratedMma(c.gemms[f],c.residency))return false;
+  return true;
+}
+
+double Sm90DenseCostModel::MmaK16Ns(Sm90DenseGemm const& g,int residency) const {
+  if(target_.arch_tag!="sm_80")return 0;  // SM90's existing shared service term.
+  auto measured=constants_.AmpereMmaK16(Grid(residency),g.tile_n,g.TileK(),g.warps_n,g.register_stages);
+  if(!measured)throw Sm90NativeMissing("no measured SM80 MMA mainloop for "+
+      Sm90NativeConstants::AmpereMmaKey(Grid(residency),g.tile_n,g.TileK(),g.warps_n,g.register_stages));
+  return *measured;
+}
+
 // MR6: a CTA with n = ceil(t / G) tasks streams its first n - 1 at the shared
 // rate BW_dram / G; in the last wave only r = t - (n - 1) G CTAs are active,
 // each at min(BW_cta_dram, BW_dram / r).
@@ -47,8 +65,7 @@ double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
   double cta=(w_cta+a_cta)/c.sm_gbps;
   double ring=w_cta*c.dram_latency/(double(g.slots)*g.slot_bytes);
   double waves=Waves(tasks,grid,2.0*g.tile_n*k);
-  auto mma=c.AmpereMmaK16(grid,g.tile_n,g.TileK(),g.warps_n,g.register_stages);
-  double arithmetic=mma.value_or(0)*per_cta*k/(16*g.warps_k);
+  double arithmetic=MmaK16Ns(g,residency)*per_cta*k/(16*g.warps_k);
   double stream=std::max({w_tot/c.dram_gbps,waves,(w_tot+a_tot)/c.l2_gbps,cta,ring,arithmetic});
   // A3: OLMoE's 64-expert stages key their own measurements; rows per slot
   // follow n_active(E), so Qwen3's E = 128 entries do not stand in for them.

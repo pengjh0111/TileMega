@@ -126,10 +126,13 @@ double Sm90NativeConstants::SmFlops() const {
   if(!found)throw Sm90NativeMissing("no measured SM throughput; run the forward constants probe");
   return Positive(*found,"sm throughput");
 }
+std::string Sm90NativeConstants::AmpereMmaKey(int grid,int tn,int tk,int wn,int stages) {
+  return std::to_string(grid)+":"+std::to_string(tn)+":"+std::to_string(tk)+":"+
+      std::to_string(wn)+":"+std::to_string(stages);
+}
 std::optional<double> Sm90NativeConstants::AmpereMmaK16(int grid,int tn,int tk,int wn,int stages) const {
   if(ampere_mma_.IsNull())return std::nullopt;
-  auto key=std::to_string(grid)+":"+std::to_string(tn)+":"+std::to_string(tk)+":"+
-      std::to_string(wn)+":"+std::to_string(stages);
+  auto key=AmpereMmaKey(grid,tn,tk,wn,stages);
   auto const* value=ampere_mma_.Find(key);
   if(!value)return std::nullopt;
   return Positive(*value,"Ampere MMA K16 slice");

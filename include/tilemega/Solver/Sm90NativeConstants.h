@@ -45,6 +45,7 @@ class Sm90NativeConstants {
   double WgmmaEfficiency(int tile_n) const;
   double SmFlops() const;
   // SM80 resident MMA and ldmatrix time per K16 step and split-K warp group.
+  static std::string AmpereMmaKey(int grid,int tn,int tk,int wn,int stages);
   std::optional<double> AmpereMmaK16(int grid,int tn,int tk,int wn,int stages) const;
   // D2 body: one 64-key block (data resident), q preparation, S-chunk merge.
   double AttentionBlock(int dim,int queries,int norm) const;
