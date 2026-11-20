@@ -28,7 +28,7 @@ def main():
     a = p.parse_args()
     original, output = a.input.resolve(), a.out.resolve()
     runs = (ROOT / 'runs').resolve()
-    allowed = ('sm90r2', 'sm90r3', 'sm90r4', 'sm90r5', 'sm90r6', 'sm90x1')
+    allowed = ('sm90r2', 'sm90r3', 'sm90r4', 'sm90r5', 'sm90r6', 'sm90x1', 'a800')
     if not any(output.is_relative_to(runs / r) for r in allowed) or output == original:
         p.error('diagnostic outputs belong under runs/' + ', runs/'.join(allowed))
     sys.path.insert(0, str(ROOT / 'python'))
