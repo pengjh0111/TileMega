@@ -296,9 +296,13 @@ The full-shape artifact linked, and `345624` passed the first-token
 request using the original config, the exact checkpoint shared by the
 baselines and a strict guard. Peak observed use was 63,753 MiB. This
 first-token diagnostic returned 283.4 ms T1. Pipeline search `345665`
-uses the original shape and corrected shared weight layout. Full
-1,024-token decode correctness and independent timing follow successful
-selection.
+used the original shape and corrected shared weight layout. It completed
+four full tuning processes in 31 minutes 1 second, and chose 9.577 ms
+TPOT. The five independent correctness processes are queued in `345794`.
+The separate Qwen decode trace starts after that array passes. CPU
+regression for `a8621ee` emitted the old 16-column configuration with the
+original compiler, rejected it with the new check, and emitted the corrected
+32-column configuration.
 
 **Verified.** Llama-3.1-8B B1 bounded retry `345389` completed in 16 minutes
 26 seconds after the original selection timeout. Its chosen tuning TPOT
@@ -332,9 +336,10 @@ fixed-page recipe. CPU code generation reproduced the rejection. A
 three-slot 64-by-128 down slice fits the fused arena and emitted SM80 CUDA.
 Job `345505` resumed B2 with this legal geometry and selected 3.370 ms
 in four tuning processes. All five independent correctness rounds passed in `345615`. Formal timing is `345668`. The layout fix in
-`b79f9a8` is staged in `TileMega-a800-moe-pack-build` for isolated compiler
-and code-generation verification. The repair preserves the shared 64-by-64
-Qwen3 expert packing.
+`b79f9a8` built in `TileMega-a800-moe-pack-build` and passed the compiler
+fingerprint check. The exact OLMoE geometry that was previously rejected
+emits a per-task slice, and Qwen3 still emits shared 64-by-64 pages. OLMoE
+B4 completed measured selection in `345692` with this compiler.
 
 **Verified.** Llama-3.2-1B B1 trace `345633` completed with equivalent
 reference tokens. The FFN down stage accounted for 849.9 µs per step
@@ -348,6 +353,20 @@ Mistral measured 11.764 ms TPOT in `345568`. Llama
 measured 12.233 ms TPOT in `345608`. Their B2 lane builds
 separate packed prefill libraries from the same export and checkpoint.
 
+**Verified.** Llama B1 paired job `345681` completed all six requests on
+one A800 with a common checkpoint. The candidate and reference diverged
+at output token 88, with 23 different positions over 1,024 tokens. The
+paired protocol rejected the comparison. Separate correctness array
+`345753` passed five processes for the candidate. Its own step and loop
+outputs agreed and the teacher-forced maximum logit gap was 0.03125
+across 1,024 positions. Pipeline selection and fresh timings remain
+pending. A second B1 trial varies only the depth of the original down
+tile's `cp.async` ring.
+
+**Verified.** The search planner records its deadline and heartbeat
+limit. The strict GPU guard bounds silent searches to at most nine
+minutes within the Slurm time limit. The ten CPU guard tests passed.
+
 ## Current result snapshot
 
-The CSVs record 59 measured baseline cells and 5 baseline cells with documented N/A status, out of 160 baseline cells. TileMega has 18 measured cells out of 40. Live tables are refreshed under `runs/a800/collected/`. Each single-GPU array task has a finite wall time and an independent process guard. The baseline and native feeders persist exact stage identifiers in the workspace `logs/`.
+The CSVs record 64 measured baseline cells and 5 baseline cells with documented N/A status, out of 160 baseline cells. TileMega has 20 measured cells out of 40. Live tables are refreshed under `runs/a800/collected/`. Each single-GPU array task has a finite wall time and an independent process guard. The baseline and native feeders persist exact stage identifiers in the workspace `logs/`.
