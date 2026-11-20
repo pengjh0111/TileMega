@@ -82,3 +82,77 @@ After successful pipeline selection, the login-node watcher verifies the selecte
 **Verified.** TensorRT-LLM retry `344698` passed the three previously rejected Llama rounds on the new A800. The three-process TPOT medians are 2.503 ms at B1 and 3.208 ms at B16. Each cell retains both physical UUIDs in its summary. The complete Llama B1 baseline comparison gives a fastest-baseline to TileMega ratio of 0.962. TensorRT-LLM dense follow-ups are `344743` and `344745`.
 
 **Verified.** TorchCompile OLMoE retry `344700` passed on the new A800. Its one process recorded 4.999 ms TPOT, two compiled graphs, `grouped_mm` for prefill and the official `batched_mm` switch for decode. The remaining independent rounds are queued in `344765`. Qwen3-30B-A3B TorchCompile is running under `344702`. Its separate native prefill has a bounded CPU rebuild, and the login-node watcher verifies the binary before enqueuing GPU correctness.
+
+## Parallel single-GPU campaign
+
+The ordinary Slurm partition places each independent job on an available A800.
+The strict guard records the physical GPU and device resources for every
+process. Compatible A800-SXM4-80GB devices can contribute to the same cell.
+Each queue process retains the frozen BF16 TP1 checkpoint, prompt IDs and
+64-input/1,024-output request protocol. Six-entry light arrays run up to three
+tasks, and two-entry heavy arrays run one task. The login-side feeders record
+each submitted range and resume at B2, B4, B8 and B16 once the preceding batch
+has valid evidence for the model and framework.
+
+Qwen3-0.6B B1 ran four baseline retries concurrently on four nodes
+(`344948`, `344950`, `344952`, `344954`). The longer parallel cohort names
+exposed the Unix socket path limit in vLLM 0.10.2. The launcher now supplies
+`VLLM_RPC_BASE_PATH=/tmp` and keeps compiler caches scoped to their cohorts.
+The Qwen3-1.7B B1 retry `344999` completed after the fix. Failed attempts and
+the exact-repeat retries remain in the corresponding cohort directories.
+
+The native SM80 decode path uses the weighted CTG, pipeline shortlist and
+replay, tmexec, SM80 CUDA generation, linked occupancy correction and measured
+request-wall selection. The MMA mainloop profile is in
+`runs/a800/calibration/343998/sm_80_a800_mma.json`. It combines the five guarded
+MMA calibration processes with the expanded component calibration. Its SHA-256
+is `03a33c6a8d297abd433fbbd985e1505982fa35d1697c36d04fca33a36a26a5e8`.
+CPU-only decode emission succeeded for all 40 model and batch cells.
+
+| Llama-3.2-1B | TileMega TPOT | Fastest baseline TPOT | Baseline / TileMega |
+|---|---:|---:|---:|
+| B1 | 2.603 ms | TensorRT-LLM, 2.503 ms | 0.962× |
+| B16 | 3.025 ms | SGLang, 2.978 ms | 0.985× |
+
+Each TileMega row passed five fresh correctness processes and three separate
+formal timing processes. B16 finished in `344725`. The Llama B16
+`weight_stream` trial `344994` changed that one search decision in a copy of the
+calibrated target. Its winning tuning arm measured 3.021 ms versus 3.013 ms for
+the existing search winner, on separate allocations. The formal B16 artifact
+and results still use the original target.
+
+Qwen3-0.6B B1 selected a winner in `344987` after the guard rejected
+`344956` for an unresolved GPU process. OLMoE B1 selected a winner in
+`344958`. Their search TPOTs were 1.656 and 2.538 ms respectively.
+Correctness arrays `345022` and `345005` both passed in five fresh
+processes with matching token receipts and a 1,024-position teacher-forced
+check. The formal timing arrays are `345057` and `345073`. Llama B4 search
+`344997` advanced to correctness array `345051`. Independent prefill
+libraries for Llama B2 and B8 also linked. Their initial searches `345040`
+and `345041` rejected compiled candidates because compiler inputs changed
+during the build. Retries `345080` and `345081` use a compiler verified against
+the frozen source fingerprint.
+
+Qwen3-30B-A3B uses its separate 64-token prefill library. The uninstrumented
+`344800` loaded the shared checkpoint and initialized the engine before the
+first L1 prefill failed at CUDA synchronization. Peak observed GPU usage was
+63,767 MiB. The Compute Sanitizer attempt `344973` stopped in expert packing
+at 80,447 MiB before launching the prefill kernel. The uninstrumented L2
+diagnostic `345008` exposed a separate runner defect when a one-token request
+configured a zero-length decode ring. The runner now skips that unused ring.
+A CPU mock verified both one-token initialization and initialization with a
+decode step. L2 retry `345058` uses the same weights and artifact pair.
+These attempts provide no formal timing.
+
+The SM80 prefill seed now accepts explicit nonpaged MMA16 geometry against a
+bound SM80 target while preserving shared weight packing and checking final
+shared-memory and grouped expert row constraints. Llama B4's
+`M32N64K64S3` prefill linked as SM80, while the oversized geometry probe was
+rejected before code generation. The guarded first-token probe for the new
+prefill is `345083`. Prefill GPU validation and end-to-end selection across
+the model matrix are still in progress.
+
+The committed snapshot has 24 baseline cells with three accepted replicates,
+five TensorRT-LLM OLMoE N/A cells and 131 baseline cells in progress. Two native
+cells have final timing, and two more passed the exact-artifact correctness
+gate. The live tables are under `runs/a800/collected/`.
