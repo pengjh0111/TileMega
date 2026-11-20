@@ -1365,7 +1365,9 @@ int RunCompile(int argc, char** argv) {
           geometry.tile_k=forward_seed_tile.tile_k;
           if(sm80_prefill_target) {
             geometry.stages=forward_seed_tile.stages;
-            if(plan.gemms[i].epilogue!=tilemega::frontend::PlanGemm::Epilogue::kArgmaxPartial)
+            if(plan.gemms[i].epilogue==tilemega::frontend::PlanGemm::Epilogue::kArgmaxPartial)
+              geometry.tile_n=options.argmax_tile_n;
+            else
               geometry.tile_m=forward_seed_tile.tile_m;
           }
         }
