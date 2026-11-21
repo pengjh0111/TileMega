@@ -14,7 +14,39 @@ SHAPE = ('batch', 'gate_up_n', 'down_n', 'hidden', 'gate_up_tn', 'gate_up_tk',
          'float_routes', 'page', 'register_stages', 'softmax_all', 'segments', 'live_rows', 'copy_group')
 
 
-def append(base, target_sha, run, binary):
+def validate_payload_anchor(path, artifact, shape, measurement):
+    from tilemega.build.identity import verify
+
+    anchor = read(path)
+    binary = Path(anchor['decode'])
+    identity = verify(binary)
+    coordinates = identity['plan']['native_dense']
+    if (sha(path) != artifact['anchor_sha256'] or anchor['decode_sha256'] != identity['binary_sha256']
+            or anchor['coordinates'] != coordinates or coordinates.get('payload') != 'reuse'
+            or not coordinates.get('expert_fuse') or coordinates['residency'] != 1
+            or coordinates['weight_stream'] or coordinates.get('route', 'local') != 'local'
+            or coordinates.get('combine', 'la') != 'la'
+            or identity['plan']['runtime_batch'] != shape['batch']
+            or identity['shared_memory_bytes'] != measurement['dynamic_shared']
+            or bool(shape['segments']) != (coordinates.get('expert_page_copy') == 'segments')
+            or shape['copy_group'] != coordinates.get('copy_issue_group', 0)
+            or bool(shape['live_rows']) != (coordinates.get('epilogue_rows') == 'live')
+            or bool(shape['gu_route_bases']) != (coordinates.get('expert_gu_routes') == 'bases')):
+        raise ValueError('payload calibration must match the linked production layout')
+    for family, key in (('expert_gate_up', 'gate_up'), ('expert_down', 'down')):
+        tile = coordinates['gemms'][family]
+        if (tile['tile_n'] != shape[f'{key}_tn']
+                or tile['slot_bytes'] != 2 * shape[f'{key}_tn'] * shape[f'{key}_tk']
+                or tile['warps_n'] != shape[f'{key}_warps_n']
+                or tile['warps_k'] != shape[f'{key}_warps_k']
+                or tile['slots'] != shape['slots'] or tile['register_stages'] != shape['register_stages']):
+            raise ValueError('payload calibration probe retiled the linked expert stage')
+    return dict(anchor_sha256=sha(path), binary_sha256=identity['binary_sha256'],
+                manifest_sha256=identity['manifest_sha256'],
+                dynamic_shared=identity['shared_memory_bytes'])
+
+
+def append(base, target_sha, run, binary, payload_anchor=None):
     artifact = read(run/'artifact.json')
     identity = binary.with_suffix('.identity.json')
     guard = read(run/'guard/guard_result.json')
@@ -80,6 +112,7 @@ def append(base, target_sha, run, binary):
     dimensions.extend(source.get(name, 0) for name in MODIFIERS)
     shape = dict(zip(SHAPE, dimensions, strict=True))
     shape['gu_route_bases'] = source.get('TILEMEGA_SM80_MOE_GU_ROUTE_BASES', 0)
+    shape['reuse_payload'] = int(payload_anchor is not None)
     shape['gate_up_warps_k'] = 4 // shape['gate_up_warps_n']
     shape['down_warps_k'] = 4 // shape['down_warps_n']
     if registry['schema'] != 1:
@@ -89,10 +122,12 @@ def append(base, target_sha, run, binary):
                    body_headers=artifact['body_headers'], reference_target_sha256=frozen['target_sha256'],
                    measurement_sha256=sha(measurement), gpu_uuid=device['nvml_uuid'],
                    guard_sha256=sha(run/'guard/guard_result.json'), evidence=str(run))
+    if payload_anchor is not None:
+        profile['payload_anchor'] = validate_payload_anchor(payload_anchor, artifact, shape, row)
     for previous in registry['profiles']:
         if all(previous.get(key) == value for key, value in profile.items()):
             return
-        previous_shape = dict(gu_route_bases=0)
+        previous_shape = dict(gu_route_bases=0, reuse_payload=0)
         previous_shape.update(previous['shape'])
         if previous_shape != shape:
             continue
@@ -113,11 +148,15 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--target', type=Path, required=True)
     parser.add_argument('--observation', nargs=2, action='append', metavar=('RUN', 'BINARY'), required=True)
+    parser.add_argument('--payload-anchor', type=Path,
+                        help='linked production anchor for one shared-payload observation')
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
+    if args.payload_anchor and len(args.observation) != 1:
+        parser.error('a shared-payload anchor binds one observation')
     target = read(args.target)
     for run, binary in args.observation:
-        append(target, sha(args.target), Path(run), Path(binary))
+        append(target, sha(args.target), Path(run), Path(binary), args.payload_anchor)
     with args.out.open('x') as stream:
         json.dump(target, stream, indent=2)
         stream.write('\n')

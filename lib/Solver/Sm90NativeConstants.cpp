@@ -42,10 +42,10 @@ double Positive(json::Value const& v,char const* what) {
 }
 }  // namespace
 
-std::array<int,20> Sm80FusedExpertShape::Key() const {
+std::array<int,21> Sm80FusedExpertShape::Key() const {
   return {batch,gate_up_n,down_n,hidden,gate_up_tn,gate_up_tk,down_tn,down_tk,slots,
       gate_up_warps_n,down_warps_n,experts,float_routes,page,register_stages,
-      softmax_all,segments,live_rows,copy_group,gu_route_bases};
+      softmax_all,segments,live_rows,copy_group,gu_route_bases,reuse_payload};
 }
 
 Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,std::string const& root) {
@@ -185,7 +185,18 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
           dimension("down_tk"),dimension("slots"),dimension("gate_up_warps_n"),dimension("down_warps_n"),
           dimension("experts"),dimension("float_routes"),dimension("page"),dimension("register_stages"),
           dimension("softmax_all"),dimension("segments"),dimension("live_rows"),dimension("copy_group"),
-          shape.Find("gu_route_bases")?dimension("gu_route_bases"):0};
+          shape.Find("gu_route_bases")?dimension("gu_route_bases"):0,
+          shape.Find("reuse_payload")?dimension("reuse_payload"):0};
+      if(geometry.reuse_payload>1)
+        throw std::invalid_argument("invalid fused expert payload service");
+      if(geometry.reuse_payload) {
+        auto const& anchor=profile.At("payload_anchor");
+        if(anchor.At("binary_sha256").AsString("payload anchor binary hash").size()!=64 ||
+           anchor.At("manifest_sha256").AsString("payload anchor manifest hash").size()!=64 ||
+           anchor.At("dynamic_shared").AsNumber("payload anchor shared memory")!=
+               row.At("dynamic_shared").AsNumber("fused probe shared memory"))
+          throw std::invalid_argument("unbound fused expert payload service");
+      }
       if(geometry.gu_route_bases>1 || (geometry.gu_route_bases && geometry.gate_up_tk!=64))
         throw std::invalid_argument("invalid fused Gu routing service");
       if(geometry.gate_up_warps_n*dimension("gate_up_warps_k")!=4 ||

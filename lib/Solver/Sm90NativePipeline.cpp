@@ -27,7 +27,7 @@ bool RequiredDenseService(Sm90DenseWorkload const& work,Sm90DenseCoordinates con
 }
 
 bool RequiredFusedService(Sm90DenseCoordinates const& c) {
-  return c.copy_issue_group || c.expert_gu_route_bases;
+  return c.copy_issue_group || c.expert_gu_route_bases || c.reuse_payload;
 }
 
 bool HasCompactAttentionService(Sm90DenseWorkload const& work,Sm90DenseCostModel const& cost,int grid) {
@@ -402,13 +402,14 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     std::vector<Sm90DenseCoordinates> candidates;
     if(!ampere || base.weight_stream || options.pinned_theta)return candidates;
     if(base.moe) {
-      if(base.residency!=1 || base.reuse_payload)return candidates;
+      if(base.residency!=1)return candidates;
       for(auto const& shape:cost.Constants().AmpereFusedShapes()) {
         if(shape.batch!=work.batch || shape.experts!=work.experts ||
            shape.gate_up_n!=work.shapes[6][0] || shape.down_n!=work.shapes[7][0] ||
            shape.hidden!=work.shapes[6][1])continue;
         auto trial=base;
         trial.expert_fuse=true;
+        trial.reuse_payload=shape.reuse_payload!=0;
         trial.route=Sm90DenseCoordinates::Route::kLocal;
         trial.combine_stage=false;
         trial.expert_page_segments=shape.segments!=0;

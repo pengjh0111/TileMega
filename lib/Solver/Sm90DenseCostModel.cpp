@@ -129,7 +129,7 @@ std::optional<Sm80DenseService> Sm90DenseCostModel::DenseService(
 std::optional<Sm80FusedExpertShape> Sm90DenseCostModel::FusedServiceShape(
     Sm90DenseWorkload const& work,Sm90DenseCoordinates const& c) const {
   if(target_.arch_tag!="sm_80" || !work.moe || work.top_k!=8 || !c.expert_fuse ||
-     c.residency!=1 || c.reuse_payload || c.weight_stream || c.GlobalRoute() || c.combine_stage)
+     c.residency!=1 || c.weight_stream || c.GlobalRoute() || c.combine_stage)
     return std::nullopt;
   auto const& gu=c.gemms[6];
   auto const& dn=c.gemms[7];
@@ -138,7 +138,7 @@ std::optional<Sm80FusedExpertShape> Sm90DenseCostModel::FusedServiceShape(
       gu.warps_n,dn.warps_n,work.experts,work.float_routes,
       frontend::NativeMoeSharedExpertPageSide(work.experts),gu.register_stages,
       work.softmax_all,c.expert_page_segments,c.live_epilogue_rows,c.copy_issue_group,
-      c.expert_gu_route_bases};
+      c.expert_gu_route_bases,c.reuse_payload};
 }
 
 std::optional<Sm80FusedExpertService> Sm90DenseCostModel::FusedService(
