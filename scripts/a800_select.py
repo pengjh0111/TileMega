@@ -137,7 +137,8 @@ def main():
                 os.environ.get('TILEMEGA_RANDOM_CHECKPOINT') != str(checkpoint)):
             raise ValueError('the selection worker requires its allocation-owned checkpoint')
         live = validate_live_checkpoint(checkpoint)
-        if (live['algorithm'] != ALGORITHM or live['config_sha256'] != manifest['config_sha256']
+        if (live['supervisor_pid'] != os.getppid() or live['algorithm'] != ALGORITHM
+                or live['config_sha256'] != manifest['config_sha256']
                 or live['seed'] != 0 or live['total_bytes'] != manifest['checkpoint_bytes']):
             raise ValueError('the shared selection checkpoint changed its frozen workload')
         checkpoint_hashes.add(live['checkpoint_sha256'])
