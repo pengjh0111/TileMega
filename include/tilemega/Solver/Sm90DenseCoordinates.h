@@ -101,6 +101,7 @@ struct Sm90DenseCoordinates {
   bool argmax_stage=false;
   bool live_epilogue_rows=false;
   bool reuse_payload=false;
+  int copy_issue_group=0;
   // D8 (prompt §7): attention waits only for its KV group's qkv tiles
   // (group counters) instead of the grid barrier after qkv; P-SEL decides.
   bool group_wait=false;
@@ -176,6 +177,10 @@ struct Sm90DenseCoordinates {
     if((GlobalRoute() || combine_stage) && !moe)throw std::invalid_argument("global MoE routing requires MoE");
     if(reuse_payload && (weight_stream || cluster!=1 || attention.dsmem))
       throw std::invalid_argument("payload reuse requires retired storage and no cross-stage preissue");
+    if(copy_issue_group!=0 && (copy_issue_group!=4 && copy_issue_group!=8))
+      throw std::invalid_argument("SM80 weight copy issue group must be 4 or 8");
+    if(copy_issue_group && weight_stream)
+      throw std::invalid_argument("explicit weight copy issue groups require a nonstreamed plan");
     if(live_epilogue_rows && (tp!=1 || (moe?!expert_fuse:batch>=8)))
       throw std::invalid_argument("live epilogue rows require TP1 small dense batches or fused experts");
     if(tp>1 && moe)throw std::invalid_argument("sm90 dense tensor parallel MoE is unsupported");
@@ -243,17 +248,19 @@ struct Sm90DenseCoordinates {
     }
     // Schema 7 adds tp; a TP1 coordinate still serializes as schema 6, so every
     // R3/R4 coordinate file and its hash are unchanged.
-    json::Object result{{"schema",(live_epilogue_rows || reuse_payload)?10:(GlobalRoute() || combine_stage)?9:(argmax_stage || attention.merge_stage)?8:tp>1?7:6},{"model",moe?"moe":"dense"},{"gemms",families},
+    bool const explicit_body=live_epilogue_rows || reuse_payload || copy_issue_group;
+    json::Object result{{"schema",explicit_body?10:(GlobalRoute() || combine_stage)?9:(argmax_stage || attention.merge_stage)?8:tp>1?7:6},{"model",moe?"moe":"dense"},{"gemms",families},
         {"attention",json::Object{{"chunks",attention.chunks},{"block_keys",attention.block_keys},
             {"slots",attention.slots},{"new_row_work",attention.new_row_work},
             {"merge",attention.dsmem?"dsmem":attention.merge_stage?"stage":"la"}}},
         {"residency",residency},{"swiglu_u",swiglu_u},{"weight_stream",weight_stream},
         {"layer_loop",layer_loop},{"emb",embed_la?"la":"stage"},{"group_wait",group_wait},
         {"cluster",cluster},{"expert_fuse",expert_fuse}};
-    if(live_epilogue_rows || reuse_payload || tp>1 || argmax_stage || attention.merge_stage || GlobalRoute() || combine_stage)result.emplace_back("tp",tp);
+    if(explicit_body || tp>1 || argmax_stage || attention.merge_stage || GlobalRoute() || combine_stage)result.emplace_back("tp",tp);
     if(live_epilogue_rows)result.emplace_back("epilogue_rows","live");
     if(reuse_payload)result.emplace_back("payload","reuse");
-    if(live_epilogue_rows || reuse_payload || argmax_stage || attention.merge_stage || GlobalRoute() || combine_stage)result.emplace_back("argmax",argmax_stage?"stage":"la");
+    if(copy_issue_group)result.emplace_back("copy_issue_group",copy_issue_group);
+    if(explicit_body || argmax_stage || attention.merge_stage || GlobalRoute() || combine_stage)result.emplace_back("argmax",argmax_stage?"stage":"la");
     if(GlobalRoute() || combine_stage) {
       result.emplace_back("route",RouteName());
       result.emplace_back("combine",combine_stage?"stage":"la");
@@ -287,7 +294,8 @@ struct Sm90DenseCoordinates {
       throw std::invalid_argument("unknown sm90 dense coordinate schema");
     if(schema==10)
       keys(value,{"schema","model","gemms","attention","residency","swiglu_u","weight_stream",
-          "layer_loop","emb","group_wait","cluster","expert_fuse","tp","argmax","epilogue_rows","payload","route","combine"});
+          "layer_loop","emb","group_wait","cluster","expert_fuse","tp","argmax","epilogue_rows","payload",
+          "copy_issue_group","route","combine"});
     else if(schema==9)
       keys(value,{"schema","model","gemms","attention","residency","swiglu_u","weight_stream",
           "layer_loop","emb","group_wait","cluster","expert_fuse","tp","argmax","route","combine"});
@@ -315,7 +323,12 @@ struct Sm90DenseCoordinates {
           throw std::invalid_argument("invalid native payload placement");
         result.reuse_payload=true;
       }
-      if(!result.live_epilogue_rows && !result.reuse_payload)
+      if(value.Find("copy_issue_group")) {
+        result.copy_issue_group=integer(value,"copy_issue_group");
+        if(result.copy_issue_group!=4 && result.copy_issue_group!=8)
+          throw std::invalid_argument("invalid weight copy issue group");
+      }
+      if(!result.live_epilogue_rows && !result.reuse_payload && !result.copy_issue_group)
         throw std::invalid_argument("schema 10 requires an explicit SM80 implementation choice");
     }
     if(schema>=7)result.tp=integer(value,"tp");

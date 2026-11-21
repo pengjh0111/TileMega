@@ -27,7 +27,7 @@ bool Sm90DenseSearchSpace::Legal(Sm90DenseCoordinates const& c) const {
      (head_dim!=64 && head_dim!=128) ||
      (queries!=1 && queries!=2 && queries!=3 && queries!=4 && queries!=8))
     return false;
-  if((c.live_epilogue_rows || c.reuse_payload) && !ampere)return false;
+  if((c.live_epilogue_rows || c.reuse_payload || c.copy_issue_group) && !ampere)return false;
   if(ampere && (c.cluster!=1 || c.attention.dsmem || c.tp!=1 ||
       std::any_of(c.gemms.begin(),c.gemms.end(),[](auto const& g){return g.multicast;})))
     return false;

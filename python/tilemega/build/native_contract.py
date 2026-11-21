@@ -41,9 +41,13 @@ def validate(manifest, defines):
         raise ValueError('native dense architecture or coordinate schema is invalid')
     reuse = c.get('payload') == 'reuse'
     live_rows = c.get('epilogue_rows') == 'live'
+    issue_group = c.get('copy_issue_group')
+    if ('copy_issue_group' in c and
+            (type(issue_group) is not int or issue_group not in (4, 8) or c.get('weight_stream'))):
+        raise ValueError('invalid native weight copy issue group')
     if ('payload' in c and not reuse) or ('epilogue_rows' in c and not live_rows):
         raise ValueError('unknown native payload or epilogue coordinate')
-    if (c['schema'] == 10) != (reuse or live_rows) or (c['schema'] == 10 and not ampere):
+    if (c['schema'] == 10) != bool(reuse or live_rows or issue_group) or (c['schema'] == 10 and not ampere):
         raise ValueError('explicit native payload and epilogue modes require SM80 schema 10')
     if reuse and c.get('weight_stream'):
         raise ValueError('reused native payload cannot carry a preissued stage')
@@ -52,6 +56,8 @@ def validate(manifest, defines):
         raise ValueError('native live epilogue rows require small dense batches or fused experts')
     if c['schema'] == 10 and live_rows != (defines.get('TILEMEGA_SM80_ACTIVE_EPILOGUE') == '1'):
         raise ValueError('native epilogue rows differ from generated macros')
+    if defines.get('TILEMEGA_SM80_COPY_ISSUE_GROUP') != (str(issue_group) if issue_group else None):
+        raise ValueError('native copy issue group differs from generated macros')
     if (c['attention'].get('merge') not in ('la', 'dsmem', 'stage') or
             (c['attention'].get('merge') == 'stage' and c['schema'] < 8)):
         raise ValueError('native independent attention merge coordinate is invalid')

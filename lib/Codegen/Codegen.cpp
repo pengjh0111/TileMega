@@ -2041,6 +2041,8 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     throw std::invalid_argument("shared payload reuse needs SM80 and no cross-stage weight preissue");
   if(c.live_epilogue_rows && !cp_async)
     throw std::invalid_argument("live epilogue rows require the SM80 native backend");
+  if(c.copy_issue_group && !cp_async)
+    throw std::invalid_argument("explicit weight copy issue groups require SM80");
   bool kernel_sequence=module->hasAttr("tmexec.native_kernel_sequence");
   if(cp_async && (kernel_sequence || c.cluster!=1 || c.attention.dsmem || c.tp!=1 ||
       std::any_of(c.gemms.begin(),c.gemms.end(),[](auto const& g){return g.multicast;})))
@@ -2188,6 +2190,8 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
      // program's generated source stays byte identical.
      <<(c.moe?"#define TILEMEGA_NATIVE_WEIGHT_EVICT_FIRST 1\n":"")
      <<(c.live_epilogue_rows?"#define TILEMEGA_SM80_ACTIVE_EPILOGUE 1\n":"")
+     <<(c.copy_issue_group?"#define TILEMEGA_SM80_COPY_ISSUE_GROUP "+
+         std::to_string(c.copy_issue_group)+"\n":"")
      <<(cp_async && c.expert_fuse && shared_expert_page==64 &&
          c.gemms[6].tile_n==128 && c.gemms[6].TileK()==64?
          "#define TILEMEGA_SM80_MOE_ALIGNED_GATE_PAGES 1\n":"")

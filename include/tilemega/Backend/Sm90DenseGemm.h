@@ -12,6 +12,10 @@
 #include <tilemega/Backend/Sm90DenseLayout.h>
 #include <cute/tensor.hpp>
 
+#ifndef TILEMEGA_SM80_COPY_ISSUE_GROUP
+#define TILEMEGA_SM80_COPY_ISSUE_GROUP 0
+#endif
+
 namespace tilemega::backend {
 
 // Multicast (D10c, clusters): the CTA pair (2j, 2j + 1) shares every A slot.
@@ -77,6 +81,27 @@ struct Sm90DenseGemm {
       Async::Copy16(destination+i,source+i);
   }
 
+  template<int Count>
+  __device__ static __forceinline__ void CopyWeightSpan(Element* destination,Element const* source) {
+    constexpr int group=TILEMEGA_SM80_COPY_ISSUE_GROUP;
+    static_assert(Count%8==0 && (group==0 || group==4 || group==8));
+    if constexpr(group==0)CopySpan(destination,source,Count);
+    else {
+      constexpr int warp_elements=32*8;
+      constexpr int grouped=Count/(warp_elements*group)*(warp_elements*group);
+      #pragma unroll 1
+      for(int base=(threadIdx.x&31)*8;base<grouped;base+=warp_elements*group) {
+        #pragma unroll
+        for(int i=0;i<group;++i) {
+          int offset=base+i*warp_elements;
+          Async::Copy16(destination+offset,source+offset);
+        }
+      }
+      if constexpr(grouped<Count)
+        CopySpan(destination+grouped,source+grouped,Count-grouped);
+    }
+  }
+
   template<int Bytes>
   // Raw operand pointers share the transfer loop across layer-specific bindings.
   __device__ static __forceinline__ void Preissue(Element const* weight,char* shared,
@@ -133,8 +158,12 @@ struct Sm90DenseGemm {
       if constexpr(Prefix>0)
         if(streamed && sequence<(Prefix+2*TN*TK-1)/(2*TN*TK))
           prefix=min(Prefix/2-sequence*TN*TK,TN*TK);
-      CopySpan(b+slot*TN*TK+prefix,p.weight+(std::size_t(task)*kIterations+tile)*TN*TK+prefix,
-          TN*TK-prefix);
+      auto* weight=p.weight+(std::size_t(task)*kIterations+tile)*TN*TK;
+      auto* weight_slot=b+slot*TN*TK;
+      if constexpr(Prefix==0 && Op==ServingEpilogueOp::kSwiGLU)
+        CopyWeightSpan<TN*TK>(weight_slot,weight);
+      else
+        CopySpan(weight_slot+prefix,weight+prefix,TN*TK-prefix);
       // MMA reads a padded activation panel. Clear its inactive rows on the
       // first use of each slot. Consumers only read this panel, so subsequent
       // tiles of this invocation can reuse the zeros until the stage tail.
