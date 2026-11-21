@@ -19,7 +19,7 @@ def summarize_coverage(folder, model, batch, target, source, cli):
     audit = folder/'candidate-coverage.jsonl'
     if not audit.exists():
         return
-    rows = [json.loads(line) for line in audit.read_text().splitlines()]
+    rows = [json.loads(line) for line in audit.read_text().splitlines() if line.strip()]
     counts = Counter(row['status'] for row in rows)
     pending = {}
     for index, row in enumerate(rows, start=1):

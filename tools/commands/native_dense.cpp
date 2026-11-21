@@ -397,7 +397,7 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
         row.Set("required",required);
         row.Set("target_sha256",target_sha);
         row.Set("export_sha256",input_sha);
-        coverage<<row.Dump(0)<<'\n'<<std::flush;
+        coverage<<row.Dump(0)<<std::flush;
       };
     }
     std::vector<solver::Sm90DenseCoordinates> seeds;

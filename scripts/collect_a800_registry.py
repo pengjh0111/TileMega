@@ -11,7 +11,9 @@ from pathlib import Path
 CONSTANTS = 'sm80_native_constants'
 DECISIONS = 'sm80_native_decisions'
 DEVICE = ('name', 'memory_mib', 'capability', 'mig', 'driver')
-SUPPLEMENTS = ('dense_gemm_service', 'fused_expert_service', 'attention_fresh_service')
+SUPPLEMENTS = ('dense_gemm_service', 'fused_expert_service', 'attention_fresh_service',
+               'compact_attention_service', 'fused_trace_header_equivalence',
+               'residual_copy_header_equivalence')
 MERGED = ('mma_mainloop', 'dense_gate_service', 'registry', *SUPPLEMENTS)
 
 
@@ -64,8 +66,19 @@ def append_supplements(constants, section, path):
                 != {k:v for k,v in existing.items() if k != 'profiles'}):
             raise ValueError(f'incompatible {name} reference in {path}')
         for profile in supplement['profiles']:
-            if profile not in existing['profiles']:
-                existing['profiles'].append(deepcopy(profile))
+            if profile in existing['profiles']:
+                continue
+            if name == 'fused_expert_service':
+                observation = {k:v for k,v in profile.items() if k != 'production_phases'}
+                previous = next((row for row in existing['profiles']
+                                 if {k:v for k,v in row.items() if k != 'production_phases'} == observation), None)
+                if previous is not None:
+                    phases = profile.get('production_phases')
+                    if phases is not None:
+                        if previous.setdefault('production_phases', deepcopy(phases)) != phases:
+                            raise ValueError(f'conflicting fused phase observations in {path}')
+                    continue
+            existing['profiles'].append(deepcopy(profile))
 
 
 def merge(paths):
