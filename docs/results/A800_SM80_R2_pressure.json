@@ -1,0 +1,1281 @@
+{
+  "baseline_sha256": "071975c5defbd5bd791cdffdcb54d34156e8458f6d21940ef7e8681579d1637e",
+  "mistral": {
+    "incumbent": {
+      "job": "350875",
+      "gpu_uuid": "GPU-9efe22cd-108e-5192-83cf-ececbde29476",
+      "t1_s": 0.46085622534155846,
+      "t1024_s": 13.507448341697454,
+      "tpot_ms": 12.753266975909966,
+      "tok_s": 1212.96040418105,
+      "tokens": "15c1788526612cd1de5b66f602771483f9a675d950b6a696c21e770de1474682",
+      "check": "c853abd1df4a473705f96e3cdcb5513badc46781945b86cabddd935e99cc3cb2",
+      "config": "affafc6478ec0fd07a32f0ca57aa2fc57743f4d17d6730f86a96ac24d1507f99",
+      "prompt": "40a1ff3b6478fdb9f07b46c2aa61e3b0abc711e84fc3a7c8a513c921e12b3529",
+      "evidence": "TileMega-a800/runs/a800/native/GPU-9efe22cd-108e-5192-83cf-ececbde29476/mistral_7b_v0_3/B16/a81d18be14cb74838baf/allocations/350875/native-candidate-timing-r0/raw/native-candidate-timing-r0/attempt1/job/measurements/B16/measurements.json",
+      "receipt_sha256": "d3a5964c9bf46e2b792c5b81864f82f8d168f5317dc76d1205508c5b52d2c39d"
+    },
+    "fastest_frozen_baseline": {
+      "framework": "sglang",
+      "t1_s": 0.07844994589686394,
+      "t1024_s": 11.790761053096503,
+      "tpot_ms": 11.448984464515776,
+      "tok_s": 1389.562550391708
+    },
+    "trial": {
+      "job": "351142",
+      "gpu_uuid": "GPU-07d75dc6-a681-4c59-e73f-3bf9d37f0dfb",
+      "t1_s": 0.45814695954322815,
+      "t1024_s": 13.088174605742097,
+      "tpot_ms": 12.3460680803508,
+      "tok_s": 1251.8170404612379,
+      "tokens": "15c1788526612cd1de5b66f602771483f9a675d950b6a696c21e770de1474682",
+      "check": "c853abd1df4a473705f96e3cdcb5513badc46781945b86cabddd935e99cc3cb2",
+      "config": "affafc6478ec0fd07a32f0ca57aa2fc57743f4d17d6730f86a96ac24d1507f99",
+      "prompt": "40a1ff3b6478fdb9f07b46c2aa61e3b0abc711e84fc3a7c8a513c921e12b3529",
+      "evidence": "TileMega-a800/runs/a800/native/GPU-07d75dc6-a681-4c59-e73f-3bf9d37f0dfb/mistral_7b_v0_3/B16/b33d7f162b525f613ec4/allocations/351142/native-candidate-timing-r0/raw/native-candidate-timing-r0/attempt1/job/measurements/B16/measurements.json",
+      "receipt_sha256": "7e81625b47d56a14adb45faec784adf28a9b1445ecd88d4d9eaed7a22a5cb680"
+    },
+    "correctness": {
+      "job": "351131",
+      "hf_positions": 16384,
+      "hf_max_gap": 0.078125,
+      "full_step_loop": true,
+      "tokens_sha256": "15c1788526612cd1de5b66f602771483f9a675d950b6a696c21e770de1474682",
+      "evidence": "TileMega-a800/runs/a800/native/GPU-07d75dc6-a681-4c59-e73f-3bf9d37f0dfb/mistral_7b_v0_3/B16/b33d7f162b525f613ec4/allocations/351131/native-correctness-r0/raw/native-correctness-r0/attempt1/job/measurements"
+    },
+    "adopted": true,
+    "selection": {
+      "measured_order": [
+        "c0",
+        "c1"
+      ],
+      "top_gap_pct": 2.767166372,
+      "threshold_pct": 0.5,
+      "winner": "c0",
+      "tie_broken_by_prediction": false,
+      "schema": 1,
+      "protocol": "P-SEL-single-process",
+      "protocol_version": "a800-single-v2",
+      "kind": "selection",
+      "process_receipts": {
+        "c0": "4d35b6ee8b5a15e1596bc5e88eebda9c4ebabc1b685297d44b1977658136ea37",
+        "c1": "24952f4cb46eaf62addd13ced13ce028fe98985b2a60720ab581d758b59f2ad1"
+      },
+      "winner_rank": 0,
+      "winner_binary_sha256": "15ab443d84175b0c0975d8c3eb1dba1abe5dd69f1be3863b8526d015a0ba334b",
+      "gpu_uuid": "GPU-07d75dc6-a681-4c59-e73f-3bf9d37f0dfb",
+      "checkpoint_sha256": "c853abd1df4a473705f96e3cdcb5513badc46781945b86cabddd935e99cc3cb2",
+      "arms": {
+        "c0": {
+          "tpot_ms": 12.3425733,
+          "range_pct": 0,
+          "processes": 1
+        },
+        "c1": {
+          "tpot_ms": 12.68411284,
+          "range_pct": 0,
+          "processes": 1
+        }
+      },
+      "predicted_ns": {
+        "c0": 11311799.22,
+        "c1": 12566729.98
+      },
+      "launch_order": [
+        "c0",
+        "c1"
+      ],
+      "prior_measurements": {},
+      "formal_timing": false
+    },
+    "selection_job": 351104,
+    "formal_artifacts": {
+      "target_sha256": "287dc43a395cca78310b715d7162dc0db42063edd44750707e90b565780215ce",
+      "prefill_sha256": "0fe0bf4384e0038eb6268361e4c402777d14534656c911c8007dd929ab4a33c0",
+      "decode_sha256": "a1b086258b35523c2d4fbffd348f8693254b694c6747c2b85ca662ac9dbb8d87"
+    }
+  },
+  "qwen": {
+    "incumbent": {
+      "job": "350177",
+      "gpu_uuid": "GPU-7a90562e-ea47-3096-c743-5172ac58d9de",
+      "t1_s": 2.6879459023475647,
+      "t1024_s": 31.301803309470415,
+      "tpot_ms": 27.970535099826833,
+      "tok_s": 523.4203230407173,
+      "tokens": "169d8d194aabd09c0f6ff5781fde07bdbecc23ccf0a82bdd587bfe2f215f8438",
+      "check": "2ce4ccb3bac783cba132292ceb8a1851b68e4df172a9b32000533829681475b9",
+      "config": "2850ddb3bf7aecad20b611e2d44f3077fc8193f4827c93beddd4c02ad63c2297",
+      "prompt": "fde7f712b970a3fb56e22ace96a5f3d7ff33dc430abccb191041c31749e427d1",
+      "evidence": "TileMega-a800/runs/a800/native/GPU-7a90562e-ea47-3096-c743-5172ac58d9de/qwen3_30b_a3b/B16/ced9ffa5b983bc7132c2/allocations/350177/native-candidate-timing-r0/raw/native-candidate-timing-r0/attempt1/job/measurements/B16/measurements.json",
+      "receipt_sha256": "1d5b7b164f00931108ea9c59913c25b47fc0cc08001a75080cb65a19697e3c8d"
+    },
+    "fastest_frozen_baseline": {
+      "framework": "sglang",
+      "t1_s": 0.06723897159099579,
+      "t1024_s": 26.19551234692335,
+      "tpot_ms": 25.540834188985684,
+      "tok_s": 625.4506414311187
+    },
+    "gu256": {
+      "correctness_job": 351136,
+      "correctness_status": "FAILED",
+      "pair_job": 351137,
+      "pair_status": "CANCELLED",
+      "rejection": {
+        "evidence": "TileMega-a800/runs/a800/native/GPU-6919d9c3-3c5d-dc7e-d442-705b44aa5313/qwen3_30b_a3b/B16/0744945df3aaed37ef23/allocations/351136/native-correctness-r0/raw/native-correctness-r0/attempt1/job/measurements/c1.json",
+        "sha256": "0d726b866a7ce187f4653814e7f3b8590c2d69219e524fe1f5c9cdc3c5ebd5dc",
+        "step_loop_pass": true,
+        "positions": 16384,
+        "gap_le_0_5_ratio": 0.4598388671875,
+        "required_ratio": 0.99,
+        "max_gap": 2.4866943359375,
+        "allowed_maximum": 3.0
+      }
+    },
+    "gate_geometry": [
+      {
+        "job": 351107,
+        "arm": "control",
+        "evidence": "TileMega-a800/runs/a800/calibration/r2-supplement-service/351107/control/qwen3_30b_a3b-b16-segments-copy8.json",
+        "sha256": "e1413873007495ce06c562dda88d94725188f5924348b5c63e933019ba5759e4",
+        "gpu_uuid": "GPU-610b0ba5-e58d-e41d-af01-86b35ff78cd5",
+        "plain_stage_us": 550.912,
+        "plain_kernel_us": 560.127974,
+        "producer_overhead_pct": 4.553736997116764,
+        "consumer_overhead_pct": 0.0,
+        "bitwise_instrumentation": true,
+        "geometry": {
+          "identity_sha256": "9419210f1c458c2813b1db9022b1af27f222ff255f98b4ece0c2da035c3eb603",
+          "target_sha256": "287dc43a395cca78310b715d7162dc0db42063edd44750707e90b565780215ce"
+        },
+        "residency": 1
+      },
+      {
+        "job": 351107,
+        "arm": "gu128-s2",
+        "evidence": "TileMega-a800/runs/a800/calibration/r2-supplement-service/351107/gu128-s2/qwen3_30b_a3b-b16-segments-gu128wn4-slots2-copy8.json",
+        "sha256": "ab8e105bdd15b56376c11b82cfd6f1a1c77ded34e60a7d3f3ec1d965c0385e76",
+        "gpu_uuid": "GPU-610b0ba5-e58d-e41d-af01-86b35ff78cd5",
+        "plain_stage_us": 590.848,
+        "plain_kernel_us": 600.06398,
+        "producer_overhead_pct": 8.858601428013579,
+        "consumer_overhead_pct": 0.0,
+        "bitwise_instrumentation": true,
+        "geometry": {
+          "identity_sha256": "f38fb94550e53d6c02fc83ea5918f455d1c50ceae33483854f9921b831b6a53c",
+          "target_sha256": "287dc43a395cca78310b715d7162dc0db42063edd44750707e90b565780215ce"
+        },
+        "residency": 1
+      },
+      {
+        "job": 351107,
+        "arm": "gu128-s3",
+        "evidence": "TileMega-a800/runs/a800/calibration/r2-supplement-service/351107/gu128-s3/qwen3_30b_a3b-b16-segments-gu128wn4-slots3-copy8.json",
+        "sha256": "ac88d42e7e5aa4e69eb5994b0fbf9cc26ca5f43c147481a79c8e3df722f766c7",
+        "gpu_uuid": "GPU-610b0ba5-e58d-e41d-af01-86b35ff78cd5",
+        "plain_stage_us": 591.872,
+        "plain_kernel_us": 601.087987,
+        "producer_overhead_pct": 11.623941014740847,
+        "consumer_overhead_pct": 0.0,
+        "bitwise_instrumentation": true,
+        "geometry": {
+          "identity_sha256": "0c856987484843345b9f316943ca2c4fc5bc3cb3e0e1e7285f926df4db87d950",
+          "target_sha256": "287dc43a395cca78310b715d7162dc0db42063edd44750707e90b565780215ce"
+        },
+        "residency": 1
+      },
+      {
+        "job": 351118,
+        "arm": "gu256",
+        "evidence": "TileMega-a800/runs/a800/calibration/r2-supplement-service/351118/gu256/qwen3_30b_a3b-b16-segments-copy8.json",
+        "sha256": "9ae6c24a8eb7b6afb07cd39ab9f0f2f6e2ae39c6dfb6002fc8017dbd617ea55e",
+        "gpu_uuid": "GPU-2f160309-7fda-599b-77d3-5362399b9092",
+        "plain_stage_us": 520.192,
+        "plain_kernel_us": 529.407978,
+        "producer_overhead_pct": 13.706567273263936,
+        "consumer_overhead_pct": 1.547389412405109,
+        "bitwise_instrumentation": true,
+        "geometry": {
+          "identity_sha256": "dc1726d1862ee0f6a39741e9a569060e3f2b0ef3afa46f0fbbc4c3ae38fd2361",
+          "target_sha256": "287dc43a395cca78310b715d7162dc0db42063edd44750707e90b565780215ce"
+        },
+        "residency": 1
+      }
+    ],
+    "route": {
+      "correctness": 351101,
+      "pair": 351102,
+      "debug": 351132,
+      "reproduce": 351138,
+      "memcheck-real": 351153,
+      "gdb": 351166,
+      "fault": {
+        "evidence": "TileMega-a800/runs/a800/optimization/r2-pressure/qwen-route/gdb-351166.out",
+        "sha256": "c6f5ef26603d030cd8b3b23dc246c265bdc30b5b2481890c1175053db2315e97",
+        "pc_offset_hex": "148f70",
+        "opcode": "LDG.E.128",
+        "past": 64,
+        "block": 0,
+        "thread": 32,
+        "site": "post-argmax embedding gather",
+        "exception": "CUDA_EXCEPTION_14"
+      }
+    },
+    "payload_diagnostic": {
+      "job": 351173,
+      "evidence": "TileMega-a800/runs/a800/optimization/r2-pressure/payload-diagnostic/allocation-351173",
+      "timing_eligible": false,
+      "arms": {
+        "reuse-gu192": {
+          "tokens_differing_per_step": [
+            15,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          "evidence_sha256": "cc46ea28aeab6ca0b75c206afb04c0d95566109971a7a9c368937de2b5bf43b3"
+        },
+        "reuse-gu256": {
+          "tokens_differing_per_step": [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          "evidence_sha256": "6cf58f0f625f34058c7beb9b4edefb3b762d503d9dcf470a7a9a4c7432e9e46f"
+        }
+      }
+    },
+    "current_control": {
+      "job": 351181,
+      "status": "FAILED",
+      "failure_log": "TileMega-a800/runs/a800/native/GPU-2f160309-7fda-599b-77d3-5362399b9092/qwen3_30b_a3b/B16/2f3b179032e265166857/allocations/351181/native-correctness-r0/results/native-correctness-r0.log"
+    },
+    "verified_rebuilds": {
+      "attention-rebuild": {
+        "job": "351231",
+        "status": "COMPLETED",
+        "hf_positions": 16384,
+        "hf_max_gap": 0.046875,
+        "full_step_loop": true,
+        "tokens_sha256": "169d8d194aabd09c0f6ff5781fde07bdbecc23ccf0a82bdd587bfe2f215f8438",
+        "evidence": "TileMega-a800/runs/a800/native/GPU-610b0ba5-e58d-e41d-af01-86b35ff78cd5/qwen3_30b_a3b/B16/1c3500ea44dbab506efe/allocations/351231/native-correctness-r0/raw/native-correctness-r0/attempt1/job/measurements"
+      },
+      "attention-rebuild-route-la": {
+        "job": "351232",
+        "status": "COMPLETED",
+        "hf_positions": 16384,
+        "hf_max_gap": 0.046875,
+        "full_step_loop": true,
+        "tokens_sha256": "169d8d194aabd09c0f6ff5781fde07bdbecc23ccf0a82bdd587bfe2f215f8438",
+        "evidence": "TileMega-a800/runs/a800/native/GPU-2f160309-7fda-599b-77d3-5362399b9092/qwen3_30b_a3b/B16/c7698fa4e0ba763f07cd/allocations/351232/native-correctness-r0/raw/native-correctness-r0/attempt1/job/measurements"
+      }
+    },
+    "corrected_synthetic": {
+      "job": 351214,
+      "evidence": "TileMega-a800/runs/a800/optimization/r2-pressure/attention-rebuild-synthetic/allocation-351214",
+      "arms": {
+        "route-la": [
+          {
+            "step": 0,
+            "different_tokens": 0,
+            "first_different_kv_layer": null
+          },
+          {
+            "step": 1,
+            "different_tokens": 0,
+            "first_different_kv_layer": null
+          },
+          {
+            "step": 2,
+            "different_tokens": 0,
+            "first_different_kv_layer": null
+          },
+          {
+            "step": 3,
+            "different_tokens": 0,
+            "first_different_kv_layer": null
+          },
+          {
+            "step": 4,
+            "different_tokens": 0,
+            "first_different_kv_layer": null
+          },
+          {
+            "step": 5,
+            "different_tokens": 0,
+            "first_different_kv_layer": null
+          },
+          {
+            "step": 6,
+            "different_tokens": 0,
+            "first_different_kv_layer": null
+          },
+          {
+            "step": 7,
+            "different_tokens": 0,
+            "first_different_kv_layer": null
+          }
+        ],
+        "gu256": [
+          {
+            "step": 0,
+            "different_tokens": 9,
+            "first_different_kv_layer": 1
+          },
+          {
+            "step": 1,
+            "different_tokens": 13,
+            "first_different_kv_layer": 0
+          },
+          {
+            "step": 2,
+            "different_tokens": 13,
+            "first_different_kv_layer": 0
+          },
+          {
+            "step": 3,
+            "different_tokens": 14,
+            "first_different_kv_layer": 0
+          },
+          {
+            "step": 4,
+            "different_tokens": 13,
+            "first_different_kv_layer": 0
+          },
+          {
+            "step": 5,
+            "different_tokens": 13,
+            "first_different_kv_layer": 0
+          },
+          {
+            "step": 6,
+            "different_tokens": 14,
+            "first_different_kv_layer": 0
+          },
+          {
+            "step": 7,
+            "different_tokens": 14,
+            "first_different_kv_layer": 0
+          }
+        ]
+      },
+      "timing_eligible": false,
+      "reuse-gu192": {
+        "job": 351255,
+        "evidence": "TileMega-a800/runs/a800/optimization/r2-pressure/attention-rebuild-payload-only/allocation-351255/reuse-gu192/out.log",
+        "sha256": "0662475c6b091bdd46fb695c457bab782c5699c7eb962bab0b3241fe1fa9330e",
+        "steps": [
+          {
+            "step": 0,
+            "different_tokens": 0,
+            "first_different_kv_layer": null
+          },
+          {
+            "step": 1,
+            "different_tokens": 0,
+            "first_different_kv_layer": null
+          },
+          {
+            "step": 2,
+            "different_tokens": 0,
+            "first_different_kv_layer": null
+          },
+          {
+            "step": 3,
+            "different_tokens": 0,
+            "first_different_kv_layer": null
+          },
+          {
+            "step": 4,
+            "different_tokens": 0,
+            "first_different_kv_layer": null
+          },
+          {
+            "step": 5,
+            "different_tokens": 0,
+            "first_different_kv_layer": null
+          },
+          {
+            "step": 6,
+            "different_tokens": 0,
+            "first_different_kv_layer": null
+          },
+          {
+            "step": 7,
+            "different_tokens": 0,
+            "first_different_kv_layer": null
+          }
+        ],
+        "timing_eligible": false
+      },
+      "gu256-wk2": {
+        "job": 351269,
+        "evidence": "TileMega-a800/runs/a800/optimization/r2-pressure/attention-rebuild-wk2-check/allocation-351269/gu256-wk2/out.log",
+        "sha256": "0662475c6b091bdd46fb695c457bab782c5699c7eb962bab0b3241fe1fa9330e",
+        "steps": [
+          {
+            "step": 0,
+            "different_tokens": 0,
+            "first_different_kv_layer": null
+          },
+          {
+            "step": 1,
+            "different_tokens": 0,
+            "first_different_kv_layer": null
+          },
+          {
+            "step": 2,
+            "different_tokens": 0,
+            "first_different_kv_layer": null
+          },
+          {
+            "step": 3,
+            "different_tokens": 0,
+            "first_different_kv_layer": null
+          },
+          {
+            "step": 4,
+            "different_tokens": 0,
+            "first_different_kv_layer": null
+          },
+          {
+            "step": 5,
+            "different_tokens": 0,
+            "first_different_kv_layer": null
+          },
+          {
+            "step": 6,
+            "different_tokens": 0,
+            "first_different_kv_layer": null
+          },
+          {
+            "step": 7,
+            "different_tokens": 0,
+            "first_different_kv_layer": null
+          }
+        ],
+        "timing_eligible": false
+      }
+    },
+    "corrected_route_pair": {
+      "job": 351238,
+      "status": "COMPLETED",
+      "control": {
+        "job": "351238",
+        "gpu_uuid": "GPU-2f160309-7fda-599b-77d3-5362399b9092",
+        "t1_s": 2.6974661890417337,
+        "t1024_s": 31.207123385742307,
+        "tpot_ms": 27.868677611633014,
+        "tok_s": 525.008338560465,
+        "tokens": "169d8d194aabd09c0f6ff5781fde07bdbecc23ccf0a82bdd587bfe2f215f8438",
+        "check": "2ce4ccb3bac783cba132292ceb8a1851b68e4df172a9b32000533829681475b9",
+        "config": "2850ddb3bf7aecad20b611e2d44f3077fc8193f4827c93beddd4c02ad63c2297",
+        "prompt": "fde7f712b970a3fb56e22ace96a5f3d7ff33dc430abccb191041c31749e427d1",
+        "evidence": "TileMega-a800/runs/a800/native/GPU-2f160309-7fda-599b-77d3-5362399b9092/qwen3_30b_a3b/B16/1c3500ea44dbab506efe/allocations/351238/native-tune-decode-r0/raw/native-tune-decode-r0/attempt1/job/measurements/B16/measurements.json",
+        "receipt_sha256": "0f2afb380f0d324eaded7e59abb6d73e6965b93261cbc7d3c5627376a153104d"
+      },
+      "route-la": {
+        "job": "351238",
+        "gpu_uuid": "GPU-2f160309-7fda-599b-77d3-5362399b9092",
+        "t1_s": 2.702255107462406,
+        "t1024_s": 31.8241404928267,
+        "tpot_ms": 28.467141139163534,
+        "tok_s": 514.8293008476702,
+        "tokens": "169d8d194aabd09c0f6ff5781fde07bdbecc23ccf0a82bdd587bfe2f215f8438",
+        "check": "2ce4ccb3bac783cba132292ceb8a1851b68e4df172a9b32000533829681475b9",
+        "config": "2850ddb3bf7aecad20b611e2d44f3077fc8193f4827c93beddd4c02ad63c2297",
+        "prompt": "fde7f712b970a3fb56e22ace96a5f3d7ff33dc430abccb191041c31749e427d1",
+        "evidence": "TileMega-a800/runs/a800/native/GPU-2f160309-7fda-599b-77d3-5362399b9092/qwen3_30b_a3b/B16/c7698fa4e0ba763f07cd/allocations/351238/native-tune-decode-r1/raw/native-tune-decode-r1/attempt1/job/measurements/B16/measurements.json",
+        "receipt_sha256": "f8e575a3022ba059b8e6f95def49f270ccf320cd1e57db5e01c6825aaeefbde6"
+      },
+      "same_tokens_between_arms": true
+    },
+    "wk2_expert_service": {
+      "job": 351278,
+      "arms": {
+        "control": {
+          "stage_us": 548.864,
+          "kernel_us": 557.05601,
+          "maximum_sampling_overhead_pct": 7.875464141042454,
+          "per_phase_overhead_pct": [
+            4.744529985005963,
+            4.753203595576871,
+            4.7618982889632955,
+            7.875464141042454
+          ],
+          "evidence": "TileMega-a800/runs/a800/calibration/r2-supplement-service/351278/control/qwen3_30b_a3b-b16-segments-copy8-shared-marks-split-phases.json",
+          "sha256": "704a7c791c3b750b4bcabf1f7ff515cefa10f1baca40215543508b2caeca694f",
+          "uuid": "GPU-72e07f94-7054-cca7-dc0d-d1b02de0bced"
+        },
+        "gu256-wk2": {
+          "stage_us": 519.168,
+          "kernel_us": 528.38397,
+          "maximum_sampling_overhead_pct": 3.68217624013083,
+          "per_phase_overhead_pct": [
+            2.7131879114349555,
+            2.906987886101109,
+            3.4951382795565866,
+            3.68217624013083
+          ],
+          "evidence": "TileMega-a800/runs/a800/calibration/r2-supplement-service/351278/gu256-wk2/qwen3_30b_a3b-b16-segments-copy8-shared-marks-split-phases.json",
+          "sha256": "ce625e1cde6f054da394301d15fe8dd6f6cf5e8fee6a1d55a02003f14b78e005",
+          "uuid": "GPU-72e07f94-7054-cca7-dc0d-d1b02de0bced"
+        }
+      }
+    },
+    "gu256_rebuilt_hf": {
+      "job": "351273",
+      "status": "COMPLETED",
+      "hf_positions": 16384,
+      "hf_max_gap": 0.046875,
+      "full_step_loop": true,
+      "tokens_sha256": "13f8fb247b07c90d7ba9c206491879c5970f75f997ed36355ad022cdff54053f",
+      "evidence": "TileMega-a800/runs/a800/native/GPU-0f0e1d55-1eb8-2c9e-1a25-e68f708d2562/qwen3_30b_a3b/B16/2af7bb5958e592c73a28/allocations/351273/native-correctness-r0/raw/native-correctness-r0/attempt1/job/measurements"
+    },
+    "gu256_wk2_correctness": {
+      "job": "351282",
+      "status": "COMPLETED",
+      "hf_positions": 16384,
+      "hf_max_gap": 0.046875,
+      "full_step_loop": true,
+      "tokens_sha256": "169d8d194aabd09c0f6ff5781fde07bdbecc23ccf0a82bdd587bfe2f215f8438",
+      "evidence": "TileMega-a800/runs/a800/native/GPU-72e07f94-7054-cca7-dc0d-d1b02de0bced/qwen3_30b_a3b/B16/167e87d994127ebb224e/allocations/351282/native-correctness-r0/raw/native-correctness-r0/attempt1/job/measurements"
+    },
+    "wk2_pipeline": {
+      "prepared_sha256": "849b5ff81bf7ec36696abdaaa8dc6a055056284da93870f7498ca1803a167073",
+      "ranked": [
+        {
+          "rank": 0,
+          "predicted_ns": 29289834.81,
+          "binary_sha256": "ff816273d6f816b7ad38822d3e8dbe72885eb2f5b225885a3d0e625286bcc238",
+          "coordinates_sha256": "22e3f8f62c919a06370c7a4a2f880103692474f52353d9db934f8ec0bd333ec2"
+        },
+        {
+          "rank": 1,
+          "predicted_ns": 29565633.16,
+          "binary_sha256": "bd2897f0955d797a67e58347c4e2d0eb17d7a406364eb3413df6f69bcf2c3f91",
+          "coordinates_sha256": "30f7e1bcdf07db8c485aabeb3394733145d0ddc5575908d9056bf76b1ee2773e"
+        }
+      ],
+      "source": "db8b23edd7296f2384db66225121c7c92b540df2",
+      "job": 351324,
+      "selection": {
+        "measured_order": [
+          "c1",
+          "c0"
+        ],
+        "top_gap_pct": 0.5616793349,
+        "threshold_pct": 0.5,
+        "winner": "c1",
+        "tie_broken_by_prediction": false,
+        "schema": 1,
+        "protocol": "P-SEL-single-process",
+        "protocol_version": "a800-single-v2",
+        "kind": "selection",
+        "process_receipts": {
+          "c0": "6c5fdeb29c52bd93280aef508ed0c75cd3667a2684c4bc2d224f63bf49c7bed9",
+          "c1": "6e8cc9f4fc28db87a76285de3f80b3dabb99714d82b2a0fb7c48d2dfd25b0ddf"
+        },
+        "winner_rank": 1,
+        "winner_binary_sha256": "bd2897f0955d797a67e58347c4e2d0eb17d7a406364eb3413df6f69bcf2c3f91",
+        "gpu_uuid": "GPU-b7817d38-dabe-8812-398d-3c31e493e072",
+        "checkpoint_sha256": "2ce4ccb3bac783cba132292ceb8a1851b68e4df172a9b32000533829681475b9",
+        "arms": {
+          "c0": {
+            "tpot_ms": 28.13912045,
+            "range_pct": 0,
+            "processes": 1
+          },
+          "c1": {
+            "tpot_ms": 27.98195161,
+            "range_pct": 0,
+            "processes": 1
+          }
+        },
+        "predicted_ns": {
+          "c0": 29289834.81,
+          "c1": 29565633.16
+        },
+        "launch_order": [
+          "c0",
+          "c1"
+        ],
+        "prior_measurements": {},
+        "formal_timing": false
+      },
+      "winner_anchor": 0,
+      "linked_occupancy": [
+        {
+          "rank": 0,
+          "occupancy": {
+            "resident_blocks_per_sm": 1,
+            "resident_clusters": 0,
+            "supported_residency": 1,
+            "registers": 254,
+            "static_shared_bytes": 0,
+            "dynamic_shared_bytes": 161792,
+            "sms": 108,
+            "grid": 108,
+            "cluster": 1,
+            "rank": 0,
+            "binary_sha256": "ff816273d6f816b7ad38822d3e8dbe72885eb2f5b225885a3d0e625286bcc238",
+            "identity_sha256": "78bec365a8438f44ac716dceb82199dcd20d1a37d733e41e24a2e78fe0ddcd5d",
+            "cubin_sha256": "dcb9d15d6cafb480dff6a39f955ab8a1d1323571fef80b5b5fad91536a2d95a6",
+            "ptxas_sha256": "35f3f3486d8130c684aaf3e12b42f677869875903ab53a8fc3a0074de120a15e",
+            "requested_residency": 1,
+            "linked_registers": 254,
+            "ptxas_registers": 106,
+            "gpu": 0,
+            "effective_residency": 1,
+            "evidence": "verified"
+          }
+        },
+        {
+          "rank": 1,
+          "occupancy": {
+            "resident_blocks_per_sm": 1,
+            "resident_clusters": 0,
+            "supported_residency": 1,
+            "registers": 254,
+            "static_shared_bytes": 0,
+            "dynamic_shared_bytes": 166144,
+            "sms": 108,
+            "grid": 108,
+            "cluster": 1,
+            "rank": 1,
+            "binary_sha256": "bd2897f0955d797a67e58347c4e2d0eb17d7a406364eb3413df6f69bcf2c3f91",
+            "identity_sha256": "2f3ebd8dbeade95fa00d58d722f8b3c02ea0d93310b3130ff07823b71adfe2fa",
+            "cubin_sha256": "2a8488d8e746991740140501a12857b241d5940d4b9076d1a717e4d8dfcd364e",
+            "ptxas_sha256": "96e5e2cfc13b060787b235fe81a768a6f66351fcd2ed51a085c07b551c903fcd",
+            "requested_residency": 1,
+            "linked_registers": 254,
+            "ptxas_registers": 106,
+            "gpu": 0,
+            "effective_residency": 1,
+            "evidence": "verified"
+          }
+        }
+      ],
+      "settled": "incumbent selected",
+      "arms": {
+        "c0": {
+          "processes": 1,
+          "t1_s": 2.6912520080804825,
+          "t1024_s": 31.477572225034237,
+          "tpot_ms": 28.139120446680113,
+          "tok_s": 520.497574681752,
+          "predicted_tpot_ms": 29.28983481,
+          "source_commit": "db8b23edd7296f2384db66225121c7c92b540df2",
+          "body_sha256": "2e075d4d0f653d93de30ac11f6323c4ed2ff286ef5a276643658c789cc2daecc",
+          "coordinates_sha256": "22e3f8f62c919a06370c7a4a2f880103692474f52353d9db934f8ec0bd333ec2",
+          "artifact_id": "8ff5b0a105c02ffb12494a442d9028701aaeb521ec3d87d7a5ac8b93f990b23e",
+          "decode_sha256": "ff816273d6f816b7ad38822d3e8dbe72885eb2f5b225885a3d0e625286bcc238",
+          "prefill_sha256": "1d206bc4d4b7a859ab9e58689e5384707fdaa639ab4edcd662168586f753ec3f",
+          "process_receipt_sha256": "6c5fdeb29c52bd93280aef508ed0c75cd3667a2684c4bc2d224f63bf49c7bed9",
+          "evidence": "TileMega-a800/runs/a800/optimization/r2-pressure/wk2-pipeline/selected.so.search/measure/00-c0/measurements/B16/measurements.json",
+          "strict": true,
+          "equivalence": {
+            "evidence": "TileMega-a800/runs/a800/optimization/r2-pressure/wk2-pipeline/verified-candidate-1/comparison.json",
+            "evidence_sha256": "cfbff32e9409110ddefa80e6b5d13975d2d9ce29d05ebecd5eecc12f21737854",
+            "reference_sha256": "bc49a75a0b878e627e7976b1ed6d7d801e06cc34174f02bb794c6c805189b655",
+            "same_instructions": true,
+            "same_instruction_encoding": true
+          }
+        },
+        "c1": {
+          "processes": 1,
+          "t1_s": 2.6860276088118553,
+          "t1024_s": 31.311564102768898,
+          "tpot_ms": 27.98195160699613,
+          "tok_s": 523.2571565644386,
+          "predicted_tpot_ms": 29.56563316,
+          "source_commit": "db8b23edd7296f2384db66225121c7c92b540df2",
+          "body_sha256": "2e075d4d0f653d93de30ac11f6323c4ed2ff286ef5a276643658c789cc2daecc",
+          "coordinates_sha256": "30f7e1bcdf07db8c485aabeb3394733145d0ddc5575908d9056bf76b1ee2773e",
+          "artifact_id": "ac24c3bf95e63a0a1fb2f6b7f73d3e0f3ebfe41b311eda590ab5a20be91583c0",
+          "decode_sha256": "bd2897f0955d797a67e58347c4e2d0eb17d7a406364eb3413df6f69bcf2c3f91",
+          "prefill_sha256": "1d206bc4d4b7a859ab9e58689e5384707fdaa639ab4edcd662168586f753ec3f",
+          "process_receipt_sha256": "6e8cc9f4fc28db87a76285de3f80b3dabb99714d82b2a0fb7c48d2dfd25b0ddf",
+          "evidence": "TileMega-a800/runs/a800/optimization/r2-pressure/wk2-pipeline/selected.so.search/measure/01-c1/measurements/B16/measurements.json",
+          "strict": true,
+          "equivalence": {
+            "evidence": "TileMega-a800/runs/a800/optimization/r2-pressure/wk2-pipeline/verified-candidate-0/comparison.json",
+            "evidence_sha256": "6ff796453b084dc382de6f9a67c6ac6f90ec058f5413460cb9579239657cadb7",
+            "reference_sha256": "f4edf411ef8a9f2f244365d61ae816614eb02a0935b14a292ce4591144c910fa",
+            "same_instructions": true,
+            "same_instruction_encoding": true
+          }
+        }
+      },
+      "adopted": false,
+      "target_sha256": "8b84f8b6269e933d678734036bdbc02adb5c4a46a0a6570fabe401186bc709ad",
+      "exact_tokens_all_repeats": true
+    },
+    "unit": {
+      "351157": {
+        "control": 0,
+        "global-la": 75,
+        "gu256": 75
+      },
+      "351161": {
+        "global-la": 0,
+        "gu256": 0
+      }
+    },
+    "control_rebuild": {
+      "same_workload": true,
+      "same_coordinates": true,
+      "same_source": true,
+      "same_instructions": false,
+      "same_instruction_encoding": false,
+      "changed_functions": [
+        "_ZN8tilemega7backend22Sm90DenseAttentionBodyILi16ELi4ELi128ELi8ELi1ELi1ELi64ELi4ELi0ELi1088ELb0ELb0ELb1EE3RunILi0ENS0_15Sm90DenseNoTailEEEvRKNS0_26Sm90DenseAttentionOperandsEPcPNS0_18Sm90DenseRingStateET0_b"
+      ],
+      "pass": false
+    }
+  },
+  "compiled_attention_equivalence": {
+    "qwen_original_layout": {
+      "reference_sha256": "b969d8a893e655868a9acc39f9600a9efbb48fed5fd241b8b9e4e478dba295d3",
+      "candidate_sha256": "f4edf411ef8a9f2f244365d61ae816614eb02a0935b14a292ce4591144c910fa",
+      "same_workload": true,
+      "same_coordinates": true,
+      "same_source": true,
+      "same_instructions": true,
+      "same_instruction_encoding": true,
+      "pass": true,
+      "evidence": "TileMega-a800/runs/a800/optimization/r2-pressure/attention-rebuild/rebuild/comparison.json",
+      "sha256": "55af41f9bffa31739ce3b255289844e2edbf0a3a6af8c48a40b660b121b4aa14"
+    },
+    "mistral_compact": {
+      "reference_sha256": "a1b086258b35523c2d4fbffd348f8693254b694c6747c2b85ca662ac9dbb8d87",
+      "candidate_sha256": "8318bc900d480421a731b504b13ee68ce0cdb70773c8239e6cb6f64cdb5bbcff",
+      "same_workload": true,
+      "same_coordinates": true,
+      "same_source": true,
+      "same_instructions": true,
+      "same_instruction_encoding": true,
+      "pass": true,
+      "evidence": "TileMega-a800/runs/a800/optimization/r2-pressure/attention-rebuild-mistral/rebuild/comparison.json",
+      "sha256": "fe2a42a52c25cb0d16bf4275f1cd2d3b70233766810b4c7620b26c4645f6748b"
+    }
+  },
+  "normal_candidate_coverage": {
+    "mistral": {
+      "evidence": "TileMega-a800/runs/a800/optimization/r2-pressure/normal-replay/mistral.so.search/candidate-coverage.jsonl",
+      "sha256": "6b458829094e26720ec004c5c641644d541b8f0a1e1a4e71302bc523648eef28",
+      "candidates": 59,
+      "anchors": [
+        {
+          "origin": "incumbent",
+          "status": "legal_priced",
+          "coordinates": {
+            "schema": 10,
+            "model": "dense",
+            "gemms": {
+              "qkv": {
+                "tile_n": 32,
+                "warps_n": 4,
+                "warps_k": 1,
+                "slot_bytes": 16384,
+                "slots": 2,
+                "mma": "mma_sync",
+                "register_stages": 1,
+                "multicast": false
+              },
+              "o": {
+                "tile_n": 32,
+                "warps_n": 4,
+                "warps_k": 1,
+                "slot_bytes": 8192,
+                "slots": 2,
+                "mma": "mma_sync",
+                "register_stages": 1,
+                "multicast": false
+              },
+              "gate_up": {
+                "tile_n": 128,
+                "warps_n": 4,
+                "warps_k": 1,
+                "slot_bytes": 16384,
+                "slots": 2,
+                "mma": "mma_sync",
+                "register_stages": 1,
+                "multicast": false
+              },
+              "down": {
+                "tile_n": 32,
+                "warps_n": 4,
+                "warps_k": 1,
+                "slot_bytes": 8192,
+                "slots": 2,
+                "mma": "mma_sync",
+                "register_stages": 1,
+                "multicast": false
+              },
+              "lm_head": {
+                "tile_n": 128,
+                "warps_n": 4,
+                "warps_k": 1,
+                "slot_bytes": 16384,
+                "slots": 2,
+                "mma": "mma_sync",
+                "register_stages": 1,
+                "multicast": false
+              }
+            },
+            "attention": {
+              "chunks": 1,
+              "block_keys": 64,
+              "slots": 2,
+              "new_row_work": 0,
+              "merge": "la",
+              "compact_workspace": true
+            },
+            "residency": 2,
+            "swiglu_u": 16,
+            "weight_stream": false,
+            "layer_loop": false,
+            "emb": "la",
+            "group_wait": true,
+            "cluster": 1,
+            "expert_fuse": false,
+            "tp": 1,
+            "payload": "reuse",
+            "argmax": "stage"
+          },
+          "target_sha256": "0ed1258f9bf44bf1b00de010b95111ccb68270cda3f15efe9afad06f49e8c5cd",
+          "measured_services": [
+            {
+              "kind": "dense_service",
+              "family": "qkv",
+              "key": "store:216:6144:4096:16:32:256:2:4:1:1:16:0:1:0:0"
+            },
+            {
+              "kind": "dense_service",
+              "family": "o",
+              "key": "residual:216:4096:4096:16:32:128:2:4:1:1:16:2:0:0:0"
+            },
+            {
+              "kind": "dense_service",
+              "family": "gate_up",
+              "key": "swiglu:216:28672:4096:16:128:64:2:4:1:1:16:0:1:0:0"
+            },
+            {
+              "kind": "dense_service",
+              "family": "down",
+              "key": "residual:216:4096:14336:16:32:128:2:4:1:1:16:2:0:0:0"
+            },
+            {
+              "kind": "attention_service",
+              "family": "compact_attention",
+              "key": {
+                "grid": 216,
+                "batch": 16,
+                "head_dim": 128,
+                "queries": 4,
+                "norm": 0
+              }
+            }
+          ]
+        },
+        {
+          "origin": "submitted_trial",
+          "status": "legal_priced",
+          "coordinates": {
+            "schema": 10,
+            "model": "dense",
+            "gemms": {
+              "qkv": {
+                "tile_n": 32,
+                "warps_n": 4,
+                "warps_k": 1,
+                "slot_bytes": 8192,
+                "slots": 2,
+                "mma": "mma_sync",
+                "register_stages": 1,
+                "multicast": false
+              },
+              "o": {
+                "tile_n": 32,
+                "warps_n": 4,
+                "warps_k": 1,
+                "slot_bytes": 8192,
+                "slots": 3,
+                "mma": "mma_sync",
+                "register_stages": 1,
+                "multicast": false
+              },
+              "gate_up": {
+                "tile_n": 128,
+                "warps_n": 4,
+                "warps_k": 1,
+                "slot_bytes": 16384,
+                "slots": 3,
+                "mma": "mma_sync",
+                "register_stages": 1,
+                "multicast": false
+              },
+              "down": {
+                "tile_n": 32,
+                "warps_n": 4,
+                "warps_k": 1,
+                "slot_bytes": 8192,
+                "slots": 3,
+                "mma": "mma_sync",
+                "register_stages": 1,
+                "multicast": false
+              },
+              "lm_head": {
+                "tile_n": 128,
+                "warps_n": 4,
+                "warps_k": 1,
+                "slot_bytes": 16384,
+                "slots": 2,
+                "mma": "mma_sync",
+                "register_stages": 1,
+                "multicast": false
+              }
+            },
+            "attention": {
+              "chunks": 1,
+              "block_keys": 64,
+              "slots": 2,
+              "new_row_work": 0,
+              "merge": "la",
+              "compact_workspace": true
+            },
+            "residency": 2,
+            "swiglu_u": 16,
+            "weight_stream": false,
+            "layer_loop": false,
+            "emb": "la",
+            "group_wait": true,
+            "cluster": 1,
+            "expert_fuse": false,
+            "tp": 1,
+            "payload": "reuse",
+            "argmax": "stage"
+          },
+          "target_sha256": "0ed1258f9bf44bf1b00de010b95111ccb68270cda3f15efe9afad06f49e8c5cd",
+          "measured_services": [
+            {
+              "kind": "dense_service",
+              "family": "qkv",
+              "key": "store:216:6144:4096:16:32:128:2:4:1:1:16:0:1:0:0"
+            },
+            {
+              "kind": "dense_service",
+              "family": "o",
+              "key": "residual:216:4096:4096:16:32:128:3:4:1:1:16:2:0:0:0"
+            },
+            {
+              "kind": "dense_service",
+              "family": "gate_up",
+              "key": "swiglu:216:28672:4096:16:128:64:3:4:1:1:16:0:1:0:0"
+            },
+            {
+              "kind": "dense_service",
+              "family": "down",
+              "key": "residual:216:4096:14336:16:32:128:3:4:1:1:16:2:0:0:0"
+            },
+            {
+              "kind": "attention_service",
+              "family": "compact_attention",
+              "key": {
+                "grid": 216,
+                "batch": 16,
+                "head_dim": 128,
+                "queries": 4,
+                "norm": 0
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "qwen": {
+      "evidence": "TileMega-a800/runs/a800/optimization/r2-pressure/wk2-pipeline/prepared.so.search/candidate-coverage.jsonl",
+      "sha256": "f3770a295c04894dd344a2ac9ecc1978fb04405b37ffed890cad577aeda2bb9e",
+      "candidates": 32,
+      "anchors": [
+        {
+          "origin": "incumbent",
+          "status": "legal_priced",
+          "coordinates": {
+            "schema": 10,
+            "model": "moe",
+            "gemms": {
+              "qkv": {
+                "tile_n": 64,
+                "warps_n": 4,
+                "warps_k": 1,
+                "slot_bytes": 16384,
+                "slots": 2,
+                "mma": "mma_sync",
+                "register_stages": 1,
+                "multicast": false
+              },
+              "o": {
+                "tile_n": 32,
+                "warps_n": 1,
+                "warps_k": 4,
+                "slot_bytes": 4096,
+                "slots": 2,
+                "mma": "mma_sync",
+                "register_stages": 1,
+                "multicast": false
+              },
+              "router": {
+                "tile_n": 16,
+                "warps_n": 1,
+                "warps_k": 4,
+                "slot_bytes": 2048,
+                "slots": 2,
+                "mma": "mma_sync",
+                "register_stages": 1,
+                "multicast": false
+              },
+              "expert_gate_up": {
+                "tile_n": 192,
+                "warps_n": 2,
+                "warps_k": 2,
+                "slot_bytes": 24576,
+                "slots": 2,
+                "mma": "mma_sync",
+                "register_stages": 1,
+                "multicast": false
+              },
+              "expert_down": {
+                "tile_n": 128,
+                "warps_n": 4,
+                "warps_k": 1,
+                "slot_bytes": 16384,
+                "slots": 2,
+                "mma": "mma_sync",
+                "register_stages": 1,
+                "multicast": false
+              },
+              "lm_head": {
+                "tile_n": 128,
+                "warps_n": 4,
+                "warps_k": 1,
+                "slot_bytes": 16384,
+                "slots": 2,
+                "mma": "mma_sync",
+                "register_stages": 1,
+                "multicast": false
+              }
+            },
+            "attention": {
+              "chunks": 1,
+              "block_keys": 64,
+              "slots": 4,
+              "new_row_work": 0,
+              "merge": "la"
+            },
+            "residency": 1,
+            "swiglu_u": 16,
+            "weight_stream": false,
+            "layer_loop": false,
+            "emb": "la",
+            "group_wait": true,
+            "cluster": 1,
+            "expert_fuse": true,
+            "tp": 1,
+            "copy_issue_group": 8,
+            "expert_page_copy": "segments",
+            "argmax": "stage"
+          },
+          "target_sha256": "8b84f8b6269e933d678734036bdbc02adb5c4a46a0a6570fabe401186bc709ad",
+          "measured_services": [
+            {
+              "kind": "fused_service",
+              "family": "gu_dn",
+              "key": [
+                16,
+                1536,
+                2048,
+                2048,
+                192,
+                64,
+                128,
+                64,
+                2,
+                2,
+                4,
+                128,
+                1,
+                64,
+                1,
+                0,
+                1,
+                0,
+                8,
+                0,
+                0
+              ]
+            }
+          ]
+        },
+        {
+          "origin": "submitted_trial",
+          "status": "legal_priced",
+          "coordinates": {
+            "schema": 10,
+            "model": "moe",
+            "gemms": {
+              "qkv": {
+                "tile_n": 64,
+                "warps_n": 4,
+                "warps_k": 1,
+                "slot_bytes": 16384,
+                "slots": 2,
+                "mma": "mma_sync",
+                "register_stages": 1,
+                "multicast": false
+              },
+              "o": {
+                "tile_n": 32,
+                "warps_n": 1,
+                "warps_k": 4,
+                "slot_bytes": 4096,
+                "slots": 2,
+                "mma": "mma_sync",
+                "register_stages": 1,
+                "multicast": false
+              },
+              "router": {
+                "tile_n": 16,
+                "warps_n": 1,
+                "warps_k": 4,
+                "slot_bytes": 2048,
+                "slots": 2,
+                "mma": "mma_sync",
+                "register_stages": 1,
+                "multicast": false
+              },
+              "expert_gate_up": {
+                "tile_n": 256,
+                "warps_n": 2,
+                "warps_k": 2,
+                "slot_bytes": 32768,
+                "slots": 2,
+                "mma": "mma_sync",
+                "register_stages": 1,
+                "multicast": false
+              },
+              "expert_down": {
+                "tile_n": 128,
+                "warps_n": 4,
+                "warps_k": 1,
+                "slot_bytes": 16384,
+                "slots": 2,
+                "mma": "mma_sync",
+                "register_stages": 1,
+                "multicast": false
+              },
+              "lm_head": {
+                "tile_n": 128,
+                "warps_n": 4,
+                "warps_k": 1,
+                "slot_bytes": 16384,
+                "slots": 2,
+                "mma": "mma_sync",
+                "register_stages": 1,
+                "multicast": false
+              }
+            },
+            "attention": {
+              "chunks": 1,
+              "block_keys": 64,
+              "slots": 4,
+              "new_row_work": 0,
+              "merge": "la"
+            },
+            "residency": 1,
+            "swiglu_u": 16,
+            "weight_stream": false,
+            "layer_loop": false,
+            "emb": "la",
+            "group_wait": true,
+            "cluster": 1,
+            "expert_fuse": true,
+            "tp": 1,
+            "payload": "reuse",
+            "copy_issue_group": 8,
+            "expert_page_copy": "segments",
+            "argmax": "stage"
+          },
+          "target_sha256": "8b84f8b6269e933d678734036bdbc02adb5c4a46a0a6570fabe401186bc709ad",
+          "measured_services": [
+            {
+              "kind": "fused_service",
+              "family": "gu_dn",
+              "key": [
+                16,
+                1536,
+                2048,
+                2048,
+                256,
+                64,
+                128,
+                64,
+                2,
+                2,
+                4,
+                128,
+                1,
+                64,
+                1,
+                0,
+                1,
+                0,
+                8,
+                0,
+                1
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "attention_price_equivalence": {
+    "attention_fresh_service": {
+      "job": 350130,
+      "reference_sha256": "d46ee98c88f6d64d0ffc36ded15bc20f8fff5b1afa7a2e649e7469ad7d7d0191",
+      "equivalent_sha256": "d89d0e59e6520900d298cb3600d1c262cb398b63db6a25bd650a0baed531a1b4",
+      "sass_sha256": "e795c2d8f11f6d25dd56a85f178ec8537b1e6f76f1a99a95741f80dca1a05adb",
+      "resources_sha256": "6cd9f784b83f3f07c4f5cb4f231cbdd26712e3be0e2a6a20f5c94d0d43c28e6d",
+      "reference_binary_sha256": "69be59710fbaeec57c06081d3b8adf7de9d0134572a037c21d611e72e58d01df",
+      "rebuild_binary_sha256": "5a5508478ab53016953ab1af8a09f4874c9af15aa5ebe2a5e9a7efd533c26bbd",
+      "evidence": "TileMega-a800/runs/a800/optimization/r2-pressure/attention-probe-equivalence"
+    },
+    "compact_attention_service": {
+      "job": 350775,
+      "reference_sha256": "2ed8b5f515629d1946325903de2b20368efe13d677a701ee99bbccdd4239f77c",
+      "equivalent_sha256": "d89d0e59e6520900d298cb3600d1c262cb398b63db6a25bd650a0baed531a1b4",
+      "sass_sha256": "d45d5de74140eea37031faabe4cfdee91a7a0dde6a61c1eef8b604b5a29e2c37",
+      "resources_sha256": "b6033ed4488d1859f2596f6ee4c9278b4d4b5b6227f7c90f09a76c54093f9d88",
+      "reference_binary_sha256": "ae122ec5bda561eca9d91ef8daa839fd95fc8c9aac715d3503b68ba908135eb4",
+      "rebuild_binary_sha256": "b75fb015eb5f09bb0a9ecc0397e0558f01290e2f35f40c6a7c65b7c93eee26e4",
+      "evidence": "TileMega-a800/runs/a800/optimization/r2-pressure/attention-probe-equivalence"
+    }
+  },
+  "admission_evidence": {
+    "path": "TileMega-a800/runs/a800/optimization/r2-pressure/admission/check.log",
+    "sha256": "fb184ea57734512b1f088f9181209901b9cd46df3eb7eaa2500ea9e48dde20b5"
+  }
+}
