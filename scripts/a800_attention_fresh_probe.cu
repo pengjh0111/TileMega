@@ -58,6 +58,59 @@ __global__ void ClockRate(Tick* out) {
   out[1]=elapsed;
 }
 
+struct BarrierSpan {Tick begin,end;unsigned sm;};
+
+__global__ __launch_bounds__(160,2) void CompactBarrier(BarrierSpan* spans) {
+  extern __shared__ __align__(1024) char bytes[];
+  if(threadIdx.x==0)*reinterpret_cast<volatile char*>(bytes)=0;
+  if(threadIdx.x>=128)return;
+  auto stamp=[] {
+    Tick value;asm volatile("mov.u64 %0, %%globaltimer;":"=l"(value)::"memory");return value;
+  };
+  codegen::executor::ComputeSync();
+  Tick begin=stamp();
+  for(int i=0;i<64;++i) {
+    #pragma unroll
+    for(int barrier=0;barrier<16;++barrier)codegen::executor::ComputeSync();
+  }
+  Tick end=stamp();
+  if(threadIdx.x==0) {
+    unsigned sm;asm volatile("mov.u32 %0, %%smid;":"=r"(sm));
+    spans[blockIdx.x]={begin,end,sm};
+  }
+}
+
+void CompactWorkspaceBarrier() {
+  constexpr int grid=216,shared=backend::Sm80AttentionScratch::Layout(128,4,1,64,2,false,true).end;
+  int residency=0;
+  Check(cudaFuncSetAttribute(CompactBarrier,cudaFuncAttributeMaxDynamicSharedMemorySize,shared));
+  Check(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&residency,CompactBarrier,160,shared));
+  if(residency!=2)throw std::runtime_error("unexpected compact barrier residency");
+  BarrierSpan* device=nullptr;
+  Check(cudaMalloc(&device,grid*sizeof(BarrierSpan)));
+  std::vector<BarrierSpan> host(grid);
+  std::vector<double> samples;
+  for(int repeat=-1;repeat<9;++repeat) {
+    CompactBarrier<<<grid,160,shared>>>(device);
+    Check(cudaMemcpy(host.data(),device,grid*sizeof(BarrierSpan),cudaMemcpyDeviceToHost));
+    if(repeat<0)continue;
+    std::sort(host.begin(),host.end(),[](auto const& a,auto const& b) {
+      return a.sm<b.sm;
+    });
+    for(int i=0;i<grid;i+=2)
+      if(host[i].sm!=host[i+1].sm || (i && host[i-1].sm==host[i].sm) ||
+          std::max(host[i].begin,host[i+1].begin)>=std::min(host[i].end,host[i+1].end))
+        throw std::runtime_error("compact barrier probe did not overlap both CTAs");
+    for(auto const& row:host)samples.push_back(double(row.end-row.begin)/1024);
+  }
+  Check(cudaFree(device));
+  std::sort(samples.begin(),samples.end());
+  std::printf("{\"status\":\"measured\",\"grid\":%d,\"dynamic_shared\":%d,\"residency\":%d,"
+              "\"overlapping_sms\":108,\"consumer_threads\":128,\"iterations\":1024,"
+              "\"samples\":%zu,\"barrier_ns\":%.3f}\n",
+              grid,shared,residency,samples.size(),samples[samples.size()/2]);
+}
+
 template<int D,int Q,int Norm>
 void Case() {
   using Body=backend::Sm90DenseAttentionBody<1,8,D,Q,Norm,1,64,2,0,1088,false,false,true>;
@@ -97,7 +150,8 @@ int main(int argc,char** argv) {
 #define CASE(D,Q,N) if(!std::strcmp(argv[1],"d" #D "-q" #Q "-norm" #N)) Case<D,Q,N>(); else
     CASE(128,1,2) CASE(128,2,1) CASE(128,3,0)
     CASE(128,4,0) CASE(128,8,1) CASE(64,4,0)
-    throw std::invalid_argument("unknown attention shape");
+    if(!std::strcmp(argv[1],"compact-workspace-barrier"))CompactWorkspaceBarrier();
+    else throw std::invalid_argument("unknown attention shape");
 #undef CASE
     Check(cudaDeviceReset());std::this_thread::sleep_for(std::chrono::seconds(2));
     return 0;
