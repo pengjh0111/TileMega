@@ -83,9 +83,21 @@ def append(base, target_sha, run, binary):
                    measurement_sha256=sha(measurement), gpu_uuid=device['nvml_uuid'],
                    guard_sha256=sha(run/'guard/guard_result.json'), evidence=str(run))
     for previous in registry['profiles']:
-        if previous == profile:
+        if all(previous.get(key) == value for key, value in profile.items()):
             return
-        if previous['shape'] == shape and previous['body_headers'] == profile['body_headers']:
+        previous_shape = dict(gu_route_bases=0)
+        previous_shape.update(previous['shape'])
+        if previous_shape != shape:
+            continue
+        old_headers = previous['body_headers']
+        headers = profile['body_headers']
+        moe_header = 'Backend/Sm90DenseMoe.cuh'
+        proof = previous.get('moe_header_equivalence')
+        if (proof and proof['reference_sha256'] == old_headers[moe_header]
+                and proof['equivalent_sha256'] == headers[moe_header]
+                and len(proof['preprocessed_sha256']) == 64):
+            old_headers = old_headers | {moe_header: proof['equivalent_sha256']}
+        if old_headers == headers:
             raise ValueError('retain the selected observation for this compatible fused geometry')
     registry['profiles'].append(profile)
 
