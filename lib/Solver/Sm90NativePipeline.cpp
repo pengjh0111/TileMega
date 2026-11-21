@@ -37,10 +37,16 @@ bool HasCompactAttentionService(Sm90DenseWorkload const& work,Sm90DenseCostModel
 }
 
 double Replay(Sm90NativeFlowResult const& flow, Sm90DenseCoordinates const& c) {
-  std::vector<int> offsets(flow.problem.spaces.size());
-  if(c.expert_fuse)for(std::size_t s=1;s<offsets.size();++s)
-    if(flow.nodes[s].price.name=="gemm7" && flow.nodes[s-1].price.name=="gemm6")
-      offsets[s]=flow.problem.spaces[s-1].count;
+  auto const& spaces=flow.problem.spaces;
+  std::vector<int> offsets(spaces.size());
+  // Standalone flow repeats its stage descriptions for each layer. The
+  // expanded spaces, not the compact price table, index replay tracks.
+  if(c.expert_fuse)for(std::size_t s=1;s<spaces.size();++s) {
+    auto const& down=spaces[s].name;auto const& gate=spaces[s-1].name;
+    if((down=="gemm7" || down.ends_with(":gemm7")) &&
+       (gate=="gemm6" || gate.ends_with(":gemm6")))
+      offsets[s]=spaces[s-1].count;
+  }
   auto tracks=Sm90NativeCandidateTracks(flow.problem,offsets);
   return Sm90NativeRequestScore(flow,[&](FlowProblem const& problem,int) {
     return Sm90NativeScoreWithFusedService(flow,RefineAndReplaySm90Native(problem,tracks).replay);
