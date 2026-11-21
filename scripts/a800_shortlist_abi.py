@@ -50,6 +50,7 @@ def freeze_host_preparation(config, batch, paths, out):
 
 def check_shortlist(prefill, prepared, config, batch):
     prefix = () if prefill == 'prompt' else (Path(prefill),)
+    audit = prepared.parent/'candidate-coverage.jsonl'
     prepared = json.loads(prepared.read_text())
     rows = []
     for item in prepared['receipt']['candidates']:
@@ -57,7 +58,18 @@ def check_shortlist(prefill, prepared, config, batch):
             continue
         binary = Path(item['binary'])
         host = binary.with_suffix('.host-preparation.json')
-        report = freeze_host_preparation(config, batch, (*prefix, binary), host)
+        coverage = dict(schema=1, check='linked_abi', rank=item['rank'],
+                        coordinates_sha256=item['coordinates_sha256'], binary_sha256=item['binary_sha256'])
+        try:
+            report = freeze_host_preparation(config, batch, (*prefix, binary), host)
+        except ValueError as error:
+            if audit.is_file():
+                with audit.open('a') as stream:
+                    stream.write(json.dumps(dict(coverage, status='abi_incompatible', reason=str(error)))+'\n')
+            raise
+        if audit.is_file():
+            with audit.open('a') as stream:
+                stream.write(json.dumps(dict(coverage, status='abi_compatible'))+'\n')
         rows.append(dict(rank=item['rank'], binary_sha256=item['binary_sha256'],
                          distinct_weight_buffers=len(report['weight_recipes']), allocation=report['allocation'],
                          host_preparation=str(host), host_preparation_sha256=sha(host)))

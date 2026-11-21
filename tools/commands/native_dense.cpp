@@ -380,6 +380,23 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
     pipeline.retile_only=o.retile_only;
     pipeline.realize_aggregate=o.realize_aggregate;
     pipeline.budget_ms=o.search_budget_ms;
+    std::ofstream coverage;
+    std::set<std::pair<std::string,std::string>> audited;
+    if(target.arch_tag=="sm_80") {
+      coverage.open(directory/"candidate-coverage.jsonl");
+      coverage.exceptions(std::ofstream::failbit|std::ofstream::badbit);
+      pipeline.audit_candidate=[&](auto const& c,std::string const& origin,bool required) {
+        if(!audited.emplace(origin,c.ToJson().Dump(0)).second)return;
+        auto row=solver::Sm80NativeCandidateCoverage(space,work,cost,c);
+        row.Set("schema",1);
+        row.Set("check","solver");
+        row.Set("origin",origin);
+        row.Set("required",required);
+        row.Set("target_sha256",target_sha);
+        row.Set("export_sha256",input_sha);
+        coverage<<row.Dump(0)<<'\n'<<std::flush;
+      };
+    }
     std::vector<solver::Sm90DenseCoordinates> seeds;
     if(!o.seed_coordinates.empty()) {
       auto file=json::ParseFile(o.seed_coordinates);
@@ -417,6 +434,9 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
       return flow;
     };
     auto pipelined=solver::SolveSm90NativePipeline(space,work,cost,pipeline,evaluate,seeds);
+    if(pipeline.audit_candidate)
+      for(auto const& finalist:pipelined.finalists)
+        pipeline.audit_candidate(finalist.coordinates,"finalist",false);
     auto verification_start=std::chrono::steady_clock::now();
     if(o.analysis!="reuse") {
       solver::Sm90NativeCtgCache reference;

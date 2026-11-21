@@ -50,7 +50,7 @@ bool Sm90DenseSearchSpace::Legal(Sm90DenseCoordinates const& c) const {
   if(c.moe && !c.expert_fuse && !c.GlobalRoute())return false;
   // The declared degree and the coordinate's must agree, and a whole-row norm
   // needs every head of the token, which no single rank holds.
-  if(c.tp!=tp)return false;
+  if(c.tp!=tp || c.moe!=moe)return false;
   if(tp>1 && qk_norm_row)return false;
   if(c.cluster>1 && grid%c.cluster)return false;
   // D9: every CTA publishes one argmax partial into the head's [B][tasks]

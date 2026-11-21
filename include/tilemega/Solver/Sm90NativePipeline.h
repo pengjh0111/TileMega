@@ -27,6 +27,7 @@ struct Sm90NativePipelineOptions {
   bool realize_aggregate = false;
   bool require_anchors = false;
   std::optional<Sm90DenseCoordinates> pinned_theta;
+  std::function<void(Sm90DenseCoordinates const&,std::string const&,bool)> audit_candidate;
 };
 
 struct Sm90NativeReplayResult {
@@ -67,6 +68,8 @@ struct Sm90NativePipelineResult {
 // Everything but the per-family geometry: the coordinates that change which
 // tasks exist or how they synchronize (continuation 1 section 3).
 std::string Sm90NativeStructuralClass(Sm90DenseCoordinates const&,bool ampere=false);
+json::Value Sm80NativeCandidateCoverage(Sm90DenseSearchSpace const&,Sm90DenseWorkload const&,
+    Sm90DenseCostModel const&,Sm90DenseCoordinates const&);
 
 std::optional<Sm90NativePipelineCandidate> RepriceSm90NativeResidency(
     Sm90DenseSearchSpace const&,Sm90DenseCoordinates const&,int actual_residency,bool operator_sum,

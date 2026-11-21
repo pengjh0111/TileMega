@@ -18,6 +18,24 @@ std::string CoordinateKey(Sm90DenseCoordinates const& c) {
   return c.ToJson().Dump();
 }
 
+bool RequiredDenseService(Sm90DenseWorkload const& work,Sm90DenseCoordinates const& c,unsigned family) {
+  auto const& gemm=c.gemms[family];
+  return (c.live_epilogue_rows && work.batch<16 && (family==2 || gemm.warps_k>1)) ||
+      (c.residual_copy_issue && Sm90DenseCoordinates::ResidualFamily(family)) ||
+      (family==2 && (c.copy_issue_group ||
+          c.swiglu_u!=Sm90DenseSearchSpace::DefaultGateInterleave(gemm.tile_n)));
+}
+
+bool RequiredFusedService(Sm90DenseCoordinates const& c) {
+  return c.copy_issue_group || c.expert_gu_route_bases;
+}
+
+bool HasCompactAttentionService(Sm90DenseWorkload const& work,Sm90DenseCostModel const& cost,int grid) {
+  int norm=work.qk_norm?(work.qk_norm_row?2:1):0;
+  return cost.Constants().AttentionFresh(work.head_dim,work.queries,norm) &&
+      cost.Constants().CompactAttentionBarrier(grid,work.batch,work.head_dim,work.queries,norm);
+}
+
 double Replay(Sm90NativeFlowResult const& flow, Sm90DenseCoordinates const& c) {
   std::vector<int> offsets(flow.problem.spaces.size());
   if(c.expert_fuse)for(std::size_t s=1;s<offsets.size();++s)
@@ -29,6 +47,58 @@ double Replay(Sm90NativeFlowResult const& flow, Sm90DenseCoordinates const& c) {
   });
 }
 }  // namespace
+
+json::Value Sm80NativeCandidateCoverage(Sm90DenseSearchSpace const& space,
+    Sm90DenseWorkload const& work,Sm90DenseCostModel const& cost,Sm90DenseCoordinates const& c) {
+  json::Value row=json::Object{{"coordinates",c.ToJson()}};
+  if(c.moe!=space.moe || c.tp!=space.tp) {
+    row.Set("status","abi_incompatible");
+    row.Set("reason","coordinate and workload disagree on the model kind or tensor parallel degree");
+    return row;
+  }
+  if(!space.Legal(c)) {
+    row.Set("status","resource_illegal");
+    return row;
+  }
+
+  json::Array missing,proxies,services;
+  int grid=space.Grid(c.residency);
+  auto fused=c.moe && cost.FusedService(work,c).has_value();
+  for(unsigned family:c.Active()) {
+    auto const& g=c.gemms[family];
+    std::string name=kSm90DenseFamilies[family];
+    auto mma=Sm90NativeConstants::AmpereMmaKey(grid,g.tile_n,g.TileK(),g.warps_n,g.register_stages);
+    if(!cost.HasCalibratedMma(g,c.residency))
+      missing.emplace_back(json::Object{{"kind","mma"},{"family",name},{"key",mma},
+          {"warps_n",g.warps_n},{"warps_k",g.warps_k}});
+    auto shape=cost.DenseServiceShape(work,family,g,c.residency,&c);
+    if(!shape)continue;
+    json::Value service=json::Object{{"kind","dense_service"},{"family",name},{"key",shape->Key()}};
+    if(cost.DenseService(work,family,g,c.residency,&c))services.emplace_back(service);
+    else if(!c.moe && RequiredDenseService(work,c,family))
+      missing.emplace_back(service);
+    else proxies.emplace_back(service);
+  }
+  if(c.moe) {
+    auto shape=cost.FusedServiceShape(work,c);
+    json::Array key;
+    if(shape)for(int value:shape->Key())key.emplace_back(value);
+    json::Value service=json::Object{{"kind","fused_service"},{"family","gu_dn"},{"key",key}};
+    if(fused)services.emplace_back(service);
+    else if(RequiredFusedService(c))missing.emplace_back(service);
+    else proxies.emplace_back(service);
+  }
+  if(c.attention.compact_workspace) {
+    if(HasCompactAttentionService(work,cost,grid))
+      services.emplace_back("compact_attention");
+    else missing.emplace_back(json::Object{{"kind","attention_service"},{"family","compact_attention"}});
+  }
+  row.Set("status",missing.empty()?"legal_priced":"legal_missing_calibration");
+  row.Set("missing",std::move(missing));
+  row.Set("modeled_services",std::move(proxies));
+  row.Set("measured_services",std::move(services));
+  return row;
+}
 
 std::vector<std::vector<int>> Sm90NativeCandidateTracks(
     FlowProblem const& p,std::vector<int> const& offsets) {
@@ -274,14 +344,12 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
   auto priced=[&](Sm90DenseCoordinates const& c) {
     if(!cost.HasCalibratedMma(c))return false;
     if(!ampere)return true;
-    if(c.moe)return (!c.copy_issue_group && !c.expert_gu_route_bases) || cost.FusedService(work,c).has_value();
+    if(c.attention.compact_workspace && !HasCompactAttentionService(work,cost,space.Grid(c.residency)))
+      return false;
+    if(c.moe)return !RequiredFusedService(c) || cost.FusedService(work,c).has_value();
     for(unsigned f:{0u,1u,2u,3u}) {
       auto const& g=c.gemms[f];
-      bool variant=(c.live_epilogue_rows && (f==2 || g.warps_k>1)) ||
-          (c.residual_copy_issue && Sm90DenseCoordinates::ResidualFamily(f)) ||
-          (f==2 && (c.copy_issue_group ||
-              c.swiglu_u!=Sm90DenseSearchSpace::DefaultGateInterleave(g.tile_n)));
-      if(variant && !cost.DenseService(work,f,g,c.residency,&c))return false;
+      if(RequiredDenseService(work,c,f) && !cost.DenseService(work,f,g,c.residency,&c))return false;
     }
     return true;
   };
@@ -476,7 +544,11 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     if(required)protected_anchors.insert(key);
     if(start_keys.insert(key).second)starts.push_back(seed);
   };
-  for (auto const& seed : seeds)project(seed,options.require_anchors);
+  for(std::size_t i=0;i<seeds.size();++i) {
+    if(options.audit_candidate)
+      options.audit_candidate(seeds[i],i?"submitted_trial":"incumbent",options.require_anchors);
+    project(seeds[i],options.require_anchors);
+  }
   if(int(protected_anchors.size())>options.finalists)
     throw std::invalid_argument("more required anchors than the finalist budget");
   Sm90DenseSearchOptions additive;
@@ -490,6 +562,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
   auto base_seeds=starts;
   std::set<std::tuple<bool,int,int,int,bool,bool,bool,bool>> seeded_bodies;
   auto project_body=[&](Sm90DenseCoordinates const& trial) {
+    if(options.audit_candidate)options.audit_candidate(trial,"body_neighbour",false);
     auto body=std::make_tuple(trial.live_epilogue_rows,trial.copy_issue_group,
         trial.swiglu_u,trial.residency,trial.reuse_payload,trial.expert_page_segments,
         trial.expert_gu_route_bases,trial.residual_copy_issue);
@@ -506,7 +579,10 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
   // on the leading seed before the geometry descent spends its budget.
   auto ring_peers=base_seeds.empty()?std::vector<Sm90DenseCoordinates>{}:
       ring_neighbours(base_seeds.front());
-  for(auto const& trial:ring_peers)project(trial);
+  for(auto const& trial:ring_peers) {
+    if(options.audit_candidate)options.audit_candidate(trial,"ring_neighbour",false);
+    project(trial);
+  }
   if (starts.empty())
     throw std::invalid_argument("native pipeline search found no legal seed");
   for(std::size_t i=0;i<starts.size();++i) {

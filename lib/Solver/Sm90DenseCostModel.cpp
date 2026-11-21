@@ -97,7 +97,7 @@ double Sm90DenseCostModel::MmaK16Ns(Sm90DenseGemm const& g,int residency) const 
   return *measured;
 }
 
-std::optional<Sm80DenseService> Sm90DenseCostModel::DenseService(
+std::optional<Sm80DenseServiceShape> Sm90DenseCostModel::DenseServiceShape(
     Sm90DenseWorkload const& work,unsigned family,Sm90DenseGemm const& g,int residency,
     Sm90DenseCoordinates const* coordinates) const {
   if(target_.arch_tag!="sm_80" || family>3 || (work.moe && family==2) || g.multicast ||
@@ -109,29 +109,42 @@ std::optional<Sm80DenseService> Sm90DenseCostModel::DenseService(
   int copy=coordinates && (gate || (residual && coordinates->residual_copy_issue))?
       coordinates->copy_issue_group:0;
   int grid=Grid(residency),n=work.shapes[family][0],k=work.shapes[family][1];
-  Sm80DenseServiceShape shape{gate?"swiglu":residual?"residual":"store",grid,n,k,work.batch,
+  return Sm80DenseServiceShape{gate?"swiglu":residual?"residual":"store",grid,n,k,work.batch,
       g.tile_n,g.TileK(),g.slots,g.warps_n,g.warps_k,g.register_stages,u,
       g.ResidualTiles(residual,n,grid),!residual,live,copy};
-  if(auto measured=constants_.AmpereDenseService(shape))return measured;
-  if(gate && !live && !copy)
-    return constants_.AmpereGateService(grid,n,k,work.batch,g.tile_n,g.TileK(),g.slots,
-        g.warps_n,g.register_stages,u);
+}
+
+std::optional<Sm80DenseService> Sm90DenseCostModel::DenseService(
+    Sm90DenseWorkload const& work,unsigned family,Sm90DenseGemm const& g,int residency,
+    Sm90DenseCoordinates const* coordinates) const {
+  auto shape=DenseServiceShape(work,family,g,residency,coordinates);
+  if(!shape)return std::nullopt;
+  if(auto measured=constants_.AmpereDenseService(*shape))return measured;
+  if(family==2 && !shape->live_rows && !shape->copy_issue_group)
+    return constants_.AmpereGateService(shape->grid,shape->n,shape->k,shape->batch,shape->tn,
+        shape->tk,shape->slots,shape->warps_n,shape->register_stages,shape->u);
   return std::nullopt;
 }
 
-std::optional<Sm80FusedExpertService> Sm90DenseCostModel::FusedService(
+std::optional<Sm80FusedExpertShape> Sm90DenseCostModel::FusedServiceShape(
     Sm90DenseWorkload const& work,Sm90DenseCoordinates const& c) const {
   if(target_.arch_tag!="sm_80" || !work.moe || work.top_k!=8 || !c.expert_fuse ||
      c.residency!=1 || c.reuse_payload || c.weight_stream || c.GlobalRoute() || c.combine_stage)
     return std::nullopt;
   auto const& gu=c.gemms[6];
   auto const& dn=c.gemms[7];
-  return constants_.AmpereFusedService({work.batch,work.shapes[6][0],work.shapes[7][0],
+  return Sm80FusedExpertShape{work.batch,work.shapes[6][0],work.shapes[7][0],
       work.shapes[6][1],gu.tile_n,gu.TileK(),dn.tile_n,dn.TileK(),gu.slots,
       gu.warps_n,dn.warps_n,work.experts,work.float_routes,
       frontend::NativeMoeSharedExpertPageSide(work.experts),gu.register_stages,
       work.softmax_all,c.expert_page_segments,c.live_epilogue_rows,c.copy_issue_group,
-      c.expert_gu_route_bases});
+      c.expert_gu_route_bases};
+}
+
+std::optional<Sm80FusedExpertService> Sm90DenseCostModel::FusedService(
+    Sm90DenseWorkload const& work,Sm90DenseCoordinates const& c) const {
+  auto shape=FusedServiceShape(work,c);
+  return shape?constants_.AmpereFusedService(*shape):std::nullopt;
 }
 
 std::optional<Sm80DenseService> Sm90DenseCostModel::GemmService(
