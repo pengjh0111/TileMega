@@ -2,6 +2,7 @@
 #pragma once
 #include <tilemega/Analysis/CouplingRelation.h>
 #include <tilemega/Support/Json.h>
+#include <vector>
 
 namespace tilemega::solver {
 inline constexpr char kSm90NativeMoeDomainApproximation[]=
@@ -9,6 +10,7 @@ inline constexpr char kSm90NativeMoeDomainApproximation[]=
 
 double Sm90NativeExpectedActiveExperts(int experts,int top_k,int batch);
 int Sm90NativeExpectedExpertTasks(int experts,int top_k,int batch,int tiles);
+std::vector<double> Sm90NativeActiveExpertWeights(int experts,int top_k,int batch);
 
 struct Sm90NativeMoeTaskDomain {
   int tasks=0,tiles=0;

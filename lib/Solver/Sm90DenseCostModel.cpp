@@ -149,18 +149,53 @@ std::optional<Sm80DenseService> Sm90DenseCostModel::GemmService(
 }
 
 std::optional<Sm80FusedPipelinePrice> Sm90DenseCostModel::FusedPipeline(
-    Sm90DenseWorkload const& work,Sm90DenseCoordinates const& c) const {
+    Sm90DenseWorkload const& work,Sm90DenseCoordinates const& c,int active_experts) const {
   auto service=FusedService(work,c);
   if(!service)return std::nullopt;
-  int active=int(std::lround(Sm90NativeExpectedActiveExperts(work.experts,work.top_k,work.batch)));
-  double local=FusedLocalRing(work,c,*service,Grid(c.residency),active);
-  json::Value gu,dn;
-  Gemm(work,6,c.gemms[6],c.residency,&gu,false,&c);
-  Gemm(work,7,c.gemms[7],c.residency,&dn,false,&c);
-  auto sum=[&](char const* key){return gu.At(key).AsNumber(key)+dn.At(key).AsNumber(key);};
-  // The local replay supplies no memory-arrival times. The two tasks share
-  // one bandwidth budget and its service bounds that same pipeline.
-  return Sm80FusedPipelinePrice{active,local,std::max({local,sum("dram"),sum("l2"),sum("waves")})};
+  if(active_experts && (active_experts<work.top_k || active_experts>work.experts))
+    throw std::invalid_argument("fused expert scenario is outside its route domain");
+  auto const& gu=c.gemms[6];auto const& dn=c.gemms[7];
+  int grid=Grid(c.residency);
+  auto key=std::make_tuple(work.experts,work.top_k,work.batch,work.shapes[6],work.shapes[7],
+      gu.tile_n,gu.TileK(),dn.tile_n,dn.TileK(),gu.slots,grid,active_experts,
+      constants_.dram_gbps,constants_.l2_gbps,constants_.CtaDramGbps(),service->gu_issue,
+      service->gu_mma,service->gu_epilogue,service->dn_issue,service->dn_mma,
+      service->dn_epilogue,service->dn_preissue,service->dn_activation);
+  static thread_local std::map<decltype(key),Sm80FusedPipelinePrice> cache;
+  if(auto found=cache.find(key);found!=cache.end())return found->second;
+
+  int gu_width=work.shapes[6][0]/gu.tile_n,dn_width=work.shapes[7][0]/dn.tile_n;
+  double gu_bytes=2.*gu.tile_n*work.shapes[6][1],dn_bytes=2.*dn.tile_n*work.shapes[7][1];
+  auto evaluate=[&](int active) {
+    double local=FusedLocalRing(work,c,*service,grid,active);
+    int gu_tasks=active*gu_width,dn_tasks=active*dn_width;
+    double per_cta=0;
+    for(int worker=0;worker<grid;++worker) {
+      int gate=(gu_tasks+grid-1-worker)/grid,total=(gu_tasks+dn_tasks+grid-1-worker)/grid;
+      per_cta=std::max(per_cta,gate*gu_bytes+(total-gate)*dn_bytes);
+    }
+    double weights=gu_tasks*gu_bytes+dn_tasks*dn_bytes;
+    double activations=2.*gu_width*work.top_k*work.batch*work.shapes[6][1]+
+        2.*dn_tasks*backend::Sm90DenseLayout::ActivationRows(work.batch)*work.shapes[7][1];
+    // Gu and Dn can use different phase mixtures on adjacent CTAs.
+    // Charge the busiest owner's combined bytes and one device bandwidth pool.
+    double stream=std::max({local,weights/constants_.dram_gbps,
+        (weights+activations)/constants_.l2_gbps,per_cta/constants_.CtaDramGbps()});
+    return Sm80FusedPipelinePrice{active,local,stream};
+  };
+  if(active_experts)return cache.emplace(key,evaluate(active_experts)).first->second;
+  Sm80FusedPipelinePrice price{};
+  auto weights=Sm90NativeActiveExpertWeights(work.experts,work.top_k,work.batch);
+  double active=0;
+  for(std::size_t count=1;count<weights.size();++count) {
+    if(!weights[count])continue;
+    auto value=evaluate(int(count));
+    active+=weights[count]*count;
+    price.local_ns+=weights[count]*value.local_ns;
+    price.stream_ns+=weights[count]*value.stream_ns;
+  }
+  price.active_experts=int(std::lround(active));
+  return cache.emplace(key,price).first->second;
 }
 
 // MR6: a CTA with n = ceil(t / G) tasks streams its first n - 1 at the shared

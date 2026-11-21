@@ -4,6 +4,7 @@
 #include <tilemega/Solver/Sm90DenseResources.h>
 #include <tilemega/Analysis/ISLContext.h>
 #include <chrono>
+#include <cmath>
 #include <fstream>
 #include <iostream>
 #include <map>
@@ -86,6 +87,19 @@ int main(int argc,char** argv) {try {
         {"space_misses",double(state.cache.space_misses)},
         {"release_hits",double(state.cache.release_hits)},{"release_misses",double(state.cache.release_misses)}};
     if(exact)row.Set("history_replay",std::move(history_replay));
+    if(auto const* counts=cell.Find("active_expert_counts")) {
+      json::Array scenarios;
+      for(auto const& reported:counts->AsArray("observed active expert counts")) {
+        double value=reported.AsNumber("active experts");
+        if(!std::isfinite(value) || value<work.top_k || value>work.experts || std::floor(value)!=value)
+          throw std::invalid_argument("observed expert count is outside the workload domain");
+        auto price=cost.FusedPipeline(work,c,int(value));
+        if(!price)throw std::invalid_argument("observed expert count requires a calibrated fused body");
+        scenarios.emplace_back(json::Object{{"active_experts",value},{"local_ns",price->local_ns},
+            {"stream_ns",price->stream_ns+constants.dram_latency}});
+      }
+      row.Set("fused_expert_scenarios",std::move(scenarios));
+    }
     if(auto const* requested=cell.Find("decompose");requested && requested->AsBool("decompose")) {
       // These counterfactuals vary the base CTG, before request weighting and
       // the fused service replacement. Keep them on that same timeline.

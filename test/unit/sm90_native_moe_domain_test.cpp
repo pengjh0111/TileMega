@@ -11,6 +11,18 @@
 using namespace tilemega::solver;
 int main() {
   tilemega::analysis::IslContext isl;
+  auto two=Sm90NativeActiveExpertWeights(4,1,2);
+  assert(two[1]==0.25 && two[2]==0.75);
+  auto one=Sm90NativeActiveExpertWeights(128,8,1);
+  assert(one[8]==1);
+  auto sixteen=Sm90NativeActiveExpertWeights(128,8,16);
+  double probability=0,mean=0;
+  for(std::size_t count=0;count<sixteen.size();++count) {
+    probability+=sixteen[count];
+    mean+=sixteen[count]*count;
+  }
+  assert(std::abs(probability-1)<1e-12);
+  assert(std::abs(mean-Sm90NativeExpectedActiveExperts(128,8,16))<1e-12);
   // Independent 60-digit decimal evaluations of E*(1-(1-8/E)^B)*tiles.
   int expected[2][5][4]={{{64,128,192,256},{120,240,360,480},{212,424,636,848},
       {336,672,1008,1344},{452,903,1355,1806}},

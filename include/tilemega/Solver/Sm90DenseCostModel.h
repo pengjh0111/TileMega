@@ -59,7 +59,7 @@ class Sm90DenseCostModel {
   std::optional<Sm80FusedExpertService> FusedService(
       Sm90DenseWorkload const&,Sm90DenseCoordinates const&) const;
   std::optional<Sm80FusedPipelinePrice> FusedPipeline(
-      Sm90DenseWorkload const&,Sm90DenseCoordinates const&) const;
+      Sm90DenseWorkload const&,Sm90DenseCoordinates const&,int active_experts=0) const;
   int Grid(int residency) const {return target_.res.num_sms*residency;}
   Sm90NativeConstants const& Constants() const {return constants_;}
   TargetSpec const& Target() const {return target_;}

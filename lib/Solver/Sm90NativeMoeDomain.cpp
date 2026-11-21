@@ -1,15 +1,41 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/Sm90NativeMoeDomain.h>
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 namespace tilemega::solver {
 double Sm90NativeExpectedActiveExperts(int experts,int top_k,int batch) {
   if(experts<1 || top_k<1 || top_k>experts || batch<1)
     throw std::invalid_argument("invalid expected-active expert domain");
   return experts*(1-std::pow(1-double(top_k)/experts,batch));
+}
+std::vector<double> Sm90NativeActiveExpertWeights(int experts,int top_k,int batch) {
+  if(experts<1 || experts>128 || top_k<1 || top_k>experts || batch<1 || batch>16)
+    throw std::invalid_argument("invalid native expert scenario");
+  auto choose=[](int n,int k) {
+    double binomial=1;
+    for(int i=0;i<k;++i)binomial*=double(n-i)/(i+1);
+    return binomial;
+  };
+  std::vector<double> weights(experts+1);
+  weights[0]=1;
+  double choices=choose(experts,top_k);
+  for(int row=0;row<batch;++row) {
+    std::vector<double> next(experts+1);
+    // An independent uniform TopK row expands the current union by exactly
+    // the number of its selections outside that union.
+    for(int active=0;active<=experts;++active) {
+      if(!weights[active])continue;
+      for(int fresh=std::max(0,top_k-active);fresh<=std::min(top_k,experts-active);++fresh)
+        next[active+fresh]+=weights[active]*choose(experts-active,fresh)*choose(active,top_k-fresh)/choices;
+    }
+    weights=std::move(next);
+  }
+  return weights;
 }
 int Sm90NativeExpectedExpertTasks(int experts,int top_k,int batch,int tiles) {
   if(tiles<1)throw std::invalid_argument("expert task domain needs positive tile count");
