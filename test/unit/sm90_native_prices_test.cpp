@@ -84,7 +84,9 @@ int main(int argc, char** argv) {
     double bytes_per_key=4.*busy.head_dim;
     double cap=std::min(constants.CtaDramGbps(),a.slots*a.block_keys*bytes_per_key/constants.dram_latency);
     double mma=constants.AttentionBlock(busy.head_dim,busy.queries,1);
-    double fresh=constants.AttentionFresh(busy.head_dim,busy.queries,1).value_or(0);
+    double fresh=constants.AttentionFresh(busy.head_dim,busy.queries,1).value_or(
+        8.*busy.head_dim/constants.sm_gbps);
+    assert(fresh>0);
     double total=0;
     auto const& histories=ampere_cost.AttentionScenarios(a,true);
     assert(histories.size()==1023 && histories.front().past==64 && histories.back().past==1086);
