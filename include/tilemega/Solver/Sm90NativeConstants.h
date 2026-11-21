@@ -36,8 +36,8 @@ struct Sm80FusedExpertService {
 struct Sm80FusedExpertShape {
   int batch,gate_up_n,down_n,hidden,gate_up_tn,gate_up_tk,down_tn,down_tk,slots,
       gate_up_warps_n,down_warps_n,experts,float_routes,page,register_stages,
-      softmax_all,segments,live_rows,copy_group;
-  std::array<int,19> Key() const;
+      softmax_all,segments,live_rows,copy_group,gu_route_bases;
+  std::array<int,20> Key() const;
 };
 
 // `sm90_native_constants` of the H800 target (prompt §4 L0-1). Every lookup is
@@ -106,7 +106,7 @@ class Sm90NativeConstants {
   json::Value epilogue_,embedding_,argmax_la_,route_la_,attention_,round_,clusters_,dsmem_,forward_,task_expert_,tp_,ampere_mma_;
   json::Value ampere_gate_service_,ampere_dense_service_;
   json::Value ampere_attention_fresh_;
-  std::map<std::array<int,19>,Sm80FusedExpertService> ampere_fused_service_;
+  std::map<std::array<int,20>,Sm80FusedExpertService> ampere_fused_service_;
   std::vector<Sm80FusedExpertShape> ampere_fused_shapes_;
   std::vector<Sm80DenseServiceShape> ampere_dense_shapes_;
   double cta_dram_gbps_=0;

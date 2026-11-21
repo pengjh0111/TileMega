@@ -157,6 +157,7 @@ std::string Sm90NativeStructuralClass(Sm90DenseCoordinates const& c,bool ampere)
   if(c.live_epilogue_rows)key += "/live_rows";
   if(c.copy_issue_group)key += "/copy"+std::to_string(c.copy_issue_group);
   if(c.expert_page_segments)key += "/page_segments";
+  if(c.expert_gu_route_bases)key += "/gu_route_bases";
   if(c.reuse_payload)key += "/payload_reuse";
   key += "/ch" + std::to_string(c.attention.chunks);
   key += c.attention.dsmem ? "/ds1" : "/ds0";
@@ -270,7 +271,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
   auto priced=[&](Sm90DenseCoordinates const& c) {
     if(!cost.HasCalibratedMma(c))return false;
     if(!ampere)return true;
-    if(c.moe)return !c.copy_issue_group || cost.FusedService(work,c).has_value();
+    if(c.moe)return (!c.copy_issue_group && !c.expert_gu_route_bases) || cost.FusedService(work,c).has_value();
     for(unsigned f:{0u,1u,2u,3u}) {
       auto const& g=c.gemms[f];
       bool variant=(c.live_epilogue_rows && (f==2 || g.warps_k>1)) ||
@@ -291,6 +292,8 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
       }
       auto page=c;page.expert_page_segments=!c.expert_page_segments;
       if(cost.FusedService(work,page))result.emplace_back(page,"expert weight pages");
+      auto routes=c;routes.expert_gu_route_bases=!c.expert_gu_route_bases;
+      if(cost.FusedService(work,routes))result.emplace_back(routes,"expert Gu activation routes");
       if(work.batch<16) {
         auto rows=c;rows.live_epilogue_rows=!c.live_epilogue_rows;
         if(cost.FusedService(work,rows))result.emplace_back(rows,"expert accumulator rows");
@@ -326,6 +329,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
         trial.route=Sm90DenseCoordinates::Route::kLocal;
         trial.combine_stage=false;
         trial.expert_page_segments=shape.segments!=0;
+        trial.expert_gu_route_bases=shape.gu_route_bases!=0;
         trial.live_epilogue_rows=shape.live_rows!=0;
         trial.copy_issue_group=shape.copy_group;
         auto retile=[&](unsigned family,int tn,int tk,int wn) {
@@ -441,10 +445,11 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
   // Score a finite implementation frontier before the large tile domain.
   // Keep one seed per implementation, residency and arena for this pass.
   auto base_seeds=starts;
-  std::set<std::tuple<bool,int,int,int,bool>> seeded_bodies;
+  std::set<std::tuple<bool,int,int,int,bool,bool,bool>> seeded_bodies;
   auto project_body=[&](Sm90DenseCoordinates const& trial) {
     auto body=std::make_tuple(trial.live_epilogue_rows,trial.copy_issue_group,
-        trial.swiglu_u,trial.residency,trial.reuse_payload);
+        trial.swiglu_u,trial.residency,trial.reuse_payload,trial.expert_page_segments,
+        trial.expert_gu_route_bases);
     if(!seeded_bodies.count(body) && space.Legal(trial) && priced(trial)) {
       seeded_bodies.insert(body);
       project(trial);

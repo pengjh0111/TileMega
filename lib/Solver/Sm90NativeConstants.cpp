@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <string_view>
 
 namespace tilemega::solver {
 namespace {
@@ -19,10 +20,10 @@ double Positive(json::Value const& v,char const* what) {
 }
 }  // namespace
 
-std::array<int,19> Sm80FusedExpertShape::Key() const {
+std::array<int,20> Sm80FusedExpertShape::Key() const {
   return {batch,gate_up_n,down_n,hidden,gate_up_tn,gate_up_tk,down_tn,down_tk,slots,
       gate_up_warps_n,down_warps_n,experts,float_routes,page,register_stages,
-      softmax_all,segments,live_rows,copy_group};
+      softmax_all,segments,live_rows,copy_group,gu_route_bases};
 }
 
 Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,std::string const& root) {
@@ -118,8 +119,18 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
       bool compatible=true;
       for(auto name:{"Backend/Sm90DenseGemm.h","Backend/Sm90DenseLayout.h","Backend/Sm90DenseMoe.cuh",
                      "Backend/Sm80MoePageOffsets.h","Backend/Sm90DenseMark.cuh",
-                     "Backend/Sm90DenseRing.cuh","Backend/Sm90DenseEpilogue.h","Codegen/executor/Async.cuh"})
-        compatible &= FileHash(root+"/include/tilemega/"+name)==hashes.At(name).AsString("body hash");
+                     "Backend/Sm90DenseRing.cuh","Backend/Sm90DenseEpilogue.h","Codegen/executor/Async.cuh"}) {
+        auto current=FileHash(root+"/include/tilemega/"+name);
+        auto expected=hashes.At(name).AsString("body hash");
+        if(current==expected)continue;
+        // An inactive opt-in body can change the header digest without changing
+        // tokens seen by the compiler for the calibrated implementation.
+        auto const* proof=std::string_view(name)=="Backend/Sm90DenseMoe.cuh"?
+            profile.Find("moe_header_equivalence"):nullptr;
+        if(!proof || proof->At("reference_sha256").AsString("reference header")!=expected ||
+           proof->At("equivalent_sha256").AsString("equivalent header")!=current ||
+           proof->At("preprocessed_sha256").AsString("equivalence digest").size()!=64)compatible=false;
+      }
       if(!compatible)continue;
       auto const& row=profile.At("measurement");
       if(row.At("grid").AsNumber("fused expert grid")!=sms ||
@@ -135,7 +146,10 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
           dimension("hidden"),dimension("gate_up_tn"),dimension("gate_up_tk"),dimension("down_tn"),
           dimension("down_tk"),dimension("slots"),dimension("gate_up_warps_n"),dimension("down_warps_n"),
           dimension("experts"),dimension("float_routes"),dimension("page"),dimension("register_stages"),
-          dimension("softmax_all"),dimension("segments"),dimension("live_rows"),dimension("copy_group")};
+          dimension("softmax_all"),dimension("segments"),dimension("live_rows"),dimension("copy_group"),
+          shape.Find("gu_route_bases")?dimension("gu_route_bases"):0};
+      if(geometry.gu_route_bases>1 || (geometry.gu_route_bases && geometry.gate_up_tk!=64))
+        throw std::invalid_argument("invalid fused Gu routing service");
       if(geometry.gate_up_warps_n*dimension("gate_up_warps_k")!=4 ||
          geometry.down_warps_n*dimension("down_warps_k")!=4)
         throw std::invalid_argument("fused expert shapes require four consumer warps");

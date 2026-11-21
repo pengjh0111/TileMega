@@ -75,7 +75,8 @@ std::optional<Sm80FusedExpertService> Sm90DenseCostModel::FusedService(
       work.shapes[6][1],gu.tile_n,gu.TileK(),dn.tile_n,dn.TileK(),gu.slots,
       gu.warps_n,dn.warps_n,work.experts,work.float_routes,
       frontend::NativeMoeSharedExpertPageSide(work.experts),gu.register_stages,
-      work.softmax_all,c.expert_page_segments,c.live_epilogue_rows,c.copy_issue_group});
+      work.softmax_all,c.expert_page_segments,c.live_epilogue_rows,c.copy_issue_group,
+      c.expert_gu_route_bases});
 }
 
 std::optional<Sm80DenseService> Sm90DenseCostModel::GemmService(

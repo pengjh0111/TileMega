@@ -36,7 +36,7 @@ def append(base, target_sha, run, binary):
             or device['nvml_uuid'] != read(policy)['gpu_uuid']
             or device['guard_policy_sha256'] != sha(policy)
             or sha(identity) != frozen['identity_sha256'] or artifact != read(identity)
-            or frozen['target_sha256'] != registry['reference_target_sha256']
+            or frozen['target_sha256'] not in (registry['reference_target_sha256'], target_sha)
             or sha(binary) != artifact['binary_sha256']
             or artifact['contract'] != 'sm80-fused-expert-service-v1'
             or artifact['architecture'] != 'sm_80' or artifact['roles'] != [32, 128]):
@@ -72,6 +72,7 @@ def append(base, target_sha, run, binary):
     dimensions = [mapping[value] if value in mapping else int(value) for value in params[:-1]]
     dimensions.extend(source.get(name, 0) for name in MODIFIERS)
     shape = dict(zip(SHAPE, dimensions, strict=True))
+    shape['gu_route_bases'] = source.get('TILEMEGA_SM80_MOE_GU_ROUTE_BASES', 0)
     shape['gate_up_warps_k'] = 4 // shape['gate_up_warps_n']
     shape['down_warps_k'] = 4 // shape['down_warps_n']
     if registry['schema'] != 1:

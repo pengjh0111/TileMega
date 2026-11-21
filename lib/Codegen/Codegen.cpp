@@ -2043,6 +2043,8 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     throw std::invalid_argument("live epilogue rows require the SM80 native backend");
   if(c.copy_issue_group && !cp_async)
     throw std::invalid_argument("explicit weight copy issue groups require SM80");
+  if(c.expert_gu_route_bases && !cp_async)
+    throw std::invalid_argument("hoisted expert Gu routes require SM80");
   bool kernel_sequence=module->hasAttr("tmexec.native_kernel_sequence");
   if(cp_async && (kernel_sequence || c.cluster!=1 || c.attention.dsmem || c.tp!=1 ||
       std::any_of(c.gemms.begin(),c.gemms.end(),[](auto const& g){return g.multicast;})))
@@ -2195,6 +2197,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
      <<(c.copy_issue_group?"#define TILEMEGA_SM80_COPY_ISSUE_GROUP "+
          std::to_string(c.copy_issue_group)+"\n":"")
      <<(c.expert_page_segments?"#define TILEMEGA_SM80_MOE_PAGE_SEGMENTS 1\n":"")
+     <<(c.expert_gu_route_bases?"#define TILEMEGA_SM80_MOE_GU_ROUTE_BASES 1\n":"")
      <<(cp_async && !c.expert_page_segments && c.expert_fuse && shared_expert_page==64 &&
          c.gemms[6].tile_n==128 && c.gemms[6].TileK()==64?
          "#define TILEMEGA_SM80_MOE_ALIGNED_GATE_PAGES 1\n":"")
