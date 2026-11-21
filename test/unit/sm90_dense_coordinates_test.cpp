@@ -33,8 +33,9 @@ int main() {
  assert(recovered.live_epilogue_rows && recovered.ToJson().Dump()==live.ToJson().Dump());
  assert(!Sm90DenseCoordinates::FromJson(c.ToJson()).live_epilogue_rows);
  recovered.Validate(nk,1);
+ recovered.Validate(nk,8);
  bool rejected_large_batch=false;
- try {recovered.Validate(nk,8);}catch(std::invalid_argument const&) {rejected_large_batch=true;}
+ try {recovered.Validate(nk,16);}catch(std::invalid_argument const&) {rejected_large_batch=true;}
  assert(rejected_large_batch);
  auto reuse=live;reuse.reuse_payload=true;reuse.weight_stream=false;
  assert(Sm90DenseCoordinates::FromJson(reuse.ToJson()).reuse_payload);
@@ -127,6 +128,16 @@ int main() {
  }
 
  m.expert_fuse=true;m.gemms[7].slots=m.gemms[6].slots;
+ assert(!Sm90DenseCoordinates::FromJson(m.ToJson()).expert_gu_route_bases);
+ auto cached_routes=m;cached_routes.weight_stream=false;cached_routes.expert_gu_route_bases=true;
+ auto loaded_routes=Sm90DenseCoordinates::FromJson(cached_routes.ToJson());
+ loaded_routes.Validate(moe_nk,16);
+ assert(loaded_routes.expert_gu_route_bases && loaded_routes.ToJson().Dump()==cached_routes.ToJson().Dump());
+ loaded_routes.gemms[6].slot_bytes*=2;
+ bool rejected_wide_routes=false;
+ try {loaded_routes.Validate(moe_nk,16);}
+ catch(std::invalid_argument const&) {rejected_wide_routes=true;}
+ assert(rejected_wide_routes);
  bool unfused_refused=false;
  auto unfused=m;unfused.expert_fuse=false;
  try {unfused.Validate(moe_nk,1);}
