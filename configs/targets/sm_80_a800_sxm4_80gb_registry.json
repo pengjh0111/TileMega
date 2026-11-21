@@ -5655,6 +5655,31 @@
       "inactive_sha256": "80985937dfabfb1ee3a5384289bf80d1f374f31ec753a2516d58b6c1c82647db",
       "compiled_sha256": "a4b77806b3c2850c54006920fc64687a2a8a77a2372342dbb618549e007d89d1",
       "disabled_macro": "TILEMEGA_SM80_RESIDUAL_COPY_GROUP"
+    },
+    "compact_attention_service": {
+      "schema": 1,
+      "measurement": {
+        "status": "measured",
+        "grid": 216,
+        "dynamic_shared": 79872,
+        "residency": 2,
+        "overlapping_sms": 108,
+        "consumer_threads": 128,
+        "iterations": 1024,
+        "samples": 1944,
+        "barrier_ns": 25.0
+      },
+      "body_headers": {
+        "Backend/Sm90DenseAttentionBody.cuh": "2ed8b5f515629d1946325903de2b20368efe13d677a701ee99bbccdd4239f77c",
+        "Backend/Sm80AttentionScratch.h": "e425479aad79f13c1c8ca7daff90649c9c45ef8f2cd01aceb37a6b9fc9d92337",
+        "Codegen/executor/ComputeGroup.cuh": "60e3da614f830d30eff3c12fd7500bf9cef3b2c72f81564a8cbf7baaeb57a8bc"
+      },
+      "source_sha": "d76e5c6b7c63b3ebd2537114d97317447ed128a9",
+      "binary_sha256": "ae122ec5bda561eca9d91ef8daa839fd95fc8c9aac715d3503b68ba908135eb4",
+      "gpu_uuid": "GPU-b7817d38-dabe-8812-398d-3c31e493e072",
+      "evidence": "TileMega-a800/runs/a800/calibration/r2-supplement-service/350775",
+      "guard_sha256": "2962128367137e711696a376d9a3bc71500cfe70a7f7e1dd9cd9156aeaf19651",
+      "measurement_sha256": "a07560187c7236a04589e3d9eb79795f2b06bbc18d7ff4ee4145b1f375ee7c5b"
     }
   },
   "sm80_native_decisions": {
