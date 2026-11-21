@@ -5159,6 +5159,82 @@
           "evidence": "TileMega-a800/runs/a800/calibration/r2-supplement-service/350071"
         }
       ]
+    },
+    "attention_fresh_service": {
+      "schema": 1,
+      "measurements": {
+        "d128:q1:norm2": {
+          "status": "measured",
+          "dim": 128,
+          "queries": 1,
+          "norm": 2,
+          "full_ns": 793.37,
+          "fresh_ns": 502.877,
+          "samples": 256,
+          "measurement_sha256": "9f0f46e5729dd9675949ad512c0639b993c28d570a6ecbe43f6fb7d61cd922df"
+        },
+        "d128:q2:norm1": {
+          "status": "measured",
+          "dim": 128,
+          "queries": 2,
+          "norm": 1,
+          "full_ns": 793.009,
+          "fresh_ns": 502.649,
+          "samples": 256,
+          "measurement_sha256": "307bb46b681360bedd87e99bdbc7d693987582b67af7e7cce71e7a1a15bdf853"
+        },
+        "d128:q3:norm0": {
+          "status": "measured",
+          "dim": 128,
+          "queries": 3,
+          "norm": 0,
+          "full_ns": 792.99,
+          "fresh_ns": 502.637,
+          "samples": 256,
+          "measurement_sha256": "f8b43a0c09700e5c166c249abe071d1511672b530846160c1e32b3d31a2c42b5"
+        },
+        "d128:q4:norm0": {
+          "status": "measured",
+          "dim": 128,
+          "queries": 4,
+          "norm": 0,
+          "full_ns": 793.058,
+          "fresh_ns": 502.68,
+          "samples": 256,
+          "measurement_sha256": "502a8974e86a4e434e6ad401dee72493a297a626df412f152c5015b855ccd9d3"
+        },
+        "d128:q8:norm1": {
+          "status": "measured",
+          "dim": 128,
+          "queries": 8,
+          "norm": 1,
+          "full_ns": 793.017,
+          "fresh_ns": 502.654,
+          "samples": 256,
+          "measurement_sha256": "7841aaebbcd4a9f8cefef2688c4077f3163d1d5463f98041e5e3b3456432fc6e"
+        },
+        "d64:q4:norm0": {
+          "status": "measured",
+          "dim": 64,
+          "queries": 4,
+          "norm": 0,
+          "full_ns": 595.661,
+          "fresh_ns": 405.295,
+          "samples": 256,
+          "measurement_sha256": "a70bdbf9e4a4635d5df80ab333200e191a3f96e528dcd0546cb6ca68c25869f6"
+        }
+      },
+      "evidence": "TileMega-a800/runs/a800/calibration/r2-supplement-service/350130",
+      "source_sha": "e4d3f1be82a43f9df5b5f229b744e75a41bb30ee",
+      "body_headers": {
+        "Backend/Sm90DenseAttentionBody.cuh": "d46ee98c88f6d64d0ffc36ded15bc20f8fff5b1afa7a2e649e7469ad7d7d0191",
+        "Backend/Sm90DenseAttentionPartition.h": "3d9794ec1c34c65f603bfb1395e1b7cbdcedadfacd763ddbb7b26e8d0c08c8b2",
+        "Codegen/executor/Async.cuh": "a2a26c533cebdd3585d9fd77ad3e5ea1fb4e23dad25413828e0bae8e756b64b3"
+      },
+      "binary_sha256": "69be59710fbaeec57c06081d3b8adf7de9d0134572a037c21d611e72e58d01df",
+      "reference_target_sha256": "93e3a8187d3d99f3cde9f3b51602faaf01b5c29deb6deaf647b4591ca80e8cc9",
+      "gpu_uuid": "GPU-ed4fbe57-03fc-8ffc-8b85-076ba4ce65d3",
+      "guard_sha256": "2962128367137e711696a376d9a3bc71500cfe70a7f7e1dd9cd9156aeaf19651"
     }
   },
   "sm80_native_decisions": {
