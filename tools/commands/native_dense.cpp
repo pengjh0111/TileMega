@@ -315,12 +315,12 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   solver::Sm90DenseSearchOptions search;search.top=o.measure_top;
   if(target.arch_tag=="sm_80" && !resume) {
     json::Array coverage;
-    std::map<int,unsigned> options_by_grid, missing_by_grid;
+    std::map<int,int> options_by_grid, missing_by_grid;
     std::map<int,std::set<std::string>> missing_keys_by_grid;
     for(int residency:{1,2})for(bool reuse:{false,true})for(unsigned f:solver::Sm90DenseActiveFamilies(space.moe)) {
       if(reuse && !space.search_payload_reuse)continue;
       int grid=space.Grid(residency);
-      std::map<std::pair<std::string,bool>,unsigned> keys;
+      std::map<std::pair<std::string,bool>,int> keys;
       for(auto const& g:space.FamilyCandidates(f,residency,reuse))
         ++keys[{solver::Sm90NativeConstants::AmpereMmaKey(grid,g.tile_n,g.TileK(),
             g.warps_n,g.register_stages),cost.HasCalibratedMma(g,residency)}];
@@ -339,7 +339,7 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
     for(auto const& [grid,options]:options_by_grid) {
       json::Array missing;
       for(auto const& key:missing_keys_by_grid[grid])missing.emplace_back(key);
-      unsigned filtered=missing_by_grid[grid];
+      int filtered=missing_by_grid[grid];
       grid_summary.emplace_back(json::Object{{"grid",grid},{"family_options",options},
           {"unpriced_family_options",filtered},{"missing_mma_keys",std::move(missing)}});
       if(filtered)
