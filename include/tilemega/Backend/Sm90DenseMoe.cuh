@@ -889,7 +889,7 @@ struct Sm90DenseMoeGemm {
 template<int Batch,int NGateUp,int NDown,int Hidden,int TNGu,int TKGu,int TNDn,int TKDn,int Slots,
          int WNGu,int WKGu,int WNDn,int WKDn,int U,int Experts,int TopK,bool FloatWeights,
          int Page=0,int RegisterStages=1,bool SoftmaxAll=false,bool LocalRouting=true,bool StageCombine=false,
-         bool CpAsync=false,bool ServiceSample=false>
+         bool CpAsync=false,int SampleRole=kMoeNoSample>
 struct Sm90DenseMoeFusedGemm {
   using Element=cutlass::bfloat16_t;
   using Async=codegen::executor::Async<std::conditional_t<CpAsync,arch::Sm80,arch::Sm90>>;
@@ -972,7 +972,7 @@ struct Sm90DenseMoeFusedGemm {
       int& sequence,Record record) {
     auto const* tiles=Gu::TaskTiles(p.weight_gate_up,record.expert,task.slot*kTilesGu+task.tile);
     Gu::WithWeightTile(tiles,task.slot*kTilesGu+task.tile,[&](auto page_phase,auto* tile_base) {
-      using Profile=Sm80MoeStageMarks<CpAsync,true,ServiceSample>;
+      using Profile=Sm80MoeStageMarks<CpAsync,true,SampleRole>;
 #if defined(TILEMEGA_SM80_MOE_ALIGNED_GATE_PAGES)
       constexpr bool kAlignedPages=CpAsync && Page==64 && TNGu%64==0;
       using Pages=Sm80MoePageOffsets<TNGu,Hidden,TKGu>;
@@ -1037,7 +1037,7 @@ struct Sm90DenseMoeFusedGemm {
       int& sequence,Record record) {
     auto const* tiles=Dn::TaskTiles(p.weight_down,record.expert,task.slot*kTilesDn+task.tile);
     Dn::WithWeightTile(tiles,task.slot*kTilesDn+task.tile,[&](auto page_phase,auto* tile_base) {
-      using Profile=Sm80MoeStageMarks<CpAsync,true,ServiceSample>;
+      using Profile=Sm80MoeStageMarks<CpAsync,true,SampleRole>;
       constexpr int kAhead=Slots<kIterDn?Slots:kIterDn;
       int first=sequence;
       for(int tile=0;tile<kAhead;++tile) {
@@ -1119,7 +1119,7 @@ struct Sm90DenseMoeFusedGemm {
       int a_index=min(task.slot,Experts-1);
       Record record{routing.expert[a_index],routing.count[a_index],
           lane<LocalSchedule::kRows?routing.rows[a_index][lane]:0};
-      Sm80MoeStageMarks<CpAsync,true,ServiceSample>::RecordTask(task.down,record.count);
+      Sm80MoeStageMarks<CpAsync,true,SampleRole>::RecordTask(task.down,record.count);
       if(task.down)ProduceDown(p,state,a,b,task,lane,phase,sequence,record);
       else ProduceGateUp(p,state,a,b,task,lane,phase,sequence,record);
     }
@@ -1135,7 +1135,7 @@ struct Sm90DenseMoeFusedGemm {
       Sm90DenseRingState& state,Element* a,Element* b,float* scratch,int t,unsigned& phase,
       int& sequence,int* flag,LocalSchedule const& routing) {
     using namespace cute;
-    using Profile=Sm80MoeStageMarks<CpAsync,false,ServiceSample>;
+    using Profile=Sm80MoeStageMarks<CpAsync,false,SampleRole>;
     int tid=threadIdx.x,lane=tid%(32*WN),split=tid/(32*WN);
     float* norms=scratch+WK*16*TN;
     typename Body::Core::Mma mma;auto thread=mma.get_slice(lane);

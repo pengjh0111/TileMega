@@ -52,8 +52,11 @@ __device__ __forceinline__ void Sm90DenseMarkFirst(int index) {
 #endif
 }
 
-template<bool CpAsync,bool Producer,bool ServiceSample=false>
+enum Sm80MoeSample {kMoeNoSample=0,kMoeProducerSample=1,kMoeConsumerSample=2};
+
+template<bool CpAsync,bool Producer,int SampleRole=kMoeNoSample>
 struct Sm80MoeStageMarks {
+  static constexpr bool ServiceSample=SampleRole==(Producer?kMoeProducerSample:kMoeConsumerSample);
   static constexpr bool kEnabled=CpAsync && (ServiceSample || TILEMEGA_TRACE_STAGE==2);
   __device__ static __forceinline__ unsigned long long Now() {
     if constexpr(kEnabled)

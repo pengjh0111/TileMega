@@ -56,11 +56,11 @@ struct Case {
   static constexpr int kTKGu=TKGu,kTKDn=TKDn,kTNDn=TNDn,kSlots=Slots;
   static constexpr bool kFloatWeights=FloatWeights;
   static constexpr int kShared=Shared;
-  template<bool Sample> using Body=Sm90DenseMoeFusedGemm<B,NGu,NDn,H,TNGu,TKGu,TNDn,TKDn,
-      Slots,WNGu,4/WNGu,WNDn,4/WNDn,16,Experts,kTop,FloatWeights,Page,R,SoftmaxAll,true,false,true,Sample>;
+  template<int Role> using Body=Sm90DenseMoeFusedGemm<B,NGu,NDn,H,TNGu,TKGu,TNDn,TKDn,
+      Slots,WNGu,4/WNGu,WNDn,4/WNDn,16,Experts,kTop,FloatWeights,Page,R,SoftmaxAll,true,false,true,Role>;
 };
 
-template<class Case,bool Sample>
+template<class Case,int Role>
 __global__ __launch_bounds__(160,1)
 void Run(Sm90DenseMoeFusedOperands args,Tick* samples,int sample_cta) {
   extern __shared__ __align__(1024) char shared[];
@@ -69,13 +69,13 @@ void Run(Sm90DenseMoeFusedOperands args,Tick* samples,int sample_cta) {
   auto* data=samples+std::size_t(blockIdx.x)*(Marks::kCount+1);
   if(threadIdx.x==0)
     *reinterpret_cast<Tick**>(shared+Sm90DenseOperandHeader::kTraceSlot)=
-        Sample && blockIdx.x==unsigned(sample_cta)?data:nullptr;
+        Role && blockIdx.x==unsigned(sample_cta)?data:nullptr;
   __syncthreads();
   Tick begin=0;
   if(threadIdx.x==0)begin=Marks::Now();
   // Other CTAs still run the production task bodies during sampling.
-  if(Sample && blockIdx.x==unsigned(sample_cta))
-    Case::template Body<true>::Run(args,shared,&ring);
+  if(Role && blockIdx.x==unsigned(sample_cta))
+    Case::template Body<Role>::Run(args,shared,&ring);
   else
     Case::template Body<false>::Run(args,shared,&ring);
   if(threadIdx.x==0)data[Marks::kCount]=Marks::Now()-begin;
@@ -93,15 +93,21 @@ int Profile(cudaDeviceProp const& device) {
     std::printf("{\"status\":\"resource_rejected\",\"dynamic_shared\":%d}\n",shared);
     return 0;
   }
-  auto plain=Run<C,false>,sampled=Run<C,true>;
+  auto plain=Run<C,kMoeNoSample>;
+  auto producer=Run<C,kMoeProducerSample>,consumer=Run<C,kMoeConsumerSample>;
   Check(cudaFuncSetAttribute(plain,cudaFuncAttributeMaxDynamicSharedMemorySize,shared));
-  Check(cudaFuncSetAttribute(sampled,cudaFuncAttributeMaxDynamicSharedMemorySize,shared));
-  cudaFuncAttributes plain_attr{},sampled_attr{};
-  Check(cudaFuncGetAttributes(&plain_attr,plain));Check(cudaFuncGetAttributes(&sampled_attr,sampled));
-  int plain_slots,sampled_slots;
+  Check(cudaFuncSetAttribute(producer,cudaFuncAttributeMaxDynamicSharedMemorySize,shared));
+  Check(cudaFuncSetAttribute(consumer,cudaFuncAttributeMaxDynamicSharedMemorySize,shared));
+  cudaFuncAttributes plain_attr{},producer_attr{},consumer_attr{};
+  Check(cudaFuncGetAttributes(&plain_attr,plain));
+  Check(cudaFuncGetAttributes(&producer_attr,producer));
+  Check(cudaFuncGetAttributes(&consumer_attr,consumer));
+  int plain_slots,producer_slots,consumer_slots;
   Check(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&plain_slots,plain,160,shared));
-  Check(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&sampled_slots,sampled,160,shared));
-  if(std::min(plain_slots,sampled_slots)<1)throw std::runtime_error("fused service cannot be resident");
+  Check(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&producer_slots,producer,160,shared));
+  Check(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&consumer_slots,consumer,160,shared));
+  if(std::min({plain_slots,producer_slots,consumer_slots})<1)
+    throw std::runtime_error("fused service cannot be resident");
   Device<Elt> wg(std::size_t(E)*NG*H),wd(std::size_t(E)*ND*(NG/2)),input(B*H),x(B*ND),
       hidden(E*16*(NG/2));
   Device<float> output(B*Top*ND),logits(B*E);
@@ -122,7 +128,8 @@ int Profile(cudaDeviceProp const& device) {
   args.hidden=hidden.data;args.output=output.data;args.schedule=schedule.data;
   args.route_weights=routes.data;args.route_index=index.data;args.x=x.data;
   args.counter=combine.data;args.gate_up_done=done.data;args.logits=logits.data;args.epsilon=1e-6f;
-  std::vector<double> plain_spans,trace_spans,plain_kernel,trace_kernel;
+  std::vector<double> plain_spans,producer_spans,consumer_spans,
+      plain_kernel,producer_kernel,consumer_kernel,producer_off,consumer_off;
   std::vector<double> gu_issue,dn_issue,gu_mma,dn_mma,gu_epilogue,dn_epilogue,
       gu_empty,dn_empty,gu_full,dn_full,preissue,activation,gate_wait;
   std::vector<Elt> expected;
@@ -162,23 +169,32 @@ int Profile(cudaDeviceProp const& device) {
     };
     if(repeat>=0)plain_spans.push_back(span(raw));
     expected=x.Read();routes_expected=index.Read();
-    reset();
-    raw=read(sampled,block,trace_kernel,repeat);
-    auto actual=x.Read();
-    if(std::memcmp(expected.data(),actual.data(),x.size*sizeof(Elt)) || routes_expected!=index.Read())
-      throw std::runtime_error("sampling changed fused stage output or route order");
+    auto check=[&](auto kernel,int cta,std::vector<double>& elapsed) {
+      reset();
+      auto result=read(kernel,cta,elapsed,repeat);
+      auto actual=x.Read();
+      if(std::memcmp(expected.data(),actual.data(),x.size*sizeof(Elt)) || routes_expected!=index.Read())
+        throw std::runtime_error("sampling changed fused stage output or route order");
+      return result;
+    };
+    check(producer,-1,producer_off);
+    check(consumer,-1,consumer_off);
+    auto prod=check(producer,block,producer_kernel);
+    auto cons=check(consumer,block,consumer_kernel);
     if(repeat<0)continue;
-    trace_spans.push_back(span(raw));
-    auto* row=&raw[block*(Marks::kCount+1)];
+    producer_spans.push_back(span(prod));
+    consumer_spans.push_back(span(cons));
+    auto* row=&prod[block*(Marks::kCount+1)];
+    auto* compute=&cons[block*(Marks::kCount+1)];
     if(double gu=row[Marks::kGuTasks];gu>0) {
       double tiles=gu*sampled_tiles(0,H/C::kTKGu,block%8);
       if(tiles>0) {
         gu_issue.push_back(row[Marks::kGuIssue]/tiles);
-        gu_mma.push_back(row[Marks::kGuMma]/tiles);
+        gu_mma.push_back(compute[Marks::kGuMma]/tiles);
         gu_empty.push_back(row[Marks::kGuEmpty]/tiles);
-        gu_full.push_back(row[Marks::kGuFull]/tiles);
+        gu_full.push_back(compute[Marks::kGuFull]/tiles);
       }
-      gu_epilogue.push_back(row[Marks::kGuEpilogue]/gu);
+      gu_epilogue.push_back(compute[Marks::kGuEpilogue]/gu);
     }
     if(double dn=row[Marks::kDnTasks];dn>0) {
       int steps=(NG/2)/C::kTKDn,ahead=std::min(steps,C::kSlots);
@@ -188,10 +204,10 @@ int Profile(cudaDeviceProp const& device) {
         dn_empty.push_back(row[Marks::kDnEmpty]/steady);
       }
       if(all>0) {
-        dn_mma.push_back(row[Marks::kDnMma]/all);
-        dn_full.push_back(row[Marks::kDnFull]/all);
+        dn_mma.push_back(compute[Marks::kDnMma]/all);
+        dn_full.push_back(compute[Marks::kDnFull]/all);
       }
-      dn_epilogue.push_back(row[Marks::kDnEpilogue]/dn);
+      dn_epilogue.push_back(compute[Marks::kDnEpilogue]/dn);
       preissue.push_back(row[Marks::kDnPreissueIssue]/dn);
       activation.push_back(row[Marks::kDnActivation]/dn);
       gate_wait.push_back(row[Marks::kDnGateWait]/dn);
@@ -199,20 +215,24 @@ int Profile(cudaDeviceProp const& device) {
   }
   int active=schedule.Read().front();
   std::printf("{\"status\":\"measured\",\"grid\":%d,\"batch\":%d,\"active_experts\":%d,"
-      "\"dynamic_shared\":%d,\"plain_registers\":%d,\"sampled_registers\":%d,"
-      "\"plain_local_bytes\":%zu,\"sampled_local_bytes\":%zu,"
-      "\"plain_residency\":%d,\"sampled_residency\":%d,\"bitwise_equal\":true,"
+      "\"dynamic_shared\":%d,\"plain_registers\":%d,\"producer_registers\":%d,\"consumer_registers\":%d,"
+      "\"plain_local_bytes\":%zu,\"producer_local_bytes\":%zu,\"consumer_local_bytes\":%zu,"
+      "\"plain_residency\":%d,\"producer_residency\":%d,\"consumer_residency\":%d,\"bitwise_equal\":true,"
       "\"sampled_ctas_per_launch\":1,\"sampled_tile_stride\":8,\"launches\":%d,"
-      "\"plain_stage_ns\":%.3f,\"sampled_stage_ns\":%.3f,"
-      "\"plain_kernel_ns\":%.3f,\"sampled_kernel_ns\":%.3f,"
+      "\"plain_stage_ns\":%.3f,\"producer_stage_ns\":%.3f,\"consumer_stage_ns\":%.3f,"
+      "\"plain_kernel_ns\":%.3f,\"producer_kernel_ns\":%.3f,\"consumer_kernel_ns\":%.3f,"
+      "\"producer_off_kernel_ns\":%.3f,\"consumer_off_kernel_ns\":%.3f,"
       "\"gu_issue_ns_per_tile\":%.3f,\"gu_mma_ns_per_tile\":%.3f,\"gu_epilogue_ns_per_task\":%.3f,"
       "\"gu_empty_ns_per_tile\":%.3f,\"gu_full_ns_per_tile\":%.3f,"
       "\"dn_issue_ns_per_tile\":%.3f,\"dn_mma_ns_per_tile\":%.3f,\"dn_epilogue_ns_per_task\":%.3f,"
       "\"dn_empty_ns_per_tile\":%.3f,\"dn_full_ns_per_tile\":%.3f,"
       "\"dn_preissue_ns_per_task\":%.3f,\"dn_activation_ns_per_task\":%.3f,\"dn_gate_wait_ns_per_task\":%.3f}\n",
-      grid,B,active,shared,plain_attr.numRegs,sampled_attr.numRegs,plain_attr.localSizeBytes,
-      sampled_attr.localSizeBytes,plain_slots,sampled_slots,samples,Median(plain_spans),Median(trace_spans),
-      Median(plain_kernel),Median(trace_kernel),
+      grid,B,active,shared,plain_attr.numRegs,producer_attr.numRegs,consumer_attr.numRegs,
+      plain_attr.localSizeBytes,producer_attr.localSizeBytes,consumer_attr.localSizeBytes,
+      plain_slots,producer_slots,consumer_slots,samples,
+      Median(plain_spans),Median(producer_spans),Median(consumer_spans),
+      Median(plain_kernel),Median(producer_kernel),Median(consumer_kernel),
+      Median(producer_off),Median(consumer_off),
       Median(gu_issue),Median(gu_mma),Median(gu_epilogue),Median(gu_empty),Median(gu_full),
       dn_issue.empty()?0.0:Median(dn_issue),Median(dn_mma),Median(dn_epilogue),
       dn_empty.empty()?0.0:Median(dn_empty),Median(dn_full),
