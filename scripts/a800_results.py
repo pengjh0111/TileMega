@@ -24,6 +24,7 @@ NATIVE_PROVENANCE = ('decode_source_commit', 'decode_source_sha256', 'decode_bod
                      'decode_coordinates_sha256', 'decode_generated_sha256', 'decode_artifact_id',
                      'prefill_source_commit', 'prefill_artifact_id', 'runner_sha256')
 NATIVE_BODY_PREFIXES = ('include/tilemega/Backend/Sm90Dense', 'include/tilemega/Backend/Sm80Dense',
+                        'include/tilemega/Backend/Sm80AttentionScratch.',
                         'include/tilemega/Codegen/tasks/Sm90Dense',
                         'include/tilemega/Codegen/executor/Async')
 
