@@ -23,7 +23,7 @@ def collect(prepared, allocations):
              if row['status'] == 'compiled'}
     if len(ranks) != len(allocations) or len({job for job, _ in allocations}) != len(ranks):
         raise ValueError('provide one distinct allocation for every compiled rank')
-    arms, sources, receipts = {}, {}, {}
+    arms, sources, receipts, linked = {}, {}, {}, {}
     workloads, devices = set(), set()
     for job, proof_path in allocations:
         if not job.isascii() or not job.isdecimal():
@@ -40,6 +40,9 @@ def collect(prepared, allocations):
                 or guard['code'] != 0 or guard['acceptance'] != 'strict'
                 or not guard['ownership_verified'] or plan['device']['uuid'] != device['nvml_uuid']):
             raise ValueError(f'allocation {job} does not bind the guarded prepared shortlist')
+        rebind = frozen.get('selector_rebind')
+        if rebind and plan['select_sha256'] != rebind['selector_sha256']:
+            raise ValueError(f'allocation {job} used another selector')
         rank = plan['measure_rank']
         label = f'c{rank}'
         stage = proof['receipt']
@@ -73,14 +76,18 @@ def collect(prepared, allocations):
         sources[label] = dict(job=job, gpu_uuid=device['nvml_uuid'], proof_sha256=sha(proof_path),
                               request_sha256=sha(sample), guard_sha256=sha(directory/'guard_result.json'))
         receipts[label] = stage
+        linked[rank] = selected
     if len(workloads) != 1 or len(devices) != 1:
         raise ValueError('distributed P-SEL requires the same request inputs and hardware class')
     predicted = {f'c{rank}': row['predicted_ns'] for rank, row in ranks.items()}
     result = selection_result(arms, predicted)
     winner = result['winner']
     receipt = receipts[winner]
+    for rank, selected in linked.items():
+        receipt['candidates'][rank] = selected
     receipt['measurement'].update(result, arms=arms, predicted_ns=predicted, launch_order=[],
-                                  split_rank_measurement=False, independent_allocations=sources)
+                                  split_rank_measurement=False, independent_allocations=sources,
+                                  process_receipts={label: row['request_sha256'] for label, row in sources.items()})
     return dict(schema=1, status='ready_to_finalize', prepared_sha256=expected_hash,
                 scope=frozen['scope'], receipt=receipt)
 
