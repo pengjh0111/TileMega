@@ -233,7 +233,7 @@ std::optional<Sm80DenseService> Sm90NativeConstants::AmpereGateService(
 bool Sm90NativeConstants::HasDenseGateService() const {
   return !ampere_gate_service_.IsNull() ||
       std::any_of(ampere_dense_shapes_.begin(),ampere_dense_shapes_.end(),
-          [](auto const& shape) {return shape.epilogue=="swiglu";});
+          [](auto const& shape) {return shape.epilogue=="swiglu" && shape.n/shape.tn>2*shape.grid;});
 }
 
 int Sm90NativeConstants::ClusterStar(int residency) const {
