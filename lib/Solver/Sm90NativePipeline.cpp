@@ -153,6 +153,7 @@ std::string Sm90NativeStructuralClass(Sm90DenseCoordinates const& c,bool ampere)
   if(ampere && !c.moe)key += "/u"+std::to_string(c.swiglu_u);
   if(c.live_epilogue_rows)key += "/live_rows";
   if(c.copy_issue_group)key += "/copy"+std::to_string(c.copy_issue_group);
+  if(c.expert_page_segments)key += "/page_segments";
   if(c.reuse_payload)key += "/payload_reuse";
   key += "/ch" + std::to_string(c.attention.chunks);
   key += c.attention.dsmem ? "/ds1" : "/ds0";

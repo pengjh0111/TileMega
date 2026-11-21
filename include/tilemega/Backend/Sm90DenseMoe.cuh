@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
-#if defined(TILEMEGA_SM80_MOE_ALIGNED_GATE_PAGES)
+#if defined(TILEMEGA_SM80_MOE_ALIGNED_GATE_PAGES) || defined(TILEMEGA_SM80_MOE_PAGE_SEGMENTS)
 #include <tilemega/Backend/Sm80MoePageOffsets.h>
 #endif
+#include <type_traits>
+#include <utility>
 #include <tilemega/Backend/Sm90DenseGemm.h>
 #include <tilemega/Backend/Sm90DenseMark.cuh>
 #include <tilemega/Backend/Sm90DenseStream.cuh>
@@ -411,30 +413,73 @@ struct Sm90DenseMoeGemm {
     else return weight+std::size_t(schedule[Schedule::Expert(t/kTiles)])*N*K+
         std::size_t(t%kTiles)*kIterations*TN*TK;
   }
-  // One slot's weights: task t's tile, k-tile `tile`; Tiles(...) is the base.
+  // Select the first page and half-page phase once per expert task.
+  template<class Use>
+  __device__ static __forceinline__ void WithWeightTile(Element const* expert,int task,Use use) {
+#if defined(TILEMEGA_SM80_MOE_PAGE_SEGMENTS)
+    if constexpr(CpAsync && Page==64) {
+      int output_tile=task%kTiles;
+      auto* base=expert+Sm80MoePageSegments<TN,K,TK,0>::Task(output_tile);
+      if constexpr(TN%64==32) {
+        if(output_tile&1)use(std::integral_constant<int,32>{},base);
+        else use(std::integral_constant<int,0>{},base);
+      }else use(std::integral_constant<int,0>{},base);
+    }else
+#endif
+      use(std::integral_constant<int,-1>{},expert);
+  }
+
+#if defined(TILEMEGA_SM80_MOE_PAGE_SEGMENTS)
+  template<class Span>
+  __device__ static __forceinline__ void CopyPageSpan(
+      Element* destination,Element const* tiles,int tile,int panel) {
+    Core::template CopyWeightSpan<Span::kElements>(
+        destination+Span::Destination(panel),tiles+Span::Source(tile,panel));
+  }
+
+  template<class Pages,std::size_t... I>
+  __device__ static __forceinline__ void CopyPagePanel(
+      Element* destination,Element const* tiles,int tile,int panel,std::index_sequence<I...>) {
+    (CopyPageSpan<typename Pages::template Span<I>>(destination,tiles,tile,panel),...);
+  }
+#endif
+
+  // A phased tile base already includes the task offset within its expert.
+  template<int Phase=-1>
   __device__ static __forceinline__ void CopyWeights(Element* destination,Element const* tiles,int t,
       int tile,std::uint64_t* barrier) {
-    // E1: the expert stack is the layer's largest read-once stream.
-    std::uint64_t const policy=Sm90DenseStream::WeightPolicy();
-    if constexpr(!Page) {
-      auto* source=tiles+std::size_t(tile)*TN*TK;
-      if constexpr(CpAsync)Core::CopySpan(destination,source,TN*TK);
-      else Sm90DenseStream::WeightBulk(destination,source,2*TN*TK,barrier,policy);
-    }
-    else {
-      // Rows of a 64-row page are contiguous in 8-row groups, and the slot's
-      // [TK/64][TN] panel layout uses the same atom (TN is a multiple of 32).
-      int first=(t%kTiles)*TN;
+#if defined(TILEMEGA_SM80_MOE_PAGE_SEGMENTS)
+    if constexpr(CpAsync && Page==64 && Phase>=0) {
+      using Pages=Sm80MoePageSegments<TN,K,TK,Phase>;
       #pragma unroll
-      for(int panel=0;panel<TK/64;++panel) {
-        int column=tile*TK/64+panel;
-        for(int row=first;row<first+TN;) {
-          int end=min(first+TN,(row/64+1)*64);
-          auto* target=destination+512*((row-first)/8+(TN/8)*panel);
-          auto* source=tiles+(std::size_t(row/64)*(K/64)+column)*4096+512*((row%64)/8);
-          if constexpr(CpAsync)Core::CopySpan(target,source,(end-row)*64);
-          else Sm90DenseStream::WeightBulk(target,source,2*(end-row)*64,barrier,policy);
-          row=end;
+      for(int panel=0;panel<Pages::kPanels;++panel)
+        CopyPagePanel<Pages>(destination,tiles,tile,panel,std::make_index_sequence<Pages::kSegments>{});
+    }else
+#endif
+    {
+      // E1: the expert stack is the layer's largest read-once stream.
+      std::uint64_t policy=0;
+      if constexpr(!CpAsync)policy=Sm90DenseStream::WeightPolicy();
+      if constexpr(!Page) {
+        auto* source=tiles+std::size_t(tile)*TN*TK;
+        if constexpr(CpAsync)Core::template CopyWeightSpan<TN*TK>(destination,source);
+        else Sm90DenseStream::WeightBulk(destination,source,2*TN*TK,barrier,policy);
+      }
+      else {
+        // Rows of a 64-row page are contiguous in 8-row groups, and the slot's
+        // [TK/64][TN] panel layout uses the same atom (TN is a multiple of 32).
+        int first=(t%kTiles)*TN;
+        #pragma unroll
+        for(int panel=0;panel<TK/64;++panel) {
+          int column=tile*TK/64+panel;
+          for(int row=first;row<first+TN;) {
+            int end=min(first+TN,(row/64+1)*64);
+            auto* target=destination+512*((row-first)/8+(TN/8)*panel);
+            auto* source=tiles+(std::size_t(row/64)*(K/64)+column)*4096+512*((row%64)/8);
+            if constexpr(CpAsync)Core::CopySpan(target,source,(end-row)*64);
+            else Sm90DenseStream::WeightBulk(target,source,2*(end-row)*64,barrier,policy);
+            row=end;
+          }
         }
       }
     }
@@ -452,17 +497,20 @@ struct Sm90DenseMoeGemm {
     if(t>=(kDynamic?schedule[Schedule::Active()]*kTiles:kTiles))return;
     auto* b=reinterpret_cast<Element*>(shared+1024)+Slots*kRows*TK;
     auto const* tiles=Tiles(weight,schedule,t);
-    int remaining=Bytes;
-    #pragma unroll
-    for(int slot=0;slot<Slots && slot<kIterations;++slot) {
-      int part=min(remaining,2*TN*TK);remaining-=part;
-      if(part) {
-        if constexpr(!CpAsync)Async::ExpectTx(state.full+slot,kSlotBytes);
-        if constexpr(Page)CopyWeights(b+slot*TN*TK,tiles,t,slot,state.full+slot);
-        else if constexpr(CpAsync)Core::CopySpan(b+slot*TN*TK,tiles+std::size_t(slot)*TN*TK,part/2);
-        else Async::Bulk(b+slot*TN*TK,tiles+std::size_t(slot)*TN*TK,part,state.full+slot);
+    WithWeightTile(tiles,t,[&](auto page_phase,auto* tile_base) {
+      int remaining=Bytes;
+      #pragma unroll
+      for(int slot=0;slot<Slots && slot<kIterations;++slot) {
+        int part=min(remaining,2*TN*TK);remaining-=part;
+        if(part) {
+          if constexpr(!CpAsync)Async::ExpectTx(state.full+slot,kSlotBytes);
+          if constexpr(Page)CopyWeights<decltype(page_phase)::value>(
+              b+slot*TN*TK,tile_base,t,slot,state.full+slot);
+          else if constexpr(CpAsync)Core::CopySpan(b+slot*TN*TK,tile_base+std::size_t(slot)*TN*TK,part/2);
+          else Async::Bulk(b+slot*TN*TK,tile_base+std::size_t(slot)*TN*TK,part,state.full+slot);
+        }
       }
-    }
+    });
   }
 
   // Byte offset of (row, col) in a [TK/64][kRows][64] SWIZZLE_128B slot.
@@ -520,62 +568,65 @@ struct Sm90DenseMoeGemm {
       Record current=next;
       if(local+1<tasks)next=Load(p.schedule,t+int(gridDim.x));
       auto const* tiles=TaskTiles(p.weight,current.expert,t);
-      int token=current.route/TopK;
-      for(int tile=0;tile<kIterations;++tile) {
-        int sequence=local*kIterations+tile,slot=sequence%Slots;
-        Async::Wait(state.empty+slot,(phase>>slot)&1);
-        if constexpr(CpAsync) {
-          int prefix=0;
-          if constexpr(Prefix>0)
-            if(streamed && sequence<(Prefix+2*TN*TK-1)/(2*TN*TK))
-              prefix=min(Prefix/2-sequence*TN*TK,TN*TK);
-          auto* destination=b+slot*TN*TK;
-          if constexpr(Page) {
-            if(!prefix)CopyWeights(destination,tiles,t,tile,state.full+slot);
-          }else Core::CopySpan(destination+prefix,tiles+std::size_t(tile)*TN*TK+prefix,TN*TK-prefix);
-          auto* source=Mode==Sm90DenseMoeMode::kGateUp?p.input:p.activation_address;
-          if constexpr(Mode==Sm90DenseMoeMode::kDown)source+=std::size_t(t/kTiles)*16*K;
-          CopyActivation(a+slot*kRows*TK,source,tile,kDynamic?current.count:Batch,token);
-          Async::CompleteCopies(state.full+slot);
-        }else if constexpr(Mode==Sm90DenseMoeMode::kGateUp) {
-          // The producer lanes gather the slot's rows of x' (one TK segment
-          // each) into the swizzled slot. A non-.noinc cp.async arrive adds a
-          // pending arrival that its copies retire, so lane 0's single
-          // expect_tx arrival must follow the warp's arrives.
-          auto base=Async::Shared(a+slot*kRows*TK);
-          for(int first_chunk=0;first_chunk<current.count*(TK/8);first_chunk+=32) {
-            int chunk=first_chunk+lane,r=chunk/(TK/8),col=(chunk%(TK/8))*8;
-            int row_token=__shfl_sync(0xffffffff,token,r&(Schedule::kMaxRows-1));
-            if(chunk<current.count*(TK/8))
-              asm volatile("cp.async.cg.shared.global [%0], [%1], 16;"::"r"(base+Swizzled(r,col)),
-                  "l"(p.input+std::size_t(row_token)*K+tile*TK+col):"memory");
+      WithWeightTile(tiles,t,[&](auto page_phase,auto* tile_base) {
+        int token=current.route/TopK;
+        for(int tile=0;tile<kIterations;++tile) {
+          int sequence=local*kIterations+tile,slot=sequence%Slots;
+          Async::Wait(state.empty+slot,(phase>>slot)&1);
+          if constexpr(CpAsync) {
+            int prefix=0;
+            if constexpr(Prefix>0)
+              if(streamed && sequence<(Prefix+2*TN*TK-1)/(2*TN*TK))
+                prefix=min(Prefix/2-sequence*TN*TK,TN*TK);
+            auto* destination=b+slot*TN*TK;
+            if constexpr(Page) {
+              if(!prefix)CopyWeights<decltype(page_phase)::value>(destination,tile_base,t,tile,state.full+slot);
+            }else if constexpr(Prefix==0)CopyWeights(destination,tile_base,t,tile,state.full+slot);
+            else Core::CopySpan(destination+prefix,tile_base+std::size_t(tile)*TN*TK+prefix,TN*TK-prefix);
+            auto* source=Mode==Sm90DenseMoeMode::kGateUp?p.input:p.activation_address;
+            if constexpr(Mode==Sm90DenseMoeMode::kDown)source+=std::size_t(t/kTiles)*16*K;
+            CopyActivation(a+slot*kRows*TK,source,tile,kDynamic?current.count:Batch,token);
+            Async::CompleteCopies(state.full+slot);
+          }else if constexpr(Mode==Sm90DenseMoeMode::kGateUp) {
+            // The producer lanes gather the slot's rows of x' (one TK segment
+            // each) into the swizzled slot. A non-.noinc cp.async arrive adds a
+            // pending arrival that its copies retire, so lane 0's single
+            // expect_tx arrival must follow the warp's arrives.
+            auto base=Async::Shared(a+slot*kRows*TK);
+            for(int first_chunk=0;first_chunk<current.count*(TK/8);first_chunk+=32) {
+              int chunk=first_chunk+lane,r=chunk/(TK/8),col=(chunk%(TK/8))*8;
+              int row_token=__shfl_sync(0xffffffff,token,r&(Schedule::kMaxRows-1));
+              if(chunk<current.count*(TK/8))
+                asm volatile("cp.async.cg.shared.global [%0], [%1], 16;"::"r"(base+Swizzled(r,col)),
+                    "l"(p.input+std::size_t(row_token)*K+tile*TK+col):"memory");
+            }
+            asm volatile("cp.async.mbarrier.arrive.shared::cta.b64 [%0];"::
+                "r"(Async::Shared(state.full+slot)):"memory");
+            __syncwarp();
+            if(lane==0) {
+              Async::ExpectTx(state.full+slot,2*TN*TK);
+              CopyWeights<decltype(page_phase)::value>(b+slot*TN*TK,tile_base,t,tile,state.full+slot);
+            }
+          }else if(lane==0) {
+            // Only M6's first task can have been streamed by M5 (D6).
+            unsigned prefix=0;
+            if constexpr(Prefix>0)
+              if(streamed && sequence<(Prefix+2*TN*TK-1)/(2*TN*TK))
+                prefix=min(Prefix-sequence*2*TN*TK,2*TN*TK);
+            if(!prefix)Async::ExpectTx(state.full+slot,kSlotBytes);
+            if(!prefix)CopyWeights<decltype(page_phase)::value>(b+slot*TN*TK,tile_base,t,tile,state.full+slot);
+            else if constexpr(!Page)
+              if(prefix<2*TN*TK)Async::Bulk(b+slot*TN*TK+prefix/2,tile_base+std::size_t(tile)*TN*TK+prefix/2,
+                  2*TN*TK-prefix,state.full+slot);
+            // Rows past the batch (router) or the slot's count (down) are never
+            // written out.
+            if constexpr(Mode==Sm90DenseMoeMode::kRouter)
+              Async::Tensor3D(a+slot*kRows*TK,p.activation,0,0,tile*(TK/64),state.full+slot);
+            else Async::Tensor4D(a+slot*kRows*TK,p.activation,0,0,tile*(TK/64),t/kTiles,state.full+slot);
           }
-          asm volatile("cp.async.mbarrier.arrive.shared::cta.b64 [%0];"::
-              "r"(Async::Shared(state.full+slot)):"memory");
-          __syncwarp();
-          if(lane==0) {
-            Async::ExpectTx(state.full+slot,2*TN*TK);
-            CopyWeights(b+slot*TN*TK,tiles,t,tile,state.full+slot);
-          }
-        }else if(lane==0) {
-          // Only M6's first task can have been streamed by M5 (D6).
-          unsigned prefix=0;
-          if constexpr(Prefix>0)
-            if(streamed && sequence<(Prefix+2*TN*TK-1)/(2*TN*TK))
-              prefix=min(Prefix-sequence*2*TN*TK,2*TN*TK);
-          if(!prefix)Async::ExpectTx(state.full+slot,kSlotBytes);
-          if(!prefix)CopyWeights(b+slot*TN*TK,tiles,t,tile,state.full+slot);
-          else if constexpr(!Page)
-            if(prefix<2*TN*TK)Async::Bulk(b+slot*TN*TK+prefix/2,tiles+std::size_t(tile)*TN*TK+prefix/2,
-                2*TN*TK-prefix,state.full+slot);
-          // Rows past the batch (router) or the slot's count (down) are never
-          // written out.
-          if constexpr(Mode==Sm90DenseMoeMode::kRouter)
-            Async::Tensor3D(a+slot*kRows*TK,p.activation,0,0,tile*(TK/64),state.full+slot);
-          else Async::Tensor4D(a+slot*kRows*TK,p.activation,0,0,tile*(TK/64),t/kTiles,state.full+slot);
+          phase^=1u<<slot;
         }
-        phase^=1u<<slot;
-      }
+      });
     }
     if(lane==0 && tasks)for(int slot=0;slot<Slots;++slot)
       state.producer_generations[slot]=(phase>>slot)&1;
@@ -920,61 +971,63 @@ struct Sm90DenseMoeFusedGemm {
       Sm90DenseRingState& state,Element* a,Element* b,Task task,int lane,unsigned& phase,
       int& sequence,Record record) {
     auto const* tiles=Gu::TaskTiles(p.weight_gate_up,record.expert,task.slot*kTilesGu+task.tile);
-    using Profile=Sm80MoeStageMarks<CpAsync,true>;
+    Gu::WithWeightTile(tiles,task.slot*kTilesGu+task.tile,[&](auto page_phase,auto* tile_base) {
+      using Profile=Sm80MoeStageMarks<CpAsync,true>;
 #if defined(TILEMEGA_SM80_MOE_ALIGNED_GATE_PAGES)
-    constexpr bool kAlignedPages=CpAsync && Page==64 && TNGu%64==0;
-    using Pages=Sm80MoePageOffsets<TNGu,Hidden,TKGu>;
-    if constexpr(kAlignedPages)tiles+=Pages::Task(task.tile);
+      constexpr bool kAlignedPages=CpAsync && Page==64 && TNGu%64==0;
+      using Pages=Sm80MoePageOffsets<TNGu,Hidden,TKGu>;
+      if constexpr(kAlignedPages && decltype(page_phase)::value<0)tile_base+=Pages::Task(task.tile);
 #endif
-    int token=record.route/TopK;
-    for(int tile=0;tile<kIterGu;++tile) {
-      int slot=(sequence++)%Slots;
-      auto stamp=Profile::Now();
-      Async::Wait(state.empty+slot,(phase>>slot)&1);
-      Profile::Add(Sm90DenseMarks::kGuEmpty,stamp);
-      stamp=Profile::Now();
-      if constexpr(CpAsync) {
+      int token=record.route/TopK;
+      for(int tile=0;tile<kIterGu;++tile) {
+        int slot=(sequence++)%Slots;
+        auto stamp=Profile::Now();
+        Async::Wait(state.empty+slot,(phase>>slot)&1);
+        Profile::Add(Sm90DenseMarks::kGuEmpty,stamp);
+        stamp=Profile::Now();
+        if constexpr(CpAsync) {
 #if defined(TILEMEGA_SM80_MOE_ALIGNED_GATE_PAGES)
-        if constexpr(kAlignedPages) {
-          // Task and K-tile offsets select whole aligned pages. Their
-          // panel order is the same as the generic partial-page traversal.
-          auto* dst=b+slot*kWeightSlot;
+          if constexpr(kAlignedPages && decltype(page_phase)::value<0) {
+            // Task and K-tile offsets select whole aligned pages. Their
+            // panel order is the same as the generic partial-page traversal.
+            auto* dst=b+slot*kWeightSlot;
           #pragma unroll
-          for(int panel=0;panel<Pages::kPanels;++panel) {
+            for(int panel=0;panel<Pages::kPanels;++panel) {
             #pragma unroll
-            for(int page=0;page<Pages::kPages;++page)
-              Gu::Core::CopySpan(dst+Pages::Destination(panel,page),
-                  tiles+Pages::Source(tile,panel,page),Pages::kElements);
-          }
-        }else
+              for(int page=0;page<Pages::kPages;++page)
+                Gu::Core::CopySpan(dst+Pages::Destination(panel,page),
+                    tile_base+Pages::Source(tile,panel,page),Pages::kElements);
+            }
+          }else
 #endif
-        Gu::CopyWeights(b+slot*kWeightSlot,tiles,task.slot*kTilesGu+task.tile,tile,state.full+slot);
-        Gu::CopyActivation(a+slot*kRows*kMaxTK,p.input,tile,record.count,token);
-        Async::CompleteCopies(state.full+slot);
-      }else {
-      // The producer lanes gather the slot's rows of x' (one TK segment each)
-      // into the swizzled slot; a non-.noinc cp.async arrive adds a pending
-      // arrival its copies retire, so lane 0's expect_tx must follow them.
-      auto base=Async::Shared(a+slot*kRows*kMaxTK);
-      for(int first=0;first<record.count*(TKGu/8);first+=32) {
-        int chunk=first+lane,r=chunk/(TKGu/8),col=(chunk%(TKGu/8))*8;
-        int row_token=__shfl_sync(0xffffffff,token,r&(Schedule::kMaxRows-1));
-        if(chunk<record.count*(TKGu/8))
-          asm volatile("cp.async.cg.shared.global [%0], [%1], 16;"::
-              "r"(base+Gu::Swizzled(r,col)),
-              "l"(p.input+std::size_t(row_token)*Hidden+tile*TKGu+col):"memory");
+          Gu::template CopyWeights<decltype(page_phase)::value>(b+slot*kWeightSlot,tile_base,task.slot*kTilesGu+task.tile,tile,state.full+slot);
+          Gu::CopyActivation(a+slot*kRows*kMaxTK,p.input,tile,record.count,token);
+          Async::CompleteCopies(state.full+slot);
+        }else {
+          // The producer lanes gather the slot's rows of x' (one TK segment each)
+          // into the swizzled slot; a non-.noinc cp.async arrive adds a pending
+          // arrival its copies retire, so lane 0's expect_tx must follow them.
+          auto base=Async::Shared(a+slot*kRows*kMaxTK);
+          for(int first=0;first<record.count*(TKGu/8);first+=32) {
+            int chunk=first+lane,r=chunk/(TKGu/8),col=(chunk%(TKGu/8))*8;
+            int row_token=__shfl_sync(0xffffffff,token,r&(Schedule::kMaxRows-1));
+            if(chunk<record.count*(TKGu/8))
+              asm volatile("cp.async.cg.shared.global [%0], [%1], 16;"::
+                  "r"(base+Gu::Swizzled(r,col)),
+                  "l"(p.input+std::size_t(row_token)*Hidden+tile*TKGu+col):"memory");
+          }
+          asm volatile("cp.async.mbarrier.arrive.shared::cta.b64 [%0];"::
+              "r"(Async::Shared(state.full+slot)):"memory");
+          __syncwarp();
+          if(lane==0) {
+            Async::ExpectTx(state.full+slot,2*TNGu*TKGu);
+            Gu::template CopyWeights<decltype(page_phase)::value>(b+slot*kWeightSlot,tile_base,task.slot*kTilesGu+task.tile,tile,state.full+slot);
+          }
+        }
+        Profile::Add(Sm90DenseMarks::kGuIssue,stamp);
+        phase^=1u<<slot;
       }
-      asm volatile("cp.async.mbarrier.arrive.shared::cta.b64 [%0];"::
-          "r"(Async::Shared(state.full+slot)):"memory");
-      __syncwarp();
-      if(lane==0) {
-        Async::ExpectTx(state.full+slot,2*TNGu*TKGu);
-        Gu::CopyWeights(b+slot*kWeightSlot,tiles,task.slot*kTilesGu+task.tile,tile,state.full+slot);
-      }
-      }
-      Profile::Add(Sm90DenseMarks::kGuIssue,stamp);
-      phase^=1u<<slot;
-    }
+    });
   }
 
   // The weights do not depend on h, so they are issued for the slots this
@@ -983,68 +1036,70 @@ struct Sm90DenseMoeFusedGemm {
       Sm90DenseRingState& state,Element* a,Element* b,Task task,int lane,unsigned& phase,
       int& sequence,Record record) {
     auto const* tiles=Dn::TaskTiles(p.weight_down,record.expert,task.slot*kTilesDn+task.tile);
-    using Profile=Sm80MoeStageMarks<CpAsync,true>;
-    constexpr int kAhead=Slots<kIterDn?Slots:kIterDn;
-    int first=sequence;
-    for(int tile=0;tile<kAhead;++tile) {
-      int slot=(sequence++)%Slots;
-      auto stamp=Profile::Now();
-      Async::Wait(state.empty+slot,(phase>>slot)&1);
-      Profile::Add(Sm90DenseMarks::kDnPreissueEmpty,stamp);
-      stamp=Profile::Now();
-      if(CpAsync || lane==0) {
-        if constexpr(!CpAsync)Async::ExpectTx(state.full+slot,kSlotBytesDn);
-        Dn::CopyWeights(b+slot*kWeightSlot,tiles,task.slot*kTilesDn+task.tile,tile,state.full+slot);
-      }
-      Profile::Add(Sm90DenseMarks::kDnPreissueIssue,stamp);
-      phase^=1u<<slot;
-    }
-    // The whole warp waits. A lane-0-only spin let lanes 1-31 run ahead, and the
-    // warp could reach the stage's final __syncthreads (bar.sync is .aligned,
-    // counted per warp execution) split into groups that completed the CTA
-    // barrier without the consumers: the MR7 hang, about one stall in 25k
-    // fused stages, verified by per-thread barrier markers.
-    auto gate_wait=Profile::Now();
-    WaitGateUp(p.gate_up_done,task.slot);
-    Profile::Add(Sm90DenseMarks::kDnGateWait,gate_wait);
-    // Producer side: thread 128 owns the mark (appendix D).
-    if(threadIdx.x==128)Sm90DenseMarkFirst(3);
-    auto activation=Profile::Now();
-    if constexpr(CpAsync) {
-      auto* source=static_cast<Element const*>(p.hidden)+std::size_t(task.slot)*16*kIntermediate;
+    Dn::WithWeightTile(tiles,task.slot*kTilesDn+task.tile,[&](auto page_phase,auto* tile_base) {
+      using Profile=Sm80MoeStageMarks<CpAsync,true>;
+      constexpr int kAhead=Slots<kIterDn?Slots:kIterDn;
+      int first=sequence;
       for(int tile=0;tile<kAhead;++tile) {
-        int slot=(first+tile)%Slots;
-        Dn::CopyActivation(a+slot*kRows*kMaxTK,source,tile,record.count,0);
-        Async::CompleteCopies(state.full+slot);
+        int slot=(sequence++)%Slots;
+        auto stamp=Profile::Now();
+        Async::Wait(state.empty+slot,(phase>>slot)&1);
+        Profile::Add(Sm90DenseMarks::kDnPreissueEmpty,stamp);
+        stamp=Profile::Now();
+        if(CpAsync || lane==0) {
+          if constexpr(!CpAsync)Async::ExpectTx(state.full+slot,kSlotBytesDn);
+          Dn::template CopyWeights<decltype(page_phase)::value>(b+slot*kWeightSlot,tile_base,task.slot*kTilesDn+task.tile,tile,state.full+slot);
+        }
+        Profile::Add(Sm90DenseMarks::kDnPreissueIssue,stamp);
+        phase^=1u<<slot;
       }
-    }else if(lane==0) {
-      // h of the slots whose weights are already in flight, then the rest.
-      for(int tile=0;tile<kAhead;++tile)
-        Async::Tensor4D(a+((first+tile)%Slots)*kRows*kMaxTK,p.activation,0,0,tile*(TKDn/64),
-            task.slot,state.full+(first+tile)%Slots);
-    }
-    __syncwarp();
-    Profile::Add(Sm90DenseMarks::kDnActivation,activation);
-    for(int tile=kAhead;tile<kIterDn;++tile) {
-      int slot=(sequence++)%Slots;
-      auto stamp=Profile::Now();
-      Async::Wait(state.empty+slot,(phase>>slot)&1);
-      Profile::Add(Sm90DenseMarks::kDnEmpty,stamp);
-      stamp=Profile::Now();
+      // The whole warp waits. A lane-0-only spin let lanes 1-31 run ahead, and the
+      // warp could reach the stage's final __syncthreads (bar.sync is .aligned,
+      // counted per warp execution) split into groups that completed the CTA
+      // barrier without the consumers: the MR7 hang, about one stall in 25k
+      // fused stages, verified by per-thread barrier markers.
+      auto gate_wait=Profile::Now();
+      WaitGateUp(p.gate_up_done,task.slot);
+      Profile::Add(Sm90DenseMarks::kDnGateWait,gate_wait);
+      // Producer side: thread 128 owns the mark (appendix D).
+      if(threadIdx.x==128)Sm90DenseMarkFirst(3);
+      auto activation=Profile::Now();
       if constexpr(CpAsync) {
         auto* source=static_cast<Element const*>(p.hidden)+std::size_t(task.slot)*16*kIntermediate;
-        Dn::CopyWeights(b+slot*kWeightSlot,tiles,task.slot*kTilesDn+task.tile,tile,state.full+slot);
-        Dn::CopyActivation(a+slot*kRows*kMaxTK,source,tile,record.count,0);
-        Async::CompleteCopies(state.full+slot);
+        for(int tile=0;tile<kAhead;++tile) {
+          int slot=(first+tile)%Slots;
+          Dn::CopyActivation(a+slot*kRows*kMaxTK,source,tile,record.count,0);
+          Async::CompleteCopies(state.full+slot);
+        }
       }else if(lane==0) {
-        Async::ExpectTx(state.full+slot,kSlotBytesDn);
-        Dn::CopyWeights(b+slot*kWeightSlot,tiles,task.slot*kTilesDn+task.tile,tile,state.full+slot);
-        Async::Tensor4D(a+slot*kRows*kMaxTK,p.activation,0,0,tile*(TKDn/64),task.slot,
-            state.full+slot);
+        // h of the slots whose weights are already in flight, then the rest.
+        for(int tile=0;tile<kAhead;++tile)
+          Async::Tensor4D(a+((first+tile)%Slots)*kRows*kMaxTK,p.activation,0,0,tile*(TKDn/64),
+              task.slot,state.full+(first+tile)%Slots);
       }
-      Profile::Add(Sm90DenseMarks::kDnIssue,stamp);
-      phase^=1u<<slot;
-    }
+      __syncwarp();
+      Profile::Add(Sm90DenseMarks::kDnActivation,activation);
+      for(int tile=kAhead;tile<kIterDn;++tile) {
+        int slot=(sequence++)%Slots;
+        auto stamp=Profile::Now();
+        Async::Wait(state.empty+slot,(phase>>slot)&1);
+        Profile::Add(Sm90DenseMarks::kDnEmpty,stamp);
+        stamp=Profile::Now();
+        if constexpr(CpAsync) {
+          auto* source=static_cast<Element const*>(p.hidden)+std::size_t(task.slot)*16*kIntermediate;
+          Dn::template CopyWeights<decltype(page_phase)::value>(b+slot*kWeightSlot,tile_base,task.slot*kTilesDn+task.tile,tile,state.full+slot);
+          Dn::CopyActivation(a+slot*kRows*kMaxTK,source,tile,record.count,0);
+          Async::CompleteCopies(state.full+slot);
+        }else if(lane==0) {
+          Async::ExpectTx(state.full+slot,kSlotBytesDn);
+          Dn::template CopyWeights<decltype(page_phase)::value>(b+slot*kWeightSlot,tile_base,task.slot*kTilesDn+task.tile,tile,state.full+slot);
+          Async::Tensor4D(a+slot*kRows*kMaxTK,p.activation,0,0,tile*(TKDn/64),task.slot,
+              state.full+slot);
+        }
+        Profile::Add(Sm90DenseMarks::kDnIssue,stamp);
+        phase^=1u<<slot;
+      }
+    });
   }
 
   __device__ static __forceinline__ void Produce(Sm90DenseMoeFusedOperands const& p,

@@ -2127,6 +2127,8 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   }
   c.Validate(nk,batch);
   int const shared_expert_page=frontend::NativeMoeSharedExpertPageSide(nk[5][0]);
+  if(c.expert_page_segments && (!cp_async || shared_expert_page!=64))
+    throw std::invalid_argument("page-segment copy requires SM80 and the shared page64 expert ABI");
   for(unsigned i=0;i<gemms.size();++i) {
     auto g=dictionaryEntry(gemms[i],"gemms"),r=dictionaryEntry(runtime[i],"gemm_runtime");
     unsigned gemm_family=family(g);
@@ -2192,7 +2194,8 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
      <<(c.live_epilogue_rows?"#define TILEMEGA_SM80_ACTIVE_EPILOGUE 1\n":"")
      <<(c.copy_issue_group?"#define TILEMEGA_SM80_COPY_ISSUE_GROUP "+
          std::to_string(c.copy_issue_group)+"\n":"")
-     <<(cp_async && c.expert_fuse && shared_expert_page==64 &&
+     <<(c.expert_page_segments?"#define TILEMEGA_SM80_MOE_PAGE_SEGMENTS 1\n":"")
+     <<(cp_async && !c.expert_page_segments && c.expert_fuse && shared_expert_page==64 &&
          c.gemms[6].tile_n==128 && c.gemms[6].TileK()==64?
          "#define TILEMEGA_SM80_MOE_ALIGNED_GATE_PAGES 1\n":"")
      // Only a sharded program names its degree and the all-reduce width, so a
