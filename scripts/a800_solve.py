@@ -67,18 +67,21 @@ def main():
             parser.error('bind a separate selector for an existing shortlist on the login node')
         prepared = args.prepared_shortlist.resolve(strict=True)
         document = json.loads(prepared.read_text())
+        abi_path = prepared.parent/'weight-abi.json'
+        abi = json.loads(abi_path.read_text())
         scope = document['scope']
         old = shlex.split(scope['measure_command'])
         new = shlex.split(select)
         if (document['schema'] != 1 or scope['compiler_sha256'] != sha(cli)
                 or scope['target_sha256'] != sha(target) or scope['export_sha256'] != sha(source)
+                or abi['prefill_sha256'] != prefill_sha
                 or scope['batch'] != args.batch or len(old) != len(new)
                 or old[0] != new[0] or Path(old[1]).name != 'a800_select.py' or old[2:] != new[2:]):
             parser.error('selector rebinding must preserve the executable and all frozen arguments')
         scope['measure_command'] = select
         document['selector_rebind'] = dict(
             prepared_sha256=sha(prepared), previous_command=shlex.join(old),
-            selector_sha256=sha(ROOT/'scripts/a800_select.py'))
+            selector_sha256=sha(ROOT/'scripts/a800_select.py'), weight_abi_sha256=sha(abi_path))
         output.parent.mkdir(parents=True, exist_ok=True)
         bound = output.with_suffix('.prepared.json')
         if bound.exists():
