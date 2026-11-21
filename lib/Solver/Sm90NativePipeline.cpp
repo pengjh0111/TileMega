@@ -394,6 +394,27 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     return candidates;
   };
 
+  auto ring_neighbours=[&](Sm90DenseCoordinates const& base) {
+    std::vector<Sm90DenseCoordinates> result;
+    if(!ampere || base.weight_stream || options.pinned_theta)return result;
+    if(base.moe) {
+      if(!base.expert_fuse)return result;
+      for(int depth=2;depth<=8;++depth) {
+        if(depth==base.CommonExpertSlots())continue;
+        auto trial=base;trial.SetCommonExpertSlots(depth);
+        if(cost.FusedService(work,trial))result.push_back(trial);
+      }
+      return result;
+    }
+    for(unsigned f:{0u,1u,2u,3u})
+      for(int depth=2;depth<=8;++depth) {
+        if(depth==base.gemms[f].slots)continue;
+        auto trial=base;trial.gemms[f].slots=depth;
+        if(cost.DenseService(work,f,trial.gemms[f],trial.residency,&trial))result.push_back(trial);
+      }
+    return result;
+  };
+
   auto score = [&](Sm90DenseCoordinates const& c) -> double {
     auto key = CoordinateKey(c);
     auto found = memo.find(key);
@@ -479,6 +500,11 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     for(auto const& [trial,label]:body_neighbours(base))project_body(trial);
     for(auto const& trial:measured_body_seeds(base))project_body(trial);
   }
+  // Slot depth may leave the body class unchanged. Visit calibrated depths
+  // on the leading seed before the geometry descent spends its budget.
+  auto ring_peers=base_seeds.empty()?std::vector<Sm90DenseCoordinates>{}:
+      ring_neighbours(base_seeds.front());
+  for(auto const& trial:ring_peers)project(trial);
   if (starts.empty())
     throw std::invalid_argument("native pipeline search found no legal seed");
   for(std::size_t i=0;i<starts.size();++i) {
@@ -642,6 +668,14 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
           return neighbours.count(CoordinateKey(candidate.coordinates));
         });
         if(best!=ranked.end())protected_anchors.insert(CoordinateKey(best->coordinates));
+        if(int(protected_anchors.size())<options.finalists) {
+          std::set<std::string> ring_keys;
+          for(auto const& trial:ring_peers)ring_keys.insert(CoordinateKey(trial));
+          auto peer=std::find_if(ranked.begin(),ranked.end(),[&](auto const& candidate) {
+            return ring_keys.count(CoordinateKey(candidate.coordinates));
+          });
+          if(peer!=ranked.end())protected_anchors.insert(CoordinateKey(peer->coordinates));
+        }
       }
     }
   }
