@@ -25,6 +25,16 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def checkpoint_digest(manifest):
+    fields = ('algorithm', 'config_sha256', 'seed', 'aliases', 'tensors')
+    identity = {key: manifest[key] for key in fields}
+    return digest(json.dumps(identity, sort_keys=True, separators=(',', ':')).encode())
+
+
+def write_seals(fcntl):
+    return fcntl.F_SEAL_WRITE | fcntl.F_SEAL_GROW | fcntl.F_SEAL_SHRINK | fcntl.F_SEAL_SEAL
+
+
 def tensor_seed(seed, name):
     return int.from_bytes(hashlib.sha256(f"{ALGORITHM}:{seed}:{name}".encode()).digest()[:8], "little") & ((1 << 63)-1)
 
@@ -115,6 +125,7 @@ class RandomCheckpoint:
     def __enter__(self):
         if not hasattr(os, "memfd_create"):
             raise RuntimeError("random checkpoints require Linux memfd_create")
+        import fcntl
         if self.chunk_bytes < 1:
             raise ValueError("chunk_bytes must be positive")
         self.manifest = describe(self.source)
@@ -129,7 +140,7 @@ class RandomCheckpoint:
         self.directory.mkdir(parents=True, exist_ok=False)
         self.manifest.update(seed=self.seed, supervisor_pid=os.getpid(), state="building",
                              weight_semantics="shared synthetic random checkpoint; pretrained C-1 unavailable",
-                             source=str(self.source.resolve()), shards=[])
+                             source=str(self.source.resolve()), shards=[], sealed_memfds=True)
         try:
             for filename in ("config.json", "generation_config.json"):
                 if (self.source/filename).is_file():
@@ -138,7 +149,7 @@ class RandomCheckpoint:
             for number, tensors in enumerate(shards, 1):
                 heartbeat('checkpoint_shard', shard=number, total_shards=len(shards))
                 filename = f"model-{number:05d}-of-{len(shards):05d}.safetensors"
-                fd = os.memfd_create(filename, flags=os.MFD_CLOEXEC)
+                fd = os.memfd_create(filename, flags=os.MFD_CLOEXEC | os.MFD_ALLOW_SEALING)
                 self.fds.append(fd)
                 header, offset = {"__metadata__": {"format": "pt"}}, 0
                 for tensor in tensors:
@@ -157,17 +168,17 @@ class RandomCheckpoint:
                         _write(fd, chunk)
                         tensor_hash.update(chunk); shard_hash.update(chunk)
                     tensor["sha256"] = tensor_hash.hexdigest()
+                fcntl.fcntl(fd, fcntl.F_ADD_SEALS, write_seals(fcntl))
                 link = self.directory/filename
                 target = f"/proc/{os.getpid()}/fd/{fd}"
                 link.symlink_to(target)
                 self.links.append((link, target))
-                self.manifest["shards"].append({"file": filename, "bytes": len(prefix)+offset,
+                self.manifest["shards"].append({"file": filename, "fd": fd, "bytes": len(prefix)+offset,
                     "data_bytes": offset, "sha256": shard_hash.hexdigest(),
                     "exceeds_requested_shard_bytes": offset > self.shard_bytes})
             index = {"metadata": {"total_size": self.manifest["total_bytes"]}, "weight_map": mapping}
             (self.directory/"model.safetensors.index.json").write_text(json.dumps(index, indent=2) + "\n")
-            identity = {key: self.manifest[key] for key in ("algorithm", "config_sha256", "seed", "aliases", "tensors")}
-            self.manifest["checkpoint_sha256"] = digest(json.dumps(identity, sort_keys=True, separators=(",", ":")).encode())
+            self.manifest["checkpoint_sha256"] = checkpoint_digest(self.manifest)
             self.manifest["state"] = "live"
             self._save()
             return self
@@ -205,6 +216,39 @@ def validate_live_checkpoint(directory):
         if not (directory/shard["file"]).is_file():
             raise RuntimeError("random checkpoint memfd is unavailable; supervisor may have exited")
     return manifest
+
+
+def sealed_tensor_hashes(directory, files):
+    """Reuse hashes of immutable shards supplied by the active benchmark supervisor."""
+    active = os.environ.get('TILEMEGA_RANDOM_CHECKPOINT')
+    if not active or Path(active).resolve() != directory.resolve():
+        return {}
+    manifest = validate_live_checkpoint(directory)
+    if not manifest.get('sealed_memfds'):
+        return {}
+    import fcntl
+    if (manifest['algorithm'] != ALGORITHM
+            or manifest['config_sha256'] != digest((directory/'config.json').read_bytes())
+            or manifest['checkpoint_sha256'] != checkpoint_digest(manifest)):
+        raise ValueError('sealed checkpoint identity differs from its manifest')
+    hashes = {row['name']: row['sha256'] for row in manifest['tensors']}
+    shards = {row['file']: row for row in manifest['shards']}
+    if (hashes.keys() != files.keys() or len(hashes) != manifest['tensor_count']
+            or shards.keys() != {path.name for path in files.values()}):
+        raise ValueError('sealed checkpoint weights differ from its manifest')
+    supervisor = Path('/proc')/str(manifest['supervisor_pid'])/'fd'
+    seals = write_seals(fcntl)
+    for name, shard in shards.items():
+        path = directory/name
+        target = path.readlink()
+        if target != supervisor/str(shard['fd']):
+            raise ValueError('sealed shard does not belong to its supervisor')
+        with target.open('rb') as stream:
+            fd = stream.fileno()
+            if (os.fstat(fd).st_size != shard['bytes']
+                    or fcntl.fcntl(fd, fcntl.F_GET_SEALS) & seals != seals):
+                raise ValueError('checkpoint shard is not the recorded immutable memfd')
+    return hashes
 
 
 def main():

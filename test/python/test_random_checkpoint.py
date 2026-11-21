@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import torch
 from safetensors import safe_open
@@ -99,6 +100,26 @@ class RandomCheckpointTest(unittest.TestCase):
         self.assertTrue((destination/"child-read-ok.json").is_file())
         self.assertEqual(json.loads((destination/"random_checkpoint.json").read_text())["state"], "closed")
         self.assertFalse(list(destination.glob("*.safetensors")))
+
+    def test_weights_reuse_supervised_sealed_hashes(self):
+        source = self.source('llama', tied=True)
+        destination = self.root/'sealed'
+        with RandomCheckpoint(source, destination, shard_bytes=700) as shared:
+            baseline = Checkpoint(destination)
+            names = [*baseline.files, 'lm_head.weight']
+            expected = {name: baseline.tensor_sha(name) for name in names}
+            with self.assertRaises(PermissionError):
+                os.pwrite(shared.fds[0], b'x', 0)
+            with patch.dict(os.environ, {'TILEMEGA_RANDOM_CHECKPOINT': str(destination)}):
+                cached = Checkpoint(destination)
+                with patch.object(cached, 'tensor', side_effect=AssertionError('unexpected tensor read')):
+                    self.assertEqual({name: cached.tensor_sha(name) for name in names}, expected)
+                manifest = destination/'random_checkpoint.json'
+                broken = json.loads(manifest.read_text())
+                broken['shards'][0]['fd'] = shared.fds[1]
+                manifest.write_text(json.dumps(broken))
+                with self.assertRaisesRegex(ValueError, 'does not belong to its supervisor'):
+                    Checkpoint(destination)
 
     def test_invalid_limits_and_closed_supervisor_are_explicit(self):
         source = self.source("llama")

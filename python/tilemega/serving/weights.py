@@ -10,6 +10,7 @@ import torch
 from safetensors import safe_open
 
 from .plan import Buffer, PlanLibrary
+from .random_checkpoint import sealed_tensor_hashes
 from tilemega.dnn.weights import DNN_RECIPES, pack as pack_dnn, recipe_sources as dnn_sources
 from tilemega.moe.weights import is_expert_recipe, pack_experts, recipe_sources as expert_sources
 
@@ -29,13 +30,16 @@ class Checkpoint:
                     self.files[name] = path
         if not self.files:
             raise FileNotFoundError(f"no safetensors in {self.model_dir}")
-        self.hashes: dict[str, str] = {}
+        self.hashes = sealed_tensor_hashes(self.model_dir, self.files)
 
-    def tensor(self, name: str) -> torch.Tensor:
-        # The tied vocabulary may be recorded only under the embedding name.
+    def _weight_name(self, name: str) -> str:
         if (name == "lm_head.weight" and name not in self.files and
                 self.tie_word_embeddings):
-            name = "model.embed_tokens.weight"
+            return "model.embed_tokens.weight"
+        return name
+
+    def tensor(self, name: str) -> torch.Tensor:
+        name = self._weight_name(name)
         path = self.files.get(name)
         if path is None:
             raise KeyError(f"checkpoint has no {name}")
@@ -43,6 +47,7 @@ class Checkpoint:
             return stream.get_tensor(name)
 
     def tensor_sha(self, name: str) -> str:
+        name = self._weight_name(name)
         if name not in self.hashes:
             tensor = self.tensor(name).contiguous().view(torch.uint8).numpy()
             self.hashes[name] = hashlib.sha256(memoryview(tensor)).hexdigest()
