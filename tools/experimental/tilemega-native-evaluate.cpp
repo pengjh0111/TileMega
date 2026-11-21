@@ -50,7 +50,10 @@ int main(int argc,char** argv) {try {
     for(unsigned i=1;i<flow.nodes.size();++i)
       if(c.expert_fuse && flow.nodes[i].price.name=="gemm7" && flow.nodes[i-1].price.name=="gemm6")
         offsets[i]=flow.problem.spaces[i-1].count;
-    auto replay=RefineAndReplaySm90Native(flow.problem,Sm90NativeCandidateTracks(flow.problem,offsets));
+    auto tracks=Sm90NativeCandidateTracks(flow.problem,offsets);
+    double replay=Sm90NativeRequestScore(flow,[&](FlowProblem const& problem,int) {
+      return RefineAndReplaySm90Native(problem,tracks).replay.makespan_ns;
+    });
     auto done=std::chrono::steady_clock::now();
     auto milliseconds=[](auto a,auto b) {return std::chrono::duration<double,std::milli>(b-a).count();};
     auto additive=cost.Predict(work,c);
@@ -69,7 +72,7 @@ int main(int argc,char** argv) {try {
         {"import_ms",milliseconds(started,evaluate_start)},
         {"pool_evaluation_ms",milliseconds(evaluate_start,flow_end)},
         {"replay_ms",milliseconds(flow_end,done)},{"pool_ns",flow.step_ns},
-        {"replay_ns",replay.replay.makespan_ns},{"additive_ns",additive.step_ns},
+        {"replay_ns",replay},{"additive_ns",additive.step_ns},
         {"additive_stages",additive.ToJson()},{"spaces",spaces},{"approximation",flow.approximation},
         {"constants_from_older_body",stale},{"space_hits",double(state.cache.space_hits)},
         {"space_misses",double(state.cache.space_misses)},
@@ -87,7 +90,7 @@ int main(int argc,char** argv) {try {
     }
     output<<row.Dump(0);output.flush();
     std::cout<<cell.At("id").AsString("id")<<" pool_ms="<<flow.step_ns/1e6
-        <<" replay_ms="<<replay.replay.makespan_ns/1e6<<" additive_ms="<<additive.step_ns/1e6<<'\n'<<std::flush;
+        <<" replay_ms="<<replay/1e6<<" additive_ms="<<additive.step_ns/1e6<<'\n'<<std::flush;
   }
   return 0;
 }catch(std::exception const& error) {std::cerr<<error.what()<<'\n';return 1;}}
