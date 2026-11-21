@@ -52,12 +52,16 @@ __device__ __forceinline__ void Sm90DenseMarkFirst(int index) {
 #endif
 }
 
-template<bool CpAsync,bool Producer>
+template<bool CpAsync,bool Producer,bool ServiceSample=false>
 struct Sm80MoeStageMarks {
-  static constexpr bool kEnabled=CpAsync && TILEMEGA_TRACE_STAGE==2;
+  static constexpr bool kEnabled=CpAsync && (ServiceSample || TILEMEGA_TRACE_STAGE==2);
   __device__ static __forceinline__ unsigned long long Now() {
     if constexpr(kEnabled)
-      if(threadIdx.x==(Producer?128:0))return clock64();
+      if(threadIdx.x==(Producer?128:0)) {
+        if constexpr(ServiceSample) {
+          if(auto* marks=Sm90DenseMarks::Base();marks)return Sm90DenseMarks::Now();
+        }else return clock64();
+      }
     return 0;
   }
   __device__ static __forceinline__ void RecordTask(bool down,int rows) {
@@ -73,7 +77,11 @@ struct Sm80MoeStageMarks {
                                              unsigned long long begin) {
     if constexpr(kEnabled)
       if(threadIdx.x==(Producer?128:0))
-        if(auto* marks=Sm90DenseMarks::Base())marks[phase]+=clock64()-begin;
+        if(auto* marks=Sm90DenseMarks::Base()) {
+          if constexpr(ServiceSample) {
+            if(begin)marks[phase]+=Sm90DenseMarks::Now()-begin;
+          }else marks[phase]+=clock64()-begin;
+        }
   }
 };
 
