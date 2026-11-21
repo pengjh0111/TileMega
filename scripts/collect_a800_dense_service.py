@@ -101,11 +101,27 @@ def collect(run, target, binary):
         gpu_uuid=device['nvml_uuid'], guard_result_sha256=sha(run/'guard/guard_result.json'),
         evidence=str(run), measurements=measurements, rejected=rejected)
     if typed:
-        registry = constants.setdefault('dense_gemm_service', dict(schema=1, profiles=[]))
-        if registry['schema'] != 1:
-            raise ValueError('unsupported dense GEMM service registry schema')
-        if profile not in registry['profiles']:
-            registry['profiles'].append(profile)
+        frozen = read(run/'frozen.json')
+        registry = constants.setdefault('dense_gemm_service', dict(
+            schema=1, reference_target_sha256=sha(target), profiles=[]))
+        if (registry['schema'] != 1 or
+                registry['reference_target_sha256'] != frozen['target_sha256'] or
+                sha(binary.with_suffix('.identity.json')) != frozen['identity_sha256'] or
+                artifact != read(binary.with_suffix('.identity.json'))):
+            raise ValueError('service evidence differs from the frozen probe or reference target')
+        if any(profile['guard_result_sha256'] == previous['guard_result_sha256']
+               for previous in registry['profiles']):
+            return base
+        compatible = {key: previous['binary_sha256']
+                      for previous in registry['profiles']
+                      if previous['body_headers'] == profile['body_headers']
+                      for key in previous['measurements']}
+        profile['additional_observations'] = {}
+        for key in tuple(measurements):
+            if key in compatible:
+                profile['additional_observations'][key] = dict(
+                    row=measurements.pop(key), selected_probe_sha256=compatible[key])
+        registry['profiles'].append(profile)
     elif measurements:
         append_service(constants, [profile])
     else:
