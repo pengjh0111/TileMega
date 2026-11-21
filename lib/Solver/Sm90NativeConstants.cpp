@@ -42,10 +42,10 @@ double Positive(json::Value const& v,char const* what) {
 }
 }  // namespace
 
-std::array<int,21> Sm80FusedExpertShape::Key() const {
+std::array<int,22> Sm80FusedExpertShape::Key() const {
   return {batch,gate_up_n,down_n,hidden,gate_up_tn,gate_up_tk,down_tn,down_tk,slots,
       gate_up_warps_n,down_warps_n,experts,float_routes,page,register_stages,
-      softmax_all,segments,live_rows,copy_group,gu_route_bases,reuse_payload};
+      softmax_all,segments,live_rows,copy_group,gu_route_bases,reuse_payload,residency};
 }
 
 Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,std::string const& root) {
@@ -171,8 +171,6 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
       }
       if(!compatible)continue;
       auto const& row=profile.At("measurement");
-      if(row.At("grid").AsNumber("fused expert grid")!=sms ||
-         row.At("plain_residency").AsNumber("fused expert residency")!=1)continue;
       auto const& shape=profile.At("shape");
       auto dimension=[&](char const* name) {
         double value=shape.At(name).AsNumber(name);
@@ -180,13 +178,29 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
           throw std::invalid_argument(std::string("invalid fused shape dimension ")+name);
         return int(value);
       };
+      int residency=shape.Find("residency")?dimension("residency"):1;
+      if((residency!=1 && residency!=2) ||
+         row.At("grid").AsNumber("fused expert grid")!=sms*residency ||
+         row.At("plain_residency").AsNumber("fused expert residency")!=residency)continue;
+      if(residency==2) {
+        auto const* anchor=profile.Find("residency_anchor");
+        if(!anchor || anchor->At("binary_sha256").AsString("resident anchor binary").size()!=64 ||
+           anchor->At("manifest_sha256").AsString("resident anchor manifest").size()!=64 ||
+           anchor->At("dynamic_shared").AsNumber("resident anchor shared memory")!=
+               row.At("dynamic_shared").AsNumber("fused probe shared memory") ||
+           row.At("overlapping_sms").AsNumber("observed overlap")<=0 ||
+           row.At("overlapping_sms").AsNumber("observed overlap")>sms ||
+           row.At("producer_residency").AsNumber("fused producer residency")!=residency ||
+           row.At("consumer_residency").AsNumber("fused consumer residency")!=residency)
+          throw std::invalid_argument("unbound dual-resident fused expert service");
+      }
       Sm80FusedExpertShape geometry{dimension("batch"),dimension("gate_up_n"),dimension("down_n"),
           dimension("hidden"),dimension("gate_up_tn"),dimension("gate_up_tk"),dimension("down_tn"),
           dimension("down_tk"),dimension("slots"),dimension("gate_up_warps_n"),dimension("down_warps_n"),
           dimension("experts"),dimension("float_routes"),dimension("page"),dimension("register_stages"),
           dimension("softmax_all"),dimension("segments"),dimension("live_rows"),dimension("copy_group"),
           shape.Find("gu_route_bases")?dimension("gu_route_bases"):0,
-          shape.Find("reuse_payload")?dimension("reuse_payload"):0};
+          shape.Find("reuse_payload")?dimension("reuse_payload"):0,residency};
       if(geometry.reuse_payload>1)
         throw std::invalid_argument("invalid fused expert payload service");
       if(geometry.reuse_payload) {

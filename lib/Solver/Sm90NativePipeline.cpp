@@ -402,9 +402,8 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     std::vector<Sm90DenseCoordinates> candidates;
     if(!ampere || base.weight_stream || options.pinned_theta)return candidates;
     if(base.moe) {
-      if(base.residency!=1)return candidates;
       for(auto const& shape:cost.Constants().AmpereFusedShapes()) {
-        if(shape.batch!=work.batch || shape.experts!=work.experts ||
+        if(shape.residency!=base.residency || shape.batch!=work.batch || shape.experts!=work.experts ||
            shape.gate_up_n!=work.shapes[6][0] || shape.down_n!=work.shapes[7][0] ||
            shape.hidden!=work.shapes[6][1])continue;
         auto trial=base;
