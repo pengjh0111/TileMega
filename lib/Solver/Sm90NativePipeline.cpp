@@ -2,6 +2,7 @@
 #include <tilemega/Solver/Sm90NativePipeline.h>
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <iterator>
 #include <limits>
 #include <map>
@@ -304,18 +305,36 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
   // existing search already produces.
   std::vector<Sm90DenseCoordinates> starts;
   std::set<std::string> start_keys;
-  auto project=[&](Sm90DenseCoordinates seed) {
+  std::set<std::string> protected_anchors;
+  if(options.require_anchors && (!ampere || seeds.empty() || options.pinned_theta ||
+      options.retile_only || options.realize_aggregate || options.operator_sum))
+    throw std::invalid_argument("required anchors need the SM80 end-to-end pipeline");
+  auto project=[&](Sm90DenseCoordinates seed,bool required=false) {
     if(options.pinned_theta) {
       seed.gemms=options.pinned_theta->gemms;
       seed.reuse_payload=options.pinned_theta->reuse_payload;
     }
     constrain(seed);
     bool projected=options.pinned_theta || options.retile_only || options.realize_aggregate;
-    if((projected?derive(seed):space.Legal(seed)) && priced(seed) &&
-       start_keys.insert(CoordinateKey(seed)).second)
-      starts.push_back(seed);
+    if(!(projected?derive(seed):space.Legal(seed))) {
+      if(required)throw std::invalid_argument("required SM80 anchor violates resource or planning constraints: "+
+          CoordinateKey(seed));
+      return;
+    }
+    if(!priced(seed)) {
+      if(required) {
+        for(unsigned family:seed.Active())cost.MmaK16Ns(seed.gemms[family],seed.residency);
+        throw Sm90NativeMissing("required SM80 anchor is missing its exact body price: "+CoordinateKey(seed));
+      }
+      return;
+    }
+    auto key=CoordinateKey(seed);
+    if(required)protected_anchors.insert(key);
+    if(start_keys.insert(key).second)starts.push_back(seed);
   };
-  for (auto const& seed : seeds)project(seed);
+  for (auto const& seed : seeds)project(seed,options.require_anchors);
+  if(int(protected_anchors.size())>options.finalists)
+    throw std::invalid_argument("more required anchors than the finalist budget");
   Sm90DenseSearchOptions additive;
   additive.top = 1;
   auto seeded = SearchSm90Dense(space, work, cost, additive);
@@ -325,7 +344,10 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
   if (starts.empty())
     throw std::invalid_argument("native pipeline search found no legal seed");
   for(std::size_t i=0;i<starts.size();++i) {
-    origin="seed:"+std::to_string(i);score(starts[i]);
+    origin="seed:"+std::to_string(i);
+    double value=score(starts[i]);
+    if(!std::isfinite(value) && protected_anchors.count(CoordinateKey(starts[i])))
+      throw Sm90NativeMissing("full flow is missing a price for required anchor "+CoordinateKey(starts[i]));
   }
   if(result.evaluated.empty())
     throw std::invalid_argument("native pipeline search found no priced seed");
@@ -463,17 +485,15 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
   // A calibrated SM80 incumbent can have the same structural class as
   // several newly tried slot depths. Keep its exact legal coordinate in
   // replay so prediction error cannot eliminate the comparison arm.
-  std::string incumbent;
-  if(ampere && options.finalists>0 && !seeds.empty() && !options.pinned_theta && !options.operator_sum &&
+  if(!options.require_anchors && ampere && options.finalists>0 && !seeds.empty() && !options.pinned_theta && !options.operator_sum &&
       !options.retile_only && !options.realize_aggregate) {
-    incumbent=CoordinateKey(seeds.front());
-    auto was_scored=[&](auto const& candidate) {
-      return CoordinateKey(candidate.coordinates)==incumbent;
-    };
-    auto measured_seed=std::find_if(ranked.begin(),ranked.end(),was_scored);
-    if(measured_seed==ranked.end())incumbent.clear();
-    else if(std::none_of(result.shortlist.begin(),result.shortlist.end(),was_scored))
-      result.shortlist.push_back(*measured_seed);
+    auto key=CoordinateKey(seeds.front());
+    if(memo.count(key) && std::isfinite(memo.at(key)))protected_anchors.insert(key);
+  }
+  for(auto const& key:protected_anchors) {
+    auto same=[&](auto const& x){return CoordinateKey(x.coordinates)==key;};
+    if(std::none_of(result.shortlist.begin(),result.shortlist.end(),same))
+      result.shortlist.push_back(*std::find_if(ranked.begin(),ranked.end(),same));
   }
 
   // Lines 15-19: materialize, replay, and keep at most `per_class` finalists
@@ -485,8 +505,13 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
   std::stable_sort(by_replay.begin(), by_replay.end(),
                    [](auto const& a, auto const& b) {return a.replay_ns < b.replay_ns;});
   std::map<std::string, int> taken;
+  for(auto const& c:by_replay)if(protected_anchors.count(CoordinateKey(c.coordinates))) {
+    ++taken[c.structural_class];
+    result.finalists.push_back(c);
+  }
   for (auto const& candidate : by_replay) {
     if (int(result.finalists.size()) >= options.finalists) break;
+    if(protected_anchors.count(CoordinateKey(candidate.coordinates)))continue;
     if (taken[candidate.structural_class] >= options.per_class) continue;
     ++taken[candidate.structural_class];
     result.finalists.push_back(candidate);
@@ -499,16 +524,8 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
                                    CoordinateKey(candidate.coordinates);});
     if (!present) result.finalists.push_back(candidate);
   }
-  if(!incumbent.empty()) {
-    auto is_incumbent=[&](auto const& candidate) {
-      return CoordinateKey(candidate.coordinates)==incumbent;
-    };
-    if(std::none_of(result.finalists.begin(),result.finalists.end(),is_incumbent)) {
-      auto replayed=std::find_if(by_replay.begin(),by_replay.end(),is_incumbent);
-      if(int(result.finalists.size())==options.finalists)result.finalists.back()=*replayed;
-      else result.finalists.push_back(*replayed);
-    }
-  }
+  std::stable_sort(result.finalists.begin(),result.finalists.end(),
+                   [](auto const& a,auto const& b){return a.replay_ns<b.replay_ns;});
   result.seconds = spent_ms() / 1000.0;
   return result;
 }

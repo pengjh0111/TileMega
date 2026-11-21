@@ -375,8 +375,14 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
     pipeline.realize_aggregate=o.realize_aggregate;
     pipeline.budget_ms=o.search_budget_ms;
     std::vector<solver::Sm90DenseCoordinates> seeds;
-    if(!o.seed_coordinates.empty())
-      seeds.push_back(solver::Sm90DenseCoordinates::FromJson(json::ParseFile(o.seed_coordinates)));
+    if(!o.seed_coordinates.empty()) {
+      auto file=json::ParseFile(o.seed_coordinates);
+      if(auto const* anchors=file.Find("required_anchors")) {
+        pipeline.require_anchors=true;
+        for(auto const& anchor:anchors->AsArray("required anchors"))
+          seeds.push_back(solver::Sm90DenseCoordinates::FromJson(anchor));
+      }else seeds.push_back(solver::Sm90DenseCoordinates::FromJson(file));
+    }
     if(!o.pin_theta.empty()) {
       // AB-1: each family's geometry is fixed by a local criterion and the
       // rest of the decisions are still Algorithm 1's.
@@ -538,6 +544,7 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
         auto evidence=json::ParseFile((probe/"result.json").string());
         pipeline_record.Set("occupancy_pass_"+std::to_string(pass),evidence);
         bool changed=false;
+        json::Array corrections;
         for(auto const& resource:evidence.At("candidates").AsArray("occupancy candidates")) {
           int i=int(resource.At("rank").AsNumber("occupancy rank"));
           if(i<0 || i>=int(candidates.size()) ||
@@ -551,6 +558,13 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
           // A legal SM80 grid can intentionally use less than the measured capacity.
           if(target.arch_tag=="sm_80")actual=std::min(actual,c.residency);
           if(actual==c.residency)continue;
+          if(resume && target.arch_tag=="sm_80") {
+            corrections.emplace_back(json::Object{{"rank",i},{"submitted",c.ToJson()},
+                {"submitted_coordinates_sha256",Hash(configs[i].string())},
+                {"actual_residency",actual},{"resource",resource}});
+            candidates[i].Set("status","needs_reprepare");
+            continue;
+          }
           if(pass==2)throw std::runtime_error("native occupancy correction did not converge");
           mlir::MLIRContext context;
           auto imported=solver::ImportSm90Dense(o.input,c,context);
@@ -589,6 +603,15 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
           save();
         }
         save();
+        if(!corrections.empty()) {
+          auto path=directory/"needs-reprepare.json";
+          std::ofstream(path)<<json::Value(json::Object{
+              {"schema",1},{"status","needs_reprepare"},
+              {"prepared_sha256",Hash(o.prepared_shortlist)},{"scope",scope},
+              {"corrections",corrections}}).Dump(2)<<'\n';
+          std::cerr<<"native GPU selection requires login-node preparation: "<<path<<'\n';
+          return 75;
+        }
         if(!changed)break;
       }
     }

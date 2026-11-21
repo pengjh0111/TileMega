@@ -25,6 +25,7 @@ struct Sm90NativePipelineOptions {
   bool retile_only = false;
   // AB-4b: every coupling becomes an aggregate (V3) boundary.
   bool realize_aggregate = false;
+  bool require_anchors = false;
   std::optional<Sm90DenseCoordinates> pinned_theta;
 };
 
