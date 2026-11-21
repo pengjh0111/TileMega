@@ -23,6 +23,18 @@ bool SameBodyHeader(json::Value const& constants,std::string_view header,
       proof->At("inactive_sha256").AsString("inactive residual copy header")==expected &&
       proof->At("compiled_sha256").AsString("compiled residual copy header")==current;
 }
+bool SameAttentionProbeHeader(json::Value const& profile,std::string_view header,
+    std::string const& current,std::string const& expected) {
+  if(current==expected)return true;
+  // A probe can keep identical device code across changes to the enclosing
+  // attention header. Check the original measurement binding as well.
+  auto const* proof=profile.Find("probe_body_equivalence");
+  return header=="Backend/Sm90DenseAttentionBody.cuh" && proof &&
+      proof->At("reference_sha256").AsString("reference header")==expected &&
+      proof->At("equivalent_sha256").AsString("equivalent header")==current &&
+      proof->At("sass_sha256").AsString("probe instructions").size()==64 &&
+      proof->At("resources_sha256").AsString("probe resources").size()==64;
+}
 double Positive(json::Value const& v,char const* what) {
   double x=v.AsNumber(what);
   if(!(x>0))throw std::invalid_argument(std::string("nonpositive native constant ")+what);
@@ -222,15 +234,7 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
                    "Codegen/executor/Async.cuh"}) {
       auto current=FileHash(root+"/include/tilemega/"+name);
       auto expected=hashes.At(name).AsString("body hash");
-      if(current==expected)continue;
-      // The fresh-row probe exercises Block(), independently of the optional
-      // stage scratch alias and its consumer handoff.
-      auto const* proof=std::string_view(name)=="Backend/Sm90DenseAttentionBody.cuh"?
-          fresh->Find("probe_body_equivalence"):nullptr;
-      if(!proof || proof->At("reference_sha256").AsString("reference header")!=expected ||
-          proof->At("equivalent_sha256").AsString("equivalent header")!=current ||
-          proof->At("sass_sha256").AsString("probe instructions").size()!=64 ||
-          proof->At("resources_sha256").AsString("probe resources").size()!=64)compatible=false;
+      compatible &= SameAttentionProbeHeader(*fresh,name,current,expected);
     }
     if(compatible)c.ampere_attention_fresh_=fresh->At("measurements");
   }
@@ -241,7 +245,8 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
     bool compatible=true;
     for(auto name:{"Backend/Sm90DenseAttentionBody.cuh","Backend/Sm80AttentionScratch.h",
                    "Codegen/executor/ComputeGroup.cuh"})
-      compatible &= FileHash(root+"/include/tilemega/"+name)==hashes.At(name).AsString("body hash");
+      compatible &= SameAttentionProbeHeader(*workspace,name,FileHash(root+"/include/tilemega/"+name),
+          hashes.At(name).AsString("body hash"));
     if(compatible) {
       auto const& row=workspace->At("measurement");
       int sms=int(target.At("resources").At("num_sms").AsNumber("target SM count"));

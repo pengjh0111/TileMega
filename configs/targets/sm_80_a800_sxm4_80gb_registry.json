@@ -6202,10 +6202,12 @@
       "guard_sha256": "2962128367137e711696a376d9a3bc71500cfe70a7f7e1dd9cd9156aeaf19651",
       "probe_body_equivalence": {
         "reference_sha256": "d46ee98c88f6d64d0ffc36ded15bc20f8fff5b1afa7a2e649e7469ad7d7d0191",
-        "equivalent_sha256": "2ed8b5f515629d1946325903de2b20368efe13d677a701ee99bbccdd4239f77c",
+        "equivalent_sha256": "d89d0e59e6520900d298cb3600d1c262cb398b63db6a25bd650a0baed531a1b4",
         "sass_sha256": "e795c2d8f11f6d25dd56a85f178ec8537b1e6f76f1a99a95741f80dca1a05adb",
         "resources_sha256": "6cd9f784b83f3f07c4f5cb4f231cbdd26712e3be0e2a6a20f5c94d0d43c28e6d",
-        "evidence": "TileMega-a800/runs/a800/optimization/r2-depth/attention-compact"
+        "reference_binary_sha256": "69be59710fbaeec57c06081d3b8adf7de9d0134572a037c21d611e72e58d01df",
+        "rebuild_binary_sha256": "5a5508478ab53016953ab1af8a09f4874c9af15aa5ebe2a5e9a7efd533c26bbd",
+        "evidence": "TileMega-a800/runs/a800/optimization/r2-pressure/attention-probe-equivalence"
       }
     },
     "residual_copy_header_equivalence": {
@@ -6236,7 +6238,16 @@
       "gpu_uuid": "GPU-b7817d38-dabe-8812-398d-3c31e493e072",
       "evidence": "TileMega-a800/runs/a800/calibration/r2-supplement-service/350775",
       "guard_sha256": "2962128367137e711696a376d9a3bc71500cfe70a7f7e1dd9cd9156aeaf19651",
-      "measurement_sha256": "a07560187c7236a04589e3d9eb79795f2b06bbc18d7ff4ee4145b1f375ee7c5b"
+      "measurement_sha256": "a07560187c7236a04589e3d9eb79795f2b06bbc18d7ff4ee4145b1f375ee7c5b",
+      "probe_body_equivalence": {
+        "reference_sha256": "2ed8b5f515629d1946325903de2b20368efe13d677a701ee99bbccdd4239f77c",
+        "equivalent_sha256": "d89d0e59e6520900d298cb3600d1c262cb398b63db6a25bd650a0baed531a1b4",
+        "sass_sha256": "d45d5de74140eea37031faabe4cfdee91a7a0dde6a61c1eef8b604b5a29e2c37",
+        "resources_sha256": "b6033ed4488d1859f2596f6ee4c9278b4d4b5b6227f7c90f09a76c54093f9d88",
+        "reference_binary_sha256": "ae122ec5bda561eca9d91ef8daa839fd95fc8c9aac715d3503b68ba908135eb4",
+        "rebuild_binary_sha256": "b75fb015eb5f09bb0a9ecc0397e0558f01290e2f35f40c6a7c65b7c93eee26e4",
+        "evidence": "TileMega-a800/runs/a800/optimization/r2-pressure/attention-probe-equivalence"
+      }
     },
     "fused_trace_header_equivalence": {
       "Backend/Sm90DenseMark.cuh": {
