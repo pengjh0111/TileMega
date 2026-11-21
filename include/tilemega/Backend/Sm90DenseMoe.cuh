@@ -563,6 +563,40 @@ struct Sm90DenseMoeGemm {
     }
   }
 #endif
+#ifdef TILEMEGA_SM80_MOE_GU_ROUTE_BASES
+  struct ActivationRouteBases {
+    Element const* segments[kRows/4];
+    unsigned valid;
+  };
+
+  __device__ static __forceinline__ ActivationRouteBases PrepareActivationRoutes(
+      Element const* source,int token,int rows) {
+    static_assert(CpAsync && Mode==Sm90DenseMoeMode::kGateUp && TK==64);
+    int first_row=(threadIdx.x&31)/8,col=(threadIdx.x&7)*8;
+    ActivationRouteBases plan{};
+    #pragma unroll
+    for(int i=0;i<kRows/4;++i) {
+      int row=first_row+4*i;
+      int input_row=__shfl_sync(0xffffffff,token,row);
+      bool valid=row<rows;
+      plan.segments[i]=source+std::size_t(valid?input_row:0)*K+col;
+      plan.valid|=unsigned(valid)<<i;
+    }
+    return plan;
+  }
+
+  __device__ static __forceinline__ void CopyActivationFromBases(
+      Element* destination,int tile,ActivationRouteBases const& plan) {
+    static_assert(CpAsync && Mode==Sm90DenseMoeMode::kGateUp && TK==64);
+    auto* dst=reinterpret_cast<char*>(destination);
+    int first_row=(threadIdx.x&31)/8,col=(threadIdx.x&7)*8;
+    #pragma unroll
+    for(int i=0;i<kRows/4;++i) {
+      int row=first_row+4*i;
+      Async::Copy16(dst+Swizzled(row,col),plan.segments[i]+tile*TK,(plan.valid>>i)&1);
+    }
+  }
+#endif
   __device__ static __forceinline__ Record Load(int const* schedule,int t) {
     if constexpr(!kDynamic)return {};
     else {
@@ -1010,6 +1044,10 @@ struct Sm90DenseMoeFusedGemm {
 #ifdef TILEMEGA_SM80_MOE_PACKED_GU_ROUTES
       unsigned packed_routes=0;
       if constexpr(CpAsync && TKGu==64)packed_routes=Gu::PackActivationRoutes(token);
+#elif defined(TILEMEGA_SM80_MOE_GU_ROUTE_BASES)
+      typename Gu::ActivationRouteBases route_bases{};
+      if constexpr(CpAsync && TKGu==64)
+        route_bases=Gu::PrepareActivationRoutes(p.input,token,record.count);
 #endif
       for(int tile=0;tile<kIterGu;++tile) {
         int slot=(sequence++)%Slots;
@@ -1036,6 +1074,10 @@ struct Sm90DenseMoeFusedGemm {
 #ifdef TILEMEGA_SM80_MOE_PACKED_GU_ROUTES
           if constexpr(TKGu==64)
             Gu::CopyPackedActivation(a+slot*kRows*kMaxTK,p.input,tile,record.count,packed_routes);
+          else
+#elif defined(TILEMEGA_SM80_MOE_GU_ROUTE_BASES)
+          if constexpr(TKGu==64)
+            Gu::CopyActivationFromBases(a+slot*kRows*kMaxTK,tile,route_bases);
           else
 #endif
             Gu::CopyActivation(a+slot*kRows*kMaxTK,p.input,tile,record.count,token);
