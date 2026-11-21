@@ -981,10 +981,10 @@ struct Sm90DenseMoeFusedGemm {
       int token=record.route/TopK;
       for(int tile=0;tile<kIterGu;++tile) {
         int slot=(sequence++)%Slots;
-        auto stamp=Profile::Now();
+        auto stamp=Profile::Tile(tile);
         Async::Wait(state.empty+slot,(phase>>slot)&1);
         Profile::Add(Sm90DenseMarks::kGuEmpty,stamp);
-        stamp=Profile::Now();
+        stamp=Profile::Tile(tile);
         if constexpr(CpAsync) {
 #if defined(TILEMEGA_SM80_MOE_ALIGNED_GATE_PAGES)
           if constexpr(kAlignedPages && decltype(page_phase)::value<0) {
@@ -1081,10 +1081,10 @@ struct Sm90DenseMoeFusedGemm {
       Profile::Add(Sm90DenseMarks::kDnActivation,activation);
       for(int tile=kAhead;tile<kIterDn;++tile) {
         int slot=(sequence++)%Slots;
-        auto stamp=Profile::Now();
+        auto stamp=Profile::Tile(tile);
         Async::Wait(state.empty+slot,(phase>>slot)&1);
         Profile::Add(Sm90DenseMarks::kDnEmpty,stamp);
-        stamp=Profile::Now();
+        stamp=Profile::Tile(tile);
         if constexpr(CpAsync) {
           auto* source=static_cast<Element const*>(p.hidden)+std::size_t(task.slot)*16*kIntermediate;
           Dn::template CopyWeights<decltype(page_phase)::value>(b+slot*kWeightSlot,tile_base,task.slot*kTilesDn+task.tile,tile,state.full+slot);
@@ -1144,11 +1144,11 @@ struct Sm90DenseMoeFusedGemm {
     float squares[2]={0,0};
     for(int iteration=0;iteration<Iterations;++iteration) {
       int slot=(sequence++)%Slots;
-      auto stamp=Profile::Now();
+      auto stamp=Profile::Tile(iteration);
       Async::Wait(state.full+slot,(phase>>slot)&1);phase^=1u<<slot;
       Profile::Add(Down?Sm90DenseMarks::kDnFull:Sm90DenseMarks::kGuFull,stamp);
       if(tid==0)Sm90DenseMarkFirst(1);
-      stamp=Profile::Now();
+      stamp=Profile::Tile(iteration);
       auto* sa=a+slot*kRows*kMaxTK;auto* sb=b+slot*kWeightSlot;
       if constexpr(WK==1)Body::Core::template MmaSlice<0>(sa,sb,accum,squares);
       else if constexpr(WK==2) {

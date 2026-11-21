@@ -52,7 +52,7 @@ template<int B,int NGu,int NDn,int H,int TNGu,int TKGu,int TNDn,int TKDn,int Slo
          int WNGu,int WNDn,int Experts,bool FloatWeights,int Page,int R,bool SoftmaxAll>
 struct Case {
   static constexpr int kB=B,kNGu=NGu,kNDn=NDn,kH=H,kE=Experts,kTop=8;
-  static constexpr int kTKGu=TKGu,kTKDn=TKDn,kTNDn=TNDn;
+  static constexpr int kTKGu=TKGu,kTKDn=TKDn,kTNDn=TNDn,kSlots=Slots;
   static constexpr bool kFloatWeights=FloatWeights;
   template<bool Sample> using Body=Sm90DenseMoeFusedGemm<B,NGu,NDn,H,TNGu,TKGu,TNDn,TKDn,
       Slots,WNGu,4/WNGu,WNDn,4/WNDn,16,Experts,kTop,FloatWeights,Page,R,SoftmaxAll,true,false,true,Sample>;
@@ -119,6 +119,11 @@ int Profile(cudaDeviceProp const& device) {
     Fill<<<1,256>>>(x.data,x.size);
     Check(cudaGetLastError());
   };
+  auto sampled_tiles=[](int begin,int end,int lane) {
+    int n=0;
+    for(int tile=begin;tile<end;++tile)if(tile%8==lane)++n;
+    return n;
+  };
   for(int repeat=-1;repeat<8;++repeat) {
     reset();
     Run<C,false><<<grid,160,shared>>>(args,trace.data,0);
@@ -142,20 +147,27 @@ int Profile(cudaDeviceProp const& device) {
     for(int block=repeat;block<grid;block+=8) {
       auto* row=&raw[block*(Marks::kCount+1)];
       if(double gu=row[Marks::kGuTasks];gu>0) {
-        double tiles=gu*(H/C::kTKGu);
-        gu_issue.push_back(row[Marks::kGuIssue]/tiles);
-        gu_mma.push_back(row[Marks::kGuMma]/tiles);
+        double tiles=gu*sampled_tiles(0,H/C::kTKGu,repeat);
+        if(tiles>0) {
+          gu_issue.push_back(row[Marks::kGuIssue]/tiles);
+          gu_mma.push_back(row[Marks::kGuMma]/tiles);
+          gu_empty.push_back(row[Marks::kGuEmpty]/tiles);
+          gu_full.push_back(row[Marks::kGuFull]/tiles);
+        }
         gu_epilogue.push_back(row[Marks::kGuEpilogue]/gu);
-        gu_empty.push_back(row[Marks::kGuEmpty]/tiles);
-        gu_full.push_back(row[Marks::kGuFull]/tiles);
       }
       if(double dn=row[Marks::kDnTasks];dn>0) {
-        double tiles=dn*((NG/2)/C::kTKDn);
-        dn_issue.push_back(row[Marks::kDnIssue]/tiles);
-        dn_mma.push_back(row[Marks::kDnMma]/tiles);
+        int steps=(NG/2)/C::kTKDn,ahead=std::min(steps,C::kSlots);
+        double all=dn*sampled_tiles(0,steps,repeat),steady=dn*sampled_tiles(ahead,steps,repeat);
+        if(steady>0) {
+          dn_issue.push_back(row[Marks::kDnIssue]/steady);
+          dn_empty.push_back(row[Marks::kDnEmpty]/steady);
+        }
+        if(all>0) {
+          dn_mma.push_back(row[Marks::kDnMma]/all);
+          dn_full.push_back(row[Marks::kDnFull]/all);
+        }
         dn_epilogue.push_back(row[Marks::kDnEpilogue]/dn);
-        dn_empty.push_back(row[Marks::kDnEmpty]/tiles);
-        dn_full.push_back(row[Marks::kDnFull]/tiles);
         preissue.push_back(row[Marks::kDnPreissueIssue]/dn);
         activation.push_back(row[Marks::kDnActivation]/dn);
         gate_wait.push_back(row[Marks::kDnGateWait]/dn);
@@ -167,7 +179,7 @@ int Profile(cudaDeviceProp const& device) {
       "\"dynamic_shared\":%d,\"plain_registers\":%d,\"sampled_registers\":%d,"
       "\"plain_local_bytes\":%zu,\"sampled_local_bytes\":%zu,"
       "\"plain_residency\":%d,\"sampled_residency\":%d,\"bitwise_equal\":true,"
-      "\"sampled_cta_stride\":8,\"plain_stage_ns\":%.3f,\"sampled_stage_ns\":%.3f,"
+      "\"sampled_cta_stride\":8,\"sampled_tile_stride\":8,\"plain_stage_ns\":%.3f,\"sampled_stage_ns\":%.3f,"
       "\"gu_issue_ns_per_tile\":%.3f,\"gu_mma_ns_per_tile\":%.3f,\"gu_epilogue_ns_per_task\":%.3f,"
       "\"gu_empty_ns_per_tile\":%.3f,\"gu_full_ns_per_tile\":%.3f,"
       "\"dn_issue_ns_per_tile\":%.3f,\"dn_mma_ns_per_tile\":%.3f,\"dn_epilogue_ns_per_task\":%.3f,"
@@ -176,7 +188,8 @@ int Profile(cudaDeviceProp const& device) {
       grid,B,active,shared,plain_attr.numRegs,sampled_attr.numRegs,plain_attr.localSizeBytes,
       sampled_attr.localSizeBytes,plain_slots,sampled_slots,Median(plain_spans),Median(trace_spans),
       Median(gu_issue),Median(gu_mma),Median(gu_epilogue),Median(gu_empty),Median(gu_full),
-      Median(dn_issue),Median(dn_mma),Median(dn_epilogue),Median(dn_empty),Median(dn_full),
+      dn_issue.empty()?0.0:Median(dn_issue),Median(dn_mma),Median(dn_epilogue),
+      dn_empty.empty()?0.0:Median(dn_empty),Median(dn_full),
       Median(preissue),Median(activation),Median(gate_wait));
   return 0;
 }

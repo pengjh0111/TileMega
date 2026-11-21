@@ -64,6 +64,11 @@ struct Sm80MoeStageMarks {
       }
     return 0;
   }
+  __device__ static __forceinline__ unsigned long long Tile(int tile) {
+    if constexpr(ServiceSample)
+      if(unsigned(tile)%8!=blockIdx.x%8)return 0;
+    return Now();
+  }
   __device__ static __forceinline__ void RecordTask(bool down,int rows) {
     static_assert(Producer);
     if constexpr(kEnabled)
