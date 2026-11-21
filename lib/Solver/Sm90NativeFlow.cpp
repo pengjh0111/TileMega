@@ -44,7 +44,63 @@ std::shared_ptr<std::vector<std::pair<int, int>> const> ReleaseTable(
   std::stable_sort(sorted.begin(), sorted.end());
   return std::make_shared<std::vector<std::pair<int, int>> const>(std::move(sorted));
 }
+
+void PrepareAttentionCases(Sm90NativeFlowResult& result,Sm90DenseWorkload const& work,
+    Sm90DenseCoordinates const& c,Sm90DenseCostModel const& cost,bool no_producer_traffic) {
+  if(cost.Target().arch_tag!="sm_80")return;
+  for(auto sample:cost.AttentionScenarios(c.attention)) {
+    Sm80AttentionCase scenario{sample,{}};
+    for(int chunk=0;chunk<c.attention.chunks;++chunk) {
+      auto price=Sm90NativeAttentionPrice(work,c.attention,c.residency,cost,sample.past,chunk);
+      for(auto parts:{price.head_and_tail,price.head,price.tail,price.middle}) {
+        if(!no_producer_traffic)parts.no_producer_dram_bytes=0;
+        scenario.parts.push_back({0,parts});
+      }
+    }
+    result.attention_cases.push_back(std::move(scenario));
+  }
+}
+
+void EvaluateRequest(Sm90NativeFlowResult& result) {
+  int reference=2000;
+  result.pool_score_ns=Sm90NativeRequestScore(result,[&](FlowProblem const& p,int past) {
+    auto value=EvaluateFlow(p);
+    double score=value.makespan_ns;
+    if(std::abs(past-575)<reference) {
+      reference=std::abs(past-575);
+      result.evaluated=std::move(value);
+    }
+    return score;
+  });
+}
 }  // namespace
+
+double Sm90NativeRequestScore(Sm90NativeFlowResult const& result,
+    std::function<double(FlowProblem const&,int)> const& evaluate) {
+  if(result.attention_cases.empty())return evaluate(result.problem,575);
+  auto problem=result.problem;
+  std::vector<std::size_t> attention;
+  int chunks=int(result.attention_cases.front().parts.size()/4);
+  for(std::size_t i=0;i<problem.spaces.size();++i) {
+    auto& s=problem.spaces[i];
+    if(s.category!="attention")continue;
+    for(int t=0;t<s.count;++t)
+      s.piece_of_task[t]+=4*(t%chunks);
+    attention.push_back(i);
+  }
+  if(attention.empty())return evaluate(result.problem,575);
+  double sum=0;int count=0;
+  for(auto const& scenario:result.attention_cases) {
+    for(auto i:attention) {
+      auto& s=problem.spaces[i];
+      s.pieces=scenario.parts;
+      for(auto piece:s.piece_of_task)++s.pieces[piece].count;
+    }
+    sum+=scenario.sample.count*evaluate(problem,scenario.sample.past);
+    count+=scenario.sample.count;
+  }
+  return sum/count;
+}
 
 std::vector<Sm90NativeStageNode> Sm90NativeStages(Sm90DenseWorkload const& work,
                                                   Sm90DenseCoordinates const& c,
@@ -192,11 +248,11 @@ Sm90NativeFlowResult Sm90NativePoolScore(Sm90DenseWorkload const& work,
     problem.edges.push_back(std::move(edge));
   }
 
-  result.evaluated=EvaluateFlow(problem);
+  PrepareAttentionCases(result,work,c,cost,true);
+  EvaluateRequest(result);
   auto const& evaluated=result.evaluated;
   // The makespan of the whole step is the score; nothing is multiplied.
-  result.pool_score_ns = evaluated.makespan_ns;
-  result.step_ns = evaluated.makespan_ns;
+  result.step_ns = result.pool_score_ns;
   // Report per stage kind, summed over that kind's instances.
   result.stage_ns.assign(result.nodes.size(), 0.0);
   for (std::size_t space_index = 0; space_index < evaluated.spaces.size(); ++space_index) {
@@ -341,12 +397,24 @@ Sm90NativeFlowResult Sm90NativeCtgScore(frontend::ImportedSemantics const& impor
     problem.edges.push_back(std::move(edge));
   }
   auto released=Clock::now();
+  PrepareAttentionCases(result,work,c,cost,stream);
   if(isolated) {
-    for(auto const& node:result.nodes)
-      result.pool_score_ns+=EvaluateFlow(Sm90NativeSingleStageProblem(
-          node.price,cost,c.residency)).makespan_ns;
+    std::optional<double> attention_score;
+    for(auto const& node:result.nodes) {
+      auto single=Sm90NativeSingleStageProblem(node.price,cost,c.residency);
+      if(node.price.category=="attention" && !result.attention_cases.empty()) {
+        if(!attention_score) {
+          Sm90NativeFlowResult attention;
+          attention.problem=std::move(single);
+          attention.attention_cases=result.attention_cases;
+          EvaluateRequest(attention);
+          attention_score=attention.pool_score_ns;
+        }
+        result.pool_score_ns+=*attention_score;
+      }else result.pool_score_ns+=EvaluateFlow(single).makespan_ns;
+    }
   }else {
-    result.evaluated=EvaluateFlow(problem);result.pool_score_ns=result.evaluated.makespan_ns;
+    EvaluateRequest(result);
     for(auto const& space:result.evaluated.spaces)
       result.stage_ns.push_back(space.last_end-std::max(0.,space.first_start));
   }

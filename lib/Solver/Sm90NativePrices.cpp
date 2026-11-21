@@ -117,12 +117,12 @@ Sm90NativeStagePrice Sm90NativeGemmPrice(Sm90DenseWorkload const& work, unsigned
 
 Sm90NativeStagePrice Sm90NativeAttentionPrice(Sm90DenseWorkload const& work,
                                               Sm90DenseAttention const& a, int residency,
-                                              Sm90DenseCostModel const& cost) {
+                                              Sm90DenseCostModel const& cost,int past,int chunk) {
   auto const& c = cost.Constants();
   int grid = cost.Grid(residency), d = work.head_dim, q = work.queries;
   int norm = work.qk_norm ? (work.qk_norm_row ? 2 : 1) : 0;
   double tasks=double(work.batch)*work.hkv*a.chunks;
-  auto history=cost.AttentionHistory(a);
+  auto history=past<0?cost.AttentionHistory(a):cost.AttentionHistory(a,past,chunk);
 
   Sm90NativeStagePrice price;
   price.name = "attention";
@@ -148,7 +148,7 @@ Sm90NativeStagePrice Sm90NativeAttentionPrice(Sm90DenseWorkload const& work,
   double steps=std::max(1.0,history.ring_slots);
   price.ends = std::min(price.tasks, grid);
   // :88 uses L_l2, not L_dram: last step's KV history is still in L2.
-  Finish(price, parts, /*epilogue=*/0.0, steps, c.l2_latency);
+  Finish(price, parts, /*epilogue=*/0.0, steps, history.ring_slots?c.l2_latency:0.0);
   return price;
 }
 

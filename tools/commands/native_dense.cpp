@@ -407,6 +407,7 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
       analysis_calls.emplace_back(json::Object{{"coordinates",c.ToJson()},
           {"analysis_ms",flow.analysis_ms},{"release_ms",flow.release_ms},
           {"pricing_ms",flow.pricing_ms},{"evaluation_ms",flow.evaluation_ms},
+          {"attention_scenarios",double(flow.attention_cases.size())},
           {"derivations",double(flow.derivations)},
           {"enumerated_tasks",double(flow.enumerated_tasks)},
           {"enumerated_edges",double(flow.enumerated_edges)}});

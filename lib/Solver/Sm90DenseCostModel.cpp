@@ -124,6 +124,51 @@ double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
   return total;
 }
 
+Sm90DenseHistoryWork Sm90DenseCostModel::AttentionHistory(Sm90DenseAttention const& a,int past,int chunk) const {
+  auto range=backend::Sm90DensePartitionRange(past,chunk,a.chunks,a.new_row_work);
+  int keys=std::min(range.end,past)-range.begin;
+  int slots=(keys+a.block_keys-1)/a.block_keys;
+  return {double(keys),double(slots*(a.block_keys/64)),double(slots),range.Contains(past)};
+}
+
+std::vector<Sm80AttentionScenario> const& Sm90DenseCostModel::AttentionScenarios(Sm90DenseAttention const& a) const {
+  auto key=std::make_tuple(a.chunks,a.block_keys,a.new_row_work);
+  static thread_local std::map<decltype(key),std::vector<Sm80AttentionScenario>> cache;
+  auto found=cache.find(key);
+  if(found!=cache.end())return found->second;
+  a.Validate();
+  constexpr int first=64,last=1086;
+  auto signature=[&](int past) {
+    std::vector<int> slots;
+    for(int chunk=0;chunk<a.chunks;++chunk) {
+      auto history=AttentionHistory(a,past,chunk);
+      slots.push_back(2*int(history.ring_slots)+int(history.fresh));
+    }
+    return slots;
+  };
+  std::vector<Sm80AttentionScenario> samples;
+  int begin=first;
+  auto shape=signature(first);
+  auto emit=[&](int end) {
+    int count=end-begin+1;
+    if(count==1)samples.push_back({begin,1});
+    else {
+      // Endpoint quadrature within a constant per-chunk slot signature.
+      // Keep both actual byte counts and both sides of every slot boundary.
+      samples.push_back({begin,count/2});
+      samples.push_back({end,count-count/2});
+    }
+  };
+  for(int past=first+1;past<=last;++past) {
+    auto next=signature(past);
+    if(next==shape)continue;
+    emit(past-1);
+    begin=past;shape=std::move(next);
+  }
+  emit(last);
+  return cache.emplace(key,std::move(samples)).first->second;
+}
+
 Sm90DenseHistoryWork Sm90DenseCostModel::AttentionHistory(Sm90DenseAttention const& a) const {
   if(target_.arch_tag!="sm_80") {
     double keys=std::ceil(576./a.chunks),blocks=std::ceil(keys/64);
@@ -137,10 +182,9 @@ Sm90DenseHistoryWork Sm90DenseCostModel::AttentionHistory(Sm90DenseAttention con
   constexpr int first=64,last=1086;  // 1023 decode calls after the prefill's first token.
   std::int64_t slots=0,keys=0;
   for(int past=first;past<=last;++past)for(int chunk=0;chunk<a.chunks;++chunk) {
-    auto range=backend::Sm90DensePartitionRange(past,chunk,a.chunks,a.new_row_work);
-    int history=std::min(range.end,past)-range.begin;
-    keys+=history;
-    slots+=(history+a.block_keys-1)/a.block_keys;
+    auto history=AttentionHistory(a,past,chunk);
+    keys+=std::int64_t(history.keys);
+    slots+=std::int64_t(history.ring_slots);
   }
   double count=(last-first+1)*a.chunks;
   // The consumer issues every 64-key subdivision of a loaded slot, even
@@ -159,15 +203,34 @@ double Sm90DenseCostModel::Attention(Sm90DenseWorkload const& work,
   double tasks=double(work.batch)*work.hkv*a.chunks,per_cta=std::ceil(tasks/grid);
   auto history=AttentionHistory(a);
   double kv_task=history.keys*d*4,kv_tot=double(work.batch)*work.hkv*575*d*4;
-  double compute=Waves(tasks,grid,kv_task)+per_cta*history.mma_blocks*c.AttentionBlock(d,q,norm);
+  double mma=c.AttentionBlock(d,q,norm);
+  double compute=Waves(tasks,grid,kv_task)+per_cta*history.mma_blocks*mma;
   double stream=std::max(kv_tot/c.dram_gbps,compute);
+  if(target_.arch_tag=="sm_80") {
+    double total=0;int weight=0;
+    for(auto scenario:AttentionScenarios(a)) {
+      double keys=0,worst_mma=0,worst_keys=0;
+      for(int chunk=0;chunk<a.chunks;++chunk) {
+        auto current=AttentionHistory(a,scenario.past,chunk);
+        keys+=current.keys;
+        worst_keys=std::max(worst_keys,current.keys);
+        worst_mma=std::max(worst_mma,current.mma_blocks);
+      }
+      double bytes=double(work.batch)*work.hkv*keys*d*4;
+      total+=scenario.count*std::max(bytes/c.dram_gbps,
+          Waves(tasks,grid,worst_keys*d*4)+per_cta*worst_mma*mma);
+      weight+=scenario.count;
+    }
+    stream=total/weight;
+  }
   // D10b: the DSMEM merge replaces the global partials and last arriver.
   double merge=a.chunks==1?0:a.dsmem?c.AttentionMergeDsmem(d,q,norm,a.chunks):
       c.AttentionMerge(d,q,norm,a.chunks);
   double total=c.Barrier(grid)+c.l2_latency+c.AttentionPrepare(d,q,norm)+stream+merge;
   if(terms)*terms=json::Object{{"barrier",c.Barrier(grid)},{"prepare",c.AttentionPrepare(d,q,norm)},
       {"dram",kv_tot/c.dram_gbps},{"compute",compute},{"merge",merge},{"dsmem",a.dsmem},
-      {"history_keys",history.keys},{"history_mma_blocks",history.mma_blocks},{"history_ring_slots",history.ring_slots}};
+      {"history_keys",history.keys},{"history_mma_blocks",history.mma_blocks},{"history_ring_slots",history.ring_slots},
+      {"request_weighted_stream_ns",stream}};
   return total;
 }
 

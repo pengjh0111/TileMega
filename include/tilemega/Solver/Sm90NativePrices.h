@@ -37,7 +37,7 @@ Sm90NativeStagePrice Sm90NativeGemmPrice(Sm90DenseWorkload const& work, unsigned
                                          bool pre=false,Sm90DenseCoordinates const* coordinates=nullptr);
 Sm90NativeStagePrice Sm90NativeAttentionPrice(Sm90DenseWorkload const& work,
                                               Sm90DenseAttention const& attention, int residency,
-                                              Sm90DenseCostModel const& cost);
+                                              Sm90DenseCostModel const& cost,int past=-1,int chunk=0);
 
 // One stage alone, its in-edge an all-producer boundary: the configuration
 // P1's self-check compares against Gemm()/Attention() for the same stage.

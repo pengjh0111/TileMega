@@ -11,6 +11,10 @@
 namespace tilemega::solver {
 struct Sm90DenseHistoryWork {
   double keys=0,mma_blocks=0,ring_slots=0;
+  bool fresh=false;
+};
+struct Sm80AttentionScenario {
+  int past=0,count=0;
 };
 
 struct Sm90DensePrediction {
@@ -35,6 +39,8 @@ class Sm90DenseCostModel {
   double Gemm(Sm90DenseWorkload const&,unsigned family,Sm90DenseGemm const&,int residency,
               json::Value* terms=nullptr,bool pre=false,Sm90DenseCoordinates const* coordinates=nullptr) const;
   Sm90DenseHistoryWork AttentionHistory(Sm90DenseAttention const&) const;
+  Sm90DenseHistoryWork AttentionHistory(Sm90DenseAttention const&,int past,int chunk) const;
+  std::vector<Sm80AttentionScenario> const& AttentionScenarios(Sm90DenseAttention const&) const;
   double Attention(Sm90DenseWorkload const&,Sm90DenseAttention const& attention,
                    int residency,json::Value* terms=nullptr) const;
   Sm90DensePrediction Predict(Sm90DenseWorkload const&,Sm90DenseCoordinates const&) const;

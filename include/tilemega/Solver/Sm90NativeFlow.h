@@ -4,6 +4,7 @@
 #include <tilemega/Solver/Sm90DenseCoordinates.h>
 #include <tilemega/Analysis/CouplingCache.h>
 #include <tilemega/Solver/Sm90NativeCtg.h>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -27,10 +28,16 @@ struct Sm90NativeStageNode {
   int instances = 1;
 };
 
+struct Sm80AttentionCase {
+  Sm80AttentionScenario sample;
+  std::vector<FlowPiece> parts;
+};
+
 struct Sm90NativeFlowResult {
   double pool_score_ns = 0;      // Eq. (8) over the complete decode step
   double step_ns = 0;
   FlowProblem problem;
+  std::vector<Sm80AttentionCase> attention_cases;
   json::Value approximation;
   FlowResult evaluated;
   std::vector<Sm90NativeStageNode> nodes;
@@ -43,6 +50,8 @@ struct Sm90NativeFlowResult {
 // Exact value encoding, including floating-point representations and optional
 // tables. It intentionally excludes pointers, padding, and measured CPU time.
 std::string Sm90NativeFlowIdentity(FlowProblem const&);
+double Sm90NativeRequestScore(Sm90NativeFlowResult const&,
+    std::function<double(FlowProblem const&,int)> const&);
 
 // The stages of one decode step at these coordinates, with each boundary's
 // sync kind decided by the coordinate (group_wait, expert_fuse, embed_la, tp).

@@ -23,8 +23,10 @@ double Replay(Sm90NativeFlowResult const& flow, Sm90DenseCoordinates const& c) {
   if(c.expert_fuse)for(std::size_t s=1;s<offsets.size();++s)
     if(flow.nodes[s].price.name=="gemm7" && flow.nodes[s-1].price.name=="gemm6")
       offsets[s]=flow.problem.spaces[s-1].count;
-  return RefineAndReplaySm90Native(flow.problem,
-      Sm90NativeCandidateTracks(flow.problem,offsets)).replay.makespan_ns;
+  auto tracks=Sm90NativeCandidateTracks(flow.problem,offsets);
+  return Sm90NativeRequestScore(flow,[&](FlowProblem const& problem,int) {
+    return RefineAndReplaySm90Native(problem,tracks).replay.makespan_ns;
+  });
 }
 }  // namespace
 
