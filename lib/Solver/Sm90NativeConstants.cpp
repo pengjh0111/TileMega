@@ -13,6 +13,15 @@ std::string FileHash(std::string const& path) {
   char text[65]{};auto* got=fgets(text,sizeof(text),pipe);pclose(pipe);
   return got?std::string(text):std::string();
 }
+bool SameBodyHeader(json::Value const& constants,std::string_view header,
+    std::string const& current,std::string const& expected) {
+  if(current==expected)return true;
+  auto const* proof=constants.Find("residual_copy_header_equivalence");
+  return header=="Backend/Sm90DenseGemm.h" && proof &&
+      proof->At("disabled_macro").AsString("residual copy macro")=="TILEMEGA_SM80_RESIDUAL_COPY_GROUP" &&
+      proof->At("inactive_sha256").AsString("inactive residual copy header")==expected &&
+      proof->At("compiled_sha256").AsString("compiled residual copy header")==current;
+}
 double Positive(json::Value const& v,char const* what) {
   double x=v.AsNumber(what);
   if(!(x>0))throw std::invalid_argument(std::string("nonpositive native constant ")+what);
@@ -60,7 +69,8 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
       for(auto name:{"Sm90DenseGemm.h","Sm80DenseService.cuh","Sm90DenseLayout.h",
                      "Sm90DenseRing.cuh","Sm90DenseEpilogue.h"}) {
         auto path=root+"/include/tilemega/Backend/"+name;
-        if(FileHash(path)==hashes.At(name).AsString("body header hash"))continue;
+        if(SameBodyHeader(s,std::string("Backend/")+name,FileHash(path),
+            hashes.At(name).AsString("body header hash")))continue;
         if(schema==1)
           throw Sm90NativeMissing(std::string("SM80 dense service profile no longer matches ")+name);
         exact=false;
@@ -88,7 +98,8 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
       for(auto name:{"Backend/Sm90DenseGemm.h","Backend/Sm80DenseService.cuh",
                      "Backend/Sm90DenseLayout.h","Backend/Sm90DenseRing.cuh",
                      "Backend/Sm90DenseEpilogue.h","Codegen/executor/Async.cuh"}) {
-        if(FileHash(root+"/include/tilemega/"+name)==hashes.At(name).AsString("body hash"))continue;
+        if(SameBodyHeader(s,name,FileHash(root+"/include/tilemega/"+name),
+            hashes.At(name).AsString("body hash")))continue;
         compatible=false;break;
       }
       if(!compatible)continue;
@@ -122,7 +133,7 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
                      "Backend/Sm90DenseRing.cuh","Backend/Sm90DenseEpilogue.h","Codegen/executor/Async.cuh"}) {
         auto current=FileHash(root+"/include/tilemega/"+name);
         auto expected=hashes.At(name).AsString("body hash");
-        if(current==expected)continue;
+        if(SameBodyHeader(s,name,current,expected))continue;
         // An inactive opt-in body can change the header digest without changing
         // tokens seen by the compiler for the calibrated implementation.
         auto const* proof=std::string_view(name)=="Backend/Sm90DenseMoe.cuh"?
@@ -360,8 +371,13 @@ double Sm90NativeConstants::AttentionMerge(int dim,int queries,int norm,int chun
 }
 std::vector<std::string> Sm90NativeConstants::StaleHeaders(std::string const& root) const {
   std::vector<std::string> result;
-  for(auto const& item:section.At("header_sha256").AsObject("constant headers"))
-    if(FileHash(root+"/"+item.first)!=item.second.AsString("header hash"))result.push_back(item.first);
+  for(auto const& item:section.At("header_sha256").AsObject("constant headers")) {
+    std::string_view name=item.first;
+    constexpr std::string_view include="include/tilemega/";
+    if(name.starts_with(include))name.remove_prefix(include.size());
+    if(!SameBodyHeader(section,name,FileHash(root+"/"+item.first),item.second.AsString("header hash")))
+      result.push_back(item.first);
+  }
   return result;
 }
 }  // namespace tilemega::solver

@@ -37,6 +37,16 @@ int main() {
  bool rejected_large_batch=false;
  try {recovered.Validate(nk,16);}catch(std::invalid_argument const&) {rejected_large_batch=true;}
  assert(rejected_large_batch);
+ auto grouped=c;
+ grouped.weight_stream=false;grouped.copy_issue_group=8;grouped.residual_copy_issue=true;
+ auto grouped_roundtrip=Sm90DenseCoordinates::FromJson(grouped.ToJson());
+ grouped_roundtrip.Validate(nk,16);
+ assert(grouped_roundtrip.residual_copy_issue && grouped_roundtrip.ToJson().Dump()==grouped.ToJson().Dump());
+ grouped_roundtrip.copy_issue_group=0;
+ bool rejected_missing_copy_group=false;
+ try {grouped_roundtrip.Validate(nk,16);}
+ catch(std::invalid_argument const&) {rejected_missing_copy_group=true;}
+ assert(rejected_missing_copy_group);
  auto reuse=live;reuse.reuse_payload=true;reuse.weight_stream=false;
  assert(Sm90DenseCoordinates::FromJson(reuse.ToJson()).reuse_payload);
  assert(Sm90DenseArena(166912,true)==165888 && Sm90DenseArena(166912)==82944);

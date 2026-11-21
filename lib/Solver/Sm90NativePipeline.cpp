@@ -156,6 +156,7 @@ std::string Sm90NativeStructuralClass(Sm90DenseCoordinates const& c,bool ampere)
   if(ampere && !c.moe)key += "/u"+std::to_string(c.swiglu_u);
   if(c.live_epilogue_rows)key += "/live_rows";
   if(c.copy_issue_group)key += "/copy"+std::to_string(c.copy_issue_group);
+  if(c.residual_copy_issue)key += "/residual_copy";
   if(c.expert_page_segments)key += "/page_segments";
   if(c.expert_gu_route_bases)key += "/gu_route_bases";
   if(c.reuse_payload)key += "/payload_reuse";
@@ -275,6 +276,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     for(unsigned f:{0u,1u,2u,3u}) {
       auto const& g=c.gemms[f];
       bool variant=(c.live_epilogue_rows && (f==2 || g.warps_k>1)) ||
+          (c.residual_copy_issue && Sm90DenseCoordinates::ResidualFamily(f)) ||
           (f==2 && (c.copy_issue_group ||
               c.swiglu_u!=Sm90DenseSearchSpace::DefaultGateInterleave(g.tile_n)));
       if(variant && !cost.DenseService(work,f,g,c.residency,&c))return false;
@@ -302,8 +304,13 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
       auto trial=c;trial.live_epilogue_rows=!c.live_epilogue_rows;
       result.emplace_back(trial,"accumulator rows");
     }
+    if(c.copy_issue_group) {
+      auto trial=c;trial.residual_copy_issue=!c.residual_copy_issue;
+      if(priced(trial))result.emplace_back(trial,"residual weight copy issue");
+    }
     for(int group:{0,4,8})if(group!=c.copy_issue_group) {
       auto trial=c;trial.copy_issue_group=group;
+      if(!group)trial.residual_copy_issue=false;
       result.emplace_back(trial,"weight copy issue");
     }
     for(int u:{4,8,16})if(u!=c.swiglu_u && c.gemms[2].tile_n%(2*u)==0) {
@@ -368,6 +375,21 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
         if(replacement!=measured.end())retile(g,*replacement);
       }
       candidates.push_back(trial);
+    }
+    auto gate_candidates=candidates;
+    for(auto trial:gate_candidates) {
+      if(!trial.copy_issue_group)continue;
+      trial.residual_copy_issue=true;
+      for(unsigned f:{1u,3u}) {
+        auto& g=trial.gemms[f];
+        if(cost.DenseService(work,f,g,trial.residency,&trial))continue;
+        auto replacement=std::find_if(measured.begin(),measured.end(),[&](auto const& s) {
+          return s.epilogue=="residual" && matches(s,f) && s.copy_issue_group==trial.copy_issue_group &&
+              s.live_rows==(trial.live_epilogue_rows && work.batch<16 && s.warps_k>1);
+        });
+        if(replacement!=measured.end())retile(g,*replacement);
+      }
+      if(priced(trial))candidates.push_back(trial);
     }
     return candidates;
   };
@@ -443,11 +465,11 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
   // Score a finite implementation frontier before the large tile domain.
   // Keep one seed per implementation, residency and arena for this pass.
   auto base_seeds=starts;
-  std::set<std::tuple<bool,int,int,int,bool,bool,bool>> seeded_bodies;
+  std::set<std::tuple<bool,int,int,int,bool,bool,bool,bool>> seeded_bodies;
   auto project_body=[&](Sm90DenseCoordinates const& trial) {
     auto body=std::make_tuple(trial.live_epilogue_rows,trial.copy_issue_group,
         trial.swiglu_u,trial.residency,trial.reuse_payload,trial.expert_page_segments,
-        trial.expert_gu_route_bases);
+        trial.expert_gu_route_bases,trial.residual_copy_issue);
     if(!seeded_bodies.count(body) && space.Legal(trial) && priced(trial)) {
       seeded_bodies.insert(body);
       project(trial);

@@ -5335,6 +5335,11 @@
       "reference_target_sha256": "93e3a8187d3d99f3cde9f3b51602faaf01b5c29deb6deaf647b4591ca80e8cc9",
       "gpu_uuid": "GPU-ed4fbe57-03fc-8ffc-8b85-076ba4ce65d3",
       "guard_sha256": "2962128367137e711696a376d9a3bc71500cfe70a7f7e1dd9cd9156aeaf19651"
+    },
+    "residual_copy_header_equivalence": {
+      "inactive_sha256": "80985937dfabfb1ee3a5384289bf80d1f374f31ec753a2516d58b6c1c82647db",
+      "compiled_sha256": "a4b77806b3c2850c54006920fc64687a2a8a77a2372342dbb618549e007d89d1",
+      "disabled_macro": "TILEMEGA_SM80_RESIDUAL_COPY_GROUP"
     }
   },
   "sm80_native_decisions": {

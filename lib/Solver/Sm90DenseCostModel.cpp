@@ -54,7 +54,8 @@ std::optional<Sm80DenseService> Sm90DenseCostModel::DenseService(
   bool gate=family==2;
   int u=gate?(coordinates?coordinates->swiglu_u:Sm90DenseSearchSpace::DefaultGateInterleave(g.tile_n)):16;
   bool live=coordinates && coordinates->live_epilogue_rows && work.batch<16 && (gate || g.warps_k>1);
-  int copy=coordinates && gate?coordinates->copy_issue_group:0;
+  int copy=coordinates && (gate || (residual && coordinates->residual_copy_issue))?
+      coordinates->copy_issue_group:0;
   int grid=Grid(residency),n=work.shapes[family][0],k=work.shapes[family][1];
   Sm80DenseServiceShape shape{gate?"swiglu":residual?"residual":"store",grid,n,k,work.batch,
       g.tile_n,g.TileK(),g.slots,g.warps_n,g.warps_k,g.register_stages,u,

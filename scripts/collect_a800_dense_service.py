@@ -33,7 +33,7 @@ def collect(run, target, binary):
     policy = read(run/'policy.json')
     artifact = read(run/'artifact.json')
     if (base['arch_tag'] != 'sm_80' or 'A800' not in base['device_provenance']['name']
-            or guard['acceptance'] != 'strict' or guard['code'] != 0
+            or guard['acceptance'] != 'strict' or guard['code'] != 0 or not guard['ownership_verified']
             or policy['gpu_uuid'] != device['nvml_uuid']
             or device['guard_policy_sha256'] != sha(run/'policy.json')
             or device['sm_count'] != resources['num_sms']
@@ -42,7 +42,7 @@ def collect(run, target, binary):
             or device['registers_per_sm'] != resources['regs_per_sm']
             or device['l2_bytes'] != resources['l2_bytes']
             or artifact['binary_sha256'] != sha(binary)
-            or artifact['architecture'] != 'sm_80' or artifact['roles'] != [32, 128]):
+                or artifact['architecture'] != 'sm_80' or artifact['roles'] != [32, 128]):
         raise ValueError('calibration receipt differs from the guarded SM80 body or target')
     geometry = ('grid', 'n', 'k', 'batch', 'tn', 'tk', 'slots', 'warps_n', 'register_stages')
     metrics = ('producer_issue_ns_per_tile', 'consumer_mma_ns_per_tile',
@@ -68,6 +68,8 @@ def collect(run, target, binary):
                 or any(not math.isfinite(row[m]) or row[m] <= 0 for m in metrics)):
             raise ValueError(f'invalid production GEMM service result for {case}')
         if typed:
+            if row['dynamic_shared'] < artifact.get('reserved_program_shared', 0):
+                raise ValueError(f'{case} did not reserve the frozen program arena')
             # This probe isolates a stage. Occupancy capacity does not by itself
             # establish co-residency for the enclosing persistent program.
             if row['requested_residency'] != 1:
@@ -108,16 +110,25 @@ def collect(run, target, binary):
         registry = constants.setdefault('dense_gemm_service', dict(
             schema=1, reference_target_sha256=sha(target), profiles=[]))
         if (registry['schema'] != 1 or
-                registry['reference_target_sha256'] != frozen['target_sha256'] or
+                frozen['target_sha256'] not in (registry['reference_target_sha256'], sha(target)) or
                 sha(binary.with_suffix('.identity.json')) != frozen['identity_sha256'] or
                 artifact != read(binary.with_suffix('.identity.json'))):
             raise ValueError('service evidence differs from the frozen probe or reference target')
         if any((profile['evidence'], profile['binary_sha256']) ==
                (previous['evidence'], previous['binary_sha256']) for previous in registry['profiles']):
             return base
+        def compatible_headers(headers):
+            current = profile['body_headers']
+            header = 'Backend/Sm90DenseGemm.h'
+            proof = constants.get('residual_copy_header_equivalence')
+            if (proof and headers.get(header) == proof['inactive_sha256']
+                    and current.get(header) == proof['compiled_sha256']):
+                headers = headers | {header: proof['compiled_sha256']}
+            return headers == current
+
         compatible = {key: previous['binary_sha256']
                       for previous in registry['profiles']
-                      if previous['body_headers'] == profile['body_headers']
+                      if compatible_headers(previous['body_headers'])
                       for key in previous['measurements']}
         profile['additional_observations'] = {}
         for key in tuple(measurements):

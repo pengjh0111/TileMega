@@ -24,7 +24,8 @@ def compatible_calibration(before, after, previous_hash):
     old_decisions, new_decisions = (d.pop('sm80_native_decisions') for d in (old, new))
     if old != new:
         return False
-    service_fields = {'dense_gemm_service', 'fused_expert_service', 'attention_fresh_service'}
+    service_fields = {'dense_gemm_service', 'fused_expert_service', 'attention_fresh_service',
+                      'residual_copy_header_equivalence'}
     changed = {key for key in old_prices.keys() | new_prices.keys()
                if old_prices.get(key) != new_prices.get(key)}
     # The caller has already proved that the rebuilt device code is identical.
