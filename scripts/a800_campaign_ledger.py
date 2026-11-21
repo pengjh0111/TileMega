@@ -11,7 +11,9 @@ import subprocess
 
 
 FIELDS = ('model', 'batch', 'test_type', 'label', 'source_commit', 'artifact_sha256',
-          'plan_sha256', 'job_id', 'status', 'elapsed', 'exit_code', 'result_path', 'updated_at')
+          'target_sha256', 'coordinates_sha256', 'plan_sha256', 'prerequisites',
+          'resource_request', 'reused_evidence', 'job_id', 'status', 'elapsed', 'exit_code',
+          'result_path', 'updated_at')
 
 
 def plans(path):
@@ -69,13 +71,18 @@ def collect(entries, workspace):
             sources.add(subprocess.check_output(
                 ['git', '-C', str(workspace/entry['repo']), 'rev-parse', 'HEAD'],
                 text=True, timeout=5).strip())
-        expanded.append((entry, job, plan_sha, sources, artifacts))
+        targets = {r[key] for r in records for key in ('target_sha256', 'target')
+                   if isinstance(r.get(key), str) and re.fullmatch('[0-9a-f]{64}', r[key])}
+        coordinates = {r[key] for r in records for key in ('decode_coordinate_sha256', 'pin_theta_sha256',
+                       'seed_coordinates_sha256') if isinstance(r.get(key), str)
+                       and re.fullmatch('[0-9a-f]{64}', r[key])}
+        expanded.append((entry, job, plan_sha, sources, artifacts, targets, coordinates))
         if job:
             ids.add(job)
 
     states = accounting(ids)
     now = datetime.now().astimezone().isoformat(timespec='seconds')
-    for entry, job, plan_sha, sources, artifacts in expanded:
+    for entry, job, plan_sha, sources, artifacts, targets, coordinates in expanded:
         status = 'submitted' if job else entry.get('before_submission', 'planned')
         if entry.get('hold') and (workspace/entry['hold']).is_file() and not job:
             status = 'retained_control'
@@ -84,6 +91,10 @@ def collect(entries, workspace):
             yield dict(model=entry['model'], batch=entry['batch'], test_type=entry['test_type'],
                        label=entry['label'], source_commit=' '.join(sorted(sources)),
                        artifact_sha256=' '.join(sorted(artifacts)), plan_sha256=plan_sha,
+                       target_sha256=' '.join(sorted(targets)), coordinates_sha256=' '.join(sorted(coordinates)),
+                       prerequisites=entry.get('prerequisites', ''),
+                       resource_request=entry.get('resource_request', ''),
+                       reused_evidence=entry.get('reused_evidence', ''),
                        job_id=allocation, status=state, elapsed=elapsed, exit_code=code,
                        result_path=entry['result_path'].format(job=allocation.split('_', 1)[0]),
                        updated_at=now)
