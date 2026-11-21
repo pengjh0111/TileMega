@@ -15,7 +15,7 @@ using namespace tilemega; using namespace tilemega::solver;
 // stage must be reachable, which a zero or non-finite score would deny.
 int main(int argc,char**argv){
   Sm90NativeFlowResult fused;
-  fused.fused_expert_pairs={1};fused.fused_expert_stream_ns=22;
+  fused.fused_expert_regions={{1,2}};fused.fused_expert_body_ns=22;
   FlowResult bounds;bounds.makespan_ns=70;
   bounds.spaces={{0,20},{20,44},{35,50},{50,70}};
   assert(Sm90NativeScoreWithFusedService(fused,bounds)==62);
@@ -23,6 +23,14 @@ int main(int argc,char**argv){
   assert(Sm90NativeScoreWithFusedService(fused,bounds)==70);
   bounds.spaces[0].last_end=20;bounds.spaces[3].first_start=49;
   assert(Sm90NativeScoreWithFusedService(fused,bounds)==70);
+  // Inline combine can begin before all Dn CTAs retire. Both are covered by
+  // one physical stage, and neither should be billed as an external overlap.
+  fused.fused_expert_regions={{1,4}};fused.fused_expert_body_ns=30;
+  bounds.makespan_ns=90;
+  bounds.spaces={{0,20},{20,29},{25,55},{40,68},{65,70},{70,90}};
+  assert(Sm90NativeScoreWithFusedService(fused,bounds)==70);
+  bounds.spaces[5].first_start=69;
+  assert(Sm90NativeScoreWithFusedService(fused,bounds)==90);
   analysis::IslContext isl;
   auto target=TargetSpec::FromJson(argv[1]);
   auto constants=Sm90NativeConstants::FromTarget(json::ParseFile(argv[1]),argv[2]);

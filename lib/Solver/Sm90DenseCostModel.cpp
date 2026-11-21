@@ -169,11 +169,17 @@ std::optional<Sm80FusedPipelinePrice> Sm90DenseCostModel::FusedPipeline(
     throw std::invalid_argument("fused expert scenario is outside its route domain");
   auto const& gu=c.gemms[6];auto const& dn=c.gemms[7];
   int grid=Grid(c.residency);
+  double startup=service->route_startup_ns;
+  if(startup<0)startup=std::max(0.,constants_.RouteLa(grid,work.batch,work.experts,
+      work.softmax_all)-constants_.Barrier(grid));
+  double combine=service->combine_tail_ns;
+  if(combine<0)combine=constants_.l2_latency+38.*dn.tile_n*work.batch/constants_.sm_gbps;
   auto key=std::make_tuple(work.experts,work.top_k,work.batch,work.shapes[6],work.shapes[7],
       gu.tile_n,gu.TileK(),dn.tile_n,dn.TileK(),gu.slots,grid,active_experts,
       constants_.dram_gbps,constants_.l2_gbps,constants_.CtaDramGbps(),service->gu_issue,
       service->gu_mma,service->gu_epilogue,service->dn_issue,service->dn_mma,
-      service->dn_epilogue,service->dn_preissue,service->dn_activation);
+      service->dn_epilogue,service->dn_preissue,service->dn_activation,
+      startup,combine,constants_.dram_latency);
   static thread_local std::map<decltype(key),Sm80FusedPipelinePrice> cache;
   if(auto found=cache.find(key);found!=cache.end())return found->second;
 
@@ -192,9 +198,12 @@ std::optional<Sm80FusedPipelinePrice> Sm90DenseCostModel::FusedPipeline(
         2.*dn_tasks*backend::Sm90DenseLayout::ActivationRows(work.batch)*work.shapes[7][1];
     // Gu and Dn can use different phase mixtures on adjacent CTAs.
     // Charge the busiest owner's combined bytes and one device bandwidth pool.
-    double stream=std::max({local,weights/constants_.dram_gbps,
+    double transfer=std::max({weights/constants_.dram_gbps,
         (weights+activations)/constants_.l2_gbps,per_cta/constants_.CtaDramGbps()});
-    return Sm80FusedPipelinePrice{active,local,stream};
+    // Dn's measured epilogue already contains last-arriver work. Only the
+    // transfer bound needs the exclusive combine tail after the last partial.
+    return Sm80FusedPipelinePrice{active,local,std::max(local,transfer),
+        startup+constants_.dram_latency+std::max(local,transfer+combine)};
   };
   if(active_experts)return cache.emplace(key,evaluate(active_experts)).first->second;
   Sm80FusedPipelinePrice price{};
@@ -206,6 +215,7 @@ std::optional<Sm80FusedPipelinePrice> Sm90DenseCostModel::FusedPipeline(
     active+=weights[count]*count;
     price.local_ns+=weights[count]*value.local_ns;
     price.stream_ns+=weights[count]*value.stream_ns;
+    price.body_ns+=weights[count]*value.body_ns;
   }
   price.active_experts=int(std::lround(active));
   return cache.emplace(key,price).first->second;
@@ -453,6 +463,7 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& work,
   // MR7: M56 runs both expert task lists in one stage. Fusion removes the M5
   // -> M6 grid barrier, and the down producer issues its first weight slots
   // before it waits on gu_done, so M6's first-byte latency overlaps M5's tail.
+  auto fusion=FusedPipeline(work,c);
   if(c.expert_fuse) {
     auto at=[&](char const* kind) {
       return std::find_if(p.stages.begin(),p.stages.end(),[&](auto const& s) {return s.kind==kind;});
@@ -462,11 +473,12 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& work,
         gu->ns+dn->ns-constants_.Barrier(grid)-constants_.dram_latency,
         json::Object{{"gate_up",gu->terms},{"down",dn->terms},{"barrier_removed",constants_.Barrier(grid)},
                      {"first_byte_overlapped",constants_.dram_latency}}};
-    if(auto pipeline=FusedPipeline(work,c)) {
-      fused.ns=constants_.Barrier(grid)+constants_.dram_latency+pipeline->stream_ns;
-      fused.terms.Set("local_shared_ring_ns",pipeline->local_ns);
-      fused.terms.Set("active_experts",pipeline->active_experts);
-      fused.terms.Set("stream_bound_ns",pipeline->stream_ns);
+    if(fusion) {
+      fused.ns=constants_.Barrier(grid)+fusion->body_ns;
+      fused.terms.Set("local_shared_ring_ns",fusion->local_ns);
+      fused.terms.Set("active_experts",fusion->active_experts);
+      fused.terms.Set("stream_bound_ns",fusion->stream_ns);
+      fused.terms.Set("production_body_ns",fusion->body_ns);
     }
     p.stages.erase(dn);p.stages.erase(at("expert_gate_up"));
     p.stages.push_back(std::move(fused));
@@ -476,7 +488,7 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& work,
   // D8: the boundary before attention is a group counter wait, not V3.
   if(c.group_wait)s.ns-=constants_.GroupWaitSaving(grid);
   p.stages.push_back(std::move(s));
-  if(c.moe) {
+  if(c.moe && !fusion) {
     // M4's last arriver (top-k and the schedule, beyond its barrier); M6's
     // per-tile last arriver reads P and x' and writes x''.
     p.stages.push_back({"route_la",work.layers,

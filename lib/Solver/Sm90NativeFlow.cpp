@@ -79,7 +79,7 @@ void EvaluateRequest(Sm90NativeFlowResult& result) {
 
 double Sm90NativeScoreWithFusedService(Sm90NativeFlowResult const& model,FlowResult const& evaluation) {
   double score=evaluation.makespan_ns;
-  if(model.fused_expert_pairs.empty())return score;
+  if(model.fused_expert_regions.empty())return score;
   auto const& timings=evaluation.spaces;
   std::vector<double> prefix(timings.size()+1),suffix(timings.size()+1,std::numeric_limits<double>::infinity());
   for(std::size_t i=0;i<timings.size();++i)
@@ -87,14 +87,17 @@ double Sm90NativeScoreWithFusedService(Sm90NativeFlowResult const& model,FlowRes
   for(std::size_t i=timings.size();i>0;--i)
     if(timings[i-1].first_start>=0)suffix[i-1]=std::min(suffix[i],timings[i-1].first_start);
     else suffix[i-1]=suffix[i];
-  for(auto i:model.fused_expert_pairs) {
-    double begin=timings[i].first_start;
-    double end=std::max(timings[i].last_end,timings[i+1].last_end);
-    // Only replace a whole interval when the CTG event times prove that no
-    // outside task shares it. This preserves release and combine tails.
-    if(begin>=0 && timings[i+1].first_start>=begin && end>=begin &&
-        prefix[i]<=begin && suffix[i+2]>=end)
-      score+=model.fused_expert_stream_ns-(end-begin);
+  for(auto [first,last]:model.fused_expert_regions) {
+    double begin=std::numeric_limits<double>::infinity(),end=0;
+    for(std::size_t i=first;i<=last;++i)
+      if(timings[i].first_start>=0) {
+        begin=std::min(begin,timings[i].first_start);
+        end=std::max(end,timings[i].last_end);
+      }
+    // The calibrated body owns route, Gu, Dn and inline combine. The CTG
+    // still decides external publishes and their visibility delays.
+    if(end>=begin && prefix[first]<=begin && suffix[last+1]>=end)
+      score+=model.fused_expert_body_ns-(end-begin);
   }
   return score;
 }
@@ -422,10 +425,12 @@ Sm90NativeFlowResult Sm90NativeCtgScore(frontend::ImportedSemantics const& impor
   }
   auto released=Clock::now();
   if(!isolated)if(auto pipeline=cost.FusedPipeline(work,c)) {
-    result.fused_expert_stream_ns=constants.dram_latency+pipeline->stream_ns;
-    for(std::size_t i=0;i+1<result.nodes.size();++i)
-      if(result.nodes[i].price.name=="gemm6" && result.nodes[i+1].price.name=="gemm7")
-        result.fused_expert_pairs.push_back(i);
+    result.fused_expert_body_ns=pipeline->body_ns;
+    for(std::size_t i=0;i+3<result.nodes.size();++i)
+      if(ctg.spaces[i].role==frontend::OpRole::kMoERouting &&
+         result.nodes[i+1].price.name=="gemm6" && result.nodes[i+2].price.name=="gemm7" &&
+         ctg.spaces[i+3].role==frontend::OpRole::kMoECombine)
+        result.fused_expert_regions.emplace_back(i,i+3);
   }
   PrepareAttentionCases(result,work,c,cost,stream,exhaustive_history);
   if(isolated) {

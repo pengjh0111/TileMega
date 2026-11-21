@@ -134,6 +134,13 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
                      "Backend/Sm90DenseRing.cuh","Backend/Sm90DenseEpilogue.h","Codegen/executor/Async.cuh"}) {
         auto current=FileHash(root+"/include/tilemega/"+name);
         auto expected=hashes.At(name).AsString("body hash");
+        if(current==expected)continue;
+        if(auto const* trace=s.Find("fused_trace_header_equivalence"))
+          if(auto const* proof=trace->Find(name))
+            if(proof->At("disabled_macro").AsString("fused trace macro")=="TILEMEGA_SM80_FUSED_PHASE_TRACE" &&
+               proof->At("compiled_sha256").AsString("trace header") == current &&
+               proof->At("token_sha256").AsString("inactive token digest").size()==64)
+              current=proof->At("inactive_sha256").AsString("inactive trace header");
         if(SameBodyHeader(s,name,current,expected))continue;
         // An inactive opt-in body can change the header digest without changing
         // tokens seen by the compiler for the calibrated implementation.
@@ -175,6 +182,10 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
           positive("gu_epilogue_ns_per_task"),dn_issue,positive("dn_mma_ns_per_tile"),
           positive("dn_epilogue_ns_per_task"),positive("dn_preissue_ns_per_task"),
           positive("dn_activation_ns_per_task")};
+      if(auto const* phases=profile.Find("production_phases")) {
+        service.route_startup_ns=Positive(phases->At("route_startup_ns"),"fused route startup");
+        service.combine_tail_ns=Positive(phases->At("combine_tail_ns"),"fused combine tail");
+      }
       if(!c.ampere_fused_service_.emplace(geometry.Key(),service).second)
         throw std::invalid_argument("conflicting compatible fused expert service");
       c.ampere_fused_shapes_.push_back(geometry);

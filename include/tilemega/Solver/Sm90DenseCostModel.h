@@ -18,7 +18,7 @@ struct Sm80AttentionScenario {
 };
 struct Sm80FusedPipelinePrice {
   int active_experts;
-  double local_ns,stream_ns;
+  double local_ns,stream_ns,body_ns;
 };
 
 struct Sm90DensePrediction {

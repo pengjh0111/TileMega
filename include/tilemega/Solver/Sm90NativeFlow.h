@@ -38,8 +38,8 @@ struct Sm90NativeFlowResult {
   double step_ns = 0;
   FlowProblem problem;
   std::vector<Sm80AttentionCase> attention_cases;
-  std::vector<std::size_t> fused_expert_pairs;
-  double fused_expert_stream_ns=0;
+  std::vector<std::pair<std::size_t,std::size_t>> fused_expert_regions;
+  double fused_expert_body_ns=0;
   json::Value approximation;
   FlowResult evaluated;
   std::vector<Sm90NativeStageNode> nodes;

@@ -6013,6 +6013,20 @@
       "evidence": "TileMega-a800/runs/a800/calibration/r2-supplement-service/350775",
       "guard_sha256": "2962128367137e711696a376d9a3bc71500cfe70a7f7e1dd9cd9156aeaf19651",
       "measurement_sha256": "a07560187c7236a04589e3d9eb79795f2b06bbc18d7ff4ee4145b1f375ee7c5b"
+    },
+    "fused_trace_header_equivalence": {
+      "Backend/Sm90DenseMark.cuh": {
+        "disabled_macro": "TILEMEGA_SM80_FUSED_PHASE_TRACE",
+        "inactive_sha256": "c3c6f0b49df9ec416a7b87d99e7779167c5810c46ff787d9a18ec6c764e8eefc",
+        "compiled_sha256": "93d31802f0037a1d8b8b55b669d82e804c1cd1c1bab2a30383f499e0eb493267",
+        "token_sha256": "4693898c5b20b9f94582d5e70b85143da04434798faf5f13cbdba05352846d24"
+      },
+      "Backend/Sm90DenseMoe.cuh": {
+        "disabled_macro": "TILEMEGA_SM80_FUSED_PHASE_TRACE",
+        "inactive_sha256": "4547def80141d3ea72b1d8715f20d5f6ea0b0d79199abbf5d3c713810cd37bb7",
+        "compiled_sha256": "7e3c59296dedfa0198df010439823eae13871ca2189ee8af06c6319824f1c5fe",
+        "token_sha256": "9e00da4ae76989be0743b0f3c70b72589a04ded717cfbbe0cc4c869f6451c4f0"
+      }
     }
   },
   "sm80_native_decisions": {

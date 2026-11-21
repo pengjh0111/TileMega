@@ -80,8 +80,8 @@ int main(int argc,char** argv) {try {
         {"replay_ms",milliseconds(flow_end,done)},{"pool_ns",flow.step_ns},
         {"replay_ns",replay},{"additive_ns",additive.step_ns},
         {"attention_samples",double(flow.attention_cases.size())},
-        {"fused_expert_pairs",double(flow.fused_expert_pairs.size())},
-        {"fused_expert_stream_ns",flow.fused_expert_stream_ns},
+        {"fused_expert_regions",double(flow.fused_expert_regions.size())},
+        {"fused_expert_body_ns",flow.fused_expert_body_ns},
         {"additive_stages",additive.ToJson()},{"spaces",spaces},{"approximation",flow.approximation},
         {"constants_from_older_body",stale},{"space_hits",double(state.cache.space_hits)},
         {"space_misses",double(state.cache.space_misses)},
@@ -96,7 +96,7 @@ int main(int argc,char** argv) {try {
         auto price=cost.FusedPipeline(work,c,int(value));
         if(!price)throw std::invalid_argument("observed expert count requires a calibrated fused body");
         scenarios.emplace_back(json::Object{{"active_experts",value},{"local_ns",price->local_ns},
-            {"stream_ns",price->stream_ns+constants.dram_latency}});
+            {"stream_ns",price->stream_ns+constants.dram_latency},{"body_ns",price->body_ns}});
       }
       row.Set("fused_expert_scenarios",std::move(scenarios));
     }
