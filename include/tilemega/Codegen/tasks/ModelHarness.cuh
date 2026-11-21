@@ -3786,7 +3786,8 @@ inline DeviceModel Create(ModelSpec const& spec,
   // barriers. Its counted reductions and event layouts still bind below.
   constexpr bool kCanOmitL2=TILEMEGA_PREFILL_L1_ONLY && !TILEMEGA_MOE_DYNAMIC &&
       !TILEMEGA_EVENT_SHARDED && !TILEMEGA_CLUSTER_COMBINE && !TILEMEGA_CLUSTER_ATTENTION_MERGE &&
-      !TILEMEGA_TRACE_TASK && !TILEMEGA_TRACE_V2 && !TILEMEGA_TRACE_PHASE;
+      !TILEMEGA_TRACE_STAGE && !TILEMEGA_TRACE_STEP && !TILEMEGA_TRACE_TASK &&
+      !TILEMEGA_TRACE_V2 && !TILEMEGA_TRACE_PHASE;
   bool const prepare_l2=!kCanOmitL2 || target.arch_tag!="sm_80" ||
       runtime_variant.exact_dependencies || std::getenv("TILEMEGA_PLAN_DUMP") ||
       std::getenv("TILEMEGA_PLACEMENT_BASE_DUMP") || std::getenv("TILEMEGA_PLACEMENT_ABLATION");
