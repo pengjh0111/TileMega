@@ -24,7 +24,7 @@ def main():
     identity = json.loads(identity_path.read_text())
     if (sha(identity_path) != a.identity_sha256 or sha(a.binary) != identity['binary_sha256']
             or sha(a.target) != a.target_sha256
-            or identity['contract'] != 'sm80-dense-gemm-service-v1'):
+            or identity['contract'] not in ('sm80-dense-gemm-service-v1', 'sm80-fused-expert-service-v1')):
         raise ValueError('the queued service inputs changed')
     cases = identity['cases']
     if not 1 <= len(cases) <= 9 or len(cases) != len(set(cases)):
