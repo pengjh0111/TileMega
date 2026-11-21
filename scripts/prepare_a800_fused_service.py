@@ -24,13 +24,18 @@ def main():
                    help='buffer diagnostic writes in unused program arena space')
     p.add_argument('--split-phases', action='store_true',
                    help='sample one phase per launch and check each phase independently')
-    p.add_argument('--gu-route-bases', action='store_true')
+    p.add_argument('--sample-stride', type=int, choices=(8, 16), default=8)
+    routes = p.add_mutually_exclusive_group()
+    routes.add_argument('--gu-route-bases', action='store_true')
+    routes.add_argument('--packed-gu-routes', action='store_true')
     p.add_argument('--live-rows', action='store_true')
     a = p.parse_args()
     if a.shared_marks and not a.reserve_program_shared:
         p.error('shared marks require the reserved production program arena')
     if a.split_phases and not a.shared_marks:
         p.error('split phases require shared marks')
+    if a.sample_stride != 8 and not a.split_phases:
+        p.error('a reduced sampling frequency requires separate phases')
     if (a.gate_width is None) != (a.gate_warps_n is None):
         p.error('specify both the Gu N tile and its N warp count')
     anchor = json.loads(a.anchor.read_text())
@@ -79,17 +84,24 @@ def main():
         variants['TILEMEGA_SM80_ACTIVE_EPILOGUE'] = 1
         if a.variant != 'live':
             case += '-live-rows'
-    if a.gu_route_bases:
+    if a.gu_route_bases or a.packed_gu_routes:
         if tkg != 64 or batch > 16:
             raise ValueError('hoisted Gu routes require 64-wide tiles and at most 16 tokens')
-        variants['TILEMEGA_SM80_MOE_GU_ROUTE_BASES'] = 1
-        case += '-route-bases'
+        if a.gu_route_bases:
+            variants['TILEMEGA_SM80_MOE_GU_ROUTE_BASES'] = 1
+            case += '-route-bases'
+        else:
+            variants['TILEMEGA_SM80_MOE_PACKED_GU_ROUTES'] = 1
+            case += '-packed-routes'
     if a.shared_marks:
         variants['TILEMEGA_FUSED_SERVICE_SHARED_MARKS'] = 1
         case += '-shared-marks'
     if a.split_phases:
         variants['TILEMEGA_FUSED_SERVICE_SPLIT_PHASES'] = 1
         case += '-split-phases'
+        if a.sample_stride != 8:
+            variants['TILEMEGA_FUSED_SERVICE_TILE_STRIDE'] = a.sample_stride
+            case += f'-stride{a.sample_stride}'
     shared = build_identity['shared_memory_bytes'] if a.reserve_program_shared else 0
     out = a.out.resolve()
     out.mkdir(parents=True, exist_ok=False)

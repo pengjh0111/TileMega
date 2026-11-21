@@ -9,6 +9,11 @@
 #include <thread>
 #include <vector>
 
+#ifndef TILEMEGA_FUSED_SERVICE_TILE_STRIDE
+#define TILEMEGA_FUSED_SERVICE_TILE_STRIDE 8
+#endif
+static_assert(TILEMEGA_FUSED_SERVICE_TILE_STRIDE==8 || TILEMEGA_FUSED_SERVICE_SPLIT_PHASES);
+
 #if TILEMEGA_FUSED_SERVICE_SPLIT_PHASES
 namespace tilemega::backend {
 template<bool Producer>
@@ -17,7 +22,7 @@ struct Sm80MoeSinglePhaseMarks {
   // for the sampled CTA and other CTAs still use the uninstrumented body.
   template<Sm90DenseMarks::MoeCounter Phase>
   __device__ static __forceinline__ unsigned long long Begin(int tile=-1) {
-    if(threadIdx.x!=(Producer?128:0) || (tile>=0 && unsigned(tile)%8!=blockIdx.x%8))return 0;
+    if(threadIdx.x!=(Producer?128:0) || (tile>=0 && unsigned(tile)%TILEMEGA_FUSED_SERVICE_TILE_STRIDE!=blockIdx.x%TILEMEGA_FUSED_SERVICE_TILE_STRIDE))return 0;
     auto* marks=Sm90DenseMarks::Base();
     return marks && marks[Sm90DenseMarks::kGuEmpty]==Phase?Sm90DenseMarks::Now():0;
   }
@@ -180,7 +185,7 @@ int Profile(cudaDeviceProp const& device) {
   };
   auto sampled_tiles=[](int begin,int end,int lane) {
     int n=0;
-    for(int tile=begin;tile<end;++tile)if(tile%8==lane)++n;
+    for(int tile=begin;tile<end;++tile)if(tile%TILEMEGA_FUSED_SERVICE_TILE_STRIDE==lane)++n;
     return n;
   };
   auto read=[&](auto kernel,int cta,std::vector<double>& elapsed,int repeat,int phase=-1) {
@@ -258,7 +263,7 @@ int Profile(cudaDeviceProp const& device) {
     int gu=(split+grid-1-block)/grid;
     int dn=(split+active*(ND/C::kTNDn)+grid-1-block)/grid-gu;
     if(gu>0) {
-      double tiles=gu*sampled_tiles(0,H/C::kTKGu,block%8);
+      double tiles=gu*sampled_tiles(0,H/C::kTKGu,block%TILEMEGA_FUSED_SERVICE_TILE_STRIDE);
       if(tiles>0) {
         gu_issue.push_back(row[Marks::kGuIssue]/tiles);
         gu_mma.push_back(compute[Marks::kGuMma]/tiles);
@@ -267,7 +272,7 @@ int Profile(cudaDeviceProp const& device) {
     }
     if(dn>0) {
       int steps=(NG/2)/C::kTKDn,ahead=std::min(steps,C::kSlots);
-      double all=dn*sampled_tiles(0,steps,block%8),steady=dn*sampled_tiles(ahead,steps,block%8);
+      double all=dn*sampled_tiles(0,steps,block%TILEMEGA_FUSED_SERVICE_TILE_STRIDE),steady=dn*sampled_tiles(ahead,steps,block%TILEMEGA_FUSED_SERVICE_TILE_STRIDE);
       if(steady>0) {
         dn_issue.push_back(row[Marks::kDnIssue]/steady);
       }
@@ -283,7 +288,7 @@ int Profile(cudaDeviceProp const& device) {
       "\"dynamic_shared\":%d,\"plain_registers\":%d,\"producer_registers\":%d,\"consumer_registers\":%d,"
       "\"plain_local_bytes\":%zu,\"producer_local_bytes\":%zu,\"consumer_local_bytes\":%zu,"
       "\"plain_residency\":%d,\"producer_residency\":%d,\"consumer_residency\":%d,\"bitwise_equal\":true,"
-      "\"sampled_ctas_per_launch\":1,\"sampled_tile_stride\":8,\"launches\":%d,"
+      "\"sampled_ctas_per_launch\":1,\"sampled_tile_stride\":%d,\"launches\":%d,"
       "\"plain_stage_ns\":%.3f,\"producer_stage_ns\":%.3f,\"consumer_stage_ns\":%.3f,"
       "\"plain_kernel_ns\":%.3f,\"producer_kernel_ns\":%.3f,\"consumer_kernel_ns\":%.3f,"
       "\"producer_off_kernel_ns\":%.3f,\"consumer_off_kernel_ns\":%.3f,"
@@ -292,7 +297,7 @@ int Profile(cudaDeviceProp const& device) {
       "\"dn_preissue_ns_per_task\":%.3f,\"dn_activation_ns_per_task\":%.3f",
       grid,B,active,shared,plain_attr.numRegs,producer_attr.numRegs,consumer_attr.numRegs,
       plain_attr.localSizeBytes,producer_attr.localSizeBytes,consumer_attr.localSizeBytes,
-      plain_slots,producer_slots,consumer_slots,samples*phases,
+      plain_slots,producer_slots,consumer_slots,TILEMEGA_FUSED_SERVICE_TILE_STRIDE,samples*phases,
       Median(plain_spans),Median(producer_spans),Median(consumer_spans),
       Median(plain_kernel),Median(producer_kernel),Median(consumer_kernel),
       Median(producer_off),Median(consumer_off),
