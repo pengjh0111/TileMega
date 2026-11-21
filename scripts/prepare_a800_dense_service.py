@@ -36,7 +36,7 @@ def main():
         fields = specification.split(':')
         if (len(fields) not in (2, 3) or fields[0] not in args.families
                 or fields[1] not in tuple(map(str, range(2, 9)))
-                or len(fields) == 3 and (not fields[2].isdecimal() or int(fields[2]) < 32)):
+                or len(fields) == 3 and (not fields[2].isdecimal() or int(fields[2]) < 64)):
             parser.error('--ring requires a selected family, 2 to 8 slots and an optional K tile')
         family, depth = fields[:2]
         variant = int(depth), int(fields[2]) if len(fields) == 3 else None
@@ -86,7 +86,7 @@ def main():
             side = max(2, (n//tn + grid-1)//grid) if epilogue == 'residual' else 0
             for slots, tile_k in rings.get(family, [(incumbent_slots, None)]):
                 tk = incumbent_tk if tile_k is None else tile_k
-                if k % tk or tk % (32 * wk):
+                if k % tk or tk % 64 or tk < 16 * wk * g['register_stages']:
                     raise ValueError(f'{family} has unaligned K tile {tk}')
                 name = f'{suffix}-{family}-u{u}-rows{int(live)}-copy{copy}'
                 if family in rings:
