@@ -5,6 +5,8 @@ import json
 import math
 from pathlib import Path
 
+from collect_a800_registry import append_service
+
 
 def read(path):
     return json.loads(path.read_text())
@@ -60,13 +62,11 @@ def collect(run, target, binary):
     if not measurements:
         raise ValueError('calibration has no accepted service geometry')
     constants = base['sm80_native_constants']
-    if 'dense_gate_service' in constants:
-        raise ValueError('provide the original target without a dense gate service profile')
-    constants['dense_gate_service'] = dict(
+    append_service(constants, [dict(
         schema=1, base_target_sha256=sha(target), source_sha=artifact['source_sha'],
         body_headers=artifact['body_headers'], binary_sha256=artifact['binary_sha256'],
         gpu_uuid=device['nvml_uuid'], guard_result_sha256=sha(run/'guard/guard_result.json'),
-        evidence=run.name, measurements=measurements)
+        evidence=run.name, measurements=measurements)])
     return base
 
 

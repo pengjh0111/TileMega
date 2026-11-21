@@ -39,16 +39,35 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
   if(!ampere) {c.clusters_=s.At("clusters");c.dsmem_=s.At("dsmem_merge_ns");}
   else if(auto const* mma=s.Find("mma_mainloop"))c.ampere_mma_=mma->At("median_ns");
   if(auto const* service=s.Find("dense_gate_service")) {
-    if(!ampere || service->At("schema").AsNumber("dense gate service schema")!=1)
+    auto schema=service->At("schema").AsNumber("dense gate service schema");
+    if(!ampere || (schema!=1 && schema!=2))
       throw std::invalid_argument("invalid SM80 dense gate service profile");
-    auto const& hashes=service->At("body_headers");
-    for(auto name:{"Sm90DenseGemm.h","Sm80DenseService.cuh","Sm90DenseLayout.h",
-                  "Sm90DenseRing.cuh","Sm90DenseEpilogue.h"}) {
-      auto path=root+"/include/tilemega/Backend/"+name;
-      if(FileHash(path)!=hashes.At(name).AsString("body header hash"))
-        throw Sm90NativeMissing(std::string("SM80 dense service profile no longer matches ")+name);
+    auto profiles=schema==1?json::Array{*service}:service->At("profiles").AsArray("dense gate service profiles");
+    json::Value matched(json::Object{});
+    int const sms=int(target.At("resources").At("num_sms").AsNumber("target SM count"));
+    for(auto const& profile:profiles) {
+      auto const& hashes=profile.At("body_headers");
+      bool exact=true;
+      for(auto name:{"Sm90DenseGemm.h","Sm80DenseService.cuh","Sm90DenseLayout.h",
+                     "Sm90DenseRing.cuh","Sm90DenseEpilogue.h"}) {
+        auto path=root+"/include/tilemega/Backend/"+name;
+        if(FileHash(path)==hashes.At(name).AsString("body header hash"))continue;
+        if(schema==1)
+          throw Sm90NativeMissing(std::string("SM80 dense service profile no longer matches ")+name);
+        exact=false;
+        break;
+      }
+      if(!exact)continue;
+      for(auto const& [key,row]:profile.At("measurements").AsObject("dense service measurements")) {
+        // Occupancy headroom alone does not establish equivalent concurrent service.
+        if(schema==2 && row.At("grid").AsNumber("service grid")!=sms &&
+            !row.Find("production_identity_sha256"))continue;
+        if(auto const* prior=matched.Find(key);prior && prior->Dump(0)!=row.Dump(0))
+          throw std::invalid_argument("conflicting compatible dense gate services for "+key);
+        matched.Set(key,row);
+      }
     }
-    c.ampere_gate_service_=service->At("measurements");
+    if(!matched.AsObject("matched dense services").empty())c.ampere_gate_service_=std::move(matched);
   }
   if(auto const* forward=s.Find("forward"))c.forward_=*forward;
   if(auto const* cta=s.Find("cta_dram_gbps"))c.cta_dram_gbps_=Positive(*cta,"per-CTA DRAM bandwidth");
