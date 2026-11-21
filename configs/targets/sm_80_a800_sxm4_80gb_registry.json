@@ -6096,7 +6096,24 @@
               }
             },
             "active_experts": 8,
-            "body_ns": 64512.0
+            "body_ns": 64512.0,
+            "device_equivalence": {
+              "scope": "fused stage and native caller",
+              "comparison_sha256": "2cb294046a6011c334b0aaee620c2913b22b398d1cf56f77af86b0a74378b066",
+              "rebuilt_sha256": "502fa558f2b8ae2506143cadc9fd629f6a928c3de5f3298d7049d8cc8bf98f21",
+              "instructions": 23,
+              "compiled_body_headers": {
+                "Backend/Sm90DenseGemm.h": "a4b77806b3c2850c54006920fc64687a2a8a77a2372342dbb618549e007d89d1",
+                "Backend/Sm80DenseService.cuh": "1bfd850109cd9450a20d4c5ca0359e264755702c5780d30b1b0111ad18d57173",
+                "Backend/Sm90DenseLayout.h": "db52d66222bc2eb42045f482c5c59fc6a71e460aa45a34dbc714fdfe87999e55",
+                "Backend/Sm90DenseRing.cuh": "f66e20a0a7d33851e8a122b9a7cd6aafbbdaf8cfbf422ba6f8e5c817835bf0e3",
+                "Backend/Sm90DenseEpilogue.h": "90f9f68f908aa6d21b077b1f2822c1e43b128635e7f82d861d052d9ec738099b",
+                "Codegen/executor/Async.cuh": "a2a26c533cebdd3585d9fd77ad3e5ea1fb4e23dad25413828e0bae8e756b64b3",
+                "Backend/Sm90DenseMoe.cuh": "7e3c59296dedfa0198df010439823eae13871ca2189ee8af06c6319824f1c5fe",
+                "Backend/Sm90DenseMark.cuh": "93d31802f0037a1d8b8b55b669d82e804c1cd1c1bab2a30383f499e0eb493267",
+                "Backend/Sm80MoePageOffsets.h": "1264baa66c6b7592dac3618a1624b02c407a14b4d0b7e661dfce6b67c4983328"
+              }
+            }
           },
           "source_sha": "086dfb21e3242a8679eefa455b1dda2471cdc841",
           "binary_sha256": "919d4c4cbc05eb99446cb411deb94e2d9a78adfb0931a3e5d55df13cfa8ccfb1",
