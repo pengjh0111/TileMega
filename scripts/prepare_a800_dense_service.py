@@ -63,7 +63,7 @@ def main():
                 continue
             live = args.live and batch < 16 and (family == 'gate_up' or wk > 1)
             copy = args.copy if family == 'gate_up' else 0
-            side = (n//tn + grid-1)//grid if epilogue == 'residual' else 0
+            side = max(2, (n//tn + grid-1)//grid) if epilogue == 'residual' else 0
             name = f'{suffix}-{family}-u{u}-rows{int(live)}-copy{copy}'
             key = production_key(dict(epilogue=epilogue, grid=grid, n=n, k=k, batch=batch,
                 tn=tn, tk=tk, slots=slots, warps_n=wn, warps_k=wk, register_stages=g['register_stages'],
