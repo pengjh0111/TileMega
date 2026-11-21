@@ -4,6 +4,7 @@
 #include <tilemega/Solver/Sm90DenseCostModel.h>
 #include <tilemega/Solver/Sm90DenseResources.h>
 #include <tilemega/Solver/Sm90DenseSearchSpace.h>
+#include <tilemega/Solver/Sm90NativeMoeDomain.h>
 #include <algorithm>
 #include <cmath>
 #include <map>
@@ -12,6 +13,57 @@
 namespace tilemega::solver {
 namespace {
 constexpr int kFirstDecodePast=64,kLastDecodePast=1086;
+
+double FusedLocalRing(Sm90DenseWorkload const& work,Sm90DenseCoordinates const& c,
+    Sm80FusedExpertService const& service,int grid,int active) {
+  struct Worker {
+    double producer=0,consumer=0;
+    int next_slot=0;
+    std::vector<double> empty;
+  };
+  auto const& gu=c.gemms[6];auto const& dn=c.gemms[7];
+  int gu_tasks=work.shapes[6][0]/gu.tile_n,dn_tasks=work.shapes[7][0]/dn.tile_n;
+  int gu_tiles=work.shapes[6][1]/gu.TileK(),dn_tiles=work.shapes[7][1]/dn.TileK();
+  int slots=gu.slots,ahead=std::min(slots,dn_tiles);
+  std::vector<Worker> workers(grid,Worker{0,0,0,std::vector<double>(slots)});
+  std::vector<double> gate_done(active);
+  auto issue=[&](Worker& worker,int offset,double duration) {
+    worker.producer=std::max(worker.producer,worker.empty[(worker.next_slot+offset)%slots])+duration;
+  };
+  auto consume=[&](Worker& worker,double duration) {
+    worker.consumer=std::max(worker.consumer,worker.producer)+duration;
+    worker.empty[worker.next_slot]=worker.consumer;
+    worker.next_slot=(worker.next_slot+1)%slots;
+  };
+  for(int task=0;task<active*gu_tasks;++task) {
+    auto& worker=workers[task%grid];
+    for(int tile=0;tile<gu_tiles;++tile) {
+      issue(worker,0,service.gu_issue);
+      consume(worker,service.gu_mma);
+    }
+    worker.consumer+=service.gu_epilogue;
+    gate_done[task/gu_tasks]=std::max(gate_done[task/gu_tasks],worker.consumer);
+  }
+  for(int task=0;task<active*dn_tasks;++task) {
+    auto& worker=workers[(active*gu_tasks+task)%grid];
+    for(int tile=0;tile<ahead;++tile)issue(worker,tile,service.dn_preissue/ahead);
+    // Dn can reserve the same CTA's slots before the last Gu tile of this
+    // expert publishes. The wait applies to the activation, not that prefix.
+    worker.producer=std::max(worker.producer,gate_done[task/dn_tasks]);
+    for(int tile=0;tile<ahead;++tile) {
+      worker.producer+=service.dn_activation/ahead;
+      consume(worker,service.dn_mma);
+    }
+    for(int tile=ahead;tile<dn_tiles;++tile) {
+      issue(worker,0,service.dn_issue);
+      consume(worker,service.dn_mma);
+    }
+    worker.consumer+=service.dn_epilogue;
+  }
+  return std::max_element(workers.begin(),workers.end(),[](Worker const& a,Worker const& b) {
+    return a.consumer<b.consumer;
+  })->consumer;
+}
 }
 
 json::Value Sm90DensePrediction::ToJson() const {
@@ -337,6 +389,20 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& work,
         gu->ns+dn->ns-constants_.Barrier(grid)-constants_.dram_latency,
         json::Object{{"gate_up",gu->terms},{"down",dn->terms},{"barrier_removed",constants_.Barrier(grid)},
                      {"first_byte_overlapped",constants_.dram_latency}}};
+    if(auto service=FusedService(work,c)) {
+      int active=int(std::lround(Sm90NativeExpectedActiveExperts(work.experts,work.top_k,work.batch)));
+      double local=FusedLocalRing(work,c,*service,grid,active);
+      auto sum=[&](char const* key) {
+        return gu->terms.At(key).AsNumber(key)+dn->terms.At(key).AsNumber(key);
+      };
+      // The weights share the same HBM service. The local replay has no
+      // memory-arrival times, so its makespan bounds the same pipeline.
+      double stream=std::max({local,sum("dram"),sum("l2"),sum("waves")});
+      fused.ns=constants_.Barrier(grid)+constants_.dram_latency+stream;
+      fused.terms.Set("local_shared_ring_ns",local);
+      fused.terms.Set("active_experts",active);
+      fused.terms.Set("stream_bound_ns",stream);
+    }
     p.stages.erase(dn);p.stages.erase(at("expert_gate_up"));
     p.stages.push_back(std::move(fused));
   }
