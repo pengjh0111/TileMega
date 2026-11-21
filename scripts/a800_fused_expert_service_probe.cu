@@ -60,18 +60,22 @@ struct Case {
 
 template<class Case,bool Sample>
 __global__ __launch_bounds__(160,1)
-void Run(Sm90DenseMoeFusedOperands args,Tick* samples,int mask) {
+void Run(Sm90DenseMoeFusedOperands args,Tick* samples,int sample_cta) {
   extern __shared__ __align__(1024) char shared[];
   auto& ring=*reinterpret_cast<Sm90DenseRingState*>(shared);
   ring.Initialize<true>();
   auto* data=samples+std::size_t(blockIdx.x)*(Marks::kCount+1);
   if(threadIdx.x==0)
     *reinterpret_cast<Tick**>(shared+Sm90DenseOperandHeader::kTraceSlot)=
-        Sample && (blockIdx.x%8==unsigned(mask))?data:nullptr;
+        Sample && blockIdx.x==unsigned(sample_cta)?data:nullptr;
   __syncthreads();
   Tick begin=0;
   if(threadIdx.x==0)begin=Marks::Now();
-  Case::template Body<Sample>::Run(args,shared,&ring);
+  // Other CTAs still run the production task bodies during sampling.
+  if(Sample && blockIdx.x==unsigned(sample_cta))
+    Case::template Body<true>::Run(args,shared,&ring);
+  else
+    Case::template Body<false>::Run(args,shared,&ring);
   if(threadIdx.x==0)data[Marks::kCount]=Marks::Now()-begin;
   ring.Invalidate<true>();
 }
@@ -102,6 +106,11 @@ int Profile(cudaDeviceProp const& device) {
   Device<unsigned> done(E);
   Device<std::uint64_t> combine(ND/C::kTNDn);
   Device<Tick> trace(grid*(Marks::kCount+1));
+  struct Event {
+    cudaEvent_t event;
+    Event() {Check(cudaEventCreate(&event));}
+    ~Event() {cudaEventDestroy(event);}
+  } begin,end;
   Fill<<<256,256>>>(wg.data,wg.size);Fill<<<256,256>>>(wd.data,wd.size);
   Fill<<<1,256>>>(input.data,input.size);FillLogits<<<1,256>>>(logits.data,B*E,E);
   Sm90DenseMoeFusedOperands args{};
@@ -109,7 +118,7 @@ int Profile(cudaDeviceProp const& device) {
   args.hidden=hidden.data;args.output=output.data;args.schedule=schedule.data;
   args.route_weights=routes.data;args.route_index=index.data;args.x=x.data;
   args.counter=combine.data;args.gate_up_done=done.data;args.logits=logits.data;args.epsilon=1e-6f;
-  std::vector<double> plain_spans,trace_spans;
+  std::vector<double> plain_spans,trace_spans,plain_kernel,trace_kernel;
   std::vector<double> gu_issue,dn_issue,gu_mma,dn_mma,gu_epilogue,dn_epilogue,
       gu_empty,dn_empty,gu_full,dn_full,preissue,activation,gate_wait;
   std::vector<Elt> expected;
@@ -124,10 +133,23 @@ int Profile(cudaDeviceProp const& device) {
     for(int tile=begin;tile<end;++tile)if(tile%8==lane)++n;
     return n;
   };
-  for(int repeat=-1;repeat<8;++repeat) {
-    reset();
-    Run<C,false><<<grid,160,shared>>>(args,trace.data,0);
+  auto read=[&](auto kernel,int cta,std::vector<double>& elapsed,int repeat) {
+    void* params[]={&args,&trace.data,&cta};
+    Check(cudaEventRecord(begin.event));
+    Check(cudaLaunchKernel(reinterpret_cast<void const*>(kernel),grid,160,params,shared));
+    Check(cudaEventRecord(end.event));
     auto raw=trace.Read();
+    float ms=0;
+    Check(cudaEventElapsedTime(&ms,begin.event,end.event));
+    if(repeat>=0)elapsed.push_back(double(ms)*1e6);
+    return raw;
+  };
+  constexpr int samples=32;
+  for(int repeat=-1;repeat<samples;++repeat) {
+    // A stride coprime to 108 covers the task waves and K tile residues.
+    int block=(std::max(0,repeat)*37)%grid;
+    reset();
+    auto raw=read(plain,block,plain_kernel,repeat);
     auto span=[&](auto const& rows) {
       Tick max_time=0;
       for(int block=0;block<grid;++block)
@@ -137,41 +159,38 @@ int Profile(cudaDeviceProp const& device) {
     if(repeat>=0)plain_spans.push_back(span(raw));
     expected=x.Read();routes_expected=index.Read();
     reset();
-    Run<C,true><<<grid,160,shared>>>(args,trace.data,std::max(0,repeat));
-    raw=trace.Read();
+    raw=read(sampled,block,trace_kernel,repeat);
     auto actual=x.Read();
     if(std::memcmp(expected.data(),actual.data(),x.size*sizeof(Elt)) || routes_expected!=index.Read())
       throw std::runtime_error("sampling changed fused stage output or route order");
     if(repeat<0)continue;
     trace_spans.push_back(span(raw));
-    for(int block=repeat;block<grid;block+=8) {
-      auto* row=&raw[block*(Marks::kCount+1)];
-      if(double gu=row[Marks::kGuTasks];gu>0) {
-        double tiles=gu*sampled_tiles(0,H/C::kTKGu,repeat);
-        if(tiles>0) {
-          gu_issue.push_back(row[Marks::kGuIssue]/tiles);
-          gu_mma.push_back(row[Marks::kGuMma]/tiles);
-          gu_empty.push_back(row[Marks::kGuEmpty]/tiles);
-          gu_full.push_back(row[Marks::kGuFull]/tiles);
-        }
-        gu_epilogue.push_back(row[Marks::kGuEpilogue]/gu);
+    auto* row=&raw[block*(Marks::kCount+1)];
+    if(double gu=row[Marks::kGuTasks];gu>0) {
+      double tiles=gu*sampled_tiles(0,H/C::kTKGu,block%8);
+      if(tiles>0) {
+        gu_issue.push_back(row[Marks::kGuIssue]/tiles);
+        gu_mma.push_back(row[Marks::kGuMma]/tiles);
+        gu_empty.push_back(row[Marks::kGuEmpty]/tiles);
+        gu_full.push_back(row[Marks::kGuFull]/tiles);
       }
-      if(double dn=row[Marks::kDnTasks];dn>0) {
-        int steps=(NG/2)/C::kTKDn,ahead=std::min(steps,C::kSlots);
-        double all=dn*sampled_tiles(0,steps,repeat),steady=dn*sampled_tiles(ahead,steps,repeat);
-        if(steady>0) {
-          dn_issue.push_back(row[Marks::kDnIssue]/steady);
-          dn_empty.push_back(row[Marks::kDnEmpty]/steady);
-        }
-        if(all>0) {
-          dn_mma.push_back(row[Marks::kDnMma]/all);
-          dn_full.push_back(row[Marks::kDnFull]/all);
-        }
-        dn_epilogue.push_back(row[Marks::kDnEpilogue]/dn);
-        preissue.push_back(row[Marks::kDnPreissueIssue]/dn);
-        activation.push_back(row[Marks::kDnActivation]/dn);
-        gate_wait.push_back(row[Marks::kDnGateWait]/dn);
+      gu_epilogue.push_back(row[Marks::kGuEpilogue]/gu);
+    }
+    if(double dn=row[Marks::kDnTasks];dn>0) {
+      int steps=(NG/2)/C::kTKDn,ahead=std::min(steps,C::kSlots);
+      double all=dn*sampled_tiles(0,steps,block%8),steady=dn*sampled_tiles(ahead,steps,block%8);
+      if(steady>0) {
+        dn_issue.push_back(row[Marks::kDnIssue]/steady);
+        dn_empty.push_back(row[Marks::kDnEmpty]/steady);
       }
+      if(all>0) {
+        dn_mma.push_back(row[Marks::kDnMma]/all);
+        dn_full.push_back(row[Marks::kDnFull]/all);
+      }
+      dn_epilogue.push_back(row[Marks::kDnEpilogue]/dn);
+      preissue.push_back(row[Marks::kDnPreissueIssue]/dn);
+      activation.push_back(row[Marks::kDnActivation]/dn);
+      gate_wait.push_back(row[Marks::kDnGateWait]/dn);
     }
   }
   int active=schedule.Read().front();
@@ -179,14 +198,17 @@ int Profile(cudaDeviceProp const& device) {
       "\"dynamic_shared\":%d,\"plain_registers\":%d,\"sampled_registers\":%d,"
       "\"plain_local_bytes\":%zu,\"sampled_local_bytes\":%zu,"
       "\"plain_residency\":%d,\"sampled_residency\":%d,\"bitwise_equal\":true,"
-      "\"sampled_cta_stride\":8,\"sampled_tile_stride\":8,\"plain_stage_ns\":%.3f,\"sampled_stage_ns\":%.3f,"
+      "\"sampled_ctas_per_launch\":1,\"sampled_tile_stride\":8,\"launches\":%d,"
+      "\"plain_stage_ns\":%.3f,\"sampled_stage_ns\":%.3f,"
+      "\"plain_kernel_ns\":%.3f,\"sampled_kernel_ns\":%.3f,"
       "\"gu_issue_ns_per_tile\":%.3f,\"gu_mma_ns_per_tile\":%.3f,\"gu_epilogue_ns_per_task\":%.3f,"
       "\"gu_empty_ns_per_tile\":%.3f,\"gu_full_ns_per_tile\":%.3f,"
       "\"dn_issue_ns_per_tile\":%.3f,\"dn_mma_ns_per_tile\":%.3f,\"dn_epilogue_ns_per_task\":%.3f,"
       "\"dn_empty_ns_per_tile\":%.3f,\"dn_full_ns_per_tile\":%.3f,"
       "\"dn_preissue_ns_per_task\":%.3f,\"dn_activation_ns_per_task\":%.3f,\"dn_gate_wait_ns_per_task\":%.3f}\n",
       grid,B,active,shared,plain_attr.numRegs,sampled_attr.numRegs,plain_attr.localSizeBytes,
-      sampled_attr.localSizeBytes,plain_slots,sampled_slots,Median(plain_spans),Median(trace_spans),
+      sampled_attr.localSizeBytes,plain_slots,sampled_slots,samples,Median(plain_spans),Median(trace_spans),
+      Median(plain_kernel),Median(trace_kernel),
       Median(gu_issue),Median(gu_mma),Median(gu_epilogue),Median(gu_empty),Median(gu_full),
       dn_issue.empty()?0.0:Median(dn_issue),Median(dn_mma),Median(dn_epilogue),
       dn_empty.empty()?0.0:Median(dn_empty),Median(dn_full),
