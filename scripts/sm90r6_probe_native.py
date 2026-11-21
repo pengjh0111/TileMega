@@ -16,6 +16,10 @@ def worker(prepared, out):
         raise ValueError('occupancy queries require the physical-card guard')
     rows = []
     for candidate in json.loads(prepared.read_text()):
+        probe, cubin = map(Path, candidate['command'][:2])
+        if (sha(cubin) != candidate['cubin_sha256'] or
+                (candidate.get('probe_sha256') and sha(probe) != candidate['probe_sha256'])):
+            raise ValueError('queued occupancy executable or cubin changed')
         run = subprocess.run(candidate['command'], capture_output=True, text=True, timeout=30)
         folder = Path(candidate['directory'])
         (folder / 'stdout.txt').write_text(run.stdout)
@@ -42,6 +46,8 @@ def main():
     p.add_argument('--out', type=Path, required=True)
     p.add_argument('--gpu', default='auto')
     p.add_argument('--worker', type=Path, help=argparse.SUPPRESS)
+    p.add_argument('--prepare-only', action='store_true',
+                   help='compile the CPU driver tool and extract cubins without opening CUDA')
     a = p.parse_args()
     if a.worker:
         worker(a.worker, a.out)
@@ -80,7 +86,7 @@ def main():
         arch = identity['nvcc_arch']
         if arch not in ('sm_80', 'sm_90a'):
             raise ValueError(f'unsupported native linked architecture: {arch}')
-        if arch == 'sm_80' and not os.environ.get('TILEMEGA_STRICT_HOST_GUARD_PID'):
+        if arch == 'sm_80' and not a.prepare_only and not os.environ.get('TILEMEGA_STRICT_HOST_GUARD_PID'):
             raise ValueError('SM80 probing requires the allocated card and strict host GPU guard')
         cubins = list(directory.glob(f'*.{arch}.cubin'))
         if len(cubins) != 1:
@@ -88,6 +94,7 @@ def main():
         coordinate = manifest['native_dense']
         prepared.append(dict(rank=row['rank'], directory=str(directory),
             binary_sha256=sha(binary), identity_sha256=sha(identity_path), cubin_sha256=sha(cubins[0]),
+            probe_sha256=sha(probe),
             ptxas_sha256=sha(Path(str(binary) + '.ptxas.log')),
             linked_registers=identity['resources'][kernels[0]]['registers'],
             ptxas_registers=identity['ptxas_resources'][kernels[0]]['registers'],
@@ -97,6 +104,8 @@ def main():
     if not prepared:
         raise ValueError('no compiled native candidates to query')
     write(out / 'prepared.json', prepared)
+    if a.prepare_only:
+        return 0
     collect = [sys.executable, str(Path(__file__).resolve()), '--worker', str(out / 'prepared.json'),
                '--out', str(out / 'result.json')]
     if os.environ.get('TILEMEGA_GPU_LOCK_HELD') == '1':
