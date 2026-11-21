@@ -4,6 +4,11 @@
     "prefill_sha256": "7ef589858d56a50735f4119abb37fe0b7fbec47e02361bff1f2198c212a09521",
     "target_sha256": "a3f42975e24e044506f9784a9bee42b93158c4841c435f2b5229d18afa5033b1"
   },
+  "llama3_1_8b/B16": {
+    "decode_sha256": "90b58834112a228f1ef48d48dd4b9650d1dc6d8310f356cc52451cef5041befb",
+    "prefill_sha256": "98dce1ca4cb581036baaa628f610dcf17a7655005565afe261faa2ea40e4a277",
+    "target_sha256": "73936e6b3514ee20de676c6d88f2d537e08010fc30ae729b4343ada13bc4a465"
+  },
   "llama3_1_8b/B2": {
     "decode_sha256": "e1b0701ab8771de29659dd7729e2bd6bba7a087335f6089c52fe58b9ebfd8f38",
     "prefill_sha256": "94bcb5b4fa2d09106769ce0888e6192cb435791f53ab6f5029c4d993c77d348c",
@@ -28,6 +33,11 @@
     "decode_sha256": "4bb276b0b415ced1cb507e7e6db5d7a58dcc365ac9d1e34e635dad91001535cf",
     "prefill_sha256": "a75d70ea82116a55e3eeee297c158c77cda8ca40ea6418bd98b6a521afa13014",
     "target_sha256": "03a33c6a8d297abd433fbbd985e1505982fa35d1697c36d04fca33a36a26a5e8"
+  },
+  "mistral_7b_v0_3/B16": {
+    "decode_sha256": "a7c1d23c9cffa7ed9a9e6a559c69641d8e35c419cad5c12ce4b1960a75672b2f",
+    "prefill_sha256": "0fe0bf4384e0038eb6268361e4c402777d14534656c911c8007dd929ab4a33c0",
+    "target_sha256": "73936e6b3514ee20de676c6d88f2d537e08010fc30ae729b4343ada13bc4a465"
   },
   "mistral_7b_v0_3/B2": {
     "decode_sha256": "ac78df95e0395858ff40e3d5cbbc5c1cec4c1aa146aceaae2b9e899488450451",
@@ -55,8 +65,13 @@
     "target_sha256": "03a33c6a8d297abd433fbbd985e1505982fa35d1697c36d04fca33a36a26a5e8"
   },
   "qwen3_30b_a3b/B1": {
-    "decode_sha256": "c4b31ab45b6e857e0b6d8fc744ffb71623b4ef5cfd57bb4c316d8c0d4ee78f9c",
+    "decode_sha256": "919d4c4cbc05eb99446cb411deb94e2d9a78adfb0931a3e5d55df13cfa8ccfb1",
     "prefill_sha256": "fa7ca0af282a79d0aa03c34e6c52192212902a6cf0413c7e78be03321d73cba8",
-    "target_sha256": "03a33c6a8d297abd433fbbd985e1505982fa35d1697c36d04fca33a36a26a5e8"
+    "target_sha256": "149cfd3c1d06b33fb9789be194582778c6ec4303ab8e55115c3f3aa2769db338"
+  },
+  "qwen3_30b_a3b/B16": {
+    "decode_sha256": "ad29f22a019ee234df427e446a56dc7d9e89cb4cf2e2e7a059231eb67687a1ff",
+    "prefill_sha256": "1d206bc4d4b7a859ab9e58689e5384707fdaa639ab4edcd662168586f753ec3f",
+    "target_sha256": "149cfd3c1d06b33fb9789be194582778c6ec4303ab8e55115c3f3aa2769db338"
   }
 }
