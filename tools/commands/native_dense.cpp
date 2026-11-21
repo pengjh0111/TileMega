@@ -366,7 +366,7 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
     result.elapsed_ms=receipt.At("search_ms").AsNumber("prepared search time");
     result.evaluated=std::size_t(receipt.At("evaluated").AsNumber("prepared evaluation count"));
   }else {
-    result=solver::SearchSm90Dense(space,work,cost,search);
+    if(o.search=="additive")result=solver::SearchSm90Dense(space,work,cost,search);
   // P3: Algorithm 1 replaces the additive ranking for every selection this
   // round. `--search additive` is kept only to reproduce the R3-R5 choices
   // (continuation 1 section 1.3), so it never decides a final coordinate here.
@@ -394,7 +394,10 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
       seeds.push_back(pinned);
     }
     mlir::MLIRContext context;
-    auto imported=solver::ImportSm90Dense(o.input,result.ranked.front().coordinates,context);
+    std::optional<solver::Sm90DenseCoordinates> import_seed;
+    if(!seeds.empty())import_seed=seeds.front();
+    else import_seed=solver::SearchSm90Dense(space,work,cost,search).ranked.front().coordinates;
+    auto imported=solver::ImportSm90Dense(o.input,*import_seed,context);
     solver::Sm90NativeCtgCache cache;
     std::map<std::string,std::string> flow_identities;
     json::Array analysis_calls;

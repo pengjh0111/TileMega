@@ -5,6 +5,7 @@
 
 namespace tilemega::solver {
 struct Sm90DenseSearchOptions {
+  bool allow_empty=false;
   int top=4;
   // Per-family alternatives combined around the per-family optimum.
   int alternatives=3;

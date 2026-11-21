@@ -268,9 +268,34 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
   auto priced=[&](Sm90DenseCoordinates const& c) {
     if(!cost.HasCalibratedMma(c))return false;
     if(!ampere || c.moe)return true;
-    auto const& gate=c.gemms[2];
-    return c.swiglu_u==Sm90DenseSearchSpace::DefaultGateInterleave(gate.tile_n) ||
-        cost.DenseService(work,2,gate,c.residency,&c);
+    for(unsigned f:{0u,1u,2u,3u}) {
+      auto const& g=c.gemms[f];
+      bool variant=(c.live_epilogue_rows && (f==2 || g.warps_k>1)) ||
+          (f==2 && (c.copy_issue_group ||
+              c.swiglu_u!=Sm90DenseSearchSpace::DefaultGateInterleave(g.tile_n)));
+      if(variant && !cost.DenseService(work,f,g,c.residency,&c))return false;
+    }
+    return true;
+  };
+
+  auto body_neighbours=[&](Sm90DenseCoordinates const& c) {
+    std::vector<std::pair<Sm90DenseCoordinates,std::string>> result;
+    // Experts need a joint Gu/Dn service profile before adding new automatic
+    // moves. Their imported same-theta evidence still uses normal CTG replay.
+    if(!ampere || c.moe || c.weight_stream || options.pinned_theta)return result;
+    if(work.batch<16) {
+      auto trial=c;trial.live_epilogue_rows=!c.live_epilogue_rows;
+      result.emplace_back(trial,"accumulator rows");
+    }
+    for(int group:{0,4,8})if(group!=c.copy_issue_group) {
+      auto trial=c;trial.copy_issue_group=group;
+      result.emplace_back(trial,"weight copy issue");
+    }
+    for(int u:{4,8,16})if(u!=c.swiglu_u && c.gemms[2].tile_n%(2*u)==0) {
+      auto trial=c;trial.swiglu_u=u;
+      result.emplace_back(trial,"gate interleave");
+    }
+    return result;
   };
 
   auto score = [&](Sm90DenseCoordinates const& c) -> double {
@@ -337,10 +362,22 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     throw std::invalid_argument("more required anchors than the finalist budget");
   Sm90DenseSearchOptions additive;
   additive.top = 1;
-  auto seeded = SearchSm90Dense(space, work, cost, additive);
-  for (auto const& candidate : seeded.ranked)
-    project(candidate.coordinates);
+  additive.allow_empty=ampere && !starts.empty();
+  auto seeded=SearchSm90Dense(space,work,cost,additive);
+  for(auto const& candidate:seeded.ranked)project(candidate.coordinates);
   for(auto const& candidate:seeded.per_structure_optima)project(candidate.coordinates);
+  // Score a finite implementation frontier before the large tile domain.
+  // Keep one seed per implementation, residency and arena for this pass.
+  auto base_seeds=starts;
+  std::set<std::tuple<bool,int,int,int,bool>> seeded_bodies;
+  for(auto const& base:base_seeds)for(auto const& [trial,label]:body_neighbours(base)) {
+    auto body=std::make_tuple(trial.live_epilogue_rows,trial.copy_issue_group,
+        trial.swiglu_u,trial.residency,trial.reuse_payload);
+    if(!seeded_bodies.count(body) && space.Legal(trial) && priced(trial)) {
+      seeded_bodies.insert(body);
+      project(trial);
+    }
+  }
   if (starts.empty())
     throw std::invalid_argument("native pipeline search found no legal seed");
   for(std::size_t i=0;i<starts.size();++i) {
@@ -374,6 +411,8 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     };
     for (bool changed = true; changed && spent_ms() <= options.budget_ms;) {
       changed = false;
+      for(auto const& [trial,implementation]:body_neighbours(current))
+        changed|=consider(trial,implementation);
       // The per-family geometry.
       for (unsigned family : current.Active()) {
         if(options.pinned_theta)continue;
@@ -398,13 +437,6 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
               }
             }
           }
-        }
-      }
-      if(ampere && !current.moe && !options.pinned_theta) {
-        for(int u:{4,8,16}) {
-          if(current.gemms[2].tile_n%(2*u))continue;
-          auto trial=current;trial.swiglu_u=u;
-          changed|=consider(trial,"gate interleave");
         }
       }
       // The attention structure, unless AB-4a forbids changing it.

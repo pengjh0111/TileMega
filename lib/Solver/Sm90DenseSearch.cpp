@@ -80,7 +80,7 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
         if(a_bytes!=b_bytes)return a_bytes<b_bytes;
         return a.gemm.TileK()>b.gemm.TileK();
       });
-      list.erase(std::unique(list.begin(),list.end(),[](Option const& a,Option const& b) {
+      if(!ampere)list.erase(std::unique(list.begin(),list.end(),[](Option const& a,Option const& b) {
         return std::abs(a.ns-b.ns)<=1e-9*b.ns;
       }),list.end());
       return !list.empty();
@@ -135,7 +135,10 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
   std::stable_sort(pool.begin(),pool.end(),[](auto const& a,auto const& b) {
     return a.prediction.step_ns<b.prediction.step_ns;
   });
-  if(pool.empty())throw std::invalid_argument("native search found no legal coordinate");
+  if(pool.empty()) {
+    if(o.allow_empty)return result;
+    throw std::invalid_argument("native search found no legal coordinate");
+  }
   std::set<std::tuple<int,int,int,int,bool>> optimum_structures;
   for(auto const& candidate:pool)
     if(candidate.origin.find("_optimum")!=std::string::npos &&
