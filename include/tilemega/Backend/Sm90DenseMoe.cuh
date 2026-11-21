@@ -523,14 +523,24 @@ struct Sm90DenseMoeGemm {
   // Rows are loaded without waiting for count, so no load depends on another.
   struct Record {int expert,count,route;};
   __device__ static __forceinline__ void CopyActivation(Element* destination,Element const* source,
-      int tile,int rows,int token) {
+      int tile,int rows,int token,bool clear_padding=true) {
     static_assert(CpAsync);
     auto* dst=reinterpret_cast<char*>(destination);
+#ifdef TILEMEGA_SM80_MOE_SLOT_PADDING
+    int copy_rows=clear_padding?kRows:rows;
+    for(int first=0;first<copy_rows*TK;first+=32*8) {
+      int i=first+(threadIdx.x&31)*8;
+#else
     for(int i=(threadIdx.x&31)*8;i<kRows*TK;i+=32*8) {
+#endif
       int row=i/TK,col=i%TK,input_row=row;
       if constexpr(Mode==Sm90DenseMoeMode::kGateUp)
         input_row=__shfl_sync(0xffffffff,token,row);
       bool valid=row<rows;
+#ifdef TILEMEGA_SM80_MOE_SLOT_PADDING
+      // A partial final iteration still needs every Gu lane at the shuffle.
+      if(row>=copy_rows)continue;
+#endif
       Async::Copy16(dst+Swizzled(row,col),
           valid?source+std::size_t(input_row)*K+tile*TK+col:source,valid);
     }
@@ -558,13 +568,16 @@ struct Sm90DenseMoeGemm {
   }
 
   __device__ static __forceinline__ void CopyActivationFromBases(
-      Element* destination,int tile,ActivationRouteBases const& plan) {
+      Element* destination,int tile,ActivationRouteBases const& plan,bool clear_padding=true) {
     static_assert(CpAsync && Mode==Sm90DenseMoeMode::kGateUp && TK==64);
     auto* dst=reinterpret_cast<char*>(destination);
     int first_row=(threadIdx.x&31)/8,col=(threadIdx.x&7)*8;
     #pragma unroll
     for(int i=0;i<kRows/4;++i) {
       int row=first_row+4*i;
+#ifdef TILEMEGA_SM80_MOE_SLOT_PADDING
+      if(!clear_padding && !((plan.valid>>i)&1))continue;
+#endif
       Async::Copy16(dst+Swizzled(row,col),plan.segments[i]+tile*TK,(plan.valid>>i)&1);
     }
   }
@@ -619,7 +632,10 @@ struct Sm90DenseMoeGemm {
             else Core::CopySpan(destination+prefix,tile_base+std::size_t(tile)*TN*TK+prefix,TN*TK-prefix);
             auto* source=Mode==Sm90DenseMoeMode::kGateUp?p.input:p.activation_address;
             if constexpr(Mode==Sm90DenseMoeMode::kDown)source+=std::size_t(t/kTiles)*16*K;
-            CopyActivation(a+slot*kRows*TK,source,tile,kDynamic?current.count:Batch,token);
+            // Dynamic records can shrink when the task changes. Establish
+            // zeros on the first visit to each slot in the current task.
+            CopyActivation(a+slot*kRows*TK,source,tile,kDynamic?current.count:Batch,token,
+                (kDynamic?tile:sequence)<Slots);
             Async::CompleteCopies(state.full+slot);
           }else if constexpr(Mode==Sm90DenseMoeMode::kGateUp) {
             // The producer lanes gather the slot's rows of x' (one TK segment
@@ -1042,10 +1058,10 @@ struct Sm90DenseMoeFusedGemm {
           Gu::template CopyWeights<decltype(page_phase)::value>(b+slot*kWeightSlot,tile_base,task.slot*kTilesGu+task.tile,tile,state.full+slot);
 #ifdef TILEMEGA_SM80_MOE_GU_ROUTE_BASES
           if constexpr(TKGu==64)
-            Gu::CopyActivationFromBases(a+slot*kRows*kMaxTK,tile,route_bases);
+            Gu::CopyActivationFromBases(a+slot*kRows*kMaxTK,tile,route_bases,tile<Slots);
           else
 #endif
-            Gu::CopyActivation(a+slot*kRows*kMaxTK,p.input,tile,record.count,token);
+            Gu::CopyActivation(a+slot*kRows*kMaxTK,p.input,tile,record.count,token,tile<Slots);
           Async::CompleteCopies(state.full+slot);
         }else {
           // The producer lanes gather the slot's rows of x' (one TK segment each)
@@ -1115,7 +1131,7 @@ struct Sm90DenseMoeFusedGemm {
         auto* source=static_cast<Element const*>(p.hidden)+std::size_t(task.slot)*16*kIntermediate;
         for(int tile=0;tile<kAhead;++tile) {
           int slot=(first+tile)%Slots;
-          Dn::CopyActivation(a+slot*kRows*kMaxTK,source,tile,record.count,0);
+          Dn::CopyActivation(a+slot*kRows*kMaxTK,source,tile,record.count,0,tile<Slots);
           Async::CompleteCopies(state.full+slot);
         }
       }else if(lane==0) {
@@ -1135,7 +1151,7 @@ struct Sm90DenseMoeFusedGemm {
         if constexpr(CpAsync) {
           auto* source=static_cast<Element const*>(p.hidden)+std::size_t(task.slot)*16*kIntermediate;
           Dn::template CopyWeights<decltype(page_phase)::value>(b+slot*kWeightSlot,tile_base,task.slot*kTilesDn+task.tile,tile,state.full+slot);
-          Dn::CopyActivation(a+slot*kRows*kMaxTK,source,tile,record.count,0);
+          Dn::CopyActivation(a+slot*kRows*kMaxTK,source,tile,record.count,0,tile<Slots);
           Async::CompleteCopies(state.full+slot);
         }else if(lane==0) {
           Async::ExpectTx(state.full+slot,kSlotBytesDn);
