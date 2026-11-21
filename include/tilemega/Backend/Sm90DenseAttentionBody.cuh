@@ -134,7 +134,12 @@ struct Sm90DenseAttentionBody {
   static constexpr int kMaxPreissue=Slots*4*BlockKeys*D;
   __device__ static __forceinline__ void CopyHistory(Storage& s,int slot,int bg,int begin,int end,
       Element const* key,Element const* value,std::uint64_t* full) {
-    for(int i=(threadIdx.x&31)*8;i<BlockKeys*D;i+=32*8) {
+#ifdef TILEMEGA_SM80_ATTN_MASKED_STRIPS
+    int copied_rows=min(BlockKeys,((end-begin+15)/16)*16);
+#else
+    constexpr int copied_rows=BlockKeys;
+#endif
+    for(int i=(threadIdx.x&31)*8;i<copied_rows*D;i+=32*8) {
       int row=i/D,col=i%D;
       bool valid=begin+row<end;
       auto offset=std::size_t(bg)*Capacity*D+(begin+row)*D+col;
@@ -403,8 +408,15 @@ struct Sm90DenseAttentionBody {
         if(threadIdx.x==0)Sm90DenseMarkFirst(1);
         unsigned key=Async::Shared(s.kv[slot][0]),value=Async::Shared(s.kv[slot][1]);
         #pragma unroll
-        for(int sub=0;sub<BlockKeys/64;++sub)
-          Block<BlockKeys>(query,key,value,warp*(BlockKeys/4)+sub*16,bound-begin,st);
+        for(int sub=0;sub<BlockKeys/64;++sub) {
+          int first=warp*(BlockKeys/4)+sub*16;
+#ifdef TILEMEGA_SM80_ATTN_MASKED_STRIPS
+          // A whole masked strip never contributes to softmax. Keep the
+          // trailing rows of a partially valid strip zero for the V MMA.
+          if constexpr(CpAsync)if(first>=bound-begin)continue;
+#endif
+          Block<BlockKeys>(query,key,value,first,bound-begin,st);
+        }
         // Generic reads before the async-proxy refill (see Sm90DenseGemm).
         Async::FenceProxyAsyncShared();
         Async::Arrive(state.empty+slot);
