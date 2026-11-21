@@ -615,12 +615,35 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     }
   }
   // A calibrated SM80 incumbent can have the same structural class as
-  // several newly tried slot depths. Keep its exact legal coordinate in
-  // replay so prediction error cannot eliminate the comparison arm.
+  // several newly tried slot depths. Keep an exact body comparison when
+  // measured prices exist for a legal neighbour at the same geometry.
   if(!options.require_anchors && ampere && options.finalists>0 && !seeds.empty() && !options.pinned_theta && !options.operator_sum &&
       !options.retile_only && !options.realize_aggregate) {
     auto key=CoordinateKey(seeds.front());
-    if(memo.count(key) && std::isfinite(memo.at(key)))protected_anchors.insert(key);
+    if(memo.count(key) && std::isfinite(memo.at(key))) {
+      protected_anchors.insert(key);
+      if(options.finalists>1) {
+        auto const& incumbent=seeds.front();
+        std::set<std::string> neighbours;
+        for(auto const& [trial,label]:body_neighbours(incumbent)) {
+          bool measured=true;
+          if(!trial.moe)for(unsigned f:{0u,1u,2u,3u}) {
+            auto const& g=trial.gemms[f];
+            bool rows=trial.live_epilogue_rows!=incumbent.live_epilogue_rows && (f==2 || g.warps_k>1);
+            bool gate=f==2 && (trial.swiglu_u!=incumbent.swiglu_u || trial.copy_issue_group!=incumbent.copy_issue_group);
+            int copy=trial.residual_copy_issue?trial.copy_issue_group:0;
+            int original=incumbent.residual_copy_issue?incumbent.copy_issue_group:0;
+            bool residual=Sm90DenseCoordinates::ResidualFamily(f) && copy!=original;
+            if(rows || gate || residual)measured &= cost.DenseService(work,f,g,trial.residency,&trial).has_value();
+          }
+          if(measured)neighbours.insert(CoordinateKey(trial));
+        }
+        auto best=std::find_if(ranked.begin(),ranked.end(),[&](auto const& candidate) {
+          return neighbours.count(CoordinateKey(candidate.coordinates));
+        });
+        if(best!=ranked.end())protected_anchors.insert(CoordinateKey(best->coordinates));
+      }
+    }
   }
   for(auto const& key:protected_anchors) {
     auto same=[&](auto const& x){return CoordinateKey(x.coordinates)==key;};
