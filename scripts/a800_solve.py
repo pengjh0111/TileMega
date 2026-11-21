@@ -16,7 +16,7 @@ from tilemega.bench.scheduler import write_json
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('mode', choices=('plan', 'prepare', 'reprepare', 'run'))
+    parser.add_argument('mode', choices=('plan', 'prepare', 'reprepare', 'run', 'finalize'))
     parser.add_argument('--model', required=True, choices=MODELS)
     parser.add_argument('--batch', required=True, type=int, choices=BATCHES)
     parser.add_argument('--export', required=True, type=Path)
@@ -29,6 +29,8 @@ def main():
     parser.add_argument('--submission-plan', type=Path)
     parser.add_argument('--prepared-shortlist', type=Path)
     parser.add_argument('--reprepare-receipt', type=Path)
+    parser.add_argument('--finalize-receipt', type=Path)
+    parser.add_argument('--defer-finalize', action='store_true')
     parser.add_argument('--search-budget-ms', type=int, default=600000)
     parser.add_argument('--compile-jobs', type=int, choices=(1, 2), default=2)
     parser.add_argument('--top', type=int, choices=range(2, 7), default=2)
@@ -67,6 +69,12 @@ def main():
     if args.seed_coordinates:
         seed = args.seed_coordinates.resolve(strict=True)
         command.extend(('--seed-coordinates', str(seed)))
+    if bool(args.finalize_receipt) != (args.mode == 'finalize'):
+        parser.error('finalize requires a verified GPU selection receipt')
+    if args.defer_finalize and (args.mode not in ('plan', 'run') or not args.prepared_shortlist):
+        parser.error('defer finalization only for a prepared GPU selection')
+    if args.defer_finalize:
+        command.extend(('--defer-finalize', '1'))
     if bool(args.reprepare_receipt) != (args.mode == 'reprepare'):
         parser.error('reprepare requires the verified occupancy correction receipt')
     if args.mode in ('prepare', 'reprepare'):
@@ -90,6 +98,11 @@ def main():
     if args.prepared_shortlist:
         prepared = args.prepared_shortlist.resolve(strict=True)
         command.extend(('--prepared-shortlist', str(prepared)))
+    if args.mode == 'finalize':
+        if (os.environ.get('SLURM_JOB_ID') or args.submission_plan or not args.prepared_shortlist):
+            parser.error('finalize the prepared winner on the login node')
+        command.extend(('--finalize-receipt', str(args.finalize_receipt.resolve(strict=True))))
+        return subprocess.run(['timeout', '--kill-after=15s', str(args.timeout_s), *command], cwd=ROOT).returncode
     heartbeat_timeout_s = min(540, args.timeout_s)
     selector = ROOT/'scripts/a800_select.py'
     receipt = dict(protocol_version='a800-single-v2', kind='selection', model=args.model,

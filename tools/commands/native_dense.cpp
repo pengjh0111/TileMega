@@ -258,6 +258,9 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   auto target=TargetSpec::FromJson(o.target);
   bool resume=!o.prepared_shortlist.empty();
   bool reprepare=!o.reprepare_receipt.empty();
+  bool finalize=!o.finalize_receipt.empty();
+  if((finalize || o.defer_finalize) && (!resume || o.prepare_shortlist || (finalize && o.defer_finalize)))
+    throw std::invalid_argument("deferred finalization requires a measured prepared shortlist");
   if(reprepare && !(resume && o.prepare_shortlist))
     throw std::invalid_argument("repreparation requires the original prepared shortlist");
   if((resume || o.prepare_shortlist) &&
@@ -591,7 +594,7 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
       fs::rename(temporary,directory/"prepared.json");
       return 0;
     }
-    if(o.search=="pipeline") {
+    if(o.search=="pipeline" && !finalize) {
       // A requested launch bound is not a measurement of the linked kernel.
       // Query the cubin before either predicted or measured final selection.
       for(int pass=0;pass<3;++pass) {
@@ -686,7 +689,35 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
       if(winner<0)throw std::runtime_error("no resource-verified native finalist remains");
     }
   }
-  if(o.measured) {
+  if(finalize) {
+    auto proof=json::ParseFile(o.finalize_receipt);
+    if(proof.At("schema").AsNumber("selection proof schema")!=1 ||
+       proof.At("status").AsString("selection proof status")!="ready_to_finalize" ||
+       proof.At("prepared_sha256").AsString("prepared SHA")!=Hash(o.prepared_shortlist) ||
+       proof.At("scope").Dump(0)!=scope.Dump(0))
+      throw std::invalid_argument("selection proof is not bound to the prepared shortlist");
+    auto const& selected=proof.At("receipt");
+    measurement=selected.At("measurement");
+    winner=int(selected.At("winner").AsNumber("selected rank"));
+    if(winner<0 || winner>=int(candidates.size()))
+      throw std::invalid_argument("invalid finalized rank");
+    auto const& bound=selected.At("candidates").AsArray("selected candidates").at(winner);
+    auto const& prepared=candidates[winner];
+    auto const& verified=bound.At("occupancy");
+    if(prepared.At("status").AsString("prepared status")!="compiled" ||
+       bound.At("status").AsString("selected status")!="compiled" ||
+       prepared.At("binary_sha256").Dump(0)!=bound.At("binary_sha256").Dump(0) ||
+       prepared.At("binary_sha256").Dump(0)!=verified.At("binary_sha256").Dump(0) ||
+       prepared.At("identity_sha256").Dump(0)!=verified.At("identity_sha256").Dump(0) ||
+       prepared.At("binary_sha256").Dump(0)!=measurement.At("winner_binary_sha256").Dump(0) ||
+       prepared.At("coordinates_sha256").Dump(0)!=bound.At("coordinates_sha256").Dump(0) ||
+       winner!=int(measurement.At("winner_rank").AsNumber("measured winner")) ||
+       verified.At("effective_residency").AsNumber("effective residency")<result.ranked[winner].coordinates.residency)
+      throw std::invalid_argument("GPU selection proof changed the selected finalist");
+    candidates=selected.At("candidates").AsArray("selected candidates");
+    pipeline_record=selected.At("pipeline");
+    pipeline_record.Set("finalize_receipt_sha256",Hash(o.finalize_receipt));
+  }else if(o.measured) {
     auto list=directory/"candidates.json";
     std::ofstream(list)<<json::Value(candidates).Dump(2)<<'\n';
     // One P-SEL session measures every compiled candidate in interleaved order.
@@ -704,6 +735,14 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   }
   if(Hash(o.target)!=target_sha || Hash(o.input)!=input_sha)
     throw std::runtime_error("native search inputs changed during selection");
+  if(o.defer_finalize) {
+    auto temporary=directory/"ready-to-finalize.json.incoming";
+    std::ofstream(temporary)<<json::Value(json::Object{
+        {"schema",1},{"status","ready_to_finalize"},{"prepared_sha256",Hash(o.prepared_shortlist)},
+        {"scope",scope},{"receipt",save()}}).Dump(2)<<'\n';
+    fs::rename(temporary,directory/"ready-to-finalize.json");
+    return 0;
+  }
   auto selected=fs::path(requested.string()+".tmexec.json");
   fs::copy_file(configs[winner],selected);
   auto receipt=save();
