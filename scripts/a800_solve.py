@@ -41,7 +41,7 @@ def summarize_coverage(folder, model, batch, target, source, cli):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('mode', choices=('plan', 'prepare', 'reprepare', 'run', 'finalize', 'bind-selector'))
+    parser.add_argument('mode', choices=('plan', 'audit', 'prepare', 'reprepare', 'run', 'finalize', 'bind-selector'))
     parser.add_argument('--model', required=True, choices=MODELS)
     parser.add_argument('--batch', required=True, type=int, choices=BATCHES)
     parser.add_argument('--export', required=True, type=Path)
@@ -118,7 +118,8 @@ def main():
                '--serving', 'decode', '--emit', 'serving', '--batch', str(args.batch),
                '--tp', '1', '--runtime-target', str(target), '--capacity', '1088',
                '--prompt-len', '64', '--past-range', '64:1086', '--search', 'pipeline',
-               '--selection', 'measure', '--measure-top', str(args.top), '--measure-cmd', select,
+               '--selection', 'predicted' if args.mode == 'audit' else 'measure', '--measure-top', str(args.top),
+               *(['--coverage-only', '1'] if args.mode == 'audit' else ['--measure-cmd', select]),
                '--nvcc-split-compile', str(args.compile_jobs), '--search-budget-ms', str(args.search_budget_ms)]
     if args.pin_theta:
         pinned = args.pin_theta.resolve(strict=True)
@@ -134,6 +135,12 @@ def main():
         command.extend(('--defer-finalize', '1'))
     if bool(args.reprepare_receipt) != (args.mode == 'reprepare'):
         parser.error('reprepare requires the verified occupancy correction receipt')
+    if args.mode == 'audit':
+        if os.environ.get('SLURM_JOB_ID') or args.submission_plan or args.prepared_shortlist:
+            parser.error('audit candidate coverage on the login node before compiling a shortlist')
+        result = subprocess.run(['timeout', '--kill-after=15s', str(args.timeout_s), *command], cwd=ROOT)
+        summarize_coverage(Path(f'{output}.search'), args.model, args.batch, target, source, cli)
+        return result.returncode
     if args.mode in ('prepare', 'reprepare'):
         if (os.environ.get('SLURM_JOB_ID') or args.submission_plan
                 or bool(args.prepared_shortlist) != (args.mode == 'reprepare')):

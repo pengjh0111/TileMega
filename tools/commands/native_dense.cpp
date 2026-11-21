@@ -307,6 +307,9 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   }
   if(o.search!="pipeline" && o.search!="additive")
     throw std::invalid_argument("--search takes pipeline or additive");
+  if(o.coverage_only && (target.arch_tag!="sm_80" || o.search!="pipeline" || resume ||
+      o.prepare_shortlist || o.measured))
+    throw std::invalid_argument("coverage-only requires a new predicted SM80 pipeline search");
   if(o.search!="pipeline" && o.analysis!="reuse")
     throw std::invalid_argument("non-reuse analysis requires pipeline search");
   solver::Sm90DenseSearchOptions search;search.top=o.measure_top;
@@ -523,6 +526,7 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
     std::ofstream(directory/"receipt.json")<<receipt.Dump(2)<<'\n';return receipt;
   };
   save();
+  if(o.coverage_only)return 0;
   bool compiled_finalists=o.measured || o.search=="pipeline";
   if(compiled_finalists) {
     auto compile_candidate=[&](unsigned i) {
