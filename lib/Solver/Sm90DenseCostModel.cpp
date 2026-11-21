@@ -101,7 +101,7 @@ double Sm90DenseCostModel::ActivationIssueNs(Sm90DenseWorkload const& work,unsig
     Sm90DenseGemm const& g,double tasks,bool first_use) const {
   if(target_.arch_tag!="sm_80" || constants_.cp_async_gbps<=0)return 0;
   int k=work.shapes[family][1],rows=backend::Sm90DenseLayout::ActivationRows(work.batch);
-  int live=family>=6?rows:work.batch;
+  int live=family>=5?rows:work.batch;
   double elements=tasks*live*k;
   if(first_use)
     elements+=std::min<double>(g.slots,tasks*k/g.TileK())*(rows-live)*g.TileK();
