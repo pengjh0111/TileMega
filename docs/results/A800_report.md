@@ -2,6 +2,8 @@
 
 ## Current A800 measurement protocol
 
+**Verified, November 21.** The frozen five-framework baseline has 180 timed cells and 20 documented N/A cells. The TileMega table has 40 timed cells. It records the actual number of accepted processes, the frozen inputs, and the prefill and decode artifact used in each cell. The current single-card guard accepts the calibrated A800-SXM4-80GB hardware class. A paired comparison keeps both arms on the same physical card. [R2 evidence and selections](A800_SM80_R2.md) · [Absolute request times](A800_execution_times.md) · [Frozen baseline receipts](A800_baselines.csv)
+
 **Verified, November 20 at 21:37 CST.** One accepted timing process completes each framework, model and batch. A new TileMega artifact first passes one full teacher-forced and step-versus-loop correctness run. Its timing uses a fresh process with tracing disabled. Each process warms up N1 and N1024 once apiece and times three requests at each length. The result is the difference of the two median request times divided by 1023. Earlier valid processes are retained. The tables show the actual sample count and use the median over all accepted processes. A same-card comparison measures the control and the candidate once each. The historical sections below record the protocol in force at their stated time.
 
 The 22:00 CST snapshot contains 94 timed baseline cells, 20 documented unsupported cells, and 34 timed TileMega cells. Raw output, checkpoints, compiled binaries and guard logs are on the A800 server under `runs/a800/`. Single-process measurements establish a timing observation. Historical five-process checks retain their own reported scope. [TPOT with sample counts](A800_TPOT.md) · [Full request times](A800_execution_times.md)
