@@ -35,9 +35,9 @@
     "target_sha256": "03a33c6a8d297abd433fbbd985e1505982fa35d1697c36d04fca33a36a26a5e8"
   },
   "mistral_7b_v0_3/B16": {
-    "target_sha256": "a4d4dff08046ba3dfdc4773e93a0324dc58bc070ec0e020943fd4e9da7d98e14",
+    "target_sha256": "287dc43a395cca78310b715d7162dc0db42063edd44750707e90b565780215ce",
     "prefill_sha256": "0fe0bf4384e0038eb6268361e4c402777d14534656c911c8007dd929ab4a33c0",
-    "decode_sha256": "4d23eeba334b1bc081dbbf318deae7f6ef5d2e526ed5ae913c1fabc9284c1163"
+    "decode_sha256": "a1b086258b35523c2d4fbffd348f8693254b694c6747c2b85ca662ac9dbb8d87"
   },
   "mistral_7b_v0_3/B2": {
     "decode_sha256": "ac78df95e0395858ff40e3d5cbbc5c1cec4c1aa146aceaae2b9e899488450451",
