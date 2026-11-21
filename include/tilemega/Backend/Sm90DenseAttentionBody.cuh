@@ -14,6 +14,15 @@
 
 namespace tilemega::backend {
 
+// Keep the non-compacted CUDA body on its original array accesses. Changing
+// those accesses to pointers through member functions changes NVCC's lowering
+// even when the compact storage path is disabled.
+#ifdef TILEMEGA_SM80_COMPACT_ATTN
+#define TILEMEGA_ATTN_STORAGE(storage, field, accessor) ((storage).accessor())
+#else
+#define TILEMEGA_ATTN_STORAGE(storage, field, accessor) ((storage).field)
+#endif
+
 // Decode attention (prompt §5 D2). Task t = (g*Batch + b)*Chunks + c; its
 // cache/qkv group is bg = b*Hkv + g. The producer streams each chunk's
 // history in BlockKeys blocks by TMA ([D/64][BlockKeys][64] SWIZZLE_128B
@@ -54,11 +63,11 @@ struct Sm90DenseAttentionBody {
 #endif
   struct alignas(1024) Storage {
     Element kv[Slots][2][BlockKeys*D];
-    Element query[16*D];
 #ifdef TILEMEGA_SM80_COMPACT_ATTN
+    Element query[16*D];
     alignas(16) unsigned char scratch[Sm80AttentionScratch::SharedBytes(D,Q,kCompact)];
 #else
-    Element new_key[16*D],new_value[16*D];
+    Element query[16*D],new_key[16*D],new_value[16*D];
     float output[4*Q*D];
 #endif
     float maximum[4*Q],sum[4*Q];
@@ -280,8 +289,8 @@ struct Sm90DenseAttentionBody {
       else if(key && fresh) {
         std::size_t cache=(std::size_t(bg)*Capacity+p.past)*D;
         *reinterpret_cast<uint4*>(p.key+cache+d)=rotated;*reinterpret_cast<uint4*>(p.value+cache+d)=value;
-        *reinterpret_cast<uint4*>(reinterpret_cast<char*>(s.NewKey())+Swizzled<16>(0,d))=rotated;
-        *reinterpret_cast<uint4*>(reinterpret_cast<char*>(s.NewValue())+Swizzled<16>(0,d))=value;
+        *reinterpret_cast<uint4*>(reinterpret_cast<char*>(TILEMEGA_ATTN_STORAGE(s,new_key,NewKey))+Swizzled<16>(0,d))=rotated;
+        *reinterpret_cast<uint4*>(reinterpret_cast<char*>(TILEMEGA_ATTN_STORAGE(s,new_value,NewValue))+Swizzled<16>(0,d))=value;
       }
     }
   }
@@ -361,20 +370,25 @@ struct Sm90DenseAttentionBody {
     for(int i=threadIdx.x;i<16*D/8;i+=128) {
       int row=i/(D/8),col=(i%(D/8))*8;
       if(row>=Q)*reinterpret_cast<uint4*>(reinterpret_cast<char*>(s.query)+Swizzled<16>(row,col))=uint4{};
-      if constexpr(!kCompact)if(row>=1) {
-        *reinterpret_cast<uint4*>(reinterpret_cast<char*>(s.NewKey())+Swizzled<16>(row,col))=uint4{};
-        *reinterpret_cast<uint4*>(reinterpret_cast<char*>(s.NewValue())+Swizzled<16>(row,col))=uint4{};
+#ifdef TILEMEGA_SM80_COMPACT_ATTN
+      if constexpr(!kCompact)
+#endif
+      if(row>=1) {
+        *reinterpret_cast<uint4*>(reinterpret_cast<char*>(TILEMEGA_ATTN_STORAGE(s,new_key,NewKey))+Swizzled<16>(row,col))=uint4{};
+        *reinterpret_cast<uint4*>(reinterpret_cast<char*>(TILEMEGA_ATTN_STORAGE(s,new_value,NewValue))+Swizzled<16>(row,col))=uint4{};
       }
     }
     for(int local=0;local<tasks;++local) {
       int task=int(blockIdx.x)+local*int(gridDim.x),bg,chunk;Decompose(task,bg,chunk);
       auto range=Partition::Range(past,chunk,NewRowWork);
+#ifdef TILEMEGA_SM80_COMPACT_ATTN
       if constexpr(kCompact)if(range.Contains(past))
         for(int i=threadIdx.x+D/8;i<16*D/8;i+=128) {
           int row=i/(D/8),col=(i%(D/8))*8;
-          *reinterpret_cast<uint4*>(reinterpret_cast<char*>(s.NewKey())+Swizzled<16>(row,col))=uint4{};
-          *reinterpret_cast<uint4*>(reinterpret_cast<char*>(s.NewValue())+Swizzled<16>(row,col))=uint4{};
+          *reinterpret_cast<uint4*>(reinterpret_cast<char*>(TILEMEGA_ATTN_STORAGE(s,new_key,NewKey))+Swizzled<16>(row,col))=uint4{};
+          *reinterpret_cast<uint4*>(reinterpret_cast<char*>(TILEMEGA_ATTN_STORAGE(s,new_value,NewValue))+Swizzled<16>(row,col))=uint4{};
         }
+#endif
       Prepare(p,s,bg,range);
       codegen::executor::ComputeSync();
       if(threadIdx.x==0)Sm90DenseMarkFirst(0);
@@ -396,17 +410,19 @@ struct Sm90DenseAttentionBody {
         Async::Arrive(state.empty+slot);
       }
       if(range.Contains(past) && warp==0)
-        Block<16>(query,Async::Shared(s.NewKey()),Async::Shared(s.NewValue()),0,1,st);
+        Block<16>(query,Async::Shared(TILEMEGA_ATTN_STORAGE(s,new_key,NewKey)),Async::Shared(TILEMEGA_ATTN_STORAGE(s,new_value,NewValue)),0,1,st);
       // The output aliases the new row panels. Other consumers can enter
       // the merge only after warp zero retires its last reads.
+#ifdef TILEMEGA_SM80_COMPACT_ATTN
       if constexpr(kCompact)if(range.Contains(past))codegen::executor::ComputeSync();
+#endif
       // Only rows < Q (all in the first eight rows) carry queries.
       if(lane/4<Q) {
         int row=lane/4;
         #pragma unroll
         for(int n=0;n<D/8;++n) {
           int col=n*8+2*(lane%4);
-          s.Output()[(warp*Q+row)*D+col]=st.o[n][0];s.Output()[(warp*Q+row)*D+col+1]=st.o[n][1];
+          TILEMEGA_ATTN_STORAGE(s,output,Output)[(warp*Q+row)*D+col]=st.o[n][0];TILEMEGA_ATTN_STORAGE(s,output,Output)[(warp*Q+row)*D+col+1]=st.o[n][1];
         }
         if(lane%4==0) {s.maximum[warp*Q+row]=st.maximum[0];s.sum[warp*Q+row]=st.sum[0];}
       }
@@ -439,7 +455,7 @@ struct Sm90DenseAttentionBody {
       #pragma unroll
       for(int w=0;w<4;++w) {
         float weight=isfinite(m) && isfinite(s.maximum[w*Q+q])?exp2f(s.maximum[w*Q+q]-m):0.0f;
-        total+=weight*s.sum[w*Q+q];value+=weight*s.Output()[(w*Q+q)*D+i%D];
+        total+=weight*s.sum[w*Q+q];value+=weight*TILEMEGA_ATTN_STORAGE(s,output,Output)[(w*Q+q)*D+i%D];
       }
       float result=total?value/total:0.0f;
       if constexpr(Chunks==1)p.output[std::size_t(bg)*Q*D+i]=Element(result);
@@ -558,4 +574,5 @@ struct Sm90DenseAttentionBody {
   }
 };
 
+#undef TILEMEGA_ATTN_STORAGE
 }  // namespace tilemega::backend
