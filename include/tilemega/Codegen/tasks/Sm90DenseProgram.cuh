@@ -152,6 +152,10 @@ struct Gemm {
   static constexpr int kMaxPreissue=(Slots<Body::kIterations?Slots:Body::kIterations)*2*TN*TK;
   static constexpr auto kLayout=Body::kLayout;
   using Preissue=GemmRead<Body,kTasks>;
+#ifdef TILEMEGA_SM80_DENSE_L2_PREFETCH
+  static constexpr bool kL2WeightPrefetch=CpAsync;
+  static constexpr int kWeightTaskElements=K*TN,kWeightTileElements=TK*TN;
+#endif
   template<int Bytes>
   static constexpr auto Payload() {
     return backend::Sm90DenseLayout::GemmPayload(TN,TK,Slots,K,Batch,Bytes);
@@ -579,6 +583,25 @@ struct Placement:Stage {
   }
 };
 
+#ifdef TILEMEGA_SM80_DENSE_L2_PREFETCH
+template<class Stage,class=void> inline constexpr bool kL2WeightPrefetch=false;
+template<class Stage> inline constexpr bool
+    kL2WeightPrefetch<Stage,std::void_t<decltype(Stage::kL2WeightPrefetch)>> =Stage::kL2WeightPrefetch;
+
+template<class Stage>
+struct L2WeightTail {
+  Element const* weight;
+  __device__ __forceinline__ void operator()() const {
+    // At most the first 4 KiB of the next CTA task's first tile. This cache
+    // hint carries no shared-memory address or ring-arrival responsibility.
+    int offset=(threadIdx.x&31)*64;
+    if(blockIdx.x<Stage::kTasks && offset<Stage::kWeightTileElements)
+      executor::Async<arch::Sm80>::Prefetch(
+          weight+std::size_t(blockIdx.x)*Stage::kWeightTaskElements+offset,128);
+  }
+};
+#endif
+
 // D6 issues into the alternate arena only: the payload never overlaps the
 // current stage's live region, so the tail needs no wait on the current ring.
 // A stage without a ring (the prologue) issues nothing.
@@ -592,6 +615,11 @@ struct ProducerTail {
   char* shared;
   backend::Sm90DenseRingState& next;
   __device__ __forceinline__ auto Raw() const {
+#ifdef TILEMEGA_SM80_DENSE_L2_PREFETCH
+    if constexpr(!Next::kPrefix && kL2WeightPrefetch<Current> && kL2WeightPrefetch<Next>)
+      return L2WeightTail<Next>{Next::Sources(binding,layer).weight};
+    else
+#endif
     if constexpr(!Next::kPrefix || !Current::kRingSlots)return backend::Sm90DenseNoTail{};
     else {
       using Tail=RawProducerTail<typename Next::Preissue,Next::kOffset,Next::kPrefix>;
