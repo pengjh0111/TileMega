@@ -666,8 +666,11 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
           candidates[i].Set("occupancy",resource);
           if(actual<1) {candidates[i].Set("status","occupancy_rejected");continue;}
           auto c=result.ranked[i].coordinates;
-          // A legal SM80 grid can intentionally use less than the measured capacity.
+          // Capacity describes the linked kernel. SM80's compiled grid fixes
+          // task ownership and its barrier targets even when more CTAs fit.
+          // Larger grids enter search as independent coordinates.
           if(target.arch_tag=="sm_80")actual=std::min(actual,c.residency);
+          candidates[i].Set("priced_residency",actual);
           if(actual==c.residency)continue;
           if(resume && target.arch_tag=="sm_80") {
             corrections.emplace_back(json::Object{{"rank",i},{"submitted",c.ToJson()},
