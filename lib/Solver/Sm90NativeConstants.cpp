@@ -14,18 +14,28 @@ std::string FileHash(std::string const& path) {
   char text[65]{};auto* got=fgets(text,sizeof(text),pipe);pclose(pipe);
   return got?std::string(text):std::string();
 }
+std::string DefaultBodyHeader(json::Value const& constants,std::string_view header,
+    std::string const& compiled) {
+  auto const* proofs=constants.Find("default_body_equivalence");
+  auto const* proof=proofs?proofs->Find(std::string(header)):nullptr;
+  if(proof && proof->At("equivalent_sha256").AsString("equivalent header")==compiled &&
+     proof->At("preprocessed_sha256").AsString("equivalent preprocessor tokens").size()==64)
+    return proof->At("reference_sha256").AsString("reference header");
+  return compiled;
+}
 bool SameBodyHeader(json::Value const& constants,std::string_view header,
     std::string const& current,std::string const& expected) {
-  if(current==expected)return true;
+  if(current==expected || DefaultBodyHeader(constants,header,current)==expected)return true;
   auto const* proof=constants.Find("residual_copy_header_equivalence");
   return header=="Backend/Sm90DenseGemm.h" && proof &&
       proof->At("disabled_macro").AsString("residual copy macro")=="TILEMEGA_SM80_RESIDUAL_COPY_GROUP" &&
       proof->At("inactive_sha256").AsString("inactive residual copy header")==expected &&
       proof->At("compiled_sha256").AsString("compiled residual copy header")==current;
 }
-bool SameAttentionProbeHeader(json::Value const& profile,std::string_view header,
-    std::string const& current,std::string const& expected) {
-  if(current==expected)return true;
+bool SameAttentionProbeHeader(json::Value const& constants,json::Value const& profile,
+    std::string_view header,std::string const& compiled,std::string const& expected) {
+  auto current=DefaultBodyHeader(constants,header,compiled);
+  if(compiled==expected || current==expected)return true;
   // A probe can keep identical device code across changes to the enclosing
   // attention header. Check the original measurement binding as well.
   auto const* proof=profile.Find("probe_body_equivalence");
@@ -147,6 +157,8 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
         auto current=FileHash(root+"/include/tilemega/"+name);
         auto expected=hashes.At(name).AsString("body hash");
         if(current==expected)continue;
+        current=DefaultBodyHeader(s,name,current);
+        if(current==expected)continue;
         if(auto const* body=profile.Find("production_body")) {
           auto const* proof=body->Find("device_equivalence");
           if(proof && proof->At("scope").AsString("device equivalence scope")=="fused stage and native caller" &&
@@ -259,7 +271,7 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
                    "Codegen/executor/Async.cuh"}) {
       auto current=FileHash(root+"/include/tilemega/"+name);
       auto expected=hashes.At(name).AsString("body hash");
-      compatible &= SameAttentionProbeHeader(*fresh,name,current,expected);
+      compatible &= SameAttentionProbeHeader(s,*fresh,name,current,expected);
     }
     if(compatible)c.ampere_attention_fresh_=fresh->At("measurements");
   }
@@ -270,7 +282,7 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
     bool compatible=true;
     for(auto name:{"Backend/Sm90DenseAttentionBody.cuh","Backend/Sm80AttentionScratch.h",
                    "Codegen/executor/ComputeGroup.cuh"})
-      compatible &= SameAttentionProbeHeader(*workspace,name,FileHash(root+"/include/tilemega/"+name),
+      compatible &= SameAttentionProbeHeader(s,*workspace,name,FileHash(root+"/include/tilemega/"+name),
           hashes.At(name).AsString("body hash"));
     if(compatible) {
       auto const& row=workspace->At("measurement");

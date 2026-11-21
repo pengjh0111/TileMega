@@ -8073,6 +8073,29 @@
         "compiled_sha256": "7e3c59296dedfa0198df010439823eae13871ca2189ee8af06c6319824f1c5fe",
         "token_sha256": "9e00da4ae76989be0743b0f3c70b72589a04ded717cfbbe0cc4c869f6451c4f0"
       }
+    },
+    "default_body_equivalence": {
+      "Backend/Sm90DenseMoe.cuh": {
+        "reference_sha256": "7e3c59296dedfa0198df010439823eae13871ca2189ee8af06c6319824f1c5fe",
+        "equivalent_sha256": "d5965a882a79f2211db05cce8e231ee265b40adf1281a834023c60b83a58381e",
+        "preprocessed_sha256": "3386150b239d8b4f14fb3553bc6743f8dcfb5ba3ce21408e292e2453af674eac",
+        "cases": {
+          "router-default": "7c0a9650ec43478816fddd71fb49d8a34b561c6bfa555f17da2fd680bc769cdf",
+          "live": "fb3858d9b883d669584ddfb26675f2c73c3f139e5f8bc4200fb7f2207b4a4d9d",
+          "paged-copy8": "e88fd582b39a61f792131da8db8199b67668cc0beb72e55c52fa88e438cda7cb",
+          "paged-bases": "625e36afb58d7ca81b352e08c16990a46f42342656df8c47d14d7fe91039bcd9",
+          "phase": "0a423d81464a8c948c4d2924a084b8add32e2b69a7e2bf891e4516ae1de65e1b"
+        }
+      },
+      "Backend/Sm90DenseAttentionBody.cuh": {
+        "reference_sha256": "d89d0e59e6520900d298cb3600d1c262cb398b63db6a25bd650a0baed531a1b4",
+        "equivalent_sha256": "b13c0cf2607f9b8fd64775a0b93f87f7cb4ac2c6d5ef2a04a0e3fc6d235886f7",
+        "preprocessed_sha256": "190079ecb9fec92d73376355337eb029cb0cda5718e6273a9c32e68095ce09a3",
+        "cases": {
+          "noncompact": "73a9dc5fd7bbd5dde8e93aae94ca75e4b5104a50683c32af93fce7b272549838",
+          "compact": "f8ad12758360e6b01fa4b91b4abe3a96ab9c83dd4d33919a7a9733df564026da"
+        }
+      }
     }
   },
   "sm80_native_decisions": {
