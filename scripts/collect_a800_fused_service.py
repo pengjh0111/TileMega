@@ -61,12 +61,19 @@ def append(base, target_sha, run, binary):
             or not math.isfinite(row['dn_issue_ns_per_tile']) or row['dn_issue_ns_per_tile'] < 0):
         raise ValueError('fused service has different residency, arena, or invalid local times')
     # Bound both the probe dispatch effect and the additional timing writes.
-    plain = row['plain_kernel_ns']
-    for role in ('producer', 'consumer'):
-        timing, dispatch = (row[f'{mode}_kernel_ns'] for mode in (role, f'{role}_off'))
-        if (any(not math.isfinite(value) or value <= 0 for value in (plain, dispatch, timing))
-                or max(abs(dispatch/plain - 1), abs(timing/dispatch - 1)) > 0.05):
-            raise ValueError(f'{role} service instrumentation exceeds 5% of the stage')
+    modes = ('plain', 'producer', 'consumer', 'producer_off', 'consumer_off')
+    observation = {mode: row[f'{mode}_kernel_ns'] for mode in modes}
+    timing = row.get('phase_timing_ns')
+    if artifact['source_modifiers'].get('TILEMEGA_FUSED_SERVICE_SPLIT_PHASES'):
+        if not isinstance(timing, list) or len(timing) != 4 or row['launches'] != 128:
+            raise ValueError('split-phase calibration requires four independent 32-launch comparisons')
+    for sample in [observation, *(timing or [])]:
+        plain = sample['plain']
+        for role in ('producer', 'consumer'):
+            measured, dispatch = (sample[mode] for mode in (role, f'{role}_off'))
+            if (any(not math.isfinite(value) or value <= 0 for value in (plain, dispatch, measured))
+                    or max(abs(dispatch/plain - 1), abs(measured/dispatch - 1)) > 0.05):
+                raise ValueError(f'{role} service instrumentation exceeds 5% of the stage')
     mapping = {'true': 1, 'false': 0}
     source = artifact['source_modifiers']
     dimensions = [mapping[value] if value in mapping else int(value) for value in params[:-1]]

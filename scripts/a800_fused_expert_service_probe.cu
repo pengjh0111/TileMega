@@ -2,11 +2,37 @@
 #include <tilemega/Backend/Sm90DenseMoe.cuh>
 #include <cuda_runtime.h>
 #include <algorithm>
+#include <array>
 #include <cstdio>
 #include <cstring>
 #include <stdexcept>
 #include <thread>
 #include <vector>
+
+#if TILEMEGA_FUSED_SERVICE_SPLIT_PHASES
+namespace tilemega::backend {
+template<bool Producer>
+struct Sm80MoeSinglePhaseMarks {
+  // kGuEmpty is unused by the service probe. The selected phase is uniform
+  // for the sampled CTA and other CTAs still use the uninstrumented body.
+  template<Sm90DenseMarks::MoeCounter Phase>
+  __device__ static __forceinline__ unsigned long long Begin(int tile=-1) {
+    if(threadIdx.x!=(Producer?128:0) || (tile>=0 && unsigned(tile)%8!=blockIdx.x%8))return 0;
+    auto* marks=Sm90DenseMarks::Base();
+    return marks && marks[Sm90DenseMarks::kGuEmpty]==Phase?Sm90DenseMarks::Now():0;
+  }
+  template<Sm90DenseMarks::MoeCounter Phase>
+  __device__ static __forceinline__ void End(unsigned long long begin) {
+    if(begin)Sm90DenseMarks::Base()[Phase]+=Sm90DenseMarks::Now()-begin;
+  }
+  __device__ static __forceinline__ void RecordTask(bool,int) {}
+};
+template<>
+struct Sm80MoeStageMarks<true,true,kMoeProducerSample>:Sm80MoeSinglePhaseMarks<true> {};
+template<>
+struct Sm80MoeStageMarks<true,false,kMoeConsumerSample>:Sm80MoeSinglePhaseMarks<false> {};
+}  // namespace tilemega::backend
+#endif
 
 using namespace tilemega::backend;
 using Elt=cutlass::bfloat16_t;
@@ -62,7 +88,7 @@ struct Case {
 
 template<class Case,int Role>
 __global__ __launch_bounds__(160,1)
-void Run(Sm90DenseMoeFusedOperands args,Tick* samples,int sample_cta) {
+void Run(Sm90DenseMoeFusedOperands args,Tick* samples,int sample_cta,int phase) {
   extern __shared__ __align__(1024) char shared[];
   auto& ring=*reinterpret_cast<Sm90DenseRingState*>(shared);
   ring.Initialize<true>();
@@ -75,7 +101,8 @@ void Run(Sm90DenseMoeFusedOperands args,Tick* samples,int sample_cta) {
   constexpr int begin_marks=Case::kShared-Marks::kCount*sizeof(Tick);
   static_assert(begin_marks>=Case::template Body<false>::kSharedBytes && begin_marks%alignof(Tick)==0);
   marks=reinterpret_cast<Tick*>(shared+begin_marks);
-  if(sampled && threadIdx.x<Marks::kCount)marks[threadIdx.x]=0;
+  if(sampled && threadIdx.x<Marks::kCount)
+    marks[threadIdx.x]=threadIdx.x==Marks::kGuEmpty?phase:0;
 #endif
   if(threadIdx.x==0)
     *reinterpret_cast<Tick**>(shared+Sm90DenseOperandHeader::kTraceSlot)=
@@ -156,8 +183,8 @@ int Profile(cudaDeviceProp const& device) {
     for(int tile=begin;tile<end;++tile)if(tile%8==lane)++n;
     return n;
   };
-  auto read=[&](auto kernel,int cta,std::vector<double>& elapsed,int repeat) {
-    void* params[]={&args,&trace.data,&cta};
+  auto read=[&](auto kernel,int cta,std::vector<double>& elapsed,int repeat,int phase=-1) {
+    void* params[]={&args,&trace.data,&cta,&phase};
     Check(cudaEventRecord(begin.event));
     Check(cudaLaunchKernel(reinterpret_cast<void const*>(kernel),grid,160,params,shared));
     Check(cudaEventRecord(end.event));
@@ -168,10 +195,19 @@ int Profile(cudaDeviceProp const& device) {
     return raw;
   };
   constexpr int samples=32;
+#if TILEMEGA_FUSED_SERVICE_SPLIT_PHASES
+  constexpr std::array<int,4> producer_phases{Marks::kGuIssue,Marks::kDnIssue,Marks::kDnPreissueIssue,Marks::kDnActivation};
+  constexpr std::array<int,4> consumer_phases{Marks::kGuMma,Marks::kGuEpilogue,Marks::kDnMma,Marks::kDnEpilogue};
+  std::array<Tick,Marks::kCount> prod_marks{},cons_marks{};
+  std::array<std::vector<double>,4> plain_phase,producer_phase,consumer_phase,producer_off_phase,consumer_off_phase;
+  constexpr int phases=4;
+#else
+  constexpr int phases=1;
+#endif
   int active=0;
-  for(int repeat=-1;repeat<samples;++repeat) {
+  for(int repeat=-1;repeat<samples*phases;++repeat) {
     // A stride coprime to 108 covers the task waves and K tile residues.
-    int block=(std::max(0,repeat)*37)%grid;
+    int block=(std::max(0,repeat)/phases*37)%grid;
     reset();
     auto raw=read(plain,block,plain_kernel,repeat);
     auto span=[&](auto const& rows) {
@@ -183,9 +219,9 @@ int Profile(cudaDeviceProp const& device) {
     if(repeat>=0)plain_spans.push_back(span(raw));
     expected=x.Read();routes_expected=index.Read();
     if(repeat<0)active=schedule.Read().front();
-    auto check=[&](auto kernel,int cta,std::vector<double>& elapsed) {
+    auto check=[&](auto kernel,int cta,std::vector<double>& elapsed,int phase=-1) {
       reset();
-      auto result=read(kernel,cta,elapsed,repeat);
+      auto result=read(kernel,cta,elapsed,repeat,phase);
       auto actual=x.Read();
       if(std::memcmp(expected.data(),actual.data(),x.size*sizeof(Elt)) || routes_expected!=index.Read())
         throw std::runtime_error("sampling changed fused stage output or route order");
@@ -193,13 +229,30 @@ int Profile(cudaDeviceProp const& device) {
     };
     check(producer,-1,producer_off);
     check(consumer,-1,consumer_off);
-    auto prod=check(producer,block,producer_kernel);
-    auto cons=check(consumer,block,consumer_kernel);
+    int producer_mark=-1,consumer_mark=-1;
+#if TILEMEGA_FUSED_SERVICE_SPLIT_PHASES
+    auto phase=std::max(0,repeat)%phases;
+    producer_mark=producer_phases[phase];
+    consumer_mark=consumer_phases[phase];
+#endif
+    auto prod=check(producer,block,producer_kernel,producer_mark);
+    auto cons=check(consumer,block,consumer_kernel,consumer_mark);
     if(repeat<0)continue;
     producer_spans.push_back(span(prod));
     consumer_spans.push_back(span(cons));
     auto* row=&prod[block*(Marks::kCount+1)];
     auto* compute=&cons[block*(Marks::kCount+1)];
+#if TILEMEGA_FUSED_SERVICE_SPLIT_PHASES
+    plain_phase[phase].push_back(plain_kernel.back());
+    producer_phase[phase].push_back(producer_kernel.back());
+    consumer_phase[phase].push_back(consumer_kernel.back());
+    producer_off_phase[phase].push_back(producer_off.back());
+    consumer_off_phase[phase].push_back(consumer_off.back());
+    prod_marks[producer_mark]=row[producer_mark];
+    cons_marks[consumer_mark]=compute[consumer_mark];
+    if(phase+1<phases)continue;
+    row=prod_marks.data();compute=cons_marks.data();
+#endif
     // Fused Run enumerates Gu followed by Dn in the same grid-strided track.
     int split=active*(NG/C::kTNGu);
     int gu=(split+grid-1-block)/grid;
@@ -236,16 +289,28 @@ int Profile(cudaDeviceProp const& device) {
       "\"producer_off_kernel_ns\":%.3f,\"consumer_off_kernel_ns\":%.3f,"
       "\"gu_issue_ns_per_tile\":%.3f,\"gu_mma_ns_per_tile\":%.3f,\"gu_epilogue_ns_per_task\":%.3f,"
       "\"dn_issue_ns_per_tile\":%.3f,\"dn_mma_ns_per_tile\":%.3f,\"dn_epilogue_ns_per_task\":%.3f,"
-      "\"dn_preissue_ns_per_task\":%.3f,\"dn_activation_ns_per_task\":%.3f}\n",
+      "\"dn_preissue_ns_per_task\":%.3f,\"dn_activation_ns_per_task\":%.3f",
       grid,B,active,shared,plain_attr.numRegs,producer_attr.numRegs,consumer_attr.numRegs,
       plain_attr.localSizeBytes,producer_attr.localSizeBytes,consumer_attr.localSizeBytes,
-      plain_slots,producer_slots,consumer_slots,samples,
+      plain_slots,producer_slots,consumer_slots,samples*phases,
       Median(plain_spans),Median(producer_spans),Median(consumer_spans),
       Median(plain_kernel),Median(producer_kernel),Median(consumer_kernel),
       Median(producer_off),Median(consumer_off),
       Median(gu_issue),Median(gu_mma),Median(gu_epilogue),
       dn_issue.empty()?0.0:Median(dn_issue),Median(dn_mma),Median(dn_epilogue),
       Median(preissue),Median(activation));
+#if TILEMEGA_FUSED_SERVICE_SPLIT_PHASES
+  std::printf(",\"phase_timing_ns\":[");
+  for(int i=0;i<phases;++i) {
+    if(i)std::printf(",");
+    std::printf("{\"plain\":%.3f,\"producer_off\":%.3f,\"producer\":%.3f,"
+        "\"consumer_off\":%.3f,\"consumer\":%.3f}",
+        Median(plain_phase[i]),Median(producer_off_phase[i]),Median(producer_phase[i]),
+        Median(consumer_off_phase[i]),Median(consumer_phase[i]));
+  }
+  std::printf("]");
+#endif
+  std::printf("}\n");
   return 0;
 }
 
