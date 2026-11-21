@@ -63,7 +63,7 @@ json::Value Sm80NativeCandidateCoverage(Sm90DenseSearchSpace const& space,
 
   json::Array missing,proxies,services;
   int grid=space.Grid(c.residency);
-  auto fused=c.moe && cost.FusedService(work,c).has_value();
+  auto fused=c.moe && cost.HasFusedPrice(work,c);
   for(unsigned family:c.Active()) {
     auto const& g=c.gemms[family];
     std::string name=kSm90DenseFamilies[family];
@@ -349,7 +349,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     if(!ampere)return true;
     if(c.attention.compact_workspace && !HasCompactAttentionService(work,cost,space.Grid(c.residency)))
       return false;
-    if(c.moe)return !RequiredFusedService(c) || cost.FusedService(work,c).has_value();
+    if(c.moe)return !RequiredFusedService(c) || cost.HasFusedPrice(work,c);
     for(unsigned f:{0u,1u,2u,3u}) {
       auto const& g=c.gemms[f];
       if(RequiredDenseService(work,c,f) && !cost.DenseService(work,f,g,c.residency,&c))return false;
@@ -363,7 +363,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     if(c.moe) {
       auto calibrated=[&](auto const& trial,std::string const& label) {
         if(audit && options.audit_candidate)options.audit_candidate(trial,"body_neighbour",false);
-        if(cost.FusedService(work,trial))result.emplace_back(trial,label);
+        if(cost.HasFusedPrice(work,trial))result.emplace_back(trial,label);
       };
       for(int group:{0,4,8})if(group!=c.copy_issue_group) {
         auto trial=c;trial.copy_issue_group=group;
@@ -422,7 +422,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
         };
         retile(6,shape.gate_up_tn,shape.gate_up_tk,shape.gate_up_warps_n);
         retile(7,shape.down_tn,shape.down_tk,shape.down_warps_n);
-        if(cost.FusedService(work,trial))candidates.push_back(trial);
+        if(cost.HasFusedPrice(work,trial))candidates.push_back(trial);
       }
       return candidates;
     }
@@ -481,7 +481,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
         if(depth==base.CommonExpertSlots())continue;
         auto trial=base;trial.SetCommonExpertSlots(depth);
         if(options.audit_candidate)options.audit_candidate(trial,"ring_neighbour",false);
-        if(cost.FusedService(work,trial))result.push_back(trial);
+        if(cost.HasFusedPrice(work,trial))result.push_back(trial);
       }
       return result;
     }

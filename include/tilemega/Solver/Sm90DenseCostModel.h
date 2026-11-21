@@ -19,6 +19,7 @@ struct Sm80AttentionScenario {
 struct Sm80FusedPipelinePrice {
   int active_experts;
   double local_ns,stream_ns,body_ns;
+  bool direct_body=false;
 };
 
 struct Sm90DensePrediction {
@@ -63,6 +64,7 @@ class Sm90DenseCostModel {
       Sm90DenseGemm const&,int residency,Sm90DenseCoordinates const* coordinates=nullptr) const;
   std::optional<Sm80FusedExpertService> FusedService(
       Sm90DenseWorkload const&,Sm90DenseCoordinates const&) const;
+  bool HasFusedPrice(Sm90DenseWorkload const&,Sm90DenseCoordinates const&) const;
   std::optional<Sm80FusedPipelinePrice> FusedPipeline(
       Sm90DenseWorkload const&,Sm90DenseCoordinates const&,int active_experts=0) const;
   int Grid(int residency) const {return target_.res.num_sms*residency;}

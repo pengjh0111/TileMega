@@ -172,6 +172,16 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
       if(geometry.gate_up_warps_n*dimension("gate_up_warps_k")!=4 ||
          geometry.down_warps_n*dimension("down_warps_k")!=4)
         throw std::invalid_argument("fused expert shapes require four consumer warps");
+      if(auto const* body=profile.Find("production_body")) {
+        if(geometry.batch!=1 || body->At("active_experts").AsNumber("active experts")!=8 ||
+           body->At("overlapping_external_stages").AsNumber("external overlap")!=0)
+          throw std::invalid_argument("direct fused-stage pricing requires fixed work and isolated boundaries");
+        double ns=Positive(body->At("body_ns"),"fused production body ns");
+        if(!c.ampere_fused_body_.emplace(geometry.Key(),ns).second)
+          throw std::invalid_argument("conflicting compatible fused stage measurement");
+        c.ampere_fused_shapes_.push_back(geometry);
+        continue;
+      }
       auto positive=[&](char const* name){return Positive(row.At(name),name);};
       // Dn need not have a mainloop after its prefetched prefix.
       double dn_issue=row.At("dn_issue_ns_per_tile").AsNumber("Dn steady issue");
@@ -246,6 +256,12 @@ std::optional<Sm80FusedExpertService> Sm90NativeConstants::AmpereFusedService(
     Sm80FusedExpertShape const& shape) const {
   auto found=ampere_fused_service_.find(shape.Key());
   if(found==ampere_fused_service_.end())return std::nullopt;
+  return found->second;
+}
+
+std::optional<double> Sm90NativeConstants::AmpereFusedBody(Sm80FusedExpertShape const& shape) const {
+  auto found=ampere_fused_body_.find(shape.Key());
+  if(found==ampere_fused_body_.end())return std::nullopt;
   return found->second;
 }
 double Sm90NativeConstants::Barrier(int grid) const {

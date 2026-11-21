@@ -147,6 +147,11 @@ std::optional<Sm80FusedExpertService> Sm90DenseCostModel::FusedService(
   return shape?constants_.AmpereFusedService(*shape):std::nullopt;
 }
 
+bool Sm90DenseCostModel::HasFusedPrice(Sm90DenseWorkload const& work,Sm90DenseCoordinates const& c) const {
+  auto shape=FusedServiceShape(work,c);
+  return shape && (constants_.AmpereFusedBody(*shape) || constants_.AmpereFusedService(*shape));
+}
+
 std::optional<Sm80DenseService> Sm90DenseCostModel::GemmService(
     Sm90DenseWorkload const& work,unsigned family,Sm90DenseGemm const& g,int residency,
     Sm90DenseCoordinates const* coordinates) const {
@@ -163,10 +168,17 @@ std::optional<Sm80DenseService> Sm90DenseCostModel::GemmService(
 
 std::optional<Sm80FusedPipelinePrice> Sm90DenseCostModel::FusedPipeline(
     Sm90DenseWorkload const& work,Sm90DenseCoordinates const& c,int active_experts) const {
-  auto service=FusedService(work,c);
-  if(!service)return std::nullopt;
+  auto shape=FusedServiceShape(work,c);
+  if(!shape)return std::nullopt;
   if(active_experts && (active_experts<work.top_k || active_experts>work.experts))
     throw std::invalid_argument("fused expert scenario is outside its route domain");
+  if(auto body=constants_.AmpereFusedBody(*shape)) {
+    if(active_experts && active_experts!=work.top_k)
+      throw std::invalid_argument("batch-one fused measurement has exactly top-k active experts");
+    return Sm80FusedPipelinePrice{work.top_k,0,0,*body,true};
+  }
+  auto service=constants_.AmpereFusedService(*shape);
+  if(!service)return std::nullopt;
   auto const& gu=c.gemms[6];auto const& dn=c.gemms[7];
   int grid=Grid(c.residency);
   double startup=service->route_startup_ns;
@@ -475,10 +487,13 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& work,
                      {"first_byte_overlapped",constants_.dram_latency}}};
     if(fusion) {
       fused.ns=constants_.Barrier(grid)+fusion->body_ns;
-      fused.terms.Set("local_shared_ring_ns",fusion->local_ns);
       fused.terms.Set("active_experts",fusion->active_experts);
-      fused.terms.Set("stream_bound_ns",fusion->stream_ns);
       fused.terms.Set("production_body_ns",fusion->body_ns);
+      if(fusion->direct_body)fused.terms.Set("price_source","same-boundary production stage");
+      else {
+        fused.terms.Set("local_shared_ring_ns",fusion->local_ns);
+        fused.terms.Set("stream_bound_ns",fusion->stream_ns);
+      }
     }
     p.stages.erase(dn);p.stages.erase(at("expert_gate_up"));
     p.stages.push_back(std::move(fused));

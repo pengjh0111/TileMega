@@ -95,8 +95,12 @@ int main(int argc,char** argv) {try {
           throw std::invalid_argument("observed expert count is outside the workload domain");
         auto price=cost.FusedPipeline(work,c,int(value));
         if(!price)throw std::invalid_argument("observed expert count requires a calibrated fused body");
-        scenarios.emplace_back(json::Object{{"active_experts",value},{"local_ns",price->local_ns},
-            {"stream_ns",price->stream_ns+constants.dram_latency},{"body_ns",price->body_ns}});
+        json::Value scenario=json::Object{{"active_experts",value},{"body_ns",price->body_ns}};
+        if(!price->direct_body) {
+          scenario.Set("local_ns",price->local_ns);
+          scenario.Set("stream_ns",price->stream_ns+constants.dram_latency);
+        }
+        scenarios.emplace_back(std::move(scenario));
       }
       row.Set("fused_expert_scenarios",std::move(scenarios));
     }

@@ -21,15 +21,16 @@ def guarded(run):
     return plan
 
 
-def phase_widths(run, grid, first, steps):
+def phase_widths(run, grid, first, steps, body_only=False):
     path = run/'ledger/stage_trace.tsv'
     with (run/'ledger/runtime_stages.tsv').open() as stream:
         fused = {int(row['stage']) for row in csv.DictReader(stream, delimiter='\t')
                  if 'mlp.experts.gate_up' in row['name']}
     if not fused or not steps:
         raise ValueError('trace has no fused expert stages or sampled steps')
-    points = ('worker', 't_begin', 't_tasks_end', 'route_ready', 'active_experts',
-              'm2', 'm3', 'm4', 'm5', 'first_dn_preissue', 'last_dn_epilogue')
+    points = ('worker', 't_begin', 't_tasks_end')
+    if not body_only:
+        points += ('route_ready', 'active_experts', 'm2', 'm4', 'm5', 'first_dn_preissue', 'last_dn_epilogue')
     groups = defaultdict(list)
     with path.open() as stream:
         for row in csv.DictReader(stream, delimiter='\t'):
@@ -56,13 +57,15 @@ def phase_widths(run, grid, first, steps):
                     or max(r[index['t_tasks_end']] for r in previous) > begin
                     or min(r[index['t_begin']] for r in following) < end):
                 raise ValueError(f'outside task overlaps fused region at {past=}, {stage=}')
+            samples['body_ns'].append(end-begin)
+            if body_only:
+                continue
             route = marked('route_ready')
             active = marked('active_experts')
             if len(route) != grid or len(active) != grid or len(set(active)) != 1:
                 raise ValueError('route state differs among CTAs')
             samples['route_startup_ns'].append(min(route)-begin)
             samples['combine_tail_ns'].append(max(marked('m5'))-max(marked('m4')))
-            samples['body_ns'].append(end-begin)
             samples['active_experts'].append(active[0])
             samples['dn_preissue_entry_before_last_gu_ns'].append(
                 max(marked('m2'))-min(marked('first_dn_preissue')))
@@ -78,20 +81,29 @@ def artifact(binary):
     return identity
 
 
-def append(target, run, control, reference, trace):
+def append(target, run, control, reference, trace, body_only=False):
     profile_target = target['sm80_native_constants']['fused_expert_service']
     measured, prior = (guarded(p) for p in (run, control))
     baseline, probe = (artifact(p) for p in (reference, trace))
     recipe = read(Path(f'{trace}.diagnostic.json'))
-    evidence = ('guard/guard_result.json', 'planned.json', 'ledger/run-reference.json',
-                'ledger/reference-tokens.json')
-    if (Path(measured['reference_ledger']).parts[-3:] != (control/'ledger').resolve().parts[-3:]
-            or measured['reference_evidence'] != [sha(control/name) for name in evidence]
-            or any(measured[key] != prior[key] for key in ('model', 'batch', 'reference', 'prefill', 'target'))
+    if body_only:
+        paired = read(run/'ledger/run.json')
+        if (run.resolve() != control.resolve() or measured['batch'] != 1 or not measured['independent_arms']
+                or not paired['full_token_equivalence'] or recipe.get('sm80_moe_phases')
+                or probe['defines'].get('TILEMEGA_TRACE_STAGE') != '1'):
+            raise ValueError('direct fused-stage pricing requires same-card B1 boundary-only measurement')
+    else:
+        evidence = ('guard/guard_result.json', 'planned.json', 'ledger/run-reference.json',
+                    'ledger/reference-tokens.json')
+        if (Path(measured['reference_ledger']).parts[-3:] != (control/'ledger').resolve().parts[-3:]
+                or measured['reference_evidence'] != [sha(control/name) for name in evidence]
+                or not recipe['sm80_moe_phases']):
+            raise ValueError('separate phase trace has no bound guarded reference')
+    if (any(measured[key] != prior[key] for key in ('model', 'batch', 'reference', 'prefill', 'target'))
             or probe['binary_sha256'] != measured['trace'] or baseline['binary_sha256'] != prior['reference']
             or baseline['plan'] != probe['plan']
             or any(baseline[key] != probe[key] for key in ('manifest_sha256', 'generated_source_sha256'))
-            or baseline['trace'] or not probe['trace'] or not recipe['sm80_moe_phases']
+            or baseline['trace'] or not probe['trace']
             or baseline['artifact_id'] != recipe['reference_artifact_id']
             or probe['artifact_id'] != recipe['trace_artifact_id']):
         raise ValueError('trace and reference do not bind the same generated production plan')
@@ -121,18 +133,40 @@ def append(target, run, control, reference, trace):
         'TILEMEGA_SM80_MOE_PAGE_SEGMENTS', 'TILEMEGA_SM80_ACTIVE_EPILOGUE', 'TILEMEGA_SM80_COPY_ISSUE_GROUP'))
     shape = dict(zip(SHAPE, values, strict=True))
     shape['gu_route_bases'] = int(defines.get('TILEMEGA_SM80_MOE_GU_ROUTE_BASES', 0))
+    stats, count = phase_widths(run, baseline['plan']['grid'], 567, len(obs['trace']['window_step_ms']), body_only)
+    provenance = dict(schema=1, unit='ns', fused_stages=count, window_over_reference=ratio,
+                      same_gpu=measured['device']['uuid'] == prior['device']['uuid'],
+                      trace_job=run.name, reference_job=control.name, checkpoint_sha256=obs['checkpoint'],
+                      reference_artifact_id=baseline['artifact_id'], trace_artifact_id=probe['artifact_id'],
+                      trace_sha256=sha(run/'ledger/stage_trace.tsv'), token_sha256=sha(run/'ledger/trace-tokens.json'),
+                      overlapping_external_stages=0, ranges=stats)
+    if body_only:
+        if baseline['plan']['residency'] != 1:
+            raise ValueError('direct fused-stage calibration requires single residency')
+        shape.update(gate_up_warps_k=int(fields[10]), down_warps_k=int(fields[12]))
+        headers = {name: baseline['source']['source_files'][f'include/tilemega/{name}']
+                   for name in profile_target['profiles'][0]['body_headers']}
+        body = dict(provenance, active_experts=8, body_ns=stats['body_ns']['median'])
+        profile = dict(shape=shape, body_headers=headers, production_body=body,
+                       source_sha=baseline['source']['head'], binary_sha256=baseline['binary_sha256'],
+                       measurement=dict(grid=baseline['plan']['grid'], plain_residency=1,
+                                        dynamic_shared=baseline['shared_memory_bytes']))
+        moe = 'Backend/Sm90DenseMoe.cuh'
+        for other in profile_target['profiles']:
+            proof = other.get('moe_header_equivalence')
+            if proof and proof['reference_sha256'] == headers[moe]:
+                profile['moe_header_equivalence'] = proof
+                break
+        if profile not in profile_target['profiles']:
+            profile_target['profiles'].append(profile)
+        return
     profile, = (p for p in profile_target['profiles']
                 if all(p['shape'].get(key, 0) == value for key, value in shape.items())
-                and p['measurement']['dynamic_shared'] == baseline['shared_memory_bytes'])
+                and p['measurement']['dynamic_shared'] == baseline['shared_memory_bytes']
+                and 'production_body' not in p)
 
-    stats, count = phase_widths(run, baseline['plan']['grid'], 567, len(obs['trace']['window_step_ms']))
     phases = {key: stats[key]['median'] for key in ('route_startup_ns', 'combine_tail_ns')}
-    phases.update(schema=1, unit='ns', fused_stages=count, window_over_reference=ratio,
-                  same_gpu=measured['device']['uuid'] == prior['device']['uuid'],
-                  trace_job=run.name, reference_job=control.name, checkpoint_sha256=obs['checkpoint'],
-                  reference_artifact_id=baseline['artifact_id'], trace_artifact_id=probe['artifact_id'],
-                  trace_sha256=sha(run/'ledger/stage_trace.tsv'), token_sha256=sha(run/'ledger/trace-tokens.json'),
-                  overlapping_external_stages=0, ranges=stats)
+    phases.update(provenance)
     if 'production_phases' in profile and profile['production_phases'] != phases:
         raise ValueError('retain the previously selected production phase evidence')
     profile['production_phases'] = phases
@@ -142,9 +176,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ('target', 'run', 'control', 'reference', 'trace', 'out'):
         parser.add_argument(f'--{name}', required=True, type=Path)
+    parser.add_argument('--whole-body', action='store_true')
     args = parser.parse_args()
     document = read(args.target)
-    append(document, args.run, args.control, args.reference, args.trace)
+    append(document, args.run, args.control, args.reference, args.trace, args.whole_body)
     with args.out.open('x') as stream:
         json.dump(document, stream, indent=2)
         stream.write('\n')
