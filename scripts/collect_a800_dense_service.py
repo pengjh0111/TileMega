@@ -25,9 +25,14 @@ def production_key(row):
     return ':'.join((row['epilogue'], *(str(int(row[key])) for key in PRODUCTION_KEY_FIELDS)))
 
 
-def collect(run, target, binary):
+def collect(run, target, binary, calibration_target=None, maximum_perturbation=0.25):
     base = read(target)
     resources = base['resources']
+    if calibration_target is not None:
+        probe = read(calibration_target)
+        if {k:v for k,v in base.items() if k != 'sm80_native_constants'} != {
+                k:v for k,v in probe.items() if k != 'sm80_native_constants'}:
+            raise ValueError('the calibration target changes the target outside its native prices')
     guard = read(run/'guard/guard_result.json')
     device = read(run/'job/physical-device-identity.json')
     policy = read(run/'policy.json')
@@ -78,7 +83,7 @@ def collect(run, target, binary):
                 rejected[case] = 'no active-CTA overlap in the frozen arena'
                 continue
             ratio = row['traced_span_ns'] / row['untraced_span_ns']
-            if not 0.75 <= ratio <= 1.25:
+            if abs(ratio-1) > maximum_perturbation:
                 rejected[case] = f'traced/untraced span {ratio:.3f}'
                 continue
             if row['epilogue'] not in ('swiglu', 'store', 'residual'):
@@ -111,8 +116,10 @@ def collect(run, target, binary):
         frozen = read(run/'frozen.json')
         registry = constants.setdefault('dense_gemm_service', dict(
             schema=1, reference_target_sha256=sha(target), profiles=[]))
-        if (registry['schema'] != 1 or
-                frozen['target_sha256'] not in (registry['reference_target_sha256'], sha(target)) or
+        known_targets = {registry['reference_target_sha256'], sha(target)}
+        if calibration_target is not None:
+            known_targets.add(sha(calibration_target))
+        if (registry['schema'] != 1 or frozen['target_sha256'] not in known_targets or
                 sha(binary.with_suffix('.identity.json')) != frozen['identity_sha256'] or
                 artifact != read(binary.with_suffix('.identity.json'))):
             raise ValueError('service evidence differs from the frozen probe or reference target')
@@ -149,8 +156,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     for flag in ('run', 'target', 'binary', 'out'):
         parser.add_argument(f'--{flag}', type=Path, required=True)
+    parser.add_argument('--calibration-target', type=Path)
+    parser.add_argument('--maximum-perturbation', type=float, default=0.25)
     args = parser.parse_args()
-    profile = collect(args.run, args.target, args.binary)
+    if not 0 <= args.maximum_perturbation <= 0.25:
+        parser.error('choose a perturbation bound between 0 and 0.25')
+    profile = collect(args.run, args.target, args.binary,
+                      args.calibration_target, args.maximum_perturbation)
     with args.out.open('x') as stream:
         json.dump(profile, stream, indent=2)
         stream.write('\n')
