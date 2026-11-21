@@ -41,10 +41,13 @@ double Replay(Sm90NativeFlowResult const& flow, Sm90DenseCoordinates const& c) {
   std::vector<int> offsets(spaces.size());
   // Standalone flow repeats its stage descriptions for each layer. The
   // expanded spaces, not the compact price table, index replay tracks.
+  auto is_family=[](std::string const& name,char const* family) {
+    auto suffix=name.rfind(':');
+    return name.compare(suffix==std::string::npos?0:suffix+1,std::string::npos,family)==0;
+  };
   if(c.expert_fuse)for(std::size_t s=1;s<spaces.size();++s) {
     auto const& down=spaces[s].name;auto const& gate=spaces[s-1].name;
-    if((down=="gemm7" || down.ends_with(":gemm7")) &&
-       (gate=="gemm6" || gate.ends_with(":gemm6")))
+    if(is_family(down,"gemm7") && is_family(gate,"gemm6"))
       offsets[s]=spaces[s-1].count;
   }
   auto tracks=Sm90NativeCandidateTracks(flow.problem,offsets);
