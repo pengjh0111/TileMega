@@ -89,9 +89,12 @@ json::Value Sm80NativeCandidateCoverage(Sm90DenseSearchSpace const& space,
     else proxies.emplace_back(service);
   }
   if(c.attention.compact_workspace) {
-    if(HasCompactAttentionService(work,cost,grid))
-      services.emplace_back("compact_attention");
-    else missing.emplace_back(json::Object{{"kind","attention_service"},{"family","compact_attention"}});
+    int norm=work.qk_norm?(work.qk_norm_row?2:1):0;
+    json::Value service=json::Object{{"kind","attention_service"},{"family","compact_attention"},
+        {"key",json::Object{{"grid",grid},{"batch",work.batch},{"head_dim",work.head_dim},
+            {"queries",work.queries},{"norm",norm}}}};
+    if(HasCompactAttentionService(work,cost,grid))services.emplace_back(std::move(service));
+    else missing.emplace_back(std::move(service));
   }
   row.Set("status",missing.empty()?"legal_priced":"legal_missing_calibration");
   row.Set("missing",std::move(missing));
@@ -354,20 +357,24 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     return true;
   };
 
-  auto body_neighbours=[&](Sm90DenseCoordinates const& c) {
+  auto body_neighbours=[&](Sm90DenseCoordinates const& c,bool audit=false) {
     std::vector<std::pair<Sm90DenseCoordinates,std::string>> result;
     if(!ampere || c.weight_stream || options.pinned_theta)return result;
     if(c.moe) {
+      auto calibrated=[&](auto const& trial,std::string const& label) {
+        if(audit && options.audit_candidate)options.audit_candidate(trial,"body_neighbour",false);
+        if(cost.FusedService(work,trial))result.emplace_back(trial,label);
+      };
       for(int group:{0,4,8})if(group!=c.copy_issue_group) {
         auto trial=c;trial.copy_issue_group=group;
-        if(cost.FusedService(work,trial))result.emplace_back(trial,"expert weight copy issue");
+        calibrated(trial,"expert weight copy issue");
       }
       auto page=c;page.expert_page_segments=!c.expert_page_segments;
-      if(cost.FusedService(work,page))result.emplace_back(page,"expert weight pages");
+      calibrated(page,"expert weight pages");
       auto routes=c;routes.expert_gu_route_bases=!c.expert_gu_route_bases;
-      if(cost.FusedService(work,routes))result.emplace_back(routes,"expert Gu activation routes");
+      calibrated(routes,"expert Gu activation routes");
       auto rows=c;rows.live_epilogue_rows=!c.live_epilogue_rows;
-      if(cost.FusedService(work,rows))result.emplace_back(rows,"expert accumulator rows");
+      calibrated(rows,"expert accumulator rows");
       return result;
     }
     if(work.batch<16) {
@@ -376,6 +383,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     }
     if(c.copy_issue_group) {
       auto trial=c;trial.residual_copy_issue=!c.residual_copy_issue;
+      if(audit && options.audit_candidate)options.audit_candidate(trial,"body_neighbour",false);
       if(priced(trial))result.emplace_back(trial,"residual weight copy issue");
     }
     for(int group:{0,4,8})if(group!=c.copy_issue_group) {
@@ -472,6 +480,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
       for(int depth=2;depth<=8;++depth) {
         if(depth==base.CommonExpertSlots())continue;
         auto trial=base;trial.SetCommonExpertSlots(depth);
+        if(options.audit_candidate)options.audit_candidate(trial,"ring_neighbour",false);
         if(cost.FusedService(work,trial))result.push_back(trial);
       }
       return result;
@@ -480,6 +489,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
       for(int depth=2;depth<=8;++depth) {
         if(depth==base.gemms[f].slots)continue;
         auto trial=base;trial.gemms[f].slots=depth;
+        if(options.audit_candidate)options.audit_candidate(trial,"ring_neighbour",false);
         if(cost.DenseService(work,f,trial.gemms[f],trial.residency,&trial))result.push_back(trial);
       }
     return result;
@@ -572,7 +582,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     }
   };
   for(auto const& base:base_seeds) {
-    for(auto const& [trial,label]:body_neighbours(base))project_body(trial);
+    for(auto const& [trial,label]:body_neighbours(base,true))project_body(trial);
     for(auto const& trial:measured_body_seeds(base))project_body(trial);
   }
   // Slot depth may leave the body class unchanged. Visit calibrated depths

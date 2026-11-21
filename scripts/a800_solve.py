@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Run CTG pipeline search, linked occupancy and measured selection under Slurm."""
 import argparse
+from collections import Counter
 import json
 import os
 from pathlib import Path
@@ -12,6 +13,30 @@ from a100_baselines import BATCHES, MODELS, ROOT, sha
 from a800_baselines import ENVS, RUN, calibrated_device, device_policy
 from a800_native import artifact
 from tilemega.bench.scheduler import write_json
+
+
+def summarize_coverage(folder, model, batch, target, source, cli):
+    audit = folder/'candidate-coverage.jsonl'
+    if not audit.exists():
+        return
+    rows = [json.loads(line) for line in audit.read_text().splitlines()]
+    counts = Counter(row['status'] for row in rows)
+    pending = {}
+    for index, row in enumerate(rows, start=1):
+        for cost in row.get('missing', []) + row.get('modeled_services', []):
+            identity = json.dumps([cost['kind'], cost['key']], sort_keys=True)
+            entry = pending.setdefault(identity, dict(kind=cost['kind'], key=cost['key'],
+                                                       families=set(), rows=[], required=False))
+            entry['families'].add(cost['family'])
+            entry['rows'].append(index)
+            entry['required'] |= row['required'] and cost in row['missing']
+    for entry in pending.values():
+        entry['families'] = sorted(entry['families'])
+        entry['rows'] = sorted(set(entry['rows']))
+    write_json(folder/'candidate-coverage-summary.json',
+               dict(schema=1, model=model, batch=batch, target_sha256=sha(target),
+                    export_sha256=sha(source), compiler_sha256=sha(cli), coverage_sha256=sha(audit),
+                    counts=dict(counts), pending=[pending[key] for key in sorted(pending)]))
 
 
 def main():
@@ -118,13 +143,17 @@ def main():
             command.extend(('--prepared-shortlist', str(args.prepared_shortlist.resolve(strict=True)),
                             '--reprepare-receipt', str(args.reprepare_receipt.resolve(strict=True))))
         result = subprocess.run(['timeout', '--kill-after=15s', str(args.timeout_s), *command], cwd=ROOT)
+        path = Path(f'{output}.search')
         if result.returncode:
+            summarize_coverage(path, args.model, args.batch, target, source, cli)
             return result.returncode
         from a100_baselines import inputs
         from a800_shortlist_abi import check_shortlist
-        path = Path(f'{output}.search')
         config = json.loads((inputs(args.model)[0]/'config.json').read_text())
-        report = check_shortlist(prefill, path/'prepared.json', config, args.batch)
+        try:
+            report = check_shortlist(prefill, path/'prepared.json', config, args.batch)
+        finally:
+            summarize_coverage(path, args.model, args.batch, target, source, cli)
         write_json(path/'weight-abi.json', dict(prefill_sha256=prefill_sha, candidates=report))
         return 0
     if args.prepared_shortlist:
