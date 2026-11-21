@@ -71,7 +71,7 @@ Sm90NativeFlowResult Sm90NativePoolScore(Sm90DenseWorkload const& work,
 
 Sm90NativeFlowResult Sm90NativeCtgScore(frontend::ImportedSemantics const&,
     Sm90DenseWorkload const&,Sm90DenseCoordinates const&,Sm90DenseCostModel const&,
-    mlir::MLIRContext&,Sm90NativeCtgCache&,bool isolated=false);
+    mlir::MLIRContext&,Sm90NativeCtgCache&,bool isolated=false,bool exhaustive_history=false);
 Sm90NativeFlowResult Sm90NativeAnalyze(frontend::ImportedSemantics const&,
     Sm90DenseWorkload const&,Sm90DenseCoordinates const&,Sm90DenseCostModel const&,
     mlir::MLIRContext&,Sm90NativeCtgCache&,std::string const& mode,bool isolated=false);

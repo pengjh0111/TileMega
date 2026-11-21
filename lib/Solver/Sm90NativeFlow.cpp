@@ -46,9 +46,10 @@ std::shared_ptr<std::vector<std::pair<int, int>> const> ReleaseTable(
 }
 
 void PrepareAttentionCases(Sm90NativeFlowResult& result,Sm90DenseWorkload const& work,
-    Sm90DenseCoordinates const& c,Sm90DenseCostModel const& cost,bool no_producer_traffic) {
+    Sm90DenseCoordinates const& c,Sm90DenseCostModel const& cost,bool no_producer_traffic,
+    bool exhaustive=false) {
   if(cost.Target().arch_tag!="sm_80")return;
-  for(auto sample:cost.AttentionScenarios(c.attention)) {
+  for(auto sample:cost.AttentionScenarios(c.attention,exhaustive)) {
     Sm80AttentionCase scenario{sample,{}};
     for(int chunk=0;chunk<c.attention.chunks;++chunk) {
       auto price=Sm90NativeAttentionPrice(work,c.attention,c.residency,cost,sample.past,chunk);
@@ -268,7 +269,7 @@ Sm90NativeFlowResult Sm90NativePoolScore(Sm90DenseWorkload const& work,
 }
 Sm90NativeFlowResult Sm90NativeCtgScore(frontend::ImportedSemantics const& imported,
     Sm90DenseWorkload const& work,Sm90DenseCoordinates const& c,Sm90DenseCostModel const& cost,
-    mlir::MLIRContext& context,Sm90NativeCtgCache& cache,bool isolated) {
+    mlir::MLIRContext& context,Sm90NativeCtgCache& cache,bool isolated,bool exhaustive_history) {
   using Clock=std::chrono::steady_clock;
   auto milliseconds=[](auto a,auto b){return std::chrono::duration<double,std::milli>(b-a).count();};
   auto start=Clock::now();
@@ -397,7 +398,7 @@ Sm90NativeFlowResult Sm90NativeCtgScore(frontend::ImportedSemantics const& impor
     problem.edges.push_back(std::move(edge));
   }
   auto released=Clock::now();
-  PrepareAttentionCases(result,work,c,cost,stream);
+  PrepareAttentionCases(result,work,c,cost,stream,exhaustive_history);
   if(isolated) {
     std::optional<double> attention_score;
     for(auto const& node:result.nodes) {

@@ -44,15 +44,20 @@ int main(int argc,char** argv) {try {
     c.ValidateSchedule(work.shapes,batch,work.head_dim,work.queries,1088,
         Sm90DenseSharedBudget(target,c.residency),target.res.num_sms*c.residency);
     auto evaluate_start=std::chrono::steady_clock::now();
-    auto flow=Sm90NativeCtgScore(state.imported,work,c,cost,state.context,state.cache);
+    auto const* exact=cell.Find("exhaustive_history");
+    auto flow=Sm90NativeCtgScore(state.imported,work,c,cost,state.context,state.cache,false,
+        exact && exact->AsBool("exhaustive history"));
     auto flow_end=std::chrono::steady_clock::now();
     std::vector<int> offsets(flow.nodes.size());
     for(unsigned i=1;i<flow.nodes.size();++i)
       if(c.expert_fuse && flow.nodes[i].price.name=="gemm7" && flow.nodes[i-1].price.name=="gemm6")
         offsets[i]=flow.problem.spaces[i-1].count;
     auto tracks=Sm90NativeCandidateTracks(flow.problem,offsets);
-    double replay=Sm90NativeRequestScore(flow,[&](FlowProblem const& problem,int) {
-      return RefineAndReplaySm90Native(problem,tracks).replay.makespan_ns;
+    json::Array history_replay;
+    double replay=Sm90NativeRequestScore(flow,[&](FlowProblem const& problem,int past) {
+      double ns=RefineAndReplaySm90Native(problem,tracks).replay.makespan_ns;
+      if(exact)history_replay.emplace_back(json::Array{past,ns});
+      return ns;
     });
     auto done=std::chrono::steady_clock::now();
     auto milliseconds=[](auto a,auto b) {return std::chrono::duration<double,std::milli>(b-a).count();};
@@ -73,10 +78,12 @@ int main(int argc,char** argv) {try {
         {"pool_evaluation_ms",milliseconds(evaluate_start,flow_end)},
         {"replay_ms",milliseconds(flow_end,done)},{"pool_ns",flow.step_ns},
         {"replay_ns",replay},{"additive_ns",additive.step_ns},
+        {"attention_samples",double(flow.attention_cases.size())},
         {"additive_stages",additive.ToJson()},{"spaces",spaces},{"approximation",flow.approximation},
         {"constants_from_older_body",stale},{"space_hits",double(state.cache.space_hits)},
         {"space_misses",double(state.cache.space_misses)},
         {"release_hits",double(state.cache.release_hits)},{"release_misses",double(state.cache.release_misses)}};
+    if(exact)row.Set("history_replay",std::move(history_replay));
     if(auto const* requested=cell.Find("decompose");requested && requested->AsBool("decompose")) {
       auto decomposition=DecomposeFlow(flow.problem);
       if(decomposition.original.makespan_ns!=flow.step_ns)

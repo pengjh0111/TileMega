@@ -77,6 +77,33 @@ int main(int argc, char** argv) {
     auto price=Sm90NativeAttentionPrice(work,a,1,ampere_cost);
     assert(price.head_and_tail.dram_bytes*price.tasks==575.0*work.batch*work.hkv*work.head_dim*4);
     assert(price.head_and_tail.pipeline_steps==shifted.ring_slots);
+
+    auto busy=work;
+    busy.batch=16;
+    int grid=ampere_cost.Grid(1),tasks=busy.batch*busy.hkv*a.chunks;
+    double bytes_per_key=4.*busy.head_dim;
+    double cap=std::min(constants.CtaDramGbps(),a.slots*a.block_keys*bytes_per_key/constants.dram_latency);
+    double mma=constants.AttentionBlock(busy.head_dim,busy.queries,1);
+    double fresh=constants.AttentionFresh(busy.head_dim,busy.queries,1).value_or(0);
+    double total=0;
+    auto const& histories=ampere_cost.AttentionScenarios(a,true);
+    assert(histories.size()==1023 && histories.front().past==64 && histories.back().past==1086);
+    for(auto sample:histories) {
+      assert(sample.count==1);
+      std::vector<double> worker_ns(grid,0.);
+      double keys=0;
+      for(int task=0;task<tasks;++task) {
+        auto h=ampere_cost.AttentionHistory(a,sample.past,task%a.chunks);
+        int wave=std::min(grid,tasks-task/grid*grid);
+        worker_ns[task%grid]+=h.keys*bytes_per_key/std::min(cap,constants.dram_gbps/wave)+
+            h.mma_blocks*mma+h.fresh*fresh;
+        keys+=h.keys;
+      }
+      total+=std::max(keys*bytes_per_key/constants.dram_gbps,*std::max_element(worker_ns.begin(),worker_ns.end()));
+    }
+    json::Value terms;
+    ampere_cost.Attention(busy,a,1,&terms);
+    assert(std::abs(terms.At("request_weighted_stream_ns").AsNumber("attention stream")-total/histories.size())<1e-8);
   }
   int failures = 0;
   for (int batch : {1, 16}) {

@@ -7,10 +7,12 @@
 #include <algorithm>
 #include <cmath>
 #include <map>
-#include <numeric>
 #include <tuple>
 
 namespace tilemega::solver {
+namespace {
+constexpr int kFirstDecodePast=64,kLastDecodePast=1086;
+}
 
 json::Value Sm90DensePrediction::ToJson() const {
   json::Array rows;
@@ -162,13 +164,21 @@ Sm90DenseHistoryWork Sm90DenseCostModel::AttentionHistory(Sm90DenseAttention con
   return {double(keys),double(slots*(a.block_keys/64)),double(slots),range.Contains(past)};
 }
 
-std::vector<Sm80AttentionScenario> const& Sm90DenseCostModel::AttentionScenarios(Sm90DenseAttention const& a) const {
+std::vector<Sm80AttentionScenario> const& Sm90DenseCostModel::AttentionScenarios(
+    Sm90DenseAttention const& a,bool exhaustive) const {
+  if(exhaustive) {
+    static auto const positions=[] {
+      std::vector<Sm80AttentionScenario> rows;
+      for(int past=kFirstDecodePast;past<=kLastDecodePast;++past)rows.push_back({past,1});
+      return rows;
+    }();
+    return positions;
+  }
   auto key=std::make_tuple(a.chunks,a.block_keys,a.new_row_work);
   static thread_local std::map<decltype(key),std::vector<Sm80AttentionScenario>> cache;
   auto found=cache.find(key);
   if(found!=cache.end())return found->second;
   a.Validate();
-  constexpr int first=64,last=1086;
   auto signature=[&](int past) {
     std::vector<int> slots;
     for(int chunk=0;chunk<a.chunks;++chunk) {
@@ -178,8 +188,8 @@ std::vector<Sm80AttentionScenario> const& Sm90DenseCostModel::AttentionScenarios
     return slots;
   };
   std::vector<Sm80AttentionScenario> samples;
-  int begin=first;
-  auto shape=signature(first);
+  int begin=kFirstDecodePast;
+  auto shape=signature(begin);
   auto emit=[&](int end) {
     int count=end-begin+1;
     if(count==1)samples.push_back({begin,1});
@@ -190,13 +200,13 @@ std::vector<Sm80AttentionScenario> const& Sm90DenseCostModel::AttentionScenarios
       samples.push_back({end,count-count/2});
     }
   };
-  for(int past=first+1;past<=last;++past) {
+  for(int past=kFirstDecodePast+1;past<=kLastDecodePast;++past) {
     auto next=signature(past);
     if(next==shape)continue;
     emit(past-1);
     begin=past;shape=std::move(next);
   }
-  emit(last);
+  emit(kLastDecodePast);
   return cache.emplace(key,std::move(samples)).first->second;
 }
 
@@ -210,17 +220,53 @@ Sm90DenseHistoryWork Sm90DenseCostModel::AttentionHistory(Sm90DenseAttention con
   static thread_local std::map<decltype(key),Sm90DenseHistoryWork> cache;
   auto found=cache.find(key);
   if(found!=cache.end())return found->second;
-  constexpr int first=64,last=1086;  // 1023 decode calls after the prefill's first token.
   std::int64_t slots=0,keys=0;
-  for(int past=first;past<=last;++past)for(int chunk=0;chunk<a.chunks;++chunk) {
+  for(int past=kFirstDecodePast;past<=kLastDecodePast;++past)for(int chunk=0;chunk<a.chunks;++chunk) {
     auto history=AttentionHistory(a,past,chunk);
     keys+=std::int64_t(history.keys);
     slots+=std::int64_t(history.ring_slots);
   }
-  double count=(last-first+1)*a.chunks;
+  double count=(kLastDecodePast-kFirstDecodePast+1)*a.chunks;
   // The consumer issues every 64-key subdivision of a loaded slot, even
   // when that subdivision contains only masked keys.
   return cache.emplace(key,Sm90DenseHistoryWork{keys/count,slots/count*(a.block_keys/64),slots/count}).first->second;
+}
+
+double Sm90DenseCostModel::AmpereAttentionStream(Sm90DenseWorkload const& work,
+    Sm90DenseAttention const& a,int grid,int norm) const {
+  int groups=work.batch*work.hkv,d=work.head_dim,q=work.queries;
+  auto const& c=constants_;
+  int tasks=groups*a.chunks;
+  double bytes_per_key=4.*d;
+  double rate=std::min(c.CtaDramGbps(),a.slots*a.block_keys*bytes_per_key/c.dram_latency);
+  double mma=c.AttentionBlock(d,q,norm),fresh=c.AttentionFresh(d,q,norm).value_or(0);
+  auto key=std::make_tuple(a.chunks,a.block_keys,a.new_row_work,grid,groups,d,rate,c.dram_gbps,mma,fresh);
+  static thread_local std::map<decltype(key),double> cache;
+  auto existing=cache.find(key);
+  if(existing!=cache.end())return existing->second;
+  // CTAs in either wave stratum with the same chunk residue own the same work.
+  int tail=tasks%grid,active=std::min(tasks,grid);
+  std::vector<int> owners;
+  for(int worker=0;worker<std::min(tail,a.chunks);++worker)owners.push_back(worker);
+  for(int worker=tail;worker<std::min(active,tail+a.chunks);++worker)owners.push_back(worker);
+  std::vector<Sm90DenseHistoryWork> chunks(a.chunks);
+  double total=0;
+  for(int past=kFirstDecodePast;past<=kLastDecodePast;++past) {
+    for(int chunk=0;chunk<a.chunks;++chunk)chunks[chunk]=AttentionHistory(a,past,chunk);
+    double longest=0;
+    for(int worker:owners) {
+      double service=0;
+      for(int task=worker;task<tasks;task+=grid) {
+        auto const& chunk=chunks[task%a.chunks];
+        int active_wave=tail && task>=tasks-tail?tail:active;
+        service+=chunk.keys*bytes_per_key/std::min(rate,c.dram_gbps/active_wave)+
+            chunk.mma_blocks*mma+chunk.fresh*fresh;
+      }
+      longest=std::max(longest,service);
+    }
+    total+=std::max(longest,groups*past*bytes_per_key/c.dram_gbps);
+  }
+  return cache.emplace(key,total/(kLastDecodePast-kFirstDecodePast+1)).first->second;
 }
 
 // The SM80 range follows the production history partition and tile padding.
@@ -237,28 +283,7 @@ double Sm90DenseCostModel::Attention(Sm90DenseWorkload const& work,
   double mma=c.AttentionBlock(d,q,norm);
   double compute=Waves(tasks,grid,kv_task)+per_cta*history.mma_blocks*mma;
   double stream=std::max(kv_tot/c.dram_gbps,compute);
-  if(target_.arch_tag=="sm_80") {
-    // One fresh chunk per KV group. Consecutive groups stride by chunks in
-    // the grid-strided worker assignment, repeating after this many groups.
-    int period=grid/std::gcd(grid,a.chunks);
-    int fresh_tasks=(work.batch*work.hkv+period-1)/period;
-    double fresh=fresh_tasks*c.AttentionFresh(d,q,norm).value_or(0);
-    double total=0;int weight=0;
-    for(auto scenario:AttentionScenarios(a)) {
-      double keys=0,worst_mma=0,worst_keys=0;
-      for(int chunk=0;chunk<a.chunks;++chunk) {
-        auto current=AttentionHistory(a,scenario.past,chunk);
-        keys+=current.keys;
-        worst_keys=std::max(worst_keys,current.keys);
-        worst_mma=std::max(worst_mma,current.mma_blocks);
-      }
-      double bytes=double(work.batch)*work.hkv*keys*d*4;
-      total+=scenario.count*std::max(bytes/c.dram_gbps,
-          Waves(tasks,grid,worst_keys*d*4)+per_cta*worst_mma*mma+fresh);
-      weight+=scenario.count;
-    }
-    stream=total/weight;
-  }
+  if(target_.arch_tag=="sm_80")stream=AmpereAttentionStream(work,a,grid,norm);
   // D10b: the DSMEM merge replaces the global partials and last arriver.
   double merge=a.chunks==1?0:a.dsmem?c.AttentionMergeDsmem(d,q,norm,a.chunks):
       c.AttentionMerge(d,q,norm,a.chunks);

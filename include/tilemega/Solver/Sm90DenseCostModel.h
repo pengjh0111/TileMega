@@ -40,7 +40,8 @@ class Sm90DenseCostModel {
               json::Value* terms=nullptr,bool pre=false,Sm90DenseCoordinates const* coordinates=nullptr) const;
   Sm90DenseHistoryWork AttentionHistory(Sm90DenseAttention const&) const;
   Sm90DenseHistoryWork AttentionHistory(Sm90DenseAttention const&,int past,int chunk) const;
-  std::vector<Sm80AttentionScenario> const& AttentionScenarios(Sm90DenseAttention const&) const;
+  std::vector<Sm80AttentionScenario> const& AttentionScenarios(Sm90DenseAttention const&,
+      bool exhaustive=false) const;
   double Attention(Sm90DenseWorkload const&,Sm90DenseAttention const& attention,
                    int residency,json::Value* terms=nullptr) const;
   Sm90DensePrediction Predict(Sm90DenseWorkload const&,Sm90DenseCoordinates const&) const;
@@ -58,6 +59,7 @@ class Sm90DenseCostModel {
   TargetSpec const& Target() const {return target_;}
  private:
   double Waves(double tasks,int grid,double task_bytes) const;
+  double AmpereAttentionStream(Sm90DenseWorkload const&,Sm90DenseAttention const&,int grid,int norm) const;
   TargetSpec target_;
   Sm90NativeConstants constants_;
 };
