@@ -597,10 +597,14 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
   if (starts.empty())
     throw std::invalid_argument("native pipeline search found no legal seed");
   for(std::size_t i=0;i<starts.size();++i) {
+    auto key=CoordinateKey(starts[i]);
+    bool required=protected_anchors.count(key);
+    if(ampere && !required && int(result.evaluated.size())>=options.finalists &&
+       spent_ms()>options.budget_ms)break;
     origin="seed:"+std::to_string(i);
     double value=score(starts[i]);
-    if(!std::isfinite(value) && protected_anchors.count(CoordinateKey(starts[i])))
-      throw Sm90NativeMissing("full flow is missing a price for required anchor "+CoordinateKey(starts[i]));
+    if(!std::isfinite(value) && required)
+      throw Sm90NativeMissing("full flow is missing a price for required anchor "+key);
   }
   if(result.evaluated.empty())
     throw std::invalid_argument("native pipeline search found no priced seed");
