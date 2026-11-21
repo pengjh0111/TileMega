@@ -81,7 +81,7 @@ def artifact(binary):
     return identity
 
 
-def append(target, run, control, reference, trace, body_only=False):
+def append(target, run, control, reference, trace, body_only=False, device_proof=None):
     profile_target = target['sm80_native_constants']['fused_expert_service']
     measured, prior = (guarded(p) for p in (run, control))
     baseline, probe = (artifact(p) for p in (reference, trace))
@@ -147,6 +147,20 @@ def append(target, run, control, reference, trace, body_only=False):
         headers = {name: baseline['source']['source_files'][f'include/tilemega/{name}']
                    for name in profile_target['profiles'][0]['body_headers']}
         body = dict(provenance, active_experts=8, body_ns=stats['body_ns']['median'])
+        if device_proof:
+            comparison = read(device_proof)
+            if (comparison['reference_artifact_id'] != baseline['artifact_id']
+                    or comparison['reference_sha256'] != baseline['binary_sha256']
+                    or comparison['generated_source_sha256'] != baseline['generated_source_sha256']
+                    or not comparison['fused_and_entry_resource_contract']
+                    or any('Sm90DenseAttentionBody' not in name
+                           for name in comparison['changed_functions'] + comparison['changed_instruction_functions'])):
+                raise ValueError('rebuilt production fused stage or caller is different')
+            body['device_equivalence'] = dict(
+                scope='fused stage and native caller', comparison_sha256=sha(device_proof),
+                rebuilt_sha256=comparison['rebuilt_sha256'], instructions=comparison['instruction_functions'],
+                compiled_body_headers={name: comparison['compiled_headers'][f'include/tilemega/{name}']
+                                       for name in headers})
         profile = dict(shape=shape, body_headers=headers, production_body=body,
                        source_sha=baseline['source']['head'], binary_sha256=baseline['binary_sha256'],
                        measurement=dict(grid=baseline['plan']['grid'], plain_residency=1,
@@ -177,9 +191,12 @@ if __name__ == '__main__':
     for name in ('target', 'run', 'control', 'reference', 'trace', 'out'):
         parser.add_argument(f'--{name}', required=True, type=Path)
     parser.add_argument('--whole-body', action='store_true')
+    parser.add_argument('--device-proof', type=Path, help='equivalent rebuilt fused device code')
     args = parser.parse_args()
+    if args.device_proof and not args.whole_body:
+        parser.error('a device equivalence proof is only used for the matching production body')
     document = read(args.target)
-    append(document, args.run, args.control, args.reference, args.trace, args.whole_body)
+    append(document, args.run, args.control, args.reference, args.trace, args.whole_body, args.device_proof)
     with args.out.open('x') as stream:
         json.dump(document, stream, indent=2)
         stream.write('\n')

@@ -135,6 +135,13 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
         auto current=FileHash(root+"/include/tilemega/"+name);
         auto expected=hashes.At(name).AsString("body hash");
         if(current==expected)continue;
+        if(auto const* body=profile.Find("production_body")) {
+          auto const* proof=body->Find("device_equivalence");
+          if(proof && proof->At("scope").AsString("device equivalence scope")=="fused stage and native caller" &&
+             proof->At("comparison_sha256").AsString("device comparison digest").size()==64 &&
+             proof->At("compiled_body_headers").At(name).AsString("equivalent compiled header")==current)
+            continue;
+        }
         if(auto const* trace=s.Find("fused_trace_header_equivalence"))
           if(auto const* proof=trace->Find(name))
             if(proof->At("disabled_macro").AsString("fused trace macro")=="TILEMEGA_SM80_FUSED_PHASE_TRACE" &&
