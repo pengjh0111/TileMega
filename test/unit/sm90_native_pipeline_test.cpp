@@ -184,8 +184,11 @@ int main(int argc, char** argv) {
     auto matched=SolveSm90NativePipeline(ampere_space,llama,ampere_cost,
                                         comparison,comparison_score,{seed});
     assert(matched.finalists.size()==2);
-    assert(matched.finalists.back().coordinates.ToJson().Dump(0)==seed.ToJson().Dump(0));
-    assert(matched.finalists.front().coordinates.ToJson().Dump(0)!=seed.ToJson().Dump(0));
+    // Both arms replay the same synthetic FlowProblem. The comparison
+    // must retain the incumbent once even when their replay times tie.
+    assert(std::count_if(matched.finalists.begin(),matched.finalists.end(),[&](auto const& row) {
+      return row.coordinates.ToJson().Dump(0)==seed.ToJson().Dump(0);
+    })==1);
     assert(!ampere_cost.HasCalibratedMma(seed.gemms[2],2));
     bool missing_grid=false;
     try {ampere_cost.MmaK16Ns(seed.gemms[2],2);}
