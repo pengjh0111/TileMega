@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Backend/Sm90DenseAttentionPartition.h>
+#include <tilemega/Frontend/ModelPlan.h>
 #include <tilemega/Solver/Sm90DenseCostModel.h>
 #include <tilemega/Solver/Sm90DenseResources.h>
 #include <tilemega/Solver/Sm90DenseSearchSpace.h>
@@ -62,6 +63,34 @@ std::optional<Sm80DenseService> Sm90DenseCostModel::DenseService(
   return std::nullopt;
 }
 
+std::optional<Sm80FusedExpertService> Sm90DenseCostModel::FusedService(
+    Sm90DenseWorkload const& work,Sm90DenseCoordinates const& c) const {
+  if(target_.arch_tag!="sm_80" || !work.moe || work.top_k!=8 || !c.expert_fuse ||
+     c.residency!=1 || c.reuse_payload || c.weight_stream || c.GlobalRoute() || c.combine_stage)
+    return std::nullopt;
+  auto const& gu=c.gemms[6];
+  auto const& dn=c.gemms[7];
+  return constants_.AmpereFusedService({work.batch,work.shapes[6][0],work.shapes[7][0],
+      work.shapes[6][1],gu.tile_n,gu.TileK(),dn.tile_n,dn.TileK(),gu.slots,
+      gu.warps_n,dn.warps_n,work.experts,work.float_routes,
+      frontend::NativeMoeSharedExpertPageSide(work.experts),gu.register_stages,
+      work.softmax_all,c.expert_page_segments,c.live_epilogue_rows,c.copy_issue_group});
+}
+
+std::optional<Sm80DenseService> Sm90DenseCostModel::GemmService(
+    Sm90DenseWorkload const& work,unsigned family,Sm90DenseGemm const& g,int residency,
+    Sm90DenseCoordinates const* coordinates) const {
+  if(family<6)return DenseService(work,family,g,residency,coordinates);
+  if(!coordinates)return std::nullopt;
+  auto fused=FusedService(work,*coordinates);
+  if(!fused)return std::nullopt;
+  if(family==6)return Sm80DenseService{fused->gu_issue,fused->gu_mma,fused->gu_epilogue};
+  int tiles=work.shapes[family][1]/g.TileK();
+  int ahead=std::min(tiles,g.slots);
+  double producer=fused->dn_preissue+fused->dn_activation+(tiles-ahead)*fused->dn_issue;
+  return Sm80DenseService{producer/tiles,fused->dn_mma,fused->dn_epilogue};
+}
+
 // MR6: a CTA with n = ceil(t / G) tasks streams its first n - 1 at the shared
 // rate BW_dram / G; in the last wave only r = t - (n - 1) G CTAs are active,
 // each at min(BW_cta_dram, BW_dram / r).
@@ -91,7 +120,7 @@ double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
   double ring=w_cta*c.dram_latency/(double(g.slots)*g.slot_bytes);
   double waves=Waves(tasks,grid,2.0*g.tile_n*k);
   double arithmetic=MmaK16Ns(g,residency)*per_cta*k/(16*g.warps_k);
-  auto service=DenseService(work,family,g,residency,coordinates);
+  auto service=GemmService(work,family,g,residency,coordinates);
   double producer=0;
   if(service) {
     double tiles=per_cta*k/g.TileK();

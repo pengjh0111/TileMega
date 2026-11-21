@@ -269,7 +269,8 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
 
   auto priced=[&](Sm90DenseCoordinates const& c) {
     if(!cost.HasCalibratedMma(c))return false;
-    if(!ampere || c.moe)return true;
+    if(!ampere)return true;
+    if(c.moe)return !c.copy_issue_group || cost.FusedService(work,c).has_value();
     for(unsigned f:{0u,1u,2u,3u}) {
       auto const& g=c.gemms[f];
       bool variant=(c.live_epilogue_rows && (f==2 || g.warps_k>1)) ||
@@ -282,9 +283,20 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
 
   auto body_neighbours=[&](Sm90DenseCoordinates const& c) {
     std::vector<std::pair<Sm90DenseCoordinates,std::string>> result;
-    // Experts need a joint Gu/Dn service profile before adding new automatic
-    // moves. Their imported same-theta evidence still uses normal CTG replay.
-    if(!ampere || c.moe || c.weight_stream || options.pinned_theta)return result;
+    if(!ampere || c.weight_stream || options.pinned_theta)return result;
+    if(c.moe) {
+      for(int group:{0,4,8})if(group!=c.copy_issue_group) {
+        auto trial=c;trial.copy_issue_group=group;
+        if(cost.FusedService(work,trial))result.emplace_back(trial,"expert weight copy issue");
+      }
+      auto page=c;page.expert_page_segments=!c.expert_page_segments;
+      if(cost.FusedService(work,page))result.emplace_back(page,"expert weight pages");
+      if(work.batch<16) {
+        auto rows=c;rows.live_epilogue_rows=!c.live_epilogue_rows;
+        if(cost.FusedService(work,rows))result.emplace_back(rows,"expert accumulator rows");
+      }
+      return result;
+    }
     if(work.batch<16) {
       auto trial=c;trial.live_epilogue_rows=!c.live_epilogue_rows;
       result.emplace_back(trial,"accumulator rows");

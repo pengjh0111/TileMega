@@ -82,7 +82,7 @@ Sm90NativeStagePrice Sm90NativeGemmPrice(Sm90DenseWorkload const& work, unsigned
 
   TaskPriceParts parts;
   // Eq. (7) c_x: the body's arithmetic and on-chip accesses.
-  auto service=weight_stream?std::nullopt:cost.DenseService(work,family,g,residency,coordinates);
+  auto service=weight_stream?std::nullopt:cost.GemmService(work,family,g,residency,coordinates);
   double local=cost.MmaK16Ns(g,residency)*k/(16*g.warps_k);
   if(service)local=std::max(service->producer_issue_ns,service->consumer_mma_ns)*k/g.TileK();
   // Local service excludes full/empty waits. The flow still accounts for
@@ -104,6 +104,8 @@ Sm90NativeStagePrice Sm90NativeGemmPrice(Sm90DenseWorkload const& work, unsigned
   parts.fixed_ns = 0;
   if (family >= 6)
     parts.fixed_ns += c.TaskExpert((family == 6 ? "expert_gate_up" : "expert_down") + geometry, b);
+  if(family>=6 && service)
+    price.approximation="measured fused expert local service; expected route and handoff model";
   if (work.tp > 1 && (family == 1 || family == 3))
     parts.fixed_ns += c.AllReduce(b, g.tile_n, work.tp);
   // n_x: the slots this task's weights pass through, so max{c,m} + min{c,m}/n

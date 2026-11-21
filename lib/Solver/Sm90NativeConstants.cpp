@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/Sm90NativeConstants.h>
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 
 namespace tilemega::solver {
@@ -102,12 +103,57 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
     }
     if(!c.ampere_dense_shapes_.empty())c.ampere_dense_service_=std::move(matched);
   }
+  if(auto const* profiles=s.Find("fused_expert_service")) {
+    if(!ampere || profiles->At("schema").AsNumber("fused expert service schema")!=1)
+      throw std::invalid_argument("invalid SM80 fused expert service registry");
+    int sms=int(target.At("resources").At("num_sms").AsNumber("target SM count"));
+    for(auto const& profile:profiles->At("profiles").AsArray("fused expert profiles")) {
+      auto const& hashes=profile.At("body_headers");
+      bool compatible=true;
+      for(auto name:{"Backend/Sm90DenseGemm.h","Backend/Sm90DenseLayout.h","Backend/Sm90DenseMoe.cuh",
+                     "Backend/Sm80MoePageOffsets.h","Backend/Sm90DenseMark.cuh",
+                     "Backend/Sm90DenseRing.cuh","Backend/Sm90DenseEpilogue.h","Codegen/executor/Async.cuh"})
+        compatible &= FileHash(root+"/include/tilemega/"+name)==hashes.At(name).AsString("body hash");
+      if(!compatible)continue;
+      auto const& row=profile.At("measurement");
+      if(row.At("grid").AsNumber("fused expert grid")!=sms ||
+         row.At("plain_residency").AsNumber("fused expert residency")!=1)continue;
+      std::array<int,19> key;
+      constexpr std::array<char const*,19> dimensions={"batch","gate_up_n","down_n","hidden",
+          "gate_up_tn","gate_up_tk","down_tn","down_tk","slots","gate_up_warps_n","down_warps_n",
+          "experts","float_routes","page","register_stages","softmax_all","segments","live_rows","copy_group"};
+      auto const& shape=profile.At("shape");
+      for(std::size_t i=0;i<key.size();++i)key[i]=int(shape.At(dimensions[i]).AsNumber(dimensions[i]));
+      if(key[9]*shape.At("gate_up_warps_k").AsNumber("gate up warps K")!=4 ||
+         key[10]*shape.At("down_warps_k").AsNumber("down warps K")!=4)
+        throw std::invalid_argument("fused expert shapes require four consumer warps");
+      auto positive=[&](char const* name){return Positive(row.At(name),name);};
+      // Dn need not have a mainloop after its prefetched prefix.
+      double dn_issue=row.At("dn_issue_ns_per_tile").AsNumber("Dn steady issue");
+      if(!std::isfinite(dn_issue) || dn_issue<0)
+        throw std::invalid_argument("invalid fused expert Dn issue");
+      Sm80FusedExpertService service{
+          positive("gu_issue_ns_per_tile"),positive("gu_mma_ns_per_tile"),
+          positive("gu_epilogue_ns_per_task"),dn_issue,positive("dn_mma_ns_per_tile"),
+          positive("dn_epilogue_ns_per_task"),positive("dn_preissue_ns_per_task"),
+          positive("dn_activation_ns_per_task")};
+      if(!c.ampere_fused_service_.emplace(key,service).second)
+        throw std::invalid_argument("conflicting compatible fused expert service");
+    }
+  }
   if(auto const* forward=s.Find("forward"))c.forward_=*forward;
   if(auto const* cta=s.Find("cta_dram_gbps"))c.cta_dram_gbps_=Positive(*cta,"per-CTA DRAM bandwidth");
   if(auto const* task=s.Find("task_expert_ns"))c.task_expert_=*task;
   if(auto const* tp=s.Find("tp"))c.tp_=*tp;
   c.attention_=s.At("attention_ns");
   return c;
+}
+
+std::optional<Sm80FusedExpertService> Sm90NativeConstants::AmpereFusedService(
+    std::array<int,19> const& key) const {
+  auto found=ampere_fused_service_.find(key);
+  if(found==ampere_fused_service_.end())return std::nullopt;
+  return found->second;
 }
 double Sm90NativeConstants::Barrier(int grid) const {
   auto found=barrier_.find(grid);

@@ -184,6 +184,8 @@ Sm90DenseWorkload Sm90DenseWorkloadFromPlan(frontend::ModelPlan const& plan,int 
     operand(g.d,g.epilogue!=frontend::PlanGemm::Epilogue::kResidual &&
                 g.epilogue!=frontend::PlanGemm::Epilogue::kResidualAllReduce);
     for(unsigned i=0;i<4;++i)if(family>=5)operand(s.operands[i],i>0);
+    if(family==7 && s.operands[1]!=absent)
+      work.float_routes=plan.buffers[s.operands[1]].dtype=="f32";
     if(!g.n || !g.k || g.n>std::uint32_t(std::numeric_limits<int>::max()) ||
         g.k>std::uint32_t(std::numeric_limits<int>::max()) || Sm90DenseFamily(plan,g)!=family)
       throw std::invalid_argument("native workload family/shape order differs");

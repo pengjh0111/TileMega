@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Support/Json.h>
+#include <array>
 #include <map>
 #include <optional>
 #include <stdexcept>
@@ -25,6 +26,11 @@ struct Sm80DenseServiceShape {
 struct Sm80DenseService {
   double producer_issue_ns=0,consumer_mma_ns=0;
   std::optional<double> epilogue_ns;
+};
+
+struct Sm80FusedExpertService {
+  // The same producer owns Gu, Dn preissue, activation and the Dn mainloop.
+  double gu_issue,gu_mma,gu_epilogue,dn_issue,dn_mma,dn_epilogue,dn_preissue,dn_activation;
 };
 
 // `sm90_native_constants` of the H800 target (prompt §4 L0-1). Every lookup is
@@ -61,6 +67,7 @@ class Sm90NativeConstants {
   static std::string AmpereMmaKey(int grid,int tn,int tk,int wn,int stages);
   std::optional<double> AmpereMmaK16(int grid,int tn,int tk,int wn,int stages) const;
   std::optional<Sm80DenseService> AmpereDenseService(Sm80DenseServiceShape const&) const;
+  std::optional<Sm80FusedExpertService> AmpereFusedService(std::array<int,19> const&) const;
   std::optional<Sm80DenseService> AmpereGateService(
       int grid,int n,int k,int batch,int tn,int tk,int slots,int wn,int stages,int u) const;
   bool HasDenseGateService() const;
@@ -89,6 +96,7 @@ class Sm90NativeConstants {
   std::map<int,double> barrier_;
   json::Value epilogue_,embedding_,argmax_la_,route_la_,attention_,round_,clusters_,dsmem_,forward_,task_expert_,tp_,ampere_mma_;
   json::Value ampere_gate_service_,ampere_dense_service_;
+  std::map<std::array<int,19>,Sm80FusedExpertService> ampere_fused_service_;
   std::vector<Sm80DenseServiceShape> ampere_dense_shapes_;
   double cta_dram_gbps_=0;
   json::Value const& AttentionShape(int dim,int queries,int norm) const;

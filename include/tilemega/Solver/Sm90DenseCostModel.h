@@ -47,8 +47,12 @@ class Sm90DenseCostModel {
   bool HasCalibratedMma(Sm90DenseGemm const&,int residency) const;
   bool HasCalibratedMma(Sm90DenseCoordinates const&) const;
   double MmaK16Ns(Sm90DenseGemm const&,int residency) const;
+  std::optional<Sm80DenseService> GemmService(Sm90DenseWorkload const&,unsigned family,
+      Sm90DenseGemm const&,int residency,Sm90DenseCoordinates const* coordinates=nullptr) const;
   std::optional<Sm80DenseService> DenseService(Sm90DenseWorkload const&,unsigned family,
       Sm90DenseGemm const&,int residency,Sm90DenseCoordinates const* coordinates=nullptr) const;
+  std::optional<Sm80FusedExpertService> FusedService(
+      Sm90DenseWorkload const&,Sm90DenseCoordinates const&) const;
   int Grid(int residency) const {return target_.res.num_sms*residency;}
   Sm90NativeConstants const& Constants() const {return constants_;}
   TargetSpec const& Target() const {return target_;}
