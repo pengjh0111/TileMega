@@ -5073,7 +5073,12 @@
           "measurement_sha256": "9fb00ab4eef5f70de3c47158c5ac0d0e54686d29b0f50dcc6b0cfd9ab657fb98",
           "gpu_uuid": "GPU-2f160309-7fda-599b-77d3-5362399b9092",
           "guard_sha256": "2962128367137e711696a376d9a3bc71500cfe70a7f7e1dd9cd9156aeaf19651",
-          "evidence": "TileMega-a800/runs/a800/calibration/r2-supplement-service/350059"
+          "evidence": "TileMega-a800/runs/a800/calibration/r2-supplement-service/350059",
+          "moe_header_equivalence": {
+            "reference_sha256": "0e92e5c5317888975f1ddc1640545be4473807b32c6aa8168ca379f8a602ec90",
+            "equivalent_sha256": "4547def80141d3ea72b1d8715f20d5f6ea0b0d79199abbf5d3c713810cd37bb7",
+            "preprocessed_sha256": "6072ba3d1a4783671258af262e8b22ced55134b1917b65bbd35a1648d3b9325a"
+          }
         },
         {
           "shape": {
@@ -5156,7 +5161,102 @@
           "measurement_sha256": "3b7a426132d8ed6156d2f4953ef2651f410be62bd51181c68d73e165f4cf9419",
           "gpu_uuid": "GPU-2f160309-7fda-599b-77d3-5362399b9092",
           "guard_sha256": "2962128367137e711696a376d9a3bc71500cfe70a7f7e1dd9cd9156aeaf19651",
-          "evidence": "TileMega-a800/runs/a800/calibration/r2-supplement-service/350071"
+          "evidence": "TileMega-a800/runs/a800/calibration/r2-supplement-service/350071",
+          "moe_header_equivalence": {
+            "reference_sha256": "0e92e5c5317888975f1ddc1640545be4473807b32c6aa8168ca379f8a602ec90",
+            "equivalent_sha256": "4547def80141d3ea72b1d8715f20d5f6ea0b0d79199abbf5d3c713810cd37bb7",
+            "preprocessed_sha256": "fe41a2cf9b21708a3e14b6b68de3308845e4849b7bd2e40a20f46290744a94e7"
+          }
+        },
+        {
+          "shape": {
+            "batch": 16,
+            "gate_up_n": 1536,
+            "down_n": 2048,
+            "hidden": 2048,
+            "gate_up_tn": 192,
+            "gate_up_tk": 64,
+            "down_tn": 128,
+            "down_tk": 64,
+            "slots": 2,
+            "gate_up_warps_n": 2,
+            "down_warps_n": 4,
+            "experts": 128,
+            "float_routes": 1,
+            "page": 64,
+            "register_stages": 1,
+            "softmax_all": 0,
+            "segments": 1,
+            "live_rows": 0,
+            "copy_group": 8,
+            "gu_route_bases": 1,
+            "gate_up_warps_k": 2,
+            "down_warps_k": 1
+          },
+          "measurement": {
+            "status": "measured",
+            "grid": 108,
+            "batch": 16,
+            "active_experts": 82,
+            "dynamic_shared": 166144,
+            "plain_registers": 205,
+            "producer_registers": 205,
+            "consumer_registers": 210,
+            "plain_local_bytes": 120,
+            "producer_local_bytes": 120,
+            "consumer_local_bytes": 120,
+            "plain_residency": 1,
+            "producer_residency": 1,
+            "consumer_residency": 1,
+            "bitwise_equal": true,
+            "sampled_ctas_per_launch": 1,
+            "sampled_tile_stride": 8,
+            "launches": 32,
+            "plain_stage_ns": 513024.0,
+            "producer_stage_ns": 552960.0,
+            "consumer_stage_ns": 526336.0,
+            "plain_kernel_ns": 521215.975,
+            "producer_kernel_ns": 562175.989,
+            "consumer_kernel_ns": 536575.973,
+            "producer_off_kernel_ns": 535552.025,
+            "consumer_off_kernel_ns": 535552.025,
+            "gu_issue_ns_per_tile": 1280.0,
+            "gu_mma_ns_per_tile": 512.0,
+            "gu_epilogue_ns_per_task": 1877.0,
+            "dn_issue_ns_per_tile": 810.667,
+            "dn_mma_ns_per_tile": 315.077,
+            "dn_epilogue_ns_per_task": 1962.0,
+            "dn_preissue_ns_per_task": 1962.0,
+            "dn_activation_ns_per_task": 768.0
+          },
+          "source_sha": "b2c8e1e8cbfb0d226d5de0de82642de1b988891e",
+          "binary_sha256": "e8f9539265eff2ab18bec980be6c34ab0680a18260a59da7621c7e7cbe79cbe2",
+          "source_modifiers": {
+            "TILEMEGA_SM80_COPY_ISSUE_GROUP": 8,
+            "TILEMEGA_SM80_MOE_PAGE_SEGMENTS": 1,
+            "TILEMEGA_SM80_MOE_GU_ROUTE_BASES": 1
+          },
+          "body_headers": {
+            "Backend/Sm90DenseGemm.h": "80985937dfabfb1ee3a5384289bf80d1f374f31ec753a2516d58b6c1c82647db",
+            "Backend/Sm80DenseService.cuh": "1bfd850109cd9450a20d4c5ca0359e264755702c5780d30b1b0111ad18d57173",
+            "Backend/Sm90DenseLayout.h": "db52d66222bc2eb42045f482c5c59fc6a71e460aa45a34dbc714fdfe87999e55",
+            "Backend/Sm90DenseRing.cuh": "f66e20a0a7d33851e8a122b9a7cd6aafbbdaf8cfbf422ba6f8e5c817835bf0e3",
+            "Backend/Sm90DenseEpilogue.h": "90f9f68f908aa6d21b077b1f2822c1e43b128635e7f82d861d052d9ec738099b",
+            "Codegen/executor/Async.cuh": "a2a26c533cebdd3585d9fd77ad3e5ea1fb4e23dad25413828e0bae8e756b64b3",
+            "Backend/Sm90DenseMoe.cuh": "1f5591b0c411be8c5c517c71501379a5fd5f28e3620d872f2709b8aa6b42a383",
+            "Backend/Sm90DenseMark.cuh": "c3c6f0b49df9ec416a7b87d99e7779167c5810c46ff787d9a18ec6c764e8eefc",
+            "Backend/Sm80MoePageOffsets.h": "1264baa66c6b7592dac3618a1624b02c407a14b4d0b7e661dfce6b67c4983328"
+          },
+          "reference_target_sha256": "bc6e2f4afd1c6bd7dac502b220ca651a9b21e02d42a5ff4ede1ed22ebfb6d34e",
+          "measurement_sha256": "877c3e17900e44651a3a89f378d60cfbb3f2bf37ecb5b1fe93b51b115cbc3745",
+          "gpu_uuid": "GPU-bcee93be-34a2-606b-0e43-08ddf6303429",
+          "guard_sha256": "2962128367137e711696a376d9a3bc71500cfe70a7f7e1dd9cd9156aeaf19651",
+          "evidence": "TileMega-a800/runs/a800/calibration/r2-supplement-service/350228",
+          "moe_header_equivalence": {
+            "reference_sha256": "1f5591b0c411be8c5c517c71501379a5fd5f28e3620d872f2709b8aa6b42a383",
+            "equivalent_sha256": "4547def80141d3ea72b1d8715f20d5f6ea0b0d79199abbf5d3c713810cd37bb7",
+            "preprocessed_sha256": "e38db5dfe1f04164c83e87ca3e60c8b0524209b78c3b1bc7ce57d6a90360d398"
+          }
         }
       ]
     },
