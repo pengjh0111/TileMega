@@ -49,6 +49,7 @@
 #include <tilemega/Codegen/tasks/FusedRoPEKVTaskBody.h>
 #include <tilemega/Codegen/tasks/KVAppendTaskBody.h>
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
+#include <tilemega/Codegen/tasks/ServingScheduleCache.h>
 #if TILEMEGA_MOE_OPAQUE
 #include <tilemega/Codegen/MoeOpaqueControl.h>
 #endif
@@ -2703,13 +2704,33 @@ inline ModelDims BindDims(ModelDims dims, std::string const& dir) {
   return dims;
 }
 
+inline bool CanFreezeServingSchedule(RuntimeVariantDesc const& variant) {
+  constexpr bool supported=TILEMEGA_SERVING_RUNTIME && !TILEMEGA_PAGED &&
+      !TILEMEGA_MOE_DYNAMIC && !TILEMEGA_EVENT_SHARDED && !TILEMEGA_CLUSTER_COMBINE &&
+      !TILEMEGA_CLUSTER_ATTENTION_MERGE && TILEMEGA_SLOT_WINDOW==1 &&
+      !TILEMEGA_TRACE_STAGE && !TILEMEGA_TRACE_STEP && !TILEMEGA_TRACE_TASK &&
+      !TILEMEGA_TRACE_V2 && !TILEMEGA_TRACE_PHASE;
+  if(!supported || variant.exact_dependencies)return false;
+  for(auto const* option:{"TILEMEGA_KPHASE_MASK","TILEMEGA_SCHEDULE_POLICY","TILEMEGA_PLAN_DUMP",
+                          "TILEMEGA_PLACEMENT_BASE_DUMP","TILEMEGA_PLACEMENT_ABLATION",
+                          "TILEMEGA_FORCE_ALL_DEPENDENCIES","TILEMEGA_TASK_TRACE"})
+    if(std::getenv(option))return false;
+  return true;
+}
+
 inline DeviceModel Create(ModelSpec const& spec,
                           RuntimeVariantDesc const& runtime_variant,
                           std::uint32_t runtime_variant_index,
                           ModelDims const& dims, std::string const& dir,
                           int grid, int blocks_per_sm, TargetSpec const& target,
                           std::size_t l2_smem_bytes,
-                          void* const* external_buffers = nullptr) {
+                          void* const* external_buffers = nullptr,
+                          std::vector<std::uint32_t>* freeze_schedule = nullptr,
+                          std::vector<std::uint32_t> const* restore_schedule = nullptr) {
+  bool const host_only=freeze_schedule!=nullptr;
+  if((host_only || restore_schedule) &&
+      (target.arch_tag!="sm_80" || dims.seq<=1 || !CanFreezeServingSchedule(runtime_variant)))
+    throw std::invalid_argument("serving schedule cache is unavailable for this plan");
   RuntimePlanDesc const* selected_plan=&runtime_variant.plan;
   if(selected_plan->interval_count) {
     if(!selected_plan->interval || dims.seq<int(selected_plan->interval_begin) ||
@@ -3052,11 +3073,16 @@ inline DeviceModel Create(ModelSpec const& spec,
   if(spec.memory_arena_bytes)
     throw std::invalid_argument("cluster KV merge currently requires separately allocated dense buffers");
 #endif
-  if(spec.memory_arena_bytes)
+  if(spec.memory_arena_bytes && !host_only)
     TILEMEGA_CUDA_CHECK(cudaMalloc(&model.device_memory_arena,spec.memory_arena_bytes));
 #endif
   for (std::uint32_t i = 0; i < spec.buffer_count; ++i) {
     BufferDesc const& desc = spec.buffers[i];
+    if(host_only) {
+      model.buffers.push_back(nullptr);
+      model.owned_buffers.push_back(false);
+      continue;
+    }
 #if TILEMEGA_CLUSTER_ATTENTION_MERGE
     if(cluster_private[i]) {
       model.buffers.push_back(nullptr);model.owned_buffers.push_back(false);
@@ -3216,14 +3242,13 @@ inline DeviceModel Create(ModelSpec const& spec,
     if (chunks > 1) {
       partial_bytes += static_cast<std::size_t>(chunks) * m * desc.n * sizeof(ModelPartialElement);
       ModelPartialElement* partial = nullptr;
-      TILEMEGA_CUDA_CHECK(cudaMalloc(
-          &partial, static_cast<std::size_t>(chunks) * m * desc.n *
-                        sizeof(ModelPartialElement)));
+      if(!host_only)TILEMEGA_CUDA_CHECK(cudaMalloc(
+          &partial, static_cast<std::size_t>(chunks) * m * desc.n * sizeof(ModelPartialElement)));
       gemm_partial[i] = static_cast<std::uint32_t>(model.buffers.size());
       // This table carries addresses; only the combiner interprets a partial
       // entry, explicitly as ModelPartialElement, never as model storage.
       model.buffers.push_back(reinterpret_cast<ModelElement*>(partial));
-      model.owned_buffers.push_back(true);
+      model.owned_buffers.push_back(!host_only);
       model.host_sources.emplace_back();
     }
     for (int chunk = 0; chunk < chunks; ++chunk) {
@@ -3258,14 +3283,13 @@ inline DeviceModel Create(ModelSpec const& spec,
           typename GemmEpilogue::StrideC{}, cute::make_shape(m, desc.n, 1));
       auto stride_d = cutlass::make_cute_packed_stride(
           typename GemmEpilogue::StrideD{}, cute::make_shape(m, desc.n, 1));
-      GemmMainloopOperands main_args{
-          model.buffers[desc.a] + k_begin, stride_a,
-          model.buffers[desc.b] + k_begin, stride_b};
+      GemmMainloopOperands main_args{host_only?nullptr:model.buffers[desc.a]+k_begin,stride_a,
+                                    host_only?nullptr:model.buffers[desc.b]+k_begin,stride_b};
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
       if(im2col) {
         main_args.ptr_A=model.buffers[desc.a];main_args.ptr_B=model.buffers[desc.b];
       }
-      if(desc.access.a==DmAAccess::kDense)
+      if(!host_only && desc.access.a==DmAAccess::kDense)
         main_args.ptr_A+=std::uint64_t(desc.access.a_row_offset)*desc.k;
 #endif
       // Only the first chunk applies beta*C; the combiner adds no residual, so
@@ -3273,7 +3297,7 @@ inline DeviceModel Create(ModelSpec const& spec,
 #if TILEMEGA_FP32_PARTIALS && TILEMEGA_MODEL_BF16
       ModelElement* destination = model.buffers[desc.d];
 #else
-      ModelElement* destination = chunks > 1
+      ModelElement* destination = host_only ? nullptr : chunks > 1
           ? model.buffers[gemm_partial[i]] +
                 static_cast<std::size_t>(chunk) * m * desc.n
           : model.buffers[desc.d];
@@ -3288,7 +3312,7 @@ inline DeviceModel Create(ModelSpec const& spec,
           GemmEpilogue::to_underlying_arguments(problem, epilogue_args, nullptr);
 #if TILEMEGA_FP32_PARTIALS && TILEMEGA_MODEL_BF16
       if (chunks > 1) {
-        auto* partial = reinterpret_cast<float*>(model.buffers[gemm_partial[i]]) +
+        auto* partial = host_only?nullptr:reinterpret_cast<float*>(model.buffers[gemm_partial[i]])+
                         static_cast<std::size_t>(chunk) * m * desc.n;
         PartialEpilogue::Arguments args{{1.0f, 0.0f}, nullptr, stride_c, partial, stride_d};
         invocation.partial_epilogue = PartialEpilogue::to_underlying_arguments(problem, args, nullptr);
@@ -3350,7 +3374,7 @@ inline DeviceModel Create(ModelSpec const& spec,
       }
 #endif
       invocation.serving_partial_stride = desc.n;
-      if (chunks > 1)
+      if (chunks > 1 && !host_only)
         invocation.serving_partial = reinterpret_cast<float*>(
             model.buffers[gemm_partial[i]]) +
             static_cast<std::size_t>(chunk) * m * desc.n;
@@ -3366,7 +3390,7 @@ inline DeviceModel Create(ModelSpec const& spec,
         q.k_norm=attention.operand[6]==kNoOperand?nullptr:model.buffers.at(attention.operand[6]);
         q.heads_kv=attention.extent;q.head_dim=attention.width;q.q_per_kv=attention.group;
         q.capacity=dims.capacity;q.sequence=dims.seq;q.epsilon=TILEMEGA_NORM_EPSILON;
-        q.Validate(desc.n,tiling.tile_n,chunks,dims.seq);
+        if(!host_only)q.Validate(desc.n,tiling.tile_n,chunks,dims.seq);
       }
 #endif
       gemms.push_back(invocation);
@@ -3439,10 +3463,10 @@ inline DeviceModel Create(ModelSpec const& spec,
     if (attention_chunks[i] > 1) {
       auto allocate_float = [&](std::size_t elements) {
         float* buffer = nullptr;
-        TILEMEGA_CUDA_CHECK(cudaMalloc(&buffer,elements*sizeof(float)));
+        if(!host_only)TILEMEGA_CUDA_CHECK(cudaMalloc(&buffer,elements*sizeof(float)));
         auto id = static_cast<std::uint32_t>(model.buffers.size());
         model.buffers.push_back(reinterpret_cast<ModelElement*>(buffer));
-        model.owned_buffers.push_back(true);
+        model.owned_buffers.push_back(!host_only);
         model.host_sources.emplace_back();
         return id;
       };
@@ -3791,6 +3815,7 @@ inline DeviceModel Create(ModelSpec const& spec,
   bool const prepare_l2=!kCanOmitL2 || target.arch_tag!="sm_80" ||
       runtime_variant.exact_dependencies || std::getenv("TILEMEGA_PLAN_DUMP") ||
       std::getenv("TILEMEGA_PLACEMENT_BASE_DUMP") || std::getenv("TILEMEGA_PLACEMENT_ABLATION");
+  bool const build_schedule=prepare_l2 && !restore_schedule;
   // Materialize one queue per physical CTA.  Event requirements are first
   // deduplicated for the task and then lifted out of later tasks in the same
   // worker queue.  The latter is valid only because epoch never decreases.
@@ -3979,7 +4004,7 @@ inline DeviceModel Create(ModelSpec const& spec,
     return MaterializeRuntimeTaskGraph(plan_counts,plan_windows,grid);
 #endif
   };
-  auto const runtime_graph=prepare_l2?make_runtime_graph():decltype(make_runtime_graph()){};
+  auto const runtime_graph=build_schedule?make_runtime_graph():decltype(make_runtime_graph()){};
 #if TILEMEGA_TRACE_V2 || TILEMEGA_TRACE_PHASE
   model.trace_runtime_dependencies = dependencies;
 #endif
@@ -4000,7 +4025,7 @@ inline DeviceModel Create(ModelSpec const& spec,
   solver::PlanRequest plan_request;
   solver::MaterializedPlan plan;
   auto const& task_owner=plan.owner;
-  if(prepare_l2) {
+  if(build_schedule) {
     plan_request.mode=plan_mode;
     plan_request.params=plan_params;
     plan_request.grid=grid;
@@ -4133,7 +4158,7 @@ inline DeviceModel Create(ModelSpec const& spec,
                   plan_mode==dialect::PlacementMode::kRotate?1:0,
                   dialect::PlacementModeName(plan_mode));
     }
-  }else {
+  }else if(!restore_schedule) {
     ServingPlanProgress("serving_plan_l1_metadata",model.stages.size(),model.stages.size());
   }
   std::vector<int> stage_max_producer_worker(model.stages.size(), -1);
@@ -4348,9 +4373,9 @@ inline DeviceModel Create(ModelSpec const& spec,
   // one array indexed by the published event rows, rather than retaining a
   // map of all events seen by every worker.
   std::vector<int> last_observer;
-  if (prepare_l2 && !TILEMEGA_MOE_DYNAMIC) last_observer.resize(model.event_offsets.back());
+  if (build_schedule && !TILEMEGA_MOE_DYNAMIC) last_observer.resize(model.event_offsets.back());
   std::vector<std::pair<std::uint32_t, std::uint32_t>> desired;
-  for (int worker = 0; prepare_l2 && worker < grid; ++worker) {
+  for (int worker = 0; build_schedule && worker < grid; ++worker) {
     std::fill(last_observer.begin(), last_observer.end(), -1);
     // sigma, not stage-major: the queue is whatever order the Plan asked for,
     // and `plan.queue[worker]` is already sorted by it (§5.7.2).
@@ -4521,6 +4546,16 @@ inline DeviceModel Create(ModelSpec const& spec,
     }
     model.schedule_offsets[worker + 1] =
         static_cast<std::uint32_t>(model.schedule.size());
+  }
+  ServingScheduleScope scope{dims.batch,dims.seq,dims.past,dims.capacity,grid,prepare_l2,
+      physical_worker,plan_counts,offsets};
+  if(restore_schedule) {
+    RestoreServingSchedule(model,scope,*restore_schedule);
+    ServingPlanProgress("serving_plan_cached_waits",model.task_waits.size(),model.task_waits.size());
+  }
+  if(freeze_schedule) {
+    *freeze_schedule=FreezeServingSchedule(model,scope);
+    return model;
   }
 
 #if TILEMEGA_SERVING_CLUSTER_DIM>1

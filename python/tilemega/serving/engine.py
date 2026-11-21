@@ -62,12 +62,14 @@ class ServingEngine:
         self.step_events = bool(step_events)
         self.decode_chunk = decode_chunk
         self.memory_report = None
+        prefill_schedule = None
         manifests=[Path(str(path)+'.plan.json') for path in (prefill_so,decode_so) if path is not None]
         if host_preparation is not None:
-            from .host_preparation import validate
+            from .host_preparation import prefill_schedule_bytes, validate
             validate(host_preparation, json.loads((Path(model_dir)/'config.json').read_text()),
                      batch, self.decode_lib.info.capacity, libraries)
             self.memory_report = host_preparation['allocation']
+            prefill_schedule = prefill_schedule_bytes(host_preparation, self.prefill_lib)
         elif all(path.exists() for path in manifests):
             from .memory import allocation_metadata, memory_report
             self.memory_report=memory_report(
@@ -83,7 +85,7 @@ class ServingEngine:
                                     device=torch.device("cuda", device))
         pointers = {name: tensor.data_ptr() for name, tensor in self.weights.items()}
         pointers.update(self.state.pointers)
-        self.prefill = (self.prefill_lib.create(batch, pointers, device)
+        self.prefill = (self.prefill_lib.create(batch, pointers, device, schedule=prefill_schedule)
                         if self.prefill_lib is not None else None)
         try:
             self.decode = self.decode_lib.create(batch, pointers, device)

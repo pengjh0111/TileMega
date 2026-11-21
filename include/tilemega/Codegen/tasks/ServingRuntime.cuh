@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstdio>
+#include <cstring>
 #include <memory>
 #include <vector>
 #include <algorithm>
@@ -648,8 +649,47 @@ extern "C" int tm_plan_read_buffer(void* opaque, std::uint32_t index,
   return cudaMemcpy(host,plan->model.buffers[index],bytes,cudaMemcpyDeviceToHost)==cudaSuccess?0:-3;
 }
 
-extern "C" void* tm_plan_create(int batch, void* const* external,
-                                        int device) {
+extern "C" int tm_plan_schedule_cache_version() {
+  using namespace tilemega::codegen;
+#if defined(TILEMEGA_SERVING_PHASE) && TILEMEGA_SERVING_PHASE != 0
+  return 0;
+#else
+  return TILEMEGA_ARCH_PATH_SM80 && TILEMEGA_SERVING_SEQ>1 &&
+      harness::CanFreezeServingSchedule(kModel.runtime_variants[0])?
+      int(harness::kServingScheduleVersion):0;
+#endif
+}
+
+extern "C" int tm_plan_export_schedule(int batch,int sms,int blocks,char const* path) {
+  using namespace tilemega::codegen;
+  if(!path || !tm_plan_schedule_cache_version() || sms<=0 || blocks<=0 ||
+     batch<TILEMEGA_SERVING_BATCH_LO || batch>TILEMEGA_SERVING_BATCH_HI)return -1;
+  try {
+    tilemega::TargetSpec target;
+    target.arch_tag="sm_80";target.res.num_sms=sms;
+    ModelDims dims=kModel.dims;
+    dims.batch=batch;dims.seq=TILEMEGA_SERVING_SEQ;dims.past=TILEMEGA_SERVING_PAST_LO;
+    dims.total=dims.seq+dims.past;
+    if(!serving::StructureInvariant(kModel,kModel.runtime_variants[0],dims,
+        ModelDims{dims.seq,TILEMEGA_SERVING_PAST_HI,dims.seq+TILEMEGA_SERVING_PAST_HI,
+                  batch,dims.capacity}))return -1;
+    int grid=serving::ResidentServingGrid(target);
+    if(grid<=0 || grid>std::int64_t(sms)*blocks)return -1;
+    std::vector<std::uint32_t> words;
+    harness::Create(kModel,kModel.runtime_variants[0],0,dims,"",grid,blocks,target,
+                    kServingSharedBytes,nullptr,&words);
+    std::ofstream out(path,std::ios::binary);
+    out.exceptions(std::ios::failbit|std::ios::badbit);
+    out.write(reinterpret_cast<char const*>(words.data()),words.size()*sizeof(words.front()));
+    out.close();
+    return 0;
+  }catch(std::exception const& error) {
+    std::fprintf(stderr,"tm_plan_export_schedule: %s\n",error.what());return -1;
+  }
+}
+
+static void* CreateServingPlan(int batch,void* const* external,int device,
+                               std::vector<std::uint32_t> const* schedule) {
   using namespace tilemega::codegen;
   if (!external || batch < TILEMEGA_SERVING_BATCH_LO ||
       batch > TILEMEGA_SERVING_BATCH_HI) return nullptr;
@@ -721,7 +761,7 @@ extern "C" void* tm_plan_create(int batch, void* const* external,
 #endif
     plan->model = harness::Create(
         kModel, kModel.runtime_variants[0], 0, dims, "", grid,
-        std::min(l1, l2), target, smem, external);
+        std::min(l1, l2), target, smem, external, nullptr, schedule);
 #if defined(TILEMEGA_STATIC_DENSE)
     if(plan->model.stages.size()!=static_dense::StageCount() ||
        plan->model.buffers.size()>std::size(plan->bindings.buffers))
@@ -857,6 +897,23 @@ extern "C" void* tm_plan_create(int batch, void* const* external,
   } catch (std::exception const& error) {
     std::fprintf(stderr, "tm_plan_create: %s\n", error.what());
     return nullptr;
+  }
+}
+
+extern "C" void* tm_plan_create(int batch,void* const* external,int device) {
+  return CreateServingPlan(batch,external,device,nullptr);
+}
+
+extern "C" void* tm_plan_create_cached(int batch,void* const* external,int device,
+                                       void const* bytes,std::size_t length) {
+  if(!tm_plan_schedule_cache_version() || !bytes || !length || length%sizeof(std::uint32_t))
+    return nullptr;
+  try {
+    std::vector<std::uint32_t> words(length/sizeof(std::uint32_t));
+    std::memcpy(words.data(),bytes,length);
+    return CreateServingPlan(batch,external,device,&words);
+  }catch(std::exception const& error) {
+    std::fprintf(stderr,"tm_plan_create_cached: %s\n",error.what());return nullptr;
   }
 }
 

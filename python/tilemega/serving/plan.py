@@ -130,7 +130,8 @@ class PlanLibrary:
             raise ValueError("an unsharded plan has no tensor parallel buffers")
         return int(self.lib.tm_plan_tp_bytes(which))
 
-    def create(self, batch: int, pointers: dict[str, int], device: int) -> "Plan":
+    def create(self, batch: int, pointers: dict[str, int], device: int,
+               schedule: bytes | None = None) -> "Plan":
         if not self.info.batch_lo <= batch <= self.info.batch_hi:
             raise ValueError("batch outside the solved interval")
         addresses = (C.c_void_p * len(self.buffers))()
@@ -141,7 +142,15 @@ class PlanLibrary:
                 addresses[index] = pointers[buffer.name]
             elif buffer.name in pointers:
                 raise ValueError(f"internal buffer supplied externally: {buffer.name}")
-        ptr = self.lib.tm_plan_create(batch, addresses, device)
+        if schedule is None:
+            ptr = self.lib.tm_plan_create(batch, addresses, device)
+        else:
+            create = getattr(self.lib, 'tm_plan_create_cached', None)
+            if create is None:
+                raise ValueError('prefill library lacks the cached plan ABI')
+            create.argtypes = [C.c_int, C.POINTER(C.c_void_p), C.c_int, C.c_char_p, C.c_size_t]
+            create.restype = C.c_void_p
+            ptr = create(batch, addresses, device, schedule, len(schedule))
         if not ptr:
             raise RuntimeError("tm_plan_create rejected the plan or its buffers")
         return Plan(self, ptr)
