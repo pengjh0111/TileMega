@@ -665,17 +665,22 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
           }
           if(measured)neighbours.insert(CoordinateKey(trial));
         }
-        auto best=std::find_if(ranked.begin(),ranked.end(),[&](auto const& candidate) {
+        auto body=std::find_if(ranked.begin(),ranked.end(),[&](auto const& candidate) {
           return neighbours.count(CoordinateKey(candidate.coordinates));
         });
-        if(best!=ranked.end())protected_anchors.insert(CoordinateKey(best->coordinates));
-        if(int(protected_anchors.size())<options.finalists) {
-          std::set<std::string> ring_keys;
-          for(auto const& trial:ring_peers)ring_keys.insert(CoordinateKey(trial));
-          auto peer=std::find_if(ranked.begin(),ranked.end(),[&](auto const& candidate) {
-            return ring_keys.count(CoordinateKey(candidate.coordinates));
-          });
-          if(peer!=ranked.end())protected_anchors.insert(CoordinateKey(peer->coordinates));
+        std::set<std::string> ring_keys;
+        for(auto const& trial:ring_peers)ring_keys.insert(CoordinateKey(trial));
+        auto ring=std::find_if(ranked.begin(),ranked.end(),[&](auto const& candidate) {
+          return ring_keys.count(CoordinateKey(candidate.coordinates));
+        });
+        if(options.finalists==2) {
+          // A two-arm budget leaves one comparison. Use the same PoolScore
+          // ordering for the calibrated body and ring alternatives.
+          auto best=std::min(body,ring);
+          if(best!=ranked.end())protected_anchors.insert(CoordinateKey(best->coordinates));
+        }else {
+          if(body!=ranked.end())protected_anchors.insert(CoordinateKey(body->coordinates));
+          if(ring!=ranked.end())protected_anchors.insert(CoordinateKey(ring->coordinates));
         }
       }
     }
