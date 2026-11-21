@@ -19,6 +19,12 @@ double Positive(json::Value const& v,char const* what) {
 }
 }  // namespace
 
+std::array<int,19> Sm80FusedExpertShape::Key() const {
+  return {batch,gate_up_n,down_n,hidden,gate_up_tn,gate_up_tk,down_tn,down_tk,slots,
+      gate_up_warps_n,down_warps_n,experts,float_routes,page,register_stages,
+      softmax_all,segments,live_rows,copy_group};
+}
+
 Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,std::string const& root) {
   auto const* tag=target.Find("arch_tag");
   bool ampere=tag && tag->AsString("target architecture")=="sm_80";
@@ -118,14 +124,20 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
       auto const& row=profile.At("measurement");
       if(row.At("grid").AsNumber("fused expert grid")!=sms ||
          row.At("plain_residency").AsNumber("fused expert residency")!=1)continue;
-      std::array<int,19> key;
-      constexpr std::array<char const*,19> dimensions={"batch","gate_up_n","down_n","hidden",
-          "gate_up_tn","gate_up_tk","down_tn","down_tk","slots","gate_up_warps_n","down_warps_n",
-          "experts","float_routes","page","register_stages","softmax_all","segments","live_rows","copy_group"};
       auto const& shape=profile.At("shape");
-      for(std::size_t i=0;i<key.size();++i)key[i]=int(shape.At(dimensions[i]).AsNumber(dimensions[i]));
-      if(key[9]*shape.At("gate_up_warps_k").AsNumber("gate up warps K")!=4 ||
-         key[10]*shape.At("down_warps_k").AsNumber("down warps K")!=4)
+      auto dimension=[&](char const* name) {
+        double value=shape.At(name).AsNumber(name);
+        if(!std::isfinite(value) || value<0 || value>1000000 || std::floor(value)!=value)
+          throw std::invalid_argument(std::string("invalid fused shape dimension ")+name);
+        return int(value);
+      };
+      Sm80FusedExpertShape geometry{dimension("batch"),dimension("gate_up_n"),dimension("down_n"),
+          dimension("hidden"),dimension("gate_up_tn"),dimension("gate_up_tk"),dimension("down_tn"),
+          dimension("down_tk"),dimension("slots"),dimension("gate_up_warps_n"),dimension("down_warps_n"),
+          dimension("experts"),dimension("float_routes"),dimension("page"),dimension("register_stages"),
+          dimension("softmax_all"),dimension("segments"),dimension("live_rows"),dimension("copy_group")};
+      if(geometry.gate_up_warps_n*dimension("gate_up_warps_k")!=4 ||
+         geometry.down_warps_n*dimension("down_warps_k")!=4)
         throw std::invalid_argument("fused expert shapes require four consumer warps");
       auto positive=[&](char const* name){return Positive(row.At(name),name);};
       // Dn need not have a mainloop after its prefetched prefix.
@@ -137,8 +149,9 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
           positive("gu_epilogue_ns_per_task"),dn_issue,positive("dn_mma_ns_per_tile"),
           positive("dn_epilogue_ns_per_task"),positive("dn_preissue_ns_per_task"),
           positive("dn_activation_ns_per_task")};
-      if(!c.ampere_fused_service_.emplace(key,service).second)
+      if(!c.ampere_fused_service_.emplace(geometry.Key(),service).second)
         throw std::invalid_argument("conflicting compatible fused expert service");
+      c.ampere_fused_shapes_.push_back(geometry);
     }
   }
   if(auto const* forward=s.Find("forward"))c.forward_=*forward;
@@ -150,8 +163,8 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
 }
 
 std::optional<Sm80FusedExpertService> Sm90NativeConstants::AmpereFusedService(
-    std::array<int,19> const& key) const {
-  auto found=ampere_fused_service_.find(key);
+    Sm80FusedExpertShape const& shape) const {
+  auto found=ampere_fused_service_.find(shape.Key());
   if(found==ampere_fused_service_.end())return std::nullopt;
   return found->second;
 }

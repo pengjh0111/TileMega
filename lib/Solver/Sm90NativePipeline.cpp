@@ -314,7 +314,31 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
 
   auto measured_body_seeds=[&](Sm90DenseCoordinates const& base) {
     std::vector<Sm90DenseCoordinates> candidates;
-    if(!ampere || base.moe || base.weight_stream || options.pinned_theta)return candidates;
+    if(!ampere || base.weight_stream || options.pinned_theta)return candidates;
+    if(base.moe) {
+      if(base.residency!=1 || base.reuse_payload)return candidates;
+      for(auto const& shape:cost.Constants().AmpereFusedShapes()) {
+        if(shape.batch!=work.batch || shape.experts!=work.experts ||
+           shape.gate_up_n!=work.shapes[6][0] || shape.down_n!=work.shapes[7][0] ||
+           shape.hidden!=work.shapes[6][1])continue;
+        auto trial=base;
+        trial.expert_fuse=true;
+        trial.route=Sm90DenseCoordinates::Route::kLocal;
+        trial.combine_stage=false;
+        trial.expert_page_segments=shape.segments!=0;
+        trial.live_epilogue_rows=shape.live_rows!=0;
+        trial.copy_issue_group=shape.copy_group;
+        auto retile=[&](unsigned family,int tn,int tk,int wn) {
+          auto& g=trial.gemms[family];
+          g.tile_n=tn;g.slot_bytes=2*tn*tk;g.slots=shape.slots;
+          g.warps_n=wn;g.warps_k=4/wn;g.register_stages=shape.register_stages;
+        };
+        retile(6,shape.gate_up_tn,shape.gate_up_tk,shape.gate_up_warps_n);
+        retile(7,shape.down_tn,shape.down_tk,shape.down_warps_n);
+        if(cost.FusedService(work,trial))candidates.push_back(trial);
+      }
+      return candidates;
+    }
     auto const& measured=cost.Constants().AmpereDenseShapes();
     auto matches=[&](Sm80DenseServiceShape const& s,unsigned family) {
       return s.grid==space.Grid(base.residency) && s.batch==work.batch &&

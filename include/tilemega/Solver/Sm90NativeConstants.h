@@ -33,6 +33,13 @@ struct Sm80FusedExpertService {
   double gu_issue,gu_mma,gu_epilogue,dn_issue,dn_mma,dn_epilogue,dn_preissue,dn_activation;
 };
 
+struct Sm80FusedExpertShape {
+  int batch,gate_up_n,down_n,hidden,gate_up_tn,gate_up_tk,down_tn,down_tk,slots,
+      gate_up_warps_n,down_warps_n,experts,float_routes,page,register_stages,
+      softmax_all,segments,live_rows,copy_group;
+  std::array<int,19> Key() const;
+};
+
 // `sm90_native_constants` of the H800 target (prompt §4 L0-1). Every lookup is
 // an exact measured key; absence is a coverage error, never an extrapolation.
 class Sm90NativeConstants {
@@ -67,7 +74,8 @@ class Sm90NativeConstants {
   static std::string AmpereMmaKey(int grid,int tn,int tk,int wn,int stages);
   std::optional<double> AmpereMmaK16(int grid,int tn,int tk,int wn,int stages) const;
   std::optional<Sm80DenseService> AmpereDenseService(Sm80DenseServiceShape const&) const;
-  std::optional<Sm80FusedExpertService> AmpereFusedService(std::array<int,19> const&) const;
+  std::optional<Sm80FusedExpertService> AmpereFusedService(Sm80FusedExpertShape const&) const;
+  std::vector<Sm80FusedExpertShape> const& AmpereFusedShapes() const {return ampere_fused_shapes_;}
   std::optional<Sm80DenseService> AmpereGateService(
       int grid,int n,int k,int batch,int tn,int tk,int slots,int wn,int stages,int u) const;
   bool HasDenseGateService() const;
@@ -97,6 +105,7 @@ class Sm90NativeConstants {
   json::Value epilogue_,embedding_,argmax_la_,route_la_,attention_,round_,clusters_,dsmem_,forward_,task_expert_,tp_,ampere_mma_;
   json::Value ampere_gate_service_,ampere_dense_service_;
   std::map<std::array<int,19>,Sm80FusedExpertService> ampere_fused_service_;
+  std::vector<Sm80FusedExpertShape> ampere_fused_shapes_;
   std::vector<Sm80DenseServiceShape> ampere_dense_shapes_;
   double cta_dram_gbps_=0;
   json::Value const& AttentionShape(int dim,int queries,int norm) const;
