@@ -18,9 +18,13 @@ def main():
     p.add_argument('--copy-group', type=int, choices=(0, 4, 8))
     p.add_argument('--ring', type=int, choices=range(2, 9), help='override the shared Gu/Dn ring depth')
     p.add_argument('--reserve-program-shared', action='store_true')
+    p.add_argument('--shared-marks', action='store_true',
+                   help='buffer diagnostic writes in unused program arena space')
     p.add_argument('--gu-route-bases', action='store_true')
     p.add_argument('--live-rows', action='store_true')
     a = p.parse_args()
+    if a.shared_marks and not a.reserve_program_shared:
+        p.error('shared marks require the reserved production program arena')
     anchor = json.loads(a.anchor.read_text())
     library = Path(anchor['decode'])
     if sha(library) != anchor['decode_sha256'] or anchor['coordinates']['residency'] != 1:
@@ -67,6 +71,9 @@ def main():
             raise ValueError('hoisted Gu routes require 64-wide tiles and at most 16 tokens')
         variants['TILEMEGA_SM80_MOE_GU_ROUTE_BASES'] = 1
         case += '-route-bases'
+    if a.shared_marks:
+        variants['TILEMEGA_FUSED_SERVICE_SHARED_MARKS'] = 1
+        case += '-shared-marks'
     shared = build_identity['shared_memory_bytes'] if a.reserve_program_shared else 0
     out = a.out.resolve()
     out.mkdir(parents=True, exist_ok=False)

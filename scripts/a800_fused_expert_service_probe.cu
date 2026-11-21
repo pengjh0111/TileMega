@@ -67,18 +67,31 @@ void Run(Sm90DenseMoeFusedOperands args,Tick* samples,int sample_cta) {
   auto& ring=*reinterpret_cast<Sm90DenseRingState*>(shared);
   ring.Initialize<true>();
   auto* data=samples+std::size_t(blockIdx.x)*(Marks::kCount+1);
+  auto* marks=data;
+  bool const sampled=Role && blockIdx.x==unsigned(sample_cta);
+#if TILEMEGA_FUSED_SERVICE_SHARED_MARKS
+  // Nothing beyond the production stage footprint belongs to this body.
+  // Keep timing writes in that spare arena space until the ring drains.
+  constexpr int begin_marks=Case::kShared-Marks::kCount*sizeof(Tick);
+  static_assert(begin_marks>=Case::template Body<false>::kSharedBytes && begin_marks%alignof(Tick)==0);
+  marks=reinterpret_cast<Tick*>(shared+begin_marks);
+  if(sampled && threadIdx.x<Marks::kCount)marks[threadIdx.x]=0;
+#endif
   if(threadIdx.x==0)
     *reinterpret_cast<Tick**>(shared+Sm90DenseOperandHeader::kTraceSlot)=
-        Role && blockIdx.x==unsigned(sample_cta)?data:nullptr;
+        sampled?marks:nullptr;
   __syncthreads();
   Tick begin=0;
   if(threadIdx.x==0)begin=Marks::Now();
   // Other CTAs still run the production task bodies during sampling.
-  if(Role && blockIdx.x==unsigned(sample_cta))
+  if(sampled)
     Case::template Body<Role>::Run(args,shared,&ring);
   else
     Case::template Body<false>::Run(args,shared,&ring);
   if(threadIdx.x==0)data[Marks::kCount]=Marks::Now()-begin;
+#if TILEMEGA_FUSED_SERVICE_SHARED_MARKS
+  if(sampled && threadIdx.x<Marks::kCount)data[threadIdx.x]=marks[threadIdx.x];
+#endif
   ring.Invalidate<true>();
 }
 
