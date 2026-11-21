@@ -87,10 +87,13 @@ int main(int argc,char** argv) {try {
         {"release_hits",double(state.cache.release_hits)},{"release_misses",double(state.cache.release_misses)}};
     if(exact)row.Set("history_replay",std::move(history_replay));
     if(auto const* requested=cell.Find("decompose");requested && requested->AsBool("decompose")) {
+      // These counterfactuals vary the base CTG, before request weighting and
+      // the fused service replacement. Keep them on that same timeline.
       auto decomposition=DecomposeFlow(flow.problem);
-      if(decomposition.original.makespan_ns!=flow.step_ns)
-        throw std::runtime_error("decomposition changed the original prediction");
-      row.Set("decomposition",json::Object{{"original_ns",decomposition.original.makespan_ns},
+      if(decomposition.original.makespan_ns!=EvaluateFlow(flow.problem).makespan_ns)
+        throw std::runtime_error("decomposition changed the base CTG timeline");
+      row.Set("decomposition",json::Object{{"scope","base_ctg"},
+          {"original_ns",decomposition.original.makespan_ns},
           {"no_sync_ns",decomposition.no_sync},{"no_fixed_ns",decomposition.no_fixed},
           {"infinite_ns",decomposition.infinite},{"no_external_ns",decomposition.no_external},
           {"synchronization_ns",decomposition.synchronization},{"fixed_ns",decomposition.fixed},
