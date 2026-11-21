@@ -3782,6 +3782,14 @@ inline DeviceModel Create(ModelSpec const& spec,
   std::printf("DM_LAST_ARRIVER selected=%u tickets=%u\n",dm_reductions.selected,dm_reductions.tickets);
 #endif
 
+  // An untraced L1-only prefill runs the checked stage chain with grid
+  // barriers. Its counted reductions and event layouts still bind below.
+  constexpr bool kCanOmitL2=TILEMEGA_PREFILL_L1_ONLY && !TILEMEGA_MOE_DYNAMIC &&
+      !TILEMEGA_EVENT_SHARDED && !TILEMEGA_CLUSTER_COMBINE && !TILEMEGA_CLUSTER_ATTENTION_MERGE &&
+      !TILEMEGA_TRACE_TASK && !TILEMEGA_TRACE_V2 && !TILEMEGA_TRACE_PHASE;
+  bool const prepare_l2=!kCanOmitL2 || target.arch_tag!="sm_80" ||
+      runtime_variant.exact_dependencies || std::getenv("TILEMEGA_PLAN_DUMP") ||
+      std::getenv("TILEMEGA_PLACEMENT_BASE_DUMP") || std::getenv("TILEMEGA_PLACEMENT_ABLATION");
   // Materialize one queue per physical CTA.  Event requirements are first
   // deduplicated for the task and then lifted out of later tasks in the same
   // worker queue.  The latter is valid only because epoch never decreases.
@@ -3963,11 +3971,14 @@ inline DeviceModel Create(ModelSpec const& spec,
           edge.map==StageDependency::Map::kPhase,
         edge.div,edge.scale,edge.offset,edge.count});
   }
+  auto make_runtime_graph=[&] {
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
-  auto const runtime_graph=MaterializeRuntimeTaskGraphTables(plan_counts,plan_windows,plan_tables,grid);
+    return MaterializeRuntimeTaskGraphTables(plan_counts,plan_windows,plan_tables,grid);
 #else
-  auto const runtime_graph=MaterializeRuntimeTaskGraph(plan_counts,plan_windows,grid);
+    return MaterializeRuntimeTaskGraph(plan_counts,plan_windows,grid);
 #endif
+  };
+  auto const runtime_graph=prepare_l2?make_runtime_graph():decltype(make_runtime_graph()){};
 #if TILEMEGA_TRACE_V2 || TILEMEGA_TRACE_PHASE
   model.trace_runtime_dependencies = dependencies;
 #endif
@@ -3986,142 +3997,146 @@ inline DeviceModel Create(ModelSpec const& spec,
 #endif
 
   solver::PlanRequest plan_request;
-  plan_request.mode=plan_mode;
-  plan_request.params=plan_params;
-  plan_request.grid=grid;
-  plan_request.counts=plan_counts;
-  plan_request.stage_order.assign(model.stage_order.begin(),model.stage_order.end());
-  plan_request.physical_worker=physical_worker;
-  plan_request.graph=&runtime_graph;
+  solver::MaterializedPlan plan;
+  auto const& task_owner=plan.owner;
+  if(prepare_l2) {
+    plan_request.mode=plan_mode;
+    plan_request.params=plan_params;
+    plan_request.grid=grid;
+    plan_request.counts=plan_counts;
+    plan_request.stage_order.assign(model.stage_order.begin(),model.stage_order.end());
+    plan_request.physical_worker=physical_worker;
+    plan_request.graph=&runtime_graph;
 #if TILEMEGA_CLUSTER_COMBINE
-  if(plan_mode!=dialect::PlacementMode::kTemplate || plan_params.size()!=1 ||
-      plan_params[0]!=std::int64_t(dialect::PlacementTemplate::kClusterSplit))
-    throw std::invalid_argument("cluster combine requires the emitted cluster_split Plan");
-  plan_request.cluster_dim=TILEMEGA_SERVING_CLUSTER_DIM;
-  for(unsigned s=0;s<model.stage_order.size();++s)
-    if(model.stage_order[s]!=s)
-      throw std::invalid_argument("cluster combine L1/L2 require the same forward stage order");
-  plan_request.cluster_chunks.assign(model.stages.size(),0);
-  unsigned cooperative=0;
-  for(unsigned s=0;s<model.stages.size();++s) {
-    auto const& stage=model.stages[s];
-    if(stage.kind!=TaskKind::kGemm)continue;
-    auto const& inv=gemms.at(stage.gemm);
-    if(inv.chunks<=1)continue;
-    if(inv.chunks!=TILEMEGA_SERVING_CLUSTER_DIM || !ServingClusterVariant(inv.variant) ||
-        stage.handoff_reduce_stage==kNoOperand ||
-        !model.stages.at(stage.handoff_reduce_stage).handoff_elided)
-      throw std::invalid_argument("cluster combine requires dense decode splitK=c with an elided reducer");
+    if(plan_mode!=dialect::PlacementMode::kTemplate || plan_params.size()!=1 ||
+        plan_params[0]!=std::int64_t(dialect::PlacementTemplate::kClusterSplit))
+      throw std::invalid_argument("cluster combine requires the emitted cluster_split Plan");
+    plan_request.cluster_dim=TILEMEGA_SERVING_CLUSTER_DIM;
+    for(unsigned s=0;s<model.stage_order.size();++s)
+      if(model.stage_order[s]!=s)
+        throw std::invalid_argument("cluster combine L1/L2 require the same forward stage order");
+    plan_request.cluster_chunks.assign(model.stages.size(),0);
+    unsigned cooperative=0;
+    for(unsigned s=0;s<model.stages.size();++s) {
+      auto const& stage=model.stages[s];
+      if(stage.kind!=TaskKind::kGemm)continue;
+      auto const& inv=gemms.at(stage.gemm);
+      if(inv.chunks<=1)continue;
+      if(inv.chunks!=TILEMEGA_SERVING_CLUSTER_DIM || !ServingClusterVariant(inv.variant) ||
+          stage.handoff_reduce_stage==kNoOperand ||
+          !model.stages.at(stage.handoff_reduce_stage).handoff_elided)
+        throw std::invalid_argument("cluster combine requires dense decode splitK=c with an elided reducer");
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
-    if(inv.dm_enabled || inv.access.a!=DmAAccess::kDense || inv.access.b!=DmBAccess::kDense || inv.a_scale)
-      throw std::invalid_argument("cluster combine does not support DM or gathered operands");
+      if(inv.dm_enabled || inv.access.a!=DmAAccess::kDense || inv.access.b!=DmBAccess::kDense || inv.a_scale)
+        throw std::invalid_argument("cluster combine does not support DM or gathered operands");
 #endif
-    plan_request.cluster_chunks[s]=inv.chunks;++cooperative;
-  }
-  if(!cooperative)throw std::invalid_argument("cluster combine has no cooperative GEMM");
+      plan_request.cluster_chunks[s]=inv.chunks;++cooperative;
+    }
+    if(!cooperative)throw std::invalid_argument("cluster combine has no cooperative GEMM");
 #endif
 #if TILEMEGA_CLUSTER_ATTENTION_MERGE
-  if(plan_mode!=dialect::PlacementMode::kTemplate || plan_params.size()!=1 ||
-      plan_params[0]!=std::int64_t(dialect::PlacementTemplate::kClusterSplit))
-    throw std::invalid_argument("cluster KV merge requires the emitted cluster_split placement");
-  plan_request.cluster_dim=TILEMEGA_SERVING_CLUSTER_DIM;
-  for(unsigned stage=0;stage<model.stage_order.size();++stage)
-    if(model.stage_order[stage]!=stage)
-      throw std::invalid_argument("cluster KV merge requires forward stage-major queues");
-  plan_request.cluster_chunks.assign(model.stages.size(),0);
-  unsigned cluster_attention=0;
-  for(unsigned stage=0;stage<model.stages.size();++stage) {
-    auto const& attention=model.stages[stage];
-    if(attention.kind!=TaskKind::kFusedAttention)continue;
-    auto reducer=attention.handoff_reduce_stage;
-    if(reducer==kNoOperand || reducer>=model.stages.size() ||
-        model.stages[reducer].kind!=TaskKind::kAttentionMerge ||
-        !model.stages[reducer].handoff_elided)
-      throw std::invalid_argument("cluster KV merge requires its attention reducer to be elided");
-    plan_request.cluster_chunks[stage]=TILEMEGA_SERVING_CLUSTER_DIM;++cluster_attention;
-  }
-  if(!cluster_attention)throw std::invalid_argument("cluster KV merge has no cooperative attention stage");
+    if(plan_mode!=dialect::PlacementMode::kTemplate || plan_params.size()!=1 ||
+        plan_params[0]!=std::int64_t(dialect::PlacementTemplate::kClusterSplit))
+      throw std::invalid_argument("cluster KV merge requires the emitted cluster_split placement");
+    plan_request.cluster_dim=TILEMEGA_SERVING_CLUSTER_DIM;
+    for(unsigned stage=0;stage<model.stage_order.size();++stage)
+      if(model.stage_order[stage]!=stage)
+        throw std::invalid_argument("cluster KV merge requires forward stage-major queues");
+    plan_request.cluster_chunks.assign(model.stages.size(),0);
+    unsigned cluster_attention=0;
+    for(unsigned stage=0;stage<model.stages.size();++stage) {
+      auto const& attention=model.stages[stage];
+      if(attention.kind!=TaskKind::kFusedAttention)continue;
+      auto reducer=attention.handoff_reduce_stage;
+      if(reducer==kNoOperand || reducer>=model.stages.size() ||
+          model.stages[reducer].kind!=TaskKind::kAttentionMerge ||
+          !model.stages[reducer].handoff_elided)
+        throw std::invalid_argument("cluster KV merge requires its attention reducer to be elided");
+      plan_request.cluster_chunks[stage]=TILEMEGA_SERVING_CLUSTER_DIM;++cluster_attention;
+    }
+    if(!cluster_attention)throw std::invalid_argument("cluster KV merge has no cooperative attention stage");
 #endif
-  if (plan_mode==dialect::PlacementMode::kEft) {
-    auto const& plan_table=bound_plan;
-    int const plan_nodes=runtime_graph.stage_offsets.empty()
-                             ? 0 : runtime_graph.stage_offsets.back();
-    // The table is (pi, sigma) for one bound theta on one grid, and there is no
-    // cost model here to recompute it with, so a mismatch is a wrong schedule
-    // and not a reason to fall back to a closed form (H5).
-    bool const past_valid=plan_table.eft_past_hi>=plan_table.eft_past_lo &&
-        dims.past>=int(plan_table.eft_past_lo) &&
-        dims.past<=int(plan_table.eft_past_hi);
-    if (plan_table.eft_worker==nullptr || plan_table.eft_slot==nullptr ||
-        plan_table.eft_nodes!=static_cast<std::uint32_t>(plan_nodes) ||
-        plan_table.eft_seq!=static_cast<std::uint32_t>(dims.seq) ||
+    if (plan_mode==dialect::PlacementMode::kEft) {
+      auto const& plan_table=bound_plan;
+      int const plan_nodes=runtime_graph.stage_offsets.empty()
+                               ? 0 : runtime_graph.stage_offsets.back();
+      // The table is (pi, sigma) for one bound theta on one grid, and there is no
+      // cost model here to recompute it with, so a mismatch is a wrong schedule
+      // and not a reason to fall back to a closed form (H5).
+      bool const past_valid=plan_table.eft_past_hi>=plan_table.eft_past_lo &&
+          dims.past>=int(plan_table.eft_past_lo) &&
+          dims.past<=int(plan_table.eft_past_hi);
+      if (plan_table.eft_worker==nullptr || plan_table.eft_slot==nullptr ||
+          plan_table.eft_nodes!=static_cast<std::uint32_t>(plan_nodes) ||
+          plan_table.eft_seq!=static_cast<std::uint32_t>(dims.seq) ||
 #if defined(TILEMEGA_SERVING_SEQ)
-        !past_valid ||
+          !past_valid ||
 #else
-        plan_table.eft_past!=static_cast<std::uint32_t>(dims.past) ||
+          plan_table.eft_past!=static_cast<std::uint32_t>(dims.past) ||
 #endif
-        plan_table.eft_grid!=static_cast<std::uint32_t>(grid)) {
-      std::fprintf(stderr,"the eft plan table is pinned to nodes=%u seq=%u past=%u "
-                   "grid=%u, not nodes=%d seq=%d past=%d grid=%d\n",
-                   plan_table.eft_nodes,plan_table.eft_seq,plan_table.eft_past,
-                   plan_table.eft_grid,plan_nodes,dims.seq,dims.past,grid);
+          plan_table.eft_grid!=static_cast<std::uint32_t>(grid)) {
+        std::fprintf(stderr,"the eft plan table is pinned to nodes=%u seq=%u past=%u "
+                     "grid=%u, not nodes=%d seq=%d past=%d grid=%d\n",
+                     plan_table.eft_nodes,plan_table.eft_seq,plan_table.eft_past,
+                     plan_table.eft_grid,plan_nodes,dims.seq,dims.past,grid);
+        std::exit(2);
+      }
+      plan_request.eft_worker.assign(plan_table.eft_worker,
+                                     plan_table.eft_worker+plan_nodes);
+      plan_request.eft_slot.assign(plan_table.eft_slot,
+                                   plan_table.eft_slot+plan_nodes);
+    }
+    std::string plan_error;
+    if (!solver::MaterializePlanPlacement(plan_request,&plan,&plan_error)) {
+      std::fprintf(stderr,"placement plan rejected: %s\n",plan_error.c_str());
       std::exit(2);
     }
-    plan_request.eft_worker.assign(plan_table.eft_worker,
-                                   plan_table.eft_worker+plan_nodes);
-    plan_request.eft_slot.assign(plan_table.eft_slot,
-                                 plan_table.eft_slot+plan_nodes);
-  }
-  solver::MaterializedPlan plan;
-  std::string plan_error;
-  if (!solver::MaterializePlanPlacement(plan_request,&plan,&plan_error)) {
-    std::fprintf(stderr,"placement plan rejected: %s\n",plan_error.c_str());
-    std::exit(2);
-  }
-  auto const& task_owner=plan.owner;
-  if (plan.has_balanced_stats)
-    std::printf("E2E_BALANCED max_queue=%d baseline_max_queue=%d same_worker_edges=%ld "
-                "fence_free_producers=%ld resident_only=1\n",plan.balanced.max_queue,
-                plan.balanced.baseline_max_queue,plan.balanced.same_worker_edges,
-                plan.balanced.fence_free_producers);
-  if (!plan.rotate_base.empty() &&
-      std::getenv("TILEMEGA_PLACEMENT_BASE_DUMP") != nullptr)
-    for (std::uint32_t i = 0; i < model.stage_order.size(); ++i)
-      std::printf("E2E_PLACE_BASE pos=%u stage=%u active=%d base=%d\n", i,
-                  model.stage_order[i], active_tasks(model.stage_order[i]),
-                  plan.rotate_base[model.stage_order[i]]);
-  // L-a and L-c on the materialized plan.  L-b was checked before the grid was
-  // fixed (`ResidentScheduleLegal`), L-e below with the event tables, and L-d
-  // collapses to the current hoisting rules only because W = 1 (§5.7.3).
-  if (!solver::CheckPlanLegality(runtime_graph,plan,&plan_error)) {
-    std::fprintf(stderr,"placement plan is illegal: %s\n",plan_error.c_str());
-    std::exit(2);
-  }
-  {
-    std::vector<int> owner_of(runtime_graph.successors.size());
-    for(std::size_t stage=0;stage<task_owner.size();++stage)
-      std::copy(task_owner[stage].begin(),task_owner[stage].end(),
-          owner_of.begin()+runtime_graph.stage_offsets[stage]);
-    long same_worker_edges=0,cross_worker_edges=0;
-    for(std::size_t producer=0;producer<runtime_graph.successors.size();++producer) {
-      if((producer&0xfff)==0)
-        ServingPlanProgress("serving_plan_placement_edges",producer,runtime_graph.successors.size());
-      for(int consumer:runtime_graph.successors[producer])
-        (owner_of[producer]==owner_of[consumer]?same_worker_edges:cross_worker_edges)++;
+    if (plan.has_balanced_stats)
+      std::printf("E2E_BALANCED max_queue=%d baseline_max_queue=%d same_worker_edges=%ld "
+                  "fence_free_producers=%ld resident_only=1\n",plan.balanced.max_queue,
+                  plan.balanced.baseline_max_queue,plan.balanced.same_worker_edges,
+                  plan.balanced.fence_free_producers);
+    if (!plan.rotate_base.empty() &&
+        std::getenv("TILEMEGA_PLACEMENT_BASE_DUMP") != nullptr)
+      for (std::uint32_t i = 0; i < model.stage_order.size(); ++i)
+        std::printf("E2E_PLACE_BASE pos=%u stage=%u active=%d base=%d\n", i,
+                    model.stage_order[i], active_tasks(model.stage_order[i]),
+                    plan.rotate_base[model.stage_order[i]]);
+    // L-a and L-c on the materialized plan.  L-b was checked before the grid was
+    // fixed (`ResidentScheduleLegal`), L-e below with the event tables, and L-d
+    // collapses to the current hoisting rules only because W = 1 (§5.7.3).
+    if (!solver::CheckPlanLegality(runtime_graph,plan,&plan_error)) {
+      std::fprintf(stderr,"placement plan is illegal: %s\n",plan_error.c_str());
+      std::exit(2);
     }
-    std::vector<int> queue_length(grid,0);
-    for (auto const& stage:task_owner)
-      for (int owner:stage) ++queue_length[owner];
-    int max_queue=0;
-    for (int length:queue_length) max_queue=std::max(max_queue,length);
-    std::printf("E2E_PLACE_STATS placement=%d max_queue=%d same_worker_edges=%ld "
-                "cross_worker_edges=%ld base_rotation=%d plan=%s\n",
-                TILEMEGA_PLACEMENT,max_queue,same_worker_edges,cross_worker_edges,
-                plan_mode==dialect::PlacementMode::kRotate?1:0,
-                dialect::PlacementModeName(plan_mode));
+    {
+      std::vector<int> owner_of(runtime_graph.successors.size());
+      for(std::size_t stage=0;stage<task_owner.size();++stage)
+        std::copy(task_owner[stage].begin(),task_owner[stage].end(),
+            owner_of.begin()+runtime_graph.stage_offsets[stage]);
+      long same_worker_edges=0,cross_worker_edges=0;
+      for(std::size_t producer=0;producer<runtime_graph.successors.size();++producer) {
+        if((producer&0xfff)==0)
+          ServingPlanProgress("serving_plan_placement_edges",producer,runtime_graph.successors.size());
+        for(int consumer:runtime_graph.successors[producer])
+          (owner_of[producer]==owner_of[consumer]?same_worker_edges:cross_worker_edges)++;
+      }
+      std::vector<int> queue_length(grid,0);
+      for (auto const& stage:task_owner)
+        for (int owner:stage) ++queue_length[owner];
+      int max_queue=0;
+      for (int length:queue_length) max_queue=std::max(max_queue,length);
+      std::printf("E2E_PLACE_STATS placement=%d max_queue=%d same_worker_edges=%ld "
+                  "cross_worker_edges=%ld base_rotation=%d plan=%s\n",
+                  TILEMEGA_PLACEMENT,max_queue,same_worker_edges,cross_worker_edges,
+                  plan_mode==dialect::PlacementMode::kRotate?1:0,
+                  dialect::PlacementModeName(plan_mode));
+    }
+  }else {
+    ServingPlanProgress("serving_plan_l1_metadata",model.stages.size(),model.stages.size());
   }
   std::vector<int> stage_max_producer_worker(model.stages.size(), -1);
-  for (std::uint32_t stage = 0; stage < model.stages.size(); ++stage) {
+  for (std::uint32_t stage = 0; stage < task_owner.size(); ++stage) {
     for (int owner : task_owner[stage])
       stage_max_producer_worker[stage] = std::max(
           stage_max_producer_worker[stage], owner);
@@ -4332,9 +4347,9 @@ inline DeviceModel Create(ModelSpec const& spec,
   // one array indexed by the published event rows, rather than retaining a
   // map of all events seen by every worker.
   std::vector<int> last_observer;
-  if (!TILEMEGA_MOE_DYNAMIC) last_observer.resize(model.event_offsets.back());
+  if (prepare_l2 && !TILEMEGA_MOE_DYNAMIC) last_observer.resize(model.event_offsets.back());
   std::vector<std::pair<std::uint32_t, std::uint32_t>> desired;
-  for (int worker = 0; worker < grid; ++worker) {
+  for (int worker = 0; prepare_l2 && worker < grid; ++worker) {
     std::fill(last_observer.begin(), last_observer.end(), -1);
     // sigma, not stage-major: the queue is whatever order the Plan asked for,
     // and `plan.queue[worker]` is already sorted by it (§5.7.2).
