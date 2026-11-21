@@ -14,6 +14,15 @@ using namespace tilemega; using namespace tilemega::solver;
 // a per-group count on two boundaries, so the step must come down; and every
 // stage must be reachable, which a zero or non-finite score would deny.
 int main(int argc,char**argv){
+  Sm90NativeFlowResult fused;
+  fused.fused_expert_pairs={1};fused.fused_expert_stream_ns=22;
+  FlowResult bounds;bounds.makespan_ns=70;
+  bounds.spaces={{0,20},{20,44},{35,50},{50,70}};
+  assert(Sm90NativeScoreWithFusedService(fused,bounds)==62);
+  bounds.spaces[0].last_end=21;
+  assert(Sm90NativeScoreWithFusedService(fused,bounds)==70);
+  bounds.spaces[0].last_end=20;bounds.spaces[3].first_start=49;
+  assert(Sm90NativeScoreWithFusedService(fused,bounds)==70);
   analysis::IslContext isl;
   auto target=TargetSpec::FromJson(argv[1]);
   auto constants=Sm90NativeConstants::FromTarget(json::ParseFile(argv[1]),argv[2]);

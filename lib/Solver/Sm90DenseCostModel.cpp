@@ -148,6 +148,21 @@ std::optional<Sm80DenseService> Sm90DenseCostModel::GemmService(
   return Sm80DenseService{producer/tiles,fused->dn_mma,fused->dn_epilogue};
 }
 
+std::optional<Sm80FusedPipelinePrice> Sm90DenseCostModel::FusedPipeline(
+    Sm90DenseWorkload const& work,Sm90DenseCoordinates const& c) const {
+  auto service=FusedService(work,c);
+  if(!service)return std::nullopt;
+  int active=int(std::lround(Sm90NativeExpectedActiveExperts(work.experts,work.top_k,work.batch)));
+  double local=FusedLocalRing(work,c,*service,Grid(c.residency),active);
+  json::Value gu,dn;
+  Gemm(work,6,c.gemms[6],c.residency,&gu,false,&c);
+  Gemm(work,7,c.gemms[7],c.residency,&dn,false,&c);
+  auto sum=[&](char const* key){return gu.At(key).AsNumber(key)+dn.At(key).AsNumber(key);};
+  // The local replay supplies no memory-arrival times. The two tasks share
+  // one bandwidth budget and its service bounds that same pipeline.
+  return Sm80FusedPipelinePrice{active,local,std::max({local,sum("dram"),sum("l2"),sum("waves")})};
+}
+
 // MR6: a CTA with n = ceil(t / G) tasks streams its first n - 1 at the shared
 // rate BW_dram / G; in the last wave only r = t - (n - 1) G CTAs are active,
 // each at min(BW_cta_dram, BW_dram / r).
@@ -389,19 +404,11 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& work,
         gu->ns+dn->ns-constants_.Barrier(grid)-constants_.dram_latency,
         json::Object{{"gate_up",gu->terms},{"down",dn->terms},{"barrier_removed",constants_.Barrier(grid)},
                      {"first_byte_overlapped",constants_.dram_latency}}};
-    if(auto service=FusedService(work,c)) {
-      int active=int(std::lround(Sm90NativeExpectedActiveExperts(work.experts,work.top_k,work.batch)));
-      double local=FusedLocalRing(work,c,*service,grid,active);
-      auto sum=[&](char const* key) {
-        return gu->terms.At(key).AsNumber(key)+dn->terms.At(key).AsNumber(key);
-      };
-      // The weights share the same HBM service. The local replay has no
-      // memory-arrival times, so its makespan bounds the same pipeline.
-      double stream=std::max({local,sum("dram"),sum("l2"),sum("waves")});
-      fused.ns=constants_.Barrier(grid)+constants_.dram_latency+stream;
-      fused.terms.Set("local_shared_ring_ns",local);
-      fused.terms.Set("active_experts",active);
-      fused.terms.Set("stream_bound_ns",stream);
+    if(auto pipeline=FusedPipeline(work,c)) {
+      fused.ns=constants_.Barrier(grid)+constants_.dram_latency+pipeline->stream_ns;
+      fused.terms.Set("local_shared_ring_ns",pipeline->local_ns);
+      fused.terms.Set("active_experts",pipeline->active_experts);
+      fused.terms.Set("stream_bound_ns",pipeline->stream_ns);
     }
     p.stages.erase(dn);p.stages.erase(at("expert_gate_up"));
     p.stages.push_back(std::move(fused));

@@ -16,6 +16,10 @@ struct Sm90DenseHistoryWork {
 struct Sm80AttentionScenario {
   int past=0,count=0;
 };
+struct Sm80FusedPipelinePrice {
+  int active_experts;
+  double local_ns,stream_ns;
+};
 
 struct Sm90DensePrediction {
   struct Stage {
@@ -53,6 +57,8 @@ class Sm90DenseCostModel {
   std::optional<Sm80DenseService> DenseService(Sm90DenseWorkload const&,unsigned family,
       Sm90DenseGemm const&,int residency,Sm90DenseCoordinates const* coordinates=nullptr) const;
   std::optional<Sm80FusedExpertService> FusedService(
+      Sm90DenseWorkload const&,Sm90DenseCoordinates const&) const;
+  std::optional<Sm80FusedPipelinePrice> FusedPipeline(
       Sm90DenseWorkload const&,Sm90DenseCoordinates const&) const;
   int Grid(int residency) const {return target_.res.num_sms*residency;}
   Sm90NativeConstants const& Constants() const {return constants_;}

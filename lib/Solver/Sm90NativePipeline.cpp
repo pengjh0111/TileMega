@@ -25,7 +25,7 @@ double Replay(Sm90NativeFlowResult const& flow, Sm90DenseCoordinates const& c) {
       offsets[s]=flow.problem.spaces[s-1].count;
   auto tracks=Sm90NativeCandidateTracks(flow.problem,offsets);
   return Sm90NativeRequestScore(flow,[&](FlowProblem const& problem,int) {
-    return RefineAndReplaySm90Native(problem,tracks).replay.makespan_ns;
+    return Sm90NativeScoreWithFusedService(flow,RefineAndReplaySm90Native(problem,tracks).replay);
   });
 }
 }  // namespace

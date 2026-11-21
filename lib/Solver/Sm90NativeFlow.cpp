@@ -6,6 +6,7 @@
 #include <cmath>
 #include <chrono>
 #include <memory>
+#include <limits>
 #include <string>
 #include <utility>
 #include <vector>
@@ -66,7 +67,7 @@ void EvaluateRequest(Sm90NativeFlowResult& result) {
   int reference=2000;
   result.pool_score_ns=Sm90NativeRequestScore(result,[&](FlowProblem const& p,int past) {
     auto value=EvaluateFlow(p);
-    double score=value.makespan_ns;
+    double score=Sm90NativeScoreWithFusedService(result,value);
     if(std::abs(past-575)<reference) {
       reference=std::abs(past-575);
       result.evaluated=std::move(value);
@@ -75,6 +76,28 @@ void EvaluateRequest(Sm90NativeFlowResult& result) {
   });
 }
 }  // namespace
+
+double Sm90NativeScoreWithFusedService(Sm90NativeFlowResult const& model,FlowResult const& evaluation) {
+  double score=evaluation.makespan_ns;
+  if(model.fused_expert_pairs.empty())return score;
+  auto const& timings=evaluation.spaces;
+  std::vector<double> prefix(timings.size()+1),suffix(timings.size()+1,std::numeric_limits<double>::infinity());
+  for(std::size_t i=0;i<timings.size();++i)
+    prefix[i+1]=std::max(prefix[i],timings[i].last_end);
+  for(std::size_t i=timings.size();i>0;--i)
+    if(timings[i-1].first_start>=0)suffix[i-1]=std::min(suffix[i],timings[i-1].first_start);
+    else suffix[i-1]=suffix[i];
+  for(auto i:model.fused_expert_pairs) {
+    double begin=timings[i].first_start;
+    double end=std::max(timings[i].last_end,timings[i+1].last_end);
+    // Only replace a whole interval when the CTG event times prove that no
+    // outside task shares it. This preserves release and combine tails.
+    if(begin>=0 && timings[i+1].first_start>=begin && end>=begin &&
+        prefix[i]<=begin && suffix[i+2]>=end)
+      score+=model.fused_expert_stream_ns-(end-begin);
+  }
+  return score;
+}
 
 double Sm90NativeRequestScore(Sm90NativeFlowResult const& result,
     std::function<double(FlowProblem const&,int)> const& evaluate) {
@@ -398,6 +421,12 @@ Sm90NativeFlowResult Sm90NativeCtgScore(frontend::ImportedSemantics const& impor
     problem.edges.push_back(std::move(edge));
   }
   auto released=Clock::now();
+  if(!isolated)if(auto pipeline=cost.FusedPipeline(work,c)) {
+    result.fused_expert_stream_ns=constants.dram_latency+pipeline->stream_ns;
+    for(std::size_t i=0;i+1<result.nodes.size();++i)
+      if(result.nodes[i].price.name=="gemm6" && result.nodes[i+1].price.name=="gemm7")
+        result.fused_expert_pairs.push_back(i);
+  }
   PrepareAttentionCases(result,work,c,cost,stream,exhaustive_history);
   if(isolated) {
     std::optional<double> attention_score;

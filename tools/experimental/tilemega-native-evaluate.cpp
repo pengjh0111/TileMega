@@ -55,7 +55,7 @@ int main(int argc,char** argv) {try {
     auto tracks=Sm90NativeCandidateTracks(flow.problem,offsets);
     json::Array history_replay;
     double replay=Sm90NativeRequestScore(flow,[&](FlowProblem const& problem,int past) {
-      double ns=RefineAndReplaySm90Native(problem,tracks).replay.makespan_ns;
+      double ns=Sm90NativeScoreWithFusedService(flow,RefineAndReplaySm90Native(problem,tracks).replay);
       if(exact)history_replay.emplace_back(json::Array{past,ns});
       return ns;
     });
@@ -79,6 +79,8 @@ int main(int argc,char** argv) {try {
         {"replay_ms",milliseconds(flow_end,done)},{"pool_ns",flow.step_ns},
         {"replay_ns",replay},{"additive_ns",additive.step_ns},
         {"attention_samples",double(flow.attention_cases.size())},
+        {"fused_expert_pairs",double(flow.fused_expert_pairs.size())},
+        {"fused_expert_stream_ns",flow.fused_expert_stream_ns},
         {"additive_stages",additive.ToJson()},{"spaces",spaces},{"approximation",flow.approximation},
         {"constants_from_older_body",stale},{"space_hits",double(state.cache.space_hits)},
         {"space_misses",double(state.cache.space_misses)},

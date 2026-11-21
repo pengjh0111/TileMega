@@ -38,6 +38,8 @@ struct Sm90NativeFlowResult {
   double step_ns = 0;
   FlowProblem problem;
   std::vector<Sm80AttentionCase> attention_cases;
+  std::vector<std::size_t> fused_expert_pairs;
+  double fused_expert_stream_ns=0;
   json::Value approximation;
   FlowResult evaluated;
   std::vector<Sm90NativeStageNode> nodes;
@@ -52,6 +54,7 @@ struct Sm90NativeFlowResult {
 std::string Sm90NativeFlowIdentity(FlowProblem const&);
 double Sm90NativeRequestScore(Sm90NativeFlowResult const&,
     std::function<double(FlowProblem const&,int)> const&);
+double Sm90NativeScoreWithFusedService(Sm90NativeFlowResult const&,FlowResult const&);
 
 // The stages of one decode step at these coordinates, with each boundary's
 // sync kind decided by the coordinate (group_wait, expert_fuse, embed_la, tp).
