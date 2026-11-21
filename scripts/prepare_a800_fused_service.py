@@ -17,6 +17,8 @@ def main():
     p.add_argument('--variant', choices=('full', 'live', 'segments'), required=True)
     p.add_argument('--copy-group', type=int, choices=(0, 4, 8))
     p.add_argument('--ring', type=int, choices=range(2, 9), help='override the shared Gu/Dn ring depth')
+    p.add_argument('--gate-width', type=int, help='try a different Gu N tile at the same K tile')
+    p.add_argument('--gate-warps-n', type=int, choices=(1, 2, 4))
     p.add_argument('--reserve-program-shared', action='store_true')
     p.add_argument('--shared-marks', action='store_true',
                    help='buffer diagnostic writes in unused program arena space')
@@ -29,6 +31,8 @@ def main():
         p.error('shared marks require the reserved production program arena')
     if a.split_phases and not a.shared_marks:
         p.error('split phases require shared marks')
+    if (a.gate_width is None) != (a.gate_warps_n is None):
+        p.error('specify both the Gu N tile and its N warp count')
     anchor = json.loads(a.anchor.read_text())
     library = Path(anchor['decode'])
     if sha(library) != anchor['decode_sha256'] or anchor['coordinates']['residency'] != 1:
@@ -48,6 +52,11 @@ def main():
     floats, page = values[16:18]
     r, softmax_all = values[-6], values[-4]
     case = f'{anchor["model"]}-b{batch}-{a.variant}'
+    if a.gate_width is not None:
+        tng, wng = a.gate_width, a.gate_warps_n
+        if tng <= 0 or ng % tng or tng % (8*wng) or tng % (2*u):
+            p.error('Gu tile must divide the expert width and preserve the warp and gate layouts')
+        case += f'-gu{tng}wn{wng}'
     if a.ring is not None:
         slots = a.ring
         case += f'-slots{slots}'
