@@ -981,10 +981,10 @@ struct Sm90DenseMoeFusedGemm {
       int token=record.route/TopK;
       for(int tile=0;tile<kIterGu;++tile) {
         int slot=(sequence++)%Slots;
-        auto stamp=Profile::Tile(tile);
+        auto stamp=Profile::template Begin<Sm90DenseMarks::kGuEmpty>(tile);
         Async::Wait(state.empty+slot,(phase>>slot)&1);
-        Profile::Add(Sm90DenseMarks::kGuEmpty,stamp);
-        stamp=Profile::Tile(tile);
+        Profile::template End<Sm90DenseMarks::kGuEmpty>(stamp);
+        stamp=Profile::template Begin<Sm90DenseMarks::kGuIssue>(tile);
         if constexpr(CpAsync) {
 #if defined(TILEMEGA_SM80_MOE_ALIGNED_GATE_PAGES)
           if constexpr(kAlignedPages && decltype(page_phase)::value<0) {
@@ -1024,7 +1024,7 @@ struct Sm90DenseMoeFusedGemm {
             Gu::template CopyWeights<decltype(page_phase)::value>(b+slot*kWeightSlot,tile_base,task.slot*kTilesGu+task.tile,tile,state.full+slot);
           }
         }
-        Profile::Add(Sm90DenseMarks::kGuIssue,stamp);
+        Profile::template End<Sm90DenseMarks::kGuIssue>(stamp);
         phase^=1u<<slot;
       }
     });
@@ -1042,15 +1042,15 @@ struct Sm90DenseMoeFusedGemm {
       int first=sequence;
       for(int tile=0;tile<kAhead;++tile) {
         int slot=(sequence++)%Slots;
-        auto stamp=Profile::Now();
+        auto stamp=Profile::template Begin<Sm90DenseMarks::kDnPreissueEmpty>();
         Async::Wait(state.empty+slot,(phase>>slot)&1);
-        Profile::Add(Sm90DenseMarks::kDnPreissueEmpty,stamp);
-        stamp=Profile::Now();
+        Profile::template End<Sm90DenseMarks::kDnPreissueEmpty>(stamp);
+        stamp=Profile::template Begin<Sm90DenseMarks::kDnPreissueIssue>();
         if(CpAsync || lane==0) {
           if constexpr(!CpAsync)Async::ExpectTx(state.full+slot,kSlotBytesDn);
           Dn::template CopyWeights<decltype(page_phase)::value>(b+slot*kWeightSlot,tile_base,task.slot*kTilesDn+task.tile,tile,state.full+slot);
         }
-        Profile::Add(Sm90DenseMarks::kDnPreissueIssue,stamp);
+        Profile::template End<Sm90DenseMarks::kDnPreissueIssue>(stamp);
         phase^=1u<<slot;
       }
       // The whole warp waits. A lane-0-only spin let lanes 1-31 run ahead, and the
@@ -1058,12 +1058,12 @@ struct Sm90DenseMoeFusedGemm {
       // counted per warp execution) split into groups that completed the CTA
       // barrier without the consumers: the MR7 hang, about one stall in 25k
       // fused stages, verified by per-thread barrier markers.
-      auto gate_wait=Profile::Now();
+      auto gate_wait=Profile::template Begin<Sm90DenseMarks::kDnGateWait>();
       WaitGateUp(p.gate_up_done,task.slot);
-      Profile::Add(Sm90DenseMarks::kDnGateWait,gate_wait);
+      Profile::template End<Sm90DenseMarks::kDnGateWait>(gate_wait);
       // Producer side: thread 128 owns the mark (appendix D).
       if(threadIdx.x==128)Sm90DenseMarkFirst(3);
-      auto activation=Profile::Now();
+      auto activation=Profile::template Begin<Sm90DenseMarks::kDnActivation>();
       if constexpr(CpAsync) {
         auto* source=static_cast<Element const*>(p.hidden)+std::size_t(task.slot)*16*kIntermediate;
         for(int tile=0;tile<kAhead;++tile) {
@@ -1078,13 +1078,13 @@ struct Sm90DenseMoeFusedGemm {
               task.slot,state.full+(first+tile)%Slots);
       }
       __syncwarp();
-      Profile::Add(Sm90DenseMarks::kDnActivation,activation);
+      Profile::template End<Sm90DenseMarks::kDnActivation>(activation);
       for(int tile=kAhead;tile<kIterDn;++tile) {
         int slot=(sequence++)%Slots;
-        auto stamp=Profile::Tile(tile);
+        auto stamp=Profile::template Begin<Sm90DenseMarks::kDnEmpty>(tile);
         Async::Wait(state.empty+slot,(phase>>slot)&1);
-        Profile::Add(Sm90DenseMarks::kDnEmpty,stamp);
-        stamp=Profile::Tile(tile);
+        Profile::template End<Sm90DenseMarks::kDnEmpty>(stamp);
+        stamp=Profile::template Begin<Sm90DenseMarks::kDnIssue>(tile);
         if constexpr(CpAsync) {
           auto* source=static_cast<Element const*>(p.hidden)+std::size_t(task.slot)*16*kIntermediate;
           Dn::template CopyWeights<decltype(page_phase)::value>(b+slot*kWeightSlot,tile_base,task.slot*kTilesDn+task.tile,tile,state.full+slot);
@@ -1096,7 +1096,7 @@ struct Sm90DenseMoeFusedGemm {
           Async::Tensor4D(a+slot*kRows*kMaxTK,p.activation,0,0,tile*(TKDn/64),task.slot,
               state.full+slot);
         }
-        Profile::Add(Sm90DenseMarks::kDnIssue,stamp);
+        Profile::template End<Sm90DenseMarks::kDnIssue>(stamp);
         phase^=1u<<slot;
       }
     });
@@ -1144,11 +1144,11 @@ struct Sm90DenseMoeFusedGemm {
     float squares[2]={0,0};
     for(int iteration=0;iteration<Iterations;++iteration) {
       int slot=(sequence++)%Slots;
-      auto stamp=Profile::Tile(iteration);
+      auto stamp=Profile::template Begin<Down?Sm90DenseMarks::kDnFull:Sm90DenseMarks::kGuFull>(iteration);
       Async::Wait(state.full+slot,(phase>>slot)&1);phase^=1u<<slot;
-      Profile::Add(Down?Sm90DenseMarks::kDnFull:Sm90DenseMarks::kGuFull,stamp);
+      Profile::template End<Down?Sm90DenseMarks::kDnFull:Sm90DenseMarks::kGuFull>(stamp);
       if(tid==0)Sm90DenseMarkFirst(1);
-      stamp=Profile::Tile(iteration);
+      stamp=Profile::template Begin<Down?Sm90DenseMarks::kDnMma:Sm90DenseMarks::kGuMma>(iteration);
       auto* sa=a+slot*kRows*kMaxTK;auto* sb=b+slot*kWeightSlot;
       if constexpr(WK==1)Body::Core::template MmaSlice<0>(sa,sb,accum,squares);
       else if constexpr(WK==2) {
@@ -1162,9 +1162,9 @@ struct Sm90DenseMoeFusedGemm {
       }
       Async::FenceProxyAsyncShared();
       Async::Arrive(state.empty+slot);
-      Profile::Add(Down?Sm90DenseMarks::kDnMma:Sm90DenseMarks::kGuMma,stamp);
+      Profile::template End<Down?Sm90DenseMarks::kDnMma:Sm90DenseMarks::kGuMma>(stamp);
     }
-    auto epilogue=Profile::Now();
+    auto epilogue=Profile::template Begin<Down?Sm90DenseMarks::kDnEpilogue:Sm90DenseMarks::kGuEpilogue>();
     if constexpr(Body::kInputNorm)
       #pragma unroll
       for(int r=0;r<2;++r) {
@@ -1180,7 +1180,7 @@ struct Sm90DenseMoeFusedGemm {
     codegen::executor::ComputeSync();
     Body::Epilogue(q,scratch,norms,t,flag,&routing);
     codegen::executor::ComputeSync();
-    Profile::Add(Down?Sm90DenseMarks::kDnEpilogue:Sm90DenseMarks::kGuEpilogue,epilogue);
+    Profile::template End<Down?Sm90DenseMarks::kDnEpilogue:Sm90DenseMarks::kGuEpilogue>(epilogue);
   }
   __device__ static __noinline__ void ConsumeGateUp(Sm90DenseMoeFusedOperands const& p,
       Sm90DenseRingState& state,Element* a,Element* b,float* scratch,Task task,unsigned& phase,

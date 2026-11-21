@@ -58,6 +58,12 @@ template<bool CpAsync,bool Producer,int SampleRole=kMoeNoSample>
 struct Sm80MoeStageMarks {
   static constexpr bool ServiceSample=SampleRole==(Producer?kMoeProducerSample:kMoeConsumerSample);
   static constexpr bool kEnabled=CpAsync && (ServiceSample || TILEMEGA_TRACE_STAGE==2);
+  template<Sm90DenseMarks::MoeCounter Phase>
+  static constexpr bool kMeasure=kEnabled && (!ServiceSample ||
+      Phase==Sm90DenseMarks::kGuIssue || Phase==Sm90DenseMarks::kDnIssue ||
+      Phase==Sm90DenseMarks::kDnPreissueIssue || Phase==Sm90DenseMarks::kDnActivation ||
+      Phase==Sm90DenseMarks::kGuMma || Phase==Sm90DenseMarks::kDnMma ||
+      Phase==Sm90DenseMarks::kGuEpilogue || Phase==Sm90DenseMarks::kDnEpilogue);
   __device__ static __forceinline__ unsigned long long Now() {
     if constexpr(kEnabled)
       if(threadIdx.x==(Producer?128:0)) {
@@ -74,7 +80,7 @@ struct Sm80MoeStageMarks {
   }
   __device__ static __forceinline__ void RecordTask(bool down,int rows) {
     static_assert(Producer);
-    if constexpr(kEnabled)
+    if constexpr(kEnabled && !ServiceSample)
       if(threadIdx.x==128)
         if(auto* marks=Sm90DenseMarks::Base()) {
           ++marks[down?Sm90DenseMarks::kDnTasks:Sm90DenseMarks::kGuTasks];
@@ -90,6 +96,15 @@ struct Sm80MoeStageMarks {
             if(begin)marks[phase]+=Sm90DenseMarks::Now()-begin;
           }else marks[phase]+=clock64()-begin;
         }
+  }
+  template<Sm90DenseMarks::MoeCounter Phase>
+  __device__ static __forceinline__ unsigned long long Begin(int tile=-1) {
+    if constexpr(kMeasure<Phase>)return tile<0?Now():Tile(tile);
+    return 0;
+  }
+  template<Sm90DenseMarks::MoeCounter Phase>
+  __device__ static __forceinline__ void End(unsigned long long begin) {
+    if constexpr(kMeasure<Phase>)Add(Phase,begin);
   }
 };
 

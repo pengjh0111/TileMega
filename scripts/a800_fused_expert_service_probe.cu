@@ -53,7 +53,7 @@ template<int B,int NGu,int NDn,int H,int TNGu,int TKGu,int TNDn,int TKDn,int Slo
          int Shared>
 struct Case {
   static constexpr int kB=B,kNGu=NGu,kNDn=NDn,kH=H,kE=Experts,kTop=8;
-  static constexpr int kTKGu=TKGu,kTKDn=TKDn,kTNDn=TNDn,kSlots=Slots;
+  static constexpr int kTNGu=TNGu,kTKGu=TKGu,kTKDn=TKDn,kTNDn=TNDn,kSlots=Slots;
   static constexpr bool kFloatWeights=FloatWeights;
   static constexpr int kShared=Shared;
   template<int Role> using Body=Sm90DenseMoeFusedGemm<B,NGu,NDn,H,TNGu,TKGu,TNDn,TKDn,
@@ -130,8 +130,7 @@ int Profile(cudaDeviceProp const& device) {
   args.counter=combine.data;args.gate_up_done=done.data;args.logits=logits.data;args.epsilon=1e-6f;
   std::vector<double> plain_spans,producer_spans,consumer_spans,
       plain_kernel,producer_kernel,consumer_kernel,producer_off,consumer_off;
-  std::vector<double> gu_issue,dn_issue,gu_mma,dn_mma,gu_epilogue,dn_epilogue,
-      gu_empty,dn_empty,gu_full,dn_full,preissue,activation,gate_wait;
+  std::vector<double> gu_issue,dn_issue,gu_mma,dn_mma,gu_epilogue,dn_epilogue,preissue,activation;
   std::vector<Elt> expected;
   std::vector<int> routes_expected;
   auto reset=[&] {
@@ -156,6 +155,7 @@ int Profile(cudaDeviceProp const& device) {
     return raw;
   };
   constexpr int samples=32;
+  int active=0;
   for(int repeat=-1;repeat<samples;++repeat) {
     // A stride coprime to 108 covers the task waves and K tile residues.
     int block=(std::max(0,repeat)*37)%grid;
@@ -169,6 +169,7 @@ int Profile(cudaDeviceProp const& device) {
     };
     if(repeat>=0)plain_spans.push_back(span(raw));
     expected=x.Read();routes_expected=index.Read();
+    if(repeat<0)active=schedule.Read().front();
     auto check=[&](auto kernel,int cta,std::vector<double>& elapsed) {
       reset();
       auto result=read(kernel,cta,elapsed,repeat);
@@ -186,34 +187,32 @@ int Profile(cudaDeviceProp const& device) {
     consumer_spans.push_back(span(cons));
     auto* row=&prod[block*(Marks::kCount+1)];
     auto* compute=&cons[block*(Marks::kCount+1)];
-    if(double gu=row[Marks::kGuTasks];gu>0) {
+    // Fused Run enumerates Gu followed by Dn in the same grid-strided track.
+    int split=active*(NG/C::kTNGu);
+    int gu=(split+grid-1-block)/grid;
+    int dn=(split+active*(ND/C::kTNDn)+grid-1-block)/grid-gu;
+    if(gu>0) {
       double tiles=gu*sampled_tiles(0,H/C::kTKGu,block%8);
       if(tiles>0) {
         gu_issue.push_back(row[Marks::kGuIssue]/tiles);
         gu_mma.push_back(compute[Marks::kGuMma]/tiles);
-        gu_empty.push_back(row[Marks::kGuEmpty]/tiles);
-        gu_full.push_back(compute[Marks::kGuFull]/tiles);
       }
       gu_epilogue.push_back(compute[Marks::kGuEpilogue]/gu);
     }
-    if(double dn=row[Marks::kDnTasks];dn>0) {
+    if(dn>0) {
       int steps=(NG/2)/C::kTKDn,ahead=std::min(steps,C::kSlots);
       double all=dn*sampled_tiles(0,steps,block%8),steady=dn*sampled_tiles(ahead,steps,block%8);
       if(steady>0) {
         dn_issue.push_back(row[Marks::kDnIssue]/steady);
-        dn_empty.push_back(row[Marks::kDnEmpty]/steady);
       }
       if(all>0) {
         dn_mma.push_back(compute[Marks::kDnMma]/all);
-        dn_full.push_back(compute[Marks::kDnFull]/all);
       }
       dn_epilogue.push_back(compute[Marks::kDnEpilogue]/dn);
       preissue.push_back(row[Marks::kDnPreissueIssue]/dn);
       activation.push_back(row[Marks::kDnActivation]/dn);
-      gate_wait.push_back(row[Marks::kDnGateWait]/dn);
     }
   }
-  int active=schedule.Read().front();
   std::printf("{\"status\":\"measured\",\"grid\":%d,\"batch\":%d,\"active_experts\":%d,"
       "\"dynamic_shared\":%d,\"plain_registers\":%d,\"producer_registers\":%d,\"consumer_registers\":%d,"
       "\"plain_local_bytes\":%zu,\"producer_local_bytes\":%zu,\"consumer_local_bytes\":%zu,"
@@ -223,20 +222,17 @@ int Profile(cudaDeviceProp const& device) {
       "\"plain_kernel_ns\":%.3f,\"producer_kernel_ns\":%.3f,\"consumer_kernel_ns\":%.3f,"
       "\"producer_off_kernel_ns\":%.3f,\"consumer_off_kernel_ns\":%.3f,"
       "\"gu_issue_ns_per_tile\":%.3f,\"gu_mma_ns_per_tile\":%.3f,\"gu_epilogue_ns_per_task\":%.3f,"
-      "\"gu_empty_ns_per_tile\":%.3f,\"gu_full_ns_per_tile\":%.3f,"
       "\"dn_issue_ns_per_tile\":%.3f,\"dn_mma_ns_per_tile\":%.3f,\"dn_epilogue_ns_per_task\":%.3f,"
-      "\"dn_empty_ns_per_tile\":%.3f,\"dn_full_ns_per_tile\":%.3f,"
-      "\"dn_preissue_ns_per_task\":%.3f,\"dn_activation_ns_per_task\":%.3f,\"dn_gate_wait_ns_per_task\":%.3f}\n",
+      "\"dn_preissue_ns_per_task\":%.3f,\"dn_activation_ns_per_task\":%.3f}\n",
       grid,B,active,shared,plain_attr.numRegs,producer_attr.numRegs,consumer_attr.numRegs,
       plain_attr.localSizeBytes,producer_attr.localSizeBytes,consumer_attr.localSizeBytes,
       plain_slots,producer_slots,consumer_slots,samples,
       Median(plain_spans),Median(producer_spans),Median(consumer_spans),
       Median(plain_kernel),Median(producer_kernel),Median(consumer_kernel),
       Median(producer_off),Median(consumer_off),
-      Median(gu_issue),Median(gu_mma),Median(gu_epilogue),Median(gu_empty),Median(gu_full),
+      Median(gu_issue),Median(gu_mma),Median(gu_epilogue),
       dn_issue.empty()?0.0:Median(dn_issue),Median(dn_mma),Median(dn_epilogue),
-      dn_empty.empty()?0.0:Median(dn_empty),Median(dn_full),
-      Median(preissue),Median(activation),Median(gate_wait));
+      Median(preissue),Median(activation));
   return 0;
 }
 
