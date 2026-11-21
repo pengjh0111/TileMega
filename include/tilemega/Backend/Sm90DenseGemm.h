@@ -377,7 +377,7 @@ struct Sm90DenseGemm {
         for(int i=0;i<size(accum);++i) {
           int row=get<0>(owned(i));
 #if defined(TILEMEGA_SM80_ACTIVE_EPILOGUE) && TILEMEGA_SM80_ACTIVE_EPILOGUE
-          if constexpr(CpAsync && Batch<8) {
+          if constexpr(CpAsync && Batch<16) {
             if(row>=Batch)continue;
           }
 #endif

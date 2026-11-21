@@ -181,7 +181,7 @@ struct Sm90DenseCoordinates {
       throw std::invalid_argument("SM80 weight copy issue group must be 4 or 8");
     if(copy_issue_group && weight_stream)
       throw std::invalid_argument("explicit weight copy issue groups require a nonstreamed plan");
-    if(live_epilogue_rows && (tp!=1 || (moe?!expert_fuse:batch>=8)))
+    if(live_epilogue_rows && (tp!=1 || (moe?!expert_fuse:batch>=16)))
       throw std::invalid_argument("live epilogue rows require TP1 small dense batches or fused experts");
     if(tp>1 && moe)throw std::invalid_argument("sm90 dense tensor parallel MoE is unsupported");
     if(tp>1 && argmax_stage)
